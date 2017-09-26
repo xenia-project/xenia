@@ -34,29 +34,11 @@ namespace vulkan {
 //
 class TextureCache {
  public:
-  struct TextureView;
+  struct TextureRegion;
+  struct Texture;
 
-  // This represents an uploaded Vulkan texture.
-  struct Texture {
-    TextureInfo texture_info;
-    std::vector<std::unique_ptr<TextureView>> views;
-
-    VkFormat format;
-    VkImage image;
-    VkImageLayout image_layout;
-    VmaAllocation alloc;
-    VmaAllocationInfo alloc_info;
-    VkFramebuffer framebuffer;  // Blit target frame buffer.
-
-    uintptr_t access_watch_handle;
-    bool pending_invalidation;
-
-    // Pointer to the latest usage fence.
-    VkFence in_flight_fence;
-  };
-
-  struct TextureView {
-    Texture* texture;
+  struct TextureRegionView {
+    TextureRegion* region;
     VkImageView view;
 
     union {
@@ -71,6 +53,43 @@ class TextureCache {
 
       uint16_t swizzle;
     };
+  };
+
+  struct TextureRegion {
+    Texture* texture;
+
+    std::vector<std::unique_ptr<TextureRegionView>> views;
+
+    VkOffset3D region_offset;
+    VkExtent3D region_size;
+
+    VkImage image;
+    VkImageLayout image_layout;
+    VmaAllocation allocation;
+    VmaAllocationInfo allocation_info;
+
+    bool region_contents_valid;
+  };
+
+  // This represents an uploaded Vulkan texture. A texture has a base image
+  // region containing its full content area, and zero or more regions
+  // that are crops of that base region.
+  struct Texture {
+    TextureInfo texture_info;
+    VkFormat format;
+
+    std::vector<std::unique_ptr<TextureRegion>> regions;
+
+    // Non-owning; base region is also in the (owning) regions vector.
+    TextureRegion* base_region;
+
+    VkFramebuffer framebuffer;  // Blit target frame buffer.
+
+    uintptr_t access_watch_handle;
+    bool pending_invalidation;
+
+    // Pointer to the latest usage fence.
+    VkFence in_flight_fence;
   };
 
   TextureCache(Memory* memory, RegisterFile* register_file,
@@ -108,7 +127,7 @@ class TextureCache {
                          uint32_t height, TextureFormat format,
                          VkOffset2D* out_offset = nullptr);
 
-  TextureView* DemandView(Texture* texture, uint16_t swizzle);
+  TextureRegionView* DemandTextureRegionView(TextureRegion*, uint16_t swizzle);
 
   // Demands a texture for the purpose of resolving from EDRAM. This either
   // creates a new texture or returns a previously created texture.
@@ -131,18 +150,20 @@ class TextureCache {
 
   // Allocates a new texture and memory to back it on the GPU.
   Texture* AllocateTexture(const TextureInfo& texture_info,
-                           VkFormatFeatureFlags required_flags =
-                               VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT);
+                           VkFormatFeatureFlags required_flags);
   bool FreeTexture(Texture* texture);
 
   static void WatchCallback(void* context_ptr, void* data_ptr,
                             uint32_t address);
+  TextureRegion* AllocateTextureRegion(Texture*, VkOffset3D region_offset,
+                                       VkExtent3D region_size,
+                                       VkFormatFeatureFlags required_flags);
 
   // Demands a texture. If command_buffer is null and the texture hasn't been
   // uploaded to graphics memory already, we will return null and bail.
-  Texture* Demand(const TextureInfo& texture_info,
-                  VkCommandBuffer command_buffer = nullptr,
-                  VkFence completion_fence = nullptr);
+  TextureRegion* DemandRegion(const TextureInfo& texture_info,
+                              VkCommandBuffer command_buffer = nullptr,
+                              VkFence completion_fence = nullptr);
   Sampler* Demand(const SamplerInfo& sampler_info);
 
   void FlushPendingCommands(VkCommandBuffer command_buffer,

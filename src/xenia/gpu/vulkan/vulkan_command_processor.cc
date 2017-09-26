@@ -436,11 +436,11 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
     barrier.srcAccessMask =
         VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
     barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-    barrier.oldLayout = texture->image_layout;
-    barrier.newLayout = texture->image_layout;
+    barrier.oldLayout = texture->base_region->image_layout;
+    barrier.newLayout = texture->base_region->image_layout;
     barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
     barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.image = texture->image;
+    barrier.image = texture->base_region->image;
     barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
 
     vkCmdPipelineBarrier(copy_commands,
@@ -473,7 +473,9 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
 
     blitter_->BlitTexture2D(
         copy_commands, current_batch_fence_,
-        texture_cache_->DemandView(texture, 0x688)->view, src_rect,
+        texture_cache_->DemandTextureRegionView(texture->base_region, 0x688)
+            ->view,
+        src_rect,
         {texture->texture_info.width + 1, texture->texture_info.height + 1},
         VK_FORMAT_R8G8B8A8_UNORM, dst_rect,
         {frontbuffer_width, frontbuffer_height}, fb_framebuffer_, viewport,
@@ -825,7 +827,7 @@ bool VulkanCommandProcessor::PopulateSamplers(VkCommandBuffer command_buffer,
 
   std::vector<xe::gpu::Shader::TextureBinding> dummy_bindings;
   auto descriptor_set = texture_cache_->PrepareTextureSet(
-      setup_buffer, current_batch_fence_, vertex_shader->texture_bindings(),
+      command_buffer, current_batch_fence_, vertex_shader->texture_bindings(),
       pixel_shader ? pixel_shader->texture_bindings() : dummy_bindings);
   if (!descriptor_set) {
     // Unable to bind set.
@@ -1039,7 +1041,15 @@ bool VulkanCommandProcessor::IssueCopy() {
   }
   auto command_buffer = current_command_buffer_;
 
-  if (texture->image_layout == VK_IMAGE_LAYOUT_UNDEFINED) {
+  // Mark all regions of the texture (except base region, which we will write
+  // to) as invalid
+  for (auto region_it = texture->regions.begin();
+       region_it != texture->regions.end(); ++region_it) {
+    (*region_it)->region_contents_valid = false;
+  }
+  texture->base_region->region_contents_valid = true;
+
+  if (texture->base_region->image_layout == VK_IMAGE_LAYOUT_UNDEFINED) {
     // Transition the image to a general layout.
     VkImageMemoryBarrier image_barrier;
     image_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -1050,13 +1060,13 @@ bool VulkanCommandProcessor::IssueCopy() {
     image_barrier.dstAccessMask = 0;
     image_barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     image_barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
-    image_barrier.image = texture->image;
+    image_barrier.image = texture->base_region->image;
     image_barrier.subresourceRange = {0, 0, 1, 0, 1};
     image_barrier.subresourceRange.aspectMask =
         is_color_source
             ? VK_IMAGE_ASPECT_COLOR_BIT
             : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
-    texture->image_layout = VK_IMAGE_LAYOUT_GENERAL;
+    texture->base_region->image_layout = VK_IMAGE_LAYOUT_GENERAL;
 
     vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                          VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 0,
@@ -1074,11 +1084,11 @@ bool VulkanCommandProcessor::IssueCopy() {
   image_barrier.dstAccessMask =
       is_color_source ? VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
                       : VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-  image_barrier.oldLayout = texture->image_layout;
+  image_barrier.oldLayout = texture->base_region->image_layout;
   image_barrier.newLayout =
       is_color_source ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
                       : VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-  image_barrier.image = texture->image;
+  image_barrier.image = texture->base_region->image;
   image_barrier.subresourceRange = {0, 0, 1, 0, 1};
   image_barrier.subresourceRange.aspectMask =
       is_color_source ? VK_IMAGE_ASPECT_COLOR_BIT
@@ -1152,7 +1162,8 @@ bool VulkanCommandProcessor::IssueCopy() {
 
       // Create a framebuffer containing our image.
       if (!texture->framebuffer) {
-        auto texture_view = texture_cache_->DemandView(texture, 0x688);
+        auto texture_view = texture_cache_->DemandTextureRegionView(
+            texture->base_region, 0x688);
 
         VkFramebufferCreateInfo fb_create_info = {
             VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
