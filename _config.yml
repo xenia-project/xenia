@@ -1,7 +1,7 @@
 # Set by github - do not change.
 safe: true
 lsi: false
-highlighter: pygments
+highlighter: rouge
 
 exclude:
 - bower.json
