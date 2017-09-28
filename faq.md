@@ -10,9 +10,7 @@ permalink: /faq/
 
 ## Can I get an exe?
 
-**NO**, not yet. Xenia is in its extremely early phases and not ready for use by
-non-developers. If you can't build it yourself using the instructions provided
-it probably means you should wait until alpha/beta/etc.
+Yes, by going to the latest build <a href="https://ci.appveyor.com/project/benvanik/xenia/build/artifacts">here</a> for Windows. From there go to Jobs > Configuration Release > Artifacts then you can download the zip file.  
 
 Don't be an idiot and download a binary claiming to be of this project. In fact,
 don't be an idiot and download *any* binary claiming to be an Xbox 360 or PS3
@@ -33,7 +31,7 @@ No. Do not post links or downloads to such resources or you will be banned.
 
 ## System Requirements
 
-* Windows 8.1 or Windows 10
+* Windows 8 or later
 * 64-bit Intel Sandy Bridge or Haswell processor (supporting AVX or AVX2)
 * A Vulkan compatible GPU from [this list](http://vulkan.gpuinfo.org/) (NVIDIA recommended)
 * An XInput-compatible controller
