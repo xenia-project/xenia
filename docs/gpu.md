@@ -24,16 +24,16 @@ TODO: More documentation
 
 ### General
 
-See the top of [src/xenia/gpu/gpu.cc](../src/xenia/gpu/gpu.cc).
+See the top of [src/xenia/gpu/gpu_flags.cc](../src/xenia/gpu/gpu_flags.cc).
 
 `--vsync=false` will attempt to render the game as fast as possible instead of
 waiting for a fixed 60hz timer.
 
-### OpenGL
+### Vulkan
 
-See the top of [src/xenia/gpu/gl4/gl4_gpu.cc](../src/xenia/gpu/gl4/gl4_gpu.cc).
+See the top of [src/xenia/gpu/vulkan/vulkan_gpu_flags.cc](../src/xenia/vulkan/vulkan_gpu_flags.cc).
 
-Buggy GL implementations can benefit from `--thread_safe_gl`.
+`vulkan_dump_disasm=true` "Dump shader disassembly. NVIDIA only supported."
 
 ## Tools
 
@@ -121,6 +121,6 @@ PM4 commands documented at [src/xenia/gpu/xenos.h](../src/xenia/gpu/xenos.h#L521
 
 ### Shaders
 
-* [LLVM R600 Tables](https://llvm.org/viewvc/llvm-project/llvm/trunk/lib/Target/R600/R600Instructions.td)
+* [LLVM R600 Tables](http://llvm.org/viewvc/llvm-project/llvm/trunk/lib/Target/AMDGPU/R600Instructions.td)
 ** The opcode formats don't match, but the name->psuedo code is correct.
 * [xemit](https://github.com/gligli/libxemit/blob/master/xemitops.c)
