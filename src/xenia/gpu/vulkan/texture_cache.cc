@@ -456,6 +456,16 @@ TextureCache::Texture* TextureCache::DemandResolveTexture(
       texture_info.guest_address, texture_info.input_length,
       cpu::MMIOHandler::kWatchWrite, &WatchCallback, this, texture);
 
+  // Invalidate any textures that share this memory location
+  for (auto it = textures_.begin(); it != textures_.end(); ++it) {
+    if (it->second->texture_info.guest_address == texture_info.guest_address) {
+      it->second->pending_invalidation = true;
+      invalidated_textures_mutex_.lock();
+      invalidated_textures_->push_back(it->second);
+      invalidated_textures_mutex_.unlock();
+    }
+  }
+
   textures_[texture_hash] = texture;
   COUNT_profile_set("gpu/texture_cache/textures", textures_.size());
   return texture;
