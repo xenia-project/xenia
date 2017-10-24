@@ -4960,7 +4960,7 @@ EMITTER_OPCODE_TABLE(OPCODE_RECIP, RECIP_F32, RECIP_F64, RECIP_V128);
 // TODO(benvanik): use approx here:
 //     http://jrfonseca.blogspot.com/2008/09/fast-sse2-pow-tables-or-polynomials.html
 struct POW2_F32 : Sequence<POW2_F32, I<OPCODE_POW2, F32Op, F32Op>> {
-  static __m128 EmulatePow2(void*, __m128 src) {
+  static __m128 EmulatePow2(void*, __m128& src) {
     float src_value;
     _mm_store_ss(&src_value, src);
     float result = std::exp2(src_value);
@@ -4974,7 +4974,7 @@ struct POW2_F32 : Sequence<POW2_F32, I<OPCODE_POW2, F32Op, F32Op>> {
   }
 };
 struct POW2_F64 : Sequence<POW2_F64, I<OPCODE_POW2, F64Op, F64Op>> {
-  static __m128d EmulatePow2(void*, __m128d src) {
+  static __m128d EmulatePow2(void*, __m128d& src) {
     double src_value;
     _mm_store_sd(&src_value, src);
     double result = std::exp2(src_value);
@@ -4988,7 +4988,7 @@ struct POW2_F64 : Sequence<POW2_F64, I<OPCODE_POW2, F64Op, F64Op>> {
   }
 };
 struct POW2_V128 : Sequence<POW2_V128, I<OPCODE_POW2, V128Op, V128Op>> {
-  static __m128 EmulatePow2(void*, __m128 src) {
+  static __m128 EmulatePow2(void*, __m128& src) {
     alignas(16) float values[4];
     _mm_store_ps(values, src);
     for (size_t i = 0; i < 4; ++i) {
@@ -5011,7 +5011,7 @@ EMITTER_OPCODE_TABLE(OPCODE_POW2, POW2_F32, POW2_F64, POW2_V128);
 //     http://jrfonseca.blogspot.com/2008/09/fast-sse2-pow-tables-or-polynomials.html
 // TODO(benvanik): this emulated fn destroys all xmm registers! don't do it!
 struct LOG2_F32 : Sequence<LOG2_F32, I<OPCODE_LOG2, F32Op, F32Op>> {
-  static __m128 EmulateLog2(void*, __m128 src) {
+  static __m128 EmulateLog2(void*, __m128& src) {
     float src_value;
     _mm_store_ss(&src_value, src);
     float result = std::log2(src_value);
@@ -5025,7 +5025,7 @@ struct LOG2_F32 : Sequence<LOG2_F32, I<OPCODE_LOG2, F32Op, F32Op>> {
   }
 };
 struct LOG2_F64 : Sequence<LOG2_F64, I<OPCODE_LOG2, F64Op, F64Op>> {
-  static __m128d EmulateLog2(void*, __m128d src) {
+  static __m128d EmulateLog2(void*, __m128d& src) {
     double src_value;
     _mm_store_sd(&src_value, src);
     double result = std::log2(src_value);
@@ -5039,7 +5039,7 @@ struct LOG2_F64 : Sequence<LOG2_F64, I<OPCODE_LOG2, F64Op, F64Op>> {
   }
 };
 struct LOG2_V128 : Sequence<LOG2_V128, I<OPCODE_LOG2, V128Op, V128Op>> {
-  static __m128 EmulateLog2(void*, __m128 src) {
+  static __m128 EmulateLog2(void*, __m128& src) {
     alignas(16) float values[4];
     _mm_store_ps(values, src);
     for (size_t i = 0; i < 4; ++i) {
@@ -5316,7 +5316,7 @@ struct SHL_V128 : Sequence<SHL_V128, I<OPCODE_SHL, V128Op, V128Op, I8Op>> {
     e.CallNativeSafe(reinterpret_cast<void*>(EmulateShlV128));
     e.vmovaps(i.dest, e.xmm0);
   }
-  static __m128i EmulateShlV128(void*, __m128i src1, uint8_t src2) {
+  static __m128i EmulateShlV128(void*, __m128i& src1, uint8_t src2) {
     // Almost all instances are shamt = 1, but non-constant.
     // shamt is [0,7]
     uint8_t shamt = src2 & 0x7;
@@ -5394,7 +5394,7 @@ struct SHR_V128 : Sequence<SHR_V128, I<OPCODE_SHR, V128Op, V128Op, I8Op>> {
     e.CallNativeSafe(reinterpret_cast<void*>(EmulateShrV128));
     e.vmovaps(i.dest, e.xmm0);
   }
-  static __m128i EmulateShrV128(void*, __m128i src1, uint8_t src2) {
+  static __m128i EmulateShrV128(void*, __m128i& src1, uint8_t src2) {
     // Almost all instances are shamt = 1, but non-constant.
     // shamt is [0,7]
     uint8_t shamt = src2 & 0x7;
@@ -5481,7 +5481,7 @@ struct VECTOR_SHL_V128
         break;
     }
   }
-  static __m128i EmulateVectorShlI8(void*, __m128i src1, __m128i src2) {
+  static __m128i EmulateVectorShlI8(void*, __m128i& src1, __m128i& src2) {
     alignas(16) uint8_t value[16];
     alignas(16) uint8_t shamt[16];
     _mm_store_si128(reinterpret_cast<__m128i*>(value), src1);
@@ -5503,7 +5503,7 @@ struct VECTOR_SHL_V128
     e.CallNativeSafe(reinterpret_cast<void*>(EmulateVectorShlI8));
     e.vmovaps(i.dest, e.xmm0);
   }
-  static __m128i EmulateVectorShlI16(void*, __m128i src1, __m128i src2) {
+  static __m128i EmulateVectorShlI16(void*, __m128i& src1, __m128i& src2) {
     alignas(16) uint16_t value[8];
     alignas(16) uint16_t shamt[8];
     _mm_store_si128(reinterpret_cast<__m128i*>(value), src1);
@@ -5564,7 +5564,7 @@ struct VECTOR_SHL_V128
 
     e.L(end);
   }
-  static __m128i EmulateVectorShlI32(void*, __m128i src1, __m128i src2) {
+  static __m128i EmulateVectorShlI32(void*, __m128i& src1, __m128i& src2) {
     alignas(16) uint32_t value[4];
     alignas(16) uint32_t shamt[4];
     _mm_store_si128(reinterpret_cast<__m128i*>(value), src1);
@@ -5667,7 +5667,7 @@ struct VECTOR_SHR_V128
         break;
     }
   }
-  static __m128i EmulateVectorShrI8(void*, __m128i src1, __m128i src2) {
+  static __m128i EmulateVectorShrI8(void*, __m128i& src1, __m128i& src2) {
     alignas(16) uint8_t value[16];
     alignas(16) uint8_t shamt[16];
     _mm_store_si128(reinterpret_cast<__m128i*>(value), src1);
@@ -5689,7 +5689,7 @@ struct VECTOR_SHR_V128
     e.CallNativeSafe(reinterpret_cast<void*>(EmulateVectorShrI8));
     e.vmovaps(i.dest, e.xmm0);
   }
-  static __m128i EmulateVectorShrI16(void*, __m128i src1, __m128i src2) {
+  static __m128i EmulateVectorShrI16(void*, __m128i& src1, __m128i& src2) {
     alignas(16) uint16_t value[8];
     alignas(16) uint16_t shamt[8];
     _mm_store_si128(reinterpret_cast<__m128i*>(value), src1);
@@ -5750,7 +5750,7 @@ struct VECTOR_SHR_V128
 
     e.L(end);
   }
-  static __m128i EmulateVectorShrI32(void*, __m128i src1, __m128i src2) {
+  static __m128i EmulateVectorShrI32(void*, __m128i& src1, __m128i& src2) {
     alignas(16) uint32_t value[4];
     alignas(16) uint32_t shamt[4];
     _mm_store_si128(reinterpret_cast<__m128i*>(value), src1);
@@ -5837,7 +5837,7 @@ EMITTER_OPCODE_TABLE(OPCODE_VECTOR_SHR, VECTOR_SHR_V128);
 // ============================================================================
 struct VECTOR_SHA_V128
     : Sequence<VECTOR_SHA_V128, I<OPCODE_VECTOR_SHA, V128Op, V128Op, V128Op>> {
-  static __m128i EmulateVectorShaI8(void*, __m128i src1, __m128i src2) {
+  static __m128i EmulateVectorShaI8(void*, __m128i& src1, __m128i& src2) {
     alignas(16) int8_t value[16];
     alignas(16) int8_t shamt[16];
     _mm_store_si128(reinterpret_cast<__m128i*>(value), src1);
@@ -5861,7 +5861,7 @@ struct VECTOR_SHA_V128
     e.vmovaps(i.dest, e.xmm0);
   }
 
-  static __m128i EmulateVectorShaI16(void*, __m128i src1, __m128i src2) {
+  static __m128i EmulateVectorShaI16(void*, __m128i& src1, __m128i& src2) {
     alignas(16) int16_t value[8];
     alignas(16) int16_t shamt[8];
     _mm_store_si128(reinterpret_cast<__m128i*>(value), src1);
@@ -5924,7 +5924,7 @@ struct VECTOR_SHA_V128
     e.L(end);
   }
 
-  static __m128i EmulateVectorShaI32(void*, __m128i src1, __m128i src2) {
+  static __m128i EmulateVectorShaI32(void*, __m128i& src1, __m128i& src2) {
     alignas(16) int32_t value[4];
     alignas(16) int32_t shamt[4];
     _mm_store_si128(reinterpret_cast<__m128i*>(value), src1);
@@ -6083,7 +6083,8 @@ EMITTER_OPCODE_TABLE(OPCODE_ROTATE_LEFT, ROTATE_LEFT_I8, ROTATE_LEFT_I16,
 struct VECTOR_ROTATE_LEFT_V128
     : Sequence<VECTOR_ROTATE_LEFT_V128,
                I<OPCODE_VECTOR_ROTATE_LEFT, V128Op, V128Op, V128Op>> {
-  static __m128i EmulateVectorRotateLeftI8(void*, __m128i src1, __m128i src2) {
+  static __m128i EmulateVectorRotateLeftI8(void*, __m128i& src1,
+                                           __m128i& src2) {
     alignas(16) uint8_t value[16];
     alignas(16) uint8_t shamt[16];
     _mm_store_si128(reinterpret_cast<__m128i*>(value), src1);
@@ -6093,7 +6094,8 @@ struct VECTOR_ROTATE_LEFT_V128
     }
     return _mm_load_si128(reinterpret_cast<__m128i*>(value));
   }
-  static __m128i EmulateVectorRotateLeftI16(void*, __m128i src1, __m128i src2) {
+  static __m128i EmulateVectorRotateLeftI16(void*, __m128i& src1,
+                                            __m128i& src2) {
     alignas(16) uint16_t value[8];
     alignas(16) uint16_t shamt[8];
     _mm_store_si128(reinterpret_cast<__m128i*>(value), src1);
@@ -6103,7 +6105,8 @@ struct VECTOR_ROTATE_LEFT_V128
     }
     return _mm_load_si128(reinterpret_cast<__m128i*>(value));
   }
-  static __m128i EmulateVectorRotateLeftI32(void*, __m128i src1, __m128i src2) {
+  static __m128i EmulateVectorRotateLeftI32(void*, __m128i& src1,
+                                            __m128i& src2) {
     alignas(16) uint32_t value[4];
     alignas(16) uint32_t shamt[4];
     _mm_store_si128(reinterpret_cast<__m128i*>(value), src1);
@@ -6182,8 +6185,8 @@ EMITTER_OPCODE_TABLE(OPCODE_VECTOR_ROTATE_LEFT, VECTOR_ROTATE_LEFT_V128);
 struct VECTOR_AVERAGE
     : Sequence<VECTOR_AVERAGE,
                I<OPCODE_VECTOR_AVERAGE, V128Op, V128Op, V128Op>> {
-  static __m128i EmulateVectorAverageUnsignedI32(void*, __m128i src1,
-                                                 __m128i src2) {
+  static __m128i EmulateVectorAverageUnsignedI32(void*, __m128i& src1,
+                                                 __m128i& src2) {
     alignas(16) uint32_t src1v[4];
     alignas(16) uint32_t src2v[4];
     alignas(16) uint32_t value[4];
@@ -6195,8 +6198,8 @@ struct VECTOR_AVERAGE
     }
     return _mm_load_si128(reinterpret_cast<__m128i*>(value));
   }
-  static __m128i EmulateVectorAverageSignedI32(void*, __m128i src1,
-                                               __m128i src2) {
+  static __m128i EmulateVectorAverageSignedI32(void*, __m128i& src1,
+                                               __m128i& src2) {
     alignas(16) int32_t src1v[4];
     alignas(16) int32_t src2v[4];
     alignas(16) int32_t value[4];
@@ -6900,7 +6903,7 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
     //     ((src1.uy & 0xFF) << 8) | (src1.uz & 0xFF)
     e.vpshufb(i.dest, i.dest, e.GetXmmConstPtr(XMMPackD3DCOLOR));
   }
-  static __m128i EmulateFLOAT16_2(void*, __m128 src1) {
+  static __m128i EmulateFLOAT16_2(void*, __m128& src1) {
     alignas(16) float a[4];
     alignas(16) uint16_t b[8];
     _mm_store_ps(a, src1);
@@ -6928,7 +6931,7 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
       e.vmovaps(i.dest, e.xmm0);
     }
   }
-  static __m128i EmulateFLOAT16_4(void*, __m128 src1) {
+  static __m128i EmulateFLOAT16_4(void*, __m128& src1) {
     alignas(16) float a[4];
     alignas(16) uint16_t b[8];
     _mm_store_ps(a, src1);
@@ -6971,7 +6974,7 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
     // Pack.
     e.vpshufb(i.dest, i.dest, e.GetXmmConstPtr(XMMPackSHORT_4));
   }
-  static __m128i EmulatePackUINT_2101010(void*, __m128i src1) {
+  static __m128i EmulatePackUINT_2101010(void*, __m128i& src1) {
     // https://www.opengl.org/registry/specs/ARB/vertex_type_2_10_10_10_rev.txt
     union {
       alignas(16) int32_t a_i[4];
@@ -7025,8 +7028,8 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
     e.CallNativeSafe(reinterpret_cast<void*>(EmulatePackUINT_2101010));
     e.vmovaps(i.dest, e.xmm0);
   }
-  static __m128i EmulatePack8_IN_16_UN_UN_SAT(void*, __m128i src1,
-                                              __m128i src2) {
+  static __m128i EmulatePack8_IN_16_UN_UN_SAT(void*, __m128i& src1,
+                                              __m128i& src2) {
     alignas(16) uint16_t a[8];
     alignas(16) uint16_t b[8];
     alignas(16) uint8_t c[16];
@@ -7038,7 +7041,7 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
     }
     return _mm_load_si128(reinterpret_cast<__m128i*>(c));
   }
-  static __m128i EmulatePack8_IN_16_UN_UN(void*, __m128i src1, __m128i src2) {
+  static __m128i EmulatePack8_IN_16_UN_UN(void*, __m128i& src1, __m128i& src2) {
     alignas(16) uint8_t a[16];
     alignas(16) uint8_t b[16];
     alignas(16) uint8_t c[16];
@@ -7265,7 +7268,7 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
     // Add 1.0f to each.
     e.vpor(i.dest, e.GetXmmConstPtr(XMMOne));
   }
-  static __m128 EmulateFLOAT16_2(void*, __m128i src1) {
+  static __m128 EmulateFLOAT16_2(void*, __m128i& src1) {
     alignas(16) uint16_t a[8];
     alignas(16) float b[4];
     _mm_store_si128(reinterpret_cast<__m128i*>(a), src1);
@@ -7319,7 +7322,7 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
       e.vmovaps(i.dest, e.xmm0);
     }
   }
-  static __m128 EmulateFLOAT16_4(void*, __m128i src1) {
+  static __m128 EmulateFLOAT16_4(void*, __m128i& src1) {
     alignas(16) uint16_t a[8];
     alignas(16) float b[4];
     _mm_store_si128(reinterpret_cast<__m128i*>(a), src1);
