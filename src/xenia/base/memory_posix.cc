@@ -55,6 +55,10 @@ void* AllocFixed(void* base_address, size_t length,
                  AllocationType allocation_type, PageAccess access) {
   // mmap does not support reserve / commit, so ignore allocation_type.
   uint32_t prot = ToPosixProtectFlags(access);
+  // TODO(bwrsandman, JoelLinn) Investigate if this affect the guest
+  // Any assumptions made by the guest that hold true for MS kernels
+  // (e.g. pattern of returned addresses) and not for posix may trigger a guest
+  // bug. Like what requesting an address thats not aligned.
   void* result = mmap(base_address, length, prot,
                       MAP_PRIVATE | MAP_FIXED | MAP_ANONYMOUS, -1, 0);
   if (result == MAP_FAILED) {
