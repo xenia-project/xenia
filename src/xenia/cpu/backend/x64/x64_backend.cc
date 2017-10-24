@@ -388,18 +388,32 @@ X64ThunkEmitter::X64ThunkEmitter(X64Backend* backend, XbyakAllocator* allocator)
 X64ThunkEmitter::~X64ThunkEmitter() {}
 
 HostToGuestThunk X64ThunkEmitter::EmitHostToGuestThunk() {
-  // rcx = target
-  // rdx = arg0 (context)
-  // r8 = arg1 (guest return address)
+  // rcx (win), rdi (linux) = target
+  // rdx (win), rsi (linux) = arg0 (context)
+  // r8 (win), rdx (linux) = arg1 (guest return address)
 
   const size_t stack_size = StackLayout::THUNK_STACK_SIZE;
-  // rsp + 0 = return address
+// rsp + 0 = return address
+#if XE_PLATFORM_LINUX
+  mov(qword[rsp + 8 * 3], rdx);
+  mov(qword[rsp + 8 * 2], rsi);
+  mov(qword[rsp + 8 * 1], rdi);
+#else
   mov(qword[rsp + 8 * 3], r8);
   mov(qword[rsp + 8 * 2], rdx);
   mov(qword[rsp + 8 * 1], rcx);
+#endif
   sub(rsp, stack_size);
 
-  // Preserve nonvolatile registers.
+// Preserve nonvolatile registers.
+#if XE_PLATFORM_LINUX
+  mov(qword[rsp + offsetof(StackLayout::Thunk, r[0])], rbx);
+  mov(qword[rsp + offsetof(StackLayout::Thunk, r[1])], rbp);
+  mov(qword[rsp + offsetof(StackLayout::Thunk, r[2])], r12);
+  mov(qword[rsp + offsetof(StackLayout::Thunk, r[3])], r13);
+  mov(qword[rsp + offsetof(StackLayout::Thunk, r[4])], r14);
+  mov(qword[rsp + offsetof(StackLayout::Thunk, r[5])], r15);
+#else
   mov(qword[rsp + offsetof(StackLayout::Thunk, r[0])], rbx);
   mov(qword[rsp + offsetof(StackLayout::Thunk, r[1])], rcx);
   mov(qword[rsp + offsetof(StackLayout::Thunk, r[2])], rbp);
@@ -420,12 +434,27 @@ HostToGuestThunk X64ThunkEmitter::EmitHostToGuestThunk() {
   movaps(qword[rsp + offsetof(StackLayout::Thunk, xmm[7])], xmm13);
   movaps(qword[rsp + offsetof(StackLayout::Thunk, xmm[8])], xmm14);
   movaps(qword[rsp + offsetof(StackLayout::Thunk, xmm[9])], xmm15);
+#endif
 
+#ifdef XE_PLATFORM_LINUX
+  mov(rax, rdi);
+  // context already in rsi
+  mov(rcx, rdx);  // return address
+#else
   mov(rax, rcx);
   mov(rsi, rdx);  // context
   mov(rcx, r8);   // return address
+#endif
   call(rax);
 
+#ifdef XE_PLATFORM_LINUX
+  mov(rbx, qword[rsp + offsetof(StackLayout::Thunk, r[0])]);
+  mov(rbp, qword[rsp + offsetof(StackLayout::Thunk, r[1])]);
+  mov(r12, qword[rsp + offsetof(StackLayout::Thunk, r[2])]);
+  mov(r13, qword[rsp + offsetof(StackLayout::Thunk, r[3])]);
+  mov(r14, qword[rsp + offsetof(StackLayout::Thunk, r[4])]);
+  mov(r15, qword[rsp + offsetof(StackLayout::Thunk, r[5])]);
+#else
   movaps(xmm6, qword[rsp + offsetof(StackLayout::Thunk, xmm[0])]);
   movaps(xmm7, qword[rsp + offsetof(StackLayout::Thunk, xmm[1])]);
   movaps(xmm8, qword[rsp + offsetof(StackLayout::Thunk, xmm[2])]);
@@ -446,11 +475,18 @@ HostToGuestThunk X64ThunkEmitter::EmitHostToGuestThunk() {
   mov(r13, qword[rsp + offsetof(StackLayout::Thunk, r[6])]);
   mov(r14, qword[rsp + offsetof(StackLayout::Thunk, r[7])]);
   mov(r15, qword[rsp + offsetof(StackLayout::Thunk, r[8])]);
+#endif
 
   add(rsp, stack_size);
+#if XE_PLATFORM_LINUX
+  mov(rdi, qword[rsp + 8 * 1]);
+  mov(rsi, qword[rsp + 8 * 2]);
+  mov(rdx, qword[rsp + 8 * 3]);
+#else
   mov(rcx, qword[rsp + 8 * 1]);
   mov(rdx, qword[rsp + 8 * 2]);
   mov(r8, qword[rsp + 8 * 3]);
+#endif
   ret();
 
   void* fn = Emplace(stack_size);
@@ -470,40 +506,55 @@ GuestToHostThunk X64ThunkEmitter::EmitGuestToHostThunk() {
   mov(qword[rsp + 8 * 1], rcx);
   sub(rsp, stack_size);
 
-  // Save off volatile registers.
-  // TODO(DrChat): Enable this when we actually need this.
-  // mov(qword[rsp + offsetof(StackLayout::Thunk, r[0])], rcx);
-  // mov(qword[rsp + offsetof(StackLayout::Thunk, r[1])], rdx);
-  // mov(qword[rsp + offsetof(StackLayout::Thunk, r[2])], r8);
-  // mov(qword[rsp + offsetof(StackLayout::Thunk, r[3])], r9);
-  // mov(qword[rsp + offsetof(StackLayout::Thunk, r[4])], r10);
-  // mov(qword[rsp + offsetof(StackLayout::Thunk, r[5])], r11);
+// Save off volatile registers.
+#if XE_PLATFORM_LINUX
+  mov(qword[rsp + offsetof(StackLayout::Thunk, r[0])], rsi);
+#else
+// TODO(DrChat): Enable this when we actually need this.
+// mov(qword[rsp + offsetof(StackLayout::Thunk, r[0])], rcx);
+// mov(qword[rsp + offsetof(StackLayout::Thunk, r[1])], rdx);
+// mov(qword[rsp + offsetof(StackLayout::Thunk, r[2])], r8);
+// mov(qword[rsp + offsetof(StackLayout::Thunk, r[3])], r9);
+// mov(qword[rsp + offsetof(StackLayout::Thunk, r[4])], r10);
+// mov(qword[rsp + offsetof(StackLayout::Thunk, r[5])], r11);
 
-  // movaps(qword[rsp + offsetof(StackLayout::Thunk, xmm[1])], xmm1);
-  // movaps(qword[rsp + offsetof(StackLayout::Thunk, xmm[2])], xmm2);
-  // movaps(qword[rsp + offsetof(StackLayout::Thunk, xmm[3])], xmm3);
-  // movaps(qword[rsp + offsetof(StackLayout::Thunk, xmm[4])], xmm4);
-  // movaps(qword[rsp + offsetof(StackLayout::Thunk, xmm[5])], xmm5);
+// movaps(qword[rsp + offsetof(StackLayout::Thunk, xmm[1])], xmm1);
+// movaps(qword[rsp + offsetof(StackLayout::Thunk, xmm[2])], xmm2);
+// movaps(qword[rsp + offsetof(StackLayout::Thunk, xmm[3])], xmm3);
+// movaps(qword[rsp + offsetof(StackLayout::Thunk, xmm[4])], xmm4);
+// movaps(qword[rsp + offsetof(StackLayout::Thunk, xmm[5])], xmm5);
+#endif
 
   mov(rax, rdx);
+#if XE_PLATFORM_LINUX
+  mov(rdi, rsi);  // context
+  mov(rsi, r8);
+  mov(rdx, r9);
+  mov(rcx, r10);
+#else
   mov(rcx, rsi);  // context
   mov(rdx, r8);
   mov(r8, r9);
   mov(r9, r10);
+#endif
   call(rax);
 
-  // movaps(xmm1, qword[rsp + offsetof(StackLayout::Thunk, xmm[1])]);
-  // movaps(xmm2, qword[rsp + offsetof(StackLayout::Thunk, xmm[2])]);
-  // movaps(xmm3, qword[rsp + offsetof(StackLayout::Thunk, xmm[3])]);
-  // movaps(xmm4, qword[rsp + offsetof(StackLayout::Thunk, xmm[4])]);
-  // movaps(xmm5, qword[rsp + offsetof(StackLayout::Thunk, xmm[5])]);
+#ifdef XE_PLATFORM_LINUX
+  mov(rsi, qword[rsp + offsetof(StackLayout::Thunk, r[0])]);
+#else
+// movaps(xmm1, qword[rsp + offsetof(StackLayout::Thunk, xmm[1])]);
+// movaps(xmm2, qword[rsp + offsetof(StackLayout::Thunk, xmm[2])]);
+// movaps(xmm3, qword[rsp + offsetof(StackLayout::Thunk, xmm[3])]);
+// movaps(xmm4, qword[rsp + offsetof(StackLayout::Thunk, xmm[4])]);
+// movaps(xmm5, qword[rsp + offsetof(StackLayout::Thunk, xmm[5])]);
 
-  // mov(rcx, qword[rsp + offsetof(StackLayout::Thunk, r[0])]);
-  // mov(rdx, qword[rsp + offsetof(StackLayout::Thunk, r[1])]);
-  // mov(r8, qword[rsp + offsetof(StackLayout::Thunk, r[2])]);
-  // mov(r9, qword[rsp + offsetof(StackLayout::Thunk, r[3])]);
-  // mov(r10, qword[rsp + offsetof(StackLayout::Thunk, r[4])]);
-  // mov(r11, qword[rsp + offsetof(StackLayout::Thunk, r[5])]);
+// mov(rcx, qword[rsp + offsetof(StackLayout::Thunk, r[0])]);
+// mov(rdx, qword[rsp + offsetof(StackLayout::Thunk, r[1])]);
+// mov(r8, qword[rsp + offsetof(StackLayout::Thunk, r[2])]);
+// mov(r9, qword[rsp + offsetof(StackLayout::Thunk, r[3])]);
+// mov(r10, qword[rsp + offsetof(StackLayout::Thunk, r[4])]);
+// mov(r11, qword[rsp + offsetof(StackLayout::Thunk, r[5])]);
+#endif
 
   add(rsp, stack_size);
   mov(rcx, qword[rsp + 8 * 1]);
@@ -518,24 +569,47 @@ GuestToHostThunk X64ThunkEmitter::EmitGuestToHostThunk() {
 extern "C" uint64_t ResolveFunction(void* raw_context, uint32_t target_address);
 
 ResolveFunctionThunk X64ThunkEmitter::EmitResolveFunctionThunk() {
-  // ebx = target PPC address
-  // rcx = context
+// ebx = target PPC address
+// rcx = context
 
+#ifdef XE_PLATFORM_LINUX
+  uint32_t stack_size = 0x28;
+#else
   uint32_t stack_size = 0x18;
+#endif
 
-  // rsp + 0 = return address
+// rsp + 0 = return address
+#if XE_PLATFORM_LINUX
+  mov(qword[rsp + 8 * 4], rdx);
+  mov(qword[rsp + 8 * 3], rcx);
+  mov(qword[rsp + 8 * 2], rsi);
+  mov(qword[rsp + 8 * 1], rdi);
+#else
   mov(qword[rsp + 8 * 2], rdx);
   mov(qword[rsp + 8 * 1], rcx);
+#endif
   sub(rsp, stack_size);
 
+#if XE_PLATFORM_LINUX
+  mov(rdi, rsi);  // context
+  mov(rsi, rbx);
+#else
   mov(rcx, rsi);  // context
   mov(rdx, rbx);
+#endif
   mov(rax, uint64_t(&ResolveFunction));
   call(rax);
 
   add(rsp, stack_size);
+#if XE_PLATFORM_LINUX
+  mov(rdi, qword[rsp + 8 * 1]);
+  mov(rsi, qword[rsp + 8 * 2]);
+  mov(rcx, qword[rsp + 8 * 3]);
+  mov(rdx, qword[rsp + 8 * 4]);
+#else
   mov(rcx, qword[rsp + 8 * 1]);
   mov(rdx, qword[rsp + 8 * 2]);
+#endif
   jmp(rax);
 
   void* fn = Emplace(stack_size);
