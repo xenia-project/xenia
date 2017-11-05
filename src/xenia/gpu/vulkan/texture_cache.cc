@@ -18,6 +18,8 @@
 #include "xenia/gpu/texture_info.h"
 #include "xenia/gpu/vulkan/vulkan_gpu_flags.h"
 
+#include "third_party/vulkan/vk_mem_alloc.h"
+
 namespace xe {
 namespace gpu {
 namespace vulkan {
@@ -28,84 +30,92 @@ constexpr uint32_t kMaxTextureSamplers = 32;
 constexpr VkDeviceSize kStagingBufferSize = 32 * 1024 * 1024;
 
 struct TextureConfig {
-  TextureFormat guest_format;
   VkFormat host_format;
 };
 
 static const TextureConfig texture_configs[64] = {
-    {TextureFormat::k_1_REVERSE, VK_FORMAT_UNDEFINED},
-    {TextureFormat::k_1, VK_FORMAT_UNDEFINED},
-    {TextureFormat::k_8, VK_FORMAT_R8_UNORM},
-    {TextureFormat::k_1_5_5_5, VK_FORMAT_R5G5B5A1_UNORM_PACK16},
-    {TextureFormat::k_5_6_5, VK_FORMAT_R5G6B5_UNORM_PACK16},
-    {TextureFormat::k_6_5_5, VK_FORMAT_UNDEFINED},
-    {TextureFormat::k_8_8_8_8, VK_FORMAT_R8G8B8A8_UNORM},
-    {TextureFormat::k_2_10_10_10, VK_FORMAT_A2R10G10B10_UNORM_PACK32},
-    {TextureFormat::k_8_A, VK_FORMAT_UNDEFINED},
-    {TextureFormat::k_8_B, VK_FORMAT_UNDEFINED},
-    {TextureFormat::k_8_8, VK_FORMAT_R8G8_UNORM},
-    {TextureFormat::k_Cr_Y1_Cb_Y0, VK_FORMAT_UNDEFINED},
-    {TextureFormat::k_Y1_Cr_Y0_Cb, VK_FORMAT_UNDEFINED},
-    {TextureFormat::kUnknown, VK_FORMAT_UNDEFINED},
-    {TextureFormat::k_8_8_8_8_A, VK_FORMAT_UNDEFINED},
-    {TextureFormat::k_4_4_4_4, VK_FORMAT_R4G4B4A4_UNORM_PACK16},
-    {TextureFormat::k_10_11_11, VK_FORMAT_B10G11R11_UFLOAT_PACK32},  // ?
-    {TextureFormat::k_11_11_10, VK_FORMAT_B10G11R11_UFLOAT_PACK32},  // ?
-    {TextureFormat::k_DXT1, VK_FORMAT_BC1_RGBA_UNORM_BLOCK},
-    {TextureFormat::k_DXT2_3, VK_FORMAT_BC2_UNORM_BLOCK},
-    {TextureFormat::k_DXT4_5, VK_FORMAT_BC3_UNORM_BLOCK},
-    {TextureFormat::kUnknown, VK_FORMAT_UNDEFINED},
-    {TextureFormat::k_24_8, VK_FORMAT_D24_UNORM_S8_UINT},
-    {TextureFormat::k_24_8_FLOAT, VK_FORMAT_D24_UNORM_S8_UINT},  // ?
-    {TextureFormat::k_16, VK_FORMAT_R16_UNORM},
-    {TextureFormat::k_16_16, VK_FORMAT_R16G16_UNORM},
-    {TextureFormat::k_16_16_16_16, VK_FORMAT_R16G16B16A16_UNORM},
-    {TextureFormat::k_16_EXPAND, VK_FORMAT_R16_UNORM},                    // ?
-    {TextureFormat::k_16_16_EXPAND, VK_FORMAT_R16G16_UNORM},              // ?
-    {TextureFormat::k_16_16_16_16_EXPAND, VK_FORMAT_R16G16B16A16_UNORM},  // ?
-    {TextureFormat::k_16_FLOAT, VK_FORMAT_R16_SFLOAT},
-    {TextureFormat::k_16_16_FLOAT, VK_FORMAT_R16G16_SFLOAT},
-    {TextureFormat::k_16_16_16_16_FLOAT, VK_FORMAT_R16G16B16A16_SFLOAT},
-    {TextureFormat::k_32, VK_FORMAT_R32_SINT},
-    {TextureFormat::k_32_32, VK_FORMAT_R32G32_SINT},
-    {TextureFormat::k_32_32_32_32, VK_FORMAT_R32G32B32A32_SINT},
-    {TextureFormat::k_32_FLOAT, VK_FORMAT_R32_SFLOAT},
-    {TextureFormat::k_32_32_FLOAT, VK_FORMAT_R32G32_SFLOAT},
-    {TextureFormat::k_32_32_32_32_FLOAT, VK_FORMAT_R32G32B32A32_SFLOAT},
-    {TextureFormat::k_32_AS_8, VK_FORMAT_UNDEFINED},
-    {TextureFormat::k_32_AS_8_8, VK_FORMAT_UNDEFINED},
-    {TextureFormat::k_16_MPEG, VK_FORMAT_UNDEFINED},
-    {TextureFormat::k_16_16_MPEG, VK_FORMAT_UNDEFINED},
-    {TextureFormat::k_8_INTERLACED, VK_FORMAT_UNDEFINED},
-    {TextureFormat::k_32_AS_8_INTERLACED, VK_FORMAT_UNDEFINED},
-    {TextureFormat::k_32_AS_8_8_INTERLACED, VK_FORMAT_UNDEFINED},
-    {TextureFormat::k_16_INTERLACED, VK_FORMAT_UNDEFINED},
-    {TextureFormat::k_16_MPEG_INTERLACED, VK_FORMAT_UNDEFINED},
-    {TextureFormat::k_16_16_MPEG_INTERLACED, VK_FORMAT_UNDEFINED},
+    /* k_1_REVERSE              */ {VK_FORMAT_UNDEFINED},
+    /* k_1                      */ {VK_FORMAT_UNDEFINED},
+    /* k_8                      */ {VK_FORMAT_R8_UNORM},
+    // ! A1BGR5
+    /* k_1_5_5_5                */ {VK_FORMAT_A1R5G5B5_UNORM_PACK16},
+    /* k_5_6_5                  */ {VK_FORMAT_R5G6B5_UNORM_PACK16},
+    /* k_6_5_5                  */ {VK_FORMAT_UNDEFINED},
+    /* k_8_8_8_8                */ {VK_FORMAT_R8G8B8A8_UNORM},
+    /* k_2_10_10_10             */ {VK_FORMAT_A2R10G10B10_UNORM_PACK32},
+    /* k_8_A                    */ {VK_FORMAT_UNDEFINED},
+    /* k_8_B                    */ {VK_FORMAT_UNDEFINED},
+    /* k_8_8                    */ {VK_FORMAT_R8G8_UNORM},
+    /* k_Cr_Y1_Cb_Y0            */ {VK_FORMAT_UNDEFINED},
+    /* k_Y1_Cr_Y0_Cb            */ {VK_FORMAT_UNDEFINED},
+    /* k_Shadow                 */ {VK_FORMAT_UNDEFINED},
+    /* k_8_8_8_8_A              */ {VK_FORMAT_UNDEFINED},
+    /* k_4_4_4_4                */ {VK_FORMAT_R4G4B4A4_UNORM_PACK16},
+    // TODO: Verify if these two are correct (I think not).
+    /* k_10_11_11               */ {VK_FORMAT_B10G11R11_UFLOAT_PACK32},
+    /* k_11_11_10               */ {VK_FORMAT_B10G11R11_UFLOAT_PACK32},
+
+    /* k_DXT1                   */ {VK_FORMAT_BC1_RGBA_UNORM_BLOCK},
+    /* k_DXT2_3                 */ {VK_FORMAT_BC2_UNORM_BLOCK},
+    /* k_DXT4_5                 */ {VK_FORMAT_BC3_UNORM_BLOCK},
+    /* k_DXV                    */ {VK_FORMAT_UNDEFINED},
+
+    // TODO: D24 unsupported on AMD.
+    /* k_24_8                   */ {VK_FORMAT_D24_UNORM_S8_UINT},
+    /* k_24_8_FLOAT             */ {VK_FORMAT_D24_UNORM_S8_UINT},
+    /* k_16                     */ {VK_FORMAT_R16_UNORM},
+    /* k_16_16                  */ {VK_FORMAT_R16G16_UNORM},
+    /* k_16_16_16_16            */ {VK_FORMAT_R16G16B16A16_UNORM},
+    /* k_16_EXPAND              */ {VK_FORMAT_R16_UNORM},
+    /* k_16_16_EXPAND           */ {VK_FORMAT_R16G16_UNORM},
+    /* k_16_16_16_16_EXPAND     */ {VK_FORMAT_R16G16B16A16_UNORM},
+    /* k_16_FLOAT               */ {VK_FORMAT_R16_SFLOAT},
+    /* k_16_16_FLOAT            */ {VK_FORMAT_R16G16_SFLOAT},
+    /* k_16_16_16_16_FLOAT      */ {VK_FORMAT_R16G16B16A16_SFLOAT},
+
+    // ! These are UNORM formats, not SINT.
+    /* k_32                     */ {VK_FORMAT_R32_SINT},
+    /* k_32_32                  */ {VK_FORMAT_R32G32_SINT},
+    /* k_32_32_32_32            */ {VK_FORMAT_R32G32B32A32_SINT},
+    /* k_32_FLOAT               */ {VK_FORMAT_R32_SFLOAT},
+    /* k_32_32_FLOAT            */ {VK_FORMAT_R32G32_SFLOAT},
+    /* k_32_32_32_32_FLOAT      */ {VK_FORMAT_R32G32B32A32_SFLOAT},
+    /* k_32_AS_8                */ {VK_FORMAT_UNDEFINED},
+    /* k_32_AS_8_8              */ {VK_FORMAT_UNDEFINED},
+    /* k_16_MPEG                */ {VK_FORMAT_UNDEFINED},
+    /* k_16_16_MPEG             */ {VK_FORMAT_UNDEFINED},
+    /* k_8_INTERLACED           */ {VK_FORMAT_UNDEFINED},
+    /* k_32_AS_8_INTERLACED     */ {VK_FORMAT_UNDEFINED},
+    /* k_32_AS_8_8_INTERLACED   */ {VK_FORMAT_UNDEFINED},
+    /* k_16_INTERLACED          */ {VK_FORMAT_UNDEFINED},
+    /* k_16_MPEG_INTERLACED     */ {VK_FORMAT_UNDEFINED},
+    /* k_16_16_MPEG_INTERLACED  */ {VK_FORMAT_UNDEFINED},
 
     // http://fileadmin.cs.lth.se/cs/Personal/Michael_Doggett/talks/unc-xenos-doggett.pdf
-    {TextureFormat::k_DXN, VK_FORMAT_BC5_UNORM_BLOCK},  // ?
+    /* k_DXN                    */ {VK_FORMAT_BC5_UNORM_BLOCK},  // ?
 
-    {TextureFormat::k_8_8_8_8_AS_16_16_16_16, VK_FORMAT_R8G8B8A8_UNORM},
-    {TextureFormat::k_DXT1_AS_16_16_16_16, VK_FORMAT_BC1_RGBA_UNORM_BLOCK},
-    {TextureFormat::k_DXT2_3_AS_16_16_16_16, VK_FORMAT_BC2_UNORM_BLOCK},
-    {TextureFormat::k_DXT4_5_AS_16_16_16_16, VK_FORMAT_BC3_UNORM_BLOCK},
-    {TextureFormat::k_2_10_10_10_AS_16_16_16_16,
-     VK_FORMAT_A2R10G10B10_UNORM_PACK32},
-    {TextureFormat::k_10_11_11_AS_16_16_16_16,
-     VK_FORMAT_B10G11R11_UFLOAT_PACK32},  // ?
-    {TextureFormat::k_11_11_10_AS_16_16_16_16,
-     VK_FORMAT_B10G11R11_UFLOAT_PACK32},  // ?
-    {TextureFormat::k_32_32_32_FLOAT, VK_FORMAT_R32G32B32_SFLOAT},
-    {TextureFormat::k_DXT3A, VK_FORMAT_UNDEFINED},
-    {TextureFormat::k_DXT5A, VK_FORMAT_UNDEFINED},
+    /* k_8_8_8_8_AS_16_16_16_16 */ {VK_FORMAT_R8G8B8A8_UNORM},
+    /* k_DXT1_AS_16_16_16_16    */ {VK_FORMAT_BC1_RGBA_UNORM_BLOCK},
+    /* k_DXT2_3_AS_16_16_16_16  */ {VK_FORMAT_BC2_UNORM_BLOCK},
+    /* k_DXT4_5_AS_16_16_16_16  */ {VK_FORMAT_BC3_UNORM_BLOCK},
+
+    /* k_2_10_10_10_AS_16_16_16_16 */ {VK_FORMAT_A2R10G10B10_UNORM_PACK32},
+
+    // TODO: Verify if these two are correct (I think not).
+    /* k_10_11_11_AS_16_16_16_16 */ {VK_FORMAT_B10G11R11_UFLOAT_PACK32},  // ?
+    /* k_11_11_10_AS_16_16_16_16 */ {VK_FORMAT_B10G11R11_UFLOAT_PACK32},  // ?
+    /* k_32_32_32_FLOAT         */ {VK_FORMAT_R32G32B32_SFLOAT},
+    /* k_DXT3A                  */ {VK_FORMAT_UNDEFINED},
+    /* k_DXT5A                  */ {VK_FORMAT_UNDEFINED},
 
     // http://fileadmin.cs.lth.se/cs/Personal/Michael_Doggett/talks/unc-xenos-doggett.pdf
-    {TextureFormat::k_CTX1, VK_FORMAT_R8G8_UINT},
+    /* k_CTX1                   */ {VK_FORMAT_R8G8_UINT},
 
-    {TextureFormat::k_DXT3A_AS_1_1_1_1, VK_FORMAT_UNDEFINED},
-    {TextureFormat::kUnknown, VK_FORMAT_UNDEFINED},
-    {TextureFormat::kUnknown, VK_FORMAT_UNDEFINED},
+    /* k_DXT3A_AS_1_1_1_1       */ {VK_FORMAT_UNDEFINED},
+
+    // Unused.
+    /* kUnknown                 */ {VK_FORMAT_UNDEFINED},
+    /* kUnknown                 */ {VK_FORMAT_UNDEFINED},
 };
 
 TextureCache::TextureCache(Memory* memory, RegisterFile* register_file,
@@ -178,6 +188,13 @@ TextureCache::TextureCache(Memory* memory, RegisterFile* register_file,
     assert_always();
   }
 
+  // Create a memory allocator for textures.
+  VmaAllocatorCreateInfo alloc_info = {
+      0, *device_, *device_, 0, 0, nullptr, nullptr,
+  };
+  err = vmaCreateAllocator(&alloc_info, &mem_allocator_);
+  CheckResult(err, "vmaCreateAllocator");
+
   invalidated_textures_sets_[0].reserve(64);
   invalidated_textures_sets_[1].reserve(64);
   invalidated_textures_ = &invalidated_textures_sets_[0];
@@ -190,12 +207,11 @@ TextureCache::~TextureCache() {
     device_->ReleaseQueue(device_queue_);
   }
 
-  for (auto it = samplers_.begin(); it != samplers_.end(); ++it) {
-    vkDestroySampler(*device_, it->second->sampler, nullptr);
-    delete it->second;
-  }
-  samplers_.clear();
+  // Free all textures allocated.
+  ClearCache();
+  Scavenge();
 
+  vmaDestroyAllocator(mem_allocator_);
   vkDestroyDescriptorSetLayout(*device_, texture_descriptor_set_layout_,
                                nullptr);
 }
@@ -237,6 +253,11 @@ TextureCache::Texture* TextureCache::AllocateTexture(
   vkGetPhysicalDeviceFormatProperties(*device_, format, &props);
   if ((props.optimalTilingFeatures & required_flags) != required_flags) {
     // Texture needs conversion on upload to a native format.
+    XELOGE(
+        "Texture Cache: Invalid usage flag specified on format %s (vk %d) "
+        "(0x%.8X != 0x%.8X)",
+        texture_info.format_info()->name, format,
+        (props.optimalTilingFeatures & required_flags), required_flags);
     assert_always();
   }
 
@@ -267,34 +288,26 @@ TextureCache::Texture* TextureCache::AllocateTexture(
   image_info.pQueueFamilyIndices = nullptr;
   image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
   VkImage image;
-  auto err = vkCreateImage(*device_, &image_info, nullptr, &image);
-  CheckResult(err, "vkCreateImage");
 
-  VkMemoryRequirements mem_requirements;
-  vkGetImageMemoryRequirements(*device_, image, &mem_requirements);
-
-  // TODO: Use a circular buffer or something else to allocate this memory.
-  // The device has a limited amount (around 64) of memory allocations that we
-  // can make.
-  // Now that we have the size, back the image with GPU memory.
-  auto memory = device_->AllocateMemory(mem_requirements, 0);
-  if (!memory) {
+  VmaAllocation alloc;
+  VmaMemoryRequirements vma_reqs = {
+      0, VMA_MEMORY_USAGE_GPU_ONLY, 0, 0, nullptr,
+  };
+  VmaAllocationInfo vma_info = {};
+  VkResult status = vmaCreateImage(mem_allocator_, &image_info, &vma_reqs,
+                                   &image, &alloc, &vma_info);
+  if (status != VK_SUCCESS) {
     // Crap.
     assert_always();
-    vkDestroyImage(*device_, image, nullptr);
     return nullptr;
   }
-
-  err = vkBindImageMemory(*device_, image, memory, 0);
-  CheckResult(err, "vkBindImageMemory");
 
   auto texture = new Texture();
   texture->format = image_info.format;
   texture->image = image;
   texture->image_layout = image_info.initialLayout;
-  texture->image_memory = memory;
-  texture->memory_offset = 0;
-  texture->memory_size = mem_requirements.size;
+  texture->alloc = alloc;
+  texture->alloc_info = vma_info;
   texture->framebuffer = nullptr;
   texture->access_watch_handle = 0;
   texture->texture_info = texture_info;
@@ -322,8 +335,7 @@ bool TextureCache::FreeTexture(Texture* texture) {
     texture->access_watch_handle = 0;
   }
 
-  vkDestroyImage(*device_, texture->image, nullptr);
-  vkFreeMemory(*device_, texture->image_memory, nullptr);
+  vmaDestroyImage(mem_allocator_, texture->image, texture->alloc);
   delete texture;
   return true;
 }
@@ -347,10 +359,22 @@ TextureCache::Texture* TextureCache::DemandResolveTexture(
     }
   }
 
+  VkFormatFeatureFlags required_flags = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT;
+  if (texture_info.texture_format == TextureFormat::k_24_8 ||
+      texture_info.texture_format == TextureFormat::k_24_8_FLOAT) {
+    required_flags |= VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT;
+  } else {
+    required_flags |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT;
+  }
+
   // No texture at this location. Make a new one.
-  auto texture =
-      AllocateTexture(texture_info, VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT |
-                                        VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT);
+  auto texture = AllocateTexture(texture_info, required_flags);
+  if (!texture) {
+    // Failed to allocate texture (out of memory?)
+    assert_always();
+    XELOGE("Vulkan Texture Cache: Failed to allocate texture!");
+    return nullptr;
+  }
 
   // Setup a debug name for the texture.
   device_->DbgSetObjectName(
@@ -415,6 +439,7 @@ TextureCache::Texture* TextureCache::Demand(const TextureInfo& texture_info,
   if (!texture) {
     // Failed to allocate texture (out of memory?)
     assert_always();
+    XELOGE("Vulkan Texture Cache: Failed to allocate texture!");
     return nullptr;
   }
 
@@ -831,112 +856,69 @@ void TextureCache::FlushPendingCommands(VkCommandBuffer command_buffer,
   vkBeginCommandBuffer(command_buffer, &begin_info);
 }
 
+void TextureCache::ConvertTexelCTX1(uint8_t* dest, size_t dest_pitch,
+                                    const uint8_t* src, Endian src_endianness) {
+  // http://fileadmin.cs.lth.se/cs/Personal/Michael_Doggett/talks/unc-xenos-doggett.pdf
+  union {
+    uint8_t data[8];
+    struct {
+      uint8_t r0, g0, r1, g1;
+      uint32_t xx;
+    };
+  } block;
+  static_assert(sizeof(block) == 8, "CTX1 block mismatch");
+
+  const uint32_t bytes_per_block = 8;
+  TextureSwap(src_endianness, block.data, src, bytes_per_block);
+
+  uint8_t cr[4] = {
+      block.r0, block.r1,
+      static_cast<uint8_t>(2.f / 3.f * block.r0 + 1.f / 3.f * block.r1),
+      static_cast<uint8_t>(1.f / 3.f * block.r0 + 2.f / 3.f * block.r1)};
+  uint8_t cg[4] = {
+      block.g0, block.g1,
+      static_cast<uint8_t>(2.f / 3.f * block.g0 + 1.f / 3.f * block.g1),
+      static_cast<uint8_t>(1.f / 3.f * block.g0 + 2.f / 3.f * block.g1)};
+
+  for (uint32_t oy = 0; oy < 4; ++oy) {
+    for (uint32_t ox = 0; ox < 4; ++ox) {
+      uint8_t xx = (block.xx >> (((ox + (oy * 4)) * 2))) & 3;
+      dest[(oy * dest_pitch) + (ox * 2) + 0] = cr[xx];
+      dest[(oy * dest_pitch) + (ox * 2) + 1] = cg[xx];
+    }
+  }
+}
+
 bool TextureCache::ConvertTexture2D(uint8_t* dest,
                                     VkBufferImageCopy* copy_region,
                                     const TextureInfo& src) {
   void* host_address = memory_->TranslatePhysical(src.guest_address);
-  if (src.texture_format == TextureFormat::k_CTX1) {
-    if (!src.is_tiled) {
-      assert_always();
-    } else {
-      // Untile image.
-      // We could do this in a shader to speed things up, as this is pretty
-      // slow.
+  if (!src.is_tiled) {
+    uint32_t offset_x, offset_y;
+    if (src.has_packed_mips &&
+        TextureInfo::GetPackedTileOffset(src, &offset_x, &offset_y)) {
+      uint32_t bytes_per_block = src.format_info()->block_width *
+                                 src.format_info()->block_height *
+                                 src.format_info()->bits_per_pixel / 8;
 
-      // TODO(benvanik): optimize this inner loop (or work by tiles).
       const uint8_t* src_mem = reinterpret_cast<const uint8_t*>(host_address);
-      const uint32_t bytes_per_block = 8;
-
-      // Tiled textures can be packed; get the offset into the packed texture.
-      uint32_t offset_x;
-      uint32_t offset_y;
-      TextureInfo::GetPackedTileOffset(src, &offset_x, &offset_y);
-      auto log2_bpp = (bytes_per_block >> 2) +
-                      ((bytes_per_block >> 1) >> (bytes_per_block >> 2));
-
-      uint32_t output_pitch = src.size_2d.input_width * 2;
-      // Offset to the current row, in bytes.
-      uint32_t output_row_offset = 0;
-      for (uint32_t y = 0; y < src.size_2d.block_height; y++) {
-        auto input_row_offset = TextureInfo::TiledOffset2DOuter(
-            offset_y + y, src.size_2d.block_width, log2_bpp);
-
-        // Go block-by-block on this row.
-        uint32_t output_offset = output_row_offset;
-        for (uint32_t x = 0; x < src.size_2d.block_width;
-             x++, output_offset += 8) {
-          auto input_offset =
-              TextureInfo::TiledOffset2DInner(offset_x + x, offset_y + y,
-                                              log2_bpp, input_row_offset) >>
-              log2_bpp;
-
-          // http://fileadmin.cs.lth.se/cs/Personal/Michael_Doggett/talks/unc-xenos-doggett.pdf
-          union {
-            uint8_t data[8];
-            struct {
-              uint8_t r0, g0, r1, g1;
-              uint32_t xx;
-            };
-          } block;
-          static_assert(sizeof(block) == 8, "CTX1 block mismatch");
-
-          TextureSwap(src.endianness, block.data,
-                      src_mem + input_offset * bytes_per_block,
-                      bytes_per_block);
-
-          uint8_t cr[4] = {
-              block.r0, block.r1,
-              static_cast<uint8_t>(2.f / 3.f * block.r0 + 1.f / 3.f * block.r1),
-              static_cast<uint8_t>(1.f / 3.f * block.r0 +
-                                   2.f / 3.f * block.r1)};
-          uint8_t cg[4] = {
-              block.g0, block.g1,
-              static_cast<uint8_t>(2.f / 3.f * block.g0 + 1.f / 3.f * block.g1),
-              static_cast<uint8_t>(1.f / 3.f * block.g0 +
-                                   2.f / 3.f * block.g1)};
-
-          for (uint32_t oy = 0; oy < 4; ++oy) {
-            for (uint32_t ox = 0; ox < 4; ++ox) {
-              uint8_t xx = (block.xx >> (((ox + (oy * 4)) * 2))) & 3;
-              dest[output_offset + (oy * output_pitch) + (ox * 2) + 0] = cr[xx];
-              dest[output_offset + (oy * output_pitch) + (ox * 2) + 1] = cg[xx];
-            }
-          }
-        }
-        output_row_offset += output_pitch * 4;
+      src_mem += offset_y * src.size_2d.input_pitch;
+      src_mem += offset_x * bytes_per_block;
+      for (uint32_t y = 0;
+           y < std::min(src.size_2d.block_height, src.size_2d.logical_height);
+           y++) {
+        TextureSwap(src.endianness, dest, src_mem, src.size_2d.input_pitch);
+        src_mem += src.size_2d.input_pitch;
+        dest += src.size_2d.input_pitch;
       }
-
-#if 0
-      static int dds_counter = 0;
-      uint8_t dds_header[] = {
-          0x44, 0x44, 0x53, 0x20, 0x7C, 0x00, 0x00, 0x00, 0x07, 0x10, 0x00,
-          0x00, 0x58, 0x02, 0x00, 0x00, 0x20, 0x03, 0x00, 0x00, 0x00, 0x00,
-          0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20,
-          0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-          0x20, 0x00, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x00, 0x00, 0xFF, 0x00,
-          0x00, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10,
-          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-      *((uint32_t*)(&dds_header[12])) = src.size_2d.input_height;
-      *((uint32_t*)(&dds_header[16])) = src.size_2d.input_width;
-
-      char dds_name[512];
-      sprintf(dds_name, "TEST_CTX1_%u.dds", ++dds_counter);
-      auto handle = fopen(dds_name, "wb");
-      fwrite(dds_header, sizeof(dds_header), 1, handle);
-      uint8_t dummy[2] = {0, 0};
-      for (uint32_t i = 0;
-           i < src.size_2d.input_width * src.size_2d.input_height * 2; i += 2) {
-        fwrite(&dest[i], 2, 1, handle);
-        fwrite(dummy, 2, 1, handle);
-      }
-      fclose(handle);
-#endif
-
+      copy_region->bufferRowLength = src.size_2d.input_width;
+      copy_region->bufferImageHeight = src.size_2d.input_height;
+      copy_region->imageExtent = {src.size_2d.logical_width,
+                                  src.size_2d.logical_height, 1};
+      return true;
+    } else {
+      // Fast path copy entire image.
+      TextureSwap(src.endianness, dest, host_address, src.input_length);
       copy_region->bufferRowLength = src.size_2d.input_width;
       copy_region->bufferImageHeight = src.size_2d.input_height;
       copy_region->imageExtent = {src.size_2d.logical_width,
@@ -944,87 +926,70 @@ bool TextureCache::ConvertTexture2D(uint8_t* dest,
       return true;
     }
   } else {
-    if (!src.is_tiled) {
-      uint32_t offset_x, offset_y;
-      if (src.has_packed_mips &&
-          TextureInfo::GetPackedTileOffset(src, &offset_x, &offset_y)) {
-        uint32_t bytes_per_block = src.format_info()->block_width *
-                                   src.format_info()->block_height *
-                                   src.format_info()->bits_per_pixel / 8;
+    // Untile image.
+    // We could do this in a shader to speed things up, as this is pretty
+    // slow.
 
-        const uint8_t* src_mem = reinterpret_cast<const uint8_t*>(host_address);
-        src_mem += offset_y * src.size_2d.input_pitch;
-        src_mem += offset_x * bytes_per_block;
-        for (uint32_t y = 0;
-             y < std::min(src.size_2d.block_height, src.size_2d.logical_height);
-             y++) {
-          TextureSwap(src.endianness, dest, src_mem, src.size_2d.input_pitch);
-          src_mem += src.size_2d.input_pitch;
-          dest += src.size_2d.input_pitch;
-        }
-        copy_region->bufferRowLength = src.size_2d.input_width;
-        copy_region->bufferImageHeight = src.size_2d.input_height;
-        copy_region->imageExtent = {src.size_2d.logical_width,
-                                    src.size_2d.logical_height, 1};
-        return true;
-      } else {
-        // Fast path copy entire image.
-        TextureSwap(src.endianness, dest, host_address, src.input_length);
-        copy_region->bufferRowLength = src.size_2d.input_width;
-        copy_region->bufferImageHeight = src.size_2d.input_height;
-        copy_region->imageExtent = {src.size_2d.logical_width,
-                                    src.size_2d.logical_height, 1};
-        return true;
-      }
-    } else {
-      // Untile image.
-      // We could do this in a shader to speed things up, as this is pretty
-      // slow.
+    // TODO(benvanik): optimize this inner loop (or work by tiles).
+    const uint8_t* src_mem = reinterpret_cast<const uint8_t*>(host_address);
+    uint32_t bytes_per_block = src.format_info()->block_width *
+                               src.format_info()->block_height *
+                               src.format_info()->bits_per_pixel / 8;
 
-      // TODO(benvanik): optimize this inner loop (or work by tiles).
-      const uint8_t* src_mem = reinterpret_cast<const uint8_t*>(host_address);
-      uint32_t bytes_per_block = src.format_info()->block_width *
-                                 src.format_info()->block_height *
-                                 src.format_info()->bits_per_pixel / 8;
+    uint32_t output_pitch = src.size_2d.input_width *
+                            src.format_info()->block_width *
+                            src.format_info()->bits_per_pixel / 8;
 
-      // Tiled textures can be packed; get the offset into the packed texture.
-      uint32_t offset_x;
-      uint32_t offset_y;
-      TextureInfo::GetPackedTileOffset(src, &offset_x, &offset_y);
-      auto log2_bpp = (bytes_per_block >> 2) +
-                      ((bytes_per_block >> 1) >> (bytes_per_block >> 2));
+    uint32_t output_row_height = 1;
+    if (src.texture_format == TextureFormat::k_CTX1) {
+      // TODO: Can we calculate this?
+      output_row_height = 4;
+    }
 
-      // Offset to the current row, in bytes.
-      uint32_t output_row_offset = 0;
-      for (uint32_t y = 0; y < src.size_2d.block_height; y++) {
-        auto input_row_offset = TextureInfo::TiledOffset2DOuter(
-            offset_y + y, src.size_2d.block_width, log2_bpp);
+    // Tiled textures can be packed; get the offset into the packed texture.
+    uint32_t offset_x;
+    uint32_t offset_y;
+    TextureInfo::GetPackedTileOffset(src, &offset_x, &offset_y);
+    auto log2_bpp = (bytes_per_block >> 2) +
+                    ((bytes_per_block >> 1) >> (bytes_per_block >> 2));
 
-        // Go block-by-block on this row.
-        uint32_t output_offset = output_row_offset;
-        for (uint32_t x = 0; x < src.size_2d.block_width; x++) {
-          auto input_offset =
-              TextureInfo::TiledOffset2DInner(offset_x + x, offset_y + y,
-                                              log2_bpp, input_row_offset) >>
-              log2_bpp;
+    // Offset to the current row, in bytes.
+    uint32_t output_row_offset = 0;
+    for (uint32_t y = 0; y < src.size_2d.block_height; y++) {
+      auto input_row_offset = TextureInfo::TiledOffset2DOuter(
+          offset_y + y, src.size_2d.block_width, log2_bpp);
 
+      // Go block-by-block on this row.
+      uint32_t output_offset = output_row_offset;
+      for (uint32_t x = 0; x < src.size_2d.block_width; x++) {
+        auto input_offset = TextureInfo::TiledOffset2DInner(
+            offset_x + x, offset_y + y, log2_bpp, input_row_offset);
+        input_offset >>= log2_bpp;
+
+        if (src.texture_format == TextureFormat::k_CTX1) {
+          // Convert to R8G8.
+          ConvertTexelCTX1(&dest[output_offset], output_pitch, src_mem,
+                           src.endianness);
+        } else {
+          // Generic swap to destination.
           TextureSwap(src.endianness, dest + output_offset,
                       src_mem + input_offset * bytes_per_block,
                       bytes_per_block);
-
-          output_offset += bytes_per_block;
         }
 
-        output_row_offset += src.size_2d.input_pitch;
+        output_offset += bytes_per_block;
       }
 
-      copy_region->bufferRowLength = src.size_2d.input_width;
-      copy_region->bufferImageHeight = src.size_2d.input_height;
-      copy_region->imageExtent = {src.size_2d.logical_width,
-                                  src.size_2d.logical_height, 1};
-      return true;
+      output_row_offset += output_pitch * output_row_height;
     }
+
+    copy_region->bufferRowLength = src.size_2d.input_width;
+    copy_region->bufferImageHeight = src.size_2d.input_height;
+    copy_region->imageExtent = {src.size_2d.logical_width,
+                                src.size_2d.logical_height, 1};
+    return true;
   }
+
   return false;
 }
 
@@ -1032,60 +997,56 @@ bool TextureCache::ConvertTextureCube(uint8_t* dest,
                                       VkBufferImageCopy* copy_region,
                                       const TextureInfo& src) {
   void* host_address = memory_->TranslatePhysical(src.guest_address);
-  if (src.texture_format == TextureFormat::k_CTX1) {
-    assert_always();
+  if (!src.is_tiled) {
+    // Fast path copy entire image.
+    TextureSwap(src.endianness, dest, host_address, src.input_length);
+    copy_region->bufferRowLength = src.size_cube.input_width;
+    copy_region->bufferImageHeight = src.size_cube.input_height;
+    copy_region->imageExtent = {src.size_cube.logical_width,
+                                src.size_cube.logical_height, 6};
+    return true;
   } else {
-    if (!src.is_tiled) {
-      // Fast path copy entire image.
-      TextureSwap(src.endianness, dest, host_address, src.input_length);
-      copy_region->bufferRowLength = src.size_cube.input_width;
-      copy_region->bufferImageHeight = src.size_cube.input_height;
-      copy_region->imageExtent = {src.size_cube.logical_width,
-                                  src.size_cube.logical_height, 6};
-      return true;
-    } else {
-      // TODO(benvanik): optimize this inner loop (or work by tiles).
-      const uint8_t* src_mem = reinterpret_cast<const uint8_t*>(host_address);
-      uint32_t bytes_per_block = src.format_info()->block_width *
-                                 src.format_info()->block_height *
-                                 src.format_info()->bits_per_pixel / 8;
-      // Tiled textures can be packed; get the offset into the packed texture.
-      uint32_t offset_x;
-      uint32_t offset_y;
-      TextureInfo::GetPackedTileOffset(src, &offset_x, &offset_y);
-      auto bpp = (bytes_per_block >> 2) +
-                 ((bytes_per_block >> 1) >> (bytes_per_block >> 2));
-      for (int face = 0; face < 6; ++face) {
-        for (uint32_t y = 0, output_base_offset = 0;
-             y < src.size_cube.block_height;
-             y++, output_base_offset += src.size_cube.input_pitch) {
-          auto input_base_offset = TextureInfo::TiledOffset2DOuter(
-              offset_y + y,
-              (src.size_cube.input_width / src.format_info()->block_width),
-              bpp);
-          for (uint32_t x = 0, output_offset = output_base_offset;
-               x < src.size_cube.block_width;
-               x++, output_offset += bytes_per_block) {
-            auto input_offset =
-                TextureInfo::TiledOffset2DInner(offset_x + x, offset_y + y, bpp,
-                                                input_base_offset) >>
-                bpp;
-            TextureSwap(src.endianness, dest + output_offset,
-                        src_mem + input_offset * bytes_per_block,
-                        bytes_per_block);
-          }
+    // TODO(benvanik): optimize this inner loop (or work by tiles).
+    const uint8_t* src_mem = reinterpret_cast<const uint8_t*>(host_address);
+    uint32_t bytes_per_block = src.format_info()->block_width *
+                               src.format_info()->block_height *
+                               src.format_info()->bits_per_pixel / 8;
+    // Tiled textures can be packed; get the offset into the packed texture.
+    uint32_t offset_x;
+    uint32_t offset_y;
+    TextureInfo::GetPackedTileOffset(src, &offset_x, &offset_y);
+    auto bpp = (bytes_per_block >> 2) +
+               ((bytes_per_block >> 1) >> (bytes_per_block >> 2));
+    for (int face = 0; face < 6; ++face) {
+      for (uint32_t y = 0, output_base_offset = 0;
+           y < src.size_cube.block_height;
+           y++, output_base_offset += src.size_cube.input_pitch) {
+        auto input_base_offset = TextureInfo::TiledOffset2DOuter(
+            offset_y + y,
+            (src.size_cube.input_width / src.format_info()->block_width), bpp);
+        for (uint32_t x = 0, output_offset = output_base_offset;
+             x < src.size_cube.block_width;
+             x++, output_offset += bytes_per_block) {
+          auto input_offset =
+              TextureInfo::TiledOffset2DInner(offset_x + x, offset_y + y, bpp,
+                                              input_base_offset) >>
+              bpp;
+          TextureSwap(src.endianness, dest + output_offset,
+                      src_mem + input_offset * bytes_per_block,
+                      bytes_per_block);
         }
-        src_mem += src.size_cube.input_face_length;
-        dest += src.size_cube.input_face_length;
       }
-
-      copy_region->bufferRowLength = src.size_cube.input_width;
-      copy_region->bufferImageHeight = src.size_cube.input_height;
-      copy_region->imageExtent = {src.size_cube.logical_width,
-                                  src.size_cube.logical_height, 6};
-      return true;
+      src_mem += src.size_cube.input_face_length;
+      dest += src.size_cube.input_face_length;
     }
+
+    copy_region->bufferRowLength = src.size_cube.input_width;
+    copy_region->bufferImageHeight = src.size_cube.input_height;
+    copy_region->imageExtent = {src.size_cube.logical_width,
+                                src.size_cube.logical_height, 6};
+    return true;
   }
+
   return false;
 }
 
@@ -1129,7 +1090,7 @@ bool TextureCache::ComputeTextureStorage(size_t* output_length,
 void TextureCache::WritebackTexture(Texture* texture) {
   VkResult status = VK_SUCCESS;
   VkFence fence = wb_command_pool_->BeginBatch();
-  auto alloc = wb_staging_buffer_.Acquire(texture->memory_size, fence);
+  auto alloc = wb_staging_buffer_.Acquire(texture->alloc_info.size, fence);
   if (!alloc) {
     wb_command_pool_->EndBatch();
     return;
@@ -1496,7 +1457,20 @@ void TextureCache::RemoveInvalidatedTextures() {
 }
 
 void TextureCache::ClearCache() {
-  // TODO(DrChat): Nuke everything.
+  RemoveInvalidatedTextures();
+  for (auto it = textures_.begin(); it != textures_.end(); ++it) {
+    while (!FreeTexture(it->second)) {
+      // Texture still in use. Busy loop.
+      xe::threading::MaybeYield();
+    }
+  }
+  textures_.clear();
+
+  for (auto it = samplers_.begin(); it != samplers_.end(); ++it) {
+    vkDestroySampler(*device_, it->second->sampler, nullptr);
+    delete it->second;
+  }
+  samplers_.clear();
 }
 
 void TextureCache::Scavenge() {

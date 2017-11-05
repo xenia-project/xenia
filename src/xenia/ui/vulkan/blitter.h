@@ -51,7 +51,7 @@ class Blitter {
                         VkImageView dst_image_view, VkExtent2D extents);
 
   // For framebuffer creation.
-  VkRenderPass GetRenderPass(VkFormat format);
+  VkRenderPass GetRenderPass(VkFormat format, bool color_or_depth);
 
  private:
   struct VtxPushConstants {
@@ -64,7 +64,7 @@ class Blitter {
   };
 
   VkPipeline GetPipeline(VkRenderPass render_pass, VkShaderModule frag_shader);
-  VkRenderPass CreateRenderPass(VkFormat output_format);
+  VkRenderPass CreateRenderPass(VkFormat output_format, bool color_or_depth);
   VkPipeline CreatePipeline(VkRenderPass render_pass,
                             VkShaderModule frag_shader);
 

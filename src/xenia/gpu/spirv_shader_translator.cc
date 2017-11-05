@@ -996,7 +996,7 @@ void SpirvShaderTranslator::ProcessAllocInstruction(
       // Already included, nothing to do here.
     } break;
     case AllocType::kMemory: {
-      assert_always();
+      // Nothing to do for this.
     } break;
     default:
       break;
@@ -1357,6 +1357,25 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
       dest = b.createTextureCall(spv::NoPrecision, vec4_float_type_, false,
                                  false, false, false, false, params);
     } break;
+    case FetchOpcode::kGetTextureGradients: {
+      auto texture_index = b.makeUintConstant(instr.operands[2].storage_index);
+      auto texture_ptr =
+          b.createAccessChain(spv::StorageClass::StorageClassUniformConstant,
+                              tex_[dim_idx], std::vector<Id>({texture_index}));
+      auto texture = b.createLoad(texture_ptr);
+
+      Id grad = LoadFromOperand(instr.operands[1]);
+      Id gradX = b.createCompositeExtract(grad, float_type_, 0);
+      Id gradY = b.createCompositeExtract(grad, float_type_, 1);
+
+      spv::Builder::TextureParameters params = {0};
+      params.coords = src;
+      params.sampler = texture;
+      params.gradX = gradX;
+      params.gradY = gradY;
+      dest = b.createTextureCall(spv::NoPrecision, vec4_float_type_, false,
+                                 false, false, false, false, params);
+    } break;
     case FetchOpcode::kGetTextureWeights: {
       // fract(src0 * textureSize);
       auto texture_index = b.makeUintConstant(instr.operands[1].storage_index);
@@ -1397,7 +1416,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
     } break;
 
     case FetchOpcode::kSetTextureLod: {
-      // <lod register> = src1.x
+      // <lod register> = src1.x (MIP level)
       // ... immediately after
       // tfetch UseRegisterLOD=true
     } break;

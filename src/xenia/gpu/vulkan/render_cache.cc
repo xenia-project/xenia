@@ -273,6 +273,8 @@ CachedTileView::CachedTileView(ui::vulkan::VulkanDevice* device,
   vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
                        nullptr, 1, &image_barrier);
+
+  image_layout = image_barrier.newLayout;
 }
 
 CachedTileView::~CachedTileView() {
@@ -436,6 +438,7 @@ CachedRenderPass::CachedRenderPass(VkDevice device,
   // Single subpass that writes to our attachments.
   // FIXME: "Multiple attachments that alias the same memory must not be used in
   // a single subpass"
+  // TODO: Input attachment for depth/stencil reads?
   VkSubpassDescription subpass_info;
   subpass_info.flags = 0;
   subpass_info.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;

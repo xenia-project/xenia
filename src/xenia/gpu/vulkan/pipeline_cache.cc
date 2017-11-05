@@ -435,6 +435,12 @@ VkShaderModule PipelineCache::GetGeometryShader(PrimitiveType primitive_type,
       // TODO(benvanik): quad strip geometry shader.
       assert_always("Quad strips not implemented");
       return nullptr;
+    case PrimitiveType::k2DCopyRectListV0:
+    case PrimitiveType::k2DCopyRectListV1:
+    case PrimitiveType::k2DCopyRectListV2:
+    case PrimitiveType::k2DCopyRectListV3:
+      // TODO(DrChat): Research this.
+      return nullptr;
     default:
       assert_unhandled_case(primitive_type);
       return nullptr;

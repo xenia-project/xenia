@@ -251,7 +251,7 @@ void VulkanCommandProcessor::CreateSwapImage(VkCommandBuffer setup_buffer,
       VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
       nullptr,
       0,
-      blitter_->GetRenderPass(VK_FORMAT_R8G8B8A8_UNORM),
+      blitter_->GetRenderPass(VK_FORMAT_R8G8B8A8_UNORM, true),
       1,
       &fb_image_view_,
       extents.width,
@@ -806,13 +806,23 @@ bool VulkanCommandProcessor::PopulateVertexBuffers(
 
     // TODO(benvanik): compute based on indices or vertex count.
     //     THIS CAN BE MASSIVELY INCORRECT (too large).
-    size_t valid_range = size_t(fetch->size * 4);
+    uint32_t source_length = fetch->size * 4;
 
     uint32_t physical_address = fetch->address << 2;
-    trace_writer_.WriteMemoryRead(physical_address, valid_range);
+    trace_writer_.WriteMemoryRead(physical_address, source_length);
 
     // Upload (or get a cached copy of) the buffer.
-    uint32_t source_length = uint32_t(valid_range);
+    // TODO: Make the buffer cache ... actually cache buffers. We can have
+    // a list of buffers that were cached, and store those in chunks in a
+    // multiple of the host's page size.
+    // WRITE WATCHES: We need to invalidate vertex buffers if they're written
+    // to. Since most vertex buffers aren't aligned to a page boundary, this
+    // means a watch may cover more than one vertex buffer.
+    // We need to maintain a list of write watches, and what memory ranges
+    // they cover. If a vertex buffer lies within a write watch's range, assign
+    // it to the watch. If there's partial alignment where a buffer lies within
+    // one watch and outside of it, should we create a new watch or extend the
+    // existing watch?
     auto buffer_ref = buffer_cache_->UploadVertexBuffer(
         current_setup_buffer_, physical_address, source_length,
         static_cast<Endian>(fetch->endian), current_batch_fence_);
@@ -895,9 +905,6 @@ bool VulkanCommandProcessor::IssueCopy() {
   auto copy_dest_format =
       ColorFormatToTextureFormat(copy_regs->copy_dest_info.copy_dest_format);
   // TODO: copy dest number / bias
-
-  // TODO: Issue with RDR - resolves k_16_16_16_16_FLOAT and samples
-  // k_16_16_16_16.
 
   uint32_t copy_dest_base = copy_regs->copy_dest_base;
   uint32_t copy_dest_pitch = copy_regs->copy_dest_pitch.copy_dest_pitch;
@@ -1078,9 +1085,12 @@ bool VulkanCommandProcessor::IssueCopy() {
   image_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
   image_barrier.srcAccessMask = 0;
   image_barrier.dstAccessMask =
-      VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+      is_color_source ? VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
+                      : VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
   image_barrier.oldLayout = texture->image_layout;
-  image_barrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+  image_barrier.newLayout =
+      is_color_source ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+                      : VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
   image_barrier.image = texture->image;
   image_barrier.subresourceRange = {0, 0, 1, 0, 1};
   image_barrier.subresourceRange.aspectMask =
@@ -1103,19 +1113,23 @@ bool VulkanCommandProcessor::IssueCopy() {
   switch (copy_command) {
     case CopyCommand::kRaw:
     /*
-      render_cache_->RawCopyToImage(command_buffer, edram_base, texture->image,
-                                    texture->image_layout, is_color_source,
-                                    resolve_offset, resolve_extent);
-      break;
+      render_cache_->RawCopyToImage(command_buffer, edram_base,
+      texture->image, texture->image_layout, is_color_source, resolve_offset,
+      resolve_extent); break;
     */
 
     case CopyCommand::kConvert: {
       /*
-      render_cache_->BlitToImage(command_buffer, edram_base, surface_pitch,
-                                 resolve_extent.height, surface_msaa,
-                                 texture->image, texture->image_layout,
-                                 is_color_source, src_format, filter,
-                                 resolve_offset, resolve_extent);
+      if (!is_color_source && copy_regs->copy_dest_info.copy_dest_swap == 0) {
+        // Depth images are a bit more complicated. Try a blit!
+        render_cache_->BlitToImage(
+            command_buffer, edram_base, surface_pitch, resolve_extent.height,
+            surface_msaa, texture->image, texture->image_layout,
+            is_color_source, src_format, filter,
+            {resolve_offset.x, resolve_offset.y, 0},
+            {resolve_extent.width, resolve_extent.height, 1});
+        break;
+      }
       */
 
       // Blit with blitter.
@@ -1135,9 +1149,11 @@ bool VulkanCommandProcessor::IssueCopy() {
       image_barrier.srcAccessMask =
           is_color_source ? VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
                           : VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-      image_barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-      image_barrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
-      image_barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+      image_barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT |
+                                    VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
+                                    VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
+      image_barrier.oldLayout = view->image_layout;
+      image_barrier.newLayout = view->image_layout;
       image_barrier.image = view->image;
       image_barrier.subresourceRange = {0, 0, 1, 0, 1};
       image_barrier.subresourceRange.aspectMask =
@@ -1148,7 +1164,8 @@ bool VulkanCommandProcessor::IssueCopy() {
                            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr,
                            0, nullptr, 1, &image_barrier);
 
-      auto render_pass = blitter_->GetRenderPass(texture->format);
+      auto render_pass =
+          blitter_->GetRenderPass(texture->format, is_color_source);
 
       // Create a framebuffer containing our image.
       if (!texture->framebuffer) {
@@ -1181,6 +1198,7 @@ bool VulkanCommandProcessor::IssueCopy() {
 
       // Pull the tile view back to a color attachment.
       std::swap(image_barrier.srcAccessMask, image_barrier.dstAccessMask);
+      std::swap(image_barrier.oldLayout, image_barrier.newLayout);
       vkCmdPipelineBarrier(command_buffer,
                            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
                            VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, 0, 0, nullptr, 0,
