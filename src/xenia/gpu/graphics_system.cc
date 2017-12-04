@@ -180,6 +180,7 @@ void GraphicsSystem::WriteRegister(uint32_t addr, uint32_t value) {
       command_processor_->UpdateWritePointer(value);
       break;
     case 0x1844:  // AVIVO_D1GRPH_PRIMARY_SURFACE_ADDRESS
+      return;
       break;
     default:
       XELOGW("Unknown GPU register %.4X write: %.8X", r, value);
