@@ -54,7 +54,7 @@ void FatalGLError(std::string error) {
   xe::FatalError(
       error +
       "\nEnsure you have the latest drivers for your GPU and that it supports "
-      "OpenGL 4.5. See http://xenia.jp/faq/ for more information and a list"
+      "OpenGL 4.6. See http://xenia.jp/faq/ for more information and a list"
       "of supported GPUs.");
 }
 
@@ -282,12 +282,12 @@ void GLContext::AssertExtensionsPresent() {
     return;
   }
 
-  // Check shader version at least 4.5 (matching GL 4.5).
+  // Check shader version at least 4.6 (matching GL 4.6).
   auto glsl_version_raw =
       reinterpret_cast<const char*>(glGetString(GL_SHADING_LANGUAGE_VERSION));
   std::string glsl_version(glsl_version_raw);
-  if (glsl_version.find("4.50") != 0) {
-    FatalGLError("OpenGL GLSL version 4.50 is required.");
+  if (glsl_version.find("4.60") != 0) {
+    FatalGLError("OpenGL GLSL version 4.60 is required.");
     return;
   }
 
