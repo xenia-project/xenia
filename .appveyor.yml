@@ -142,6 +142,7 @@ deploy:
       branch: master                # release from master branch only
       configuration: release        # deploy release builds only
       appveyor_repo_tag: true       # deploy on tag push only
+      is_not_pr: true               # don't deploy pull requests
 
 # scripts to run before deployment
 #before_deploy:
