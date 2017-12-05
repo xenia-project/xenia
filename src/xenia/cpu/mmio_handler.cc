@@ -200,13 +200,13 @@ void MMIOHandler::CancelAccessWatch(uintptr_t watch_handle) {
 
   // Remove from table.
   auto it = std::find(access_watches_.begin(), access_watches_.end(), entry);
-  assert_false(it == access_watches_.end());
+  //assert_false(it == access_watches_.end());
 
   if (it != access_watches_.end()) {
     access_watches_.erase(it);
   }
 
-  delete entry;
+  //delete entry;
 }
 
 void MMIOHandler::InvalidateRange(uint32_t physical_address, size_t length) {
