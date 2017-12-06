@@ -18,6 +18,8 @@ branches:
 # Do not build on tags (GitHub only)
 skip_tags: true
 
+pull_requests:
+  do_not_increment_build_number: true
 
 #---------------------------------#
 #    environment configuration    #
