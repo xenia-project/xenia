@@ -15,7 +15,6 @@
 #include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/main.h"
-#include "xenia/base/platform_win.h"
 #include "xenia/base/profiling.h"
 #include "xenia/base/threading.h"
 #include "xenia/ui/graphics_provider.h"
