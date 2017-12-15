@@ -105,6 +105,9 @@ filter("platforms:Linux")
   linkoptions({
     "`pkg-config --libs gtk+-3.0`",
   })
+  disablewarnings({
+    "deprecated-register"
+  })
 
 filter({"platforms:Linux", "kind:*App"})
   linkgroups("On")
