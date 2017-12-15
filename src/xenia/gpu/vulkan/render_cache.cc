@@ -763,6 +763,9 @@ bool RenderCache::ParseConfiguration(RenderConfiguration* config) {
         case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_unknown:
           config->color[i].format = ColorRenderTargetFormat::k_2_10_10_10_FLOAT;
           break;
+        default:
+          // The rest are good
+          break;
       }
     }
   } else {
@@ -843,7 +846,7 @@ bool RenderCache::ConfigureRenderPass(VkCommandBuffer command_buffer,
       color_key.edram_format = static_cast<uint16_t>(config->color[i].format);
       target_color_attachments[i] =
           FindOrCreateTileView(command_buffer, color_key);
-      if (!target_color_attachments) {
+      if (!target_color_attachments[i]) {
         XELOGE("Failed to get tile view for color attachment");
         return false;
       }
@@ -905,6 +908,9 @@ CachedTileView* RenderCache::FindTileView(uint32_t base, uint32_t pitch,
         break;
       case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_unknown:
         format = uint32_t(ColorRenderTargetFormat::k_2_10_10_10_FLOAT);
+        break;
+      default:
+        // Other types as-is.
         break;
     }
   }
@@ -1145,6 +1151,9 @@ void RenderCache::BlitToImage(VkCommandBuffer command_buffer,
       case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_unknown:
         format = uint32_t(ColorRenderTargetFormat::k_2_10_10_10_FLOAT);
         break;
+      default:
+        // Rest are OK
+        break;
     }
   }
 
@@ -1257,6 +1266,9 @@ void RenderCache::ClearEDRAMColor(VkCommandBuffer command_buffer,
       break;
     case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_unknown:
       format = ColorRenderTargetFormat::k_2_10_10_10_FLOAT;
+      break;
+    default:
+      // Rest are OK
       break;
   }
 

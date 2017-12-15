@@ -192,7 +192,7 @@ public:
     Id makeDoubleConstant(double d, bool specConstant = false);
 
     // Turn the array of constants into a proper spv constant of the requested type.
-    Id makeCompositeConstant(Id type, std::vector<Id>& comps, bool specConst = false);
+    Id makeCompositeConstant(Id type, const std::vector<Id>& comps, bool specConst = false);
 
     // Methods for adding information outside the CFG.
     Instruction* addEntryPoint(ExecutionModel, Function*, const char* name);
@@ -240,7 +240,7 @@ public:
     Id createLoad(Id lValue);
 
     // Create an OpAccessChain instruction
-    Id createAccessChain(StorageClass, Id base, std::vector<Id>& offsets);
+    Id createAccessChain(StorageClass, Id base, const std::vector<Id>& offsets);
 
     // Create an OpArrayLength instruction
     Id createArrayLength(Id base, unsigned int member);
@@ -249,7 +249,7 @@ public:
     Id createCompositeExtract(Id composite, Id typeId, unsigned index);
     Id createCompositeExtract(Id composite, Id typeId, std::vector<unsigned>& indexes);
     Id createCompositeInsert(Id object, Id composite, Id typeId, unsigned index);
-    Id createCompositeInsert(Id object, Id composite, Id typeId, std::vector<unsigned>& indexes);
+    Id createCompositeInsert(Id object, Id composite, Id typeId, const std::vector<unsigned>& indexes);
 
     Id createVectorExtractDynamic(Id vector, Id typeId, Id componentIndex);
     Id createVectorInsertDynamic(Id vector, Id typeId, Id component, Id componentIndex);
@@ -263,7 +263,7 @@ public:
     Id createBinOp(Op, Id typeId, Id operand1, Id operand2);
     Id createTriOp(Op, Id typeId, Id operand1, Id operand2, Id operand3);
     Id createOp(Op, Id typeId, const std::vector<Id>& operands);
-    Id createFunctionCall(spv::Function*, std::vector<spv::Id>&);
+    Id createFunctionCall(spv::Function*, const std::vector<spv::Id>&);
 
     // Take an rvalue (source) and a set of channels to extract from it to
     // make a new rvalue, which is returned.
@@ -296,7 +296,7 @@ public:
     // Generally, the type of 'scalar' does not need to be the same type as the components in 'vector'.
     // The type of the created vector is a vector of components of the same type as the scalar.
     //
-    // Note: One of the arguments will change, with the result coming back that way rather than 
+    // Note: One of the arguments will change, with the result coming back that way rather than
     // through the return value.
     void promoteScalar(Decoration precision, Id& left, Id& right);
 
@@ -341,7 +341,7 @@ public:
     Id createCompositeCompare(Decoration precision, Id, Id, bool /* true if for equal, false if for not-equal */);
 
     // OpCompositeConstruct
-    Id createCompositeConstruct(Id typeId, std::vector<Id>& constituents);
+    Id createCompositeConstruct(Id typeId, const std::vector<Id>& constituents);
 
     // vector or scalar constructor
     Id createConstructor(Decoration precision, const std::vector<Id>& sources, Id resultTypeId);
@@ -383,7 +383,7 @@ public:
     // Returns the right set of basic blocks to start each code segment with, so that the caller's
     // recursion stack can hold the memory for it.
     //
-    void makeSwitch(Id condition, int numSegments, std::vector<int>& caseValues, std::vector<int>& valueToSegment, int defaultSegment,
+    void makeSwitch(Id condition, int numSegments, const std::vector<int>& caseValues, const std::vector<int>& valueToSegment, int defaultSegment,
                     std::vector<Block*>& segmentBB);  // return argument
 
     // Add a branch to the innermost switch's merge block.
@@ -525,7 +525,7 @@ public:
     Id makeIntConstant(Id typeId, unsigned value, bool specConstant);
     Id findScalarConstant(Op typeClass, Op opcode, Id typeId, unsigned value) const;
     Id findScalarConstant(Op typeClass, Op opcode, Id typeId, unsigned v1, unsigned v2) const;
-    Id findCompositeConstant(Op typeClass, std::vector<Id>& comps) const;
+    Id findCompositeConstant(Op typeClass, const std::vector<Id>& comps) const;
     Id collapseAccessChain();
     void transferAccessChainSwizzle(bool dynamic);
     void simplifyAccessChainSwizzle();

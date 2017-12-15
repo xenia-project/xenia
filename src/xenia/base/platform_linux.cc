@@ -7,11 +7,15 @@
  ******************************************************************************
  */
 
-#include "xenia/base/threading.h"
-
-#include <pthread.h>
-#include <time.h>
+#include "xenia/base/platform_linux.h"
+#include <stdlib.h>
+#include <string>
 
 namespace xe {
-namespace threading {}  // namespace threading
+
+void LaunchBrowser(const char* url) {
+  auto cmd = std::string("xdg-open " + std::string(url));
+  system(cmd.c_str());
+}
+
 }  // namespace xe

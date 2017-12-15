@@ -11,10 +11,10 @@
 #define XENIA_BASE_MATH_H_
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <type_traits>
-
 #include "xenia/base/platform.h"
 
 #if XE_ARCH_AMD64
