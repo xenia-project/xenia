@@ -10,12 +10,12 @@ os:
 
 matrix:
   include:
-    - compiler: gcc
-      env: C_COMPILER=gcc-6 CXX_COMPILER=g++-6 LINT=true
-    - compiler: gcc
-      env: C_COMPILER=gcc-6 CXX_COMPILER=g++-6 BUILD=true CONFIG=Debug
-    - compiler: gcc
-      env: C_COMPILER=gcc-6 CXX_COMPILER=g++-6 BUILD=true CONFIG=Release
+    - compiler: clang
+      env: C_COMPILER=clang-3.9 CXX_COMPILER=clang++-3.9 LINT=true
+    - compiler: clang
+      env: C_COMPILER=clang-3.9 CXX_COMPILER=clang++-3.9 BUILD=true CONFIG=Debug
+    - compiler: clang
+      env: C_COMPILER=clang-3.9 CXX_COMPILER=clang++-3.9 BUILD=true CONFIG=Release
   allow_failures:
     # LLVMGold.so is not installed correctly
     - env: BUILD=true CONFIG=Release
@@ -47,8 +47,8 @@ before_script:
   - $CXX --version
   - python3 --version
   # Add Vulkan dependencies
-  - wget http://mirrors.kernel.org/ubuntu/pool/universe/v/vulkan/libvulkan1_1.0.42.0+dfsg1-1ubuntu1~16.04.1_amd64.deb
-  - wget http://mirrors.kernel.org/ubuntu/pool/universe/v/vulkan/libvulkan-dev_1.0.42.0+dfsg1-1ubuntu1~16.04.1_amd64.deb
+  - travis_retry wget http://mirrors.kernel.org/ubuntu/pool/universe/v/vulkan/libvulkan1_1.0.42.0+dfsg1-1ubuntu1~16.04.1_amd64.deb
+  - travis_retry wget http://mirrors.kernel.org/ubuntu/pool/universe/v/vulkan/libvulkan-dev_1.0.42.0+dfsg1-1ubuntu1~16.04.1_amd64.deb
   - sudo dpkg -i libvulkan1_1.0.42.0+dfsg1-1ubuntu1~16.04.1_amd64.deb libvulkan-dev_1.0.42.0+dfsg1-1ubuntu1~16.04.1_amd64.deb
   # Prepare environment (pull dependencies, build tools).
   - travis_retry ./xenia-build setup
