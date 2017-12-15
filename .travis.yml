@@ -29,8 +29,8 @@ addons:
       # - ubuntu-toolchain-r-test
       - llvm-toolchain-trusty
     packages:
-      - clang-3.8
-      - clang-format-3.8
+      - clang-3.9
+      - clang-format-3.9
       - libc++-dev
       - python3
       - libc++abi-dev
@@ -42,8 +42,8 @@ git:
   submodules: false
 
 before_script:
-  - export CXX=clang++-3.8
-  - export CC=clang-3.8
+  - export CXX=clang++-3.9
+  - export CC=clang-3.9
   # Dump useful info.
   - $CXX --version
   # Add Vulkan dependencies
