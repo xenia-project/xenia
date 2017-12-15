@@ -15,7 +15,7 @@ Discussing illegal activities will get you banned. No warnings.
 
 Buildbot | Status
 -------- | ------
-[Windows](https://ci.appveyor.com/project/benvanik/xenia/history) | [![Build status](https://ci.appveyor.com/api/projects/status/ftqiy86kdfawyx3a/branch/master?svg=true)](https://ci.appveyor.com/project/benvanik/xenia/)
+[Windows](https://ci.appveyor.com/project/benvanik/xenia/branch/master/) | [![Build status](https://ci.appveyor.com/api/projects/status/ftqiy86kdfawyx3a/branch/master?svg=true)](https://ci.appveyor.com/project/benvanik/xenia/)
 [Linux](https://travis-ci.org/benvanik/xenia) | [![Build status](https://travis-ci.org/benvanik/xenia.svg)](https://travis-ci.org/benvanik/xenia)
 
 Some real games run. Most don't.
