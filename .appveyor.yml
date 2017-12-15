@@ -8,8 +8,8 @@ version: 1.0.{build}-{branch}
 # branches to build
 branches:
   # whitelist
-  only:
-    - master
+  # only:
+  #   - master
 
   # blacklist
   except:
