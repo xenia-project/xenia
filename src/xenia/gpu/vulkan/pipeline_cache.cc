@@ -1158,7 +1158,9 @@ PipelineCache::UpdateStatus PipelineCache::UpdateRasterizationState(
     // Vulkan only supports both matching.
     assert_true(front_poly_mode == back_poly_mode);
     static const VkPolygonMode kFillModes[3] = {
-        VK_POLYGON_MODE_POINT, VK_POLYGON_MODE_LINE, VK_POLYGON_MODE_FILL,
+        VK_POLYGON_MODE_POINT,
+        VK_POLYGON_MODE_LINE,
+        VK_POLYGON_MODE_FILL,
     };
     state_info.polygonMode = kFillModes[front_poly_mode];
   } else {

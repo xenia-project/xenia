@@ -341,14 +341,16 @@ std::vector<BlockInfo> PPCScanner::FindBlocks(GuestFunction* function) {
     if (ends_block) {
       in_block = false;
       block_map[block_start] = {
-          block_start, address,
+          block_start,
+          address,
       };
     }
   }
 
   if (in_block) {
     block_map[block_start] = {
-        block_start, end_address,
+        block_start,
+        end_address,
     };
   }
 

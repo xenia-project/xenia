@@ -91,7 +91,9 @@ bool VulkanCommandProcessor::SetupContext() {
   render_cache_ = std::make_unique<RenderCache>(register_file_, device_);
 
   VkEventCreateInfo info = {
-      VK_STRUCTURE_TYPE_EVENT_CREATE_INFO, nullptr, 0,
+      VK_STRUCTURE_TYPE_EVENT_CREATE_INFO,
+      nullptr,
+      0,
   };
 
   VkResult result =
@@ -439,7 +441,8 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
                          nullptr, 1, &barrier);
 
     VkRect2D src_rect = {
-        {0, 0}, {frontbuffer_width, frontbuffer_height},
+        {0, 0},
+        {frontbuffer_width, frontbuffer_height},
     };
     blitter_->BlitTexture2D(
         copy_commands, current_batch_fence_,
@@ -1002,7 +1005,8 @@ bool VulkanCommandProcessor::IssueCopy() {
   if (is_color_source) {
     // Source from a color target.
     uint32_t color_info[4] = {
-        regs[XE_GPU_REG_RB_COLOR_INFO].u32, regs[XE_GPU_REG_RB_COLOR1_INFO].u32,
+        regs[XE_GPU_REG_RB_COLOR_INFO].u32,
+        regs[XE_GPU_REG_RB_COLOR1_INFO].u32,
         regs[XE_GPU_REG_RB_COLOR2_INFO].u32,
         regs[XE_GPU_REG_RB_COLOR3_INFO].u32,
     };
@@ -1112,11 +1116,11 @@ bool VulkanCommandProcessor::IssueCopy() {
   VkFilter filter = is_color_source ? VK_FILTER_LINEAR : VK_FILTER_NEAREST;
   switch (copy_command) {
     case CopyCommand::kRaw:
-    /*
-      render_cache_->RawCopyToImage(command_buffer, edram_base,
-      texture->image, texture->image_layout, is_color_source, resolve_offset,
-      resolve_extent); break;
-    */
+      /*
+        render_cache_->RawCopyToImage(command_buffer, edram_base,
+        texture->image, texture->image_layout, is_color_source, resolve_offset,
+        resolve_extent); break;
+      */
 
     case CopyCommand::kConvert: {
       /*

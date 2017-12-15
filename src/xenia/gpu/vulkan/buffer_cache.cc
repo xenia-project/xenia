@@ -83,7 +83,8 @@ BufferCache::BufferCache(RegisterFile* register_file, Memory* memory,
   descriptor_set_layout_info.pNext = nullptr;
   descriptor_set_layout_info.flags = 0;
   VkDescriptorSetLayoutBinding uniform_bindings[] = {
-      vertex_uniform_binding, fragment_uniform_binding,
+      vertex_uniform_binding,
+      fragment_uniform_binding,
   };
   descriptor_set_layout_info.bindingCount =
       static_cast<uint32_t>(xe::countof(uniform_bindings));

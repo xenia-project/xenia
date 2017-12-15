@@ -56,5 +56,5 @@ class apiscanner_loader {
   bool ExtractImports(const void* addr, const size_t length, title& info);
 };
 
-}  // tools
-}  // xe
+}  // namespace tools
+}  // namespace xe

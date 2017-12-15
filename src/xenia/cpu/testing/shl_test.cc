@@ -16,9 +16,10 @@ using xe::cpu::ppc::PPCContext;
 
 TEST_CASE("SHL_I8", "[instr]") {
   TestFunction test([](HIRBuilder& b) {
-    StoreGPR(b, 3, b.ZeroExtend(b.Shl(b.Truncate(LoadGPR(b, 4), INT8_TYPE),
-                                      b.Truncate(LoadGPR(b, 5), INT8_TYPE)),
-                                INT64_TYPE));
+    StoreGPR(b, 3,
+             b.ZeroExtend(b.Shl(b.Truncate(LoadGPR(b, 4), INT8_TYPE),
+                                b.Truncate(LoadGPR(b, 5), INT8_TYPE)),
+                          INT64_TYPE));
     b.Return();
   });
   test.Run(
@@ -70,9 +71,10 @@ TEST_CASE("SHL_I8", "[instr]") {
 
 TEST_CASE("SHL_I16", "[instr]") {
   TestFunction test([](HIRBuilder& b) {
-    StoreGPR(b, 3, b.ZeroExtend(b.Shl(b.Truncate(LoadGPR(b, 4), INT16_TYPE),
-                                      b.Truncate(LoadGPR(b, 5), INT8_TYPE)),
-                                INT64_TYPE));
+    StoreGPR(b, 3,
+             b.ZeroExtend(b.Shl(b.Truncate(LoadGPR(b, 4), INT16_TYPE),
+                                b.Truncate(LoadGPR(b, 5), INT8_TYPE)),
+                          INT64_TYPE));
     b.Return();
   });
   test.Run(
@@ -124,9 +126,10 @@ TEST_CASE("SHL_I16", "[instr]") {
 
 TEST_CASE("SHL_I32", "[instr]") {
   TestFunction test([](HIRBuilder& b) {
-    StoreGPR(b, 3, b.ZeroExtend(b.Shl(b.Truncate(LoadGPR(b, 4), INT32_TYPE),
-                                      b.Truncate(LoadGPR(b, 5), INT8_TYPE)),
-                                INT64_TYPE));
+    StoreGPR(b, 3,
+             b.ZeroExtend(b.Shl(b.Truncate(LoadGPR(b, 4), INT32_TYPE),
+                                b.Truncate(LoadGPR(b, 5), INT8_TYPE)),
+                          INT64_TYPE));
     b.Return();
   });
   test.Run(
@@ -178,8 +181,9 @@ TEST_CASE("SHL_I32", "[instr]") {
 
 TEST_CASE("SHL_I64", "[instr]") {
   TestFunction test([](HIRBuilder& b) {
-    StoreGPR(b, 3, b.Shl(b.Truncate(LoadGPR(b, 4), INT64_TYPE),
-                         b.Truncate(LoadGPR(b, 5), INT8_TYPE)));
+    StoreGPR(b, 3,
+             b.Shl(b.Truncate(LoadGPR(b, 4), INT64_TYPE),
+                   b.Truncate(LoadGPR(b, 5), INT8_TYPE)));
     b.Return();
   });
   test.Run(

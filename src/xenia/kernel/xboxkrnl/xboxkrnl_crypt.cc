@@ -7,11 +7,11 @@
 ******************************************************************************
 */
 
-#include "xenia/xbox.h"
 #include "xenia/base/logging.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_private.h"
+#include "xenia/xbox.h"
 
 #include "third_party/crypto/TinySHA1.hpp"
 #include "third_party/crypto/des/des.cpp"

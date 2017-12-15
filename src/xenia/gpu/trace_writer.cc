@@ -72,7 +72,9 @@ void TraceWriter::WritePrimaryBufferStart(uint32_t base_ptr, uint32_t count) {
     return;
   }
   PrimaryBufferStartCommand cmd = {
-      TraceCommandType::kPrimaryBufferStart, base_ptr, 0,
+      TraceCommandType::kPrimaryBufferStart,
+      base_ptr,
+      0,
   };
   fwrite(&cmd, 1, sizeof(cmd), file_);
 }
@@ -92,7 +94,9 @@ void TraceWriter::WriteIndirectBufferStart(uint32_t base_ptr, uint32_t count) {
     return;
   }
   IndirectBufferStartCommand cmd = {
-      TraceCommandType::kIndirectBufferStart, base_ptr, 0,
+      TraceCommandType::kIndirectBufferStart,
+      base_ptr,
+      0,
   };
   fwrite(&cmd, 1, sizeof(cmd), file_);
 }
@@ -112,7 +116,9 @@ void TraceWriter::WritePacketStart(uint32_t base_ptr, uint32_t count) {
     return;
   }
   PacketStartCommand cmd = {
-      TraceCommandType::kPacketStart, base_ptr, count,
+      TraceCommandType::kPacketStart,
+      base_ptr,
+      count,
   };
   fwrite(&cmd, 1, sizeof(cmd), file_);
   fwrite(membase_ + base_ptr, 4, count, file_);
@@ -220,7 +226,8 @@ void TraceWriter::WriteEvent(EventCommand::Type event_type) {
     return;
   }
   EventCommand cmd = {
-      TraceCommandType::kEvent, event_type,
+      TraceCommandType::kEvent,
+      event_type,
   };
   fwrite(&cmd, 1, sizeof(cmd), file_);
 }

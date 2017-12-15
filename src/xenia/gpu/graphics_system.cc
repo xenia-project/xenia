@@ -159,8 +159,8 @@ uint32_t GraphicsSystem::ReadRegister(uint32_t addr) {
     case 0x1951:  // ? vblank pending?
       return 1;
     case 0x1961:  // AVIVO_D1MODE_VIEWPORT_SIZE
-      // Screen res - 1280x720
-      // [width(0x0FFF), height(0x0FFF)]
+                  // Screen res - 1280x720
+                  // [width(0x0FFF), height(0x0FFF)]
       return 0x050002D0;
     default:
       if (!register_file_.GetRegisterInfo(r)) {
