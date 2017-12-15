@@ -19,10 +19,11 @@ using xe::cpu::ppc::PPCContext;
 
 TEST_CASE("EXTRACT_INT8", "[instr]") {
   TestFunction test([](HIRBuilder& b) {
-    StoreGPR(b, 3, b.ZeroExtend(b.Extract(LoadVR(b, 4),
-                                          b.Truncate(LoadGPR(b, 4), INT8_TYPE),
-                                          INT8_TYPE),
-                                INT64_TYPE));
+    StoreGPR(
+        b, 3,
+        b.ZeroExtend(b.Extract(LoadVR(b, 4),
+                               b.Truncate(LoadGPR(b, 4), INT8_TYPE), INT8_TYPE),
+                     INT64_TYPE));
     b.Return();
   });
   for (int i = 0; i < 16; ++i) {
@@ -42,9 +43,10 @@ TEST_CASE("EXTRACT_INT8", "[instr]") {
 TEST_CASE("EXTRACT_INT8_CONSTANT", "[instr]") {
   for (int i = 0; i < 16; ++i) {
     TestFunction([i](HIRBuilder& b) {
-      StoreGPR(b, 3, b.ZeroExtend(b.Extract(LoadVR(b, 4), b.LoadConstantInt8(i),
-                                            INT8_TYPE),
-                                  INT64_TYPE));
+      StoreGPR(b, 3,
+               b.ZeroExtend(
+                   b.Extract(LoadVR(b, 4), b.LoadConstantInt8(i), INT8_TYPE),
+                   INT64_TYPE));
       b.Return();
     })
         .Run(
@@ -62,10 +64,11 @@ TEST_CASE("EXTRACT_INT8_CONSTANT", "[instr]") {
 
 TEST_CASE("EXTRACT_INT16", "[instr]") {
   TestFunction test([](HIRBuilder& b) {
-    StoreGPR(b, 3, b.ZeroExtend(b.Extract(LoadVR(b, 4),
-                                          b.Truncate(LoadGPR(b, 4), INT8_TYPE),
-                                          INT16_TYPE),
-                                INT64_TYPE));
+    StoreGPR(b, 3,
+             b.ZeroExtend(
+                 b.Extract(LoadVR(b, 4), b.Truncate(LoadGPR(b, 4), INT8_TYPE),
+                           INT16_TYPE),
+                 INT64_TYPE));
     b.Return();
   });
   for (int i = 0; i < 8; ++i) {
@@ -85,9 +88,10 @@ TEST_CASE("EXTRACT_INT16", "[instr]") {
 TEST_CASE("EXTRACT_INT16_CONSTANT", "[instr]") {
   for (int i = 0; i < 8; ++i) {
     TestFunction([i](HIRBuilder& b) {
-      StoreGPR(b, 3, b.ZeroExtend(b.Extract(LoadVR(b, 4), b.LoadConstantInt8(i),
-                                            INT16_TYPE),
-                                  INT64_TYPE));
+      StoreGPR(b, 3,
+               b.ZeroExtend(
+                   b.Extract(LoadVR(b, 4), b.LoadConstantInt8(i), INT16_TYPE),
+                   INT64_TYPE));
       b.Return();
     })
         .Run(
@@ -104,10 +108,11 @@ TEST_CASE("EXTRACT_INT16_CONSTANT", "[instr]") {
 
 TEST_CASE("EXTRACT_INT32", "[instr]") {
   TestFunction test([](HIRBuilder& b) {
-    StoreGPR(b, 3, b.ZeroExtend(b.Extract(LoadVR(b, 4),
-                                          b.Truncate(LoadGPR(b, 4), INT8_TYPE),
-                                          INT32_TYPE),
-                                INT64_TYPE));
+    StoreGPR(b, 3,
+             b.ZeroExtend(
+                 b.Extract(LoadVR(b, 4), b.Truncate(LoadGPR(b, 4), INT8_TYPE),
+                           INT32_TYPE),
+                 INT64_TYPE));
     b.Return();
   });
   for (int i = 0; i < 4; ++i) {
@@ -126,9 +131,10 @@ TEST_CASE("EXTRACT_INT32", "[instr]") {
 TEST_CASE("EXTRACT_INT32_CONSTANT", "[instr]") {
   for (int i = 0; i < 4; ++i) {
     TestFunction([i](HIRBuilder& b) {
-      StoreGPR(b, 3, b.ZeroExtend(b.Extract(LoadVR(b, 4), b.LoadConstantInt8(i),
-                                            INT32_TYPE),
-                                  INT64_TYPE));
+      StoreGPR(b, 3,
+               b.ZeroExtend(
+                   b.Extract(LoadVR(b, 4), b.LoadConstantInt8(i), INT32_TYPE),
+                   INT64_TYPE));
       b.Return();
     })
         .Run(

@@ -2073,7 +2073,7 @@ int InstrEmit_vpkd3d128(PPCHIRBuilder& f, const InstrData& i) {
   uint32_t control = kIdentityPermuteMask;  // original
   switch (pack) {
     case 1:  // VPACK_32
-      // VPACK_32 & shift = 3 puts lower 32 bits in x (leftmost slot).
+             // VPACK_32 & shift = 3 puts lower 32 bits in x (leftmost slot).
       switch (shift) {
         case 0:
           control = MakePermuteMask(0, 0, 0, 1, 0, 2, 1, 3);

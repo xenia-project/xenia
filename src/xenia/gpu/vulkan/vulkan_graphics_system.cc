@@ -27,8 +27,8 @@ namespace xe {
 namespace gpu {
 namespace vulkan {
 
-using xe::ui::vulkan::CheckResult;
 using xe::ui::RawImage;
+using xe::ui::vulkan::CheckResult;
 
 VulkanGraphicsSystem::VulkanGraphicsSystem() {}
 VulkanGraphicsSystem::~VulkanGraphicsSystem() = default;
@@ -50,7 +50,8 @@ X_STATUS VulkanGraphicsSystem::Setup(cpu::Processor* processor,
 
   // Create our own command pool we can use for captures.
   VkCommandPoolCreateInfo create_info = {
-      VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO, nullptr,
+      VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+      nullptr,
       VK_COMMAND_POOL_CREATE_TRANSIENT_BIT |
           VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
       device_->queue_family_index(),
@@ -90,8 +91,10 @@ std::unique_ptr<RawImage> VulkanGraphicsSystem::Capture() {
   CheckResult(status, "vkAllocateCommandBuffers");
 
   VkCommandBufferBeginInfo begin_info = {
-      VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, nullptr,
-      VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, nullptr,
+      VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+      nullptr,
+      VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+      nullptr,
   };
   vkBeginCommandBuffer(cmd, &begin_info);
 

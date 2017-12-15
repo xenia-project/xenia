@@ -18,9 +18,10 @@ using xe::cpu::ppc::PPCContext;
 
 TEST_CASE("ADD_I8", "[instr]") {
   TestFunction test([](HIRBuilder& b) {
-    StoreGPR(b, 3, b.ZeroExtend(b.Add(b.Truncate(LoadGPR(b, 4), INT8_TYPE),
-                                      b.Truncate(LoadGPR(b, 5), INT8_TYPE)),
-                                INT64_TYPE));
+    StoreGPR(b, 3,
+             b.ZeroExtend(b.Add(b.Truncate(LoadGPR(b, 4), INT8_TYPE),
+                                b.Truncate(LoadGPR(b, 5), INT8_TYPE)),
+                          INT64_TYPE));
     b.Return();
   });
   test.Run(
@@ -90,9 +91,10 @@ TEST_CASE("ADD_I8", "[instr]") {
 
 TEST_CASE("ADD_I16", "[instr]") {
   TestFunction test([](HIRBuilder& b) {
-    StoreGPR(b, 3, b.ZeroExtend(b.Add(b.Truncate(LoadGPR(b, 4), INT16_TYPE),
-                                      b.Truncate(LoadGPR(b, 5), INT16_TYPE)),
-                                INT64_TYPE));
+    StoreGPR(b, 3,
+             b.ZeroExtend(b.Add(b.Truncate(LoadGPR(b, 4), INT16_TYPE),
+                                b.Truncate(LoadGPR(b, 5), INT16_TYPE)),
+                          INT64_TYPE));
     b.Return();
   });
   test.Run(
@@ -162,9 +164,10 @@ TEST_CASE("ADD_I16", "[instr]") {
 
 TEST_CASE("ADD_I32", "[instr]") {
   TestFunction test([](HIRBuilder& b) {
-    StoreGPR(b, 3, b.ZeroExtend(b.Add(b.Truncate(LoadGPR(b, 4), INT32_TYPE),
-                                      b.Truncate(LoadGPR(b, 5), INT32_TYPE)),
-                                INT64_TYPE));
+    StoreGPR(b, 3,
+             b.ZeroExtend(b.Add(b.Truncate(LoadGPR(b, 4), INT32_TYPE),
+                                b.Truncate(LoadGPR(b, 5), INT32_TYPE)),
+                          INT64_TYPE));
     b.Return();
   });
   test.Run(
@@ -304,9 +307,10 @@ TEST_CASE("ADD_I64", "[instr]") {
 
 TEST_CASE("ADD_F32", "[instr]") {
   TestFunction test([](HIRBuilder& b) {
-    StoreFPR(b, 3, b.Convert(b.Add(b.Convert(LoadFPR(b, 4), FLOAT32_TYPE),
-                                   b.Convert(LoadFPR(b, 5), FLOAT32_TYPE)),
-                             FLOAT64_TYPE));
+    StoreFPR(b, 3,
+             b.Convert(b.Add(b.Convert(LoadFPR(b, 4), FLOAT32_TYPE),
+                             b.Convert(LoadFPR(b, 5), FLOAT32_TYPE)),
+                       FLOAT64_TYPE));
     b.Return();
   });
   test.Run(

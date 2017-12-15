@@ -257,7 +257,7 @@ dword_result_t VdInitializeScalerCommandBuffer(
     lpvoid_t dest_ptr,  // Points to the first 80000000h where the memcpy
                         // sources from.
     dword_t dest_count  // Count in words.
-    ) {
+) {
   // We could fake the commands here, but I'm not sure the game checks for
   // anything but success (non-zero ret).
   // For now, we just fill it with NOPs.

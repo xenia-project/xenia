@@ -116,11 +116,11 @@ int hid_demo_main(const std::vector<std::wstring>& args) {
     auto& io = window->imgui_drawer()->GetIO();
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(-1, 0));
-    ImGui::Begin("main_window", nullptr, ImGuiWindowFlags_NoMove |
-                                             ImGuiWindowFlags_NoResize |
-                                             ImGuiWindowFlags_NoTitleBar |
-                                             ImGuiWindowFlags_NoScrollbar |
-                                             ImGuiWindowFlags_NoSavedSettings);
+    ImGui::Begin("main_window", nullptr,
+                 ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize |
+                     ImGuiWindowFlags_NoTitleBar |
+                     ImGuiWindowFlags_NoScrollbar |
+                     ImGuiWindowFlags_NoSavedSettings);
     ImGui::SetWindowPos(ImVec2(0, 0));
     ImGui::SetWindowSize(io.DisplaySize);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(4, 4));
