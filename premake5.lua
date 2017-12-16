@@ -90,7 +90,11 @@ filter("platforms:Linux")
   })
   links({
     "pthread",
+    "dl",
   })
+
+filter({"platforms:Linux", "kind:*App"})
+  linkgroups("On")
 
 filter({"platforms:Linux", "language:C++", "toolset:gcc"})
   buildoptions({
@@ -212,19 +216,19 @@ solution("xenia")
   include("src/xenia/debug/ui")
   include("src/xenia/gpu")
   include("src/xenia/gpu/null")
-  include("src/xenia/gpu/gl4")
   include("src/xenia/gpu/vulkan")
   include("src/xenia/hid")
   include("src/xenia/hid/nop")
   include("src/xenia/kernel")
   include("src/xenia/ui")
-  include("src/xenia/ui/gl")
   include("src/xenia/ui/spirv")
   include("src/xenia/ui/vulkan")
   include("src/xenia/vfs")
 
   if os.is("windows") then
     include("src/xenia/apu/xaudio2")
+    include("src/xenia/gpu/gl4")
     include("src/xenia/hid/winkey")
     include("src/xenia/hid/xinput")
+    include("src/xenia/ui/gl")
   end
