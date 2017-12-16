@@ -276,6 +276,9 @@ class RenderCache {
   RenderCache(RegisterFile* register_file, ui::vulkan::VulkanDevice* device);
   ~RenderCache();
 
+  VkResult Initialize();
+  void Shutdown();
+
   // Call this to determine if you should start a new render pass or continue
   // with an already open pass.
   bool dirty() const;

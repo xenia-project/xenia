@@ -27,7 +27,7 @@ class Blitter {
   Blitter();
   ~Blitter();
 
-  bool Initialize(VulkanDevice* device);
+  VkResult Initialize(VulkanDevice* device);
   void Scavenge();
   void Shutdown();
 

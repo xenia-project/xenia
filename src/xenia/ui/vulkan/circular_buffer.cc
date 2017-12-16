@@ -46,7 +46,8 @@ CircularBuffer::CircularBuffer(VulkanDevice* device, VkBufferUsageFlags usage,
 }
 CircularBuffer::~CircularBuffer() { Shutdown(); }
 
-bool CircularBuffer::Initialize(VkDeviceMemory memory, VkDeviceSize offset) {
+VkResult CircularBuffer::Initialize(VkDeviceMemory memory,
+                                    VkDeviceSize offset) {
   assert_true(offset % alignment_ == 0);
   gpu_memory_ = memory;
   gpu_base_ = offset;
@@ -59,7 +60,7 @@ bool CircularBuffer::Initialize(VkDeviceMemory memory, VkDeviceSize offset) {
   if (status != VK_SUCCESS) {
     XELOGE("CircularBuffer::Initialize - Failed to bind memory!");
     Shutdown();
-    return false;
+    return status;
   }
 
   // Map the memory so we can access it.
@@ -69,13 +70,13 @@ bool CircularBuffer::Initialize(VkDeviceMemory memory, VkDeviceSize offset) {
   if (status != VK_SUCCESS) {
     XELOGE("CircularBuffer::Initialize - Failed to map memory!");
     Shutdown();
-    return false;
+    return status;
   }
 
-  return true;
+  return VK_SUCCESS;
 }
 
-bool CircularBuffer::Initialize() {
+VkResult CircularBuffer::Initialize() {
   VkResult status = VK_SUCCESS;
 
   VkMemoryRequirements reqs;
@@ -87,7 +88,7 @@ bool CircularBuffer::Initialize() {
   if (!gpu_memory_) {
     XELOGE("CircularBuffer::Initialize - Failed to allocate memory!");
     Shutdown();
-    return false;
+    return VK_ERROR_INITIALIZATION_FAILED;
   }
 
   capacity_ = reqs.size;
@@ -99,7 +100,7 @@ bool CircularBuffer::Initialize() {
   if (status != VK_SUCCESS) {
     XELOGE("CircularBuffer::Initialize - Failed to bind memory!");
     Shutdown();
-    return false;
+    return status;
   }
 
   // Map the memory so we can access it.
@@ -109,10 +110,10 @@ bool CircularBuffer::Initialize() {
   if (status != VK_SUCCESS) {
     XELOGE("CircularBuffer::Initialize - Failed to map memory!");
     Shutdown();
-    return false;
+    return status;
   }
 
-  return true;
+  return VK_SUCCESS;
 }
 
 void CircularBuffer::Shutdown() {

@@ -76,6 +76,9 @@ class TextureCache {
                TraceWriter* trace_writer, ui::vulkan::VulkanDevice* device);
   ~TextureCache();
 
+  VkResult Initialize();
+  void Shutdown();
+
   // Descriptor set layout containing all possible texture bindings.
   // The set contains one descriptor for each texture sampler [0-31].
   VkDescriptorSetLayout texture_descriptor_set_layout() const {
