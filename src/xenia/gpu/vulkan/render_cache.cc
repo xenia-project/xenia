@@ -223,7 +223,9 @@ CachedTileView::CachedTileView(ui::vulkan::VulkanDevice* device,
   image_view_info.format = image_info.format;
   // TODO(benvanik): manipulate? may not be able to when attached.
   image_view_info.components = {
-      VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B,
+      VK_COMPONENT_SWIZZLE_R,
+      VK_COMPONENT_SWIZZLE_G,
+      VK_COMPONENT_SWIZZLE_B,
       VK_COMPONENT_SWIZZLE_A,
   };
   image_view_info.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
@@ -766,7 +768,9 @@ bool RenderCache::ParseConfiguration(RenderConfiguration* config) {
   // Color attachment configuration.
   if (config->mode_control == ModeControl::kColorDepth) {
     reg::RB_COLOR_INFO color_info[4] = {
-        regs.rb_color_info, regs.rb_color1_info, regs.rb_color2_info,
+        regs.rb_color_info,
+        regs.rb_color1_info,
+        regs.rb_color2_info,
         regs.rb_color3_info,
     };
     for (int i = 0; i < 4; ++i) {
@@ -782,6 +786,9 @@ bool RenderCache::ParseConfiguration(RenderConfiguration* config) {
           break;
         case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_unknown:
           config->color[i].format = ColorRenderTargetFormat::k_2_10_10_10_FLOAT;
+          break;
+        default:
+          // The rest are good
           break;
       }
     }
@@ -863,7 +870,7 @@ bool RenderCache::ConfigureRenderPass(VkCommandBuffer command_buffer,
       color_key.edram_format = static_cast<uint16_t>(config->color[i].format);
       target_color_attachments[i] =
           FindOrCreateTileView(command_buffer, color_key);
-      if (!target_color_attachments) {
+      if (!target_color_attachments[i]) {
         XELOGE("Failed to get tile view for color attachment");
         return false;
       }
@@ -925,6 +932,9 @@ CachedTileView* RenderCache::FindTileView(uint32_t base, uint32_t pitch,
         break;
       case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_unknown:
         format = uint32_t(ColorRenderTargetFormat::k_2_10_10_10_FLOAT);
+        break;
+      default:
+        // Other types as-is.
         break;
     }
   }
@@ -1165,6 +1175,9 @@ void RenderCache::BlitToImage(VkCommandBuffer command_buffer,
       case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_unknown:
         format = uint32_t(ColorRenderTargetFormat::k_2_10_10_10_FLOAT);
         break;
+      default:
+        // Rest are OK
+        break;
     }
   }
 
@@ -1277,6 +1290,9 @@ void RenderCache::ClearEDRAMColor(VkCommandBuffer command_buffer,
       break;
     case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_unknown:
       format = ColorRenderTargetFormat::k_2_10_10_10_FLOAT;
+      break;
+    default:
+      // Rest are OK
       break;
   }
 

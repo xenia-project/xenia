@@ -782,7 +782,9 @@ GL4CommandProcessor::UpdateStatus GL4CommandProcessor::UpdateRenderTargets() {
   GLuint color_targets[4] = {kAnyTarget, kAnyTarget, kAnyTarget, kAnyTarget};
   if (enable_mode == ModeControl::kColorDepth) {
     uint32_t color_info[4] = {
-        regs.rb_color_info, regs.rb_color1_info, regs.rb_color2_info,
+        regs.rb_color_info,
+        regs.rb_color1_info,
+        regs.rb_color2_info,
         regs.rb_color3_info,
     };
     // A2XX_RB_COLOR_MASK_WRITE_* == D3DRS_COLORWRITEENABLE
@@ -1099,7 +1101,9 @@ GL4CommandProcessor::UpdateStatus GL4CommandProcessor::UpdateRasterizerState(
   }
 
   static const GLenum kFillModes[3] = {
-      GL_POINT, GL_LINE, GL_FILL,
+      GL_POINT,
+      GL_LINE,
+      GL_FILL,
   };
   bool poly_mode = ((regs.pa_su_sc_mode_cntl >> 3) & 0x3) != 0;
   if (poly_mode) {
@@ -1590,7 +1594,8 @@ bool GL4CommandProcessor::IssueCopy() {
   if (copy_src_select <= 3 || color_clear_enabled) {
     // Source from a color target.
     uint32_t color_info[4] = {
-        regs[XE_GPU_REG_RB_COLOR_INFO].u32, regs[XE_GPU_REG_RB_COLOR1_INFO].u32,
+        regs[XE_GPU_REG_RB_COLOR_INFO].u32,
+        regs[XE_GPU_REG_RB_COLOR1_INFO].u32,
         regs[XE_GPU_REG_RB_COLOR2_INFO].u32,
         regs[XE_GPU_REG_RB_COLOR3_INFO].u32,
     };

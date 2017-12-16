@@ -256,7 +256,10 @@ void Blitter::BlitTexture2D(VkCommandBuffer command_buffer, VkFence fence,
     vkCmdSetViewport(command_buffer, 0, 1, &viewport);
 
     VkRect2D scissor = {
-        dst_offset.x, dst_offset.y, dst_extents.width, dst_extents.height,
+        dst_offset.x,
+        dst_offset.y,
+        dst_extents.width,
+        dst_extents.height,
     };
     vkCmdSetScissor(command_buffer, 0, 1, &scissor);
 
@@ -305,7 +308,10 @@ void Blitter::BlitTexture2D(VkCommandBuffer command_buffer, VkFence fence,
                        &vtx_constants);
 
     PixPushConstants pix_constants = {
-        0, 0, 0, swap_channels ? 1 : 0,
+        0,
+        0,
+        0,
+        swap_channels ? 1 : 0,
     };
     vkCmdPushConstants(command_buffer, pipeline_layout_,
                        VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(VtxPushConstants),
@@ -540,7 +546,8 @@ VkPipeline Blitter::CreatePipeline(VkRenderPass render_pass,
   dynamic_state_info.pNext = nullptr;
   dynamic_state_info.flags = 0;
   VkDynamicState dynamic_states[] = {
-      VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR,
+      VK_DYNAMIC_STATE_VIEWPORT,
+      VK_DYNAMIC_STATE_SCISSOR,
   };
   dynamic_state_info.dynamicStateCount =
       static_cast<uint32_t>(xe::countof(dynamic_states));

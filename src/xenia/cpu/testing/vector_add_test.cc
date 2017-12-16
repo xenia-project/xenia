@@ -47,8 +47,9 @@ TEST_CASE("VECTOR_ADD_I8", "[instr]") {
 
 TEST_CASE("VECTOR_ADD_I8_SAT_SIGNED", "[instr]") {
   TestFunction test([](HIRBuilder& b) {
-    StoreVR(b, 3, b.VectorAdd(LoadVR(b, 4), LoadVR(b, 5), INT8_TYPE,
-                              ARITHMETIC_SATURATE));
+    StoreVR(b, 3,
+            b.VectorAdd(LoadVR(b, 4), LoadVR(b, 5), INT8_TYPE,
+                        ARITHMETIC_SATURATE));
     b.Return();
   });
   test.Run(
@@ -73,8 +74,9 @@ TEST_CASE("VECTOR_ADD_I8_SAT_SIGNED", "[instr]") {
 
 TEST_CASE("VECTOR_ADD_I8_SAT_UNSIGNED", "[instr]") {
   TestFunction test([](HIRBuilder& b) {
-    StoreVR(b, 3, b.VectorAdd(LoadVR(b, 4), LoadVR(b, 5), INT8_TYPE,
-                              ARITHMETIC_SATURATE | ARITHMETIC_UNSIGNED));
+    StoreVR(b, 3,
+            b.VectorAdd(LoadVR(b, 4), LoadVR(b, 5), INT8_TYPE,
+                        ARITHMETIC_SATURATE | ARITHMETIC_UNSIGNED));
     b.Return();
   });
   test.Run(
@@ -124,8 +126,9 @@ TEST_CASE("VECTOR_ADD_I16", "[instr]") {
 
 TEST_CASE("VECTOR_ADD_I16_SAT_SIGNED", "[instr]") {
   TestFunction test([](HIRBuilder& b) {
-    StoreVR(b, 3, b.VectorAdd(LoadVR(b, 4), LoadVR(b, 5), INT16_TYPE,
-                              ARITHMETIC_SATURATE));
+    StoreVR(b, 3,
+            b.VectorAdd(LoadVR(b, 4), LoadVR(b, 5), INT16_TYPE,
+                        ARITHMETIC_SATURATE));
     b.Return();
   });
   test.Run(
@@ -150,8 +153,9 @@ TEST_CASE("VECTOR_ADD_I16_SAT_SIGNED", "[instr]") {
 
 TEST_CASE("VECTOR_ADD_I16_SAT_UNSIGNED", "[instr]") {
   TestFunction test([](HIRBuilder& b) {
-    StoreVR(b, 3, b.VectorAdd(LoadVR(b, 4), LoadVR(b, 5), INT16_TYPE,
-                              ARITHMETIC_SATURATE | ARITHMETIC_UNSIGNED));
+    StoreVR(b, 3,
+            b.VectorAdd(LoadVR(b, 4), LoadVR(b, 5), INT16_TYPE,
+                        ARITHMETIC_SATURATE | ARITHMETIC_UNSIGNED));
     b.Return();
   });
   test.Run(
@@ -201,8 +205,9 @@ TEST_CASE("VECTOR_ADD_I32", "[instr]") {
 
 TEST_CASE("VECTOR_ADD_I32_SAT_SIGNED", "[instr]") {
   TestFunction test([](HIRBuilder& b) {
-    StoreVR(b, 3, b.VectorAdd(LoadVR(b, 4), LoadVR(b, 5), INT32_TYPE,
-                              ARITHMETIC_SATURATE));
+    StoreVR(b, 3,
+            b.VectorAdd(LoadVR(b, 4), LoadVR(b, 5), INT32_TYPE,
+                        ARITHMETIC_SATURATE));
     b.Return();
   });
   test.Run(
@@ -236,8 +241,9 @@ TEST_CASE("VECTOR_ADD_I32_SAT_SIGNED", "[instr]") {
 
 TEST_CASE("VECTOR_ADD_I32_SAT_UNSIGNED", "[instr]") {
   TestFunction test([](HIRBuilder& b) {
-    StoreVR(b, 3, b.VectorAdd(LoadVR(b, 4), LoadVR(b, 5), INT32_TYPE,
-                              ARITHMETIC_SATURATE | ARITHMETIC_UNSIGNED));
+    StoreVR(b, 3,
+            b.VectorAdd(LoadVR(b, 4), LoadVR(b, 5), INT32_TYPE,
+                        ARITHMETIC_SATURATE | ARITHMETIC_UNSIGNED));
     b.Return();
   });
   test.Run(

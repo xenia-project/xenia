@@ -143,7 +143,8 @@ void ImGuiDrawer::SetupFont() {
   font_config.OversampleH = font_config.OversampleV = 1;
   font_config.PixelSnapH = true;
   static const ImWchar font_glyph_ranges[] = {
-      0x0020, 0x00FF,  // Basic Latin + Latin Supplement
+      0x0020,
+      0x00FF,  // Basic Latin + Latin Supplement
       0,
   };
   io.Fonts->AddFontFromMemoryCompressedBase85TTF(

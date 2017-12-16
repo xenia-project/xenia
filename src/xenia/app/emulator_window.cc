@@ -28,11 +28,11 @@
 namespace xe {
 namespace app {
 
+using xe::ui::FileDropEvent;
 using xe::ui::KeyEvent;
 using xe::ui::MenuItem;
 using xe::ui::MouseEvent;
 using xe::ui::UIEvent;
-using xe::ui::FileDropEvent;
 
 const std::wstring kBaseTitle = L"xenia";
 

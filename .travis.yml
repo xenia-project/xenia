@@ -4,47 +4,52 @@
 #sudo: false
 
 language: cpp
-compiler:
-  - clang
-  # - gcc
-
 os:
   - linux
   # - osx
 
-env:
-  - LINT=true
-  - BUILD=true CONFIG=Debug
-  - BUILD=true CONFIG=Release
-
 matrix:
+  include:
+    - compiler: clang
+      env: C_COMPILER=clang-3.9 CXX_COMPILER=clang++-3.9 LINT=true
+    - compiler: clang
+      env: C_COMPILER=clang-3.9 CXX_COMPILER=clang++-3.9 BUILD=true CONFIG=Debug
+    - compiler: clang
+      env: C_COMPILER=clang-3.9 CXX_COMPILER=clang++-3.9 BUILD=true CONFIG=Release
   allow_failures:
     # LLVMGold.so is not installed correctly
-    - env: BUILD=true CONFIG=Release
+    - env: C_COMPILER=clang-3.9 CXX_COMPILER=clang++-3.9 BUILD=true CONFIG=Release
 
-dist: trusty
 sudo: required
 addons:
   apt:
     sources:
-      # - ubuntu-toolchain-r-test
-      - llvm-toolchain-precise
+      - ubuntu-toolchain-r-test
+      - llvm-toolchain-trusty
     packages:
-      - clang-3.8
-      - clang-format-3.8
+      - clang-3.9
+      - clang-format-3.9
+      #- g++-6
       - libc++-dev
       - python3
+      - libc++abi-dev
+      - libgtk-3-dev
+      - liblz4-dev
 
 git:
   # We handle submodules ourselves in xenia-build setup.
   submodules: false
 
 before_script:
-  - export CXX=clang++-3.8
-  - export CC=clang-3.8
+  - export CXX=$CXX_COMPILER
+  - export CC=$C_COMPILER
   # Dump useful info.
   - $CXX --version
   - python3 --version
+  # Add Vulkan dependencies
+  - travis_retry wget http://mirrors.kernel.org/ubuntu/pool/universe/v/vulkan/libvulkan1_1.0.42.0+dfsg1-1ubuntu1~16.04.1_amd64.deb
+  - travis_retry wget http://mirrors.kernel.org/ubuntu/pool/universe/v/vulkan/libvulkan-dev_1.0.42.0+dfsg1-1ubuntu1~16.04.1_amd64.deb
+  - sudo dpkg -i libvulkan1_1.0.42.0+dfsg1-1ubuntu1~16.04.1_amd64.deb libvulkan-dev_1.0.42.0+dfsg1-1ubuntu1~16.04.1_amd64.deb
   # Prepare environment (pull dependencies, build tools).
   - travis_retry ./xenia-build setup
 
@@ -59,9 +64,8 @@ script:
   - if [[ $BUILD == true ]]; then ./xenia-build build --config=$CONFIG --target=xenia-cpu-ppc-tests; fi
   # - if [[ $BUILD == true ]]; then ./build/bin/Linux/$CONFIG/xenia-cpu-ppc-tests --log_file=stdout; fi
 
-  # TODO(DrChat): Enable builds in the future.
   # Build all of xenia.
-  #- ./xenia-build build --config=debug
+  #- if [[ $BUILD == true ]]; then ./xenia-build build --config=$CONFIG; fi
   # All tests (without haswell support).
   #- ./xenia-build test --config=debug --no-build -- --enable_haswell_instructions=false
   # All tests (with haswell support).

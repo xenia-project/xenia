@@ -2988,8 +2988,9 @@ EMITTER_OPCODE_TABLE(OPCODE_IS_NAN, IS_NAN_F32, IS_NAN_F64);
 struct COMPARE_EQ_I8
     : Sequence<COMPARE_EQ_I8, I<OPCODE_COMPARE_EQ, I8Op, I8Op, I8Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    EmitCommutativeCompareOp(e, i, [](X64Emitter& e, const Reg8& src1,
-                                      const Reg8& src2) { e.cmp(src1, src2); },
+    EmitCommutativeCompareOp(e, i,
+                             [](X64Emitter& e, const Reg8& src1,
+                                const Reg8& src2) { e.cmp(src1, src2); },
                              [](X64Emitter& e, const Reg8& src1,
                                 int32_t constant) { e.cmp(src1, constant); });
     e.sete(i.dest);
@@ -2998,8 +2999,9 @@ struct COMPARE_EQ_I8
 struct COMPARE_EQ_I16
     : Sequence<COMPARE_EQ_I16, I<OPCODE_COMPARE_EQ, I8Op, I16Op, I16Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    EmitCommutativeCompareOp(e, i, [](X64Emitter& e, const Reg16& src1,
-                                      const Reg16& src2) { e.cmp(src1, src2); },
+    EmitCommutativeCompareOp(e, i,
+                             [](X64Emitter& e, const Reg16& src1,
+                                const Reg16& src2) { e.cmp(src1, src2); },
                              [](X64Emitter& e, const Reg16& src1,
                                 int32_t constant) { e.cmp(src1, constant); });
     e.sete(i.dest);
@@ -3008,8 +3010,9 @@ struct COMPARE_EQ_I16
 struct COMPARE_EQ_I32
     : Sequence<COMPARE_EQ_I32, I<OPCODE_COMPARE_EQ, I8Op, I32Op, I32Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    EmitCommutativeCompareOp(e, i, [](X64Emitter& e, const Reg32& src1,
-                                      const Reg32& src2) { e.cmp(src1, src2); },
+    EmitCommutativeCompareOp(e, i,
+                             [](X64Emitter& e, const Reg32& src1,
+                                const Reg32& src2) { e.cmp(src1, src2); },
                              [](X64Emitter& e, const Reg32& src1,
                                 int32_t constant) { e.cmp(src1, constant); });
     e.sete(i.dest);
@@ -3018,8 +3021,9 @@ struct COMPARE_EQ_I32
 struct COMPARE_EQ_I64
     : Sequence<COMPARE_EQ_I64, I<OPCODE_COMPARE_EQ, I8Op, I64Op, I64Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    EmitCommutativeCompareOp(e, i, [](X64Emitter& e, const Reg64& src1,
-                                      const Reg64& src2) { e.cmp(src1, src2); },
+    EmitCommutativeCompareOp(e, i,
+                             [](X64Emitter& e, const Reg64& src1,
+                                const Reg64& src2) { e.cmp(src1, src2); },
                              [](X64Emitter& e, const Reg64& src1,
                                 int32_t constant) { e.cmp(src1, constant); });
     e.sete(i.dest);
@@ -3055,8 +3059,9 @@ EMITTER_OPCODE_TABLE(OPCODE_COMPARE_EQ, COMPARE_EQ_I8, COMPARE_EQ_I16,
 struct COMPARE_NE_I8
     : Sequence<COMPARE_NE_I8, I<OPCODE_COMPARE_NE, I8Op, I8Op, I8Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    EmitCommutativeCompareOp(e, i, [](X64Emitter& e, const Reg8& src1,
-                                      const Reg8& src2) { e.cmp(src1, src2); },
+    EmitCommutativeCompareOp(e, i,
+                             [](X64Emitter& e, const Reg8& src1,
+                                const Reg8& src2) { e.cmp(src1, src2); },
                              [](X64Emitter& e, const Reg8& src1,
                                 int32_t constant) { e.cmp(src1, constant); });
     e.setne(i.dest);
@@ -3065,8 +3070,9 @@ struct COMPARE_NE_I8
 struct COMPARE_NE_I16
     : Sequence<COMPARE_NE_I16, I<OPCODE_COMPARE_NE, I8Op, I16Op, I16Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    EmitCommutativeCompareOp(e, i, [](X64Emitter& e, const Reg16& src1,
-                                      const Reg16& src2) { e.cmp(src1, src2); },
+    EmitCommutativeCompareOp(e, i,
+                             [](X64Emitter& e, const Reg16& src1,
+                                const Reg16& src2) { e.cmp(src1, src2); },
                              [](X64Emitter& e, const Reg16& src1,
                                 int32_t constant) { e.cmp(src1, constant); });
     e.setne(i.dest);
@@ -3075,8 +3081,9 @@ struct COMPARE_NE_I16
 struct COMPARE_NE_I32
     : Sequence<COMPARE_NE_I32, I<OPCODE_COMPARE_NE, I8Op, I32Op, I32Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    EmitCommutativeCompareOp(e, i, [](X64Emitter& e, const Reg32& src1,
-                                      const Reg32& src2) { e.cmp(src1, src2); },
+    EmitCommutativeCompareOp(e, i,
+                             [](X64Emitter& e, const Reg32& src1,
+                                const Reg32& src2) { e.cmp(src1, src2); },
                              [](X64Emitter& e, const Reg32& src1,
                                 int32_t constant) { e.cmp(src1, constant); });
     e.setne(i.dest);
@@ -3085,8 +3092,9 @@ struct COMPARE_NE_I32
 struct COMPARE_NE_I64
     : Sequence<COMPARE_NE_I64, I<OPCODE_COMPARE_NE, I8Op, I64Op, I64Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    EmitCommutativeCompareOp(e, i, [](X64Emitter& e, const Reg64& src1,
-                                      const Reg64& src2) { e.cmp(src1, src2); },
+    EmitCommutativeCompareOp(e, i,
+                             [](X64Emitter& e, const Reg64& src1,
+                                const Reg64& src2) { e.cmp(src1, src2); },
                              [](X64Emitter& e, const Reg64& src1,
                                 int32_t constant) { e.cmp(src1, constant); });
     e.setne(i.dest);
@@ -3421,8 +3429,10 @@ EMITTER_OPCODE_TABLE(OPCODE_VECTOR_COMPARE_UGE, VECTOR_COMPARE_UGE_V128);
 template <typename SEQ, typename REG, typename ARGS>
 void EmitAddXX(X64Emitter& e, const ARGS& i) {
   SEQ::EmitCommutativeBinaryOp(
-      e, i, [](X64Emitter& e, const REG& dest_src,
-               const REG& src) { e.add(dest_src, src); },
+      e, i,
+      [](X64Emitter& e, const REG& dest_src, const REG& src) {
+        e.add(dest_src, src);
+      },
       [](X64Emitter& e, const REG& dest_src, int32_t constant) {
         e.add(dest_src, constant);
       });
@@ -3491,8 +3501,10 @@ void EmitAddCarryXX(X64Emitter& e, const ARGS& i) {
     e.sahf();
   }
   SEQ::EmitCommutativeBinaryOp(
-      e, i, [](X64Emitter& e, const REG& dest_src,
-               const REG& src) { e.adc(dest_src, src); },
+      e, i,
+      [](X64Emitter& e, const REG& dest_src, const REG& src) {
+        e.adc(dest_src, src);
+      },
       [](X64Emitter& e, const REG& dest_src, int32_t constant) {
         e.adc(dest_src, constant);
       });
@@ -3530,105 +3542,110 @@ EMITTER_OPCODE_TABLE(OPCODE_ADD_CARRY, ADD_CARRY_I8, ADD_CARRY_I16,
 struct VECTOR_ADD
     : Sequence<VECTOR_ADD, I<OPCODE_VECTOR_ADD, V128Op, V128Op, V128Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    EmitCommutativeBinaryXmmOp(e, i, [&i](X64Emitter& e, const Xmm& dest,
-                                          Xmm src1, Xmm src2) {
-      const TypeName part_type = static_cast<TypeName>(i.instr->flags & 0xFF);
-      const uint32_t arithmetic_flags = i.instr->flags >> 8;
-      bool is_unsigned = !!(arithmetic_flags & ARITHMETIC_UNSIGNED);
-      bool saturate = !!(arithmetic_flags & ARITHMETIC_SATURATE);
-      switch (part_type) {
-        case INT8_TYPE:
-          if (saturate) {
-            // TODO(benvanik): trace DID_SATURATE
-            if (is_unsigned) {
-              e.vpaddusb(dest, src1, src2);
-            } else {
-              e.vpaddsb(dest, src1, src2);
-            }
-          } else {
-            e.vpaddb(dest, src1, src2);
-          }
-          break;
-        case INT16_TYPE:
-          if (saturate) {
-            // TODO(benvanik): trace DID_SATURATE
-            if (is_unsigned) {
-              e.vpaddusw(dest, src1, src2);
-            } else {
-              e.vpaddsw(dest, src1, src2);
-            }
-          } else {
-            e.vpaddw(dest, src1, src2);
-          }
-          break;
-        case INT32_TYPE:
-          if (saturate) {
-            if (is_unsigned) {
-              // xmm0 is the only temp register that can be used by src1/src2.
-              e.vpaddd(e.xmm1, src1, src2);
-
-              // If result is smaller than either of the inputs, we've
-              // overflowed (only need to check one input)
-              // if (src1 > res) then overflowed
-              // http://locklessinc.com/articles/sat_arithmetic/
-              e.vpxor(e.xmm2, src1, e.GetXmmConstPtr(XMMSignMaskI32));
-              e.vpxor(e.xmm0, e.xmm1, e.GetXmmConstPtr(XMMSignMaskI32));
-              e.vpcmpgtd(e.xmm0, e.xmm2, e.xmm0);
-              e.vpor(dest, e.xmm1, e.xmm0);
-            } else {
-              // Preserve the sources.
-              if (dest == src1) {
-                e.vmovdqa(e.xmm2, src1);
-                src1 = e.xmm2;
+    EmitCommutativeBinaryXmmOp(
+        e, i, [&i](X64Emitter& e, const Xmm& dest, Xmm src1, Xmm src2) {
+          const TypeName part_type =
+              static_cast<TypeName>(i.instr->flags & 0xFF);
+          const uint32_t arithmetic_flags = i.instr->flags >> 8;
+          bool is_unsigned = !!(arithmetic_flags & ARITHMETIC_UNSIGNED);
+          bool saturate = !!(arithmetic_flags & ARITHMETIC_SATURATE);
+          switch (part_type) {
+            case INT8_TYPE:
+              if (saturate) {
+                // TODO(benvanik): trace DID_SATURATE
+                if (is_unsigned) {
+                  e.vpaddusb(dest, src1, src2);
+                } else {
+                  e.vpaddsb(dest, src1, src2);
+                }
+              } else {
+                e.vpaddb(dest, src1, src2);
               }
-              if (dest == src2) {
-                e.vmovdqa(e.xmm1, src2);
-                src2 = e.xmm1;
+              break;
+            case INT16_TYPE:
+              if (saturate) {
+                // TODO(benvanik): trace DID_SATURATE
+                if (is_unsigned) {
+                  e.vpaddusw(dest, src1, src2);
+                } else {
+                  e.vpaddsw(dest, src1, src2);
+                }
+              } else {
+                e.vpaddw(dest, src1, src2);
               }
+              break;
+            case INT32_TYPE:
+              if (saturate) {
+                if (is_unsigned) {
+                  // xmm0 is the only temp register that can be used by
+                  // src1/src2.
+                  e.vpaddd(e.xmm1, src1, src2);
 
-              // xmm0 is the only temp register that can be used by src1/src2.
-              e.vpaddd(dest, src1, src2);
+                  // If result is smaller than either of the inputs, we've
+                  // overflowed (only need to check one input)
+                  // if (src1 > res) then overflowed
+                  // http://locklessinc.com/articles/sat_arithmetic/
+                  e.vpxor(e.xmm2, src1, e.GetXmmConstPtr(XMMSignMaskI32));
+                  e.vpxor(e.xmm0, e.xmm1, e.GetXmmConstPtr(XMMSignMaskI32));
+                  e.vpcmpgtd(e.xmm0, e.xmm2, e.xmm0);
+                  e.vpor(dest, e.xmm1, e.xmm0);
+                } else {
+                  // Preserve the sources.
+                  if (dest == src1) {
+                    e.vmovdqa(e.xmm2, src1);
+                    src1 = e.xmm2;
+                  }
+                  if (dest == src2) {
+                    e.vmovdqa(e.xmm1, src2);
+                    src2 = e.xmm1;
+                  }
 
-              // Overflow results if two inputs are the same sign and the result
-              // isn't the same sign.
-              // if ((s32b)(~(src1 ^ src2) & (src1 ^ res)) < 0) then overflowed
-              // http://locklessinc.com/articles/sat_arithmetic/
-              e.vpxor(e.xmm1, src1, src2);
+                  // xmm0 is the only temp register that can be used by
+                  // src1/src2.
+                  e.vpaddd(dest, src1, src2);
 
-              // Move src1 to xmm0 in-case it was the same register as the dest.
-              // This kills src2 if it's a constant.
-              if (src1 != e.xmm0) {
-                e.vmovdqa(e.xmm0, src1);
-                src1 = e.xmm0;
+                  // Overflow results if two inputs are the same sign and the
+                  // result isn't the same sign. if ((s32b)(~(src1 ^ src2) &
+                  // (src1 ^ res)) < 0) then overflowed
+                  // http://locklessinc.com/articles/sat_arithmetic/
+                  e.vpxor(e.xmm1, src1, src2);
+
+                  // Move src1 to xmm0 in-case it was the same register as the
+                  // dest. This kills src2 if it's a constant.
+                  if (src1 != e.xmm0) {
+                    e.vmovdqa(e.xmm0, src1);
+                    src1 = e.xmm0;
+                  }
+
+                  e.vpxor(e.xmm2, src1, dest);
+                  e.vpandn(e.xmm1, e.xmm1, e.xmm2);
+
+                  // High bit of xmm1 is now set if overflowed.
+
+                  // Set any negative overflowed elements of src1 to INT_MIN
+                  e.vpand(e.xmm2, src1, e.xmm1);
+                  e.vblendvps(dest, dest, e.GetXmmConstPtr(XMMSignMaskI32),
+                              e.xmm2);
+
+                  // Set any positive overflowed elements of src1 to INT_MAX
+                  e.vpandn(e.xmm2, src1, e.xmm1);
+                  e.vblendvps(dest, dest, e.GetXmmConstPtr(XMMAbsMaskPS),
+                              e.xmm2);
+                }
+              } else {
+                e.vpaddd(dest, src1, src2);
               }
-
-              e.vpxor(e.xmm2, src1, dest);
-              e.vpandn(e.xmm1, e.xmm1, e.xmm2);
-
-              // High bit of xmm1 is now set if overflowed.
-
-              // Set any negative overflowed elements of src1 to INT_MIN
-              e.vpand(e.xmm2, src1, e.xmm1);
-              e.vblendvps(dest, dest, e.GetXmmConstPtr(XMMSignMaskI32), e.xmm2);
-
-              // Set any positive overflowed elements of src1 to INT_MAX
-              e.vpandn(e.xmm2, src1, e.xmm1);
-              e.vblendvps(dest, dest, e.GetXmmConstPtr(XMMAbsMaskPS), e.xmm2);
-            }
-          } else {
-            e.vpaddd(dest, src1, src2);
+              break;
+            case FLOAT32_TYPE:
+              assert_false(is_unsigned);
+              assert_false(saturate);
+              e.vaddps(dest, src1, src2);
+              break;
+            default:
+              assert_unhandled_case(part_type);
+              break;
           }
-          break;
-        case FLOAT32_TYPE:
-          assert_false(is_unsigned);
-          assert_false(saturate);
-          e.vaddps(dest, src1, src2);
-          break;
-        default:
-          assert_unhandled_case(part_type);
-          break;
-      }
-    });
+        });
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_VECTOR_ADD, VECTOR_ADD);
@@ -3640,8 +3657,10 @@ EMITTER_OPCODE_TABLE(OPCODE_VECTOR_ADD, VECTOR_ADD);
 template <typename SEQ, typename REG, typename ARGS>
 void EmitSubXX(X64Emitter& e, const ARGS& i) {
   SEQ::EmitAssociativeBinaryOp(
-      e, i, [](X64Emitter& e, const REG& dest_src,
-               const REG& src) { e.sub(dest_src, src); },
+      e, i,
+      [](X64Emitter& e, const REG& dest_src, const REG& src) {
+        e.sub(dest_src, src);
+      },
       [](X64Emitter& e, const REG& dest_src, int32_t constant) {
         e.sub(dest_src, constant);
       });
@@ -3693,104 +3712,109 @@ EMITTER_OPCODE_TABLE(OPCODE_SUB, SUB_I8, SUB_I16, SUB_I32, SUB_I64, SUB_F32,
 struct VECTOR_SUB
     : Sequence<VECTOR_SUB, I<OPCODE_VECTOR_SUB, V128Op, V128Op, V128Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    EmitCommutativeBinaryXmmOp(e, i, [&i](X64Emitter& e, const Xmm& dest,
-                                          Xmm src1, Xmm src2) {
-      const TypeName part_type = static_cast<TypeName>(i.instr->flags & 0xFF);
-      const uint32_t arithmetic_flags = i.instr->flags >> 8;
-      bool is_unsigned = !!(arithmetic_flags & ARITHMETIC_UNSIGNED);
-      bool saturate = !!(arithmetic_flags & ARITHMETIC_SATURATE);
-      switch (part_type) {
-        case INT8_TYPE:
-          if (saturate) {
-            // TODO(benvanik): trace DID_SATURATE
-            if (is_unsigned) {
-              e.vpsubusb(dest, src1, src2);
-            } else {
-              e.vpsubsb(dest, src1, src2);
-            }
-          } else {
-            e.vpsubb(dest, src1, src2);
-          }
-          break;
-        case INT16_TYPE:
-          if (saturate) {
-            // TODO(benvanik): trace DID_SATURATE
-            if (is_unsigned) {
-              e.vpsubusw(dest, src1, src2);
-            } else {
-              e.vpsubsw(dest, src1, src2);
-            }
-          } else {
-            e.vpsubw(dest, src1, src2);
-          }
-          break;
-        case INT32_TYPE:
-          if (saturate) {
-            if (is_unsigned) {
-              // xmm0 is the only temp register that can be used by src1/src2.
-              e.vpsubd(e.xmm1, src1, src2);
-
-              // If result is greater than either of the inputs, we've
-              // underflowed (only need to check one input)
-              // if (res > src1) then underflowed
-              // http://locklessinc.com/articles/sat_arithmetic/
-              e.vpxor(e.xmm2, src1, e.GetXmmConstPtr(XMMSignMaskI32));
-              e.vpxor(e.xmm0, e.xmm1, e.GetXmmConstPtr(XMMSignMaskI32));
-              e.vpcmpgtd(e.xmm0, e.xmm0, e.xmm2);
-              e.vpandn(dest, e.xmm0, e.xmm1);
-            } else {
-              // Preserve the sources.
-              if (dest == src1) {
-                e.vmovdqa(e.xmm2, src1);
-                src1 = e.xmm2;
+    EmitCommutativeBinaryXmmOp(
+        e, i, [&i](X64Emitter& e, const Xmm& dest, Xmm src1, Xmm src2) {
+          const TypeName part_type =
+              static_cast<TypeName>(i.instr->flags & 0xFF);
+          const uint32_t arithmetic_flags = i.instr->flags >> 8;
+          bool is_unsigned = !!(arithmetic_flags & ARITHMETIC_UNSIGNED);
+          bool saturate = !!(arithmetic_flags & ARITHMETIC_SATURATE);
+          switch (part_type) {
+            case INT8_TYPE:
+              if (saturate) {
+                // TODO(benvanik): trace DID_SATURATE
+                if (is_unsigned) {
+                  e.vpsubusb(dest, src1, src2);
+                } else {
+                  e.vpsubsb(dest, src1, src2);
+                }
+              } else {
+                e.vpsubb(dest, src1, src2);
               }
-              if (dest == src2) {
-                e.vmovdqa(e.xmm1, src2);
-                src2 = e.xmm1;
+              break;
+            case INT16_TYPE:
+              if (saturate) {
+                // TODO(benvanik): trace DID_SATURATE
+                if (is_unsigned) {
+                  e.vpsubusw(dest, src1, src2);
+                } else {
+                  e.vpsubsw(dest, src1, src2);
+                }
+              } else {
+                e.vpsubw(dest, src1, src2);
               }
+              break;
+            case INT32_TYPE:
+              if (saturate) {
+                if (is_unsigned) {
+                  // xmm0 is the only temp register that can be used by
+                  // src1/src2.
+                  e.vpsubd(e.xmm1, src1, src2);
 
-              // xmm0 is the only temp register that can be used by src1/src2.
-              e.vpsubd(dest, src1, src2);
+                  // If result is greater than either of the inputs, we've
+                  // underflowed (only need to check one input)
+                  // if (res > src1) then underflowed
+                  // http://locklessinc.com/articles/sat_arithmetic/
+                  e.vpxor(e.xmm2, src1, e.GetXmmConstPtr(XMMSignMaskI32));
+                  e.vpxor(e.xmm0, e.xmm1, e.GetXmmConstPtr(XMMSignMaskI32));
+                  e.vpcmpgtd(e.xmm0, e.xmm0, e.xmm2);
+                  e.vpandn(dest, e.xmm0, e.xmm1);
+                } else {
+                  // Preserve the sources.
+                  if (dest == src1) {
+                    e.vmovdqa(e.xmm2, src1);
+                    src1 = e.xmm2;
+                  }
+                  if (dest == src2) {
+                    e.vmovdqa(e.xmm1, src2);
+                    src2 = e.xmm1;
+                  }
 
-              // We can only overflow if the signs of the operands are opposite.
-              // If signs are opposite and result sign isn't the same as src1's
-              // sign, we've overflowed.
-              // if ((s32b)((src1 ^ src2) & (src1 ^ res)) < 0) then overflowed
-              // http://locklessinc.com/articles/sat_arithmetic/
-              e.vpxor(e.xmm1, src1, src2);
+                  // xmm0 is the only temp register that can be used by
+                  // src1/src2.
+                  e.vpsubd(dest, src1, src2);
 
-              // Move src1 to xmm0 in-case it's the same register as the dest.
-              // This kills src2 if it's a constant.
-              if (src1 != e.xmm0) {
-                e.vmovdqa(e.xmm0, src1);
-                src1 = e.xmm0;
+                  // We can only overflow if the signs of the operands are
+                  // opposite. If signs are opposite and result sign isn't the
+                  // same as src1's sign, we've overflowed. if ((s32b)((src1 ^
+                  // src2) & (src1 ^ res)) < 0) then overflowed
+                  // http://locklessinc.com/articles/sat_arithmetic/
+                  e.vpxor(e.xmm1, src1, src2);
+
+                  // Move src1 to xmm0 in-case it's the same register as the
+                  // dest. This kills src2 if it's a constant.
+                  if (src1 != e.xmm0) {
+                    e.vmovdqa(e.xmm0, src1);
+                    src1 = e.xmm0;
+                  }
+
+                  e.vpxor(e.xmm2, src1, dest);
+                  e.vpand(e.xmm1, e.xmm1, e.xmm2);
+
+                  // High bit of xmm1 is now set if overflowed.
+
+                  // Set any negative overflowed elements of src1 to INT_MIN
+                  e.vpand(e.xmm2, src1, e.xmm1);
+                  e.vblendvps(dest, dest, e.GetXmmConstPtr(XMMSignMaskI32),
+                              e.xmm2);
+
+                  // Set any positive overflowed elements of src1 to INT_MAX
+                  e.vpandn(e.xmm2, src1, e.xmm1);
+                  e.vblendvps(dest, dest, e.GetXmmConstPtr(XMMAbsMaskPS),
+                              e.xmm2);
+                }
+              } else {
+                e.vpsubd(dest, src1, src2);
               }
-
-              e.vpxor(e.xmm2, src1, dest);
-              e.vpand(e.xmm1, e.xmm1, e.xmm2);
-
-              // High bit of xmm1 is now set if overflowed.
-
-              // Set any negative overflowed elements of src1 to INT_MIN
-              e.vpand(e.xmm2, src1, e.xmm1);
-              e.vblendvps(dest, dest, e.GetXmmConstPtr(XMMSignMaskI32), e.xmm2);
-
-              // Set any positive overflowed elements of src1 to INT_MAX
-              e.vpandn(e.xmm2, src1, e.xmm1);
-              e.vblendvps(dest, dest, e.GetXmmConstPtr(XMMAbsMaskPS), e.xmm2);
-            }
-          } else {
-            e.vpsubd(dest, src1, src2);
+              break;
+            case FLOAT32_TYPE:
+              e.vsubps(dest, src1, src2);
+              break;
+            default:
+              assert_unhandled_case(part_type);
+              break;
           }
-          break;
-        case FLOAT32_TYPE:
-          e.vsubps(dest, src1, src2);
-          break;
-        default:
-          assert_unhandled_case(part_type);
-          break;
-      }
-    });
+        });
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_VECTOR_SUB, VECTOR_SUB);
@@ -4469,24 +4493,26 @@ struct MUL_ADD_F32
 
     // FMA extension
     if (e.IsFeatureEnabled(kX64EmitFMA)) {
-      EmitCommutativeBinaryXmmOp(e, i, [&i](X64Emitter& e, const Xmm& dest,
-                                            const Xmm& src1, const Xmm& src2) {
-        Xmm src3 = i.src3.is_constant ? e.xmm1 : i.src3;
-        if (i.src3.is_constant) {
-          e.LoadConstantXmm(e.xmm1, i.src3.constant());
-        }
-        if (i.dest == src1) {
-          e.vfmadd213ss(i.dest, src2, src3);
-        } else if (i.dest == src2) {
-          e.vfmadd213ss(i.dest, src1, src3);
-        } else if (i.dest == i.src3) {
-          e.vfmadd231ss(i.dest, src1, src2);
-        } else {
-          // Dest not equal to anything
-          e.vmovss(i.dest, src1);
-          e.vfmadd213ss(i.dest, src2, src3);
-        }
-      });
+      EmitCommutativeBinaryXmmOp(
+          e, i,
+          [&i](X64Emitter& e, const Xmm& dest, const Xmm& src1,
+               const Xmm& src2) {
+            Xmm src3 = i.src3.is_constant ? e.xmm1 : i.src3;
+            if (i.src3.is_constant) {
+              e.LoadConstantXmm(e.xmm1, i.src3.constant());
+            }
+            if (i.dest == src1) {
+              e.vfmadd213ss(i.dest, src2, src3);
+            } else if (i.dest == src2) {
+              e.vfmadd213ss(i.dest, src1, src3);
+            } else if (i.dest == i.src3) {
+              e.vfmadd231ss(i.dest, src1, src2);
+            } else {
+              // Dest not equal to anything
+              e.vmovss(i.dest, src1);
+              e.vfmadd213ss(i.dest, src2, src3);
+            }
+          });
     } else {
       Xmm src3;
       if (i.src3.is_constant) {
@@ -4526,24 +4552,26 @@ struct MUL_ADD_F64
 
     // FMA extension
     if (e.IsFeatureEnabled(kX64EmitFMA)) {
-      EmitCommutativeBinaryXmmOp(e, i, [&i](X64Emitter& e, const Xmm& dest,
-                                            const Xmm& src1, const Xmm& src2) {
-        Xmm src3 = i.src3.is_constant ? e.xmm1 : i.src3;
-        if (i.src3.is_constant) {
-          e.LoadConstantXmm(e.xmm1, i.src3.constant());
-        }
-        if (i.dest == src1) {
-          e.vfmadd213sd(i.dest, src2, src3);
-        } else if (i.dest == src2) {
-          e.vfmadd213sd(i.dest, src1, src3);
-        } else if (i.dest == i.src3) {
-          e.vfmadd231sd(i.dest, src1, src2);
-        } else {
-          // Dest not equal to anything
-          e.vmovsd(i.dest, src1);
-          e.vfmadd213sd(i.dest, src2, src3);
-        }
-      });
+      EmitCommutativeBinaryXmmOp(
+          e, i,
+          [&i](X64Emitter& e, const Xmm& dest, const Xmm& src1,
+               const Xmm& src2) {
+            Xmm src3 = i.src3.is_constant ? e.xmm1 : i.src3;
+            if (i.src3.is_constant) {
+              e.LoadConstantXmm(e.xmm1, i.src3.constant());
+            }
+            if (i.dest == src1) {
+              e.vfmadd213sd(i.dest, src2, src3);
+            } else if (i.dest == src2) {
+              e.vfmadd213sd(i.dest, src1, src3);
+            } else if (i.dest == i.src3) {
+              e.vfmadd231sd(i.dest, src1, src2);
+            } else {
+              // Dest not equal to anything
+              e.vmovsd(i.dest, src1);
+              e.vfmadd213sd(i.dest, src2, src3);
+            }
+          });
     } else {
       Xmm src3;
       if (i.src3.is_constant) {
@@ -4589,24 +4617,26 @@ struct MUL_ADD_V128
     // than vmul+vadd and it'd be nice to know why. Until we know, it's
     // disabled so tests pass.
     if (false && e.IsFeatureEnabled(kX64EmitFMA)) {
-      EmitCommutativeBinaryXmmOp(e, i, [&i](X64Emitter& e, const Xmm& dest,
-                                            const Xmm& src1, const Xmm& src2) {
-        Xmm src3 = i.src3.is_constant ? e.xmm1 : i.src3;
-        if (i.src3.is_constant) {
-          e.LoadConstantXmm(e.xmm1, i.src3.constant());
-        }
-        if (i.dest == src1) {
-          e.vfmadd213ps(i.dest, src2, src3);
-        } else if (i.dest == src2) {
-          e.vfmadd213ps(i.dest, src1, src3);
-        } else if (i.dest == i.src3) {
-          e.vfmadd231ps(i.dest, src1, src2);
-        } else {
-          // Dest not equal to anything
-          e.vmovdqa(i.dest, src1);
-          e.vfmadd213ps(i.dest, src2, src3);
-        }
-      });
+      EmitCommutativeBinaryXmmOp(
+          e, i,
+          [&i](X64Emitter& e, const Xmm& dest, const Xmm& src1,
+               const Xmm& src2) {
+            Xmm src3 = i.src3.is_constant ? e.xmm1 : i.src3;
+            if (i.src3.is_constant) {
+              e.LoadConstantXmm(e.xmm1, i.src3.constant());
+            }
+            if (i.dest == src1) {
+              e.vfmadd213ps(i.dest, src2, src3);
+            } else if (i.dest == src2) {
+              e.vfmadd213ps(i.dest, src1, src3);
+            } else if (i.dest == i.src3) {
+              e.vfmadd231ps(i.dest, src1, src2);
+            } else {
+              // Dest not equal to anything
+              e.vmovdqa(i.dest, src1);
+              e.vfmadd213ps(i.dest, src2, src3);
+            }
+          });
     } else {
       Xmm src3;
       if (i.src3.is_constant) {
@@ -4660,24 +4690,26 @@ struct MUL_SUB_F32
 
     // FMA extension
     if (e.IsFeatureEnabled(kX64EmitFMA)) {
-      EmitCommutativeBinaryXmmOp(e, i, [&i](X64Emitter& e, const Xmm& dest,
-                                            const Xmm& src1, const Xmm& src2) {
-        Xmm src3 = i.src3.is_constant ? e.xmm1 : i.src3;
-        if (i.src3.is_constant) {
-          e.LoadConstantXmm(e.xmm1, i.src3.constant());
-        }
-        if (i.dest == src1) {
-          e.vfmsub213ss(i.dest, src2, src3);
-        } else if (i.dest == src2) {
-          e.vfmsub213ss(i.dest, src1, src3);
-        } else if (i.dest == i.src3) {
-          e.vfmsub231ss(i.dest, src1, src2);
-        } else {
-          // Dest not equal to anything
-          e.vmovss(i.dest, src1);
-          e.vfmsub213ss(i.dest, src2, src3);
-        }
-      });
+      EmitCommutativeBinaryXmmOp(
+          e, i,
+          [&i](X64Emitter& e, const Xmm& dest, const Xmm& src1,
+               const Xmm& src2) {
+            Xmm src3 = i.src3.is_constant ? e.xmm1 : i.src3;
+            if (i.src3.is_constant) {
+              e.LoadConstantXmm(e.xmm1, i.src3.constant());
+            }
+            if (i.dest == src1) {
+              e.vfmsub213ss(i.dest, src2, src3);
+            } else if (i.dest == src2) {
+              e.vfmsub213ss(i.dest, src1, src3);
+            } else if (i.dest == i.src3) {
+              e.vfmsub231ss(i.dest, src1, src2);
+            } else {
+              // Dest not equal to anything
+              e.vmovss(i.dest, src1);
+              e.vfmsub213ss(i.dest, src2, src3);
+            }
+          });
     } else {
       Xmm src3;
       if (i.src3.is_constant) {
@@ -4717,24 +4749,26 @@ struct MUL_SUB_F64
 
     // FMA extension
     if (e.IsFeatureEnabled(kX64EmitFMA)) {
-      EmitCommutativeBinaryXmmOp(e, i, [&i](X64Emitter& e, const Xmm& dest,
-                                            const Xmm& src1, const Xmm& src2) {
-        Xmm src3 = i.src3.is_constant ? e.xmm1 : i.src3;
-        if (i.src3.is_constant) {
-          e.LoadConstantXmm(e.xmm1, i.src3.constant());
-        }
-        if (i.dest == src1) {
-          e.vfmsub213sd(i.dest, src2, src3);
-        } else if (i.dest == src2) {
-          e.vfmsub213sd(i.dest, src1, src3);
-        } else if (i.dest == i.src3) {
-          e.vfmsub231sd(i.dest, src1, src2);
-        } else {
-          // Dest not equal to anything
-          e.vmovsd(i.dest, src1);
-          e.vfmsub213sd(i.dest, src2, src3);
-        }
-      });
+      EmitCommutativeBinaryXmmOp(
+          e, i,
+          [&i](X64Emitter& e, const Xmm& dest, const Xmm& src1,
+               const Xmm& src2) {
+            Xmm src3 = i.src3.is_constant ? e.xmm1 : i.src3;
+            if (i.src3.is_constant) {
+              e.LoadConstantXmm(e.xmm1, i.src3.constant());
+            }
+            if (i.dest == src1) {
+              e.vfmsub213sd(i.dest, src2, src3);
+            } else if (i.dest == src2) {
+              e.vfmsub213sd(i.dest, src1, src3);
+            } else if (i.dest == i.src3) {
+              e.vfmsub231sd(i.dest, src1, src2);
+            } else {
+              // Dest not equal to anything
+              e.vmovsd(i.dest, src1);
+              e.vfmsub213sd(i.dest, src2, src3);
+            }
+          });
     } else {
       Xmm src3;
       if (i.src3.is_constant) {
@@ -4778,24 +4812,26 @@ struct MUL_SUB_V128
 
     // FMA extension
     if (e.IsFeatureEnabled(kX64EmitFMA)) {
-      EmitCommutativeBinaryXmmOp(e, i, [&i](X64Emitter& e, const Xmm& dest,
-                                            const Xmm& src1, const Xmm& src2) {
-        Xmm src3 = i.src3.is_constant ? e.xmm1 : i.src3;
-        if (i.src3.is_constant) {
-          e.LoadConstantXmm(e.xmm1, i.src3.constant());
-        }
-        if (i.dest == src1) {
-          e.vfmsub213ps(i.dest, src2, src3);
-        } else if (i.dest == src2) {
-          e.vfmsub213ps(i.dest, src1, src3);
-        } else if (i.dest == i.src3) {
-          e.vfmsub231ps(i.dest, src1, src2);
-        } else {
-          // Dest not equal to anything
-          e.vmovdqa(i.dest, src1);
-          e.vfmsub213ps(i.dest, src2, src3);
-        }
-      });
+      EmitCommutativeBinaryXmmOp(
+          e, i,
+          [&i](X64Emitter& e, const Xmm& dest, const Xmm& src1,
+               const Xmm& src2) {
+            Xmm src3 = i.src3.is_constant ? e.xmm1 : i.src3;
+            if (i.src3.is_constant) {
+              e.LoadConstantXmm(e.xmm1, i.src3.constant());
+            }
+            if (i.dest == src1) {
+              e.vfmsub213ps(i.dest, src2, src3);
+            } else if (i.dest == src2) {
+              e.vfmsub213ps(i.dest, src1, src3);
+            } else if (i.dest == i.src3) {
+              e.vfmsub231ps(i.dest, src1, src2);
+            } else {
+              // Dest not equal to anything
+              e.vmovdqa(i.dest, src1);
+              e.vfmsub213ps(i.dest, src2, src3);
+            }
+          });
     } else {
       Xmm src3;
       if (i.src3.is_constant) {
@@ -5098,8 +5134,10 @@ EMITTER_OPCODE_TABLE(OPCODE_DOT_PRODUCT_4, DOT_PRODUCT_4_V128);
 template <typename SEQ, typename REG, typename ARGS>
 void EmitAndXX(X64Emitter& e, const ARGS& i) {
   SEQ::EmitCommutativeBinaryOp(
-      e, i, [](X64Emitter& e, const REG& dest_src,
-               const REG& src) { e.and_(dest_src, src); },
+      e, i,
+      [](X64Emitter& e, const REG& dest_src, const REG& src) {
+        e.and_(dest_src, src);
+      },
       [](X64Emitter& e, const REG& dest_src, int32_t constant) {
         e.and_(dest_src, constant);
       });
@@ -5141,8 +5179,10 @@ EMITTER_OPCODE_TABLE(OPCODE_AND, AND_I8, AND_I16, AND_I32, AND_I64, AND_V128);
 template <typename SEQ, typename REG, typename ARGS>
 void EmitOrXX(X64Emitter& e, const ARGS& i) {
   SEQ::EmitCommutativeBinaryOp(
-      e, i, [](X64Emitter& e, const REG& dest_src,
-               const REG& src) { e.or_(dest_src, src); },
+      e, i,
+      [](X64Emitter& e, const REG& dest_src, const REG& src) {
+        e.or_(dest_src, src);
+      },
       [](X64Emitter& e, const REG& dest_src, int32_t constant) {
         e.or_(dest_src, constant);
       });
@@ -5184,8 +5224,10 @@ EMITTER_OPCODE_TABLE(OPCODE_OR, OR_I8, OR_I16, OR_I32, OR_I64, OR_V128);
 template <typename SEQ, typename REG, typename ARGS>
 void EmitXorXX(X64Emitter& e, const ARGS& i) {
   SEQ::EmitCommutativeBinaryOp(
-      e, i, [](X64Emitter& e, const REG& dest_src,
-               const REG& src) { e.xor_(dest_src, src); },
+      e, i,
+      [](X64Emitter& e, const REG& dest_src, const REG& src) {
+        e.xor_(dest_src, src);
+      },
       [](X64Emitter& e, const REG& dest_src, int32_t constant) {
         e.xor_(dest_src, constant);
       });
@@ -6209,57 +6251,59 @@ struct VECTOR_AVERAGE
     return _mm_load_si128(reinterpret_cast<__m128i*>(value));
   }
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    EmitCommutativeBinaryXmmOp(e, i, [&i](X64Emitter& e, const Xmm& dest,
-                                          const Xmm& src1, const Xmm& src2) {
-      const TypeName part_type = static_cast<TypeName>(i.instr->flags & 0xFF);
-      const uint32_t arithmetic_flags = i.instr->flags >> 8;
-      bool is_unsigned = !!(arithmetic_flags & ARITHMETIC_UNSIGNED);
-      switch (part_type) {
-        case INT8_TYPE:
-          if (is_unsigned) {
-            e.vpavgb(dest, src1, src2);
-          } else {
-            assert_always();
+    EmitCommutativeBinaryXmmOp(
+        e, i,
+        [&i](X64Emitter& e, const Xmm& dest, const Xmm& src1, const Xmm& src2) {
+          const TypeName part_type =
+              static_cast<TypeName>(i.instr->flags & 0xFF);
+          const uint32_t arithmetic_flags = i.instr->flags >> 8;
+          bool is_unsigned = !!(arithmetic_flags & ARITHMETIC_UNSIGNED);
+          switch (part_type) {
+            case INT8_TYPE:
+              if (is_unsigned) {
+                e.vpavgb(dest, src1, src2);
+              } else {
+                assert_always();
+              }
+              break;
+            case INT16_TYPE:
+              if (is_unsigned) {
+                e.vpavgw(dest, src1, src2);
+              } else {
+                assert_always();
+              }
+              break;
+            case INT32_TYPE:
+              // No 32bit averages in AVX.
+              if (is_unsigned) {
+                if (i.src2.is_constant) {
+                  e.LoadConstantXmm(e.xmm0, i.src2.constant());
+                  e.lea(e.r9, e.StashXmm(1, e.xmm0));
+                } else {
+                  e.lea(e.r9, e.StashXmm(1, i.src2));
+                }
+                e.lea(e.r8, e.StashXmm(0, i.src1));
+                e.CallNativeSafe(
+                    reinterpret_cast<void*>(EmulateVectorAverageUnsignedI32));
+                e.vmovaps(i.dest, e.xmm0);
+              } else {
+                if (i.src2.is_constant) {
+                  e.LoadConstantXmm(e.xmm0, i.src2.constant());
+                  e.lea(e.r9, e.StashXmm(1, e.xmm0));
+                } else {
+                  e.lea(e.r9, e.StashXmm(1, i.src2));
+                }
+                e.lea(e.r8, e.StashXmm(0, i.src1));
+                e.CallNativeSafe(
+                    reinterpret_cast<void*>(EmulateVectorAverageSignedI32));
+                e.vmovaps(i.dest, e.xmm0);
+              }
+              break;
+            default:
+              assert_unhandled_case(part_type);
+              break;
           }
-          break;
-        case INT16_TYPE:
-          if (is_unsigned) {
-            e.vpavgw(dest, src1, src2);
-          } else {
-            assert_always();
-          }
-          break;
-        case INT32_TYPE:
-          // No 32bit averages in AVX.
-          if (is_unsigned) {
-            if (i.src2.is_constant) {
-              e.LoadConstantXmm(e.xmm0, i.src2.constant());
-              e.lea(e.r9, e.StashXmm(1, e.xmm0));
-            } else {
-              e.lea(e.r9, e.StashXmm(1, i.src2));
-            }
-            e.lea(e.r8, e.StashXmm(0, i.src1));
-            e.CallNativeSafe(
-                reinterpret_cast<void*>(EmulateVectorAverageUnsignedI32));
-            e.vmovaps(i.dest, e.xmm0);
-          } else {
-            if (i.src2.is_constant) {
-              e.LoadConstantXmm(e.xmm0, i.src2.constant());
-              e.lea(e.r9, e.StashXmm(1, e.xmm0));
-            } else {
-              e.lea(e.r9, e.StashXmm(1, i.src2));
-            }
-            e.lea(e.r8, e.StashXmm(0, i.src1));
-            e.CallNativeSafe(
-                reinterpret_cast<void*>(EmulateVectorAverageSignedI32));
-            e.vmovaps(i.dest, e.xmm0);
-          }
-          break;
-        default:
-          assert_unhandled_case(part_type);
-          break;
-      }
-    });
+        });
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_VECTOR_AVERAGE, VECTOR_AVERAGE);

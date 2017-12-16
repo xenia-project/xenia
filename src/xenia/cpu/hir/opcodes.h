@@ -87,8 +87,7 @@ enum PackType : uint16_t {
   PACK_TYPE_16_IN_32 = 7,
 
   PACK_TYPE_MODE = 0x000F,  // just to get the mode
-
-  // Unpack to low or high parts.
+                            // Unpack to low or high parts.
   PACK_TYPE_TO_LO = 0 << 12,
   PACK_TYPE_TO_HI = 1 << 12,
 

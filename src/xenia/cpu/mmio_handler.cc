@@ -52,7 +52,12 @@ bool MMIOHandler::RegisterRange(uint32_t virtual_address, uint32_t mask,
                                 MMIOReadCallback read_callback,
                                 MMIOWriteCallback write_callback) {
   mapped_ranges_.push_back({
-      virtual_address, mask, size, context, read_callback, write_callback,
+      virtual_address,
+      mask,
+      size,
+      context,
+      read_callback,
+      write_callback,
   });
   return true;
 }
