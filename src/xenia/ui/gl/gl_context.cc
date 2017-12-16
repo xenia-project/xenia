@@ -287,7 +287,7 @@ void GLContext::AssertExtensionsPresent() {
       reinterpret_cast<const char*>(glGetString(GL_SHADING_LANGUAGE_VERSION));
   std::string glsl_version(glsl_version_raw);
   if (glsl_version.find("4.50") != 0) {
-    FatalGLError("OpenGL GLSL version 4.50 is required.");
+    FatalGLError("OpenGL GLSL version  4.5x and 4.6x  is required.");
     return;
   }
 
