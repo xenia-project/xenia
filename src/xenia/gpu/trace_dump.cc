@@ -43,6 +43,7 @@ TraceDump::~TraceDump() = default;
 int TraceDump::Main(const std::vector<std::wstring>& args) {
   // Grab path from the flag or unnamed argument.
   std::wstring path;
+  std::wstring output_path;
   if (!FLAGS_target_trace_file.empty()) {
     // Passed as a named argument.
     // TODO(benvanik): find something better than gflags that supports
@@ -51,6 +52,10 @@ int TraceDump::Main(const std::vector<std::wstring>& args) {
   } else if (args.size() >= 2) {
     // Passed as an unnamed argument.
     path = args[1];
+
+    if (args.size() >= 3) {
+      output_path = args[2];
+    }
   } else {
     // Open a file chooser and ask the user.
     auto file_picker = xe::ui::FilePicker::Create();
@@ -89,11 +94,15 @@ int TraceDump::Main(const std::vector<std::wstring>& args) {
   }
 
   // Root file name for outputs.
-  base_output_path_ =
-      xe::fix_path_separators(xe::to_wstring(FLAGS_trace_dump_path));
-  base_output_path_ =
-      xe::join_paths(base_output_path_,
-                     xe::find_name_from_path(xe::fix_path_separators(path)));
+  if (output_path.empty()) {
+    base_output_path_ =
+        xe::fix_path_separators(xe::to_wstring(FLAGS_trace_dump_path));
+    base_output_path_ =
+        xe::join_paths(base_output_path_,
+                       xe::find_name_from_path(xe::fix_path_separators(path)));
+  } else {
+    base_output_path_ = xe::fix_path_separators(output_path);
+  }
 
   // Ensure output path exists.
   xe::filesystem::CreateParentFolder(base_output_path_);
