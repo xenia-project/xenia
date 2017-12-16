@@ -18,7 +18,7 @@ matrix:
       env: C_COMPILER=clang-3.9 CXX_COMPILER=clang++-3.9 BUILD=true CONFIG=Release
   allow_failures:
     # LLVMGold.so is not installed correctly
-    - env: BUILD=true CONFIG=Release
+    - env: C_COMPILER=clang-3.9 CXX_COMPILER=clang++-3.9 BUILD=true CONFIG=Release
 
 sudo: required
 addons:
