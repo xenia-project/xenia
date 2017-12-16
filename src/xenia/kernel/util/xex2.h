@@ -15,7 +15,9 @@
 
 namespace xe {}  // namespace xe
 
-typedef struct { int reserved; } xe_xex2_options_t;
+typedef struct {
+  int reserved;
+} xe_xex2_options_t;
 
 struct xe_xex2;
 typedef struct xe_xex2* xe_xex2_ref;

@@ -600,78 +600,78 @@ static const vec128_t xmm_consts[] = {
     /* XMMZero                */ vec128f(0.0f),
     /* XMMOne                 */ vec128f(1.0f),
     /* XMMNegativeOne         */ vec128f(-1.0f, -1.0f, -1.0f, -1.0f),
-    /* XMMFFFF                */ vec128i(0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu,
-                                         0xFFFFFFFFu),
-    /* XMMMaskX16Y16          */ vec128i(0x0000FFFFu, 0xFFFF0000u, 0x00000000u,
-                                         0x00000000u),
-    /* XMMFlipX16Y16          */ vec128i(0x00008000u, 0x00000000u, 0x00000000u,
-                                         0x00000000u),
+    /* XMMFFFF                */
+    vec128i(0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu),
+    /* XMMMaskX16Y16          */
+    vec128i(0x0000FFFFu, 0xFFFF0000u, 0x00000000u, 0x00000000u),
+    /* XMMFlipX16Y16          */
+    vec128i(0x00008000u, 0x00000000u, 0x00000000u, 0x00000000u),
     /* XMMFixX16Y16           */ vec128f(-32768.0f, 0.0f, 0.0f, 0.0f),
-    /* XMMNormalizeX16Y16     */ vec128f(
-        1.0f / 32767.0f, 1.0f / (32767.0f * 65536.0f), 0.0f, 0.0f),
+    /* XMMNormalizeX16Y16     */
+    vec128f(1.0f / 32767.0f, 1.0f / (32767.0f * 65536.0f), 0.0f, 0.0f),
     /* XMM0001                */ vec128f(0.0f, 0.0f, 0.0f, 1.0f),
     /* XMM3301                */ vec128f(3.0f, 3.0f, 0.0f, 1.0f),
     /* XMM3333                */ vec128f(3.0f, 3.0f, 3.0f, 3.0f),
-    /* XMMSignMaskPS          */ vec128i(0x80000000u, 0x80000000u, 0x80000000u,
-                                         0x80000000u),
-    /* XMMSignMaskPD          */ vec128i(0x00000000u, 0x80000000u, 0x00000000u,
-                                         0x80000000u),
-    /* XMMAbsMaskPS           */ vec128i(0x7FFFFFFFu, 0x7FFFFFFFu, 0x7FFFFFFFu,
-                                         0x7FFFFFFFu),
-    /* XMMAbsMaskPD           */ vec128i(0xFFFFFFFFu, 0x7FFFFFFFu, 0xFFFFFFFFu,
-                                         0x7FFFFFFFu),
-    /* XMMByteSwapMask        */ vec128i(0x00010203u, 0x04050607u, 0x08090A0Bu,
-                                         0x0C0D0E0Fu),
-    /* XMMByteOrderMask       */ vec128i(0x01000302u, 0x05040706u, 0x09080B0Au,
-                                         0x0D0C0F0Eu),
+    /* XMMSignMaskPS          */
+    vec128i(0x80000000u, 0x80000000u, 0x80000000u, 0x80000000u),
+    /* XMMSignMaskPD          */
+    vec128i(0x00000000u, 0x80000000u, 0x00000000u, 0x80000000u),
+    /* XMMAbsMaskPS           */
+    vec128i(0x7FFFFFFFu, 0x7FFFFFFFu, 0x7FFFFFFFu, 0x7FFFFFFFu),
+    /* XMMAbsMaskPD           */
+    vec128i(0xFFFFFFFFu, 0x7FFFFFFFu, 0xFFFFFFFFu, 0x7FFFFFFFu),
+    /* XMMByteSwapMask        */
+    vec128i(0x00010203u, 0x04050607u, 0x08090A0Bu, 0x0C0D0E0Fu),
+    /* XMMByteOrderMask       */
+    vec128i(0x01000302u, 0x05040706u, 0x09080B0Au, 0x0D0C0F0Eu),
     /* XMMPermuteControl15    */ vec128b(15),
     /* XMMPermuteByteMask     */ vec128b(0x1F),
     /* XMMPackD3DCOLORSat     */ vec128i(0x404000FFu),
-    /* XMMPackD3DCOLOR        */ vec128i(0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu,
-                                         0x0C000408u),
-    /* XMMUnpackD3DCOLOR      */ vec128i(0xFFFFFF0Eu, 0xFFFFFF0Du, 0xFFFFFF0Cu,
-                                         0xFFFFFF0Fu),
-    /* XMMPackFLOAT16_2       */ vec128i(0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu,
-                                         0x01000302u),
-    /* XMMUnpackFLOAT16_2     */ vec128i(0x0D0C0F0Eu, 0xFFFFFFFFu, 0xFFFFFFFFu,
-                                         0xFFFFFFFFu),
-    /* XMMPackFLOAT16_4       */ vec128i(0xFFFFFFFFu, 0xFFFFFFFFu, 0x05040706u,
-                                         0x01000302u),
-    /* XMMUnpackFLOAT16_4     */ vec128i(0x09080B0Au, 0x0D0C0F0Eu, 0xFFFFFFFFu,
-                                         0xFFFFFFFFu),
+    /* XMMPackD3DCOLOR        */
+    vec128i(0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu, 0x0C000408u),
+    /* XMMUnpackD3DCOLOR      */
+    vec128i(0xFFFFFF0Eu, 0xFFFFFF0Du, 0xFFFFFF0Cu, 0xFFFFFF0Fu),
+    /* XMMPackFLOAT16_2       */
+    vec128i(0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu, 0x01000302u),
+    /* XMMUnpackFLOAT16_2     */
+    vec128i(0x0D0C0F0Eu, 0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu),
+    /* XMMPackFLOAT16_4       */
+    vec128i(0xFFFFFFFFu, 0xFFFFFFFFu, 0x05040706u, 0x01000302u),
+    /* XMMUnpackFLOAT16_4     */
+    vec128i(0x09080B0Au, 0x0D0C0F0Eu, 0xFFFFFFFFu, 0xFFFFFFFFu),
     /* XMMPackSHORT_Min       */ vec128i(0x403F8001u),
     /* XMMPackSHORT_Max       */ vec128i(0x40407FFFu),
-    /* XMMPackSHORT_2         */ vec128i(0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu,
-                                         0x01000504u),
-    /* XMMPackSHORT_4         */ vec128i(0xFFFFFFFFu, 0xFFFFFFFFu, 0x01000504u,
-                                         0x09080D0Cu),
-    /* XMMUnpackSHORT_2       */ vec128i(0xFFFF0F0Eu, 0xFFFF0D0Cu, 0xFFFFFFFFu,
-                                         0xFFFFFFFFu),
-    /* XMMUnpackSHORT_4       */ vec128i(0xFFFF0B0Au, 0xFFFF0908u, 0xFFFF0F0Eu,
-                                         0xFFFF0D0Cu),
+    /* XMMPackSHORT_2         */
+    vec128i(0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu, 0x01000504u),
+    /* XMMPackSHORT_4         */
+    vec128i(0xFFFFFFFFu, 0xFFFFFFFFu, 0x01000504u, 0x09080D0Cu),
+    /* XMMUnpackSHORT_2       */
+    vec128i(0xFFFF0F0Eu, 0xFFFF0D0Cu, 0xFFFFFFFFu, 0xFFFFFFFFu),
+    /* XMMUnpackSHORT_4       */
+    vec128i(0xFFFF0B0Au, 0xFFFF0908u, 0xFFFF0F0Eu, 0xFFFF0D0Cu),
     /* XMMOneOver255          */ vec128f(1.0f / 255.0f),
-    /* XMMMaskEvenPI16        */ vec128i(0x0000FFFFu, 0x0000FFFFu, 0x0000FFFFu,
-                                         0x0000FFFFu),
-    /* XMMShiftMaskEvenPI16   */ vec128i(0x0000000Fu, 0x0000000Fu, 0x0000000Fu,
-                                         0x0000000Fu),
-    /* XMMShiftMaskPS         */ vec128i(0x0000001Fu, 0x0000001Fu, 0x0000001Fu,
-                                         0x0000001Fu),
-    /* XMMShiftByteMask       */ vec128i(0x000000FFu, 0x000000FFu, 0x000000FFu,
-                                         0x000000FFu),
-    /* XMMSwapWordMask        */ vec128i(0x03030303u, 0x03030303u, 0x03030303u,
-                                         0x03030303u),
-    /* XMMUnsignedDwordMax    */ vec128i(0xFFFFFFFFu, 0x00000000u, 0xFFFFFFFFu,
-                                         0x00000000u),
+    /* XMMMaskEvenPI16        */
+    vec128i(0x0000FFFFu, 0x0000FFFFu, 0x0000FFFFu, 0x0000FFFFu),
+    /* XMMShiftMaskEvenPI16   */
+    vec128i(0x0000000Fu, 0x0000000Fu, 0x0000000Fu, 0x0000000Fu),
+    /* XMMShiftMaskPS         */
+    vec128i(0x0000001Fu, 0x0000001Fu, 0x0000001Fu, 0x0000001Fu),
+    /* XMMShiftByteMask       */
+    vec128i(0x000000FFu, 0x000000FFu, 0x000000FFu, 0x000000FFu),
+    /* XMMSwapWordMask        */
+    vec128i(0x03030303u, 0x03030303u, 0x03030303u, 0x03030303u),
+    /* XMMUnsignedDwordMax    */
+    vec128i(0xFFFFFFFFu, 0x00000000u, 0xFFFFFFFFu, 0x00000000u),
     /* XMM255                 */ vec128f(255.0f),
     /* XMMPI32                */ vec128i(32),
-    /* XMMSignMaskI8          */ vec128i(0x80808080u, 0x80808080u, 0x80808080u,
-                                         0x80808080u),
-    /* XMMSignMaskI16         */ vec128i(0x80008000u, 0x80008000u, 0x80008000u,
-                                         0x80008000u),
-    /* XMMSignMaskI32         */ vec128i(0x80000000u, 0x80000000u, 0x80000000u,
-                                         0x80000000u),
-    /* XMMSignMaskF32         */ vec128i(0x80000000u, 0x80000000u, 0x80000000u,
-                                         0x80000000u),
+    /* XMMSignMaskI8          */
+    vec128i(0x80808080u, 0x80808080u, 0x80808080u, 0x80808080u),
+    /* XMMSignMaskI16         */
+    vec128i(0x80008000u, 0x80008000u, 0x80008000u, 0x80008000u),
+    /* XMMSignMaskI32         */
+    vec128i(0x80000000u, 0x80000000u, 0x80000000u, 0x80000000u),
+    /* XMMSignMaskF32         */
+    vec128i(0x80000000u, 0x80000000u, 0x80000000u, 0x80000000u),
     /* XMMShortMinPS          */ vec128f(SHRT_MIN),
     /* XMMShortMaxPS          */ vec128f(SHRT_MAX),
     /* XMMIntMin              */ vec128i(INT_MIN),

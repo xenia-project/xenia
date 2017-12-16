@@ -84,7 +84,7 @@ class CachedTileView {
   }
 
   VkExtent2D GetSize() const {
-    return {key.tile_width * 80ul, key.tile_height * 16ul};
+    return {key.tile_width * 80u, key.tile_height * 16u};
   }
 
  private:

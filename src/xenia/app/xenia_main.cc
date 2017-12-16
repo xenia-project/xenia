@@ -149,21 +149,23 @@ int xenia_main(const std::vector<std::wstring>& args) {
   // This will respond to debugging requests so we can open the debug UI.
   std::unique_ptr<xe::debug::ui::DebugWindow> debug_window;
   if (FLAGS_debug) {
-    emulator->processor()->set_debug_listener_request_handler([&](
-        xe::cpu::Processor* processor) {
-      if (debug_window) {
-        return debug_window.get();
-      }
-      emulator_window->loop()->PostSynchronous([&]() {
-        debug_window = xe::debug::ui::DebugWindow::Create(
-            emulator.get(), emulator_window->loop());
-        debug_window->window()->on_closed.AddListener([&](xe::ui::UIEvent* e) {
-          emulator->processor()->set_debug_listener(nullptr);
-          emulator_window->loop()->Post([&]() { debug_window.reset(); });
+    emulator->processor()->set_debug_listener_request_handler(
+        [&](xe::cpu::Processor* processor) {
+          if (debug_window) {
+            return debug_window.get();
+          }
+          emulator_window->loop()->PostSynchronous([&]() {
+            debug_window = xe::debug::ui::DebugWindow::Create(
+                emulator.get(), emulator_window->loop());
+            debug_window->window()->on_closed.AddListener(
+                [&](xe::ui::UIEvent* e) {
+                  emulator->processor()->set_debug_listener(nullptr);
+                  emulator_window->loop()->Post(
+                      [&]() { debug_window.reset(); });
+                });
+          });
+          return debug_window.get();
         });
-      });
-      return debug_window.get();
-    });
   }
 
   auto evt = xe::threading::Event::CreateAutoResetEvent(false);

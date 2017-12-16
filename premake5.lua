@@ -87,10 +87,30 @@ filter("platforms:Linux")
   toolset("clang")
   buildoptions({
     -- "-mlzcnt",  -- (don't) Assume lzcnt is supported.
+    "`pkg-config --cflags gtk+-x11-3.0`"
   })
   links({
     "pthread",
+    "dl",
+    "lz4",
+    "X11",
+    "xcb",
+    "X11-xcb",
+    "GL",
+    "GLEW",
+    "vulkan",
+    "c++",
+    "c++abi"
   })
+  linkoptions({
+    "`pkg-config --libs gtk+-3.0`",
+  })
+  disablewarnings({
+    "deprecated-register"
+  })
+
+filter({"platforms:Linux", "kind:*App"})
+  linkgroups("On")
 
 filter({"platforms:Linux", "language:C++", "toolset:gcc"})
   buildoptions({
@@ -105,7 +125,6 @@ filter({"platforms:Linux", "language:C++", "toolset:clang"})
     "-stdlib=libc++",
   })
   links({
-    "c++",
   })
 
 filter("platforms:Windows")

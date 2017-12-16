@@ -23,7 +23,8 @@ const RegisterInfo* RegisterFile::GetRegisterInfo(uint32_t index) {
 #define XE_GPU_REGISTER(index, type, name) \
   case index: {                            \
     static const RegisterInfo reg_info = { \
-        RegisterInfo::Type::type, #name,   \
+        RegisterInfo::Type::type,          \
+        #name,                             \
     };                                     \
     return &reg_info;                      \
   }

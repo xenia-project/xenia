@@ -13,9 +13,5 @@
 #include <time.h>
 
 namespace xe {
-namespace threading {
-
-void MaybeYield() { pthread_yield(); }
-
-}  // namespace threading
+namespace threading {}  // namespace threading
 }  // namespace xe

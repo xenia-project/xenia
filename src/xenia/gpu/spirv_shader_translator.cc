@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2016 Ben Vanik. All rights reserved.                             *
+ * Copyright 2017 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -13,6 +13,7 @@
 
 #include <cfloat>
 #include <cstring>
+#include <vector>
 
 #include "xenia/base/logging.h"
 #include "xenia/gpu/spirv/passes/control_flow_analysis_pass.h"
@@ -337,8 +338,7 @@ void SpirvShaderTranslator::StartTranslation() {
                                       registers_ptr_,
                                       std::vector<Id>({b.makeUintConstant(0)}));
     auto r0 = b.createLoad(r0_ptr);
-    r0 = b.createCompositeInsert(vertex_idx, r0, vec4_float_type_,
-                                 std::vector<uint32_t>({0}));
+    r0 = b.createCompositeInsert(vertex_idx, r0, vec4_float_type_, 0);
     b.createStore(r0, r0_ptr);
   } else {
     // Pixel inputs from vertex shader.

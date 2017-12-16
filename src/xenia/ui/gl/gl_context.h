@@ -13,6 +13,7 @@
 #include <gflags/gflags.h>
 
 #include <memory>
+#include <mutex>
 
 #include "xenia/ui/gl/blitter.h"
 #include "xenia/ui/gl/gl.h"
@@ -20,9 +21,13 @@
 
 DECLARE_bool(thread_safe_gl);
 
-// TODO(benvanik): hide Win32 stuff.
-typedef struct HDC__* HDC;
-typedef struct HGLRC__* HGLRC;
+DECLARE_bool(disable_gl_context_reset);
+
+DECLARE_bool(random_clear_color);
+
+DECLARE_bool(gl_debug);
+DECLARE_bool(gl_debug_output);
+DECLARE_bool(gl_debug_output_synchronous);
 
 namespace xe {
 namespace ui {
@@ -37,17 +42,32 @@ class GLContext : public GraphicsContext {
 
   ImmediateDrawer* immediate_drawer() override;
 
-  bool is_current() override;
-  bool MakeCurrent() override;
-  void ClearCurrent() override;
+  virtual bool is_current() override = 0;
+  virtual bool MakeCurrent() override = 0;
+  virtual void ClearCurrent() override = 0;
   bool WasLost() override;
 
-  void BeginSwap() override;
-  void EndSwap() override;
-
+  virtual void BeginSwap() override = 0;
+  virtual void EndSwap() override = 0;
   std::unique_ptr<RawImage> Capture() override;
 
   Blitter* blitter() { return &blitter_; }
+
+ protected:
+  Blitter blitter_;
+  std::unique_ptr<GLImmediateDrawer> immediate_drawer_;
+
+  static std::recursive_mutex global_gl_mutex_;
+  bool context_lost_ = false;
+  bool robust_access_supported_ = false;
+  static void FatalGLError(std::string error);
+  virtual bool Initialize(GLContext* share_context) = 0;
+  virtual void* handle() = 0;
+  GLContext(GraphicsProvider* provider, Window* target_window);
+  void SetupDebugging();
+  void AssertExtensionsPresent();
+  void DebugMessage(GLenum source, GLenum type, GLuint id, GLenum severity,
+                    GLsizei length, const GLchar* message);
 
  private:
   friend class GLProvider;
@@ -59,31 +79,11 @@ class GLContext : public GraphicsContext {
                                                     GLContext* parent_context);
 
  private:
-  GLContext(GraphicsProvider* provider, Window* target_window);
-
-  bool Initialize(GLContext* share_context);
-  void AssertExtensionsPresent();
-
-  void SetupDebugging();
-  void DebugMessage(GLenum source, GLenum type, GLuint id, GLenum severity,
-                    GLsizei length, const GLchar* message);
   static void GLAPIENTRY DebugMessageThunk(GLenum source, GLenum type,
                                            GLuint id, GLenum severity,
                                            GLsizei length,
                                            const GLchar* message,
                                            GLvoid* user_param);
-
-  HDC dc_ = nullptr;
-  HGLRC glrc_ = nullptr;
-
-  std::unique_ptr<GLEWContext> glew_context_;
-  std::unique_ptr<WGLEWContext> wglew_context_;
-
-  Blitter blitter_;
-  std::unique_ptr<GLImmediateDrawer> immediate_drawer_;
-
-  bool context_lost_ = false;
-  bool robust_access_supported_ = false;
 };
 
 }  // namespace gl

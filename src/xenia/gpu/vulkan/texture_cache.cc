@@ -1116,8 +1116,10 @@ void TextureCache::WritebackTexture(Texture* texture) {
   auto command_buffer = wb_command_pool_->AcquireEntry();
 
   VkCommandBufferBeginInfo begin_info = {
-      VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, nullptr,
-      VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, nullptr,
+      VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+      nullptr,
+      VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+      nullptr,
   };
   vkBeginCommandBuffer(command_buffer, &begin_info);
 

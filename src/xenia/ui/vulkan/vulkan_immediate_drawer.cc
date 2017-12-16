@@ -224,7 +224,9 @@ class VulkanImmediateTexture : public ImmediateTexture {
     view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
     view_info.format = VK_FORMAT_R8G8B8A8_UNORM;
     view_info.components = {
-        VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B,
+        VK_COMPONENT_SWIZZLE_R,
+        VK_COMPONENT_SWIZZLE_G,
+        VK_COMPONENT_SWIZZLE_B,
         VK_COMPONENT_SWIZZLE_A,
     };
     view_info.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
@@ -597,7 +599,8 @@ VulkanImmediateDrawer::VulkanImmediateDrawer(VulkanContext* graphics_context)
   dynamic_state_info.pNext = nullptr;
   dynamic_state_info.flags = 0;
   VkDynamicState dynamic_states[] = {
-      VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR,
+      VK_DYNAMIC_STATE_VIEWPORT,
+      VK_DYNAMIC_STATE_SCISSOR,
   };
   dynamic_state_info.dynamicStateCount =
       static_cast<uint32_t>(xe::countof(dynamic_states));

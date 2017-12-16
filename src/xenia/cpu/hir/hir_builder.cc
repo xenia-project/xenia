@@ -1963,7 +1963,10 @@ Value* HIRBuilder::CountLeadingZeros(Value* value) {
 
   if (value->IsConstantZero()) {
     static const uint8_t zeros[] = {
-        8, 16, 32, 64,
+        8,
+        16,
+        32,
+        64,
     };
     assert_true(value->type <= INT64_TYPE);
     return LoadConstantUint8(zeros[value->type]);
