@@ -29,7 +29,7 @@ addons:
     packages:
       - clang-3.9
       - clang-format-3.9
-      - g++-6
+      #- g++-6
       - libc++-dev
       - python3
       - libc++abi-dev
