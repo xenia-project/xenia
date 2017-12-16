@@ -215,14 +215,14 @@ def get_git_head_info():
         'HEAD',
         ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     (stdout, stderr) = p.communicate()
-    branch_name = stdout.strip() or 'detached'
+    branch_name = stdout.decode('ascii').strip() or 'detached'
     p = subprocess.Popen([
         'git',
         'rev-parse',
         'HEAD',
         ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     (stdout, stderr) = p.communicate()
-    commit = stdout.strip() or 'unknown'
+    commit = stdout.decode('ascii').strip() or 'unknown'
     p = subprocess.Popen([
         'git',
         'rev-parse',
@@ -230,7 +230,7 @@ def get_git_head_info():
         'HEAD',
         ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     (stdout, stderr) = p.communicate()
-    commit_short = stdout.strip() or 'unknown'
+    commit_short = stdout.decode('ascii').strip() or 'unknown'
     return branch_name, commit, commit_short
 
 
