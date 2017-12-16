@@ -23,8 +23,10 @@ namespace vulkan {
 Blitter::Blitter() {}
 Blitter::~Blitter() { Shutdown(); }
 
-bool Blitter::Initialize(VulkanDevice* device) {
+VkResult Blitter::Initialize(VulkanDevice* device) {
   device_ = device;
+
+  VkResult status = VK_SUCCESS;
 
   // Shaders
   VkShaderModuleCreateInfo shader_create_info;
@@ -32,21 +34,30 @@ bool Blitter::Initialize(VulkanDevice* device) {
   shader_create_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
   shader_create_info.codeSize = sizeof(blit_vert);
   shader_create_info.pCode = reinterpret_cast<const uint32_t*>(blit_vert);
-  auto result = vkCreateShaderModule(*device_, &shader_create_info, nullptr,
-                                     &blit_vertex_);
-  CheckResult(result, "vkCreateShaderModule");
+  status = vkCreateShaderModule(*device_, &shader_create_info, nullptr,
+                                &blit_vertex_);
+  CheckResult(status, "vkCreateShaderModule");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
 
   shader_create_info.codeSize = sizeof(blit_color_frag);
   shader_create_info.pCode = reinterpret_cast<const uint32_t*>(blit_color_frag);
-  result = vkCreateShaderModule(*device_, &shader_create_info, nullptr,
+  status = vkCreateShaderModule(*device_, &shader_create_info, nullptr,
                                 &blit_color_);
-  CheckResult(result, "vkCreateShaderModule");
+  CheckResult(status, "vkCreateShaderModule");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
 
   shader_create_info.codeSize = sizeof(blit_depth_frag);
   shader_create_info.pCode = reinterpret_cast<const uint32_t*>(blit_depth_frag);
-  result = vkCreateShaderModule(*device_, &shader_create_info, nullptr,
+  status = vkCreateShaderModule(*device_, &shader_create_info, nullptr,
                                 &blit_depth_);
-  CheckResult(result, "vkCreateShaderModule");
+  CheckResult(status, "vkCreateShaderModule");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
 
   // Create the descriptor set layout used for our texture sampler.
   // As it changes almost every draw we cache it per texture.
@@ -63,9 +74,12 @@ bool Blitter::Initialize(VulkanDevice* device) {
   texture_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
   texture_binding.pImmutableSamplers = nullptr;
   texture_set_layout_info.pBindings = &texture_binding;
-  result = vkCreateDescriptorSetLayout(*device_, &texture_set_layout_info,
+  status = vkCreateDescriptorSetLayout(*device_, &texture_set_layout_info,
                                        nullptr, &descriptor_set_layout_);
-  CheckResult(result, "vkCreateDescriptorSetLayout");
+  CheckResult(status, "vkCreateDescriptorSetLayout");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
 
   // Create a descriptor pool
   VkDescriptorPoolSize pool_sizes[1];
@@ -99,9 +113,12 @@ bool Blitter::Initialize(VulkanDevice* device) {
   pipeline_layout_info.pushConstantRangeCount =
       static_cast<uint32_t>(xe::countof(push_constant_ranges));
   pipeline_layout_info.pPushConstantRanges = push_constant_ranges;
-  result = vkCreatePipelineLayout(*device_, &pipeline_layout_info, nullptr,
+  status = vkCreatePipelineLayout(*device_, &pipeline_layout_info, nullptr,
                                   &pipeline_layout_);
-  CheckResult(result, "vkCreatePipelineLayout");
+  CheckResult(status, "vkCreatePipelineLayout");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
 
   // Create two samplers.
   VkSamplerCreateInfo sampler_create_info = {
@@ -124,31 +141,63 @@ bool Blitter::Initialize(VulkanDevice* device) {
       VK_BORDER_COLOR_INT_TRANSPARENT_BLACK,
       VK_FALSE,
   };
-  result =
+  status =
       vkCreateSampler(*device_, &sampler_create_info, nullptr, &samp_nearest_);
-  CheckResult(result, "vkCreateSampler");
+  CheckResult(status, "vkCreateSampler");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
 
   sampler_create_info.minFilter = VK_FILTER_LINEAR;
   sampler_create_info.magFilter = VK_FILTER_LINEAR;
   sampler_create_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-  result =
+  status =
       vkCreateSampler(*device_, &sampler_create_info, nullptr, &samp_linear_);
-  CheckResult(result, "vkCreateSampler");
+  CheckResult(status, "vkCreateSampler");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
 
-  return true;
+  return VK_SUCCESS;
 }
 
 void Blitter::Shutdown() {
-  vkDestroySampler(*device_, samp_nearest_, nullptr);
-  vkDestroySampler(*device_, samp_linear_, nullptr);
-  vkDestroyShaderModule(*device_, blit_vertex_, nullptr);
-  vkDestroyShaderModule(*device_, blit_color_, nullptr);
-  vkDestroyShaderModule(*device_, blit_depth_, nullptr);
-  vkDestroyPipeline(*device_, pipeline_color_, nullptr);
-  vkDestroyPipeline(*device_, pipeline_depth_, nullptr);
-  vkDestroyPipelineLayout(*device_, pipeline_layout_, nullptr);
-  vkDestroyDescriptorSetLayout(*device_, descriptor_set_layout_, nullptr);
-
+  if (samp_nearest_) {
+    vkDestroySampler(*device_, samp_nearest_, nullptr);
+    samp_nearest_ = nullptr;
+  }
+  if (samp_linear_) {
+    vkDestroySampler(*device_, samp_linear_, nullptr);
+    samp_linear_ = nullptr;
+  }
+  if (blit_vertex_) {
+    vkDestroyShaderModule(*device_, blit_vertex_, nullptr);
+    blit_vertex_ = nullptr;
+  }
+  if (blit_color_) {
+    vkDestroyShaderModule(*device_, blit_color_, nullptr);
+    blit_color_ = nullptr;
+  }
+  if (blit_depth_) {
+    vkDestroyShaderModule(*device_, blit_depth_, nullptr);
+    blit_depth_ = nullptr;
+  }
+  if (pipeline_color_) {
+    vkDestroyPipeline(*device_, pipeline_color_, nullptr);
+    pipeline_color_ = nullptr;
+  }
+  if (pipeline_depth_) {
+    vkDestroyPipeline(*device_, pipeline_depth_, nullptr);
+    pipeline_depth_ = nullptr;
+  }
+  if (pipeline_layout_) {
+    vkDestroyPipelineLayout(*device_, pipeline_layout_, nullptr);
+    pipeline_layout_ = nullptr;
+  }
+  if (descriptor_set_layout_) {
+    vkDestroyDescriptorSetLayout(*device_, descriptor_set_layout_, nullptr);
+    descriptor_set_layout_ = nullptr;
+  }
   for (auto& pipeline : pipelines_) {
     vkDestroyPipeline(*device_, pipeline.second, nullptr);
   }

@@ -33,6 +33,9 @@ class BufferCache {
               ui::vulkan::VulkanDevice* device, size_t capacity);
   ~BufferCache();
 
+  VkResult Initialize();
+  void Shutdown();
+
   // Descriptor set containing the dynamic uniform buffer used for constant
   // uploads. Used in conjunction with a dynamic offset returned by
   // UploadConstantRegisters.
@@ -109,7 +112,7 @@ class BufferCache {
 
   RegisterFile* register_file_ = nullptr;
   Memory* memory_ = nullptr;
-  VkDevice device_ = nullptr;
+  ui::vulkan::VulkanDevice* device_ = nullptr;
 
   VkDeviceMemory gpu_memory_pool_ = nullptr;
 

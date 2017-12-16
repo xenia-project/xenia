@@ -39,10 +39,12 @@ class PipelineCache {
     kError,
   };
 
-  PipelineCache(RegisterFile* register_file, ui::vulkan::VulkanDevice* device,
-                VkDescriptorSetLayout uniform_descriptor_set_layout,
-                VkDescriptorSetLayout texture_descriptor_set_layout);
+  PipelineCache(RegisterFile* register_file, ui::vulkan::VulkanDevice* device);
   ~PipelineCache();
+
+  VkResult Initialize(VkDescriptorSetLayout uniform_descriptor_set_layout,
+                      VkDescriptorSetLayout texture_descriptor_set_layout);
+  void Shutdown();
 
   // Loads a shader from the cache, possibly translating it.
   VulkanShader* LoadShader(ShaderType shader_type, uint32_t guest_address,

@@ -69,10 +69,14 @@ bool VulkanCommandProcessor::SetupContext() {
     queue_mutex_ = &device_->primary_queue_mutex();
   }
 
+  VkResult status = VK_SUCCESS;
+
   // Setup a blitter.
   blitter_ = std::make_unique<ui::vulkan::Blitter>();
-  if (!blitter_->Initialize(device_)) {
+  status = blitter_->Initialize(device_);
+  if (status != VK_SUCCESS) {
     XELOGE("Unable to initialize blitter");
+    blitter_->Shutdown();
     return false;
   }
 
@@ -83,21 +87,47 @@ bool VulkanCommandProcessor::SetupContext() {
   // Initialize the state machine caches.
   buffer_cache_ = std::make_unique<BufferCache>(
       register_file_, memory_, device_, kDefaultBufferCacheCapacity);
+  status = buffer_cache_->Initialize();
+  if (status != VK_SUCCESS) {
+    XELOGE("Unable to initialize buffer cache");
+    buffer_cache_->Shutdown();
+    return false;
+  }
+
   texture_cache_ = std::make_unique<TextureCache>(memory_, register_file_,
                                                   &trace_writer_, device_);
-  pipeline_cache_ = std::make_unique<PipelineCache>(
-      register_file_, device_, buffer_cache_->constant_descriptor_set_layout(),
+  status = texture_cache_->Initialize();
+  if (status != VK_SUCCESS) {
+    XELOGE("Unable to initialize texture cache");
+    texture_cache_->Shutdown();
+    return false;
+  }
+
+  pipeline_cache_ = std::make_unique<PipelineCache>(register_file_, device_);
+  status = pipeline_cache_->Initialize(
+      buffer_cache_->constant_descriptor_set_layout(),
       texture_cache_->texture_descriptor_set_layout());
+  if (status != VK_SUCCESS) {
+    XELOGE("Unable to initialize pipeline cache");
+    pipeline_cache_->Shutdown();
+    return false;
+  }
+
   render_cache_ = std::make_unique<RenderCache>(register_file_, device_);
+  status = render_cache_->Initialize();
+  if (status != VK_SUCCESS) {
+    XELOGE("Unable to initialize render cache");
+    render_cache_->Shutdown();
+    return false;
+  }
 
   VkEventCreateInfo info = {
       VK_STRUCTURE_TYPE_EVENT_CREATE_INFO, nullptr, 0,
   };
 
-  VkResult result =
-      vkCreateEvent(*device_, &info, nullptr,
-                    reinterpret_cast<VkEvent*>(&swap_state_.backend_data));
-  if (result != VK_SUCCESS) {
+  status = vkCreateEvent(*device_, &info, nullptr,
+                         reinterpret_cast<VkEvent*>(&swap_state_.backend_data));
+  if (status != VK_SUCCESS) {
     return false;
   }
 

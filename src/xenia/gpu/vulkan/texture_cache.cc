@@ -128,8 +128,12 @@ TextureCache::TextureCache(Memory* memory, RegisterFile* register_file,
       staging_buffer_(device, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                       kStagingBufferSize),
       wb_staging_buffer_(device, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-                         kStagingBufferSize) {
-  VkResult err = VK_SUCCESS;
+                         kStagingBufferSize) {}
+
+TextureCache::~TextureCache() { Shutdown(); }
+
+VkResult TextureCache::Initialize() {
+  VkResult status = VK_SUCCESS;
 
   // Descriptor pool used for all of our cached descriptors.
   VkDescriptorPoolSize pool_sizes[1];
@@ -176,33 +180,43 @@ TextureCache::TextureCache(Memory* memory, RegisterFile* register_file,
   descriptor_set_layout_info.bindingCount =
       static_cast<uint32_t>(xe::countof(bindings));
   descriptor_set_layout_info.pBindings = bindings;
-  err = vkCreateDescriptorSetLayout(*device_, &descriptor_set_layout_info,
-                                    nullptr, &texture_descriptor_set_layout_);
-  CheckResult(err, "vkCreateDescriptorSetLayout");
-
-  if (!staging_buffer_.Initialize()) {
-    assert_always();
+  status =
+      vkCreateDescriptorSetLayout(*device_, &descriptor_set_layout_info,
+                                  nullptr, &texture_descriptor_set_layout_);
+  if (status != VK_SUCCESS) {
+    return status;
   }
 
-  if (!wb_staging_buffer_.Initialize()) {
-    assert_always();
+  status = staging_buffer_.Initialize();
+  if (status != VK_SUCCESS) {
+    return status;
+  }
+
+  status = wb_staging_buffer_.Initialize();
+  if (status != VK_SUCCESS) {
+    return status;
   }
 
   // Create a memory allocator for textures.
   VmaAllocatorCreateInfo alloc_info = {
       0, *device_, *device_, 0, 0, nullptr, nullptr,
   };
-  err = vmaCreateAllocator(&alloc_info, &mem_allocator_);
-  CheckResult(err, "vmaCreateAllocator");
+  status = vmaCreateAllocator(&alloc_info, &mem_allocator_);
+  if (status != VK_SUCCESS) {
+    vkDestroyDescriptorSetLayout(*device_, texture_descriptor_set_layout_,
+                                 nullptr);
+    return status;
+  }
 
   invalidated_textures_sets_[0].reserve(64);
   invalidated_textures_sets_[1].reserve(64);
   invalidated_textures_ = &invalidated_textures_sets_[0];
 
   device_queue_ = device_->AcquireQueue();
+  return VK_SUCCESS;
 }
 
-TextureCache::~TextureCache() {
+void TextureCache::Shutdown() {
   if (device_queue_) {
     device_->ReleaseQueue(device_queue_);
   }
@@ -211,7 +225,10 @@ TextureCache::~TextureCache() {
   ClearCache();
   Scavenge();
 
-  vmaDestroyAllocator(mem_allocator_);
+  if (mem_allocator_ != nullptr) {
+    vmaDestroyAllocator(mem_allocator_);
+    mem_allocator_ = nullptr;
+  }
   vkDestroyDescriptorSetLayout(*device_, texture_descriptor_set_layout_,
                                nullptr);
 }
