@@ -43,15 +43,6 @@ class TraceDump {
 
   virtual std::unique_ptr<gpu::GraphicsSystem> CreateGraphicsSystem() = 0;
 
-  virtual uintptr_t GetColorRenderTarget(uint32_t pitch, MsaaSamples samples,
-                                         uint32_t base,
-                                         ColorRenderTargetFormat format) = 0;
-  virtual uintptr_t GetDepthRenderTarget(uint32_t pitch, MsaaSamples samples,
-                                         uint32_t base,
-                                         DepthRenderTargetFormat format) = 0;
-  virtual uintptr_t GetTextureEntry(const TextureInfo& texture_info,
-                                    const SamplerInfo& sampler_info) = 0;
-
   std::unique_ptr<xe::ui::Loop> loop_;
   std::unique_ptr<xe::ui::Window> window_;
   std::unique_ptr<Emulator> emulator_;
