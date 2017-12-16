@@ -53,7 +53,7 @@ class TraceDump {
  private:
   bool Setup();
   bool Load(std::wstring trace_file_path);
-  void Run();
+  int Run();
 
   std::wstring trace_file_path_;
   std::wstring base_output_path_;

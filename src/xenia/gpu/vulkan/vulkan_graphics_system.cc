@@ -88,6 +88,9 @@ std::unique_ptr<RawImage> VulkanGraphicsSystem::Capture() {
   VkCommandBuffer cmd = nullptr;
   status = vkAllocateCommandBuffers(*device_, &alloc_info, &cmd);
   CheckResult(status, "vkAllocateCommandBuffers");
+  if (status != VK_SUCCESS) {
+    return nullptr;
+  }
 
   VkCommandBufferBeginInfo begin_info = {
       VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, nullptr,
@@ -98,7 +101,11 @@ std::unique_ptr<RawImage> VulkanGraphicsSystem::Capture() {
   auto front_buffer =
       reinterpret_cast<VkImage>(swap_state.front_buffer_texture);
 
-  CreateCaptureBuffer(cmd, {swap_state.width, swap_state.height});
+  status = CreateCaptureBuffer(cmd, {swap_state.width, swap_state.height});
+  if (status != VK_SUCCESS) {
+    vkFreeCommandBuffers(*device_, command_pool_, 1, &cmd);
+    return nullptr;
+  }
 
   VkImageMemoryBarrier barrier;
   std::memset(&barrier, 0, sizeof(VkImageMemoryBarrier));
@@ -140,10 +147,10 @@ std::unique_ptr<RawImage> VulkanGraphicsSystem::Capture() {
                        VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 1,
                        &memory_barrier, 0, nullptr);
 
-  vkEndCommandBuffer(cmd);
+  status = vkEndCommandBuffer(cmd);
 
   // Submit commands and wait.
-  {
+  if (status == VK_SUCCESS) {
     std::lock_guard<std::mutex>(device_->primary_queue_mutex());
     VkSubmitInfo submit_info = {
         VK_STRUCTURE_TYPE_SUBMIT_INFO,
@@ -168,9 +175,12 @@ std::unique_ptr<RawImage> VulkanGraphicsSystem::Capture() {
   vkFreeCommandBuffers(*device_, command_pool_, 1, &cmd);
 
   void* data;
-  status =
-      vkMapMemory(*device_, capture_buffer_memory_, 0, VK_WHOLE_SIZE, 0, &data);
-  CheckResult(status, "vkMapMemory");
+  if (status == VK_SUCCESS) {
+    status = vkMapMemory(*device_, capture_buffer_memory_, 0, VK_WHOLE_SIZE, 0,
+                         &data);
+    CheckResult(status, "vkMapMemory");
+  }
+
   if (status == VK_SUCCESS) {
     std::unique_ptr<RawImage> raw_image(new RawImage());
     raw_image->width = swap_state.width;
@@ -186,11 +196,14 @@ std::unique_ptr<RawImage> VulkanGraphicsSystem::Capture() {
     return raw_image;
   }
 
+  DestroyCaptureBuffer();
   return nullptr;
 }
 
 VkResult VulkanGraphicsSystem::CreateCaptureBuffer(VkCommandBuffer cmd,
                                                    VkExtent2D extents) {
+  VkResult status = VK_SUCCESS;
+
   VkBufferCreateInfo buffer_info = {
       VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
       nullptr,
@@ -201,8 +214,10 @@ VkResult VulkanGraphicsSystem::CreateCaptureBuffer(VkCommandBuffer cmd,
       0,
       nullptr,
   };
-  auto status =
-      vkCreateBuffer(*device_, &buffer_info, nullptr, &capture_buffer_);
+  status = vkCreateBuffer(*device_, &buffer_info, nullptr, &capture_buffer_);
+  if (status != VK_SUCCESS) {
+    return status;
+  }
 
   capture_buffer_size_ = extents.width * extents.height * 4;
 
@@ -217,8 +232,12 @@ VkResult VulkanGraphicsSystem::CreateCaptureBuffer(VkCommandBuffer cmd,
   status =
       vkBindBufferMemory(*device_, capture_buffer_, capture_buffer_memory_, 0);
   CheckResult(status, "vkBindImageMemory");
+  if (status != VK_SUCCESS) {
+    vkDestroyBuffer(*device_, capture_buffer_, nullptr);
+    return status;
+  }
 
-  return VK_SUCCESS;
+  return status;
 }
 
 void VulkanGraphicsSystem::DestroyCaptureBuffer() {

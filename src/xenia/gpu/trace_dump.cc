@@ -98,8 +98,7 @@ int TraceDump::Main(const std::vector<std::wstring>& args) {
   // Ensure output path exists.
   xe::filesystem::CreateParentFolder(base_output_path_);
 
-  Run();
-  return 0;
+  return Run();
 }
 
 bool TraceDump::Setup() {
@@ -172,7 +171,7 @@ bool TraceDump::Load(std::wstring trace_file_path) {
   return true;
 }
 
-void TraceDump::Run() {
+int TraceDump::Run() {
   loop_->Post([&]() {
     player_->SeekFrame(0);
     player_->SeekCommand(
@@ -188,13 +187,14 @@ void TraceDump::Run() {
   });
 
   xe::threading::Fence capture_fence;
-  bool did_capture = false;
+  int result = 0;
   loop_->PostDelayed(
       [&]() {
         // Capture.
         auto raw_image = graphics_system_->Capture();
         if (!raw_image) {
           // Failed to capture anything.
+          result = -1;
           capture_fence.Signal();
           return;
         }
@@ -206,7 +206,7 @@ void TraceDump::Run() {
                        raw_image->data.data(),
                        static_cast<int>(raw_image->stride));
 
-        did_capture = true;
+        result = 0;
         capture_fence.Signal();
       },
       50);
@@ -223,7 +223,7 @@ void TraceDump::Run() {
   player_.reset();
   emulator_.reset();
 
-  // TODO(benvanik): die if failed to capture?
+  return result;
 }
 
 }  //  namespace gpu
