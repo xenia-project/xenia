@@ -151,7 +151,17 @@ void TraceReader::ParseTrace() {
                 uint32_t(current_frame.commands.size() - 1)));
             break;
           }
-          case PacketCategory::kSwap:
+          case PacketCategory::kSwap: {
+            Frame::Command command;
+            command.type = Frame::Command::Type::kSwap;
+            command.head_ptr = packet_start_ptr;
+            command.start_ptr = last_ptr;
+            command.end_ptr = trace_ptr;
+            current_frame.commands.push_back(std::move(command));
+            last_ptr = trace_ptr;
+            current_command_buffer->commands.push_back(CommandBuffer::Command(
+                uint32_t(current_frame.commands.size() - 1)));
+          } break;
           case PacketCategory::kGeneric: {
             // Ignored.
             break;

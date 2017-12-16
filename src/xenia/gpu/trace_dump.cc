@@ -51,10 +51,8 @@ int TraceDump::Main(const std::vector<std::wstring>& args) {
   } else if (args.size() >= 2) {
     // Passed as an unnamed argument.
     path = args[1];
-  }
-
-  // If no path passed, ask the user.
-  if (path.empty()) {
+  } else {
+    // Open a file chooser and ask the user.
     auto file_picker = xe::ui::FilePicker::Create();
     file_picker->set_mode(ui::FilePicker::Mode::kOpen);
     file_picker->set_type(ui::FilePicker::Type::kFile);
