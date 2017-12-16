@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2016 Ben Vanik. All rights reserved.                             *
+ * Copyright 2017 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -12,6 +12,7 @@
 #include <gflags/gflags.h>
 
 #include <cinttypes>
+#include <climits>
 #include <mutex>
 #include <string>
 
