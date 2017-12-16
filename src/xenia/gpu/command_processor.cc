@@ -468,12 +468,13 @@ bool CommandProcessor::ExecutePacketType0(RingBuffer* reader, uint32_t packet) {
   // (base_index << 2).
 
   uint32_t count = ((packet >> 16) & 0x3FFF) + 1;
-  trace_writer_.WritePacketStart(uint32_t(reader->read_ptr() - 4), 1 + count);
   if (reader->read_count() < count * sizeof(uint32_t)) {
     XELOGE("ExecutePacketType0 overflow (read count %.8X, packet count %.8X)",
            reader->read_count(), count * sizeof(uint32_t));
     return false;
   }
+
+  trace_writer_.WritePacketStart(uint32_t(reader->read_ptr() - 4), 1 + count);
 
   uint32_t base_index = (packet & 0x7FFF);
   uint32_t write_one_reg = (packet >> 15) & 0x1;
@@ -662,6 +663,25 @@ bool CommandProcessor::ExecutePacketType3(RingBuffer* reader, uint32_t packet) {
   }
 
   trace_writer_.WritePacketEnd();
+  if (opcode == PM4_XE_SWAP) {
+    // End the trace writer frame.
+    if (trace_writer_.is_open()) {
+      trace_writer_.WriteEvent(EventCommand::Type::kSwap);
+      trace_writer_.Flush();
+      if (trace_state_ == TraceState::kSingleFrame) {
+        trace_state_ = TraceState::kDisabled;
+        trace_writer_.Close();
+      }
+    } else if (trace_state_ == TraceState::kSingleFrame) {
+      // New trace request - we only start tracing at the beginning of a frame.
+      uint32_t title_id = kernel_state_->GetExecutableModule()->title_id();
+      auto file_name = xe::format_string(L"title_%8X_frame_%u.xenia_gpu_trace",
+                                         title_id, counter_ - 1);
+      auto path = trace_frame_path_ + file_name;
+      trace_writer_.Open(path, title_id);
+    }
+  }
+
   assert_true(reader->read_offset() ==
               (data_start_offset + (count * sizeof(uint32_t))) %
                   reader->capacity());
@@ -725,21 +745,6 @@ bool CommandProcessor::ExecutePacketType3_XE_SWAP(RingBuffer* reader,
     IssueSwap(frontbuffer_ptr, frontbuffer_width, frontbuffer_height);
   }
 
-  if (trace_writer_.is_open()) {
-    trace_writer_.WriteEvent(EventCommand::Type::kSwap);
-    trace_writer_.Flush();
-    if (trace_state_ == TraceState::kSingleFrame) {
-      trace_state_ = TraceState::kDisabled;
-      trace_writer_.Close();
-    }
-  } else if (trace_state_ == TraceState::kSingleFrame) {
-    // New trace request - we only start tracing at the beginning of a frame.
-    uint32_t title_id = kernel_state_->GetExecutableModule()->title_id();
-    auto file_name = xe::format_string(L"title_%8X_frame_%u.xenia_gpu_trace",
-                                       title_id, counter_);
-    auto path = trace_frame_path_ + file_name;
-    trace_writer_.Open(path, title_id);
-  }
   ++counter_;
   return true;
 }
