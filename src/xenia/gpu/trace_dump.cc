@@ -127,7 +127,7 @@ bool TraceDump::Setup() {
     exit(1);
   });
   loop_->on_quit.AddListener([&](xe::ui::UIEvent* e) { window_.reset(); });
-  window_->Resize(1920, 1200);
+  window_->Resize(1280, 720);
 
   // Create the emulator but don't initialize so we can setup the window.
   emulator_ = std::make_unique<Emulator>(L"");
@@ -149,23 +149,6 @@ bool TraceDump::Setup() {
   });
 
   player_ = std::make_unique<TracePlayer>(loop_.get(), graphics_system_);
-
-  window_->on_painting.AddListener([&](xe::ui::UIEvent* e) {
-    // Update titlebar status.
-    auto file_name = xe::find_name_from_path(trace_file_path_);
-    std::wstring title = std::wstring(L"Xenia GPU Trace Dump: ") + file_name;
-    if (player_->is_playing_trace()) {
-      int percent =
-          static_cast<int>(player_->playback_percent() / 10000.0 * 100.0);
-      title += xe::format_string(L" (%d%%)", percent);
-    }
-    window_->set_title(title);
-
-    // Continuous paint.
-    window_->Invalidate();
-  });
-  window_->Invalidate();
-
   return true;
 }
 
@@ -195,8 +178,8 @@ int TraceDump::Run() {
     // Breathe.
   });
 
-  xe::threading::Fence capture_fence;
   int result = 0;
+  auto capture_event = xe::threading::Event::CreateManualResetEvent(false);
   loop_->PostDelayed(
       [&]() {
         // Capture.
@@ -204,7 +187,7 @@ int TraceDump::Run() {
         if (!raw_image) {
           // Failed to capture anything.
           result = -1;
-          capture_fence.Signal();
+          capture_event->Set();
           return;
         }
 
@@ -216,17 +199,31 @@ int TraceDump::Run() {
                        static_cast<int>(raw_image->stride));
 
         result = 0;
-        capture_fence.Signal();
+        capture_event->Set();
       },
       50);
 
-  capture_fence.Wait();
+  while (xe::threading::Wait(capture_event.get(), false,
+                             std::chrono::milliseconds(1)) ==
+         xe::threading::WaitResult::kTimeout) {
+    // Update titlebar status.
+    auto file_name = xe::find_name_from_path(trace_file_path_);
+    std::wstring title = std::wstring(L"Xenia GPU Trace Dump: ") + file_name;
+    if (player_->is_playing_trace()) {
+      int percent =
+          static_cast<int>(player_->playback_percent() / 10000.0 * 100.0);
+      title += xe::format_string(L" (%d%%)", percent);
+    }
+    window_->set_title(title);
+  }
+
+  // Profiler must exit before the window is closed.
+  Profiler::Shutdown();
 
   // Wait until we are exited.
   loop_->Quit();
   loop_->AwaitQuit();
 
-  Profiler::Shutdown();
   window_.reset();
   loop_.reset();
   player_.reset();
