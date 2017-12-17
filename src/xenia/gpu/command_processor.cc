@@ -372,8 +372,7 @@ uint32_t CommandProcessor::ExecutePrimaryBuffer(uint32_t read_index,
     uint32_t title_id = kernel_state_->GetExecutableModule()
                             ? kernel_state_->GetExecutableModule()->title_id()
                             : 0;
-    auto file_name =
-        xe::format_string(L"title_%8X_stream.xenia_gpu_trace", title_id);
+    auto file_name = xe::format_string(L"%8X_stream.xtr", title_id);
     auto path = trace_stream_path_ + file_name;
     trace_writer_.Open(path, title_id);
   }
@@ -675,8 +674,7 @@ bool CommandProcessor::ExecutePacketType3(RingBuffer* reader, uint32_t packet) {
     } else if (trace_state_ == TraceState::kSingleFrame) {
       // New trace request - we only start tracing at the beginning of a frame.
       uint32_t title_id = kernel_state_->GetExecutableModule()->title_id();
-      auto file_name = xe::format_string(L"title_%8X_frame_%u.xenia_gpu_trace",
-                                         title_id, counter_ - 1);
+      auto file_name = xe::format_string(L"%8X_%u.xtr", title_id, counter_ - 1);
       auto path = trace_frame_path_ + file_name;
       trace_writer_.Open(path, title_id);
     }
