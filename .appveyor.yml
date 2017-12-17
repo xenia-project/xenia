@@ -18,6 +18,12 @@ branches:
 # Do not build on tags (GitHub only)
 skip_tags: true
 
+skip_commits:
+  files:
+    - docs/*
+    - LICENSE
+    - README.md
+
 pull_requests:
   do_not_increment_build_number: true
 
