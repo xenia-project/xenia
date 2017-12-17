@@ -232,10 +232,10 @@ int xenia_main(const std::vector<std::wstring>& args) {
 
   debug_window.reset();
   emulator.reset();
-  emulator_window.reset();
 
   Profiler::Dump();
   Profiler::Shutdown();
+  emulator_window.reset();
   return 0;
 }
 
