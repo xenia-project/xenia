@@ -73,9 +73,7 @@ bool EmulatorWindow::Initialize() {
 
   UpdateTitle();
 
-  window_->on_closed.AddListener([this](UIEvent* e) {
-    loop_->Quit();
-  });
+  window_->on_closed.AddListener([this](UIEvent* e) { loop_->Quit(); });
   loop_->on_quit.AddListener([this](UIEvent* e) { window_.reset(); });
 
   window_->on_file_drop.AddListener(
