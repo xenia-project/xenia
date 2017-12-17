@@ -164,22 +164,30 @@ bool TraceDump::Load(std::wstring trace_file_path) {
 }
 
 int TraceDump::Run() {
-  loop_->Post([&]() {
+  loop_->PostSynchronous([&]() {
     player_->SeekFrame(0);
     player_->SeekCommand(
         static_cast<int>(player_->current_frame()->commands.size() - 1));
   });
+
+  auto file_name = xe::find_name_from_path(trace_file_path_);
+  std::wstring title = std::wstring(L"Xenia GPU Trace Dump: ") + file_name;
+  while (player_->is_playing_trace()) {
+    // Update titlebar status.
+    if (player_->is_playing_trace()) {
+      int percent =
+          static_cast<int>(player_->playback_percent() / 10000.0 * 100.0);
+      window_->set_title(title + xe::format_string(L" (%d%%)", percent));
+    }
+
+    xe::threading::Sleep(std::chrono::milliseconds(1));
+  }
+
+  window_->set_title(title);
   player_->WaitOnPlayback();
 
-  loop_->PostSynchronous([&]() {
-    // Breathe.
-  });
-  loop_->PostSynchronous([&]() {
-    // Breathe.
-  });
-
+  xe::threading::Fence capture_fence;
   int result = 0;
-  auto capture_event = xe::threading::Event::CreateManualResetEvent(false);
   loop_->PostDelayed(
       [&]() {
         // Capture.
@@ -187,7 +195,7 @@ int TraceDump::Run() {
         if (!raw_image) {
           // Failed to capture anything.
           result = -1;
-          capture_event->Set();
+          capture_fence.Signal();
           return;
         }
 
@@ -199,23 +207,11 @@ int TraceDump::Run() {
                        static_cast<int>(raw_image->stride));
 
         result = 0;
-        capture_event->Set();
+        capture_fence.Signal();
       },
       50);
 
-  while (xe::threading::Wait(capture_event.get(), false,
-                             std::chrono::milliseconds(1)) ==
-         xe::threading::WaitResult::kTimeout) {
-    // Update titlebar status.
-    auto file_name = xe::find_name_from_path(trace_file_path_);
-    std::wstring title = std::wstring(L"Xenia GPU Trace Dump: ") + file_name;
-    if (player_->is_playing_trace()) {
-      int percent =
-          static_cast<int>(player_->playback_percent() / 10000.0 * 100.0);
-      title += xe::format_string(L" (%d%%)", percent);
-    }
-    window_->set_title(title);
-  }
+  capture_fence.Wait();
 
   // Profiler must exit before the window is closed.
   Profiler::Shutdown();
