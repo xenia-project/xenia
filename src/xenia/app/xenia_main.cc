@@ -178,6 +178,9 @@ int xenia_main(const std::vector<std::wstring>& args) {
   emulator_window->loop()->on_quit.AddListener([&](ui::UIEvent* e) {
     exiting = true;
     evt->Set();
+
+    XELOGI("Cheap-skate exit!");
+    exit(0);
   });
 
   // Enable the main menu now that the emulator is properly loaded

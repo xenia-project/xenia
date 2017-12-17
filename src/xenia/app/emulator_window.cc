@@ -75,10 +75,6 @@ bool EmulatorWindow::Initialize() {
 
   window_->on_closed.AddListener([this](UIEvent* e) {
     loop_->Quit();
-
-    // TODO(benvanik): proper exit.
-    XELOGI("User-initiated death!");
-    exit(1);
   });
   loop_->on_quit.AddListener([this](UIEvent* e) { window_.reset(); });
 
