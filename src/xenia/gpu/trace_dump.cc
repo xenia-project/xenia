@@ -97,9 +97,17 @@ int TraceDump::Main(const std::vector<std::wstring>& args) {
   if (output_path.empty()) {
     base_output_path_ =
         xe::fix_path_separators(xe::to_wstring(FLAGS_trace_dump_path));
-    base_output_path_ =
-        xe::join_paths(base_output_path_,
-                       xe::find_name_from_path(xe::fix_path_separators(path)));
+
+    std::wstring output_name =
+        xe::find_name_from_path(xe::fix_path_separators(path));
+
+    // Strip the extension from the filename.
+    auto last_dot = output_name.find_last_of(L".");
+    if (last_dot != std::string::npos) {
+      output_name = output_name.substr(0, last_dot);
+    }
+
+    base_output_path_ = xe::join_paths(base_output_path_, output_name);
   } else {
     base_output_path_ = xe::fix_path_separators(output_path);
   }
