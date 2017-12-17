@@ -20,6 +20,7 @@
 #include "xenia/gpu/spirv/passes/control_flow_simplification_pass.h"
 
 DEFINE_bool(spv_validate, false, "Validate SPIR-V shaders after generation");
+DEFINE_bool(spv_disasm, false, "Disassemble SPIR-V shaders after generation");
 
 namespace xe {
 namespace gpu {
@@ -637,14 +638,16 @@ void SpirvShaderTranslator::PostTranslation(Shader* shader) {
     }
   }
 
-  // TODO(benvanik): only if needed? could be slowish.
-  auto disasm = disassembler_.Disassemble(
-      reinterpret_cast<const uint32_t*>(shader->translated_binary().data()),
-      shader->translated_binary().size() / 4);
-  if (disasm->has_error()) {
-    XELOGE("Failed to disassemble SPIRV - invalid?");
-  } else {
-    set_host_disassembly(shader, disasm->to_string());
+  if (FLAGS_spv_disasm) {
+    // TODO(benvanik): only if needed? could be slowish.
+    auto disasm = disassembler_.Disassemble(
+        reinterpret_cast<const uint32_t*>(shader->translated_binary().data()),
+        shader->translated_binary().size() / 4);
+    if (disasm->has_error()) {
+      XELOGE("Failed to disassemble SPIRV - invalid?");
+    } else {
+      set_host_disassembly(shader, disasm->to_string());
+    }
   }
 }
 
