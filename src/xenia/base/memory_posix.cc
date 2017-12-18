@@ -9,6 +9,7 @@
 
 #include "xenia/base/memory.h"
 
+#include <fcntl.h>
 #include <sys/mman.h>
 #include <unistd.h>
 
@@ -38,7 +39,13 @@ void* AllocFixed(void* base_address, size_t length,
                  AllocationType allocation_type, PageAccess access) {
   // mmap does not support reserve / commit, so ignore allocation_type.
   uint32_t prot = ToPosixProtectFlags(access);
-  return mmap(base_address, length, prot, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  void* result = mmap(base_address, length, prot,
+                      MAP_PRIVATE | MAP_FIXED | MAP_ANONYMOUS, -1, 0);
+  if (result == MAP_FAILED) {
+    return nullptr;
+  } else {
+    return result;
+  }
 }
 
 bool DeallocFixed(void* base_address, size_t length,
@@ -61,19 +68,34 @@ bool QueryProtect(void* base_address, size_t& length, PageAccess& access_out) {
 
 FileMappingHandle CreateFileMappingHandle(std::wstring path, size_t length,
                                           PageAccess access, bool commit) {
-  return nullptr;
+  int fd = open("/dev/zero", O_RDWR);
+  if (fd == -1) {
+    return nullptr;
+  } else {
+    return reinterpret_cast<void*>(static_cast<int64_t>(fd));
+  }
 }
 
-void CloseFileMappingHandle(FileMappingHandle handle) {}
+void CloseFileMappingHandle(FileMappingHandle handle) {
+  close(static_cast<int>(reinterpret_cast<int64_t>(handle)));
+}
 
 void* MapFileView(FileMappingHandle handle, void* base_address, size_t length,
                   PageAccess access, size_t file_offset) {
-  return nullptr;
+  int fd = (int)(long long)handle;
+  uint32_t prot = ToPosixProtectFlags(access);
+  void* addr = mmap(base_address, length, prot, MAP_PRIVATE | MAP_FIXED, fd,
+                    file_offset);
+  if (addr == MAP_FAILED) {
+    return nullptr;
+  } else {
+    return addr;
+  }
 }
 
 bool UnmapFileView(FileMappingHandle handle, void* base_address,
                    size_t length) {
-  return false;
+  return munmap(base_address, length) == 0;
 }
 
 }  // namespace memory

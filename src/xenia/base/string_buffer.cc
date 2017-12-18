@@ -61,9 +61,17 @@ void StringBuffer::AppendFormat(const char* format, ...) {
 }
 
 void StringBuffer::AppendVarargs(const char* format, va_list args) {
+#if XE_PLATFORM_LINUX
+  va_list args_copy;
+  va_copy(args_copy, args);
+#endif
   int length = vsnprintf(nullptr, 0, format, args);
   Grow(length + 1);
+#if XE_PLATFORM_LINUX
+  vsnprintf(buffer_ + buffer_offset_, buffer_capacity_, format, args_copy);
+#else
   vsnprintf(buffer_ + buffer_offset_, buffer_capacity_, format, args);
+#endif
   buffer_offset_ += length;
   buffer_[buffer_offset_] = 0;
 }

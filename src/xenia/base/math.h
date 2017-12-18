@@ -203,13 +203,21 @@ inline bool bit_scan_forward(uint64_t v, uint32_t* out_first_set_index) {
 #else
 inline bool bit_scan_forward(uint32_t v, uint32_t* out_first_set_index) {
   int i = ffs(v);
-  *out_first_set_index = i;
-  return i != 0;
+  if (i == 0) {
+    return false;
+  } else {
+    *out_first_set_index = i - 1;
+    return true;
+  }
 }
 inline bool bit_scan_forward(uint64_t v, uint32_t* out_first_set_index) {
   int i = ffsll(v);
-  *out_first_set_index = i;
-  return i != 0;
+  if (i == 0) {
+    return false;
+  } else {
+    *out_first_set_index = i - 1;
+    return true;
+  }
 }
 #endif  // XE_PLATFORM_WIN32
 inline bool bit_scan_forward(int32_t v, uint32_t* out_first_set_index) {
