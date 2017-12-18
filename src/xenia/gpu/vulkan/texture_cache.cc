@@ -271,10 +271,13 @@ TextureCache::Texture* TextureCache::AllocateTexture(
   if ((props.optimalTilingFeatures & required_flags) != required_flags) {
     // Texture needs conversion on upload to a native format.
     XELOGE(
-        "Texture Cache: Invalid usage flag specified on format %s (vk %d) "
-        "(0x%.8X != 0x%.8X)",
-        texture_info.format_info()->name, format,
-        (props.optimalTilingFeatures & required_flags), required_flags);
+        "Texture Cache: Invalid usage flag specified on format %s (%s)\n\t"
+        "(requested: %s)",
+        texture_info.format_info()->name, ui::vulkan::to_string(format),
+        ui::vulkan::to_flags_string(
+            static_cast<VkFormatFeatureFlagBits>(required_flags &
+                                                 ~props.optimalTilingFeatures))
+            .c_str());
     assert_always();
   }
 

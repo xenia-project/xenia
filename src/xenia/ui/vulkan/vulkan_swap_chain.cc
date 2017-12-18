@@ -156,7 +156,8 @@ bool VulkanSwapChain::Initialize(VkSurfaceKHR surface) {
   XELOGVK("  presentMode      = %s", to_string(create_info.presentMode));
   XELOGVK("  clipped          = %s", create_info.clipped ? "true" : "false");
   XELOGVK("  imageColorSpace  = %s", to_string(create_info.imageColorSpace));
-  auto image_usage_flags_str = to_flags_string(create_info.imageUsage);
+  auto image_usage_flags_str = to_flags_string(
+      static_cast<VkImageUsageFlagBits>(create_info.imageUsage));
   XELOGVK("  imageUsageFlags  = %s", image_usage_flags_str.c_str());
   XELOGVK("  imageSharingMode = %s", to_string(create_info.imageSharingMode));
   XELOGVK("  queueFamilyCount = %u", create_info.queueFamilyIndexCount);
