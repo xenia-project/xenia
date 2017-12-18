@@ -1018,22 +1018,32 @@ PipelineCache::UpdateStatus PipelineCache::UpdateVertexInputState(
           vertex_attrib_descr.format = VK_FORMAT_R16G16B16A16_SFLOAT;
           break;
         case VertexFormat::k_32:
-          // FIXME: Is this a NORM format?
-          assert_true(is_integer);
-          vertex_attrib_descr.format =
-              is_signed ? VK_FORMAT_R32_SINT : VK_FORMAT_R32_UINT;
+          if (is_integer) {
+            vertex_attrib_descr.format =
+                is_signed ? VK_FORMAT_R32_SINT : VK_FORMAT_R32_UINT;
+          } else {
+            // No NORM format.
+            assert_always();
+          }
           break;
         case VertexFormat::k_32_32:
-          // FIXME: Is this a NORM format?
-          assert_true(is_integer);
-          vertex_attrib_descr.format =
-              is_signed ? VK_FORMAT_R32G32_SINT : VK_FORMAT_R32G32_UINT;
+          if (is_integer) {
+            vertex_attrib_descr.format =
+                is_signed ? VK_FORMAT_R32G32_SINT : VK_FORMAT_R32G32_UINT;
+          } else {
+            // No NORM format.
+            assert_always();
+          }
           break;
         case VertexFormat::k_32_32_32_32:
-          // FIXME: Is this a NORM format?
-          assert_true(is_integer);
-          vertex_attrib_descr.format = is_signed ? VK_FORMAT_R32G32B32A32_SINT
-                                                 : VK_FORMAT_R32G32B32A32_UINT;
+          if (is_integer) {
+            vertex_attrib_descr.format = is_signed
+                                             ? VK_FORMAT_R32G32B32A32_SINT
+                                             : VK_FORMAT_R32G32B32A32_UINT;
+          } else {
+            // No NORM format.
+            assert_always();
+          }
           break;
         case VertexFormat::k_32_FLOAT:
           // assert_true(is_signed);

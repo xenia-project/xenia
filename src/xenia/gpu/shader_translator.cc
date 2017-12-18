@@ -777,7 +777,7 @@ void ShaderTranslator::ParseVertexFetchInstruction(
   i.attributes.exp_adjust = op.exp_adjust();
   i.attributes.is_index_rounded = op.is_index_rounded();
   i.attributes.is_signed = op.is_signed();
-  i.attributes.is_integer = op.is_integer();
+  i.attributes.is_integer = op.is_normalized();
   i.attributes.prefetch_count = op.prefetch_count();
 
   // Store for later use by mini fetches.
