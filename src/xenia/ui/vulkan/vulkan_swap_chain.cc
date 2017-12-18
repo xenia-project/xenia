@@ -388,14 +388,18 @@ void VulkanSwapChain::Shutdown() {
   }
 }
 
-bool VulkanSwapChain::Begin() {
+VkResult VulkanSwapChain::Begin() {
   wait_and_signal_semaphores_.clear();
 
+  VkResult status;
+
   // Get the index of the next available swapchain image.
-  auto err =
+  status =
       vkAcquireNextImageKHR(*device_, handle, 0, image_available_semaphore_,
                             nullptr, &current_buffer_index_);
-  CheckResult(err, "vkAcquireNextImageKHR");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
 
   // Wait for the acquire semaphore to be signaled so that the following
   // operations know they can start modifying the image.
@@ -414,10 +418,12 @@ bool VulkanSwapChain::Begin() {
   wait_submit_info.pSignalSemaphores = &image_usage_semaphore_;
   {
     std::lock_guard<std::mutex> queue_lock(device_->primary_queue_mutex());
-    err =
+    status =
         vkQueueSubmit(device_->primary_queue(), 1, &wait_submit_info, nullptr);
   }
-  CheckResult(err, "vkQueueSubmit");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
 
   // Reset all command buffers.
   vkResetCommandBuffer(render_cmd_buffer_, 0);
@@ -441,13 +447,19 @@ bool VulkanSwapChain::Begin() {
   begin_info.flags = VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT |
                      VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
   begin_info.pInheritanceInfo = &inherit_info;
-  err = vkBeginCommandBuffer(render_cmd_buffer_, &begin_info);
-  CheckResult(err, "vkBeginCommandBuffer");
+  status = vkBeginCommandBuffer(render_cmd_buffer_, &begin_info);
+  CheckResult(status, "vkBeginCommandBuffer");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
 
   // Start recording the copy command buffer as well.
   begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-  err = vkBeginCommandBuffer(copy_cmd_buffer_, &begin_info);
-  CheckResult(err, "vkBeginCommandBuffer");
+  status = vkBeginCommandBuffer(copy_cmd_buffer_, &begin_info);
+  CheckResult(status, "vkBeginCommandBuffer");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
 
   // First: Issue a command to clear the render target.
   VkImageSubresourceRange clear_range = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
@@ -466,27 +478,42 @@ bool VulkanSwapChain::Begin() {
                        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clear_color, 1,
                        &clear_range);
 
-  return true;
+  return VK_SUCCESS;
 }
 
-bool VulkanSwapChain::End() {
+VkResult VulkanSwapChain::End() {
   auto& current_buffer = buffers_[current_buffer_index_];
+  VkResult status;
 
-  auto err = vkEndCommandBuffer(render_cmd_buffer_);
-  CheckResult(err, "vkEndCommandBuffer");
+  status = vkEndCommandBuffer(render_cmd_buffer_);
+  CheckResult(status, "vkEndCommandBuffer");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
 
-  err = vkEndCommandBuffer(copy_cmd_buffer_);
-  CheckResult(err, "vkEndCommandBuffer");
+  status = vkEndCommandBuffer(copy_cmd_buffer_);
+  CheckResult(status, "vkEndCommandBuffer");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
 
   // Build primary command buffer.
-  vkResetCommandBuffer(cmd_buffer_, 0);
+  status = vkResetCommandBuffer(cmd_buffer_, 0);
+  CheckResult(status, "vkResetCommandBuffer");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
 
   VkCommandBufferBeginInfo begin_info;
   begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
   begin_info.pNext = nullptr;
   begin_info.flags = 0;
   begin_info.pInheritanceInfo = nullptr;
-  vkBeginCommandBuffer(cmd_buffer_, &begin_info);
+  status = vkBeginCommandBuffer(cmd_buffer_, &begin_info);
+  CheckResult(status, "vkBeginCommandBuffer");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
 
   // Transition the image to a format we can copy to.
   VkImageMemoryBarrier pre_image_copy_barrier;
@@ -580,9 +607,13 @@ bool VulkanSwapChain::End() {
 
   current_buffer.image_layout = post_image_memory_barrier.newLayout;
 
-  vkEndCommandBuffer(cmd_buffer_);
-  VkPipelineStageFlags wait_dst_stage = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+  status = vkEndCommandBuffer(cmd_buffer_);
+  CheckResult(status, "vkEndCommandBuffer");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
 
+  VkPipelineStageFlags wait_dst_stage = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
   std::vector<VkSemaphore> semaphores;
   for (size_t i = 0; i < wait_and_signal_semaphores_.size(); i++) {
     semaphores.push_back(wait_and_signal_semaphores_[i]);
@@ -603,10 +634,13 @@ bool VulkanSwapChain::End() {
   render_submit_info.pSignalSemaphores = semaphores.data();
   {
     std::lock_guard<std::mutex> queue_lock(device_->primary_queue_mutex());
-    err = vkQueueSubmit(device_->primary_queue(), 1, &render_submit_info,
-                        nullptr);
+    status = vkQueueSubmit(device_->primary_queue(), 1, &render_submit_info,
+                           nullptr);
   }
-  CheckResult(err, "vkQueueSubmit");
+
+  if (status != VK_SUCCESS) {
+    return status;
+  }
 
   // Queue the present of our current image.
   const VkSwapchainKHR swap_chains[] = {handle};
@@ -622,27 +656,30 @@ bool VulkanSwapChain::End() {
   present_info.pResults = nullptr;
   {
     std::lock_guard<std::mutex> queue_lock(device_->primary_queue_mutex());
-    err = vkQueuePresentKHR(device_->primary_queue(), &present_info);
+    status = vkQueuePresentKHR(device_->primary_queue(), &present_info);
   }
-  switch (err) {
+  switch (status) {
     case VK_SUCCESS:
       break;
     case VK_SUBOPTIMAL_KHR:
       // We are not rendering at the right size - but the presentation engine
       // will scale the output for us.
+      status = VK_SUCCESS;
       break;
     case VK_ERROR_OUT_OF_DATE_KHR:
       // Lost presentation ability; need to recreate the swapchain.
       // TODO(benvanik): recreate swapchain.
       assert_always("Swapchain recreation not implemented");
       break;
+    case VK_ERROR_DEVICE_LOST:
+      // Fatal. Device lost.
+      break;
     default:
-      XELOGE("Failed to queue present: %s", to_string(err));
+      XELOGE("Failed to queue present: %s", to_string(status));
       assert_always("Unexpected queue present failure");
-      return false;
   }
 
-  return true;
+  return status;
 }
 
 }  // namespace vulkan

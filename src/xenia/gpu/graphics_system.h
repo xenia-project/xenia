@@ -45,6 +45,7 @@ class GraphicsSystem {
                          kernel::KernelState* kernel_state,
                          ui::Window* target_window);
   virtual void Shutdown();
+  virtual void Reset();
 
   virtual std::unique_ptr<xe::ui::RawImage> Capture() { return nullptr; }
 

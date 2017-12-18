@@ -57,9 +57,9 @@ class VulkanSwapChain {
   void WaitAndSignalSemaphore(VkSemaphore sem);
 
   // Begins the swap operation, preparing state for rendering.
-  bool Begin();
+  VkResult Begin();
   // Ends the swap operation, finalizing rendering and presenting the results.
-  bool End();
+  VkResult End();
 
  private:
   struct Buffer {

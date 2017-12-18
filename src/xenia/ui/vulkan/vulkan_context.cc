@@ -37,11 +37,12 @@ VulkanContext::VulkanContext(VulkanProvider* provider, Window* target_window)
     : GraphicsContext(provider, target_window) {}
 
 VulkanContext::~VulkanContext() {
+  VkResult status;
   auto provider = static_cast<VulkanProvider*>(provider_);
   auto device = provider->device();
   {
     std::lock_guard<std::mutex> queue_lock(device->primary_queue_mutex());
-    vkQueueWaitIdle(device->primary_queue());
+    status = vkQueueWaitIdle(device->primary_queue());
   }
   immediate_drawer_.reset();
   swap_chain_.reset();
@@ -132,6 +133,8 @@ void VulkanContext::BeginSwap() {
   auto provider = static_cast<VulkanProvider*>(provider_);
   auto device = provider->device();
 
+  VkResult status;
+
   // If we have a window see if it's been resized since we last swapped.
   // If it has been, we'll need to reinitialize the swap chain before we
   // start touching it.
@@ -143,13 +146,17 @@ void VulkanContext::BeginSwap() {
     }
   }
 
-  // Acquire the next image and set it up for use.
-  swap_chain_->Begin();
+  if (!context_lost_) {
+    // Acquire the next image and set it up for use.
+    status = swap_chain_->Begin();
+    if (status == VK_ERROR_DEVICE_LOST) {
+      context_lost_ = true;
+    }
+  }
 
   // TODO(benvanik): use a fence instead? May not be possible with target image.
   std::lock_guard<std::mutex> queue_lock(device->primary_queue_mutex());
-  auto err = vkQueueWaitIdle(device->primary_queue());
-  CheckResult(err, "vkQueueWaitIdle");
+  status = vkQueueWaitIdle(device->primary_queue());
 }
 
 void VulkanContext::EndSwap() {
@@ -157,15 +164,21 @@ void VulkanContext::EndSwap() {
   auto provider = static_cast<VulkanProvider*>(provider_);
   auto device = provider->device();
 
-  // Notify the presentation engine the image is ready.
-  // The contents must be in a coherent state.
-  swap_chain_->End();
+  VkResult status;
+
+  if (!context_lost_) {
+    // Notify the presentation engine the image is ready.
+    // The contents must be in a coherent state.
+    status = swap_chain_->End();
+    if (status == VK_ERROR_DEVICE_LOST) {
+      context_lost_ = true;
+    }
+  }
 
   // Wait until the queue is idle.
   // TODO(benvanik): is this required?
   std::lock_guard<std::mutex> queue_lock(device->primary_queue_mutex());
-  auto err = vkQueueWaitIdle(device->primary_queue());
-  CheckResult(err, "vkQueueWaitIdle");
+  status = vkQueueWaitIdle(device->primary_queue());
 }
 
 std::unique_ptr<RawImage> VulkanContext::Capture() {

@@ -117,6 +117,8 @@ class Window {
   Delegate<UIEvent*> on_painting;
   Delegate<UIEvent*> on_paint;
   Delegate<UIEvent*> on_painted;
+  Delegate<UIEvent*> on_context_lost;
+
   Delegate<FileDropEvent*> on_file_drop;
 
   Delegate<KeyEvent*> on_key_down;
