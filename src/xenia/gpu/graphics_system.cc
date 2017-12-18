@@ -56,18 +56,17 @@ X_STATUS GraphicsSystem::Setup(cpu::Processor* processor,
       assert_null(target_window->context());
       target_window_->set_context(provider_->CreateContext(target_window_));
 
-      // Setup the GL context the command processor will do all its drawing in.
+      // Setup the context the command processor will do all its drawing in.
       // It's shared with the display context so that we can resolve
-      // framebuffers
-      // from it.
+      // framebuffers from it.
       processor_context = provider()->CreateOffscreenContext();
     });
     if (!processor_context) {
       xe::FatalError(
-          "Unable to initialize GL context. Xenia requires OpenGL 4.5. Ensure "
-          "you have the latest drivers for your GPU and that it supports "
-          "OpenGL "
-          "4.5. See http://xenia.jp/faq/ for more information.");
+          "Unable to initialize graphics context. Xenia requires OpenGL 4.5 or "
+          "Vulkan support. Ensure you have the latest drivers for your GPU and "
+          "that it supports OpenGL or Vulkan. See http://xenia.jp/faq/ for "
+          "more information.");
       return X_STATUS_UNSUCCESSFUL;
     }
   }
@@ -85,6 +84,10 @@ X_STATUS GraphicsSystem::Setup(cpu::Processor* processor,
   // Watch for paint requests to do our swap.
   target_window->on_painting.AddListener(
       [this](xe::ui::UIEvent* e) { Swap(e); });
+
+  // Watch for context lost events.
+  target_window->on_context_lost.AddListener(
+      [this](xe::ui::UIEvent* e) { Reset(); });
 
   // Let the processor know we want register access callbacks.
   memory_->AddVirtualMappedRange(
@@ -123,17 +126,29 @@ X_STATUS GraphicsSystem::Setup(cpu::Processor* processor,
 }
 
 void GraphicsSystem::Shutdown() {
-  EndTracing();
+  if (command_processor_) {
+    EndTracing();
+  }
 
-  vsync_worker_running_ = false;
-  vsync_worker_thread_->Wait(0, 0, 0, nullptr);
-  vsync_worker_thread_.reset();
+  if (command_processor_) {
+    command_processor_->Shutdown();
+    // TODO(benvanik): remove mapped range.
+    command_processor_.reset();
+  }
 
-  command_processor_->Shutdown();
+  if (vsync_worker_thread_) {
+    vsync_worker_running_ = false;
+    vsync_worker_thread_->Wait(0, 0, 0, nullptr);
+    vsync_worker_thread_.reset();
+  }
+}
 
-  // TODO(benvanik): remove mapped range.
+void GraphicsSystem::Reset() {
+  // TODO(DrChat): Reset the system.
+  XELOGI("Context lost; Reset invoked");
+  Shutdown();
 
-  command_processor_.reset();
+  xe::FatalError("Graphics device lost (probably due to an internal error)");
 }
 
 uint32_t GraphicsSystem::ReadRegisterThunk(void* ppc_context,

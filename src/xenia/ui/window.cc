@@ -198,6 +198,11 @@ void Window::OnPaint(UIEvent* e) {
   ImGui::NewFrame();
 
   context_->BeginSwap();
+  if (context_->WasLost()) {
+    on_context_lost(e);
+    return;
+  }
+
   ForEachListener([e](auto listener) { listener->OnPainting(e); });
   on_painting(e);
   ForEachListener([e](auto listener) { listener->OnPaint(e); });

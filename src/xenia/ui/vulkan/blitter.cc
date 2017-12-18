@@ -271,7 +271,11 @@ void Blitter::BlitTexture2D(VkCommandBuffer command_buffer, VkFence fence,
 
     // Acquire and update a descriptor set for this image.
     auto set = descriptor_pool_->AcquireEntry(descriptor_set_layout_);
-    assert_not_null(set);
+    if (!set) {
+      assert_always();
+      descriptor_pool_->CancelBatch();
+      return;
+    }
 
     VkWriteDescriptorSet write;
     write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;

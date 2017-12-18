@@ -260,8 +260,15 @@ void VulkanGraphicsSystem::Swap(xe::ui::UIEvent* e) {
   if (!command_processor_) {
     return;
   }
+
   // Check for pending swap.
   auto& swap_state = command_processor_->swap_state();
+  if (display_context_->WasLost()) {
+    // We're crashing. Cheese it.
+    swap_state.pending = false;
+    return;
+  }
+
   {
     std::lock_guard<std::mutex> lock(swap_state.mutex);
     if (!swap_state.pending) {

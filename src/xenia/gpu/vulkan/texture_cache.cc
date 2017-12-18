@@ -314,8 +314,7 @@ TextureCache::Texture* TextureCache::AllocateTexture(
   VkResult status = vmaCreateImage(mem_allocator_, &image_info, &vma_reqs,
                                    &image, &alloc, &vma_info);
   if (status != VK_SUCCESS) {
-    // Crap.
-    assert_always();
+    // Allocation failed.
     return nullptr;
   }
 
@@ -332,10 +331,12 @@ TextureCache::Texture* TextureCache::AllocateTexture(
 }
 
 bool TextureCache::FreeTexture(Texture* texture) {
-  if (texture->in_flight_fence &&
-      vkGetFenceStatus(*device_, texture->in_flight_fence) != VK_SUCCESS) {
-    // Texture still in flight.
-    return false;
+  if (texture->in_flight_fence) {
+    VkResult status = vkGetFenceStatus(*device_, texture->in_flight_fence);
+    if (status != VK_SUCCESS && status != VK_ERROR_DEVICE_LOST) {
+      // Texture still in flight.
+      return false;
+    }
   }
 
   if (texture->framebuffer) {
@@ -1421,7 +1422,6 @@ bool TextureCache::SetupTextureBinding(VkCommandBuffer command_buffer,
 
   auto texture = Demand(texture_info, command_buffer, completion_fence);
   auto sampler = Demand(sampler_info);
-  // assert_true(texture != nullptr && sampler != nullptr);
   if (texture == nullptr || sampler == nullptr) {
     return false;
   }
