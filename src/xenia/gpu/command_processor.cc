@@ -338,7 +338,7 @@ void CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
     }
   } else {
     // Spin until no more pending swap.
-    while (true) {
+    while (worker_running_) {
       {
         std::lock_guard<std::mutex> lock(swap_state_.mutex);
         if (!swap_state_.pending) {
@@ -827,11 +827,17 @@ bool CommandProcessor::ExecutePacketType3_WAIT_REG_MEM(RingBuffer* reader,
         }
         xe::threading::SyncMemory();
         ReturnFromWait();
+
+        if (!worker_running_) {
+          // Short-circuited exit.
+          return false;
+        }
       } else {
         xe::threading::MaybeYield();
       }
     }
   } while (!matched);
+
   return true;
 }
 
