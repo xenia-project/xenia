@@ -545,8 +545,8 @@ struct VertexFetchInstruction {
   int exp_adjust() const {
     return ((static_cast<int>(data_.exp_adjust) << 26) >> 26);
   }
-  bool is_signed() const { return data_.is_signed == 1; }
-  bool is_integer() const { return data_.is_integer == 1; }
+  bool is_signed() const { return data_.fomat_comp_all == 1; }
+  bool is_normalized() const { return data_.num_format_all == 0; }
   bool is_index_rounded() const { return data_.is_index_rounded == 1; }
   // Dword stride, [0-255].
   uint32_t stride() const { return data_.stride; }
@@ -575,8 +575,8 @@ struct VertexFetchInstruction {
     });
     XEPACKEDSTRUCTANONYMOUS({
       uint32_t dst_swiz : 12;
-      uint32_t is_signed : 1;
-      uint32_t is_integer : 1;
+      uint32_t fomat_comp_all : 1;
+      uint32_t num_format_all : 1;
       uint32_t signed_rf_mode_all : 1;
       uint32_t is_index_rounded : 1;
       uint32_t format : 6;
