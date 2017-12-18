@@ -381,9 +381,10 @@ void EmulatorWindow::ShowHelpWebsite() { LaunchBrowser("http://xenia.jp"); }
 void EmulatorWindow::UpdateTitle() {
   std::wstring title(base_title_);
 
-  auto game_title = emulator()->game_title();
-  if (!game_title.empty()) {
-    title += L" - " + game_title;
+  if (emulator()->is_title_open()) {
+    auto game_title = emulator()->game_title();
+    title += xe::format_string(L" | [%.8X] %s", emulator()->title_id(),
+                               game_title.c_str());
   }
 
   auto graphics_system = emulator()->graphics_system();
