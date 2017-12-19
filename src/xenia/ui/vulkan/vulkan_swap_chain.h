@@ -78,6 +78,8 @@ class VulkanSwapChain {
   VulkanInstance* instance_ = nullptr;
   VulkanDevice* device_ = nullptr;
 
+  VkQueue presentation_queue_ = nullptr;
+  uint32_t presentation_queue_family_ = -1;
   VkSurfaceKHR surface_ = nullptr;
   uint32_t surface_width_ = 0;
   uint32_t surface_height_ = 0;

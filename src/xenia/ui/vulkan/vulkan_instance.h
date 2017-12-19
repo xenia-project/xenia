@@ -50,8 +50,7 @@ class VulkanInstance {
   // preparing the instance for general use.
   // If initialization succeeds it's likely that no more failures beyond runtime
   // issues will occur.
-  // TODO(benvanik): remove need for any_target_window - it's just for queries.
-  bool Initialize(Window* any_target_window);
+  bool Initialize();
 
   // Returns a list of all available devices as detected during initialization.
   const std::vector<DeviceInfo>& available_devices() const {
@@ -79,7 +78,7 @@ class VulkanInstance {
   void DisableDebugValidation();
 
   // Queries all available physical devices.
-  bool QueryDevices(Window* any_target_window);
+  bool QueryDevices();
 
   void DumpLayers(const std::vector<LayerInfo>& layers, const char* indent);
   void DumpExtensions(const std::vector<VkExtensionProperties>& extensions,

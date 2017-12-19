@@ -25,7 +25,7 @@ namespace xe {
 namespace ui {
 namespace vulkan {
 
-std::unique_ptr<GraphicsProvider> VulkanProvider::Create(Window* main_window) {
+std::unique_ptr<VulkanProvider> VulkanProvider::Create(Window* main_window) {
   std::unique_ptr<VulkanProvider> provider(new VulkanProvider(main_window));
   if (!provider->Initialize()) {
     xe::FatalError(
@@ -35,7 +35,7 @@ std::unique_ptr<GraphicsProvider> VulkanProvider::Create(Window* main_window) {
         "list of supported GPUs.");
     return nullptr;
   }
-  return std::unique_ptr<GraphicsProvider>(provider.release());
+  return provider;
 }
 
 VulkanProvider::VulkanProvider(Window* main_window)
@@ -56,7 +56,7 @@ bool VulkanProvider::Initialize() {
                                       Version::Make(0, 0, 0), false);
 
   // Attempt initialization and device query.
-  if (!instance_->Initialize(main_window_)) {
+  if (!instance_->Initialize()) {
     XELOGE("Failed to initialize vulkan instance");
     return false;
   }

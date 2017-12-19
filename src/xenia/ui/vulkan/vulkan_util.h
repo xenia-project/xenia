@@ -95,7 +95,6 @@ struct DeviceInfo {
   VkPhysicalDeviceFeatures features;
   VkPhysicalDeviceMemoryProperties memory_properties;
   std::vector<VkQueueFamilyProperties> queue_family_properties;
-  std::vector<VkBool32> queue_family_supports_present;
   std::vector<LayerInfo> layers;
   std::vector<VkExtensionProperties> extensions;
 };

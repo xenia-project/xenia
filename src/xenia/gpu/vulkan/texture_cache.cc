@@ -212,13 +212,13 @@ VkResult TextureCache::Initialize() {
   invalidated_textures_sets_[1].reserve(64);
   invalidated_textures_ = &invalidated_textures_sets_[0];
 
-  device_queue_ = device_->AcquireQueue();
+  device_queue_ = device_->AcquireQueue(device_->queue_family_index());
   return VK_SUCCESS;
 }
 
 void TextureCache::Shutdown() {
   if (device_queue_) {
-    device_->ReleaseQueue(device_queue_);
+    device_->ReleaseQueue(device_queue_, device_->queue_family_index());
   }
 
   // Free all textures allocated.

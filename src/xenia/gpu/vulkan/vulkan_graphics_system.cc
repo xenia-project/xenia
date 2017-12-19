@@ -37,16 +37,19 @@ X_STATUS VulkanGraphicsSystem::Setup(cpu::Processor* processor,
                                      kernel::KernelState* kernel_state,
                                      ui::Window* target_window) {
   // Must create the provider so we can create contexts.
-  provider_ = xe::ui::vulkan::VulkanProvider::Create(target_window);
+  auto provider = xe::ui::vulkan::VulkanProvider::Create(target_window);
+  device_ = provider->device();
+  provider_ = std::move(provider);
 
   auto result = GraphicsSystem::Setup(processor, kernel_state, target_window);
   if (result) {
     return result;
   }
 
-  display_context_ = reinterpret_cast<xe::ui::vulkan::VulkanContext*>(
-      target_window->context());
-  device_ = display_context_->device();
+  if (target_window) {
+    display_context_ = reinterpret_cast<xe::ui::vulkan::VulkanContext*>(
+        target_window->context());
+  }
 
   // Create our own command pool we can use for captures.
   VkCommandPoolCreateInfo create_info = {
