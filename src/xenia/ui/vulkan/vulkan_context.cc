@@ -94,7 +94,7 @@ bool VulkanContext::Initialize() {
 #endif  // XE_PLATFORM_WIN32
     swap_chain_ = std::make_unique<VulkanSwapChain>(provider->instance(),
                                                     provider->device());
-    if (!swap_chain_->Initialize(surface)) {
+    if (swap_chain_->Initialize(surface) != VK_SUCCESS) {
       XELOGE("Unable to initialize swap chain");
       vkDestroySurfaceKHR(*provider->instance(), surface, nullptr);
       return false;

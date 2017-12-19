@@ -47,11 +47,11 @@ class VulkanSwapChain {
   VkCommandBuffer copy_cmd_buffer() const { return copy_cmd_buffer_; }
 
   // Initializes the swap chain with the given WSI surface.
-  bool Initialize(VkSurfaceKHR surface);
+  VkResult Initialize(VkSurfaceKHR surface);
   // Reinitializes the swap chain with the initial surface.
   // The surface will be retained but all other swap chain resources will be
   // torn down and recreated with the new surface properties (size/etc).
-  bool Reinitialize();
+  VkResult Reinitialize();
 
   // Waits on and signals a semaphore in this operation.
   void WaitAndSignalSemaphore(VkSemaphore sem);
@@ -69,7 +69,7 @@ class VulkanSwapChain {
     VkFramebuffer framebuffer = nullptr;
   };
 
-  bool InitializeBuffer(Buffer* buffer, VkImage target_image);
+  VkResult InitializeBuffer(Buffer* buffer, VkImage target_image);
   void DestroyBuffer(Buffer* buffer);
 
   // Safely releases all swap chain resources.
