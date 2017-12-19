@@ -54,6 +54,7 @@ bool VulkanContext::Initialize() {
 
   if (target_window_) {
     // Create swap chain used to present to the window.
+    VkResult status = VK_ERROR_FEATURE_NOT_PRESENT;
     VkSurfaceKHR surface = nullptr;
 #if XE_PLATFORM_WIN32
     VkWin32SurfaceCreateInfoKHR create_info;
@@ -63,9 +64,9 @@ bool VulkanContext::Initialize() {
     create_info.hinstance =
         static_cast<HINSTANCE>(target_window_->native_platform_handle());
     create_info.hwnd = static_cast<HWND>(target_window_->native_handle());
-    auto err = vkCreateWin32SurfaceKHR(*provider->instance(), &create_info,
-                                       nullptr, &surface);
-    CheckResult(err, "vkCreateWin32SurfaceKHR");
+    status = vkCreateWin32SurfaceKHR(*provider->instance(), &create_info,
+                                     nullptr, &surface);
+    CheckResult(status, "vkCreateWin32SurfaceKHR");
 #elif XE_PLATFORM_LINUX
 #ifdef GDK_WINDOWING_X11
     GtkWidget* window_handle =
@@ -83,15 +84,20 @@ bool VulkanContext::Initialize() {
     create_info.connection = static_cast<xcb_connection_t*>(
         target_window_->native_platform_handle());
     create_info.window = static_cast<xcb_window_t>(window);
-    auto err = vkCreateXcbSurfaceKHR(*provider->instance(), &create_info,
-                                     nullptr, &surface);
-    CheckResult(err, "vkCreateXcbSurfaceKHR");
+    status = vkCreateXcbSurfaceKHR(*provider->instance(), &create_info, nullptr,
+                                   &surface);
+    CheckResult(status, "vkCreateXcbSurfaceKHR");
 #else
 #error Unsupported GDK Backend on Linux.
 #endif  // GDK_WINDOWING_X11
 #else
 #error Platform not yet implemented.
 #endif  // XE_PLATFORM_WIN32
+    if (status != VK_SUCCESS) {
+      XELOGE("Failed to create presentation surface");
+      return false;
+    }
+
     swap_chain_ = std::make_unique<VulkanSwapChain>(provider->instance(),
                                                     provider->device());
     if (swap_chain_->Initialize(surface) != VK_SUCCESS) {
@@ -102,6 +108,13 @@ bool VulkanContext::Initialize() {
 
     // Only initialize immediate mode drawer if we are not an offscreen context.
     immediate_drawer_ = std::make_unique<VulkanImmediateDrawer>(this);
+    status = immediate_drawer_->Initialize();
+    if (status != VK_SUCCESS) {
+      XELOGE("Failed to initialize the immediate mode drawer");
+      vkDestroySurfaceKHR(*provider->instance(), surface, nullptr);
+      immediate_drawer_.reset();
+      return false;
+    }
   }
 
   return true;
