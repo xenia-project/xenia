@@ -25,6 +25,12 @@ namespace xe {
 namespace ui {
 namespace vulkan {
 
+#define VK_SAFE_DESTROY(fn, dev, obj, alloc) \
+  if (obj) {                                 \
+    fn(dev, obj, alloc);                     \
+    obj = nullptr;                           \
+  }
+
 class Fence {
  public:
   Fence(VkDevice device) : device_(device) {

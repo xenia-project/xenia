@@ -27,6 +27,9 @@ class VulkanImmediateDrawer : public ImmediateDrawer {
   VulkanImmediateDrawer(VulkanContext* graphics_context);
   ~VulkanImmediateDrawer() override;
 
+  VkResult Initialize();
+  void Shutdown();
+
   std::unique_ptr<ImmediateTexture> CreateTexture(uint32_t width,
                                                   uint32_t height,
                                                   ImmediateTextureFilter filter,
