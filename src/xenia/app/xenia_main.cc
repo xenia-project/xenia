@@ -179,6 +179,8 @@ int xenia_main(const std::vector<std::wstring>& args) {
     exiting = true;
     evt->Set();
 
+    // TODO(DrChat): Remove this code and do a proper exit.
+    Profiler::Shutdown();
     XELOGI("Cheap-skate exit!");
     exit(0);
   });
