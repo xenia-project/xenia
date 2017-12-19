@@ -56,28 +56,11 @@ int TraceDump::Main(const std::vector<std::wstring>& args) {
     if (args.size() >= 3) {
       output_path = args[2];
     }
-  } else {
-    // Open a file chooser and ask the user.
-    auto file_picker = xe::ui::FilePicker::Create();
-    file_picker->set_mode(ui::FilePicker::Mode::kOpen);
-    file_picker->set_type(ui::FilePicker::Type::kFile);
-    file_picker->set_multi_selection(false);
-    file_picker->set_title(L"Select Trace File");
-    file_picker->set_extensions({
-        {L"Supported Files", L"*.xtr"},
-        {L"All Files (*.*)", L"*.*"},
-    });
-    if (file_picker->Show()) {
-      auto selected_files = file_picker->selected_files();
-      if (!selected_files.empty()) {
-        path = selected_files[0];
-      }
-    }
   }
 
   if (path.empty()) {
-    xe::FatalError("No trace file specified");
-    return 1;
+    XELOGE("No trace file specified");
+    return 5;
   }
 
   // Normalize the path and make absolute.
@@ -85,12 +68,12 @@ int TraceDump::Main(const std::vector<std::wstring>& args) {
   XELOGI("Loading trace file %ls...", abs_path.c_str());
 
   if (!Setup()) {
-    xe::FatalError("Unable to setup trace dump tool");
-    return 1;
+    XELOGE("Unable to setup trace dump tool");
+    return 4;
   }
   if (!Load(std::move(abs_path))) {
-    xe::FatalError("Unable to load trace file; not found?");
-    return 1;
+    XELOGE("Unable to load trace file; not found?");
+    return 5;
   }
 
   // Root file name for outputs.
@@ -119,43 +102,16 @@ int TraceDump::Main(const std::vector<std::wstring>& args) {
 }
 
 bool TraceDump::Setup() {
-  // Main display window.
-  loop_ = ui::Loop::Create();
-  window_ = xe::ui::Window::Create(loop_.get(), L"xenia-gpu-trace-dump");
-  loop_->PostSynchronous([&]() {
-    xe::threading::set_name("Win32 Loop");
-    if (!window_->Initialize()) {
-      xe::FatalError("Failed to initialize main window");
-      return;
-    }
-  });
-  window_->on_closed.AddListener([&](xe::ui::UIEvent* e) {
-    loop_->Quit();
-    XELOGI("User-initiated death!");
-    exit(1);
-  });
-  loop_->on_quit.AddListener([&](xe::ui::UIEvent* e) { window_.reset(); });
-  window_->Resize(1280, 720);
-
   // Create the emulator but don't initialize so we can setup the window.
   emulator_ = std::make_unique<Emulator>(L"");
-  X_STATUS result =
-      emulator_->Setup(window_.get(), nullptr,
-                       [this]() { return CreateGraphicsSystem(); }, nullptr);
+  X_STATUS result = emulator_->Setup(
+      nullptr, nullptr, [this]() { return CreateGraphicsSystem(); }, nullptr);
   if (XFAILED(result)) {
     XELOGE("Failed to setup emulator: %.8X", result);
     return false;
   }
   memory_ = emulator_->memory();
   graphics_system_ = emulator_->graphics_system();
-
-  window_->on_key_char.AddListener([&](xe::ui::KeyEvent* e) {
-    if (e->key_code() == 0x74 /* VK_F5 */) {
-      graphics_system_->ClearCaches();
-      e->set_handled(true);
-    }
-  });
-
   player_ = std::make_unique<TracePlayer>(loop_.get(), graphics_system_);
   return true;
 }
@@ -172,67 +128,26 @@ bool TraceDump::Load(std::wstring trace_file_path) {
 }
 
 int TraceDump::Run() {
-  loop_->PostSynchronous([&]() {
-    player_->SeekFrame(0);
-    player_->SeekCommand(
-        static_cast<int>(player_->current_frame()->commands.size() - 1));
-  });
-
-  auto file_name = xe::find_name_from_path(trace_file_path_);
-  std::wstring title = std::wstring(L"Xenia GPU Trace Dump: ") + file_name;
-  while (player_->is_playing_trace()) {
-    // Update titlebar status.
-    if (player_->is_playing_trace()) {
-      int percent =
-          static_cast<int>(player_->playback_percent() / 10000.0 * 100.0);
-      window_->set_title(title + xe::format_string(L" (%d%%)", percent));
-    }
-
-    xe::threading::Sleep(std::chrono::milliseconds(1));
-  }
-
-  window_->set_title(title);
+  player_->SeekFrame(0);
+  player_->SeekCommand(
+      static_cast<int>(player_->current_frame()->commands.size() - 1));
   player_->WaitOnPlayback();
 
-  xe::threading::Fence capture_fence;
+  // Capture.
   int result = 0;
-  loop_->PostDelayed(
-      [&]() {
-        // Capture.
-        auto raw_image = graphics_system_->Capture();
-        if (!raw_image) {
-          // Failed to capture anything.
-          result = -1;
-          capture_fence.Signal();
-          return;
-        }
+  auto raw_image = graphics_system_->Capture();
+  if (raw_image) {
+    // Save framebuffer png.
+    std::string png_path = xe::to_string(base_output_path_ + L".png");
+    stbi_write_png(png_path.c_str(), static_cast<int>(raw_image->width),
+                   static_cast<int>(raw_image->height), 4,
+                   raw_image->data.data(), static_cast<int>(raw_image->stride));
+  } else {
+    result = 1;
+  }
 
-        // Save framebuffer png.
-        std::string png_path = xe::to_string(base_output_path_ + L".png");
-        stbi_write_png(png_path.c_str(), static_cast<int>(raw_image->width),
-                       static_cast<int>(raw_image->height), 4,
-                       raw_image->data.data(),
-                       static_cast<int>(raw_image->stride));
-
-        result = 0;
-        capture_fence.Signal();
-      },
-      50);
-
-  capture_fence.Wait();
-
-  // Profiler must exit before the window is closed.
-  Profiler::Shutdown();
-
-  // Wait until we are exited.
-  loop_->Quit();
-  loop_->AwaitQuit();
-
-  window_.reset();
-  loop_.reset();
   player_.reset();
   emulator_.reset();
-
   return result;
 }
 
