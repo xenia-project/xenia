@@ -1287,7 +1287,7 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
 }
 
 void TextureCache::HashTextureBindings(
-    XXH64_state_t* hash_state, uint32_t& fetch_mask,
+    XXH64_state_t* hash_state, uint32_t fetch_mask,
     const std::vector<Shader::TextureBinding>& bindings) {
   for (auto& binding : bindings) {
     uint32_t fetch_bit = 1 << binding.fetch_constant;
