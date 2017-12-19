@@ -191,11 +191,13 @@ X_STATUS Emulator::Setup(
   // Initialize emulator fallback exception handling last.
   ExceptionHandler::Install(Emulator::ExceptionCallbackThunk, this);
 
-  // Finish initializing the display.
-  display_window_->loop()->PostSynchronous([this]() {
-    xe::ui::GraphicsContextLock context_lock(display_window_->context());
-    Profiler::set_window(display_window_);
-  });
+  if (display_window_) {
+    // Finish initializing the display.
+    display_window_->loop()->PostSynchronous([this]() {
+      xe::ui::GraphicsContextLock context_lock(display_window_->context());
+      Profiler::set_window(display_window_);
+    });
+  }
 
   return result;
 }

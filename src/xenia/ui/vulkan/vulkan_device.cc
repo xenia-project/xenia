@@ -124,12 +124,9 @@ bool VulkanDevice::Initialize(DeviceInfo device_info) {
   uint32_t queue_count = 1;
   for (size_t i = 0; i < device_info.queue_family_properties.size(); ++i) {
     auto queue_flags = device_info.queue_family_properties[i].queueFlags;
-    if (!device_info.queue_family_supports_present[i]) {
-      // Can't present from this queue, so ignore it.
-      continue;
-    }
-    if (queue_flags & VK_QUEUE_GRAPHICS_BIT) {
-      // Can do graphics and present - good!
+    if (queue_flags & VK_QUEUE_GRAPHICS_BIT &&
+        queue_flags & VK_QUEUE_TRANSFER_BIT) {
+      // Can do graphics and transfer - good!
       ideal_queue_family_index = static_cast<uint32_t>(i);
       // Grab all the queues we can.
       queue_count = device_info.queue_family_properties[i].queueCount;
@@ -138,7 +135,7 @@ bool VulkanDevice::Initialize(DeviceInfo device_info) {
   }
   if (ideal_queue_family_index == UINT_MAX) {
     FatalVulkanError(
-        "No queue families available that can both do graphics and present");
+        "No queue families available that can both do graphics and transfer");
     return false;
   }
 
@@ -147,23 +144,36 @@ bool VulkanDevice::Initialize(DeviceInfo device_info) {
     queue_count = 1;
   }
 
-  VkDeviceQueueCreateInfo queue_info;
-  queue_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-  queue_info.pNext = nullptr;
-  queue_info.flags = 0;
-  queue_info.queueFamilyIndex = ideal_queue_family_index;
-  queue_info.queueCount = queue_count;
-  std::vector<float> queue_priorities(queue_count);
-  // Prioritize the primary queue.
-  queue_priorities[0] = 1.0f;
-  queue_info.pQueuePriorities = queue_priorities.data();
+  std::vector<VkDeviceQueueCreateInfo> queue_infos;
+  queue_infos.resize(device_info.queue_family_properties.size());
+  for (int i = 0; i < queue_infos.size(); i++) {
+    VkDeviceQueueCreateInfo& queue_info = queue_infos[i];
+    VkQueueFamilyProperties& family_props =
+        device_info.queue_family_properties[i];
+
+    queue_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+    queue_info.pNext = nullptr;
+    queue_info.flags = 0;
+    queue_info.queueFamilyIndex = i;
+    queue_info.queueCount = family_props.queueCount;
+
+    std::vector<float> queue_priorities(queue_count);
+    if (i == ideal_queue_family_index) {
+      // Prioritize the first queue on the primary queue family.
+      queue_priorities[0] = 1.0f;
+    } else {
+      queue_priorities[0] = 0.f;
+    }
+
+    queue_info.pQueuePriorities = queue_priorities.data();
+  }
 
   VkDeviceCreateInfo create_info;
   create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
   create_info.pNext = nullptr;
   create_info.flags = 0;
-  create_info.queueCreateInfoCount = 1;
-  create_info.pQueueCreateInfos = &queue_info;
+  create_info.queueCreateInfoCount = static_cast<uint32_t>(queue_infos.size());
+  create_info.pQueueCreateInfos = queue_infos.data();
   create_info.enabledLayerCount = static_cast<uint32_t>(enabled_layers.size());
   create_info.ppEnabledLayerNames = enabled_layers.data();
   create_info.enabledExtensionCount =
@@ -205,31 +215,49 @@ bool VulkanDevice::Initialize(DeviceInfo device_info) {
 
   // Get the primary queue used for most submissions/etc.
   vkGetDeviceQueue(handle, queue_family_index_, 0, &primary_queue_);
+  if (!primary_queue_) {
+    XELOGE("vkGetDeviceQueue returned nullptr!");
+    return false;
+  }
 
   // Get all additional queues, if we got any.
-  for (uint32_t i = 0; i < queue_count - 1; ++i) {
-    VkQueue queue;
-    vkGetDeviceQueue(handle, queue_family_index_, i, &queue);
-    free_queues_.push_back(queue);
+  free_queues_.resize(device_info_.queue_family_properties.size());
+  for (uint32_t i = 0; i < device_info_.queue_family_properties.size(); i++) {
+    VkQueueFamilyProperties& family_props =
+        device_info_.queue_family_properties[i];
+
+    for (uint32_t j = 0; j < family_props.queueCount; j++) {
+      VkQueue queue = nullptr;
+      if (i == queue_family_index_ && j == 0) {
+        // Already retrieved the primary queue index.
+        continue;
+      }
+
+      vkGetDeviceQueue(handle, i, j, &queue);
+      if (queue) {
+        free_queues_[i].push_back(queue);
+      }
+    }
   }
 
   XELOGVK("Device initialized successfully!");
   return true;
 }
 
-VkQueue VulkanDevice::AcquireQueue() {
+VkQueue VulkanDevice::AcquireQueue(uint32_t queue_family_index) {
   std::lock_guard<std::mutex> lock(queue_mutex_);
-  if (free_queues_.empty()) {
+  if (free_queues_[queue_family_index].empty()) {
     return nullptr;
   }
-  auto queue = free_queues_.back();
-  free_queues_.pop_back();
+
+  auto queue = free_queues_[queue_family_index].back();
+  free_queues_[queue_family_index].pop_back();
   return queue;
 }
 
-void VulkanDevice::ReleaseQueue(VkQueue queue) {
+void VulkanDevice::ReleaseQueue(VkQueue queue, uint32_t queue_family_index) {
   std::lock_guard<std::mutex> lock(queue_mutex_);
-  free_queues_.push_back(queue);
+  free_queues_[queue_family_index].push_back(queue);
 }
 
 void VulkanDevice::DbgSetObjectName(VkDevice device, uint64_t object,

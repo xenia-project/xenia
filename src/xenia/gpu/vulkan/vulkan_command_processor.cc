@@ -62,7 +62,7 @@ bool VulkanCommandProcessor::SetupContext() {
   // Acquire our device and queue.
   auto context = static_cast<xe::ui::vulkan::VulkanContext*>(context_.get());
   device_ = context->device();
-  queue_ = device_->AcquireQueue();
+  queue_ = device_->AcquireQueue(device_->queue_family_index());
   if (!queue_) {
     // Need to reuse primary queue (with locks).
     queue_ = device_->primary_queue();
@@ -159,7 +159,7 @@ void VulkanCommandProcessor::ShutdownContext() {
 
   // Release queue, if we were using an acquired one.
   if (!queue_mutex_) {
-    device_->ReleaseQueue(queue_);
+    device_->ReleaseQueue(queue_, device_->queue_family_index());
     queue_ = nullptr;
   }
 

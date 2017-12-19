@@ -36,14 +36,40 @@ VulkanSwapChain::~VulkanSwapChain() { Shutdown(); }
 
 VkResult VulkanSwapChain::Initialize(VkSurfaceKHR surface) {
   surface_ = surface;
+  VkResult status;
 
+  // Find a queue family that supports presentation.
   VkBool32 surface_supported = false;
-  auto status = vkGetPhysicalDeviceSurfaceSupportKHR(
-      *device_, device_->queue_family_index(), surface, &surface_supported);
-  assert_true(surface_supported);
-  CheckResult(status, "vkGetPhysicalDeviceSurfaceSupportKHR");
-  if (status != VK_SUCCESS) {
-    return status;
+  uint32_t queue_family_index = -1;
+  for (uint32_t i = 0;
+       i < device_->device_info().queue_family_properties.size(); i++) {
+    const VkQueueFamilyProperties& family_props =
+        device_->device_info().queue_family_properties[i];
+    if (!(family_props.queueFlags & VK_QUEUE_GRAPHICS_BIT) ||
+        !(family_props.queueFlags & VK_QUEUE_TRANSFER_BIT)) {
+      continue;
+    }
+
+    status = vkGetPhysicalDeviceSurfaceSupportKHR(*device_, i, surface,
+                                                  &surface_supported);
+    if (status == VK_SUCCESS && surface_supported == VK_TRUE) {
+      queue_family_index = i;
+      break;
+    }
+  }
+
+  if (!surface_supported) {
+    XELOGE(
+        "Physical device does not have a queue that supports "
+        "graphics/transfer/presentation!");
+    return VK_ERROR_INCOMPATIBLE_DRIVER;
+  }
+
+  presentation_queue_family_ = queue_family_index;
+  presentation_queue_ = device_->AcquireQueue(queue_family_index);
+  if (!presentation_queue_) {
+    XELOGE("Failed to acquire swap chain presentation queue!");
+    return VK_ERROR_INITIALIZATION_FAILED;
   }
 
   // Query supported target formats.
@@ -190,7 +216,7 @@ VkResult VulkanSwapChain::Initialize(VkSurfaceKHR surface) {
   cmd_pool_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
   cmd_pool_info.pNext = nullptr;
   cmd_pool_info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-  cmd_pool_info.queueFamilyIndex = device_->queue_family_index();
+  cmd_pool_info.queueFamilyIndex = presentation_queue_family_;
   status = vkCreateCommandPool(*device_, &cmd_pool_info, nullptr, &cmd_pool_);
   CheckResult(status, "vkCreateCommandPool");
   if (status != VK_SUCCESS) {
@@ -432,6 +458,11 @@ void VulkanSwapChain::Shutdown() {
     vkDestroyCommandPool(*device_, cmd_pool_, nullptr);
     cmd_pool_ = nullptr;
   }
+  if (presentation_queue_) {
+    device_->ReleaseQueue(presentation_queue_, presentation_queue_family_);
+    presentation_queue_ = nullptr;
+    presentation_queue_family_ = -1;
+  }
   // images_ doesn't need to be cleaned up as the swapchain does it implicitly.
   if (handle) {
     vkDestroySwapchainKHR(*device_, handle, nullptr);
@@ -471,11 +502,7 @@ VkResult VulkanSwapChain::Begin() {
   wait_submit_info.pCommandBuffers = nullptr;
   wait_submit_info.signalSemaphoreCount = 1;
   wait_submit_info.pSignalSemaphores = &image_usage_semaphore_;
-  {
-    std::lock_guard<std::mutex> queue_lock(device_->primary_queue_mutex());
-    status =
-        vkQueueSubmit(device_->primary_queue(), 1, &wait_submit_info, nullptr);
-  }
+  status = vkQueueSubmit(presentation_queue_, 1, &wait_submit_info, nullptr);
   if (status != VK_SUCCESS) {
     return status;
   }
@@ -687,12 +714,7 @@ VkResult VulkanSwapChain::End() {
   render_submit_info.pCommandBuffers = &cmd_buffer_;
   render_submit_info.signalSemaphoreCount = uint32_t(semaphores.size()) - 1;
   render_submit_info.pSignalSemaphores = semaphores.data();
-  {
-    std::lock_guard<std::mutex> queue_lock(device_->primary_queue_mutex());
-    status = vkQueueSubmit(device_->primary_queue(), 1, &render_submit_info,
-                           nullptr);
-  }
-
+  status = vkQueueSubmit(presentation_queue_, 1, &render_submit_info, nullptr);
   if (status != VK_SUCCESS) {
     return status;
   }
@@ -709,10 +731,7 @@ VkResult VulkanSwapChain::End() {
   present_info.pSwapchains = swap_chains;
   present_info.pImageIndices = swap_chain_image_indices;
   present_info.pResults = nullptr;
-  {
-    std::lock_guard<std::mutex> queue_lock(device_->primary_queue_mutex());
-    status = vkQueuePresentKHR(device_->primary_queue(), &present_info);
-  }
+  status = vkQueuePresentKHR(presentation_queue_, &present_info);
   switch (status) {
     case VK_SUCCESS:
       break;
