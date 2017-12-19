@@ -34,25 +34,31 @@ VulkanSwapChain::VulkanSwapChain(VulkanInstance* instance, VulkanDevice* device)
 
 VulkanSwapChain::~VulkanSwapChain() { Shutdown(); }
 
-bool VulkanSwapChain::Initialize(VkSurfaceKHR surface) {
+VkResult VulkanSwapChain::Initialize(VkSurfaceKHR surface) {
   surface_ = surface;
 
   VkBool32 surface_supported = false;
-  auto err = vkGetPhysicalDeviceSurfaceSupportKHR(
+  auto status = vkGetPhysicalDeviceSurfaceSupportKHR(
       *device_, device_->queue_family_index(), surface, &surface_supported);
   assert_true(surface_supported);
-  CheckResult(err, "vkGetPhysicalDeviceSurfaceSupportKHR");
+  CheckResult(status, "vkGetPhysicalDeviceSurfaceSupportKHR");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
 
   // Query supported target formats.
   uint32_t count = 0;
-  err =
+  status =
       vkGetPhysicalDeviceSurfaceFormatsKHR(*device_, surface_, &count, nullptr);
-  CheckResult(err, "vkGetPhysicalDeviceSurfaceFormatsKHR");
+  CheckResult(status, "vkGetPhysicalDeviceSurfaceFormatsKHR");
   std::vector<VkSurfaceFormatKHR> surface_formats;
   surface_formats.resize(count);
-  err = vkGetPhysicalDeviceSurfaceFormatsKHR(*device_, surface_, &count,
-                                             surface_formats.data());
-  CheckResult(err, "vkGetPhysicalDeviceSurfaceFormatsKHR");
+  status = vkGetPhysicalDeviceSurfaceFormatsKHR(*device_, surface_, &count,
+                                                surface_formats.data());
+  CheckResult(status, "vkGetPhysicalDeviceSurfaceFormatsKHR");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
 
   // If the format list includes just one entry of VK_FORMAT_UNDEFINED the
   // surface has no preferred format.
@@ -69,19 +75,29 @@ bool VulkanSwapChain::Initialize(VkSurfaceKHR surface) {
 
   // Query surface min/max/caps.
   VkSurfaceCapabilitiesKHR surface_caps;
-  err = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(*device_, surface_,
-                                                  &surface_caps);
-  CheckResult(err, "vkGetPhysicalDeviceSurfaceCapabilitiesKHR");
+  status = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(*device_, surface_,
+                                                     &surface_caps);
+  CheckResult(status, "vkGetPhysicalDeviceSurfaceCapabilitiesKHR");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
 
   // Query surface properties so we can configure ourselves within bounds.
   std::vector<VkPresentModeKHR> present_modes;
-  err = vkGetPhysicalDeviceSurfacePresentModesKHR(*device_, surface_, &count,
-                                                  nullptr);
-  CheckResult(err, "vkGetPhysicalDeviceSurfacePresentModesKHR");
+  status = vkGetPhysicalDeviceSurfacePresentModesKHR(*device_, surface_, &count,
+                                                     nullptr);
+  CheckResult(status, "vkGetPhysicalDeviceSurfacePresentModesKHR");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
+
   present_modes.resize(count);
-  err = vkGetPhysicalDeviceSurfacePresentModesKHR(*device_, surface_, &count,
-                                                  present_modes.data());
-  CheckResult(err, "vkGetPhysicalDeviceSurfacePresentModesKHR");
+  status = vkGetPhysicalDeviceSurfacePresentModesKHR(*device_, surface_, &count,
+                                                     present_modes.data());
+  CheckResult(status, "vkGetPhysicalDeviceSurfacePresentModesKHR");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
 
   // Calculate swapchain target dimensions.
   VkExtent2D extent = surface_caps.currentExtent;
@@ -162,10 +178,10 @@ bool VulkanSwapChain::Initialize(VkSurfaceKHR surface) {
   XELOGVK("  imageSharingMode = %s", to_string(create_info.imageSharingMode));
   XELOGVK("  queueFamilyCount = %u", create_info.queueFamilyIndexCount);
 
-  err = vkCreateSwapchainKHR(*device_, &create_info, nullptr, &handle);
-  if (err) {
-    XELOGE("Failed to create swapchain: %s", to_string(err));
-    return false;
+  status = vkCreateSwapchainKHR(*device_, &create_info, nullptr, &handle);
+  if (status != VK_SUCCESS) {
+    XELOGE("Failed to create swapchain: %s", to_string(status));
+    return status;
   }
 
   // Create the pool used for transient buffers, so we can reset them all at
@@ -175,8 +191,11 @@ bool VulkanSwapChain::Initialize(VkSurfaceKHR surface) {
   cmd_pool_info.pNext = nullptr;
   cmd_pool_info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
   cmd_pool_info.queueFamilyIndex = device_->queue_family_index();
-  err = vkCreateCommandPool(*device_, &cmd_pool_info, nullptr, &cmd_pool_);
-  CheckResult(err, "vkCreateCommandPool");
+  status = vkCreateCommandPool(*device_, &cmd_pool_info, nullptr, &cmd_pool_);
+  CheckResult(status, "vkCreateCommandPool");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
 
   // Primary command buffer
   VkCommandBufferAllocateInfo cmd_buffer_info;
@@ -185,15 +204,22 @@ bool VulkanSwapChain::Initialize(VkSurfaceKHR surface) {
   cmd_buffer_info.commandPool = cmd_pool_;
   cmd_buffer_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
   cmd_buffer_info.commandBufferCount = 2;
-  err = vkAllocateCommandBuffers(*device_, &cmd_buffer_info, &cmd_buffer_);
-  CheckResult(err, "vkCreateCommandBuffer");
+  status = vkAllocateCommandBuffers(*device_, &cmd_buffer_info, &cmd_buffer_);
+  CheckResult(status, "vkCreateCommandBuffer");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
 
   // Make two command buffers we'll do all our primary rendering from.
   VkCommandBuffer command_buffers[2];
   cmd_buffer_info.level = VK_COMMAND_BUFFER_LEVEL_SECONDARY;
   cmd_buffer_info.commandBufferCount = 2;
-  err = vkAllocateCommandBuffers(*device_, &cmd_buffer_info, command_buffers);
-  CheckResult(err, "vkCreateCommandBuffer");
+  status =
+      vkAllocateCommandBuffers(*device_, &cmd_buffer_info, command_buffers);
+  CheckResult(status, "vkCreateCommandBuffer");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
 
   render_cmd_buffer_ = command_buffers[0];
   copy_cmd_buffer_ = command_buffers[1];
@@ -238,52 +264,74 @@ bool VulkanSwapChain::Initialize(VkSurfaceKHR surface) {
   render_pass_info.pSubpasses = &render_subpass;
   render_pass_info.dependencyCount = 0;
   render_pass_info.pDependencies = nullptr;
-  err = vkCreateRenderPass(*device_, &render_pass_info, nullptr, &render_pass_);
-  CheckResult(err, "vkCreateRenderPass");
+  status =
+      vkCreateRenderPass(*device_, &render_pass_info, nullptr, &render_pass_);
+  CheckResult(status, "vkCreateRenderPass");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
 
   // Create a semaphore we'll use to synchronize with the swapchain.
   VkSemaphoreCreateInfo semaphore_info;
   semaphore_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
   semaphore_info.pNext = nullptr;
   semaphore_info.flags = 0;
-  err = vkCreateSemaphore(*device_, &semaphore_info, nullptr,
-                          &image_available_semaphore_);
-  CheckResult(err, "vkCreateSemaphore");
+  status = vkCreateSemaphore(*device_, &semaphore_info, nullptr,
+                             &image_available_semaphore_);
+  CheckResult(status, "vkCreateSemaphore");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
 
   // Create another semaphore used to synchronize writes to the swap image.
-  err = vkCreateSemaphore(*device_, &semaphore_info, nullptr,
-                          &image_usage_semaphore_);
-  CheckResult(err, "vkCreateSemaphore");
+  status = vkCreateSemaphore(*device_, &semaphore_info, nullptr,
+                             &image_usage_semaphore_);
+  CheckResult(status, "vkCreateSemaphore");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
 
   // Get images we will be presenting to.
   // Note that this may differ from our requested amount.
   uint32_t actual_image_count = 0;
   std::vector<VkImage> images;
-  err = vkGetSwapchainImagesKHR(*device_, handle, &actual_image_count, nullptr);
-  CheckResult(err, "vkGetSwapchainImagesKHR");
+  status =
+      vkGetSwapchainImagesKHR(*device_, handle, &actual_image_count, nullptr);
+  CheckResult(status, "vkGetSwapchainImagesKHR");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
+
   images.resize(actual_image_count);
-  err = vkGetSwapchainImagesKHR(*device_, handle, &actual_image_count,
-                                images.data());
-  CheckResult(err, "vkGetSwapchainImagesKHR");
+  status = vkGetSwapchainImagesKHR(*device_, handle, &actual_image_count,
+                                   images.data());
+  CheckResult(status, "vkGetSwapchainImagesKHR");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
 
   // Create all buffers.
   buffers_.resize(images.size());
   for (size_t i = 0; i < buffers_.size(); ++i) {
-    if (!InitializeBuffer(&buffers_[i], images[i])) {
+    status = InitializeBuffer(&buffers_[i], images[i]);
+    if (status != VK_SUCCESS) {
       XELOGE("Failed to initialize a swapchain buffer");
-      return false;
+      return status;
     }
 
     buffers_[i].image_layout = VK_IMAGE_LAYOUT_UNDEFINED;
   }
 
   XELOGVK("Swap chain initialized successfully!");
-  return true;
+  return VK_SUCCESS;
 }
 
-bool VulkanSwapChain::InitializeBuffer(Buffer* buffer, VkImage target_image) {
+VkResult VulkanSwapChain::InitializeBuffer(Buffer* buffer,
+                                           VkImage target_image) {
   DestroyBuffer(buffer);
   buffer->image = target_image;
+
+  VkResult status;
 
   // Create an image view for the presentation image.
   // This will be used as a framebuffer attachment.
@@ -303,9 +351,12 @@ bool VulkanSwapChain::InitializeBuffer(Buffer* buffer, VkImage target_image) {
   image_view_info.subresourceRange.levelCount = 1;
   image_view_info.subresourceRange.baseArrayLayer = 0;
   image_view_info.subresourceRange.layerCount = 1;
-  auto err = vkCreateImageView(*device_, &image_view_info, nullptr,
-                               &buffer->image_view);
-  CheckResult(err, "vkCreateImageView");
+  status = vkCreateImageView(*device_, &image_view_info, nullptr,
+                             &buffer->image_view);
+  CheckResult(status, "vkCreateImageView");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
 
   // Create the framebuffer used to render into this image.
   VkImageView attachments[] = {buffer->image_view};
@@ -320,11 +371,14 @@ bool VulkanSwapChain::InitializeBuffer(Buffer* buffer, VkImage target_image) {
   framebuffer_info.width = surface_width_;
   framebuffer_info.height = surface_height_;
   framebuffer_info.layers = 1;
-  err = vkCreateFramebuffer(*device_, &framebuffer_info, nullptr,
-                            &buffer->framebuffer);
-  CheckResult(err, "vkCreateFramebuffer");
+  status = vkCreateFramebuffer(*device_, &framebuffer_info, nullptr,
+                               &buffer->framebuffer);
+  CheckResult(status, "vkCreateFramebuffer");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
 
-  return true;
+  return VK_SUCCESS;
 }
 
 void VulkanSwapChain::DestroyBuffer(Buffer* buffer) {
@@ -340,7 +394,7 @@ void VulkanSwapChain::DestroyBuffer(Buffer* buffer) {
   buffer->image = nullptr;
 }
 
-bool VulkanSwapChain::Reinitialize() {
+VkResult VulkanSwapChain::Reinitialize() {
   // Hacky, but stash the surface so we can reuse it.
   auto surface = surface_;
   surface_ = nullptr;
