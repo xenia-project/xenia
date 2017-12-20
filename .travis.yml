@@ -39,7 +39,10 @@ addons:
       - python3
       - libc++-dev
       - libc++abi-dev
+      - libglew-dev
       - libgtk-3-dev
+      - libpthread-stubs0-dev
+      - libx11-dev
       - liblz4-dev
 
 git:
