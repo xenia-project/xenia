@@ -102,7 +102,6 @@ bool VulkanContext::Initialize() {
                                                     provider->device());
     if (swap_chain_->Initialize(surface) != VK_SUCCESS) {
       XELOGE("Unable to initialize swap chain");
-      vkDestroySurfaceKHR(*provider->instance(), surface, nullptr);
       return false;
     }
 
@@ -111,7 +110,6 @@ bool VulkanContext::Initialize() {
     status = immediate_drawer_->Initialize();
     if (status != VK_SUCCESS) {
       XELOGE("Failed to initialize the immediate mode drawer");
-      vkDestroySurfaceKHR(*provider->instance(), surface, nullptr);
       immediate_drawer_.reset();
       return false;
     }

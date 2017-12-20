@@ -245,6 +245,9 @@ bool VulkanInstance::CreateInstance() {
   instance_info.ppEnabledExtensionNames = enabled_extensions.data();
 
   auto err = vkCreateInstance(&instance_info, nullptr, &handle);
+  if (err != VK_SUCCESS) {
+    XELOGE("vkCreateInstance returned %s", to_string(err));
+  }
   switch (err) {
     case VK_SUCCESS:
       // Ok!
