@@ -30,25 +30,28 @@ project("xenia-gpu-gl4-trace-viewer")
   kind("WindowedApp")
   language("C++")
   links({
+    "capstone",
     "gflags",
     "glew",
     "imgui",
+    "libavcodec",
+    "libavutil",
+    "snappy",
     "xenia-apu",
     "xenia-apu-nop",
-    "xenia-apu-xaudio2",
     "xenia-base",
     "xenia-core",
     "xenia-cpu",
     "xenia-cpu-backend-x64",
     "xenia-gpu",
     "xenia-gpu-gl4",
+    "xenia-hid",
     "xenia-hid-nop",
-    "xenia-hid-winkey",
-    "xenia-hid-xinput",
     "xenia-kernel",
     "xenia-ui",
     "xenia-ui-gl",
     "xenia-vfs",
+    "xxhash",
   })
   flags({
     "WinMain",  -- Use WinMain instead of main.
@@ -66,6 +69,12 @@ project("xenia-gpu-gl4-trace-viewer")
   })
 
   filter("platforms:Windows")
+    links({
+      "xenia-apu-xaudio2",
+      "xenia-hid-winkey",
+      "xenia-hid-xinput",
+    })
+
     -- Only create the .user file if it doesn't already exist.
     local user_file = project_root.."/build/xenia-gpu-gl4-trace-viewer.vcxproj.user"
     if not os.isfile(user_file) then

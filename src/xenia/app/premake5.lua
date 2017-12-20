@@ -10,6 +10,7 @@ project("xenia-app")
   links({
     "capstone",
     "gflags",
+    "glew",
     "glslang-spirv",
     "imgui",
     "libavcodec",
