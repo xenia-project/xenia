@@ -32,9 +32,6 @@ matrix:
     - env: C_COMPILER=clang-4.0 CXX_COMPILER=clang++-4.0 LINT=true
     - env: C_COMPILER=clang-4.0 CXX_COMPILER=clang++-4.0 BUILD=true CONFIG=Debug
     - env: C_COMPILER=clang-4.0 CXX_COMPILER=clang++-4.0 BUILD=true CONFIG=Release
-  allow_failures:
-    # LLVMGold.so is not installed correctly
-    - env: C_COMPILER=clang-4.0 CXX_COMPILER=clang++-4.0 BUILD=true CONFIG=Release
 
 git:
   # We handle submodules ourselves in xenia-build setup.
