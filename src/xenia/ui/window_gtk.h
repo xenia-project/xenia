@@ -32,6 +32,9 @@ class GTKWindow : public Window {
   }
   NativeWindowHandle native_handle() const override { return window_; }
 
+  void EnableMainMenu() override {}
+  void DisableMainMenu() override {}
+
   bool set_title(const std::wstring& title) override;
 
   bool SetIcon(const void* buffer, size_t size) override;
@@ -85,6 +88,9 @@ class GTKMenuItem : public MenuItem {
 
   GtkWidget* handle() { return menu_; }
   using MenuItem::OnSelected;
+
+  void EnableMenuItem(Window& window) override {}
+  void DisableMenuItem(Window& window) override {}
 
  protected:
   void OnChildAdded(MenuItem* child_item) override;
