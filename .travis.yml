@@ -13,8 +13,10 @@ addons:
   apt:
     sources:
       - ubuntu-toolchain-r-test
-      - llvm-toolchain-trusty
+      - llvm-toolchain-trusty-4.0
     packages:
+      - clang-4.0
+      - g++-5
       - python3
       - libc++-dev
       - libc++abi-dev
@@ -27,23 +29,11 @@ addons:
 matrix:
   include:
     - env: C_COMPILER=clang-4.0 CXX_COMPILER=clang++-4.0 LINT=true
-      addons: &clang40
-        apt:
-          packages:
-            - clang-4.0
-            - g++-5
-          sources:
-            - ubuntu-toolchain-r-test
-            - llvm-toolchain-trusty-4.0
-
     - env: C_COMPILER=clang-4.0 CXX_COMPILER=clang++-4.0 BUILD=true CONFIG=Debug
-      addons: *clang40
     - env: C_COMPILER=clang-4.0 CXX_COMPILER=clang++-4.0 BUILD=true CONFIG=Release
-      addons: *clang40
   allow_failures:
     # LLVMGold.so is not installed correctly
     - env: C_COMPILER=clang-4.0 CXX_COMPILER=clang++-4.0 BUILD=true CONFIG=Release
-      addons: *clang40
 
 git:
   # We handle submodules ourselves in xenia-build setup.
