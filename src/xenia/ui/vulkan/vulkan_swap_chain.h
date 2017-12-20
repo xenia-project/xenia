@@ -11,6 +11,7 @@
 #define XENIA_UI_VULKAN_VULKAN_SWAP_CHAIN_H_
 
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -79,6 +80,7 @@ class VulkanSwapChain {
   VulkanDevice* device_ = nullptr;
 
   VkQueue presentation_queue_ = nullptr;
+  std::mutex* presentation_queue_mutex_ = nullptr;
   uint32_t presentation_queue_family_ = -1;
   VkSurfaceKHR surface_ = nullptr;
   uint32_t surface_width_ = 0;

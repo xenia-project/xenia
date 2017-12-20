@@ -65,11 +65,18 @@ VkResult VulkanSwapChain::Initialize(VkSurfaceKHR surface) {
     return VK_ERROR_INCOMPATIBLE_DRIVER;
   }
 
-  presentation_queue_family_ = queue_family_index;
   presentation_queue_ = device_->AcquireQueue(queue_family_index);
+  presentation_queue_family_ = queue_family_index;
   if (!presentation_queue_) {
-    XELOGE("Failed to acquire swap chain presentation queue!");
-    return VK_ERROR_INITIALIZATION_FAILED;
+    // That's okay, use the primary queue.
+    presentation_queue_ = device_->primary_queue();
+    presentation_queue_mutex_ = &device_->primary_queue_mutex();
+    presentation_queue_family_ = device_->queue_family_index();
+
+    if (!presentation_queue_) {
+      XELOGE("Failed to acquire swap chain presentation queue!");
+      return VK_ERROR_INITIALIZATION_FAILED;
+    }
   }
 
   // Query supported target formats.
@@ -459,8 +466,12 @@ void VulkanSwapChain::Shutdown() {
     cmd_pool_ = nullptr;
   }
   if (presentation_queue_) {
-    device_->ReleaseQueue(presentation_queue_, presentation_queue_family_);
+    if (!presentation_queue_mutex_) {
+      // We own the queue and need to release it.
+      device_->ReleaseQueue(presentation_queue_, presentation_queue_family_);
+    }
     presentation_queue_ = nullptr;
+    presentation_queue_mutex_ = nullptr;
     presentation_queue_family_ = -1;
   }
   // images_ doesn't need to be cleaned up as the swapchain does it implicitly.
@@ -502,7 +513,13 @@ VkResult VulkanSwapChain::Begin() {
   wait_submit_info.pCommandBuffers = nullptr;
   wait_submit_info.signalSemaphoreCount = 1;
   wait_submit_info.pSignalSemaphores = &image_usage_semaphore_;
+  if (presentation_queue_mutex_) {
+    presentation_queue_mutex_->lock();
+  }
   status = vkQueueSubmit(presentation_queue_, 1, &wait_submit_info, nullptr);
+  if (presentation_queue_mutex_) {
+    presentation_queue_mutex_->unlock();
+  }
   if (status != VK_SUCCESS) {
     return status;
   }
@@ -714,7 +731,14 @@ VkResult VulkanSwapChain::End() {
   render_submit_info.pCommandBuffers = &cmd_buffer_;
   render_submit_info.signalSemaphoreCount = uint32_t(semaphores.size()) - 1;
   render_submit_info.pSignalSemaphores = semaphores.data();
+  if (presentation_queue_mutex_) {
+    presentation_queue_mutex_->lock();
+  }
   status = vkQueueSubmit(presentation_queue_, 1, &render_submit_info, nullptr);
+  if (presentation_queue_mutex_) {
+    presentation_queue_mutex_->unlock();
+  }
+
   if (status != VK_SUCCESS) {
     return status;
   }
@@ -731,7 +755,14 @@ VkResult VulkanSwapChain::End() {
   present_info.pSwapchains = swap_chains;
   present_info.pImageIndices = swap_chain_image_indices;
   present_info.pResults = nullptr;
+  if (presentation_queue_mutex_) {
+    presentation_queue_mutex_->lock();
+  }
   status = vkQueuePresentKHR(presentation_queue_, &present_info);
+  if (presentation_queue_mutex_) {
+    presentation_queue_mutex_->unlock();
+  }
+
   switch (status) {
     case VK_SUCCESS:
       break;
