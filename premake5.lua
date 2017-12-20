@@ -87,7 +87,8 @@ filter("platforms:Linux")
   toolset("clang")
   buildoptions({
     -- "-mlzcnt",  -- (don't) Assume lzcnt is supported.
-    "`pkg-config --cflags gtk+-x11-3.0`"
+    "`pkg-config --cflags gtk+-x11-3.0`",
+    "-fno-lto", -- Premake doesn't support LTO on clang
   })
   links({
     "pthread",
@@ -98,7 +99,6 @@ filter("platforms:Linux")
     "xcb",
     "X11-xcb",
     "GL",
-    "GLEW",
     "vulkan",
     "c++",
     "c++abi"
