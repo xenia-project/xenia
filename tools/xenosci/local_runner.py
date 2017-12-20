@@ -27,19 +27,17 @@ def file_type(value):
 
 
 def run_dumper(exe_path, input_name):
-    try:
-        start_time = time.perf_counter()
+    start_time = time.perf_counter()
 
-        p = subprocess.Popen([
-            exe_path,
-            input_name,
-            '--log_file=stdout',
-        ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        p.wait()
-        elapsed_time = time.perf_counter() - start_time
-        print("%.3f seconds, code %2d (%s)" % (elapsed_time, p.returncode, input_name))
-    except OSError:
-        print("exe is invalid :(")
+    p = subprocess.Popen([
+        exe_path,
+        input_name,
+        '--log_file=stdout',
+    ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    p.wait()
+    elapsed_time = time.perf_counter() - start_time
+    print("%.3f seconds, code %2d (%s)" %
+            (elapsed_time, p.returncode, input_name))
 
 
 def main(argv):
@@ -58,6 +56,24 @@ def main(argv):
 
     if len(files) == 0:
         print("No input files found!")
+        return 1
+
+    # Test the executable first.
+    valid = False
+    try:
+        p = subprocess.Popen([
+            exepath,
+            '--log_file=stdout',
+        ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        p.wait()
+        if p.returncode == 5:
+            # code 5 = invalid trace file / trace file unspecified
+            valid = True
+    except OSError:
+        pass
+
+    if not valid:
+        print("Trace executable invalid!")
         return 1
 
     print("Processing...")
