@@ -65,7 +65,7 @@ script:
   # - if [[ $BUILD == true ]]; then ./build/bin/Linux/$CONFIG/xenia-cpu-ppc-tests --log_file=stdout; fi
 
   # Build all of xenia.
-  #- if [[ $BUILD == true ]]; then ./xenia-build build --config=$CONFIG; fi
+  - if [[ $BUILD == true ]]; then ./xenia-build build --config=$CONFIG; fi
   # All tests (without haswell support).
   #- ./xenia-build test --config=debug --no-build -- --enable_haswell_instructions=false
   # All tests (with haswell support).

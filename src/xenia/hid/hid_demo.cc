@@ -176,8 +176,10 @@ void DrawUserInputStatus(uint32_t user_index) {
   ImGui::Text("     Shoulders: [%c][%c]",
               gamepad.buttons & X_INPUT_GAMEPAD_LEFT_SHOULDER ? 'L' : ' ',
               gamepad.buttons & X_INPUT_GAMEPAD_RIGHT_SHOULDER ? 'R' : ' ');
-  ImGui::Text("  Left Trigger: %3u", gamepad.left_trigger);
-  ImGui::Text(" Right Trigger: %3u", gamepad.right_trigger);
+  ImGui::Text("  Left Trigger: %3u",
+              static_cast<uint16_t>(gamepad.left_trigger));
+  ImGui::Text(" Right Trigger: %3u",
+              static_cast<uint16_t>(gamepad.right_trigger));
   ImGui::Text("    Left Thumb: %6d, %6d",
               static_cast<int32_t>(gamepad.thumb_lx),
               static_cast<int32_t>(gamepad.thumb_ly));
