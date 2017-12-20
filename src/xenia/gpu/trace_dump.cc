@@ -110,9 +110,8 @@ bool TraceDump::Setup() {
     XELOGE("Failed to setup emulator: %.8X", result);
     return false;
   }
-  memory_ = emulator_->memory();
   graphics_system_ = emulator_->graphics_system();
-  player_ = std::make_unique<TracePlayer>(loop_.get(), graphics_system_);
+  player_ = std::make_unique<TracePlayer>(nullptr, graphics_system_);
   return true;
 }
 
