@@ -310,12 +310,12 @@ TextureCache::Texture* TextureCache::AllocateTexture(
   VkImage image;
 
   VmaAllocation alloc;
-  VmaMemoryRequirements vma_reqs = {
-      0, VMA_MEMORY_USAGE_GPU_ONLY, 0, 0, nullptr,
+  VmaAllocationCreateInfo vma_create_info = {
+      0, VMA_MEMORY_USAGE_GPU_ONLY, 0, 0, 0, nullptr, nullptr,
   };
   VmaAllocationInfo vma_info = {};
-  VkResult status = vmaCreateImage(mem_allocator_, &image_info, &vma_reqs,
-                                   &image, &alloc, &vma_info);
+  VkResult status = vmaCreateImage(mem_allocator_, &image_info,
+                                   &vma_create_info, &image, &alloc, &vma_info);
   if (status != VK_SUCCESS) {
     // Allocation failed.
     return nullptr;
@@ -1076,8 +1076,12 @@ bool TextureCache::ConvertTexture(uint8_t* dest, VkBufferImageCopy* copy_region,
   switch (src.dimension) {
     case Dimension::k1D:
       assert_always();
+      break;
     case Dimension::k2D:
       return ConvertTexture2D(dest, copy_region, src);
+    case Dimension::k3D:
+      assert_always();
+      break;
     case Dimension::kCube:
       return ConvertTextureCube(dest, copy_region, src);
   }
@@ -1090,11 +1094,14 @@ bool TextureCache::ComputeTextureStorage(size_t* output_length,
     switch (src.dimension) {
       case Dimension::k1D: {
         assert_always();
-      }
+      } break;
       case Dimension::k2D: {
         *output_length = src.size_2d.input_width * src.size_2d.input_height * 2;
         return true;
       }
+      case Dimension::k3D: {
+        assert_always();
+      } break;
       case Dimension::kCube: {
         *output_length =
             src.size_cube.input_width * src.size_cube.input_height * 2 * 6;
