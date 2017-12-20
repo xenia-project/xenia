@@ -10,15 +10,24 @@ os:
 
 matrix:
   include:
-    - compiler: clang
-      env: C_COMPILER=clang-3.9 CXX_COMPILER=clang++-3.9 LINT=true
-    - compiler: clang
-      env: C_COMPILER=clang-3.9 CXX_COMPILER=clang++-3.9 BUILD=true CONFIG=Debug
-    - compiler: clang
-      env: C_COMPILER=clang-3.9 CXX_COMPILER=clang++-3.9 BUILD=true CONFIG=Release
+    - env: C_COMPILER=clang-4.0 CXX_COMPILER=clang++-4.0 LINT=true
+      addons: &clang40
+        apt:
+          packages:
+            - clang-4.0
+            - g++-5
+          sources:
+            - ubuntu-toolchain-r-test
+            - llvm-toolchain-trusty-4.0
+
+    - env: C_COMPILER=clang-4.0 CXX_COMPILER=clang++-4.0 BUILD=true CONFIG=Debug
+      addons: *clang40
+    - env: C_COMPILER=clang-4.0 CXX_COMPILER=clang++-4.0 BUILD=true CONFIG=Release
+      addons: *clang40
   allow_failures:
     # LLVMGold.so is not installed correctly
-    - env: C_COMPILER=clang-3.9 CXX_COMPILER=clang++-3.9 BUILD=true CONFIG=Release
+    - env: C_COMPILER=clang-4.0 CXX_COMPILER=clang++-4.0 BUILD=true CONFIG=Release
+      addons: *clang40
 
 sudo: required
 addons:
@@ -27,11 +36,8 @@ addons:
       - ubuntu-toolchain-r-test
       - llvm-toolchain-trusty
     packages:
-      - clang-3.9
-      - clang-format-3.9
-      #- g++-6
-      - libc++-dev
       - python3
+      - libc++-dev
       - libc++abi-dev
       - libgtk-3-dev
       - liblz4-dev
