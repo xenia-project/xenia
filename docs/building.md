@@ -49,18 +49,49 @@ sudo -E apt-add-repository -y "ppa:ubuntu-toolchain-r/test"
 curl -sSL "http://llvm.org/apt/llvm-snapshot.gpg.key" | sudo -E apt-key add -
 echo "deb http://llvm.org/apt/precise/ llvm-toolchain-precise main" | sudo tee -a /etc/apt/sources.list > /dev/null
 sudo -E apt-get -yq update &>> ~/apt-get-update.log
-sudo -E apt-get -yq --no-install-suggests --no-install-recommends --force-yes install clang-3.8 clang-format-3.8
+sudo -E apt-get -yq --no-install-suggests --no-install-recommends --force-yes install clang-4.0 clang-format-4.0
 ```
 
 You will also need some development libraries. To get them on an ubuntu system:
 ```
-sudo apt-get install libgtk-3-dev libpthread-stubs0-dev liblz4-dev libglew-dev libx11-dev
+sudo apt-get install libgtk-3-dev libpthread-stubs0-dev liblz4-dev libglew-dev libx11-dev libvulkan-dev libc++-dev libc++abi-dev
 ```
 
 In addition, you will need the latest OpenGL libraries and drivers for your hardware. Intel and the open source
 drivers are not supported as they do not yet support OpenGL 4.5.
 
+#### Linux NVIDIA Vulkan Drivers
+
+You'll need to install the latest NVIDIA drivers to enable Vulkan support on Linux.
+
+First, remove all existing NVIDIA drivers:
+
+```
+sudo apt-get purge nvidia*
+```
+
+Add the graphics-drivers PPA to your system:
+
+```
+sudo add-apt-repository ppa:graphics-drivers
+sudo apt update
+```
+
+Install the NVIDIA drivers (newer ones may be released after 387; check online):
+
+```
+sudo apt install nvidia-387
+```
+
+Either reboot the computer, or inject the NVIDIA drivers:
+
+```
+sudo rmmod nouveau
+sudo modprobe nvidia
+```
+
 ## Running
 
 To make life easier you can use `--flagfile=myflags.txt` to specify all
-arguments, including using `--target=my.xex` to pick an executable.
+arguments, including using `--target=my.xex` to pick an executable. You
+can also specify `--log_file=stdout` to log to stdout rather than a file.
