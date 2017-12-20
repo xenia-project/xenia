@@ -93,6 +93,7 @@ filter("platforms:Linux")
     "pthread",
     "dl",
     "lz4",
+    "rt",
     "X11",
     "xcb",
     "X11-xcb",
@@ -104,9 +105,6 @@ filter("platforms:Linux")
   })
   linkoptions({
     "`pkg-config --libs gtk+-3.0`",
-  })
-  disablewarnings({
-    "deprecated-register"
   })
 
 filter({"platforms:Linux", "kind:*App"})
@@ -122,9 +120,12 @@ filter({"platforms:Linux", "language:C++", "toolset:gcc"})
 filter({"platforms:Linux", "language:C++", "toolset:clang"})
   buildoptions({
     "-std=c++14",
-    "-stdlib=libc++",
+    "-stdlib=libstdc++",
   })
   links({
+  })
+  disablewarnings({
+    "deprecated-register"
   })
 
 filter("platforms:Windows")
