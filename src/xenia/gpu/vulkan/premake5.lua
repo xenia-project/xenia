@@ -84,26 +84,31 @@ project("xenia-gpu-vulkan-trace-dump")
   kind("ConsoleApp")
   language("C++")
   links({
+    "capstone",
     "gflags",
+    "glslang-spirv",
     "imgui",
+    "libavcodec",
+    "libavutil",
+    "snappy",
+    "spirv-tools",
     "vulkan-loader",
     "xenia-apu",
     "xenia-apu-nop",
-    "xenia-apu-xaudio2",
     "xenia-base",
     "xenia-core",
     "xenia-cpu",
     "xenia-cpu-backend-x64",
     "xenia-gpu",
     "xenia-gpu-vulkan",
+    "xenia-hid",
     "xenia-hid-nop",
-    "xenia-hid-winkey",
-    "xenia-hid-xinput",
     "xenia-kernel",
     "xenia-ui",
     "xenia-ui-spirv",
     "xenia-ui-vulkan",
     "xenia-vfs",
+    "xxhash",
   })
   defines({
   })
