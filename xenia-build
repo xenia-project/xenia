@@ -576,12 +576,18 @@ class BaseBuildCommand(Command):
         self.parser.add_argument(
             '--no_premake', action='store_true',
             help='Skips running premake before building.')
+        self.parser.add_argument(
+            '-j', default=0, type=int, help='Number of parallel threads')
 
     def execute(self, args, pass_args, cwd):
         if not args['no_premake']:
             print('- running premake...')
             run_platform_premake()
             print('')
+
+        threads = args['j']
+        if threads < 0:
+            threads = 0
 
         print('- building (%s):%s...' % (
             'all' if not len(args['target']) else ', '.join(args['target']),
@@ -615,10 +621,10 @@ class BaseBuildCommand(Command):
 
             result = subprocess.call([
                 'make',
-                '-j',
+                '-j' if threads is 0 else '-j%d' % threads,
                 '-Cbuild/',
                 'config=%s_linux' % (args['config']),
-                ] + pass_args + args['target'], shell=False)
+            ] + pass_args + args['target'], shell=False, env=dict(os.environ))
         print('')
         if result != 0:
             print('ERROR: build failed with one or more errors.')
