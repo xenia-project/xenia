@@ -8,6 +8,22 @@ os:
   - linux
   # - osx
 
+sudo: required
+addons:
+  apt:
+    sources:
+      - ubuntu-toolchain-r-test
+      - llvm-toolchain-trusty
+    packages:
+      - python3
+      - libc++-dev
+      - libc++abi-dev
+      - libglew-dev
+      - libgtk-3-dev
+      - libpthread-stubs0-dev
+      - libx11-dev
+      - liblz4-dev
+
 matrix:
   include:
     - env: C_COMPILER=clang-4.0 CXX_COMPILER=clang++-4.0 LINT=true
@@ -28,22 +44,6 @@ matrix:
     # LLVMGold.so is not installed correctly
     - env: C_COMPILER=clang-4.0 CXX_COMPILER=clang++-4.0 BUILD=true CONFIG=Release
       addons: *clang40
-
-sudo: required
-addons:
-  apt:
-    sources:
-      - ubuntu-toolchain-r-test
-      - llvm-toolchain-trusty
-    packages:
-      - python3
-      - libc++-dev
-      - libc++abi-dev
-      - libglew-dev
-      - libgtk-3-dev
-      - libpthread-stubs0-dev
-      - libx11-dev
-      - liblz4-dev
 
 git:
   # We handle submodules ourselves in xenia-build setup.
