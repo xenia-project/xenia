@@ -223,7 +223,7 @@ void MMIOHandler::InvalidateRange(uint32_t physical_address, size_t length) {
          entry->address + entry->length > physical_address) ||
         (entry->address >= physical_address &&
          entry->address < physical_address + length)) {
-      // This watch lies within the range. End it.
+       This watch lies within the range. End it.
       FireAccessWatch(entry);
       it = access_watches_.erase(it);
       delete entry;
