@@ -16,6 +16,7 @@ addons:
       - llvm-toolchain-trusty-4.0
     packages:
       - clang-4.0
+      - llvm-4.0-dev
       - g++-5
       - python3
       - libc++-dev
