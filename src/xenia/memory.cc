@@ -1054,7 +1054,7 @@ bool BaseHeap::Protect(uint32_t address, uint32_t size, uint32_t protect,
     if (!xe::memory::Protect(
             membase_ + heap_base_ + start_page_number * page_size_,
             page_count * page_size_, ToPageAccess(protect),
-            &old_protect_access)) {
+            old_protect ? &old_protect_access : nullptr)) {
       XELOGE("BaseHeap::Protect failed due to host VirtualProtect failure");
       return false;
     }
