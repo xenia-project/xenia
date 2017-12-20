@@ -13,6 +13,7 @@
 #include "xenia/base/logging.h"
 
 #include <pthread.h>
+#include <sys/eventfd.h>
 #include <sys/syscall.h>
 #include <sys/time.h>
 #include <sys/types.h>
@@ -204,11 +205,51 @@ class PosixConditionHandle : public T {
   PosixCondition handle_;
 };
 
+template <typename T>
+class PosixFdHandle : public T {
+ public:
+  explicit PosixFdHandle(intptr_t handle) : handle_(handle) {}
+  ~PosixFdHandle() override {
+    close(handle_);
+    handle_ = 0;
+  }
+
+ protected:
+  void* native_handle() const override {
+    return reinterpret_cast<void*>(handle_);
+  }
+
+  intptr_t handle_;
+};
+
 // TODO(dougvj)
 WaitResult Wait(WaitHandle* wait_handle, bool is_alertable,
                 std::chrono::milliseconds timeout) {
-  assert_always();
-  return WaitResult::kFailed;
+  intptr_t handle = reinterpret_cast<intptr_t>(wait_handle->native_handle());
+
+  fd_set set;
+  struct timeval time_val;
+  int ret;
+
+  FD_ZERO(&set);
+  FD_SET(handle, &set);
+
+  time_val.tv_sec = timeout.count() / 1000;
+  time_val.tv_usec = timeout.count() * 1000;
+  ret = select(handle + 1, &set, NULL, NULL, &time_val);
+  if (ret == -1) {
+    return WaitResult::kFailed;
+  } else if (ret == 0) {
+    return WaitResult::kTimeout;
+  } else {
+    uint64_t buf = 0;
+    ret = read(handle, &buf, sizeof(buf));
+    if (ret < 8) {
+      return WaitResult::kTimeout;
+    }
+
+    return WaitResult::kSuccess;
+  }
 }
 
 // TODO(dougvj)
@@ -229,11 +270,14 @@ std::pair<WaitResult, size_t> WaitMultiple(WaitHandle* wait_handles[],
 }
 
 // TODO(dougvj)
-class PosixEvent : public PosixConditionHandle<Event> {
+class PosixEvent : public PosixFdHandle<Event> {
  public:
-  PosixEvent(bool initial_state, int auto_reset) { assert_always(); }
+  PosixEvent(intptr_t fd) : PosixFdHandle(fd) {}
   ~PosixEvent() override = default;
-  void Set() override { assert_always(); }
+  void Set() override {
+    uint64_t buf = 1;
+    write(handle_, &buf, sizeof(buf));
+  }
   void Reset() override { assert_always(); }
   void Pulse() override { assert_always(); }
 
@@ -242,11 +286,17 @@ class PosixEvent : public PosixConditionHandle<Event> {
 };
 
 std::unique_ptr<Event> Event::CreateManualResetEvent(bool initial_state) {
-  return std::make_unique<PosixEvent>(PosixEvent(initial_state, false));
+  // Linux's eventfd doesn't appear to support manual reset natively.
+  return nullptr;
 }
 
 std::unique_ptr<Event> Event::CreateAutoResetEvent(bool initial_state) {
-  return std::make_unique<PosixEvent>(PosixEvent(initial_state, true));
+  int fd = eventfd(initial_state ? 1 : 0, EFD_CLOEXEC);
+  if (fd == -1) {
+    return nullptr;
+  }
+
+  return std::make_unique<PosixEvent>(PosixEvent(fd));
 }
 
 // TODO(dougvj)
