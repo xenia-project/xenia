@@ -72,6 +72,7 @@ FileMappingHandle CreateFileMappingHandle(std::wstring path, size_t length,
       oflag = O_RDONLY;
       break;
     case PageAccess::kReadWrite:
+    case PageAccess::kExecuteReadWrite:
       oflag = O_RDWR;
       break;
     default:
