@@ -1185,9 +1185,7 @@ bool VulkanCommandProcessor::IssueCopy() {
           is_color_source ? VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
                           : VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
       tile_image_barrier.dstAccessMask =
-          VK_ACCESS_TRANSFER_READ_BIT |
-          (is_color_source ? VK_ACCESS_COLOR_ATTACHMENT_READ_BIT
-                           : VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT);
+          VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_SHADER_READ_BIT;
       tile_image_barrier.oldLayout = view->image_layout;
       tile_image_barrier.newLayout = view->image_layout;
       tile_image_barrier.image = view->image;
@@ -1196,12 +1194,10 @@ bool VulkanCommandProcessor::IssueCopy() {
           is_color_source
               ? VK_IMAGE_ASPECT_COLOR_BIT
               : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
-      vkCmdPipelineBarrier(
-          command_buffer, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
-          VK_PIPELINE_STAGE_TRANSFER_BIT |
-              (is_color_source ? VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
-                               : VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT),
-          0, 0, nullptr, 0, nullptr, 1, &tile_image_barrier);
+      vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
+                           VK_PIPELINE_STAGE_TRANSFER_BIT |
+                               VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                           0, 0, nullptr, 0, nullptr, 1, &tile_image_barrier);
 
       auto render_pass =
           blitter_->GetRenderPass(texture->format, is_color_source);
@@ -1229,23 +1225,20 @@ bool VulkanCommandProcessor::IssueCopy() {
 
       blitter_->BlitTexture2D(
           command_buffer, current_batch_fence_,
-          copy_src_select == 4 ? view->image_view_depth : view->image_view,
+          is_color_source ? view->image_view : view->image_view_depth,
           {{0, 0}, {resolve_extent.width, resolve_extent.height}},
           view->GetSize(), texture->format, resolve_offset, resolve_extent,
           texture->framebuffer, filter, is_color_source,
           copy_regs->copy_dest_info.copy_dest_swap != 0);
 
-      // Pull the tile view back to a color attachment.
+      // Pull the tile view back to a color/depth attachment.
       std::swap(tile_image_barrier.srcAccessMask,
                 tile_image_barrier.dstAccessMask);
       std::swap(tile_image_barrier.oldLayout, tile_image_barrier.newLayout);
-      vkCmdPipelineBarrier(
-          command_buffer,
-          VK_PIPELINE_STAGE_TRANSFER_BIT |
-              (is_color_source ? VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
-                               : VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT),
-          VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, 0, 0, nullptr, 0, nullptr, 1,
-          &tile_image_barrier);
+      vkCmdPipelineBarrier(command_buffer,
+                           VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                           VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, 0, 0, nullptr, 0,
+                           nullptr, 1, &tile_image_barrier);
     } break;
 
     case CopyCommand::kConstantOne:
