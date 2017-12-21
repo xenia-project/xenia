@@ -145,7 +145,9 @@ bool VulkanDevice::Initialize(DeviceInfo device_info) {
   }
 
   std::vector<VkDeviceQueueCreateInfo> queue_infos;
+  std::vector<std::vector<float>> queue_priorities;
   queue_infos.resize(device_info.queue_family_properties.size());
+  queue_priorities.resize(queue_infos.size());
   for (int i = 0; i < queue_infos.size(); i++) {
     VkDeviceQueueCreateInfo& queue_info = queue_infos[i];
     VkQueueFamilyProperties& family_props =
@@ -157,15 +159,13 @@ bool VulkanDevice::Initialize(DeviceInfo device_info) {
     queue_info.queueFamilyIndex = i;
     queue_info.queueCount = family_props.queueCount;
 
-    std::vector<float> queue_priorities(queue_count);
+    queue_priorities[i].resize(queue_count, 0.f);
     if (i == ideal_queue_family_index) {
       // Prioritize the first queue on the primary queue family.
-      queue_priorities[0] = 1.0f;
-    } else {
-      queue_priorities[0] = 0.f;
+      queue_priorities[i][0] = 1.0f;
     }
 
-    queue_info.pQueuePriorities = queue_priorities.data();
+    queue_info.pQueuePriorities = queue_priorities[i].data();
   }
 
   VkDeviceCreateInfo create_info;
