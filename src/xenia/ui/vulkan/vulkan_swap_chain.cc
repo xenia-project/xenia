@@ -628,7 +628,7 @@ VkResult VulkanSwapChain::End() {
   pre_image_copy_barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0,
                                              1};
   vkCmdPipelineBarrier(cmd_buffer_, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-                       VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
+                       VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0,
                        nullptr, 1, &pre_image_copy_barrier);
 
   current_buffer.image_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
@@ -655,8 +655,8 @@ VkResult VulkanSwapChain::End() {
   pre_image_memory_barrier.oldLayout = current_buffer.image_layout;
   pre_image_memory_barrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
   vkCmdPipelineBarrier(cmd_buffer_, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                       VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, 0, 0, nullptr, 0,
-                       nullptr, 1, &pre_image_memory_barrier);
+                       VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0,
+                       nullptr, 0, nullptr, 1, &pre_image_memory_barrier);
 
   current_buffer.image_layout = pre_image_memory_barrier.newLayout;
 
@@ -700,7 +700,8 @@ VkResult VulkanSwapChain::End() {
   post_image_memory_barrier.subresourceRange.levelCount = 1;
   post_image_memory_barrier.subresourceRange.baseArrayLayer = 0;
   post_image_memory_barrier.subresourceRange.layerCount = 1;
-  vkCmdPipelineBarrier(cmd_buffer_, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
+  vkCmdPipelineBarrier(cmd_buffer_,
+                       VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
                        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
                        nullptr, 1, &post_image_memory_barrier);
 
