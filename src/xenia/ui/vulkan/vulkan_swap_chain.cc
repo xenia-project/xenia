@@ -355,6 +355,19 @@ VkResult VulkanSwapChain::Initialize(VkSurfaceKHR surface) {
     buffers_[i].image_layout = VK_IMAGE_LAYOUT_UNDEFINED;
   }
 
+  // Create a fence we'll use to wait for commands to finish.
+  VkFenceCreateInfo fence_create_info = {
+      VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+      nullptr,
+      VK_FENCE_CREATE_SIGNALED_BIT,
+  };
+  status = vkCreateFence(*device_, &fence_create_info, nullptr,
+                         &synchronization_fence_);
+  CheckResult(status, "vkGetSwapchainImagesKHR");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
+
   XELOGVK("Swap chain initialized successfully!");
   return VK_SUCCESS;
 }
@@ -445,14 +458,11 @@ void VulkanSwapChain::Shutdown() {
     DestroyBuffer(&buffer);
   }
   buffers_.clear();
-  if (image_available_semaphore_) {
-    vkDestroySemaphore(*device_, image_available_semaphore_, nullptr);
-    image_available_semaphore_ = nullptr;
-  }
-  if (render_pass_) {
-    vkDestroyRenderPass(*device_, render_pass_, nullptr);
-    render_pass_ = nullptr;
-  }
+
+  VK_SAFE_DESTROY(vkDestroySemaphore, *device_, image_available_semaphore_,
+                  nullptr);
+  VK_SAFE_DESTROY(vkDestroyRenderPass, *device_, render_pass_, nullptr);
+
   if (copy_cmd_buffer_) {
     vkFreeCommandBuffers(*device_, cmd_pool_, 1, &copy_cmd_buffer_);
     copy_cmd_buffer_ = nullptr;
@@ -461,10 +471,8 @@ void VulkanSwapChain::Shutdown() {
     vkFreeCommandBuffers(*device_, cmd_pool_, 1, &render_cmd_buffer_);
     render_cmd_buffer_ = nullptr;
   }
-  if (cmd_pool_) {
-    vkDestroyCommandPool(*device_, cmd_pool_, nullptr);
-    cmd_pool_ = nullptr;
-  }
+  VK_SAFE_DESTROY(vkDestroyCommandPool, *device_, cmd_pool_, nullptr);
+
   if (presentation_queue_) {
     if (!presentation_queue_mutex_) {
       // We own the queue and need to release it.
@@ -474,21 +482,29 @@ void VulkanSwapChain::Shutdown() {
     presentation_queue_mutex_ = nullptr;
     presentation_queue_family_ = -1;
   }
+
+  VK_SAFE_DESTROY(vkDestroyFence, *device_, synchronization_fence_, nullptr);
+
   // images_ doesn't need to be cleaned up as the swapchain does it implicitly.
-  if (handle) {
-    vkDestroySwapchainKHR(*device_, handle, nullptr);
-    handle = nullptr;
-  }
-  if (surface_) {
-    vkDestroySurfaceKHR(*instance_, surface_, nullptr);
-    surface_ = nullptr;
-  }
+  VK_SAFE_DESTROY(vkDestroySwapchainKHR, *device_, handle, nullptr);
+  VK_SAFE_DESTROY(vkDestroySurfaceKHR, *instance_, surface_, nullptr);
 }
 
 VkResult VulkanSwapChain::Begin() {
   wait_and_signal_semaphores_.clear();
 
   VkResult status;
+
+  // Wait for the last swap to finish.
+  status = vkWaitForFences(*device_, 1, &synchronization_fence_, VK_TRUE, -1);
+  if (status != VK_SUCCESS) {
+    return status;
+  }
+
+  status = vkResetFences(*device_, 1, &synchronization_fence_);
+  if (status != VK_SUCCESS) {
+    return status;
+  }
 
   // Get the index of the next available swapchain image.
   status =
@@ -735,7 +751,8 @@ VkResult VulkanSwapChain::End() {
   if (presentation_queue_mutex_) {
     presentation_queue_mutex_->lock();
   }
-  status = vkQueueSubmit(presentation_queue_, 1, &render_submit_info, nullptr);
+  status = vkQueueSubmit(presentation_queue_, 1, &render_submit_info,
+                         synchronization_fence_);
   if (presentation_queue_mutex_) {
     presentation_queue_mutex_->unlock();
   }

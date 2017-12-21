@@ -79,6 +79,7 @@ class VulkanSwapChain {
   VulkanInstance* instance_ = nullptr;
   VulkanDevice* device_ = nullptr;
 
+  VkFence synchronization_fence_ = nullptr;
   VkQueue presentation_queue_ = nullptr;
   std::mutex* presentation_queue_mutex_ = nullptr;
   uint32_t presentation_queue_family_ = -1;
