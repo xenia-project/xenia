@@ -285,6 +285,10 @@ TextureCache::Texture* TextureCache::AllocateTexture(
       props.optimalTilingFeatures & VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT) {
     // Add color attachment usage if it's supported.
     image_info.usage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+  } else if (props.optimalTilingFeatures &
+             VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT) {
+    // Add depth/stencil usage as well.
+    image_info.usage |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
   }
 
   if (props.optimalTilingFeatures & VK_FORMAT_FEATURE_BLIT_DST_BIT) {
