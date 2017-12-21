@@ -615,9 +615,9 @@ class BaseBuildCommand(Command):
         else:
             # TODO(benvanik): allow gcc?
             if 'CXX' not in os.environ:
-                os.environ['CXX'] = 'clang++-3.8'
+                os.environ['CXX'] = 'clang++-4.0'
             if 'CC' not in os.environ:
-                os.environ['CC'] = 'clang-3.8'
+                os.environ['CC'] = 'clang-4.0'
 
             result = subprocess.call([
                 'make',
