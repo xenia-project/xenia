@@ -71,7 +71,7 @@ int TraceViewer::Main(const std::vector<std::wstring>& args) {
     file_picker->set_multi_selection(false);
     file_picker->set_title(L"Select Trace File");
     file_picker->set_extensions({
-        {L"Supported Files", L"*.xenia_gpu_trace"},
+        {L"Supported Files", L"*.xtr"},
         {L"All Files (*.*)", L"*.*"},
     });
     if (file_picker->Show()) {
