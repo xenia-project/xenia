@@ -33,6 +33,7 @@ addons:
 matrix:
   include:
     - env: C_COMPILER=clang-4.0 CXX_COMPILER=clang++-4.0 LINT=true
+      sudo: false
     - env: C_COMPILER=clang-4.0 CXX_COMPILER=clang++-4.0 BUILD=true CONFIG=Debug
     - env: C_COMPILER=clang-4.0 CXX_COMPILER=clang++-4.0 BUILD=true CONFIG=Release
 
@@ -49,7 +50,7 @@ before_script:
   # Add Vulkan dependencies
   - travis_retry wget http://mirrors.kernel.org/ubuntu/pool/universe/v/vulkan/libvulkan1_1.0.42.0+dfsg1-1ubuntu1~16.04.1_amd64.deb
   - travis_retry wget http://mirrors.kernel.org/ubuntu/pool/universe/v/vulkan/libvulkan-dev_1.0.42.0+dfsg1-1ubuntu1~16.04.1_amd64.deb
-  - sudo dpkg -i libvulkan1_1.0.42.0+dfsg1-1ubuntu1~16.04.1_amd64.deb libvulkan-dev_1.0.42.0+dfsg1-1ubuntu1~16.04.1_amd64.deb
+  - if [[ $BUILD == true ]]; then sudo dpkg -i libvulkan1_1.0.42.0+dfsg1-1ubuntu1~16.04.1_amd64.deb libvulkan-dev_1.0.42.0+dfsg1-1ubuntu1~16.04.1_amd64.deb; fi
   # Prepare environment (pull dependencies, build tools).
   - travis_retry ./xenia-build setup
 
