@@ -63,10 +63,11 @@ class Blitter {
     int swap;     // 0x1C
   };
 
-  VkPipeline GetPipeline(VkRenderPass render_pass, VkShaderModule frag_shader);
+  VkPipeline GetPipeline(VkRenderPass render_pass, VkShaderModule frag_shader,
+                         bool color_or_depth);
   VkRenderPass CreateRenderPass(VkFormat output_format, bool color_or_depth);
   VkPipeline CreatePipeline(VkRenderPass render_pass,
-                            VkShaderModule frag_shader);
+                            VkShaderModule frag_shader, bool color_or_depth);
 
   std::unique_ptr<DescriptorPool> descriptor_pool_ = nullptr;
   VulkanDevice* device_ = nullptr;

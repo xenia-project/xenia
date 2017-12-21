@@ -265,7 +265,8 @@ void Blitter::BlitTexture2D(VkCommandBuffer command_buffer, VkFence fence,
 
     // Acquire a pipeline.
     auto pipeline =
-        GetPipeline(render_pass, color_or_depth ? blit_color_ : blit_depth_);
+        GetPipeline(render_pass, color_or_depth ? blit_color_ : blit_depth_,
+                    color_or_depth);
     vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                       pipeline);
 
@@ -354,14 +355,16 @@ VkRenderPass Blitter::GetRenderPass(VkFormat format, bool color_or_depth) {
 }
 
 VkPipeline Blitter::GetPipeline(VkRenderPass render_pass,
-                                VkShaderModule frag_shader) {
+                                VkShaderModule frag_shader,
+                                bool color_or_depth) {
   auto it = pipelines_.find(std::make_pair(render_pass, frag_shader));
   if (it != pipelines_.end()) {
     return it->second;
   }
 
   // Create and cache the pipeline.
-  VkPipeline pipeline = CreatePipeline(render_pass, frag_shader);
+  VkPipeline pipeline =
+      CreatePipeline(render_pass, frag_shader, color_or_depth);
   if (pipeline) {
     pipelines_[std::make_pair(render_pass, frag_shader)] = pipeline;
   }
@@ -378,12 +381,14 @@ VkRenderPass Blitter::CreateRenderPass(VkFormat output_format,
   attachments[0].flags = 0;
   attachments[0].format = output_format;
   attachments[0].samples = VK_SAMPLE_COUNT_1_BIT;
-  attachments[0].loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+  attachments[0].loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
   attachments[0].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-  attachments[0].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+  attachments[0].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
   attachments[0].stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
-  attachments[0].initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-  attachments[0].finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+  attachments[0].initialLayout =
+      color_or_depth ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+                     : VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+  attachments[0].finalLayout = attachments[0].initialLayout;
 
   VkAttachmentReference attach_refs[1];
   attach_refs[0].attachment = 0;
@@ -426,7 +431,8 @@ VkRenderPass Blitter::CreateRenderPass(VkFormat output_format,
 }
 
 VkPipeline Blitter::CreatePipeline(VkRenderPass render_pass,
-                                   VkShaderModule frag_shader) {
+                                   VkShaderModule frag_shader,
+                                   bool color_or_depth) {
   VkResult result = VK_SUCCESS;
 
   // Pipeline
@@ -530,18 +536,26 @@ VkPipeline Blitter::CreatePipeline(VkRenderPass render_pass,
   blend_info.flags = 0;
   blend_info.logicOpEnable = VK_FALSE;
   blend_info.logicOp = VK_LOGIC_OP_NO_OP;
+
   VkPipelineColorBlendAttachmentState blend_attachments[1];
-  blend_attachments[0].blendEnable = VK_FALSE;
-  blend_attachments[0].srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-  blend_attachments[0].dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
-  blend_attachments[0].colorBlendOp = VK_BLEND_OP_ADD;
-  blend_attachments[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-  blend_attachments[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-  blend_attachments[0].alphaBlendOp = VK_BLEND_OP_ADD;
-  blend_attachments[0].colorWriteMask = 0xF;
-  blend_info.attachmentCount =
-      static_cast<uint32_t>(xe::countof(blend_attachments));
-  blend_info.pAttachments = blend_attachments;
+  if (color_or_depth) {
+    blend_attachments[0].blendEnable = VK_FALSE;
+    blend_attachments[0].srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+    blend_attachments[0].dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+    blend_attachments[0].colorBlendOp = VK_BLEND_OP_ADD;
+    blend_attachments[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+    blend_attachments[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+    blend_attachments[0].alphaBlendOp = VK_BLEND_OP_ADD;
+    blend_attachments[0].colorWriteMask = 0xF;
+
+    blend_info.attachmentCount =
+        static_cast<uint32_t>(xe::countof(blend_attachments));
+    blend_info.pAttachments = blend_attachments;
+  } else {
+    blend_info.attachmentCount = 0;
+    blend_info.pAttachments = nullptr;
+  }
+
   std::memset(blend_info.blendConstants, 0, sizeof(blend_info.blendConstants));
   pipeline_info.pColorBlendState = &blend_info;
   VkPipelineDynamicStateCreateInfo dynamic_state_info;
