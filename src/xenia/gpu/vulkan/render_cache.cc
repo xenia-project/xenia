@@ -247,7 +247,7 @@ CachedTileView::CachedTileView(ui::vulkan::VulkanDevice* device,
 
     image_view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_STENCIL_BIT;
     err = vkCreateImageView(device_, &image_view_info, nullptr,
-                            &image_view_depth);
+                            &image_view_stencil);
     CheckResult(err, "vkCreateImageView");
   }
 
