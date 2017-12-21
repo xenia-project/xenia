@@ -15,6 +15,7 @@ addons:
     sources:
       - ubuntu-toolchain-r-test
       - llvm-toolchain-trusty-4.0
+      - debian-sid
     packages:
       - clang-4.0
       - llvm-4.0-dev
