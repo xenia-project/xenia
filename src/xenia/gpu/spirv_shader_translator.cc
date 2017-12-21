@@ -2312,7 +2312,7 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
 
     case AluScalarOpcode::kRcp: {
       // dest = src0 != 0.0 ? 1.0 / src0 : 0.0;
-      auto c = b.createBinOp(spv::Op::OpFOrdEqual, float_type_, sources[0],
+      auto c = b.createBinOp(spv::Op::OpFOrdEqual, bool_type_, sources[0],
                              b.makeFloatConstant(0.f));
       auto d = b.createBinOp(spv::Op::OpFDiv, float_type_,
                              b.makeFloatConstant(1.f), sources[0]);
