@@ -273,8 +273,10 @@ CachedTileView::CachedTileView(ui::vulkan::VulkanDevice* device,
   image_barrier.subresourceRange.baseArrayLayer = 0;
   image_barrier.subresourceRange.layerCount = 1;
   vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                       VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
-                       nullptr, 1, &image_barrier);
+                       key.color_or_depth
+                           ? VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+                           : VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
+                       0, 0, nullptr, 0, nullptr, 1, &image_barrier);
 
   image_layout = image_barrier.newLayout;
 }
