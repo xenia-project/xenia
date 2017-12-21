@@ -724,14 +724,14 @@ class GenSpirvCommand(Command):
             # TODO(benvanik): remap?
 
             # bin2c so we get a header file we can compile in.
-            with open(h_file, 'wb') as out_file:
+            with open(h_file, 'w') as out_file:
                 out_file.write('// generated from `xb genspirv`\n')
                 out_file.write('// source: %s\n' % os.path.basename(src_file))
                 out_file.write('const uint8_t %s[] = {' % (identifier))
                 with open(spv_file, 'rb') as in_file:
                     index = 0
                     c = in_file.read(1)
-                    while c != '':
+                    while len(c) != 0:
                         if index % 12 == 0:
                             out_file.write('\n    ')
                         else:
