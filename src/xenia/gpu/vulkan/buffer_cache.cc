@@ -320,7 +320,7 @@ std::pair<VkBuffer, VkDeviceSize> BufferCache::UploadIndexBuffer(
       source_length,
   };
   vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_HOST_BIT,
-                       VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 1,
+                       VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, 0, 0, nullptr, 1,
                        &barrier, 0, nullptr);
 
   CacheTransientData(source_addr, source_length, offset);
