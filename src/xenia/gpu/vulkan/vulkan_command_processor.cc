@@ -472,17 +472,26 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
                          VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0,
                          nullptr, 0, nullptr, 1, &barrier);
 
+    // Part of the source image that we want to blit from.
     VkRect2D src_rect = {
         {0, 0},
-        {frontbuffer_width, frontbuffer_height},
+        {texture->texture_info.width + 1, texture->texture_info.height + 1},
     };
+    VkRect2D dst_rect = {{0, 0}, {frontbuffer_width, frontbuffer_height}};
+
+    VkViewport viewport = {
+        0.f, 0.f, float(frontbuffer_width), float(frontbuffer_height),
+        0.f, 1.f};
+
+    VkRect2D scissor = {{0, 0}, {frontbuffer_width, frontbuffer_height}};
+
     blitter_->BlitTexture2D(
         copy_commands, current_batch_fence_,
         texture_cache_->DemandView(texture, 0x688)->view, src_rect,
         {texture->texture_info.width + 1, texture->texture_info.height + 1},
-        VK_FORMAT_R8G8B8A8_UNORM, {0, 0},
-        {frontbuffer_width, frontbuffer_height}, fb_framebuffer_,
-        VK_FILTER_LINEAR, true, true);
+        VK_FORMAT_R8G8B8A8_UNORM, dst_rect,
+        {frontbuffer_width, frontbuffer_height}, fb_framebuffer_, viewport,
+        scissor, VK_FILTER_LINEAR, true, true);
 
     std::swap(barrier.oldLayout, barrier.newLayout);
     barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
@@ -923,7 +932,15 @@ bool VulkanCommandProcessor::IssueCopy() {
     uint32_t copy_ref;
     uint32_t copy_mask;
     uint32_t copy_surface_slice;
-  }* copy_regs = (decltype(copy_regs)) & regs[XE_GPU_REG_RB_COPY_CONTROL].u32;
+  }* copy_regs = reinterpret_cast<decltype(copy_regs)>(
+      &regs[XE_GPU_REG_RB_COPY_CONTROL].u32);
+
+  struct {
+    reg::PA_SC_WINDOW_OFFSET window_offset;
+    reg::PA_SC_WINDOW_SCISSOR_TL window_scissor_tl;
+    reg::PA_SC_WINDOW_SCISSOR_BR window_scissor_br;
+  }* window_regs = reinterpret_cast<decltype(window_regs)>(
+      &regs[XE_GPU_REG_PA_SC_WINDOW_OFFSET].u32);
 
   // True if the source tile is a color target
   bool is_color_source = copy_regs->copy_control.copy_src_select <= 3;
@@ -963,6 +980,8 @@ bool VulkanCommandProcessor::IssueCopy() {
   uint32_t dest_logical_width = copy_dest_pitch;
   uint32_t dest_logical_height = copy_dest_height;
 
+  // vtx_window_offset_enable
+  assert_true(regs[XE_GPU_REG_PA_SU_SC_MODE_CNTL].u32 & 0x00010000);
   uint32_t window_offset = regs[XE_GPU_REG_PA_SC_WINDOW_OFFSET].u32;
   int16_t window_offset_x = window_offset & 0x7FFF;
   int16_t window_offset_y = (window_offset >> 16) & 0x7FFF;
@@ -1028,6 +1047,10 @@ bool VulkanCommandProcessor::IssueCopy() {
       (std::min(std::min(dest_points[1], dest_points[3]), dest_points[5])));
   int32_t dest_max_y = int32_t(
       (std::max(std::max(dest_points[1], dest_points[3]), dest_points[5])));
+
+  VkOffset2D resolve_offset = {dest_min_x, dest_min_y};
+  VkExtent2D resolve_extent = {uint32_t(dest_max_x - dest_min_x),
+                               uint32_t(dest_max_y - dest_min_y)};
 
   uint32_t color_edram_base = 0;
   uint32_t depth_edram_base = 0;
@@ -1136,10 +1159,6 @@ bool VulkanCommandProcessor::IssueCopy() {
                        VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, 0, 0, nullptr, 0,
                        nullptr, 1, &image_barrier);
 
-  VkOffset2D resolve_offset = {dest_min_x, dest_min_y};
-  VkExtent2D resolve_extent = {uint32_t(dest_max_x - dest_min_x),
-                               uint32_t(dest_max_y - dest_min_y)};
-
   // Ask the render cache to copy to the resolve texture.
   auto edram_base = is_color_source ? color_edram_base : depth_edram_base;
   uint32_t src_format = is_color_source ? static_cast<uint32_t>(color_format)
@@ -1223,12 +1242,44 @@ bool VulkanCommandProcessor::IssueCopy() {
         CheckResult(res, "vkCreateFramebuffer");
       }
 
+      VkRect2D src_rect = {
+          {0, 0},
+          resolve_extent,
+      };
+
+      VkRect2D dst_rect = {
+          resolve_offset,
+          resolve_extent,
+      };
+
+      VkViewport viewport = {
+          0.f,
+          0.f,  // Ignored because this offset is applied earlier.
+          float(copy_dest_pitch),
+          float(copy_dest_height),
+          0.f,
+          1.f,
+      };
+
+      VkRect2D scissor = {
+          {
+              int32_t(window_regs->window_scissor_tl.tl_x.value()),
+              int32_t(window_regs->window_scissor_tl.tl_y.value()),
+          },
+          {
+              window_regs->window_scissor_br.br_x.value() -
+                  window_regs->window_scissor_tl.tl_x.value(),
+              window_regs->window_scissor_br.br_y.value() -
+                  window_regs->window_scissor_tl.tl_y.value(),
+          },
+      };
+
       blitter_->BlitTexture2D(
           command_buffer, current_batch_fence_,
-          is_color_source ? view->image_view : view->image_view_depth,
-          {{0, 0}, {resolve_extent.width, resolve_extent.height}},
-          view->GetSize(), texture->format, resolve_offset, resolve_extent,
-          texture->framebuffer, filter, is_color_source,
+          is_color_source ? view->image_view : view->image_view_depth, src_rect,
+          view->GetSize(), texture->format, dst_rect,
+          {copy_dest_pitch, copy_dest_height}, texture->framebuffer, viewport,
+          scissor, filter, is_color_source,
           copy_regs->copy_dest_info.copy_dest_swap != 0);
 
       // Pull the tile view back to a color/depth attachment.

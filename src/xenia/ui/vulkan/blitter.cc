@@ -100,15 +100,12 @@ VkResult Blitter::Initialize(VulkanDevice* device) {
   pipeline_layout_info.pSetLayouts = set_layouts;
   VkPushConstantRange push_constant_ranges[2];
 
-  // vec4 src_uv
   push_constant_ranges[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
   push_constant_ranges[0].offset = 0;
-  push_constant_ranges[0].size = sizeof(float) * 4;
-
-  // bool swap_channels
+  push_constant_ranges[0].size = sizeof(VtxPushConstants);
   push_constant_ranges[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-  push_constant_ranges[1].offset = sizeof(float) * 4;
-  push_constant_ranges[1].size = sizeof(int) * 4;
+  push_constant_ranges[1].offset = sizeof(VtxPushConstants);
+  push_constant_ranges[1].size = sizeof(PixPushConstants);
 
   pipeline_layout_info.pushConstantRangeCount =
       static_cast<uint32_t>(xe::countof(push_constant_ranges));
@@ -220,8 +217,9 @@ void Blitter::Scavenge() {
 void Blitter::BlitTexture2D(VkCommandBuffer command_buffer, VkFence fence,
                             VkImageView src_image_view, VkRect2D src_rect,
                             VkExtent2D src_extents, VkFormat dst_image_format,
-                            VkOffset2D dst_offset, VkExtent2D dst_extents,
-                            VkFramebuffer dst_framebuffer, VkFilter filter,
+                            VkRect2D dst_rect, VkExtent2D dst_extents,
+                            VkFramebuffer dst_framebuffer, VkViewport viewport,
+                            VkRect2D scissor, VkFilter filter,
                             bool color_or_depth, bool swap_channels) {
   // Do we need a full draw, or can we cheap out with a blit command?
   bool full_draw = swap_channels || true;
@@ -237,7 +235,7 @@ void Blitter::BlitTexture2D(VkCommandBuffer command_buffer, VkFence fence,
         nullptr,
         render_pass,
         dst_framebuffer,
-        {{dst_offset.x, dst_offset.y}, {dst_extents.width, dst_extents.height}},
+        {{0, 0}, dst_extents},
         0,
         nullptr,
     };
@@ -245,22 +243,7 @@ void Blitter::BlitTexture2D(VkCommandBuffer command_buffer, VkFence fence,
     vkCmdBeginRenderPass(command_buffer, &render_pass_info,
                          VK_SUBPASS_CONTENTS_INLINE);
 
-    VkViewport viewport = {
-        float(dst_offset.x),
-        float(dst_offset.y),
-        float(dst_extents.width),
-        float(dst_extents.height),
-        0.f,
-        1.f,
-    };
     vkCmdSetViewport(command_buffer, 0, 1, &viewport);
-
-    VkRect2D scissor = {
-        dst_offset.x,
-        dst_offset.y,
-        dst_extents.width,
-        dst_extents.height,
-    };
     vkCmdSetScissor(command_buffer, 0, 1, &scissor);
 
     // Acquire a pipeline.
@@ -306,6 +289,12 @@ void Blitter::BlitTexture2D(VkCommandBuffer command_buffer, VkFence fence,
             float(src_rect.offset.y) / src_extents.height,
             float(src_rect.extent.width) / src_extents.width,
             float(src_rect.extent.height) / src_extents.height,
+        },
+        {
+            float(dst_rect.offset.x) / dst_extents.width,
+            float(dst_rect.offset.y) / dst_extents.height,
+            float(dst_rect.extent.width) / dst_extents.width,
+            float(dst_rect.extent.height) / dst_extents.height,
         },
     };
     vkCmdPushConstants(command_buffer, pipeline_layout_,

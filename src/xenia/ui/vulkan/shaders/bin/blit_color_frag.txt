@@ -1,6 +1,6 @@
 ; SPIR-V
 ; Version: 1.0
-; Generator: Khronos Glslang Reference Front End; 1
+; Generator: Khronos Glslang Reference Front End; 2
 ; Bound: 36
 ; Schema: 0
                OpCapability Shader
@@ -21,8 +21,8 @@
                OpDecorate %src_texture DescriptorSet 0
                OpDecorate %src_texture Binding 0
                OpDecorate %vtx_uv Location 0
-               OpMemberDecorate %PushConstants 0 Offset 16
-               OpMemberDecorate %PushConstants 1 Offset 28
+               OpMemberDecorate %PushConstants 0 Offset 32
+               OpMemberDecorate %PushConstants 1 Offset 44
                OpDecorate %PushConstants Block
        %void = OpTypeVoid
           %3 = OpTypeFunction %void
