@@ -21,15 +21,7 @@ void main() {
   );
   
   vec2 vfetch_pos = vtx_arr[gl_VertexIndex];
-  // gl_Position = vec4(vfetch_pos.xy * vec2(2.0, 2.0) -
-  //              vec2(1.0, 1.0), 0.0, 1.0);
   vec2 scaled_pos = vfetch_pos.xy * vec2(2.0, 2.0) - vec2(1.0, 1.0);
-
-  // (-1, -1) * (1, 0.35556) + (0, 0) = (-1, -0.35556)
-  // should be (-1, -1) for ref
-  // dst xy is top left
-  // dst zw is size
-  // dst = (0, 0, 1, 0.35556)
   vec4 scaled_dst_uv = push_constants.dst_uv * vec4(2.0);
   gl_Position =
       vec4(scaled_dst_uv.xy - vec2(1.0) + vfetch_pos.xy * scaled_dst_uv.zw, 0.0,
