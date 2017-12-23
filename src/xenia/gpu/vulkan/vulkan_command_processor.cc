@@ -844,7 +844,10 @@ bool VulkanCommandProcessor::PopulateVertexBuffers(
         break;
     }
 
-    assert_true(fetch->type == 0x3);
+    if (fetch->type != 0x3) {
+      // TODO(DrChat): Some games use type 0x0 (with no data).
+      return false;
+    }
 
     // TODO(benvanik): compute based on indices or vertex count.
     //     THIS CAN BE MASSIVELY INCORRECT (too large).
@@ -1247,14 +1250,18 @@ bool VulkanCommandProcessor::IssueCopy() {
           resolve_extent,
       };
 
+      // By offsetting the destination texture by the window offset, we've
+      // already handled it and need to subtract the window offset from the
+      // destination rectangle.
       VkRect2D dst_rect = {
-          resolve_offset,
+          {resolve_offset.x + window_offset_x,
+           resolve_offset.y + window_offset_y},
           resolve_extent,
       };
 
       VkViewport viewport = {
-          0.f,
-          0.f,  // Ignored because this offset is applied earlier.
+          float(-window_offset_x),
+          float(-window_offset_y),
           float(copy_dest_pitch),
           float(copy_dest_height),
           0.f,
@@ -1287,7 +1294,8 @@ bool VulkanCommandProcessor::IssueCopy() {
                 tile_image_barrier.dstAccessMask);
       std::swap(tile_image_barrier.oldLayout, tile_image_barrier.newLayout);
       vkCmdPipelineBarrier(command_buffer,
-                           VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                           VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
+                               VK_PIPELINE_STAGE_TRANSFER_BIT,
                            VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, 0, 0, nullptr, 0,
                            nullptr, 1, &tile_image_barrier);
     } break;
