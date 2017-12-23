@@ -371,6 +371,14 @@ void SpirvShaderTranslator::StartTranslation() {
     interface_ids_.push_back(frag_depth_);
     // TODO(benvanik): frag depth, etc.
 
+    // TODO(DrChat): Verify this naive, stupid approach to uninitialized values.
+    for (uint32_t i = 0; i < 4; i++) {
+      auto idx = b.makeUintConstant(i);
+      auto oC = b.createAccessChain(spv::StorageClass::StorageClassOutput,
+                                    frag_outputs_, std::vector<Id>({idx}));
+      b.createStore(vec4_float_zero_, oC);
+    }
+
     // Copy interpolators to r[0..16].
     // TODO: Need physical addressing in order to do this.
     // b.createNoResultOp(spv::Op::OpCopyMemorySized,
@@ -905,9 +913,11 @@ void SpirvShaderTranslator::ProcessLoopStartInstruction(
 
   // loop_count_ = uvec4(loop_count_value, loop_count_.xyz);
   auto loop_count = b.createLoad(loop_count_);
-  loop_count = b.createRvalueSwizzle(spv::NoPrecision, vec4_uint_type_, loop_count,
-                                std::vector<uint32_t>({0, 0, 1, 2}));
-  loop_count = b.createCompositeInsert(loop_count_value, loop_count, vec4_uint_type_, 0);
+  loop_count =
+      b.createRvalueSwizzle(spv::NoPrecision, vec4_uint_type_, loop_count,
+                            std::vector<uint32_t>({0, 0, 1, 2}));
+  loop_count =
+      b.createCompositeInsert(loop_count_value, loop_count, vec4_uint_type_, 0);
   b.createStore(loop_count, loop_count_);
 
   // aL = aL.xxyz;
