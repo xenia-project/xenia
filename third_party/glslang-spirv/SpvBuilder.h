@@ -267,13 +267,13 @@ public:
 
     // Take an rvalue (source) and a set of channels to extract from it to
     // make a new rvalue, which is returned.
-    Id createRvalueSwizzle(Decoration precision, Id typeId, Id source, std::vector<unsigned>& channels);
+    Id createRvalueSwizzle(Decoration precision, Id typeId, Id source, const std::vector<unsigned>& channels);
 
     // Take a copy of an lvalue (target) and a source of components, and set the
     // source components into the lvalue where the 'channels' say to put them.
     // An updated version of the target is returned.
     // (No true lvalue or stores are used.)
-    Id createLvalueSwizzle(Id typeId, Id target, Id source, std::vector<unsigned>& channels);
+    Id createLvalueSwizzle(Id typeId, Id target, Id source, const std::vector<unsigned>& channels);
 
     // If both the id and precision are valid, the id
     // gets tagged with the requested precision.
