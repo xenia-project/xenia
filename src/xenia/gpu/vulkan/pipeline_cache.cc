@@ -791,6 +791,22 @@ bool PipelineCache::SetShadowRegister(float* dest, uint32_t register_name) {
   return true;
 }
 
+bool PipelineCache::SetShadowRegisterArray(uint32_t* dest, uint32_t num,
+                                           uint32_t register_name) {
+  bool dirty = false;
+  for (uint32_t i = 0; i < num; i++) {
+    uint32_t value = register_file_->values[register_name + i].u32;
+    if (dest[i] == value) {
+      continue;
+    }
+
+    dest[i] = value;
+    dirty |= true;
+  }
+
+  return dirty;
+}
+
 PipelineCache::UpdateStatus PipelineCache::UpdateState(
     VulkanShader* vertex_shader, VulkanShader* pixel_shader,
     PrimitiveType primitive_type) {
@@ -810,6 +826,8 @@ PipelineCache::UpdateStatus PipelineCache::UpdateState(
   }
 
   UpdateStatus status;
+  status = UpdateRenderTargetState();
+  CHECK_UPDATE_STATUS(status, mismatch, "Unable to update render target state");
   status = UpdateShaderStages(vertex_shader, pixel_shader, primitive_type);
   CHECK_UPDATE_STATUS(status, mismatch, "Unable to update shader stages");
   status = UpdateVertexInputState(vertex_shader);
@@ -829,6 +847,45 @@ PipelineCache::UpdateStatus PipelineCache::UpdateState(
   CHECK_UPDATE_STATUS(status, mismatch, "Unable to update color blend state");
 
   return mismatch ? UpdateStatus::kMismatch : UpdateStatus::kCompatible;
+}
+
+PipelineCache::UpdateStatus PipelineCache::UpdateRenderTargetState() {
+  auto& regs = update_render_targets_regs_;
+  bool dirty = false;
+
+  // Check the render target formats
+  struct {
+    reg::RB_COLOR_INFO rb_color_info;
+    reg::RB_DEPTH_INFO rb_depth_info;
+    reg::RB_COLOR_INFO rb_color1_info;
+    reg::RB_COLOR_INFO rb_color2_info;
+    reg::RB_COLOR_INFO rb_color3_info;
+  }* cur_regs = reinterpret_cast<decltype(cur_regs)>(
+      &register_file_->values[XE_GPU_REG_RB_COLOR_INFO].u32);
+
+  dirty |=
+      regs.rb_color_info.color_format != cur_regs->rb_color_info.color_format;
+  dirty |=
+      regs.rb_depth_info.depth_format != cur_regs->rb_depth_info.depth_format;
+  dirty |=
+      regs.rb_color1_info.color_format != cur_regs->rb_color1_info.color_format;
+  dirty |=
+      regs.rb_color2_info.color_format != cur_regs->rb_color2_info.color_format;
+  dirty |=
+      regs.rb_color3_info.color_format != cur_regs->rb_color3_info.color_format;
+
+  // And copy the regs over.
+  regs.rb_color_info.color_format = cur_regs->rb_color_info.color_format;
+  regs.rb_depth_info.depth_format = cur_regs->rb_depth_info.depth_format;
+  regs.rb_color1_info.color_format = cur_regs->rb_color1_info.color_format;
+  regs.rb_color2_info.color_format = cur_regs->rb_color2_info.color_format;
+  regs.rb_color3_info.color_format = cur_regs->rb_color3_info.color_format;
+  XXH64_update(&hash_state_, &regs, sizeof(regs));
+  if (!dirty) {
+    return UpdateStatus::kCompatible;
+  }
+
+  return UpdateStatus::kMismatch;
 }
 
 PipelineCache::UpdateStatus PipelineCache::UpdateShaderStages(
