@@ -1222,7 +1222,7 @@ Id Builder::createFunctionCall(spv::Function* function, const std::vector<spv::I
 }
 
 // Comments in header
-Id Builder::createRvalueSwizzle(Decoration precision, Id typeId, Id source, std::vector<unsigned>& channels)
+Id Builder::createRvalueSwizzle(Decoration precision, Id typeId, Id source, const std::vector<unsigned>& channels)
 {
     if (channels.size() == 1)
         return setPrecision(createCompositeExtract(source, typeId, channels.front()), precision);
@@ -1239,7 +1239,7 @@ Id Builder::createRvalueSwizzle(Decoration precision, Id typeId, Id source, std:
 }
 
 // Comments in header
-Id Builder::createLvalueSwizzle(Id typeId, Id target, Id source, std::vector<unsigned>& channels)
+Id Builder::createLvalueSwizzle(Id typeId, Id target, Id source, const std::vector<unsigned>& channels)
 {
     assert(getNumComponents(source) == (int)channels.size());
     if (channels.size() == 1 && getNumComponents(source) == 1)
