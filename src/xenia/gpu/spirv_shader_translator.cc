@@ -905,11 +905,9 @@ void SpirvShaderTranslator::ProcessLoopStartInstruction(
 
   // loop_count_ = uvec4(loop_count_value, loop_count_.xyz);
   auto loop_count = b.createLoad(loop_count_);
-  loop_count =
-      b.createRvalueSwizzle(spv::NoPrecision, vec4_uint_type_, loop_count,
-                            std::vector<uint32_t>({0, 0, 1, 2}));
-  loop_count =
-      b.createCompositeInsert(loop_count_value, loop_count, vec4_uint_type_, 0);
+  loop_count = b.createRvalueSwizzle(spv::NoPrecision, vec4_uint_type_, loop_count,
+                                std::vector<uint32_t>({0, 0, 1, 2}));
+  loop_count = b.createCompositeInsert(loop_count_value, loop_count, vec4_uint_type_, 0);
   b.createStore(loop_count, loop_count_);
 
   // aL = aL.xxyz;
@@ -1461,9 +1459,14 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
 
       if (instr.dimension == TextureDimension::k1D) {
         if (instr.attributes.offset_x) {
-          auto offset = b.makeFloatConstant(instr.attributes.offset_x + 0.5f);
-          offset = b.createBinOp(spv::Op::OpFDiv, float_type_, offset, size);
-          src = b.createBinOp(spv::Op::OpFAdd, float_type_, src, offset);
+          auto offset = b.makeCompositeConstant(
+              vec2_float_type_,
+              std::vector<Id>(
+                  {b.makeFloatConstant(instr.attributes.offset_x + 0.5f),
+                   b.makeFloatConstant(0.f)}));
+          offset =
+              b.createBinOp(spv::Op::OpFDiv, vec2_float_type_, offset, size);
+          src = b.createBinOp(spv::Op::OpFAdd, vec2_float_type_, src, offset);
         }
         // https://msdn.microsoft.com/en-us/library/windows/desktop/bb944006.aspx
         // "Because the runtime does not support 1D textures, the compiler will
