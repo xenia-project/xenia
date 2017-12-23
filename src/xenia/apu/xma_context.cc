@@ -300,8 +300,6 @@ void XmaContext::DecodePackets(XMA_CONTEXT_DATA* data) {
     return;
   }
 
-  assert_zero(data->unk_dword_9);
-
   // XAudio Loops
   // loop_count:
   //  - XAUDIO2_MAX_LOOP_COUNT = 254
