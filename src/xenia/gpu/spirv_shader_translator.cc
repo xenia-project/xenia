@@ -1465,19 +1465,29 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
         params.sampler = image;
         params.lod = b.makeIntConstant(0);
         size = b.createTextureQueryCall(spv::Op::OpImageQuerySizeLod, params);
+
+        if (instr.dimension == TextureDimension::k1D) {
+          size = b.createUnaryOp(spv::Op::OpConvertSToF, float_type_, size);
+        } else if (instr.dimension == TextureDimension::k2D) {
+          size =
+              b.createUnaryOp(spv::Op::OpConvertSToF, vec2_float_type_, size);
+        } else if (instr.dimension == TextureDimension::k3D) {
+          size =
+              b.createUnaryOp(spv::Op::OpConvertSToF, vec3_float_type_, size);
+        } else if (instr.dimension == TextureDimension::kCube) {
+          size =
+              b.createUnaryOp(spv::Op::OpConvertSToF, vec4_float_type_, size);
+        }
       }
 
       if (instr.dimension == TextureDimension::k1D) {
+        src = b.createCompositeExtract(src, float_type_, 0);
         if (instr.attributes.offset_x) {
-          auto offset = b.makeCompositeConstant(
-              vec2_float_type_,
-              std::vector<Id>(
-                  {b.makeFloatConstant(instr.attributes.offset_x + 0.5f),
-                   b.makeFloatConstant(0.f)}));
-          offset =
-              b.createBinOp(spv::Op::OpFDiv, vec2_float_type_, offset, size);
-          src = b.createBinOp(spv::Op::OpFAdd, vec2_float_type_, src, offset);
+          auto offset = b.makeFloatConstant(instr.attributes.offset_x + 0.5f);
+          offset = b.createBinOp(spv::Op::OpFDiv, float_type_, offset, size);
+          src = b.createBinOp(spv::Op::OpFAdd, float_type_, src, offset);
         }
+
         // https://msdn.microsoft.com/en-us/library/windows/desktop/bb944006.aspx
         // "Because the runtime does not support 1D textures, the compiler will
         //  use a 2D texture with the knowledge that the y-coordinate is
@@ -1486,6 +1496,8 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
             vec2_float_type_,
             std::vector<Id>({src, b.makeFloatConstant(0.0f)}));
       } else if (instr.dimension == TextureDimension::k2D) {
+        src = b.createRvalueSwizzle(spv::NoPrecision, vec2_float_type_, src,
+                                    std::vector<uint32_t>({0, 1}));
         if (instr.attributes.offset_x || instr.attributes.offset_y) {
           auto offset = b.makeCompositeConstant(
               vec2_float_type_,
