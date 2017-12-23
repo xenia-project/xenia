@@ -145,7 +145,9 @@ class SpirvShaderTranslator : public ShaderTranslator {
   // Array of AMD registers.
   // These values are all pointers.
   spv::Id registers_ptr_ = 0, registers_type_ = 0;
-  spv::Id consts_ = 0, a0_ = 0, aL_ = 0, p0_ = 0;
+  spv::Id consts_ = 0, a0_ = 0, p0_ = 0;
+  spv::Id aL_ = 0;           // Loop index stack - .x is active loop
+  spv::Id loop_count_ = 0;   // Loop counter stack
   spv::Id ps_ = 0, pv_ = 0;  // IDs of previous results
   spv::Id pc_ = 0;           // Program counter
   spv::Id pos_ = 0;
