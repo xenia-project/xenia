@@ -330,8 +330,6 @@ TextureCache::TextureRegion* TextureCache::AllocateTextureRegion(
   region->allocation_info = vma_info;
 
   region->region_contents_valid = false;
-
-  texture->regions.push_back(std::unique_ptr<TextureRegion>(region));
   return region;
 }
 
@@ -421,6 +419,11 @@ TextureCache::Texture* TextureCache::DemandResolveTexture(
         // This texture has been invalidated!
         RemoveInvalidatedTextures();
         break;
+      }
+
+      for (auto& region : it->second->regions) {
+        // Invalidate region contents
+        region->region_contents_valid = false;
       }
 
       // Tell the trace writer to "cache" this memory (but not read it)
@@ -576,6 +579,7 @@ TextureCache::TextureRegion* TextureCache::DemandRegion(
       region->region_contents_valid = true;
     }
 
+    containing_tex->regions.push_back(std::unique_ptr<TextureRegion>(region));
     return region;
   }
 
@@ -598,7 +602,7 @@ TextureCache::TextureRegion* TextureCache::DemandRegion(
       texture_info.guest_address, texture_info.input_length,
       cpu::MMIOHandler::kWatchWrite, &WatchCallback, this, texture);
 
-  if (!UploadTexture(command_buffer, completion_fence, texture, texture_info)) {
+  if (!UploadTexture(setup_buffer, completion_fence, texture, texture_info)) {
     FreeTexture(texture);
     return nullptr;
   }
@@ -941,16 +945,16 @@ void TextureSwap(Endian endianness, void* dest, const void* src,
   }
 }
 
-void TextureCache::FlushPendingCommands(VkCommandBuffer command_buffer,
+void TextureCache::FlushPendingCommands(VkCommandBuffer setup_buffer,
                                         VkFence completion_fence) {
-  auto status = vkEndCommandBuffer(command_buffer);
+  auto status = vkEndCommandBuffer(setup_buffer);
   CheckResult(status, "vkEndCommandBuffer");
 
   VkSubmitInfo submit_info;
   std::memset(&submit_info, 0, sizeof(submit_info));
   submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
   submit_info.commandBufferCount = 1;
-  submit_info.pCommandBuffers = &command_buffer;
+  submit_info.pCommandBuffers = &setup_buffer;
 
   if (device_queue_) {
     auto status =
@@ -969,12 +973,12 @@ void TextureCache::FlushPendingCommands(VkCommandBuffer command_buffer,
   vkResetFences(*device_, 1, &completion_fence);
 
   // Reset the command buffer and put it back into the recording state.
-  vkResetCommandBuffer(command_buffer, 0);
+  vkResetCommandBuffer(setup_buffer, 0);
   VkCommandBufferBeginInfo begin_info;
   std::memset(&begin_info, 0, sizeof(begin_info));
   begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
   begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-  vkBeginCommandBuffer(command_buffer, &begin_info);
+  vkBeginCommandBuffer(setup_buffer, &begin_info);
 }
 
 void TextureCache::ConvertTexelCTX1(uint8_t* dest, size_t dest_pitch,
@@ -1293,7 +1297,7 @@ void TextureCache::WritebackTexture(Texture* texture) {
   wb_staging_buffer_.Scavenge();
 }
 
-bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
+bool TextureCache::UploadTexture(VkCommandBuffer setup_buffer,
                                  VkFence completion_fence, Texture* dest,
                                  const TextureInfo& src) {
 #if FINE_GRAINED_DRAW_SCOPES
@@ -1310,7 +1314,7 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
     // Need to have unique memory for every upload for at least one frame. If we
     // run out of memory, we need to flush all queued upload commands to the
     // GPU.
-    FlushPendingCommands(command_buffer, completion_fence);
+    FlushPendingCommands(setup_buffer, completion_fence);
 
     // Uploads have been flushed. Continue.
     if (!staging_buffer_.CanAcquire(unpack_length)) {
@@ -1384,7 +1388,7 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
         VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
   }
 
-  vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+  vkCmdPipelineBarrier(setup_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                        VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0,
                        nullptr, 1, &barrier);
 
@@ -1397,7 +1401,7 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
     // Do just a depth upload (for now).
     copy_region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
   }
-  vkCmdCopyBufferToImage(command_buffer, staging_buffer_.gpu_buffer(),
+  vkCmdCopyBufferToImage(setup_buffer, staging_buffer_.gpu_buffer(),
                          dest->base_region->image,
                          VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy_region);
 
@@ -1406,7 +1410,7 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
   barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
   barrier.oldLayout = barrier.newLayout;
   barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-  vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
+  vkCmdPipelineBarrier(setup_buffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
                        VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
                            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
                        0, 0, nullptr, 0, nullptr, 1, &barrier);

@@ -171,7 +171,7 @@ class TextureCache {
                               VkFence completion_fence = nullptr);
   Sampler* Demand(const SamplerInfo& sampler_info);
 
-  void FlushPendingCommands(VkCommandBuffer command_buffer,
+  void FlushPendingCommands(VkCommandBuffer setup_buffer,
                             VkFence completion_fence);
 
   static void ConvertTexelCTX1(uint8_t* dest, size_t dest_pitch,
@@ -192,7 +192,7 @@ class TextureCache {
   // Queues commands to upload a texture from system memory, applying any
   // conversions necessary. This may flush the command buffer to the GPU if we
   // run out of staging memory.
-  bool UploadTexture(VkCommandBuffer command_buffer, VkFence completion_fence,
+  bool UploadTexture(VkCommandBuffer setup_buffer, VkFence completion_fence,
                      Texture* dest, const TextureInfo& src);
 
   void HashTextureBindings(XXH64_state_t* hash_state, uint32_t& fetch_mask,
