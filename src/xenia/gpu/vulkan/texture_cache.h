@@ -109,8 +109,12 @@ class TextureCache {
   // bindings. The textures will be uploaded/converted/etc as needed.
   // Requires a fence to be provided that will be signaled when finished
   // using the returned descriptor set.
+  // The setup buffer may be flushed to the device if we run out of space.
+  // The command buffer may be transitioned out of a render pass if an
+  // upload is performed to fill a dirty texture region.
   VkDescriptorSet PrepareTextureSet(
-      VkCommandBuffer setup_command_buffer, VkFence completion_fence,
+      VkCommandBuffer command_buffer, VkCommandBuffer setup_buffer,
+      VkFence completion_fence,
       const std::vector<Shader::TextureBinding>& vertex_bindings,
       const std::vector<Shader::TextureBinding>& pixel_bindings);
 
@@ -162,7 +166,8 @@ class TextureCache {
   // Demands a texture. If command_buffer is null and the texture hasn't been
   // uploaded to graphics memory already, we will return null and bail.
   TextureRegion* DemandRegion(const TextureInfo& texture_info,
-                              VkCommandBuffer command_buffer = nullptr,
+                              VkCommandBuffer command_buffer,
+                              VkCommandBuffer setup_buffer,
                               VkFence completion_fence = nullptr);
   Sampler* Demand(const SamplerInfo& sampler_info);
 
@@ -193,10 +198,11 @@ class TextureCache {
   void HashTextureBindings(XXH64_state_t* hash_state, uint32_t& fetch_mask,
                            const std::vector<Shader::TextureBinding>& bindings);
   bool SetupTextureBindings(
-      VkCommandBuffer command_buffer, VkFence completion_fence,
-      UpdateSetInfo* update_set_info,
+      VkCommandBuffer command_buffer, VkCommandBuffer setup_buffer,
+      VkFence completion_fence, UpdateSetInfo* update_set_info,
       const std::vector<Shader::TextureBinding>& bindings);
   bool SetupTextureBinding(VkCommandBuffer command_buffer,
+                           VkCommandBuffer setup_buffer,
                            VkFence completion_fence,
                            UpdateSetInfo* update_set_info,
                            const Shader::TextureBinding& binding);

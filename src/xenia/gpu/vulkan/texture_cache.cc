@@ -473,7 +473,7 @@ TextureCache::Texture* TextureCache::DemandResolveTexture(
 
 TextureCache::TextureRegion* TextureCache::DemandRegion(
     const TextureInfo& texture_info, VkCommandBuffer command_buffer,
-    VkFence completion_fence) {
+    VkCommandBuffer setup_buffer, VkFence completion_fence) {
   // Run a tight loop to scan for an exact match existing texture.
   auto texture_hash = texture_info.hash();
   for (auto it = textures_.find(texture_hash); it != textures_.end(); ++it) {
@@ -489,12 +489,6 @@ TextureCache::TextureRegion* TextureCache::DemandRegion(
 
       return it->second->base_region;
     }
-  }
-
-  if (!command_buffer) {
-    // Texture not found and no command buffer was passed, preventing us from
-    // uploading a new one.
-    return nullptr;
   }
 
   // If we didn't find an exact match, see if we can find a subregion of an
@@ -530,7 +524,7 @@ TextureCache::TextureRegion* TextureCache::DemandRegion(
           VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT);
     }
 
-    if (!region->region_contents_valid) {
+    if (command_buffer && !region->region_contents_valid) {
       // Region content is out-of-date, recreate it by blitting from the base
       // region.
 
@@ -1448,7 +1442,8 @@ void TextureCache::HashTextureBindings(
 }
 
 VkDescriptorSet TextureCache::PrepareTextureSet(
-    VkCommandBuffer command_buffer, VkFence completion_fence,
+    VkCommandBuffer command_buffer, VkCommandBuffer setup_buffer,
+    VkFence completion_fence,
     const std::vector<Shader::TextureBinding>& vertex_bindings,
     const std::vector<Shader::TextureBinding>& pixel_bindings) {
   XXH64_state_t hash_state;
@@ -1475,12 +1470,14 @@ VkDescriptorSet TextureCache::PrepareTextureSet(
   // This does things lazily and de-dupes fetch constants reused in both
   // shaders.
   bool any_failed = false;
-  any_failed = !SetupTextureBindings(command_buffer, completion_fence,
-                                     update_set_info, vertex_bindings) ||
-               any_failed;
-  any_failed = !SetupTextureBindings(command_buffer, completion_fence,
-                                     update_set_info, pixel_bindings) ||
-               any_failed;
+  any_failed =
+      !SetupTextureBindings(command_buffer, setup_buffer, completion_fence,
+                            update_set_info, vertex_bindings) ||
+      any_failed;
+  any_failed =
+      !SetupTextureBindings(command_buffer, setup_buffer, completion_fence,
+                            update_set_info, pixel_bindings) ||
+      any_failed;
   if (any_failed) {
     XELOGW("Failed to setup one or more texture bindings");
     // TODO(benvanik): actually bail out here?
@@ -1512,17 +1509,18 @@ VkDescriptorSet TextureCache::PrepareTextureSet(
 }
 
 bool TextureCache::SetupTextureBindings(
-    VkCommandBuffer command_buffer, VkFence completion_fence,
-    UpdateSetInfo* update_set_info,
+    VkCommandBuffer command_buffer, VkCommandBuffer setup_buffer,
+    VkFence completion_fence, UpdateSetInfo* update_set_info,
     const std::vector<Shader::TextureBinding>& bindings) {
   bool any_failed = false;
   for (auto& binding : bindings) {
     uint32_t fetch_bit = 1 << binding.fetch_constant;
     if ((update_set_info->has_setup_fetch_mask & fetch_bit) == 0) {
       // Needs setup.
-      any_failed = !SetupTextureBinding(command_buffer, completion_fence,
-                                        update_set_info, binding) ||
-                   any_failed;
+      any_failed =
+          !SetupTextureBinding(command_buffer, setup_buffer, completion_fence,
+                               update_set_info, binding) ||
+          any_failed;
       update_set_info->has_setup_fetch_mask |= fetch_bit;
     }
   }
@@ -1530,6 +1528,7 @@ bool TextureCache::SetupTextureBindings(
 }
 
 bool TextureCache::SetupTextureBinding(VkCommandBuffer command_buffer,
+                                       VkCommandBuffer setup_buffer,
                                        VkFence completion_fence,
                                        UpdateSetInfo* update_set_info,
                                        const Shader::TextureBinding& binding) {
@@ -1563,8 +1562,8 @@ bool TextureCache::SetupTextureBinding(VkCommandBuffer command_buffer,
   // Search via the base format.
   texture_info.texture_format = GetBaseFormat(texture_info.texture_format);
 
-  auto texture_region =
-      DemandRegion(texture_info, command_buffer, completion_fence);
+  auto texture_region = DemandRegion(texture_info, command_buffer, setup_buffer,
+                                     completion_fence);
   auto sampler = Demand(sampler_info);
   if (texture_region == nullptr || sampler == nullptr) {
     return false;

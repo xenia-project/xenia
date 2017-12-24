@@ -827,7 +827,8 @@ bool VulkanCommandProcessor::PopulateSamplers(VkCommandBuffer command_buffer,
 
   std::vector<xe::gpu::Shader::TextureBinding> dummy_bindings;
   auto descriptor_set = texture_cache_->PrepareTextureSet(
-      command_buffer, current_batch_fence_, vertex_shader->texture_bindings(),
+      command_buffer, setup_buffer, current_batch_fence_,
+      vertex_shader->texture_bindings(),
       pixel_shader ? pixel_shader->texture_bindings() : dummy_bindings);
   if (!descriptor_set) {
     // Unable to bind set.
