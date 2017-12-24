@@ -716,20 +716,20 @@ void SpirvShaderTranslator::PreProcessControlFlowInstructions(
     } else if (instr.opcode() == ucode::ControlFlowOpcode::kLoopStart) {
       uint32_t address = instr.loop_start.address();
 
-      // Label the loop skip address.
-      if (!cf_blocks_[address].labelled) {
-        cf_blocks_[address].labelled = true;
-        operands.push_back(address);
-        operands.push_back(cf_blocks_[address].block->getId());
-        cf_blocks_[address].block->addPredecessor(loop_body_block_);
-      }
-
       // Label the body
       if (!cf_blocks_[i + 1].labelled) {
         cf_blocks_[i + 1].labelled = true;
         operands.push_back(uint32_t(i + 1));
         operands.push_back(cf_blocks_[i + 1].block->getId());
         cf_blocks_[i + 1].block->addPredecessor(loop_body_block_);
+      }
+
+      // Label the loop skip address.
+      if (!cf_blocks_[address].labelled) {
+        cf_blocks_[address].labelled = true;
+        operands.push_back(address);
+        operands.push_back(cf_blocks_[address].block->getId());
+        cf_blocks_[address].block->addPredecessor(loop_body_block_);
       }
     } else if (instr.opcode() == ucode::ControlFlowOpcode::kLoopEnd) {
       uint32_t address = instr.loop_end.address();
@@ -1231,11 +1231,6 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
       GetVertexFormatComponentCount(instr.attributes.data_format);
 
   // Skip loading if it's an indexed fetch.
-  auto vertex_ptr = vertex_binding_map_[instr.operands[1].storage_index]
-                                       [instr.attributes.offset];
-  assert_not_zero(vertex_ptr);
-  auto vertex = b.createLoad(vertex_ptr);
-
   auto cond = b.createBinOp(spv::Op::OpIEqual, bool_type_, vertex_idx,
                             shader_vertex_idx);
   Id alt_vertex = 0;
@@ -1268,6 +1263,7 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
       assert_unhandled_case(vertex_components);
   }
 
+  spv::Id vertex = 0;
   switch (instr.attributes.data_format) {
     case VertexFormat::k_8_8_8_8:
     case VertexFormat::k_2_10_10_10:
@@ -1283,11 +1279,16 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
     case VertexFormat::k_32_32_32_FLOAT:
     case VertexFormat::k_32_32_32_32_FLOAT:
       // These are handled, for now.
+      auto vertex_ptr = vertex_binding_map_[instr.operands[1].storage_index]
+                                           [instr.attributes.offset];
+      assert_not_zero(vertex_ptr);
+      vertex = b.createLoad(vertex_ptr);
       break;
 
     case VertexFormat::k_10_11_11: {
       // This needs to be converted.
       bool is_signed = instr.attributes.is_signed;
+      bool is_integer = instr.attributes.is_integer;
       auto op =
           is_signed ? spv::Op::OpBitFieldSExtract : spv::Op::OpBitFieldUExtract;
       auto comp_type = is_signed ? int_type_ : uint_type_;
@@ -1315,9 +1316,14 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
         components[i] = b.createUnaryOp(op, float_type_, components[i]);
       }
 
-      components[0] = ConvertNormVar(components[0], float_type_, 11, is_signed);
-      components[1] = ConvertNormVar(components[1], float_type_, 11, is_signed);
-      components[2] = ConvertNormVar(components[2], float_type_, 10, is_signed);
+      if (!is_integer) {
+        components[0] =
+            ConvertNormVar(components[0], float_type_, 11, is_signed);
+        components[1] =
+            ConvertNormVar(components[1], float_type_, 11, is_signed);
+        components[2] =
+            ConvertNormVar(components[2], float_type_, 10, is_signed);
+      }
 
       vertex = b.createCompositeConstruct(
           vec3_float_type_,
@@ -1327,6 +1333,7 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
     case VertexFormat::k_11_11_10: {
       // This needs to be converted.
       bool is_signed = instr.attributes.is_signed;
+      bool is_integer = instr.attributes.is_integer;
       auto op =
           is_signed ? spv::Op::OpBitFieldSExtract : spv::Op::OpBitFieldUExtract;
       auto comp_type = is_signed ? int_type_ : uint_type_;
@@ -1352,9 +1359,14 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
         components[i] = b.createUnaryOp(op, float_type_, components[i]);
       }
 
-      components[0] = ConvertNormVar(components[0], float_type_, 11, is_signed);
-      components[1] = ConvertNormVar(components[1], float_type_, 11, is_signed);
-      components[2] = ConvertNormVar(components[2], float_type_, 10, is_signed);
+      if (!is_integer) {
+        components[0] =
+            ConvertNormVar(components[0], float_type_, 11, is_signed);
+        components[1] =
+            ConvertNormVar(components[1], float_type_, 11, is_signed);
+        components[2] =
+            ConvertNormVar(components[2], float_type_, 10, is_signed);
+      }
 
       vertex = b.createCompositeConstruct(
           vec3_float_type_,
