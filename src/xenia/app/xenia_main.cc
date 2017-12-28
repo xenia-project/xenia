@@ -210,7 +210,7 @@ int xenia_main(const std::vector<std::wstring>& args) {
     std::wstring abs_path = xe::to_absolute_path(path);
     result = emulator->LaunchPath(abs_path);
     if (XFAILED(result)) {
-      XELOGE("Failed to launch target: %.8X", result);
+      xe::FatalError("Failed to launch target: %.8X", result);
       emulator.reset();
       emulator_window.reset();
       return 1;
