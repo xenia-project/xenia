@@ -62,7 +62,7 @@ VkFormat ColorRenderTargetFormatToVkFormat(ColorRenderTargetFormat format) {
 VkFormat DepthRenderTargetFormatToVkFormat(DepthRenderTargetFormat format) {
   switch (format) {
     case DepthRenderTargetFormat::kD24S8:
-      return VK_FORMAT_D24_UNORM_S8_UINT;
+      return VK_FORMAT_D32_SFLOAT_S8_UINT;
     case DepthRenderTargetFormat::kD24FS8:
       // Vulkan doesn't support 24-bit floats, so just promote it to 32-bit
       return VK_FORMAT_D32_SFLOAT_S8_UINT;
