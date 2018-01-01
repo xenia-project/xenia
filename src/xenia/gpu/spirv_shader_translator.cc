@@ -1263,7 +1263,10 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
       assert_unhandled_case(vertex_components);
   }
 
-  spv::Id vertex = 0;
+  auto vertex_ptr = vertex_binding_map_[instr.operands[1].storage_index]
+                                       [instr.attributes.offset];
+  assert_not_zero(vertex_ptr);
+  spv::Id vertex = b.createLoad(vertex_ptr);
   switch (instr.attributes.data_format) {
     case VertexFormat::k_8_8_8_8:
     case VertexFormat::k_2_10_10_10:
@@ -1277,13 +1280,9 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
     case VertexFormat::k_32_FLOAT:
     case VertexFormat::k_32_32_FLOAT:
     case VertexFormat::k_32_32_32_FLOAT:
-    case VertexFormat::k_32_32_32_32_FLOAT:
+    case VertexFormat::k_32_32_32_32_FLOAT: {
       // These are handled, for now.
-      auto vertex_ptr = vertex_binding_map_[instr.operands[1].storage_index]
-                                           [instr.attributes.offset];
-      assert_not_zero(vertex_ptr);
-      vertex = b.createLoad(vertex_ptr);
-      break;
+    } break;
 
     case VertexFormat::k_10_11_11: {
       // This needs to be converted.
