@@ -70,32 +70,30 @@ VkResult BufferCache::Initialize() {
   // Create the descriptor set layout used for our uniform buffer.
   // As it is a static binding that uses dynamic offsets during draws we can
   // create this once and reuse it forever.
-  VkDescriptorSetLayoutBinding vertex_uniform_binding;
-  vertex_uniform_binding.binding = 0;
-  vertex_uniform_binding.descriptorType =
-      VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-  vertex_uniform_binding.descriptorCount = 1;
-  vertex_uniform_binding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-  vertex_uniform_binding.pImmutableSamplers = nullptr;
-  VkDescriptorSetLayoutBinding fragment_uniform_binding;
-  fragment_uniform_binding.binding = 1;
-  fragment_uniform_binding.descriptorType =
-      VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-  fragment_uniform_binding.descriptorCount = 1;
-  fragment_uniform_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-  fragment_uniform_binding.pImmutableSamplers = nullptr;
-  VkDescriptorSetLayoutCreateInfo descriptor_set_layout_info;
+  VkDescriptorSetLayoutBinding bindings[2] = {};
+
+  // Vertex constants
+  bindings[0].binding = 0;
+  bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+  bindings[0].descriptorCount = 1;
+  bindings[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+  bindings[0].pImmutableSamplers = nullptr;
+
+  // Fragment constants
+  bindings[1].binding = 1;
+  bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+  bindings[1].descriptorCount = 1;
+  bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+  bindings[1].pImmutableSamplers = nullptr;
+
+  VkDescriptorSetLayoutCreateInfo descriptor_set_layout_info = {};
   descriptor_set_layout_info.sType =
       VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
   descriptor_set_layout_info.pNext = nullptr;
   descriptor_set_layout_info.flags = 0;
-  VkDescriptorSetLayoutBinding uniform_bindings[] = {
-      vertex_uniform_binding,
-      fragment_uniform_binding,
-  };
   descriptor_set_layout_info.bindingCount =
-      static_cast<uint32_t>(xe::countof(uniform_bindings));
-  descriptor_set_layout_info.pBindings = uniform_bindings;
+      static_cast<uint32_t>(xe::countof(bindings));
+  descriptor_set_layout_info.pBindings = bindings;
   status = vkCreateDescriptorSetLayout(*device_, &descriptor_set_layout_info,
                                        nullptr, &descriptor_set_layout_);
   if (status != VK_SUCCESS) {
