@@ -225,6 +225,11 @@ bool XmaContext::ValidFrameOffset(uint8_t* block, size_t size_bytes,
                                   size_t frame_offset_bits) {
   uint32_t packet_num =
       GetFramePacketNumber(block, size_bytes, frame_offset_bits);
+  if (packet_num == -1) {
+    // Invalid packet number
+    return false;
+  }
+
   uint8_t* packet = block + (packet_num * kBytesPerPacket);
   size_t relative_offset_bits = frame_offset_bits % (kBytesPerPacket * 8);
 
