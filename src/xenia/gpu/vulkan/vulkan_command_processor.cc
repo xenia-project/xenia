@@ -827,6 +827,12 @@ bool VulkanCommandProcessor::PopulateVertexBuffers(
   VkDeviceSize all_buffer_offsets[32];
   uint32_t buffer_index = 0;
 
+  if (vertex_bindings.size() >= xe::countof(all_buffers)) {
+    XELOGE("PopulateVertexBuffers failed: Too many bindings! (%zd >= %zd)",
+           vertex_bindings.size(), xe::countof(all_buffers));
+    return false;
+  }
+
   for (const auto& vertex_binding : vertex_bindings) {
     int r = XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 +
             (vertex_binding.fetch_constant / 3) * 6;

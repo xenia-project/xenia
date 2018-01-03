@@ -1002,6 +1002,16 @@ PipelineCache::UpdateStatus PipelineCache::UpdateVertexInputState(
   auto& vertex_attrib_descrs = update_vertex_input_state_attrib_descrs_;
   uint32_t vertex_binding_count = 0;
   uint32_t vertex_attrib_count = 0;
+
+  // Check and make sure we don't overflow.
+  if (vertex_shader->vertex_bindings().size() >=
+      xe::countof(vertex_binding_descrs)) {
+    XELOGE("UpdateVertexInputState failed: too many bindings! (%zd >= %zd)",
+           vertex_shader->vertex_bindings().size(),
+           xe::countof(vertex_binding_descrs));
+    return UpdateStatus::kError;
+  }
+
   for (const auto& vertex_binding : vertex_shader->vertex_bindings()) {
     assert_true(vertex_binding_count < xe::countof(vertex_binding_descrs));
     auto& vertex_binding_descr = vertex_binding_descrs[vertex_binding_count++];

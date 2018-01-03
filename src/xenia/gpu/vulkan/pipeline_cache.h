@@ -184,9 +184,9 @@ class PipelineCache {
     void Reset() { std::memset(this, 0, sizeof(*this)); }
   } update_vertex_input_state_regs_;
   VkPipelineVertexInputStateCreateInfo update_vertex_input_state_info_;
-  VkVertexInputBindingDescription update_vertex_input_state_binding_descrs_[64];
+  VkVertexInputBindingDescription update_vertex_input_state_binding_descrs_[32];
   VkVertexInputAttributeDescription
-      update_vertex_input_state_attrib_descrs_[64];
+      update_vertex_input_state_attrib_descrs_[96];
 
   struct UpdateInputAssemblyStateRegisters {
     PrimitiveType primitive_type;
