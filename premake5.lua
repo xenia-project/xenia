@@ -77,6 +77,11 @@ filter({"configurations:Debug", "platforms:Linux"})
     "_GLIBCXX_DEBUG",   -- make dbg symbols work on some distros
   })
 
+filter({"configurations:Debug", "platforms:Linux"})
+  buildoptions({
+    "-g"
+  })
+
 filter("configurations:Release")
   runtime("Release")
   defines({
