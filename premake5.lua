@@ -139,6 +139,7 @@ filter("platforms:Windows")
     "/wd4127",  -- 'conditional expression is constant'.
     "/wd4324",  -- 'structure was padded due to alignment specifier'.
     "/wd4189",  -- 'local variable is initialized but not referenced'.
+    "/utf-8",   -- 'build correctly on systems with non-Latin codepages'.
   })
   flags({
     "NoMinimalRebuild", -- Required for /MP above.
