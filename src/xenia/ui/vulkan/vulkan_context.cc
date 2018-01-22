@@ -150,8 +150,8 @@ void VulkanContext::BeginSwap() {
   // If it has been, we'll need to reinitialize the swap chain before we
   // start touching it.
   if (target_window_) {
-    if (target_window_->width() != swap_chain_->surface_width() ||
-        target_window_->height() != swap_chain_->surface_height()) {
+    if (target_window_->scaled_width() != swap_chain_->surface_width() ||
+        target_window_->scaled_height() != swap_chain_->surface_height()) {
       // Resized!
       swap_chain_->Reinitialize();
     }
