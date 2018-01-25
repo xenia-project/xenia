@@ -2779,13 +2779,13 @@ struct SELECT_F32
 
     Xmm src2 = i.src2.is_constant ? e.xmm2 : i.src2;
     if (i.src2.is_constant) {
-      e.LoadConstantXmm(e.xmm2, i.src2.constant());
+      e.LoadConstantXmm(src2, i.src2.constant());
     }
     e.vpandn(e.xmm1, e.xmm0, src2);
 
     Xmm src3 = i.src3.is_constant ? e.xmm2 : i.src3;
     if (i.src3.is_constant) {
-      e.LoadConstantXmm(e.xmm2, i.src3.constant());
+      e.LoadConstantXmm(src3, i.src3.constant());
     }
     e.vpand(i.dest, e.xmm0, src3);
     e.vpor(i.dest, e.xmm1);
@@ -2802,13 +2802,13 @@ struct SELECT_F64
 
     Xmm src2 = i.src2.is_constant ? e.xmm2 : i.src2;
     if (i.src2.is_constant) {
-      e.LoadConstantXmm(e.xmm2, i.src2.constant());
+      e.LoadConstantXmm(src2, i.src2.constant());
     }
     e.vpandn(e.xmm1, e.xmm0, src2);
 
     Xmm src3 = i.src3.is_constant ? e.xmm2 : i.src3;
     if (i.src3.is_constant) {
-      e.LoadConstantXmm(e.xmm2, i.src3.constant());
+      e.LoadConstantXmm(src3, i.src3.constant());
     }
     e.vpand(i.dest, e.xmm0, src3);
     e.vpor(i.dest, e.xmm1);
@@ -2827,13 +2827,13 @@ struct SELECT_V128_I8
 
     Xmm src2 = i.src2.is_constant ? e.xmm2 : i.src2;
     if (i.src2.is_constant) {
-      e.LoadConstantXmm(e.xmm2, i.src2.constant());
+      e.LoadConstantXmm(src2, i.src2.constant());
     }
     e.vpandn(e.xmm1, e.xmm0, src2);
 
     Xmm src3 = i.src3.is_constant ? e.xmm2 : i.src3;
     if (i.src3.is_constant) {
-      e.LoadConstantXmm(e.xmm2, i.src3.constant());
+      e.LoadConstantXmm(src3, i.src3.constant());
     }
     e.vpand(i.dest, e.xmm0, src3);
     e.vpor(i.dest, e.xmm1);
@@ -2845,18 +2845,18 @@ struct SELECT_V128_V128
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     Xmm src1 = i.src1.is_constant ? e.xmm1 : i.src1;
     if (i.src1.is_constant) {
-      e.LoadConstantXmm(e.xmm1, i.src1.constant());
+      e.LoadConstantXmm(src1, i.src1.constant());
     }
 
     Xmm src2 = i.src2.is_constant ? e.xmm0 : i.src2;
     if (i.src2.is_constant) {
-      e.LoadConstantXmm(e.xmm0, i.src2.constant());
+      e.LoadConstantXmm(src2, i.src2.constant());
     }
     e.vpandn(e.xmm0, src1, src2);
 
     Xmm src3 = i.src3.is_constant ? i.dest : i.src3;
     if (i.src3.is_constant) {
-      e.LoadConstantXmm(i.dest, i.src3.constant());
+      e.LoadConstantXmm(src3, i.src3.constant());
     }
     e.vpand(i.dest, src1, src3);
 
@@ -4499,7 +4499,7 @@ struct MUL_ADD_F32
                const Xmm& src2) {
             Xmm src3 = i.src3.is_constant ? e.xmm1 : i.src3;
             if (i.src3.is_constant) {
-              e.LoadConstantXmm(e.xmm1, i.src3.constant());
+              e.LoadConstantXmm(src3, i.src3.constant());
             }
             if (i.dest == src1) {
               e.vfmadd213ss(i.dest, src2, src3);
@@ -4516,8 +4516,8 @@ struct MUL_ADD_F32
     } else {
       Xmm src3;
       if (i.src3.is_constant) {
-        e.LoadConstantXmm(e.xmm1, i.src3.constant());
         src3 = e.xmm1;
+        e.LoadConstantXmm(src3, i.src3.constant());
       } else {
         // If i.dest == i.src3, back up i.src3 so we don't overwrite it.
         src3 = i.src3;
@@ -4558,7 +4558,7 @@ struct MUL_ADD_F64
                const Xmm& src2) {
             Xmm src3 = i.src3.is_constant ? e.xmm1 : i.src3;
             if (i.src3.is_constant) {
-              e.LoadConstantXmm(e.xmm1, i.src3.constant());
+              e.LoadConstantXmm(src3, i.src3.constant());
             }
             if (i.dest == src1) {
               e.vfmadd213sd(i.dest, src2, src3);
@@ -4575,8 +4575,8 @@ struct MUL_ADD_F64
     } else {
       Xmm src3;
       if (i.src3.is_constant) {
-        e.LoadConstantXmm(e.xmm1, i.src3.constant());
         src3 = e.xmm1;
+        e.LoadConstantXmm(src3, i.src3.constant());
       } else {
         // If i.dest == i.src3, back up i.src3 so we don't overwrite it.
         src3 = i.src3;
@@ -4623,7 +4623,7 @@ struct MUL_ADD_V128
                const Xmm& src2) {
             Xmm src3 = i.src3.is_constant ? e.xmm1 : i.src3;
             if (i.src3.is_constant) {
-              e.LoadConstantXmm(e.xmm1, i.src3.constant());
+              e.LoadConstantXmm(src3, i.src3.constant());
             }
             if (i.dest == src1) {
               e.vfmadd213ps(i.dest, src2, src3);
@@ -4640,8 +4640,8 @@ struct MUL_ADD_V128
     } else {
       Xmm src3;
       if (i.src3.is_constant) {
-        e.LoadConstantXmm(e.xmm1, i.src3.constant());
         src3 = e.xmm1;
+        e.LoadConstantXmm(src3, i.src3.constant());
       } else {
         // If i.dest == i.src3, back up i.src3 so we don't overwrite it.
         src3 = i.src3;
@@ -4696,7 +4696,7 @@ struct MUL_SUB_F32
                const Xmm& src2) {
             Xmm src3 = i.src3.is_constant ? e.xmm1 : i.src3;
             if (i.src3.is_constant) {
-              e.LoadConstantXmm(e.xmm1, i.src3.constant());
+              e.LoadConstantXmm(src3, i.src3.constant());
             }
             if (i.dest == src1) {
               e.vfmsub213ss(i.dest, src2, src3);
@@ -4713,8 +4713,8 @@ struct MUL_SUB_F32
     } else {
       Xmm src3;
       if (i.src3.is_constant) {
-        e.LoadConstantXmm(e.xmm1, i.src3.constant());
         src3 = e.xmm1;
+        e.LoadConstantXmm(src3, i.src3.constant());
       } else {
         // If i.dest == i.src3, back up i.src3 so we don't overwrite it.
         src3 = i.src3;
@@ -4755,7 +4755,7 @@ struct MUL_SUB_F64
                const Xmm& src2) {
             Xmm src3 = i.src3.is_constant ? e.xmm1 : i.src3;
             if (i.src3.is_constant) {
-              e.LoadConstantXmm(e.xmm1, i.src3.constant());
+              e.LoadConstantXmm(src3, i.src3.constant());
             }
             if (i.dest == src1) {
               e.vfmsub213sd(i.dest, src2, src3);
@@ -4772,8 +4772,8 @@ struct MUL_SUB_F64
     } else {
       Xmm src3;
       if (i.src3.is_constant) {
-        e.LoadConstantXmm(e.xmm1, i.src3.constant());
         src3 = e.xmm1;
+        e.LoadConstantXmm(src3, i.src3.constant());
       } else {
         // If i.dest == i.src3, back up i.src3 so we don't overwrite it.
         src3 = i.src3;
@@ -4818,7 +4818,7 @@ struct MUL_SUB_V128
                const Xmm& src2) {
             Xmm src3 = i.src3.is_constant ? e.xmm1 : i.src3;
             if (i.src3.is_constant) {
-              e.LoadConstantXmm(e.xmm1, i.src3.constant());
+              e.LoadConstantXmm(src3, i.src3.constant());
             }
             if (i.dest == src1) {
               e.vfmsub213ps(i.dest, src2, src3);
@@ -4835,8 +4835,8 @@ struct MUL_SUB_V128
     } else {
       Xmm src3;
       if (i.src3.is_constant) {
-        e.LoadConstantXmm(e.xmm1, i.src3.constant());
         src3 = e.xmm1;
+        e.LoadConstantXmm(src3, i.src3.constant());
       } else {
         // If i.dest == i.src3, back up i.src3 so we don't overwrite it.
         src3 = i.src3;
@@ -6877,8 +6877,8 @@ struct SWIZZLE
       uint8_t swizzle_mask = static_cast<uint8_t>(i.src2.value);
       Xmm src1;
       if (i.src1.is_constant) {
-        e.LoadConstantXmm(e.xmm0, i.src1.constant());
         src1 = e.xmm0;
+        e.LoadConstantXmm(src1, i.src1.constant());
       } else {
         src1 = i.src1;
       }
@@ -7135,7 +7135,7 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
           // PACKUSWB / SaturateSignedWordToUnsignedByte
           Xbyak::Xmm src2 = i.src2.is_constant ? e.xmm0 : i.src2;
           if (i.src2.is_constant) {
-            e.LoadConstantXmm(e.xmm0, i.src2.constant());
+            e.LoadConstantXmm(src2, i.src2.constant());
           }
 
           e.vpackuswb(i.dest, i.src1, src2);
@@ -7241,8 +7241,8 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
             src2 = i.src2;
           } else {
             assert_false(i.src1 == e.xmm0);
-            e.LoadConstantXmm(e.xmm0, i.src2.constant());
             src2 = e.xmm0;
+            e.LoadConstantXmm(src2, i.src2.constant());
           }
           e.vpackssdw(i.dest, i.src1, src2);
           e.vpshuflw(i.dest, i.dest, 0b10110001);
@@ -7352,8 +7352,8 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
     } else {
       Xmm src;
       if (i.src1.is_constant) {
-        e.LoadConstantXmm(e.xmm0, i.src1.constant());
         src = e.xmm0;
+        e.LoadConstantXmm(src, i.src1.constant());
       } else {
         src = i.src1;
       }
