@@ -188,7 +188,7 @@ class TextureCache {
 
   std::unique_ptr<xe::ui::vulkan::CommandBufferPool> wb_command_pool_ = nullptr;
   std::unique_ptr<xe::ui::vulkan::DescriptorPool> descriptor_pool_ = nullptr;
-  std::unordered_map<uint64_t, VkDescriptorSet> texture_bindings_;
+  std::unordered_map<uint64_t, VkDescriptorSet> texture_sets_;
   VkDescriptorSetLayout texture_descriptor_set_layout_ = nullptr;
 
   VmaAllocator mem_allocator_ = nullptr;

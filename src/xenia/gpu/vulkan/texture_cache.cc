@@ -1329,8 +1329,7 @@ VkDescriptorSet TextureCache::PrepareTextureSet(
   HashTextureBindings(&hash_state, fetch_mask, vertex_bindings);
   HashTextureBindings(&hash_state, fetch_mask, pixel_bindings);
   uint64_t hash = XXH64_digest(&hash_state);
-  for (auto it = texture_bindings_.find(hash); it != texture_bindings_.end();
-       ++it) {
+  for (auto it = texture_sets_.find(hash); it != texture_sets_.end(); ++it) {
     // TODO(DrChat): We need to compare the bindings and ensure they're equal.
     return it->second;
   }
@@ -1378,7 +1377,7 @@ VkDescriptorSet TextureCache::PrepareTextureSet(
                            update_set_info->image_writes, 0, nullptr);
   }
 
-  texture_bindings_[hash] = descriptor_set;
+  texture_sets_[hash] = descriptor_set;
   return descriptor_set;
 }
 
@@ -1515,7 +1514,7 @@ void TextureCache::Scavenge() {
   // Free unused descriptor sets
   // TODO(DrChat): These sets could persist across frames, we just need a smart
   // way to detect if they're unused and free them.
-  texture_bindings_.clear();
+  texture_sets_.clear();
   descriptor_pool_->Scavenge();
   staging_buffer_.Scavenge();
 
