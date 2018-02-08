@@ -1306,6 +1306,7 @@ void TextureCache::HashTextureBindings(
       // We've covered this binding.
       continue;
     }
+    fetch_mask |= fetch_bit;
 
     auto& regs = *register_file_;
     int r = XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + binding.fetch_constant * 6;
