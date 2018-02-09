@@ -364,6 +364,22 @@ bool TextureCache::FreeTexture(Texture* texture) {
   return true;
 }
 
+void TextureCache::WatchCallback(void* context_ptr, void* data_ptr,
+                                 uint32_t address) {
+  auto self = reinterpret_cast<TextureCache*>(context_ptr);
+  auto touched_texture = reinterpret_cast<Texture*>(data_ptr);
+  // Clear watch handle first so we don't redundantly
+  // remove.
+  assert_not_zero(touched_texture->access_watch_handle);
+  touched_texture->access_watch_handle = 0;
+  touched_texture->pending_invalidation = true;
+
+  // Add to pending list so Scavenge will clean it up.
+  self->invalidated_textures_mutex_.lock();
+  self->invalidated_textures_->push_back(touched_texture);
+  self->invalidated_textures_mutex_.unlock();
+}
+
 TextureCache::Texture* TextureCache::DemandResolveTexture(
     const TextureInfo& texture_info) {
   auto texture_hash = texture_info.hash();
@@ -411,22 +427,7 @@ TextureCache::Texture* TextureCache::DemandResolveTexture(
   // Setup an access watch. If this texture is touched, it is destroyed.
   texture->access_watch_handle = memory_->AddPhysicalAccessWatch(
       texture_info.guest_address, texture_info.input_length,
-      cpu::MMIOHandler::kWatchWrite,
-      [](void* context_ptr, void* data_ptr, uint32_t address) {
-        auto self = reinterpret_cast<TextureCache*>(context_ptr);
-        auto touched_texture = reinterpret_cast<Texture*>(data_ptr);
-        // Clear watch handle first so we don't redundantly
-        // remove.
-        assert_not_zero(touched_texture->access_watch_handle);
-        touched_texture->access_watch_handle = 0;
-        touched_texture->pending_invalidation = true;
-
-        // Add to pending list so Scavenge will clean it up.
-        self->invalidated_textures_mutex_.lock();
-        self->invalidated_textures_->push_back(touched_texture);
-        self->invalidated_textures_mutex_.unlock();
-      },
-      this, texture);
+      cpu::MMIOHandler::kWatchWrite, &WatchCallback, this, texture);
 
   textures_[texture_hash] = texture;
   return texture;
@@ -486,21 +487,7 @@ TextureCache::Texture* TextureCache::Demand(const TextureInfo& texture_info,
   // guest.
   texture->access_watch_handle = memory_->AddPhysicalAccessWatch(
       texture_info.guest_address, texture_info.input_length,
-      cpu::MMIOHandler::kWatchWrite,
-      [](void* context_ptr, void* data_ptr, uint32_t address) {
-        auto self = reinterpret_cast<TextureCache*>(context_ptr);
-        auto touched_texture = reinterpret_cast<Texture*>(data_ptr);
-        // Clear watch handle first so we don't redundantly
-        // remove.
-        assert_not_zero(touched_texture->access_watch_handle);
-        touched_texture->access_watch_handle = 0;
-        touched_texture->pending_invalidation = true;
-        // Add to pending list so Scavenge will clean it up.
-        self->invalidated_textures_mutex_.lock();
-        self->invalidated_textures_->push_back(touched_texture);
-        self->invalidated_textures_mutex_.unlock();
-      },
-      this, texture);
+      cpu::MMIOHandler::kWatchWrite, &WatchCallback, this, texture);
 
   if (!UploadTexture(command_buffer, completion_fence, texture, texture_info)) {
     FreeTexture(texture);
