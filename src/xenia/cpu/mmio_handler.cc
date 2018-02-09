@@ -118,16 +118,16 @@ uintptr_t MMIOHandler::AddPhysicalAccessWatch(uint32_t guest_address,
     bool hit = false;
     auto entry = *it;
 
-    if (base_address < (*it)->address &&
+    if (base_address <= (*it)->address &&
         base_address + length > (*it)->address) {
       hit = true;
-    } else if ((*it)->address < base_address &&
+    } else if ((*it)->address <= base_address &&
                (*it)->address + (*it)->length > base_address) {
       hit = true;
-    } else if ((*it)->address < base_address &&
+    } else if ((*it)->address <= base_address &&
                (*it)->address + (*it)->length > base_address + length) {
       hit = true;
-    } else if ((*it)->address > base_address &&
+    } else if ((*it)->address >= base_address &&
                (*it)->address + (*it)->length < base_address + length) {
       hit = true;
     }
