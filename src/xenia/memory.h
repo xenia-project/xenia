@@ -63,8 +63,6 @@ struct HeapAllocationInfo {
   uint32_t state;
   // The access protection of the pages in the region.
   uint32_t protect;
-  // The type of pages in the region (private).
-  uint32_t type;
 };
 
 // Describes a single page in the page table.

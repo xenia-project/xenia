@@ -1096,14 +1096,12 @@ bool BaseHeap::QueryRegionInfo(uint32_t base_address,
   out_info->region_size = 0;
   out_info->state = 0;
   out_info->protect = 0;
-  out_info->type = 0;
   if (start_page_entry.state) {
     // Committed/reserved region.
     out_info->allocation_base = start_page_entry.base_address * page_size_;
     out_info->allocation_protect = start_page_entry.allocation_protect;
     out_info->state = start_page_entry.state;
     out_info->protect = start_page_entry.current_protect;
-    out_info->type = 0x20000;
     for (uint32_t page_number = start_page_number;
          page_number < start_page_number + start_page_entry.region_page_count;
          ++page_number) {
