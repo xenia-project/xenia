@@ -18,6 +18,8 @@
 #include "xenia/ui/vulkan/vulkan.h"
 #include "xenia/ui/vulkan/vulkan_device.h"
 
+#include "third_party/vulkan/vk_mem_alloc.h"
+
 #include <map>
 
 namespace xe {
@@ -115,6 +117,7 @@ class BufferCache {
   ui::vulkan::VulkanDevice* device_ = nullptr;
 
   VkDeviceMemory gpu_memory_pool_ = nullptr;
+  VmaAllocator mem_allocator_ = nullptr;
 
   // Staging ringbuffer we cycle through fast. Used for data we don't
   // plan on keeping past the current frame.
