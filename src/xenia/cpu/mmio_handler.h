@@ -73,7 +73,11 @@ class MMIOHandler {
                                    WatchType type, AccessWatchCallback callback,
                                    void* callback_context, void* callback_data);
   void CancelAccessWatch(uintptr_t watch_handle);
+
+  // Fires and clears any access watches that overlap this range.
   void InvalidateRange(uint32_t physical_address, size_t length);
+
+  // Returns true if /any/ part of this range is watched.
   bool IsRangeWatched(uint32_t physical_address, size_t length);
 
  protected:
