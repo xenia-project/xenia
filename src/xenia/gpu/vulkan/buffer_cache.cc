@@ -16,6 +16,8 @@
 #include "xenia/gpu/gpu_flags.h"
 #include "xenia/gpu/vulkan/vulkan_gpu_flags.h"
 
+#include "third_party/vulkan/vk_mem_alloc.h"
+
 namespace xe {
 namespace gpu {
 namespace vulkan {
@@ -43,6 +45,15 @@ VkResult BufferCache::Initialize() {
   gpu_memory_pool_ = device_->AllocateMemory(pool_reqs);
 
   VkResult status = transient_buffer_->Initialize(gpu_memory_pool_, 0);
+  if (status != VK_SUCCESS) {
+    return status;
+  }
+
+  // Create a memory allocator for textures.
+  VmaAllocatorCreateInfo alloc_info = {
+      0, *device_, *device_, 0, 0, nullptr, nullptr,
+  };
+  status = vmaCreateAllocator(&alloc_info, &mem_allocator_);
   if (status != VK_SUCCESS) {
     return status;
   }
@@ -150,28 +161,23 @@ VkResult BufferCache::Initialize() {
 }
 
 void BufferCache::Shutdown() {
+  if (mem_allocator_) {
+    vmaDestroyAllocator(mem_allocator_);
+    mem_allocator_ = nullptr;
+  }
+
   if (transient_descriptor_set_) {
     vkFreeDescriptorSets(*device_, descriptor_pool_, 1,
                          &transient_descriptor_set_);
     transient_descriptor_set_ = nullptr;
   }
 
-  if (descriptor_set_layout_) {
-    vkDestroyDescriptorSetLayout(*device_, descriptor_set_layout_, nullptr);
-    descriptor_set_layout_ = nullptr;
-  }
-
-  if (descriptor_pool_) {
-    vkDestroyDescriptorPool(*device_, descriptor_pool_, nullptr);
-    descriptor_pool_ = nullptr;
-  }
+  VK_SAFE_DESTROY(vkDestroyDescriptorSetLayout, *device_,
+                  descriptor_set_layout_, nullptr);
+  VK_SAFE_DESTROY(vkDestroyDescriptorPool, *device_, descriptor_pool_, nullptr);
 
   transient_buffer_->Shutdown();
-
-  if (gpu_memory_pool_) {
-    vkFreeMemory(*device_, gpu_memory_pool_, nullptr);
-    gpu_memory_pool_ = nullptr;
-  }
+  VK_SAFE_DESTROY(vkFreeMemory, *device_, gpu_memory_pool_, nullptr);
 }
 
 std::pair<VkDeviceSize, VkDeviceSize> BufferCache::UploadConstantRegisters(
