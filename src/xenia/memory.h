@@ -332,6 +332,9 @@ class Memory {
   // Gets the heap with the given properties.
   BaseHeap* LookupHeapByType(bool physical, uint32_t page_size);
 
+  // Gets the physical base heap.
+  VirtualHeap* GetPhysicalHeap();
+
   // Dumps a map of all allocated memory to the log.
   void DumpMap();
 
