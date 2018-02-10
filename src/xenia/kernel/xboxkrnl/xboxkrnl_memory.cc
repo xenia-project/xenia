@@ -273,14 +273,11 @@ dword_result_t NtQueryVirtualMemory(
     return X_STATUS_INVALID_PARAMETER;
   }
 
-  memory_basic_information_ptr->base_address =
-      static_cast<uint32_t>(alloc_info.base_address);
-  memory_basic_information_ptr->allocation_base =
-      static_cast<uint32_t>(alloc_info.allocation_base);
+  memory_basic_information_ptr->base_address = alloc_info.base_address;
+  memory_basic_information_ptr->allocation_base = alloc_info.allocation_base;
   memory_basic_information_ptr->allocation_protect =
       ToXdkProtectFlags(alloc_info.allocation_protect);
-  memory_basic_information_ptr->region_size =
-      static_cast<uint32_t>(alloc_info.region_size);
+  memory_basic_information_ptr->region_size = alloc_info.region_size;
   uint32_t x_state = 0;
   if (alloc_info.state & kMemoryAllocationReserve) {
     x_state |= X_MEM_RESERVE;
@@ -290,7 +287,7 @@ dword_result_t NtQueryVirtualMemory(
   }
   memory_basic_information_ptr->state = x_state;
   memory_basic_information_ptr->protect = ToXdkProtectFlags(alloc_info.protect);
-  memory_basic_information_ptr->type = alloc_info.type;
+  memory_basic_information_ptr->type = X_MEM_PRIVATE;
 
   return X_STATUS_SUCCESS;
 }
