@@ -337,6 +337,8 @@ BaseHeap* Memory::LookupHeapByType(bool physical, uint32_t page_size) {
   }
 }
 
+VirtualHeap* Memory::GetPhysicalHeap() { return &heaps_.physical; }
+
 void Memory::Zero(uint32_t address, uint32_t size) {
   std::memset(TranslateVirtual(address), 0, size);
 }
