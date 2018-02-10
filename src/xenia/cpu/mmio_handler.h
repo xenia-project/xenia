@@ -77,7 +77,7 @@ class MMIOHandler {
   // Fires and clears any access watches that overlap this range.
   void InvalidateRange(uint32_t physical_address, size_t length);
 
-  // Returns true if /any/ part of this range is watched.
+  // Returns true if /all/ of this range is watched.
   bool IsRangeWatched(uint32_t physical_address, size_t length);
 
  protected:
