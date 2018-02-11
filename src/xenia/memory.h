@@ -56,6 +56,8 @@ struct HeapAllocationInfo {
   uint32_t allocation_base;
   // The memory protection option when the region was initially allocated.
   uint32_t allocation_protect;
+  // The size specified when the region was initially allocated, in bytes.
+  uint32_t allocation_size;
   // The size of the region beginning at the base address in which all pages
   // have identical attributes, in bytes.
   uint32_t region_size;
