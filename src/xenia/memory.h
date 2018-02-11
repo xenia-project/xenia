@@ -144,6 +144,9 @@ class BaseHeap {
   // Queries the size of the region containing the given address.
   bool QuerySize(uint32_t address, uint32_t* out_size);
 
+  // Queries the base and size of a region containing the given address.
+  bool QueryBaseAndSize(uint32_t* in_out_address, uint32_t* out_size);
+
   // Queries the current protection mode of the region containing the given
   // address.
   bool QueryProtect(uint32_t address, uint32_t* out_protect);
