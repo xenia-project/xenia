@@ -1147,6 +1147,20 @@ bool BaseHeap::QuerySize(uint32_t address, uint32_t* out_size) {
   return true;
 }
 
+bool BaseHeap::QueryBaseAndSize(uint32_t* in_out_address, uint32_t* out_size) {
+  uint32_t page_number = (*in_out_address - heap_base_) / page_size_;
+  if (page_number > page_table_.size()) {
+    XELOGE("BaseHeap::QuerySize base page out of range");
+    *out_size = 0;
+    return false;
+  }
+  auto global_lock = global_critical_region_.Acquire();
+  auto page_entry = page_table_[page_number];
+  *in_out_address = (page_entry.base_address * page_size_);
+  *out_size = (page_entry.region_page_count * page_size_);
+  return true;
+}
+
 bool BaseHeap::QueryProtect(uint32_t address, uint32_t* out_protect) {
   uint32_t page_number = (address - heap_base_) / page_size_;
   if (page_number > page_table_.size()) {
