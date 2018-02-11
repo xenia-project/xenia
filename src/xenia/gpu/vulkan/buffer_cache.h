@@ -122,7 +122,7 @@ class BufferCache {
   // Staging ringbuffer we cycle through fast. Used for data we don't
   // plan on keeping past the current frame.
   std::unique_ptr<ui::vulkan::CircularBuffer> transient_buffer_ = nullptr;
-  std::map<uint64_t, VkDeviceSize> transient_cache_;
+  std::map<uint32_t, std::pair<uint32_t, VkDeviceSize>> transient_cache_;
 
   VkDescriptorPool descriptor_pool_ = nullptr;
   VkDescriptorSetLayout descriptor_set_layout_ = nullptr;
