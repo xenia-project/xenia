@@ -415,10 +415,22 @@ VkDeviceSize BufferCache::TryAllocateTransientData(VkDeviceSize length,
 
 VkDeviceSize BufferCache::FindCachedTransientData(uint32_t guest_address,
                                                   uint32_t guest_length) {
-  uint64_t key = uint64_t(guest_length) << 32 | uint64_t(guest_address);
-  auto it = transient_cache_.find(key);
-  if (it != transient_cache_.end()) {
-    return it->second;
+  if (transient_cache_.empty()) {
+    // Short-circuit exit.
+    return VK_WHOLE_SIZE;
+  }
+
+  // Find the first element > guest_address
+  auto it = transient_cache_.upper_bound(guest_address);
+  if (it != transient_cache_.begin()) {
+    // it = first element < guest_address
+    --it;
+
+    if (it->first <= guest_address &&
+        (it->first + it->second.first) >= (guest_address + guest_length)) {
+      // This element is contained within some existing transient data.
+      return it->second.second + (guest_address - it->first);
+    }
   }
 
   return VK_WHOLE_SIZE;
@@ -427,8 +439,17 @@ VkDeviceSize BufferCache::FindCachedTransientData(uint32_t guest_address,
 void BufferCache::CacheTransientData(uint32_t guest_address,
                                      uint32_t guest_length,
                                      VkDeviceSize offset) {
-  uint64_t key = uint64_t(guest_length) << 32 | uint64_t(guest_address);
-  transient_cache_[key] = offset;
+  transient_cache_[guest_address] = {guest_length, offset};
+
+  // Erase any entries contained within
+  auto it = transient_cache_.upper_bound(guest_address);
+  while (it != transient_cache_.end()) {
+    if ((guest_address + guest_length) >= (it->first + it->second.first)) {
+      it = transient_cache_.erase(it);
+    } else {
+      break;
+    }
+  }
 }
 
 void BufferCache::Flush(VkCommandBuffer command_buffer) {
