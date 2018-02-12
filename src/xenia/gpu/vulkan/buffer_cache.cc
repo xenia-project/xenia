@@ -34,7 +34,7 @@ BufferCache::BufferCache(RegisterFile* register_file, Memory* memory,
       device_,
       VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT |
           VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-      capacity);
+      capacity, 4096);
 }
 
 BufferCache::~BufferCache() { Shutdown(); }
@@ -284,13 +284,15 @@ std::pair<VkDeviceSize, VkDeviceSize> BufferCache::UploadConstantRegisters(
 std::pair<VkBuffer, VkDeviceSize> BufferCache::UploadIndexBuffer(
     VkCommandBuffer command_buffer, uint32_t source_addr,
     uint32_t source_length, IndexFormat format, VkFence fence) {
+  /*
   auto offset = FindCachedTransientData(source_addr, source_length);
   if (offset != VK_WHOLE_SIZE) {
     return {transient_buffer_->gpu_buffer(), offset};
   }
+  */
 
   // Allocate space in the buffer for our data.
-  offset = AllocateTransientData(source_length, fence);
+  auto offset = AllocateTransientData(source_length, fence);
   if (offset == VK_WHOLE_SIZE) {
     // OOM.
     return {nullptr, VK_WHOLE_SIZE};
@@ -329,7 +331,7 @@ std::pair<VkBuffer, VkDeviceSize> BufferCache::UploadIndexBuffer(
                        VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, 0, 0, nullptr, 1,
                        &barrier, 0, nullptr);
 
-  CacheTransientData(source_addr, source_length, offset);
+  // CacheTransientData(source_addr, source_length, offset);
   return {transient_buffer_->gpu_buffer(), offset};
 }
 
@@ -341,29 +343,43 @@ std::pair<VkBuffer, VkDeviceSize> BufferCache::UploadVertexBuffer(
     return {transient_buffer_->gpu_buffer(), offset};
   }
 
+  // Slow path :)
+  // Expand the region up to the allocation boundary
+  auto physical_heap = memory_->GetPhysicalHeap();
+  uint32_t upload_base = source_addr;
+  uint32_t upload_size = source_length;
+
+  // Ping the memory subsystem for allocation size.
+  physical_heap->QueryBaseAndSize(&upload_base, &upload_size);
+  assert(upload_base <= source_addr);
+  uint32_t source_offset = source_addr - upload_base;
+
   // Allocate space in the buffer for our data.
-  offset = AllocateTransientData(source_length, fence);
+  offset = AllocateTransientData(upload_size, fence);
   if (offset == VK_WHOLE_SIZE) {
     // OOM.
     return {nullptr, VK_WHOLE_SIZE};
   }
 
-  const void* source_ptr = memory_->TranslatePhysical(source_addr);
+  const void* upload_ptr = memory_->TranslatePhysical(upload_base);
 
   // Copy data into the buffer.
   // TODO(benvanik): memcpy then use compute shaders to swap?
   if (endian == Endian::k8in32) {
     // Endian::k8in32, swap words.
     xe::copy_and_swap_32_aligned(transient_buffer_->host_base() + offset,
-                                 source_ptr, source_length / 4);
+                                 upload_ptr, upload_size / 4);
   } else if (endian == Endian::k16in32) {
+    // TODO(DrChat): Investigate what 16-in-32 actually does.
+    assert_always();
+
     xe::copy_and_swap_16_in_32_aligned(transient_buffer_->host_base() + offset,
-                                       source_ptr, source_length / 4);
+                                       upload_ptr, upload_size / 4);
   } else {
     assert_always();
   }
 
-  transient_buffer_->Flush(offset, source_length);
+  transient_buffer_->Flush(offset, upload_size);
 
   // Append a barrier to the command buffer.
   VkBufferMemoryBarrier barrier = {
@@ -375,14 +391,14 @@ std::pair<VkBuffer, VkDeviceSize> BufferCache::UploadVertexBuffer(
       VK_QUEUE_FAMILY_IGNORED,
       transient_buffer_->gpu_buffer(),
       offset,
-      source_length,
+      upload_size,
   };
   vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_HOST_BIT,
                        VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, 0, 0, nullptr, 1,
                        &barrier, 0, nullptr);
 
-  CacheTransientData(source_addr, source_length, offset);
-  return {transient_buffer_->gpu_buffer(), offset};
+  CacheTransientData(upload_base, upload_size, offset);
+  return {transient_buffer_->gpu_buffer(), offset + source_offset};
 }
 
 VkDeviceSize BufferCache::AllocateTransientData(VkDeviceSize length,
@@ -423,13 +439,13 @@ VkDeviceSize BufferCache::FindCachedTransientData(uint32_t guest_address,
   // Find the first element > guest_address
   auto it = transient_cache_.upper_bound(guest_address);
   if (it != transient_cache_.begin()) {
-    // it = first element < guest_address
+    // it = first element <= guest_address
     --it;
 
-    if (it->first <= guest_address &&
-        (it->first + it->second.first) >= (guest_address + guest_length)) {
-      // This element is contained within some existing transient data.
-      return it->second.second + (guest_address - it->first);
+    if ((it->first + it->second.first) >= (guest_address + guest_length)) {
+      // This data is contained within some existing transient data.
+      auto source_offset = static_cast<VkDeviceSize>(guest_address - it->first);
+      return it->second.second + source_offset;
     }
   }
 
