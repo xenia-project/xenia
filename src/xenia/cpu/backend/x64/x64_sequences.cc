@@ -1663,7 +1663,6 @@ struct LOAD_VECTOR_SHL_I8
       e.shl(e.dx, 4);
       e.mov(e.rax, (uintptr_t)lvsl_table);
       e.vmovaps(i.dest, e.ptr[e.rax + e.rdx]);
-      e.ReloadMembase();
     }
   }
 };
@@ -1705,7 +1704,6 @@ struct LOAD_VECTOR_SHR_I8
       e.shl(e.dx, 4);
       e.mov(e.rax, (uintptr_t)lvsr_table);
       e.vmovaps(i.dest, e.ptr[e.rax + e.rdx]);
-      e.ReloadMembase();
     }
   }
 };
@@ -3868,8 +3866,6 @@ struct MUL_I8 : Sequence<MUL_I8, I<OPCODE_MUL, I8Op, I8Op, I8Op>> {
         e.mov(i.dest, e.al);
       }
     }
-
-    e.ReloadMembase();
   }
 };
 struct MUL_I16 : Sequence<MUL_I16, I<OPCODE_MUL, I16Op, I16Op, I16Op>> {
@@ -3911,8 +3907,6 @@ struct MUL_I16 : Sequence<MUL_I16, I<OPCODE_MUL, I16Op, I16Op, I16Op>> {
         e.movzx(i.dest, e.ax);
       }
     }
-
-    e.ReloadMembase();
   }
 };
 struct MUL_I32 : Sequence<MUL_I32, I<OPCODE_MUL, I32Op, I32Op, I32Op>> {
@@ -3955,8 +3949,6 @@ struct MUL_I32 : Sequence<MUL_I32, I<OPCODE_MUL, I32Op, I32Op, I32Op>> {
         e.mov(i.dest, e.eax);
       }
     }
-
-    e.ReloadMembase();
   }
 };
 struct MUL_I64 : Sequence<MUL_I64, I<OPCODE_MUL, I64Op, I64Op, I64Op>> {
@@ -3998,8 +3990,6 @@ struct MUL_I64 : Sequence<MUL_I64, I<OPCODE_MUL, I64Op, I64Op, I64Op>> {
         e.mov(i.dest, e.rax);
       }
     }
-
-    e.ReloadMembase();
   }
 };
 struct MUL_F32 : Sequence<MUL_F32, I<OPCODE_MUL, F32Op, F32Op, F32Op>> {
@@ -4077,7 +4067,6 @@ struct MUL_HI_I8 : Sequence<MUL_HI_I8, I<OPCODE_MUL_HI, I8Op, I8Op, I8Op>> {
       }
       e.mov(i.dest, e.ah);
     }
-    e.ReloadMembase();
   }
 };
 struct MUL_HI_I16
@@ -4121,7 +4110,6 @@ struct MUL_HI_I16
       }
       e.mov(i.dest, e.dx);
     }
-    e.ReloadMembase();
   }
 };
 struct MUL_HI_I32
@@ -4170,7 +4158,6 @@ struct MUL_HI_I32
       }
       e.mov(i.dest, e.edx);
     }
-    e.ReloadMembase();
   }
 };
 struct MUL_HI_I64
@@ -4219,7 +4206,6 @@ struct MUL_HI_I64
       }
       e.mov(i.dest, e.rdx);
     }
-    e.ReloadMembase();
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_MUL_HI, MUL_HI_I8, MUL_HI_I16, MUL_HI_I32,
@@ -4235,11 +4221,8 @@ struct DIV_I8 : Sequence<DIV_I8, I<OPCODE_DIV, I8Op, I8Op, I8Op>> {
     Xbyak::Label skip;
     e.inLocalLabel();
 
-    // NOTE: RDX clobbered.
-    bool clobbered_rcx = false;
     if (i.src2.is_constant) {
       assert_true(!i.src1.is_constant);
-      clobbered_rcx = true;
       e.mov(e.cl, i.src2.constant());
       if (i.instr->flags & ARITHMETIC_UNSIGNED) {
         e.movzx(e.ax, i.src1);
@@ -4273,10 +4256,6 @@ struct DIV_I8 : Sequence<DIV_I8, I<OPCODE_DIV, I8Op, I8Op, I8Op>> {
     e.L(skip);
     e.outLocalLabel();
     e.mov(i.dest, e.al);
-    if (clobbered_rcx) {
-      e.ReloadContext();
-    }
-    e.ReloadMembase();
   }
 };
 struct DIV_I16 : Sequence<DIV_I16, I<OPCODE_DIV, I16Op, I16Op, I16Op>> {
@@ -4284,11 +4263,8 @@ struct DIV_I16 : Sequence<DIV_I16, I<OPCODE_DIV, I16Op, I16Op, I16Op>> {
     Xbyak::Label skip;
     e.inLocalLabel();
 
-    // NOTE: RDX clobbered.
-    bool clobbered_rcx = false;
     if (i.src2.is_constant) {
       assert_true(!i.src1.is_constant);
-      clobbered_rcx = true;
       e.mov(e.cx, i.src2.constant());
       if (i.instr->flags & ARITHMETIC_UNSIGNED) {
         e.mov(e.ax, i.src1);
@@ -4328,10 +4304,6 @@ struct DIV_I16 : Sequence<DIV_I16, I<OPCODE_DIV, I16Op, I16Op, I16Op>> {
     e.L(skip);
     e.outLocalLabel();
     e.mov(i.dest, e.ax);
-    if (clobbered_rcx) {
-      e.ReloadContext();
-    }
-    e.ReloadMembase();
   }
 };
 struct DIV_I32 : Sequence<DIV_I32, I<OPCODE_DIV, I32Op, I32Op, I32Op>> {
@@ -4339,11 +4311,8 @@ struct DIV_I32 : Sequence<DIV_I32, I<OPCODE_DIV, I32Op, I32Op, I32Op>> {
     Xbyak::Label skip;
     e.inLocalLabel();
 
-    // NOTE: RDX clobbered.
-    bool clobbered_rcx = false;
     if (i.src2.is_constant) {
       assert_true(!i.src1.is_constant);
-      clobbered_rcx = true;
       e.mov(e.ecx, i.src2.constant());
       if (i.instr->flags & ARITHMETIC_UNSIGNED) {
         e.mov(e.eax, i.src1);
@@ -4383,10 +4352,6 @@ struct DIV_I32 : Sequence<DIV_I32, I<OPCODE_DIV, I32Op, I32Op, I32Op>> {
     e.L(skip);
     e.outLocalLabel();
     e.mov(i.dest, e.eax);
-    if (clobbered_rcx) {
-      e.ReloadContext();
-    }
-    e.ReloadMembase();
   }
 };
 struct DIV_I64 : Sequence<DIV_I64, I<OPCODE_DIV, I64Op, I64Op, I64Op>> {
@@ -4394,11 +4359,8 @@ struct DIV_I64 : Sequence<DIV_I64, I<OPCODE_DIV, I64Op, I64Op, I64Op>> {
     Xbyak::Label skip;
     e.inLocalLabel();
 
-    // NOTE: RDX clobbered.
-    bool clobbered_rcx = false;
     if (i.src2.is_constant) {
       assert_true(!i.src1.is_constant);
-      clobbered_rcx = true;
       e.mov(e.rcx, i.src2.constant());
       if (i.instr->flags & ARITHMETIC_UNSIGNED) {
         e.mov(e.rax, i.src1);
@@ -4438,10 +4400,6 @@ struct DIV_I64 : Sequence<DIV_I64, I<OPCODE_DIV, I64Op, I64Op, I64Op>> {
     e.L(skip);
     e.outLocalLabel();
     e.mov(i.dest, e.rax);
-    if (clobbered_rcx) {
-      e.ReloadContext();
-    }
-    e.ReloadMembase();
   }
 };
 struct DIV_F32 : Sequence<DIV_F32, I<OPCODE_DIV, F32Op, F32Op, F32Op>> {
@@ -5324,7 +5282,6 @@ void EmitShlXX(X64Emitter& e, const ARGS& i) {
         } else {
           e.mov(e.cl, src);
           e.shl(dest_src, e.cl);
-          e.ReloadContext();
         }
       },
       [](X64Emitter& e, const REG& dest_src, int8_t constant) {
@@ -5402,7 +5359,6 @@ void EmitShrXX(X64Emitter& e, const ARGS& i) {
         } else {
           e.mov(e.cl, src);
           e.shr(dest_src, e.cl);
-          e.ReloadContext();
         }
       },
       [](X64Emitter& e, const REG& dest_src, int8_t constant) {
@@ -5478,7 +5434,6 @@ void EmitSarXX(X64Emitter& e, const ARGS& i) {
         } else {
           e.mov(e.cl, src);
           e.sar(dest_src, e.cl);
-          e.ReloadContext();
         }
       },
       [](X64Emitter& e, const REG& dest_src, int8_t constant) {
@@ -6093,7 +6048,6 @@ void EmitRotateLeftXX(X64Emitter& e, const ARGS& i) {
       }
     }
     e.rol(i.dest, e.cl);
-    e.ReloadContext();
   }
 }
 struct ROTATE_LEFT_I8
@@ -6584,7 +6538,6 @@ struct EXTRACT_I32
       e.vmovaps(e.xmm0, e.ptr[e.rdx + e.rax]);
       e.vpshufb(e.xmm0, src1, e.xmm0);
       e.vpextrd(i.dest, e.xmm0, 0);
-      e.ReloadMembase();
     }
   }
 };
@@ -7624,8 +7577,6 @@ struct ATOMIC_COMPARE_EXCHANGE_I32
     e.lock();
     e.cmpxchg(e.dword[e.GetMembaseReg() + e.rcx], i.src3);
     e.sete(i.dest);
-
-    e.ReloadContext();
   }
 };
 struct ATOMIC_COMPARE_EXCHANGE_I64
@@ -7637,8 +7588,6 @@ struct ATOMIC_COMPARE_EXCHANGE_I64
     e.lock();
     e.cmpxchg(e.qword[e.GetMembaseReg() + e.rcx], i.src3);
     e.sete(i.dest);
-
-    e.ReloadContext();
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_ATOMIC_COMPARE_EXCHANGE,
