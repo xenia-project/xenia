@@ -2139,8 +2139,13 @@ RegExp ComputeMemoryAddress(X64Emitter& e, const T& guest) {
     // TODO(benvanik): figure out how to do this without a temp.
     // Since the constant is often 0x8... if we tried to use that as a
     // displacement it would be sign extended and mess things up.
-    e.mov(e.eax, static_cast<uint32_t>(guest.constant()));
-    return e.GetMembaseReg() + e.rax;
+    uint32_t address = static_cast<uint32_t>(guest.constant());
+    if (address < 0x80000000) {
+      return e.GetMembaseReg() + address;
+    } else {
+      e.mov(e.eax, address);
+      return e.GetMembaseReg() + e.rax;
+    }
   } else {
     // Clear the top 32 bits, as they are likely garbage.
     // TODO(benvanik): find a way to avoid doing this.
