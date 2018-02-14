@@ -147,6 +147,11 @@ class HIRBuilder {
   Value* LoadMmio(cpu::MMIORange* mmio_range, uint32_t address, TypeName type);
   void StoreMmio(cpu::MMIORange* mmio_range, uint32_t address, Value* value);
 
+  Value* LoadOffset(Value* address, Value* offset, TypeName type,
+                    uint32_t load_flags = 0);
+  void StoreOffset(Value* address, Value* offset, Value* value,
+                   uint32_t store_flags = 0);
+
   Value* Load(Value* address, TypeName type, uint32_t load_flags = 0);
   void Store(Value* address, Value* value, uint32_t store_flags = 0);
   void Memset(Value* address, Value* value, Value* length);
