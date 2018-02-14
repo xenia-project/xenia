@@ -2128,6 +2128,176 @@ struct STORE_MMIO_I32
 EMITTER_OPCODE_TABLE(OPCODE_STORE_MMIO, STORE_MMIO_I32);
 
 // ============================================================================
+// OPCODE_LOAD_OFFSET
+// ============================================================================
+template <typename T>
+RegExp ComputeMemoryAddressOffset(X64Emitter& e, const T& guest,
+                                  const T& offset) {
+  int32_t offset_const = static_cast<int32_t>(offset.constant());
+
+  if (guest.is_constant) {
+    uint32_t address = static_cast<uint32_t>(guest.constant());
+    address += static_cast<int32_t>(offset.constant());
+    if (address < 0x80000000) {
+      return e.GetMembaseReg() + address;
+    } else {
+      e.mov(e.eax, address);
+      return e.GetMembaseReg() + e.rax;
+    }
+  } else {
+    // Clear the top 32 bits, as they are likely garbage.
+    // TODO(benvanik): find a way to avoid doing this.
+    e.mov(e.eax, guest.reg().cvt32());
+    return e.GetMembaseReg() + e.rax + offset_const;
+  }
+}
+
+struct LOAD_OFFSET_I8
+    : Sequence<LOAD_OFFSET_I8, I<OPCODE_LOAD_OFFSET, I8Op, I64Op, I64Op>> {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    auto addr = ComputeMemoryAddressOffset(e, i.src1, i.src2);
+    e.mov(i.dest, e.byte[addr]);
+  }
+};
+
+struct LOAD_OFFSET_I16
+    : Sequence<LOAD_OFFSET_I16, I<OPCODE_LOAD_OFFSET, I16Op, I64Op, I64Op>> {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    auto addr = ComputeMemoryAddressOffset(e, i.src1, i.src2);
+    if (i.instr->flags & LoadStoreFlags::LOAD_STORE_BYTE_SWAP) {
+      if (e.IsFeatureEnabled(kX64EmitMovbe)) {
+        e.movbe(i.dest, e.word[addr]);
+      } else {
+        e.mov(i.dest, e.word[addr]);
+        e.ror(i.dest, 8);
+      }
+    } else {
+      e.mov(i.dest, e.word[addr]);
+    }
+  }
+};
+
+struct LOAD_OFFSET_I32
+    : Sequence<LOAD_OFFSET_I32, I<OPCODE_LOAD_OFFSET, I32Op, I64Op, I64Op>> {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    auto addr = ComputeMemoryAddressOffset(e, i.src1, i.src2);
+    if (i.instr->flags & LoadStoreFlags::LOAD_STORE_BYTE_SWAP) {
+      if (e.IsFeatureEnabled(kX64EmitMovbe)) {
+        e.movbe(i.dest, e.dword[addr]);
+      } else {
+        e.mov(i.dest, e.dword[addr]);
+        e.bswap(i.dest);
+      }
+    } else {
+      e.mov(i.dest, e.dword[addr]);
+    }
+  }
+};
+
+struct LOAD_OFFSET_I64
+    : Sequence<LOAD_OFFSET_I64, I<OPCODE_LOAD_OFFSET, I64Op, I64Op, I64Op>> {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    auto addr = ComputeMemoryAddressOffset(e, i.src1, i.src2);
+    if (i.instr->flags & LoadStoreFlags::LOAD_STORE_BYTE_SWAP) {
+      if (e.IsFeatureEnabled(kX64EmitMovbe)) {
+        e.movbe(i.dest, e.qword[addr]);
+      } else {
+        e.mov(i.dest, e.qword[addr]);
+        e.bswap(i.dest);
+      }
+    } else {
+      e.mov(i.dest, e.qword[addr]);
+    }
+  }
+};
+EMITTER_OPCODE_TABLE(OPCODE_LOAD_OFFSET, LOAD_OFFSET_I8, LOAD_OFFSET_I16,
+                     LOAD_OFFSET_I32, LOAD_OFFSET_I64);
+
+// ============================================================================
+// OPCODE_STORE_OFFSET
+// ============================================================================
+struct STORE_OFFSET_I8
+    : Sequence<STORE_OFFSET_I8,
+               I<OPCODE_STORE_OFFSET, VoidOp, I64Op, I64Op, I8Op>> {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    auto addr = ComputeMemoryAddressOffset(e, i.src1, i.src2);
+    if (i.src3.is_constant) {
+      e.mov(e.byte[addr], i.src3.constant());
+    } else {
+      e.mov(e.byte[addr], i.src3);
+    }
+  }
+};
+
+struct STORE_OFFSET_I16
+    : Sequence<STORE_OFFSET_I16,
+               I<OPCODE_STORE_OFFSET, VoidOp, I64Op, I64Op, I16Op>> {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    auto addr = ComputeMemoryAddressOffset(e, i.src1, i.src2);
+    if (i.instr->flags & LoadStoreFlags::LOAD_STORE_BYTE_SWAP) {
+      assert_false(i.src3.is_constant);
+      if (e.IsFeatureEnabled(kX64EmitMovbe)) {
+        e.movbe(e.word[addr], i.src3);
+      } else {
+        assert_always("not implemented");
+      }
+    } else {
+      if (i.src3.is_constant) {
+        e.mov(e.word[addr], i.src3.constant());
+      } else {
+        e.mov(e.word[addr], i.src3);
+      }
+    }
+  }
+};
+
+struct STORE_OFFSET_I32
+    : Sequence<STORE_OFFSET_I32,
+               I<OPCODE_STORE_OFFSET, VoidOp, I64Op, I64Op, I32Op>> {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    auto addr = ComputeMemoryAddressOffset(e, i.src1, i.src2);
+    if (i.instr->flags & LoadStoreFlags::LOAD_STORE_BYTE_SWAP) {
+      assert_false(i.src3.is_constant);
+      if (e.IsFeatureEnabled(kX64EmitMovbe)) {
+        e.movbe(e.dword[addr], i.src3);
+      } else {
+        assert_always("not implemented");
+      }
+    } else {
+      if (i.src3.is_constant) {
+        e.mov(e.dword[addr], i.src3.constant());
+      } else {
+        e.mov(e.dword[addr], i.src3);
+      }
+    }
+  }
+};
+
+struct STORE_OFFSET_I64
+    : Sequence<STORE_OFFSET_I64,
+               I<OPCODE_STORE_OFFSET, VoidOp, I64Op, I64Op, I64Op>> {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    auto addr = ComputeMemoryAddressOffset(e, i.src1, i.src2);
+    if (i.instr->flags & LoadStoreFlags::LOAD_STORE_BYTE_SWAP) {
+      assert_false(i.src3.is_constant);
+      if (e.IsFeatureEnabled(kX64EmitMovbe)) {
+        e.movbe(e.qword[addr], i.src3);
+      } else {
+        assert_always("not implemented");
+      }
+    } else {
+      if (i.src3.is_constant) {
+        e.MovMem64(addr, i.src3.constant());
+      } else {
+        e.mov(e.qword[addr], i.src3);
+      }
+    }
+  }
+};
+EMITTER_OPCODE_TABLE(OPCODE_STORE_OFFSET, STORE_OFFSET_I8, STORE_OFFSET_I16,
+                     STORE_OFFSET_I32, STORE_OFFSET_I64);
+
+// ============================================================================
 // OPCODE_LOAD
 // ============================================================================
 // Note: most *should* be aligned, but needs to be checked!
@@ -7650,6 +7820,8 @@ void RegisterSequences() {
   Register_OPCODE_CONTEXT_BARRIER();
   Register_OPCODE_LOAD_MMIO();
   Register_OPCODE_STORE_MMIO();
+  Register_OPCODE_LOAD_OFFSET();
+  Register_OPCODE_STORE_OFFSET();
   Register_OPCODE_LOAD();
   Register_OPCODE_STORE();
   Register_OPCODE_MEMSET();
