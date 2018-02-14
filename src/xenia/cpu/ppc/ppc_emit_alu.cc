@@ -984,8 +984,10 @@ int InstrEmit_rlwinmx(PPCHIRBuilder& f, const InstrData& i) {
   // m <- MASK(MB+32, ME+32)
   // RA <- r & m
   Value* v = f.LoadGPR(i.M.RT);
+
   // (x||x)
-  v = f.Or(f.Shl(v, 32), f.And(v, f.LoadConstantUint64(0xFFFFFFFF)));
+  v = f.Or(f.Shl(v, 32), f.ZeroExtend(f.Truncate(v, INT32_TYPE), INT64_TYPE));
+
   // TODO(benvanik): optimize srwi
   // TODO(benvanik): optimize slwi
   // The compiler will generate a bunch of these for the special case of SH=0.
