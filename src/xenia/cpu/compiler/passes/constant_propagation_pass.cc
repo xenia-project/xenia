@@ -195,10 +195,15 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder) {
           break;
 
         case OPCODE_LOAD:
+        case OPCODE_LOAD_OFFSET:
           if (i->src1.value->IsConstant()) {
             assert_false(i->flags & LOAD_STORE_BYTE_SWAP);
             auto memory = processor_->memory();
             auto address = i->src1.value->constant.i32;
+            if (i->opcode->num == OPCODE_LOAD_OFFSET) {
+              address += i->src2.value->constant.i32;
+            }
+
             auto mmio_range =
                 processor_->memory()->LookupVirtualMappedRange(address);
             if (FLAGS_inline_mmio_access && mmio_range) {
@@ -246,12 +251,21 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder) {
           }
           break;
         case OPCODE_STORE:
+        case OPCODE_STORE_OFFSET:
           if (FLAGS_inline_mmio_access && i->src1.value->IsConstant()) {
             auto address = i->src1.value->constant.i32;
+            if (i->opcode->num == OPCODE_STORE_OFFSET) {
+              address += i->src2.value->constant.i32;
+            }
+
             auto mmio_range =
                 processor_->memory()->LookupVirtualMappedRange(address);
             if (mmio_range) {
               auto value = i->src2.value;
+              if (i->opcode->num == OPCODE_STORE_OFFSET) {
+                value = i->src3.value;
+              }
+
               i->Replace(&OPCODE_STORE_MMIO_info, 0);
               i->src1.offset = reinterpret_cast<uint64_t>(mmio_range);
               i->src2.offset = address;
