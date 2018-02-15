@@ -171,12 +171,14 @@ bool Memory::Initialize() {
   heaps_.vE0000000.Initialize(virtual_membase_, 0xE0000000, 0x1FD00000, 4096,
                               &heaps_.physical);
 
-  // Protect the first 64kb of memory.
+  // Protect the first and last 64kb of memory.
   heaps_.v00000000.AllocFixed(
-      0x00000000, 64 * 1024, 64 * 1024,
+      0x00000000, 0x10000, 0x10000,
       kMemoryAllocationReserve | kMemoryAllocationCommit,
       !FLAGS_protect_zero ? kMemoryProtectRead | kMemoryProtectWrite
                           : kMemoryProtectNoAccess);
+  heaps_.physical.AllocFixed(0x1FFF0000, 0x10000, 0x10000,
+                             kMemoryAllocationReserve, kMemoryProtectNoAccess);
 
   // GPU writeback.
   // 0xC... is physical, 0x7F... is virtual. We may need to overlay these.
