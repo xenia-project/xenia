@@ -1,8 +1,8 @@
 /*
  *
- * Copyright (c) 2015-2016 The Khronos Group Inc.
- * Copyright (c) 2015-2016 Valve Corporation
- * Copyright (c) 2015-2016 LunarG, Inc.
+ * Copyright (c) 2015-2018 The Khronos Group Inc.
+ * Copyright (c) 2015-2018 Valve Corporation
+ * Copyright (c) 2015-2018 LunarG, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
  *
  * Author: Ian Elliot <ian@lunarg.com>
  * Author: Jon Ashburn <jon@lunarg.com>
+ * Author: Lenny Komow <lenny@lunarg.com>
  *
  */
 #pragma once
@@ -70,6 +71,7 @@
 #define LAYERS_SOURCE_PATH NULL
 #endif
 #define LAYERS_PATH_ENV "VK_LAYER_PATH"
+#define ENABLED_LAYERS_ENV "VK_INSTANCE_LAYERS"
 
 #define RELATIVE_VK_DRIVERS_INFO VULKAN_DIR VULKAN_ICDCONF_DIR
 #define RELATIVE_VK_ELAYERS_INFO VULKAN_DIR VULKAN_ELAYERCONF_DIR
@@ -116,13 +118,11 @@ static inline const char *loader_platform_get_proc_address_error(const char *nam
 // Threads:
 typedef pthread_t loader_platform_thread;
 #define THREAD_LOCAL_DECL __thread
-#define LOADER_PLATFORM_THREAD_ONCE_DECLARATION(var) pthread_once_t var = PTHREAD_ONCE_INIT;
-#define LOADER_PLATFORM_THREAD_ONCE_DEFINITION(var) pthread_once_t var;
-static inline void loader_platform_thread_once(pthread_once_t *ctl, void (*func)(void)) {
-    assert(func != NULL);
-    assert(ctl != NULL);
-    pthread_once(ctl, func);
-}
+
+// The once init functionality is not used on Linux
+#define LOADER_PLATFORM_THREAD_ONCE_DECLARATION(var)
+#define LOADER_PLATFORM_THREAD_ONCE_DEFINITION(var)
+#define LOADER_PLATFORM_THREAD_ONCE(ctl, func)
 
 // Thread IDs:
 typedef pthread_t loader_platform_thread_id;
@@ -182,10 +182,37 @@ static inline void loader_platform_thread_cond_broadcast(loader_platform_thread_
 #define LAYERS_SOURCE_PATH NULL
 #endif
 #define LAYERS_PATH_ENV "VK_LAYER_PATH"
+#define ENABLED_LAYERS_ENV "VK_INSTANCE_LAYERS"
 #define RELATIVE_VK_DRIVERS_INFO ""
 #define RELATIVE_VK_ELAYERS_INFO ""
 #define RELATIVE_VK_ILAYERS_INFO ""
 #define PRINTF_SIZE_T_SPECIFIER "%Iu"
+
+#if defined(_WIN32)
+// Get the key for the plug n play driver registry
+// The string returned by this function should NOT be freed
+static inline const char *LoaderPnpDriverRegistry() {
+    BOOL is_wow;
+    IsWow64Process(GetCurrentProcess(), &is_wow);
+    return is_wow ? (API_NAME "DriverNameWow") : (API_NAME "DriverName");
+}
+
+// Get the key for the plug 'n play explicit layer registry
+// The string returned by this function should NOT be freed
+static inline const char *LoaderPnpELayerRegistry() {
+    BOOL is_wow;
+    IsWow64Process(GetCurrentProcess(), &is_wow);
+    return is_wow ? (API_NAME "ExplicitLayersWow") : (API_NAME "ExplicitLayers");
+}
+// Get the key for the plug 'n play implicit layer registry
+// The string returned by this function should NOT be freed
+
+static inline const char *LoaderPnpILayerRegistry() {
+    BOOL is_wow;
+    IsWow64Process(GetCurrentProcess(), &is_wow);
+    return is_wow ? (API_NAME "ImplicitLayersWow") : (API_NAME "ImplicitLayers");
+}
+#endif
 
 // File IO
 static bool loader_platform_file_exists(const char *path) {
@@ -254,7 +281,7 @@ static loader_platform_dl_handle loader_platform_open_library(const char *lib_pa
 }
 static char *loader_platform_open_library_error(const char *libPath) {
     static char errorMsg[164];
-    (void)snprintf(errorMsg, 163, "Failed to open dynamic library \"%s\" with error %d", libPath, GetLastError());
+    (void)snprintf(errorMsg, 163, "Failed to open dynamic library \"%s\" with error %lu", libPath, GetLastError());
     return errorMsg;
 }
 static void loader_platform_close_library(loader_platform_dl_handle library) { FreeLibrary(library); }
@@ -272,19 +299,29 @@ static char *loader_platform_get_proc_address_error(const char *name) {
 // Threads:
 typedef HANDLE loader_platform_thread;
 #define THREAD_LOCAL_DECL __declspec(thread)
+
+// The once init functionality is not used when building a DLL on Windows. This is because there is no way to clean up the
+// resources allocated by anything allocated by once init. This isn't a problem for static libraries, but it is for dynamic
+// ones. When building a DLL, we use DllMain() instead to allow properly cleaning up resources.
+#if defined(LOADER_DYNAMIC_LIB)
+#define LOADER_PLATFORM_THREAD_ONCE_DECLARATION(var)
+#define LOADER_PLATFORM_THREAD_ONCE_DEFINITION(var)
+#define LOADER_PLATFORM_THREAD_ONCE(ctl, func)
+#else
 #define LOADER_PLATFORM_THREAD_ONCE_DECLARATION(var) INIT_ONCE var = INIT_ONCE_STATIC_INIT;
 #define LOADER_PLATFORM_THREAD_ONCE_DEFINITION(var) INIT_ONCE var;
+#define LOADER_PLATFORM_THREAD_ONCE(ctl, func) loader_platform_thread_once_fn(ctl, func)
 static BOOL CALLBACK InitFuncWrapper(PINIT_ONCE InitOnce, PVOID Parameter, PVOID *Context) {
     void (*func)(void) = (void (*)(void))Parameter;
     func();
     return TRUE;
 }
-
-static void loader_platform_thread_once(void *ctl, void (*func)(void)) {
+static void loader_platform_thread_once_fn(void *ctl, void (*func)(void)) {
     assert(func != NULL);
     assert(ctl != NULL);
     InitOnceExecuteOnce((PINIT_ONCE)ctl, InitFuncWrapper, func, NULL);
 }
+#endif
 
 // Thread IDs:
 typedef DWORD loader_platform_thread_id;
