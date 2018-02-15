@@ -35,9 +35,11 @@ bool MemorySequenceCombinationPass::Run(HIRBuilder* builder) {
   while (block) {
     auto i = block->instr_head;
     while (i) {
-      if (i->opcode == &OPCODE_LOAD_info) {
+      if (i->opcode == &OPCODE_LOAD_info ||
+          i->opcode == &OPCODE_LOAD_OFFSET_info) {
         CombineLoadSequence(i);
-      } else if (i->opcode == &OPCODE_STORE_info) {
+      } else if (i->opcode == &OPCODE_STORE_info ||
+                 i->opcode == &OPCODE_STORE_OFFSET_info) {
         CombineStoreSequence(i);
       }
       i = i->next;
@@ -112,6 +114,10 @@ void MemorySequenceCombinationPass::CombineStoreSequence(Instr* i) {
   //   store_convert v0, v1.i64, [swap|i64->i32,trunc]
 
   auto src = i->src2.value;
+  if (i->opcode == &OPCODE_STORE_OFFSET_info) {
+    src = i->src3.value;
+  }
+
   if (src->IsConstant()) {
     // Constant value write - ignore.
     return;
@@ -135,7 +141,11 @@ void MemorySequenceCombinationPass::CombineStoreSequence(Instr* i) {
 
   // Pull the original value (from before the byte swap).
   // The byte swap itself will go away in DCE.
-  i->set_src2(def->src1.value);
+  if (i->opcode == &OPCODE_STORE_info) {
+    i->set_src2(def->src1.value);
+  } else if (i->opcode == &OPCODE_STORE_OFFSET_info) {
+    i->set_src3(def->src1.value);
+  }
 
   // TODO(benvanik): extend/truncate.
 }

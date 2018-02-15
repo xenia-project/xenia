@@ -42,15 +42,16 @@ git:
   submodules: false
 
 before_script:
+  - export LIBVULKAN_VERSION=1.0.61.1
   - export CXX=$CXX_COMPILER
   - export CC=$C_COMPILER
   # Dump useful info.
   - $CXX --version
   - python3 --version
   # Add Vulkan dependencies
-  - travis_retry wget http://mirrors.kernel.org/ubuntu/pool/universe/v/vulkan/libvulkan1_1.0.42.0+dfsg1-1ubuntu1~16.04.1_amd64.deb
-  - travis_retry wget http://mirrors.kernel.org/ubuntu/pool/universe/v/vulkan/libvulkan-dev_1.0.42.0+dfsg1-1ubuntu1~16.04.1_amd64.deb
-  - if [[ $BUILD == true ]]; then sudo dpkg -i libvulkan1_1.0.42.0+dfsg1-1ubuntu1~16.04.1_amd64.deb libvulkan-dev_1.0.42.0+dfsg1-1ubuntu1~16.04.1_amd64.deb; fi
+  - travis_retry wget http://mirrors.kernel.org/ubuntu/pool/universe/v/vulkan/libvulkan1_$LIBVULKAN_VERSION+dfsg1-1ubuntu1~16.04.1_amd64.deb
+  - travis_retry wget http://mirrors.kernel.org/ubuntu/pool/universe/v/vulkan/libvulkan-dev_$LIBVULKAN_VERSION+dfsg1-1ubuntu1~16.04.1_amd64.deb
+  - if [[ $BUILD == true ]]; then sudo dpkg -i libvulkan1_$LIBVULKAN_VERSION+dfsg1-1ubuntu1~16.04.1_amd64.deb libvulkan-dev_$LIBVULKAN_VERSION+dfsg1-1ubuntu1~16.04.1_amd64.deb; fi
   # Prepare environment (pull dependencies, build tools).
   - travis_retry ./xenia-build setup
 

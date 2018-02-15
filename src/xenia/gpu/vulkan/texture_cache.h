@@ -134,6 +134,9 @@ class TextureCache {
                                VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT);
   bool FreeTexture(Texture* texture);
 
+  static void WatchCallback(void* context_ptr, void* data_ptr,
+                            uint32_t address);
+
   // Demands a texture. If command_buffer is null and the texture hasn't been
   // uploaded to graphics memory already, we will return null and bail.
   Texture* Demand(const TextureInfo& texture_info,
@@ -188,7 +191,7 @@ class TextureCache {
 
   std::unique_ptr<xe::ui::vulkan::CommandBufferPool> wb_command_pool_ = nullptr;
   std::unique_ptr<xe::ui::vulkan::DescriptorPool> descriptor_pool_ = nullptr;
-  std::unordered_map<uint64_t, VkDescriptorSet> texture_bindings_;
+  std::unordered_map<uint64_t, VkDescriptorSet> texture_sets_;
   VkDescriptorSetLayout texture_descriptor_set_layout_ = nullptr;
 
   VmaAllocator mem_allocator_ = nullptr;
