@@ -137,6 +137,10 @@ struct loader_layer_properties {
     struct loader_name_value enable_env_var;
     uint32_t num_component_layers;
     char (*component_layer_names)[MAX_STRING_SIZE];
+    struct {
+        char enumerate_instance_extension_properties[MAX_STRING_SIZE];
+        char enumerate_instance_layer_properties[MAX_STRING_SIZE];
+    } pre_instance_functions;
 };
 
 struct loader_layer_list {
@@ -375,7 +379,9 @@ static inline void loader_init_dispatch(void *obj, const void *data) {
 // Global variables used across files
 extern struct loader_struct loader;
 extern THREAD_LOCAL_DECL struct loader_instance *tls_instance;
+#if defined(_WIN32) && !defined(LOADER_DYNAMIC_LIB)
 extern LOADER_PLATFORM_THREAD_ONCE_DEFINITION(once_init);
+#endif
 extern loader_platform_thread_mutex loader_lock;
 extern loader_platform_thread_mutex loader_json_lock;
 
@@ -437,6 +443,7 @@ void loader_scanned_icd_clear(const struct loader_instance *inst, struct loader_
 VkResult loader_icd_scan(const struct loader_instance *inst, struct loader_icd_tramp_list *icd_tramp_list);
 void loader_layer_scan(const struct loader_instance *inst, struct loader_layer_list *instance_layers);
 void loader_implicit_layer_scan(const struct loader_instance *inst, struct loader_layer_list *instance_layers);
+bool loader_is_implicit_layer_enabled(const struct loader_instance *inst, const struct loader_layer_properties *prop);
 VkResult loader_get_icd_loader_instance_extensions(const struct loader_instance *inst, struct loader_icd_tramp_list *icd_tramp_list,
                                                    struct loader_extension_list *inst_exts);
 struct loader_icd_term *loader_get_icd_and_device(const VkDevice device, struct loader_device **found_dev, uint32_t *icd_index);
