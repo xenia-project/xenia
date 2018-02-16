@@ -305,12 +305,12 @@ std::pair<VkBuffer, VkDeviceSize> BufferCache::UploadIndexBuffer(
   // TODO(benvanik): memcpy then use compute shaders to swap?
   if (format == IndexFormat::kInt16) {
     // Endian::k8in16, swap half-words.
-    xe::copy_and_swap_16_aligned(transient_buffer_->host_base() + offset,
-                                 source_ptr, source_length / 2);
+    xe::copy_and_swap_16_unaligned(transient_buffer_->host_base() + offset,
+                                   source_ptr, source_length / 2);
   } else if (format == IndexFormat::kInt32) {
     // Endian::k8in32, swap words.
-    xe::copy_and_swap_32_aligned(transient_buffer_->host_base() + offset,
-                                 source_ptr, source_length / 4);
+    xe::copy_and_swap_32_unaligned(transient_buffer_->host_base() + offset,
+                                   source_ptr, source_length / 4);
   }
 
   transient_buffer_->Flush(offset, source_length);
@@ -367,14 +367,11 @@ std::pair<VkBuffer, VkDeviceSize> BufferCache::UploadVertexBuffer(
   // TODO(benvanik): memcpy then use compute shaders to swap?
   if (endian == Endian::k8in32) {
     // Endian::k8in32, swap words.
-    xe::copy_and_swap_32_aligned(transient_buffer_->host_base() + offset,
-                                 upload_ptr, upload_size / 4);
+    xe::copy_and_swap_32_unaligned(transient_buffer_->host_base() + offset,
+                                   upload_ptr, source_length / 4);
   } else if (endian == Endian::k16in32) {
-    // TODO(DrChat): Investigate what 16-in-32 actually does.
-    assert_always();
-
-    xe::copy_and_swap_16_in_32_aligned(transient_buffer_->host_base() + offset,
-                                       upload_ptr, upload_size / 4);
+    xe::copy_and_swap_16_in_32_unaligned(
+        transient_buffer_->host_base() + offset, upload_ptr, source_length / 4);
   } else {
     assert_always();
   }
