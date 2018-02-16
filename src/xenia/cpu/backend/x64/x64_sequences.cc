@@ -6484,24 +6484,17 @@ struct CNTLZ_I8 : Sequence<CNTLZ_I8, I<OPCODE_CNTLZ, I8Op, I8Op>> {
       e.lzcnt(i.dest.reg().cvt16(), i.dest.reg().cvt16());
       e.sub(i.dest, 8);
     } else {
-      Xbyak::Label jz, jend;
-
+      Xbyak::Label end;
       e.inLocalLabel();
 
-      // BSR: searches $2 until MSB 1 found, stores idx (from bit 0) in $1
-      // if input is 0, results are undefined (and ZF is set)
-      e.bsr(i.dest, i.src1);
-      e.jz(jz);  // Jump if zero
+      e.bsr(e.rax, i.src1);  // ZF set if i.src1 is 0
+      e.mov(i.dest, 0x8);
+      e.jz(end);
 
-      // Invert the result (7 - i.dest)
-      e.xor_(i.dest, 0x7);
-      e.jmp(jend);  // Jmp to end
+      e.xor_(e.rax, 0x7);
+      e.mov(i.dest, e.rax);
 
-      // src1 was zero, so write 8 to the dest reg
-      e.L(jz);
-      e.mov(i.dest, 8);
-
-      e.L(jend);
+      e.L(end);
       e.outLocalLabel();
     }
   }
@@ -6512,24 +6505,17 @@ struct CNTLZ_I16 : Sequence<CNTLZ_I16, I<OPCODE_CNTLZ, I8Op, I16Op>> {
       // LZCNT: searches $2 until MSB 1 found, stores idx (from last bit) in $1
       e.lzcnt(i.dest.reg().cvt32(), i.src1);
     } else {
-      Xbyak::Label jz, jend;
-
+      Xbyak::Label end;
       e.inLocalLabel();
 
-      // BSR: searches $2 until MSB 1 found, stores idx (from bit 0) in $1
-      // if input is 0, results are undefined (and ZF is set)
-      e.bsr(i.dest, i.src1);
-      e.jz(jz);  // Jump if zero
+      e.bsr(e.rax, i.src1);  // ZF set if i.src1 is 0
+      e.mov(i.dest, 0x10);
+      e.jz(end);
 
-      // Invert the result (15 - i.dest)
-      e.xor_(i.dest, 0xF);
-      e.jmp(jend);  // Jmp to end
+      e.xor_(e.rax, 0x0F);
+      e.mov(i.dest, e.rax);
 
-      // src1 was zero, so write 16 to the dest reg
-      e.L(jz);
-      e.mov(i.dest, 16);
-
-      e.L(jend);
+      e.L(end);
       e.outLocalLabel();
     }
   }
@@ -6539,24 +6525,17 @@ struct CNTLZ_I32 : Sequence<CNTLZ_I32, I<OPCODE_CNTLZ, I8Op, I32Op>> {
     if (e.IsFeatureEnabled(kX64EmitLZCNT)) {
       e.lzcnt(i.dest.reg().cvt32(), i.src1);
     } else {
-      Xbyak::Label jz, jend;
-
+      Xbyak::Label end;
       e.inLocalLabel();
 
-      // BSR: searches $2 until MSB 1 found, stores idx (from bit 0) in $1
-      // if input is 0, results are undefined (and ZF is set)
-      e.bsr(i.dest, i.src1);
-      e.jz(jz);  // Jump if zero
+      e.bsr(e.rax, i.src1);  // ZF set if i.src1 is 0
+      e.mov(i.dest, 0x20);
+      e.jz(end);
 
-      // Invert the result (31 - i.dest)
-      e.xor_(i.dest, 0x1F);
-      e.jmp(jend);  // Jmp to end
+      e.xor_(e.rax, 0x1F);
+      e.mov(i.dest, e.rax);
 
-      // src1 was zero, so write 32 to the dest reg
-      e.L(jz);
-      e.mov(i.dest, 32);
-
-      e.L(jend);
+      e.L(end);
       e.outLocalLabel();
     }
   }
@@ -6566,24 +6545,17 @@ struct CNTLZ_I64 : Sequence<CNTLZ_I64, I<OPCODE_CNTLZ, I8Op, I64Op>> {
     if (e.IsFeatureEnabled(kX64EmitLZCNT)) {
       e.lzcnt(i.dest.reg().cvt64(), i.src1);
     } else {
-      Xbyak::Label jz, jend;
-
+      Xbyak::Label end;
       e.inLocalLabel();
 
-      // BSR: searches $2 until MSB 1 found, stores idx (from bit 0) in $1
-      // if input is 0, results are undefined (and ZF is set)
-      e.bsr(i.dest, i.src1);
-      e.jz(jz);  // Jump if zero
+      e.bsr(e.rax, i.src1);  // ZF set if i.src1 is 0
+      e.mov(i.dest, 0x40);
+      e.jz(end);
 
-      // Invert the result (63 - i.dest)
-      e.xor_(i.dest, 0x3F);
-      e.jmp(jend);  // Jmp to end
+      e.xor_(e.rax, 0x3F);
+      e.mov(i.dest, e.rax);
 
-      // src1 was zero, so write 64 to the dest reg
-      e.L(jz);
-      e.mov(i.dest, 64);
-
-      e.L(jend);
+      e.L(end);
       e.outLocalLabel();
     }
   }
