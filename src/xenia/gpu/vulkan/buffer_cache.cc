@@ -284,13 +284,6 @@ std::pair<VkDeviceSize, VkDeviceSize> BufferCache::UploadConstantRegisters(
 std::pair<VkBuffer, VkDeviceSize> BufferCache::UploadIndexBuffer(
     VkCommandBuffer command_buffer, uint32_t source_addr,
     uint32_t source_length, IndexFormat format, VkFence fence) {
-  /*
-  auto offset = FindCachedTransientData(source_addr, source_length);
-  if (offset != VK_WHOLE_SIZE) {
-    return {transient_buffer_->gpu_buffer(), offset};
-  }
-  */
-
   // Allocate space in the buffer for our data.
   auto offset = AllocateTransientData(source_length, fence);
   if (offset == VK_WHOLE_SIZE) {
@@ -331,7 +324,6 @@ std::pair<VkBuffer, VkDeviceSize> BufferCache::UploadIndexBuffer(
                        VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, 0, 0, nullptr, 1,
                        &barrier, 0, nullptr);
 
-  // CacheTransientData(source_addr, source_length, offset);
   return {transient_buffer_->gpu_buffer(), offset};
 }
 

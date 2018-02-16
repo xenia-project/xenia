@@ -97,6 +97,15 @@ class BufferCache {
   void Scavenge();
 
  private:
+  // This represents an uploaded vertex buffer.
+  struct VertexBuffer {
+    uint32_t guest_address;
+    uint32_t size;
+
+    VmaAllocation alloc;
+    VmaAllocationInfo alloc_info;
+  };
+
   // Allocates a block of memory in the transient buffer.
   // When memory is not available fences are checked and space is reclaimed.
   // Returns VK_WHOLE_SIZE if requested amount of memory is not available.
