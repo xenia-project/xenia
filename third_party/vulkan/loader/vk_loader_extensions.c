@@ -215,6 +215,9 @@ VKAPI_ATTR bool VKAPI_CALL loader_icd_init_entries(struct loader_icd_term *icd_t
     LOOKUP_GIPA(CreateMacOSSurfaceMVK, false);
 #endif // VK_USE_PLATFORM_MACOS_MVK
 
+    // ---- VK_EXT_sample_locations extension commands
+    LOOKUP_GIPA(GetPhysicalDeviceMultisamplePropertiesEXT, false);
+
 #undef LOOKUP_GIPA
 
     return true;
@@ -421,6 +424,14 @@ VKAPI_ATTR void VKAPI_CALL loader_init_device_extension_dispatch_table(struct lo
     table->GetBufferMemoryRequirements2KHR = (PFN_vkGetBufferMemoryRequirements2KHR)gpa(dev, "vkGetBufferMemoryRequirements2KHR");
     table->GetImageSparseMemoryRequirements2KHR = (PFN_vkGetImageSparseMemoryRequirements2KHR)gpa(dev, "vkGetImageSparseMemoryRequirements2KHR");
 
+    // ---- VK_KHR_sampler_ycbcr_conversion extension commands
+    table->CreateSamplerYcbcrConversionKHR = (PFN_vkCreateSamplerYcbcrConversionKHR)gpa(dev, "vkCreateSamplerYcbcrConversionKHR");
+    table->DestroySamplerYcbcrConversionKHR = (PFN_vkDestroySamplerYcbcrConversionKHR)gpa(dev, "vkDestroySamplerYcbcrConversionKHR");
+
+    // ---- VK_KHR_bind_memory2 extension commands
+    table->BindBufferMemory2KHR = (PFN_vkBindBufferMemory2KHR)gpa(dev, "vkBindBufferMemory2KHR");
+    table->BindImageMemory2KHR = (PFN_vkBindImageMemory2KHR)gpa(dev, "vkBindImageMemory2KHR");
+
     // ---- VK_EXT_debug_marker extension commands
     table->DebugMarkerSetObjectTagEXT = (PFN_vkDebugMarkerSetObjectTagEXT)gpa(dev, "vkDebugMarkerSetObjectTagEXT");
     table->DebugMarkerSetObjectNameEXT = (PFN_vkDebugMarkerSetObjectNameEXT)gpa(dev, "vkDebugMarkerSetObjectNameEXT");
@@ -432,6 +443,9 @@ VKAPI_ATTR void VKAPI_CALL loader_init_device_extension_dispatch_table(struct lo
     table->CmdDrawIndirectCountAMD = (PFN_vkCmdDrawIndirectCountAMD)gpa(dev, "vkCmdDrawIndirectCountAMD");
     table->CmdDrawIndexedIndirectCountAMD = (PFN_vkCmdDrawIndexedIndirectCountAMD)gpa(dev, "vkCmdDrawIndexedIndirectCountAMD");
 
+    // ---- VK_AMD_shader_info extension commands
+    table->GetShaderInfoAMD = (PFN_vkGetShaderInfoAMD)gpa(dev, "vkGetShaderInfoAMD");
+
     // ---- VK_NV_external_memory_win32 extension commands
 #ifdef VK_USE_PLATFORM_WIN32_KHR
     table->GetMemoryWin32HandleNV = (PFN_vkGetMemoryWin32HandleNV)gpa(dev, "vkGetMemoryWin32HandleNV");
@@ -439,13 +453,11 @@ VKAPI_ATTR void VKAPI_CALL loader_init_device_extension_dispatch_table(struct lo
 
     // ---- VK_KHX_device_group extension commands
     table->GetDeviceGroupPeerMemoryFeaturesKHX = (PFN_vkGetDeviceGroupPeerMemoryFeaturesKHX)gpa(dev, "vkGetDeviceGroupPeerMemoryFeaturesKHX");
-    table->BindBufferMemory2KHX = (PFN_vkBindBufferMemory2KHX)gpa(dev, "vkBindBufferMemory2KHX");
-    table->BindImageMemory2KHX = (PFN_vkBindImageMemory2KHX)gpa(dev, "vkBindImageMemory2KHX");
     table->CmdSetDeviceMaskKHX = (PFN_vkCmdSetDeviceMaskKHX)gpa(dev, "vkCmdSetDeviceMaskKHX");
+    table->CmdDispatchBaseKHX = (PFN_vkCmdDispatchBaseKHX)gpa(dev, "vkCmdDispatchBaseKHX");
     table->GetDeviceGroupPresentCapabilitiesKHX = (PFN_vkGetDeviceGroupPresentCapabilitiesKHX)gpa(dev, "vkGetDeviceGroupPresentCapabilitiesKHX");
     table->GetDeviceGroupSurfacePresentModesKHX = (PFN_vkGetDeviceGroupSurfacePresentModesKHX)gpa(dev, "vkGetDeviceGroupSurfacePresentModesKHX");
     table->AcquireNextImage2KHX = (PFN_vkAcquireNextImage2KHX)gpa(dev, "vkAcquireNextImage2KHX");
-    table->CmdDispatchBaseKHX = (PFN_vkCmdDispatchBaseKHX)gpa(dev, "vkCmdDispatchBaseKHX");
 
     // ---- VK_NVX_device_generated_commands extension commands
     table->CmdProcessCommandsNVX = (PFN_vkCmdProcessCommandsNVX)gpa(dev, "vkCmdProcessCommandsNVX");
@@ -475,6 +487,18 @@ VKAPI_ATTR void VKAPI_CALL loader_init_device_extension_dispatch_table(struct lo
 
     // ---- VK_EXT_hdr_metadata extension commands
     table->SetHdrMetadataEXT = (PFN_vkSetHdrMetadataEXT)gpa(dev, "vkSetHdrMetadataEXT");
+
+    // ---- VK_EXT_sample_locations extension commands
+    table->CmdSetSampleLocationsEXT = (PFN_vkCmdSetSampleLocationsEXT)gpa(dev, "vkCmdSetSampleLocationsEXT");
+
+    // ---- VK_EXT_validation_cache extension commands
+    table->CreateValidationCacheEXT = (PFN_vkCreateValidationCacheEXT)gpa(dev, "vkCreateValidationCacheEXT");
+    table->DestroyValidationCacheEXT = (PFN_vkDestroyValidationCacheEXT)gpa(dev, "vkDestroyValidationCacheEXT");
+    table->MergeValidationCachesEXT = (PFN_vkMergeValidationCachesEXT)gpa(dev, "vkMergeValidationCachesEXT");
+    table->GetValidationCacheDataEXT = (PFN_vkGetValidationCacheDataEXT)gpa(dev, "vkGetValidationCacheDataEXT");
+
+    // ---- VK_EXT_external_memory_host extension commands
+    table->GetMemoryHostPointerPropertiesEXT = (PFN_vkGetMemoryHostPointerPropertiesEXT)gpa(dev, "vkGetMemoryHostPointerPropertiesEXT");
 }
 
 // Init Instance function pointer dispatch table with core commands
@@ -628,6 +652,9 @@ VKAPI_ATTR void VKAPI_CALL loader_init_instance_extension_dispatch_table(VkLayer
 #ifdef VK_USE_PLATFORM_MACOS_MVK
     table->CreateMacOSSurfaceMVK = (PFN_vkCreateMacOSSurfaceMVK)gpa(inst, "vkCreateMacOSSurfaceMVK");
 #endif // VK_USE_PLATFORM_MACOS_MVK
+
+    // ---- VK_EXT_sample_locations extension commands
+    table->GetPhysicalDeviceMultisamplePropertiesEXT = (PFN_vkGetPhysicalDeviceMultisamplePropertiesEXT)gpa(inst, "vkGetPhysicalDeviceMultisamplePropertiesEXT");
 }
 
 // Device command lookup function
@@ -825,6 +852,14 @@ VKAPI_ATTR void* VKAPI_CALL loader_lookup_device_dispatch_table(const VkLayerDis
     if (!strcmp(name, "GetBufferMemoryRequirements2KHR")) return (void *)table->GetBufferMemoryRequirements2KHR;
     if (!strcmp(name, "GetImageSparseMemoryRequirements2KHR")) return (void *)table->GetImageSparseMemoryRequirements2KHR;
 
+    // ---- VK_KHR_sampler_ycbcr_conversion extension commands
+    if (!strcmp(name, "CreateSamplerYcbcrConversionKHR")) return (void *)table->CreateSamplerYcbcrConversionKHR;
+    if (!strcmp(name, "DestroySamplerYcbcrConversionKHR")) return (void *)table->DestroySamplerYcbcrConversionKHR;
+
+    // ---- VK_KHR_bind_memory2 extension commands
+    if (!strcmp(name, "BindBufferMemory2KHR")) return (void *)table->BindBufferMemory2KHR;
+    if (!strcmp(name, "BindImageMemory2KHR")) return (void *)table->BindImageMemory2KHR;
+
     // ---- VK_EXT_debug_marker extension commands
     if (!strcmp(name, "DebugMarkerSetObjectTagEXT")) return (void *)table->DebugMarkerSetObjectTagEXT;
     if (!strcmp(name, "DebugMarkerSetObjectNameEXT")) return (void *)table->DebugMarkerSetObjectNameEXT;
@@ -836,6 +871,9 @@ VKAPI_ATTR void* VKAPI_CALL loader_lookup_device_dispatch_table(const VkLayerDis
     if (!strcmp(name, "CmdDrawIndirectCountAMD")) return (void *)table->CmdDrawIndirectCountAMD;
     if (!strcmp(name, "CmdDrawIndexedIndirectCountAMD")) return (void *)table->CmdDrawIndexedIndirectCountAMD;
 
+    // ---- VK_AMD_shader_info extension commands
+    if (!strcmp(name, "GetShaderInfoAMD")) return (void *)table->GetShaderInfoAMD;
+
     // ---- VK_NV_external_memory_win32 extension commands
 #ifdef VK_USE_PLATFORM_WIN32_KHR
     if (!strcmp(name, "GetMemoryWin32HandleNV")) return (void *)table->GetMemoryWin32HandleNV;
@@ -843,13 +881,11 @@ VKAPI_ATTR void* VKAPI_CALL loader_lookup_device_dispatch_table(const VkLayerDis
 
     // ---- VK_KHX_device_group extension commands
     if (!strcmp(name, "GetDeviceGroupPeerMemoryFeaturesKHX")) return (void *)table->GetDeviceGroupPeerMemoryFeaturesKHX;
-    if (!strcmp(name, "BindBufferMemory2KHX")) return (void *)table->BindBufferMemory2KHX;
-    if (!strcmp(name, "BindImageMemory2KHX")) return (void *)table->BindImageMemory2KHX;
     if (!strcmp(name, "CmdSetDeviceMaskKHX")) return (void *)table->CmdSetDeviceMaskKHX;
+    if (!strcmp(name, "CmdDispatchBaseKHX")) return (void *)table->CmdDispatchBaseKHX;
     if (!strcmp(name, "GetDeviceGroupPresentCapabilitiesKHX")) return (void *)table->GetDeviceGroupPresentCapabilitiesKHX;
     if (!strcmp(name, "GetDeviceGroupSurfacePresentModesKHX")) return (void *)table->GetDeviceGroupSurfacePresentModesKHX;
     if (!strcmp(name, "AcquireNextImage2KHX")) return (void *)table->AcquireNextImage2KHX;
-    if (!strcmp(name, "CmdDispatchBaseKHX")) return (void *)table->CmdDispatchBaseKHX;
 
     // ---- VK_NVX_device_generated_commands extension commands
     if (!strcmp(name, "CmdProcessCommandsNVX")) return (void *)table->CmdProcessCommandsNVX;
@@ -879,6 +915,18 @@ VKAPI_ATTR void* VKAPI_CALL loader_lookup_device_dispatch_table(const VkLayerDis
 
     // ---- VK_EXT_hdr_metadata extension commands
     if (!strcmp(name, "SetHdrMetadataEXT")) return (void *)table->SetHdrMetadataEXT;
+
+    // ---- VK_EXT_sample_locations extension commands
+    if (!strcmp(name, "CmdSetSampleLocationsEXT")) return (void *)table->CmdSetSampleLocationsEXT;
+
+    // ---- VK_EXT_validation_cache extension commands
+    if (!strcmp(name, "CreateValidationCacheEXT")) return (void *)table->CreateValidationCacheEXT;
+    if (!strcmp(name, "DestroyValidationCacheEXT")) return (void *)table->DestroyValidationCacheEXT;
+    if (!strcmp(name, "MergeValidationCachesEXT")) return (void *)table->MergeValidationCachesEXT;
+    if (!strcmp(name, "GetValidationCacheDataEXT")) return (void *)table->GetValidationCacheDataEXT;
+
+    // ---- VK_EXT_external_memory_host extension commands
+    if (!strcmp(name, "GetMemoryHostPointerPropertiesEXT")) return (void *)table->GetMemoryHostPointerPropertiesEXT;
 
     return NULL;
 }
@@ -1036,6 +1084,9 @@ VKAPI_ATTR void* VKAPI_CALL loader_lookup_instance_dispatch_table(const VkLayerI
 #ifdef VK_USE_PLATFORM_MACOS_MVK
     if (!strcmp(name, "CreateMacOSSurfaceMVK")) return (void *)table->CreateMacOSSurfaceMVK;
 #endif // VK_USE_PLATFORM_MACOS_MVK
+
+    // ---- VK_EXT_sample_locations extension commands
+    if (!strcmp(name, "GetPhysicalDeviceMultisamplePropertiesEXT")) return (void *)table->GetPhysicalDeviceMultisamplePropertiesEXT;
 
     *found_name = false;
     return NULL;
@@ -1268,11 +1319,50 @@ VKAPI_ATTR void VKAPI_CALL GetImageSparseMemoryRequirements2KHR(
 }
 
 
+// ---- VK_KHR_sampler_ycbcr_conversion extension trampoline/terminators
+
+VKAPI_ATTR VkResult VKAPI_CALL CreateSamplerYcbcrConversionKHR(
+    VkDevice                                    device,
+    const VkSamplerYcbcrConversionCreateInfoKHR* pCreateInfo,
+    const VkAllocationCallbacks*                pAllocator,
+    VkSamplerYcbcrConversionKHR*                pYcbcrConversion) {
+    const VkLayerDispatchTable *disp = loader_get_dispatch(device);
+    return disp->CreateSamplerYcbcrConversionKHR(device, pCreateInfo, pAllocator, pYcbcrConversion);
+}
+
+VKAPI_ATTR void VKAPI_CALL DestroySamplerYcbcrConversionKHR(
+    VkDevice                                    device,
+    VkSamplerYcbcrConversionKHR                 ycbcrConversion,
+    const VkAllocationCallbacks*                pAllocator) {
+    const VkLayerDispatchTable *disp = loader_get_dispatch(device);
+    disp->DestroySamplerYcbcrConversionKHR(device, ycbcrConversion, pAllocator);
+}
+
+
+// ---- VK_KHR_bind_memory2 extension trampoline/terminators
+
+VKAPI_ATTR VkResult VKAPI_CALL BindBufferMemory2KHR(
+    VkDevice                                    device,
+    uint32_t                                    bindInfoCount,
+    const VkBindBufferMemoryInfoKHR*            pBindInfos) {
+    const VkLayerDispatchTable *disp = loader_get_dispatch(device);
+    return disp->BindBufferMemory2KHR(device, bindInfoCount, pBindInfos);
+}
+
+VKAPI_ATTR VkResult VKAPI_CALL BindImageMemory2KHR(
+    VkDevice                                    device,
+    uint32_t                                    bindInfoCount,
+    const VkBindImageMemoryInfoKHR*             pBindInfos) {
+    const VkLayerDispatchTable *disp = loader_get_dispatch(device);
+    return disp->BindImageMemory2KHR(device, bindInfoCount, pBindInfos);
+}
+
+
 // ---- VK_EXT_debug_marker extension trampoline/terminators
 
 VKAPI_ATTR VkResult VKAPI_CALL DebugMarkerSetObjectTagEXT(
     VkDevice                                    device,
-    VkDebugMarkerObjectTagInfoEXT*              pTagInfo) {
+    const VkDebugMarkerObjectTagInfoEXT*        pTagInfo) {
     const VkLayerDispatchTable *disp = loader_get_dispatch(device);
     VkDebugMarkerObjectTagInfoEXT local_tag_info;
     memcpy(&local_tag_info, pTagInfo, sizeof(VkDebugMarkerObjectTagInfoEXT));
@@ -1286,7 +1376,7 @@ VKAPI_ATTR VkResult VKAPI_CALL DebugMarkerSetObjectTagEXT(
 
 VKAPI_ATTR VkResult VKAPI_CALL terminator_DebugMarkerSetObjectTagEXT(
     VkDevice                                    device,
-    VkDebugMarkerObjectTagInfoEXT*              pTagInfo) {
+    const VkDebugMarkerObjectTagInfoEXT*        pTagInfo) {
     uint32_t icd_index = 0;
     struct loader_device *dev;
     struct loader_icd_term *icd_term = loader_get_icd_and_device(device, &dev, &icd_index);
@@ -1314,7 +1404,7 @@ VKAPI_ATTR VkResult VKAPI_CALL terminator_DebugMarkerSetObjectTagEXT(
 
 VKAPI_ATTR VkResult VKAPI_CALL DebugMarkerSetObjectNameEXT(
     VkDevice                                    device,
-    VkDebugMarkerObjectNameInfoEXT*             pNameInfo) {
+    const VkDebugMarkerObjectNameInfoEXT*       pNameInfo) {
     const VkLayerDispatchTable *disp = loader_get_dispatch(device);
     VkDebugMarkerObjectNameInfoEXT local_name_info;
     memcpy(&local_name_info, pNameInfo, sizeof(VkDebugMarkerObjectNameInfoEXT));
@@ -1328,7 +1418,7 @@ VKAPI_ATTR VkResult VKAPI_CALL DebugMarkerSetObjectNameEXT(
 
 VKAPI_ATTR VkResult VKAPI_CALL terminator_DebugMarkerSetObjectNameEXT(
     VkDevice                                    device,
-    VkDebugMarkerObjectNameInfoEXT*             pNameInfo) {
+    const VkDebugMarkerObjectNameInfoEXT*       pNameInfo) {
     uint32_t icd_index = 0;
     struct loader_device *dev;
     struct loader_icd_term *icd_term = loader_get_icd_and_device(device, &dev, &icd_index);
@@ -1356,7 +1446,7 @@ VKAPI_ATTR VkResult VKAPI_CALL terminator_DebugMarkerSetObjectNameEXT(
 
 VKAPI_ATTR void VKAPI_CALL CmdDebugMarkerBeginEXT(
     VkCommandBuffer                             commandBuffer,
-    VkDebugMarkerMarkerInfoEXT*                 pMarkerInfo) {
+    const VkDebugMarkerMarkerInfoEXT*           pMarkerInfo) {
     const VkLayerDispatchTable *disp = loader_get_dispatch(commandBuffer);
     disp->CmdDebugMarkerBeginEXT(commandBuffer, pMarkerInfo);
 }
@@ -1369,7 +1459,7 @@ VKAPI_ATTR void VKAPI_CALL CmdDebugMarkerEndEXT(
 
 VKAPI_ATTR void VKAPI_CALL CmdDebugMarkerInsertEXT(
     VkCommandBuffer                             commandBuffer,
-    VkDebugMarkerMarkerInfoEXT*                 pMarkerInfo) {
+    const VkDebugMarkerMarkerInfoEXT*           pMarkerInfo) {
     const VkLayerDispatchTable *disp = loader_get_dispatch(commandBuffer);
     disp->CmdDebugMarkerInsertEXT(commandBuffer, pMarkerInfo);
 }
@@ -1402,6 +1492,20 @@ VKAPI_ATTR void VKAPI_CALL CmdDrawIndexedIndirectCountAMD(
 }
 
 
+// ---- VK_AMD_shader_info extension trampoline/terminators
+
+VKAPI_ATTR VkResult VKAPI_CALL GetShaderInfoAMD(
+    VkDevice                                    device,
+    VkPipeline                                  pipeline,
+    VkShaderStageFlagBits                       shaderStage,
+    VkShaderInfoTypeAMD                         infoType,
+    size_t*                                     pInfoSize,
+    void*                                       pInfo) {
+    const VkLayerDispatchTable *disp = loader_get_dispatch(device);
+    return disp->GetShaderInfoAMD(device, pipeline, shaderStage, infoType, pInfoSize, pInfo);
+}
+
+
 // ---- VK_NV_external_memory_win32 extension trampoline/terminators
 
 #ifdef VK_USE_PLATFORM_WIN32_KHR
@@ -1428,27 +1532,23 @@ VKAPI_ATTR void VKAPI_CALL GetDeviceGroupPeerMemoryFeaturesKHX(
     disp->GetDeviceGroupPeerMemoryFeaturesKHX(device, heapIndex, localDeviceIndex, remoteDeviceIndex, pPeerMemoryFeatures);
 }
 
-VKAPI_ATTR VkResult VKAPI_CALL BindBufferMemory2KHX(
-    VkDevice                                    device,
-    uint32_t                                    bindInfoCount,
-    const VkBindBufferMemoryInfoKHX*            pBindInfos) {
-    const VkLayerDispatchTable *disp = loader_get_dispatch(device);
-    return disp->BindBufferMemory2KHX(device, bindInfoCount, pBindInfos);
-}
-
-VKAPI_ATTR VkResult VKAPI_CALL BindImageMemory2KHX(
-    VkDevice                                    device,
-    uint32_t                                    bindInfoCount,
-    const VkBindImageMemoryInfoKHX*             pBindInfos) {
-    const VkLayerDispatchTable *disp = loader_get_dispatch(device);
-    return disp->BindImageMemory2KHX(device, bindInfoCount, pBindInfos);
-}
-
 VKAPI_ATTR void VKAPI_CALL CmdSetDeviceMaskKHX(
     VkCommandBuffer                             commandBuffer,
     uint32_t                                    deviceMask) {
     const VkLayerDispatchTable *disp = loader_get_dispatch(commandBuffer);
     disp->CmdSetDeviceMaskKHX(commandBuffer, deviceMask);
+}
+
+VKAPI_ATTR void VKAPI_CALL CmdDispatchBaseKHX(
+    VkCommandBuffer                             commandBuffer,
+    uint32_t                                    baseGroupX,
+    uint32_t                                    baseGroupY,
+    uint32_t                                    baseGroupZ,
+    uint32_t                                    groupCountX,
+    uint32_t                                    groupCountY,
+    uint32_t                                    groupCountZ) {
+    const VkLayerDispatchTable *disp = loader_get_dispatch(commandBuffer);
+    disp->CmdDispatchBaseKHX(commandBuffer, baseGroupX, baseGroupY, baseGroupZ, groupCountX, groupCountY, groupCountZ);
 }
 
 VKAPI_ATTR VkResult VKAPI_CALL GetDeviceGroupPresentCapabilitiesKHX(
@@ -1483,26 +1583,6 @@ VKAPI_ATTR VkResult VKAPI_CALL terminator_GetDeviceGroupSurfacePresentModesKHX(
     return VK_SUCCESS;
 }
 
-VKAPI_ATTR VkResult VKAPI_CALL AcquireNextImage2KHX(
-    VkDevice                                    device,
-    const VkAcquireNextImageInfoKHX*            pAcquireInfo,
-    uint32_t*                                   pImageIndex) {
-    const VkLayerDispatchTable *disp = loader_get_dispatch(device);
-    return disp->AcquireNextImage2KHX(device, pAcquireInfo, pImageIndex);
-}
-
-VKAPI_ATTR void VKAPI_CALL CmdDispatchBaseKHX(
-    VkCommandBuffer                             commandBuffer,
-    uint32_t                                    baseGroupX,
-    uint32_t                                    baseGroupY,
-    uint32_t                                    baseGroupZ,
-    uint32_t                                    groupCountX,
-    uint32_t                                    groupCountY,
-    uint32_t                                    groupCountZ) {
-    const VkLayerDispatchTable *disp = loader_get_dispatch(commandBuffer);
-    disp->CmdDispatchBaseKHX(commandBuffer, baseGroupX, baseGroupY, baseGroupZ, groupCountX, groupCountY, groupCountZ);
-}
-
 VKAPI_ATTR VkResult VKAPI_CALL GetPhysicalDevicePresentRectanglesKHX(
     VkPhysicalDevice                            physicalDevice,
     VkSurfaceKHR                                surface,
@@ -1531,6 +1611,14 @@ VKAPI_ATTR VkResult VKAPI_CALL terminator_GetPhysicalDevicePresentRectanglesKHX(
         return icd_term->dispatch.GetPhysicalDevicePresentRectanglesKHX(phys_dev_term->phys_dev, icd_surface->real_icd_surfaces[icd_index], pRectCount, pRects);
     }
     return icd_term->dispatch.GetPhysicalDevicePresentRectanglesKHX(phys_dev_term->phys_dev, surface, pRectCount, pRects);
+}
+
+VKAPI_ATTR VkResult VKAPI_CALL AcquireNextImage2KHX(
+    VkDevice                                    device,
+    const VkAcquireNextImageInfoKHX*            pAcquireInfo,
+    uint32_t*                                   pImageIndex) {
+    const VkLayerDispatchTable *disp = loader_get_dispatch(device);
+    return disp->AcquireNextImage2KHX(device, pAcquireInfo, pImageIndex);
 }
 
 
@@ -1788,6 +1876,89 @@ VKAPI_ATTR VkResult VKAPI_CALL terminator_CreateMacOSSurfaceMVK(
 }
 
 #endif // VK_USE_PLATFORM_MACOS_MVK
+
+// ---- VK_EXT_sample_locations extension trampoline/terminators
+
+VKAPI_ATTR void VKAPI_CALL CmdSetSampleLocationsEXT(
+    VkCommandBuffer                             commandBuffer,
+    const VkSampleLocationsInfoEXT*             pSampleLocationsInfo) {
+    const VkLayerDispatchTable *disp = loader_get_dispatch(commandBuffer);
+    disp->CmdSetSampleLocationsEXT(commandBuffer, pSampleLocationsInfo);
+}
+
+VKAPI_ATTR void VKAPI_CALL GetPhysicalDeviceMultisamplePropertiesEXT(
+    VkPhysicalDevice                            physicalDevice,
+    VkSampleCountFlagBits                       samples,
+    VkMultisamplePropertiesEXT*                 pMultisampleProperties) {
+    const VkLayerInstanceDispatchTable *disp;
+    VkPhysicalDevice unwrapped_phys_dev = loader_unwrap_physical_device(physicalDevice);
+    disp = loader_get_instance_layer_dispatch(physicalDevice);
+    disp->GetPhysicalDeviceMultisamplePropertiesEXT(unwrapped_phys_dev, samples, pMultisampleProperties);
+}
+
+VKAPI_ATTR void VKAPI_CALL terminator_GetPhysicalDeviceMultisamplePropertiesEXT(
+    VkPhysicalDevice                            physicalDevice,
+    VkSampleCountFlagBits                       samples,
+    VkMultisamplePropertiesEXT*                 pMultisampleProperties) {
+    struct loader_physical_device_term *phys_dev_term = (struct loader_physical_device_term *)physicalDevice;
+    struct loader_icd_term *icd_term = phys_dev_term->this_icd_term;
+    if (NULL == icd_term->dispatch.GetPhysicalDeviceMultisamplePropertiesEXT) {
+        loader_log(icd_term->this_instance, VK_DEBUG_REPORT_ERROR_BIT_EXT, 0,
+                   "ICD associated with VkPhysicalDevice does not support GetPhysicalDeviceMultisamplePropertiesEXT");
+    }
+    icd_term->dispatch.GetPhysicalDeviceMultisamplePropertiesEXT(phys_dev_term->phys_dev, samples, pMultisampleProperties);
+}
+
+
+// ---- VK_EXT_validation_cache extension trampoline/terminators
+
+VKAPI_ATTR VkResult VKAPI_CALL CreateValidationCacheEXT(
+    VkDevice                                    device,
+    const VkValidationCacheCreateInfoEXT*       pCreateInfo,
+    const VkAllocationCallbacks*                pAllocator,
+    VkValidationCacheEXT*                       pValidationCache) {
+    const VkLayerDispatchTable *disp = loader_get_dispatch(device);
+    return disp->CreateValidationCacheEXT(device, pCreateInfo, pAllocator, pValidationCache);
+}
+
+VKAPI_ATTR void VKAPI_CALL DestroyValidationCacheEXT(
+    VkDevice                                    device,
+    VkValidationCacheEXT                        validationCache,
+    const VkAllocationCallbacks*                pAllocator) {
+    const VkLayerDispatchTable *disp = loader_get_dispatch(device);
+    disp->DestroyValidationCacheEXT(device, validationCache, pAllocator);
+}
+
+VKAPI_ATTR VkResult VKAPI_CALL MergeValidationCachesEXT(
+    VkDevice                                    device,
+    VkValidationCacheEXT                        dstCache,
+    uint32_t                                    srcCacheCount,
+    const VkValidationCacheEXT*                 pSrcCaches) {
+    const VkLayerDispatchTable *disp = loader_get_dispatch(device);
+    return disp->MergeValidationCachesEXT(device, dstCache, srcCacheCount, pSrcCaches);
+}
+
+VKAPI_ATTR VkResult VKAPI_CALL GetValidationCacheDataEXT(
+    VkDevice                                    device,
+    VkValidationCacheEXT                        validationCache,
+    size_t*                                     pDataSize,
+    void*                                       pData) {
+    const VkLayerDispatchTable *disp = loader_get_dispatch(device);
+    return disp->GetValidationCacheDataEXT(device, validationCache, pDataSize, pData);
+}
+
+
+// ---- VK_EXT_external_memory_host extension trampoline/terminators
+
+VKAPI_ATTR VkResult VKAPI_CALL GetMemoryHostPointerPropertiesEXT(
+    VkDevice                                    device,
+    VkExternalMemoryHandleTypeFlagBitsKHR       handleType,
+    const void*                                 pHostPointer,
+    VkMemoryHostPointerPropertiesEXT*           pMemoryHostPointerProperties) {
+    const VkLayerDispatchTable *disp = loader_get_dispatch(device);
+    return disp->GetMemoryHostPointerPropertiesEXT(device, handleType, pHostPointer, pMemoryHostPointerProperties);
+}
+
 // GPA helpers for extensions
 bool extension_instance_gpa(struct loader_instance *ptr_instance, const char *name, void **addr) {
     *addr = NULL;
@@ -1997,6 +2168,26 @@ bool extension_instance_gpa(struct loader_instance *ptr_instance, const char *na
         return true;
     }
 
+    // ---- VK_KHR_sampler_ycbcr_conversion extension commands
+    if (!strcmp("vkCreateSamplerYcbcrConversionKHR", name)) {
+        *addr = (void *)CreateSamplerYcbcrConversionKHR;
+        return true;
+    }
+    if (!strcmp("vkDestroySamplerYcbcrConversionKHR", name)) {
+        *addr = (void *)DestroySamplerYcbcrConversionKHR;
+        return true;
+    }
+
+    // ---- VK_KHR_bind_memory2 extension commands
+    if (!strcmp("vkBindBufferMemory2KHR", name)) {
+        *addr = (void *)BindBufferMemory2KHR;
+        return true;
+    }
+    if (!strcmp("vkBindImageMemory2KHR", name)) {
+        *addr = (void *)BindImageMemory2KHR;
+        return true;
+    }
+
     // ---- VK_EXT_debug_marker extension commands
     if (!strcmp("vkDebugMarkerSetObjectTagEXT", name)) {
         *addr = (void *)DebugMarkerSetObjectTagEXT;
@@ -2029,6 +2220,12 @@ bool extension_instance_gpa(struct loader_instance *ptr_instance, const char *na
         return true;
     }
 
+    // ---- VK_AMD_shader_info extension commands
+    if (!strcmp("vkGetShaderInfoAMD", name)) {
+        *addr = (void *)GetShaderInfoAMD;
+        return true;
+    }
+
     // ---- VK_NV_external_memory_capabilities extension commands
     if (!strcmp("vkGetPhysicalDeviceExternalImageFormatPropertiesNV", name)) {
         *addr = (ptr_instance->enabled_known_extensions.nv_external_memory_capabilities == 1)
@@ -2050,16 +2247,12 @@ bool extension_instance_gpa(struct loader_instance *ptr_instance, const char *na
         *addr = (void *)GetDeviceGroupPeerMemoryFeaturesKHX;
         return true;
     }
-    if (!strcmp("vkBindBufferMemory2KHX", name)) {
-        *addr = (void *)BindBufferMemory2KHX;
-        return true;
-    }
-    if (!strcmp("vkBindImageMemory2KHX", name)) {
-        *addr = (void *)BindImageMemory2KHX;
-        return true;
-    }
     if (!strcmp("vkCmdSetDeviceMaskKHX", name)) {
         *addr = (void *)CmdSetDeviceMaskKHX;
+        return true;
+    }
+    if (!strcmp("vkCmdDispatchBaseKHX", name)) {
+        *addr = (void *)CmdDispatchBaseKHX;
         return true;
     }
     if (!strcmp("vkGetDeviceGroupPresentCapabilitiesKHX", name)) {
@@ -2070,16 +2263,12 @@ bool extension_instance_gpa(struct loader_instance *ptr_instance, const char *na
         *addr = (void *)GetDeviceGroupSurfacePresentModesKHX;
         return true;
     }
-    if (!strcmp("vkAcquireNextImage2KHX", name)) {
-        *addr = (void *)AcquireNextImage2KHX;
-        return true;
-    }
-    if (!strcmp("vkCmdDispatchBaseKHX", name)) {
-        *addr = (void *)CmdDispatchBaseKHX;
-        return true;
-    }
     if (!strcmp("vkGetPhysicalDevicePresentRectanglesKHX", name)) {
         *addr = (void *)GetPhysicalDevicePresentRectanglesKHX;
+        return true;
+    }
+    if (!strcmp("vkAcquireNextImage2KHX", name)) {
+        *addr = (void *)AcquireNextImage2KHX;
         return true;
     }
 
@@ -2238,6 +2427,40 @@ bool extension_instance_gpa(struct loader_instance *ptr_instance, const char *na
         return true;
     }
 #endif // VK_USE_PLATFORM_MACOS_MVK
+
+    // ---- VK_EXT_sample_locations extension commands
+    if (!strcmp("vkCmdSetSampleLocationsEXT", name)) {
+        *addr = (void *)CmdSetSampleLocationsEXT;
+        return true;
+    }
+    if (!strcmp("vkGetPhysicalDeviceMultisamplePropertiesEXT", name)) {
+        *addr = (void *)GetPhysicalDeviceMultisamplePropertiesEXT;
+        return true;
+    }
+
+    // ---- VK_EXT_validation_cache extension commands
+    if (!strcmp("vkCreateValidationCacheEXT", name)) {
+        *addr = (void *)CreateValidationCacheEXT;
+        return true;
+    }
+    if (!strcmp("vkDestroyValidationCacheEXT", name)) {
+        *addr = (void *)DestroyValidationCacheEXT;
+        return true;
+    }
+    if (!strcmp("vkMergeValidationCachesEXT", name)) {
+        *addr = (void *)MergeValidationCachesEXT;
+        return true;
+    }
+    if (!strcmp("vkGetValidationCacheDataEXT", name)) {
+        *addr = (void *)GetValidationCacheDataEXT;
+        return true;
+    }
+
+    // ---- VK_EXT_external_memory_host extension commands
+    if (!strcmp("vkGetMemoryHostPointerPropertiesEXT", name)) {
+        *addr = (void *)GetMemoryHostPointerPropertiesEXT;
+        return true;
+    }
     return false;
 }
 
@@ -2482,6 +2705,9 @@ const VkLayerInstanceDispatchTable instance_disp = {
 #ifdef VK_USE_PLATFORM_MACOS_MVK
     .CreateMacOSSurfaceMVK = terminator_CreateMacOSSurfaceMVK,
 #endif // VK_USE_PLATFORM_MACOS_MVK
+
+    // ---- VK_EXT_sample_locations extension commands
+    .GetPhysicalDeviceMultisamplePropertiesEXT = terminator_GetPhysicalDeviceMultisamplePropertiesEXT,
 };
 
 // A null-terminated list of all of the instance extensions supported by the loader.

@@ -46,13 +46,8 @@ LOADER_EXPORT VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vkGetInstanceProcAddr(VkI
     void *addr;
 
     addr = globalGetProcAddr(pName);
-    if (instance == VK_NULL_HANDLE) {
-        // Get entrypoint addresses that are global (no dispatchable object)
-
+    if (instance == VK_NULL_HANDLE || addr != NULL) {
         return addr;
-    } else {
-        // If a global entrypoint return NULL
-        if (addr) return NULL;
     }
 
     struct loader_instance *ptr_instance = loader_get_instance(instance);
@@ -99,123 +94,178 @@ LOADER_EXPORT VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vkGetDeviceProcAddr(VkDev
 LOADER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateInstanceExtensionProperties(const char *pLayerName,
                                                                                     uint32_t *pPropertyCount,
                                                                                     VkExtensionProperties *pProperties) {
-    struct loader_extension_list *global_ext_list = NULL;
-    struct loader_layer_list instance_layers;
-    struct loader_extension_list local_ext_list;
-    struct loader_icd_tramp_list icd_tramp_list;
-    uint32_t copy_size;
-    VkResult res = VK_SUCCESS;
-
     tls_instance = NULL;
-    memset(&local_ext_list, 0, sizeof(local_ext_list));
-    memset(&instance_layers, 0, sizeof(instance_layers));
-    loader_platform_thread_once(&once_init, loader_initialize);
+    LOADER_PLATFORM_THREAD_ONCE(&once_init, loader_initialize);
 
-    // Get layer libraries if needed
-    if (pLayerName && strlen(pLayerName) != 0) {
-        if (vk_string_validate(MaxLoaderStringLength, pLayerName) != VK_STRING_ERROR_NONE) {
-            assert(VK_FALSE &&
-                   "vkEnumerateInstanceExtensionProperties:  "
-                   "pLayerName is too long or is badly formed");
-            res = VK_ERROR_EXTENSION_NOT_PRESENT;
-            goto out;
+    // We know we need to call at least the terminator
+    VkResult res = VK_SUCCESS;
+    VkEnumerateInstanceExtensionPropertiesChain chain_tail = {
+        .header =
+            {
+                .type = VK_CHAIN_TYPE_ENUMERATE_INSTANCE_EXTENSION_PROPERTIES,
+                .version = VK_CURRENT_CHAIN_VERSION,
+                .size = sizeof(chain_tail),
+            },
+        .pfnNextLayer = &terminator_EnumerateInstanceExtensionProperties,
+        .pNextLink = NULL,
+    };
+    VkEnumerateInstanceExtensionPropertiesChain *chain_head = &chain_tail;
+
+    // Get the implicit layers
+    struct loader_layer_list layers;
+    memset(&layers, 0, sizeof(layers));
+    loader_implicit_layer_scan(NULL, &layers);
+
+    // We'll need to save the dl handles so we can close them later
+    loader_platform_dl_handle *libs = malloc(sizeof(loader_platform_dl_handle) * layers.count);
+    if (libs == NULL) {
+        return VK_ERROR_OUT_OF_HOST_MEMORY;
+    }
+    size_t lib_count = 0;
+
+    // Prepend layers onto the chain if they implment this entry point
+    for (uint32_t i = 0; i < layers.count; ++i) {
+        if (!loader_is_implicit_layer_enabled(NULL, layers.list + i) ||
+            layers.list[i].pre_instance_functions.enumerate_instance_extension_properties[0] == '\0') {
+            continue;
         }
 
-        loader_layer_scan(NULL, &instance_layers);
-        for (uint32_t i = 0; i < instance_layers.count; i++) {
-            struct loader_layer_properties *props = &instance_layers.list[i];
-            if (strcmp(props->info.layerName, pLayerName) == 0) {
-                global_ext_list = &props->instance_extension_list;
-                break;
-            }
-        }
-    } else {
-        // Scan/discover all ICD libraries
-        memset(&icd_tramp_list, 0, sizeof(struct loader_icd_tramp_list));
-        res = loader_icd_scan(NULL, &icd_tramp_list);
-        if (VK_SUCCESS != res) {
-            goto out;
-        }
-        // Get extensions from all ICD's, merge so no duplicates
-        res = loader_get_icd_loader_instance_extensions(NULL, &icd_tramp_list, &local_ext_list);
-        if (VK_SUCCESS != res) {
-            goto out;
-        }
-        loader_scanned_icd_clear(NULL, &icd_tramp_list);
-
-        // Append implicit layers.
-        loader_implicit_layer_scan(NULL, &instance_layers);
-        for (uint32_t i = 0; i < instance_layers.count; i++) {
-            struct loader_extension_list *ext_list = &instance_layers.list[i].instance_extension_list;
-            loader_add_to_ext_list(NULL, &local_ext_list, ext_list->count, ext_list->list);
+        loader_platform_dl_handle layer_lib = loader_platform_open_library(layers.list[i].lib_name);
+        libs[lib_count++] = layer_lib;
+        void *pfn = loader_platform_get_proc_address(layer_lib,
+                                                     layers.list[i].pre_instance_functions.enumerate_instance_extension_properties);
+        if (pfn == NULL) {
+            loader_log(NULL, VK_DEBUG_REPORT_WARNING_BIT_EXT, 0,
+                       "%s: Unable to resolve symbol \"%s\" in implicit layer library \"%s\"", __FUNCTION__,
+                       layers.list[i].pre_instance_functions.enumerate_instance_extension_properties, layers.list[i].lib_name);
+            continue;
         }
 
-        global_ext_list = &local_ext_list;
+        VkEnumerateInstanceExtensionPropertiesChain *chain_link = malloc(sizeof(VkEnumerateInstanceExtensionPropertiesChain));
+        if (chain_link == NULL) {
+            res = VK_ERROR_OUT_OF_HOST_MEMORY;
+            break;
+        }
+
+        chain_link->header.type = VK_CHAIN_TYPE_ENUMERATE_INSTANCE_EXTENSION_PROPERTIES;
+        chain_link->header.version = VK_CURRENT_CHAIN_VERSION;
+        chain_link->header.size = sizeof(*chain_link);
+        chain_link->pfnNextLayer = pfn;
+        chain_link->pNextLink = chain_head;
+
+        chain_head = chain_link;
     }
 
-    if (global_ext_list == NULL) {
-        res = VK_ERROR_LAYER_NOT_PRESENT;
-        goto out;
+    // Call down the chain
+    if (res == VK_SUCCESS) {
+        res = chain_head->pfnNextLayer(chain_head->pNextLink, pLayerName, pPropertyCount, pProperties);
     }
 
-    if (pProperties == NULL) {
-        *pPropertyCount = global_ext_list->count;
-        goto out;
+    // Free up the layers
+    loader_delete_layer_properties(NULL, &layers);
+
+    // Tear down the chain
+    while (chain_head != &chain_tail) {
+        VkEnumerateInstanceExtensionPropertiesChain *holder = chain_head;
+        chain_head = (VkEnumerateInstanceExtensionPropertiesChain *)chain_head->pNextLink;
+        free(holder);
     }
 
-    copy_size = *pPropertyCount < global_ext_list->count ? *pPropertyCount : global_ext_list->count;
-    for (uint32_t i = 0; i < copy_size; i++) {
-        memcpy(&pProperties[i], &global_ext_list->list[i], sizeof(VkExtensionProperties));
+    // Close the dl handles
+    for (size_t i = 0; i < lib_count; ++i) {
+        loader_platform_close_library(libs[i]);
     }
-    *pPropertyCount = copy_size;
+    free(libs);
 
-    if (copy_size < global_ext_list->count) {
-        res = VK_INCOMPLETE;
-        goto out;
-    }
-
-out:
-
-    loader_destroy_generic_list(NULL, (struct loader_generic_list *)&local_ext_list);
-    loader_delete_layer_properties(NULL, &instance_layers);
     return res;
 }
 
 LOADER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateInstanceLayerProperties(uint32_t *pPropertyCount,
                                                                                 VkLayerProperties *pProperties) {
-    VkResult result = VK_SUCCESS;
-    struct loader_layer_list instance_layer_list;
     tls_instance = NULL;
+    LOADER_PLATFORM_THREAD_ONCE(&once_init, loader_initialize);
 
-    loader_platform_thread_once(&once_init, loader_initialize);
+    // We know we need to call at least the terminator
+    VkResult res = VK_SUCCESS;
+    VkEnumerateInstanceLayerPropertiesChain chain_tail = {
+        .header =
+            {
+                .type = VK_CHAIN_TYPE_ENUMERATE_INSTANCE_LAYER_PROPERTIES,
+                .version = VK_CURRENT_CHAIN_VERSION,
+                .size = sizeof(chain_tail),
+            },
+        .pfnNextLayer = &terminator_EnumerateInstanceLayerProperties,
+        .pNextLink = NULL,
+    };
+    VkEnumerateInstanceLayerPropertiesChain *chain_head = &chain_tail;
 
-    uint32_t copy_size;
+    // Get the implicit layers
+    struct loader_layer_list layers;
+    memset(&layers, 0, sizeof(layers));
+    loader_implicit_layer_scan(NULL, &layers);
 
-    // Get layer libraries
-    memset(&instance_layer_list, 0, sizeof(instance_layer_list));
-    loader_layer_scan(NULL, &instance_layer_list);
+    // We'll need to save the dl handles so we can close them later
+    loader_platform_dl_handle *libs = malloc(sizeof(loader_platform_dl_handle) * layers.count);
+    if (libs == NULL) {
+        return VK_ERROR_OUT_OF_HOST_MEMORY;
+    }
+    size_t lib_count = 0;
 
-    if (pProperties == NULL) {
-        *pPropertyCount = instance_layer_list.count;
-        goto out;
+    // Prepend layers onto the chain if they implment this entry point
+    for (uint32_t i = 0; i < layers.count; ++i) {
+        if (!loader_is_implicit_layer_enabled(NULL, layers.list + i) ||
+            layers.list[i].pre_instance_functions.enumerate_instance_layer_properties[0] == '\0') {
+            continue;
+        }
+
+        loader_platform_dl_handle layer_lib = loader_platform_open_library(layers.list[i].lib_name);
+        libs[lib_count++] = layer_lib;
+        void *pfn =
+            loader_platform_get_proc_address(layer_lib, layers.list[i].pre_instance_functions.enumerate_instance_layer_properties);
+        if (pfn == NULL) {
+            loader_log(NULL, VK_DEBUG_REPORT_WARNING_BIT_EXT, 0,
+                       "%s: Unable to resolve symbol \"%s\" in implicit layer library \"%s\"", __FUNCTION__,
+                       layers.list[i].pre_instance_functions.enumerate_instance_layer_properties, layers.list[i].lib_name);
+            continue;
+        }
+
+        VkEnumerateInstanceLayerPropertiesChain *chain_link = malloc(sizeof(VkEnumerateInstanceLayerPropertiesChain));
+        if (chain_link == NULL) {
+            res = VK_ERROR_OUT_OF_HOST_MEMORY;
+            break;
+        }
+
+        chain_link->header.type = VK_CHAIN_TYPE_ENUMERATE_INSTANCE_LAYER_PROPERTIES;
+        chain_link->header.version = VK_CURRENT_CHAIN_VERSION;
+        chain_link->header.size = sizeof(*chain_link);
+        chain_link->pfnNextLayer = pfn;
+        chain_link->pNextLink = chain_head;
+
+        chain_head = chain_link;
     }
 
-    copy_size = (*pPropertyCount < instance_layer_list.count) ? *pPropertyCount : instance_layer_list.count;
-    for (uint32_t i = 0; i < copy_size; i++) {
-        memcpy(&pProperties[i], &instance_layer_list.list[i].info, sizeof(VkLayerProperties));
+    // Call down the chain
+    if (res == VK_SUCCESS) {
+        res = chain_head->pfnNextLayer(chain_head->pNextLink, pPropertyCount, pProperties);
     }
 
-    *pPropertyCount = copy_size;
+    // Free up the layers
+    loader_delete_layer_properties(NULL, &layers);
 
-    if (copy_size < instance_layer_list.count) {
-        result = VK_INCOMPLETE;
-        goto out;
+    // Tear down the chain
+    while (chain_head != &chain_tail) {
+        VkEnumerateInstanceLayerPropertiesChain *holder = chain_head;
+        chain_head = (VkEnumerateInstanceLayerPropertiesChain *)chain_head->pNextLink;
+        free(holder);
     }
 
-out:
+    // Close the dl handles
+    for (size_t i = 0; i < lib_count; ++i) {
+        loader_platform_close_library(libs[i]);
+    }
+    free(libs);
 
-    loader_delete_layer_properties(NULL, &instance_layer_list);
-    return result;
+    return res;
 }
 
 LOADER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkCreateInstance(const VkInstanceCreateInfo *pCreateInfo,
@@ -225,7 +275,7 @@ LOADER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkCreateInstance(const VkInstanceCr
     bool loaderLocked = false;
     VkResult res = VK_ERROR_INITIALIZATION_FAILED;
 
-    loader_platform_thread_once(&once_init, loader_initialize);
+    LOADER_PLATFORM_THREAD_ONCE(&once_init, loader_initialize);
 
     // Fail if the requested Vulkan apiVersion is > 1.0 since the loader only supports 1.0.
     // Having pCreateInfo == NULL, pCreateInfo->pApplication == NULL, or

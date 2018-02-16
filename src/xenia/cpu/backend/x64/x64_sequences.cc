@@ -1663,7 +1663,6 @@ struct LOAD_VECTOR_SHL_I8
       e.shl(e.dx, 4);
       e.mov(e.rax, (uintptr_t)lvsl_table);
       e.vmovaps(i.dest, e.ptr[e.rax + e.rdx]);
-      e.ReloadMembase();
     }
   }
 };
@@ -1705,7 +1704,6 @@ struct LOAD_VECTOR_SHR_I8
       e.shl(e.dx, 4);
       e.mov(e.rax, (uintptr_t)lvsr_table);
       e.vmovaps(i.dest, e.ptr[e.rax + e.rdx]);
-      e.ReloadMembase();
     }
   }
 };
@@ -2130,6 +2128,176 @@ struct STORE_MMIO_I32
 EMITTER_OPCODE_TABLE(OPCODE_STORE_MMIO, STORE_MMIO_I32);
 
 // ============================================================================
+// OPCODE_LOAD_OFFSET
+// ============================================================================
+template <typename T>
+RegExp ComputeMemoryAddressOffset(X64Emitter& e, const T& guest,
+                                  const T& offset) {
+  int32_t offset_const = static_cast<int32_t>(offset.constant());
+
+  if (guest.is_constant) {
+    uint32_t address = static_cast<uint32_t>(guest.constant());
+    address += static_cast<int32_t>(offset.constant());
+    if (address < 0x80000000) {
+      return e.GetMembaseReg() + address;
+    } else {
+      e.mov(e.eax, address);
+      return e.GetMembaseReg() + e.rax;
+    }
+  } else {
+    // Clear the top 32 bits, as they are likely garbage.
+    // TODO(benvanik): find a way to avoid doing this.
+    e.mov(e.eax, guest.reg().cvt32());
+    return e.GetMembaseReg() + e.rax + offset_const;
+  }
+}
+
+struct LOAD_OFFSET_I8
+    : Sequence<LOAD_OFFSET_I8, I<OPCODE_LOAD_OFFSET, I8Op, I64Op, I64Op>> {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    auto addr = ComputeMemoryAddressOffset(e, i.src1, i.src2);
+    e.mov(i.dest, e.byte[addr]);
+  }
+};
+
+struct LOAD_OFFSET_I16
+    : Sequence<LOAD_OFFSET_I16, I<OPCODE_LOAD_OFFSET, I16Op, I64Op, I64Op>> {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    auto addr = ComputeMemoryAddressOffset(e, i.src1, i.src2);
+    if (i.instr->flags & LoadStoreFlags::LOAD_STORE_BYTE_SWAP) {
+      if (e.IsFeatureEnabled(kX64EmitMovbe)) {
+        e.movbe(i.dest, e.word[addr]);
+      } else {
+        e.mov(i.dest, e.word[addr]);
+        e.ror(i.dest, 8);
+      }
+    } else {
+      e.mov(i.dest, e.word[addr]);
+    }
+  }
+};
+
+struct LOAD_OFFSET_I32
+    : Sequence<LOAD_OFFSET_I32, I<OPCODE_LOAD_OFFSET, I32Op, I64Op, I64Op>> {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    auto addr = ComputeMemoryAddressOffset(e, i.src1, i.src2);
+    if (i.instr->flags & LoadStoreFlags::LOAD_STORE_BYTE_SWAP) {
+      if (e.IsFeatureEnabled(kX64EmitMovbe)) {
+        e.movbe(i.dest, e.dword[addr]);
+      } else {
+        e.mov(i.dest, e.dword[addr]);
+        e.bswap(i.dest);
+      }
+    } else {
+      e.mov(i.dest, e.dword[addr]);
+    }
+  }
+};
+
+struct LOAD_OFFSET_I64
+    : Sequence<LOAD_OFFSET_I64, I<OPCODE_LOAD_OFFSET, I64Op, I64Op, I64Op>> {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    auto addr = ComputeMemoryAddressOffset(e, i.src1, i.src2);
+    if (i.instr->flags & LoadStoreFlags::LOAD_STORE_BYTE_SWAP) {
+      if (e.IsFeatureEnabled(kX64EmitMovbe)) {
+        e.movbe(i.dest, e.qword[addr]);
+      } else {
+        e.mov(i.dest, e.qword[addr]);
+        e.bswap(i.dest);
+      }
+    } else {
+      e.mov(i.dest, e.qword[addr]);
+    }
+  }
+};
+EMITTER_OPCODE_TABLE(OPCODE_LOAD_OFFSET, LOAD_OFFSET_I8, LOAD_OFFSET_I16,
+                     LOAD_OFFSET_I32, LOAD_OFFSET_I64);
+
+// ============================================================================
+// OPCODE_STORE_OFFSET
+// ============================================================================
+struct STORE_OFFSET_I8
+    : Sequence<STORE_OFFSET_I8,
+               I<OPCODE_STORE_OFFSET, VoidOp, I64Op, I64Op, I8Op>> {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    auto addr = ComputeMemoryAddressOffset(e, i.src1, i.src2);
+    if (i.src3.is_constant) {
+      e.mov(e.byte[addr], i.src3.constant());
+    } else {
+      e.mov(e.byte[addr], i.src3);
+    }
+  }
+};
+
+struct STORE_OFFSET_I16
+    : Sequence<STORE_OFFSET_I16,
+               I<OPCODE_STORE_OFFSET, VoidOp, I64Op, I64Op, I16Op>> {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    auto addr = ComputeMemoryAddressOffset(e, i.src1, i.src2);
+    if (i.instr->flags & LoadStoreFlags::LOAD_STORE_BYTE_SWAP) {
+      assert_false(i.src3.is_constant);
+      if (e.IsFeatureEnabled(kX64EmitMovbe)) {
+        e.movbe(e.word[addr], i.src3);
+      } else {
+        assert_always("not implemented");
+      }
+    } else {
+      if (i.src3.is_constant) {
+        e.mov(e.word[addr], i.src3.constant());
+      } else {
+        e.mov(e.word[addr], i.src3);
+      }
+    }
+  }
+};
+
+struct STORE_OFFSET_I32
+    : Sequence<STORE_OFFSET_I32,
+               I<OPCODE_STORE_OFFSET, VoidOp, I64Op, I64Op, I32Op>> {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    auto addr = ComputeMemoryAddressOffset(e, i.src1, i.src2);
+    if (i.instr->flags & LoadStoreFlags::LOAD_STORE_BYTE_SWAP) {
+      assert_false(i.src3.is_constant);
+      if (e.IsFeatureEnabled(kX64EmitMovbe)) {
+        e.movbe(e.dword[addr], i.src3);
+      } else {
+        assert_always("not implemented");
+      }
+    } else {
+      if (i.src3.is_constant) {
+        e.mov(e.dword[addr], i.src3.constant());
+      } else {
+        e.mov(e.dword[addr], i.src3);
+      }
+    }
+  }
+};
+
+struct STORE_OFFSET_I64
+    : Sequence<STORE_OFFSET_I64,
+               I<OPCODE_STORE_OFFSET, VoidOp, I64Op, I64Op, I64Op>> {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    auto addr = ComputeMemoryAddressOffset(e, i.src1, i.src2);
+    if (i.instr->flags & LoadStoreFlags::LOAD_STORE_BYTE_SWAP) {
+      assert_false(i.src3.is_constant);
+      if (e.IsFeatureEnabled(kX64EmitMovbe)) {
+        e.movbe(e.qword[addr], i.src3);
+      } else {
+        assert_always("not implemented");
+      }
+    } else {
+      if (i.src3.is_constant) {
+        e.MovMem64(addr, i.src3.constant());
+      } else {
+        e.mov(e.qword[addr], i.src3);
+      }
+    }
+  }
+};
+EMITTER_OPCODE_TABLE(OPCODE_STORE_OFFSET, STORE_OFFSET_I8, STORE_OFFSET_I16,
+                     STORE_OFFSET_I32, STORE_OFFSET_I64);
+
+// ============================================================================
 // OPCODE_LOAD
 // ============================================================================
 // Note: most *should* be aligned, but needs to be checked!
@@ -2139,8 +2307,13 @@ RegExp ComputeMemoryAddress(X64Emitter& e, const T& guest) {
     // TODO(benvanik): figure out how to do this without a temp.
     // Since the constant is often 0x8... if we tried to use that as a
     // displacement it would be sign extended and mess things up.
-    e.mov(e.eax, static_cast<uint32_t>(guest.constant()));
-    return e.GetMembaseReg() + e.rax;
+    uint32_t address = static_cast<uint32_t>(guest.constant());
+    if (address < 0x80000000) {
+      return e.GetMembaseReg() + address;
+    } else {
+      e.mov(e.eax, address);
+      return e.GetMembaseReg() + e.rax;
+    }
   } else {
     // Clear the top 32 bits, as they are likely garbage.
     // TODO(benvanik): find a way to avoid doing this.
@@ -3863,8 +4036,6 @@ struct MUL_I8 : Sequence<MUL_I8, I<OPCODE_MUL, I8Op, I8Op, I8Op>> {
         e.mov(i.dest, e.al);
       }
     }
-
-    e.ReloadMembase();
   }
 };
 struct MUL_I16 : Sequence<MUL_I16, I<OPCODE_MUL, I16Op, I16Op, I16Op>> {
@@ -3906,8 +4077,6 @@ struct MUL_I16 : Sequence<MUL_I16, I<OPCODE_MUL, I16Op, I16Op, I16Op>> {
         e.movzx(i.dest, e.ax);
       }
     }
-
-    e.ReloadMembase();
   }
 };
 struct MUL_I32 : Sequence<MUL_I32, I<OPCODE_MUL, I32Op, I32Op, I32Op>> {
@@ -3950,8 +4119,6 @@ struct MUL_I32 : Sequence<MUL_I32, I<OPCODE_MUL, I32Op, I32Op, I32Op>> {
         e.mov(i.dest, e.eax);
       }
     }
-
-    e.ReloadMembase();
   }
 };
 struct MUL_I64 : Sequence<MUL_I64, I<OPCODE_MUL, I64Op, I64Op, I64Op>> {
@@ -3993,8 +4160,6 @@ struct MUL_I64 : Sequence<MUL_I64, I<OPCODE_MUL, I64Op, I64Op, I64Op>> {
         e.mov(i.dest, e.rax);
       }
     }
-
-    e.ReloadMembase();
   }
 };
 struct MUL_F32 : Sequence<MUL_F32, I<OPCODE_MUL, F32Op, F32Op, F32Op>> {
@@ -4072,7 +4237,6 @@ struct MUL_HI_I8 : Sequence<MUL_HI_I8, I<OPCODE_MUL_HI, I8Op, I8Op, I8Op>> {
       }
       e.mov(i.dest, e.ah);
     }
-    e.ReloadMembase();
   }
 };
 struct MUL_HI_I16
@@ -4116,7 +4280,6 @@ struct MUL_HI_I16
       }
       e.mov(i.dest, e.dx);
     }
-    e.ReloadMembase();
   }
 };
 struct MUL_HI_I32
@@ -4165,7 +4328,6 @@ struct MUL_HI_I32
       }
       e.mov(i.dest, e.edx);
     }
-    e.ReloadMembase();
   }
 };
 struct MUL_HI_I64
@@ -4214,7 +4376,6 @@ struct MUL_HI_I64
       }
       e.mov(i.dest, e.rdx);
     }
-    e.ReloadMembase();
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_MUL_HI, MUL_HI_I8, MUL_HI_I16, MUL_HI_I32,
@@ -4230,11 +4391,8 @@ struct DIV_I8 : Sequence<DIV_I8, I<OPCODE_DIV, I8Op, I8Op, I8Op>> {
     Xbyak::Label skip;
     e.inLocalLabel();
 
-    // NOTE: RDX clobbered.
-    bool clobbered_rcx = false;
     if (i.src2.is_constant) {
       assert_true(!i.src1.is_constant);
-      clobbered_rcx = true;
       e.mov(e.cl, i.src2.constant());
       if (i.instr->flags & ARITHMETIC_UNSIGNED) {
         e.movzx(e.ax, i.src1);
@@ -4268,10 +4426,6 @@ struct DIV_I8 : Sequence<DIV_I8, I<OPCODE_DIV, I8Op, I8Op, I8Op>> {
     e.L(skip);
     e.outLocalLabel();
     e.mov(i.dest, e.al);
-    if (clobbered_rcx) {
-      e.ReloadContext();
-    }
-    e.ReloadMembase();
   }
 };
 struct DIV_I16 : Sequence<DIV_I16, I<OPCODE_DIV, I16Op, I16Op, I16Op>> {
@@ -4279,11 +4433,8 @@ struct DIV_I16 : Sequence<DIV_I16, I<OPCODE_DIV, I16Op, I16Op, I16Op>> {
     Xbyak::Label skip;
     e.inLocalLabel();
 
-    // NOTE: RDX clobbered.
-    bool clobbered_rcx = false;
     if (i.src2.is_constant) {
       assert_true(!i.src1.is_constant);
-      clobbered_rcx = true;
       e.mov(e.cx, i.src2.constant());
       if (i.instr->flags & ARITHMETIC_UNSIGNED) {
         e.mov(e.ax, i.src1);
@@ -4323,10 +4474,6 @@ struct DIV_I16 : Sequence<DIV_I16, I<OPCODE_DIV, I16Op, I16Op, I16Op>> {
     e.L(skip);
     e.outLocalLabel();
     e.mov(i.dest, e.ax);
-    if (clobbered_rcx) {
-      e.ReloadContext();
-    }
-    e.ReloadMembase();
   }
 };
 struct DIV_I32 : Sequence<DIV_I32, I<OPCODE_DIV, I32Op, I32Op, I32Op>> {
@@ -4334,11 +4481,8 @@ struct DIV_I32 : Sequence<DIV_I32, I<OPCODE_DIV, I32Op, I32Op, I32Op>> {
     Xbyak::Label skip;
     e.inLocalLabel();
 
-    // NOTE: RDX clobbered.
-    bool clobbered_rcx = false;
     if (i.src2.is_constant) {
       assert_true(!i.src1.is_constant);
-      clobbered_rcx = true;
       e.mov(e.ecx, i.src2.constant());
       if (i.instr->flags & ARITHMETIC_UNSIGNED) {
         e.mov(e.eax, i.src1);
@@ -4378,10 +4522,6 @@ struct DIV_I32 : Sequence<DIV_I32, I<OPCODE_DIV, I32Op, I32Op, I32Op>> {
     e.L(skip);
     e.outLocalLabel();
     e.mov(i.dest, e.eax);
-    if (clobbered_rcx) {
-      e.ReloadContext();
-    }
-    e.ReloadMembase();
   }
 };
 struct DIV_I64 : Sequence<DIV_I64, I<OPCODE_DIV, I64Op, I64Op, I64Op>> {
@@ -4389,11 +4529,8 @@ struct DIV_I64 : Sequence<DIV_I64, I<OPCODE_DIV, I64Op, I64Op, I64Op>> {
     Xbyak::Label skip;
     e.inLocalLabel();
 
-    // NOTE: RDX clobbered.
-    bool clobbered_rcx = false;
     if (i.src2.is_constant) {
       assert_true(!i.src1.is_constant);
-      clobbered_rcx = true;
       e.mov(e.rcx, i.src2.constant());
       if (i.instr->flags & ARITHMETIC_UNSIGNED) {
         e.mov(e.rax, i.src1);
@@ -4433,10 +4570,6 @@ struct DIV_I64 : Sequence<DIV_I64, I<OPCODE_DIV, I64Op, I64Op, I64Op>> {
     e.L(skip);
     e.outLocalLabel();
     e.mov(i.dest, e.rax);
-    if (clobbered_rcx) {
-      e.ReloadContext();
-    }
-    e.ReloadMembase();
   }
 };
 struct DIV_F32 : Sequence<DIV_F32, I<OPCODE_DIV, F32Op, F32Op, F32Op>> {
@@ -5319,7 +5452,6 @@ void EmitShlXX(X64Emitter& e, const ARGS& i) {
         } else {
           e.mov(e.cl, src);
           e.shl(dest_src, e.cl);
-          e.ReloadContext();
         }
       },
       [](X64Emitter& e, const REG& dest_src, int8_t constant) {
@@ -5397,7 +5529,6 @@ void EmitShrXX(X64Emitter& e, const ARGS& i) {
         } else {
           e.mov(e.cl, src);
           e.shr(dest_src, e.cl);
-          e.ReloadContext();
         }
       },
       [](X64Emitter& e, const REG& dest_src, int8_t constant) {
@@ -5473,7 +5604,6 @@ void EmitSarXX(X64Emitter& e, const ARGS& i) {
         } else {
           e.mov(e.cl, src);
           e.sar(dest_src, e.cl);
-          e.ReloadContext();
         }
       },
       [](X64Emitter& e, const REG& dest_src, int8_t constant) {
@@ -6088,7 +6218,6 @@ void EmitRotateLeftXX(X64Emitter& e, const ARGS& i) {
       }
     }
     e.rol(i.dest, e.cl);
-    e.ReloadContext();
   }
 }
 struct ROTATE_LEFT_I8
@@ -6355,24 +6484,17 @@ struct CNTLZ_I8 : Sequence<CNTLZ_I8, I<OPCODE_CNTLZ, I8Op, I8Op>> {
       e.lzcnt(i.dest.reg().cvt16(), i.dest.reg().cvt16());
       e.sub(i.dest, 8);
     } else {
-      Xbyak::Label jz, jend;
-
+      Xbyak::Label end;
       e.inLocalLabel();
 
-      // BSR: searches $2 until MSB 1 found, stores idx (from bit 0) in $1
-      // if input is 0, results are undefined (and ZF is set)
-      e.bsr(i.dest, i.src1);
-      e.jz(jz);  // Jump if zero
+      e.bsr(e.rax, i.src1);  // ZF set if i.src1 is 0
+      e.mov(i.dest, 0x8);
+      e.jz(end);
 
-      // Invert the result (7 - i.dest)
-      e.xor_(i.dest, 0x7);
-      e.jmp(jend);  // Jmp to end
+      e.xor_(e.rax, 0x7);
+      e.mov(i.dest, e.rax);
 
-      // src1 was zero, so write 8 to the dest reg
-      e.L(jz);
-      e.mov(i.dest, 8);
-
-      e.L(jend);
+      e.L(end);
       e.outLocalLabel();
     }
   }
@@ -6383,24 +6505,17 @@ struct CNTLZ_I16 : Sequence<CNTLZ_I16, I<OPCODE_CNTLZ, I8Op, I16Op>> {
       // LZCNT: searches $2 until MSB 1 found, stores idx (from last bit) in $1
       e.lzcnt(i.dest.reg().cvt32(), i.src1);
     } else {
-      Xbyak::Label jz, jend;
-
+      Xbyak::Label end;
       e.inLocalLabel();
 
-      // BSR: searches $2 until MSB 1 found, stores idx (from bit 0) in $1
-      // if input is 0, results are undefined (and ZF is set)
-      e.bsr(i.dest, i.src1);
-      e.jz(jz);  // Jump if zero
+      e.bsr(e.rax, i.src1);  // ZF set if i.src1 is 0
+      e.mov(i.dest, 0x10);
+      e.jz(end);
 
-      // Invert the result (15 - i.dest)
-      e.xor_(i.dest, 0xF);
-      e.jmp(jend);  // Jmp to end
+      e.xor_(e.rax, 0x0F);
+      e.mov(i.dest, e.rax);
 
-      // src1 was zero, so write 16 to the dest reg
-      e.L(jz);
-      e.mov(i.dest, 16);
-
-      e.L(jend);
+      e.L(end);
       e.outLocalLabel();
     }
   }
@@ -6410,24 +6525,17 @@ struct CNTLZ_I32 : Sequence<CNTLZ_I32, I<OPCODE_CNTLZ, I8Op, I32Op>> {
     if (e.IsFeatureEnabled(kX64EmitLZCNT)) {
       e.lzcnt(i.dest.reg().cvt32(), i.src1);
     } else {
-      Xbyak::Label jz, jend;
-
+      Xbyak::Label end;
       e.inLocalLabel();
 
-      // BSR: searches $2 until MSB 1 found, stores idx (from bit 0) in $1
-      // if input is 0, results are undefined (and ZF is set)
-      e.bsr(i.dest, i.src1);
-      e.jz(jz);  // Jump if zero
+      e.bsr(e.rax, i.src1);  // ZF set if i.src1 is 0
+      e.mov(i.dest, 0x20);
+      e.jz(end);
 
-      // Invert the result (31 - i.dest)
-      e.xor_(i.dest, 0x1F);
-      e.jmp(jend);  // Jmp to end
+      e.xor_(e.rax, 0x1F);
+      e.mov(i.dest, e.rax);
 
-      // src1 was zero, so write 32 to the dest reg
-      e.L(jz);
-      e.mov(i.dest, 32);
-
-      e.L(jend);
+      e.L(end);
       e.outLocalLabel();
     }
   }
@@ -6437,24 +6545,17 @@ struct CNTLZ_I64 : Sequence<CNTLZ_I64, I<OPCODE_CNTLZ, I8Op, I64Op>> {
     if (e.IsFeatureEnabled(kX64EmitLZCNT)) {
       e.lzcnt(i.dest.reg().cvt64(), i.src1);
     } else {
-      Xbyak::Label jz, jend;
-
+      Xbyak::Label end;
       e.inLocalLabel();
 
-      // BSR: searches $2 until MSB 1 found, stores idx (from bit 0) in $1
-      // if input is 0, results are undefined (and ZF is set)
-      e.bsr(i.dest, i.src1);
-      e.jz(jz);  // Jump if zero
+      e.bsr(e.rax, i.src1);  // ZF set if i.src1 is 0
+      e.mov(i.dest, 0x40);
+      e.jz(end);
 
-      // Invert the result (63 - i.dest)
-      e.xor_(i.dest, 0x3F);
-      e.jmp(jend);  // Jmp to end
+      e.xor_(e.rax, 0x3F);
+      e.mov(i.dest, e.rax);
 
-      // src1 was zero, so write 64 to the dest reg
-      e.L(jz);
-      e.mov(i.dest, 64);
-
-      e.L(jend);
+      e.L(end);
       e.outLocalLabel();
     }
   }
@@ -6579,7 +6680,6 @@ struct EXTRACT_I32
       e.vmovaps(e.xmm0, e.ptr[e.rdx + e.rax]);
       e.vpshufb(e.xmm0, src1, e.xmm0);
       e.vpextrd(i.dest, e.xmm0, 0);
-      e.ReloadMembase();
     }
   }
 };
@@ -7619,8 +7719,6 @@ struct ATOMIC_COMPARE_EXCHANGE_I32
     e.lock();
     e.cmpxchg(e.dword[e.GetMembaseReg() + e.rcx], i.src3);
     e.sete(i.dest);
-
-    e.ReloadContext();
   }
 };
 struct ATOMIC_COMPARE_EXCHANGE_I64
@@ -7632,8 +7730,6 @@ struct ATOMIC_COMPARE_EXCHANGE_I64
     e.lock();
     e.cmpxchg(e.qword[e.GetMembaseReg() + e.rcx], i.src3);
     e.sete(i.dest);
-
-    e.ReloadContext();
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_ATOMIC_COMPARE_EXCHANGE,
@@ -7696,6 +7792,8 @@ void RegisterSequences() {
   Register_OPCODE_CONTEXT_BARRIER();
   Register_OPCODE_LOAD_MMIO();
   Register_OPCODE_STORE_MMIO();
+  Register_OPCODE_LOAD_OFFSET();
+  Register_OPCODE_STORE_OFFSET();
   Register_OPCODE_LOAD();
   Register_OPCODE_STORE();
   Register_OPCODE_MEMSET();
