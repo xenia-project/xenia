@@ -22,6 +22,74 @@ namespace xe {
 namespace gpu {
 namespace vulkan {
 
+#if XE_ARCH_AMD64
+void copy_cmp_swap_16_unaligned(void* dest_ptr, const void* src_ptr,
+                                uint16_t cmp_value, size_t count) {
+  auto dest = reinterpret_cast<uint16_t*>(dest_ptr);
+  auto src = reinterpret_cast<const uint16_t*>(src_ptr);
+  __m128i shufmask =
+      _mm_set_epi8(0x0E, 0x0F, 0x0C, 0x0D, 0x0A, 0x0B, 0x08, 0x09, 0x06, 0x07,
+                   0x04, 0x05, 0x02, 0x03, 0x00, 0x01);
+  __m128i cmpval = _mm_set1_epi16(cmp_value);
+
+  size_t i;
+  for (i = 0; i + 8 <= count; i += 8) {
+    __m128i input = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&src[i]));
+    __m128i output = _mm_shuffle_epi8(input, shufmask);
+
+    __m128i mask = _mm_cmpeq_epi16(output, cmpval);
+    output = _mm_or_si128(output, mask);
+    _mm_storeu_si128(reinterpret_cast<__m128i*>(&dest[i]), output);
+  }
+  for (; i < count; ++i) {  // handle residual elements
+    dest[i] = byte_swap(src[i]);
+  }
+}
+
+void copy_cmp_swap_32_unaligned(void* dest_ptr, const void* src_ptr,
+                                uint32_t cmp_value, size_t count) {
+  auto dest = reinterpret_cast<uint32_t*>(dest_ptr);
+  auto src = reinterpret_cast<const uint32_t*>(src_ptr);
+  __m128i shufmask =
+      _mm_set_epi8(0x0C, 0x0D, 0x0E, 0x0F, 0x08, 0x09, 0x0A, 0x0B, 0x04, 0x05,
+                   0x06, 0x07, 0x00, 0x01, 0x02, 0x03);
+  __m128i cmpval = _mm_set1_epi32(cmp_value);
+
+  size_t i;
+  for (i = 0; i + 4 <= count; i += 4) {
+    __m128i input = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&src[i]));
+    __m128i output = _mm_shuffle_epi8(input, shufmask);
+
+    __m128i mask = _mm_cmpeq_epi32(output, cmpval);
+    output = _mm_or_si128(output, mask);
+    _mm_storeu_si128(reinterpret_cast<__m128i*>(&dest[i]), output);
+  }
+  for (; i < count; ++i) {  // handle residual elements
+    dest[i] = byte_swap(src[i]);
+  }
+}
+#else
+void copy_and_swap_16_unaligned(void* dest_ptr, const void* src_ptr,
+                                uint16_t cmp_value, size_t count) {
+  auto dest = reinterpret_cast<uint16_t*>(dest_ptr);
+  auto src = reinterpret_cast<const uint16_t*>(src_ptr);
+  for (size_t i = 0; i < count; ++i) {
+    uint16_t value = byte_swap(src[i]);
+    dest[i] = value == cmp_value ? 0xFFFF : value;
+  }
+}
+
+void copy_and_swap_32_unaligned(void* dest_ptr, const void* src_ptr,
+                                uint32_t cmp_value, size_t count) {
+  auto dest = reinterpret_cast<uint32_t*>(dest_ptr);
+  auto src = reinterpret_cast<const uint32_t*>(src_ptr);
+  for (size_t i = 0; i < count; ++i) {
+    uint32_t value = byte_swap(src[i]);
+    dest[i] = value == cmp_value ? 0xFFFFFFFF : value;
+  }
+}
+#endif
+
 using xe::ui::vulkan::CheckResult;
 
 constexpr VkDeviceSize kConstantRegisterUniformRange =
@@ -293,17 +361,36 @@ std::pair<VkBuffer, VkDeviceSize> BufferCache::UploadIndexBuffer(
 
   const void* source_ptr = memory_->TranslatePhysical(source_addr);
 
-  // Copy data into the buffer.
-  // TODO(benvanik): get min/max indices and pass back?
+  uint32_t prim_reset_index =
+      register_file_->values[XE_GPU_REG_VGT_MULTI_PRIM_IB_RESET_INDX].u32;
+  bool prim_reset_enabled =
+      !!(register_file_->values[XE_GPU_REG_PA_SU_SC_MODE_CNTL].u32 & (1 << 21));
+
+  // Copy data into the buffer. If primitive reset is enabled, translate any
+  // primitive reset indices to something Vulkan understands.
   // TODO(benvanik): memcpy then use compute shaders to swap?
-  if (format == IndexFormat::kInt16) {
-    // Endian::k8in16, swap half-words.
-    xe::copy_and_swap_16_unaligned(transient_buffer_->host_base() + offset,
-                                   source_ptr, source_length / 2);
-  } else if (format == IndexFormat::kInt32) {
-    // Endian::k8in32, swap words.
-    xe::copy_and_swap_32_unaligned(transient_buffer_->host_base() + offset,
-                                   source_ptr, source_length / 4);
+  if (prim_reset_enabled) {
+    if (format == IndexFormat::kInt16) {
+      // Endian::k8in16, swap half-words.
+      copy_cmp_swap_16_unaligned(
+          transient_buffer_->host_base() + offset, source_ptr,
+          static_cast<uint16_t>(prim_reset_index), source_length / 2);
+    } else if (format == IndexFormat::kInt32) {
+      // Endian::k8in32, swap words.
+      copy_cmp_swap_32_unaligned(transient_buffer_->host_base() + offset,
+                                 source_ptr, prim_reset_index,
+                                 source_length / 4);
+    }
+  } else {
+    if (format == IndexFormat::kInt16) {
+      // Endian::k8in16, swap half-words.
+      xe::copy_and_swap_16_unaligned(transient_buffer_->host_base() + offset,
+                                     source_ptr, source_length / 2);
+    } else if (format == IndexFormat::kInt32) {
+      // Endian::k8in32, swap words.
+      xe::copy_and_swap_32_unaligned(transient_buffer_->host_base() + offset,
+                                     source_ptr, source_length / 4);
+    }
   }
 
   transient_buffer_->Flush(offset, source_length);
