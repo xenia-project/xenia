@@ -10,6 +10,7 @@
 #include "xenia/gpu/command_processor.h"
 
 #include <algorithm>
+#include <cinttypes>
 #include <cmath>
 
 #include "xenia/base/byte_stream.h"
@@ -19,6 +20,7 @@
 #include "xenia/base/ring_buffer.h"
 #include "xenia/gpu/gpu_flags.h"
 #include "xenia/gpu/graphics_system.h"
+#include "xenia/gpu/registers.h"
 #include "xenia/gpu/sampler_info.h"
 #include "xenia/gpu/texture_info.h"
 #include "xenia/gpu/xenos.h"
@@ -166,6 +168,9 @@ void CommandProcessor::WorkerThreadMain() {
       xe::store_and_swap<uint32_t>(
           memory_->TranslatePhysical(read_ptr_writeback_ptr_), read_ptr_index_);
     }
+
+    // FIXME: We're supposed to process the WAIT_UNTIL register at this point,
+    // but no games seem to actually use it.
   }
 
   ShutdownContext();
@@ -1028,7 +1033,11 @@ bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_EXT(RingBuffer* reader,
   WriteRegister(XE_GPU_REG_VGT_EVENT_INITIATOR, initiator & 0x3F);
   auto endianness = static_cast<Endian>(address & 0x3);
   address &= ~0x3;
+
   // Let us hope we can fake this.
+  // This callback tells the driver the xy coordinates affected by a previous
+  // drawcall.
+  // https://www.google.com/patents/US20060055701
   uint16_t extents[] = {
       0 >> 3,     // min x
       2560 >> 3,  // max x
@@ -1065,6 +1074,8 @@ bool CommandProcessor::ExecutePacketType3_DRAW_INDX(RingBuffer* reader,
   // initiate fetch of index buffer and draw
   // if dword0 != 0, this is a conditional draw based on viz query.
   // This ID matches the one issued in PM4_VIZ_QUERY
+  // ID = dword0 & 0x3F;
+  // use = dword0 & 0x40;
   uint32_t dword0 = reader->Read<uint32_t>(true);  // viz query info
   uint32_t dword1 = reader->Read<uint32_t>(true);
   uint32_t index_count = dword1 >> 16;
@@ -1313,12 +1324,19 @@ bool CommandProcessor::ExecutePacketType3_VIZ_QUERY(RingBuffer* reader,
   // http://www.google.com/patents/US20050195186
   assert_true(count == 1);
 
-  // Some sort of ID?
-  // This appears to reset a viz query context.
-  // This ID matches the ID in conditional draw commands.
-  // Patent says the driver sets the viz_query register with info about the
-  // context ID.
   uint32_t dword0 = reader->Read<uint32_t>(true);
+
+  uint32_t id = dword0 & 0x3F;
+  uint32_t end = dword0 & 0x80;
+  if (!end) {
+    // begin a new viz query @ id
+    WriteRegister(XE_GPU_REG_VGT_EVENT_INITIATOR, VIZQUERY_START);
+    XELOGGPU("Begin viz query ID %.2X", id);
+  } else {
+    // end the viz query
+    WriteRegister(XE_GPU_REG_VGT_EVENT_INITIATOR, VIZQUERY_END);
+    XELOGGPU("End viz query ID %.2X", id);
+  }
 
   return true;
 }
