@@ -924,6 +924,7 @@ bool TextureCache::ConvertTexture2D(uint8_t* dest,
       }
       copy_region->bufferRowLength = src.size_2d.input_width;
       copy_region->bufferImageHeight = src.size_2d.input_height;
+      copy_region->imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
       copy_region->imageExtent = {src.size_2d.logical_width,
                                   src.size_2d.logical_height, 1};
       return true;
@@ -932,6 +933,7 @@ bool TextureCache::ConvertTexture2D(uint8_t* dest,
       TextureSwap(src.endianness, dest, host_address, src.input_length);
       copy_region->bufferRowLength = src.size_2d.input_width;
       copy_region->bufferImageHeight = src.size_2d.input_height;
+      copy_region->imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
       copy_region->imageExtent = {src.size_2d.logical_width,
                                   src.size_2d.logical_height, 1};
       return true;
@@ -996,6 +998,7 @@ bool TextureCache::ConvertTexture2D(uint8_t* dest,
 
     copy_region->bufferRowLength = src.size_2d.input_width;
     copy_region->bufferImageHeight = src.size_2d.input_height;
+    copy_region->imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
     copy_region->imageExtent = {src.size_2d.logical_width,
                                 src.size_2d.logical_height, 1};
     return true;
@@ -1013,8 +1016,9 @@ bool TextureCache::ConvertTextureCube(uint8_t* dest,
     TextureSwap(src.endianness, dest, host_address, src.input_length);
     copy_region->bufferRowLength = src.size_cube.input_width;
     copy_region->bufferImageHeight = src.size_cube.input_height;
+    copy_region->imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 6};
     copy_region->imageExtent = {src.size_cube.logical_width,
-                                src.size_cube.logical_height, 6};
+                                src.size_cube.logical_height, 1};
     return true;
   } else {
     // TODO(benvanik): optimize this inner loop (or work by tiles).
@@ -1053,8 +1057,9 @@ bool TextureCache::ConvertTextureCube(uint8_t* dest,
 
     copy_region->bufferRowLength = src.size_cube.input_width;
     copy_region->bufferImageHeight = src.size_cube.input_height;
+    copy_region->imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 6};
     copy_region->imageExtent = {src.size_cube.logical_width,
-                                src.size_cube.logical_height, 6};
+                                src.size_cube.logical_height, 1};
     return true;
   }
 
@@ -1250,7 +1255,9 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
   barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
   barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
   barrier.image = dest->image;
-  barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+  barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1,
+                              copy_region.imageSubresource.baseArrayLayer,
+                              copy_region.imageSubresource.layerCount};
   if (dest->format == VK_FORMAT_D16_UNORM_S8_UINT ||
       dest->format == VK_FORMAT_D24_UNORM_S8_UINT ||
       dest->format == VK_FORMAT_D32_SFLOAT_S8_UINT) {
@@ -1264,7 +1271,6 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
 
   // Now move the converted texture into the destination.
   copy_region.bufferOffset = alloc->offset;
-  copy_region.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
   copy_region.imageOffset = {0, 0, 0};
   vkCmdCopyBufferToImage(command_buffer, staging_buffer_.gpu_buffer(),
                          dest->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
