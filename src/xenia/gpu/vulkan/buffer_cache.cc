@@ -429,7 +429,8 @@ std::pair<VkBuffer, VkDeviceSize> BufferCache::UploadVertexBuffer(
   uint32_t upload_size = source_length;
 
   // Ping the memory subsystem for allocation size.
-  physical_heap->QueryBaseAndSize(&upload_base, &upload_size);
+  // TODO(DrChat): Artifacting occurring in GripShift with this enabled.
+  // physical_heap->QueryBaseAndSize(&upload_base, &upload_size);
   assert(upload_base <= source_addr);
   uint32_t source_offset = source_addr - upload_base;
 
