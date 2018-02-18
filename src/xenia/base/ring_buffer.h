@@ -12,6 +12,7 @@
 
 #include <cstdint>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 #include "xenia/base/assert.h"
@@ -72,16 +73,25 @@ class RingBuffer {
   }
 
   template <typename T>
-  T Read(bool swap = false) {
-    static_assert(sizeof(T) <= 8, "Immediate read only supports basic types!");
+  T Read() {
+    static_assert(std::is_fundamental<T>::value,
+                  "Immediate read only supports basic types!");
 
     T imm;
     size_t read = Read(reinterpret_cast<uint8_t*>(&imm), sizeof(T));
     assert_true(read == sizeof(T));
-    if (swap) {
-      imm = xe::byte_swap(imm);
-    }
+    return imm;
+  }
 
+  template <typename T>
+  T ReadAndSwap() {
+    static_assert(std::is_fundamental<T>::value,
+                  "Immediate read only supports basic types!");
+
+    T imm;
+    size_t read = Read(reinterpret_cast<uint8_t*>(&imm), sizeof(T));
+    assert_true(read == sizeof(T));
+    imm = xe::byte_swap(imm);
     return imm;
   }
 

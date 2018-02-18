@@ -102,6 +102,7 @@ bool VulkanDevice::Initialize(DeviceInfo device_info) {
   ENABLE_AND_EXPECT(shaderCullDistance);
   ENABLE_AND_EXPECT(shaderStorageImageExtendedFormats);
   ENABLE_AND_EXPECT(shaderTessellationAndGeometryPointSize);
+  ENABLE_AND_EXPECT(samplerAnisotropy);
   ENABLE_AND_EXPECT(geometryShader);
   ENABLE_AND_EXPECT(depthClamp);
   ENABLE_AND_EXPECT(multiViewport);

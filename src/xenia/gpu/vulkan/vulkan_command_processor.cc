@@ -866,14 +866,13 @@ bool VulkanCommandProcessor::PopulateVertexBuffers(
     // TODO: Make the buffer cache ... actually cache buffers. We can have
     // a list of buffers that were cached, and store those in chunks in a
     // multiple of the host's page size.
-    // WRITE WATCHES: We need to invalidate vertex buffers if they're written
-    // to. Since most vertex buffers aren't aligned to a page boundary, this
-    // means a watch may cover more than one vertex buffer.
-    // We need to maintain a list of write watches, and what memory ranges
-    // they cover. If a vertex buffer lies within a write watch's range, assign
-    // it to the watch. If there's partial alignment where a buffer lies within
-    // one watch and outside of it, should we create a new watch or extend the
-    // existing watch?
+    // So, we need to track all vertex buffers in a sorted map, and track all
+    // write watches in a sorted map. When a vertex buffer is uploaded, track
+    // all untracked pages with 1-page write watches. In the callback,
+    // invalidate any overlapping vertex buffers.
+    //
+    // We would keep the old transient buffer as a staging buffer, and upload
+    // to a GPU-only buffer that tracks all cached vertex buffers.
     auto buffer_ref = buffer_cache_->UploadVertexBuffer(
         current_setup_buffer_, physical_address, source_length,
         static_cast<Endian>(fetch->endian), current_batch_fence_);

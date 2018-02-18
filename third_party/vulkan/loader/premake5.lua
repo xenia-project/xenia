@@ -26,6 +26,9 @@ project("vulkan-loader")
     defines({
       "VK_USE_PLATFORM_WIN32_KHR",
     })
+    links({
+      "Cfgmgr32"
+    })
   filter("platforms:not Windows")
     removefiles("dirent_on_windows.c")
   filter("platforms:Linux")
