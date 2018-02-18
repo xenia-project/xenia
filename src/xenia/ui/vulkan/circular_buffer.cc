@@ -42,7 +42,7 @@ CircularBuffer::CircularBuffer(VulkanDevice* device, VkBufferUsageFlags usage,
 
   VkMemoryRequirements reqs;
   vkGetBufferMemoryRequirements(*device_, gpu_buffer_, &reqs);
-  alignment_ = reqs.alignment;
+  alignment_ = xe::round_up(alignment, reqs.alignment);
 }
 CircularBuffer::~CircularBuffer() { Shutdown(); }
 

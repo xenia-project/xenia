@@ -56,6 +56,8 @@ struct HeapAllocationInfo {
   uint32_t allocation_base;
   // The memory protection option when the region was initially allocated.
   uint32_t allocation_protect;
+  // The size specified when the region was initially allocated, in bytes.
+  uint32_t allocation_size;
   // The size of the region beginning at the base address in which all pages
   // have identical attributes, in bytes.
   uint32_t region_size;
@@ -63,8 +65,6 @@ struct HeapAllocationInfo {
   uint32_t state;
   // The access protection of the pages in the region.
   uint32_t protect;
-  // The type of pages in the region (private).
-  uint32_t type;
 };
 
 // Describes a single page in the page table.
@@ -143,6 +143,9 @@ class BaseHeap {
 
   // Queries the size of the region containing the given address.
   bool QuerySize(uint32_t address, uint32_t* out_size);
+
+  // Queries the base and size of a region containing the given address.
+  bool QueryBaseAndSize(uint32_t* in_out_address, uint32_t* out_size);
 
   // Queries the current protection mode of the region containing the given
   // address.
@@ -331,6 +334,9 @@ class Memory {
 
   // Gets the heap with the given properties.
   BaseHeap* LookupHeapByType(bool physical, uint32_t page_size);
+
+  // Gets the physical base heap.
+  VirtualHeap* GetPhysicalHeap();
 
   // Dumps a map of all allocated memory to the log.
   void DumpMap();
