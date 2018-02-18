@@ -179,13 +179,13 @@ uint32_t GraphicsSystem::ReadRegister(uint32_t addr) {
       return 0x08100748;
     case 0x0F01:  // RB_BC_CONTROL
       return 0x0000200E;
-    case 0x194C:  // R500_D1MODE_V_COUNTER(?) / scanline(?)
+    case 0x194C:  // R500_D1MODE_V_COUNTER
       return 0x000002D0;
-    case 0x1951:  // ? vblank pending?
-      return 1;
+    case 0x1951:  // interrupt status
+      return 1;   // vblank
     case 0x1961:  // AVIVO_D1MODE_VIEWPORT_SIZE
                   // Screen res - 1280x720
-                  // [width(0x0FFF), height(0x0FFF)]
+                  // maximum [width(0x0FFF), height(0x0FFF)]
       return 0x050002D0;
     default:
       if (!register_file_.GetRegisterInfo(r)) {

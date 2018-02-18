@@ -171,12 +171,14 @@ bool Memory::Initialize() {
   heaps_.vE0000000.Initialize(virtual_membase_, 0xE0000000, 0x1FD00000, 4096,
                               &heaps_.physical);
 
-  // Protect the first 64kb of memory.
+  // Protect the first and last 64kb of memory.
   heaps_.v00000000.AllocFixed(
-      0x00000000, 64 * 1024, 64 * 1024,
+      0x00000000, 0x10000, 0x10000,
       kMemoryAllocationReserve | kMemoryAllocationCommit,
       !FLAGS_protect_zero ? kMemoryProtectRead | kMemoryProtectWrite
                           : kMemoryProtectNoAccess);
+  heaps_.physical.AllocFixed(0x1FFF0000, 0x10000, 0x10000,
+                             kMemoryAllocationReserve, kMemoryProtectNoAccess);
 
   // GPU writeback.
   // 0xC... is physical, 0x7F... is virtual. We may need to overlay these.
@@ -336,6 +338,8 @@ BaseHeap* Memory::LookupHeapByType(bool physical, uint32_t page_size) {
     }
   }
 }
+
+VirtualHeap* Memory::GetPhysicalHeap() { return &heaps_.physical; }
 
 void Memory::Zero(uint32_t address, uint32_t size) {
   std::memset(TranslateVirtual(address), 0, size);
@@ -1094,16 +1098,19 @@ bool BaseHeap::QueryRegionInfo(uint32_t base_address,
   out_info->region_size = 0;
   out_info->state = 0;
   out_info->protect = 0;
-  out_info->type = 0;
   if (start_page_entry.state) {
     // Committed/reserved region.
     out_info->allocation_base = start_page_entry.base_address * page_size_;
     out_info->allocation_protect = start_page_entry.allocation_protect;
+    out_info->allocation_size = start_page_entry.region_page_count * page_size_;
     out_info->state = start_page_entry.state;
     out_info->protect = start_page_entry.current_protect;
-    out_info->type = 0x20000;
+
+    // Scan forward and report the size of the region matching the initial
+    // base address's attributes.
     for (uint32_t page_number = start_page_number;
-         page_number < start_page_number + start_page_entry.region_page_count;
+         page_number <
+         start_page_entry.base_address + start_page_entry.region_page_count;
          ++page_number) {
       auto page_entry = page_table_[page_number];
       if (page_entry.base_address != start_page_entry.base_address ||
@@ -1138,6 +1145,20 @@ bool BaseHeap::QuerySize(uint32_t address, uint32_t* out_size) {
   }
   auto global_lock = global_critical_region_.Acquire();
   auto page_entry = page_table_[page_number];
+  *out_size = (page_entry.region_page_count * page_size_);
+  return true;
+}
+
+bool BaseHeap::QueryBaseAndSize(uint32_t* in_out_address, uint32_t* out_size) {
+  uint32_t page_number = (*in_out_address - heap_base_) / page_size_;
+  if (page_number > page_table_.size()) {
+    XELOGE("BaseHeap::QuerySize base page out of range");
+    *out_size = 0;
+    return false;
+  }
+  auto global_lock = global_critical_region_.Acquire();
+  auto page_entry = page_table_[page_number];
+  *in_out_address = (page_entry.base_address * page_size_);
   *out_size = (page_entry.region_page_count * page_size_);
   return true;
 }

@@ -18,6 +18,8 @@
 #include "xenia/ui/vulkan/vulkan.h"
 #include "xenia/ui/vulkan/vulkan_device.h"
 
+#include "third_party/vulkan/vk_mem_alloc.h"
+
 #include <map>
 
 namespace xe {
@@ -95,6 +97,15 @@ class BufferCache {
   void Scavenge();
 
  private:
+  // This represents an uploaded vertex buffer.
+  struct VertexBuffer {
+    uint32_t guest_address;
+    uint32_t size;
+
+    VmaAllocation alloc;
+    VmaAllocationInfo alloc_info;
+  };
+
   // Allocates a block of memory in the transient buffer.
   // When memory is not available fences are checked and space is reclaimed.
   // Returns VK_WHOLE_SIZE if requested amount of memory is not available.
@@ -115,11 +126,12 @@ class BufferCache {
   ui::vulkan::VulkanDevice* device_ = nullptr;
 
   VkDeviceMemory gpu_memory_pool_ = nullptr;
+  VmaAllocator mem_allocator_ = nullptr;
 
   // Staging ringbuffer we cycle through fast. Used for data we don't
   // plan on keeping past the current frame.
   std::unique_ptr<ui::vulkan::CircularBuffer> transient_buffer_ = nullptr;
-  std::map<uint64_t, VkDeviceSize> transient_cache_;
+  std::map<uint32_t, std::pair<uint32_t, VkDeviceSize>> transient_cache_;
 
   VkDescriptorPool descriptor_pool_ = nullptr;
   VkDescriptorSetLayout descriptor_set_layout_ = nullptr;
