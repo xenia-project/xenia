@@ -534,16 +534,19 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
   if (scissor_state_dirty) {
     int32_t ws_x = regs.pa_sc_window_scissor_tl & 0x7FFF;
     int32_t ws_y = (regs.pa_sc_window_scissor_tl >> 16) & 0x7FFF;
-    uint32_t ws_w = (regs.pa_sc_window_scissor_br & 0x7FFF) - ws_x;
-    uint32_t ws_h = ((regs.pa_sc_window_scissor_br >> 16) & 0x7FFF) - ws_y;
+    int32_t ws_w = (regs.pa_sc_window_scissor_br & 0x7FFF) - ws_x;
+    int32_t ws_h = ((regs.pa_sc_window_scissor_br >> 16) & 0x7FFF) - ws_y;
     ws_x += window_offset_x;
     ws_y += window_offset_y;
 
+    int32_t adj_x = ws_x - std::max(ws_x, 0);
+    int32_t adj_y = ws_y - std::max(ws_y, 0);
+
     VkRect2D scissor_rect;
-    scissor_rect.offset.x = ws_x;
-    scissor_rect.offset.y = ws_y;
-    scissor_rect.extent.width = ws_w;
-    scissor_rect.extent.height = ws_h;
+    scissor_rect.offset.x = ws_x - adj_x;
+    scissor_rect.offset.y = ws_y - adj_y;
+    scissor_rect.extent.width = std::max(ws_w + adj_x, 0);
+    scissor_rect.extent.height = std::max(ws_h + adj_y, 0);
     vkCmdSetScissor(command_buffer, 0, 1, &scissor_rect);
   }
 
