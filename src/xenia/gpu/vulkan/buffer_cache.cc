@@ -16,9 +16,79 @@
 #include "xenia/gpu/gpu_flags.h"
 #include "xenia/gpu/vulkan/vulkan_gpu_flags.h"
 
+#include "third_party/vulkan/vk_mem_alloc.h"
+
 namespace xe {
 namespace gpu {
 namespace vulkan {
+
+#if XE_ARCH_AMD64
+void copy_cmp_swap_16_unaligned(void* dest_ptr, const void* src_ptr,
+                                uint16_t cmp_value, size_t count) {
+  auto dest = reinterpret_cast<uint16_t*>(dest_ptr);
+  auto src = reinterpret_cast<const uint16_t*>(src_ptr);
+  __m128i shufmask =
+      _mm_set_epi8(0x0E, 0x0F, 0x0C, 0x0D, 0x0A, 0x0B, 0x08, 0x09, 0x06, 0x07,
+                   0x04, 0x05, 0x02, 0x03, 0x00, 0x01);
+  __m128i cmpval = _mm_set1_epi16(cmp_value);
+
+  size_t i;
+  for (i = 0; i + 8 <= count; i += 8) {
+    __m128i input = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&src[i]));
+    __m128i output = _mm_shuffle_epi8(input, shufmask);
+
+    __m128i mask = _mm_cmpeq_epi16(output, cmpval);
+    output = _mm_or_si128(output, mask);
+    _mm_storeu_si128(reinterpret_cast<__m128i*>(&dest[i]), output);
+  }
+  for (; i < count; ++i) {  // handle residual elements
+    dest[i] = byte_swap(src[i]);
+  }
+}
+
+void copy_cmp_swap_32_unaligned(void* dest_ptr, const void* src_ptr,
+                                uint32_t cmp_value, size_t count) {
+  auto dest = reinterpret_cast<uint32_t*>(dest_ptr);
+  auto src = reinterpret_cast<const uint32_t*>(src_ptr);
+  __m128i shufmask =
+      _mm_set_epi8(0x0C, 0x0D, 0x0E, 0x0F, 0x08, 0x09, 0x0A, 0x0B, 0x04, 0x05,
+                   0x06, 0x07, 0x00, 0x01, 0x02, 0x03);
+  __m128i cmpval = _mm_set1_epi32(cmp_value);
+
+  size_t i;
+  for (i = 0; i + 4 <= count; i += 4) {
+    __m128i input = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&src[i]));
+    __m128i output = _mm_shuffle_epi8(input, shufmask);
+
+    __m128i mask = _mm_cmpeq_epi32(output, cmpval);
+    output = _mm_or_si128(output, mask);
+    _mm_storeu_si128(reinterpret_cast<__m128i*>(&dest[i]), output);
+  }
+  for (; i < count; ++i) {  // handle residual elements
+    dest[i] = byte_swap(src[i]);
+  }
+}
+#else
+void copy_and_swap_16_unaligned(void* dest_ptr, const void* src_ptr,
+                                uint16_t cmp_value, size_t count) {
+  auto dest = reinterpret_cast<uint16_t*>(dest_ptr);
+  auto src = reinterpret_cast<const uint16_t*>(src_ptr);
+  for (size_t i = 0; i < count; ++i) {
+    uint16_t value = byte_swap(src[i]);
+    dest[i] = value == cmp_value ? 0xFFFF : value;
+  }
+}
+
+void copy_and_swap_32_unaligned(void* dest_ptr, const void* src_ptr,
+                                uint32_t cmp_value, size_t count) {
+  auto dest = reinterpret_cast<uint32_t*>(dest_ptr);
+  auto src = reinterpret_cast<const uint32_t*>(src_ptr);
+  for (size_t i = 0; i < count; ++i) {
+    uint32_t value = byte_swap(src[i]);
+    dest[i] = value == cmp_value ? 0xFFFFFFFF : value;
+  }
+}
+#endif
 
 using xe::ui::vulkan::CheckResult;
 
@@ -32,7 +102,7 @@ BufferCache::BufferCache(RegisterFile* register_file, Memory* memory,
       device_,
       VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT |
           VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-      capacity);
+      capacity, 4096);
 }
 
 BufferCache::~BufferCache() { Shutdown(); }
@@ -43,6 +113,15 @@ VkResult BufferCache::Initialize() {
   gpu_memory_pool_ = device_->AllocateMemory(pool_reqs);
 
   VkResult status = transient_buffer_->Initialize(gpu_memory_pool_, 0);
+  if (status != VK_SUCCESS) {
+    return status;
+  }
+
+  // Create a memory allocator for textures.
+  VmaAllocatorCreateInfo alloc_info = {
+      0, *device_, *device_, 0, 0, nullptr, nullptr,
+  };
+  status = vmaCreateAllocator(&alloc_info, &mem_allocator_);
   if (status != VK_SUCCESS) {
     return status;
   }
@@ -150,28 +229,23 @@ VkResult BufferCache::Initialize() {
 }
 
 void BufferCache::Shutdown() {
+  if (mem_allocator_) {
+    vmaDestroyAllocator(mem_allocator_);
+    mem_allocator_ = nullptr;
+  }
+
   if (transient_descriptor_set_) {
     vkFreeDescriptorSets(*device_, descriptor_pool_, 1,
                          &transient_descriptor_set_);
     transient_descriptor_set_ = nullptr;
   }
 
-  if (descriptor_set_layout_) {
-    vkDestroyDescriptorSetLayout(*device_, descriptor_set_layout_, nullptr);
-    descriptor_set_layout_ = nullptr;
-  }
-
-  if (descriptor_pool_) {
-    vkDestroyDescriptorPool(*device_, descriptor_pool_, nullptr);
-    descriptor_pool_ = nullptr;
-  }
+  VK_SAFE_DESTROY(vkDestroyDescriptorSetLayout, *device_,
+                  descriptor_set_layout_, nullptr);
+  VK_SAFE_DESTROY(vkDestroyDescriptorPool, *device_, descriptor_pool_, nullptr);
 
   transient_buffer_->Shutdown();
-
-  if (gpu_memory_pool_) {
-    vkFreeMemory(*device_, gpu_memory_pool_, nullptr);
-    gpu_memory_pool_ = nullptr;
-  }
+  VK_SAFE_DESTROY(vkFreeMemory, *device_, gpu_memory_pool_, nullptr);
 }
 
 std::pair<VkDeviceSize, VkDeviceSize> BufferCache::UploadConstantRegisters(
@@ -278,13 +352,8 @@ std::pair<VkDeviceSize, VkDeviceSize> BufferCache::UploadConstantRegisters(
 std::pair<VkBuffer, VkDeviceSize> BufferCache::UploadIndexBuffer(
     VkCommandBuffer command_buffer, uint32_t source_addr,
     uint32_t source_length, IndexFormat format, VkFence fence) {
-  auto offset = FindCachedTransientData(source_addr, source_length);
-  if (offset != VK_WHOLE_SIZE) {
-    return {transient_buffer_->gpu_buffer(), offset};
-  }
-
   // Allocate space in the buffer for our data.
-  offset = AllocateTransientData(source_length, fence);
+  auto offset = AllocateTransientData(source_length, fence);
   if (offset == VK_WHOLE_SIZE) {
     // OOM.
     return {nullptr, VK_WHOLE_SIZE};
@@ -292,17 +361,36 @@ std::pair<VkBuffer, VkDeviceSize> BufferCache::UploadIndexBuffer(
 
   const void* source_ptr = memory_->TranslatePhysical(source_addr);
 
-  // Copy data into the buffer.
-  // TODO(benvanik): get min/max indices and pass back?
+  uint32_t prim_reset_index =
+      register_file_->values[XE_GPU_REG_VGT_MULTI_PRIM_IB_RESET_INDX].u32;
+  bool prim_reset_enabled =
+      !!(register_file_->values[XE_GPU_REG_PA_SU_SC_MODE_CNTL].u32 & (1 << 21));
+
+  // Copy data into the buffer. If primitive reset is enabled, translate any
+  // primitive reset indices to something Vulkan understands.
   // TODO(benvanik): memcpy then use compute shaders to swap?
-  if (format == IndexFormat::kInt16) {
-    // Endian::k8in16, swap half-words.
-    xe::copy_and_swap_16_unaligned(transient_buffer_->host_base() + offset,
-                                   source_ptr, source_length / 2);
-  } else if (format == IndexFormat::kInt32) {
-    // Endian::k8in32, swap words.
-    xe::copy_and_swap_32_unaligned(transient_buffer_->host_base() + offset,
-                                   source_ptr, source_length / 4);
+  if (prim_reset_enabled) {
+    if (format == IndexFormat::kInt16) {
+      // Endian::k8in16, swap half-words.
+      copy_cmp_swap_16_unaligned(
+          transient_buffer_->host_base() + offset, source_ptr,
+          static_cast<uint16_t>(prim_reset_index), source_length / 2);
+    } else if (format == IndexFormat::kInt32) {
+      // Endian::k8in32, swap words.
+      copy_cmp_swap_32_unaligned(transient_buffer_->host_base() + offset,
+                                 source_ptr, prim_reset_index,
+                                 source_length / 4);
+    }
+  } else {
+    if (format == IndexFormat::kInt16) {
+      // Endian::k8in16, swap half-words.
+      xe::copy_and_swap_16_unaligned(transient_buffer_->host_base() + offset,
+                                     source_ptr, source_length / 2);
+    } else if (format == IndexFormat::kInt32) {
+      // Endian::k8in32, swap words.
+      xe::copy_and_swap_32_unaligned(transient_buffer_->host_base() + offset,
+                                     source_ptr, source_length / 4);
+    }
   }
 
   transient_buffer_->Flush(offset, source_length);
@@ -323,7 +411,6 @@ std::pair<VkBuffer, VkDeviceSize> BufferCache::UploadIndexBuffer(
                        VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, 0, 0, nullptr, 1,
                        &barrier, 0, nullptr);
 
-  CacheTransientData(source_addr, source_length, offset);
   return {transient_buffer_->gpu_buffer(), offset};
 }
 
@@ -335,29 +422,41 @@ std::pair<VkBuffer, VkDeviceSize> BufferCache::UploadVertexBuffer(
     return {transient_buffer_->gpu_buffer(), offset};
   }
 
+  // Slow path :)
+  // Expand the region up to the allocation boundary
+  auto physical_heap = memory_->GetPhysicalHeap();
+  uint32_t upload_base = source_addr;
+  uint32_t upload_size = source_length;
+
+  // Ping the memory subsystem for allocation size.
+  // TODO(DrChat): Artifacting occurring in GripShift with this enabled.
+  // physical_heap->QueryBaseAndSize(&upload_base, &upload_size);
+  assert(upload_base <= source_addr);
+  uint32_t source_offset = source_addr - upload_base;
+
   // Allocate space in the buffer for our data.
-  offset = AllocateTransientData(source_length, fence);
+  offset = AllocateTransientData(upload_size, fence);
   if (offset == VK_WHOLE_SIZE) {
     // OOM.
     return {nullptr, VK_WHOLE_SIZE};
   }
 
-  const void* source_ptr = memory_->TranslatePhysical(source_addr);
+  const void* upload_ptr = memory_->TranslatePhysical(upload_base);
 
   // Copy data into the buffer.
   // TODO(benvanik): memcpy then use compute shaders to swap?
   if (endian == Endian::k8in32) {
     // Endian::k8in32, swap words.
     xe::copy_and_swap_32_unaligned(transient_buffer_->host_base() + offset,
-                                   source_ptr, source_length / 4);
+                                   upload_ptr, source_length / 4);
   } else if (endian == Endian::k16in32) {
     xe::copy_and_swap_16_in_32_unaligned(
-        transient_buffer_->host_base() + offset, source_ptr, source_length / 4);
+        transient_buffer_->host_base() + offset, upload_ptr, source_length / 4);
   } else {
     assert_always();
   }
 
-  transient_buffer_->Flush(offset, source_length);
+  transient_buffer_->Flush(offset, upload_size);
 
   // Append a barrier to the command buffer.
   VkBufferMemoryBarrier barrier = {
@@ -369,14 +468,14 @@ std::pair<VkBuffer, VkDeviceSize> BufferCache::UploadVertexBuffer(
       VK_QUEUE_FAMILY_IGNORED,
       transient_buffer_->gpu_buffer(),
       offset,
-      source_length,
+      upload_size,
   };
   vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_HOST_BIT,
                        VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, 0, 0, nullptr, 1,
                        &barrier, 0, nullptr);
 
-  CacheTransientData(source_addr, source_length, offset);
-  return {transient_buffer_->gpu_buffer(), offset};
+  CacheTransientData(upload_base, upload_size, offset);
+  return {transient_buffer_->gpu_buffer(), offset + source_offset};
 }
 
 VkDeviceSize BufferCache::AllocateTransientData(VkDeviceSize length,
@@ -409,10 +508,22 @@ VkDeviceSize BufferCache::TryAllocateTransientData(VkDeviceSize length,
 
 VkDeviceSize BufferCache::FindCachedTransientData(uint32_t guest_address,
                                                   uint32_t guest_length) {
-  uint64_t key = uint64_t(guest_length) << 32 | uint64_t(guest_address);
-  auto it = transient_cache_.find(key);
-  if (it != transient_cache_.end()) {
-    return it->second;
+  if (transient_cache_.empty()) {
+    // Short-circuit exit.
+    return VK_WHOLE_SIZE;
+  }
+
+  // Find the first element > guest_address
+  auto it = transient_cache_.upper_bound(guest_address);
+  if (it != transient_cache_.begin()) {
+    // it = first element <= guest_address
+    --it;
+
+    if ((it->first + it->second.first) >= (guest_address + guest_length)) {
+      // This data is contained within some existing transient data.
+      auto source_offset = static_cast<VkDeviceSize>(guest_address - it->first);
+      return it->second.second + source_offset;
+    }
   }
 
   return VK_WHOLE_SIZE;
@@ -421,8 +532,17 @@ VkDeviceSize BufferCache::FindCachedTransientData(uint32_t guest_address,
 void BufferCache::CacheTransientData(uint32_t guest_address,
                                      uint32_t guest_length,
                                      VkDeviceSize offset) {
-  uint64_t key = uint64_t(guest_length) << 32 | uint64_t(guest_address);
-  transient_cache_[key] = offset;
+  transient_cache_[guest_address] = {guest_length, offset};
+
+  // Erase any entries contained within
+  auto it = transient_cache_.upper_bound(guest_address);
+  while (it != transient_cache_.end()) {
+    if ((guest_address + guest_length) >= (it->first + it->second.first)) {
+      it = transient_cache_.erase(it);
+    } else {
+      break;
+    }
+  }
 }
 
 void BufferCache::Flush(VkCommandBuffer command_buffer) {

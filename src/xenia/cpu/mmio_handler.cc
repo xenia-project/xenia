@@ -240,11 +240,19 @@ bool MMIOHandler::IsRangeWatched(uint32_t physical_address, size_t length) {
   for (auto it = access_watches_.begin(); it != access_watches_.end(); ++it) {
     auto entry = *it;
     if ((entry->address <= physical_address &&
-         entry->address + entry->length > physical_address) ||
-        (entry->address >= physical_address &&
-         entry->address < physical_address + length)) {
-      // This watch lies within the range.
+         entry->address + entry->length > physical_address + length)) {
+      // This range lies entirely within this watch.
       return true;
+    }
+
+    // TODO(DrChat): Check if the range is partially covered, and subtract the
+    // covered portion if it is.
+    if ((entry->address <= physical_address &&
+         entry->address + entry->length > physical_address)) {
+      // The beginning of range lies partially within this watch.
+    } else if ((entry->address < physical_address + length &&
+                entry->address + entry->length > physical_address + length)) {
+      // The ending of this range lies partially within this watch.
     }
   }
 

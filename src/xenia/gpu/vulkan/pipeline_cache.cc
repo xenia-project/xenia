@@ -1202,16 +1202,12 @@ PipelineCache::UpdateStatus PipelineCache::UpdateInputAssemblyState(
   //   glProvokingVertex(GL_FIRST_VERTEX_CONVENTION);
   // }
 
+  // Primitive restart index is handled in the buffer cache.
   if (regs.pa_su_sc_mode_cntl & (1 << 21)) {
     state_info.primitiveRestartEnable = VK_TRUE;
   } else {
     state_info.primitiveRestartEnable = VK_FALSE;
   }
-  // TODO(benvanik): no way to specify in Vulkan?
-  assert_true(regs.multi_prim_ib_reset_index == 0xFFFF ||
-              regs.multi_prim_ib_reset_index == 0xFFFFFF ||
-              regs.multi_prim_ib_reset_index == 0xFFFFFFFF);
-  // glPrimitiveRestartIndex(regs.multi_prim_ib_reset_index);
 
   return UpdateStatus::kMismatch;
 }
