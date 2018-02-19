@@ -16,6 +16,7 @@
 #include <vector>
 
 #include "xenia/base/logging.h"
+#include "xenia/base/math.h"
 
 DEFINE_bool(spv_validate, false, "Validate SPIR-V shaders after generation");
 DEFINE_bool(spv_disasm, false, "Disassemble SPIR-V shaders after generation");
@@ -242,6 +243,7 @@ void SpirvShaderTranslator::StartTranslation() {
     // DS 2 binding 0
     b.addDecoration(vtx_, spv::Decoration::DecorationDescriptorSet, 2);
     b.addDecoration(vtx_, spv::Decoration::DecorationBinding, 0);
+    b.addDecoration(vtx_, spv::Decoration::DecorationNonWritable);
 
     // Set up the map from binding -> ssbo index
     for (const auto& binding : vertex_bindings()) {
@@ -1236,15 +1238,137 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
     } break;
 
     case VertexFormat::k_16_16: {
+      spv::Id components[1] = {};
+      for (uint32_t i = 0; i < 1; i++) {
+        auto index = b.createBinOp(spv::Op::OpIAdd, int_type_, vertex_idx,
+                                   b.makeUintConstant(i));
+        auto vertex_ptr = b.createAccessChain(
+            spv::StorageClass::StorageClassUniform, data_ptr, {index});
+        auto vertex_data = b.createLoad(vertex_ptr);
+
+        if (instr.attributes.is_integer) {
+          spv::Id comp[2] = {};
+
+          bool is_signed = instr.attributes.is_signed;
+          bool is_integer = instr.attributes.is_integer;
+          auto comp_type = is_signed ? int_type_ : uint_type_;
+
+          if (is_signed) {
+            vertex_data =
+                b.createUnaryOp(spv::Op::OpBitcast, int_type_, vertex_data);
+          }
+
+          comp[0] = BitfieldExtract(comp_type, vertex_data, is_signed, 0, 16);
+          comp[1] = BitfieldExtract(comp_type, vertex_data, is_signed, 16, 16);
+
+          auto op = is_signed ? spv::Op::OpConvertSToF : spv::Op::OpConvertUToF;
+          for (int i = 0; i < xe::countof(comp); i++) {
+            comp[i] = b.createUnaryOp(op, float_type_, comp[i]);
+          }
+
+          components[i] =
+              b.createCompositeConstruct(vec2_float_type_, {comp[0], comp[1]});
+        } else {
+          spv::GLSLstd450 op;
+          if (instr.attributes.is_signed) {
+            op = spv::GLSLstd450::kUnpackSnorm2x16;
+          } else {
+            op = spv::GLSLstd450::kUnpackUnorm2x16;
+          }
+
+          components[i] = CreateGlslStd450InstructionCall(
+              spv::NoPrecision, vec2_float_type_, op, {vertex_data});
+        }
+      }
+
+      vertex = components[0];
     } break;
 
     case VertexFormat::k_16_16_16_16: {
+      spv::Id components[2] = {};
+      for (uint32_t i = 0; i < 2; i++) {
+        auto index = b.createBinOp(spv::Op::OpIAdd, int_type_, vertex_idx,
+                                   b.makeUintConstant(i));
+        auto vertex_ptr = b.createAccessChain(
+            spv::StorageClass::StorageClassUniform, data_ptr, {index});
+        auto vertex_data = b.createLoad(vertex_ptr);
+
+        if (instr.attributes.is_integer) {
+          spv::Id comp[2] = {};
+
+          bool is_signed = instr.attributes.is_signed;
+          bool is_integer = instr.attributes.is_integer;
+          auto comp_type = is_signed ? int_type_ : uint_type_;
+
+          if (is_signed) {
+            vertex_data =
+                b.createUnaryOp(spv::Op::OpBitcast, int_type_, vertex_data);
+          }
+
+          comp[0] = BitfieldExtract(comp_type, vertex_data, is_signed, 0, 16);
+          comp[1] = BitfieldExtract(comp_type, vertex_data, is_signed, 16, 16);
+
+          auto op = is_signed ? spv::Op::OpConvertSToF : spv::Op::OpConvertUToF;
+          for (int i = 0; i < xe::countof(comp); i++) {
+            comp[i] = b.createUnaryOp(op, float_type_, comp[i]);
+          }
+
+          components[i] =
+              b.createCompositeConstruct(vec2_float_type_, {comp[0], comp[1]});
+        } else {
+          spv::GLSLstd450 op;
+          if (instr.attributes.is_signed) {
+            op = spv::GLSLstd450::kUnpackSnorm2x16;
+          } else {
+            op = spv::GLSLstd450::kUnpackUnorm2x16;
+          }
+
+          components[i] = CreateGlslStd450InstructionCall(
+              spv::NoPrecision, vec2_float_type_, op, {vertex_data});
+        }
+      }
+
+      vertex = b.createConstructor(
+          spv::NoPrecision, {components[0], components[1]}, vec4_float_type_);
     } break;
 
     case VertexFormat::k_16_16_FLOAT: {
+      spv::Id components[1] = {};
+      for (uint32_t i = 0; i < 1; i++) {
+        auto index = b.createBinOp(spv::Op::OpIAdd, int_type_, vertex_idx,
+                                   b.makeUintConstant(i));
+        auto vertex_ptr = b.createAccessChain(
+            spv::StorageClass::StorageClassUniform, data_ptr, {index});
+        auto vertex_data = b.createLoad(vertex_ptr);
+
+        assert_true(instr.attributes.is_integer);
+        assert_true(instr.attributes.is_signed);
+        components[i] = CreateGlslStd450InstructionCall(
+            spv::NoPrecision, vec2_float_type_,
+            spv::GLSLstd450::kUnpackHalf2x16, {vertex_data});
+      }
+
+      vertex = components[0];
     } break;
 
     case VertexFormat::k_16_16_16_16_FLOAT: {
+      spv::Id components[2] = {};
+      for (uint32_t i = 0; i < 2; i++) {
+        auto index = b.createBinOp(spv::Op::OpIAdd, int_type_, vertex_idx,
+                                   b.makeUintConstant(i));
+        auto vertex_ptr = b.createAccessChain(
+            spv::StorageClass::StorageClassUniform, data_ptr, {index});
+        auto vertex_data = b.createLoad(vertex_ptr);
+
+        assert_true(instr.attributes.is_integer);
+        assert_true(instr.attributes.is_signed);
+        components[i] = CreateGlslStd450InstructionCall(
+            spv::NoPrecision, vec2_float_type_,
+            spv::GLSLstd450::kUnpackHalf2x16, {vertex_data});
+      }
+
+      vertex = b.createConstructor(
+          spv::NoPrecision, {components[0], components[1]}, vec4_float_type_);
     } break;
 
     case VertexFormat::k_32: {
@@ -1263,7 +1387,8 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
             components[i] = b.createUnaryOp(spv::Op::OpConvertSToF, float_type_,
                                             vertex_data);
           } else {
-            components[i] = vertex_data;
+            components[i] = b.createUnaryOp(spv::Op::OpConvertUToF, float_type_,
+                                            vertex_data);
           }
         } else {
           // TODO(DrChat)
@@ -1280,6 +1405,11 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
     } break;
 
     case VertexFormat::k_32_FLOAT: {
+      auto vertex_ptr = b.createAccessChain(
+          spv::StorageClass::StorageClassUniform, data_ptr, {vertex_idx});
+      auto vertex_data = b.createLoad(vertex_ptr);
+
+      vertex = b.createUnaryOp(spv::Op::OpBitcast, float_type_, vertex_data);
     } break;
 
     case VertexFormat::k_32_32_FLOAT: {
@@ -1358,6 +1488,11 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
           BitfieldExtract(comp_type, vertex_data, is_signed, 12, 10);
       components[2] =
           BitfieldExtract(comp_type, vertex_data, is_signed, 22, 10);
+
+      auto op = is_signed ? spv::Op::OpConvertSToF : spv::Op::OpConvertUToF;
+      for (int i = 0; i < xe::countof(components); i++) {
+        components[i] = b.createUnaryOp(op, float_type_, components[i]);
+      }
 
       if (!is_integer) {
         components[3] =
