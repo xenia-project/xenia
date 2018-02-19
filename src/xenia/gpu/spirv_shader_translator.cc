@@ -1464,14 +1464,10 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
           spv::StorageClass::StorageClassUniform, data_ptr, {vertex_idx});
       auto vertex_data = b.createLoad(vertex_ptr);
 
-      assert_true(instr.attributes.is_integer);
-      assert_true(instr.attributes.is_signed);
       vertex = b.createUnaryOp(spv::Op::OpBitcast, float_type_, vertex_data);
     } break;
 
     case VertexFormat::k_32_32_FLOAT: {
-      assert_true(instr.attributes.is_integer);
-      assert_true(instr.attributes.is_signed);
       spv::Id components[2] = {};
       for (uint32_t i = 0; i < 2; i++) {
         auto index = b.createBinOp(spv::Op::OpIAdd, int_type_, vertex_idx,
@@ -1489,8 +1485,6 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
     } break;
 
     case VertexFormat::k_32_32_32_FLOAT: {
-      assert_true(instr.attributes.is_integer);
-      assert_true(instr.attributes.is_signed);
       spv::Id components[3] = {};
       for (uint32_t i = 0; i < 3; i++) {
         auto index = b.createBinOp(spv::Op::OpIAdd, int_type_, vertex_idx,
@@ -1508,8 +1502,6 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
     } break;
 
     case VertexFormat::k_32_32_32_32_FLOAT: {
-      assert_true(instr.attributes.is_integer);
-      assert_true(instr.attributes.is_signed);
       spv::Id components[4] = {};
       for (uint32_t i = 0; i < 4; i++) {
         auto index = b.createBinOp(spv::Op::OpIAdd, int_type_, vertex_idx,
