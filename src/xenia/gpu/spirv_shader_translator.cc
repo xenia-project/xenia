@@ -223,32 +223,34 @@ void SpirvShaderTranslator::StartTranslation() {
     // Vertex inputs/outputs
     // Inputs: 32 SSBOs on DS 2 binding 0
 
-    // Runtime array for vertex data
-    Id vtx_t = b.makeRuntimeArray(uint_type_);
-    b.addDecoration(vtx_t, spv::Decoration::DecorationArrayStride,
-                    sizeof(uint32_t));
+    if (!vertex_bindings().empty()) {
+      // Runtime array for vertex data
+      Id vtx_t = b.makeRuntimeArray(uint_type_);
+      b.addDecoration(vtx_t, spv::Decoration::DecorationArrayStride,
+                      sizeof(uint32_t));
 
-    Id vtx_s = b.makeStructType({vtx_t}, "vertex_type");
-    b.addDecoration(vtx_s, spv::Decoration::DecorationBufferBlock);
+      Id vtx_s = b.makeStructType({vtx_t}, "vertex_type");
+      b.addDecoration(vtx_s, spv::Decoration::DecorationBufferBlock);
 
-    // Describe the actual data
-    b.addMemberName(vtx_s, 0, "data");
-    b.addMemberDecoration(vtx_s, 0, spv::Decoration::DecorationOffset, 0);
+      // Describe the actual data
+      b.addMemberName(vtx_s, 0, "data");
+      b.addMemberDecoration(vtx_s, 0, spv::Decoration::DecorationOffset, 0);
 
-    // Create the vertex bindings variable.
-    Id vtx_a_t = b.makeArrayType(
-        vtx_s, b.makeUintConstant(uint32_t(vertex_bindings().size())), 0);
-    vtx_ = b.createVariable(spv::StorageClass::StorageClassUniform, vtx_a_t,
-                            "vertex_bindings");
+      // Create the vertex bindings variable.
+      Id vtx_a_t = b.makeArrayType(
+          vtx_s, b.makeUintConstant(uint32_t(vertex_bindings().size())), 0);
+      vtx_ = b.createVariable(spv::StorageClass::StorageClassUniform, vtx_a_t,
+                              "vertex_bindings");
 
-    // DS 2 binding 0
-    b.addDecoration(vtx_, spv::Decoration::DecorationDescriptorSet, 2);
-    b.addDecoration(vtx_, spv::Decoration::DecorationBinding, 0);
-    b.addDecoration(vtx_, spv::Decoration::DecorationNonWritable);
+      // DS 2 binding 0
+      b.addDecoration(vtx_, spv::Decoration::DecorationDescriptorSet, 2);
+      b.addDecoration(vtx_, spv::Decoration::DecorationBinding, 0);
+      b.addDecoration(vtx_, spv::Decoration::DecorationNonWritable);
 
-    // Set up the map from binding -> ssbo index
-    for (const auto& binding : vertex_bindings()) {
-      vtx_binding_map_[binding.fetch_constant] = binding.binding_index;
+      // Set up the map from binding -> ssbo index
+      for (const auto& binding : vertex_bindings()) {
+        vtx_binding_map_[binding.fetch_constant] = binding.binding_index;
+      }
     }
 
     // Outputs
@@ -1462,10 +1464,14 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
           spv::StorageClass::StorageClassUniform, data_ptr, {vertex_idx});
       auto vertex_data = b.createLoad(vertex_ptr);
 
+      assert_true(instr.attributes.is_integer);
+      assert_true(instr.attributes.is_signed);
       vertex = b.createUnaryOp(spv::Op::OpBitcast, float_type_, vertex_data);
     } break;
 
     case VertexFormat::k_32_32_FLOAT: {
+      assert_true(instr.attributes.is_integer);
+      assert_true(instr.attributes.is_signed);
       spv::Id components[2] = {};
       for (uint32_t i = 0; i < 2; i++) {
         auto index = b.createBinOp(spv::Op::OpIAdd, int_type_, vertex_idx,
@@ -1481,7 +1487,10 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
       vertex = b.createCompositeConstruct(vec2_float_type_,
                                           {components[0], components[1]});
     } break;
+
     case VertexFormat::k_32_32_32_FLOAT: {
+      assert_true(instr.attributes.is_integer);
+      assert_true(instr.attributes.is_signed);
       spv::Id components[3] = {};
       for (uint32_t i = 0; i < 3; i++) {
         auto index = b.createBinOp(spv::Op::OpIAdd, int_type_, vertex_idx,
@@ -1499,6 +1508,8 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
     } break;
 
     case VertexFormat::k_32_32_32_32_FLOAT: {
+      assert_true(instr.attributes.is_integer);
+      assert_true(instr.attributes.is_signed);
       spv::Id components[4] = {};
       for (uint32_t i = 0; i < 4; i++) {
         auto index = b.createBinOp(spv::Op::OpIAdd, int_type_, vertex_idx,
