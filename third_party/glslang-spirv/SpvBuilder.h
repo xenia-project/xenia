@@ -1,12 +1,12 @@
 //
-//Copyright (C) 2014-2015 LunarG, Inc.
-//Copyright (C) 2015-2016 Google, Inc.
+// Copyright (C) 2014-2015 LunarG, Inc.
+// Copyright (C) 2015-2016 Google, Inc.
 //
-//All rights reserved.
+// All rights reserved.
 //
-//Redistribution and use in source and binary forms, with or without
-//modification, are permitted provided that the following conditions
-//are met:
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions
+// are met:
 //
 //    Redistributions of source code must retain the above copyright
 //    notice, this list of conditions and the following disclaimer.
@@ -20,22 +20,18 @@
 //    contributors may be used to endorse or promote products derived
 //    from this software without specific prior written permission.
 //
-//THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-//"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-//LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
-//FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
-//COPYRIGHT HOLDERS OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
-//INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
-//BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-//LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-//CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
-//LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
-//ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-//POSSIBILITY OF SUCH DAMAGE.
-
-//
-// Author: John Kessenich, LunarG
-//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+// FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+// COPYRIGHT HOLDERS OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+// INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+// BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+// LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+// CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+// LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+// ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+// POSSIBILITY OF SUCH DAMAGE.
 
 //
 // "Builder" is an interface to fully build SPIR-V IR.   Allocate one of
@@ -49,20 +45,22 @@
 #ifndef SpvBuilder_H
 #define SpvBuilder_H
 
+#include "Logger.h"
 #include "spirv.hpp"
 #include "spvIR.h"
 
 #include <algorithm>
-#include <memory>
-#include <stack>
 #include <map>
+#include <memory>
 #include <set>
+#include <sstream>
+#include <stack>
 
 namespace spv {
 
 class Builder {
 public:
-    Builder(unsigned int userNumber);
+    Builder(unsigned int spvVersion, unsigned int userNumber, SpvBuildLogger* logger);
     virtual ~Builder();
 
     static const int maxMatrixSize = 4;
@@ -72,7 +70,18 @@ public:
         source = lang;
         sourceVersion = version;
     }
-    void addSourceExtension(const char* ext) { extensions.push_back(ext); }
+    void setSourceFile(const std::string& file)
+    {
+        Instruction* fileString = new Instruction(getUniqueId(), NoType, OpString);
+        fileString->addStringOperand(file.c_str());
+        sourceFileStringId = fileString->getResultId();
+        strings.push_back(std::unique_ptr<Instruction>(fileString));
+    }
+    void setSourceText(const std::string& text) { sourceText = text; }
+    void addSourceExtension(const char* ext) { sourceExtensions.push_back(ext); }
+    void addModuleProcessed(const std::string& p) { moduleProcesses.push_back(p.c_str()); }
+    void setEmitOpLines() { emitOpLines = true; }
+    void addExtension(const char* ext) { extensions.insert(ext); }
     Id import(const char*);
     void setMemoryModel(spv::AddressingModel addr, spv::MemoryModel mem)
     {
@@ -93,7 +102,11 @@ public:
         return id;
     }
 
-    Module* getModule() { return &module; }
+    // Log the current line, and if different than the last one,
+    // issue a new OpLine, using the current file name.
+    void setLine(int line);
+    // Low-level OpLine. See setLine() for a layered helper.
+    void addLine(Id fileName, int line, int column);
 
     // For creating new types (will return old type if the requested one was already made).
     Id makeVoidType();
@@ -137,6 +150,9 @@ public:
     bool isSampledImage(Id resultId) const { return isSampledImageType(getTypeId(resultId)); }
 
     bool isBoolType(Id typeId)         const { return groupedTypes[OpTypeBool].size() > 0 && typeId == groupedTypes[OpTypeBool].back()->getResultId(); }
+    bool isIntType(Id typeId)          const { return getTypeClass(typeId) == OpTypeInt && module.getInstruction(typeId)->getImmediateOperand(1) != 0; }
+    bool isUintType(Id typeId)         const { return getTypeClass(typeId) == OpTypeInt && module.getInstruction(typeId)->getImmediateOperand(1) == 0; }
+    bool isFloatType(Id typeId)        const { return getTypeClass(typeId) == OpTypeFloat; }
     bool isPointerType(Id typeId)      const { return getTypeClass(typeId) == OpTypePointer; }
     bool isScalarType(Id typeId)       const { return getTypeClass(typeId) == OpTypeFloat  || getTypeClass(typeId) == OpTypeInt || getTypeClass(typeId) == OpTypeBool; }
     bool isVectorType(Id typeId)       const { return getTypeClass(typeId) == OpTypeVector; }
@@ -149,10 +165,19 @@ public:
     bool isSampledImageType(Id typeId) const { return getTypeClass(typeId) == OpTypeSampledImage; }
 
     bool isConstantOpCode(Op opcode) const;
+    bool isSpecConstantOpCode(Op opcode) const;
     bool isConstant(Id resultId) const { return isConstantOpCode(getOpCode(resultId)); }
     bool isConstantScalar(Id resultId) const { return getOpCode(resultId) == OpConstant; }
+    bool isSpecConstant(Id resultId) const { return isSpecConstantOpCode(getOpCode(resultId)); }
     unsigned int getConstantScalar(Id resultId) const { return module.getInstruction(resultId)->getImmediateOperand(0); }
     StorageClass getStorageClass(Id resultId) const { return getTypeStorageClass(getTypeId(resultId)); }
+
+    int getScalarTypeWidth(Id typeId) const
+    {
+        Id scalarTypeId = getScalarTypeId(typeId);
+        assert(getTypeClass(scalarTypeId) == OpTypeInt || getTypeClass(scalarTypeId) == OpTypeFloat);
+        return module.getInstruction(scalarTypeId)->getImmediateOperand(0);
+    }
 
     int getTypeNumColumns(Id typeId) const
     {
@@ -188,8 +213,17 @@ public:
     Id makeBoolConstant(bool b, bool specConstant = false);
     Id makeIntConstant(int i, bool specConstant = false)         { return makeIntConstant(makeIntType(32),  (unsigned)i, specConstant); }
     Id makeUintConstant(unsigned u, bool specConstant = false)   { return makeIntConstant(makeUintType(32),           u, specConstant); }
+    Id makeInt64Constant(long long i, bool specConstant = false)            { return makeInt64Constant(makeIntType(64),  (unsigned long long)i, specConstant); }
+    Id makeUint64Constant(unsigned long long u, bool specConstant = false)  { return makeInt64Constant(makeUintType(64),                     u, specConstant); }
+#ifdef AMD_EXTENSIONS
+    Id makeInt16Constant(short i, bool specConstant = false)        { return makeIntConstant(makeIntType(16),      (unsigned)((unsigned short)i), specConstant); }
+    Id makeUint16Constant(unsigned short u, bool specConstant = false)  { return makeIntConstant(makeUintType(16), (unsigned)u, specConstant); }
+#endif
     Id makeFloatConstant(float f, bool specConstant = false);
     Id makeDoubleConstant(double d, bool specConstant = false);
+#ifdef AMD_EXTENSIONS
+    Id makeFloat16Constant(float f16, bool specConstant = false);
+#endif
 
     // Turn the array of constants into a proper spv constant of the requested type.
     Id makeCompositeConstant(Id type, const std::vector<Id>& comps, bool specConst = false);
@@ -199,7 +233,6 @@ public:
     void addExecutionMode(Function*, ExecutionMode mode, int value1 = -1, int value2 = -1, int value3 = -1);
     void addName(Id, const char* name);
     void addMemberName(Id, int member, const char* name);
-    void addLine(Id target, Id fileName, int line, int column);
     void addDecoration(Id, Decoration, int num = -1);
     void addMemberDecoration(Id, unsigned int member, Decoration, int num = -1);
 
@@ -207,15 +240,15 @@ public:
     void setBuildPoint(Block* bp) { buildPoint = bp; }
     Block* getBuildPoint() const { return buildPoint; }
 
-    // Make the main function. The returned pointer is only valid
+    // Make the entry-point function. The returned pointer is only valid
     // for the lifetime of this builder.
-    Function* makeMain();
+    Function* makeEntryPoint(const char*);
 
     // Make a shader-style function, and create its entry block if entry is non-zero.
     // Return the function, pass back the entry.
     // The returned pointer is only valid for the lifetime of this builder.
     Function* makeFunctionEntry(Decoration precision, Id returnType, const char* name, const std::vector<Id>& paramTypes,
-                                const std::vector<Decoration>& precisions, Block **entry = 0);
+                                const std::vector<std::vector<Decoration>>& precisions, Block **entry = 0);
 
     // Create a return. An 'implicit' return is one not appearing in the source
     // code.  In the case of an implicit return, no post-return block is inserted.
@@ -247,7 +280,7 @@ public:
 
     // Create an OpCompositeExtract instruction
     Id createCompositeExtract(Id composite, Id typeId, unsigned index);
-    Id createCompositeExtract(Id composite, Id typeId, std::vector<unsigned>& indexes);
+    Id createCompositeExtract(Id composite, Id typeId, const std::vector<unsigned>& indexes);
     Id createCompositeInsert(Id object, Id composite, Id typeId, unsigned index);
     Id createCompositeInsert(Id object, Id composite, Id typeId, const std::vector<unsigned>& indexes);
 
@@ -264,6 +297,7 @@ public:
     Id createTriOp(Op, Id typeId, Id operand1, Id operand2, Id operand3);
     Id createOp(Op, Id typeId, const std::vector<Id>& operands);
     Id createFunctionCall(spv::Function*, const std::vector<spv::Id>&);
+    Id createSpecConstantOp(Op, Id typeId, const std::vector<spv::Id>& operands, const std::vector<unsigned>& literals);
 
     // Take an rvalue (source) and a set of channels to extract from it to
     // make a new rvalue, which is returned.
@@ -296,7 +330,7 @@ public:
     // Generally, the type of 'scalar' does not need to be the same type as the components in 'vector'.
     // The type of the created vector is a vector of components of the same type as the scalar.
     //
-    // Note: One of the arguments will change, with the result coming back that way rather than
+    // Note: One of the arguments will change, with the result coming back that way rather than 
     // through the return value.
     void promoteScalar(Decoration precision, Id& left, Id& right);
 
@@ -306,7 +340,7 @@ public:
     Id smearScalar(Decoration precision, Id scalarVal, Id vectorType);
 
     // Create a call to a built-in function.
-    Id createBuiltinCall(Id resultType, Id builtins, int entryPoint, std::vector<Id>& args);
+    Id createBuiltinCall(Id resultType, Id builtins, int entryPoint, const std::vector<Id>& args);
 
     // List of parameters used to create a texture operation
     struct TextureParameters {
@@ -320,7 +354,7 @@ public:
         Id gradX;
         Id gradY;
         Id sample;
-        Id comp;
+        Id component;
         Id texelOut;
         Id lodClamp;
     };
@@ -330,7 +364,7 @@ public:
 
     // Emit the OpTextureQuery* instruction that was passed in.
     // Figure out the right return value and type, and return it.
-    Id createTextureQueryCall(Op, const TextureParameters&);
+    Id createTextureQueryCall(Op, const TextureParameters&, bool isUnsignedResult);
 
     Id createSamplePositionCall(Decoration precision, Id, Id);
 
@@ -352,7 +386,7 @@ public:
     // Helper to use for building nested control flow with if-then-else.
     class If {
     public:
-        If(Id condition, Builder& builder);
+        If(Id condition, unsigned int ctrl, Builder& builder);
         ~If() {}
 
         void makeBeginElse();
@@ -364,6 +398,7 @@ public:
 
         Builder& builder;
         Id condition;
+        unsigned int control;
         Function* function;
         Block* headerBlock;
         Block* thenBlock;
@@ -383,8 +418,8 @@ public:
     // Returns the right set of basic blocks to start each code segment with, so that the caller's
     // recursion stack can hold the memory for it.
     //
-    void makeSwitch(Id condition, int numSegments, const std::vector<int>& caseValues, const std::vector<int>& valueToSegment, int defaultSegment,
-                    std::vector<Block*>& segmentBB);  // return argument
+    void makeSwitch(Id condition, unsigned int control, int numSegments, const std::vector<int>& caseValues,
+                    const std::vector<int>& valueToSegment, int defaultSegment, std::vector<Block*>& segmentBB); // return argument
 
     // Add a branch to the innermost switch's merge block.
     void addSwitchBreak();
@@ -396,7 +431,12 @@ public:
     void endSwitch(std::vector<Block*>& segmentBB);
 
     struct LoopBlocks {
+        LoopBlocks(Block& head, Block& body, Block& merge, Block& continue_target) :
+            head(head), body(body), merge(merge), continue_target(continue_target) { }
         Block &head, &body, &merge, &continue_target;
+    private:
+        LoopBlocks();
+        LoopBlocks& operator=(const LoopBlocks&);
     };
 
     // Start a new loop and prepare the builder to generate code for it.  Until
@@ -460,7 +500,7 @@ public:
 
     //
     // the SPIR-V builder maintains a single active chain that
-    // the following methods operated on
+    // the following methods operate on
     //
 
     // for external save and restore
@@ -493,12 +533,15 @@ public:
     // push new swizzle onto the end of any existing swizzle, merging into a single swizzle
     void accessChainPushSwizzle(std::vector<unsigned>& swizzle, Id preSwizzleBaseType);
 
-    // push a variable component selection onto the access chain; supporting only one, so unsided
+    // push a dynamic component selection onto the access chain, only applicable with a
+    // non-trivial swizzle or no swizzle
     void accessChainPushComponent(Id component, Id preSwizzleBaseType)
     {
-        accessChain.component = component;
-        if (accessChain.preSwizzleBaseType == NoType)
-            accessChain.preSwizzleBaseType = preSwizzleBaseType;
+        if (accessChain.swizzle.size() != 1) {
+            accessChain.component = component;
+            if (accessChain.preSwizzleBaseType == NoType)
+                accessChain.preSwizzleBaseType = preSwizzleBaseType;
+        }
     }
 
     // use accessChain and swizzle to store value
@@ -514,27 +557,48 @@ public:
     // based on the type of the base and the chain of dereferences.
     Id accessChainGetInferredType();
 
+    // Remove OpDecorate instructions whose operands are defined in unreachable
+    // blocks.
+    void eliminateDeadDecorations();
     void dump(std::vector<unsigned int>&) const;
 
     void createBranch(Block* block);
     void createConditionalBranch(Id condition, Block* thenBlock, Block* elseBlock);
-    void createLoopMerge(Block* mergeBlock, Block* continueBlock, unsigned int control);
+    void createLoopMerge(Block* mergeBlock, Block* continueBlock, unsigned int control, unsigned int dependencyLength);
     void createSelectionMerge(Block* mergeBlock, unsigned int control);
+
+    // Sets to generate opcode for specialization constants.
+    void setToSpecConstCodeGenMode() { generatingOpCodeForSpecConst = true; }
+    // Sets to generate opcode for non-specialization constants (normal mode).
+    void setToNormalCodeGenMode() { generatingOpCodeForSpecConst = false; }
+    // Check if the builder is generating code for spec constants.
+    bool isInSpecConstCodeGenMode() { return generatingOpCodeForSpecConst; }
 
  protected:
     Id makeIntConstant(Id typeId, unsigned value, bool specConstant);
+    Id makeInt64Constant(Id typeId, unsigned long long value, bool specConstant);
     Id findScalarConstant(Op typeClass, Op opcode, Id typeId, unsigned value) const;
     Id findScalarConstant(Op typeClass, Op opcode, Id typeId, unsigned v1, unsigned v2) const;
     Id findCompositeConstant(Op typeClass, const std::vector<Id>& comps) const;
     Id collapseAccessChain();
+    void remapDynamicSwizzle();
     void transferAccessChainSwizzle(bool dynamic);
     void simplifyAccessChainSwizzle();
     void createAndSetNoPredecessorBlock(const char*);
+    void dumpSourceInstructions(std::vector<unsigned int>&) const;
     void dumpInstructions(std::vector<unsigned int>&, const std::vector<std::unique_ptr<Instruction> >&) const;
+    void dumpModuleProcesses(std::vector<unsigned int>&) const;
 
+    unsigned int spvVersion;     // the version of SPIR-V to emit in the header
     SourceLanguage source;
     int sourceVersion;
-    std::vector<const char*> extensions;
+    spv::Id sourceFileStringId;
+    std::string sourceText;
+    int currentLine;
+    bool emitOpLines;
+    std::set<std::string> extensions;
+    std::vector<const char*> sourceExtensions;
+    std::vector<const char*> moduleProcesses;
     AddressingModel addressModel;
     MemoryModel memoryModel;
     std::set<spv::Capability> capabilities;
@@ -542,10 +606,12 @@ public:
     Module module;
     Block* buildPoint;
     Id uniqueId;
-    Function* mainFunction;
+    Function* entryPointFunction;
+    bool generatingOpCodeForSpecConst;
     AccessChain accessChain;
 
     // special blocks of instructions for output
+    std::vector<std::unique_ptr<Instruction> > strings;
     std::vector<std::unique_ptr<Instruction> > imports;
     std::vector<std::unique_ptr<Instruction> > entryPoints;
     std::vector<std::unique_ptr<Instruction> > executionModes;
@@ -565,13 +631,10 @@ public:
 
     // Our loop stack.
     std::stack<LoopBlocks> loops;
+
+    // The stream for outputting warnings and errors.
+    SpvBuildLogger* logger;
 };  // end Builder class
-
-// Use for non-fatal notes about what's not complete
-void TbdFunctionality(const char*);
-
-// Use for fatal missing functionality
-void MissingFunctionality(const char*);
 
 };  // end spv namespace
 

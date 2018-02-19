@@ -1,6 +1,5 @@
 //
-// Copyright (C) 2014 LunarG, Inc.
-//
+// Copyright (C) 2002-2005  3Dlabs Inc. Ltd.
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -31,37 +30,15 @@
 // LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
 // ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
+//
 
-#pragma once
-
-#if _MSC_VER >= 1900
-    #pragma warning(disable : 4464) // relative include path contains '..'
-#endif
-
-#include "../glslang/Include/intermediate.h"
-
-#include <string>
-#include <vector>
-
-#include "Logger.h"
+#ifndef __INITIALIZE_GLOBALS_INCLUDED_
+#define __INITIALIZE_GLOBALS_INCLUDED_
 
 namespace glslang {
 
-struct SpvOptions {
-    SpvOptions() : generateDebugInfo(false), disableOptimizer(true),
-        optimizeSize(false) { }
-    bool generateDebugInfo;
-    bool disableOptimizer;
-    bool optimizeSize;
-};
+bool InitializePoolIndex();
 
-void GetSpirvVersion(std::string&);
-int GetSpirvGeneratorVersion();
-void GlslangToSpv(const glslang::TIntermediate& intermediate, std::vector<unsigned int>& spirv,
-                  SpvOptions* options = nullptr);
-void GlslangToSpv(const glslang::TIntermediate& intermediate, std::vector<unsigned int>& spirv,
-                  spv::SpvBuildLogger* logger, SpvOptions* options = nullptr);
-void OutputSpvBin(const std::vector<unsigned int>& spirv, const char* baseName);
-void OutputSpvHex(const std::vector<unsigned int>& spirv, const char* baseName, const char* varName);
+} // end namespace glslang
 
-}
+#endif // __INITIALIZE_GLOBALS_INCLUDED_

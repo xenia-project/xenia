@@ -17,7 +17,6 @@
 #include "third_party/glslang-spirv/SpvBuilder.h"
 #include "third_party/spirv/GLSL.std.450.hpp11"
 #include "xenia/gpu/shader_translator.h"
-#include "xenia/gpu/spirv/compiler.h"
 #include "xenia/ui/spirv/spirv_disassembler.h"
 #include "xenia/ui/spirv/spirv_validator.h"
 
@@ -112,7 +111,6 @@ class SpirvShaderTranslator : public ShaderTranslator {
 
   xe::ui::spirv::SpirvDisassembler disassembler_;
   xe::ui::spirv::SpirvValidator validator_;
-  xe::gpu::spirv::Compiler compiler_;
 
   // True if there's an open predicated block
   bool open_predicated_block_ = false;
@@ -159,6 +157,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
   spv::Id frag_outputs_ = 0, frag_depth_ = 0;
   spv::Id samplers_ = 0;
   spv::Id tex_[3] = {0};  // Images {2D, 3D, Cube}
+  spv::Id vtx_ = 0;       // Vertex buffer array (32 runtime arrays)
 
   // SPIR-V IDs that are part of the in/out interface.
   std::vector<spv::Id> interface_ids_;
