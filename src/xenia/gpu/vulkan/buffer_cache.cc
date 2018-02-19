@@ -162,8 +162,11 @@ VkResult xe::gpu::vulkan::BufferCache::CreateVertexDescriptorPool() {
       1,
       &binding,
   };
-  vkCreateDescriptorSetLayout(*device_, &layout_info, nullptr,
-                              &vertex_descriptor_set_layout_);
+  status = vkCreateDescriptorSetLayout(*device_, &layout_info, nullptr,
+                                       &vertex_descriptor_set_layout_);
+  if (status != VK_SUCCESS) {
+    return status;
+  }
 
   return VK_SUCCESS;
 }
@@ -582,7 +585,7 @@ VkDescriptorSet BufferCache::PrepareVertexSet(
 
     if (fetch->type != 0x3) {
       // TODO(DrChat): Some games use type 0x0 (with no data).
-      return false;
+      return nullptr;
     }
 
     // TODO(benvanik): compute based on indices or vertex count.
@@ -598,7 +601,7 @@ VkDescriptorSet BufferCache::PrepareVertexSet(
                            static_cast<Endian>(fetch->endian), fence);
     if (buffer_ref.second == VK_WHOLE_SIZE) {
       // Failed to upload buffer.
-      return false;
+      return nullptr;
     }
 
     // Stash the buffer reference for our bulk bind at the end.
