@@ -52,6 +52,12 @@ class BufferCache {
     return constant_descriptor_set_layout_;
   }
 
+  // Descriptor set containing vertex buffers stored in storage buffers.
+  // This set contains one binding with an array of 32 storage buffers.
+  VkDescriptorSetLayout vertex_descriptor_set_layout() const {
+    return vertex_descriptor_set_layout_;
+  }
+
   // Uploads the constants specified in the register maps to the transient
   // uniform storage buffer.
   // The registers are tightly packed in order as [floats, ints, bools].
@@ -79,6 +85,11 @@ class BufferCache {
   std::pair<VkBuffer, VkDeviceSize> UploadVertexBuffer(
       VkCommandBuffer command_buffer, uint32_t source_addr,
       uint32_t source_length, Endian endian, VkFence fence);
+
+  // Prepares and returns a vertex descriptor set.
+  VkDescriptorSet PrepareVertexSet(
+      VkCommandBuffer setup_buffer, VkFence fence,
+      std::vector<Shader::VertexBinding> vertex_bindings);
 
   // Flushes all pending data to the GPU.
   // Until this is called the GPU is not guaranteed to see any data.
