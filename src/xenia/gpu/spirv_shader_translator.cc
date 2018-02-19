@@ -36,7 +36,7 @@ SpirvShaderTranslator::~SpirvShaderTranslator() = default;
 
 void SpirvShaderTranslator::StartTranslation() {
   // Create a new builder.
-  builder_ = std::make_unique<spv::Builder>(SPV_VERSION, 0xFFFFFFFF, nullptr);
+  builder_ = std::make_unique<spv::Builder>(0x10000, 0xFFFFFFFF, nullptr);
   auto& b = *builder_;
 
   // Import required modules.
@@ -221,10 +221,32 @@ void SpirvShaderTranslator::StartTranslation() {
   if (is_vertex_shader()) {
     // Vertex inputs/outputs
     // Inputs: 32 SSBOs on DS 2 binding 0
+
+    // Runtime array for vertex data
     Id vtx_t = b.makeRuntimeArray(uint_type_);
-    Id vtx_a_t = b.makeArrayType(vtx_t, b.makeUintConstant(32), 0);
+    b.addDecoration(vtx_t, spv::Decoration::DecorationArrayStride,
+                    sizeof(uint32_t));
+
+    Id vtx_s = b.makeStructType({vtx_t}, "vertex_type");
+    b.addDecoration(vtx_s, spv::Decoration::DecorationBufferBlock);
+
+    // Describe the actual data
+    b.addMemberName(vtx_s, 0, "data");
+    b.addMemberDecoration(vtx_s, 0, spv::Decoration::DecorationOffset, 0);
+
+    // Create the vertex bindings variable.
+    Id vtx_a_t = b.makeArrayType(vtx_s, b.makeUintConstant(32), 0);
     vtx_ = b.createVariable(spv::StorageClass::StorageClassUniform, vtx_a_t,
                             "vertex_bindings");
+
+    // DS 2 binding 0
+    b.addDecoration(vtx_, spv::Decoration::DecorationDescriptorSet, 2);
+    b.addDecoration(vtx_, spv::Decoration::DecorationBinding, 0);
+
+    // Set up the map from binding -> ssbo index
+    for (const auto& binding : vertex_bindings()) {
+      vtx_binding_map_[binding.fetch_constant] = binding.binding_index;
+    }
 
     // Outputs
     interpolators_ = b.createVariable(spv::StorageClass::StorageClassOutput,
@@ -420,8 +442,9 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
   exec_skip_block_ = nullptr;
 
   // main() entry point.
-  auto mainFn =
-      b.makeFunctionEntry(spv::NoPrecision, b.makeVoidType(), "main", {}, {});
+  spv::Block* entry_block;
+  auto mainFn = b.makeFunctionEntry(spv::NoPrecision, b.makeVoidType(), "main",
+                                    {}, {}, &entry_block);
   if (is_vertex_shader()) {
     auto entry = b.addEntryPoint(spv::ExecutionModel::ExecutionModelVertex,
                                  mainFn, "main");
@@ -1165,66 +1188,108 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
   // TODO: Indexed fetch
   auto vertex_idx = LoadFromOperand(instr.operands[0]);
   vertex_idx = b.createUnaryOp(spv::Op::OpConvertFToS, int_type_, vertex_idx);
-  auto shader_vertex_idx = b.createLoad(vertex_idx_);
 
-  auto vertex_components =
-      GetVertexFormatComponentCount(instr.attributes.data_format);
+  // vertex_idx * stride + offset
+  vertex_idx = b.createBinOp(spv::Op::OpIMul, int_type_, vertex_idx,
+                             b.makeUintConstant(instr.attributes.stride));
+  vertex_idx = b.createBinOp(spv::Op::OpIAdd, int_type_, vertex_idx,
+                             b.makeUintConstant(instr.attributes.offset));
 
-  // Skip loading if it's an indexed fetch.
-  auto cond = b.createBinOp(spv::Op::OpIEqual, bool_type_, vertex_idx,
-                            shader_vertex_idx);
-  Id alt_vertex = 0;
-  switch (vertex_components) {
-    case 1:
-      alt_vertex = b.makeFloatConstant(0.f);
-      break;
-    case 2:
-      alt_vertex = b.makeCompositeConstant(
-          vec2_float_type_, std::vector<Id>({b.makeFloatConstant(0.f),
-                                             b.makeFloatConstant(1.f)}));
-      cond = b.smearScalar(spv::NoPrecision, cond, vec2_bool_type_);
-      break;
-    case 3:
-      alt_vertex = b.makeCompositeConstant(
-          vec3_float_type_,
-          std::vector<Id>({b.makeFloatConstant(0.f), b.makeFloatConstant(0.f),
-                           b.makeFloatConstant(1.f)}));
-      cond = b.smearScalar(spv::NoPrecision, cond, vec3_bool_type_);
-      break;
-    case 4:
-      alt_vertex = b.makeCompositeConstant(
-          vec4_float_type_,
-          std::vector<Id>({b.makeFloatConstant(0.f), b.makeFloatConstant(0.f),
-                           b.makeFloatConstant(0.f),
-                           b.makeFloatConstant(1.f)}));
-      cond = b.smearScalar(spv::NoPrecision, cond, vec4_bool_type_);
-      break;
-    default:
-      assert_unhandled_case(vertex_components);
-  }
+  auto data_ptr = b.createAccessChain(
+      spv::StorageClass::StorageClassUniform, vtx_,
+      {b.makeUintConstant(vtx_binding_map_[instr.operands[1].storage_index]),
+       b.makeUintConstant(0)});
 
-  auto vertex_ptr = vertex_binding_map_[instr.operands[1].storage_index]
-                                       [instr.attributes.offset];
-  assert_not_zero(vertex_ptr);
-  spv::Id vertex = b.createLoad(vertex_ptr);
+  spv::Id vertex = 0;
   switch (instr.attributes.data_format) {
-    case VertexFormat::k_8_8_8_8:
-    case VertexFormat::k_2_10_10_10:
+    case VertexFormat::k_8_8_8_8: {
+      if (!instr.attributes.is_integer) {
+        auto vertex_ptr = b.createAccessChain(
+            spv::StorageClass::StorageClassUniform, data_ptr, {vertex_idx});
+        auto vertex_data = b.createLoad(vertex_ptr);
+
+        spv::GLSLstd450 op;
+        if (instr.attributes.is_signed) {
+          op = spv::GLSLstd450::kUnpackSnorm4x8;
+        } else {
+          op = spv::GLSLstd450::kUnpackUnorm4x8;
+        }
+        vertex = CreateGlslStd450InstructionCall(
+            spv::NoPrecision, vec4_float_type_, op, {vertex_data});
+      }
+    } break;
+
     case VertexFormat::k_16_16:
     case VertexFormat::k_16_16_16_16:
     case VertexFormat::k_16_16_FLOAT:
     case VertexFormat::k_16_16_16_16_FLOAT:
-    case VertexFormat::k_32:
-    case VertexFormat::k_32_32:
-    case VertexFormat::k_32_32_32_32:
-    case VertexFormat::k_32_FLOAT:
-    case VertexFormat::k_32_32_FLOAT:
-    case VertexFormat::k_32_32_32_FLOAT:
+    case VertexFormat::k_32: {
+    } break;
+    case VertexFormat::k_32_32: {
+    } break;
+    case VertexFormat::k_32_32_32_32: {
+    } break;
+    case VertexFormat::k_32_FLOAT: {
+    } break;
+    case VertexFormat::k_32_32_FLOAT: {
+      spv::Id components[2] = {};
+      for (uint32_t i = 0; i < 2; i++) {
+        auto index = b.createBinOp(spv::Op::OpIAdd, int_type_, vertex_idx,
+                                   b.makeUintConstant(i));
+        auto vertex_ptr = b.createAccessChain(
+            spv::StorageClass::StorageClassUniform, data_ptr, {index});
+        auto vertex_data = b.createLoad(vertex_ptr);
+
+        components[i] =
+            b.createUnaryOp(spv::Op::OpBitcast, float_type_, vertex_data);
+      }
+
+      vertex = b.createCompositeConstruct(vec2_float_type_,
+                                          {components[0], components[1]});
+    } break;
+    case VertexFormat::k_32_32_32_FLOAT: {
+      spv::Id components[3] = {};
+      for (uint32_t i = 0; i < 3; i++) {
+        auto index = b.createBinOp(spv::Op::OpIAdd, int_type_, vertex_idx,
+                                   b.makeUintConstant(i));
+        auto vertex_ptr = b.createAccessChain(
+            spv::StorageClass::StorageClassUniform, data_ptr, {index});
+        auto vertex_data = b.createLoad(vertex_ptr);
+
+        components[i] =
+            b.createUnaryOp(spv::Op::OpBitcast, float_type_, vertex_data);
+      }
+
+      vertex = b.createCompositeConstruct(
+          vec3_float_type_, {components[0], components[1], components[2]});
+    } break;
     case VertexFormat::k_32_32_32_32_FLOAT: {
-      // These are handled, for now.
+      spv::Id components[4] = {};
+      for (uint32_t i = 0; i < 4; i++) {
+        auto index = b.createBinOp(spv::Op::OpIAdd, int_type_, vertex_idx,
+                                   b.makeUintConstant(i));
+        auto vertex_ptr = b.createAccessChain(
+            spv::StorageClass::StorageClassUniform, data_ptr, {index});
+        auto vertex_data = b.createLoad(vertex_ptr);
+
+        components[i] =
+            b.createUnaryOp(spv::Op::OpBitcast, float_type_, vertex_data);
+      }
+
+      vertex = b.createCompositeConstruct(
+          vec4_float_type_,
+          {components[0], components[1], components[2], components[3]});
+    } break;
+
+    case VertexFormat::k_2_10_10_10: {
     } break;
 
     case VertexFormat::k_10_11_11: {
+      auto vertex_ptr = b.createAccessChain(
+          spv::StorageClass::StorageClassUniform, data_ptr, {vertex_idx});
+      auto vertex_data = b.createLoad(vertex_ptr);
+      assert(b.getTypeId(vertex_data) == uint_type_);
+
       // This needs to be converted.
       bool is_signed = instr.attributes.is_signed;
       bool is_integer = instr.attributes.is_integer;
@@ -1232,7 +1297,7 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
           is_signed ? spv::Op::OpBitFieldSExtract : spv::Op::OpBitFieldUExtract;
       auto comp_type = is_signed ? int_type_ : uint_type_;
 
-      assert_true(comp_type == b.getTypeId(vertex));
+      assert_true(comp_type == b.getTypeId(vertex_data));
 
       spv::Id components[3] = {0};
       /*
@@ -1246,9 +1311,12 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
                         b.makeUintConstant(11));
       */
       // Workaround until NVIDIA fixes their compiler :|
-      components[0] = BitfieldExtract(comp_type, vertex, is_signed, 00, 11);
-      components[1] = BitfieldExtract(comp_type, vertex, is_signed, 11, 11);
-      components[2] = BitfieldExtract(comp_type, vertex, is_signed, 22, 10);
+      components[0] =
+          BitfieldExtract(comp_type, vertex_data, is_signed, 00, 11);
+      components[1] =
+          BitfieldExtract(comp_type, vertex_data, is_signed, 11, 11);
+      components[2] =
+          BitfieldExtract(comp_type, vertex_data, is_signed, 22, 10);
 
       op = is_signed ? spv::Op::OpConvertSToF : spv::Op::OpConvertUToF;
       for (int i = 0; i < 3; i++) {
@@ -1316,32 +1384,7 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
       break;
   }
 
-  // Convert any integers to floats.
-  auto scalar_type = b.getScalarTypeId(b.getTypeId(vertex));
-  if (scalar_type == int_type_ || scalar_type == uint_type_) {
-    auto op = scalar_type == int_type_ ? spv::Op::OpConvertSToF
-                                       : spv::Op::OpConvertUToF;
-    spv::Id vtx_type;
-    switch (vertex_components) {
-      case 1:
-        vtx_type = float_type_;
-        break;
-      case 2:
-        vtx_type = vec2_float_type_;
-        break;
-      case 3:
-        vtx_type = vec3_float_type_;
-        break;
-      case 4:
-        vtx_type = vec4_float_type_;
-        break;
-    }
-
-    vertex = b.createUnaryOp(op, vtx_type, vertex);
-  }
-
-  vertex = b.createTriOp(spv::Op::OpSelect, b.getTypeId(vertex), cond, vertex,
-                         alt_vertex);
+  assert_not_zero(vertex);
   StoreToResult(vertex, instr.result);
 }
 

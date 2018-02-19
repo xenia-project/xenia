@@ -103,7 +103,7 @@ BufferCache::BufferCache(RegisterFile* register_file, Memory* memory,
   transient_buffer_ = std::make_unique<ui::vulkan::CircularBuffer>(
       device_,
       VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT |
-          VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+          VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
       capacity, 4096);
 }
 
@@ -133,6 +133,11 @@ VkResult BufferCache::Initialize() {
     return status;
   }
 
+  status = CreateVertexDescriptorPool();
+  if (status != VK_SUCCESS) {
+    return status;
+  }
+
   return VK_SUCCESS;
 }
 
@@ -141,8 +146,8 @@ VkResult xe::gpu::vulkan::BufferCache::CreateVertexDescriptorPool() {
 
   std::vector<VkDescriptorPoolSize> pool_sizes;
   pool_sizes.push_back({
-      VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-      4096,
+      VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+      32768,
   });
   vertex_descriptor_pool_ =
       std::make_unique<ui::vulkan::DescriptorPool>(*device_, 32768, pool_sizes);
@@ -302,6 +307,7 @@ void BufferCache::Shutdown() {
   }
 
   FreeConstantDescriptorSet();
+  FreeVertexDescriptorPool();
 
   transient_buffer_->Shutdown();
   VK_SAFE_DESTROY(vkFreeMemory, *device_, gpu_memory_pool_, nullptr);
@@ -522,7 +528,7 @@ std::pair<VkBuffer, VkDeviceSize> BufferCache::UploadVertexBuffer(
       VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
       nullptr,
       VK_ACCESS_HOST_WRITE_BIT,
-      VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT,
+      VK_ACCESS_SHADER_READ_BIT,
       VK_QUEUE_FAMILY_IGNORED,
       VK_QUEUE_FAMILY_IGNORED,
       transient_buffer_->gpu_buffer(),
@@ -530,7 +536,7 @@ std::pair<VkBuffer, VkDeviceSize> BufferCache::UploadVertexBuffer(
       upload_size,
   };
   vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_HOST_BIT,
-                       VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, 0, 0, nullptr, 1,
+                       VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, 0, 0, nullptr, 1,
                        &barrier, 0, nullptr);
 
   CacheTransientData(upload_base, upload_size, offset);
@@ -538,7 +544,7 @@ std::pair<VkBuffer, VkDeviceSize> BufferCache::UploadVertexBuffer(
 }
 
 VkDescriptorSet BufferCache::PrepareVertexSet(
-    VkCommandBuffer setup_buffer, VkFence fence,
+    VkCommandBuffer command_buffer, VkFence fence,
     std::vector<Shader::VertexBinding> vertex_bindings) {
   if (!vertex_descriptor_pool_->has_open_batch()) {
     vertex_descriptor_pool_->BeginBatch(fence);
@@ -559,7 +565,7 @@ VkDescriptorSet BufferCache::PrepareVertexSet(
       0,
       0,
       0,
-      VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+      VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
       nullptr,
       buffer_infos,
       nullptr,
@@ -597,7 +603,7 @@ VkDescriptorSet BufferCache::PrepareVertexSet(
 
     // Upload (or get a cached copy of) the buffer.
     auto buffer_ref =
-        UploadVertexBuffer(setup_buffer, physical_address, source_length,
+        UploadVertexBuffer(command_buffer, physical_address, source_length,
                            static_cast<Endian>(fetch->endian), fence);
     if (buffer_ref.second == VK_WHOLE_SIZE) {
       // Failed to upload buffer.

@@ -158,12 +158,10 @@ class SpirvShaderTranslator : public ShaderTranslator {
   spv::Id samplers_ = 0;
   spv::Id tex_[3] = {0};  // Images {2D, 3D, Cube}
   spv::Id vtx_ = 0;       // Vertex buffer array (32 runtime arrays)
+  std::map<uint32_t, uint32_t> vtx_binding_map_;
 
   // SPIR-V IDs that are part of the in/out interface.
   std::vector<spv::Id> interface_ids_;
-
-  // Map of {binding -> {offset -> spv input}}
-  std::map<uint32_t, std::map<uint32_t, spv::Id>> vertex_binding_map_;
 
   struct CFBlock {
     spv::Block* block = nullptr;

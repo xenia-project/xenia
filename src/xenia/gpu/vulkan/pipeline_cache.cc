@@ -1000,9 +1000,17 @@ PipelineCache::UpdateStatus PipelineCache::UpdateVertexInputState(
     return UpdateStatus::kCompatible;
   }
 
+  // TODO/HACK(DrChat): This is a bit silly, but we'll just do this for now.
+  // We don't use vertex input.
   state_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
   state_info.pNext = nullptr;
   state_info.flags = 0;
+  state_info.vertexBindingDescriptionCount = 0;
+  state_info.vertexAttributeDescriptionCount = 0;
+  state_info.pVertexBindingDescriptions = nullptr;
+  state_info.pVertexAttributeDescriptions = nullptr;
+
+  return UpdateStatus::kCompatible;
 
   auto& vertex_binding_descrs = update_vertex_input_state_binding_descrs_;
   auto& vertex_attrib_descrs = update_vertex_input_state_attrib_descrs_;
