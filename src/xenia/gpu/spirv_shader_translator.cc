@@ -1235,10 +1235,18 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
       }
     } break;
 
-    case VertexFormat::k_16_16:
-    case VertexFormat::k_16_16_16_16:
-    case VertexFormat::k_16_16_FLOAT:
-    case VertexFormat::k_16_16_16_16_FLOAT:
+    case VertexFormat::k_16_16: {
+    } break;
+
+    case VertexFormat::k_16_16_16_16: {
+    } break;
+
+    case VertexFormat::k_16_16_FLOAT: {
+    } break;
+
+    case VertexFormat::k_16_16_16_16_FLOAT: {
+    } break;
+
     case VertexFormat::k_32: {
       spv::Id components[1] = {};
       for (uint32_t i = 0; i < 1; i++) {
@@ -1267,10 +1275,13 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
     } break;
     case VertexFormat::k_32_32: {
     } break;
+
     case VertexFormat::k_32_32_32_32: {
     } break;
+
     case VertexFormat::k_32_FLOAT: {
     } break;
+
     case VertexFormat::k_32_32_FLOAT: {
       spv::Id components[2] = {};
       for (uint32_t i = 0; i < 2; i++) {
@@ -1303,6 +1314,7 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
       vertex = b.createCompositeConstruct(
           vec3_float_type_, {components[0], components[1], components[2]});
     } break;
+
     case VertexFormat::k_32_32_32_32_FLOAT: {
       spv::Id components[4] = {};
       for (uint32_t i = 0; i < 4; i++) {
