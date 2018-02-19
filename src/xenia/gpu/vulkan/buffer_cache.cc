@@ -126,22 +126,34 @@ VkResult BufferCache::Initialize() {
     return status;
   }
 
+  status = CreateConstantDescriptorSet();
+  if (status != VK_SUCCESS) {
+    return status;
+  }
+
+  return VK_SUCCESS;
+}
+
+VkResult BufferCache::CreateConstantDescriptorSet() {
+  VkResult status = VK_SUCCESS;
+
   // Descriptor pool used for all of our cached descriptors.
   // In the steady state we don't allocate anything, so these are all manually
   // managed.
-  VkDescriptorPoolCreateInfo descriptor_pool_info;
-  descriptor_pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-  descriptor_pool_info.pNext = nullptr;
-  descriptor_pool_info.flags =
+  VkDescriptorPoolCreateInfo transient_descriptor_pool_info;
+  transient_descriptor_pool_info.sType =
+      VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+  transient_descriptor_pool_info.pNext = nullptr;
+  transient_descriptor_pool_info.flags =
       VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-  descriptor_pool_info.maxSets = 1;
+  transient_descriptor_pool_info.maxSets = 1;
   VkDescriptorPoolSize pool_sizes[1];
   pool_sizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
   pool_sizes[0].descriptorCount = 2;
-  descriptor_pool_info.poolSizeCount = 1;
-  descriptor_pool_info.pPoolSizes = pool_sizes;
-  status = vkCreateDescriptorPool(*device_, &descriptor_pool_info, nullptr,
-                                  &descriptor_pool_);
+  transient_descriptor_pool_info.poolSizeCount = 1;
+  transient_descriptor_pool_info.pPoolSizes = pool_sizes;
+  status = vkCreateDescriptorPool(*device_, &transient_descriptor_pool_info,
+                                  nullptr, &constant_descriptor_pool_);
   if (status != VK_SUCCESS) {
     return status;
   }
@@ -173,8 +185,9 @@ VkResult BufferCache::Initialize() {
   descriptor_set_layout_info.bindingCount =
       static_cast<uint32_t>(xe::countof(bindings));
   descriptor_set_layout_info.pBindings = bindings;
-  status = vkCreateDescriptorSetLayout(*device_, &descriptor_set_layout_info,
-                                       nullptr, &descriptor_set_layout_);
+  status =
+      vkCreateDescriptorSetLayout(*device_, &descriptor_set_layout_info,
+                                  nullptr, &constant_descriptor_set_layout_);
   if (status != VK_SUCCESS) {
     return status;
   }
@@ -185,11 +198,11 @@ VkResult BufferCache::Initialize() {
   VkDescriptorSetAllocateInfo set_alloc_info;
   set_alloc_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
   set_alloc_info.pNext = nullptr;
-  set_alloc_info.descriptorPool = descriptor_pool_;
+  set_alloc_info.descriptorPool = constant_descriptor_pool_;
   set_alloc_info.descriptorSetCount = 1;
-  set_alloc_info.pSetLayouts = &descriptor_set_layout_;
+  set_alloc_info.pSetLayouts = &constant_descriptor_set_layout_;
   status = vkAllocateDescriptorSets(*device_, &set_alloc_info,
-                                    &transient_descriptor_set_);
+                                    &constant_descriptor_set_);
   if (status != VK_SUCCESS) {
     return status;
   }
@@ -204,7 +217,7 @@ VkResult BufferCache::Initialize() {
   auto& vertex_uniform_binding_write = descriptor_writes[0];
   vertex_uniform_binding_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
   vertex_uniform_binding_write.pNext = nullptr;
-  vertex_uniform_binding_write.dstSet = transient_descriptor_set_;
+  vertex_uniform_binding_write.dstSet = constant_descriptor_set_;
   vertex_uniform_binding_write.dstBinding = 0;
   vertex_uniform_binding_write.dstArrayElement = 0;
   vertex_uniform_binding_write.descriptorCount = 1;
@@ -214,7 +227,7 @@ VkResult BufferCache::Initialize() {
   auto& fragment_uniform_binding_write = descriptor_writes[1];
   fragment_uniform_binding_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
   fragment_uniform_binding_write.pNext = nullptr;
-  fragment_uniform_binding_write.dstSet = transient_descriptor_set_;
+  fragment_uniform_binding_write.dstSet = constant_descriptor_set_;
   fragment_uniform_binding_write.dstBinding = 1;
   fragment_uniform_binding_write.dstArrayElement = 0;
   fragment_uniform_binding_write.descriptorCount = 1;
@@ -225,6 +238,18 @@ VkResult BufferCache::Initialize() {
 
   return VK_SUCCESS;
 }
+void xe::gpu::vulkan::BufferCache::FreeConstantDescriptorSet() {
+  if (constant_descriptor_set_) {
+    vkFreeDescriptorSets(*device_, constant_descriptor_pool_, 1,
+                         &constant_descriptor_set_);
+    constant_descriptor_set_ = nullptr;
+  }
+
+  VK_SAFE_DESTROY(vkDestroyDescriptorSetLayout, *device_,
+                  constant_descriptor_set_layout_, nullptr);
+  VK_SAFE_DESTROY(vkDestroyDescriptorPool, *device_, constant_descriptor_pool_,
+                  nullptr);
+}
 
 void BufferCache::Shutdown() {
   if (mem_allocator_) {
@@ -232,15 +257,7 @@ void BufferCache::Shutdown() {
     mem_allocator_ = nullptr;
   }
 
-  if (transient_descriptor_set_) {
-    vkFreeDescriptorSets(*device_, descriptor_pool_, 1,
-                         &transient_descriptor_set_);
-    transient_descriptor_set_ = nullptr;
-  }
-
-  VK_SAFE_DESTROY(vkDestroyDescriptorSetLayout, *device_,
-                  descriptor_set_layout_, nullptr);
-  VK_SAFE_DESTROY(vkDestroyDescriptorPool, *device_, descriptor_pool_, nullptr);
+  FreeConstantDescriptorSet();
 
   transient_buffer_->Shutdown();
   VK_SAFE_DESTROY(vkFreeMemory, *device_, gpu_memory_pool_, nullptr);
