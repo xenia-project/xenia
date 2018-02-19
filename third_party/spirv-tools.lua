@@ -72,4 +72,5 @@ project("spirv-tools")
   filter("platforms:Windows")
     buildoptions({
       "/wd4800",  -- Forcing value to bool 'true' or 'false'
+      "/wd4996",  -- Call to 'std::equal' with parameters that may be unsafe
     })
