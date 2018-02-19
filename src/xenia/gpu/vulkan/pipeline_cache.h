@@ -43,7 +43,8 @@ class PipelineCache {
   ~PipelineCache();
 
   VkResult Initialize(VkDescriptorSetLayout uniform_descriptor_set_layout,
-                      VkDescriptorSetLayout texture_descriptor_set_layout);
+                      VkDescriptorSetLayout texture_descriptor_set_layout,
+                      VkDescriptorSetLayout vertex_descriptor_set_layout);
   void Shutdown();
 
   // Loads a shader from the cache, possibly translating it.
