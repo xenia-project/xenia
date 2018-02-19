@@ -1398,10 +1398,62 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
       // vertex = b.createCompositeConstruct(float_type_, {components[0]});
       vertex = components[0];
     } break;
+
     case VertexFormat::k_32_32: {
+      spv::Id components[2] = {};
+      for (uint32_t i = 0; i < 2; i++) {
+        auto index = b.createBinOp(spv::Op::OpIAdd, int_type_, vertex_idx,
+                                   b.makeUintConstant(i));
+        auto vertex_ptr = b.createAccessChain(
+            spv::StorageClass::StorageClassUniform, data_ptr, {index});
+        auto vertex_data = b.createLoad(vertex_ptr);
+
+        if (instr.attributes.is_integer) {
+          if (instr.attributes.is_signed) {
+            components[i] =
+                b.createUnaryOp(spv::Op::OpBitcast, int_type_, vertex_data);
+            components[i] = b.createUnaryOp(spv::Op::OpConvertSToF, float_type_,
+                                            vertex_data);
+          } else {
+            components[i] = b.createUnaryOp(spv::Op::OpConvertUToF, float_type_,
+                                            vertex_data);
+          }
+        } else {
+          // TODO(DrChat)
+        }
+      }
+
+      vertex = b.createCompositeConstruct(vec2_float_type_,
+                                          {components[0], components[1]});
     } break;
 
     case VertexFormat::k_32_32_32_32: {
+      spv::Id components[4] = {};
+      for (uint32_t i = 0; i < 4; i++) {
+        auto index = b.createBinOp(spv::Op::OpIAdd, int_type_, vertex_idx,
+                                   b.makeUintConstant(i));
+        auto vertex_ptr = b.createAccessChain(
+            spv::StorageClass::StorageClassUniform, data_ptr, {index});
+        auto vertex_data = b.createLoad(vertex_ptr);
+
+        if (instr.attributes.is_integer) {
+          if (instr.attributes.is_signed) {
+            components[i] =
+                b.createUnaryOp(spv::Op::OpBitcast, int_type_, vertex_data);
+            components[i] = b.createUnaryOp(spv::Op::OpConvertSToF, float_type_,
+                                            vertex_data);
+          } else {
+            components[i] = b.createUnaryOp(spv::Op::OpConvertUToF, float_type_,
+                                            vertex_data);
+          }
+        } else {
+          // TODO(DrChat)
+        }
+      }
+
+      vertex = b.createCompositeConstruct(
+          vec2_float_type_,
+          {components[0], components[1], components[2], components[3]});
     } break;
 
     case VertexFormat::k_32_FLOAT: {
