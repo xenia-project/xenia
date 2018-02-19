@@ -45,10 +45,10 @@ class BufferCache {
   //   binding = 0: for use in vertex shaders
   //   binding = 1: for use in fragment shaders
   VkDescriptorSet constant_descriptor_set() const {
-    return transient_descriptor_set_;
+    return constant_descriptor_set_;
   }
   VkDescriptorSetLayout constant_descriptor_set_layout() const {
-    return descriptor_set_layout_;
+    return constant_descriptor_set_layout_;
   }
 
   // Uploads the constants specified in the register maps to the transient
@@ -106,6 +106,9 @@ class BufferCache {
     VmaAllocationInfo alloc_info;
   };
 
+  VkResult CreateConstantDescriptorSet();
+  void FreeConstantDescriptorSet();
+
   // Allocates a block of memory in the transient buffer.
   // When memory is not available fences are checked and space is reclaimed.
   // Returns VK_WHOLE_SIZE if requested amount of memory is not available.
@@ -133,9 +136,10 @@ class BufferCache {
   std::unique_ptr<ui::vulkan::CircularBuffer> transient_buffer_ = nullptr;
   std::map<uint32_t, std::pair<uint32_t, VkDeviceSize>> transient_cache_;
 
-  VkDescriptorPool descriptor_pool_ = nullptr;
-  VkDescriptorSetLayout descriptor_set_layout_ = nullptr;
-  VkDescriptorSet transient_descriptor_set_ = nullptr;
+  // Descriptor set used to hold vertex/pixel shader float constants
+  VkDescriptorPool constant_descriptor_pool_ = nullptr;
+  VkDescriptorSetLayout constant_descriptor_set_layout_ = nullptr;
+  VkDescriptorSet constant_descriptor_set_ = nullptr;
 };
 
 }  // namespace vulkan
