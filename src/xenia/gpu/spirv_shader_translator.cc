@@ -1203,11 +1203,27 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
   spv::Id vertex = 0;
   switch (instr.attributes.data_format) {
     case VertexFormat::k_8_8_8_8: {
-      if (!instr.attributes.is_integer) {
-        auto vertex_ptr = b.createAccessChain(
-            spv::StorageClass::StorageClassUniform, data_ptr, {vertex_idx});
-        auto vertex_data = b.createLoad(vertex_ptr);
+      auto vertex_ptr = b.createAccessChain(
+          spv::StorageClass::StorageClassUniform, data_ptr, {vertex_idx});
+      auto vertex_data = b.createLoad(vertex_ptr);
 
+      if (instr.attributes.is_integer) {
+        spv::Id components[4] = {};
+
+        auto op = instr.attributes.is_signed ? spv::Op::OpConvertSToF
+                                             : spv::Op::OpConvertUToF;
+        auto comp_type = instr.attributes.is_signed ? int_type_ : uint_type_;
+
+        for (int i = 0; i < 4; i++) {
+          components[i] = BitfieldExtract(comp_type, vertex_data,
+                                          instr.attributes.is_signed, 8 * i, 8);
+          components[i] = b.createUnaryOp(op, float_type_, components[i]);
+        }
+
+        vertex = b.createCompositeConstruct(
+            vec4_float_type_,
+            {components[0], components[1], components[2], components[3]});
+      } else {
         spv::GLSLstd450 op;
         if (instr.attributes.is_signed) {
           op = spv::GLSLstd450::kUnpackSnorm4x8;
@@ -1224,6 +1240,30 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
     case VertexFormat::k_16_16_FLOAT:
     case VertexFormat::k_16_16_16_16_FLOAT:
     case VertexFormat::k_32: {
+      spv::Id components[1] = {};
+      for (uint32_t i = 0; i < 1; i++) {
+        auto index = b.createBinOp(spv::Op::OpIAdd, int_type_, vertex_idx,
+                                   b.makeUintConstant(i));
+        auto vertex_ptr = b.createAccessChain(
+            spv::StorageClass::StorageClassUniform, data_ptr, {index});
+        auto vertex_data = b.createLoad(vertex_ptr);
+
+        if (instr.attributes.is_integer) {
+          if (instr.attributes.is_signed) {
+            components[i] =
+                b.createUnaryOp(spv::Op::OpBitcast, int_type_, vertex_data);
+            components[i] = b.createUnaryOp(spv::Op::OpConvertSToF, float_type_,
+                                            vertex_data);
+          } else {
+            components[i] = vertex_data;
+          }
+        } else {
+          // TODO(DrChat)
+        }
+      }
+
+      // vertex = b.createCompositeConstruct(float_type_, {components[0]});
+      vertex = components[0];
     } break;
     case VertexFormat::k_32_32: {
     } break;
@@ -1282,6 +1322,45 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
     } break;
 
     case VertexFormat::k_2_10_10_10: {
+      auto vertex_ptr = b.createAccessChain(
+          spv::StorageClass::StorageClassUniform, data_ptr, {vertex_idx});
+      auto vertex_data = b.createLoad(vertex_ptr);
+      assert(b.getTypeId(vertex_data) == uint_type_);
+
+      // This needs to be converted.
+      bool is_signed = instr.attributes.is_signed;
+      bool is_integer = instr.attributes.is_integer;
+      auto comp_type = is_signed ? int_type_ : uint_type_;
+
+      if (is_signed) {
+        vertex_data =
+            b.createUnaryOp(spv::Op::OpBitcast, int_type_, vertex_data);
+      }
+
+      spv::Id components[4] = {0};
+      components[3] =
+          BitfieldExtract(comp_type, vertex_data, is_signed, 00, 02);
+      components[0] =
+          BitfieldExtract(comp_type, vertex_data, is_signed, 02, 10);
+      components[1] =
+          BitfieldExtract(comp_type, vertex_data, is_signed, 12, 10);
+      components[2] =
+          BitfieldExtract(comp_type, vertex_data, is_signed, 22, 10);
+
+      if (!is_integer) {
+        components[3] =
+            ConvertNormVar(components[3], float_type_, 02, is_signed);
+        components[0] =
+            ConvertNormVar(components[0], float_type_, 10, is_signed);
+        components[1] =
+            ConvertNormVar(components[1], float_type_, 10, is_signed);
+        components[2] =
+            ConvertNormVar(components[2], float_type_, 10, is_signed);
+      }
+
+      vertex = b.createCompositeConstruct(
+          vec4_float_type_, std::vector<Id>({components[0], components[1],
+                                             components[2], components[3]}));
     } break;
 
     case VertexFormat::k_10_11_11: {
@@ -1296,6 +1375,11 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
       auto op =
           is_signed ? spv::Op::OpBitFieldSExtract : spv::Op::OpBitFieldUExtract;
       auto comp_type = is_signed ? int_type_ : uint_type_;
+
+      if (is_signed) {
+        vertex_data =
+            b.createUnaryOp(spv::Op::OpBitcast, int_type_, vertex_data);
+      }
 
       assert_true(comp_type == b.getTypeId(vertex_data));
 
@@ -1338,6 +1422,11 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
     } break;
 
     case VertexFormat::k_11_11_10: {
+      auto vertex_ptr = b.createAccessChain(
+          spv::StorageClass::StorageClassUniform, data_ptr, {vertex_idx});
+      auto vertex_data = b.createLoad(vertex_ptr);
+      assert(b.getTypeId(vertex_data) == uint_type_);
+
       // This needs to be converted.
       bool is_signed = instr.attributes.is_signed;
       bool is_integer = instr.attributes.is_integer;
@@ -1357,9 +1446,12 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
                         b.makeUintConstant(10));
       */
       // Workaround until NVIDIA fixes their compiler :|
-      components[0] = BitfieldExtract(comp_type, vertex, is_signed, 00, 10);
-      components[1] = BitfieldExtract(comp_type, vertex, is_signed, 10, 11);
-      components[2] = BitfieldExtract(comp_type, vertex, is_signed, 21, 11);
+      components[0] =
+          BitfieldExtract(comp_type, vertex_data, is_signed, 00, 10);
+      components[1] =
+          BitfieldExtract(comp_type, vertex_data, is_signed, 10, 11);
+      components[2] =
+          BitfieldExtract(comp_type, vertex_data, is_signed, 21, 11);
 
       op = is_signed ? spv::Op::OpConvertSToF : spv::Op::OpConvertUToF;
       for (int i = 0; i < 3; i++) {
