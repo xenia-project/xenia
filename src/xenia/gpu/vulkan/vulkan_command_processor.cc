@@ -106,7 +106,8 @@ bool VulkanCommandProcessor::SetupContext() {
   pipeline_cache_ = std::make_unique<PipelineCache>(register_file_, device_);
   status = pipeline_cache_->Initialize(
       buffer_cache_->constant_descriptor_set_layout(),
-      texture_cache_->texture_descriptor_set_layout());
+      texture_cache_->texture_descriptor_set_layout(),
+      buffer_cache_->vertex_descriptor_set_layout());
   if (status != VK_SUCCESS) {
     XELOGE("Unable to initialize pipeline cache");
     pipeline_cache_->Shutdown();
@@ -823,74 +824,12 @@ bool VulkanCommandProcessor::PopulateVertexBuffers(
   }
 
   assert_true(vertex_bindings.size() <= 32);
-  VkBuffer all_buffers[32];
-  VkDeviceSize all_buffer_offsets[32];
-  uint32_t buffer_index = 0;
+  auto descriptor_set = buffer_cache_->PrepareVertexSet(
+      command_buffer, current_batch_fence_, vertex_bindings);
 
-  if (vertex_bindings.size() >= xe::countof(all_buffers)) {
-    XELOGE("PopulateVertexBuffers failed: Too many bindings! (%zd >= %zd)",
-           vertex_bindings.size(), xe::countof(all_buffers));
-    return false;
-  }
-
-  for (const auto& vertex_binding : vertex_bindings) {
-    int r = XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 +
-            (vertex_binding.fetch_constant / 3) * 6;
-    const auto group = reinterpret_cast<xe_gpu_fetch_group_t*>(&regs.values[r]);
-    const xe_gpu_vertex_fetch_t* fetch = nullptr;
-    switch (vertex_binding.fetch_constant % 3) {
-      case 0:
-        fetch = &group->vertex_fetch_0;
-        break;
-      case 1:
-        fetch = &group->vertex_fetch_1;
-        break;
-      case 2:
-        fetch = &group->vertex_fetch_2;
-        break;
-    }
-
-    if (fetch->type != 0x3) {
-      // TODO(DrChat): Some games use type 0x0 (with no data).
-      return false;
-    }
-
-    // TODO(benvanik): compute based on indices or vertex count.
-    //     THIS CAN BE MASSIVELY INCORRECT (too large).
-    uint32_t source_length = fetch->size * 4;
-
-    uint32_t physical_address = fetch->address << 2;
-    trace_writer_.WriteMemoryRead(physical_address, source_length);
-
-    // Upload (or get a cached copy of) the buffer.
-    // TODO: Make the buffer cache ... actually cache buffers. We can have
-    // a list of buffers that were cached, and store those in chunks in a
-    // multiple of the host's page size.
-    // So, we need to track all vertex buffers in a sorted map, and track all
-    // write watches in a sorted map. When a vertex buffer is uploaded, track
-    // all untracked pages with 1-page write watches. In the callback,
-    // invalidate any overlapping vertex buffers.
-    //
-    // We would keep the old transient buffer as a staging buffer, and upload
-    // to a GPU-only buffer that tracks all cached vertex buffers.
-    auto buffer_ref = buffer_cache_->UploadVertexBuffer(
-        current_setup_buffer_, physical_address, source_length,
-        static_cast<Endian>(fetch->endian), current_batch_fence_);
-    if (buffer_ref.second == VK_WHOLE_SIZE) {
-      // Failed to upload buffer.
-      return false;
-    }
-
-    // Stash the buffer reference for our bulk bind at the end.
-    all_buffers[buffer_index] = buffer_ref.first;
-    all_buffer_offsets[buffer_index] = buffer_ref.second;
-    ++buffer_index;
-  }
-
-  // Bind buffers.
-  vkCmdBindVertexBuffers(command_buffer, 0, buffer_index, all_buffers,
-                         all_buffer_offsets);
-
+  vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                          pipeline_cache_->pipeline_layout(), 2, 1,
+                          &descriptor_set, 0, nullptr);
   return true;
 }
 

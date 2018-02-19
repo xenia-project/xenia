@@ -44,7 +44,8 @@ PipelineCache::~PipelineCache() { Shutdown(); }
 
 VkResult PipelineCache::Initialize(
     VkDescriptorSetLayout uniform_descriptor_set_layout,
-    VkDescriptorSetLayout texture_descriptor_set_layout) {
+    VkDescriptorSetLayout texture_descriptor_set_layout,
+    VkDescriptorSetLayout vertex_descriptor_set_layout) {
   VkResult status;
 
   // Initialize the shared driver pipeline cache.
@@ -70,6 +71,8 @@ VkResult PipelineCache::Initialize(
       uniform_descriptor_set_layout,
       // All texture bindings.
       texture_descriptor_set_layout,
+      // Vertex bindings.
+      vertex_descriptor_set_layout,
   };
 
   // Push constants used for draw parameters.
