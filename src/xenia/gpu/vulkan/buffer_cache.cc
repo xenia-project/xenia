@@ -134,6 +134,45 @@ VkResult BufferCache::Initialize() {
   return VK_SUCCESS;
 }
 
+VkResult xe::gpu::vulkan::BufferCache::CreateVertexDescriptorPool() {
+  VkResult status;
+
+  std::vector<VkDescriptorPoolSize> pool_sizes;
+  pool_sizes.push_back({
+      VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+      4096,
+  });
+  vertex_descriptor_pool_ =
+      std::make_unique<ui::vulkan::DescriptorPool>(*device_, 32768, pool_sizes);
+
+  // 32 storage buffers available to vertex shader.
+  // TODO(DrChat): In the future, this could hold memexport staging data.
+  VkDescriptorSetLayoutBinding binding = {
+      0,       VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+      32,      VK_SHADER_STAGE_VERTEX_BIT,
+      nullptr,
+  };
+
+  VkDescriptorSetLayoutCreateInfo layout_info = {
+      VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+      nullptr,
+      0,
+      1,
+      &binding,
+  };
+  vkCreateDescriptorSetLayout(*device_, &layout_info, nullptr,
+                              &vertex_descriptor_set_layout_);
+
+  return VK_SUCCESS;
+}
+
+void xe::gpu::vulkan::BufferCache::FreeVertexDescriptorPool() {
+  vertex_descriptor_pool_.reset();
+
+  VK_SAFE_DESTROY(vkDestroyDescriptorSetLayout, *device_,
+                  vertex_descriptor_set_layout_, nullptr);
+}
+
 VkResult BufferCache::CreateConstantDescriptorSet() {
   VkResult status = VK_SUCCESS;
 

@@ -15,6 +15,7 @@
 #include "xenia/gpu/xenos.h"
 #include "xenia/memory.h"
 #include "xenia/ui/vulkan/circular_buffer.h"
+#include "xenia/ui/vulkan/fenced_pools.h"
 #include "xenia/ui/vulkan/vulkan.h"
 #include "xenia/ui/vulkan/vulkan_device.h"
 
@@ -106,6 +107,9 @@ class BufferCache {
     VmaAllocationInfo alloc_info;
   };
 
+  VkResult CreateVertexDescriptorPool();
+  void FreeVertexDescriptorPool();
+
   VkResult CreateConstantDescriptorSet();
   void FreeConstantDescriptorSet();
 
@@ -135,6 +139,10 @@ class BufferCache {
   // plan on keeping past the current frame.
   std::unique_ptr<ui::vulkan::CircularBuffer> transient_buffer_ = nullptr;
   std::map<uint32_t, std::pair<uint32_t, VkDeviceSize>> transient_cache_;
+
+  // Vertex buffer descriptors
+  std::unique_ptr<ui::vulkan::DescriptorPool> vertex_descriptor_pool_ = nullptr;
+  VkDescriptorSetLayout vertex_descriptor_set_layout_ = nullptr;
 
   // Descriptor set used to hold vertex/pixel shader float constants
   VkDescriptorPool constant_descriptor_pool_ = nullptr;
