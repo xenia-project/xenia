@@ -18,6 +18,8 @@
 
 #include "third_party/vulkan/vk_mem_alloc.h"
 
+using namespace xe::gpu::xenos;
+
 namespace xe {
 namespace gpu {
 namespace vulkan {
@@ -532,6 +534,85 @@ std::pair<VkBuffer, VkDeviceSize> BufferCache::UploadVertexBuffer(
   return {transient_buffer_->gpu_buffer(), offset + source_offset};
 }
 
+VkDescriptorSet BufferCache::PrepareVertexSet(
+    VkCommandBuffer setup_buffer, VkFence fence,
+    std::vector<Shader::VertexBinding> vertex_bindings) {
+  if (!vertex_descriptor_pool_->has_open_batch()) {
+    vertex_descriptor_pool_->BeginBatch(fence);
+  }
+
+  VkDescriptorSet set =
+      vertex_descriptor_pool_->AcquireEntry(vertex_descriptor_set_layout_);
+  if (!set) {
+    return nullptr;
+  }
+
+  // TODO(DrChat): Define magic number 32 as a constant somewhere.
+  VkDescriptorBufferInfo buffer_infos[32] = {};
+  VkWriteDescriptorSet descriptor_write = {
+      VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+      nullptr,
+      set,
+      0,
+      0,
+      0,
+      VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+      nullptr,
+      buffer_infos,
+      nullptr,
+  };
+
+  auto& regs = *register_file_;
+  for (const auto& vertex_binding : vertex_bindings) {
+    int r = XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 +
+            (vertex_binding.fetch_constant / 3) * 6;
+    const auto group = reinterpret_cast<xe_gpu_fetch_group_t*>(&regs.values[r]);
+    const xe_gpu_vertex_fetch_t* fetch = nullptr;
+    switch (vertex_binding.fetch_constant % 3) {
+      case 0:
+        fetch = &group->vertex_fetch_0;
+        break;
+      case 1:
+        fetch = &group->vertex_fetch_1;
+        break;
+      case 2:
+        fetch = &group->vertex_fetch_2;
+        break;
+    }
+
+    if (fetch->type != 0x3) {
+      // TODO(DrChat): Some games use type 0x0 (with no data).
+      return false;
+    }
+
+    // TODO(benvanik): compute based on indices or vertex count.
+    //     THIS CAN BE MASSIVELY INCORRECT (too large).
+    // This may not be possible (with indexed vfetch).
+    uint32_t source_length = fetch->size * 4;
+    uint32_t physical_address = fetch->address << 2;
+    // trace_writer_.WriteMemoryRead(physical_address, source_length);
+
+    // Upload (or get a cached copy of) the buffer.
+    auto buffer_ref =
+        UploadVertexBuffer(setup_buffer, physical_address, source_length,
+                           static_cast<Endian>(fetch->endian), fence);
+    if (buffer_ref.second == VK_WHOLE_SIZE) {
+      // Failed to upload buffer.
+      return false;
+    }
+
+    // Stash the buffer reference for our bulk bind at the end.
+    buffer_infos[descriptor_write.descriptorCount++] = {
+        buffer_ref.first,
+        buffer_ref.second,
+        source_length,
+    };
+  }
+
+  vkUpdateDescriptorSets(*device_, 1, &descriptor_write, 0, nullptr);
+  return set;
+}
+
 VkDeviceSize BufferCache::AllocateTransientData(VkDeviceSize length,
                                                 VkFence fence) {
   // Try fast path (if we have space).
@@ -626,6 +707,11 @@ void BufferCache::ClearCache() { transient_cache_.clear(); }
 void BufferCache::Scavenge() {
   transient_cache_.clear();
   transient_buffer_->Scavenge();
+  if (vertex_descriptor_pool_->has_open_batch()) {
+    vertex_descriptor_pool_->EndBatch();
+  }
+
+  vertex_descriptor_pool_->Scavenge();
 }
 
 }  // namespace vulkan
