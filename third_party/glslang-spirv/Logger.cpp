@@ -1,5 +1,5 @@
 //
-// Copyright (C) 2014 LunarG, Inc.
+// Copyright (C) 2016 Google, Inc.
 //
 // All rights reserved.
 //
@@ -15,7 +15,7 @@
 //    disclaimer in the documentation and/or other materials provided
 //    with the distribution.
 //
-//    Neither the name of 3Dlabs Inc. Ltd. nor the names of its
+//    Neither the name of Google Inc. nor the names of its
 //    contributors may be used to endorse or promote products derived
 //    from this software without specific prior written permission.
 //
@@ -32,36 +32,37 @@
 // ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-#pragma once
-
-#if _MSC_VER >= 1900
-    #pragma warning(disable : 4464) // relative include path contains '..'
-#endif
-
-#include "../glslang/Include/intermediate.h"
-
-#include <string>
-#include <vector>
-
 #include "Logger.h"
 
-namespace glslang {
+#include <algorithm>
+#include <iterator>
+#include <sstream>
 
-struct SpvOptions {
-    SpvOptions() : generateDebugInfo(false), disableOptimizer(true),
-        optimizeSize(false) { }
-    bool generateDebugInfo;
-    bool disableOptimizer;
-    bool optimizeSize;
-};
+namespace spv {
 
-void GetSpirvVersion(std::string&);
-int GetSpirvGeneratorVersion();
-void GlslangToSpv(const glslang::TIntermediate& intermediate, std::vector<unsigned int>& spirv,
-                  SpvOptions* options = nullptr);
-void GlslangToSpv(const glslang::TIntermediate& intermediate, std::vector<unsigned int>& spirv,
-                  spv::SpvBuildLogger* logger, SpvOptions* options = nullptr);
-void OutputSpvBin(const std::vector<unsigned int>& spirv, const char* baseName);
-void OutputSpvHex(const std::vector<unsigned int>& spirv, const char* baseName, const char* varName);
-
+void SpvBuildLogger::tbdFunctionality(const std::string& f)
+{
+    if (std::find(std::begin(tbdFeatures), std::end(tbdFeatures), f) == std::end(tbdFeatures))
+        tbdFeatures.push_back(f);
 }
+
+void SpvBuildLogger::missingFunctionality(const std::string& f)
+{
+    if (std::find(std::begin(missingFeatures), std::end(missingFeatures), f) == std::end(missingFeatures))
+        missingFeatures.push_back(f);
+}
+
+std::string SpvBuildLogger::getAllMessages() const {
+    std::ostringstream messages;
+    for (auto it = tbdFeatures.cbegin(); it != tbdFeatures.cend(); ++it)
+        messages << "TBD functionality: " << *it << "\n";
+    for (auto it = missingFeatures.cbegin(); it != missingFeatures.cend(); ++it)
+        messages << "Missing functionality: " << *it << "\n";
+    for (auto it = warnings.cbegin(); it != warnings.cend(); ++it)
+        messages << "warning: " << *it << "\n";
+    for (auto it = errors.cbegin(); it != errors.cend(); ++it)
+        messages << "error: " << *it << "\n";
+    return messages.str();
+}
+
+} // end spv namespace

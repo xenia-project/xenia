@@ -1,11 +1,11 @@
 //
-//Copyright (C) 2014 LunarG, Inc.
+// Copyright (C) 2014 LunarG, Inc.
 //
-//All rights reserved.
+// All rights reserved.
 //
-//Redistribution and use in source and binary forms, with or without
-//modification, are permitted provided that the following conditions
-//are met:
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions
+// are met:
 //
 //    Redistributions of source code must retain the above copyright
 //    notice, this list of conditions and the following disclaimer.
@@ -19,30 +19,26 @@
 //    contributors may be used to endorse or promote products derived
 //    from this software without specific prior written permission.
 //
-//THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-//"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-//LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
-//FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
-//COPYRIGHT HOLDERS OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
-//INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
-//BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-//LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-//CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
-//LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
-//ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-//POSSIBILITY OF SUCH DAMAGE.
-
-//
-// Author: John Kessenich, LunarG
-//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+// FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+// COPYRIGHT HOLDERS OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+// INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+// BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+// LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+// CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+// LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+// ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+// POSSIBILITY OF SUCH DAMAGE.
 
 // SPIRV-IR
 //
 // Simple in-memory representation (IR) of SPIRV.  Just for holding
 // Each function's CFG of blocks.  Has this hierarchy:
-//  - Module, which is a list of 
-//    - Function, which is a list of 
-//      - Block, which is a list of 
+//  - Module, which is a list of
+//    - Function, which is a list of
+//      - Block, which is a list of
 //        - Instruction
 //
 
@@ -68,17 +64,18 @@ class Module;
 const Id NoResult = 0;
 const Id NoType = 0;
 
-const unsigned int BadValue = 0xFFFFFFFF;
-const Decoration NoPrecision = (Decoration)BadValue;
-const MemorySemanticsMask MemorySemanticsAllMemory = 
-                (MemorySemanticsMask)(MemorySemanticsAcquireMask |
-                                      MemorySemanticsReleaseMask |
-                                      MemorySemanticsAcquireReleaseMask |
-                                      MemorySemanticsSequentiallyConsistentMask |
-                                      MemorySemanticsUniformMemoryMask |
-                                      MemorySemanticsSubgroupMemoryMask |
+const Decoration NoPrecision = DecorationMax;
+
+#ifdef __GNUC__
+#   define POTENTIALLY_UNUSED __attribute__((unused))
+#else
+#   define POTENTIALLY_UNUSED
+#endif
+
+POTENTIALLY_UNUSED
+const MemorySemanticsMask MemorySemanticsAllMemory =
+                (MemorySemanticsMask)(MemorySemanticsUniformMemoryMask |
                                       MemorySemanticsWorkgroupMemoryMask |
-                                      MemorySemanticsCrossWorkgroupMemoryMask |
                                       MemorySemanticsAtomicCounterMemoryMask |
                                       MemorySemanticsImageMemoryMask);
 
@@ -95,7 +92,6 @@ public:
     void addImmediateOperand(unsigned int immediate) { operands.push_back(immediate); }
     void addStringOperand(const char* str)
     {
-        originalString = str;
         unsigned int word;
         char* wordString = (char*)&word;
         char* wordPtr = wordString;
@@ -128,7 +124,6 @@ public:
     Id getTypeId() const { return typeId; }
     Id getIdOperand(int op) const { return operands[op]; }
     unsigned int getImmediateOperand(int op) const { return operands[op]; }
-    const char* getStringOperand() const { return originalString.c_str(); }
 
     // Write out the binary form.
     void dump(std::vector<unsigned int>& out) const
@@ -159,7 +154,6 @@ protected:
     Id typeId;
     Op opCode;
     std::vector<Id> operands;
-    std::string originalString;        // could be optimized away; convenience for getting string operand
     Block* block;
 };
 
@@ -180,13 +174,11 @@ public:
     void addInstruction(std::unique_ptr<Instruction> inst);
     void addPredecessor(Block* pred) { predecessors.push_back(pred); pred->successors.push_back(this);}
     void addLocalVariable(std::unique_ptr<Instruction> inst) { localVariables.push_back(std::move(inst)); }
-    void insertInstruction(size_t pos, std::unique_ptr<Instruction> inst);
-
-    size_t getInstructionCount() { return instructions.size(); }
-    Instruction* getInstruction(size_t i) { return instructions[i].get(); }
-    void removeInstruction(size_t i) { instructions.erase(instructions.begin() + i); }
     const std::vector<Block*>& getPredecessors() const { return predecessors; }
     const std::vector<Block*>& getSuccessors() const { return successors; }
+    const std::vector<std::unique_ptr<Instruction> >& getInstructions() const {
+        return instructions;
+    }
     void setUnreachable() { unreachable = true; }
     bool isUnreachable() const { return unreachable; }
     // Returns the block's merge instruction, if one exists (otherwise null).
@@ -205,10 +197,6 @@ public:
 
     bool isTerminated() const
     {
-        if (instructions.size() == 0) {
-          return false;
-        }
-
         switch (instructions.back()->getOpCode()) {
         case OpBranch:
         case OpBranchConditional:
@@ -224,7 +212,6 @@ public:
 
     void dump(std::vector<unsigned int>& out) const
     {
-        // OpLabel
         instructions[0]->dump(out);
         for (int i = 0; i < (int)localVariables.size(); ++i)
             localVariables[i]->dump(out);
@@ -232,51 +219,7 @@ public:
             instructions[i]->dump(out);
     }
 
-    // Moves all instructions from a target block into this block, and removes
-    // the target block from our list of successors.
-    // This function assumes this block unconditionally branches to the target
-    // block directly.
-    void merge(Block* target_block) {
-      if (isTerminated()) {
-        instructions.erase(instructions.end() - 1);
-      }
-
-      // Find the target block in our successors first.
-      for (auto it = successors.begin(); it != successors.end(); ++it) {
-        if (*it == target_block) {
-          it = successors.erase(it);
-          break;
-        }
-      }
-
-      // Add target block's successors to our successors.
-      successors.insert(successors.end(), target_block->successors.begin(),
-                        target_block->successors.end());
-
-      // For each successor, replace the target block in their predecessors with
-      // us.
-      for (auto block : successors) {
-        std::replace(block->predecessors.begin(), block->predecessors.end(),
-                     target_block, this);
-      }
-
-      // Move instructions from target block into this block.
-      for (auto it = target_block->instructions.begin();
-           it != target_block->instructions.end();) {
-        if ((*it)->getOpCode() == spv::Op::OpLabel) {
-          ++it;
-          continue;
-        }
-
-        instructions.push_back(std::move(*it));
-        it = target_block->instructions.erase(it);
-      }
-
-      target_block->predecessors.clear();
-      target_block->successors.clear();
-    }
-
-   protected:
+protected:
     Block(const Block&);
     Block& operator=(Block&);
 
@@ -288,7 +231,7 @@ public:
     std::vector<std::unique_ptr<Instruction> > localVariables;
     Function& parent;
 
-    // track whether this block is known to be uncreachable (not necessarily 
+    // track whether this block is known to be uncreachable (not necessarily
     // true for all unreachable blocks, but should be set at least
     // for the extraneous ones introduced by the builder).
     bool unreachable;
@@ -329,19 +272,13 @@ public:
     Module& getParent() const { return parent; }
     Block* getEntryBlock() const { return blocks.front(); }
     Block* getLastBlock() const { return blocks.back(); }
-    Block* findBlockById(Id id)
-    {
-      for (auto block : blocks) {
-        if (block->getId() == id) {
-          return block;
-        }
-      }
-
-      return nullptr;
-    }
-    std::vector<Block*>& getBlocks() { return blocks; }
+    const std::vector<Block*>& getBlocks() const { return blocks; }
     void addLocalVariable(std::unique_ptr<Instruction> inst);
     Id getReturnType() const { return functionInstruction.getTypeId(); }
+
+    void setImplicitThis() { implicitThis = true; }
+    bool hasImplicitThis() const { return implicitThis; }
+
     void dump(std::vector<unsigned int>& out) const
     {
         // OpFunction
@@ -365,6 +302,7 @@ protected:
     Instruction functionInstruction;
     std::vector<Instruction*> parameterInstructions;
     std::vector<Block*> blocks;
+    bool implicitThis;  // true if this is a member function expecting to be passed a 'this' as the first argument
 };
 
 //
@@ -380,8 +318,6 @@ public:
     }
 
     void addFunction(Function *fun) { functions.push_back(fun); }
-    const std::vector<Function*>& getFunctions() const { return functions; }
-    std::vector<Function*>& getFunctions() { return functions; }
 
     void mapInstruction(Instruction *instruction)
     {
@@ -393,6 +329,7 @@ public:
     }
 
     Instruction* getInstruction(Id id) const { return idToInstruction[id]; }
+    const std::vector<Function*>& getFunctions() const { return functions; }
     spv::Id getTypeId(Id resultId) const { return idToInstruction[resultId]->getTypeId(); }
     StorageClass getStorageClass(Id typeId) const
     {
@@ -424,7 +361,7 @@ protected:
 // - the OpFunction instruction
 // - all the OpFunctionParameter instructions
 __inline Function::Function(Id id, Id resultType, Id functionType, Id firstParamId, Module& parent)
-    : parent(parent), functionInstruction(id, resultType, OpFunction)
+    : parent(parent), functionInstruction(id, resultType, OpFunction), implicitThis(false)
 {
     // OpFunction
     functionInstruction.addImmediateOperand(FunctionControlMaskNone);
@@ -460,14 +397,6 @@ __inline void Block::addInstruction(std::unique_ptr<Instruction> inst)
 {
     Instruction* raw_instruction = inst.get();
     instructions.push_back(std::move(inst));
-    raw_instruction->setBlock(this);
-    if (raw_instruction->getResultId())
-        parent.getParent().mapInstruction(raw_instruction);
-}
-
-__inline void Block::insertInstruction(size_t pos, std::unique_ptr<Instruction> inst) {
-    Instruction* raw_instruction = inst.get();
-    instructions.insert(instructions.begin() + pos, std::move(inst));
     raw_instruction->setBlock(this);
     if (raw_instruction->getResultId())
         parent.getParent().mapInstruction(raw_instruction);

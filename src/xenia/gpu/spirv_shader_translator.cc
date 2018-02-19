@@ -16,8 +16,6 @@
 #include <vector>
 
 #include "xenia/base/logging.h"
-#include "xenia/gpu/spirv/passes/control_flow_analysis_pass.h"
-#include "xenia/gpu/spirv/passes/control_flow_simplification_pass.h"
 
 DEFINE_bool(spv_validate, false, "Validate SPIR-V shaders after generation");
 DEFINE_bool(spv_disasm, false, "Disassemble SPIR-V shaders after generation");
@@ -33,16 +31,12 @@ using spv::GLSLstd450;
 using spv::Id;
 using spv::Op;
 
-SpirvShaderTranslator::SpirvShaderTranslator() {
-  compiler_.AddPass(std::make_unique<spirv::ControlFlowSimplificationPass>());
-  compiler_.AddPass(std::make_unique<spirv::ControlFlowAnalysisPass>());
-}
-
+SpirvShaderTranslator::SpirvShaderTranslator() {}
 SpirvShaderTranslator::~SpirvShaderTranslator() = default;
 
 void SpirvShaderTranslator::StartTranslation() {
   // Create a new builder.
-  builder_ = std::make_unique<spv::Builder>(0xFFFFFFFF);
+  builder_ = std::make_unique<spv::Builder>(SPV_VERSION, 0xFFFFFFFF, nullptr);
   auto& b = *builder_;
 
   // Import required modules.
@@ -225,69 +219,14 @@ void SpirvShaderTranslator::StartTranslation() {
   Id interpolators_type = b.makeArrayType(
       vec4_float_type_, b.makeUintConstant(kMaxInterpolators), 0);
   if (is_vertex_shader()) {
-    // Vertex inputs/outputs.
-    for (const auto& binding : vertex_bindings()) {
-      for (const auto& attrib : binding.attributes) {
-        Id attrib_type = 0;
-        bool is_signed = attrib.fetch_instr.attributes.is_signed;
-        bool is_integer = attrib.fetch_instr.attributes.is_integer;
-        switch (attrib.fetch_instr.attributes.data_format) {
-          case VertexFormat::k_32:
-          case VertexFormat::k_32_FLOAT:
-            attrib_type = float_type_;
-            break;
-          case VertexFormat::k_16_16:
-          case VertexFormat::k_32_32:
-            if (is_integer) {
-              attrib_type = is_signed ? vec2_int_type_ : vec2_uint_type_;
-              break;
-            }
-          // Intentionally fall through to float type.
-          case VertexFormat::k_16_16_FLOAT:
-          case VertexFormat::k_32_32_FLOAT:
-            attrib_type = vec2_float_type_;
-            break;
-          case VertexFormat::k_32_32_32_FLOAT:
-            attrib_type = vec3_float_type_;
-            break;
-          case VertexFormat::k_2_10_10_10:
-            attrib_type = vec4_float_type_;
-            break;
-          case VertexFormat::k_8_8_8_8:
-          case VertexFormat::k_16_16_16_16:
-          case VertexFormat::k_32_32_32_32:
-            if (is_integer) {
-              attrib_type = is_signed ? vec4_int_type_ : vec4_uint_type_;
-              break;
-            }
-          // Intentionally fall through to float type.
-          case VertexFormat::k_16_16_16_16_FLOAT:
-          case VertexFormat::k_32_32_32_32_FLOAT:
-            attrib_type = vec4_float_type_;
-            break;
-          case VertexFormat::k_10_11_11:
-          case VertexFormat::k_11_11_10:
-            // Manually converted.
-            attrib_type = is_signed ? int_type_ : uint_type_;
-            break;
-          default:
-            assert_always();
-        }
+    // Vertex inputs/outputs
+    // Inputs: 32 SSBOs on DS 2 binding 0
+    Id vtx_t = b.makeRuntimeArray(uint_type_);
+    Id vtx_a_t = b.makeArrayType(vtx_t, b.makeUintConstant(32), 0);
+    vtx_ = b.createVariable(spv::StorageClass::StorageClassUniform, vtx_a_t,
+                            "vertex_bindings");
 
-        auto attrib_var = b.createVariable(
-            spv::StorageClass::StorageClassInput, attrib_type,
-            xe::format_string("vf%d_%d", binding.fetch_constant,
-                              attrib.fetch_instr.attributes.offset)
-                .c_str());
-        b.addDecoration(attrib_var, spv::Decoration::DecorationLocation,
-                        attrib.attrib_index);
-
-        interface_ids_.push_back(attrib_var);
-        vertex_binding_map_[binding.fetch_constant]
-                           [attrib.fetch_instr.attributes.offset] = attrib_var;
-      }
-    }
-
+    // Outputs
     interpolators_ = b.createVariable(spv::StorageClass::StorageClassOutput,
                                       interpolators_type, "interpolators");
     b.addDecoration(interpolators_, spv::Decoration::DecorationLocation, 0);
@@ -421,7 +360,7 @@ void SpirvShaderTranslator::StartTranslation() {
 
     auto cond = b.createBinOp(spv::Op::OpINotEqual, bool_type_,
                               ps_param_gen_idx, b.makeUintConstant(-1));
-    spv::Builder::If ifb(cond, b);
+    spv::Builder::If ifb(cond, 0, b);
 
     // FYI: We do this instead of r[ps_param_gen_idx] because that causes
     // nvidia to move all registers into local memory (slow!)
@@ -458,7 +397,7 @@ void SpirvShaderTranslator::StartTranslation() {
   // While loop header block
   b.setBuildPoint(loop_head_block_);
   b.createLoopMerge(loop_exit_block_, loop_cont_block_,
-                    spv::LoopControlMask::LoopControlDontUnrollMask);
+                    spv::LoopControlMask::LoopControlDontUnrollMask, 0);
   b.createBranch(block);
 
   // Condition block
@@ -481,7 +420,8 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
   exec_skip_block_ = nullptr;
 
   // main() entry point.
-  auto mainFn = b.makeMain();
+  auto mainFn =
+      b.makeFunctionEntry(spv::NoPrecision, b.makeVoidType(), "main", {}, {});
   if (is_vertex_shader()) {
     auto entry = b.addEntryPoint(spv::ExecutionModel::ExecutionModelVertex,
                                  mainFn, "main");
@@ -570,12 +510,12 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
 
     auto cond = b.createBinOp(spv::Op::OpFOrdEqual, bool_type_,
                               alpha_test_enabled, b.makeFloatConstant(1.f));
-    spv::Builder::If alpha_if(cond, b);
+    spv::Builder::If alpha_if(cond, 0, b);
 
     std::vector<spv::Block*> switch_segments;
-    b.makeSwitch(alpha_test_func, 8, std::vector<int>({0, 1, 2, 3, 4, 5, 6, 7}),
-                 std::vector<int>({0, 1, 2, 3, 4, 5, 6, 7}), 7,
-                 switch_segments);
+    b.makeSwitch(
+        alpha_test_func, 0, 8, std::vector<int>({0, 1, 2, 3, 4, 5, 6, 7}),
+        std::vector<int>({0, 1, 2, 3, 4, 5, 6, 7}), 7, switch_segments);
 
     const static spv::Op alpha_op_map[] = {
         spv::Op::OpNop,
@@ -597,7 +537,7 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
       b.nextSwitchSegment(switch_segments, i);
       auto cond =
           b.createBinOp(alpha_op_map[i], bool_type_, oC0_alpha, alpha_test_ref);
-      spv::Builder::If discard_if(cond, b);
+      spv::Builder::If discard_if(cond, 0, b);
       b.makeDiscard();
       discard_if.makeEndIf();
       b.addSwitchBreak();
@@ -1475,7 +1415,8 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
         std::memset(&params, 0, sizeof(params));
         params.sampler = image;
         params.lod = b.makeIntConstant(0);
-        size = b.createTextureQueryCall(spv::Op::OpImageQuerySizeLod, params);
+        size = b.createTextureQueryCall(spv::Op::OpImageQuerySizeLod, params,
+                                        false);
 
         if (instr.dimension == TextureDimension::k1D) {
           size = b.createUnaryOp(spv::Op::OpConvertSToF, float_type_, size);
@@ -1563,8 +1504,8 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
           std::memset(&params, 0, sizeof(params));
           params.sampler = image;
           params.lod = b.makeIntConstant(0);
-          auto size =
-              b.createTextureQueryCall(spv::Op::OpImageQuerySizeLod, params);
+          auto size = b.createTextureQueryCall(spv::Op::OpImageQuerySizeLod,
+                                               params, true);
           size =
               b.createUnaryOp(spv::Op::OpConvertUToF, vec2_float_type_, size);
 
@@ -1624,7 +1565,7 @@ spv::Function* SpirvShaderTranslator::CreateCubeFunction() {
   spv::Block* function_block = nullptr;
   auto function = b.makeFunctionEntry(spv::NoPrecision, vec4_float_type_,
                                       "cube", {vec4_float_type_},
-                                      {spv::NoPrecision}, &function_block);
+                                      {{spv::NoPrecision}}, &function_block);
   auto src = function->getParamId(0);
   auto face_id = b.createVariable(spv::StorageClass::StorageClassFunction,
                                   float_type_, "face_id");
@@ -1685,7 +1626,7 @@ spv::Function* SpirvShaderTranslator::CreateCubeFunction() {
     auto x_gt_z = b.createBinOp(spv::Op::OpFOrdGreaterThan, bool_type_,
                                 abs_src_x, abs_src_z);
     auto c1 = b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, x_gt_y, x_gt_z);
-    spv::Builder::If if1(c1, b);
+    spv::Builder::If if1(c1, 0, b);
 
     //  sc =  abs(src).y
     b.createStore(abs_src_y, sc);
@@ -1720,7 +1661,7 @@ spv::Function* SpirvShaderTranslator::CreateCubeFunction() {
     auto y_gt_z = b.createBinOp(spv::Op::OpFOrdGreaterThan, bool_type_,
                                 abs_src_y, abs_src_z);
     auto c1 = b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, y_gt_x, y_gt_z);
-    spv::Builder::If if1(c1, b);
+    spv::Builder::If if1(c1, 0, b);
 
     //  tc = -abs(src).x
     b.createStore(neg_src_x, tc);
@@ -1755,7 +1696,7 @@ spv::Function* SpirvShaderTranslator::CreateCubeFunction() {
     auto z_gt_y = b.createBinOp(spv::Op::OpFOrdGreaterThan, bool_type_,
                                 abs_src_z, abs_src_y);
     auto c1 = b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, z_gt_x, z_gt_y);
-    spv::Builder::If if1(c1, b);
+    spv::Builder::If if1(c1, 0, b);
 
     //  tc = -abs(src).x
     b.createStore(neg_src_x, tc);

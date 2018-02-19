@@ -1,5 +1,5 @@
 //
-// Copyright (C) 2014 LunarG, Inc.
+// Copyright (C) 2016 Google, Inc.
 //
 // All rights reserved.
 //
@@ -15,7 +15,7 @@
 //    disclaimer in the documentation and/or other materials provided
 //    with the distribution.
 //
-//    Neither the name of 3Dlabs Inc. Ltd. nor the names of its
+//    Neither the name of Google Inc. nor the names of its
 //    contributors may be used to endorse or promote products derived
 //    from this software without specific prior written permission.
 //
@@ -32,36 +32,43 @@
 // ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-#pragma once
-
-#if _MSC_VER >= 1900
-    #pragma warning(disable : 4464) // relative include path contains '..'
-#endif
-
-#include "../glslang/Include/intermediate.h"
+#ifndef GLSLANG_SPIRV_LOGGER_H
+#define GLSLANG_SPIRV_LOGGER_H
 
 #include <string>
 #include <vector>
 
-#include "Logger.h"
+namespace spv {
 
-namespace glslang {
+// A class for holding all SPIR-V build status messages, including
+// missing/TBD functionalities, warnings, and errors.
+class SpvBuildLogger {
+public:
+    SpvBuildLogger() {}
 
-struct SpvOptions {
-    SpvOptions() : generateDebugInfo(false), disableOptimizer(true),
-        optimizeSize(false) { }
-    bool generateDebugInfo;
-    bool disableOptimizer;
-    bool optimizeSize;
+    // Registers a TBD functionality.
+    void tbdFunctionality(const std::string& f);
+    // Registers a missing functionality.
+    void missingFunctionality(const std::string& f);
+
+    // Logs a warning.
+    void warning(const std::string& w) { warnings.push_back(w); }
+    // Logs an error.
+    void error(const std::string& e) { errors.push_back(e); }
+
+    // Returns all messages accumulated in the order of:
+    // TBD functionalities, missing functionalities, warnings, errors.
+    std::string getAllMessages() const;
+
+private:
+    SpvBuildLogger(const SpvBuildLogger&);
+
+    std::vector<std::string> tbdFeatures;
+    std::vector<std::string> missingFeatures;
+    std::vector<std::string> warnings;
+    std::vector<std::string> errors;
 };
 
-void GetSpirvVersion(std::string&);
-int GetSpirvGeneratorVersion();
-void GlslangToSpv(const glslang::TIntermediate& intermediate, std::vector<unsigned int>& spirv,
-                  SpvOptions* options = nullptr);
-void GlslangToSpv(const glslang::TIntermediate& intermediate, std::vector<unsigned int>& spirv,
-                  spv::SpvBuildLogger* logger, SpvOptions* options = nullptr);
-void OutputSpvBin(const std::vector<unsigned int>& spirv, const char* baseName);
-void OutputSpvHex(const std::vector<unsigned int>& spirv, const char* baseName, const char* varName);
+} // end spv namespace
 
-}
+#endif // GLSLANG_SPIRV_LOGGER_H
