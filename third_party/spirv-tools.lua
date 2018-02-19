@@ -69,3 +69,7 @@ project("spirv-tools")
     "spirv-tools/source/util/bitutils.h",
     "spirv-tools/source/util/hex_float.h",
   })
+  filter("platforms:Windows")
+    buildoptions({
+      "/wd4800",  -- Forcing value to bool 'true' or 'false'
+    })
