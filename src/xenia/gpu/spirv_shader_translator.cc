@@ -236,7 +236,8 @@ void SpirvShaderTranslator::StartTranslation() {
     b.addMemberDecoration(vtx_s, 0, spv::Decoration::DecorationOffset, 0);
 
     // Create the vertex bindings variable.
-    Id vtx_a_t = b.makeArrayType(vtx_s, b.makeUintConstant(32), 0);
+    Id vtx_a_t = b.makeArrayType(
+        vtx_s, b.makeUintConstant(uint32_t(vertex_bindings().size())), 0);
     vtx_ = b.createVariable(spv::StorageClass::StorageClassUniform, vtx_a_t,
                             "vertex_bindings");
 
