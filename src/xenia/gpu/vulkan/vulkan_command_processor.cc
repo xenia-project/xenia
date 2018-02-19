@@ -689,7 +689,7 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
   }
 
   // Upload and bind all vertex buffer data.
-  if (!PopulateVertexBuffers(command_buffer, vertex_shader)) {
+  if (!PopulateVertexBuffers(command_buffer, setup_buffer, vertex_shader)) {
     return false;
   }
 
@@ -810,7 +810,8 @@ bool VulkanCommandProcessor::PopulateIndexBuffer(
 }
 
 bool VulkanCommandProcessor::PopulateVertexBuffers(
-    VkCommandBuffer command_buffer, VulkanShader* vertex_shader) {
+    VkCommandBuffer command_buffer, VkCommandBuffer setup_buffer,
+    VulkanShader* vertex_shader) {
   auto& regs = *register_file_;
 
 #if FINE_GRAINED_DRAW_SCOPES
@@ -825,7 +826,7 @@ bool VulkanCommandProcessor::PopulateVertexBuffers(
 
   assert_true(vertex_bindings.size() <= 32);
   auto descriptor_set = buffer_cache_->PrepareVertexSet(
-      command_buffer, current_batch_fence_, vertex_bindings);
+      setup_buffer, current_batch_fence_, vertex_bindings);
 
   vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                           pipeline_cache_->pipeline_layout(), 2, 1,
