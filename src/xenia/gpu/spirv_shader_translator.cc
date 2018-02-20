@@ -1395,7 +1395,14 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
                                             vertex_data);
           }
         } else {
-          // TODO(DrChat)
+          if (instr.attributes.is_signed) {
+            // TODO(DrChat): This is gonna be harder to convert. There's not
+            // enough precision in a float to shove INT_MAX into it.
+            assert_always();
+            components[i] = b.makeFloatConstant(0.f);
+          } else {
+            components[i] = ConvertNormVar(vertex_data, uint_type_, 32, false);
+          }
         }
       }
 
@@ -1423,7 +1430,14 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
                                             vertex_data);
           }
         } else {
-          // TODO(DrChat)
+          if (instr.attributes.is_signed) {
+            // TODO(DrChat): This is gonna be harder to convert. There's not
+            // enough precision in a float to shove INT_MAX into it.
+            assert_always();
+            components[i] = b.makeFloatConstant(0.f);
+          } else {
+            components[i] = ConvertNormVar(vertex_data, uint_type_, 32, false);
+          }
         }
       }
 
@@ -1451,7 +1465,14 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
                                             vertex_data);
           }
         } else {
-          // TODO(DrChat)
+          if (instr.attributes.is_signed) {
+            // TODO(DrChat): This is gonna be harder to convert. There's not
+            // enough precision in a float to shove INT_MAX into it.
+            assert_always();
+            components[i] = b.makeFloatConstant(0.f);
+          } else {
+            components[i] = ConvertNormVar(vertex_data, uint_type_, 32, false);
+          }
         }
       }
 
