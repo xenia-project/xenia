@@ -12,6 +12,7 @@
 #include <gflags/gflags.h>
 
 #include <cfloat>
+#include <cstddef>
 #include <cstring>
 #include <vector>
 
