@@ -20,8 +20,10 @@
 #include "xenia/ui/vulkan/vulkan_device.h"
 
 #include "third_party/vulkan/vk_mem_alloc.h"
+#include "third_party/xxhash/xxhash.h"
 
 #include <map>
+#include <unordered_map>
 
 namespace xe {
 namespace gpu {
@@ -89,7 +91,7 @@ class BufferCache {
   // Prepares and returns a vertex descriptor set.
   VkDescriptorSet PrepareVertexSet(
       VkCommandBuffer setup_buffer, VkFence fence,
-      std::vector<Shader::VertexBinding> vertex_bindings);
+      const std::vector<Shader::VertexBinding>& vertex_bindings);
 
   // Flushes all pending data to the GPU.
   // Until this is called the GPU is not guaranteed to see any data.
@@ -124,6 +126,10 @@ class BufferCache {
   VkResult CreateConstantDescriptorSet();
   void FreeConstantDescriptorSet();
 
+  void HashVertexBindings(
+      XXH64_state_t* hash_state,
+      const std::vector<Shader::VertexBinding>& vertex_bindings);
+
   // Allocates a block of memory in the transient buffer.
   // When memory is not available fences are checked and space is reclaimed.
   // Returns VK_WHOLE_SIZE if requested amount of memory is not available.
@@ -154,6 +160,9 @@ class BufferCache {
   // Vertex buffer descriptors
   std::unique_ptr<ui::vulkan::DescriptorPool> vertex_descriptor_pool_ = nullptr;
   VkDescriptorSetLayout vertex_descriptor_set_layout_ = nullptr;
+
+  // Current frame vertex sets.
+  std::unordered_map<uint64_t, VkDescriptorSet> vertex_sets_;
 
   // Descriptor set used to hold vertex/pixel shader float constants
   VkDescriptorPool constant_descriptor_pool_ = nullptr;

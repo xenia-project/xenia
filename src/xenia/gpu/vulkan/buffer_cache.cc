@@ -543,9 +543,46 @@ std::pair<VkBuffer, VkDeviceSize> BufferCache::UploadVertexBuffer(
   return {transient_buffer_->gpu_buffer(), offset + source_offset};
 }
 
+void BufferCache::HashVertexBindings(
+    XXH64_state_t* hash_state,
+    const std::vector<Shader::VertexBinding>& vertex_bindings) {
+  auto& regs = *register_file_;
+  for (const auto& vertex_binding : vertex_bindings) {
+    int r = XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 +
+            (vertex_binding.fetch_constant / 3) * 6;
+    const auto group = reinterpret_cast<xe_gpu_fetch_group_t*>(&regs.values[r]);
+    const xe_gpu_vertex_fetch_t* fetch = nullptr;
+    switch (vertex_binding.fetch_constant % 3) {
+      case 0:
+        fetch = &group->vertex_fetch_0;
+        break;
+      case 1:
+        fetch = &group->vertex_fetch_1;
+        break;
+      case 2:
+        fetch = &group->vertex_fetch_2;
+        break;
+    }
+
+    XXH64_update(hash_state, fetch, sizeof(fetch));
+  }
+}
+
 VkDescriptorSet BufferCache::PrepareVertexSet(
     VkCommandBuffer command_buffer, VkFence fence,
-    std::vector<Shader::VertexBinding> vertex_bindings) {
+    const std::vector<Shader::VertexBinding>& vertex_bindings) {
+  // (quickly) Generate a hash.
+  XXH64_state_t hash_state;
+  XXH64_reset(&hash_state, 0);
+
+  // (quickly) Generate a hash.
+  HashVertexBindings(&hash_state, vertex_bindings);
+  uint64_t hash = XXH64_digest(&hash_state);
+  for (auto it = vertex_sets_.find(hash); it != vertex_sets_.end(); ++it) {
+    // TODO(DrChat): We need to compare the bindings and ensure they're equal.
+    return it->second;
+  }
+
   if (!vertex_descriptor_pool_->has_open_batch()) {
     vertex_descriptor_pool_->BeginBatch(fence);
   }
@@ -621,6 +658,7 @@ VkDescriptorSet BufferCache::PrepareVertexSet(
   }
 
   vkUpdateDescriptorSets(*device_, 1, &descriptor_write, 0, nullptr);
+  vertex_sets_[hash] = set;
   return set;
 }
 
@@ -718,6 +756,10 @@ void BufferCache::ClearCache() { transient_cache_.clear(); }
 void BufferCache::Scavenge() {
   transient_cache_.clear();
   transient_buffer_->Scavenge();
+
+  // TODO(DrChat): These could persist across frames, we just need a smart way
+  // to delete unused ones.
+  vertex_sets_.clear();
   if (vertex_descriptor_pool_->has_open_batch()) {
     vertex_descriptor_pool_->EndBatch();
   }
