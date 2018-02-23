@@ -189,32 +189,42 @@ void SpirvShaderTranslator::StartTranslation() {
   push_consts_ = b.createVariable(spv::StorageClass::StorageClassPushConstant,
                                   push_constants_type, "push_consts");
 
-  image_2d_type_ =
-      b.makeImageType(float_type_, spv::Dim::Dim2D, false, false, false, 1,
-                      spv::ImageFormat::ImageFormatUnknown);
-  image_3d_type_ =
-      b.makeImageType(float_type_, spv::Dim::Dim3D, false, false, false, 1,
-                      spv::ImageFormat::ImageFormatUnknown);
-  image_cube_type_ =
-      b.makeImageType(float_type_, spv::Dim::DimCube, false, false, false, 1,
-                      spv::ImageFormat::ImageFormatUnknown);
+  if (!texture_bindings().empty()) {
+    image_2d_type_ =
+        b.makeImageType(float_type_, spv::Dim::Dim2D, false, false, false, 1,
+                        spv::ImageFormat::ImageFormatUnknown);
+    image_3d_type_ =
+        b.makeImageType(float_type_, spv::Dim::Dim3D, false, false, false, 1,
+                        spv::ImageFormat::ImageFormatUnknown);
+    image_cube_type_ =
+        b.makeImageType(float_type_, spv::Dim::DimCube, false, false, false, 1,
+                        spv::ImageFormat::ImageFormatUnknown);
 
-  // Texture bindings
-  Id tex_t[] = {b.makeSampledImageType(image_2d_type_),
-                b.makeSampledImageType(image_3d_type_),
-                b.makeSampledImageType(image_cube_type_)};
+    // Texture bindings
+    Id tex_t[] = {b.makeSampledImageType(image_2d_type_),
+                  b.makeSampledImageType(image_3d_type_),
+                  b.makeSampledImageType(image_cube_type_)};
 
-  Id tex_a_t[] = {b.makeArrayType(tex_t[0], b.makeUintConstant(32), 0),
-                  b.makeArrayType(tex_t[1], b.makeUintConstant(32), 0),
-                  b.makeArrayType(tex_t[2], b.makeUintConstant(32), 0)};
+    uint32_t num_tex_bindings = uint32_t(texture_bindings().size());
+    Id tex_a_t[] = {
+        b.makeArrayType(tex_t[0], b.makeUintConstant(num_tex_bindings), 0),
+        b.makeArrayType(tex_t[1], b.makeUintConstant(num_tex_bindings), 0),
+        b.makeArrayType(tex_t[2], b.makeUintConstant(num_tex_bindings), 0)};
 
-  // Create 3 texture types, all aliased on the same binding
-  for (int i = 0; i < 3; i++) {
-    tex_[i] = b.createVariable(spv::StorageClass::StorageClassUniformConstant,
-                               tex_a_t[i],
-                               xe::format_string("textures%dD", i + 2).c_str());
-    b.addDecoration(tex_[i], spv::Decoration::DecorationDescriptorSet, 1);
-    b.addDecoration(tex_[i], spv::Decoration::DecorationBinding, 0);
+    // Create 3 texture types, all aliased on the same binding
+    for (int i = 0; i < 3; i++) {
+      tex_[i] = b.createVariable(
+          spv::StorageClass::StorageClassUniformConstant, tex_a_t[i],
+          xe::format_string("textures%dD", i + 2).c_str());
+      b.addDecoration(tex_[i], spv::Decoration::DecorationDescriptorSet, 1);
+      b.addDecoration(tex_[i], spv::Decoration::DecorationBinding, 0);
+    }
+
+    // Set up the map from binding -> ssbo index
+    for (const auto& binding : texture_bindings()) {
+      tex_binding_map_[binding.fetch_constant] =
+          uint32_t(binding.binding_index);
+    }
   }
 
   // Interpolators.
@@ -1760,7 +1770,8 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
 
   switch (instr.opcode) {
     case FetchOpcode::kTextureFetch: {
-      auto texture_index = b.makeUintConstant(instr.operands[1].storage_index);
+      auto texture_index =
+          b.makeUintConstant(tex_binding_map_[instr.operands[1].storage_index]);
       auto texture_ptr =
           b.createAccessChain(spv::StorageClass::StorageClassUniformConstant,
                               tex_[dim_idx], std::vector<Id>({texture_index}));
@@ -1829,7 +1840,8 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
                                  false, false, false, false, params);
     } break;
     case FetchOpcode::kGetTextureGradients: {
-      auto texture_index = b.makeUintConstant(instr.operands[2].storage_index);
+      auto texture_index =
+          b.makeUintConstant(tex_binding_map_[instr.operands[2].storage_index]);
       auto texture_ptr =
           b.createAccessChain(spv::StorageClass::StorageClassUniformConstant,
                               tex_[dim_idx], std::vector<Id>({texture_index}));
@@ -1849,7 +1861,8 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
     } break;
     case FetchOpcode::kGetTextureWeights: {
       // fract(src0 * textureSize);
-      auto texture_index = b.makeUintConstant(instr.operands[1].storage_index);
+      auto texture_index =
+          b.makeUintConstant(tex_binding_map_[instr.operands[1].storage_index]);
       auto texture_ptr =
           b.createAccessChain(spv::StorageClass::StorageClassUniformConstant,
                               tex_[dim_idx], std::vector<Id>({texture_index}));

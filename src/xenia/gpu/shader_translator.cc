@@ -54,7 +54,9 @@ void ShaderTranslator::Reset() {
   register_count_ = 64;
   total_attrib_count_ = 0;
   vertex_bindings_.clear();
+  unique_vertex_bindings_ = 0;
   texture_bindings_.clear();
+  unique_texture_bindings_ = 0;
   std::memset(&constant_register_map_, 0, sizeof(constant_register_map_));
   for (size_t i = 0; i < xe::countof(writes_color_targets_); ++i) {
     writes_color_targets_[i] = false;
@@ -300,7 +302,7 @@ void ShaderTranslator::GatherVertexBindingInformation(
   if (!attrib) {
     assert_not_zero(fetch_instr.attributes.stride);
     VertexBinding vertex_binding;
-    vertex_binding.binding_index = static_cast<int>(vertex_bindings_.size());
+    vertex_binding.binding_index = int(vertex_bindings_.size());
     vertex_binding.fetch_constant = op.fetch_constant_index();
     vertex_binding.stride_words = fetch_instr.attributes.stride;
     vertex_binding.attributes.push_back({});
@@ -328,9 +330,23 @@ void ShaderTranslator::GatherTextureBindingInformation(
       break;
   }
   Shader::TextureBinding binding;
-  binding.binding_index = texture_bindings_.size();
+  binding.binding_index = -1;
   ParseTextureFetchInstruction(op, &binding.fetch_instr);
   binding.fetch_constant = binding.fetch_instr.operands[1].storage_index;
+
+  // Check and see if this fetch constant was previously used...
+  for (auto& tex_binding : texture_bindings_) {
+    if (tex_binding.fetch_constant == binding.fetch_constant) {
+      binding.binding_index = tex_binding.binding_index;
+      break;
+    }
+  }
+
+  if (binding.binding_index == -1) {
+    // Assign a unique binding index.
+    binding.binding_index = unique_texture_bindings_++;
+  }
+
   texture_bindings_.emplace_back(std::move(binding));
 }
 

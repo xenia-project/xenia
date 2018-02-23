@@ -1442,11 +1442,14 @@ bool TextureCache::SetupTextureBinding(VkCommandBuffer command_buffer,
       &update_set_info->image_writes[update_set_info->image_write_count];
   update_set_info->image_write_count++;
 
+  // Sanity check, we only have 32 binding slots.
+  assert(binding.binding_index < 32);
+
   image_write->sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
   image_write->pNext = nullptr;
   // image_write->dstSet is set later...
   image_write->dstBinding = 0;
-  image_write->dstArrayElement = binding.fetch_constant;
+  image_write->dstArrayElement = uint32_t(binding.binding_index);
   image_write->descriptorCount = 1;
   image_write->descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
   image_write->pImageInfo = image_info;
