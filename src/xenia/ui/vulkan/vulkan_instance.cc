@@ -330,10 +330,14 @@ void VulkanInstance::EnableDebugValidation() {
       VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_DEBUG_BIT_EXT;
   create_info.pfnCallback = &DebugMessageCallback;
   create_info.pUserData = this;
-  auto err = vk_create_debug_report_callback_ext(handle, &create_info, nullptr,
-                                                 &dbg_report_callback_);
-  CheckResult(err, "vkCreateDebugReportCallbackEXT");
-  XELOGVK("Debug validation layer enabled");
+  auto status = vk_create_debug_report_callback_ext(
+      handle, &create_info, nullptr, &dbg_report_callback_);
+  if (status == VK_SUCCESS) {
+    XELOGVK("Debug validation layer enabled");
+  } else {
+    XELOGVK("Debug validation layer failed to install; error %s",
+            to_string(status));
+  }
 }
 
 void VulkanInstance::DisableDebugValidation() {
