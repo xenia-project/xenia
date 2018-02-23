@@ -35,7 +35,7 @@ using xe::ui::vulkan::CheckResult;
 
 PipelineCache::PipelineCache(RegisterFile* register_file,
                              ui::vulkan::VulkanDevice* device)
-    : register_file_(register_file), device_(*device) {
+    : register_file_(register_file), device_(device) {
   // We can also use the GLSL translator with a Vulkan dialect.
   shader_translator_.reset(new SpirvShaderTranslator());
 }
@@ -58,7 +58,7 @@ VkResult PipelineCache::Initialize(
   pipeline_cache_info.flags = 0;
   pipeline_cache_info.initialDataSize = 0;
   pipeline_cache_info.pInitialData = nullptr;
-  status = vkCreatePipelineCache(device_, &pipeline_cache_info, nullptr,
+  status = vkCreatePipelineCache(*device_, &pipeline_cache_info, nullptr,
                                  &pipeline_cache_);
   if (status != VK_SUCCESS) {
     return status;
@@ -96,7 +96,7 @@ VkResult PipelineCache::Initialize(
   pipeline_layout_info.pushConstantRangeCount =
       static_cast<uint32_t>(xe::countof(push_constant_ranges));
   pipeline_layout_info.pPushConstantRanges = push_constant_ranges;
-  status = vkCreatePipelineLayout(device_, &pipeline_layout_info, nullptr,
+  status = vkCreatePipelineLayout(*device_, &pipeline_layout_info, nullptr,
                                   &pipeline_layout_);
   if (status != VK_SUCCESS) {
     return status;
@@ -113,7 +113,7 @@ VkResult PipelineCache::Initialize(
       static_cast<uint32_t>(sizeof(line_quad_list_geom));
   shader_module_info.pCode =
       reinterpret_cast<const uint32_t*>(line_quad_list_geom);
-  status = vkCreateShaderModule(device_, &shader_module_info, nullptr,
+  status = vkCreateShaderModule(*device_, &shader_module_info, nullptr,
                                 &geometry_shaders_.line_quad_list);
   if (status != VK_SUCCESS) {
     return status;
@@ -121,7 +121,7 @@ VkResult PipelineCache::Initialize(
 
   shader_module_info.codeSize = static_cast<uint32_t>(sizeof(point_list_geom));
   shader_module_info.pCode = reinterpret_cast<const uint32_t*>(point_list_geom);
-  status = vkCreateShaderModule(device_, &shader_module_info, nullptr,
+  status = vkCreateShaderModule(*device_, &shader_module_info, nullptr,
                                 &geometry_shaders_.point_list);
   if (status != VK_SUCCESS) {
     return status;
@@ -129,7 +129,7 @@ VkResult PipelineCache::Initialize(
 
   shader_module_info.codeSize = static_cast<uint32_t>(sizeof(quad_list_geom));
   shader_module_info.pCode = reinterpret_cast<const uint32_t*>(quad_list_geom);
-  status = vkCreateShaderModule(device_, &shader_module_info, nullptr,
+  status = vkCreateShaderModule(*device_, &shader_module_info, nullptr,
                                 &geometry_shaders_.quad_list);
   if (status != VK_SUCCESS) {
     return status;
@@ -137,7 +137,7 @@ VkResult PipelineCache::Initialize(
 
   shader_module_info.codeSize = static_cast<uint32_t>(sizeof(rect_list_geom));
   shader_module_info.pCode = reinterpret_cast<const uint32_t*>(rect_list_geom);
-  status = vkCreateShaderModule(device_, &shader_module_info, nullptr,
+  status = vkCreateShaderModule(*device_, &shader_module_info, nullptr,
                                 &geometry_shaders_.rect_list);
   if (status != VK_SUCCESS) {
     return status;
@@ -145,7 +145,7 @@ VkResult PipelineCache::Initialize(
 
   shader_module_info.codeSize = static_cast<uint32_t>(sizeof(dummy_frag));
   shader_module_info.pCode = reinterpret_cast<const uint32_t*>(dummy_frag);
-  status = vkCreateShaderModule(device_, &shader_module_info, nullptr,
+  status = vkCreateShaderModule(*device_, &shader_module_info, nullptr,
                                 &dummy_pixel_shader_);
   if (status != VK_SUCCESS) {
     return status;
@@ -157,38 +157,38 @@ VkResult PipelineCache::Initialize(
 void PipelineCache::Shutdown() {
   // Destroy all pipelines.
   for (auto it : cached_pipelines_) {
-    vkDestroyPipeline(device_, it.second, nullptr);
+    vkDestroyPipeline(*device_, it.second, nullptr);
   }
   cached_pipelines_.clear();
 
   // Destroy geometry shaders.
   if (geometry_shaders_.line_quad_list) {
-    vkDestroyShaderModule(device_, geometry_shaders_.line_quad_list, nullptr);
+    vkDestroyShaderModule(*device_, geometry_shaders_.line_quad_list, nullptr);
     geometry_shaders_.line_quad_list = nullptr;
   }
   if (geometry_shaders_.point_list) {
-    vkDestroyShaderModule(device_, geometry_shaders_.point_list, nullptr);
+    vkDestroyShaderModule(*device_, geometry_shaders_.point_list, nullptr);
     geometry_shaders_.point_list = nullptr;
   }
   if (geometry_shaders_.quad_list) {
-    vkDestroyShaderModule(device_, geometry_shaders_.quad_list, nullptr);
+    vkDestroyShaderModule(*device_, geometry_shaders_.quad_list, nullptr);
     geometry_shaders_.quad_list = nullptr;
   }
   if (geometry_shaders_.rect_list) {
-    vkDestroyShaderModule(device_, geometry_shaders_.rect_list, nullptr);
+    vkDestroyShaderModule(*device_, geometry_shaders_.rect_list, nullptr);
     geometry_shaders_.rect_list = nullptr;
   }
   if (dummy_pixel_shader_) {
-    vkDestroyShaderModule(device_, dummy_pixel_shader_, nullptr);
+    vkDestroyShaderModule(*device_, dummy_pixel_shader_, nullptr);
     dummy_pixel_shader_ = nullptr;
   }
 
   if (pipeline_layout_) {
-    vkDestroyPipelineLayout(device_, pipeline_layout_, nullptr);
+    vkDestroyPipelineLayout(*device_, pipeline_layout_, nullptr);
     pipeline_layout_ = nullptr;
   }
   if (pipeline_cache_) {
-    vkDestroyPipelineCache(device_, pipeline_cache_, nullptr);
+    vkDestroyPipelineCache(*device_, pipeline_cache_, nullptr);
     pipeline_cache_ = nullptr;
   }
 
@@ -322,7 +322,7 @@ VkPipeline PipelineCache::GetPipeline(const RenderState* render_state,
   pipeline_info.basePipelineHandle = nullptr;
   pipeline_info.basePipelineIndex = -1;
   VkPipeline pipeline = nullptr;
-  auto result = vkCreateGraphicsPipelines(device_, pipeline_cache_, 1,
+  auto result = vkCreateGraphicsPipelines(*device_, pipeline_cache_, 1,
                                           &pipeline_info, nullptr, &pipeline);
   if (result != VK_SUCCESS) {
     XELOGE("vkCreateGraphicsPipelines failed with code %d", result);
@@ -385,22 +385,22 @@ void PipelineCache::DumpShaderDisasmNV(
   pipeline_cache_info.flags = 0;
   pipeline_cache_info.initialDataSize = 0;
   pipeline_cache_info.pInitialData = nullptr;
-  auto status = vkCreatePipelineCache(device_, &pipeline_cache_info, nullptr,
+  auto status = vkCreatePipelineCache(*device_, &pipeline_cache_info, nullptr,
                                       &dummy_pipeline_cache);
   CheckResult(status, "vkCreatePipelineCache");
 
   // Create a pipeline on the dummy cache and dump it.
   VkPipeline dummy_pipeline;
-  status = vkCreateGraphicsPipelines(device_, dummy_pipeline_cache, 1,
+  status = vkCreateGraphicsPipelines(*device_, dummy_pipeline_cache, 1,
                                      &pipeline_info, nullptr, &dummy_pipeline);
 
   std::vector<uint8_t> pipeline_data;
   size_t data_size = 0;
-  status = vkGetPipelineCacheData(device_, dummy_pipeline_cache, &data_size,
+  status = vkGetPipelineCacheData(*device_, dummy_pipeline_cache, &data_size,
                                   nullptr);
   if (status == VK_SUCCESS) {
     pipeline_data.resize(data_size);
-    vkGetPipelineCacheData(device_, dummy_pipeline_cache, &data_size,
+    vkGetPipelineCacheData(*device_, dummy_pipeline_cache, &data_size,
                            pipeline_data.data());
 
     // Scan the data for the disassembly.
@@ -457,8 +457,8 @@ void PipelineCache::DumpShaderDisasmNV(
            disasm_fp.c_str());
   }
 
-  vkDestroyPipeline(device_, dummy_pipeline, nullptr);
-  vkDestroyPipelineCache(device_, dummy_pipeline_cache, nullptr);
+  vkDestroyPipeline(*device_, dummy_pipeline, nullptr);
+  vkDestroyPipelineCache(*device_, dummy_pipeline_cache, nullptr);
 }
 
 VkShaderModule PipelineCache::GetGeometryShader(PrimitiveType primitive_type,

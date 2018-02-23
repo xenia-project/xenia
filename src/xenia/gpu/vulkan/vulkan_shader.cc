@@ -12,6 +12,7 @@
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
+#include "xenia/ui/vulkan/vulkan_device.h"
 #include "xenia/ui/vulkan/vulkan_util.h"
 
 namespace xe {
@@ -20,14 +21,14 @@ namespace vulkan {
 
 using xe::ui::vulkan::CheckResult;
 
-VulkanShader::VulkanShader(VkDevice device, ShaderType shader_type,
-                           uint64_t data_hash, const uint32_t* dword_ptr,
-                           uint32_t dword_count)
+VulkanShader::VulkanShader(ui::vulkan::VulkanDevice* device,
+                           ShaderType shader_type, uint64_t data_hash,
+                           const uint32_t* dword_ptr, uint32_t dword_count)
     : Shader(shader_type, data_hash, dword_ptr, dword_count), device_(device) {}
 
 VulkanShader::~VulkanShader() {
   if (shader_module_) {
-    vkDestroyShaderModule(device_, shader_module_, nullptr);
+    vkDestroyShaderModule(*device_, shader_module_, nullptr);
     shader_module_ = nullptr;
   }
 }
@@ -45,9 +46,12 @@ bool VulkanShader::Prepare() {
   shader_info.pCode =
       reinterpret_cast<const uint32_t*>(translated_binary_.data());
   auto status =
-      vkCreateShaderModule(device_, &shader_info, nullptr, &shader_module_);
+      vkCreateShaderModule(*device_, &shader_info, nullptr, &shader_module_);
   CheckResult(status, "vkCreateShaderModule");
 
+  device_->DbgSetObjectName(uint64_t(shader_module_),
+                            VK_DEBUG_REPORT_OBJECT_TYPE_SHADER_MODULE_EXT,
+                            xe::format_string("%.16llX", ucode_data_hash()));
   return status == VK_SUCCESS;
 }
 
