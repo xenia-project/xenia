@@ -11,6 +11,7 @@
 
 #include <gflags/gflags.h>
 
+#include <algorithm>
 #include <cfloat>
 #include <cstddef>
 #include <cstring>
@@ -205,7 +206,13 @@ void SpirvShaderTranslator::StartTranslation() {
                   b.makeSampledImageType(image_3d_type_),
                   b.makeSampledImageType(image_cube_type_)};
 
-    uint32_t num_tex_bindings = uint32_t(texture_bindings().size());
+    uint32_t num_tex_bindings = 0;
+    for (const auto& binding : texture_bindings()) {
+      // Calculate the highest binding index.
+      num_tex_bindings =
+          std::max(num_tex_bindings, uint32_t(binding.binding_index + 1));
+    }
+
     Id tex_a_t[] = {
         b.makeArrayType(tex_t[0], b.makeUintConstant(num_tex_bindings), 0),
         b.makeArrayType(tex_t[1], b.makeUintConstant(num_tex_bindings), 0),
@@ -3287,10 +3294,13 @@ void SpirvShaderTranslator::StoreToResult(Id source_value_id,
   if (result.is_clamped) {
     source_value_id = CreateGlslStd450InstructionCall(
         spv::NoPrecision, source_type, spv::GLSLstd450::kFClamp,
-        {source_value_id, b.makeFloatConstant(0.0), b.makeFloatConstant(1.0)});
+        {source_value_id,
+         b.smearScalar(spv::NoPrecision, b.makeFloatConstant(0.f), source_type),
+         b.smearScalar(spv::NoPrecision, b.makeFloatConstant(1.f),
+                       source_type)});
   }
 
-  // swizzle
+  // destination swizzle
   if (!result.is_standard_swizzle() && !source_is_scalar) {
     std::vector<uint32_t> operands;
     operands.push_back(source_value_id);
@@ -3301,7 +3311,7 @@ void SpirvShaderTranslator::StoreToResult(Id source_value_id,
     // Components start from left and are duplicated rightwards
     // e.g. count = 1, xxxx / count = 2, xyyy ...
     uint32_t source_components = b.getNumComponents(source_value_id);
-    for (int i = 0; i < b.getNumTypeComponents(storage_type); i++) {
+    for (int i = 0; i < 4; i++) {
       if (!result.write_mask[i]) {
         // Undefined / don't care.
         operands.push_back(0);
@@ -3332,11 +3342,11 @@ void SpirvShaderTranslator::StoreToResult(Id source_value_id,
     }
 
     source_value_id =
-        b.createOp(spv::Op::OpVectorShuffle, storage_type, operands);
+        b.createOp(spv::Op::OpVectorShuffle, vec4_float_type_, operands);
   }
 
   // write mask
-  if (!result.has_all_writes() && !source_is_scalar) {
+  if (!result.has_all_writes() && !source_is_scalar && !storage_is_scalar) {
     std::vector<uint32_t> operands;
     operands.push_back(source_value_id);
     operands.push_back(storage_value);
@@ -3365,6 +3375,17 @@ void SpirvShaderTranslator::StoreToResult(Id source_value_id,
       }
       source_value_id = b.createCompositeInsert(source_value_id, storage_value,
                                                 storage_type, index);
+    }
+  } else if (!source_is_scalar && storage_is_scalar) {
+    // Num writes /needs/ to be 1, and let's assume it's the first element.
+    assert_true(result.num_writes() == 1);
+
+    for (uint32_t i = 0; i < 4; i++) {
+      if (result.write_mask[i]) {
+        source_value_id =
+            b.createCompositeExtract(source_value_id, storage_type, 0);
+        break;
+      }
     }
   }
 
