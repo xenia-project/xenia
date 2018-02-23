@@ -1558,14 +1558,14 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
       }
 
       spv::Id components[4] = {0};
-      components[3] =
-          BitfieldExtract(comp_type, vertex_data, is_signed, 00, 02);
       components[0] =
-          BitfieldExtract(comp_type, vertex_data, is_signed, 02, 10);
+          BitfieldExtract(comp_type, vertex_data, is_signed, 00, 10);
       components[1] =
-          BitfieldExtract(comp_type, vertex_data, is_signed, 12, 10);
+          BitfieldExtract(comp_type, vertex_data, is_signed, 10, 10);
       components[2] =
-          BitfieldExtract(comp_type, vertex_data, is_signed, 22, 10);
+          BitfieldExtract(comp_type, vertex_data, is_signed, 20, 10);
+      components[3] =
+          BitfieldExtract(comp_type, vertex_data, is_signed, 30, 02);
 
       auto op = is_signed ? spv::Op::OpConvertSToF : spv::Op::OpConvertUToF;
       for (int i = 0; i < xe::countof(components); i++) {
@@ -1573,14 +1573,14 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
       }
 
       if (!is_integer) {
-        components[3] =
-            ConvertNormVar(components[3], float_type_, 02, is_signed);
         components[0] =
             ConvertNormVar(components[0], float_type_, 10, is_signed);
         components[1] =
             ConvertNormVar(components[1], float_type_, 10, is_signed);
         components[2] =
             ConvertNormVar(components[2], float_type_, 10, is_signed);
+        components[3] =
+            ConvertNormVar(components[3], float_type_, 02, is_signed);
       }
 
       vertex = b.createCompositeConstruct(
