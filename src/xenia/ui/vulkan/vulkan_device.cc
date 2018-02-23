@@ -210,6 +210,9 @@ bool VulkanDevice::Initialize(DeviceInfo device_info) {
   for (auto& ext : enabled_extensions_) {
     if (!std::strcmp(ext, VK_EXT_DEBUG_MARKER_EXTENSION_NAME)) {
       debug_marker_ena_ = true;
+      pfn_vkDebugMarkerSetObjectNameEXT_ =
+          (PFN_vkDebugMarkerSetObjectNameEXT)vkGetDeviceProcAddr(
+              *this, "vkDebugMarkerSetObjectNameEXT");
     }
   }
 
@@ -263,24 +266,6 @@ void VulkanDevice::ReleaseQueue(VkQueue queue, uint32_t queue_family_index) {
   free_queues_[queue_family_index].push_back(queue);
 }
 
-void VulkanDevice::DbgSetObjectName(VkDevice device, uint64_t object,
-                                    VkDebugReportObjectTypeEXT object_type,
-                                    std::string name) {
-  // Check to see if the extension is even loaded
-  if (vkGetDeviceProcAddr(device, "vkDebugMarkerSetObjectNameEXT") == nullptr) {
-    return;
-  }
-
-  // TODO(DrChat): fix linkage errors
-  VkDebugMarkerObjectNameInfoEXT info;
-  info.sType = VK_STRUCTURE_TYPE_DEBUG_MARKER_OBJECT_NAME_INFO_EXT;
-  info.pNext = nullptr;
-  info.objectType = object_type;
-  info.object = object;
-  info.pObjectName = name.c_str();
-  // vkDebugMarkerSetObjectNameEXT(device, &info);
-}
-
 void VulkanDevice::DbgSetObjectName(uint64_t object,
                                     VkDebugReportObjectTypeEXT object_type,
                                     std::string name) {
@@ -289,7 +274,13 @@ void VulkanDevice::DbgSetObjectName(uint64_t object,
     return;
   }
 
-  DbgSetObjectName(*this, object, object_type, name);
+  VkDebugMarkerObjectNameInfoEXT info;
+  info.sType = VK_STRUCTURE_TYPE_DEBUG_MARKER_OBJECT_NAME_INFO_EXT;
+  info.pNext = nullptr;
+  info.objectType = object_type;
+  info.object = object;
+  info.pObjectName = name.c_str();
+  pfn_vkDebugMarkerSetObjectNameEXT_(*this, &info);
 }
 
 bool VulkanDevice::is_renderdoc_attached() const {
