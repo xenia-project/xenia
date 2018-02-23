@@ -75,9 +75,6 @@ class VulkanDevice {
   // This method is thread safe.
   void ReleaseQueue(VkQueue queue, uint32_t queue_family_index);
 
-  static void DbgSetObjectName(VkDevice device, uint64_t object,
-                               VkDebugReportObjectTypeEXT object_type,
-                               std::string name);
   void DbgSetObjectName(uint64_t object, VkDebugReportObjectTypeEXT object_type,
                         std::string name);
 
@@ -103,6 +100,7 @@ class VulkanDevice {
   std::vector<const char*> enabled_extensions_;
 
   bool debug_marker_ena_ = false;
+  PFN_vkDebugMarkerSetObjectNameEXT pfn_vkDebugMarkerSetObjectNameEXT_;
 
   DeviceInfo device_info_;
   uint32_t queue_family_index_ = 0;
