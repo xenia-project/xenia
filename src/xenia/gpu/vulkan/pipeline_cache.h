@@ -88,7 +88,7 @@ class PipelineCache {
                                    bool is_line_mode);
 
   RegisterFile* register_file_ = nullptr;
-  VkDevice device_ = nullptr;
+  ui::vulkan::VulkanDevice* device_ = nullptr;
 
   // Reusable shader translator.
   std::unique_ptr<ShaderTranslator> shader_translator_ = nullptr;
