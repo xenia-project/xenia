@@ -11,6 +11,7 @@
 #define XENIA_GPU_VULKAN_TEXTURE_CACHE_H_
 
 #include <unordered_map>
+#include <unordered_set>
 
 #include "xenia/gpu/register_file.h"
 #include "xenia/gpu/sampler_info.h"
@@ -203,8 +204,8 @@ class TextureCache {
   std::list<Texture*> pending_delete_textures_;
 
   std::mutex invalidated_textures_mutex_;
-  std::vector<Texture*>* invalidated_textures_;
-  std::vector<Texture*> invalidated_textures_sets_[2];
+  std::unordered_set<Texture*>* invalidated_textures_;
+  std::unordered_set<Texture*> invalidated_textures_sets_[2];
 
   struct UpdateSetInfo {
     // Bitmap of all 32 fetch constants and whether they have been setup yet.
