@@ -376,7 +376,7 @@ void TextureCache::WatchCallback(void* context_ptr, void* data_ptr,
 
   // Add to pending list so Scavenge will clean it up.
   self->invalidated_textures_mutex_.lock();
-  self->invalidated_textures_->push_back(touched_texture);
+  self->invalidated_textures_->insert(touched_texture);
   self->invalidated_textures_mutex_.unlock();
 }
 
@@ -1467,13 +1467,16 @@ bool TextureCache::SetupTextureBinding(VkCommandBuffer command_buffer,
 void TextureCache::RemoveInvalidatedTextures() {
   // Clean up any invalidated textures.
   invalidated_textures_mutex_.lock();
-  std::vector<Texture*>& invalidated_textures = *invalidated_textures_;
+  std::unordered_set<Texture*>& invalidated_textures = *invalidated_textures_;
   if (invalidated_textures_ == &invalidated_textures_sets_[0]) {
     invalidated_textures_ = &invalidated_textures_sets_[1];
   } else {
     invalidated_textures_ = &invalidated_textures_sets_[0];
   }
   invalidated_textures_mutex_.unlock();
+
+  // Append all invalidated textures to a deletion queue. They will be deleted
+  // when all command buffers using them have finished executing.
   if (!invalidated_textures.empty()) {
     for (auto it = invalidated_textures.begin();
          it != invalidated_textures.end(); ++it) {
