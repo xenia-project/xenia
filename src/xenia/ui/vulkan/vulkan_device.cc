@@ -57,6 +57,8 @@ VulkanDevice::VulkanDevice(VulkanInstance* instance) : instance_(instance) {
     */
   }
 
+  DeclareRequiredExtension(VK_KHR_SAMPLER_MIRROR_CLAMP_TO_EDGE_EXTENSION_NAME,
+                           Version::Make(0, 0, 0), false);
   DeclareRequiredExtension(VK_EXT_DEBUG_MARKER_EXTENSION_NAME,
                            Version::Make(0, 0, 0), true);
 }
