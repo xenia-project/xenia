@@ -23,7 +23,7 @@ layout(set = 1, binding = 1) uniform sampler2D textures2D[32];
 layout(set = 1, binding = 2) uniform sampler3D textures3D[32];
 layout(set = 1, binding = 3) uniform samplerCube textures4D[32];
 
-layout(location = 0) in vec4 in_interpolators[][16];
+layout(location = 0) in vec4 in_interpolators[16];
 layout(location = 0) out vec4 oC[4];
 
 void main() {
