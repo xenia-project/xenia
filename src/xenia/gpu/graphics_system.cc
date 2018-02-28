@@ -138,12 +138,7 @@ X_STATUS GraphicsSystem::Setup(cpu::Processor* processor,
 void GraphicsSystem::Shutdown() {
   if (command_processor_) {
     EndTracing();
-  }
-
-  if (command_processor_) {
     command_processor_->Shutdown();
-    // TODO(benvanik): remove mapped range.
-    command_processor_.reset();
   }
 
   if (vsync_worker_thread_) {
