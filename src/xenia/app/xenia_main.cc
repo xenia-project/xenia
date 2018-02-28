@@ -174,13 +174,17 @@ int xenia_main(const std::vector<std::wstring>& args) {
     evt->Set();
   });
 
+  emulator_window->window()->on_closing.AddListener([&](ui::UIEvent* e) {
+    // This needs to shut down before the graphics context.
+    Profiler::Shutdown();
+  });
+
   bool exiting = false;
   emulator_window->loop()->on_quit.AddListener([&](ui::UIEvent* e) {
     exiting = true;
     evt->Set();
 
     // TODO(DrChat): Remove this code and do a proper exit.
-    Profiler::Shutdown();
     XELOGI("Cheap-skate exit!");
     exit(0);
   });
