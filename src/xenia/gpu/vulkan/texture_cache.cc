@@ -1272,6 +1272,12 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
   // Now move the converted texture into the destination.
   copy_region.bufferOffset = alloc->offset;
   copy_region.imageOffset = {0, 0, 0};
+  if (dest->format == VK_FORMAT_D16_UNORM_S8_UINT ||
+      dest->format == VK_FORMAT_D24_UNORM_S8_UINT ||
+      dest->format == VK_FORMAT_D32_SFLOAT_S8_UINT) {
+    // Do just a depth upload (for now).
+    copy_region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+  }
   vkCmdCopyBufferToImage(command_buffer, staging_buffer_.gpu_buffer(),
                          dest->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
                          &copy_region);
