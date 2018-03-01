@@ -149,6 +149,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
   spv::Id loop_count_ = 0;   // Loop counter stack
   spv::Id ps_ = 0, pv_ = 0;  // IDs of previous results
   spv::Id pc_ = 0;           // Program counter
+  spv::Id lod_ = 0;          // LOD register
   spv::Id pos_ = 0;
   spv::Id push_consts_ = 0;
   spv::Id interpolators_ = 0;
