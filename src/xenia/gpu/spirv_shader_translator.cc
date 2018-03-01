@@ -111,6 +111,8 @@ void SpirvShaderTranslator::StartTranslation() {
                          "pc");
   a0_ = b.createVariable(spv::StorageClass::StorageClassFunction, int_type_,
                          "a0");
+  lod_ = b.createVariable(spv::StorageClass::StorageClassFunction, float_type_,
+                          "lod");
 
   // Uniform constants.
   Id float_consts_type =
@@ -1843,6 +1845,10 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
       spv::Builder::TextureParameters params = {0};
       params.coords = src;
       params.sampler = texture;
+      if (instr.attributes.use_register_lod) {
+        params.lod = b.createLoad(lod_);
+      }
+
       dest =
           b.createTextureCall(spv::NoPrecision, vec4_float_type_, false, false,
                               false, false, is_vertex_shader(), params);
@@ -1906,6 +1912,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
       // <lod register> = src1.x (MIP level)
       // ... immediately after
       // tfetch UseRegisterLOD=true
+      b.createStore(b.createCompositeExtract(src, float_type_, 0), lod_);
     } break;
 
     default:
