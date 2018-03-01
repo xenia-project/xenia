@@ -278,19 +278,6 @@ void VulkanGraphicsSystem::Swap(xe::ui::UIEvent* e) {
       // return;
     }
 
-    auto event = reinterpret_cast<VkEvent>(swap_state.backend_data);
-    if (event == nullptr) {
-      // The command processor is currently uninitialized.
-      return;
-    }
-
-    VkResult status = vkGetEventStatus(*device_, event);
-    if (status != VK_EVENT_SET) {
-      // The device has not finished processing the image.
-      // return;
-    }
-
-    vkResetEvent(*device_, event);
     swap_state.pending = false;
   }
 
@@ -303,11 +290,6 @@ void VulkanGraphicsSystem::Swap(xe::ui::UIEvent* e) {
   auto copy_cmd_buffer = swap_chain->copy_cmd_buffer();
   auto front_buffer =
       reinterpret_cast<VkImage>(swap_state.front_buffer_texture);
-
-  // Wait on and signal the swap semaphore.
-  // TODO(DrChat): Interacting with the window causes the device to be lost in
-  // some games.
-  // swap_chain->WaitAndSignalSemaphore(semaphore);
 
   VkImageMemoryBarrier barrier;
   std::memset(&barrier, 0, sizeof(VkImageMemoryBarrier));

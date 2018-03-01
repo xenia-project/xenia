@@ -122,26 +122,11 @@ bool VulkanCommandProcessor::SetupContext() {
     return false;
   }
 
-  VkEventCreateInfo info = {
-      VK_STRUCTURE_TYPE_EVENT_CREATE_INFO,
-      nullptr,
-      0,
-  };
-
-  status = vkCreateEvent(*device_, &info, nullptr,
-                         reinterpret_cast<VkEvent*>(&swap_state_.backend_data));
-  if (status != VK_SUCCESS) {
-    return false;
-  }
-
   return true;
 }
 
 void VulkanCommandProcessor::ShutdownContext() {
   // TODO(benvanik): wait until idle.
-
-  vkDestroyEvent(*device_, reinterpret_cast<VkEvent>(swap_state_.backend_data),
-                 nullptr);
 
   if (swap_state_.front_buffer_texture) {
     // Free swap chain image.
@@ -504,10 +489,6 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
     std::lock_guard<std::mutex> lock(swap_state_.mutex);
     swap_state_.width = frontbuffer_width;
     swap_state_.height = frontbuffer_height;
-
-    auto swap_event = reinterpret_cast<VkEvent>(swap_state_.backend_data);
-    vkCmdSetEvent(copy_commands, swap_event,
-                  VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT);
   }
 
   status = vkEndCommandBuffer(copy_commands);
