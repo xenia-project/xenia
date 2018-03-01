@@ -91,8 +91,8 @@ void Profiler::Dump() {
 #if XE_OPTION_PROFILING_UI
   MicroProfileDumpTimers();
 #endif  // XE_OPTION_PROFILING_UI
-  MicroProfileDumpHtml("profile.html");
-  MicroProfileDumpHtmlToFile();
+  // MicroProfileDumpHtml("profile.html");
+  // MicroProfileDumpHtmlToFile();
 }
 
 void Profiler::Shutdown() {
@@ -275,10 +275,6 @@ void Profiler::Flip() {}
 }  // namespace xe
 
 uint32_t MicroProfileGpuInsertTimeStamp() { return 0; }
-
-uint64_t MicroProfileGpuGetTimeStamp(uint32_t nKey) { return 0; }
-
-uint64_t MicroProfileTicksPerSecondGpu() { return 0; }
 
 const char* MicroProfileGetThreadName() { return "TODO: get thread name!"; }
 
