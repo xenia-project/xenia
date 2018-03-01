@@ -1843,8 +1843,9 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
       spv::Builder::TextureParameters params = {0};
       params.coords = src;
       params.sampler = texture;
-      dest = b.createTextureCall(spv::NoPrecision, vec4_float_type_, false,
-                                 false, false, false, false, params);
+      dest =
+          b.createTextureCall(spv::NoPrecision, vec4_float_type_, false, false,
+                              false, false, is_vertex_shader(), params);
     } break;
 
     case FetchOpcode::kGetTextureGradients: {
