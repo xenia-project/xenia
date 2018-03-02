@@ -1581,15 +1581,23 @@ struct VECTOR_CONVERT_I2F
                I<OPCODE_VECTOR_CONVERT_I2F, V128Op, V128Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     // flags = ARITHMETIC_UNSIGNED
-    // TODO(benvanik): are these really the same? VC++ thinks so.
-    Xmm src1;
-    if (i.src1.is_constant) {
-      e.LoadConstantXmm(e.xmm0, i.src1.constant());
-      src1 = e.xmm0;
+    if (i.instr->flags & ARITHMETIC_UNSIGNED) {
+      // xmm0 = mask of positive values
+      e.vpcmpgtd(e.xmm0, i.src1, e.GetXmmConstPtr(XMMFFFF));
+
+      // scale any values >= (unsigned)INT_MIN back to [0, INT_MAX]
+      e.vpsubd(e.xmm1, i.src1, e.GetXmmConstPtr(XMMSignMaskI32));
+      e.vblendvps(e.xmm1, e.xmm1, i.src1, e.xmm0);
+
+      // xmm1 = [0, INT_MAX]
+      e.vcvtdq2ps(i.dest, e.xmm1);
+
+      // scale values back above [INT_MIN, UINT_MAX]
+      e.vpandn(e.xmm0, e.xmm0, e.GetXmmConstPtr(XMMPosIntMinPS));
+      e.vaddps(i.dest, i.dest, e.xmm0);
     } else {
-      src1 = i.src1;
+      e.vcvtdq2ps(i.dest, i.src1);
     }
-    e.vcvtdq2ps(i.dest, src1);
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_VECTOR_CONVERT_I2F, VECTOR_CONVERT_I2F);
