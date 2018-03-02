@@ -677,6 +677,7 @@ static const vec128_t xmm_consts[] = {
     /* XMMIntMin              */ vec128i(INT_MIN),
     /* XMMIntMax              */ vec128i(INT_MAX),
     /* XMMIntMaxPD            */ vec128d(INT_MAX),
+    /* XMMPosIntMinPS         */ vec128f((float)0x80000000u),
 };
 
 // First location to try and place constants.
