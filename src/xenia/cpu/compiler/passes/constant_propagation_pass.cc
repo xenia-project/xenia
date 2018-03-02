@@ -701,14 +701,17 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder) {
         case OPCODE_VECTOR_CONVERT_F2I:
           if (i->src1.value->IsConstant()) {
             v->set_zero(VEC128_TYPE);
-            v->VectorConvertF2I(i->src1.value);
+            v->VectorConvertF2I(i->src1.value,
+                                !!(i->flags & ARITHMETIC_UNSIGNED),
+                                !!(i->flags & ARITHMETIC_SATURATE));
             i->Remove();
           }
           break;
         case OPCODE_VECTOR_CONVERT_I2F:
           if (i->src1.value->IsConstant()) {
             v->set_zero(VEC128_TYPE);
-            v->VectorConvertI2F(i->src1.value);
+            v->VectorConvertI2F(i->src1.value,
+                                !!(i->flags & ARITHMETIC_SATURATE));
             i->Remove();
           }
           break;
