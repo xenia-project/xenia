@@ -1601,18 +1601,38 @@ struct VECTOR_CONVERT_F2I
     : Sequence<VECTOR_CONVERT_F2I,
                I<OPCODE_VECTOR_CONVERT_F2I, V128Op, V128Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    Xmm src1 = i.src1;
+    if (i.instr->flags & ARITHMETIC_UNSIGNED) {
+      // clamp to min 0
+      e.vmaxps(e.xmm0, i.src1, e.GetXmmConstPtr(XMMZero));
 
-    // Copy src1 if necessary.
-    bool copy_src1 = !!(i.instr->flags & ARITHMETIC_SATURATE);
-    if (copy_src1 && i.dest == i.src1) {
-      e.vmovdqa(e.xmm1, i.src1);
-      src1 = e.xmm1;
-    }
+      // xmm1 = mask of values >= (unsigned)INT_MIN
+      e.vcmpgeps(e.xmm1, e.xmm0, e.GetXmmConstPtr(XMMPosIntMinPS));
 
-    e.vcvttps2dq(i.dest, i.src1);
-    if (i.instr->flags & ARITHMETIC_SATURATE &&
-        !(i.instr->flags & ARITHMETIC_UNSIGNED)) {
+      // scale any values >= (unsigned)INT_MIN back to [0, ...]
+      e.vsubps(e.xmm2, e.xmm0, e.GetXmmConstPtr(XMMPosIntMinPS));
+      e.vandps(e.xmm2, e.xmm1, e.xmm2);   // 0 if < (unsigned)INT_MIN
+      e.vandnps(e.xmm0, e.xmm1, e.xmm0);  // 0 if >= (unsigned)INT_MIN
+
+      // xmm0 = [0, INT_MAX]
+      // this may still contain values > INT_MAX (if src has vals > UINT_MAX)
+      e.vorps(e.xmm0, e.xmm0, e.xmm2);
+      e.vcvttps2dq(i.dest, e.xmm0);
+
+      // xmm0 = mask of values that need saturation
+      e.vpcmpeqd(e.xmm0, i.dest, e.GetXmmConstPtr(XMMIntMin));
+
+      // scale values back above [INT_MIN, UINT_MAX]
+      e.vpand(e.xmm1, e.xmm1, e.GetXmmConstPtr(XMMIntMin));
+      e.vpaddd(i.dest, i.dest, e.xmm1);
+
+      // saturate values > UINT_MAX
+      e.vpor(i.dest, i.dest, e.xmm0);
+    } else {
+      Xmm src1 = e.xmm2;
+      e.vmovdqa(src1, i.src1);  // Duplicate src1.
+
+      e.vcvttps2dq(i.dest, i.src1);
+
       // if dest is indeterminate and i.src1 >= 0 (i.e. !(i.src1 & 0x80000000))
       //   i.dest = 0x7FFFFFFF
       e.vpcmpeqd(e.xmm0, i.dest, e.GetXmmConstPtr(XMMIntMin));
@@ -1621,8 +1641,6 @@ struct VECTOR_CONVERT_F2I
       // (high bit of xmm0 = is ind. && i.src1 >= 0)
       e.vblendvps(i.dest, i.dest, e.GetXmmConstPtr(XMMIntMax), e.xmm0);
     }
-
-    // TODO(DrChat): Unsigned saturation!
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_VECTOR_CONVERT_F2I, VECTOR_CONVERT_F2I);

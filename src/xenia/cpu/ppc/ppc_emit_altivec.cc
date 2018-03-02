@@ -554,7 +554,7 @@ int InstrEmit_vctsxs_(PPCHIRBuilder& f, uint32_t vd, uint32_t vb,
   float fuimm = static_cast<float>(std::exp2(uimm));
   Value* v =
       f.Mul(f.LoadVR(vb), f.Splat(f.LoadConstantFloat32(fuimm), VEC128_TYPE));
-  v = f.VectorConvertF2I(v, ARITHMETIC_SATURATE);
+  v = f.VectorConvertF2I(v);
   f.StoreSAT(f.DidSaturate(v));
   f.StoreVR(vd, v);
   return 0;
@@ -572,7 +572,7 @@ int InstrEmit_vctuxs_(PPCHIRBuilder& f, uint32_t vd, uint32_t vb,
   float fuimm = static_cast<float>(std::exp2(uimm));
   Value* v =
       f.Mul(f.LoadVR(vb), f.Splat(f.LoadConstantFloat32(fuimm), VEC128_TYPE));
-  v = f.VectorConvertF2I(v, ARITHMETIC_UNSIGNED | ARITHMETIC_SATURATE);
+  v = f.VectorConvertF2I(v, ARITHMETIC_UNSIGNED);
   f.StoreSAT(f.DidSaturate(v));
   f.StoreVR(vd, v);
   return 0;
