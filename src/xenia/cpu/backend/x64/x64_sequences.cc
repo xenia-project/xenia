@@ -1610,12 +1610,10 @@ struct VECTOR_CONVERT_F2I
 
       // scale any values >= (unsigned)INT_MIN back to [0, ...]
       e.vsubps(e.xmm2, e.xmm0, e.GetXmmConstPtr(XMMPosIntMinPS));
-      e.vandps(e.xmm2, e.xmm1, e.xmm2);   // 0 if < (unsigned)INT_MIN
-      e.vandnps(e.xmm0, e.xmm1, e.xmm0);  // 0 if >= (unsigned)INT_MIN
+      e.vblendvps(e.xmm0, e.xmm0, e.xmm2, e.xmm1);
 
       // xmm0 = [0, INT_MAX]
       // this may still contain values > INT_MAX (if src has vals > UINT_MAX)
-      e.vorps(e.xmm0, e.xmm0, e.xmm2);
       e.vcvttps2dq(i.dest, e.xmm0);
 
       // xmm0 = mask of values that need saturation
@@ -3816,12 +3814,12 @@ struct VECTOR_ADD
                   // Set any negative overflowed elements of src1 to INT_MIN
                   e.vpand(e.xmm2, src1, e.xmm1);
                   e.vblendvps(dest, dest, e.GetXmmConstPtr(XMMSignMaskI32),
-                              e.xmm2);
+                    e.xmm2);
 
                   // Set any positive overflowed elements of src1 to INT_MAX
                   e.vpandn(e.xmm2, src1, e.xmm1);
                   e.vblendvps(dest, dest, e.GetXmmConstPtr(XMMAbsMaskPS),
-                              e.xmm2);
+                    e.xmm2);
                 }
               } else {
                 e.vpaddd(dest, src1, src2);
