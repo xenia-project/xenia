@@ -1079,19 +1079,27 @@ void Value::VectorCompareUGE(Value* other, TypeName type) {
   }
 }
 
-void Value::VectorConvertI2F(Value* other) {
+void Value::VectorConvertI2F(Value* other, bool is_unsigned) {
   assert_true(type == VEC128_TYPE);
   for (int i = 0; i < 4; i++) {
-    constant.v128.f32[i] = (float)other->constant.v128.i32[i];
+    if (is_unsigned) {
+      constant.v128.f32[i] = (float)other->constant.v128.u32[i];
+    } else {
+      constant.v128.f32[i] = (float)other->constant.v128.i32[i];
+    }
   }
 }
 
-void Value::VectorConvertF2I(Value* other) {
+void Value::VectorConvertF2I(Value* other, bool is_unsigned, bool saturate) {
   assert_true(type == VEC128_TYPE);
 
   // FIXME(DrChat): This does not saturate!
   for (int i = 0; i < 4; i++) {
-    constant.v128.i32[i] = (int32_t)other->constant.v128.f32[i];
+    if (is_unsigned) {
+      constant.v128.u32[i] = (uint32_t)other->constant.v128.f32[i];
+    } else {
+      constant.v128.i32[i] = (int32_t)other->constant.v128.f32[i];
+    }
   }
 }
 
