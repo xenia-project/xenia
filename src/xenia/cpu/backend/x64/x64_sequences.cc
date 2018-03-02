@@ -3779,47 +3779,25 @@ struct VECTOR_ADD
                   e.vpcmpgtd(e.xmm0, e.xmm2, e.xmm0);
                   e.vpor(dest, e.xmm1, e.xmm0);
                 } else {
-                  // Preserve the sources.
-                  if (dest == src1) {
-                    e.vmovdqa(e.xmm2, src1);
-                    src1 = e.xmm2;
-                  }
-                  if (dest == src2) {
-                    e.vmovdqa(e.xmm1, src2);
-                    src2 = e.xmm1;
-                  }
-
-                  // xmm0 is the only temp register that can be used by
-                  // src1/src2.
-                  e.vpaddd(dest, src1, src2);
+                  e.vpaddd(e.xmm1, src1, src2);
 
                   // Overflow results if two inputs are the same sign and the
                   // result isn't the same sign. if ((s32b)(~(src1 ^ src2) &
                   // (src1 ^ res)) < 0) then overflowed
                   // http://locklessinc.com/articles/sat_arithmetic/
-                  e.vpxor(e.xmm1, src1, src2);
-
-                  // Move src1 to xmm0 in-case it was the same register as the
-                  // dest. This kills src2 if it's a constant.
-                  if (src1 != e.xmm0) {
-                    e.vmovdqa(e.xmm0, src1);
-                    src1 = e.xmm0;
-                  }
-
-                  e.vpxor(e.xmm2, src1, dest);
-                  e.vpandn(e.xmm1, e.xmm1, e.xmm2);
-
-                  // High bit of xmm1 is now set if overflowed.
+                  e.vpxor(e.xmm2, src1, src2);
+                  e.vpxor(e.xmm3, src1, e.xmm1);
+                  e.vpandn(e.xmm2, e.xmm2, e.xmm3);
 
                   // Set any negative overflowed elements of src1 to INT_MIN
-                  e.vpand(e.xmm2, src1, e.xmm1);
-                  e.vblendvps(dest, dest, e.GetXmmConstPtr(XMMSignMaskI32),
-                    e.xmm2);
+                  e.vpand(e.xmm3, src1, e.xmm2);
+                  e.vblendvps(e.xmm1, e.xmm1, e.GetXmmConstPtr(XMMSignMaskI32),
+                              e.xmm3);
 
                   // Set any positive overflowed elements of src1 to INT_MAX
-                  e.vpandn(e.xmm2, src1, e.xmm1);
-                  e.vblendvps(dest, dest, e.GetXmmConstPtr(XMMAbsMaskPS),
-                    e.xmm2);
+                  e.vpandn(e.xmm3, src1, e.xmm2);
+                  e.vblendvps(dest, e.xmm1, e.GetXmmConstPtr(XMMAbsMaskPS),
+                               e.xmm3);
                 }
               } else {
                 e.vpaddd(dest, src1, src2);
@@ -3949,48 +3927,26 @@ struct VECTOR_SUB
                   e.vpcmpgtd(e.xmm0, e.xmm0, e.xmm2);
                   e.vpandn(dest, e.xmm0, e.xmm1);
                 } else {
-                  // Preserve the sources.
-                  if (dest == src1) {
-                    e.vmovdqa(e.xmm2, src1);
-                    src1 = e.xmm2;
-                  }
-                  if (dest == src2) {
-                    e.vmovdqa(e.xmm1, src2);
-                    src2 = e.xmm1;
-                  }
-
-                  // xmm0 is the only temp register that can be used by
-                  // src1/src2.
-                  e.vpsubd(dest, src1, src2);
+                  e.vpsubd(e.xmm1, src1, src2);
 
                   // We can only overflow if the signs of the operands are
                   // opposite. If signs are opposite and result sign isn't the
                   // same as src1's sign, we've overflowed. if ((s32b)((src1 ^
                   // src2) & (src1 ^ res)) < 0) then overflowed
                   // http://locklessinc.com/articles/sat_arithmetic/
-                  e.vpxor(e.xmm1, src1, src2);
-
-                  // Move src1 to xmm0 in-case it's the same register as the
-                  // dest. This kills src2 if it's a constant.
-                  if (src1 != e.xmm0) {
-                    e.vmovdqa(e.xmm0, src1);
-                    src1 = e.xmm0;
-                  }
-
-                  e.vpxor(e.xmm2, src1, dest);
-                  e.vpand(e.xmm1, e.xmm1, e.xmm2);
-
-                  // High bit of xmm1 is now set if overflowed.
+                  e.vpxor(e.xmm2, src1, src2);
+                  e.vpxor(e.xmm3, src1, e.xmm1);
+                  e.vpand(e.xmm2, e.xmm2, e.xmm3);
 
                   // Set any negative overflowed elements of src1 to INT_MIN
-                  e.vpand(e.xmm2, src1, e.xmm1);
-                  e.vblendvps(dest, dest, e.GetXmmConstPtr(XMMSignMaskI32),
-                              e.xmm2);
+                  e.vpand(e.xmm3, src1, e.xmm2);
+                  e.vblendvps(e.xmm1, e.xmm1, e.GetXmmConstPtr(XMMSignMaskI32),
+                              e.xmm3);
 
                   // Set any positive overflowed elements of src1 to INT_MAX
-                  e.vpandn(e.xmm2, src1, e.xmm1);
-                  e.vblendvps(dest, dest, e.GetXmmConstPtr(XMMAbsMaskPS),
-                              e.xmm2);
+                  e.vpandn(e.xmm3, src1, e.xmm2);
+                  e.vblendvps(dest, e.xmm1, e.GetXmmConstPtr(XMMAbsMaskPS),
+                              e.xmm3);
                 }
               } else {
                 e.vpsubd(dest, src1, src2);
