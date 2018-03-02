@@ -4614,16 +4614,6 @@ EMITTER_OPCODE_TABLE(OPCODE_DIV, DIV_I8, DIV_I16, DIV_I32, DIV_I64, DIV_F32,
 struct MUL_ADD_F32
     : Sequence<MUL_ADD_F32, I<OPCODE_MUL_ADD, F32Op, F32Op, F32Op, F32Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    // Calculate the multiply part if it's constant.
-    // TODO: Do this in the constant propagation pass.
-    if (i.src1.is_constant && i.src2.is_constant) {
-      float mul = i.src1.constant() * i.src2.constant();
-
-      e.LoadConstantXmm(e.xmm0, mul);
-      e.vaddss(i.dest, e.xmm0, i.src3);
-      return;
-    }
-
     // FMA extension
     if (e.IsFeatureEnabled(kX64EmitFMA)) {
       EmitCommutativeBinaryXmmOp(e, i,
@@ -4673,16 +4663,6 @@ struct MUL_ADD_F32
 struct MUL_ADD_F64
     : Sequence<MUL_ADD_F64, I<OPCODE_MUL_ADD, F64Op, F64Op, F64Op, F64Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    // Calculate the multiply part if it's constant.
-    // TODO: Do this in the constant propagation pass.
-    if (i.src1.is_constant && i.src2.is_constant) {
-      double mul = i.src1.constant() * i.src2.constant();
-
-      e.LoadConstantXmm(e.xmm0, mul);
-      e.vaddsd(i.dest, e.xmm0, i.src3);
-      return;
-    }
-
     // FMA extension
     if (e.IsFeatureEnabled(kX64EmitFMA)) {
       EmitCommutativeBinaryXmmOp(e, i,
@@ -4733,19 +4713,6 @@ struct MUL_ADD_V128
     : Sequence<MUL_ADD_V128,
                I<OPCODE_MUL_ADD, V128Op, V128Op, V128Op, V128Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    // Calculate the multiply part if it's constant.
-    // TODO: Do this in the constant propagation pass.
-    if (i.src1.is_constant && i.src2.is_constant) {
-      vec128_t mul;
-      for (int n = 0; n < 4; n++) {
-        mul.f32[n] = i.src1.constant().f32[n] * i.src2.constant().f32[n];
-      }
-
-      e.LoadConstantXmm(e.xmm0, mul);
-      e.vaddps(i.dest, e.xmm0, i.src3);
-      return;
-    }
-
     // TODO(benvanik): the vfmadd sequence produces slightly different results
     // than vmul+vadd and it'd be nice to know why. Until we know, it's
     // disabled so tests pass.
@@ -4811,16 +4778,6 @@ EMITTER_OPCODE_TABLE(OPCODE_MUL_ADD, MUL_ADD_F32, MUL_ADD_F64, MUL_ADD_V128);
 struct MUL_SUB_F32
     : Sequence<MUL_SUB_F32, I<OPCODE_MUL_SUB, F32Op, F32Op, F32Op, F32Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    // Calculate the multiply part if it's constant.
-    // TODO: Do this in the constant propagation pass.
-    if (i.src1.is_constant && i.src2.is_constant) {
-      float mul = i.src1.constant() * i.src2.constant();
-
-      e.LoadConstantXmm(e.xmm0, mul);
-      e.vsubss(i.dest, e.xmm0, i.src3);
-      return;
-    }
-
     // FMA extension
     if (e.IsFeatureEnabled(kX64EmitFMA)) {
       EmitCommutativeBinaryXmmOp(e, i,
@@ -4870,16 +4827,6 @@ struct MUL_SUB_F32
 struct MUL_SUB_F64
     : Sequence<MUL_SUB_F64, I<OPCODE_MUL_SUB, F64Op, F64Op, F64Op, F64Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    // Calculate the multiply part if it's constant.
-    // TODO: Do this in the constant propagation pass.
-    if (i.src1.is_constant && i.src2.is_constant) {
-      double mul = i.src1.constant() * i.src2.constant();
-
-      e.LoadConstantXmm(e.xmm0, mul);
-      e.vsubsd(i.dest, e.xmm0, i.src3);
-      return;
-    }
-
     // FMA extension
     if (e.IsFeatureEnabled(kX64EmitFMA)) {
       EmitCommutativeBinaryXmmOp(e, i,
@@ -4930,19 +4877,6 @@ struct MUL_SUB_V128
     : Sequence<MUL_SUB_V128,
                I<OPCODE_MUL_SUB, V128Op, V128Op, V128Op, V128Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    // Calculate the multiply part if it's constant.
-    // TODO: Do this in the constant propagation pass.
-    if (i.src1.is_constant && i.src2.is_constant) {
-      vec128_t mul;
-      for (int n = 0; n < 4; n++) {
-        mul.f32[n] = i.src1.constant().f32[n] * i.src2.constant().f32[n];
-      }
-
-      e.LoadConstantXmm(e.xmm0, mul);
-      e.vsubps(i.dest, e.xmm0, i.src3);
-      return;
-    }
-
     // FMA extension
     if (e.IsFeatureEnabled(kX64EmitFMA)) {
       EmitCommutativeBinaryXmmOp(e, i,
