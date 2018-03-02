@@ -54,8 +54,16 @@ test_vctuxs_7:
   #_ REGISTER_OUT v0 [4F000000, 4F000000, 4F000000, 4F000000]
   #_ REGISTER_OUT v3 [80000000, 80000000, 80000000, 80000000]
 
-# 2^32 * 2^0
+# 2^31 * 1.5 * 2^0
 test_vctuxs_8:
+  #_ REGISTER_IN v0 [4F400000, 4F400000, 4F400000, 4F400000]
+  vctuxs v3, v0, 0
+  blr
+  #_ REGISTER_OUT v0 [4F400000, 4F400000, 4F400000, 4F400000]
+  #_ REGISTER_OUT v3 [C0000000, C0000000, C0000000, C0000000]
+
+# 2^32 * 2^0
+test_vctuxs_9:
   #_ REGISTER_IN v0 [4F800000, 4F800000, 4F800000, 4F800000]
   vctuxs v3, v0, 0
   blr
@@ -63,7 +71,7 @@ test_vctuxs_8:
   #_ REGISTER_OUT v3 [FFFFFFFF, FFFFFFFF, FFFFFFFF, FFFFFFFF]
 
 # +infinity * 2^0
-test_vctuxs_9:
+test_vctuxs_10:
   #_ REGISTER_IN v0 [7F800000, 7F800000, 7F800000, 7F800000]
   vctuxs v3, v0, 0
   blr
@@ -71,7 +79,7 @@ test_vctuxs_9:
   #_ REGISTER_OUT v3 [FFFFFFFF, FFFFFFFF, FFFFFFFF, FFFFFFFF]
 
 # -infinity * 2^0
-test_vctuxs_10:
+test_vctuxs_11:
   #_ REGISTER_IN v0 [FF800000, FF800000, FF800000, FF800000]
   vctuxs v3, v0, 0
   blr
