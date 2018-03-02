@@ -1088,6 +1088,8 @@ void Value::VectorConvertI2F(Value* other) {
 
 void Value::VectorConvertF2I(Value* other) {
   assert_true(type == VEC128_TYPE);
+
+  // FIXME(DrChat): This does not saturate!
   for (int i = 0; i < 4; i++) {
     constant.v128.i32[i] = (int32_t)other->constant.v128.f32[i];
   }
