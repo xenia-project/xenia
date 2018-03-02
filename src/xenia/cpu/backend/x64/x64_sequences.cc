@@ -3797,7 +3797,7 @@ struct VECTOR_ADD
                   // Set any positive overflowed elements of src1 to INT_MAX
                   e.vpandn(e.xmm3, src1, e.xmm2);
                   e.vblendvps(dest, e.xmm1, e.GetXmmConstPtr(XMMAbsMaskPS),
-                               e.xmm3);
+                              e.xmm3);
                 }
               } else {
                 e.vpaddd(dest, src1, src2);
