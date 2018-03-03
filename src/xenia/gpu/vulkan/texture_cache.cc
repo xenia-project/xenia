@@ -1490,9 +1490,11 @@ void TextureCache::RemoveInvalidatedTextures() {
          it != invalidated_textures.end(); ++it) {
       pending_delete_textures_.push_back(*it);
       textures_.erase((*it)->texture_info.hash());
-      COUNT_profile_set("gpu/texture_cache/textures", textures_.size());
     }
 
+    COUNT_profile_set("gpu/texture_cache/textures", textures_.size());
+    COUNT_profile_set("gpu/texture_cache/pending_deletes",
+                      pending_delete_textures_.size());
     invalidated_textures.clear();
   }
 }
@@ -1541,6 +1543,9 @@ void TextureCache::Scavenge() {
 
       it = pending_delete_textures_.erase(it);
     }
+
+    COUNT_profile_set("gpu/texture_cache/pending_deletes",
+                      pending_delete_textures_.size());
   }
 }
 
