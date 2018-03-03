@@ -702,8 +702,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder) {
           if (i->src1.value->IsConstant()) {
             v->set_zero(VEC128_TYPE);
             v->VectorConvertF2I(i->src1.value,
-                                !!(i->flags & ARITHMETIC_UNSIGNED),
-                                !!(i->flags & ARITHMETIC_SATURATE));
+                                !!(i->flags & ARITHMETIC_UNSIGNED));
             i->Remove();
           }
           break;
@@ -711,7 +710,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder) {
           if (i->src1.value->IsConstant()) {
             v->set_zero(VEC128_TYPE);
             v->VectorConvertI2F(i->src1.value,
-                                !!(i->flags & ARITHMETIC_SATURATE));
+                                !!(i->flags & ARITHMETIC_UNSIGNED));
             i->Remove();
           }
           break;

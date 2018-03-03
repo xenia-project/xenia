@@ -1090,7 +1090,7 @@ void Value::VectorConvertI2F(Value* other, bool is_unsigned) {
   }
 }
 
-void Value::VectorConvertF2I(Value* other, bool is_unsigned, bool saturate) {
+void Value::VectorConvertF2I(Value* other, bool is_unsigned) {
   assert_true(type == VEC128_TYPE);
 
   // FIXME(DrChat): This does not saturate!
