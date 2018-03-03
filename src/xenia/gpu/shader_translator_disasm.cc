@@ -356,7 +356,10 @@ void ParsedVertexFetchInstruction::Disassemble(StringBuffer* out) const {
 
 void ParsedTextureFetchInstruction::Disassemble(StringBuffer* out) const {
   static const char* kTextureFilterNames[] = {
-      "point", "linear", "BASEMAP", "keep",
+      "point",
+      "linear",
+      "BASEMAP",
+      "keep",
   };
   static const char* kAnisoFilterNames[] = {
       "disabled", "max1to1",  "max2to1", "max4to1",

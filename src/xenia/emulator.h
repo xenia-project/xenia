@@ -56,6 +56,9 @@ class Emulator {
   // Title of the game in the default language.
   const std::wstring& game_title() const { return game_title_; }
 
+  // Currently running title ID
+  uint32_t title_id() const { return title_id_; }
+
   // Are we currently running a title?
   bool is_title_open() const { return title_id_ != 0; }
 

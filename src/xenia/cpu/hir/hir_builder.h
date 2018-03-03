@@ -97,8 +97,10 @@ class HIRBuilder {
   void BranchTrue(Value* cond, Label* label, uint16_t branch_flags = 0);
   void BranchFalse(Value* cond, Label* label, uint16_t branch_flags = 0);
 
-  // phi type_name, Block* b1, Value* v1, Block* b2, Value* v2, etc
+  Value* AllocValue(TypeName type = INT64_TYPE);
+  Value* CloneValue(Value* source);
 
+  // phi type_name, Block* b1, Value* v1, Block* b2, Value* v2, etc
   Value* Assign(Value* value);
   Value* Cast(Value* value, TypeName target_type);
   Value* ZeroExtend(Value* value, TypeName target_type);
@@ -146,6 +148,11 @@ class HIRBuilder {
 
   Value* LoadMmio(cpu::MMIORange* mmio_range, uint32_t address, TypeName type);
   void StoreMmio(cpu::MMIORange* mmio_range, uint32_t address, Value* value);
+
+  Value* LoadOffset(Value* address, Value* offset, TypeName type,
+                    uint32_t load_flags = 0);
+  void StoreOffset(Value* address, Value* offset, Value* value,
+                   uint32_t store_flags = 0);
 
   Value* Load(Value* address, TypeName type, uint32_t load_flags = 0);
   void Store(Value* address, Value* value, uint32_t store_flags = 0);
@@ -247,9 +254,6 @@ class HIRBuilder {
  protected:
   void DumpValue(StringBuffer* str, Value* value);
   void DumpOp(StringBuffer* str, OpcodeSignatureType sig_type, Instr::Op* op);
-
-  Value* AllocValue(TypeName type = INT64_TYPE);
-  Value* CloneValue(Value* source);
 
  private:
   Block* AppendBlock();

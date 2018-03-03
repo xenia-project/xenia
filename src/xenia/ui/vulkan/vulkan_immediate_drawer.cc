@@ -41,9 +41,9 @@ class LightweightCircularBuffer {
     index_buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     index_buffer_info.queueFamilyIndexCount = 0;
     index_buffer_info.pQueueFamilyIndices = nullptr;
-    auto err =
+    auto status =
         vkCreateBuffer(device_, &index_buffer_info, nullptr, &index_buffer_);
-    CheckResult(err, "vkCreateBuffer");
+    CheckResult(status, "vkCreateBuffer");
 
     // Vertex buffer.
     VkBufferCreateInfo vertex_buffer_info;
@@ -55,9 +55,9 @@ class LightweightCircularBuffer {
     vertex_buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     vertex_buffer_info.queueFamilyIndexCount = 0;
     vertex_buffer_info.pQueueFamilyIndices = nullptr;
-    err =
+    status =
         vkCreateBuffer(*device, &vertex_buffer_info, nullptr, &vertex_buffer_);
-    CheckResult(err, "vkCreateBuffer");
+    CheckResult(status, "vkCreateBuffer");
 
     // Allocate underlying buffer.
     // We alias it for both vertices and indices.
@@ -69,16 +69,20 @@ class LightweightCircularBuffer {
     vkBindBufferMemory(*device, vertex_buffer_, buffer_memory_, 0);
 
     // Persistent mapping.
-    err = vkMapMemory(device_, buffer_memory_, 0, VK_WHOLE_SIZE, 0,
-                      &buffer_data_);
-    CheckResult(err, "vkMapMemory");
+    status = vkMapMemory(device_, buffer_memory_, 0, VK_WHOLE_SIZE, 0,
+                         &buffer_data_);
+    CheckResult(status, "vkMapMemory");
   }
 
   ~LightweightCircularBuffer() {
-    vkUnmapMemory(device_, buffer_memory_);
-    vkDestroyBuffer(device_, index_buffer_, nullptr);
-    vkDestroyBuffer(device_, vertex_buffer_, nullptr);
-    vkFreeMemory(device_, buffer_memory_, nullptr);
+    if (buffer_memory_) {
+      vkUnmapMemory(device_, buffer_memory_);
+      buffer_memory_ = nullptr;
+    }
+
+    VK_SAFE_DESTROY(vkDestroyBuffer, device_, index_buffer_, nullptr);
+    VK_SAFE_DESTROY(vkDestroyBuffer, device_, vertex_buffer_, nullptr);
+    VK_SAFE_DESTROY(vkFreeMemory, device_, buffer_memory_, nullptr);
   }
 
   VkBuffer vertex_buffer() const { return vertex_buffer_; }
@@ -137,15 +141,19 @@ class LightweightCircularBuffer {
 class VulkanImmediateTexture : public ImmediateTexture {
  public:
   VulkanImmediateTexture(VulkanDevice* device, VkDescriptorPool descriptor_pool,
-                         VkDescriptorSetLayout descriptor_set_layout,
-                         VkImageView image_view, VkSampler sampler,
-                         uint32_t width, uint32_t height)
+                         VkSampler sampler, uint32_t width, uint32_t height)
       : ImmediateTexture(width, height),
-        device_(*device),
+        device_(device),
         descriptor_pool_(descriptor_pool),
-        image_view_(image_view),
-        sampler_(sampler) {
+        sampler_(sampler) {}
+
+  ~VulkanImmediateTexture() override { Shutdown(); }
+
+  VkResult Initialize(VkDescriptorSetLayout descriptor_set_layout,
+                      VkImageView image_view) {
     handle = reinterpret_cast<uintptr_t>(this);
+    image_view_ = image_view;
+    VkResult status;
 
     // Create descriptor set used just for this texture.
     // It never changes, so we can reuse it and not worry with updates.
@@ -155,9 +163,12 @@ class VulkanImmediateTexture : public ImmediateTexture {
     set_alloc_info.descriptorPool = descriptor_pool_;
     set_alloc_info.descriptorSetCount = 1;
     set_alloc_info.pSetLayouts = &descriptor_set_layout;
-    auto err =
-        vkAllocateDescriptorSets(device_, &set_alloc_info, &descriptor_set_);
-    CheckResult(err, "vkAllocateDescriptorSets");
+    status =
+        vkAllocateDescriptorSets(*device_, &set_alloc_info, &descriptor_set_);
+    CheckResult(status, "vkAllocateDescriptorSets");
+    if (status != VK_SUCCESS) {
+      return status;
+    }
 
     // Initialize descriptor with our texture.
     VkDescriptorImageInfo texture_info;
@@ -173,17 +184,14 @@ class VulkanImmediateTexture : public ImmediateTexture {
     descriptor_write.descriptorCount = 1;
     descriptor_write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     descriptor_write.pImageInfo = &texture_info;
-    vkUpdateDescriptorSets(device_, 1, &descriptor_write, 0, nullptr);
+    vkUpdateDescriptorSets(*device_, 1, &descriptor_write, 0, nullptr);
+
+    return VK_SUCCESS;
   }
 
-  VulkanImmediateTexture(VulkanDevice* device, VkDescriptorPool descriptor_pool,
-                         VkDescriptorSetLayout descriptor_set_layout,
-                         VkSampler sampler, uint32_t width, uint32_t height)
-      : ImmediateTexture(width, height),
-        device_(*device),
-        descriptor_pool_(descriptor_pool),
-        sampler_(sampler) {
+  VkResult Initialize(VkDescriptorSetLayout descriptor_set_layout) {
     handle = reinterpret_cast<uintptr_t>(this);
+    VkResult status;
 
     // Create image object.
     VkImageCreateInfo image_info;
@@ -202,18 +210,27 @@ class VulkanImmediateTexture : public ImmediateTexture {
     image_info.queueFamilyIndexCount = 0;
     image_info.pQueueFamilyIndices = nullptr;
     image_info.initialLayout = VK_IMAGE_LAYOUT_PREINITIALIZED;
-    auto err = vkCreateImage(device_, &image_info, nullptr, &image_);
-    CheckResult(err, "vkCreateImage");
+    status = vkCreateImage(*device_, &image_info, nullptr, &image_);
+    CheckResult(status, "vkCreateImage");
+    if (status != VK_SUCCESS) {
+      return status;
+    }
 
     // Allocate memory for the image.
     VkMemoryRequirements memory_requirements;
-    vkGetImageMemoryRequirements(device_, image_, &memory_requirements);
-    device_memory_ = device->AllocateMemory(
+    vkGetImageMemoryRequirements(*device_, image_, &memory_requirements);
+    device_memory_ = device_->AllocateMemory(
         memory_requirements, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+    if (!device_memory_) {
+      return VK_ERROR_INITIALIZATION_FAILED;
+    }
 
     // Bind memory and the image together.
-    err = vkBindImageMemory(device_, image_, device_memory_, 0);
-    CheckResult(err, "vkBindImageMemory");
+    status = vkBindImageMemory(*device_, image_, device_memory_, 0);
+    CheckResult(status, "vkBindImageMemory");
+    if (status != VK_SUCCESS) {
+      return status;
+    }
 
     // Create image view used by the shader.
     VkImageViewCreateInfo view_info;
@@ -224,12 +241,17 @@ class VulkanImmediateTexture : public ImmediateTexture {
     view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
     view_info.format = VK_FORMAT_R8G8B8A8_UNORM;
     view_info.components = {
-        VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B,
+        VK_COMPONENT_SWIZZLE_R,
+        VK_COMPONENT_SWIZZLE_G,
+        VK_COMPONENT_SWIZZLE_B,
         VK_COMPONENT_SWIZZLE_A,
     };
     view_info.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
-    err = vkCreateImageView(device_, &view_info, nullptr, &image_view_);
-    CheckResult(err, "vkCreateImageView");
+    status = vkCreateImageView(*device_, &view_info, nullptr, &image_view_);
+    CheckResult(status, "vkCreateImageView");
+    if (status != VK_SUCCESS) {
+      return status;
+    }
 
     // Create descriptor set used just for this texture.
     // It never changes, so we can reuse it and not worry with updates.
@@ -239,8 +261,12 @@ class VulkanImmediateTexture : public ImmediateTexture {
     set_alloc_info.descriptorPool = descriptor_pool_;
     set_alloc_info.descriptorSetCount = 1;
     set_alloc_info.pSetLayouts = &descriptor_set_layout;
-    err = vkAllocateDescriptorSets(device_, &set_alloc_info, &descriptor_set_);
-    CheckResult(err, "vkAllocateDescriptorSets");
+    status =
+        vkAllocateDescriptorSets(*device_, &set_alloc_info, &descriptor_set_);
+    CheckResult(status, "vkAllocateDescriptorSets");
+    if (status != VK_SUCCESS) {
+      return status;
+    }
 
     // Initialize descriptor with our texture.
     VkDescriptorImageInfo texture_info;
@@ -256,20 +282,23 @@ class VulkanImmediateTexture : public ImmediateTexture {
     descriptor_write.descriptorCount = 1;
     descriptor_write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     descriptor_write.pImageInfo = &texture_info;
-    vkUpdateDescriptorSets(device_, 1, &descriptor_write, 0, nullptr);
+    vkUpdateDescriptorSets(*device_, 1, &descriptor_write, 0, nullptr);
+
+    return VK_SUCCESS;
   }
 
-  ~VulkanImmediateTexture() override {
-    vkFreeDescriptorSets(device_, descriptor_pool_, 1, &descriptor_set_);
-
-    if (device_memory_) {
-      vkDestroyImageView(device_, image_view_, nullptr);
-      vkDestroyImage(device_, image_, nullptr);
-      vkFreeMemory(device_, device_memory_, nullptr);
+  void Shutdown() {
+    if (descriptor_set_) {
+      vkFreeDescriptorSets(*device_, descriptor_pool_, 1, &descriptor_set_);
+      descriptor_set_ = nullptr;
     }
+
+    VK_SAFE_DESTROY(vkDestroyImageView, *device_, image_view_, nullptr);
+    VK_SAFE_DESTROY(vkDestroyImage, *device_, image_, nullptr);
+    VK_SAFE_DESTROY(vkFreeMemory, *device_, device_memory_, nullptr);
   }
 
-  void Upload(const uint8_t* src_data) {
+  VkResult Upload(const uint8_t* src_data) {
     // TODO(benvanik): assert not in use? textures aren't dynamic right now.
 
     // Get device image layout.
@@ -278,18 +307,22 @@ class VulkanImmediateTexture : public ImmediateTexture {
     subresource.mipLevel = 0;
     subresource.arrayLayer = 0;
     VkSubresourceLayout layout;
-    vkGetImageSubresourceLayout(device_, image_, &subresource, &layout);
+    vkGetImageSubresourceLayout(*device_, image_, &subresource, &layout);
 
     // Map memory for upload.
     uint8_t* gpu_data = nullptr;
-    auto err = vkMapMemory(device_, device_memory_, 0, layout.size, 0,
-                           reinterpret_cast<void**>(&gpu_data));
-    CheckResult(err, "vkMapMemory");
+    auto status = vkMapMemory(*device_, device_memory_, 0, layout.size, 0,
+                              reinterpret_cast<void**>(&gpu_data));
+    CheckResult(status, "vkMapMemory");
 
-    // Copy the entire texture, hoping its layout matches what we expect.
-    std::memcpy(gpu_data + layout.offset, src_data, layout.size);
+    if (status == VK_SUCCESS) {
+      // Copy the entire texture, hoping its layout matches what we expect.
+      std::memcpy(gpu_data + layout.offset, src_data, layout.size);
 
-    vkUnmapMemory(device_, device_memory_);
+      vkUnmapMemory(*device_, device_memory_);
+    }
+
+    return status;
   }
 
   // Queues a command to transition this texture to a new layout. This assumes
@@ -319,7 +352,7 @@ class VulkanImmediateTexture : public ImmediateTexture {
   VkImageLayout layout() const { return image_layout_; }
 
  private:
-  VkDevice device_ = nullptr;
+  ui::vulkan::VulkanDevice* device_ = nullptr;
   VkDescriptorPool descriptor_pool_ = nullptr;
   VkSampler sampler_ = nullptr;  // Not owned.
   VkImage image_ = nullptr;
@@ -330,7 +363,11 @@ class VulkanImmediateTexture : public ImmediateTexture {
 };
 
 VulkanImmediateDrawer::VulkanImmediateDrawer(VulkanContext* graphics_context)
-    : ImmediateDrawer(graphics_context), context_(graphics_context) {
+    : ImmediateDrawer(graphics_context), context_(graphics_context) {}
+
+VulkanImmediateDrawer::~VulkanImmediateDrawer() { Shutdown(); }
+
+VkResult VulkanImmediateDrawer::Initialize() {
   auto device = context_->device();
 
   // NEAREST + CLAMP
@@ -353,17 +390,23 @@ VulkanImmediateDrawer::VulkanImmediateDrawer(VulkanContext* graphics_context)
   sampler_info.maxLod = 0.0f;
   sampler_info.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
   sampler_info.unnormalizedCoordinates = VK_FALSE;
-  auto err = vkCreateSampler(*device, &sampler_info, nullptr,
-                             &samplers_.nearest_clamp);
-  CheckResult(err, "vkCreateSampler");
+  auto status = vkCreateSampler(*device, &sampler_info, nullptr,
+                                &samplers_.nearest_clamp);
+  CheckResult(status, "vkCreateSampler");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
 
   // NEAREST + REPEAT
   sampler_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
   sampler_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
   sampler_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-  err = vkCreateSampler(*device, &sampler_info, nullptr,
-                        &samplers_.nearest_repeat);
-  CheckResult(err, "vkCreateSampler");
+  status = vkCreateSampler(*device, &sampler_info, nullptr,
+                           &samplers_.nearest_repeat);
+  CheckResult(status, "vkCreateSampler");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
 
   // LINEAR + CLAMP
   sampler_info.magFilter = VK_FILTER_LINEAR;
@@ -371,17 +414,23 @@ VulkanImmediateDrawer::VulkanImmediateDrawer(VulkanContext* graphics_context)
   sampler_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
   sampler_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
   sampler_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-  err =
+  status =
       vkCreateSampler(*device, &sampler_info, nullptr, &samplers_.linear_clamp);
-  CheckResult(err, "vkCreateSampler");
+  CheckResult(status, "vkCreateSampler");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
 
   // LINEAR + REPEAT
   sampler_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
   sampler_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
   sampler_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-  err = vkCreateSampler(*device, &sampler_info, nullptr,
-                        &samplers_.linear_repeat);
-  CheckResult(err, "vkCreateSampler");
+  status = vkCreateSampler(*device, &sampler_info, nullptr,
+                           &samplers_.linear_repeat);
+  CheckResult(status, "vkCreateSampler");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
 
   // Create the descriptor set layout used for our texture sampler.
   // As it changes almost every draw we keep it separate from the uniform buffer
@@ -399,9 +448,12 @@ VulkanImmediateDrawer::VulkanImmediateDrawer(VulkanContext* graphics_context)
   texture_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
   texture_binding.pImmutableSamplers = nullptr;
   texture_set_layout_info.pBindings = &texture_binding;
-  err = vkCreateDescriptorSetLayout(*device, &texture_set_layout_info, nullptr,
-                                    &texture_set_layout_);
-  CheckResult(err, "vkCreateDescriptorSetLayout");
+  status = vkCreateDescriptorSetLayout(*device, &texture_set_layout_info,
+                                       nullptr, &texture_set_layout_);
+  CheckResult(status, "vkCreateDescriptorSetLayout");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
 
   // Descriptor pool used for all of our cached descriptors.
   // In the steady state we don't allocate anything, so these are all manually
@@ -417,9 +469,12 @@ VulkanImmediateDrawer::VulkanImmediateDrawer(VulkanContext* graphics_context)
   pool_sizes[0].descriptorCount = 128;
   descriptor_pool_info.poolSizeCount = 1;
   descriptor_pool_info.pPoolSizes = pool_sizes;
-  err = vkCreateDescriptorPool(*device, &descriptor_pool_info, nullptr,
-                               &descriptor_pool_);
-  CheckResult(err, "vkCreateDescriptorPool");
+  status = vkCreateDescriptorPool(*device, &descriptor_pool_info, nullptr,
+                                  &descriptor_pool_);
+  CheckResult(status, "vkCreateDescriptorPool");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
 
   // Create the pipeline layout used for our pipeline.
   // If we had multiple pipelines they would share this.
@@ -441,9 +496,12 @@ VulkanImmediateDrawer::VulkanImmediateDrawer(VulkanContext* graphics_context)
   pipeline_layout_info.pushConstantRangeCount =
       static_cast<uint32_t>(xe::countof(push_constant_ranges));
   pipeline_layout_info.pPushConstantRanges = push_constant_ranges;
-  err = vkCreatePipelineLayout(*device, &pipeline_layout_info, nullptr,
-                               &pipeline_layout_);
-  CheckResult(err, "vkCreatePipelineLayout");
+  status = vkCreatePipelineLayout(*device, &pipeline_layout_info, nullptr,
+                                  &pipeline_layout_);
+  CheckResult(status, "vkCreatePipelineLayout");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
 
   // Vertex and fragment shaders.
   VkShaderModuleCreateInfo vertex_shader_info;
@@ -453,9 +511,9 @@ VulkanImmediateDrawer::VulkanImmediateDrawer(VulkanContext* graphics_context)
   vertex_shader_info.codeSize = sizeof(immediate_vert);
   vertex_shader_info.pCode = reinterpret_cast<const uint32_t*>(immediate_vert);
   VkShaderModule vertex_shader;
-  err = vkCreateShaderModule(*device, &vertex_shader_info, nullptr,
-                             &vertex_shader);
-  CheckResult(err, "vkCreateShaderModule");
+  status = vkCreateShaderModule(*device, &vertex_shader_info, nullptr,
+                                &vertex_shader);
+  CheckResult(status, "vkCreateShaderModule");
   VkShaderModuleCreateInfo fragment_shader_info;
   fragment_shader_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
   fragment_shader_info.pNext = nullptr;
@@ -464,9 +522,9 @@ VulkanImmediateDrawer::VulkanImmediateDrawer(VulkanContext* graphics_context)
   fragment_shader_info.pCode =
       reinterpret_cast<const uint32_t*>(immediate_frag);
   VkShaderModule fragment_shader;
-  err = vkCreateShaderModule(*device, &fragment_shader_info, nullptr,
-                             &fragment_shader);
-  CheckResult(err, "vkCreateShaderModule");
+  status = vkCreateShaderModule(*device, &fragment_shader_info, nullptr,
+                                &fragment_shader);
+  CheckResult(status, "vkCreateShaderModule");
 
   // Pipeline used when rendering triangles.
   VkGraphicsPipelineCreateInfo pipeline_info;
@@ -597,7 +655,8 @@ VulkanImmediateDrawer::VulkanImmediateDrawer(VulkanContext* graphics_context)
   dynamic_state_info.pNext = nullptr;
   dynamic_state_info.flags = 0;
   VkDynamicState dynamic_states[] = {
-      VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR,
+      VK_DYNAMIC_STATE_VIEWPORT,
+      VK_DYNAMIC_STATE_SCISSOR,
   };
   dynamic_state_info.dynamicStateCount =
       static_cast<uint32_t>(xe::countof(dynamic_states));
@@ -608,42 +667,49 @@ VulkanImmediateDrawer::VulkanImmediateDrawer(VulkanContext* graphics_context)
   pipeline_info.subpass = 0;
   pipeline_info.basePipelineHandle = nullptr;
   pipeline_info.basePipelineIndex = -1;
-  err = vkCreateGraphicsPipelines(*device, nullptr, 1, &pipeline_info, nullptr,
-                                  &triangle_pipeline_);
-  CheckResult(err, "vkCreateGraphicsPipelines");
+  if (status == VK_SUCCESS) {
+    status = vkCreateGraphicsPipelines(*device, nullptr, 1, &pipeline_info,
+                                       nullptr, &triangle_pipeline_);
+    CheckResult(status, "vkCreateGraphicsPipelines");
+  }
 
   // Silly, but let's make a pipeline just for drawing lines.
   pipeline_info.flags = VK_PIPELINE_CREATE_DERIVATIVE_BIT;
   input_info.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
   pipeline_info.basePipelineHandle = triangle_pipeline_;
   pipeline_info.basePipelineIndex = -1;
-  err = vkCreateGraphicsPipelines(*device, nullptr, 1, &pipeline_info, nullptr,
-                                  &line_pipeline_);
-  CheckResult(err, "vkCreateGraphicsPipelines");
+  if (status == VK_SUCCESS) {
+    status = vkCreateGraphicsPipelines(*device, nullptr, 1, &pipeline_info,
+                                       nullptr, &line_pipeline_);
+    CheckResult(status, "vkCreateGraphicsPipelines");
+  }
 
-  vkDestroyShaderModule(*device, vertex_shader, nullptr);
-  vkDestroyShaderModule(*device, fragment_shader, nullptr);
+  VK_SAFE_DESTROY(vkDestroyShaderModule, *device, vertex_shader, nullptr);
+  VK_SAFE_DESTROY(vkDestroyShaderModule, *device, fragment_shader, nullptr);
 
   // Allocate the buffer we'll use for our vertex and index data.
   circular_buffer_ = std::make_unique<LightweightCircularBuffer>(device);
+
+  return status;
 }
 
-VulkanImmediateDrawer::~VulkanImmediateDrawer() {
+void VulkanImmediateDrawer::Shutdown() {
   auto device = context_->device();
 
   circular_buffer_.reset();
 
-  vkDestroyPipeline(*device, line_pipeline_, nullptr);
-  vkDestroyPipeline(*device, triangle_pipeline_, nullptr);
-  vkDestroyPipelineLayout(*device, pipeline_layout_, nullptr);
+  VK_SAFE_DESTROY(vkDestroyPipeline, *device, line_pipeline_, nullptr);
+  VK_SAFE_DESTROY(vkDestroyPipeline, *device, triangle_pipeline_, nullptr);
+  VK_SAFE_DESTROY(vkDestroyPipelineLayout, *device, pipeline_layout_, nullptr);
 
-  vkDestroyDescriptorPool(*device, descriptor_pool_, nullptr);
-  vkDestroyDescriptorSetLayout(*device, texture_set_layout_, nullptr);
+  VK_SAFE_DESTROY(vkDestroyDescriptorPool, *device, descriptor_pool_, nullptr);
+  VK_SAFE_DESTROY(vkDestroyDescriptorSetLayout, *device, texture_set_layout_,
+                  nullptr);
 
-  vkDestroySampler(*device, samplers_.nearest_clamp, nullptr);
-  vkDestroySampler(*device, samplers_.nearest_repeat, nullptr);
-  vkDestroySampler(*device, samplers_.linear_clamp, nullptr);
-  vkDestroySampler(*device, samplers_.linear_repeat, nullptr);
+  VK_SAFE_DESTROY(vkDestroySampler, *device, samplers_.nearest_clamp, nullptr);
+  VK_SAFE_DESTROY(vkDestroySampler, *device, samplers_.nearest_repeat, nullptr);
+  VK_SAFE_DESTROY(vkDestroySampler, *device, samplers_.linear_clamp, nullptr);
+  VK_SAFE_DESTROY(vkDestroySampler, *device, samplers_.linear_repeat, nullptr);
 }
 
 std::unique_ptr<ImmediateTexture> VulkanImmediateDrawer::CreateTexture(
@@ -651,10 +717,17 @@ std::unique_ptr<ImmediateTexture> VulkanImmediateDrawer::CreateTexture(
     const uint8_t* data) {
   auto device = context_->device();
 
+  VkResult status;
   VkSampler sampler = GetSampler(filter, repeat);
 
   auto texture = std::make_unique<VulkanImmediateTexture>(
-      device, descriptor_pool_, texture_set_layout_, sampler, width, height);
+      device, descriptor_pool_, sampler, width, height);
+  status = texture->Initialize(texture_set_layout_);
+  if (status != VK_SUCCESS) {
+    texture->Shutdown();
+    return nullptr;
+  }
+
   if (data) {
     UpdateTexture(texture.get(), data);
   }
@@ -664,9 +737,17 @@ std::unique_ptr<ImmediateTexture> VulkanImmediateDrawer::CreateTexture(
 std::unique_ptr<ImmediateTexture> VulkanImmediateDrawer::WrapTexture(
     VkImageView image_view, VkSampler sampler, uint32_t width,
     uint32_t height) {
-  return std::make_unique<VulkanImmediateTexture>(
-      context_->device(), descriptor_pool_, texture_set_layout_, image_view,
-      sampler, width, height);
+  VkResult status;
+
+  auto texture = std::make_unique<VulkanImmediateTexture>(
+      context_->device(), descriptor_pool_, sampler, width, height);
+  status = texture->Initialize(texture_set_layout_, image_view);
+  if (status != VK_SUCCESS) {
+    texture->Shutdown();
+    return nullptr;
+  }
+
+  return texture;
 }
 
 void VulkanImmediateDrawer::UpdateTexture(ImmediateTexture* texture,
@@ -735,8 +816,6 @@ void VulkanImmediateDrawer::BeginDrawBatch(const ImmediateDrawBatch& batch) {
 }
 
 void VulkanImmediateDrawer::Draw(const ImmediateDraw& draw) {
-  auto swap_chain = context_->swap_chain();
-
   switch (draw.primitive_type) {
     case ImmediatePrimitiveType::kLines:
       vkCmdBindPipeline(current_cmd_buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS,

@@ -11,15 +11,23 @@ project("glslang-spirv")
   includedirs({
   })
   files({
+    "glslang-spirv/bitutils.h",
     "glslang-spirv/disassemble.cpp",
     "glslang-spirv/disassemble.h",
     "glslang-spirv/doc.cpp",
     "glslang-spirv/doc.h",
+    "glslang-spirv/GLSL.ext.AMD.h",
+    "glslang-spirv/GLSL.ext.EXT.h",
+    "glslang-spirv/GLSL.ext.KHR.h",
+    "glslang-spirv/GLSL.ext.NV.h",
     "glslang-spirv/GLSL.std.450.h",
     -- Disabled until required.
     -- "glslang-spirv/GlslangToSpv.cpp",
     -- "glslang-spirv/GlslangToSpv.h",
+    "glslang-spirv/hex_float.h",
     "glslang-spirv/InReadableOrder.cpp",
+    "glslang-spirv/Logger.cpp",
+    "glslang-spirv/Logger.h",
     "glslang-spirv/spirv.hpp",
     "glslang-spirv/SpvBuilder.cpp",
     "glslang-spirv/SpvBuilder.h",

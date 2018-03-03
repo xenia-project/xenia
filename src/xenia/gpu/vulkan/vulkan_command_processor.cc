@@ -62,17 +62,21 @@ bool VulkanCommandProcessor::SetupContext() {
   // Acquire our device and queue.
   auto context = static_cast<xe::ui::vulkan::VulkanContext*>(context_.get());
   device_ = context->device();
-  queue_ = device_->AcquireQueue();
+  queue_ = device_->AcquireQueue(device_->queue_family_index());
   if (!queue_) {
     // Need to reuse primary queue (with locks).
     queue_ = device_->primary_queue();
     queue_mutex_ = &device_->primary_queue_mutex();
   }
 
+  VkResult status = VK_SUCCESS;
+
   // Setup a blitter.
   blitter_ = std::make_unique<ui::vulkan::Blitter>();
-  if (!blitter_->Initialize(device_)) {
+  status = blitter_->Initialize(device_);
+  if (status != VK_SUCCESS) {
     XELOGE("Unable to initialize blitter");
+    blitter_->Shutdown();
     return false;
   }
 
@@ -83,21 +87,38 @@ bool VulkanCommandProcessor::SetupContext() {
   // Initialize the state machine caches.
   buffer_cache_ = std::make_unique<BufferCache>(
       register_file_, memory_, device_, kDefaultBufferCacheCapacity);
+  status = buffer_cache_->Initialize();
+  if (status != VK_SUCCESS) {
+    XELOGE("Unable to initialize buffer cache");
+    buffer_cache_->Shutdown();
+    return false;
+  }
+
   texture_cache_ = std::make_unique<TextureCache>(memory_, register_file_,
                                                   &trace_writer_, device_);
-  pipeline_cache_ = std::make_unique<PipelineCache>(
-      register_file_, device_, buffer_cache_->constant_descriptor_set_layout(),
-      texture_cache_->texture_descriptor_set_layout());
+  status = texture_cache_->Initialize();
+  if (status != VK_SUCCESS) {
+    XELOGE("Unable to initialize texture cache");
+    texture_cache_->Shutdown();
+    return false;
+  }
+
+  pipeline_cache_ = std::make_unique<PipelineCache>(register_file_, device_);
+  status = pipeline_cache_->Initialize(
+      buffer_cache_->constant_descriptor_set_layout(),
+      texture_cache_->texture_descriptor_set_layout(),
+      buffer_cache_->vertex_descriptor_set_layout());
+  if (status != VK_SUCCESS) {
+    XELOGE("Unable to initialize pipeline cache");
+    pipeline_cache_->Shutdown();
+    return false;
+  }
+
   render_cache_ = std::make_unique<RenderCache>(register_file_, device_);
-
-  VkEventCreateInfo info = {
-      VK_STRUCTURE_TYPE_EVENT_CREATE_INFO, nullptr, 0,
-  };
-
-  VkResult result =
-      vkCreateEvent(*device_, &info, nullptr,
-                    reinterpret_cast<VkEvent*>(&swap_state_.backend_data));
-  if (result != VK_SUCCESS) {
+  status = render_cache_->Initialize();
+  if (status != VK_SUCCESS) {
+    XELOGE("Unable to initialize render cache");
+    render_cache_->Shutdown();
     return false;
   }
 
@@ -106,9 +127,6 @@ bool VulkanCommandProcessor::SetupContext() {
 
 void VulkanCommandProcessor::ShutdownContext() {
   // TODO(benvanik): wait until idle.
-
-  vkDestroyEvent(*device_, reinterpret_cast<VkEvent>(swap_state_.backend_data),
-                 nullptr);
 
   if (swap_state_.front_buffer_texture) {
     // Free swap chain image.
@@ -127,7 +145,7 @@ void VulkanCommandProcessor::ShutdownContext() {
 
   // Release queue, if we were using an acquired one.
   if (!queue_mutex_) {
-    device_->ReleaseQueue(queue_);
+    device_->ReleaseQueue(queue_, device_->queue_family_index());
     queue_ = nullptr;
   }
 
@@ -251,7 +269,7 @@ void VulkanCommandProcessor::CreateSwapImage(VkCommandBuffer setup_buffer,
       VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
       nullptr,
       0,
-      blitter_->GetRenderPass(VK_FORMAT_R8G8B8A8_UNORM),
+      blitter_->GetRenderPass(VK_FORMAT_R8G8B8A8_UNORM, true),
       1,
       &fb_image_view_,
       extents.width,
@@ -276,8 +294,8 @@ void VulkanCommandProcessor::CreateSwapImage(VkCommandBuffer setup_buffer,
   barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
 
   vkCmdPipelineBarrier(setup_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                       VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
-                       nullptr, 1, &barrier);
+                       VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0,
+                       nullptr, 0, nullptr, 1, &barrier);
 }
 
 void VulkanCommandProcessor::DestroySwapImage() {
@@ -425,9 +443,11 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
     barrier.image = texture->image;
     barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
 
-    vkCmdPipelineBarrier(copy_commands, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
-                         VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, 0, 0, nullptr, 0,
-                         nullptr, 1, &barrier);
+    vkCmdPipelineBarrier(copy_commands,
+                         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
+                             VK_PIPELINE_STAGE_TRANSFER_BIT,
+                         VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr,
+                         0, nullptr, 1, &barrier);
 
     barrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
     barrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
@@ -435,34 +455,40 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
     barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
     barrier.image = swap_fb;
     vkCmdPipelineBarrier(copy_commands, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                         VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, 0, 0, nullptr, 0,
-                         nullptr, 1, &barrier);
+                         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0,
+                         nullptr, 0, nullptr, 1, &barrier);
 
+    // Part of the source image that we want to blit from.
     VkRect2D src_rect = {
-        {0, 0}, {frontbuffer_width, frontbuffer_height},
+        {0, 0},
+        {texture->texture_info.width + 1, texture->texture_info.height + 1},
     };
+    VkRect2D dst_rect = {{0, 0}, {frontbuffer_width, frontbuffer_height}};
+
+    VkViewport viewport = {
+        0.f, 0.f, float(frontbuffer_width), float(frontbuffer_height),
+        0.f, 1.f};
+
+    VkRect2D scissor = {{0, 0}, {frontbuffer_width, frontbuffer_height}};
+
     blitter_->BlitTexture2D(
         copy_commands, current_batch_fence_,
         texture_cache_->DemandView(texture, 0x688)->view, src_rect,
         {texture->texture_info.width + 1, texture->texture_info.height + 1},
-        VK_FORMAT_R8G8B8A8_UNORM, {0, 0},
-        {frontbuffer_width, frontbuffer_height}, fb_framebuffer_,
-        VK_FILTER_LINEAR, true, true);
+        VK_FORMAT_R8G8B8A8_UNORM, dst_rect,
+        {frontbuffer_width, frontbuffer_height}, fb_framebuffer_, viewport,
+        scissor, VK_FILTER_LINEAR, true, true);
 
     std::swap(barrier.oldLayout, barrier.newLayout);
     barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
     barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-    vkCmdPipelineBarrier(copy_commands, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
-                         VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0,
-                         nullptr, 1, &barrier);
+    vkCmdPipelineBarrier(
+        copy_commands, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
 
     std::lock_guard<std::mutex> lock(swap_state_.mutex);
     swap_state_.width = frontbuffer_width;
     swap_state_.height = frontbuffer_height;
-
-    auto swap_event = reinterpret_cast<VkEvent>(swap_state_.backend_data);
-    vkCmdSetEvent(copy_commands, swap_event,
-                  VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT);
   }
 
   status = vkEndCommandBuffer(copy_commands);
@@ -504,8 +530,6 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
     submit_info.pSignalSemaphores = nullptr;
 
     status = vkQueueSubmit(queue_, 1, &submit_info, current_batch_fence_);
-    CheckResult(status, "vkQueueSubmit");
-
     if (device_->is_renderdoc_attached() && capturing_) {
       device_->EndRenderDocFrameCapture();
       capturing_ = false;
@@ -646,7 +670,7 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
   }
 
   // Upload and bind all vertex buffer data.
-  if (!PopulateVertexBuffers(command_buffer, vertex_shader)) {
+  if (!PopulateVertexBuffers(command_buffer, setup_buffer, vertex_shader)) {
     return false;
   }
 
@@ -767,7 +791,8 @@ bool VulkanCommandProcessor::PopulateIndexBuffer(
 }
 
 bool VulkanCommandProcessor::PopulateVertexBuffers(
-    VkCommandBuffer command_buffer, VulkanShader* vertex_shader) {
+    VkCommandBuffer command_buffer, VkCommandBuffer setup_buffer,
+    VulkanShader* vertex_shader) {
   auto& regs = *register_file_;
 
 #if FINE_GRAINED_DRAW_SCOPES
@@ -781,56 +806,12 @@ bool VulkanCommandProcessor::PopulateVertexBuffers(
   }
 
   assert_true(vertex_bindings.size() <= 32);
-  VkBuffer all_buffers[32];
-  VkDeviceSize all_buffer_offsets[32];
-  uint32_t buffer_index = 0;
+  auto descriptor_set = buffer_cache_->PrepareVertexSet(
+      setup_buffer, current_batch_fence_, vertex_bindings);
 
-  for (const auto& vertex_binding : vertex_bindings) {
-    int r = XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 +
-            (vertex_binding.fetch_constant / 3) * 6;
-    const auto group = reinterpret_cast<xe_gpu_fetch_group_t*>(&regs.values[r]);
-    const xe_gpu_vertex_fetch_t* fetch = nullptr;
-    switch (vertex_binding.fetch_constant % 3) {
-      case 0:
-        fetch = &group->vertex_fetch_0;
-        break;
-      case 1:
-        fetch = &group->vertex_fetch_1;
-        break;
-      case 2:
-        fetch = &group->vertex_fetch_2;
-        break;
-    }
-
-    assert_true(fetch->type == 0x3);
-
-    // TODO(benvanik): compute based on indices or vertex count.
-    //     THIS CAN BE MASSIVELY INCORRECT (too large).
-    size_t valid_range = size_t(fetch->size * 4);
-
-    uint32_t physical_address = fetch->address << 2;
-    trace_writer_.WriteMemoryRead(physical_address, valid_range);
-
-    // Upload (or get a cached copy of) the buffer.
-    uint32_t source_length = uint32_t(valid_range);
-    auto buffer_ref = buffer_cache_->UploadVertexBuffer(
-        current_setup_buffer_, physical_address, source_length,
-        static_cast<Endian>(fetch->endian), current_batch_fence_);
-    if (buffer_ref.second == VK_WHOLE_SIZE) {
-      // Failed to upload buffer.
-      return false;
-    }
-
-    // Stash the buffer reference for our bulk bind at the end.
-    all_buffers[buffer_index] = buffer_ref.first;
-    all_buffer_offsets[buffer_index] = buffer_ref.second;
-    ++buffer_index;
-  }
-
-  // Bind buffers.
-  vkCmdBindVertexBuffers(command_buffer, 0, buffer_index, all_buffers,
-                         all_buffer_offsets);
-
+  vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                          pipeline_cache_->pipeline_layout(), 2, 1,
+                          &descriptor_set, 0, nullptr);
   return true;
 }
 
@@ -880,8 +861,17 @@ bool VulkanCommandProcessor::IssueCopy() {
     uint32_t copy_ref;
     uint32_t copy_mask;
     uint32_t copy_surface_slice;
-  }* copy_regs = (decltype(copy_regs)) & regs[XE_GPU_REG_RB_COPY_CONTROL].u32;
+  }* copy_regs = reinterpret_cast<decltype(copy_regs)>(
+      &regs[XE_GPU_REG_RB_COPY_CONTROL].u32);
 
+  struct {
+    reg::PA_SC_WINDOW_OFFSET window_offset;
+    reg::PA_SC_WINDOW_SCISSOR_TL window_scissor_tl;
+    reg::PA_SC_WINDOW_SCISSOR_BR window_scissor_br;
+  }* window_regs = reinterpret_cast<decltype(window_regs)>(
+      &regs[XE_GPU_REG_PA_SC_WINDOW_OFFSET].u32);
+
+  // True if the source tile is a color target
   bool is_color_source = copy_regs->copy_control.copy_src_select <= 3;
 
   // Render targets 0-3, 4 = depth
@@ -895,9 +885,6 @@ bool VulkanCommandProcessor::IssueCopy() {
   auto copy_dest_format =
       ColorFormatToTextureFormat(copy_regs->copy_dest_info.copy_dest_format);
   // TODO: copy dest number / bias
-
-  // TODO: Issue with RDR - resolves k_16_16_16_16_FLOAT and samples
-  // k_16_16_16_16.
 
   uint32_t copy_dest_base = copy_regs->copy_dest_base;
   uint32_t copy_dest_pitch = copy_regs->copy_dest_pitch.copy_dest_pitch;
@@ -922,6 +909,8 @@ bool VulkanCommandProcessor::IssueCopy() {
   uint32_t dest_logical_width = copy_dest_pitch;
   uint32_t dest_logical_height = copy_dest_height;
 
+  // vtx_window_offset_enable
+  assert_true(regs[XE_GPU_REG_PA_SU_SC_MODE_CNTL].u32 & 0x00010000);
   uint32_t window_offset = regs[XE_GPU_REG_PA_SC_WINDOW_OFFSET].u32;
   int16_t window_offset_x = window_offset & 0x7FFF;
   int16_t window_offset_y = (window_offset >> 16) & 0x7FFF;
@@ -988,6 +977,10 @@ bool VulkanCommandProcessor::IssueCopy() {
   int32_t dest_max_y = int32_t(
       (std::max(std::max(dest_points[1], dest_points[3]), dest_points[5])));
 
+  VkOffset2D resolve_offset = {dest_min_x, dest_min_y};
+  VkExtent2D resolve_extent = {uint32_t(dest_max_x - dest_min_x),
+                               uint32_t(dest_max_y - dest_min_y)};
+
   uint32_t color_edram_base = 0;
   uint32_t depth_edram_base = 0;
   ColorRenderTargetFormat color_format;
@@ -995,7 +988,8 @@ bool VulkanCommandProcessor::IssueCopy() {
   if (is_color_source) {
     // Source from a color target.
     uint32_t color_info[4] = {
-        regs[XE_GPU_REG_RB_COLOR_INFO].u32, regs[XE_GPU_REG_RB_COLOR1_INFO].u32,
+        regs[XE_GPU_REG_RB_COLOR_INFO].u32,
+        regs[XE_GPU_REG_RB_COLOR1_INFO].u32,
         regs[XE_GPU_REG_RB_COLOR2_INFO].u32,
         regs[XE_GPU_REG_RB_COLOR3_INFO].u32,
     };
@@ -1053,7 +1047,7 @@ bool VulkanCommandProcessor::IssueCopy() {
     image_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
     image_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
     image_barrier.srcAccessMask = 0;
-    image_barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    image_barrier.dstAccessMask = 0;
     image_barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     image_barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
     image_barrier.image = texture->image;
@@ -1064,8 +1058,8 @@ bool VulkanCommandProcessor::IssueCopy() {
             : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
     texture->image_layout = VK_IMAGE_LAYOUT_GENERAL;
 
-    vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-                         VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
+    vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                         VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 0,
                          nullptr, 1, &image_barrier);
   }
 
@@ -1078,22 +1072,21 @@ bool VulkanCommandProcessor::IssueCopy() {
   image_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
   image_barrier.srcAccessMask = 0;
   image_barrier.dstAccessMask =
-      VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+      is_color_source ? VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
+                      : VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
   image_barrier.oldLayout = texture->image_layout;
-  image_barrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+  image_barrier.newLayout =
+      is_color_source ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+                      : VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
   image_barrier.image = texture->image;
   image_barrier.subresourceRange = {0, 0, 1, 0, 1};
   image_barrier.subresourceRange.aspectMask =
       is_color_source ? VK_IMAGE_ASPECT_COLOR_BIT
                       : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
 
-  vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
-                       VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0,
+  vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                       VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, 0, 0, nullptr, 0,
                        nullptr, 1, &image_barrier);
-
-  VkOffset2D resolve_offset = {dest_min_x, dest_min_y};
-  VkExtent2D resolve_extent = {uint32_t(dest_max_x - dest_min_x),
-                               uint32_t(dest_max_y - dest_min_y)};
 
   // Ask the render cache to copy to the resolve texture.
   auto edram_base = is_color_source ? color_edram_base : depth_edram_base;
@@ -1102,20 +1095,24 @@ bool VulkanCommandProcessor::IssueCopy() {
   VkFilter filter = is_color_source ? VK_FILTER_LINEAR : VK_FILTER_NEAREST;
   switch (copy_command) {
     case CopyCommand::kRaw:
-    /*
-      render_cache_->RawCopyToImage(command_buffer, edram_base, texture->image,
-                                    texture->image_layout, is_color_source,
-                                    resolve_offset, resolve_extent);
-      break;
-    */
+      /*
+        render_cache_->RawCopyToImage(command_buffer, edram_base,
+        texture->image, texture->image_layout, is_color_source, resolve_offset,
+        resolve_extent); break;
+      */
 
     case CopyCommand::kConvert: {
       /*
-      render_cache_->BlitToImage(command_buffer, edram_base, surface_pitch,
-                                 resolve_extent.height, surface_msaa,
-                                 texture->image, texture->image_layout,
-                                 is_color_source, src_format, filter,
-                                 resolve_offset, resolve_extent);
+      if (!is_color_source && copy_regs->copy_dest_info.copy_dest_swap == 0) {
+        // Depth images are a bit more complicated. Try a blit!
+        render_cache_->BlitToImage(
+            command_buffer, edram_base, surface_pitch, resolve_extent.height,
+            surface_msaa, texture->image, texture->image_layout,
+            is_color_source, src_format, filter,
+            {resolve_offset.x, resolve_offset.y, 0},
+            {resolve_extent.width, resolve_extent.height, 1});
+        break;
+      }
       */
 
       // Blit with blitter.
@@ -1127,28 +1124,31 @@ bool VulkanCommandProcessor::IssueCopy() {
 
       // Convert the tile view to a sampled image.
       // Put a barrier on the tile view.
-      VkImageMemoryBarrier image_barrier;
-      image_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-      image_barrier.pNext = nullptr;
-      image_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-      image_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-      image_barrier.srcAccessMask =
+      VkImageMemoryBarrier tile_image_barrier;
+      tile_image_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+      tile_image_barrier.pNext = nullptr;
+      tile_image_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+      tile_image_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+      tile_image_barrier.srcAccessMask =
           is_color_source ? VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
                           : VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-      image_barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-      image_barrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
-      image_barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
-      image_barrier.image = view->image;
-      image_barrier.subresourceRange = {0, 0, 1, 0, 1};
-      image_barrier.subresourceRange.aspectMask =
+      tile_image_barrier.dstAccessMask =
+          VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_SHADER_READ_BIT;
+      tile_image_barrier.oldLayout = view->image_layout;
+      tile_image_barrier.newLayout = view->image_layout;
+      tile_image_barrier.image = view->image;
+      tile_image_barrier.subresourceRange = {0, 0, 1, 0, 1};
+      tile_image_barrier.subresourceRange.aspectMask =
           is_color_source
               ? VK_IMAGE_ASPECT_COLOR_BIT
               : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
       vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
-                           VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr,
-                           0, nullptr, 1, &image_barrier);
+                           VK_PIPELINE_STAGE_TRANSFER_BIT |
+                               VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                           0, 0, nullptr, 0, nullptr, 1, &tile_image_barrier);
 
-      auto render_pass = blitter_->GetRenderPass(texture->format);
+      auto render_pass =
+          blitter_->GetRenderPass(texture->format, is_color_source);
 
       // Create a framebuffer containing our image.
       if (!texture->framebuffer) {
@@ -1171,20 +1171,59 @@ bool VulkanCommandProcessor::IssueCopy() {
         CheckResult(res, "vkCreateFramebuffer");
       }
 
+      VkRect2D src_rect = {
+          {0, 0},
+          resolve_extent,
+      };
+
+      // By offsetting the destination texture by the window offset, we've
+      // already handled it and need to subtract the window offset from the
+      // destination rectangle.
+      VkRect2D dst_rect = {
+          {resolve_offset.x + window_offset_x,
+           resolve_offset.y + window_offset_y},
+          resolve_extent,
+      };
+
+      VkViewport viewport = {
+          float(-window_offset_x),
+          float(-window_offset_y),
+          float(copy_dest_pitch),
+          float(copy_dest_height),
+          0.f,
+          1.f,
+      };
+
+      VkRect2D scissor = {
+          {
+              int32_t(window_regs->window_scissor_tl.tl_x.value()),
+              int32_t(window_regs->window_scissor_tl.tl_y.value()),
+          },
+          {
+              window_regs->window_scissor_br.br_x.value() -
+                  window_regs->window_scissor_tl.tl_x.value(),
+              window_regs->window_scissor_br.br_y.value() -
+                  window_regs->window_scissor_tl.tl_y.value(),
+          },
+      };
+
       blitter_->BlitTexture2D(
           command_buffer, current_batch_fence_,
-          copy_src_select == 4 ? view->image_view_depth : view->image_view,
-          {{0, 0}, {resolve_extent.width, resolve_extent.height}},
-          view->GetSize(), texture->format, resolve_offset, resolve_extent,
-          texture->framebuffer, filter, is_color_source,
+          is_color_source ? view->image_view : view->image_view_depth, src_rect,
+          view->GetSize(), texture->format, dst_rect,
+          {copy_dest_pitch, copy_dest_height}, texture->framebuffer, viewport,
+          scissor, filter, is_color_source,
           copy_regs->copy_dest_info.copy_dest_swap != 0);
 
-      // Pull the tile view back to a color attachment.
-      std::swap(image_barrier.srcAccessMask, image_barrier.dstAccessMask);
+      // Pull the tile view back to a color/depth attachment.
+      std::swap(tile_image_barrier.srcAccessMask,
+                tile_image_barrier.dstAccessMask);
+      std::swap(tile_image_barrier.oldLayout, tile_image_barrier.newLayout);
       vkCmdPipelineBarrier(command_buffer,
-                           VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                           VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
+                               VK_PIPELINE_STAGE_TRANSFER_BIT,
                            VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, 0, 0, nullptr, 0,
-                           nullptr, 1, &image_barrier);
+                           nullptr, 1, &tile_image_barrier);
     } break;
 
     case CopyCommand::kConstantOne:
@@ -1198,9 +1237,14 @@ bool VulkanCommandProcessor::IssueCopy() {
   image_barrier.dstAccessMask =
       VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_TRANSFER_READ_BIT;
   std::swap(image_barrier.newLayout, image_barrier.oldLayout);
-  vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                       VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
-                       nullptr, 1, &image_barrier);
+  vkCmdPipelineBarrier(command_buffer,
+                       is_color_source
+                           ? VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+                           : VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+                       VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
+                           VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
+                           VK_PIPELINE_STAGE_TRANSFER_BIT,
+                       0, 0, nullptr, 0, nullptr, 1, &image_barrier);
 
   // Perform any requested clears.
   uint32_t copy_depth_clear = regs[XE_GPU_REG_RB_DEPTH_CLEAR].u32;

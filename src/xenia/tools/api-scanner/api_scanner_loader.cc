@@ -179,5 +179,5 @@ bool apiscanner_loader::ExtractImports(const void* addr, const size_t length,
   return true;
 }
 
-}  // tools
-}  // xe
+}  // namespace tools
+}  // namespace xe

@@ -15,6 +15,9 @@
 namespace xe {
 namespace gpu {
 
+// Trace file extension.
+static const wchar_t kTraceExtension[] = L"xtr";
+
 // Any byte changes to the files should bump this version.
 // Only builds with matching versions will work.
 // Other changes besides the file format may require bumps, such as

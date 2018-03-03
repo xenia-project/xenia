@@ -24,7 +24,7 @@ dword_result_t XamAvatarInitialize(
     lpdword_t function_ptrs,   // 20b, 5 pointers
     lpunknown_t unk5,          // ptr in data segment
     dword_t unk6               // flags - 0x00300000, 0x30, etc
-    ) {
+) {
   // Negative to fail. Game should immediately call XamAvatarShutdown.
   return ~0u;
 }

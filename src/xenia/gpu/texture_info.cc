@@ -13,8 +13,10 @@
 #include <cmath>
 #include <cstring>
 
-#include "third_party/xxhash/xxhash.h"
+#include "xenia/base/logging.h"
 #include "xenia/base/math.h"
+
+#include "third_party/xxhash/xxhash.h"
 
 namespace xe {
 namespace gpu {
@@ -60,7 +62,8 @@ bool TextureInfo::Prepare(const xe_gpu_texture_fetch_t& fetch,
   info.input_length = 0;  // Populated below.
 
   if (info.format_info()->format == TextureFormat::kUnknown) {
-    assert_true("Unsupported texture format");
+    XELOGE("Attempting to fetch from unsupported texture format %d",
+           info.texture_format);
     return false;
   }
 

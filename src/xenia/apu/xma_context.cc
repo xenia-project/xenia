@@ -225,6 +225,11 @@ bool XmaContext::ValidFrameOffset(uint8_t* block, size_t size_bytes,
                                   size_t frame_offset_bits) {
   uint32_t packet_num =
       GetFramePacketNumber(block, size_bytes, frame_offset_bits);
+  if (packet_num == -1) {
+    // Invalid packet number
+    return false;
+  }
+
   uint8_t* packet = block + (packet_num * kBytesPerPacket);
   size_t relative_offset_bits = frame_offset_bits % (kBytesPerPacket * 8);
 
@@ -299,8 +304,6 @@ void XmaContext::DecodePackets(XMA_CONTEXT_DATA* data) {
   if (!data->input_buffer_0_valid && !data->input_buffer_1_valid) {
     return;
   }
-
-  assert_zero(data->unk_dword_9);
 
   // XAudio Loops
   // loop_count:

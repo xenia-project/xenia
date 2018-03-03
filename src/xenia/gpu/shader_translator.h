@@ -212,6 +212,9 @@ class ShaderTranslator {
   int total_attrib_count_ = 0;
   std::vector<Shader::VertexBinding> vertex_bindings_;
   std::vector<Shader::TextureBinding> texture_bindings_;
+  uint32_t unique_vertex_bindings_ = 0;
+  uint32_t unique_texture_bindings_ = 0;
+
   Shader::ConstantRegisterMap constant_register_map_ = {0};
   bool writes_color_targets_[4] = {false, false, false, false};
 

@@ -149,21 +149,23 @@ int xenia_main(const std::vector<std::wstring>& args) {
   // This will respond to debugging requests so we can open the debug UI.
   std::unique_ptr<xe::debug::ui::DebugWindow> debug_window;
   if (FLAGS_debug) {
-    emulator->processor()->set_debug_listener_request_handler([&](
-        xe::cpu::Processor* processor) {
-      if (debug_window) {
-        return debug_window.get();
-      }
-      emulator_window->loop()->PostSynchronous([&]() {
-        debug_window = xe::debug::ui::DebugWindow::Create(
-            emulator.get(), emulator_window->loop());
-        debug_window->window()->on_closed.AddListener([&](xe::ui::UIEvent* e) {
-          emulator->processor()->set_debug_listener(nullptr);
-          emulator_window->loop()->Post([&]() { debug_window.reset(); });
+    emulator->processor()->set_debug_listener_request_handler(
+        [&](xe::cpu::Processor* processor) {
+          if (debug_window) {
+            return debug_window.get();
+          }
+          emulator_window->loop()->PostSynchronous([&]() {
+            debug_window = xe::debug::ui::DebugWindow::Create(
+                emulator.get(), emulator_window->loop());
+            debug_window->window()->on_closed.AddListener(
+                [&](xe::ui::UIEvent* e) {
+                  emulator->processor()->set_debug_listener(nullptr);
+                  emulator_window->loop()->Post(
+                      [&]() { debug_window.reset(); });
+                });
+          });
+          return debug_window.get();
         });
-      });
-      return debug_window.get();
-    });
   }
 
   auto evt = xe::threading::Event::CreateAutoResetEvent(false);
@@ -172,10 +174,19 @@ int xenia_main(const std::vector<std::wstring>& args) {
     evt->Set();
   });
 
+  emulator_window->window()->on_closing.AddListener([&](ui::UIEvent* e) {
+    // This needs to shut down before the graphics context.
+    Profiler::Shutdown();
+  });
+
   bool exiting = false;
   emulator_window->loop()->on_quit.AddListener([&](ui::UIEvent* e) {
     exiting = true;
     evt->Set();
+
+    // TODO(DrChat): Remove this code and do a proper exit.
+    XELOGI("Cheap-skate exit!");
+    exit(0);
   });
 
   // Enable the main menu now that the emulator is properly loaded
@@ -203,7 +214,7 @@ int xenia_main(const std::vector<std::wstring>& args) {
     std::wstring abs_path = xe::to_absolute_path(path);
     result = emulator->LaunchPath(abs_path);
     if (XFAILED(result)) {
-      XELOGE("Failed to launch target: %.8X", result);
+      xe::FatalError("Failed to launch target: %.8X", result);
       emulator.reset();
       emulator_window.reset();
       return 1;
@@ -227,10 +238,10 @@ int xenia_main(const std::vector<std::wstring>& args) {
 
   debug_window.reset();
   emulator.reset();
-  emulator_window.reset();
 
   Profiler::Dump();
   Profiler::Shutdown();
+  emulator_window.reset();
   return 0;
 }
 

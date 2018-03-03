@@ -559,13 +559,12 @@ int32_t format_core(PPCContext* ppc_context, FormatData& data, ArgList& args,
 
               if (!is_wide) {
                 length = 0;
-                for (auto s = (const uint8_t *)str; cap > 0 && *s; ++s, cap--) {
+                for (auto s = (const uint8_t*)str; cap > 0 && *s; ++s, cap--) {
                   length++;
                 }
               } else {
                 length = 0;
-                for (auto s = (const uint16_t *)str; cap > 0 && *s;
-                     ++s, cap--) {
+                for (auto s = (const uint16_t*)str; cap > 0 && *s; ++s, cap--) {
                   length++;
                 }
               }
@@ -580,6 +579,7 @@ int32_t format_core(PPCContext* ppc_context, FormatData& data, ArgList& args,
           // ANSI_STRING / UNICODE_STRING
           case 'Z': {
             assert_always();
+            break;
           }
 
           default: { assert_always(); }

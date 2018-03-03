@@ -38,10 +38,15 @@ class VulkanContext : public GraphicsContext {
   bool MakeCurrent() override;
   void ClearCurrent() override;
 
+  bool WasLost() override { return context_lost_; }
+
   void BeginSwap() override;
   void EndSwap() override;
 
   std::unique_ptr<RawImage> Capture() override;
+
+ protected:
+  bool context_lost_ = false;
 
  private:
   friend class VulkanProvider;

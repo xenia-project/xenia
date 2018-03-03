@@ -12,6 +12,7 @@
 
 #include <functional>
 #include <memory>
+#include <string>
 #include <vector>
 
 #include "xenia/ui/ui_event.h"

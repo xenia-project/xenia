@@ -86,6 +86,7 @@ class VulkanCommandProcessor : public CommandProcessor {
   bool PopulateIndexBuffer(VkCommandBuffer command_buffer,
                            IndexBufferInfo* index_buffer_info);
   bool PopulateVertexBuffers(VkCommandBuffer command_buffer,
+                             VkCommandBuffer setup_buffer,
                              VulkanShader* vertex_shader);
   bool PopulateSamplers(VkCommandBuffer command_buffer,
                         VkCommandBuffer setup_buffer,

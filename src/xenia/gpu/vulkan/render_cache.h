@@ -56,6 +56,8 @@ class CachedTileView {
   VkImage image = nullptr;
   // Simple view on the image matching the format.
   VkImageView image_view = nullptr;
+  // Image layout
+  VkImageLayout image_layout = VK_IMAGE_LAYOUT_UNDEFINED;
   // Memory buffer
   VkDeviceMemory memory = nullptr;
   // Image sample count
@@ -82,7 +84,7 @@ class CachedTileView {
   }
 
   VkExtent2D GetSize() const {
-    return {key.tile_width * 80ul, key.tile_height * 16ul};
+    return {key.tile_width * 80u, key.tile_height * 16u};
   }
 
  private:
@@ -273,6 +275,9 @@ class RenderCache {
  public:
   RenderCache(RegisterFile* register_file, ui::vulkan::VulkanDevice* device);
   ~RenderCache();
+
+  VkResult Initialize();
+  void Shutdown();
 
   // Call this to determine if you should start a new render pass or continue
   // with an already open pass.

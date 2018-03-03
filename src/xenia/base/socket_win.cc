@@ -259,29 +259,26 @@ class Win32SocketServer : public SocketServer {
       return false;
     }
 
-    accept_thread_ = xe::threading::Thread::Create(
-        {},
-        [this, port]() {
-          xe::threading::set_name(std::string("xe::SocketServer localhost:") +
-                                  std::to_string(port));
-          while (socket_ != INVALID_SOCKET) {
-            sockaddr_in6 client_addr;
-            int client_count = sizeof(client_addr);
-            SOCKET client_socket =
-                accept(socket_, reinterpret_cast<sockaddr*>(&client_addr),
-                       &client_count);
-            if (client_socket == INVALID_SOCKET) {
-              continue;
-            }
+    accept_thread_ = xe::threading::Thread::Create({}, [this, port]() {
+      xe::threading::set_name(std::string("xe::SocketServer localhost:") +
+                              std::to_string(port));
+      while (socket_ != INVALID_SOCKET) {
+        sockaddr_in6 client_addr;
+        int client_count = sizeof(client_addr);
+        SOCKET client_socket = accept(
+            socket_, reinterpret_cast<sockaddr*>(&client_addr), &client_count);
+        if (client_socket == INVALID_SOCKET) {
+          continue;
+        }
 
-            auto client = std::make_unique<Win32Socket>();
-            if (!client->Accept(client_socket)) {
-              XELOGE("Unable to accept socket; ignoring");
-              continue;
-            }
-            accept_callback_(std::move(client));
-          }
-        });
+        auto client = std::make_unique<Win32Socket>();
+        if (!client->Accept(client_socket)) {
+          XELOGE("Unable to accept socket; ignoring");
+          continue;
+        }
+        accept_callback_(std::move(client));
+      }
+    });
 
     return true;
   }

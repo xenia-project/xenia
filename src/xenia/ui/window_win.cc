@@ -67,7 +67,7 @@ bool Win32Window::OnCreate() {
     wcex.cbWndExtra = 0;
     wcex.hInstance = hInstance;
     wcex.hIcon = LoadIcon(hInstance, L"MAINICON");
-    wcex.hIconSm = LoadIcon(hInstance, L"MAINICON");
+    wcex.hIconSm = NULL;  // LoadIcon(hInstance, L"MAINICON");
     wcex.hCursor = LoadCursor(nullptr, IDC_ARROW);
     wcex.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
     wcex.lpszMenuName = nullptr;
@@ -169,7 +169,6 @@ void Win32Window::OnDestroy() { super::OnDestroy(); }
 void Win32Window::OnClose() {
   if (!closing_ && hwnd_) {
     closing_ = true;
-    CloseWindow(hwnd_);
   }
   super::OnClose();
 }
@@ -428,7 +427,6 @@ void Win32Window::Close() {
     return;
   }
   closing_ = true;
-  Close();
   OnClose();
   DestroyWindow(hwnd_);
 }
@@ -509,8 +507,6 @@ LRESULT Win32Window::WndProc(HWND hWnd, UINT message, WPARAM wParam,
       OnDestroy();
       break;
     case WM_CLOSE:
-      closing_ = true;
-      Close();
       OnClose();
       break;
 

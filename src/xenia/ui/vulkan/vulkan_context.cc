@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2016 Ben Vanik. All rights reserved.                             *
+ * Copyright 2017 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -25,6 +25,10 @@
 #include "xenia/ui/vulkan/vulkan_util.h"
 #include "xenia/ui/window.h"
 
+#if XE_PLATFORM_LINUX
+#include "xenia/ui/window_gtk.h"
+#endif
+
 namespace xe {
 namespace ui {
 namespace vulkan {
@@ -33,11 +37,12 @@ VulkanContext::VulkanContext(VulkanProvider* provider, Window* target_window)
     : GraphicsContext(provider, target_window) {}
 
 VulkanContext::~VulkanContext() {
+  VkResult status;
   auto provider = static_cast<VulkanProvider*>(provider_);
   auto device = provider->device();
   {
     std::lock_guard<std::mutex> queue_lock(device->primary_queue_mutex());
-    vkQueueWaitIdle(device->primary_queue());
+    status = vkQueueWaitIdle(device->primary_queue());
   }
   immediate_drawer_.reset();
   swap_chain_.reset();
@@ -49,6 +54,7 @@ bool VulkanContext::Initialize() {
 
   if (target_window_) {
     // Create swap chain used to present to the window.
+    VkResult status = VK_ERROR_FEATURE_NOT_PRESENT;
     VkSurfaceKHR surface = nullptr;
 #if XE_PLATFORM_WIN32
     VkWin32SurfaceCreateInfoKHR create_info;
@@ -58,22 +64,55 @@ bool VulkanContext::Initialize() {
     create_info.hinstance =
         static_cast<HINSTANCE>(target_window_->native_platform_handle());
     create_info.hwnd = static_cast<HWND>(target_window_->native_handle());
-    auto err = vkCreateWin32SurfaceKHR(*provider->instance(), &create_info,
-                                       nullptr, &surface);
-    CheckResult(err, "vkCreateWin32SurfaceKHR");
+    status = vkCreateWin32SurfaceKHR(*provider->instance(), &create_info,
+                                     nullptr, &surface);
+    CheckResult(status, "vkCreateWin32SurfaceKHR");
+#elif XE_PLATFORM_LINUX
+#ifdef GDK_WINDOWING_X11
+    GtkWidget* window_handle =
+        static_cast<GtkWidget*>(target_window_->native_handle());
+    GdkDisplay* gdk_display = gtk_widget_get_display(window_handle);
+    assert(GDK_IS_X11_DISPLAY(gdk_display));
+    xcb_connection_t* connection =
+        XGetXCBConnection(gdk_x11_display_get_xdisplay(gdk_display));
+    xcb_window_t window =
+        gdk_x11_window_get_xid(gtk_widget_get_window(window_handle));
+    VkXcbSurfaceCreateInfoKHR create_info;
+    create_info.sType = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR;
+    create_info.pNext = nullptr;
+    create_info.flags = 0;
+    create_info.connection = static_cast<xcb_connection_t*>(
+        target_window_->native_platform_handle());
+    create_info.window = static_cast<xcb_window_t>(window);
+    status = vkCreateXcbSurfaceKHR(*provider->instance(), &create_info, nullptr,
+                                   &surface);
+    CheckResult(status, "vkCreateXcbSurfaceKHR");
+#else
+#error Unsupported GDK Backend on Linux.
+#endif  // GDK_WINDOWING_X11
 #else
 #error Platform not yet implemented.
 #endif  // XE_PLATFORM_WIN32
+    if (status != VK_SUCCESS) {
+      XELOGE("Failed to create presentation surface");
+      return false;
+    }
+
     swap_chain_ = std::make_unique<VulkanSwapChain>(provider->instance(),
                                                     provider->device());
-    if (!swap_chain_->Initialize(surface)) {
+    if (swap_chain_->Initialize(surface) != VK_SUCCESS) {
       XELOGE("Unable to initialize swap chain");
-      vkDestroySurfaceKHR(*provider->instance(), surface, nullptr);
       return false;
     }
 
     // Only initialize immediate mode drawer if we are not an offscreen context.
     immediate_drawer_ = std::make_unique<VulkanImmediateDrawer>(this);
+    status = immediate_drawer_->Initialize();
+    if (status != VK_SUCCESS) {
+      XELOGE("Failed to initialize the immediate mode drawer");
+      immediate_drawer_.reset();
+      return false;
+    }
   }
 
   return true;
@@ -105,24 +144,30 @@ void VulkanContext::BeginSwap() {
   auto provider = static_cast<VulkanProvider*>(provider_);
   auto device = provider->device();
 
+  VkResult status;
+
   // If we have a window see if it's been resized since we last swapped.
   // If it has been, we'll need to reinitialize the swap chain before we
   // start touching it.
   if (target_window_) {
-    if (target_window_->width() != swap_chain_->surface_width() ||
-        target_window_->height() != swap_chain_->surface_height()) {
+    if (target_window_->scaled_width() != swap_chain_->surface_width() ||
+        target_window_->scaled_height() != swap_chain_->surface_height()) {
       // Resized!
       swap_chain_->Reinitialize();
     }
   }
 
-  // Acquire the next image and set it up for use.
-  swap_chain_->Begin();
+  if (!context_lost_) {
+    // Acquire the next image and set it up for use.
+    status = swap_chain_->Begin();
+    if (status == VK_ERROR_DEVICE_LOST) {
+      context_lost_ = true;
+    }
+  }
 
   // TODO(benvanik): use a fence instead? May not be possible with target image.
   std::lock_guard<std::mutex> queue_lock(device->primary_queue_mutex());
-  auto err = vkQueueWaitIdle(device->primary_queue());
-  CheckResult(err, "vkQueueWaitIdle");
+  status = vkQueueWaitIdle(device->primary_queue());
 }
 
 void VulkanContext::EndSwap() {
@@ -130,15 +175,21 @@ void VulkanContext::EndSwap() {
   auto provider = static_cast<VulkanProvider*>(provider_);
   auto device = provider->device();
 
-  // Notify the presentation engine the image is ready.
-  // The contents must be in a coherent state.
-  swap_chain_->End();
+  VkResult status;
+
+  if (!context_lost_) {
+    // Notify the presentation engine the image is ready.
+    // The contents must be in a coherent state.
+    status = swap_chain_->End();
+    if (status == VK_ERROR_DEVICE_LOST) {
+      context_lost_ = true;
+    }
+  }
 
   // Wait until the queue is idle.
   // TODO(benvanik): is this required?
   std::lock_guard<std::mutex> queue_lock(device->primary_queue_mutex());
-  auto err = vkQueueWaitIdle(device->primary_queue());
-  CheckResult(err, "vkQueueWaitIdle");
+  status = vkQueueWaitIdle(device->primary_queue());
 }
 
 std::unique_ptr<RawImage> VulkanContext::Capture() {

@@ -554,7 +554,7 @@ int InstrEmit_vctsxs_(PPCHIRBuilder& f, uint32_t vd, uint32_t vb,
   float fuimm = static_cast<float>(std::exp2(uimm));
   Value* v =
       f.Mul(f.LoadVR(vb), f.Splat(f.LoadConstantFloat32(fuimm), VEC128_TYPE));
-  v = f.VectorConvertF2I(v, ARITHMETIC_SATURATE);
+  v = f.VectorConvertF2I(v);
   f.StoreSAT(f.DidSaturate(v));
   f.StoreVR(vd, v);
   return 0;
@@ -572,7 +572,7 @@ int InstrEmit_vctuxs_(PPCHIRBuilder& f, uint32_t vd, uint32_t vb,
   float fuimm = static_cast<float>(std::exp2(uimm));
   Value* v =
       f.Mul(f.LoadVR(vb), f.Splat(f.LoadConstantFloat32(fuimm), VEC128_TYPE));
-  v = f.VectorConvertF2I(v, ARITHMETIC_UNSIGNED | ARITHMETIC_SATURATE);
+  v = f.VectorConvertF2I(v, ARITHMETIC_UNSIGNED);
   f.StoreSAT(f.DidSaturate(v));
   f.StoreVR(vd, v);
   return 0;
@@ -2073,7 +2073,7 @@ int InstrEmit_vpkd3d128(PPCHIRBuilder& f, const InstrData& i) {
   uint32_t control = kIdentityPermuteMask;  // original
   switch (pack) {
     case 1:  // VPACK_32
-      // VPACK_32 & shift = 3 puts lower 32 bits in x (leftmost slot).
+             // VPACK_32 & shift = 3 puts lower 32 bits in x (leftmost slot).
       switch (shift) {
         case 0:
           control = MakePermuteMask(0, 0, 0, 1, 0, 2, 1, 3);

@@ -15,7 +15,7 @@ Discussing illegal activities will get you banned. No warnings.
 
 Buildbot | Status
 -------- | ------
-[Windows](https://ci.appveyor.com/project/benvanik/xenia/history) | [![Build status](https://ci.appveyor.com/api/projects/status/ftqiy86kdfawyx3a/branch/master?svg=true)](https://ci.appveyor.com/project/benvanik/xenia/)
+[Windows](https://ci.appveyor.com/project/benvanik/xenia/branch/master) | [![Build status](https://ci.appveyor.com/api/projects/status/ftqiy86kdfawyx3a/branch/master?svg=true)](https://ci.appveyor.com/project/benvanik/xenia/branch/master)
 [Linux](https://travis-ci.org/benvanik/xenia) | [![Build status](https://travis-ci.org/benvanik/xenia.svg)](https://travis-ci.org/benvanik/xenia)
 
 Some real games run. Most don't.
@@ -80,7 +80,7 @@ that there are some major work areas still untouched:
 * Add input drivers for [PS4 controllers](https://github.com/benvanik/xenia/issues/60) (or anything else)
 * Skilled with Linux? A strong contributor is needed to [help with porting](https://github.com/benvanik/xenia/labels/cross%20platform)
 
-See more projects [good for contributors](https://github.com/benvanik/xenia/labels/good%20for%20contributors). It's a good idea to ask on IRC/the bugs before beginning work
+See more projects [good for contributors](https://github.com/benvanik/xenia/labels/good%20first%20issue). It's a good idea to ask on IRC/the bugs before beginning work
 on something.
 
 ## FAQ

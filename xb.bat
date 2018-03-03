@@ -10,8 +10,8 @@ REM ============================================================================
 CALL :check_python
 IF %_RESULT% NEQ 0 (
   ECHO.
-  ECHO Python 2.7 must be installed and on PATH:
-  ECHO https://www.python.org/ftp/python/2.7.13/python-2.7.13.msi
+  ECHO Python 3.4+ must be installed and on PATH:
+  ECHO https://www.python.org/
   GOTO :exit_error
 )
 
@@ -31,13 +31,18 @@ REM ============================================================================
 :check_python
 SETLOCAL
 SET FOUND_PYTHON_EXE=""
-1>NUL 2>NUL CMD /c where python2
+1>NUL 2>NUL CMD /c where python3
 IF NOT ERRORLEVEL 1 (
-  ECHO FOUND PYTHON 2
-  SET FOUND_PYTHON_EXE=python2
+  SET FOUND_PYTHON_EXE=python3
 )
 IF %FOUND_PYTHON_EXE% EQU "" (
-  IF EXIST c:\\python27\\python.exe SET FOUND_PYTHON_EXE=C:\\python27\\python.exe
+  IF EXIST c:\\python34\\python.exe SET FOUND_PYTHON_EXE=C:\\python34\\python.exe
+)
+IF %FOUND_PYTHON_EXE% EQU "" (
+  IF EXIST c:\\python35\\python.exe SET FOUND_PYTHON_EXE=C:\\python35\\python.exe
+)
+IF %FOUND_PYTHON_EXE% EQU "" (
+  IF EXIST c:\\python36\\python.exe SET FOUND_PYTHON_EXE=C:\\python36\\python.exe
 )
 IF %FOUND_PYTHON_EXE% EQU "" (
   1>NUL 2>NUL CMD /c where python
@@ -47,13 +52,13 @@ IF %FOUND_PYTHON_EXE% EQU "" (
 )
 IF %FOUND_PYTHON_EXE% EQU "" (
   ECHO ERROR: no Python executable found on PATH.
-  ECHO Make sure you can run 'python' or 'python2' in a Command Prompt.
+  ECHO Make sure you can run 'python' or 'python3' in a Command Prompt.
   ENDLOCAL & SET _RESULT=1
   GOTO :eof
 )
-CMD /C %FOUND_PYTHON_EXE% -c "import sys; sys.exit(1 if not sys.version_info[:2] == (2, 7) else 0)"
+CMD /C %FOUND_PYTHON_EXE% -c "import sys; sys.exit(1 if not sys.version_info[:2] >= (3, 4) else 0)"
 IF %ERRORLEVEL% NEQ 0 (
-  ECHO ERROR: Python version mismatch - not 2.7
+  ECHO ERROR: Python version mismatch - not 3.4+
   ENDLOCAL & SET _RESULT=1
   GOTO :eof
 )

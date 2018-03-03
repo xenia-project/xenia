@@ -420,7 +420,7 @@ bool RegisterAllocationPass::SpillOneRegister(HIRBuilder* builder, Block* block,
   auto new_value = builder->LoadLocal(spill_value->local_slot);
   auto spill_load = builder->last_instr();
   spill_load->MoveBefore(next_use->instr);
-// Note: implicit first use added.
+  // Note: implicit first use added.
 
 #if ASSERT_NO_CYCLES
   builder->AssertNoCycles();

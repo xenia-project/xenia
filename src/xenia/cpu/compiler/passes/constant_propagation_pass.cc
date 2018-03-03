@@ -195,10 +195,15 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder) {
           break;
 
         case OPCODE_LOAD:
+        case OPCODE_LOAD_OFFSET:
           if (i->src1.value->IsConstant()) {
             assert_false(i->flags & LOAD_STORE_BYTE_SWAP);
             auto memory = processor_->memory();
             auto address = i->src1.value->constant.i32;
+            if (i->opcode->num == OPCODE_LOAD_OFFSET) {
+              address += i->src2.value->constant.i32;
+            }
+
             auto mmio_range =
                 processor_->memory()->LookupVirtualMappedRange(address);
             if (FLAGS_inline_mmio_access && mmio_range) {
@@ -246,12 +251,21 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder) {
           }
           break;
         case OPCODE_STORE:
+        case OPCODE_STORE_OFFSET:
           if (FLAGS_inline_mmio_access && i->src1.value->IsConstant()) {
             auto address = i->src1.value->constant.i32;
+            if (i->opcode->num == OPCODE_STORE_OFFSET) {
+              address += i->src2.value->constant.i32;
+            }
+
             auto mmio_range =
                 processor_->memory()->LookupVirtualMappedRange(address);
             if (mmio_range) {
               auto value = i->src2.value;
+              if (i->opcode->num == OPCODE_STORE_OFFSET) {
+                value = i->src3.value;
+              }
+
               i->Replace(&OPCODE_STORE_MMIO_info, 0);
               i->src1.offset = reinterpret_cast<uint64_t>(mmio_range);
               i->src2.offset = address;
@@ -485,11 +499,20 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder) {
           break;
         case OPCODE_MUL_ADD:
           if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
-            // Multiply part is constant.
             if (i->src3.value->IsConstant()) {
               v->set_from(i->src1.value);
               Value::MulAdd(v, i->src1.value, i->src2.value, i->src3.value);
               i->Remove();
+            } else {
+              // Multiply part is constant.
+              Value* mul = builder->AllocValue();
+              mul->set_from(i->src1.value);
+              mul->Mul(i->src2.value);
+
+              Value* add = i->src3.value;
+              i->Replace(&OPCODE_ADD_info, 0);
+              i->set_src1(mul);
+              i->set_src2(add);
             }
           }
           break;
@@ -500,6 +523,16 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder) {
               v->set_from(i->src1.value);
               Value::MulSub(v, i->src1.value, i->src2.value, i->src3.value);
               i->Remove();
+            } else {
+              // Multiply part is constant.
+              Value* mul = builder->AllocValue();
+              mul->set_from(i->src1.value);
+              mul->Mul(i->src2.value);
+
+              Value* add = i->src3.value;
+              i->Replace(&OPCODE_SUB_info, 0);
+              i->set_src1(mul);
+              i->set_src2(add);
             }
           }
           break;
@@ -668,14 +701,16 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder) {
         case OPCODE_VECTOR_CONVERT_F2I:
           if (i->src1.value->IsConstant()) {
             v->set_zero(VEC128_TYPE);
-            v->VectorConvertF2I(i->src1.value);
+            v->VectorConvertF2I(i->src1.value,
+                                !!(i->flags & ARITHMETIC_UNSIGNED));
             i->Remove();
           }
           break;
         case OPCODE_VECTOR_CONVERT_I2F:
           if (i->src1.value->IsConstant()) {
             v->set_zero(VEC128_TYPE);
-            v->VectorConvertI2F(i->src1.value);
+            v->VectorConvertI2F(i->src1.value,
+                                !!(i->flags & ARITHMETIC_UNSIGNED));
             i->Remove();
           }
           break;

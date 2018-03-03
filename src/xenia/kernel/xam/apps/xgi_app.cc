@@ -36,7 +36,7 @@ X_RESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       uint32_t user_index = xe::load_and_swap<uint32_t>(buffer + 0);
       uint32_t context_id = xe::load_and_swap<uint32_t>(buffer + 16);
       uint32_t context_value = xe::load_and_swap<uint32_t>(buffer + 20);
-      XELOGD("XUserSetContextEx(%.8X, %.8X, %.8X)", user_index, context_id,
+      XELOGD("XGIUserSetContextEx(%.8X, %.8X, %.8X)", user_index, context_id,
              context_value);
       return X_ERROR_SUCCESS;
     }
@@ -45,7 +45,7 @@ X_RESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       uint32_t property_id = xe::load_and_swap<uint32_t>(buffer + 16);
       uint32_t value_size = xe::load_and_swap<uint32_t>(buffer + 20);
       uint32_t value_ptr = xe::load_and_swap<uint32_t>(buffer + 24);
-      XELOGD("XUserSetPropertyEx(%.8X, %.8X, %d, %.8X)", user_index,
+      XELOGD("XGIUserSetPropertyEx(%.8X, %.8X, %d, %.8X)", user_index,
              property_id, value_size, value_ptr);
       return X_ERROR_SUCCESS;
     }
@@ -53,7 +53,7 @@ X_RESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       assert_true(!buffer_length || buffer_length == 8);
       uint32_t achievement_count = xe::load_and_swap<uint32_t>(buffer + 0);
       uint32_t achievements_ptr = xe::load_and_swap<uint32_t>(buffer + 4);
-      XELOGD("XUserWriteAchievements(%.8X, %.8X)", achievement_count,
+      XELOGD("XGIUserWriteAchievements(%.8X, %.8X)", achievement_count,
              achievements_ptr);
       return X_ERROR_SUCCESS;
     }
@@ -64,8 +64,34 @@ X_RESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       // - XamSessionRefObjByHandle
       // - [this]
       // - CloseHandle
-      XELOGD("XSessionCreateImpl(...)");
-      return X_STATUS_UNSUCCESSFUL;
+      uint32_t session_ptr = xe::load_and_swap<uint32_t>(buffer + 0x0);
+      uint32_t flags = xe::load_and_swap<uint32_t>(buffer + 0x4);
+      uint32_t num_slots_public = xe::load_and_swap<uint32_t>(buffer + 0x8);
+      uint32_t num_slots_private = xe::load_and_swap<uint32_t>(buffer + 0xC);
+      uint32_t user_xuid = xe::load_and_swap<uint32_t>(buffer + 0x10);
+      uint32_t session_info_ptr = xe::load_and_swap<uint32_t>(buffer + 0x14);
+      uint32_t nonce_ptr = xe::load_and_swap<uint32_t>(buffer + 0x18);
+
+      XELOGD("XGISessionCreateImpl(%.8X, %.8X, %d, %d, %.8X, %.8X, %.8X)",
+             session_ptr, flags, num_slots_public, num_slots_private, user_xuid,
+             session_info_ptr, nonce_ptr);
+      return X_STATUS_SUCCESS;
+    }
+    case 0x000B0011: {
+      // TODO(DrChat): Figure out what this is again
+    } break;
+    case 0x000B0012: {
+      assert_true(buffer_length == 0x14);
+      uint32_t session_ptr = xe::load_and_swap<uint32_t>(buffer + 0x0);
+      uint32_t user_count = xe::load_and_swap<uint32_t>(buffer + 0x4);
+      uint32_t unk_0 = xe::load_and_swap<uint32_t>(buffer + 0x8);
+      uint32_t user_index_array = xe::load_and_swap<uint32_t>(buffer + 0xC);
+      uint32_t private_slots_array = xe::load_and_swap<uint32_t>(buffer + 0x10);
+
+      assert_zero(unk_0);
+      XELOGD("XGISessionJoinLocal(%.8X, %d, %d, %.8X, %.8X)", session_ptr,
+             user_count, unk_0, user_index_array, private_slots_array);
+      return X_STATUS_SUCCESS;
     }
     case 0x000B0041: {
       assert_true(!buffer_length || buffer_length == 32);
@@ -76,7 +102,7 @@ X_RESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
           context_ptr ? memory_->TranslateVirtual(context_ptr) : nullptr;
       uint32_t context_id =
           context ? xe::load_and_swap<uint32_t>(context + 0) : 0;
-      XELOGD("XUserGetContext(%.8X, %.8X(%.8X))", user_index, context_ptr,
+      XELOGD("XGIUserGetContext(%.8X, %.8X(%.8X))", user_index, context_ptr,
              context_id);
       uint32_t value = 0;
       if (context) {

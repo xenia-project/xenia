@@ -213,9 +213,8 @@ std::vector<object_ref<XObject>> ObjectTable::GetAllObjects() {
 
   for (uint32_t slot = 0; slot < table_capacity_; slot++) {
     auto& entry = table_[slot];
-    if (entry.object &&
-        std::find(results.begin(), results.end(), entry.object) ==
-            results.end()) {
+    if (entry.object && std::find(results.begin(), results.end(),
+                                  entry.object) == results.end()) {
       entry.object->Retain();
       results.push_back(object_ref<XObject>(entry.object));
     }

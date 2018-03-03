@@ -87,10 +87,28 @@ filter("platforms:Linux")
   toolset("clang")
   buildoptions({
     -- "-mlzcnt",  -- (don't) Assume lzcnt is supported.
+    "`pkg-config --cflags gtk+-x11-3.0`",
+    "-fno-lto", -- Premake doesn't support LTO on clang
   })
   links({
     "pthread",
+    "dl",
+    "lz4",
+    "rt",
+    "X11",
+    "xcb",
+    "X11-xcb",
+    "GL",
+    "vulkan",
+    "c++",
+    "c++abi"
   })
+  linkoptions({
+    "`pkg-config --libs gtk+-3.0`",
+  })
+
+filter({"platforms:Linux", "kind:*App"})
+  linkgroups("On")
 
 filter({"platforms:Linux", "language:C++", "toolset:gcc"})
   buildoptions({
@@ -102,10 +120,12 @@ filter({"platforms:Linux", "language:C++", "toolset:gcc"})
 filter({"platforms:Linux", "language:C++", "toolset:clang"})
   buildoptions({
     "-std=c++14",
-    "-stdlib=libc++",
+    "-stdlib=libstdc++",
   })
   links({
-    "c++",
+  })
+  disablewarnings({
+    "deprecated-register"
   })
 
 filter("platforms:Windows")
@@ -119,6 +139,7 @@ filter("platforms:Windows")
     "/wd4127",  -- 'conditional expression is constant'.
     "/wd4324",  -- 'structure was padded due to alignment specifier'.
     "/wd4189",  -- 'local variable is initialized but not referenced'.
+    "/utf-8",   -- 'build correctly on systems with non-Latin codepages'.
   })
   flags({
     "NoMinimalRebuild", -- Required for /MP above.

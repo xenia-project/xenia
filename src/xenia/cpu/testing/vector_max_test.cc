@@ -39,8 +39,9 @@ TEST_CASE("VECTOR_MAX_I8_SIGNED", "[instr]") {
 
 TEST_CASE("VECTOR_MAX_I8_UNSIGNED", "[instr]") {
   TestFunction test([](HIRBuilder& b) {
-    StoreVR(b, 3, b.VectorMax(LoadVR(b, 4), LoadVR(b, 5), INT8_TYPE,
-                              ARITHMETIC_UNSIGNED));
+    StoreVR(b, 3,
+            b.VectorMax(LoadVR(b, 4), LoadVR(b, 5), INT8_TYPE,
+                        ARITHMETIC_UNSIGNED));
     b.Return();
   });
   test.Run(
@@ -75,8 +76,9 @@ TEST_CASE("VECTOR_MAX_I16_SIGNED", "[instr]") {
 
 TEST_CASE("VECTOR_MAX_I16_UNSIGNED", "[instr]") {
   TestFunction test([](HIRBuilder& b) {
-    StoreVR(b, 3, b.VectorMax(LoadVR(b, 4), LoadVR(b, 5), INT16_TYPE,
-                              ARITHMETIC_UNSIGNED));
+    StoreVR(b, 3,
+            b.VectorMax(LoadVR(b, 4), LoadVR(b, 5), INT16_TYPE,
+                        ARITHMETIC_UNSIGNED));
     b.Return();
   });
   test.Run(
@@ -108,8 +110,9 @@ TEST_CASE("VECTOR_MAX_I32_SIGNED", "[instr]") {
 
 TEST_CASE("VECTOR_MAX_I32_UNSIGNED", "[instr]") {
   TestFunction test([](HIRBuilder& b) {
-    StoreVR(b, 3, b.VectorMax(LoadVR(b, 4), LoadVR(b, 5), INT32_TYPE,
-                              ARITHMETIC_UNSIGNED));
+    StoreVR(b, 3,
+            b.VectorMax(LoadVR(b, 4), LoadVR(b, 5), INT32_TYPE,
+                        ARITHMETIC_UNSIGNED));
     b.Return();
   });
   test.Run(

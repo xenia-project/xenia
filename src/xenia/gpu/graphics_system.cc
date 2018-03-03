@@ -51,23 +51,27 @@ X_STATUS GraphicsSystem::Setup(cpu::Processor* processor,
   // This must happen on the UI thread.
   std::unique_ptr<xe::ui::GraphicsContext> processor_context = nullptr;
   if (provider_) {
-    target_window_->loop()->PostSynchronous([&]() {
-      // Create the context used for presentation.
-      assert_null(target_window->context());
-      target_window_->set_context(provider_->CreateContext(target_window_));
+    if (target_window_) {
+      target_window_->loop()->PostSynchronous([&]() {
+        // Create the context used for presentation.
+        assert_null(target_window->context());
+        target_window_->set_context(provider_->CreateContext(target_window_));
 
-      // Setup the GL context the command processor will do all its drawing in.
-      // It's shared with the display context so that we can resolve
-      // framebuffers
-      // from it.
+        // Setup the context the command processor will do all its drawing in.
+        // It's shared with the display context so that we can resolve
+        // framebuffers from it.
+        processor_context = provider()->CreateOffscreenContext();
+      });
+    } else {
       processor_context = provider()->CreateOffscreenContext();
-    });
+    }
+
     if (!processor_context) {
       xe::FatalError(
-          "Unable to initialize GL context. Xenia requires OpenGL 4.5. Ensure "
-          "you have the latest drivers for your GPU and that it supports "
-          "OpenGL "
-          "4.5. See http://xenia.jp/faq/ for more information.");
+          "Unable to initialize graphics context. Xenia requires OpenGL 4.5 or "
+          "Vulkan support. Ensure you have the latest drivers for your GPU and "
+          "that it supports OpenGL or Vulkan. See http://xenia.jp/faq/ for "
+          "more information.");
       return X_STATUS_UNSUCCESSFUL;
     }
   }
@@ -79,12 +83,21 @@ X_STATUS GraphicsSystem::Setup(cpu::Processor* processor,
     XELOGE("Unable to initialize command processor");
     return X_STATUS_UNSUCCESSFUL;
   }
-  command_processor_->set_swap_request_handler(
-      [this]() { target_window_->Invalidate(); });
 
-  // Watch for paint requests to do our swap.
-  target_window->on_painting.AddListener(
-      [this](xe::ui::UIEvent* e) { Swap(e); });
+  if (target_window) {
+    command_processor_->set_swap_request_handler(
+        [this]() { target_window_->Invalidate(); });
+
+    // Watch for paint requests to do our swap.
+    target_window->on_painting.AddListener(
+        [this](xe::ui::UIEvent* e) { Swap(e); });
+
+    // Watch for context lost events.
+    target_window->on_context_lost.AddListener(
+        [this](xe::ui::UIEvent* e) { Reset(); });
+  } else {
+    command_processor_->set_swap_request_handler([]() {});
+  }
 
   // Let the processor know we want register access callbacks.
   memory_->AddVirtualMappedRange(
@@ -123,17 +136,24 @@ X_STATUS GraphicsSystem::Setup(cpu::Processor* processor,
 }
 
 void GraphicsSystem::Shutdown() {
-  EndTracing();
+  if (command_processor_) {
+    EndTracing();
+    command_processor_->Shutdown();
+  }
 
-  vsync_worker_running_ = false;
-  vsync_worker_thread_->Wait(0, 0, 0, nullptr);
-  vsync_worker_thread_.reset();
+  if (vsync_worker_thread_) {
+    vsync_worker_running_ = false;
+    vsync_worker_thread_->Wait(0, 0, 0, nullptr);
+    vsync_worker_thread_.reset();
+  }
+}
 
-  command_processor_->Shutdown();
+void GraphicsSystem::Reset() {
+  // TODO(DrChat): Reset the system.
+  XELOGI("Context lost; Reset invoked");
+  Shutdown();
 
-  // TODO(benvanik): remove mapped range.
-
-  command_processor_.reset();
+  xe::FatalError("Graphics device lost (probably due to an internal error)");
 }
 
 uint32_t GraphicsSystem::ReadRegisterThunk(void* ppc_context,
@@ -154,13 +174,13 @@ uint32_t GraphicsSystem::ReadRegister(uint32_t addr) {
       return 0x08100748;
     case 0x0F01:  // RB_BC_CONTROL
       return 0x0000200E;
-    case 0x194C:  // R500_D1MODE_V_COUNTER(?) / scanline(?)
+    case 0x194C:  // R500_D1MODE_V_COUNTER
       return 0x000002D0;
-    case 0x1951:  // ? vblank pending?
-      return 1;
+    case 0x1951:  // interrupt status
+      return 1;   // vblank
     case 0x1961:  // AVIVO_D1MODE_VIEWPORT_SIZE
-      // Screen res - 1280x720
-      // [width(0x0FFF), height(0x0FFF)]
+                  // Screen res - 1280x720
+                  // maximum [width(0x0FFF), height(0x0FFF)]
       return 0x050002D0;
     default:
       if (!register_file_.GetRegisterInfo(r)) {

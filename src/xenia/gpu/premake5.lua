@@ -22,8 +22,8 @@ project("xenia-gpu")
     project_root.."/third_party/gflags/src",
   })
   local_platform_files()
-  local_platform_files("spirv")
-  local_platform_files("spirv/passes")
+  -- local_platform_files("spirv")
+  -- local_platform_files("spirv/passes")
 
 group("src")
 project("xenia-gpu-shader-compiler")

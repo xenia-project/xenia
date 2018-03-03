@@ -47,6 +47,6 @@ DECLARE_XBDM_EXPORT(DmFindPdbSignature, ExportTag::kStub | ExportTag::kDebug);
 void RegisterMiscExports(xe::cpu::ExportResolver* export_resolver,
                          KernelState* kernel_state) {}
 
-}  // namespace xboxkrnl
+}  // namespace xbdm
 }  // namespace kernel
 }  // namespace xe

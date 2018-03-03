@@ -1,13 +1,13 @@
 ; SPIR-V
 ; Version: 1.0
-; Generator: Khronos Glslang Reference Front End; 1
-; Bound: 76
+; Generator: Khronos Glslang Reference Front End; 3
+; Bound: 75
 ; Schema: 0
                OpCapability Geometry
                OpCapability GeometryPointSize
           %1 = OpExtInstImport "GLSL.std.450"
                OpMemoryModel Logical GLSL450
-               OpEntryPoint Geometry %main "main" %_ %gl_in %out_interpolators %in_interpolators %_in_point_coord_unused %_in_point_size_unused %_out_point_coord_unused %_out_point_size_unused
+               OpEntryPoint Geometry %main "main" %_ %gl_in %out_interpolators %in_interpolators %_in_point_coord_unused %_in_point_size_unused %_out_point_coord_unused
                OpExecutionMode %main InputLinesAdjacency
                OpExecutionMode %main Invocations 1
                OpExecutionMode %main OutputTriangleStrip
@@ -30,7 +30,6 @@
                OpName %_in_point_coord_unused "_in_point_coord_unused"
                OpName %_in_point_size_unused "_in_point_size_unused"
                OpName %_out_point_coord_unused "_out_point_coord_unused"
-               OpName %_out_point_size_unused "_out_point_size_unused"
                OpMemberDecorate %gl_PerVertex 0 BuiltIn Position
                OpMemberDecorate %gl_PerVertex 1 BuiltIn PointSize
                OpDecorate %gl_PerVertex Block
@@ -42,7 +41,6 @@
                OpDecorate %_in_point_coord_unused Location 16
                OpDecorate %_in_point_size_unused Location 17
                OpDecorate %_out_point_coord_unused Location 16
-               OpDecorate %_out_point_size_unused Location 17
        %void = OpTypeVoid
           %3 = OpTypeFunction %void
         %int = OpTypeInt 32 1
@@ -88,7 +86,6 @@
 %_in_point_size_unused = OpVariable %_ptr_Input__arr_float_uint_4 Input
 %_ptr_Output_v2float = OpTypePointer Output %v2float
 %_out_point_coord_unused = OpVariable %_ptr_Output_v2float Output
-%_out_point_size_unused = OpVariable %_ptr_Output_float Output
        %main = OpFunction %void None %3
           %5 = OpLabel
           %i = OpVariable %_ptr_Function_int Function

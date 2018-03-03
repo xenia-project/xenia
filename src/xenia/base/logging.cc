@@ -34,7 +34,7 @@
 #endif  // XE_PLATFORM_WIN32
 
 DEFINE_string(
-    log_file, "xenia.log",
+    log_file, "",
     "Logs are written to the given file (specify stdout for command line)");
 DEFINE_bool(log_debugprint, false, "Dump the log to DebugPrint.");
 DEFINE_bool(flush_log, true, "Flush log file after each log line batch.");
@@ -52,7 +52,12 @@ thread_local std::vector<char> log_format_buffer_(64 * 1024);
 class Logger {
  public:
   explicit Logger(const std::wstring& app_name) : running_(true) {
-    if (!FLAGS_log_file.empty()) {
+    if (FLAGS_log_file.empty()) {
+      // Default to app name.
+      auto file_path = app_name + L".log";
+      xe::filesystem::CreateParentFolder(file_path);
+      file_ = xe::filesystem::OpenFile(file_path, "wt");
+    } else {
       if (FLAGS_log_file == "stdout") {
         file_ = stdout;
       } else {

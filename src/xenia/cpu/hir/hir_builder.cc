@@ -1232,6 +1232,25 @@ void HIRBuilder::StoreMmio(cpu::MMIORange* mmio_range, uint32_t address,
   i->set_src3(value);
 }
 
+Value* HIRBuilder::LoadOffset(Value* address, Value* offset, TypeName type,
+                              uint32_t load_flags) {
+  ASSERT_ADDRESS_TYPE(address);
+  Instr* i = AppendInstr(OPCODE_LOAD_OFFSET_info, load_flags, AllocValue(type));
+  i->set_src1(address);
+  i->set_src2(offset);
+  i->src3.value = NULL;
+  return i->dest;
+}
+
+void HIRBuilder::StoreOffset(Value* address, Value* offset, Value* value,
+                             uint32_t store_flags) {
+  ASSERT_ADDRESS_TYPE(address);
+  Instr* i = AppendInstr(OPCODE_STORE_OFFSET_info, store_flags);
+  i->set_src1(address);
+  i->set_src2(offset);
+  i->set_src3(value);
+}
+
 Value* HIRBuilder::Load(Value* address, TypeName type, uint32_t load_flags) {
   ASSERT_ADDRESS_TYPE(address);
   Instr* i = AppendInstr(OPCODE_LOAD_info, load_flags, AllocValue(type));
@@ -1963,7 +1982,10 @@ Value* HIRBuilder::CountLeadingZeros(Value* value) {
 
   if (value->IsConstantZero()) {
     static const uint8_t zeros[] = {
-        8, 16, 32, 64,
+        8,
+        16,
+        32,
+        64,
     };
     assert_true(value->type <= INT64_TYPE);
     return LoadConstantUint8(zeros[value->type]);

@@ -395,7 +395,10 @@ void DebugWindow::DrawSourcePane() {
   ImGui::SameLine();
   if (function->is_guest()) {
     const char* kSourceDisplayModes[] = {
-        "PPC", "PPC+HIR+x64", "PPC+HIR (opt)+x64", "PPC+x64",
+        "PPC",
+        "PPC+HIR+x64",
+        "PPC+HIR (opt)+x64",
+        "PPC+x64",
     };
     ImGui::PushItemWidth(90);
     ImGui::Combo("##display_mode", &state_.source_display_mode,
@@ -1338,8 +1341,9 @@ void DebugWindow::DrawBreakpointsPane() {
                              function->MapGuestAddressToMachineCode(
                                  breakpoint->guest_address()));
         } else {
-          NavigateToFunction(function, function->MapMachineCodeToGuestAddress(
-                                           breakpoint->host_address()),
+          NavigateToFunction(function,
+                             function->MapMachineCodeToGuestAddress(
+                                 breakpoint->host_address()),
                              breakpoint->host_address());
         }
       }

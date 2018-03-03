@@ -27,8 +27,8 @@ namespace xe {
 namespace gpu {
 namespace vulkan {
 
-using xe::ui::vulkan::CheckResult;
 using xe::ui::RawImage;
+using xe::ui::vulkan::CheckResult;
 
 VulkanGraphicsSystem::VulkanGraphicsSystem() {}
 VulkanGraphicsSystem::~VulkanGraphicsSystem() = default;
@@ -37,20 +37,24 @@ X_STATUS VulkanGraphicsSystem::Setup(cpu::Processor* processor,
                                      kernel::KernelState* kernel_state,
                                      ui::Window* target_window) {
   // Must create the provider so we can create contexts.
-  provider_ = xe::ui::vulkan::VulkanProvider::Create(target_window);
+  auto provider = xe::ui::vulkan::VulkanProvider::Create(target_window);
+  device_ = provider->device();
+  provider_ = std::move(provider);
 
   auto result = GraphicsSystem::Setup(processor, kernel_state, target_window);
   if (result) {
     return result;
   }
 
-  display_context_ = reinterpret_cast<xe::ui::vulkan::VulkanContext*>(
-      target_window->context());
-  device_ = display_context_->device();
+  if (target_window) {
+    display_context_ = reinterpret_cast<xe::ui::vulkan::VulkanContext*>(
+        target_window->context());
+  }
 
   // Create our own command pool we can use for captures.
   VkCommandPoolCreateInfo create_info = {
-      VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO, nullptr,
+      VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+      nullptr,
       VK_COMMAND_POOL_CREATE_TRANSIENT_BIT |
           VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
       device_->queue_family_index(),
@@ -88,17 +92,26 @@ std::unique_ptr<RawImage> VulkanGraphicsSystem::Capture() {
   VkCommandBuffer cmd = nullptr;
   status = vkAllocateCommandBuffers(*device_, &alloc_info, &cmd);
   CheckResult(status, "vkAllocateCommandBuffers");
+  if (status != VK_SUCCESS) {
+    return nullptr;
+  }
 
   VkCommandBufferBeginInfo begin_info = {
-      VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, nullptr,
-      VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, nullptr,
+      VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+      nullptr,
+      VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+      nullptr,
   };
   vkBeginCommandBuffer(cmd, &begin_info);
 
   auto front_buffer =
       reinterpret_cast<VkImage>(swap_state.front_buffer_texture);
 
-  CreateCaptureBuffer(cmd, {swap_state.width, swap_state.height});
+  status = CreateCaptureBuffer(cmd, {swap_state.width, swap_state.height});
+  if (status != VK_SUCCESS) {
+    vkFreeCommandBuffers(*device_, command_pool_, 1, &cmd);
+    return nullptr;
+  }
 
   VkImageMemoryBarrier barrier;
   std::memset(&barrier, 0, sizeof(VkImageMemoryBarrier));
@@ -140,10 +153,10 @@ std::unique_ptr<RawImage> VulkanGraphicsSystem::Capture() {
                        VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 1,
                        &memory_barrier, 0, nullptr);
 
-  vkEndCommandBuffer(cmd);
+  status = vkEndCommandBuffer(cmd);
 
   // Submit commands and wait.
-  {
+  if (status == VK_SUCCESS) {
     std::lock_guard<std::mutex>(device_->primary_queue_mutex());
     VkSubmitInfo submit_info = {
         VK_STRUCTURE_TYPE_SUBMIT_INFO,
@@ -168,9 +181,12 @@ std::unique_ptr<RawImage> VulkanGraphicsSystem::Capture() {
   vkFreeCommandBuffers(*device_, command_pool_, 1, &cmd);
 
   void* data;
-  status =
-      vkMapMemory(*device_, capture_buffer_memory_, 0, VK_WHOLE_SIZE, 0, &data);
-  CheckResult(status, "vkMapMemory");
+  if (status == VK_SUCCESS) {
+    status = vkMapMemory(*device_, capture_buffer_memory_, 0, VK_WHOLE_SIZE, 0,
+                         &data);
+    CheckResult(status, "vkMapMemory");
+  }
+
   if (status == VK_SUCCESS) {
     std::unique_ptr<RawImage> raw_image(new RawImage());
     raw_image->width = swap_state.width;
@@ -186,11 +202,14 @@ std::unique_ptr<RawImage> VulkanGraphicsSystem::Capture() {
     return raw_image;
   }
 
+  DestroyCaptureBuffer();
   return nullptr;
 }
 
 VkResult VulkanGraphicsSystem::CreateCaptureBuffer(VkCommandBuffer cmd,
                                                    VkExtent2D extents) {
+  VkResult status = VK_SUCCESS;
+
   VkBufferCreateInfo buffer_info = {
       VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
       nullptr,
@@ -201,8 +220,10 @@ VkResult VulkanGraphicsSystem::CreateCaptureBuffer(VkCommandBuffer cmd,
       0,
       nullptr,
   };
-  auto status =
-      vkCreateBuffer(*device_, &buffer_info, nullptr, &capture_buffer_);
+  status = vkCreateBuffer(*device_, &buffer_info, nullptr, &capture_buffer_);
+  if (status != VK_SUCCESS) {
+    return status;
+  }
 
   capture_buffer_size_ = extents.width * extents.height * 4;
 
@@ -217,8 +238,12 @@ VkResult VulkanGraphicsSystem::CreateCaptureBuffer(VkCommandBuffer cmd,
   status =
       vkBindBufferMemory(*device_, capture_buffer_, capture_buffer_memory_, 0);
   CheckResult(status, "vkBindImageMemory");
+  if (status != VK_SUCCESS) {
+    vkDestroyBuffer(*device_, capture_buffer_, nullptr);
+    return status;
+  }
 
-  return VK_SUCCESS;
+  return status;
 }
 
 void VulkanGraphicsSystem::DestroyCaptureBuffer() {
@@ -238,27 +263,21 @@ void VulkanGraphicsSystem::Swap(xe::ui::UIEvent* e) {
   if (!command_processor_) {
     return;
   }
+
   // Check for pending swap.
   auto& swap_state = command_processor_->swap_state();
+  if (display_context_->WasLost()) {
+    // We're crashing. Cheese it.
+    swap_state.pending = false;
+    return;
+  }
+
   {
     std::lock_guard<std::mutex> lock(swap_state.mutex);
     if (!swap_state.pending) {
       // return;
     }
 
-    auto event = reinterpret_cast<VkEvent>(swap_state.backend_data);
-    if (event == nullptr) {
-      // The command processor is currently uninitialized.
-      return;
-    }
-
-    VkResult status = vkGetEventStatus(*device_, event);
-    if (status != VK_EVENT_SET) {
-      // The device has not finished processing the image.
-      // return;
-    }
-
-    vkResetEvent(*device_, event);
     swap_state.pending = false;
   }
 
@@ -272,11 +291,6 @@ void VulkanGraphicsSystem::Swap(xe::ui::UIEvent* e) {
   auto front_buffer =
       reinterpret_cast<VkImage>(swap_state.front_buffer_texture);
 
-  // Wait on and signal the swap semaphore.
-  // TODO(DrChat): Interacting with the window causes the device to be lost in
-  // some games.
-  // swap_chain->WaitAndSignalSemaphore(semaphore);
-
   VkImageMemoryBarrier barrier;
   std::memset(&barrier, 0, sizeof(VkImageMemoryBarrier));
   barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -288,8 +302,8 @@ void VulkanGraphicsSystem::Swap(xe::ui::UIEvent* e) {
   barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
   barrier.image = front_buffer;
   barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
-  vkCmdPipelineBarrier(copy_cmd_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                       VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
+  vkCmdPipelineBarrier(copy_cmd_buffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                       VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0,
                        nullptr, 1, &barrier);
 
   VkImageBlit region;

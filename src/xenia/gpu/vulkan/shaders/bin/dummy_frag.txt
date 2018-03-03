@@ -1,7 +1,7 @@
 ; SPIR-V
 ; Version: 1.0
-; Generator: Khronos Glslang Reference Front End; 1
-; Bound: 52
+; Generator: Khronos Glslang Reference Front End; 3
+; Bound: 50
 ; Schema: 0
                OpCapability Shader
                OpCapability Sampled1D
@@ -93,10 +93,8 @@
  %textures4D = OpVariable %_ptr_UniformConstant__arr_38_uint_32 UniformConstant
     %uint_16 = OpConstant %uint 16
 %_arr_v4float_uint_16 = OpTypeArray %v4float %uint_16
-     %uint_1 = OpConstant %uint 1
-%_arr__arr_v4float_uint_16_uint_1 = OpTypeArray %_arr_v4float_uint_16 %uint_1
-%_ptr_Input__arr__arr_v4float_uint_16_uint_1 = OpTypePointer Input %_arr__arr_v4float_uint_16_uint_1
-%in_interpolators = OpVariable %_ptr_Input__arr__arr_v4float_uint_16_uint_1 Input
+%_ptr_Input__arr_v4float_uint_16 = OpTypePointer Input %_arr_v4float_uint_16
+%in_interpolators = OpVariable %_ptr_Input__arr_v4float_uint_16 Input
      %uint_4 = OpConstant %uint 4
 %_arr_v4float_uint_4 = OpTypeArray %v4float %uint_4
 %_ptr_Output__arr_v4float_uint_4 = OpTypePointer Output %_arr_v4float_uint_4

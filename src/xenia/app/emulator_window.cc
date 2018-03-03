@@ -28,11 +28,11 @@
 namespace xe {
 namespace app {
 
+using xe::ui::FileDropEvent;
 using xe::ui::KeyEvent;
 using xe::ui::MenuItem;
 using xe::ui::MouseEvent;
 using xe::ui::UIEvent;
-using xe::ui::FileDropEvent;
 
 const std::wstring kBaseTitle = L"xenia";
 
@@ -73,13 +73,7 @@ bool EmulatorWindow::Initialize() {
 
   UpdateTitle();
 
-  window_->on_closed.AddListener([this](UIEvent* e) {
-    loop_->Quit();
-
-    // TODO(benvanik): proper exit.
-    XELOGI("User-initiated death!");
-    exit(1);
-  });
+  window_->on_closed.AddListener([this](UIEvent* e) { loop_->Quit(); });
   loop_->on_quit.AddListener([this](UIEvent* e) { window_.reset(); });
 
   window_->on_file_drop.AddListener(
@@ -387,9 +381,10 @@ void EmulatorWindow::ShowHelpWebsite() { LaunchBrowser("http://xenia.jp"); }
 void EmulatorWindow::UpdateTitle() {
   std::wstring title(base_title_);
 
-  auto game_title = emulator()->game_title();
-  if (!game_title.empty()) {
-    title += L" - " + game_title;
+  if (emulator()->is_title_open()) {
+    auto game_title = emulator()->game_title();
+    title += xe::format_string(L" | [%.8X] %s", emulator()->title_id(),
+                               game_title.c_str());
   }
 
   auto graphics_system = emulator()->graphics_system();

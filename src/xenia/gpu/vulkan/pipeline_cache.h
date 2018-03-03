@@ -39,10 +39,13 @@ class PipelineCache {
     kError,
   };
 
-  PipelineCache(RegisterFile* register_file, ui::vulkan::VulkanDevice* device,
-                VkDescriptorSetLayout uniform_descriptor_set_layout,
-                VkDescriptorSetLayout texture_descriptor_set_layout);
+  PipelineCache(RegisterFile* register_file, ui::vulkan::VulkanDevice* device);
   ~PipelineCache();
+
+  VkResult Initialize(VkDescriptorSetLayout uniform_descriptor_set_layout,
+                      VkDescriptorSetLayout texture_descriptor_set_layout,
+                      VkDescriptorSetLayout vertex_descriptor_set_layout);
+  void Shutdown();
 
   // Loads a shader from the cache, possibly translating it.
   VulkanShader* LoadShader(ShaderType shader_type, uint32_t guest_address,
@@ -85,7 +88,7 @@ class PipelineCache {
                                    bool is_line_mode);
 
   RegisterFile* register_file_ = nullptr;
-  VkDevice device_ = nullptr;
+  ui::vulkan::VulkanDevice* device_ = nullptr;
 
   // Reusable shader translator.
   std::unique_ptr<ShaderTranslator> shader_translator_ = nullptr;
@@ -129,6 +132,7 @@ class PipelineCache {
                            VulkanShader* pixel_shader,
                            PrimitiveType primitive_type);
 
+  UpdateStatus UpdateRenderTargetState();
   UpdateStatus UpdateShaderStages(VulkanShader* vertex_shader,
                                   VulkanShader* pixel_shader,
                                   PrimitiveType primitive_type);
@@ -142,18 +146,20 @@ class PipelineCache {
 
   bool SetShadowRegister(uint32_t* dest, uint32_t register_name);
   bool SetShadowRegister(float* dest, uint32_t register_name);
+  bool SetShadowRegisterArray(uint32_t* dest, uint32_t num,
+                              uint32_t register_name);
 
   struct UpdateRenderTargetsRegisters {
     uint32_t rb_modecontrol;
-    uint32_t rb_surface_info;
-    uint32_t rb_color_info;
-    uint32_t rb_color1_info;
-    uint32_t rb_color2_info;
-    uint32_t rb_color3_info;
+    reg::RB_SURFACE_INFO rb_surface_info;
+    reg::RB_COLOR_INFO rb_color_info;
+    reg::RB_DEPTH_INFO rb_depth_info;
+    reg::RB_COLOR_INFO rb_color1_info;
+    reg::RB_COLOR_INFO rb_color2_info;
+    reg::RB_COLOR_INFO rb_color3_info;
     uint32_t rb_color_mask;
     uint32_t rb_depthcontrol;
     uint32_t rb_stencilrefmask;
-    uint32_t rb_depth_info;
 
     UpdateRenderTargetsRegisters() { Reset(); }
     void Reset() { std::memset(this, 0, sizeof(*this)); }
@@ -179,9 +185,9 @@ class PipelineCache {
     void Reset() { std::memset(this, 0, sizeof(*this)); }
   } update_vertex_input_state_regs_;
   VkPipelineVertexInputStateCreateInfo update_vertex_input_state_info_;
-  VkVertexInputBindingDescription update_vertex_input_state_binding_descrs_[64];
+  VkVertexInputBindingDescription update_vertex_input_state_binding_descrs_[32];
   VkVertexInputAttributeDescription
-      update_vertex_input_state_attrib_descrs_[64];
+      update_vertex_input_state_attrib_descrs_[96];
 
   struct UpdateInputAssemblyStateRegisters {
     PrimitiveType primitive_type;

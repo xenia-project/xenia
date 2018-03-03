@@ -50,7 +50,9 @@ class BaseFencedPool {
     while (pending_batch_list_head_) {
       auto batch = pending_batch_list_head_;
       assert_not_null(batch->fence);
-      if (vkGetFenceStatus(device_, batch->fence) == VK_SUCCESS) {
+
+      VkResult status = vkGetFenceStatus(device_, batch->fence);
+      if (status == VK_SUCCESS || status == VK_ERROR_DEVICE_LOST) {
         // Batch has completed. Reclaim.
         pending_batch_list_head_ = batch->next;
         if (batch == pending_batch_list_tail_) {
@@ -91,6 +93,7 @@ class BaseFencedPool {
         // Transfer owned -> external
         vkDestroyFence(device_, batch->fence, nullptr);
         batch->fence = fence;
+        batch->flags &= ~kBatchOwnsFence;
       } else if (!(batch->flags & kBatchOwnsFence) && !fence) {
         // external -> owned
         VkFenceCreateInfo info;

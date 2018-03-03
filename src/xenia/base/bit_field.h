@@ -29,7 +29,8 @@ struct bf {
   // For enum values, we strip them down to an underlying type.
   typedef
       typename std::conditional<std::is_enum<T>::value, std::underlying_type<T>,
-                                std::identity<T>>::type::type value_type;
+                                std::remove_reference<T>>::type::type
+          value_type;
   inline value_type mask() const {
     return (((value_type)~0) >> (8 * sizeof(value_type) - n_bits)) << position;
   }

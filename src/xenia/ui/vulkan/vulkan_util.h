@@ -25,6 +25,16 @@ namespace xe {
 namespace ui {
 namespace vulkan {
 
+#define VK_SAFE_DESTROY(fn, dev, obj, alloc) \
+                                             \
+  do {                                       \
+    if (obj) {                               \
+      fn(dev, obj, alloc);                   \
+      obj = nullptr;                         \
+    }                                        \
+                                             \
+  } while (0)
+
 class Fence {
  public:
   Fence(VkDevice device) : device_(device) {
@@ -65,7 +75,8 @@ const char* to_string(VkPhysicalDeviceType type);
 const char* to_string(VkSharingMode sharing_mode);
 const char* to_string(VkResult result);
 
-std::string to_flags_string(VkImageUsageFlags flags);
+std::string to_flags_string(VkImageUsageFlagBits flags);
+std::string to_flags_string(VkFormatFeatureFlagBits flags);
 std::string to_flags_string(VkSurfaceTransformFlagBitsKHR flags);
 
 const char* to_string(VkColorSpaceKHR color_space);
@@ -88,7 +99,6 @@ struct DeviceInfo {
   VkPhysicalDeviceFeatures features;
   VkPhysicalDeviceMemoryProperties memory_properties;
   std::vector<VkQueueFamilyProperties> queue_family_properties;
-  std::vector<VkBool32> queue_family_supports_present;
   std::vector<LayerInfo> layers;
   std::vector<VkExtensionProperties> extensions;
 };

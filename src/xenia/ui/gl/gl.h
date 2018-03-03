@@ -23,6 +23,10 @@ extern "C" GLEWContext* glewGetContext();
 // required.
 typedef struct WGLEWContextStruct WGLEWContext;
 extern "C" WGLEWContext* wglewGetContext();
-#endif  // XE_PLATFORM_WIN32
+#elif XE_PLATFORM_LINUX
+typedef struct GLXEWContextStruct GLXEWContext;
+extern "C" GLXEWContext* glxewGetContext();
+
+#endif
 
 #endif  // XENIA_UI_GL_GL_H_

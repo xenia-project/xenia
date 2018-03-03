@@ -179,6 +179,28 @@ union PA_CL_VTE_CNTL {
   uint32_t value;
 };
 
+union PA_SC_WINDOW_OFFSET {
+  xe::bf<int32_t, 0, 15> window_x_offset;
+  xe::bf<int32_t, 16, 15> window_y_offset;
+
+  uint32_t value;
+};
+
+union PA_SC_WINDOW_SCISSOR_TL {
+  xe::bf<uint32_t, 0, 14> tl_x;
+  xe::bf<uint32_t, 16, 14> tl_y;
+  xe::bf<uint32_t, 31, 1> window_offset_disable;
+
+  uint32_t value;
+};
+
+union PA_SC_WINDOW_SCISSOR_BR {
+  xe::bf<uint32_t, 0, 14> br_x;
+  xe::bf<uint32_t, 16, 14> br_y;
+
+  uint32_t value;
+};
+
 /**************************************************
   ___ ___
  | _ \ _ )

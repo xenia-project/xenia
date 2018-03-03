@@ -27,18 +27,26 @@ class Blitter {
   Blitter();
   ~Blitter();
 
-  bool Initialize(VulkanDevice* device);
+  VkResult Initialize(VulkanDevice* device);
   void Scavenge();
   void Shutdown();
 
   // Queues commands to blit a texture to another texture.
+  //
+  // src_rect is the rectangle of pixels to copy from the source
+  // src_extents is the actual size of the source image
+  // dst_rect is the rectangle of pixels that are replaced with the source
+  // dst_extents is the actual size of the destination image
   // dst_framebuffer must only have one attachment, the target texture.
+  // viewport is the viewport rect (set to {0, 0, dst_w, dst_h} if unsure)
+  // scissor is the scissor rect for the dest (set to dst size if unsure)
   void BlitTexture2D(VkCommandBuffer command_buffer, VkFence fence,
                      VkImageView src_image_view, VkRect2D src_rect,
                      VkExtent2D src_extents, VkFormat dst_image_format,
-                     VkOffset2D dst_offset, VkExtent2D dst_extents,
-                     VkFramebuffer dst_framebuffer, VkFilter filter,
-                     bool color_or_depth, bool swap_channels);
+                     VkRect2D dst_rect, VkExtent2D dst_extents,
+                     VkFramebuffer dst_framebuffer, VkViewport viewport,
+                     VkRect2D scissor, VkFilter filter, bool color_or_depth,
+                     bool swap_channels);
 
   void CopyColorTexture2D(VkCommandBuffer command_buffer, VkFence fence,
                           VkImage src_image, VkImageView src_image_view,
@@ -51,22 +59,24 @@ class Blitter {
                         VkImageView dst_image_view, VkExtent2D extents);
 
   // For framebuffer creation.
-  VkRenderPass GetRenderPass(VkFormat format);
+  VkRenderPass GetRenderPass(VkFormat format, bool color_or_depth);
 
  private:
   struct VtxPushConstants {
     float src_uv[4];  // 0x00
+    float dst_uv[4];  // 0x10
   };
 
   struct PixPushConstants {
-    int _pad[3];  // 0x10
-    int swap;     // 0x1C
+    int _pad[3];  // 0x20
+    int swap;     // 0x2C
   };
 
-  VkPipeline GetPipeline(VkRenderPass render_pass, VkShaderModule frag_shader);
-  VkRenderPass CreateRenderPass(VkFormat output_format);
+  VkPipeline GetPipeline(VkRenderPass render_pass, VkShaderModule frag_shader,
+                         bool color_or_depth);
+  VkRenderPass CreateRenderPass(VkFormat output_format, bool color_or_depth);
   VkPipeline CreatePipeline(VkRenderPass render_pass,
-                            VkShaderModule frag_shader);
+                            VkShaderModule frag_shader, bool color_or_depth);
 
   std::unique_ptr<DescriptorPool> descriptor_pool_ = nullptr;
   VulkanDevice* device_ = nullptr;

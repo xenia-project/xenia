@@ -8,7 +8,9 @@
  */
 
 #include "xenia/base/memory.h"
+#include "xenia/base/string.h"
 
+#include <fcntl.h>
 #include <sys/mman.h>
 #include <unistd.h>
 
@@ -61,19 +63,46 @@ bool QueryProtect(void* base_address, size_t& length, PageAccess& access_out) {
 
 FileMappingHandle CreateFileMappingHandle(std::wstring path, size_t length,
                                           PageAccess access, bool commit) {
-  return nullptr;
+  int oflag;
+  switch (access) {
+    case PageAccess::kNoAccess:
+      oflag = 0;
+      break;
+    case PageAccess::kReadOnly:
+      oflag = O_RDONLY;
+      break;
+    case PageAccess::kReadWrite:
+    case PageAccess::kExecuteReadWrite:
+      oflag = O_RDWR;
+      break;
+    default:
+      assert_always();
+      return nullptr;
+  }
+
+  oflag |= O_CREAT;
+  int ret = shm_open(xe::to_string(path).c_str(), oflag, 0777);
+  if (ret > 0) {
+    ftruncate64(ret, length);
+  }
+
+  return ret <= 0 ? nullptr : reinterpret_cast<FileMappingHandle>(ret);
 }
 
-void CloseFileMappingHandle(FileMappingHandle handle) {}
+void CloseFileMappingHandle(FileMappingHandle handle) {
+  close((intptr_t)handle);
+}
 
 void* MapFileView(FileMappingHandle handle, void* base_address, size_t length,
                   PageAccess access, size_t file_offset) {
-  return nullptr;
+  uint32_t prot = ToPosixProtectFlags(access);
+  return mmap64(base_address, length, prot, MAP_PRIVATE | MAP_ANONYMOUS,
+                reinterpret_cast<intptr_t>(handle), file_offset);
 }
 
 bool UnmapFileView(FileMappingHandle handle, void* base_address,
                    size_t length) {
-  return false;
+  return munmap(base_address, length) == 0;
 }
 
 }  // namespace memory

@@ -95,7 +95,18 @@ i.e. virtual 0xA0000000 == physical 0x00000000
 
 Unfortunately, the 0xE0000000-0xFFFFFFFF range is unused in Xenia because
 it maps to physical memory with a single page offset, which is impossible
-to do under the Win32 API.
+to do under the Win32 API. We can't fake this either, as this offset is 
+built into games - see the following sequence:
+
+```
+srwi      r9, r10, 20       # r9 = r10 >> 20
+clrlwi    r10, r10, 3       # r10 = r10 & 0x1FFFFFFF (physical address)
+addi      r11, r9, 0x200
+rlwinm    r11, r11, 0,19,19 # r11 = r11 & 0x1000
+add       r11, r11, r10     # add 1 page to addresses > 0xE0000000
+
+# r11 = addess passed to GPU
+```
 
 ## Memory Management
 

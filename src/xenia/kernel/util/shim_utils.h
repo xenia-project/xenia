@@ -474,7 +474,9 @@ xe::cpu::Export* RegisterExport(R (*fn)(Ps&...), const char* name,
     static void Trampoline(PPCContext* ppc_context) {
       ++export_entry->function_data.call_count;
       Param::Init init = {
-          ppc_context, sizeof...(Ps), 0,
+          ppc_context,
+          sizeof...(Ps),
+          0,
       };
       auto params = std::make_tuple<Ps...>(Ps(init)...);
       if (export_entry->tags & xe::cpu::ExportTag::kLog &&
@@ -507,7 +509,8 @@ xe::cpu::Export* RegisterExport(void (*fn)(Ps&...), const char* name,
     static void Trampoline(PPCContext* ppc_context) {
       ++export_entry->function_data.call_count;
       Param::Init init = {
-          ppc_context, sizeof...(Ps),
+          ppc_context,
+          sizeof...(Ps),
       };
       auto params = std::make_tuple<Ps...>(Ps(init)...);
       if (export_entry->tags & xe::cpu::ExportTag::kLog &&

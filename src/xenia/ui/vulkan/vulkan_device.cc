@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2016 Ben Vanik. All rights reserved.                             *
+ * Copyright 2017 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -12,6 +12,7 @@
 #include <gflags/gflags.h>
 
 #include <cinttypes>
+#include <climits>
 #include <mutex>
 #include <string>
 
@@ -56,6 +57,8 @@ VulkanDevice::VulkanDevice(VulkanInstance* instance) : instance_(instance) {
     */
   }
 
+  DeclareRequiredExtension(VK_KHR_SAMPLER_MIRROR_CLAMP_TO_EDGE_EXTENSION_NAME,
+                           Version::Make(0, 0, 0), false);
   DeclareRequiredExtension(VK_EXT_DEBUG_MARKER_EXTENSION_NAME,
                            Version::Make(0, 0, 0), true);
 }
@@ -99,11 +102,14 @@ bool VulkanDevice::Initialize(DeviceInfo device_info) {
   }
   ENABLE_AND_EXPECT(shaderClipDistance);
   ENABLE_AND_EXPECT(shaderCullDistance);
+  ENABLE_AND_EXPECT(shaderStorageImageExtendedFormats);
   ENABLE_AND_EXPECT(shaderTessellationAndGeometryPointSize);
+  ENABLE_AND_EXPECT(samplerAnisotropy);
   ENABLE_AND_EXPECT(geometryShader);
   ENABLE_AND_EXPECT(depthClamp);
   ENABLE_AND_EXPECT(multiViewport);
   ENABLE_AND_EXPECT(independentBlend);
+  ENABLE_AND_EXPECT(textureCompressionBC);
   // TODO(benvanik): add other features.
   if (any_features_missing) {
     XELOGE(
@@ -123,12 +129,9 @@ bool VulkanDevice::Initialize(DeviceInfo device_info) {
   uint32_t queue_count = 1;
   for (size_t i = 0; i < device_info.queue_family_properties.size(); ++i) {
     auto queue_flags = device_info.queue_family_properties[i].queueFlags;
-    if (!device_info.queue_family_supports_present[i]) {
-      // Can't present from this queue, so ignore it.
-      continue;
-    }
-    if (queue_flags & VK_QUEUE_GRAPHICS_BIT) {
-      // Can do graphics and present - good!
+    if (queue_flags & VK_QUEUE_GRAPHICS_BIT &&
+        queue_flags & VK_QUEUE_TRANSFER_BIT) {
+      // Can do graphics and transfer - good!
       ideal_queue_family_index = static_cast<uint32_t>(i);
       // Grab all the queues we can.
       queue_count = device_info.queue_family_properties[i].queueCount;
@@ -137,7 +140,7 @@ bool VulkanDevice::Initialize(DeviceInfo device_info) {
   }
   if (ideal_queue_family_index == UINT_MAX) {
     FatalVulkanError(
-        "No queue families available that can both do graphics and present");
+        "No queue families available that can both do graphics and transfer");
     return false;
   }
 
@@ -146,23 +149,36 @@ bool VulkanDevice::Initialize(DeviceInfo device_info) {
     queue_count = 1;
   }
 
-  VkDeviceQueueCreateInfo queue_info;
-  queue_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-  queue_info.pNext = nullptr;
-  queue_info.flags = 0;
-  queue_info.queueFamilyIndex = ideal_queue_family_index;
-  queue_info.queueCount = queue_count;
-  std::vector<float> queue_priorities(queue_count);
-  // Prioritize the primary queue.
-  queue_priorities[0] = 1.0f;
-  queue_info.pQueuePriorities = queue_priorities.data();
+  std::vector<VkDeviceQueueCreateInfo> queue_infos;
+  std::vector<std::vector<float>> queue_priorities;
+  queue_infos.resize(device_info.queue_family_properties.size());
+  queue_priorities.resize(queue_infos.size());
+  for (int i = 0; i < queue_infos.size(); i++) {
+    VkDeviceQueueCreateInfo& queue_info = queue_infos[i];
+    VkQueueFamilyProperties& family_props =
+        device_info.queue_family_properties[i];
+
+    queue_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+    queue_info.pNext = nullptr;
+    queue_info.flags = 0;
+    queue_info.queueFamilyIndex = i;
+    queue_info.queueCount = family_props.queueCount;
+
+    queue_priorities[i].resize(queue_count, 0.f);
+    if (i == ideal_queue_family_index) {
+      // Prioritize the first queue on the primary queue family.
+      queue_priorities[i][0] = 1.0f;
+    }
+
+    queue_info.pQueuePriorities = queue_priorities[i].data();
+  }
 
   VkDeviceCreateInfo create_info;
   create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
   create_info.pNext = nullptr;
   create_info.flags = 0;
-  create_info.queueCreateInfoCount = 1;
-  create_info.pQueueCreateInfos = &queue_info;
+  create_info.queueCreateInfoCount = static_cast<uint32_t>(queue_infos.size());
+  create_info.pQueueCreateInfos = queue_infos.data();
   create_info.enabledLayerCount = static_cast<uint32_t>(enabled_layers.size());
   create_info.ppEnabledLayerNames = enabled_layers.data();
   create_info.enabledExtensionCount =
@@ -196,6 +212,9 @@ bool VulkanDevice::Initialize(DeviceInfo device_info) {
   for (auto& ext : enabled_extensions_) {
     if (!std::strcmp(ext, VK_EXT_DEBUG_MARKER_EXTENSION_NAME)) {
       debug_marker_ena_ = true;
+      pfn_vkDebugMarkerSetObjectNameEXT_ =
+          (PFN_vkDebugMarkerSetObjectNameEXT)vkGetDeviceProcAddr(
+              *this, "vkDebugMarkerSetObjectNameEXT");
     }
   }
 
@@ -204,49 +223,49 @@ bool VulkanDevice::Initialize(DeviceInfo device_info) {
 
   // Get the primary queue used for most submissions/etc.
   vkGetDeviceQueue(handle, queue_family_index_, 0, &primary_queue_);
+  if (!primary_queue_) {
+    XELOGE("vkGetDeviceQueue returned nullptr!");
+    return false;
+  }
 
   // Get all additional queues, if we got any.
-  for (uint32_t i = 0; i < queue_count - 1; ++i) {
-    VkQueue queue;
-    vkGetDeviceQueue(handle, queue_family_index_, i, &queue);
-    free_queues_.push_back(queue);
+  free_queues_.resize(device_info_.queue_family_properties.size());
+  for (uint32_t i = 0; i < device_info_.queue_family_properties.size(); i++) {
+    VkQueueFamilyProperties& family_props =
+        device_info_.queue_family_properties[i];
+
+    for (uint32_t j = 0; j < family_props.queueCount; j++) {
+      VkQueue queue = nullptr;
+      if (i == queue_family_index_ && j == 0) {
+        // Already retrieved the primary queue index.
+        continue;
+      }
+
+      vkGetDeviceQueue(handle, i, j, &queue);
+      if (queue) {
+        free_queues_[i].push_back(queue);
+      }
+    }
   }
 
   XELOGVK("Device initialized successfully!");
   return true;
 }
 
-VkQueue VulkanDevice::AcquireQueue() {
+VkQueue VulkanDevice::AcquireQueue(uint32_t queue_family_index) {
   std::lock_guard<std::mutex> lock(queue_mutex_);
-  if (free_queues_.empty()) {
+  if (free_queues_[queue_family_index].empty()) {
     return nullptr;
   }
-  auto queue = free_queues_.back();
-  free_queues_.pop_back();
+
+  auto queue = free_queues_[queue_family_index].back();
+  free_queues_[queue_family_index].pop_back();
   return queue;
 }
 
-void VulkanDevice::ReleaseQueue(VkQueue queue) {
+void VulkanDevice::ReleaseQueue(VkQueue queue, uint32_t queue_family_index) {
   std::lock_guard<std::mutex> lock(queue_mutex_);
-  free_queues_.push_back(queue);
-}
-
-void VulkanDevice::DbgSetObjectName(VkDevice device, uint64_t object,
-                                    VkDebugReportObjectTypeEXT object_type,
-                                    std::string name) {
-  // Check to see if the extension is even loaded
-  if (vkGetDeviceProcAddr(device, "vkDebugMarkerSetObjectNameEXT") == nullptr) {
-    return;
-  }
-
-  // TODO(DrChat): fix linkage errors
-  VkDebugMarkerObjectNameInfoEXT info;
-  info.sType = VK_STRUCTURE_TYPE_DEBUG_MARKER_OBJECT_NAME_INFO_EXT;
-  info.pNext = nullptr;
-  info.objectType = object_type;
-  info.object = object;
-  info.pObjectName = name.c_str();
-  // vkDebugMarkerSetObjectNameEXT(device, &info);
+  free_queues_[queue_family_index].push_back(queue);
 }
 
 void VulkanDevice::DbgSetObjectName(uint64_t object,
@@ -257,7 +276,13 @@ void VulkanDevice::DbgSetObjectName(uint64_t object,
     return;
   }
 
-  DbgSetObjectName(*this, object, object_type, name);
+  VkDebugMarkerObjectNameInfoEXT info;
+  info.sType = VK_STRUCTURE_TYPE_DEBUG_MARKER_OBJECT_NAME_INFO_EXT;
+  info.pNext = nullptr;
+  info.objectType = object_type;
+  info.object = object;
+  info.pObjectName = name.c_str();
+  pfn_vkDebugMarkerSetObjectNameEXT_(*this, &info);
 }
 
 bool VulkanDevice::is_renderdoc_attached() const {

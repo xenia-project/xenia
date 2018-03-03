@@ -12,12 +12,12 @@
 
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "third_party/glslang-spirv/SpvBuilder.h"
 #include "third_party/spirv/GLSL.std.450.hpp11"
 #include "xenia/gpu/shader_translator.h"
-#include "xenia/gpu/spirv/compiler.h"
 #include "xenia/ui/spirv/spirv_disassembler.h"
 #include "xenia/ui/spirv/spirv_validator.h"
 
@@ -112,7 +112,6 @@ class SpirvShaderTranslator : public ShaderTranslator {
 
   xe::ui::spirv::SpirvDisassembler disassembler_;
   xe::ui::spirv::SpirvValidator validator_;
-  xe::gpu::spirv::Compiler compiler_;
 
   // True if there's an open predicated block
   bool open_predicated_block_ = false;
@@ -145,9 +144,12 @@ class SpirvShaderTranslator : public ShaderTranslator {
   // Array of AMD registers.
   // These values are all pointers.
   spv::Id registers_ptr_ = 0, registers_type_ = 0;
-  spv::Id consts_ = 0, a0_ = 0, aL_ = 0, p0_ = 0;
+  spv::Id consts_ = 0, a0_ = 0, p0_ = 0;
+  spv::Id aL_ = 0;           // Loop index stack - .x is active loop
+  spv::Id loop_count_ = 0;   // Loop counter stack
   spv::Id ps_ = 0, pv_ = 0;  // IDs of previous results
   spv::Id pc_ = 0;           // Program counter
+  spv::Id lod_ = 0;          // LOD register
   spv::Id pos_ = 0;
   spv::Id push_consts_ = 0;
   spv::Id interpolators_ = 0;
@@ -157,12 +159,12 @@ class SpirvShaderTranslator : public ShaderTranslator {
   spv::Id frag_outputs_ = 0, frag_depth_ = 0;
   spv::Id samplers_ = 0;
   spv::Id tex_[3] = {0};  // Images {2D, 3D, Cube}
+  std::unordered_map<uint32_t, uint32_t> tex_binding_map_;
+  spv::Id vtx_ = 0;  // Vertex buffer array (32 runtime arrays)
+  std::unordered_map<uint32_t, uint32_t> vtx_binding_map_;
 
   // SPIR-V IDs that are part of the in/out interface.
   std::vector<spv::Id> interface_ids_;
-
-  // Map of {binding -> {offset -> spv input}}
-  std::map<uint32_t, std::map<uint32_t, spv::Id>> vertex_binding_map_;
 
   struct CFBlock {
     spv::Block* block = nullptr;

@@ -71,7 +71,7 @@ int TraceViewer::Main(const std::vector<std::wstring>& args) {
     file_picker->set_multi_selection(false);
     file_picker->set_title(L"Select Trace File");
     file_picker->set_extensions({
-        {L"Supported Files", L"*.xenia_gpu_trace"},
+        {L"Supported Files", L"*.xtr"},
         {L"All Files (*.*)", L"*.*"},
     });
     if (file_picker->Show()) {
@@ -950,9 +950,8 @@ void TraceViewer::DrawVertexFetcher(Shader* shader,
     }
   }
   ImGui::Columns(1);
-  ImGui::SetCursorPosY(ImGui::GetCursorPosY() +
-                       (vertex_count - display_end) *
-                           ImGui::GetTextLineHeight());
+  ImGui::SetCursorPosY(ImGui::GetCursorPosY() + (vertex_count - display_end) *
+                                                    ImGui::GetTextLineHeight());
   ImGui::PopStyleVar();
   ImGui::EndChild();
 }
@@ -971,10 +970,14 @@ static const char* kStencilFuncNames[] = {
     "Decrement and Clamp",
 };
 static const char* kIndexFormatNames[] = {
-    "uint16", "uint32",
+    "uint16",
+    "uint32",
 };
 static const char* kEndiannessNames[] = {
-    "unspecified endianness", "8-in-16", "8-in-32", "16-in-32",
+    "unspecified endianness",
+    "8-in-16",
+    "8-in-32",
+    "16-in-32",
 };
 static const char* kColorFormatNames[] = {
     /* 0  */ "k_8_8_8_8",
@@ -995,7 +998,8 @@ static const char* kColorFormatNames[] = {
     /* 15 */ "k_32_32_FLOAT",
 };
 static const char* kDepthFormatNames[] = {
-    "kD24S8", "kD24FS8",
+    "kD24S8",
+    "kD24FS8",
 };
 
 void ProgressBar(float frac, float width, float height = 0,
@@ -1185,7 +1189,9 @@ void TraceViewer::DrawStateUI() {
     uint32_t surface_pitch = surface_info & 0x3FFF;
     auto surface_msaa = (surface_info >> 16) & 0x3;
     static const char* kMsaaNames[] = {
-        "1X", "2X", "4X",
+        "1X",
+        "2X",
+        "4X",
     };
     ImGui::BulletText("Surface Pitch: %d", surface_pitch);
     ImGui::BulletText("Surface HI-Z Pitch: %d", surface_hiz);
@@ -1270,7 +1276,9 @@ void TraceViewer::DrawStateUI() {
       ImGui::BulletText("Front-face: counter-clockwise");
     }
     static const char* kFillModeNames[3] = {
-        "point", "line", "fill",
+        "point",
+        "line",
+        "fill",
     };
     bool poly_mode = ((pa_su_sc_mode_cntl >> 3) & 0x3) != 0;
     if (poly_mode) {

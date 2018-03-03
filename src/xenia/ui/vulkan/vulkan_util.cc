@@ -12,6 +12,10 @@
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
 
+// Implement AMD's VMA here.
+#define VMA_IMPLEMENTATION
+#include "third_party/vulkan/vk_mem_alloc.h"
+
 namespace xe {
 namespace ui {
 namespace vulkan {
@@ -283,13 +287,16 @@ const char* to_string(VkResult result) {
     STR(VK_ERROR_OUT_OF_DATE_KHR);
     STR(VK_ERROR_INCOMPATIBLE_DISPLAY_KHR);
     STR(VK_ERROR_VALIDATION_FAILED_EXT);
+    STR(VK_ERROR_INVALID_SHADER_NV);
+    STR(VK_ERROR_OUT_OF_POOL_MEMORY_KHR);
+    STR(VK_ERROR_INVALID_EXTERNAL_HANDLE_KHR);
 #undef STR
     default:
       return "UNKNOWN_RESULT";
   }
 }
 
-std::string to_flags_string(VkImageUsageFlags flags) {
+std::string to_flags_string(VkImageUsageFlagBits flags) {
   std::string result;
 #define OR_FLAG(f)         \
   if (flags & f) {         \
@@ -306,6 +313,36 @@ std::string to_flags_string(VkImageUsageFlags flags) {
   OR_FLAG(VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
   OR_FLAG(VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT);
   OR_FLAG(VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT);
+#undef OR_FLAG
+  return result;
+}
+
+std::string to_flags_string(VkFormatFeatureFlagBits flags) {
+  std::string result;
+#define OR_FLAG(f)         \
+  if (flags & f) {         \
+    if (!result.empty()) { \
+      result += " | ";     \
+    }                      \
+    result += #f;          \
+  }
+  OR_FLAG(VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT);
+  OR_FLAG(VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT);
+  OR_FLAG(VK_FORMAT_FEATURE_STORAGE_IMAGE_ATOMIC_BIT);
+  OR_FLAG(VK_FORMAT_FEATURE_UNIFORM_TEXEL_BUFFER_BIT);
+  OR_FLAG(VK_FORMAT_FEATURE_STORAGE_TEXEL_BUFFER_BIT);
+  OR_FLAG(VK_FORMAT_FEATURE_STORAGE_TEXEL_BUFFER_ATOMIC_BIT);
+  OR_FLAG(VK_FORMAT_FEATURE_VERTEX_BUFFER_BIT);
+  OR_FLAG(VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT);
+  OR_FLAG(VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT);
+  OR_FLAG(VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
+  OR_FLAG(VK_FORMAT_FEATURE_BLIT_SRC_BIT);
+  OR_FLAG(VK_FORMAT_FEATURE_BLIT_DST_BIT);
+  OR_FLAG(VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT);
+  OR_FLAG(VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_CUBIC_BIT_IMG);
+  OR_FLAG(VK_FORMAT_FEATURE_TRANSFER_SRC_BIT_KHR);
+  OR_FLAG(VK_FORMAT_FEATURE_TRANSFER_DST_BIT_KHR);
+  OR_FLAG(VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_MINMAX_BIT_EXT);
 #undef OR_FLAG
   return result;
 }

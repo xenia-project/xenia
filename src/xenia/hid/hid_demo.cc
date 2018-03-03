@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2015 Ben Vanik. All rights reserved.                             *
+ * Copyright 2017 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -15,7 +15,6 @@
 #include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/main.h"
-#include "xenia/base/platform_win.h"
 #include "xenia/base/threading.h"
 #include "xenia/hid/input_system.h"
 #include "xenia/ui/gl/gl_provider.h"
@@ -117,11 +116,11 @@ int hid_demo_main(const std::vector<std::wstring>& args) {
     auto& io = window->imgui_drawer()->GetIO();
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(-1, 0));
-    ImGui::Begin("main_window", nullptr, ImGuiWindowFlags_NoMove |
-                                             ImGuiWindowFlags_NoResize |
-                                             ImGuiWindowFlags_NoTitleBar |
-                                             ImGuiWindowFlags_NoScrollbar |
-                                             ImGuiWindowFlags_NoSavedSettings);
+    ImGui::Begin("main_window", nullptr,
+                 ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize |
+                     ImGuiWindowFlags_NoTitleBar |
+                     ImGuiWindowFlags_NoScrollbar |
+                     ImGuiWindowFlags_NoSavedSettings);
     ImGui::SetWindowPos(ImVec2(0, 0));
     ImGui::SetWindowSize(io.DisplaySize);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(4, 4));
@@ -177,8 +176,10 @@ void DrawUserInputStatus(uint32_t user_index) {
   ImGui::Text("     Shoulders: [%c][%c]",
               gamepad.buttons & X_INPUT_GAMEPAD_LEFT_SHOULDER ? 'L' : ' ',
               gamepad.buttons & X_INPUT_GAMEPAD_RIGHT_SHOULDER ? 'R' : ' ');
-  ImGui::Text("  Left Trigger: %3u", gamepad.left_trigger);
-  ImGui::Text(" Right Trigger: %3u", gamepad.right_trigger);
+  ImGui::Text("  Left Trigger: %3u",
+              static_cast<uint16_t>(gamepad.left_trigger));
+  ImGui::Text(" Right Trigger: %3u",
+              static_cast<uint16_t>(gamepad.right_trigger));
   ImGui::Text("    Left Thumb: %6d, %6d",
               static_cast<int32_t>(gamepad.thumb_lx),
               static_cast<int32_t>(gamepad.thumb_ly));

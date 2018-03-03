@@ -202,11 +202,11 @@ typedef struct _UNWIND_INFO {
   uint8_t FrameOffset : 4;
   UNWIND_CODE UnwindCode[1];
   /*  UNWIND_CODE MoreUnwindCode[((CountOfCodes + 1) & ~1) - 1];
-  *   union {
-  *       OPTIONAL ULONG ExceptionHandler;
-  *       OPTIONAL ULONG FunctionEntry;
-  *   };
-  *   OPTIONAL ULONG ExceptionData[]; */
+   *   union {
+   *       OPTIONAL ULONG ExceptionHandler;
+   *       OPTIONAL ULONG FunctionEntry;
+   *   };
+   *   OPTIONAL ULONG ExceptionData[]; */
 } UNWIND_INFO, *PUNWIND_INFO;
 
 void Win32X64CodeCache::InitializeUnwindEntry(uint8_t* unwind_entry_address,
