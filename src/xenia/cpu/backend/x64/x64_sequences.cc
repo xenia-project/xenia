@@ -1634,18 +1634,21 @@ struct VECTOR_CONVERT_F2I
       // saturate values > UINT_MAX
       e.vpor(i.dest, i.dest, e.xmm0);
     } else {
-      Xmm src1 = e.xmm2;
-      e.vmovdqa(src1, i.src1);  // Duplicate src1.
+      // xmm2 = NaN mask
+      e.vcmpunordps(e.xmm2, i.src1, i.src1);
 
-      e.vcvttps2dq(i.dest, i.src1);
+      // convert packed floats to packed dwords
+      e.vcvttps2dq(e.xmm0, i.src1);
 
-      // if dest is indeterminate and i.src1 >= 0 (i.e. !(i.src1 & 0x80000000))
-      //   i.dest = 0x7FFFFFFF
-      e.vpcmpeqd(e.xmm0, i.dest, e.GetXmmConstPtr(XMMIntMin));
-      e.vpandn(e.xmm0, src1, e.xmm0);
+      // (high bit) xmm1 = dest is indeterminate and i.src1 >= 0
+      e.vpcmpeqd(e.xmm1, e.xmm0, e.GetXmmConstPtr(XMMIntMin));
+      e.vpandn(e.xmm1, i.src1, e.xmm1);
 
-      // (high bit of xmm0 = is ind. && i.src1 >= 0)
-      e.vblendvps(i.dest, i.dest, e.GetXmmConstPtr(XMMIntMax), e.xmm0);
+      // saturate positive values
+      e.vblendvps(i.dest, e.xmm0, e.GetXmmConstPtr(XMMIntMax), e.xmm1);
+
+      // mask NaNs
+      e.vpandn(i.dest, e.xmm2, i.dest);
     }
   }
 };
