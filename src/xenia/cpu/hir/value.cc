@@ -847,16 +847,16 @@ void Value::Extract(Value* vec, Value* index) {
   assert_true(vec->type == VEC128_TYPE);
   switch (type) {
     case INT8_TYPE:
-      constant.u8 = vec->constant.v128.u8[index->constant.u8];
+      constant.u8 = vec->constant.v128.u8[index->constant.u8 & 0x1F];
       break;
     case INT16_TYPE:
-      constant.u16 = vec->constant.v128.u16[index->constant.u16];
+      constant.u16 = vec->constant.v128.u16[index->constant.u16 & 0x7];
       break;
     case INT32_TYPE:
-      constant.u32 = vec->constant.v128.u32[index->constant.u32];
+      constant.u32 = vec->constant.v128.u32[index->constant.u32 & 0x3];
       break;
     case INT64_TYPE:
-      constant.u64 = vec->constant.v128.u64[index->constant.u64];
+      constant.u64 = vec->constant.v128.u64[index->constant.u64 & 0x1];
       break;
     default:
       assert_unhandled_case(type);
