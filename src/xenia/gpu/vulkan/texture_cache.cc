@@ -1512,6 +1512,8 @@ void TextureCache::ClearCache() {
 }
 
 void TextureCache::Scavenge() {
+  SCOPE_profile_cpu_f("gpu");
+
   // Close any open descriptor pool batches
   if (descriptor_pool_->has_open_batch()) {
     descriptor_pool_->EndBatch();
