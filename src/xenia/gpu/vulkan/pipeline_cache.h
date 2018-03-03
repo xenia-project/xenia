@@ -80,6 +80,8 @@ class PipelineCache {
   VkPipeline GetPipeline(const RenderState* render_state, uint64_t hash_key);
 
   bool TranslateShader(VulkanShader* shader, xenos::xe_gpu_program_cntl_t cntl);
+
+  void DumpShaderDisasmAMD(VkPipeline pipeline);
   void DumpShaderDisasmNV(const VkGraphicsPipelineCreateInfo& info);
 
   // Gets a geometry shader used to emulate the given primitive type.

@@ -333,7 +333,12 @@ VkPipeline PipelineCache::GetPipeline(const RenderState* render_state,
 
   // Dump shader disassembly.
   if (FLAGS_vulkan_dump_disasm) {
-    DumpShaderDisasmNV(pipeline_info);
+    if (device_->HasEnabledExtension(VK_AMD_SHADER_INFO_EXTENSION_NAME)) {
+      DumpShaderDisasmAMD(pipeline);
+    } else if (device_->device_info().properties.vendorID == 0x10DE) {
+      // NVIDIA cards
+      DumpShaderDisasmNV(pipeline_info);
+    }
   }
 
   // Add to cache with the hash key for reuse.
@@ -372,6 +377,53 @@ bool PipelineCache::TranslateShader(VulkanShader* shader,
   }
 
   return shader->is_valid();
+}
+
+static void DumpShaderStatisticsAMD(const VkShaderStatisticsInfoAMD& stats) {
+  XELOGI(" - resource usage:");
+  XELOGI("   numUsedVgprs: %d", stats.resourceUsage.numUsedVgprs);
+  XELOGI("   numUsedSgprs: %d", stats.resourceUsage.numUsedSgprs);
+  XELOGI("   ldsSizePerLocalWorkGroup: %d",
+         stats.resourceUsage.ldsSizePerLocalWorkGroup);
+  XELOGI("   ldsUsageSizeInBytes     : %d",
+         stats.resourceUsage.ldsUsageSizeInBytes);
+  XELOGI("   scratchMemUsageInBytes  : %d",
+         stats.resourceUsage.scratchMemUsageInBytes);
+  XELOGI("numPhysicalVgprs : %d", stats.numPhysicalVgprs);
+  XELOGI("numPhysicalSgprs : %d", stats.numPhysicalSgprs);
+  XELOGI("numAvailableVgprs: %d", stats.numAvailableVgprs);
+  XELOGI("numAvailableSgprs: %d", stats.numAvailableSgprs);
+}
+
+void PipelineCache::DumpShaderDisasmAMD(VkPipeline pipeline) {
+  auto fn_GetShaderInfoAMD = (PFN_vkGetShaderInfoAMD)vkGetDeviceProcAddr(
+      *device_, "vkGetShaderInfoAMD");
+
+  VkResult status = VK_SUCCESS;
+  size_t data_size = 0;
+
+  VkShaderStatisticsInfoAMD stats;
+  data_size = sizeof(stats);
+
+  // Vertex shader
+  status = fn_GetShaderInfoAMD(*device_, pipeline, VK_SHADER_STAGE_VERTEX_BIT,
+                               VK_SHADER_INFO_TYPE_STATISTICS_AMD, &data_size,
+                               &stats);
+  if (status == VK_SUCCESS) {
+    XELOGI("AMD Vertex Shader Statistics:");
+    DumpShaderStatisticsAMD(stats);
+  }
+
+  // Fragment shader
+  status = fn_GetShaderInfoAMD(*device_, pipeline, VK_SHADER_STAGE_FRAGMENT_BIT,
+                               VK_SHADER_INFO_TYPE_STATISTICS_AMD, &data_size,
+                               &stats);
+  if (status == VK_SUCCESS) {
+    XELOGI("AMD Fragment Shader Statistics:");
+    DumpShaderStatisticsAMD(stats);
+  }
+
+  // TODO(DrChat): Eventually dump the disasm...
 }
 
 void PipelineCache::DumpShaderDisasmNV(
