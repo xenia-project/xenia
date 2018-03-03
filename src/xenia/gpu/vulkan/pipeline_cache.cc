@@ -155,11 +155,7 @@ VkResult PipelineCache::Initialize(
 }
 
 void PipelineCache::Shutdown() {
-  // Destroy all pipelines.
-  for (auto it : cached_pipelines_) {
-    vkDestroyPipeline(*device_, it.second, nullptr);
-  }
-  cached_pipelines_.clear();
+  ClearCache();
 
   // Destroy geometry shaders.
   if (geometry_shaders_.line_quad_list) {
@@ -191,12 +187,6 @@ void PipelineCache::Shutdown() {
     vkDestroyPipelineCache(*device_, pipeline_cache_, nullptr);
     pipeline_cache_ = nullptr;
   }
-
-  // Destroy all shaders.
-  for (auto it : shader_map_) {
-    delete it.second;
-  }
-  shader_map_.clear();
 }
 
 VulkanShader* PipelineCache::LoadShader(ShaderType shader_type,
@@ -269,7 +259,18 @@ PipelineCache::UpdateStatus PipelineCache::ConfigurePipeline(
 }
 
 void PipelineCache::ClearCache() {
-  // TODO(benvanik): caching.
+  // Destroy all pipelines.
+  for (auto it : cached_pipelines_) {
+    vkDestroyPipeline(*device_, it.second, nullptr);
+  }
+  cached_pipelines_.clear();
+  COUNT_profile_set("gpu/pipeline_cache/pipelines", 0);
+
+  // Destroy all shaders.
+  for (auto it : shader_map_) {
+    delete it.second;
+  }
+  shader_map_.clear();
 }
 
 VkPipeline PipelineCache::GetPipeline(const RenderState* render_state,
@@ -337,6 +338,7 @@ VkPipeline PipelineCache::GetPipeline(const RenderState* render_state,
 
   // Add to cache with the hash key for reuse.
   cached_pipelines_.insert({hash_key, pipeline});
+  COUNT_profile_set("gpu/pipeline_cache/pipelines", cached_pipelines_.size());
 
   return pipeline;
 }
