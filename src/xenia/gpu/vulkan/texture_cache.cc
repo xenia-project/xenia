@@ -430,6 +430,7 @@ TextureCache::Texture* TextureCache::DemandResolveTexture(
       cpu::MMIOHandler::kWatchWrite, &WatchCallback, this, texture);
 
   textures_[texture_hash] = texture;
+  COUNT_profile_set("gpu/texture_cache/textures", textures_.size());
   return texture;
 }
 
@@ -503,6 +504,7 @@ TextureCache::Texture* TextureCache::Demand(const TextureInfo& texture_info,
           texture_info.guest_address + texture_info.input_length));
 
   textures_[texture_hash] = texture;
+  COUNT_profile_set("gpu/texture_cache/textures", textures_.size());
   return texture;
 }
 
@@ -1488,6 +1490,7 @@ void TextureCache::RemoveInvalidatedTextures() {
          it != invalidated_textures.end(); ++it) {
       pending_delete_textures_.push_back(*it);
       textures_.erase((*it)->texture_info.hash());
+      COUNT_profile_set("gpu/texture_cache/textures", textures_.size());
     }
 
     invalidated_textures.clear();
@@ -1503,6 +1506,7 @@ void TextureCache::ClearCache() {
     }
   }
   textures_.clear();
+  COUNT_profile_set("gpu/texture_cache/textures", 0);
 
   for (auto it = samplers_.begin(); it != samplers_.end(); ++it) {
     vkDestroySampler(*device_, it->second->sampler, nullptr);
