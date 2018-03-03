@@ -754,6 +754,8 @@ void BufferCache::InvalidateCache() { transient_cache_.clear(); }
 void BufferCache::ClearCache() { transient_cache_.clear(); }
 
 void BufferCache::Scavenge() {
+  SCOPE_profile_cpu_f("gpu");
+
   transient_cache_.clear();
   transient_buffer_->Scavenge();
 

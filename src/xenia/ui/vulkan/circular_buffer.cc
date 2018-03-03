@@ -177,46 +177,46 @@ CircularBuffer::Allocation* CircularBuffer::Acquire(VkDeviceSize length,
     // Write head behind read head.
     assert_true(read_head_ - write_head_ >= aligned_length);
 
-    auto alloc = new Allocation();
-    alloc->host_ptr = host_base_ + write_head_;
-    alloc->gpu_memory = gpu_memory_;
-    alloc->offset = gpu_base_ + write_head_;
-    alloc->length = length;
-    alloc->aligned_length = aligned_length;
-    alloc->fence = fence;
+    Allocation alloc;
+    alloc.host_ptr = host_base_ + write_head_;
+    alloc.gpu_memory = gpu_memory_;
+    alloc.offset = gpu_base_ + write_head_;
+    alloc.length = length;
+    alloc.aligned_length = aligned_length;
+    alloc.fence = fence;
     write_head_ += aligned_length;
-    allocations_.push_back(alloc);
+    allocations_.push(alloc);
 
-    return alloc;
+    return &allocations_.back();
   } else {
     // Write head equal to/after read head
     if (capacity_ - write_head_ >= aligned_length) {
       // Free space from write -> capacity
-      auto alloc = new Allocation();
-      alloc->host_ptr = host_base_ + write_head_;
-      alloc->gpu_memory = gpu_memory_;
-      alloc->offset = gpu_base_ + write_head_;
-      alloc->length = length;
-      alloc->aligned_length = aligned_length;
-      alloc->fence = fence;
+      Allocation alloc;
+      alloc.host_ptr = host_base_ + write_head_;
+      alloc.gpu_memory = gpu_memory_;
+      alloc.offset = gpu_base_ + write_head_;
+      alloc.length = length;
+      alloc.aligned_length = aligned_length;
+      alloc.fence = fence;
       write_head_ += aligned_length;
-      allocations_.push_back(alloc);
+      allocations_.push(alloc);
 
-      return alloc;
+      return &allocations_.back();
     } else if ((read_head_ - 0) >= aligned_length) {
       // Not enough space from write -> capacity, but there is enough free space
       // from begin -> read
-      auto alloc = new Allocation();
-      alloc->host_ptr = host_base_ + 0;
-      alloc->gpu_memory = gpu_memory_;
-      alloc->offset = gpu_base_ + 0;
-      alloc->length = length;
-      alloc->aligned_length = aligned_length;
-      alloc->fence = fence;
+      Allocation alloc;
+      alloc.host_ptr = host_base_ + 0;
+      alloc.gpu_memory = gpu_memory_;
+      alloc.offset = gpu_base_ + 0;
+      alloc.length = length;
+      alloc.aligned_length = aligned_length;
+      alloc.fence = fence;
       write_head_ = aligned_length;
-      allocations_.push_back(alloc);
+      allocations_.push(alloc);
 
-      return alloc;
+      return &allocations_.back();
     }
   }
 
@@ -244,30 +244,30 @@ void CircularBuffer::Flush(VkDeviceSize offset, VkDeviceSize length) {
 }
 
 void CircularBuffer::Clear() {
-  for (auto alloc : allocations_) {
-    delete alloc;
-  }
-  allocations_.clear();
-
+  allocations_ = {};
   write_head_ = read_head_ = 0;
 }
 
 void CircularBuffer::Scavenge() {
-  for (auto it = allocations_.begin(); it != allocations_.end();) {
-    if (vkGetFenceStatus(*device_, (*it)->fence) != VK_SUCCESS) {
+  // Stash the last signalled fence
+  VkFence fence = nullptr;
+  while (!allocations_.empty()) {
+    Allocation& alloc = allocations_.front();
+    if (fence != alloc.fence &&
+        vkGetFenceStatus(*device_, alloc.fence) != VK_SUCCESS) {
       // Don't bother freeing following allocations to ensure proper ordering.
       break;
     }
 
-    if (capacity_ - read_head_ < (*it)->aligned_length) {
+    fence = alloc.fence;
+    if (capacity_ - read_head_ < alloc.aligned_length) {
       // This allocation is stored at the beginning of the buffer.
-      read_head_ = (*it)->aligned_length;
+      read_head_ = alloc.aligned_length;
     } else {
-      read_head_ += (*it)->aligned_length;
+      read_head_ += alloc.aligned_length;
     }
 
-    delete *it;
-    it = allocations_.erase(it);
+    allocations_.pop();
   }
 
   if (allocations_.empty()) {

@@ -430,6 +430,7 @@ TextureCache::Texture* TextureCache::DemandResolveTexture(
       cpu::MMIOHandler::kWatchWrite, &WatchCallback, this, texture);
 
   textures_[texture_hash] = texture;
+  COUNT_profile_set("gpu/texture_cache/textures", textures_.size());
   return texture;
 }
 
@@ -503,6 +504,7 @@ TextureCache::Texture* TextureCache::Demand(const TextureInfo& texture_info,
           texture_info.guest_address + texture_info.input_length));
 
   textures_[texture_hash] = texture;
+  COUNT_profile_set("gpu/texture_cache/textures", textures_.size());
   return texture;
 }
 
@@ -1490,6 +1492,9 @@ void TextureCache::RemoveInvalidatedTextures() {
       textures_.erase((*it)->texture_info.hash());
     }
 
+    COUNT_profile_set("gpu/texture_cache/textures", textures_.size());
+    COUNT_profile_set("gpu/texture_cache/pending_deletes",
+                      pending_delete_textures_.size());
     invalidated_textures.clear();
   }
 }
@@ -1503,6 +1508,7 @@ void TextureCache::ClearCache() {
     }
   }
   textures_.clear();
+  COUNT_profile_set("gpu/texture_cache/textures", 0);
 
   for (auto it = samplers_.begin(); it != samplers_.end(); ++it) {
     vkDestroySampler(*device_, it->second->sampler, nullptr);
@@ -1512,6 +1518,8 @@ void TextureCache::ClearCache() {
 }
 
 void TextureCache::Scavenge() {
+  SCOPE_profile_cpu_f("gpu");
+
   // Close any open descriptor pool batches
   if (descriptor_pool_->has_open_batch()) {
     descriptor_pool_->EndBatch();
@@ -1535,6 +1543,9 @@ void TextureCache::Scavenge() {
 
       it = pending_delete_textures_.erase(it);
     }
+
+    COUNT_profile_set("gpu/texture_cache/pending_deletes",
+                      pending_delete_textures_.size());
   }
 }
 
