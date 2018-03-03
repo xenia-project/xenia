@@ -57,10 +57,15 @@ VulkanDevice::VulkanDevice(VulkanInstance* instance) : instance_(instance) {
     */
   }
 
-  DeclareRequiredExtension(VK_KHR_SAMPLER_MIRROR_CLAMP_TO_EDGE_EXTENSION_NAME,
-                           Version::Make(0, 0, 0), false);
+  // AMD shader info (optional)
+  DeclareRequiredExtension(VK_AMD_SHADER_INFO_EXTENSION_NAME,
+                           Version::Make(0, 0, 0), true);
+  // Debug markers (optional)
   DeclareRequiredExtension(VK_EXT_DEBUG_MARKER_EXTENSION_NAME,
                            Version::Make(0, 0, 0), true);
+
+  DeclareRequiredExtension(VK_KHR_SAMPLER_MIRROR_CLAMP_TO_EDGE_EXTENSION_NAME,
+                           Version::Make(0, 0, 0), false);
 }
 
 VulkanDevice::~VulkanDevice() {
@@ -250,6 +255,16 @@ bool VulkanDevice::Initialize(DeviceInfo device_info) {
 
   XELOGVK("Device initialized successfully!");
   return true;
+}
+
+bool VulkanDevice::HasEnabledExtension(const char* name) {
+  for (auto extension : enabled_extensions_) {
+    if (!std::strcmp(extension, name)) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 VkQueue VulkanDevice::AcquireQueue(uint32_t queue_family_index) {

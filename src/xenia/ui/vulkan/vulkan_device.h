@@ -57,6 +57,8 @@ class VulkanDevice {
   // issues will occur.
   bool Initialize(DeviceInfo device_info);
 
+  bool HasEnabledExtension(const char* name);
+
   uint32_t queue_family_index() const { return queue_family_index_; }
   std::mutex& primary_queue_mutex() { return queue_mutex_; }
   // Access to the primary queue must be synchronized with primary_queue_mutex.
