@@ -272,6 +272,7 @@ class PipelineCache {
     uint32_t pa_sc_window_scissor_br;
 
     uint32_t rb_surface_info;
+    uint32_t pa_su_sc_vtx_cntl;
     uint32_t pa_cl_vte_cntl;
     float pa_cl_vport_xoffset;
     float pa_cl_vport_yoffset;

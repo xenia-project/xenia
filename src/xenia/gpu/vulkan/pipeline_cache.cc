@@ -559,6 +559,8 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
       SetShadowRegister(&regs.rb_surface_info, XE_GPU_REG_RB_SURFACE_INFO);
   viewport_state_dirty |=
       SetShadowRegister(&regs.pa_cl_vte_cntl, XE_GPU_REG_PA_CL_VTE_CNTL);
+  viewport_state_dirty |=
+      SetShadowRegister(&regs.pa_su_sc_vtx_cntl, XE_GPU_REG_PA_SU_VTX_CNTL);
   viewport_state_dirty |= SetShadowRegister(&regs.pa_cl_vport_xoffset,
                                             XE_GPU_REG_PA_CL_VPORT_XOFFSET);
   viewport_state_dirty |= SetShadowRegister(&regs.pa_cl_vport_yoffset,
@@ -602,9 +604,6 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
               vport_yoffset_enable == vport_zoffset_enable);
 
   float vpw, vph, vpx, vpy;
-  float texel_offset_x = 0.0f;
-  float texel_offset_y = 0.0f;
-
   if (vport_xscale_enable) {
     float vox = vport_xoffset_enable ? regs.pa_cl_vport_xoffset : 0;
     float voy = vport_yoffset_enable ? regs.pa_cl_vport_yoffset : 0;
@@ -624,6 +623,11 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
   }
 
   if (viewport_state_dirty) {
+    // float texel_offset_x = regs.pa_su_sc_vtx_cntl & 0x01 ? 0.5f : 0.f;
+    // float texel_offset_y = regs.pa_su_sc_vtx_cntl & 0x01 ? 0.5f : 0.f;
+    float texel_offset_x = 0.f;
+    float texel_offset_y = 0.f;
+
     VkViewport viewport_rect;
     std::memset(&viewport_rect, 0, sizeof(VkViewport));
     viewport_rect.x = vpx + texel_offset_x;
