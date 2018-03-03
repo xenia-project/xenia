@@ -244,7 +244,7 @@ void CircularBuffer::Flush(VkDeviceSize offset, VkDeviceSize length) {
 }
 
 void CircularBuffer::Clear() {
-  std::swap(allocations_, std::queue<Allocation>());
+  allocations_.swap(std::queue<Allocation>());
   write_head_ = read_head_ = 0;
 }
 
