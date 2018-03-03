@@ -249,20 +249,25 @@ void CircularBuffer::Clear() {
 }
 
 void CircularBuffer::Scavenge() {
+  // Stash the last signalled fence
+  VkFence fence = nullptr;
   while (!allocations_.empty()) {
     Allocation& alloc = allocations_.front();
-    if (vkGetFenceStatus(*device_, alloc.fence) != VK_SUCCESS) {
+    if (fence != alloc.fence &&
+        vkGetFenceStatus(*device_, alloc.fence) != VK_SUCCESS) {
       // Don't bother freeing following allocations to ensure proper ordering.
       break;
     }
 
-    allocations_.pop();
+    fence = alloc.fence;
     if (capacity_ - read_head_ < alloc.aligned_length) {
       // This allocation is stored at the beginning of the buffer.
       read_head_ = alloc.aligned_length;
     } else {
       read_head_ += alloc.aligned_length;
     }
+
+    allocations_.pop();
   }
 
   if (allocations_.empty()) {
