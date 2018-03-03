@@ -3040,24 +3040,25 @@ struct SELECT_V128_V128
     : Sequence<SELECT_V128_V128,
                I<OPCODE_SELECT, V128Op, V128Op, V128Op, V128Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    Xmm src1 = i.src1.is_constant ? e.xmm1 : i.src1;
+    Xmm src1 = i.src1.is_constant ? e.xmm0 : i.src1;
     if (i.src1.is_constant) {
       e.LoadConstantXmm(src1, i.src1.constant());
     }
 
-    Xmm src2 = i.src2.is_constant ? e.xmm0 : i.src2;
+    Xmm src2 = i.src2.is_constant ? e.xmm1 : i.src2;
     if (i.src2.is_constant) {
       e.LoadConstantXmm(src2, i.src2.constant());
     }
-    e.vpandn(e.xmm0, src1, src2);
 
-    Xmm src3 = i.src3.is_constant ? i.dest : i.src3;
+    Xmm src3 = i.src3.is_constant ? e.xmm2 : i.src3;
     if (i.src3.is_constant) {
       e.LoadConstantXmm(src3, i.src3.constant());
     }
-    e.vpand(i.dest, src1, src3);
 
-    e.vpor(i.dest, i.dest, e.xmm0);
+    // src1 ? src2 : src3;
+    e.vpandn(e.xmm3, src1, src2);
+    e.vpand(i.dest, src1, src3);
+    e.vpor(i.dest, i.dest, e.xmm3);
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_SELECT, SELECT_I8, SELECT_I16, SELECT_I32,
