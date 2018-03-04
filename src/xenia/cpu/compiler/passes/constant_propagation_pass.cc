@@ -510,7 +510,10 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder) {
               mul->Mul(i->src2.value);
 
               Value* add = i->src3.value;
-              i->Replace(&OPCODE_ADD_info, 0);
+              if (mul->type == VEC128_TYPE)
+                i->Replace(&OPCODE_VECTOR_ADD_info, FLOAT32_TYPE);
+              else
+                i->Replace(&OPCODE_ADD_info, 0);
               i->set_src1(mul);
               i->set_src2(add);
             }
@@ -530,7 +533,10 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder) {
               mul->Mul(i->src2.value);
 
               Value* add = i->src3.value;
-              i->Replace(&OPCODE_SUB_info, 0);
+              if (mul->type == VEC128_TYPE)
+                i->Replace(&OPCODE_VECTOR_SUB_info, FLOAT32_TYPE);
+              else
+                i->Replace(&OPCODE_SUB_info, 0);
               i->set_src1(mul);
               i->set_src2(add);
             }
