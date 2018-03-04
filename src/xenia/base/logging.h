@@ -29,6 +29,7 @@ enum class LogLevel {
 // Initializes the logging system and any outputs requested.
 // Must be called on startup.
 void InitializeLogging(const std::wstring& app_name);
+void ShutdownLogging();
 
 // Appends a line to the log with printf-style formatting.
 void LogLineFormat(LogLevel log_level, const char prefix_char, const char* fmt,
