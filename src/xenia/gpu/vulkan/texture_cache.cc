@@ -311,8 +311,9 @@ TextureCache::TextureRegion* TextureCache::AllocateTextureRegion(
       0, VMA_MEMORY_USAGE_GPU_ONLY, 0, 0, 0, nullptr, nullptr,
   };
   VmaAllocationInfo vma_info = {};
-  VkResult status = vmaCreateImage(mem_allocator_, &image_info, &vma_reqs,
-                                   &image, &allocation, &vma_info);
+  VkResult status =
+      vmaCreateImage(mem_allocator_, &image_info, &vma_create_info, &image,
+                     &allocation, &vma_info);
   if (status != VK_SUCCESS) {
     // Allocation failed.
     return nullptr;
