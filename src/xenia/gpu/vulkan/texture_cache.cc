@@ -379,12 +379,19 @@ bool TextureCache::FreeTexture(Texture* texture) {
   for (auto region_it = texture->regions.begin();
        region_it != texture->regions.end(); ++region_it) {
     TextureRegion* region = region_it->get();
-    for (auto view_it = region->views.begin(); view_it != region->views.end();
-         ++view_it) {
-      vkDestroyImageView(*device_, (*view_it)->view, nullptr);
+    for (auto& view : region->views) {
+      vkDestroyImageView(*device_, view->view, nullptr);
     }
     vmaDestroyImage(mem_allocator_, region->image, region->allocation);
   }
+  texture->regions.clear();
+
+  // Free the base region (which is not part of regions)
+  for (auto& view : texture->base_region->views) {
+    vkDestroyImageView(*device_, view->view, nullptr);
+  }
+  vmaDestroyImage(mem_allocator_, texture->base_region->image,
+                  texture->base_region->allocation);
 
   if (texture->access_watch_handle) {
     memory_->CancelAccessWatch(texture->access_watch_handle);

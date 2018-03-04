@@ -80,10 +80,8 @@ class TextureCache {
 
     std::vector<std::unique_ptr<TextureRegion>> regions;
 
-    // Non-owning; base region is also in the (owning) regions vector.
-    TextureRegion* base_region;
-
-    VkFramebuffer framebuffer;  // Blit target frame buffer.
+    TextureRegion* base_region;  // Base region representing the entire image.
+    VkFramebuffer framebuffer;   // Blit target frame buffer.
 
     uintptr_t access_watch_handle;
     bool pending_invalidation;
