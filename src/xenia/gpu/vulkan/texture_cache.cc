@@ -379,12 +379,19 @@ bool TextureCache::FreeTexture(Texture* texture) {
   for (auto region_it = texture->regions.begin();
        region_it != texture->regions.end(); ++region_it) {
     TextureRegion* region = region_it->get();
-    for (auto view_it = region->views.begin(); view_it != region->views.end();
-         ++view_it) {
-      vkDestroyImageView(*device_, (*view_it)->view, nullptr);
+    for (auto& view : region->views) {
+      vkDestroyImageView(*device_, view->view, nullptr);
     }
     vmaDestroyImage(mem_allocator_, region->image, region->allocation);
   }
+  texture->regions.clear();
+
+  // Free the base region (which is not part of regions)
+  for (auto& view : texture->base_region->views) {
+    vkDestroyImageView(*device_, view->view, nullptr);
+  }
+  vmaDestroyImage(mem_allocator_, texture->base_region->image,
+                  texture->base_region->allocation);
 
   if (texture->access_watch_handle) {
     memory_->CancelAccessWatch(texture->access_watch_handle);
@@ -521,6 +528,7 @@ TextureCache::TextureRegion* TextureCache::DemandRegion(
           containing_tex, {offset.x, offset.y, 0},
           {texture_info.width + 1, texture_info.height + 1, 1},
           VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT);
+      containing_tex->regions.push_back(std::unique_ptr<TextureRegion>(region));
     }
 
     if (command_buffer && region && !region->region_contents_valid) {
@@ -580,7 +588,6 @@ TextureCache::TextureRegion* TextureCache::DemandRegion(
       region->region_contents_valid = true;
     }
 
-    containing_tex->regions.push_back(std::unique_ptr<TextureRegion>(region));
     return region;
   }
 
