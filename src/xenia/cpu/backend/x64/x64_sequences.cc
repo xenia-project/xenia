@@ -3674,8 +3674,16 @@ struct ADD_F64 : Sequence<ADD_F64, I<OPCODE_ADD, F64Op, F64Op, F64Op>> {
                                });
   }
 };
+struct ADD_V128 : Sequence<ADD_V128, I<OPCODE_ADD, V128Op, V128Op, V128Op>> {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    EmitCommutativeBinaryXmmOp(e, i,
+                               [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
+                                 e.vaddps(dest, src1, src2);
+                               });
+  }
+};
 EMITTER_OPCODE_TABLE(OPCODE_ADD, ADD_I8, ADD_I16, ADD_I32, ADD_I64, ADD_F32,
-                     ADD_F64);
+                     ADD_F64, ADD_V128);
 
 // ============================================================================
 // OPCODE_ADD_CARRY
@@ -3882,8 +3890,17 @@ struct SUB_F64 : Sequence<SUB_F64, I<OPCODE_SUB, F64Op, F64Op, F64Op>> {
                                });
   }
 };
+struct SUB_V128 : Sequence<SUB_V128, I<OPCODE_SUB, V128Op, V128Op, V128Op>> {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    assert_true(!i.instr->flags);
+    EmitAssociativeBinaryXmmOp(e, i,
+                               [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
+                                 e.vsubps(dest, src1, src2);
+                               });
+  }
+};
 EMITTER_OPCODE_TABLE(OPCODE_SUB, SUB_I8, SUB_I16, SUB_I32, SUB_I64, SUB_F32,
-                     SUB_F64);
+                     SUB_F64, SUB_V128);
 
 // ============================================================================
 // OPCODE_VECTOR_SUB
