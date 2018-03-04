@@ -740,28 +740,6 @@ const RenderState* RenderCache::BeginRenderPass(VkCommandBuffer command_buffer,
   vkCmdBeginRenderPass(command_buffer, &render_pass_begin_info,
                        VK_SUBPASS_CONTENTS_INLINE);
 
-  // XXX HACK: clear the color target if the previous render pass was a
-  // depth-stencil pass targeting the same EDRAM tile
-  // (some games clear color targets with a depth pass, since it's slightly
-  // faster)
-  if (previous_render_pass && previous_render_pass->config.depth_stencil.used &&
-      current_state_.render_pass->config.color[0].used &&
-      previous_render_pass->config.depth_stencil.edram_base ==
-          current_state_.render_pass->config.color[0].edram_base) {
-    VkClearRect clear_rect;
-    clear_rect.rect = render_pass_begin_info.renderArea;
-    clear_rect.baseArrayLayer = 0;
-    clear_rect.layerCount = 1;
-
-    VkClearAttachment clear_attachments;
-    clear_attachments.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    clear_attachments.colorAttachment = 0;
-    memset(&clear_attachments.clearValue, 0, sizeof(VkClearValue));
-
-    vkCmdClearAttachments(command_buffer, 1, &clear_attachments, 1,
-                          &clear_rect);
-  }
-
   return &current_state_;
 }
 
