@@ -242,7 +242,7 @@ void InitializeLogging(const std::wstring& app_name) {
   logger_ = new (mem) Logger(app_name);
 }
 
-void xe::ShutdownLogging() {
+void ShutdownLogging() {
   Logger* logger = logger_;
   logger_ = nullptr;
 
