@@ -528,6 +528,7 @@ TextureCache::TextureRegion* TextureCache::DemandRegion(
           containing_tex, {offset.x, offset.y, 0},
           {texture_info.width + 1, texture_info.height + 1, 1},
           VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT);
+      containing_tex->regions.push_back(std::unique_ptr<TextureRegion>(region));
     }
 
     if (command_buffer && region && !region->region_contents_valid) {
@@ -587,7 +588,6 @@ TextureCache::TextureRegion* TextureCache::DemandRegion(
       region->region_contents_valid = true;
     }
 
-    containing_tex->regions.push_back(std::unique_ptr<TextureRegion>(region));
     return region;
   }
 
