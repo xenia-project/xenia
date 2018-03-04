@@ -1634,18 +1634,21 @@ struct VECTOR_CONVERT_F2I
       // saturate values > UINT_MAX
       e.vpor(i.dest, i.dest, e.xmm0);
     } else {
-      Xmm src1 = e.xmm2;
-      e.vmovdqa(src1, i.src1);  // Duplicate src1.
+      // xmm2 = NaN mask
+      e.vcmpunordps(e.xmm2, i.src1, i.src1);
 
-      e.vcvttps2dq(i.dest, i.src1);
+      // convert packed floats to packed dwords
+      e.vcvttps2dq(e.xmm0, i.src1);
 
-      // if dest is indeterminate and i.src1 >= 0 (i.e. !(i.src1 & 0x80000000))
-      //   i.dest = 0x7FFFFFFF
-      e.vpcmpeqd(e.xmm0, i.dest, e.GetXmmConstPtr(XMMIntMin));
-      e.vpandn(e.xmm0, src1, e.xmm0);
+      // (high bit) xmm1 = dest is indeterminate and i.src1 >= 0
+      e.vpcmpeqd(e.xmm1, e.xmm0, e.GetXmmConstPtr(XMMIntMin));
+      e.vpandn(e.xmm1, i.src1, e.xmm1);
 
-      // (high bit of xmm0 = is ind. && i.src1 >= 0)
-      e.vblendvps(i.dest, i.dest, e.GetXmmConstPtr(XMMIntMax), e.xmm0);
+      // saturate positive values
+      e.vblendvps(i.dest, e.xmm0, e.GetXmmConstPtr(XMMIntMax), e.xmm1);
+
+      // mask NaNs
+      e.vpandn(i.dest, e.xmm2, i.dest);
     }
   }
 };
@@ -3671,8 +3674,16 @@ struct ADD_F64 : Sequence<ADD_F64, I<OPCODE_ADD, F64Op, F64Op, F64Op>> {
                                });
   }
 };
+struct ADD_V128 : Sequence<ADD_V128, I<OPCODE_ADD, V128Op, V128Op, V128Op>> {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    EmitCommutativeBinaryXmmOp(e, i,
+                               [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
+                                 e.vaddps(dest, src1, src2);
+                               });
+  }
+};
 EMITTER_OPCODE_TABLE(OPCODE_ADD, ADD_I8, ADD_I16, ADD_I32, ADD_I64, ADD_F32,
-                     ADD_F64);
+                     ADD_F64, ADD_V128);
 
 // ============================================================================
 // OPCODE_ADD_CARRY
@@ -3879,8 +3890,17 @@ struct SUB_F64 : Sequence<SUB_F64, I<OPCODE_SUB, F64Op, F64Op, F64Op>> {
                                });
   }
 };
+struct SUB_V128 : Sequence<SUB_V128, I<OPCODE_SUB, V128Op, V128Op, V128Op>> {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    assert_true(!i.instr->flags);
+    EmitAssociativeBinaryXmmOp(e, i,
+                               [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
+                                 e.vsubps(dest, src1, src2);
+                               });
+  }
+};
 EMITTER_OPCODE_TABLE(OPCODE_SUB, SUB_I8, SUB_I16, SUB_I32, SUB_I64, SUB_F32,
-                     SUB_F64);
+                     SUB_F64, SUB_V128);
 
 // ============================================================================
 // OPCODE_VECTOR_SUB

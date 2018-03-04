@@ -104,6 +104,7 @@ int Main() {
   // Call app-provided entry point.
   int result = entry_info.entry_point(args);
 
+  xe::ShutdownLogging();
   google::ShutDownCommandLineFlags();
   LocalFree(argv);
   return result;

@@ -155,11 +155,7 @@ VkResult PipelineCache::Initialize(
 }
 
 void PipelineCache::Shutdown() {
-  // Destroy all pipelines.
-  for (auto it : cached_pipelines_) {
-    vkDestroyPipeline(*device_, it.second, nullptr);
-  }
-  cached_pipelines_.clear();
+  ClearCache();
 
   // Destroy geometry shaders.
   if (geometry_shaders_.line_quad_list) {
@@ -191,12 +187,6 @@ void PipelineCache::Shutdown() {
     vkDestroyPipelineCache(*device_, pipeline_cache_, nullptr);
     pipeline_cache_ = nullptr;
   }
-
-  // Destroy all shaders.
-  for (auto it : shader_map_) {
-    delete it.second;
-  }
-  shader_map_.clear();
 }
 
 VulkanShader* PipelineCache::LoadShader(ShaderType shader_type,
@@ -269,7 +259,18 @@ PipelineCache::UpdateStatus PipelineCache::ConfigurePipeline(
 }
 
 void PipelineCache::ClearCache() {
-  // TODO(benvanik): caching.
+  // Destroy all pipelines.
+  for (auto it : cached_pipelines_) {
+    vkDestroyPipeline(*device_, it.second, nullptr);
+  }
+  cached_pipelines_.clear();
+  COUNT_profile_set("gpu/pipeline_cache/pipelines", 0);
+
+  // Destroy all shaders.
+  for (auto it : shader_map_) {
+    delete it.second;
+  }
+  shader_map_.clear();
 }
 
 VkPipeline PipelineCache::GetPipeline(const RenderState* render_state,
@@ -332,11 +333,17 @@ VkPipeline PipelineCache::GetPipeline(const RenderState* render_state,
 
   // Dump shader disassembly.
   if (FLAGS_vulkan_dump_disasm) {
-    DumpShaderDisasmNV(pipeline_info);
+    if (device_->HasEnabledExtension(VK_AMD_SHADER_INFO_EXTENSION_NAME)) {
+      DumpShaderDisasmAMD(pipeline);
+    } else if (device_->device_info().properties.vendorID == 0x10DE) {
+      // NVIDIA cards
+      DumpShaderDisasmNV(pipeline_info);
+    }
   }
 
   // Add to cache with the hash key for reuse.
   cached_pipelines_.insert({hash_key, pipeline});
+  COUNT_profile_set("gpu/pipeline_cache/pipelines", cached_pipelines_.size());
 
   return pipeline;
 }
@@ -370,6 +377,53 @@ bool PipelineCache::TranslateShader(VulkanShader* shader,
   }
 
   return shader->is_valid();
+}
+
+static void DumpShaderStatisticsAMD(const VkShaderStatisticsInfoAMD& stats) {
+  XELOGI(" - resource usage:");
+  XELOGI("   numUsedVgprs: %d", stats.resourceUsage.numUsedVgprs);
+  XELOGI("   numUsedSgprs: %d", stats.resourceUsage.numUsedSgprs);
+  XELOGI("   ldsSizePerLocalWorkGroup: %d",
+         stats.resourceUsage.ldsSizePerLocalWorkGroup);
+  XELOGI("   ldsUsageSizeInBytes     : %d",
+         stats.resourceUsage.ldsUsageSizeInBytes);
+  XELOGI("   scratchMemUsageInBytes  : %d",
+         stats.resourceUsage.scratchMemUsageInBytes);
+  XELOGI("numPhysicalVgprs : %d", stats.numPhysicalVgprs);
+  XELOGI("numPhysicalSgprs : %d", stats.numPhysicalSgprs);
+  XELOGI("numAvailableVgprs: %d", stats.numAvailableVgprs);
+  XELOGI("numAvailableSgprs: %d", stats.numAvailableSgprs);
+}
+
+void PipelineCache::DumpShaderDisasmAMD(VkPipeline pipeline) {
+  auto fn_GetShaderInfoAMD = (PFN_vkGetShaderInfoAMD)vkGetDeviceProcAddr(
+      *device_, "vkGetShaderInfoAMD");
+
+  VkResult status = VK_SUCCESS;
+  size_t data_size = 0;
+
+  VkShaderStatisticsInfoAMD stats;
+  data_size = sizeof(stats);
+
+  // Vertex shader
+  status = fn_GetShaderInfoAMD(*device_, pipeline, VK_SHADER_STAGE_VERTEX_BIT,
+                               VK_SHADER_INFO_TYPE_STATISTICS_AMD, &data_size,
+                               &stats);
+  if (status == VK_SUCCESS) {
+    XELOGI("AMD Vertex Shader Statistics:");
+    DumpShaderStatisticsAMD(stats);
+  }
+
+  // Fragment shader
+  status = fn_GetShaderInfoAMD(*device_, pipeline, VK_SHADER_STAGE_FRAGMENT_BIT,
+                               VK_SHADER_INFO_TYPE_STATISTICS_AMD, &data_size,
+                               &stats);
+  if (status == VK_SUCCESS) {
+    XELOGI("AMD Fragment Shader Statistics:");
+    DumpShaderStatisticsAMD(stats);
+  }
+
+  // TODO(DrChat): Eventually dump the disasm...
 }
 
 void PipelineCache::DumpShaderDisasmNV(
@@ -559,6 +613,8 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
       SetShadowRegister(&regs.rb_surface_info, XE_GPU_REG_RB_SURFACE_INFO);
   viewport_state_dirty |=
       SetShadowRegister(&regs.pa_cl_vte_cntl, XE_GPU_REG_PA_CL_VTE_CNTL);
+  viewport_state_dirty |=
+      SetShadowRegister(&regs.pa_su_sc_vtx_cntl, XE_GPU_REG_PA_SU_VTX_CNTL);
   viewport_state_dirty |= SetShadowRegister(&regs.pa_cl_vport_xoffset,
                                             XE_GPU_REG_PA_CL_VPORT_XOFFSET);
   viewport_state_dirty |= SetShadowRegister(&regs.pa_cl_vport_yoffset,
@@ -602,9 +658,6 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
               vport_yoffset_enable == vport_zoffset_enable);
 
   float vpw, vph, vpx, vpy;
-  float texel_offset_x = 0.0f;
-  float texel_offset_y = 0.0f;
-
   if (vport_xscale_enable) {
     float vox = vport_xoffset_enable ? regs.pa_cl_vport_xoffset : 0;
     float voy = vport_yoffset_enable ? regs.pa_cl_vport_yoffset : 0;
@@ -624,6 +677,11 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
   }
 
   if (viewport_state_dirty) {
+    // float texel_offset_x = regs.pa_su_sc_vtx_cntl & 0x01 ? 0.5f : 0.f;
+    // float texel_offset_y = regs.pa_su_sc_vtx_cntl & 0x01 ? 0.5f : 0.f;
+    float texel_offset_x = 0.f;
+    float texel_offset_y = 0.f;
+
     VkViewport viewport_rect;
     std::memset(&viewport_rect, 0, sizeof(VkViewport));
     viewport_rect.x = vpx + texel_offset_x;
