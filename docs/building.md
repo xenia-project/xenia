@@ -36,7 +36,7 @@ get helpful spacers/movs in the disassembly.
 
 Linux support is extremely experimental and presently incomplete.
 
-The build script uses LLVM/Clang 3.8. GCC should also work, but is not easily
+The build script uses LLVM/Clang 4.0. GCC should also work, but is not easily
 swappable right now.
 
 [CodeLite](http://codelite.org) is the IDE of choice and `xb premake` will spit
