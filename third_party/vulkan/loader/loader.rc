@@ -1,0 +1,98 @@
+//
+// Copyright (c) 2014-2017 The Khronos Group Inc.
+// Copyright (c) 2014-2017 Valve Corporation
+// Copyright (c) 2014-2017 LunarG, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// Author: David Pinedo <david@lunarg.com>
+//
+
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+// Start customize section
+// Edit this section for your build
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+#define VERSION_MAJOR               1
+#define VERSION_MINOR               0
+#define VERSION_PATCH               1111
+#define VERSION_BUILDNO             2222
+
+#define VERSION_BUILD_DESCRIPTION   "Dev Build"
+
+// All builds except release builds should set this to 0.
+// Release builds should set this to 1.
+#define VERSION_IS_RELEASEBUILD        0
+
+
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+// End of customize section
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+#include "winres.h"
+
+#define VER_FILE_VERSION            VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH, VERSION_BUILDNO
+
+#define STRINGIZE2(s) #s
+#define STRINGIZE(s) STRINGIZE2(s)
+
+#if VERSION_IS_RELEASEBUILD==1
+   #define VER_FILE_DESCRIPTION_STR    "Vulkan Loader"
+   #define VER_FILE_VERSION_STR        STRINGIZE(VERSION_MAJOR)        \
+                                       "." STRINGIZE(VERSION_MINOR)    \
+                                       "." STRINGIZE(VERSION_PATCH)    \
+                                       "." STRINGIZE(VERSION_BUILDNO)
+#else
+   #define VER_FILE_DESCRIPTION_STR    "Vulkan Loader - " VERSION_BUILD_DESCRIPTION
+   #define VER_FILE_VERSION_STR        STRINGIZE(VERSION_MAJOR)        \
+                                    "." STRINGIZE(VERSION_MINOR)    \
+                                    "." STRINGIZE(VERSION_PATCH)    \
+                                    "." STRINGIZE(VERSION_BUILDNO) \
+                                    "." VERSION_BUILD_DESCRIPTION
+#endif
+
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION VER_FILE_VERSION
+ PRODUCTVERSION VER_FILE_VERSION
+ FILEFLAGSMASK 0x3fL
+#ifdef _DEBUG
+ FILEFLAGS VS_FF_DEBUG
+#else
+ FILEFLAGS 0x0L
+#endif
+
+ FILEOS 0x00000L
+ FILETYPE VFT_DLL
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "04090000"
+        BEGIN
+            VALUE "FileDescription", VER_FILE_DESCRIPTION_STR
+            VALUE "FileVersion", VER_FILE_VERSION_STR
+            VALUE "LegalCopyright", "Copyright (C) 2015-2017"
+            VALUE "ProductName", "Vulkan Runtime"
+            VALUE "ProductVersion", VER_FILE_VERSION_STR
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 0000
+    END
+END

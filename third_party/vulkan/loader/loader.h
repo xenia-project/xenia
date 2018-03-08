@@ -140,6 +140,7 @@ struct loader_layer_properties {
     struct {
         char enumerate_instance_extension_properties[MAX_STRING_SIZE];
         char enumerate_instance_layer_properties[MAX_STRING_SIZE];
+        char enumerate_instance_version[MAX_STRING_SIZE];
     } pre_instance_functions;
 };
 
@@ -228,6 +229,10 @@ struct loader_instance_dispatch_table {
 struct loader_instance {
     struct loader_instance_dispatch_table *disp;  // must be first entry in structure
 
+    // Vulkan API version the app is intending to use.
+    uint16_t app_api_major_version;
+    uint16_t app_api_minor_version;
+
     // We need to manually track physical devices over time.  If the user
     // re-queries the information, we don't want to delete old data or
     // create new data unless necessary.
@@ -241,9 +246,9 @@ struct loader_instance {
     // loader specific structures since we have that content in the physical
     // device stored internal to the public structures.
     uint32_t phys_dev_group_count_term;
-    struct VkPhysicalDeviceGroupPropertiesKHX **phys_dev_groups_term;
+    struct VkPhysicalDeviceGroupProperties **phys_dev_groups_term;
     uint32_t phys_dev_group_count_tramp;
-    struct VkPhysicalDeviceGroupPropertiesKHX **phys_dev_groups_tramp;
+    struct VkPhysicalDeviceGroupProperties **phys_dev_groups_tramp;
 
     struct loader_instance *next;
 
@@ -272,9 +277,12 @@ struct loader_instance {
     union loader_instance_extension_enables enabled_known_extensions;
 
     VkLayerDbgFunctionNode *DbgFunctionHead;
-    uint32_t num_tmp_callbacks;
-    VkDebugReportCallbackCreateInfoEXT *tmp_dbg_create_infos;
-    VkDebugReportCallbackEXT *tmp_callbacks;
+    uint32_t num_tmp_report_callbacks;
+    VkDebugReportCallbackCreateInfoEXT *tmp_report_create_infos;
+    VkDebugReportCallbackEXT *tmp_report_callbacks;
+    uint32_t num_tmp_messengers;
+    VkDebugUtilsMessengerCreateInfoEXT *tmp_messenger_create_infos;
+    VkDebugUtilsMessengerEXT *tmp_messengers;
 
     VkAllocationCallbacks alloc_callbacks;
 
