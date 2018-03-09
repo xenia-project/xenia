@@ -21,11 +21,26 @@
 */
 #pragma once
 
-// Linked list node for tree of debug callback functions
-typedef struct VkLayerDbgFunctionNode_ {
+// Linked list node for tree of debug callbacks
+typedef struct VkDebugReportContent {
     VkDebugReportCallbackEXT msgCallback;
     PFN_vkDebugReportCallbackEXT pfnMsgCallback;
     VkFlags msgFlags;
+} VkDebugReportContent;
+
+typedef struct VkDebugUtilsMessengerContent {
+    VkDebugUtilsMessengerEXT messenger;
+    VkDebugUtilsMessageSeverityFlagsEXT messageSeverity;
+    VkDebugUtilsMessageTypeFlagsEXT messageType;
+    PFN_vkDebugUtilsMessengerCallbackEXT pfnUserCallback;
+} VkDebugUtilsMessengerContent;
+
+typedef struct VkLayerDbgFunctionNode_ {
+    bool is_messenger;
+    union {
+        VkDebugReportContent report;
+        VkDebugUtilsMessengerContent messenger;
+    };
     void *pUserData;
     struct VkLayerDbgFunctionNode_ *pNext;
 } VkLayerDbgFunctionNode;
