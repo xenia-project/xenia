@@ -616,6 +616,7 @@ bool RenderCache::dirty() const {
   dirty |= cur_regs.rb_color2_info.value != regs[XE_GPU_REG_RB_COLOR2_INFO].u32;
   dirty |= cur_regs.rb_color3_info.value != regs[XE_GPU_REG_RB_COLOR3_INFO].u32;
   dirty |= cur_regs.rb_depth_info.value != regs[XE_GPU_REG_RB_DEPTH_INFO].u32;
+  dirty |= cur_regs.rb_color_mask != regs[XE_GPU_REG_RB_COLOR_MASK].u32;
   dirty |= cur_regs.pa_sc_window_scissor_tl !=
            regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL].u32;
   dirty |= cur_regs.pa_sc_window_scissor_br !=
@@ -634,6 +635,7 @@ const RenderState* RenderCache::BeginRenderPass(VkCommandBuffer command_buffer,
   current_command_buffer_ = command_buffer;
 
   // Lookup or construct a render pass compatible with our current state.
+  auto previous_render_pass = current_state_.render_pass;
   auto config = &current_state_.config;
   CachedRenderPass* render_pass = nullptr;
   CachedFramebuffer* framebuffer = nullptr;
@@ -653,6 +655,7 @@ const RenderState* RenderCache::BeginRenderPass(VkCommandBuffer command_buffer,
       SetShadowRegister(&regs.rb_color3_info.value, XE_GPU_REG_RB_COLOR3_INFO);
   dirty |=
       SetShadowRegister(&regs.rb_depth_info.value, XE_GPU_REG_RB_DEPTH_INFO);
+  dirty |= SetShadowRegister(&regs.rb_color_mask, XE_GPU_REG_RB_COLOR_MASK);
   dirty |= SetShadowRegister(&regs.pa_sc_window_scissor_tl,
                              XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL);
   dirty |= SetShadowRegister(&regs.pa_sc_window_scissor_br,
@@ -778,6 +781,7 @@ bool RenderCache::ParseConfiguration(RenderConfiguration* config) {
     for (int i = 0; i < 4; ++i) {
       config->color[i].edram_base = color_info[i].color_base;
       config->color[i].format = color_info[i].color_format;
+      config->color[i].used = ((regs.rb_color_mask >> (i * 4)) & 0xf) != 0;
       // We don't support GAMMA formats, so switch them to what we do support.
       switch (config->color[i].format) {
         case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
@@ -807,6 +811,7 @@ bool RenderCache::ParseConfiguration(RenderConfiguration* config) {
       config->mode_control == ModeControl::kDepth) {
     config->depth_stencil.edram_base = regs.rb_depth_info.depth_base;
     config->depth_stencil.format = regs.rb_depth_info.depth_format;
+    config->depth_stencil.used = true;
   } else {
     config->depth_stencil.edram_base = 0;
     config->depth_stencil.format = DepthRenderTargetFormat::kD24S8;
