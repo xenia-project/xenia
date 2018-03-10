@@ -20,7 +20,7 @@
  */
 
 #include <string.h>
-#include "debug_report.h"
+#include "debug_utils.h"
 #include "wsi.h"
 
 static inline void *trampolineGetProcAddr(struct loader_instance *inst, const char *funcName) {
@@ -163,9 +163,33 @@ static inline void *trampolineGetProcAddr(struct loader_instance *inst, const ch
     if (!strcmp(funcName, "vkCmdEndRenderPass")) return (PFN_vkVoidFunction)vkCmdEndRenderPass;
     if (!strcmp(funcName, "vkCmdExecuteCommands")) return (PFN_vkVoidFunction)vkCmdExecuteCommands;
 
+    // Core 1.1 functions
+    if (!strcmp(funcName, "vkEnumeratePhysicalDeviceGroups")) return (PFN_vkVoidFunction)vkEnumeratePhysicalDeviceGroups;
+    if (!strcmp(funcName, "vkGetPhysicalDeviceFeatures2")) return (PFN_vkVoidFunction)vkGetPhysicalDeviceFeatures2;
+    if (!strcmp(funcName, "vkGetPhysicalDeviceProperties2")) return (PFN_vkVoidFunction)vkGetPhysicalDeviceProperties2;
+    if (!strcmp(funcName, "vkGetPhysicalDeviceFormatProperties2")) return (PFN_vkVoidFunction)vkGetPhysicalDeviceFormatProperties2;
+    if (!strcmp(funcName, "vkGetPhysicalDeviceImageFormatProperties2")) return (PFN_vkVoidFunction)vkGetPhysicalDeviceImageFormatProperties2;
+    if (!strcmp(funcName, "vkGetPhysicalDeviceQueueFamilyProperties2")) return (PFN_vkVoidFunction)vkGetPhysicalDeviceQueueFamilyProperties2;
+    if (!strcmp(funcName, "vkGetPhysicalDeviceMemoryProperties2")) return (PFN_vkVoidFunction)vkGetPhysicalDeviceMemoryProperties2;
+    if (!strcmp(funcName, "vkGetPhysicalDeviceSparseImageFormatProperties2")) return (PFN_vkVoidFunction)vkGetPhysicalDeviceSparseImageFormatProperties2;
+    if (!strcmp(funcName, "vkGetPhysicalDeviceExternalBufferProperties")) return (PFN_vkVoidFunction)vkGetPhysicalDeviceExternalBufferProperties;
+    if (!strcmp(funcName, "vkGetPhysicalDeviceExternalSemaphoreProperties")) return (PFN_vkVoidFunction)vkGetPhysicalDeviceExternalSemaphoreProperties;
+    if (!strcmp(funcName, "vkGetPhysicalDeviceExternalFenceProperties")) return (PFN_vkVoidFunction)vkGetPhysicalDeviceExternalFenceProperties;
+    if (!strcmp(funcName, "vkBindBufferMemory2")) return (PFN_vkVoidFunction)vkBindBufferMemory2;
+    if (!strcmp(funcName, "vkBindImageMemory2")) return (PFN_vkVoidFunction)vkBindImageMemory2;
+    if (!strcmp(funcName, "vkGetDeviceGroupPeerMemoryFeatures")) return (PFN_vkVoidFunction)vkGetDeviceGroupPeerMemoryFeatures;
+    if (!strcmp(funcName, "vkCmdSetDeviceMask")) return (PFN_vkVoidFunction)vkCmdSetDeviceMask;
+    if (!strcmp(funcName, "vkCmdDispatchBase")) return (PFN_vkVoidFunction)vkCmdDispatchBase;
+    if (!strcmp(funcName, "vkGetImageMemoryRequirements2")) return (PFN_vkVoidFunction)vkGetImageMemoryRequirements2;
+    if (!strcmp(funcName, "vkTrimCommandPool")) return (PFN_vkVoidFunction)vkTrimCommandPool;
+    if (!strcmp(funcName, "vkGetDeviceQueue2")) return (PFN_vkVoidFunction)vkGetDeviceQueue2;
+    if (!strcmp(funcName, "vkCreateSamplerYcbcrConversion")) return (PFN_vkVoidFunction)vkCreateSamplerYcbcrConversion;
+    if (!strcmp(funcName, "vkDestroySamplerYcbcrConversion")) return (PFN_vkVoidFunction)vkDestroySamplerYcbcrConversion;
+    if (!strcmp(funcName, "vkGetDescriptorSetLayoutSupport")) return (PFN_vkVoidFunction)vkGetDescriptorSetLayoutSupport;
+
     // Instance extensions
     void *addr;
-    if (debug_report_instance_gpa(inst, funcName, &addr)) return addr;
+    if (debug_utils_InstanceGpa(inst, funcName, &addr)) return addr;
 
     if (wsi_swapchain_instance_gpa(inst, funcName, &addr)) return addr;
 
@@ -186,6 +210,7 @@ static inline void *globalGetProcAddr(const char *name) {
     if (!strcmp(name, "CreateInstance")) return (void *)vkCreateInstance;
     if (!strcmp(name, "EnumerateInstanceExtensionProperties")) return (void *)vkEnumerateInstanceExtensionProperties;
     if (!strcmp(name, "EnumerateInstanceLayerProperties")) return (void *)vkEnumerateInstanceLayerProperties;
+    if (!strcmp(name, "EnumerateInstanceVersion")) return (void *)vkEnumerateInstanceVersion;
 
     return NULL;
 }
