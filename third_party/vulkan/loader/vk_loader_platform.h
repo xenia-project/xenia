@@ -222,7 +222,15 @@ static bool loader_platform_file_exists(const char *path) {
         return true;
 }
 
-static bool loader_platform_is_path_absolute(const char *path) { return !PathIsRelative(path); }
+static bool loader_platform_is_path_absolute(const char *path) {
+    if (!path || !*path) {
+        return false;
+    }
+    if (*path == DIRECTORY_SYMBOL || path[1] == ':') {
+        return true;
+    }
+    return false;
+}
 
 // WIN32 runtime doesn't have dirname().
 static inline char *loader_platform_dirname(char *path) {
@@ -273,7 +281,7 @@ typedef HMODULE loader_platform_dl_handle;
 static loader_platform_dl_handle loader_platform_open_library(const char *lib_path) {
     // Try loading the library the original way first.
     loader_platform_dl_handle lib_handle = LoadLibrary(lib_path);
-    if (lib_handle == NULL && GetLastError() == ERROR_MOD_NOT_FOUND && PathFileExists(lib_path)) {
+    if (lib_handle == NULL && GetLastError() == ERROR_MOD_NOT_FOUND) {
         // If that failed, then try loading it with broader search folders.
         lib_handle = LoadLibraryEx(lib_path, NULL, LOAD_LIBRARY_SEARCH_DEFAULT_DIRS | LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR);
     }
