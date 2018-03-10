@@ -1386,6 +1386,76 @@ VKAPI_ATTR VkResult VKAPI_CALL terminator_CreateSharedSwapchainsKHR(VkDevice dev
     return VK_SUCCESS;
 }
 
+LOADER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkGetDeviceGroupPresentCapabilitiesKHR(
+    VkDevice                                    device,
+    VkDeviceGroupPresentCapabilitiesKHR*        pDeviceGroupPresentCapabilities) {
+    const VkLayerDispatchTable *disp = loader_get_dispatch(device);
+    return disp->GetDeviceGroupPresentCapabilitiesKHR(device, pDeviceGroupPresentCapabilities);
+}
+
+LOADER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkGetDeviceGroupSurfacePresentModesKHR(
+    VkDevice                                    device,
+    VkSurfaceKHR                                surface,
+    VkDeviceGroupPresentModeFlagsKHR*           pModes) {
+    const VkLayerDispatchTable *disp = loader_get_dispatch(device);
+    return disp->GetDeviceGroupSurfacePresentModesKHR(device, surface, pModes);
+}
+
+VKAPI_ATTR VkResult VKAPI_CALL terminator_GetDeviceGroupSurfacePresentModesKHR(
+    VkDevice                                    device,
+    VkSurfaceKHR                                surface,
+    VkDeviceGroupPresentModeFlagsKHR*           pModes) {
+    uint32_t icd_index = 0;
+    struct loader_device *dev;
+    struct loader_icd_term *icd_term = loader_get_icd_and_device(device, &dev, &icd_index);
+    if (NULL != icd_term && NULL != icd_term->dispatch.GetDeviceGroupSurfacePresentModesKHR) {
+        VkIcdSurface *icd_surface = (VkIcdSurface *)(uintptr_t)surface;
+        if (NULL != icd_surface->real_icd_surfaces && (VkSurfaceKHR)NULL != icd_surface->real_icd_surfaces[icd_index]) {
+            return icd_term->dispatch.GetDeviceGroupSurfacePresentModesKHR(device, icd_surface->real_icd_surfaces[icd_index], pModes);
+        }
+        return icd_term->dispatch.GetDeviceGroupSurfacePresentModesKHR(device, surface, pModes);
+    }
+    return VK_SUCCESS;
+}
+
+LOADER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkGetPhysicalDevicePresentRectanglesKHR(
+    VkPhysicalDevice                            physicalDevice,
+    VkSurfaceKHR                                surface,
+    uint32_t*                                   pRectCount,
+    VkRect2D*                                   pRects) {
+    const VkLayerInstanceDispatchTable *disp;
+    VkPhysicalDevice unwrapped_phys_dev = loader_unwrap_physical_device(physicalDevice);
+    disp = loader_get_instance_layer_dispatch(physicalDevice);
+    return disp->GetPhysicalDevicePresentRectanglesKHR(unwrapped_phys_dev, surface, pRectCount, pRects);
+}
+
+VKAPI_ATTR VkResult VKAPI_CALL terminator_GetPhysicalDevicePresentRectanglesKHR(
+    VkPhysicalDevice                            physicalDevice,
+    VkSurfaceKHR                                surface,
+    uint32_t*                                   pRectCount,
+    VkRect2D*                                   pRects) {
+    struct loader_physical_device_term *phys_dev_term = (struct loader_physical_device_term *)physicalDevice;
+    struct loader_icd_term *icd_term = phys_dev_term->this_icd_term;
+    if (NULL == icd_term->dispatch.GetPhysicalDevicePresentRectanglesKHR) {
+        loader_log(icd_term->this_instance, VK_DEBUG_REPORT_ERROR_BIT_EXT, 0,
+                   "ICD associated with VkPhysicalDevice does not support GetPhysicalDevicePresentRectanglesKHX");
+    }
+    VkIcdSurface *icd_surface = (VkIcdSurface *)(surface);
+    uint8_t icd_index = phys_dev_term->icd_index;
+    if (NULL != icd_surface->real_icd_surfaces && NULL != (void *)icd_surface->real_icd_surfaces[icd_index]) {
+        return icd_term->dispatch.GetPhysicalDevicePresentRectanglesKHR(phys_dev_term->phys_dev, icd_surface->real_icd_surfaces[icd_index], pRectCount, pRects);
+    }
+    return icd_term->dispatch.GetPhysicalDevicePresentRectanglesKHR(phys_dev_term->phys_dev, surface, pRectCount, pRects);
+}
+
+LOADER_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkAcquireNextImage2KHR(
+    VkDevice                                    device,
+    const VkAcquireNextImageInfoKHR*            pAcquireInfo,
+    uint32_t*                                   pImageIndex) {
+    const VkLayerDispatchTable *disp = loader_get_dispatch(device);
+    return disp->AcquireNextImage2KHR(device, pAcquireInfo, pImageIndex);
+}
+
 bool wsi_swapchain_instance_gpa(struct loader_instance *ptr_instance, const char *name, void **addr) {
     *addr = NULL;
 
@@ -1408,6 +1478,21 @@ bool wsi_swapchain_instance_gpa(struct loader_instance *ptr_instance, const char
     }
     if (!strcmp("vkGetPhysicalDeviceSurfacePresentModesKHR", name)) {
         *addr = ptr_instance->wsi_surface_enabled ? (void *)vkGetPhysicalDeviceSurfacePresentModesKHR : NULL;
+        return true;
+    }
+
+    if (!strcmp("vkGetDeviceGroupPresentCapabilitiesKHR", name)) {
+        *addr = ptr_instance->wsi_surface_enabled ? (void *)vkGetDeviceGroupPresentCapabilitiesKHR : NULL;
+        return true;
+    }
+
+    if (!strcmp("vkGetDeviceGroupSurfacePresentModesKHR", name)) {
+        *addr = ptr_instance->wsi_surface_enabled ? (void *)vkGetDeviceGroupSurfacePresentModesKHR : NULL;
+        return true;
+    }
+
+    if (!strcmp("vkGetPhysicalDevicePresentRectanglesKHR", name)) {
+        *addr = ptr_instance->wsi_surface_enabled ? (void *)vkGetPhysicalDevicePresentRectanglesKHR : NULL;
         return true;
     }
 
@@ -1435,6 +1520,10 @@ bool wsi_swapchain_instance_gpa(struct loader_instance *ptr_instance, const char
     }
     if (!strcmp("vkQueuePresentKHR", name)) {
         *addr = (void *)vkQueuePresentKHR;
+        return true;
+    }
+    if (!strcmp("vkAcquireNextImage2KHR", name)) {
+        *addr = (void *)vkAcquireNextImage2KHR;
         return true;
     }
 
