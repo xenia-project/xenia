@@ -18,9 +18,56 @@ using namespace threading;
 using namespace std::chrono_literals;
 
 TEST_CASE("Fence") {
-  // TODO(bwrsandman):
-  REQUIRE(true);
-}
+  std::unique_ptr<threading::Fence> pFence;
+  std::unique_ptr<threading::HighResolutionTimer> pTimer;
+
+  // Signal without wait
+  pFence = std::make_unique<threading::Fence>();
+  pFence->Signal();
+
+  // Signal once and wait
+  pFence = std::make_unique<threading::Fence>();
+  pFence->Signal();
+  pFence->Wait();
+
+  // Signal twice and wait
+  pFence = std::make_unique<threading::Fence>();
+  pFence->Signal();
+  pFence->Signal();
+  pFence->Wait();
+
+  // Test to synchronize multiple threads
+  std::atomic<int> started(0);
+  std::atomic<int> finished(0);
+  pFence = std::make_unique<threading::Fence>();
+  auto func = [&pFence, &started, &finished] {
+    started.fetch_add(1);
+    pFence->Wait();
+    finished.fetch_add(1);
+  };
+
+  auto threads = std::array<std::thread, 5>({
+      std::thread(func),
+      std::thread(func),
+      std::thread(func),
+      std::thread(func),
+      std::thread(func),
+  });
+
+  Sleep(100ms);
+  REQUIRE(finished.load() == 0);
+
+  // TODO(bwrsandman): Check if this is correct behaviour: looping with Sleep
+  // is the only way to get fence to signal all threads on windows
+  for (int i = 0; i < threads.size(); ++i) {
+    Sleep(10ms);
+    pFence->Signal();
+  }
+  REQUIRE(started.load() == threads.size());
+
+  for (auto& t : threads) t.join();
+  REQUIRE(finished.load() == threads.size());
+}  // namespace test
 
 TEST_CASE("Get number of logical processors") {
   auto count = std::thread::hardware_concurrency();

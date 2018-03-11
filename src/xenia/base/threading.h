@@ -32,21 +32,19 @@ class Fence {
   Fence() : signaled_(false) {}
   void Signal() {
     std::unique_lock<std::mutex> lock(mutex_);
-    signaled_.store(true);
+    signaled_ = true;
     cond_.notify_all();
   }
   void Wait() {
     std::unique_lock<std::mutex> lock(mutex_);
-    while (!signaled_.load()) {
-      cond_.wait(lock);
-    }
-    signaled_.store(false);
+    cond_.wait(lock, [this] { return signaled_; });
+    signaled_ = false;
   }
 
  private:
   std::mutex mutex_;
   std::condition_variable cond_;
-  std::atomic<bool> signaled_;
+  bool signaled_;
 };
 
 // Returns the total number of logical processors in the host system.
