@@ -23,6 +23,15 @@
 namespace xe {
 namespace threading {
 
+template <typename _Rep, typename _Period>
+inline timespec DurationToTimeSpec(
+    std::chrono::duration<_Rep, _Period> duration) {
+  auto nanoseconds =
+      std::chrono::duration_cast<std::chrono::nanoseconds>(duration);
+  auto div = ldiv(nanoseconds.count(), 1000000000L);
+  return timespec{div.quot, div.rem};
+}
+
 // TODO(dougvj)
 void EnableAffinityConfiguration() {}
 
@@ -47,8 +56,7 @@ void MaybeYield() {
 void SyncMemory() { __sync_synchronize(); }
 
 void Sleep(std::chrono::microseconds duration) {
-  timespec rqtp = {time_t(duration.count() / 1000000),
-                   time_t(duration.count() % 1000)};
+  timespec rqtp = DurationToTimeSpec(duration);
   nanosleep(&rqtp, nullptr);
   // TODO(benvanik): spin while rmtp >0?
 }
