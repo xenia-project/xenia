@@ -6,3 +6,5 @@ handle SIG35 nostop noprint
 handle SIG32 nostop noprint
 # Ignore PosixThread suspend event
 handle SIG36 nostop noprint
+# Ignore PosixThread user callback event
+handle SIG37 nostop noprint

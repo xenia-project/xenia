@@ -101,8 +101,15 @@ TEST_CASE("Sleep Current Thread", "Sleep") {
 }
 
 TEST_CASE("Sleep Current Thread in Alertable State", "Sleep") {
-  // TODO(bwrsandman):
-  REQUIRE(true);
+  auto wait_time = 50ms;
+  auto start = std::chrono::steady_clock::now();
+  auto result = threading::AlertableSleep(wait_time);
+  auto duration = std::chrono::steady_clock::now() - start;
+  REQUIRE(duration >= wait_time);
+  REQUIRE(result == threading::SleepResult::kSuccess);
+
+  // TODO(bwrsandman): Test a Thread to return kAlerted.
+  // Need callback to call extended I/O function (ReadFileEx or WriteFileEx)
 }
 
 TEST_CASE("TlsHandle") {
@@ -785,10 +792,77 @@ TEST_CASE("Test Suspending Thread", "Thread") {
 }
 
 TEST_CASE("Test Thread QueueUserCallback", "Thread") {
-  // TODO(bwrsandman): Test Exit command with QueueUserCallback
+  std::unique_ptr<Thread> thread;
+  WaitResult result;
+  Thread::CreationParameters params = {};
+  std::atomic_int order;
+  int is_modified;
+  int has_finished;
+  auto callback = [&is_modified, &order] {
+    is_modified = std::atomic_fetch_add_explicit(
+        &order, 1, std::memory_order::memory_order_relaxed);
+  };
+
+  // Without alertable
+  order = 0;
+  is_modified = -1;
+  has_finished = -1;
+  thread = Thread::Create(params, [&has_finished, &order] {
+    // Not using Alertable so callback is not registered
+    Sleep(90ms);
+    has_finished = std::atomic_fetch_add_explicit(
+        &order, 1, std::memory_order::memory_order_relaxed);
+  });
+  result = Wait(thread.get(), true, 50ms);
+  REQUIRE(result == WaitResult::kTimeout);
+  REQUIRE(is_modified == -1);
+  thread->QueueUserCallback(callback);
+  result = Wait(thread.get(), true, 100ms);
+  REQUIRE(result == WaitResult::kSuccess);
+  REQUIRE(is_modified == -1);
+  REQUIRE(has_finished == 0);
+
+  // With alertable
+  order = 0;
+  is_modified = -1;
+  has_finished = -1;
+  thread = Thread::Create(params, [&has_finished, &order] {
+    // Using Alertable so callback is registered
+    AlertableSleep(90ms);
+    has_finished = std::atomic_fetch_add_explicit(
+        &order, 1, std::memory_order::memory_order_relaxed);
+  });
+  result = Wait(thread.get(), true, 50ms);
+  REQUIRE(result == WaitResult::kTimeout);
+  REQUIRE(is_modified == -1);
+  thread->QueueUserCallback(callback);
+  result = Wait(thread.get(), true, 100ms);
+  REQUIRE(result == WaitResult::kSuccess);
+  REQUIRE(is_modified == 0);
+  REQUIRE(has_finished == 1);
+
+  // Test Exit command with QueueUserCallback
+  order = 0;
+  is_modified = -1;
+  has_finished = -1;
+  thread = Thread::Create(params, [&is_modified, &has_finished, &order] {
+    is_modified = std::atomic_fetch_add_explicit(
+        &order, 1, std::memory_order::memory_order_relaxed);
+    // Using Alertable so callback is registered
+    AlertableSleep(200ms);
+    has_finished = std::atomic_fetch_add_explicit(
+        &order, 1, std::memory_order::memory_order_relaxed);
+  });
+  result = Wait(thread.get(), true, 100ms);
+  REQUIRE(result == WaitResult::kTimeout);
+  thread->QueueUserCallback([] { Thread::Exit(0); });
+  result = Wait(thread.get(), true, 500ms);
+  REQUIRE(result == WaitResult::kSuccess);
+  REQUIRE(is_modified == 0);
+  REQUIRE(has_finished == -1);
+
   // TODO(bwrsandman): Test alertable wait returning kUserCallback by using IO
   // callbacks.
-  REQUIRE(true);
 }
 
 }  // namespace test
