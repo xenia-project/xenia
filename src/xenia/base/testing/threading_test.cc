@@ -15,6 +15,7 @@ namespace xe {
 namespace base {
 namespace test {
 using namespace threading;
+using namespace std::chrono_literals;
 
 TEST_CASE("Fence") {
   // TODO(bwrsandman):
@@ -43,8 +44,11 @@ TEST_CASE("Sync with Memory Barrier", "SyncMemory") {
 }
 
 TEST_CASE("Sleep Current Thread", "Sleep") {
-  // TODO(bwrsandman):
-  REQUIRE(true);
+  auto wait_time = 50ms;
+  auto start = std::chrono::steady_clock::now();
+  Sleep(wait_time);
+  auto duration = std::chrono::steady_clock::now() - start;
+  REQUIRE(duration >= wait_time);
 }
 
 TEST_CASE("Sleep Current Thread in Alertable State", "Sleep") {
