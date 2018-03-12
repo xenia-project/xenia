@@ -113,8 +113,35 @@ TEST_CASE("Sleep Current Thread in Alertable State", "Sleep") {
 }
 
 TEST_CASE("TlsHandle") {
-  // TODO(bwrsandman):
-  REQUIRE(true);
+  // Test Allocate
+  auto handle = threading::AllocateTlsHandle();
+
+  // Test Free
+  REQUIRE(threading::FreeTlsHandle(handle));
+  REQUIRE(!threading::FreeTlsHandle(handle));
+  REQUIRE(!threading::FreeTlsHandle(threading::kInvalidTlsHandle));
+
+  // Test setting values
+  handle = threading::AllocateTlsHandle();
+  REQUIRE(threading::GetTlsValue(handle) == 0);
+  uint32_t value = 0xDEADBEEF;
+  threading::SetTlsValue(handle, reinterpret_cast<uintptr_t>(&value));
+  auto p_received_value = threading::GetTlsValue(handle);
+  REQUIRE(threading::GetTlsValue(handle) != 0);
+  auto received_value = *reinterpret_cast<uint32_t*>(p_received_value);
+  REQUIRE(received_value == value);
+
+  uintptr_t non_thread_local_value = 0;
+  auto thread = Thread::Create({}, [&non_thread_local_value, &handle] {
+    non_thread_local_value = threading::GetTlsValue(handle);
+  });
+
+  auto result = Wait(thread.get(), false, 50ms);
+  REQUIRE(result == WaitResult::kSuccess);
+  REQUIRE(non_thread_local_value == 0);
+
+  // Cleanup
+  REQUIRE(threading::FreeTlsHandle(handle));
 }
 
 TEST_CASE("HighResolutionTimer") {
