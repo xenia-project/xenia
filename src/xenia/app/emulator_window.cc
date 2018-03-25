@@ -25,6 +25,8 @@
 #include "xenia/ui/imgui_dialog.h"
 #include "xenia/ui/imgui_drawer.h"
 
+uint32_t userlang = 1; // Default as English
+
 namespace xe {
 namespace app {
 
@@ -35,6 +37,7 @@ using xe::ui::UIEvent;
 using xe::ui::FileDropEvent;
 
 const std::wstring kBaseTitle = L"xenia";
+    std::wstring userlangs = L"[UserLang-English]";
 
 EmulatorWindow::EmulatorWindow(Emulator* emulator)
     : emulator_(emulator),
@@ -226,6 +229,36 @@ bool EmulatorWindow::Initialize() {
   }
   main_menu->AddChild(std::move(gpu_menu));
 
+  // User Language menu
+  auto ulang_menu = MenuItem::Create(MenuItem::Type::kPopup, L"&User Language");
+  {
+	  ulang_menu->AddChild(
+		  MenuItem::Create(MenuItem::Type::kString, L"&English",
+			  std::bind(&EmulatorWindow::UserlangEnglish, this)));
+	  ulang_menu->AddChild(
+		  MenuItem::Create(MenuItem::Type::kString, L"&Japanese",
+			  std::bind(&EmulatorWindow::UserlangJapanese, this)));
+	  ulang_menu->AddChild(
+		  MenuItem::Create(MenuItem::Type::kString, L"&German",
+			  std::bind(&EmulatorWindow::UserlangGerman, this)));
+	  ulang_menu->AddChild(
+		  MenuItem::Create(MenuItem::Type::kString, L"&French",
+			  std::bind(&EmulatorWindow::UserlangFrench, this)));
+	  ulang_menu->AddChild(
+		  MenuItem::Create(MenuItem::Type::kString, L"&Spanish",
+			  std::bind(&EmulatorWindow::UserlangSpanish, this)));
+	  ulang_menu->AddChild(
+		  MenuItem::Create(MenuItem::Type::kString, L"&Italian",
+			  std::bind(&EmulatorWindow::UserlangItalian, this)));
+	  ulang_menu->AddChild(
+		  MenuItem::Create(MenuItem::Type::kString, L"&Korean",
+			  std::bind(&EmulatorWindow::UserlangKorean, this)));
+	  ulang_menu->AddChild(
+		  MenuItem::Create(MenuItem::Type::kString, L"&Chinese",
+			  std::bind(&EmulatorWindow::UserlangChinese, this)));	  
+  }
+  main_menu->AddChild(std::move(ulang_menu));
+
   // Window menu.
   auto window_menu = MenuItem::Create(MenuItem::Type::kPopup, L"&Window");
   {
@@ -344,6 +377,47 @@ void EmulatorWindow::CpuTimeScalarSetDouble() {
   UpdateTitle();
 }
 
+void EmulatorWindow::UserlangEnglish() {
+	userlang = 1;
+	userlangs = L"/UserLang-English";
+	UpdateTitle();
+}
+void EmulatorWindow::UserlangJapanese() {
+	userlang = 2;
+	userlangs = L"/UserLang-Japanese";
+	UpdateTitle();
+}
+void EmulatorWindow::UserlangGerman() {
+	userlang = 3;
+	userlangs = L"/UserLang-German";
+	UpdateTitle();
+}
+void EmulatorWindow::UserlangFrench() {
+	userlang = 4;
+	userlangs = L"/UserLang-French";
+	UpdateTitle();
+}
+void EmulatorWindow::UserlangSpanish() {
+	userlang = 5;
+	userlangs = L"/UserLang-Spanish";
+	UpdateTitle();
+}
+void EmulatorWindow::UserlangItalian() {
+	userlang = 6;
+	userlangs = L"/UserLang-Italian";
+	UpdateTitle();
+}
+void EmulatorWindow::UserlangKorean() {
+	userlang = 7;
+	userlangs = L"/UserLang-Korean";
+	UpdateTitle();
+}
+void EmulatorWindow::UserlangChinese() {
+	userlang = 8;
+	userlangs = L"/UserLang-Chinese";
+	UpdateTitle();
+}
+
 void EmulatorWindow::CpuBreakIntoDebugger() {
   if (!FLAGS_debug) {
     xe::ui::ImGuiDialog::ShowMessageBox(window_.get(), "Xenia Debugger",
@@ -393,7 +467,8 @@ void EmulatorWindow::UpdateTitle() {
   if (Clock::guest_time_scalar() != 1.0) {
     title += xe::format_string(L" (@%.2fx)", Clock::guest_time_scalar());
   }
-
+    title += userlangs;
+    
   window_->set_title(title);
 }
 
