@@ -17,6 +17,7 @@
 #include "xenia/ui/menu_item.h"
 #include "xenia/ui/window.h"
 #include "xenia/xbox.h"
+extern uint32_t userlang;
 
 namespace xe {
 class Emulator;
@@ -54,6 +55,14 @@ class EmulatorWindow {
   void GpuTraceFrame();
   void GpuClearCaches();
   void ShowHelpWebsite();
+  void UserlangEnglish();  
+  void UserlangJapanese();
+  void UserlangGerman();
+  void UserlangFrench();
+  void UserlangSpanish();
+  void UserlangItalian();
+  void UserlangKorean();
+  void UserlangChinese();
 
   Emulator* emulator_;
   std::unique_ptr<ui::Loop> loop_;
