@@ -32,6 +32,16 @@ project("xenia-hid-demo")
     "xenia-ui",
     "xenia-ui-gl",
   })
+  filter("platforms:Linux")
+    links({
+      "X11",
+      "xcb",
+      "X11-xcb",
+      "GL",
+      "vulkan",
+    })
+  filter()
+
   flags({
     "WinMain",  -- Use WinMain instead of main.
   })

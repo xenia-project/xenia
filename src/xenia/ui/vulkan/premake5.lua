@@ -37,6 +37,16 @@ project("xenia-ui-window-vulkan-demo")
     "xenia-ui-spirv",
     "xenia-ui-vulkan",
   })
+  filter("platforms:Linux")
+    links({
+      "X11",
+      "xcb",
+      "X11-xcb",
+      "GL",
+      "vulkan",
+    })
+  filter()
+  
   flags({
     "WinMain",  -- Use WinMain instead of main.
   })
