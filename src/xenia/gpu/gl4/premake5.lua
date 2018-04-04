@@ -68,6 +68,15 @@ project("xenia-gpu-gl4-trace-viewer")
     "../../base/main_"..platform_suffix..".cc",
   })
 
+  filter("platforms:Linux")
+    links({
+      "X11",
+      "xcb",
+      "X11-xcb",
+      "GL",
+      "vulkan",
+    })
+
   filter("platforms:Windows")
     links({
       "xenia-apu-xaudio2",

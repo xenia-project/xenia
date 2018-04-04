@@ -189,7 +189,7 @@ class TestRunner {
 
   ~TestRunner() {
     memory::DeallocFixed(memory_, memory_size_,
-                         memory::DeallocationType::kDecommitRelease);
+                         memory::DeallocationType::kRelease);
 
     memory::AlignedFree(context_);
   }

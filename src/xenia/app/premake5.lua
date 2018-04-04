@@ -60,6 +60,15 @@ project("xenia-app")
     project_root,
   })
 
+  filter("platforms:Linux")
+    links({
+      "X11",
+      "xcb",
+      "X11-xcb",
+      "GL",
+      "vulkan",
+    })
+
   filter("platforms:Windows")
     links({
       "xenia-apu-xaudio2",
