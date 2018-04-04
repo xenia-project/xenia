@@ -374,7 +374,7 @@ void VdSwap(lpvoid_t buffer_ptr,  // ptr into primary ringbuffer
 
   // Write in the texture fetch.
   dwords[offset++] =
-      xenos::MakePacketType0<gpu::XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0, 6>();
+      xenos::MakePacketType0(gpu::XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0, 6);
   dwords[offset++] = fetch.dword_0;
   dwords[offset++] = fetch.dword_1;
   dwords[offset++] = fetch.dword_2;
@@ -382,7 +382,7 @@ void VdSwap(lpvoid_t buffer_ptr,  // ptr into primary ringbuffer
   dwords[offset++] = fetch.dword_4;
   dwords[offset++] = fetch.dword_5;
 
-  dwords[offset++] = xenos::MakePacketType3<xenos::PM4_XE_SWAP, 4>();
+  dwords[offset++] = xenos::MakePacketType3(xenos::PM4_XE_SWAP, 4);
   dwords[offset++] = 'SWAP';
   dwords[offset++] = (*frontbuffer_ptr) & 0x1FFFFFFF;
 
