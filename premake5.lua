@@ -105,12 +105,14 @@ filter("platforms:Linux")
 filter({"platforms:Linux", "kind:*App"})
   linkgroups("On")
 
-filter({"platforms:Linux", "toolset:gcc"})
+filter({"platforms:Linux", "language:C++", "toolset:gcc"})
   buildoptions({
     "-std=c++14",
   })
   links({
   })
+
+filter({"platforms:Linux", "toolset:gcc"})
   if ARCH == "ppc64" then
     buildoptions({
       "-m32",
@@ -122,7 +124,7 @@ filter({"platforms:Linux", "toolset:gcc"})
     })
   end
 
-filter({"platforms:Linux", "toolset:clang"})
+filter({"platforms:Linux", "language:C++", "toolset:clang"})
   buildoptions({
     "-std=c++14",
     "-stdlib=libstdc++",
