@@ -71,6 +71,15 @@ project("xenia-gpu-vulkan-trace-viewer")
     "../../base/main_"..platform_suffix..".cc",
   })
 
+  filter("platforms:Linux")
+    links({
+      "X11",
+      "xcb",
+      "X11-xcb",
+      "GL",
+      "vulkan",
+    })
+
   filter("platforms:Windows")
     links({
       "xenia-apu-xaudio2",
@@ -130,6 +139,15 @@ project("xenia-gpu-vulkan-trace-dump")
     "vulkan_trace_dump_main.cc",
     "../../base/main_"..platform_suffix..".cc",
   })
+
+  filter("platforms:Linux")
+    links({
+      "X11",
+      "xcb",
+      "X11-xcb",
+      "GL",
+      "vulkan",
+    })
 
   filter("platforms:Windows")
     -- Only create the .user file if it doesn't already exist.

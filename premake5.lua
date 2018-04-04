@@ -28,9 +28,11 @@ defines({
 })
 
 -- TODO(DrChat): Find a way to disable this on other architectures.
-filter("architecture:x86_64")
-  vectorextensions("AVX")
-filter({})
+if ARCH ~= "ppc64" then
+  filter("architecture:x86_64")
+    vectorextensions("AVX")
+  filter({})
+end
 
 characterset("Unicode")
 flags({
@@ -95,13 +97,6 @@ filter("platforms:Linux")
     "dl",
     "lz4",
     "rt",
-    "X11",
-    "xcb",
-    "X11-xcb",
-    "GL",
-    "vulkan",
-    "c++",
-    "c++abi"
   })
   linkoptions({
     "`pkg-config --libs gtk+-3.0`",
@@ -110,19 +105,31 @@ filter("platforms:Linux")
 filter({"platforms:Linux", "kind:*App"})
   linkgroups("On")
 
-filter({"platforms:Linux", "language:C++", "toolset:gcc"})
+filter({"platforms:Linux", "toolset:gcc"})
   buildoptions({
-    "--std=c++11",
+    "-std=c++14",
   })
   links({
   })
+  if ARCH == "ppc64" then
+    buildoptions({
+      "-m32",
+      "-mpowerpc64"
+    })
+    linkoptions({
+      "-m32",
+      "-mpowerpc64"
+    })
+  end
 
-filter({"platforms:Linux", "language:C++", "toolset:clang"})
+filter({"platforms:Linux", "toolset:clang"})
   buildoptions({
     "-std=c++14",
     "-stdlib=libstdc++",
   })
   links({
+    "c++",
+    "c++abi"
   })
   disablewarnings({
     "deprecated-register"
