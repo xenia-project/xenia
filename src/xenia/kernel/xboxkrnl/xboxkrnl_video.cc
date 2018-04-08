@@ -205,12 +205,6 @@ DECLARE_XBOXKRNL_EXPORT(VdSetGraphicsInterruptCallback, ExportTag::kVideo);
 void VdInitializeRingBuffer(lpvoid_t ptr, int_t log2_size) {
   // r3 = result of MmGetPhysicalAddress
   // r4 = log2(size)
-  // r4 is or'd with 0x802 and then stuffed into CP_RB_CNTL
-  // according to AMD docs, this corresponds with RB_BUFSZ, which is log2
-  // actual size.
-  // 0x8 is RB_BLKSZ, or number of words gpu will read before updating the
-  // host read pointer.
-  // So being or'd with 0x2 makes the ring buffer size always a multiple of 4.
   // Buffer pointers are from MmAllocatePhysicalMemory with WRITE_COMBINE.
   auto graphics_system = kernel_state()->emulator()->graphics_system();
   graphics_system->InitializeRingBuffer(ptr, log2_size);

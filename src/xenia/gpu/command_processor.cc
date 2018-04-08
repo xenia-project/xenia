@@ -236,7 +236,7 @@ void CommandProcessor::ShutdownContext() { context_.reset(); }
 void CommandProcessor::InitializeRingBuffer(uint32_t ptr, uint32_t log2_size) {
   read_ptr_index_ = 0;
   primary_buffer_ptr_ = ptr;
-  primary_buffer_size_ = uint32_t(std::pow(2u, log2_size));
+  primary_buffer_size_ = 1 << log2_size;
 }
 
 void CommandProcessor::EnableReadPointerWriteBack(uint32_t ptr,
@@ -695,7 +695,11 @@ bool CommandProcessor::ExecutePacketType3_ME_INIT(RingBuffer* reader,
                                                   uint32_t packet,
                                                   uint32_t count) {
   // initialize CP's micro-engine
-  reader->AdvanceRead(count * sizeof(uint32_t));
+  me_bin_.clear();
+  for (uint32_t i = 0; i < count; i++) {
+    me_bin_.push_back(reader->ReadAndSwap<uint32_t>());
+  }
+
   return true;
 }
 
