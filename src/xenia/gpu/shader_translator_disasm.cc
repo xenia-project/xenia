@@ -38,6 +38,13 @@ void DisassembleResultOperand(const InstructionResult& result,
     case InstructionStorageTarget::kPointSize:
       out->Append("oPts");
       break;
+    case InstructionStorageTarget::kExportAddress:
+      out->Append("eA");
+      break;
+    case InstructionStorageTarget::kExportData:
+      out->Append("eM");
+      uses_storage_index = true;
+      break;
     case InstructionStorageTarget::kColorTarget:
       out->AppendFormat("oC");
       uses_storage_index = true;
