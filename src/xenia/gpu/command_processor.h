@@ -215,6 +215,9 @@ class CommandProcessor {
   std::function<void()> swap_request_handler_;
   std::queue<std::function<void()>> pending_fns_;
 
+  // MicroEngine binary from PM4_ME_INIT
+  std::vector<uint32_t> me_bin_;
+
   uint32_t counter_ = 0;
 
   uint32_t primary_buffer_ptr_ = 0;
