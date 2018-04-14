@@ -277,7 +277,6 @@ TextureCache::Texture* TextureCache::AllocateTexture(
             static_cast<VkFormatFeatureFlagBits>(required_flags &
                                                  ~props.optimalTilingFeatures))
             .c_str());
-    assert_always();
   }
 
   if (texture_info.dimension != Dimension::kCube &&
@@ -331,6 +330,7 @@ TextureCache::Texture* TextureCache::AllocateTexture(
   texture->alloc = alloc;
   texture->alloc_info = vma_info;
   texture->framebuffer = nullptr;
+  texture->usage_flags = image_info.usage;
   texture->access_watch_handle = 0;
   texture->texture_info = texture_info;
   return texture;
@@ -410,8 +410,7 @@ TextureCache::Texture* TextureCache::DemandResolveTexture(
   // No texture at this location. Make a new one.
   auto texture = AllocateTexture(texture_info, required_flags);
   if (!texture) {
-    // Failed to allocate texture (out of memory?)
-    assert_always();
+    // Failed to allocate texture (out of memory)
     XELOGE("Vulkan Texture Cache: Failed to allocate texture!");
     return nullptr;
   }
@@ -463,8 +462,7 @@ TextureCache::Texture* TextureCache::Demand(const TextureInfo& texture_info,
   // Create a new texture and cache it.
   auto texture = AllocateTexture(texture_info);
   if (!texture) {
-    // Failed to allocate texture (out of memory?)
-    assert_always();
+    // Failed to allocate texture (out of memory)
     XELOGE("Vulkan Texture Cache: Failed to allocate texture!");
     return nullptr;
   }
