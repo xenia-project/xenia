@@ -1024,7 +1024,17 @@ bool VulkanCommandProcessor::IssueCopy() {
                               std::max(1u, dest_logical_height), &texture_info);
 
   auto texture = texture_cache_->DemandResolveTexture(texture_info);
-  assert_not_null(texture);
+  if (!texture) {
+    // Out of memory.
+    return false;
+  }
+
+  if (!(texture->usage_flags & (VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+                                VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT))) {
+    // Resolve image doesn't support drawing, and we don't support conversion.
+    return false;
+  }
+
   texture->in_flight_fence = current_batch_fence_;
 
   // For debugging purposes only (trace viewer)

@@ -47,6 +47,7 @@ class TextureCache {
     VmaAllocation alloc;
     VmaAllocationInfo alloc_info;
     VkFramebuffer framebuffer;  // Blit target frame buffer.
+    VkImageUsageFlags usage_flags;
 
     uintptr_t access_watch_handle;
     bool pending_invalidation;
