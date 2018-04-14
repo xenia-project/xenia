@@ -132,7 +132,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
 
   // Types.
   spv::Id float_type_ = 0, bool_type_ = 0, int_type_ = 0, uint_type_ = 0;
-  spv::Id vec2_int_type_ = 0, vec2_uint_type_ = 0;
+  spv::Id vec2_int_type_ = 0, vec2_uint_type_ = 0, vec3_int_type_ = 0;
   spv::Id vec2_float_type_ = 0, vec3_float_type_ = 0, vec4_float_type_ = 0;
   spv::Id vec4_int_type_ = 0, vec4_uint_type_ = 0;
   spv::Id vec2_bool_type_ = 0, vec3_bool_type_ = 0, vec4_bool_type_ = 0;
