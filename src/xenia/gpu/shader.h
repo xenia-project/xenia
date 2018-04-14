@@ -32,6 +32,7 @@ enum class InstructionStorageTarget {
   // Result is stored to the point size export (gl_PointSize).
   kPointSize,
   // Result is stored as memexport destination address.
+  // [physical >> 2, ??, ??, ??]
   kExportAddress,
   // Result is stored to memexport destination data.
   kExportData,
