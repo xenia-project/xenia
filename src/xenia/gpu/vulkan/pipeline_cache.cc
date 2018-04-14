@@ -593,8 +593,11 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
     int32_t ws_y = (regs.pa_sc_window_scissor_tl >> 16) & 0x7FFF;
     int32_t ws_w = (regs.pa_sc_window_scissor_br & 0x7FFF) - ws_x;
     int32_t ws_h = ((regs.pa_sc_window_scissor_br >> 16) & 0x7FFF) - ws_y;
-    ws_x += window_offset_x;
-    ws_y += window_offset_y;
+    if (!(regs.pa_sc_window_scissor_tl & 0x80000000)) {
+      // ! WINDOW_OFFSET_DISABLE
+      ws_x += window_offset_x;
+      ws_y += window_offset_y;
+    }
 
     int32_t adj_x = ws_x - std::max(ws_x, 0);
     int32_t adj_y = ws_y - std::max(ws_y, 0);
