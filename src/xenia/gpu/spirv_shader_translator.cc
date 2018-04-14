@@ -67,6 +67,7 @@ void SpirvShaderTranslator::StartTranslation() {
   vec2_int_type_ = b.makeVectorType(int_type_, 2);
   vec2_uint_type_ = b.makeVectorType(uint_type_, 2);
   vec2_float_type_ = b.makeVectorType(float_type_, 2);
+  vec3_int_type_ = b.makeVectorType(int_type_, 3);
   vec3_float_type_ = b.makeVectorType(float_type_, 3);
   vec4_float_type_ = b.makeVectorType(float_type_, 4);
   vec4_int_type_ = b.makeVectorType(int_type_, 4);
@@ -1786,67 +1787,55 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
                               tex_[dim_idx], std::vector<Id>({texture_index}));
       auto texture = b.createLoad(texture_ptr);
 
-      spv::Id size = 0;
-      if (instr.attributes.offset_x || instr.attributes.offset_y) {
-        auto image =
-            b.createUnaryOp(spv::OpImage, b.getImageType(texture), texture);
-
-        spv::Builder::TextureParameters params;
-        std::memset(&params, 0, sizeof(params));
-        params.sampler = image;
-        params.lod = b.makeIntConstant(0);
-        size = b.createTextureQueryCall(spv::Op::OpImageQuerySizeLod, params,
-                                        false);
-
-        if (instr.dimension == TextureDimension::k1D) {
-          size = b.createUnaryOp(spv::Op::OpConvertSToF, float_type_, size);
-        } else if (instr.dimension == TextureDimension::k2D) {
-          size =
-              b.createUnaryOp(spv::Op::OpConvertSToF, vec2_float_type_, size);
-        } else if (instr.dimension == TextureDimension::k3D) {
-          size =
-              b.createUnaryOp(spv::Op::OpConvertSToF, vec3_float_type_, size);
-        } else if (instr.dimension == TextureDimension::kCube) {
-          size =
-              b.createUnaryOp(spv::Op::OpConvertSToF, vec4_float_type_, size);
-        }
-      }
-
-      if (instr.dimension == TextureDimension::k1D) {
-        src = b.createCompositeExtract(src, float_type_, 0);
-        if (instr.attributes.offset_x) {
-          auto offset = b.makeFloatConstant(instr.attributes.offset_x + 0.5f);
-          offset = b.createBinOp(spv::Op::OpFDiv, float_type_, offset, size);
-          src = b.createBinOp(spv::Op::OpFAdd, float_type_, src, offset);
-        }
-
-        // https://msdn.microsoft.com/en-us/library/windows/desktop/bb944006.aspx
-        // "Because the runtime does not support 1D textures, the compiler will
-        //  use a 2D texture with the knowledge that the y-coordinate is
-        //  unimportant."
-        src = b.createCompositeConstruct(
-            vec2_float_type_,
-            std::vector<Id>({src, b.makeFloatConstant(0.0f)}));
-      } else if (instr.dimension == TextureDimension::k2D) {
-        src = b.createRvalueSwizzle(spv::NoPrecision, vec2_float_type_, src,
-                                    std::vector<uint32_t>({0, 1}));
-        if (instr.attributes.offset_x || instr.attributes.offset_y) {
-          auto offset = b.makeCompositeConstant(
-              vec2_float_type_,
-              std::vector<Id>(
-                  {b.makeFloatConstant(instr.attributes.offset_x + 0.5f),
-                   b.makeFloatConstant(instr.attributes.offset_y + 0.5f)}));
-          offset =
-              b.createBinOp(spv::Op::OpFDiv, vec2_float_type_, offset, size);
-          src = b.createBinOp(spv::Op::OpFAdd, vec2_float_type_, src, offset);
-        }
-      }
-
       spv::Builder::TextureParameters params = {0};
       params.coords = src;
       params.sampler = texture;
       if (instr.attributes.use_register_lod) {
         params.lod = b.createLoad(lod_);
+      }
+      if (instr.attributes.offset_x || instr.attributes.offset_y ||
+          instr.attributes.offset_z) {
+        float offset_x = instr.attributes.offset_x;
+        float offset_y = instr.attributes.offset_y;
+        float offset_z = instr.attributes.offset_z;
+
+        // Round numbers away from zero. No effect if offset is 0.
+        offset_x += instr.attributes.offset_x < 0 ? -0.5f : 0.5f;
+        offset_y += instr.attributes.offset_y < 0 ? -0.5f : 0.5f;
+        offset_z += instr.attributes.offset_z < 0 ? -0.5f : 0.5f;
+
+        Id offset = 0;
+        switch (instr.dimension) {
+          case TextureDimension::k1D: {
+            // https://msdn.microsoft.com/en-us/library/windows/desktop/bb944006.aspx
+            // "Because the runtime does not support 1D textures, the compiler
+            // will use a 2D texture with the knowledge that the y-coordinate is
+            // unimportant."
+            offset = b.makeCompositeConstant(
+                vec2_int_type_,
+                {b.makeIntConstant(int(offset_x)), b.makeIntConstant(0)});
+          } break;
+          case TextureDimension::k2D: {
+            offset = b.makeCompositeConstant(
+                vec2_int_type_, {b.makeIntConstant(int(offset_x)),
+                                 b.makeIntConstant(int(offset_y))});
+          } break;
+          case TextureDimension::k3D: {
+            offset = b.makeCompositeConstant(
+                vec3_int_type_, {b.makeIntConstant(int(offset_x)),
+                                 b.makeIntConstant(int(offset_y)),
+                                 b.makeIntConstant(int(offset_z))});
+          } break;
+          case TextureDimension::kCube: {
+            // FIXME(DrChat): Is this the correct dimension? I forget
+            offset = b.makeCompositeConstant(
+                vec3_int_type_, {b.makeIntConstant(int(offset_x)),
+                                 b.makeIntConstant(int(offset_y)),
+                                 b.makeIntConstant(int(offset_z))});
+          } break;
+        }
+
+        params.offset = offset;
       }
 
       dest =
@@ -1906,6 +1895,28 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
           assert_unhandled_case(instr.dimension);
           break;
       }
+    } break;
+
+    case FetchOpcode::kGetTextureComputedLod: {
+      // TODO(DrChat): Verify if this implementation is correct.
+      // This is only valid in pixel shaders.
+      assert_true(is_pixel_shader());
+
+      auto texture_index =
+          b.makeUintConstant(tex_binding_map_[instr.operands[1].storage_index]);
+      auto texture_ptr =
+          b.createAccessChain(spv::StorageClass::StorageClassUniformConstant,
+                              tex_[dim_idx], std::vector<Id>({texture_index}));
+      auto texture = b.createLoad(texture_ptr);
+
+      spv::Builder::TextureParameters params = {};
+      params.sampler = texture;
+      params.coords = src;
+      auto lod =
+          b.createTextureQueryCall(spv::Op::OpImageQueryLod, params, false);
+
+      dest = b.createCompositeExtract(lod, float_type_, 1);
+      dest = b.smearScalar(spv::NoPrecision, dest, vec4_float_type_);
     } break;
 
     case FetchOpcode::kSetTextureLod: {
@@ -3268,6 +3279,7 @@ void SpirvShaderTranslator::StoreToResult(Id source_value_id,
       storage_offsets.push_back(0);
       storage_array = false;
       break;
+    default:
     case InstructionStorageTarget::kNone:
       assert_unhandled_case(result.storage_target);
       break;
