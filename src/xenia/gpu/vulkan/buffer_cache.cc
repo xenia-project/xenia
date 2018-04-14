@@ -149,8 +149,8 @@ VkResult xe::gpu::vulkan::BufferCache::CreateVertexDescriptorPool() {
       VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
       32 * 16384,
   });
-  vertex_descriptor_pool_ =
-      std::make_unique<ui::vulkan::DescriptorPool>(*device_, 32 * 16384, pool_sizes);
+  vertex_descriptor_pool_ = std::make_unique<ui::vulkan::DescriptorPool>(
+      *device_, 32 * 16384, pool_sizes);
 
   // 32 storage buffers available to vertex shader.
   // TODO(DrChat): In the future, this could hold memexport staging data.
