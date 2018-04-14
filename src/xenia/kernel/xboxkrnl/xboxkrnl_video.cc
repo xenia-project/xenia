@@ -160,13 +160,13 @@ DECLARE_XBOXKRNL_EXPORT(VdSetDisplayModeOverride,
                         ExportTag::kVideo | ExportTag::kStub);
 
 dword_result_t VdInitializeEngines(unknown_t unk0, function_t callback,
-                                   lpvoid_t arg, lpunknown_t unk2_ptr,
-                                   lpunknown_t unk3_ptr) {
+                                   lpvoid_t arg, lpdword_t pfp_ptr,
+                                   lpdword_t me_ptr) {
   // r3 = 0x4F810000
   // r4 = function ptr (cleanup callback?)
   // r5 = function arg
-  // r6 = register init cmds(?)
-  // r7 = gpu init cmds(?)
+  // r6 = PFP Microcode
+  // r7 = ME Microcode
   return 1;
 }
 DECLARE_XBOXKRNL_EXPORT(VdInitializeEngines,
