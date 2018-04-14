@@ -2221,8 +2221,8 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
       auto src1_y = b.createCompositeExtract(sources[1], float_type_, 1);
       auto dst_y = b.createBinOp(spv::Op::OpFMul, float_type_, src0_y, src1_y);
 
-      auto src0_z = b.createCompositeExtract(sources[0], float_type_, 3);
-      auto src1_w = b.createCompositeExtract(sources[1], float_type_, 4);
+      auto src0_z = b.createCompositeExtract(sources[0], float_type_, 2);
+      auto src1_w = b.createCompositeExtract(sources[1], float_type_, 3);
       dest = b.createCompositeConstruct(
           vec4_float_type_,
           std::vector<Id>({b.makeFloatConstant(1.f), dst_y, src0_z, src1_w}));
