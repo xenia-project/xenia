@@ -912,15 +912,8 @@ bool VulkanCommandProcessor::IssueCopy() {
   // vtx_window_offset_enable
   assert_true(regs[XE_GPU_REG_PA_SU_SC_MODE_CNTL].u32 & 0x00010000);
   uint32_t window_offset = regs[XE_GPU_REG_PA_SC_WINDOW_OFFSET].u32;
-  int16_t window_offset_x = window_offset & 0x7FFF;
-  int16_t window_offset_y = (window_offset >> 16) & 0x7FFF;
-  // Sign-extension
-  if (window_offset_x & 0x4000) {
-    window_offset_x |= 0x8000;
-  }
-  if (window_offset_y & 0x4000) {
-    window_offset_y |= 0x8000;
-  }
+  int32_t window_offset_x = window_regs->window_offset.window_x_offset;
+  int32_t window_offset_y = window_regs->window_offset.window_y_offset;
 
   uint32_t dest_texel_size = uint32_t(GetTexelSize(copy_dest_format));
 

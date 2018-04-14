@@ -19,20 +19,28 @@ namespace xe {
 // Bitfield, where position starts at the LSB.
 template <typename T, size_t position, size_t n_bits>
 struct bf {
-  bf() = default;
-  inline operator T() const { return value(); }
-
-  inline T value() const {
-    return static_cast<T>((storage & mask()) >> position);
-  }
-
   // For enum values, we strip them down to an underlying type.
   typedef
       typename std::conditional<std::is_enum<T>::value, std::underlying_type<T>,
                                 std::remove_reference<T>>::type::type
           value_type;
+
+  bf() = default;
+  inline operator T() const { return value(); }
+
+  inline T value() const {
+    auto value = (storage & mask()) >> position;
+    if (std::is_signed<value_type>::value) {
+      // If the value is signed, sign-extend it.
+      value_type sign_mask = value_type(1) << (n_bits - 1);
+      value = (sign_mask ^ value) - sign_mask;
+    }
+
+    return static_cast<T>(value);
+  }
+
   inline value_type mask() const {
-    return (((value_type)~0) >> (8 * sizeof(value_type) - n_bits)) << position;
+    return ((value_type(1) << n_bits) - 1) << position;
   }
 
   value_type storage;
