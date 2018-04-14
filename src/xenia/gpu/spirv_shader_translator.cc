@@ -1923,7 +1923,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
       // <lod register> = src1.x (MIP level)
       // ... immediately after
       // tfetch UseRegisterLOD=true
-      b.createStore(b.createCompositeExtract(src, float_type_, 0), lod_);
+      b.createStore(src, lod_);
     } break;
 
     default:
