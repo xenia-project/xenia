@@ -201,7 +201,7 @@ CachedTileView::CachedTileView(ui::vulkan::VulkanDevice* device,
 
   device->DbgSetObjectName(
       reinterpret_cast<uint64_t>(image), VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT,
-      xe::format_string("%.8X pitch %.8X(%d)", key.tile_offset, key.tile_width,
+      xe::format_string("RT %.8X %.8X(%d)", key.tile_offset, key.tile_width,
                         key.tile_width));
 
   VkMemoryRequirements memory_requirements;
