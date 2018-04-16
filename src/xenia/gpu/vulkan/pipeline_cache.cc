@@ -674,10 +674,11 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
     vpx = window_width_scalar * vox - vpw / 2 + vtx_window_offset_x;
     vpy = window_height_scalar * voy - vph / 2 + vtx_window_offset_y;
   } else {
-    vpw = 2 * 2560.0f * window_width_scalar;
-    vph = 2 * 2560.0f * window_height_scalar;
-    vpx = -2560.0f * window_width_scalar + vtx_window_offset_x;
-    vpy = -2560.0f * window_height_scalar + vtx_window_offset_y;
+    // TODO(DrChat): This should be the width/height of the target picture
+    vpw = 2560.0f * window_width_scalar;
+    vph = 2560.0f * window_height_scalar;
+    vpx = vtx_window_offset_x;
+    vpy = vtx_window_offset_y;
   }
 
   if (viewport_state_dirty) {
@@ -776,12 +777,15 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
     if (vport_xscale_enable) {
       push_constants.window_scale[0] = 1.0f;
       push_constants.window_scale[1] = -1.0f;
+      push_constants.window_scale[2] = 0.f;
+      push_constants.window_scale[3] = 0.f;
     } else {
+      // 1 / unscaled viewport w/h
       push_constants.window_scale[0] = 1.0f / 2560.0f;
       push_constants.window_scale[1] = 1.0f / 2560.0f;
+      push_constants.window_scale[2] = -1.f;
+      push_constants.window_scale[3] = -1.f;
     }
-    push_constants.window_scale[2] = vpw;
-    push_constants.window_scale[3] = vph;
 
     // http://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
     // VTX_XY_FMT = true: the incoming XY have already been multiplied by 1/W0.
