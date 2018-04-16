@@ -675,8 +675,8 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
     vpy = window_height_scalar * voy - vph / 2 + vtx_window_offset_y;
   } else {
     // TODO(DrChat): This should be the width/height of the target picture
-    vpw = 2560.0f * window_width_scalar;
-    vph = 2560.0f * window_height_scalar;
+    vpw = 2560.0f;
+    vph = 2560.0f;
     vpx = vtx_window_offset_x;
     vpy = vtx_window_offset_y;
   }
@@ -776,10 +776,10 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
       push_constants.window_scale[3] = 0.f;
     } else {
       // 1 / unscaled viewport w/h
-      push_constants.window_scale[0] = 1.0f / (1280.f * window_width_scalar);
-      push_constants.window_scale[1] = 1.0f / (1280.f * window_height_scalar);
-      push_constants.window_scale[2] = (-1280.f * window_width_scalar) + 0.5f;
-      push_constants.window_scale[3] = (-1280.f * window_height_scalar) + 0.5f;
+      push_constants.window_scale[0] = window_width_scalar / 1280.f;
+      push_constants.window_scale[1] = window_height_scalar / 1280.f;
+      push_constants.window_scale[2] = (-1280.f / window_width_scalar) + 0.5f;
+      push_constants.window_scale[3] = (-1280.f / window_height_scalar) + 0.5f;
     }
 
     // http://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
