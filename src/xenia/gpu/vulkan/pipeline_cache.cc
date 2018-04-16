@@ -682,15 +682,10 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
   }
 
   if (viewport_state_dirty) {
-    // float texel_offset_x = regs.pa_su_sc_vtx_cntl & 0x01 ? 0.5f : 0.f;
-    // float texel_offset_y = regs.pa_su_sc_vtx_cntl & 0x01 ? 0.5f : 0.f;
-    float texel_offset_x = 0.f;
-    float texel_offset_y = 0.f;
-
     VkViewport viewport_rect;
     std::memset(&viewport_rect, 0, sizeof(VkViewport));
-    viewport_rect.x = vpx + texel_offset_x;
-    viewport_rect.y = vpy + texel_offset_y;
+    viewport_rect.x = vpx;
+    viewport_rect.y = vpy;
     viewport_rect.width = vpw;
     viewport_rect.height = vph;
 
@@ -781,10 +776,10 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
       push_constants.window_scale[3] = 0.f;
     } else {
       // 1 / unscaled viewport w/h
-      push_constants.window_scale[0] = 1.0f / 2560.0f;
-      push_constants.window_scale[1] = 1.0f / 2560.0f;
-      push_constants.window_scale[2] = -1.f;
-      push_constants.window_scale[3] = -1.f;
+      push_constants.window_scale[0] = 1.0f / (1280.f * window_width_scalar);
+      push_constants.window_scale[1] = 1.0f / (1280.f * window_height_scalar);
+      push_constants.window_scale[2] = (-1280.f * window_width_scalar) + 0.5f;
+      push_constants.window_scale[3] = (-1280.f * window_height_scalar) + 0.5f;
     }
 
     // http://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
