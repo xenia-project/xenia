@@ -528,20 +528,20 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
     // Reinsert w
     p = b.createCompositeInsert(p_w, p, vec4_float_type_, 3);
 
-    // Apply window scaling
-    // pos.xy *= window_scale.xy
-    auto p_scaled =
-        b.createBinOp(spv::Op::OpFMul, vec4_float_type_, p, window_scale);
-
     // Apply window offset
     // pos.xy += window_scale.zw
     auto window_offset = b.createOp(spv::Op::OpVectorShuffle, vec4_float_type_,
                                     {window_scale, window_scale, 2, 3, 0, 1});
-    auto p_offset = b.createBinOp(spv::Op::OpFAdd, vec4_float_type_, p_scaled,
-                                  window_offset);
+    auto p_offset =
+        b.createBinOp(spv::Op::OpFAdd, vec4_float_type_, p, window_offset);
+
+    // Apply window scaling
+    // pos.xy *= window_scale.xy
+    auto p_scaled = b.createBinOp(spv::Op::OpFMul, vec4_float_type_, p_offset,
+                                  window_scale);
 
     p = b.createOp(spv::Op::OpVectorShuffle, vec4_float_type_,
-                   {p, p_offset, 4, 5, 2, 3});
+                   {p, p_scaled, 4, 5, 2, 3});
 
     b.createStore(p, pos_);
   } else {
