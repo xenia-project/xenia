@@ -569,17 +569,13 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
   // http://ftp.tku.edu.tw/NetBSD/NetBSD-current/xsrc/external/mit/xf86-video-ati/dist/src/r600_reg_auto_r6xx.h
   // See r200UpdateWindow:
   // https://github.com/freedreno/mesa/blob/master/src/mesa/drivers/dri/r200/r200_state.c
-  int16_t window_offset_x = 0;
-  int16_t window_offset_y = 0;
-  if ((regs.pa_su_sc_mode_cntl >> 16) & 1) {
-    window_offset_x = regs.pa_sc_window_offset & 0x7FFF;
-    window_offset_y = (regs.pa_sc_window_offset >> 16) & 0x7FFF;
-    if (window_offset_x & 0x4000) {
-      window_offset_x |= 0x8000;
-    }
-    if (window_offset_y & 0x4000) {
-      window_offset_y |= 0x8000;
-    }
+  int16_t window_offset_x = regs.pa_sc_window_offset & 0x7FFF;
+  int16_t window_offset_y = (regs.pa_sc_window_offset >> 16) & 0x7FFF;
+  if (window_offset_x & 0x4000) {
+    window_offset_x |= 0x8000;
+  }
+  if (window_offset_y & 0x4000) {
+    window_offset_y |= 0x8000;
   }
 
   // VK_DYNAMIC_STATE_SCISSOR
@@ -660,6 +656,11 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
               vport_zscale_enable == vport_xoffset_enable ==
               vport_yoffset_enable == vport_zoffset_enable);
 
+  int16_t vtx_window_offset_x =
+      (regs.pa_su_sc_mode_cntl >> 16) & 1 ? window_offset_x : 0;
+  int16_t vtx_window_offset_y =
+      (regs.pa_su_sc_mode_cntl >> 16) & 1 ? window_offset_y : 0;
+
   float vpw, vph, vpx, vpy;
   if (vport_xscale_enable) {
     float vox = vport_xoffset_enable ? regs.pa_cl_vport_xoffset : 0;
@@ -670,13 +671,13 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
     window_width_scalar = window_height_scalar = 1;
     vpw = 2 * window_width_scalar * vsx;
     vph = -2 * window_height_scalar * vsy;
-    vpx = window_width_scalar * vox - vpw / 2 + window_offset_x;
-    vpy = window_height_scalar * voy - vph / 2 + window_offset_y;
+    vpx = window_width_scalar * vox - vpw / 2 + vtx_window_offset_x;
+    vpy = window_height_scalar * voy - vph / 2 + vtx_window_offset_y;
   } else {
     vpw = 2 * 2560.0f * window_width_scalar;
     vph = 2 * 2560.0f * window_height_scalar;
-    vpx = -2560.0f * window_width_scalar + window_offset_x;
-    vpy = -2560.0f * window_height_scalar + window_offset_y;
+    vpx = -2560.0f * window_width_scalar + vtx_window_offset_x;
+    vpy = -2560.0f * window_height_scalar + vtx_window_offset_y;
   }
 
   if (viewport_state_dirty) {
@@ -769,10 +770,10 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
                 program_cntl.vs_export_mode == 7);
     assert_false(program_cntl.gen_index_vtx);
 
-    SpirvPushConstants push_constants;
+    SpirvPushConstants push_constants = {};
 
     // Done in VS, no need to flush state.
-    if ((regs.pa_cl_vte_cntl & (1 << 0)) > 0) {
+    if (vport_xscale_enable) {
       push_constants.window_scale[0] = 1.0f;
       push_constants.window_scale[1] = -1.0f;
     } else {
