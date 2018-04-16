@@ -104,7 +104,7 @@ BufferCache::BufferCache(RegisterFile* register_file, Memory* memory,
       device_,
       VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT |
           VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-      capacity, 4096);
+      capacity, 256);
 }
 
 BufferCache::~BufferCache() { Shutdown(); }
@@ -287,7 +287,8 @@ VkResult BufferCache::CreateConstantDescriptorSet() {
 
   return VK_SUCCESS;
 }
-void xe::gpu::vulkan::BufferCache::FreeConstantDescriptorSet() {
+
+void BufferCache::FreeConstantDescriptorSet() {
   if (constant_descriptor_set_) {
     vkFreeDescriptorSets(*device_, constant_descriptor_pool_, 1,
                          &constant_descriptor_set_);
