@@ -1179,35 +1179,50 @@ bool VulkanCommandProcessor::IssueCopy() {
           resolve_extent,
       };
 
-      // By offsetting the destination texture by the window offset, we've
-      // already handled it and need to subtract the window offset from the
-      // destination rectangle.
       VkRect2D dst_rect = {
-          {resolve_offset.x + window_offset_x,
-           resolve_offset.y + window_offset_y},
+          {resolve_offset.x, resolve_offset.y},
           resolve_extent,
       };
 
+      // If the destination rectangle lies outside the window, make it start
+      // inside. The Xenos does not copy pixel data at any offset in screen
+      // coordinates.
+      int32_t dst_adj_x =
+          std::max(dst_rect.offset.x, -window_offset_x) - dst_rect.offset.x;
+      int32_t dst_adj_y =
+          std::max(dst_rect.offset.y, -window_offset_y) - dst_rect.offset.y;
+
+      if (uint32_t(dst_adj_x) > dst_rect.extent.width ||
+          uint32_t(dst_adj_y) > dst_rect.extent.height) {
+        // No-op?
+        break;
+      }
+
+      dst_rect.offset.x += dst_adj_x;
+      dst_rect.offset.y += dst_adj_y;
+      dst_rect.extent.width -= dst_adj_x;
+      dst_rect.extent.height -= dst_adj_y;
+      src_rect.extent.width -= dst_adj_x;
+      src_rect.extent.height -= dst_adj_y;
+
       VkViewport viewport = {
-          float(-window_offset_x),
-          float(-window_offset_y),
-          float(copy_dest_pitch),
-          float(copy_dest_height),
-          0.f,
-          1.f,
+          0.f, 0.f, float(copy_dest_pitch), float(copy_dest_height), 0.f, 1.f,
       };
 
+      uint32_t scissor_tl_x = window_regs->window_scissor_tl.tl_x;
+      uint32_t scissor_br_x = window_regs->window_scissor_br.br_x;
+      uint32_t scissor_tl_y = window_regs->window_scissor_tl.tl_y;
+      uint32_t scissor_br_y = window_regs->window_scissor_br.br_y;
+
+      // Clamp the values to destination dimensions.
+      scissor_tl_x = std::min(scissor_tl_x, copy_dest_pitch);
+      scissor_br_x = std::min(scissor_br_x, copy_dest_pitch);
+      scissor_tl_y = std::min(scissor_tl_y, copy_dest_height);
+      scissor_br_y = std::min(scissor_br_y, copy_dest_height);
+
       VkRect2D scissor = {
-          {
-              int32_t(window_regs->window_scissor_tl.tl_x.value()),
-              int32_t(window_regs->window_scissor_tl.tl_y.value()),
-          },
-          {
-              window_regs->window_scissor_br.br_x.value() -
-                  window_regs->window_scissor_tl.tl_x.value(),
-              window_regs->window_scissor_br.br_y.value() -
-                  window_regs->window_scissor_tl.tl_y.value(),
-          },
+          {int32_t(scissor_tl_x), int32_t(scissor_tl_y)},
+          {scissor_br_x - scissor_tl_x, scissor_br_y - scissor_tl_y},
       };
 
       blitter_->BlitTexture2D(
