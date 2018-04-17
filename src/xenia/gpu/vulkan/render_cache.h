@@ -68,10 +68,11 @@ class CachedTileView {
   // (if a depth view) Image view of stencil aspect
   VkImageView image_view_stencil = nullptr;
 
-  CachedTileView(ui::vulkan::VulkanDevice* device,
-                 VkCommandBuffer command_buffer, VkDeviceMemory edram_memory,
+  CachedTileView(ui::vulkan::VulkanDevice* device, VkDeviceMemory edram_memory,
                  TileViewKey view_key);
   ~CachedTileView();
+
+  VkResult Initialize(VkCommandBuffer command_buffer);
 
   bool IsEqual(const TileViewKey& other_key) const {
     auto a = reinterpret_cast<const uint64_t*>(&key);
@@ -88,7 +89,7 @@ class CachedTileView {
   }
 
  private:
-  VkDevice device_ = nullptr;
+  ui::vulkan::VulkanDevice* device_ = nullptr;
 };
 
 // Parsed render configuration from the current render state.

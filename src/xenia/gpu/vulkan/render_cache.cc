@@ -87,12 +87,16 @@ class CachedFramebuffer {
   CachedTileView* color_attachments[4] = {nullptr};
   // Reference to depth/stencil attachment, if used.
   CachedTileView* depth_stencil_attachment = nullptr;
+  // Associated render pass
+  VkRenderPass render_pass = nullptr;
 
   CachedFramebuffer(VkDevice device, VkRenderPass render_pass,
                     uint32_t surface_width, uint32_t surface_height,
                     CachedTileView* target_color_attachments[4],
                     CachedTileView* target_depth_stencil_attachment);
   ~CachedFramebuffer();
+
+  VkResult Initialize();
 
   bool IsCompatible(const RenderConfiguration& desired_config) const;
 
@@ -117,6 +121,8 @@ class CachedRenderPass {
   CachedRenderPass(VkDevice device, const RenderConfiguration& desired_config);
   ~CachedRenderPass();
 
+  VkResult Initialize();
+
   bool IsCompatible(const RenderConfiguration& desired_config) const;
 
  private:
@@ -124,10 +130,21 @@ class CachedRenderPass {
 };
 
 CachedTileView::CachedTileView(ui::vulkan::VulkanDevice* device,
-                               VkCommandBuffer command_buffer,
                                VkDeviceMemory edram_memory,
                                TileViewKey view_key)
-    : device_(*device), key(std::move(view_key)) {
+    : device_(device), key(std::move(view_key)) {}
+
+CachedTileView::~CachedTileView() {
+  VK_SAFE_DESTROY(vkDestroyImageView, *device_, image_view, nullptr);
+  VK_SAFE_DESTROY(vkDestroyImageView, *device_, image_view_depth, nullptr);
+  VK_SAFE_DESTROY(vkDestroyImageView, *device_, image_view_stencil, nullptr);
+  VK_SAFE_DESTROY(vkDestroyImage, *device_, image, nullptr);
+  VK_SAFE_DESTROY(vkFreeMemory, *device_, memory, nullptr);
+}
+
+VkResult CachedTileView::Initialize(VkCommandBuffer command_buffer) {
+  VkResult status = VK_SUCCESS;
+
   // Map format to Vulkan.
   VkFormat vulkan_format = VK_FORMAT_UNDEFINED;
   uint32_t bpp = 4;
@@ -196,22 +213,26 @@ CachedTileView::CachedTileView(ui::vulkan::VulkanDevice* device,
   image_info.queueFamilyIndexCount = 0;
   image_info.pQueueFamilyIndices = nullptr;
   image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-  auto err = vkCreateImage(device_, &image_info, nullptr, &image);
-  CheckResult(err, "vkCreateImage");
+  status = vkCreateImage(*device_, &image_info, nullptr, &image);
+  if (status != VK_SUCCESS) {
+    return status;
+  }
 
-  device->DbgSetObjectName(
+  device_->DbgSetObjectName(
       reinterpret_cast<uint64_t>(image), VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT,
       xe::format_string("RT %.8X %.8X(%d)", key.tile_offset, key.tile_width,
                         key.tile_width));
 
   VkMemoryRequirements memory_requirements;
-  vkGetImageMemoryRequirements(*device, image, &memory_requirements);
+  vkGetImageMemoryRequirements(*device_, image, &memory_requirements);
 
   // Bind to a newly allocated chunk.
   // TODO: Alias from a really big buffer?
-  memory = device->AllocateMemory(memory_requirements, 0);
-  err = vkBindImageMemory(device_, image, memory, 0);
-  CheckResult(err, "vkBindImageMemory");
+  memory = device_->AllocateMemory(memory_requirements, 0);
+  status = vkBindImageMemory(*device_, image, memory, 0);
+  if (status != VK_SUCCESS) {
+    return status;
+  }
 
   // Create the image view we'll use to attach it to a framebuffer.
   VkImageViewCreateInfo image_view_info;
@@ -235,20 +256,26 @@ CachedTileView::CachedTileView(ui::vulkan::VulkanDevice* device,
     image_view_info.subresourceRange.aspectMask =
         VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
   }
-  err = vkCreateImageView(device_, &image_view_info, nullptr, &image_view);
-  CheckResult(err, "vkCreateImageView");
+  status = vkCreateImageView(*device_, &image_view_info, nullptr, &image_view);
+  if (status != VK_SUCCESS) {
+    return status;
+  }
 
   // Create separate depth/stencil views.
   if (key.color_or_depth == 0) {
     image_view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-    err = vkCreateImageView(device_, &image_view_info, nullptr,
-                            &image_view_depth);
-    CheckResult(err, "vkCreateImageView");
+    status = vkCreateImageView(*device_, &image_view_info, nullptr,
+                               &image_view_depth);
+    if (status != VK_SUCCESS) {
+      return status;
+    }
 
     image_view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_STENCIL_BIT;
-    err = vkCreateImageView(device_, &image_view_info, nullptr,
-                            &image_view_stencil);
-    CheckResult(err, "vkCreateImageView");
+    status = vkCreateImageView(*device_, &image_view_info, nullptr,
+                               &image_view_stencil);
+    if (status != VK_SUCCESS) {
+      return status;
+    }
   }
 
   // TODO(benvanik): transition to general layout?
@@ -279,12 +306,7 @@ CachedTileView::CachedTileView(ui::vulkan::VulkanDevice* device,
                        0, 0, nullptr, 0, nullptr, 1, &image_barrier);
 
   image_layout = image_barrier.newLayout;
-}
-
-CachedTileView::~CachedTileView() {
-  vkDestroyImageView(device_, image_view, nullptr);
-  vkDestroyImage(device_, image, nullptr);
-  vkFreeMemory(device_, memory, nullptr);
+  return VK_SUCCESS;
 }
 
 CachedFramebuffer::CachedFramebuffer(
@@ -294,11 +316,18 @@ CachedFramebuffer::CachedFramebuffer(
     : device_(device),
       width(surface_width),
       height(surface_height),
-      depth_stencil_attachment(target_depth_stencil_attachment) {
+      depth_stencil_attachment(target_depth_stencil_attachment),
+      render_pass(render_pass) {
   for (int i = 0; i < 4; ++i) {
     color_attachments[i] = target_color_attachments[i];
   }
+}
 
+CachedFramebuffer::~CachedFramebuffer() {
+  VK_SAFE_DESTROY(vkDestroyFramebuffer, device_, handle, nullptr);
+}
+
+VkResult CachedFramebuffer::Initialize() {
   // Create framebuffer.
   VkImageView image_views[5] = {nullptr};
   int image_view_count = 0;
@@ -320,12 +349,7 @@ CachedFramebuffer::CachedFramebuffer(
   framebuffer_info.width = width;
   framebuffer_info.height = height;
   framebuffer_info.layers = 1;
-  auto err = vkCreateFramebuffer(device_, &framebuffer_info, nullptr, &handle);
-  CheckResult(err, "vkCreateFramebuffer");
-}
-
-CachedFramebuffer::~CachedFramebuffer() {
-  vkDestroyFramebuffer(device_, handle, nullptr);
+  return vkCreateFramebuffer(device_, &framebuffer_info, nullptr, &handle);
 }
 
 bool CachedFramebuffer::IsCompatible(
@@ -372,10 +396,21 @@ CachedRenderPass::CachedRenderPass(VkDevice device,
                                    const RenderConfiguration& desired_config)
     : device_(device) {
   std::memcpy(&config, &desired_config, sizeof(config));
+}
 
+CachedRenderPass::~CachedRenderPass() {
+  for (auto framebuffer : cached_framebuffers) {
+    delete framebuffer;
+  }
+  cached_framebuffers.clear();
+
+  VK_SAFE_DESTROY(vkDestroyRenderPass, device_, handle, nullptr);
+}
+
+VkResult CachedRenderPass::Initialize() {
   VkSampleCountFlagBits sample_count;
   if (FLAGS_vulkan_native_msaa) {
-    switch (desired_config.surface_msaa) {
+    switch (config.surface_msaa) {
       case MsaaSamples::k1X:
         sample_count = VK_SAMPLE_COUNT_1_BIT;
         break;
@@ -386,7 +421,7 @@ CachedRenderPass::CachedRenderPass(VkDevice device,
         sample_count = VK_SAMPLE_COUNT_4_BIT;
         break;
       default:
-        assert_unhandled_case(desired_config.surface_msaa);
+        assert_unhandled_case(config.surface_msaa);
         break;
     }
   } else {
@@ -480,17 +515,7 @@ CachedRenderPass::CachedRenderPass(VkDevice device,
 
   render_pass_info.dependencyCount = 1;
   render_pass_info.pDependencies = dependencies;
-  auto err = vkCreateRenderPass(device_, &render_pass_info, nullptr, &handle);
-  CheckResult(err, "vkCreateRenderPass");
-}
-
-CachedRenderPass::~CachedRenderPass() {
-  for (auto framebuffer : cached_framebuffers) {
-    delete framebuffer;
-  }
-  cached_framebuffers.clear();
-
-  vkDestroyRenderPass(device_, handle, nullptr);
+  return vkCreateRenderPass(device_, &render_pass_info, nullptr, &handle);
 }
 
 bool CachedRenderPass::IsCompatible(
@@ -837,6 +862,14 @@ bool RenderCache::ConfigureRenderPass(VkCommandBuffer command_buffer,
   // If no render pass was found in the cache create a new one.
   if (!render_pass) {
     render_pass = new CachedRenderPass(*device_, *config);
+    VkResult status = render_pass->Initialize();
+    if (status != VK_SUCCESS) {
+      XELOGE("%s: Failed to create render pass, status %s", __func__,
+             ui::vulkan::to_string(status));
+      delete render_pass;
+      return false;
+    }
+
     cached_render_passes_.push_back(render_pass);
   }
 
@@ -908,6 +941,14 @@ bool RenderCache::ConfigureRenderPass(VkCommandBuffer command_buffer,
     framebuffer = new CachedFramebuffer(
         *device_, render_pass->handle, surface_pitch_px, surface_height_px,
         target_color_attachments, target_depth_stencil_attachment);
+    VkResult status = framebuffer->Initialize();
+    if (status != VK_SUCCESS) {
+      XELOGE("%s: Failed to create framebuffer, status %s", __func__,
+             ui::vulkan::to_string(status));
+      delete framebuffer;
+      return false;
+    }
+
     render_pass->cached_framebuffers.push_back(framebuffer);
   }
 
@@ -964,10 +1005,17 @@ CachedTileView* RenderCache::FindOrCreateTileView(
   }
 
   // Create a new tile and add to the cache.
-  tile_view =
-      new CachedTileView(device_, command_buffer, edram_memory_, view_key);
-  cached_tile_views_.push_back(tile_view);
+  tile_view = new CachedTileView(device_, edram_memory_, view_key);
+  VkResult status = tile_view->Initialize(command_buffer);
+  if (status != VK_SUCCESS) {
+    XELOGE("%s: Failed to create tile view, status %s", __func__,
+           ui::vulkan::to_string(status));
 
+    delete tile_view;
+    return nullptr;
+  }
+
+  cached_tile_views_.push_back(tile_view);
   return tile_view;
 }
 
