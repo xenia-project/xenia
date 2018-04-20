@@ -1795,6 +1795,12 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
                               tex_[dim_idx], std::vector<Id>({texture_index}));
       auto texture = b.createLoad(texture_ptr);
 
+      if (instr.dimension == TextureDimension::k1D) {
+        // Upgrade 1D src coordinate into 2D
+        src = b.createCompositeConstruct(vec2_float_type_,
+                                         {src, b.makeFloatConstant(0.f)});
+      }
+
       spv::Builder::TextureParameters params = {0};
       params.coords = src;
       params.sampler = texture;
@@ -1916,6 +1922,12 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
           b.createAccessChain(spv::StorageClass::StorageClassUniformConstant,
                               tex_[dim_idx], std::vector<Id>({texture_index}));
       auto texture = b.createLoad(texture_ptr);
+
+      if (instr.dimension == TextureDimension::k1D) {
+        // Upgrade 1D src coordinate into 2D
+        src = b.createCompositeConstruct(vec2_float_type_,
+                                         {src, b.makeFloatConstant(0.f)});
+      }
 
       spv::Builder::TextureParameters params = {};
       params.sampler = texture;

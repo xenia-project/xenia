@@ -29,7 +29,7 @@ namespace gpu {
 // supported size).
 struct SpirvPushConstants {
   // Accessible to vertex shader only:
-  float window_scale[4];  // scale x/y, viewport width/height (pixels)
+  float window_scale[4];  // scale x/y, offset x/y (pixels)
   float vtx_fmt[4];
 
   // Accessible to geometry shader only:
