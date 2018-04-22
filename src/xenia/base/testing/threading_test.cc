@@ -174,8 +174,23 @@ TEST_CASE("Signal and Wait") {
 }
 
 TEST_CASE("Wait on Event", "Event") {
-  // TODO(bwrsandman):
-  REQUIRE(true);
+  auto evt = Event::CreateAutoResetEvent(false);
+  WaitResult result;
+
+  // Call wait on unset Event
+  result = Wait(evt.get(), false, 50ms);
+  REQUIRE(result == WaitResult::kTimeout);
+
+  // Call wait on set Event
+  evt->Set();
+  result = Wait(evt.get(), false, 50ms);
+  REQUIRE(result == WaitResult::kSuccess);
+
+  // Call wait on now consumed Event
+  result = Wait(evt.get(), false, 50ms);
+  REQUIRE(result == WaitResult::kTimeout);
+
+  // TODO(bwrsandman): test Reset() and Pulse()
 }
 
 TEST_CASE("Wait on Semaphore", "Semaphore") {

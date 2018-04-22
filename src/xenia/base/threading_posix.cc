@@ -356,7 +356,7 @@ std::unique_ptr<Event> Event::CreateAutoResetEvent(bool initial_state) {
     return nullptr;
   }
 
-  return std::make_unique<PosixEvent>(PosixEvent(fd));
+  return std::make_unique<PosixEvent>(fd);
 }
 
 // TODO(dougvj)
