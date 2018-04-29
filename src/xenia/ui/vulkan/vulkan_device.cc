@@ -169,7 +169,7 @@ bool VulkanDevice::Initialize(DeviceInfo device_info) {
     queue_info.queueFamilyIndex = i;
     queue_info.queueCount = family_props.queueCount;
 
-    queue_priorities[i].resize(queue_count, 0.f);
+    queue_priorities[i].resize(family_props.queueCount, 0.f);
     if (i == ideal_queue_family_index) {
       // Prioritize the first queue on the primary queue family.
       queue_priorities[i][0] = 1.0f;
