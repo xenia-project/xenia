@@ -483,8 +483,10 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
                                  mainFn, "main");
     b.addExecutionMode(mainFn, spv::ExecutionModeOriginUpperLeft);
 
-    // FIXME(DrChat): We need to declare the DepthReplacing execution mode if
-    // we write depth, and we must unconditionally write depth if declared!
+    // If we write a new depth value, we must declare this mode!
+    if (writes_depth_) {
+      b.addExecutionMode(mainFn, spv::ExecutionModeDepthReplacing);
+    }
 
     for (auto id : interface_ids_) {
       entry->addIdOperand(id);
@@ -3298,6 +3300,7 @@ void SpirvShaderTranslator::StoreToResult(Id source_value_id,
       storage_type = float_type_;
       storage_offsets.push_back(0);
       storage_array = false;
+      writes_depth_ = true;
       break;
     default:
     case InstructionStorageTarget::kNone:
