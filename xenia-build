@@ -318,7 +318,7 @@ def run_premake(target_os, action, cc=None):
       action: action to preform.
     """
     ret = subprocess.call([
-        'python',
+        sys.executable,
         os.path.join('tools', 'build', 'premake'),
         '--file=premake5.lua',
         '--os=%s' % target_os,
@@ -973,7 +973,7 @@ class GpuTestCommand(BaseBuildCommand):
         # Run tests.
         any_failed = False
         result = shell_call([
-            'python',
+            sys.executable,
             os.path.join(self_path, 'tools', 'gpu-trace-diff'),
             '--executable=' + test_executables[0],
             '--trace_path=' + os.path.join(reference_trace_root, 'traces'),
@@ -1118,7 +1118,7 @@ class LintCommand(Command):
                         file_path,
                         ], throw_on_error=False, stdout_path=difftemp)
                     shell_call([
-                        'python',
+                        sys.executable,
                         'tools/diff.py',
                         file_path,
                         difftemp,
@@ -1141,7 +1141,7 @@ class LintCommand(Command):
             print('- git-clang-format --diff')
             if os.path.exists(difftemp): os.remove(difftemp)
             ret = shell_call([
-                'python',
+                sys.executable,
                 'third_party/clang-format/git-clang-format',
                 '--binary=%s' % (clang_format_binary),
                 '--commit=%s' % ('origin/master' if args['origin'] else 'HEAD'),
@@ -1157,7 +1157,7 @@ class LintCommand(Command):
                 any_errors = True
                 print('')
                 shell_call([
-                    'python',
+                    sys.executable,
                     'third_party/clang-format/git-clang-format',
                     '--binary=%s' % (clang_format_binary),
                     '--commit=%s' % ('origin/master' if args['origin'] else 'HEAD'),
@@ -1213,7 +1213,7 @@ class FormatCommand(Command):
         else:
             print('- git-clang-format')
             shell_call([
-                'python',
+                sys.executable,
                 'third_party/clang-format/git-clang-format',
                 '--binary=%s' % (clang_format_binary),
                 '--commit=%s' % ('origin/master' if args['origin'] else 'HEAD'),
@@ -1239,7 +1239,7 @@ class StyleCommand(Command):
                      if not file_path.endswith('_test.cc')]
         print('- cpplint [%d files]' % (len(all_files)))
         ret = shell_call([
-            'python',
+            sys.executable,
             'third_party/google-styleguide/cpplint/cpplint.py',
             '--output=vs7',
             '--linelength=80',
