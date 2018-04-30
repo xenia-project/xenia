@@ -204,6 +204,11 @@ void TextureInfo::CalculateTextureSizesCube(uint32_t width, uint32_t height,
   input_length = size_cube.input_face_length * 6;
 }
 
+uint32_t TextureInfo::GetMaxMipLevels(uint32_t width, uint32_t height,
+                                      uint32_t depth) {
+  return 1 + xe::log2_floor(std::max({width, height, depth}));
+}
+
 bool TextureInfo::GetPackedTileOffset(const TextureInfo& texture_info,
                                       uint32_t* out_offset_x,
                                       uint32_t* out_offset_y) {

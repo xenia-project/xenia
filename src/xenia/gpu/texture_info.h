@@ -304,6 +304,8 @@ struct TextureInfo {
                              uint32_t width, uint32_t height,
                              TextureInfo* out_info);
 
+  static uint32_t GetMaxMipLevels(uint32_t width, uint32_t height,
+                                  uint32_t depth);
   static bool GetPackedTileOffset(const TextureInfo& texture_info,
                                   uint32_t* out_offset_x,
                                   uint32_t* out_offset_y);
