@@ -365,6 +365,16 @@ uint32_t TextureInfo::GetMipLocation(const TextureInfo& src, uint32_t mip,
   return address_base + address_offset;
 }
 
+uint32_t TextureInfo::GetMipLinearSize(const TextureInfo& src, uint32_t mip) {
+  uint32_t bytes_per_block = src.format_info()->block_width *
+                             src.format_info()->block_height *
+                             src.format_info()->bits_per_pixel / 8;
+  uint32_t size = src.input_length >> (mip * 2);
+
+  // The size is at least one block large.
+  return std::max(size, bytes_per_block);
+}
+
 bool TextureInfo::GetPackedTileOffset(uint32_t width, uint32_t height,
                                       const FormatInfo* format_info,
                                       uint32_t* out_offset_x,

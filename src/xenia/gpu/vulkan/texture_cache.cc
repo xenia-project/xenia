@@ -62,7 +62,7 @@ static const TextureConfig texture_configs[64] = {
 
     // TODO: D24 unsupported on AMD.
     /* k_24_8                   */ {VK_FORMAT_D24_UNORM_S8_UINT},
-    /* k_24_8_FLOAT             */ {VK_FORMAT_D24_UNORM_S8_UINT},
+    /* k_24_8_FLOAT             */ {VK_FORMAT_D32_SFLOAT_S8_UINT},
     /* k_16                     */ {VK_FORMAT_R16_UNORM},
     /* k_16_16                  */ {VK_FORMAT_R16G16_UNORM},
     /* k_16_16_16_16            */ {VK_FORMAT_R16G16B16A16_UNORM},
@@ -555,7 +555,8 @@ TextureCache::TextureView* TextureCache::DemandView(Texture* texture,
       swiz_component_map[(swizzle >> 6) & 0x7],
       swiz_component_map[(swizzle >> 9) & 0x7],
   };
-  view_info.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+  view_info.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0,
+                                texture->texture_info.mip_levels, 0, 1};
   if (texture->format == VK_FORMAT_D16_UNORM_S8_UINT ||
       texture->format == VK_FORMAT_D24_UNORM_S8_UINT ||
       texture->format == VK_FORMAT_D32_SFLOAT_S8_UINT) {
@@ -887,6 +888,13 @@ bool TextureCache::ConvertTexture2D(uint8_t* dest,
   uint32_t input_width = src.size_2d.input_width >> mip;
   uint32_t input_height = src.size_2d.input_height >> mip;
 
+  // All dimensions must be at least one block w/h
+  logical_width = std::max(logical_width, src.format_info()->block_width);
+  logical_height = std::max(logical_height, src.format_info()->block_height);
+  block_width = std::max(block_width, src.format_info()->block_width);
+  input_width = std::max(input_width, src.format_info()->block_width);
+  input_height = std::max(input_height, src.format_info()->block_height);
+
   if (!src.is_tiled) {
     uint32_t offset_x, offset_y;
     if (src.has_packed_mips &&
@@ -1018,7 +1026,7 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
   size_t total_unpack_length = unpack_length;
   for (uint32_t i = 1; i < src.mip_levels; i++) {
     // Add in more space for mips.
-    total_unpack_length += unpack_length >> (2 * i);
+    total_unpack_length += TextureInfo::GetMipLinearSize(src, i);
   }
 
   if (!staging_buffer_.CanAcquire(total_unpack_length)) {
@@ -1087,7 +1095,7 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
     copy_regions[mip].imageOffset = {0, 0, 0};
 
     // With each mip, the length is divided by 4.
-    buffer_offset += unpack_length >> (2 * mip);
+    buffer_offset += TextureInfo::GetMipLinearSize(src, mip);
   }
 
   // Transition the texture into a transfer destination layout.
