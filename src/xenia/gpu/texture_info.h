@@ -256,6 +256,8 @@ struct TextureInfo {
   Endian endianness;
   bool is_tiled;
   bool has_packed_mips;
+  uint32_t mip_address;
+  uint32_t mip_levels;
   uint32_t input_length;
 
   const FormatInfo* format_info() const {
@@ -304,14 +306,26 @@ struct TextureInfo {
                              uint32_t width, uint32_t height,
                              TextureInfo* out_info);
 
+  static void ConvertTiled(uint8_t* dest, const uint8_t* src, Endian endian,
+                           const FormatInfo* format_info, uint32_t offset_x,
+                           uint32_t offset_y, uint32_t block_pitch,
+                           uint32_t width, uint32_t height,
+                           uint32_t output_width);
+
   static uint32_t GetMaxMipLevels(uint32_t width, uint32_t height,
                                   uint32_t depth);
+  static uint32_t GetMipLocation(const TextureInfo& src, uint32_t mip,
+                                 uint32_t* offset_x, uint32_t* offset_y);
+  static bool GetPackedTileOffset(uint32_t width, uint32_t height,
+                                  const FormatInfo* format_info,
+                                  uint32_t* out_offset_x,
+                                  uint32_t* out_offset_y);
   static bool GetPackedTileOffset(const TextureInfo& texture_info,
                                   uint32_t* out_offset_x,
                                   uint32_t* out_offset_y);
   static uint32_t TiledOffset2DOuter(uint32_t y, uint32_t width,
-                                     uint32_t log_bpp);
-  static uint32_t TiledOffset2DInner(uint32_t x, uint32_t y, uint32_t bpp,
+                                     uint32_t log2_bpp);
+  static uint32_t TiledOffset2DInner(uint32_t x, uint32_t y, uint32_t log2_bpp,
                                      uint32_t base_offset);
 
   uint64_t hash() const;

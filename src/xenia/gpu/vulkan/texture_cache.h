@@ -149,15 +149,12 @@ class TextureCache {
   void FlushPendingCommands(VkCommandBuffer command_buffer,
                             VkFence completion_fence);
 
-  static void ConvertTexelCTX1(uint8_t* dest, size_t dest_pitch,
-                               const uint8_t* src, Endian src_endianness);
-
   bool ConvertTexture2D(uint8_t* dest, VkBufferImageCopy* copy_region,
-                        const TextureInfo& src);
-  bool ConvertTextureCube(uint8_t* dest, VkBufferImageCopy* copy_region,
+                        uint32_t mip, const TextureInfo& src);
+  bool ConvertTextureCube(uint8_t* dest, VkBufferImageCopy* copy_regions,
                           const TextureInfo& src);
   bool ConvertTexture(uint8_t* dest, VkBufferImageCopy* copy_region,
-                      const TextureInfo& src);
+                      uint32_t mip, const TextureInfo& src);
   bool ComputeTextureStorage(size_t* output_length, const TextureInfo& src);
 
   // Writes a texture back into guest memory. This call is (mostly) asynchronous
