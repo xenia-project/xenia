@@ -381,17 +381,25 @@ uint32_t TextureInfo::GetMipLocation(const TextureInfo& src, uint32_t mip,
 }
 
 uint32_t TextureInfo::GetMipSize(const TextureInfo& src, uint32_t mip) {
-  uint32_t size = src.format_info()->block_width *
-                  src.format_info()->block_height *
-                  (xe::next_pow2(src.width + 1) >> mip) *
-                  (xe::next_pow2(src.height + 1) >> mip) *
-                  src.format_info()->bits_per_pixel / 8;
+  uint32_t bytes_per_block = src.format_info()->block_width *
+                             src.format_info()->block_height *
+                             src.format_info()->bits_per_pixel / 8;
 
-  // One tile is 32x32 blocks
-  uint32_t tile_size = src.format_info()->block_width *
-                       src.format_info()->block_height * 32 * 32 *
-                       src.format_info()->bits_per_pixel / 8;
+  uint32_t logical_width = xe::next_pow2(src.width + 1) >> mip;
+  uint32_t logical_height = xe::next_pow2(src.height + 1) >> mip;
 
+  // w/h in blocks
+  uint32_t block_width =
+      xe::round_up(logical_width, src.format_info()->block_width) /
+      src.format_info()->block_width;
+  uint32_t block_height =
+      xe::round_up(logical_height, src.format_info()->block_height) /
+      src.format_info()->block_height;
+
+  uint32_t size = block_width * block_height * bytes_per_block;
+
+  // Minimum of one tile, which is 32x32 blocks.
+  uint32_t tile_size = 32 * 32 * bytes_per_block;
   return std::max(size, tile_size);
 }
 
