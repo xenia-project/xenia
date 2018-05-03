@@ -619,6 +619,7 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
 
   // Cleanup builder.
   cf_blocks_.clear();
+  writes_depth_ = false;
   loop_head_block_ = nullptr;
   loop_body_block_ = nullptr;
   loop_cont_block_ = nullptr;
