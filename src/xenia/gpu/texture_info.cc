@@ -337,6 +337,11 @@ uint32_t TextureInfo::GetMipLocation(const TextureInfo& src, uint32_t mip,
     return src.guest_address;
   }
 
+  // One tile is 32x32 blocks
+  const uint32_t tile_size = src.format_info()->block_width *
+                             src.format_info()->block_height * 32 * 32 *
+                             src.format_info()->bits_per_pixel / 8;
+
   // Walk forward to find the address of the mip
   // If the texture is <= 16 pixels w/h, the mips are packed with the base
   // texture. Otherwise, they're stored beginning from mip_address.
@@ -348,13 +353,13 @@ uint32_t TextureInfo::GetMipLocation(const TextureInfo& src, uint32_t mip,
   for (uint32_t i = 1; i < mip; i++) {
     uint32_t logical_width = std::max((src.width + 1) >> mip, 1u);
     uint32_t logical_height = std::max((src.height + 1) >> mip, 1u);
-    if (std::min(logical_width, logical_height) <= 16) {
+    if (std::min(logical_width, logical_height) < 16) {
       // We've reached the point where the mips are packed into a single tile.
       // TODO(DrChat): Figure out how to calculate the packed tile offset.
       continue;
     }
 
-    address_offset += src.input_length >> (i * 2);
+    address_offset += std::max(src.input_length >> (i * 2), tile_size);
   }
 
   return address_base + address_offset;

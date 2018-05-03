@@ -314,6 +314,8 @@ struct TextureInfo {
 
   static uint32_t GetMaxMipLevels(uint32_t width, uint32_t height,
                                   uint32_t depth);
+
+  // Get the memory location of a mip. offset_x and offset_y are in blocks.
   static uint32_t GetMipLocation(const TextureInfo& src, uint32_t mip,
                                  uint32_t* offset_x, uint32_t* offset_y);
   static bool GetPackedTileOffset(uint32_t width, uint32_t height,
