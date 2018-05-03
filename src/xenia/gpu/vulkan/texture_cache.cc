@@ -888,12 +888,11 @@ bool TextureCache::ConvertTexture2D(uint8_t* dest,
   uint32_t input_width = src.size_2d.input_width >> mip;
   uint32_t input_height = src.size_2d.input_height >> mip;
 
-  // All dimensions must be at least one block w/h
+  // All dimensions must be a multiple of block w/h
   logical_width = std::max(logical_width, src.format_info()->block_width);
   logical_height = std::max(logical_height, src.format_info()->block_height);
-  block_width = std::max(block_width, src.format_info()->block_width);
-  input_width = std::max(input_width, src.format_info()->block_width);
-  input_height = std::max(input_height, src.format_info()->block_height);
+  input_width = xe::round_up(input_width, src.format_info()->block_width);
+  input_height = xe::round_up(input_height, src.format_info()->block_height);
 
   if (!src.is_tiled) {
     uint32_t offset_x, offset_y;

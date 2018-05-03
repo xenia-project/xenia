@@ -337,12 +337,6 @@ uint32_t TextureInfo::GetMipLocation(const TextureInfo& src, uint32_t mip,
     return src.guest_address;
   }
 
-  // One tile is 32x32 blocks
-  const uint32_t tile_size = src.format_info()->block_width *
-                             src.format_info()->block_height * 32 * 32 *
-                             src.format_info()->bits_per_pixel / 8;
-
-  // Walk forward to find the address of the mip
   // If the texture is <= 16 pixels w/h, the mips are packed with the base
   // texture. Otherwise, they're stored beginning from mip_address.
   uint32_t address_base = std::min(src.width, src.height) < 16
@@ -350,16 +344,21 @@ uint32_t TextureInfo::GetMipLocation(const TextureInfo& src, uint32_t mip,
                               : src.mip_address;
   uint32_t address_offset = 0;
 
-  uint32_t logical_width = std::max((src.width + 1) >> mip, 1u);
-  uint32_t logical_height = std::max((src.height + 1) >> mip, 1u);
+  // Walk forward to find the address of the mip.
   for (uint32_t i = 1; i < mip; i++) {
-    if (std::min(logical_width, logical_height) < 16) {
+    uint32_t logical_width = std::max(xe::next_pow2(src.width + 1) >> i, 1u);
+    uint32_t logical_height = std::max(xe::next_pow2(src.height + 1) >> i, 1u);
+    if (std::min(logical_width, logical_height) <= 16) {
       // We've reached the point where the mips are packed into a single tile.
       break;
     }
 
-    address_offset += std::max(src.input_length >> (i * 2), tile_size);
+    address_offset += GetMipSize(src, i);
   }
+
+  // Now, check if the mip is packed at an offset.
+  uint32_t logical_width = std::max(xe::next_pow2(src.width + 1) >> mip, 1u);
+  uint32_t logical_height = std::max(xe::next_pow2(src.height + 1) >> mip, 1u);
 
   *offset_x = 0;
   *offset_y = 0;
@@ -379,6 +378,21 @@ uint32_t TextureInfo::GetMipLocation(const TextureInfo& src, uint32_t mip,
   *offset_x /= src.format_info()->block_width;
   *offset_y /= src.format_info()->block_height;
   return address_base + address_offset;
+}
+
+uint32_t TextureInfo::GetMipSize(const TextureInfo& src, uint32_t mip) {
+  uint32_t size = src.format_info()->block_width *
+                  src.format_info()->block_height *
+                  (xe::next_pow2(src.width + 1) >> mip) *
+                  (xe::next_pow2(src.height + 1) >> mip) *
+                  src.format_info()->bits_per_pixel / 8;
+
+  // One tile is 32x32 blocks
+  uint32_t tile_size = src.format_info()->block_width *
+                       src.format_info()->block_height * 32 * 32 *
+                       src.format_info()->bits_per_pixel / 8;
+
+  return std::max(size, tile_size);
 }
 
 uint32_t TextureInfo::GetMipLinearSize(const TextureInfo& src, uint32_t mip) {
