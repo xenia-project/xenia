@@ -350,18 +350,34 @@ uint32_t TextureInfo::GetMipLocation(const TextureInfo& src, uint32_t mip,
                               : src.mip_address;
   uint32_t address_offset = 0;
 
+  uint32_t logical_width = std::max((src.width + 1) >> mip, 1u);
+  uint32_t logical_height = std::max((src.height + 1) >> mip, 1u);
   for (uint32_t i = 1; i < mip; i++) {
-    uint32_t logical_width = std::max((src.width + 1) >> mip, 1u);
-    uint32_t logical_height = std::max((src.height + 1) >> mip, 1u);
     if (std::min(logical_width, logical_height) < 16) {
       // We've reached the point where the mips are packed into a single tile.
-      // TODO(DrChat): Figure out how to calculate the packed tile offset.
-      continue;
+      break;
     }
 
     address_offset += std::max(src.input_length >> (i * 2), tile_size);
   }
 
+  *offset_x = 0;
+  *offset_y = 0;
+  if (std::min(logical_width, logical_height) <= 16) {
+    // Find the block offset of the mip.
+    if (xe::log2_ceil(logical_width) > xe::log2_ceil(logical_height)) {
+      // Wider than tall. Laid out vertically.
+      *offset_y = logical_height & ~0x3;
+      *offset_x = (logical_height & 0x3) << 2;
+    } else {
+      // Taller than wide. Laid out horizontally.
+      *offset_x = logical_width & ~0x3;
+      *offset_y = (logical_width & 0x3) << 2;
+    }
+  }
+
+  *offset_x /= src.format_info()->block_width;
+  *offset_y /= src.format_info()->block_height;
   return address_base + address_offset;
 }
 
