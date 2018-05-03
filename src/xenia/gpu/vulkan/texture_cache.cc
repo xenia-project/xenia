@@ -258,7 +258,13 @@ TextureCache::Texture* TextureCache::AllocateTexture(
   assert_not_null(texture_info.format_info());
   auto& config = texture_configs[int(texture_info.format_info()->format)];
   VkFormat format = config.host_format;
-  assert(format != VK_FORMAT_UNDEFINED);
+  if (format == VK_FORMAT_UNDEFINED) {
+    XELOGE(
+        "Texture Cache: Attempted to allocate texture format %s, which is "
+        "defined as VK_FORMAT_UNDEFINED!",
+        texture_info.format_info()->name);
+    return nullptr;
+  }
 
   image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
   image_info.usage =
@@ -302,7 +308,7 @@ TextureCache::Texture* TextureCache::AllocateTexture(
 
   image_info.format = format;
   image_info.extent = {texture_info.width + 1, texture_info.height + 1, 1};
-  image_info.mipLevels = 1;
+  image_info.mipLevels = texture_info.mip_levels;
   image_info.arrayLayers = texture_info.depth + 1;
   image_info.samples = VK_SAMPLE_COUNT_1_BIT;
   image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
@@ -664,8 +670,6 @@ TextureCache::Sampler* TextureCache::Demand(const SamplerInfo& sampler_info) {
   sampler_create_info.addressModeW =
       address_mode_map[static_cast<int>(sampler_info.clamp_w)];
 
-  sampler_create_info.mipLodBias = sampler_info.lod_bias;
-
   float aniso = 0.f;
   switch (sampler_info.aniso_filter) {
     case AnisoFilter::kDisabled:
@@ -697,8 +701,9 @@ TextureCache::Sampler* TextureCache::Demand(const SamplerInfo& sampler_info) {
 
   sampler_create_info.compareEnable = VK_FALSE;
   sampler_create_info.compareOp = VK_COMPARE_OP_NEVER;
-  sampler_create_info.minLod = 0.0f;
-  sampler_create_info.maxLod = 0.0f;
+  sampler_create_info.mipLodBias = sampler_info.lod_bias;
+  sampler_create_info.minLod = float(sampler_info.mip_min_level);
+  sampler_create_info.maxLod = float(sampler_info.mip_max_level);
   sampler_create_info.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
   sampler_create_info.unnormalizedCoordinates = VK_FALSE;
   VkSampler vk_sampler;
@@ -816,13 +821,13 @@ void TextureSwap(Endian endianness, void* dest, const void* src,
                  size_t length) {
   switch (endianness) {
     case Endian::k8in16:
-      xe::copy_and_swap_16_aligned(dest, src, length / 2);
+      xe::copy_and_swap_16_unaligned(dest, src, length / 2);
       break;
     case Endian::k8in32:
-      xe::copy_and_swap_32_aligned(dest, src, length / 4);
+      xe::copy_and_swap_32_unaligned(dest, src, length / 4);
       break;
     case Endian::k16in32:  // Swap high and low 16 bits within a 32 bit word
-      xe::copy_and_swap_16_in_32_aligned(dest, src, length);
+      xe::copy_and_swap_16_in_32_unaligned(dest, src, length);
       break;
     default:
     case Endian::kUnspecified:
@@ -867,43 +872,21 @@ void TextureCache::FlushPendingCommands(VkCommandBuffer command_buffer,
   vkBeginCommandBuffer(command_buffer, &begin_info);
 }
 
-void TextureCache::ConvertTexelCTX1(uint8_t* dest, size_t dest_pitch,
-                                    const uint8_t* src, Endian src_endianness) {
-  // http://fileadmin.cs.lth.se/cs/Personal/Michael_Doggett/talks/unc-xenos-doggett.pdf
-  union {
-    uint8_t data[8];
-    struct {
-      uint8_t r0, g0, r1, g1;
-      uint32_t xx;
-    };
-  } block;
-  static_assert(sizeof(block) == 8, "CTX1 block mismatch");
-
-  const uint32_t bytes_per_block = 8;
-  TextureSwap(src_endianness, block.data, src, bytes_per_block);
-
-  uint8_t cr[4] = {
-      block.r0, block.r1,
-      static_cast<uint8_t>(2.f / 3.f * block.r0 + 1.f / 3.f * block.r1),
-      static_cast<uint8_t>(1.f / 3.f * block.r0 + 2.f / 3.f * block.r1)};
-  uint8_t cg[4] = {
-      block.g0, block.g1,
-      static_cast<uint8_t>(2.f / 3.f * block.g0 + 1.f / 3.f * block.g1),
-      static_cast<uint8_t>(1.f / 3.f * block.g0 + 2.f / 3.f * block.g1)};
-
-  for (uint32_t oy = 0; oy < 4; ++oy) {
-    for (uint32_t ox = 0; ox < 4; ++ox) {
-      uint8_t xx = (block.xx >> (((ox + (oy * 4)) * 2))) & 3;
-      dest[(oy * dest_pitch) + (ox * 2) + 0] = cr[xx];
-      dest[(oy * dest_pitch) + (ox * 2) + 1] = cg[xx];
-    }
-  }
-}
-
 bool TextureCache::ConvertTexture2D(uint8_t* dest,
                                     VkBufferImageCopy* copy_region,
-                                    const TextureInfo& src) {
-  void* host_address = memory_->TranslatePhysical(src.guest_address);
+                                    uint32_t mip, const TextureInfo& src) {
+  uint32_t offset_x = 0;
+  uint32_t offset_y = 0;
+  uint32_t address =
+      TextureInfo::GetMipLocation(src, mip, &offset_x, &offset_y);
+  void* host_address = memory_->TranslatePhysical(address);
+
+  uint32_t logical_width = src.size_2d.logical_width >> mip;
+  uint32_t logical_height = src.size_2d.logical_height >> mip;
+  uint32_t block_width = src.size_2d.block_width >> mip;
+  uint32_t input_width = src.size_2d.input_width >> mip;
+  uint32_t input_height = src.size_2d.input_height >> mip;
+
   if (!src.is_tiled) {
     uint32_t offset_x, offset_y;
     if (src.has_packed_mips &&
@@ -922,89 +905,25 @@ bool TextureCache::ConvertTexture2D(uint8_t* dest,
         src_mem += src.size_2d.input_pitch;
         dest += src.size_2d.input_pitch;
       }
-      copy_region->bufferRowLength = src.size_2d.input_width;
-      copy_region->bufferImageHeight = src.size_2d.input_height;
-      copy_region->imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
-      copy_region->imageExtent = {src.size_2d.logical_width,
-                                  src.size_2d.logical_height, 1};
-      return true;
     } else {
       // Fast path copy entire image.
       TextureSwap(src.endianness, dest, host_address, src.input_length);
-      copy_region->bufferRowLength = src.size_2d.input_width;
-      copy_region->bufferImageHeight = src.size_2d.input_height;
-      copy_region->imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
-      copy_region->imageExtent = {src.size_2d.logical_width,
-                                  src.size_2d.logical_height, 1};
-      return true;
     }
   } else {
     // Untile image.
     // We could do this in a shader to speed things up, as this is pretty
     // slow.
-
-    // TODO(benvanik): optimize this inner loop (or work by tiles).
     const uint8_t* src_mem = reinterpret_cast<const uint8_t*>(host_address);
-    uint32_t bytes_per_block = src.format_info()->block_width *
-                               src.format_info()->block_height *
-                               src.format_info()->bits_per_pixel / 8;
-
-    uint32_t output_pitch = src.size_2d.input_width *
-                            src.format_info()->block_width *
-                            src.format_info()->bits_per_pixel / 8;
-
-    uint32_t output_row_height = 1;
-    if (src.texture_format == TextureFormat::k_CTX1) {
-      // TODO: Can we calculate this?
-      output_row_height = 4;
-    }
-
-    // Tiled textures can be packed; get the offset into the packed texture.
-    uint32_t offset_x;
-    uint32_t offset_y;
-    TextureInfo::GetPackedTileOffset(src, &offset_x, &offset_y);
-    auto log2_bpp = (bytes_per_block >> 2) +
-                    ((bytes_per_block >> 1) >> (bytes_per_block >> 2));
-
-    // Offset to the current row, in bytes.
-    uint32_t output_row_offset = 0;
-    for (uint32_t y = 0; y < src.size_2d.block_height; y++) {
-      auto input_row_offset = TextureInfo::TiledOffset2DOuter(
-          offset_y + y, src.size_2d.block_width, log2_bpp);
-
-      // Go block-by-block on this row.
-      uint32_t output_offset = output_row_offset;
-      for (uint32_t x = 0; x < src.size_2d.block_width; x++) {
-        auto input_offset = TextureInfo::TiledOffset2DInner(
-            offset_x + x, offset_y + y, log2_bpp, input_row_offset);
-        input_offset >>= log2_bpp;
-
-        if (src.texture_format == TextureFormat::k_CTX1) {
-          // Convert to R8G8.
-          ConvertTexelCTX1(&dest[output_offset], output_pitch, src_mem,
-                           src.endianness);
-        } else {
-          // Generic swap to destination.
-          TextureSwap(src.endianness, dest + output_offset,
-                      src_mem + input_offset * bytes_per_block,
-                      bytes_per_block);
-        }
-
-        output_offset += bytes_per_block;
-      }
-
-      output_row_offset += output_pitch * output_row_height;
-    }
-
-    copy_region->bufferRowLength = src.size_2d.input_width;
-    copy_region->bufferImageHeight = src.size_2d.input_height;
-    copy_region->imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
-    copy_region->imageExtent = {src.size_2d.logical_width,
-                                src.size_2d.logical_height, 1};
-    return true;
+    TextureInfo::ConvertTiled(dest, src_mem, src.endianness, src.format_info(),
+                              offset_x, offset_y, block_width, logical_width,
+                              logical_height, input_width);
   }
 
-  return false;
+  copy_region->bufferRowLength = input_width;
+  copy_region->bufferImageHeight = input_height;
+  copy_region->imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, mip, 0, 1};
+  copy_region->imageExtent = {logical_width, logical_height, 1};
+  return true;
 }
 
 bool TextureCache::ConvertTextureCube(uint8_t* dest,
@@ -1067,13 +986,13 @@ bool TextureCache::ConvertTextureCube(uint8_t* dest,
 }
 
 bool TextureCache::ConvertTexture(uint8_t* dest, VkBufferImageCopy* copy_region,
-                                  const TextureInfo& src) {
+                                  uint32_t mip, const TextureInfo& src) {
   switch (src.dimension) {
     case Dimension::k1D:
       assert_always();
       break;
     case Dimension::k2D:
-      return ConvertTexture2D(dest, copy_region, src);
+      return ConvertTexture2D(dest, copy_region, mip, src);
     case Dimension::k3D:
       assert_always();
       break;
@@ -1081,6 +1000,145 @@ bool TextureCache::ConvertTexture(uint8_t* dest, VkBufferImageCopy* copy_region,
       return ConvertTextureCube(dest, copy_region, src);
   }
   return false;
+}
+
+bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
+                                 VkFence completion_fence, Texture* dest,
+                                 const TextureInfo& src) {
+#if FINE_GRAINED_DRAW_SCOPES
+  SCOPE_profile_cpu_f("gpu");
+#endif  // FINE_GRAINED_DRAW_SCOPES
+
+  size_t unpack_length;
+  if (!ComputeTextureStorage(&unpack_length, src)) {
+    XELOGW("Failed to compute texture storage");
+    return false;
+  }
+
+  size_t total_unpack_length = unpack_length;
+  for (uint32_t i = 1; i < src.mip_levels; i++) {
+    // Add in more space for mips.
+    total_unpack_length += unpack_length >> (2 * i);
+  }
+
+  if (!staging_buffer_.CanAcquire(total_unpack_length)) {
+    // Need to have unique memory for every upload for at least one frame. If we
+    // run out of memory, we need to flush all queued upload commands to the
+    // GPU.
+    FlushPendingCommands(command_buffer, completion_fence);
+
+    // Uploads have been flushed. Continue.
+    if (!staging_buffer_.CanAcquire(total_unpack_length)) {
+      // The staging buffer isn't big enough to hold this texture.
+      XELOGE(
+          "TextureCache staging buffer is too small! (uploading 0x%.8X bytes)",
+          total_unpack_length);
+      assert_always();
+      return false;
+    }
+  }
+
+  // Grab some temporary memory for staging.
+  auto alloc = staging_buffer_.Acquire(total_unpack_length, completion_fence);
+  assert_not_null(alloc);
+  if (!alloc) {
+    XELOGE("%s: Failed to acquire staging memory", __func__);
+    return false;
+  }
+
+  // DEBUG: Check the source address. If it's completely zero'd out, print it.
+  bool valid = false;
+  auto src_data = memory_->TranslatePhysical(src.guest_address);
+  for (uint32_t i = 0; i < src.input_length; i++) {
+    if (src_data[i] != 0) {
+      valid = true;
+      break;
+    }
+  }
+
+  if (!valid) {
+    XELOGW(
+        "Warning: Uploading blank texture at address 0x%.8X "
+        "(length: 0x%.8X, format: %s)",
+        src.guest_address, src.input_length, src.format_info()->name);
+  }
+
+  // Upload texture into GPU memory.
+  // TODO: If the GPU supports it, we can submit a compute batch to convert the
+  // texture and copy it to its destination. Otherwise, fallback to conversion
+  // on the CPU.
+  std::vector<VkBufferImageCopy> copy_regions(src.mip_levels);
+
+  // Base MIP
+  if (!ConvertTexture(reinterpret_cast<uint8_t*>(alloc->host_ptr),
+                      &copy_regions[0], 0, src)) {
+    XELOGW("Failed to convert texture");
+    return false;
+  }
+  copy_regions[0].bufferOffset = alloc->offset;
+  copy_regions[0].imageOffset = {0, 0, 0};
+
+  // Now upload all the MIPs
+  VkDeviceSize buffer_offset = unpack_length;
+  for (uint32_t mip = 1; mip < src.mip_levels; mip++) {
+    uint8_t* dest = reinterpret_cast<uint8_t*>(alloc->host_ptr) + buffer_offset;
+    ConvertTexture(dest, &copy_regions[mip], mip, src);
+    copy_regions[mip].bufferOffset = alloc->offset + buffer_offset;
+    copy_regions[mip].imageOffset = {0, 0, 0};
+
+    // With each mip, the length is divided by 4.
+    buffer_offset += unpack_length >> (2 * mip);
+  }
+
+  // Transition the texture into a transfer destination layout.
+  VkImageMemoryBarrier barrier;
+  barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+  barrier.pNext = nullptr;
+  barrier.srcAccessMask = 0;
+  barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+  barrier.oldLayout = dest->image_layout;
+  barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+  barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  barrier.image = dest->image;
+  barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, src.mip_levels,
+                              copy_regions[0].imageSubresource.baseArrayLayer,
+                              copy_regions[0].imageSubresource.layerCount};
+  if (dest->format == VK_FORMAT_D16_UNORM_S8_UINT ||
+      dest->format == VK_FORMAT_D24_UNORM_S8_UINT ||
+      dest->format == VK_FORMAT_D32_SFLOAT_S8_UINT) {
+    barrier.subresourceRange.aspectMask =
+        VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+  }
+
+  vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                       VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0,
+                       nullptr, 1, &barrier);
+
+  // Now move the converted texture into the destination.
+  if (dest->format == VK_FORMAT_D16_UNORM_S8_UINT ||
+      dest->format == VK_FORMAT_D24_UNORM_S8_UINT ||
+      dest->format == VK_FORMAT_D32_SFLOAT_S8_UINT) {
+    // Do just a depth upload (for now).
+    // This assumes depth buffers don't have mips (hopefully they don't)
+    copy_regions[0].imageSubresource.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+  }
+  vkCmdCopyBufferToImage(command_buffer, staging_buffer_.gpu_buffer(),
+                         dest->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                         src.mip_levels, copy_regions.data());
+
+  // Now transition the texture into a shader readonly source.
+  barrier.srcAccessMask = barrier.dstAccessMask;
+  barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+  barrier.oldLayout = barrier.newLayout;
+  barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+  vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                       VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
+                           VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                       0, 0, nullptr, 0, nullptr, 1, &barrier);
+
+  dest->image_layout = barrier.newLayout;
+  return true;
 }
 
 bool TextureCache::ComputeTextureStorage(size_t* output_length,
@@ -1180,120 +1238,6 @@ void TextureCache::WritebackTexture(Texture* texture) {
   }
 
   wb_staging_buffer_.Scavenge();
-}
-
-bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
-                                 VkFence completion_fence, Texture* dest,
-                                 const TextureInfo& src) {
-#if FINE_GRAINED_DRAW_SCOPES
-  SCOPE_profile_cpu_f("gpu");
-#endif  // FINE_GRAINED_DRAW_SCOPES
-
-  size_t unpack_length;
-  if (!ComputeTextureStorage(&unpack_length, src)) {
-    XELOGW("Failed to compute texture storage");
-    return false;
-  }
-
-  if (!staging_buffer_.CanAcquire(unpack_length)) {
-    // Need to have unique memory for every upload for at least one frame. If we
-    // run out of memory, we need to flush all queued upload commands to the
-    // GPU.
-    FlushPendingCommands(command_buffer, completion_fence);
-
-    // Uploads have been flushed. Continue.
-    if (!staging_buffer_.CanAcquire(unpack_length)) {
-      // The staging buffer isn't big enough to hold this texture.
-      XELOGE(
-          "TextureCache staging buffer is too small! (uploading 0x%.8X bytes)",
-          unpack_length);
-      assert_always();
-      return false;
-    }
-  }
-
-  // Grab some temporary memory for staging.
-  auto alloc = staging_buffer_.Acquire(unpack_length, completion_fence);
-  assert_not_null(alloc);
-
-  // DEBUG: Check the source address. If it's completely zero'd out, print it.
-  bool valid = false;
-  auto src_data = memory_->TranslatePhysical(src.guest_address);
-  for (uint32_t i = 0; i < src.input_length; i++) {
-    if (src_data[i] != 0) {
-      valid = true;
-      break;
-    }
-  }
-
-  if (!valid) {
-    XELOGW(
-        "Warning: Uploading blank texture at address 0x%.8X "
-        "(length: 0x%.8X, format: %d)",
-        src.guest_address, src.input_length, src.texture_format);
-  }
-
-  // Upload texture into GPU memory.
-  // TODO: If the GPU supports it, we can submit a compute batch to convert the
-  // texture and copy it to its destination. Otherwise, fallback to conversion
-  // on the CPU.
-  VkBufferImageCopy copy_region;
-  if (!ConvertTexture(reinterpret_cast<uint8_t*>(alloc->host_ptr), &copy_region,
-                      src)) {
-    XELOGW("Failed to convert texture");
-    return false;
-  }
-
-  // Transition the texture into a transfer destination layout.
-  VkImageMemoryBarrier barrier;
-  barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-  barrier.pNext = nullptr;
-  barrier.srcAccessMask = 0;
-  barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-  barrier.oldLayout = dest->image_layout;
-  barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-  barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-  barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-  barrier.image = dest->image;
-  barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1,
-                              copy_region.imageSubresource.baseArrayLayer,
-                              copy_region.imageSubresource.layerCount};
-  if (dest->format == VK_FORMAT_D16_UNORM_S8_UINT ||
-      dest->format == VK_FORMAT_D24_UNORM_S8_UINT ||
-      dest->format == VK_FORMAT_D32_SFLOAT_S8_UINT) {
-    barrier.subresourceRange.aspectMask =
-        VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
-  }
-
-  vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                       VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0,
-                       nullptr, 1, &barrier);
-
-  // Now move the converted texture into the destination.
-  copy_region.bufferOffset = alloc->offset;
-  copy_region.imageOffset = {0, 0, 0};
-  if (dest->format == VK_FORMAT_D16_UNORM_S8_UINT ||
-      dest->format == VK_FORMAT_D24_UNORM_S8_UINT ||
-      dest->format == VK_FORMAT_D32_SFLOAT_S8_UINT) {
-    // Do just a depth upload (for now).
-    copy_region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-  }
-  vkCmdCopyBufferToImage(command_buffer, staging_buffer_.gpu_buffer(),
-                         dest->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
-                         &copy_region);
-
-  // Now transition the texture into a shader readonly source.
-  barrier.srcAccessMask = barrier.dstAccessMask;
-  barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-  barrier.oldLayout = barrier.newLayout;
-  barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-  vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                       VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
-                           VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                       0, 0, nullptr, 0, nullptr, 1, &barrier);
-
-  dest->image_layout = barrier.newLayout;
-  return true;
 }
 
 void TextureCache::HashTextureBindings(
