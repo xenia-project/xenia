@@ -7,7 +7,7 @@ project("xenia-gpu-vulkan")
   kind("StaticLib")
   language("C++")
   links({
-    "vulkan-loader",
+    "volk",
     "xenia-base",
     "xenia-gpu",
     "xenia-ui",
@@ -40,7 +40,7 @@ project("xenia-gpu-vulkan-trace-viewer")
     "libavutil",
     "snappy",
     "spirv-tools",
-    "vulkan-loader",
+    "volk",
     "xenia-apu",
     "xenia-apu-nop",
     "xenia-base",
@@ -112,7 +112,7 @@ project("xenia-gpu-vulkan-trace-dump")
     "libavutil",
     "snappy",
     "spirv-tools",
-    "vulkan-loader",
+    "volk",
     "xenia-apu",
     "xenia-apu-nop",
     "xenia-base",

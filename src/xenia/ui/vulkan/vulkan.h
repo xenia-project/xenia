@@ -22,8 +22,8 @@
 #error Platform not yet supported.
 #endif  // XE_PLATFORM_WIN32
 
-// We are statically linked with the loader, so use function prototypes.
-#define VK_PROTOTYPES
+// We use a loader with its own function prototypes.
+#include "third_party/volk/volk.h"
 #include "third_party/vulkan/vulkan.h"
 
 // NOTE: header order matters here, unfortunately:
