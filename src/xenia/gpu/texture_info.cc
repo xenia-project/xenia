@@ -367,11 +367,11 @@ uint32_t TextureInfo::GetMipLocation(const TextureInfo& src, uint32_t mip,
     if (xe::log2_ceil(logical_width) > xe::log2_ceil(logical_height)) {
       // Wider than tall. Laid out vertically.
       *offset_y = logical_height & ~0x3;
-      *offset_x = (logical_height & 0x3) << 2;
+      *offset_x = logical_height & 0x3 ? logical_width << 1 : 0;
     } else {
       // Taller than wide. Laid out horizontally.
       *offset_x = logical_width & ~0x3;
-      *offset_y = (logical_width & 0x3) << 2;
+      *offset_y = logical_width & 0x3 ? logical_height << 1 : 0;
     }
   }
 
@@ -439,9 +439,9 @@ bool TextureInfo::GetPackedTileOffset(uint32_t width, uint32_t height,
   //
   // The 2x2 and 1x1 squares are packed in their specific positions because
   // each square is the size of at least one block (which is 4x4 pixels max)
-  // 4x4: x = 4
-  // 2x2: y = (x & 0x3) << 2
-  // 1x1: y = (x & 0x3) << 2
+  // 4x4: x = width & ~0x3
+  // 2x2: y = (width & 0x3) << 2
+  // 1x1: y = (width & 0x3) << 2
   //
   // if (tile_aligned(w) > tile_aligned(h)) {
   //   // wider than tall, so packed horizontally
