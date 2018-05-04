@@ -17,7 +17,7 @@ project("xenia-app")
     "libavutil",
     "snappy",
     "spirv-tools",
-    "vulkan-loader",
+    "volk",
     "xenia-apu",
     "xenia-apu-nop",
     "xenia-base",

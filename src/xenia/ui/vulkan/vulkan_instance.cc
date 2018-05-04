@@ -16,6 +16,7 @@
 #include <string>
 
 #include "third_party/renderdoc/renderdoc_app.h"
+#include "third_party/volk/volk.h"
 
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
@@ -72,6 +73,10 @@ VulkanInstance::~VulkanInstance() { DestroyInstance(); }
 bool VulkanInstance::Initialize() {
   auto version = Version::Parse(VK_API_VERSION);
   XELOGVK("Initializing Vulkan %s...", version.pretty_string.c_str());
+  if (volkInitialize() != VK_SUCCESS) {
+    XELOGE("volkInitialize() failed!");
+    return false;
+  }
 
   // Get all of the global layers and extensions provided by the system.
   if (!QueryGlobals()) {
@@ -270,6 +275,9 @@ bool VulkanInstance::CreateInstance() {
       XELOGE("Instance initialization failed; unknown: %s", to_string(err));
       return false;
   }
+
+  // Load Vulkan entrypoints and extensions.
+  volkLoadInstance(handle);
 
   // Enable debug validation, if needed.
   EnableDebugValidation();

@@ -17,8 +17,7 @@
 #include "xenia/gpu/sampler_info.h"
 #include "xenia/gpu/texture_info.h"
 #include "xenia/gpu/vulkan/vulkan_gpu_flags.h"
-
-#include "third_party/vulkan/vk_mem_alloc.h"
+#include "xenia/ui/vulkan/vulkan_mem_alloc.h"
 
 namespace xe {
 namespace gpu {
@@ -198,8 +197,11 @@ VkResult TextureCache::Initialize() {
   }
 
   // Create a memory allocator for textures.
+  VmaVulkanFunctions vulkan_funcs = {};
+  ui::vulkan::FillVMAVulkanFunctions(&vulkan_funcs);
+
   VmaAllocatorCreateInfo alloc_info = {
-      0, *device_, *device_, 0, 0, nullptr, nullptr,
+      0, *device_, *device_, 0, 0, nullptr, nullptr, 0, nullptr, &vulkan_funcs,
   };
   status = vmaCreateAllocator(&alloc_info, &mem_allocator_);
   if (status != VK_SUCCESS) {

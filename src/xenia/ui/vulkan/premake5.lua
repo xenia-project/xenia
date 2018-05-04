@@ -31,7 +31,7 @@ project("xenia-ui-window-vulkan-demo")
   links({
     "gflags",
     "imgui",
-    "vulkan-loader",
+    "volk",
     "xenia-base",
     "xenia-ui",
     "xenia-ui-spirv",
