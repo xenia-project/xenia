@@ -26,9 +26,6 @@
 #include "third_party/volk/volk.h"
 #include "third_party/vulkan/vulkan.h"
 
-// NOTE: header order matters here, unfortunately:
-#include "third_party/vulkan/vk_lunarg_debug_marker.h"
-
 #define XELOGVK XELOGI
 
 DECLARE_bool(vulkan_validation);
