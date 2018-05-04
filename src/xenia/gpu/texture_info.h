@@ -285,8 +285,6 @@ struct TextureInfo {
       uint32_t input_pitch;   // byte pitch
     } size_2d;
     struct {
-    } size_3d;
-    struct {
       uint32_t logical_width;
       uint32_t logical_height;
       uint32_t block_width;        // # of horizontal blocks
@@ -295,7 +293,7 @@ struct TextureInfo {
       uint32_t input_height;       // texel height
       uint32_t input_pitch;        // byte pitch
       uint32_t input_face_length;  // byte pitch of face
-    } size_cube;
+    } size_3d, size_cube;
   };
 
   static bool Prepare(const xenos::xe_gpu_texture_fetch_t& fetch,
@@ -341,7 +339,9 @@ struct TextureInfo {
   }
 
  private:
+  void CalculateTextureSizes1D(uint32_t width);
   void CalculateTextureSizes2D(uint32_t width, uint32_t height);
+  void CalculateTextureSizes3D(uint32_t width, uint32_t height, uint32_t depth);
   void CalculateTextureSizesCube(uint32_t width, uint32_t height,
                                  uint32_t depth);
 };
