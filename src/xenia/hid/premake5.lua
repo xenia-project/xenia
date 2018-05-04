@@ -30,7 +30,6 @@ project("xenia-hid-demo")
     "xenia-hid",
     "xenia-hid-nop",
     "xenia-ui",
-    "xenia-ui-gl",
   })
   filter("platforms:Linux")
     links({
