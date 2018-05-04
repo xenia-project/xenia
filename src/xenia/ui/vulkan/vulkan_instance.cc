@@ -31,7 +31,7 @@
 #include "xenia/ui/window_gtk.h"
 #endif
 
-#define VK_API_VERSION VK_API_VERSION_1_0
+#define VK_API_VERSION VK_API_VERSION_1_1
 
 namespace xe {
 namespace ui {
