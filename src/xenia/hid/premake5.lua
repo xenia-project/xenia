@@ -26,6 +26,7 @@ project("xenia-hid-demo")
     "gflags",
     "glew",
     "imgui",
+    "volk",
     "xenia-base",
     "xenia-hid",
     "xenia-hid-nop",
