@@ -548,6 +548,12 @@ TextureCache::TextureView* TextureCache::DemandView(Texture* texture,
       VK_COMPONENT_SWIZZLE_ZERO,     VK_COMPONENT_SWIZZLE_ONE,
       VK_COMPONENT_SWIZZLE_IDENTITY,
   };
+  if (texture->texture_info.texture_format == TextureFormat::k_4_4_4_4) {
+    swiz_component_map[0] = VK_COMPONENT_SWIZZLE_A;
+    swiz_component_map[1] = VK_COMPONENT_SWIZZLE_B;
+    swiz_component_map[2] = VK_COMPONENT_SWIZZLE_G;
+    swiz_component_map[3] = VK_COMPONENT_SWIZZLE_R;
+  }
 
   view_info.components = {
       swiz_component_map[(swizzle >> 0) & 0x7],
