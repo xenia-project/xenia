@@ -68,7 +68,8 @@ dword_result_t XNotifyGetNext(dword_t handle, dword_t match_id,
 
   return dequeued ? 1 : 0;
 }
-DECLARE_XAM_EXPORT(XNotifyGetNext, ExportTag::kImplemented);
+DECLARE_XAM_EXPORT(XNotifyGetNext,
+                   ExportTag::kImplemented | ExportTag::kHighFrequency);
 
 dword_result_t XNotifyDelayUI(dword_t delay_ms) {
   // Ignored.
