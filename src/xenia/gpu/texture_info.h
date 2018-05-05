@@ -256,6 +256,8 @@ struct TextureInfo {
   Endian endianness;
   bool is_tiled;
   bool has_packed_mips;
+  uint32_t mip_address;
+  uint32_t mip_levels;
   uint32_t input_length;
 
   const FormatInfo* format_info() const {
@@ -283,8 +285,6 @@ struct TextureInfo {
       uint32_t input_pitch;   // byte pitch
     } size_2d;
     struct {
-    } size_3d;
-    struct {
       uint32_t logical_width;
       uint32_t logical_height;
       uint32_t block_width;        // # of horizontal blocks
@@ -293,7 +293,7 @@ struct TextureInfo {
       uint32_t input_height;       // texel height
       uint32_t input_pitch;        // byte pitch
       uint32_t input_face_length;  // byte pitch of face
-    } size_cube;
+    } size_3d, size_cube;
   };
 
   static bool Prepare(const xenos::xe_gpu_texture_fetch_t& fetch,
@@ -304,12 +304,33 @@ struct TextureInfo {
                              uint32_t width, uint32_t height,
                              TextureInfo* out_info);
 
+  static void ConvertTiled(uint8_t* dest, const uint8_t* src, Endian endian,
+                           const FormatInfo* format_info, uint32_t offset_x,
+                           uint32_t offset_y, uint32_t block_pitch,
+                           uint32_t width, uint32_t height,
+                           uint32_t output_width);
+
+  static uint32_t GetMaxMipLevels(uint32_t width, uint32_t height,
+                                  uint32_t depth);
+
+  // Get the memory location of a mip. offset_x and offset_y are in blocks.
+  static uint32_t GetMipLocation(const TextureInfo& src, uint32_t mip,
+                                 uint32_t* offset_x, uint32_t* offset_y);
+  static uint32_t GetMipSize(const TextureInfo& src, uint32_t mip);
+
+  // Get the byte size of a MIP when stored linearly.
+  static uint32_t GetMipLinearSize(const TextureInfo& src, uint32_t mip);
+
+  static bool GetPackedTileOffset(uint32_t width, uint32_t height,
+                                  const FormatInfo* format_info,
+                                  uint32_t* out_offset_x,
+                                  uint32_t* out_offset_y);
   static bool GetPackedTileOffset(const TextureInfo& texture_info,
                                   uint32_t* out_offset_x,
                                   uint32_t* out_offset_y);
   static uint32_t TiledOffset2DOuter(uint32_t y, uint32_t width,
-                                     uint32_t log_bpp);
-  static uint32_t TiledOffset2DInner(uint32_t x, uint32_t y, uint32_t bpp,
+                                     uint32_t log2_bpp);
+  static uint32_t TiledOffset2DInner(uint32_t x, uint32_t y, uint32_t log2_bpp,
                                      uint32_t base_offset);
 
   uint64_t hash() const;
@@ -318,7 +339,9 @@ struct TextureInfo {
   }
 
  private:
+  void CalculateTextureSizes1D(uint32_t width);
   void CalculateTextureSizes2D(uint32_t width, uint32_t height);
+  void CalculateTextureSizes3D(uint32_t width, uint32_t height, uint32_t depth);
   void CalculateTextureSizesCube(uint32_t width, uint32_t height,
                                  uint32_t depth);
 };

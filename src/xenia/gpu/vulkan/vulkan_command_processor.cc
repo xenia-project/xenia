@@ -915,15 +915,8 @@ bool VulkanCommandProcessor::IssueCopy() {
   // vtx_window_offset_enable
   assert_true(regs[XE_GPU_REG_PA_SU_SC_MODE_CNTL].u32 & 0x00010000);
   uint32_t window_offset = regs[XE_GPU_REG_PA_SC_WINDOW_OFFSET].u32;
-  int16_t window_offset_x = window_offset & 0x7FFF;
-  int16_t window_offset_y = (window_offset >> 16) & 0x7FFF;
-  // Sign-extension
-  if (window_offset_x & 0x4000) {
-    window_offset_x |= 0x8000;
-  }
-  if (window_offset_y & 0x4000) {
-    window_offset_y |= 0x8000;
-  }
+  int32_t window_offset_x = window_regs->window_offset.window_x_offset;
+  int32_t window_offset_y = window_regs->window_offset.window_y_offset;
 
   uint32_t dest_texel_size = uint32_t(GetTexelSize(copy_dest_format));
 
@@ -1027,7 +1020,18 @@ bool VulkanCommandProcessor::IssueCopy() {
                               std::max(1u, dest_logical_height), &texture_info);
 
   auto texture = texture_cache_->DemandResolveTexture(texture_info);
-  assert_not_null(texture);
+  if (!texture) {
+    // Out of memory.
+    return false;
+  }
+
+  if (!(texture->base_region->usage_flags &
+        (VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+         VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT))) {
+    // Resolve image doesn't support drawing, and we don't support conversion.
+    return false;
+  }
+
   texture->in_flight_fence = current_batch_fence_;
 
   // For debugging purposes only (trace viewer)
@@ -1188,35 +1192,50 @@ bool VulkanCommandProcessor::IssueCopy() {
           resolve_extent,
       };
 
-      // By offsetting the destination texture by the window offset, we've
-      // already handled it and need to subtract the window offset from the
-      // destination rectangle.
       VkRect2D dst_rect = {
-          {resolve_offset.x + window_offset_x,
-           resolve_offset.y + window_offset_y},
+          {resolve_offset.x, resolve_offset.y},
           resolve_extent,
       };
 
+      // If the destination rectangle lies outside the window, make it start
+      // inside. The Xenos does not copy pixel data at any offset in screen
+      // coordinates.
+      int32_t dst_adj_x =
+          std::max(dst_rect.offset.x, -window_offset_x) - dst_rect.offset.x;
+      int32_t dst_adj_y =
+          std::max(dst_rect.offset.y, -window_offset_y) - dst_rect.offset.y;
+
+      if (uint32_t(dst_adj_x) > dst_rect.extent.width ||
+          uint32_t(dst_adj_y) > dst_rect.extent.height) {
+        // No-op?
+        break;
+      }
+
+      dst_rect.offset.x += dst_adj_x;
+      dst_rect.offset.y += dst_adj_y;
+      dst_rect.extent.width -= dst_adj_x;
+      dst_rect.extent.height -= dst_adj_y;
+      src_rect.extent.width -= dst_adj_x;
+      src_rect.extent.height -= dst_adj_y;
+
       VkViewport viewport = {
-          float(-window_offset_x),
-          float(-window_offset_y),
-          float(copy_dest_pitch),
-          float(copy_dest_height),
-          0.f,
-          1.f,
+          0.f, 0.f, float(copy_dest_pitch), float(copy_dest_height), 0.f, 1.f,
       };
 
+      uint32_t scissor_tl_x = window_regs->window_scissor_tl.tl_x;
+      uint32_t scissor_br_x = window_regs->window_scissor_br.br_x;
+      uint32_t scissor_tl_y = window_regs->window_scissor_tl.tl_y;
+      uint32_t scissor_br_y = window_regs->window_scissor_br.br_y;
+
+      // Clamp the values to destination dimensions.
+      scissor_tl_x = std::min(scissor_tl_x, copy_dest_pitch);
+      scissor_br_x = std::min(scissor_br_x, copy_dest_pitch);
+      scissor_tl_y = std::min(scissor_tl_y, copy_dest_height);
+      scissor_br_y = std::min(scissor_br_y, copy_dest_height);
+
       VkRect2D scissor = {
-          {
-              int32_t(window_regs->window_scissor_tl.tl_x.value()),
-              int32_t(window_regs->window_scissor_tl.tl_y.value()),
-          },
-          {
-              window_regs->window_scissor_br.br_x.value() -
-                  window_regs->window_scissor_tl.tl_x.value(),
-              window_regs->window_scissor_br.br_y.value() -
-                  window_regs->window_scissor_tl.tl_y.value(),
-          },
+          {int32_t(scissor_tl_x), int32_t(scissor_tl_y)},
+          {scissor_br_x - scissor_tl_x, scissor_br_y - scissor_tl_y},
       };
 
       blitter_->BlitTexture2D(

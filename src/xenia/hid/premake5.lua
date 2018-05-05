@@ -26,12 +26,23 @@ project("xenia-hid-demo")
     "gflags",
     "glew",
     "imgui",
+    "volk",
     "xenia-base",
     "xenia-hid",
     "xenia-hid-nop",
     "xenia-ui",
-    "xenia-ui-gl",
+    "xenia-ui-vulkan",
   })
+  filter("platforms:Linux")
+    links({
+      "X11",
+      "xcb",
+      "X11-xcb",
+      "GL",
+      "vulkan",
+    })
+  filter()
+
   flags({
     "WinMain",  -- Use WinMain instead of main.
   })

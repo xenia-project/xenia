@@ -569,17 +569,13 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
   // http://ftp.tku.edu.tw/NetBSD/NetBSD-current/xsrc/external/mit/xf86-video-ati/dist/src/r600_reg_auto_r6xx.h
   // See r200UpdateWindow:
   // https://github.com/freedreno/mesa/blob/master/src/mesa/drivers/dri/r200/r200_state.c
-  int16_t window_offset_x = 0;
-  int16_t window_offset_y = 0;
-  if ((regs.pa_su_sc_mode_cntl >> 16) & 1) {
-    window_offset_x = regs.pa_sc_window_offset & 0x7FFF;
-    window_offset_y = (regs.pa_sc_window_offset >> 16) & 0x7FFF;
-    if (window_offset_x & 0x4000) {
-      window_offset_x |= 0x8000;
-    }
-    if (window_offset_y & 0x4000) {
-      window_offset_y |= 0x8000;
-    }
+  int16_t window_offset_x = regs.pa_sc_window_offset & 0x7FFF;
+  int16_t window_offset_y = (regs.pa_sc_window_offset >> 16) & 0x7FFF;
+  if (window_offset_x & 0x4000) {
+    window_offset_x |= 0x8000;
+  }
+  if (window_offset_y & 0x4000) {
+    window_offset_y |= 0x8000;
   }
 
   // VK_DYNAMIC_STATE_SCISSOR
@@ -593,8 +589,11 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
     int32_t ws_y = (regs.pa_sc_window_scissor_tl >> 16) & 0x7FFF;
     int32_t ws_w = (regs.pa_sc_window_scissor_br & 0x7FFF) - ws_x;
     int32_t ws_h = ((regs.pa_sc_window_scissor_br >> 16) & 0x7FFF) - ws_y;
-    ws_x += window_offset_x;
-    ws_y += window_offset_y;
+    if (!(regs.pa_sc_window_scissor_tl & 0x80000000)) {
+      // ! WINDOW_OFFSET_DISABLE
+      ws_x += window_offset_x;
+      ws_y += window_offset_y;
+    }
 
     int32_t adj_x = ws_x - std::max(ws_x, 0);
     int32_t adj_y = ws_y - std::max(ws_y, 0);
@@ -657,6 +656,11 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
               vport_zscale_enable == vport_xoffset_enable ==
               vport_yoffset_enable == vport_zoffset_enable);
 
+  int16_t vtx_window_offset_x =
+      (regs.pa_su_sc_mode_cntl >> 16) & 1 ? window_offset_x : 0;
+  int16_t vtx_window_offset_y =
+      (regs.pa_su_sc_mode_cntl >> 16) & 1 ? window_offset_y : 0;
+
   float vpw, vph, vpx, vpy;
   if (vport_xscale_enable) {
     float vox = vport_xoffset_enable ? regs.pa_cl_vport_xoffset : 0;
@@ -667,25 +671,21 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
     window_width_scalar = window_height_scalar = 1;
     vpw = 2 * window_width_scalar * vsx;
     vph = -2 * window_height_scalar * vsy;
-    vpx = window_width_scalar * vox - vpw / 2 + window_offset_x;
-    vpy = window_height_scalar * voy - vph / 2 + window_offset_y;
+    vpx = window_width_scalar * vox - vpw / 2 + vtx_window_offset_x;
+    vpy = window_height_scalar * voy - vph / 2 + vtx_window_offset_y;
   } else {
-    vpw = 2 * 2560.0f * window_width_scalar;
-    vph = 2 * 2560.0f * window_height_scalar;
-    vpx = -2560.0f * window_width_scalar + window_offset_x;
-    vpy = -2560.0f * window_height_scalar + window_offset_y;
+    // TODO(DrChat): This should be the width/height of the target picture
+    vpw = 2560.0f;
+    vph = 2560.0f;
+    vpx = vtx_window_offset_x;
+    vpy = vtx_window_offset_y;
   }
 
   if (viewport_state_dirty) {
-    // float texel_offset_x = regs.pa_su_sc_vtx_cntl & 0x01 ? 0.5f : 0.f;
-    // float texel_offset_y = regs.pa_su_sc_vtx_cntl & 0x01 ? 0.5f : 0.f;
-    float texel_offset_x = 0.f;
-    float texel_offset_y = 0.f;
-
     VkViewport viewport_rect;
     std::memset(&viewport_rect, 0, sizeof(VkViewport));
-    viewport_rect.x = vpx + texel_offset_x;
-    viewport_rect.y = vpy + texel_offset_y;
+    viewport_rect.x = vpx;
+    viewport_rect.y = vpy;
     viewport_rect.width = vpw;
     viewport_rect.height = vph;
 
@@ -766,18 +766,21 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
                 program_cntl.vs_export_mode == 7);
     assert_false(program_cntl.gen_index_vtx);
 
-    SpirvPushConstants push_constants;
+    SpirvPushConstants push_constants = {};
 
     // Done in VS, no need to flush state.
-    if ((regs.pa_cl_vte_cntl & (1 << 0)) > 0) {
+    if (vport_xscale_enable) {
       push_constants.window_scale[0] = 1.0f;
       push_constants.window_scale[1] = -1.0f;
+      push_constants.window_scale[2] = 0.f;
+      push_constants.window_scale[3] = 0.f;
     } else {
-      push_constants.window_scale[0] = 1.0f / 2560.0f;
-      push_constants.window_scale[1] = 1.0f / 2560.0f;
+      // 1 / unscaled viewport w/h
+      push_constants.window_scale[0] = window_width_scalar / 1280.f;
+      push_constants.window_scale[1] = window_height_scalar / 1280.f;
+      push_constants.window_scale[2] = (-1280.f / window_width_scalar) + 0.5f;
+      push_constants.window_scale[3] = (-1280.f / window_height_scalar) + 0.5f;
     }
-    push_constants.window_scale[2] = vpw;
-    push_constants.window_scale[3] = vph;
 
     // http://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
     // VTX_XY_FMT = true: the incoming XY have already been multiplied by 1/W0.

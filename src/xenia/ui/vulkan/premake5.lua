@@ -31,12 +31,22 @@ project("xenia-ui-window-vulkan-demo")
   links({
     "gflags",
     "imgui",
-    "vulkan-loader",
+    "volk",
     "xenia-base",
     "xenia-ui",
     "xenia-ui-spirv",
     "xenia-ui-vulkan",
   })
+  filter("platforms:Linux")
+    links({
+      "X11",
+      "xcb",
+      "X11-xcb",
+      "GL",
+      "vulkan",
+    })
+  filter()
+  
   flags({
     "WinMain",  -- Use WinMain instead of main.
   })

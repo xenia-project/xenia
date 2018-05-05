@@ -170,7 +170,7 @@ uint32_t GraphicsSystem::ReadRegister(uint32_t addr) {
   uint32_t r = (addr & 0xFFFF) / 4;
 
   switch (r) {
-    case 0x0F00:  // ?
+    case 0x0F00:  // RB_EDRAM_TIMING
       return 0x08100748;
     case 0x0F01:  // RB_BC_CONTROL
       return 0x0000200E;
@@ -211,7 +211,7 @@ void GraphicsSystem::WriteRegister(uint32_t addr, uint32_t value) {
 }
 
 void GraphicsSystem::InitializeRingBuffer(uint32_t ptr, uint32_t log2_size) {
-  command_processor_->InitializeRingBuffer(ptr, (log2_size | 0x2) + 1);
+  command_processor_->InitializeRingBuffer(ptr, log2_size + 0x3);
 }
 
 void GraphicsSystem::EnableReadPointerWriteBack(uint32_t ptr,

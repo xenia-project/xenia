@@ -26,6 +26,8 @@ struct SamplerInfo {
   AnisoFilter aniso_filter;
   BorderColor border_color;
   float lod_bias;
+  uint32_t mip_min_level;
+  uint32_t mip_max_level;
 
   static bool Prepare(const xenos::xe_gpu_texture_fetch_t& fetch,
                       const ParsedTextureFetchInstruction& fetch_instr,
@@ -36,7 +38,9 @@ struct SamplerInfo {
     return min_filter == other.min_filter && mag_filter == other.mag_filter &&
            mip_filter == other.mip_filter && clamp_u == other.clamp_u &&
            clamp_v == other.clamp_v && clamp_w == other.clamp_w &&
-           aniso_filter == other.aniso_filter;
+           aniso_filter == other.aniso_filter && lod_bias == other.lod_bias &&
+           mip_min_level == other.mip_min_level &&
+           mip_max_level == other.mip_max_level;
   }
 };
 

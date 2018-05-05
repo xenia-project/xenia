@@ -17,8 +17,8 @@
 #include "xenia/base/main.h"
 #include "xenia/base/threading.h"
 #include "xenia/hid/input_system.h"
-#include "xenia/ui/gl/gl_provider.h"
 #include "xenia/ui/imgui_drawer.h"
+#include "xenia/ui/vulkan/vulkan_provider.h"
 #include "xenia/ui/window.h"
 
 // Available input drivers:
@@ -67,7 +67,7 @@ std::vector<std::unique_ptr<hid::InputDriver>> CreateInputDrivers(
 
 std::unique_ptr<xe::ui::GraphicsProvider> CreateDemoGraphicsProvider(
     xe::ui::Window* window) {
-  return xe::ui::gl::GLProvider::Create(window);
+  return xe::ui::vulkan::VulkanProvider::Create(window);
 }
 
 void DrawInputStatus();

@@ -959,6 +959,7 @@ void GlslShaderTranslator::EmitStoreResult(const InstructionResult& result,
     case InstructionStorageTarget::kDepth:
       EmitSourceDepth("gl_FragDepth");
       break;
+    default:
     case InstructionStorageTarget::kNone:
       return;
   }

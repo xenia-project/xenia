@@ -29,7 +29,7 @@ namespace gpu {
 // supported size).
 struct SpirvPushConstants {
   // Accessible to vertex shader only:
-  float window_scale[4];  // scale x/y, viewport width/height (pixels)
+  float window_scale[4];  // scale x/y, offset x/y (pixels)
   float vtx_fmt[4];
 
   // Accessible to geometry shader only:
@@ -132,7 +132,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
 
   // Types.
   spv::Id float_type_ = 0, bool_type_ = 0, int_type_ = 0, uint_type_ = 0;
-  spv::Id vec2_int_type_ = 0, vec2_uint_type_ = 0;
+  spv::Id vec2_int_type_ = 0, vec2_uint_type_ = 0, vec3_int_type_ = 0;
   spv::Id vec2_float_type_ = 0, vec3_float_type_ = 0, vec4_float_type_ = 0;
   spv::Id vec4_int_type_ = 0, vec4_uint_type_ = 0;
   spv::Id vec2_bool_type_ = 0, vec3_bool_type_ = 0, vec4_bool_type_ = 0;
@@ -162,6 +162,8 @@ class SpirvShaderTranslator : public ShaderTranslator {
   std::unordered_map<uint32_t, uint32_t> tex_binding_map_;
   spv::Id vtx_ = 0;  // Vertex buffer array (32 runtime arrays)
   std::unordered_map<uint32_t, uint32_t> vtx_binding_map_;
+
+  bool writes_depth_ = false;
 
   // SPIR-V IDs that are part of the in/out interface.
   std::vector<spv::Id> interface_ids_;

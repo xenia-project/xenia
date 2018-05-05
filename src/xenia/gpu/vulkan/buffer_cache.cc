@@ -15,8 +15,7 @@
 #include "xenia/base/profiling.h"
 #include "xenia/gpu/gpu_flags.h"
 #include "xenia/gpu/vulkan/vulkan_gpu_flags.h"
-
-#include "third_party/vulkan/vk_mem_alloc.h"
+#include "xenia/ui/vulkan/vulkan_mem_alloc.h"
 
 using namespace xe::gpu::xenos;
 
@@ -104,7 +103,7 @@ BufferCache::BufferCache(RegisterFile* register_file, Memory* memory,
       device_,
       VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT |
           VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-      capacity, 4096);
+      capacity, 256);
 }
 
 BufferCache::~BufferCache() { Shutdown(); }
@@ -120,9 +119,13 @@ VkResult BufferCache::Initialize() {
   }
 
   // Create a memory allocator for textures.
+  VmaVulkanFunctions vulkan_funcs = {};
+  ui::vulkan::FillVMAVulkanFunctions(&vulkan_funcs);
+
   VmaAllocatorCreateInfo alloc_info = {
-      0, *device_, *device_, 0, 0, nullptr, nullptr,
+      0, *device_, *device_, 0, 0, nullptr, nullptr, 0, nullptr, &vulkan_funcs,
   };
+
   status = vmaCreateAllocator(&alloc_info, &mem_allocator_);
   if (status != VK_SUCCESS) {
     return status;
@@ -147,10 +150,10 @@ VkResult xe::gpu::vulkan::BufferCache::CreateVertexDescriptorPool() {
   std::vector<VkDescriptorPoolSize> pool_sizes;
   pool_sizes.push_back({
       VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-      65536,
+      32 * 16384,
   });
-  vertex_descriptor_pool_ =
-      std::make_unique<ui::vulkan::DescriptorPool>(*device_, 65536, pool_sizes);
+  vertex_descriptor_pool_ = std::make_unique<ui::vulkan::DescriptorPool>(
+      *device_, 32 * 16384, pool_sizes);
 
   // 32 storage buffers available to vertex shader.
   // TODO(DrChat): In the future, this could hold memexport staging data.
@@ -287,7 +290,8 @@ VkResult BufferCache::CreateConstantDescriptorSet() {
 
   return VK_SUCCESS;
 }
-void xe::gpu::vulkan::BufferCache::FreeConstantDescriptorSet() {
+
+void BufferCache::FreeConstantDescriptorSet() {
   if (constant_descriptor_set_) {
     vkFreeDescriptorSets(*device_, constant_descriptor_pool_, 1,
                          &constant_descriptor_set_);

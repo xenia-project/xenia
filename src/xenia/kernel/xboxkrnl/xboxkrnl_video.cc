@@ -160,13 +160,13 @@ DECLARE_XBOXKRNL_EXPORT(VdSetDisplayModeOverride,
                         ExportTag::kVideo | ExportTag::kStub);
 
 dword_result_t VdInitializeEngines(unknown_t unk0, function_t callback,
-                                   lpvoid_t arg, lpunknown_t unk2_ptr,
-                                   lpunknown_t unk3_ptr) {
+                                   lpvoid_t arg, lpdword_t pfp_ptr,
+                                   lpdword_t me_ptr) {
   // r3 = 0x4F810000
   // r4 = function ptr (cleanup callback?)
   // r5 = function arg
-  // r6 = register init cmds(?)
-  // r7 = gpu init cmds(?)
+  // r6 = PFP Microcode
+  // r7 = ME Microcode
   return 1;
 }
 DECLARE_XBOXKRNL_EXPORT(VdInitializeEngines,
@@ -205,12 +205,6 @@ DECLARE_XBOXKRNL_EXPORT(VdSetGraphicsInterruptCallback, ExportTag::kVideo);
 void VdInitializeRingBuffer(lpvoid_t ptr, int_t log2_size) {
   // r3 = result of MmGetPhysicalAddress
   // r4 = log2(size)
-  // r4 is or'd with 0x802 and then stuffed into CP_RB_CNTL
-  // according to AMD docs, this corresponds with RB_BUFSZ, which is log2
-  // actual size.
-  // 0x8 is RB_BLKSZ, or number of words gpu will read before updating the
-  // host read pointer.
-  // So being or'd with 0x2 makes the ring buffer size always a multiple of 4.
   // Buffer pointers are from MmAllocatePhysicalMemory with WRITE_COMBINE.
   auto graphics_system = kernel_state()->emulator()->graphics_system();
   graphics_system->InitializeRingBuffer(ptr, log2_size);
@@ -374,7 +368,7 @@ void VdSwap(lpvoid_t buffer_ptr,  // ptr into primary ringbuffer
 
   // Write in the texture fetch.
   dwords[offset++] =
-      xenos::MakePacketType0<gpu::XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0, 6>();
+      xenos::MakePacketType0(gpu::XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0, 6);
   dwords[offset++] = fetch.dword_0;
   dwords[offset++] = fetch.dword_1;
   dwords[offset++] = fetch.dword_2;
@@ -382,7 +376,7 @@ void VdSwap(lpvoid_t buffer_ptr,  // ptr into primary ringbuffer
   dwords[offset++] = fetch.dword_4;
   dwords[offset++] = fetch.dword_5;
 
-  dwords[offset++] = xenos::MakePacketType3<xenos::PM4_XE_SWAP, 4>();
+  dwords[offset++] = xenos::MakePacketType3(xenos::PM4_XE_SWAP, 4);
   dwords[offset++] = 'SWAP';
   dwords[offset++] = (*frontbuffer_ptr) & 0x1FFFFFFF;
 
