@@ -1,5 +1,5 @@
 # Make Travis use docker (for faster builds, in theory).
-# TODO(benvanik): re-enable when clang-3.8 is whitelisted.
+# TODO(benvanik): re-enable when clang-3.9 is whitelisted.
 # https://github.com/travis-ci/apt-package-whitelist/issues/474
 #sudo: false
 
@@ -14,10 +14,10 @@ addons:
   apt:
     sources:
       - ubuntu-toolchain-r-test
-      - llvm-toolchain-trusty-4.0
+      - llvm-toolchain-trusty-6.0
     packages:
-      - clang-4.0
-      - llvm-4.0-dev
+      - clang-6.0
+      - llvm-6.0-dev
       - g++-5
       - python3
       - libc++-dev
@@ -32,10 +32,10 @@ addons:
 
 matrix:
   include:
-    - env: C_COMPILER=clang-4.0 CXX_COMPILER=clang++-4.0 LINT=true
+    - env: C_COMPILER=clang-6.0 CXX_COMPILER=clang++-6.0 LINT=true
       sudo: false
-    - env: C_COMPILER=clang-4.0 CXX_COMPILER=clang++-4.0 BUILD=true CONFIG=Debug
-    - env: C_COMPILER=clang-4.0 CXX_COMPILER=clang++-4.0 BUILD=true CONFIG=Release
+    - env: C_COMPILER=clang-6.0 CXX_COMPILER=clang++-6.0 BUILD=true CONFIG=Debug
+    - env: C_COMPILER=clang-6.0 CXX_COMPILER=clang++-6.0 BUILD=true CONFIG=Release
 
 git:
   # We handle submodules ourselves in xenia-build setup.
