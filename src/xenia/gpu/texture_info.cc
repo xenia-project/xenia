@@ -439,30 +439,17 @@ uint32_t TextureInfo::GetMipLocation(const TextureInfo& src, uint32_t mip,
   }
 
   // Now, check if the mip is packed at an offset.
-  uint32_t logical_width = std::max(xe::next_pow2(src.width + 1) >> mip, 1u);
-  uint32_t logical_height = std::max(xe::next_pow2(src.height + 1) >> mip, 1u);
-
-  *offset_x = 0;
-  *offset_y = 0;
-  if (std::min(logical_width, logical_height) <= 16) {
-    // Find the block offset of the mip.
-    if (xe::log2_ceil(logical_width) > xe::log2_ceil(logical_height)) {
-      // Wider than tall. Laid out vertically.
-      *offset_y = logical_height & ~0x3;
-      *offset_x = logical_height & 0x3 ? logical_width << 1 : 0;
-    } else {
-      // Taller than wide. Laid out horizontally.
-      *offset_x = logical_width & ~0x3;
-      *offset_y = logical_width & 0x3 ? logical_height << 1 : 0;
-    }
-  }
-
-  *offset_x /= src.format_info()->block_width;
-  *offset_y /= src.format_info()->block_height;
+  GetPackedTileOffset(xe::next_pow2(src.width + 1) >> mip,
+                      xe::next_pow2(src.height + 1) >> mip, src.format_info(),
+                      offset_x, offset_y);
   return address_base + address_offset;
 }
 
 uint32_t TextureInfo::GetMipSize(const TextureInfo& src, uint32_t mip) {
+  if (mip == 0) {
+    return src.input_length;
+  }
+
   uint32_t bytes_per_block = src.format_info()->block_width *
                              src.format_info()->block_height *
                              src.format_info()->bits_per_pixel / 8;
@@ -537,21 +524,24 @@ bool TextureInfo::GetPackedTileOffset(uint32_t width, uint32_t height,
   // The minimum dimension is what matters most: if either width or height
   // is <= 16 this mode kicks in.
 
-  if (std::min(width, height) > 16) {
+  uint32_t log2_width = xe::log2_ceil(width);
+  uint32_t log2_height = xe::log2_ceil(height);
+  if (std::min(log2_width, log2_height) > 4) {
     // Too big, not packed.
     *out_offset_x = 0;
     *out_offset_y = 0;
     return false;
   }
 
-  if (xe::log2_ceil(width) > xe::log2_ceil(height)) {
+  // Find the block offset of the mip.
+  if (log2_width > log2_height) {
     // Wider than tall. Laid out vertically.
-    *out_offset_x = 0;
-    *out_offset_y = 16;
+    *out_offset_y = log2_height > 0x1 ? 1 << log2_height : 0;
+    *out_offset_x = log2_height <= 0x1 ? 1 << (log2_width + 2) : 0;
   } else {
     // Taller than wide. Laid out horizontally.
-    *out_offset_x = 16;
-    *out_offset_y = 0;
+    *out_offset_x = log2_width > 0x1 ? 1 << log2_width : 0;
+    *out_offset_y = log2_width <= 0x1 ? 1 << (log2_height + 2) : 0;
   }
 
   *out_offset_x /= format_info->block_width;
@@ -562,9 +552,10 @@ bool TextureInfo::GetPackedTileOffset(uint32_t width, uint32_t height,
 bool TextureInfo::GetPackedTileOffset(const TextureInfo& texture_info,
                                       uint32_t* out_offset_x,
                                       uint32_t* out_offset_y) {
-  return GetPackedTileOffset(
-      texture_info.size_2d.logical_width, texture_info.size_2d.logical_height,
-      texture_info.format_info(), out_offset_x, out_offset_y);
+  return GetPackedTileOffset(xe::next_pow2(texture_info.size_2d.logical_width),
+                             xe::next_pow2(texture_info.size_2d.logical_height),
+                             texture_info.format_info(), out_offset_x,
+                             out_offset_y);
 }
 
 // https://github.com/BinomialLLC/crunch/blob/ea9b8d8c00c8329791256adafa8cf11e4e7942a2/inc/crn_decomp.h#L4108
