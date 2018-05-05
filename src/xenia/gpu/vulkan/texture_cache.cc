@@ -764,7 +764,6 @@ TextureCache::Texture* TextureCache::Lookup(const TextureInfo& texture_info) {
     COMPARE_FIELD(depth);
     COMPARE_FIELD(endianness);
     COMPARE_FIELD(is_tiled);
-    COMPARE_FIELD(has_packed_mips);
     COMPARE_FIELD(input_length);
 #undef COMPARE_FIELD
     if (!TextureFormatIsSimilar(texture_info.texture_format,

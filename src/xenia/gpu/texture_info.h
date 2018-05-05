@@ -255,7 +255,6 @@ struct TextureInfo {
   uint32_t depth;
   Endian endianness;
   bool is_tiled;
-  bool has_packed_mips;
   uint32_t mip_address;
   uint32_t mip_levels;
   uint32_t input_length;
