@@ -235,7 +235,6 @@ bool XmaDecoder::BlockOnContext(uint32_t guest_ptr, bool poll) {
 
 uint32_t XmaDecoder::ReadRegister(uint32_t addr) {
   uint32_t r = addr & 0xFFFF;
-  XELOGAPU("ReadRegister(%.4X)", r);
   // 1800h is read on startup and stored -- context? buffers?
   // 1818h is read during a lock?
 
@@ -262,7 +261,6 @@ void XmaDecoder::WriteRegister(uint32_t addr, uint32_t value) {
 
   uint32_t r = addr & 0xFFFF;
   value = xe::byte_swap(value);
-  XELOGAPU("WriteRegister(%.4X, %.8X)", r, value);
   // 1804h is written to with 0x02000000 and 0x03000000 around a lock operation
 
   assert_true(r % 4 == 0);
