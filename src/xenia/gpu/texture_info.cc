@@ -59,7 +59,6 @@ bool TextureInfo::Prepare(const xe_gpu_texture_fetch_t& fetch,
   info.texture_format = static_cast<TextureFormat>(fetch.format);
   info.endianness = static_cast<Endian>(fetch.endianness);
   info.is_tiled = fetch.tiled;
-  info.has_packed_mips = fetch.packed_mips;
   info.mip_address = fetch.mip_address << 12;
   info.mip_levels = fetch.packed_mips ? fetch.mip_max_level + 1 : 1;
   info.input_length = 0;  // Populated below.
@@ -109,7 +108,6 @@ bool TextureInfo::PrepareResolve(uint32_t physical_address,
   info.texture_format = texture_format;
   info.endianness = endian;
   info.is_tiled = true;
-  info.has_packed_mips = false;
   info.mip_address = 0;
   info.mip_levels = 1;
   info.input_length = 0;
@@ -508,9 +506,6 @@ bool TextureInfo::GetPackedTileOffset(uint32_t width, uint32_t height,
   //
   // The 2x2 and 1x1 squares are packed in their specific positions because
   // each square is the size of at least one block (which is 4x4 pixels max)
-  // 4x4: x = width & ~0x3
-  // 2x2: y = (width & 0x3) << 2
-  // 1x1: y = (width & 0x3) << 2
   //
   // if (tile_aligned(w) > tile_aligned(h)) {
   //   // wider than tall, so packed horizontally
