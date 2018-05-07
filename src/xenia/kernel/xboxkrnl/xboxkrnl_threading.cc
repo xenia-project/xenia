@@ -1251,6 +1251,28 @@ SHIM_CALL KeRemoveQueueDpc_shim(PPCContext* ppc_context,
   SHIM_SET_RETURN_32(result ? 1 : 0);
 }
 
+// https://github.com/Cxbx-Reloaded/Cxbx-Reloaded/blob/51e4dfcaacfdbd1a9692272931a436371492f72d/import/OpenXDK/include/xboxkrnl/xboxkrnl.h#L1372
+struct X_ERWLOCK {
+  be<int32_t> lock_count;              // 0x0
+  be<uint32_t> writers_waiting_count;  // 0x4
+  be<uint32_t> readers_waiting_count;  // 0x8
+  be<uint32_t> readers_entry_count;    // 0xC
+  X_KEVENT writer_event;               // 0x10
+  X_KSEMAPHORE reader_semaphore;       // 0x20
+  be<uint32_t> spin_lock;              // 0x34
+};
+
+void ExInitializeReadWriteLock(pointer_t<X_ERWLOCK> lock_ptr) {
+  lock_ptr->lock_count = -1;
+  lock_ptr->writers_waiting_count = 0;
+  lock_ptr->readers_waiting_count = 0;
+  lock_ptr->readers_entry_count = 0;
+  KeInitializeEvent(&lock_ptr->writer_event, 1, 0);
+  KeInitializeSemaphore(&lock_ptr->reader_semaphore, 0, 0x7FFFFFFF);
+}
+DECLARE_XBOXKRNL_EXPORT(ExInitializeReadWriteLock,
+                        ExportTag::kThreading | ExportTag::kImplemented);
+
 // NOTE: This function is very commonly inlined, and probably won't be called!
 pointer_result_t InterlockedPushEntrySList(
     pointer_t<X_SLIST_HEADER> plist_ptr, pointer_t<X_SINGLE_LIST_ENTRY> entry) {
