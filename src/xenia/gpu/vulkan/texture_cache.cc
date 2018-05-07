@@ -40,6 +40,7 @@ struct TextureConfig {
   VK_COMPONENT_SWIZZLE_##r, VK_COMPONENT_SWIZZLE_##g, \
       VK_COMPONENT_SWIZZLE_##b, VK_COMPONENT_SWIZZLE_##a
 #define RGBA SWIZ(R, G, B, A)
+#define BGRA SWIZ(B, G, R, A)
 #define ABGR SWIZ(A, B, G, R)
 
 static const TextureConfig texture_configs[64] = {
@@ -58,7 +59,7 @@ static const TextureConfig texture_configs[64] = {
     /* k_Y1_Cr_Y0_Cb            */ {VK_FORMAT_UNDEFINED},
     /* k_Shadow                 */ {VK_FORMAT_UNDEFINED},
     /* k_8_8_8_8_A              */ {VK_FORMAT_UNDEFINED},
-    /* k_4_4_4_4                */ {VK_FORMAT_R4G4B4A4_UNORM_PACK16},
+    /* k_4_4_4_4                */ {VK_FORMAT_R4G4B4A4_UNORM_PACK16, ABGR},
     // TODO: Verify if these two are correct (I think not).
     /* k_10_11_11               */ {VK_FORMAT_B10G11R11_UFLOAT_PACK32},
     /* k_11_11_10               */ {VK_FORMAT_B10G11R11_UFLOAT_PACK32},
@@ -127,6 +128,7 @@ static const TextureConfig texture_configs[64] = {
 };
 
 #undef ABGR
+#undef BGRA
 #undef RGBA
 #undef SWIZ
 
