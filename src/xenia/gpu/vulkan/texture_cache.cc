@@ -30,14 +30,23 @@ constexpr VkDeviceSize kStagingBufferSize = 32 * 1024 * 1024;
 
 struct TextureConfig {
   VkFormat host_format;
+  VkComponentSwizzle swizzle_r = VK_COMPONENT_SWIZZLE_R;
+  VkComponentSwizzle swizzle_g = VK_COMPONENT_SWIZZLE_G;
+  VkComponentSwizzle swizzle_b = VK_COMPONENT_SWIZZLE_B;
+  VkComponentSwizzle swizzle_a = VK_COMPONENT_SWIZZLE_A;
 };
+
+#define SWIZ(r, g, b, a)                              \
+  VK_COMPONENT_SWIZZLE_##r, VK_COMPONENT_SWIZZLE_##g, \
+      VK_COMPONENT_SWIZZLE_##b, VK_COMPONENT_SWIZZLE_##a
+#define RGBA SWIZ(R, G, B, A)
+#define ABGR SWIZ(A, B, G, R)
 
 static const TextureConfig texture_configs[64] = {
     /* k_1_REVERSE              */ {VK_FORMAT_UNDEFINED},
     /* k_1                      */ {VK_FORMAT_UNDEFINED},
     /* k_8                      */ {VK_FORMAT_R8_UNORM},
-    // ! A1BGR5
-    /* k_1_5_5_5                */ {VK_FORMAT_A1R5G5B5_UNORM_PACK16},
+    /* k_1_5_5_5                */ {VK_FORMAT_A1R5G5B5_UNORM_PACK16, ABGR},
     /* k_5_6_5                  */ {VK_FORMAT_R5G6B5_UNORM_PACK16},
     /* k_6_5_5                  */ {VK_FORMAT_UNDEFINED},
     /* k_8_8_8_8                */ {VK_FORMAT_R8G8B8A8_UNORM},
@@ -116,6 +125,10 @@ static const TextureConfig texture_configs[64] = {
     /* kUnknown                 */ {VK_FORMAT_UNDEFINED},
     /* kUnknown                 */ {VK_FORMAT_UNDEFINED},
 };
+
+#undef ABGR
+#undef RGBA
+#undef SWIZ
 
 TextureCache::TextureCache(Memory* memory, RegisterFile* register_file,
                            TraceWriter* trace_writer,
@@ -522,6 +535,9 @@ TextureCache::TextureView* TextureCache::DemandView(Texture* texture,
     }
   }
 
+  auto& config =
+      texture_configs[uint32_t(texture->texture_info.texture_format)];
+
   VkImageViewCreateInfo view_info;
   view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
   view_info.pNext = nullptr;
@@ -545,17 +561,14 @@ TextureCache::TextureView* TextureCache::DemandView(Texture* texture,
   }
 
   VkComponentSwizzle swiz_component_map[] = {
-      VK_COMPONENT_SWIZZLE_R,        VK_COMPONENT_SWIZZLE_G,
-      VK_COMPONENT_SWIZZLE_B,        VK_COMPONENT_SWIZZLE_A,
-      VK_COMPONENT_SWIZZLE_ZERO,     VK_COMPONENT_SWIZZLE_ONE,
+      config.swizzle_r,
+      config.swizzle_g,
+      config.swizzle_b,
+      config.swizzle_a,
+      VK_COMPONENT_SWIZZLE_ZERO,
+      VK_COMPONENT_SWIZZLE_ONE,
       VK_COMPONENT_SWIZZLE_IDENTITY,
   };
-  if (texture->texture_info.texture_format == TextureFormat::k_4_4_4_4) {
-    swiz_component_map[0] = VK_COMPONENT_SWIZZLE_A;
-    swiz_component_map[1] = VK_COMPONENT_SWIZZLE_B;
-    swiz_component_map[2] = VK_COMPONENT_SWIZZLE_G;
-    swiz_component_map[3] = VK_COMPONENT_SWIZZLE_R;
-  }
 
   view_info.components = {
       swiz_component_map[(swizzle >> 0) & 0x7],
