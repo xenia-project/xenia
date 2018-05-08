@@ -108,9 +108,8 @@ static const TextureConfig texture_configs[64] = {
     /* k_DXT2_3_AS_16_16_16_16  */ {VK_FORMAT_BC2_UNORM_BLOCK},
     /* k_DXT4_5_AS_16_16_16_16  */ {VK_FORMAT_BC3_UNORM_BLOCK},
 
-    /* k_2_10_10_10_AS_16_16_16_16 */ {VK_FORMAT_A2R10G10B10_UNORM_PACK32},
-
-    // TODO: Verify if these two are correct (I think not).
+     /* k_2_10_10_10_AS_16_16_16_16 */
+    {VK_FORMAT_A2R10G10B10_UNORM_PACK32, RGBA},
     /* k_10_11_11_AS_16_16_16_16 */ {VK_FORMAT_B10G11R11_UFLOAT_PACK32},  // ?
     /* k_11_11_10_AS_16_16_16_16 */ {VK_FORMAT_B10G11R11_UFLOAT_PACK32},  // ?
     /* k_32_32_32_FLOAT         */ {VK_FORMAT_R32G32B32_SFLOAT},
