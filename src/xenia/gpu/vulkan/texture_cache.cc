@@ -26,7 +26,7 @@ namespace vulkan {
 using xe::ui::vulkan::CheckResult;
 
 constexpr uint32_t kMaxTextureSamplers = 32;
-constexpr VkDeviceSize kStagingBufferSize = 32 * 1024 * 1024;
+constexpr VkDeviceSize kStagingBufferSize = 64 * 1024 * 1024;
 
 struct TextureConfig {
   VkFormat host_format;
@@ -954,60 +954,42 @@ bool TextureCache::ConvertTexture2D(uint8_t* dest,
 
 bool TextureCache::ConvertTextureCube(uint8_t* dest,
                                       VkBufferImageCopy* copy_region,
-                                      const TextureInfo& src) {
-  void* host_address = memory_->TranslatePhysical(src.guest_address);
+                                      uint32_t mip, const TextureInfo& src) {
+  uint32_t offset_x = 0;
+  uint32_t offset_y = 0;
+  uint32_t address =
+      TextureInfo::GetMipLocation(src, mip, &offset_x, &offset_y);
+  void* host_address = memory_->TranslatePhysical(address);
+
+  // Pitch of the source texture in blocks.
+  uint32_t block_width = mip == 0
+                             ? src.size_2d.block_width
+                             : xe::next_pow2(src.size_2d.block_width) >> mip;
+  uint32_t logical_width = src.size_2d.logical_width >> mip;
+  uint32_t logical_height = src.size_2d.logical_height >> mip;
+  uint32_t input_width = src.size_2d.input_width >> mip;
+  uint32_t input_height = src.size_2d.input_height >> mip;
+
   if (!src.is_tiled) {
     // Fast path copy entire image.
     TextureSwap(src.endianness, dest, host_address, src.input_length);
-    copy_region->bufferRowLength = src.size_cube.input_width;
-    copy_region->bufferImageHeight = src.size_cube.input_height;
-    copy_region->imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 6};
-    copy_region->imageExtent = {src.size_cube.logical_width,
-                                src.size_cube.logical_height, 1};
-    return true;
   } else {
     // TODO(benvanik): optimize this inner loop (or work by tiles).
     const uint8_t* src_mem = reinterpret_cast<const uint8_t*>(host_address);
-    uint32_t bytes_per_block = src.format_info()->block_width *
-                               src.format_info()->block_height *
-                               src.format_info()->bits_per_pixel / 8;
-    // Tiled textures can be packed; get the offset into the packed texture.
-    uint32_t offset_x;
-    uint32_t offset_y;
-    TextureInfo::GetPackedTileOffset(src, &offset_x, &offset_y);
-    auto bpp = (bytes_per_block >> 2) +
-               ((bytes_per_block >> 1) >> (bytes_per_block >> 2));
-    for (int face = 0; face < 6; ++face) {
-      for (uint32_t y = 0, output_base_offset = 0;
-           y < src.size_cube.block_height;
-           y++, output_base_offset += src.size_cube.input_pitch) {
-        auto input_base_offset = TextureInfo::TiledOffset2DOuter(
-            offset_y + y,
-            (src.size_cube.input_width / src.format_info()->block_width), bpp);
-        for (uint32_t x = 0, output_offset = output_base_offset;
-             x < src.size_cube.block_width;
-             x++, output_offset += bytes_per_block) {
-          auto input_offset =
-              TextureInfo::TiledOffset2DInner(offset_x + x, offset_y + y, bpp,
-                                              input_base_offset) >>
-              bpp;
-          TextureSwap(src.endianness, dest + output_offset,
-                      src_mem + input_offset * bytes_per_block,
-                      bytes_per_block);
-        }
-      }
+    for (int face = 0; face < 6; face++) {
+      TextureInfo::ConvertTiled(
+          dest, src_mem, src.endianness, src.format_info(), offset_x, offset_y,
+          block_width, logical_width, logical_height, input_width);
       src_mem += src.size_cube.input_face_length;
       dest += src.size_cube.input_face_length;
     }
-
-    copy_region->bufferRowLength = src.size_cube.input_width;
-    copy_region->bufferImageHeight = src.size_cube.input_height;
-    copy_region->imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 6};
-    copy_region->imageExtent = {src.size_cube.logical_width,
-                                src.size_cube.logical_height, 1};
-    return true;
   }
 
+  copy_region->bufferRowLength = src.size_cube.input_width;
+  copy_region->bufferImageHeight = src.size_cube.input_height;
+  copy_region->imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, mip, 0, 6};
+  copy_region->imageExtent = {src.size_cube.logical_width,
+                              src.size_cube.logical_height, 1};
   return false;
 }
 
@@ -1023,7 +1005,7 @@ bool TextureCache::ConvertTexture(uint8_t* dest, VkBufferImageCopy* copy_region,
       assert_always();
       break;
     case Dimension::kCube:
-      return ConvertTextureCube(dest, copy_region, src);
+      return ConvertTextureCube(dest, copy_region, mip, src);
   }
   return false;
 }
@@ -1034,6 +1016,10 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
 #if FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
 #endif  // FINE_GRAINED_DRAW_SCOPES
+
+  XELOGGPU("Uploading texture @ 0x%.8X (%dx%d, length: 0x%.8X, format: %s)",
+           src.guest_address, src.width + 1, src.height + 1, src.input_length,
+           src.format_info()->name);
 
   size_t unpack_length;
   if (!ComputeTextureStorage(&unpack_length, src)) {
@@ -1083,10 +1069,7 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
   }
 
   if (!valid) {
-    XELOGW(
-        "Warning: Uploading blank texture at address 0x%.8X "
-        "(length: 0x%.8X, format: %s)",
-        src.guest_address, src.input_length, src.format_info()->name);
+    XELOGW("Warning: Texture @ 0x%.8X is blank!", src.guest_address);
   }
 
   // Upload texture into GPU memory.
