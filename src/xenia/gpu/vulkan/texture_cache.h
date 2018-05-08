@@ -152,7 +152,7 @@ class TextureCache {
   bool ConvertTexture2D(uint8_t* dest, VkBufferImageCopy* copy_region,
                         uint32_t mip, const TextureInfo& src);
   bool ConvertTextureCube(uint8_t* dest, VkBufferImageCopy* copy_regions,
-                          const TextureInfo& src);
+                          uint32_t mip, const TextureInfo& src);
   bool ConvertTexture(uint8_t* dest, VkBufferImageCopy* copy_region,
                       uint32_t mip, const TextureInfo& src);
   bool ComputeTextureStorage(size_t* output_length, const TextureInfo& src);
