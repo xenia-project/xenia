@@ -809,14 +809,14 @@ TextureCache::Texture* TextureCache::LookupAddress(uint32_t guest_address,
     if (guest_address >= texture_info.guest_address &&
         guest_address <
             texture_info.guest_address + texture_info.input_length &&
-        texture_info.size_2d.input_width >= width &&
-        texture_info.size_2d.input_height >= height && out_offset) {
+        texture_info.size.input_width >= width &&
+        texture_info.size.input_height >= height && out_offset) {
       auto offset_bytes = guest_address - texture_info.guest_address;
 
       if (texture_info.dimension == Dimension::k2D) {
         out_offset->x = 0;
-        out_offset->y = offset_bytes / texture_info.size_2d.input_pitch;
-        if (offset_bytes % texture_info.size_2d.input_pitch != 0) {
+        out_offset->y = offset_bytes / texture_info.size.input_pitch;
+        if (offset_bytes % texture_info.size.input_pitch != 0) {
           // TODO: offset_x
         }
       }
@@ -826,8 +826,8 @@ TextureCache::Texture* TextureCache::LookupAddress(uint32_t guest_address,
 
     if (texture_info.guest_address == guest_address &&
         texture_info.dimension == Dimension::k2D &&
-        texture_info.size_2d.input_width == width &&
-        texture_info.size_2d.input_height == height) {
+        texture_info.size.input_width == width &&
+        texture_info.size.input_height == height) {
       if (out_offset) {
         out_offset->x = 0;
         out_offset->y = 0;
@@ -905,13 +905,12 @@ bool TextureCache::ConvertTexture2D(uint8_t* dest,
   void* host_address = memory_->TranslatePhysical(address);
 
   // Pitch of the source texture in blocks.
-  uint32_t block_width = mip == 0
-                             ? src.size_2d.block_width
-                             : xe::next_pow2(src.size_2d.block_width) >> mip;
-  uint32_t logical_width = src.size_2d.logical_width >> mip;
-  uint32_t logical_height = src.size_2d.logical_height >> mip;
-  uint32_t input_width = src.size_2d.input_width >> mip;
-  uint32_t input_height = src.size_2d.input_height >> mip;
+  uint32_t block_width = mip == 0 ? src.size.block_width
+                                  : xe::next_pow2(src.size.block_width) >> mip;
+  uint32_t logical_width = src.size.logical_width >> mip;
+  uint32_t logical_height = src.size.logical_height >> mip;
+  uint32_t input_width = src.size.input_width >> mip;
+  uint32_t input_height = src.size.input_height >> mip;
 
   // All dimensions must be a multiple of block w/h
   logical_width = xe::round_up(logical_width, src.format_info()->block_width);
@@ -931,7 +930,7 @@ bool TextureCache::ConvertTexture2D(uint8_t* dest,
     const uint8_t* src_mem = reinterpret_cast<const uint8_t*>(host_address);
     src_mem += offset_y * src_pitch;
     src_mem += offset_x * bytes_per_block;
-    for (uint32_t y = 0; y < src.size_2d.logical_height; y++) {
+    for (uint32_t y = 0; y < src.size.logical_height; y++) {
       TextureSwap(src.endianness, dest + y * dst_pitch, src_mem + y * src_pitch,
                   dst_pitch);
     }
@@ -962,13 +961,12 @@ bool TextureCache::ConvertTextureCube(uint8_t* dest,
   void* host_address = memory_->TranslatePhysical(address);
 
   // Pitch of the source texture in blocks.
-  uint32_t block_width = mip == 0
-                             ? src.size_2d.block_width
-                             : xe::next_pow2(src.size_2d.block_width) >> mip;
-  uint32_t logical_width = src.size_2d.logical_width >> mip;
-  uint32_t logical_height = src.size_2d.logical_height >> mip;
-  uint32_t input_width = src.size_2d.input_width >> mip;
-  uint32_t input_height = src.size_2d.input_height >> mip;
+  uint32_t block_width = mip == 0 ? src.size.block_width
+                                  : xe::next_pow2(src.size.block_width) >> mip;
+  uint32_t logical_width = src.size.logical_width >> mip;
+  uint32_t logical_height = src.size.logical_height >> mip;
+  uint32_t input_width = src.size.input_width >> mip;
+  uint32_t input_height = src.size.input_height >> mip;
 
   if (!src.is_tiled) {
     // Fast path copy entire image.
@@ -980,16 +978,16 @@ bool TextureCache::ConvertTextureCube(uint8_t* dest,
       TextureInfo::ConvertTiled(
           dest, src_mem, src.endianness, src.format_info(), offset_x, offset_y,
           block_width, logical_width, logical_height, input_width);
-      src_mem += src.size_cube.input_face_length;
-      dest += src.size_cube.input_face_length;
+      src_mem += src.size.input_face_length;
+      dest += src.size.input_face_length;
     }
   }
 
-  copy_region->bufferRowLength = src.size_cube.input_width;
-  copy_region->bufferImageHeight = src.size_cube.input_height;
+  copy_region->bufferRowLength = src.size.input_width;
+  copy_region->bufferImageHeight = src.size.input_height;
   copy_region->imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, mip, 0, 6};
-  copy_region->imageExtent = {src.size_cube.logical_width,
-                              src.size_cube.logical_height, 1};
+  copy_region->imageExtent = {src.size.logical_width, src.size.logical_height,
+                              1};
   return false;
 }
 
@@ -1158,15 +1156,14 @@ bool TextureCache::ComputeTextureStorage(size_t* output_length,
         assert_always();
       } break;
       case Dimension::k2D: {
-        *output_length = src.size_2d.input_width * src.size_2d.input_height * 2;
+        *output_length = src.size.input_width * src.size.input_height * 2;
         return true;
       }
       case Dimension::k3D: {
         assert_always();
       } break;
       case Dimension::kCube: {
-        *output_length =
-            src.size_cube.input_width * src.size_cube.input_height * 2 * 6;
+        *output_length = src.size.input_width * src.size.input_height * 2 * 6;
         return true;
       }
     }
