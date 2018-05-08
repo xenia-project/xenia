@@ -924,12 +924,17 @@ bool TextureCache::ConvertTexture2D(uint8_t* dest,
     uint32_t bytes_per_block = src.format_info()->block_width *
                                src.format_info()->block_height *
                                src.format_info()->bits_per_pixel / 8;
+    uint32_t src_pitch = xe::round_up(block_width * bytes_per_block, 256);
+    uint32_t dst_pitch = input_width * src.format_info()->block_width *
+                         src.format_info()->bits_per_pixel / 8;
 
     const uint8_t* src_mem = reinterpret_cast<const uint8_t*>(host_address);
-    src_mem += offset_y * src.size_2d.input_pitch;
+    src_mem += offset_y * src_pitch;
     src_mem += offset_x * bytes_per_block;
-    TextureSwap(src.endianness, dest, src_mem,
-                src.size_2d.input_pitch * src.size_2d.logical_height);
+    for (uint32_t y = 0; y < src.size_2d.logical_height; y++) {
+      TextureSwap(src.endianness, dest + y * dst_pitch, src_mem + y * src_pitch,
+                  dst_pitch);
+    }
   } else {
     // Untile image.
     // We could do this in a shader to speed things up, as this is pretty
