@@ -59,7 +59,7 @@ static const TextureConfig texture_configs[64] = {
     /* k_Y1_Cr_Y0_Cb            */ {VK_FORMAT_UNDEFINED, RGBA},
     /* k_Shadow                 */ {VK_FORMAT_UNDEFINED, RGBA},
     /* k_8_8_8_8_A              */ {VK_FORMAT_UNDEFINED, RGBA},
-    /* k_4_4_4_4                */ {VK_FORMAT_R4G4B4A4_UNORM_PACK16, ABGR},
+    /* k_4_4_4_4                */ {VK_FORMAT_R4G4B4A4_UNORM_PACK16, RBGR},
     // TODO: Verify if these two are correct (I think not).
     /* k_10_11_11               */ {VK_FORMAT_B10G11R11_UFLOAT_PACK32, RGBA},
     /* k_11_11_10               */ {VK_FORMAT_B10G11R11_UFLOAT_PACK32, RGBA},
