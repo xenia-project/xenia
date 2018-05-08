@@ -30,10 +30,10 @@ constexpr VkDeviceSize kStagingBufferSize = 64 * 1024 * 1024;
 
 struct TextureConfig {
   VkFormat host_format;
-  VkComponentSwizzle swizzle_r = VK_COMPONENT_SWIZZLE_R;
-  VkComponentSwizzle swizzle_g = VK_COMPONENT_SWIZZLE_G;
-  VkComponentSwizzle swizzle_b = VK_COMPONENT_SWIZZLE_B;
-  VkComponentSwizzle swizzle_a = VK_COMPONENT_SWIZZLE_A;
+  VkComponentSwizzle swizzle_r;
+  VkComponentSwizzle swizzle_g;
+  VkComponentSwizzle swizzle_b;
+  VkComponentSwizzle swizzle_a;
 };
 
 #define SWIZ(r, g, b, a)                              \
@@ -44,87 +44,87 @@ struct TextureConfig {
 #define ABGR SWIZ(A, B, G, R)
 
 static const TextureConfig texture_configs[64] = {
-    /* k_1_REVERSE              */ {VK_FORMAT_UNDEFINED},
-    /* k_1                      */ {VK_FORMAT_UNDEFINED},
-    /* k_8                      */ {VK_FORMAT_R8_UNORM},
+    /* k_1_REVERSE              */ {VK_FORMAT_UNDEFINED, RGBA},
+    /* k_1                      */ {VK_FORMAT_UNDEFINED, RGBA},
+    /* k_8                      */ {VK_FORMAT_R8_UNORM, RGBA},
     /* k_1_5_5_5                */ {VK_FORMAT_A1R5G5B5_UNORM_PACK16, ABGR},
-    /* k_5_6_5                  */ {VK_FORMAT_R5G6B5_UNORM_PACK16},
-    /* k_6_5_5                  */ {VK_FORMAT_UNDEFINED},
-    /* k_8_8_8_8                */ {VK_FORMAT_R8G8B8A8_UNORM},
-    /* k_2_10_10_10             */ {VK_FORMAT_A2R10G10B10_UNORM_PACK32},
-    /* k_8_A                    */ {VK_FORMAT_UNDEFINED},
-    /* k_8_B                    */ {VK_FORMAT_UNDEFINED},
-    /* k_8_8                    */ {VK_FORMAT_R8G8_UNORM},
-    /* k_Cr_Y1_Cb_Y0            */ {VK_FORMAT_UNDEFINED},
-    /* k_Y1_Cr_Y0_Cb            */ {VK_FORMAT_UNDEFINED},
-    /* k_Shadow                 */ {VK_FORMAT_UNDEFINED},
-    /* k_8_8_8_8_A              */ {VK_FORMAT_UNDEFINED},
-    /* k_4_4_4_4                */ {VK_FORMAT_R4G4B4A4_UNORM_PACK16, ABGR},
+    /* k_5_6_5                  */ {VK_FORMAT_R5G6B5_UNORM_PACK16, RGBA},
+    /* k_6_5_5                  */ {VK_FORMAT_UNDEFINED, RGBA},
+    /* k_8_8_8_8                */ {VK_FORMAT_R8G8B8A8_UNORM, RGBA},
+    /* k_2_10_10_10             */ {VK_FORMAT_A2R10G10B10_UNORM_PACK32, RGBA},
+    /* k_8_A                    */ {VK_FORMAT_UNDEFINED, RGBA},
+    /* k_8_B                    */ {VK_FORMAT_UNDEFINED, RGBA},
+    /* k_8_8                    */ {VK_FORMAT_R8G8_UNORM, RGBA},
+    /* k_Cr_Y1_Cb_Y0            */ {VK_FORMAT_UNDEFINED, RGBA},
+    /* k_Y1_Cr_Y0_Cb            */ {VK_FORMAT_UNDEFINED, RGBA},
+    /* k_Shadow                 */ {VK_FORMAT_UNDEFINED, RGBA},
+    /* k_8_8_8_8_A              */ {VK_FORMAT_UNDEFINED, RGBA},
+    /* k_4_4_4_4                */ {VK_FORMAT_R4G4B4A4_UNORM_PACK16, RBGR},
     // TODO: Verify if these two are correct (I think not).
-    /* k_10_11_11               */ {VK_FORMAT_B10G11R11_UFLOAT_PACK32},
-    /* k_11_11_10               */ {VK_FORMAT_B10G11R11_UFLOAT_PACK32},
+    /* k_10_11_11               */ {VK_FORMAT_B10G11R11_UFLOAT_PACK32, RGBA},
+    /* k_11_11_10               */ {VK_FORMAT_B10G11R11_UFLOAT_PACK32, RGBA},
 
-    /* k_DXT1                   */ {VK_FORMAT_BC1_RGBA_UNORM_BLOCK},
-    /* k_DXT2_3                 */ {VK_FORMAT_BC2_UNORM_BLOCK},
-    /* k_DXT4_5                 */ {VK_FORMAT_BC3_UNORM_BLOCK},
-    /* k_DXV                    */ {VK_FORMAT_UNDEFINED},
+    /* k_DXT1                   */ {VK_FORMAT_BC1_RGBA_UNORM_BLOCK, RGBA},
+    /* k_DXT2_3                 */ {VK_FORMAT_BC2_UNORM_BLOCK, RGBA},
+    /* k_DXT4_5                 */ {VK_FORMAT_BC3_UNORM_BLOCK, RGBA},
+    /* k_DXV                    */ {VK_FORMAT_UNDEFINED, RGBA},
 
     // TODO: D24 unsupported on AMD.
-    /* k_24_8                   */ {VK_FORMAT_D24_UNORM_S8_UINT},
-    /* k_24_8_FLOAT             */ {VK_FORMAT_D32_SFLOAT_S8_UINT},
-    /* k_16                     */ {VK_FORMAT_R16_UNORM},
-    /* k_16_16                  */ {VK_FORMAT_R16G16_UNORM},
-    /* k_16_16_16_16            */ {VK_FORMAT_R16G16B16A16_UNORM},
-    /* k_16_EXPAND              */ {VK_FORMAT_R16_UNORM},
-    /* k_16_16_EXPAND           */ {VK_FORMAT_R16G16_UNORM},
-    /* k_16_16_16_16_EXPAND     */ {VK_FORMAT_R16G16B16A16_UNORM},
-    /* k_16_FLOAT               */ {VK_FORMAT_R16_SFLOAT},
-    /* k_16_16_FLOAT            */ {VK_FORMAT_R16G16_SFLOAT},
-    /* k_16_16_16_16_FLOAT      */ {VK_FORMAT_R16G16B16A16_SFLOAT},
+    /* k_24_8                   */ {VK_FORMAT_D24_UNORM_S8_UINT, RGBA},
+    /* k_24_8_FLOAT             */ {VK_FORMAT_D32_SFLOAT_S8_UINT, RGBA},
+    /* k_16                     */ {VK_FORMAT_R16_UNORM, RGBA},
+    /* k_16_16                  */ {VK_FORMAT_R16G16_UNORM, RGBA},
+    /* k_16_16_16_16            */ {VK_FORMAT_R16G16B16A16_UNORM, RGBA},
+    /* k_16_EXPAND              */ {VK_FORMAT_R16_UNORM, RGBA},
+    /* k_16_16_EXPAND           */ {VK_FORMAT_R16G16_UNORM, RGBA},
+    /* k_16_16_16_16_EXPAND     */ {VK_FORMAT_R16G16B16A16_UNORM, RGBA},
+    /* k_16_FLOAT               */ {VK_FORMAT_R16_SFLOAT, RGBA},
+    /* k_16_16_FLOAT            */ {VK_FORMAT_R16G16_SFLOAT, RGBA},
+    /* k_16_16_16_16_FLOAT      */ {VK_FORMAT_R16G16B16A16_SFLOAT, RGBA},
 
     // ! These are UNORM formats, not SINT.
-    /* k_32                     */ {VK_FORMAT_R32_SINT},
-    /* k_32_32                  */ {VK_FORMAT_R32G32_SINT},
-    /* k_32_32_32_32            */ {VK_FORMAT_R32G32B32A32_SINT},
-    /* k_32_FLOAT               */ {VK_FORMAT_R32_SFLOAT},
-    /* k_32_32_FLOAT            */ {VK_FORMAT_R32G32_SFLOAT},
-    /* k_32_32_32_32_FLOAT      */ {VK_FORMAT_R32G32B32A32_SFLOAT},
-    /* k_32_AS_8                */ {VK_FORMAT_UNDEFINED},
-    /* k_32_AS_8_8              */ {VK_FORMAT_UNDEFINED},
-    /* k_16_MPEG                */ {VK_FORMAT_UNDEFINED},
-    /* k_16_16_MPEG             */ {VK_FORMAT_UNDEFINED},
-    /* k_8_INTERLACED           */ {VK_FORMAT_UNDEFINED},
-    /* k_32_AS_8_INTERLACED     */ {VK_FORMAT_UNDEFINED},
-    /* k_32_AS_8_8_INTERLACED   */ {VK_FORMAT_UNDEFINED},
-    /* k_16_INTERLACED          */ {VK_FORMAT_UNDEFINED},
-    /* k_16_MPEG_INTERLACED     */ {VK_FORMAT_UNDEFINED},
-    /* k_16_16_MPEG_INTERLACED  */ {VK_FORMAT_UNDEFINED},
+    /* k_32                     */ {VK_FORMAT_R32_SINT, RGBA},
+    /* k_32_32                  */ {VK_FORMAT_R32G32_SINT, RGBA},
+    /* k_32_32_32_32            */ {VK_FORMAT_R32G32B32A32_SINT, RGBA},
+    /* k_32_FLOAT               */ {VK_FORMAT_R32_SFLOAT, RGBA},
+    /* k_32_32_FLOAT            */ {VK_FORMAT_R32G32_SFLOAT, RGBA},
+    /* k_32_32_32_32_FLOAT      */ {VK_FORMAT_R32G32B32A32_SFLOAT, RGBA},
+    /* k_32_AS_8                */ {VK_FORMAT_UNDEFINED, RGBA},
+    /* k_32_AS_8_8              */ {VK_FORMAT_UNDEFINED, RGBA},
+    /* k_16_MPEG                */ {VK_FORMAT_UNDEFINED, RGBA},
+    /* k_16_16_MPEG             */ {VK_FORMAT_UNDEFINED, RGBA},
+    /* k_8_INTERLACED           */ {VK_FORMAT_UNDEFINED, RGBA},
+    /* k_32_AS_8_INTERLACED     */ {VK_FORMAT_UNDEFINED, RGBA},
+    /* k_32_AS_8_8_INTERLACED   */ {VK_FORMAT_UNDEFINED, RGBA},
+    /* k_16_INTERLACED          */ {VK_FORMAT_UNDEFINED, RGBA},
+    /* k_16_MPEG_INTERLACED     */ {VK_FORMAT_UNDEFINED, RGBA},
+    /* k_16_16_MPEG_INTERLACED  */ {VK_FORMAT_UNDEFINED, RGBA},
 
     // http://fileadmin.cs.lth.se/cs/Personal/Michael_Doggett/talks/unc-xenos-doggett.pdf
-    /* k_DXN                    */ {VK_FORMAT_BC5_UNORM_BLOCK},  // ?
+    /* k_DXN                    */ {VK_FORMAT_BC5_UNORM_BLOCK, RGBA},  // ?
 
-    /* k_8_8_8_8_AS_16_16_16_16 */ {VK_FORMAT_R8G8B8A8_UNORM},
-    /* k_DXT1_AS_16_16_16_16    */ {VK_FORMAT_BC1_RGBA_UNORM_BLOCK},
-    /* k_DXT2_3_AS_16_16_16_16  */ {VK_FORMAT_BC2_UNORM_BLOCK},
-    /* k_DXT4_5_AS_16_16_16_16  */ {VK_FORMAT_BC3_UNORM_BLOCK},
+    /* k_8_8_8_8_AS_16_16_16_16 */ {VK_FORMAT_R8G8B8A8_UNORM, RGBA},
+    /* k_DXT1_AS_16_16_16_16    */ {VK_FORMAT_BC1_RGBA_UNORM_BLOCK, RGBA},
+    /* k_DXT2_3_AS_16_16_16_16  */ {VK_FORMAT_BC2_UNORM_BLOCK, RGBA},
+    /* k_DXT4_5_AS_16_16_16_16  */ {VK_FORMAT_BC3_UNORM_BLOCK, RGBA},
 
-    /* k_2_10_10_10_AS_16_16_16_16 */ {VK_FORMAT_A2R10G10B10_UNORM_PACK32},
+    /* k_2_10_10_10_AS_16_16_16_16 */ {VK_FORMAT_A2R10G10B10_UNORM_PACK32, RGBA},
 
     // TODO: Verify if these two are correct (I think not).
-    /* k_10_11_11_AS_16_16_16_16 */ {VK_FORMAT_B10G11R11_UFLOAT_PACK32},  // ?
-    /* k_11_11_10_AS_16_16_16_16 */ {VK_FORMAT_B10G11R11_UFLOAT_PACK32},  // ?
-    /* k_32_32_32_FLOAT         */ {VK_FORMAT_R32G32B32_SFLOAT},
-    /* k_DXT3A                  */ {VK_FORMAT_UNDEFINED},
-    /* k_DXT5A                  */ {VK_FORMAT_UNDEFINED},  // ATI1N
+    /* k_10_11_11_AS_16_16_16_16 */ {VK_FORMAT_B10G11R11_UFLOAT_PACK32, RGBA},  // ?
+    /* k_11_11_10_AS_16_16_16_16 */ {VK_FORMAT_B10G11R11_UFLOAT_PACK32, RGBA},  // ?
+    /* k_32_32_32_FLOAT         */ {VK_FORMAT_R32G32B32_SFLOAT, RGBA},
+    /* k_DXT3A                  */ {VK_FORMAT_UNDEFINED, RGBA},
+    /* k_DXT5A                  */ {VK_FORMAT_UNDEFINED, RGBA},  // ATI1N
 
     // http://fileadmin.cs.lth.se/cs/Personal/Michael_Doggett/talks/unc-xenos-doggett.pdf
-    /* k_CTX1                   */ {VK_FORMAT_R8G8_UINT},
+    /* k_CTX1                   */ {VK_FORMAT_R8G8_UINT, RGBA},
 
-    /* k_DXT3A_AS_1_1_1_1       */ {VK_FORMAT_UNDEFINED},
+    /* k_DXT3A_AS_1_1_1_1       */ {VK_FORMAT_UNDEFINED, RGBA},
 
     // Unused.
-    /* kUnknown                 */ {VK_FORMAT_UNDEFINED},
-    /* kUnknown                 */ {VK_FORMAT_UNDEFINED},
+    /* kUnknown                 */ {VK_FORMAT_UNDEFINED, RGBA},
+    /* kUnknown                 */ {VK_FORMAT_UNDEFINED, RGBA},
 };
 
 #undef ABGR
