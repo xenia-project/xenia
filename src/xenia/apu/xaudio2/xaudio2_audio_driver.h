@@ -26,7 +26,7 @@ class XAudio2AudioDriver : public AudioDriver {
   XAudio2AudioDriver(Memory* memory, xe::threading::Semaphore* semaphore);
   ~XAudio2AudioDriver() override;
 
-  void Initialize();
+  bool Initialize();
   void SubmitFrame(uint32_t frame_ptr) override;
   void Shutdown();
 

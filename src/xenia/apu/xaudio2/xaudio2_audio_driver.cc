@@ -64,7 +64,7 @@ const DWORD ChannelMasks[] = {
     0,
 };
 
-void XAudio2AudioDriver::Initialize() {
+bool XAudio2AudioDriver::Initialize() {
   HRESULT hr;
 
   voice_callback_ = new VoiceCallback(semaphore_);
@@ -73,7 +73,7 @@ void XAudio2AudioDriver::Initialize() {
   if (FAILED(hr)) {
     XELOGE("XAudio2Create failed with %.8X", hr);
     assert_always();
-    return;
+    return false;
   }
 
   XAUDIO2_DEBUG_CONFIGURATION config;
@@ -89,7 +89,7 @@ void XAudio2AudioDriver::Initialize() {
   if (FAILED(hr)) {
     XELOGE("CreateMasteringVoice failed with %.8X", hr);
     assert_always();
-    return;
+    return false;
   }
 
   WAVEFORMATIEEEFLOATEX waveformat;
@@ -116,19 +116,21 @@ void XAudio2AudioDriver::Initialize() {
   if (FAILED(hr)) {
     XELOGE("CreateSourceVoice failed with %.8X", hr);
     assert_always();
-    return;
+    return false;
   }
 
   hr = pcm_voice_->Start();
   if (FAILED(hr)) {
     XELOGE("Start failed with %.8X", hr);
     assert_always();
-    return;
+    return false;
   }
 
   if (FLAGS_mute) {
     pcm_voice_->SetVolume(0.0f);
   }
+
+  return true;
 }
 
 void XAudio2AudioDriver::SubmitFrame(uint32_t frame_ptr) {
@@ -177,17 +179,27 @@ void XAudio2AudioDriver::SubmitFrame(uint32_t frame_ptr) {
 }
 
 void XAudio2AudioDriver::Shutdown() {
-  pcm_voice_->Stop();
-  pcm_voice_->DestroyVoice();
-  pcm_voice_ = NULL;
+  if (pcm_voice_) {
+    pcm_voice_->Stop();
+    pcm_voice_->DestroyVoice();
+    pcm_voice_ = NULL;
+  }
 
-  mastering_voice_->DestroyVoice();
-  mastering_voice_ = NULL;
+  if (mastering_voice_) {
+    mastering_voice_->DestroyVoice();
+    mastering_voice_ = NULL;
+  }
 
-  audio_->StopEngine();
-  audio_->Release();
+  if (audio_) {
+    audio_->StopEngine();
+    audio_->Release();
+    audio_ = nullptr;
+  }
 
-  delete voice_callback_;
+  if (voice_callback_) {
+    delete voice_callback_;
+    voice_callback_ = nullptr;
+  }
 }
 
 }  // namespace xaudio2
