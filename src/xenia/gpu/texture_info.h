@@ -259,6 +259,17 @@ struct TextureInfo {
   uint32_t mip_levels;
   uint32_t input_length;
 
+  struct Size {
+    uint32_t logical_width;
+    uint32_t logical_height;
+    uint32_t block_width;        // # of horizontal blocks
+    uint32_t block_height;       // # of vertical blocks
+    uint32_t input_width;        // texel pitch
+    uint32_t input_height;       // texel height
+    uint32_t input_pitch;        // byte pitch
+    uint32_t input_face_length;  // byte pitch of face
+  } size;
+
   const FormatInfo* format_info() const {
     return FormatInfo::Get(static_cast<uint32_t>(texture_format));
   }
@@ -266,34 +277,6 @@ struct TextureInfo {
   bool is_compressed() const {
     return format_info()->type == FormatType::kCompressed;
   }
-
-  union {
-    struct {
-      uint32_t logical_width;
-      uint32_t block_width;  // # of horizontal blocks
-      uint32_t input_width;  // texel pitch
-      uint32_t input_pitch;  // byte pitch
-    } size_1d;
-    struct {
-      uint32_t logical_width;
-      uint32_t logical_height;
-      uint32_t block_width;   // # of horizontal blocks
-      uint32_t block_height;  // # of vertical blocks
-      uint32_t input_width;   // texel pitch
-      uint32_t input_height;  // texel height
-      uint32_t input_pitch;   // byte pitch
-    } size_2d;
-    struct {
-      uint32_t logical_width;
-      uint32_t logical_height;
-      uint32_t block_width;        // # of horizontal blocks
-      uint32_t block_height;       // # of vertical blocks
-      uint32_t input_width;        // texel pitch
-      uint32_t input_height;       // texel height
-      uint32_t input_pitch;        // byte pitch
-      uint32_t input_face_length;  // byte pitch of face
-    } size_3d, size_cube;
-  };
 
   static bool Prepare(const xenos::xe_gpu_texture_fetch_t& fetch,
                       TextureInfo* out_info);
@@ -315,7 +298,8 @@ struct TextureInfo {
   // Get the memory location of a mip. offset_x and offset_y are in blocks.
   static uint32_t GetMipLocation(const TextureInfo& src, uint32_t mip,
                                  uint32_t* offset_x, uint32_t* offset_y);
-  static uint32_t GetMipSize(const TextureInfo& src, uint32_t mip);
+  static uint32_t GetMipByteSize(const TextureInfo& src, uint32_t mip);
+  static uint32_t GetMipSizes(const TextureInfo& src, uint32_t mip);
 
   // Get the byte size of a MIP when stored linearly.
   static uint32_t GetMipLinearSize(const TextureInfo& src, uint32_t mip);
