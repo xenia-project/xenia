@@ -1096,6 +1096,10 @@ bool VulkanCommandProcessor::IssueCopy() {
   uint32_t src_format = is_color_source ? static_cast<uint32_t>(color_format)
                                         : static_cast<uint32_t>(depth_format);
   VkFilter filter = is_color_source ? VK_FILTER_LINEAR : VK_FILTER_NEAREST;
+
+  XELOGGPU("Resolve RT %.8X %.8X(%d) -> 0x%.8X (%dx%d, format: %s)", edram_base,
+           surface_pitch, surface_pitch, copy_dest_base, copy_dest_pitch,
+           copy_dest_height, texture_info.format_info()->name);
   switch (copy_command) {
     case CopyCommand::kRaw:
       /*
