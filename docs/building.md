@@ -9,8 +9,8 @@ video drivers for your card.
 ### Windows
 
 * Windows 8 or later
-* Visual Studio 2015 or Visual Studio 2017 
-  * (for VS2017 you will need the Windows Universal CRT SDK)
+* Visual Studio 2017 
+* Windows Universal CRT SDK
 * [Python 3.4+](https://www.python.org/downloads/)
 * You will also need the [Windows 8.1 SDK](http://msdn.microsoft.com/en-us/windows/desktop/bg162891) 
   * (for VS2017 just click the Windows 8.1 SDK option in the Individual Components section in the Visual Studio Installer)
