@@ -416,6 +416,11 @@ uint32_t TextureInfo::GetMipLocation(const TextureInfo& src, uint32_t mip,
                                      uint32_t* offset_x, uint32_t* offset_y) {
   if (mip == 0) {
     // Short-circuit. Mip 0 is always stored in guest_address.
+    if (src.mip_levels <= 1) {
+      // Only <= 1 mip level, it can't possibly be offset.
+      *offset_x = *offset_y = 0;
+      return src.guest_address;
+    }
     GetPackedTileOffset(src, offset_x, offset_y);
     return src.guest_address;
   }
