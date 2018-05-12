@@ -539,9 +539,10 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
     }
   }
 
+  vkWaitForFences(*device_, 1, &current_batch_fence_, VK_TRUE, -1);
+    
   if (cache_clear_requested_) {
     cache_clear_requested_ = false;
-    vkWaitForFences(*device_, 1, &current_batch_fence_, VK_TRUE, -1);
 
     buffer_cache_->ClearCache();
     pipeline_cache_->ClearCache();
