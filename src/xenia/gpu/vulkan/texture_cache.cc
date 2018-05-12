@@ -47,7 +47,7 @@ static const TextureConfig texture_configs[64] = {
     /* k_1_REVERSE              */ {VK_FORMAT_UNDEFINED},
     /* k_1                      */ {VK_FORMAT_UNDEFINED},
     /* k_8                      */ {VK_FORMAT_R8_UNORM},
-    /* k_1_5_5_5                */ {VK_FORMAT_A1R5G5B5_UNORM_PACK16, ABGR},
+    /* k_1_5_5_5                */ {VK_FORMAT_A1R5G5B5_UNORM_PACK16, BGRA},
     /* k_5_6_5                  */ {VK_FORMAT_R5G6B5_UNORM_PACK16},
     /* k_6_5_5                  */ {VK_FORMAT_UNDEFINED},
     /* k_8_8_8_8                */ {VK_FORMAT_R8G8B8A8_UNORM},
