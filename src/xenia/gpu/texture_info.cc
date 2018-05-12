@@ -471,11 +471,21 @@ uint32_t TextureInfo::GetMipByteSize(const TextureInfo& src, uint32_t mip) {
       xe::round_up(logical_height, src.format_info()->block_height) /
       src.format_info()->block_height;
 
-  uint32_t size = block_width * block_height * bytes_per_block;
+  if (src.is_tiled) {
+    // If the texture is tiled, its dimensions must be a multiple of tile
+    // dimensions (32x32 blocks).
+    block_width = xe::round_up(block_width, 32);
+    block_height = xe::round_up(block_height, 32);
+  }
 
-  // Minimum of one tile, which is 32x32 blocks.
-  uint32_t tile_size = 32 * 32 * bytes_per_block;
-  return std::max(size, tile_size) * (src.depth + 1);
+  uint32_t byte_pitch = block_width * bytes_per_block;
+
+  if (!src.is_tiled) {
+    // Each row must be a multiple of 256 in linear textures.
+    byte_pitch = xe::round_up(byte_pitch, 256);
+  }
+
+  return byte_pitch * block_height;
 }
 
 uint32_t TextureInfo::GetMipLinearSize(const TextureInfo& src, uint32_t mip) {
