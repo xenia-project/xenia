@@ -130,13 +130,9 @@ void TextureInfo::CalculateTextureSizes1D(uint32_t width) {
   uint32_t block_width = xe::round_up(size.logical_width, format->block_width) /
                          format->block_width;
 
-  if (is_tiled) {
-    // If the texture is tiled, its dimensions must be a multiple of tile
-    // dimensions (32x32 blocks).
-    size.block_width = xe::round_up(block_width, 32);
-  } else {
-    size.block_width = block_width;
-  }
+  // Texture dimensions must be a multiple of tile
+  // dimensions (32x32 blocks).
+  size.block_width = xe::round_up(block_width, 32);
 
   uint32_t bytes_per_block = format->block_width * format->bits_per_pixel / 8;
   uint32_t byte_pitch = size.block_width * bytes_per_block;
@@ -175,15 +171,10 @@ void TextureInfo::CalculateTextureSizes2D(uint32_t width, uint32_t height) {
       xe::round_up(size.logical_height, format->block_height) /
       format->block_height;
 
-  if (is_tiled) {
-    // If the texture is tiled, its dimensions must be a multiple of tile
-    // dimensions (32x32 blocks).
-    size.block_width = xe::round_up(block_width, 32);
-    size.block_height = xe::round_up(block_height, 32);
-  } else {
-    size.block_width = block_width;
-    size.block_height = block_height;
-  }
+  // Texture dimensions must be a multiple of tile
+  // dimensions (32x32 blocks).
+  size.block_width = xe::round_up(block_width, 32);
+  size.block_height = xe::round_up(block_height, 32);
 
   uint32_t bytes_per_block =
       format->block_width * format->block_height * format->bits_per_pixel / 8;
@@ -220,15 +211,10 @@ void TextureInfo::CalculateTextureSizes3D(uint32_t width, uint32_t height,
       xe::round_up(size.logical_height, format->block_height) /
       format->block_height;
 
-  if (is_tiled) {
-    // If the texture is tiled, its dimensions must be a multiple of tile
-    // dimensions (32x32 blocks).
-    size.block_width = xe::round_up(block_width, 32);
-    size.block_height = xe::round_up(block_height, 32);
-  } else {
-    size.block_width = block_width;
-    size.block_height = block_height;
-  }
+  // Texture dimensions must be a multiple of tile
+  // dimensions (32x32 blocks).
+  size.block_width = xe::round_up(block_width, 32);
+  size.block_height = xe::round_up(block_height, 32);
 
   uint32_t bytes_per_block =
       format->block_width * format->block_height * format->bits_per_pixel / 8;
@@ -266,15 +252,10 @@ void TextureInfo::CalculateTextureSizesCube(uint32_t width, uint32_t height,
       xe::round_up(size.logical_height, format->block_height) /
       format->block_height;
 
-  if (is_tiled) {
-    // If the texture is tiled, its dimensions must be a multiple of tile
-    // dimensions (32x32 blocks).
-    size.block_width = xe::round_up(block_width, 32);
-    size.block_height = xe::round_up(block_height, 32);
-  } else {
-    size.block_width = block_width;
-    size.block_height = block_height;
-  }
+  // Texture dimensions must be a multiple of tile
+  // dimensions (32x32 blocks).
+  size.block_width = xe::round_up(block_width, 32);
+  size.block_height = xe::round_up(block_height, 32);
 
   uint32_t bytes_per_block =
       format->block_width * format->block_height * format->bits_per_pixel / 8;
@@ -471,8 +452,8 @@ uint32_t TextureInfo::GetMipByteSize(const TextureInfo& src, uint32_t mip) {
       xe::round_up(logical_height, src.format_info()->block_height) /
       src.format_info()->block_height;
 
-  if (src.is_tiled) {
-    // If the texture is tiled, its dimensions must be a multiple of tile
+  if (mip == 0) {
+    // Texture dimensions must be a multiple of tile
     // dimensions (32x32 blocks).
     block_width = xe::round_up(block_width, 32);
     block_height = xe::round_up(block_height, 32);
