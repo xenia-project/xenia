@@ -134,10 +134,10 @@ static const TextureConfig texture_configs[64] = {
 
 const char* get_dimension_name(Dimension dimension) {
   static const char* names[] = {
-    "1D",
-    "2D",
-    "3D",
-    "cube",
+      "1D",
+      "2D",
+      "3D",
+      "cube",
   };
   auto value = static_cast<int>(dimension);
   if (value < xe::countof(names)) {
@@ -534,11 +534,11 @@ TextureCache::Texture* TextureCache::Demand(const TextureInfo& texture_info,
   device_->DbgSetObjectName(
       reinterpret_cast<uint64_t>(texture->image),
       VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT,
-      xe::format_string(
-          "T: 0x%.8X - 0x%.8X (%s, %s)", texture_info.guest_address,
-          texture_info.guest_address + texture_info.input_length,
-          texture_info.format_info()->name,
-          get_dimension_name(texture_info.dimension)));
+      xe::format_string("T: 0x%.8X - 0x%.8X (%s, %s)",
+                        texture_info.guest_address,
+                        texture_info.guest_address + texture_info.input_length,
+                        texture_info.format_info()->name,
+                        get_dimension_name(texture_info.dimension)));
 
   textures_[texture_hash] = texture;
   COUNT_profile_set("gpu/texture_cache/textures", textures_.size());
@@ -946,8 +946,8 @@ bool TextureCache::ConvertTexture2D(uint8_t* dest,
                                src.format_info()->block_height *
                                src.format_info()->bits_per_pixel / 8;
     uint32_t src_pitch = xe::round_up(block_width * bytes_per_block, 256);
-    uint32_t dst_pitch = (input_width / src.format_info()->block_width) *
-                         bytes_per_block;
+    uint32_t dst_pitch =
+        (input_width / src.format_info()->block_width) * bytes_per_block;
     assert_true(dst_pitch <= src_pitch);
     const uint8_t* src_mem = reinterpret_cast<const uint8_t*>(host_address);
     src_mem += offset_y * src_pitch;
@@ -990,7 +990,8 @@ bool TextureCache::ConvertTextureCube(uint8_t* dest,
   } else {
     block_width = xe::next_pow2(src.size.block_width) >> mip;
     block_width = xe::round_up(block_width, 32);
-    input_block_height = block_height = xe::next_pow2(src.size.block_height) >> mip;
+    block_height = xe::next_pow2(src.size.block_height) >> mip;
+    input_block_height = block_height;
     block_height = xe::round_up(block_height, 32);
   }
 
@@ -1011,16 +1012,16 @@ bool TextureCache::ConvertTextureCube(uint8_t* dest,
                                src.format_info()->block_height *
                                src.format_info()->bits_per_pixel / 8;
     uint32_t src_pitch = xe::round_up(block_width * bytes_per_block, 256);
-    uint32_t dst_pitch = (input_width / src.format_info()->block_width) *
-                         bytes_per_block;
+    uint32_t dst_pitch =
+        (input_width / src.format_info()->block_width) * bytes_per_block;
     assert_true(dst_pitch <= src_pitch);
     const uint8_t* src_mem = reinterpret_cast<const uint8_t*>(host_address);
     for (int face = 0; face < 6; face++) {
       src_mem += offset_y * src_pitch;
       src_mem += offset_x * bytes_per_block;
       for (uint32_t y = 0; y < block_height; y++) {
-        TextureSwap(src.endianness, dest + y * dst_pitch, src_mem + y * src_pitch,
-                    dst_pitch);
+        TextureSwap(src.endianness, dest + y * dst_pitch,
+                    src_mem + y * src_pitch, dst_pitch);
       }
       src_mem += src_pitch * block_height;
       dest += dst_pitch * input_block_height;
@@ -1031,8 +1032,8 @@ bool TextureCache::ConvertTextureCube(uint8_t* dest,
                                src.format_info()->block_height *
                                src.format_info()->bits_per_pixel / 8;
     uint32_t src_pitch = block_width * bytes_per_block;
-    uint32_t dst_pitch = (input_width / src.format_info()->block_width) *
-                         bytes_per_block;
+    uint32_t dst_pitch =
+        (input_width / src.format_info()->block_width) * bytes_per_block;
     assert_true(dst_pitch <= src_pitch);
     const uint8_t* src_mem = reinterpret_cast<const uint8_t*>(host_address);
     for (int face = 0; face < 6; face++) {
@@ -1075,12 +1076,12 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
   SCOPE_profile_cpu_f("gpu");
 #endif  // FINE_GRAINED_DRAW_SCOPES
 
-  XELOGGPU("Uploading texture @ 0x%.8X (%dx%d, length: 0x%.8X, format: %s, dim: %s, levels: %d, tiled: %s)",
-           src.guest_address, src.width + 1, src.height + 1, src.input_length,
-           src.format_info()->name,
-           get_dimension_name(src.dimension),
-           src.mip_levels,
-           src.is_tiled ? "yes" : "no");
+  XELOGGPU(
+      "Uploading texture @ 0x%.8X (%dx%d, length: 0x%.8X, format: %s, dim: %s, "
+      "levels: %d, tiled: %s)",
+      src.guest_address, src.width + 1, src.height + 1, src.input_length,
+      src.format_info()->name, get_dimension_name(src.dimension),
+      src.mip_levels, src.is_tiled ? "yes" : "no");
   size_t unpack_length;
   if (!ComputeTextureStorage(&unpack_length, src)) {
     XELOGW("Failed to compute texture storage");
