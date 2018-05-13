@@ -967,34 +967,72 @@ bool TextureCache::ConvertTextureCube(uint8_t* dest,
   void* host_address = memory_->TranslatePhysical(address);
 
   // Pitch of the source texture in blocks.
-  uint32_t block_width = mip == 0 ? src.size.block_width
-                                  : xe::next_pow2(src.size.block_width) >> mip;
+  uint32_t block_width, block_height, input_block_height;
+  if (mip == 0) {
+    block_width = src.size.block_width;
+    input_block_height = block_height = src.size.block_height;
+  } else {
+    block_width = xe::next_pow2(src.size.block_width) >> mip;
+    block_width = xe::round_up(block_width, 32);
+    input_block_height = block_height = xe::next_pow2(src.size.block_height) >> mip;
+    block_height = xe::round_up(block_height, 32);
+  }
+
   uint32_t logical_width = src.size.logical_width >> mip;
   uint32_t logical_height = src.size.logical_height >> mip;
   uint32_t input_width = src.size.input_width >> mip;
   uint32_t input_height = src.size.input_height >> mip;
 
+  // All dimensions must be a multiple of block w/h
+  logical_width = xe::round_up(logical_width, src.format_info()->block_width);
+  logical_height =
+      xe::round_up(logical_height, src.format_info()->block_height);
+  input_width = xe::round_up(input_width, src.format_info()->block_width);
+  input_height = xe::round_up(input_height, src.format_info()->block_height);
+
   if (!src.is_tiled) {
-    // Fast path copy entire image.
-    TextureSwap(src.endianness, dest, host_address, src.input_length);
+    uint32_t bytes_per_block = src.format_info()->block_width *
+                               src.format_info()->block_height *
+                               src.format_info()->bits_per_pixel / 8;
+    uint32_t src_pitch = xe::round_up(block_width * bytes_per_block, 256);
+    uint32_t dst_pitch = (input_width / src.format_info()->block_width) *
+                         bytes_per_block;
+    assert_true(dst_pitch <= src_pitch);
+    const uint8_t* src_mem = reinterpret_cast<const uint8_t*>(host_address);
+    for (int face = 0; face < 6; face++) {
+      src_mem += offset_y * src_pitch;
+      src_mem += offset_x * bytes_per_block;
+      for (uint32_t y = 0; y < block_height; y++) {
+        TextureSwap(src.endianness, dest + y * dst_pitch, src_mem + y * src_pitch,
+                    dst_pitch);
+      }
+      src_mem += src_pitch * block_height;
+      dest += dst_pitch * input_block_height;
+    }
   } else {
     // TODO(benvanik): optimize this inner loop (or work by tiles).
+    uint32_t bytes_per_block = src.format_info()->block_width *
+                               src.format_info()->block_height *
+                               src.format_info()->bits_per_pixel / 8;
+    uint32_t src_pitch = block_width * bytes_per_block;
+    uint32_t dst_pitch = (input_width / src.format_info()->block_width) *
+                         bytes_per_block;
+    assert_true(dst_pitch <= src_pitch);
     const uint8_t* src_mem = reinterpret_cast<const uint8_t*>(host_address);
     for (int face = 0; face < 6; face++) {
       TextureInfo::ConvertTiled(
           dest, src_mem, src.endianness, src.format_info(), offset_x, offset_y,
           block_width, logical_width, logical_height, input_width);
-      src_mem += src.size.input_face_length;
-      dest += src.size.input_face_length;
+      src_mem += src_pitch * block_height;
+      dest += dst_pitch * input_block_height;
     }
   }
 
-  copy_region->bufferRowLength = src.size.input_width;
-  copy_region->bufferImageHeight = src.size.input_height;
+  copy_region->bufferRowLength = input_width;
+  copy_region->bufferImageHeight = input_height;
   copy_region->imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, mip, 0, 6};
-  copy_region->imageExtent = {src.size.logical_width, src.size.logical_height,
-                              1};
-  return false;
+  copy_region->imageExtent = {logical_width, logical_height, 1};
+  return true;
 }
 
 bool TextureCache::ConvertTexture(uint8_t* dest, VkBufferImageCopy* copy_region,
@@ -1024,7 +1062,6 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
   XELOGGPU("Uploading texture @ 0x%.8X (%dx%d, length: 0x%.8X, format: %s)",
            src.guest_address, src.width + 1, src.height + 1, src.input_length,
            src.format_info()->name);
-
   size_t unpack_length;
   if (!ComputeTextureStorage(&unpack_length, src)) {
     XELOGW("Failed to compute texture storage");
@@ -1095,7 +1132,10 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
   VkDeviceSize buffer_offset = unpack_length;
   for (uint32_t mip = 1; mip < src.mip_levels; mip++) {
     uint8_t* dest = reinterpret_cast<uint8_t*>(alloc->host_ptr) + buffer_offset;
-    ConvertTexture(dest, &copy_regions[mip], mip, src);
+    if (!ConvertTexture(dest, &copy_regions[mip], mip, src)) {
+      XELOGW("Failed to convert texture mip %d", mip);
+      return false;
+    }
     copy_regions[mip].bufferOffset = alloc->offset + buffer_offset;
     copy_regions[mip].imageOffset = {0, 0, 0};
 
