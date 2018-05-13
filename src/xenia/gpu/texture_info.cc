@@ -474,24 +474,7 @@ uint32_t TextureInfo::GetMipLinearSize(const TextureInfo& src, uint32_t mip) {
   uint32_t size = src.input_length >> (mip * 2);
 
   // The size is a multiple of the block size.
-  size = xe::round_up(size, bytes_per_block);
-
-  switch (src.dimension) {
-    case Dimension::k1D:
-    case Dimension::k2D:
-      break;
-    case Dimension::k3D:
-      size *= src.depth;
-      break;
-    case Dimension::kCube:
-      size *= 6;
-      break;
-    default:
-      assert_unhandled_case(src.dimension);
-      break;
-  }
-
-  return size;
+  return xe::round_up(size, bytes_per_block) * (src.depth + 1);
 }
 
 bool TextureInfo::GetPackedTileOffset(uint32_t width, uint32_t height,
