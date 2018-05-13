@@ -51,7 +51,7 @@ bool VulkanShader::Prepare() {
 
   device_->DbgSetObjectName(uint64_t(shader_module_),
                             VK_DEBUG_REPORT_OBJECT_TYPE_SHADER_MODULE_EXT,
-                            xe::format_string("%.16llX", ucode_data_hash()));
+                            xe::format_string("S: %.16llX", ucode_data_hash()));
   return status == VK_SUCCESS;
 }
 
