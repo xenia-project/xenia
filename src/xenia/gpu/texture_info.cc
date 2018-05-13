@@ -464,24 +464,7 @@ uint32_t TextureInfo::GetMipByteSize(const TextureInfo& src, uint32_t mip) {
     byte_pitch = xe::round_up(byte_pitch, 256);
   }
 
-  uint32_t size = byte_pitch * block_height;
-
-  switch (src.dimension) {
-    case Dimension::k1D:
-    case Dimension::k2D:
-      break;
-    case Dimension::k3D:
-      size *= src.depth;
-      break;
-    case Dimension::kCube:
-      size *= 6;
-      break;
-    default:
-      assert_unhandled_case(src.dimension);
-      break;
-  }
-
-  return size;
+  return byte_pitch * block_height * (src.depth + 1);
 }
 
 uint32_t TextureInfo::GetMipLinearSize(const TextureInfo& src, uint32_t mip) {
