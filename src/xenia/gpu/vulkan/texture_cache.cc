@@ -457,7 +457,7 @@ TextureCache::Texture* TextureCache::DemandResolveTexture(
       reinterpret_cast<uint64_t>(texture->image),
       VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT,
       xe::format_string(
-          "0x%.8X - 0x%.8X", texture_info.guest_address,
+          "RT: 0x%.8X - 0x%.8X", texture_info.guest_address,
           texture_info.guest_address + texture_info.input_length));
 
   // Setup an access watch. If this texture is touched, it is destroyed.
@@ -535,8 +535,10 @@ TextureCache::Texture* TextureCache::Demand(const TextureInfo& texture_info,
       reinterpret_cast<uint64_t>(texture->image),
       VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT,
       xe::format_string(
-          "0x%.8X - 0x%.8X", texture_info.guest_address,
-          texture_info.guest_address + texture_info.input_length));
+          "T: 0x%.8X - 0x%.8X (%s, %s)", texture_info.guest_address,
+          texture_info.guest_address + texture_info.input_length,
+          texture_info.format_info()->name,
+          get_dimension_name(texture_info.dimension)));
 
   textures_[texture_hash] = texture;
   COUNT_profile_set("gpu/texture_cache/textures", textures_.size());
