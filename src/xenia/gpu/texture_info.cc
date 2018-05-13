@@ -452,12 +452,10 @@ uint32_t TextureInfo::GetMipByteSize(const TextureInfo& src, uint32_t mip) {
       xe::round_up(logical_height, src.format_info()->block_height) /
       src.format_info()->block_height;
 
-  if (mip == 0) {
-    // Texture dimensions must be a multiple of tile
-    // dimensions (32x32 blocks).
-    block_width = xe::round_up(block_width, 32);
-    block_height = xe::round_up(block_height, 32);
-  }
+  // Texture dimensions must be a multiple of tile
+  // dimensions (32x32 blocks).
+  block_width = xe::round_up(block_width, 32);
+  block_height = xe::round_up(block_height, 32);
 
   uint32_t byte_pitch = block_width * bytes_per_block;
 

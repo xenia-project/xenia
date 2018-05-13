@@ -905,8 +905,14 @@ bool TextureCache::ConvertTexture2D(uint8_t* dest,
   void* host_address = memory_->TranslatePhysical(address);
 
   // Pitch of the source texture in blocks.
-  uint32_t block_width = mip == 0 ? src.size.block_width
-                                  : xe::next_pow2(src.size.block_width) >> mip;
+  uint32_t block_width;
+  if (mip == 0) {
+    block_width = src.size.block_width;
+  } else {
+    block_width = xe::next_pow2(src.size.block_width) >> mip;
+    block_width = xe::round_up(block_width, 32);
+  }
+
   uint32_t logical_width = src.size.logical_width >> mip;
   uint32_t logical_height = src.size.logical_height >> mip;
   uint32_t input_width = src.size.input_width >> mip;
