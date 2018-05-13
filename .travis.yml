@@ -15,6 +15,7 @@ addons:
     sources:
       - ubuntu-toolchain-r-test
       - llvm-toolchain-trusty-4.0
+      - debian-sid
     packages:
       - clang-4.0
       - llvm-4.0-dev
@@ -29,6 +30,7 @@ addons:
       #- libvulkan-dev
       - libx11-dev
       - liblz4-dev
+      - qt5-default
 
 matrix:
   include:
@@ -41,6 +43,12 @@ git:
   # We handle submodules ourselves in xenia-build setup.
   submodules: false
 
+before_install:
+  # Add Vulkan dependencies
+  - travis_retry wget http://mirrors.kernel.org/ubuntu/pool/universe/v/vulkan/libvulkan1_$LIBVULKAN_VERSION+dfsg1-1ubuntu1~16.04.1_amd64.deb
+  - travis_retry wget http://mirrors.kernel.org/ubuntu/pool/universe/v/vulkan/libvulkan-dev_$LIBVULKAN_VERSION+dfsg1-1ubuntu1~16.04.1_amd64.deb
+  - if [[ $BUILD == true ]]; then sudo dpkg -i libvulkan1_$LIBVULKAN_VERSION+dfsg1-1ubuntu1~16.04.1_amd64.deb libvulkan-dev_$LIBVULKAN_VERSION+dfsg1-1ubuntu1~16.04.1_amd64.deb; fi
+
 before_script:
   - export LIBVULKAN_VERSION=1.0.61.1
   - export CXX=$CXX_COMPILER
@@ -48,10 +56,6 @@ before_script:
   # Dump useful info.
   - $CXX --version
   - python3 --version
-  # Add Vulkan dependencies
-  - travis_retry wget http://mirrors.kernel.org/ubuntu/pool/universe/v/vulkan/libvulkan1_$LIBVULKAN_VERSION+dfsg1-1ubuntu1~16.04.1_amd64.deb
-  - travis_retry wget http://mirrors.kernel.org/ubuntu/pool/universe/v/vulkan/libvulkan-dev_$LIBVULKAN_VERSION+dfsg1-1ubuntu1~16.04.1_amd64.deb
-  - if [[ $BUILD == true ]]; then sudo dpkg -i libvulkan1_$LIBVULKAN_VERSION+dfsg1-1ubuntu1~16.04.1_amd64.deb libvulkan-dev_$LIBVULKAN_VERSION+dfsg1-1ubuntu1~16.04.1_amd64.deb; fi
   # Prepare environment (pull dependencies, build tools).
   - travis_retry ./xenia-build setup
 
