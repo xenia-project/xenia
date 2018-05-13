@@ -43,7 +43,7 @@ clone_folder: c:\dev\xenia
 
 # environment variables
 environment:
-  my_var1: value1
+  QT_DIR: C:\Qt\5.10.1\msvc2017_64
   my_var2: value2
 
 # build cache to preserve files/folders between builds
