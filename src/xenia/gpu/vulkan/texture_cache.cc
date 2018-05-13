@@ -132,6 +132,20 @@ static const TextureConfig texture_configs[64] = {
 #undef RGBA
 #undef SWIZ
 
+const char* get_dimension_name(Dimension dimension) {
+  static const char* names[] = {
+    "1D",
+    "2D",
+    "3D",
+    "cube",
+  };
+  auto value = static_cast<int>(dimension);
+  if (value < xe::countof(names)) {
+    return names[value];
+  }
+  return "unknown";
+}
+
 TextureCache::TextureCache(Memory* memory, RegisterFile* register_file,
                            TraceWriter* trace_writer,
                            ui::vulkan::VulkanDevice* device)
@@ -1059,9 +1073,12 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
   SCOPE_profile_cpu_f("gpu");
 #endif  // FINE_GRAINED_DRAW_SCOPES
 
-  XELOGGPU("Uploading texture @ 0x%.8X (%dx%d, length: 0x%.8X, format: %s)",
+  XELOGGPU("Uploading texture @ 0x%.8X (%dx%d, length: 0x%.8X, format: %s, dim: %s, levels: %d, tiled: %s)",
            src.guest_address, src.width + 1, src.height + 1, src.input_length,
-           src.format_info()->name);
+           src.format_info()->name,
+           get_dimension_name(src.dimension),
+           src.mip_levels,
+           src.is_tiled ? "yes" : "no");
   size_t unpack_length;
   if (!ComputeTextureStorage(&unpack_length, src)) {
     XELOGW("Failed to compute texture storage");
