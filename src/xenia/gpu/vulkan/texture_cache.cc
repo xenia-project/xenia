@@ -924,13 +924,13 @@ bool TextureCache::ConvertTexture2D(uint8_t* dest,
                                src.format_info()->block_height *
                                src.format_info()->bits_per_pixel / 8;
     uint32_t src_pitch = xe::round_up(block_width * bytes_per_block, 256);
-    uint32_t dst_pitch = input_width * src.format_info()->block_width *
-                         src.format_info()->bits_per_pixel / 8;
-
+    uint32_t dst_pitch = (input_width / src.format_info()->block_width) *
+                         bytes_per_block;
+    assert_true(dst_pitch <= src_pitch);
     const uint8_t* src_mem = reinterpret_cast<const uint8_t*>(host_address);
     src_mem += offset_y * src_pitch;
     src_mem += offset_x * bytes_per_block;
-    for (uint32_t y = 0; y < src.size.logical_height; y++) {
+    for (uint32_t y = 0; y < src.size.block_height; y++) {
       TextureSwap(src.endianness, dest + y * dst_pitch, src_mem + y * src_pitch,
                   dst_pitch);
     }
