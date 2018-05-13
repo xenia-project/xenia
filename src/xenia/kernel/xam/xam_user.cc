@@ -606,9 +606,16 @@ SHIM_CALL XamSessionRefObjByHandle_shim(PPCContext* ppc_context,
 
   assert_true(handle == 0xCAFEDEAD);
 
-  SHIM_SET_MEM_32(obj_ptr, 0);
+  /* 
+	  Fixes Aegis Wings first issue (PermaNull)
+  
+	  It would probably better to properly implement this but for the time being 0xDEADF00D is caught in other places as invalid and not handled preventing crashes,
+	  specifically obDereference for the case of Aegis.
+  */
+	  
+  SHIM_SET_MEM_32(obj_ptr, 0xDEADF00D); 
 
-  SHIM_SET_RETURN_32(X_ERROR_FUNCTION_FAILED);
+  SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
 }
 
 }  // namespace xam

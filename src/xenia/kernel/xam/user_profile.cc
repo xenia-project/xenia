@@ -14,7 +14,9 @@ namespace kernel {
 namespace xam {
 
 UserProfile::UserProfile() {
-  xuid_ = 0xBABEBABEBABEBABE;
+  // Write XUID with 0xE as it indicates the profile is offline.
+  // https://github.com/hetelek/Velocity/blob/master/XboxInternals/Account/Account.cpp#L77
+  xuid_ = 0xE000000004CE0DB0;
   name_ = "User";
 
   // http://cs.rin.ru/forum/viewtopic.php?f=38&t=60668&hilit=gfwl+live&start=195
