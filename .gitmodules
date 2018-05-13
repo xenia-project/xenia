@@ -40,3 +40,6 @@
 [submodule "third_party/volk"]
 	path = third_party/volk
 	url = https://github.com/zeux/volk.git
+[submodule "third_party/premake-qt"]
+	path = third_party/premake-qt
+	url = https://github.com/dcourtois/premake-qt.git
