@@ -43,7 +43,7 @@ class GraphicsSystem {
 
   virtual X_STATUS Setup(cpu::Processor* processor,
                          kernel::KernelState* kernel_state,
-                         ui::Window* target_window);
+                         std::unique_ptr<ui::GraphicsContext> graphics_context);
   virtual void Shutdown();
   virtual void Reset();
 
@@ -91,7 +91,6 @@ class GraphicsSystem {
   Memory* memory_ = nullptr;
   cpu::Processor* processor_ = nullptr;
   kernel::KernelState* kernel_state_ = nullptr;
-  ui::Window* target_window_ = nullptr;
   std::unique_ptr<ui::GraphicsProvider> provider_;
 
   uint32_t interrupt_callback_ = 0;

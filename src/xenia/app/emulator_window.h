@@ -38,7 +38,7 @@ class EmulatorWindow : public QMainWindow {
  private:
   void CreateMenuBar();
 
-  std::unique_ptr<xe::Emulator*> emulator_;
+  std::unique_ptr<xe::Emulator> emulator_;
 
   std::unique_ptr<QWindow> graphics_window_;
   std::unique_ptr<ui::GraphicsProvider> graphics_provider_;

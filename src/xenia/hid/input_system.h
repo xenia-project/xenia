@@ -28,10 +28,8 @@ namespace hid {
 
 class InputSystem {
  public:
-  explicit InputSystem(xe::ui::Window* window);
+  explicit InputSystem();
   ~InputSystem();
-
-  xe::ui::Window* window() const { return window_; }
 
   X_STATUS Setup();
 
@@ -45,8 +43,6 @@ class InputSystem {
                         X_INPUT_KEYSTROKE* out_keystroke);
 
  private:
-  xe::ui::Window* window_ = nullptr;
-
   std::vector<std::unique_ptr<InputDriver>> drivers_;
 };
 

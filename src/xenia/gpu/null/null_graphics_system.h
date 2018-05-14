@@ -27,7 +27,7 @@ class NullGraphicsSystem : public GraphicsSystem {
   std::wstring name() const override { return L"null"; }
 
   X_STATUS Setup(cpu::Processor* processor, kernel::KernelState* kernel_state,
-                 ui::Window* target_window) override;
+                 std::unique_ptr<ui::GraphicsContext> context) override;
   void Shutdown() override;
 
  private:
