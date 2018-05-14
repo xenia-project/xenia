@@ -21,14 +21,10 @@ NullGraphicsSystem::NullGraphicsSystem() {}
 
 NullGraphicsSystem::~NullGraphicsSystem() {}
 
-X_STATUS NullGraphicsSystem::Setup(cpu::Processor* processor,
-                                   kernel::KernelState* kernel_state,
-                                   ui::Window* target_window) {
-  // This is a null graphics system, but we still setup vulkan because UI needs
-  // it through us :|
-  provider_ = xe::ui::vulkan::VulkanProvider::Create(target_window);
-
-  return GraphicsSystem::Setup(processor, kernel_state, target_window);
+X_STATUS NullGraphicsSystem::Setup(
+    cpu::Processor* processor, kernel::KernelState* kernel_state,
+    std::unique_ptr<ui::GraphicsContext> context) {
+  return GraphicsSystem::Setup(processor, kernel_state, std::move(context));
 }
 
 void NullGraphicsSystem::Shutdown() { GraphicsSystem::Shutdown(); }

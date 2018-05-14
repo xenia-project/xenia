@@ -46,7 +46,7 @@ CommandProcessor::CommandProcessor(GraphicsSystem* graphics_system,
 CommandProcessor::~CommandProcessor() = default;
 
 bool CommandProcessor::Initialize(
-    std::unique_ptr<xe::ui::GraphicsContext> context) {
+    std::unique_ptr<ui::GraphicsContext> context) {
   context_ = std::move(context);
 
   worker_running_ = true;
@@ -231,7 +231,7 @@ bool CommandProcessor::Restore(ByteStream* stream) {
 
 bool CommandProcessor::SetupContext() { return true; }
 
-void CommandProcessor::ShutdownContext() { context_.reset(); }
+void CommandProcessor::ShutdownContext() {}
 
 void CommandProcessor::InitializeRingBuffer(uint32_t ptr, uint32_t log2_size) {
   read_ptr_index_ = 0;

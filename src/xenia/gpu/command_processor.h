@@ -70,7 +70,7 @@ class CommandProcessor {
   Shader* active_vertex_shader() const { return active_vertex_shader_; }
   Shader* active_pixel_shader() const { return active_pixel_shader_; }
 
-  virtual bool Initialize(std::unique_ptr<xe::ui::GraphicsContext> context);
+  virtual bool Initialize(std::unique_ptr<ui::GraphicsContext> context);
   virtual void Shutdown();
 
   void CallInThread(std::function<void()> fn);
@@ -209,7 +209,7 @@ class CommandProcessor {
   std::atomic<bool> worker_running_;
   kernel::object_ref<kernel::XHostThread> worker_thread_;
 
-  std::unique_ptr<xe::ui::GraphicsContext> context_;
+  std::unique_ptr<ui::GraphicsContext> context_;
   SwapMode swap_mode_ = SwapMode::kNormal;
   SwapState swap_state_;
   std::function<void()> swap_request_handler_;

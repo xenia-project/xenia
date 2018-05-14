@@ -104,8 +104,12 @@ int TraceDump::Main(const std::vector<std::wstring>& args) {
 bool TraceDump::Setup() {
   // Create the emulator but don't initialize so we can setup the window.
   emulator_ = std::make_unique<Emulator>(L"");
-  X_STATUS result = emulator_->Setup(
-      nullptr, nullptr, [this]() { return CreateGraphicsSystem(); }, nullptr);
+  X_STATUS result =
+      emulator_->Setup(nullptr,
+                       [this](cpu::Processor*, kernel::KernelState*) {
+                         return CreateGraphicsSystem();
+                       },
+                       nullptr);
   if (XFAILED(result)) {
     XELOGE("Failed to setup emulator: %.8X", result);
     return false;

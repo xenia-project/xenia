@@ -60,7 +60,7 @@ bool VulkanCommandProcessor::SetupContext() {
   }
 
   // Acquire our device and queue.
-  auto context = static_cast<xe::ui::vulkan::VulkanContext*>(context_.get());
+  auto context = static_cast<ui::vulkan::VulkanContext*>(context_.get());
   device_ = context->device();
   queue_ = device_->AcquireQueue(device_->queue_family_index());
   if (!queue_) {

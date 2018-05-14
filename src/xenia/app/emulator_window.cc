@@ -10,6 +10,7 @@
 #include <gflags/gflags.h>
 
 #include "xenia/app/emulator_window.h"
+#include "xenia/gpu/vulkan/vulkan_graphics_system.h"
 
 #include "xenia/ui/vulkan/vulkan_instance.h"
 #include "xenia/ui/vulkan/vulkan_provider.h"
@@ -29,8 +30,28 @@ namespace app {
 EmulatorWindow::EmulatorWindow() {}
 
 bool EmulatorWindow::Setup() {
-  // TODO(DrChat): We own xe::Emulator. Create it and set it up.
-  return false;
+  // TODO(DrChat): Pass in command line arguments.
+  emulator_ = std::make_unique<xe::Emulator>(L"");
+
+  // Initialize the graphics backend.
+  // TODO(DrChat): Pick from gpu command line flag.
+  if (!InitializeVulkan()) {
+    return false;
+  }
+
+  auto graphics_factory = [&](cpu::Processor* processor,
+                              kernel::KernelState* kernel_state) {
+    auto graphics = std::make_unique<gpu::vulkan::VulkanGraphicsSystem>();
+    if (graphics->Setup(processor, kernel_state,
+                        graphics_provider_->CreateOffscreenContext())) {
+      return std::unique_ptr<gpu::vulkan::VulkanGraphicsSystem>(nullptr);
+    }
+
+    return graphics;
+  };
+
+  X_STATUS result = emulator_->Setup(nullptr, graphics_factory, nullptr);
+  return result == X_STATUS_SUCCESS;
 }
 
 bool EmulatorWindow::InitializeVulkan() {

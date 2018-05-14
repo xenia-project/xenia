@@ -39,65 +39,22 @@ GraphicsSystem::GraphicsSystem() : vsync_worker_running_(false) {}
 
 GraphicsSystem::~GraphicsSystem() = default;
 
-X_STATUS GraphicsSystem::Setup(cpu::Processor* processor,
-                               kernel::KernelState* kernel_state,
-                               ui::Window* target_window) {
+X_STATUS GraphicsSystem::Setup(
+    cpu::Processor* processor, kernel::KernelState* kernel_state,
+    std::unique_ptr<ui::GraphicsContext> graphics_context) {
   memory_ = processor->memory();
   processor_ = processor;
   kernel_state_ = kernel_state;
-  target_window_ = target_window;
-
-  // Initialize display and rendering context.
-  // This must happen on the UI thread.
-  std::unique_ptr<xe::ui::GraphicsContext> processor_context = nullptr;
-  if (provider_) {
-    if (target_window_) {
-      target_window_->loop()->PostSynchronous([&]() {
-        // Create the context used for presentation.
-        assert_null(target_window->context());
-        target_window_->set_context(provider_->CreateContext(target_window_));
-
-        // Setup the context the command processor will do all its drawing in.
-        // It's shared with the display context so that we can resolve
-        // framebuffers from it.
-        processor_context = provider()->CreateOffscreenContext();
-      });
-    } else {
-      processor_context = provider()->CreateOffscreenContext();
-    }
-
-    if (!processor_context) {
-      xe::FatalError(
-          "Unable to initialize graphics context. Xenia requires OpenGL 4.5 or "
-          "Vulkan support. Ensure you have the latest drivers for your GPU and "
-          "that it supports OpenGL or Vulkan. See http://xenia.jp/faq/ for "
-          "more information.");
-      return X_STATUS_UNSUCCESSFUL;
-    }
-  }
 
   // Create command processor. This will spin up a thread to process all
   // incoming ringbuffer packets.
   command_processor_ = CreateCommandProcessor();
-  if (!command_processor_->Initialize(std::move(processor_context))) {
+  if (!command_processor_->Initialize(std::move(graphics_context))) {
     XELOGE("Unable to initialize command processor");
     return X_STATUS_UNSUCCESSFUL;
   }
 
-  if (target_window) {
-    command_processor_->set_swap_request_handler(
-        [this]() { target_window_->Invalidate(); });
-
-    // Watch for paint requests to do our swap.
-    target_window->on_painting.AddListener(
-        [this](xe::ui::UIEvent* e) { Swap(e); });
-
-    // Watch for context lost events.
-    target_window->on_context_lost.AddListener(
-        [this](xe::ui::UIEvent* e) { Reset(); });
-  } else {
-    command_processor_->set_swap_request_handler([]() {});
-  }
+  command_processor_->set_swap_request_handler([]() {});
 
   // Let the processor know we want register access callbacks.
   memory_->AddVirtualMappedRange(

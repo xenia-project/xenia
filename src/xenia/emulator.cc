@@ -77,16 +77,14 @@ Emulator::~Emulator() {
 }
 
 X_STATUS Emulator::Setup(
-    ui::Window* display_window,
     std::function<std::unique_ptr<apu::AudioSystem>(cpu::Processor*)>
         audio_system_factory,
-    std::function<std::unique_ptr<gpu::GraphicsSystem>()>
+    std::function<std::unique_ptr<gpu::GraphicsSystem>(cpu::Processor*,
+                                                       kernel::KernelState*)>
         graphics_system_factory,
-    std::function<std::vector<std::unique_ptr<hid::InputDriver>>(ui::Window*)>
+    std::function<std::vector<std::unique_ptr<hid::InputDriver>>()>
         input_driver_factory) {
   X_STATUS result = X_STATUS_UNSUCCESSFUL;
-
-  display_window_ = display_window;
 
   // Initialize clock.
   // 360 uses a 50MHz clock.
@@ -132,27 +130,34 @@ X_STATUS Emulator::Setup(
     return X_STATUS_UNSUCCESSFUL;
   }
 
+  // Bring up the virtual filesystem used by the kernel.
+  file_system_ = std::make_unique<xe::vfs::VirtualFileSystem>();
+
+  // Shared kernel state.
+  kernel_state_ = std::make_unique<xe::kernel::KernelState>(this);
+
   // Initialize the APU.
   if (audio_system_factory) {
     audio_system_ = audio_system_factory(processor_.get());
     if (!audio_system_) {
-      return X_STATUS_NOT_IMPLEMENTED;
+      return X_STATUS_UNSUCCESSFUL;
     }
   }
 
   // Initialize the GPU.
-  graphics_system_ = graphics_system_factory();
+  graphics_system_ =
+      graphics_system_factory(processor_.get(), kernel_state_.get());
   if (!graphics_system_) {
-    return X_STATUS_NOT_IMPLEMENTED;
+    return X_STATUS_UNSUCCESSFUL;
   }
 
-  // Initialize the HID.
-  input_system_ = std::make_unique<xe::hid::InputSystem>(display_window_);
+  // Initialize all HID drivers.
+  input_system_ = std::make_unique<xe::hid::InputSystem>();
   if (!input_system_) {
     return X_STATUS_NOT_IMPLEMENTED;
   }
   if (input_driver_factory) {
-    auto input_drivers = input_driver_factory(display_window_);
+    auto input_drivers = input_driver_factory();
     for (size_t i = 0; i < input_drivers.size(); ++i) {
       input_system_->AddDriver(std::move(input_drivers[i]));
     }
@@ -163,26 +168,6 @@ X_STATUS Emulator::Setup(
     return result;
   }
 
-  // Bring up the virtual filesystem used by the kernel.
-  file_system_ = std::make_unique<xe::vfs::VirtualFileSystem>();
-
-  // Shared kernel state.
-  kernel_state_ = std::make_unique<xe::kernel::KernelState>(this);
-
-  // Setup the core components.
-  result = graphics_system_->Setup(processor_.get(), kernel_state_.get(),
-                                   display_window_);
-  if (result) {
-    return result;
-  }
-
-  if (audio_system_) {
-    result = audio_system_->Setup(kernel_state_.get());
-    if (result) {
-      return result;
-    }
-  }
-
   // HLE kernel modules.
   kernel_state_->LoadKernelModule<kernel::xboxkrnl::XboxkrnlModule>();
   kernel_state_->LoadKernelModule<kernel::xam::XamModule>();
@@ -190,14 +175,6 @@ X_STATUS Emulator::Setup(
 
   // Initialize emulator fallback exception handling last.
   ExceptionHandler::Install(Emulator::ExceptionCallbackThunk, this);
-
-  if (display_window_) {
-    // Finish initializing the display.
-    display_window_->loop()->PostSynchronous([this]() {
-      xe::ui::GraphicsContextLock context_lock(display_window_->context());
-      Profiler::set_window(display_window_);
-    });
-  }
 
   return result;
 }
@@ -533,16 +510,6 @@ bool Emulator::ExceptionCallback(Exception* ex) {
            context->v[i].i32[1], context->v[i].i32[2], context->v[i].i32[3]);
   }
 
-  // Display a dialog telling the user the guest has crashed.
-  display_window()->loop()->PostSynchronous([&]() {
-    xe::ui::ImGuiDialog::ShowMessageBox(
-        display_window(), "Uh-oh!",
-        "The guest has crashed.\n\n"
-        ""
-        "Xenia has now paused itself.\n"
-        "A crash dump has been written into the log.");
-  });
-
   // Now suspend ourself (we should be a guest thread).
   current_thread->Suspend(nullptr);
 
@@ -632,7 +599,7 @@ X_STATUS Emulator::CompleteLaunch(const std::wstring& path,
         game_title_ = xe::to_wstring(db.title());
         auto icon_block = db.icon();
         if (icon_block) {
-          display_window_->SetIcon(icon_block.buffer, icon_block.size);
+          // display_window_->SetIcon(icon_block.buffer, icon_block.size);
         }
       }
     }

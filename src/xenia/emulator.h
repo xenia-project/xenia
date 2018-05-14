@@ -62,9 +62,6 @@ class Emulator {
   // Are we currently running a title?
   bool is_title_open() const { return title_id_ != 0; }
 
-  // Window used for displaying graphical output.
-  ui::Window* display_window() const { return display_window_; }
-
   // Guest memory system modelling the RAM (both virtual and physical) of the
   // system.
   Memory* memory() const { return memory_.get(); }
@@ -101,12 +98,12 @@ class Emulator {
   // Once this function returns a game can be launched using one of the Launch
   // functions.
   X_STATUS Setup(
-      ui::Window* display_window,
       std::function<std::unique_ptr<apu::AudioSystem>(cpu::Processor*)>
           audio_system_factory,
-      std::function<std::unique_ptr<gpu::GraphicsSystem>()>
+      std::function<std::unique_ptr<gpu::GraphicsSystem>(cpu::Processor*,
+                                                         kernel::KernelState*)>
           graphics_system_factory,
-      std::function<std::vector<std::unique_ptr<hid::InputDriver>>(ui::Window*)>
+      std::function<std::vector<std::unique_ptr<hid::InputDriver>>()>
           input_driver_factory);
 
   // Terminates the currently running title.
@@ -155,8 +152,6 @@ class Emulator {
 
   std::wstring command_line_;
   std::wstring game_title_;
-
-  ui::Window* display_window_;
 
   std::unique_ptr<Memory> memory_;
 

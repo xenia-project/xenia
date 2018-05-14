@@ -33,22 +33,15 @@ using xe::ui::vulkan::CheckResult;
 VulkanGraphicsSystem::VulkanGraphicsSystem() {}
 VulkanGraphicsSystem::~VulkanGraphicsSystem() = default;
 
-X_STATUS VulkanGraphicsSystem::Setup(cpu::Processor* processor,
-                                     kernel::KernelState* kernel_state,
-                                     ui::Window* target_window) {
-  // Must create the provider so we can create contexts.
-  auto provider = xe::ui::vulkan::VulkanProvider::Create(target_window);
-  device_ = provider->device();
-  provider_ = std::move(provider);
+X_STATUS VulkanGraphicsSystem::Setup(
+    cpu::Processor* processor, kernel::KernelState* kernel_state,
+    std::unique_ptr<ui::GraphicsContext> context) {
+  device_ = static_cast<ui::vulkan::VulkanContext*>(context.get())->device();
 
-  auto result = GraphicsSystem::Setup(processor, kernel_state, target_window);
+  auto result =
+      GraphicsSystem::Setup(processor, kernel_state, std::move(context));
   if (result) {
     return result;
-  }
-
-  if (target_window) {
-    display_context_ = reinterpret_cast<xe::ui::vulkan::VulkanContext*>(
-        target_window->context());
   }
 
   // Create our own command pool we can use for captures.

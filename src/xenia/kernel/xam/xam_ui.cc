@@ -125,6 +125,7 @@ SHIM_CALL XamShowMessageBoxUI_shim(PPCContext* ppc_context,
     // Auto-pick the focused button.
     chosen_button = active_button;
   } else {
+    /*
     auto display_window = kernel_state->emulator()->display_window();
     xe::threading::Fence fence;
     display_window->loop()->PostSynchronous([&]() {
@@ -150,6 +151,7 @@ SHIM_CALL XamShowMessageBoxUI_shim(PPCContext* ppc_context,
     ++xam_dialogs_shown_;
     fence.Wait();
     --xam_dialogs_shown_;
+    */
   }
   SHIM_SET_MEM_32(result_ptr, chosen_button);
 
@@ -253,6 +255,7 @@ dword_result_t XamShowKeyboardUI(dword_t user_index, dword_t flags,
 
   std::wstring out_text;
 
+  /*
   auto display_window = kernel_state()->emulator()->display_window();
   xe::threading::Fence fence;
   display_window->loop()->PostSynchronous([&]() {
@@ -265,6 +268,7 @@ dword_result_t XamShowKeyboardUI(dword_t user_index, dword_t flags,
   ++xam_dialogs_shown_;
   fence.Wait();
   --xam_dialogs_shown_;
+  */
 
   // Zero the output buffer.
   std::memset(buffer, 0, buffer_length * 2);
@@ -325,6 +329,7 @@ SHIM_CALL XamShowDirtyDiscErrorUI_shim(PPCContext* ppc_context,
     return;
   }
 
+  /*
   auto display_window = kernel_state->emulator()->display_window();
   xe::threading::Fence fence;
   display_window->loop()->PostSynchronous([&]() {
@@ -337,6 +342,7 @@ SHIM_CALL XamShowDirtyDiscErrorUI_shim(PPCContext* ppc_context,
   ++xam_dialogs_shown_;
   fence.Wait();
   --xam_dialogs_shown_;
+  */
 
   // This is death, and should never return.
   // TODO(benvanik): cleaner exit.

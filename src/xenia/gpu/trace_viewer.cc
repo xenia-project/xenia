@@ -124,8 +124,11 @@ bool TraceViewer::Setup() {
   // Create the emulator but don't initialize so we can setup the window.
   emulator_ = std::make_unique<Emulator>(L"");
   X_STATUS result =
-      emulator_->Setup(window_.get(), nullptr,
-                       [this]() { return CreateGraphicsSystem(); }, nullptr);
+      emulator_->Setup(nullptr,
+                       [this](cpu::Processor*, kernel::KernelState*) {
+                         return CreateGraphicsSystem();
+                       },
+                       nullptr);
   if (XFAILED(result)) {
     XELOGE("Failed to setup emulator: %.8X", result);
     return false;
