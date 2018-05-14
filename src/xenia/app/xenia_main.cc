@@ -37,7 +37,9 @@ int xenia_main(const std::vector<std::wstring>& args) {
   if (!main_wnd.Setup()) {
     return 1;
   }
-
+  
+  main_wnd.setFixedSize(1280, 720);
+  
   /*
   if (FLAGS_mount_scratch) {
     auto scratch_device = std::make_unique<xe::vfs::HostPathDevice>(
@@ -104,6 +106,11 @@ int xenia_main(const std::vector<std::wstring>& args) {
   */
 
   main_wnd.show();
+  if (args.size() >= 2) {
+    // Launch the path passed in args[1].
+    main_wnd.Launch(args[1]);
+  }
+
   int rc = app.exec();
 
   Profiler::Dump();
