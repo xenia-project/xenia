@@ -552,23 +552,28 @@ void BufferCache::HashVertexBindings(
     const std::vector<Shader::VertexBinding>& vertex_bindings) {
   auto& regs = *register_file_;
   for (const auto& vertex_binding : vertex_bindings) {
+#if 0
+    XXH64_update(hash_state, &vertex_binding.binding_index, sizeof(vertex_binding.binding_index));
+    XXH64_update(hash_state, &vertex_binding.fetch_constant, sizeof(vertex_binding.fetch_constant));
+    XXH64_update(hash_state, &vertex_binding.stride_words, sizeof(vertex_binding.stride_words));
+#endif
     int r = XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 +
             (vertex_binding.fetch_constant / 3) * 6;
     const auto group = reinterpret_cast<xe_gpu_fetch_group_t*>(&regs.values[r]);
-    const xe_gpu_vertex_fetch_t* fetch = nullptr;
     switch (vertex_binding.fetch_constant % 3) {
-      case 0:
-        fetch = &group->vertex_fetch_0;
-        break;
-      case 1:
-        fetch = &group->vertex_fetch_1;
-        break;
-      case 2:
-        fetch = &group->vertex_fetch_2;
-        break;
+      case 0: {
+        auto& fetch = group->vertex_fetch_0;
+        XXH64_update(hash_state, &fetch, sizeof(fetch));
+      } break;
+      case 1: {
+        auto& fetch = group->vertex_fetch_1;
+        XXH64_update(hash_state, &fetch, sizeof(fetch));
+      } break;
+      case 2: {
+        auto& fetch = group->vertex_fetch_2;
+        XXH64_update(hash_state, &fetch, sizeof(fetch));
+      } break;
     }
-
-    XXH64_update(hash_state, fetch, sizeof(fetch));
   }
 }
 
