@@ -62,6 +62,8 @@ class GraphicsSystem {
 
   virtual void ClearCaches();
 
+  void SetSwapCallback(std::function<void()> fn);
+
   void RequestFrameTrace();
   void BeginTracing();
   void EndTracing();

@@ -54,8 +54,6 @@ X_STATUS GraphicsSystem::Setup(
     return X_STATUS_UNSUCCESSFUL;
   }
 
-  command_processor_->set_swap_request_handler([]() {});
-
   // Let the processor know we want register access callbacks.
   memory_->AddVirtualMappedRange(
       0x7FC80000, 0xFFFF0000, 0x0000FFFF, this,
@@ -111,6 +109,10 @@ void GraphicsSystem::Reset() {
   Shutdown();
 
   xe::FatalError("Graphics device lost (probably due to an internal error)");
+}
+
+void GraphicsSystem::SetSwapCallback(std::function<void()> fn) {
+  command_processor_->SetSwapCallback(fn);
 }
 
 uint32_t GraphicsSystem::ReadRegisterThunk(void* ppc_context,
