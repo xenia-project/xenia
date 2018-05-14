@@ -11,7 +11,6 @@
 
 #include "xenia/base/logging.h"
 #include "xenia/base/threading.h"
-#include "xenia/kernel/xthread.h"
 
 namespace xe {
 namespace kernel {
@@ -78,16 +77,12 @@ X_RESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
              session_info_ptr, nonce_ptr);
       return X_STATUS_SUCCESS;
     }
-	
     case 0x000B0011: {
-	  //TODO(PermaNull): reverse buffer contents.
-	  //Aegis Wings fix, return success here.
-	  
-	  XELOGD("XGISessionDelete");
-	  return X_STATUS_SUCCESS;
-    } 
-	
-	
+      // TODO(PermaNull): reverse buffer contents.
+
+      XELOGD("XGISessionDelete");
+      return X_STATUS_SUCCESS;
+    }
     case 0x000B0012: {
       assert_true(buffer_length == 0x14);
       uint32_t session_ptr = xe::load_and_swap<uint32_t>(buffer + 0x0);
@@ -99,19 +94,9 @@ X_RESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       assert_zero(unk_0);
       XELOGD("XGISessionJoinLocal(%.8X, %d, %d, %.8X, %.8X)", session_ptr,
              user_count, unk_0, user_index_array, private_slots_array);
-			 
-	  /*
-			May be a better idea to SetLastError() in XMsgStartIORequest.
-			I applied it here to specifically fix an issue in Aegis Wings,
-			recvfrom is called before this and thread is set with the error from WSAGetLastError() causing the game to believe the XMsgStartIORequest failed.
-			- PermaNull
-	  */
-	  XThread::SetLastError(0);
-	  
+
       return X_STATUS_SUCCESS;
     }
-	
-	
     case 0x000B0041: {
       assert_true(!buffer_length || buffer_length == 32);
       // 00000000 2789fecc 00000000 00000000 200491e0 00000000 200491f0 20049340
@@ -129,9 +114,7 @@ X_RESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       }
       return X_ERROR_FUNCTION_FAILED;
     }
-	
 
-	
     case 0x000B0071: {
       XELOGD("XGI 0x000B0071, unimplemented");
       return X_ERROR_SUCCESS;
