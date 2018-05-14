@@ -15,6 +15,7 @@
 #include <thread>
 
 #include "xenia/cpu/processor.h"
+#include "xenia/gpu/command_processor.h"
 #include "xenia/gpu/register_file.h"
 #include "xenia/kernel/xthread.h"
 #include "xenia/memory.h"
@@ -27,8 +28,6 @@ class Emulator;
 
 namespace xe {
 namespace gpu {
-
-class CommandProcessor;
 
 class GraphicsSystem {
  public:
@@ -63,6 +62,7 @@ class GraphicsSystem {
   virtual void ClearCaches();
 
   void SetSwapCallback(std::function<void()> fn);
+  gpu::SwapState& swap_state() { return command_processor_->swap_state(); }
 
   void RequestFrameTrace();
   void BeginTracing();
