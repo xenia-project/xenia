@@ -10,6 +10,7 @@
 #include <gflags/gflags.h>
 
 #include "xenia/app/emulator_window.h"
+#include "xenia/apu/xaudio2/xaudio2_audio_system.h"
 #include "xenia/gpu/vulkan/vulkan_graphics_system.h"
 
 #include "xenia/ui/vulkan/vulkan_instance.h"
@@ -39,6 +40,10 @@ bool EmulatorWindow::Setup() {
     return false;
   }
 
+  auto audio_factory = [&](cpu::Processor* processor) {
+    return apu::xaudio2::XAudio2AudioSystem::Create(processor);
+  };
+
   auto graphics_factory = [&](cpu::Processor* processor,
                               kernel::KernelState* kernel_state) {
     auto graphics = std::make_unique<gpu::vulkan::VulkanGraphicsSystem>();
@@ -47,10 +52,12 @@ bool EmulatorWindow::Setup() {
       return std::unique_ptr<gpu::vulkan::VulkanGraphicsSystem>(nullptr);
     }
 
+    graphics->SetSwapCallback(
+        [&]() { this->graphics_window_->requestUpdate(); });
     return graphics;
   };
 
-  X_STATUS result = emulator_->Setup(nullptr, graphics_factory, nullptr);
+  X_STATUS result = emulator_->Setup(audio_factory, graphics_factory, nullptr);
   return result == X_STATUS_SUCCESS;
 }
 
@@ -61,12 +68,23 @@ bool EmulatorWindow::InitializeVulkan() {
   // Create a Qt wrapper around our vulkan instance.
   vulkan_instance_ = std::make_unique<QVulkanInstance>();
   vulkan_instance_->setVkInstance(*provider->instance());
+  if (!vulkan_instance_->create()) {
+    return false;
+  }
 
   graphics_window_ = std::make_unique<QVulkanWindow>();
   graphics_window_->setVulkanInstance(vulkan_instance_.get());
 
+  // Now set the graphics window as our central widget.
+  QWidget* wrapper = QWidget::createWindowContainer(graphics_window_.get());
+  setCentralWidget(wrapper);
+
   graphics_provider_ = std::move(provider);
   return true;
+}
+
+bool EmulatorWindow::Launch(const std::wstring& path) {
+  return emulator_->LaunchPath(path) == X_STATUS_SUCCESS;
 }
 
 }  // namespace app

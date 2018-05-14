@@ -33,7 +33,7 @@ project("xenia-app")
     "xenia-hid-nop",
     "xenia-kernel",
     "xenia-ui",
-    "xenia-ui-qt",
+    -- "xenia-ui-qt",
     "xenia-ui-spirv",
     "xenia-ui-vulkan",
     "xenia-vfs",

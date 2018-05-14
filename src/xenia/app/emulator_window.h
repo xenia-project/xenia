@@ -29,6 +29,7 @@ class EmulatorWindow : public QMainWindow {
 
   bool Setup();
   bool InitializeVulkan();
+  bool Launch(const std::wstring& path);
 
  protected:
   // Events
