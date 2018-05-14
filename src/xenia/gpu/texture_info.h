@@ -255,6 +255,7 @@ struct TextureInfo {
   uint32_t depth;
   Endian endianness;
   bool is_tiled;
+  bool has_packed_mips;
   uint32_t mip_address;
   uint32_t mip_levels;
   uint32_t input_length;
@@ -306,10 +307,10 @@ struct TextureInfo {
 
   static bool GetPackedTileOffset(uint32_t width, uint32_t height,
                                   const FormatInfo* format_info,
-                                  uint32_t* out_offset_x,
+                                  int packed_tile, uint32_t* out_offset_x,
                                   uint32_t* out_offset_y);
   static bool GetPackedTileOffset(const TextureInfo& texture_info,
-                                  uint32_t* out_offset_x,
+                                  int packed_tile, uint32_t* out_offset_x,
                                   uint32_t* out_offset_y);
   static uint32_t TiledOffset2DOuter(uint32_t y, uint32_t width,
                                      uint32_t log2_bpp);

@@ -59,6 +59,7 @@ bool TextureInfo::Prepare(const xe_gpu_texture_fetch_t& fetch,
   info.texture_format = static_cast<TextureFormat>(fetch.format);
   info.endianness = static_cast<Endian>(fetch.endianness);
   info.is_tiled = fetch.tiled;
+  info.has_packed_mips = fetch.packed_mips;
   info.mip_address = fetch.mip_address << 12;
   info.mip_levels = fetch.packed_mips ? fetch.mip_max_level + 1 : 1;
   info.input_length = 0;  // Populated below.
@@ -397,12 +398,12 @@ uint32_t TextureInfo::GetMipLocation(const TextureInfo& src, uint32_t mip,
                                      uint32_t* offset_x, uint32_t* offset_y) {
   if (mip == 0) {
     // Short-circuit. Mip 0 is always stored in guest_address.
-    if (src.mip_levels <= 1) {
-      // Only <= 1 mip level, it can't possibly be offset.
-      *offset_x = *offset_y = 0;
-      return src.guest_address;
+    if (!src.has_packed_mips) {
+      *offset_x = 0;
+      *offset_y = 0;
+    } else {
+      GetPackedTileOffset(src, 0, offset_x, offset_y);
     }
-    GetPackedTileOffset(src, offset_x, offset_y);
     return src.guest_address;
   }
 
@@ -413,8 +414,18 @@ uint32_t TextureInfo::GetMipLocation(const TextureInfo& src, uint32_t mip,
                               : src.mip_address;
   uint32_t address_offset = 0;
 
+  if (!src.has_packed_mips) {
+    for (uint32_t i = 1; i < mip; i++) {
+      address_offset += GetMipByteSize(src, i);
+    }
+    *offset_x = 0;
+    *offset_y = 0;
+    return address_base + address_offset;
+  }
+
   // Walk forward to find the address of the mip.
-  for (uint32_t i = 1; i < mip; i++) {
+  uint32_t packed_mip_base = 1;
+  for (uint32_t i = packed_mip_base; i < mip; i++, packed_mip_base++) {
     uint32_t logical_width = std::max(xe::next_pow2(src.width + 1) >> i, 1u);
     uint32_t logical_height = std::max(xe::next_pow2(src.height + 1) >> i, 1u);
     if (std::min(logical_width, logical_height) <= 16) {
@@ -428,7 +439,7 @@ uint32_t TextureInfo::GetMipLocation(const TextureInfo& src, uint32_t mip,
   // Now, check if the mip is packed at an offset.
   GetPackedTileOffset(xe::next_pow2(src.width + 1) >> mip,
                       xe::next_pow2(src.height + 1) >> mip, src.format_info(),
-                      offset_x, offset_y);
+                      mip - packed_mip_base, offset_x, offset_y);
   return address_base + address_offset;
 }
 
@@ -479,7 +490,7 @@ uint32_t TextureInfo::GetMipLinearSize(const TextureInfo& src, uint32_t mip) {
 
 bool TextureInfo::GetPackedTileOffset(uint32_t width, uint32_t height,
                                       const FormatInfo* format_info,
-                                      uint32_t* out_offset_x,
+                                      int packed_tile, uint32_t* out_offset_x,
                                       uint32_t* out_offset_y) {
   // Tile size is 32x32, and once textures go <=16 they are packed into a
   // single tile together. The math here is insane. Most sourced
@@ -526,14 +537,26 @@ bool TextureInfo::GetPackedTileOffset(uint32_t width, uint32_t height,
   }
 
   // Find the block offset of the mip.
-  if (log2_width > log2_height) {
-    // Wider than tall. Laid out vertically.
-    *out_offset_y = log2_height > 0x1 ? 1 << log2_height : 0;
-    *out_offset_x = log2_height <= 0x1 ? 1 << (log2_width + 2) : 0;
+  if (packed_tile < 3) {
+    if (log2_width > log2_height) {
+      // Wider than tall. Laid out vertically.
+      *out_offset_x = 0;
+      *out_offset_y = 16 >> packed_tile;
+    } else {
+      // Taller than wide. Laid out horizontally.
+      *out_offset_x = 16 >> packed_tile;
+      *out_offset_y = 0;
+    }
   } else {
-    // Taller than wide. Laid out horizontally.
-    *out_offset_x = log2_width > 0x1 ? 1 << log2_width : 0;
-    *out_offset_y = log2_width <= 0x1 ? 1 << (log2_height + 2) : 0;
+    if (log2_width > log2_height) {
+      // Wider than tall. Laid out vertically.
+      *out_offset_x = 16 >> (packed_tile - 2);
+      *out_offset_y = 0;
+    } else {
+      // Taller than wide. Laid out horizontally.
+      *out_offset_x = 0;
+      *out_offset_y = 16 >> (packed_tile - 2);
+    }
   }
 
   *out_offset_x /= format_info->block_width;
@@ -542,12 +565,17 @@ bool TextureInfo::GetPackedTileOffset(uint32_t width, uint32_t height,
 }
 
 bool TextureInfo::GetPackedTileOffset(const TextureInfo& texture_info,
-                                      uint32_t* out_offset_x,
+                                      int packed_tile, uint32_t* out_offset_x,
                                       uint32_t* out_offset_y) {
+  if (!texture_info.has_packed_mips) {
+    *out_offset_x = 0;
+    *out_offset_y = 0;
+    return false;
+  }
   return GetPackedTileOffset(xe::next_pow2(texture_info.size.logical_width),
                              xe::next_pow2(texture_info.size.logical_height),
-                             texture_info.format_info(), out_offset_x,
-                             out_offset_y);
+                             texture_info.format_info(), packed_tile,
+                             out_offset_x, out_offset_y);
 }
 
 // https://github.com/BinomialLLC/crunch/blob/ea9b8d8c00c8329791256adafa8cf11e4e7942a2/inc/crn_decomp.h#L4108
