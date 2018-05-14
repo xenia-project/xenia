@@ -1,5 +1,6 @@
 project_root = "../../.."
 include(project_root.."/tools/build")
+local qt = premake.extensions.qt
 
 group("src")
 project("xenia-app")
@@ -32,11 +33,22 @@ project("xenia-app")
     "xenia-hid-nop",
     "xenia-kernel",
     "xenia-ui",
+    "xenia-ui-qt",
     "xenia-ui-spirv",
     "xenia-ui-vulkan",
     "xenia-vfs",
     "xxhash",
   })
+
+  -- Setup Qt libraries
+  qt.enable()
+  qtmodules{"core", "gui", "widgets"}
+  qtprefix "Qt5"
+
+  configuration {"Debug"}
+    qtsuffix "d"
+  configuration {}
+
   flags({
     "WinMain",  -- Use WinMain instead of main.
   })
@@ -83,5 +95,8 @@ project("xenia-app")
         "--flagfile=scratch/flags.txt",
         "2>&1",
         "1>scratch/stdout.txt",
+      })
+      debugenvs({
+        "PATH=" .. qt.defaultpath .. "/bin",
       })
     end
