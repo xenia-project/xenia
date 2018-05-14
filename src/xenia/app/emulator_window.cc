@@ -14,7 +14,7 @@
 
 #include "xenia/ui/vulkan/vulkan_instance.h"
 #include "xenia/ui/vulkan/vulkan_provider.h"
-
+#include "xenia/ui/opengl/opengl_provider.h"
 #include <QVulkanWindow>
 
 DEFINE_string(apu, "any", "Audio system. Use: [any, nop, xaudio2]");
