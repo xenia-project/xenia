@@ -34,7 +34,6 @@ class NullGraphicsSystem : public GraphicsSystem {
  private:
   std::unique_ptr<CommandProcessor> CreateCommandProcessor() override;
 
-  void Swap(xe::ui::UIEvent* e) override;
   SwapState swap_state_ = {};
 };
 

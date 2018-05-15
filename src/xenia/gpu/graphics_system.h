@@ -19,7 +19,6 @@
 #include "xenia/gpu/register_file.h"
 #include "xenia/kernel/xthread.h"
 #include "xenia/memory.h"
-#include "xenia/ui/window.h"
 #include "xenia/xbox.h"
 
 namespace xe {
@@ -112,7 +111,6 @@ class GraphicsSystem {
   void WriteRegister(uint32_t addr, uint32_t value);
 
   void MarkVblank();
-  virtual void Swap(xe::ui::UIEvent* e) = 0;
 
   Memory* memory_ = nullptr;
   cpu::Processor* processor_ = nullptr;
