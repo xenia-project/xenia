@@ -30,6 +30,9 @@ int xenia_main(const std::vector<std::wstring>& args) {
   Profiler::Initialize();
   Profiler::ThreadEnter("main");
 
+  QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
+  QCoreApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
+
   int argc = 1;
   char* argv[] = {"xenia", nullptr};
   QApplication app(argc, argv);
