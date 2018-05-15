@@ -28,6 +28,71 @@ DEFINE_bool(fullscreen, false, "Toggles fullscreen");
 namespace xe {
 namespace app {
 
+class VulkanWindow : public QVulkanWindow {
+ public:
+  VulkanWindow(EmulatorWindow* parent) : window_(parent) {}
+  QVulkanWindowRenderer* createRenderer() override;
+
+ private:
+  EmulatorWindow* window_;
+};
+
+class VulkanRenderer : public QVulkanWindowRenderer {
+ public:
+  VulkanRenderer(VulkanWindow* window, xe::Emulator* emulator)
+      : window_(window), emulator_(emulator) {}
+
+  void startNextFrame() override {
+    // Copy the graphics frontbuffer to our backbuffer.
+    auto swap_state = emulator_->graphics_system()->swap_state();
+
+    auto cmd = window_->currentCommandBuffer();
+    auto src = reinterpret_cast<VkImage>(swap_state->front_buffer_texture);
+    auto dest = window_->swapChainImage(window_->currentSwapChainImageIndex());
+    auto dest_size = window_->swapChainImageSize();
+
+    VkImageMemoryBarrier barrier;
+    std::memset(&barrier, 0, sizeof(VkImageMemoryBarrier));
+    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+    barrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+    barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.image = src;
+    barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                         VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0,
+                         nullptr, 1, &barrier);
+
+    VkImageBlit region;
+    region.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+    region.srcOffsets[0] = {0, 0, 0};
+    region.srcOffsets[1] = {static_cast<int32_t>(swap_state->width),
+                            static_cast<int32_t>(swap_state->height), 1};
+
+    region.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+    region.dstOffsets[0] = {0, 0, 0};
+    region.dstOffsets[1] = {static_cast<int32_t>(dest_size.width()),
+                            static_cast<int32_t>(dest_size.height()), 1};
+    vkCmdBlitImage(cmd, src, VK_IMAGE_LAYOUT_GENERAL, dest,
+                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region,
+                   VK_FILTER_LINEAR);
+
+    swap_state->pending = false;
+    window_->frameReady();
+  }
+
+ private:
+  xe::Emulator* emulator_;
+  VulkanWindow* window_;
+};
+
+QVulkanWindowRenderer* VulkanWindow::createRenderer() {
+  return new VulkanRenderer(this, window_->emulator());
+}
+
 EmulatorWindow::EmulatorWindow() {}
 
 bool EmulatorWindow::Setup() {
@@ -52,8 +117,10 @@ bool EmulatorWindow::Setup() {
       return std::unique_ptr<gpu::vulkan::VulkanGraphicsSystem>(nullptr);
     }
 
-    graphics->SetSwapCallback(
-        [&]() { this->graphics_window_->requestUpdate(); });
+    graphics->SetSwapCallback([&]() {
+      QMetaObject::invokeMethod(this->graphics_window_.get(), "requestUpdate",
+                                Qt::QueuedConnection);
+    });
     return graphics;
   };
 
@@ -72,7 +139,7 @@ bool EmulatorWindow::InitializeVulkan() {
     return false;
   }
 
-  graphics_window_ = std::make_unique<QVulkanWindow>();
+  graphics_window_ = std::make_unique<VulkanWindow>(this);
   graphics_window_->setVulkanInstance(vulkan_instance_.get());
 
   // Now set the graphics window as our central widget.
@@ -82,6 +149,8 @@ bool EmulatorWindow::InitializeVulkan() {
   graphics_provider_ = std::move(provider);
   return true;
 }
+
+void EmulatorWindow::SwapVulkan() {}
 
 bool EmulatorWindow::Launch(const std::wstring& path) {
   return emulator_->LaunchPath(path) == X_STATUS_SUCCESS;

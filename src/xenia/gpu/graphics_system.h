@@ -29,6 +29,27 @@ class Emulator;
 namespace xe {
 namespace gpu {
 
+struct SwapState {
+  // Lock must be held when changing data in this structure.
+  std::mutex mutex;
+  // Dimensions of the framebuffer textures. Should match window size.
+  uint32_t width = 0;
+  uint32_t height = 0;
+  // Current front buffer, being drawn to the screen.
+  uintptr_t front_buffer_texture = 0;
+  // Current back buffer, being updated by the CP.
+  uintptr_t back_buffer_texture = 0;
+  // Backend data
+  void* backend_data = nullptr;
+  // Whether the back buffer is dirty and a swap is pending.
+  bool pending = false;
+};
+
+enum class SwapMode {
+  kNormal,
+  kIgnored,
+};
+
 class GraphicsSystem {
  public:
   virtual ~GraphicsSystem();
@@ -62,7 +83,10 @@ class GraphicsSystem {
   virtual void ClearCaches();
 
   void SetSwapCallback(std::function<void()> fn);
-  gpu::SwapState& swap_state() { return command_processor_->swap_state(); }
+  virtual SwapState* swap_state() = 0;
+
+  SwapMode swap_mode() { return swap_mode_; }
+  void set_swap_mode(SwapMode swap_mode) { swap_mode_ = swap_mode; }
 
   void RequestFrameTrace();
   void BeginTracing();
@@ -97,6 +121,8 @@ class GraphicsSystem {
 
   uint32_t interrupt_callback_ = 0;
   uint32_t interrupt_callback_data_ = 0;
+
+  SwapMode swap_mode_ = SwapMode::kNormal;
 
   std::atomic<bool> vsync_worker_running_;
   kernel::object_ref<kernel::XHostThread> vsync_worker_thread_;

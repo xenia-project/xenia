@@ -68,9 +68,6 @@ class VulkanCommandProcessor : public CommandProcessor {
   void BeginFrame();
   void EndFrame();
 
-  void CreateSwapImage(VkCommandBuffer setup_buffer, VkExtent2D extents);
-  void DestroySwapImage();
-
   void PerformSwap(uint32_t frontbuffer_ptr, uint32_t frontbuffer_width,
                    uint32_t frontbuffer_height) override;
 
@@ -95,11 +92,6 @@ class VulkanCommandProcessor : public CommandProcessor {
   bool IssueCopy() override;
 
   xe::ui::vulkan::VulkanDevice* device_ = nullptr;
-
-  // front buffer / back buffer memory
-  VkDeviceMemory fb_memory_ = nullptr;
-  VkImageView fb_image_view_ = nullptr;
-  VkFramebuffer fb_framebuffer_ = nullptr;
 
   uint64_t dirty_float_constants_ = 0;  // Dirty float constants in blocks of 4
   uint8_t dirty_bool_constants_ = 0;

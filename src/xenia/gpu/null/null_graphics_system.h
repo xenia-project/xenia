@@ -25,6 +25,7 @@ class NullGraphicsSystem : public GraphicsSystem {
   ~NullGraphicsSystem() override;
 
   std::wstring name() const override { return L"null"; }
+  SwapState* swap_state() override { return &swap_state_; }
 
   X_STATUS Setup(cpu::Processor* processor, kernel::KernelState* kernel_state,
                  std::unique_ptr<ui::GraphicsContext> context) override;
@@ -34,6 +35,7 @@ class NullGraphicsSystem : public GraphicsSystem {
   std::unique_ptr<CommandProcessor> CreateCommandProcessor() override;
 
   void Swap(xe::ui::UIEvent* e) override;
+  SwapState swap_state_ = {};
 };
 
 }  // namespace null

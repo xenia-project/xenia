@@ -21,6 +21,9 @@
 namespace xe {
 namespace app {
 
+class VulkanWindow;
+class VulkanRenderer;
+
 class EmulatorWindow : public QMainWindow {
   Q_OBJECT
 
@@ -29,7 +32,10 @@ class EmulatorWindow : public QMainWindow {
 
   bool Setup();
   bool InitializeVulkan();
+  void SwapVulkan();
   bool Launch(const std::wstring& path);
+
+  xe::Emulator* emulator() { return emulator_.get(); }
 
  protected:
   // Events
