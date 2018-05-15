@@ -34,15 +34,6 @@ std::unique_ptr<CommandProcessor> NullGraphicsSystem::CreateCommandProcessor() {
       new NullCommandProcessor(this, kernel_state_));
 }
 
-void NullGraphicsSystem::Swap(xe::ui::UIEvent* e) {
-  if (!command_processor_) {
-    return;
-  }
-
-  std::lock_guard<std::mutex> lock(swap_state_.mutex);
-  swap_state_.pending = false;
-}
-
 }  // namespace null
 }  // namespace gpu
 }  // namespace xe

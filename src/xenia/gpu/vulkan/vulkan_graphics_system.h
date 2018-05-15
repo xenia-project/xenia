@@ -49,7 +49,6 @@ class VulkanGraphicsSystem : public GraphicsSystem {
   void DestroySwapImage();
 
   std::unique_ptr<CommandProcessor> CreateCommandProcessor() override;
-  void Swap(xe::ui::UIEvent* e) override;
 
   ui::vulkan::VulkanDevice* device_ = nullptr;
   ui::vulkan::VulkanContext* display_context_ = nullptr;

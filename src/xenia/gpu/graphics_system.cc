@@ -17,8 +17,8 @@
 #include "xenia/base/threading.h"
 #include "xenia/gpu/command_processor.h"
 #include "xenia/gpu/gpu_flags.h"
+#include "xenia/ui/graphics_context.h"
 #include "xenia/ui/graphics_provider.h"
-#include "xenia/ui/loop.h"
 
 namespace xe {
 namespace gpu {
