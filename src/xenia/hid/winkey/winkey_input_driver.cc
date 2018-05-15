@@ -19,7 +19,7 @@ namespace hid {
 namespace winkey {
 
 WinKeyInputDriver::WinKeyInputDriver(xe::ui::Window* window)
-    : InputDriver(window), packet_number_(1) {
+    : window_(window), packet_number_(1) {
   // Register a key listener.
   window_->on_key_down.AddListener([this](ui::KeyEvent* evt) {
     auto global_lock = global_critical_region_.Acquire();

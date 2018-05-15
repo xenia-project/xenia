@@ -18,12 +18,6 @@
 #include "xenia/xbox.h"
 
 namespace xe {
-namespace ui {
-class Window;
-}  // namespace ui
-}  // namespace xe
-
-namespace xe {
 namespace hid {
 
 class InputSystem {

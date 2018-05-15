@@ -18,7 +18,7 @@ namespace nop {
 
 class NopInputDriver : public InputDriver {
  public:
-  explicit NopInputDriver(xe::ui::Window* window);
+  NopInputDriver();
   ~NopInputDriver() override;
 
   X_STATUS Setup() override;

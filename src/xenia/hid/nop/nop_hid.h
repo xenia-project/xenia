@@ -18,7 +18,7 @@ namespace xe {
 namespace hid {
 namespace nop {
 
-std::unique_ptr<InputDriver> Create(xe::ui::Window* window);
+std::unique_ptr<InputDriver> Create();
 
 }  // namespace nop
 }  // namespace hid
