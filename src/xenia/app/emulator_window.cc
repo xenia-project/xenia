@@ -136,6 +136,19 @@ EmulatorWindow::EmulatorWindow() {
   if (!InitializeVulkan()) {
     return;
   }
+
+  // Set a callback on launch
+  emulator_->on_launch.AddListener([this]() {
+    auto title_db = this->emulator()->game_data();
+    if (title_db) {
+      QPixmap p;
+      auto icon_block = title_db->icon();
+      if (icon_block.buffer &&
+          p.loadFromData(icon_block.buffer, uint(icon_block.size), "PNG")) {
+        this->setWindowIcon(QIcon(p));
+      }
+    }
+  });
 }
 
 bool EmulatorWindow::InitializeVulkan() {
