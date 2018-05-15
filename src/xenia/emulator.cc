@@ -49,7 +49,7 @@ DEFINE_double(time_scalar, 1.0,
 namespace xe {
 
 Emulator::Emulator(const std::wstring& command_line)
-    : command_line_(command_line) {}
+    : command_line_(command_line), title_data_(nullptr, 0) {}
 
 Emulator::~Emulator() {
   // Note that we delete things in the reverse order they were initialized.
@@ -597,14 +597,10 @@ X_STATUS Emulator::CompleteLaunch(const std::wstring& path,
     uint32_t resource_size = 0;
     if (XSUCCEEDED(
             module->GetSection(title_id, &resource_data, &resource_size))) {
-      kernel::util::XdbfGameData db(
+      title_data_ = kernel::util::XdbfGameData(
           module->memory()->TranslateVirtual(resource_data), resource_size);
-      if (db.is_valid()) {
-        game_title_ = xe::to_wstring(db.title());
-        auto icon_block = db.icon();
-        if (icon_block) {
-          // display_window_->SetIcon(icon_block.buffer, icon_block.size);
-        }
+      if (title_data_.is_valid()) {
+        game_title_ = xe::to_wstring(title_data_.title());
       }
     }
   }
