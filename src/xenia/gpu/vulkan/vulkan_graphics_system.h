@@ -19,12 +19,21 @@ namespace xe {
 namespace gpu {
 namespace vulkan {
 
+struct SwapState : public gpu::SwapState {
+  // front buffer / back buffer memory
+  VkDeviceMemory fb_memory_ = nullptr;
+  VkImageView fb_image_view_ = nullptr;
+  VkImageLayout fb_image_layout_ = VK_IMAGE_LAYOUT_UNDEFINED;
+  VkFramebuffer fb_framebuffer_ = nullptr;  // Used and created by CP.
+};
+
 class VulkanGraphicsSystem : public GraphicsSystem {
  public:
   VulkanGraphicsSystem();
   ~VulkanGraphicsSystem() override;
 
   std::wstring name() const override { return L"Vulkan"; }
+  SwapState* swap_state() override { return &swap_state_; }
 
   X_STATUS Setup(cpu::Processor* processor, kernel::KernelState* kernel_state,
                  std::unique_ptr<ui::GraphicsContext> context) override;
@@ -36,11 +45,16 @@ class VulkanGraphicsSystem : public GraphicsSystem {
   VkResult CreateCaptureBuffer(VkCommandBuffer cmd, VkExtent2D extents);
   void DestroyCaptureBuffer();
 
+  void CreateSwapImage(VkExtent2D extents);
+  void DestroySwapImage();
+
   std::unique_ptr<CommandProcessor> CreateCommandProcessor() override;
   void Swap(xe::ui::UIEvent* e) override;
 
-  xe::ui::vulkan::VulkanDevice* device_ = nullptr;
-  xe::ui::vulkan::VulkanContext* display_context_ = nullptr;
+  ui::vulkan::VulkanDevice* device_ = nullptr;
+  ui::vulkan::VulkanContext* display_context_ = nullptr;
+
+  SwapState swap_state_;
 
   VkCommandPool command_pool_ = nullptr;
 

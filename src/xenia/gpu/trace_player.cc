@@ -103,7 +103,7 @@ void TracePlayer::PlayTraceOnThread(const uint8_t* trace_data,
     command_processor->ClearCaches();
   }
 
-  command_processor->set_swap_mode(SwapMode::kIgnored);
+  graphics_system_->set_swap_mode(SwapMode::kIgnored);
   playback_percent_ = 0;
   auto trace_end = trace_data + trace_size;
 
@@ -200,7 +200,7 @@ void TracePlayer::PlayTraceOnThread(const uint8_t* trace_data,
   }
 
   playing_trace_ = false;
-  command_processor->set_swap_mode(SwapMode::kNormal);
+  graphics_system_->set_swap_mode(SwapMode::kNormal);
   command_processor->IssueSwap(0, 1280, 720);
 
   playback_event_->Set();

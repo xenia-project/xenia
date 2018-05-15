@@ -56,19 +56,21 @@ X_STATUS VulkanGraphicsSystem::Setup(
       vkCreateCommandPool(*device_, &create_info, nullptr, &command_pool_);
   CheckResult(status, "vkCreateCommandPool");
 
+  // TODO(DrChat): Don't hardcode this resolution.
+  CreateSwapImage({1280, 720});
   return X_STATUS_SUCCESS;
 }
 
 void VulkanGraphicsSystem::Shutdown() {
   GraphicsSystem::Shutdown();
 
-  vkDestroyCommandPool(*device_, command_pool_, nullptr);
+  DestroySwapImage();
+  VK_SAFE_DESTROY(vkDestroyCommandPool, *device_, command_pool_, nullptr);
 }
 
 std::unique_ptr<RawImage> VulkanGraphicsSystem::Capture() {
-  auto& swap_state = command_processor_->swap_state();
-  std::lock_guard<std::mutex> lock(swap_state.mutex);
-  if (!swap_state.front_buffer_texture) {
+  std::lock_guard<std::mutex> lock(swap_state_.mutex);
+  if (!swap_state_.front_buffer_texture) {
     return nullptr;
   }
 
@@ -98,9 +100,9 @@ std::unique_ptr<RawImage> VulkanGraphicsSystem::Capture() {
   vkBeginCommandBuffer(cmd, &begin_info);
 
   auto front_buffer =
-      reinterpret_cast<VkImage>(swap_state.front_buffer_texture);
+      reinterpret_cast<VkImage>(swap_state_.front_buffer_texture);
 
-  status = CreateCaptureBuffer(cmd, {swap_state.width, swap_state.height});
+  status = CreateCaptureBuffer(cmd, {swap_state_.width, swap_state_.height});
   if (status != VK_SUCCESS) {
     vkFreeCommandBuffers(*device_, command_pool_, 1, &cmd);
     return nullptr;
@@ -125,7 +127,7 @@ std::unique_ptr<RawImage> VulkanGraphicsSystem::Capture() {
   VkBufferImageCopy region = {
       0,         0,
       0,         {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
-      {0, 0, 0}, {swap_state.width, swap_state.height, 1},
+      {0, 0, 0}, {swap_state_.width, swap_state_.height, 1},
   };
 
   vkCmdCopyImageToBuffer(cmd, front_buffer, VK_IMAGE_LAYOUT_GENERAL,
@@ -182,9 +184,9 @@ std::unique_ptr<RawImage> VulkanGraphicsSystem::Capture() {
 
   if (status == VK_SUCCESS) {
     std::unique_ptr<RawImage> raw_image(new RawImage());
-    raw_image->width = swap_state.width;
-    raw_image->height = swap_state.height;
-    raw_image->stride = swap_state.width * 4;
+    raw_image->width = swap_state_.width;
+    raw_image->height = swap_state_.height;
+    raw_image->stride = swap_state_.width * 4;
     raw_image->data.resize(raw_image->stride * raw_image->height);
 
     std::memcpy(raw_image->data.data(), data,
@@ -247,6 +249,75 @@ void VulkanGraphicsSystem::DestroyCaptureBuffer() {
   capture_buffer_size_ = 0;
 }
 
+void VulkanGraphicsSystem::CreateSwapImage(VkExtent2D extents) {
+  VkImageCreateInfo image_info;
+  std::memset(&image_info, 0, sizeof(VkImageCreateInfo));
+  image_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+  image_info.imageType = VK_IMAGE_TYPE_2D;
+  image_info.format = VK_FORMAT_R8G8B8A8_UNORM;
+  image_info.extent = {extents.width, extents.height, 1};
+  image_info.mipLevels = 1;
+  image_info.arrayLayers = 1;
+  image_info.samples = VK_SAMPLE_COUNT_1_BIT;
+  image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
+  image_info.usage =
+      VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+  image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+  image_info.queueFamilyIndexCount = 0;
+  image_info.pQueueFamilyIndices = nullptr;
+  image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+  VkImage image_fb;
+  auto status = vkCreateImage(*device_, &image_info, nullptr, &image_fb);
+  CheckResult(status, "vkCreateImage");
+
+  // Bind memory to image.
+  VkMemoryRequirements mem_requirements;
+  vkGetImageMemoryRequirements(*device_, image_fb, &mem_requirements);
+  swap_state_.fb_memory_ = device_->AllocateMemory(mem_requirements, 0);
+  assert_not_null(swap_state_.fb_memory_);
+
+  status = vkBindImageMemory(*device_, image_fb, swap_state_.fb_memory_, 0);
+  CheckResult(status, "vkBindImageMemory");
+
+  std::lock_guard<std::mutex> lock(swap_state_.mutex);
+  swap_state_.front_buffer_texture = reinterpret_cast<uintptr_t>(image_fb);
+  swap_state_.width = extents.width;
+  swap_state_.height = extents.height;
+
+  VkImageViewCreateInfo view_create_info = {
+      VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+      nullptr,
+      0,
+      image_fb,
+      VK_IMAGE_VIEW_TYPE_2D,
+      VK_FORMAT_R8G8B8A8_UNORM,
+      {VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B,
+       VK_COMPONENT_SWIZZLE_A},
+      {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1},
+  };
+  status = vkCreateImageView(*device_, &view_create_info, nullptr,
+                             &swap_state_.fb_image_view_);
+  CheckResult(status, "vkCreateImageView");
+}
+
+void VulkanGraphicsSystem::DestroySwapImage() {
+  VK_SAFE_DESTROY(vkDestroyFramebuffer, *device_, swap_state_.fb_framebuffer_,
+                  nullptr);
+  VK_SAFE_DESTROY(vkDestroyImageView, *device_, swap_state_.fb_image_view_,
+                  nullptr);
+
+  std::lock_guard<std::mutex> lock(swap_state_.mutex);
+  VK_SAFE_DESTROY(vkFreeMemory, *device_, swap_state_.fb_memory_, nullptr);
+  if (swap_state_.front_buffer_texture) {
+    vkDestroyImage(*device_,
+                   reinterpret_cast<VkImage>(swap_state_.front_buffer_texture),
+                   nullptr);
+  }
+
+  swap_state_.front_buffer_texture = 0;
+}
+
 std::unique_ptr<CommandProcessor>
 VulkanGraphicsSystem::CreateCommandProcessor() {
   return std::make_unique<VulkanCommandProcessor>(this, kernel_state_);
@@ -258,23 +329,22 @@ void VulkanGraphicsSystem::Swap(xe::ui::UIEvent* e) {
   }
 
   // Check for pending swap.
-  auto& swap_state = command_processor_->swap_state();
   if (display_context_->WasLost()) {
     // We're crashing. Cheese it.
-    swap_state.pending = false;
+    swap_state_.pending = false;
     return;
   }
 
   {
-    std::lock_guard<std::mutex> lock(swap_state.mutex);
-    if (!swap_state.pending) {
+    std::lock_guard<std::mutex> lock(swap_state_.mutex);
+    if (!swap_state_.pending) {
       // return;
     }
 
-    swap_state.pending = false;
+    swap_state_.pending = false;
   }
 
-  if (!swap_state.front_buffer_texture) {
+  if (!swap_state_.front_buffer_texture) {
     // Not yet ready.
     return;
   }
@@ -282,7 +352,7 @@ void VulkanGraphicsSystem::Swap(xe::ui::UIEvent* e) {
   auto swap_chain = display_context_->swap_chain();
   auto copy_cmd_buffer = swap_chain->copy_cmd_buffer();
   auto front_buffer =
-      reinterpret_cast<VkImage>(swap_state.front_buffer_texture);
+      reinterpret_cast<VkImage>(swap_state_.front_buffer_texture);
 
   VkImageMemoryBarrier barrier;
   std::memset(&barrier, 0, sizeof(VkImageMemoryBarrier));
@@ -302,8 +372,8 @@ void VulkanGraphicsSystem::Swap(xe::ui::UIEvent* e) {
   VkImageBlit region;
   region.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
   region.srcOffsets[0] = {0, 0, 0};
-  region.srcOffsets[1] = {static_cast<int32_t>(swap_state.width),
-                          static_cast<int32_t>(swap_state.height), 1};
+  region.srcOffsets[1] = {static_cast<int32_t>(swap_state_.width),
+                          static_cast<int32_t>(swap_state_.height), 1};
 
   region.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
   region.dstOffsets[0] = {0, 0, 0};

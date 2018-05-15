@@ -39,9 +39,8 @@ void NullGraphicsSystem::Swap(xe::ui::UIEvent* e) {
     return;
   }
 
-  auto& swap_state = command_processor_->swap_state();
-  std::lock_guard<std::mutex> lock(swap_state.mutex);
-  swap_state.pending = false;
+  std::lock_guard<std::mutex> lock(swap_state_.mutex);
+  swap_state_.pending = false;
 }
 
 }  // namespace null
