@@ -44,6 +44,9 @@ project("xenia-app")
   qt.enable()
   qtmodules{"core", "gui", "widgets"}
   qtprefix "Qt5"
+  if os.getenv("QT_BIN") then
+    qtbinpath(os.getenv("QT_BIN"))
+  end
 
   configuration {"Debug"}
     qtsuffix "d"
@@ -66,12 +69,9 @@ project("xenia-app")
     "*.qrc",
   })
   filter("platforms:Windows")
-    files({
-      "main_resources.rc",
+    resincludedirs({
+      project_root,
     })
-  resincludedirs({
-    project_root,
-  })
 
   filter("platforms:Linux")
     links({
