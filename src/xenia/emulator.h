@@ -98,7 +98,8 @@ class Emulator {
   // Once this function returns a game can be launched using one of the Launch
   // functions.
   X_STATUS Setup(
-      std::function<std::unique_ptr<apu::AudioSystem>(cpu::Processor*)>
+      std::function<std::unique_ptr<apu::AudioSystem>(cpu::Processor*,
+                                                      kernel::KernelState*)>
           audio_system_factory,
       std::function<std::unique_ptr<gpu::GraphicsSystem>(cpu::Processor*,
                                                          kernel::KernelState*)>

@@ -105,8 +105,15 @@ bool EmulatorWindow::Setup() {
     return false;
   }
 
-  auto audio_factory = [&](cpu::Processor* processor) {
-    return apu::xaudio2::XAudio2AudioSystem::Create(processor);
+  auto audio_factory = [&](cpu::Processor* processor,
+                           kernel::KernelState* kernel_state) {
+    auto audio = apu::xaudio2::XAudio2AudioSystem::Create(processor);
+    if (audio->Setup(kernel_state) != X_STATUS_SUCCESS) {
+      audio->Shutdown();
+      return std::unique_ptr<apu::AudioSystem>(nullptr);
+    }
+
+    return audio;
   };
 
   auto graphics_factory = [&](cpu::Processor* processor,
@@ -117,14 +124,18 @@ bool EmulatorWindow::Setup() {
       return std::unique_ptr<gpu::vulkan::VulkanGraphicsSystem>(nullptr);
     }
 
-    graphics->SetSwapCallback([&]() {
-      QMetaObject::invokeMethod(this->graphics_window_.get(), "requestUpdate",
-                                Qt::QueuedConnection);
-    });
     return graphics;
   };
 
   X_STATUS result = emulator_->Setup(audio_factory, graphics_factory, nullptr);
+  if (result == X_STATUS_SUCCESS) {
+    // Setup a callback called when the emulator wants to swap.
+    emulator_->graphics_system()->SetSwapCallback([&]() {
+      QMetaObject::invokeMethod(this->graphics_window_.get(), "requestUpdate",
+                                Qt::QueuedConnection);
+    });
+  }
+
   return result == X_STATUS_SUCCESS;
 }
 

@@ -77,7 +77,8 @@ Emulator::~Emulator() {
 }
 
 X_STATUS Emulator::Setup(
-    std::function<std::unique_ptr<apu::AudioSystem>(cpu::Processor*)>
+    std::function<std::unique_ptr<apu::AudioSystem>(cpu::Processor*,
+                                                    kernel::KernelState*)>
         audio_system_factory,
     std::function<std::unique_ptr<gpu::GraphicsSystem>(cpu::Processor*,
                                                        kernel::KernelState*)>
@@ -138,7 +139,7 @@ X_STATUS Emulator::Setup(
 
   // Initialize the APU.
   if (audio_system_factory) {
-    audio_system_ = audio_system_factory(processor_.get());
+    audio_system_ = audio_system_factory(processor_.get(), kernel_state_.get());
     if (!audio_system_) {
       return X_STATUS_UNSUCCESSFUL;
     }
