@@ -33,6 +33,7 @@ int xenia_main(const std::vector<std::wstring>& args) {
   char* argv[] = {"xenia", nullptr};
   QApplication app(argc, argv);
   EmulatorWindow main_wnd;
+  main_wnd.setWindowIcon(QIcon(":/icon.ico"));
 
   main_wnd.setFixedSize(1280, 720);
   main_wnd.show();
