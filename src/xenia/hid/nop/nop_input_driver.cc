@@ -15,7 +15,7 @@ namespace xe {
 namespace hid {
 namespace nop {
 
-NopInputDriver::NopInputDriver(xe::ui::Window* window) : InputDriver(window) {}
+NopInputDriver::NopInputDriver() {}
 
 NopInputDriver::~NopInputDriver() = default;
 

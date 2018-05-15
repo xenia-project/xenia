@@ -15,8 +15,8 @@ namespace xe {
 namespace hid {
 namespace xinput {
 
-std::unique_ptr<InputDriver> Create(xe::ui::Window* window) {
-  return std::make_unique<XInputInputDriver>(window);
+std::unique_ptr<InputDriver> Create() {
+  return std::make_unique<XInputInputDriver>();
 }
 
 }  // namespace xinput

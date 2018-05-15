@@ -18,7 +18,7 @@ namespace xinput {
 
 class XInputInputDriver : public InputDriver {
  public:
-  explicit XInputInputDriver(xe::ui::Window* window);
+  XInputInputDriver();
   ~XInputInputDriver() override;
 
   X_STATUS Setup() override;
