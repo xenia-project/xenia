@@ -61,6 +61,9 @@ project("xenia-app")
   files({
     "xenia_main.cc",
     "../base/main_"..platform_suffix..".cc",
+
+    -- Qt files
+    "*.qrc",
   })
   filter("platforms:Windows")
     files({

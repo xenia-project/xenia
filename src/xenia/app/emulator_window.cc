@@ -30,21 +30,23 @@ namespace app {
 
 class VulkanWindow : public QVulkanWindow {
  public:
-  VulkanWindow(EmulatorWindow* parent) : window_(parent) {}
+  VulkanWindow(gpu::vulkan::VulkanGraphicsSystem* gfx)
+      : graphics_system_(gfx) {}
   QVulkanWindowRenderer* createRenderer() override;
 
  private:
-  EmulatorWindow* window_;
+  gpu::vulkan::VulkanGraphicsSystem* graphics_system_;
 };
 
 class VulkanRenderer : public QVulkanWindowRenderer {
  public:
-  VulkanRenderer(VulkanWindow* window, xe::Emulator* emulator)
-      : window_(window), emulator_(emulator) {}
+  VulkanRenderer(VulkanWindow* window,
+                 gpu::vulkan::VulkanGraphicsSystem* graphics_system)
+      : window_(window), graphics_system_(graphics_system) {}
 
   void startNextFrame() override {
     // Copy the graphics frontbuffer to our backbuffer.
-    auto swap_state = emulator_->graphics_system()->swap_state();
+    auto swap_state = graphics_system_->swap_state();
 
     auto cmd = window_->currentCommandBuffer();
     auto src = reinterpret_cast<VkImage>(swap_state->front_buffer_texture);
@@ -85,24 +87,22 @@ class VulkanRenderer : public QVulkanWindowRenderer {
   }
 
  private:
-  xe::Emulator* emulator_;
+  gpu::vulkan::VulkanGraphicsSystem* graphics_system_;
   VulkanWindow* window_;
 };
 
 QVulkanWindowRenderer* VulkanWindow::createRenderer() {
-  return new VulkanRenderer(this, window_->emulator());
+  return new VulkanRenderer(this, graphics_system_);
 }
 
-EmulatorWindow::EmulatorWindow() {}
-
-bool EmulatorWindow::Setup() {
+EmulatorWindow::EmulatorWindow() {
   // TODO(DrChat): Pass in command line arguments.
   emulator_ = std::make_unique<xe::Emulator>(L"");
 
   // Initialize the graphics backend.
   // TODO(DrChat): Pick from gpu command line flag.
   if (!InitializeVulkan()) {
-    return false;
+    return;
   }
 
   auto audio_factory = [&](cpu::Processor* processor,
@@ -121,6 +121,7 @@ bool EmulatorWindow::Setup() {
     auto graphics = std::make_unique<gpu::vulkan::VulkanGraphicsSystem>();
     if (graphics->Setup(processor, kernel_state,
                         graphics_provider_->CreateOffscreenContext())) {
+      graphics->Shutdown();
       return std::unique_ptr<gpu::vulkan::VulkanGraphicsSystem>(nullptr);
     }
 
@@ -135,8 +136,6 @@ bool EmulatorWindow::Setup() {
                                 Qt::QueuedConnection);
     });
   }
-
-  return result == X_STATUS_SUCCESS;
 }
 
 bool EmulatorWindow::InitializeVulkan() {
@@ -150,7 +149,9 @@ bool EmulatorWindow::InitializeVulkan() {
     return false;
   }
 
-  graphics_window_ = std::make_unique<VulkanWindow>(this);
+  graphics_window_ = std::make_unique<VulkanWindow>(
+      reinterpret_cast<gpu::vulkan::VulkanGraphicsSystem*>(
+          emulator_->graphics_system()));
   graphics_window_->setVulkanInstance(vulkan_instance_.get());
 
   // Now set the graphics window as our central widget.
@@ -160,8 +161,6 @@ bool EmulatorWindow::InitializeVulkan() {
   graphics_provider_ = std::move(provider);
   return true;
 }
-
-void EmulatorWindow::SwapVulkan() {}
 
 bool EmulatorWindow::Launch(const std::wstring& path) {
   return emulator_->LaunchPath(path) == X_STATUS_SUCCESS;

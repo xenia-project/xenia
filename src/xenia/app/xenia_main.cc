@@ -33,9 +33,6 @@ int xenia_main(const std::vector<std::wstring>& args) {
   char* argv[] = {"xenia", nullptr};
   QApplication app(argc, argv);
   EmulatorWindow main_wnd;
-  if (!main_wnd.Setup()) {
-    return 1;
-  }
 
   main_wnd.setFixedSize(1280, 720);
   main_wnd.show();

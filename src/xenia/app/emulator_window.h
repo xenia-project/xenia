@@ -30,9 +30,6 @@ class EmulatorWindow : public QMainWindow {
  public:
   EmulatorWindow();
 
-  bool Setup();
-  bool InitializeVulkan();
-  void SwapVulkan();
   bool Launch(const std::wstring& path);
 
   xe::Emulator* emulator() { return emulator_.get(); }
@@ -44,6 +41,8 @@ class EmulatorWindow : public QMainWindow {
 
  private:
   void CreateMenuBar();
+
+  bool InitializeVulkan();
 
   std::unique_ptr<xe::Emulator> emulator_;
 
