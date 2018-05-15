@@ -99,12 +99,6 @@ EmulatorWindow::EmulatorWindow() {
   // TODO(DrChat): Pass in command line arguments.
   emulator_ = std::make_unique<xe::Emulator>(L"");
 
-  // Initialize the graphics backend.
-  // TODO(DrChat): Pick from gpu command line flag.
-  if (!InitializeVulkan()) {
-    return;
-  }
-
   auto audio_factory = [&](cpu::Processor* processor,
                            kernel::KernelState* kernel_state) {
     auto audio = apu::xaudio2::XAudio2AudioSystem::Create(processor);
@@ -116,6 +110,7 @@ EmulatorWindow::EmulatorWindow() {
     return audio;
   };
 
+  graphics_provider_ = ui::vulkan::VulkanProvider::Create(nullptr);
   auto graphics_factory = [&](cpu::Processor* processor,
                               kernel::KernelState* kernel_state) {
     auto graphics = std::make_unique<gpu::vulkan::VulkanGraphicsSystem>();
@@ -136,11 +131,16 @@ EmulatorWindow::EmulatorWindow() {
                                 Qt::QueuedConnection);
     });
   }
+
+  // Initialize our backend display window.
+  if (!InitializeVulkan()) {
+    return;
+  }
 }
 
 bool EmulatorWindow::InitializeVulkan() {
-  auto provider = xe::ui::vulkan::VulkanProvider::Create(nullptr);
-  auto device = provider->device();
+  auto provider =
+      reinterpret_cast<ui::vulkan::VulkanProvider*>(graphics_provider_.get());
 
   // Create a Qt wrapper around our vulkan instance.
   vulkan_instance_ = std::make_unique<QVulkanInstance>();
@@ -158,7 +158,6 @@ bool EmulatorWindow::InitializeVulkan() {
   QWidget* wrapper = QWidget::createWindowContainer(graphics_window_.get());
   setCentralWidget(wrapper);
 
-  graphics_provider_ = std::move(provider);
   return true;
 }
 
