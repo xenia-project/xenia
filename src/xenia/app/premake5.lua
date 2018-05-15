@@ -44,8 +44,8 @@ project("xenia-app")
   qt.enable()
   qtmodules{"core", "gui", "widgets"}
   qtprefix "Qt5"
-  if os.getenv("QT_BIN") then
-    qtbinpath(os.getenv("QT_BIN"))
+  if os.getenv("QT_LIB") then
+    qtlibpath(os.getenv("QT_LIB"))
   end
 
   configuration {"Debug"}
