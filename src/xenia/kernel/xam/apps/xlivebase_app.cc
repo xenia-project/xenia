@@ -40,14 +40,42 @@ X_RESULT XLiveBaseApp::DispatchMessageSync(uint32_t message,
       // We should create a XamEnumerate-able empty list here, but I'm not
       // sure of the format.
       // buffer_length seems to be the same ptr sent to 0x00058004.
-      XELOGD("XLiveBaseFriendsCreateEnumerator(%.8X, %.8X) unimplemented",
-             buffer_ptr, buffer_length);
+      XELOGD("CXLiveFriends::Enumerate(%.8X, %.8X) unimplemented", buffer_ptr,
+             buffer_length);
       return X_STATUS_UNSUCCESSFUL;
     }
     case 0x00058023: {
-      XELOGD("XliveBaseUnk58023(%.8X, %.8X) unimplemented", buffer_ptr,
-             buffer_length);
+      XELOGD(
+          "CXLiveMessaging::XMessageGameInviteGetAcceptedInfo(%.8X, %.8X) "
+          "unimplemented",
+          buffer_ptr, buffer_length);
       return X_STATUS_UNSUCCESSFUL;
+    }
+
+    case 0x00058006: {
+      xe::store_and_swap<uint32_t>(buffer + 0, 1);  // XONLINE_NAT_OPEN
+
+      XELOGD("CXLiveLogon::GetNatType(%.8X, %8X)", buffer_ptr, buffer_length);
+
+      return X_ERROR_SUCCESS;
+    }
+
+    case 0x00058046: {
+      XELOGD("CXLivePresence::InitializeTitle(%.8X,%.8X)", buffer_ptr,
+             buffer_length);
+
+      return X_ERROR_SUCCESS;
+    }
+
+    case 0x00058007: {
+      /*
+              Occurs if title calls XOnlineGetServiceInfo, expects dwServiceId
+         and pServiceInfo. pServiceInfo should contain pointer to
+         XONLINE_SERVICE_INFO structure.
+      */
+      XELOGD("CXLiveLogon::GetServiceInfo(%.8X, %.8X)", buffer_ptr,
+             buffer_length);
+      return 1229;  // ERROR_CONNECTION_INVALID
     }
   }
   XELOGE(

@@ -606,9 +606,11 @@ SHIM_CALL XamSessionRefObjByHandle_shim(PPCContext* ppc_context,
 
   assert_true(handle == 0xCAFEDEAD);
 
-  SHIM_SET_MEM_32(obj_ptr, 0);
+  // TODO(PermaNull): Implement this properly,
+  // For the time being returning 0xDEADF00D will prevent crashing.
+  SHIM_SET_MEM_32(obj_ptr, 0xDEADF00D);
 
-  SHIM_SET_RETURN_32(X_ERROR_FUNCTION_FAILED);
+  SHIM_SET_RETURN_32(X_ERROR_SUCCESS);
 }
 
 }  // namespace xam

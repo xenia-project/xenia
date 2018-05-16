@@ -78,8 +78,11 @@ X_RESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       return X_STATUS_SUCCESS;
     }
     case 0x000B0011: {
-      // TODO(DrChat): Figure out what this is again
-    } break;
+      // TODO(PermaNull): reverse buffer contents.
+
+      XELOGD("XGISessionDelete");
+      return X_STATUS_SUCCESS;
+    }
     case 0x000B0012: {
       assert_true(buffer_length == 0x14);
       uint32_t session_ptr = xe::load_and_swap<uint32_t>(buffer + 0x0);
@@ -91,6 +94,7 @@ X_RESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       assert_zero(unk_0);
       XELOGD("XGISessionJoinLocal(%.8X, %d, %d, %.8X, %.8X)", session_ptr,
              user_count, unk_0, user_index_array, private_slots_array);
+
       return X_STATUS_SUCCESS;
     }
     case 0x000B0041: {
@@ -110,6 +114,7 @@ X_RESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       }
       return X_ERROR_FUNCTION_FAILED;
     }
+
     case 0x000B0071: {
       XELOGD("XGI 0x000B0071, unimplemented");
       return X_ERROR_SUCCESS;
