@@ -250,9 +250,10 @@ struct TextureInfo {
   uint32_t guest_address;
   TextureFormat texture_format;
   Dimension dimension;
-  uint32_t width;
-  uint32_t height;
-  uint32_t depth;
+  uint32_t pitch;   // pitch in blocks
+  uint32_t width;   // width in pixels
+  uint32_t height;  // height in pixels
+  uint32_t depth;   // depth in layers
   Endian endianness;
   bool is_tiled;
   bool has_packed_mips;
@@ -265,10 +266,9 @@ struct TextureInfo {
     uint32_t logical_height;
     uint32_t block_width;        // # of horizontal blocks
     uint32_t block_height;       // # of vertical blocks
-    uint32_t input_width;        // texel pitch
-    uint32_t input_height;       // texel height
-    uint32_t input_pitch;        // byte pitch
-    uint32_t input_face_length;  // byte pitch of face
+    uint32_t input_width;        // (full) texel pitch
+    uint32_t input_height;       // (full) texel height
+    uint32_t input_face_length;  // byte length of face
   } size;
 
   const FormatInfo* format_info() const {
@@ -284,7 +284,7 @@ struct TextureInfo {
 
   static bool PrepareResolve(uint32_t physical_address,
                              TextureFormat texture_format, Endian endian,
-                             uint32_t width, uint32_t height,
+                             uint32_t pitch, uint32_t width, uint32_t height,
                              TextureInfo* out_info);
 
   static void ConvertTiled(uint8_t* dest, const uint8_t* src, Endian endian,

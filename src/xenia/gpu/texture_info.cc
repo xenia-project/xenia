@@ -34,6 +34,7 @@ bool TextureInfo::Prepare(const xe_gpu_texture_fetch_t& fetch,
   info.guest_address = fetch.address << 12;
 
   info.dimension = static_cast<Dimension>(fetch.dimension);
+  info.pitch = fetch.pitch << 5;
   info.width = info.height = info.depth = 0;
   switch (info.dimension) {
     case Dimension::k1D:
@@ -96,14 +97,15 @@ bool TextureInfo::Prepare(const xe_gpu_texture_fetch_t& fetch,
 
 bool TextureInfo::PrepareResolve(uint32_t physical_address,
                                  TextureFormat texture_format, Endian endian,
-                                 uint32_t width, uint32_t height,
-                                 TextureInfo* out_info) {
+                                 uint32_t pitch, uint32_t width,
+                                 uint32_t height, TextureInfo* out_info) {
   std::memset(out_info, 0, sizeof(TextureInfo));
   auto& info = *out_info;
   info.guest_address = physical_address;
   info.dimension = Dimension::k2D;
   assert_true(width > 0);
   assert_true(height > 0);
+  info.pitch = pitch;
   info.width = width - 1;
   info.height = height - 1;
   info.texture_format = texture_format;
@@ -148,15 +150,14 @@ void TextureInfo::CalculateTextureSizes1D(uint32_t width) {
   }
 
   size.input_width = texel_width;
-  size.input_pitch = byte_pitch;
 
   // Set some reasonable defaults for unused fields.
   size.logical_height = 1;
   size.block_height = format->block_height;
   size.input_height = 1;
-  size.input_face_length = size.input_pitch;
+  size.input_face_length = pitch * bytes_per_block;
 
-  input_length = size.input_pitch;
+  input_length = size.input_face_length;
 }
 
 void TextureInfo::CalculateTextureSizes2D(uint32_t width, uint32_t height) {
@@ -192,8 +193,7 @@ void TextureInfo::CalculateTextureSizes2D(uint32_t width, uint32_t height) {
 
   size.input_width = texel_width;
   size.input_height = size.block_height * format->block_height;
-  size.input_pitch = byte_pitch;
-  size.input_face_length = size.input_pitch * size.block_height;
+  size.input_face_length = pitch * bytes_per_block * size.block_height;
 
   input_length = size.input_face_length;
 }
@@ -232,8 +232,7 @@ void TextureInfo::CalculateTextureSizes3D(uint32_t width, uint32_t height,
 
   size.input_width = texel_width;
   size.input_height = size.block_height * format->block_height;
-  size.input_pitch = byte_pitch;
-  size.input_face_length = size.input_pitch * size.block_height;
+  size.input_face_length = pitch * bytes_per_block * size.block_height;
 
   input_length = size.input_face_length * depth;
 }
@@ -273,10 +272,9 @@ void TextureInfo::CalculateTextureSizesCube(uint32_t width, uint32_t height,
 
   size.input_width = texel_width;
   size.input_height = size.block_height * format->block_height;
-  size.input_pitch = byte_pitch;
-  size.input_face_length = size.input_pitch * size.block_height;
+  size.input_face_length = pitch * bytes_per_block * size.block_height;
 
-  input_length = size.input_face_length * 6;
+  input_length = size.input_face_length * depth;
 }
 
 static void TextureSwap(Endian endianness, void* dest, const void* src,
