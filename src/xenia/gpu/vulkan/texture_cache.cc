@@ -831,8 +831,8 @@ TextureCache::Texture* TextureCache::LookupAddress(uint32_t guest_address,
 
       if (texture_info.dimension == Dimension::k2D) {
         out_offset->x = 0;
-        out_offset->y = offset_bytes / texture_info.size.input_pitch;
-        if (offset_bytes % texture_info.size.input_pitch != 0) {
+        out_offset->y = offset_bytes / texture_info.pitch;
+        if (offset_bytes % texture_info.pitch != 0) {
           // TODO: offset_x
         }
       }
