@@ -1013,7 +1013,7 @@ bool VulkanCommandProcessor::IssueCopy() {
   // Demand a resolve texture from the texture cache.
   TextureInfo texture_info;
   TextureInfo::PrepareResolve(copy_dest_base, copy_dest_format, resolve_endian,
-                              dest_logical_width,
+                              copy_dest_pitch, dest_logical_width,
                               std::max(1u, dest_logical_height), &texture_info);
 
   auto texture = texture_cache_->DemandResolveTexture(texture_info);
