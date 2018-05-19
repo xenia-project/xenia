@@ -34,9 +34,10 @@ VkFormat ColorRenderTargetFormatToVkFormat(ColorRenderTargetFormat format) {
     case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
       return VK_FORMAT_R8G8B8A8_UNORM;
     case ColorRenderTargetFormat::k_2_10_10_10:
-    case ColorRenderTargetFormat::k_2_10_10_10_unknown:
+      return VK_FORMAT_A2R10G10B10_UNORM_PACK32;
+    case ColorRenderTargetFormat::k_2_10_10_10_AS_16_16_16_16:
     case ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
-    case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_unknown:
+    case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
       return VK_FORMAT_R16G16B16A16_SFLOAT;
     case ColorRenderTargetFormat::k_16_16:
       return VK_FORMAT_R16G16_UNORM;
@@ -807,10 +808,9 @@ bool RenderCache::ParseConfiguration(RenderConfiguration* config) {
         case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
           config->color[i].format = ColorRenderTargetFormat::k_8_8_8_8;
           break;
-        case ColorRenderTargetFormat::k_2_10_10_10:
         case ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
-        case ColorRenderTargetFormat::k_2_10_10_10_unknown:
-        case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_unknown:
+        case ColorRenderTargetFormat::k_2_10_10_10_AS_16_16_16_16:
+        case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
           config->color[i].format =
               ColorRenderTargetFormat::k_16_16_16_16_FLOAT;
           break;
@@ -970,10 +970,9 @@ CachedTileView* RenderCache::FindTileView(uint32_t base, uint32_t pitch,
       case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
         format = uint32_t(ColorRenderTargetFormat::k_8_8_8_8);
         break;
-      case ColorRenderTargetFormat::k_2_10_10_10:
       case ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
-      case ColorRenderTargetFormat::k_2_10_10_10_unknown:
-      case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_unknown:
+      case ColorRenderTargetFormat::k_2_10_10_10_AS_16_16_16_16:
+      case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
         format = uint32_t(ColorRenderTargetFormat::k_16_16_16_16_FLOAT);
         break;
       default:
@@ -1219,11 +1218,9 @@ void RenderCache::BlitToImage(VkCommandBuffer command_buffer,
       case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
         format = uint32_t(ColorRenderTargetFormat::k_8_8_8_8);
         break;
-      case ColorRenderTargetFormat::k_2_10_10_10_unknown:
-        format = uint32_t(ColorRenderTargetFormat::k_2_10_10_10);
-        break;
-      case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_unknown:
-        format = uint32_t(ColorRenderTargetFormat::k_2_10_10_10_FLOAT);
+      case ColorRenderTargetFormat::k_2_10_10_10_AS_16_16_16_16:
+      case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
+        format = uint32_t(ColorRenderTargetFormat::k_16_16_16_16_FLOAT);
         break;
       default:
         // Rest are OK
@@ -1335,11 +1332,9 @@ void RenderCache::ClearEDRAMColor(VkCommandBuffer command_buffer,
     case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
       format = ColorRenderTargetFormat::k_8_8_8_8;
       break;
-    case ColorRenderTargetFormat::k_2_10_10_10_unknown:
-      format = ColorRenderTargetFormat::k_2_10_10_10;
-      break;
-    case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_unknown:
-      format = ColorRenderTargetFormat::k_2_10_10_10_FLOAT;
+    case ColorRenderTargetFormat::k_2_10_10_10_AS_16_16_16_16:
+    case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
+      format = ColorRenderTargetFormat::k_16_16_16_16_FLOAT;
       break;
     default:
       // Rest are OK
