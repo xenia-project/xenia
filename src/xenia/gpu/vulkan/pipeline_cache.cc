@@ -118,6 +118,9 @@ VkResult PipelineCache::Initialize(
   if (status != VK_SUCCESS) {
     return status;
   }
+  device_->DbgSetObjectName(uint64_t(geometry_shaders_.line_quad_list),
+                            VK_DEBUG_REPORT_OBJECT_TYPE_SHADER_MODULE_EXT,
+                            "S(g): Line Quad List");
 
   shader_module_info.codeSize = static_cast<uint32_t>(sizeof(point_list_geom));
   shader_module_info.pCode = reinterpret_cast<const uint32_t*>(point_list_geom);
@@ -126,6 +129,9 @@ VkResult PipelineCache::Initialize(
   if (status != VK_SUCCESS) {
     return status;
   }
+  device_->DbgSetObjectName(uint64_t(geometry_shaders_.point_list),
+                            VK_DEBUG_REPORT_OBJECT_TYPE_SHADER_MODULE_EXT,
+                            "S(g): Point List");
 
   shader_module_info.codeSize = static_cast<uint32_t>(sizeof(quad_list_geom));
   shader_module_info.pCode = reinterpret_cast<const uint32_t*>(quad_list_geom);
@@ -134,6 +140,9 @@ VkResult PipelineCache::Initialize(
   if (status != VK_SUCCESS) {
     return status;
   }
+  device_->DbgSetObjectName(uint64_t(geometry_shaders_.quad_list),
+                            VK_DEBUG_REPORT_OBJECT_TYPE_SHADER_MODULE_EXT,
+                            "S(g): Quad List");
 
   shader_module_info.codeSize = static_cast<uint32_t>(sizeof(rect_list_geom));
   shader_module_info.pCode = reinterpret_cast<const uint32_t*>(rect_list_geom);
@@ -142,6 +151,9 @@ VkResult PipelineCache::Initialize(
   if (status != VK_SUCCESS) {
     return status;
   }
+  device_->DbgSetObjectName(uint64_t(geometry_shaders_.rect_list),
+                            VK_DEBUG_REPORT_OBJECT_TYPE_SHADER_MODULE_EXT,
+                            "S(g): Rect List");
 
   shader_module_info.codeSize = static_cast<uint32_t>(sizeof(dummy_frag));
   shader_module_info.pCode = reinterpret_cast<const uint32_t*>(dummy_frag);
@@ -150,6 +162,9 @@ VkResult PipelineCache::Initialize(
   if (status != VK_SUCCESS) {
     return status;
   }
+  device_->DbgSetObjectName(uint64_t(dummy_pixel_shader_),
+                            VK_DEBUG_REPORT_OBJECT_TYPE_SHADER_MODULE_EXT,
+                            "S(p): Dummy");
 
   return VK_SUCCESS;
 }
