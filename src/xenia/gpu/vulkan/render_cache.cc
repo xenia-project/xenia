@@ -220,8 +220,10 @@ VkResult CachedTileView::Initialize(VkCommandBuffer command_buffer) {
 
   device_->DbgSetObjectName(
       reinterpret_cast<uint64_t>(image), VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT,
-      xe::format_string("RT: 0x%.8X 0x%.8X(%d)", key.tile_offset,
-                        key.tile_width, key.tile_width));
+      xe::format_string("RT(d): 0x%.8X 0x%.8X(%d) 0x%.8X(%d) %d %d %d",
+                        key.tile_offset, key.tile_width, key.tile_width,
+                        key.tile_height, key.tile_height, key.color_or_depth,
+                        key.msaa_samples, key.edram_format));
 
   VkMemoryRequirements memory_requirements;
   vkGetImageMemoryRequirements(*device_, image, &memory_requirements);
