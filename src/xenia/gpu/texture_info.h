@@ -203,9 +203,9 @@ inline TextureFormat ColorRenderTargetToTextureFormat(
       return TextureFormat::k_16_16_FLOAT;
     case ColorRenderTargetFormat::k_16_16_16_16_FLOAT:
       return TextureFormat::k_16_16_16_16_FLOAT;
-    case ColorRenderTargetFormat::k_2_10_10_10_unknown:
-      return TextureFormat::k_2_10_10_10;
-    case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_unknown:
+    case ColorRenderTargetFormat::k_2_10_10_10_AS_16_16_16_16:
+      return TextureFormat::k_2_10_10_10_AS_16_16_16_16;
+    case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
       return TextureFormat::k_2_10_10_10_FLOAT;
     case ColorRenderTargetFormat::k_32_FLOAT:
       return TextureFormat::k_32_FLOAT;
