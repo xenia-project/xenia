@@ -980,25 +980,22 @@ bool VulkanCommandProcessor::IssueCopy() {
   DepthRenderTargetFormat depth_format;
   if (is_color_source) {
     // Source from a color target.
-    uint32_t color_info[4] = {
+    reg::RB_COLOR_INFO color_info[4] = {
         regs[XE_GPU_REG_RB_COLOR_INFO].u32,
         regs[XE_GPU_REG_RB_COLOR1_INFO].u32,
         regs[XE_GPU_REG_RB_COLOR2_INFO].u32,
         regs[XE_GPU_REG_RB_COLOR3_INFO].u32,
     };
-    color_edram_base = color_info[copy_src_select] & 0xFFF;
-
-    color_format = static_cast<ColorRenderTargetFormat>(
-        (color_info[copy_src_select] >> 16) & 0xF);
+    color_edram_base = color_info[copy_src_select].color_base;
+    color_format = color_info[copy_src_select].color_format;
+    assert_true(color_info[copy_src_select].color_exp_bias == 0);
   }
 
   if (!is_color_source || depth_clear_enabled) {
     // Source from or clear a depth target.
-    uint32_t depth_info = regs[XE_GPU_REG_RB_DEPTH_INFO].u32;
-    depth_edram_base = depth_info & 0xFFF;
-
-    depth_format =
-        static_cast<DepthRenderTargetFormat>((depth_info >> 16) & 0x1);
+    reg::RB_DEPTH_INFO depth_info = {regs[XE_GPU_REG_RB_DEPTH_INFO].u32};
+    depth_edram_base = depth_info.depth_base;
+    depth_format = depth_info.depth_format;
     if (!is_color_source) {
       copy_dest_format = DepthRenderTargetToTextureFormat(depth_format);
     }
