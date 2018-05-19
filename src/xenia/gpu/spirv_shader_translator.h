@@ -36,7 +36,8 @@ struct SpirvPushConstants {
   float point_size[4];  // psx, psy, unused, unused
 
   // Accessible to fragment shader only:
-  float alpha_test[4];  // alpha test enable, func, ref, ?
+  float alpha_test[3];  // alpha test enable, func, ref
+  float color_exp_bias;
   uint32_t ps_param_gen;
 };
 static_assert(sizeof(SpirvPushConstants) <= 128,

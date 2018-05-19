@@ -161,7 +161,7 @@ void SpirvShaderTranslator::StartTranslation() {
   // Push constants, represented by SpirvPushConstants.
   Id push_constants_type =
       b.makeStructType({vec4_float_type_, vec4_float_type_, vec4_float_type_,
-                        vec4_float_type_, uint_type_},
+                        vec3_float_type_, float_type_, uint_type_},
                        "push_consts_type");
   b.addDecoration(push_constants_type, spv::Decoration::DecorationBlock);
 
@@ -180,16 +180,21 @@ void SpirvShaderTranslator::StartTranslation() {
       push_constants_type, 2, spv::Decoration::DecorationOffset,
       static_cast<int>(offsetof(SpirvPushConstants, point_size)));
   b.addMemberName(push_constants_type, 2, "point_size");
-  // float4 alpha_test;
+  // float3 alpha_test;
   b.addMemberDecoration(
       push_constants_type, 3, spv::Decoration::DecorationOffset,
       static_cast<int>(offsetof(SpirvPushConstants, alpha_test)));
   b.addMemberName(push_constants_type, 3, "alpha_test");
-  // uint ps_param_gen;
+  // float color_exp_bias;
   b.addMemberDecoration(
       push_constants_type, 4, spv::Decoration::DecorationOffset,
+      static_cast<int>(offsetof(SpirvPushConstants, color_exp_bias)));
+  b.addMemberName(push_constants_type, 4, "color_exp_bias");
+  // uint ps_param_gen;
+  b.addMemberDecoration(
+      push_constants_type, 5, spv::Decoration::DecorationOffset,
       static_cast<int>(offsetof(SpirvPushConstants, ps_param_gen)));
-  b.addMemberName(push_constants_type, 4, "ps_param_gen");
+  b.addMemberName(push_constants_type, 5, "ps_param_gen");
   push_consts_ = b.createVariable(spv::StorageClass::StorageClassPushConstant,
                                   push_constants_type, "push_consts");
 
@@ -385,7 +390,7 @@ void SpirvShaderTranslator::StartTranslation() {
     // Setup ps_param_gen
     auto ps_param_gen_idx_ptr = b.createAccessChain(
         spv::StorageClass::StorageClassPushConstant, push_consts_,
-        std::vector<Id>({b.makeUintConstant(4)}));
+        std::vector<Id>({b.makeUintConstant(5)}));
     auto ps_param_gen_idx = b.createLoad(ps_param_gen_idx_ptr);
 
     auto frag_coord = b.createVariable(spv::StorageClass::StorageClassInput,
@@ -547,66 +552,95 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
 
     b.createStore(p, pos_);
   } else {
-    // Alpha test
-    auto alpha_test_ptr = b.createAccessChain(
-        spv::StorageClass::StorageClassPushConstant, push_consts_,
-        std::vector<Id>({b.makeUintConstant(3)}));
-    auto alpha_test = b.createLoad(alpha_test_ptr);
+    // Color exponent bias
+    {
+      auto bias_ptr = b.createAccessChain(
+          spv::StorageClass::StorageClassPushConstant, push_consts_,
+          std::vector<Id>({b.makeUintConstant(4)}));
+      auto bias = b.createLoad(bias_ptr);
 
-    auto alpha_test_enabled =
-        b.createCompositeExtract(alpha_test, float_type_, 0);
-    auto alpha_test_func = b.createCompositeExtract(alpha_test, float_type_, 1);
-    auto alpha_test_ref = b.createCompositeExtract(alpha_test, float_type_, 2);
+      auto cond = b.createBinOp(spv::Op::OpFOrdNotEqual, bool_type_, bias,
+                                b.makeFloatConstant(0.f));
+      spv::Builder::If bias_if(cond, 0, b);
 
-    alpha_test_func =
-        b.createUnaryOp(spv::Op::OpConvertFToU, uint_type_, alpha_test_func);
+      auto bias_vector = b.createCompositeConstruct(vec4_float_type_,
+                                                    {bias, bias, bias, bias});
 
-    auto oC0_ptr = b.createAccessChain(
-        spv::StorageClass::StorageClassOutput, frag_outputs_,
-        std::vector<Id>({b.makeUintConstant(0)}));
-    auto oC0_alpha =
-        b.createCompositeExtract(b.createLoad(oC0_ptr), float_type_, 3);
+      auto oC0_ptr = b.createAccessChain(
+          spv::StorageClass::StorageClassOutput, frag_outputs_,
+          std::vector<Id>({b.makeUintConstant(0)}));
+      auto oC0_biased = b.createBinOp(spv::Op::OpFMul, vec4_float_type_,
+                                      b.createLoad(oC0_ptr), bias_vector);
 
-    auto cond = b.createBinOp(spv::Op::OpFOrdEqual, bool_type_,
-                              alpha_test_enabled, b.makeFloatConstant(1.f));
-    spv::Builder::If alpha_if(cond, 0, b);
+      b.createStore(oC0_biased, oC0_ptr);
 
-    std::vector<spv::Block*> switch_segments;
-    b.makeSwitch(
-        alpha_test_func, 0, 8, std::vector<int>({0, 1, 2, 3, 4, 5, 6, 7}),
-        std::vector<int>({0, 1, 2, 3, 4, 5, 6, 7}), 7, switch_segments);
-
-    const static spv::Op alpha_op_map[] = {
-        spv::Op::OpNop,
-        spv::Op::OpFOrdGreaterThanEqual,
-        spv::Op::OpFOrdNotEqual,
-        spv::Op::OpFOrdGreaterThan,
-        spv::Op::OpFOrdLessThanEqual,
-        spv::Op::OpFOrdEqual,
-        spv::Op::OpFOrdLessThan,
-        spv::Op::OpNop,
-    };
-
-    // if (alpha_func == 0) passes = false;
-    b.nextSwitchSegment(switch_segments, 0);
-    b.makeDiscard();
-    b.addSwitchBreak();
-
-    for (int i = 1; i < 7; i++) {
-      b.nextSwitchSegment(switch_segments, i);
-      auto cond =
-          b.createBinOp(alpha_op_map[i], bool_type_, oC0_alpha, alpha_test_ref);
-      spv::Builder::If discard_if(cond, 0, b);
-      b.makeDiscard();
-      discard_if.makeEndIf();
-      b.addSwitchBreak();
+      bias_if.makeEndIf();
     }
 
-    // if (alpha_func == 7) passes = true;
-    b.nextSwitchSegment(switch_segments, 7);
-    b.endSwitch(switch_segments);
+    // Alpha test
+    {
+      auto alpha_test_ptr = b.createAccessChain(
+          spv::StorageClass::StorageClassPushConstant, push_consts_,
+          std::vector<Id>({b.makeUintConstant(3)}));
+      auto alpha_test = b.createLoad(alpha_test_ptr);
 
-    alpha_if.makeEndIf();
+      auto alpha_test_enabled =
+          b.createCompositeExtract(alpha_test, float_type_, 0);
+      auto alpha_test_func =
+          b.createCompositeExtract(alpha_test, float_type_, 1);
+      auto alpha_test_ref =
+          b.createCompositeExtract(alpha_test, float_type_, 2);
+
+      alpha_test_func =
+          b.createUnaryOp(spv::Op::OpConvertFToU, uint_type_, alpha_test_func);
+
+      auto oC0_ptr = b.createAccessChain(
+          spv::StorageClass::StorageClassOutput, frag_outputs_,
+          std::vector<Id>({b.makeUintConstant(0)}));
+      auto oC0_alpha =
+          b.createCompositeExtract(b.createLoad(oC0_ptr), float_type_, 3);
+
+      auto cond = b.createBinOp(spv::Op::OpFOrdEqual, bool_type_,
+                                alpha_test_enabled, b.makeFloatConstant(1.f));
+      spv::Builder::If alpha_if(cond, 0, b);
+
+      std::vector<spv::Block*> switch_segments;
+      b.makeSwitch(
+          alpha_test_func, 0, 8, std::vector<int>({0, 1, 2, 3, 4, 5, 6, 7}),
+          std::vector<int>({0, 1, 2, 3, 4, 5, 6, 7}), 7, switch_segments);
+
+      const static spv::Op alpha_op_map[] = {
+          spv::Op::OpNop,
+          spv::Op::OpFOrdGreaterThanEqual,
+          spv::Op::OpFOrdNotEqual,
+          spv::Op::OpFOrdGreaterThan,
+          spv::Op::OpFOrdLessThanEqual,
+          spv::Op::OpFOrdEqual,
+          spv::Op::OpFOrdLessThan,
+          spv::Op::OpNop,
+      };
+
+      // if (alpha_func == 0) passes = false;
+      b.nextSwitchSegment(switch_segments, 0);
+      b.makeDiscard();
+      b.addSwitchBreak();
+
+      for (int i = 1; i < 7; i++) {
+        b.nextSwitchSegment(switch_segments, i);
+        auto cond = b.createBinOp(alpha_op_map[i], bool_type_, oC0_alpha,
+                                  alpha_test_ref);
+        spv::Builder::If discard_if(cond, 0, b);
+        b.makeDiscard();
+        discard_if.makeEndIf();
+        b.addSwitchBreak();
+      }
+
+      // if (alpha_func == 7) passes = true;
+      b.nextSwitchSegment(switch_segments, 7);
+      b.endSwitch(switch_segments);
+
+      alpha_if.makeEndIf();
+    }
   }
 
   b.makeReturn(false);
