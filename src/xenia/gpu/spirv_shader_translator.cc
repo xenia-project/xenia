@@ -161,7 +161,7 @@ void SpirvShaderTranslator::StartTranslation() {
   // Push constants, represented by SpirvPushConstants.
   Id push_constants_type =
       b.makeStructType({vec4_float_type_, vec4_float_type_, vec4_float_type_,
-                        vec3_float_type_, float_type_, uint_type_},
+                        vec4_float_type_, vec4_float_type_, uint_type_},
                        "push_consts_type");
   b.addDecoration(push_constants_type, spv::Decoration::DecorationBlock);
 
@@ -180,12 +180,12 @@ void SpirvShaderTranslator::StartTranslation() {
       push_constants_type, 2, spv::Decoration::DecorationOffset,
       static_cast<int>(offsetof(SpirvPushConstants, point_size)));
   b.addMemberName(push_constants_type, 2, "point_size");
-  // float3 alpha_test;
+  // float4 alpha_test;
   b.addMemberDecoration(
       push_constants_type, 3, spv::Decoration::DecorationOffset,
       static_cast<int>(offsetof(SpirvPushConstants, alpha_test)));
   b.addMemberName(push_constants_type, 3, "alpha_test");
-  // float color_exp_bias;
+  // float4 color_exp_bias;
   b.addMemberDecoration(
       push_constants_type, 4, spv::Decoration::DecorationOffset,
       static_cast<int>(offsetof(SpirvPushConstants, color_exp_bias)));
@@ -558,23 +558,16 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
           spv::StorageClass::StorageClassPushConstant, push_consts_,
           std::vector<Id>({b.makeUintConstant(4)}));
       auto bias = b.createLoad(bias_ptr);
-
-      auto cond = b.createBinOp(spv::Op::OpFOrdNotEqual, bool_type_, bias,
-                                b.makeFloatConstant(0.f));
-      spv::Builder::If bias_if(cond, 0, b);
-
-      auto bias_vector = b.createCompositeConstruct(vec4_float_type_,
-                                                    {bias, bias, bias, bias});
-
-      auto oC0_ptr = b.createAccessChain(
-          spv::StorageClass::StorageClassOutput, frag_outputs_,
-          std::vector<Id>({b.makeUintConstant(0)}));
-      auto oC0_biased = b.createBinOp(spv::Op::OpFMul, vec4_float_type_,
-                                      b.createLoad(oC0_ptr), bias_vector);
-
-      b.createStore(oC0_biased, oC0_ptr);
-
-      bias_if.makeEndIf();
+      for (uint32_t i = 0; i < 4; i++) {
+        auto bias_value = b.createOp(spv::Op::OpVectorShuffle, vec4_float_type_,
+                                     {bias, bias, i, i, i, i});
+        auto oC_ptr = b.createAccessChain(
+            spv::StorageClass::StorageClassOutput, frag_outputs_,
+            std::vector<Id>({b.makeUintConstant(i)}));
+        auto oC_biased = b.createBinOp(spv::Op::OpFMul, vec4_float_type_,
+                                       b.createLoad(oC_ptr), bias_value);
+        b.createStore(oC_biased, oC_ptr);
+      }
     }
 
     // Alpha test
