@@ -742,6 +742,14 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
   push_constants_dirty |=
       SetShadowRegister(&regs.rb_colorcontrol, XE_GPU_REG_RB_COLORCONTROL);
   push_constants_dirty |=
+      SetShadowRegister(&regs.rb_color_info, XE_GPU_REG_RB_COLOR_INFO);
+  push_constants_dirty |=
+      SetShadowRegister(&regs.rb_color1_info, XE_GPU_REG_RB_COLOR1_INFO);
+  push_constants_dirty |=
+      SetShadowRegister(&regs.rb_color2_info, XE_GPU_REG_RB_COLOR2_INFO);
+  push_constants_dirty |=
+      SetShadowRegister(&regs.rb_color3_info, XE_GPU_REG_RB_COLOR3_INFO);
+  push_constants_dirty |=
       SetShadowRegister(&regs.rb_alpha_ref, XE_GPU_REG_RB_ALPHA_REF);
   push_constants_dirty |=
       SetShadowRegister(&regs.pa_su_point_size, XE_GPU_REG_PA_SU_POINT_SIZE);
@@ -802,6 +810,17 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
         static_cast<float>((regs.pa_su_point_size & 0xffff0000) >> 16) / 8.0f;
     push_constants.point_size[1] =
         static_cast<float>((regs.pa_su_point_size & 0x0000ffff)) / 8.0f;
+
+    reg::RB_COLOR_INFO color_info[4] = {
+        regs.rb_color_info,
+        regs.rb_color1_info,
+        regs.rb_color2_info,
+        regs.rb_color3_info,
+    };
+    for (int i = 0; i < 4; i++) {
+      push_constants.color_exp_bias[i] =
+          static_cast<float>(1 << color_info[i].color_exp_bias);
+    }
 
     // Alpha testing -- ALPHAREF, ALPHAFUNC, ALPHATESTENABLE
     // Emulated in shader.
