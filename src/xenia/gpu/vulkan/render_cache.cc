@@ -28,6 +28,19 @@ using xe::ui::vulkan::CheckResult;
 
 constexpr uint32_t kEdramBufferCapacity = 10 * 1024 * 1024;
 
+ColorRenderTargetFormat GetBaseRTFormat(ColorRenderTargetFormat format) {
+  switch (format) {
+    case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
+      return ColorRenderTargetFormat::k_8_8_8_8;
+    case ColorRenderTargetFormat::k_2_10_10_10_AS_16_16_16_16:
+      return ColorRenderTargetFormat::k_2_10_10_10;
+    case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
+      return ColorRenderTargetFormat::k_2_10_10_10_FLOAT;
+    default:
+      return format;
+  }
+}
+
 VkFormat ColorRenderTargetFormatToVkFormat(ColorRenderTargetFormat format) {
   switch (format) {
     case ColorRenderTargetFormat::k_8_8_8_8:
@@ -802,22 +815,7 @@ bool RenderCache::ParseConfiguration(RenderConfiguration* config) {
     };
     for (int i = 0; i < 4; ++i) {
       config->color[i].edram_base = color_info[i].color_base;
-      config->color[i].format = color_info[i].color_format;
-      // We don't support GAMMA formats, so switch them to what we do support.
-      switch (config->color[i].format) {
-        case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
-          config->color[i].format = ColorRenderTargetFormat::k_8_8_8_8;
-          break;
-        case ColorRenderTargetFormat::k_2_10_10_10_AS_16_16_16_16:
-          config->color[i].format = ColorRenderTargetFormat::k_2_10_10_10;
-          break;
-        case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
-          config->color[i].format = ColorRenderTargetFormat::k_2_10_10_10_FLOAT;
-          break;
-        default:
-          // The rest are good
-          break;
-      }
+      config->color[i].format = GetBaseRTFormat(color_info[i].color_format);
     }
   } else {
     for (int i = 0; i < 4; ++i) {
@@ -966,20 +964,8 @@ CachedTileView* RenderCache::FindTileView(uint32_t base, uint32_t pitch,
 
   if (color_or_depth) {
     // Adjust similar formats for easier matching.
-    switch (static_cast<ColorRenderTargetFormat>(format)) {
-      case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
-        format = uint32_t(ColorRenderTargetFormat::k_8_8_8_8);
-        break;
-      case ColorRenderTargetFormat::k_2_10_10_10_AS_16_16_16_16:
-        format = uint32_t(ColorRenderTargetFormat::k_2_10_10_10);
-        break;
-      case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
-        format = uint32_t(ColorRenderTargetFormat::k_2_10_10_10_FLOAT);
-        break;
-      default:
-        // Other types as-is.
-        break;
-    }
+    format = static_cast<uint32_t>(
+        GetBaseRTFormat(static_cast<ColorRenderTargetFormat>(format)));
   }
 
   TileViewKey key;
@@ -1215,20 +1201,8 @@ void RenderCache::BlitToImage(VkCommandBuffer command_buffer,
                               VkExtent3D extents) {
   if (color_or_depth) {
     // Adjust similar formats for easier matching.
-    switch (static_cast<ColorRenderTargetFormat>(format)) {
-      case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
-        format = uint32_t(ColorRenderTargetFormat::k_8_8_8_8);
-        break;
-      case ColorRenderTargetFormat::k_2_10_10_10_AS_16_16_16_16:
-        format = uint32_t(ColorRenderTargetFormat::k_2_10_10_10);
-        break;
-      case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
-        format = uint32_t(ColorRenderTargetFormat::k_2_10_10_10_FLOAT);
-        break;
-      default:
-        // Rest are OK
-        break;
-    }
+    format = static_cast<uint32_t>(
+        GetBaseRTFormat(static_cast<ColorRenderTargetFormat>(format)));
   }
 
   uint32_t tile_width = num_samples == MsaaSamples::k4X ? 40 : 80;
@@ -1331,20 +1305,7 @@ void RenderCache::ClearEDRAMColor(VkCommandBuffer command_buffer,
   // need to detect this and calculate a value.
 
   // Adjust similar formats for easier matching.
-  switch (format) {
-    case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
-      format = ColorRenderTargetFormat::k_8_8_8_8;
-      break;
-    case ColorRenderTargetFormat::k_2_10_10_10_AS_16_16_16_16:
-      format = ColorRenderTargetFormat::k_2_10_10_10;
-      break;
-    case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
-      format = ColorRenderTargetFormat::k_16_16_16_16_FLOAT;
-      break;
-    default:
-      // Rest are OK
-      break;
-  }
+  format = GetBaseRTFormat(static_cast<ColorRenderTargetFormat>(format));
 
   uint32_t tile_width = num_samples == MsaaSamples::k4X ? 40 : 80;
   uint32_t tile_height = num_samples != MsaaSamples::k1X ? 8 : 16;
