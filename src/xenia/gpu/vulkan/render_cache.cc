@@ -34,8 +34,8 @@ VkFormat ColorRenderTargetFormatToVkFormat(ColorRenderTargetFormat format) {
     case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
       return VK_FORMAT_R8G8B8A8_UNORM;
     case ColorRenderTargetFormat::k_2_10_10_10:
-      return VK_FORMAT_A2R10G10B10_UNORM_PACK32;
     case ColorRenderTargetFormat::k_2_10_10_10_AS_16_16_16_16:
+      return VK_FORMAT_A2R10G10B10_UNORM_PACK32;
     case ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
     case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
       return VK_FORMAT_R16G16B16A16_SFLOAT;
@@ -808,11 +808,11 @@ bool RenderCache::ParseConfiguration(RenderConfiguration* config) {
         case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
           config->color[i].format = ColorRenderTargetFormat::k_8_8_8_8;
           break;
-        case ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
         case ColorRenderTargetFormat::k_2_10_10_10_AS_16_16_16_16:
+          config->color[i].format = ColorRenderTargetFormat::k_2_10_10_10;
+          break;
         case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
-          config->color[i].format =
-              ColorRenderTargetFormat::k_16_16_16_16_FLOAT;
+          config->color[i].format = ColorRenderTargetFormat::k_2_10_10_10_FLOAT;
           break;
         default:
           // The rest are good
@@ -970,10 +970,11 @@ CachedTileView* RenderCache::FindTileView(uint32_t base, uint32_t pitch,
       case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
         format = uint32_t(ColorRenderTargetFormat::k_8_8_8_8);
         break;
-      case ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
       case ColorRenderTargetFormat::k_2_10_10_10_AS_16_16_16_16:
+        format = uint32_t(ColorRenderTargetFormat::k_2_10_10_10);
+        break;
       case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
-        format = uint32_t(ColorRenderTargetFormat::k_16_16_16_16_FLOAT);
+        format = uint32_t(ColorRenderTargetFormat::k_2_10_10_10_FLOAT);
         break;
       default:
         // Other types as-is.
@@ -1219,8 +1220,10 @@ void RenderCache::BlitToImage(VkCommandBuffer command_buffer,
         format = uint32_t(ColorRenderTargetFormat::k_8_8_8_8);
         break;
       case ColorRenderTargetFormat::k_2_10_10_10_AS_16_16_16_16:
+        format = uint32_t(ColorRenderTargetFormat::k_2_10_10_10);
+        break;
       case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
-        format = uint32_t(ColorRenderTargetFormat::k_16_16_16_16_FLOAT);
+        format = uint32_t(ColorRenderTargetFormat::k_2_10_10_10_FLOAT);
         break;
       default:
         // Rest are OK
@@ -1333,6 +1336,8 @@ void RenderCache::ClearEDRAMColor(VkCommandBuffer command_buffer,
       format = ColorRenderTargetFormat::k_8_8_8_8;
       break;
     case ColorRenderTargetFormat::k_2_10_10_10_AS_16_16_16_16:
+      format = ColorRenderTargetFormat::k_2_10_10_10;
+      break;
     case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
       format = ColorRenderTargetFormat::k_16_16_16_16_FLOAT;
       break;
