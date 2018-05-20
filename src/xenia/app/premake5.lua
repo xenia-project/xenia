@@ -72,13 +72,23 @@ project("xenia-app")
       include = "QtVulkanSupport",
     }
 
-    links({
-      "qtmain",
-      "qtfreetype",
-      "qtlibpng",
-      "qtpcre2",
-      "qtharfbuzz",
-    })
+    configuration {"not Checked"}
+      links({
+        "qtmain",
+        "qtfreetype",
+        "qtlibpng",
+        "qtpcre2",
+        "qtharfbuzz",
+      })
+    configuration {"Checked"}
+      links({
+        "qtmaind",
+        "qtfreetyped",
+        "qtlibpngd",
+        "qtpcre2d",
+        "qtharfbuzzd",
+      })
+    configuration {}
     qtmodules{"AccessibilitySupport", "EventDispatcherSupport", "FontDatabaseSupport", "ThemeSupport", "VulkanSupport"}
     libdirs("%{cfg.qtpath}/plugins/platforms")
 
@@ -91,8 +101,12 @@ project("xenia-app")
         "winmm",
         "netapi32",
         "userenv",
-        "qwindows",
       })
+      configuration {"not Checked"}
+        links({"qwindows"})
+      configuration {"Checked"}
+        links({"qwindowsd"})
+      configuration {}
     filter()
   end
 
