@@ -43,11 +43,11 @@ clone_folder: c:\dev\xenia
 
 # build cache
 cache:
-  - C:\Qt\5.10.1\msvc2017_64-static -> .appveyor.yml
+  - C:\Qt\5.11.0\msvc2017_64-static -> .appveyor.yml
 
 # environment variables
 environment:
-  QT_DIR: C:\Qt\5.10.1\msvc2017_64-static
+  QT_DIR: C:\Qt\5.11.0\msvc2017_64-static
   QT_STATIC: 1
 
 # build cache to preserve files/folders between builds
