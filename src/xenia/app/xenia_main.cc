@@ -12,6 +12,7 @@
 #include "xenia/base/debugging.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/main.h"
+#include "xenia/base/platform.h"
 #include "xenia/base/profiling.h"
 #include "xenia/base/threading.h"
 #include "xenia/vfs/devices/host_path_device.h"
@@ -19,6 +20,11 @@
 #include "xenia/app/emulator_window.h"
 
 #include <QApplication>
+#include <QtPlugin>
+
+#if XE_PLATFORM_WIN32
+Q_IMPORT_PLUGIN(QWindowsIntegrationPlugin);
+#endif
 
 DEFINE_bool(mount_scratch, false, "Enable scratch mount");
 DEFINE_bool(mount_cache, false, "Enable cache mount");
