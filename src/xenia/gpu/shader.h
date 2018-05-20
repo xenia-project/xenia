@@ -31,6 +31,11 @@ enum class InstructionStorageTarget {
   kPosition,
   // Result is stored to the point size export (gl_PointSize).
   kPointSize,
+  // Result is stored as memexport destination address.
+  // [physical >> 2, ??, ??, ??]
+  kExportAddress,
+  // Result is stored to memexport destination data.
+  kExportData,
   // Result is stored to a color target export indexed by storage_index [0-3].
   kColorTarget,
   // Result is stored to the depth export (gl_FragDepth).

@@ -14,7 +14,7 @@
 
 // Implement AMD's VMA here.
 #define VMA_IMPLEMENTATION
-#include "third_party/vulkan/vk_mem_alloc.h"
+#include "xenia/ui/vulkan/vulkan_mem_alloc.h"
 
 namespace xe {
 namespace ui {

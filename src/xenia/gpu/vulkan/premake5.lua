@@ -7,7 +7,7 @@ project("xenia-gpu-vulkan")
   kind("StaticLib")
   language("C++")
   links({
-    "vulkan-loader",
+    "volk",
     "xenia-base",
     "xenia-gpu",
     "xenia-ui",
@@ -40,7 +40,7 @@ project("xenia-gpu-vulkan-trace-viewer")
     "libavutil",
     "snappy",
     "spirv-tools",
-    "vulkan-loader",
+    "volk",
     "xenia-apu",
     "xenia-apu-nop",
     "xenia-base",
@@ -70,6 +70,15 @@ project("xenia-gpu-vulkan-trace-viewer")
     "vulkan_trace_viewer_main.cc",
     "../../base/main_"..platform_suffix..".cc",
   })
+
+  filter("platforms:Linux")
+    links({
+      "X11",
+      "xcb",
+      "X11-xcb",
+      "GL",
+      "vulkan",
+    })
 
   filter("platforms:Windows")
     links({
@@ -103,7 +112,7 @@ project("xenia-gpu-vulkan-trace-dump")
     "libavutil",
     "snappy",
     "spirv-tools",
-    "vulkan-loader",
+    "volk",
     "xenia-apu",
     "xenia-apu-nop",
     "xenia-base",
@@ -130,6 +139,15 @@ project("xenia-gpu-vulkan-trace-dump")
     "vulkan_trace_dump_main.cc",
     "../../base/main_"..platform_suffix..".cc",
   })
+
+  filter("platforms:Linux")
+    links({
+      "X11",
+      "xcb",
+      "X11-xcb",
+      "GL",
+      "vulkan",
+    })
 
   filter("platforms:Windows")
     -- Only create the .user file if it doesn't already exist.

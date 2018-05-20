@@ -15,6 +15,7 @@
 
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
+#include "xenia/base/memory.h"
 
 #include "third_party/xxhash/xxhash.h"
 
@@ -33,6 +34,7 @@ bool TextureInfo::Prepare(const xe_gpu_texture_fetch_t& fetch,
   info.guest_address = fetch.address << 12;
 
   info.dimension = static_cast<Dimension>(fetch.dimension);
+  info.pitch = fetch.pitch << 5;
   info.width = info.height = info.depth = 0;
   switch (info.dimension) {
     case Dimension::k1D:
@@ -59,6 +61,8 @@ bool TextureInfo::Prepare(const xe_gpu_texture_fetch_t& fetch,
   info.endianness = static_cast<Endian>(fetch.endianness);
   info.is_tiled = fetch.tiled;
   info.has_packed_mips = fetch.packed_mips;
+  info.mip_address = fetch.mip_address << 12;
+  info.mip_levels = fetch.packed_mips ? fetch.mip_max_level + 1 : 1;
   info.input_length = 0;  // Populated below.
 
   if (info.format_info()->format == TextureFormat::kUnknown) {
@@ -70,15 +74,16 @@ bool TextureInfo::Prepare(const xe_gpu_texture_fetch_t& fetch,
   // Must be called here when we know the format.
   switch (info.dimension) {
     case Dimension::k1D: {
-      assert_always();
+      info.CalculateTextureSizes1D(fetch.size_1d.width + 1);
     } break;
     case Dimension::k2D: {
       info.CalculateTextureSizes2D(fetch.size_2d.width + 1,
                                    fetch.size_2d.height + 1);
     } break;
     case Dimension::k3D: {
-      // TODO(benvanik): calculate size.
-      return false;
+      info.CalculateTextureSizes3D(fetch.size_3d.width + 1,
+                                   fetch.size_3d.height + 1,
+                                   fetch.size_3d.depth + 1);
     }
     case Dimension::kCube: {
       info.CalculateTextureSizesCube(fetch.size_stack.width + 1,
@@ -92,20 +97,22 @@ bool TextureInfo::Prepare(const xe_gpu_texture_fetch_t& fetch,
 
 bool TextureInfo::PrepareResolve(uint32_t physical_address,
                                  TextureFormat texture_format, Endian endian,
-                                 uint32_t width, uint32_t height,
-                                 TextureInfo* out_info) {
+                                 uint32_t pitch, uint32_t width,
+                                 uint32_t height, TextureInfo* out_info) {
   std::memset(out_info, 0, sizeof(TextureInfo));
   auto& info = *out_info;
   info.guest_address = physical_address;
   info.dimension = Dimension::k2D;
   assert_true(width > 0);
   assert_true(height > 0);
+  info.pitch = pitch;
   info.width = width - 1;
   info.height = height - 1;
   info.texture_format = texture_format;
   info.endianness = endian;
   info.is_tiled = true;
-  info.has_packed_mips = false;
+  info.mip_address = 0;
+  info.mip_levels = 1;
   info.input_length = 0;
 
   if (info.format_info()->format == TextureFormat::kUnknown) {
@@ -117,33 +124,21 @@ bool TextureInfo::PrepareResolve(uint32_t physical_address,
   return true;
 }
 
-void TextureInfo::CalculateTextureSizes2D(uint32_t width, uint32_t height) {
-  size_2d.logical_width = width;
-  size_2d.logical_height = height;
-
-  // Here be dragons. The values here are used in texture_cache.cc to copy
-  // images and create GL textures. Changes here will impact that code.
-  // TODO(benvanik): generic texture copying utility.
+void TextureInfo::CalculateTextureSizes1D(uint32_t width) {
+  size.logical_width = width;
 
   auto format = format_info();
 
-  // w/h in blocks.
-  uint32_t block_width =
-      xe::round_up(size_2d.logical_width, format->block_width) /
-      format->block_width;
-  uint32_t block_height =
-      xe::round_up(size_2d.logical_height, format->block_height) /
-      format->block_height;
+  // width in blocks.
+  uint32_t block_width = xe::round_up(size.logical_width, format->block_width) /
+                         format->block_width;
 
-  // Tiles are 32x32 blocks. The pitch of all textures must a multiple of tile
-  // dimensions.
-  uint32_t tile_width = xe::round_up(block_width, 32) / 32;
-  size_2d.block_width = tile_width * 32;
-  size_2d.block_height = block_height;
+  // Texture dimensions must be a multiple of tile
+  // dimensions (32x32 blocks).
+  size.block_width = xe::round_up(block_width, 32);
 
-  uint32_t bytes_per_block =
-      format->block_width * format->block_height * format->bits_per_pixel / 8;
-  uint32_t byte_pitch = size_2d.block_width * bytes_per_block;
+  uint32_t bytes_per_block = format->block_width * format->bits_per_pixel / 8;
+  uint32_t byte_pitch = size.block_width * bytes_per_block;
 
   uint32_t texel_width;
   if (!is_tiled) {
@@ -151,41 +146,120 @@ void TextureInfo::CalculateTextureSizes2D(uint32_t width, uint32_t height) {
     byte_pitch = xe::round_up(byte_pitch, 256);
     texel_width = (byte_pitch / bytes_per_block) * format->block_width;
   } else {
-    texel_width = size_2d.block_width * format->block_width;
+    texel_width = size.block_width * format->block_width;
   }
 
-  size_2d.input_width = texel_width;
-  size_2d.input_height = size_2d.block_height * format->block_height;
-  size_2d.input_pitch = byte_pitch;
+  size.input_width = texel_width;
 
-  input_length = size_2d.input_pitch * size_2d.block_height;
+  // Set some reasonable defaults for unused fields.
+  size.logical_height = 1;
+  size.block_height = format->block_height;
+  size.input_height = 1;
+  size.input_face_length = pitch * bytes_per_block;
+
+  input_length = size.input_face_length;
+}
+
+void TextureInfo::CalculateTextureSizes2D(uint32_t width, uint32_t height) {
+  size.logical_width = width;
+  size.logical_height = height;
+
+  auto format = format_info();
+
+  // w/h in blocks.
+  uint32_t block_width = xe::round_up(size.logical_width, format->block_width) /
+                         format->block_width;
+  uint32_t block_height =
+      xe::round_up(size.logical_height, format->block_height) /
+      format->block_height;
+
+  // Texture dimensions must be a multiple of tile
+  // dimensions (32x32 blocks).
+  size.block_width = xe::round_up(block_width, 32);
+  size.block_height = xe::round_up(block_height, 32);
+
+  uint32_t bytes_per_block =
+      format->block_width * format->block_height * format->bits_per_pixel / 8;
+  uint32_t byte_pitch = size.block_width * bytes_per_block;
+
+  uint32_t texel_width;
+  if (!is_tiled) {
+    // Each row must be a multiple of 256 in linear textures.
+    byte_pitch = xe::round_up(byte_pitch, 256);
+    texel_width = (byte_pitch / bytes_per_block) * format->block_width;
+  } else {
+    texel_width = size.block_width * format->block_width;
+  }
+
+  size.input_width = texel_width;
+  size.input_height = size.block_height * format->block_height;
+  size.input_face_length = pitch * bytes_per_block * size.block_height;
+
+  input_length = size.input_face_length;
+}
+
+void TextureInfo::CalculateTextureSizes3D(uint32_t width, uint32_t height,
+                                          uint32_t depth) {
+  size.logical_width = width;
+  size.logical_height = height;
+
+  auto format = format_info();
+
+  // w/h in blocks must be a multiple of block size.
+  uint32_t block_width = xe::round_up(size.logical_width, format->block_width) /
+                         format->block_width;
+  uint32_t block_height =
+      xe::round_up(size.logical_height, format->block_height) /
+      format->block_height;
+
+  // Texture dimensions must be a multiple of tile
+  // dimensions (32x32 blocks).
+  size.block_width = xe::round_up(block_width, 32);
+  size.block_height = xe::round_up(block_height, 32);
+
+  uint32_t bytes_per_block =
+      format->block_width * format->block_height * format->bits_per_pixel / 8;
+  uint32_t byte_pitch = size.block_width * bytes_per_block;
+
+  uint32_t texel_width;
+  if (!is_tiled) {
+    // Each row must be a multiple of 256 in linear textures.
+    byte_pitch = xe::round_up(byte_pitch, 256);
+    texel_width = (byte_pitch / bytes_per_block) * format->block_width;
+  } else {
+    texel_width = size.block_width * format->block_width;
+  }
+
+  size.input_width = texel_width;
+  size.input_height = size.block_height * format->block_height;
+  size.input_face_length = pitch * bytes_per_block * size.block_height;
+
+  input_length = size.input_face_length * depth;
 }
 
 void TextureInfo::CalculateTextureSizesCube(uint32_t width, uint32_t height,
                                             uint32_t depth) {
   assert_true(depth == 6);
-  size_cube.logical_width = width;
-  size_cube.logical_height = height;
+  size.logical_width = width;
+  size.logical_height = height;
 
   auto format = format_info();
 
   // w/h in blocks must be a multiple of block size.
-  uint32_t block_width =
-      xe::round_up(size_cube.logical_width, format->block_width) /
-      format->block_width;
+  uint32_t block_width = xe::round_up(size.logical_width, format->block_width) /
+                         format->block_width;
   uint32_t block_height =
-      xe::round_up(size_cube.logical_height, format->block_height) /
+      xe::round_up(size.logical_height, format->block_height) /
       format->block_height;
 
-  // Tiles are 32x32 blocks. All textures must be multiples of tile dimensions.
-  uint32_t tile_width = xe::round_up(block_width, 32) / 32;
-  uint32_t tile_height = xe::round_up(block_height, 32) / 32;
-  size_cube.block_width = tile_width * 32;
-  size_cube.block_height = tile_height * 32;
+  // Texture dimensions must be a multiple of tile
+  // dimensions (32x32 blocks).
+  size.block_width = xe::round_up(block_width, 32);
+  size.block_height = xe::round_up(block_height, 32);
 
   uint32_t bytes_per_block =
       format->block_width * format->block_height * format->bits_per_pixel / 8;
-  uint32_t byte_pitch = size_cube.block_width * bytes_per_block;
+  uint32_t byte_pitch = size.block_width * bytes_per_block;
 
   uint32_t texel_width;
   if (!is_tiled) {
@@ -193,19 +267,228 @@ void TextureInfo::CalculateTextureSizesCube(uint32_t width, uint32_t height,
     byte_pitch = xe::round_up(byte_pitch, 256);
     texel_width = (byte_pitch / bytes_per_block) * format->block_width;
   } else {
-    texel_width = size_cube.block_width * format->block_width;
+    texel_width = size.block_width * format->block_width;
   }
 
-  size_cube.input_width = texel_width;
-  size_cube.input_height = size_cube.block_height * format->block_height;
-  size_cube.input_pitch = byte_pitch;
+  size.input_width = texel_width;
+  size.input_height = size.block_height * format->block_height;
+  size.input_face_length = pitch * bytes_per_block * size.block_height;
 
-  size_cube.input_face_length = size_cube.input_pitch * size_cube.block_height;
-  input_length = size_cube.input_face_length * 6;
+  input_length = size.input_face_length * depth;
 }
 
-bool TextureInfo::GetPackedTileOffset(const TextureInfo& texture_info,
-                                      uint32_t* out_offset_x,
+static void TextureSwap(Endian endianness, void* dest, const void* src,
+                        size_t length) {
+  switch (endianness) {
+    case Endian::k8in16:
+      xe::copy_and_swap_16_unaligned(dest, src, length / 2);
+      break;
+    case Endian::k8in32:
+      xe::copy_and_swap_32_unaligned(dest, src, length / 4);
+      break;
+    case Endian::k16in32:  // Swap high and low 16 bits within a 32 bit word
+      xe::copy_and_swap_16_in_32_unaligned(dest, src, length);
+      break;
+    default:
+    case Endian::kUnspecified:
+      std::memcpy(dest, src, length);
+      break;
+  }
+}
+
+static void ConvertTexelCTX1(uint8_t* dest, size_t dest_pitch,
+                             const uint8_t* src, Endian src_endianness) {
+  // http://fileadmin.cs.lth.se/cs/Personal/Michael_Doggett/talks/unc-xenos-doggett.pdf
+  union {
+    uint8_t data[8];
+    struct {
+      uint8_t r0, g0, r1, g1;
+      uint32_t xx;
+    };
+  } block;
+  static_assert(sizeof(block) == 8, "CTX1 block mismatch");
+
+  const uint32_t bytes_per_block = 8;
+  TextureSwap(src_endianness, block.data, src, bytes_per_block);
+
+  uint8_t cr[4] = {
+      block.r0, block.r1,
+      static_cast<uint8_t>(2.f / 3.f * block.r0 + 1.f / 3.f * block.r1),
+      static_cast<uint8_t>(1.f / 3.f * block.r0 + 2.f / 3.f * block.r1)};
+  uint8_t cg[4] = {
+      block.g0, block.g1,
+      static_cast<uint8_t>(2.f / 3.f * block.g0 + 1.f / 3.f * block.g1),
+      static_cast<uint8_t>(1.f / 3.f * block.g0 + 2.f / 3.f * block.g1)};
+
+  for (uint32_t oy = 0; oy < 4; ++oy) {
+    for (uint32_t ox = 0; ox < 4; ++ox) {
+      uint8_t xx = (block.xx >> (((ox + (oy * 4)) * 2))) & 3;
+      dest[(oy * dest_pitch) + (ox * 2) + 0] = cr[xx];
+      dest[(oy * dest_pitch) + (ox * 2) + 1] = cg[xx];
+    }
+  }
+}
+
+void TextureInfo::ConvertTiled(uint8_t* dest, const uint8_t* src, Endian endian,
+                               const FormatInfo* format_info, uint32_t offset_x,
+                               uint32_t offset_y, uint32_t block_pitch,
+                               uint32_t width, uint32_t height,
+                               uint32_t output_width) {
+  // TODO(benvanik): optimize this inner loop (or work by tiles).
+  uint32_t bytes_per_block = format_info->block_width *
+                             format_info->block_height *
+                             format_info->bits_per_pixel / 8;
+
+  uint32_t output_pitch =
+      output_width * format_info->block_width * format_info->bits_per_pixel / 8;
+
+  uint32_t output_row_height = 1;
+  if (format_info->format == TextureFormat::k_CTX1) {
+    // TODO: Can we calculate this?
+    output_row_height = 4;
+  }
+
+  // logical w/h in blocks.
+  uint32_t block_width =
+      xe::round_up(width, format_info->block_width) / format_info->block_width;
+  uint32_t block_height = xe::round_up(height, format_info->block_height) /
+                          format_info->block_height;
+
+  // Bytes per pixel
+  auto log2_bpp =
+      (bytes_per_block / 4) + ((bytes_per_block / 2) >> (bytes_per_block / 4));
+
+  // Offset to the current row, in bytes.
+  uint32_t output_row_offset = 0;
+  for (uint32_t y = 0; y < block_height; y++) {
+    auto input_row_offset =
+        TextureInfo::TiledOffset2DOuter(offset_y + y, block_pitch, log2_bpp);
+
+    // Go block-by-block on this row.
+    uint32_t output_offset = output_row_offset;
+    for (uint32_t x = 0; x < block_width; x++) {
+      auto input_offset = TextureInfo::TiledOffset2DInner(
+          offset_x + x, offset_y + y, log2_bpp, input_row_offset);
+      input_offset >>= log2_bpp;
+
+      if (format_info->format == TextureFormat::k_CTX1) {
+        // Convert to R8G8.
+        ConvertTexelCTX1(&dest[output_offset], output_pitch, src, endian);
+      } else {
+        // Generic swap to destination.
+        TextureSwap(endian, dest + output_offset,
+                    src + input_offset * bytes_per_block, bytes_per_block);
+      }
+
+      output_offset += bytes_per_block;
+    }
+
+    output_row_offset += output_pitch * output_row_height;
+  }
+}
+
+uint32_t TextureInfo::GetMaxMipLevels(uint32_t width, uint32_t height,
+                                      uint32_t depth) {
+  return 1 + xe::log2_floor(std::max({width, height, depth}));
+}
+
+uint32_t TextureInfo::GetMipLocation(const TextureInfo& src, uint32_t mip,
+                                     uint32_t* offset_x, uint32_t* offset_y) {
+  if (mip == 0) {
+    // Short-circuit. Mip 0 is always stored in guest_address.
+    if (!src.has_packed_mips) {
+      *offset_x = 0;
+      *offset_y = 0;
+    } else {
+      GetPackedTileOffset(src, 0, offset_x, offset_y);
+    }
+    return src.guest_address;
+  }
+
+  // If the texture is <= 16 pixels w/h, the mips are packed with the base
+  // texture. Otherwise, they're stored beginning from mip_address.
+  uint32_t address_base = std::min(src.width, src.height) < 16
+                              ? src.guest_address
+                              : src.mip_address;
+  uint32_t address_offset = 0;
+
+  if (!src.has_packed_mips) {
+    for (uint32_t i = 1; i < mip; i++) {
+      address_offset += GetMipByteSize(src, i);
+    }
+    *offset_x = 0;
+    *offset_y = 0;
+    return address_base + address_offset;
+  }
+
+  // Walk forward to find the address of the mip.
+  uint32_t packed_mip_base = 1;
+  for (uint32_t i = packed_mip_base; i < mip; i++, packed_mip_base++) {
+    uint32_t logical_width = std::max(xe::next_pow2(src.width + 1) >> i, 1u);
+    uint32_t logical_height = std::max(xe::next_pow2(src.height + 1) >> i, 1u);
+    if (std::min(logical_width, logical_height) <= 16) {
+      // We've reached the point where the mips are packed into a single tile.
+      break;
+    }
+
+    address_offset += GetMipByteSize(src, i);
+  }
+
+  // Now, check if the mip is packed at an offset.
+  GetPackedTileOffset(xe::next_pow2(src.width + 1) >> mip,
+                      xe::next_pow2(src.height + 1) >> mip, src.format_info(),
+                      mip - packed_mip_base, offset_x, offset_y);
+  return address_base + address_offset;
+}
+
+uint32_t TextureInfo::GetMipByteSize(const TextureInfo& src, uint32_t mip) {
+  if (mip == 0) {
+    return src.input_length;
+  }
+
+  uint32_t bytes_per_block = src.format_info()->block_width *
+                             src.format_info()->block_height *
+                             src.format_info()->bits_per_pixel / 8;
+
+  uint32_t logical_width = xe::next_pow2(src.width + 1) >> mip;
+  uint32_t logical_height = xe::next_pow2(src.height + 1) >> mip;
+
+  // w/h in blocks
+  uint32_t block_width =
+      xe::round_up(logical_width, src.format_info()->block_width) /
+      src.format_info()->block_width;
+  uint32_t block_height =
+      xe::round_up(logical_height, src.format_info()->block_height) /
+      src.format_info()->block_height;
+
+  // Texture dimensions must be a multiple of tile
+  // dimensions (32x32 blocks).
+  block_width = xe::round_up(block_width, 32);
+  block_height = xe::round_up(block_height, 32);
+
+  uint32_t byte_pitch = block_width * bytes_per_block;
+
+  if (!src.is_tiled) {
+    // Each row must be a multiple of 256 in linear textures.
+    byte_pitch = xe::round_up(byte_pitch, 256);
+  }
+
+  return byte_pitch * block_height * (src.depth + 1);
+}
+
+uint32_t TextureInfo::GetMipLinearSize(const TextureInfo& src, uint32_t mip) {
+  uint32_t bytes_per_block = src.format_info()->block_width *
+                             src.format_info()->block_height *
+                             src.format_info()->bits_per_pixel / 8;
+  uint32_t size = src.input_length >> (mip * 2);
+
+  // The size is a multiple of the block size.
+  return xe::round_up(size, bytes_per_block) * (src.depth + 1);
+}
+
+bool TextureInfo::GetPackedTileOffset(uint32_t width, uint32_t height,
+                                      const FormatInfo* format_info,
+                                      int packed_tile, uint32_t* out_offset_x,
                                       uint32_t* out_offset_y) {
   // Tile size is 32x32, and once textures go <=16 they are packed into a
   // single tile together. The math here is insane. Most sourced
@@ -226,6 +509,10 @@ bool TextureInfo::GetPackedTileOffset(const TextureInfo& texture_info,
   // This only works for square textures, or textures that are some non-pot
   // <= square. As soon as the aspect ratio goes weird, the textures start to
   // stretch across tiles.
+  //
+  // The 2x2 and 1x1 squares are packed in their specific positions because
+  // each square is the size of at least one block (which is 4x4 pixels max)
+  //
   // if (tile_aligned(w) > tile_aligned(h)) {
   //   // wider than tall, so packed horizontally
   // } else if (tile_aligned(w) < tile_aligned(h)) {
@@ -238,44 +525,74 @@ bool TextureInfo::GetPackedTileOffset(const TextureInfo& texture_info,
   // The minimum dimension is what matters most: if either width or height
   // is <= 16 this mode kicks in.
 
-  if (std::min(texture_info.size_2d.logical_width,
-               texture_info.size_2d.logical_height) > 16) {
+  uint32_t log2_width = xe::log2_ceil(width);
+  uint32_t log2_height = xe::log2_ceil(height);
+  if (std::min(log2_width, log2_height) > 4) {
     // Too big, not packed.
     *out_offset_x = 0;
     *out_offset_y = 0;
     return false;
   }
 
-  if (xe::log2_ceil(texture_info.size_2d.logical_width) >
-      xe::log2_ceil(texture_info.size_2d.logical_height)) {
-    // Wider than tall. Laid out vertically.
-    *out_offset_x = 0;
-    *out_offset_y = 16;
+  // Find the block offset of the mip.
+  if (packed_tile < 3) {
+    if (log2_width > log2_height) {
+      // Wider than tall. Laid out vertically.
+      *out_offset_x = 0;
+      *out_offset_y = 16 >> packed_tile;
+    } else {
+      // Taller than wide. Laid out horizontally.
+      *out_offset_x = 16 >> packed_tile;
+      *out_offset_y = 0;
+    }
   } else {
-    // Taller than wide. Laid out horizontally.
-    *out_offset_x = 16;
-    *out_offset_y = 0;
+    if (log2_width > log2_height) {
+      // Wider than tall. Laid out vertically.
+      *out_offset_x = 16 >> (packed_tile - 2);
+      *out_offset_y = 0;
+    } else {
+      // Taller than wide. Laid out horizontally.
+      *out_offset_x = 0;
+      *out_offset_y = 16 >> (packed_tile - 2);
+    }
   }
-  *out_offset_x /= texture_info.format_info()->block_width;
-  *out_offset_y /= texture_info.format_info()->block_height;
+
+  *out_offset_x /= format_info->block_width;
+  *out_offset_y /= format_info->block_height;
   return true;
+}
+
+bool TextureInfo::GetPackedTileOffset(const TextureInfo& texture_info,
+                                      int packed_tile, uint32_t* out_offset_x,
+                                      uint32_t* out_offset_y) {
+  if (!texture_info.has_packed_mips) {
+    *out_offset_x = 0;
+    *out_offset_y = 0;
+    return false;
+  }
+  return GetPackedTileOffset(xe::next_pow2(texture_info.size.logical_width),
+                             xe::next_pow2(texture_info.size.logical_height),
+                             texture_info.format_info(), packed_tile,
+                             out_offset_x, out_offset_y);
 }
 
 // https://github.com/BinomialLLC/crunch/blob/ea9b8d8c00c8329791256adafa8cf11e4e7942a2/inc/crn_decomp.h#L4108
 uint32_t TextureInfo::TiledOffset2DOuter(uint32_t y, uint32_t width,
-                                         uint32_t log_bpp) {
-  uint32_t macro = ((y >> 5) * (width >> 5)) << (log_bpp + 7);
-  uint32_t micro = ((y & 6) << 2) << log_bpp;
-  return macro + ((micro & ~15) << 1) + (micro & 15) +
-         ((y & 8) << (3 + log_bpp)) + ((y & 1) << 4);
+                                         uint32_t log2_bpp) {
+  uint32_t macro = ((y / 32) * (width / 32)) << (log2_bpp + 7);
+  uint32_t micro = ((y & 6) << 2) << log2_bpp;
+  return macro + ((micro & ~0xF) << 1) + (micro & 0xF) +
+         ((y & 8) << (3 + log2_bpp)) + ((y & 1) << 4);
 }
 
-uint32_t TextureInfo::TiledOffset2DInner(uint32_t x, uint32_t y, uint32_t bpp,
+uint32_t TextureInfo::TiledOffset2DInner(uint32_t x, uint32_t y,
+                                         uint32_t log2_bpp,
                                          uint32_t base_offset) {
-  uint32_t macro = (x >> 5) << (bpp + 7);
-  uint32_t micro = (x & 7) << bpp;
-  uint32_t offset = base_offset + (macro + ((micro & ~15) << 1) + (micro & 15));
-  return ((offset & ~511) << 3) + ((offset & 448) << 2) + (offset & 63) +
+  uint32_t macro = (x / 32) << (log2_bpp + 7);
+  uint32_t micro = (x & 7) << log2_bpp;
+  uint32_t offset =
+      base_offset + (macro + ((micro & ~0xF) << 1) + (micro & 0xF));
+  return ((offset & ~0x1FF) << 3) + ((offset & 0x1C0) << 2) + (offset & 0x3F) +
          ((y & 16) << 7) + (((((y & 8) >> 2) + (x >> 3)) & 3) << 6);
 }
 

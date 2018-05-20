@@ -26,7 +26,9 @@ void copy_128_aligned(void* dest, const void* src, size_t count) {
 #if XE_ARCH_AMD64
 void copy_and_swap_16_aligned(void* dest_ptr, const void* src_ptr,
                               size_t count) {
-  assert_zero(reinterpret_cast<uintptr_t>(src_ptr) & 0x1);
+  assert_zero(reinterpret_cast<uintptr_t>(dest_ptr) & 0xF);
+  assert_zero(reinterpret_cast<uintptr_t>(src_ptr) & 0xF);
+
   auto dest = reinterpret_cast<uint16_t*>(dest_ptr);
   auto src = reinterpret_cast<const uint16_t*>(src_ptr);
   __m128i shufmask =
@@ -34,12 +36,7 @@ void copy_and_swap_16_aligned(void* dest_ptr, const void* src_ptr,
                    0x04, 0x05, 0x02, 0x03, 0x00, 0x01);
 
   size_t i = 0;
-  size_t unaligned_words = (reinterpret_cast<uintptr_t>(src_ptr) & 0xF) / 2;
-  for (; unaligned_words > 0 && i < count; unaligned_words--, i++) {
-    // Copy up to 16 byte alignment.
-    dest[i] = byte_swap(src[i]);
-  }
-  for (; i + 8 <= count; i += 8) {
+  for (i = 0; i + 8 <= count; i += 8) {
     __m128i input = _mm_load_si128(reinterpret_cast<const __m128i*>(&src[i]));
     __m128i output = _mm_shuffle_epi8(input, shufmask);
     _mm_store_si128(reinterpret_cast<__m128i*>(&dest[i]), output);
@@ -70,20 +67,17 @@ void copy_and_swap_16_unaligned(void* dest_ptr, const void* src_ptr,
 
 void copy_and_swap_32_aligned(void* dest_ptr, const void* src_ptr,
                               size_t count) {
-  assert_zero(reinterpret_cast<uintptr_t>(src_ptr) & 0x3);
+  assert_zero(reinterpret_cast<uintptr_t>(dest_ptr) & 0xF);
+  assert_zero(reinterpret_cast<uintptr_t>(src_ptr) & 0xF);
+
   auto dest = reinterpret_cast<uint32_t*>(dest_ptr);
   auto src = reinterpret_cast<const uint32_t*>(src_ptr);
   __m128i shufmask =
       _mm_set_epi8(0x0C, 0x0D, 0x0E, 0x0F, 0x08, 0x09, 0x0A, 0x0B, 0x04, 0x05,
                    0x06, 0x07, 0x00, 0x01, 0x02, 0x03);
 
-  size_t i = 0;
-  size_t unaligned_dwords = (reinterpret_cast<uintptr_t>(src_ptr) & 0xF) / 4;
-  for (; unaligned_dwords > 0 && i < count; unaligned_dwords--, i++) {
-    // Copy up to 16 byte alignment.
-    dest[i] = byte_swap(src[i]);
-  }
-  for (; i + 4 <= count; i += 4) {
+  size_t i;
+  for (i = 0; i + 4 <= count; i += 4) {
     __m128i input = _mm_load_si128(reinterpret_cast<const __m128i*>(&src[i]));
     __m128i output = _mm_shuffle_epi8(input, shufmask);
     _mm_store_si128(reinterpret_cast<__m128i*>(&dest[i]), output);
@@ -114,20 +108,17 @@ void copy_and_swap_32_unaligned(void* dest_ptr, const void* src_ptr,
 
 void copy_and_swap_64_aligned(void* dest_ptr, const void* src_ptr,
                               size_t count) {
-  assert_zero(reinterpret_cast<uintptr_t>(src_ptr) & 0x7);
+  assert_zero(reinterpret_cast<uintptr_t>(dest_ptr) & 0xF);
+  assert_zero(reinterpret_cast<uintptr_t>(src_ptr) & 0xF);
+
   auto dest = reinterpret_cast<uint64_t*>(dest_ptr);
   auto src = reinterpret_cast<const uint64_t*>(src_ptr);
   __m128i shufmask =
       _mm_set_epi8(0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x00, 0x01,
                    0x02, 0x03, 0x04, 0x05, 0x06, 0x07);
 
-  size_t i = 0;
-  size_t unaligned_qwords = (reinterpret_cast<uintptr_t>(src_ptr) & 0xF) / 8;
-  for (; unaligned_qwords > 0 && i < count; unaligned_qwords--, i++) {
-    // Copy up to 16 byte alignment.
-    dest[i] = byte_swap(src[i]);
-  }
-  for (; i + 2 <= count; i += 2) {
+  size_t i;
+  for (i = 0; i + 2 <= count; i += 2) {
     __m128i input = _mm_load_si128(reinterpret_cast<const __m128i*>(&src[i]));
     __m128i output = _mm_shuffle_epi8(input, shufmask);
     _mm_store_si128(reinterpret_cast<__m128i*>(&dest[i]), output);

@@ -36,7 +36,8 @@ dword_result_t XAudioGetVoiceCategoryVolumeChangeMask(lpunknown_t driver_ptr,
   return X_ERROR_SUCCESS;
 }
 DECLARE_XBOXKRNL_EXPORT(XAudioGetVoiceCategoryVolumeChangeMask,
-                        ExportTag::kStub | ExportTag::kAudio);
+                        ExportTag::kStub | ExportTag::kAudio |
+                            ExportTag::kHighFrequency);
 
 dword_result_t XAudioGetVoiceCategoryVolume(dword_t unk, lpfloat_t out_ptr) {
   // Expects a floating point single. Volume %?
@@ -92,7 +93,8 @@ dword_result_t XAudioSubmitRenderDriverFrame(lpunknown_t driver_ptr,
   return X_ERROR_SUCCESS;
 }
 DECLARE_XBOXKRNL_EXPORT(XAudioSubmitRenderDriverFrame,
-                        ExportTag::kImplemented | ExportTag::kAudio);
+                        ExportTag::kImplemented | ExportTag::kAudio |
+                            ExportTag::kHighFrequency);
 
 void RegisterAudioExports(xe::cpu::ExportResolver* export_resolver,
                           KernelState* kernel_state) {

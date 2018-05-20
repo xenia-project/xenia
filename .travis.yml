@@ -59,7 +59,7 @@ script:
   # Run linter.
   - if [[ $LINT == true ]]; then ./xenia-build lint --all; fi
   
-  # Build and run our simple hello world test.
+  # Build and run base tests
   - if [[ $BUILD == true ]]; then ./xenia-build build --config=$CONFIG --target=xenia-base-tests; fi
   - if [[ $BUILD == true ]]; then ./build/bin/Linux/$CONFIG/xenia-base-tests; fi
   # Build and run ppc tests

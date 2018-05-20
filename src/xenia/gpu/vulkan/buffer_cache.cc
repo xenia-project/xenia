@@ -15,8 +15,7 @@
 #include "xenia/base/profiling.h"
 #include "xenia/gpu/gpu_flags.h"
 #include "xenia/gpu/vulkan/vulkan_gpu_flags.h"
-
-#include "third_party/vulkan/vk_mem_alloc.h"
+#include "xenia/ui/vulkan/vulkan_mem_alloc.h"
 
 using namespace xe::gpu::xenos;
 
@@ -104,7 +103,7 @@ BufferCache::BufferCache(RegisterFile* register_file, Memory* memory,
       device_,
       VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT |
           VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-      capacity, 4096);
+      capacity, 256);
 }
 
 BufferCache::~BufferCache() { Shutdown(); }
@@ -120,9 +119,13 @@ VkResult BufferCache::Initialize() {
   }
 
   // Create a memory allocator for textures.
+  VmaVulkanFunctions vulkan_funcs = {};
+  ui::vulkan::FillVMAVulkanFunctions(&vulkan_funcs);
+
   VmaAllocatorCreateInfo alloc_info = {
-      0, *device_, *device_, 0, 0, nullptr, nullptr,
+      0, *device_, *device_, 0, 0, nullptr, nullptr, 0, nullptr, &vulkan_funcs,
   };
+
   status = vmaCreateAllocator(&alloc_info, &mem_allocator_);
   if (status != VK_SUCCESS) {
     return status;
@@ -147,10 +150,10 @@ VkResult xe::gpu::vulkan::BufferCache::CreateVertexDescriptorPool() {
   std::vector<VkDescriptorPoolSize> pool_sizes;
   pool_sizes.push_back({
       VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-      65536,
+      32 * 16384,
   });
-  vertex_descriptor_pool_ =
-      std::make_unique<ui::vulkan::DescriptorPool>(*device_, 65536, pool_sizes);
+  vertex_descriptor_pool_ = std::make_unique<ui::vulkan::DescriptorPool>(
+      *device_, 32 * 16384, pool_sizes);
 
   // 32 storage buffers available to vertex shader.
   // TODO(DrChat): In the future, this could hold memexport staging data.
@@ -287,7 +290,8 @@ VkResult BufferCache::CreateConstantDescriptorSet() {
 
   return VK_SUCCESS;
 }
-void xe::gpu::vulkan::BufferCache::FreeConstantDescriptorSet() {
+
+void BufferCache::FreeConstantDescriptorSet() {
   if (constant_descriptor_set_) {
     vkFreeDescriptorSets(*device_, constant_descriptor_pool_, 1,
                          &constant_descriptor_set_);
@@ -548,23 +552,28 @@ void BufferCache::HashVertexBindings(
     const std::vector<Shader::VertexBinding>& vertex_bindings) {
   auto& regs = *register_file_;
   for (const auto& vertex_binding : vertex_bindings) {
+#if 0
+    XXH64_update(hash_state, &vertex_binding.binding_index, sizeof(vertex_binding.binding_index));
+    XXH64_update(hash_state, &vertex_binding.fetch_constant, sizeof(vertex_binding.fetch_constant));
+    XXH64_update(hash_state, &vertex_binding.stride_words, sizeof(vertex_binding.stride_words));
+#endif
     int r = XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 +
             (vertex_binding.fetch_constant / 3) * 6;
     const auto group = reinterpret_cast<xe_gpu_fetch_group_t*>(&regs.values[r]);
-    const xe_gpu_vertex_fetch_t* fetch = nullptr;
     switch (vertex_binding.fetch_constant % 3) {
-      case 0:
-        fetch = &group->vertex_fetch_0;
-        break;
-      case 1:
-        fetch = &group->vertex_fetch_1;
-        break;
-      case 2:
-        fetch = &group->vertex_fetch_2;
-        break;
+      case 0: {
+        auto& fetch = group->vertex_fetch_0;
+        XXH64_update(hash_state, &fetch, sizeof(fetch));
+      } break;
+      case 1: {
+        auto& fetch = group->vertex_fetch_1;
+        XXH64_update(hash_state, &fetch, sizeof(fetch));
+      } break;
+      case 2: {
+        auto& fetch = group->vertex_fetch_2;
+        XXH64_update(hash_state, &fetch, sizeof(fetch));
+      } break;
     }
-
-    XXH64_update(hash_state, fetch, sizeof(fetch));
   }
 }
 

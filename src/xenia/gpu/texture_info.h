@@ -203,9 +203,9 @@ inline TextureFormat ColorRenderTargetToTextureFormat(
       return TextureFormat::k_16_16_FLOAT;
     case ColorRenderTargetFormat::k_16_16_16_16_FLOAT:
       return TextureFormat::k_16_16_16_16_FLOAT;
-    case ColorRenderTargetFormat::k_2_10_10_10_unknown:
-      return TextureFormat::k_2_10_10_10;
-    case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_unknown:
+    case ColorRenderTargetFormat::k_2_10_10_10_AS_16_16_16_16:
+      return TextureFormat::k_2_10_10_10_AS_16_16_16_16;
+    case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
       return TextureFormat::k_2_10_10_10_FLOAT;
     case ColorRenderTargetFormat::k_32_FLOAT:
       return TextureFormat::k_32_FLOAT;
@@ -250,13 +250,26 @@ struct TextureInfo {
   uint32_t guest_address;
   TextureFormat texture_format;
   Dimension dimension;
-  uint32_t width;
-  uint32_t height;
-  uint32_t depth;
+  uint32_t pitch;   // pitch in blocks
+  uint32_t width;   // width in pixels
+  uint32_t height;  // height in pixels
+  uint32_t depth;   // depth in layers
   Endian endianness;
   bool is_tiled;
   bool has_packed_mips;
+  uint32_t mip_address;
+  uint32_t mip_levels;
   uint32_t input_length;
+
+  struct Size {
+    uint32_t logical_width;
+    uint32_t logical_height;
+    uint32_t block_width;        // # of horizontal blocks
+    uint32_t block_height;       // # of vertical blocks
+    uint32_t input_width;        // (full) texel pitch
+    uint32_t input_height;       // (full) texel height
+    uint32_t input_face_length;  // byte length of face
+  } size;
 
   const FormatInfo* format_info() const {
     return FormatInfo::Get(static_cast<uint32_t>(texture_format));
@@ -266,50 +279,42 @@ struct TextureInfo {
     return format_info()->type == FormatType::kCompressed;
   }
 
-  union {
-    struct {
-      uint32_t logical_width;
-      uint32_t block_width;  // # of horizontal blocks
-      uint32_t input_width;  // texel pitch
-      uint32_t input_pitch;  // byte pitch
-    } size_1d;
-    struct {
-      uint32_t logical_width;
-      uint32_t logical_height;
-      uint32_t block_width;   // # of horizontal blocks
-      uint32_t block_height;  // # of vertical blocks
-      uint32_t input_width;   // texel pitch
-      uint32_t input_height;  // texel height
-      uint32_t input_pitch;   // byte pitch
-    } size_2d;
-    struct {
-    } size_3d;
-    struct {
-      uint32_t logical_width;
-      uint32_t logical_height;
-      uint32_t block_width;        // # of horizontal blocks
-      uint32_t block_height;       // # of vertical blocks
-      uint32_t input_width;        // texel pitch
-      uint32_t input_height;       // texel height
-      uint32_t input_pitch;        // byte pitch
-      uint32_t input_face_length;  // byte pitch of face
-    } size_cube;
-  };
-
   static bool Prepare(const xenos::xe_gpu_texture_fetch_t& fetch,
                       TextureInfo* out_info);
 
   static bool PrepareResolve(uint32_t physical_address,
                              TextureFormat texture_format, Endian endian,
-                             uint32_t width, uint32_t height,
+                             uint32_t pitch, uint32_t width, uint32_t height,
                              TextureInfo* out_info);
 
+  static void ConvertTiled(uint8_t* dest, const uint8_t* src, Endian endian,
+                           const FormatInfo* format_info, uint32_t offset_x,
+                           uint32_t offset_y, uint32_t block_pitch,
+                           uint32_t width, uint32_t height,
+                           uint32_t output_width);
+
+  static uint32_t GetMaxMipLevels(uint32_t width, uint32_t height,
+                                  uint32_t depth);
+
+  // Get the memory location of a mip. offset_x and offset_y are in blocks.
+  static uint32_t GetMipLocation(const TextureInfo& src, uint32_t mip,
+                                 uint32_t* offset_x, uint32_t* offset_y);
+  static uint32_t GetMipByteSize(const TextureInfo& src, uint32_t mip);
+  static uint32_t GetMipSizes(const TextureInfo& src, uint32_t mip);
+
+  // Get the byte size of a MIP when stored linearly.
+  static uint32_t GetMipLinearSize(const TextureInfo& src, uint32_t mip);
+
+  static bool GetPackedTileOffset(uint32_t width, uint32_t height,
+                                  const FormatInfo* format_info,
+                                  int packed_tile, uint32_t* out_offset_x,
+                                  uint32_t* out_offset_y);
   static bool GetPackedTileOffset(const TextureInfo& texture_info,
-                                  uint32_t* out_offset_x,
+                                  int packed_tile, uint32_t* out_offset_x,
                                   uint32_t* out_offset_y);
   static uint32_t TiledOffset2DOuter(uint32_t y, uint32_t width,
-                                     uint32_t log_bpp);
-  static uint32_t TiledOffset2DInner(uint32_t x, uint32_t y, uint32_t bpp,
+                                     uint32_t log2_bpp);
+  static uint32_t TiledOffset2DInner(uint32_t x, uint32_t y, uint32_t log2_bpp,
                                      uint32_t base_offset);
 
   uint64_t hash() const;
@@ -318,7 +323,9 @@ struct TextureInfo {
   }
 
  private:
+  void CalculateTextureSizes1D(uint32_t width);
   void CalculateTextureSizes2D(uint32_t width, uint32_t height);
+  void CalculateTextureSizes3D(uint32_t width, uint32_t height, uint32_t depth);
   void CalculateTextureSizesCube(uint32_t width, uint32_t height,
                                  uint32_t depth);
 };
