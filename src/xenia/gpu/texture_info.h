@@ -211,8 +211,9 @@ inline bool IsSRGBCapable(TextureFormat format) {
     case TextureFormat::k_10_11_11_AS_16_16_16_16:
     case TextureFormat::k_11_11_10_AS_16_16_16_16:
       return true;
+    default:
+      return false;
   }
-  return false;
 }
 
 inline TextureFormat ColorFormatToTextureFormat(ColorFormat color_format) {
