@@ -180,6 +180,58 @@ inline size_t GetTexelSize(TextureFormat format) {
   }
 }
 
+inline bool IsSRGBCapable(TextureFormat format) {
+  switch (format) {
+    case TextureFormat::k_1_REVERSE:
+    case TextureFormat::k_1:
+    case TextureFormat::k_8:
+    case TextureFormat::k_1_5_5_5:
+    case TextureFormat::k_5_6_5:
+    case TextureFormat::k_6_5_5:
+    case TextureFormat::k_8_8_8_8:
+    case TextureFormat::k_8_8:
+    case TextureFormat::k_Cr_Y1_Cb_Y0:
+    case TextureFormat::k_Y1_Cr_Y0_Cb:
+    case TextureFormat::k_4_4_4_4:
+    case TextureFormat::k_DXT1:
+    case TextureFormat::k_DXT2_3:
+    case TextureFormat::k_DXT4_5:
+    case TextureFormat::k_24_8:
+    case TextureFormat::k_16:
+    case TextureFormat::k_16_16:
+    case TextureFormat::k_16_16_16_16:
+    case TextureFormat::k_16_EXPAND:
+    case TextureFormat::k_16_16_EXPAND:
+    case TextureFormat::k_16_16_16_16_EXPAND:
+    case TextureFormat::k_32:
+    case TextureFormat::k_32_32:
+    case TextureFormat::k_32_32_32_32:
+    case TextureFormat::k_32_FLOAT:
+    case TextureFormat::k_32_32_FLOAT:
+    case TextureFormat::k_32_32_32_32_FLOAT:
+    case TextureFormat::k_32_AS_8:
+    case TextureFormat::k_32_AS_8_8:
+    case TextureFormat::k_16_MPEG:
+    case TextureFormat::k_16_16_MPEG:
+    case TextureFormat::k_8_INTERLACED:
+    case TextureFormat::k_32_AS_8_INTERLACED:
+    case TextureFormat::k_32_AS_8_8_INTERLACED:
+    case TextureFormat::k_16_INTERLACED:
+    case TextureFormat::k_16_MPEG_INTERLACED:
+    case TextureFormat::k_16_16_MPEG_INTERLACED:
+    case TextureFormat::k_DXN:
+    case TextureFormat::k_8_8_8_8_AS_16_16_16_16:
+    case TextureFormat::k_DXT1_AS_16_16_16_16:
+    case TextureFormat::k_DXT2_3_AS_16_16_16_16:
+    case TextureFormat::k_DXT4_5_AS_16_16_16_16:
+    case TextureFormat::k_2_10_10_10_AS_16_16_16_16:
+    case TextureFormat::k_10_11_11_AS_16_16_16_16:
+    case TextureFormat::k_11_11_10_AS_16_16_16_16:
+      return true;
+  }
+  return false;
+}
+
 inline TextureFormat ColorFormatToTextureFormat(ColorFormat color_format) {
   return static_cast<TextureFormat>(color_format);
 }
