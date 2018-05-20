@@ -43,14 +43,58 @@ project("xenia-app")
   -- Setup Qt libraries
   qt.enable()
   qtmodules{"core", "gui", "widgets"}
+  qtpath(qt.defaultpath)
   qtprefix "Qt5"
-  if os.getenv("QT_LIB") then
-    qtlibpath(os.getenv("QT_LIB"))
-  end
-
-  configuration {"Debug"}
+  configuration {"Checked"}
     qtsuffix "d"
   configuration {}
+
+  -- Qt static configuration (if necessary). Used by AppVeyor.
+  if os.getenv("QT_STATIC") then
+    qt.modules["AccessibilitySupport"] = {
+      name = "AccessibilitySupport",
+      include = "QtAccessibilitySupport",
+    }
+    qt.modules["EventDispatcherSupport"] = {
+      name = "EventDispatcherSupport",
+      include = "QtEventDispatcherSupport",
+    }
+    qt.modules["FontDatabaseSupport"] = {
+      name = "FontDatabaseSupport",
+      include = "QtFontDatabaseSupport",
+    }
+    qt.modules["ThemeSupport"] = {
+      name = "ThemeSupport",
+      include = "QtThemeSupport",
+    }
+    qt.modules["VulkanSupport"] = {
+      name = "VulkanSupport",
+      include = "QtVulkanSupport",
+    }
+
+    links({
+      "qtmain",
+      "qtfreetype",
+      "qtlibpng",
+      "qtpcre2",
+      "qtharfbuzz",
+    })
+    qtmodules{"AccessibilitySupport", "EventDispatcherSupport", "FontDatabaseSupport", "ThemeSupport", "VulkanSupport"}
+    libdirs("%{cfg.qtpath}/plugins/platforms")
+
+    filter("platforms:Windows")
+      -- Qt dependencies
+      links({
+        "dwmapi",
+        "version",
+        "imm32",
+        "winmm",
+        "netapi32",
+        "userenv",
+        "qwindows",
+      })
+    filter()
+  end
 
   flags({
     "WinMain",  -- Use WinMain instead of main.
