@@ -72,6 +72,8 @@ project("xenia-app")
       include = "QtVulkanSupport",
     }
 
+    defines({"QT_STATIC=1"})
+
     configuration {"not Checked"}
       links({
         "qtmain",

@@ -22,7 +22,7 @@
 #include <QApplication>
 #include <QtPlugin>
 
-#if XE_PLATFORM_WIN32
+#if XE_PLATFORM_WIN32 && QT_STATIC
 Q_IMPORT_PLUGIN(QWindowsIntegrationPlugin);
 #endif
 
