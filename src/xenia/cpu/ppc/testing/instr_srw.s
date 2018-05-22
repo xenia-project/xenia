@@ -159,3 +159,41 @@ test_srw_9_constant:
   #_ REGISTER_OUT r3 0
   #_ REGISTER_OUT r4 0xFFFFFFFFFFFFFFFF
   #_ REGISTER_OUT r5 32
+
+test_srw_10:
+  #_ REGISTER_IN r4 0x0000000090003000
+  #_ REGISTER_IN r5 36
+  srw r3, r4, r5
+  blr
+  #_ REGISTER_OUT r3 0
+  #_ REGISTER_OUT r4 0x0000000090003000
+  #_ REGISTER_OUT r5 36
+
+test_srw_10_constant:
+  lis r4, 0x9000
+  ori r4, r4, 0x3000
+  li r5, 36
+  srw r3, r4, r5
+  blr
+  #_ REGISTER_OUT r3 0
+  #_ REGISTER_OUT r4 0xFFFFFFFF90003000
+  #_ REGISTER_OUT r5 36
+
+test_srw_11:
+  #_ REGISTER_IN r4 0x00000000B0043001
+  #_ REGISTER_IN r5 4
+  srw r3, r4, r5
+  blr
+  #_ REGISTER_OUT r3 0x000000000B004300
+  #_ REGISTER_OUT r4 0x00000000B0043001
+  #_ REGISTER_OUT r5 4
+
+test_srw_11_constant:
+  lis r4, 0xB004
+  ori r4, r4, 0x3001
+  li r5, 4
+  srw r3, r4, r5
+  blr
+  #_ REGISTER_OUT r3 0x000000000B004300
+  #_ REGISTER_OUT r4 0xFFFFFFFFB0043001
+  #_ REGISTER_OUT r5 4
