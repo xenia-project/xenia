@@ -40,6 +40,9 @@ VkResult Blitter::Initialize(VulkanDevice* device) {
   if (status != VK_SUCCESS) {
     return status;
   }
+  device_->DbgSetObjectName(uint64_t(blit_vertex_),
+                            VK_DEBUG_REPORT_OBJECT_TYPE_SHADER_MODULE_EXT,
+                            "S(B): Vertex");
 
   shader_create_info.codeSize = sizeof(blit_color_frag);
   shader_create_info.pCode = reinterpret_cast<const uint32_t*>(blit_color_frag);
@@ -49,6 +52,9 @@ VkResult Blitter::Initialize(VulkanDevice* device) {
   if (status != VK_SUCCESS) {
     return status;
   }
+  device_->DbgSetObjectName(uint64_t(blit_color_),
+                            VK_DEBUG_REPORT_OBJECT_TYPE_SHADER_MODULE_EXT,
+                            "S(B): Color");
 
   shader_create_info.codeSize = sizeof(blit_depth_frag);
   shader_create_info.pCode = reinterpret_cast<const uint32_t*>(blit_depth_frag);
@@ -58,6 +64,9 @@ VkResult Blitter::Initialize(VulkanDevice* device) {
   if (status != VK_SUCCESS) {
     return status;
   }
+  device_->DbgSetObjectName(uint64_t(blit_depth_),
+                            VK_DEBUG_REPORT_OBJECT_TYPE_SHADER_MODULE_EXT,
+                            "S(B): Depth");
 
   // Create the descriptor set layout used for our texture sampler.
   // As it changes almost every draw we cache it per texture.
