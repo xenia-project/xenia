@@ -24,6 +24,9 @@
 
 #include <bcrypt.h>
 
+DEFINE_bool(win32_high_freq, true,
+            "Requests high performance from the NT kernel");
+
 namespace xe {
 
 bool has_console_attached_ = true;
@@ -83,7 +86,9 @@ int Main() {
   auto entry_info = xe::GetEntryInfo();
 
   // Request high performance timing.
-  RequestHighPerformance();
+  if (FLAGS_win32_high_freq) {
+    RequestHighPerformance();
+  }
 
   // Convert command line to an argv-like format so we can share code/use
   // gflags.
