@@ -229,41 +229,6 @@ void VulkanCommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
   }
 }
 
-void VulkanCommandProcessor::UpdateGammaRampValue(GammaRampType type,
-                                                  uint32_t value) {
-  RegisterFile* regs = register_file_;
-
-  auto index = regs->values[XE_GPU_REG_DC_LUT_RW_INDEX].u32;
-
-  auto mask = regs->values[XE_GPU_REG_DC_LUT_WRITE_EN_MASK].u32;
-  auto mask_lo = (mask >> 0) & 0x7;
-  auto mask_hi = (mask >> 3) & 0x7;
-
-  // If games update individual components we're going to have a problem.
-  assert_true(mask_lo == 0 || mask_lo == 7);
-  assert_true(mask_hi == 0);
-
-  auto subindex = gamma_ramp_rw_subindex_;
-
-  if (mask_lo) {
-    switch (type) {
-      case GammaRampType::kNormal:
-        assert_true(regs->values[XE_GPU_REG_DC_LUT_RW_MODE].u32 == 0);
-        gamma_ramp_.normal[index].value = value;
-        break;
-      case GammaRampType::kPWL:
-        assert_true(regs->values[XE_GPU_REG_DC_LUT_RW_MODE].u32 == 1);
-        gamma_ramp_.pwl[index].values[subindex].value = value;
-        break;
-      default:
-        assert_unhandled_case(type);
-    }
-  }
-
-  gamma_ramp_rw_subindex_ = (subindex + 1) % 3;
-  dirty_gamma_ramp_ = true;
-}
-
 void VulkanCommandProcessor::CreateSwapImage(VkCommandBuffer setup_buffer,
                                              VkExtent2D extents) {
   VkImageCreateInfo image_info;
