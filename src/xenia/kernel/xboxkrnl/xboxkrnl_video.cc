@@ -46,7 +46,7 @@ void VdGetCurrentDisplayGamma(lpdword_t type_ptr, lpfloat_t unknown_ptr) {
   };
   */
   *type_ptr = 1;
-  *unknown_ptr = 1.0f; // maybe brightness?
+  *unknown_ptr = 2.22222233f;  // maybe brightness?
 }
 DECLARE_XBOXKRNL_EXPORT(VdGetCurrentDisplayGamma, ExportTag::kVideo);
 
