@@ -55,6 +55,7 @@ before_install:
 before_script:
   - export CXX=$CXX_COMPILER
   - export CC=$C_COMPILER
+  - export QT_DIR=/usr
   # Dump useful info.
   - $CXX --version
   - python3 --version
