@@ -220,6 +220,15 @@ bool VulkanDevice::Initialize(DeviceInfo device_info) {
       pfn_vkDebugMarkerSetObjectNameEXT_ =
           (PFN_vkDebugMarkerSetObjectNameEXT)vkGetDeviceProcAddr(
               *this, "vkDebugMarkerSetObjectNameEXT");
+      pfn_vkCmdDebugMarkerBeginEXT_ =
+          (PFN_vkCmdDebugMarkerBeginEXT)vkGetDeviceProcAddr(
+              *this, "vkCmdDebugMarkerBeginEXT");
+      pfn_vkCmdDebugMarkerEndEXT_ =
+          (PFN_vkCmdDebugMarkerEndEXT)vkGetDeviceProcAddr(
+              *this, "vkCmdDebugMarkerEndEXT");
+      pfn_vkCmdDebugMarkerInsertEXT_ =
+          (PFN_vkCmdDebugMarkerInsertEXT)vkGetDeviceProcAddr(
+              *this, "vkCmdDebugMarkerInsertEXT");
     }
   }
 
@@ -286,7 +295,7 @@ void VulkanDevice::ReleaseQueue(VkQueue queue, uint32_t queue_family_index) {
 void VulkanDevice::DbgSetObjectName(uint64_t object,
                                     VkDebugReportObjectTypeEXT object_type,
                                     std::string name) {
-  if (!debug_marker_ena_) {
+  if (!debug_marker_ena_ || pfn_vkDebugMarkerSetObjectNameEXT_ == nullptr) {
     // Extension disabled.
     return;
   }
@@ -298,6 +307,53 @@ void VulkanDevice::DbgSetObjectName(uint64_t object,
   info.object = object;
   info.pObjectName = name.c_str();
   pfn_vkDebugMarkerSetObjectNameEXT_(*this, &info);
+}
+
+void VulkanDevice::DbgMarkerBegin(VkCommandBuffer command_buffer,
+                                  std::string name, float r, float g, float b,
+                                  float a) {
+  if (!debug_marker_ena_ || pfn_vkCmdDebugMarkerBeginEXT_ == nullptr) {
+    // Extension disabled.
+    return;
+  }
+
+  VkDebugMarkerMarkerInfoEXT info;
+  info.sType = VK_STRUCTURE_TYPE_DEBUG_MARKER_MARKER_INFO_EXT;
+  info.pNext = nullptr;
+  info.pMarkerName = name.c_str();
+  info.color[0] = r;
+  info.color[1] = g;
+  info.color[2] = b;
+  info.color[3] = a;
+  pfn_vkCmdDebugMarkerBeginEXT_(command_buffer, &info);
+}
+
+void VulkanDevice::DbgMarkerEnd(VkCommandBuffer command_buffer) {
+  if (!debug_marker_ena_ || pfn_vkCmdDebugMarkerEndEXT_ == nullptr) {
+    // Extension disabled.
+    return;
+  }
+
+  pfn_vkCmdDebugMarkerEndEXT_(command_buffer);
+}
+
+void VulkanDevice::DbgMarkerInsert(VkCommandBuffer command_buffer,
+                                   std::string name, float r, float g, float b,
+                                   float a) {
+  if (!debug_marker_ena_ || pfn_vkCmdDebugMarkerInsertEXT_ == nullptr) {
+    // Extension disabled.
+    return;
+  }
+
+  VkDebugMarkerMarkerInfoEXT info;
+  info.sType = VK_STRUCTURE_TYPE_DEBUG_MARKER_MARKER_INFO_EXT;
+  info.pNext = nullptr;
+  info.pMarkerName = name.c_str();
+  info.color[0] = r;
+  info.color[1] = g;
+  info.color[2] = g;
+  info.color[3] = b;
+  pfn_vkCmdDebugMarkerInsertEXT_(command_buffer, &info);
 }
 
 bool VulkanDevice::is_renderdoc_attached() const {
