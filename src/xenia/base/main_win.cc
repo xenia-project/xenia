@@ -22,6 +22,8 @@
 #include "xenia/base/platform_win.h"
 #include "xenia/base/string.h"
 
+#include <bcrypt.h>
+
 namespace xe {
 
 bool has_console_attached_ = true;
@@ -52,8 +54,36 @@ void AttachConsole() {
   setvbuf(stderr, nullptr, _IONBF, 0);
 }
 
+static void RequestHighPerformance() {
+#if XE_PLATFORM_WIN32
+  NTSTATUS(*NtQueryTimerResolution)
+  (OUT PULONG MinimumResolution, OUT PULONG MaximumResolution,
+   OUT PULONG CurrentResolution);
+
+  NTSTATUS(*NtSetTimerResolution)
+  (IN ULONG DesiredResolution, IN BOOLEAN SetResolution,
+   OUT PULONG CurrentResolution);
+
+  NtQueryTimerResolution = (decltype(NtQueryTimerResolution))GetProcAddress(
+      GetModuleHandle(L"ntdll.dll"), "NtQueryTimerResolution");
+  NtSetTimerResolution = (decltype(NtSetTimerResolution))GetProcAddress(
+      GetModuleHandle(L"ntdll.dll"), "NtSetTimerResolution");
+  if (!NtQueryTimerResolution || !NtSetTimerResolution) {
+    return;
+  }
+
+  ULONG minimum_resolution, maximum_resolution, current_resolution;
+  NtQueryTimerResolution(&minimum_resolution, &maximum_resolution,
+                         &current_resolution);
+  NtSetTimerResolution(minimum_resolution, TRUE, &current_resolution);
+#endif
+}
+
 int Main() {
   auto entry_info = xe::GetEntryInfo();
+
+  // Request high performance timing.
+  RequestHighPerformance();
 
   // Convert command line to an argv-like format so we can share code/use
   // gflags.
