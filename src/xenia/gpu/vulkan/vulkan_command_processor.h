@@ -44,6 +44,50 @@ namespace vulkan {
 class VulkanGraphicsSystem;
 class TextureCache;
 
+enum class GammaRampType {
+  kUnknown = 0,
+  kNormal,
+  kPWL,
+};
+
+struct GammaRamp {
+  struct NormalEntry {
+    union {
+      struct {
+        uint32_t r : 10;
+        uint32_t g : 10;
+        uint32_t b : 10;
+        uint32_t : 2;
+      };
+      uint32_t value;
+    };
+  };
+
+  struct PWLValue {
+    union {
+      struct {
+        uint16_t base;
+        uint16_t delta;
+      };
+      uint32_t value;
+    };
+  };
+
+  struct PWLEntry {
+    union {
+      struct {
+        PWLValue r;
+        PWLValue g;
+        PWLValue b;
+      };
+      PWLValue values[3];
+    };
+  };
+
+  NormalEntry normal[256];
+  PWLEntry pwl[256];
+};
+
 class VulkanCommandProcessor : public CommandProcessor {
  public:
   VulkanCommandProcessor(VulkanGraphicsSystem* graphics_system,
@@ -94,6 +138,8 @@ class VulkanCommandProcessor : public CommandProcessor {
                         VulkanShader* pixel_shader);
   bool IssueCopy() override;
 
+  void UpdateGammaRampValue(GammaRampType type, uint32_t value);
+
   xe::ui::vulkan::VulkanDevice* device_ = nullptr;
 
   // front buffer / back buffer memory
@@ -104,6 +150,7 @@ class VulkanCommandProcessor : public CommandProcessor {
   uint64_t dirty_float_constants_ = 0;  // Dirty float constants in blocks of 4
   uint8_t dirty_bool_constants_ = 0;
   uint32_t dirty_loop_constants_ = 0;
+  uint8_t dirty_gamma_constants_ = 0;
 
   uint32_t coher_base_vc_ = 0;
   uint32_t coher_size_vc_ = 0;
@@ -136,6 +183,10 @@ class VulkanCommandProcessor : public CommandProcessor {
   VkCommandBuffer current_command_buffer_ = nullptr;
   VkCommandBuffer current_setup_buffer_ = nullptr;
   VkFence current_batch_fence_;
+
+  GammaRamp gamma_ramp_ = {};
+  int gamma_ramp_rw_subindex_ = 0;
+  bool dirty_gamma_ramp_ = true;
 };
 
 }  // namespace vulkan
