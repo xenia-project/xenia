@@ -43,11 +43,13 @@ project("xenia-app")
   -- Setup Qt libraries
   qt.enable()
   qtmodules{"core", "gui", "widgets"}
-  qtpath(qt.defaultpath)
   qtprefix "Qt5"
   configuration {"Checked"}
-    qtsuffix "d"
+  qtsuffix "d"
   configuration {}
+  if qt.defaultpath ~= nil then
+    qtpath(qt.defaultpath)
+  end
 
   -- Qt static configuration (if necessary). Used by AppVeyor.
   if os.getenv("QT_STATIC") then
@@ -160,6 +162,6 @@ project("xenia-app")
         "1>scratch/stdout.txt",
       })
       debugenvs({
-        "PATH=" .. qt.defaultpath .. "/bin",
+        "PATH=%{cfg.qtpath}/bin",
       })
     end
