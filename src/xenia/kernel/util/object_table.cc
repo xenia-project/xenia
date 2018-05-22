@@ -13,6 +13,7 @@
 #include <cstring>
 
 #include "xenia/base/byte_stream.h"
+#include "xenia/base/logging.h"
 #include "xenia/kernel/xobject.h"
 #include "xenia/kernel/xthread.h"
 
@@ -117,6 +118,8 @@ X_STATUS ObjectTable::AddHandle(XObject* object, X_HANDLE* out_handle) {
 
       // Retain so long as the object is in the table.
       object->Retain();
+
+      XELOGI("Added handle:%08X for %s", handle, typeid(*object).name());
     }
   }
 
@@ -199,6 +202,8 @@ X_STATUS ObjectTable::RemoveHandle(X_HANDLE handle) {
     if (handle_entry != object->handles().end()) {
       object->handles().erase(handle_entry);
     }
+
+    XELOGI("Removed handle:%08X for %s", handle, typeid(*object).name());
 
     // Release now that the object has been removed from the table.
     object->Release();
