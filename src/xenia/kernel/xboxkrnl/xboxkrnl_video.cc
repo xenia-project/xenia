@@ -37,9 +37,16 @@ namespace xboxkrnl {
 // http://www.microsoft.com/en-za/download/details.aspx?id=5313 -- "Stripped
 // Down Direct3D: Xbox 360 Command Buffer and Resource Management"
 
-void VdGetCurrentDisplayGamma(lpdword_t arg0_ptr, lpfloat_t arg1_ptr) {
-  *arg0_ptr = 2;
-  *arg1_ptr = 2.22222233f;
+void VdGetCurrentDisplayGamma(lpdword_t type_ptr, lpfloat_t unknown_ptr) {
+  /*
+  enum class GammaType {
+    SRGB = 1,
+    Unknown = 2,
+    Normal = 3,
+  };
+  */
+  *type_ptr = 1;
+  *unknown_ptr = 1.0f; // maybe brightness?
 }
 DECLARE_XBOXKRNL_EXPORT(VdGetCurrentDisplayGamma, ExportTag::kVideo);
 
@@ -144,8 +151,21 @@ dword_result_t VdQueryVideoFlags() {
 }
 DECLARE_XBOXKRNL_EXPORT(VdQueryVideoFlags, ExportTag::kVideo);
 
-dword_result_t VdSetDisplayMode(dword_t mode) {
+dword_result_t VdSetDisplayMode(dword_t flags) {
   // Often 0x40000000.
+
+  // 0?ccf000 00000000 00000000 000000r0
+
+  // r: 0x00000002 |     1
+  // f: 0x08000000 |    27
+  // c: 0x30000000 | 28-29
+  // ?: 0x40000000 |    30
+
+  // r: 1 = Resolution is 720x480 or 720x576
+  // f: 1 = Texture format is k_2_10_10_10 or k_2_10_10_10_AS_16_16_16_16
+  // c: Color space (0 = RGB, 1 = ?, 2 = ?)
+  // ?: (always set?)
+
   return 0;
 }
 DECLARE_XBOXKRNL_EXPORT(VdSetDisplayMode, ExportTag::kVideo | ExportTag::kStub);
