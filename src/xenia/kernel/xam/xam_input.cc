@@ -222,8 +222,7 @@ dword_result_t XamUserGetDeviceContext(dword_t user_index, dword_t unk,
 DECLARE_XAM_EXPORT(XamUserGetDeviceContext, ExportTag::kImplemented);
 
 void RegisterInputExports(xe::cpu::ExportResolver* export_resolver,
-                          KernelState* kernel_state) {
-}
+                          KernelState* kernel_state) {}
 
 }  // namespace xam
 }  // namespace kernel
