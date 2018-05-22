@@ -128,6 +128,7 @@ static const TextureConfig texture_configs[64] = {
     /* kUnknown                 */ {VK_FORMAT_UNDEFINED},
 };
 
+#undef RRRR
 #undef ABGR
 #undef BGRA
 #undef RGBA
