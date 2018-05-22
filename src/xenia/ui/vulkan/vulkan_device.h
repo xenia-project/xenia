@@ -80,6 +80,15 @@ class VulkanDevice {
   void DbgSetObjectName(uint64_t object, VkDebugReportObjectTypeEXT object_type,
                         std::string name);
 
+  void DbgMarkerBegin(VkCommandBuffer command_buffer, std::string name,
+                      float r = 0.0f, float g = 0.0f, float b = 0.0f,
+                      float a = 0.0f);
+  void DbgMarkerEnd(VkCommandBuffer command_buffer);
+
+  void DbgMarkerInsert(VkCommandBuffer command_buffer, std::string name,
+                       float r = 0.0f, float g = 0.0f, float b = 0.0f,
+                       float a = 0.0f);
+
   // True if RenderDoc is attached and available for use.
   bool is_renderdoc_attached() const;
   // Begins capturing the current frame in RenderDoc, if it is attached.
@@ -102,7 +111,10 @@ class VulkanDevice {
   std::vector<const char*> enabled_extensions_;
 
   bool debug_marker_ena_ = false;
-  PFN_vkDebugMarkerSetObjectNameEXT pfn_vkDebugMarkerSetObjectNameEXT_;
+  PFN_vkDebugMarkerSetObjectNameEXT pfn_vkDebugMarkerSetObjectNameEXT_ = nullptr;
+  PFN_vkCmdDebugMarkerBeginEXT pfn_vkCmdDebugMarkerBeginEXT_ = nullptr;
+  PFN_vkCmdDebugMarkerEndEXT pfn_vkCmdDebugMarkerEndEXT_ = nullptr;
+  PFN_vkCmdDebugMarkerInsertEXT pfn_vkCmdDebugMarkerInsertEXT_ = nullptr;
 
   DeviceInfo device_info_;
   uint32_t queue_family_index_ = 0;
