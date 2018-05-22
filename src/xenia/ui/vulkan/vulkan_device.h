@@ -111,7 +111,8 @@ class VulkanDevice {
   std::vector<const char*> enabled_extensions_;
 
   bool debug_marker_ena_ = false;
-  PFN_vkDebugMarkerSetObjectNameEXT pfn_vkDebugMarkerSetObjectNameEXT_ = nullptr;
+  PFN_vkDebugMarkerSetObjectNameEXT pfn_vkDebugMarkerSetObjectNameEXT_ =
+      nullptr;
   PFN_vkCmdDebugMarkerBeginEXT pfn_vkCmdDebugMarkerBeginEXT_ = nullptr;
   PFN_vkCmdDebugMarkerEndEXT pfn_vkCmdDebugMarkerEndEXT_ = nullptr;
   PFN_vkCmdDebugMarkerInsertEXT pfn_vkCmdDebugMarkerInsertEXT_ = nullptr;
