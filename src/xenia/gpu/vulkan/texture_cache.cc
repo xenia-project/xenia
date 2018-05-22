@@ -42,6 +42,7 @@ struct TextureConfig {
 #define RGBA SWIZ(R, G, B, A)
 #define BGRA SWIZ(B, G, R, A)
 #define ABGR SWIZ(A, B, G, R)
+#define RRRR SWIZ(R, R, R, R)
 
 static const TextureConfig texture_configs[64] = {
     /* k_1_REVERSE              */ {VK_FORMAT_UNDEFINED},
@@ -115,7 +116,7 @@ static const TextureConfig texture_configs[64] = {
     /* k_11_11_10_AS_16_16_16_16 */ {VK_FORMAT_B10G11R11_UFLOAT_PACK32},  // ?
     /* k_32_32_32_FLOAT         */ {VK_FORMAT_R32G32B32_SFLOAT},
     /* k_DXT3A                  */ {VK_FORMAT_UNDEFINED},
-    /* k_DXT5A                  */ {VK_FORMAT_BC4_UNORM_BLOCK},  // ATI1N
+    /* k_DXT5A                  */ {VK_FORMAT_BC4_UNORM_BLOCK, RRRR},  // ATI1N
 
     // http://fileadmin.cs.lth.se/cs/Personal/Michael_Doggett/talks/unc-xenos-doggett.pdf
     /* k_CTX1                   */ {VK_FORMAT_R8G8_UINT},
