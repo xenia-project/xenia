@@ -393,11 +393,16 @@ dword_result_t NtSetInformationFile(
         file->set_position(xe::load_and_swap<uint64_t>(file_info));
         break;
       case XFileAllocationInformation:
-      case XFileEndOfFileInformation:
         assert_true(length == 8);
         info = 8;
-        XELOGW("NtSetInformationFile ignoring alloc/eof");
+        XELOGW("NtSetInformationFile ignoring alloc");
         break;
+      case XFileEndOfFileInformation: {
+        assert_true(length == 8);
+        auto eof = xe::load_and_swap<uint64_t>(file_info);
+        result = file->SetLength(eof);
+        break;
+      }
       case XFileCompletionInformation: {
         // Info contains IO Completion handle and completion key
         assert_true(length == 8);

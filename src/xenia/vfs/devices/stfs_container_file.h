@@ -32,6 +32,7 @@ class StfsContainerFile : public File {
                      size_t byte_offset, size_t* out_bytes_written) override {
     return X_STATUS_ACCESS_DENIED;
   }
+  X_STATUS SetLength(size_t length) override { return X_STATUS_ACCESS_DENIED; }
 
  private:
   StfsContainerEntry* entry_;

@@ -104,6 +104,8 @@ class XFile : public XObject {
   X_STATUS Write(const void* buffer, size_t buffer_length, size_t byte_offset,
                  size_t* out_bytes_written, uint32_t apc_context);
 
+  X_STATUS SetLength(size_t length);
+
   void RegisterIOCompletionPort(uint32_t key, object_ref<XIOCompletion> port);
   void RemoveIOCompletionPort(uint32_t key);
 
