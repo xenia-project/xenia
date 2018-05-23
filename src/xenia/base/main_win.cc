@@ -78,7 +78,7 @@ static void RequestHighPerformance() {
   ULONG minimum_resolution, maximum_resolution, current_resolution;
   NtQueryTimerResolution(&minimum_resolution, &maximum_resolution,
                          &current_resolution);
-  NtSetTimerResolution(minimum_resolution, TRUE, &current_resolution);
+  NtSetTimerResolution(maximum_resolution, TRUE, &current_resolution);
 #endif
 }
 
