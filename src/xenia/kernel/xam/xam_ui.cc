@@ -99,7 +99,12 @@ SHIM_CALL XamShowMessageBoxUI_shim(PPCContext* ppc_context,
   uint32_t result_ptr = SHIM_GET_ARG_32(7);
   uint32_t overlapped_ptr = SHIM_GET_ARG_32(8);
 
-  auto title = xe::load_and_swap<std::wstring>(SHIM_MEM_ADDR(title_ptr));
+  std::wstring title;
+  if (title_ptr) {
+    title = xe::load_and_swap<std::wstring>(SHIM_MEM_ADDR(title_ptr));
+  } else {
+    title = L"";  // TODO(gibbed): default title based on flags?
+  }
   auto text = xe::load_and_swap<std::wstring>(SHIM_MEM_ADDR(text_ptr));
   std::vector<std::wstring> buttons;
   std::wstring all_buttons;
