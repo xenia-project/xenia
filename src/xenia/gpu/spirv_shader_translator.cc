@@ -3330,8 +3330,10 @@ void SpirvShaderTranslator::StoreToResult(Id source_value_id,
       storage_array = false;
       writes_depth_ = true;
       break;
-    default:
     case InstructionStorageTarget::kNone:
+      assert_always();
+      break;
+    default:
       assert_unhandled_case(result.storage_target);
       break;
   }
