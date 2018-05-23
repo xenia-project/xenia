@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_XBOXKRNL_XBOXKRNL_MODULE_H_
-#define XENIA_KERNEL_XBOXKRNL_XBOXKRNL_MODULE_H_
+#ifndef XENIA_KERNEL_KERNEL_XBOXKRNL_DEBUG_MONITOR_H_
+#define XENIA_KERNEL_KERNEL_XBOXKRNL_DEBUG_MONITOR_H_
 
 #include <memory>
 
@@ -16,35 +16,28 @@
 #include "xenia/cpu/export_resolver.h"
 #include "xenia/kernel/kernel_module.h"
 #include "xenia/kernel/kernel_state.h"
-#include "xenia/kernel/xboxkrnl/xboxkrnl_ordinals.h"
-
-// All of the exported functions:
-#include "xenia/kernel/xboxkrnl/xboxkrnl_rtl.h"
 
 namespace xe {
 namespace kernel {
 namespace xboxkrnl {
 
-class XboxkrnlModule : public KernelModule {
- public:
-  XboxkrnlModule(Emulator* emulator, KernelState* kernel_state);
-  virtual ~XboxkrnlModule();
-
-  static void RegisterExportTable(xe::cpu::ExportResolver* export_resolver);
-
-  bool SendPIXCommand(const char* cmd);
-
-  void set_pix_function(uint32_t addr) { pix_function_ = addr; }
-
- protected:
-  uint32_t pix_function_ = 0;
-
- private:
-  std::unique_ptr<xe::threading::HighResolutionTimer> timestamp_timer_;
+struct X_KEDEBUGMONITORDATA {
+  xe::be<uint32_t> unk_00;       // 0x00
+  xe::be<uint32_t> unk_04;       // 0x04
+  xe::be<uint32_t> unk_08;       // 0x08
+  xe::be<uint32_t> unk_0C;       // 0x0C
+  xe::be<uint32_t> unk_10;       // 0x10
+  xe::be<uint32_t> unk_14;       // 0x14
+  xe::be<uint32_t> callback_fn;  // 0x18 function
+  xe::be<uint32_t> unk_1C;       // 0x1C
+  xe::be<uint32_t> unk_20;       // 0x20 Vd graphics data?
 };
+
+void KeDebugMonitorCallback(cpu::ppc::PPCContext* ppc_context,
+                            kernel::KernelState* kernel_state);
 
 }  // namespace xboxkrnl
 }  // namespace kernel
 }  // namespace xe
 
-#endif  // XENIA_KERNEL_XBOXKRNL_XBOXKRNL_MODULE_H_
+#endif  // XENIA_KERNEL_KERNEL_DEBUG_MONITOR_H_

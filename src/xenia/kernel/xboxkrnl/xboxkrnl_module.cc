@@ -14,16 +14,63 @@
 #include <vector>
 
 #include "xenia/base/clock.h"
+#include "xenia/base/debugging.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
+#include "xenia/cpu/ppc/ppc_context.h"
+#include "xenia/cpu/processor.h"
 #include "xenia/emulator.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/user_module.h"
+#include "xenia/kernel/xboxkrnl/cert_monitor.h"
+#include "xenia/kernel/xboxkrnl/debug_monitor.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_private.h"
+#include "xenia/kernel/xthread.h"
+
+DEFINE_bool(kernel_debug_monitor, false, "Enable debug monitor.");
+DEFINE_bool(kernel_cert_monitor, false, "Enable cert monitor.");
+DEFINE_bool(kernel_pix, false, "Enable PIX.");
 
 namespace xe {
 namespace kernel {
 namespace xboxkrnl {
+
+bool XboxkrnlModule::SendPIXCommand(const char* cmd) {
+  if (!FLAGS_kernel_pix) {
+    return false;
+  }
+
+  auto global_lock = global_critical_region_.Acquire();
+  if (!XThread::IsInThread()) {
+    assert_always();
+    return false;
+  }
+
+  auto scratch = memory_->SystemHeapAlloc(260 + 260);
+
+  auto response = memory_->TranslateVirtual<const char*>(scratch + 0);
+  auto command = memory_->TranslateVirtual<char*>(scratch + 260);
+
+  std::snprintf(command, 260, "PIX!m!%s", cmd);
+
+  global_lock.unlock();
+  uint64_t args[] = {scratch + 260, scratch, 260};
+  auto result = kernel_state_->processor()->Execute(
+      XThread::GetCurrentThread()->thread_state(), pix_function_, args,
+      xe::countof(args));
+  global_lock.lock();
+
+  XELOGD("PIX(command): %s", cmd);
+  XELOGD("PIX(response): %s", response);
+
+  memory_->SystemHeapFree(scratch);
+
+  if (XSUCCEEDED(result)) {
+    return true;
+  }
+
+  return false;
+}
 
 XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state)
     : KernelModule(kernel_state, "xe:\\xboxkrnl.exe"),
@@ -52,19 +99,46 @@ XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state)
   // Set to a valid value when a remote debugger is attached.
   // Offset 0x18 is a 4b pointer to a handler function that seems to take two
   // arguments. If we wanted to see what would happen we could fake that.
-  uint32_t pKeDebugMonitorData = memory_->SystemHeapAlloc(256);
-  auto lpKeDebugMonitorData = memory_->TranslateVirtual(pKeDebugMonitorData);
+  uint32_t pKeDebugMonitorData;
+  if (!FLAGS_kernel_debug_monitor) {
+    pKeDebugMonitorData = memory_->SystemHeapAlloc(4);
+    auto lpKeDebugMonitorData = memory_->TranslateVirtual(pKeDebugMonitorData);
+    xe::store_and_swap<uint32_t>(lpKeDebugMonitorData, 0);
+  } else {
+    pKeDebugMonitorData =
+        memory_->SystemHeapAlloc(4 + sizeof(X_KEDEBUGMONITORDATA));
+    xe::store_and_swap<uint32_t>(memory_->TranslateVirtual(pKeDebugMonitorData),
+                                 pKeDebugMonitorData + 4);
+    auto lpKeDebugMonitorData =
+        memory_->TranslateVirtual<X_KEDEBUGMONITORDATA*>(pKeDebugMonitorData +
+                                                         4);
+    std::memset(lpKeDebugMonitorData, 0, sizeof(X_KEDEBUGMONITORDATA));
+    lpKeDebugMonitorData->callback_fn =
+        GenerateTrampoline("KeDebugMonitorCallback", KeDebugMonitorCallback);
+  }
   export_resolver_->SetVariableMapping(
       "xboxkrnl.exe", ordinals::KeDebugMonitorData, pKeDebugMonitorData);
-  xe::store_and_swap<uint32_t>(lpKeDebugMonitorData, 0);
 
   // KeCertMonitorData (?*)
   // Always set to zero, ignored.
-  uint32_t pKeCertMonitorData = memory_->SystemHeapAlloc(4);
-  auto lpKeCertMonitorData = memory_->TranslateVirtual(pKeCertMonitorData);
+  uint32_t pKeCertMonitorData;
+  if (!FLAGS_kernel_cert_monitor) {
+    pKeCertMonitorData = memory_->SystemHeapAlloc(4);
+    auto lpKeCertMonitorData = memory_->TranslateVirtual(pKeCertMonitorData);
+    xe::store_and_swap<uint32_t>(lpKeCertMonitorData, 0);
+  } else {
+    pKeCertMonitorData =
+        memory_->SystemHeapAlloc(4 + sizeof(X_KECERTMONITORDATA));
+    xe::store_and_swap<uint32_t>(memory_->TranslateVirtual(pKeCertMonitorData),
+                                 pKeCertMonitorData + 4);
+    auto lpKeCertMonitorData =
+        memory_->TranslateVirtual<X_KECERTMONITORDATA*>(pKeCertMonitorData + 4);
+    std::memset(lpKeCertMonitorData, 0, sizeof(X_KECERTMONITORDATA));
+    lpKeCertMonitorData->callback_fn =
+        GenerateTrampoline("KeCertMonitorCallback", KeCertMonitorCallback);
+  }
   export_resolver_->SetVariableMapping(
       "xboxkrnl.exe", ordinals::KeCertMonitorData, pKeCertMonitorData);
-  xe::store_and_swap<uint32_t>(lpKeCertMonitorData, 0);
 
   // XboxHardwareInfo (XboxHardwareInfo_t, 16b)
   // flags       cpu#  ?     ?     ?     ?           ?       ?
