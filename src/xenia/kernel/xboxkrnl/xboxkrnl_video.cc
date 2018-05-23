@@ -42,7 +42,7 @@ void VdGetCurrentDisplayGamma(lpdword_t type_ptr, lpfloat_t unknown_ptr) {
   enum class GammaType {
     SRGB = 1,
     Unknown = 2,
-    Normal = 3,
+    Linear = 3,
   };
   */
   *type_ptr = 1;
