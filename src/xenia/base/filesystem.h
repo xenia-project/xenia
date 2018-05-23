@@ -88,6 +88,9 @@ class FileHandle {
   virtual bool Write(size_t file_offset, const void* buffer,
                      size_t buffer_length, size_t* out_bytes_written) = 0;
 
+  // Set length of the file in bytes.
+  virtual bool SetLength(size_t length) = 0;
+
   // Flushes any pending write buffers to the underlying filesystem.
   virtual void Flush() = 0;
 

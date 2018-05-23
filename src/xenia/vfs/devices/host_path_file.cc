@@ -52,5 +52,17 @@ X_STATUS HostPathFile::WriteSync(const void* buffer, size_t buffer_length,
   }
 }
 
+X_STATUS HostPathFile::SetLength(size_t length) {
+  if (!(file_access_ & FileAccess::kFileWriteData)) {
+    return X_STATUS_ACCESS_DENIED;
+  }
+
+  if (file_handle_->SetLength(length)) {
+    return X_STATUS_SUCCESS;
+  } else {
+    return X_STATUS_END_OF_FILE;
+  }
+}
+
 }  // namespace vfs
 }  // namespace xe
