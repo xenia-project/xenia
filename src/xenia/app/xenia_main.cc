@@ -18,6 +18,7 @@
 #include "xenia/debug/ui/debug_window.h"
 #include "xenia/emulator.h"
 #include "xenia/ui/file_picker.h"
+#include "xenia/vfs/devices/host_path_device.h"
 
 // Available audio systems:
 #include "xenia/apu/nop/nop_audio_system.h"
@@ -42,6 +43,9 @@ DEFINE_string(hid, "any", "Input system. Use: [any, nop, winkey, xinput]");
 
 DEFINE_string(target, "", "Specifies the target .xex or .iso to execute.");
 DEFINE_bool(fullscreen, false, "Toggles fullscreen");
+
+DEFINE_bool(mount_scratch, false, "Enable scratch mount");
+DEFINE_bool(mount_cache, false, "Enable cache mount");
 
 namespace xe {
 namespace app {
@@ -139,6 +143,46 @@ int xenia_main(const std::vector<std::wstring>& args) {
   if (XFAILED(result)) {
     XELOGE("Failed to setup emulator: %.8X", result);
     return 1;
+  }
+
+  if (FLAGS_mount_scratch) {
+    auto scratch_device = std::make_unique<xe::vfs::HostPathDevice>(
+        "\\SCRATCH", L"scratch", false);
+    if (!scratch_device->Initialize()) {
+      XELOGE("Unable to scan scratch path");
+    } else {
+      if (!emulator->file_system()->RegisterDevice(std::move(scratch_device))) {
+        XELOGE("Unable to register scratch path");
+      } else {
+        emulator->file_system()->RegisterSymbolicLink("scratch:", "\\SCRATCH");
+      }
+    }
+  }
+
+  if (FLAGS_mount_cache) {
+    auto cache0_device =
+        std::make_unique<xe::vfs::HostPathDevice>("\\CACHE0", L"cache0", false);
+    if (!cache0_device->Initialize()) {
+      XELOGE("Unable to scan cache0 path");
+    } else {
+      if (!emulator->file_system()->RegisterDevice(std::move(cache0_device))) {
+        XELOGE("Unable to register cache0 path");
+      } else {
+        emulator->file_system()->RegisterSymbolicLink("cache0:", "\\CACHE0");
+      }
+    }
+
+    auto cache1_device =
+        std::make_unique<xe::vfs::HostPathDevice>("\\CACHE1", L"cache1", false);
+    if (!cache1_device->Initialize()) {
+      XELOGE("Unable to scan cache1 path");
+    } else {
+      if (!emulator->file_system()->RegisterDevice(std::move(cache1_device))) {
+        XELOGE("Unable to register cache1 path");
+      } else {
+        emulator->file_system()->RegisterSymbolicLink("cache1:", "\\CACHE1");
+      }
+    }
   }
 
   // Set a debug handler.
