@@ -32,8 +32,20 @@ bool VirtualFileSystem::RegisterDevice(std::unique_ptr<Device> device) {
   return true;
 }
 
-bool VirtualFileSystem::RegisterSymbolicLink(std::string path,
-                                             std::string target) {
+bool VirtualFileSystem::UnregisterDevice(const std::string& path) {
+  auto global_lock = global_critical_region_.Acquire();
+  for (auto it = devices_.begin(); it != devices_.end(); ++it) {
+    if ((*it)->mount_path() == path) {
+      XELOGD("Unregistered device: %s", (*it)->mount_path().c_str());
+      devices_.erase(it);
+      return true;
+    }
+  }
+  return false;
+}
+
+bool VirtualFileSystem::RegisterSymbolicLink(const std::string& path,
+                                             const std::string& target) {
   auto global_lock = global_critical_region_.Acquire();
   symlinks_.insert({path, target});
   XELOGD("Registered symbolic link: %s => %s", path.c_str(), target.c_str());
@@ -41,7 +53,7 @@ bool VirtualFileSystem::RegisterSymbolicLink(std::string path,
   return true;
 }
 
-bool VirtualFileSystem::UnregisterSymbolicLink(std::string path) {
+bool VirtualFileSystem::UnregisterSymbolicLink(const std::string& path) {
   auto global_lock = global_critical_region_.Acquire();
   auto it = symlinks_.find(path);
   if (it == symlinks_.end()) {
@@ -63,7 +75,7 @@ bool VirtualFileSystem::IsSymbolicLink(const std::string& path) {
   return true;
 }
 
-Entry* VirtualFileSystem::ResolvePath(std::string path) {
+Entry* VirtualFileSystem::ResolvePath(const std::string& path) {
   auto global_lock = global_critical_region_.Acquire();
 
   // Resolve relative paths
@@ -120,12 +132,13 @@ Entry* VirtualFileSystem::ResolvePath(std::string path) {
   return nullptr;
 }
 
-Entry* VirtualFileSystem::ResolveBasePath(std::string path) {
+Entry* VirtualFileSystem::ResolveBasePath(const std::string& path) {
   auto base_path = xe::find_base_path(path);
   return ResolvePath(base_path);
 }
 
-Entry* VirtualFileSystem::CreatePath(std::string path, uint32_t attributes) {
+Entry* VirtualFileSystem::CreatePath(const std::string& path,
+                                     uint32_t attributes) {
   // Create all required directories recursively.
   auto path_parts = xe::split_path(path);
   if (path_parts.empty()) {
@@ -153,7 +166,7 @@ Entry* VirtualFileSystem::CreatePath(std::string path, uint32_t attributes) {
                                    attributes);
 }
 
-bool VirtualFileSystem::DeletePath(std::string path) {
+bool VirtualFileSystem::DeletePath(const std::string& path) {
   auto entry = ResolvePath(path);
   if (!entry) {
     return false;
@@ -166,7 +179,7 @@ bool VirtualFileSystem::DeletePath(std::string path) {
   return parent->Delete(entry);
 }
 
-X_STATUS VirtualFileSystem::OpenFile(std::string path,
+X_STATUS VirtualFileSystem::OpenFile(const std::string& path,
                                      FileDisposition creation_disposition,
                                      uint32_t desired_access, File** out_file,
                                      FileAction* out_action) {
