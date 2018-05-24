@@ -61,6 +61,16 @@ SHIM_CALL XamUserGetSigninState_shim(PPCContext* ppc_context,
   }
 }
 
+typedef struct {
+  xe::be<uint64_t> xuid;
+  xe::be<uint32_t> unk04;  // maybe zero?
+  xe::be<uint32_t> signin_state;
+  xe::be<uint32_t> unk0C;  // ?
+  xe::be<uint32_t> unk10;  // ?
+  char name[16];
+} X_USER_SIGNIN_INFO;
+static_assert_size(X_USER_SIGNIN_INFO, 40);
+
 SHIM_CALL XamUserGetSigninInfo_shim(PPCContext* ppc_context,
                                     KernelState* kernel_state) {
   uint32_t user_index = SHIM_GET_ARG_32(0);
@@ -69,15 +79,19 @@ SHIM_CALL XamUserGetSigninInfo_shim(PPCContext* ppc_context,
 
   XELOGD("XamUserGetSigninInfo(%d, %.8X, %.8X)", user_index, flags, info_ptr);
 
+  if (!info_ptr) {
+    SHIM_SET_RETURN_32(X_ERROR_INVALID_PARAMETER);
+    return;
+  }
+
+  auto info = reinterpret_cast<X_USER_SIGNIN_INFO*>(SHIM_MEM_ADDR(info_ptr));
+  std::memset(info, 0, sizeof(X_USER_SIGNIN_INFO));
+
   if (user_index == 0) {
     const auto& user_profile = kernel_state->user_profile();
-    SHIM_SET_MEM_64(info_ptr + 0, user_profile->xuid());
-    SHIM_SET_MEM_32(info_ptr + 8, 0);  // maybe zero?
-    SHIM_SET_MEM_32(info_ptr + 12, user_profile->signin_state());
-    SHIM_SET_MEM_32(info_ptr + 16, 0);  // ?
-    SHIM_SET_MEM_32(info_ptr + 20, 0);  // ?
-    char* buffer = reinterpret_cast<char*>(SHIM_MEM_ADDR(info_ptr + 24));
-    std::strcpy(buffer, user_profile->name().data());
+    info->xuid = user_profile->xuid();
+    info->signin_state = user_profile->signin_state();
+    std::strncpy(info->name, user_profile->name().data(), 15);
     SHIM_SET_RETURN_32(0);
   } else {
     SHIM_SET_RETURN_32(X_ERROR_NO_SUCH_USER);
