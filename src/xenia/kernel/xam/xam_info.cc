@@ -104,11 +104,16 @@ dword_result_t XamLoaderGetLaunchDataSize(lpdword_t size_ptr) {
   auto xam = kernel_state()->GetKernelModule<XamModule>("xam.xex");
   auto& loader_data = xam->loader_data();
 
+  if (!size_ptr) {
+    return X_ERROR_INVALID_PARAMETER;
+  }
+
   if (loader_data.launch_data_present) {
     *size_ptr = uint32_t(xam->loader_data().launch_data.size());
     return X_ERROR_SUCCESS;
   }
 
+  *size_ptr = 0;
   return X_ERROR_NOT_FOUND;
 }
 DECLARE_XAM_EXPORT(XamLoaderGetLaunchDataSize, ExportTag::kSketchy);
