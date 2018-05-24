@@ -41,8 +41,9 @@ ContentPackage::ContentPackage(KernelState* kernel_state, std::string root_name,
 }
 
 ContentPackage::~ContentPackage() {
-  kernel_state_->file_system()->UnregisterSymbolicLink(root_name_ + ":");
-  // TODO(benvanik): unregister device.
+  auto fs = kernel_state_->file_system();
+  fs->UnregisterSymbolicLink(root_name_ + ":");
+  fs->UnregisterDevice(device_path_);
 }
 
 ContentManager::ContentManager(KernelState* kernel_state,
