@@ -30,37 +30,39 @@ constexpr VkDeviceSize kStagingBufferSize = 64 * 1024 * 1024;
 
 struct TextureConfig {
   VkFormat host_format;
-  VkComponentSwizzle swizzle_r = VK_COMPONENT_SWIZZLE_R;
-  VkComponentSwizzle swizzle_g = VK_COMPONENT_SWIZZLE_G;
-  VkComponentSwizzle swizzle_b = VK_COMPONENT_SWIZZLE_B;
-  VkComponentSwizzle swizzle_a = VK_COMPONENT_SWIZZLE_A;
+  int swizzle_r = 0;
+  int swizzle_g = 1;
+  int swizzle_b = 2;
+  int swizzle_a = 3;
 };
 
-#define SWIZ(r, g, b, a)                              \
-  VK_COMPONENT_SWIZZLE_##r, VK_COMPONENT_SWIZZLE_##g, \
-      VK_COMPONENT_SWIZZLE_##b, VK_COMPONENT_SWIZZLE_##a
-#define RGBA SWIZ(R, G, B, A)
-#define BGRA SWIZ(B, G, R, A)
-#define ABGR SWIZ(A, B, G, R)
-#define RRRR SWIZ(R, R, R, R)
+#define SWIZ(r, g, b, a) r, g, b, a
+#define ___R SWIZ(-7, -7, -7, 0)
+#define RRRR SWIZ(0, 0, 0, 0)
+#define RRRA SWIZ(0, 0, 0, 3)
+#define RGBA SWIZ(0, 1, 2, 3)
+#define GRAB SWIZ(1, 0, 3, 2)
+#define BGRA SWIZ(2, 1, 0, 3)
+#define ARGB SWIZ(3, 0, 1, 2)
+#define ABGR SWIZ(3, 2, 1, 0)
 
 static const TextureConfig texture_configs[64] = {
     /* k_1_REVERSE              */ {VK_FORMAT_UNDEFINED},
     /* k_1                      */ {VK_FORMAT_UNDEFINED},
-    /* k_8                      */ {VK_FORMAT_R8_UNORM},
+    /* k_8                      */ {VK_FORMAT_R8_UNORM, RRRA},
     /* k_1_5_5_5                */ {VK_FORMAT_A1R5G5B5_UNORM_PACK16, BGRA},
     /* k_5_6_5                  */ {VK_FORMAT_R5G6B5_UNORM_PACK16, BGRA},
     /* k_6_5_5                  */ {VK_FORMAT_UNDEFINED},
     /* k_8_8_8_8                */ {VK_FORMAT_R8G8B8A8_UNORM},
     /* k_2_10_10_10             */ {VK_FORMAT_A2R10G10B10_UNORM_PACK32},
-    /* k_8_A                    */ {VK_FORMAT_UNDEFINED},
+    /* k_8_A                    */ {VK_FORMAT_R8_UNORM, ___R},
     /* k_8_B                    */ {VK_FORMAT_UNDEFINED},
     /* k_8_8                    */ {VK_FORMAT_R8G8_UNORM},
     /* k_Cr_Y1_Cb_Y0            */ {VK_FORMAT_UNDEFINED},
     /* k_Y1_Cr_Y0_Cb            */ {VK_FORMAT_UNDEFINED},
     /* k_Shadow                 */ {VK_FORMAT_UNDEFINED},
     /* k_8_8_8_8_A              */ {VK_FORMAT_UNDEFINED},
-    /* k_4_4_4_4                */ {VK_FORMAT_R4G4B4A4_UNORM_PACK16, ABGR},
+    /* k_4_4_4_4                */ {VK_FORMAT_R4G4B4A4_UNORM_PACK16, GRAB},
     // TODO: Verify if these two are correct (I think not).
     /* k_10_11_11               */ {VK_FORMAT_B10G11R11_UFLOAT_PACK32},
     /* k_11_11_10               */ {VK_FORMAT_B10G11R11_UFLOAT_PACK32},
@@ -128,10 +130,14 @@ static const TextureConfig texture_configs[64] = {
     /* kUnknown                 */ {VK_FORMAT_UNDEFINED},
 };
 
-#undef RRRR
 #undef ABGR
+#undef ARGB
 #undef BGRA
+#undef GRAB
 #undef RGBA
+#undef RRRA
+#undef RRRR
+#undef ___R
 #undef SWIZ
 
 const char* get_dimension_name(Dimension dimension) {
@@ -581,21 +587,35 @@ TextureCache::TextureView* TextureCache::DemandView(Texture* texture,
   }
 
   VkComponentSwizzle swiz_component_map[] = {
-      config.swizzle_r,
-      config.swizzle_g,
-      config.swizzle_b,
-      config.swizzle_a,
-      VK_COMPONENT_SWIZZLE_ZERO,
-      VK_COMPONENT_SWIZZLE_ONE,
+      VK_COMPONENT_SWIZZLE_R,        VK_COMPONENT_SWIZZLE_G,
+      VK_COMPONENT_SWIZZLE_B,        VK_COMPONENT_SWIZZLE_A,
+      VK_COMPONENT_SWIZZLE_ZERO,     VK_COMPONENT_SWIZZLE_ONE,
       VK_COMPONENT_SWIZZLE_IDENTITY,
   };
 
-  view_info.components = {
+  VkComponentSwizzle unswizzled_channels[] = {
       swiz_component_map[(swizzle >> 0) & 0x7],
       swiz_component_map[(swizzle >> 3) & 0x7],
       swiz_component_map[(swizzle >> 6) & 0x7],
       swiz_component_map[(swizzle >> 9) & 0x7],
   };
+
+#define GET_CHANNEL(x)                                                 \
+  config.swizzle_##x >= 0                                              \
+      ? unswizzled_channels[config.swizzle_##x]                        \
+      : ((-(config.swizzle_##x) - 1) < xe::countof(swiz_component_map) \
+             ? swiz_component_map[-(config.swizzle_##x) - 1]           \
+             : VK_COMPONENT_SWIZZLE_IDENTITY)
+
+  view_info.components = {
+      GET_CHANNEL(r),
+      GET_CHANNEL(g),
+      GET_CHANNEL(b),
+      GET_CHANNEL(a),
+  };
+
+#undef GET_CHANNEL
+
   view_info.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0,
                                 texture->texture_info.mip_levels, 0, 1};
   if (texture->format == VK_FORMAT_D16_UNORM_S8_UINT ||
