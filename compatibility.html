@@ -111,19 +111,32 @@ If filing new issues, please follow the style of the existing ones (so this page
       var marketplaceBoxSmall = "http://i.imgur.com/G9iNSCA.jpg";
       // no large link appears to exist for this image
       var marketplaceBoxLarge = null;
-      var marketplaceIndex = issue.body.search(/http[s]?:\/\/marketplace/);
-      if (marketplaceIndex != -1) {
-        marketplaceLink = issue.body.substr(marketplaceIndex);
-        marketplaceLink = marketplaceLink.substr(0, marketplaceLink.search(/[\s)?"']/));
-        var storeIdIndex = marketplaceLink.search(/[0-9a-f]{8}-[0-9a-f]{4}/);
-        if (storeIdIndex != -1) {
-          var storeId = marketplaceLink.substr(storeIdIndex);
-          var marketplaceBox = 'http://download.xbox.com/content/images/' + storeId + '/1033/';
-          marketplaceBoxSmall = marketplaceBox + 'boxartsm.jpg';
-          marketplaceBoxLarge = marketplaceBox + 'boxartlg.jpg';
-        } else {
-          // TODO: figure out how to craft this ID.
-          // storeId = '66acd000-77fe-1000-9115-d802' + titleId.toLowerCase();
+
+      var searchForLink = true;
+      for (var j = 0; j < issue.labels.length; ++j) {
+        var label = issue.labels[j];
+        if (label.name == 'marketplace-delisted' ||
+            label.name == 'marketplace-unlisted') {
+          searchForLink = false;
+          break;
+        }
+      }
+
+      if (searchForLink) {
+        var marketplaceIndex = issue.body.search(/http[s]?:\/\/marketplace/);
+        if (marketplaceIndex != -1) {
+          marketplaceLink = issue.body.substr(marketplaceIndex);
+          marketplaceLink = marketplaceLink.substr(0, marketplaceLink.search(/[\s)?"']/));
+          var storeIdIndex = marketplaceLink.search(/[0-9a-f]{8}-[0-9a-f]{4}/);
+          if (storeIdIndex != -1) {
+            var storeId = marketplaceLink.substr(storeIdIndex);
+            var marketplaceBox = 'http://download.xbox.com/content/images/' + storeId + '/1033/';
+            marketplaceBoxSmall = marketplaceBox + 'boxartsm.jpg';
+            marketplaceBoxLarge = marketplaceBox + 'boxartlg.jpg';
+          } else {
+            // TODO: figure out how to craft this ID.
+            // storeId = '66acd000-77fe-1000-9115-d802' + titleId.toLowerCase();
+          }
         }
       }
 
