@@ -600,21 +600,25 @@ TextureCache::TextureView* TextureCache::DemandView(Texture* texture,
       swiz_component_map[(swizzle >> 9) & 0x7],
   };
 
-#define GET_CHANNEL(x)                                                 \
-  config.swizzle_##x >= 0                                              \
-      ? unswizzled_channels[config.swizzle_##x]                        \
-      : ((-(config.swizzle_##x) - 1) < xe::countof(swiz_component_map) \
-             ? swiz_component_map[-(config.swizzle_##x) - 1]           \
-             : VK_COMPONENT_SWIZZLE_IDENTITY)
+#define SWIZZLE_CHANNEL(x)                                                 \
+  {                                                                        \
+    assert_true((config.swizzle_##x >= 0 &&                                \
+                 config.swizzle_##x < xe::countof(unswizzled_channels)) || \
+                (config.swizzle_##x < 0 &&                                 \
+                 config.swizzle_##x >=                                     \
+                     -static_cast<int>(xe::countof(swiz_component_map)))); \
+    view_info.components.x =                                               \
+        config.swizzle_##x >= 0                                            \
+            ? unswizzled_channels[config.swizzle_##x]                      \
+            : swiz_component_map[-(config.swizzle_##x) - 1];               \
+  }
 
-  view_info.components = {
-      GET_CHANNEL(r),
-      GET_CHANNEL(g),
-      GET_CHANNEL(b),
-      GET_CHANNEL(a),
-  };
+  SWIZZLE_CHANNEL(r);
+  SWIZZLE_CHANNEL(g);
+  SWIZZLE_CHANNEL(b);
+  SWIZZLE_CHANNEL(a);
 
-#undef GET_CHANNEL
+#undef SWIZZLE_CHANNEL
 
   view_info.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0,
                                 texture->texture_info.mip_levels, 0, 1};
