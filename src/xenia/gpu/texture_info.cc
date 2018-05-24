@@ -130,8 +130,8 @@ void TextureInfo::CalculateTextureSizes1D(uint32_t width) {
   auto format = format_info();
 
   // width in blocks.
-  uint32_t block_width = xe::round_up(size.logical_width, format->block_width) /
-                         format->block_width;
+  uint32_t block_width =
+      xe::round_up(pitch, format->block_width) / format->block_width;
 
   // Texture dimensions must be a multiple of tile
   // dimensions (32x32 blocks).
@@ -167,8 +167,8 @@ void TextureInfo::CalculateTextureSizes2D(uint32_t width, uint32_t height) {
   auto format = format_info();
 
   // w/h in blocks.
-  uint32_t block_width = xe::round_up(size.logical_width, format->block_width) /
-                         format->block_width;
+  uint32_t block_width =
+      xe::round_up(pitch, format->block_width) / format->block_width;
   uint32_t block_height =
       xe::round_up(size.logical_height, format->block_height) /
       format->block_height;
@@ -206,8 +206,8 @@ void TextureInfo::CalculateTextureSizes3D(uint32_t width, uint32_t height,
   auto format = format_info();
 
   // w/h in blocks must be a multiple of block size.
-  uint32_t block_width = xe::round_up(size.logical_width, format->block_width) /
-                         format->block_width;
+  uint32_t block_width =
+      xe::round_up(pitch, format->block_width) / format->block_width;
   uint32_t block_height =
       xe::round_up(size.logical_height, format->block_height) /
       format->block_height;
@@ -246,8 +246,8 @@ void TextureInfo::CalculateTextureSizesCube(uint32_t width, uint32_t height,
   auto format = format_info();
 
   // w/h in blocks must be a multiple of block size.
-  uint32_t block_width = xe::round_up(size.logical_width, format->block_width) /
-                         format->block_width;
+  uint32_t block_width =
+      xe::round_up(pitch, format->block_width) / format->block_width;
   uint32_t block_height =
       xe::round_up(size.logical_height, format->block_height) /
       format->block_height;
