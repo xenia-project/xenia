@@ -145,7 +145,7 @@ X_RESULT ContentManager::CreateContent(std::string root_name,
 
   if (open_packages_.count(root_name)) {
     // Already content open with this root name.
-    return X_ERROR_INVALID_NAME;
+    return X_ERROR_ALREADY_EXISTS;
   }
 
   auto package_path = ResolvePackagePath(data);
@@ -172,7 +172,7 @@ X_RESULT ContentManager::OpenContent(std::string root_name,
 
   if (open_packages_.count(root_name)) {
     // Already content open with this root name.
-    return X_ERROR_INVALID_NAME;
+    return X_ERROR_ALREADY_EXISTS;
   }
 
   auto package_path = ResolvePackagePath(data);
