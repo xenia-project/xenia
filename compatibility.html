@@ -67,6 +67,7 @@ If filing new issues, please follow the style of the existing ones (so this page
   } else {
     var issueBlob = JSON.parse(issueBlobString);
     if (!issueBlob.cacheTime ||
+        !issueBlob.issueData ||
         Date.now() - issueBlob.cacheTime > 5 * 60 * 1000) {
       // Expired - refetch.
       fetchIssueData(renderIssues);
