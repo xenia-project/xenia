@@ -84,6 +84,7 @@ bool TextureInfo::Prepare(const xe_gpu_texture_fetch_t& fetch,
       info.CalculateTextureSizes3D(fetch.size_3d.width + 1,
                                    fetch.size_3d.height + 1,
                                    fetch.size_3d.depth + 1);
+      break;
     }
     case Dimension::kCube: {
       info.CalculateTextureSizesCube(fetch.size_stack.width + 1,
