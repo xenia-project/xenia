@@ -30,6 +30,8 @@ dword_result_t XAudioGetVoiceCategoryVolumeChangeMask(lpunknown_t driver_ptr,
                                                       lpdword_t out_ptr) {
   assert_true((driver_ptr.guest_address() & 0xFFFF0000) == 0x41550000);
 
+  xe::threading::MaybeYield();
+
   // Checking these bits to see if any voice volume changed.
   // I think.
   *out_ptr = 0;
