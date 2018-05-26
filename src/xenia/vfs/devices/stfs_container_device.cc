@@ -271,7 +271,7 @@ uint32_t StfsContainerDevice::ComputeBlockNumber(uint32_t block_index) {
   if (((header_.header_size + 0x0FFF) & 0xB000) == 0xB000) {
     block_shift = 1;
   } else {
-    if ((header_.volume_descriptor.block_separation & 0x1) == 0x1) {
+    if ((header_.volume_descriptor.flags & 0x1) == 0x1) {
       block_shift = 0;
     } else {
       block_shift = 1;
@@ -332,8 +332,8 @@ bool StfsVolumeDescriptor::Read(const uint8_t* p) {
            descriptor_size);
     return false;
   }
-  reserved = xe::load_and_swap<uint8_t>(p + 0x01);
-  block_separation = xe::load_and_swap<uint8_t>(p + 0x02);
+  version = xe::load_and_swap<uint8_t>(p + 0x01);
+  flags = xe::load_and_swap<uint8_t>(p + 0x02);
   file_table_block_count = xe::load_and_swap<uint16_t>(p + 0x03);
   file_table_block_number = load_uint24_be(p + 0x05);
   std::memcpy(top_hash_table_hash, p + 0x08, 0x14);

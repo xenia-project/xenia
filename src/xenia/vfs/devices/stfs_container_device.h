@@ -32,6 +32,7 @@ enum class StfsContentType : uint32_t {
   kAvatarItem = 0x00009000,
   kCacheFile = 0x00040000,
   kCommunityGame = 0x02000000,
+  kGamesOnDemand = 0x00007000,
   kGameDemo = 0x00080000,
   kGamerPicture = 0x00020000,
   kGameTitle = 0x000A0000,
@@ -75,8 +76,8 @@ struct StfsVolumeDescriptor {
   bool Read(const uint8_t* p);
 
   uint8_t descriptor_size;
-  uint8_t reserved;
-  uint8_t block_separation;
+  uint8_t version;
+  uint8_t flags;
   uint16_t file_table_block_count;
   uint32_t file_table_block_number;
   uint8_t top_hash_table_hash[0x14];
