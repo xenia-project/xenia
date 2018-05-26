@@ -16,6 +16,7 @@
 #include "xenia/gpu/register_file.h"
 #include "xenia/gpu/sampler_info.h"
 #include "xenia/gpu/shader.h"
+#include "xenia/gpu/texture_conversion.h"
 #include "xenia/gpu/texture_info.h"
 #include "xenia/gpu/trace_writer.h"
 #include "xenia/gpu/vulkan/vulkan_command_processor.h"
@@ -155,7 +156,17 @@ class TextureCache {
                           uint32_t mip, const TextureInfo& src);
   bool ConvertTexture(uint8_t* dest, VkBufferImageCopy* copy_region,
                       uint32_t mip, const TextureInfo& src);
-  bool ComputeTextureStorage(size_t* output_length, const TextureInfo& src);
+
+  static const FormatInfo* GetFormatInfo(TextureFormat format);
+  static texture_conversion::CopyBlockCallback GetFormatCopyBlock(
+      TextureFormat format);
+  static TextureMemoryUsage GetMipMemoryUsage(const TextureInfo& src,
+                                              uint32_t mip);
+  static uint32_t ComputeMipStorage(const FormatInfo* format_info,
+                                    uint32_t width, uint32_t height,
+                                    uint32_t depth, uint32_t mip);
+  static uint32_t ComputeMipStorage(const TextureInfo& src, uint32_t mip);
+  static uint32_t ComputeTextureStorage(const TextureInfo& src);
 
   // Writes a texture back into guest memory. This call is (mostly) asynchronous
   // but the texture must not be flagged for destruction.

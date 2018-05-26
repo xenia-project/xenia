@@ -15,6 +15,7 @@
 #include "xenia/base/profiling.h"
 #include "xenia/gpu/gpu_flags.h"
 #include "xenia/gpu/sampler_info.h"
+#include "xenia/gpu/texture_conversion.h"
 #include "xenia/gpu/texture_info.h"
 #include "xenia/gpu/vulkan/vulkan_gpu_flags.h"
 #include "xenia/ui/vulkan/vulkan_mem_alloc.h"
@@ -38,6 +39,7 @@ struct TextureConfig {
 
 #define SWIZ(r, g, b, a) r, g, b, a
 #define ___R SWIZ(-7, -7, -7, 0)
+#define ___A SWIZ(-7, -7, -7, 3)
 #define RRRR SWIZ(0, 0, 0, 0)
 #define RRRA SWIZ(0, 0, 0, 3)
 #define RGBA SWIZ(0, 1, 2, 3)
@@ -117,8 +119,8 @@ static const TextureConfig texture_configs[64] = {
     /* k_10_11_11_AS_16_16_16_16 */ {VK_FORMAT_B10G11R11_UFLOAT_PACK32},  // ?
     /* k_11_11_10_AS_16_16_16_16 */ {VK_FORMAT_B10G11R11_UFLOAT_PACK32},  // ?
     /* k_32_32_32_FLOAT         */ {VK_FORMAT_R32G32B32_SFLOAT},
-    /* k_DXT3A                  */ {VK_FORMAT_UNDEFINED},
-    /* k_DXT5A                  */ {VK_FORMAT_BC4_UNORM_BLOCK, RRRR},  // ATI1N
+    /* k_DXT3A                  */ {VK_FORMAT_BC2_UNORM_BLOCK, ___A},
+    /* k_DXT5A                  */ {VK_FORMAT_BC4_UNORM_BLOCK, ___R},  // ATI1N
 
     // http://fileadmin.cs.lth.se/cs/Personal/Michael_Doggett/talks/unc-xenos-doggett.pdf
     /* k_CTX1                   */ {VK_FORMAT_R8G8_UINT},
@@ -137,6 +139,7 @@ static const TextureConfig texture_configs[64] = {
 #undef RGBA
 #undef RRRA
 #undef RRRR
+#undef ___A
 #undef ___R
 #undef SWIZ
 
@@ -438,15 +441,15 @@ TextureCache::Texture* TextureCache::DemandResolveTexture(
 
       // Tell the trace writer to "cache" this memory (but not read it)
       trace_writer_->WriteMemoryReadCachedNop(texture_info.guest_address,
-                                              texture_info.input_length);
+                                              texture_info.GetByteSize(true));
 
       return it->second;
     }
   }
 
   VkFormatFeatureFlags required_flags = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT;
-  if (texture_info.texture_format == TextureFormat::k_24_8 ||
-      texture_info.texture_format == TextureFormat::k_24_8_FLOAT) {
+  if (texture_info.format == TextureFormat::k_24_8 ||
+      texture_info.format == TextureFormat::k_24_8_FLOAT) {
     required_flags |= VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT;
   } else {
     required_flags |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT;
@@ -466,11 +469,11 @@ TextureCache::Texture* TextureCache::DemandResolveTexture(
       VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT,
       xe::format_string(
           "RT: 0x%.8X - 0x%.8X", texture_info.guest_address,
-          texture_info.guest_address + texture_info.input_length));
+          texture_info.guest_address + texture_info.GetByteSize(true)));
 
   // Setup an access watch. If this texture is touched, it is destroyed.
   texture->access_watch_handle = memory_->AddPhysicalAccessWatch(
-      texture_info.guest_address, texture_info.input_length,
+      texture_info.guest_address, texture_info.GetByteSize(true),
       cpu::MMIOHandler::kWatchWrite, &WatchCallback, this, texture);
 
   textures_[texture_hash] = texture;
@@ -492,7 +495,7 @@ TextureCache::Texture* TextureCache::Demand(const TextureInfo& texture_info,
       }
 
       trace_writer_->WriteMemoryReadCached(texture_info.guest_address,
-                                           texture_info.input_length);
+                                           texture_info.GetByteSize(true));
 
       return it->second;
     }
@@ -525,12 +528,12 @@ TextureCache::Texture* TextureCache::Demand(const TextureInfo& texture_info,
   }
 
   trace_writer_->WriteMemoryRead(texture_info.guest_address,
-                                 texture_info.input_length);
+                                 texture_info.GetByteSize(true));
 
   // Okay. Put a writewatch on it to tell us if it's been modified from the
   // guest.
   texture->access_watch_handle = memory_->AddPhysicalAccessWatch(
-      texture_info.guest_address, texture_info.input_length,
+      texture_info.guest_address, texture_info.GetByteSize(true),
       cpu::MMIOHandler::kWatchWrite, &WatchCallback, this, texture);
 
   if (!UploadTexture(command_buffer, completion_fence, texture, texture_info)) {
@@ -542,11 +545,11 @@ TextureCache::Texture* TextureCache::Demand(const TextureInfo& texture_info,
   device_->DbgSetObjectName(
       reinterpret_cast<uint64_t>(texture->image),
       VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT,
-      xe::format_string("T: 0x%.8X - 0x%.8X (%s, %s)",
-                        texture_info.guest_address,
-                        texture_info.guest_address + texture_info.input_length,
-                        texture_info.format_info()->name,
-                        get_dimension_name(texture_info.dimension)));
+      xe::format_string(
+          "T: 0x%.8X - 0x%.8X (%s, %s)", texture_info.guest_address,
+          texture_info.guest_address + texture_info.GetByteSize(true),
+          texture_info.format_info()->name,
+          get_dimension_name(texture_info.dimension)));
 
   textures_[texture_hash] = texture;
   COUNT_profile_set("gpu/texture_cache/textures", textures_.size());
@@ -561,8 +564,7 @@ TextureCache::TextureView* TextureCache::DemandView(Texture* texture,
     }
   }
 
-  auto& config =
-      texture_configs[uint32_t(texture->texture_info.texture_format)];
+  auto& config = texture_configs[uint32_t(texture->texture_info.format)];
 
   VkImageViewCreateInfo view_info;
   view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -821,10 +823,10 @@ TextureCache::Texture* TextureCache::Lookup(const TextureInfo& texture_info) {
     COMPARE_FIELD(depth);
     COMPARE_FIELD(endianness);
     COMPARE_FIELD(is_tiled);
-    COMPARE_FIELD(input_length);
+    COMPARE_FIELD(GetByteSize(true));
 #undef COMPARE_FIELD
-    if (!TextureFormatIsSimilar(texture_info.texture_format,
-                                other_texture_info.texture_format)) {
+    if (!TextureFormatIsSimilar(texture_info.format,
+                                other_texture_info.format)) {
       continue;
     }
     /*const auto format_info = texture_info.format_info();
@@ -850,9 +852,9 @@ TextureCache::Texture* TextureCache::LookupAddress(uint32_t guest_address,
     const auto& texture_info = it->second->texture_info;
     if (guest_address >= texture_info.guest_address &&
         guest_address <
-            texture_info.guest_address + texture_info.input_length &&
-        texture_info.size.input_width >= width &&
-        texture_info.size.input_height >= height && out_offset) {
+            texture_info.guest_address + texture_info.GetByteSize(true) &&
+        texture_info.pitch >= width && texture_info.height >= height &&
+        out_offset) {
       auto offset_bytes = guest_address - texture_info.guest_address;
 
       if (texture_info.dimension == Dimension::k2D) {
@@ -868,8 +870,7 @@ TextureCache::Texture* TextureCache::LookupAddress(uint32_t guest_address,
 
     if (texture_info.guest_address == guest_address &&
         texture_info.dimension == Dimension::k2D &&
-        texture_info.size.input_width == width &&
-        texture_info.size.input_height == height) {
+        texture_info.pitch == width && texture_info.height == height) {
       if (out_offset) {
         out_offset->x = 0;
         out_offset->y = 0;
@@ -880,25 +881,6 @@ TextureCache::Texture* TextureCache::LookupAddress(uint32_t guest_address,
   }
 
   return nullptr;
-}
-
-void TextureSwap(Endian endianness, void* dest, const void* src,
-                 size_t length) {
-  switch (endianness) {
-    case Endian::k8in16:
-      xe::copy_and_swap_16_unaligned(dest, src, length / 2);
-      break;
-    case Endian::k8in32:
-      xe::copy_and_swap_32_unaligned(dest, src, length / 4);
-      break;
-    case Endian::k16in32:  // Swap high and low 16 bits within a 32 bit word
-      xe::copy_and_swap_16_in_32_unaligned(dest, src, length);
-      break;
-    default:
-    case Endian::kUnspecified:
-      std::memcpy(dest, src, length);
-      break;
-  }
 }
 
 void TextureCache::FlushPendingCommands(VkCommandBuffer command_buffer,
@@ -942,60 +924,55 @@ bool TextureCache::ConvertTexture2D(uint8_t* dest,
                                     uint32_t mip, const TextureInfo& src) {
   uint32_t offset_x = 0;
   uint32_t offset_y = 0;
-  uint32_t address =
-      TextureInfo::GetMipLocation(src, mip, &offset_x, &offset_y);
+  uint32_t address = src.GetMipLocation(mip, &offset_x, &offset_y, true);
   void* host_address = memory_->TranslatePhysical(address);
 
-  // Pitch of the source texture in blocks.
-  uint32_t block_width;
-  if (mip == 0) {
-    block_width = src.size.block_width;
-  } else {
-    block_width = xe::next_pow2(src.size.block_width) >> mip;
-    block_width = xe::round_up(block_width, 32);
-  }
+  auto src_usage = src.GetMipMemoryUsage(mip, true);
+  auto dst_usage = GetMipMemoryUsage(src, mip);
 
-  uint32_t logical_width = src.size.logical_width >> mip;
-  uint32_t logical_height = src.size.logical_height >> mip;
-  uint32_t input_width = src.size.input_width >> mip;
-  uint32_t input_height = src.size.input_height >> mip;
+  uint32_t mip_width, mip_height;
+  src.GetMipSize(mip, &mip_width, &mip_height);
 
-  // All dimensions must be a multiple of block w/h
-  logical_width = xe::round_up(logical_width, src.format_info()->block_width);
-  logical_height =
-      xe::round_up(logical_height, src.format_info()->block_height);
-  input_width = xe::round_up(input_width, src.format_info()->block_width);
-  input_height = xe::round_up(input_height, src.format_info()->block_height);
+  auto copy_block = GetFormatCopyBlock(src.format);
 
   if (!src.is_tiled) {
-    uint32_t bytes_per_block = src.format_info()->block_width *
-                               src.format_info()->block_height *
-                               src.format_info()->bits_per_pixel / 8;
-    uint32_t src_pitch = xe::round_up(block_width * bytes_per_block, 256);
+    uint32_t src_pitch =
+        src_usage.block_pitch * src.format_info()->bytes_per_block();
     uint32_t dst_pitch =
-        (input_width / src.format_info()->block_width) * bytes_per_block;
-    assert_true(dst_pitch <= src_pitch);
+        dst_usage.block_pitch * GetFormatInfo(src.format)->bytes_per_block();
     const uint8_t* src_mem = reinterpret_cast<const uint8_t*>(host_address);
     src_mem += offset_y * src_pitch;
-    src_mem += offset_x * bytes_per_block;
-    for (uint32_t y = 0; y < src.size.block_height; y++) {
-      TextureSwap(src.endianness, dest + y * dst_pitch, src_mem + y * src_pitch,
-                  dst_pitch);
+    src_mem += offset_x * src.format_info()->bytes_per_block();
+    for (uint32_t y = 0; y < dst_usage.block_height; y++) {
+      copy_block(src.endianness, dest + y * dst_pitch, src_mem + y * src_pitch,
+                 dst_pitch);
     }
   } else {
     // Untile image.
-    // We could do this in a shader to speed things up, as this is pretty
-    // slow.
+    // We could do this in a shader to speed things up, as this is pretty slow.
+
     const uint8_t* src_mem = reinterpret_cast<const uint8_t*>(host_address);
-    TextureInfo::ConvertTiled(dest, src_mem, src.endianness, src.format_info(),
-                              offset_x, offset_y, block_width, logical_width,
-                              logical_height, input_width);
+
+    texture_conversion::UntileInfo untile_info;
+    std::memset(&untile_info, 0, sizeof(untile_info));
+    untile_info.offset_x = offset_x;
+    untile_info.offset_y = offset_y;
+    untile_info.width = dst_usage.block_pitch;
+    untile_info.height = dst_usage.block_height;
+    untile_info.input_pitch = src_usage.block_pitch;
+    untile_info.output_pitch = dst_usage.block_pitch;
+    untile_info.input_format_info = src.format_info();
+    untile_info.output_format_info = GetFormatInfo(src.format);
+    untile_info.copy_callback = [=](auto o, auto i, auto l) {
+      copy_block(src.endianness, o, i, l);
+    };
+    texture_conversion::Untile(dest, src_mem, &untile_info);
   }
 
-  copy_region->bufferRowLength = input_width;
-  copy_region->bufferImageHeight = input_height;
+  copy_region->bufferRowLength = dst_usage.pitch;
+  copy_region->bufferImageHeight = dst_usage.height;
   copy_region->imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, mip, 0, 1};
-  copy_region->imageExtent = {logical_width, logical_height, 1};
+  copy_region->imageExtent = {mip_width, mip_height, 1};
   return true;
 }
 
@@ -1004,77 +981,60 @@ bool TextureCache::ConvertTextureCube(uint8_t* dest,
                                       uint32_t mip, const TextureInfo& src) {
   uint32_t offset_x = 0;
   uint32_t offset_y = 0;
-  uint32_t address =
-      TextureInfo::GetMipLocation(src, mip, &offset_x, &offset_y);
+  uint32_t address = src.GetMipLocation(mip, &offset_x, &offset_y, true);
   void* host_address = memory_->TranslatePhysical(address);
 
-  // Pitch of the source texture in blocks.
-  uint32_t block_width, block_height, input_block_height;
-  if (mip == 0) {
-    block_width = src.size.block_width;
-    input_block_height = block_height = src.size.block_height;
-  } else {
-    block_width = xe::next_pow2(src.size.block_width) >> mip;
-    block_width = xe::round_up(block_width, 32);
-    block_height = xe::next_pow2(src.size.block_height) >> mip;
-    input_block_height = block_height;
-    block_height = xe::round_up(block_height, 32);
-  }
+  auto src_usage = src.GetMipMemoryUsage(mip, true);
+  auto dst_usage = GetMipMemoryUsage(src, mip);
 
-  uint32_t logical_width = src.size.logical_width >> mip;
-  uint32_t logical_height = src.size.logical_height >> mip;
-  uint32_t input_width = src.size.input_width >> mip;
-  uint32_t input_height = src.size.input_height >> mip;
+  uint32_t src_pitch =
+      src_usage.block_pitch * src.format_info()->bytes_per_block();
+  uint32_t dst_pitch =
+      dst_usage.block_pitch * GetFormatInfo(src.format)->bytes_per_block();
 
-  // All dimensions must be a multiple of block w/h
-  logical_width = xe::round_up(logical_width, src.format_info()->block_width);
-  logical_height =
-      xe::round_up(logical_height, src.format_info()->block_height);
-  input_width = xe::round_up(input_width, src.format_info()->block_width);
-  input_height = xe::round_up(input_height, src.format_info()->block_height);
+  uint32_t mip_width, mip_height;
+  src.GetMipSize(mip, &mip_width, &mip_height);
+
+  auto copy_block = GetFormatCopyBlock(src.format);
 
   if (!src.is_tiled) {
-    uint32_t bytes_per_block = src.format_info()->block_width *
-                               src.format_info()->block_height *
-                               src.format_info()->bits_per_pixel / 8;
-    uint32_t src_pitch = xe::round_up(block_width * bytes_per_block, 256);
-    uint32_t dst_pitch =
-        (input_width / src.format_info()->block_width) * bytes_per_block;
-    assert_true(dst_pitch <= src_pitch);
     const uint8_t* src_mem = reinterpret_cast<const uint8_t*>(host_address);
     for (int face = 0; face < 6; face++) {
       src_mem += offset_y * src_pitch;
-      src_mem += offset_x * bytes_per_block;
-      for (uint32_t y = 0; y < block_height; y++) {
-        TextureSwap(src.endianness, dest + y * dst_pitch,
-                    src_mem + y * src_pitch, dst_pitch);
+      src_mem += offset_x * src.format_info()->bytes_per_block();
+      for (uint32_t y = 0; y < dst_usage.block_height; y++) {
+        copy_block(src.endianness, dest + y * dst_pitch,
+                   src_mem + y * src_pitch, dst_pitch);
       }
-      src_mem += src_pitch * block_height;
-      dest += dst_pitch * input_block_height;
+      src_mem += src_pitch * src_usage.block_height;
+      dest += dst_pitch * dst_usage.block_height;
     }
   } else {
-    // TODO(benvanik): optimize this inner loop (or work by tiles).
-    uint32_t bytes_per_block = src.format_info()->block_width *
-                               src.format_info()->block_height *
-                               src.format_info()->bits_per_pixel / 8;
-    uint32_t src_pitch = block_width * bytes_per_block;
-    uint32_t dst_pitch =
-        (input_width / src.format_info()->block_width) * bytes_per_block;
-    assert_true(dst_pitch <= src_pitch);
     const uint8_t* src_mem = reinterpret_cast<const uint8_t*>(host_address);
     for (int face = 0; face < 6; face++) {
-      TextureInfo::ConvertTiled(
-          dest, src_mem, src.endianness, src.format_info(), offset_x, offset_y,
-          block_width, logical_width, logical_height, input_width);
-      src_mem += src_pitch * block_height;
-      dest += dst_pitch * input_block_height;
+      texture_conversion::UntileInfo untile_info;
+      std::memset(&untile_info, 0, sizeof(untile_info));
+      untile_info.offset_x = offset_x;
+      untile_info.offset_y = offset_y;
+      untile_info.width = dst_usage.block_pitch;
+      untile_info.height = dst_usage.block_height;
+      untile_info.input_pitch = src_usage.block_pitch;
+      untile_info.output_pitch = dst_usage.block_pitch;
+      untile_info.input_format_info = src.format_info();
+      untile_info.output_format_info = GetFormatInfo(src.format);
+      untile_info.copy_callback = [=](auto o, auto i, auto l) {
+        copy_block(src.endianness, o, i, l);
+      };
+
+      src_mem += src_pitch * src_usage.block_height;
+      dest += dst_pitch * dst_usage.block_height;
     }
   }
 
-  copy_region->bufferRowLength = input_width;
-  copy_region->bufferImageHeight = input_height;
+  copy_region->bufferRowLength = dst_usage.pitch;
+  copy_region->bufferImageHeight = dst_usage.height;
   copy_region->imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, mip, 0, 6};
-  copy_region->imageExtent = {logical_width, logical_height, 1};
+  copy_region->imageExtent = {mip_width, mip_height, 1};
   return true;
 }
 
@@ -1102,53 +1062,49 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
   SCOPE_profile_cpu_f("gpu");
 #endif  // FINE_GRAINED_DRAW_SCOPES
 
+  size_t unpack_length = ComputeTextureStorage(src);
+
   XELOGGPU(
       "Uploading texture @ 0x%.8X (%dx%d, length: 0x%.8X, format: %s, dim: %s, "
       "levels: %d, tiled: %s)",
-      src.guest_address, src.width + 1, src.height + 1, src.input_length,
+      src.guest_address, src.width + 1, src.height + 1, unpack_length,
       src.format_info()->name, get_dimension_name(src.dimension),
       src.mip_levels, src.is_tiled ? "yes" : "no");
-  size_t unpack_length;
-  if (!ComputeTextureStorage(&unpack_length, src)) {
-    XELOGW("Failed to compute texture storage");
+
+  if (!unpack_length) {
+    XELOGW("Failed to compute texture storage!");
     return false;
   }
 
-  size_t total_unpack_length = unpack_length;
-  for (uint32_t i = 1; i < src.mip_levels; i++) {
-    // Add in more space for mips.
-    total_unpack_length += TextureInfo::GetMipLinearSize(src, i);
-  }
-
-  if (!staging_buffer_.CanAcquire(total_unpack_length)) {
+  if (!staging_buffer_.CanAcquire(unpack_length)) {
     // Need to have unique memory for every upload for at least one frame. If we
     // run out of memory, we need to flush all queued upload commands to the
     // GPU.
     FlushPendingCommands(command_buffer, completion_fence);
 
     // Uploads have been flushed. Continue.
-    if (!staging_buffer_.CanAcquire(total_unpack_length)) {
+    if (!staging_buffer_.CanAcquire(unpack_length)) {
       // The staging buffer isn't big enough to hold this texture.
       XELOGE(
           "TextureCache staging buffer is too small! (uploading 0x%.8X bytes)",
-          total_unpack_length);
+          unpack_length);
       assert_always();
       return false;
     }
   }
 
   // Grab some temporary memory for staging.
-  auto alloc = staging_buffer_.Acquire(total_unpack_length, completion_fence);
+  auto alloc = staging_buffer_.Acquire(unpack_length, completion_fence);
   assert_not_null(alloc);
   if (!alloc) {
-    XELOGE("%s: Failed to acquire staging memory", __func__);
+    XELOGE("%s: Failed to acquire staging memory!", __func__);
     return false;
   }
 
   // DEBUG: Check the source address. If it's completely zero'd out, print it.
   bool valid = false;
   auto src_data = memory_->TranslatePhysical(src.guest_address);
-  for (uint32_t i = 0; i < src.input_length; i++) {
+  for (uint32_t i = 0; i < unpack_length; i++) {
     if (src_data[i] != 0) {
       valid = true;
       break;
@@ -1175,7 +1131,7 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
   copy_regions[0].imageOffset = {0, 0, 0};
 
   // Now upload all the MIPs
-  VkDeviceSize buffer_offset = unpack_length;
+  VkDeviceSize buffer_offset = ComputeMipStorage(src, 0);
   for (uint32_t mip = 1; mip < src.mip_levels; mip++) {
     uint8_t* dest = reinterpret_cast<uint8_t*>(alloc->host_ptr) + buffer_offset;
     if (!ConvertTexture(dest, &copy_regions[mip], mip, src)) {
@@ -1186,7 +1142,7 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
     copy_regions[mip].imageOffset = {0, 0, 0};
 
     // With each mip, the length is divided by 4.
-    buffer_offset += TextureInfo::GetMipLinearSize(src, mip);
+    buffer_offset += ComputeMipStorage(src, mip);
   }
 
   // Transition the texture into a transfer destination layout.
@@ -1240,30 +1196,81 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
   return true;
 }
 
-bool TextureCache::ComputeTextureStorage(size_t* output_length,
-                                         const TextureInfo& src) {
-  if (src.texture_format == TextureFormat::k_CTX1) {
-    switch (src.dimension) {
-      case Dimension::k1D: {
-        assert_always();
-      } break;
-      case Dimension::k2D: {
-        *output_length = src.size.input_width * src.size.input_height * 2;
-        return true;
-      }
-      case Dimension::k3D: {
-        assert_always();
-      } break;
-      case Dimension::kCube: {
-        *output_length = src.size.input_width * src.size.input_height * 2 * 6;
-        return true;
-      }
-    }
-    return false;
-  } else {
-    *output_length = src.input_length;
-    return true;
+const FormatInfo* TextureCache::GetFormatInfo(TextureFormat format) {
+  switch (format) {
+    case TextureFormat::k_CTX1:
+      return FormatInfo::Get(TextureFormat::k_8_8);
+    case TextureFormat::k_DXT3A:
+      return FormatInfo::Get(TextureFormat::k_DXT2_3);
+    default:
+      return FormatInfo::Get(format);
   }
+}
+
+texture_conversion::CopyBlockCallback TextureCache::GetFormatCopyBlock(
+    TextureFormat format) {
+  switch (format) {
+    case TextureFormat::k_CTX1:
+      return texture_conversion::ConvertTexelCTX1ToR8G8;
+    case TextureFormat::k_DXT3A:
+      return texture_conversion::ConvertTexelDXT3AToDXT3;
+    default:
+      return texture_conversion::CopySwapBlock;
+  }
+}
+
+TextureMemoryUsage TextureCache::GetMipMemoryUsage(const TextureInfo& src,
+                                                   uint32_t mip) {
+  auto format_info = GetFormatInfo(src.format);
+  uint32_t width = src.width + 1;
+  uint32_t height = src.height + 1;
+  uint32_t depth = src.depth + 1;
+  TextureMemoryUsage usage;
+  if (mip == 0) {
+    usage = TextureMemoryUsage::Calculate(format_info, width, height, depth,
+                                          width, false);
+  } else {
+    uint32_t mip_width = xe::next_pow2(width) >> mip;
+    uint32_t mip_height = xe::next_pow2(height) >> mip;
+    usage = TextureMemoryUsage::Calculate(format_info, mip_width, mip_height,
+                                          depth, mip_width, false);
+  }
+  return usage;
+}
+
+uint32_t TextureCache::ComputeMipStorage(const FormatInfo* format_info,
+                                         uint32_t width, uint32_t height,
+                                         uint32_t depth, uint32_t mip) {
+  assert_not_null(format_info);
+  TextureMemoryUsage usage;
+  if (mip == 0) {
+    usage = TextureMemoryUsage::Calculate(format_info, width, height, depth,
+                                          false, false);
+  } else {
+    uint32_t mip_width = xe::next_pow2(width) >> mip;
+    uint32_t mip_height = xe::next_pow2(height) >> mip;
+    usage = TextureMemoryUsage::Calculate(format_info, mip_width, mip_height,
+                                          depth, false, false);
+  }
+  uint32_t bytes_per_block = format_info->bytes_per_block();
+  return usage.blocks() * bytes_per_block;
+}
+
+uint32_t TextureCache::ComputeMipStorage(const TextureInfo& src, uint32_t mip) {
+  return ComputeMipStorage(GetFormatInfo(src.format), src.width + 1,
+                           src.height + 1, src.depth + 1, mip);
+}
+
+uint32_t TextureCache::ComputeTextureStorage(const TextureInfo& src) {
+  auto format_info = GetFormatInfo(src.format);
+  uint32_t width = src.width + 1;
+  uint32_t height = src.height + 1;
+  uint32_t depth = src.depth + 1;
+  uint32_t length = 0;
+  for (uint32_t mip = 0; mip < src.mip_levels; mip++) {
+    length += ComputeMipStorage(format_info, width, height, depth, mip);
+  }
+  return length;
 }
 
 void TextureCache::WritebackTexture(Texture* texture) {
@@ -1332,7 +1339,8 @@ void TextureCache::WritebackTexture(Texture* texture) {
 
   auto dest = memory_->TranslatePhysical(texture->texture_info.guest_address);
   if (status == VK_SUCCESS) {
-    std::memcpy(dest, alloc->host_ptr, texture->texture_info.input_length);
+    std::memcpy(dest, alloc->host_ptr,
+                texture->texture_info.GetByteSize(false));
   }
 
   wb_staging_buffer_.Scavenge();
@@ -1473,7 +1481,7 @@ bool TextureCache::SetupTextureBinding(VkCommandBuffer command_buffer,
   }
 
   // Search via the base format.
-  texture_info.texture_format = GetBaseFormat(texture_info.texture_format);
+  texture_info.format = GetBaseFormat(texture_info.format);
 
   auto texture = Demand(texture_info, command_buffer, completion_fence);
   auto sampler = Demand(sampler_info);
