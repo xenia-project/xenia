@@ -28,6 +28,8 @@ class DiscImageDevice : public Device {
   ~DiscImageDevice() override;
 
   bool Initialize() override;
+  void Dump(StringBuffer* string_buffer) override;
+  Entry* ResolvePath(std::string path) override;
 
   uint32_t total_allocation_units() const override {
     return uint32_t(mmap_->size() / sectors_per_allocation_unit() /
@@ -47,6 +49,7 @@ class DiscImageDevice : public Device {
   };
 
   std::wstring local_path_;
+  std::unique_ptr<Entry> root_entry_;
   std::unique_ptr<MappedMemory> mmap_;
 
   typedef struct {
