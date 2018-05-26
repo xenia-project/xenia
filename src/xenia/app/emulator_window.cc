@@ -40,7 +40,15 @@ EmulatorWindow::EmulatorWindow(Emulator* emulator)
     : emulator_(emulator),
       loop_(ui::Loop::Create()),
       window_(ui::Window::Create(loop_.get(), kBaseTitle)) {
-  base_title_ = kBaseTitle + L" (" + xe::to_wstring(XE_BUILD_BRANCH) + L"/" +
+  base_title_ = kBaseTitle +
+#ifdef DEBUG
+#if _NO_DEBUG_HEAP == 1
+                L" DEBUG" +
+#else
+                L" CHECKED" +
+#endif
+#endif
+                L" (" + xe::to_wstring(XE_BUILD_BRANCH) + L"/" +
                 xe::to_wstring(XE_BUILD_COMMIT_SHORT) + L"/" +
                 xe::to_wstring(XE_BUILD_DATE) + L")";
 }
