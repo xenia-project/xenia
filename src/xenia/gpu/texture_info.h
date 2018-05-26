@@ -111,8 +111,6 @@ inline TextureFormat GetBaseFormat(TextureFormat texture_format) {
       return TextureFormat::k_10_11_11;
     case TextureFormat::k_11_11_10_AS_16_16_16_16:
       return TextureFormat::k_11_11_10;
-    case TextureFormat::k_DXT3A_AS_1_1_1_1:
-      return TextureFormat::k_DXT3A;
     default:
       break;
   }

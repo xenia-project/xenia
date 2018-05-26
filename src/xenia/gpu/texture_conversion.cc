@@ -81,10 +81,10 @@ void ConvertTexelCTX1ToR8G8(Endian endian, void* output, const void* input,
 
 void ConvertTexelDXT3AToDXT3(Endian endian, void* output, const void* input,
                              size_t length) {
-  const uint32_t bytes_per_block = 8;
+  const uint32_t bytes_per_block = 16;
   auto output_bytes = static_cast<uint8_t*>(output);
-  std::memset(&output_bytes[0], 0, 8);
-  CopySwapBlock(endian, &output_bytes[8], input, bytes_per_block);
+  CopySwapBlock(endian, &output_bytes[0], input, 8);
+  std::memset(&output_bytes[8], 0, 8);
 }
 
 // https://github.com/BinomialLLC/crunch/blob/ea9b8d8c00c8329791256adafa8cf11e4e7942a2/inc/crn_decomp.h#L4108
