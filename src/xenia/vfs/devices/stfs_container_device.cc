@@ -126,6 +126,32 @@ bool StfsContainerDevice::Initialize() {
   return true;
 }
 
+void StfsContainerDevice::Dump(StringBuffer* string_buffer) {
+  auto global_lock = global_critical_region_.Acquire();
+  root_entry_->Dump(string_buffer, 0);
+}
+
+Entry* StfsContainerDevice::ResolvePath(std::string path) {
+  // The filesystem will have stripped our prefix off already, so the path will
+  // be in the form:
+  // some\PATH.foo
+
+  XELOGFS("StfsContainerDevice::ResolvePath(%s)", path.c_str());
+
+  // Walk the path, one separator at a time.
+  auto entry = root_entry_.get();
+  auto path_parts = xe::split_path(path);
+  for (auto& part : path_parts) {
+    entry = entry->GetChild(part);
+    if (!entry) {
+      // Not found.
+      return nullptr;
+    }
+  }
+
+  return entry;
+}
+
 StfsContainerDevice::Error StfsContainerDevice::ReadHeaderAndVerify(
     const uint8_t* map_ptr) {
   // Check signature.
@@ -133,7 +159,7 @@ StfsContainerDevice::Error StfsContainerDevice::ReadHeaderAndVerify(
     package_type_ = StfsPackageType::kLive;
   } else if (memcmp(map_ptr, "PIRS", 4) == 0) {
     package_type_ = StfsPackageType::kPirs;
-  } else if (memcmp(map_ptr, "CON", 3) == 0) {
+  } else if (memcmp(map_ptr, "CON ", 4) == 0) {
     package_type_ = StfsPackageType::kCon;
   } else {
     // Unexpected format.
