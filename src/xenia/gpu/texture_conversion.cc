@@ -17,6 +17,7 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/memory.h"
+#include "xenia/base/profiling.h"
 
 #include "third_party/xxhash/xxhash.h"
 
@@ -108,6 +109,7 @@ static uint32_t TiledOffset2DInner(uint32_t x, uint32_t y, uint32_t log2_bpp,
 
 void Untile(uint8_t* output_buffer, const uint8_t* input_buffer,
             const UntileInfo* untile_info) {
+  SCOPE_profile_cpu_f("gpu");
   assert_not_null(untile_info);
   assert_not_null(untile_info->input_format_info);
   assert_not_null(untile_info->output_format_info);
