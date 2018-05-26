@@ -919,66 +919,11 @@ void TextureCache::FlushPendingCommands(VkCommandBuffer command_buffer,
   vkBeginCommandBuffer(command_buffer, &begin_info);
 }
 
-bool TextureCache::ConvertTexture2D(uint8_t* dest,
-                                    VkBufferImageCopy* copy_region,
-                                    uint32_t mip, const TextureInfo& src) {
-  uint32_t offset_x = 0;
-  uint32_t offset_y = 0;
-  uint32_t address = src.GetMipLocation(mip, &offset_x, &offset_y, true);
-  void* host_address = memory_->TranslatePhysical(address);
-
-  auto src_usage = src.GetMipMemoryUsage(mip, true);
-  auto dst_usage = GetMipMemoryUsage(src, mip);
-
-  uint32_t mip_width, mip_height;
-  src.GetMipSize(mip, &mip_width, &mip_height);
-
-  auto copy_block = GetFormatCopyBlock(src.format);
-
-  if (!src.is_tiled) {
-    uint32_t src_pitch =
-        src_usage.block_pitch * src.format_info()->bytes_per_block();
-    uint32_t dst_pitch =
-        dst_usage.block_pitch * GetFormatInfo(src.format)->bytes_per_block();
-    const uint8_t* src_mem = reinterpret_cast<const uint8_t*>(host_address);
-    src_mem += offset_y * src_pitch;
-    src_mem += offset_x * src.format_info()->bytes_per_block();
-    for (uint32_t y = 0; y < dst_usage.block_height; y++) {
-      copy_block(src.endianness, dest + y * dst_pitch, src_mem + y * src_pitch,
-                 dst_pitch);
-    }
-  } else {
-    // Untile image.
-    // We could do this in a shader to speed things up, as this is pretty slow.
-
-    const uint8_t* src_mem = reinterpret_cast<const uint8_t*>(host_address);
-
-    texture_conversion::UntileInfo untile_info;
-    std::memset(&untile_info, 0, sizeof(untile_info));
-    untile_info.offset_x = offset_x;
-    untile_info.offset_y = offset_y;
-    untile_info.width = dst_usage.block_pitch;
-    untile_info.height = dst_usage.block_height;
-    untile_info.input_pitch = src_usage.block_pitch;
-    untile_info.output_pitch = dst_usage.block_pitch;
-    untile_info.input_format_info = src.format_info();
-    untile_info.output_format_info = GetFormatInfo(src.format);
-    untile_info.copy_callback = [=](auto o, auto i, auto l) {
-      copy_block(src.endianness, o, i, l);
-    };
-    texture_conversion::Untile(dest, src_mem, &untile_info);
-  }
-
-  copy_region->bufferRowLength = dst_usage.pitch;
-  copy_region->bufferImageHeight = dst_usage.height;
-  copy_region->imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, mip, 0, 1};
-  copy_region->imageExtent = {mip_width, mip_height, 1};
-  return true;
-}
-
-bool TextureCache::ConvertTextureCube(uint8_t* dest,
-                                      VkBufferImageCopy* copy_region,
-                                      uint32_t mip, const TextureInfo& src) {
+bool TextureCache::ConvertTexture(uint8_t* dest, VkBufferImageCopy* copy_region,
+                                  uint32_t mip, const TextureInfo& src) {
+#if FINE_GRAINED_DRAW_SCOPES
+  SCOPE_profile_cpu_f("gpu");
+#endif  // FINE_GRAINED_DRAW_SCOPES
   uint32_t offset_x = 0;
   uint32_t offset_y = 0;
   uint32_t address = src.GetMipLocation(mip, &offset_x, &offset_y, true);
@@ -997,9 +942,9 @@ bool TextureCache::ConvertTextureCube(uint8_t* dest,
 
   auto copy_block = GetFormatCopyBlock(src.format);
 
+  const uint8_t* src_mem = reinterpret_cast<const uint8_t*>(host_address);
   if (!src.is_tiled) {
-    const uint8_t* src_mem = reinterpret_cast<const uint8_t*>(host_address);
-    for (int face = 0; face < 6; face++) {
+    for (uint32_t face = 0; face < dst_usage.depth; face++) {
       src_mem += offset_y * src_pitch;
       src_mem += offset_x * src.format_info()->bytes_per_block();
       for (uint32_t y = 0; y < dst_usage.block_height; y++) {
@@ -1010,8 +955,9 @@ bool TextureCache::ConvertTextureCube(uint8_t* dest,
       dest += dst_pitch * dst_usage.block_height;
     }
   } else {
-    const uint8_t* src_mem = reinterpret_cast<const uint8_t*>(host_address);
-    for (int face = 0; face < 6; face++) {
+    // Untile image.
+    // We could do this in a shader to speed things up, as this is pretty slow.
+    for (uint32_t face = 0; face < dst_usage.depth; face++) {
       texture_conversion::UntileInfo untile_info;
       std::memset(&untile_info, 0, sizeof(untile_info));
       untile_info.offset_x = offset_x;
@@ -1025,7 +971,7 @@ bool TextureCache::ConvertTextureCube(uint8_t* dest,
       untile_info.copy_callback = [=](auto o, auto i, auto l) {
         copy_block(src.endianness, o, i, l);
       };
-
+      texture_conversion::Untile(dest, src_mem, &untile_info);
       src_mem += src_pitch * src_usage.block_height;
       dest += dst_pitch * dst_usage.block_height;
     }
@@ -1033,26 +979,10 @@ bool TextureCache::ConvertTextureCube(uint8_t* dest,
 
   copy_region->bufferRowLength = dst_usage.pitch;
   copy_region->bufferImageHeight = dst_usage.height;
-  copy_region->imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, mip, 0, 6};
+  copy_region->imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, mip, 0,
+                                   dst_usage.depth};
   copy_region->imageExtent = {mip_width, mip_height, 1};
   return true;
-}
-
-bool TextureCache::ConvertTexture(uint8_t* dest, VkBufferImageCopy* copy_region,
-                                  uint32_t mip, const TextureInfo& src) {
-  switch (src.dimension) {
-    case Dimension::k1D:
-      assert_always();
-      break;
-    case Dimension::k2D:
-      return ConvertTexture2D(dest, copy_region, mip, src);
-    case Dimension::k3D:
-      assert_always();
-      break;
-    case Dimension::kCube:
-      return ConvertTextureCube(dest, copy_region, mip, src);
-  }
-  return false;
 }
 
 bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
