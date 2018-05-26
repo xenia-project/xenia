@@ -113,58 +113,6 @@ bool TextureInfo::PrepareResolve(uint32_t physical_address,
   return true;
 }
 
-static void TextureSwap(Endian endianness, void* dest, const void* src,
-                        size_t length) {
-  switch (endianness) {
-    case Endian::k8in16:
-      xe::copy_and_swap_16_unaligned(dest, src, length / 2);
-      break;
-    case Endian::k8in32:
-      xe::copy_and_swap_32_unaligned(dest, src, length / 4);
-      break;
-    case Endian::k16in32:  // Swap high and low 16 bits within a 32 bit word
-      xe::copy_and_swap_16_in_32_unaligned(dest, src, length);
-      break;
-    default:
-    case Endian::kUnspecified:
-      std::memcpy(dest, src, length);
-      break;
-  }
-}
-
-static void ConvertTexelCTX1(uint8_t* dest, size_t dest_pitch,
-                             const uint8_t* src, Endian src_endianness) {
-  // http://fileadmin.cs.lth.se/cs/Personal/Michael_Doggett/talks/unc-xenos-doggett.pdf
-  union {
-    uint8_t data[8];
-    struct {
-      uint8_t r0, g0, r1, g1;
-      uint32_t xx;
-    };
-  } block;
-  static_assert(sizeof(block) == 8, "CTX1 block mismatch");
-
-  const uint32_t bytes_per_block = 8;
-  TextureSwap(src_endianness, block.data, src, bytes_per_block);
-
-  uint8_t cr[4] = {
-      block.r0, block.r1,
-      static_cast<uint8_t>(2.f / 3.f * block.r0 + 1.f / 3.f * block.r1),
-      static_cast<uint8_t>(1.f / 3.f * block.r0 + 2.f / 3.f * block.r1)};
-  uint8_t cg[4] = {
-      block.g0, block.g1,
-      static_cast<uint8_t>(2.f / 3.f * block.g0 + 1.f / 3.f * block.g1),
-      static_cast<uint8_t>(1.f / 3.f * block.g0 + 2.f / 3.f * block.g1)};
-
-  for (uint32_t oy = 0; oy < 4; ++oy) {
-    for (uint32_t ox = 0; ox < 4; ++ox) {
-      uint8_t xx = (block.xx >> (((ox + (oy * 4)) * 2))) & 3;
-      dest[(oy * dest_pitch) + (ox * 2) + 0] = cr[xx];
-      dest[(oy * dest_pitch) + (ox * 2) + 1] = cg[xx];
-    }
-  }
-}
-
 uint32_t TextureInfo::GetMaxMipLevels() const {
   return 1 + xe::log2_floor(std::max({width + 1, height + 1, depth + 1}));
 }
