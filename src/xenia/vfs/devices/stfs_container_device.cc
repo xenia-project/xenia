@@ -117,6 +117,15 @@ bool StfsContainerDevice::Initialize() {
     return false;
   }
 
+  if (header_.content_type == StfsContentType::kGamesOnDemand) {
+    // Special format. This is just GDF packed into a STFS container.
+    // We can't deal with this at runtime. Ask the user to extract it.
+    XELOGE(
+        "GoD containers are unsupported natively! Use a tool to extract the "
+        "archive.");
+    return false;
+  }
+
   result = ReadAllEntries(map_ptr);
   if (result != Error::kSuccess) {
     XELOGE("STFS entry reading failed: %d", result);
