@@ -64,17 +64,17 @@ struct ProcessInfoBlock {
   xe::be<uint32_t> unk_0C;
   xe::be<uint32_t> unk_10;
   xe::be<uint32_t> thread_count;
-  xe::be<uint8_t> unk_18;
-  xe::be<uint8_t> unk_19;
-  xe::be<uint8_t> unk_1A;
-  xe::be<uint8_t> unk_1B;
+  uint8_t unk_18;
+  uint8_t unk_19;
+  uint8_t unk_1A;
+  uint8_t unk_1B;
   xe::be<uint32_t> kernel_stack_size;
   xe::be<uint32_t> unk_20;
   xe::be<uint32_t> tls_data_size;
   xe::be<uint32_t> tls_raw_data_size;
   xe::be<uint16_t> tls_slot_size;
-  xe::be<uint8_t> unk_2E;
-  xe::be<uint8_t> process_type;
+  uint8_t unk_2E;
+  uint8_t process_type;
   xe::be<uint32_t> bitmap[0x20 / 4];
   xe::be<uint32_t> unk_50;
   xe::be<uint32_t> unk_54;  // blink

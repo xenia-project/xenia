@@ -32,6 +32,7 @@ enum class StfsContentType : uint32_t {
   kAvatarItem = 0x00009000,
   kCacheFile = 0x00040000,
   kCommunityGame = 0x02000000,
+  kGamesOnDemand = 0x00007000,
   kGameDemo = 0x00080000,
   kGamerPicture = 0x00020000,
   kGameTitle = 0x000A0000,
@@ -75,8 +76,8 @@ struct StfsVolumeDescriptor {
   bool Read(const uint8_t* p);
 
   uint8_t descriptor_size;
-  uint8_t reserved;
-  uint8_t block_separation;
+  uint8_t version;
+  uint8_t flags;
   uint16_t file_table_block_count;
   uint32_t file_table_block_number;
   uint8_t top_hash_table_hash[0x14];
@@ -128,6 +129,8 @@ class StfsContainerDevice : public Device {
   ~StfsContainerDevice() override;
 
   bool Initialize() override;
+  void Dump(StringBuffer* string_buffer) override;
+  Entry* ResolvePath(std::string path) override;
 
   uint32_t total_allocation_units() const override {
     return uint32_t(mmap_->size() / sectors_per_allocation_unit() /
@@ -162,6 +165,7 @@ class StfsContainerDevice : public Device {
   std::wstring local_path_;
   std::unique_ptr<MappedMemory> mmap_;
 
+  std::unique_ptr<Entry> root_entry_;
   StfsPackageType package_type_;
   StfsHeader header_;
   uint32_t table_size_shift_;

@@ -126,6 +126,32 @@ bool StfsContainerDevice::Initialize() {
   return true;
 }
 
+void StfsContainerDevice::Dump(StringBuffer* string_buffer) {
+  auto global_lock = global_critical_region_.Acquire();
+  root_entry_->Dump(string_buffer, 0);
+}
+
+Entry* StfsContainerDevice::ResolvePath(std::string path) {
+  // The filesystem will have stripped our prefix off already, so the path will
+  // be in the form:
+  // some\PATH.foo
+
+  XELOGFS("StfsContainerDevice::ResolvePath(%s)", path.c_str());
+
+  // Walk the path, one separator at a time.
+  auto entry = root_entry_.get();
+  auto path_parts = xe::split_path(path);
+  for (auto& part : path_parts) {
+    entry = entry->GetChild(part);
+    if (!entry) {
+      // Not found.
+      return nullptr;
+    }
+  }
+
+  return entry;
+}
+
 StfsContainerDevice::Error StfsContainerDevice::ReadHeaderAndVerify(
     const uint8_t* map_ptr) {
   // Check signature.
@@ -133,7 +159,7 @@ StfsContainerDevice::Error StfsContainerDevice::ReadHeaderAndVerify(
     package_type_ = StfsPackageType::kLive;
   } else if (memcmp(map_ptr, "PIRS", 4) == 0) {
     package_type_ = StfsPackageType::kPirs;
-  } else if (memcmp(map_ptr, "CON", 3) == 0) {
+  } else if (memcmp(map_ptr, "CON ", 4) == 0) {
     package_type_ = StfsPackageType::kCon;
   } else {
     // Unexpected format.
@@ -271,7 +297,7 @@ uint32_t StfsContainerDevice::ComputeBlockNumber(uint32_t block_index) {
   if (((header_.header_size + 0x0FFF) & 0xB000) == 0xB000) {
     block_shift = 1;
   } else {
-    if ((header_.volume_descriptor.block_separation & 0x1) == 0x1) {
+    if ((header_.volume_descriptor.flags & 0x1) == 0x1) {
       block_shift = 0;
     } else {
       block_shift = 1;
@@ -332,8 +358,8 @@ bool StfsVolumeDescriptor::Read(const uint8_t* p) {
            descriptor_size);
     return false;
   }
-  reserved = xe::load_and_swap<uint8_t>(p + 0x01);
-  block_separation = xe::load_and_swap<uint8_t>(p + 0x02);
+  version = xe::load_and_swap<uint8_t>(p + 0x01);
+  flags = xe::load_and_swap<uint8_t>(p + 0x02);
   file_table_block_count = xe::load_and_swap<uint16_t>(p + 0x03);
   file_table_block_number = load_uint24_be(p + 0x05);
   std::memcpy(top_hash_table_hash, p + 0x08, 0x14);
@@ -367,7 +393,7 @@ bool StfsHeader::Read(const uint8_t* p) {
   std::memcpy(profile_id, p + 0x371, 0x8);
   data_file_count = xe::load_and_swap<uint32_t>(p + 0x39D);
   data_file_combined_size = xe::load_and_swap<uint64_t>(p + 0x3A1);
-  descriptor_type = (StfsDescriptorType)xe::load_and_swap<uint8_t>(p + 0x3A9);
+  descriptor_type = (StfsDescriptorType)xe::load_and_swap<uint32_t>(p + 0x3A9);
   if (descriptor_type != StfsDescriptorType::kStfs) {
     XELOGE("STFS descriptor format not supported: %d", descriptor_type);
     return false;

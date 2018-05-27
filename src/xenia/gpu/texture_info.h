@@ -111,8 +111,6 @@ inline TextureFormat GetBaseFormat(TextureFormat texture_format) {
       return TextureFormat::k_10_11_11;
     case TextureFormat::k_11_11_10_AS_16_16_16_16:
       return TextureFormat::k_11_11_10;
-    case TextureFormat::k_DXT3A_AS_1_1_1_1:
-      return TextureFormat::k_DXT3A;
     default:
       break;
   }
@@ -279,36 +277,56 @@ struct FormatInfo {
   uint32_t block_height;
   uint32_t bits_per_pixel;
 
+  uint32_t bytes_per_block() const {
+    return block_width * block_height * bits_per_pixel / 8;
+  }
+
   static const FormatInfo* Get(uint32_t gpu_format);
+
+  static const FormatInfo* Get(TextureFormat format) {
+    return Get(static_cast<uint32_t>(format));
+  }
+};
+
+struct TextureInfo;
+
+struct TextureMemoryUsage {
+  uint32_t pitch;         // texel pitch
+  uint32_t height;        // texel height
+  uint32_t block_pitch;   // # of horizontal pitch blocks
+  uint32_t block_height;  // # of vertical blocks
+  uint32_t depth;
+
+  uint32_t blocks() const { return block_pitch * block_height * depth; }
+
+  static TextureMemoryUsage Calculate(const FormatInfo* format_info,
+                                      uint32_t pitch, uint32_t height,
+                                      uint32_t depth, bool is_tiled,
+                                      bool is_guest);
+  static TextureMemoryUsage Calculate(const TextureInfo* texture_info,
+                                      bool is_guest);
 };
 
 struct TextureInfo {
-  uint32_t guest_address;
-  TextureFormat texture_format;
+  TextureFormat format;
+  Endian endianness;
+
   Dimension dimension;
-  uint32_t pitch;   // pitch in blocks
   uint32_t width;   // width in pixels
   uint32_t height;  // height in pixels
   uint32_t depth;   // depth in layers
-  Endian endianness;
+  uint32_t pitch;   // pitch in blocks
+  uint32_t mip_levels;
   bool is_tiled;
   bool has_packed_mips;
-  uint32_t mip_address;
-  uint32_t mip_levels;
-  uint32_t input_length;
 
-  struct Size {
-    uint32_t logical_width;
-    uint32_t logical_height;
-    uint32_t block_width;        // # of horizontal blocks
-    uint32_t block_height;       // # of vertical blocks
-    uint32_t input_width;        // (full) texel pitch
-    uint32_t input_height;       // (full) texel height
-    uint32_t input_face_length;  // byte length of face
-  } size;
+  TextureMemoryUsage memory_usage;
+
+  uint32_t guest_address;
+  uint32_t mip_address;
 
   const FormatInfo* format_info() const {
-    return FormatInfo::Get(static_cast<uint32_t>(texture_format));
+    return FormatInfo::Get(static_cast<uint32_t>(format));
   }
 
   bool is_compressed() const {
@@ -323,47 +341,32 @@ struct TextureInfo {
                              uint32_t pitch, uint32_t width, uint32_t height,
                              TextureInfo* out_info);
 
-  static void ConvertTiled(uint8_t* dest, const uint8_t* src, Endian endian,
-                           const FormatInfo* format_info, uint32_t offset_x,
-                           uint32_t offset_y, uint32_t block_pitch,
-                           uint32_t width, uint32_t height,
-                           uint32_t output_width);
+  uint32_t GetMaxMipLevels() const;
 
-  static uint32_t GetMaxMipLevels(uint32_t width, uint32_t height,
-                                  uint32_t depth);
+  const TextureMemoryUsage GetMipMemoryUsage(uint32_t mip, bool is_guest) const;
+
+  void GetMipSize(uint32_t mip, uint32_t* width, uint32_t* height) const;
 
   // Get the memory location of a mip. offset_x and offset_y are in blocks.
-  static uint32_t GetMipLocation(const TextureInfo& src, uint32_t mip,
-                                 uint32_t* offset_x, uint32_t* offset_y);
-  static uint32_t GetMipByteSize(const TextureInfo& src, uint32_t mip);
-  static uint32_t GetMipSizes(const TextureInfo& src, uint32_t mip);
+  uint32_t GetMipLocation(uint32_t mip, uint32_t* offset_x, uint32_t* offset_y,
+                          bool is_guest) const;
 
-  // Get the byte size of a MIP when stored linearly.
-  static uint32_t GetMipLinearSize(const TextureInfo& src, uint32_t mip);
+  uint32_t GetMipByteSize(uint32_t mip, bool is_guest) const;
+
+  uint32_t GetByteSize(bool is_guest) const;
 
   static bool GetPackedTileOffset(uint32_t width, uint32_t height,
                                   const FormatInfo* format_info,
-                                  int packed_tile, uint32_t* out_offset_x,
-                                  uint32_t* out_offset_y);
-  static bool GetPackedTileOffset(const TextureInfo& texture_info,
-                                  int packed_tile, uint32_t* out_offset_x,
-                                  uint32_t* out_offset_y);
-  static uint32_t TiledOffset2DOuter(uint32_t y, uint32_t width,
-                                     uint32_t log2_bpp);
-  static uint32_t TiledOffset2DInner(uint32_t x, uint32_t y, uint32_t log2_bpp,
-                                     uint32_t base_offset);
+                                  int packed_tile, uint32_t* offset_x,
+                                  uint32_t* offset_y);
+
+  bool GetPackedTileOffset(int packed_tile, uint32_t* offset_x,
+                           uint32_t* offset_y) const;
 
   uint64_t hash() const;
   bool operator==(const TextureInfo& other) const {
     return std::memcmp(this, &other, sizeof(TextureInfo)) == 0;
   }
-
- private:
-  void CalculateTextureSizes1D(uint32_t width);
-  void CalculateTextureSizes2D(uint32_t width, uint32_t height);
-  void CalculateTextureSizes3D(uint32_t width, uint32_t height, uint32_t depth);
-  void CalculateTextureSizesCube(uint32_t width, uint32_t height,
-                                 uint32_t depth);
 };
 
 }  // namespace gpu
