@@ -79,8 +79,8 @@ static_assert_size(X_D3DPRIVATE_SCALER_PARAMETERS, 0x38);
 struct X_DISPLAY_INFO {
   xe::be<uint16_t> front_buffer_width;               // 0x0
   xe::be<uint16_t> front_buffer_height;              // 0x2
-  xe::be<uint8_t> front_buffer_color_format;         // 0x4
-  xe::be<uint8_t> front_buffer_pixel_format;         // 0x5
+  uint8_t front_buffer_color_format;                 // 0x4
+  uint8_t front_buffer_pixel_format;                 // 0x5
   X_D3DPRIVATE_SCALER_PARAMETERS scaler_parameters;  // 0x8
   xe::be<uint16_t> display_window_overscan_left;     // 0x40
   xe::be<uint16_t> display_window_overscan_top;      // 0x42
@@ -90,7 +90,7 @@ struct X_DISPLAY_INFO {
   xe::be<uint16_t> display_height;                   // 0x4A
   xe::be<float> display_refresh_rate;                // 0x4C
   xe::be<uint32_t> display_interlaced;               // 0x50
-  xe::be<uint8_t> display_color_format;              // 0x54
+  uint8_t display_color_format;                      // 0x54
   xe::be<uint16_t> actual_display_width;             // 0x56
 };
 static_assert_size(X_DISPLAY_INFO, 0x58);

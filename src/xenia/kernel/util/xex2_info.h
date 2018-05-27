@@ -482,8 +482,8 @@ struct xex2_opt_static_library {
   xe::be<uint16_t> version_major;  // 0x8
   xe::be<uint16_t> version_minor;  // 0xA
   xe::be<uint16_t> version_build;  // 0xC
-  xe::be<uint8_t> approval_type;   // 0xE
-  xe::be<uint8_t> version_qfe;     // 0xF
+  uint8_t approval_type;           // 0xE
+  uint8_t version_qfe;             // 0xF
 };
 static_assert_size(xex2_opt_static_library, 0x10);
 
