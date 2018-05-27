@@ -320,6 +320,7 @@ using pointer_t = const shim::TypedPointerParam<T>&;
 using int_result_t = shim::Result<int32_t>;
 using dword_result_t = shim::Result<uint32_t>;
 using pointer_result_t = shim::Result<uint32_t>;
+using X_HRESULT_result_t = shim::Result<X_HRESULT>;
 
 // Exported from kernel_state.cc.
 KernelState* kernel_state();
