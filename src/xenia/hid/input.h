@@ -39,8 +39,8 @@ enum X_INPUT_GAMEPAD_BUTTON {
 
 struct X_INPUT_GAMEPAD {
   be<uint16_t> buttons;
-  be<uint8_t> left_trigger;
-  be<uint8_t> right_trigger;
+  uint8_t left_trigger;
+  uint8_t right_trigger;
   be<int16_t> thumb_lx;
   be<int16_t> thumb_ly;
   be<int16_t> thumb_rx;
@@ -61,8 +61,8 @@ struct X_INPUT_VIBRATION {
 static_assert_size(X_INPUT_VIBRATION, 4);
 
 struct X_INPUT_CAPABILITIES {
-  be<uint8_t> type;
-  be<uint8_t> sub_type;
+  uint8_t type;
+  uint8_t sub_type;
   be<uint16_t> flags;
   X_INPUT_GAMEPAD gamepad;
   X_INPUT_VIBRATION vibration;
@@ -75,8 +75,8 @@ struct X_INPUT_KEYSTROKE {
   be<uint16_t> virtual_key;
   be<uint16_t> unicode;
   be<uint16_t> flags;
-  be<uint8_t> user_index;
-  be<uint8_t> hid_code;
+  uint8_t user_index;
+  uint8_t hid_code;
 };
 static_assert_size(X_INPUT_KEYSTROKE, 8);
 

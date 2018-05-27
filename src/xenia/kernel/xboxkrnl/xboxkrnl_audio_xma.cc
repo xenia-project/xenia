@@ -92,9 +92,9 @@ void StoreXmaContextIndexedRegister(KernelState* kernel_state,
 struct XMA_LOOP_DATA {
   xe::be<uint32_t> loop_start;
   xe::be<uint32_t> loop_end;
-  xe::be<uint8_t> loop_count;
-  xe::be<uint8_t> loop_subframe_end;
-  xe::be<uint8_t> loop_subframe_skip;
+  uint8_t loop_count;
+  uint8_t loop_subframe_end;
+  uint8_t loop_subframe_skip;
 };
 static_assert_size(XMA_LOOP_DATA, 12);
 
