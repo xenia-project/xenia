@@ -134,5 +134,5 @@ instructions, though, which are only documented in a few places (like the gcc so
 ### x64
 
 * [Intel Manuals](http://www.intel.com/content/www/us/en/processors/architectures-software-developer-manuals.html)
-** [Combined Intel Manuals](http://www.intel.com/content/dam/www/public/us/en/documents/manuals/64-ia-32-architectures-software-developer-manual-325462.pdf)
+   * [Combined Intel Manuals](http://www.intel.com/content/dam/www/public/us/en/documents/manuals/64-ia-32-architectures-software-developer-manual-325462.pdf)
 * [Apple AltiVec/SSE Migration Guide](https://developer.apple.com/legacy/library/documentation/Performance/Conceptual/Accelerate_sse_migration/Accelerate_sse_migration.pdf)
