@@ -117,15 +117,6 @@ bool StfsContainerDevice::Initialize() {
     return false;
   }
 
-  if (header_.content_type == StfsContentType::kGamesOnDemand) {
-    // Special format. This is just GDF packed into a STFS container.
-    // We can't deal with this at runtime. Ask the user to extract it.
-    XELOGE(
-        "GoD containers are unsupported natively! Use a tool to extract the "
-        "archive.");
-    return false;
-  }
-
   result = ReadAllEntries(map_ptr);
   if (result != Error::kSuccess) {
     XELOGE("STFS entry reading failed: %d", result);
@@ -402,7 +393,7 @@ bool StfsHeader::Read(const uint8_t* p) {
   std::memcpy(profile_id, p + 0x371, 0x8);
   data_file_count = xe::load_and_swap<uint32_t>(p + 0x39D);
   data_file_combined_size = xe::load_and_swap<uint64_t>(p + 0x3A1);
-  descriptor_type = (StfsDescriptorType)xe::load_and_swap<uint8_t>(p + 0x3A9);
+  descriptor_type = (StfsDescriptorType)xe::load_and_swap<uint32_t>(p + 0x3A9);
   if (descriptor_type != StfsDescriptorType::kStfs) {
     XELOGE("STFS descriptor format not supported: %d", descriptor_type);
     return false;
