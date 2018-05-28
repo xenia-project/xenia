@@ -20,6 +20,8 @@
 #include "xenia/gpu/vulkan/vulkan_gpu_flags.h"
 #include "xenia/ui/vulkan/vulkan_mem_alloc.h"
 
+DEFINE_bool(no_mipmaps, false, "Disable mipmaps.");
+
 namespace xe {
 namespace gpu {
 namespace vulkan {
@@ -622,8 +624,9 @@ TextureCache::TextureView* TextureCache::DemandView(Texture* texture,
 
 #undef SWIZZLE_CHANNEL
 
-  view_info.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0,
-                                texture->texture_info.mip_levels, 0, 1};
+  view_info.subresourceRange = {
+      VK_IMAGE_ASPECT_COLOR_BIT, 0,
+      !FLAGS_no_mipmaps ? texture->texture_info.mip_levels : 1, 0, 1};
   if (texture->format == VK_FORMAT_D16_UNORM_S8_UINT ||
       texture->format == VK_FORMAT_D24_UNORM_S8_UINT ||
       texture->format == VK_FORMAT_D32_SFLOAT_S8_UINT) {
@@ -1049,7 +1052,8 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
   // TODO: If the GPU supports it, we can submit a compute batch to convert the
   // texture and copy it to its destination. Otherwise, fallback to conversion
   // on the CPU.
-  std::vector<VkBufferImageCopy> copy_regions(src.mip_levels);
+  std::vector<VkBufferImageCopy> copy_regions(!FLAGS_no_mipmaps ? src.mip_levels
+                                                                : 1);
 
   // Base MIP
   if (!ConvertTexture(reinterpret_cast<uint8_t*>(alloc->host_ptr),
@@ -1060,19 +1064,22 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
   copy_regions[0].bufferOffset = alloc->offset;
   copy_regions[0].imageOffset = {0, 0, 0};
 
-  // Now upload all the MIPs
-  VkDeviceSize buffer_offset = ComputeMipStorage(src, 0);
-  for (uint32_t mip = 1; mip < src.mip_levels; mip++) {
-    uint8_t* dest = reinterpret_cast<uint8_t*>(alloc->host_ptr) + buffer_offset;
-    if (!ConvertTexture(dest, &copy_regions[mip], mip, src)) {
-      XELOGW("Failed to convert texture mip %d", mip);
-      return false;
-    }
-    copy_regions[mip].bufferOffset = alloc->offset + buffer_offset;
-    copy_regions[mip].imageOffset = {0, 0, 0};
+  if (!FLAGS_no_mipmaps) {
+    // Now upload all the MIPs
+    VkDeviceSize buffer_offset = ComputeMipStorage(src, 0);
+    for (uint32_t mip = 1; mip < src.mip_levels; mip++) {
+      uint8_t* dest =
+          reinterpret_cast<uint8_t*>(alloc->host_ptr) + buffer_offset;
+      if (!ConvertTexture(dest, &copy_regions[mip], mip, src)) {
+        XELOGW("Failed to convert texture mip %d", mip);
+        return false;
+      }
+      copy_regions[mip].bufferOffset = alloc->offset + buffer_offset;
+      copy_regions[mip].imageOffset = {0, 0, 0};
 
-    // With each mip, the length is divided by 4.
-    buffer_offset += ComputeMipStorage(src, mip);
+      // With each mip, the length is divided by 4.
+      buffer_offset += ComputeMipStorage(src, mip);
+    }
   }
 
   // Transition the texture into a transfer destination layout.
@@ -1086,7 +1093,8 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
   barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
   barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
   barrier.image = dest->image;
-  barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, src.mip_levels,
+  barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0,
+                              !FLAGS_no_mipmaps ? src.mip_levels : 1,
                               copy_regions[0].imageSubresource.baseArrayLayer,
                               copy_regions[0].imageSubresource.layerCount};
   if (dest->format == VK_FORMAT_D16_UNORM_S8_UINT ||
@@ -1110,7 +1118,8 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
   }
   vkCmdCopyBufferToImage(command_buffer, staging_buffer_.gpu_buffer(),
                          dest->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                         src.mip_levels, copy_regions.data());
+                         !FLAGS_no_mipmaps ? src.mip_levels : 1,
+                         copy_regions.data());
 
   // Now transition the texture into a shader readonly source.
   barrier.srcAccessMask = barrier.dstAccessMask;
