@@ -110,6 +110,8 @@ typedef uint32_t X_HRESULT;
 #define X_E_FALSE                               static_cast<X_HRESULT>(0x80000000L)
 #define X_E_SUCCESS                             X_HRESULT_FROM_WIN32(X_ERROR_SUCCESS)
 #define X_E_INVALIDARG                          X_HRESULT_FROM_WIN32(X_ERROR_INVALID_PARAMETER)
+#define X_E_DEVICE_NOT_CONNECTED                X_HRESULT_FROM_WIN32(X_ERROR_DEVICE_NOT_CONNECTED)
+#define X_E_NO_SUCH_USER                        X_HRESULT_FROM_WIN32(X_ERROR_NO_SUCH_USER)
 
 // MEM_*, used by NtAllocateVirtualMemory
 #define X_MEM_COMMIT              0x00001000
