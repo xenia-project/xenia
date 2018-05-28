@@ -87,24 +87,20 @@ class MessageBoxDialog : public xe::ui::ImGuiDialog {
 };
 
 // http://www.se7ensins.com/forums/threads/working-xshowmessageboxui.844116/?jdfwkey=sb0vm
-dword_result_t XamShowMessageBoxUI(dword_t user_index, lpstring_t title_ptr,
-                                   lpstring_t text_ptr, dword_t button_count,
-                                   lpvoid_t button_ptrs, dword_t active_button,
+dword_result_t XamShowMessageBoxUI(dword_t user_index, lpwstring_t title,
+                                   lpwstring_t text, dword_t button_count,
+                                   lpdword_t button_ptrs, dword_t active_button,
                                    dword_t flags, lpdword_t result_ptr,
                                    lpvoid_t overlapped_ptr) {
-  std::wstring title;
-  if (title_ptr) {
-    title = xe::load_and_swap<std::wstring>(title_ptr);
-  } else {
-    title = L"";  // TODO(gibbed): default title based on flags?
+  if (!title) {
+    title.value() = L"";  // TODO(gibbed): default title based on flags?
   }
-  auto text = xe::load_and_swap<std::wstring>(text_ptr);
   std::vector<std::wstring> buttons;
   std::wstring all_buttons;
   for (uint32_t j = 0; j < button_count; ++j) {
-    uint64_t button_ptr = button_ptrs.as_array<uint32_t>()[j];
-    button_ptr += (uint64_t)kernel_state()->memory()->virtual_membase();
-    auto button = xe::load_and_swap<std::wstring>((void*)button_ptr);
+    uint32_t button_ptr = button_ptrs[j];
+    auto button = xe::load_and_swap<std::wstring>(
+        kernel_state()->memory()->TranslateVirtual(button_ptr));
     all_buttons.append(button);
     if (j + 1 < button_count) {
       all_buttons.append(L" | ");
@@ -115,9 +111,9 @@ dword_result_t XamShowMessageBoxUI(dword_t user_index, lpstring_t title_ptr,
   XELOGD(
       "XamShowMessageBoxUI(%d, %.8X(%S), %.8X(%S), %d, %.8X(%S), %d, %X, %.8X, "
       "%.8X)",
-      user_index, title_ptr, title.c_str(), text_ptr, text.c_str(),
-      button_count, button_ptrs, all_buttons.c_str(), active_button, flags,
-      result_ptr, overlapped_ptr);
+      user_index, title, title.value(), text, text.value(), button_count,
+      button_ptrs, all_buttons.c_str(), active_button, flags, result_ptr,
+      overlapped_ptr);
 
   uint32_t chosen_button;
   if (FLAGS_headless) {
@@ -142,7 +138,7 @@ dword_result_t XamShowMessageBoxUI(dword_t user_index, lpstring_t title_ptr,
           // config.pszMainIcon = TD_INFORMATION_ICON;
           break;
       }
-      (new MessageBoxDialog(display_window, title, text, buttons, active_button,
+      (new MessageBoxDialog(display_window, title.value(), text.value(), buttons, active_button,
                             &chosen_button))
           ->Then(&fence);
     });
