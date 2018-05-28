@@ -118,16 +118,18 @@ void SpirvShaderTranslator::StartTranslation() {
   // Uniform constants.
   Id float_consts_type =
       b.makeArrayType(vec4_float_type_, b.makeUintConstant(512), 1);
-  Id loop_consts_type = b.makeArrayType(uint_type_, b.makeUintConstant(32), 1);
-  Id bool_consts_type = b.makeArrayType(uint_type_, b.makeUintConstant(8), 1);
+  Id loop_consts_type =
+      b.makeArrayType(vec4_uint_type_, b.makeUintConstant(8), 1);
+  Id bool_consts_type =
+      b.makeArrayType(vec4_uint_type_, b.makeUintConstant(2), 1);
 
   // Strides
   b.addDecoration(float_consts_type, spv::Decoration::DecorationArrayStride,
                   4 * sizeof(float));
   b.addDecoration(loop_consts_type, spv::Decoration::DecorationArrayStride,
-                  sizeof(uint32_t));
+                  4 * sizeof(uint32_t));
   b.addDecoration(bool_consts_type, spv::Decoration::DecorationArrayStride,
-                  sizeof(uint32_t));
+                  4 * sizeof(uint32_t));
 
   Id consts_struct_type = b.makeStructType(
       {float_consts_type, loop_consts_type, bool_consts_type}, "consts_type");
@@ -824,9 +826,11 @@ void SpirvShaderTranslator::ProcessExecInstructionBegin(
       // Based off of bool_consts
       std::vector<Id> offsets;
       offsets.push_back(b.makeUintConstant(2));  // bool_consts
-      offsets.push_back(b.makeUintConstant(instr.bool_constant_index / 32));
+      uint32_t bitfield_index = instr.bool_constant_index / 32;
+      offsets.push_back(b.makeUintConstant(bitfield_index / 4));
       auto v = b.createAccessChain(spv::StorageClass::StorageClassUniform,
                                    consts_, offsets);
+      v = b.createCompositeExtract(v, vec4_uint_type_, bitfield_index % 4);
       v = b.createLoad(v);
 
       // Bitfield extract the bool constant.
@@ -836,6 +840,7 @@ void SpirvShaderTranslator::ProcessExecInstructionBegin(
                         b.makeUintConstant(instr.bool_constant_index % 32),
                         b.makeUintConstant(1));
 
+      // Conditional branch
       auto cond = b.createBinOp(spv::Op::OpIEqual, bool_type_, v,
                                 b.makeUintConstant(instr.condition ? 1 : 0));
       */
@@ -923,9 +928,11 @@ void SpirvShaderTranslator::ProcessLoopStartInstruction(
 
   std::vector<Id> offsets;
   offsets.push_back(b.makeUintConstant(1));  // loop_consts
-  offsets.push_back(b.makeUintConstant(instr.loop_constant_index));
+  offsets.push_back(b.makeUintConstant(instr.loop_constant_index / 4));
   auto loop_const = b.createAccessChain(spv::StorageClass::StorageClassUniform,
                                         consts_, offsets);
+  loop_const = b.createCompositeExtract(loop_const, vec4_uint_type_,
+                                        instr.loop_constant_index % 4);
   loop_const = b.createLoad(loop_const);
 
   // uint loop_count_value = loop_const & 0xFF;
@@ -1029,9 +1036,11 @@ void SpirvShaderTranslator::ProcessLoopEndInstruction(
 
   std::vector<Id> offsets;
   offsets.push_back(b.makeUintConstant(1));  // loop_consts
-  offsets.push_back(b.makeUintConstant(instr.loop_constant_index));
+  offsets.push_back(b.makeUintConstant(instr.loop_constant_index / 4));
   auto loop_const = b.createAccessChain(spv::StorageClass::StorageClassUniform,
                                         consts_, offsets);
+  loop_const = b.createCompositeExtract(loop_const, vec4_uint_type_,
+                                        instr.loop_constant_index % 4);
   loop_const = b.createLoad(loop_const);
 
   // uint loop_aL_value = (loop_const >> 16) & 0xFF;
@@ -1101,14 +1110,16 @@ void SpirvShaderTranslator::ProcessJumpInstruction(
       // Based off of bool_consts
       std::vector<Id> offsets;
       offsets.push_back(b.makeUintConstant(2));  // bool_consts
-      offsets.push_back(b.makeUintConstant(instr.bool_constant_index / 32));
+      uint32_t bitfield_index = instr.bool_constant_index / 32;
+      offsets.push_back(b.makeUintConstant(bitfield_index / 4));
       auto v = b.createAccessChain(spv::StorageClass::StorageClassUniform,
                                    consts_, offsets);
+      v = b.createCompositeExtract(v, vec4_uint_type_, bitfield_index % 4);
       v = b.createLoad(v);
 
+      // Bitfield extract the bool constant.
       // FIXME: NVidia's compiler seems to be broken on this instruction?
       /*
-      // Bitfield extract the bool constant.
       v = b.createTriOp(spv::Op::OpBitFieldUExtract, uint_type_, v,
                         b.makeUintConstant(instr.bool_constant_index % 32),
                         b.makeUintConstant(1));
