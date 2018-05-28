@@ -200,8 +200,7 @@ DECLARE_XAM_EXPORT(XamUserGetDeviceContext,
                    ExportTag::kInput | ExportTag::kStub);
 
 void RegisterInputExports(xe::cpu::ExportResolver* export_resolver,
-                          KernelState* kernel_state) {
-}
+                          KernelState* kernel_state) {}
 
 }  // namespace xam
 }  // namespace kernel

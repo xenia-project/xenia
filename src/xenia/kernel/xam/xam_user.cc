@@ -540,5 +540,4 @@ DECLARE_XAM_EXPORT(XamSessionRefObjByHandle,
 }  // namespace xe
 
 void xe::kernel::xam::RegisterUserExports(
-    xe::cpu::ExportResolver* export_resolver, KernelState* kernel_state) {
-}
+    xe::cpu::ExportResolver* export_resolver, KernelState* kernel_state) {}
