@@ -92,9 +92,6 @@ dword_result_t XamShowMessageBoxUI(dword_t user_index, lpwstring_t title,
                                    lpdword_t button_ptrs, dword_t active_button,
                                    dword_t flags, lpdword_t result_ptr,
                                    lpvoid_t overlapped_ptr) {
-  if (!title) {
-    title.value() = L"";  // TODO(gibbed): default title based on flags?
-  }
   std::vector<std::wstring> buttons;
   std::wstring all_buttons;
   for (uint32_t j = 0; j < button_count; ++j) {
@@ -111,9 +108,9 @@ dword_result_t XamShowMessageBoxUI(dword_t user_index, lpwstring_t title,
   XELOGD(
       "XamShowMessageBoxUI(%d, %.8X(%S), %.8X(%S), %d, %.8X(%S), %d, %X, %.8X, "
       "%.8X)",
-      user_index, title, title.value(), text, text.value(), button_count,
-      button_ptrs, all_buttons.c_str(), active_button, flags, result_ptr,
-      overlapped_ptr);
+      user_index, title, !title ? L"" : title.value().c_str(), text,
+      text.value().c_str(), button_count, button_ptrs, all_buttons.c_str(),
+      active_button, flags, result_ptr, overlapped_ptr);
 
   uint32_t chosen_button;
   if (FLAGS_headless) {
@@ -138,7 +135,8 @@ dword_result_t XamShowMessageBoxUI(dword_t user_index, lpwstring_t title,
           // config.pszMainIcon = TD_INFORMATION_ICON;
           break;
       }
-      (new MessageBoxDialog(display_window, title.value(), text.value(), buttons, active_button,
+      (new MessageBoxDialog(display_window, !title ? L"" : title.value(),
+                            text.value(), buttons, active_button,
                             &chosen_button))
           ->Then(&fence);
     });
