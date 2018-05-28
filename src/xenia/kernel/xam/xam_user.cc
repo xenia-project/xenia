@@ -21,16 +21,16 @@ namespace xe {
 namespace kernel {
 namespace xam {
 
-dword_result_t XamUserGetXUID(dword_t user_index, dword_t unk,
-                              lpqword_t xuid_ptr) {
+X_HRESULT_result_t XamUserGetXUID(dword_t user_index, dword_t unk,
+                                  lpqword_t xuid_ptr) {
   if (user_index) {
-    return X_ERROR_NO_SUCH_USER;
+    return X_E_NO_SUCH_USER;
   }
   const auto& user_profile = kernel_state()->user_profile();
   if (xuid_ptr) {
     *xuid_ptr = user_profile->xuid();
   }
-  return X_ERROR_SUCCESS;
+  return X_E_SUCCESS;
 }
 DECLARE_XAM_EXPORT(XamUserGetXUID,
                    ExportTag::kUserProfiles | ExportTag::kImplemented);
@@ -63,22 +63,22 @@ typedef struct {
 } X_USER_SIGNIN_INFO;
 static_assert_size(X_USER_SIGNIN_INFO, 40);
 
-dword_result_t XamUserGetSigninInfo(dword_t user_index, dword_t flags,
-                                    pointer_t<X_USER_SIGNIN_INFO> info) {
+X_HRESULT_result_t XamUserGetSigninInfo(dword_t user_index, dword_t flags,
+                                        pointer_t<X_USER_SIGNIN_INFO> info) {
   if (!info) {
-    return X_ERROR_INVALID_PARAMETER;
+    return X_E_INVALIDARG;
   }
 
   std::memset(info, 0, sizeof(X_USER_SIGNIN_INFO));
-  if (user_index == 0) {
-    const auto& user_profile = kernel_state()->user_profile();
-    info->xuid = user_profile->xuid();
-    info->signin_state = user_profile->signin_state();
-    std::strncpy(info->name, user_profile->name().data(), 15);
-    return X_ERROR_SUCCESS;
-  } else {
-    return X_ERROR_NO_SUCH_USER;
+  if (user_index) {
+    return X_E_NO_SUCH_USER;
   }
+
+  const auto& user_profile = kernel_state()->user_profile();
+  info->xuid = user_profile->xuid();
+  info->signin_state = user_profile->signin_state();
+  std::strncpy(info->name, user_profile->name().data(), 15);
+  return X_E_SUCCESS;
 }
 DECLARE_XAM_EXPORT(XamUserGetSigninInfo,
                    ExportTag::kUserProfiles | ExportTag::kImplemented);
