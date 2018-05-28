@@ -277,9 +277,25 @@ void TextureCache::Shutdown() {
 
 TextureCache::Texture* TextureCache::AllocateTexture(
     const TextureInfo& texture_info, VkFormatFeatureFlags required_flags) {
+  auto format_info = texture_info.format_info();
+  assert_not_null(format_info);
+
+  auto& config = texture_configs[int(format_info->format)];
+  VkFormat format = config.host_format;
+  if (format == VK_FORMAT_UNDEFINED) {
+    XELOGE(
+        "Texture Cache: Attempted to allocate texture format %s, which is "
+        "defined as VK_FORMAT_UNDEFINED!",
+        texture_info.format_info()->name);
+    return nullptr;
+  }
+
+  bool is_cube = false;
   // Create an image first.
   VkImageCreateInfo image_info = {};
   image_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+  image_info.flags = 0;
+
   switch (texture_info.dimension) {
     case Dimension::k1D:
     case Dimension::k2D:
@@ -291,21 +307,11 @@ TextureCache::Texture* TextureCache::AllocateTexture(
     case Dimension::kCube:
       image_info.imageType = VK_IMAGE_TYPE_2D;
       image_info.flags |= VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
+      is_cube = true;
       break;
     default:
       assert_unhandled_case(texture_info.dimension);
       return nullptr;
-  }
-
-  assert_not_null(texture_info.format_info());
-  auto& config = texture_configs[int(texture_info.format_info()->format)];
-  VkFormat format = config.host_format;
-  if (format == VK_FORMAT_UNDEFINED) {
-    XELOGE(
-        "Texture Cache: Attempted to allocate texture format %s, which is "
-        "defined as VK_FORMAT_UNDEFINED!",
-        texture_info.format_info()->name);
-    return nullptr;
   }
 
   image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
@@ -349,15 +355,22 @@ TextureCache::Texture* TextureCache::AllocateTexture(
   // TODO(DrChat): Actually check the image properties.
 
   image_info.format = format;
-  image_info.extent = {texture_info.width + 1, texture_info.height + 1, 1};
+  image_info.extent.width = texture_info.width + 1;
+  image_info.extent.height = texture_info.height + 1;
+  image_info.extent.depth = !is_cube ? texture_info.depth + 1 : 1;
   image_info.mipLevels = texture_info.mip_levels;
-  image_info.arrayLayers = texture_info.depth + 1;
+  image_info.arrayLayers = !is_cube ? 1 : 6;
   image_info.samples = VK_SAMPLE_COUNT_1_BIT;
   image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
   image_info.queueFamilyIndexCount = 0;
   image_info.pQueueFamilyIndices = nullptr;
   image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
   VkImage image;
+
+  assert_true(image_props.maxExtent.width >= image_info.extent.width);
+  assert_true(image_props.maxExtent.height >= image_info.extent.height);
+  assert_true(image_props.maxExtent.depth >= image_info.extent.depth);
+  assert_true(image_props.maxMipLevels >= image_info.mipLevels);
 
   VmaAllocation alloc;
   VmaAllocationCreateInfo vma_create_info = {
@@ -573,6 +586,7 @@ TextureCache::TextureView* TextureCache::DemandView(Texture* texture,
   view_info.image = texture->image;
   view_info.format = texture->format;
 
+  bool is_cube = false;
   switch (texture->texture_info.dimension) {
     case Dimension::k1D:
     case Dimension::k2D:
@@ -583,6 +597,7 @@ TextureCache::TextureView* TextureCache::DemandView(Texture* texture,
       break;
     case Dimension::kCube:
       view_info.viewType = VK_IMAGE_VIEW_TYPE_CUBE;
+      is_cube = true;
       break;
     default:
       assert_always();
@@ -619,21 +634,20 @@ TextureCache::TextureView* TextureCache::DemandView(Texture* texture,
   SWIZZLE_CHANNEL(g);
   SWIZZLE_CHANNEL(b);
   SWIZZLE_CHANNEL(a);
-
 #undef SWIZZLE_CHANNEL
 
-  view_info.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0,
-                                texture->texture_info.mip_levels, 0, 1};
   if (texture->format == VK_FORMAT_D16_UNORM_S8_UINT ||
       texture->format == VK_FORMAT_D24_UNORM_S8_UINT ||
       texture->format == VK_FORMAT_D32_SFLOAT_S8_UINT) {
     // This applies to any depth/stencil format, but we only use D24S8 / D32FS8.
     view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+  } else {
+    view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
   }
-
-  if (texture->texture_info.dimension == Dimension::kCube) {
-    view_info.subresourceRange.layerCount = 6;
-  }
+  view_info.subresourceRange.baseMipLevel = 0;
+  view_info.subresourceRange.levelCount = texture->texture_info.mip_levels;
+  view_info.subresourceRange.baseArrayLayer = 0;
+  view_info.subresourceRange.layerCount = !is_cube ? 1 : 6;
 
   VkImageView view;
   auto status = vkCreateImageView(*device_, &view_info, nullptr, &view);
@@ -929,6 +943,7 @@ bool TextureCache::ConvertTexture(uint8_t* dest, VkBufferImageCopy* copy_region,
   uint32_t address = src.GetMipLocation(mip, &offset_x, &offset_y, true);
   void* host_address = memory_->TranslatePhysical(address);
 
+  auto is_cube = src.dimension == Dimension::kCube;
   auto src_usage = src.GetMipMemoryUsage(mip, true);
   auto dst_usage = GetMipMemoryUsage(src, mip);
 
@@ -936,9 +951,6 @@ bool TextureCache::ConvertTexture(uint8_t* dest, VkBufferImageCopy* copy_region,
       src_usage.block_pitch * src.format_info()->bytes_per_block();
   uint32_t dst_pitch =
       dst_usage.block_pitch * GetFormatInfo(src.format)->bytes_per_block();
-
-  uint32_t mip_width, mip_height;
-  src.GetMipSize(mip, &mip_width, &mip_height);
 
   auto copy_block = GetFormatCopyBlock(src.format);
 
@@ -979,9 +991,13 @@ bool TextureCache::ConvertTexture(uint8_t* dest, VkBufferImageCopy* copy_region,
 
   copy_region->bufferRowLength = dst_usage.pitch;
   copy_region->bufferImageHeight = dst_usage.height;
-  copy_region->imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, mip, 0,
-                                   dst_usage.depth};
-  copy_region->imageExtent = {mip_width, mip_height, 1};
+  copy_region->imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+  copy_region->imageSubresource.mipLevel = mip;
+  copy_region->imageSubresource.baseArrayLayer = 0;
+  copy_region->imageSubresource.layerCount = !is_cube ? 1 : 6;
+  copy_region->imageExtent.width = std::max(1u, (src.width + 1) >> mip);
+  copy_region->imageExtent.height = std::max(1u, (src.height + 1) >> mip);
+  copy_region->imageExtent.depth = !is_cube ? dst_usage.depth : 1;
   return true;
 }
 
@@ -1051,27 +1067,25 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
   // on the CPU.
   std::vector<VkBufferImageCopy> copy_regions(src.mip_levels);
 
-  // Base MIP
-  if (!ConvertTexture(reinterpret_cast<uint8_t*>(alloc->host_ptr),
-                      &copy_regions[0], 0, src)) {
-    XELOGW("Failed to convert texture");
-    return false;
-  }
-  copy_regions[0].bufferOffset = alloc->offset;
-  copy_regions[0].imageOffset = {0, 0, 0};
+  auto dest_data = reinterpret_cast<uint8_t*>(alloc->host_ptr);
 
-  // Now upload all the MIPs
-  VkDeviceSize buffer_offset = ComputeMipStorage(src, 0);
-  for (uint32_t mip = 1; mip < src.mip_levels; mip++) {
-    uint8_t* dest = reinterpret_cast<uint8_t*>(alloc->host_ptr) + buffer_offset;
-    if (!ConvertTexture(dest, &copy_regions[mip], mip, src)) {
-      XELOGW("Failed to convert texture mip %d", mip);
+  // Upload all the mips
+  VkDeviceSize buffer_offset = 0;
+  for (uint32_t mip = 0; mip < src.mip_levels; mip++) {
+    if (!ConvertTexture(&dest_data[buffer_offset], &copy_regions[mip], mip,
+                        src)) {
+      XELOGW("Failed to convert texture mip %u!", mip);
       return false;
     }
     copy_regions[mip].bufferOffset = alloc->offset + buffer_offset;
     copy_regions[mip].imageOffset = {0, 0, 0};
 
-    // With each mip, the length is divided by 4.
+    /*
+    XELOGGPU("Mip %u %ux%ux%u @ 0x%X", mip, copy_regions[mip].imageExtent.width,
+             copy_regions[mip].imageExtent.height,
+             copy_regions[mip].imageExtent.depth, buffer_offset);
+    */
+
     buffer_offset += ComputeMipStorage(src, mip);
   }
 
@@ -1083,18 +1097,23 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
   barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
   barrier.oldLayout = dest->image_layout;
   barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-  barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-  barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  barrier.srcQueueFamilyIndex = VK_FALSE;
+  barrier.dstQueueFamilyIndex = VK_FALSE;
   barrier.image = dest->image;
-  barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, src.mip_levels,
-                              copy_regions[0].imageSubresource.baseArrayLayer,
-                              copy_regions[0].imageSubresource.layerCount};
   if (dest->format == VK_FORMAT_D16_UNORM_S8_UINT ||
       dest->format == VK_FORMAT_D24_UNORM_S8_UINT ||
       dest->format == VK_FORMAT_D32_SFLOAT_S8_UINT) {
     barrier.subresourceRange.aspectMask =
         VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+  } else {
+    barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
   }
+  barrier.subresourceRange.baseMipLevel = 0;
+  barrier.subresourceRange.levelCount = src.mip_levels;
+  barrier.subresourceRange.baseArrayLayer =
+      copy_regions[0].imageSubresource.baseArrayLayer;
+  barrier.subresourceRange.layerCount =
+      copy_regions[0].imageSubresource.layerCount;
 
   vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                        VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0,
@@ -1106,8 +1125,10 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
       dest->format == VK_FORMAT_D32_SFLOAT_S8_UINT) {
     // Do just a depth upload (for now).
     // This assumes depth buffers don't have mips (hopefully they don't)
+    assert_true(src.mip_levels == 1);
     copy_regions[0].imageSubresource.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
   }
+
   vkCmdCopyBufferToImage(command_buffer, staging_buffer_.gpu_buffer(),
                          dest->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                          src.mip_levels, copy_regions.data());
@@ -1187,8 +1208,10 @@ uint32_t TextureCache::ComputeMipStorage(const FormatInfo* format_info,
 }
 
 uint32_t TextureCache::ComputeMipStorage(const TextureInfo& src, uint32_t mip) {
-  return ComputeMipStorage(GetFormatInfo(src.format), src.width + 1,
-                           src.height + 1, src.depth + 1, mip);
+  uint32_t size = ComputeMipStorage(GetFormatInfo(src.format), src.width + 1,
+                                    src.height + 1, src.depth + 1, mip);
+  // ensure 4-byte alignment
+  return (size + 3) & (~3u);
 }
 
 uint32_t TextureCache::ComputeTextureStorage(const TextureInfo& src) {
@@ -1223,15 +1246,22 @@ void TextureCache::WritebackTexture(Texture* texture) {
   vkBeginCommandBuffer(command_buffer, &begin_info);
 
   // TODO: Transition the texture to a transfer source.
+  // TODO: copy depth/layers?
 
-  VkBufferImageCopy region = {
-      alloc->offset,
-      0,
-      0,
-      {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
-      {0, 0, 0},
-      {texture->texture_info.width + 1, texture->texture_info.height + 1, 1},
-  };
+  VkBufferImageCopy region;
+  region.bufferOffset = alloc->offset;
+  region.bufferRowLength = 0;
+  region.bufferImageHeight = 0;
+  region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+  region.imageSubresource.mipLevel = 0;
+  region.imageSubresource.baseArrayLayer = 0;
+  region.imageSubresource.layerCount = 1;
+  region.imageOffset.x = 0;
+  region.imageOffset.y = 0;
+  region.imageOffset.z = 0;
+  region.imageExtent.width = texture->texture_info.width + 1;
+  region.imageExtent.height = texture->texture_info.height + 1;
+  region.imageExtent.depth = 1;
 
   vkCmdCopyImageToBuffer(command_buffer, texture->image,
                          VK_IMAGE_LAYOUT_GENERAL,
