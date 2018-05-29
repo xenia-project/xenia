@@ -117,7 +117,8 @@ dword_result_t XamUserReadProfileSettings(
     dword_t title_id, dword_t user_index, dword_t unk_0, dword_t unk_1,
     dword_t setting_count, lpdword_t setting_ids, lpdword_t buffer_size_ptr,
     lpvoid_t buffer_ptr, dword_t overlapped_ptr) {
-  uint32_t buffer_size = !buffer_size_ptr ? 0 : *buffer_size_ptr;
+  uint32_t buffer_size =
+      !buffer_size_ptr ? 0u : static_cast<uint32_t>(*buffer_size_ptr);
 
   assert_zero(unk_0);
   assert_zero(unk_1);
