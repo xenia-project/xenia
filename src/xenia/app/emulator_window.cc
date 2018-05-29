@@ -18,6 +18,7 @@
 #include "xenia/base/platform.h"
 #include "xenia/base/profiling.h"
 #include "xenia/base/threading.h"
+#include "xenia/discord/discord_presence.h"
 #include "xenia/emulator.h"
 #include "xenia/gpu/graphics_system.h"
 
@@ -78,6 +79,9 @@ bool EmulatorWindow::Initialize() {
     XELOGE("Failed to initialize platform window");
     return false;
   }
+
+  discord::DiscordPresence::InitializeDiscord();
+  discord::DiscordPresence::NotPlaying();
 
   UpdateTitle();
 
@@ -319,6 +323,7 @@ void EmulatorWindow::FileOpen() {
 void EmulatorWindow::FileClose() {
   if (emulator_->is_title_open()) {
     emulator_->TerminateTitle();
+	discord::DiscordPresence::NotPlaying();
   }
 }
 
@@ -393,6 +398,7 @@ void EmulatorWindow::UpdateTitle() {
     auto game_title = emulator()->game_title();
     title += xe::format_string(L" | [%.8X] %s", emulator()->title_id(),
                                game_title.c_str());
+	discord::DiscordPresence::PlayingTitle(game_title);
   }
 
   auto graphics_system = emulator()->graphics_system();

@@ -17,6 +17,9 @@ includedirs({
   ".",
   "src",
   "third_party",
+  -- WES SPECIFIC REMOVE LATER
+  "C:/Program Files (x86)/Windows Kits/10/Include/10.0.17134.0/ucrt"
+  -- END WES WARNING
 })
 
 defines({
@@ -153,7 +156,11 @@ filter("platforms:Windows")
   flags({
     "NoMinimalRebuild", -- Required for /MP above.
   })
-
+  -- WES SPECIFIC REMOVE LATER
+  syslibdirs({
+    "C:/Program Files (x86)/Windows Kits/10/Lib/10.0.17134.0/ucrt/x64"
+  })
+  -- END WES WARNING
   symbols("On")
   defines({
     "_CRT_NONSTDC_NO_DEPRECATE",
@@ -176,7 +183,7 @@ filter("platforms:Windows")
     "opengl32",
     "comctl32",
     "shcore",
-    "shlwapi",
+    "shlwapi"
   })
 
 -- Create scratch/ path and dummy flags file if needed.
@@ -221,6 +228,7 @@ solution("xenia")
 
   -- Include third party files first so they don't have to deal with gflags.
   include("third_party/capstone.lua")
+  include("third_party/discord-rpc.lua")
   include("third_party/gflags.lua")
   include("third_party/glew.lua")
   include("third_party/glslang-spirv.lua")
@@ -240,6 +248,7 @@ solution("xenia")
   include("src/xenia/cpu")
   include("src/xenia/cpu/backend/x64")
   include("src/xenia/debug/ui")
+  include("src/xenia/discord")
   include("src/xenia/gpu")
   include("src/xenia/gpu/null")
   include("src/xenia/gpu/vulkan")

@@ -25,6 +25,7 @@ project("xenia-app")
     "xenia-cpu",
     "xenia-cpu-backend-x64",
     "xenia-debug-ui",
+    "xenia-discord",
     "xenia-gpu",
     "xenia-gpu-null",
     "xenia-gpu-vulkan",
