@@ -7,7 +7,7 @@
 ******************************************************************************
 */
 
-#include <stdlib.h>
+#include <string.h>
 #include <string>
 
 #ifndef XENIA_DISCORD_DISCORD_PRESENCE_H_
