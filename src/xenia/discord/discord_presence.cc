@@ -42,19 +42,21 @@ void DiscordPresence::NotPlaying()
 	discordPresence.details = "Standby";
 	discordPresence.largeImageKey = "default";
 	discordPresence.instance = 1;
+
 	Discord_UpdatePresence(&discordPresence);
 }
 
-void DiscordPresence::PlayingTitle(std::wstring gameTitle)
+void DiscordPresence::PlayingTitle(std::wstring game_title)
 {
 	DiscordRichPresence discordPresence;
 	memset(&discordPresence, 0, sizeof(discordPresence));
 	discordPresence.state = "In Game";
-	_bstr_t b(gameTitle.c_str()); // convert from wstring -> const wchar_t* -> _bstr_t
+	_bstr_t b(game_title.c_str()); // convert from wstring -> const wchar_t* -> _bstr_t
 	discordPresence.details = b;  // auto converts from _bstr_t -> const char*
 	discordPresence.smallImageKey = "default";
 	discordPresence.largeImageKey = "defaultgame";
 	discordPresence.instance = 1;
+
 	Discord_UpdatePresence(&discordPresence);
 }
 

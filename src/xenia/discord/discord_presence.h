@@ -20,7 +20,7 @@ class DiscordPresence
 public:
 	static void InitializeDiscord();
 	static void NotPlaying();
-	static void PlayingTitle(std::wstring gameTitle);
+	static void PlayingTitle(std::wstring game_title);
 	static void ShutdownDiscord();
 };
 

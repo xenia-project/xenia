@@ -17,9 +17,6 @@ includedirs({
   ".",
   "src",
   "third_party",
-  -- WES SPECIFIC REMOVE LATER
-  "C:/Program Files (x86)/Windows Kits/10/Include/10.0.17134.0/ucrt"
-  -- END WES WARNING
 })
 
 defines({
@@ -156,11 +153,6 @@ filter("platforms:Windows")
   flags({
     "NoMinimalRebuild", -- Required for /MP above.
   })
-  -- WES SPECIFIC REMOVE LATER
-  syslibdirs({
-    "C:/Program Files (x86)/Windows Kits/10/Lib/10.0.17134.0/ucrt/x64"
-  })
-  -- END WES WARNING
   symbols("On")
   defines({
     "_CRT_NONSTDC_NO_DEPRECATE",
@@ -183,7 +175,7 @@ filter("platforms:Windows")
     "opengl32",
     "comctl32",
     "shcore",
-    "shlwapi"
+    "shlwapi",
   })
 
 -- Create scratch/ path and dummy flags file if needed.
