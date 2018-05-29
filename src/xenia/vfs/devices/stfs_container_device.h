@@ -21,6 +21,8 @@ namespace vfs {
 
 // http://www.free60.org/wiki/STFS
 
+class StfsContainerEntry;
+
 enum class StfsPackageType {
   kCon,
   kPirs,
@@ -85,6 +87,24 @@ struct StfsVolumeDescriptor {
   uint32_t total_unallocated_block_count;
 };
 
+enum SvodDeviceFeatures {
+  kFeatureHasEnhancedGDFLayout = 0x40,
+};
+
+struct SvodVolumeDescriptor {
+  bool Read(const uint8_t* p);
+
+  uint8_t descriptor_size;
+  uint8_t block_cache_element_count;
+  uint8_t worker_thread_processor;
+  uint8_t worker_thread_priority;
+  uint8_t hash[0x14];
+  uint8_t device_features;
+  uint32_t data_block_count;
+  uint32_t data_block_offset;
+  // 0x5 padding bytes...
+};
+
 class StfsHeader {
  public:
   bool Read(const uint8_t* p);
@@ -106,7 +126,10 @@ class StfsHeader {
   uint32_t save_game_id;
   uint8_t console_id[0x5];
   uint8_t profile_id[0x8];
-  StfsVolumeDescriptor volume_descriptor;
+  union {
+    StfsVolumeDescriptor stfs_volume_descriptor;
+    SvodVolumeDescriptor svod_volume_descriptor;
+  };
   uint32_t data_file_count;
   uint64_t data_file_combined_size;
   StfsDescriptorType descriptor_type;
@@ -154,10 +177,17 @@ class StfsContainerDevice : public Device {
     uint32_t info;
   };
 
+  const uint32_t kSTFSHashSpacing = 170;
+  const uint32_t kSVODHashSpacing = 204;
+
   Error ReadHeaderAndVerify(const uint8_t* map_ptr);
-  Error ReadAllEntries(const uint8_t* map_ptr);
-  size_t BlockToOffset(uint32_t block);
-  uint32_t ComputeBlockNumber(uint32_t block_index);
+  Error ReadAllEntriesEGDF(const uint8_t* map_ptr);
+  bool ReadEntryEGDF(const uint8_t* buffer, uint16_t entry_ordinal,
+                     StfsContainerEntry* parent);
+
+  Error ReadAllEntriesSTFS(const uint8_t* map_ptr);
+  size_t BlockToOffsetSTFS(uint64_t block);
+  size_t BlockToOffsetEGDF(uint64_t block);
 
   BlockHash GetBlockHash(const uint8_t* map_ptr, uint32_t block_index,
                          uint32_t table_offset);
