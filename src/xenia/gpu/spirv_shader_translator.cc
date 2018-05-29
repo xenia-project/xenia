@@ -830,8 +830,8 @@ void SpirvShaderTranslator::ProcessExecInstructionBegin(
       offsets.push_back(b.makeUintConstant(bitfield_index / 4));
       auto v = b.createAccessChain(spv::StorageClass::StorageClassUniform,
                                    consts_, offsets);
-      v = b.createCompositeExtract(v, uint_type_, bitfield_index % 4);
       v = b.createLoad(v);
+      v = b.createCompositeExtract(v, uint_type_, bitfield_index % 4);
 
       // Bitfield extract the bool constant.
       // FIXME: NVidia's compiler seems to be broken on this instruction?
@@ -931,9 +931,9 @@ void SpirvShaderTranslator::ProcessLoopStartInstruction(
   offsets.push_back(b.makeUintConstant(instr.loop_constant_index / 4));
   auto loop_const = b.createAccessChain(spv::StorageClass::StorageClassUniform,
                                         consts_, offsets);
+  loop_const = b.createLoad(loop_const);
   loop_const = b.createCompositeExtract(loop_const, uint_type_,
                                         instr.loop_constant_index % 4);
-  loop_const = b.createLoad(loop_const);
 
   // uint loop_count_value = loop_const & 0xFF;
   auto loop_count_value = b.createBinOp(spv::Op::OpBitwiseAnd, uint_type_,
@@ -1039,9 +1039,9 @@ void SpirvShaderTranslator::ProcessLoopEndInstruction(
   offsets.push_back(b.makeUintConstant(instr.loop_constant_index / 4));
   auto loop_const = b.createAccessChain(spv::StorageClass::StorageClassUniform,
                                         consts_, offsets);
+  loop_const = b.createLoad(loop_const);
   loop_const = b.createCompositeExtract(loop_const, uint_type_,
                                         instr.loop_constant_index % 4);
-  loop_const = b.createLoad(loop_const);
 
   // uint loop_aL_value = (loop_const >> 16) & 0xFF;
   auto loop_aL_value = b.createBinOp(spv::Op::OpShiftRightLogical, uint_type_,
@@ -1114,8 +1114,8 @@ void SpirvShaderTranslator::ProcessJumpInstruction(
       offsets.push_back(b.makeUintConstant(bitfield_index / 4));
       auto v = b.createAccessChain(spv::StorageClass::StorageClassUniform,
                                    consts_, offsets);
-      v = b.createCompositeExtract(v, uint_type_, bitfield_index % 4);
       v = b.createLoad(v);
+      v = b.createCompositeExtract(v, uint_type_, bitfield_index % 4);
 
       // Bitfield extract the bool constant.
       // FIXME: NVidia's compiler seems to be broken on this instruction?
