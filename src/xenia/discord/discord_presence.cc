@@ -47,7 +47,8 @@ void DiscordPresence::PlayingTitle(std::wstring game_title) {
   memset(&discordPresence, 0, sizeof(discordPresence));
   discordPresence.state = "In Game";
   char mb_game_title[128];  // buffer to hold game title (max 128 bytes)
-  std::wcstombs(mb_game_title, game_title.c_str(), 128);  // convert game_title from wstring to wchar* to char*
+  std::wcstombs(mb_game_title, game_title.c_str(),
+	            128);  // convert game_title from wstring to wchar* to char*
   discordPresence.details = mb_game_title;
   discordPresence.smallImageKey = "default";
   discordPresence.largeImageKey = "defaultgame";
