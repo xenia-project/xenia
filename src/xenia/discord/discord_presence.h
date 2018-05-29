@@ -7,20 +7,23 @@
 ******************************************************************************
 */
 
-#include <comdef.h>
 #include <string>
+
+#ifndef XENIA_DISCORD_DISCORD_PRESENCE_H_
+#define XENIA_DISCORD_DISCORD_PRESENCE_H_
 
 namespace xe {
 namespace discord {
 
-class DiscordPresence
-{
-public:
+class DiscordPresence {
+ public:
   static void InitializeDiscord();
   static void NotPlaying();
   static void PlayingTitle(std::wstring game_title);
   static void ShutdownDiscord();
 };
 
-}
-}
+}  // namespace discord
+}  // namespace xe
+
+#endif  // XENIA_DISCORD_DISCORD_PRESENCE_H_

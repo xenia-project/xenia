@@ -398,7 +398,7 @@ void EmulatorWindow::UpdateTitle() {
     auto game_title = emulator()->game_title();
     title += xe::format_string(L" | [%.8X] %s", emulator()->title_id(),
                                game_title.c_str());
-	discord::DiscordPresence::PlayingTitle(game_title);
+    discord::DiscordPresence::PlayingTitle(game_title);
   }
 
   auto graphics_system = emulator()->graphics_system();
