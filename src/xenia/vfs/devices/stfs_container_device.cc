@@ -117,7 +117,23 @@ bool StfsContainerDevice::Initialize() {
     return false;
   }
 
-  result = ReadAllEntries(map_ptr);
+  switch (header_.descriptor_type) {
+    case StfsDescriptorType::kStfs:
+      result = ReadAllEntriesSTFS(map_ptr);
+      break;
+    case StfsDescriptorType::kSvod:
+      if (!(header_.svod_volume_descriptor.device_features &
+            kFeatureHasEnhancedGDFLayout)) {
+        XELOGE("STFS SVOD does not have GDF layout!");
+        return false;
+      }
+
+      result = ReadAllEntriesEGDF(map_ptr);
+      break;
+    default:
+      // Shouldn't reach here.
+      return false;
+  }
   if (result != Error::kSuccess) {
     XELOGE("STFS entry reading failed: %d", result);
     return false;
@@ -180,21 +196,116 @@ StfsContainerDevice::Error StfsContainerDevice::ReadHeaderAndVerify(
   return Error::kSuccess;
 }
 
-StfsContainerDevice::Error StfsContainerDevice::ReadAllEntries(
+StfsContainerDevice::Error StfsContainerDevice::ReadAllEntriesEGDF(
+    const uint8_t* map_ptr) {
+  // Verify (and scan) the GDF magic first.
+  const uint8_t* p = map_ptr + BlockToOffsetSTFS(0);
+  if (std::memcmp(p, "MICROSOFT*XBOX*MEDIA", 20) != 0) {
+    return Error::kErrorDamagedFile;
+  }
+
+  uint32_t root_sector = xe::load<uint32_t>(p + 0x14);
+  uint32_t root_size = xe::load<uint32_t>(p + 0x18);
+
+  auto root_entry = new StfsContainerEntry(this, nullptr, "", mmap_.get());
+  root_entry->attributes_ = kFileAttributeDirectory;
+  root_entry_ = std::unique_ptr<Entry>(root_entry);
+
+  const uint8_t* buffer = map_ptr + BlockToOffsetEGDF(root_sector);
+  return ReadEntryEGDF(buffer, 0, root_entry) ? Error::kSuccess
+                                              : Error::kErrorDamagedFile;
+}
+
+bool StfsContainerDevice::ReadEntryEGDF(const uint8_t* buffer,
+                                        uint16_t entry_ordinal,
+                                        StfsContainerEntry* parent) {
+  const uint8_t* p = buffer + (entry_ordinal * 4);
+
+  uint16_t node_l = xe::load<uint16_t>(p + 0);
+  uint16_t node_r = xe::load<uint16_t>(p + 2);
+  uint32_t sector = xe::load<uint32_t>(p + 4);
+  uint32_t length = xe::load<uint32_t>(p + 8);
+  uint8_t attributes = xe::load<uint8_t>(p + 12);
+  uint8_t name_length = xe::load<uint8_t>(p + 13);
+  auto name = reinterpret_cast<const char*>(p + 14);
+
+  if (node_l && !ReadEntryEGDF(buffer, node_l, parent)) {
+    return false;
+  }
+
+  auto entry = StfsContainerEntry::Create(
+      this, parent, std::string(name, name_length), mmap_.get());
+  if (attributes & kFileAttributeDirectory) {
+    // Folder.
+    entry->attributes_ = kFileAttributeDirectory | kFileAttributeReadOnly;
+    entry->data_offset_ = 0;
+    entry->data_size_ = 0;
+
+    if (length) {
+      // Not a leaf - read in children.
+      uint8_t* folder_ptr = mmap_->data() + BlockToOffsetEGDF(sector);
+      if (!ReadEntryEGDF(folder_ptr, 0, entry.get())) {
+        return false;
+      }
+    }
+  } else {
+    // Regular file.
+    entry->attributes_ = kFileAttributeNormal | kFileAttributeReadOnly;
+    entry->size_ = length;
+    entry->allocation_size_ = xe::round_up(length, bytes_per_sector());
+    entry->data_offset_ = BlockToOffsetEGDF(sector);
+    entry->data_size_ = length;
+
+    // Fill in all block records, sector by sector.
+    if (entry->attributes() & X_FILE_ATTRIBUTE_NORMAL) {
+      uint32_t sector_index = sector;
+      size_t remaining_size = xe::round_up(length, 0x800);
+
+      size_t last_record = -1;
+      size_t last_offset = -1;
+      while (remaining_size) {
+        size_t block_size = 0x800;
+        size_t offset = BlockToOffsetEGDF(sector_index);
+        sector_index++;
+        remaining_size -= block_size;
+
+        if (offset - last_offset == 0x800) {
+          // Consecutive, so append to last entry.
+          entry->block_list_[last_record].length += block_size;
+          last_offset = offset;
+          continue;
+        }
+
+        entry->block_list_.push_back({offset, block_size});
+        last_record = entry->block_list_.size() - 1;
+        last_offset = offset;
+      }
+    }
+  }
+
+  parent->children_.emplace_back(std::move(entry));
+
+  // Read next file in the list.
+  if (node_r && !ReadEntryEGDF(buffer, node_r, parent)) {
+    return false;
+  }
+
+  return true;
+}
+
+StfsContainerDevice::Error StfsContainerDevice::ReadAllEntriesSTFS(
     const uint8_t* map_ptr) {
   auto root_entry = new StfsContainerEntry(this, nullptr, "", mmap_.get());
   root_entry->attributes_ = kFileAttributeDirectory;
-
   root_entry_ = std::unique_ptr<Entry>(root_entry);
 
   std::vector<StfsContainerEntry*> all_entries;
 
   // Load all listings.
-  auto& volume_descriptor = header_.volume_descriptor;
+  auto& volume_descriptor = header_.stfs_volume_descriptor;
   uint32_t table_block_index = volume_descriptor.file_table_block_number;
   for (size_t n = 0; n < volume_descriptor.file_table_block_count; n++) {
-    const uint8_t* p =
-        map_ptr + BlockToOffset(ComputeBlockNumber(table_block_index));
+    const uint8_t* p = map_ptr + BlockToOffsetSTFS(table_block_index);
     for (size_t m = 0; m < 0x1000 / 0x40; m++) {
       const uint8_t* filename = p;  // 0x28b
       if (filename[0] == 0) {
@@ -232,8 +343,7 @@ StfsContainerDevice::Error StfsContainerDevice::ReadAllEntries(
         entry->attributes_ = kFileAttributeDirectory;
       } else {
         entry->attributes_ = kFileAttributeNormal | kFileAttributeReadOnly;
-        entry->data_offset_ =
-            BlockToOffset(ComputeBlockNumber(start_block_index));
+        entry->data_offset_ = BlockToOffsetSTFS(start_block_index);
         entry->data_size_ = file_size;
       }
       entry->size_ = file_size;
@@ -256,7 +366,7 @@ StfsContainerDevice::Error StfsContainerDevice::ReadAllEntries(
         while (remaining_size && block_index && info >= 0x80) {
           size_t block_size =
               std::min(static_cast<size_t>(0x1000), remaining_size);
-          size_t offset = BlockToOffset(ComputeBlockNumber(block_index));
+          size_t offset = BlockToOffsetSTFS(block_index);
           entry->block_list_.push_back({offset, block_size});
           remaining_size -= block_size;
           auto block_hash = GetBlockHash(map_ptr, block_index, 0);
@@ -284,46 +394,47 @@ StfsContainerDevice::Error StfsContainerDevice::ReadAllEntries(
   return Error::kSuccess;
 }
 
-size_t StfsContainerDevice::BlockToOffset(uint32_t block) {
-  if (block >= 0xFFFFFF) {
-    return ~0ull;
-  } else {
-    return ((header_.header_size + 0x0FFF) & 0xF000) + (block << 12);
+size_t StfsContainerDevice::BlockToOffsetSTFS(uint64_t block_index) {
+  uint64_t block;
+  uint32_t block_shift = 0;
+  if (((header_.header_size + 0x0FFF) & 0xB000) == 0xB000 ||
+      (header_.stfs_volume_descriptor.flags & 0x1) == 0x0) {
+    block_shift = package_type_ == StfsPackageType::kCon ? 1 : 0;
   }
+
+  if (header_.descriptor_type == StfsDescriptorType::kStfs) {
+    // For every level there is a hash table
+    // Level 0: hash table of next 170 blocks
+    // Level 1: hash table of next 170 hash tables
+    // Level 2: hash table of next 170 level 1 hash tables
+    // And so on...
+    uint64_t base = kSTFSHashSpacing;
+    block = block_index;
+    for (uint32_t i = 0; i < 3; i++) {
+      block += (block_index + (base << block_shift)) / (base << block_shift);
+      if (block_index < base) {
+        break;
+      }
+
+      base *= kSTFSHashSpacing;
+    }
+  } else if (header_.descriptor_type == StfsDescriptorType::kSvod) {
+    // Level 0: Hashes for the next 204 blocks
+    // Level 1: Hashes for the next 203 hash blocks + 1 for the next level 0
+    // 10......[204 blocks].....0.....[204 blocks].....0
+    // There are 0xA1C4 (41412) blocks for every level 1 hash table.
+    block = block_index;
+    block += (block_index + 204) / 204;                // Level 0
+    block += (block_index + 204 * 203) / (204 * 203);  // Level 1
+  }
+
+  return xe::round_up(header_.header_size, 0x1000) + (block << 12);
 }
 
-uint32_t StfsContainerDevice::ComputeBlockNumber(uint32_t block_index) {
-  uint32_t block_shift = 0;
-  if (((header_.header_size + 0x0FFF) & 0xB000) == 0xB000) {
-    block_shift = 1;
-  } else {
-    if ((header_.volume_descriptor.flags & 0x1) == 0x1) {
-      block_shift = 0;
-    } else {
-      block_shift = 1;
-    }
-  }
-
-  uint32_t base = (block_index + 0xAA) / 0xAA;
-  if (package_type_ == StfsPackageType::kCon) {
-    base <<= block_shift;
-  }
-  uint32_t block = base + block_index;
-  if (block_index >= 0xAA) {
-    base = (block_index + 0x70E4) / 0x70E4;
-    if (package_type_ == StfsPackageType::kCon) {
-      base <<= block_shift;
-    }
-    block += base;
-    if (block_index >= 0x70E4) {
-      base = (block_index + 0x4AF768) / 0x4AF768;
-      if (package_type_ == StfsPackageType::kCon) {
-        base <<= block_shift;
-      }
-      block += base;
-    }
-  }
-  return block;
+size_t StfsContainerDevice::BlockToOffsetEGDF(uint64_t sector) {
+  size_t offset = BlockToOffsetSTFS(
+      (sector / 2) - header_.svod_volume_descriptor.data_block_offset + 1);
+  return offset + ((sector & 0x1) << 11);  // Sectors are 0x800 bytes.
 }
 
 StfsContainerDevice::BlockHash StfsContainerDevice::GetBlockHash(
@@ -344,7 +455,7 @@ StfsContainerDevice::BlockHash StfsContainerDevice::GetBlockHash(
     }
   }
   // table_index += table_offset - (1 << table_size_shift_);
-  const uint8_t* hash_data = map_ptr + BlockToOffset(table_index);
+  const uint8_t* hash_data = map_ptr + BlockToOffsetSTFS(table_index);
   const uint8_t* record_data = hash_data + record * 0x18;
   uint32_t info = xe::load_and_swap<uint8_t>(record_data + 0x14);
   uint32_t next_block_index = load_uint24_be(record_data + 0x15);
@@ -365,6 +476,24 @@ bool StfsVolumeDescriptor::Read(const uint8_t* p) {
   std::memcpy(top_hash_table_hash, p + 0x08, 0x14);
   total_allocated_block_count = xe::load_and_swap<uint32_t>(p + 0x1C);
   total_unallocated_block_count = xe::load_and_swap<uint32_t>(p + 0x20);
+  return true;
+}
+
+bool SvodVolumeDescriptor::Read(const uint8_t* p) {
+  descriptor_size = xe::load<uint8_t>(p + 0x00);
+  if (descriptor_size != 0x24) {
+    XELOGE("SVOD volume descriptor size mismatch, expected 0x24 but got 0x%X",
+           descriptor_size);
+    return false;
+  }
+
+  block_cache_element_count = xe::load<uint8_t>(p + 0x01);
+  worker_thread_processor = xe::load<uint8_t>(p + 0x02);
+  worker_thread_priority = xe::load<uint8_t>(p + 0x03);
+  std::memcpy(hash, p + 0x04, 0x14);
+  device_features = xe::load<uint8_t>(p + 0x18);
+  data_block_count = load_uint24_be(p + 0x19);
+  data_block_offset = load_uint24_le(p + 0x1C);
   return true;
 }
 
@@ -394,12 +523,16 @@ bool StfsHeader::Read(const uint8_t* p) {
   data_file_count = xe::load_and_swap<uint32_t>(p + 0x39D);
   data_file_combined_size = xe::load_and_swap<uint64_t>(p + 0x3A1);
   descriptor_type = (StfsDescriptorType)xe::load_and_swap<uint32_t>(p + 0x3A9);
-  if (descriptor_type != StfsDescriptorType::kStfs) {
-    XELOGE("STFS descriptor format not supported: %d", descriptor_type);
-    return false;
-  }
-  if (!volume_descriptor.Read(p + 0x379)) {
-    return false;
+  switch (descriptor_type) {
+    case StfsDescriptorType::kStfs:
+      stfs_volume_descriptor.Read(p + 0x379);
+      break;
+    case StfsDescriptorType::kSvod:
+      svod_volume_descriptor.Read(p + 0x379);
+      break;
+    default:
+      XELOGE("STFS descriptor format not supported: %d", descriptor_type);
+      return false;
   }
   memcpy(device_id, p + 0x3FD, 0x14);
   for (size_t n = 0; n < 0x900 / 2; n++) {
