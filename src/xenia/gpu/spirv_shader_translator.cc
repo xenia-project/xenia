@@ -830,7 +830,7 @@ void SpirvShaderTranslator::ProcessExecInstructionBegin(
       offsets.push_back(b.makeUintConstant(bitfield_index / 4));
       auto v = b.createAccessChain(spv::StorageClass::StorageClassUniform,
                                    consts_, offsets);
-      v = b.createCompositeExtract(v, vec4_uint_type_, bitfield_index % 4);
+      v = b.createCompositeExtract(v, uint_type_, bitfield_index % 4);
       v = b.createLoad(v);
 
       // Bitfield extract the bool constant.
@@ -931,7 +931,7 @@ void SpirvShaderTranslator::ProcessLoopStartInstruction(
   offsets.push_back(b.makeUintConstant(instr.loop_constant_index / 4));
   auto loop_const = b.createAccessChain(spv::StorageClass::StorageClassUniform,
                                         consts_, offsets);
-  loop_const = b.createCompositeExtract(loop_const, vec4_uint_type_,
+  loop_const = b.createCompositeExtract(loop_const, uint_type_,
                                         instr.loop_constant_index % 4);
   loop_const = b.createLoad(loop_const);
 
@@ -1039,7 +1039,7 @@ void SpirvShaderTranslator::ProcessLoopEndInstruction(
   offsets.push_back(b.makeUintConstant(instr.loop_constant_index / 4));
   auto loop_const = b.createAccessChain(spv::StorageClass::StorageClassUniform,
                                         consts_, offsets);
-  loop_const = b.createCompositeExtract(loop_const, vec4_uint_type_,
+  loop_const = b.createCompositeExtract(loop_const, uint_type_,
                                         instr.loop_constant_index % 4);
   loop_const = b.createLoad(loop_const);
 
@@ -1114,7 +1114,7 @@ void SpirvShaderTranslator::ProcessJumpInstruction(
       offsets.push_back(b.makeUintConstant(bitfield_index / 4));
       auto v = b.createAccessChain(spv::StorageClass::StorageClassUniform,
                                    consts_, offsets);
-      v = b.createCompositeExtract(v, vec4_uint_type_, bitfield_index % 4);
+      v = b.createCompositeExtract(v, uint_type_, bitfield_index % 4);
       v = b.createLoad(v);
 
       // Bitfield extract the bool constant.
