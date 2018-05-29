@@ -10,18 +10,16 @@
 #include <comdef.h>
 #include <string>
 
-namespace xe
-{
-namespace discord
-{
+namespace xe {
+namespace discord {
 
 class DiscordPresence
 {
 public:
-	static void InitializeDiscord();
-	static void NotPlaying();
-	static void PlayingTitle(std::wstring game_title);
-	static void ShutdownDiscord();
+  static void InitializeDiscord();
+  static void NotPlaying();
+  static void PlayingTitle(std::wstring game_title);
+  static void ShutdownDiscord();
 };
 
 }

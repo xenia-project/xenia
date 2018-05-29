@@ -323,7 +323,7 @@ void EmulatorWindow::FileOpen() {
 void EmulatorWindow::FileClose() {
   if (emulator_->is_title_open()) {
     emulator_->TerminateTitle();
-	discord::DiscordPresence::NotPlaying();
+    discord::DiscordPresence::NotPlaying();
   }
 }
 
