@@ -9,6 +9,7 @@ project("xenia-app")
   language("C++")
   links({
     "capstone",
+    "discord-rpc",
     "gflags",
     "glew",
     "glslang-spirv",
