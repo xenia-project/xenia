@@ -17,7 +17,6 @@ includedirs({
   ".",
   "src",
   "third_party",
-  "C:/Program Files (x86)/Windows Kits/10/Include/10.0.17134.0/ucrt"
 })
 
 defines({
@@ -153,9 +152,6 @@ filter("platforms:Windows")
   })
   flags({
     "NoMinimalRebuild", -- Required for /MP above.
-  })
-  syslibdirs({
-    "C:/Program Files (x86)/Windows Kits/10/Lib/10.0.17134.0/ucrt/x64"
   })
   symbols("On")
   defines({
