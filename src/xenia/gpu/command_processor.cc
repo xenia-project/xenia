@@ -343,7 +343,7 @@ void CommandProcessor::MakeCoherent() {
     return;
   }
 
-  char* action = "N/A";
+  const char* action = "N/A";
   if (status_host & 0x03000000) {
     action = "VC | TC";
   } else if (status_host & 0x02000000) {
