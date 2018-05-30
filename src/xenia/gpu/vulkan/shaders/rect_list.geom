@@ -29,14 +29,20 @@ layout(location = 16) out vec2 _out_point_coord_unused;
 layout(triangles) in;
 layout(triangle_strip, max_vertices = 6) out;
 void main() {
-  // Most games use the left-aligned form.
-  bool left_aligned = gl_in[0].gl_Position.x == gl_in[2].gl_Position.x;
-  if (left_aligned) {
-    //  0 ------ 1
-    //  |      - |
-    //  |   //   |
-    //  | -      |
+  // Most games use a left-aligned form.
+  if (gl_in[0].gl_Position.xy == vec2(gl_in[2].gl_Position.x, gl_in[1].gl_Position.y) ||
+      gl_in[0].gl_Position.xy == vec2(gl_in[1].gl_Position.x, gl_in[2].gl_Position.y)) {
+    //  0 ------ 1   0:  -1,-1
+    //  |      - |   1:   1,-1
+    //  |   //   |   2:  -1, 1
+    //  | -      |   3: [ 1, 1 ]
     //  2 ----- [3]
+    //
+    //  0 ------ 2   0:  -1,-1
+    //  |      - |   1:  -1, 1
+    //  |   //   |   2:   1,-1
+    //  | -      |   3: [ 1, 1 ]
+    //  1 ------[3]
     gl_Position = gl_in[0].gl_Position;
     gl_PointSize = gl_in[0].gl_PointSize;
     out_interpolators = in_interpolators[0];
@@ -49,19 +55,32 @@ void main() {
     gl_PointSize = gl_in[2].gl_PointSize;
     out_interpolators = in_interpolators[2];
     EmitVertex();
-    gl_Position = vec4((gl_in[1].gl_Position.xy + gl_in[2].gl_Position.xy) -
-                  gl_in[0].gl_Position.xy, gl_in[2].gl_Position.zw);
+    EndPrimitive();
+    gl_Position = gl_in[2].gl_Position;
+    gl_PointSize = gl_in[2].gl_PointSize;
+    out_interpolators = in_interpolators[2];
+    EmitVertex();
+    gl_Position = gl_in[1].gl_Position;
+    gl_PointSize = gl_in[1].gl_PointSize;
+    out_interpolators = in_interpolators[1];
+    EmitVertex();
+    gl_Position = vec4((-gl_in[0].gl_Position.xy) +
+                         gl_in[1].gl_Position.xy +
+                         gl_in[2].gl_Position.xy,
+                         gl_in[2].gl_Position.zw);
     gl_PointSize = gl_in[2].gl_PointSize;
     for (int i = 0; i < 16; ++i) {
-      out_interpolators[i] = -in_interpolators[0][i] + in_interpolators[1][i] + in_interpolators[2][i];
+      out_interpolators[i] = (-in_interpolators[0][i]) +
+                               in_interpolators[1][i] +
+                               in_interpolators[2][i];
     }
     EmitVertex();
     EndPrimitive();
   } else {
-    //  0 ------ 1
-    //  | -      |
-    //  |   \\   |
-    //  |      - |
+    //  0 ------ 1   0:  -1,-1
+    //  | -      |   1:   1,-1
+    //  |   \\   |   2:   1, 1
+    //  |      - |   3: [-1, 1 ]
     // [3] ----- 2
     gl_Position = gl_in[0].gl_Position;
     gl_PointSize = gl_in[0].gl_PointSize;
@@ -75,11 +94,24 @@ void main() {
     gl_PointSize = gl_in[2].gl_PointSize;
     out_interpolators = in_interpolators[2];
     EmitVertex();
-    gl_Position = vec4((gl_in[0].gl_Position.xy + gl_in[2].gl_Position.xy) -
-                  gl_in[1].gl_Position.xy, gl_in[2].gl_Position.zw);
+    EndPrimitive();
+    gl_Position = gl_in[0].gl_Position;
+    gl_PointSize = gl_in[0].gl_PointSize;
+    out_interpolators = in_interpolators[0];
+    EmitVertex();
+    gl_Position = gl_in[2].gl_Position;
+    gl_PointSize = gl_in[2].gl_PointSize;
+    out_interpolators = in_interpolators[2];
+    EmitVertex();
+    gl_Position = vec4(  gl_in[0].gl_Position.xy +
+                       (-gl_in[1].gl_Position.xy) +
+                         gl_in[2].gl_Position.xy,
+                         gl_in[2].gl_Position.zw);
     gl_PointSize = gl_in[2].gl_PointSize;
     for (int i = 0; i < 16; ++i) {
-      out_interpolators[i] = in_interpolators[0][i] + -in_interpolators[1][i] + in_interpolators[2][i];
+      out_interpolators[i] =   in_interpolators[0][i] +
+                             (-in_interpolators[1][i]) +
+                               in_interpolators[2][i];
     }
     EmitVertex();
     EndPrimitive();
