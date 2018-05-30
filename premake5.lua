@@ -17,6 +17,7 @@ includedirs({
   ".",
   "src",
   "third_party",
+  "C:/Program Files (x86)/Windows Kits/10/Include/10.0.17134.0/ucrt"
 })
 
 defines({
@@ -153,6 +154,9 @@ filter("platforms:Windows")
   flags({
     "NoMinimalRebuild", -- Required for /MP above.
   })
+  syslibdirs({
+    "C:/Program Files (x86)/Windows Kits/10/Lib/10.0.17134.0/ucrt/x64"
+  })
   symbols("On")
   defines({
     "_CRT_NONSTDC_NO_DEPRECATE",
@@ -234,13 +238,13 @@ solution("xenia")
 
   include("src/xenia")
   include("src/xenia/app")
+  include("src/xenia/app/discord")
   include("src/xenia/apu")
   include("src/xenia/apu/nop")
   include("src/xenia/base")
   include("src/xenia/cpu")
   include("src/xenia/cpu/backend/x64")
   include("src/xenia/debug/ui")
-  include("src/xenia/discord")
   include("src/xenia/gpu")
   include("src/xenia/gpu/null")
   include("src/xenia/gpu/vulkan")

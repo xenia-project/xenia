@@ -13,12 +13,12 @@
 #include "build/version.h"
 
 #include "third_party/imgui/imgui.h"
+#include "xenia/app/discord/discord_presence.h"
 #include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/platform.h"
 #include "xenia/base/profiling.h"
 #include "xenia/base/threading.h"
-#include "xenia/discord/discord_presence.h"
 #include "xenia/emulator.h"
 #include "xenia/gpu/graphics_system.h"
 
