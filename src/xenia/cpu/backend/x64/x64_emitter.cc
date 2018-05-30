@@ -610,8 +610,7 @@ static const vec128_t xmm_consts[] = {
     /* XMMNormalizeX16Y16     */
     vec128f(1.0f / 32767.0f, 1.0f / (32767.0f * 65536.0f), 0.0f, 0.0f),
     /* XMM0001                */ vec128f(0.0f, 0.0f, 0.0f, 1.0f),
-    /* XMM3301                */ vec128f(3.0f, 3.0f, 0.0f, 1.0f),
-    /* XMM3333                */ vec128f(3.0f, 3.0f, 3.0f, 3.0f),
+    /* XMM1101                */ vec128f(1.0f, 1.0f, 0.0f, 1.0f),
     /* XMMSignMaskPS          */
     vec128i(0x80000000u, 0x80000000u, 0x80000000u, 0x80000000u),
     /* XMMSignMaskPD          */
@@ -626,7 +625,6 @@ static const vec128_t xmm_consts[] = {
     vec128i(0x01000302u, 0x05040706u, 0x09080B0Au, 0x0D0C0F0Eu),
     /* XMMPermuteControl15    */ vec128b(15),
     /* XMMPermuteByteMask     */ vec128b(0x1F),
-    /* XMMPackD3DCOLORSat     */ vec128i(0x404000FFu),
     /* XMMPackD3DCOLOR        */
     vec128i(0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu, 0x0C000408u),
     /* XMMUnpackD3DCOLOR      */
@@ -639,8 +637,6 @@ static const vec128_t xmm_consts[] = {
     vec128i(0xFFFFFFFFu, 0xFFFFFFFFu, 0x05040706u, 0x01000302u),
     /* XMMUnpackFLOAT16_4     */
     vec128i(0x09080B0Au, 0x0D0C0F0Eu, 0xFFFFFFFFu, 0xFFFFFFFFu),
-    /* XMMPackSHORT_Min       */ vec128i(0x403F8001u),
-    /* XMMPackSHORT_Max       */ vec128i(0x40407FFFu),
     /* XMMPackSHORT_2         */
     vec128i(0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu, 0x01000504u),
     /* XMMPackSHORT_4         */
@@ -649,6 +645,12 @@ static const vec128_t xmm_consts[] = {
     vec128i(0xFFFF0F0Eu, 0xFFFF0D0Cu, 0xFFFFFFFFu, 0xFFFFFFFFu),
     /* XMMUnpackSHORT_4       */
     vec128i(0xFFFF0B0Au, 0xFFFF0908u, 0xFFFF0F0Eu, 0xFFFF0D0Cu),
+    /* XMMPackUINT_210101010_MaskShifted */
+    vec128i(1023u, 1023u << 10, 1023u << 20, 3u << 30),
+    /* XMMPackUINT_210101010_MaskUnshifted */
+    vec128i(1023u, 1023u, 1023u, 3u),
+    /* XMMPackUINT_210101010_Shift */
+    vec128i(0u, 10u, 20u, 30u),
     /* XMMOneOver255          */ vec128f(1.0f / 255.0f),
     /* XMMMaskEvenPI16        */
     vec128i(0x0000FFFFu, 0x0000FFFFu, 0x0000FFFFu, 0x0000FFFFu),
