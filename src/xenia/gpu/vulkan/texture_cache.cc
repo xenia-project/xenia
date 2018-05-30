@@ -471,8 +471,10 @@ TextureCache::Texture* TextureCache::DemandResolveTexture(
       reinterpret_cast<uint64_t>(texture->image),
       VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT,
       xe::format_string(
-          "RT: 0x%.8X - 0x%.8X", texture_info.guest_address,
-          texture_info.guest_address + texture_info.GetByteSize(true)));
+          "RT: 0x%.8X - 0x%.8X (%s, %s)", texture_info.guest_address,
+          texture_info.guest_address + texture_info.GetByteSize(true),
+          texture_info.format_info()->name,
+          get_dimension_name(texture_info.dimension)));
 
   // Setup an access watch. If this texture is touched, it is destroyed.
   texture->access_watch_handle = memory_->AddPhysicalAccessWatch(
