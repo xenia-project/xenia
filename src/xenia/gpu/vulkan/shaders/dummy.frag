@@ -3,6 +3,9 @@
 
 #version 450 core
 #extension all : warn
+#extension GL_ARB_shading_language_420pack : require
+#extension GL_ARB_separate_shader_objects : require
+#extension GL_ARB_explicit_attrib_location : require
 
 layout(set = 0, binding = 1) uniform consts_type {
   vec4 float_consts[512];

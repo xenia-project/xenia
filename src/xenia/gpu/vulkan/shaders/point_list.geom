@@ -3,6 +3,9 @@
 
 #version 450 core
 #extension all : warn
+#extension GL_ARB_shading_language_420pack : require
+#extension GL_ARB_separate_shader_objects : require
+#extension GL_ARB_explicit_attrib_location : require
 
 layout(push_constant) uniform push_consts_type {
   vec4 window_scale;
