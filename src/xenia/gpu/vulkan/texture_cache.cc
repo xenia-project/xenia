@@ -1002,10 +1002,10 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
   size_t unpack_length = ComputeTextureStorage(src);
 
   XELOGGPU(
-      "Uploading texture @ 0x%.8X (%dx%d, length: 0x%.8X, format: %s, dim: %s, "
-      "levels: %d, tiled: %s)",
-      src.guest_address, src.width + 1, src.height + 1, unpack_length,
-      src.format_info()->name, get_dimension_name(src.dimension),
+      "Uploading texture @ 0x%.8X (%dx%dx%d, length: 0x%.8X, format: %s, dim: "
+      "%s, levels: %d, tiled: %s)",
+      src.guest_address, src.width + 1, src.height + 1, src.depth + 1,
+      unpack_length, src.format_info()->name, get_dimension_name(src.dimension),
       src.mip_levels, src.is_tiled ? "yes" : "no");
 
   if (!unpack_length) {
@@ -1353,7 +1353,7 @@ VkDescriptorSet TextureCache::PrepareTextureSet(
                                      update_set_info, pixel_bindings) ||
                any_failed;
   if (any_failed) {
-    XELOGW("Failed to setup one or more texture bindings");
+    XELOGW("Failed to setup one or more texture bindings!");
     // TODO(benvanik): actually bail out here?
   }
 
