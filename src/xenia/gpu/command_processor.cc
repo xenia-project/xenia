@@ -263,7 +263,6 @@ void CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
     return;
   }
 
-  // 0x1844 - pointer to frontbuffer
   regs->values[index].u32 = value;
   if (!regs->GetRegisterInfo(index)) {
     XELOGW("GPU: Write to unknown register (%.4X = %.8X)", index, value);
@@ -344,9 +343,18 @@ void CommandProcessor::MakeCoherent() {
     return;
   }
 
+  char* action = "N/A";
+  if (status_host & 0x03000000) {
+    action = "VC | TC";
+  } else if (status_host & 0x02000000) {
+    action = "TC";
+  } else if (status_host & 0x01000000) {
+    action = "VC";
+  }
+
   // TODO(benvanik): notify resource cache of base->size and type.
-  // XELOGD("Make %.8X -> %.8X (%db) coherent", base_host, base_host +
-  // size_host, size_host);
+  XELOGD("Make %.8X -> %.8X (%db) coherent, action = %s", base_host,
+         base_host + size_host, size_host, action);
 
   // Mark coherent.
   status_host &= ~0x80000000ul;
