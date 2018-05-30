@@ -3,6 +3,9 @@
 
 #version 450 core
 #extension all : warn
+#extension GL_ARB_shading_language_420pack : require
+#extension GL_ARB_separate_shader_objects : require
+#extension GL_ARB_explicit_attrib_location : require
 
 in gl_PerVertex {
   vec4 gl_Position;

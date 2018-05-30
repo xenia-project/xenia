@@ -1,6 +1,6 @@
 ; SPIR-V
 ; Version: 1.0
-; Generator: Khronos Glslang Reference Front End; 3
+; Generator: Khronos Glslang Reference Front End; 6
 ; Bound: 209
 ; Schema: 0
                OpCapability Geometry
@@ -13,6 +13,8 @@
                OpExecutionMode %main OutputTriangleStrip
                OpExecutionMode %main OutputVertices 6
                OpSource GLSL 450
+               OpSourceExtension "GL_ARB_explicit_attrib_location"
+               OpSourceExtension "GL_ARB_separate_shader_objects"
                OpName %main "main"
                OpName %left_aligned "left_aligned"
                OpName %gl_PerVertex "gl_PerVertex"
