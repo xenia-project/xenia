@@ -40,26 +40,19 @@ struct TextureConfig {
 #define SWIZ(r, g, b, a) r, g, b, a
 #define ___R SWIZ(-7, -7, -7, 0)
 #define ___A SWIZ(-7, -7, -7, 3)
-#define OOOR SWIZ(-6, -6, -6, 0)
-#define OOOA SWIZ(-6, -6, -6, 3)
-#define RRRR SWIZ(0, 0, 0, 0)
-#define RRRA SWIZ(0, 0, 0, 3)
-#define RGBA SWIZ(0, 1, 2, 3)
 #define GRAB SWIZ(1, 0, 3, 2)
 #define BGRA SWIZ(2, 1, 0, 3)
-#define ARGB SWIZ(3, 0, 1, 2)
-#define ABGR SWIZ(3, 2, 1, 0)
 
 static const TextureConfig texture_configs[64] = {
     /* k_1_REVERSE              */ {VK_FORMAT_UNDEFINED},
     /* k_1                      */ {VK_FORMAT_UNDEFINED},
-    /* k_8                      */ {VK_FORMAT_R8_UNORM, RRRA},
+    /* k_8                      */ {VK_FORMAT_R8_UNORM},
     /* k_1_5_5_5                */ {VK_FORMAT_A1R5G5B5_UNORM_PACK16, BGRA},
     /* k_5_6_5                  */ {VK_FORMAT_R5G6B5_UNORM_PACK16, BGRA},
     /* k_6_5_5                  */ {VK_FORMAT_UNDEFINED},
     /* k_8_8_8_8                */ {VK_FORMAT_R8G8B8A8_UNORM},
     /* k_2_10_10_10             */ {VK_FORMAT_A2R10G10B10_UNORM_PACK32},
-    /* k_8_A                    */ {VK_FORMAT_R8_UNORM, OOOR},
+    /* k_8_A                    */ {VK_FORMAT_R8_UNORM},
     /* k_8_B                    */ {VK_FORMAT_UNDEFINED},
     /* k_8_8                    */ {VK_FORMAT_R8G8_UNORM},
     /* k_Cr_Y1_Cb_Y0            */ {VK_FORMAT_UNDEFINED},
@@ -121,8 +114,8 @@ static const TextureConfig texture_configs[64] = {
     /* k_10_11_11_AS_16_16_16_16 */ {VK_FORMAT_B10G11R11_UFLOAT_PACK32},  // ?
     /* k_11_11_10_AS_16_16_16_16 */ {VK_FORMAT_B10G11R11_UFLOAT_PACK32},  // ?
     /* k_32_32_32_FLOAT         */ {VK_FORMAT_R32G32B32_SFLOAT},
-    /* k_DXT3A                  */ {VK_FORMAT_BC2_UNORM_BLOCK, OOOA},
-    /* k_DXT5A                  */ {VK_FORMAT_BC4_UNORM_BLOCK, OOOR},  // ATI1N
+    /* k_DXT3A                  */ {VK_FORMAT_BC2_UNORM_BLOCK, ___A},
+    /* k_DXT5A                  */ {VK_FORMAT_BC4_UNORM_BLOCK, ___R},  // ATI1N
 
     // http://fileadmin.cs.lth.se/cs/Personal/Michael_Doggett/talks/unc-xenos-doggett.pdf
     /* k_CTX1                   */ {VK_FORMAT_R8G8_UINT},
@@ -134,15 +127,8 @@ static const TextureConfig texture_configs[64] = {
     /* kUnknown                 */ {VK_FORMAT_UNDEFINED},
 };
 
-#undef ABGR
-#undef ARGB
 #undef BGRA
 #undef GRAB
-#undef RGBA
-#undef RRRA
-#undef RRRR
-#undef OOOA
-#undef OOOR
 #undef ___A
 #undef ___R
 #undef SWIZ
@@ -513,7 +499,6 @@ TextureCache::Texture* TextureCache::Demand(const TextureInfo& texture_info,
 
       trace_writer_->WriteMemoryReadCached(texture_info.guest_address,
                                            texture_info.GetByteSize(true));
-
       return it->second;
     }
   }
