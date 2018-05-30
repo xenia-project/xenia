@@ -49,17 +49,8 @@ void main() {
     gl_PointSize = gl_in[2].gl_PointSize;
     out_interpolators = in_interpolators[2];
     EmitVertex();
-    EndPrimitive();
-    gl_Position = gl_in[2].gl_Position;
-    gl_PointSize = gl_in[2].gl_PointSize;
-    out_interpolators = in_interpolators[2];
-    EmitVertex();
-    gl_Position = gl_in[1].gl_Position;
-    gl_PointSize = gl_in[1].gl_PointSize;
-    out_interpolators = in_interpolators[1];
-    EmitVertex();
-    gl_Position = (gl_in[1].gl_Position + gl_in[2].gl_Position) -
-                  gl_in[0].gl_Position;
+    gl_Position = vec4((gl_in[1].gl_Position.xy + gl_in[2].gl_Position.xy) -
+                  gl_in[0].gl_Position.xy, gl_in[2].gl_Position.zw);
     gl_PointSize = gl_in[2].gl_PointSize;
     for (int i = 0; i < 16; ++i) {
       out_interpolators[i] = -in_interpolators[0][i] + in_interpolators[1][i] + in_interpolators[2][i];
@@ -84,17 +75,8 @@ void main() {
     gl_PointSize = gl_in[2].gl_PointSize;
     out_interpolators = in_interpolators[2];
     EmitVertex();
-    EndPrimitive();
-    gl_Position = gl_in[0].gl_Position;
-    gl_PointSize = gl_in[0].gl_PointSize;
-    out_interpolators = in_interpolators[0];
-    EmitVertex();
-    gl_Position = gl_in[2].gl_Position;
-    gl_PointSize = gl_in[2].gl_PointSize;
-    out_interpolators = in_interpolators[2];
-    EmitVertex();
-    gl_Position = (gl_in[0].gl_Position + gl_in[2].gl_Position) -
-                  gl_in[1].gl_Position;
+    gl_Position = vec4((gl_in[0].gl_Position.xy + gl_in[2].gl_Position.xy) -
+                  gl_in[1].gl_Position.xy, gl_in[2].gl_Position.zw);
     gl_PointSize = gl_in[2].gl_PointSize;
     for (int i = 0; i < 16; ++i) {
       out_interpolators[i] = in_interpolators[0][i] + -in_interpolators[1][i] + in_interpolators[2][i];
