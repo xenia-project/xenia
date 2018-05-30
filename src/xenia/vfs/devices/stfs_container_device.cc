@@ -439,23 +439,16 @@ size_t StfsContainerDevice::BlockToOffsetEGDF(uint64_t sector) {
 
 StfsContainerDevice::BlockHash StfsContainerDevice::GetBlockHash(
     const uint8_t* map_ptr, uint32_t block_index, uint32_t table_offset) {
-  static const uint32_t table_spacing[] = {
-      0xAB,    0x718F,
-      0xFE7DA,  // The distance in blocks between tables
-      0xAC,    0x723A,
-      0xFD00B,  // For when tables are 1 block and when they are 2 blocks
-  };
   uint32_t record = block_index % 0xAA;
-  uint32_t table_index =
-      (block_index / 0xAA) * table_spacing[table_size_shift_ * 3 + 0];
-  if (block_index >= 0xAA) {
-    table_index += ((block_index / 0x70E4) + 1) << table_size_shift_;
-    if (block_index >= 0x70E4) {
-      table_index += 1 << table_size_shift_;
-    }
-  }
+
+  // This is a bit hacky, but we'll get a pointer to the first block after the
+  // table and then subtract one sector to land on the table itself.
+  size_t hash_offset = BlockToOffsetSTFS(
+      xe::round_up(block_index + 1, kSTFSHashSpacing) - kSTFSHashSpacing);
+  hash_offset -= bytes_per_sector();
+  const uint8_t* hash_data = map_ptr + hash_offset;
+
   // table_index += table_offset - (1 << table_size_shift_);
-  const uint8_t* hash_data = map_ptr + BlockToOffsetSTFS(table_index);
   const uint8_t* record_data = hash_data + record * 0x18;
   uint32_t info = xe::load_and_swap<uint8_t>(record_data + 0x14);
   uint32_t next_block_index = load_uint24_be(record_data + 0x15);
