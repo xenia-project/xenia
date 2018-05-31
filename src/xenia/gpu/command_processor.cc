@@ -700,6 +700,14 @@ bool CommandProcessor::ExecutePacketType3(RingBuffer* reader, uint32_t packet) {
       bin_select_ = (val_hi << 32) | val_lo;
       result = true;
     } break;
+    case PM4_CONTEXT_UPDATE: {
+      assert_true(count == 1);
+      uint64_t value = reader->ReadAndSwap<uint32_t>();
+      XELOGGPU("GPU context update = %.8X", value);
+      assert_true(value == 0);
+      result = true;
+      break;
+    }
 
     default:
       XELOGGPU("Unimplemented GPU OPCODE: 0x%.2X\t\tCOUNT: %d\n", opcode,
