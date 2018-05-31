@@ -626,7 +626,6 @@ static const vec128_t xmm_consts[] = {
     vec128i(0x01000302u, 0x05040706u, 0x09080B0Au, 0x0D0C0F0Eu),
     /* XMMPermuteControl15    */ vec128b(15),
     /* XMMPermuteByteMask     */ vec128b(0x1F),
-    /* XMMPackD3DCOLORSat     */ vec128i(0x404000FFu),
     /* XMMPackD3DCOLOR        */
     vec128i(0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu, 0x0C000408u),
     /* XMMUnpackD3DCOLOR      */
@@ -647,8 +646,19 @@ static const vec128_t xmm_consts[] = {
     vec128i(0xFFFFFFFFu, 0xFFFFFFFFu, 0x01000504u, 0x09080D0Cu),
     /* XMMUnpackSHORT_2       */
     vec128i(0xFFFF0F0Eu, 0xFFFF0D0Cu, 0xFFFFFFFFu, 0xFFFFFFFFu),
+    /* XMMUnpackSHORT_2_Min   */
+    vec128i(0x403F8001u, 0x403F8001u, 0x00000000u, 0x00000000u),
     /* XMMUnpackSHORT_4       */
     vec128i(0xFFFF0B0Au, 0xFFFF0908u, 0xFFFF0F0Eu, 0xFFFF0D0Cu),
+    /* XMMPackUINT_2101010_MinUnpacked */
+    vec128i(0x403FFE01u, 0x403FFE01u, 0x403FFE01u, 0x40400000u),
+    /* XMMPackUINT_2101010_MaxUnpacked */
+    vec128i(0x404001FFu, 0x404001FFu, 0x404001FFu, 0x40400003u),
+    /* XMMPackUINT_2101010_MaskUnpacked */
+    vec128i(0x3FFu, 0x3FFu, 0x3FFu, 0x3u),
+    /* XMMPackUINT_2101010_MaskPacked */
+    vec128i(0x3FFu, 0x3FFu << 10, 0x3FFu << 20, 0x3u << 30),
+    /* XMMPackUINT_2101010_Shift */ vec128i(0, 10, 20, 30),
     /* XMMOneOver255          */ vec128f(1.0f / 255.0f),
     /* XMMMaskEvenPI16        */
     vec128i(0x0000FFFFu, 0x0000FFFFu, 0x0000FFFFu, 0x0000FFFFu),
