@@ -83,7 +83,8 @@ bool TextureInfo::Prepare(const xe_gpu_texture_fetch_t& fetch,
 bool TextureInfo::PrepareResolve(uint32_t physical_address,
                                  TextureFormat format, Endian endian,
                                  uint32_t pitch, uint32_t width,
-                                 uint32_t height, TextureInfo* out_info) {
+                                 uint32_t height, uint32_t depth,
+                                 TextureInfo* out_info) {
   assert_true(width > 0);
   assert_true(height > 0);
 
@@ -95,7 +96,7 @@ bool TextureInfo::PrepareResolve(uint32_t physical_address,
   info.width = width - 1;
   info.height = height - 1;
   info.mip_levels = 1;
-  info.depth = 0;
+  info.depth = depth - 1;
   info.pitch = pitch;
 
   info.endianness = endian;
@@ -156,11 +157,20 @@ uint32_t TextureInfo::GetMipLocation(uint32_t mip, uint32_t* offset_x,
     return guest_address;
   }
 
+  uint32_t address_base, address_offset;
+
   // If the texture is <= 16 pixels w/h, the mips are packed with the base
   // texture. Otherwise, they're stored beginning from mip_address.
-  uint32_t address_base =
-      std::min(width, height) < 16 ? guest_address : mip_address;
-  uint32_t address_offset = 0;
+  if (std::min(width, height) < 16) {
+    address_base = guest_address;
+    address_offset = 0;
+  } else if (guest_address == mip_address) {
+    address_base = guest_address;
+    address_offset = GetMipByteSize(0, is_guest);
+  } else {
+    address_base = mip_address;
+    address_offset = 0;
+  }
 
   if (!has_packed_mips) {
     for (uint32_t i = 1; i < mip; i++) {
@@ -183,7 +193,6 @@ uint32_t TextureInfo::GetMipLocation(uint32_t mip, uint32_t* offset_x,
       // We've reached the point where the mips are packed into a single tile.
       break;
     }
-
     address_offset += GetMipByteSize(i, is_guest);
   }
 
@@ -196,7 +205,13 @@ uint32_t TextureInfo::GetMipLocation(uint32_t mip, uint32_t* offset_x,
 uint32_t TextureInfo::GetMipByteSize(uint32_t mip, bool is_guest) const {
   uint32_t bytes_per_block = format_info()->bytes_per_block();
   auto mip_usage = GetMipMemoryUsage(mip, is_guest);
-  return mip_usage.blocks() * bytes_per_block;
+  return mip_usage.all_blocks() * bytes_per_block;
+}
+
+uint32_t TextureInfo::GetMipVisibleByteSize(uint32_t mip, bool is_guest) const {
+  uint32_t bytes_per_block = format_info()->bytes_per_block();
+  auto mip_usage = GetMipMemoryUsage(mip, is_guest);
+  return mip_usage.visible_blocks() * bytes_per_block;
 }
 
 uint32_t TextureInfo::GetByteSize(bool is_guest) const {
