@@ -44,16 +44,12 @@ void AttachConsole() {
   }
   has_console_attached_ = true;
 
-  auto std_handle = (intptr_t)GetStdHandle(STD_OUTPUT_HANDLE);
-  auto con_handle = _open_osfhandle(std_handle, _O_TEXT);
-  auto fp = _fdopen(con_handle, "w");
-  *stdout = *fp;
-  setvbuf(stdout, nullptr, _IONBF, 0);
+  FILE* dummy;
+  freopen_s(&dummy, "CONIN$", "rb", stdin);
+  freopen_s(&dummy, "CONOUT$", "wb", stdout);
+  freopen_s(&dummy, "CONOUT$", "wb", stderr);
 
-  std_handle = (intptr_t)GetStdHandle(STD_ERROR_HANDLE);
-  con_handle = _open_osfhandle(std_handle, _O_TEXT);
-  fp = _fdopen(con_handle, "w");
-  *stderr = *fp;
+  setvbuf(stdout, nullptr, _IONBF, 0);
   setvbuf(stderr, nullptr, _IONBF, 0);
 }
 
