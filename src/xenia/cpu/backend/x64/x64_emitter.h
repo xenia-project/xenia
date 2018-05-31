@@ -64,6 +64,7 @@ enum XmmConst {
   XMMByteOrderMask,
   XMMPermuteControl15,
   XMMPermuteByteMask,
+  XMMPackD3DCOLORSat,
   XMMPackD3DCOLOR,
   XMMUnpackD3DCOLOR,
   XMMPackFLOAT16_2,
