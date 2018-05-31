@@ -38,8 +38,8 @@ struct TextureConfig {
 };
 
 #define SWIZ(r, g, b, a) r, g, b, a
-#define ___R SWIZ(-7, -7, -7, 0)
-#define ___A SWIZ(-7, -7, -7, 3)
+#define ___a SWIZ(-7, -7, -7, 3)
+#define rrrr SWIZ(-1, -1, -1, -1)
 #define GRAB SWIZ(1, 0, 3, 2)
 #define BGRA SWIZ(2, 1, 0, 3)
 
@@ -114,8 +114,8 @@ static const TextureConfig texture_configs[64] = {
     /* k_10_11_11_AS_16_16_16_16 */ {VK_FORMAT_B10G11R11_UFLOAT_PACK32},  // ?
     /* k_11_11_10_AS_16_16_16_16 */ {VK_FORMAT_B10G11R11_UFLOAT_PACK32},  // ?
     /* k_32_32_32_FLOAT         */ {VK_FORMAT_R32G32B32_SFLOAT},
-    /* k_DXT3A                  */ {VK_FORMAT_BC2_UNORM_BLOCK, ___A},
-    /* k_DXT5A                  */ {VK_FORMAT_BC4_UNORM_BLOCK},  // ATI1N
+    /* k_DXT3A                  */ {VK_FORMAT_BC2_UNORM_BLOCK, ___a},
+    /* k_DXT5A                  */ {VK_FORMAT_BC4_UNORM_BLOCK, rrrr},  // ATI1N
 
     // http://fileadmin.cs.lth.se/cs/Personal/Michael_Doggett/talks/unc-xenos-doggett.pdf
     /* k_CTX1                   */ {VK_FORMAT_R8G8_UINT},
@@ -129,8 +129,9 @@ static const TextureConfig texture_configs[64] = {
 
 #undef BGRA
 #undef GRAB
-#undef ___A
-#undef ___R
+#undef RZZZ
+#undef rrrr
+#undef ___a
 #undef SWIZ
 
 const char* get_dimension_name(Dimension dimension) {
