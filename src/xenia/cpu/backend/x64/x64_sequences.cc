@@ -6964,24 +6964,20 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
   }
   static void EmitD3DCOLOR(X64Emitter& e, const EmitArgType& i) {
     assert_true(i.src2.value->IsConstantZero());
-    // No saturation done here.
-    // Unpacking D3DCOLOR gives (1.0f | bits), or from 3F800000 to 3F8000FF.
-    // However, you can pack 3.0f + (value / (float) (1 << 22)), which creates
-    // a number between 40400000 and 404000FF:
-    // https://github.com/ValveSoftware/source-sdk-2013/blob/master/sp/src/public/pixelwriter.h#L648
-    // With saturation, you will get 0 when re-packing after unpacking.
-    // The above code also has to perform clamping explicitly.
-
+    // Saturate to [3,3....] so that only values between 3...[00] and 3...[FF]
+    // are valid.
+    if (i.src1.is_constant) {
+      e.LoadConstantXmm(i.dest, i.src1.constant());
+      e.vminps(i.dest, i.dest, e.GetXmmConstPtr(XMMPackD3DCOLORSat));
+    } else {
+      e.vminps(i.dest, i.src1, e.GetXmmConstPtr(XMMPackD3DCOLORSat));
+    }
+    e.vmaxps(i.dest, i.dest, e.GetXmmConstPtr(XMM3333));
     // Extract bytes.
     // RGBA (XYZW) -> ARGB (WXYZ)
     // w = ((src1.uw & 0xFF) << 24) | ((src1.ux & 0xFF) << 16) |
     //     ((src1.uy & 0xFF) << 8) | (src1.uz & 0xFF)
-    if (i.src1.is_constant) {
-      e.LoadConstantXmm(i.dest, i.src1.constant());
-      e.vpshufb(i.dest, i.dest, e.GetXmmConstPtr(XMMPackD3DCOLOR));
-    } else {
-      e.vpshufb(i.dest, i.src1, e.GetXmmConstPtr(XMMPackD3DCOLOR));
-    }
+    e.vpshufb(i.dest, i.dest, e.GetXmmConstPtr(XMMPackD3DCOLOR));
   }
   static __m128i EmulateFLOAT16_2(void*, __m128 src1) {
     alignas(16) float a[4];

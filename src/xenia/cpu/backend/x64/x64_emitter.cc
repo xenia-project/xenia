@@ -626,6 +626,7 @@ static const vec128_t xmm_consts[] = {
     vec128i(0x01000302u, 0x05040706u, 0x09080B0Au, 0x0D0C0F0Eu),
     /* XMMPermuteControl15    */ vec128b(15),
     /* XMMPermuteByteMask     */ vec128b(0x1F),
+    /* XMMPackD3DCOLORSat     */ vec128i(0x404000FFu),
     /* XMMPackD3DCOLOR        */
     vec128i(0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu, 0x0C000408u),
     /* XMMUnpackD3DCOLOR      */
