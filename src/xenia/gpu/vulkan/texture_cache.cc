@@ -29,110 +29,157 @@ using xe::ui::vulkan::CheckResult;
 constexpr uint32_t kMaxTextureSamplers = 32;
 constexpr VkDeviceSize kStagingBufferSize = 64 * 1024 * 1024;
 
+typedef enum VectorSwizzle {
+  VECTOR_SWIZZLE_X = 0,
+  VECTOR_SWIZZLE_Y = 1,
+  VECTOR_SWIZZLE_Z = 2,
+  VECTOR_SWIZZLE_W = 3,
+} VectorSwizzle;
+
 struct TextureConfig {
   VkFormat host_format;
-  int swizzle_r = 0;
-  int swizzle_g = 1;
-  int swizzle_b = 2;
-  int swizzle_a = 3;
+  struct {
+    VkComponentSwizzle r = VK_COMPONENT_SWIZZLE_R;
+    VkComponentSwizzle g = VK_COMPONENT_SWIZZLE_G;
+    VkComponentSwizzle b = VK_COMPONENT_SWIZZLE_B;
+    VkComponentSwizzle a = VK_COMPONENT_SWIZZLE_A;
+  } component_swizzle;
+  struct {
+    VectorSwizzle x = VECTOR_SWIZZLE_X;
+    VectorSwizzle y = VECTOR_SWIZZLE_Y;
+    VectorSwizzle z = VECTOR_SWIZZLE_Z;
+    VectorSwizzle w = VECTOR_SWIZZLE_W;
+  } vector_swizzle;
 };
 
-#define SWIZ(r, g, b, a) r, g, b, a
-#define ___a SWIZ(-7, -7, -7, 3)
-#define rrrr SWIZ(-1, -1, -1, -1)
-#define GRAB SWIZ(1, 0, 3, 2)
-#define BGRA SWIZ(2, 1, 0, 3)
+#define COMP_SWIZ(r, g, b, a)                              \
+  {                                                        \
+    VK_COMPONENT_SWIZZLE_##r, VK_COMPONENT_SWIZZLE_##g,    \
+        VK_COMPONENT_SWIZZLE_##b, VK_COMPONENT_SWIZZLE_##a \
+  }
+#define VEC_SWIZ(x, y, z, w)                                    \
+  {                                                             \
+    VECTOR_SWIZZLE_##x, VECTOR_SWIZZLE_##y, VECTOR_SWIZZLE_##z, \
+        VECTOR_SWIZZLE_##w                                      \
+  }
 
+#define RGBA COMP_SWIZ(R, G, B, A)
+#define ___R COMP_SWIZ(IDENTITY, IDENTITY, IDENTITY, R)
+#define RRRR COMP_SWIZ(R, R, R, R)
+
+#define XYZW VEC_SWIZ(X, Y, Z, W)
+#define YXWZ VEC_SWIZ(Y, X, W, Z)
+#define ZYXW VEC_SWIZ(Z, Y, X, W)
+
+#define ___(format) \
+  { VK_FORMAT_##format }
+#define _c_(format, component_swizzle) \
+  { VK_FORMAT_##format, component_swizzle, XYZW }
+#define __v(format, vector_swizzle) \
+  { VK_FORMAT_##format, RGBA, vector_swizzle }
+#define _cv(format, component_swizzle, vector_swizzle) \
+  { VK_FORMAT_##format, component_swizzle, vector_swizzle }
+
+// https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkFormat.html
 static const TextureConfig texture_configs[64] = {
-    /* k_1_REVERSE              */ {VK_FORMAT_UNDEFINED},
-    /* k_1                      */ {VK_FORMAT_UNDEFINED},
-    /* k_8                      */ {VK_FORMAT_R8_UNORM},
-    /* k_1_5_5_5                */ {VK_FORMAT_A1R5G5B5_UNORM_PACK16, BGRA},
-    /* k_5_6_5                  */ {VK_FORMAT_R5G6B5_UNORM_PACK16, BGRA},
-    /* k_6_5_5                  */ {VK_FORMAT_UNDEFINED},
-    /* k_8_8_8_8                */ {VK_FORMAT_R8G8B8A8_UNORM},
-    /* k_2_10_10_10             */ {VK_FORMAT_A2R10G10B10_UNORM_PACK32},
-    /* k_8_A                    */ {VK_FORMAT_R8_UNORM},
-    /* k_8_B                    */ {VK_FORMAT_UNDEFINED},
-    /* k_8_8                    */ {VK_FORMAT_R8G8_UNORM},
-    /* k_Cr_Y1_Cb_Y0            */ {VK_FORMAT_UNDEFINED},
-    /* k_Y1_Cr_Y0_Cb            */ {VK_FORMAT_UNDEFINED},
-    /* k_Shadow                 */ {VK_FORMAT_UNDEFINED},
-    /* k_8_8_8_8_A              */ {VK_FORMAT_UNDEFINED},
-    /* k_4_4_4_4                */ {VK_FORMAT_R4G4B4A4_UNORM_PACK16, GRAB},
+    /* k_1_REVERSE                 */ ___(UNDEFINED),
+    /* k_1                         */ ___(UNDEFINED),
+    /* k_8                         */ ___(R8_UNORM),
+    /* k_1_5_5_5                   */ __v(A1R5G5B5_UNORM_PACK16, ZYXW),
+    /* k_5_6_5                     */ __v(R5G6B5_UNORM_PACK16, ZYXW),
+    /* k_6_5_5                     */ ___(UNDEFINED),
+    /* k_8_8_8_8                   */ ___(R8G8B8A8_UNORM),
+    /* k_2_10_10_10                */ ___(A2R10G10B10_UNORM_PACK32),
+    /* k_8_A                       */ ___(R8_UNORM),
+    /* k_8_B                       */ ___(UNDEFINED),
+    /* k_8_8                       */ ___(R8G8_UNORM),
+    /* k_Cr_Y1_Cb_Y0               */ ___(UNDEFINED),
+    /* k_Y1_Cr_Y0_Cb               */ ___(UNDEFINED),
+    /* k_Shadow                    */ ___(UNDEFINED),
+    /* k_8_8_8_8_A                 */ ___(UNDEFINED),
+    /* k_4_4_4_4                   */ __v(R4G4B4A4_UNORM_PACK16, YXWZ),
     // TODO: Verify if these two are correct (I think not).
-    /* k_10_11_11               */ {VK_FORMAT_B10G11R11_UFLOAT_PACK32},
-    /* k_11_11_10               */ {VK_FORMAT_B10G11R11_UFLOAT_PACK32},
+    /* k_10_11_11                  */ ___(B10G11R11_UFLOAT_PACK32),
+    /* k_11_11_10                  */ ___(B10G11R11_UFLOAT_PACK32),
 
-    /* k_DXT1                   */ {VK_FORMAT_BC1_RGBA_UNORM_BLOCK},
-    /* k_DXT2_3                 */ {VK_FORMAT_BC2_UNORM_BLOCK},
-    /* k_DXT4_5                 */ {VK_FORMAT_BC3_UNORM_BLOCK},
-    /* k_DXV                    */ {VK_FORMAT_UNDEFINED},
+    /* k_DXT1                      */ ___(BC1_RGBA_UNORM_BLOCK),
+    /* k_DXT2_3                    */ ___(BC2_UNORM_BLOCK),
+    /* k_DXT4_5                    */ ___(BC3_UNORM_BLOCK),
+    /* k_DXV                       */ ___(UNDEFINED),
 
     // TODO: D24 unsupported on AMD.
-    /* k_24_8                   */ {VK_FORMAT_D24_UNORM_S8_UINT},
-    /* k_24_8_FLOAT             */ {VK_FORMAT_D32_SFLOAT_S8_UINT},
-    /* k_16                     */ {VK_FORMAT_R16_UNORM},
-    /* k_16_16                  */ {VK_FORMAT_R16G16_UNORM},
-    /* k_16_16_16_16            */ {VK_FORMAT_R16G16B16A16_UNORM},
-    /* k_16_EXPAND              */ {VK_FORMAT_R16_UNORM},
-    /* k_16_16_EXPAND           */ {VK_FORMAT_R16G16_UNORM},
-    /* k_16_16_16_16_EXPAND     */ {VK_FORMAT_R16G16B16A16_UNORM},
-    /* k_16_FLOAT               */ {VK_FORMAT_R16_SFLOAT},
-    /* k_16_16_FLOAT            */ {VK_FORMAT_R16G16_SFLOAT},
-    /* k_16_16_16_16_FLOAT      */ {VK_FORMAT_R16G16B16A16_SFLOAT},
+    /* k_24_8                      */ ___(D24_UNORM_S8_UINT),
+    /* k_24_8_FLOAT                */ ___(D32_SFLOAT_S8_UINT),
+    /* k_16                        */ ___(R16_UNORM),
+    /* k_16_16                     */ ___(R16G16_UNORM),
+    /* k_16_16_16_16               */ ___(R16G16B16A16_UNORM),
+    /* k_16_EXPAND                 */ ___(R16_UNORM),
+    /* k_16_16_EXPAND              */ ___(R16G16_UNORM),
+    /* k_16_16_16_16_EXPAND        */ ___(R16G16B16A16_UNORM),
+    /* k_16_FLOAT                  */ ___(R16_SFLOAT),
+    /* k_16_16_FLOAT               */ ___(R16G16_SFLOAT),
+    /* k_16_16_16_16_FLOAT         */ ___(R16G16B16A16_SFLOAT),
 
     // ! These are UNORM formats, not SINT.
-    /* k_32                     */ {VK_FORMAT_R32_SINT},
-    /* k_32_32                  */ {VK_FORMAT_R32G32_SINT},
-    /* k_32_32_32_32            */ {VK_FORMAT_R32G32B32A32_SINT},
-    /* k_32_FLOAT               */ {VK_FORMAT_R32_SFLOAT},
-    /* k_32_32_FLOAT            */ {VK_FORMAT_R32G32_SFLOAT},
-    /* k_32_32_32_32_FLOAT      */ {VK_FORMAT_R32G32B32A32_SFLOAT},
-    /* k_32_AS_8                */ {VK_FORMAT_UNDEFINED},
-    /* k_32_AS_8_8              */ {VK_FORMAT_UNDEFINED},
-    /* k_16_MPEG                */ {VK_FORMAT_UNDEFINED},
-    /* k_16_16_MPEG             */ {VK_FORMAT_UNDEFINED},
-    /* k_8_INTERLACED           */ {VK_FORMAT_UNDEFINED},
-    /* k_32_AS_8_INTERLACED     */ {VK_FORMAT_UNDEFINED},
-    /* k_32_AS_8_8_INTERLACED   */ {VK_FORMAT_UNDEFINED},
-    /* k_16_INTERLACED          */ {VK_FORMAT_UNDEFINED},
-    /* k_16_MPEG_INTERLACED     */ {VK_FORMAT_UNDEFINED},
-    /* k_16_16_MPEG_INTERLACED  */ {VK_FORMAT_UNDEFINED},
+    /* k_32                        */ ___(R32_SINT),
+    /* k_32_32                     */ ___(R32G32_SINT),
+    /* k_32_32_32_32               */ ___(R32G32B32A32_SINT),
+    /* k_32_FLOAT                  */ ___(R32_SFLOAT),
+    /* k_32_32_FLOAT               */ ___(R32G32_SFLOAT),
+    /* k_32_32_32_32_FLOAT         */ ___(R32G32B32A32_SFLOAT),
+    /* k_32_AS_8                   */ ___(UNDEFINED),
+    /* k_32_AS_8_8                 */ ___(UNDEFINED),
+    /* k_16_MPEG                   */ ___(UNDEFINED),
+    /* k_16_16_MPEG                */ ___(UNDEFINED),
+    /* k_8_INTERLACED              */ ___(UNDEFINED),
+    /* k_32_AS_8_INTERLACED        */ ___(UNDEFINED),
+    /* k_32_AS_8_8_INTERLACED      */ ___(UNDEFINED),
+    /* k_16_INTERLACED             */ ___(UNDEFINED),
+    /* k_16_MPEG_INTERLACED        */ ___(UNDEFINED),
+    /* k_16_16_MPEG_INTERLACED     */ ___(UNDEFINED),
 
     // http://fileadmin.cs.lth.se/cs/Personal/Michael_Doggett/talks/unc-xenos-doggett.pdf
-    /* k_DXN                    */ {VK_FORMAT_BC5_UNORM_BLOCK},  // ?
+    /* k_DXN                       */ ___(BC5_UNORM_BLOCK),  // ?
 
-    /* k_8_8_8_8_AS_16_16_16_16 */ {VK_FORMAT_R8G8B8A8_UNORM},
-    /* k_DXT1_AS_16_16_16_16    */ {VK_FORMAT_BC1_RGBA_UNORM_BLOCK},
-    /* k_DXT2_3_AS_16_16_16_16  */ {VK_FORMAT_BC2_UNORM_BLOCK},
-    /* k_DXT4_5_AS_16_16_16_16  */ {VK_FORMAT_BC3_UNORM_BLOCK},
+    /* k_8_8_8_8_AS_16_16_16_16    */ ___(R8G8B8A8_UNORM),
+    /* k_DXT1_AS_16_16_16_16       */ ___(BC1_RGBA_UNORM_BLOCK),
+    /* k_DXT2_3_AS_16_16_16_16     */ ___(BC2_UNORM_BLOCK),
+    /* k_DXT4_5_AS_16_16_16_16     */ ___(BC3_UNORM_BLOCK),
 
-    /* k_2_10_10_10_AS_16_16_16_16 */ {VK_FORMAT_A2R10G10B10_UNORM_PACK32},
+    /* k_2_10_10_10_AS_16_16_16_16 */ ___(A2R10G10B10_UNORM_PACK32),
 
     // TODO: Verify if these two are correct (I think not).
-    /* k_10_11_11_AS_16_16_16_16 */ {VK_FORMAT_B10G11R11_UFLOAT_PACK32},  // ?
-    /* k_11_11_10_AS_16_16_16_16 */ {VK_FORMAT_B10G11R11_UFLOAT_PACK32},  // ?
-    /* k_32_32_32_FLOAT         */ {VK_FORMAT_R32G32B32_SFLOAT},
-    /* k_DXT3A                  */ {VK_FORMAT_BC2_UNORM_BLOCK, ___a},
-    /* k_DXT5A                  */ {VK_FORMAT_BC4_UNORM_BLOCK, rrrr},  // ATI1N
+    /* k_10_11_11_AS_16_16_16_16   */ ___(B10G11R11_UFLOAT_PACK32),  // ?
+    /* k_11_11_10_AS_16_16_16_16   */ ___(B10G11R11_UFLOAT_PACK32),  // ?
+    /* k_32_32_32_FLOAT            */ ___(R32G32B32_SFLOAT),
+    /* k_DXT3A                     */ _c_(BC2_UNORM_BLOCK, ___R),
+    /* k_DXT5A                     */ _c_(BC4_UNORM_BLOCK, RRRR),  // ATI1N
 
     // http://fileadmin.cs.lth.se/cs/Personal/Michael_Doggett/talks/unc-xenos-doggett.pdf
-    /* k_CTX1                   */ {VK_FORMAT_R8G8_UINT},
+    /* k_CTX1                      */ ___(R8G8_UINT),
 
-    /* k_DXT3A_AS_1_1_1_1       */ {VK_FORMAT_UNDEFINED},
+    /* k_DXT3A_AS_1_1_1_1          */ ___(UNDEFINED),
 
     // Unused.
-    /* kUnknown                 */ {VK_FORMAT_UNDEFINED},
-    /* kUnknown                 */ {VK_FORMAT_UNDEFINED},
+    /* kUnknown                    */ ___(UNDEFINED),
+    /* kUnknown                    */ ___(UNDEFINED),
 };
 
-#undef BGRA
-#undef GRAB
-#undef RZZZ
-#undef rrrr
-#undef ___a
-#undef SWIZ
+#undef _cv
+#undef __v
+#undef _c_
+#undef ___
+
+#undef ZYXW
+#undef YXWZ
+#undef XYZW
+
+#undef RRRR
+#undef ___R
+#undef RGBA
+
+#undef VEC_SWIZ
+#undef COMP_SWIZ
 
 const char* get_dimension_name(Dimension dimension) {
   static const char* names[] = {
@@ -601,37 +648,30 @@ TextureCache::TextureView* TextureCache::DemandView(Texture* texture,
       assert_always();
   }
 
-  VkComponentSwizzle swiz_component_map[] = {
-      VK_COMPONENT_SWIZZLE_R,        VK_COMPONENT_SWIZZLE_G,
-      VK_COMPONENT_SWIZZLE_B,        VK_COMPONENT_SWIZZLE_A,
+  VkComponentSwizzle swizzle_component_map[] = {
+      config.component_swizzle.r,    config.component_swizzle.g,
+      config.component_swizzle.b,    config.component_swizzle.a,
       VK_COMPONENT_SWIZZLE_ZERO,     VK_COMPONENT_SWIZZLE_ONE,
       VK_COMPONENT_SWIZZLE_IDENTITY,
   };
 
-  VkComponentSwizzle unswizzled_channels[] = {
-      swiz_component_map[(swizzle >> 0) & 0x7],
-      swiz_component_map[(swizzle >> 3) & 0x7],
-      swiz_component_map[(swizzle >> 6) & 0x7],
-      swiz_component_map[(swizzle >> 9) & 0x7],
+  VkComponentSwizzle components[] = {
+      swizzle_component_map[(swizzle >> 0) & 0x7],
+      swizzle_component_map[(swizzle >> 3) & 0x7],
+      swizzle_component_map[(swizzle >> 6) & 0x7],
+      swizzle_component_map[(swizzle >> 9) & 0x7],
   };
 
-#define SWIZZLE_CHANNEL(x)                                                 \
-  {                                                                        \
-    assert_true((config.swizzle_##x >= 0 &&                                \
-                 config.swizzle_##x < xe::countof(unswizzled_channels)) || \
-                (config.swizzle_##x < 0 &&                                 \
-                 config.swizzle_##x >=                                     \
-                     -static_cast<int>(xe::countof(swiz_component_map)))); \
-    view_info.components.x =                                               \
-        config.swizzle_##x >= 0                                            \
-            ? unswizzled_channels[config.swizzle_##x]                      \
-            : swiz_component_map[-(config.swizzle_##x) - 1];               \
+#define SWIZZLE_VECTOR(r, x)                                        \
+  {                                                                 \
+    assert_true(config.vector_swizzle.x >= 0 &&                     \
+                config.vector_swizzle.x < xe::countof(components)); \
+    view_info.components.r = components[config.vector_swizzle.x];   \
   }
-
-  SWIZZLE_CHANNEL(r);
-  SWIZZLE_CHANNEL(g);
-  SWIZZLE_CHANNEL(b);
-  SWIZZLE_CHANNEL(a);
+  SWIZZLE_VECTOR(r, x);
+  SWIZZLE_VECTOR(g, y);
+  SWIZZLE_VECTOR(b, z);
+  SWIZZLE_VECTOR(a, w);
 #undef SWIZZLE_CHANNEL
 
   if (texture->format == VK_FORMAT_D16_UNORM_S8_UINT ||
