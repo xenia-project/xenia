@@ -291,13 +291,17 @@ struct FormatInfo {
 struct TextureInfo;
 
 struct TextureMemoryUsage {
-  uint32_t pitch;         // texel pitch
-  uint32_t height;        // texel height
-  uint32_t block_pitch;   // # of horizontal pitch blocks
-  uint32_t block_height;  // # of vertical blocks
+  uint32_t pitch;          // texel pitch
+  uint32_t height;         // texel height
+  uint32_t block_height;   // # of vertical blocks
+  uint32_t block_pitch_h;  // # of horizontal pitch blocks
+  uint32_t block_pitch_v;  // # of vertical pitch blocks
   uint32_t depth;
 
-  uint32_t blocks() const { return block_pitch * block_height * depth; }
+  uint32_t all_blocks() const { return block_pitch_h * block_pitch_v * depth; }
+  uint32_t visible_blocks() const {
+    return block_pitch_h * block_height * depth;
+  }
 
   static TextureMemoryUsage Calculate(const FormatInfo* format_info,
                                       uint32_t pitch, uint32_t height,
@@ -339,7 +343,7 @@ struct TextureInfo {
   static bool PrepareResolve(uint32_t physical_address,
                              TextureFormat texture_format, Endian endian,
                              uint32_t pitch, uint32_t width, uint32_t height,
-                             TextureInfo* out_info);
+                             uint32_t depth, TextureInfo* out_info);
 
   uint32_t GetMaxMipLevels() const;
 
@@ -352,6 +356,7 @@ struct TextureInfo {
                           bool is_guest) const;
 
   uint32_t GetMipByteSize(uint32_t mip, bool is_guest) const;
+  uint32_t GetMipVisibleByteSize(uint32_t mip, bool is_guest) const;
 
   uint32_t GetByteSize(bool is_guest) const;
 

@@ -822,6 +822,10 @@ bool VulkanCommandProcessor::PopulateVertexBuffers(
   assert_true(vertex_bindings.size() <= 32);
   auto descriptor_set = buffer_cache_->PrepareVertexSet(
       setup_buffer, current_batch_fence_, vertex_bindings);
+  if (!descriptor_set) {
+    XELOGW("Failed to prepare vertex set!");
+    return false;
+  }
 
   vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                           pipeline_cache_->pipeline_layout(), 2, 1,
@@ -843,6 +847,7 @@ bool VulkanCommandProcessor::PopulateSamplers(VkCommandBuffer command_buffer,
       pixel_shader ? pixel_shader->texture_bindings() : dummy_bindings);
   if (!descriptor_set) {
     // Unable to bind set.
+    XELOGW("Failed to prepare texture set!");
     return false;
   }
 
@@ -1023,13 +1028,14 @@ bool VulkanCommandProcessor::IssueCopy() {
 
   // Demand a resolve texture from the texture cache.
   TextureInfo texture_info;
-  TextureInfo::PrepareResolve(copy_dest_base, copy_dest_format, resolve_endian,
-                              copy_dest_pitch, dest_logical_width,
-                              std::max(1u, dest_logical_height), &texture_info);
+  TextureInfo::PrepareResolve(
+      copy_dest_base, copy_dest_format, resolve_endian, copy_dest_pitch,
+      dest_logical_width, std::max(1u, dest_logical_height), 1, &texture_info);
 
   auto texture = texture_cache_->DemandResolveTexture(texture_info);
   if (!texture) {
     // Out of memory.
+    XELOGD("Failed to demand resolve texture!");
     return false;
   }
 
@@ -1137,6 +1143,7 @@ bool VulkanCommandProcessor::IssueCopy() {
       auto view = render_cache_->FindTileView(
           edram_base, surface_pitch, surface_msaa, is_color_source, src_format);
       if (!view) {
+        XELOGGPU("Failed to find tile view!");
         break;
       }
 

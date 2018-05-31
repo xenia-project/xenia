@@ -425,6 +425,9 @@ void TextureCache::WatchCallback(void* context_ptr, void* data_ptr,
   touched_texture->access_watch_handle = 0;
   touched_texture->pending_invalidation = true;
 
+  /*XELOGI("Invalidating texture @ 0x%.8X!",
+         touched_texture->texture_info.guest_address);*/
+
   // Add to pending list so Scavenge will clean it up.
   self->invalidated_textures_mutex_.lock();
   self->invalidated_textures_->insert(touched_texture);
@@ -470,15 +473,17 @@ TextureCache::Texture* TextureCache::DemandResolveTexture(
   device_->DbgSetObjectName(
       reinterpret_cast<uint64_t>(texture->image),
       VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT,
-      xe::format_string(
-          "RT: 0x%.8X - 0x%.8X (%s, %s)", texture_info.guest_address,
-          texture_info.guest_address + texture_info.GetByteSize(true),
-          texture_info.format_info()->name,
-          get_dimension_name(texture_info.dimension)));
+      xe::format_string("RT: 0x%.8X - 0x%.8X (%s, %s)",
+                        texture_info.guest_address,
+                        texture_info.guest_address +
+                            texture_info.GetMipVisibleByteSize(0, true),
+                        texture_info.format_info()->name,
+                        get_dimension_name(texture_info.dimension)));
 
   // Setup an access watch. If this texture is touched, it is destroyed.
+  // TODO(gibbed): Setup access watch for mipmap data.
   texture->access_watch_handle = memory_->AddPhysicalAccessWatch(
-      texture_info.guest_address, texture_info.GetByteSize(true),
+      texture_info.guest_address, texture_info.GetMipVisibleByteSize(0, true),
       cpu::MMIOHandler::kWatchWrite, &WatchCallback, this, texture);
 
   textures_[texture_hash] = texture;
@@ -536,8 +541,9 @@ TextureCache::Texture* TextureCache::Demand(const TextureInfo& texture_info,
 
   // Okay. Put a writewatch on it to tell us if it's been modified from the
   // guest.
+  // TODO(gibbed): Setup access watch for mipmap data.
   texture->access_watch_handle = memory_->AddPhysicalAccessWatch(
-      texture_info.guest_address, texture_info.GetByteSize(true),
+      texture_info.guest_address, texture_info.GetMipVisibleByteSize(0, true),
       cpu::MMIOHandler::kWatchWrite, &WatchCallback, this, texture);
 
   if (!UploadTexture(command_buffer, completion_fence, texture, texture_info)) {
@@ -856,8 +862,8 @@ TextureCache::Texture* TextureCache::LookupAddress(uint32_t guest_address,
   for (auto it = textures_.begin(); it != textures_.end(); ++it) {
     const auto& texture_info = it->second->texture_info;
     if (guest_address >= texture_info.guest_address &&
-        guest_address <
-            texture_info.guest_address + texture_info.GetByteSize(true) &&
+        guest_address < texture_info.guest_address +
+                            texture_info.GetMipVisibleByteSize(0, true) &&
         texture_info.pitch >= width && texture_info.height >= height &&
         out_offset) {
       auto offset_bytes = guest_address - texture_info.guest_address;
@@ -939,9 +945,9 @@ bool TextureCache::ConvertTexture(uint8_t* dest, VkBufferImageCopy* copy_region,
   auto dst_usage = GetMipMemoryUsage(src, mip);
 
   uint32_t src_pitch =
-      src_usage.block_pitch * src.format_info()->bytes_per_block();
+      src_usage.block_pitch_h * src.format_info()->bytes_per_block();
   uint32_t dst_pitch =
-      dst_usage.block_pitch * GetFormatInfo(src.format)->bytes_per_block();
+      dst_usage.block_pitch_h * GetFormatInfo(src.format)->bytes_per_block();
 
   auto copy_block = GetFormatCopyBlock(src.format);
 
@@ -954,8 +960,8 @@ bool TextureCache::ConvertTexture(uint8_t* dest, VkBufferImageCopy* copy_region,
         copy_block(src.endianness, dest + y * dst_pitch,
                    src_mem + y * src_pitch, dst_pitch);
       }
-      src_mem += src_pitch * src_usage.block_height;
-      dest += dst_pitch * dst_usage.block_height;
+      src_mem += src_pitch * src_usage.block_pitch_v;
+      dest += dst_pitch * dst_usage.block_pitch_v;
     }
   } else {
     // Untile image.
@@ -965,18 +971,18 @@ bool TextureCache::ConvertTexture(uint8_t* dest, VkBufferImageCopy* copy_region,
       std::memset(&untile_info, 0, sizeof(untile_info));
       untile_info.offset_x = offset_x;
       untile_info.offset_y = offset_y;
-      untile_info.width = dst_usage.block_pitch;
+      untile_info.width = dst_usage.block_pitch_h;
       untile_info.height = dst_usage.block_height;
-      untile_info.input_pitch = src_usage.block_pitch;
-      untile_info.output_pitch = dst_usage.block_pitch;
+      untile_info.input_pitch = src_usage.block_pitch_h;
+      untile_info.output_pitch = dst_usage.block_pitch_h;
       untile_info.input_format_info = src.format_info();
       untile_info.output_format_info = GetFormatInfo(src.format);
       untile_info.copy_callback = [=](auto o, auto i, auto l) {
         copy_block(src.endianness, o, i, l);
       };
       texture_conversion::Untile(dest, src_mem, &untile_info);
-      src_mem += src_pitch * src_usage.block_height;
-      dest += dst_pitch * dst_usage.block_height;
+      src_mem += src_pitch * src_usage.block_pitch_v;
+      dest += dst_pitch * dst_usage.block_pitch_v;
     }
   }
 
@@ -1195,7 +1201,7 @@ uint32_t TextureCache::ComputeMipStorage(const FormatInfo* format_info,
                                           depth, false, false);
   }
   uint32_t bytes_per_block = format_info->bytes_per_block();
-  return usage.blocks() * bytes_per_block;
+  return usage.all_blocks() * bytes_per_block;
 }
 
 uint32_t TextureCache::ComputeMipStorage(const TextureInfo& src, uint32_t mip) {
