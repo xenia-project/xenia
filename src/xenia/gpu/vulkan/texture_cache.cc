@@ -27,6 +27,8 @@ namespace vulkan {
 
 using xe::ui::vulkan::CheckResult;
 
+DEFINE_bool(enable_mip_watches, false, "Enable mipmap watches");
+
 constexpr uint32_t kMaxTextureSamplers = 32;
 constexpr VkDeviceSize kStagingBufferSize = 64 * 1024 * 1024;
 
@@ -321,9 +323,9 @@ void TextureCache::WatchCallback(void* context_ptr, void* data_ptr,
     return;
   }
 
+  assert_not_zero(touched_texture->access_watch_handle);
   // Clear watch handle first so we don't redundantly
   // remove.
-  assert_not_zero(touched_texture->access_watch_handle);
   touched_texture->access_watch_handle = 0;
   touched_texture->pending_invalidation = true;
 
@@ -383,7 +385,7 @@ TextureCache::Texture* TextureCache::DemandResolveTexture(
           get_dimension_name(texture_info.dimension)));
 
   // Setup an access watch. If this texture is touched, it is destroyed.
-  if (!texture_info.memory.mip_address) {
+  if (!FLAGS_enable_mip_watches || !texture_info.memory.mip_address) {
     texture->access_watch_handle = memory_->AddPhysicalAccessWatch(
         texture_info.memory.base_address, texture_info.memory.base_size,
         cpu::MMIOHandler::kWatchWrite, &WatchCallback, this, texture);
@@ -494,7 +496,7 @@ TextureCache::Texture* TextureCache::Demand(const TextureInfo& texture_info,
 
   // Okay. Put a writewatch on it to tell us if it's been modified from the
   // guest.
-  if (!texture_info.memory.mip_address) {
+  if (!FLAGS_enable_mip_watches || !texture_info.memory.mip_address) {
     texture->access_watch_handle = memory_->AddPhysicalAccessWatch(
         texture_info.memory.base_address, texture_info.memory.base_size,
         cpu::MMIOHandler::kWatchWrite, &WatchCallback, this, texture);
