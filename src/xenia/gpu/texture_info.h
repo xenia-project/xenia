@@ -290,7 +290,7 @@ struct FormatInfo {
 
 struct TextureInfo;
 
-struct TextureMemoryUsage {
+struct TextureExtent {
   uint32_t pitch;          // texel pitch
   uint32_t height;         // texel height
   uint32_t block_height;   // # of vertical blocks
@@ -303,12 +303,18 @@ struct TextureMemoryUsage {
     return block_pitch_h * block_height * depth;
   }
 
-  static TextureMemoryUsage Calculate(const FormatInfo* format_info,
-                                      uint32_t pitch, uint32_t height,
-                                      uint32_t depth, bool is_tiled,
-                                      bool is_guest);
-  static TextureMemoryUsage Calculate(const TextureInfo* texture_info,
-                                      bool is_guest);
+  static TextureExtent Calculate(const FormatInfo* format_info, uint32_t pitch,
+                                 uint32_t height, uint32_t depth, bool is_tiled,
+                                 bool is_guest);
+  static TextureExtent Calculate(const TextureInfo* texture_info,
+                                 bool is_guest);
+};
+
+struct TextureMemoryInfo {
+  uint32_t base_address;
+  uint32_t base_size;
+  uint32_t mip_address;
+  uint32_t mip_size;
 };
 
 struct TextureInfo {
@@ -324,10 +330,8 @@ struct TextureInfo {
   bool is_tiled;
   bool has_packed_mips;
 
-  TextureMemoryUsage memory_usage;
-
-  uint32_t guest_address;
-  uint32_t mip_address;
+  TextureMemoryInfo memory;
+  TextureExtent extent;
 
   const FormatInfo* format_info() const {
     return FormatInfo::Get(static_cast<uint32_t>(format));
@@ -347,18 +351,13 @@ struct TextureInfo {
 
   uint32_t GetMaxMipLevels() const;
 
-  const TextureMemoryUsage GetMipMemoryUsage(uint32_t mip, bool is_guest) const;
+  const TextureExtent GetMipExtent(uint32_t mip, bool is_guest) const;
 
   void GetMipSize(uint32_t mip, uint32_t* width, uint32_t* height) const;
 
   // Get the memory location of a mip. offset_x and offset_y are in blocks.
   uint32_t GetMipLocation(uint32_t mip, uint32_t* offset_x, uint32_t* offset_y,
                           bool is_guest) const;
-
-  uint32_t GetMipByteSize(uint32_t mip, bool is_guest) const;
-  uint32_t GetMipVisibleByteSize(uint32_t mip, bool is_guest) const;
-
-  uint32_t GetByteSize(bool is_guest) const;
 
   static bool GetPackedTileOffset(uint32_t width, uint32_t height,
                                   const FormatInfo* format_info,
@@ -372,6 +371,9 @@ struct TextureInfo {
   bool operator==(const TextureInfo& other) const {
     return std::memcmp(this, &other, sizeof(TextureInfo)) == 0;
   }
+
+ private:
+  void SetupMemoryInfo(uint32_t base_address, uint32_t mip_address);
 };
 
 }  // namespace gpu

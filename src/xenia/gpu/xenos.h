@@ -408,12 +408,12 @@ XEPACKEDUNION(xe_gpu_texture_fetch_t, {
     uint32_t pitch : 9;     // +22 byte_pitch >> 5
     uint32_t tiled : 1;     // +31
 
-    uint32_t format : 6;        // +0 dword_1
-    uint32_t endianness : 2;    // +6
-    uint32_t request_size : 2;  // +8
-    uint32_t stacked : 1;       // +10
-    uint32_t clamp_policy : 1;  // +11 d3d/opengl
-    uint32_t address : 20;      // +12
+    uint32_t format : 6;         // +0 dword_1
+    uint32_t endianness : 2;     // +6
+    uint32_t request_size : 2;   // +8
+    uint32_t stacked : 1;        // +10
+    uint32_t clamp_policy : 1;   // +11 d3d/opengl
+    uint32_t base_address : 20;  // +12
 
     union {  // dword_2
       struct {

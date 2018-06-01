@@ -686,7 +686,7 @@ void TraceViewer::DrawTextureInfo(
   }
   ImGui::NextColumn();
   ImGui::Text("Fetch Slot: %u", texture_binding.fetch_constant);
-  ImGui::Text("Guest Address: %.8X", texture_info.guest_address);
+  ImGui::Text("Guest Address: %.8X", texture_info.memory.base_address);
   ImGui::Text("Format: %s", texture_info.format_info()->name);
   switch (texture_info.dimension) {
     case Dimension::k1D:
