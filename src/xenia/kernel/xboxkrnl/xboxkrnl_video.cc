@@ -381,7 +381,7 @@ void VdSwap(lpvoid_t buffer_ptr,  // ptr into primary ringbuffer
   buffer_ptr.Zero(64 * 4);
 
   // virtual -> physical
-  fetch.address &= 0x1FFFF;
+  fetch.base_address &= 0x1FFFF;
 
   uint32_t offset = 0;
   auto dwords = buffer_ptr.as_array<uint32_t>();

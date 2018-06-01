@@ -19,11 +19,11 @@ namespace gpu {
 
 using namespace xe::gpu::xenos;
 
-static TextureMemoryUsage CalculateMemoryUsage(const FormatInfo* format_info,
-                                               uint32_t pitch, uint32_t height,
-                                               uint32_t depth, bool is_tiled,
-                                               bool is_guest) {
-  TextureMemoryUsage usage;
+static TextureExtent CalculateExtent(const FormatInfo* format_info,
+                                     uint32_t pitch, uint32_t height,
+                                     uint32_t depth, bool is_tiled,
+                                     bool is_guest) {
+  TextureExtent usage;
 
   usage.pitch = pitch;
   usage.height = height;
@@ -60,21 +60,17 @@ static TextureMemoryUsage CalculateMemoryUsage(const FormatInfo* format_info,
   return usage;
 }
 
-TextureMemoryUsage TextureMemoryUsage::Calculate(const FormatInfo* format_info,
-                                                 uint32_t pitch,
-                                                 uint32_t height,
-                                                 uint32_t depth, bool is_tiled,
-                                                 bool is_guest) {
-  return CalculateMemoryUsage(format_info, pitch, height, depth, is_tiled,
-                              is_guest);
+TextureExtent TextureExtent::Calculate(const FormatInfo* format_info,
+                                       uint32_t pitch, uint32_t height,
+                                       uint32_t depth, bool is_tiled,
+                                       bool is_guest) {
+  return CalculateExtent(format_info, pitch, height, depth, is_tiled, is_guest);
 }
 
-TextureMemoryUsage TextureMemoryUsage::Calculate(const TextureInfo* info,
-                                                 bool is_guest) {
+TextureExtent TextureExtent::Calculate(const TextureInfo* info, bool is_guest) {
   assert_not_null(info);
-  return CalculateMemoryUsage(info->format_info(), info->pitch,
-                              info->height + 1, info->depth + 1, info->is_tiled,
-                              is_guest);
+  return CalculateExtent(info->format_info(), info->pitch, info->height + 1,
+                         info->depth + 1, info->is_tiled, is_guest);
 }
 
 }  //  namespace gpu
