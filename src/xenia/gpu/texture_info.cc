@@ -67,15 +67,16 @@ bool TextureInfo::Prepare(const xe_gpu_texture_fetch_t& fetch,
   info.is_tiled = fetch.tiled;
   info.has_packed_mips = fetch.packed_mips;
 
-  info.SetupMemoryInfo(fetch.base_address << 12, fetch.mip_address << 12);
-
   if (info.format_info()->format == TextureFormat::kUnknown) {
     XELOGE("Attempting to fetch from unsupported texture format %d",
            info.format);
+    info.memory.base_address = fetch.base_address << 12;
+    info.memory.mip_address = fetch.mip_address << 12;
     return false;
   }
 
   info.extent = TextureExtent::Calculate(out_info, true);
+  info.SetupMemoryInfo(fetch.base_address << 12, fetch.mip_address << 12);
   return true;
 }
 
@@ -104,14 +105,14 @@ bool TextureInfo::PrepareResolve(uint32_t physical_address,
   info.is_tiled = true;
   info.has_packed_mips = false;
 
-  info.SetupMemoryInfo(physical_address, 0);
-
   if (info.format_info()->format == TextureFormat::kUnknown) {
     assert_true("Unsupported texture format");
+    info.memory.base_address = physical_address;
     return false;
   }
 
   info.extent = TextureExtent::Calculate(out_info, true);
+  info.SetupMemoryInfo(physical_address, 0);
   return true;
 }
 
@@ -159,19 +160,8 @@ uint32_t TextureInfo::GetMipLocation(uint32_t mip, uint32_t* offset_x,
   }
 
   uint32_t address_base, address_offset;
-
-  // If the texture is <= 16 pixels w/h, the mips are packed with the base
-  // texture. Otherwise, they're stored beginning from mip_address.
-  if (std::min(width, height) < 16) {
-    address_base = memory.base_address;
-    address_offset = 0;
-  } else if (memory.base_address == memory.mip_address) {
-    address_base = memory.base_address;
-    address_offset = memory.base_size;
-  } else {
-    address_base = memory.mip_address;
-    address_offset = 0;
-  }
+  address_base = memory.mip_address;
+  address_offset = 0;
 
   auto bytes_per_block = format_info()->bytes_per_block();
 
@@ -299,31 +289,33 @@ uint64_t TextureInfo::hash() const {
 }
 
 void TextureInfo::SetupMemoryInfo(uint32_t base_address, uint32_t mip_address) {
+  uint32_t bytes_per_block = format_info()->bytes_per_block();
+
   memory.base_address = base_address;
-  memory.base_size = 0;
+  memory.base_size = GetMipExtent(0, true).visible_blocks() * bytes_per_block;
   memory.mip_address = 0;
   memory.mip_size = 0;
 
-  uint32_t bytes_per_block = format_info()->bytes_per_block();
-
   if (mip_levels <= 1) {
     // Sort circuit. Only one mip.
-    memory.base_size = GetMipExtent(0, true).all_blocks() * bytes_per_block;
     return;
+  }
+
+  if (!mip_address || base_address == mip_address) {
+    memory.mip_address = base_address;
+    memory.mip_address += GetMipExtent(0, true).all_blocks() * bytes_per_block;
+  } else {
+    memory.mip_address = mip_address;
   }
 
   if (!has_packed_mips) {
-    assert_true(mip_address == 0 || mip_address == base_address);
     for (uint32_t mip = 0; mip < mip_levels - 1; mip++) {
-      memory.base_size +=
-          GetMipExtent(mip, true).all_blocks() * bytes_per_block;
+      memory.mip_size += GetMipExtent(mip, true).all_blocks() * bytes_per_block;
     }
-    memory.base_size +=
+    memory.mip_size +=
         GetMipExtent(mip_levels - 1, true).visible_blocks() * bytes_per_block;
     return;
   }
-
-  uint32_t total_size = 0;
 
   uint32_t width_pow2 = xe::next_pow2(width + 1);
   uint32_t height_pow2 = xe::next_pow2(height + 1);
@@ -338,15 +330,7 @@ void TextureInfo::SetupMemoryInfo(uint32_t base_address, uint32_t mip_address) {
       // We've reached the point where the mips are packed into a single tile.
       break;
     }
-    total_size += GetMipExtent(mip, true).all_blocks() * bytes_per_block;
-  }
-
-  if (mip_address != base_address) {
-    memory.mip_address = mip_address;
-    memory.mip_size = total_size;
-  } else {
-    memory.base_size = GetMipExtent(0, true).all_blocks() * bytes_per_block;
-    memory.base_size += total_size;
+    memory.mip_size += GetMipExtent(mip, true).all_blocks() * bytes_per_block;
   }
 }
 
