@@ -369,7 +369,7 @@ void VdSwap(lpvoid_t buffer_ptr,  // ptr into primary ringbuffer
               texture_format ==
                   gpu::TextureFormat::k_2_10_10_10_AS_16_16_16_16);
   assert_true(color_space == 0);  // RGB(0)
-  assert_true(*frontbuffer_ptr == fetch.address << 12);
+  assert_true(*frontbuffer_ptr == fetch.base_address << 12);
   assert_true(*width == 1 + fetch.size_2d.width);
   assert_true(*height == 1 + fetch.size_2d.height);
 
