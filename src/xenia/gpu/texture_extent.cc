@@ -23,41 +23,41 @@ static TextureExtent CalculateExtent(const FormatInfo* format_info,
                                      uint32_t pitch, uint32_t height,
                                      uint32_t depth, bool is_tiled,
                                      bool is_guest) {
-  TextureExtent usage;
+  TextureExtent extent;
 
-  usage.pitch = pitch;
-  usage.height = height;
-  usage.block_pitch_h = xe::round_up(usage.pitch, format_info->block_width) /
-                        format_info->block_width;
-  usage.block_height = xe::round_up(usage.height, format_info->block_height) /
-                       format_info->block_height;
-  usage.block_pitch_v = usage.block_height;
-  usage.depth = depth;
+  extent.pitch = pitch;
+  extent.height = height;
+  extent.block_pitch_h = xe::round_up(extent.pitch, format_info->block_width) /
+                         format_info->block_width;
+  extent.block_height = xe::round_up(extent.height, format_info->block_height) /
+                        format_info->block_height;
+  extent.block_pitch_v = extent.block_height;
+  extent.depth = depth;
 
   if (is_guest) {
     // Texture dimensions must be a multiple of tile
     // dimensions (32x32 blocks).
-    usage.block_pitch_h = xe::round_up(usage.block_pitch_h, 32);
-    usage.block_pitch_v = xe::round_up(usage.block_pitch_v, 32);
+    extent.block_pitch_h = xe::round_up(extent.block_pitch_h, 32);
+    extent.block_pitch_v = xe::round_up(extent.block_pitch_v, 32);
 
-    usage.pitch = usage.block_pitch_h * format_info->block_width;
-    usage.height = usage.block_pitch_v * format_info->block_height;
+    extent.pitch = extent.block_pitch_h * format_info->block_width;
+    extent.height = extent.block_pitch_v * format_info->block_height;
 
     uint32_t bytes_per_block = format_info->bytes_per_block();
-    uint32_t byte_pitch = usage.block_pitch_h * bytes_per_block;
+    uint32_t byte_pitch = extent.block_pitch_h * bytes_per_block;
 
     if (!is_tiled) {
       // Each row must be a multiple of 256 bytes in linear textures.
       byte_pitch = xe::round_up(byte_pitch, 256);
-      usage.block_pitch_h = byte_pitch / bytes_per_block;
-      usage.pitch = usage.block_pitch_h * format_info->block_width;
+      extent.block_pitch_h = byte_pitch / bytes_per_block;
+      extent.pitch = extent.block_pitch_h * format_info->block_width;
     }
 
     // Is depth special?
-    usage.depth = usage.depth;
+    extent.depth = extent.depth;
   }
 
-  return usage;
+  return extent;
 }
 
 TextureExtent TextureExtent::Calculate(const FormatInfo* format_info,

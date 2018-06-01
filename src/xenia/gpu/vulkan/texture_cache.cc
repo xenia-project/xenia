@@ -316,7 +316,8 @@ void TextureCache::WatchCallback(void* context_ptr, void* data_ptr,
                                  uint32_t address) {
   auto self = reinterpret_cast<TextureCache*>(context_ptr);
   auto touched_texture = reinterpret_cast<Texture*>(data_ptr);
-  if (!touched_texture || !touched_texture->access_watch_handle) {
+  if (!touched_texture || !touched_texture->access_watch_handle ||
+      touched_texture->pending_invalidation) {
     return;
   }
 
@@ -325,9 +326,6 @@ void TextureCache::WatchCallback(void* context_ptr, void* data_ptr,
   assert_not_zero(touched_texture->access_watch_handle);
   touched_texture->access_watch_handle = 0;
   touched_texture->pending_invalidation = true;
-
-  /*XELOGI("Invalidating texture @ 0x%.8X!",
-         touched_texture->texture_info.guest_address);*/
 
   // Add to pending list so Scavenge will clean it up.
   self->invalidated_textures_mutex_.lock();
@@ -385,13 +383,34 @@ TextureCache::Texture* TextureCache::DemandResolveTexture(
           get_dimension_name(texture_info.dimension)));
 
   // Setup an access watch. If this texture is touched, it is destroyed.
-  texture->access_watch_handle = memory_->AddPhysicalAccessWatch(
-      texture_info.memory.base_address, texture_info.memory.base_size,
-      cpu::MMIOHandler::kWatchWrite, &WatchCallback, this, texture);
-  if (texture_info.memory.mip_address) {
+  if (!texture_info.memory.mip_address) {
     texture->access_watch_handle = memory_->AddPhysicalAccessWatch(
-        texture_info.memory.mip_address, texture_info.memory.mip_size,
+        texture_info.memory.base_address, texture_info.memory.base_size,
         cpu::MMIOHandler::kWatchWrite, &WatchCallback, this, texture);
+  } else {
+    // TODO(gibbed): This makes the dangerous assumption that the base mip +
+    // following mips are near each other in memory.
+    uint32_t watch_address, watch_size;
+    if (texture_info.memory.base_address < texture_info.memory.mip_address) {
+      assert_true(texture_info.memory.base_address +
+                      texture_info.memory.base_size <=
+                  texture_info.memory.mip_address);
+      watch_address = texture_info.memory.base_address;
+      watch_size =
+          (texture_info.memory.mip_address + texture_info.memory.mip_size) -
+          texture_info.memory.base_address;
+    } else {
+      assert_true(texture_info.memory.mip_address +
+                      texture_info.memory.mip_size <=
+                  texture_info.memory.base_address);
+      watch_address = texture_info.memory.mip_address;
+      watch_size =
+          (texture_info.memory.base_address + texture_info.memory.base_size) -
+          texture_info.memory.mip_address;
+    }
+    texture->access_watch_handle = memory_->AddPhysicalAccessWatch(
+        watch_address, watch_size, cpu::MMIOHandler::kWatchWrite,
+        &WatchCallback, this, texture);
   }
 
   textures_[texture_hash] = texture;
@@ -455,18 +474,6 @@ TextureCache::Texture* TextureCache::Demand(const TextureInfo& texture_info,
                                          texture_info.memory.mip_size);
   }
 
-  // Okay. Put a writewatch on it to tell us if it's been modified from the
-  // guest.
-  // TODO(gibbed): Setup access watch for mipmap data.
-  texture->access_watch_handle = memory_->AddPhysicalAccessWatch(
-      texture_info.memory.base_address, texture_info.memory.base_size,
-      cpu::MMIOHandler::kWatchWrite, &WatchCallback, this, texture);
-  if (texture_info.memory.mip_address) {
-    texture->access_watch_handle = memory_->AddPhysicalAccessWatch(
-        texture_info.memory.mip_address, texture_info.memory.mip_size,
-        cpu::MMIOHandler::kWatchWrite, &WatchCallback, this, texture);
-  }
-
   if (!UploadTexture(command_buffer, completion_fence, texture, texture_info)) {
     FreeTexture(texture);
     return nullptr;
@@ -484,6 +491,39 @@ TextureCache::Texture* TextureCache::Demand(const TextureInfo& texture_info,
 
   textures_[texture_hash] = texture;
   COUNT_profile_set("gpu/texture_cache/textures", textures_.size());
+
+  // Okay. Put a writewatch on it to tell us if it's been modified from the
+  // guest.
+  if (!texture_info.memory.mip_address) {
+    texture->access_watch_handle = memory_->AddPhysicalAccessWatch(
+        texture_info.memory.base_address, texture_info.memory.base_size,
+        cpu::MMIOHandler::kWatchWrite, &WatchCallback, this, texture);
+  } else {
+    // TODO(gibbed): This makes the dangerous assumption that the base mip +
+    // following mips are near each other in memory.
+    uint32_t watch_address, watch_size;
+    if (texture_info.memory.base_address < texture_info.memory.mip_address) {
+      assert_true(texture_info.memory.base_address +
+                      texture_info.memory.base_size <=
+                  texture_info.memory.mip_address);
+      watch_address = texture_info.memory.base_address;
+      watch_size =
+          (texture_info.memory.mip_address + texture_info.memory.mip_size) -
+          texture_info.memory.base_address;
+    } else {
+      assert_true(texture_info.memory.mip_address +
+                      texture_info.memory.mip_size <=
+                  texture_info.memory.base_address);
+      watch_address = texture_info.memory.mip_address;
+      watch_size =
+          (texture_info.memory.base_address + texture_info.memory.base_size) -
+          texture_info.memory.mip_address;
+    }
+    texture->access_watch_handle = memory_->AddPhysicalAccessWatch(
+        watch_address, watch_size, cpu::MMIOHandler::kWatchWrite,
+        &WatchCallback, this, texture);
+  }
+
   return texture;
 }
 
@@ -926,12 +966,12 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
   size_t unpack_length = ComputeTextureStorage(src);
 
   XELOGGPU(
-      "Uploading texture @ 0x%.8X/0x%.8X (%dx%dx%d, length: 0x%.8X, format: "
-      "%s, dim: %s, levels: %d, tiled: %s)",
+      "Uploading texture @ 0x%.8X/0x%.8X (%dx%dx%d, format: "
+      "%s, dim: %s, levels: %d, tiled: %s, unpack length: 0x%.8X)",
       src.memory.base_address, src.memory.mip_address, src.width + 1,
-      src.height + 1, src.depth + 1, unpack_length, src.format_info()->name,
+      src.height + 1, src.depth + 1, src.format_info()->name,
       get_dimension_name(src.dimension), src.mip_levels,
-      src.is_tiled ? "yes" : "no");
+      src.is_tiled ? "yes" : "no", unpack_length);
 
   if (!unpack_length) {
     XELOGW("Failed to compute texture storage!");
@@ -1091,35 +1131,35 @@ TextureExtent TextureCache::GetMipExtent(const TextureInfo& src, uint32_t mip) {
   uint32_t width = src.width + 1;
   uint32_t height = src.height + 1;
   uint32_t depth = src.depth + 1;
-  TextureExtent usage;
+  TextureExtent extent;
   if (mip == 0) {
-    usage = TextureExtent::Calculate(format_info, width, height, depth, width,
-                                     false);
+    extent = TextureExtent::Calculate(format_info, width, height, depth, width,
+                                      false);
   } else {
     uint32_t mip_width = xe::next_pow2(width) >> mip;
     uint32_t mip_height = xe::next_pow2(height) >> mip;
-    usage = TextureExtent::Calculate(format_info, mip_width, mip_height, depth,
-                                     mip_width, false);
+    extent = TextureExtent::Calculate(format_info, mip_width, mip_height, depth,
+                                      mip_width, false);
   }
-  return usage;
+  return extent;
 }
 
 uint32_t TextureCache::ComputeMipStorage(const FormatInfo* format_info,
                                          uint32_t width, uint32_t height,
                                          uint32_t depth, uint32_t mip) {
   assert_not_null(format_info);
-  TextureExtent usage;
+  TextureExtent extent;
   if (mip == 0) {
-    usage = TextureExtent::Calculate(format_info, width, height, depth, false,
-                                     false);
+    extent = TextureExtent::Calculate(format_info, width, height, depth, false,
+                                      false);
   } else {
     uint32_t mip_width = xe::next_pow2(width) >> mip;
     uint32_t mip_height = xe::next_pow2(height) >> mip;
-    usage = TextureExtent::Calculate(format_info, mip_width, mip_height, depth,
-                                     false, false);
+    extent = TextureExtent::Calculate(format_info, mip_width, mip_height, depth,
+                                      false, false);
   }
   uint32_t bytes_per_block = format_info->bytes_per_block();
-  return usage.all_blocks() * bytes_per_block;
+  return extent.all_blocks() * bytes_per_block;
 }
 
 uint32_t TextureCache::ComputeMipStorage(const TextureInfo& src, uint32_t mip) {
