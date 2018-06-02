@@ -111,6 +111,9 @@ filter({"platforms:Linux", "language:C++", "toolset:gcc"})
   })
   links({
   })
+  disablewarnings({
+    "unused-result"
+  })
 
 filter({"platforms:Linux", "toolset:gcc"})
   if ARCH == "ppc64" then
