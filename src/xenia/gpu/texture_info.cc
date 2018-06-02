@@ -62,7 +62,8 @@ bool TextureInfo::Prepare(const xe_gpu_texture_fetch_t& fetch,
       break;
   }
   info.pitch = fetch.pitch << 5;
-  info.mip_levels = fetch.packed_mips ? fetch.mip_max_level + 1 : 1;
+  assert_true(fetch.mip_min_level == 0);
+  info.mip_levels = 1 + fetch.mip_max_level;
 
   info.is_tiled = fetch.tiled;
   info.has_packed_mips = fetch.packed_mips;
@@ -77,6 +78,12 @@ bool TextureInfo::Prepare(const xe_gpu_texture_fetch_t& fetch,
 
   info.extent = TextureExtent::Calculate(out_info, true);
   info.SetupMemoryInfo(fetch.base_address << 12, fetch.mip_address << 12);
+
+  if (!info.memory.mip_address) {
+    // No mip data? One mip level, period.
+    info.mip_levels = 1;
+  }
+
   return true;
 }
 
@@ -149,7 +156,7 @@ void TextureInfo::GetMipSize(uint32_t mip, uint32_t* out_width,
 uint32_t TextureInfo::GetMipLocation(uint32_t mip, uint32_t* offset_x,
                                      uint32_t* offset_y, bool is_guest) const {
   if (mip == 0) {
-    // Short-circuit. Mip 0 is always stored in guest_address.
+    // Short-circuit. Mip 0 is always stored in base_address.
     if (!has_packed_mips) {
       *offset_x = 0;
       *offset_y = 0;
@@ -157,6 +164,13 @@ uint32_t TextureInfo::GetMipLocation(uint32_t mip, uint32_t* offset_x,
       GetPackedTileOffset(0, offset_x, offset_y);
     }
     return memory.base_address;
+  }
+
+  if (!memory.mip_address) {
+    // Short-circuit. There is no mip data.
+    *offset_x = 0;
+    *offset_y = 0;
+    return 0;
   }
 
   uint32_t address_base, address_offset;
@@ -296,20 +310,21 @@ void TextureInfo::SetupMemoryInfo(uint32_t base_address, uint32_t mip_address) {
   memory.mip_address = 0;
   memory.mip_size = 0;
 
-  if (mip_levels <= 1) {
+  if (mip_levels <= 1 || !mip_address) {
     // Sort circuit. Only one mip.
     return;
   }
 
-  if (!mip_address || base_address == mip_address) {
-    memory.mip_address = base_address;
-    memory.mip_address += GetMipExtent(0, true).all_blocks() * bytes_per_block;
-  } else {
-    memory.mip_address = mip_address;
+  if (base_address == mip_address) {
+    // TODO(gibbed): This doesn't actually make any sense. Force only one mip.
+    // Offending title issues: #26, #45
+    return;
   }
 
+  memory.mip_address = mip_address;
+
   if (!has_packed_mips) {
-    for (uint32_t mip = 0; mip < mip_levels - 1; mip++) {
+    for (uint32_t mip = 1; mip < mip_levels - 1; mip++) {
       memory.mip_size += GetMipExtent(mip, true).all_blocks() * bytes_per_block;
     }
     memory.mip_size +=

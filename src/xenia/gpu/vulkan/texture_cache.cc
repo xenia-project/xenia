@@ -898,6 +898,10 @@ bool TextureCache::ConvertTexture(uint8_t* dest, VkBufferImageCopy* copy_region,
   uint32_t offset_x = 0;
   uint32_t offset_y = 0;
   uint32_t address = src.GetMipLocation(mip, &offset_x, &offset_y, true);
+  if (!address) {
+    return false;
+  }
+
   void* host_address = memory_->TranslatePhysical(address);
 
   auto is_cube = src.dimension == Dimension::kCube;
@@ -1025,17 +1029,16 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
   // on the CPU.
   std::vector<VkBufferImageCopy> copy_regions(src.mip_levels);
 
-  auto dest_data = reinterpret_cast<uint8_t*>(alloc->host_ptr);
-
-  // Upload all the mips
-  VkDeviceSize buffer_offset = 0;
+  // Upload all mips.
+  auto unpack_buffer = reinterpret_cast<uint8_t*>(alloc->host_ptr);
+  VkDeviceSize unpack_offset = 0;
   for (uint32_t mip = 0; mip < src.mip_levels; mip++) {
-    if (!ConvertTexture(&dest_data[buffer_offset], &copy_regions[mip], mip,
+    if (!ConvertTexture(&unpack_buffer[unpack_offset], &copy_regions[mip], mip,
                         src)) {
       XELOGW("Failed to convert texture mip %u!", mip);
       return false;
     }
-    copy_regions[mip].bufferOffset = alloc->offset + buffer_offset;
+    copy_regions[mip].bufferOffset = alloc->offset + unpack_offset;
     copy_regions[mip].imageOffset = {0, 0, 0};
 
     /*
@@ -1044,7 +1047,7 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
              copy_regions[mip].imageExtent.depth, buffer_offset);
     */
 
-    buffer_offset += ComputeMipStorage(src, mip);
+    unpack_offset += ComputeMipStorage(src, mip);
   }
 
   // Transition the texture into a transfer destination layout.
@@ -1177,8 +1180,11 @@ uint32_t TextureCache::ComputeTextureStorage(const TextureInfo& src) {
   uint32_t height = src.height + 1;
   uint32_t depth = src.depth + 1;
   uint32_t length = 0;
-  for (uint32_t mip = 0; mip < src.mip_levels; mip++) {
-    length += ComputeMipStorage(format_info, width, height, depth, mip);
+  length += ComputeMipStorage(format_info, width, height, depth, 0);
+  if (src.memory.mip_address) {
+    for (uint32_t mip = 1; mip < src.mip_levels; mip++) {
+      length += ComputeMipStorage(format_info, width, height, depth, mip);
+    }
   }
   return length;
 }
