@@ -62,8 +62,9 @@ bool TextureInfo::Prepare(const xe_gpu_texture_fetch_t& fetch,
       break;
   }
   info.pitch = fetch.pitch << 5;
-  assert_true(fetch.mip_min_level == 0);
-  info.mip_levels = 1 + fetch.mip_max_level;
+
+  info.mip_min_level = fetch.mip_min_level;
+  info.mip_max_level = std::max(fetch.mip_min_level, fetch.mip_max_level);
 
   info.is_tiled = fetch.tiled;
   info.has_packed_mips = fetch.packed_mips;
@@ -78,11 +79,6 @@ bool TextureInfo::Prepare(const xe_gpu_texture_fetch_t& fetch,
 
   info.extent = TextureExtent::Calculate(out_info, true);
   info.SetupMemoryInfo(fetch.base_address << 12, fetch.mip_address << 12);
-
-  if (!info.memory.mip_address) {
-    // No mip data? One mip level, period.
-    info.mip_levels = 1;
-  }
 
   return true;
 }
@@ -107,7 +103,8 @@ bool TextureInfo::PrepareResolve(uint32_t physical_address,
   info.depth = depth - 1;
 
   info.pitch = pitch;
-  info.mip_levels = 1;
+  info.mip_min_level = 0;
+  info.mip_max_level = 0;
 
   info.is_tiled = true;
   info.has_packed_mips = false;
@@ -132,8 +129,14 @@ const TextureExtent TextureInfo::GetMipExtent(uint32_t mip,
   if (mip == 0) {
     return extent;
   }
-  uint32_t mip_width = xe::next_pow2(width + 1) >> mip;
-  uint32_t mip_height = xe::next_pow2(height + 1) >> mip;
+  uint32_t mip_width, mip_height;
+  if (is_guest) {
+    mip_width = xe::next_pow2(width + 1) >> mip;
+    mip_height = xe::next_pow2(height + 1) >> mip;
+  } else {
+    mip_width = std::max(1u, (width + 1) >> mip);
+    mip_height = std::max(1u, (height + 1) >> mip);
+  }
   return TextureExtent::Calculate(format_info(), mip_width, mip_height,
                                   depth + 1, is_tiled, is_guest);
 }
@@ -305,30 +308,50 @@ uint64_t TextureInfo::hash() const {
 void TextureInfo::SetupMemoryInfo(uint32_t base_address, uint32_t mip_address) {
   uint32_t bytes_per_block = format_info()->bytes_per_block();
 
-  memory.base_address = base_address;
-  memory.base_size = GetMipExtent(0, true).visible_blocks() * bytes_per_block;
+  memory.base_address = 0;
+  memory.base_size = 0;
   memory.mip_address = 0;
   memory.mip_size = 0;
 
-  if (mip_levels <= 1 || !mip_address) {
+  if (mip_min_level == 0 && base_address) {
+    // There is a base mip level.
+    memory.base_address = base_address;
+    memory.base_size = GetMipExtent(0, true).visible_blocks() * bytes_per_block;
+  }
+
+  if (mip_min_level == 0 && mip_max_level == 0) {
     // Sort circuit. Only one mip.
     return;
   }
 
-  if (base_address == mip_address) {
+  if (mip_min_level == 0 && base_address == mip_address) {
     // TODO(gibbed): This doesn't actually make any sense. Force only one mip.
     // Offending title issues: #26, #45
     return;
   }
 
+  if (mip_min_level > 0) {
+    if ((base_address && !mip_address) || (base_address == mip_address)) {
+      // Mip data is actually at base address?
+      mip_address = base_address;
+      base_address = 0;
+    } else if (!base_address && mip_address) {
+      // Nothing needs to be done.
+    } else {
+      // WTF?
+      assert_always();
+    }
+  }
+
   memory.mip_address = mip_address;
 
   if (!has_packed_mips) {
-    for (uint32_t mip = 1; mip < mip_levels - 1; mip++) {
+    for (uint32_t mip = std::max(1u, mip_min_level); mip < mip_max_level;
+         mip++) {
       memory.mip_size += GetMipExtent(mip, true).all_blocks() * bytes_per_block;
     }
     memory.mip_size +=
-        GetMipExtent(mip_levels - 1, true).visible_blocks() * bytes_per_block;
+        GetMipExtent(mip_max_level, true).visible_blocks() * bytes_per_block;
     return;
   }
 
@@ -336,8 +359,8 @@ void TextureInfo::SetupMemoryInfo(uint32_t base_address, uint32_t mip_address) {
   uint32_t height_pow2 = xe::next_pow2(height + 1);
 
   // Walk forward to find the address of the mip.
-  uint32_t packed_mip_base = 1;
-  for (uint32_t mip = packed_mip_base; mip < mip_levels - 1;
+  uint32_t packed_mip_base = std::max(1u, mip_min_level);
+  for (uint32_t mip = packed_mip_base; mip < mip_max_level;
        mip++, packed_mip_base++) {
     uint32_t mip_width = std::max(width_pow2 >> mip, 1u);
     uint32_t mip_height = std::max(height_pow2 >> mip, 1u);
