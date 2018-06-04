@@ -10,6 +10,7 @@
 #include "xenia/ui/vulkan/vulkan_immediate_drawer.h"
 
 #include "xenia/base/assert.h"
+#include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/ui/graphics_context.h"
 #include "xenia/ui/vulkan/vulkan_context.h"
@@ -835,6 +836,10 @@ void VulkanImmediateDrawer::Draw(const ImmediateDraw& draw) {
     }
 
     auto texture_set = texture->descriptor_set();
+    if (!texture_set) {
+      XELOGW("Failed to acquire texture descriptor set for immediate drawer!");
+    }
+
     vkCmdBindDescriptorSets(current_cmd_buffer_,
                             VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout_,
                             0, 1, &texture_set, 0, nullptr);

@@ -293,7 +293,8 @@ struct TextureInfo;
 struct TextureExtent {
   uint32_t pitch;          // texel pitch
   uint32_t height;         // texel height
-  uint32_t block_height;   // # of vertical blocks
+  uint32_t block_width;    // # of horizontal visible blocks
+  uint32_t block_height;   // # of vertical visible blocks
   uint32_t block_pitch_h;  // # of horizontal pitch blocks
   uint32_t block_pitch_v;  // # of vertical pitch blocks
   uint32_t depth;
