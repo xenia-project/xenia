@@ -21,8 +21,6 @@
 #include "xenia/gpu/vulkan/vulkan_gpu_flags.h"
 #include "xenia/ui/vulkan/vulkan_mem_alloc.h"
 
-DEFINE_bool(enable_mip_watches, false, "Enable mipmap watches");
-
 DECLARE_bool(texture_dump);
 
 namespace xe {
@@ -252,7 +250,7 @@ TextureCache::Texture* TextureCache::AllocateTexture(
   image_info.extent.width = texture_info.width + 1;
   image_info.extent.height = texture_info.height + 1;
   image_info.extent.depth = !is_cube ? texture_info.depth + 1 : 1;
-  image_info.mipLevels = texture_info.mip_levels;
+  image_info.mipLevels = texture_info.mip_min_level + texture_info.mip_levels();
   image_info.arrayLayers = !is_cube ? 1 : 6;
   image_info.samples = VK_SAMPLE_COUNT_1_BIT;
   image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
@@ -352,8 +350,10 @@ TextureCache::Texture* TextureCache::DemandResolveTexture(
       }
 
       // Tell the trace writer to "cache" this memory (but not read it)
-      trace_writer_->WriteMemoryReadCached(texture_info.memory.base_address,
-                                           texture_info.memory.base_size);
+      if (texture_info.memory.base_address) {
+        trace_writer_->WriteMemoryReadCached(texture_info.memory.base_address,
+                                             texture_info.memory.base_size);
+      }
       if (texture_info.memory.mip_address) {
         trace_writer_->WriteMemoryReadCached(texture_info.memory.mip_address,
                                              texture_info.memory.mip_size);
@@ -390,34 +390,14 @@ TextureCache::Texture* TextureCache::DemandResolveTexture(
           get_dimension_name(texture_info.dimension)));
 
   // Setup an access watch. If this texture is touched, it is destroyed.
-  if (!FLAGS_enable_mip_watches || !texture_info.memory.mip_address) {
+  if (texture_info.memory.base_address && texture_info.memory.base_size) {
     texture->access_watch_handle = memory_->AddPhysicalAccessWatch(
         texture_info.memory.base_address, texture_info.memory.base_size,
         cpu::MMIOHandler::kWatchWrite, &WatchCallback, this, texture);
-  } else {
-    // TODO(gibbed): This makes the dangerous assumption that the base mip +
-    // following mips are near each other in memory.
-    uint32_t watch_address, watch_size;
-    if (texture_info.memory.base_address < texture_info.memory.mip_address) {
-      assert_true(texture_info.memory.base_address +
-                      texture_info.memory.base_size <=
-                  texture_info.memory.mip_address);
-      watch_address = texture_info.memory.base_address;
-      watch_size =
-          (texture_info.memory.mip_address + texture_info.memory.mip_size) -
-          texture_info.memory.base_address;
-    } else {
-      assert_true(texture_info.memory.mip_address +
-                      texture_info.memory.mip_size <=
-                  texture_info.memory.base_address);
-      watch_address = texture_info.memory.mip_address;
-      watch_size =
-          (texture_info.memory.base_address + texture_info.memory.base_size) -
-          texture_info.memory.mip_address;
-    }
+  } else if (texture_info.memory.mip_address && texture_info.memory.mip_size) {
     texture->access_watch_handle = memory_->AddPhysicalAccessWatch(
-        watch_address, watch_size, cpu::MMIOHandler::kWatchWrite,
-        &WatchCallback, this, texture);
+        texture_info.memory.mip_address, texture_info.memory.mip_size,
+        cpu::MMIOHandler::kWatchWrite, &WatchCallback, this, texture);
   }
 
   textures_[texture_hash] = texture;
@@ -438,8 +418,10 @@ TextureCache::Texture* TextureCache::Demand(const TextureInfo& texture_info,
         break;
       }
 
-      trace_writer_->WriteMemoryReadCached(texture_info.memory.base_address,
-                                           texture_info.memory.base_size);
+      if (texture_info.memory.base_address) {
+        trace_writer_->WriteMemoryReadCached(texture_info.memory.base_address,
+                                             texture_info.memory.base_size);
+      }
       if (texture_info.memory.mip_address) {
         trace_writer_->WriteMemoryReadCached(texture_info.memory.mip_address,
                                              texture_info.memory.mip_size);
@@ -474,8 +456,10 @@ TextureCache::Texture* TextureCache::Demand(const TextureInfo& texture_info,
     // assert_always();
   }
 
-  trace_writer_->WriteMemoryReadCached(texture_info.memory.base_address,
-                                       texture_info.memory.base_size);
+  if (texture_info.memory.base_address) {
+    trace_writer_->WriteMemoryReadCached(texture_info.memory.base_address,
+                                         texture_info.memory.base_size);
+  }
   if (texture_info.memory.mip_address) {
     trace_writer_->WriteMemoryReadCached(texture_info.memory.mip_address,
                                          texture_info.memory.mip_size);
@@ -501,34 +485,14 @@ TextureCache::Texture* TextureCache::Demand(const TextureInfo& texture_info,
 
   // Okay. Put a writewatch on it to tell us if it's been modified from the
   // guest.
-  if (!FLAGS_enable_mip_watches || !texture_info.memory.mip_address) {
+  if (texture_info.memory.base_address && texture_info.memory.base_size) {
     texture->access_watch_handle = memory_->AddPhysicalAccessWatch(
         texture_info.memory.base_address, texture_info.memory.base_size,
         cpu::MMIOHandler::kWatchWrite, &WatchCallback, this, texture);
-  } else {
-    // TODO(gibbed): This makes the dangerous assumption that the base mip +
-    // following mips are near each other in memory.
-    uint32_t watch_address, watch_size;
-    if (texture_info.memory.base_address < texture_info.memory.mip_address) {
-      assert_true(texture_info.memory.base_address +
-                      texture_info.memory.base_size <=
-                  texture_info.memory.mip_address);
-      watch_address = texture_info.memory.base_address;
-      watch_size =
-          (texture_info.memory.mip_address + texture_info.memory.mip_size) -
-          texture_info.memory.base_address;
-    } else {
-      assert_true(texture_info.memory.mip_address +
-                      texture_info.memory.mip_size <=
-                  texture_info.memory.base_address);
-      watch_address = texture_info.memory.mip_address;
-      watch_size =
-          (texture_info.memory.base_address + texture_info.memory.base_size) -
-          texture_info.memory.mip_address;
-    }
+  } else if (texture_info.memory.mip_address && texture_info.memory.mip_size) {
     texture->access_watch_handle = memory_->AddPhysicalAccessWatch(
-        watch_address, watch_size, cpu::MMIOHandler::kWatchWrite,
-        &WatchCallback, this, texture);
+        texture_info.memory.mip_address, texture_info.memory.mip_size,
+        cpu::MMIOHandler::kWatchWrite, &WatchCallback, this, texture);
   }
 
   return texture;
@@ -602,8 +566,8 @@ TextureCache::TextureView* TextureCache::DemandView(Texture* texture,
   } else {
     view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
   }
-  view_info.subresourceRange.baseMipLevel = 0;
-  view_info.subresourceRange.levelCount = texture->texture_info.mip_levels;
+  view_info.subresourceRange.baseMipLevel = texture->texture_info.mip_min_level;
+  view_info.subresourceRange.levelCount = texture->texture_info.mip_levels();
   view_info.subresourceRange.baseArrayLayer = 0;
   view_info.subresourceRange.layerCount = !is_cube ? 1 : 6;
 
@@ -978,13 +942,13 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
 
   XELOGGPU(
       "Uploading texture @ 0x%.8X/0x%.8X (%ux%ux%u, format: %s, dim: %s, "
-      "levels: %u, pitch: %u, tiled: %s, packed mips: %s, unpack length: "
-      "0x%.8X)",
+      "levels: %u (%u-%u), pitch: %u, tiled: %s, packed mips: %s, unpack "
+      "length: 0x%.8X)",
       src.memory.base_address, src.memory.mip_address, src.width + 1,
       src.height + 1, src.depth + 1, src.format_info()->name,
-      get_dimension_name(src.dimension), src.mip_levels, src.pitch,
-      src.is_tiled ? "yes" : "no", src.has_packed_mips ? "yes" : "no",
-      unpack_length);
+      get_dimension_name(src.dimension), src.mip_levels(), src.mip_min_level,
+      src.mip_max_level, src.pitch, src.is_tiled ? "yes" : "no",
+      src.has_packed_mips ? "yes" : "no", unpack_length);
 
   XELOGGPU("Extent: %ux%ux%u  %u,%u,%u", src.extent.pitch, src.extent.height,
            src.extent.depth, src.extent.block_pitch_h, src.extent.block_height,
@@ -1038,13 +1002,14 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
   // TODO: If the GPU supports it, we can submit a compute batch to convert the
   // texture and copy it to its destination. Otherwise, fallback to conversion
   // on the CPU.
-  uint32_t copy_region_count = src.mip_levels;
+  uint32_t copy_region_count = src.mip_levels();
   std::vector<VkBufferImageCopy> copy_regions(copy_region_count);
 
   // Upload all mips.
   auto unpack_buffer = reinterpret_cast<uint8_t*>(alloc->host_ptr);
   VkDeviceSize unpack_offset = 0;
-  for (uint32_t mip = 0, region = 0; mip < src.mip_levels; mip++, region++) {
+  for (uint32_t mip = src.mip_min_level, region = 0; mip <= src.mip_max_level;
+       mip++, region++) {
     if (!ConvertTexture(&unpack_buffer[unpack_offset], &copy_regions[region],
                         mip, src)) {
       XELOGW("Failed to convert texture mip %u!", mip);
@@ -1086,8 +1051,8 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
   } else {
     barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
   }
-  barrier.subresourceRange.baseMipLevel = 0;
-  barrier.subresourceRange.levelCount = src.mip_levels;
+  barrier.subresourceRange.baseMipLevel = src.mip_min_level;
+  barrier.subresourceRange.levelCount = src.mip_levels();
   barrier.subresourceRange.baseArrayLayer =
       copy_regions[0].imageSubresource.baseArrayLayer;
   barrier.subresourceRange.layerCount =
@@ -1103,7 +1068,7 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
       dest->format == VK_FORMAT_D32_SFLOAT_S8_UINT) {
     // Do just a depth upload (for now).
     // This assumes depth buffers don't have mips (hopefully they don't)
-    assert_true(src.mip_levels == 1);
+    assert_true(src.mip_levels() == 1);
     copy_regions[0].imageSubresource.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
   }
 
@@ -1197,7 +1162,7 @@ uint32_t TextureCache::ComputeTextureStorage(const TextureInfo& src) {
   uint32_t height = src.height + 1;
   uint32_t depth = src.depth + 1;
   uint32_t length = 0;
-  for (uint32_t mip = 0; mip < src.mip_levels; ++mip) {
+  for (uint32_t mip = src.mip_min_level; mip <= src.mip_max_level; ++mip) {
     if (mip == 0 && !src.memory.base_address) {
       continue;
     } else if (mip > 0 && !src.memory.mip_address) {

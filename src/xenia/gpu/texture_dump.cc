@@ -9,6 +9,8 @@
 
 #include <gflags/gflags.h>
 
+#include "xenia/base/logging.h"
+#include "xenia/base/math.h"
 #include "xenia/gpu/texture_info.h"
 
 DEFINE_bool(texture_dump, false, "Dump textures to DDS");
@@ -48,11 +50,11 @@ void TextureDump(const TextureInfo& src, void* buffer, size_t length) {
   } else {
     dds_header.flags |= 0x8u;
   }
-  dds_header.height = src.height + 1;
-  dds_header.width = src.width + 1;
+  dds_header.height = std::max(1u, (src.height + 1) >> src.mip_min_level);
+  dds_header.width = std::max(1u, (src.width + 1) >> src.mip_min_level);
   dds_header.pitch_or_linear_size = src.GetMipExtent(0, false).block_pitch_h *
                                     src.format_info()->bytes_per_block();
-  dds_header.mip_levels = src.mip_levels;
+  dds_header.mip_levels = src.mip_levels();
 
   dds_header.pixel_format.size = sizeof(dds_header.pixel_format);
   switch (src.format) {
@@ -84,6 +86,7 @@ void TextureDump(const TextureInfo& src, void* buffer, size_t length) {
       assert_unhandled_case(src.format);
       std::memset(&dds_header.pixel_format, 0xCD,
                   sizeof(dds_header.pixel_format));
+      XELOGW("Skipping %s for texture dump.", src.format_info()->name);
       return;
     }
   }
