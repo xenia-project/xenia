@@ -113,8 +113,6 @@ void Untile(uint8_t* output_buffer, const uint8_t* input_buffer,
   assert_not_null(untile_info);
   assert_not_null(untile_info->input_format_info);
   assert_not_null(untile_info->output_format_info);
-  assert_true(untile_info->width <= untile_info->input_pitch);
-  assert_true(untile_info->width <= untile_info->output_pitch);
 
   uint32_t input_bytes_per_block =
       untile_info->input_format_info->bytes_per_block();

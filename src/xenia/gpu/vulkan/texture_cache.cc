@@ -21,13 +21,18 @@
 #include "xenia/gpu/vulkan/vulkan_gpu_flags.h"
 #include "xenia/ui/vulkan/vulkan_mem_alloc.h"
 
+DEFINE_bool(enable_mip_watches, false, "Enable mipmap watches");
+
+DECLARE_bool(texture_dump);
+
 namespace xe {
 namespace gpu {
+
+void TextureDump(const TextureInfo& src, void* buffer, size_t length);
+
 namespace vulkan {
 
 using xe::ui::vulkan::CheckResult;
-
-DEFINE_bool(enable_mip_watches, false, "Enable mipmap watches");
 
 constexpr uint32_t kMaxTextureSamplers = 32;
 constexpr VkDeviceSize kStagingBufferSize = 64 * 1024 * 1024;
@@ -935,8 +940,8 @@ bool TextureCache::ConvertTexture(uint8_t* dest, VkBufferImageCopy* copy_region,
       std::memset(&untile_info, 0, sizeof(untile_info));
       untile_info.offset_x = offset_x;
       untile_info.offset_y = offset_y;
-      untile_info.width = dst_extent.block_pitch_h;
-      untile_info.height = dst_extent.block_height;
+      untile_info.width = src_extent.block_width;
+      untile_info.height = src_extent.block_height;
       untile_info.input_pitch = src_extent.block_pitch_h;
       untile_info.output_pitch = dst_extent.block_pitch_h;
       untile_info.input_format_info = src.format_info();
@@ -972,12 +977,18 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
   size_t unpack_length = ComputeTextureStorage(src);
 
   XELOGGPU(
-      "Uploading texture @ 0x%.8X/0x%.8X (%dx%dx%d, format: "
-      "%s, dim: %s, levels: %d, tiled: %s, unpack length: 0x%.8X)",
+      "Uploading texture @ 0x%.8X/0x%.8X (%ux%ux%u, format: %s, dim: %s, "
+      "levels: %u, pitch: %u, tiled: %s, packed mips: %s, unpack length: "
+      "0x%.8X)",
       src.memory.base_address, src.memory.mip_address, src.width + 1,
       src.height + 1, src.depth + 1, src.format_info()->name,
-      get_dimension_name(src.dimension), src.mip_levels,
-      src.is_tiled ? "yes" : "no", unpack_length);
+      get_dimension_name(src.dimension), src.mip_levels, src.pitch,
+      src.is_tiled ? "yes" : "no", src.has_packed_mips ? "yes" : "no",
+      unpack_length);
+
+  XELOGGPU("Extent: %ux%ux%u  %u,%u,%u", src.extent.pitch, src.extent.height,
+           src.extent.depth, src.extent.block_pitch_h, src.extent.block_height,
+           src.extent.block_pitch_v);
 
   if (!unpack_length) {
     XELOGW("Failed to compute texture storage!");
@@ -1027,27 +1038,33 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
   // TODO: If the GPU supports it, we can submit a compute batch to convert the
   // texture and copy it to its destination. Otherwise, fallback to conversion
   // on the CPU.
-  std::vector<VkBufferImageCopy> copy_regions(src.mip_levels);
+  uint32_t copy_region_count = src.mip_levels;
+  std::vector<VkBufferImageCopy> copy_regions(copy_region_count);
 
   // Upload all mips.
   auto unpack_buffer = reinterpret_cast<uint8_t*>(alloc->host_ptr);
   VkDeviceSize unpack_offset = 0;
-  for (uint32_t mip = 0; mip < src.mip_levels; mip++) {
-    if (!ConvertTexture(&unpack_buffer[unpack_offset], &copy_regions[mip], mip,
-                        src)) {
+  for (uint32_t mip = 0, region = 0; mip < src.mip_levels; mip++, region++) {
+    if (!ConvertTexture(&unpack_buffer[unpack_offset], &copy_regions[region],
+                        mip, src)) {
       XELOGW("Failed to convert texture mip %u!", mip);
       return false;
     }
-    copy_regions[mip].bufferOffset = alloc->offset + unpack_offset;
-    copy_regions[mip].imageOffset = {0, 0, 0};
+    copy_regions[region].bufferOffset = alloc->offset + unpack_offset;
+    copy_regions[region].imageOffset = {0, 0, 0};
 
     /*
-    XELOGGPU("Mip %u %ux%ux%u @ 0x%X", mip, copy_regions[mip].imageExtent.width,
-             copy_regions[mip].imageExtent.height,
-             copy_regions[mip].imageExtent.depth, buffer_offset);
+    XELOGGPU("Mip %u %ux%ux%u @ 0x%X", mip,
+             copy_regions[region].imageExtent.width,
+             copy_regions[region].imageExtent.height,
+             copy_regions[region].imageExtent.depth, unpack_offset);
     */
 
     unpack_offset += ComputeMipStorage(src, mip);
+  }
+
+  if (FLAGS_texture_dump) {
+    TextureDump(src, unpack_buffer, unpack_length);
   }
 
   // Transition the texture into a transfer destination layout.
@@ -1092,7 +1109,7 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
 
   vkCmdCopyBufferToImage(command_buffer, staging_buffer_.gpu_buffer(),
                          dest->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                         src.mip_levels, copy_regions.data());
+                         copy_region_count, copy_regions.data());
 
   // Now transition the texture into a shader readonly source.
   barrier.srcAccessMask = barrier.dstAccessMask;
@@ -1141,8 +1158,8 @@ TextureExtent TextureCache::GetMipExtent(const TextureInfo& src, uint32_t mip) {
     extent = TextureExtent::Calculate(format_info, width, height, depth, width,
                                       false);
   } else {
-    uint32_t mip_width = xe::next_pow2(width) >> mip;
-    uint32_t mip_height = xe::next_pow2(height) >> mip;
+    uint32_t mip_width = std::max(1u, width >> mip);
+    uint32_t mip_height = std::max(1u, height >> mip);
     extent = TextureExtent::Calculate(format_info, mip_width, mip_height, depth,
                                       mip_width, false);
   }
@@ -1158,8 +1175,8 @@ uint32_t TextureCache::ComputeMipStorage(const FormatInfo* format_info,
     extent = TextureExtent::Calculate(format_info, width, height, depth, false,
                                       false);
   } else {
-    uint32_t mip_width = xe::next_pow2(width) >> mip;
-    uint32_t mip_height = xe::next_pow2(height) >> mip;
+    uint32_t mip_width = std::max(1u, width >> mip);
+    uint32_t mip_height = std::max(1u, height >> mip);
     extent = TextureExtent::Calculate(format_info, mip_width, mip_height, depth,
                                       false, false);
   }
@@ -1180,11 +1197,13 @@ uint32_t TextureCache::ComputeTextureStorage(const TextureInfo& src) {
   uint32_t height = src.height + 1;
   uint32_t depth = src.depth + 1;
   uint32_t length = 0;
-  length += ComputeMipStorage(format_info, width, height, depth, 0);
-  if (src.memory.mip_address) {
-    for (uint32_t mip = 1; mip < src.mip_levels; mip++) {
-      length += ComputeMipStorage(format_info, width, height, depth, mip);
+  for (uint32_t mip = 0; mip < src.mip_levels; ++mip) {
+    if (mip == 0 && !src.memory.base_address) {
+      continue;
+    } else if (mip > 0 && !src.memory.mip_address) {
+      continue;
     }
+    length += ComputeMipStorage(format_info, width, height, depth, mip);
   }
   return length;
 }
@@ -1389,6 +1408,7 @@ bool TextureCache::SetupTextureBinding(VkCommandBuffer command_buffer,
   // Disabled?
   // TODO(benvanik): reset sampler.
   if (fetch.type != 0x2) {
+    XELOGGPU("Fetch type is not 2!");
     return false;
   }
 
@@ -1409,6 +1429,7 @@ bool TextureCache::SetupTextureBinding(VkCommandBuffer command_buffer,
   auto texture = Demand(texture_info, command_buffer, completion_fence);
   auto sampler = Demand(sampler_info);
   if (texture == nullptr || sampler == nullptr) {
+    XELOGE("Texture or sampler is NULL!");
     return false;
   }
 
