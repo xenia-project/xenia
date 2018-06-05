@@ -56,6 +56,9 @@ static TextureExtent CalculateExtent(const FormatInfo* format_info,
 
     // Is depth special?
     extent.depth = extent.depth;
+  } else {
+    extent.pitch = extent.block_pitch_h * format_info->block_width;
+    extent.height = extent.block_pitch_v * format_info->block_height;
   }
 
   return extent;
