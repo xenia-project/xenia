@@ -80,6 +80,13 @@ bool TextureInfo::Prepare(const xe_gpu_texture_fetch_t& fetch,
   info.extent = TextureExtent::Calculate(out_info, true);
   info.SetupMemoryInfo(fetch.base_address << 12, fetch.mip_address << 12);
 
+  // We've gotten this far and mip_address is zero, assume no extra mips.
+  if (info.mip_max_level > 0 && !info.memory.mip_address) {
+    info.mip_max_level = 0;
+  }
+
+  assert_true(info.mip_min_level <= info.mip_max_level);
+
   return true;
 }
 
