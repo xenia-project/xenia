@@ -329,6 +329,7 @@ struct TextureInfo {
   uint32_t pitch;   // pitch in blocks
   uint32_t mip_min_level;
   uint32_t mip_max_level;
+  bool is_stacked;
   bool is_tiled;
   bool has_packed_mips;
 
