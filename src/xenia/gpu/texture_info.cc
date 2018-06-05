@@ -38,24 +38,35 @@ bool TextureInfo::Prepare(const xe_gpu_texture_fetch_t& fetch,
 
   info.dimension = static_cast<Dimension>(fetch.dimension);
   info.width = info.height = info.depth = 0;
+  info.is_stacked = false;
   switch (info.dimension) {
     case Dimension::k1D:
       info.dimension = Dimension::k2D;  // we treat 1D textures as 2D
       info.width = fetch.size_1d.width;
+      assert_true(!fetch.stacked);
       break;
     case Dimension::k2D:
-      info.width = fetch.size_2d.width;
-      info.height = fetch.size_2d.height;
+      if (!fetch.stacked) {
+        info.width = fetch.size_2d.width;
+        info.height = fetch.size_2d.height;
+      } else {
+        info.width = fetch.size_stack.width;
+        info.height = fetch.size_stack.height;
+        info.depth = fetch.size_stack.depth;
+        info.is_stacked = true;
+      }
       break;
     case Dimension::k3D:
       info.width = fetch.size_3d.width;
       info.height = fetch.size_3d.height;
       info.depth = fetch.size_3d.depth;
+      assert_true(!fetch.stacked);
       break;
     case Dimension::kCube:
       info.width = fetch.size_stack.width;
       info.height = fetch.size_stack.height;
       info.depth = fetch.size_stack.depth;
+      assert_true(!fetch.stacked);
       break;
     default:
       assert_unhandled_case(info.dimension);
