@@ -89,7 +89,7 @@ X_RESULT WinKeyInputDriver::GetState(uint32_t user_index,
   int16_t thumb_ry = 0;
 
   if (window_->has_focus()) {
-    if (IS_KEY_TOGGLED(VK_CAPITAL)) {
+    if (IS_KEY_TOGGLED(VK_CAPITAL) || IS_KEY_DOWN(VK_SHIFT)) {
       // dpad toggled
       if (IS_KEY_DOWN(0x41)) {
         // A
