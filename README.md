@@ -1,13 +1,15 @@
 Xenia - Xbox 360 Emulator Research Project
 ==========================================
 
-Xenia is an experimental emulator for the Xbox 360. For more information see the
-[main xenia website](http://xenia.jp/).
+Xenia is an experimental emulator for the Xbox 360.
+For more information see the [main xenia website](http://xenia.jp/).
 
 Come chat with us about **emulator-related topics** on [Discord](https://discord.gg/Q9mxZf9).
 For developer chat join `#dev` but stay on topic. Lurking is fine.
+
 Please check the [frequently asked questions](http://xenia.jp/faq/) page before
-asking questions. We've got jobs/lives/etc, so don't expect instant answers.
+asking questions.
+We've got jobs/lives/etc, so don't expect instant answers.
 
 Discussing illegal activities will get you banned. No warnings.
 
@@ -19,23 +21,23 @@ Buildbot | Status
 [Linux](https://travis-ci.org/xenia-project/xenia) | [![Build status](https://travis-ci.org/xenia-project/xenia.svg)](https://travis-ci.org/xenia-project/xenia)
 
 Some real games run. Most don't.
-See the [Game compatibility list](https://github.com/xenia-project/game-compatibility/issues)
-for currently tracked games and feel free to contribute your own updates,
-screenshots, and information there following the [existing conventions](https://github.com/xenia-project/game-compatibility/blob/master/README.md).
+See the [Game compatibility list](https://github.com/xenia-project/game-compatibility/issues) for currently tracked games.
+
+Feel free to contribute your own updates, screenshots, and information there following the [existing conventions](https://github.com/xenia-project/game-compatibility/blob/master/README.md).
 
 ## Disclaimer
 
-The goal of this project is to experiment, research, and educate on the topic
-of emulation of modern devices and operating systems. **It is not for enabling
-illegal activity**. All information is obtained via reverse engineering of
-legally purchased devices and games and information made public on the internet
+The goal of this project is to experiment, research, and educate on the topic of emulation of modern devices and operating systems.
+**It is not for enabling illegal activity**.
+
+All information is obtained via reverse engineering of legally purchased devices and games and information made public on the internet
 (you'd be surprised what's indexed on Google...).
 
 ## Quickstart
 
-Windows 8.1+ with Python 3.4 and [Visual Studio 2017](https://www.visualstudio.com/downloads/) and the Windows SDKs installed:
+Windows 8.1+ with Python 3.4+ and [Visual Studio 2017](https://www.visualstudio.com/downloads/) and the Windows SDKs installed:
 
-    > git clone https://github.com/benvanik/xenia.git
+    > git clone https://github.com/xenia-project/xenia.git
     > cd xenia
     > xb setup
 
@@ -54,40 +56,37 @@ Windows 8.1+ with Python 3.4 and [Visual Studio 2017](https://www.visualstudio.c
     # Format code to the style guide:
     > xb format
 
-When fetching updates use `xb pull` to automatically fetch everything and
-run premake for project files/etc.
+When fetching updates use `xb pull` to automatically fetch everything and run premake for project files/etc.
 
 ## Building
 
-See [building.md](docs/building.md) for setup and information about the
-`xb` script. When writing code, check the [style guide](docs/style_guide.md)
-and be sure to run clang-format!
+See [building.md](docs/building.md) for setup and information about the `xb` script.
+
+When writing code, check the [style guide](docs/style_guide.md) and be sure to run clang-format!
 
 ## Contributors Wanted!
 
 **Before contributing code or issues be sure to read [CONTRIBUTING.md](.github/CONTRIBUTING.md).**
 
 Have some spare time, know advanced C++, and want to write an emulator?
-Contribute! There's a ton of work that needs to be done, a lot of which
-is wide open greenfield fun.
+
+Contribute! There's a ton of work that needs to be done; a lot of which is wide open greenfield fun.
 
 For general rules and guidelines please see [CONTRIBUTING.md](.github/CONTRIBUTING.md).
 
-Fixes and optimizations are always welcome (please!), but in addition to
-that there are some major work areas still untouched:
+Fixes and optimizations are always welcome. In addition to that there are some major work areas still untouched:
 
-* Help work through missing functionality/bugs in game [compat](https://github.com/benvanik/xenia/issues?labels=compat)
-* Add input drivers for [PS4 controllers](https://github.com/benvanik/xenia/issues/60) (or anything else)
-* Skilled with Linux? A strong contributor is needed to [help with porting](https://github.com/benvanik/xenia/labels/cross%20platform)
+* Help work through missing functionality/bugs in game [compat](https://github.com/xenia-project/xenia/issues?labels=compat)
+* Add input drivers for [PS4 controllers](https://github.com/xenia-project/xenia/issues/60) (or anything else)
+* Skilled with Linux? A strong contributor is needed to [help with porting](https://github.com/xenia-project/xenia/labels/cross%20platform)
 
-See more projects [good for contributors](https://github.com/benvanik/xenia/labels/good%20first%20issue). It's a good idea to ask on Discord/the bugs before beginning work
-on something.
+See more projects [good for contributors](https://github.com/xenia-project/xenia/labels/good%20first%20issue).
+It's a good idea to ask on Discord/the issues before beginning work on something.
+
+### Can I get an exe?
+
+Check [AppVeyor](https://ci.appveyor.com/project/benvanik/xenia) `(Release !NOT DEBUG! > Artifacts)` to see what's there.
 
 ## FAQ
 
 For more see the main [frequently asked questions](http://xenia.jp/faq/) page.
-
-### Can I get an exe?
-
-Check [Appveyor's artifacts](https://ci.appveyor.com/project/benvanik/xenia/build/artifacts) to see
-what's there.
