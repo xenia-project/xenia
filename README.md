@@ -85,7 +85,9 @@ It's a good idea to ask on Discord/the issues before beginning work on something
 
 ### Can I get an exe?
 
-Check [AppVeyor](https://ci.appveyor.com/project/benvanik/xenia) `(Release !NOT DEBUG! > Artifacts)` to see what's there.
+Here: [AppVeyor](https://ci.appveyor.com/api/projects/benvanik/xenia/artifacts/xenia-master.zip?branch=master&job=Configuration%3A%20Release)
+
+[Full AppVeyor History](https://ci.appveyor.com/project/benvanik/xenia/history)
 
 ## FAQ
 
