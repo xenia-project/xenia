@@ -54,3 +54,12 @@ project("xenia-ui-window-vulkan-demo")
   resincludedirs({
     project_root,
   })
+
+  filter("platforms:Linux")
+    links({
+      "X11",
+      "xcb",
+      "X11-xcb",
+      "GL",
+      "vulkan",
+    })
