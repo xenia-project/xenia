@@ -714,6 +714,66 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
     vkCmdSetViewport(command_buffer, 0, 1, &viewport_rect);
   }
 
+  // VK_DYNAMIC_STATE_DEPTH_BIAS
+  // No separate front/back bias in Vulkan - using what's more expected to work.
+  // No need to reset to 0 if not enabled in the pipeline - recheck conditions.
+  float depth_bias_scales[2] = {0}, depth_bias_offsets[2] = {0};
+  auto cull_mode = regs.pa_su_sc_mode_cntl & 3;
+  if (cull_mode != 1) {
+    // Front faces are not culled.
+    depth_bias_scales[0] =
+        register_file_->values[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_SCALE].f32;
+    depth_bias_offsets[0] =
+        register_file_->values[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_OFFSET].f32;
+  }
+  if (cull_mode != 2) {
+    // Back faces are not culled.
+    depth_bias_scales[1] =
+        register_file_->values[XE_GPU_REG_PA_SU_POLY_OFFSET_BACK_SCALE].f32;
+    depth_bias_offsets[1] =
+        register_file_->values[XE_GPU_REG_PA_SU_POLY_OFFSET_BACK_OFFSET].f32;
+  }
+  if (depth_bias_scales[0] != 0.0f || depth_bias_scales[1] != 0.0f ||
+      depth_bias_offsets[0] != 0.0f || depth_bias_offsets[1] != 0.0f) {
+    float depth_bias_scale, depth_bias_offset;
+    // Prefer front if not culled and offset for both is enabled.
+    // However, if none are culled, and there's no front offset, use back offset
+    // (since there was an intention to enable depth offset at all).
+    // As SetRenderState sets for both sides, this should be very rare anyway.
+    // TODO(Triang3l): Verify the intentions if this happens in real games.
+    if (depth_bias_scales[0] != 0.0f || depth_bias_offsets[0] != 0.0f) {
+      depth_bias_scale = depth_bias_scales[0];
+      depth_bias_offset = depth_bias_offsets[0];
+    } else {
+      depth_bias_scale = depth_bias_scales[1];
+      depth_bias_offset = depth_bias_offsets[1];
+    }
+    // Convert to Vulkan units based on the values in Call of Duty 4:
+    // r_polygonOffsetScale is -1 there, but 32 in the register.
+    // r_polygonOffsetBias is -1 also, but passing 2/65536.
+    // 1/65536 and 2 scales are applied separately, however, and for shadow maps
+    // 0.5/65536 is passed (while sm_polygonOffsetBias is 0.5), and with 32768
+    // it would be 0.25, which seems too small. So using 65536, assuming it's a
+    // common scale value (which also looks less arbitrary than 32768).
+    // TODO(Triang3l): Investigate, also considering the depth format (kD24FS8).
+    // Possibly refer to:
+    // https://www.winehq.org/pipermail/wine-patches/2015-July/141200.html
+    float depth_bias_scale_vulkan = depth_bias_scale * (1.0f / 32.0f);
+    float depth_bias_offset_vulkan = depth_bias_offset * 65536.0f;
+    if (full_update ||
+        regs.pa_su_poly_offset_scale != depth_bias_scale_vulkan ||
+        regs.pa_su_poly_offset_offset != depth_bias_offset_vulkan) {
+      regs.pa_su_poly_offset_scale = depth_bias_scale_vulkan;
+      regs.pa_su_poly_offset_offset = depth_bias_offset_vulkan;
+      vkCmdSetDepthBias(command_buffer, depth_bias_offset_vulkan, 0.0f,
+                        depth_bias_scale_vulkan);
+    }
+  } else if (full_update) {
+    regs.pa_su_poly_offset_scale = 0.0f;
+    regs.pa_su_poly_offset_offset = 0.0f;
+    vkCmdSetDepthBias(command_buffer, 0.0f, 0.0f, 0.0f);
+  }
+
   // VK_DYNAMIC_STATE_BLEND_CONSTANTS
   bool blend_constant_state_dirty = full_update;
   blend_constant_state_dirty |=
@@ -863,9 +923,6 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
   if (full_update) {
     // VK_DYNAMIC_STATE_LINE_WIDTH
     vkCmdSetLineWidth(command_buffer, 1.0f);
-
-    // VK_DYNAMIC_STATE_DEPTH_BIAS
-    vkCmdSetDepthBias(command_buffer, 0.0f, 0.0f, 0.0f);
 
     // VK_DYNAMIC_STATE_DEPTH_BOUNDS
     vkCmdSetDepthBounds(command_buffer, 0.0f, 1.0f);
@@ -1218,6 +1275,33 @@ PipelineCache::UpdateStatus PipelineCache::UpdateRasterizationState(
   dirty |= SetShadowRegister(&regs.multi_prim_ib_reset_index,
                              XE_GPU_REG_VGT_MULTI_PRIM_IB_RESET_INDX);
   regs.primitive_type = primitive_type;
+
+  // Vulkan doesn't support separate depth biases for different sides.
+  // SetRenderState also accepts only one argument, so they should be rare.
+  // The culling mode must match the one in SetDynamicState, so not applying
+  // the primitive type exceptions to this (very unlikely to happen anyway).
+  bool depth_bias_enable = false;
+  uint32_t cull_mode = regs.pa_su_sc_mode_cntl & 0x3;
+  if (cull_mode != 1) {
+    float depth_bias_scale =
+        register_file_->values[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_SCALE].f32;
+    float depth_bias_offset =
+        register_file_->values[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_OFFSET].f32;
+    depth_bias_enable = (depth_bias_scale != 0.0f && depth_bias_offset != 0.0f);
+  }
+  if (!depth_bias_enable && cull_mode != 2) {
+    float depth_bias_scale =
+        register_file_->values[XE_GPU_REG_PA_SU_POLY_OFFSET_BACK_SCALE].f32;
+    float depth_bias_offset =
+        register_file_->values[XE_GPU_REG_PA_SU_POLY_OFFSET_BACK_OFFSET].f32;
+    depth_bias_enable = (depth_bias_scale != 0.0f && depth_bias_offset != 0.0f);
+  }
+  if (regs.pa_su_poly_offset_enable !=
+      static_cast<uint32_t>(depth_bias_enable)) {
+    regs.pa_su_poly_offset_enable = static_cast<uint32_t>(depth_bias_enable);
+    dirty = true;
+  }
+
   XXH64_update(&hash_state_, &regs, sizeof(regs));
   if (!dirty) {
     return UpdateStatus::kCompatible;
@@ -1252,7 +1336,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateRasterizationState(
     state_info.polygonMode = VK_POLYGON_MODE_FILL;
   }
 
-  switch (regs.pa_su_sc_mode_cntl & 0x3) {
+  switch (cull_mode) {
     case 0:
       state_info.cullMode = VK_CULL_MODE_NONE;
       break;
@@ -1280,7 +1364,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateRasterizationState(
     state_info.cullMode = VK_CULL_MODE_NONE;
   }
 
-  state_info.depthBiasEnable = VK_FALSE;
+  state_info.depthBiasEnable = depth_bias_enable ? VK_TRUE : VK_FALSE;
 
   // Ignored; set dynamically:
   state_info.depthBiasConstantFactor = 0;
