@@ -32,8 +32,8 @@ No. Do not post links or downloads to such resources or you will be banned.
 ## System Requirements
 
 * Windows 8 or later
-* 64-bit x86 processor supporting AVX
-* A Vulkan compatible GPU from [this list](http://vulkan.gpuinfo.org/) (NVIDIA recommended)
+* 64-bit x86 processor supporting AVX (Haswell or alike)
+* A Vulkan 1.1+ compatible GPU from [this list](http://vulkan.gpuinfo.org/) (NVIDIA recommended)
 * An XInput-compatible controller
 
 Xenia will check for the minimum supported CPU and GPU on startup and error out
