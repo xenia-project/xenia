@@ -22,7 +22,10 @@ Some real games run. Most don't.
 See the [Game compatibility list](https://github.com/xenia-project/game-compatibility/issues)
 for currently tracked games and feel free to contribute your own updates,
 screenshots, and information there following the [existing conventions](https://github.com/xenia-project/game-compatibility/blob/master/README.md).
-
+## Become A Patreon
+The creators of the Project have decided to open a Patreon Account. If you want to contribute in any other way that isn't programming please consider becoming a Patreon.
+Project's Patreon Link: https://www.patreon.com/xenia_project/overview
+Any contribution helps. No matter the size. We will tankh you!
 ## Disclaimer
 
 The goal of this project is to experiment, research, and educate on the topic
