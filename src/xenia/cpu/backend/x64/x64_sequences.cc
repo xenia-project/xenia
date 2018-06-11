@@ -7426,6 +7426,9 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
     e.vpsrad(i.dest, 16);
     // Add 3,3,0,1.
     e.vpaddd(i.dest, e.GetXmmConstPtr(XMM3301));
+    // Return quiet NaNs in case of negative overflow.
+    e.vcmpeqps(e.xmm0, i.dest, e.GetXmmConstPtr(XMMUnpackSHORT_Overflow));
+    e.vblendvps(i.dest, i.dest, e.GetXmmConstPtr(XMMUnpackOverflowNaN), e.xmm0);
   }
   static void EmitSHORT_4(X64Emitter& e, const EmitArgType& i) {
     // (VD.x) = 3.0 + (VB.x>>16)*2^-22
@@ -7452,6 +7455,9 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
     e.vpsrad(i.dest, 16);
     // Add 3,3,3,3.
     e.vpaddd(i.dest, e.GetXmmConstPtr(XMM3333));
+    // Return quiet NaNs in case of negative overflow.
+    e.vcmpeqps(e.xmm0, i.dest, e.GetXmmConstPtr(XMMUnpackSHORT_Overflow));
+    e.vblendvps(i.dest, i.dest, e.GetXmmConstPtr(XMMUnpackOverflowNaN), e.xmm0);
   }
   static void EmitUINT_2101010(X64Emitter& e, const EmitArgType& i) {
     Xmm src;
@@ -7489,6 +7495,10 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
     e.vpsrad(i.dest, 22);
     // Add 3,3,3,1.
     e.vpaddd(i.dest, e.GetXmmConstPtr(XMM3331));
+    // Return quiet NaNs in case of negative overflow.
+    e.vcmpeqps(e.xmm0, i.dest,
+               e.GetXmmConstPtr(XMMUnpackUINT_2101010_Overflow));
+    e.vblendvps(i.dest, i.dest, e.GetXmmConstPtr(XMMUnpackOverflowNaN), e.xmm0);
     // To convert XYZ to -1 to 1, games multiply by 0x46004020 & sub 0x46C06030.
     // For W to 0 to 1, they multiply by and subtract 0x4A2AAAAB.
   }
