@@ -7426,8 +7426,6 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
     e.vpsrad(i.dest, 16);
     // Add 3,3,0,1.
     e.vpaddd(i.dest, e.GetXmmConstPtr(XMM3301));
-    // Clamp the absolute value to the maximum positive value.
-    e.vmaxps(i.dest, i.dest, e.GetXmmConstPtr(XMMUnpackSHORT_2_Min));
   }
   static void EmitSHORT_4(X64Emitter& e, const EmitArgType& i) {
     // (VD.x) = 3.0 + (VB.x>>16)*2^-22
@@ -7454,14 +7452,12 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
     e.vpsrad(i.dest, 16);
     // Add 3,3,3,3.
     e.vpaddd(i.dest, e.GetXmmConstPtr(XMM3333));
-    // Clamp the absolute value to the maximum positive value.
-    e.vmaxps(i.dest, i.dest, e.GetXmmConstPtr(XMMPackSHORT_Min));
   }
   static void EmitUINT_2101010(X64Emitter& e, const EmitArgType& i) {
     Xmm src;
     if (i.src1.is_constant) {
       if (i.src1.value->IsConstantZero()) {
-        e.vmovdqa(i.dest, e.GetXmmConstPtr(XMM3333));
+        e.vmovdqa(i.dest, e.GetXmmConstPtr(XMM3331));
         return;
       }
       src = e.xmm0;
@@ -7487,14 +7483,14 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
       // Remove higher duplicate components.
       e.vpand(i.dest, e.GetXmmConstPtr(XMMPackUINT_2101010_MaskUnpacked));
     }
-    // If negative, make smaller than 3 - sign extend XYZ before adding.
+    // If XYZ are negative, make smaller than 3 - sign extend XYZ before adding.
+    // W is unsigned.
     e.vpslld(i.dest, 22);
     e.vpsrad(i.dest, 22);
-    // Add 3,3,3,3.
-    e.vpaddd(i.dest, e.GetXmmConstPtr(XMM3333));
-    // Clamp the absolute values of XYZ to the maximum positive value.
-    e.vmaxps(i.dest, i.dest, e.GetXmmConstPtr(XMMPackUINT_2101010_MinUnpacked));
-    // To convert XYZ to -1 to 1, games multiply by 0x46004020 & add 0xC6C06030.
+    // Add 3,3,3,1.
+    e.vpaddd(i.dest, e.GetXmmConstPtr(XMM3331));
+    // To convert XYZ to -1 to 1, games multiply by 0x46004020 & sub 0x46C06030.
+    // For W to 0 to 1, they multiply by and subtract 0x4A2AAAAB.
   }
   static void Emit8_IN_16(X64Emitter& e, const EmitArgType& i, uint32_t flags) {
     assert_false(IsPackOutSaturate(flags));
