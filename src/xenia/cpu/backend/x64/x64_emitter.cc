@@ -611,6 +611,7 @@ static const vec128_t xmm_consts[] = {
     vec128f(1.0f / 32767.0f, 1.0f / (32767.0f * 65536.0f), 0.0f, 0.0f),
     /* XMM0001                */ vec128f(0.0f, 0.0f, 0.0f, 1.0f),
     /* XMM3301                */ vec128f(3.0f, 3.0f, 0.0f, 1.0f),
+    /* XMM3331                */ vec128f(3.0f, 3.0f, 3.0f, 1.0f),
     /* XMM3333                */ vec128f(3.0f, 3.0f, 3.0f, 3.0f),
     /* XMMSignMaskPS          */
     vec128i(0x80000000u, 0x80000000u, 0x80000000u, 0x80000000u),
@@ -647,8 +648,6 @@ static const vec128_t xmm_consts[] = {
     vec128i(0xFFFFFFFFu, 0xFFFFFFFFu, 0x01000504u, 0x09080D0Cu),
     /* XMMUnpackSHORT_2       */
     vec128i(0xFFFF0F0Eu, 0xFFFF0D0Cu, 0xFFFFFFFFu, 0xFFFFFFFFu),
-    /* XMMUnpackSHORT_2_Min   */
-    vec128i(0x403F8001u, 0x403F8001u, 0x00000000u, 0x00000000u),
     /* XMMUnpackSHORT_4       */
     vec128i(0xFFFF0B0Au, 0xFFFF0908u, 0xFFFF0F0Eu, 0xFFFF0D0Cu),
     /* XMMPackUINT_2101010_MinUnpacked */
