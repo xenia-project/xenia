@@ -650,6 +650,7 @@ static const vec128_t xmm_consts[] = {
     vec128i(0xFFFF0F0Eu, 0xFFFF0D0Cu, 0xFFFFFFFFu, 0xFFFFFFFFu),
     /* XMMUnpackSHORT_4       */
     vec128i(0xFFFF0B0Au, 0xFFFF0908u, 0xFFFF0F0Eu, 0xFFFF0D0Cu),
+    /* XMMUnpackSHORT_Overflow */ vec128i(0x403F8000u),
     /* XMMPackUINT_2101010_MinUnpacked */
     vec128i(0x403FFE01u, 0x403FFE01u, 0x403FFE01u, 0x40400000u),
     /* XMMPackUINT_2101010_MaxUnpacked */
@@ -659,6 +660,8 @@ static const vec128_t xmm_consts[] = {
     /* XMMPackUINT_2101010_MaskPacked */
     vec128i(0x3FFu, 0x3FFu << 10, 0x3FFu << 20, 0x3u << 30),
     /* XMMPackUINT_2101010_Shift */ vec128i(0, 10, 20, 30),
+    /* XMMUnpackUINT_2101010_Overflow */ vec128i(0x403FFE00u),
+    /* XMMUnpackOverflowNaN   */ vec128i(0x7FC00000u),
     /* XMMOneOver255          */ vec128f(1.0f / 255.0f),
     /* XMMMaskEvenPI16        */
     vec128i(0x0000FFFFu, 0x0000FFFFu, 0x0000FFFFu, 0x0000FFFFu),
