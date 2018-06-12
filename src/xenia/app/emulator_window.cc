@@ -49,7 +49,8 @@ class VulkanRenderer : public QVulkanWindowRenderer {
     auto swap_state = graphics_system_->swap_state();
 
     auto cmd = window_->currentCommandBuffer();
-    auto src = reinterpret_cast<VkImage>(swap_state->front_buffer_texture);
+    auto src = reinterpret_cast<VkImage>(
+        swap_state->buffer_textures[swap_state->current_buffer]);
     auto dest = window_->swapChainImage(window_->currentSwapChainImageIndex());
     auto dest_size = window_->swapChainImageSize();
 

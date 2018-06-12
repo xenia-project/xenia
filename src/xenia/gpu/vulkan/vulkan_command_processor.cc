@@ -226,12 +226,25 @@ void VulkanCommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
 
 void VulkanCommandProcessor::BeginFrame() {
   assert_false(frame_open_);
+  VkResult status = VK_SUCCESS;
+
+  // Grab a fence from the backbuffer.
+  auto swap_state =
+      reinterpret_cast<VulkanGraphicsSystem*>(graphics_system_)->swap_state();
+  auto& swap_resources =
+      swap_state->buffer_resources[(swap_state->current_buffer + 1) %
+                                   kNumSwapBuffers];
+
+  // Wait for the fence, in-case it's still in-use by the GPU.
+  status = vkWaitForFences(*device_, 1, &swap_resources.buf_fence, VK_TRUE, -1);
+  vkResetFences(*device_, 1, &swap_resources.buf_fence);
 
   // TODO(benvanik): bigger batches.
   // TODO(DrChat): Decouple setup buffer from current batch.
   // Begin a new batch, and allocate and begin a command buffer and setup
   // buffer.
-  current_batch_fence_ = command_buffer_pool_->BeginBatch();
+  current_batch_fence_ =
+      command_buffer_pool_->BeginBatch(swap_resources.buf_fence);
   current_command_buffer_ = command_buffer_pool_->AcquireEntry();
   current_setup_buffer_ = command_buffer_pool_->AcquireEntry();
 
@@ -240,7 +253,7 @@ void VulkanCommandProcessor::BeginFrame() {
   command_buffer_begin_info.pNext = nullptr;
   command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
   command_buffer_begin_info.pInheritanceInfo = nullptr;
-  auto status =
+  status =
       vkBeginCommandBuffer(current_command_buffer_, &command_buffer_begin_info);
   CheckResult(status, "vkBeginCommandBuffer");
 
@@ -293,18 +306,32 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
                                          uint32_t frontbuffer_height) {
   SCOPE_profile_cpu_f("gpu");
 
+  auto swap_state =
+      reinterpret_cast<VulkanGraphicsSystem*>(graphics_system_)->swap_state();
+  // Increment the current buffer.
+  swap_state->current_buffer =
+      (swap_state->current_buffer + 1) % kNumSwapBuffers;
+
+  auto& swap_resources =
+      swap_state->buffer_resources[swap_state->current_buffer];
+
   // Build a final command buffer that copies the game's frontbuffer texture
   // into our backbuffer texture.
   VkCommandBuffer copy_commands = nullptr;
-  bool opened_batch;
-  if (command_buffer_pool_->has_open_batch()) {
-    copy_commands = command_buffer_pool_->AcquireEntry();
-    opened_batch = false;
-  } else {
-    current_batch_fence_ = command_buffer_pool_->BeginBatch();
-    copy_commands = command_buffer_pool_->AcquireEntry();
+  bool opened_batch = false;
+  if (!command_buffer_pool_->has_open_batch()) {
+    // Wait for the fence, in-case it's still in-use by the GPU.
+    auto status =
+        vkWaitForFences(*device_, 1, &swap_resources.buf_fence, VK_TRUE, -1);
+    vkResetFences(*device_, 1, &swap_resources.buf_fence);
+
+    // We'll have to open a batch if there isn't one open.
+    current_batch_fence_ =
+        command_buffer_pool_->BeginBatch(swap_resources.buf_fence);
     opened_batch = true;
   }
+
+  copy_commands = command_buffer_pool_->AcquireEntry();
 
   VkCommandBufferBeginInfo begin_info;
   std::memset(&begin_info, 0, sizeof(begin_info));
@@ -318,29 +345,27 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
     frontbuffer_ptr = last_copy_base_;
   }
 
-  auto swap_state =
-      reinterpret_cast<VulkanGraphicsSystem*>(graphics_system_)->swap_state();
-
   // Create a framebuffer if it isn't already created.
-  if (!swap_state->fb_framebuffer_) {
+  if (!swap_resources.buf_framebuffer) {
     VkFramebufferCreateInfo framebuffer_create_info = {
         VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
         nullptr,
         0,
         blitter_->GetRenderPass(VK_FORMAT_R8G8B8A8_UNORM, true),
         1,
-        &swap_state->fb_image_view_,
+        &swap_resources.buf_image_view,
         swap_state->width,
         swap_state->height,
         1,
     };
     status = vkCreateFramebuffer(*device_, &framebuffer_create_info, nullptr,
-                                 &swap_state->fb_framebuffer_);
+                                 &swap_resources.buf_framebuffer);
     CheckResult(status, "vkCreateFramebuffer");
   }
 
-  auto swap_fb = reinterpret_cast<VkImage>(swap_state->front_buffer_texture);
-  if (swap_state->fb_image_layout_ == VK_IMAGE_LAYOUT_UNDEFINED) {
+  auto swap_fb = reinterpret_cast<VkImage>(
+      swap_state->buffer_textures[swap_state->current_buffer]);
+  if (swap_resources.buf_image_layout == VK_IMAGE_LAYOUT_UNDEFINED) {
     // Transition image to general layout.
     VkImageMemoryBarrier barrier;
     std::memset(&barrier, 0, sizeof(VkImageMemoryBarrier));
@@ -359,6 +384,7 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
                          nullptr, 0, nullptr, 1, &barrier);
   }
 
+  // Grab the game's frontbuffer from a fetch constant populated by VdSwap.
   auto& regs = *register_file_;
   int r = XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0;
   auto group =
@@ -395,6 +421,7 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
                          VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr,
                          0, nullptr, 1, &barrier);
 
+    // Notify the GPU we're gonna write to the swap image.
     barrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
     barrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
@@ -422,7 +449,7 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
         texture_cache_->DemandView(texture, 0x688)->view, src_rect,
         {texture->texture_info.width + 1, texture->texture_info.height + 1},
         VK_FORMAT_R8G8B8A8_UNORM, dst_rect,
-        {frontbuffer_width, frontbuffer_height}, swap_state->fb_framebuffer_,
+        {frontbuffer_width, frontbuffer_height}, swap_resources.buf_framebuffer,
         viewport, scissor, VK_FILTER_LINEAR, true, true);
 
     std::swap(barrier.oldLayout, barrier.newLayout);
@@ -485,8 +512,8 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
     }
   }
 
-  vkWaitForFences(*device_, 1, &current_batch_fence_, VK_TRUE, -1);
   if (cache_clear_requested_) {
+    vkWaitForFences(*device_, 1, &current_batch_fence_, VK_TRUE, -1);
     cache_clear_requested_ = false;
 
     buffer_cache_->ClearCache();

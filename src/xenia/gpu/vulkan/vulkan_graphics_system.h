@@ -21,10 +21,13 @@ namespace vulkan {
 
 struct SwapState : public gpu::SwapState {
   // front buffer / back buffer memory
-  VkDeviceMemory fb_memory_ = nullptr;
-  VkImageView fb_image_view_ = nullptr;
-  VkImageLayout fb_image_layout_ = VK_IMAGE_LAYOUT_UNDEFINED;
-  VkFramebuffer fb_framebuffer_ = nullptr;  // Used and created by CP.
+  struct BufferResources {
+    VkDeviceMemory buf_memory = nullptr;
+    VkImageView buf_image_view = nullptr;
+    VkImageLayout buf_image_layout = VK_IMAGE_LAYOUT_UNDEFINED;
+    VkFramebuffer buf_framebuffer = nullptr;  // Used and created by CP.
+    VkFence buf_fence = nullptr;              // Completion fence. Used by CP.
+  } buffer_resources[kNumSwapBuffers];
 };
 
 class VulkanGraphicsSystem : public GraphicsSystem {
@@ -45,8 +48,10 @@ class VulkanGraphicsSystem : public GraphicsSystem {
   VkResult CreateCaptureBuffer(VkCommandBuffer cmd, VkExtent2D extents);
   void DestroyCaptureBuffer();
 
-  void CreateSwapImage(VkExtent2D extents);
-  void DestroySwapImage();
+  VkResult CreateSwapImage(VkExtent2D extents, uintptr_t* image_out,
+                           SwapState::BufferResources* buffer_resources);
+  void DestroySwapImage(uintptr_t* image,
+                        SwapState::BufferResources* buffer_resources);
 
   std::unique_ptr<CommandProcessor> CreateCommandProcessor() override;
 

@@ -33,6 +33,7 @@ VulkanGraphicsSystem::~VulkanGraphicsSystem() = default;
 X_STATUS VulkanGraphicsSystem::Setup(
     cpu::Processor* processor, kernel::KernelState* kernel_state,
     std::unique_ptr<ui::GraphicsContext> context) {
+  VkResult status;
   device_ = static_cast<ui::vulkan::VulkanContext*>(context.get())->device();
 
   auto result =
@@ -49,28 +50,33 @@ X_STATUS VulkanGraphicsSystem::Setup(
           VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
       device_->queue_family_index(),
   };
-  auto status =
-      vkCreateCommandPool(*device_, &create_info, nullptr, &command_pool_);
+  status = vkCreateCommandPool(*device_, &create_info, nullptr, &command_pool_);
   CheckResult(status, "vkCreateCommandPool");
 
-  // TODO(DrChat): Don't hardcode this resolution.
-  CreateSwapImage({1280, 720});
+  for (uint32_t i = 0; i < kNumSwapBuffers; i++) {
+    // TODO(DrChat): Don't hardcode this resolution.
+    status = CreateSwapImage({1280, 720}, &swap_state_.buffer_textures[i],
+                             &swap_state_.buffer_resources[i]);
+    if (status != VK_SUCCESS) {
+      return X_STATUS_UNSUCCESSFUL;
+    }
+  }
+
   return X_STATUS_SUCCESS;
 }
 
 void VulkanGraphicsSystem::Shutdown() {
   GraphicsSystem::Shutdown();
 
-  DestroySwapImage();
+  for (uint32_t i = 0; i < kNumSwapBuffers; i++) {
+    DestroySwapImage(&swap_state_.buffer_textures[i],
+                     &swap_state_.buffer_resources[i]);
+  }
   VK_SAFE_DESTROY(vkDestroyCommandPool, *device_, command_pool_, nullptr);
 }
 
 std::unique_ptr<RawImage> VulkanGraphicsSystem::Capture() {
   std::lock_guard<std::mutex> lock(swap_state_.mutex);
-  if (!swap_state_.front_buffer_texture) {
-    return nullptr;
-  }
-
   VkResult status = VK_SUCCESS;
 
   VkCommandBufferAllocateInfo alloc_info = {
@@ -96,8 +102,8 @@ std::unique_ptr<RawImage> VulkanGraphicsSystem::Capture() {
   };
   vkBeginCommandBuffer(cmd, &begin_info);
 
-  auto front_buffer =
-      reinterpret_cast<VkImage>(swap_state_.front_buffer_texture);
+  auto front_buffer = reinterpret_cast<VkImage>(
+      swap_state_.buffer_textures[swap_state_.current_buffer]);
 
   status = CreateCaptureBuffer(cmd, {swap_state_.width, swap_state_.height});
   if (status != VK_SUCCESS) {
@@ -246,7 +252,19 @@ void VulkanGraphicsSystem::DestroyCaptureBuffer() {
   capture_buffer_size_ = 0;
 }
 
-void VulkanGraphicsSystem::CreateSwapImage(VkExtent2D extents) {
+VkResult VulkanGraphicsSystem::CreateSwapImage(
+    VkExtent2D extents, uintptr_t* image_out,
+    SwapState::BufferResources* buffer_resources) {
+  VkResult status;
+
+  VkFenceCreateInfo fence_info = {
+      VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+      nullptr,
+      VK_FENCE_CREATE_SIGNALED_BIT,
+  };
+  status = vkCreateFence(*device_, &fence_info, nullptr,
+                         &buffer_resources->buf_fence);
+
   VkImageCreateInfo image_info;
   std::memset(&image_info, 0, sizeof(VkImageCreateInfo));
   image_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -264,29 +282,37 @@ void VulkanGraphicsSystem::CreateSwapImage(VkExtent2D extents) {
   image_info.pQueueFamilyIndices = nullptr;
   image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
-  VkImage image_fb;
-  auto status = vkCreateImage(*device_, &image_info, nullptr, &image_fb);
+  VkImage image_buf;
+  status = vkCreateImage(*device_, &image_info, nullptr, &image_buf);
   CheckResult(status, "vkCreateImage");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
 
   // Bind memory to image.
   VkMemoryRequirements mem_requirements;
-  vkGetImageMemoryRequirements(*device_, image_fb, &mem_requirements);
-  swap_state_.fb_memory_ = device_->AllocateMemory(mem_requirements, 0);
-  assert_not_null(swap_state_.fb_memory_);
+  vkGetImageMemoryRequirements(*device_, image_buf, &mem_requirements);
+  buffer_resources->buf_memory = device_->AllocateMemory(mem_requirements, 0);
+  assert_not_null(buffer_resources->buf_memory);
 
-  status = vkBindImageMemory(*device_, image_fb, swap_state_.fb_memory_, 0);
+  status =
+      vkBindImageMemory(*device_, image_buf, buffer_resources->buf_memory, 0);
   CheckResult(status, "vkBindImageMemory");
+  if (status != VK_SUCCESS) {
+    return status;
+  }
 
   std::lock_guard<std::mutex> lock(swap_state_.mutex);
-  swap_state_.front_buffer_texture = reinterpret_cast<uintptr_t>(image_fb);
+  *image_out = reinterpret_cast<uintptr_t>(image_buf);
   swap_state_.width = extents.width;
   swap_state_.height = extents.height;
+  buffer_resources->buf_image_layout = image_info.initialLayout;
 
   VkImageViewCreateInfo view_create_info = {
       VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
       nullptr,
       0,
-      image_fb,
+      image_buf,
       VK_IMAGE_VIEW_TYPE_2D,
       VK_FORMAT_R8G8B8A8_UNORM,
       {VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B,
@@ -294,25 +320,29 @@ void VulkanGraphicsSystem::CreateSwapImage(VkExtent2D extents) {
       {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1},
   };
   status = vkCreateImageView(*device_, &view_create_info, nullptr,
-                             &swap_state_.fb_image_view_);
+                             &buffer_resources->buf_image_view);
   CheckResult(status, "vkCreateImageView");
-}
-
-void VulkanGraphicsSystem::DestroySwapImage() {
-  VK_SAFE_DESTROY(vkDestroyFramebuffer, *device_, swap_state_.fb_framebuffer_,
-                  nullptr);
-  VK_SAFE_DESTROY(vkDestroyImageView, *device_, swap_state_.fb_image_view_,
-                  nullptr);
-
-  std::lock_guard<std::mutex> lock(swap_state_.mutex);
-  VK_SAFE_DESTROY(vkFreeMemory, *device_, swap_state_.fb_memory_, nullptr);
-  if (swap_state_.front_buffer_texture) {
-    vkDestroyImage(*device_,
-                   reinterpret_cast<VkImage>(swap_state_.front_buffer_texture),
-                   nullptr);
+  if (status != VK_SUCCESS) {
+    return status;
   }
 
-  swap_state_.front_buffer_texture = 0;
+  return VK_SUCCESS;
+}
+
+void VulkanGraphicsSystem::DestroySwapImage(
+    uintptr_t* image, SwapState::BufferResources* buffer_resources) {
+  VK_SAFE_DESTROY(vkDestroyFence, *device_, buffer_resources->buf_fence,
+                  nullptr);
+  VK_SAFE_DESTROY(vkDestroyFramebuffer, *device_,
+                  buffer_resources->buf_framebuffer, nullptr);
+  VK_SAFE_DESTROY(vkDestroyImageView, *device_,
+                  buffer_resources->buf_image_view, nullptr);
+
+  VK_SAFE_DESTROY(vkFreeMemory, *device_, buffer_resources->buf_memory,
+                  nullptr);
+  if (image) {
+    vkDestroyImage(*device_, reinterpret_cast<VkImage>(image), nullptr);
+  }
 }
 
 std::unique_ptr<CommandProcessor>

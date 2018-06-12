@@ -28,18 +28,18 @@ class Emulator;
 namespace xe {
 namespace gpu {
 
+const uint32_t kNumSwapBuffers = 2;
+
 struct SwapState {
   // Lock must be held when changing data in this structure.
   std::mutex mutex;
   // Dimensions of the framebuffer textures. Should match window size.
   uint32_t width = 0;
   uint32_t height = 0;
-  // Current front buffer, being drawn to the screen.
-  uintptr_t front_buffer_texture = 0;
-  // Current back buffer, being updated by the CP.
-  uintptr_t back_buffer_texture = 0;
-  // Backend data
-  void* backend_data = nullptr;
+  // Array of swap textures.
+  uintptr_t buffer_textures[kNumSwapBuffers];
+  // Current swap buffer index
+  size_t current_buffer = 0;
   // Whether the back buffer is dirty and a swap is pending.
   bool pending = false;
 };
