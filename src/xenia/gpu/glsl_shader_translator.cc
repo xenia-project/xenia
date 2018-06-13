@@ -149,6 +149,7 @@ struct VertexData {
   +rz          GL_TEXTURE_CUBE_MAP_POSITIVE_Z_EXT=4   +rx    -ry   rz
   -rz          GL_TEXTURE_CUBE_MAP_NEGATIVE_Z_EXT=5   -rx    -ry   rz
   */
+  // FIXME(Triang3l): This is totally incorrect - fixed in SPIR-V but not here!
   EmitSource(R"(
 vec4 cube(vec4 src0, vec4 src1) {
   vec3 src = vec3(src1.y, src1.x, src1.z);

@@ -86,6 +86,7 @@ void SpirvShaderTranslator::StartTranslation() {
                        b.makeFloatConstant(0.f), b.makeFloatConstant(0.f)}));
 
   cube_function_ = CreateCubeFunction();
+  cube_undo_function_ = CreateCubeUndoFunction();
 
   spv::Block* function_block = nullptr;
   translated_main_ =
@@ -229,10 +230,14 @@ void SpirvShaderTranslator::StartTranslation() {
         b.makeArrayType(tex_t[2], b.makeUintConstant(num_tex_bindings), 0)};
 
     // Create 3 texture types, all aliased on the same binding
+    static const char* tex_type_names[] = {
+        "textures2D",
+        "textures3D",
+        "texturesCube",
+    };
     for (int i = 0; i < 3; i++) {
-      tex_[i] = b.createVariable(
-          spv::StorageClass::StorageClassUniformConstant, tex_a_t[i],
-          xe::format_string("textures%dD", i + 2).c_str());
+      tex_[i] = b.createVariable(spv::StorageClass::StorageClassUniformConstant,
+                                 tex_a_t[i], tex_type_names[i]);
       b.addDecoration(tex_[i], spv::Decoration::DecorationDescriptorSet, 1);
       b.addDecoration(tex_[i], spv::Decoration::DecorationBinding, 0);
     }
@@ -1774,6 +1779,29 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
   StoreToResult(vertex, instr.result);
 }
 
+spv::Id SpirvShaderTranslator::ConvertTextureCoordinates(
+    spv::Id src, TextureDimension dimension) {
+  auto& b = *builder_;
+  if (dimension == TextureDimension::k1D) {
+    // Upgrade 1D src coordinate into 2D.
+    return b.createCompositeConstruct(vec2_float_type_,
+                                      {src, b.makeFloatConstant(0.0f)});
+  }
+  if (dimension == TextureDimension::kCube) {
+    // Undo cube, rcp and mad - tfetchCube takes the cube face in Z and
+    // coordinates on it in X and Y, however, when sampling the cubemap as a
+    // regular 2D texture array, there is a discontinuity of major axis near the
+    // edges of the cubemap - the 2D coordinates instantly change from 0 to 1 or
+    // vice versa, and when the cubemap is mipmapped, lines are visible near the
+    // edges, because the 1x1 mipmap gets sampled in this case.
+    auto src_xyz = b.createOp(spv::Op::OpVectorShuffle, vec3_float_type_,
+                              {src, src, 0, 1, 2});
+    return b.createFunctionCall(cube_undo_function_,
+                                std::vector<Id>({src_xyz}));
+  }
+  return src;
+}
+
 void SpirvShaderTranslator::ProcessTextureFetchInstruction(
     const ParsedTextureFetchInstruction& instr) {
   auto& b = *builder_;
@@ -1836,14 +1864,8 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
                               tex_[dim_idx], std::vector<Id>({texture_index}));
       auto texture = b.createLoad(texture_ptr);
 
-      if (instr.dimension == TextureDimension::k1D) {
-        // Upgrade 1D src coordinate into 2D
-        src = b.createCompositeConstruct(vec2_float_type_,
-                                         {src, b.makeFloatConstant(0.f)});
-      }
-
       spv::Builder::TextureParameters params = {0};
-      params.coords = src;
+      params.coords = ConvertTextureCoordinates(src, instr.dimension);
       params.sampler = texture;
       if (instr.attributes.use_register_lod) {
         params.lod = b.createLoad(lod_);
@@ -1859,7 +1881,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
         offset_y += instr.attributes.offset_y < 0 ? -0.5f : 0.5f;
         offset_z += instr.attributes.offset_z < 0 ? -0.5f : 0.5f;
 
-        Id offset = 0;
+        Id offset;
         switch (instr.dimension) {
           case TextureDimension::k1D: {
             // https://msdn.microsoft.com/en-us/library/windows/desktop/bb944006.aspx
@@ -1881,14 +1903,16 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
                                  b.makeIntConstant(int(offset_y)),
                                  b.makeIntConstant(int(offset_z))});
           } break;
-          case TextureDimension::kCube: {
-            // FIXME(DrChat): Is this the correct dimension? I forget
-            offset = b.makeCompositeConstant(
-                vec3_int_type_, {b.makeIntConstant(int(offset_x)),
-                                 b.makeIntConstant(int(offset_y)),
-                                 b.makeIntConstant(int(offset_z))});
-          } break;
+          default: { offset = 0; }
         }
+        // FIXME(Triang3l): There was offset code for cubemaps back when they
+        // didn't work. It was the same as for 3D, but DrChat wasn't sure if
+        // that was the correct dimension. Cubemap sampling is much more complex
+        // than 2D and 3D because Xenos samples them like array textures, so the
+        // offset would likely be 2D on one of the cubemap's faces, but we can't
+        // sample cubemaps the same way because of coordinate discontinuity near
+        // the edges creating lines on edges with mipmaps. Let's just assume the
+        // offset is pretty meaningless for cubemaps.
 
         params.offset = offset;
       }
@@ -1964,15 +1988,9 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
                               tex_[dim_idx], std::vector<Id>({texture_index}));
       auto texture = b.createLoad(texture_ptr);
 
-      if (instr.dimension == TextureDimension::k1D) {
-        // Upgrade 1D src coordinate into 2D
-        src = b.createCompositeConstruct(vec2_float_type_,
-                                         {src, b.makeFloatConstant(0.f)});
-      }
-
       spv::Builder::TextureParameters params = {};
       params.sampler = texture;
-      params.coords = src;
+      params.coords = ConvertTextureCoordinates(src, instr.dimension);
       auto lod =
           b.createTextureQueryCall(spv::Op::OpImageQueryLod, params, false);
 
@@ -2021,185 +2039,279 @@ spv::Function* SpirvShaderTranslator::CreateCubeFunction() {
   auto function = b.makeFunctionEntry(spv::NoPrecision, vec4_float_type_,
                                       "cube", {vec4_float_type_},
                                       {{spv::NoPrecision}}, &function_block);
-  auto src = function->getParamId(0);
-  auto face_id = b.createVariable(spv::StorageClass::StorageClassFunction,
-                                  float_type_, "face_id");
-  auto sc = b.createVariable(spv::StorageClass::StorageClassFunction,
-                             float_type_, "sc");
-  auto tc = b.createVariable(spv::StorageClass::StorageClassFunction,
-                             float_type_, "tc");
-  auto ma = b.createVariable(spv::StorageClass::StorageClassFunction,
-                             float_type_, "ma");
 
-  // Pseudocode:
-  /*
-  vec4 cube(vec4 src1) {
-  vec3 src = vec3(src1.y, src1.x, src1.z);
-  vec3 abs_src = abs(src);
-  int face_id;
-  float sc;
-  float tc;
-  float ma;
-  if (abs_src.x > abs_src.y && abs_src.x > abs_src.z) {
-    if (src.x > 0.0) {
-      face_id = 0; sc = -abs_src.z; tc = -abs_src.y; ma = abs_src.x;
-    } else {
-      face_id = 1; sc =  abs_src.z; tc = -abs_src.y; ma = abs_src.x;
-    }
-  } else if (abs_src.y > abs_src.x && abs_src.y > abs_src.z) {
-    if (src.y > 0.0) {
-      face_id = 2; sc =  abs_src.x; tc =  abs_src.z; ma = abs_src.y;
-    } else {
-      face_id = 3; sc =  abs_src.x; tc = -abs_src.z; ma = abs_src.y;
-    }
-  } else {
-    if (src.z > 0.0) {
-      face_id = 4; sc =  abs_src.x; tc = -abs_src.y; ma = abs_src.z;
-    } else {
-      face_id = 5; sc = -abs_src.x; tc = -abs_src.y; ma = abs_src.z;
-    }
-  }
-  float s = (sc / ma + 1.0) / 2.0;
-  float t = (tc / ma + 1.0) / 2.0;
-  return vec4(t, s, 2.0 * ma, float(face_id));
-  }
-  */
+  auto src = function->getParamId(0);
+  // The source parameter is ordered as .yxzz.
+  const unsigned int src_i_x = 1, src_i_y = 0, src_i_z = 2;
+  auto t_s_ma = b.createVariable(spv::StorageClass::StorageClassFunction,
+                                 vec4_float_type_, "t_s_ma");
+  // T scale, S scale, 2.0f, face index.
+  auto scale = b.createVariable(spv::StorageClass::StorageClassFunction,
+                                vec4_float_type_, "scale");
+
+  // Unvectorized pseudocode of this function:
+  //
+  // vec3 src = param.yxz;
+  // float t, s, ma, face;
+  // if (abs(src.x) >= abs(src.y) && abs(src.x) >= abs(src.z)) {
+  //   t = -src.y;
+  //   s = (src.x >= 0.0 ? -src.z : src.z);
+  //   ma = src.x;
+  //   face = (src.x >= 0.0 ? 0.0 : 1.0);
+  // } else if (abs(src.y) >= abs(src.z)) {
+  //   t = (src.y >= 0.0 ? src.z : -src.z);
+  //   s = src.x;
+  //   ma = src.y;
+  //   face = (src.y >= 0.0 ? 2.0 : 3.0);
+  // } else {
+  //   t = -src.y;
+  //   s = (src.z >= 0.0 ? src.x : -src.x);
+  //   ma = src.z;
+  //   face = (src.z >= 0.0 ? 4.0 : 5.0);
+  // }
+  // return vec4(t - 2.0 * abs(ma), s - 2.0 * abs(ma), 2.0 * ma, face);
+  //
+  // Optimized by using shuffle to choose T, S and MA and by multiplying vectors
+  // to apply the correct signs, face index and to muliply MA by 2.
 
   auto abs_src = CreateGlslStd450InstructionCall(
       spv::NoPrecision, vec4_float_type_, spv::GLSLstd450::kFAbs, {src});
-  auto abs_src_x = b.createCompositeExtract(abs_src, float_type_, 0);
-  auto abs_src_y = b.createCompositeExtract(abs_src, float_type_, 1);
-  auto abs_src_z = b.createCompositeExtract(abs_src, float_type_, 2);
-  auto neg_src_x = b.createUnaryOp(spv::Op::OpFNegate, float_type_, abs_src_x);
-  auto neg_src_y = b.createUnaryOp(spv::Op::OpFNegate, float_type_, abs_src_y);
-  auto neg_src_z = b.createUnaryOp(spv::Op::OpFNegate, float_type_, abs_src_z);
+  auto abs_src_x = b.createCompositeExtract(abs_src, float_type_, src_i_x);
+  auto abs_src_y = b.createCompositeExtract(abs_src, float_type_, src_i_y);
+  auto abs_src_z = b.createCompositeExtract(abs_src, float_type_, src_i_z);
 
-  //  Case 1: abs(src).x > abs(src).yz
+  auto x_gt_y = b.createBinOp(spv::Op::OpFOrdGreaterThanEqual, bool_type_,
+                              abs_src_x, abs_src_y);
+  auto x_gt_z = b.createBinOp(spv::Op::OpFOrdGreaterThanEqual, bool_type_,
+                              abs_src_x, abs_src_z);
+  auto x_gt_yz =
+      b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, x_gt_y, x_gt_z);
+  spv::Builder::If if_x_else_yz(x_gt_yz, 0, b);
   {
-    auto x_gt_y = b.createBinOp(spv::Op::OpFOrdGreaterThan, bool_type_,
-                                abs_src_x, abs_src_y);
-    auto x_gt_z = b.createBinOp(spv::Op::OpFOrdGreaterThan, bool_type_,
-                                abs_src_x, abs_src_z);
-    auto c1 = b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, x_gt_y, x_gt_z);
-    spv::Builder::If if1(c1, 0, b);
-
-    //  sc =  abs(src).y
-    b.createStore(abs_src_y, sc);
-    //  ma =  abs(src).x
-    b.createStore(abs_src_x, ma);
-
-    auto src_x = b.createCompositeExtract(src, float_type_, 0);
-    auto c2 = b.createBinOp(spv::Op::OpFOrdGreaterThan, bool_type_, src_x,
-                            b.makeFloatConstant(0));
-    //  src.x > 0:
-    //    face_id = 2
-    //    tc = -abs(src).z
-    //  src.x <= 0:
-    //    face_id = 3
-    //    tc =  abs(src).z
-    auto tmp_face_id =
-        b.createTriOp(spv::Op::OpSelect, float_type_, c2,
-                      b.makeFloatConstant(2), b.makeFloatConstant(3));
-    auto tmp_tc =
-        b.createTriOp(spv::Op::OpSelect, float_type_, c2, neg_src_z, abs_src_z);
-
-    b.createStore(tmp_face_id, face_id);
-    b.createStore(tmp_tc, tc);
-
-    if1.makeEndIf();
+    // X is the major axis: +T = -Y, +S = -+Z.
+    auto t_s_ma_x = b.createOp(spv::Op::OpVectorShuffle, vec4_float_type_,
+                               {src, src, src_i_y, src_i_z, src_i_x, 0});
+    b.createStore(t_s_ma_x, t_s_ma);
+    auto ma = b.createCompositeExtract(src, float_type_, src_i_x);
+    auto ma_pos = b.createBinOp(spv::Op::OpFOrdGreaterThanEqual, bool_type_, ma,
+                                b.makeFloatConstant(0.0f));
+    spv::Builder::If if_ma_pos(ma_pos, 0, b);
+    {
+      auto scale_pos = b.makeCompositeConstant(
+          vec4_float_type_,
+          {b.makeFloatConstant(-1.0f), b.makeFloatConstant(-1.0f),
+           b.makeFloatConstant(2.0f), b.makeFloatConstant(0.0f)});
+      b.createStore(scale_pos, scale);
+    }
+    if_ma_pos.makeBeginElse();
+    {
+      auto scale_neg = b.makeCompositeConstant(
+          vec4_float_type_,
+          {b.makeFloatConstant(-1.0f), b.makeFloatConstant(1.0f),
+           b.makeFloatConstant(2.0f), b.makeFloatConstant(1.0f)});
+      b.createStore(scale_neg, scale);
+    }
+    if_ma_pos.makeEndIf();
   }
-
-  //  Case 2: abs(src).y > abs(src).xz
+  if_x_else_yz.makeBeginElse();
   {
-    auto y_gt_x = b.createBinOp(spv::Op::OpFOrdGreaterThan, bool_type_,
-                                abs_src_y, abs_src_x);
-    auto y_gt_z = b.createBinOp(spv::Op::OpFOrdGreaterThan, bool_type_,
+    auto y_gt_z = b.createBinOp(spv::Op::OpFOrdGreaterThanEqual, bool_type_,
                                 abs_src_y, abs_src_z);
-    auto c1 = b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, y_gt_x, y_gt_z);
-    spv::Builder::If if1(c1, 0, b);
-
-    //  tc = -abs(src).x
-    b.createStore(neg_src_x, tc);
-    //  ma =  abs(src).y
-    b.createStore(abs_src_y, ma);
-
-    auto src_y = b.createCompositeExtract(src, float_type_, 1);
-    auto c2 = b.createBinOp(spv::Op::OpFOrdGreaterThan, bool_type_, src_y,
-                            b.makeFloatConstant(0));
-    //  src.y > 0:
-    //    face_id = 0
-    //    sc = -abs(src).z
-    //  src.y <= 0:
-    //    face_id = 1
-    //    sc =  abs(src).z
-    auto tmp_face_id =
-        b.createTriOp(spv::Op::OpSelect, float_type_, c2,
-                      b.makeFloatConstant(0), b.makeFloatConstant(1));
-    auto tmp_sc =
-        b.createTriOp(spv::Op::OpSelect, float_type_, c2, neg_src_z, abs_src_z);
-
-    b.createStore(tmp_face_id, face_id);
-    b.createStore(tmp_sc, sc);
-
-    if1.makeEndIf();
+    spv::Builder::If if_y_else_z(y_gt_z, 0, b);
+    {
+      // Y is the major axis: +T = +-Z, +S = +X.
+      auto t_s_ma_y = b.createOp(spv::Op::OpVectorShuffle, vec4_float_type_,
+                                 {src, src, src_i_z, src_i_x, src_i_y, 0});
+      b.createStore(t_s_ma_y, t_s_ma);
+      auto ma = b.createCompositeExtract(src, float_type_, src_i_y);
+      auto ma_pos = b.createBinOp(spv::Op::OpFOrdGreaterThanEqual, bool_type_,
+                                  ma, b.makeFloatConstant(0.0f));
+      spv::Builder::If if_ma_pos(ma_pos, 0, b);
+      {
+        auto scale_pos = b.makeCompositeConstant(
+            vec4_float_type_,
+            {b.makeFloatConstant(1.0f), b.makeFloatConstant(1.0f),
+             b.makeFloatConstant(2.0f), b.makeFloatConstant(2.0f)});
+        b.createStore(scale_pos, scale);
+      }
+      if_ma_pos.makeBeginElse();
+      {
+        auto scale_neg = b.makeCompositeConstant(
+            vec4_float_type_,
+            {b.makeFloatConstant(-1.0f), b.makeFloatConstant(1.0f),
+             b.makeFloatConstant(2.0f), b.makeFloatConstant(3.0f)});
+        b.createStore(scale_neg, scale);
+      }
+      if_ma_pos.makeEndIf();
+    }
+    if_y_else_z.makeBeginElse();
+    {
+      // Z is the major axis: +T = -Y, +S = +-X.
+      auto t_s_ma_z = b.createOp(spv::Op::OpVectorShuffle, vec4_float_type_,
+                                 {src, src, src_i_y, src_i_x, src_i_z, 0});
+      b.createStore(t_s_ma_z, t_s_ma);
+      auto ma = b.createCompositeExtract(src, float_type_, src_i_z);
+      auto ma_pos = b.createBinOp(spv::Op::OpFOrdGreaterThanEqual, bool_type_,
+                                  ma, b.makeFloatConstant(0.0f));
+      spv::Builder::If if_ma_pos(ma_pos, 0, b);
+      {
+        auto scale_pos = b.makeCompositeConstant(
+            vec4_float_type_,
+            {b.makeFloatConstant(-1.0f), b.makeFloatConstant(1.0f),
+             b.makeFloatConstant(2.0f), b.makeFloatConstant(4.0f)});
+        b.createStore(scale_pos, scale);
+      }
+      if_ma_pos.makeBeginElse();
+      {
+        auto scale_neg = b.makeCompositeConstant(
+            vec4_float_type_,
+            {b.makeFloatConstant(-1.0f), b.makeFloatConstant(-1.0f),
+             b.makeFloatConstant(2.0f), b.makeFloatConstant(5.0f)});
+        b.createStore(scale_neg, scale);
+      }
+      if_ma_pos.makeEndIf();
+    }
+    if_y_else_z.makeEndIf();
   }
+  if_x_else_yz.makeEndIf();
 
-  //  Case 3: abs(src).z > abs(src).yx
-  {
-    auto z_gt_x = b.createBinOp(spv::Op::OpFOrdGreaterThan, bool_type_,
-                                abs_src_z, abs_src_x);
-    auto z_gt_y = b.createBinOp(spv::Op::OpFOrdGreaterThan, bool_type_,
-                                abs_src_z, abs_src_y);
-    auto c1 = b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, z_gt_x, z_gt_y);
-    spv::Builder::If if1(c1, 0, b);
+  auto ret = b.createLoad(t_s_ma);
+  // Set face index scale to 1 because it's going to be multiplied.
+  ret = b.createCompositeInsert(b.makeFloatConstant(1.0f), ret,
+                                vec4_float_type_, 3);
+  // Apply face-specific signs, face index and multiply major axis by 2.
+  ret = b.createBinOp(spv::Op::OpFMul, vec4_float_type_, ret,
+                      b.createLoad(scale));
+  // Subtract 2 * MA from T and S so games can move them to 0...1.
+  auto abs_2ma = b.createCompositeExtract(ret, float_type_, 2);
+  abs_2ma = CreateGlslStd450InstructionCall(spv::NoPrecision, float_type_,
+                                            spv::GLSLstd450::kFAbs, {abs_2ma});
+  auto temp_t = b.createCompositeExtract(ret, float_type_, 0);
+  temp_t = b.createBinOp(spv::Op::OpFSub, float_type_, temp_t, abs_2ma);
+  ret = b.createCompositeInsert(temp_t, ret, vec4_float_type_, 0);
+  auto temp_s = b.createCompositeExtract(ret, float_type_, 1);
+  temp_s = b.createBinOp(spv::Op::OpFSub, float_type_, temp_s, abs_2ma);
+  ret = b.createCompositeInsert(temp_s, ret, vec4_float_type_, 1);
 
-    //  tc = -abs(src).x
-    b.createStore(neg_src_x, tc);
-    //  ma =  abs(src).z
-    b.createStore(abs_src_z, ma);
-
-    auto src_z = b.createCompositeExtract(src, float_type_, 2);
-    auto c2 = b.createBinOp(spv::Op::OpFOrdGreaterThan, bool_type_, src_z,
-                            b.makeFloatConstant(0));
-    //  src.z > 0:
-    //    face_id = 4
-    //    sc = -abs(src).y
-    //  src.z <= 0:
-    //    face_id = 5
-    //    sc =  abs(src).y
-    auto tmp_face_id =
-        b.createTriOp(spv::Op::OpSelect, float_type_, c2,
-                      b.makeFloatConstant(4), b.makeFloatConstant(5));
-    auto tmp_sc =
-        b.createTriOp(spv::Op::OpSelect, float_type_, c2, neg_src_y, abs_src_y);
-
-    b.createStore(tmp_face_id, face_id);
-    b.createStore(tmp_sc, sc);
-
-    if1.makeEndIf();
-  }
-
-  //  s = (sc / ma + 1.0) / 2.0
-  auto s = b.createBinOp(spv::Op::OpFDiv, float_type_, b.createLoad(sc),
-                         b.createLoad(ma));
-  s = b.createBinOp(spv::Op::OpFAdd, float_type_, s, b.makeFloatConstant(1.0));
-  s = b.createBinOp(spv::Op::OpFDiv, float_type_, s, b.makeFloatConstant(2.0));
-
-  //  t = (tc / ma + 1.0) / 2.0
-  auto t = b.createBinOp(spv::Op::OpFDiv, float_type_, b.createLoad(tc),
-                         b.createLoad(ma));
-  t = b.createBinOp(spv::Op::OpFAdd, float_type_, t, b.makeFloatConstant(1.0));
-  t = b.createBinOp(spv::Op::OpFDiv, float_type_, t, b.makeFloatConstant(2.0));
-
-  auto ma_times_two = b.createBinOp(spv::Op::OpFMul, float_type_,
-                                    b.createLoad(ma), b.makeFloatConstant(2.0));
-
-  //  dest = vec4(t, s, 2.0 * ma, face_id)
-  auto ret = b.createCompositeConstruct(
-      vec4_float_type_,
-      std::vector<Id>({t, s, ma_times_two, b.createLoad(face_id)}));
   b.makeReturn(false, ret);
+  return function;
+}
 
+spv::Function* SpirvShaderTranslator::CreateCubeUndoFunction() {
+  auto& b = *builder_;
+  spv::Block* function_block = nullptr;
+  auto function = b.makeFunctionEntry(spv::NoPrecision, vec3_float_type_,
+                                      "cube_undo", {vec3_float_type_},
+                                      {{spv::NoPrecision}}, &function_block);
+
+  auto src = function->getParamId(0);
+  auto ret = b.createVariable(spv::StorageClass::StorageClassFunction,
+                              vec3_float_type_, "ret");
+
+  // Rescale S and T from 0 ... 1 to -1 ... 1 and put 1 in Z for shuffling.
+  auto st1_mul = b.makeCompositeConstant(
+      vec3_float_type_, {b.makeFloatConstant(2.0f), b.makeFloatConstant(2.0f),
+                         b.makeFloatConstant(0.0f)});
+  auto st1_add = b.makeCompositeConstant(
+      vec3_float_type_, {b.makeFloatConstant(-1.0f), b.makeFloatConstant(-1.0f),
+                         b.makeFloatConstant(1.0f)});
+  auto st1 = b.createBinOp(spv::Op::OpFMul, vec3_float_type_, src, st1_mul);
+  st1 = b.createBinOp(spv::Op::OpFAdd, vec3_float_type_, st1, st1_add);
+
+  auto face = b.createCompositeExtract(src, float_type_, 2);
+  face = b.createUnaryOp(spv::Op::OpConvertFToU, uint_type_, face);
+  auto face_axis = b.createBinOp(spv::Op::OpShiftRightLogical, uint_type_, face,
+                                 b.makeUintConstant(1));
+  auto face_dir = b.createBinOp(spv::Op::OpBitwiseAnd, uint_type_, face,
+                                b.makeUintConstant(1));
+  auto face_neg = b.createBinOp(spv::Op::OpINotEqual, bool_type_, face_dir,
+                                b.makeUintConstant(0));
+
+  // If MA is +X (face 0), Y is -T, Z is -S.
+  // If MA is -X (face 1), Y is -T, Z is +S.
+  // If MA is +Y (face 2), X is +S, Z is +T.
+  // If MA is -Y (face 3), X is +S, Z is -T.
+  // If MA is +Z (face 4), X is +S, Y is -T.
+  // If MA is -Z (face 5), X is -S, Y is -T.
+
+  auto face_axis_x = b.createBinOp(spv::Op::OpIEqual, bool_type_, face_axis,
+                                   b.makeUintConstant(0));
+  spv::Builder::If if_x(face_axis_x, 0, b);
+  {
+    // X is major: +Y is -T, +Z is -S for positive X and +S for negative.
+    auto shuffled = b.createOp(spv::Op::OpVectorShuffle, vec3_float_type_,
+                               {st1, st1, 2, 1, 0});
+    spv::Builder::If if_neg(face_neg, 0, b);
+    {
+      auto scale_neg = b.makeCompositeConstant(
+          vec3_float_type_,
+          {b.makeFloatConstant(-1.0f), b.makeFloatConstant(-1.0f),
+           b.makeFloatConstant(1.0f)});
+      auto ret_neg =
+          b.createBinOp(spv::Op::OpFMul, vec3_float_type_, shuffled, scale_neg);
+      b.createStore(ret_neg, ret);
+    }
+    if_neg.makeBeginElse();
+    {
+      auto scale_pos = b.makeCompositeConstant(
+          vec3_float_type_,
+          {b.makeFloatConstant(1.0f), b.makeFloatConstant(-1.0f),
+           b.makeFloatConstant(-1.0f)});
+      auto ret_pos =
+          b.createBinOp(spv::Op::OpFMul, vec3_float_type_, shuffled, scale_pos);
+      b.createStore(ret_pos, ret);
+    }
+    if_neg.makeEndIf();
+  }
+  if_x.makeBeginElse();
+  {
+    auto face_axis_y = b.createBinOp(spv::Op::OpIEqual, bool_type_, face_axis,
+                                     b.makeUintConstant(1));
+    spv::Builder::If if_y(face_axis_y, 0, b);
+    {
+      // Y is major: +X is +S, +Z is +T for positive Y and -T for negative.
+      auto shuffled = b.createOp(spv::Op::OpVectorShuffle, vec3_float_type_,
+                                 {st1, st1, 0, 2, 1});
+      // If positive, all scales are 1.
+      b.createStore(shuffled, ret);
+      spv::Builder::If if_neg(face_neg, 0, b);
+      {
+        auto scale_neg = b.makeCompositeConstant(
+            vec3_float_type_,
+            {b.makeFloatConstant(1.0f), b.makeFloatConstant(-1.0f),
+             b.makeFloatConstant(-1.0f)});
+        auto ret_neg = b.createBinOp(spv::Op::OpFMul, vec3_float_type_,
+                                     shuffled, scale_neg);
+        b.createStore(ret_neg, ret);
+      }
+      if_neg.makeEndIf();
+    }
+    if_y.makeBeginElse();
+    {
+      // Z is major: +X is +S for positive Z and -S for negative, +Y is -T.
+      spv::Builder::If if_neg(face_neg, 0, b);
+      {
+        auto ret_neg =
+            b.createUnaryOp(spv::Op::OpFNegate, vec3_float_type_, st1);
+        b.createStore(ret_neg, ret);
+      }
+      if_neg.makeBeginElse();
+      {
+        auto scale_pos = b.makeCompositeConstant(
+            vec3_float_type_,
+            {b.makeFloatConstant(1.0f), b.makeFloatConstant(-1.0f),
+             b.makeFloatConstant(1.0f)});
+        auto ret_pos =
+            b.createBinOp(spv::Op::OpFMul, vec3_float_type_, st1, scale_pos);
+        b.createStore(ret_pos, ret);
+      }
+      if_neg.makeEndIf();
+    }
+    if_y.makeEndIf();
+  }
+  if_x.makeEndIf();
+
+  b.makeReturn(false, b.createLoad(ret));
   return function;
 }
 

@@ -87,9 +87,12 @@ class SpirvShaderTranslator : public ShaderTranslator {
 
  private:
   spv::Function* CreateCubeFunction();
+  spv::Function* CreateCubeUndoFunction();
 
   void ProcessVectorAluInstruction(const ParsedAluInstruction& instr);
   void ProcessScalarAluInstruction(const ParsedAluInstruction& instr);
+
+  spv::Id ConvertTextureCoordinates(spv::Id src, TextureDimension dimension);
 
   spv::Id BitfieldExtract(spv::Id result_type, spv::Id base, bool is_signed,
                           uint32_t offset, uint32_t count);
@@ -130,6 +133,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
   // Generated function
   spv::Function* translated_main_ = nullptr;
   spv::Function* cube_function_ = nullptr;
+  spv::Function* cube_undo_function_ = nullptr;
 
   // Types.
   spv::Id float_type_ = 0, bool_type_ = 0, int_type_ = 0, uint_type_ = 0;
