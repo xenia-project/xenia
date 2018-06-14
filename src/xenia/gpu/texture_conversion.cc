@@ -89,16 +89,16 @@ void ConvertTexelDXT3AToDXT3(Endian endian, void* output, const void* input,
 }
 
 // https://github.com/BinomialLLC/crunch/blob/ea9b8d8c00c8329791256adafa8cf11e4e7942a2/inc/crn_decomp.h#L4108
-static uint32_t TiledOffset2DOuter(uint32_t y, uint32_t width,
-                                   uint32_t log2_bpp) {
+static uint32_t TiledOffset2DRow(uint32_t y, uint32_t width,
+                                 uint32_t log2_bpp) {
   uint32_t macro = ((y / 32) * (width / 32)) << (log2_bpp + 7);
   uint32_t micro = ((y & 6) << 2) << log2_bpp;
   return macro + ((micro & ~0xF) << 1) + (micro & 0xF) +
          ((y & 8) << (3 + log2_bpp)) + ((y & 1) << 4);
 }
 
-static uint32_t TiledOffset2DInner(uint32_t x, uint32_t y, uint32_t log2_bpp,
-                                   uint32_t base_offset) {
+static uint32_t TiledOffset2DColumn(uint32_t x, uint32_t y, uint32_t log2_bpp,
+                                    uint32_t base_offset) {
   uint32_t macro = (x / 32) << (log2_bpp + 7);
   uint32_t micro = (x & 7) << log2_bpp;
   uint32_t offset =
@@ -127,16 +127,16 @@ void Untile(uint8_t* output_buffer, const uint8_t* input_buffer,
   // Offset to the current row, in bytes.
   uint32_t output_row_offset = 0;
   for (uint32_t y = 0; y < untile_info->height; y++) {
-    auto input_row_offset = TiledOffset2DOuter(
+    auto input_row_offset = TiledOffset2DRow(
         untile_info->offset_y + y, untile_info->input_pitch, log2_bpp);
 
     // Go block-by-block on this row.
     uint32_t output_offset = output_row_offset;
 
     for (uint32_t x = 0; x < untile_info->width; x++) {
-      auto input_offset = TiledOffset2DInner(untile_info->offset_x + x,
-                                             untile_info->offset_y + y,
-                                             log2_bpp, input_row_offset);
+      auto input_offset = TiledOffset2DColumn(untile_info->offset_x + x,
+                                              untile_info->offset_y + y,
+                                              log2_bpp, input_row_offset);
       input_offset >>= log2_bpp;
 
       untile_info->copy_callback(
