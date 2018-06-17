@@ -28,15 +28,16 @@ class MicroprofileDrawer {
     kFlat = 1,  // MicroProfileBoxTypeFlat
   };
 
-  MicroprofileDrawer(Window* window);
+  MicroprofileDrawer(GraphicsContext* graphics_context);
   ~MicroprofileDrawer();
 
-  void Begin();
-  void End();
-  void DrawBox(int x0, int y0, int x1, int y1, uint32_t color, BoxType type);
-  void DrawLine2D(uint32_t count, float* vertices, uint32_t color);
-  void DrawText(int x, int y, uint32_t color, const char* text,
-                int text_length);
+  virtual void Begin(uint32_t width, uint32_t height);
+  virtual void End();
+  virtual void DrawBox(int x0, int y0, int x1, int y1, uint32_t color,
+                       BoxType type);
+  virtual void DrawLine2D(uint32_t count, float* vertices, uint32_t color);
+  virtual void DrawText(int x, int y, uint32_t color, const char* text,
+                        int text_length);
 
  protected:
   void SetupFont();
@@ -46,7 +47,6 @@ class MicroprofileDrawer {
   void EndVertices();
   void Flush();
 
-  Window* window_ = nullptr;
   GraphicsContext* graphics_context_ = nullptr;
 
   std::vector<ImmediateVertex> vertices_;
