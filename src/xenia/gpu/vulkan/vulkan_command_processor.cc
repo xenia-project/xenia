@@ -30,7 +30,7 @@ namespace vulkan {
 using namespace xe::gpu::xenos;
 using xe::ui::vulkan::CheckResult;
 
-constexpr size_t kDefaultBufferCacheCapacity = 256 * 1024 * 1024;
+constexpr size_t kDefaultBufferCacheCapacity = 512 * 1024 * 1024;
 
 VulkanCommandProcessor::VulkanCommandProcessor(
     VulkanGraphicsSystem* graphics_system, kernel::KernelState* kernel_state)
