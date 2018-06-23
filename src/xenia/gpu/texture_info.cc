@@ -182,7 +182,7 @@ uint32_t TextureInfo::GetMipLocation(uint32_t mip, uint32_t* offset_x,
       *offset_x = 0;
       *offset_y = 0;
     } else {
-      GetPackedTileOffset(0, offset_x, offset_y);
+      GetMipOffset(0, offset_x, offset_y);
     }
     return memory.base_address;
   }
@@ -214,8 +214,7 @@ uint32_t TextureInfo::GetMipLocation(uint32_t mip, uint32_t* offset_x,
   uint32_t height_pow2 = xe::next_pow2(height + 1);
 
   // Walk forward to find the address of the mip.
-  uint32_t packed_mip_base = 1;
-  for (uint32_t i = packed_mip_base; i < mip; i++, packed_mip_base++) {
+  for (uint32_t i = 1; i < mip; i++) {
     uint32_t mip_width = std::max(width_pow2 >> i, 1u);
     uint32_t mip_height = std::max(height_pow2 >> i, 1u);
     if (std::min(mip_width, mip_height) <= 16) {
@@ -226,18 +225,16 @@ uint32_t TextureInfo::GetMipLocation(uint32_t mip, uint32_t* offset_x,
   }
 
   // Now, check if the mip is packed at an offset.
-  GetPackedTileOffset(width_pow2 >> mip, height_pow2 >> mip, format_info(),
-                      mip - packed_mip_base, offset_x, offset_y);
+  GetMipOffset(width_pow2, height_pow2, format_info(), mip, offset_x, offset_y);
   return address_base + address_offset;
 }
 
-bool TextureInfo::GetPackedTileOffset(uint32_t width, uint32_t height,
-                                      const FormatInfo* format_info,
-                                      int packed_tile, uint32_t* offset_x,
-                                      uint32_t* offset_y) {
+bool TextureInfo::GetMipOffset(uint32_t width, uint32_t height,
+                               const FormatInfo* format_info, uint32_t mip,
+                               uint32_t* offset_x, uint32_t* offset_y) {
   // Tile size is 32x32, and once textures go <=16 they are packed into a
-  // single tile together. The math here is insane. Most sourced
-  // from graph paper and looking at dds dumps.
+  // single tile together. The math here is insane. Most sourced from
+  // graph paper, looking at dds dumps and executable reverse engineering.
   //   0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
   // 0         +.4x4.+ +.....8x8.....+ +............16x16............+
   // 1         +.4x4.+ +.....8x8.....+ +............16x16............+
@@ -251,9 +248,6 @@ bool TextureInfo::GetPackedTileOffset(uint32_t width, uint32_t height,
   // 9 2x2                             +............16x16............+
   // 0                                 +............16x16............+
   // ...                                            .....
-  // This only works for square textures, or textures that are some non-pot
-  // <= square. As soon as the aspect ratio goes weird, the textures start to
-  // stretch across tiles.
   //
   // The 2x2 and 1x1 squares are packed in their specific positions because
   // each square is the size of at least one block (which is 4x4 pixels max)
@@ -272,33 +266,36 @@ bool TextureInfo::GetPackedTileOffset(uint32_t width, uint32_t height,
 
   uint32_t log2_width = xe::log2_ceil(width);
   uint32_t log2_height = xe::log2_ceil(height);
-  if (std::min(log2_width, log2_height) > 4) {
-    // Too big, not packed.
+  uint32_t log2_size = std::min(log2_width, log2_height);
+  if (log2_size > 4 + mip) {
+    // The shortest dimension is bigger than 16, not packed.
     *offset_x = 0;
     *offset_y = 0;
     return false;
   }
+  uint32_t packed_mip_base = (log2_size > 4) ? (log2_size - 4) : 0;
+  uint32_t packed_mip = mip - packed_mip_base;
 
   // Find the block offset of the mip.
-  if (packed_tile < 3) {
+  if (packed_mip < 3) {
     if (log2_width > log2_height) {
       // Wider than tall. Laid out vertically.
       *offset_x = 0;
-      *offset_y = 16 >> packed_tile;
+      *offset_y = 16 >> packed_mip;
     } else {
       // Taller than wide. Laid out horizontally.
-      *offset_x = 16 >> packed_tile;
+      *offset_x = 16 >> packed_mip;
       *offset_y = 0;
     }
   } else {
     if (log2_width > log2_height) {
-      // Wider than tall. Laid out vertically.
-      *offset_x = 16 >> (packed_tile - 2);
+      // Wider than tall. Laid out horizontally.
+      *offset_x = (1 << (log2_width - packed_mip_base)) >> (packed_mip - 2);
       *offset_y = 0;
     } else {
-      // Taller than wide. Laid out horizontally.
+      // Taller than wide. Laid out vertically.
       *offset_x = 0;
-      *offset_y = 16 >> (packed_tile - 2);
+      *offset_y = (1 << (log2_height - packed_mip_base)) >> (packed_mip - 2);
     }
   }
 
@@ -307,16 +304,15 @@ bool TextureInfo::GetPackedTileOffset(uint32_t width, uint32_t height,
   return true;
 }
 
-bool TextureInfo::GetPackedTileOffset(int packed_tile, uint32_t* offset_x,
-                                      uint32_t* offset_y) const {
+bool TextureInfo::GetMipOffset(uint32_t mip, uint32_t* offset_x,
+                               uint32_t* offset_y) const {
   if (!has_packed_mips) {
     *offset_x = 0;
     *offset_y = 0;
     return false;
   }
-  return GetPackedTileOffset(xe::next_pow2(width + 1),
-                             xe::next_pow2(height + 1), format_info(),
-                             packed_tile, offset_x, offset_y);
+  return GetMipOffset(width + 1, height + 1, format_info(), mip, offset_x,
+                      offset_y);
 }
 
 uint64_t TextureInfo::hash() const {

@@ -364,13 +364,11 @@ struct TextureInfo {
   uint32_t GetMipLocation(uint32_t mip, uint32_t* offset_x, uint32_t* offset_y,
                           bool is_guest) const;
 
-  static bool GetPackedTileOffset(uint32_t width, uint32_t height,
-                                  const FormatInfo* format_info,
-                                  int packed_tile, uint32_t* offset_x,
-                                  uint32_t* offset_y);
+  static bool GetMipOffset(uint32_t width, uint32_t height,
+                           const FormatInfo* format_info, uint32_t mip,
+                           uint32_t* offset_x, uint32_t* offset_y);
 
-  bool GetPackedTileOffset(int packed_tile, uint32_t* offset_x,
-                           uint32_t* offset_y) const;
+  bool GetMipOffset(uint32_t mip, uint32_t* offset_x, uint32_t* offset_y) const;
 
   uint64_t hash() const;
   bool operator==(const TextureInfo& other) const {
