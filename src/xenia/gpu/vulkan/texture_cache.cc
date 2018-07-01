@@ -1132,13 +1132,13 @@ TextureExtent TextureCache::GetMipExtent(const TextureInfo& src, uint32_t mip) {
   uint32_t depth = src.depth + 1;
   TextureExtent extent;
   if (mip == 0) {
-    extent = TextureExtent::Calculate(format_info, width, height, depth, width,
+    extent = TextureExtent::Calculate(format_info, width, height, depth, false,
                                       false);
   } else {
     uint32_t mip_width = std::max(1u, width >> mip);
     uint32_t mip_height = std::max(1u, height >> mip);
     extent = TextureExtent::Calculate(format_info, mip_width, mip_height, depth,
-                                      mip_width, false);
+                                      false, false);
   }
   return extent;
 }
