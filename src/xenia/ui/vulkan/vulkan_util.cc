@@ -399,9 +399,12 @@ const char* to_string(VkPresentModeKHR present_mode) {
 void FatalVulkanError(std::string error) {
   xe::FatalError(
       error +
-      "\nEnsure you have the latest drivers for your GPU and that it supports "
-      "Vulkan. See http://xenia.jp/faq/ for more information and a list"
-      "of supported GPUs.");
+      "\n\n"
+      "Ensure you have the latest drivers for your GPU and that it supports "
+      "Vulkan.\n"
+      "\n"
+      "See http://xenia.jp/faq/ for more information and a list of supported "
+      "GPUs.");
 }
 
 void CheckResult(VkResult result, const char* action) {

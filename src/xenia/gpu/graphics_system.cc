@@ -68,10 +68,14 @@ X_STATUS GraphicsSystem::Setup(cpu::Processor* processor,
 
     if (!processor_context) {
       xe::FatalError(
-          "Unable to initialize graphics context. Xenia requires OpenGL 4.5 or "
-          "Vulkan support. Ensure you have the latest drivers for your GPU and "
-          "that it supports OpenGL or Vulkan. See http://xenia.jp/faq/ for "
-          "more information.");
+          "Unable to initialize graphics context. Xenia requires Vulkan "
+          "support.\n"
+          "\n"
+          "Ensure you have the latest drivers for your GPU and "
+          "that it supports Vulkan.\n"
+          "\n"
+          "See http://xenia.jp/faq/ for more information and a list of "
+          "supported GPUs.");
       return X_STATUS_UNSUCCESSFUL;
     }
   }
