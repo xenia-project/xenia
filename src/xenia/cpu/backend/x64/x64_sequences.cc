@@ -6964,14 +6964,16 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
   }
   static void EmitD3DCOLOR(X64Emitter& e, const EmitArgType& i) {
     assert_true(i.src2.value->IsConstantZero());
+    Xmm src;
+    if (i.src1.is_constant) {
+      src = i.dest;
+      e.LoadConstantXmm(src, i.src1.constant());
+    } else {
+      src = i.src1;
+    }
     // Saturate to [3,3....] so that only values between 3...[00] and 3...[FF]
     // are valid.
-    if (i.src1.is_constant) {
-      e.LoadConstantXmm(i.dest, i.src1.constant());
-      e.vminps(i.dest, i.dest, e.GetXmmConstPtr(XMMPackD3DCOLORSat));
-    } else {
-      e.vminps(i.dest, i.src1, e.GetXmmConstPtr(XMMPackD3DCOLORSat));
-    }
+    e.vminps(i.dest, src, e.GetXmmConstPtr(XMMPackD3DCOLORSat));
     e.vmaxps(i.dest, i.dest, e.GetXmmConstPtr(XMM3333));
     // Extract bytes.
     // RGBA (XYZW) -> ARGB (WXYZ)
@@ -6996,13 +6998,26 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
     // http://blogs.msdn.com/b/chuckw/archive/2012/09/11/directxmath-f16c-and-fma.aspx
     // dest = [(src1.x | src1.y), 0, 0, 0]
 
+    Xmm src;
     if (e.IsFeatureEnabled(kX64EmitF16C)) {
+      if (i.src1.is_constant) {
+        src = i.dest;
+        e.LoadConstantXmm(src, i.src1.constant());
+      } else {
+        src = i.src1;
+      }
       // 0|0|0|0|W|Z|Y|X
-      e.vcvtps2ph(i.dest, i.dest, 0b00000011);
+      e.vcvtps2ph(i.dest, src, 0b00000011);
       // Shuffle to X|Y|0|0|0|0|0|0
       e.vpshufb(i.dest, i.dest, e.GetXmmConstPtr(XMMPackFLOAT16_2));
     } else {
-      e.lea(e.r8, e.StashXmm(0, i.src1));
+      if (i.src1.is_constant) {
+        src = e.xmm0;
+        e.LoadConstantXmm(src, i.src1.constant());
+      } else {
+        src = i.src1;
+      }
+      e.lea(e.r8, e.StashXmm(0, src));
       e.CallNativeSafe(reinterpret_cast<void*>(EmulateFLOAT16_2));
       e.vmovaps(i.dest, e.xmm0);
     }
@@ -7023,29 +7038,56 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
     assert_true(i.src2.value->IsConstantZero());
     // dest = [(src1.x | src1.y), (src1.z | src1.w), 0, 0]
 
+    Xmm src;
     if (e.IsFeatureEnabled(kX64EmitF16C)) {
+      if (i.src1.is_constant) {
+        src = i.dest;
+        e.LoadConstantXmm(src, i.src1.constant());
+      } else {
+        src = i.src1;
+      }
       // 0|0|0|0|W|Z|Y|X
-      e.vcvtps2ph(i.dest, i.src1, 0b00000011);
+      e.vcvtps2ph(i.dest, src, 0b00000011);
       // Shuffle to X|Y|Z|W|0|0|0|0
       e.vpshufb(i.dest, i.dest, e.GetXmmConstPtr(XMMPackFLOAT16_4));
     } else {
-      e.lea(e.r8, e.StashXmm(0, i.src1));
+      if (i.src1.is_constant) {
+        src = e.xmm0;
+        e.LoadConstantXmm(src, i.src1.constant());
+      } else {
+        src = i.src1;
+      }
+      e.lea(e.r8, e.StashXmm(0, src));
       e.CallNativeSafe(reinterpret_cast<void*>(EmulateFLOAT16_4));
       e.vmovaps(i.dest, e.xmm0);
     }
   }
   static void EmitSHORT_2(X64Emitter& e, const EmitArgType& i) {
     assert_true(i.src2.value->IsConstantZero());
+    Xmm src;
+    if (i.src1.is_constant) {
+      src = i.dest;
+      e.LoadConstantXmm(src, i.src1.constant());
+    } else {
+      src = i.src1;
+    }
     // Saturate.
-    e.vmaxps(i.dest, i.src1, e.GetXmmConstPtr(XMMPackSHORT_Min));
+    e.vmaxps(i.dest, src, e.GetXmmConstPtr(XMMPackSHORT_Min));
     e.vminps(i.dest, i.dest, e.GetXmmConstPtr(XMMPackSHORT_Max));
     // Pack.
     e.vpshufb(i.dest, i.dest, e.GetXmmConstPtr(XMMPackSHORT_2));
   }
   static void EmitSHORT_4(X64Emitter& e, const EmitArgType& i) {
     assert_true(i.src2.value->IsConstantZero());
+    Xmm src;
+    if (i.src1.is_constant) {
+      src = i.dest;
+      e.LoadConstantXmm(src, i.src1.constant());
+    } else {
+      src = i.src1;
+    }
     // Saturate.
-    e.vmaxps(i.dest, i.src1, e.GetXmmConstPtr(XMMPackSHORT_Min));
+    e.vmaxps(i.dest, src, e.GetXmmConstPtr(XMMPackSHORT_Min));
     e.vminps(i.dest, i.dest, e.GetXmmConstPtr(XMMPackSHORT_Max));
     // Pack.
     e.vpshufb(i.dest, i.dest, e.GetXmmConstPtr(XMMPackSHORT_4));
@@ -7054,9 +7096,15 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
     // https://www.opengl.org/registry/specs/ARB/vertex_type_2_10_10_10_rev.txt
     // XYZ are 10 bits, signed and saturated.
     // W is 2 bits, unsigned and saturated.
-
+    Xmm src;
+    if (i.src1.is_constant) {
+      src = i.dest;
+      e.LoadConstantXmm(src, i.src1.constant());
+    } else {
+      src = i.src1;
+    }
     // Saturate.
-    e.vmaxps(i.dest, i.src1, e.GetXmmConstPtr(XMMPackUINT_2101010_MinUnpacked));
+    e.vmaxps(i.dest, src, e.GetXmmConstPtr(XMMPackUINT_2101010_MinUnpacked));
     e.vminps(i.dest, i.dest, e.GetXmmConstPtr(XMMPackUINT_2101010_MaxUnpacked));
     // Remove the unneeded bits of the floats.
     e.vpand(i.dest, e.GetXmmConstPtr(XMMPackUINT_2101010_MaskUnpacked));
@@ -7311,14 +7359,14 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
         e.vmovaps(i.dest, e.GetXmmConstPtr(XMMOne));
         return;
       }
-      src = e.xmm0;
+      src = i.dest;
       e.LoadConstantXmm(src, i.src1.constant());
     } else {
       src = i.src1;
     }
     // src = ZZYYXXWW
     // Unpack to 000000ZZ,000000YY,000000XX,000000WW
-    e.vpshufb(i.dest, i.src1, e.GetXmmConstPtr(XMMUnpackD3DCOLOR));
+    e.vpshufb(i.dest, src, e.GetXmmConstPtr(XMMUnpackD3DCOLOR));
     // Add 1.0f to each.
     e.vpor(i.dest, e.GetXmmConstPtr(XMMOne));
     // To convert to 0 to 1, games multiply by 0x47008081 and add 0xC7008081.
@@ -7351,7 +7399,14 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
     // Also zero out the high end.
     // TODO(benvanik): special case constant unpacks that just get 0/1/etc.
 
+    Xmm src;
     if (e.IsFeatureEnabled(kX64EmitF16C)) {
+      if (i.src1.is_constant) {
+        src = i.dest;
+        e.LoadConstantXmm(src, i.src1.constant());
+      } else {
+        src = i.src1;
+      }
       // sx = src.iw >> 16;
       // sy = src.iw & 0xFFFF;
       // dest = { XMConvertHalfToFloat(sx),
@@ -7359,19 +7414,17 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
       //          0.0,
       //          1.0 };
       // Shuffle to 0|0|0|0|0|0|Y|X
-      e.vpshufb(i.dest, i.src1, e.GetXmmConstPtr(XMMUnpackFLOAT16_2));
+      e.vpshufb(i.dest, src, e.GetXmmConstPtr(XMMUnpackFLOAT16_2));
       e.vcvtph2ps(i.dest, i.dest);
       e.vpshufd(i.dest, i.dest, 0b10100100);
       e.vpor(i.dest, e.GetXmmConstPtr(XMM0001));
     } else {
-      Xmm src;
       if (i.src1.is_constant) {
         src = e.xmm0;
         e.LoadConstantXmm(src, i.src1.constant());
       } else {
         src = i.src1;
       }
-
       e.lea(e.r8, e.StashXmm(0, src));
       e.CallNativeSafe(reinterpret_cast<void*>(EmulateFLOAT16_2));
       e.vmovaps(i.dest, e.xmm0);
@@ -7390,13 +7443,25 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
   }
   static void EmitFLOAT16_4(X64Emitter& e, const EmitArgType& i) {
     // src = [(dest.x | dest.y), (dest.z | dest.w), 0, 0]
-
+    Xmm src;
     if (e.IsFeatureEnabled(kX64EmitF16C)) {
+      if (i.src1.is_constant) {
+        src = i.dest;
+        e.LoadConstantXmm(src, i.src1.constant());
+      } else {
+        src = i.src1;
+      }
       // Shuffle to 0|0|0|0|W|Z|Y|X
-      e.vpshufb(i.dest, i.src1, e.GetXmmConstPtr(XMMUnpackFLOAT16_4));
+      e.vpshufb(i.dest, src, e.GetXmmConstPtr(XMMUnpackFLOAT16_4));
       e.vcvtph2ps(i.dest, i.dest);
     } else {
-      e.lea(e.r8, e.StashXmm(0, i.src1));
+      if (i.src1.is_constant) {
+        src = e.xmm0;
+        e.LoadConstantXmm(src, i.src1.constant());
+      } else {
+        src = i.src1;
+      }
+      e.lea(e.r8, e.StashXmm(0, src));
       e.CallNativeSafe(reinterpret_cast<void*>(EmulateFLOAT16_4));
       e.vmovaps(i.dest, e.xmm0);
     }
@@ -7414,7 +7479,7 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
         return;
       }
       // TODO(benvanik): check other common constants/perform shuffle/or here.
-      src = e.xmm0;
+      src = i.dest;
       e.LoadConstantXmm(src, i.src1.constant());
     } else {
       src = i.src1;
@@ -7443,7 +7508,7 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
         return;
       }
       // TODO(benvanik): check other common constants/perform shuffle/or here.
-      src = e.xmm0;
+      src = i.dest;
       e.LoadConstantXmm(src, i.src1.constant());
     } else {
       src = i.src1;
@@ -7466,7 +7531,7 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
         e.vmovdqa(i.dest, e.GetXmmConstPtr(XMM3331));
         return;
       }
-      src = e.xmm0;
+      src = i.dest;
       e.LoadConstantXmm(src, i.src1.constant());
     } else {
       src = i.src1;
@@ -7504,6 +7569,13 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
   }
   static void Emit8_IN_16(X64Emitter& e, const EmitArgType& i, uint32_t flags) {
     assert_false(IsPackOutSaturate(flags));
+    Xmm src;
+    if (i.src1.is_constant) {
+      src = i.dest;
+      e.LoadConstantXmm(src, i.src1.constant());
+    } else {
+      src = i.src1;
+    }
     if (IsPackToLo(flags)) {
       // Unpack to LO.
       if (IsPackInUnsigned(flags)) {
@@ -7520,7 +7592,7 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
           assert_always();
         } else {
           // signed -> signed
-          e.vpshufb(i.dest, i.src1, e.GetXmmConstPtr(XMMByteOrderMask));
+          e.vpshufb(i.dest, src, e.GetXmmConstPtr(XMMByteOrderMask));
           e.vpunpckhbw(i.dest, i.dest, i.dest);
           e.vpsraw(i.dest, 8);
         }
@@ -7541,7 +7613,7 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
           assert_always();
         } else {
           // signed -> signed
-          e.vpshufb(i.dest, i.src1, e.GetXmmConstPtr(XMMByteOrderMask));
+          e.vpshufb(i.dest, src, e.GetXmmConstPtr(XMMByteOrderMask));
           e.vpunpcklbw(i.dest, i.dest, i.dest);
           e.vpsraw(i.dest, 8);
         }
@@ -7551,6 +7623,13 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
   static void Emit16_IN_32(X64Emitter& e, const EmitArgType& i,
                            uint32_t flags) {
     assert_false(IsPackOutSaturate(flags));
+    Xmm src;
+    if (i.src1.is_constant) {
+      src = i.dest;
+      e.LoadConstantXmm(src, i.src1.constant());
+    } else {
+      src = i.src1;
+    }
     if (IsPackToLo(flags)) {
       // Unpack to LO.
       if (IsPackInUnsigned(flags)) {
@@ -7567,7 +7646,7 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
           assert_always();
         } else {
           // signed -> signed
-          e.vpunpckhwd(i.dest, i.src1, i.src1);
+          e.vpunpckhwd(i.dest, src, src);
           e.vpsrad(i.dest, 16);
         }
       }
@@ -7587,7 +7666,7 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
           assert_always();
         } else {
           // signed -> signed
-          e.vpunpcklwd(i.dest, i.src1, i.src1);
+          e.vpunpcklwd(i.dest, src, src);
           e.vpsrad(i.dest, 16);
         }
       }
