@@ -180,6 +180,10 @@ filter("platforms:Windows")
     "comctl32",
     "shcore",
     "shlwapi",
+    "d3d12",
+    "d3dcompiler",
+    "dxgi",
+    "dxguid",
   })
 
 -- Create scratch/ path and dummy flags file if needed.
@@ -219,6 +223,7 @@ solution("xenia")
     platforms({"Linux"})
   elseif os.is("windows") then
     platforms({"Windows"})
+    systemversion("10.0.10240.0")
   end
   configurations({"Checked", "Debug", "Release"})
 
@@ -256,6 +261,7 @@ solution("xenia")
 
   if os.is("windows") then
     include("src/xenia/apu/xaudio2")
+    include("src/xenia/gpu/d3d12")
     include("src/xenia/hid/winkey")
     include("src/xenia/hid/xinput")
   end

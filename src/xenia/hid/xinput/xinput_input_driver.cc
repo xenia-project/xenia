@@ -20,12 +20,18 @@ namespace xe {
 namespace hid {
 namespace xinput {
 
+// TODO(Triang3l): Find why XInputEnable is deprecated on Windows 10.
+#pragma warning(push)
+#pragma warning(disable : 4995)
+
 XInputInputDriver::XInputInputDriver(xe::ui::Window* window)
     : InputDriver(window) {
   XInputEnable(TRUE);
 }
 
 XInputInputDriver::~XInputInputDriver() { XInputEnable(FALSE); }
+
+#pragma warning(pop)
 
 X_STATUS XInputInputDriver::Setup() { return X_STATUS_SUCCESS; }
 
