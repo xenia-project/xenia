@@ -264,4 +264,5 @@ solution("xenia")
     include("src/xenia/gpu/d3d12")
     include("src/xenia/hid/winkey")
     include("src/xenia/hid/xinput")
+    include("src/xenia/ui/d3d12")
   end
