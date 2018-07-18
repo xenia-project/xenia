@@ -420,6 +420,7 @@ def discover_commands(subparsers):
         }
     if sys.platform == 'win32':
         commands['devenv'] = DevenvCommand(subparsers)
+        commands['buildhlsl'] = BuildHlslCommand(subparsers)
     return commands
 
 
@@ -741,6 +742,93 @@ class GenSpirvCommand(Command):
 
         if any_errors:
             print('ERROR: failed to build one or more SPIR-V files.')
+            return 1
+
+        return 0
+
+
+class BuildHlslCommand(Command):
+    """'buildhlsl' command."""
+
+    def __init__(self, subparsers, *args, **kwargs):
+        super(BuildHlslCommand, self).__init__(
+            subparsers,
+            name='buildhlsl',
+            help_short='Generates Direct3D shader binaries and header files.',
+            help_long='''
+            Generates the .cso/.h binaries under src/xenia/*/d3d12/shaders/bin/.
+            Run after modifying any .vs.hlsl/.ps.hlsl/.gs.hlsl/.cs.hlsl files.
+            ''',
+            *args, **kwargs)
+
+    def execute(self, args, pass_args, cwd):
+        print('Building Direct3D shaders...')
+        print('')
+
+        windows_sdk_bin_path = os.path.join(os.environ['ProgramFiles(x86)'],
+                                            'Windows Kits/10/bin/x64')
+        fxc = os.path.join(windows_sdk_bin_path, 'fxc')
+
+        # Ensure we have the tools.
+        if not os.path.exists(windows_sdk_bin_path):
+            print('ERROR: could not find Windows 10 SDK binaries')
+            return 1
+        elif not has_bin(fxc):
+            print('ERROR: could not find fxc')
+            return 1
+
+        src_files = [os.path.join(root, name)
+                     for root, dirs, files in os.walk('src')
+                     for name in files
+                     if (name.endswith('.vs.hlsl') or
+                         name.endswith('.ps.hlsl') or
+                         name.endswith('.gs.hlsl') or
+                         name.endswith('.cs.hlsl'))]
+
+        # TODO(Triang3l): Handle any_errors.
+        any_errors = False
+        for src_file in src_files:
+            print('- %s' % (src_file))
+            src_name = os.path.splitext(os.path.basename(src_file))[0]
+            identifier = os.path.basename(src_file)[:-5].replace('.', '_')
+
+            bin_path = os.path.join(os.path.dirname(src_file), 'bin')
+            if not os.path.exists(bin_path):
+                os.mkdir(bin_path)
+            cso_file = os.path.join(bin_path, identifier) + '.cso'
+            txt_file = os.path.join(bin_path, identifier) + '.txt'
+            h_file = os.path.join(bin_path, identifier) + '.h'
+
+            # HLSL source -> .cso binary and DXBC disassembly.
+            shell_call([
+                fxc,
+                '/nologo',
+                '/T', identifier[-2:] + '_5_0',
+                '/Fo', cso_file,
+                '/Fc', txt_file,
+                src_file,
+                ])
+
+            # bin2c so we get a header file we can compile in.
+            with open(h_file, 'w') as out_file:
+                out_file.write('// generated from `xb buildhlsl`\n')
+                out_file.write('// source: %s\n' % os.path.basename(src_file))
+                out_file.write('const uint8_t %s[] = {' % (identifier))
+                with open(cso_file, 'rb') as in_file:
+                    index = 0
+                    c = in_file.read(1)
+                    while len(c) != 0:
+                        if index % 12 == 0:
+                            out_file.write('\n    ')
+                        else:
+                            out_file.write(' ')
+                        index += 1
+                        out_file.write('0x%02X,' % ord(c))
+                        c = in_file.read(1)
+                out_file.write('\n};\n')
+
+        if any_errors:
+            print('ERROR: failed to build one or more shaders.')
             return 1
 
         return 0
