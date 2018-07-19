@@ -10,7 +10,7 @@
 #include "xenia/gpu/d3d12/d3d12_graphics_system.h"
 
 #include "xenia/gpu/d3d12/d3d12_command_processor.h"
-#include "xenia/ui/vulkan/vulkan_provider.h"
+#include "xenia/ui/d3d12/d3d12_provider.h"
 #include "xenia/xbox.h"
 
 namespace xe {
@@ -24,9 +24,7 @@ D3D12GraphicsSystem::~D3D12GraphicsSystem() {}
 X_STATUS D3D12GraphicsSystem::Setup(cpu::Processor* processor,
                                     kernel::KernelState* kernel_state,
                                     ui::Window* target_window) {
-  // This is a null graphics system, but we still setup vulkan because UI needs
-  // it through us :|
-  provider_ = xe::ui::vulkan::VulkanProvider::Create(target_window);
+  provider_ = xe::ui::d3d12::D3D12Provider::Create(target_window);
 
   return GraphicsSystem::Setup(processor, kernel_state, target_window);
 }
