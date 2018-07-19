@@ -25,9 +25,9 @@ D3D12Context::~D3D12Context() { Shutdown(); }
 
 bool D3D12Context::Initialize() {
   auto provider = static_cast<D3D12Provider*>(provider_);
-  auto dxgi_factory = provider->get_dxgi_factory();
-  auto device = provider->get_device();
-  auto direct_queue = provider->get_direct_queue();
+  auto dxgi_factory = provider->GetDXGIFactory();
+  auto device = provider->GetDevice();
+  auto direct_queue = provider->GetDirectQueue();
 
   context_lost_ = false;
 
@@ -57,7 +57,7 @@ bool D3D12Context::Initialize() {
     swap_chain_desc.Flags = 0;
     IDXGISwapChain1* swap_chain_1;
     if (FAILED(dxgi_factory->CreateSwapChainForHwnd(
-        provider->get_direct_queue(),
+        provider->GetDirectQueue(),
         static_cast<HWND>(target_window_->native_handle()), &swap_chain_desc,
         nullptr, nullptr, &swap_chain_1))) {
       XELOGE("Failed to create a DXGI swap chain");

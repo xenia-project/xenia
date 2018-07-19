@@ -29,16 +29,14 @@ class D3D12Provider : public GraphicsProvider {
       Window* target_window) override;
   std::unique_ptr<GraphicsContext> CreateOffscreenContext() override;
 
-  IDXGIFactory2* get_dxgi_factory() const { return dxgi_factory_; }
-  ID3D12Device* get_device() const { return device_; }
-  ID3D12CommandQueue* get_direct_queue() const { return direct_queue_; }
+  IDXGIFactory2* GetDXGIFactory() const { return dxgi_factory_; }
+  ID3D12Device* GetDevice() const { return device_; }
+  ID3D12CommandQueue* GetDirectQueue() const { return direct_queue_; }
 
-  uint32_t get_descriptor_size_view() const { return descriptor_size_view_; }
-  uint32_t get_descriptor_size_sampler() const {
-    return descriptor_size_sampler_;
-  }
-  uint32_t get_descriptor_size_rtv() const { return descriptor_size_rtv_; }
-  uint32_t get_descriptor_size_dsv() const { return descriptor_size_dsv_; }
+  uint32_t GetDescriptorSizeView() const { return descriptor_size_view_; }
+  uint32_t GetDescriptorSizeSampler() const { return descriptor_size_sampler_; }
+  uint32_t GetDescriptorSizeRTV() const { return descriptor_size_rtv_; }
+  uint32_t GetDescriptorSizeDSV() const { return descriptor_size_dsv_; }
 
  private:
   explicit D3D12Provider(Window* main_window);
