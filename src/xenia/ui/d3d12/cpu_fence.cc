@@ -40,7 +40,7 @@ CPUFence::~CPUFence() {
 bool CPUFence::Initialize() {
   if (FAILED(device_->CreateFence(0, D3D12_FENCE_FLAG_NONE,
                                   IID_PPV_ARGS(&fence_)))) {
-    XELOGE("Failed to create a Direct3D fence");
+    XELOGE("Failed to create a fence");
     return false;
   }
   completion_event_ = CreateEvent(nullptr, false, false, nullptr);
