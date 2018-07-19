@@ -21,8 +21,8 @@ namespace d3d12 {
 
 class D3D12CommandProcessor : public CommandProcessor {
  public:
-  D3D12CommandProcessor(D3D12GraphicsSystem* graphics_system,
-                        kernel::KernelState* kernel_state);
+  explicit D3D12CommandProcessor(D3D12GraphicsSystem* graphics_system,
+                                 kernel::KernelState* kernel_state);
   ~D3D12CommandProcessor();
 
  private:

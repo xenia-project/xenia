@@ -11,9 +11,8 @@
 
 #include <gflags/gflags.h>
 
-#include <algorithm>
-
 #include "xenia/base/logging.h"
+#include "xenia/ui/d3d12/d3d12_context.h"
 
 DEFINE_bool(d3d12_debug, false, "Enable Direct3D 12 and DXGI debug layer.");
 DEFINE_int32(d3d12_adapter_index, -1, "Index of the DXGI adapter to use. "
@@ -158,6 +157,25 @@ bool D3D12Provider::IsDeviceSupported(ID3D12Device* device) {
   }
   // Typed UAV loads required for vertex fetch and post-resolve tiling.
   return !!options.TypedUAVLoadAdditionalFormats;
+}
+
+std::unique_ptr<GraphicsContext> D3D12Provider::CreateContext(
+    Window* target_window) {
+  auto new_context =
+      std::unique_ptr<D3D12Context>(new D3D12Context(this, target_window));
+  if (!new_context->Initialize()) {
+    return nullptr;
+  }
+  return std::unique_ptr<GraphicsContext>(new_context.release());
+}
+
+std::unique_ptr<GraphicsContext> D3D12Provider::CreateOffscreenContext() {
+  auto new_context =
+      std::unique_ptr<D3D12Context>(new D3D12Context(this, nullptr));
+  if (!new_context->Initialize()) {
+    return nullptr;
+  }
+  return std::unique_ptr<GraphicsContext>(new_context.release());
 }
 
 }  // namespace d3d12
