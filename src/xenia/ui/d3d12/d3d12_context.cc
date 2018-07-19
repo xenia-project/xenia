@@ -9,10 +9,16 @@
 
 #include "xenia/ui/d3d12/d3d12_context.h"
 
+#include <gflags/gflags.h>
+
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/ui/d3d12/d3d12_provider.h"
 #include "xenia/ui/window.h"
+
+DEFINE_int32(d3d12_sync_interval, 1,
+             "Vertical synchronization interval. 0 to disable vertical sync, "
+             "1 to enable it, 2/3/4 to sync every 2/3/4 vertical blanks.");
 
 namespace xe {
 namespace ui {
@@ -31,6 +37,8 @@ bool D3D12Context::Initialize() {
 
   context_lost_ = false;
 
+  current_queue_frame_ = 0;
+
   // Create fences for synchronization of reuse and destruction of transient
   // objects (like command lists) and for global shutdown.
   for (uint32_t i = 0; i < kFrameQueueLength; ++i) {
@@ -42,10 +50,12 @@ bool D3D12Context::Initialize() {
   }
 
   if (target_window_) {
+    swap_chain_width_ = target_window_->scaled_width();
+    swap_chain_height_ = target_window_->scaled_height();
     DXGI_SWAP_CHAIN_DESC1 swap_chain_desc;
-    swap_chain_desc.Width = 1280;
-    swap_chain_desc.Height = 720;
-    swap_chain_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    swap_chain_desc.Width = swap_chain_width_;
+    swap_chain_desc.Height = swap_chain_height_;
+    swap_chain_desc.Format = kSwapChainFormat;
     swap_chain_desc.Stereo = FALSE;
     swap_chain_desc.SampleDesc.Count = 1;
     swap_chain_desc.SampleDesc.Quality = 0;
@@ -71,10 +81,34 @@ bool D3D12Context::Initialize() {
       return false;
     }
     swap_chain_1->Release();
-    for (uint32_t i = 0; i < kSwapChainBufferCount; ++i) {
-      if (FAILED(swap_chain_->GetBuffer(i,
-          IID_PPV_ARGS(&swap_chain_buffers_[i])))) {
-        XELOGE("Failed to get buffer %u of the swap chain", i);
+
+    // Create a heap for RTV descriptors of swap chain buffers.
+    D3D12_DESCRIPTOR_HEAP_DESC rtv_heap_desc;
+    rtv_heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+    rtv_heap_desc.NumDescriptors = kSwapChainBufferCount;
+    rtv_heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+    rtv_heap_desc.NodeMask = 0;
+    if (FAILED(device->CreateDescriptorHeap(
+            &rtv_heap_desc, IID_PPV_ARGS(&swap_chain_rtv_heap_)))) {
+      XELOGE("Failed to create swap chain RTV descriptor heap");
+      Shutdown();
+      return false;
+    }
+
+    // Get the buffers and create their RTV descriptors.
+    if (!InitializeSwapChainBuffers()) {
+      Shutdown();
+      return false;
+    }
+
+    // Create command lists for swap chain back buffer state transitions.
+    for (uint32_t i = 0; i < kFrameQueueLength; ++i) {
+      swap_command_lists_begin_[i] = CommandList::Create(
+          device, direct_queue, D3D12_COMMAND_LIST_TYPE_DIRECT);
+      swap_command_lists_end_[i] = CommandList::Create(
+          device, direct_queue, D3D12_COMMAND_LIST_TYPE_DIRECT);
+      if (swap_command_lists_begin_[i] == nullptr ||
+          swap_command_lists_end_[i] == nullptr) {
         Shutdown();
         return false;
       }
@@ -84,9 +118,35 @@ bool D3D12Context::Initialize() {
   initialized_fully_ = true;
 }
 
+bool D3D12Context::InitializeSwapChainBuffers() {
+  // Get references to the buffers.
+  for (uint32_t i = 0; i < kSwapChainBufferCount; ++i) {
+    if (FAILED(
+            swap_chain_->GetBuffer(i, IID_PPV_ARGS(&swap_chain_buffers_[i])))) {
+      XELOGE("Failed to get buffer %u of the swap chain", i);
+      return false;
+    }
+  }
+
+  // Get the back buffer index for the first draw.
+  swap_chain_back_buffer_index_ = swap_chain_->GetCurrentBackBufferIndex();
+
+  // Create RTV descriptors for the swap chain buffers.
+  auto device = static_cast<D3D12Provider*>(provider_)->GetDevice();
+  D3D12_RENDER_TARGET_VIEW_DESC rtv_desc;
+  rtv_desc.Format = kSwapChainFormat;
+  rtv_desc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+  rtv_desc.Texture2D.MipSlice = 0;
+  rtv_desc.Texture2D.PlaneSlice = 0;
+  for (uint32_t i = 0; i < kSwapChainBufferCount; ++i) {
+    device->CreateRenderTargetView(swap_chain_buffers_[i], &rtv_desc,
+                                   GetSwapChainBufferRTV(i));
+  }
+}
+
 void D3D12Context::Shutdown() {
-  if (initialized_fully_) {
-    // TODO(Triang3l): Wait for submitted frame completion.
+  if (initialized_fully_ && !context_lost_) {
+    AwaitAllFramesCompletion();
   }
 
   initialized_fully_ = false;
@@ -94,6 +154,11 @@ void D3D12Context::Shutdown() {
   immediate_drawer_.reset();
 
   if (swap_chain_ != nullptr) {
+    for (uint32_t i = 0; i < kFrameQueueLength; ++i) {
+      swap_command_lists_end_[i].reset();
+      swap_command_lists_begin_[i].reset();
+    }
+
     for (uint32_t i = 0; i < kSwapChainBufferCount; ++i) {
       auto& buffer = swap_chain_buffers_[i];
       if (buffer == nullptr) {
@@ -102,6 +167,12 @@ void D3D12Context::Shutdown() {
       buffer->Release();
       buffer = nullptr;
     }
+
+    if (swap_chain_rtv_heap_ != nullptr) {
+      swap_chain_rtv_heap_->Release();
+      swap_chain_rtv_heap_ = nullptr;
+    }
+
     swap_chain_->Release();
   }
 
@@ -120,9 +191,123 @@ bool D3D12Context::MakeCurrent() { return true; }
 
 void D3D12Context::ClearCurrent() {}
 
+void D3D12Context::BeginSwap() {
+  if (context_lost_) {
+    return;
+  }
+
+  // Await the availability of transient objects for the new frame.
+  // The frame number is incremented in EndSwap so they can be treated the same
+  // way both when inside a frame and when outside of it (it's tied to actual
+  // submissions).
+  fences_[current_queue_frame_]->Await();
+
+  if (target_window_ != nullptr) {
+    // Resize the swap chain if the window is resized.
+    uint32_t target_window_width = target_window_->scaled_width();
+    uint32_t target_window_height = target_window_->scaled_height();
+    if (swap_chain_width_ != target_window_width ||
+        swap_chain_height_ != target_window_height) {
+      // Await the completion of swap chain use.
+      // Context loss is also faked if resizing fails. In this case, before the
+      // context is shut down to be recreated, frame completion must be awaited
+      // (this isn't done if the context is truly lost).
+      AwaitAllFramesCompletion();
+      // All buffer references must be released before resizing.
+      for (uint32_t i = 0; i < kSwapChainBufferCount; ++i) {
+        swap_chain_buffers_[i]->Release();
+        swap_chain_buffers_[i] = nullptr;
+      }
+      if (FAILED(swap_chain_->ResizeBuffers(
+              kSwapChainBufferCount, target_window_width, target_window_height,
+              kSwapChainFormat, 0))) {
+        context_lost_ = true;
+        return;
+      }
+      swap_chain_width_ = target_window_width;
+      swap_chain_height_ = target_window_height;
+      if (!InitializeSwapChainBuffers()) {
+        context_lost_ = true;
+        return;
+      }
+    }
+
+    // Make the back buffer a render target.
+    auto command_list = swap_command_lists_begin_[current_queue_frame_].get();
+    auto graphics_command_list = command_list->BeginRecording();
+    D3D12_RESOURCE_BARRIER barrier;
+    barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+    barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+    barrier.Transition.pResource =
+        swap_chain_buffers_[swap_chain_back_buffer_index_];
+    barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+    barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
+    barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
+    graphics_command_list->ResourceBarrier(1, &barrier);
+    command_list->Execute();
+  }
+}
+
+void D3D12Context::EndSwap() {
+  if (context_lost_) {
+    return;
+  }
+
+  if (target_window_ != nullptr) {
+    // Switch the back buffer to presentation state.
+    auto command_list = swap_command_lists_end_[current_queue_frame_].get();
+    auto graphics_command_list = command_list->BeginRecording();
+    D3D12_RESOURCE_BARRIER barrier;
+    barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+    barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+    barrier.Transition.pResource =
+        swap_chain_buffers_[swap_chain_back_buffer_index_];
+    barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+    barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
+    barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
+    graphics_command_list->ResourceBarrier(1, &barrier);
+    command_list->Execute();
+    // Present and check if the context was lost.
+    HRESULT result =
+        swap_chain_->Present(xe::clamp(FLAGS_d3d12_sync_interval, 0, 4), 0);
+    if (result == DXGI_ERROR_DEVICE_RESET ||
+        result == DXGI_ERROR_DEVICE_REMOVED) {
+      context_lost_ = true;
+      return;
+    }
+    // Get the back buffer index for the next frame.
+    swap_chain_back_buffer_index_ = swap_chain_->GetCurrentBackBufferIndex();
+  }
+
+  // Go to the next transient object frame.
+  fences_[current_queue_frame_]->Enqueue();
+  ++current_queue_frame_;
+  if (current_queue_frame_ >= kFrameQueueLength) {
+    current_queue_frame_ -= kFrameQueueLength;
+  }
+}
+
 std::unique_ptr<RawImage> D3D12Context::Capture() {
   // TODO(Triang3l): Read back swap chain front buffer.
   return nullptr;
+}
+
+void D3D12Context::AwaitAllFramesCompletion() {
+  // Await the last frame since previous frames must be completed before it.
+  uint32_t await_frame = current_queue_frame_ + (kFrameQueueLength - 1);
+  if (await_frame >= kFrameQueueLength) {
+    await_frame -= kFrameQueueLength;
+  }
+  fences_[await_frame]->Await();
+}
+
+D3D12_CPU_DESCRIPTOR_HANDLE D3D12Context::GetSwapChainBufferRTV(
+    uint32_t buffer_index) const {
+  D3D12_CPU_DESCRIPTOR_HANDLE handle = swap_chain_rtv_heap_start_;
+  handle.ptr +=
+      buffer_index *
+      static_cast<const D3D12Provider*>(provider_)->GetDescriptorSizeRTV();
+  return handle;
 }
 
 }  // namespace d3d12

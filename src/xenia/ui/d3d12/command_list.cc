@@ -69,7 +69,7 @@ void CommandList::AbortRecording() {
 
 void CommandList::Execute() {
   command_list_->Close();
-  ID3D12CommandList* execute_lists[] = { command_list_ };
+  ID3D12CommandList* execute_lists[] = {command_list_};
   queue_->ExecuteCommandLists(1, execute_lists);
 }
 
