@@ -25,6 +25,10 @@ class D3D12Provider : public GraphicsProvider {
 
   static std::unique_ptr<D3D12Provider> Create(Window* main_window);
 
+  std::unique_ptr<GraphicsContext> CreateContext(
+      Window* target_window) override;
+  std::unique_ptr<GraphicsContext> CreateOffscreenContext() override;
+
   IDXGIFactory2* get_dxgi_factory() const { return dxgi_factory_; }
   ID3D12Device* get_device() const { return device_; }
   ID3D12CommandQueue* get_direct_queue() const { return direct_queue_; }
