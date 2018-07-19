@@ -10,6 +10,7 @@
 #ifndef XENIA_UI_D3D12_D3D12_CONTEXT_H_
 #define XENIA_UI_D3D12_D3D12_CONTEXT_H_
 
+#include "xenia/ui/d3d12/cpu_fence.h"
 #include "xenia/ui/d3d12/d3d12_api.h"
 #include "xenia/ui/graphics_context.h"
 
@@ -48,13 +49,7 @@ class D3D12Context : public GraphicsContext {
 
   bool context_lost_ = false;
 
-  struct Fence {
-    ID3D12Fence* fence = nullptr;
-    HANDLE completion_event = nullptr;
-    // 0 means the fence signal command hasn't been submitted at all yet.
-    uint64_t queued_value = 0;
-  };
-  Fence fences_[kFrameQueueLength];
+  std::unique_ptr<CPUFence> fences_[kFrameQueueLength] = {};
 
   static constexpr uint32_t kSwapChainBufferCount = 3;
   IDXGISwapChain3* swap_chain_ = nullptr;

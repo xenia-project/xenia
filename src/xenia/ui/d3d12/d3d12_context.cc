@@ -27,26 +27,18 @@ bool D3D12Context::Initialize() {
   auto provider = static_cast<D3D12Provider*>(provider_);
   auto dxgi_factory = provider->get_dxgi_factory();
   auto device = provider->get_device();
+  auto direct_queue = provider->get_direct_queue();
 
   context_lost_ = false;
 
   // Create fences for synchronization of reuse and destruction of transient
   // objects (like command lists) and for global shutdown.
   for (uint32_t i = 0; i < kFrameQueueLength; ++i) {
-    auto& fence = fences_[i];
-    if (FAILED(device->CreateFence(0, D3D12_FENCE_FLAG_NONE,
-                                   IID_PPV_ARGS(&fence.fence)))) {
-      XELOGE("Failed to create a frame completion fence");
+    fences_[i] = CPUFence::Create(device, direct_queue);
+    if (fences_[i] == nullptr) {
       Shutdown();
       return false;
     }
-    fence.completion_event = CreateEvent(nullptr, false, false, nullptr);
-    if (fence.completion_event == nullptr) {
-      XELOGE("Failed to create a frame completion event");
-      Shutdown();
-      return false;
-    }
-    fence.queued_value = 0;
   }
 
   if (target_window_) {
@@ -114,15 +106,7 @@ void D3D12Context::Shutdown() {
   }
 
   for (uint32_t i = 0; i < kFrameQueueLength; ++i) {
-    auto& fence = fences_[i];
-    if (fence.fence != nullptr) {
-      fence.fence->Release();
-      fence.fence = nullptr;
-    }
-    if (fence.completion_event != nullptr) {
-      CloseHandle(fence.completion_event);
-      fence.completion_event = nullptr;
-    }
+    fences_[i].reset();
   }
 }
 
