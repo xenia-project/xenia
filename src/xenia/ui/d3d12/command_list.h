@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_UI_D3D12_CPU_FENCE_H_
-#define XENIA_UI_D3D12_CPU_FENCE_H_
+#ifndef XENIA_UI_D3D12_COMMAND_LIST_H_
+#define XENIA_UI_D3D12_COMMAND_LIST_H_
 
 #include <memory>
 
@@ -18,31 +18,31 @@ namespace xe {
 namespace ui {
 namespace d3d12 {
 
-class CPUFence {
+class CommandList {
  public:
-  ~CPUFence();
+  ~CommandList();
 
-  static std::unique_ptr<CPUFence> Create(ID3D12Device* device,
-                                          ID3D12CommandQueue* queue);
+  static std::unique_ptr<CommandList> Create(ID3D12Device* device,
+                                             ID3D12CommandQueue* queue,
+                                             D3D12_COMMAND_LIST_TYPE type);
 
-  // Submits the fence to the GPU command queue.
-  void Enqueue();
+  ID3D12GraphicsCommandList* GetCommandList() const { return command_list_; }
 
-  // Immediately returns whether the GPU has reached the fence.
-  bool IsCompleted();
-  // Blocks until the fence has been reached.
-  void Await();
+  ID3D12GraphicsCommandList* BeginRecording();
+  void AbortRecording();
+  void Execute();
 
- private:
-  CPUFence(ID3D12Device* device, ID3D12CommandQueue* queue);
+ protected:
+  CommandList(ID3D12Device* device, ID3D12CommandQueue* queue,
+              D3D12_COMMAND_LIST_TYPE type);
   bool Initialize();
 
   ID3D12Device* device_;
   ID3D12CommandQueue* queue_;
+  D3D12_COMMAND_LIST_TYPE type_;
 
-  ID3D12Fence* fence_ = nullptr;
-  HANDLE completion_event_ = nullptr;
-  uint64_t queued_value_ = 0;
+  ID3D12CommandAllocator* command_allocator_ = nullptr;
+  ID3D12GraphicsCommandList* command_list_ = nullptr;
 };
 
 }  // namespace d3d12
