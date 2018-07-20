@@ -92,6 +92,13 @@ std::unique_ptr<gpu::GraphicsSystem> CreateGraphicsSystem() {
     // Create best available.
     std::unique_ptr<gpu::GraphicsSystem> best;
 
+#if XE_PLATFORM_WIN32
+    best = std::unique_ptr<gpu::GraphicsSystem>(
+        new xe::gpu::d3d12::D3D12GraphicsSystem());
+    if (best) {
+      return best;
+    }
+#endif  // XE_PLATFORM_WIN32
     best = std::unique_ptr<gpu::GraphicsSystem>(
         new xe::gpu::vulkan::VulkanGraphicsSystem());
     if (best) {

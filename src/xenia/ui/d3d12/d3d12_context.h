@@ -10,14 +10,19 @@
 #ifndef XENIA_UI_D3D12_D3D12_CONTEXT_H_
 #define XENIA_UI_D3D12_D3D12_CONTEXT_H_
 
+#include <memory>
+
 #include "xenia/ui/d3d12/command_list.h"
 #include "xenia/ui/d3d12/cpu_fence.h"
 #include "xenia/ui/d3d12/d3d12_api.h"
+#include "xenia/ui/d3d12/d3d12_provider.h"
 #include "xenia/ui/graphics_context.h"
 
 namespace xe {
 namespace ui {
 namespace d3d12 {
+
+class D3D12ImmediateDrawer;
 
 class D3D12Context : public GraphicsContext {
  public:
@@ -36,9 +41,17 @@ class D3D12Context : public GraphicsContext {
 
   std::unique_ptr<RawImage> Capture() override;
 
+  D3D12Provider* GetD3D12Provider() const {
+    return static_cast<D3D12Provider*>(provider_);
+  }
+
   // The count of copies of transient objects (like command lists, dynamic
   // descriptor heaps) that must be kept when rendering with this context.
-  static constexpr uint32_t kFrameQueueLength = 3;
+  static constexpr uint32_t kQueuedFrames = 3;
+  // The current absolute frame number.
+  uint64_t GetCurrentFrame() { return current_frame_; }
+  // The last completed frame - it's fine to destroy objects used in it.
+  uint64_t GetLastCompletedFrame() { return last_completed_frame_; }
   uint32_t GetCurrentQueueFrame() { return current_queue_frame_; }
   void AwaitAllFramesCompletion();
 
@@ -51,6 +64,9 @@ class D3D12Context : public GraphicsContext {
   }
   D3D12_CPU_DESCRIPTOR_HANDLE GetSwapChainBufferRTV(
       uint32_t buffer_index) const;
+  D3D12_CPU_DESCRIPTOR_HANDLE GetSwapChainBackBufferRTV() const {
+    return GetSwapChainBufferRTV(GetSwapChainBackBufferIndex());
+  }
 
  private:
   friend class D3D12Provider;
@@ -66,8 +82,10 @@ class D3D12Context : public GraphicsContext {
 
   bool context_lost_ = false;
 
-  uint32_t current_queue_frame_ = 0;
-  std::unique_ptr<CPUFence> fences_[kFrameQueueLength] = {};
+  uint64_t current_frame_ = 1;
+  uint64_t last_completed_frame_ = 0;
+  uint32_t current_queue_frame_ = 1;
+  std::unique_ptr<CPUFence> fences_[kQueuedFrames] = {};
 
   static constexpr uint32_t kSwapChainBufferCount = 3;
   IDXGISwapChain3* swap_chain_ = nullptr;
@@ -76,9 +94,8 @@ class D3D12Context : public GraphicsContext {
   uint32_t swap_chain_back_buffer_index_ = 0;
   ID3D12DescriptorHeap* swap_chain_rtv_heap_ = nullptr;
   D3D12_CPU_DESCRIPTOR_HANDLE swap_chain_rtv_heap_start_;
-  std::unique_ptr<CommandList> swap_command_lists_begin_[kFrameQueueLength] =
-      {};
-  std::unique_ptr<CommandList> swap_command_lists_end_[kFrameQueueLength] = {};
+  std::unique_ptr<CommandList> swap_command_lists_begin_[kQueuedFrames] = {};
+  std::unique_ptr<CommandList> swap_command_lists_end_[kQueuedFrames] = {};
 
   std::unique_ptr<D3D12ImmediateDrawer> immediate_drawer_ = nullptr;
 };
