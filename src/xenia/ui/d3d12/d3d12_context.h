@@ -67,6 +67,9 @@ class D3D12Context : public GraphicsContext {
   D3D12_CPU_DESCRIPTOR_HANDLE GetSwapChainBackBufferRTV() const {
     return GetSwapChainBufferRTV(GetSwapChainBackBufferIndex());
   }
+  ID3D12GraphicsCommandList* GetSwapCommandList() const {
+    return swap_command_lists_[current_queue_frame_]->GetCommandList();
+  }
 
  private:
   friend class D3D12Provider;
@@ -94,8 +97,7 @@ class D3D12Context : public GraphicsContext {
   uint32_t swap_chain_back_buffer_index_ = 0;
   ID3D12DescriptorHeap* swap_chain_rtv_heap_ = nullptr;
   D3D12_CPU_DESCRIPTOR_HANDLE swap_chain_rtv_heap_start_;
-  std::unique_ptr<CommandList> swap_command_lists_begin_[kQueuedFrames] = {};
-  std::unique_ptr<CommandList> swap_command_lists_end_[kQueuedFrames] = {};
+  std::unique_ptr<CommandList> swap_command_lists_[kQueuedFrames] = {};
 
   std::unique_ptr<D3D12ImmediateDrawer> immediate_drawer_ = nullptr;
 };
