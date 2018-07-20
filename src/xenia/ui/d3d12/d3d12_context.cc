@@ -13,6 +13,7 @@
 
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
+#include "xenia/ui/d3d12/d3d12_immediate_drawer.h"
 #include "xenia/ui/d3d12/d3d12_provider.h"
 #include "xenia/ui/window.h"
 
@@ -30,18 +31,22 @@ D3D12Context::D3D12Context(D3D12Provider* provider, Window* target_window)
 D3D12Context::~D3D12Context() { Shutdown(); }
 
 bool D3D12Context::Initialize() {
-  auto provider = static_cast<D3D12Provider*>(provider_);
+  auto provider = GetD3D12Provider();
   auto dxgi_factory = provider->GetDXGIFactory();
   auto device = provider->GetDevice();
   auto direct_queue = provider->GetDirectQueue();
 
   context_lost_ = false;
 
-  current_queue_frame_ = 0;
+  current_frame_ = 1;
+  // No frames have been completed yet.
+  last_completed_frame_ = 0;
+  // Keep in sync with the modulo because why not.
+  current_queue_frame_ = 1;
 
   // Create fences for synchronization of reuse and destruction of transient
   // objects (like command lists) and for global shutdown.
-  for (uint32_t i = 0; i < kFrameQueueLength; ++i) {
+  for (uint32_t i = 0; i < kQueuedFrames; ++i) {
     fences_[i] = CPUFence::Create(device, direct_queue);
     if (fences_[i] == nullptr) {
       Shutdown();
@@ -94,6 +99,8 @@ bool D3D12Context::Initialize() {
       Shutdown();
       return false;
     }
+    swap_chain_rtv_heap_start_ =
+        swap_chain_rtv_heap_->GetCPUDescriptorHandleForHeapStart();
 
     // Get the buffers and create their RTV descriptors.
     if (!InitializeSwapChainBuffers()) {
@@ -102,7 +109,7 @@ bool D3D12Context::Initialize() {
     }
 
     // Create command lists for swap chain back buffer state transitions.
-    for (uint32_t i = 0; i < kFrameQueueLength; ++i) {
+    for (uint32_t i = 0; i < kQueuedFrames; ++i) {
       swap_command_lists_begin_[i] = CommandList::Create(
           device, direct_queue, D3D12_COMMAND_LIST_TYPE_DIRECT);
       swap_command_lists_end_[i] = CommandList::Create(
@@ -113,9 +120,17 @@ bool D3D12Context::Initialize() {
         return false;
       }
     }
+
+    // Initialize the immediate mode drawer if not offscreen.
+    immediate_drawer_ = std::make_unique<D3D12ImmediateDrawer>(this);
+    if (!immediate_drawer_->Initialize()) {
+      Shutdown();
+      return false;
+    }
   }
 
   initialized_fully_ = true;
+  return true;
 }
 
 bool D3D12Context::InitializeSwapChainBuffers() {
@@ -132,7 +147,7 @@ bool D3D12Context::InitializeSwapChainBuffers() {
   swap_chain_back_buffer_index_ = swap_chain_->GetCurrentBackBufferIndex();
 
   // Create RTV descriptors for the swap chain buffers.
-  auto device = static_cast<D3D12Provider*>(provider_)->GetDevice();
+  auto device = GetD3D12Provider()->GetDevice();
   D3D12_RENDER_TARGET_VIEW_DESC rtv_desc;
   rtv_desc.Format = kSwapChainFormat;
   rtv_desc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
@@ -142,6 +157,8 @@ bool D3D12Context::InitializeSwapChainBuffers() {
     device->CreateRenderTargetView(swap_chain_buffers_[i], &rtv_desc,
                                    GetSwapChainBufferRTV(i));
   }
+
+  return true;
 }
 
 void D3D12Context::Shutdown() {
@@ -154,7 +171,7 @@ void D3D12Context::Shutdown() {
   immediate_drawer_.reset();
 
   if (swap_chain_ != nullptr) {
-    for (uint32_t i = 0; i < kFrameQueueLength; ++i) {
+    for (uint32_t i = 0; i < kQueuedFrames; ++i) {
       swap_command_lists_end_[i].reset();
       swap_command_lists_begin_[i].reset();
     }
@@ -176,7 +193,7 @@ void D3D12Context::Shutdown() {
     swap_chain_->Release();
   }
 
-  for (uint32_t i = 0; i < kFrameQueueLength; ++i) {
+  for (uint32_t i = 0; i < kQueuedFrames; ++i) {
     fences_[i].reset();
   }
 }
@@ -197,10 +214,14 @@ void D3D12Context::BeginSwap() {
   }
 
   // Await the availability of transient objects for the new frame.
-  // The frame number is incremented in EndSwap so they can be treated the same
+  // The frame number is incremented in EndSwap so it can be treated the same
   // way both when inside a frame and when outside of it (it's tied to actual
   // submissions).
   fences_[current_queue_frame_]->Await();
+  // Update the completed frame if didn't explicitly await all queued frames.
+  if (last_completed_frame_ + kQueuedFrames < current_frame_) {
+    last_completed_frame_ = current_frame_ - kQueuedFrames;
+  }
 
   if (target_window_ != nullptr) {
     // Resize the swap chain if the window is resized.
@@ -282,9 +303,10 @@ void D3D12Context::EndSwap() {
   // Go to the next transient object frame.
   fences_[current_queue_frame_]->Enqueue();
   ++current_queue_frame_;
-  if (current_queue_frame_ >= kFrameQueueLength) {
-    current_queue_frame_ -= kFrameQueueLength;
+  if (current_queue_frame_ >= kQueuedFrames) {
+    current_queue_frame_ -= kQueuedFrames;
   }
+  ++current_frame_;
 }
 
 std::unique_ptr<RawImage> D3D12Context::Capture() {
@@ -294,19 +316,18 @@ std::unique_ptr<RawImage> D3D12Context::Capture() {
 
 void D3D12Context::AwaitAllFramesCompletion() {
   // Await the last frame since previous frames must be completed before it.
-  uint32_t await_frame = current_queue_frame_ + (kFrameQueueLength - 1);
-  if (await_frame >= kFrameQueueLength) {
-    await_frame -= kFrameQueueLength;
+  uint32_t await_frame = current_queue_frame_ + (kQueuedFrames - 1);
+  if (await_frame >= kQueuedFrames) {
+    await_frame -= kQueuedFrames;
   }
   fences_[await_frame]->Await();
+  last_completed_frame_ = current_frame_ - 1;
 }
 
 D3D12_CPU_DESCRIPTOR_HANDLE D3D12Context::GetSwapChainBufferRTV(
     uint32_t buffer_index) const {
   D3D12_CPU_DESCRIPTOR_HANDLE handle = swap_chain_rtv_heap_start_;
-  handle.ptr +=
-      buffer_index *
-      static_cast<const D3D12Provider*>(provider_)->GetDescriptorSizeRTV();
+  handle.ptr += buffer_index * GetD3D12Provider()->GetDescriptorSizeRTV();
   return handle;
 }
 

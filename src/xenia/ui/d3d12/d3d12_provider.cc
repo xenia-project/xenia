@@ -14,7 +14,7 @@
 #include "xenia/base/logging.h"
 #include "xenia/ui/d3d12/d3d12_context.h"
 
-DEFINE_bool(d3d12_debug, false, "Enable Direct3D 12 and DXGI debug layer.");
+DEFINE_bool(d3d12_debug, true, "Enable Direct3D 12 and DXGI debug layer.");
 DEFINE_int32(d3d12_adapter_index, -1, "Index of the DXGI adapter to use. "
              "-1 for any physical adapter, -2 for WARP software rendering.");
 
