@@ -803,7 +803,7 @@ class BuildHlslCommand(Command):
             shell_call([
                 fxc,
                 '/nologo',
-                '/T', identifier[-2:] + '_5_0',
+                '/T', identifier[-2:] + '_5_1',
                 '/Fo', cso_file,
                 '/Fc', txt_file,
                 src_file,
