@@ -83,16 +83,8 @@ bool D3D12ImmediateDrawer::Initialize() {
                        uint32_t(SamplerIndex::kLinearRepeat) * sampler_size;
   device->CreateSampler(&sampler_desc, sampler_handle);
 
-  // Create the command lists.
-  ID3D12CommandQueue* direct_queue = provider->GetDirectQueue();
-  for (uint32_t i = 0; i < D3D12Context::kQueuedFrames; ++i) {
-    command_lists_[i] = CommandList::Create(device, direct_queue,
-                                            D3D12_COMMAND_LIST_TYPE_DIRECT);
-    if (command_lists_[i] == nullptr) {
-      Shutdown();
-      return false;
-    }
-  }
+  // Reset the current state.
+  current_command_list_ = nullptr;
 
   return true;
 }
@@ -102,10 +94,6 @@ void D3D12ImmediateDrawer::Shutdown() {
     texture_upload.data_resource->Release();
   }
   texture_uploads_submitted_.clear();
-
-  for (uint32_t i = 0; i < D3D12Context::kQueuedFrames; ++i) {
-    command_lists_[i].reset();
-  }
 
   if (sampler_heap_ != nullptr) {
     sampler_heap_->Release();
@@ -128,6 +116,9 @@ void D3D12ImmediateDrawer::UpdateTexture(ImmediateTexture* texture,
 
 void D3D12ImmediateDrawer::Begin(int render_target_width,
                                  int render_target_height) {
+  // Use the compositing command list.
+  current_command_list_ = context_->GetSwapCommandList();
+
   uint32_t queue_frame = context_->GetCurrentQueueFrame();
   uint64_t last_completed_frame = context_->GetLastCompletedFrame();
 
@@ -144,10 +135,6 @@ void D3D12ImmediateDrawer::Begin(int render_target_width,
   }
   texture_uploads_submitted_.erase(texture_uploads_submitted_.begin(),
                                    erase_uploads_end);
-
-  // Start a command list recording.
-  ID3D12GraphicsCommandList* command_list =
-      command_lists_[queue_frame]->BeginRecording();
 }
 
 void D3D12ImmediateDrawer::BeginDrawBatch(const ImmediateDrawBatch& batch) {
@@ -162,9 +149,7 @@ void D3D12ImmediateDrawer::EndDrawBatch() {
   // TODO(Triang3l): Implement EndDrawBatch.
 }
 
-void D3D12ImmediateDrawer::End() {
-  command_lists_[context_->GetCurrentQueueFrame()]->Execute();
-}
+void D3D12ImmediateDrawer::End() { current_command_list_ = nullptr; }
 
 }  // namespace d3d12
 }  // namespace ui

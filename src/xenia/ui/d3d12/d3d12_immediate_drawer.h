@@ -30,9 +30,11 @@ class D3D12ImmediateDrawer : public ImmediateDrawer {
   bool Initialize();
   void Shutdown();
 
-  std::unique_ptr<ImmediateTexture> CreateTexture(
-      uint32_t width, uint32_t height, ImmediateTextureFilter filter,
-      bool repeat, const uint8_t* data) override;
+  std::unique_ptr<ImmediateTexture> CreateTexture(uint32_t width,
+                                                  uint32_t height,
+                                                  ImmediateTextureFilter filter,
+                                                  bool repeat,
+                                                  const uint8_t* data) override;
   void UpdateTexture(ImmediateTexture* texture, const uint8_t* data) override;
 
   void Begin(int render_target_width, int render_target_height) override;
@@ -56,7 +58,7 @@ class D3D12ImmediateDrawer : public ImmediateDrawer {
   D3D12_CPU_DESCRIPTOR_HANDLE sampler_heap_cpu_start_;
   D3D12_GPU_DESCRIPTOR_HANDLE sampler_heap_gpu_start_;
 
-  std::unique_ptr<CommandList> command_lists_[D3D12Context::kQueuedFrames] = {};
+  ID3D12GraphicsCommandList* current_command_list_ = nullptr;
 
   struct SubmittedTextureUpload {
     ID3D12Resource* data_resource;

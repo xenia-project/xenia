@@ -108,14 +108,11 @@ bool D3D12Context::Initialize() {
       return false;
     }
 
-    // Create command lists for swap chain back buffer state transitions.
+    // Create command lists for compositing.
     for (uint32_t i = 0; i < kQueuedFrames; ++i) {
-      swap_command_lists_begin_[i] = CommandList::Create(
+      swap_command_lists_[i] = CommandList::Create(
           device, direct_queue, D3D12_COMMAND_LIST_TYPE_DIRECT);
-      swap_command_lists_end_[i] = CommandList::Create(
-          device, direct_queue, D3D12_COMMAND_LIST_TYPE_DIRECT);
-      if (swap_command_lists_begin_[i] == nullptr ||
-          swap_command_lists_end_[i] == nullptr) {
+      if (swap_command_lists_[i] == nullptr) {
         Shutdown();
         return false;
       }
@@ -172,8 +169,7 @@ void D3D12Context::Shutdown() {
 
   if (swap_chain_ != nullptr) {
     for (uint32_t i = 0; i < kQueuedFrames; ++i) {
-      swap_command_lists_end_[i].reset();
-      swap_command_lists_begin_[i].reset();
+      swap_command_lists_[i].reset();
     }
 
     for (uint32_t i = 0; i < kSwapChainBufferCount; ++i) {
@@ -254,7 +250,7 @@ void D3D12Context::BeginSwap() {
     }
 
     // Make the back buffer a render target.
-    auto command_list = swap_command_lists_begin_[current_queue_frame_].get();
+    auto command_list = swap_command_lists_[current_queue_frame_].get();
     auto graphics_command_list = command_list->BeginRecording();
     D3D12_RESOURCE_BARRIER barrier;
     barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
@@ -265,7 +261,6 @@ void D3D12Context::BeginSwap() {
     barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
     barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
     graphics_command_list->ResourceBarrier(1, &barrier);
-    command_list->Execute();
   }
 }
 
@@ -276,8 +271,8 @@ void D3D12Context::EndSwap() {
 
   if (target_window_ != nullptr) {
     // Switch the back buffer to presentation state.
-    auto command_list = swap_command_lists_end_[current_queue_frame_].get();
-    auto graphics_command_list = command_list->BeginRecording();
+    auto command_list = swap_command_lists_[current_queue_frame_].get();
+    auto graphics_command_list = command_list->GetCommandList();
     D3D12_RESOURCE_BARRIER barrier;
     barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
     barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
