@@ -26,11 +26,20 @@ HlslShaderTranslator::~HlslShaderTranslator() = default;
 
 void HlslShaderTranslator::Reset() {
   ShaderTranslator::Reset();
+
+  source_.Reset();
   depth_ = 0;
   depth_prefix[0] = 0;
-  source_.Reset();
+
+  cf_wrote_pc_ = false;
+  cf_exec_pred_ = false;
+  cf_exec_pred_cond_ = false;
+
   srv_bindings_.clear();
+
   sampler_count_ = 0;
+
+  cube_used_ = false;
 }
 
 void HlslShaderTranslator::EmitTranslationError(const char* message) {
@@ -134,7 +143,13 @@ void HlslShaderTranslator::StartTranslation() {
         "XePixelShaderOutput main(XePixelShaderInput xe_input) {\n"
         "  float4 xe_r[%u];\n"
         "  XePixelShaderOutput xe_output;\n",
-        kMaxInterpolators, std::max(register_count(), kMaxInterpolators));
+        kMaxInterpolators, register_count());
+    // Copy interpolators to the first registers.
+    uint32_t interpolator_register_count =
+        std::min(register_count(), kMaxInterpolators);
+    for (uint32_t i = 0; i < interpolator_register_count; ++i) {
+      EmitSource("  xe_r[%u] = xe_input.interpolators[%u];\n", i, i);
+    }
     // No need to write zero to every output because in case an output is
     // completely unused, writing to that render target will be disabled in the
     // blending state (in Halo 3, one important render target is destroyed by a
@@ -143,7 +158,13 @@ void HlslShaderTranslator::StartTranslation() {
   }
 
   EmitSource(
-      // Predicate temp, clause-local.
+      // Float constant index for dynamic indexing.
+      "  uint xe_float_constant_index;\n"
+      // Previous vector result (used as a scratch).
+      "  float4 xe_pv;\n"
+      // Previous scalar result (used for RETAIN_PREV).
+      "  float xe_ps;\n"
+      // Predicate temp, clause-local. Initially false like cf_exec_pred_cond_.
       "  bool xe_p0 = false;\n"
       // Address register when using absolute addressing.
       "  int xe_a0 = 0;\n"
@@ -151,11 +172,7 @@ void HlslShaderTranslator::StartTranslation() {
       "  int4 xe_aL = int4(0, 0, 0, 0);\n"
       // Loop counter stack, .x is the active loop.
       // Represents number of times remaining to loop.
-      "  int4 xe_loop_count = int4(0, 0, 0, 0);\n"
-      // Previous vector result (used as a scratch).
-      "  float4 xe_pv;\n"
-      // Previous scalar result (used for RETAIN_PREV).
-      "  float xe_ps;\n"
+      "  uint4 xe_loop_count = uint4(0u, 0u, 0u, 0u);\n"
       // Master loop and switch for flow control.
       "  uint xe_pc = 0u;\n"
       "\n"
@@ -167,6 +184,194 @@ void HlslShaderTranslator::StartTranslation() {
   Indent();
   // Do level (2)
   Indent();
+}
+
+void HlslShaderTranslator::ProcessLabel(uint32_t cf_index) {
+  // 0 is always added in the beginning.
+  if (cf_index != 0) {
+    EmitSourceDepth("case %u:\n", cf_index);
+  }
+}
+
+void HlslShaderTranslator::ProcessControlFlowNopInstruction(uint32_t cf_index) {
+  EmitSourceDepth("// cnop\n");
+}
+
+void HlslShaderTranslator::ProcessControlFlowInstructionBegin(
+    uint32_t cf_index) {
+  cf_wrote_pc_ = false;
+  Indent();
+}
+
+void HlslShaderTranslator::ProcessControlFlowInstructionEnd(uint32_t cf_index) {
+  if (!cf_wrote_pc_) {
+    EmitSourceDepth("// Falling through to L%u\n", cf_index + 1);
+  }
+  Unindent();
+}
+
+void HlslShaderTranslator::ProcessExecInstructionBegin(
+    const ParsedExecInstruction& instr) {
+  EmitSourceDepth("// ");
+  instr.Disassemble(&source_);
+
+  cf_exec_pred_ = false;
+  switch (instr.type) {
+    case ParsedExecInstruction::Type::kUnconditional:
+      EmitSourceDepth("{\n");
+      break;
+    case ParsedExecInstruction::Type::kConditional:
+      EmitSourceDepth("if ((xe_bool_constants[%u] & (1u << %uu)) %c= 0u) {\n",
+                      instr.bool_constant_index >> 5,
+                      instr.bool_constant_index & 31,
+                      instr.condition ? '!' : '=');
+      break;
+    case ParsedExecInstruction::Type::kPredicated:
+      cf_exec_pred_ = true;
+      cf_exec_pred_cond_ = instr.condition;
+      EmitSourceDepth("if (%cxe_p0) {\n", instr.condition ? ' ' : '!');
+      break;
+  }
+  Indent();
+}
+
+void HlslShaderTranslator::ProcessExecInstructionEnd(
+    const ParsedExecInstruction& instr) {
+  if (instr.is_end) {
+    EmitSourceDepth("xe_pc = 0xFFFFu;\n");
+    EmitSourceDepth("break;\n");
+    cf_wrote_pc_ = true;
+  }
+  Unindent();
+  EmitSourceDepth("}\n");
+}
+
+void HlslShaderTranslator::ProcessLoopStartInstruction(
+    const ParsedLoopStartInstruction& instr) {
+  EmitSourceDepth("// ");
+  instr.Disassemble(&source_);
+
+  // Setup counter.
+  EmitSourceDepth("xe_loop_count.yzw = xe_loop_count.xyz;\n");
+  EmitSourceDepth("xe_loop_count.x = xe_loop_constants[%u] & 0xFFu;\n");
+
+  // Setup relative indexing.
+  EmitSourceDepth("xe_aL = xe_aL.xxyz;\n");
+  if (!instr.is_repeat) {
+    // Push new loop starting index if not reusing the current one.
+    EmitSourceDepth("xe_aL.x = int((xe_loop_constants[%u] >> 8u) & 0xFFu);\n");
+  }
+
+  // Quick skip loop if zero count.
+  EmitSourceDepth("if (xe_loop_count.x == 0u) {\n");
+  EmitSourceDepth("  xe_pc = %u;  // Skip loop to L%u\n",
+                  instr.loop_skip_address, instr.loop_skip_address);
+  EmitSourceDepth("} else {\n");
+  EmitSourceDepth("  xe_pc = %u;  // Fallthrough to loop body L%u\n",
+                  instr.dword_index + 1, instr.dword_index + 1);
+  EmitSourceDepth("}\n");
+  EmitSourceDepth("break;\n");
+  cf_wrote_pc_ = true;
+}
+
+void HlslShaderTranslator::ProcessLoopEndInstruction(
+    const ParsedLoopEndInstruction& instr) {
+  EmitSourceDepth("// ");
+  instr.Disassemble(&source_);
+
+  // Decrement loop counter, and if we are done break out.
+  EmitSourceDepth("if (--xe_loop_count.x == 0u");
+  if (instr.is_predicated_break) {
+    // If the predicate condition is met we 'break;' out of the loop.
+    // Need to restore stack and fall through to the next cf.
+    EmitSource(" || %cxe_p0) {\n", instr.predicate_condition ? ' ' : '!');
+  } else {
+    EmitSource(") {\n");
+  }
+  Indent();
+
+  // Loop completed - pop and fall through to next cf.
+  EmitSourceDepth("xe_loop_count.xyz = xe_loop_count.yzw;\n");
+  EmitSourceDepth("xe_loop_count.w = 0u;\n");
+  EmitSourceDepth("xe_aL.xyz = xe_aL.yzw;\n");
+  EmitSourceDepth("xe_aL.w = 0;\n");
+  EmitSourceDepth("xe_pc = %u;  // Exit loop to L%u\n", instr.dword_index + 1,
+                  instr.dword_index + 1);
+
+  Unindent();
+  EmitSourceDepth("} else {\n");
+  Indent();
+
+  // Still looping. Adjust index and jump back to body.
+  EmitSourceDepth("xe_aL.x += int((xe_loop_constants[%u] << 8u) >> 24u);\n",
+                  instr.loop_constant_index);
+  EmitSourceDepth("xe_pc = %u;  // Loop back to body L%u\n",
+                  instr.loop_body_address, instr.loop_body_address);
+
+  Unindent();
+  EmitSourceDepth("}\n");
+  EmitSourceDepth("break;\n");
+  cf_wrote_pc_ = true;
+}
+
+void HlslShaderTranslator::ProcessCallInstruction(
+    const ParsedCallInstruction& instr) {
+  EmitSourceDepth("// ");
+  instr.Disassemble(&source_);
+
+  EmitUnimplementedTranslationError();
+}
+
+void HlslShaderTranslator::ProcessReturnInstruction(
+    const ParsedReturnInstruction& instr) {
+  EmitSourceDepth("// ");
+  instr.Disassemble(&source_);
+
+  EmitUnimplementedTranslationError();
+}
+
+void HlslShaderTranslator::ProcessJumpInstruction(
+    const ParsedJumpInstruction& instr) {
+  EmitSourceDepth("// ");
+  instr.Disassemble(&source_);
+
+  bool needs_fallthrough = false;
+  switch (instr.type) {
+    case ParsedJumpInstruction::Type::kUnconditional:
+      EmitSourceDepth("{\n");
+      break;
+    case ParsedJumpInstruction::Type::kConditional:
+      EmitSourceDepth("if ((xe_bool_constants[%u] & (1u << %uu)) %c= 0u) {\n",
+                      instr.bool_constant_index >> 5,
+                      instr.bool_constant_index & 31,
+                      instr.condition ? '!' : '=');
+      needs_fallthrough = true;
+      break;
+    case ParsedJumpInstruction::Type::kPredicated:
+      EmitSourceDepth("if (%cxe_p0) {\n", instr.condition ? ' ' : '!');
+      needs_fallthrough = true;
+      break;
+  }
+  Indent();
+
+  EmitSourceDepth("xe_pc = %u;  // L%u\n", instr.target_address,
+                  instr.target_address);
+  EmitSourceDepth("break;\n");
+
+  Unindent();
+  if (needs_fallthrough) {
+    uint32_t next_address = instr.dword_index + 1;
+    EmitSourceDepth("} else {\n");
+    EmitSourceDepth("  xe_pc = %u;  // Fallthrough to L%u\n", next_address,
+                    next_address);
+  }
+  EmitSourceDepth("}\n");
+}
+
+void HlslShaderTranslator::ProcessAllocInstruction(
+    const ParsedAllocInstruction& instr) {
+  EmitSourceDepth("// ");
+  instr.Disassemble(&source_);
 }
 
 uint32_t HlslShaderTranslator::AddSRVBinding(SRVType type,

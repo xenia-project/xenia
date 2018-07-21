@@ -46,6 +46,22 @@ class HlslShaderTranslator : public ShaderTranslator {
   void EmitTranslationError(const char* message) override;
   void EmitUnimplementedTranslationError() override;
 
+  void ProcessLabel(uint32_t cf_index) override;
+
+  void ProcessControlFlowNopInstruction(uint32_t cf_index) override;
+  void ProcessControlFlowInstructionBegin(uint32_t cf_index) override;
+  void ProcessControlFlowInstructionEnd(uint32_t cf_index) override;
+  void ProcessExecInstructionBegin(const ParsedExecInstruction& instr) override;
+  void ProcessExecInstructionEnd(const ParsedExecInstruction& instr) override;
+  void ProcessLoopStartInstruction(
+      const ParsedLoopStartInstruction& instr) override;
+  void ProcessLoopEndInstruction(
+      const ParsedLoopEndInstruction& instr) override;
+  void ProcessCallInstruction(const ParsedCallInstruction& instr) override;
+  void ProcessReturnInstruction(const ParsedReturnInstruction& instr) override;
+  void ProcessJumpInstruction(const ParsedJumpInstruction& instr) override;
+  void ProcessAllocInstruction(const ParsedAllocInstruction& instr) override;
+
  private:
   void Indent();
   void Unindent();
@@ -53,6 +69,10 @@ class HlslShaderTranslator : public ShaderTranslator {
   StringBuffer source_;
   uint32_t depth_ = 0;
   char depth_prefix_[16] = {0};
+
+  bool cf_wrote_pc_ = false;
+  bool cf_exec_pred_ = false;
+  bool cf_exec_pred_cond_ = false;
 
   std::vector<SRVBinding> srv_bindings_;
   // Finds or adds an SRV binding to the shader's SRV list, returns t# index.
@@ -64,6 +84,10 @@ class HlslShaderTranslator : public ShaderTranslator {
   uint32_t sampler_fetch_constants_[32];
   uint32_t sampler_count_ = 0;
   uint32_t AddSampler(uint32_t fetch_constant);
+
+  // Whether the cube instruction has been used and conversion functions need to
+  // be emitted.
+  bool cube_used_ = false;
 };
 
 }  // namespace gpu
