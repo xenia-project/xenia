@@ -37,6 +37,8 @@ void HlslShaderTranslator::Reset() {
   cf_exec_pred_ = false;
   cf_exec_pred_cond_ = false;
 
+  writes_depth_ = false;
+
   srv_bindings_.clear();
 
   sampler_count_ = 0;
@@ -497,6 +499,162 @@ void HlslShaderTranslator::EmitLoadOperand(uint32_t src_index,
         EmitSource("%c",
                    GetCharForSwizzle(op.components[op.component_count - 1]));
       }
+    }
+  }
+  EmitSource(";\n");
+}
+
+void HlslShaderTranslator::EmitStoreResult(const InstructionResult& result,
+                                           bool source_is_scalar) {
+  bool storage_is_scalar =
+      result.storage_target == InstructionStorageTarget::kPointSize ||
+      result.storage_target == InstructionStorageTarget::kDepth;
+  if (storage_is_scalar) {
+    if (!result.write_mask[0]) {
+      return;
+    }
+  } else {
+    if (!result.has_any_writes()) {
+      return;
+    }
+  }
+
+  bool storage_is_array = false;
+  switch (result.storage_target) {
+    case InstructionStorageTarget::kRegister:
+      EmitSourceDepth("xe_r");
+      storage_is_array = true;
+      break;
+    case InstructionStorageTarget::kInterpolant:
+      EmitSourceDepth("xe_output.interpolators");
+      storage_is_array = true;
+      break;
+    case InstructionStorageTarget::kPosition:
+      EmitSourceDepth("xe_output.position");
+      break;
+    case InstructionStorageTarget::kPointSize:
+      EmitSourceDepth("xe_output.point_size");
+      break;
+    case InstructionStorageTarget::kColorTarget:
+      EmitSourceDepth("xe_output.colors");
+      storage_is_array = true;
+      break;
+    case InstructionStorageTarget::kDepth:
+      EmitSourceDepth("xe_output.depth");
+      writes_depth_ = true;
+      break;
+    default:
+    case InstructionStorageTarget::kNone:
+      return;
+  }
+  if (storage_is_array) {
+    switch (result.storage_addressing_mode) {
+      case InstructionStorageAddressingMode::kStatic:
+        EmitSource("[%u]", result.storage_index);
+        break;
+      case InstructionStorageAddressingMode::kAddressAbsolute:
+        EmitSource("[%u + xe_a0]", result.storage_index);
+        break;
+      case InstructionStorageAddressingMode::kAddressRelative:
+        EmitSource("[%u + xe_aL.x]", result.storage_index);
+        break;
+    }
+  }
+  if (storage_is_scalar) {
+    EmitSource(" = ");
+    switch (result.components[0]) {
+      case SwizzleSource::k0:
+        EmitSource("0.0");
+        break;
+      case SwizzleSource::k1:
+        EmitSource("1.0");
+        break;
+      default:
+        if (result.is_clamped) {
+          EmitSource("saturate(");
+        }
+        if (source_is_scalar) {
+          EmitSource("xe_ps");
+        } else {
+          EmitSource("xe_pv.%c", GetCharForSwizzle(result.components[0]));
+        }
+        if (result.is_clamped) {
+          EmitSource(")");
+        }
+        break;
+    }
+  } else {
+    if (result.is_clamped) {
+      EmitSource("saturate(");
+    }
+    bool has_const_writes = false;
+    uint32_t component_write_count = 0;
+    EmitSource(".");
+    for (uint32_t i = 0; i < 4; ++i) {
+      if (result.write_mask[i]) {
+        if (result.components[i] == SwizzleSource::k0 ||
+            result.components[i] == SwizzleSource::k1) {
+          has_const_writes = true;
+        }
+        ++component_write_count;
+        EmitSource("%c", GetCharForSwizzle(GetSwizzleFromComponentIndex(i)));
+      }
+    }
+    EmitSource(" = ");
+    if (has_const_writes) {
+      if (component_write_count > 1) {
+        EmitSource("float%u(", component_write_count);
+      }
+      bool has_written = false;
+      for (uint32_t i = 0; i < 4; ++i) {
+        if (result.write_mask[i]) {
+          if (has_written) {
+            EmitSource(", ");
+          }
+          has_written = true;
+          switch (result.components[i]) {
+            case SwizzleSource::k0:
+              EmitSource("0.0");
+              break;
+            case SwizzleSource::k1:
+              EmitSource("1.0");
+              break;
+            default:
+              if (source_is_scalar) {
+                EmitSource("xe_ps");
+              } else {
+                EmitSource("xe_pv.%c", GetCharForSwizzle(result.components[i]));
+              }
+              break;
+          }
+        }
+      }
+      if (component_write_count > 1) {
+        EmitSource(")");
+      }
+    } else {
+      if (source_is_scalar) {
+        EmitSource("xe_ps");
+        if (component_write_count > 1) {
+          EmitSource(".x");
+          if (component_write_count > 2) {
+            EmitSource("x");
+            if (component_write_count > 3) {
+              EmitSource("x");
+            }
+          }
+        }
+      } else {
+        EmitSource("xe_pv.");
+        for (uint32_t i = 0; i < 4; ++i) {
+          if (result.write_mask[i]) {
+            EmitSource("%c", GetCharForSwizzle(result.components[i]));
+          }
+        }
+      }
+    }
+    if (result.is_clamped) {
+      EmitSource(")");
     }
   }
   EmitSource(";\n");

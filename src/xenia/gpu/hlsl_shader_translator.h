@@ -71,6 +71,7 @@ class HlslShaderTranslator : public ShaderTranslator {
   void EndPredicatedInstruction(bool conditional_emitted);
 
   void EmitLoadOperand(uint32_t src_index, const InstructionOperand& op);
+  void EmitStoreResult(const InstructionResult& result, bool source_is_scalar);
 
   StringBuffer source_;
   uint32_t depth_ = 0;
@@ -79,6 +80,8 @@ class HlslShaderTranslator : public ShaderTranslator {
   bool cf_wrote_pc_ = false;
   bool cf_exec_pred_ = false;
   bool cf_exec_pred_cond_ = false;
+
+  bool writes_depth_ = false;
 
   std::vector<SRVBinding> srv_bindings_;
   // Finds or adds an SRV binding to the shader's SRV list, returns t# index.
