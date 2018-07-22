@@ -9,6 +9,8 @@
 
 #include "xenia/gpu/hlsl_shader_translator.h"
 
+#include "xenia/base/assert.h"
+
 namespace xe {
 namespace gpu {
 using namespace ucode;
@@ -69,6 +71,7 @@ void HlslShaderTranslator::StartTranslation() {
   EmitSource(
      "cbuffer xe_system_constants : register(b0) {\n"
      "  float2 xe_viewport_inv_scale;\n"
+     "  uint xe_textures_are_3d;\n"
      "}\n"
      "\n"
      "struct XeFloatConstantPage {\n"
@@ -158,8 +161,11 @@ void HlslShaderTranslator::StartTranslation() {
   }
 
   EmitSource(
-      // Float constant index for dynamic indexing.
-      "  uint xe_float_constant_index;\n"
+      // Dynamic index for source operands (mainly for float and bool constants
+      // since they are indexed in two parts).
+      "  uint xe_src_index;\n"
+      // Sources for instructions.
+      "  float4 xe_src0, xe_src1, xe_src2;\n"
       // Previous vector result (used as a scratch).
       "  float4 xe_pv;\n"
       // Previous scalar result (used for RETAIN_PREV).
@@ -303,7 +309,7 @@ void HlslShaderTranslator::ProcessLoopEndInstruction(
   Indent();
 
   // Still looping. Adjust index and jump back to body.
-  EmitSourceDepth("xe_aL.x += int((xe_loop_constants[%u] << 8u) >> 24u);\n",
+  EmitSourceDepth("xe_aL.x += int(xe_loop_constants[%u] << 8u) >> 24;\n",
                   instr.loop_constant_index);
   EmitSourceDepth("xe_pc = %u;  // Loop back to body L%u\n",
                   instr.loop_body_address, instr.loop_body_address);
@@ -372,6 +378,128 @@ void HlslShaderTranslator::ProcessAllocInstruction(
     const ParsedAllocInstruction& instr) {
   EmitSourceDepth("// ");
   instr.Disassemble(&source_);
+}
+
+bool HlslShaderTranslator::BeginPredicatedInstruction(
+    bool is_predicated, bool predicate_condition) {
+  if (is_predicated &&
+      (!cf_exec_pred_ || cf_exec_pred_cond_ != predicate_condition)) {
+    EmitSourceDepth("if (%cxe_p0) {\n", instr.predicate_condition ? ' ' : '!');
+    Indent();
+    return true;
+  }
+  return false;
+}
+
+void HlslShaderTranslator::EndPredicatedInstruction(bool conditional_emitted) {
+  if (conditional_emitted) {
+    Unindent();
+    EmitSourceDepth("}\n");
+  }
+}
+
+void HlslShaderTranslator::EmitLoadOperand(uint32_t src_index,
+                                           const InstructionOperand& op) {
+  // If indexing dynamically, emit the index because float and bool constants
+  // need to be indexed in two parts.
+  // Also verify we are not using vertex/texture fetch constants here.
+  uint32_t storage_index_max;
+  switch (op.storage_source) {
+    case InstructionStorageSource::kRegister:
+      index_max = 127;
+      break;
+    case InstructionStorageSource::kConstantFloat:
+    case InstructionStorageSource::kConstantBool:
+      index_max = 255;
+      break;
+    case InstructionStorageSource::kConstantInt:
+      index_max = 31;
+      break;
+    default:
+      assert_always();
+      return;
+  }
+  if (op.storage_addressing_mode ==
+      InstructionStorageAddressingMode::kAddressAbsolute) {
+    EmitSourceDepth("xe_src_index = uint(%u + xe_a0) & %uu;\n",
+                    op.storage_index, storage_index_max);
+  } else if (op.storage_addressing_mode ==
+             InstructionStorageAddressingMode::kAddressRelative) {
+    EmitSourceDepth("xe_src_index = uint(%u + xe_aL.x) & %uu;\n",
+                    op.storage_index, storage_index_max);
+  }
+
+  // Negation and abs are store modifiers, so they're applied after swizzling.
+  EmitSourceDepth("xe_src%u = ", src_index);
+  if (op.is_negated) {
+    EmitSource("-");
+  }
+  if (op.is_absolute_value) {
+    EmitSource("abs");
+  }
+  EmitSource("(");
+
+  if (op.storage_addressing_mode == InstructionStorageAddressingMode::kStatic) {
+    switch (op.storage_source) {
+      case InstructionStorageSource::kRegister:
+        EmitSource("xe_r[%u]", op.storage_index);
+        break;
+      case InstructionStorageSource::kConstantFloat:
+        EmitSource("xe_float_constants[%u].c[%u]", op.storage_index >> 4,
+                   op.storage_index & 15);
+        break;
+      case InstructionStorageSource::kConstantInt:
+        EmitSource("xe_loop_constants[%u]", op.storage_index);
+        break;
+      case InstructionStorageSource::kConstantBool:
+        EmitSource("float((xe_bool_constants[%u] >> %uu) & 1u)",
+                   op.storage_index >> 5, op.storage_index & 31);
+        break;
+      default:
+        assert_always();
+        break;
+    }
+  } else {
+    switch (op.storage_source) {
+      case InstructionStorageSource::kRegister:
+        EmitSource("xe_r[xe_src_index]");
+        break;
+      case InstructionStorageSource::kConstantFloat:
+        EmitSource(
+            "xe_float_constants[xe_src_index >> 4u].c[xe_src_index & 15u]");
+        break;
+      case InstructionStorageSource::kConstantInt:
+        EmitSource("xe_loop_constants[xe_src_index]");
+        break;
+      case InstructionStorageSource::kConstantBool:
+        EmitSource("float((xe_bool_constants[xe_src_index >> 5u] >> "
+                   "(xe_src_index & 31u)) & 1u)");
+        break;
+      default:
+        assert_always();
+        break;
+    }
+  }
+
+  EmitSource(")");
+  // Integer and bool constants are scalar, can't swizzle them.
+  if (op.storage_source == InstructionStorageSource::kConstantInt ||
+      op.storage_source == InstructionStorageSource::kConstantBool) {
+    EmitSource(".xxxx");
+  } else {
+    if (!op.is_standard_swizzle()) {
+      EmitSource(".");
+      // For 1 component stores it will be .aaaa, for 2 components it's .abbb.
+      for (int i = 0; i < op.component_count; ++i) {
+        EmitSource("%c", GetCharForSwizzle(op.components[i]));
+      }
+      for (int i = op.component_count; i < 4; ++i) {
+        EmitSource("%c",
+                   GetCharForSwizzle(op.components[op.component_count - 1]));
+      }
+    }
+  }
+  EmitSource(";\n");
 }
 
 uint32_t HlslShaderTranslator::AddSRVBinding(SRVType type,
