@@ -66,6 +66,12 @@ class HlslShaderTranslator : public ShaderTranslator {
   void Indent();
   void Unindent();
 
+  // Returns whether a new conditional was emitted.
+  bool BeginPredicatedInstruction(bool is_predicated, bool predicate_condition);
+  void EndPredicatedInstruction(bool conditional_emitted);
+
+  void EmitLoadOperand(uint32_t src_index, const InstructionOperand& op);
+
   StringBuffer source_;
   uint32_t depth_ = 0;
   char depth_prefix_[16] = {0};
