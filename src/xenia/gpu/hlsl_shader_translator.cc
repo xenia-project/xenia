@@ -73,6 +73,7 @@ void HlslShaderTranslator::StartTranslation() {
   EmitSource(
      "cbuffer xe_system_constants : register(b0) {\n"
      "  float2 xe_viewport_inv_scale;\n"
+     "  uint xe_vertex_index_endian;\n"
      "  uint xe_textures_are_3d;\n"
      "}\n"
      "\n"
@@ -94,6 +95,7 @@ void HlslShaderTranslator::StartTranslation() {
     // for 8-in-16, 10 for 8-in-32 (a combination of 8-in-16 and 16-in-32), and
     // 11 for 16-in-32. This means we can check bits 0 ^ 1 to see if we need to
     // do a 8-in-16 swap, and bit 1 to see if a 16-in-32 swap is needed.
+    // Vertex element is a temporary integer value for fetches.
     EmitSource(
         "cbuffer xe_vertex_fetch_constants : register(b18) {\n"
         "  uint2 xe_vertex_fetch[96];\n"
@@ -122,9 +124,12 @@ void HlslShaderTranslator::StartTranslation() {
         "  float4 point_size : PSIZE;\n"
         "}\n"
         "\n"
-        "XeVertexShaderOutput main(uint xe_vertex_id : SV_VertexID) {\n"
+        "XeVertexShaderOutput main(uint xe_vertex_index_be : SV_VertexID) {\n"
         "  float4 xe_r[%u];\n"
-        "  xe_r[0].r = float(xe_vertex_id);\n"
+        "  uint xe_vertex_index =\n"
+        "      XeSwap(xe_vertex_index_be, xe_vertex_index_endian);\n"
+        "  uint4 xe_vertex_element;\n"
+        "  xe_r[0].r = float(xe_vertex_index);\n"
         "  XeVertexShaderOutput xe_output;\n",
         kMaxInterpolators, register_count());
     // TODO(Triang3l): Reset interpolators to zero if really needed.
@@ -658,6 +663,244 @@ void HlslShaderTranslator::EmitStoreResult(const InstructionResult& result,
     }
   }
   EmitSource(";\n");
+}
+
+void HlslShaderTranslator::ProcessVertexFetchInstruction(
+      const ParsedVertexFetchInstruction& instr) {
+  EmitSourceDepth("// ");
+  instr.Disassemble(&source_);
+
+  if (instr.operand_count < 2 ||
+      instr.operand[1].storage_source !=
+      InstructionStorageSource::kVertexFetchConstant) {
+    assert_always();
+    return;
+  }
+
+  bool conditional_emitted = BeginPredicatedInstruction(
+      instr.is_predicated, instr.predicate_condition);
+
+  // Load the element from the virtual memory as uints and swap.
+  EmitLoadOperand(0, instr.operands[0]);
+  const char* load_swizzle;
+  const char* load_function_suffix;
+  switch (instr.attributes.data_format) {
+    case VertexFormat::k_16_16_16_16:
+    case VertexFormat::k_16_16_16_16_FLOAT:
+    case VertexFormat::k_32_32:
+    case VertexFormat::k_32_32_FLOAT:
+      load_swizzle = ".xy";
+      load_function_suffix = "2";
+      break;
+    case VertexFormat::k_32_32_32_FLOAT:
+      load_swizzle = ".xyz";
+      load_function_suffix = "3";
+      break;
+    case VertexFormat::k_32_32_32_32:
+    case VertexFormat::k_32_32_32_32_FLOAT:
+      load_swizzle = "";
+      load_function_suffix = "4";
+      break;
+    default:
+      load_swizzle = ".x";
+      load_function_suffix = "";
+      break;
+  }
+  EmitSourceDepth("xe_vertex_element%s = XeSwap(xe_virtual_memory.Load%s(\n",
+                  load_swizzle, load_function_suffix);
+  EmitSourceDepth(
+      "    (xe_vertex_fetch[%u].x & 0x1FFFFFFCu) + uint(src0.x) * %u + %u),\n",
+      instr.operands[1].storage_index, instr.attributes.stride * 4,
+      instr.attributes.offset * 4);
+  EmitSourceDepth("    xe_vertex_fetch[%u].y);\n",
+                  instr.operands[1].storage_index);
+
+  // Convert to the target format.
+  switch (instr.attributes.data_format) {
+    case VertexFormat::k_8_8_8_8:
+      EmitSourceDepth("xe_vertex_element = (xe_vertex_element.xxxx >>\n");
+      EmitSourceDepth("    uint4(0u, 8u, 16u, 24u)) & 255u;\n");
+      if (instr.attributes.is_signed) {
+        EmitSourceDepth(
+            "xe_pv = float4(int4(xe_vertex_element << 24u) >> 24);\n");
+      } else {
+        EmitSourceDepth("xe_pv = float4(xe_vertex_element);\n");
+      }
+      if (!instr.attributes.is_integer) {
+        if (instr.attributes.is_signed) {
+          EmitSourceDepth("xe_pv = max(xe_pv * (1.0 / 127.0), (-1.0).xxxx);\n");
+        } else {
+          EmitSourceDepth("xe_pv *= 1.0 / 255.0;\n");
+        }
+      }
+      break;
+    case VertexFormat::k_2_10_10_10:
+      EmitSourceDepth("xe_vertex_element = (xe_vertex_element.xxxx >>\n"
+      EmitSourceDepth(
+          "    uint4(0u, 10u, 20u, 30u)) & uint4((1023u).xxx, 3u);\n");
+      if (instr.attributes.is_signed) {
+        EmitSourceDepth(
+            "xe_pv = float4(int4(xe_vertex_element << uint4((22u).xxx, 3u))\n");
+        EmitSourceDepth("    >> int4((22).xxx, 3));\n");
+      } else {
+        EmitSourceDepth("xe_pv = float4(xe_vertex_element);\n");
+      }
+      if (!instr.attributes.is_integer) {
+        if (instr.attributes.is_signed) {
+          EmitSourceDepth("xe_pv = max(xe_pv * float4((1.0 / 511.0).xxx, 1.0), "
+                          "(-1.0).xxxx);\n");
+        } else {
+          EmitSourceDepth("xe_pv *= float4((1.0 / 1023.0).xxx, 1.0 / 3.0);\n");
+        }
+      }
+      break;
+    case VertexFormat::k_10_11_11:
+      EmitSourceDepth("xe_vertex_element.xyz = (xe_vertex_element.xxx >>\n"
+      EmitSourceDepth(
+          "    uint3(0u, 11u, 22u)) & uint3(2047u, 2047u, 1023u);\n");
+      if (instr.attributes.is_signed) {
+        EmitSourceDepth("xe_pv.xyz = float3(int3(xe_vertex_element.xyz <<\n");
+        EmitSourceDepth("    uint3(21u, 21u, 22u)) >> int3(21, 21, 22));\n");
+      } else {
+        EmitSourceDepth("xe_pv.xyz = float3(xe_vertex_element.xyz);\n");
+      }
+      if (!instr.attributes.is_integer) {
+        if (instr.attributes.is_signed) {
+          EmitSourceDepth("xe_pv.xyz = max(xe_pv.xyz *\n");
+          EmitSourceDepth(
+              "    float3((1.0 / 1023.0).xx, 1.0 / 511.0), (-1.0).xxx);\n");
+        } else {
+          EmitSourceDepth(
+              "xe_pv.xyz *= float3((1.0 / 2047.0).xx, 1.0 / 1023.0);\n");
+        }
+      }
+      EmitSourceDepth("xe_pv.w = 1.0;\n");
+      break;
+    case VertexFormat::k_11_11_10:
+      EmitSourceDepth("xe_vertex_element.xyz = (xe_vertex_element.xxx >>\n"
+      EmitSourceDepth(
+          "    uint3(0u, 10u, 21u)) & uint3(1023u, 2047u, 2047u);\n");
+      if (instr.attributes.is_signed) {
+        EmitSourceDepth("xe_pv.xyz = float3(int3(xe_vertex_element.xyz <<\n");
+        EmitSourceDepth("    uint3(22u, 21u, 21u)) >> int3(22, 21, 21));\n");
+      } else {
+        EmitSourceDepth("xe_pv.xyz = float3(xe_vertex_element.xyz);\n");
+      }
+      if (!instr.attributes.is_integer) {
+        if (instr.attributes.is_signed) {
+          EmitSourceDepth("xe_pv.xyz = max(xe_pv.xyz *\n");
+          EmitSourceDepth(
+              "    float3(1.0 / 511.0, (1.0 / 1023.0).xx), (-1.0).xxx);\n");
+        } else {
+          EmitSourceDepth(
+              "xe_pv.xyz *= float3(1.0 / 1023.0, (1.0 / 2047.0).xx);\n");
+        }
+      }
+      EmitSourceDepth("xe_pv.w = 1.0;\n");
+      break;
+    case VertexFormat::k_16_16:
+      EmitSourceDepth("xe_vertex_element.xy = (xe_vertex_element.xx >>\n");
+      EmitSourceDepth("    uint2(0u, 16u)) & 65535u;\n");
+      if (instr.attributes.is_signed) {
+        EmitSourceDepth(
+            "xe_pv.xy = float2(int2(xe_vertex_element.xy << 16u) >> 16);\n");
+      } else {
+        EmitSourceDepth("xe_pv.xy = float2(xe_vertex_element.xy);\n");
+      }
+      if (!instr.attributes.is_integer) {
+        if (instr.attributes.is_signed) {
+          EmitSourceDepth(
+              "xe_pv.xy = max(xe_pv.xy * (1.0 / 32767.0), (-1.0).xx);\n");
+        } else {
+          EmitSourceDepth("xe_pv.xy *= 1.0 / 65535.0;\n");
+        }
+      }
+      EmitSourceDepth("xe_pv.zw = float2(0.0, 1.0);\n");
+      break;
+    case VertexFormat::k_16_16_16_16:
+      EmitSourceDepth("xe_vertex_element = (xe_vertex_element.xxxx >>\n");
+      EmitSourceDepth("    uint4(0u, 16u, 0u, 16u)) & 65535u;\n");
+      if (instr.attributes.is_signed) {
+        EmitSourceDepth(
+            "xe_pv = float4(int4(xe_vertex_element << 16u) >> 16);\n");
+      } else {
+        EmitSourceDepth("xe_pv = float4(xe_vertex_element);\n");
+      }
+      if (!instr.attributes.is_integer) {
+        if (instr.attributes.is_signed) {
+          EmitSourceDepth(
+              "xe_pv = max(xe_pv * (1.0 / 32767.0), (-1.0).xxxx);\n");
+        } else {
+          EmitSourceDepth("xe_pv *= 1.0 / 65535.0;\n");
+        }
+      }
+      break;
+    case VertexFormat::k_16_16_FLOAT:
+      EmitSourceDepth("xe_vertex_element.xy = (xe_vertex_element.xx >>\n");
+      EmitSourceDepth("    uint2(0u, 16u)) & 65535u;\n");
+      EmitSourceDepth("xe_pv.xy = f16tof32(xe_vertex_element.xy);\n");
+      EmitSourceDepth("xe_pv.zw = float2(0.0, 1.0);\n");
+      break;
+    case VertexFormat::k_16_16_16_16_FLOAT:
+      EmitSourceDepth("xe_vertex_element = (xe_vertex_element.xxxx >>\n");
+      EmitSourceDepth("    uint4(0u, 16u, 0u, 16u)) & 65535u;\n");
+      EmitSourceDepth("xe_pv = f16tof32(xe_vertex_element);\n");
+      break;
+    case VertexFormat::k_32:
+      if (instr.attributes.is_signed) {
+        EmitSourceDepth("xe_pv.x = float(int(xe_vertex_element.x));\n");
+      } else {
+        EmitSourceDepth("xe_pv.x = float(xe_vertex_element.x);\n");
+      }
+      if (!instr.attributes.is_integer) {
+        EmitSourceDepth("xe_pv.x *= asfloat(0x%Xu);\n",
+                        instr.attributes.is_signed ? 0x30000000 : 0x2F800000);
+      }
+      EmitSourceDepth("xe_pv.yzw = float3(0.0, 0.0, 1.0);\n");
+      break;
+    case VertexFormat::k_32_32:
+      if (instr.attributes.is_signed) {
+        EmitSourceDepth("xe_pv.xy = float2(int2(xe_vertex_element.xy));\n");
+      } else {
+        EmitSourceDepth("xe_pv.xy = float2(xe_vertex_element.xy);\n");
+      }
+      if (!instr.attributes.is_integer) {
+        EmitSourceDepth("xe_pv.xy *= asfloat(0x%Xu);\n",
+                        instr.attributes.is_signed ? 0x30000000 : 0x2F800000);
+      }
+      EmitSourceDepth("xe_pv.zw = float2(0.0, 1.0);\n");
+      break;
+    case VertexFormat::k_32_32_32_32:
+      if (instr.attributes.is_signed) {
+        EmitSourceDepth("xe_pv = float4(int4(xe_vertex_element));\n");
+      } else {
+        EmitSourceDepth("xe_pv = float4(xe_vertex_element);\n");
+      }
+      if (!instr.attributes.is_integer) {
+        EmitSourceDepth("xe_pv *= asfloat(0x%Xu);\n",
+                        instr.attributes.is_signed ? 0x30000000 : 0x2F800000);
+      }
+      break;
+    case VertexFormat::k_32_FLOAT:
+      EmitSourceDepth("xe_pv.x = asfloat(xe_vertex_element.x);\n");
+      EmitSourceDepth("xe_pv.yzw = float3(0.0, 0.0, 1.0);\n");
+      break;
+    case VertexFormat::k_32_32_FLOAT:
+      EmitSourceDepth("xe_pv.xy = asfloat(xe_vertex_element.xy);\n");
+      EmitSourceDepth("xe_pv.zw = float2(0.0, 1.0);\n");
+      break;
+    case VertexFormat::k_32_32_32_32_FLOAT:
+      EmitSourceDepth("xe_pv = asfloat(xe_vertex_element);\n");
+      break;
+    case VertexFormat::k_32_32_32_FLOAT:
+      EmitSourceDepth("xe_pv.xyz = asfloat(xe_vertex_element.xyz);\n");
+      EmitSourceDepth("xe_pv.w = 1.0;\n");
+      break;
+  }
+
+  EmitStoreResult(instr.result, false);
+
+  EndPredicatedInstruction(conditional_emitted);
 }
 
 uint32_t HlslShaderTranslator::AddSRVBinding(SRVType type,
