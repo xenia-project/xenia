@@ -62,6 +62,9 @@ class HlslShaderTranslator : public ShaderTranslator {
   void ProcessJumpInstruction(const ParsedJumpInstruction& instr) override;
   void ProcessAllocInstruction(const ParsedAllocInstruction& instr) override;
 
+  void ProcessVertexFetchInstruction(
+      const ParsedVertexFetchInstruction& instr) override;
+
  private:
   void Indent();
   void Unindent();
