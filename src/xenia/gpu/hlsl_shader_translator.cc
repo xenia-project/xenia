@@ -71,6 +71,8 @@ void HlslShaderTranslator::Unindent() {
 void HlslShaderTranslator::StartTranslation() {
   // Common things.
   EmitSource(
+     "#define XE_FLT_MAX 3.402823466e+38\n"
+     "\n"
      "cbuffer xe_system_constants : register(b0) {\n"
      "  float2 xe_viewport_inv_scale;\n"
      "  uint xe_vertex_index_endian;\n"
@@ -1056,6 +1058,217 @@ void HlslShaderTranslator::ProcessVectorAluInstruction(
   EmitStoreResult(instr.result, false);
 
   EndPredicatedInstruction(conditional_emitted);
+}
+
+void HlslShaderTranslator::ProcessScalarAluInstruction(
+    const ParsedAluInstruction& instr) {
+  bool conditional_emitted = BeginPredicatedInstruction(
+      instr.is_predicated, instr.predicate_condition);
+
+  for (size_t i = 0; i < instr.operand_count; ++i) {
+    EmitLoadOperand(i, instr.operands[i]);
+  }
+
+  switch (instr.scalar_opcode) {
+    case AluScalarOpcode::kAdds:
+      EmitSourceDepth("xe_ps = xe_src0.x + xe_src0.y;\n");
+      break;
+    case AluScalarOpcode::kAddsPrev:
+      EmitSourceDepth("xe_ps += xe_src0.x;\n");
+      break;
+    case AluScalarOpcode::kMuls:
+      EmitSourceDepth("xe_ps = xe_src0.x * xe_src0.y;\n");
+      break;
+    case AluScalarOpcode::kMulsPrev:
+      EmitSourceDepth("xe_ps *= xe_src0.x;\n");
+      break;
+    case AluScalarOpcode::kMulsPrev2:
+      EmitSourceDepth(
+          "xe_ps = (xe_ps == -XE_FLT_MAX || (isinf(xe_ps) && xe_ps < 0.0)\n");
+      EmitSourceDepth(
+          "    || isnan(xe_ps) || xe_src0.y <= 0.0 || isnan(xe_src0.y)) ?\n");
+      EmitSourceDepth("    -XE_FLT_MAX : xe_src0.x * xe_ps;\n");
+      break;
+    case AluScalarOpcode::kMaxs:
+      EmitSourceDepth("xe_ps = max(xe_src0.x, xe_src0.y);\n");
+      break;
+    case AluScalarOpcode::kMins:
+      EmitSourceDepth("xe_ps = max(xe_src0.x, xe_src0.y);\n");
+      break;
+    case AluScalarOpcode::kSeqs:
+      EmitSourceDepth("xe_ps = float(xe_src0.x == 0.0);\n");
+      break;
+    case AluScalarOpcode::kSgts:
+      EmitSourceDepth("xe_ps = float(xe_src0.x > 0.0);\n");
+      break;
+    case AluScalarOpcode::kSges:
+      EmitSourceDepth("xe_ps = float(xe_src0.x >= 0.0);\n");
+      break;
+    case AluScalarOpcode::kSnes:
+      EmitSourceDepth("xe_ps = float(xe_src0.x != 0.0);\n");
+      break;
+    case AluScalarOpcode::kFrcs:
+      EmitSourceDepth("xe_ps = frac(xe_src0.x);\n");
+      break;
+    case AluScalarOpcode::kTruncs:
+      EmitSourceDepth("xe_ps = trunc(xe_src0.x);\n");
+      break;
+    case AluScalarOpcode::kFloors:
+      EmitSourceDepth("xe_ps = floor(xe_src0.x);\n");
+      break;
+    case AluScalarOpcode::kExp:
+      EmitSourceDepth("xe_ps = exp2(xe_src0.x);\n");
+      break;
+    case AluScalarOpcode::kLogc:
+      EmitSourceDepth("xe_ps = log2(xe_src0.x);\n");
+      EmitSourceDepth(
+          "xe_ps = (isinf(xe_ps) && xe_ps < 0.0) ? -XE_FLT_MAX : ps;\n");
+      break;
+    case AluScalarOpcode::kLog:
+      EmitSourceDepth("xe_ps = log2(xe_src0.x);\n");
+      break;
+    case AluScalarOpcode::kRcpc:
+      EmitSourceDepth(
+          "xe_ps = clamp(rcp(xe_src0.x), -XE_FLT_MAX, XE_FLT_MAX);\n");
+      break;
+    case AluScalarOpcode::kRcpf:
+      EmitSourceDepth("xe_ps = rcp(xe_src0.x);\n");
+      EmitSourceDepth("xe_ps *= float(!isinf(xe_ps));\n");
+      break;
+    case AluScalarOpcode::kRcp:
+      EmitSourceDepth("xe_ps = rcp(xe_src0.x);\n");
+      break;
+    case AluScalarOpcode::kRsqc:
+      EmitSourceDepth(
+          "xe_ps = clamp(rsqrt(xe_src0.x), -XE_FLT_MAX, XE_FLT_MAX);\n");
+      break;
+    case AluScalarOpcode::kRsqf:
+      EmitSourceDepth("xe_ps = rsqrt(xe_src0.x);\n");
+      EmitSourceDepth("xe_ps *= float(!isinf(xe_ps));\n");
+      break;
+    case AluScalarOpcode::kRsq:
+      EmitSourceDepth("xe_ps = rsqrt(xe_src0.x);\n");
+      break;
+    case AluScalarOpcode::kMaxAs:
+      EmitSourceDepth("xe_a0 = clamp(int(round(xe_src0.x)), -256, 255);\n");
+      EmitSourceDepth("xe_ps = max(xe_src0.x, xe_src0.y);\n");
+      break;
+    case AluScalarOpcode::kMaxAf:
+      EmitSourceDepth("xe_a0 = clamp(int(floor(xe_src0.x)), -256, 255);\n");
+      EmitSourceDepth("xe_ps = max(xe_src0.x, xe_src0.y);\n");
+      break;
+    case AluScalarOpcode::kSubs:
+      EmitSourceDepth("xe_ps = xe_src0.x - xe_src0.y;\n");
+      break;
+    case AluScalarOpcode::kSubsPrev:
+      EmitSourceDepth("xe_ps = xe_src0.x - xe_ps;\n");
+      break;
+    case AluScalarOpcode::kSetpEq:
+      cf_exec_pred_ = false;
+      EmitSourceDepth("xe_p0 = xe_src0.x == 0.0;\n");
+      EmitSourceDepth("xe_ps = float(!xe_p0);\n");
+      break;
+    case AluScalarOpcode::kSetpNe:
+      cf_exec_pred_ = false;
+      EmitSourceDepth("xe_p0 = xe_src0.x != 0.0;\n");
+      EmitSourceDepth("xe_ps = float(!xe_p0);\n");
+      break;
+    case AluScalarOpcode::kSetpGt:
+      cf_exec_pred_ = false;
+      EmitSourceDepth("xe_p0 = xe_src0.x > 0.0;\n");
+      EmitSourceDepth("xe_ps = float(!xe_p0);\n");
+      break;
+    case AluScalarOpcode::kSetpGe:
+      cf_exec_pred_ = false;
+      EmitSourceDepth("xe_p0 = xe_src0.x >= 0.0;\n");
+      EmitSourceDepth("xe_ps = float(!xe_p0);\n");
+      break;
+    case AluScalarOpcode::kSetpInv:
+      cf_exec_pred_ = false;
+      EmitSourceDepth("xe_p0 = xe_src0.x == 1.0;\n");
+      EmitSourceDepth(
+          "xe_ps = float(!xe_p0) * (xe_src0.x == 0.0 ? 1.0 : xe_src0.x);\n");
+      break;
+    case AluScalarOpcode::kSetpPop:
+      cf_exec_pred_ = false;
+      EmitSourceDepth("xe_ps = max(xe_src0.x - 1.0, 0.0);\n");
+      EmitSourceDepth("xe_p0 = xe_ps == 0.0;\n");
+      break;
+    case AluScalarOpcode::kSetpClr:
+      cf_exec_pred_ = false;
+      EmitSourceDepth("xe_ps = false;\n");
+      EmitSourceDepth("xe_p0 = XE_FLT_MAX;\n");
+      break;
+    case AluScalarOpcode::kSetpRstr:
+      cf_exec_pred_ = false;
+      EmitSourceDepth("xe_p0 = src0.x == 0.0;\n");
+      EmitSourceDepth("xe_ps = src0.x;\n");
+      break;
+    case AluScalarOpcode::kKillsEq:
+      EmitSourceDepth("xe_ps = float(xe_src0.x == 0.0);\n");
+      EmitSourceDepth("clip(-xe_ps);\n");
+      break;
+    case AluScalarOpcode::kKillsGt:
+      EmitSourceDepth("xe_ps = float(xe_src0.x > 0.0);\n");
+      EmitSourceDepth("clip(-xe_ps);\n");
+      break;
+    case AluScalarOpcode::kKillsGe:
+      EmitSourceDepth("xe_ps = float(xe_src0.x >= 0.0);\n");
+      EmitSourceDepth("clip(-xe_ps);\n");
+      break;
+    case AluScalarOpcode::kKillsNe:
+      EmitSourceDepth("xe_ps = float(xe_src0.x != 0.0);\n");
+      EmitSourceDepth("clip(-xe_ps);\n");
+      break;
+    case AluScalarOpcode::kKillsOne:
+      EmitSourceDepth("xe_ps = float(xe_src0.x == 1.0);\n");
+      EmitSourceDepth("clip(-xe_ps);\n");
+      break;
+    case AluScalarOpcode::kSqrt:
+      EmitSourceDepth("xe_ps = float(xe_src0.x);\n");
+      break;
+    case AluScalarOpcode::kMulsc0:
+    case AluScalarOpcode::kMulsc1:
+      EmitSourceDepth("xe_ps = xe_src0.x * xe_src1.x;\n");
+      break;
+    case AluScalarOpcode::kAddsc0:
+    case AluScalarOpcode::kAddsc1:
+      EmitSourceDepth("xe_ps = xe_src0.x + xe_src1.x;\n");
+      break;
+    case AluScalarOpcode::kSubsc0:
+    case AluScalarOpcode::kSubsc1:
+      EmitSourceDepth("xe_ps = xe_src0.x - xe_src1.x;\n");
+      break;
+    case AluScalarOpcode::kSin:
+      EmitSourceDepth("xe_ps = sin(xe_src0.x);\n");
+      break;
+    case AluScalarOpcode::kCos:
+      EmitSourceDepth("xe_ps = cos(xe_src0.x);\n");
+      break;
+    case AluScalarOpcode::kRetainPrev:
+      break;
+  }
+
+  EmitStoreResult(instr.result, true);
+
+  EndPredicatedInstruction(conditional_emitted);
+}
+
+void HlslShaderTranslator::ProcessAluInstruction(
+    const ParsedAluInstruction& instr) {
+  EmitSourceDepth("// ");
+  instr.Disassemble(&source_);
+
+  switch (instr.type) {
+    case ParsedAluInstruction::Type::kNop:
+      break;
+    case ParsedAluInstruction::Type::kVector:
+      ProcessVectorAluInstruction(instr);
+      break;
+    case ParsedAluInstruction::Type::kScalar:
+      ProcessScalarAluInstruction(instr);
+      break;
+  }
 }
 
 }  // namespace gpu
