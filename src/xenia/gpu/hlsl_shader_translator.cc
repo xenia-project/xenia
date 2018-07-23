@@ -708,8 +708,8 @@ void HlslShaderTranslator::ProcessVertexFetchInstruction(
   }
   EmitSourceDepth("xe_vertex_element%s = XeSwap(xe_virtual_memory.Load%s(\n",
                   load_swizzle, load_function_suffix);
-  EmitSourceDepth(
-      "    (xe_vertex_fetch[%u].x & 0x1FFFFFFCu) + uint(src0.x) * %u + %u),\n",
+  EmitSourceDepth("    (xe_vertex_fetch[%u].x & 0x1FFFFFFCu) + "
+                  "uint(xe_src0.x) * %u + %u),\n",
       instr.operands[1].storage_index, instr.attributes.stride * 4,
       instr.attributes.offset * 4);
   EmitSourceDepth("    xe_vertex_fetch[%u].y);\n",
@@ -926,6 +926,136 @@ uint32_t HlslShaderTranslator::AddSampler(uint32_t fetch_constant) {
   }
   sampler_fetch_constants_[sampler_count_] = fetch_constant;
   return sampler_count_++;
+}
+
+void HlslShaderTranslator::ProcessVectorAluInstruction(
+    const ParsedAluInstruction& instr) {
+  bool conditional_emitted = BeginPredicatedInstruction(
+      instr.is_predicated, instr.predicate_condition);
+
+  for (size_t i = 0; i < instr.operand_count; ++i) {
+    EmitLoadOperand(i, instr.operands[i]);
+  }
+
+  switch (instr.vector_opcode) {
+    case AluVectorOpcode::kAdd:
+      EmitSourceDepth("xe_pv = xe_src0 + xe_src1;\n");
+      break;
+    case AluVectorOpcode::kMul:
+      EmitSourceDepth("xe_pv = xe_src0 * xe_src1;\n");
+      break;
+    case AluVectorOpcode::kMax:
+      EmitSourceDepth("xe_pv = max(xe_src0, xe_src1);\n");
+      break;
+    case AluVectorOpcode::kSeq:
+      EmitSourceDepth("xe_pv = float4(xe_src0 == xe_src1);\n");
+      break;
+    case AluVectorOpcode::kSgt:
+      EmitSourceDepth("xe_pv = float4(xe_src0 > xe_src1);\n");
+      break;
+    case AluVectorOpcode::kSge:
+      EmitSourceDepth("xe_pv = float4(xe_src0 >= xe_src1);\n");
+      break;
+    case AluVectorOpcode::kSne:
+      EmitSourceDepth("xe_pv = float4(xe_src0 != xe_src1);\n");
+      break;
+    case AluVectorOpcode::kFrc:
+      EmitSourceDepth("xe_pv = frac(xe_src0);\n");
+      break;
+    case AluVectorOpcode::kTrunc:
+      EmitSourceDepth("xe_pv = trunc(xe_src0);\n");
+      break;
+    case AluVectorOpcode::kFloor:
+      EmitSourceDepth("xe_pv = floor(xe_src0);\n");
+      break;
+    case AluVectorOpcode::kMad:
+      EmitSourceDepth("xe_pv = xe_src0 * xe_src1 + xe_src2;\n");
+      break;
+    case AluVectorOpcode::kCndEq:
+      EmitSourceDepth(
+          "xe_pv = lerp(xe_src2, xe_src1, float4(xe_src0 == (0.0).xxxx));\n");
+      break;
+    case AluVectorOpcode::kCndGe:
+      EmitSourceDepth(
+          "xe_pv = lerp(xe_src2, xe_src1, float4(xe_src0 >= (0.0).xxxx));\n");
+      break;
+    case AluVectorOpcode::kCndGt:
+      EmitSourceDepth(
+          "xe_pv = lerp(xe_src2, xe_src1, float4(xe_src0 > (0.0).xxxx));\n");
+      break;
+    case AluVectorOpcode::kDp4:
+      EmitSourceDepth("xe_pv = dot(xe_src0, xe_src1).xxxx;\n");
+      break;
+    case AluVectorOpcode::kDp3:
+      EmitSourceDepth("xe_pv = dot(xe_src0.xyz, xe_src1.xyz).xxxx;\n");
+      break;
+    case AluVectorOpcode::kDp2Add:
+      EmitSourceDepth(
+          "xe_pv = (dot(xe_src0.xy, xe_src1.xy) + xe_src2.x).xxxx;\n");
+      break;
+    case AluVectorOpcode::kCube:
+      EmitSourceDepth("xe_pv = XeCubeTo2D(xe_src0);\n");
+      cube_used_ = true;
+      break;
+    case AluVectorOpcode::kMax4:
+      EmitSourceDepth("xe_pv.xy = max(xe_src0.xy, xe_src0.zw);\n");
+      EmitSourceDepth("xe_pv.xxxx = max(xe_pv.x, xe_pv.y);\n");
+      break;
+    case AluVectorOpcode::kSetpEqPush:
+      cf_exec_pred_ = false;
+      EmitSourceDepth("xe_p0 = xe_src0.w == 0.0 && xe_src1.w == 0.0;\n");
+      EmitSourceDepth("xe_pv = (xe_src0.x == 0.0 && xe_src1.x == 0.0 ? "
+                      "0.0 : xe_src0.x + 1.0).xxxx;\n");
+      break;
+    case AluVectorOpcode::kSetpNePush:
+      cf_exec_pred_ = false;
+      EmitSourceDepth("xe_p0 = xe_src0.w == 0.0 && xe_src1.w != 0.0;\n");
+      EmitSourceDepth("xe_pv = (xe_src0.x == 0.0 && xe_src1.x != 0.0 ? "
+                      "0.0 : xe_src0.x + 1.0).xxxx;\n");
+      break;
+    case AluVectorOpcode::kSetpGtPush:
+      cf_exec_pred_ = false;
+      EmitSourceDepth("xe_p0 = xe_src0.w == 0.0 && xe_src1.w > 0.0;\n");
+      EmitSourceDepth("xe_pv = (xe_src0.x == 0.0 && xe_src1.x > 0.0 ? "
+                      "0.0 : xe_src0.x + 1.0).xxxx;\n");
+      break;
+    case AluVectorOpcode::kSetpGePush:
+      cf_exec_pred_ = false;
+      EmitSourceDepth("xe_p0 = xe_src0.w == 0.0 && xe_src1.w >= 0.0;\n");
+      EmitSourceDepth("xe_pv = (xe_src0.x == 0.0 && xe_src1.x >= 0.0 ? "
+                      "0.0 : xe_src0.x + 1.0).xxxx;\n");
+      break;
+    case AluVectorOpcode::kKillEq:
+      EmitSourceDepth("xe_pv.xxxx = float(any(xe_src0 == xe_src1));\n");
+      EmitSourceDepth("clip(-xe_pv.x);\n");
+      break;
+    case AluVectorOpcode::kKillGt:
+      EmitSourceDepth("xe_pv.xxxx = float(any(xe_src0 > xe_src1));\n");
+      EmitSourceDepth("clip(-xe_pv.x);\n");
+      break;
+    case AluVectorOpcode::kKillGe:
+      EmitSourceDepth("xe_pv.xxxx = float(any(xe_src0 >= xe_src1));\n");
+      EmitSourceDepth("clip(-xe_pv.x);\n");
+      break;
+    case AluVectorOpcode::kKillNe:
+      EmitSourceDepth("xe_pv.xxxx = float(any(xe_src0 != xe_src1));\n");
+      EmitSourceDepth("clip(-xe_pv.x);\n");
+      break;
+    case AluVectorOpcode::kDst:
+      EmitSourceDepth("xe_pv.x = 1.0;\n");
+      EmitSourceDepth("xe_pv.y = xe_src0.y * xe_src1.y;\n");
+      EmitSourceDepth("xe_pv.z = xe_src0.z;\n");
+      EmitSourceDepth("xe_pv.w = xe_src1.w;\n");
+      break;
+    case AluVectorOpcode::kMaxA:
+      EmitSourceDepth("xe_a0 = clamp(int(round(xe_src0.w)), -256, 255);\n");
+      EmitSourceDepth("xe_pv = max(xe_src0, xe_src1);\n");
+      break;
+  }
+
+  EmitStoreResult(instr.result, false);
+
+  EndPredicatedInstruction(conditional_emitted);
 }
 
 }  // namespace gpu
