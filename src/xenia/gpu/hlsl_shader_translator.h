@@ -46,6 +46,9 @@ class HlslShaderTranslator : public ShaderTranslator {
   void EmitTranslationError(const char* message) override;
   void EmitUnimplementedTranslationError() override;
 
+  void StartTranslation() override;
+  std::vector<uint8_t> CompleteTranslation() override;
+
   void ProcessLabel(uint32_t cf_index) override;
 
   void ProcessControlFlowNopInstruction(uint32_t cf_index) override;
@@ -76,12 +79,12 @@ class HlslShaderTranslator : public ShaderTranslator {
   bool BeginPredicatedInstruction(bool is_predicated, bool predicate_condition);
   void EndPredicatedInstruction(bool conditional_emitted);
 
-  void EmitLoadOperand(uint32_t src_index, const InstructionOperand& op);
+  void EmitLoadOperand(size_t src_index, const InstructionOperand& op);
   void EmitStoreResult(const InstructionResult& result, bool source_is_scalar);
 
-  StringBuffer source_;
+  StringBuffer source_inner_;
   uint32_t depth_ = 0;
-  char depth_prefix_[16] = {0};
+  char depth_prefix_[32] = {0};
 
   bool cf_wrote_pc_ = false;
   bool cf_exec_pred_ = false;

@@ -9,6 +9,8 @@
 
 #include "xenia/gpu/hlsl_shader_translator.h"
 
+#include <algorithm>
+
 #include "xenia/base/assert.h"
 
 namespace xe {
@@ -17,11 +19,10 @@ using namespace ucode;
 
 constexpr uint32_t kMaxInterpolators = 16;
 
-#define EmitSource(...) source_.AppendFormat(__VA_ARGS__)
-#define EmitSourceDepth(...)     \
-  source_.Append("  ");          \
-  source_.Append(depth_prefix_); \
-  source_.AppendFormat(__VA_ARGS__)
+#define EmitSource(...) source_inner_.AppendFormat(__VA_ARGS__)
+#define EmitSourceDepth(...) \
+  source_inner_.Append(depth_prefix_); \
+  source_inner_.AppendFormat(__VA_ARGS__)
 
 HlslShaderTranslator::HlslShaderTranslator() {}
 HlslShaderTranslator::~HlslShaderTranslator() = default;
@@ -29,9 +30,9 @@ HlslShaderTranslator::~HlslShaderTranslator() = default;
 void HlslShaderTranslator::Reset() {
   ShaderTranslator::Reset();
 
-  source_.Reset();
+  source_inner_.Reset();
   depth_ = 0;
-  depth_prefix[0] = 0;
+  depth_prefix_[0] = 0;
 
   cf_wrote_pc_ = false;
   cf_exec_pred_ = false;
@@ -69,8 +70,21 @@ void HlslShaderTranslator::Unindent() {
 }
 
 void HlslShaderTranslator::StartTranslation() {
-  // Common things.
-  EmitSource(
+  // Main function level (1).
+  Indent();
+  // Do while PC != 0xFFFF level (2).
+  Indent();
+  // Switch level (3).
+  Indent();
+  EmitSourceDepth("case 0:\n");
+}
+
+std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
+  // Add the declarations, the prologue and the epilogue knowing what is needed.
+  StringBuffer source;
+
+  // Common declarations.
+  source.Append(
      "#define XE_FLT_MAX 3.402823466e+38\n"
      "\n"
      "cbuffer xe_system_constants : register(b0) {\n"
@@ -98,7 +112,7 @@ void HlslShaderTranslator::StartTranslation() {
     // 11 for 16-in-32. This means we can check bits 0 ^ 1 to see if we need to
     // do a 8-in-16 swap, and bit 1 to see if a 16-in-32 swap is needed.
     // Vertex element is a temporary integer value for fetches.
-    EmitSource(
+    source.AppendFormat(
         "cbuffer xe_vertex_fetch_constants : register(b18) {\n"
         "  uint2 xe_vertex_fetch[96];\n"
         "}\n"
@@ -139,7 +153,7 @@ void HlslShaderTranslator::StartTranslation() {
     // Pixel shader inputs, outputs and prologue.
     // If the shader writes to depth, it needs to define
     // XE_PIXEL_SHADER_WRITES_DEPTH in the beginning of the final output.
-    EmitSource(
+    source.AppendFormat(
         "struct XePixelShaderInput {\n"
         "  float4 position : SV_Position;\n"
         "  float4 interpolators[%u] : TEXCOORD;\n"
@@ -147,20 +161,19 @@ void HlslShaderTranslator::StartTranslation() {
         "\n"
         "struct XePixelShaderOutput {\n"
         "  float4 colors[4] : SV_Target;\n"
-        "  #ifdef XE_PIXEL_SHADER_WRITES_DEPTH\n"
-        "  float depth : SV_Depth;\n"
-        "  #endif\n"
+        "%s"
         "}\n"
         "\n"
         "XePixelShaderOutput main(XePixelShaderInput xe_input) {\n"
         "  float4 xe_r[%u];\n"
         "  XePixelShaderOutput xe_output;\n",
-        kMaxInterpolators, register_count());
-    // Copy interpolators to the first registers.
+        kMaxInterpolators, writes_depth_ ? "  float depth : SV_Depth;\n" : "",
+        register_count());
+    // Copy interpolants to the first registers.
     uint32_t interpolator_register_count =
         std::min(register_count(), kMaxInterpolators);
     for (uint32_t i = 0; i < interpolator_register_count; ++i) {
-      EmitSource("  xe_r[%u] = xe_input.interpolators[%u];\n", i, i);
+      source.AppendFormat("  xe_r[%u] = xe_input.interpolators[%u];\n", i, i);
     }
     // No need to write zero to every output because in case an output is
     // completely unused, writing to that render target will be disabled in the
@@ -169,7 +182,8 @@ void HlslShaderTranslator::StartTranslation() {
     // TODO(Triang3l): ps_param_gen.
   }
 
-  EmitSource(
+  // Common main function variables and prologue.
+  source.Append(
       // Dynamic index for source operands (mainly for float and bool constants
       // since they are indexed in two parts).
       "  uint xe_src_index;\n"
@@ -191,14 +205,24 @@ void HlslShaderTranslator::StartTranslation() {
       // Master loop and switch for flow control.
       "  uint xe_pc = 0u;\n"
       "\n"
-      "  do {\n";
-      "    switch (xe_pc) {\n"
-      "    case 0u:\n");
+      "  do {\n"
+      "    switch (xe_pc) {\n");
 
-  // Main function level (1).
-  Indent();
-  // Do level (2)
-  Indent();
+  // Translated code.
+  source.Append(source_inner_.GetString());
+
+  // Epilogue.
+  source.Append(
+      "      default:\n"
+      "      pc = 0xFFFFu;\n"
+      "    }\n"
+      "  } while (xe_pc != 0xFFFFu);\n");
+  // TODO(Triang3l): Window offset, half pixel offset, alpha test, gamma.
+  source.Append(
+      "  return xe_output;\n"
+      "}\n");
+
+  return source.ToBytes();
 }
 
 void HlslShaderTranslator::ProcessLabel(uint32_t cf_index) {
@@ -228,7 +252,7 @@ void HlslShaderTranslator::ProcessControlFlowInstructionEnd(uint32_t cf_index) {
 void HlslShaderTranslator::ProcessExecInstructionBegin(
     const ParsedExecInstruction& instr) {
   EmitSourceDepth("// ");
-  instr.Disassemble(&source_);
+  instr.Disassemble(&source_inner_);
 
   cf_exec_pred_ = false;
   switch (instr.type) {
@@ -264,7 +288,7 @@ void HlslShaderTranslator::ProcessExecInstructionEnd(
 void HlslShaderTranslator::ProcessLoopStartInstruction(
     const ParsedLoopStartInstruction& instr) {
   EmitSourceDepth("// ");
-  instr.Disassemble(&source_);
+  instr.Disassemble(&source_inner_);
 
   // Setup counter.
   EmitSourceDepth("xe_loop_count.yzw = xe_loop_count.xyz;\n");
@@ -292,7 +316,7 @@ void HlslShaderTranslator::ProcessLoopStartInstruction(
 void HlslShaderTranslator::ProcessLoopEndInstruction(
     const ParsedLoopEndInstruction& instr) {
   EmitSourceDepth("// ");
-  instr.Disassemble(&source_);
+  instr.Disassemble(&source_inner_);
 
   // Decrement loop counter, and if we are done break out.
   EmitSourceDepth("if (--xe_loop_count.x == 0u");
@@ -332,7 +356,7 @@ void HlslShaderTranslator::ProcessLoopEndInstruction(
 void HlslShaderTranslator::ProcessCallInstruction(
     const ParsedCallInstruction& instr) {
   EmitSourceDepth("// ");
-  instr.Disassemble(&source_);
+  instr.Disassemble(&source_inner_);
 
   EmitUnimplementedTranslationError();
 }
@@ -340,7 +364,7 @@ void HlslShaderTranslator::ProcessCallInstruction(
 void HlslShaderTranslator::ProcessReturnInstruction(
     const ParsedReturnInstruction& instr) {
   EmitSourceDepth("// ");
-  instr.Disassemble(&source_);
+  instr.Disassemble(&source_inner_);
 
   EmitUnimplementedTranslationError();
 }
@@ -348,7 +372,7 @@ void HlslShaderTranslator::ProcessReturnInstruction(
 void HlslShaderTranslator::ProcessJumpInstruction(
     const ParsedJumpInstruction& instr) {
   EmitSourceDepth("// ");
-  instr.Disassemble(&source_);
+  instr.Disassemble(&source_inner_);
 
   bool needs_fallthrough = false;
   switch (instr.type) {
@@ -386,14 +410,14 @@ void HlslShaderTranslator::ProcessJumpInstruction(
 void HlslShaderTranslator::ProcessAllocInstruction(
     const ParsedAllocInstruction& instr) {
   EmitSourceDepth("// ");
-  instr.Disassemble(&source_);
+  instr.Disassemble(&source_inner_);
 }
 
 bool HlslShaderTranslator::BeginPredicatedInstruction(
     bool is_predicated, bool predicate_condition) {
   if (is_predicated &&
       (!cf_exec_pred_ || cf_exec_pred_cond_ != predicate_condition)) {
-    EmitSourceDepth("if (%cxe_p0) {\n", instr.predicate_condition ? ' ' : '!');
+    EmitSourceDepth("if (%cxe_p0) {\n", predicate_condition ? ' ' : '!');
     Indent();
     return true;
   }
@@ -407,7 +431,7 @@ void HlslShaderTranslator::EndPredicatedInstruction(bool conditional_emitted) {
   }
 }
 
-void HlslShaderTranslator::EmitLoadOperand(uint32_t src_index,
+void HlslShaderTranslator::EmitLoadOperand(size_t src_index,
                                            const InstructionOperand& op) {
   // If indexing dynamically, emit the index because float and bool constants
   // need to be indexed in two parts.
@@ -415,14 +439,14 @@ void HlslShaderTranslator::EmitLoadOperand(uint32_t src_index,
   uint32_t storage_index_max;
   switch (op.storage_source) {
     case InstructionStorageSource::kRegister:
-      index_max = 127;
+      storage_index_max = 127;
       break;
     case InstructionStorageSource::kConstantFloat:
     case InstructionStorageSource::kConstantBool:
-      index_max = 255;
+      storage_index_max = 255;
       break;
     case InstructionStorageSource::kConstantInt:
-      index_max = 31;
+      storage_index_max = 31;
       break;
     default:
       assert_always();
@@ -439,7 +463,7 @@ void HlslShaderTranslator::EmitLoadOperand(uint32_t src_index,
   }
 
   // Negation and abs are store modifiers, so they're applied after swizzling.
-  EmitSourceDepth("xe_src%u = ", src_index);
+  EmitSourceDepth("xe_src%u = ", uint32_t(src_index));
   if (op.is_negated) {
     EmitSource("-");
   }
@@ -670,10 +694,10 @@ void HlslShaderTranslator::EmitStoreResult(const InstructionResult& result,
 void HlslShaderTranslator::ProcessVertexFetchInstruction(
       const ParsedVertexFetchInstruction& instr) {
   EmitSourceDepth("// ");
-  instr.Disassemble(&source_);
+  instr.Disassemble(&source_inner_);
 
   if (instr.operand_count < 2 ||
-      instr.operand[1].storage_source !=
+      instr.operands[1].storage_source !=
       InstructionStorageSource::kVertexFetchConstant) {
     assert_always();
     return;
@@ -737,7 +761,7 @@ void HlslShaderTranslator::ProcessVertexFetchInstruction(
       }
       break;
     case VertexFormat::k_2_10_10_10:
-      EmitSourceDepth("xe_vertex_element = (xe_vertex_element.xxxx >>\n"
+      EmitSourceDepth("xe_vertex_element = (xe_vertex_element.xxxx >>\n");
       EmitSourceDepth(
           "    uint4(0u, 10u, 20u, 30u)) & uint4((1023u).xxx, 3u);\n");
       if (instr.attributes.is_signed) {
@@ -757,7 +781,7 @@ void HlslShaderTranslator::ProcessVertexFetchInstruction(
       }
       break;
     case VertexFormat::k_10_11_11:
-      EmitSourceDepth("xe_vertex_element.xyz = (xe_vertex_element.xxx >>\n"
+      EmitSourceDepth("xe_vertex_element.xyz = (xe_vertex_element.xxx >>\n");
       EmitSourceDepth(
           "    uint3(0u, 11u, 22u)) & uint3(2047u, 2047u, 1023u);\n");
       if (instr.attributes.is_signed) {
@@ -779,7 +803,7 @@ void HlslShaderTranslator::ProcessVertexFetchInstruction(
       EmitSourceDepth("xe_pv.w = 1.0;\n");
       break;
     case VertexFormat::k_11_11_10:
-      EmitSourceDepth("xe_vertex_element.xyz = (xe_vertex_element.xxx >>\n"
+      EmitSourceDepth("xe_vertex_element.xyz = (xe_vertex_element.xxx >>\n");
       EmitSourceDepth(
           "    uint3(0u, 10u, 21u)) & uint3(1023u, 2047u, 2047u);\n");
       if (instr.attributes.is_signed) {
@@ -928,6 +952,22 @@ uint32_t HlslShaderTranslator::AddSampler(uint32_t fetch_constant) {
   }
   sampler_fetch_constants_[sampler_count_] = fetch_constant;
   return sampler_count_++;
+}
+
+void HlslShaderTranslator::ProcessTextureFetchInstruction(
+      const ParsedTextureFetchInstruction& instr) {
+  EmitSourceDepth("// ");
+  instr.Disassemble(&source_inner_);
+
+  bool conditional_emitted = BeginPredicatedInstruction(
+      instr.is_predicated, instr.predicate_condition);
+
+  // TODO(Triang3l): Texture fetch when textures are added.
+  EmitSourceDepth("xe_pv = (1.0).xxxx;\n");
+
+  EmitStoreResult(instr.result, false);
+
+  EndPredicatedInstruction(conditional_emitted);
 }
 
 void HlslShaderTranslator::ProcessVectorAluInstruction(
@@ -1153,7 +1193,7 @@ void HlslShaderTranslator::ProcessScalarAluInstruction(
       EmitSourceDepth("xe_a0 = clamp(int(round(xe_src0.x)), -256, 255);\n");
       EmitSourceDepth("xe_ps = max(xe_src0.x, xe_src0.y);\n");
       break;
-    case AluScalarOpcode::kMaxAf:
+    case AluScalarOpcode::kMaxAsf:
       EmitSourceDepth("xe_a0 = clamp(int(floor(xe_src0.x)), -256, 255);\n");
       EmitSourceDepth("xe_ps = max(xe_src0.x, xe_src0.y);\n");
       break;
@@ -1257,7 +1297,7 @@ void HlslShaderTranslator::ProcessScalarAluInstruction(
 void HlslShaderTranslator::ProcessAluInstruction(
     const ParsedAluInstruction& instr) {
   EmitSourceDepth("// ");
-  instr.Disassemble(&source_);
+  instr.Disassemble(&source_inner_);
 
   switch (instr.type) {
     case ParsedAluInstruction::Type::kNop:
