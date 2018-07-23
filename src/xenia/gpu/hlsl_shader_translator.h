@@ -64,6 +64,9 @@ class HlslShaderTranslator : public ShaderTranslator {
 
   void ProcessVertexFetchInstruction(
       const ParsedVertexFetchInstruction& instr) override;
+  void ProcessTextureFetchInstruction(
+      const ParsedTextureFetchInstruction& instr) override;
+  void ProcessAluInstruction(const ParsedAluInstruction& instr) override;
 
  private:
   void Indent();
@@ -96,6 +99,9 @@ class HlslShaderTranslator : public ShaderTranslator {
   uint32_t sampler_fetch_constants_[32];
   uint32_t sampler_count_ = 0;
   uint32_t AddSampler(uint32_t fetch_constant);
+
+  void ProcessVectorAluInstruction(const ParsedAluInstruction& instr);
+  void ProcessScalarAluInstruction(const ParsedAluInstruction& instr);
 
   // Whether the cube instruction has been used and conversion functions need to
   // be emitted.
