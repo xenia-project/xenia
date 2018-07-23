@@ -83,6 +83,78 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
   // Add the declarations, the prologue and the epilogue knowing what is needed.
   StringBuffer source;
 
+  // Cubemap sampling. XeCubeTo2D emulates the cube vector ALU instruction that
+  // gives (t, s, 2 * major axis, face index), XeCubeTo3D reverts its effects
+  // in tfetchCube because sampling a cubemap as an array doesn't work properly
+  // with mipmaps (at the edges, there's a jump of S and T between 0 and 1, and
+  // the entire texture becomes 1x1 in size).
+  //
+  // If X is the major axis:
+  //   T is -Y
+  //   S is -Z for positive X, +Z for negative X
+  //   Face is 0 for positive X, 1 for negative X
+  // If Y is the major axis:
+  //   T is +Z for positive Y, -Z for negative Y
+  //   S is +X
+  //   Face is 2 for positive Y, 3 for negative Y
+  // If Z is the major axis:
+  //   T is -Y
+  //   S is +X for positive Z, -X for negative Z
+  //   Face is 4 for positive Z, 5 for negative Z
+  // From T and S, abs(2 * MA) needs to be subtracted also.
+  //
+  // The undo function accepts (s, t, face index).
+  if (cube_used_) {
+    source.Append(
+        "float4 XeCubeTo2D(float3 xe_cube_3d) {\n"
+        "  float3 xe_cube_3d_abs = abs(xe_cube_3d);\n"
+        "  float4 xe_cube_2d;\n"
+        "  if (xe_cube_3d_abs.x >= xe_cube_3d_abs.y &&\n"
+        "      xe_cube_3d_abs.x >= xe_cube_3d_abs.z) {\n"
+        "    xe_cube_2d.xy = -xe_cube_3d.yz;\n"
+        "    xe_cube_2d.y *= sign(xe_cube_3d.x);\n"
+        "    xe_cube_2d.z = xe_cube_3d.x;\n"
+        "    xe_cube_2d.w = 0.0;\n"
+        "  } else if (xe_cube_3d_abs.y >= xe_cube_3d_abs.z) {\n"
+        "    xe_cube_2d.xyz = xe_cube_3d.zxy;\n"
+        "    xe_cube_2d.x *= sign(xe_cube_3d.y);\n"
+        "    xe_cube_2d.w = 2.0;\n"
+        "  } else {\n"
+        "    xe_cube_2d.x = -xe_cube_3d.y;\n"
+        "    xe_cube_2d.yz = xe_cube_3d.xz;\n"
+        "    xe_cube_2d.y *= sign(xe_cube_3d.z);\n"
+        "    xe_cube_2d.w = 4.0;\n"
+        "  }\n"
+        "  xe_cube_2d.w += saturate(-sign(xe_cube_2d.y));\n"
+        "  xe_cube_2d.z *= 2.0;\n"
+        "  xe_cube_2d.xy -= abs(xe_cube_2d.zz);\n"
+        "  return xe_cube_2d;\n"
+        "}\n"
+        "\n"
+        "float3 XeCubeTo3D(float3 xe_cube_2d) {\n"
+        "{\n"
+        "  xe_cube_2d.xy = (xe_cube_2d.xy * 2.0) + 1.0;\n"
+        "  float3 xe_cube_3d;\n"
+        "  uint xe_cube_face_index = uint(xe_cube_2d.z);\n"
+        "  float xe_cube_ma_sign =\n"
+        "      -(float(xe_cube_face_index & 1u) * 2.0 - 1.0);\n"
+        "  uint xe_cube_ma_index = xe_cube_face_index >> 1u;\n"
+        "  if (xe_cube_ma_index == 0u) {\n"
+        "    xe_cube_3d.x = xe_cube_2d.z;\n"
+        "    xe_cube_3d.yz = -xe_cube_2d.yx;\n"
+        "    xe_cube_3d.xz *= xe_cube_ma_sign;\n"
+        "  } else if (xe_cube_ma_index == 1u) {\n"
+        "    xe_cube_3d = xe_cube_2d.xzy;\n"
+        "    xe_cube_3d.yz *= xe_cube_ma_sign;\n"
+        "  } else {\n"
+        "    xe_cube_3d.xz = xe_cube_2d.xz * xe_cube_ma_sign;\n"
+        "    xe_cube_3d.y = -xe_cube_2d.y;\n"
+        "  }\n"
+        "  return xe_cube_3d;\n"
+        "}\n"
+        "\n");
+  }
+
   // Common declarations.
   source.Append(
      "#define XE_FLT_MAX 3.402823466e+38\n"
@@ -1036,7 +1108,7 @@ void HlslShaderTranslator::ProcessVectorAluInstruction(
           "xe_pv = (dot(xe_src0.xy, xe_src1.xy) + xe_src2.x).xxxx;\n");
       break;
     case AluVectorOpcode::kCube:
-      EmitSourceDepth("xe_pv = XeCubeTo2D(xe_src0);\n");
+      EmitSourceDepth("xe_pv = XeCubeTo2D(xe_src0.xyz);\n");
       cube_used_ = true;
       break;
     case AluVectorOpcode::kMax4:
