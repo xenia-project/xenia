@@ -31,11 +31,25 @@ void D3D12CommandProcessor::ClearCaches() {
 
 bool D3D12CommandProcessor::SetupContext() {
   if (!CommandProcessor::SetupContext()) {
-    XELOGE("Unable to initialize base command processor context");
+    XELOGE("Failed to initialize base command processor context");
     return false;
   }
 
   auto context = GetD3D12Context();
+  auto provider = context->GetD3D12Provider();
+  auto device = provider->GetDevice();
+  auto direct_queue = provider->GetDirectQueue();
+
+  for (uint32_t i = 0; i < ui::d3d12::D3D12Context::kQueuedFrames; ++i) {
+    command_lists_setup_[i] = ui::d3d12::CommandList::Create(
+        device, direct_queue, D3D12_COMMAND_LIST_TYPE_DIRECT);
+    command_lists_[i] = ui::d3d12::CommandList::Create(
+        device, direct_queue, D3D12_COMMAND_LIST_TYPE_DIRECT);
+    if (command_lists_setup_[i] == nullptr || command_lists_[i] == nullptr) {
+      XELOGE("Failed to create the command lists");
+      return false;
+    }
+  }
 
   pipeline_cache_ = std::make_unique<PipelineCache>(register_file_, context);
 
@@ -48,6 +62,11 @@ void D3D12CommandProcessor::ShutdownContext() {
 
   pipeline_cache_.reset();
 
+  for (uint32_t i = 0; i < ui::d3d12::D3D12Context::kQueuedFrames; ++i) {
+    command_lists_[i].reset();
+    command_lists_setup_[i].reset();
+  }
+
   CommandProcessor::ShutdownContext();
 }
 
@@ -56,9 +75,7 @@ void D3D12CommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
                                         uint32_t frontbuffer_height) {
   SCOPE_profile_cpu_f("gpu");
 
-  if (current_queue_frame_ != UINT32_MAX) {
-    EndFrame();
-  }
+  EndFrame();
 
   if (cache_clear_requested_) {
     cache_clear_requested_ = false;
@@ -116,11 +133,7 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     return true;
   }
 
-  bool full_update = false;
-  if (current_queue_frame_ == UINT32_MAX) {
-    BeginFrame();
-    full_update = true;
-  }
+  bool full_update = BeginFrame();
 
   auto pipeline_status = pipeline_cache_->ConfigurePipeline(
       vertex_shader, pixel_shader, primitive_type);
@@ -133,22 +146,35 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
 
 bool D3D12CommandProcessor::IssueCopy() { return true; }
 
-void D3D12CommandProcessor::BeginFrame() {
-  assert_true(current_queue_frame_ == UINT32_MAX);
+bool D3D12CommandProcessor::BeginFrame() {
+  if (current_queue_frame_ != UINT32_MAX) {
+    return false;
+  }
+
   auto context = GetD3D12Context();
-
   context->BeginSwap();
-
   current_queue_frame_ = context->GetCurrentQueueFrame();
+
+  command_lists_setup_[current_queue_frame_]->BeginRecording();
+  command_lists_[current_queue_frame_]->BeginRecording();
+
+  return true;
 }
 
-void D3D12CommandProcessor::EndFrame() {
-  assert_true(current_queue_frame_ != UINT32_MAX);
+bool D3D12CommandProcessor::EndFrame() {
+  if (current_queue_frame_ == UINT32_MAX) {
+    return false;
+  }
+
+  // TODO(Triang3l): Don't execute the setup command list if it's empty.
+  command_lists_setup_[current_queue_frame_]->Execute();
+  command_lists_[current_queue_frame_]->Execute();
+
   auto context = GetD3D12Context();
-
   context->EndSwap();
-
   current_queue_frame_ = UINT32_MAX;
+
+  return true;
 }
 
 }  // namespace d3d12

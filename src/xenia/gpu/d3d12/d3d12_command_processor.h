@@ -17,6 +17,7 @@
 #include "xenia/gpu/d3d12/pipeline_cache.h"
 #include "xenia/gpu/xenos.h"
 #include "xenia/kernel/kernel_state.h"
+#include "xenia/ui/d3d12/command_list.h"
 #include "xenia/ui/d3d12/d3d12_context.h"
 
 namespace xe {
@@ -52,10 +53,17 @@ class D3D12CommandProcessor : public CommandProcessor {
   bool IssueCopy() override;
 
  private:
-  void BeginFrame();
-  void EndFrame();
+  // Returns true if a new frame was started.
+  bool BeginFrame();
+  // Returns true if an open frame was ended.
+  bool EndFrame();
 
   bool cache_clear_requested_ = false;
+
+  std::unique_ptr<ui::d3d12::CommandList>
+  command_lists_setup_[ui::d3d12::D3D12Context::kQueuedFrames] = {};
+  std::unique_ptr<ui::d3d12::CommandList>
+  command_lists_[ui::d3d12::D3D12Context::kQueuedFrames] = {};
 
   std::unique_ptr<PipelineCache> pipeline_cache_;
 
