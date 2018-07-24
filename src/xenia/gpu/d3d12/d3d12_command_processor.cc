@@ -51,6 +51,12 @@ bool D3D12CommandProcessor::SetupContext() {
     }
   }
 
+  shared_memory_ = std::make_unique<SharedMemory>(context);
+  if (!shared_memory_->Initialize()) {
+    XELOGE("Failed to initialize shared memory");
+    return false;
+  }
+
   pipeline_cache_ = std::make_unique<PipelineCache>(register_file_, context);
 
   return true;
