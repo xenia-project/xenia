@@ -16,7 +16,7 @@
 #include "xenia/gpu/gpu_flags.h"
 
 DEFINE_bool(d3d12_shader_disasm, true,
-    "Disassemble translated shaders after compilation.");
+            "Disassemble translated shaders after compilation.");
 
 namespace xe {
 namespace gpu {
@@ -52,11 +52,10 @@ bool D3D12Shader::Prepare() {
   // TODO(Triang3l): Choose the appropriate optimization level based on compile
   // time and how invariance is handled in vertex shaders.
   ID3DBlob* error_blob = nullptr;
-  bool compiled =
-      SUCCEEDED(D3DCompile(translated_binary_.data(), translated_binary_.size(),
-                           nullptr, nullptr, nullptr, "main", target,
-                           D3DCOMPILE_OPTIMIZATION_LEVEL0, 0, &blob_,
-                           &error_blob));
+  bool compiled = SUCCEEDED(
+      D3DCompile(translated_binary_.data(), translated_binary_.size(), nullptr,
+                 nullptr, nullptr, "main", target,
+                 D3DCOMPILE_OPTIMIZATION_LEVEL0, 0, &blob_, &error_blob));
 
   if (!compiled) {
     XELOGE("%s shader %.16llX compilation failed!", target, ucode_data_hash());
@@ -65,14 +64,16 @@ bool D3D12Shader::Prepare() {
     if (compiled) {
       XELOGW("%s shader %.16llX compiled with warnings!", target,
              ucode_data_hash());
-      XELOGW("%s", reinterpret_cast<const char*>(error_blob->GetBufferPointer()));
+      XELOGW("%s",
+             reinterpret_cast<const char*>(error_blob->GetBufferPointer()));
       XELOGW("HLSL source:");
       // The buffer isn't terminated.
       translated_binary_.push_back(0);
       XELOGW("%s", reinterpret_cast<const char*>(translated_binary_.data()));
       translated_binary_.pop_back();
     } else {
-      XELOGE("%s", reinterpret_cast<const char*>(error_blob->GetBufferPointer()));
+      XELOGE("%s",
+             reinterpret_cast<const char*>(error_blob->GetBufferPointer()));
       XELOGE("HLSL source:");
       translated_binary_.push_back(0);
       XELOGE("%s", reinterpret_cast<const char*>(translated_binary_.data()));

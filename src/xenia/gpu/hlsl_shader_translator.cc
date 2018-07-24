@@ -165,23 +165,23 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
 
   // Common declarations.
   source.Append(
-     "cbuffer xe_system_constants : register(b0) {\n"
-     "  float2 xe_viewport_inv_scale;\n"
-     "  uint xe_vertex_index_endian;\n"
-     "  uint xe_textures_are_3d;\n"
-     "};\n"
-     "\n"
-     "struct XeFloatConstantPage {\n"
-     "  float4 c[16];\n"
-     "};\n"
-     "ConstantBuffer<XeFloatConstantPage> "
-     "xe_float_constants[16] : register(b1);\n"
-     "\n"
-     "cbuffer xe_loop_bool_constants : register(b17) {\n"
-     "  uint xe_bool_constants[8];\n"
-     "  uint xe_loop_constants[32];\n"
-     "};\n"
-     "\n");
+      "cbuffer xe_system_constants : register(b0) {\n"
+      "  float2 xe_viewport_inv_scale;\n"
+      "  uint xe_vertex_index_endian;\n"
+      "  uint xe_textures_are_3d;\n"
+      "};\n"
+      "\n"
+      "struct XeFloatConstantPage {\n"
+      "  float4 c[16];\n"
+      "};\n"
+      "ConstantBuffer<XeFloatConstantPage> "
+      "xe_float_constants[16] : register(b1);\n"
+      "\n"
+      "cbuffer xe_loop_bool_constants : register(b17) {\n"
+      "  uint xe_bool_constants[8];\n"
+      "  uint xe_loop_constants[32];\n"
+      "};\n"
+      "\n");
 
   if (is_vertex_shader()) {
     // Vertex fetching, output and prologue.
@@ -307,8 +307,8 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
   // Epilogue.
   if (!cf_wrote_pc_) {
     source.Append(
-      "      xe_pc = 0xFFFFu;\n"
-      "      break;\n");
+        "      xe_pc = 0xFFFFu;\n"
+        "      break;\n");
   }
   source.Append(
       "      default:\n"
