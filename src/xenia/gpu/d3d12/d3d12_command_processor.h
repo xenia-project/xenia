@@ -15,6 +15,7 @@
 #include "xenia/gpu/command_processor.h"
 #include "xenia/gpu/d3d12/d3d12_graphics_system.h"
 #include "xenia/gpu/d3d12/pipeline_cache.h"
+#include "xenia/gpu/d3d12/shared_memory.h"
 #include "xenia/gpu/xenos.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/ui/d3d12/command_list.h"
@@ -65,7 +66,8 @@ class D3D12CommandProcessor : public CommandProcessor {
   std::unique_ptr<ui::d3d12::CommandList>
   command_lists_[ui::d3d12::D3D12Context::kQueuedFrames] = {};
 
-  std::unique_ptr<PipelineCache> pipeline_cache_;
+  std::unique_ptr<SharedMemory> shared_memory_ = nullptr;
+  std::unique_ptr<PipelineCache> pipeline_cache_ = nullptr;
 
   uint32_t current_queue_frame_ = UINT32_MAX;
 };
