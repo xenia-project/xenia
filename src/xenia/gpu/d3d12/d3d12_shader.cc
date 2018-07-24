@@ -55,7 +55,7 @@ bool D3D12Shader::Prepare() {
   bool compiled = SUCCEEDED(
       D3DCompile(translated_binary_.data(), translated_binary_.size(), nullptr,
                  nullptr, nullptr, "main", target,
-                 D3DCOMPILE_OPTIMIZATION_LEVEL0, 0, &blob_, &error_blob));
+                 D3DCOMPILE_SKIP_OPTIMIZATION, 0, &blob_, &error_blob));
 
   if (!compiled) {
     XELOGE("%s shader %.16llX compilation failed!", target, ucode_data_hash());
