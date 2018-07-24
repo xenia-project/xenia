@@ -9,17 +9,12 @@
 
 #include "xenia/ui/d3d12/d3d12_context.h"
 
-#include <gflags/gflags.h>
-
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
+#include "xenia/gpu/gpu_flags.h"
 #include "xenia/ui/d3d12/d3d12_immediate_drawer.h"
 #include "xenia/ui/d3d12/d3d12_provider.h"
 #include "xenia/ui/window.h"
-
-DEFINE_int32(d3d12_sync_interval, 1,
-             "Vertical synchronization interval. 0 to disable vertical sync, "
-             "1 to enable it, 2/3/4 to sync every 2/3/4 vertical blanks.");
 
 namespace xe {
 namespace ui {
@@ -284,8 +279,7 @@ void D3D12Context::EndSwap() {
     graphics_command_list->ResourceBarrier(1, &barrier);
     command_list->Execute();
     // Present and check if the context was lost.
-    HRESULT result =
-        swap_chain_->Present(xe::clamp(FLAGS_d3d12_sync_interval, 0, 4), 0);
+    HRESULT result = swap_chain_->Present(FLAGS_vsync ? 1 : 0, 0);
     if (result == DXGI_ERROR_DEVICE_RESET ||
         result == DXGI_ERROR_DEVICE_REMOVED) {
       context_lost_ = true;
@@ -311,6 +305,9 @@ std::unique_ptr<RawImage> D3D12Context::Capture() {
 
 void D3D12Context::AwaitAllFramesCompletion() {
   // Await the last frame since previous frames must be completed before it.
+  if (context_lost_) {
+    return;
+  }
   uint32_t await_frame = current_queue_frame_ + (kQueuedFrames - 1);
   if (await_frame >= kQueuedFrames) {
     await_frame -= kQueuedFrames;

@@ -76,12 +76,21 @@ void HlslShaderTranslator::StartTranslation() {
   Indent();
   // Switch level (3).
   Indent();
-  EmitSourceDepth("case 0:\n");
+  EmitSourceDepth("case 0u:\n");
 }
 
 std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
   // Add the declarations, the prologue and the epilogue knowing what is needed.
   StringBuffer source;
+
+  // Common preprocessor statements.
+  // 3557 is the "loop only executes for 1 iteration" warning caused by the
+  // control flow loop design.
+  source.Append(
+      "#pragma warning(disable : 3557)\n"
+      "\n"
+      "#define XE_FLT_MAX 3.402823466e+38\n"
+      "\n");
 
   // Cubemap sampling. XeCubeTo2D emulates the cube vector ALU instruction that
   // gives (t, s, 2 * major axis, face index), XeCubeTo3D reverts its effects
@@ -132,7 +141,6 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
         "}\n"
         "\n"
         "float3 XeCubeTo3D(float3 xe_cube_2d) {\n"
-        "{\n"
         "  xe_cube_2d.xy = (xe_cube_2d.xy * 2.0) + 1.0;\n"
         "  float3 xe_cube_3d;\n"
         "  uint xe_cube_face_index = uint(xe_cube_2d.z);\n"
@@ -157,24 +165,22 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
 
   // Common declarations.
   source.Append(
-     "#define XE_FLT_MAX 3.402823466e+38\n"
-     "\n"
      "cbuffer xe_system_constants : register(b0) {\n"
      "  float2 xe_viewport_inv_scale;\n"
      "  uint xe_vertex_index_endian;\n"
      "  uint xe_textures_are_3d;\n"
-     "}\n"
+     "};\n"
      "\n"
      "struct XeFloatConstantPage {\n"
      "  float4 c[16];\n"
-     "}\n"
+     "};\n"
      "ConstantBuffer<XeFloatConstantPage> "
      "xe_float_constants[16] : register(b1);\n"
      "\n"
      "cbuffer xe_loop_bool_constants : register(b17) {\n"
      "  uint xe_bool_constants[8];\n"
      "  uint xe_loop_constants[32];\n"
-     "}\n"
+     "};\n"
      "\n");
 
   if (is_vertex_shader()) {
@@ -184,15 +190,17 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
     // 11 for 16-in-32. This means we can check bits 0 ^ 1 to see if we need to
     // do a 8-in-16 swap, and bit 1 to see if a 16-in-32 swap is needed.
     // Vertex element is a temporary integer value for fetches.
+    // -1 point size means the geometry shader will use the global setting by
+    // default.
     source.AppendFormat(
         "cbuffer xe_vertex_fetch_constants : register(b18) {\n"
         "  uint2 xe_vertex_fetch[96];\n"
-        "}\n"
+        "};\n"
         "\n"
         "ByteAddressBuffer xe_virtual_memory : register(t0, space1);\n"
         "\n"
-        "#define XE_SWAP_OVERLOAD(XeSwapType) \\\n"
-        "XeSwapType XeSwap(XeSwapType v, uint endian) { \\\n"
+        "#define XE_BYTE_SWAP_OVERLOAD(XeByteSwapType) \\\n"
+        "XeByteSwapType XeByteSwap(XeByteSwapType v, uint endian) { \\\n"
         "  [flatten] if (((endian ^ (endian >> 1u)) & 1u) != 0u) { \\\n"
         "    v = ((v & 0x00FF00FFu) << 8u) | ((v & 0xFF00FF00u) >> 8u); \\\n"
         "  } \\\n"
@@ -201,25 +209,30 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
         "  } \\\n"
         "  return v; \\\n"
         "}\n"
-        "XE_SWAP_OVERLOAD(uint)\n"
-        "XE_SWAP_OVERLOAD(uint2)\n"
-        "XE_SWAP_OVERLOAD(uint3)\n"
-        "XE_SWAP_OVERLOAD(uint4)\n"
+        "XE_BYTE_SWAP_OVERLOAD(uint)\n"
+        "XE_BYTE_SWAP_OVERLOAD(uint2)\n"
+        "XE_BYTE_SWAP_OVERLOAD(uint3)\n"
+        "XE_BYTE_SWAP_OVERLOAD(uint4)\n"
         "\n"
         "struct XeVertexShaderOutput {\n"
         "  float4 position : SV_Position;\n"
         "  float4 interpolators[%u] : TEXCOORD;\n"
-        "  float4 point_size : PSIZE;\n"
-        "}\n"
+        "  float point_size : PSIZE;\n"
+        "};\n"
         "\n"
         "XeVertexShaderOutput main(uint xe_vertex_index_be : SV_VertexID) {\n"
         "  float4 xe_r[%u];\n"
         "  uint xe_vertex_index =\n"
-        "      XeSwap(xe_vertex_index_be, xe_vertex_index_endian);\n"
+        "      XeByteSwap(xe_vertex_index_be, xe_vertex_index_endian);\n"
         "  uint4 xe_vertex_element;\n"
         "  xe_r[0].r = float(xe_vertex_index);\n"
-        "  XeVertexShaderOutput xe_output;\n",
+        "  XeVertexShaderOutput xe_output;\n"
+        "  xe_output.position = float4(0.0, 0.0, 0.0, 1.0);\n"
+        "  xe_output.point_size = -1.0;\n",
         kMaxInterpolators, register_count());
+    for (uint32_t i = 0; i < kMaxInterpolators; ++i) {
+      source.AppendFormat("  xe_output.interpolators[%u] = (0.0).xxxx;\n", i);
+    }
     // TODO(Triang3l): Reset interpolators to zero if really needed.
   } else if (is_pixel_shader()) {
     // Pixel shader inputs, outputs and prologue.
@@ -229,18 +242,26 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
         "struct XePixelShaderInput {\n"
         "  float4 position : SV_Position;\n"
         "  float4 interpolators[%u] : TEXCOORD;\n"
-        "}\n"
+        "};\n"
         "\n"
         "struct XePixelShaderOutput {\n"
         "  float4 colors[4] : SV_Target;\n"
         "%s"
-        "}\n"
+        "};\n"
         "\n"
         "XePixelShaderOutput main(XePixelShaderInput xe_input) {\n"
         "  float4 xe_r[%u];\n"
-        "  XePixelShaderOutput xe_output;\n",
+        "  XePixelShaderOutput xe_output;\n"
+        "  xe_output.colors[0] = (0.0).xxxx;\n"
+        "  xe_output.colors[1] = (0.0).xxxx;\n"
+        "  xe_output.colors[2] = (0.0).xxxx;\n"
+        "  xe_output.colors[3] = (0.0).xxxx;\n",
         kMaxInterpolators, writes_depth_ ? "  float depth : SV_Depth;\n" : "",
         register_count());
+    // Initialize SV_Depth if using it.
+    if (writes_depth_) {
+      source.Append("  xe_output.depth = xe_input.position.z;\n");
+    }
     // Copy interpolants to the first registers.
     uint32_t interpolator_register_count =
         std::min(register_count(), kMaxInterpolators);
@@ -262,9 +283,9 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
       // Sources for instructions.
       "  float4 xe_src0, xe_src1, xe_src2;\n"
       // Previous vector result (used as a scratch).
-      "  float4 xe_pv;\n"
+      "  float4 xe_pv = float4(0.0, 0.0, 0.0, 0.0);\n"
       // Previous scalar result (used for RETAIN_PREV).
-      "  float xe_ps;\n"
+      "  float xe_ps = 0.0;\n"
       // Predicate temp, clause-local. Initially false like cf_exec_pred_cond_.
       "  bool xe_p0 = false;\n"
       // Address register when using absolute addressing.
@@ -284,9 +305,15 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
   source.Append(source_inner_.GetString());
 
   // Epilogue.
+  if (!cf_wrote_pc_) {
+    source.Append(
+      "      xe_pc = 0xFFFFu;\n"
+      "      break;\n");
+  }
   source.Append(
       "      default:\n"
-      "      pc = 0xFFFFu;\n"
+      "      xe_pc = 0xFFFFu;\n"
+      "      break;\n"
       "    }\n"
       "  } while (xe_pc != 0xFFFFu);\n");
   // TODO(Triang3l): Window offset, half pixel offset, alpha test, gamma.
@@ -300,7 +327,11 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
 void HlslShaderTranslator::ProcessLabel(uint32_t cf_index) {
   // 0 is always added in the beginning.
   if (cf_index != 0) {
-    EmitSourceDepth("case %u:\n", cf_index);
+    if (!cf_wrote_pc_) {
+      EmitSourceDepth("xe_pc = %uu;\n", cf_index);
+      EmitSourceDepth("break;");
+    }
+    EmitSourceDepth("case %uu:\n", cf_index);
   }
 }
 
@@ -311,14 +342,12 @@ void HlslShaderTranslator::ProcessControlFlowNopInstruction(uint32_t cf_index) {
 void HlslShaderTranslator::ProcessControlFlowInstructionBegin(
     uint32_t cf_index) {
   cf_wrote_pc_ = false;
-  Indent();
 }
 
 void HlslShaderTranslator::ProcessControlFlowInstructionEnd(uint32_t cf_index) {
   if (!cf_wrote_pc_) {
     EmitSourceDepth("// Falling through to L%u\n", cf_index + 1);
   }
-  Unindent();
 }
 
 void HlslShaderTranslator::ProcessExecInstructionBegin(
@@ -364,21 +393,23 @@ void HlslShaderTranslator::ProcessLoopStartInstruction(
 
   // Setup counter.
   EmitSourceDepth("xe_loop_count.yzw = xe_loop_count.xyz;\n");
-  EmitSourceDepth("xe_loop_count.x = xe_loop_constants[%u] & 0xFFu;\n");
+  EmitSourceDepth("xe_loop_count.x = xe_loop_constants[%u] & 0xFFu;\n",
+                  instr.loop_constant_index);
 
   // Setup relative indexing.
   EmitSourceDepth("xe_aL = xe_aL.xxyz;\n");
   if (!instr.is_repeat) {
     // Push new loop starting index if not reusing the current one.
-    EmitSourceDepth("xe_aL.x = int((xe_loop_constants[%u] >> 8u) & 0xFFu);\n");
+    EmitSourceDepth("xe_aL.x = int((xe_loop_constants[%u] >> 8u) & 0xFFu);\n",
+                    instr.loop_constant_index);
   }
 
   // Quick skip loop if zero count.
   EmitSourceDepth("if (xe_loop_count.x == 0u) {\n");
-  EmitSourceDepth("  xe_pc = %u;  // Skip loop to L%u\n",
+  EmitSourceDepth("  xe_pc = %uu;  // Skip loop to L%u\n",
                   instr.loop_skip_address, instr.loop_skip_address);
   EmitSourceDepth("} else {\n");
-  EmitSourceDepth("  xe_pc = %u;  // Fallthrough to loop body L%u\n",
+  EmitSourceDepth("  xe_pc = %uu;  // Fallthrough to loop body L%u\n",
                   instr.dword_index + 1, instr.dword_index + 1);
   EmitSourceDepth("}\n");
   EmitSourceDepth("break;\n");
@@ -406,7 +437,7 @@ void HlslShaderTranslator::ProcessLoopEndInstruction(
   EmitSourceDepth("xe_loop_count.w = 0u;\n");
   EmitSourceDepth("xe_aL.xyz = xe_aL.yzw;\n");
   EmitSourceDepth("xe_aL.w = 0;\n");
-  EmitSourceDepth("xe_pc = %u;  // Exit loop to L%u\n", instr.dword_index + 1,
+  EmitSourceDepth("xe_pc = %uu;  // Exit loop to L%u\n", instr.dword_index + 1,
                   instr.dword_index + 1);
 
   Unindent();
@@ -416,7 +447,7 @@ void HlslShaderTranslator::ProcessLoopEndInstruction(
   // Still looping. Adjust index and jump back to body.
   EmitSourceDepth("xe_aL.x += int(xe_loop_constants[%u] << 8u) >> 24;\n",
                   instr.loop_constant_index);
-  EmitSourceDepth("xe_pc = %u;  // Loop back to body L%u\n",
+  EmitSourceDepth("xe_pc = %uu;  // Loop back to body L%u\n",
                   instr.loop_body_address, instr.loop_body_address);
 
   Unindent();
@@ -465,7 +496,7 @@ void HlslShaderTranslator::ProcessJumpInstruction(
   }
   Indent();
 
-  EmitSourceDepth("xe_pc = %u;  // L%u\n", instr.target_address,
+  EmitSourceDepth("xe_pc = %uu;  // L%u\n", instr.target_address,
                   instr.target_address);
   EmitSourceDepth("break;\n");
 
@@ -473,7 +504,7 @@ void HlslShaderTranslator::ProcessJumpInstruction(
   if (needs_fallthrough) {
     uint32_t next_address = instr.dword_index + 1;
     EmitSourceDepth("} else {\n");
-    EmitSourceDepth("  xe_pc = %u;  // Fallthrough to L%u\n", next_address,
+    EmitSourceDepth("  xe_pc = %uu;  // Fallthrough to L%u\n", next_address,
                     next_address);
   }
   EmitSourceDepth("}\n");
@@ -687,9 +718,6 @@ void HlslShaderTranslator::EmitStoreResult(const InstructionResult& result,
         break;
     }
   } else {
-    if (result.is_clamped) {
-      EmitSource("saturate(");
-    }
     bool has_const_writes = false;
     uint32_t component_write_count = 0;
     EmitSource(".");
@@ -704,6 +732,9 @@ void HlslShaderTranslator::EmitStoreResult(const InstructionResult& result,
       }
     }
     EmitSource(" = ");
+    if (result.is_clamped) {
+      EmitSource("saturate(");
+    }
     if (has_const_writes) {
       if (component_write_count > 1) {
         EmitSource("float%u(", component_write_count);
@@ -804,12 +835,18 @@ void HlslShaderTranslator::ProcessVertexFetchInstruction(
       load_function_suffix = "";
       break;
   }
-  EmitSourceDepth("xe_vertex_element%s = XeSwap(xe_virtual_memory.Load%s(\n",
-                  load_swizzle, load_function_suffix);
-  EmitSourceDepth("    (xe_vertex_fetch[%u].x & 0x1FFFFFFCu) + "
-                  "uint(xe_src0.x) * %u + %u),\n",
-      instr.operands[1].storage_index, instr.attributes.stride * 4,
-      instr.attributes.offset * 4);
+  EmitSourceDepth(
+      "xe_vertex_element%s = XeByteSwap(xe_virtual_memory.Load%s(\n",
+      load_swizzle, load_function_suffix);
+  EmitSourceDepth("    (xe_vertex_fetch[%uu].x & 0x1FFFFFFCu)",
+                  instr.operands[1].storage_index);
+  if (instr.attributes.stride != 0) {
+    EmitSource(" + uint(xe_src0.x) * %uu", instr.attributes.stride * 4);
+  }
+  if (instr.attributes.offset != 0) {
+    EmitSource(" + %uu", instr.attributes.offset * 4);
+  }
+  EmitSource("),\n");
   EmitSourceDepth("    xe_vertex_fetch[%u].y);\n",
                   instr.operands[1].storage_index);
 
