@@ -29,8 +29,7 @@ std::unique_ptr<D3D12Provider> D3D12Provider::Create(Window* main_window) {
         "Unable to initialize Direct3D 12 graphics subsystem.\n"
         "\n"
         "Ensure that you have the latest drivers for your GPU and it supports "
-        "Direct3D 12 feature level 11_0, tiled resources tier 1 and typed UAV "
-        "loads.\n"
+        "Direct3D 12 feature level 11_0 and tiled resources tier 1.\n"
         "\n"
         "See http://xenia.jp/faq/ for more information and a list of supported "
         "GPUs.");
@@ -157,11 +156,7 @@ bool D3D12Provider::IsDeviceSupported(ID3D12Device* device) {
     return false;
   }
   // Tiled resources required for virtual memory.
-  if (options.TiledResourcesTier < D3D12_TILED_RESOURCES_TIER_1) {
-    return false;
-  }
-  // Typed UAV loads required for EDRAM storing and potentially texture tiling.
-  return !!options.TypedUAVLoadAdditionalFormats;
+  return options.TiledResourcesTier >= D3D12_TILED_RESOURCES_TIER_1;
 }
 
 std::unique_ptr<GraphicsContext> D3D12Provider::CreateContext(
