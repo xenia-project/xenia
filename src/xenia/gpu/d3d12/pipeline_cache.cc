@@ -13,6 +13,7 @@
 
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
+#include "xenia/base/profiling.h"
 #include "xenia/gpu/gpu_flags.h"
 #include "xenia/gpu/hlsl_shader_translator.h"
 
@@ -28,9 +29,7 @@ PipelineCache::PipelineCache(RegisterFile* register_file,
 
 PipelineCache::~PipelineCache() { Shutdown(); }
 
-void PipelineCache::Shutdown() {
-  ClearCache();
-}
+void PipelineCache::Shutdown() { ClearCache(); }
 
 D3D12Shader* PipelineCache::LoadShader(ShaderType shader_type,
                                        uint32_t guest_address,
@@ -47,8 +46,8 @@ D3D12Shader* PipelineCache::LoadShader(ShaderType shader_type,
   // Always create the shader and stash it away.
   // We need to track it even if it fails translation so we know not to try
   // again.
-  D3D12Shader* shader = new D3D12Shader(shader_type, data_hash, host_address,
-                                        dword_count);
+  D3D12Shader* shader =
+      new D3D12Shader(shader_type, data_hash, host_address, dword_count);
   shader_map_.insert({data_hash, shader});
 
   return shader;
