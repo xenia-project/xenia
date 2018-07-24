@@ -89,7 +89,9 @@ bool D3D12Shader::Prepare() {
   if (FLAGS_d3d12_shader_disasm) {
     ID3DBlob* disassembly_blob;
     if (SUCCEEDED(D3DDisassemble(blob_->GetBufferPointer(),
-                                 blob_->GetBufferSize(), 0, nullptr,
+                                 blob_->GetBufferSize(),
+                                 D3D_DISASM_ENABLE_INSTRUCTION_NUMBERING |
+                                 D3D_DISASM_ENABLE_INSTRUCTION_OFFSET, nullptr,
                                  &disassembly_blob))) {
       host_disassembly_ =
           reinterpret_cast<const char*>(disassembly_blob->GetBufferPointer());
