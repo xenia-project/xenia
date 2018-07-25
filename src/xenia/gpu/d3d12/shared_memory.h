@@ -32,6 +32,10 @@ class SharedMemory {
   void Shutdown();
 
   void BeginFrame();
+  // Returns true if anything has been written to command_list been done.
+  // The draw command list is needed for the transition.
+  bool EndFrame(ID3D12GraphicsCommandList* command_list_setup,
+                ID3D12GraphicsCommandList* command_list_draw);
 
   // Marks the range as used in this frame, queues it for upload if it was
   // modified. Ensures the backing memory for the address range is present in
@@ -39,6 +43,11 @@ class SharedMemory {
   // returned - it's unsafe to use this portion (on tiled resources tier 1 at
   // least).
   bool UseRange(uint32_t start, uint32_t length);
+
+  // Makes the buffer usable for vertices, indices and texture untiling.
+  void UseForReading(ID3D12GraphicsCommandList* command_list);
+  // Makes the buffer usable for texture tiling after a resolve.
+  void UseForWriting(ID3D12GraphicsCommandList* command_list);
 
  private:
   Memory* memory_;
@@ -71,7 +80,7 @@ class SharedMemory {
   // Bit vector containing whether physical memory system pages are up to date.
   std::vector<uint64_t> pages_in_sync_;
 
-  // Watched page management - must be synchronized.
+  // Mutex for the watched pages and the triggered watches.
   std::mutex watch_mutex_;
   // Whether each physical page is watched by the GPU (after uploading).
   // Once a watch is triggered, it's not watched anymore.
@@ -81,8 +90,29 @@ class SharedMemory {
   // Because this is done with a locked CPU-GPU mutex, it's stored in 2 levels,
   // so unmodified pages can be skipped quickly, and clearing is also fast.
   // On L1, each bit corresponds to a single page, on L2, to 64 pages.
+  // Checking if L2 is non-zero before accessing L1 is REQUIRED since L1 is not
+  // cleared!
   std::vector<uint64_t> watches_triggered_l1_;
   std::vector<uint64_t> watches_triggered_l2_;
+
+  // Pages that need to be uploaded in this frame (that are used but modified).
+  std::vector<uint64_t> upload_pages_;
+  static constexpr uint32_t kUploadBufferSize = 4 * 1024 * 1024;
+  struct UploadBuffer {
+    ID3D12Resource* buffer;
+    // Next free or submitted upload buffer.
+    UploadBuffer* next;
+    // When this buffer was submitted (only valid for submitted buffers).
+    uint64_t submit_frame;
+  };
+  // Buffers are moved to available in BeginFrame and to submitted in EndFrame.
+  UploadBuffer* upload_buffer_submitted_first_ = nullptr;
+  UploadBuffer* upload_buffer_submitted_last_ = nullptr;
+  UploadBuffer* upload_buffer_available_first_ = nullptr;
+  uint32_t NextUploadRange(uint32_t search_start, uint32_t& length) const;
+
+  void TransitionBuffer(D3D12_RESOURCE_STATES new_state,
+                        ID3D12GraphicsCommandList* command_list);
 };
 
 }  // namespace d3d12

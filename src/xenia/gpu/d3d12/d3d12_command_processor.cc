@@ -174,9 +174,18 @@ bool D3D12CommandProcessor::EndFrame() {
     return false;
   }
 
-  // TODO(Triang3l): Don't execute the setup command list if it's empty.
-  command_lists_setup_[current_queue_frame_]->Execute();
-  command_lists_[current_queue_frame_]->Execute();
+  auto command_list_setup = command_lists_setup_[current_queue_frame_].get();
+  auto command_list = command_lists_[current_queue_frame_].get();
+
+  bool setup_written = shared_memory_->EndFrame(
+      command_list_setup->GetCommandList(), command_list->GetCommandList());
+
+  if (setup_written) {
+    command_list_setup->Execute();
+  } else {
+    command_list_setup->AbortRecording();
+  }
+  command_list->Execute();
 
   auto context = GetD3D12Context();
   context->EndSwap();
