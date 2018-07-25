@@ -147,6 +147,15 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     return false;
   }
 
+  // Shared memory test.
+  if (index_buffer_info != nullptr && index_buffer_info->guest_base != 0) {
+    uint32_t index_size = index_buffer_info->format == IndexFormat::kInt32
+                              ? sizeof(uint32_t)
+                              : sizeof(uint16_t);
+    shared_memory_->UseRange(index_buffer_info->guest_base,
+                             index_buffer_info->count * index_size);
+  }
+
   return true;
 }
 
