@@ -51,7 +51,7 @@ bool D3D12CommandProcessor::SetupContext() {
     }
   }
 
-  shared_memory_ = std::make_unique<SharedMemory>(context);
+  shared_memory_ = std::make_unique<SharedMemory>(memory_, context);
   if (!shared_memory_->Initialize()) {
     XELOGE("Failed to initialize shared memory");
     return false;
@@ -163,6 +163,8 @@ bool D3D12CommandProcessor::BeginFrame() {
 
   command_lists_setup_[current_queue_frame_]->BeginRecording();
   command_lists_[current_queue_frame_]->BeginRecording();
+
+  shared_memory_->BeginFrame();
 
   return true;
 }

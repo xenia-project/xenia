@@ -19,10 +19,17 @@ namespace xe {
 namespace gpu {
 namespace d3d12 {
 
-SharedMemory::SharedMemory(ui::d3d12::D3D12Context* context)
-    : context_(context) {
+SharedMemory::SharedMemory(Memory* memory, ui::d3d12::D3D12Context* context)
+    : memory_(memory), context_(context) {
   page_size_log2_ = xe::math::log2_ceil(xe::memory::page_size());
-  pages_in_sync_.resize(kBufferSize >> page_size_log2_ >> 6);
+  page_count_ = kBufferSize >> page_size_log2_;
+  uint32_t page_bitmap_length = page_count_ >> 6;
+
+  pages_in_sync_.resize(page_bitmap_length);
+
+  watched_pages_.resize(page_bitmap_length);
+  watches_triggered_l1_.resize(page_bitmap_length);
+  watches_triggered_l2_.resize(page_bitmap_length >> 6);
 }
 
 SharedMemory::~SharedMemory() { Shutdown(); }
@@ -51,9 +58,15 @@ bool SharedMemory::Initialize() {
   }
 
   std::memset(heaps_, 0, sizeof(heaps_));
+  heap_creation_failed_ = false;
 
   std::memset(pages_in_sync_.data(), 0,
               page_in_sync_.size() * sizeof(uint64_t));
+
+  std::memset(watched_pages_.data(), 0,
+              watched_pages_.size() * sizeof(uint64_t));
+  std::memset(watches_triggered_l2_.data(), 0,
+              watches_triggered_l2_.size() * sizeof(uint64_t));
 
   return true;
 }
@@ -73,7 +86,25 @@ void SharedMemory::Shutdown() {
   }
 }
 
-bool SharedMemory::EnsureRangeAllocated(uint32_t start, uint32_t length) {
+void SharedMemory::BeginFrame() {
+  // Check triggered watches, clear them and mark modified pages as out of date.
+  watch_mutex_.lock();
+  for (uint32_t i = 0; i < watches_triggered_l2_.size(); ++i) {
+    uint64_t bits_l2 = watches_triggered_l2_[i];
+    uint32_t index_l2;
+    while (xe::bit_scan_forward(bits_l2, &index_l2)) {
+      bits_l2 &= ~(1ull << index_l2);
+      uint32_t index_l1 = (i << 6) + index_l2;
+      pages_in_sync_[index_l1] &= ~(watches_triggered_l1[index_l1]);
+    }
+    watches_triggered_l2_[i] = 0;
+  }
+  watch_mutex_.unlock();
+
+  heap_creation_failed_ = false;
+}
+
+bool SharedMemory::UseRange(uint32_t start, uint32_t length) {
   if (length == 0) {
     // Some texture is empty, for example - safe to draw in this case.
     return true;
@@ -83,14 +114,19 @@ bool SharedMemory::EnsureRangeAllocated(uint32_t start, uint32_t length) {
     // Exceeds the physical address space.
     return false;
   }
+
+  // Ensure all tile heaps are present.
   uint32_t heap_first = start >> kHeapSizeLog2;
   uint32_t heap_last = (start + length - 1) >> kHeapSizeLog2;
   for (uint32_t i = heap_first; i <= heap_last; ++i) {
     if (heaps_[i] != nullptr) {
       continue;
     }
-    // TODO(Triang3l): If heap creation has failed at least once in this frame,
-    // don't try to allocate heaps until the next frame.
+    if (heap_creation_failed_) {
+      // Don't try to create a heap for every vertex buffer or texture in the
+      // current frame anymore if have failed at least once.
+      return false;
+    }
     auto provider = context_->GetD3D12Provider();
     auto device = provider->GetDevice();
     auto direct_queue = provider->GetDirectQueue();
@@ -98,6 +134,7 @@ bool SharedMemory::EnsureRangeAllocated(uint32_t start, uint32_t length) {
     heap_desc.SizeInBytes = kHeapSize;
     heap_desc.Properties.Type = D3D12_HEAP_TYPE_DEFAULT;
     if (FAILED(device->CreateHeap(&heap_desc, IID_PPV_ARGS(&heaps_[i])))) {
+      heap_creation_failed_ = true;
       return false;
     }
     D3D12_TILED_RESOURCE_COORDINATE region_start_coordinates;
@@ -111,11 +148,16 @@ bool SharedMemory::EnsureRangeAllocated(uint32_t start, uint32_t length) {
     D3D12_TILE_RANGE_FLAGS range_flags = D3D12_TILE_RANGE_FLAG_NONE;
     UINT heap_range_start_offset = 0;
     UINT range_tile_count = kHeapSize >> kTileSizeLog2;
+    // FIXME(Triang3l): This may cause issues if the emulator is shut down
+    // mid-frame and the heaps are destroyed before tile mappings are updated
+    // (AwaitAllFramesCompletion won't catch this then). Defer this until the
+    // actual command list submission at the end of the frame.
     direct_queue->UpdateTileMappings(
         buffer_, 1, &region_start_coordinates, &region_size, heaps_[i], 1,
         &range_flags, &heap_range_start_offset, &range_tile_count,
         D3D12_TILE_MAPPING_FLAG_NONE);
   }
+  // TODO(Triang3l): Mark the range for upload.
   return true;
 }
 
