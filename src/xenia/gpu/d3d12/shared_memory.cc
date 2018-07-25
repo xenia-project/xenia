@@ -320,10 +320,11 @@ bool SharedMemory::UseRange(uint32_t start, uint32_t length) {
     // Exceeds the physical address space.
     return false;
   }
+  uint32_t last = start + length - 1;
 
   // Ensure all tile heaps are present.
   uint32_t heap_first = start >> kHeapSizeLog2;
-  uint32_t heap_last = (start + length - 1) >> kHeapSizeLog2;
+  uint32_t heap_last = last >> kHeapSizeLog2;
   for (uint32_t i = heap_first; i <= heap_last; ++i) {
     if (heaps_[i] != nullptr) {
       continue;
@@ -363,7 +364,22 @@ bool SharedMemory::UseRange(uint32_t start, uint32_t length) {
         &range_flags, &heap_range_start_offset, &range_tile_count,
         D3D12_TILE_MAPPING_FLAG_NONE);
   }
-  // TODO(Triang3l): Mark the range for upload.
+
+  // Mark the outdated tiles in this range as requiring upload, and also make
+  // them up-to-date so textures aren't invalidated every use.
+  // TODO(Triang3l): Invalidate textures referencing outdated pages.
+  uint32_t block_first_index = start >> 6, block_last_index = last >> 6;
+  for (uint32_t i = block_first_index; i <= block_last_index; ++i) {
+    uint64_t block_outdated = ~pages_in_sync_[i];
+    if (i == block_first_index) {
+      block_outdated &= ~((1ull << (start & 63)) - 1);
+    }
+    if (i == block_last_index && (last & 63) != 63) {
+      block_outdated &= (1ull << ((last & 63) + 1)) - 1;
+    }
+    upload_pages_[i] |= block_outdated;
+  }
+
   return true;
 }
 
