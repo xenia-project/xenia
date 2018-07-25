@@ -58,7 +58,7 @@ bool SharedMemory::Initialize() {
   buffer_desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
   if (FAILED(device->CreateReservedResource(&buffer_desc, buffer_state_,
                                             nullptr, IID_PPV_ARGS(&buffer_)))) {
-    XELOGE("Failed to create the 512 MB shared memory tiled buffer");
+    XELOGE("Shared memory: Failed to create the 512 MB tiled buffer");
     Shutdown();
     return false;
   }
@@ -162,6 +162,10 @@ bool SharedMemory::EndFrame(ID3D12GraphicsCommandList* command_list_setup,
   uint32_t upload_range_start = 0, upload_range_length;
   while ((upload_range_start =
               NextUploadRange(upload_end, upload_range_length)) != UINT_MAX) {
+    XELOGGPU(
+        "Shared memory: Uploading %.8X-%.8X range",
+        upload_range_start << page_size_log2_,
+        ((upload_range_start + upload_range_length) << page_size_log2_) - 1);
     while (upload_range_length > 0) {
       if (upload_buffer_mapping == nullptr) {
         // Create a completely new upload buffer if the available pool is empty.
@@ -185,7 +189,7 @@ bool SharedMemory::EndFrame(ID3D12GraphicsCommandList* command_list_setup,
                   &upload_buffer_heap_properties, D3D12_HEAP_FLAG_NONE,
                   &upload_buffer_desc, D3D12_RESOURCE_STATE_GENERIC_READ,
                   nullptr, IID_PPV_ARGS(&upload_buffer_resource)))) {
-            XELOGE("Failed to create a shared memory upload buffer");
+            XELOGE("Shared memory: Failed to create an upload buffer");
             break;
           }
           upload_buffer_available_first_ = new UploadBuffer;
@@ -198,7 +202,7 @@ bool SharedMemory::EndFrame(ID3D12GraphicsCommandList* command_list_setup,
         upload_buffer_read_range.End = 0;
         if (FAILED(upload_buffer_available_first_->buffer->Map(
                 0, &upload_buffer_read_range, &upload_buffer_mapping))) {
-          XELOGE("Failed to map a shared memory upload buffer");
+          XELOGE("Shared memory: Failed to map an upload buffer");
           break;
         }
       }
@@ -296,7 +300,7 @@ uint32_t SharedMemory::NextUploadRange(uint32_t search_start,
     for (uint32_t j = i; j < upload_pages_.size(); ++j) {
       uint64_t end_block = upload_pages_[i];
       if (j == i) {
-        end_block |= ~((1ull << start_page_local) - 1);
+        end_block |= (1ull << start_page_local) - 1;
       }
       uint32_t end_page_local;
       if (xe::bit_scan_forward(~end_block, &end_page_local)) {
@@ -321,6 +325,7 @@ bool SharedMemory::UseRange(uint32_t start, uint32_t length) {
     return false;
   }
   uint32_t last = start + length - 1;
+  XELOGGPU("Shared memory: Range %.8X-%.8X is being used", start, last);
 
   // Ensure all tile heaps are present.
   uint32_t heap_first = start >> kHeapSizeLog2;
@@ -334,18 +339,24 @@ bool SharedMemory::UseRange(uint32_t start, uint32_t length) {
       // current frame anymore if have failed at least once.
       return false;
     }
+    XELOGGPU("Shared memory: Creating %.8X-%.8X tile heap",
+             heap_first << kHeapSizeLog2,
+             (heap_last << kHeapSizeLog2) + (kHeapSize - 1));
     auto provider = context_->GetD3D12Provider();
     auto device = provider->GetDevice();
     auto direct_queue = provider->GetDirectQueue();
     D3D12_HEAP_DESC heap_desc = {};
     heap_desc.SizeInBytes = kHeapSize;
     heap_desc.Properties.Type = D3D12_HEAP_TYPE_DEFAULT;
+    // Flags are required on resource heap tier 1!
+    heap_desc.Flags = D3D12_HEAP_FLAG_ALLOW_ONLY_BUFFERS;
     if (FAILED(device->CreateHeap(&heap_desc, IID_PPV_ARGS(&heaps_[i])))) {
+      XELOGE("Shared memory: Failed to create a tile heap");
       heap_creation_failed_ = true;
       return false;
     }
     D3D12_TILED_RESOURCE_COORDINATE region_start_coordinates;
-    region_start_coordinates.X = i << kHeapSizeLog2;
+    region_start_coordinates.X = i << (kHeapSizeLog2 - kTileSizeLog2);
     region_start_coordinates.Y = 0;
     region_start_coordinates.Z = 0;
     region_start_coordinates.Subresource = 0;
@@ -368,15 +379,19 @@ bool SharedMemory::UseRange(uint32_t start, uint32_t length) {
   // Mark the outdated tiles in this range as requiring upload, and also make
   // them up-to-date so textures aren't invalidated every use.
   // TODO(Triang3l): Invalidate textures referencing outdated pages.
-  uint32_t block_first_index = start >> 6, block_last_index = last >> 6;
+  uint32_t page_first_index = start >> page_size_log2_;
+  uint32_t page_last_index = last >> page_size_log2_;
+  uint32_t block_first_index = page_first_index >> 6;
+  uint32_t block_last_index = page_last_index >> 6;
   for (uint32_t i = block_first_index; i <= block_last_index; ++i) {
     uint64_t block_outdated = ~pages_in_sync_[i];
     if (i == block_first_index) {
-      block_outdated &= ~((1ull << (start & 63)) - 1);
+      block_outdated &= ~((1ull << (page_first_index & 63)) - 1);
     }
-    if (i == block_last_index && (last & 63) != 63) {
-      block_outdated &= (1ull << ((last & 63) + 1)) - 1;
+    if (i == block_last_index && (page_last_index & 63) != 63) {
+      block_outdated &= (1ull << ((page_last_index & 63) + 1)) - 1;
     }
+    pages_in_sync_[i] |= block_outdated;
     upload_pages_[i] |= block_outdated;
   }
 
