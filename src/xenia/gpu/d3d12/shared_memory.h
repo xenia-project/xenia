@@ -94,6 +94,9 @@ class SharedMemory {
   // cleared!
   std::vector<uint64_t> watches_triggered_l1_;
   std::vector<uint64_t> watches_triggered_l2_;
+  // Memory access callback.
+  static bool WatchCallbackThunk(void* context_ptr, uint32_t address);
+  bool WatchCallback(uint32_t address);
 
   // Pages that need to be uploaded in this frame (that are used but modified).
   std::vector<uint64_t> upload_pages_;

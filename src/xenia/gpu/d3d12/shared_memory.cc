@@ -79,10 +79,14 @@ bool SharedMemory::Initialize() {
   upload_buffer_submitted_first_ = nullptr;
   upload_buffer_submitted_last_ = nullptr;
 
+  memory_->SetGlobalPhysicalAccessWatch(WatchCallbackThunk, this);
+
   return true;
 }
 
 void SharedMemory::Shutdown() {
+  memory_->SetGlobalPhysicalAccessWatch(nullptr, nullptr);
+
   while (upload_buffer_available_first_ != nullptr) {
     auto upload_buffer_next = upload_buffer_available_first_->next;
     upload_buffer_available_first_->buffer->Release();
@@ -111,6 +115,8 @@ void SharedMemory::Shutdown() {
 }
 
 void SharedMemory::BeginFrame() {
+  // XELOGGPU("SharedMemory: BeginFrame start");
+
   // Check triggered watches, clear them and mark modified pages as out of date.
   watch_mutex_.lock();
   for (uint32_t i = 0; i < watches_triggered_l2_.size(); ++i) {
@@ -142,10 +148,14 @@ void SharedMemory::BeginFrame() {
   }
 
   heap_creation_failed_ = false;
+
+  // XELOGGPU("SharedMemory: BeginFrame end");
 }
 
 bool SharedMemory::EndFrame(ID3D12GraphicsCommandList* command_list_setup,
                             ID3D12GraphicsCommandList* command_list_draw) {
+  // XELOGGPU("SharedMemory: EndFrame start");
+
   // Before drawing starts, it's assumed that the buffer is a copy destination.
   // This transition is for the next frame, not for the current one.
   TransitionBuffer(D3D12_RESOURCE_STATE_COPY_DEST, command_list_draw);
@@ -162,10 +172,10 @@ bool SharedMemory::EndFrame(ID3D12GraphicsCommandList* command_list_setup,
   uint32_t upload_range_start = 0, upload_range_length;
   while ((upload_range_start =
               NextUploadRange(upload_end, upload_range_length)) != UINT_MAX) {
-    XELOGGPU(
+    /* XELOGGPU(
         "Shared memory: Uploading %.8X-%.8X range",
         upload_range_start << page_size_log2_,
-        ((upload_range_start + upload_range_length) << page_size_log2_) - 1);
+        ((upload_range_start + upload_range_length) << page_size_log2_) - 1); */
     while (upload_range_length > 0) {
       if (upload_buffer_mapping == nullptr) {
         // Create a completely new upload buffer if the available pool is empty.
@@ -215,7 +225,7 @@ bool SharedMemory::EndFrame(ID3D12GraphicsCommandList* command_list_setup,
               (upload_buffer_written << page_size_log2_),
           memory_->TranslatePhysical(upload_range_start << page_size_log2_),
           upload_write_length << page_size_log2_);
-      command_list_draw->CopyBufferRegion(
+      command_list_setup->CopyBufferRegion(
           buffer_, upload_range_start << page_size_log2_,
           upload_buffer_available_first_->buffer,
           upload_buffer_written << page_size_log2_,
@@ -265,6 +275,42 @@ bool SharedMemory::EndFrame(ID3D12GraphicsCommandList* command_list_setup,
     upload_buffer_submitted_last_ = upload_buffer;
   }
 
+  // Protect the uploaded ranges.
+  // TODO(Triang3l): Add L2 or store ranges in a list - this may hold the mutex
+  // for pretty long.
+  if (upload_end != 0) {
+    watch_mutex_.lock();
+    uint32_t protect_end = 0, protect_start, protect_length;
+    while ((protect_start = NextUploadRange(protect_end, protect_length)) !=
+           UINT_MAX) {
+      if (protect_start >= upload_end) {
+        break;
+      }
+      protect_length = std::min(protect_length, upload_end - protect_start);
+      uint32_t protect_last = protect_start + protect_length - 1;
+      uint32_t protect_block_first = protect_start >> 6;
+      uint32_t protect_block_last = protect_last >> 6;
+      for (uint32_t i = protect_block_first; i <= protect_block_last; ++i) {
+        uint64_t protect_bits = ~0ull;
+        if (i == protect_block_first) {
+          protect_bits &= ~((1ull << (protect_start & 63)) - 1);
+        }
+        if (i == protect_block_last && (protect_last & 63) != 63) {
+          protect_bits &= (1ull << ((protect_last & 63) + 1)) - 1;
+        }
+        watched_pages_[i] |= protect_bits;
+      }
+      memory_->ProtectPhysicalMemory(protect_start << page_size_log2_,
+                                     protect_length << page_size_log2_,
+                                     cpu::MMIOHandler::WatchType::kWatchWrite);
+      protect_end = protect_last + 1;
+      if (protect_end >= upload_end) {
+        break;
+      }
+    }
+    watch_mutex_.unlock();
+  }
+
   // Mark the newly uploaded ranges as uploaded.
   std::memset(upload_pages_.data(), 0, (upload_end >> 6) * sizeof(uint64_t));
   if (upload_end < page_count_) {
@@ -278,6 +324,8 @@ bool SharedMemory::EndFrame(ID3D12GraphicsCommandList* command_list_setup,
       pages_in_sync_[i] &= ~(upload_pages_[i]);
     }
   }
+
+  // XELOGGPU("SharedMemory: EndFrame end");
 
   return upload_end != 0;
 }
@@ -325,7 +373,7 @@ bool SharedMemory::UseRange(uint32_t start, uint32_t length) {
     return false;
   }
   uint32_t last = start + length - 1;
-  XELOGGPU("Shared memory: Range %.8X-%.8X is being used", start, last);
+  // XELOGGPU("Shared memory: Range %.8X-%.8X is being used", start, last);
 
   // Ensure all tile heaps are present.
   uint32_t heap_first = start >> kHeapSizeLog2;
@@ -339,9 +387,9 @@ bool SharedMemory::UseRange(uint32_t start, uint32_t length) {
       // current frame anymore if have failed at least once.
       return false;
     }
-    XELOGGPU("Shared memory: Creating %.8X-%.8X tile heap",
+    /* XELOGGPU("Shared memory: Creating %.8X-%.8X tile heap",
              heap_first << kHeapSizeLog2,
-             (heap_last << kHeapSizeLog2) + (kHeapSize - 1));
+             (heap_last << kHeapSizeLog2) + (kHeapSize - 1)); */
     auto provider = context_->GetD3D12Provider();
     auto device = provider->GetDevice();
     auto direct_queue = provider->GetDirectQueue();
@@ -379,6 +427,8 @@ bool SharedMemory::UseRange(uint32_t start, uint32_t length) {
   // Mark the outdated tiles in this range as requiring upload, and also make
   // them up-to-date so textures aren't invalidated every use.
   // TODO(Triang3l): Invalidate textures referencing outdated pages.
+  // Safe invalidate textures here because only actually used ranges will be
+  // uploaded and marked as in-sync at the end of the frame.
   uint32_t page_first_index = start >> page_size_log2_;
   uint32_t page_last_index = last >> page_size_log2_;
   uint32_t block_first_index = page_first_index >> 6;
@@ -395,6 +445,39 @@ bool SharedMemory::UseRange(uint32_t start, uint32_t length) {
     upload_pages_[i] |= block_outdated;
   }
 
+  return true;
+}
+
+bool SharedMemory::WatchCallbackThunk(void* context_ptr, uint32_t address) {
+  return reinterpret_cast<SharedMemory*>(context_ptr)->WatchCallback(address);
+}
+
+bool SharedMemory::WatchCallback(uint32_t address) {
+  address &= 0x1FFFFFFF;
+  uint32_t page_index_l1_global = address >> page_size_log2_;
+  uint32_t block_index_l1 = page_index_l1_global >> 6;
+  uint64_t page_bit_l1 = 1ull << (page_index_l1_global & 63);
+
+  std::lock_guard<std::mutex> lock(watch_mutex_);
+  if (!(watched_pages_[block_index_l1] & page_bit_l1)) {
+    return false;
+  }
+  // XELOGGPU("Shared memory: Watch triggered for %.8X", address);
+
+  // Mark the page as modified.
+  uint32_t block_index_l2 = block_index_l1 >> 6;
+  uint64_t page_bit_l2 = 1ull << (block_index_l1 & 63);
+  if (!(watches_triggered_l2_[block_index_l2] & page_bit_l2)) {
+    watches_triggered_l2_[block_index_l2] |= page_bit_l2;
+    // L1 is not cleared in BeginFrame, so clear it now.
+    watches_triggered_l1_[block_index_l1] = 0;
+  }
+  watches_triggered_l1_[block_index_l1] |= page_bit_l1;
+
+  // Unprotect the page.
+  memory_->UnprotectPhysicalMemory(page_index_l1_global << page_size_log2_,
+                                   1 << page_size_log2_);
+  watched_pages_[block_index_l1] &= ~page_bit_l1;
   return true;
 }
 
