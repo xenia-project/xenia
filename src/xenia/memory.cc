@@ -412,6 +412,21 @@ void Memory::CancelAccessWatch(uintptr_t watch_handle) {
   mmio_handler_->CancelAccessWatch(watch_handle);
 }
 
+void Memory::SetGlobalPhysicalAccessWatch(
+    cpu::GlobalAccessWatchCallback callback, void* callback_context) {
+  mmio_handler_->SetGlobalPhysicalAccessWatch(callback, callback_context);
+}
+
+void Memory::ProtectPhysicalMemory(uint32_t physical_address, uint32_t length,
+                                   cpu::MMIOHandler::WatchType type) {
+  mmio_handler_->ProtectPhysicalMemory(physical_address, length, type);
+}
+
+void Memory::UnprotectPhysicalMemory(uint32_t physical_address,
+                                     uint32_t length) {
+  mmio_handler_->UnprotectPhysicalMemory(physical_address, length);
+}
+
 uint32_t Memory::SystemHeapAlloc(uint32_t size, uint32_t alignment,
                                  uint32_t system_heap_flags) {
   // TODO(benvanik): lightweight pool.

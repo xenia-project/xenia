@@ -67,6 +67,7 @@ void D3D12CommandProcessor::ShutdownContext() {
   context->AwaitAllFramesCompletion();
 
   pipeline_cache_.reset();
+  shared_memory_.reset();
 
   for (uint32_t i = 0; i < ui::d3d12::D3D12Context::kQueuedFrames; ++i) {
     command_lists_[i].reset();

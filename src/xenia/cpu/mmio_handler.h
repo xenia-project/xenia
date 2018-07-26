@@ -30,6 +30,7 @@ typedef void (*MMIOWriteCallback)(void* ppc_context, void* callback_context,
                                   uint32_t addr, uint32_t value);
 typedef void (*AccessWatchCallback)(void* context_ptr, void* data_ptr,
                                     uint32_t address);
+typedef bool (*GlobalAccessWatchCallback)(void* context_ptr, uint32_t address);
 
 struct MMIORange {
   uint32_t address;
@@ -74,6 +75,12 @@ class MMIOHandler {
                                    void* callback_context, void* callback_data);
   void CancelAccessWatch(uintptr_t watch_handle);
 
+  void SetGlobalPhysicalAccessWatch(GlobalAccessWatchCallback callback,
+                                    void* callback_context);
+  void ProtectPhysicalMemory(uint32_t physical_address, uint32_t length,
+                             WatchType type);
+  void UnprotectPhysicalMemory(uint32_t physical_address, uint32_t length);
+
   // Fires and clears any access watches that overlap this range.
   void InvalidateRange(uint32_t physical_address, size_t length);
 
@@ -112,6 +119,8 @@ class MMIOHandler {
   xe::global_critical_region global_critical_region_;
   // TODO(benvanik): data structure magic.
   std::list<AccessWatchEntry*> access_watches_;
+  GlobalAccessWatchCallback global_physical_watch_callback_ = nullptr;
+  void* global_physical_watch_callback_context_;
 
   static MMIOHandler* global_handler_;
 };

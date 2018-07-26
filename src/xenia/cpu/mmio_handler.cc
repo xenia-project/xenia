@@ -214,6 +214,58 @@ void MMIOHandler::CancelAccessWatch(uintptr_t watch_handle) {
   delete entry;
 }
 
+void MMIOHandler::SetGlobalPhysicalAccessWatch(
+    GlobalAccessWatchCallback callback, void* callback_context) {
+  auto lock = global_critical_region_.Acquire();
+  global_physical_watch_callback_ = callback;
+  global_physical_watch_callback_context_ = callback_context;
+}
+
+void MMIOHandler::ProtectPhysicalMemory(uint32_t physical_address,
+                                        uint32_t length, WatchType type) {
+  uint32_t base_address = physical_address & 0x1FFFFFFF;
+
+  // Can only protect sizes matching system page size.
+  // This means we need to round up, which will cause spurious access
+  // violations and invalidations.
+  // TODO(benvanik): only invalidate if actually within the region?
+  length =
+      xe::round_up(length + (base_address % uint32_t(xe::memory::page_size())),
+                   uint32_t(xe::memory::page_size()));
+  base_address = base_address - (base_address % xe::memory::page_size());
+
+  auto page_access = memory::PageAccess::kNoAccess;
+  switch (type) {
+    case kWatchInvalid:
+      page_access = memory::PageAccess::kReadWrite;
+      break;
+    case kWatchWrite:
+      page_access = memory::PageAccess::kReadOnly;
+      break;
+    case kWatchReadWrite:
+      page_access = memory::PageAccess::kNoAccess;
+      break;
+    default:
+      assert_unhandled_case(type);
+      break;
+  }
+
+  // Protect the range under all address spaces
+  memory::Protect(physical_membase_ + base_address, length, page_access,
+                  nullptr);
+  memory::Protect(virtual_membase_ + 0xA0000000 + base_address, length,
+                  page_access, nullptr);
+  memory::Protect(virtual_membase_ + 0xC0000000 + base_address, length,
+                  page_access, nullptr);
+  memory::Protect(virtual_membase_ + 0xE0000000 + base_address, length,
+                  page_access, nullptr);
+}
+
+void MMIOHandler::UnprotectPhysicalMemory(uint32_t physical_address,
+                                          uint32_t length) {
+  ProtectPhysicalMemory(physical_address, length, kWatchInvalid);
+}
+
 void MMIOHandler::InvalidateRange(uint32_t physical_address, size_t length) {
   auto lock = global_critical_region_.Acquire();
 
@@ -261,6 +313,13 @@ bool MMIOHandler::IsRangeWatched(uint32_t physical_address, size_t length) {
 
 bool MMIOHandler::CheckAccessWatch(uint32_t physical_address) {
   auto lock = global_critical_region_.Acquire();
+
+  if (global_physical_watch_callback_ != nullptr) {
+    if (global_physical_watch_callback_(global_physical_watch_callback_context_,
+                                        physical_address)) {
+      return true;
+    }
+  }
 
   bool hit = false;
   for (auto it = access_watches_.begin(); it != access_watches_.end();) {
