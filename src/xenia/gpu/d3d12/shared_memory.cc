@@ -75,9 +75,8 @@ bool SharedMemory::Initialize() {
               watches_triggered_l2_.size() * sizeof(uint64_t));
 
   std::memset(upload_pages_.data(), 0, upload_pages_.size() * sizeof(uint64_t));
-  upload_buffer_available_first_ = nullptr;
-  upload_buffer_submitted_first_ = nullptr;
-  upload_buffer_submitted_last_ = nullptr;
+  upload_buffer_pool_ =
+      std::make_unique<ui::d3d12::UploadBufferPool>(context_, 4 * 1024 * 1024);
 
   memory_->SetGlobalPhysicalAccessWatch(WatchCallbackThunk, this);
 
@@ -87,18 +86,7 @@ bool SharedMemory::Initialize() {
 void SharedMemory::Shutdown() {
   memory_->SetGlobalPhysicalAccessWatch(nullptr, nullptr);
 
-  while (upload_buffer_available_first_ != nullptr) {
-    auto upload_buffer_next = upload_buffer_available_first_->next;
-    upload_buffer_available_first_->buffer->Release();
-    delete upload_buffer_available_first_;
-    upload_buffer_available_first_ = upload_buffer_next;
-  }
-  while (upload_buffer_submitted_first_ != nullptr) {
-    auto upload_buffer_next = upload_buffer_submitted_first_->next;
-    upload_buffer_submitted_first_->buffer->Release();
-    delete upload_buffer_submitted_first_;
-    upload_buffer_submitted_first_ = upload_buffer_next;
-  }
+  upload_buffer_pool_.reset();
 
   // First free the buffer to detach it from the heaps.
   if (buffer_ != nullptr) {
@@ -132,20 +120,7 @@ void SharedMemory::BeginFrame() {
   }
   watch_mutex_.unlock();
 
-  // Make processed upload buffers available.
-  uint64_t last_completed_frame = context_->GetLastCompletedFrame();
-  while (upload_buffer_submitted_first_ != nullptr) {
-    auto upload_buffer = upload_buffer_submitted_first_;
-    if (upload_buffer->submit_frame > last_completed_frame) {
-      break;
-    }
-    upload_buffer_submitted_first_ = upload_buffer->next;
-    upload_buffer->next = upload_buffer_available_first_;
-    upload_buffer_available_first_ = upload_buffer;
-  }
-  if (upload_buffer_submitted_first_ == nullptr) {
-    upload_buffer_submitted_last_ = nullptr;
-  }
+  upload_buffer_pool_->BeginFrame();
 
   heap_creation_failed_ = false;
 
@@ -164,12 +139,7 @@ bool SharedMemory::EndFrame(ID3D12GraphicsCommandList* command_list_setup,
   auto device = context_->GetD3D12Provider()->GetDevice();
 
   // Write ranges to upload buffers and submit them.
-  const uint32_t upload_buffer_capacity = kUploadBufferSize >> page_size_log2_;
-  assert_true(upload_buffer_capacity > 0);
-  uint32_t upload_end = 0;
-  void* upload_buffer_mapping = nullptr;
-  uint32_t upload_buffer_written = 0;
-  uint32_t upload_range_start = 0, upload_range_length;
+  uint32_t upload_end = 0, upload_range_start = 0, upload_range_length;
   while ((upload_range_start =
               NextUploadRange(upload_end, upload_range_length)) != UINT_MAX) {
     /* XELOGGPU(
@@ -177,103 +147,32 @@ bool SharedMemory::EndFrame(ID3D12GraphicsCommandList* command_list_setup,
         upload_range_start << page_size_log2_,
         ((upload_range_start + upload_range_length) << page_size_log2_) - 1); */
     while (upload_range_length > 0) {
+      ID3D12Resource* upload_buffer;
+      uint32_t upload_buffer_offset, upload_buffer_size;
+      uint8_t* upload_buffer_mapping = upload_buffer_pool_->RequestPartial(
+          upload_range_length << page_size_log2_, upload_buffer,
+          upload_buffer_offset, upload_buffer_size);
       if (upload_buffer_mapping == nullptr) {
-        // Create a completely new upload buffer if the available pool is empty.
-        if (upload_buffer_available_first_ == nullptr) {
-          D3D12_HEAP_PROPERTIES upload_buffer_heap_properties = {};
-          upload_buffer_heap_properties.Type = D3D12_HEAP_TYPE_UPLOAD;
-          D3D12_RESOURCE_DESC upload_buffer_desc;
-          upload_buffer_desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-          upload_buffer_desc.Alignment = 0;
-          upload_buffer_desc.Width = kUploadBufferSize;
-          upload_buffer_desc.Height = 1;
-          upload_buffer_desc.DepthOrArraySize = 1;
-          upload_buffer_desc.MipLevels = 1;
-          upload_buffer_desc.Format = DXGI_FORMAT_UNKNOWN;
-          upload_buffer_desc.SampleDesc.Count = 1;
-          upload_buffer_desc.SampleDesc.Quality = 0;
-          upload_buffer_desc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-          upload_buffer_desc.Flags = D3D12_RESOURCE_FLAG_NONE;
-          ID3D12Resource* upload_buffer_resource;
-          if (FAILED(device->CreateCommittedResource(
-                  &upload_buffer_heap_properties, D3D12_HEAP_FLAG_NONE,
-                  &upload_buffer_desc, D3D12_RESOURCE_STATE_GENERIC_READ,
-                  nullptr, IID_PPV_ARGS(&upload_buffer_resource)))) {
-            XELOGE("Shared memory: Failed to create an upload buffer");
-            break;
-          }
-          upload_buffer_available_first_ = new UploadBuffer;
-          upload_buffer_available_first_->buffer = upload_buffer_resource;
-          upload_buffer_available_first_->next = nullptr;
-        }
-        // New buffer, need to map it.
-        D3D12_RANGE upload_buffer_read_range;
-        upload_buffer_read_range.Begin = 0;
-        upload_buffer_read_range.End = 0;
-        if (FAILED(upload_buffer_available_first_->buffer->Map(
-                0, &upload_buffer_read_range, &upload_buffer_mapping))) {
-          XELOGE("Shared memory: Failed to map an upload buffer");
-          break;
-        }
+        XELOGE("Shared memory: Failed to get an upload buffer");
+        break;
       }
-
-      // Upload the portion we can upload.
-      uint32_t upload_write_length = std::min(
-          upload_range_length, upload_buffer_capacity - upload_buffer_written);
       std::memcpy(
-          reinterpret_cast<uint8_t*>(upload_buffer_mapping) +
-              (upload_buffer_written << page_size_log2_),
+          upload_buffer_mapping,
           memory_->TranslatePhysical(upload_range_start << page_size_log2_),
-          upload_write_length << page_size_log2_);
+          upload_buffer_size);
       command_list_setup->CopyBufferRegion(
-          buffer_, upload_range_start << page_size_log2_,
-          upload_buffer_available_first_->buffer,
-          upload_buffer_written << page_size_log2_,
-          upload_write_length << page_size_log2_);
-      upload_buffer_written += upload_write_length;
-      upload_range_start += upload_write_length;
-      upload_range_length -= upload_write_length;
+          buffer_, upload_range_start << page_size_log2_, upload_buffer,
+          upload_buffer_offset, upload_buffer_size);
+      upload_range_start += upload_buffer_size >> page_size_log2_;
+      upload_range_length -= upload_buffer_size >> page_size_log2_;
       upload_end = upload_range_start;
-
-      // Check if we are done with this buffer.
-      if (upload_buffer_written == upload_buffer_capacity) {
-        auto upload_buffer = upload_buffer_available_first_;
-        upload_buffer->buffer->Unmap(0, nullptr);
-        upload_buffer_mapping = nullptr;
-        upload_buffer_available_first_ = upload_buffer->next;
-        upload_buffer->next = nullptr;
-        upload_buffer->submit_frame = current_frame;
-        if (upload_buffer_submitted_last_ != nullptr) {
-          upload_buffer_submitted_last_->next = upload_buffer;
-        } else {
-          upload_buffer_submitted_first_ = upload_buffer;
-        }
-        upload_buffer_submitted_last_ = upload_buffer;
-        upload_buffer_written = 0;
-      }
     }
     if (upload_range_length > 0) {
       // Buffer creation or mapping failed.
       break;
     }
   }
-  // Mark the last upload buffer as submitted if anything was uploaded from it,
-  // also unmap it.
-  if (upload_buffer_mapping != nullptr) {
-    upload_buffer_available_first_->buffer->Unmap(0, nullptr);
-  }
-  if (upload_buffer_written > 0) {
-    auto upload_buffer = upload_buffer_available_first_;
-    upload_buffer_available_first_ = upload_buffer->next;
-    upload_buffer->next = nullptr;
-    upload_buffer->submit_frame = current_frame;
-    if (upload_buffer_submitted_last_ != nullptr) {
-      upload_buffer_submitted_last_->next = upload_buffer;
-    } else {
-      upload_buffer_submitted_first_ = upload_buffer;
-    }
-    upload_buffer_submitted_last_ = upload_buffer;
-  }
+  upload_buffer_pool_->EndFrame();
 
   // Protect the uploaded ranges.
   // TODO(Triang3l): Add L2 or store ranges in a list - this may hold the mutex
