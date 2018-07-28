@@ -67,8 +67,8 @@ PipelineCache::UpdateStatus PipelineCache::ConfigurePipeline(
   assert_not_null(root_signature_out);
 
   Pipeline* pipeline = nullptr;
-  auto update_status = UpdateState(vertex_shader, pixel_shader, primitive_type,
-                                   index_format);
+  auto update_status =
+      UpdateState(vertex_shader, pixel_shader, primitive_type, index_format);
   switch (update_status) {
     case UpdateStatus::kCompatible:
       // Requested pipeline is compatible with our previous one, so use that.
@@ -236,10 +236,10 @@ PipelineCache::UpdateStatus PipelineCache::UpdateShaderStages(
   // Points are emulated via a geometry shader because Direct3D 10+ doesn't
   // support point sizes other than 1.
   bool primitive_topology_is_line =
-      primitive_type == PrimitiveType::kLineList ||                                    
-      primitive_type == PrimitiveType::kLineStrip ||                                    
-      primitive_type == PrimitiveType::kLineLoop ||                                    
-      primitive_type == PrimitiveType::k2DLineStrip;                                    
+      primitive_type == PrimitiveType::kLineList ||
+      primitive_type == PrimitiveType::kLineStrip ||
+      primitive_type == PrimitiveType::kLineLoop ||
+      primitive_type == PrimitiveType::k2DLineStrip;
   dirty |= regs.primitive_topology_is_line != primitive_topology_is_line;
   XXH64_update(&hash_state_, &regs, sizeof(regs));
   if (!dirty) {
@@ -280,8 +280,8 @@ PipelineCache::UpdateStatus PipelineCache::UpdateShaderStages(
     return UpdateStatus::kError;
   }
   update_desc_.PrimitiveTopologyType =
-      primitive_topology_is_line ? D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE :
-                                   D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+      primitive_topology_is_line ? D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE
+                                 : D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 
   return UpdateStatus::kMismatch;
 }
@@ -314,8 +314,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateBlendState(
   regs.colorcontrol_blend_enable = blend_enable;
   static const Register kBlendControlRegs[] = {
       XE_GPU_REG_RB_BLENDCONTROL_0, XE_GPU_REG_RB_BLENDCONTROL_1,
-      XE_GPU_REG_RB_BLENDCONTROL_2, XE_GPU_REG_RB_BLENDCONTROL_3
-  };
+      XE_GPU_REG_RB_BLENDCONTROL_2, XE_GPU_REG_RB_BLENDCONTROL_3};
   for (uint32_t i = 0; i < 4; ++i) {
     if (blend_enable && (color_mask & (0xF << (i * 4)))) {
       dirty |= SetShadowRegister(&regs.blendcontrol[i], kBlendControlRegs[i]);
@@ -345,9 +344,9 @@ PipelineCache::UpdateStatus PipelineCache::UpdateBlendState(
       /*  9 */ D3D12_BLEND_INV_DEST_COLOR,
       /* 10 */ D3D12_BLEND_DEST_ALPHA,
       /* 11 */ D3D12_BLEND_INV_DEST_ALPHA,
-      /* 12 */ D3D12_BLEND_BLEND_FACTOR,  // CONSTANT_COLOR
+      /* 12 */ D3D12_BLEND_BLEND_FACTOR,      // CONSTANT_COLOR
       /* 13 */ D3D12_BLEND_INV_BLEND_FACTOR,  // ONE_MINUS_CONSTANT_COLOR
-      /* 14 */ D3D12_BLEND_BLEND_FACTOR,  // CONSTANT_ALPHA
+      /* 14 */ D3D12_BLEND_BLEND_FACTOR,      // CONSTANT_ALPHA
       /* 15 */ D3D12_BLEND_INV_BLEND_FACTOR,  // ONE_MINUS_CONSTANT_ALPHA
       /* 16 */ D3D12_BLEND_SRC_ALPHA_SAT,
   };
@@ -541,8 +540,8 @@ PipelineCache::UpdateStatus PipelineCache::UpdateDepthStencilState() {
   update_desc_.DepthStencilState.DepthEnable =
       (regs.rb_depthcontrol & 0x2) ? TRUE : FALSE;
   update_desc_.DepthStencilState.DepthWriteMask =
-      (regs.rb_depthcontrol & 0x4) ? D3D12_DEPTH_WRITE_MASK_ALL :
-                                     D3D12_DEPTH_WRITE_MASK_ZERO;
+      (regs.rb_depthcontrol & 0x4) ? D3D12_DEPTH_WRITE_MASK_ALL
+                                   : D3D12_DEPTH_WRITE_MASK_ZERO;
   // Comparison functions are the same in Direct3D 12 but plus one (minus one,
   // bit 0 for less, bit 1 for equal, bit 2 for greater).
   update_desc_.DepthStencilState.DepthFunc =
@@ -592,9 +591,9 @@ PipelineCache::UpdateStatus PipelineCache::UpdateIBStripCutValue(
   D3D12_INDEX_BUFFER_STRIP_CUT_VALUE ib_strip_cut_value =
       D3D12_INDEX_BUFFER_STRIP_CUT_VALUE_DISABLED;
   if (register_file_->values[XE_GPU_REG_PA_SU_SC_MODE_CNTL].u32 & (1 << 21)) {
-    ib_strip_cut_value = index_format == IndexFormat::kInt32 ?
-        D3D12_INDEX_BUFFER_STRIP_CUT_VALUE_0xFFFFFFFF :
-        D3D12_INDEX_BUFFER_STRIP_CUT_VALUE_0xFFFF;
+    ib_strip_cut_value = index_format == IndexFormat::kInt32
+                             ? D3D12_INDEX_BUFFER_STRIP_CUT_VALUE_0xFFFFFFFF
+                             : D3D12_INDEX_BUFFER_STRIP_CUT_VALUE_0xFFFF;
   }
   dirty |= regs.ib_strip_cut_value != ib_strip_cut_value;
   regs.ib_strip_cut_value = ib_strip_cut_value;
@@ -619,7 +618,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateRenderTargetFormats() {
   update_desc_.NumRenderTargets = 0;
   update_desc_.DSVFormat = DXGI_FORMAT_UNKNOWN;
 
-  return UpdateStatus::kMismatch;  
+  return UpdateStatus::kMismatch;
 }
 
 PipelineCache::Pipeline* PipelineCache::GetPipeline(uint64_t hash_key) {
@@ -648,7 +647,7 @@ PipelineCache::Pipeline* PipelineCache::GetPipeline(uint64_t hash_key) {
 
   auto device = context_->GetD3D12Provider()->GetDevice();
   ID3D12PipelineState* state;
-  if (FAILED(device->CreateGraphicsPipelineState(&update_desc_, 
+  if (FAILED(device->CreateGraphicsPipelineState(&update_desc_,
                                                  IID_PPV_ARGS(&state)))) {
     XELOGE("Failed to create graphics pipeline state");
     return nullptr;
@@ -841,9 +840,10 @@ ID3D12RootSignature* PipelineCache::GetRootSignature(
   ID3DBlob* error_blob = nullptr;
   if (FAILED(D3D12SerializeRootSignature(&desc, D3D_ROOT_SIGNATURE_VERSION_1,
                                          &blob, &error_blob))) {
-    XELOGE("Failed to serialize a root signature with %u pixel textures, %u "
-           "pixel samplers, %u vertex textures and %u vertex samplers",
-           pixel_textures, pixel_samplers, vertex_textures, vertex_samplers);
+    XELOGE(
+        "Failed to serialize a root signature with %u pixel textures, %u "
+        "pixel samplers, %u vertex textures and %u vertex samplers",
+        pixel_textures, pixel_samplers, vertex_textures, vertex_samplers);
     if (error_blob != nullptr) {
       XELOGE("%s",
              reinterpret_cast<const char*>(error_blob->GetBufferPointer()));
@@ -860,9 +860,10 @@ ID3D12RootSignature* PipelineCache::GetRootSignature(
   if (FAILED(device->CreateRootSignature(0, blob->GetBufferPointer(),
                                          blob->GetBufferSize(),
                                          IID_PPV_ARGS(&root_signature)))) {
-    XELOGE("Failed to create a root signature with %u pixel textures, %u pixel "
-           "samplers, %u vertex textures and %u vertex samplers",
-           pixel_textures, pixel_samplers, vertex_textures, vertex_samplers);
+    XELOGE(
+        "Failed to create a root signature with %u pixel textures, %u pixel "
+        "samplers, %u vertex textures and %u vertex samplers",
+        pixel_textures, pixel_samplers, vertex_textures, vertex_samplers);
     blob->Release();
     return nullptr;
   }
