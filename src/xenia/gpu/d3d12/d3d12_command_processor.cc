@@ -122,6 +122,12 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     // Doesn't actually draw.
     return true;
   }
+  if ((regs[XE_GPU_REG_PA_SU_SC_MODE_CNTL].u32 & 0x3) == 0x3 &&
+      primitive_type != PrimitiveType::kPointList &&
+      primitive_type != PrimitiveType::kRectangleList) {
+    // Both sides are culled - can't reproduce this with rasterizer state.
+    return true;
+  }
 
   // Shaders will have already been defined by previous loads.
   // We need them to do just about anything so validate here.
@@ -131,9 +137,8 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     // Always need a vertex shader.
     return false;
   }
-  // Depth-only mode doesn't need a pixel shader (we'll use a fake one).
+  // Depth-only mode doesn't need a pixel shader.
   if (enable_mode == xenos::ModeControl::kDepth) {
-    // Use a dummy pixel shader when required.
     pixel_shader = nullptr;
   } else if (!pixel_shader) {
     // Need a pixel shader in normal color mode.
@@ -142,8 +147,13 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
 
   bool full_update = BeginFrame();
 
+  ID3D12PipelineState* pipeline;
+  ID3D12RootSignature* root_signature;
   auto pipeline_status = pipeline_cache_->ConfigurePipeline(
-      vertex_shader, pixel_shader, primitive_type);
+      vertex_shader, pixel_shader, primitive_type,
+      index_buffer_info != nullptr ? index_buffer_info->format :
+                                     IndexFormat::kInt16,
+      &pipeline, &root_signature);
   if (pipeline_status == PipelineCache::UpdateStatus::kError) {
     return false;
   }

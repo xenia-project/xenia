@@ -164,6 +164,7 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
   }
 
   // Common declarations.
+  // Only up to 14 constant buffers can be used on binding tiers 1 and 2.
   source.Append(
       "cbuffer xe_system_constants : register(b0) {\n"
       "  float2 xe_viewport_inv_scale;\n"
@@ -171,16 +172,16 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
       "  uint xe_textures_are_3d;\n"
       "};\n"
       "\n"
-      "struct XeFloatConstantPage {\n"
-      "  float4 c[16];\n"
-      "};\n"
-      "ConstantBuffer<XeFloatConstantPage> "
-      "xe_float_constants[16] : register(b1);\n"
-      "\n"
-      "cbuffer xe_loop_bool_constants : register(b17) {\n"
+      "cbuffer xe_loop_bool_constants : register(b1) {\n"
       "  uint xe_bool_constants[8];\n"
       "  uint xe_loop_constants[32];\n"
       "};\n"
+      "\n"
+      "struct XeFloatConstantPage {\n"
+      "  float4 c[32];\n"
+      "};\n"
+      "ConstantBuffer<XeFloatConstantPage> "
+      "xe_float_constants[8] : register(b2);\n"
       "\n");
 
   if (is_vertex_shader()) {
@@ -193,7 +194,7 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
     // -1 point size means the geometry shader will use the global setting by
     // default.
     source.AppendFormat(
-        "cbuffer xe_vertex_fetch_constants : register(b18) {\n"
+        "cbuffer xe_vertex_fetch_constants : register(b10) {\n"
         "  uint2 xe_vertex_fetch[96];\n"
         "};\n"
         "\n"
@@ -268,10 +269,6 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
     for (uint32_t i = 0; i < interpolator_register_count; ++i) {
       source.AppendFormat("  xe_r[%u] = xe_input.interpolators[%u];\n", i, i);
     }
-    // No need to write zero to every output because in case an output is
-    // completely unused, writing to that render target will be disabled in the
-    // blending state (in Halo 3, one important render target is destroyed by a
-    // shader not writing to one of the outputs otherwise).
     // TODO(Triang3l): ps_param_gen.
   }
 
@@ -581,8 +578,8 @@ void HlslShaderTranslator::EmitLoadOperand(size_t src_index,
         EmitSource("xe_r[%u]", op.storage_index);
         break;
       case InstructionStorageSource::kConstantFloat:
-        EmitSource("xe_float_constants[%u].c[%u]", op.storage_index >> 4,
-                   op.storage_index & 15);
+        EmitSource("xe_float_constants[%u].c[%u]", op.storage_index >> 5,
+                   op.storage_index & 31);
         break;
       case InstructionStorageSource::kConstantInt:
         EmitSource("xe_loop_constants[%u]", op.storage_index);
@@ -602,7 +599,7 @@ void HlslShaderTranslator::EmitLoadOperand(size_t src_index,
         break;
       case InstructionStorageSource::kConstantFloat:
         EmitSource(
-            "xe_float_constants[xe_src_index >> 4u].c[xe_src_index & 15u]");
+            "xe_float_constants[xe_src_index >> 5u].c[xe_src_index & 31u]");
         break;
       case InstructionStorageSource::kConstantInt:
         EmitSource("xe_loop_constants[xe_src_index]");
