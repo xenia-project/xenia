@@ -28,6 +28,10 @@ class D3D12Shader : public Shader {
   const uint8_t* GetDXBC() const;
   size_t GetDXBCSize() const;
 
+  // TODO(Triang3l): Real texture counts.
+  uint32_t GetTextureSRVCount() const { return 0; }
+  uint32_t GetSamplerCount() const { return 0; }
+
  private:
   ID3DBlob* blob_ = nullptr;
 };
