@@ -151,8 +151,8 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
   ID3D12RootSignature* root_signature;
   auto pipeline_status = pipeline_cache_->ConfigurePipeline(
       vertex_shader, pixel_shader, primitive_type,
-      index_buffer_info != nullptr ? index_buffer_info->format :
-                                     IndexFormat::kInt16,
+      index_buffer_info != nullptr ? index_buffer_info->format
+                                   : IndexFormat::kInt16,
       &pipeline, &root_signature);
   if (pipeline_status == PipelineCache::UpdateStatus::kError) {
     return false;
