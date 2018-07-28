@@ -10,11 +10,13 @@
 #ifndef XENIA_GPU_D3D12_SHARED_MEMORY_H_
 #define XENIA_GPU_D3D12_SHARED_MEMORY_H_
 
+#include <memory>
 #include <mutex>
 
 #include "xenia/memory.h"
 #include "xenia/ui/d3d12/d3d12_api.h"
 #include "xenia/ui/d3d12/d3d12_context.h"
+#include "xenia/ui/d3d12/pools.h"
 
 namespace xe {
 namespace gpu {
@@ -100,19 +102,8 @@ class SharedMemory {
 
   // Pages that need to be uploaded in this frame (that are used but modified).
   std::vector<uint64_t> upload_pages_;
-  static constexpr uint32_t kUploadBufferSize = 4 * 1024 * 1024;
-  struct UploadBuffer {
-    ID3D12Resource* buffer;
-    // Next free or submitted upload buffer.
-    UploadBuffer* next;
-    // When this buffer was submitted (only valid for submitted buffers).
-    uint64_t submit_frame;
-  };
-  // Buffers are moved to available in BeginFrame and to submitted in EndFrame.
-  UploadBuffer* upload_buffer_submitted_first_ = nullptr;
-  UploadBuffer* upload_buffer_submitted_last_ = nullptr;
-  UploadBuffer* upload_buffer_available_first_ = nullptr;
   uint32_t NextUploadRange(uint32_t search_start, uint32_t& length) const;
+  std::unique_ptr<ui::d3d12::UploadBufferPool> upload_buffer_pool_ = nullptr;
 
   void TransitionBuffer(D3D12_RESOURCE_STATES new_state,
                         ID3D12GraphicsCommandList* command_list);
