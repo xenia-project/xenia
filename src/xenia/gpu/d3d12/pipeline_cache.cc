@@ -330,7 +330,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateBlendState(
   }
 
   update_desc_.BlendState.AlphaToCoverageEnable = FALSE;
-  update_desc_.BlendState.IndependentBlendEnable = FALSE;
+  update_desc_.BlendState.IndependentBlendEnable = TRUE;
   static const D3D12_BLEND kBlendFactorMap[] = {
       /*  0 */ D3D12_BLEND_ZERO,
       /*  1 */ D3D12_BLEND_ONE,
