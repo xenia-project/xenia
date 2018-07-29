@@ -40,7 +40,7 @@ void UploadBufferPool::BeginFrame() {
   }
 
   // Try to create new pages again in this frame if failed in the previous.
-  creation_failed_ = false;
+  page_creation_failed_ = false;
 }
 
 void UploadBufferPool::EndFrame() {
@@ -117,22 +117,26 @@ void UploadBufferPool::EndPage() {
     current_mapping_ = nullptr;
   }
   if (current_size_ != 0) {
-    auto buffer = unsent_;
-    buffer->frame_sent = context_->GetCurrentFrame();
-    unsent_ = buffer->next;
-    buffer->next = nullptr;
+    auto page = unsent_;
+    page->frame_sent = context_->GetCurrentFrame();
+    unsent_ = page->next;
+    page->next = nullptr;
     if (sent_last_ != nullptr) {
-      sent_last_->next = buffer;
+      sent_last_->next = page;
     } else {
-      sent_first_ = buffer;
+      sent_first_ = page;
     }
-    sent_last_ = buffer;
+    sent_last_ = page;
     current_size_ = 0;
   }
 }
 
 bool UploadBufferPool::BeginNextPage() {
   EndPage();
+
+  if (page_creation_failed_) {
+    return false;
+  }
 
   if (unsent_ == nullptr) {
     auto device = context_->GetD3D12Provider()->GetDevice();
@@ -156,7 +160,7 @@ bool UploadBufferPool::BeginNextPage() {
             D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
             IID_PPV_ARGS(&buffer_resource)))) {
       XELOGE("Failed to create a D3D upload buffer with %u bytes", page_size_);
-      creation_failed_ = true;
+      page_creation_failed_ = true;
       return false;
     }
     unsent_ = new UploadBuffer;
@@ -170,12 +174,138 @@ bool UploadBufferPool::BeginNextPage() {
   void* mapping;
   if (FAILED(unsent_->buffer->Map(0, &read_range, &mapping))) {
     XELOGE("Failed to map a D3D upload buffer with %u bytes", page_size_);
-    creation_failed_ = true;
+    page_creation_failed_ = true;
     return false;
   }
   current_mapping_ = reinterpret_cast<uint8_t*>(mapping);
 
   return true;
+}
+
+DescriptorHeapPool::DescriptorHeapPool(D3D12Context* context,
+                                       D3D12_DESCRIPTOR_HEAP_TYPE type,
+                                       uint32_t page_size)
+    : context_(context), type_(type), page_size_(page_size) {}
+
+DescriptorHeapPool::~DescriptorHeapPool() { ClearCache(); }
+
+void DescriptorHeapPool::BeginFrame() {
+  // Don't hold old pages if few descriptors are written, also make 0 usable as
+  // an invalid page index.
+  ++current_page_;
+
+  // Recycle submitted pages not used by the GPU anymore.
+  uint64_t last_completed_frame = context_->GetLastCompletedFrame();
+  while (sent_first_ != nullptr) {
+    auto page = sent_first_;
+    if (page->frame_sent > last_completed_frame) {
+      break;
+    }
+    sent_first_ = page->next;
+    page->next = unsent_;
+    unsent_ = page;
+  }
+  if (sent_first_ == nullptr) {
+    sent_last_ = nullptr;
+  }
+
+  // Try to create new pages again in this frame if failed in the previous.
+  page_creation_failed_ = false;
+}
+
+void DescriptorHeapPool::EndFrame() { EndPage(); }
+
+void DescriptorHeapPool::ClearCache() {
+  assert(current_size_ == 0);
+  while (unsent_ != nullptr) {
+    auto next = unsent_->next;
+    unsent_->heap->Release();
+    delete unsent_;
+    unsent_ = next;
+  }
+  while (sent_first_ != nullptr) {
+    auto next = sent_first_->next;
+    sent_first_->heap->Release();
+    delete sent_first_;
+    sent_first_ = next;
+  }
+  sent_last_ = nullptr;
+}
+
+uint64_t DescriptorHeapPool::GetPageForRequest(uint32_t count) const {
+  uint64_t page = current_page_;
+  if (page_size_ - current_size_ < count) {
+    ++page;
+  }
+  return page;
+}
+
+bool DescriptorHeapPool::Request(uint32_t count, uint32_t& index_out) {
+  assert_true(count != 0 && count <= page_size_);
+  if (count == 0 || count > page_size_) {
+    return false;
+  }
+
+  if (page_creation_failed_) {
+    // Don't increment the page index every call if there was a failure as well.
+    return false;
+  }
+
+  // Go to the next page if there's not enough free space on the current one.
+  if (page_size_ - current_size_ < count) {
+    EndPage();
+    ++current_page_;
+  }
+
+  // Create the page if needed (may be the first call for the page).
+  if (unsent_ == nullptr) {
+    if (page_creation_failed_) {
+      return false;
+    }
+    auto device = context_->GetD3D12Provider()->GetDevice();
+    D3D12_DESCRIPTOR_HEAP_DESC heap_desc;
+    heap_desc.Type = type_;
+    heap_desc.NumDescriptors = page_size_;
+    heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+    heap_desc.NodeMask = 0;
+    ID3D12DescriptorHeap* heap;
+    if (FAILED(device->CreateDescriptorHeap(&heap_desc, IID_PPV_ARGS(&heap)))) {
+      XELOGE("Failed to create a heap for %u shader-visible descriptors",
+             page_size_);
+      page_creation_failed_ = true;
+      return false;
+    }
+    unsent_ = new DescriptorHeap;
+    unsent_->heap = heap;
+    unsent_->next = nullptr;
+  }
+
+  // If starting a new page, get the handles to the beginning of it.
+  if (current_size_ == 0) {
+    current_heap_cpu_start_ =
+        unsent_->heap->GetCPUDescriptorHandleForHeapStart();
+    current_heap_gpu_start_ =
+        unsent_->heap->GetGPUDescriptorHandleForHeapStart();
+  }
+  index_out = current_size_;
+  current_size_ += count;
+  return true;
+}
+
+void DescriptorHeapPool::EndPage() {
+  if (current_size_ != 0) {
+    auto page = unsent_;
+    page->frame_sent = context_->GetCurrentFrame();
+    unsent_ = page->next;
+    page->next = nullptr;
+    if (sent_last_ != nullptr) {
+      sent_last_->next = page;
+    } else {
+      sent_first_ = page;
+    }
+    sent_last_ = page;
+    current_size_ = 0;
+  }
 }
 
 }  // namespace d3d12
