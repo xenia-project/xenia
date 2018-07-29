@@ -56,9 +56,69 @@ class UploadBufferPool {
   uint32_t current_size_ = 0;
   uint8_t* current_mapping_ = nullptr;
 
-  // Reset in the beginning of a frame - don't try and fail to create a new
-  // buffer if failed to create one in the current frame.
-  bool creation_failed_ = false;
+  // Reset in the beginning of a frame - don't try and fail to create a new page
+  // if failed to create one in the current frame.
+  bool page_creation_failed_ = false;
+};
+
+class DescriptorHeapPool {
+ public:
+  DescriptorHeapPool(D3D12Context* context, D3D12_DESCRIPTOR_HEAP_TYPE type,
+                     uint32_t page_size);
+  ~DescriptorHeapPool();
+
+  void BeginFrame();
+  void EndFrame();
+  void ClearCache();
+
+  // To check if a rebind will be required, and thus may possibly need to write
+  // all the descriptors needed for a draw call rather than only the modified
+  // ones. The page number can never be 0 if a frame has started, and it's
+  // changed every frame, so it's safe to use 0 to indicate that the descriptors
+  // for some data have never been written.
+  uint64_t GetPageForRequest(uint32_t count) const;
+  bool Request(uint32_t count, uint32_t& index_out);
+
+  // The current heap, for binding and actually writing - may be called only
+  // after a successful request because before a request, the heap may not exist
+  // yet.
+  ID3D12DescriptorHeap* GetLastRequestHeap() const { return unsent_->heap; }
+  D3D12_CPU_DESCRIPTOR_HANDLE GetLastRequestHeapCPUStart() const {
+    return current_heap_cpu_start_;
+  }
+  D3D12_GPU_DESCRIPTOR_HANDLE GetLastRequestHeapGPUStart() const {
+    return current_heap_gpu_start_;
+  }
+  uint64_t GetLastRequestPageNumber() const { return current_page_; }
+
+ private:
+  D3D12Context* context_;
+  D3D12_DESCRIPTOR_HEAP_TYPE type_;
+  uint32_t page_size_;
+
+  void EndPage();
+  bool BeginNextPage();
+
+  struct DescriptorHeap {
+    ID3D12DescriptorHeap* heap;
+    DescriptorHeap* next;
+    uint64_t frame_sent;
+  };
+
+  // A list of unsent heaps, with the first one being the current.
+  DescriptorHeap* unsent_ = nullptr;
+  // A list of sent heaps, moved to unsent in the beginning of a frame.
+  DescriptorHeap* sent_first_ = nullptr;
+  DescriptorHeap* sent_last_ = nullptr;
+
+  uint64_t current_page_ = 0;
+  D3D12_CPU_DESCRIPTOR_HANDLE current_heap_cpu_start_ = {};
+  D3D12_GPU_DESCRIPTOR_HANDLE current_heap_gpu_start_ = {};
+  uint32_t current_size_ = 0;
+
+  // Reset in the beginning of a frame - don't try and fail to create a new page
+  // if failed to create one in the current frame.
+  bool page_creation_failed_ = false;
 };
 
 }  // namespace d3d12
