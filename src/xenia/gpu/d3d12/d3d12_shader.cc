@@ -15,7 +15,7 @@
 #include "xenia/base/logging.h"
 #include "xenia/gpu/gpu_flags.h"
 
-DEFINE_bool(d3d12_shader_disasm, true,
+DEFINE_bool(d3d12_shader_disasm, false,
             "Disassemble translated shaders after compilation.");
 
 namespace xe {
