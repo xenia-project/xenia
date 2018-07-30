@@ -198,7 +198,7 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
         "  uint2 xe_vertex_fetch[96];\n"
         "};\n"
         "\n"
-        "ByteAddressBuffer xe_virtual_memory : register(t0, space1);\n"
+        "ByteAddressBuffer xe_shared_memory : register(t0, space1);\n"
         "\n"
         "#define XE_BYTE_SWAP_OVERLOAD(XeByteSwapType) \\\n"
         "XeByteSwapType XeByteSwap(XeByteSwapType v, uint endian) { \\\n"
@@ -806,7 +806,7 @@ void HlslShaderTranslator::ProcessVertexFetchInstruction(
   bool conditional_emitted = BeginPredicatedInstruction(
       instr.is_predicated, instr.predicate_condition);
 
-  // Load the element from the virtual memory as uints and swap.
+  // Load the element from the shared memory as uints and swap.
   EmitLoadOperand(0, instr.operands[0]);
   const char* load_swizzle;
   const char* load_function_suffix;
@@ -832,9 +832,8 @@ void HlslShaderTranslator::ProcessVertexFetchInstruction(
       load_function_suffix = "";
       break;
   }
-  EmitSourceDepth(
-      "xe_vertex_element%s = XeByteSwap(xe_virtual_memory.Load%s(\n",
-      load_swizzle, load_function_suffix);
+  EmitSourceDepth("xe_vertex_element%s = XeByteSwap(xe_shared_memory.Load%s(\n",
+                  load_swizzle, load_function_suffix);
   EmitSourceDepth("    (xe_vertex_fetch[%uu].x & 0x1FFFFFFCu)",
                   instr.operands[1].storage_index);
   if (instr.attributes.stride != 0) {

@@ -24,6 +24,8 @@ namespace xe {
 namespace gpu {
 namespace d3d12 {
 
+class D3D12CommandProcessor;
+
 class PipelineCache {
  public:
   enum class UpdateStatus {
@@ -32,7 +34,8 @@ class PipelineCache {
     kError,
   };
 
-  PipelineCache(RegisterFile* register_file, ui::d3d12::D3D12Context* context);
+  PipelineCache(D3D12CommandProcessor* command_processor,
+                RegisterFile* register_file, ui::d3d12::D3D12Context* context);
   ~PipelineCache();
 
   void Shutdown();
@@ -49,50 +52,6 @@ class PipelineCache {
 
   void ClearCache();
 
-  enum class RootParameter {
-    // These are always present.
-
-    // Most frequently changed (for one object drawn multiple times, for
-    // instance - may contain projection matrices, also vertex offsets for
-    // objects drawn in multiple parts).
-    // This constants 8 pages of float constants (b2-b9) and fetch constants
-    // (b10).
-    kVertexConstants,
-    // Less frequently changed (per-material) - 8 pages of float constants
-    // (b2-b9).
-    kPixelConstants,
-    // Rarely changed - system constants like viewport and alpha testing (b0)
-    // and loop and bool constants (b1).
-    kCommonConstants,
-    // Never changed - shared memory byte address buffer (t0, space1).
-    kVirtualMemory,
-
-    kCountNoTextures,
-
-    // These are there only if textures are fetched (they are changed pretty
-    // frequently, but for the ease of maintenance they're in the end).
-    // If the pixel shader samples textures, these are for pixel textures
-    // (changed more frequently), otherwise, if the vertex shader samples
-    // textures, these are for vertex textures.
-
-    // Used textures of all types (t0+, space0).
-    kPixelOrVertexTextures = kCountNoTextures,
-    // Used samplers (s0+).
-    kPixelOrVertexSamplers,
-
-    kCountWithOneStageTextures,
-
-    // These are only present if both pixel and vertex shaders sample textures
-    // for vertex textures.
-
-    // Used textures of all types (t0+, space0).
-    kVertexTextures = kCountWithOneStageTextures,
-    // Used samplers (s0+).
-    kVertexSamplers,
-
-    kCountWithTwoStageTextures,
-  };
-
  private:
   bool SetShadowRegister(uint32_t* dest, uint32_t register_name);
   bool SetShadowRegister(float* dest, uint32_t register_name);
@@ -104,11 +63,11 @@ class PipelineCache {
                            PrimitiveType primitive_type,
                            IndexFormat index_format);
 
-  // pRootSignature, VS, PS, DS, HS, GS, PrimitiveTopologyType.
+  // pRootSignature, VS, PS, GS, PrimitiveTopologyType.
   UpdateStatus UpdateShaderStages(D3D12Shader* vertex_shader,
                                   D3D12Shader* pixel_shader,
                                   PrimitiveType primitive_type);
-  // BlendState, SampleMask.
+  // BlendState.
   UpdateStatus UpdateBlendState(D3D12Shader* pixel_shader);
   // RasterizerState.
   UpdateStatus UpdateRasterizerState(PrimitiveType primitive_type);
@@ -119,18 +78,14 @@ class PipelineCache {
   // NumRenderTargets, RTVFormats, DSVFormat.
   UpdateStatus UpdateRenderTargetFormats();
 
-  RegisterFile* register_file_ = nullptr;
-  ui::d3d12::D3D12Context* context_ = nullptr;
+  D3D12CommandProcessor* command_processor_;
+  RegisterFile* register_file_;
+  ui::d3d12::D3D12Context* context_;
 
   // Reusable shader translator.
   std::unique_ptr<ShaderTranslator> shader_translator_ = nullptr;
   // All loaded shaders mapped by their guest hash key.
   std::unordered_map<uint64_t, D3D12Shader*> shader_map_;
-
-  // Root signatures for different descriptor counts.
-  std::unordered_map<uint32_t, ID3D12RootSignature*> root_signatures_;
-  ID3D12RootSignature* GetRootSignature(const D3D12Shader* vertex_shader,
-                                        const D3D12Shader* pixel_shader);
 
   // Hash state used to incrementally produce pipeline hashes during update.
   // By the time the full update pass has run the hash will represent the
@@ -139,12 +94,11 @@ class PipelineCache {
   XXH64_state_t hash_state_;
   struct Pipeline {
     ID3D12PipelineState* state;
-    // From root_signatures_ - not owned.
+    // Root signature taken from the command processor.
     ID3D12RootSignature* root_signature;
   };
   // All previously generated pipelines mapped by hash.
   std::unordered_map<uint64_t, Pipeline*> pipelines_;
-  // Sets StreamOutput, InputLayout, SampleDesc, NodeMask, CachedPSO, Flags.
   Pipeline* GetPipeline(uint64_t hash_key);
 
   // Previously used pipeline. This matches our current state settings

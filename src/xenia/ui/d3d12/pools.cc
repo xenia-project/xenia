@@ -68,8 +68,8 @@ void UploadBufferPool::ClearCache() {
 uint8_t* UploadBufferPool::RequestFull(uint32_t size,
                                        ID3D12Resource*& buffer_out,
                                        uint32_t& offset_out) {
-  assert_true(size != 0 && size <= page_size_);
-  if (size == 0 || size > page_size_) {
+  assert_true(size <= page_size_);
+  if (size > page_size_) {
     return nullptr;
   }
   if (page_size_ - current_size_ < size || current_mapping_ == nullptr) {
@@ -89,10 +89,6 @@ uint8_t* UploadBufferPool::RequestPartial(uint32_t size,
                                           ID3D12Resource*& buffer_out,
                                           uint32_t& offset_out,
                                           uint32_t& size_out) {
-  assert_true(size != 0);
-  if (size == 0) {
-    return nullptr;
-  }
   if (current_size_ == page_size_ || current_mapping_ == nullptr) {
     // Start a new page if can't fit any bytes or don't have an open page.
     if (!BeginNextPage()) {
@@ -216,7 +212,7 @@ void DescriptorHeapPool::BeginFrame() {
 void DescriptorHeapPool::EndFrame() { EndPage(); }
 
 void DescriptorHeapPool::ClearCache() {
-  assert(current_size_ == 0);
+  assert_true(current_size_ == 0);
   while (unsent_ != nullptr) {
     auto next = unsent_->next;
     unsent_->heap->Release();
@@ -232,36 +228,39 @@ void DescriptorHeapPool::ClearCache() {
   sent_last_ = nullptr;
 }
 
-uint64_t DescriptorHeapPool::GetPageForRequest(uint32_t count) const {
-  uint64_t page = current_page_;
-  if (page_size_ - current_size_ < count) {
-    ++page;
-  }
-  return page;
-}
-
-bool DescriptorHeapPool::Request(uint32_t count, uint32_t& index_out) {
-  assert_true(count != 0 && count <= page_size_);
-  if (count == 0 || count > page_size_) {
-    return false;
+uint64_t DescriptorHeapPool::Request(uint64_t previous_full_update,
+                                     uint32_t count_for_partial_update,
+                                     uint32_t count_for_full_update,
+                                     uint32_t& index_out) {
+  assert_true(count_for_partial_update <= count_for_full_update);
+  assert_true(count_for_full_update <= page_size_);
+  if (count_for_partial_update > count_for_full_update ||
+      count_for_full_update > page_size_) {
+    return 0;
   }
 
   if (page_creation_failed_) {
-    // Don't increment the page index every call if there was a failure as well.
-    return false;
+    // Don't touch the page index every call if there was a failure as well.
+    return 0;
   }
 
-  // Go to the next page if there's not enough free space on the current one.
+  // If the last full update happened on the current page, a partial update is
+  // possible.
+  uint32_t count = previous_full_update == current_page_
+                       ? count_for_partial_update
+                       : count_for_full_update;
+
+  // Go to the next page if there's not enough free space on the current one,
+  // or because the previous page may be outdated. In this case, a full update
+  // is necessary.
   if (page_size_ - current_size_ < count) {
     EndPage();
     ++current_page_;
+    count = count_for_full_update;
   }
 
   // Create the page if needed (may be the first call for the page).
   if (unsent_ == nullptr) {
-    if (page_creation_failed_) {
-      return false;
-    }
     auto device = context_->GetD3D12Provider()->GetDevice();
     D3D12_DESCRIPTOR_HEAP_DESC heap_desc;
     heap_desc.Type = type_;
@@ -273,7 +272,7 @@ bool DescriptorHeapPool::Request(uint32_t count, uint32_t& index_out) {
       XELOGE("Failed to create a heap for %u shader-visible descriptors",
              page_size_);
       page_creation_failed_ = true;
-      return false;
+      return 0;
     }
     unsent_ = new DescriptorHeap;
     unsent_->heap = heap;
@@ -289,7 +288,7 @@ bool DescriptorHeapPool::Request(uint32_t count, uint32_t& index_out) {
   }
   index_out = current_size_;
   current_size_ += count;
-  return true;
+  return current_page_;
 }
 
 void DescriptorHeapPool::EndPage() {

@@ -71,13 +71,34 @@ class DescriptorHeapPool {
   void EndFrame();
   void ClearCache();
 
-  // To check if a rebind will be required, and thus may possibly need to write
-  // all the descriptors needed for a draw call rather than only the modified
-  // ones. The page number can never be 0 if a frame has started, and it's
-  // changed every frame, so it's safe to use 0 to indicate that the descriptors
-  // for some data have never been written.
-  uint64_t GetPageForRequest(uint32_t count) const;
-  bool Request(uint32_t count, uint32_t& index_out);
+  // Because all descriptors for a single draw call must be in the same heap,
+  // sometimes all descriptors, rather than only the modified portion of it,
+  // needs to be written.
+  //
+  // This may happen if there's not enough free space even for a partial update
+  // in the current heap, or if the heap which contains the unchanged part of
+  // the descriptors is outdated.
+  //
+  // If something uses this pool to do partial updates, it must let this
+  // function determine whether a partial update is possible. For this purpose,
+  // this function returns a full update number - and it must be called with its
+  // previous return value for the set of descriptors it's updating.
+  //
+  // If this function returns a value that is the same as previous_full_update,
+  // a partial update needs to be done - and space for count_for_partial_update
+  // is allocated.
+  //
+  // If it's different, all descriptors must be written again - and space for
+  // count_for_full_update is allocated.
+  //
+  // If 0 is returned, there was an error.
+  //
+  // This MUST be called even if there's nothing to write in a partial update
+  // (with count_for_partial_update being 0), because a full update may still be
+  // required.
+  uint64_t Request(uint64_t previous_full_update,
+                   uint32_t count_for_partial_update,
+                   uint32_t count_for_full_update, uint32_t& index_out);
 
   // The current heap, for binding and actually writing - may be called only
   // after a successful request because before a request, the heap may not exist
@@ -89,7 +110,6 @@ class DescriptorHeapPool {
   D3D12_GPU_DESCRIPTOR_HANDLE GetLastRequestHeapGPUStart() const {
     return current_heap_gpu_start_;
   }
-  uint64_t GetLastRequestPageNumber() const { return current_page_; }
 
  private:
   D3D12Context* context_;

@@ -11,10 +11,12 @@
 
 #include <cinttypes>
 #include <cmath>
+#include <cstring>
 
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/profiling.h"
+#include "xenia/gpu/d3d12/d3d12_command_processor.h"
 #include "xenia/gpu/gpu_flags.h"
 #include "xenia/gpu/hlsl_shader_translator.h"
 
@@ -22,10 +24,21 @@ namespace xe {
 namespace gpu {
 namespace d3d12 {
 
-PipelineCache::PipelineCache(RegisterFile* register_file,
+PipelineCache::PipelineCache(D3D12CommandProcessor* command_processor,
+                             RegisterFile* register_file,
                              ui::d3d12::D3D12Context* context)
-    : register_file_(register_file), context_(context) {
+    : command_processor_(command_processor),
+      register_file_(register_file),
+      context_(context) {
   shader_translator_.reset(new HlslShaderTranslator());
+
+  // Set pipeline state description values we never change.
+  // Zero out tessellation, stream output, blend state and formats for render
+  // targets 4+, node mask, cached PSO, flags and other things.
+  std::memset(&update_desc_, 0, sizeof(update_desc_));
+  update_desc_.BlendState.IndependentBlendEnable = TRUE;
+  update_desc_.SampleMask = UINT_MAX;
+  update_desc_.SampleDesc.Count = 1;
 }
 
 PipelineCache::~PipelineCache() { Shutdown(); }
@@ -113,12 +126,6 @@ void PipelineCache::ClearCache() {
   }
   pipelines_.clear();
   COUNT_profile_set("gpu/pipeline_cache/pipelines", 0);
-
-  // Destroy all root signatures.
-  for (auto it : root_signatures_) {
-    it.second->Release();
-  }
-  root_signatures_.clear();
 
   // Destroy all shaders.
   for (auto it : shader_map_) {
@@ -259,6 +266,11 @@ PipelineCache::UpdateStatus PipelineCache::UpdateShaderStages(
     return UpdateStatus::kError;
   }
 
+  update_desc_.pRootSignature =
+      command_processor_->GetRootSignature(vertex_shader, pixel_shader);
+  if (update_desc_.pRootSignature == nullptr) {
+    return UpdateStatus::kError;
+  }
   update_desc_.VS.pShaderBytecode = vertex_shader->GetDXBC();
   update_desc_.VS.BytecodeLength = vertex_shader->GetDXBCSize();
   if (pixel_shader != nullptr) {
@@ -268,17 +280,9 @@ PipelineCache::UpdateStatus PipelineCache::UpdateShaderStages(
     update_desc_.PS.pShaderBytecode = nullptr;
     update_desc_.PS.BytecodeLength = 0;
   }
-  update_desc_.DS.pShaderBytecode = nullptr;
-  update_desc_.DS.BytecodeLength = 0;
-  update_desc_.HS.pShaderBytecode = nullptr;
-  update_desc_.HS.BytecodeLength = 0;
   // TODO(Triang3l): Geometry shaders.
   update_desc_.GS.pShaderBytecode = nullptr;
   update_desc_.GS.BytecodeLength = 0;
-  update_desc_.pRootSignature = GetRootSignature(vertex_shader, pixel_shader);
-  if (update_desc_.pRootSignature == nullptr) {
-    return UpdateStatus::kError;
-  }
   update_desc_.PrimitiveTopologyType =
       primitive_topology_is_line ? D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE
                                  : D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
@@ -329,8 +333,6 @@ PipelineCache::UpdateStatus PipelineCache::UpdateBlendState(
     return UpdateStatus::kCompatible;
   }
 
-  update_desc_.BlendState.AlphaToCoverageEnable = FALSE;
-  update_desc_.BlendState.IndependentBlendEnable = TRUE;
   static const D3D12_BLEND kBlendFactorMap[] = {
       /*  0 */ D3D12_BLEND_ZERO,
       /*  1 */ D3D12_BLEND_ONE,
@@ -384,11 +386,8 @@ PipelineCache::UpdateStatus PipelineCache::UpdateBlendState(
       blend_desc.DestBlendAlpha = D3D12_BLEND_ZERO;
       blend_desc.BlendOpAlpha = D3D12_BLEND_OP_ADD;
     }
-    blend_desc.LogicOpEnable = FALSE;
-    blend_desc.LogicOp = D3D12_LOGIC_OP_NOOP;
     blend_desc.RenderTargetWriteMask = (color_mask >> (i * 4)) & 0xF;
   }
-  update_desc_.SampleMask = UINT_MAX;
 
   return UpdateStatus::kMismatch;
 }
@@ -516,11 +515,6 @@ PipelineCache::UpdateStatus PipelineCache::UpdateRasterizerState(
       poly_offset_scale * (1.0f / 16.0f);
   update_desc_.RasterizerState.DepthClipEnable =
       !depth_clamp_enable ? TRUE : FALSE;
-  update_desc_.RasterizerState.MultisampleEnable = FALSE;
-  update_desc_.RasterizerState.AntialiasedLineEnable = FALSE;
-  update_desc_.RasterizerState.ForcedSampleCount = 0;
-  update_desc_.RasterizerState.ConservativeRaster =
-      D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
 
   return UpdateStatus::kMismatch;
 }
@@ -629,21 +623,7 @@ PipelineCache::Pipeline* PipelineCache::GetPipeline(uint64_t hash_key) {
     return it->second;
   }
 
-  // Set the unused fields of the pipeline description.
-  update_desc_.StreamOutput.pSODeclaration = nullptr;
-  update_desc_.StreamOutput.NumEntries = 0;
-  update_desc_.StreamOutput.pBufferStrides = nullptr;
-  update_desc_.StreamOutput.NumStrides = 0;
-  update_desc_.StreamOutput.RasterizedStream = 0;
-  update_desc_.InputLayout.pInputElementDescs = nullptr;
-  update_desc_.InputLayout.NumElements = 0;
-  update_desc_.SampleDesc.Count = 1;
-  update_desc_.SampleDesc.Quality = 0;
-  update_desc_.NodeMask = 0;
-  // TODO(Triang3l): Cache create pipelines.
-  update_desc_.CachedPSO.pCachedBlob = nullptr;
-  update_desc_.CachedPSO.CachedBlobSizeInBytes = 0;
-  update_desc_.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
+  // TODO(Triang3l): Cache create pipelines using CachedPSO.
 
   auto device = context_->GetD3D12Provider()->GetDevice();
   ID3D12PipelineState* state;
@@ -660,217 +640,6 @@ PipelineCache::Pipeline* PipelineCache::GetPipeline(uint64_t hash_key) {
   pipeline->root_signature = update_desc_.pRootSignature;
   pipelines_.insert({hash_key, pipeline});
   return pipeline;
-}
-
-ID3D12RootSignature* PipelineCache::GetRootSignature(
-    const D3D12Shader* vertex_shader, const D3D12Shader* pixel_shader) {
-  uint32_t pixel_textures =
-      pixel_shader != nullptr ? pixel_shader->GetTextureSRVCount() : 0;
-  uint32_t pixel_samplers =
-      pixel_shader != nullptr ? pixel_shader->GetSamplerCount() : 0;
-  uint32_t vertex_textures = vertex_shader->GetTextureSRVCount();
-  uint32_t vertex_samplers = vertex_shader->GetSamplerCount();
-  // Max 96 textures (if all kinds of tfetch instructions are used for all fetch
-  // registers) and 32 samplers (one sampler per used fetch), but different
-  // shader stages have different texture sets.
-  uint32_t index = pixel_textures | (pixel_samplers << 7) |
-                   (vertex_textures << 12) | (vertex_samplers << 19);
-
-  // Try an existing root signature.
-  auto it = root_signatures_.find(index);
-  if (it != root_signatures_.end()) {
-    return it->second;
-  }
-
-  // Create a new one.
-  D3D12_ROOT_SIGNATURE_DESC desc;
-  D3D12_ROOT_PARAMETER parameters[RootParameter::kCountWithTwoStageTextures];
-  D3D12_DESCRIPTOR_RANGE ranges[RootParameter::kCountWithTwoStageTextures];
-  desc.NumParameters = UINT(RootParameter::kCountNoTextures);
-  desc.pParameters = parameters;
-  desc.NumStaticSamplers = 0;
-  desc.pStaticSamplers = nullptr;
-  desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_NONE;
-
-  // Vertex constants - float and fetch.
-  {
-    auto& parameter = parameters[size_t(RootParameter::kVertexConstants)];
-    auto& range = ranges[size_t(RootParameter::kVertexConstants)];
-    parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-    parameter.DescriptorTable.NumDescriptorRanges = 1;
-    parameter.DescriptorTable.pDescriptorRanges = &range;
-    parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
-    range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
-    range.NumDescriptors = 9;
-    range.BaseShaderRegister = 2;
-    range.RegisterSpace = 0;
-    range.OffsetInDescriptorsFromTableStart = 0;
-  }
-
-  // Pixel constants - float.
-  {
-    auto& parameter = parameters[size_t(RootParameter::kPixelConstants)];
-    auto& range = ranges[size_t(RootParameter::kPixelConstants)];
-    parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-    parameter.DescriptorTable.NumDescriptorRanges = 1;
-    parameter.DescriptorTable.pDescriptorRanges = &range;
-    parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
-    range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
-    range.NumDescriptors = 8;
-    range.BaseShaderRegister = 2;
-    range.RegisterSpace = 0;
-    range.OffsetInDescriptorsFromTableStart = 0;
-  }
-
-  // Common constants - system and loop/bool.
-  {
-    auto& parameter = parameters[size_t(RootParameter::kCommonConstants)];
-    auto& range = ranges[size_t(RootParameter::kCommonConstants)];
-    parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-    parameter.DescriptorTable.NumDescriptorRanges = 1;
-    parameter.DescriptorTable.pDescriptorRanges = &range;
-    parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-    range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
-    range.NumDescriptors = 2;
-    range.BaseShaderRegister = 0;
-    range.RegisterSpace = 0;
-    range.OffsetInDescriptorsFromTableStart = 0;
-  }
-
-  // Virtual shared memory.
-  {
-    auto& parameter = parameters[size_t(RootParameter::kVirtualMemory)];
-    auto& range = ranges[size_t(RootParameter::kVirtualMemory)];
-    parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-    parameter.DescriptorTable.NumDescriptorRanges = 1;
-    parameter.DescriptorTable.pDescriptorRanges = &range;
-    parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
-    range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-    range.NumDescriptors = 1;
-    range.BaseShaderRegister = 0;
-    range.RegisterSpace = 1;
-    range.OffsetInDescriptorsFromTableStart = 0;
-  }
-
-  if (pixel_textures > 0 || vertex_textures > 0) {
-    desc.NumParameters = UINT(RootParameter::kCountWithOneStageTextures);
-
-    // Pixel or vertex textures.
-    {
-      auto& parameter =
-          parameters[size_t(RootParameter::kPixelOrVertexTextures)];
-      auto& range = ranges[size_t(RootParameter::kPixelOrVertexTextures)];
-      parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-      parameter.DescriptorTable.NumDescriptorRanges = 1;
-      parameter.DescriptorTable.pDescriptorRanges = &range;
-      range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-      range.BaseShaderRegister = 0;
-      range.RegisterSpace = 0;
-      range.OffsetInDescriptorsFromTableStart = 0;
-      if (pixel_textures > 0) {
-        assert_true(pixel_samplers > 0);
-        parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
-        range.NumDescriptors = pixel_textures;
-      } else {
-        assert_true(vertex_samplers > 0);
-        parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
-        range.NumDescriptors = vertex_textures;
-      }
-    }
-
-    // Pixel or vertex samplers.
-    {
-      auto& parameter =
-          parameters[size_t(RootParameter::kPixelOrVertexSamplers)];
-      auto& range = ranges[size_t(RootParameter::kPixelOrVertexSamplers)];
-      parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-      parameter.DescriptorTable.NumDescriptorRanges = 1;
-      parameter.DescriptorTable.pDescriptorRanges = &range;
-      range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER;
-      range.BaseShaderRegister = 0;
-      range.RegisterSpace = 0;
-      range.OffsetInDescriptorsFromTableStart = 0;
-      if (pixel_samplers > 0) {
-        parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
-        range.NumDescriptors = pixel_samplers;
-      } else {
-        parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
-        range.NumDescriptors = vertex_samplers;
-      }
-    }
-
-    if (pixel_textures > 0 && vertex_textures > 0) {
-      assert_true(vertex_samplers > 0);
-
-      desc.NumParameters = UINT(RootParameter::kCountWithTwoStageTextures);
-
-      // Vertex textures.
-      {
-        auto& parameter = parameters[size_t(RootParameter::kVertexTextures)];
-        auto& range = ranges[size_t(RootParameter::kVertexTextures)];
-        parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-        parameter.DescriptorTable.NumDescriptorRanges = 1;
-        parameter.DescriptorTable.pDescriptorRanges = &range;
-        parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
-        range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-        range.NumDescriptors = vertex_textures;
-        range.BaseShaderRegister = 0;
-        range.RegisterSpace = 0;
-        range.OffsetInDescriptorsFromTableStart = 0;
-      }
-
-      // Vertex samplers.
-      {
-        auto& parameter = parameters[size_t(RootParameter::kVertexSamplers)];
-        auto& range = ranges[size_t(RootParameter::kVertexSamplers)];
-        parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-        parameter.DescriptorTable.NumDescriptorRanges = 1;
-        parameter.DescriptorTable.pDescriptorRanges = &range;
-        parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
-        range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER;
-        range.NumDescriptors = vertex_samplers;
-        range.BaseShaderRegister = 0;
-        range.RegisterSpace = 0;
-        range.OffsetInDescriptorsFromTableStart = 0;
-      }
-    }
-  }
-
-  ID3DBlob* blob;
-  ID3DBlob* error_blob = nullptr;
-  if (FAILED(D3D12SerializeRootSignature(&desc, D3D_ROOT_SIGNATURE_VERSION_1,
-                                         &blob, &error_blob))) {
-    XELOGE(
-        "Failed to serialize a root signature with %u pixel textures, %u "
-        "pixel samplers, %u vertex textures and %u vertex samplers",
-        pixel_textures, pixel_samplers, vertex_textures, vertex_samplers);
-    if (error_blob != nullptr) {
-      XELOGE("%s",
-             reinterpret_cast<const char*>(error_blob->GetBufferPointer()));
-      error_blob->Release();
-    }
-    return nullptr;
-  }
-  if (error_blob != nullptr) {
-    error_blob->Release();
-  }
-
-  auto device = context_->GetD3D12Provider()->GetDevice();
-  ID3D12RootSignature* root_signature;
-  if (FAILED(device->CreateRootSignature(0, blob->GetBufferPointer(),
-                                         blob->GetBufferSize(),
-                                         IID_PPV_ARGS(&root_signature)))) {
-    XELOGE(
-        "Failed to create a root signature with %u pixel textures, %u pixel "
-        "samplers, %u vertex textures and %u vertex samplers",
-        pixel_textures, pixel_samplers, vertex_textures, vertex_samplers);
-    blob->Release();
-    return nullptr;
-  }
-  blob->Release();
-
-  root_signatures_.insert({index, root_signature});
-  return root_signature;
 }
 
 }  // namespace d3d12

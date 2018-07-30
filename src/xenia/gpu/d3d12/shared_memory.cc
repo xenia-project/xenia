@@ -62,6 +62,7 @@ bool SharedMemory::Initialize() {
     Shutdown();
     return false;
   }
+  buffer_gpu_address_ = buffer_->GetGPUVirtualAddress();
 
   std::memset(heaps_, 0, sizeof(heaps_));
   heap_creation_failed_ = false;
@@ -404,6 +405,32 @@ void SharedMemory::UseForReading(ID3D12GraphicsCommandList* command_list) {
 
 void SharedMemory::UseForWriting(ID3D12GraphicsCommandList* command_list) {
   TransitionBuffer(D3D12_RESOURCE_STATE_UNORDERED_ACCESS, command_list);
+}
+
+void SharedMemory::CreateSRV(D3D12_CPU_DESCRIPTOR_HANDLE handle) {
+  D3D12_SHADER_RESOURCE_VIEW_DESC desc;
+  desc.Format = DXGI_FORMAT_R32_TYPELESS;
+  desc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+  desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+  desc.Buffer.FirstElement = 0;
+  desc.Buffer.NumElements = kBufferSize >> 2;
+  desc.Buffer.StructureByteStride = 0;
+  desc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_RAW;
+  context_->GetD3D12Provider()->GetDevice()->CreateShaderResourceView(
+      buffer_, &desc, handle);
+}
+
+void SharedMemory::CreateUAV(D3D12_CPU_DESCRIPTOR_HANDLE handle) {
+  D3D12_UNORDERED_ACCESS_VIEW_DESC desc;
+  desc.Format = DXGI_FORMAT_R32_TYPELESS;
+  desc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+  desc.Buffer.FirstElement = 0;
+  desc.Buffer.NumElements = kBufferSize >> 2;
+  desc.Buffer.StructureByteStride = 0;
+  desc.Buffer.CounterOffsetInBytes = 0;
+  desc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_RAW;
+  context_->GetD3D12Provider()->GetDevice()->CreateUnorderedAccessView(
+      buffer_, nullptr, &desc, handle);
 }
 
 }  // namespace d3d12

@@ -33,6 +33,10 @@ class SharedMemory {
   bool Initialize();
   void Shutdown();
 
+  D3D12_GPU_VIRTUAL_ADDRESS GetGPUAddress() const {
+    return buffer_gpu_address_;
+  }
+
   void BeginFrame();
   // Returns true if anything has been written to command_list been done.
   // The draw command list is needed for the transition.
@@ -51,6 +55,9 @@ class SharedMemory {
   // Makes the buffer usable for texture tiling after a resolve.
   void UseForWriting(ID3D12GraphicsCommandList* command_list);
 
+  void CreateSRV(D3D12_CPU_DESCRIPTOR_HANDLE handle);
+  void CreateUAV(D3D12_CPU_DESCRIPTOR_HANDLE handle);
+
  private:
   Memory* memory_;
 
@@ -61,6 +68,7 @@ class SharedMemory {
   static constexpr uint32_t kBufferSize = 1 << kBufferSizeLog2;
   static constexpr uint32_t kAddressMask = kBufferSize - 1;
   ID3D12Resource* buffer_ = nullptr;
+  D3D12_GPU_VIRTUAL_ADDRESS buffer_gpu_address_ = 0;
   D3D12_RESOURCE_STATES buffer_state_ = D3D12_RESOURCE_STATE_COPY_DEST;
 
   // D3D resource tiles are 64 KB in size.
