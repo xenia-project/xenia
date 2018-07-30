@@ -46,7 +46,7 @@ bool SharedMemory::Initialize() {
   buffer_state_ = D3D12_RESOURCE_STATE_COPY_DEST;
   D3D12_RESOURCE_DESC buffer_desc;
   buffer_desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-  buffer_desc.Alignment = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT;
+  buffer_desc.Alignment = 0;
   buffer_desc.Width = kBufferSize;
   buffer_desc.Height = 1;
   buffer_desc.DepthOrArraySize = 1;
@@ -56,11 +56,23 @@ bool SharedMemory::Initialize() {
   buffer_desc.SampleDesc.Quality = 0;
   buffer_desc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
   buffer_desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
-  if (FAILED(device->CreateReservedResource(&buffer_desc, buffer_state_,
-                                            nullptr, IID_PPV_ARGS(&buffer_)))) {
-    XELOGE("Shared memory: Failed to create the 512 MB tiled buffer");
-    Shutdown();
-    return false;
+  if (FLAGS_d3d12_tiled_resources) {
+    if (FAILED(device->CreateReservedResource(
+            &buffer_desc, buffer_state_, nullptr, IID_PPV_ARGS(&buffer_)))) {
+      XELOGE("Shared memory: Failed to create the 512 MB tiled buffer");
+      Shutdown();
+      return false;
+    }
+  } else {
+    D3D12_HEAP_PROPERTIES heap_properties = {};
+    heap_properties.Type = D3D12_HEAP_TYPE_DEFAULT;
+    if (FAILED(device->CreateCommittedResource(
+            &heap_properties, D3D12_HEAP_FLAG_NONE, &buffer_desc, buffer_state_,
+            nullptr, IID_PPV_ARGS(&buffer_)))) {
+      XELOGE("Shared memory: Failed to create the 512 MB buffer");
+      Shutdown();
+      return false;
+    }
   }
   buffer_gpu_address_ = buffer_->GetGPUVirtualAddress();
 
@@ -95,10 +107,12 @@ void SharedMemory::Shutdown() {
     buffer_ = nullptr;
   }
 
-  for (uint32_t i = 0; i < xe::countof(heaps_); ++i) {
-    if (heaps_[i] != nullptr) {
-      heaps_[i]->Release();
-      heaps_[i] = nullptr;
+  if (FLAGS_d3d12_tiled_resources) {
+    for (uint32_t i = 0; i < xe::countof(heaps_); ++i) {
+      if (heaps_[i] != nullptr) {
+        heaps_[i]->Release();
+        heaps_[i] = nullptr;
+      }
     }
   }
 }
@@ -276,52 +290,53 @@ bool SharedMemory::UseRange(uint32_t start, uint32_t length) {
   // XELOGGPU("Shared memory: Range %.8X-%.8X is being used", start, last);
 
   // Ensure all tile heaps are present.
-  uint32_t heap_first = start >> kHeapSizeLog2;
-  uint32_t heap_last = last >> kHeapSizeLog2;
-  for (uint32_t i = heap_first; i <= heap_last; ++i) {
-    if (heaps_[i] != nullptr) {
-      continue;
+  if (FLAGS_d3d12_tiled_resources) {
+    uint32_t heap_first = start >> kHeapSizeLog2;
+    uint32_t heap_last = last >> kHeapSizeLog2;
+    for (uint32_t i = heap_first; i <= heap_last; ++i) {
+      if (heaps_[i] != nullptr) {
+        continue;
+      }
+      if (heap_creation_failed_) {
+        // Don't try to create a heap for every vertex buffer or texture in the
+        // current frame anymore if have failed at least once.
+        return false;
+      }
+      /* XELOGGPU("Shared memory: Creating %.8X-%.8X tile heap",
+               heap_first << kHeapSizeLog2,
+               (heap_last << kHeapSizeLog2) + (kHeapSize - 1)); */
+      auto provider = context_->GetD3D12Provider();
+      auto device = provider->GetDevice();
+      auto direct_queue = provider->GetDirectQueue();
+      D3D12_HEAP_DESC heap_desc = {};
+      heap_desc.SizeInBytes = kHeapSize;
+      heap_desc.Properties.Type = D3D12_HEAP_TYPE_DEFAULT;
+      heap_desc.Flags = D3D12_HEAP_FLAG_ALLOW_ONLY_BUFFERS;
+      if (FAILED(device->CreateHeap(&heap_desc, IID_PPV_ARGS(&heaps_[i])))) {
+        XELOGE("Shared memory: Failed to create a tile heap");
+        heap_creation_failed_ = true;
+        return false;
+      }
+      D3D12_TILED_RESOURCE_COORDINATE region_start_coordinates;
+      region_start_coordinates.X = i << (kHeapSizeLog2 - kTileSizeLog2);
+      region_start_coordinates.Y = 0;
+      region_start_coordinates.Z = 0;
+      region_start_coordinates.Subresource = 0;
+      D3D12_TILE_REGION_SIZE region_size;
+      region_size.NumTiles = kHeapSize >> kTileSizeLog2;
+      region_size.UseBox = FALSE;
+      D3D12_TILE_RANGE_FLAGS range_flags = D3D12_TILE_RANGE_FLAG_NONE;
+      UINT heap_range_start_offset = 0;
+      UINT range_tile_count = kHeapSize >> kTileSizeLog2;
+      // FIXME(Triang3l): This may cause issues if the emulator is shut down
+      // mid-frame and the heaps are destroyed before tile mappings are updated
+      // (AwaitAllFramesCompletion won't catch this then). Defer this until the
+      // actual command list submission at the end of the frame.
+      direct_queue->UpdateTileMappings(
+          buffer_, 1, &region_start_coordinates, &region_size, heaps_[i], 1,
+          &range_flags, &heap_range_start_offset, &range_tile_count,
+          D3D12_TILE_MAPPING_FLAG_NONE);
     }
-    if (heap_creation_failed_) {
-      // Don't try to create a heap for every vertex buffer or texture in the
-      // current frame anymore if have failed at least once.
-      return false;
-    }
-    /* XELOGGPU("Shared memory: Creating %.8X-%.8X tile heap",
-             heap_first << kHeapSizeLog2,
-             (heap_last << kHeapSizeLog2) + (kHeapSize - 1)); */
-    auto provider = context_->GetD3D12Provider();
-    auto device = provider->GetDevice();
-    auto direct_queue = provider->GetDirectQueue();
-    D3D12_HEAP_DESC heap_desc = {};
-    heap_desc.SizeInBytes = kHeapSize;
-    heap_desc.Properties.Type = D3D12_HEAP_TYPE_DEFAULT;
-    // Flags are required on resource heap tier 1!
-    heap_desc.Flags = D3D12_HEAP_FLAG_ALLOW_ONLY_BUFFERS;
-    if (FAILED(device->CreateHeap(&heap_desc, IID_PPV_ARGS(&heaps_[i])))) {
-      XELOGE("Shared memory: Failed to create a tile heap");
-      heap_creation_failed_ = true;
-      return false;
-    }
-    D3D12_TILED_RESOURCE_COORDINATE region_start_coordinates;
-    region_start_coordinates.X = i << (kHeapSizeLog2 - kTileSizeLog2);
-    region_start_coordinates.Y = 0;
-    region_start_coordinates.Z = 0;
-    region_start_coordinates.Subresource = 0;
-    D3D12_TILE_REGION_SIZE region_size;
-    region_size.NumTiles = kHeapSize >> kTileSizeLog2;
-    region_size.UseBox = FALSE;
-    D3D12_TILE_RANGE_FLAGS range_flags = D3D12_TILE_RANGE_FLAG_NONE;
-    UINT heap_range_start_offset = 0;
-    UINT range_tile_count = kHeapSize >> kTileSizeLog2;
-    // FIXME(Triang3l): This may cause issues if the emulator is shut down
-    // mid-frame and the heaps are destroyed before tile mappings are updated
-    // (AwaitAllFramesCompletion won't catch this then). Defer this until the
-    // actual command list submission at the end of the frame.
-    direct_queue->UpdateTileMappings(
-        buffer_, 1, &region_start_coordinates, &region_size, heaps_[i], 1,
-        &range_flags, &heap_range_start_offset, &range_tile_count,
-        D3D12_TILE_MAPPING_FLAG_NONE);
   }
 
   // Mark the outdated tiles in this range as requiring upload, and also make

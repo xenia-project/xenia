@@ -7,20 +7,10 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_UI_D3D12_D3D12_API_H_
-#define XENIA_UI_D3D12_D3D12_API_H_
+#include "xenia/ui/d3d12/d3d12_api.h"
 
-#include <gflags/gflags.h>
-
-// This must be included before D3D and DXGI for things like NOMINMAX.
-#include "xenia/base/platform_win.h"
-
-#include <d3d12.h>
-#include <d3dcompiler.h>
-#include <dxgi1_4.h>
-
-#define XELOGD3D XELOGI
-
-DECLARE_bool(d3d12_tiled_resources);
-
-#endif  // XENIA_UI_D3D12_D3D12_API_H_
+DEFINE_bool(d3d12_tiled_resources, true,
+            "Enable tiled resources for shared memory emulation. Disabling "
+            "them greatly increases video memory usage - a 512 MB buffer is "
+            "created - but allows graphics debuggers that don't support tiled "
+            "resources to work.");
