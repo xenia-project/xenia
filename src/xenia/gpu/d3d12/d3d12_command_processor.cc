@@ -793,6 +793,9 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(Endian index_endian) {
   // shaders (for rectangle list drawing, for instance) to the 2560x2560
   // viewport that is used to emulate unnormalized coordinates.
   // Z scale/offset is to convert from OpenGL NDC to Direct3D NDC if needed.
+  // Also apply half-pixel offset to reproduce Direct3D 9 rasterization rules.
+  // TODO(Triang3l): Check if pixel coordinates need to offset depending on a
+  // different register.
   bool gl_clip_space_def =
       !(pa_cl_clip_cntl & (1 << 19)) && (pa_cl_vte_cntl & (1 << 4));
   float ndc_scale_x = (pa_cl_vte_cntl & (1 << 0)) ? 1.0f / 1280.0f : 1.0f;
@@ -801,51 +804,39 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(Endian index_endian) {
   float ndc_offset_x = (pa_cl_vte_cntl & (1 << 1)) ? -1.0f : 0.0f;
   float ndc_offset_y = (pa_cl_vte_cntl & (1 << 3)) ? -1.0f : 0.0f;
   float ndc_offset_z = gl_clip_space_def ? 0.5f : 0.0f;
+  float pixel_half_pixel_offset = 0.0f;
+  if (pa_su_vtx_cntl & (1 << 0)) {
+    if (pa_cl_vte_cntl & (1 << 0)) {
+      float viewport_scale_x = regs[XE_GPU_REG_PA_CL_VPORT_XSCALE].f32;
+      if (viewport_scale_x != 0.0f) {
+        ndc_offset_x -= 0.5f / viewport_scale_x;
+      }
+    } else {
+      ndc_offset_x -= 1.0f / 2560.0f;
+    }
+    if (pa_cl_vte_cntl & (1 << 2)) {
+      float viewport_scale_y = regs[XE_GPU_REG_PA_CL_VPORT_YSCALE].f32;
+      if (viewport_scale_y != 0.0f) {
+        ndc_offset_y -= 0.5f / viewport_scale_y;
+      }
+    } else {
+      ndc_offset_y -= 1.0f / 2560.0f;
+    }
+    pixel_half_pixel_offset = -0.5f;
+  }
   dirty |= system_constants_.ndc_scale[0] != ndc_scale_x;
   dirty |= system_constants_.ndc_scale[1] != ndc_scale_y;
   dirty |= system_constants_.ndc_scale[2] != ndc_scale_z;
   dirty |= system_constants_.ndc_offset[0] != ndc_offset_x;
   dirty |= system_constants_.ndc_offset[1] != ndc_offset_y;
   dirty |= system_constants_.ndc_offset[2] != ndc_offset_z;
+  dirty |= system_constants_.pixel_half_pixel_offset != pixel_half_pixel_offset;
   system_constants_.ndc_scale[0] = ndc_scale_x;
   system_constants_.ndc_scale[1] = ndc_scale_y;
   system_constants_.ndc_scale[2] = ndc_scale_z;
   system_constants_.ndc_offset[0] = ndc_offset_x;
   system_constants_.ndc_offset[1] = ndc_offset_y;
   system_constants_.ndc_offset[2] = ndc_offset_z;
-
-  // Half-pixel offset for vertex and pixel coordinates.
-  // TODO(Triang3l): Check if pixel coordinates need to offset depending on a
-  // different register.
-  float vertex_half_pixel_offset[2], pixel_half_pixel_offset;
-  if (pa_su_vtx_cntl & (1 << 0)) {
-    if (pa_cl_vte_cntl & (1 << 0)) {
-      float viewport_scale_x = regs[XE_GPU_REG_PA_CL_VPORT_XSCALE].f32;
-      vertex_half_pixel_offset[0] =
-          viewport_scale_x != 0.0f ? -0.5f / viewport_scale_x : 0.0f;
-    } else {
-      vertex_half_pixel_offset[0] = -1.0f / 2560.0f;
-    }
-    if (pa_cl_vte_cntl & (1 << 2)) {
-      float viewport_scale_y = regs[XE_GPU_REG_PA_CL_VPORT_YSCALE].f32;
-      vertex_half_pixel_offset[1] =
-          viewport_scale_y != 0.0f ? -0.5f / viewport_scale_y : 0.0f;
-    } else {
-      vertex_half_pixel_offset[1] = -1.0f / 2560.0f;
-    }
-    pixel_half_pixel_offset = -0.5f;
-  } else {
-    vertex_half_pixel_offset[0] = 0.0f;
-    vertex_half_pixel_offset[1] = 0.0f;
-    pixel_half_pixel_offset = 0.0f;
-  }
-  dirty |= system_constants_.vertex_half_pixel_offset[0] !=
-           vertex_half_pixel_offset[0];
-  dirty |= system_constants_.vertex_half_pixel_offset[1] !=
-           vertex_half_pixel_offset[1];
-  dirty |= system_constants_.pixel_half_pixel_offset != pixel_half_pixel_offset;
-  system_constants_.vertex_half_pixel_offset[0] = vertex_half_pixel_offset[0];
-  system_constants_.vertex_half_pixel_offset[1] = vertex_half_pixel_offset[1];
   system_constants_.pixel_half_pixel_offset = pixel_half_pixel_offset;
 
   // Pixel position register.
