@@ -328,12 +328,14 @@ class Memory {
   // Protects a physical memory range without adding a watch, primarily for use
   // with the global physical access watch.
   void ProtectPhysicalMemory(uint32_t physical_address, uint32_t length,
-                             cpu::MMIOHandler::WatchType type);
+                             cpu::MMIOHandler::WatchType type,
+                             bool protect_host_access);
 
   // Unprotects a physical memory range previously protected using
   // ProtectPhysicalMemory, primarily for use with the global physical access
   // watch.
-  void UnprotectPhysicalMemory(uint32_t physical_address, uint32_t length);
+  void UnprotectPhysicalMemory(uint32_t physical_address, uint32_t length,
+                               bool unprotect_host_access);
 
   // Allocates virtual memory from the 'system' heap.
   // System memory is kept separate from game memory but is still accessible

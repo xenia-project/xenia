@@ -118,8 +118,6 @@ void SharedMemory::Shutdown() {
 }
 
 void SharedMemory::BeginFrame() {
-  // XELOGGPU("SharedMemory: BeginFrame start");
-
   // Check triggered watches, clear them and mark modified pages as out of date.
   watch_mutex_.lock();
   for (uint32_t i = 0; i < watches_triggered_l2_.size(); ++i) {
@@ -138,14 +136,10 @@ void SharedMemory::BeginFrame() {
   upload_buffer_pool_->BeginFrame();
 
   heap_creation_failed_ = false;
-
-  // XELOGGPU("SharedMemory: BeginFrame end");
 }
 
 bool SharedMemory::EndFrame(ID3D12GraphicsCommandList* command_list_setup,
                             ID3D12GraphicsCommandList* command_list_draw) {
-  // XELOGGPU("SharedMemory: EndFrame start");
-
   // Before drawing starts, it's assumed that the buffer is a copy destination.
   // This transition is for the next frame, not for the current one.
   TransitionBuffer(D3D12_RESOURCE_STATE_COPY_DEST, command_list_draw);
@@ -214,9 +208,9 @@ bool SharedMemory::EndFrame(ID3D12GraphicsCommandList* command_list_setup,
         }
         watched_pages_[i] |= protect_bits;
       }
-      memory_->ProtectPhysicalMemory(protect_start << page_size_log2_,
-                                     protect_length << page_size_log2_,
-                                     cpu::MMIOHandler::WatchType::kWatchWrite);
+      memory_->ProtectPhysicalMemory(
+          protect_start << page_size_log2_, protect_length << page_size_log2_,
+          cpu::MMIOHandler::WatchType::kWatchWrite, false);
       protect_end = protect_last + 1;
       if (protect_end >= upload_end) {
         break;
@@ -239,8 +233,6 @@ bool SharedMemory::EndFrame(ID3D12GraphicsCommandList* command_list_setup,
     }
   }
 
-  // XELOGGPU("SharedMemory: EndFrame end");
-
   return upload_end != 0;
 }
 
@@ -260,7 +252,7 @@ uint32_t SharedMemory::NextUploadRange(uint32_t search_start,
     // Found the beginning of a range - find the end.
     uint32_t start_page = (i << 6) + start_page_local;
     for (uint32_t j = i; j < upload_pages_.size(); ++j) {
-      uint64_t end_block = upload_pages_[i];
+      uint64_t end_block = upload_pages_[j];
       if (j == i) {
         end_block |= (1ull << start_page_local) - 1;
       }
@@ -302,9 +294,6 @@ bool SharedMemory::UseRange(uint32_t start, uint32_t length) {
         // current frame anymore if have failed at least once.
         return false;
       }
-      /* XELOGGPU("Shared memory: Creating %.8X-%.8X tile heap",
-               heap_first << kHeapSizeLog2,
-               (heap_last << kHeapSizeLog2) + (kHeapSize - 1)); */
       auto provider = context_->GetD3D12Provider();
       auto device = provider->GetDevice();
       auto direct_queue = provider->GetDirectQueue();
@@ -391,7 +380,7 @@ bool SharedMemory::WatchCallback(uint32_t address) {
 
   // Unprotect the page.
   memory_->UnprotectPhysicalMemory(page_index_l1_global << page_size_log2_,
-                                   1 << page_size_log2_);
+                                   1 << page_size_log2_, false);
   watched_pages_[block_index_l1] &= ~page_bit_l1;
   return true;
 }

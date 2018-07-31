@@ -418,13 +418,16 @@ void Memory::SetGlobalPhysicalAccessWatch(
 }
 
 void Memory::ProtectPhysicalMemory(uint32_t physical_address, uint32_t length,
-                                   cpu::MMIOHandler::WatchType type) {
-  mmio_handler_->ProtectPhysicalMemory(physical_address, length, type);
+                                   cpu::MMIOHandler::WatchType type,
+                                   bool protect_host_access) {
+  mmio_handler_->ProtectPhysicalMemory(physical_address, length, type,
+                                       protect_host_access);
 }
 
-void Memory::UnprotectPhysicalMemory(uint32_t physical_address,
-                                     uint32_t length) {
-  mmio_handler_->UnprotectPhysicalMemory(physical_address, length);
+void Memory::UnprotectPhysicalMemory(uint32_t physical_address, uint32_t length,
+                                     bool unprotect_host_access) {
+  mmio_handler_->UnprotectPhysicalMemory(physical_address, length,
+                                         unprotect_host_access);
 }
 
 uint32_t Memory::SystemHeapAlloc(uint32_t size, uint32_t alignment,
