@@ -167,9 +167,14 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
   // Only up to 14 constant buffers can be used on binding tiers 1 and 2.
   source.Append(
       "cbuffer xe_system_constants : register(b0) {\n"
-      "  float2 xe_viewport_inv_scale;\n"
+      "  float3 xe_mul_rcp_w;\n"
       "  uint xe_vertex_index_endian;\n"
+      "  float3 xe_ndc_scale;\n"
       "  uint xe_textures_are_3d;\n"
+      "  float3 xe_ndc_offset;\n"
+      "  float xe_pixel_half_pixel_offset;\n"
+      "  float2 xe_ssaa_inv_scale;\n"
+      "  uint xe_pixel_pos_reg;\n"
       "};\n"
       "\n"
       "cbuffer xe_loop_bool_constants : register(b1) {\n"
@@ -313,6 +318,22 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
       "      break;\n"
       "    }\n"
       "  } while (xe_pc != 0xFFFFu);\n");
+  if (is_vertex_shader()) {
+    // Restore the original W if the shader has already taken its reciprocal,
+    // and restore the original XYZ if the shader has divided them by W. Also
+    // normalize the coordinates to the viewport if the shader has returned
+    // unnormalized ones (for rectangle lists, for instance) and apply the half-
+    // pixel offset.
+    source.Append(
+        "  [flatten] if (xe_mul_rcp_w.z == 0.0) {\n"
+        "    xe_output.position.w = rcp(xe_output.position.w);\n"
+        "  }\n"
+        "  xe_output.position.xyz *=\n"
+        "      lerp((1.0).xxx, xe_output.position.www, xe_mul_rcp_w.xxy);\n"
+        "  xe_output.position.xyz =\n"
+        "      xe_output.position.xyz * xe_ndc_scale +\n"
+        "      xe_ndc_offset * xe_output.position.www;\n");
+  }
   // TODO(Triang3l): Window offset, half pixel offset, alpha test, gamma.
   source.Append(
       "  return xe_output;\n"

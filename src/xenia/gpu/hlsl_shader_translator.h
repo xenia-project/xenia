@@ -35,10 +35,8 @@ class HlslShaderTranslator : public ShaderTranslator {
     float ndc_offset[3];
     float pixel_half_pixel_offset;
     // vec4 3
-    float vertex_half_pixel_offset[2];
-    uint32_t pixel_pos_reg;
-    // vec4 4
     float ssaa_inv_scale[2];
+    uint32_t pixel_pos_reg;
   };
 
   enum class SRVType : uint32_t {
