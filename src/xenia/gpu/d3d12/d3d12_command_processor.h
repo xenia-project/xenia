@@ -198,6 +198,9 @@ class D3D12CommandProcessor : public CommandProcessor {
   D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_pixel_float_constants_;
   D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_fetch_constants_;
   D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_shared_memory_;
+
+  // Current primitive topology.
+  D3D_PRIMITIVE_TOPOLOGY primitive_topology_;
 };
 
 }  // namespace d3d12
