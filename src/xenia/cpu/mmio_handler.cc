@@ -222,7 +222,8 @@ void MMIOHandler::SetGlobalPhysicalAccessWatch(
 }
 
 void MMIOHandler::ProtectPhysicalMemory(uint32_t physical_address,
-                                        uint32_t length, WatchType type) {
+                                        uint32_t length, WatchType type,
+                                        bool protect_host_access) {
   uint32_t base_address = physical_address & 0x1FFFFFFF;
 
   // Can only protect sizes matching system page size.
@@ -250,9 +251,11 @@ void MMIOHandler::ProtectPhysicalMemory(uint32_t physical_address,
       break;
   }
 
-  // Protect the range under all address spaces
-  memory::Protect(physical_membase_ + base_address, length, page_access,
-                  nullptr);
+  // Protect the range under all address spaces.
+  if (protect_host_access) {
+    memory::Protect(physical_membase_ + base_address, length, page_access,
+                    nullptr);
+  }
   memory::Protect(virtual_membase_ + 0xA0000000 + base_address, length,
                   page_access, nullptr);
   memory::Protect(virtual_membase_ + 0xC0000000 + base_address, length,
@@ -262,8 +265,10 @@ void MMIOHandler::ProtectPhysicalMemory(uint32_t physical_address,
 }
 
 void MMIOHandler::UnprotectPhysicalMemory(uint32_t physical_address,
-                                          uint32_t length) {
-  ProtectPhysicalMemory(physical_address, length, kWatchInvalid);
+                                          uint32_t length,
+                                          bool unprotect_host_access) {
+  ProtectPhysicalMemory(physical_address, length, kWatchInvalid,
+                        unprotect_host_access);
 }
 
 void MMIOHandler::InvalidateRange(uint32_t physical_address, size_t length) {

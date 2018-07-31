@@ -78,8 +78,9 @@ class MMIOHandler {
   void SetGlobalPhysicalAccessWatch(GlobalAccessWatchCallback callback,
                                     void* callback_context);
   void ProtectPhysicalMemory(uint32_t physical_address, uint32_t length,
-                             WatchType type);
-  void UnprotectPhysicalMemory(uint32_t physical_address, uint32_t length);
+                             WatchType type, bool protect_host_access);
+  void UnprotectPhysicalMemory(uint32_t physical_address, uint32_t length,
+                               bool unprotect_host_access);
 
   // Fires and clears any access watches that overlap this range.
   void InvalidateRange(uint32_t physical_address, size_t length);
