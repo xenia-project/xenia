@@ -17,6 +17,7 @@
 #include "xenia/gpu/d3d12/d3d12_graphics_system.h"
 #include "xenia/gpu/d3d12/pipeline_cache.h"
 #include "xenia/gpu/d3d12/shared_memory.h"
+#include "xenia/gpu/hlsl_shader_translator.h"
 #include "xenia/gpu/xenos.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/ui/d3d12/command_list.h"
@@ -125,6 +126,8 @@ class D3D12CommandProcessor : public CommandProcessor {
   // Returns true if an open frame was ended.
   bool EndFrame();
 
+  void UpdateFixedFunctionState(ID3D12GraphicsCommandList* command_list);
+  void UpdateSystemConstantValues(Endian index_endian);
   bool UpdateBindings(ID3D12GraphicsCommandList* command_list,
                       const D3D12Shader* vertex_shader,
                       const D3D12Shader* pixel_shader,
@@ -150,6 +153,16 @@ class D3D12CommandProcessor : public CommandProcessor {
 
   uint32_t current_queue_frame_ = UINT32_MAX;
 
+  // The current fixed-function drawing state.
+  D3D12_VIEWPORT ff_viewport_;
+  D3D12_RECT ff_scissor_;
+  float ff_blend_factor_[4];
+  uint32_t ff_stencil_ref_;
+  bool ff_viewport_update_needed_;
+  bool ff_scissor_update_needed_;
+  bool ff_blend_factor_update_needed_;
+  bool ff_stencil_ref_update_needed_;
+
   // Currently bound graphics or compute pipeline.
   ID3D12PipelineState* current_pipeline_;
   // Currently bound graphics root signature.
@@ -163,12 +176,7 @@ class D3D12CommandProcessor : public CommandProcessor {
   ID3D12DescriptorHeap* current_sampler_heap_;
 
   // System shader constants.
-  struct SystemConstants {
-    float viewport_inv_scale_x;
-    float viewport_inv_scale_y;
-    uint32_t vertex_index_endian;
-    uint32_t textures_are_3d;
-  } cbuffer_system_;
+  HlslShaderTranslator::SystemConstants system_constants_;
 
   // Constant buffer bindings.
   struct ConstantBufferBinding {

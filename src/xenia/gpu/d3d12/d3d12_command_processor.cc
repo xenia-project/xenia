@@ -9,6 +9,7 @@
 
 #include "xenia/gpu/d3d12/d3d12_command_processor.h"
 
+#include <algorithm>
 #include <cstring>
 
 #include "xenia/base/assert.h"
@@ -188,7 +189,7 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(
     if (pixel_textures > 0 && vertex_textures > 0) {
       assert_true(vertex_samplers > 0);
 
-      desc.NumParameters = UINT(kRootParameter_Count_TwoStageTextures);
+      desc.NumParameters = kRootParameter_Count_TwoStageTextures;
 
       // Vertex textures.
       {
@@ -479,6 +480,8 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     return true;
   }
 
+  bool indexed = index_buffer_info != nullptr && index_buffer_info->guest_base;
+
   // Shaders will have already been defined by previous loads.
   // We need them to do just about anything so validate here.
   auto vertex_shader = static_cast<D3D12Shader*>(active_vertex_shader());
@@ -504,18 +507,24 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
   ID3D12RootSignature* root_signature;
   auto pipeline_status = pipeline_cache_->ConfigurePipeline(
       vertex_shader, pixel_shader, primitive_type,
-      index_buffer_info != nullptr ? index_buffer_info->format
-                                   : IndexFormat::kInt16,
-      &pipeline, &root_signature);
+      indexed ? index_buffer_info->format : IndexFormat::kInt16, &pipeline,
+      &root_signature);
   if (pipeline_status == PipelineCache::UpdateStatus::kError) {
     return false;
   }
+
+  // Update viewport, scissor, blend factor and stencil reference.
+  UpdateFixedFunctionState(command_list);
 
   // Bind the pipeline.
   if (current_pipeline_ != pipeline) {
     current_pipeline_ = pipeline;
     command_list->SetPipelineState(pipeline);
   }
+
+  // Update system constants before uploading them.
+  UpdateSystemConstantValues(indexed ? index_buffer_info->endianness
+                                     : Endian::kUnspecified);
 
   // Update constant buffers, descriptors and root parameters.
   if (!UpdateBindings(command_list, vertex_shader, pixel_shader,
@@ -524,7 +533,7 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
   }
 
   // Shared memory test.
-  if (index_buffer_info != nullptr && index_buffer_info->guest_base != 0) {
+  if (indexed) {
     uint32_t index_size = index_buffer_info->format == IndexFormat::kInt32
                               ? sizeof(uint32_t)
                               : sizeof(uint16_t);
@@ -545,6 +554,12 @@ bool D3D12CommandProcessor::BeginFrame() {
   auto context = GetD3D12Context();
   context->BeginSwap();
   current_queue_frame_ = context->GetCurrentQueueFrame();
+
+  // Reset fixed-function state.
+  ff_viewport_update_needed_ = true;
+  ff_scissor_update_needed_ = true;
+  ff_blend_factor_update_needed_ = true;
+  ff_stencil_ref_update_needed_ = true;
 
   // Reset bindings, particularly because the buffers backing them are recycled.
   current_pipeline_ = nullptr;
@@ -594,6 +609,265 @@ bool D3D12CommandProcessor::EndFrame() {
   return true;
 }
 
+void D3D12CommandProcessor::UpdateFixedFunctionState(
+    ID3D12GraphicsCommandList* command_list) {
+  auto& regs = *register_file_;
+
+  // Window parameters.
+  // http://ftp.tku.edu.tw/NetBSD/NetBSD-current/xsrc/external/mit/xf86-video-ati/dist/src/r600_reg_auto_r6xx.h
+  // See r200UpdateWindow:
+  // https://github.com/freedreno/mesa/blob/master/src/mesa/drivers/dri/r200/r200_state.c
+  uint32_t pa_sc_window_offset = regs[XE_GPU_REG_PA_SC_WINDOW_OFFSET].u32;
+  int16_t window_offset_x = pa_sc_window_offset & 0x7FFF;
+  int16_t window_offset_y = (pa_sc_window_offset >> 16) & 0x7FFF;
+  if (window_offset_x & 0x4000) {
+    window_offset_x |= 0x8000;
+  }
+  if (window_offset_y & 0x4000) {
+    window_offset_y |= 0x8000;
+  }
+
+  // Supersampling replacing multisampling due to difficulties of emulating
+  // EDRAM with multisampling.
+  MsaaSamples msaa_samples =
+      MsaaSamples((regs[XE_GPU_REG_RB_SURFACE_INFO].u32 >> 16) & 0x3);
+  uint32_t ssaa_scale_x = msaa_samples >= MsaaSamples::k4X ? 2 : 1;
+  uint32_t ssaa_scale_y = msaa_samples >= MsaaSamples::k2X ? 2 : 1;
+
+  // Viewport.
+  // PA_CL_VTE_CNTL contains whether offsets and scales are enabled.
+  // http://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
+  // In games, either all are enabled (for regular drawing) or none are (for
+  // rectangle lists usually).
+  //
+  // If scale/offset is enabled, the Xenos shader is writing (neglecting W
+  // division) position in the NDC (-1, -1, dx_clip_space_def - 1) -> (1, 1, 1)
+  // box. If it's not, the position is in screen space. Since we can only use
+  // the NDC in PC APIs, we use a viewport of the largest possible size, and
+  // divide the position by it in translated shaders.
+  uint32_t pa_cl_vte_cntl = regs[XE_GPU_REG_PA_CL_VTE_CNTL].u32;
+  float viewport_scale_x = (pa_cl_vte_cntl & (1 << 0))
+                               ? regs[XE_GPU_REG_PA_CL_VPORT_XSCALE].f32
+                               : 1280.0f;
+  float viewport_scale_y = (pa_cl_vte_cntl & (1 << 2))
+                               ? regs[XE_GPU_REG_PA_CL_VPORT_YSCALE].f32
+                               : 1280.0f;
+  // TODO(Triang3l): Investigate how unnormalized coordinates should work when
+  // using a D24FS8 depth buffer. A 20e4 buffer can store values up to
+  // 511.99985, however, in the depth buffer, something like 1/z is stored, and
+  // if the shader writes 1/511.99985, it probably won't become 1 in the depth
+  // buffer. Unnormalized coordinates are mostly used when clearing both depth
+  // and color to 0 though.
+  float viewport_scale_z = (pa_cl_vte_cntl & (1 << 4))
+                               ? regs[XE_GPU_REG_PA_CL_VPORT_ZSCALE].f32
+                               : 1.0f;
+  float viewport_offset_x = (pa_cl_vte_cntl & (1 << 1))
+                                ? regs[XE_GPU_REG_PA_CL_VPORT_XOFFSET].f32
+                                : viewport_scale_x;
+  float viewport_offset_y = (pa_cl_vte_cntl & (1 << 3))
+                                ? regs[XE_GPU_REG_PA_CL_VPORT_YOFFSET].f32
+                                : viewport_scale_y;
+  float viewport_offset_z = (pa_cl_vte_cntl & (1 << 5))
+                                ? regs[XE_GPU_REG_PA_CL_VPORT_ZOFFSET].f32
+                                : 0.0f;
+  if (regs[XE_GPU_REG_PA_SU_SC_MODE_CNTL].u32 & (1 << 16)) {
+    viewport_offset_x += float(window_offset_x);
+    viewport_offset_y += float(window_offset_y);
+  }
+  D3D12_VIEWPORT viewport;
+  viewport.TopLeftX =
+      (viewport_offset_x - viewport_scale_x) * float(ssaa_scale_x);
+  viewport.TopLeftY =
+      (viewport_offset_y - viewport_scale_y) * float(ssaa_scale_y);
+  viewport.Width = viewport_scale_x * 2.0f * float(ssaa_scale_x);
+  viewport.Height = viewport_scale_y * 2.0f * float(ssaa_scale_y);
+  viewport.MinDepth = viewport_offset_z;
+  viewport.MaxDepth = viewport_offset_z + viewport_scale_z;
+  ff_viewport_update_needed_ |= ff_viewport_.TopLeftX != viewport.TopLeftX;
+  ff_viewport_update_needed_ |= ff_viewport_.TopLeftY != viewport.TopLeftY;
+  ff_viewport_update_needed_ |= ff_viewport_.Width != viewport.Width;
+  ff_viewport_update_needed_ |= ff_viewport_.Height != viewport.Height;
+  ff_viewport_update_needed_ |= ff_viewport_.MinDepth != viewport.MinDepth;
+  ff_viewport_update_needed_ |= ff_viewport_.MaxDepth != viewport.MaxDepth;
+  if (ff_viewport_update_needed_) {
+    ff_viewport_ = viewport;
+    command_list->RSSetViewports(1, &viewport);
+    ff_viewport_update_needed_ = false;
+  }
+
+  // Scissor.
+  uint32_t pa_sc_window_scissor_tl =
+      regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL].u32;
+  uint32_t pa_sc_window_scissor_br =
+      regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_BR].u32;
+  D3D12_RECT scissor;
+  scissor.left = pa_sc_window_scissor_tl & 0x7FFF;
+  scissor.top = (pa_sc_window_scissor_tl >> 16) & 0x7FFF;
+  scissor.right = pa_sc_window_scissor_br & 0x7FFF;
+  scissor.bottom = (pa_sc_window_scissor_br >> 16) & 0x7FFF;
+  if (!(pa_sc_window_scissor_tl & (1u << 31))) {
+    // !WINDOW_OFFSET_DISABLE.
+    scissor.left = std::max(scissor.left + window_offset_x, LONG(0));
+    scissor.top = std::max(scissor.top + window_offset_y, LONG(0));
+    scissor.right = std::max(scissor.right + window_offset_x, LONG(0));
+    scissor.bottom = std::max(scissor.bottom + window_offset_y, LONG(0));
+  }
+  scissor.left *= ssaa_scale_x;
+  scissor.top *= ssaa_scale_y;
+  scissor.right *= ssaa_scale_x;
+  scissor.bottom *= ssaa_scale_y;
+  ff_scissor_update_needed_ |= ff_scissor_.left != scissor.left;
+  ff_scissor_update_needed_ |= ff_scissor_.top != scissor.top;
+  ff_scissor_update_needed_ |= ff_scissor_.right != scissor.right;
+  ff_scissor_update_needed_ |= ff_scissor_.bottom != scissor.bottom;
+  if (ff_scissor_update_needed_) {
+    ff_scissor_ = scissor;
+    command_list->RSSetScissorRects(1, &scissor);
+    ff_scissor_update_needed_ = false;
+  }
+
+  // Blend factor.
+  ff_blend_factor_update_needed_ |=
+      ff_blend_factor_[0] != regs[XE_GPU_REG_RB_BLEND_RED].f32;
+  ff_blend_factor_update_needed_ |=
+      ff_blend_factor_[1] != regs[XE_GPU_REG_RB_BLEND_GREEN].f32;
+  ff_blend_factor_update_needed_ |=
+      ff_blend_factor_[2] != regs[XE_GPU_REG_RB_BLEND_BLUE].f32;
+  ff_blend_factor_update_needed_ |=
+      ff_blend_factor_[3] != regs[XE_GPU_REG_RB_BLEND_ALPHA].f32;
+  if (ff_blend_factor_update_needed_) {
+    ff_blend_factor_[0] = regs[XE_GPU_REG_RB_BLEND_RED].f32;
+    ff_blend_factor_[1] = regs[XE_GPU_REG_RB_BLEND_GREEN].f32;
+    ff_blend_factor_[2] = regs[XE_GPU_REG_RB_BLEND_BLUE].f32;
+    ff_blend_factor_[3] = regs[XE_GPU_REG_RB_BLEND_ALPHA].f32;
+    command_list->OMSetBlendFactor(ff_blend_factor_);
+    ff_blend_factor_update_needed_ = false;
+  }
+
+  // Stencil reference value.
+  uint32_t stencil_ref = regs[XE_GPU_REG_RB_STENCILREFMASK].u32 & 0xFF;
+  ff_stencil_ref_update_needed_ |= ff_stencil_ref_ != stencil_ref;
+  if (ff_stencil_ref_update_needed_) {
+    ff_stencil_ref_ = stencil_ref;
+    command_list->OMSetStencilRef(stencil_ref);
+    ff_stencil_ref_update_needed_ = false;
+  }
+}
+
+void D3D12CommandProcessor::UpdateSystemConstantValues(Endian index_endian) {
+  auto& regs = *register_file_;
+  uint32_t pa_cl_vte_cntl = regs[XE_GPU_REG_PA_CL_VTE_CNTL].u32;
+  uint32_t pa_cl_clip_cntl = regs[XE_GPU_REG_PA_CL_CLIP_CNTL].u32;
+  uint32_t pa_su_vtx_cntl = regs[XE_GPU_REG_PA_SU_VTX_CNTL].u32;
+  uint32_t sq_program_cntl = regs[XE_GPU_REG_SQ_PROGRAM_CNTL].u32;
+  uint32_t sq_context_misc = regs[XE_GPU_REG_SQ_CONTEXT_MISC].u32;
+  uint32_t rb_surface_info = regs[XE_GPU_REG_RB_SURFACE_INFO].u32;
+
+  bool dirty = false;
+
+  // Index buffer endianness.
+  dirty |= system_constants_.vertex_index_endian != uint32_t(index_endian);
+  system_constants_.vertex_index_endian = uint32_t(index_endian);
+
+  // W0 division control.
+  // http://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
+  // VTX_XY_FMT = true: the incoming XY have already been multiplied by 1/W0.
+  //            = false: multiply the X, Y coordinates by 1/W0.
+  // VTX_Z_FMT = true: the incoming Z has already been multiplied by 1/W0.
+  //           = false: multiply the Z coordinate by 1/W0.
+  // VTX_W0_FMT = true: the incoming W0 is not 1/W0. Perform the reciprocal to
+  //                    get 1/W0.
+  float vtx_xy_fmt = (pa_cl_vte_cntl & (1 << 8)) ? 1.0f : 0.0f;
+  float vtx_z_fmt = (pa_cl_vte_cntl & (1 << 9)) ? 1.0f : 0.0f;
+  float vtx_w0_fmt = (pa_cl_vte_cntl & (1 << 10)) ? 1.0f : 0.0f;
+  dirty |= system_constants_.mul_rcp_w[0] != vtx_xy_fmt;
+  dirty |= system_constants_.mul_rcp_w[1] != vtx_z_fmt;
+  dirty |= system_constants_.mul_rcp_w[2] != vtx_w0_fmt;
+  system_constants_.mul_rcp_w[0] = vtx_xy_fmt;
+  system_constants_.mul_rcp_w[1] = vtx_z_fmt;
+  system_constants_.mul_rcp_w[2] = vtx_w0_fmt;
+
+  // Conversion to Direct3D 12 normalized device coordinates.
+  // See viewport configuration in UpdateFixedFunctionState for explanations.
+  // X and Y scale/offset is to convert unnormalized coordinates generated by
+  // shaders (for rectangle list drawing, for instance) to the 2560x2560
+  // viewport that is used to emulate unnormalized coordinates.
+  // Z scale/offset is to convert from OpenGL NDC to Direct3D NDC if needed.
+  bool gl_clip_space_def =
+      !(pa_cl_clip_cntl & (1 << 19)) && (pa_cl_vte_cntl & (1 << 4));
+  float ndc_scale_x = (pa_cl_vte_cntl & (1 << 0)) ? 1.0f / 1280.0f : 1.0f;
+  float ndc_scale_y = (pa_cl_vte_cntl & (1 << 2)) ? 1.0f / 1280.0f : 1.0f;
+  float ndc_scale_z = gl_clip_space_def ? 0.5f : 1.0f;
+  float ndc_offset_x = (pa_cl_vte_cntl & (1 << 1)) ? -1.0f : 0.0f;
+  float ndc_offset_y = (pa_cl_vte_cntl & (1 << 3)) ? -1.0f : 0.0f;
+  float ndc_offset_z = gl_clip_space_def ? 0.5f : 0.0f;
+  dirty |= system_constants_.ndc_scale[0] != ndc_scale_x;
+  dirty |= system_constants_.ndc_scale[1] != ndc_scale_y;
+  dirty |= system_constants_.ndc_scale[2] != ndc_scale_z;
+  dirty |= system_constants_.ndc_offset[0] != ndc_offset_x;
+  dirty |= system_constants_.ndc_offset[1] != ndc_offset_y;
+  dirty |= system_constants_.ndc_offset[2] != ndc_offset_z;
+  system_constants_.ndc_scale[0] = ndc_scale_x;
+  system_constants_.ndc_scale[1] = ndc_scale_y;
+  system_constants_.ndc_scale[2] = ndc_scale_z;
+  system_constants_.ndc_offset[0] = ndc_offset_x;
+  system_constants_.ndc_offset[1] = ndc_offset_y;
+  system_constants_.ndc_offset[2] = ndc_offset_z;
+
+  // Half-pixel offset for vertex and pixel coordinates.
+  // TODO(Triang3l): Check if pixel coordinates need to offset depending on a
+  // different register.
+  float vertex_half_pixel_offset[2], pixel_half_pixel_offset;
+  if (pa_su_vtx_cntl & (1 << 0)) {
+    if (pa_cl_vte_cntl & (1 << 0)) {
+      float viewport_scale_x = regs[XE_GPU_REG_PA_CL_VPORT_XSCALE].f32;
+      vertex_half_pixel_offset[0] =
+          viewport_scale_x != 0.0f ? -0.5f / viewport_scale_x : 0.0f;
+    } else {
+      vertex_half_pixel_offset[0] = -1.0f / 2560.0f;
+    }
+    if (pa_cl_vte_cntl & (1 << 2)) {
+      float viewport_scale_y = regs[XE_GPU_REG_PA_CL_VPORT_YSCALE].f32;
+      vertex_half_pixel_offset[1] =
+          viewport_scale_y != 0.0f ? -0.5f / viewport_scale_y : 0.0f;
+    } else {
+      vertex_half_pixel_offset[1] = -1.0f / 2560.0f;
+    }
+    pixel_half_pixel_offset = -0.5f;
+  } else {
+    vertex_half_pixel_offset[0] = 0.0f;
+    vertex_half_pixel_offset[1] = 0.0f;
+    pixel_half_pixel_offset = 0.0f;
+  }
+  dirty |= system_constants_.vertex_half_pixel_offset[0] !=
+           vertex_half_pixel_offset[0];
+  dirty |= system_constants_.vertex_half_pixel_offset[1] !=
+           vertex_half_pixel_offset[1];
+  dirty |= system_constants_.pixel_half_pixel_offset != pixel_half_pixel_offset;
+  system_constants_.vertex_half_pixel_offset[0] = vertex_half_pixel_offset[0];
+  system_constants_.vertex_half_pixel_offset[1] = vertex_half_pixel_offset[1];
+  system_constants_.pixel_half_pixel_offset = pixel_half_pixel_offset;
+
+  // Pixel position register.
+  uint32_t pixel_pos_reg =
+      (sq_program_cntl & (1 << 18)) ? (sq_context_misc >> 8) & 0xFF : UINT_MAX;
+  dirty |= system_constants_.pixel_pos_reg != pixel_pos_reg;
+  system_constants_.pixel_pos_reg = pixel_pos_reg;
+
+  // Supersampling anti-aliasing pixel scale inverse for pixel positions.
+  MsaaSamples msaa_samples = MsaaSamples((rb_surface_info >> 16) & 0x3);
+  float ssaa_inv_scale_x = msaa_samples >= MsaaSamples::k4X ? 0.5f : 1.0f;
+  float ssaa_inv_scale_y = msaa_samples >= MsaaSamples::k2X ? 0.5f : 1.0f;
+  dirty |= system_constants_.ssaa_inv_scale[0] != ssaa_inv_scale_x;
+  dirty |= system_constants_.ssaa_inv_scale[1] != ssaa_inv_scale_y;
+  system_constants_.ssaa_inv_scale[0] = ssaa_inv_scale_x;
+  system_constants_.ssaa_inv_scale[1] = ssaa_inv_scale_y;
+
+  // TODO(Triang3l): Whether textures are 3D or stacked.
+
+  cbuffer_bindings_system_.up_to_date &= dirty;
+}
+
 bool D3D12CommandProcessor::UpdateBindings(
     ID3D12GraphicsCommandList* command_list, const D3D12Shader* vertex_shader,
     const D3D12Shader* pixel_shader, ID3D12RootSignature* root_signature) {
@@ -617,32 +891,27 @@ bool D3D12CommandProcessor::UpdateBindings(
 
   // Update constant buffers.
   // TODO(Triang3l): Update the system constant buffer - will crash without it.
-  ID3D12Resource* constant_buffer;
-  uint32_t constant_buffer_offset;
   if (!cbuffer_bindings_system_.up_to_date) {
     uint8_t* system_constants = constant_buffer_pool_->RequestFull(
-        xe::align(uint32_t(sizeof(cbuffer_system_)), 256u), constant_buffer,
-        constant_buffer_offset);
+        xe::align(uint32_t(sizeof(system_constants_)), 256u), nullptr, nullptr,
+        &cbuffer_bindings_system_.buffer_address);
     if (system_constants == nullptr) {
       return false;
     }
-    std::memcpy(system_constants, &cbuffer_system_, sizeof(cbuffer_system_));
-    cbuffer_bindings_system_.buffer_address =
-        constant_buffer->GetGPUVirtualAddress() + constant_buffer_offset;
+    std::memcpy(system_constants, &system_constants_,
+                sizeof(system_constants_));
     cbuffer_bindings_system_.up_to_date = true;
     write_common_constant_views = true;
   }
   if (!cbuffer_bindings_bool_loop_.up_to_date) {
     uint8_t* bool_loop_constants = constant_buffer_pool_->RequestFull(
-        256, constant_buffer, constant_buffer_offset);
+        256, nullptr, nullptr, &cbuffer_bindings_bool_loop_.buffer_address);
     if (bool_loop_constants == nullptr) {
       return false;
     }
     std::memcpy(bool_loop_constants,
                 &regs[XE_GPU_REG_SHADER_CONSTANT_BOOL_000_031].u32,
                 40 * sizeof(uint32_t));
-    cbuffer_bindings_bool_loop_.buffer_address =
-        constant_buffer->GetGPUVirtualAddress() + constant_buffer_offset;
     cbuffer_bindings_bool_loop_.up_to_date = true;
     write_common_constant_views = true;
   }
@@ -652,15 +921,13 @@ bool D3D12CommandProcessor::UpdateBindings(
       continue;
     }
     uint8_t* float_constants = constant_buffer_pool_->RequestFull(
-        512, constant_buffer, constant_buffer_offset);
+        512, nullptr, nullptr, &float_binding.buffer_address);
     if (float_constants == nullptr) {
       return false;
     }
     std::memcpy(float_constants,
                 &regs[XE_GPU_REG_SHADER_CONSTANT_000_X + (i << 7)].f32,
                 32 * 4 * sizeof(uint32_t));
-    float_binding.buffer_address =
-        constant_buffer->GetGPUVirtualAddress() + constant_buffer_offset;
     float_binding.up_to_date = true;
     if (i < 8) {
       write_vertex_float_constant_views = true;
@@ -670,15 +937,13 @@ bool D3D12CommandProcessor::UpdateBindings(
   }
   if (!cbuffer_bindings_fetch_.up_to_date) {
     uint8_t* fetch_constants = constant_buffer_pool_->RequestFull(
-        768, constant_buffer, constant_buffer_offset);
+        768, nullptr, nullptr, &cbuffer_bindings_fetch_.buffer_address);
     if (fetch_constants == nullptr) {
       return false;
     }
     std::memcpy(fetch_constants,
                 &regs[XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0].u32,
                 32 * 6 * sizeof(uint32_t));
-    cbuffer_bindings_fetch_.buffer_address =
-        constant_buffer->GetGPUVirtualAddress() + constant_buffer_offset;
     cbuffer_bindings_fetch_.up_to_date = true;
     write_fetch_constant_view = true;
   }
@@ -733,7 +998,7 @@ bool D3D12CommandProcessor::UpdateBindings(
     constant_buffer_desc.BufferLocation =
         cbuffer_bindings_system_.buffer_address;
     constant_buffer_desc.SizeInBytes =
-        xe::align(uint32_t(sizeof(cbuffer_system_)), 256u);
+        xe::align(uint32_t(sizeof(system_constants_)), 256u);
     device->CreateConstantBufferView(&constant_buffer_desc, view_cpu_handle);
     view_cpu_handle.ptr += view_handle_size;
     view_gpu_handle.ptr += view_handle_size;

@@ -28,11 +28,13 @@ class UploadBufferPool {
 
   // Request to write data in a single piece, creating a new page if the current
   // one doesn't have enough free space.
-  uint8_t* RequestFull(uint32_t size, ID3D12Resource*& buffer_out,
-                       uint32_t& offset_out);
+  uint8_t* RequestFull(uint32_t size, ID3D12Resource** buffer_out,
+                       uint32_t* offset_out,
+                       D3D12_GPU_VIRTUAL_ADDRESS* gpu_address_out);
   // Request to write data in multiple parts, filling the buffer entirely.
-  uint8_t* RequestPartial(uint32_t size, ID3D12Resource*& buffer_out,
-                          uint32_t& offset_out, uint32_t& size_out);
+  uint8_t* RequestPartial(uint32_t size, ID3D12Resource** buffer_out,
+                          uint32_t* offset_out, uint32_t* size_out,
+                          D3D12_GPU_VIRTUAL_ADDRESS* gpu_address_out);
 
  private:
   D3D12Context* context_;
@@ -55,6 +57,8 @@ class UploadBufferPool {
 
   uint32_t current_size_ = 0;
   uint8_t* current_mapping_ = nullptr;
+  // Not updated until actually requested.
+  D3D12_GPU_VIRTUAL_ADDRESS current_gpu_address_ = 0;
 
   // Reset in the beginning of a frame - don't try and fail to create a new page
   // if failed to create one in the current frame.

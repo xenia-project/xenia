@@ -65,9 +65,9 @@ void UploadBufferPool::ClearCache() {
   sent_last_ = nullptr;
 }
 
-uint8_t* UploadBufferPool::RequestFull(uint32_t size,
-                                       ID3D12Resource*& buffer_out,
-                                       uint32_t& offset_out) {
+uint8_t* UploadBufferPool::RequestFull(
+    uint32_t size, ID3D12Resource** buffer_out, uint32_t* offset_out,
+    D3D12_GPU_VIRTUAL_ADDRESS* gpu_address_out) {
   assert_true(size <= page_size_);
   if (size > page_size_) {
     return nullptr;
@@ -78,17 +78,26 @@ uint8_t* UploadBufferPool::RequestFull(uint32_t size,
       return nullptr;
     }
   }
-  buffer_out = unsent_->buffer;
-  offset_out = current_size_;
+  if (buffer_out != nullptr) {
+    *buffer_out = unsent_->buffer;
+  }
+  if (offset_out != nullptr) {
+    *offset_out = current_size_;
+  }
+  if (gpu_address_out != nullptr) {
+    if (current_gpu_address_ == 0) {
+      current_gpu_address_ = unsent_->buffer->GetGPUVirtualAddress();
+    }
+    *gpu_address_out = current_gpu_address_ = current_size_;
+  }
   uint8_t* mapping = current_mapping_ + current_size_;
   current_size_ += size;
   return mapping;
 }
 
-uint8_t* UploadBufferPool::RequestPartial(uint32_t size,
-                                          ID3D12Resource*& buffer_out,
-                                          uint32_t& offset_out,
-                                          uint32_t& size_out) {
+uint8_t* UploadBufferPool::RequestPartial(
+    uint32_t size, ID3D12Resource** buffer_out, uint32_t* offset_out,
+    uint32_t* size_out, D3D12_GPU_VIRTUAL_ADDRESS* gpu_address_out) {
   if (current_size_ == page_size_ || current_mapping_ == nullptr) {
     // Start a new page if can't fit any bytes or don't have an open page.
     if (!BeginNextPage()) {
@@ -96,9 +105,21 @@ uint8_t* UploadBufferPool::RequestPartial(uint32_t size,
     }
   }
   size = std::min(size, page_size_ - current_size_);
-  buffer_out = unsent_->buffer;
-  offset_out = current_size_;
-  size_out = size;
+  if (buffer_out != nullptr) {
+    *buffer_out = unsent_->buffer;
+  }
+  if (offset_out != nullptr) {
+    *offset_out = current_size_;
+  }
+  if (size_out != nullptr) {
+    *size_out = size;
+  }
+  if (gpu_address_out != nullptr) {
+    if (current_gpu_address_ == 0) {
+      current_gpu_address_ = unsent_->buffer->GetGPUVirtualAddress();
+    }
+    *gpu_address_out = current_gpu_address_ = current_size_;
+  }
   uint8_t* mapping = current_mapping_ + current_size_;
   current_size_ += size;
   return mapping;
@@ -174,6 +195,7 @@ bool UploadBufferPool::BeginNextPage() {
     return false;
   }
   current_mapping_ = reinterpret_cast<uint8_t*>(mapping);
+  current_gpu_address_ = 0;
 
   return true;
 }
