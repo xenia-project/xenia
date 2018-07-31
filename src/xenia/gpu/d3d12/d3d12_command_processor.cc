@@ -590,8 +590,12 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     }
     uint32_t vfetch_constant_index =
         XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + vfetch_index * 2;
-    uint32_t vfetch_address = regs[vfetch_constant_index].u32 << 2;
-    shared_memory_->UseRange(regs[vfetch_constant_index].u32 << 2,
+    if ((regs[vfetch_constant_index].u32 & 0x3) != 3) {
+      XELOGE("Vertex fetch type is not 3!");
+      assert_always();
+      return false;
+    }
+    shared_memory_->UseRange(regs[vfetch_constant_index].u32 & 0x1FFFFFFC,
                              regs[vfetch_constant_index + 1].u32 & 0x3FFFFFC);
     vertex_buffers_resident[vfetch_index >> 6] |= 1ull << (vfetch_index & 63);
   }
