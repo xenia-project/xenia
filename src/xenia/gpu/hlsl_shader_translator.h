@@ -24,6 +24,23 @@ class HlslShaderTranslator : public ShaderTranslator {
   HlslShaderTranslator();
   ~HlslShaderTranslator() override;
 
+  struct SystemConstants {
+    // vec4 0
+    float mul_rcp_w[3];
+    uint32_t vertex_index_endian;
+    // vec4 1
+    float ndc_scale[3];
+    uint32_t textures_are_3d;
+    // vec4 2
+    float ndc_offset[3];
+    float pixel_half_pixel_offset;
+    // vec4 3
+    float vertex_half_pixel_offset[2];
+    uint32_t pixel_pos_reg;
+    // vec4 4
+    float ssaa_inv_scale[2];
+  };
+
   enum class SRVType : uint32_t {
     // 1D, 2D or stacked texture bound as a 2D array texture.
     Texture2DArray,

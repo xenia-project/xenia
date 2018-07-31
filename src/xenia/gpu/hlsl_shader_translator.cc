@@ -834,7 +834,7 @@ void HlslShaderTranslator::ProcessVertexFetchInstruction(
   }
   EmitSourceDepth("xe_vertex_element%s = XeByteSwap(xe_shared_memory.Load%s(\n",
                   load_swizzle, load_function_suffix);
-  EmitSourceDepth("    (xe_vertex_fetch[%uu].x & 0x1FFFFFFCu)",
+  EmitSourceDepth("    ((xe_vertex_fetch[%uu].x << 2u) & 0x1FFFFFFCu)",
                   instr.operands[1].storage_index);
   if (instr.attributes.stride != 0) {
     EmitSource(" + uint(xe_src0.x) * %uu", instr.attributes.stride * 4);

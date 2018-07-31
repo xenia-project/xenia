@@ -165,8 +165,8 @@ bool SharedMemory::EndFrame(ID3D12GraphicsCommandList* command_list_setup,
       ID3D12Resource* upload_buffer;
       uint32_t upload_buffer_offset, upload_buffer_size;
       uint8_t* upload_buffer_mapping = upload_buffer_pool_->RequestPartial(
-          upload_range_length << page_size_log2_, upload_buffer,
-          upload_buffer_offset, upload_buffer_size);
+          upload_range_length << page_size_log2_, &upload_buffer,
+          &upload_buffer_offset, &upload_buffer_size, nullptr);
       if (upload_buffer_mapping == nullptr) {
         XELOGE("Shared memory: Failed to get an upload buffer");
         break;
