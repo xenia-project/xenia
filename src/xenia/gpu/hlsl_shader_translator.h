@@ -27,16 +27,17 @@ class HlslShaderTranslator : public ShaderTranslator {
   struct SystemConstants {
     // vec4 0
     float mul_rcp_w[3];
-    uint32_t vertex_index_endian;
+    uint32_t vertex_base_index;
     // vec4 1
     float ndc_scale[3];
-    uint32_t textures_are_3d;
+    uint32_t vertex_index_endian;
     // vec4 2
     float ndc_offset[3];
     float pixel_half_pixel_offset;
     // vec4 3
     float ssaa_inv_scale[2];
     uint32_t pixel_pos_reg;
+    uint32_t textures_are_3d;
   };
 
   enum class SRVType : uint32_t {

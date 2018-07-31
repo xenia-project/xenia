@@ -88,7 +88,7 @@ uint8_t* UploadBufferPool::RequestFull(
     if (current_gpu_address_ == 0) {
       current_gpu_address_ = unsent_->buffer->GetGPUVirtualAddress();
     }
-    *gpu_address_out = current_gpu_address_ = current_size_;
+    *gpu_address_out = current_gpu_address_ + current_size_;
   }
   uint8_t* mapping = current_mapping_ + current_size_;
   current_size_ += size;
@@ -118,7 +118,7 @@ uint8_t* UploadBufferPool::RequestPartial(
     if (current_gpu_address_ == 0) {
       current_gpu_address_ = unsent_->buffer->GetGPUVirtualAddress();
     }
-    *gpu_address_out = current_gpu_address_ = current_size_;
+    *gpu_address_out = current_gpu_address_ + current_size_;
   }
   uint8_t* mapping = current_mapping_ + current_size_;
   current_size_ += size;

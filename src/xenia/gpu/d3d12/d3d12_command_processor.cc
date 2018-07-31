@@ -481,6 +481,28 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
   }
 
   bool indexed = index_buffer_info != nullptr && index_buffer_info->guest_base;
+  if (indexed && regs[XE_GPU_REG_PA_SU_SC_MODE_CNTL].u32 & (1 << 21)) {
+    uint32_t reset_index = regs[XE_GPU_REG_VGT_MULTI_PRIM_IB_RESET_INDX].u32;
+    uint32_t reset_index_expected;
+    if (index_buffer_info->format == IndexFormat::kInt32) {
+      reset_index_expected = 0xFFFFFFFFu;
+    } else {
+      reset_index_expected = 0xFFFFu;
+    }
+    if (reset_index != reset_index_expected) {
+      // Only 0xFFFF and 0xFFFFFFFF primitive restart indices are supported by
+      // Direct3D 12 (endianness doesn't matter for them). However, Direct3D 9
+      // uses 0xFFFF as the reset index. With shared memory, it's impossible to
+      // replace the cut index in the buffer without affecting the game memory.
+      XELOGE(
+          "The game uses the primitive restart index 0x%X that isn't 0xFFFF or "
+          "0xFFFFFFFF. Report the game to Xenia developers so geometry shaders "
+          "will be added to handle this!",
+          reset_index);
+      assert_always();
+      return false;
+    }
+  }
 
   // Shaders will have already been defined by previous loads.
   // We need them to do just about anything so validate here.
@@ -501,6 +523,29 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
   bool new_frame = BeginFrame();
   ID3D12GraphicsCommandList* command_list =
       command_lists_[current_queue_frame_]->GetCommandList();
+
+  // Set the primitive topology.
+  D3D_PRIMITIVE_TOPOLOGY primitive_topology;
+  switch (primitive_type) {
+    case PrimitiveType::kLineList:
+      primitive_topology = D3D_PRIMITIVE_TOPOLOGY_LINELIST;
+      break;
+    case PrimitiveType::kLineStrip:
+      primitive_topology = D3D_PRIMITIVE_TOPOLOGY_LINESTRIP;
+      break;
+    case PrimitiveType::kTriangleList:
+      primitive_topology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+      break;
+    case PrimitiveType::kTriangleStrip:
+      primitive_topology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP;
+      break;
+    default:
+      return false;
+  }
+  if (primitive_topology_ != primitive_topology) {
+    primitive_topology_ = primitive_topology;
+    command_list->IASetPrimitiveTopology(primitive_topology);
+  }
 
   // Get the pipeline and translate the shaders so used textures are known.
   ID3D12PipelineState* pipeline;
@@ -532,13 +577,33 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     return false;
   }
 
-  // Shared memory test.
+  // Ensure vertex and index buffers are resident and draw.
+  // TODO(Triang3l): Cache residency for ranges in a way similar to how texture
+  // validity will be tracked.
+  shared_memory_->UseForReading(command_list);
+  uint64_t vertex_buffers_resident[2] = {};
+  for (const auto& vertex_binding : vertex_shader->vertex_bindings()) {
+    uint32_t vfetch_index = vertex_binding.fetch_constant;
+    if (vertex_buffers_resident[vfetch_index >> 6] &
+        (1ull << (vfetch_index & 63))) {
+      continue;
+    }
+    uint32_t vfetch_constant_index =
+        XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + vfetch_index * 2;
+    uint32_t vfetch_address = regs[vfetch_constant_index].u32 << 2;
+    shared_memory_->UseRange(regs[vfetch_constant_index].u32 << 2,
+                             regs[vfetch_constant_index + 1].u32 & 0x3FFFFFC);
+    vertex_buffers_resident[vfetch_index >> 6] |= 1ull << (vfetch_index & 63);
+  }
   if (indexed) {
     uint32_t index_size = index_buffer_info->format == IndexFormat::kInt32
                               ? sizeof(uint32_t)
                               : sizeof(uint16_t);
     shared_memory_->UseRange(index_buffer_info->guest_base,
                              index_buffer_info->count * index_size);
+    command_list->DrawIndexedInstanced(index_count, 1, 0, 0, 0);
+  } else {
+    command_list->DrawInstanced(index_count, 1, 0, 0);
   }
 
   return true;
@@ -575,9 +640,14 @@ bool D3D12CommandProcessor::BeginFrame() {
   cbuffer_bindings_fetch_.up_to_date = false;
   draw_view_full_update_ = 0;
   draw_sampler_full_update_ = 0;
+  primitive_topology_ = D3D_PRIMITIVE_TOPOLOGY_UNDEFINED;
 
   command_lists_setup_[current_queue_frame_]->BeginRecording();
   command_lists_[current_queue_frame_]->BeginRecording();
+
+  constant_buffer_pool_->BeginFrame();
+  view_heap_pool_->BeginFrame();
+  sampler_heap_pool_->BeginFrame();
 
   shared_memory_->BeginFrame();
 
@@ -601,6 +671,10 @@ bool D3D12CommandProcessor::EndFrame() {
     command_list_setup->AbortRecording();
   }
   command_list->Execute();
+
+  sampler_heap_pool_->EndFrame();
+  view_heap_pool_->EndFrame();
+  constant_buffer_pool_->EndFrame();
 
   auto context = GetD3D12Context();
   context->EndSwap();
@@ -756,6 +830,7 @@ void D3D12CommandProcessor::UpdateFixedFunctionState(
 
 void D3D12CommandProcessor::UpdateSystemConstantValues(Endian index_endian) {
   auto& regs = *register_file_;
+  uint32_t vgt_indx_offset = regs[XE_GPU_REG_VGT_INDX_OFFSET].u32;
   uint32_t pa_cl_vte_cntl = regs[XE_GPU_REG_PA_CL_VTE_CNTL].u32;
   uint32_t pa_cl_clip_cntl = regs[XE_GPU_REG_PA_CL_CLIP_CNTL].u32;
   uint32_t pa_su_vtx_cntl = regs[XE_GPU_REG_PA_SU_VTX_CNTL].u32;
@@ -764,6 +839,10 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(Endian index_endian) {
   uint32_t rb_surface_info = regs[XE_GPU_REG_RB_SURFACE_INFO].u32;
 
   bool dirty = false;
+
+  // Vertex index offset.
+  dirty |= system_constants_.vertex_base_index != vgt_indx_offset;
+  system_constants_.vertex_base_index = vgt_indx_offset;
 
   // Index buffer endianness.
   dirty |= system_constants_.vertex_index_endian != uint32_t(index_endian);
@@ -966,6 +1045,7 @@ bool D3D12CommandProcessor::UpdateBindings(
       draw_view_full_update_, view_count_partial_update, view_count_full_update,
       view_cpu_handle, view_gpu_handle);
   if (view_full_update_index == 0) {
+    XELOGE("View full update index is 0!");
     return false;
   }
   if (draw_view_full_update_ != view_full_update_index) {
