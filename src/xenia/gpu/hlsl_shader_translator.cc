@@ -201,7 +201,7 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
     // default.
     source.AppendFormat(
         "cbuffer xe_vertex_fetch_constants : register(b10) {\n"
-        "  uint2 xe_vertex_fetch[96];\n"
+        "  uint4 xe_vertex_fetch[48];\n"
         "};\n"
         "\n"
         "ByteAddressBuffer xe_shared_memory : register(t0, space1);\n"
@@ -831,6 +831,7 @@ void HlslShaderTranslator::ProcessVertexFetchInstruction(
 
   // Load the element from the shared memory as uints and swap.
   EmitLoadOperand(0, instr.operands[0]);
+  uint32_t vfetch_index = instr.operands[1].storage_index;
   const char* load_swizzle;
   const char* load_function_suffix;
   switch (instr.attributes.data_format) {
@@ -857,8 +858,8 @@ void HlslShaderTranslator::ProcessVertexFetchInstruction(
   }
   EmitSourceDepth("xe_vertex_element%s = XeByteSwap(xe_shared_memory.Load%s(\n",
                   load_swizzle, load_function_suffix);
-  EmitSourceDepth("    ((xe_vertex_fetch[%uu].x << 2u) & 0x1FFFFFFCu)",
-                  instr.operands[1].storage_index);
+  EmitSourceDepth("    ((xe_vertex_fetch[%uu].%c << 2u) & 0x1FFFFFFCu)",
+                  vfetch_index >> 1, (vfetch_index & 1) ? 'z' : 'x');
   if (instr.attributes.stride != 0) {
     EmitSource(" + uint(xe_src0.x) * %uu", instr.attributes.stride * 4);
   }
@@ -866,8 +867,8 @@ void HlslShaderTranslator::ProcessVertexFetchInstruction(
     EmitSource(" + %uu", instr.attributes.offset * 4);
   }
   EmitSource("),\n");
-  EmitSourceDepth("    xe_vertex_fetch[%u].y);\n",
-                  instr.operands[1].storage_index);
+  EmitSourceDepth("    xe_vertex_fetch[%uu].%c);\n", vfetch_index >> 1,
+                  (vfetch_index & 1) ? 'w' : 'y');
 
   // Convert to the target format.
   switch (instr.attributes.data_format) {
