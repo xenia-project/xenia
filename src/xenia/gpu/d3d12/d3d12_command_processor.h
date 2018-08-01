@@ -10,6 +10,7 @@
 #ifndef XENIA_GPU_D3D12_D3D12_COMMAND_PROCESSOR_H_
 #define XENIA_GPU_D3D12_D3D12_COMMAND_PROCESSOR_H_
 
+#include <deque>
 #include <memory>
 #include <unordered_map>
 
@@ -17,6 +18,7 @@
 #include "xenia/gpu/d3d12/d3d12_graphics_system.h"
 #include "xenia/gpu/d3d12/pipeline_cache.h"
 #include "xenia/gpu/d3d12/shared_memory.h"
+#include "xenia/gpu/d3d12/texture_cache.h"
 #include "xenia/gpu/hlsl_shader_translator.h"
 #include "xenia/gpu/xenos.h"
 #include "xenia/kernel/kernel_state.h"
@@ -41,6 +43,9 @@ class D3D12CommandProcessor : public CommandProcessor {
     return static_cast<xe::ui::d3d12::D3D12Context*>(context_.get());
   }
 
+  // Returns the drawing command list for the currently open frame.
+  ID3D12GraphicsCommandList* GetCurrentCommandList() const;
+
   // Finds or creates root signature for a pipeline.
   ID3D12RootSignature* GetRootSignature(const D3D12Shader* vertex_shader,
                                         const D3D12Shader* pixel_shader);
@@ -57,6 +62,16 @@ class D3D12CommandProcessor : public CommandProcessor {
       uint32_t count_for_full_update,
       D3D12_CPU_DESCRIPTOR_HANDLE& cpu_handle_out,
       D3D12_GPU_DESCRIPTOR_HANDLE& gpu_handle_out);
+
+  // Returns a single temporary GPU-side buffer within a frame for tasks like
+  // texture untiling and resolving.
+  ID3D12Resource* RequestScratchGPUBuffer(uint32_t size,
+                                          D3D12_RESOURCE_STATES state);
+  // This must be called when done with the scratch buffer, to notify the
+  // command processor about the new state in case the buffer was transitioned
+  // by its user.
+  void ReleaseScratchGPUBuffer(ID3D12Resource* buffer,
+                               D3D12_RESOURCE_STATES new_state);
 
  protected:
   bool SetupContext() override;
@@ -150,6 +165,18 @@ class D3D12CommandProcessor : public CommandProcessor {
   std::unique_ptr<ui::d3d12::UploadBufferPool> constant_buffer_pool_ = nullptr;
   std::unique_ptr<ui::d3d12::DescriptorHeapPool> view_heap_pool_ = nullptr;
   std::unique_ptr<ui::d3d12::DescriptorHeapPool> sampler_heap_pool_ = nullptr;
+
+  struct BufferForDeletion {
+    ID3D12Resource* buffer;
+    uint64_t last_usage_frame;
+  };
+  std::deque<BufferForDeletion> buffers_for_deletion_;
+
+  static constexpr uint32_t kScratchBufferSizeIncrement = 16 * 1024 * 1024;
+  ID3D12Resource* scratch_buffer_ = nullptr;
+  uint32_t scratch_buffer_size_ = 0;
+  D3D12_RESOURCE_STATES scratch_buffer_state_;
+  bool scratch_buffer_used_ = false;
 
   uint32_t current_queue_frame_ = UINT32_MAX;
 
