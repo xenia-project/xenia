@@ -265,6 +265,14 @@ PipelineCache::UpdateStatus PipelineCache::UpdateShaderStages(
     XELOGE("Failed to translate the pixel shader!");
     return UpdateStatus::kError;
   }
+  if (!vertex_shader->is_valid()) {
+    XELOGE("Failed to prepare the vertex shader!");
+    return UpdateStatus::kError;
+  }
+  if (pixel_shader != nullptr && !pixel_shader->is_valid()) {
+    XELOGE("Failed to prepare the pixel shader!");
+    return UpdateStatus::kError;
+  }
 
   update_desc_.pRootSignature =
       command_processor_->GetRootSignature(vertex_shader, pixel_shader);
