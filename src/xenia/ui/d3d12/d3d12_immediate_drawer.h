@@ -46,13 +46,23 @@ class D3D12ImmediateDrawer : public ImmediateDrawer {
  private:
   D3D12Context* context_ = nullptr;
 
+  ID3D12RootSignature* root_signature_ = nullptr;
+  enum class RootParameter {
+    kTexture,
+    kSampler,
+    kRestrictTextureSamples,
+    kViewportInvSize,
+
+    kCount
+  };
+
   enum class SamplerIndex {
     kNearestClamp,
     kLinearClamp,
     kNearestRepeat,
     kLinearRepeat,
 
-    kSamplerCount
+    kCount
   };
   ID3D12DescriptorHeap* sampler_heap_ = nullptr;
   D3D12_CPU_DESCRIPTOR_HANDLE sampler_heap_cpu_start_;

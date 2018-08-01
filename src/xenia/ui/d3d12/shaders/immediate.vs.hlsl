@@ -1,4 +1,4 @@
-float2 scale : register(b0);
+float2 viewport_inv_size : register(b0);
 
 struct vs_input {
   float2 pos : POSITION;
@@ -14,7 +14,7 @@ struct vs_output {
 
 vs_output main(vs_input input) {
   vs_output output;
-  output.pos = float4(scale * input.pos, 0.0, 1.0);
+  output.pos = float4(viewport_inv_size * input.pos, 0.0, 1.0);
   output.uv = input.uv;
   output.color = input.color;
   return output;
