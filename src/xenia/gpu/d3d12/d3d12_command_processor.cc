@@ -33,6 +33,15 @@ void D3D12CommandProcessor::ClearCaches() {
   cache_clear_requested_ = true;
 }
 
+ID3D12GraphicsCommandList* D3D12CommandProcessor::GetCurrentCommandList()
+    const {
+  assert_true(current_queue_frame_ != UINT_MAX);
+  if (current_queue_frame_ == UINT_MAX) {
+    return nullptr;
+  }
+  return command_lists_[current_queue_frame_]->GetCommandList();
+}
+
 ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(
     const D3D12Shader* vertex_shader, const D3D12Shader* pixel_shader) {
   assert_true(vertex_shader->is_translated());
@@ -282,8 +291,7 @@ uint64_t D3D12CommandProcessor::RequestViewDescriptors(
     if (current_sampler_heap_ != nullptr) {
       heaps[heap_count++] = current_sampler_heap_;
     }
-    command_lists_[current_queue_frame_]->GetCommandList()->SetDescriptorHeaps(
-        heap_count, heaps);
+    GetCurrentCommandList()->SetDescriptorHeaps(heap_count, heaps);
   }
   uint32_t descriptor_offset =
       descriptor_index *
@@ -317,8 +325,7 @@ uint64_t D3D12CommandProcessor::RequestSamplerDescriptors(
     if (current_view_heap_ != nullptr) {
       heaps[heap_count++] = current_view_heap_;
     }
-    command_lists_[current_queue_frame_]->GetCommandList()->SetDescriptorHeaps(
-        heap_count, heaps);
+    GetCurrentCommandList()->SetDescriptorHeaps(heap_count, heaps);
   }
   uint32_t descriptor_offset =
       descriptor_index *
@@ -328,6 +335,78 @@ uint64_t D3D12CommandProcessor::RequestSamplerDescriptors(
   gpu_handle_out.ptr =
       view_heap_pool_->GetLastRequestHeapGPUStart().ptr + descriptor_offset;
   return current_full_update;
+}
+
+ID3D12Resource* D3D12CommandProcessor::RequestScratchGPUBuffer(
+    uint32_t size, D3D12_RESOURCE_STATES state) {
+  assert_true(current_queue_frame_ != UINT_MAX);
+  assert_false(scratch_buffer_used_);
+  if (current_queue_frame_ == UINT_MAX || scratch_buffer_used_ || size == 0) {
+    return nullptr;
+  }
+
+  if (size <= scratch_buffer_size_) {
+    if (scratch_buffer_state_ != state) {
+      D3D12_RESOURCE_BARRIER barrier;
+      barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+      barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+      barrier.Transition.pResource = scratch_buffer_;
+      barrier.Transition.Subresource = 0;
+      barrier.Transition.StateBefore = scratch_buffer_state_;
+      barrier.Transition.StateAfter = state;
+      GetCurrentCommandList()->ResourceBarrier(1, &barrier);
+      scratch_buffer_state_ = state;
+    }
+    scratch_buffer_used_ = true;
+    return scratch_buffer_;
+  }
+
+  size = xe::align(size, kScratchBufferSizeIncrement);
+
+  auto context = GetD3D12Context();
+  auto device = context->GetD3D12Provider()->GetDevice();
+  D3D12_RESOURCE_DESC buffer_desc;
+  buffer_desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+  buffer_desc.Alignment = 0;
+  buffer_desc.Width = size;
+  buffer_desc.Height = 1;
+  buffer_desc.DepthOrArraySize = 1;
+  buffer_desc.MipLevels = 1;
+  buffer_desc.Format = DXGI_FORMAT_UNKNOWN;
+  buffer_desc.SampleDesc.Count = 1;
+  buffer_desc.SampleDesc.Quality = 0;
+  buffer_desc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+  buffer_desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+  D3D12_HEAP_PROPERTIES heap_properties = {};
+  heap_properties.Type = D3D12_HEAP_TYPE_DEFAULT;
+  ID3D12Resource* buffer;
+  if (FAILED(device->CreateCommittedResource(
+          &heap_properties, D3D12_HEAP_FLAG_NONE, &buffer_desc, state, nullptr,
+          IID_PPV_ARGS(&buffer)))) {
+    XELOGE("Failed to create a %u MB scratch GPU buffer", size >> 20);
+    return nullptr;
+  }
+  if (scratch_buffer_ != nullptr) {
+    BufferForDeletion buffer_for_deletion;
+    buffer_for_deletion.buffer = scratch_buffer_;
+    buffer_for_deletion.last_usage_frame = GetD3D12Context()->GetCurrentFrame();
+    buffers_for_deletion_.push_back(buffer_for_deletion);
+  }
+  scratch_buffer_ = buffer;
+  scratch_buffer_size_ = size;
+  scratch_buffer_state_ = state;
+  scratch_buffer_used_ = true;
+  return scratch_buffer_;
+}
+
+void D3D12CommandProcessor::ReleaseScratchGPUBuffer(
+    ID3D12Resource* buffer, D3D12_RESOURCE_STATES new_state) {
+  assert_true(current_queue_frame_ != UINT_MAX);
+  assert_true(scratch_buffer_used_);
+  scratch_buffer_used_ = false;
+  if (buffer == scratch_buffer_) {
+    scratch_buffer_state_ = new_state;
+  }
 }
 
 bool D3D12CommandProcessor::SetupContext() {
@@ -374,6 +453,17 @@ bool D3D12CommandProcessor::SetupContext() {
 void D3D12CommandProcessor::ShutdownContext() {
   auto context = GetD3D12Context();
   context->AwaitAllFramesCompletion();
+
+  if (scratch_buffer_ != nullptr) {
+    scratch_buffer_->Release();
+    scratch_buffer_ = nullptr;
+  }
+  scratch_buffer_size_ = 0;
+
+  for (auto& buffer_for_deletion : buffers_for_deletion_) {
+    buffer_for_deletion.buffer->Release();
+  }
+  buffers_for_deletion_.clear();
 
   sampler_heap_pool_.reset();
   view_heap_pool_.reset();
@@ -423,6 +513,12 @@ void D3D12CommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
   if (cache_clear_requested_) {
     cache_clear_requested_ = false;
     GetD3D12Context()->AwaitAllFramesCompletion();
+
+    if (scratch_buffer_ != nullptr) {
+      scratch_buffer_->Release();
+      scratch_buffer_ = nullptr;
+    }
+    scratch_buffer_size_ = 0;
 
     sampler_heap_pool_->ClearCache();
     view_heap_pool_->ClearCache();
@@ -520,8 +616,7 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
   }
 
   bool new_frame = BeginFrame();
-  ID3D12GraphicsCommandList* command_list =
-      command_lists_[current_queue_frame_]->GetCommandList();
+  ID3D12GraphicsCommandList* command_list = GetCurrentCommandList();
 
   // Set the primitive topology.
   D3D_PRIMITIVE_TOPOLOGY primitive_topology;
@@ -633,6 +728,20 @@ bool D3D12CommandProcessor::BeginFrame() {
   context->BeginSwap();
   current_queue_frame_ = context->GetCurrentQueueFrame();
 
+  // Remove outdated temporary buffers.
+  uint64_t last_completed_frame = context->GetLastCompletedFrame();
+  auto erase_buffers_end = buffers_for_deletion_.begin();
+  while (erase_buffers_end != buffers_for_deletion_.end()) {
+    uint64_t upload_frame = erase_buffers_end->last_usage_frame;
+    if (upload_frame > last_completed_frame) {
+      ++erase_buffers_end;
+      break;
+    }
+    erase_buffers_end->buffer->Release();
+    ++erase_buffers_end;
+  }
+  buffers_for_deletion_.erase(buffers_for_deletion_.begin(), erase_buffers_end);
+
   // Reset fixed-function state.
   ff_viewport_update_needed_ = true;
   ff_scissor_update_needed_ = true;
@@ -671,6 +780,8 @@ bool D3D12CommandProcessor::EndFrame() {
   if (current_queue_frame_ == UINT32_MAX) {
     return false;
   }
+
+  assert_false(scratch_buffer_used_);
 
   auto command_list_setup = command_lists_setup_[current_queue_frame_].get();
   auto command_list = command_lists_[current_queue_frame_].get();
