@@ -15,6 +15,10 @@ namespace xe {
 namespace ui {
 namespace d3d12 {
 
+// Generated with `xb buildhlsl`.
+#include "xenia/ui/d3d12/shaders/bin/immediate_ps.h"
+#include "xenia/ui/d3d12/shaders/bin/immediate_vs.h"
+
 class D3D12ImmediateTexture : public ImmediateTexture {
  public:
   D3D12ImmediateTexture(uint32_t width, uint32_t height)
@@ -30,10 +34,83 @@ bool D3D12ImmediateDrawer::Initialize() {
   auto provider = context_->GetD3D12Provider();
   auto device = provider->GetDevice();
 
+  // Create the root signature.
+  D3D12_ROOT_PARAMETER root_parameters[size_t(RootParameter::kCount)];
+  D3D12_DESCRIPTOR_RANGE descriptor_range_texture, descriptor_range_sampler;
+  {
+    auto& root_parameter = root_parameters[size_t(RootParameter::kTexture)];
+    root_parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    root_parameter.DescriptorTable.NumDescriptorRanges = 1;
+    root_parameter.DescriptorTable.pDescriptorRanges =
+        &descriptor_range_texture;
+    descriptor_range_texture.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+    descriptor_range_texture.NumDescriptors = 1;
+    descriptor_range_texture.BaseShaderRegister = 0;
+    descriptor_range_texture.RegisterSpace = 0;
+    descriptor_range_texture.OffsetInDescriptorsFromTableStart = 0;
+    root_parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+  }
+  {
+    auto& root_parameter = root_parameters[size_t(RootParameter::kSampler)];
+    root_parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    root_parameter.DescriptorTable.NumDescriptorRanges = 1;
+    root_parameter.DescriptorTable.pDescriptorRanges =
+        &descriptor_range_sampler;
+    descriptor_range_sampler.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER;
+    descriptor_range_sampler.NumDescriptors = 1;
+    descriptor_range_sampler.BaseShaderRegister = 0;
+    descriptor_range_sampler.RegisterSpace = 0;
+    descriptor_range_sampler.OffsetInDescriptorsFromTableStart = 0;
+    root_parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+  }
+  {
+    auto& root_parameter =
+        root_parameters[size_t(RootParameter::kRestrictTextureSamples)];
+    root_parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+    root_parameter.Constants.ShaderRegister = 0;
+    root_parameter.Constants.RegisterSpace = 0;
+    root_parameter.Constants.Num32BitValues = 1;
+    root_parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+  }
+  {
+    auto& root_parameter =
+        root_parameters[size_t(RootParameter::kViewportInvSize)];
+    root_parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+    root_parameter.Constants.ShaderRegister = 0;
+    root_parameter.Constants.RegisterSpace = 0;
+    root_parameter.Constants.Num32BitValues = 2;
+    root_parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
+  }
+  D3D12_ROOT_SIGNATURE_DESC root_signature_desc;
+  root_signature_desc.NumParameters = UINT(RootParameter::kCount);
+  root_signature_desc.pParameters = root_parameters;
+  root_signature_desc.NumStaticSamplers = 0;
+  root_signature_desc.pStaticSamplers = nullptr;
+  root_signature_desc.Flags =
+      D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+  ID3DBlob* root_signature_blob;
+  if (FAILED(D3D12SerializeRootSignature(&root_signature_desc,
+                                         D3D_ROOT_SIGNATURE_VERSION_1,
+                                         &root_signature_blob, nullptr))) {
+    XELOGE("Failed to serialize immediate drawer root signature");
+    Shutdown();
+    return false;
+  }
+  if (FAILED(device->CreateRootSignature(
+          0, root_signature_blob->GetBufferPointer(),
+          root_signature_blob->GetBufferSize(),
+          IID_PPV_ARGS(&root_signature_)))) {
+    XELOGE("Failed to create immediate drawer root signature");
+    root_signature_blob->Release();
+    Shutdown();
+    return false;
+  }
+  root_signature_blob->Release();
+
   // Create the samplers.
   D3D12_DESCRIPTOR_HEAP_DESC sampler_heap_desc;
   sampler_heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER;
-  sampler_heap_desc.NumDescriptors = uint32_t(SamplerIndex::kSamplerCount);
+  sampler_heap_desc.NumDescriptors = UINT(SamplerIndex::kCount);
   sampler_heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
   sampler_heap_desc.NodeMask = 0;
   if (FAILED(device->CreateDescriptorHeap(&sampler_heap_desc,
@@ -98,6 +175,11 @@ void D3D12ImmediateDrawer::Shutdown() {
   if (sampler_heap_ != nullptr) {
     sampler_heap_->Release();
     sampler_heap_ = nullptr;
+  }
+
+  if (root_signature_ != nullptr) {
+    root_signature_->Release();
+    root_signature_ = nullptr;
   }
 }
 
