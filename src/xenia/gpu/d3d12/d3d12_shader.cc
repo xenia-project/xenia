@@ -46,6 +46,7 @@ bool D3D12Shader::Prepare() {
       break;
     default:
       assert_unhandled_case(shader_type_);
+      is_valid_ = false;
       return false;
   }
 
@@ -61,19 +62,20 @@ bool D3D12Shader::Prepare() {
     XELOGE("%s shader %.16llX compilation failed!", target, ucode_data_hash());
   }
   if (error_blob != nullptr) {
+    const char* error_log =
+        reinterpret_cast<const char*>(error_blob->GetBufferPointer());
+    host_error_log_ = error_log;
     if (compiled) {
       XELOGW("%s shader %.16llX compiled with warnings!", target,
              ucode_data_hash());
-      XELOGW("%s",
-             reinterpret_cast<const char*>(error_blob->GetBufferPointer()));
+      XELOGW("%s", error_log);
       XELOGW("HLSL source:");
       // The buffer isn't terminated.
       translated_binary_.push_back(0);
       XELOGW("%s", reinterpret_cast<const char*>(translated_binary_.data()));
       translated_binary_.pop_back();
     } else {
-      XELOGE("%s",
-             reinterpret_cast<const char*>(error_blob->GetBufferPointer()));
+      XELOGE("%s", error_log);
       XELOGE("HLSL source:");
       translated_binary_.push_back(0);
       XELOGE("%s", reinterpret_cast<const char*>(translated_binary_.data()));
@@ -83,6 +85,7 @@ bool D3D12Shader::Prepare() {
   }
 
   if (!compiled) {
+    is_valid_ = false;
     return false;
   }
 
