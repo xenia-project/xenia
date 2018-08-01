@@ -18,7 +18,6 @@
 #include "xenia/gpu/register_file.h"
 #include "xenia/gpu/shader_translator.h"
 #include "xenia/gpu/xenos.h"
-#include "xenia/ui/d3d12/d3d12_context.h"
 
 namespace xe {
 namespace gpu {
@@ -35,7 +34,7 @@ class PipelineCache {
   };
 
   PipelineCache(D3D12CommandProcessor* command_processor,
-                RegisterFile* register_file, ui::d3d12::D3D12Context* context);
+                RegisterFile* register_file);
   ~PipelineCache();
 
   void Shutdown();
@@ -80,7 +79,6 @@ class PipelineCache {
 
   D3D12CommandProcessor* command_processor_;
   RegisterFile* register_file_;
-  ui::d3d12::D3D12Context* context_;
 
   // Reusable shader translator.
   std::unique_ptr<ShaderTranslator> shader_translator_ = nullptr;
