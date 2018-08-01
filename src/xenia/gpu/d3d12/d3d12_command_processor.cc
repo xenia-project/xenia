@@ -600,11 +600,21 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     vertex_buffers_resident[vfetch_index >> 6] |= 1ull << (vfetch_index & 63);
   }
   if (indexed) {
+    uint32_t index_base = index_buffer_info->guest_base & 0x1FFFFFFF;
     uint32_t index_size = index_buffer_info->format == IndexFormat::kInt32
                               ? sizeof(uint32_t)
                               : sizeof(uint16_t);
-    shared_memory_->UseRange(index_buffer_info->guest_base,
-                             index_buffer_info->count * index_size);
+    index_base &= ~(index_size - 1);
+    uint32_t index_buffer_size = index_buffer_info->count * index_size;
+    shared_memory_->UseRange(index_base, index_buffer_size);
+    D3D12_INDEX_BUFFER_VIEW index_buffer_view;
+    index_buffer_view.BufferLocation =
+        shared_memory_->GetGPUAddress() + index_base;
+    index_buffer_view.SizeInBytes = index_buffer_size;
+    index_buffer_view.Format = index_buffer_info->format == IndexFormat::kInt32
+                                   ? DXGI_FORMAT_R32_UINT
+                                   : DXGI_FORMAT_R16_UINT;
+    command_list->IASetIndexBuffer(&index_buffer_view);
     command_list->DrawIndexedInstanced(index_count, 1, 0, 0, 0);
   } else {
     command_list->DrawInstanced(index_count, 1, 0, 0);
@@ -881,11 +891,11 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(Endian index_endian) {
   // different register.
   bool gl_clip_space_def =
       !(pa_cl_clip_cntl & (1 << 19)) && (pa_cl_vte_cntl & (1 << 4));
-  float ndc_scale_x = (pa_cl_vte_cntl & (1 << 0)) ? 1.0f / 1280.0f : 1.0f;
-  float ndc_scale_y = (pa_cl_vte_cntl & (1 << 2)) ? 1.0f / 1280.0f : 1.0f;
+  float ndc_scale_x = (pa_cl_vte_cntl & (1 << 0)) ? 1.0f : 1.0f / 1280.0f;
+  float ndc_scale_y = (pa_cl_vte_cntl & (1 << 2)) ? 1.0f : 1.0f / 1280.0f;
   float ndc_scale_z = gl_clip_space_def ? 0.5f : 1.0f;
-  float ndc_offset_x = (pa_cl_vte_cntl & (1 << 1)) ? -1.0f : 0.0f;
-  float ndc_offset_y = (pa_cl_vte_cntl & (1 << 3)) ? -1.0f : 0.0f;
+  float ndc_offset_x = (pa_cl_vte_cntl & (1 << 1)) ? 0.0f : -1.0f;
+  float ndc_offset_y = (pa_cl_vte_cntl & (1 << 3)) ? 0.0f : -1.0f;
   float ndc_offset_z = gl_clip_space_def ? 0.5f : 0.0f;
   float pixel_half_pixel_offset = 0.0f;
   if (pa_su_vtx_cntl & (1 << 0)) {
@@ -978,14 +988,23 @@ bool D3D12CommandProcessor::UpdateBindings(
     write_common_constant_views = true;
   }
   if (!cbuffer_bindings_bool_loop_.up_to_date) {
-    uint8_t* bool_loop_constants = constant_buffer_pool_->RequestFull(
-        256, nullptr, nullptr, &cbuffer_bindings_bool_loop_.buffer_address);
+    uint32_t* bool_loop_constants =
+        reinterpret_cast<uint32_t*>(constant_buffer_pool_->RequestFull(
+            768, nullptr, nullptr,
+            &cbuffer_bindings_bool_loop_.buffer_address));
     if (bool_loop_constants == nullptr) {
       return false;
     }
-    std::memcpy(bool_loop_constants,
-                &regs[XE_GPU_REG_SHADER_CONSTANT_BOOL_000_031].u32,
-                40 * sizeof(uint32_t));
+    // Bool and loop constants are quadrupled to allow dynamic indexing.
+    for (uint32_t i = 0; i < 40; ++i) {
+      uint32_t bool_loop_constant =
+          regs[XE_GPU_REG_SHADER_CONSTANT_BOOL_000_031 + i].u32;
+      uint32_t* bool_loop_constant_vector = bool_loop_constants + (i << 2);
+      bool_loop_constant_vector[0] = bool_loop_constant;
+      bool_loop_constant_vector[1] = bool_loop_constant;
+      bool_loop_constant_vector[2] = bool_loop_constant;
+      bool_loop_constant_vector[3] = bool_loop_constant;
+    }
     cbuffer_bindings_bool_loop_.up_to_date = true;
     write_common_constant_views = true;
   }
@@ -1080,7 +1099,7 @@ bool D3D12CommandProcessor::UpdateBindings(
     // Bool/loop constants (b1).
     constant_buffer_desc.BufferLocation =
         cbuffer_bindings_bool_loop_.buffer_address;
-    constant_buffer_desc.SizeInBytes = 256;
+    constant_buffer_desc.SizeInBytes = 768;
     device->CreateConstantBufferView(&constant_buffer_desc, view_cpu_handle);
     view_cpu_handle.ptr += view_handle_size;
     view_gpu_handle.ptr += view_handle_size;

@@ -165,6 +165,8 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
 
   // Common declarations.
   // Only up to 14 constant buffers can be used on binding tiers 1 and 2.
+  // Bool and loop constants are quadrupled to allow dynamic indexing (constant
+  // registers are vectors).
   source.Append(
       "cbuffer xe_system_constants : register(b0) {\n"
       "  float3 xe_mul_rcp_w;\n"
@@ -179,8 +181,8 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
       "};\n"
       "\n"
       "cbuffer xe_loop_bool_constants : register(b1) {\n"
-      "  uint xe_bool_constants[8];\n"
-      "  uint xe_loop_constants[32];\n"
+      "  uint4 xe_bool_constants[8];\n"
+      "  uint4 xe_loop_constants[32];\n"
       "};\n"
       "\n"
       "struct XeFloatConstantPage {\n"
@@ -381,7 +383,7 @@ void HlslShaderTranslator::ProcessExecInstructionBegin(
       EmitSourceDepth("{\n");
       break;
     case ParsedExecInstruction::Type::kConditional:
-      EmitSourceDepth("if ((xe_bool_constants[%u] & (1u << %uu)) %c= 0u) {\n",
+      EmitSourceDepth("if ((xe_bool_constants[%u].x & (1u << %uu)) %c= 0u) {\n",
                       instr.bool_constant_index >> 5,
                       instr.bool_constant_index & 31,
                       instr.condition ? '!' : '=');
@@ -413,14 +415,14 @@ void HlslShaderTranslator::ProcessLoopStartInstruction(
 
   // Setup counter.
   EmitSourceDepth("xe_loop_count.yzw = xe_loop_count.xyz;\n");
-  EmitSourceDepth("xe_loop_count.x = xe_loop_constants[%u] & 0xFFu;\n",
+  EmitSourceDepth("xe_loop_count.x = xe_loop_constants[%u].x & 0xFFu;\n",
                   instr.loop_constant_index);
 
   // Setup relative indexing.
   EmitSourceDepth("xe_aL = xe_aL.xxyz;\n");
   if (!instr.is_repeat) {
     // Push new loop starting index if not reusing the current one.
-    EmitSourceDepth("xe_aL.x = int((xe_loop_constants[%u] >> 8u) & 0xFFu);\n",
+    EmitSourceDepth("xe_aL.x = int((xe_loop_constants[%u].x >> 8u) & 0xFFu);\n",
                     instr.loop_constant_index);
   }
 
@@ -465,7 +467,7 @@ void HlslShaderTranslator::ProcessLoopEndInstruction(
   Indent();
 
   // Still looping. Adjust index and jump back to body.
-  EmitSourceDepth("xe_aL.x += int(xe_loop_constants[%u] << 8u) >> 24;\n",
+  EmitSourceDepth("xe_aL.x += int(xe_loop_constants[%u].x << 8u) >> 24;\n",
                   instr.loop_constant_index);
   EmitSourceDepth("xe_pc = %uu;  // Loop back to body L%u\n",
                   instr.loop_body_address, instr.loop_body_address);
@@ -503,7 +505,7 @@ void HlslShaderTranslator::ProcessJumpInstruction(
       EmitSourceDepth("{\n");
       break;
     case ParsedJumpInstruction::Type::kConditional:
-      EmitSourceDepth("if ((xe_bool_constants[%u] & (1u << %uu)) %c= 0u) {\n",
+      EmitSourceDepth("if ((xe_bool_constants[%u].x & (1u << %uu)) %c= 0u) {\n",
                       instr.bool_constant_index >> 5,
                       instr.bool_constant_index & 31,
                       instr.condition ? '!' : '=');
@@ -605,10 +607,10 @@ void HlslShaderTranslator::EmitLoadOperand(size_t src_index,
                    op.storage_index & 31);
         break;
       case InstructionStorageSource::kConstantInt:
-        EmitSource("xe_loop_constants[%u]", op.storage_index);
+        EmitSource("xe_loop_constants[%u].x", op.storage_index);
         break;
       case InstructionStorageSource::kConstantBool:
-        EmitSource("float((xe_bool_constants[%u] >> %uu) & 1u)",
+        EmitSource("float((xe_bool_constants[%u].x >> %uu) & 1u)",
                    op.storage_index >> 5, op.storage_index & 31);
         break;
       default:
@@ -625,11 +627,12 @@ void HlslShaderTranslator::EmitLoadOperand(size_t src_index,
             "xe_float_constants[xe_src_index >> 5u].c[xe_src_index & 31u]");
         break;
       case InstructionStorageSource::kConstantInt:
-        EmitSource("xe_loop_constants[xe_src_index]");
+        EmitSource("xe_loop_constants[xe_src_index].x");
         break;
       case InstructionStorageSource::kConstantBool:
-        EmitSource("float((xe_bool_constants[xe_src_index >> 5u] >> "
-                   "(xe_src_index & 31u)) & 1u)");
+        EmitSource(
+            "float((xe_bool_constants[xe_src_index >> 5u].x >> "
+            "(xe_src_index & 31u)) & 1u)");
         break;
       default:
         assert_always();
@@ -858,7 +861,7 @@ void HlslShaderTranslator::ProcessVertexFetchInstruction(
   }
   EmitSourceDepth("xe_vertex_element%s = XeByteSwap(xe_shared_memory.Load%s(\n",
                   load_swizzle, load_function_suffix);
-  EmitSourceDepth("    ((xe_vertex_fetch[%uu].%c << 2u) & 0x1FFFFFFCu)",
+  EmitSourceDepth("    (xe_vertex_fetch[%uu].%c & 0x1FFFFFFCu)",
                   vfetch_index >> 1, (vfetch_index & 1) ? 'z' : 'x');
   if (instr.attributes.stride != 0) {
     EmitSource(" + uint(xe_src0.x) * %uu", instr.attributes.stride * 4);
@@ -894,9 +897,8 @@ void HlslShaderTranslator::ProcessVertexFetchInstruction(
       EmitSourceDepth(
           "    uint4(0u, 10u, 20u, 30u)) & uint4((1023u).xxx, 3u);\n");
       if (instr.attributes.is_signed) {
-        EmitSourceDepth(
-            "xe_pv = float4(int4(xe_vertex_element << uint4((22u).xxx, 3u))\n");
-        EmitSourceDepth("    >> int4((22).xxx, 3));\n");
+        EmitSourceDepth("xe_pv = float4(int4(xe_vertex_element <<\n");
+        EmitSourceDepth("    uint4((22u).xxx, 30u)) >> int4((22).xxx, 30));\n");
       } else {
         EmitSourceDepth("xe_pv = float4(xe_vertex_element);\n");
       }
