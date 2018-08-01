@@ -25,11 +25,8 @@ namespace gpu {
 namespace d3d12 {
 
 PipelineCache::PipelineCache(D3D12CommandProcessor* command_processor,
-                             RegisterFile* register_file,
-                             ui::d3d12::D3D12Context* context)
-    : command_processor_(command_processor),
-      register_file_(register_file),
-      context_(context) {
+                             RegisterFile* register_file)
+    : command_processor_(command_processor), register_file_(register_file) {
   shader_translator_.reset(new HlslShaderTranslator());
 
   // Set pipeline state description values we never change.
@@ -633,7 +630,8 @@ PipelineCache::Pipeline* PipelineCache::GetPipeline(uint64_t hash_key) {
 
   // TODO(Triang3l): Cache create pipelines using CachedPSO.
 
-  auto device = context_->GetD3D12Provider()->GetDevice();
+  auto device =
+      command_processor_->GetD3D12Context()->GetD3D12Provider()->GetDevice();
   ID3D12PipelineState* state;
   if (FAILED(device->CreateGraphicsPipelineState(&update_desc_,
                                                  IID_PPV_ARGS(&state)))) {

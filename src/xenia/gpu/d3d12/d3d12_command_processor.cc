@@ -366,8 +366,7 @@ bool D3D12CommandProcessor::SetupContext() {
     return false;
   }
 
-  pipeline_cache_ =
-      std::make_unique<PipelineCache>(this, register_file_, context);
+  pipeline_cache_ = std::make_unique<PipelineCache>(this, register_file_);
 
   return true;
 }
