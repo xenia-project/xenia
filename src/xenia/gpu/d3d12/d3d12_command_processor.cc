@@ -738,8 +738,8 @@ void D3D12CommandProcessor::UpdateFixedFunctionState(
                                ? regs[XE_GPU_REG_PA_CL_VPORT_XSCALE].f32
                                : 1280.0f;
   float viewport_scale_y = (pa_cl_vte_cntl & (1 << 2))
-                               ? regs[XE_GPU_REG_PA_CL_VPORT_YSCALE].f32
-                               : 1280.0f;
+                               ? -regs[XE_GPU_REG_PA_CL_VPORT_YSCALE].f32
+                               : -1280.0f;
   // TODO(Triang3l): Investigate how unnormalized coordinates should work when
   // using a D24FS8 depth buffer. A 20e4 buffer can store values up to
   // 511.99985, however, in the depth buffer, something like 1/z is stored, and
@@ -910,10 +910,10 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(Endian index_endian) {
     if (pa_cl_vte_cntl & (1 << 2)) {
       float viewport_scale_y = regs[XE_GPU_REG_PA_CL_VPORT_YSCALE].f32;
       if (viewport_scale_y != 0.0f) {
-        ndc_offset_y -= 0.5f / viewport_scale_y;
+        ndc_offset_y += 0.5f / viewport_scale_y;
       }
     } else {
-      ndc_offset_y -= 1.0f / 2560.0f;
+      ndc_offset_y += 1.0f / 2560.0f;
     }
     pixel_half_pixel_offset = -0.5f;
   }
