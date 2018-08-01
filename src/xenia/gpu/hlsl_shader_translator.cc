@@ -742,16 +742,21 @@ void HlslShaderTranslator::EmitStoreResult(const InstructionResult& result,
     }
   } else {
     bool has_const_writes = false;
-    uint32_t component_write_count = 0;
-    EmitSource(".");
-    for (uint32_t i = 0; i < 4; ++i) {
-      if (result.write_mask[i]) {
-        if (result.components[i] == SwizzleSource::k0 ||
-            result.components[i] == SwizzleSource::k1) {
-          has_const_writes = true;
+    uint32_t component_write_count;
+    if (result.is_standard_swizzle()) {
+      component_write_count = 4;
+    } else {
+      component_write_count = 0;
+      EmitSource(".");
+      for (uint32_t i = 0; i < 4; ++i) {
+        if (result.write_mask[i]) {
+          if (result.components[i] == SwizzleSource::k0 ||
+              result.components[i] == SwizzleSource::k1) {
+            has_const_writes = true;
+          }
+          ++component_write_count;
+          EmitSource("%c", GetCharForSwizzle(GetSwizzleFromComponentIndex(i)));
         }
-        ++component_write_count;
-        EmitSource("%c", GetCharForSwizzle(GetSwizzleFromComponentIndex(i)));
       }
     }
     EmitSource(" = ");
@@ -802,10 +807,13 @@ void HlslShaderTranslator::EmitStoreResult(const InstructionResult& result,
           }
         }
       } else {
-        EmitSource("xe_pv.");
-        for (uint32_t i = 0; i < 4; ++i) {
-          if (result.write_mask[i]) {
-            EmitSource("%c", GetCharForSwizzle(result.components[i]));
+        EmitSource("xe_pv");
+        if (!result.is_standard_swizzle()) {
+          EmitSource(".");
+          for (uint32_t i = 0; i < 4; ++i) {
+            if (result.write_mask[i]) {
+              EmitSource("%c", GetCharForSwizzle(result.components[i]));
+            }
           }
         }
       }
