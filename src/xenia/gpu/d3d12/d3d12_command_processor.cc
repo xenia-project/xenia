@@ -850,12 +850,6 @@ void D3D12CommandProcessor::UpdateFixedFunctionState(
   float viewport_scale_y = (pa_cl_vte_cntl & (1 << 2))
                                ? -regs[XE_GPU_REG_PA_CL_VPORT_YSCALE].f32
                                : -1280.0f;
-  // TODO(Triang3l): Investigate how unnormalized coordinates should work when
-  // using a D24FS8 depth buffer. A 20e4 buffer can store values up to
-  // 511.99985, however, in the depth buffer, something like 1/z is stored, and
-  // if the shader writes 1/511.99985, it probably won't become 1 in the depth
-  // buffer. Unnormalized coordinates are mostly used when clearing both depth
-  // and color to 0 though.
   float viewport_scale_z = (pa_cl_vte_cntl & (1 << 4))
                                ? regs[XE_GPU_REG_PA_CL_VPORT_ZSCALE].f32
                                : 1.0f;
