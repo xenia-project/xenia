@@ -32,13 +32,16 @@ class D3D12CommandProcessor;
 // - If the texture has a base address, but no mip address, it's not mipmapped -
 //   the host texture has only the largest level too.
 // - If the texture has different non-zero base address and mip address, a host
-//   texture full mipmap pyramid is created, disregarding min/max LOD and
-//   treating it purely as sampler state because there are tfetch instructions
+//   texture with mip_max_level+1 mipmaps is created - mip_min_level is ignored
+//   and treated purely as sampler state because there are tfetch instructions
 //   working directly with LOD values - including fetching with an explicit LOD.
+//   However, the max level is not ignored because any mip count can be
+//   specified when creating a texture, and another texture may be placed after
+//   the last one.
 // - If the texture has a mip address, but the base address is 0 or the same as
-//   the mip address, a fully mipmapped texture is created, but min/max LOD is
-//   clamped to 1 - the game is expected to do that anyway until the largest LOD
-//   is loaded.
+//   the mip address, a mipmapped texture is created, but min/max LOD is clamped
+//   to the lower bound of 1 - the game is expected to do that anyway until the
+//   largest LOD is loaded.
 //   TODO(Triang3l): Check if there are any games with BaseAddress==MipAddress
 //   but min or max LOD being 0, especially check Modern Warfare 2/3.
 //   TODO(Triang3l): Attach the largest LOD to existing textures with a valid
