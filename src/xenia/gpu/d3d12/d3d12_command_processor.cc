@@ -1225,7 +1225,7 @@ bool D3D12CommandProcessor::UpdateBindings(
   if (write_textures) {
     view_count_partial_update += texture_count;
   }
-  // All the constants + shared memory + textures and samplers.
+  // All the constants + shared memory + textures.
   uint32_t view_count_full_update = 20 + texture_count;
   D3D12_CPU_DESCRIPTOR_HANDLE view_cpu_handle;
   D3D12_GPU_DESCRIPTOR_HANDLE view_gpu_handle;
