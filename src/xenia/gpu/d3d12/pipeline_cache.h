@@ -15,8 +15,8 @@
 #include "third_party/xxhash/xxhash.h"
 
 #include "xenia/gpu/d3d12/d3d12_shader.h"
+#include "xenia/gpu/hlsl_shader_translator.h"
 #include "xenia/gpu/register_file.h"
-#include "xenia/gpu/shader_translator.h"
 #include "xenia/gpu/xenos.h"
 
 namespace xe {
@@ -81,7 +81,7 @@ class PipelineCache {
   RegisterFile* register_file_;
 
   // Reusable shader translator.
-  std::unique_ptr<ShaderTranslator> shader_translator_ = nullptr;
+  std::unique_ptr<HlslShaderTranslator> shader_translator_ = nullptr;
   // All loaded shaders mapped by their guest hash key.
   std::unordered_map<uint64_t, D3D12Shader*> shader_map_;
 

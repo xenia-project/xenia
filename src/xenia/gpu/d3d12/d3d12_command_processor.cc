@@ -47,17 +47,19 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(
   assert_true(vertex_shader->is_translated());
   assert_true(pixel_shader == nullptr || pixel_shader->is_translated());
 
-  uint32_t pixel_textures =
-      pixel_shader != nullptr ? pixel_shader->GetTextureSRVCount() : 0;
-  uint32_t pixel_samplers =
-      pixel_shader != nullptr ? pixel_shader->GetSamplerCount() : 0;
-  uint32_t vertex_textures = vertex_shader->GetTextureSRVCount();
-  uint32_t vertex_samplers = vertex_shader->GetSamplerCount();
+  uint32_t pixel_texture_count = 0, pixel_sampler_count = 0;
+  if (pixel_shader != nullptr) {
+    pixel_shader->GetTextureSRVs(pixel_texture_count);
+    pixel_shader->GetSamplerFetchConstants(pixel_sampler_count);
+  }
+  uint32_t vertex_texture_count, vertex_sampler_count;
+  vertex_shader->GetTextureSRVs(vertex_texture_count);
+  vertex_shader->GetSamplerFetchConstants(vertex_sampler_count);
   // Max 96 textures (if all kinds of tfetch instructions are used for all fetch
   // registers) and 32 samplers (one sampler per used fetch), but different
   // shader stages have different texture sets.
-  uint32_t index = pixel_textures | (pixel_samplers << 7) |
-                   (vertex_textures << 12) | (vertex_samplers << 19);
+  uint32_t index = pixel_texture_count | (pixel_sampler_count << 7) |
+                   (vertex_texture_count << 12) | (vertex_sampler_count << 19);
 
   // Try an existing root signature.
   auto it = root_signatures_.find(index);
@@ -67,13 +69,15 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(
 
   // Create a new one.
   D3D12_ROOT_SIGNATURE_DESC desc;
-  D3D12_ROOT_PARAMETER parameters[kRootParameter_Count_TwoStageTextures];
-  D3D12_DESCRIPTOR_RANGE ranges[kRootParameter_Count_TwoStageTextures];
-  desc.NumParameters = kRootParameter_Count_NoTextures;
+  D3D12_ROOT_PARAMETER parameters[kRootParameter_Count_Max];
+  D3D12_DESCRIPTOR_RANGE ranges[kRootParameter_Count_Max];
+  desc.NumParameters = kRootParameter_Count_Base;
   desc.pParameters = parameters;
   desc.NumStaticSamplers = 0;
   desc.pStaticSamplers = nullptr;
   desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_NONE;
+
+  // Base parameters.
 
   // Fetch constants.
   {
@@ -150,86 +154,70 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(
     range.OffsetInDescriptorsFromTableStart = 0;
   }
 
-  if (pixel_textures > 0 || vertex_textures > 0) {
-    desc.NumParameters = kRootParameter_Count_OneStageTextures;
+  // Extra parameters.
 
-    // Pixel or vertex textures.
-    {
-      auto& parameter = parameters[kRootParameter_PixelOrVertexTextures];
-      auto& range = ranges[kRootParameter_PixelOrVertexTextures];
-      parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-      parameter.DescriptorTable.NumDescriptorRanges = 1;
-      parameter.DescriptorTable.pDescriptorRanges = &range;
-      range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-      range.BaseShaderRegister = 0;
-      range.RegisterSpace = 0;
-      range.OffsetInDescriptorsFromTableStart = 0;
-      if (pixel_textures > 0) {
-        assert_true(pixel_samplers > 0);
-        parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
-        range.NumDescriptors = pixel_textures;
-      } else {
-        assert_true(vertex_samplers > 0);
-        parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
-        range.NumDescriptors = vertex_textures;
-      }
-    }
+  // Pixel textures.
+  if (pixel_texture_count > 0) {
+    auto& parameter = parameters[desc.NumParameters];
+    auto& range = ranges[desc.NumParameters];
+    parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    parameter.DescriptorTable.NumDescriptorRanges = 1;
+    parameter.DescriptorTable.pDescriptorRanges = &range;
+    parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+    range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+    range.NumDescriptors = pixel_texture_count;
+    range.BaseShaderRegister = 0;
+    range.RegisterSpace = 0;
+    range.OffsetInDescriptorsFromTableStart = 0;
+    ++desc.NumParameters;
+  }
 
-    // Pixel or vertex samplers.
-    {
-      auto& parameter = parameters[kRootParameter_PixelOrVertexSamplers];
-      auto& range = ranges[kRootParameter_PixelOrVertexSamplers];
-      parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-      parameter.DescriptorTable.NumDescriptorRanges = 1;
-      parameter.DescriptorTable.pDescriptorRanges = &range;
-      range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER;
-      range.BaseShaderRegister = 0;
-      range.RegisterSpace = 0;
-      range.OffsetInDescriptorsFromTableStart = 0;
-      if (pixel_samplers > 0) {
-        parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
-        range.NumDescriptors = pixel_samplers;
-      } else {
-        parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
-        range.NumDescriptors = vertex_samplers;
-      }
-    }
+  // Pixel samplers.
+  if (pixel_sampler_count > 0) {
+    auto& parameter = parameters[desc.NumParameters];
+    auto& range = ranges[desc.NumParameters];
+    parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    parameter.DescriptorTable.NumDescriptorRanges = 1;
+    parameter.DescriptorTable.pDescriptorRanges = &range;
+    parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+    range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER;
+    range.NumDescriptors = pixel_sampler_count;
+    range.BaseShaderRegister = 0;
+    range.RegisterSpace = 0;
+    range.OffsetInDescriptorsFromTableStart = 0;
+    ++desc.NumParameters;
+  }
 
-    if (pixel_textures > 0 && vertex_textures > 0) {
-      assert_true(vertex_samplers > 0);
+  // Vertex textures.
+  if (vertex_texture_count > 0) {
+    auto& parameter = parameters[desc.NumParameters];
+    auto& range = ranges[desc.NumParameters];
+    parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    parameter.DescriptorTable.NumDescriptorRanges = 1;
+    parameter.DescriptorTable.pDescriptorRanges = &range;
+    parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
+    range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+    range.NumDescriptors = vertex_texture_count;
+    range.BaseShaderRegister = 0;
+    range.RegisterSpace = 0;
+    range.OffsetInDescriptorsFromTableStart = 0;
+    ++desc.NumParameters;
+  }
 
-      desc.NumParameters = kRootParameter_Count_TwoStageTextures;
-
-      // Vertex textures.
-      {
-        auto& parameter = parameters[kRootParameter_VertexTextures];
-        auto& range = ranges[kRootParameter_VertexTextures];
-        parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-        parameter.DescriptorTable.NumDescriptorRanges = 1;
-        parameter.DescriptorTable.pDescriptorRanges = &range;
-        parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
-        range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-        range.NumDescriptors = vertex_textures;
-        range.BaseShaderRegister = 0;
-        range.RegisterSpace = 0;
-        range.OffsetInDescriptorsFromTableStart = 0;
-      }
-
-      // Vertex samplers.
-      {
-        auto& parameter = parameters[kRootParameter_VertexSamplers];
-        auto& range = ranges[kRootParameter_VertexSamplers];
-        parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-        parameter.DescriptorTable.NumDescriptorRanges = 1;
-        parameter.DescriptorTable.pDescriptorRanges = &range;
-        parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
-        range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER;
-        range.NumDescriptors = vertex_samplers;
-        range.BaseShaderRegister = 0;
-        range.RegisterSpace = 0;
-        range.OffsetInDescriptorsFromTableStart = 0;
-      }
-    }
+  // Vertex samplers.
+  if (vertex_sampler_count > 0) {
+    auto& parameter = parameters[desc.NumParameters];
+    auto& range = ranges[desc.NumParameters];
+    parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    parameter.DescriptorTable.NumDescriptorRanges = 1;
+    parameter.DescriptorTable.pDescriptorRanges = &range;
+    parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
+    range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER;
+    range.NumDescriptors = vertex_sampler_count;
+    range.BaseShaderRegister = 0;
+    range.RegisterSpace = 0;
+    range.OffsetInDescriptorsFromTableStart = 0;
+    ++desc.NumParameters;
   }
 
   ID3DBlob* blob;
@@ -239,7 +227,8 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(
     XELOGE(
         "Failed to serialize a root signature with %u pixel textures, %u "
         "pixel samplers, %u vertex textures and %u vertex samplers",
-        pixel_textures, pixel_samplers, vertex_textures, vertex_samplers);
+        pixel_texture_count, pixel_sampler_count, vertex_texture_count,
+        vertex_sampler_count);
     if (error_blob != nullptr) {
       XELOGE("%s",
              reinterpret_cast<const char*>(error_blob->GetBufferPointer()));
@@ -259,7 +248,8 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(
     XELOGE(
         "Failed to create a root signature with %u pixel textures, %u pixel "
         "samplers, %u vertex textures and %u vertex samplers",
-        pixel_textures, pixel_samplers, vertex_textures, vertex_samplers);
+        pixel_texture_count, pixel_sampler_count, vertex_texture_count,
+        vertex_sampler_count);
     blob->Release();
     return nullptr;
   }
@@ -267,6 +257,42 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(
 
   root_signatures_.insert({index, root_signature});
   return root_signature;
+}
+
+uint32_t D3D12CommandProcessor::GetRootExtraParameterIndices(
+    const D3D12Shader* vertex_shader, const D3D12Shader* pixel_shader,
+    RootExtraParameterIndices& indices_out) {
+  uint32_t pixel_texture_count = 0, pixel_sampler_count = 0;
+  if (pixel_shader != nullptr) {
+    pixel_shader->GetTextureSRVs(pixel_texture_count);
+    pixel_shader->GetSamplerFetchConstants(pixel_sampler_count);
+  }
+  uint32_t vertex_texture_count, vertex_sampler_count;
+  vertex_shader->GetTextureSRVs(vertex_texture_count);
+  vertex_shader->GetSamplerFetchConstants(vertex_sampler_count);
+
+  uint32_t index = kRootParameter_Count_Base;
+  if (pixel_texture_count != 0) {
+    indices_out.pixel_textures = index++;
+  } else {
+    indices_out.pixel_textures = RootExtraParameterIndices::kUnavailable;
+  }
+  if (pixel_sampler_count != 0) {
+    indices_out.pixel_samplers = index++;
+  } else {
+    indices_out.pixel_samplers = RootExtraParameterIndices::kUnavailable;
+  }
+  if (vertex_texture_count != 0) {
+    indices_out.vertex_textures = index++;
+  } else {
+    indices_out.vertex_textures = RootExtraParameterIndices::kUnavailable;
+  }
+  if (vertex_sampler_count != 0) {
+    indices_out.vertex_samplers = index++;
+  } else {
+    indices_out.vertex_samplers = RootExtraParameterIndices::kUnavailable;
+  }
+  return index;
 }
 
 uint64_t D3D12CommandProcessor::RequestViewDescriptors(
@@ -331,9 +357,9 @@ uint64_t D3D12CommandProcessor::RequestSamplerDescriptors(
       descriptor_index *
       GetD3D12Context()->GetD3D12Provider()->GetDescriptorSizeSampler();
   cpu_handle_out.ptr =
-      view_heap_pool_->GetLastRequestHeapCPUStart().ptr + descriptor_offset;
+      sampler_heap_pool_->GetLastRequestHeapCPUStart().ptr + descriptor_offset;
   gpu_handle_out.ptr =
-      view_heap_pool_->GetLastRequestHeapGPUStart().ptr + descriptor_offset;
+      sampler_heap_pool_->GetLastRequestHeapGPUStart().ptr + descriptor_offset;
   return current_full_update;
 }
 
@@ -447,6 +473,8 @@ bool D3D12CommandProcessor::SetupContext() {
 
   pipeline_cache_ = std::make_unique<PipelineCache>(this, register_file_);
 
+  texture_cache_ = std::make_unique<TextureCache>(this, register_file_);
+
   return true;
 }
 
@@ -468,6 +496,8 @@ void D3D12CommandProcessor::ShutdownContext() {
   sampler_heap_pool_.reset();
   view_heap_pool_.reset();
   constant_buffer_pool_.reset();
+
+  texture_cache_.reset();
 
   pipeline_cache_.reset();
 
@@ -525,6 +555,8 @@ void D3D12CommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
     constant_buffer_pool_->ClearCache();
 
     pipeline_cache_->ClearCache();
+
+    texture_cache_->ClearCache();
 
     for (auto it : root_signatures_) {
       it.second->Release();
@@ -1066,19 +1098,46 @@ bool D3D12CommandProcessor::UpdateBindings(
   // Bind the new root signature.
   if (current_graphics_root_signature_ != root_signature) {
     current_graphics_root_signature_ = root_signature;
+    GetRootExtraParameterIndices(vertex_shader, pixel_shader,
+                                 current_graphics_root_extras_);
     // We don't know which root parameters are up to date anymore.
     current_graphics_root_up_to_date_ = 0;
     command_list->SetGraphicsRootSignature(root_signature);
   }
+
+  // Get used textures and samplers.
+  uint32_t pixel_texture_count, pixel_sampler_count;
+  const D3D12Shader::TextureSRV* pixel_textures;
+  const uint32_t* pixel_samplers;
+  if (pixel_shader != nullptr) {
+    pixel_textures = pixel_shader->GetTextureSRVs(pixel_texture_count);
+    pixel_samplers =
+        pixel_shader->GetSamplerFetchConstants(pixel_sampler_count);
+  } else {
+    pixel_textures = nullptr;
+    pixel_texture_count = 0;
+    pixel_samplers = nullptr;
+    pixel_sampler_count = 0;
+  }
+  uint32_t vertex_texture_count, vertex_sampler_count;
+  const D3D12Shader::TextureSRV* vertex_textures =
+      vertex_shader->GetTextureSRVs(vertex_texture_count);
+  const uint32_t* vertex_samplers =
+      vertex_shader->GetSamplerFetchConstants(vertex_sampler_count);
+  uint32_t texture_count = pixel_texture_count + vertex_texture_count;
+  uint32_t sampler_count = pixel_sampler_count + vertex_sampler_count;
 
   // Begin updating descriptors.
   bool write_common_constant_views = false;
   bool write_vertex_float_constant_views = false;
   bool write_pixel_float_constant_views = false;
   bool write_fetch_constant_view = false;
+  // TODO(Triang3l): Update textures and samplers only if shaders or binding
+  // hash change.
+  bool write_textures = texture_count != 0;
+  bool write_samplers = sampler_count != 0;
 
   // Update constant buffers.
-  // TODO(Triang3l): Update the system constant buffer - will crash without it.
   if (!cbuffer_bindings_system_.up_to_date) {
     uint8_t* system_constants = constant_buffer_pool_->RequestFull(
         xe::align(uint32_t(sizeof(system_constants_)), 256u), nullptr, nullptr,
@@ -1145,7 +1204,7 @@ bool D3D12CommandProcessor::UpdateBindings(
     write_fetch_constant_view = true;
   }
 
-  // Update the descriptors.
+  // Allocate the descriptors.
   uint32_t view_count_partial_update = 0;
   if (write_common_constant_views) {
     // System and bool/loop constants.
@@ -1163,8 +1222,11 @@ bool D3D12CommandProcessor::UpdateBindings(
     // Fetch constants.
     ++view_count_partial_update;
   }
-  // All the constants + shared memory.
-  uint32_t view_count_full_update = 20;
+  if (write_textures) {
+    view_count_partial_update += texture_count;
+  }
+  // All the constants + shared memory + textures and samplers.
+  uint32_t view_count_full_update = 20 + texture_count;
   D3D12_CPU_DESCRIPTOR_HANDLE view_cpu_handle;
   D3D12_GPU_DESCRIPTOR_HANDLE view_gpu_handle;
   uint32_t view_handle_size = provider->GetDescriptorSizeView();
@@ -1172,16 +1234,30 @@ bool D3D12CommandProcessor::UpdateBindings(
       draw_view_full_update_, view_count_partial_update, view_count_full_update,
       view_cpu_handle, view_gpu_handle);
   if (view_full_update_index == 0) {
-    XELOGE("View full update index is 0!");
+    XELOGE("Failed to allocate view descriptors!");
     return false;
   }
+  D3D12_CPU_DESCRIPTOR_HANDLE sampler_cpu_handle = {};
+  D3D12_GPU_DESCRIPTOR_HANDLE sampler_gpu_handle = {};
+  uint32_t sampler_handle_size = provider->GetDescriptorSizeSampler();
+  uint64_t sampler_full_update_index = 0;
+  if (sampler_count != 0) {
+    sampler_full_update_index = RequestSamplerDescriptors(
+        draw_sampler_full_update_, write_samplers ? sampler_count : 0,
+        sampler_count, sampler_cpu_handle, sampler_gpu_handle);
+    if (sampler_full_update_index == 0) {
+      XELOGE("Failed to allocate sampler descriptors!");
+      return false;
+    }
+  }
   if (draw_view_full_update_ != view_full_update_index) {
-    // Need to update all descriptors.
+    // Need to update all view descriptors.
     draw_view_full_update_ = view_full_update_index;
     write_common_constant_views = true;
     write_vertex_float_constant_views = true;
     write_pixel_float_constant_views = true;
     write_fetch_constant_view = true;
+    write_textures = texture_count != 0;
     // If updating fully, write the shared memory descriptor (t0, space1).
     shared_memory_->CreateSRV(view_cpu_handle);
     gpu_handle_shared_memory_ = view_gpu_handle;
@@ -1189,6 +1265,13 @@ bool D3D12CommandProcessor::UpdateBindings(
     view_gpu_handle.ptr += view_handle_size;
     current_graphics_root_up_to_date_ &= ~(1u << kRootParameter_SharedMemory);
   }
+  if (sampler_count != 0 &&
+      draw_sampler_full_update_ != sampler_full_update_index) {
+    draw_sampler_full_update_ = sampler_full_update_index;
+    write_samplers = true;
+  }
+
+  // Write the descriptors.
   D3D12_CONSTANT_BUFFER_VIEW_DESC constant_buffer_desc;
   if (write_common_constant_views) {
     gpu_handle_common_constants_ = view_gpu_handle;
@@ -1249,6 +1332,62 @@ bool D3D12CommandProcessor::UpdateBindings(
     view_gpu_handle.ptr += view_handle_size;
     current_graphics_root_up_to_date_ &= ~(1u << kRootParameter_FetchConstants);
   }
+  if (write_textures) {
+    if (pixel_texture_count != 0) {
+      assert_true(current_graphics_root_extras_.pixel_textures !=
+                  RootExtraParameterIndices::kUnavailable);
+      gpu_handle_pixel_textures_ = view_gpu_handle;
+      for (uint32_t i = 0; i < pixel_texture_count; ++i) {
+        const D3D12Shader::TextureSRV& srv = pixel_textures[i];
+        texture_cache_->WriteTextureSRV(srv.fetch_constant, srv.dimension,
+                                        view_cpu_handle);
+        view_cpu_handle.ptr += view_handle_size;
+        view_gpu_handle.ptr += view_handle_size;
+      }
+      current_graphics_root_up_to_date_ &=
+          ~(1u << current_graphics_root_extras_.pixel_textures);
+    }
+    if (vertex_texture_count != 0) {
+      assert_true(current_graphics_root_extras_.vertex_textures !=
+                  RootExtraParameterIndices::kUnavailable);
+      gpu_handle_vertex_textures_ = view_gpu_handle;
+      for (uint32_t i = 0; i < vertex_texture_count; ++i) {
+        const D3D12Shader::TextureSRV& srv = vertex_textures[i];
+        texture_cache_->WriteTextureSRV(srv.fetch_constant, srv.dimension,
+                                        view_cpu_handle);
+        view_cpu_handle.ptr += view_handle_size;
+        view_gpu_handle.ptr += view_handle_size;
+      }
+      current_graphics_root_up_to_date_ &=
+          ~(1u << current_graphics_root_extras_.vertex_textures);
+    }
+  }
+  if (write_samplers) {
+    if (pixel_sampler_count != 0) {
+      assert_true(current_graphics_root_extras_.pixel_samplers !=
+                  RootExtraParameterIndices::kUnavailable);
+      gpu_handle_pixel_samplers_ = sampler_gpu_handle;
+      for (uint32_t i = 0; i < pixel_sampler_count; ++i) {
+        texture_cache_->WriteSampler(pixel_samplers[i], sampler_cpu_handle);
+        sampler_cpu_handle.ptr += sampler_handle_size;
+        sampler_gpu_handle.ptr += sampler_handle_size;
+      }
+      current_graphics_root_up_to_date_ &=
+          ~(1u << current_graphics_root_extras_.pixel_samplers);
+    }
+    if (vertex_sampler_count != 0) {
+      assert_true(current_graphics_root_extras_.vertex_samplers !=
+                  RootExtraParameterIndices::kUnavailable);
+      gpu_handle_vertex_samplers_ = sampler_gpu_handle;
+      for (uint32_t i = 0; i < vertex_sampler_count; ++i) {
+        texture_cache_->WriteSampler(vertex_samplers[i], sampler_cpu_handle);
+        sampler_cpu_handle.ptr += sampler_handle_size;
+        sampler_gpu_handle.ptr += sampler_handle_size;
+      }
+      current_graphics_root_up_to_date_ &=
+          ~(1u << current_graphics_root_extras_.vertex_samplers);
+    }
+  }
 
   // Update the root parameters.
   if (!(current_graphics_root_up_to_date_ &
@@ -1283,6 +1422,35 @@ bool D3D12CommandProcessor::UpdateBindings(
     command_list->SetGraphicsRootDescriptorTable(kRootParameter_SharedMemory,
                                                  gpu_handle_shared_memory_);
     current_graphics_root_up_to_date_ |= 1u << kRootParameter_SharedMemory;
+  }
+  uint32_t extra_index;
+  extra_index = current_graphics_root_extras_.pixel_textures;
+  if (extra_index != RootExtraParameterIndices::kUnavailable &&
+      !(current_graphics_root_up_to_date_ & (1u << extra_index))) {
+    command_list->SetGraphicsRootDescriptorTable(extra_index,
+                                                 gpu_handle_pixel_textures_);
+    current_graphics_root_up_to_date_ |= 1u << extra_index;
+  }
+  extra_index = current_graphics_root_extras_.pixel_samplers;
+  if (extra_index != RootExtraParameterIndices::kUnavailable &&
+      !(current_graphics_root_up_to_date_ & (1u << extra_index))) {
+    command_list->SetGraphicsRootDescriptorTable(extra_index,
+                                                 gpu_handle_pixel_samplers_);
+    current_graphics_root_up_to_date_ |= 1u << extra_index;
+  }
+  extra_index = current_graphics_root_extras_.vertex_textures;
+  if (extra_index != RootExtraParameterIndices::kUnavailable &&
+      !(current_graphics_root_up_to_date_ & (1u << extra_index))) {
+    command_list->SetGraphicsRootDescriptorTable(extra_index,
+                                                 gpu_handle_vertex_textures_);
+    current_graphics_root_up_to_date_ |= 1u << extra_index;
+  }
+  extra_index = current_graphics_root_extras_.vertex_samplers;
+  if (extra_index != RootExtraParameterIndices::kUnavailable &&
+      !(current_graphics_root_up_to_date_ & (1u << extra_index))) {
+    command_list->SetGraphicsRootDescriptorTable(extra_index,
+                                                 gpu_handle_vertex_samplers_);
+    current_graphics_root_up_to_date_ |= 1u << extra_index;
   }
 
   return true;

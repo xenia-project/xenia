@@ -40,21 +40,18 @@ class HlslShaderTranslator : public ShaderTranslator {
     uint32_t textures_are_3d;
   };
 
-  enum class SRVType : uint32_t {
-    // 1D, 2D or stacked texture bound as a 2D array texture.
-    Texture2DArray,
-    // 3D texture (also has a 2D array view of the same fetch registers because
-    // tfetch3D is used for both stacked and 3D textures.
-    Texture3D,
-    // Cube texture.
-    TextureCube
+  struct TextureSRV {
+    uint32_t fetch_constant;
+    TextureDimension dimension;
   };
-
-  struct SRVBinding {
-    SRVType type : 2;
-    // 0-31 for textures, 0-95 for vertex buffers.
-    uint32_t fetch_constant : 7;
-  };
+  const TextureSRV* GetTextureSRVs(uint32_t& count_out) const {
+    count_out = texture_srv_count_;
+    return texture_srvs_;
+  }
+  const uint32_t* GetSamplerFetchConstants(uint32_t& count_out) const {
+    count_out = sampler_count_;
+    return sampler_fetch_constants_;
+  }
 
  protected:
   void Reset() override;
@@ -108,9 +105,11 @@ class HlslShaderTranslator : public ShaderTranslator {
 
   bool writes_depth_ = false;
 
-  std::vector<SRVBinding> srv_bindings_;
-  // Finds or adds an SRV binding to the shader's SRV list, returns t# index.
-  uint32_t AddSRVBinding(SRVType type, uint32_t fetch_constant);
+  // Up to 32 2D array textures, 32 3D textures and 32 cube textures.
+  TextureSRV texture_srvs_[96];
+  uint32_t texture_srv_count_ = 0;
+  // Finds or adds a texture binding to the shader's SRV list, returns t# index.
+  uint32_t AddTextureSRV(uint32_t fetch_constant, TextureDimension dimension);
 
   // Sampler index -> fetch constant index mapping.
   // TODO(Triang3l): On binding tier 1 (Nvidia Fermi), there can't be more than
