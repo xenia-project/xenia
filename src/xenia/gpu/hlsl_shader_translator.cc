@@ -40,8 +40,7 @@ void HlslShaderTranslator::Reset() {
 
   writes_depth_ = false;
 
-  srv_bindings_.clear();
-
+  texture_srv_count_ = 0;
   sampler_count_ = 0;
 
   cube_used_ = false;
@@ -192,6 +191,37 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
       "xe_float_constants[8] : register(b2);\n"
       "\n");
 
+  // Textures and samplers.
+  for (uint32_t i = 0; i < texture_srv_count_; ++i) {
+    const TextureSRV& srv = texture_srvs_[i];
+    const char* srv_type_dimension;
+    const char* srv_name_suffix;
+    switch (srv.dimension) {
+      case TextureDimension::k3D:
+        srv_type_dimension = "3D";
+        srv_name_suffix = "3d";
+        break;
+      case TextureDimension::kCube:
+        srv_type_dimension = "Cube";
+        srv_name_suffix = "cube";
+        break;
+      default:
+        srv_type_dimension = "2DArray";
+        srv_name_suffix = "2d";
+        break;
+    }
+    source.AppendFormat(
+        "Texture%s<float4> xe_texture%u_%s : register(t%u, space0);\n",
+        srv_type_dimension, srv.fetch_constant, srv_name_suffix, i);
+  }
+  for (uint32_t i = 0; i < sampler_count_; ++i) {
+    source.AppendFormat("SamplerState xe_sampler%u : register(s%u);\n",
+                        sampler_fetch_constants_[i], i);
+  }
+  if (texture_srv_count_ != 0 || sampler_count_ != 0) {
+    source.Append("\n");
+  }
+
   if (is_vertex_shader()) {
     // Vertex fetching, output and prologue.
     // Endian register (2nd word of the fetch constant) is 00 for no swap, 01
@@ -301,6 +331,10 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
       // Loop counter stack, .x is the active loop.
       // Represents number of times remaining to loop.
       "  uint4 xe_loop_count = uint4(0u, 0u, 0u, 0u);\n"
+      // Coordinates for texture fetches.
+      "  float3 xe_texture_coords = float3(0.0, 0.0, 0.0);\n"
+      // LOD for UseRegisterLOD texture fetches.
+      "  float xe_texture_lod = 0.0f;\n"
       // Master loop and switch for flow control.
       "  uint xe_pc = 0u;\n"
       "\n"
@@ -1068,19 +1102,22 @@ void HlslShaderTranslator::ProcessVertexFetchInstruction(
   EndPredicatedInstruction(conditional_emitted);
 }
 
-uint32_t HlslShaderTranslator::AddSRVBinding(SRVType type,
-                                             uint32_t fetch_constant) {
-  for (uint32_t i = 0; i < srv_bindings_.size(); ++i) {
-    const SRVBinding& binding = srv_bindings_[i];
-    if (binding.type == type && binding.fetch_constant == fetch_constant) {
+uint32_t HlslShaderTranslator::AddTextureSRV(uint32_t fetch_constant,
+                                             TextureDimension dimension) {
+  if (dimension == TextureDimension::k1D) {
+    // 1D textures are treated as 2D.
+    dimension = TextureDimension::k2D;
+  }
+  for (uint32_t i = 0; i < texture_srv_count_; ++i) {
+    const TextureSRV& srv = texture_srvs_[i];
+    if (srv.fetch_constant == fetch_constant && srv.dimension == dimension) {
       return i;
     }
   }
-  SRVBinding new_binding;
-  new_binding.type = type;
-  new_binding.fetch_constant = fetch_constant;
-  srv_bindings_.push_back(new_binding);
-  return uint32_t(srv_bindings_.size() - 1);
+  TextureSRV& new_srv = texture_srvs_[texture_srv_count_];
+  new_srv.fetch_constant = fetch_constant;
+  new_srv.dimension = dimension;
+  return texture_srv_count_++;
 }
 
 uint32_t HlslShaderTranslator::AddSampler(uint32_t fetch_constant) {
@@ -1100,6 +1137,19 @@ void HlslShaderTranslator::ProcessTextureFetchInstruction(
 
   bool conditional_emitted = BeginPredicatedInstruction(
       instr.is_predicated, instr.predicate_condition);
+
+  if (instr.opcode == FetchOpcode::kSetTextureLod) {
+    // TODO(Triang3l): Set xe_lod to the src1.
+  } else {
+    uint32_t tfetch_index = instr.operands[1].storage_index;
+    AddTextureSRV(tfetch_index, instr.dimension);
+    if (instr.dimension == TextureDimension::k3D) {
+      // tfetch3D is used for both 3D textures and 2D texture arrays, this is
+      // chosen dynamically.
+      AddTextureSRV(tfetch_index, TextureDimension::k2D);
+    }
+    AddSampler(tfetch_index);
+  }
 
   // TODO(Triang3l): Texture fetch when textures are added.
   EmitSourceDepth("xe_pv = (1.0).xxxx;\n");

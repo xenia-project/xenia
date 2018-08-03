@@ -110,31 +110,29 @@ class D3D12CommandProcessor : public CommandProcessor {
     // Never changed - shared memory byte address buffer (t0, space1).
     kRootParameter_SharedMemory,
 
-    kRootParameter_Count_NoTextures,
+    kRootParameter_Count_Base,
 
-    // These are there only if textures are fetched (they are changed pretty
-    // frequently, but for the ease of maintenance they're in the end).
-    // If the pixel shader samples textures, these are for pixel textures
-    // (changed more frequently), otherwise, if the vertex shader samples
-    // textures, these are for vertex textures.
+    // Extra parameter that may or may not exist:
+    // - Pixel textures.
+    // - Pixel samplers.
+    // - Vertex textures.
+    // - Vertex samplers.
 
-    // Used textures of all types (t0+, space0).
-    kRootParameter_PixelOrVertexTextures = kRootParameter_Count_NoTextures,
-    // Used samplers (s0+).
-    kRootParameter_PixelOrVertexSamplers,
-
-    kRootParameter_Count_OneStageTextures,
-
-    // These are only present if both pixel and vertex shaders sample textures
-    // for vertex textures.
-
-    // Used textures of all types (t0+, space0).
-    kRootParameter_VertexTextures = kRootParameter_Count_OneStageTextures,
-    // Used samplers (s0+).
-    kRootParameter_VertexSamplers,
-
-    kRootParameter_Count_TwoStageTextures,
+    kRootParameter_Count_Max = kRootParameter_Count_Base + 4,
   };
+
+  struct RootExtraParameterIndices {
+    uint32_t pixel_textures;
+    uint32_t pixel_samplers;
+    uint32_t vertex_textures;
+    uint32_t vertex_samplers;
+    static constexpr uint32_t kUnavailable = UINT32_MAX;
+  };
+  // Gets the indices of optional root parameters. Returns the total parameter
+  // count.
+  static uint32_t GetRootExtraParameterIndices(
+      const D3D12Shader* vertex_shader, const D3D12Shader* pixel_shader,
+      RootExtraParameterIndices& indices_out);
 
   // Returns true if a new frame was started.
   bool BeginFrame();
@@ -161,6 +159,8 @@ class D3D12CommandProcessor : public CommandProcessor {
   std::unordered_map<uint32_t, ID3D12RootSignature*> root_signatures_;
 
   std::unique_ptr<PipelineCache> pipeline_cache_ = nullptr;
+
+  std::unique_ptr<TextureCache> texture_cache_ = nullptr;
 
   std::unique_ptr<ui::d3d12::UploadBufferPool> constant_buffer_pool_ = nullptr;
   std::unique_ptr<ui::d3d12::DescriptorHeapPool> view_heap_pool_ = nullptr;
@@ -194,6 +194,8 @@ class D3D12CommandProcessor : public CommandProcessor {
   ID3D12PipelineState* current_pipeline_;
   // Currently bound graphics root signature.
   ID3D12RootSignature* current_graphics_root_signature_;
+  // Extra parameters which may or may not be present.
+  RootExtraParameterIndices current_graphics_root_extras_;
   // Whether root parameters are up to date - reset if a new signature is bound.
   uint32_t current_graphics_root_up_to_date_;
 
@@ -225,6 +227,10 @@ class D3D12CommandProcessor : public CommandProcessor {
   D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_pixel_float_constants_;
   D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_fetch_constants_;
   D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_shared_memory_;
+  D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_pixel_textures_;
+  D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_pixel_samplers_;
+  D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_vertex_textures_;
+  D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_vertex_samplers_;
 
   // Current primitive topology.
   D3D_PRIMITIVE_TOPOLOGY primitive_topology_;

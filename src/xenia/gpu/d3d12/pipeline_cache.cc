@@ -27,7 +27,7 @@ namespace d3d12 {
 PipelineCache::PipelineCache(D3D12CommandProcessor* command_processor,
                              RegisterFile* register_file)
     : command_processor_(command_processor), register_file_(register_file) {
-  shader_translator_.reset(new HlslShaderTranslator());
+  shader_translator_ = std::make_unique<HlslShaderTranslator>();
 
   // Set pipeline state description values we never change.
   // Zero out tessellation, stream output, blend state and formats for render
@@ -157,6 +157,14 @@ bool PipelineCache::TranslateShader(D3D12Shader* shader,
     XELOGE("Shader translation failed; marking shader as ignored");
     return false;
   }
+
+  uint32_t texture_srv_count, sampler_count;
+  const HlslShaderTranslator::TextureSRV* texture_srvs =
+      shader_translator_->GetTextureSRVs(texture_srv_count);
+  const uint32_t* sampler_fetch_constants =
+      shader_translator_->GetSamplerFetchConstants(sampler_count);
+  shader->SetTexturesAndSamplers(texture_srvs, texture_srv_count,
+                                 sampler_fetch_constants, sampler_count);
 
   // Prepare the shader for use (creates the Shader Model bytecode).
   // It could still fail at this point.
