@@ -176,7 +176,6 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
       "  float xe_pixel_half_pixel_offset;\n"
       "  float2 xe_ssaa_inv_scale;\n"
       "  uint xe_pixel_pos_reg;\n"
-      "  uint xe_textures_are_3d;\n"
       "};\n"
       "\n"
       "cbuffer xe_loop_bool_constants : register(b1) {\n"
@@ -184,11 +183,15 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
       "  uint4 xe_loop_constants[32];\n"
       "};\n"
       "\n"
+      "cbuffer xe_fetch_constants : register(b2) {\n"
+      "  uint4 xe_fetch[48];\n"
+      "};\n"
+      "\n"
       "struct XeFloatConstantPage {\n"
       "  float4 c[32];\n"
       "};\n"
       "ConstantBuffer<XeFloatConstantPage> "
-      "xe_float_constants[8] : register(b2);\n"
+      "xe_float_constants[8] : register(b3);\n"
       "\n");
 
   // Textures and samplers.
@@ -232,10 +235,6 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
     // -1 point size means the geometry shader will use the global setting by
     // default.
     source.AppendFormat(
-        "cbuffer xe_vertex_fetch_constants : register(b10) {\n"
-        "  uint4 xe_vertex_fetch[48];\n"
-        "};\n"
-        "\n"
         "ByteAddressBuffer xe_shared_memory : register(t0, space1);\n"
         "\n"
         "#define XE_BYTE_SWAP_OVERLOAD(XeByteSwapType) \\\n"
@@ -903,8 +902,8 @@ void HlslShaderTranslator::ProcessVertexFetchInstruction(
   }
   EmitSourceDepth("xe_vertex_element%s = XeByteSwap(xe_shared_memory.Load%s(\n",
                   load_swizzle, load_function_suffix);
-  EmitSourceDepth("    (xe_vertex_fetch[%uu].%c & 0x1FFFFFFCu)",
-                  vfetch_index >> 1, (vfetch_index & 1) ? 'z' : 'x');
+  EmitSourceDepth("    (xe_fetch[%uu].%c & 0x1FFFFFFCu)", vfetch_index >> 1,
+                  (vfetch_index & 1) ? 'z' : 'x');
   if (instr.attributes.stride != 0) {
     EmitSource(" + uint(xe_src0.x) * %uu", instr.attributes.stride * 4);
   }
@@ -912,7 +911,7 @@ void HlslShaderTranslator::ProcessVertexFetchInstruction(
     EmitSource(" + %uu", instr.attributes.offset * 4);
   }
   EmitSource("),\n");
-  EmitSourceDepth("    xe_vertex_fetch[%uu].%c);\n", vfetch_index >> 1,
+  EmitSourceDepth("    xe_fetch[%uu].%c);\n", vfetch_index >> 1,
                   (vfetch_index & 1) ? 'w' : 'y');
 
   // Convert to the target format.

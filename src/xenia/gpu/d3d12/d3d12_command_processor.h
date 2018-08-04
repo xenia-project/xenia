@@ -95,14 +95,14 @@ class D3D12CommandProcessor : public CommandProcessor {
     // These are always present.
 
     // Very frequently changed, especially for UI draws, and for models drawn in
-    // multiple parts - contains fetch constants with vertex addresses (b10).
+    // multiple parts - contains vertex and texture fetch constants (b2).
     kRootParameter_FetchConstants,
     // Quite frequently changed (for one object drawn multiple times, for
     // instance - may contain projection matrices) - 8 pages of float constants
-    // (b2-b9).
+    // (b3-b10).
     kRootParameter_VertexFloatConstants,
     // Less frequently changed (per-material) - 8 pages of float constants
-    // (b2-b9).
+    // (b3-b10).
     kRootParameter_PixelFloatConstants,
     // Rarely changed - system constants like viewport and alpha testing (b0)
     // and loop and bool constants (b1).
@@ -223,9 +223,9 @@ class D3D12CommandProcessor : public CommandProcessor {
 
   // Latest descriptor handles used for handling Xenos draw calls.
   D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_common_constants_;
+  D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_fetch_constants_;
   D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_vertex_float_constants_;
   D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_pixel_float_constants_;
-  D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_fetch_constants_;
   D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_shared_memory_;
   D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_pixel_textures_;
   D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_pixel_samplers_;
