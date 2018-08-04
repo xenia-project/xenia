@@ -915,6 +915,7 @@ void HlslShaderTranslator::ProcessVertexFetchInstruction(
                   (vfetch_index & 1) ? 'w' : 'y');
 
   // Convert to the target format.
+  uint32_t component_count = 4;
   switch (instr.attributes.data_format) {
     case VertexFormat::k_8_8_8_8:
       EmitSourceDepth("xe_vertex_element = (xe_vertex_element.xxxx >>\n");
@@ -953,6 +954,7 @@ void HlslShaderTranslator::ProcessVertexFetchInstruction(
       }
       break;
     case VertexFormat::k_10_11_11:
+      component_count = 3;
       EmitSourceDepth("xe_vertex_element.xyz = (xe_vertex_element.xxx >>\n");
       EmitSourceDepth(
           "    uint3(0u, 11u, 22u)) & uint3(2047u, 2047u, 1023u);\n");
@@ -975,6 +977,7 @@ void HlslShaderTranslator::ProcessVertexFetchInstruction(
       EmitSourceDepth("xe_pv.w = 1.0;\n");
       break;
     case VertexFormat::k_11_11_10:
+      component_count = 3;
       EmitSourceDepth("xe_vertex_element.xyz = (xe_vertex_element.xxx >>\n");
       EmitSourceDepth(
           "    uint3(0u, 10u, 21u)) & uint3(1023u, 2047u, 2047u);\n");
@@ -997,6 +1000,7 @@ void HlslShaderTranslator::ProcessVertexFetchInstruction(
       EmitSourceDepth("xe_pv.w = 1.0;\n");
       break;
     case VertexFormat::k_16_16:
+      component_count = 2;
       EmitSourceDepth("xe_vertex_element.xy = (xe_vertex_element.xx >>\n");
       EmitSourceDepth("    uint2(0u, 16u)) & 65535u;\n");
       if (instr.attributes.is_signed) {
@@ -1034,6 +1038,7 @@ void HlslShaderTranslator::ProcessVertexFetchInstruction(
       }
       break;
     case VertexFormat::k_16_16_FLOAT:
+      component_count = 2;
       EmitSourceDepth("xe_vertex_element.xy = (xe_vertex_element.xx >>\n");
       EmitSourceDepth("    uint2(0u, 16u)) & 65535u;\n");
       EmitSourceDepth("xe_pv.xy = f16tof32(xe_vertex_element.xy);\n");
@@ -1045,6 +1050,7 @@ void HlslShaderTranslator::ProcessVertexFetchInstruction(
       EmitSourceDepth("xe_pv = f16tof32(xe_vertex_element);\n");
       break;
     case VertexFormat::k_32:
+      component_count = 1;
       if (instr.attributes.is_signed) {
         EmitSourceDepth("xe_pv.x = float(int(xe_vertex_element.x));\n");
       } else {
@@ -1057,6 +1063,7 @@ void HlslShaderTranslator::ProcessVertexFetchInstruction(
       EmitSourceDepth("xe_pv.yzw = float3(0.0, 0.0, 1.0);\n");
       break;
     case VertexFormat::k_32_32:
+      component_count = 2;
       if (instr.attributes.is_signed) {
         EmitSourceDepth("xe_pv.xy = float2(int2(xe_vertex_element.xy));\n");
       } else {
@@ -1080,10 +1087,12 @@ void HlslShaderTranslator::ProcessVertexFetchInstruction(
       }
       break;
     case VertexFormat::k_32_FLOAT:
+      component_count = 1;
       EmitSourceDepth("xe_pv.x = asfloat(xe_vertex_element.x);\n");
       EmitSourceDepth("xe_pv.yzw = float3(0.0, 0.0, 1.0);\n");
       break;
     case VertexFormat::k_32_32_FLOAT:
+      component_count = 2;
       EmitSourceDepth("xe_pv.xy = asfloat(xe_vertex_element.xy);\n");
       EmitSourceDepth("xe_pv.zw = float2(0.0, 1.0);\n");
       break;
@@ -1094,6 +1103,22 @@ void HlslShaderTranslator::ProcessVertexFetchInstruction(
       EmitSourceDepth("xe_pv.xyz = asfloat(xe_vertex_element.xyz);\n");
       EmitSourceDepth("xe_pv.w = 1.0;\n");
       break;
+  }
+  // TODO(Triang3l): Check if the exponent bias needs to be added to unfetched
+  // components as well (and check if W should actually be 1 in this case).
+  if (instr.attributes.exp_adjust != 0) {
+    EmitSourceDepth("xe_pv");
+    if (component_count != 4) {
+      EmitSource(".x");
+      if (component_count >= 2) {
+        EmitSource("y");
+        if (component_count >= 3) {
+          EmitSource("z");
+        }
+      }
+    }
+    EmitSource(" *= asfloat(0x%Xu);\n",
+               0x3F800000 + (instr.attributes.exp_adjust << 23));
   }
 
   EmitStoreResult(instr.result, false);
