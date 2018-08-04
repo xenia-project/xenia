@@ -74,8 +74,8 @@ class SharedMemory {
   // D3D resource tiles are 64 KB in size.
   static constexpr uint32_t kTileSizeLog2 = 16;
   static constexpr uint32_t kTileSize = 1 << kTileSizeLog2;
-  // Heaps are 4 MB, so not too many of them are allocated.
-  static constexpr uint32_t kHeapSizeLog2 = 22;
+  // Heaps are 16 MB, so not too many of them are allocated.
+  static constexpr uint32_t kHeapSizeLog2 = 24;
   static constexpr uint32_t kHeapSize = 1 << kHeapSizeLog2;
   // Resident portions of the tiled buffer.
   ID3D12Heap* heaps_[kBufferSize >> kHeapSizeLog2] = {};
