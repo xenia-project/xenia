@@ -88,6 +88,8 @@ TextureCache::HostFormat TextureCache::host_formats_[64] = {
     {DXGI_FORMAT_UNKNOWN},    // k_2_10_10_10_FLOAT
 };
 
+const char* TextureCache::dimension_names_[4] = {"1D", "2D", "3D", "cube"};
+
 TextureCache::TextureCache(D3D12CommandProcessor* command_processor,
                            RegisterFile* register_file,
                            SharedMemory* shared_memory)
@@ -375,6 +377,31 @@ void TextureCache::TextureKeyFromFetchConstant(
                 ~((fetch.swizzle & (4 | (4 << 3) | (4 << 6) | (4 << 9))) >> 1);
 }
 
+void TextureCache::LogTextureKeyAction(TextureKey key, const char* action) {
+  XELOGGPU(
+      "%s %s %ux%ux%u %s %s texture with %u %spacked mip level%s, "
+      "base at 0x%.8X, mips at 0x%.8X", action, key.tiled ? "tiled" : "linear",
+      key.width, key.height, key.depth,
+      dimension_names_[uint32_t(key.dimension)],
+      FormatInfo::Get(key.format)->name, key.mip_max_level + 1,
+      key.packed_mips ? "" : "un", key.mip_max_level != 0 ? "s" : "",
+      key.base_page << 12, key.mip_page << 12);
+}
+
+void TextureCache::LogTextureAction(const Texture& texture,
+                                    const char* action) {
+  XELOGGPU(
+      "%s %s %ux%ux%u %s %s texture with %u %spacked mip level%s, "
+      "base at 0x%.8X (size %u), mips at 0x%.8X (size %u)", action,
+      texture.key.tiled ? "tiled" : "linear", texture.key.width,
+      texture.key.height, texture.key.depth,
+      dimension_names_[uint32_t(texture.key.dimension)],
+      FormatInfo::Get(texture.key.format)->name,
+      texture.key.mip_max_level + 1, texture.key.packed_mips ? "" : "un",
+      texture.key.mip_max_level != 0 ? "s" : "", texture.key.base_page << 12,
+      texture.base_size, texture.key.mip_page << 12, texture.mip_size);
+}
+
 TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
   uint64_t map_key = key.GetMapKey();
 
@@ -421,8 +448,7 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
   if (FAILED(device->CreateCommittedResource(
           &heap_properties, D3D12_HEAP_FLAG_NONE, &desc, state, nullptr,
           IID_PPV_ARGS(&resource)))) {
-    XELOGE("Failed to create a %ux%ux%u %s texture with %u mip levels",
-           key.width, key.height, key.depth);
+    LogTextureKeyAction(key, "Failed to create");
     return nullptr;
   }
 
@@ -456,16 +482,17 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
       texture_util::GetGuestMipBlocks(key.dimension, key.width, key.height,
                                       key.depth, key.format, i, width_blocks,
                                       height_blocks, depth_blocks);
-      texture->base_size = texture_util::GetGuestMipStorageSize(
+      texture->mip_size += texture_util::GetGuestMipStorageSize(
           width_blocks, height_blocks, depth_blocks, key.tiled, key.format,
           nullptr);
     }
-    texture->base_in_sync = false;
+    texture->mips_in_sync = false;
   } else {
     // Never try to upload the mipmaps if there are none.
-    texture->base_in_sync = true;
+    texture->mips_in_sync = true;
   }
   textures_.insert(std::make_pair(map_key, texture));
+  LogTextureAction(*texture, "Created");
 
   return texture;
 }

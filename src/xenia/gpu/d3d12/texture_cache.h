@@ -90,19 +90,19 @@ class TextureCache {
       // range prefix.
       uint32_t base_page : 17;  // 17 total
       Dimension dimension : 2;  // 19
-      uint32_t width : 13;  // 32
+      uint32_t width : 13;      // 32
 
-      uint32_t height : 13;  // 45
-      uint32_t tiled : 1;  // 46
+      uint32_t height : 13;      // 45
+      uint32_t tiled : 1;        // 46
       uint32_t packed_mips : 1;  // 47
       // Physical 4 KB page with mip 1 and smaller.
       uint32_t mip_page : 17;  // 64
 
       // Layers for stacked and 3D, 6 for cube, 1 for other dimensions.
-      uint32_t depth : 10;  // 74
+      uint32_t depth : 10;         // 74
       uint32_t mip_max_level : 4;  // 78
-      TextureFormat format : 6;  // 84
-      Endian endianness : 2;  // 86
+      TextureFormat format : 6;    // 84
+      Endian endianness : 2;       // 86
     };
     struct {
       // The key used for unordered_multimap lookup. Single uint32_t instead of
@@ -172,6 +172,9 @@ class TextureCache {
       const xenos::xe_gpu_texture_fetch_t& fetch, TextureKey& key_out,
       uint32_t& swizzle_out);
 
+  static void LogTextureKeyAction(TextureKey key, const char* action);
+  static void LogTextureAction(const Texture& texture, const char* action);
+
   // Returns nullptr if the key is not supported, but also if couldn't create
   // the texture - if it's nullptr, occasionally a recreation attempt should be
   // made.
@@ -184,7 +187,7 @@ class TextureCache {
 
   static HostFormat host_formats_[64];
 
-  static const char* dimension_names_[];
+  static const char* dimension_names_[4];
 
   D3D12CommandProcessor* command_processor_;
   RegisterFile* register_file_;
