@@ -121,9 +121,8 @@ const TextureConfig texture_configs[64] = {
 
     /* k_DXT3A_AS_1_1_1_1          */ ___(UNDEFINED),
 
-    // Unused.
-    /* kUnknown                    */ ___(UNDEFINED),
-    /* kUnknown                    */ ___(UNDEFINED),
+    /* k_8_8_8_8_GAMMA             */ ___(R8G8B8A8_UNORM),
+    /* k_2_10_10_10_FLOAT          */ ___(UNDEFINED),
 };
 
 #undef _cv

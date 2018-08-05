@@ -19,7 +19,8 @@
 namespace xe {
 namespace gpu {
 
-// a2xx_sq_surfaceformat
+// a2xx_sq_surfaceformat + D3D::GetGpuFormatFromEDRAMColorFormat::formatMap and
+// FMT_ string table from game executables.
 enum class TextureFormat : uint32_t {
   k_1_REVERSE = 0,
   k_1 = 1,
@@ -83,7 +84,8 @@ enum class TextureFormat : uint32_t {
   k_DXT5A = 59,
   k_CTX1 = 60,
   k_DXT3A_AS_1_1_1_1 = 61,
-  k_2_10_10_10_FLOAT = 62,
+  k_8_8_8_8_GAMMA = 62,
+  k_2_10_10_10_FLOAT = 63,
 
   kUnknown = 0xFFFFFFFFu,
 };
@@ -111,6 +113,8 @@ inline TextureFormat GetBaseFormat(TextureFormat texture_format) {
       return TextureFormat::k_10_11_11;
     case TextureFormat::k_11_11_10_AS_16_16_16_16:
       return TextureFormat::k_11_11_10;
+    case TextureFormat::k_8_8_8_8_GAMMA:
+      return TextureFormat::k_8_8_8_8;
     default:
       break;
   }
@@ -208,6 +212,7 @@ inline bool IsSRGBCapable(TextureFormat format) {
     case TextureFormat::k_2_10_10_10_AS_16_16_16_16:
     case TextureFormat::k_10_11_11_AS_16_16_16_16:
     case TextureFormat::k_11_11_10_AS_16_16_16_16:
+    case TextureFormat::k_8_8_8_8_GAMMA:
       return true;
     default:
       return false;
@@ -224,14 +229,18 @@ inline TextureFormat ColorRenderTargetToTextureFormat(
     case ColorRenderTargetFormat::k_8_8_8_8:
       return TextureFormat::k_8_8_8_8;
     case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
-      return TextureFormat::k_8_8_8_8;
+      return TextureFormat::k_8_8_8_8_GAMMA;
     case ColorRenderTargetFormat::k_2_10_10_10:
       return TextureFormat::k_2_10_10_10;
     case ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
       return TextureFormat::k_2_10_10_10_FLOAT;
     case ColorRenderTargetFormat::k_16_16:
+      // TODO(Triang3l): Check if this needs to be k_Shadow according to
+      // GetGpuFormatFromEDRAMColorFormat.
       return TextureFormat::k_16_16;
     case ColorRenderTargetFormat::k_16_16_16_16:
+      // TODO(Triang3l): Check if this needs to be k_DXV according to
+      // GetGpuFormatFromEDRAMColorFormat.
       return TextureFormat::k_16_16_16_16;
     case ColorRenderTargetFormat::k_16_16_FLOAT:
       return TextureFormat::k_16_16_FLOAT;
