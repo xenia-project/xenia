@@ -18,7 +18,7 @@ namespace xe {
 namespace gpu {
 namespace texture_util {
 
-bool GetGuestMipBlocks(Dimension dimension, uint32_t width, uint32_t height,
+void GetGuestMipBlocks(Dimension dimension, uint32_t width, uint32_t height,
                        uint32_t depth, TextureFormat format, uint32_t mip,
                        uint32_t& width_blocks_out, uint32_t& height_blocks_out,
                        uint32_t& depth_blocks_out) {
@@ -52,7 +52,6 @@ bool GetGuestMipBlocks(Dimension dimension, uint32_t width, uint32_t height,
   } else {
     height_blocks_out = 1;
   }
-  return true;
 }
 
 uint32_t GetGuestMipStorageSize(uint32_t width_blocks, uint32_t height_blocks,

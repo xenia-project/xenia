@@ -24,7 +24,7 @@ namespace texture_util {
 
 // Calculates width, height and depth of the image backing the guest mipmap (or
 // the base level if mip is 0).
-bool GetGuestMipBlocks(Dimension dimension, uint32_t width, uint32_t height,
+void GetGuestMipBlocks(Dimension dimension, uint32_t width, uint32_t height,
                        uint32_t depth, TextureFormat format, uint32_t mip,
                        uint32_t& width_blocks_out, uint32_t& height_blocks_out,
                        uint32_t& depth_blocks_out);
@@ -48,16 +48,17 @@ bool GetPackedMipOffset(uint32_t width, uint32_t height, uint32_t depth,
                         TextureFormat format, uint32_t mip, uint32_t& x_blocks,
                         uint32_t& y_blocks, uint32_t& z_blocks);
 
-// Calculates the maximum mipmap count for a texture.
-inline uint32_t GetMaximumMipCount(uint32_t width, uint32_t height,
-                                   uint32_t depth, bool has_packed_mips) {
+// Calculates the index of the smallest mip (1x1x1 for unpacked or min(w,h)<=16
+// packed mips) for a texture. For non-3D textures, set the depth to 1.
+inline uint32_t GetSmallestMipLevel(uint32_t width, uint32_t height,
+                                    uint32_t depth, bool packed_mips) {
   uint32_t size = std::max(width, height);
   size = std::max(size, depth);
   uint32_t smallest_mip = xe::log2_ceil(size);
-  if (has_packed_mips) {
+  if (packed_mips) {
     smallest_mip = std::min(smallest_mip, GetPackedMipLevel(width, height));
   }
-  return smallest_mip + 1;
+  return smallest_mip;
 }
 
 }  // namespace texture_util
