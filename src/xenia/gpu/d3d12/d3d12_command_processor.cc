@@ -473,7 +473,8 @@ bool D3D12CommandProcessor::SetupContext() {
 
   pipeline_cache_ = std::make_unique<PipelineCache>(this, register_file_);
 
-  texture_cache_ = std::make_unique<TextureCache>(this, register_file_);
+  texture_cache_ = std::make_unique<TextureCache>(this, register_file_,
+                                                  shared_memory_.get());
 
   return true;
 }
@@ -530,6 +531,10 @@ void D3D12CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
   } else if (index >= XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 &&
              index <= XE_GPU_REG_SHADER_CONSTANT_FETCH_31_5) {
     cbuffer_bindings_fetch_.up_to_date = false;
+    if (texture_cache_ != nullptr) {
+      texture_cache_->TextureFetchConstantWritten(
+          (index - XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0) / 6);
+    }
   }
 }
 
@@ -684,6 +689,11 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     return false;
   }
 
+  // Update the textures - this may bind pipelines.
+  texture_cache_->RequestTextures(
+      vertex_shader->GetUsedTextureMask(),
+      pixel_shader != nullptr ? pixel_shader->GetUsedTextureMask() : 0);
+
   // Update viewport, scissor, blend factor and stencil reference.
   UpdateFixedFunctionState(command_list);
 
@@ -717,8 +727,7 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     uint32_t vfetch_constant_index =
         XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + vfetch_index * 2;
     if ((regs[vfetch_constant_index].u32 & 0x3) != 3) {
-      XELOGE("Vertex fetch type is not 3!");
-      assert_always();
+      XELOGGPU("Vertex fetch type is not 3!");
       return false;
     }
     shared_memory_->UseRange(regs[vfetch_constant_index].u32 & 0x1FFFFFFC,
@@ -804,6 +813,8 @@ bool D3D12CommandProcessor::BeginFrame() {
   sampler_heap_pool_->BeginFrame();
 
   shared_memory_->BeginFrame();
+
+  texture_cache_->BeginFrame();
 
   return true;
 }
