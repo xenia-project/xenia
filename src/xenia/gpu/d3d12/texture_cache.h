@@ -80,8 +80,22 @@ class TextureCache {
                     D3D12_CPU_DESCRIPTOR_HANDLE handle);
 
  private:
+  struct CopyModeInfo {
+    const void* load_shader;
+    size_t load_shader_size;
+  };
+
+  enum class CopyMode {
+    k64Bpb,
+
+    kCount,
+
+    kUnknown = kCount
+  };
+
   struct HostFormat {
     DXGI_FORMAT dxgi_format;
+    CopyMode copy_mode;
   };
 
   union TextureKey {
@@ -150,14 +164,43 @@ class TextureCache {
     TextureKey key;
     ID3D12Resource* resource;
     D3D12_RESOURCE_STATES state;
+    // Byte size of one array slice of the top guest mip level.
+    uint32_t base_slice_size;
     // Byte size of the top guest mip level.
     uint32_t base_size;
+    // Byte size of one array slice of mips between 1 and key.mip_max_level.
+    uint32_t mip_slice_size;
     // Byte size of mips between 1 and key.mip_max_level.
     uint32_t mip_size;
+    // Byte offsets of each mipmap within one slice.
+    uint32_t mip_offsets[14];
+    // Byte pitches of each mipmap within one slice (for linear layout mainly).
+    uint32_t mip_pitches[14];
     // Whether the recent base level data has been loaded from the memory.
     bool base_in_sync;
     // Whether the recent mip data has been loaded from the memory.
     bool mips_in_sync;
+  };
+
+  struct CopyConstants {
+    // vec4 0.
+    uint32_t guest_base;
+    // For linear textures - row byte pitch.
+    uint32_t guest_pitch;
+    uint32_t host_base;
+    uint32_t host_pitch;
+
+    // vec4 1.
+    // Size in blocks.
+    uint32_t size[3];
+    uint32_t is_3d;
+
+    // vec4 2.
+    // Offset within the packed mip for small mips.
+    uint32_t guest_mip_offset[3];
+    uint32_t endianness;
+
+    static constexpr uint32_t kGuestPitchTiled = UINT32_MAX;
   };
 
   struct TextureBinding {
@@ -173,25 +216,33 @@ class TextureCache {
       uint32_t& swizzle_out);
 
   static void LogTextureKeyAction(TextureKey key, const char* action);
-  static void LogTextureAction(const Texture& texture, const char* action);
+  static void LogTextureAction(const Texture* texture, const char* action);
 
   // Returns nullptr if the key is not supported, but also if couldn't create
   // the texture - if it's nullptr, occasionally a recreation attempt should be
   // made.
   Texture* FindOrCreateTexture(TextureKey key);
 
+  // Writes data from the shared memory to the texture. This binds pipelines and
+  // allocates descriptors!
+  bool LoadTextureData(Texture* texture);
+
   // Makes all bindings invalid. Also requesting textures after calling this
   // will cause another attempt to create a texture or to untile it if there was
   // an error.
   void ClearBindings();
 
-  static HostFormat host_formats_[64];
+  static const HostFormat host_formats_[64];
 
-  static const char* dimension_names_[4];
+  static const char* const dimension_names_[4];
 
   D3D12CommandProcessor* command_processor_;
   RegisterFile* register_file_;
   SharedMemory* shared_memory_;
+
+  static const CopyModeInfo copy_mode_info_[];
+  ID3D12RootSignature* copy_root_signature_ = nullptr;
+  ID3D12PipelineState* copy_load_pipelines_[size_t(CopyMode::kCount)] = {};
 
   std::unordered_multimap<uint64_t, Texture*> textures_;
 

@@ -33,7 +33,7 @@ void GetGuestMipBlocks(Dimension dimension, uint32_t width, uint32_t height,
 // height and depth must be obtained via GetGuestMipExtent.
 uint32_t GetGuestMipStorageSize(uint32_t width_blocks, uint32_t height_blocks,
                                 uint32_t depth_blocks, bool is_tiled,
-                                TextureFormat format, uint32_t* row_pitch_out);
+                                TextureFormat format, uint32_t& row_pitch_out);
 
 // Gets the number of the mipmap level where the packed mips are stored.
 inline uint32_t GetPackedMipLevel(uint32_t width, uint32_t height) {
