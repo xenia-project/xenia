@@ -50,6 +50,9 @@ class D3D12CommandProcessor : public CommandProcessor {
   ID3D12RootSignature* GetRootSignature(const D3D12Shader* vertex_shader,
                                         const D3D12Shader* pixel_shader);
 
+  ui::d3d12::UploadBufferPool* GetConstantBufferPool() const {
+    return constant_buffer_pool_.get();
+  }
   // Request and automatically rebind descriptors on the draw command list.
   // Refer to DescriptorHeapPool::Request for partial/full update explanation.
   uint64_t RequestViewDescriptors(uint64_t previous_full_update,
@@ -72,6 +75,10 @@ class D3D12CommandProcessor : public CommandProcessor {
   // by its user.
   void ReleaseScratchGPUBuffer(ID3D12Resource* buffer,
                                D3D12_RESOURCE_STATES new_state);
+
+  // Sets the current pipeline state - may be called internally or externally.
+  // This is for cache invalidation primarily. A frame must be open.
+  void SetPipeline(ID3D12PipelineState* pipeline);
 
  protected:
   bool SetupContext() override;
