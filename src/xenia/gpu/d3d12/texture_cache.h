@@ -86,7 +86,9 @@ class TextureCache {
   };
 
   enum class CopyMode {
-    k64Bpb,
+    k32bpb,
+    k64bpb,
+    k128bpb,
 
     kCount,
 

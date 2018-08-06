@@ -24,64 +24,67 @@ namespace gpu {
 namespace d3d12 {
 
 // Generated with `xb buildhlsl`.
+#include "xenia/gpu/d3d12/shaders/bin/texture_load_128bpb_cs.h"
+#include "xenia/gpu/d3d12/shaders/bin/texture_load_32bpb_cs.h"
 #include "xenia/gpu/d3d12/shaders/bin/texture_load_64bpb_cs.h"
 
 const TextureCache::HostFormat TextureCache::host_formats_[64] = {
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_1_REVERSE
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_1
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_8
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_1_5_5_5
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_5_6_5
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_6_5_5
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_8_8_8_8
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_2_10_10_10
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_8_A
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_8_B
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_8_8
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_Cr_Y1_Cb_Y0
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_Y1_Cr_Y0_Cb
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_Shadow
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_8_8_8_8_A
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_4_4_4_4
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_10_11_11
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_11_11_10
-    {DXGI_FORMAT_BC1_UNORM, CopyMode::k64Bpb},  // k_DXT1
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_DXT2_3
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_DXT4_5
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_DXV
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_24_8
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_24_8_FLOAT
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_16
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_16_16
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_16_16_16_16
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_16_EXPAND
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_16_16_EXPAND
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_16_16_16_16_EXPAND
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_16_FLOAT
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_16_16_FLOAT
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_16_16_16_16_FLOAT
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_32
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_32_32
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_32_32_32_32
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_32_FLOAT
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_32_32_FLOAT
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_32_32_32_32_FLOAT
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_32_AS_8
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_32_AS_8_8
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_16_MPEG
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_16_16_MPEG
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_8_INTERLACED
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_32_AS_8_INTERLACED
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_32_AS_8_8_INTERLACED
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_16_INTERLACED
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_16_MPEG_INTERLACED
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_16_16_MPEG_INTERLACED
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_DXN
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_8_8_8_8_AS_16_16_16_16
-    {DXGI_FORMAT_BC1_UNORM, CopyMode::k64Bpb},  // k_DXT1_AS_16_16_16_16
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_DXT2_3_AS_16_16_16_16
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_DXT4_5_AS_16_16_16_16
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_2_10_10_10_AS_16_16_16_16
+    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_1_REVERSE
+    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_1
+    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_8
+    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_1_5_5_5
+    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_5_6_5
+    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_6_5_5
+    {DXGI_FORMAT_R8G8B8A8_UNORM, CopyMode::k32bpb},      // k_8_8_8_8
+    {DXGI_FORMAT_R10G10B10A2_UNORM, CopyMode::k32bpb},   // k_2_10_10_10
+    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_8_A
+    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_8_B
+    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_8_8
+    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_Cr_Y1_Cb_Y0
+    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_Y1_Cr_Y0_Cb
+    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_Shadow
+    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_8_8_8_8_A
+    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_4_4_4_4
+    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_10_11_11
+    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_11_11_10
+    {DXGI_FORMAT_BC1_UNORM, CopyMode::k64bpb},           // k_DXT1
+    {DXGI_FORMAT_BC2_UNORM, CopyMode::k128bpb},          // k_DXT2_3
+    {DXGI_FORMAT_BC3_UNORM, CopyMode::k128bpb},          // k_DXT4_5
+    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_DXV
+    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_24_8
+    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_24_8_FLOAT
+    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_16
+    {DXGI_FORMAT_R16G16_UNORM, CopyMode::k32bpb},        // k_16_16
+    {DXGI_FORMAT_R16G16B16A16_UNORM, CopyMode::k64bpb},  // k_16_16_16_16
+    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_16_EXPAND
+    {DXGI_FORMAT_R16G16_UNORM, CopyMode::k32bpb},        // k_16_16_EXPAND
+    {DXGI_FORMAT_R16G16B16A16_UNORM, CopyMode::k64bpb},  // k_16_16_16_16_EXPAND
+    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_16_FLOAT
+    {DXGI_FORMAT_R16G16_FLOAT, CopyMode::k32bpb},        // k_16_16_FLOAT
+    {DXGI_FORMAT_R16G16B16A16_FLOAT, CopyMode::k64bpb},  // k_16_16_16_16_FLOAT
+    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_32
+    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_32_32
+    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_32_32_32_32
+    {DXGI_FORMAT_R32_FLOAT, CopyMode::k32bpb},           // k_32_FLOAT
+    {DXGI_FORMAT_R32G32_FLOAT, CopyMode::k64bpb},        // k_32_32_FLOAT
+    {DXGI_FORMAT_R32G32B32A32_FLOAT, CopyMode::k128bpb},  // k_32_32_32_32_FLOAT
+    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},            // k_32_AS_8
+    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},            // k_32_AS_8_8
+    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},            // k_16_MPEG
+    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},            // k_16_16_MPEG
+    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},            // k_8_INTERLACED
+    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},       // k_32_AS_8_INTERLACED
+    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},       // k_32_AS_8_8_INTERLACED
+    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},       // k_16_INTERLACED
+    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},       // k_16_MPEG_INTERLACED
+    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},       // k_16_16_MPEG_INTERLACED
+    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},       // k_DXN
+    {DXGI_FORMAT_R8G8B8A8_UNORM, CopyMode::k32bpb},  // k_8_8_8_8_AS_16_16_16_16
+    {DXGI_FORMAT_BC1_UNORM, CopyMode::k64bpb},       // k_DXT1_AS_16_16_16_16
+    {DXGI_FORMAT_BC2_UNORM, CopyMode::k128bpb},      // k_DXT2_3_AS_16_16_16_16
+    {DXGI_FORMAT_BC3_UNORM, CopyMode::k128bpb},      // k_DXT4_5_AS_16_16_16_16
+    {DXGI_FORMAT_R10G10B10A2_UNORM,
+     CopyMode::k32bpb},                         // k_2_10_10_10_AS_16_16_16_16
     {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_10_11_11_AS_16_16_16_16
     {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_11_11_10_AS_16_16_16_16
     {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_32_32_32_FLOAT
@@ -89,15 +92,18 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
     {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_DXT5A
     {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_CTX1
     {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_DXT3A_AS_1_1_1_1
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_8_8_8_8_GAMMA
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_2_10_10_10_FLOAT
+    {DXGI_FORMAT_R8G8B8A8_UNORM, CopyMode::k32bpb},  // k_8_8_8_8_GAMMA
+    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},       // k_2_10_10_10_FLOAT
 };
 
 const char* const TextureCache::dimension_names_[4] = {"1D", "2D", "3D",
                                                        "cube"};
 
 const TextureCache::CopyModeInfo TextureCache::copy_mode_info_[] = {
-    {texture_load_64bpb_cs, sizeof(texture_load_64bpb_cs)}};
+    {texture_load_32bpb_cs, sizeof(texture_load_32bpb_cs)},
+    {texture_load_64bpb_cs, sizeof(texture_load_64bpb_cs)},
+    {texture_load_128bpb_cs, sizeof(texture_load_128bpb_cs)},
+};
 
 TextureCache::TextureCache(D3D12CommandProcessor* command_processor,
                            RegisterFile* register_file,
@@ -810,9 +816,8 @@ bool TextureCache::LoadTextureData(Texture* texture) {
 
   command_processor_->ReleaseScratchGPUBuffer(copy_buffer, copy_buffer_state);
 
-  // TODO(Triang3l): Uncomment when done testing untiling shaders.
-  /* texture->base_in_sync = true;
-  texture->mips_in_sync = true; */
+  texture->base_in_sync = true;
+  texture->mips_in_sync = true;
 
   LogTextureAction(texture, "Loaded");
   return true;
