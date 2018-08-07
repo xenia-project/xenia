@@ -411,7 +411,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateRasterizerState(
 
   bool dirty = current_pipeline_ == nullptr;
   uint32_t pa_su_sc_mode_cntl =
-      register_file_->values[XE_GPU_REG_RB_COLOR_MASK].u32;
+      register_file_->values[XE_GPU_REG_PA_SU_SC_MODE_CNTL].u32;
   uint32_t cull_mode = pa_su_sc_mode_cntl & 0x3;
   if (primitive_type == PrimitiveType::kPointList ||
       primitive_type == PrimitiveType::kRectangleList) {

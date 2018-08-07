@@ -117,8 +117,8 @@ void RenderTargetCache::UpdateRenderTargets(/* const D3D12_VIEWPORT& viewport,
   uint32_t surface_pitch = rb_surface_info & 0x3FFF;
   MsaaSamples msaa_samples = MsaaSamples((rb_surface_info >> 16) & 0x3);
   uint32_t rb_color_mask = regs[XE_GPU_REG_RB_COLOR_MASK].u32;
-  if (xenos::ModeControl(regs[XE_GPU_REG_RB_MODECONTROL].u32 & 0x7) ==
-      xenos::ModeControl::kDepth) {
+  if (xenos::ModeControl(regs[XE_GPU_REG_RB_MODECONTROL].u32 & 0x7) !=
+      xenos::ModeControl::kColorDepth) {
     rb_color_mask = 0;
   }
   bool color_enabled[4] = {
@@ -129,7 +129,8 @@ void RenderTargetCache::UpdateRenderTargets(/* const D3D12_VIEWPORT& viewport,
       regs[XE_GPU_REG_RB_COLOR2_INFO].u32, regs[XE_GPU_REG_RB_COLOR3_INFO].u32};
   uint32_t rb_depthcontrol = regs[XE_GPU_REG_RB_DEPTHCONTROL].u32;
   uint32_t rb_depth_info = regs[XE_GPU_REG_RB_DEPTH_INFO].u32;
-  bool depth_enabled = (rb_depthcontrol & (0x2 | 0x4)) != 0;
+  // 0x1 = stencil test enabled, 0x2 = depth test enabled, 0x4 = depth write enabled.
+  bool depth_enabled = (rb_depthcontrol & (0x1 | 0x2 | 0x4)) != 0;
 
   bool full_update = false;
 
