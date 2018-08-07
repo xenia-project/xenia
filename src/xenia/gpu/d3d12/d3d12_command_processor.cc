@@ -628,6 +628,12 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     // Doesn't actually draw.
     return true;
   }
+  uint32_t color_mask = enable_mode == xenos::ModeControl::kColorDepth ?
+                        regs[XE_GPU_REG_RB_COLOR_MASK].u32 & 0xFFFF : 0;
+  if (!color_mask && !(regs[XE_GPU_REG_RB_DEPTHCONTROL].u32 & (0x1 | 0x4))) {
+    // Not writing to color, depth or doing stencil test, so doesn't draw.
+    return true;
+  }
   if ((regs[XE_GPU_REG_PA_SU_SC_MODE_CNTL].u32 & 0x3) == 0x3 &&
       primitive_type != PrimitiveType::kPointList &&
       primitive_type != PrimitiveType::kRectangleList) {
