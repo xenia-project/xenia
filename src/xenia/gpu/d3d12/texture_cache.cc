@@ -196,7 +196,6 @@ bool TextureCache::Initialize() {
     }
   }
 
-  ClearBindings();
   return true;
 }
 
@@ -213,6 +212,18 @@ void TextureCache::Shutdown() {
     copy_root_signature_->Release();
     copy_root_signature_ = nullptr;
   }
+}
+
+void TextureCache::ClearCache() {
+  // Destroy all the textures.
+  for (auto texture_pair : textures_) {
+    Texture* texture = texture_pair.second;
+    if (texture->resource != nullptr) {
+      texture->resource->Release();
+    }
+    delete texture;
+  }
+  textures_.clear();
 }
 
 void TextureCache::TextureFetchConstantWritten(uint32_t index) {
@@ -298,20 +309,6 @@ void TextureCache::RequestTextures(uint32_t used_vertex_texture_mask,
   if (barrier_count != 0) {
     command_list->ResourceBarrier(barrier_count, barriers);
   }
-}
-
-void TextureCache::ClearCache() {
-  ClearBindings();
-
-  // Destroy all the textures.
-  for (auto texture_pair : textures_) {
-    Texture* texture = texture_pair.second;
-    if (texture->resource != nullptr) {
-      texture->resource->Release();
-    }
-    delete texture;
-  }
-  textures_.clear();
 }
 
 void TextureCache::WriteTextureSRV(uint32_t fetch_constant,

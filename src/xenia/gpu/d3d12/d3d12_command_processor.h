@@ -17,6 +17,7 @@
 #include "xenia/gpu/command_processor.h"
 #include "xenia/gpu/d3d12/d3d12_graphics_system.h"
 #include "xenia/gpu/d3d12/pipeline_cache.h"
+#include "xenia/gpu/d3d12/render_target_cache.h"
 #include "xenia/gpu/d3d12/shared_memory.h"
 #include "xenia/gpu/d3d12/texture_cache.h"
 #include "xenia/gpu/hlsl_shader_translator.h"
@@ -168,6 +169,8 @@ class D3D12CommandProcessor : public CommandProcessor {
   std::unique_ptr<PipelineCache> pipeline_cache_ = nullptr;
 
   std::unique_ptr<TextureCache> texture_cache_ = nullptr;
+
+  std::unique_ptr<RenderTargetCache> render_target_cache_ = nullptr;
 
   std::unique_ptr<ui::d3d12::UploadBufferPool> constant_buffer_pool_ = nullptr;
   std::unique_ptr<ui::d3d12::DescriptorHeapPool> view_heap_pool_ = nullptr;

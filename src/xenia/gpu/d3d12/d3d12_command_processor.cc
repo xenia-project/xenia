@@ -483,7 +483,14 @@ bool D3D12CommandProcessor::SetupContext() {
   texture_cache_ = std::make_unique<TextureCache>(this, register_file_,
                                                   shared_memory_.get());
   if (!texture_cache_->Initialize()) {
-    XELOGE("Failed to initialize texture cache");
+    XELOGE("Failed to initialize the texture cache");
+    return false;
+  }
+
+  render_target_cache_ =
+      std::make_unique<RenderTargetCache>(this, register_file_);
+  if (!render_target_cache_->Initialize()) {
+    XELOGE("Failed to initialize the render target cache");
     return false;
   }
 
@@ -508,6 +515,8 @@ void D3D12CommandProcessor::ShutdownContext() {
   sampler_heap_pool_.reset();
   view_heap_pool_.reset();
   constant_buffer_pool_.reset();
+
+  render_target_cache_.reset();
 
   texture_cache_.reset();
 
@@ -570,9 +579,11 @@ void D3D12CommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
     view_heap_pool_->ClearCache();
     constant_buffer_pool_->ClearCache();
 
-    pipeline_cache_->ClearCache();
+    render_target_cache_->ClearCache();
 
     texture_cache_->ClearCache();
+
+    pipeline_cache_->ClearCache();
 
     for (auto it : root_signatures_) {
       it.second->Release();
@@ -607,7 +618,8 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
   if (enable_mode == xenos::ModeControl::kIgnore) {
     // Ignored.
     return true;
-  } else if (enable_mode == xenos::ModeControl::kCopy) {
+  }
+  if (enable_mode == xenos::ModeControl::kCopy) {
     // Special copy handling.
     return IssueCopy();
   }
@@ -665,6 +677,9 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
 
   bool new_frame = BeginFrame();
   auto command_list = GetCurrentCommandList();
+
+  // Set up the render targets - this may bind pipelines.
+  render_target_cache_->UpdateRenderTargets();
 
   // Set the primitive topology.
   D3D_PRIMITIVE_TOPOLOGY primitive_topology;
@@ -824,6 +839,8 @@ bool D3D12CommandProcessor::BeginFrame() {
 
   texture_cache_->BeginFrame();
 
+  render_target_cache_->BeginFrame();
+
   return true;
 }
 
@@ -836,6 +853,8 @@ bool D3D12CommandProcessor::EndFrame() {
 
   auto command_list_setup = command_lists_setup_[current_queue_frame_].get();
   auto command_list = command_lists_[current_queue_frame_].get();
+
+  render_target_cache_->EndFrame();
 
   bool setup_written = shared_memory_->EndFrame(
       command_list_setup->GetCommandList(), command_list->GetCommandList());

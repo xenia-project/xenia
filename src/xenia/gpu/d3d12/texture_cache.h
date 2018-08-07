@@ -59,6 +59,7 @@ class TextureCache {
 
   bool Initialize();
   void Shutdown();
+  void ClearCache();
 
   void TextureFetchConstantWritten(uint32_t index);
 
@@ -70,8 +71,6 @@ class TextureCache {
   // binding the actual drawing pipeline.
   void RequestTextures(uint32_t used_vertex_texture_mask,
                        uint32_t used_pixel_texture_mask);
-
-  void ClearCache();
 
   void WriteTextureSRV(uint32_t fetch_constant,
                        TextureDimension shader_dimension,
