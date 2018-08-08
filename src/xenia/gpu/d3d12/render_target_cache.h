@@ -194,9 +194,15 @@ class RenderTargetCache {
 
   void BeginFrame();
   // Called in the beginning of a draw call - may bind pipelines.
-  void UpdateRenderTargets(/* const D3D12_VIEWPORT& viewport,
-                           const D3D12_RECT& scissor */);
+  void UpdateRenderTargets();
   void EndFrame();
+
+  static inline bool IsColorFormat64bpp(ColorRenderTargetFormat format) {
+    return format == ColorRenderTargetFormat::k_16_16_16_16 ||
+           format == ColorRenderTargetFormat::k_16_16_16_16_FLOAT ||
+           format == ColorRenderTargetFormat::k_32_32_FLOAT;
+  }
+  static DXGI_FORMAT GetColorDXGIFormat(ColorRenderTargetFormat format);
 
  private:
   union RenderTargetKey {
@@ -239,10 +245,12 @@ class RenderTargetCache {
   struct RenderTargetBinding {
     // Whether this render target has been used since the last full update.
     bool is_bound;
-    // Whether the render target was actually used in the last draw.
-    bool is_active;
     uint32_t edram_base;
+    // How many tiles has already been drawn to the render target since the last
+    // full update.
+    uint32_t edram_dirty_length;
     union {
+      uint32_t format;
       ColorRenderTargetFormat color_format;
       DepthRenderTargetFormat depth_format;
     };

@@ -9,8 +9,10 @@
 
 #include "xenia/gpu/d3d12/render_target_cache.h"
 
+#include <cmath>
 #include <cstring>
 
+#include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/gpu/d3d12/d3d12_command_processor.h"
@@ -49,8 +51,7 @@ void RenderTargetCache::ClearCache() {
 
 void RenderTargetCache::BeginFrame() { ClearBindings(); }
 
-void RenderTargetCache::UpdateRenderTargets(/* const D3D12_VIEWPORT& viewport,
-                                            const D3D12_RECT& scissor */) {
+void RenderTargetCache::UpdateRenderTargets() {
   // There are two kinds of render target binding updates in this implementation
   // in case something has been changed - full and partial.
   //
@@ -104,6 +105,11 @@ void RenderTargetCache::UpdateRenderTargets(/* const D3D12_VIEWPORT& viewport,
   // - Current viewport contains unsaved data from previously used render
   //   targets.
   // - New render target overlaps unsaved data from other bound render targets.
+  //
+  // "Previously used" and "new" in the last 2 conditions is important so if the
+  // game has render targets aliased in the same draw call, there won't be a
+  // full update every draw.
+  //
   // A partial update happens if:
   // - New render target is added, but doesn't overlap unsaved data from other
   //   currently or previously used render targets.
@@ -114,23 +120,44 @@ void RenderTargetCache::UpdateRenderTargets(/* const D3D12_VIEWPORT& viewport,
 
   auto& regs = *register_file_;
   uint32_t rb_surface_info = regs[XE_GPU_REG_RB_SURFACE_INFO].u32;
-  uint32_t surface_pitch = rb_surface_info & 0x3FFF;
+  uint32_t surface_pitch = std::min(rb_surface_info & 0x3FFF, 2560u);
+  if (surface_pitch == 0) {
+    assert_always();
+    return;
+  }
   MsaaSamples msaa_samples = MsaaSamples((rb_surface_info >> 16) & 0x3);
+  uint32_t msaa_samples_x = msaa_samples >= MsaaSamples::k4X ? 2 : 1;
+  uint32_t msaa_samples_y = msaa_samples >= MsaaSamples::k2X ? 2 : 1;
+
+  // Extract color/depth info in an unified way.
+  bool enabled[5];
+  uint32_t edram_bases[5];
+  uint32_t formats[5];
+  bool formats_are_64bpp[5];
   uint32_t rb_color_mask = regs[XE_GPU_REG_RB_COLOR_MASK].u32;
   if (xenos::ModeControl(regs[XE_GPU_REG_RB_MODECONTROL].u32 & 0x7) !=
       xenos::ModeControl::kColorDepth) {
     rb_color_mask = 0;
   }
-  bool color_enabled[4] = {
-      (rb_color_mask & 0xF) != 0, (rb_color_mask & 0xF0) != 0,
-      (rb_color_mask & 0xF00) != 0, (rb_color_mask & 0xF000) != 0};
   uint32_t rb_color_info[4] = {
       regs[XE_GPU_REG_RB_COLOR_INFO].u32, regs[XE_GPU_REG_RB_COLOR1_INFO].u32,
       regs[XE_GPU_REG_RB_COLOR2_INFO].u32, regs[XE_GPU_REG_RB_COLOR3_INFO].u32};
+  for (uint32_t i = 0; i < 4; ++i) {
+    enabled[i] = (rb_color_mask & (0xF << (i * 4))) != 0;
+    edram_bases[i] = std::min(rb_color_info[i] & 0xFFF, 2048u);
+    formats[i] = (rb_color_info[i] >> 12) & 0xF;
+    formats_are_64bpp[i] =
+        IsColorFormat64bpp(ColorRenderTargetFormat(formats[i]));
+  }
   uint32_t rb_depthcontrol = regs[XE_GPU_REG_RB_DEPTHCONTROL].u32;
   uint32_t rb_depth_info = regs[XE_GPU_REG_RB_DEPTH_INFO].u32;
-  // 0x1 = stencil test enabled, 0x2 = depth test enabled, 0x4 = depth write enabled.
-  bool depth_enabled = (rb_depthcontrol & (0x1 | 0x2 | 0x4)) != 0;
+  // 0x1 = stencil test, 0x2 = depth test, 0x4 = depth write.
+  enabled[4] = (rb_depthcontrol & (0x1 | 0x2 | 0x4)) != 0;
+  edram_bases[4] = std::min(rb_depth_info & 0xFFF, 2048u);
+  formats[4] = (rb_depth_info >> 12) & 0x1;
+  formats_are_64bpp[4] = false;
+  // Don't mark depth regions as dirty if not writing the depth.
+  bool depth_readonly = (rb_depthcontrol & (0x1 | 0x4)) == 0;
 
   bool full_update = false;
 
@@ -147,54 +174,138 @@ void RenderTargetCache::UpdateRenderTargets(/* const D3D12_VIEWPORT& viewport,
     full_update = true;
   }
 
+  // Get the maximum height of each render target in EDRAM rows to help
+  // clamp the dirty region heights.
+  uint32_t edram_row_tiles_32bpp = (surface_pitch * msaa_samples_x + 79) / 80;
+  uint32_t edram_row_tiles[5];
+  uint32_t edram_max_rows[5];
+  for (uint32_t i = 0; i < 5; ++i) {
+    edram_row_tiles[i] = edram_row_tiles_32bpp * (formats_are_64bpp[i] ? 2 : 1);
+    edram_max_rows[i] = (2048 - edram_bases[i]) / edram_row_tiles[i];
+  }
+
+  // Get EDRAM usage of the current draw so dirty regions can be calculated.
+  // See D3D12CommandProcessor::UpdateFixedFunctionState for more info.
+  int16_t window_offset_y =
+      (regs[XE_GPU_REG_PA_SC_WINDOW_OFFSET].u32 >> 16) & 0x7FFF;
+  if (window_offset_y & 0x4000) {
+    window_offset_y |= 0x8000;
+  }
+  uint32_t pa_cl_vte_cntl = regs[XE_GPU_REG_PA_CL_VTE_CNTL].u32;
+  float viewport_scale_y = (pa_cl_vte_cntl & (1 << 2))
+                               ? regs[XE_GPU_REG_PA_CL_VPORT_YSCALE].f32
+                               : 1280.0f;
+  float viewport_offset_y = (pa_cl_vte_cntl & (1 << 3))
+                                ? regs[XE_GPU_REG_PA_CL_VPORT_YOFFSET].f32
+                                : viewport_scale_y;
+  if (regs[XE_GPU_REG_PA_SU_SC_MODE_CNTL].u32 & (1 << 16)) {
+    viewport_offset_y += float(window_offset_y);
+  }
+  uint32_t viewport_bottom = uint32_t(std::max(
+      0.0f, std::ceil(viewport_offset_y + std::abs(viewport_scale_y))));
+  uint32_t scissor_bottom =
+      (regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_BR].u32 >> 16) & 0x7FFF;
+  if (!(regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL].u32 & (1u << 31))) {
+    scissor_bottom = std::max(int32_t(scissor_bottom) + window_offset_y, 0);
+  }
+  uint32_t dirty_bottom =
+      std::min(std::min(viewport_bottom, scissor_bottom), 2560u);
+  uint32_t edram_rows = (dirty_bottom * msaa_samples_y + 15) >> 4;
+
   // Check the following full update conditions:
   // - EDRAM base of a currently used RT changed.
   // - Format of a currently used RT changed.
-  // TODO(Triang3l): Check the following full update conditions here:
+  // Also build a list of render targets to attach in a partial update.
+  uint32_t render_targets_to_attach = 0;
+  if (!full_update) {
+    for (uint32_t i = 0; i < 5; ++i) {
+      if (!enabled[i]) {
+        continue;
+      }
+      const RenderTargetBinding& binding = current_bindings_[i];
+      if (binding.is_bound) {
+        if (binding.edram_base != edram_bases[i] ||
+            binding.format != formats[i]) {
+          full_update = true;
+          break;
+        }
+      } else {
+        render_targets_to_attach |= 1 << i;
+      }
+    }
+  }
+
+  // Check the following full update conditions here:
   // - Current viewport contains unsaved data from previously used render
   //   targets.
-  uint32_t render_targets_to_attach = 0;
-  for (uint32_t i = 0; i < 4; ++i) {
-    if (!color_enabled[i]) {
-      continue;
-    }
-    RenderTargetBinding& binding = current_bindings_[i];
-    if (binding.is_bound) {
-      // TODO(Triang3l): If was inactive, check if overlapping unsaved data now.
-      if ((rb_color_info[i] & 0xFFF) != binding.edram_base ||
-          ColorRenderTargetFormat((rb_color_info[i] >> 12) & 0xF) !=
-              binding.color_format) {
-        full_update = true;
+  // - New render target overlaps unsaved data from other bound render
+  //   targets.
+  if (!full_update) {
+    for (uint32_t i = 0; i < 5; ++i) {
+      const RenderTargetBinding& binding_1 = current_bindings_[i];
+      uint32_t edram_length_1;
+      if (binding_1.is_bound) {
+        if (enabled[i]) {
+          continue;
+        }
+        // Checking if now overlapping a previously used render target.
+        // binding_1 is the previously used render target.
+        edram_length_1 = binding_1.edram_dirty_length;
+      } else {
+        if (!(render_targets_to_attach & (1 << i))) {
+          continue;
+        }
+        // Checking if the new render target is overlapping any bound one.
+        // binding_1 is the new render target.
+        edram_length_1 =
+            std::min(edram_rows, edram_max_rows[i]) * edram_row_tiles[i];
       }
-    } else {
-      render_targets_to_attach |= 1 << i;
-    }
-  }
-  if (depth_enabled) {
-    RenderTargetBinding& binding = current_bindings_[4];
-    if (binding.is_bound) {
-      // TODO(Triang3l): If was inactive, check if overlapping unsaved data now.
-      if ((rb_depth_info & 0xFFF) != binding.edram_base ||
-          DepthRenderTargetFormat((rb_depth_info >> 12) & 0x1) !=
-              binding.depth_format) {
-        full_update = true;
+      for (uint32_t j = 0; j < 5; ++j) {
+        const RenderTargetBinding& binding_2 = current_bindings_[j];
+        if (!binding_2.is_bound) {
+          continue;
+        }
+        uint32_t edram_length_2;
+        if (binding_1.is_bound) {
+          if (!enabled[j]) {
+            continue;
+          }
+          // Checking if now overlapping a previously used render target.
+          // binding_2 is a currently used render target.
+          edram_length_2 =
+              std::min(edram_rows, edram_max_rows[j]) * edram_row_tiles[i];
+        } else {
+          // Checking if the new render target is overlapping any bound one.
+          // binding_2 is another bound render target.
+          edram_length_2 = binding_2.edram_dirty_length;
+        }
+        // Do a full update if there is overlap.
+        if (edram_bases[i] < edram_bases[j] + edram_length_2 &&
+            edram_bases[i] + edram_length_1 > edram_bases[j]) {
+          XELOGGPU("RT Cache: Overlap between %u (%u:%u) and %u (%u:%u)", i,
+                   edram_bases[i], edram_bases[i] + edram_length_1 - 1, j,
+                   edram_bases[j], edram_bases[j] + edram_length_2 - 1);
+          full_update = true;
+          break;
+        }
       }
-    } else {
-      render_targets_to_attach |= 1 << 4;
+      if (full_update) {
+        break;
+      }
     }
   }
 
-  // TODO(Triang3l): Check the following full update condition here:
-  // - New render target overlaps unsaved data from other bound render targets.
-
-  // If no need to attach any new render targets, update activation state, dirty
-  // regions and exit early.
+  // If no need to attach any new render targets, update dirty regions and exit.
   if (!full_update && !render_targets_to_attach) {
-    for (uint32_t i = 0; i < 4; ++i) {
-      current_bindings_[i].is_active = color_enabled[i];
+    for (uint32_t i = 0; i < 5; ++i) {
+      if (!enabled[i] || (i == 4 && depth_readonly)) {
+        continue;
+      }
+      RenderTargetBinding& binding = current_bindings_[i];
+      binding.edram_dirty_length = std::max(
+          binding.edram_dirty_length,
+          std::min(edram_rows, edram_max_rows[i]) * edram_row_tiles[i]);
     }
-    current_bindings_[4].is_active = depth_enabled;
-    // TODO(Triang3l): Update dirty regions.
     return;
   }
 
@@ -212,13 +323,10 @@ void RenderTargetCache::UpdateRenderTargets(/* const D3D12_VIEWPORT& viewport,
 
     // If updating fully, need to reattach all the render targets and allocate
     // from scratch.
-    for (uint32_t i = 0; i < 4; ++i) {
-      if (color_enabled[i]) {
+    for (uint32_t i = 0; i < 5; ++i) {
+      if (enabled[i]) {
         render_targets_to_attach |= 1 << i;
       }
-    }
-    if (depth_enabled) {
-      render_targets_to_attach |= 1 << 4;
     }
   } else {
     // If updating partially, only need to attach new render targets.
@@ -236,7 +344,7 @@ void RenderTargetCache::UpdateRenderTargets(/* const D3D12_VIEWPORT& viewport,
       }
     }
   }
-  XELOGGPU("RT Cache: %s update! Pitch %u, samples %u, RTs to attach %u.",
+  XELOGGPU("RT Cache: %s update - pitch %u, samples %u, RTs to attach %u",
            full_update ? "Full" : "Partial", surface_pitch, msaa_samples,
            render_targets_to_attach);
 
@@ -245,30 +353,58 @@ void RenderTargetCache::UpdateRenderTargets(/* const D3D12_VIEWPORT& viewport,
   // TODO(Triang3l): Load the contents from the EDRAM.
   // TODO(Triang3l): Bind the render targets to the command list.
 
-  // Write the new bindings.
-  for (uint32_t i = 0; i < 4; ++i) {
-    if (!(render_targets_to_attach & (1 << i))) {
+  // Write the new bindings and update the dirty regions.
+  for (uint32_t i = 0; i < 5; ++i) {
+    if (!enabled[i]) {
       continue;
     }
     RenderTargetBinding& binding = current_bindings_[i];
-    binding.is_bound = true;
-    binding.is_active = true;
-    binding.edram_base = rb_color_info[i] & 0xFFF;
-    binding.color_format =
-        ColorRenderTargetFormat((rb_color_info[i] >> 12) & 0xF);
-  }
-  if (render_targets_to_attach & (1 << 4)) {
-    RenderTargetBinding& binding = current_bindings_[4];
-    binding.is_bound = true;
-    binding.is_active = true;
-    binding.edram_base = rb_depth_info & 0xFFF;
-    binding.depth_format = DepthRenderTargetFormat((rb_depth_info >> 12) & 0x1);
+    if (render_targets_to_attach & (1 << i)) {
+      binding.is_bound = true;
+      binding.edram_base = edram_bases[i];
+      binding.edram_dirty_length = 0;
+      binding.format = formats[i];
+    }
+    if (!(i == 4 && depth_readonly)) {
+      binding.edram_dirty_length = std::max(
+          binding.edram_dirty_length,
+          std::min(edram_rows, edram_max_rows[i]) * edram_row_tiles[i]);
+    }
   }
 }
 
 void RenderTargetCache::EndFrame() {
   WriteRenderTargetsToEDRAM();
   ClearBindings();
+}
+
+DXGI_FORMAT RenderTargetCache::GetColorDXGIFormat(
+    ColorRenderTargetFormat format) {
+  switch (format) {
+    case ColorRenderTargetFormat::k_8_8_8_8:
+    case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
+      return DXGI_FORMAT_R8G8B8A8_UNORM;
+    case ColorRenderTargetFormat::k_2_10_10_10:
+    case ColorRenderTargetFormat::k_2_10_10_10_AS_16_16_16_16:
+      return DXGI_FORMAT_R10G10B10A2_UNORM;
+    case ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
+    case ColorRenderTargetFormat::k_16_16_16_16_FLOAT:
+    case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
+      return DXGI_FORMAT_R16G16B16A16_FLOAT;
+    case ColorRenderTargetFormat::k_16_16:
+      return DXGI_FORMAT_R16G16_UNORM;
+    case ColorRenderTargetFormat::k_16_16_16_16:
+      return DXGI_FORMAT_R16G16B16A16_UNORM;
+    case ColorRenderTargetFormat::k_16_16_FLOAT:
+      return DXGI_FORMAT_R16G16_FLOAT;
+    case ColorRenderTargetFormat::k_32_FLOAT:
+      return DXGI_FORMAT_R32_FLOAT;
+    case ColorRenderTargetFormat::k_32_32_FLOAT:
+      return DXGI_FORMAT_R32G32_FLOAT;
+    default:
+      break;
+  }
+  return DXGI_FORMAT_UNKNOWN;
 }
 
 void RenderTargetCache::ClearBindings() {
