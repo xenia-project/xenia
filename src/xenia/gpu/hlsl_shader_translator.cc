@@ -394,7 +394,7 @@ void HlslShaderTranslator::ProcessLabel(uint32_t cf_index) {
   if (cf_index != 0) {
     if (!cf_wrote_pc_) {
       EmitSourceDepth("xe_pc = %uu;\n", cf_index);
-      EmitSourceDepth("break;");
+      EmitSourceDepth("break;\n");
     }
     EmitSourceDepth("case %uu:\n", cf_index);
   }
