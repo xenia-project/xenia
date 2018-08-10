@@ -9,6 +9,7 @@
 
 #include "xenia/gpu/d3d12/pipeline_cache.h"
 
+#include <algorithm>
 #include <cinttypes>
 #include <cmath>
 #include <cstring>
@@ -17,6 +18,7 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/profiling.h"
 #include "xenia/gpu/d3d12/d3d12_command_processor.h"
+#include "xenia/gpu/d3d12/render_target_cache.h"
 #include "xenia/gpu/gpu_flags.h"
 #include "xenia/gpu/hlsl_shader_translator.h"
 
@@ -67,6 +69,7 @@ D3D12Shader* PipelineCache::LoadShader(ShaderType shader_type,
 PipelineCache::UpdateStatus PipelineCache::ConfigurePipeline(
     D3D12Shader* vertex_shader, D3D12Shader* pixel_shader,
     PrimitiveType primitive_type, IndexFormat index_format,
+    const RenderTargetCache::PipelineRenderTarget render_targets[5],
     ID3D12PipelineState** pipeline_out,
     ID3D12RootSignature** root_signature_out) {
 #if FINE_GRAINED_DRAW_SCOPES
@@ -77,8 +80,8 @@ PipelineCache::UpdateStatus PipelineCache::ConfigurePipeline(
   assert_not_null(root_signature_out);
 
   Pipeline* pipeline = nullptr;
-  auto update_status =
-      UpdateState(vertex_shader, pixel_shader, primitive_type, index_format);
+  auto update_status = UpdateState(vertex_shader, pixel_shader, primitive_type,
+                                   index_format, render_targets);
   switch (update_status) {
     case UpdateStatus::kCompatible:
       // Requested pipeline is compatible with our previous one, so use that.
@@ -190,7 +193,8 @@ bool PipelineCache::TranslateShader(D3D12Shader* shader,
 
 PipelineCache::UpdateStatus PipelineCache::UpdateState(
     D3D12Shader* vertex_shader, D3D12Shader* pixel_shader,
-    PrimitiveType primitive_type, IndexFormat index_format) {
+    PrimitiveType primitive_type, IndexFormat index_format,
+    const RenderTargetCache::PipelineRenderTarget render_targets[5]) {
   bool mismatch = false;
 
   // Reset hash so we can build it up.
@@ -208,18 +212,15 @@ PipelineCache::UpdateStatus PipelineCache::UpdateState(
   UpdateStatus status;
   status = UpdateShaderStages(vertex_shader, pixel_shader, primitive_type);
   CHECK_UPDATE_STATUS(status, mismatch, "Unable to update shader stages");
-  status = UpdateBlendState(pixel_shader);
+  status = UpdateBlendStateAndRenderTargets(pixel_shader, render_targets);
   CHECK_UPDATE_STATUS(status, mismatch, "Unable to update blend state");
   status = UpdateRasterizerState(primitive_type);
   CHECK_UPDATE_STATUS(status, mismatch, "Unable to update rasterizer state");
-  status = UpdateDepthStencilState();
+  status = UpdateDepthStencilState(render_targets[4].format);
   CHECK_UPDATE_STATUS(status, mismatch, "Unable to update depth/stencil state");
   status = UpdateIBStripCutValue(index_format);
   CHECK_UPDATE_STATUS(status, mismatch,
                       "Unable to update index buffer strip cut value");
-  status = UpdateRenderTargetFormats();
-  CHECK_UPDATE_STATUS(status, mismatch,
-                      "Unable to update render target formats");
 #undef CHECK_UPDATE_STATUS
 
   return mismatch ? UpdateStatus::kMismatch : UpdateStatus::kCompatible;
@@ -303,18 +304,27 @@ PipelineCache::UpdateStatus PipelineCache::UpdateShaderStages(
   return UpdateStatus::kMismatch;
 }
 
-PipelineCache::UpdateStatus PipelineCache::UpdateBlendState(
-    D3D12Shader* pixel_shader) {
-  auto& regs = update_blend_state_regs_;
+PipelineCache::UpdateStatus PipelineCache::UpdateBlendStateAndRenderTargets(
+    D3D12Shader* pixel_shader,
+    const RenderTargetCache::PipelineRenderTarget render_targets[4]) {
+  auto& regs = update_blend_state_and_render_targets_regs_;
 
   bool dirty = current_pipeline_ == nullptr;
+  for (uint32_t i = 0; i < 4; ++i) {
+    dirty |= regs.render_targets[i].guest_render_target !=
+             render_targets[i].guest_render_target;
+    regs.render_targets[i].guest_render_target =
+        render_targets[i].guest_render_target;
+    dirty |= regs.render_targets[i].format != render_targets[i].format;
+    regs.render_targets[i].format = render_targets[i].format;
+  }
   uint32_t color_mask;
   if (pixel_shader != nullptr) {
     color_mask = register_file_->values[XE_GPU_REG_RB_COLOR_MASK].u32 & 0xFFFF;
-    // If the pixel shader doesn't write to a render target, writing to it is
-    // disabled in the blend state. Otherwise, in Halo 3, one important render
-    // target is destroyed by a shader not writing to one of the outputs.
     for (uint32_t i = 0; i < 4; ++i) {
+      // If the pixel shader doesn't write to a render target, writing to it is
+      // disabled in the blend state. Otherwise, in Halo 3, one important render
+      // target is destroyed by a shader not writing to one of the outputs.
       if (!pixel_shader->writes_color_target(i)) {
         color_mask &= ~(0xF << (i * 4));
       }
@@ -372,10 +382,14 @@ PipelineCache::UpdateStatus PipelineCache::UpdateBlendState(
       /*  3 */ D3D12_BLEND_OP_MAX,
       /*  4 */ D3D12_BLEND_OP_REV_SUBTRACT,
   };
+  update_desc_.NumRenderTargets = 0;
   for (uint32_t i = 0; i < 4; ++i) {
     auto& blend_desc = update_desc_.BlendState.RenderTarget[i];
-    if (blend_enable && (color_mask & (0xF << (i * 4)))) {
-      uint32_t blend_control = regs.blendcontrol[i];
+    uint32_t guest_render_target = render_targets[i].guest_render_target;
+    DXGI_FORMAT format = render_targets[i].format;
+    if (blend_enable && format != DXGI_FORMAT_UNKNOWN &&
+        (color_mask & (0xF << (guest_render_target * 4)))) {
+      uint32_t blend_control = regs.blendcontrol[guest_render_target];
       // A2XX_RB_BLEND_CONTROL_COLOR_SRCBLEND
       blend_desc.SrcBlend = kBlendFactorMap[(blend_control & 0x0000001F) >> 0];
       // A2XX_RB_BLEND_CONTROL_COLOR_DESTBLEND
@@ -399,7 +413,12 @@ PipelineCache::UpdateStatus PipelineCache::UpdateBlendState(
       blend_desc.DestBlendAlpha = D3D12_BLEND_ZERO;
       blend_desc.BlendOpAlpha = D3D12_BLEND_OP_ADD;
     }
-    blend_desc.RenderTargetWriteMask = (color_mask >> (i * 4)) & 0xF;
+    blend_desc.RenderTargetWriteMask =
+        (color_mask >> (guest_render_target * 4)) & 0xF;
+    update_desc_.RTVFormats[i] = format;
+    if (format != DXGI_FORMAT_UNKNOWN) {
+      update_desc_.NumRenderTargets = i + 1;
+    }
   }
 
   return UpdateStatus::kMismatch;
@@ -532,10 +551,13 @@ PipelineCache::UpdateStatus PipelineCache::UpdateRasterizerState(
   return UpdateStatus::kMismatch;
 }
 
-PipelineCache::UpdateStatus PipelineCache::UpdateDepthStencilState() {
+PipelineCache::UpdateStatus PipelineCache::UpdateDepthStencilState(
+    DXGI_FORMAT format) {
   auto& regs = update_depth_stencil_state_regs_;
 
   bool dirty = current_pipeline_ == nullptr;
+  dirty |= regs.format != format;
+  regs.format = format;
   dirty |= SetShadowRegister(&regs.rb_depthcontrol, XE_GPU_REG_RB_DEPTHCONTROL);
   dirty |=
       SetShadowRegister(&regs.rb_stencilrefmask, XE_GPU_REG_RB_STENCILREFMASK);
@@ -544,17 +566,18 @@ PipelineCache::UpdateStatus PipelineCache::UpdateDepthStencilState() {
     return UpdateStatus::kCompatible;
   }
 
+  bool dsv_bound = format != DXGI_FORMAT_UNKNOWN;
   update_desc_.DepthStencilState.DepthEnable =
-      (regs.rb_depthcontrol & 0x2) ? TRUE : FALSE;
+      (dsv_bound && (regs.rb_depthcontrol & 0x2)) ? TRUE : FALSE;
   update_desc_.DepthStencilState.DepthWriteMask =
-      (regs.rb_depthcontrol & 0x4) ? D3D12_DEPTH_WRITE_MASK_ALL
-                                   : D3D12_DEPTH_WRITE_MASK_ZERO;
+      (dsv_bound && (regs.rb_depthcontrol & 0x4)) ? D3D12_DEPTH_WRITE_MASK_ALL
+                                                  : D3D12_DEPTH_WRITE_MASK_ZERO;
   // Comparison functions are the same in Direct3D 12 but plus one (minus one,
   // bit 0 for less, bit 1 for equal, bit 2 for greater).
   update_desc_.DepthStencilState.DepthFunc =
       D3D12_COMPARISON_FUNC(((regs.rb_depthcontrol >> 4) & 0x7) + 1);
   update_desc_.DepthStencilState.StencilEnable =
-      (regs.rb_depthcontrol & 0x1) ? TRUE : FALSE;
+      (dsv_bound && (regs.rb_depthcontrol & 0x1)) ? TRUE : FALSE;
   update_desc_.DepthStencilState.StencilReadMask =
       (regs.rb_stencilrefmask >> 8) & 0xFF;
   update_desc_.DepthStencilState.StencilWriteMask =
@@ -587,6 +610,8 @@ PipelineCache::UpdateStatus PipelineCache::UpdateDepthStencilState() {
   // test is dynamic - should be enabled anyway if there's no alpha test,
   // discarding and depth output).
 
+  update_desc_.DSVFormat = format;
+
   return UpdateStatus::kMismatch;
 }
 
@@ -611,19 +636,6 @@ PipelineCache::UpdateStatus PipelineCache::UpdateIBStripCutValue(
   update_desc_.IBStripCutValue = ib_strip_cut_value;
 
   // TODO(Triang3l): Geometry shaders for non-0xFFFF values if they are used.
-
-  return UpdateStatus::kMismatch;
-}
-
-PipelineCache::UpdateStatus PipelineCache::UpdateRenderTargetFormats() {
-  bool dirty = current_pipeline_ == nullptr;
-  if (!dirty) {
-    return UpdateStatus::kCompatible;
-  }
-
-  // TODO(Triang3l): Set the formats when RT cache is added.
-  update_desc_.NumRenderTargets = 0;
-  update_desc_.DSVFormat = DXGI_FORMAT_UNKNOWN;
 
   return UpdateStatus::kMismatch;
 }

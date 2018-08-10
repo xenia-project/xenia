@@ -489,10 +489,6 @@ bool D3D12CommandProcessor::SetupContext() {
 
   render_target_cache_ =
       std::make_unique<RenderTargetCache>(this, register_file_);
-  if (!render_target_cache_->Initialize()) {
-    XELOGE("Failed to initialize the render target cache");
-    return false;
-  }
 
   return true;
 }
@@ -652,9 +648,9 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     }
     if (reset_index != reset_index_expected) {
       // Only 0xFFFF and 0xFFFFFFFF primitive restart indices are supported by
-      // Direct3D 12 (endianness doesn't matter for them). However, Direct3D 9
-      // uses 0xFFFF as the reset index. With shared memory, it's impossible to
-      // replace the cut index in the buffer without affecting the game memory.
+      // Direct3D 12 (endianness doesn't matter for them). With shared memory,
+      // it's impossible to replace the cut index in the buffer without
+      // affecting the game memory.
       XELOGE(
           "The game uses the primitive restart index 0x%X that isn't 0xFFFF or "
           "0xFFFFFFFF. Report the game to Xenia developers so geometry shaders "
@@ -678,14 +674,19 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     pixel_shader = nullptr;
   } else if (!pixel_shader) {
     // Need a pixel shader in normal color mode.
-    return true;
+    return false;
   }
 
   bool new_frame = BeginFrame();
   auto command_list = GetCurrentCommandList();
 
   // Set up the render targets - this may bind pipelines.
-  render_target_cache_->UpdateRenderTargets();
+  if (!render_target_cache_->UpdateRenderTargets()) {
+    // Doesn't actually draw.
+    return true;
+  }
+  const RenderTargetCache::PipelineRenderTarget* pipeline_render_targets =
+      render_target_cache_->GetCurrentPipelineRenderTargets();
 
   // Set the primitive topology.
   D3D_PRIMITIVE_TOPOLOGY primitive_topology;
@@ -715,8 +716,8 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
   ID3D12RootSignature* root_signature;
   auto pipeline_status = pipeline_cache_->ConfigurePipeline(
       vertex_shader, pixel_shader, primitive_type,
-      indexed ? index_buffer_info->format : IndexFormat::kInt16, &pipeline,
-      &root_signature);
+      indexed ? index_buffer_info->format : IndexFormat::kInt16,
+      pipeline_render_targets, &pipeline, &root_signature);
   if (pipeline_status == PipelineCache::UpdateStatus::kError) {
     return false;
   }
@@ -733,8 +734,9 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
   SetPipeline(pipeline);
 
   // Update system constants before uploading them.
-  UpdateSystemConstantValues(indexed ? index_buffer_info->endianness
-                                     : Endian::kUnspecified);
+  UpdateSystemConstantValues(
+      indexed ? index_buffer_info->endianness : Endian::kUnspecified,
+      pipeline_render_targets);
 
   // Update constant buffers, descriptors and root parameters.
   if (!UpdateBindings(command_list, vertex_shader, pixel_shader,
@@ -1022,7 +1024,9 @@ void D3D12CommandProcessor::UpdateFixedFunctionState(
   }
 }
 
-void D3D12CommandProcessor::UpdateSystemConstantValues(Endian index_endian) {
+void D3D12CommandProcessor::UpdateSystemConstantValues(
+    Endian index_endian,
+    const RenderTargetCache::PipelineRenderTarget render_targets[4]) {
   auto& regs = *register_file_;
   uint32_t vgt_indx_offset = regs[XE_GPU_REG_VGT_INDX_OFFSET].u32;
   uint32_t pa_cl_vte_cntl = regs[XE_GPU_REG_PA_CL_VTE_CNTL].u32;
@@ -1067,7 +1071,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(Endian index_endian) {
   // viewport that is used to emulate unnormalized coordinates.
   // Z scale/offset is to convert from OpenGL NDC to Direct3D NDC if needed.
   // Also apply half-pixel offset to reproduce Direct3D 9 rasterization rules.
-  // TODO(Triang3l): Check if pixel coordinates need to offset depending on a
+  // TODO(Triang3l): Check if pixel coordinates need to be offset depending on a
   // different register (and if there's such register at all).
   bool gl_clip_space_def =
       !(pa_cl_clip_cntl & (1 << 19)) && (pa_cl_vte_cntl & (1 << 4));
@@ -1126,6 +1130,14 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(Endian index_endian) {
   dirty |= system_constants_.ssaa_inv_scale[1] != ssaa_inv_scale_y;
   system_constants_.ssaa_inv_scale[0] = ssaa_inv_scale_x;
   system_constants_.ssaa_inv_scale[1] = ssaa_inv_scale_y;
+
+  // Color output index mapping.
+  for (uint32_t i = 0; i < 4; ++i) {
+    dirty |= system_constants_.color_output_map[i] !=
+             render_targets[i].guest_render_target;
+    system_constants_.color_output_map[i] =
+        render_targets[i].guest_render_target;
+  }
 
   cbuffer_bindings_system_.up_to_date &= dirty;
 }

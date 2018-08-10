@@ -184,17 +184,36 @@ class D3D12CommandProcessor;
 // in the surface info register is single-sampled.
 class RenderTargetCache {
  public:
+  // Direct3D 12 debug layer does some kaschenit-style trolling by giving errors
+  // that contradict each other when you use null RTV descriptors - if you set
+  // a valid format in RTVFormats in the pipeline state, it says that null
+  // descriptors can only be used if the format in the pipeline state is
+  // DXGI_FORMAT_UNKNOWN, however, if DXGI_FORMAT_UNKNOWN is set, it complains
+  // that the format in the pipeline doesn't match the RTV format. So we have to
+  // make render target bindings consecutive and remap the output indices in
+  // pixel shaders.
+  struct PipelineRenderTarget {
+    uint32_t guest_render_target;
+    DXGI_FORMAT format;
+  };
+
   RenderTargetCache(D3D12CommandProcessor* command_processor,
                     RegisterFile* register_file);
   ~RenderTargetCache();
 
-  bool Initialize();
   void Shutdown();
   void ClearCache();
 
   void BeginFrame();
   // Called in the beginning of a draw call - may bind pipelines.
-  void UpdateRenderTargets();
+  bool UpdateRenderTargets();
+  // Returns the host-to-guest mappings and host formats of currently bound
+  // render targets for pipeline creation and remapping in shaders. They are
+  // consecutive, and format DXGI_FORMAT_UNKNOWN terminates the list. Depth
+  // format is in the 5th render target.
+  const PipelineRenderTarget* GetCurrentPipelineRenderTargets() const {
+    return current_pipeline_render_targets_;
+  }
   void EndFrame();
 
   static inline bool IsColorFormat64bpp(ColorRenderTargetFormat format) {
@@ -203,12 +222,22 @@ class RenderTargetCache {
            format == ColorRenderTargetFormat::k_32_32_FLOAT;
   }
   static DXGI_FORMAT GetColorDXGIFormat(ColorRenderTargetFormat format);
+  // Nvidia may have higher performance with 24-bit depth, AMD should have no
+  // performance difference, but with EDRAM loads/stores less conversion should
+  // be performed by the shaders if D24S8 is emulated as D24_UNORM_S8_UINT, and
+  // it's probably more accurate.
+  static inline DXGI_FORMAT GetDepthDXGIFormat(DepthRenderTargetFormat format) {
+    return format == DepthRenderTargetFormat::kD24FS8
+               ? DXGI_FORMAT_D32_FLOAT_S8X24_UINT
+               : DXGI_FORMAT_D24_UNORM_S8_UINT;
+  }
 
  private:
   union RenderTargetKey {
     struct {
-      // Supersampled dimensions. The limit is 2560x2560 without AA, 2560x5120
-      // with 2x AA, and 5120x5120 with 4x AA.
+      // Supersampled (_ss - scaled 2x if needed) dimensions, divided by 80x16.
+      // The limit is 2560x2560 without AA, 2560x5120 with 2x AA, and 5120x5120
+      // with 4x AA.
       uint32_t width_ss_div_80 : 7;   // 7
       uint32_t height_ss_div_16 : 9;  // 16
       uint32_t is_depth : 1;          // 17
@@ -259,6 +288,12 @@ class RenderTargetCache {
 
   void ClearBindings();
 
+  // Returns true if a render target with such key can be created.
+  static bool GetResourceDesc(RenderTargetKey key, D3D12_RESOURCE_DESC& desc);
+
+  RenderTarget* FindOrCreateRenderTarget(RenderTargetKey key,
+                                         uint32_t heap_page_first);
+
   // Must be in a frame to call. Writes the dirty areas of the currently bound
   // render targets and marks them as clean.
   void WriteRenderTargetsToEDRAM();
@@ -271,11 +306,27 @@ class RenderTargetCache {
   // entire EDRAM - a 32-bit depth/stencil one - at some resolution.
   ID3D12Heap* heaps_[5] = {};
 
+  static constexpr uint32_t kRenderTargetDescriptorHeapSize = 2048;
+  // Descriptor heap, for linear allocation of heaps and descriptors.
+  struct RenderTargetDescriptorHeap {
+    ID3D12DescriptorHeap* heap;
+    D3D12_CPU_DESCRIPTOR_HANDLE start_handle;
+    // When descriptors_used is >= kRenderTargetDescriptorHeapSize, a new heap
+    // must be allocated and linked to the one that became full now.
+    uint32_t descriptors_used;
+    RenderTargetDescriptorHeap* previous;
+  };
+  RenderTargetDescriptorHeap* descriptor_heaps_color_ = nullptr;
+  RenderTargetDescriptorHeap* descriptor_heaps_depth_ = nullptr;
+
   std::unordered_multimap<uint32_t, RenderTarget*> render_targets_;
 
   uint32_t current_surface_pitch_ = 0;
   MsaaSamples current_msaa_samples_ = MsaaSamples::k1X;
+  uint32_t current_edram_max_rows_ = 0;
   RenderTargetBinding current_bindings_[5] = {};
+
+  PipelineRenderTarget current_pipeline_render_targets_[5];
 };
 
 }  // namespace d3d12

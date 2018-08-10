@@ -176,6 +176,7 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
       "  float xe_pixel_half_pixel_offset;\n"
       "  float2 xe_ssaa_inv_scale;\n"
       "  uint xe_pixel_pos_reg;\n"
+      "  uint4 xe_color_output_map;\n"
       "};\n"
       "\n"
       "cbuffer xe_loop_bool_constants : register(b1) {\n"
@@ -291,10 +292,11 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
         "XePixelShaderOutput main(XePixelShaderInput xe_input) {\n"
         "  float4 xe_r[%u];\n"
         "  XePixelShaderOutput xe_output;\n"
-        "  xe_output.colors[0] = (0.0).xxxx;\n"
-        "  xe_output.colors[1] = (0.0).xxxx;\n"
-        "  xe_output.colors[2] = (0.0).xxxx;\n"
-        "  xe_output.colors[3] = (0.0).xxxx;\n",
+        "  float4 xe_color_output[4];\n"
+        "  xe_color_output[0] = (0.0).xxxx;\n"
+        "  xe_color_output[1] = (0.0).xxxx;\n"
+        "  xe_color_output[2] = (0.0).xxxx;\n"
+        "  xe_color_output[3] = (0.0).xxxx;\n",
         kMaxInterpolators, writes_depth_ ? "  float depth : SV_Depth;\n" : "",
         register_count());
     // Initialize SV_Depth if using it.
@@ -370,6 +372,14 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
         "  xe_output.position.xyz =\n"
         "      xe_output.position.xyz * xe_ndc_scale +\n"
         "      xe_ndc_offset * xe_output.position.www;\n");
+  } else if (is_pixel_shader()) {
+    // Remap guest color outputs to host render targets because null render
+    // target descriptors are broken.
+    source.Append(
+        "  xe_output.colors[0] = xe_color_output[xe_color_output_map.r];\n"
+        "  xe_output.colors[1] = xe_color_output[xe_color_output_map.g];\n"
+        "  xe_output.colors[2] = xe_color_output[xe_color_output_map.b];\n"
+        "  xe_output.colors[3] = xe_color_output[xe_color_output_map.a];\n");
   }
   // TODO(Triang3l): Window offset, half pixel offset, alpha test, gamma.
   source.Append(
@@ -726,7 +736,7 @@ void HlslShaderTranslator::EmitStoreResult(const InstructionResult& result,
       EmitSourceDepth("xe_output.point_size");
       break;
     case InstructionStorageTarget::kColorTarget:
-      EmitSourceDepth("xe_output.colors");
+      EmitSourceDepth("xe_color_output");
       storage_is_array = true;
       break;
     case InstructionStorageTarget::kDepth:
