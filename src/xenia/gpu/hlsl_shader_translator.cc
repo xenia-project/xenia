@@ -1110,6 +1110,7 @@ void HlslShaderTranslator::ProcessVertexFetchInstruction(
       EmitSourceDepth("xe_pv = asfloat(xe_vertex_element);\n");
       break;
     case VertexFormat::k_32_32_32_FLOAT:
+      component_count = 3;
       EmitSourceDepth("xe_pv.xyz = asfloat(xe_vertex_element.xyz);\n");
       EmitSourceDepth("xe_pv.w = 1.0;\n");
       break;
