@@ -37,6 +37,9 @@ class HlslShaderTranslator : public ShaderTranslator {
     // vec4 3
     float ssaa_inv_scale[2];
     uint32_t pixel_pos_reg;
+    uint32_t padding_3;
+    // vec4 4
+    uint32_t color_output_map[4];
   };
 
   struct TextureSRV {

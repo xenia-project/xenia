@@ -148,7 +148,9 @@ class D3D12CommandProcessor : public CommandProcessor {
   bool EndFrame();
 
   void UpdateFixedFunctionState(ID3D12GraphicsCommandList* command_list);
-  void UpdateSystemConstantValues(Endian index_endian);
+  void UpdateSystemConstantValues(
+      Endian index_endian,
+      const RenderTargetCache::PipelineRenderTarget render_targets[4]);
   bool UpdateBindings(ID3D12GraphicsCommandList* command_list,
                       const D3D12Shader* vertex_shader,
                       const D3D12Shader* pixel_shader,

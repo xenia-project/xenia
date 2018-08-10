@@ -15,6 +15,7 @@
 #include "third_party/xxhash/xxhash.h"
 
 #include "xenia/gpu/d3d12/d3d12_shader.h"
+#include "xenia/gpu/d3d12/render_target_cache.h"
 #include "xenia/gpu/hlsl_shader_translator.h"
 #include "xenia/gpu/register_file.h"
 #include "xenia/gpu/xenos.h"
@@ -42,12 +43,12 @@ class PipelineCache {
   D3D12Shader* LoadShader(ShaderType shader_type, uint32_t guest_address,
                           const uint32_t* host_address, uint32_t dword_count);
 
-  UpdateStatus ConfigurePipeline(D3D12Shader* vertex_shader,
-                                 D3D12Shader* pixel_shader,
-                                 PrimitiveType primitive_type,
-                                 IndexFormat index_format,
-                                 ID3D12PipelineState** pipeline_out,
-                                 ID3D12RootSignature** root_signature_out);
+  UpdateStatus ConfigurePipeline(
+      D3D12Shader* vertex_shader, D3D12Shader* pixel_shader,
+      PrimitiveType primitive_type, IndexFormat index_format,
+      const RenderTargetCache::PipelineRenderTarget render_targets[5],
+      ID3D12PipelineState** pipeline_out,
+      ID3D12RootSignature** root_signature_out);
 
   void ClearCache();
 
@@ -57,25 +58,25 @@ class PipelineCache {
 
   bool TranslateShader(D3D12Shader* shader, xenos::xe_gpu_program_cntl_t cntl);
 
-  UpdateStatus UpdateState(D3D12Shader* vertex_shader,
-                           D3D12Shader* pixel_shader,
-                           PrimitiveType primitive_type,
-                           IndexFormat index_format);
+  UpdateStatus UpdateState(
+      D3D12Shader* vertex_shader, D3D12Shader* pixel_shader,
+      PrimitiveType primitive_type, IndexFormat index_format,
+      const RenderTargetCache::PipelineRenderTarget render_targets[5]);
 
   // pRootSignature, VS, PS, GS, PrimitiveTopologyType.
   UpdateStatus UpdateShaderStages(D3D12Shader* vertex_shader,
                                   D3D12Shader* pixel_shader,
                                   PrimitiveType primitive_type);
-  // BlendState.
-  UpdateStatus UpdateBlendState(D3D12Shader* pixel_shader);
+  // BlendState, NumRenderTargets, RTVFormats.
+  UpdateStatus UpdateBlendStateAndRenderTargets(
+      D3D12Shader* pixel_shader,
+      const RenderTargetCache::PipelineRenderTarget render_targets[4]);
   // RasterizerState.
   UpdateStatus UpdateRasterizerState(PrimitiveType primitive_type);
-  // DepthStencilState.
-  UpdateStatus UpdateDepthStencilState();
+  // DepthStencilState, DSVFormat.
+  UpdateStatus UpdateDepthStencilState(DXGI_FORMAT format);
   // IBStripCutValue.
   UpdateStatus UpdateIBStripCutValue(IndexFormat index_format);
-  // NumRenderTargets, RTVFormats, DSVFormat.
-  UpdateStatus UpdateRenderTargetFormats();
 
   D3D12CommandProcessor* command_processor_;
   RegisterFile* register_file_;
@@ -117,16 +118,17 @@ class PipelineCache {
     void Reset() { std::memset(this, 0, sizeof(*this)); }
   } update_shader_stages_regs_;
 
-  struct UpdateBlendStateRegisters {
+  struct UpdateBlendStateAndRenderTargetsRegisters {
+    RenderTargetCache::PipelineRenderTarget render_targets[5];
     // RB_COLOR_MASK with unused render targets removed.
     uint32_t color_mask;
     // Blend control updated only for used render targets.
     uint32_t blendcontrol[4];
     bool colorcontrol_blend_enable;
 
-    UpdateBlendStateRegisters() { Reset(); }
+    UpdateBlendStateAndRenderTargetsRegisters() { Reset(); }
     void Reset() { std::memset(this, 0, sizeof(*this)); }
-  } update_blend_state_regs_;
+  } update_blend_state_and_render_targets_regs_;
 
   struct UpdateRasterizerStateRegisters {
     // Polygon offset is in Xenos units.
@@ -142,6 +144,7 @@ class PipelineCache {
   } update_rasterizer_state_regs_;
 
   struct UpdateDepthStencilStateRegisters {
+    DXGI_FORMAT format;
     uint32_t rb_depthcontrol;
     uint32_t rb_stencilrefmask;
 
