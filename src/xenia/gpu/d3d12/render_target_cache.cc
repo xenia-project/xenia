@@ -210,6 +210,8 @@ bool RenderTargetCache::UpdateRenderTargets() {
     // Some render target is totally in the end of EDRAM, or nothing is drawn.
     return false;
   }
+  // Don't create render targets larger than x2560.
+  edram_max_rows = std::min(edram_max_rows, 160u * msaa_samples_y);
   // Check the following full update conditions:
   // - Render target is disabled and another render target got more space than
   //   is currently available in the textures.
@@ -486,7 +488,7 @@ bool RenderTargetCache::UpdateRenderTargets() {
       rtv_handles[rtv_count] = binding.render_target->handle;
       current_pipeline_render_targets_[rtv_count].guest_render_target = i;
       current_pipeline_render_targets_[rtv_count].format =
-          GetColorDXGIFormat(ColorRenderTargetFormat(formats[4]));
+          GetColorDXGIFormat(ColorRenderTargetFormat(formats[i]));
       ++rtv_count;
     }
     for (uint32_t i = rtv_count; i < 4; ++i) {
