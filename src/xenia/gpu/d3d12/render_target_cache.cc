@@ -424,6 +424,7 @@ bool RenderTargetCache::UpdateRenderTargets() {
       if (binding.render_target == nullptr) {
         continue;
       }
+      heap_usage[heap_page_first >> 3] += heap_page_count;
 
       // Inform Direct3D that we're reusing the heap for this render target.
       D3D12_RESOURCE_BARRIER& barrier = barriers[barrier_count++];
@@ -594,7 +595,15 @@ bool RenderTargetCache::GetResourceDesc(RenderTargetKey key,
 RenderTargetCache::RenderTarget* RenderTargetCache::FindOrCreateRenderTarget(
     RenderTargetKey key, uint32_t heap_page_first) {
   assert_true(heap_page_first <= 8 * 5);
-  // TODO(Triang3l): Find an existing render target.
+
+  // Try to find an existing render target.
+  auto found_range = render_targets_.equal_range(key.value);
+  for (auto iter = found_range.first; iter != found_range.second; ++iter) {
+    RenderTarget* found_render_target = iter->second;
+    if (found_render_target->heap_page_first == heap_page_first) {
+      return found_render_target;
+    }
+  }
 
   D3D12_RESOURCE_DESC resource_desc;
   if (!GetResourceDesc(key, resource_desc)) {
