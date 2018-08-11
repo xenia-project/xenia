@@ -301,9 +301,9 @@ class RenderTargetCache {
     // Whether this render target has been used since the last full update.
     bool is_bound;
     uint32_t edram_base;
-    // How many tiles has already been drawn to the render target since the last
-    // full update.
-    uint32_t edram_dirty_length;
+    // How many 16-pixel rows has already been drawn to the render target since
+    // the last full update.
+    uint32_t edram_dirty_rows;
     union {
       uint32_t format;
       ColorRenderTargetFormat color_format;

@@ -442,46 +442,45 @@ bool RenderTargetCache::UpdateRenderTargets() {
   if (!full_update) {
     for (uint32_t i = 0; i < 5; ++i) {
       const RenderTargetBinding& binding_1 = current_bindings_[i];
-      uint32_t edram_length_1;
+      uint32_t edram_dirty_rows_1;
       if (binding_1.is_bound) {
         if (enabled[i]) {
           continue;
         }
         // Checking if now overlapping a previously used render target.
         // binding_1 is the previously used render target.
-        edram_length_1 = binding_1.edram_dirty_length;
+        edram_dirty_rows_1 = binding_1.edram_dirty_rows;
       } else {
         if (!(render_targets_to_attach & (1 << i))) {
           continue;
         }
         // Checking if the new render target is overlapping any bound one.
         // binding_1 is the new render target.
-        edram_length_1 = edram_dirty_rows * edram_row_tiles[i];
+        edram_dirty_rows_1 = edram_dirty_rows;
       }
       for (uint32_t j = 0; j < 5; ++j) {
         const RenderTargetBinding& binding_2 = current_bindings_[j];
         if (!binding_2.is_bound) {
           continue;
         }
-        uint32_t edram_length_2;
+        uint32_t edram_dirty_rows_2;
         if (binding_1.is_bound) {
           if (!enabled[j]) {
             continue;
           }
           // Checking if now overlapping a previously used render target.
           // binding_2 is a currently used render target.
-          edram_length_2 = edram_dirty_rows * edram_row_tiles[i];
+          edram_dirty_rows_2 = edram_dirty_rows;
         } else {
           // Checking if the new render target is overlapping any bound one.
           // binding_2 is another bound render target.
-          edram_length_2 = binding_2.edram_dirty_length;
+          edram_dirty_rows_2 = binding_2.edram_dirty_rows;
         }
         // Do a full update if there is overlap.
-        if (edram_bases[i] < edram_bases[j] + edram_length_2 &&
-            edram_bases[i] + edram_length_1 > edram_bases[j]) {
-          XELOGGPU("RT Cache: Overlap between %u (%u:%u) and %u (%u:%u)", i,
-                   edram_bases[i], edram_bases[i] + edram_length_1 - 1, j,
-                   edram_bases[j], edram_bases[j] + edram_length_2 - 1);
+        if (edram_bases[i] <
+                edram_bases[j] + edram_dirty_rows_2 * edram_row_tiles[j] &&
+            edram_bases[j] <
+                edram_bases[i] + edram_dirty_rows_1 * edram_row_tiles[i]) {
           full_update = true;
           break;
         }
@@ -545,7 +544,7 @@ bool RenderTargetCache::UpdateRenderTargets() {
       RenderTargetBinding& binding = current_bindings_[i];
       binding.is_bound = true;
       binding.edram_base = edram_bases[i];
-      binding.edram_dirty_length = 0;
+      binding.edram_dirty_rows = 0;
       binding.format = formats[i];
       binding.render_target = nullptr;
 
@@ -682,8 +681,8 @@ bool RenderTargetCache::UpdateRenderTargets() {
       // Nothing to store to the EDRAM buffer if there was an error.
       continue;
     }
-    binding.edram_dirty_length = std::max(
-        binding.edram_dirty_length, edram_dirty_rows * edram_row_tiles[i]);
+    binding.edram_dirty_rows =
+        std::max(binding.edram_dirty_rows, edram_dirty_rows);
   }
 
   return true;
@@ -895,12 +894,6 @@ void RenderTargetCache::StoreRenderTargetsToEDRAM() {
     return;
   }
 
-  uint32_t surface_pitch_ss =
-      current_surface_pitch_ *
-      (current_msaa_samples_ >= MsaaSamples::k4X ? 2 : 1);
-  uint32_t surface_pitch_tiles = (surface_pitch_ss + 79) / 80;
-  assert_true(surface_pitch_tiles != 0);
-
   // TODO(Triang3l): Clear the buffer if calling for the first time.
 
   uint32_t store_bindings[5];
@@ -916,9 +909,8 @@ void RenderTargetCache::StoreRenderTargetsToEDRAM() {
   for (uint32_t i = 0; i < 5; ++i) {
     const RenderTargetBinding& binding = current_bindings_[i];
     RenderTarget* render_target = binding.render_target;
-    // TODO(Triang3l): Change edram_dirty_length to dirty row count.
     if (!binding.is_bound || render_target == nullptr ||
-        binding.edram_dirty_length < surface_pitch_tiles) {
+        binding.edram_dirty_rows < 0) {
       continue;
     }
     store_bindings[store_binding_count] = i;
@@ -1010,6 +1002,13 @@ void RenderTargetCache::StoreRenderTargetsToEDRAM() {
         return a < b;
       });
 
+  // Calculate the dispatch width.
+  uint32_t surface_pitch_ss =
+      current_surface_pitch_ *
+      (current_msaa_samples_ >= MsaaSamples::k4X ? 2 : 1);
+  uint32_t surface_pitch_tiles = (surface_pitch_ss + 79) / 80;
+  assert_true(surface_pitch_tiles != 0);
+
   // Store each render target.
   for (uint32_t i = 0; i < store_binding_count; ++i) {
     const RenderTargetBinding& binding = current_bindings_[store_bindings[i]];
@@ -1093,9 +1092,8 @@ void RenderTargetCache::StoreRenderTargetsToEDRAM() {
         0, sizeof(root_constants) / sizeof(uint32_t), &root_constants, 0);
     command_processor_->SetPipeline(
         edram_load_store_pipelines_[size_t(pipeline_index)]);
-    command_list->Dispatch(
-        root_constants.pitch_tiles,
-        binding.edram_dirty_length / root_constants.pitch_tiles, 1);
+    command_list->Dispatch(root_constants.pitch_tiles, binding.edram_dirty_rows,
+                           1);
 
     // Commit the UAV write and prepare for copying again.
     barrier_count = 1;
