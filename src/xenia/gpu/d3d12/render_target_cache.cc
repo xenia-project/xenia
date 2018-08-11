@@ -21,13 +21,176 @@ namespace xe {
 namespace gpu {
 namespace d3d12 {
 
+// Generated with `xb buildhlsl`.
+#include "xenia/gpu/d3d12/shaders/bin/edram_load_color_32bpp_cs.h"
+#include "xenia/gpu/d3d12/shaders/bin/edram_load_color_64bpp_cs.h"
+#include "xenia/gpu/d3d12/shaders/bin/edram_load_color_7e3_cs.h"
+#include "xenia/gpu/d3d12/shaders/bin/edram_load_depth_float_cs.h"
+#include "xenia/gpu/d3d12/shaders/bin/edram_load_depth_unorm_cs.h"
+#include "xenia/gpu/d3d12/shaders/bin/edram_store_color_32bpp_cs.h"
+#include "xenia/gpu/d3d12/shaders/bin/edram_store_color_64bpp_cs.h"
+#include "xenia/gpu/d3d12/shaders/bin/edram_store_color_7e3_cs.h"
+#include "xenia/gpu/d3d12/shaders/bin/edram_store_depth_float_cs.h"
+#include "xenia/gpu/d3d12/shaders/bin/edram_store_depth_unorm_cs.h"
+
+const RenderTargetCache::EDRAMLoadStorePipelineInfo
+    RenderTargetCache::edram_load_store_pipeline_info_[size_t(
+        RenderTargetCache::EDRAMLoadStorePipelineIndex::kCount)] = {
+        {edram_load_color_32bpp_cs, sizeof(edram_load_color_32bpp_cs),
+         L"EDRAM Load 32bpp Color"},
+        {edram_store_color_32bpp_cs, sizeof(edram_store_color_32bpp_cs),
+         L"EDRAM Store 32bpp Color"},
+        {edram_load_color_64bpp_cs, sizeof(edram_load_color_64bpp_cs),
+         L"EDRAM Load 64bpp Color"},
+        {edram_store_color_64bpp_cs, sizeof(edram_store_color_64bpp_cs),
+         L"EDRAM Store 64bpp Color"},
+        {edram_load_color_7e3_cs, sizeof(edram_load_color_7e3_cs),
+         L"EDRAM Load 7e3 Color"},
+        {edram_store_color_7e3_cs, sizeof(edram_store_color_7e3_cs),
+         L"EDRAM Store 7e3 Color"},
+        {edram_load_depth_unorm_cs, sizeof(edram_load_depth_unorm_cs),
+         L"EDRAM Load UNorm Depth"},
+        {edram_store_depth_unorm_cs, sizeof(edram_store_depth_unorm_cs),
+         L"EDRAM Store UNorm Depth"},
+        {edram_load_depth_float_cs, sizeof(edram_load_depth_float_cs),
+         L"EDRAM Load Float Depth"},
+        {edram_store_depth_float_cs, sizeof(edram_store_depth_float_cs),
+         L"EDRAM Store Float Depth"},
+};
+
 RenderTargetCache::RenderTargetCache(D3D12CommandProcessor* command_processor,
                                      RegisterFile* register_file)
     : command_processor_(command_processor), register_file_(register_file) {}
 
 RenderTargetCache::~RenderTargetCache() { Shutdown(); }
 
-void RenderTargetCache::Shutdown() { ClearCache(); }
+bool RenderTargetCache::Initialize() {
+  auto device =
+      command_processor_->GetD3D12Context()->GetD3D12Provider()->GetDevice();
+
+  // Create the buffer for reinterpreting EDRAM contents.
+  D3D12_RESOURCE_DESC edram_buffer_desc;
+  edram_buffer_desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+  edram_buffer_desc.Alignment = 0;
+  // First 10 MB is guest pixel data, second 10 MB is 32-bit depth when using
+  // D24FS8 so loads/stores don't corrupt multipass rendering.
+  edram_buffer_desc.Width = 2 * 2048 * 5120;
+  edram_buffer_desc.Height = 1;
+  edram_buffer_desc.DepthOrArraySize = 1;
+  edram_buffer_desc.MipLevels = 1;
+  edram_buffer_desc.Format = DXGI_FORMAT_UNKNOWN;
+  edram_buffer_desc.SampleDesc.Count = 1;
+  edram_buffer_desc.SampleDesc.Quality = 0;
+  edram_buffer_desc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+  edram_buffer_desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+  D3D12_HEAP_PROPERTIES edram_buffer_heap_properties = {};
+  edram_buffer_heap_properties.Type = D3D12_HEAP_TYPE_DEFAULT;
+  // The first operation will be a clear.
+  edram_buffer_state_ = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+  if (FAILED(device->CreateCommittedResource(
+          &edram_buffer_heap_properties, D3D12_HEAP_FLAG_NONE,
+          &edram_buffer_desc, edram_buffer_state_, nullptr,
+          IID_PPV_ARGS(&edram_buffer_)))) {
+    XELOGE("Failed to create the EDRAM buffer");
+    return false;
+  }
+  edram_buffer_cleared_ = false;
+
+  // Create the root signature for EDRAM buffer load/store.
+  D3D12_ROOT_PARAMETER root_parameters[2];
+  // Parameter 0 is constants (changed for each render target binding).
+  root_parameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+  root_parameters[0].Constants.ShaderRegister = 0;
+  root_parameters[0].Constants.RegisterSpace = 0;
+  root_parameters[0].Constants.Num32BitValues =
+      sizeof(EDRAMLoadStoreRootConstants) / sizeof(uint32_t);
+  root_parameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+  // Parameter 1 is source and target.
+  D3D12_DESCRIPTOR_RANGE root_load_store_ranges[2];
+  root_load_store_ranges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+  root_load_store_ranges[0].NumDescriptors = 1;
+  root_load_store_ranges[0].BaseShaderRegister = 0;
+  root_load_store_ranges[0].RegisterSpace = 0;
+  root_load_store_ranges[0].OffsetInDescriptorsFromTableStart = 0;
+  root_load_store_ranges[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+  root_load_store_ranges[1].NumDescriptors = 1;
+  root_load_store_ranges[1].BaseShaderRegister = 0;
+  root_load_store_ranges[1].RegisterSpace = 0;
+  root_load_store_ranges[1].OffsetInDescriptorsFromTableStart = 1;
+  root_parameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+  root_parameters[1].DescriptorTable.NumDescriptorRanges = 2;
+  root_parameters[1].DescriptorTable.pDescriptorRanges = root_load_store_ranges;
+  root_parameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+  D3D12_ROOT_SIGNATURE_DESC root_signature_desc;
+  root_signature_desc.NumParameters = UINT(xe::countof(root_parameters));
+  root_signature_desc.pParameters = root_parameters;
+  root_signature_desc.NumStaticSamplers = 0;
+  root_signature_desc.pStaticSamplers = nullptr;
+  root_signature_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_NONE;
+  ID3DBlob* root_signature_blob;
+  ID3DBlob* root_signature_error_blob = nullptr;
+  if (FAILED(D3D12SerializeRootSignature(
+          &root_signature_desc, D3D_ROOT_SIGNATURE_VERSION_1,
+          &root_signature_blob, &root_signature_error_blob))) {
+    XELOGE("Failed to serialize the EDRAM buffer load/store root signature");
+    if (root_signature_error_blob != nullptr) {
+      XELOGE("%s", reinterpret_cast<const char*>(
+                       root_signature_error_blob->GetBufferPointer()));
+      root_signature_error_blob->Release();
+    }
+    Shutdown();
+    return false;
+  }
+  if (root_signature_error_blob != nullptr) {
+    root_signature_error_blob->Release();
+  }
+  if (FAILED(device->CreateRootSignature(
+          0, root_signature_blob->GetBufferPointer(),
+          root_signature_blob->GetBufferSize(),
+          IID_PPV_ARGS(&edram_load_store_root_signature_)))) {
+    XELOGE("Failed to create the EDRAM buffer load/store root signature");
+    root_signature_blob->Release();
+    Shutdown();
+    return false;
+  }
+  root_signature_blob->Release();
+
+  // Create the load/store pipelines.
+  D3D12_COMPUTE_PIPELINE_STATE_DESC pipeline_desc;
+  pipeline_desc.pRootSignature = edram_load_store_root_signature_;
+  pipeline_desc.NodeMask = 0;
+  pipeline_desc.CachedPSO.pCachedBlob = nullptr;
+  pipeline_desc.CachedPSO.CachedBlobSizeInBytes = 0;
+  pipeline_desc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
+  for (uint32_t i = 0; i < uint32_t(EDRAMLoadStorePipelineIndex::kCount); ++i) {
+    const EDRAMLoadStorePipelineInfo& pipeline_info =
+        edram_load_store_pipeline_info_[i];
+    pipeline_desc.CS.pShaderBytecode = pipeline_info.shader;
+    pipeline_desc.CS.BytecodeLength = pipeline_info.shader_size;
+    if (FAILED(device->CreateComputePipelineState(
+            &pipeline_desc, IID_PPV_ARGS(&edram_load_store_pipelines_[i])))) {
+      XELOGE("Failed to create EDRAM load/store pipeline for mode %u", i);
+      Shutdown();
+      return false;
+    }
+  }
+
+  return true;
+}
+
+void RenderTargetCache::Shutdown() {
+  ClearCache();
+
+  if (edram_load_store_root_signature_ != nullptr) {
+    edram_load_store_root_signature_->Release();
+    edram_load_store_root_signature_ = nullptr;
+  }
+
+  if (edram_buffer_ != nullptr) {
+    edram_buffer_->Release();
+    edram_buffer_ = nullptr;
+  }
+}
 
 void RenderTargetCache::ClearCache() {
   for (auto render_target_pair : render_targets_) {
@@ -334,7 +497,7 @@ bool RenderTargetCache::UpdateRenderTargets() {
     uint32_t heap_usage[5] = {};
     if (full_update) {
       // Export the currently bound render targets before we ruin the bindings.
-      WriteRenderTargetsToEDRAM();
+      StoreRenderTargetsToEDRAM();
 
       ClearBindings();
       current_surface_pitch_ = surface_pitch;
@@ -527,7 +690,7 @@ bool RenderTargetCache::UpdateRenderTargets() {
 }
 
 void RenderTargetCache::EndFrame() {
-  WriteRenderTargetsToEDRAM();
+  StoreRenderTargetsToEDRAM();
   ClearBindings();
 }
 
@@ -709,6 +872,7 @@ RenderTargetCache::RenderTarget* RenderTargetCache::FindOrCreateRenderTarget(
   }
   ++descriptor_heap->descriptors_used;
 
+  // Get the layout for copying to the EDRAM buffer.
   RenderTarget* render_target = new RenderTarget;
   render_target->resource = resource;
   render_target->state = state;
@@ -716,11 +880,245 @@ RenderTargetCache::RenderTarget* RenderTargetCache::FindOrCreateRenderTarget(
   render_target->key = key;
   render_target->heap_page_first = heap_page_first;
   render_target->heap_page_count = heap_page_count;
+  UINT64 copy_buffer_size;
+  device->GetCopyableFootprints(&resource_desc, 0, key.is_depth ? 2 : 1, 0,
+                                render_target->footprints, nullptr, nullptr,
+                                &copy_buffer_size);
+  render_target->copy_buffer_size = uint32_t(copy_buffer_size);
   render_targets_.insert(std::make_pair(key.value, render_target));
   return render_target;
 }
 
-void RenderTargetCache::WriteRenderTargetsToEDRAM() {}
+void RenderTargetCache::StoreRenderTargetsToEDRAM() {
+  auto command_list = command_processor_->GetCurrentCommandList();
+  if (command_list == nullptr) {
+    return;
+  }
+
+  uint32_t surface_pitch_ss =
+      current_surface_pitch_ *
+      (current_msaa_samples_ >= MsaaSamples::k4X ? 2 : 1);
+  uint32_t surface_pitch_tiles = (surface_pitch_ss + 79) / 80;
+  assert_true(surface_pitch_tiles != 0);
+
+  // TODO(Triang3l): Clear the buffer if calling for the first time.
+
+  uint32_t store_bindings[5];
+  uint32_t store_binding_count = 0;
+
+  D3D12_RESOURCE_BARRIER barriers[6];
+  uint32_t barrier_count;
+
+  // Extract only the render targets that need to be stored, transition them to
+  // copy sources and calculate intermediate buffer size.
+  uint32_t copy_buffer_size = 0;
+  barrier_count = 0;
+  for (uint32_t i = 0; i < 5; ++i) {
+    const RenderTargetBinding& binding = current_bindings_[i];
+    RenderTarget* render_target = binding.render_target;
+    // TODO(Triang3l): Change edram_dirty_length to dirty row count.
+    if (!binding.is_bound || render_target == nullptr ||
+        binding.edram_dirty_length < surface_pitch_tiles) {
+      continue;
+    }
+    store_bindings[store_binding_count] = i;
+    copy_buffer_size =
+        std::max(copy_buffer_size, render_target->copy_buffer_size);
+    ++store_binding_count;
+    if (render_target->state != D3D12_RESOURCE_STATE_COPY_SOURCE) {
+      D3D12_RESOURCE_BARRIER& barrier = barriers[barrier_count++];
+      barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+      barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+      barrier.Transition.pResource = render_target->resource;
+      barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+      barrier.Transition.StateBefore = render_target->state;
+      barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_SOURCE;
+      render_target->state = D3D12_RESOURCE_STATE_COPY_SOURCE;
+    }
+  }
+  if (store_binding_count == 0) {
+    return;
+  }
+  if (edram_buffer_state_ != D3D12_RESOURCE_STATE_UNORDERED_ACCESS) {
+    // Also transition the EDRAM buffer to UAV.
+    D3D12_RESOURCE_BARRIER& barrier = barriers[barrier_count++];
+    barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+    barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+    barrier.Transition.pResource = edram_buffer_;
+    barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+    barrier.Transition.StateBefore = edram_buffer_state_;
+    barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+    edram_buffer_state_ = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+  }
+  if (barrier_count != 0) {
+    command_list->ResourceBarrier(barrier_count, barriers);
+  }
+
+  // Allocate descriptors for the buffers.
+  D3D12_CPU_DESCRIPTOR_HANDLE descriptor_cpu_start;
+  D3D12_GPU_DESCRIPTOR_HANDLE descriptor_gpu_start;
+  if (command_processor_->RequestViewDescriptors(0, 2, 2, descriptor_cpu_start,
+                                                 descriptor_gpu_start) == 0) {
+    return;
+  }
+
+  // Get the buffer for copying.
+  D3D12_RESOURCE_STATES copy_buffer_state = D3D12_RESOURCE_STATE_COPY_DEST;
+  ID3D12Resource* copy_buffer = command_processor_->RequestScratchGPUBuffer(
+      copy_buffer_size, copy_buffer_state);
+  if (copy_buffer == nullptr) {
+    return;
+  }
+
+  // Prepare for writing.
+  auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
+  auto device = provider->GetDevice();
+  auto descriptor_size_view = provider->GetDescriptorSizeView();
+  D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc;
+  srv_desc.Format = DXGI_FORMAT_R32_TYPELESS;
+  srv_desc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+  srv_desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+  srv_desc.Buffer.FirstElement = 0;
+  srv_desc.Buffer.NumElements = copy_buffer_size >> 2;
+  srv_desc.Buffer.StructureByteStride = 0;
+  srv_desc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_RAW;
+  device->CreateShaderResourceView(copy_buffer, &srv_desc,
+                                   descriptor_cpu_start);
+  D3D12_UNORDERED_ACCESS_VIEW_DESC uav_desc;
+  uav_desc.Format = DXGI_FORMAT_R32_TYPELESS;
+  uav_desc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+  uav_desc.Buffer.FirstElement = 0;
+  uav_desc.Buffer.NumElements = 2 * 2048 * 1280;
+  uav_desc.Buffer.StructureByteStride = 0;
+  uav_desc.Buffer.CounterOffsetInBytes = 0;
+  uav_desc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_RAW;
+  D3D12_CPU_DESCRIPTOR_HANDLE uav_cpu_handle;
+  uav_cpu_handle.ptr = descriptor_cpu_start.ptr + descriptor_size_view;
+  device->CreateUnorderedAccessView(edram_buffer_, nullptr, &uav_desc,
+                                    uav_cpu_handle);
+  command_list->SetComputeRootSignature(edram_load_store_root_signature_);
+  command_list->SetComputeRootDescriptorTable(1, descriptor_gpu_start);
+
+  // Sort the bindings in ascending order of EDRAM base so data in the render
+  // targets placed farther in EDRAM isn't lost in case of overlap.
+  std::sort(
+      store_bindings, store_bindings + store_binding_count,
+      [this](uint32_t a, uint32_t b) {
+        if (current_bindings_[a].edram_base < current_bindings_[b].edram_base) {
+          return true;
+        }
+        return a < b;
+      });
+
+  // Store each render target.
+  for (uint32_t i = 0; i < store_binding_count; ++i) {
+    const RenderTargetBinding& binding = current_bindings_[store_bindings[i]];
+    const RenderTarget* render_target = binding.render_target;
+    EDRAMLoadStorePipelineIndex pipeline_index;
+    bool is_64bpp = false;
+    if (render_target->key.is_depth) {
+      if (DepthRenderTargetFormat(render_target->key.format) ==
+          DepthRenderTargetFormat::kD24FS8) {
+        pipeline_index = EDRAMLoadStorePipelineIndex::kDepthFloatStore;
+      } else {
+        pipeline_index = EDRAMLoadStorePipelineIndex::kDepthUnormStore;
+      }
+    } else {
+      switch (ColorRenderTargetFormat(render_target->key.format)) {
+        case ColorRenderTargetFormat::k_8_8_8_8:
+        case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
+        case ColorRenderTargetFormat::k_2_10_10_10:
+        case ColorRenderTargetFormat::k_16_16:
+        case ColorRenderTargetFormat::k_16_16_FLOAT:
+        case ColorRenderTargetFormat::k_2_10_10_10_AS_16_16_16_16:
+        case ColorRenderTargetFormat::k_32_FLOAT:
+          pipeline_index = EDRAMLoadStorePipelineIndex::kColor32bppStore;
+          break;
+        case ColorRenderTargetFormat::k_16_16_16_16:
+        case ColorRenderTargetFormat::k_16_16_16_16_FLOAT:
+        case ColorRenderTargetFormat::k_32_32_FLOAT:
+          pipeline_index = EDRAMLoadStorePipelineIndex::kColor64bppStore;
+          is_64bpp = true;
+          break;
+        case ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
+        case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
+          pipeline_index = EDRAMLoadStorePipelineIndex::kColor7e3Store;
+          break;
+        default:
+          assert_unhandled_case(render_target->key.format);
+          continue;
+      }
+    }
+
+    D3D12_TEXTURE_COPY_LOCATION location_source, location_dest;
+    location_source.pResource = render_target->resource;
+    location_source.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+    location_source.SubresourceIndex = 0;
+    location_dest.pResource = copy_buffer;
+    location_dest.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+    location_dest.PlacedFootprint = render_target->footprints[0];
+    // TODO(Triang3l): Box for color render targets.
+    command_list->CopyTextureRegion(&location_dest, 0, 0, 0, &location_source,
+                                    nullptr);
+    EDRAMLoadStoreRootConstants root_constants;
+    root_constants.base_tiles = binding.edram_base;
+    root_constants.pitch_tiles = surface_pitch_tiles * (is_64bpp ? 2 : 1);
+    root_constants.rt_color_depth_pitch =
+        location_dest.PlacedFootprint.Footprint.RowPitch;
+    if (render_target->key.is_depth) {
+      location_source.SubresourceIndex = 1;
+      location_dest.PlacedFootprint = render_target->footprints[1];
+      command_list->CopyTextureRegion(&location_dest, 0, 0, 0, &location_source,
+                                      nullptr);
+      root_constants.rt_stencil_offset =
+          uint32_t(location_dest.PlacedFootprint.Offset);
+      root_constants.rt_stencil_pitch =
+          location_dest.PlacedFootprint.Footprint.RowPitch;
+    }
+
+    // Transition the copy buffer to SRV.
+    barriers[0].Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+    barriers[0].Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+    barriers[0].Transition.pResource = copy_buffer;
+    barriers[0].Transition.Subresource =
+        D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+    barriers[0].Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
+    barriers[0].Transition.StateAfter =
+        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
+    copy_buffer_state = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
+    command_list->ResourceBarrier(1, barriers);
+
+    // Store the data.
+    command_list->SetComputeRoot32BitConstants(
+        0, sizeof(root_constants) / sizeof(uint32_t), &root_constants, 0);
+    command_processor_->SetPipeline(
+        edram_load_store_pipelines_[size_t(pipeline_index)]);
+    command_list->Dispatch(
+        root_constants.pitch_tiles,
+        binding.edram_dirty_length / root_constants.pitch_tiles, 1);
+
+    // Commit the UAV write and prepare for copying again.
+    barrier_count = 1;
+    barriers[0].Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
+    barriers[0].Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+    barriers[0].UAV.pResource = edram_buffer_;
+    if (i + 1 < store_binding_count) {
+      barrier_count = 2;
+      barriers[1].Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+      barriers[1].Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+      barriers[1].Transition.pResource = copy_buffer;
+      barriers[1].Transition.Subresource =
+          D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+      barriers[1].Transition.StateBefore =
+          D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
+      barriers[1].Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_DEST;
+      copy_buffer_state = D3D12_RESOURCE_STATE_COPY_DEST;
+    }
+    command_list->ResourceBarrier(barrier_count, barriers);
+  }
+
+  command_processor_->ReleaseScratchGPUBuffer(copy_buffer, copy_buffer_state);
+}
 
 }  // namespace d3d12
 }  // namespace gpu
