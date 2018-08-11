@@ -201,6 +201,7 @@ class RenderTargetCache {
                     RegisterFile* register_file);
   ~RenderTargetCache();
 
+  bool Initialize();
   void Shutdown();
   void ClearCache();
 
@@ -233,6 +234,27 @@ class RenderTargetCache {
   }
 
  private:
+  enum class EDRAMLoadStorePipelineIndex {
+    kColor32bppLoad,
+    kColor32bppStore,
+    kColor64bppLoad,
+    kColor64bppStore,
+    kColor7e3Load,
+    kColor7e3Store,
+    kDepthUnormLoad,
+    kDepthUnormStore,
+    kDepthFloatLoad,
+    kDepthFloatStore,
+
+    kCount
+  };
+
+  struct EDRAMLoadStorePipelineInfo {
+    const void* shader;
+    size_t shader_size;
+    const WCHAR* name;
+  };
+
   union RenderTargetKey {
     struct {
       // Supersampled (_ss - scaled 2x if needed) dimensions, divided by 80x16.
@@ -267,8 +289,12 @@ class RenderTargetCache {
     RenderTargetKey key;
     // The first 4 MB page in the heaps.
     uint32_t heap_page_first;
-    // Number of 4 MB pages this render target uses.
+    // The number of 4 MB pages this render target uses.
     uint32_t heap_page_count;
+    // Color/depth and stencil layouts.
+    D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprints[2];
+    // Buffer size needed to copy the render target to the EDRAM buffer.
+    uint32_t copy_buffer_size;
   };
 
   struct RenderTargetBinding {
@@ -294,12 +320,33 @@ class RenderTargetCache {
   RenderTarget* FindOrCreateRenderTarget(RenderTargetKey key,
                                          uint32_t heap_page_first);
 
-  // Must be in a frame to call. Writes the dirty areas of the currently bound
+  // Must be in a frame to call. Stores the dirty areas of the currently bound
   // render targets and marks them as clean.
-  void WriteRenderTargetsToEDRAM();
+  void StoreRenderTargetsToEDRAM();
 
   D3D12CommandProcessor* command_processor_;
   RegisterFile* register_file_;
+
+  // The EDRAM buffer allowing color and depth data to be reinterpreted.
+  ID3D12Resource* edram_buffer_ = nullptr;
+  D3D12_RESOURCE_STATES edram_buffer_state_;
+  bool edram_buffer_cleared_;
+
+  // EDRAM buffer load/store root signature.
+  ID3D12RootSignature* edram_load_store_root_signature_ = nullptr;
+  struct EDRAMLoadStoreRootConstants {
+    uint32_t base_tiles;
+    uint32_t pitch_tiles;
+    uint32_t rt_color_depth_pitch;
+    uint32_t rt_stencil_offset;
+    uint32_t rt_stencil_pitch;
+  };
+  // EDRAM buffer load/store pipelines.
+  static const EDRAMLoadStorePipelineInfo
+      edram_load_store_pipeline_info_[size_t(
+          EDRAMLoadStorePipelineIndex::kCount)];
+  ID3D12PipelineState* edram_load_store_pipelines_[size_t(
+      EDRAMLoadStorePipelineIndex::kCount)] = {};
 
   // 32 MB heaps backing used render targets resources, created when needed.
   // 24 MB proved to be not enough to store a single render target occupying the

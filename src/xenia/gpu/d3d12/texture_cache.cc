@@ -741,7 +741,8 @@ bool TextureCache::LoadTextureData(Texture* texture) {
     if (copy_buffer_state != D3D12_RESOURCE_STATE_UNORDERED_ACCESS) {
       barriers[0].Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
       barriers[0].Transition.pResource = copy_buffer;
-      barriers[0].Transition.Subresource = 0;
+      barriers[0].Transition.Subresource =
+          D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
       barriers[0].Transition.StateBefore = copy_buffer_state;
       barriers[0].Transition.StateAfter = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
       command_list->ResourceBarrier(1, barriers);
@@ -792,7 +793,8 @@ bool TextureCache::LoadTextureData(Texture* texture) {
     barriers[0].UAV.pResource = copy_buffer;
     barriers[1].Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
     barriers[1].Transition.pResource = copy_buffer;
-    barriers[1].Transition.Subresource = 0;
+    barriers[1].Transition.Subresource =
+        D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
     barriers[1].Transition.StateBefore = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
     barriers[1].Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_SOURCE;
     command_list->ResourceBarrier(2, barriers);

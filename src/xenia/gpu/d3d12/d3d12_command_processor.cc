@@ -377,7 +377,7 @@ ID3D12Resource* D3D12CommandProcessor::RequestScratchGPUBuffer(
       barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
       barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
       barrier.Transition.pResource = scratch_buffer_;
-      barrier.Transition.Subresource = 0;
+      barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
       barrier.Transition.StateBefore = scratch_buffer_state_;
       barrier.Transition.StateAfter = state;
       GetCurrentCommandList()->ResourceBarrier(1, &barrier);
@@ -489,6 +489,10 @@ bool D3D12CommandProcessor::SetupContext() {
 
   render_target_cache_ =
       std::make_unique<RenderTargetCache>(this, register_file_);
+  if (!render_target_cache_->Initialize()) {
+    XELOGE("Failed to initialize the render target cache");
+    return false;
+  }
 
   return true;
 }

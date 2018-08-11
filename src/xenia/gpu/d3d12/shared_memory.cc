@@ -394,7 +394,7 @@ void SharedMemory::TransitionBuffer(D3D12_RESOURCE_STATES new_state,
   barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
   barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
   barrier.Transition.pResource = buffer_;
-  barrier.Transition.Subresource = 0;
+  barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
   barrier.Transition.StateBefore = buffer_state_;
   barrier.Transition.StateAfter = new_state;
   command_list->ResourceBarrier(1, &barrier);
