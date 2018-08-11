@@ -353,8 +353,8 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
   }
   source.Append(
       "      default:\n"
-      "      xe_pc = 0xFFFFu;\n"
-      "      break;\n"
+      "        xe_pc = 0xFFFFu;\n"
+      "        break;\n"
       "    }\n"
       "  } while (xe_pc != 0xFFFFu);\n");
   if (is_vertex_shader()) {
@@ -393,10 +393,11 @@ void HlslShaderTranslator::ProcessLabel(uint32_t cf_index) {
   // 0 is always added in the beginning.
   if (cf_index != 0) {
     if (!cf_wrote_pc_) {
-      EmitSourceDepth("xe_pc = %uu;\n", cf_index);
-      EmitSourceDepth("break;\n");
+      EmitSourceDepth("  xe_pc = %uu;\n", cf_index);
+      EmitSourceDepth("  break;\n");
     }
     EmitSourceDepth("case %uu:\n", cf_index);
+    cf_wrote_pc_ = false;
   }
 }
 
@@ -406,13 +407,21 @@ void HlslShaderTranslator::ProcessControlFlowNopInstruction(uint32_t cf_index) {
 
 void HlslShaderTranslator::ProcessControlFlowInstructionBegin(
     uint32_t cf_index) {
-  cf_wrote_pc_ = false;
+  if (cf_wrote_pc_) {
+    // In case there are instructions after setting the PC and breaking (if
+    // there's an `if` setting the PC, there's an `else` setting the PC as well
+    // for falling through).
+    EmitSourceDepth("case %uu:\n", cf_index);
+    cf_wrote_pc_ = false;
+  }
+  Indent();
 }
 
 void HlslShaderTranslator::ProcessControlFlowInstructionEnd(uint32_t cf_index) {
   if (!cf_wrote_pc_) {
     EmitSourceDepth("// Falling through to L%u\n", cf_index + 1);
   }
+  Unindent();
 }
 
 void HlslShaderTranslator::ProcessExecInstructionBegin(
@@ -560,11 +569,8 @@ void HlslShaderTranslator::ProcessJumpInstruction(
       break;
   }
   Indent();
-
   EmitSourceDepth("xe_pc = %uu;  // L%u\n", instr.target_address,
                   instr.target_address);
-  EmitSourceDepth("break;\n");
-
   Unindent();
   if (needs_fallthrough) {
     uint32_t next_address = instr.dword_index + 1;
@@ -573,6 +579,8 @@ void HlslShaderTranslator::ProcessJumpInstruction(
                     next_address);
   }
   EmitSourceDepth("}\n");
+  EmitSourceDepth("break;\n");
+  cf_wrote_pc_ = true;
 }
 
 void HlslShaderTranslator::ProcessAllocInstruction(
