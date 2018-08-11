@@ -331,7 +331,7 @@ bool RenderTargetCache::UpdateRenderTargets() {
   for (uint32_t i = 0; i < 4; ++i) {
     enabled[i] = (rb_color_mask & (0xF << (i * 4))) != 0;
     edram_bases[i] = std::min(rb_color_info[i] & 0xFFF, 2048u);
-    formats[i] = (rb_color_info[i] >> 12) & 0xF;
+    formats[i] = (rb_color_info[i] >> 16) & 0xF;
     formats_are_64bpp[i] =
         IsColorFormat64bpp(ColorRenderTargetFormat(formats[i]));
   }
@@ -340,7 +340,7 @@ bool RenderTargetCache::UpdateRenderTargets() {
   // 0x1 = stencil test, 0x2 = depth test, 0x4 = depth write.
   enabled[4] = (rb_depthcontrol & (0x1 | 0x2 | 0x4)) != 0;
   edram_bases[4] = std::min(rb_depth_info & 0xFFF, 2048u);
-  formats[4] = (rb_depth_info >> 12) & 0x1;
+  formats[4] = (rb_depth_info >> 16) & 0x1;
   formats_are_64bpp[4] = false;
   // Don't mark depth regions as dirty if not writing the depth.
   bool depth_readonly = (rb_depthcontrol & (0x1 | 0x4)) == 0;
@@ -557,7 +557,7 @@ bool RenderTargetCache::UpdateRenderTargets() {
       RenderTargetKey key;
       key.width_ss_div_80 = edram_row_tiles_32bpp;
       key.height_ss_div_16 = current_edram_max_rows_;
-      key.is_depth = i == 4;
+      key.is_depth = i == 4 ? 1 : 0;
       key.format = formats[i];
       D3D12_RESOURCE_DESC resource_desc;
       if (!GetResourceDesc(key, resource_desc)) {
@@ -905,6 +905,11 @@ RenderTargetCache::RenderTarget* RenderTargetCache::FindOrCreateRenderTarget(
                                 &copy_buffer_size);
   render_target->copy_buffer_size = uint32_t(copy_buffer_size);
   render_targets_.insert(std::make_pair(key.value, render_target));
+  XELOGGPU(
+      "Created %ux%u %s render target with format %u at heap 4 MB pages %u:%u",
+      uint32_t(resource_desc.Width), resource_desc.Height,
+      key.is_depth ? "depth" : "color", key.format, heap_page_first,
+      heap_page_first + heap_page_count - 1);
   return render_target;
 }
 
