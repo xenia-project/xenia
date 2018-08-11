@@ -9,7 +9,7 @@ void main(uint3 xe_group_id : SV_GroupID,
   tile_dword_index.x *= 4u;
   uint edram_offset = XeEDRAMOffset(xe_group_id.xy, tile_dword_index);
   uint4 depth24_stencil = xe_edram_load_store_source.Load4(edram_offset);
-  uint4 depth24 = depth24_stencil & 0xFFFFFFu;
+  uint4 depth24 = depth24_stencil >> 8u;
   uint4 depth32 = xe_edram_load_store_source.Load4(10485760u + edram_offset);
   // Depth. If the stored 32-bit depth converted to 24-bit is the same as the
   // stored 24-bit depth, load the 32-bit value because it has more precision
@@ -22,7 +22,7 @@ void main(uint3 xe_group_id : SV_GroupID,
                    xe_thread_id.x * 16u;
   xe_edram_load_store_dest.Store4(rt_offset, depth);
   // Stencil.
-  uint4 stencil = (depth24_stencil >> 24u) << uint4(0u, 8u, 16u, 24u);
+  uint4 stencil = (depth24_stencil & 0xFFu) << uint4(0u, 8u, 16u, 24u);
   stencil.xy |= stencil.zw;
   stencil.x |= stencil.y;
   rt_offset = xe_edram_rt_stencil_offset +

@@ -173,6 +173,7 @@ bool RenderTargetCache::Initialize() {
       Shutdown();
       return false;
     }
+    edram_load_store_pipelines_[i]->SetName(pipeline_info.name);
   }
 
   return true;
@@ -223,7 +224,12 @@ void RenderTargetCache::ClearCache() {
   }
 }
 
-void RenderTargetCache::BeginFrame() { ClearBindings(); }
+void RenderTargetCache::BeginFrame() {
+  ClearBindings();
+
+  // TODO(Triang3l): Clear the EDRAM buffer if this is the first frame for a
+  // stable D24F==D32F comparison.
+}
 
 bool RenderTargetCache::UpdateRenderTargets() {
   // There are two kinds of render target binding updates in this implementation
@@ -597,15 +603,15 @@ bool RenderTargetCache::UpdateRenderTargets() {
       barrier.Aliasing.pResourceBefore = nullptr;
       barrier.Aliasing.pResourceAfter = binding.render_target->resource;
     }
-
     if (barrier_count != 0) {
       command_list->ResourceBarrier(barrier_count, barriers);
     }
 
-    barrier_count = 0;
-
-    // Load the contents of the new render targets from the EDRAM buffer and
-    // switch their state to RTV/DSV.
+    // Load the contents of the new render targets from the EDRAM buffer (will
+    // change the state of the render targets to copy destination).
+    RenderTarget* load_render_targets[5];
+    uint32_t load_edram_bases[5];
+    uint32_t load_render_target_count = 0;
     for (uint32_t i = 0; i < 5; ++i) {
       if (!(render_targets_to_attach & (1 << i))) {
         continue;
@@ -614,14 +620,28 @@ bool RenderTargetCache::UpdateRenderTargets() {
       if (render_target == nullptr) {
         continue;
       }
+      load_render_targets[load_render_target_count] = render_target;
+      load_edram_bases[load_render_target_count] = edram_bases[i];
+      ++load_render_target_count;
+    }
+    if (load_render_target_count != 0) {
+      LoadRenderTargetsFromEDRAM(load_render_target_count, load_render_targets,
+                                 load_edram_bases);
+    }
 
-      // TODO(Triang3l): Load the contents from the EDRAM buffer.
-
-      // After loading from the EDRAM buffer (which may make this render target
-      // a copy destination), switch it to RTV/DSV if needed.
-      D3D12_RESOURCE_STATES state = i == 4 ? D3D12_RESOURCE_STATE_DEPTH_WRITE
-                                           : D3D12_RESOURCE_STATE_RENDER_TARGET;
-      if (render_target->state != state) {
+    // Transition the render targets to the appropriate state if needed,
+    // compress the list of the render target because null RTV descriptors are
+    // broken in Direct3D 12 and bind the render targets to the command list.
+    barrier_count = 0;
+    D3D12_CPU_DESCRIPTOR_HANDLE rtv_handles[4];
+    uint32_t rtv_count = 0;
+    for (uint32_t i = 0; i < 4; ++i) {
+      const RenderTargetBinding& binding = current_bindings_[i];
+      RenderTarget* render_target = binding.render_target;
+      if (!binding.is_bound || render_target == nullptr) {
+        continue;
+      }
+      if (render_target->state != D3D12_RESOURCE_STATE_RENDER_TARGET) {
         D3D12_RESOURCE_BARRIER& barrier = barriers[barrier_count++];
         barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
         barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
@@ -629,25 +649,10 @@ bool RenderTargetCache::UpdateRenderTargets() {
         barrier.Transition.Subresource =
             D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
         barrier.Transition.StateBefore = render_target->state;
-        barrier.Transition.StateAfter = state;
-        render_target->state = state;
+        barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
+        render_target->state = D3D12_RESOURCE_STATE_RENDER_TARGET;
       }
-    }
-
-    if (barrier_count != 0) {
-      command_list->ResourceBarrier(barrier_count, barriers);
-    }
-
-    // Compress the list of the render target because null RTV descriptors are
-    // broken in Direct3D 12 and bind the render targets to the command list.
-    D3D12_CPU_DESCRIPTOR_HANDLE rtv_handles[4];
-    uint32_t rtv_count = 0;
-    for (uint32_t i = 0; i < 4; ++i) {
-      const RenderTargetBinding& binding = current_bindings_[i];
-      if (!binding.is_bound || binding.render_target == nullptr) {
-        continue;
-      }
-      rtv_handles[rtv_count] = binding.render_target->handle;
+      rtv_handles[rtv_count] = render_target->handle;
       current_pipeline_render_targets_[rtv_count].guest_render_target = i;
       current_pipeline_render_targets_[rtv_count].format =
           GetColorDXGIFormat(ColorRenderTargetFormat(formats[i]));
@@ -659,14 +664,29 @@ bool RenderTargetCache::UpdateRenderTargets() {
     }
     const D3D12_CPU_DESCRIPTOR_HANDLE* dsv_handle;
     const RenderTargetBinding& depth_binding = current_bindings_[4];
+    RenderTarget* depth_render_target = depth_binding.render_target;
     current_pipeline_render_targets_[4].guest_render_target = 4;
-    if (depth_binding.is_bound && depth_binding.render_target != nullptr) {
+    if (depth_binding.is_bound && depth_render_target != nullptr) {
+      if (depth_render_target->state != D3D12_RESOURCE_STATE_DEPTH_WRITE) {
+        D3D12_RESOURCE_BARRIER& barrier = barriers[barrier_count++];
+        barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+        barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+        barrier.Transition.pResource = depth_render_target->resource;
+        barrier.Transition.Subresource =
+            D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+        barrier.Transition.StateBefore = depth_render_target->state;
+        barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_DEPTH_WRITE;
+        depth_render_target->state = D3D12_RESOURCE_STATE_DEPTH_WRITE;
+      }
       dsv_handle = &depth_binding.render_target->handle;
       current_pipeline_render_targets_[4].format =
           GetDepthDXGIFormat(DepthRenderTargetFormat(formats[4]));
     } else {
       dsv_handle = nullptr;
       current_pipeline_render_targets_[4].format = DXGI_FORMAT_UNKNOWN;
+    }
+    if (barrier_count != 0) {
+      command_list->ResourceBarrier(barrier_count, barriers);
     }
     command_list->OMSetRenderTargets(rtv_count, rtv_handles, FALSE, dsv_handle);
   }
@@ -894,16 +914,15 @@ void RenderTargetCache::StoreRenderTargetsToEDRAM() {
     return;
   }
 
-  // TODO(Triang3l): Clear the buffer if calling for the first time.
-
   uint32_t store_bindings[5];
   uint32_t store_binding_count = 0;
 
+  // 6 for 5 render targets + the EDRAM buffer.
   D3D12_RESOURCE_BARRIER barriers[6];
   uint32_t barrier_count;
 
   // Extract only the render targets that need to be stored, transition them to
-  // copy sources and calculate intermediate buffer size.
+  // copy sources and calculate copy buffer size.
   uint32_t copy_buffer_size = 0;
   barrier_count = 0;
   for (uint32_t i = 0; i < 5; ++i) {
@@ -962,7 +981,7 @@ void RenderTargetCache::StoreRenderTargetsToEDRAM() {
     return;
   }
 
-  // Prepare for writing.
+  // Prepare for storing.
   auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
   auto device = provider->GetDevice();
   auto descriptor_size_view = provider->GetDescriptorSizeView();
@@ -1113,6 +1132,226 @@ void RenderTargetCache::StoreRenderTargetsToEDRAM() {
       copy_buffer_state = D3D12_RESOURCE_STATE_COPY_DEST;
     }
     command_list->ResourceBarrier(barrier_count, barriers);
+  }
+
+  command_processor_->ReleaseScratchGPUBuffer(copy_buffer, copy_buffer_state);
+}
+
+void RenderTargetCache::LoadRenderTargetsFromEDRAM(
+    uint32_t render_target_count, RenderTarget* const* render_targets,
+    const uint32_t* edram_bases) {
+  assert_true(render_target_count <= 5);
+  if (render_target_count == 0 || render_target_count > 5) {
+    return;
+  }
+
+  auto command_list = command_processor_->GetCurrentCommandList();
+  if (command_list == nullptr) {
+    return;
+  }
+
+  // 6 for 5 render targets + the EDRAM buffer.
+  D3D12_RESOURCE_BARRIER barriers[6];
+  uint32_t barrier_count;
+
+  // Transition the render targets to copy destinations and calculate copy
+  // buffer size.
+  uint32_t copy_buffer_size = 0;
+  barrier_count = 0;
+  for (uint32_t i = 0; i < render_target_count; ++i) {
+    RenderTarget* render_target = render_targets[i];
+    copy_buffer_size =
+        std::max(copy_buffer_size, render_target->copy_buffer_size);
+    if (render_target->state != D3D12_RESOURCE_STATE_COPY_DEST) {
+      D3D12_RESOURCE_BARRIER& barrier = barriers[barrier_count++];
+      barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+      barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+      barrier.Transition.pResource = render_target->resource;
+      barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+      barrier.Transition.StateBefore = render_target->state;
+      barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_DEST;
+      render_target->state = D3D12_RESOURCE_STATE_COPY_DEST;
+    }
+  }
+  if (edram_buffer_state_ != D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE) {
+    // Also transition the EDRAM buffer to SRV.
+    D3D12_RESOURCE_BARRIER& barrier = barriers[barrier_count++];
+    barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+    barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+    barrier.Transition.pResource = edram_buffer_;
+    barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+    barrier.Transition.StateBefore = edram_buffer_state_;
+    barrier.Transition.StateAfter =
+        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
+    edram_buffer_state_ = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
+  }
+  if (barrier_count != 0) {
+    command_list->ResourceBarrier(barrier_count, barriers);
+  }
+
+  // Allocate descriptors for the buffers.
+  D3D12_CPU_DESCRIPTOR_HANDLE descriptor_cpu_start;
+  D3D12_GPU_DESCRIPTOR_HANDLE descriptor_gpu_start;
+  if (command_processor_->RequestViewDescriptors(0, 2, 2, descriptor_cpu_start,
+                                                 descriptor_gpu_start) == 0) {
+    return;
+  }
+
+  // Get the buffer for copying.
+  D3D12_RESOURCE_STATES copy_buffer_state =
+      D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+  ID3D12Resource* copy_buffer = command_processor_->RequestScratchGPUBuffer(
+      copy_buffer_size, copy_buffer_state);
+  if (copy_buffer == nullptr) {
+    return;
+  }
+
+  // Prepare for loading.
+  auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
+  auto device = provider->GetDevice();
+  auto descriptor_size_view = provider->GetDescriptorSizeView();
+  D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc;
+  srv_desc.Format = DXGI_FORMAT_R32_TYPELESS;
+  srv_desc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+  srv_desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+  srv_desc.Buffer.FirstElement = 0;
+  srv_desc.Buffer.NumElements = 2 * 2048 * 1280;
+  srv_desc.Buffer.StructureByteStride = 0;
+  srv_desc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_RAW;
+  device->CreateShaderResourceView(edram_buffer_, &srv_desc,
+                                   descriptor_cpu_start);
+  D3D12_UNORDERED_ACCESS_VIEW_DESC uav_desc;
+  uav_desc.Format = DXGI_FORMAT_R32_TYPELESS;
+  uav_desc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+  uav_desc.Buffer.FirstElement = 0;
+  uav_desc.Buffer.NumElements = copy_buffer_size >> 2;
+  uav_desc.Buffer.StructureByteStride = 0;
+  uav_desc.Buffer.CounterOffsetInBytes = 0;
+  uav_desc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_RAW;
+  D3D12_CPU_DESCRIPTOR_HANDLE uav_cpu_handle;
+  uav_cpu_handle.ptr = descriptor_cpu_start.ptr + descriptor_size_view;
+  device->CreateUnorderedAccessView(copy_buffer, nullptr, &uav_desc,
+                                    uav_cpu_handle);
+  command_list->SetComputeRootSignature(edram_load_store_root_signature_);
+  command_list->SetComputeRootDescriptorTable(1, descriptor_gpu_start);
+
+  // Load each render target.
+  for (uint32_t i = 0; i < render_target_count; ++i) {
+    if (edram_bases[i] >= 2048) {
+      // Something is wrong with the resolve.
+      return;
+    }
+
+    const RenderTarget* render_target = render_targets[i];
+    EDRAMLoadStorePipelineIndex pipeline_index;
+    bool is_64bpp = false;
+    if (render_target->key.is_depth) {
+      if (DepthRenderTargetFormat(render_target->key.format) ==
+          DepthRenderTargetFormat::kD24FS8) {
+        pipeline_index = EDRAMLoadStorePipelineIndex::kDepthFloatLoad;
+      } else {
+        pipeline_index = EDRAMLoadStorePipelineIndex::kDepthUnormLoad;
+      }
+    } else {
+      switch (ColorRenderTargetFormat(render_target->key.format)) {
+        case ColorRenderTargetFormat::k_8_8_8_8:
+        case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
+        case ColorRenderTargetFormat::k_2_10_10_10:
+        case ColorRenderTargetFormat::k_16_16:
+        case ColorRenderTargetFormat::k_16_16_FLOAT:
+        case ColorRenderTargetFormat::k_2_10_10_10_AS_16_16_16_16:
+        case ColorRenderTargetFormat::k_32_FLOAT:
+          pipeline_index = EDRAMLoadStorePipelineIndex::kColor32bppLoad;
+          break;
+        case ColorRenderTargetFormat::k_16_16_16_16:
+        case ColorRenderTargetFormat::k_16_16_16_16_FLOAT:
+        case ColorRenderTargetFormat::k_32_32_FLOAT:
+          pipeline_index = EDRAMLoadStorePipelineIndex::kColor64bppLoad;
+          is_64bpp = true;
+          break;
+        case ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
+        case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
+          pipeline_index = EDRAMLoadStorePipelineIndex::kColor7e3Load;
+          break;
+        default:
+          assert_unhandled_case(render_target->key.format);
+          continue;
+      }
+    }
+
+    // Set up the layout.
+    EDRAMLoadStoreRootConstants root_constants;
+    root_constants.base_tiles = edram_bases[i];
+    root_constants.pitch_tiles =
+        render_target->key.width_ss_div_80 * (is_64bpp ? 2 : 1);
+    root_constants.rt_color_depth_pitch =
+        render_target->footprints[0].Footprint.RowPitch;
+    if (render_target->key.is_depth) {
+      root_constants.rt_stencil_offset =
+          uint32_t(render_target->footprints[1].Offset);
+      root_constants.rt_stencil_pitch =
+          render_target->footprints[1].Footprint.RowPitch;
+    }
+
+    // Validate the height in case the resolve is somehow too large (shouldn't
+    // happen though, but who knows what games do).
+    uint32_t edram_rows =
+        std::min(render_target->key.height_ss_div_16,
+                 (2048u - edram_bases[i]) / root_constants.pitch_tiles);
+    if (edram_rows == 0) {
+      continue;
+    }
+
+    // Transition the copy buffer back to UAV if it's not the first load.
+    if (copy_buffer_state != D3D12_RESOURCE_STATE_UNORDERED_ACCESS) {
+      barriers[0].Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+      barriers[0].Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+      barriers[0].Transition.pResource = copy_buffer;
+      barriers[0].Transition.Subresource =
+          D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+      barriers[0].Transition.StateBefore = copy_buffer_state;
+      barriers[0].Transition.StateAfter = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+      copy_buffer_state = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+      command_list->ResourceBarrier(1, barriers);
+    }
+
+    // Load the data.
+    command_list->SetComputeRoot32BitConstants(
+        0, sizeof(root_constants) / sizeof(uint32_t), &root_constants, 0);
+    command_processor_->SetPipeline(
+        edram_load_store_pipelines_[size_t(pipeline_index)]);
+    command_list->Dispatch(root_constants.pitch_tiles, edram_rows, 1);
+
+    // Commit the UAV write and transition the copy buffer to copy source.
+    barriers[0].Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
+    barriers[0].Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+    barriers[0].UAV.pResource = copy_buffer;
+    barriers[1].Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+    barriers[1].Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+    barriers[1].Transition.pResource = copy_buffer;
+    barriers[1].Transition.Subresource =
+        D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+    barriers[1].Transition.StateBefore = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+    barriers[1].Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_SOURCE;
+    copy_buffer_state = D3D12_RESOURCE_STATE_COPY_SOURCE;
+    command_list->ResourceBarrier(2, barriers);
+
+    // Copy to the render targets.
+    D3D12_TEXTURE_COPY_LOCATION location_source, location_dest;
+    location_source.pResource = copy_buffer;
+    location_source.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+    location_source.PlacedFootprint = render_target->footprints[0];
+    location_dest.pResource = render_target->resource;
+    location_dest.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+    location_dest.SubresourceIndex = 0;
+    command_list->CopyTextureRegion(&location_dest, 0, 0, 0, &location_source,
+                                    nullptr);
+    if (render_target->key.is_depth) {
+      location_source.PlacedFootprint = render_target->footprints[1];
+      location_dest.SubresourceIndex = 1;
+      command_list->CopyTextureRegion(&location_dest, 0, 0, 0, &location_source,
+                                      nullptr);
+    }
   }
 
   command_processor_->ReleaseScratchGPUBuffer(copy_buffer, copy_buffer_state);

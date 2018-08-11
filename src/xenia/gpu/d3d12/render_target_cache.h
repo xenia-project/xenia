@@ -324,6 +324,12 @@ class RenderTargetCache {
   // render targets and marks them as clean.
   void StoreRenderTargetsToEDRAM();
 
+  // Must be in a frame to call. Loads the render targets from the EDRAM buffer,
+  // filling all the rows the render target can hold.
+  void LoadRenderTargetsFromEDRAM(uint32_t render_target_count,
+                                  RenderTarget* const* render_targets,
+                                  const uint32_t* edram_bases);
+
   D3D12CommandProcessor* command_processor_;
   RegisterFile* register_file_;
 
