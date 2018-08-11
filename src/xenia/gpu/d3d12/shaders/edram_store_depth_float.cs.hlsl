@@ -9,12 +9,12 @@ void main(uint3 xe_group_id : SV_GroupID,
   uint rt_offset = xe_thread_id.y * xe_edram_rt_color_depth_pitch +
                    xe_thread_id.x * 16u;
   uint4 depth32 = xe_edram_load_store_source.Load4(rt_offset);
-  uint4 depth24_stencil = XeFloat32To20e4(depth32);
+  uint4 depth24_stencil = XeFloat32To20e4(depth32) << 8u;
   // Stencil.
   rt_offset = xe_edram_rt_stencil_offset +
               xe_thread_id.y * xe_edram_rt_stencil_pitch + xe_thread_id.x * 4u;
-  depth24_stencil |= xe_edram_load_store_source.Load(rt_offset).xxxx >>
-                     uint4(0u, 8u, 16u, 24u) << 24u;
+  depth24_stencil |= (xe_edram_load_store_source.Load(rt_offset).xxxx >>
+                      uint4(0u, 8u, 16u, 24u)) & 0xFFu;
   uint2 tile_dword_index = xe_group_thread_id.xy;
   tile_dword_index.x *= 4u;
   uint edram_offset = XeEDRAMOffset(xe_group_id.xy, tile_dword_index);
