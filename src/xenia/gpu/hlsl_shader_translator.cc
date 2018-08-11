@@ -348,8 +348,8 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
   // Epilogue.
   if (!cf_wrote_pc_) {
     source.Append(
-        "      xe_pc = 0xFFFFu;\n"
-        "      break;\n");
+        "        xe_pc = 0xFFFFu;\n"
+        "        break;\n");
   }
   source.Append(
       "      default:\n"
@@ -451,13 +451,13 @@ void HlslShaderTranslator::ProcessExecInstructionBegin(
 
 void HlslShaderTranslator::ProcessExecInstructionEnd(
     const ParsedExecInstruction& instr) {
+  Unindent();
+  EmitSourceDepth("}\n");
   if (instr.is_end) {
     EmitSourceDepth("xe_pc = 0xFFFFu;\n");
     EmitSourceDepth("break;\n");
     cf_wrote_pc_ = true;
   }
-  Unindent();
-  EmitSourceDepth("}\n");
 }
 
 void HlslShaderTranslator::ProcessLoopStartInstruction(
@@ -551,34 +551,35 @@ void HlslShaderTranslator::ProcessJumpInstruction(
   EmitSourceDepth("// ");
   instr.Disassemble(&source_inner_);
 
-  bool needs_fallthrough = false;
+  bool conditional = false;
   switch (instr.type) {
     case ParsedJumpInstruction::Type::kUnconditional:
-      EmitSourceDepth("{\n");
       break;
     case ParsedJumpInstruction::Type::kConditional:
       EmitSourceDepth("if ((xe_bool_constants[%u].x & (1u << %uu)) %c= 0u) {\n",
                       instr.bool_constant_index >> 5,
                       instr.bool_constant_index & 31,
                       instr.condition ? '!' : '=');
-      needs_fallthrough = true;
+      conditional = true;
       break;
     case ParsedJumpInstruction::Type::kPredicated:
       EmitSourceDepth("if (%cxe_p0) {\n", instr.condition ? ' ' : '!');
-      needs_fallthrough = true;
+      conditional = true;
       break;
   }
-  Indent();
+  if (conditional) {
+    Indent();
+  }
   EmitSourceDepth("xe_pc = %uu;  // L%u\n", instr.target_address,
                   instr.target_address);
-  Unindent();
-  if (needs_fallthrough) {
+  if (conditional) {
+    Unindent();
     uint32_t next_address = instr.dword_index + 1;
     EmitSourceDepth("} else {\n");
     EmitSourceDepth("  xe_pc = %uu;  // Fallthrough to L%u\n", next_address,
                     next_address);
+    EmitSourceDepth("}\n");
   }
-  EmitSourceDepth("}\n");
   EmitSourceDepth("break;\n");
   cf_wrote_pc_ = true;
 }
