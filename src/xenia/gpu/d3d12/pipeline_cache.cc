@@ -389,6 +389,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateBlendStateAndRenderTargets(
     DXGI_FORMAT format = render_targets[i].format;
     if (blend_enable && format != DXGI_FORMAT_UNKNOWN &&
         (color_mask & (0xF << (guest_render_target * 4)))) {
+      blend_desc.BlendEnable = TRUE;
       uint32_t blend_control = regs.blendcontrol[guest_render_target];
       // A2XX_RB_BLEND_CONTROL_COLOR_SRCBLEND
       blend_desc.SrcBlend = kBlendFactorMap[(blend_control & 0x0000001F) >> 0];
