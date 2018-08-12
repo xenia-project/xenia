@@ -111,7 +111,7 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
   //   Face is 4 for positive Z, 5 for negative Z
   // From T and S, abs(2 * MA) needs to be subtracted also.
   //
-  // The undo function accepts (s, t, face index).
+  // Undo accepts (s, t, face index).
   if (cube_used_) {
     source.Append(
         "float4 XeCubeTo2D(float3 xe_cube_3d) {\n"
@@ -133,28 +133,29 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
         "    xe_cube_2d.y *= sign(xe_cube_3d.z);\n"
         "    xe_cube_2d.w = 4.0;\n"
         "  }\n"
-        "  xe_cube_2d.w += saturate(-sign(xe_cube_2d.y));\n"
         "  xe_cube_2d.z *= 2.0;\n"
         "  xe_cube_2d.xy -= abs(xe_cube_2d.zz);\n"
+        "  xe_cube_2d.w += saturate(-sign(xe_cube_2d.z));\n"
         "  return xe_cube_2d;\n"
         "}\n"
         "\n"
         "float3 XeCubeTo3D(float3 xe_cube_2d) {\n"
-        "  xe_cube_2d.xy = (xe_cube_2d.xy * 2.0) + 1.0;\n"
+        "  xe_cube_2d.xy = xe_cube_2d.xy * 2.0 - 1.0;\n"
         "  float3 xe_cube_3d;\n"
         "  uint xe_cube_face_index = uint(xe_cube_2d.z);\n"
-        "  float xe_cube_ma_sign =\n"
-        "      -(float(xe_cube_face_index & 1u) * 2.0 - 1.0);\n"
         "  uint xe_cube_ma_index = xe_cube_face_index >> 1u;\n"
+        "  xe_cube_2d.z =\n"
+        "      -(float(xe_cube_face_index & 1u) * 2.0 - 1.0);\n"
         "  if (xe_cube_ma_index == 0u) {\n"
         "    xe_cube_3d.x = xe_cube_2d.z;\n"
         "    xe_cube_3d.yz = -xe_cube_2d.yx;\n"
-        "    xe_cube_3d.xz *= xe_cube_ma_sign;\n"
+        "    xe_cube_3d.z *= xe_cube_2d.z;\n"
         "  } else if (xe_cube_ma_index == 1u) {\n"
         "    xe_cube_3d = xe_cube_2d.xzy;\n"
-        "    xe_cube_3d.yz *= xe_cube_ma_sign;\n"
+        "    xe_cube_3d.z *= xe_cube_2d.z;\n"
         "  } else {\n"
-        "    xe_cube_3d.xz = xe_cube_2d.xz * xe_cube_ma_sign;\n"
+        "    xe_cube_3d.xz = xe_cube_2d.xz;\n"
+        "    xe_cube_3d.x *= xe_cube_2d.z;\n"
         "    xe_cube_3d.y = -xe_cube_2d.y;\n"
         "  }\n"
         "  return xe_cube_3d;\n"
@@ -1512,7 +1513,8 @@ void HlslShaderTranslator::ProcessVectorAluInstruction(
           "xe_pv = (dot(xe_src0.xy, xe_src1.xy) + xe_src2.x).xxxx;\n");
       break;
     case AluVectorOpcode::kCube:
-      EmitSourceDepth("xe_pv = XeCubeTo2D(xe_src0.xyz);\n");
+      // The operand index and the swizzle are correct!
+      EmitSourceDepth("xe_pv = XeCubeTo2D(xe_src1.yxz);\n");
       cube_used_ = true;
       break;
     case AluVectorOpcode::kMax4:
