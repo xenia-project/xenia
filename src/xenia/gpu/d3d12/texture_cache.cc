@@ -370,21 +370,75 @@ void TextureCache::WriteTextureSRV(uint32_t fetch_constant,
 
 void TextureCache::WriteSampler(uint32_t fetch_constant,
                                 D3D12_CPU_DESCRIPTOR_HANDLE handle) {
-  // TODO(Triang3l): Real samplers instead of this dummy.
+  auto& regs = *register_file_;
+  uint32_t r = XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + fetch_constant * 6;
+  auto group =
+      reinterpret_cast<const xenos::xe_gpu_fetch_group_t*>(&regs.values[r]);
+  auto& fetch = group->texture_fetch;
+  // TODO(Triang3l): Fetch shader instruction overrides.
   D3D12_SAMPLER_DESC desc;
-  desc.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
-  desc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-  desc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-  desc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-  desc.MipLODBias = 0.0f;
-  desc.MaxAnisotropy = 1;
+  if (fetch.aniso_filter) {
+    desc.Filter = D3D12_FILTER_ANISOTROPIC;
+    desc.MaxAnisotropy = std::min(1u << (fetch.aniso_filter - 1), 16u);
+  } else {
+    D3D12_FILTER_TYPE filter_min =
+        TextureFilter(fetch.min_filter) == TextureFilter::kLinear
+            ? D3D12_FILTER_TYPE_LINEAR
+            : D3D12_FILTER_TYPE_POINT;
+    D3D12_FILTER_TYPE filter_mag =
+        TextureFilter(fetch.mag_filter) == TextureFilter::kLinear
+            ? D3D12_FILTER_TYPE_LINEAR
+            : D3D12_FILTER_TYPE_POINT;
+    D3D12_FILTER_TYPE filter_mip =
+        TextureFilter(fetch.mip_filter) == TextureFilter::kLinear
+            ? D3D12_FILTER_TYPE_LINEAR
+            : D3D12_FILTER_TYPE_POINT;
+    // TODO(Triang3l): Investigate mip_filter TextureFilter::kBaseMap.
+    desc.Filter =
+        D3D12_ENCODE_BASIC_FILTER(filter_min, filter_mag, filter_mip,
+                                  D3D12_FILTER_REDUCTION_TYPE_STANDARD);
+    desc.MaxAnisotropy = 1;
+  }
+  // FIXME(Triang3l): Halfway and mirror clamp to border aren't mapped properly.
+  static const D3D12_TEXTURE_ADDRESS_MODE address_mode_map[] = {
+      /* kRepeat               */ D3D12_TEXTURE_ADDRESS_MODE_WRAP,
+      /* kMirroredRepeat       */ D3D12_TEXTURE_ADDRESS_MODE_MIRROR,
+      /* kClampToEdge          */ D3D12_TEXTURE_ADDRESS_MODE_CLAMP,
+      /* kMirrorClampToEdge    */ D3D12_TEXTURE_ADDRESS_MODE_MIRROR_ONCE,
+      /* kClampToHalfway       */ D3D12_TEXTURE_ADDRESS_MODE_CLAMP,
+      /* kMirrorClampToHalfway */ D3D12_TEXTURE_ADDRESS_MODE_MIRROR_ONCE,
+      /* kClampToBorder        */ D3D12_TEXTURE_ADDRESS_MODE_BORDER,
+      /* kMirrorClampToBorder  */ D3D12_TEXTURE_ADDRESS_MODE_MIRROR_ONCE,
+  };
+  desc.AddressU = address_mode_map[fetch.clamp_x];
+  desc.AddressV = address_mode_map[fetch.clamp_y];
+  desc.AddressW = address_mode_map[fetch.clamp_z];
+  desc.MipLODBias = fetch.lod_bias * (1.0f / 32.0f);
   desc.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
-  desc.BorderColor[0] = 0.0f;
-  desc.BorderColor[1] = 0.0f;
-  desc.BorderColor[2] = 0.0f;
-  desc.BorderColor[3] = 0.0f;
-  desc.MinLOD = 0.0f;
-  desc.MaxLOD = 0.0f;
+  // TODO(Triang3l): Border colors k_ACBYCR_BLACK and k_ACBCRY_BLACK.
+  if (BorderColor(fetch.border_color) == BorderColor::k_AGBR_White) {
+    desc.BorderColor[0] = 1.0f;
+    desc.BorderColor[1] = 1.0f;
+    desc.BorderColor[2] = 1.0f;
+    desc.BorderColor[3] = 1.0f;
+  } else {
+    desc.BorderColor[0] = 0.0f;
+    desc.BorderColor[1] = 0.0f;
+    desc.BorderColor[2] = 0.0f;
+    desc.BorderColor[3] = 0.0f;
+  }
+  desc.MinLOD = float(fetch.mip_min_level);
+  desc.MaxLOD = float(fetch.mip_max_level);
+  uint32_t base_page = fetch.base_address & 0x1FFFF;
+  uint32_t mip_page = fetch.mip_address & 0x1FFFF;
+  if (base_page == 0 || base_page == mip_page) {
+    // Games should clamp mip level in this case anyway, but just for safety.
+    desc.MinLOD = std::max(desc.MinLOD, 1.0f);
+  }
+  if (mip_page == 0) {
+    desc.MaxLOD = 0.0f;
+  }
+  desc.MaxLOD = std::max(desc.MaxLOD, desc.MinLOD);
   auto device =
       command_processor_->GetD3D12Context()->GetD3D12Provider()->GetDevice();
   device->CreateSampler(&desc, handle);
