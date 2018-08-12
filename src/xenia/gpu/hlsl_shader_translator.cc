@@ -1227,6 +1227,10 @@ void HlslShaderTranslator::ProcessTextureFetchInstruction(
     EmitSourceDepth("xe_pv = (0.0).xxxx;\n");
   } else {
     AddTextureSRV(tfetch_index, instr.dimension);
+    if (instr.dimension == TextureDimension::k3D) {
+      // 3D or 2D array is selected dynamically.
+      AddTextureSRV(tfetch_index, TextureDimension::k2D);
+    }
     // TODO(Triang3l): Filter and LOD bias overrides.
     AddSampler(tfetch_index);
 
@@ -1257,7 +1261,7 @@ void HlslShaderTranslator::ProcessTextureFetchInstruction(
         // Cubemap coordinates are similar to array texture coordinates on the
         // Xbox 360, not a 3D direction, so offset is applied on a plane.
         if (instr.dimension == TextureDimension::kCube) {
-          EmitSourceDepth("xe_texture_coords = xe_src0;\n");
+          EmitSourceDepth("xe_texture_coords = xe_src0.xyz;\n");
         } else {
           EmitSourceDepth("xe_texture_coords = float3(xe_src0.xy, 0.0);\n");
         }
@@ -1286,6 +1290,7 @@ void HlslShaderTranslator::ProcessTextureFetchInstruction(
           // Convert to 3D direction.
           EmitSourceDepth(
               "xe_texture_coords = XeCubeTo3D(xe_texture_coords);\n");
+          cube_used_ = true;
         }
         break;
       case TextureDimension::k3D:
@@ -1298,7 +1303,7 @@ void HlslShaderTranslator::ProcessTextureFetchInstruction(
             "xe_texture_is_3d = (xe_fetch[%uu].%c & 0x600u) == 0x400u;\n",
             tfetch_pair_offset + 1 + (tfetch_index & 1),
             (tfetch_index & 1) ? 'w' : 'y');
-        EmitSourceDepth("xe_texture_coords = xe_src0;\n");
+        EmitSourceDepth("xe_texture_coords = xe_src0.xyz;\n");
         if (instr.attributes.unnormalized_coordinates) {
           if (instr.attributes.offset_x != 0.0f ||
               instr.attributes.offset_y != 0.0f ||
