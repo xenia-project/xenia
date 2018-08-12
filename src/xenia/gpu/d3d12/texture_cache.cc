@@ -25,26 +25,28 @@ namespace d3d12 {
 
 // Generated with `xb buildhlsl`.
 #include "xenia/gpu/d3d12/shaders/bin/texture_load_128bpb_cs.h"
+#include "xenia/gpu/d3d12/shaders/bin/texture_load_16bpb_cs.h"
 #include "xenia/gpu/d3d12/shaders/bin/texture_load_32bpb_cs.h"
 #include "xenia/gpu/d3d12/shaders/bin/texture_load_64bpb_cs.h"
+#include "xenia/gpu/d3d12/shaders/bin/texture_load_8bpb_cs.h"
 
 const TextureCache::HostFormat TextureCache::host_formats_[64] = {
     {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_1_REVERSE
     {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_1
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_8
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_1_5_5_5
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_5_6_5
+    {DXGI_FORMAT_R8_UNORM, CopyMode::k8bpb},             // k_8
+    {DXGI_FORMAT_B5G5R5A1_UNORM, CopyMode::k16bpb},      // k_1_5_5_5
+    {DXGI_FORMAT_B5G6R5_UNORM, CopyMode::k16bpb},        // k_5_6_5
     {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_6_5_5
     {DXGI_FORMAT_R8G8B8A8_UNORM, CopyMode::k32bpb},      // k_8_8_8_8
     {DXGI_FORMAT_R10G10B10A2_UNORM, CopyMode::k32bpb},   // k_2_10_10_10
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_8_A
+    {DXGI_FORMAT_R8_UNORM, CopyMode::k8bpb},             // k_8_A
     {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_8_B
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_8_8
+    {DXGI_FORMAT_R8G8_UNORM, CopyMode::k16bpb},          // k_8_8
     {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_Cr_Y1_Cb_Y0
     {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_Y1_Cr_Y0_Cb
     {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_Shadow
     {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_8_8_8_8_A
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_4_4_4_4
+    {DXGI_FORMAT_B4G4R4A4_UNORM, CopyMode::k16bpb},      // k_4_4_4_4
     {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_10_11_11
     {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_11_11_10
     {DXGI_FORMAT_BC1_UNORM, CopyMode::k64bpb},           // k_DXT1
@@ -53,13 +55,13 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
     {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_DXV
     {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_24_8
     {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_24_8_FLOAT
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_16
+    {DXGI_FORMAT_R16_UNORM, CopyMode::k16bpb},           // k_16
     {DXGI_FORMAT_R16G16_UNORM, CopyMode::k32bpb},        // k_16_16
     {DXGI_FORMAT_R16G16B16A16_UNORM, CopyMode::k64bpb},  // k_16_16_16_16
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_16_EXPAND
+    {DXGI_FORMAT_R16_UNORM, CopyMode::k16bpb},           // k_16_EXPAND
     {DXGI_FORMAT_R16G16_UNORM, CopyMode::k32bpb},        // k_16_16_EXPAND
     {DXGI_FORMAT_R16G16B16A16_UNORM, CopyMode::k64bpb},  // k_16_16_16_16_EXPAND
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_16_FLOAT
+    {DXGI_FORMAT_R16_FLOAT, CopyMode::k16bpb},           // k_16_FLOAT
     {DXGI_FORMAT_R16G16_FLOAT, CopyMode::k32bpb},        // k_16_16_FLOAT
     {DXGI_FORMAT_R16G16B16A16_FLOAT, CopyMode::k64bpb},  // k_16_16_16_16_FLOAT
     {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_32
@@ -78,7 +80,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
     {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},       // k_16_INTERLACED
     {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},       // k_16_MPEG_INTERLACED
     {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},       // k_16_16_MPEG_INTERLACED
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},       // k_DXN
+    {DXGI_FORMAT_BC5_UNORM, CopyMode::k128bpb},      // k_DXN
     {DXGI_FORMAT_R8G8B8A8_UNORM, CopyMode::k32bpb},  // k_8_8_8_8_AS_16_16_16_16
     {DXGI_FORMAT_BC1_UNORM, CopyMode::k64bpb},       // k_DXT1_AS_16_16_16_16
     {DXGI_FORMAT_BC2_UNORM, CopyMode::k128bpb},      // k_DXT2_3_AS_16_16_16_16
@@ -89,7 +91,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
     {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_11_11_10_AS_16_16_16_16
     {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_32_32_32_FLOAT
     {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_DXT3A
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_DXT5A
+    {DXGI_FORMAT_BC4_UNORM, CopyMode::k64bpb},  // k_DXT5A
     {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_CTX1
     {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_DXT3A_AS_1_1_1_1
     {DXGI_FORMAT_R8G8B8A8_UNORM, CopyMode::k32bpb},  // k_8_8_8_8_GAMMA
@@ -100,6 +102,8 @@ const char* const TextureCache::dimension_names_[4] = {"1D", "2D", "3D",
                                                        "cube"};
 
 const TextureCache::CopyModeInfo TextureCache::copy_mode_info_[] = {
+    {texture_load_8bpb_cs, sizeof(texture_load_8bpb_cs)},
+    {texture_load_16bpb_cs, sizeof(texture_load_16bpb_cs)},
     {texture_load_32bpb_cs, sizeof(texture_load_32bpb_cs)},
     {texture_load_64bpb_cs, sizeof(texture_load_64bpb_cs)},
     {texture_load_128bpb_cs, sizeof(texture_load_128bpb_cs)},
@@ -400,7 +404,7 @@ void TextureCache::WriteSampler(uint32_t fetch_constant,
     desc.MaxAnisotropy = 1;
   }
   // FIXME(Triang3l): Halfway and mirror clamp to border aren't mapped properly.
-  static const D3D12_TEXTURE_ADDRESS_MODE address_mode_map[] = {
+  static const D3D12_TEXTURE_ADDRESS_MODE kAddressModeMap[] = {
       /* kRepeat               */ D3D12_TEXTURE_ADDRESS_MODE_WRAP,
       /* kMirroredRepeat       */ D3D12_TEXTURE_ADDRESS_MODE_MIRROR,
       /* kClampToEdge          */ D3D12_TEXTURE_ADDRESS_MODE_CLAMP,
@@ -410,9 +414,9 @@ void TextureCache::WriteSampler(uint32_t fetch_constant,
       /* kClampToBorder        */ D3D12_TEXTURE_ADDRESS_MODE_BORDER,
       /* kMirrorClampToBorder  */ D3D12_TEXTURE_ADDRESS_MODE_MIRROR_ONCE,
   };
-  desc.AddressU = address_mode_map[fetch.clamp_x];
-  desc.AddressV = address_mode_map[fetch.clamp_y];
-  desc.AddressW = address_mode_map[fetch.clamp_z];
+  desc.AddressU = kAddressModeMap[fetch.clamp_x];
+  desc.AddressV = kAddressModeMap[fetch.clamp_y];
+  desc.AddressW = kAddressModeMap[fetch.clamp_z];
   desc.MipLODBias = fetch.lod_bias * (1.0f / 32.0f);
   desc.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
   // TODO(Triang3l): Border colors k_ACBYCR_BLACK and k_ACBCRY_BLACK.

@@ -16,4 +16,16 @@ XE_BYTE_SWAP_OVERLOAD(uint2)
 XE_BYTE_SWAP_OVERLOAD(uint3)
 XE_BYTE_SWAP_OVERLOAD(uint4)
 
+#define XE_BYTE_SWAP_16_OVERLOAD(XeByteSwapType) \
+XeByteSwapType XeByteSwap16(XeByteSwapType v, uint endian) { \
+  [flatten] if (((endian ^ (endian >> 1u)) & 1u) != 0u) { \
+    v = (v << 8u) | (v >> 8u); \
+  } \
+  return v; \
+}
+XE_BYTE_SWAP_16_OVERLOAD(uint)
+XE_BYTE_SWAP_16_OVERLOAD(uint2)
+XE_BYTE_SWAP_16_OVERLOAD(uint3)
+XE_BYTE_SWAP_16_OVERLOAD(uint4)
+
 #endif  // XENIA_GPU_D3D12_SHADERS_BYTE_SWAP_HLSLI_
