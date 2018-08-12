@@ -333,9 +333,17 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
       // Represents number of times remaining to loop.
       "  uint4 xe_loop_count = uint4(0u, 0u, 0u, 0u);\n"
       // Coordinates for texture fetches.
-      "  float3 xe_texture_coords = float3(0.0, 0.0, 0.0);\n"
-      // LOD for UseRegisterLOD texture fetches.
-      "  float xe_texture_lod = 0.0f;\n"
+      "  float3 xe_texture_coords;\n"
+      // In 3D texture fetch instructions, whether the current texture is 3D as
+      // opposed to a 2D array.
+      "  bool xe_texture_is_3d;\n"
+      // Size shift and offset for 3D or array textures.
+      "  uint4 xe_tfetch3d_size_bits;\n"
+      // Explicit LOD for texture fetches.
+      "  float xe_texture_lod = 0.0;\n"
+      // Explicit gradients for texture fetches.
+      "  float3 xe_texture_grad_h = float3(0.0, 0.0, 0.0);\n"
+      "  float3 xe_texture_grad_v = float3(0.0, 0.0, 0.0);\n"
       // Master loop and switch for flow control.
       "  uint xe_pc = 0u;\n"
       "\n"
@@ -1182,23 +1190,253 @@ void HlslShaderTranslator::ProcessTextureFetchInstruction(
   bool conditional_emitted = BeginPredicatedInstruction(
       instr.is_predicated, instr.predicate_condition);
 
-  if (instr.opcode == FetchOpcode::kSetTextureLod) {
-    // TODO(Triang3l): Set xe_lod to the src1.
-  } else {
-    uint32_t tfetch_index = instr.operands[1].storage_index;
-    AddTextureSRV(tfetch_index, instr.dimension);
-    if (instr.dimension == TextureDimension::k3D) {
-      // tfetch3D is used for both 3D textures and 2D texture arrays, this is
-      // chosen dynamically.
-      AddTextureSRV(tfetch_index, TextureDimension::k2D);
+  for (size_t i = 0; i < instr.operand_count; ++i) {
+    if (instr.operands[i].storage_source !=
+        InstructionStorageSource::kTextureFetchConstant) {
+      EmitLoadOperand(i, instr.operands[i]);
     }
+  }
+  bool store_result = true;
+
+  uint32_t tfetch_index = instr.operands[1].storage_index;
+  // Fetch constants are laid out like:
+  // tf0[0] tf0[1] tf0[2] tf0[3]
+  // tf0[4] tf0[5] tf1[0] tf1[1]
+  // tf1[2] tf1[3] tf1[4] tf1[5]
+  uint32_t tfetch_pair_offset = (tfetch_index >> 1) * 3;
+
+  if (instr.opcode == FetchOpcode::kGetTextureGradients) {
+    EmitSourceDepth("xe_pv = float4(ddx(xe_src0.xy), ddy(xe_src0.xy)).xzyw;\n");
+    // Exponent bias is in dword 4 bits 22:26 and 27:31.
+    char tfetch_grad_exp_component = (tfetch_index & 1) ? 'z' : 'x';
+    EmitSourceDepth("xe_pv *= exp2(float(int(xe_fetch[%uu].%c%c <<\n",
+                    tfetch_pair_offset + 1 + (tfetch_index & 1),
+                    tfetch_grad_exp_component, tfetch_grad_exp_component);
+    EmitSourceDepth("                        uint2(5u, 0u)) >> 27)).xyxy;\n");
+  } else if (instr.opcode == FetchOpcode::kSetTextureLod) {
+    EmitSourceDepth("xe_texture_lod = xe_src0.x;\n");
+    store_result = false;
+  } else if (instr.opcode == FetchOpcode::kSetTextureGradientsHorz) {
+    EmitSourceDepth("xe_texture_grad_h = xe_src0.xyz;\n");
+    store_result = false;
+  } else if (instr.opcode == FetchOpcode::kSetTextureGradientsVert) {
+    EmitSourceDepth("xe_texture_grad_v = xe_src0.xyz;\n");
+    store_result = false;
+  } else if (instr.opcode == FetchOpcode::kGetTextureBorderColorFrac) {
+    EmitUnimplementedTranslationError();
+    EmitSourceDepth("xe_pv = (0.0).xxxx;\n");
+  } else {
+    AddTextureSRV(tfetch_index, instr.dimension);
+    // TODO(Triang3l): Filter and LOD bias overrides.
     AddSampler(tfetch_index);
+
+    // Treat 1D and 2D textures as 2D arrays, also make unnormalized and, if
+    // needed, apply the offset. Size is in dword 2.
+    uint32_t tfetch_size_index = tfetch_pair_offset + (tfetch_index & 1) * 2;
+    char tfetch_size_component = (tfetch_index & 1) ? 'x' : 'z';
+    switch (instr.dimension) {
+      case TextureDimension::k1D:
+        EmitSourceDepth("xe_texture_coords = float3(xe_src0.x, 0.0, 0.0);\n");
+        if (instr.attributes.unnormalized_coordinates) {
+          if (instr.attributes.offset_x != 0.0f) {
+            EmitSourceDepth("xe_texture_coords.x += %.1f;\n",
+                            instr.attributes.offset_x);
+          }
+          EmitSourceDepth("xe_texture_coords.x /=\n");
+          EmitSourceDepth("    float((xe_fetch[%uu].%c & 8191u) + 1u);\n",
+                          tfetch_size_index, tfetch_size_component);
+        } else if (instr.attributes.offset_x != 0.0f) {
+          EmitSourceDepth("xe_texture_coords.x += %.1f /\n",
+                          instr.attributes.offset_x);
+          EmitSourceDepth("    float((xe_fetch[%uu].%c & 8191u) + 1u);\n",
+                          tfetch_size_index, tfetch_size_component);
+        }
+        break;
+      case TextureDimension::k2D:
+      case TextureDimension::kCube:
+        // Cubemap coordinates are similar to array texture coordinates on the
+        // Xbox 360, not a 3D direction, so offset is applied on a plane.
+        if (instr.dimension == TextureDimension::kCube) {
+          EmitSourceDepth("xe_texture_coords = xe_src0;\n");
+        } else {
+          EmitSourceDepth("xe_texture_coords = float3(xe_src0.xy, 0.0);\n");
+        }
+        if (instr.attributes.unnormalized_coordinates) {
+          if (instr.attributes.offset_x != 0.0f ||
+              instr.attributes.offset_y != 0.0f) {
+            EmitSourceDepth("xe_texture_coords.xy += float2(%.1f, %.1f);\n",
+                            instr.attributes.offset_x,
+                            instr.attributes.offset_y);
+          }
+          EmitSourceDepth("xe_texture_coords.xy /=\n");
+          EmitSourceDepth("    float2(((xe_fetch[%uu].%c%c >>\n",
+                          tfetch_size_index, tfetch_size_component,
+                          tfetch_size_component);
+          EmitSourceDepth("             uint2(0u, 13u)) & 8191u) + 1u);\n");
+        } else if (instr.attributes.offset_x != 0.0f ||
+                   instr.attributes.offset_y != 0.0f) {
+          EmitSourceDepth("xe_texture_coords.xy += float2(%.1f, %.1f) /\n",
+                          instr.attributes.offset_x, instr.attributes.offset_y);
+          EmitSourceDepth("    float2(((xe_fetch[%uu].%c%c >>\n",
+                          tfetch_size_index, tfetch_size_component,
+                          tfetch_size_component);
+          EmitSourceDepth("             uint2(0u, 13u)) & 8191u) + 1u);\n");
+        }
+        if (instr.dimension == TextureDimension::kCube) {
+          // Convert to 3D direction.
+          EmitSourceDepth(
+              "xe_texture_coords = XeCubeTo3D(xe_texture_coords);\n");
+        }
+        break;
+      case TextureDimension::k3D:
+        // Both 3D textures and 2D arrays have their Z coordinate normalized
+        // according to the "Next-Generation Graphics Programming on Xbox 360"
+        // presentation, however, on PC, array elements have unnormalized
+        // indices. We first take the normalized coordinates, but then multiply
+        // Z by the number of array slices.
+        EmitSourceDepth(
+            "xe_texture_is_3d = (xe_fetch[%uu].%c & 0x600u) == 0x400u;\n",
+            tfetch_pair_offset + 1 + (tfetch_index & 1),
+            (tfetch_index & 1) ? 'w' : 'y');
+        EmitSourceDepth("xe_texture_coords = xe_src0;\n");
+        if (instr.attributes.unnormalized_coordinates) {
+          if (instr.attributes.offset_x != 0.0f ||
+              instr.attributes.offset_y != 0.0f ||
+              instr.attributes.offset_z != 0.0f) {
+            EmitSourceDepth("xe_texture_coords += float3(%.1f, %.1f, %.1f);\n",
+                            instr.attributes.offset_x,
+                            instr.attributes.offset_y,
+                            instr.attributes.offset_z);
+          }
+          EmitSourceDepth("xe_tfetch3d_size_bits = xe_texture_is_3d ?\n");
+          EmitSourceDepth(
+              "    uint4(0u, 11u, 22u, 2047u) : uint4(0u, 13u, 26u, 8191u);\n");
+          EmitSourceDepth("xe_texture_coords /=\n");
+          EmitSourceDepth("    float3(((xe_fetch[%uu].%c%c%c >>\n",
+                          tfetch_size_index, tfetch_size_component,
+                          tfetch_size_component, tfetch_size_component);
+          EmitSourceDepth("             xe_tfetch3d_size_bits.xyz) &\n");
+          EmitSourceDepth("            xe_tfetch3d_size_bits.w) + 1u);\n");
+        } else if (instr.attributes.offset_x != 0.0f ||
+                   instr.attributes.offset_y != 0.0f ||
+                   instr.attributes.offset_z != 0.0f) {
+          EmitSourceDepth("xe_tfetch3d_size_bits = xe_texture_is_3d ?\n");
+          EmitSourceDepth(
+              "    uint4(0u, 11u, 22u, 2047u) : uint4(0u, 13u, 26u, 8191u);\n");
+          EmitSourceDepth("xe_texture_coords += float3(%.1f, %.1f, %.1f) /\n",
+                          instr.attributes.offset_x, instr.attributes.offset_y,
+                          instr.attributes.offset_z);
+          EmitSourceDepth("    float3(((xe_fetch[%uu].%c%c%c >>\n",
+                          tfetch_size_index, tfetch_size_component,
+                          tfetch_size_component, tfetch_size_component);
+          EmitSourceDepth("             xe_tfetch3d_size_bits.xyz) &\n");
+          EmitSourceDepth("            xe_tfetch3d_size_bits.w) + 1u);\n");
+        }
+        // Unnormalize Z if sampling an array.
+        EmitSourceDepth("if (!xe_texture_is_3d) {\n");
+        EmitSourceDepth(
+            "  xe_texture_coords.z *= float((xe_fetch[%uu].%c >> 26u) + 1u);\n",
+            tfetch_size_index, tfetch_size_component);
+        EmitSourceDepth("};\n");
+        break;
+      default:
+        assert_unhandled_case(instr.dimension);
+    }
+
+    if (instr.opcode == FetchOpcode::kTextureFetch) {
+      switch (instr.dimension) {
+        case TextureDimension::k3D:
+          EmitSourceDepth("[branch] if (xe_texture_is_3d) {\n");
+          if (instr.attributes.use_register_lod) {
+            EmitSourceDepth(
+                "  xe_pv = xe_texture%u_3d.SampleLevel(xe_sampler%u,\n",
+                tfetch_index, tfetch_index);
+            EmitSourceDepth("      xe_texture_coords, xe_texture_lod);\n");
+          } else if (instr.attributes.use_register_gradients) {
+            EmitSourceDepth(
+                "  xe_pv = xe_texture%u_3d.SampleGrad(xe_sampler%u,\n",
+                tfetch_index, tfetch_index);
+            EmitSourceDepth("      xe_texture_coords, xe_texture_grad_h,\n");
+            EmitSourceDepth("      xe_texture_grad_v);\n");
+          } else {
+            EmitSourceDepth("  xe_pv = xe_texture%u_3d.Sample(xe_sampler%u,\n",
+                            tfetch_index, tfetch_index);
+            EmitSourceDepth("      xe_texture_coords);\n");
+          }
+          EmitSourceDepth("} else {\n");
+          if (instr.attributes.use_register_lod) {
+            EmitSourceDepth(
+                "  xe_pv = xe_texture%u_2d.SampleLevel(xe_sampler%u,\n",
+                tfetch_index, tfetch_index);
+            EmitSourceDepth("      xe_texture_coords, xe_texture_lod);\n");
+          } else if (instr.attributes.use_register_gradients) {
+            EmitSourceDepth(
+                "  xe_pv = xe_texture%u_2d.SampleGrad(xe_sampler%u,\n",
+                tfetch_index, tfetch_index);
+            EmitSourceDepth("      xe_texture_coords, xe_texture_grad_h.xy,\n");
+            EmitSourceDepth("      xe_texture_grad_v.xy);\n");
+          } else {
+            EmitSourceDepth("  xe_pv = xe_texture%u_2d.Sample(xe_sampler%u,\n",
+                            tfetch_index, tfetch_index);
+            EmitSourceDepth("      xe_texture_coords);\n");
+          }
+          EmitSourceDepth("}\n");
+          break;
+        case TextureDimension::kCube:
+          // TODO(Triang3l): Investigate how explicit gradients should work with
+          // cubemaps (if they should work at all) because due to 2D->3D
+          // coordinate conversion, you probably can't just sent the gradients
+          // to SampleGrad.
+          if (instr.attributes.use_register_lod) {
+            EmitSourceDepth(
+                "xe_pv = xe_texture%u_cube.SampleLevel(xe_sampler%u,\n",
+                tfetch_index, tfetch_index);
+            EmitSourceDepth("    xe_texture_coords, xe_texture_lod);\n");
+          } else {
+            EmitSourceDepth("xe_pv = xe_texture%u_cube.Sample(xe_sampler%u,\n",
+                            tfetch_index, tfetch_index);
+            EmitSourceDepth("    xe_texture_coords);\n");
+          }
+          break;
+        default:
+          if (instr.attributes.use_register_lod) {
+            EmitSourceDepth(
+                "xe_pv = xe_texture%u_2d.SampleLevel(xe_sampler%u,\n",
+                tfetch_index, tfetch_index);
+            EmitSourceDepth("    xe_texture_coords, xe_texture_lod);\n");
+          } else if (instr.attributes.use_register_gradients) {
+            EmitSourceDepth(
+                "xe_pv = xe_texture%u_2d.SampleGrad(xe_sampler%u,\n",
+                tfetch_index, tfetch_index);
+            EmitSourceDepth("    xe_texture_coords, xe_texture_grad_h.xy,\n");
+            EmitSourceDepth("    xe_texture_grad_v.xy);\n");
+          } else {
+            EmitSourceDepth("xe_pv = xe_texture%u_2d.Sample(xe_sampler%u,\n",
+                            tfetch_index, tfetch_index);
+            EmitSourceDepth("    xe_texture_coords);\n");
+          }
+          break;
+      }
+      // Apply exponent bias from dword 3.
+      EmitSourceDepth(
+          "xe_pv *= exp2(float(int(xe_fetch[%uu].%c << 13u) >> 26));\n",
+          tfetch_pair_offset + (tfetch_index & 1) * 2,
+          (tfetch_index & 1) ? 'y' : 'w');
+    } else if (instr.opcode == FetchOpcode::kGetTextureComputedLod) {
+      // TODO(Triang3l): Add FetchOpcode::kGetTextureComputedLod via
+      // CalculateLevelOfDetail.
+      EmitUnimplementedTranslationError();
+      EmitSourceDepth("xe_pv = (0.0).xxxx;\n");
+    } else if (instr.opcode == FetchOpcode::kGetTextureWeights) {
+      // TODO(Triang3l): Add FetchOpcode::kGetTextureWeights.
+      EmitUnimplementedTranslationError();
+      EmitSourceDepth("xe_pv = (0.0).xxxx;\n");
+    }
   }
 
-  // TODO(Triang3l): Texture fetch when textures are added.
-  EmitSourceDepth("xe_pv = (1.0).xxxx;\n");
-
-  EmitStoreResult(instr.result, false);
+  if (store_result) {
+    EmitStoreResult(instr.result, false);
+  }
 
   EndPredicatedInstruction(conditional_emitted);
 }
