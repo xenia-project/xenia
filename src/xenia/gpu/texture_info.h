@@ -19,7 +19,8 @@
 namespace xe {
 namespace gpu {
 
-// a2xx_sq_surfaceformat
+// a2xx_sq_surfaceformat +
+// https://github.com/indirivacua/RAGE-Console-Texture-Editor/blob/master/Console.Xbox360.Graphics.pas
 enum class TextureFormat : uint32_t {
   k_1_REVERSE = 0,
   k_1 = 1,
@@ -32,9 +33,9 @@ enum class TextureFormat : uint32_t {
   k_8_A = 8,
   k_8_B = 9,
   k_8_8 = 10,
-  k_Cr_Y1_Cb_Y0 = 11,
-  k_Y1_Cr_Y0_Cb = 12,
-  k_Shadow = 13,
+  k_Cr_Y1_Cb_Y0_REP = 11,
+  k_Y1_Cr_Y0_Cb_REP = 12,
+  k_16_16_EDRAM = 13,
   k_8_8_8_8_A = 14,
   k_4_4_4_4 = 15,
   k_10_11_11 = 16,
@@ -42,7 +43,7 @@ enum class TextureFormat : uint32_t {
   k_DXT1 = 18,
   k_DXT2_3 = 19,
   k_DXT4_5 = 20,
-  k_DXV = 21,
+  k_16_16_16_16_EDRAM = 21,
   k_24_8 = 22,
   k_24_8_FLOAT = 23,
   k_16 = 24,
@@ -83,7 +84,8 @@ enum class TextureFormat : uint32_t {
   k_DXT5A = 59,
   k_CTX1 = 60,
   k_DXT3A_AS_1_1_1_1 = 61,
-  k_2_10_10_10_FLOAT = 62,
+  k_8_8_8_8_GAMMA_EDRAM = 62,
+  k_2_10_10_10_FLOAT_EDRAM = 63,
 
   kUnknown = 0xFFFFFFFFu,
 };
@@ -91,6 +93,10 @@ enum class TextureFormat : uint32_t {
 inline TextureFormat GetBaseFormat(TextureFormat texture_format) {
   // These formats are used for resampling textures / gamma control.
   switch (texture_format) {
+    case TextureFormat::k_16_16_EDRAM:
+      return TextureFormat::k_16_16;
+    case TextureFormat::k_16_16_16_16_EDRAM:
+      return TextureFormat::k_16_16_16_16;
     case TextureFormat::k_16_EXPAND:
       return TextureFormat::k_16_FLOAT;
     case TextureFormat::k_16_16_EXPAND:
@@ -98,6 +104,7 @@ inline TextureFormat GetBaseFormat(TextureFormat texture_format) {
     case TextureFormat::k_16_16_16_16_EXPAND:
       return TextureFormat::k_16_16_16_16_FLOAT;
     case TextureFormat::k_8_8_8_8_AS_16_16_16_16:
+    case TextureFormat::k_8_8_8_8_GAMMA_EDRAM:
       return TextureFormat::k_8_8_8_8;
     case TextureFormat::k_DXT1_AS_16_16_16_16:
       return TextureFormat::k_DXT1;
@@ -171,8 +178,8 @@ inline bool IsSRGBCapable(TextureFormat format) {
     case TextureFormat::k_6_5_5:
     case TextureFormat::k_8_8_8_8:
     case TextureFormat::k_8_8:
-    case TextureFormat::k_Cr_Y1_Cb_Y0:
-    case TextureFormat::k_Y1_Cr_Y0_Cb:
+    case TextureFormat::k_Cr_Y1_Cb_Y0_REP:
+    case TextureFormat::k_Y1_Cr_Y0_Cb_REP:
     case TextureFormat::k_4_4_4_4:
     case TextureFormat::k_DXT1:
     case TextureFormat::k_DXT2_3:
@@ -224,15 +231,15 @@ inline TextureFormat ColorRenderTargetToTextureFormat(
     case ColorRenderTargetFormat::k_8_8_8_8:
       return TextureFormat::k_8_8_8_8;
     case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
-      return TextureFormat::k_8_8_8_8;
+      return TextureFormat::k_8_8_8_8_GAMMA_EDRAM;
     case ColorRenderTargetFormat::k_2_10_10_10:
       return TextureFormat::k_2_10_10_10;
     case ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
-      return TextureFormat::k_2_10_10_10_FLOAT;
+      return TextureFormat::k_2_10_10_10_FLOAT_EDRAM;
     case ColorRenderTargetFormat::k_16_16:
-      return TextureFormat::k_16_16;
+      return TextureFormat::k_16_16_EDRAM;
     case ColorRenderTargetFormat::k_16_16_16_16:
-      return TextureFormat::k_16_16_16_16;
+      return TextureFormat::k_16_16_16_16_EDRAM;
     case ColorRenderTargetFormat::k_16_16_FLOAT:
       return TextureFormat::k_16_16_FLOAT;
     case ColorRenderTargetFormat::k_16_16_16_16_FLOAT:
@@ -240,7 +247,7 @@ inline TextureFormat ColorRenderTargetToTextureFormat(
     case ColorRenderTargetFormat::k_2_10_10_10_AS_16_16_16_16:
       return TextureFormat::k_2_10_10_10_AS_16_16_16_16;
     case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
-      return TextureFormat::k_2_10_10_10_FLOAT;
+      return TextureFormat::k_2_10_10_10_FLOAT_EDRAM;
     case ColorRenderTargetFormat::k_32_FLOAT:
       return TextureFormat::k_32_FLOAT;
     case ColorRenderTargetFormat::k_32_32_FLOAT:

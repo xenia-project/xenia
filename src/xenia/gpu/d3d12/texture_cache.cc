@@ -42,9 +42,9 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
     {DXGI_FORMAT_R8_UNORM, CopyMode::k8bpb},             // k_8_A
     {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_8_B
     {DXGI_FORMAT_R8G8_UNORM, CopyMode::k16bpb},          // k_8_8
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_Cr_Y1_Cb_Y0
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_Y1_Cr_Y0_Cb
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_Shadow
+    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_Cr_Y1_Cb_Y0_REP
+    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_Y1_Cr_Y0_Cb_REP
+    {DXGI_FORMAT_R16G16_UNORM, CopyMode::k32bpb},        // k_16_16_EDRAM
     {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_8_8_8_8_A
     {DXGI_FORMAT_B4G4R4A4_UNORM, CopyMode::k16bpb},      // k_4_4_4_4
     {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_10_11_11
@@ -52,15 +52,15 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
     {DXGI_FORMAT_BC1_UNORM, CopyMode::k64bpb},           // k_DXT1
     {DXGI_FORMAT_BC2_UNORM, CopyMode::k128bpb},          // k_DXT2_3
     {DXGI_FORMAT_BC3_UNORM, CopyMode::k128bpb},          // k_DXT4_5
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_DXV
+    {DXGI_FORMAT_R16G16B16A16_UNORM, CopyMode::k64bpb},  // k_16_16_16_16_EDRAM
     {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_24_8
     {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_24_8_FLOAT
     {DXGI_FORMAT_R16_UNORM, CopyMode::k16bpb},           // k_16
     {DXGI_FORMAT_R16G16_UNORM, CopyMode::k32bpb},        // k_16_16
     {DXGI_FORMAT_R16G16B16A16_UNORM, CopyMode::k64bpb},  // k_16_16_16_16
-    {DXGI_FORMAT_R16_UNORM, CopyMode::k16bpb},           // k_16_EXPAND
-    {DXGI_FORMAT_R16G16_UNORM, CopyMode::k32bpb},        // k_16_16_EXPAND
-    {DXGI_FORMAT_R16G16B16A16_UNORM, CopyMode::k64bpb},  // k_16_16_16_16_EXPAND
+    {DXGI_FORMAT_R16_FLOAT, CopyMode::k16bpb},           // k_16_EXPAND
+    {DXGI_FORMAT_R16G16_FLOAT, CopyMode::k32bpb},        // k_16_16_EXPAND
+    {DXGI_FORMAT_R16G16B16A16_FLOAT, CopyMode::k64bpb},  // k_16_16_16_16_EXPAND
     {DXGI_FORMAT_R16_FLOAT, CopyMode::k16bpb},           // k_16_FLOAT
     {DXGI_FORMAT_R16G16_FLOAT, CopyMode::k32bpb},        // k_16_16_FLOAT
     {DXGI_FORMAT_R16G16B16A16_FLOAT, CopyMode::k64bpb},  // k_16_16_16_16_FLOAT
@@ -95,7 +95,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
     {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_CTX1
     {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_DXT3A_AS_1_1_1_1
     {DXGI_FORMAT_R8G8B8A8_UNORM, CopyMode::k32bpb},  // k_8_8_8_8_GAMMA
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},       // k_2_10_10_10_FLOAT
+    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},       // k_2_10_10_10_FLOAT_EDRAM
 };
 
 const char* const TextureCache::dimension_names_[4] = {"1D", "2D", "3D",

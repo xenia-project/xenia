@@ -54,9 +54,9 @@ const TextureConfig texture_configs[64] = {
     /* k_8_A                       */ ___(R8_UNORM),
     /* k_8_B                       */ ___(UNDEFINED),
     /* k_8_8                       */ ___(R8G8_UNORM),
-    /* k_Cr_Y1_Cb_Y0               */ ___(UNDEFINED),
-    /* k_Y1_Cr_Y0_Cb               */ ___(UNDEFINED),
-    /* k_Shadow                    */ ___(UNDEFINED),
+    /* k_Cr_Y1_Cb_Y0_REP           */ ___(UNDEFINED),
+    /* k_Y1_Cr_Y0_Cb_REP           */ ___(UNDEFINED),
+    /* k_16_16_EDRAM               */ ___(R16G16_UNORM),
     /* k_8_8_8_8_A                 */ ___(UNDEFINED),
     /* k_4_4_4_4                   */ __v(R4G4B4A4_UNORM_PACK16, YXWZ),
     // TODO: Verify if these two are correct (I think not).
@@ -66,7 +66,7 @@ const TextureConfig texture_configs[64] = {
     /* k_DXT1                      */ ___(BC1_RGBA_UNORM_BLOCK),
     /* k_DXT2_3                    */ ___(BC2_UNORM_BLOCK),
     /* k_DXT4_5                    */ ___(BC3_UNORM_BLOCK),
-    /* k_DXV                       */ ___(UNDEFINED),
+    /* k_16_16_16_16_EDRAM         */ ___(R16G16B16A16_UNORM),
 
     // TODO: D24 unsupported on AMD.
     /* k_24_8                      */ ___(D24_UNORM_S8_UINT),
@@ -74,9 +74,9 @@ const TextureConfig texture_configs[64] = {
     /* k_16                        */ ___(R16_UNORM),
     /* k_16_16                     */ ___(R16G16_UNORM),
     /* k_16_16_16_16               */ ___(R16G16B16A16_UNORM),
-    /* k_16_EXPAND                 */ ___(R16_UNORM),
-    /* k_16_16_EXPAND              */ ___(R16G16_UNORM),
-    /* k_16_16_16_16_EXPAND        */ ___(R16G16B16A16_UNORM),
+    /* k_16_EXPAND                 */ ___(R16_SFLOAT),
+    /* k_16_16_EXPAND              */ ___(R16G16_SFLOAT),
+    /* k_16_16_16_16_EXPAND        */ ___(R16G16B16A16_SFLOAT),
     /* k_16_FLOAT                  */ ___(R16_SFLOAT),
     /* k_16_16_FLOAT               */ ___(R16G16_SFLOAT),
     /* k_16_16_16_16_FLOAT         */ ___(R16G16B16A16_SFLOAT),
@@ -121,9 +121,8 @@ const TextureConfig texture_configs[64] = {
 
     /* k_DXT3A_AS_1_1_1_1          */ ___(UNDEFINED),
 
-    // Unused.
-    /* kUnknown                    */ ___(UNDEFINED),
-    /* kUnknown                    */ ___(UNDEFINED),
+    /* k_8_8_8_8_GAMMA_EDRAM       */ ___(R8G8B8A8_UNORM),
+    /* k_2_10_10_10_FLOAT_EDRAM    */ ___(UNDEFINED),
 };
 
 #undef _cv
