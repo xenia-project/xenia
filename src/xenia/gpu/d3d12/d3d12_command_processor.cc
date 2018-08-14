@@ -702,6 +702,7 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
       primitive_topology = D3D_PRIMITIVE_TOPOLOGY_LINESTRIP;
       break;
     case PrimitiveType::kTriangleList:
+    case PrimitiveType::kRectangleList:
       primitive_topology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
       break;
     case PrimitiveType::kTriangleStrip:
@@ -926,21 +927,23 @@ void D3D12CommandProcessor::UpdateFixedFunctionState(
   // the NDC in PC APIs, we use a viewport of the largest possible size, and
   // divide the position by it in translated shaders.
   uint32_t pa_cl_vte_cntl = regs[XE_GPU_REG_PA_CL_VTE_CNTL].u32;
-  float viewport_scale_x = (pa_cl_vte_cntl & (1 << 0))
-                               ? regs[XE_GPU_REG_PA_CL_VPORT_XSCALE].f32
-                               : 1280.0f;
-  float viewport_scale_y = (pa_cl_vte_cntl & (1 << 2))
-                               ? -regs[XE_GPU_REG_PA_CL_VPORT_YSCALE].f32
-                               : -1280.0f;
+  float viewport_scale_x =
+      (pa_cl_vte_cntl & (1 << 0))
+          ? std::abs(regs[XE_GPU_REG_PA_CL_VPORT_XSCALE].f32)
+          : 1280.0f;
+  float viewport_scale_y =
+      (pa_cl_vte_cntl & (1 << 2))
+          ? std::abs(regs[XE_GPU_REG_PA_CL_VPORT_YSCALE].f32)
+          : 1280.0f;
   float viewport_scale_z = (pa_cl_vte_cntl & (1 << 4))
                                ? regs[XE_GPU_REG_PA_CL_VPORT_ZSCALE].f32
                                : 1.0f;
   float viewport_offset_x = (pa_cl_vte_cntl & (1 << 1))
                                 ? regs[XE_GPU_REG_PA_CL_VPORT_XOFFSET].f32
-                                : viewport_scale_x;
+                                : std::abs(viewport_scale_x);
   float viewport_offset_y = (pa_cl_vte_cntl & (1 << 3))
                                 ? regs[XE_GPU_REG_PA_CL_VPORT_YOFFSET].f32
-                                : viewport_scale_y;
+                                : std::abs(viewport_scale_y);
   float viewport_offset_z = (pa_cl_vte_cntl & (1 << 5))
                                 ? regs[XE_GPU_REG_PA_CL_VPORT_ZOFFSET].f32
                                 : 0.0f;
@@ -1077,26 +1080,35 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   // Also apply half-pixel offset to reproduce Direct3D 9 rasterization rules.
   // TODO(Triang3l): Check if pixel coordinates need to be offset depending on a
   // different register (and if there's such register at all).
+  float viewport_scale_x = regs[XE_GPU_REG_PA_CL_VPORT_XSCALE].f32;
+  float viewport_scale_y = regs[XE_GPU_REG_PA_CL_VPORT_YSCALE].f32;
   bool gl_clip_space_def =
       !(pa_cl_clip_cntl & (1 << 19)) && (pa_cl_vte_cntl & (1 << 4));
-  float ndc_scale_x = (pa_cl_vte_cntl & (1 << 0)) ? 1.0f : 1.0f / 1280.0f;
-  float ndc_scale_y = (pa_cl_vte_cntl & (1 << 2)) ? 1.0f : 1.0f / 1280.0f;
+  float ndc_scale_x, ndc_scale_y;
+  if (pa_cl_vte_cntl & (1 << 0)) {
+    ndc_scale_x = viewport_scale_x >= 0.0f ? 1.0f : -1.0f;
+  } else {
+    ndc_scale_x = 1.0f / 1280.0f;
+  }
+  if (pa_cl_vte_cntl & (1 << 2)) {
+    ndc_scale_y = viewport_scale_y >= 0.0f ? -1.0f : 1.0f;
+  } else {
+    ndc_scale_y = -1.0f / 1280.0f;
+  }
   float ndc_scale_z = gl_clip_space_def ? 0.5f : 1.0f;
   float ndc_offset_x = (pa_cl_vte_cntl & (1 << 1)) ? 0.0f : -1.0f;
-  float ndc_offset_y = (pa_cl_vte_cntl & (1 << 3)) ? 0.0f : -1.0f;
+  float ndc_offset_y = (pa_cl_vte_cntl & (1 << 3)) ? 0.0f : 1.0f;
   float ndc_offset_z = gl_clip_space_def ? 0.5f : 0.0f;
   float pixel_half_pixel_offset = 0.0f;
   if (!(pa_su_vtx_cntl & (1 << 0))) {
     if (pa_cl_vte_cntl & (1 << 0)) {
-      float viewport_scale_x = regs[XE_GPU_REG_PA_CL_VPORT_XSCALE].f32;
       if (viewport_scale_x != 0.0f) {
-        ndc_offset_x -= 0.5f / viewport_scale_x;
+        ndc_offset_x += 0.5f / viewport_scale_x;
       }
     } else {
-      ndc_offset_x -= 1.0f / 2560.0f;
+      ndc_offset_x += 1.0f / 2560.0f;
     }
     if (pa_cl_vte_cntl & (1 << 2)) {
-      float viewport_scale_y = regs[XE_GPU_REG_PA_CL_VPORT_YSCALE].f32;
       if (viewport_scale_y != 0.0f) {
         ndc_offset_y -= 0.5f / viewport_scale_y;
       }
@@ -1143,7 +1155,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
         render_targets[i].guest_render_target;
   }
 
-  cbuffer_bindings_system_.up_to_date &= dirty;
+  cbuffer_bindings_system_.up_to_date &= !dirty;
 }
 
 bool D3D12CommandProcessor::UpdateBindings(
