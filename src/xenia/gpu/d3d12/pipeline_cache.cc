@@ -26,6 +26,9 @@ namespace xe {
 namespace gpu {
 namespace d3d12 {
 
+// Generated with `xb buildhlsl`.
+#include "xenia/gpu/d3d12/shaders/bin/primitive_rectangle_list_gs.h"
+
 PipelineCache::PipelineCache(D3D12CommandProcessor* command_processor,
                              RegisterFile* register_file)
     : command_processor_(command_processor), register_file_(register_file) {
@@ -254,6 +257,13 @@ PipelineCache::UpdateStatus PipelineCache::UpdateShaderStages(
       primitive_type == PrimitiveType::kLineLoop ||
       primitive_type == PrimitiveType::k2DLineStrip;
   dirty |= regs.primitive_topology_is_line != primitive_topology_is_line;
+  if (primitive_type == PrimitiveType::kRectangleList) {
+    dirty |= regs.geometry_shader_primitive_type != primitive_type;
+    regs.geometry_shader_primitive_type = primitive_type;
+  } else {
+    dirty |= regs.geometry_shader_primitive_type != PrimitiveType::kNone;
+    regs.geometry_shader_primitive_type = PrimitiveType::kNone;
+  }
   XXH64_update(&hash_state_, &regs, sizeof(regs));
   if (!dirty) {
     return UpdateStatus::kCompatible;
@@ -294,9 +304,16 @@ PipelineCache::UpdateStatus PipelineCache::UpdateShaderStages(
     update_desc_.PS.pShaderBytecode = nullptr;
     update_desc_.PS.BytecodeLength = 0;
   }
-  // TODO(Triang3l): Geometry shaders.
-  update_desc_.GS.pShaderBytecode = nullptr;
-  update_desc_.GS.BytecodeLength = 0;
+  switch (primitive_type) {
+    case PrimitiveType::kRectangleList:
+      update_desc_.GS.pShaderBytecode = primitive_rectangle_list_gs;
+      update_desc_.GS.BytecodeLength = sizeof(primitive_rectangle_list_gs);
+      break;
+    default:
+      // TODO(Triang3l): More geometry shaders for various primitive types.
+      update_desc_.GS.pShaderBytecode = nullptr;
+      update_desc_.GS.BytecodeLength = 0;
+  }
   update_desc_.PrimitiveTopologyType =
       primitive_topology_is_line ? D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE
                                  : D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;

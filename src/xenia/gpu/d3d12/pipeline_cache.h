@@ -113,6 +113,8 @@ class PipelineCache {
     D3D12Shader* pixel_shader;
     uint32_t sq_program_cntl;
     bool primitive_topology_is_line;
+    // Primitive type if it needs a geometry shader, or kNone.
+    PrimitiveType geometry_shader_primitive_type;
 
     UpdateShaderStagesRegisters() { Reset(); }
     void Reset() { std::memset(this, 0, sizeof(*this)); }

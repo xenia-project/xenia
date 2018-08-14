@@ -401,7 +401,7 @@ bool RenderTargetCache::UpdateRenderTargets() {
                                : 1280.0f;
   float viewport_offset_y = (pa_cl_vte_cntl & (1 << 3))
                                 ? regs[XE_GPU_REG_PA_CL_VPORT_YOFFSET].f32
-                                : viewport_scale_y;
+                                : std::abs(viewport_scale_y);
   if (regs[XE_GPU_REG_PA_SU_SC_MODE_CNTL].u32 & (1 << 16)) {
     viewport_offset_y += float(window_offset_y);
   }
