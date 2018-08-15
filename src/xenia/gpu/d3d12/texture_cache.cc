@@ -30,6 +30,7 @@ namespace d3d12 {
 #include "xenia/gpu/d3d12/shaders/bin/texture_load_64bpb_cs.h"
 #include "xenia/gpu/d3d12/shaders/bin/texture_load_8bpb_cs.h"
 #include "xenia/gpu/d3d12/shaders/bin/texture_load_ctx1_cs.h"
+#include "xenia/gpu/d3d12/shaders/bin/texture_load_dxt3a_cs.h"
 
 const TextureCache::HostFormat TextureCache::host_formats_[64] = {
     {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_1_REVERSE
@@ -91,7 +92,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
     {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_10_11_11_AS_16_16_16_16
     {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_11_11_10_AS_16_16_16_16
     {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_32_32_32_FLOAT
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_DXT3A
+    {DXGI_FORMAT_BC2_UNORM, CopyMode::kDXT3A},  // k_DXT3A
     {DXGI_FORMAT_BC4_UNORM, CopyMode::k64bpb},  // k_DXT5A
     {DXGI_FORMAT_R8G8_UNORM, CopyMode::kCTX1},  // k_CTX1
     {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_DXT3A_AS_1_1_1_1
@@ -108,6 +109,7 @@ const TextureCache::CopyModeInfo TextureCache::copy_mode_info_[] = {
     {texture_load_32bpb_cs, sizeof(texture_load_32bpb_cs)},
     {texture_load_64bpb_cs, sizeof(texture_load_64bpb_cs)},
     {texture_load_128bpb_cs, sizeof(texture_load_128bpb_cs)},
+    {texture_load_dxt3a_cs, sizeof(texture_load_dxt3a_cs)},
     {texture_load_ctx1_cs, sizeof(texture_load_ctx1_cs)},
 };
 
@@ -525,6 +527,8 @@ void TextureCache::TextureKeyFromFetchConstant(
     return;
   }
 
+  TextureFormat format = GetBaseFormat(TextureFormat(fetch.format));
+
   key_out.base_page = base_page;
   key_out.mip_page = mip_page;
   key_out.dimension = dimension;
@@ -534,12 +538,24 @@ void TextureCache::TextureKeyFromFetchConstant(
   key_out.mip_max_level = mip_max_level;
   key_out.tiled = fetch.tiled;
   key_out.packed_mips = fetch.packed_mips;
-  key_out.format = GetBaseFormat(TextureFormat(fetch.format));
+  key_out.format = format;
   key_out.endianness = Endian(fetch.endianness);
+
+  uint32_t swizzle = fetch.swizzle;
   // Get rid of 6 and 7 values (to prevent device losses if the game has
   // something broken) the quick and dirty way - by changing them to 4 and 5.
-  swizzle_out = fetch.swizzle &
-                ~((fetch.swizzle & (4 | (4 << 3) | (4 << 6) | (4 << 9))) >> 1);
+  swizzle &= ~((swizzle & (4 | (4 << 3) | (4 << 6) | (4 << 9))) >> 1);
+  // Remap the swizzle according to the texture format.
+  if (format == TextureFormat::k_DXT3A) {
+    // DXT3A is emulated as DXT3 with zero color, but the alpha should be
+    // replicated into all channels.
+    // http://fileadmin.cs.lth.se/cs/Personal/Michael_Doggett/talks/unc-xenos-doggett.pdf
+    // If not 0.0 or 1.0 (if the high bit isn't set), make 3 (alpha).
+    uint32_t swizzle_not_constant =
+        ~swizzle & (4 | (4 << 3) | (4 << 6) | (4 << 9));
+    swizzle |= (swizzle_not_constant >> 1) | (swizzle_not_constant >> 2);
+  }
+  swizzle_out = swizzle;
 }
 
 void TextureCache::LogTextureKeyAction(TextureKey key, const char* action) {
