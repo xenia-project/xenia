@@ -90,6 +90,7 @@ class TextureCache {
     k32bpb,
     k64bpb,
     k128bpb,
+    kCTX1,
 
     kCount,
 
@@ -194,14 +195,16 @@ class TextureCache {
     uint32_t host_pitch;
 
     // vec4 1.
-    // Size in blocks.
-    uint32_t size[3];
+    uint32_t size_texels[3];
     uint32_t is_3d;
 
     // vec4 2.
+    uint32_t size_blocks[3];
+    uint32_t endianness;
+
+    // vec4 3.
     // Offset within the packed mip for small mips.
     uint32_t guest_mip_offset[3];
-    uint32_t endianness;
 
     static constexpr uint32_t kGuestPitchTiled = UINT32_MAX;
   };
