@@ -5,7 +5,7 @@ void main(uint3 xe_thread_id : SV_DispatchThreadID) {
   // 1 thread = 4 ushort blocks.
   uint3 block_index = xe_thread_id;
   block_index.x <<= 2u;
-  [branch] if (any(block_index >= xe_texture_copy_size)) {
+  [branch] if (any(block_index >= xe_texture_copy_size_blocks)) {
     return;
   }
   uint4 block_offsets_guest =
@@ -18,8 +18,8 @@ void main(uint3 xe_thread_id : SV_DispatchThreadID) {
   blocks = (blocks >> ((block_offsets_guest & 2u) << 3u)) & 0xFFFFu;
   blocks = XeByteSwap16(blocks, xe_texture_copy_endianness);
   uint block_offset_host = XeTextureHostLinearOffset(
-      block_index, xe_texture_copy_size.y, xe_texture_copy_host_pitch, 2u) +
-      xe_texture_copy_host_base;
+      block_index, xe_texture_copy_size_blocks.y, xe_texture_copy_host_pitch,
+      2u) + xe_texture_copy_host_base;
   xe_texture_copy_dest.Store2(block_offset_host,
                               blocks.xz | (blocks.yw << 16u));
 }

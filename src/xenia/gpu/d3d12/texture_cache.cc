@@ -29,6 +29,7 @@ namespace d3d12 {
 #include "xenia/gpu/d3d12/shaders/bin/texture_load_32bpb_cs.h"
 #include "xenia/gpu/d3d12/shaders/bin/texture_load_64bpb_cs.h"
 #include "xenia/gpu/d3d12/shaders/bin/texture_load_8bpb_cs.h"
+#include "xenia/gpu/d3d12/shaders/bin/texture_load_ctx1_cs.h"
 
 const TextureCache::HostFormat TextureCache::host_formats_[64] = {
     {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_1_REVERSE
@@ -92,7 +93,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
     {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_32_32_32_FLOAT
     {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_DXT3A
     {DXGI_FORMAT_BC4_UNORM, CopyMode::k64bpb},  // k_DXT5A
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_CTX1
+    {DXGI_FORMAT_R8G8_UNORM, CopyMode::kCTX1},  // k_CTX1
     {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_DXT3A_AS_1_1_1_1
     {DXGI_FORMAT_R8G8B8A8_UNORM, CopyMode::k32bpb},  // k_8_8_8_8_GAMMA
     {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},       // k_2_10_10_10_FLOAT_EDRAM
@@ -107,6 +108,7 @@ const TextureCache::CopyModeInfo TextureCache::copy_mode_info_[] = {
     {texture_load_32bpb_cs, sizeof(texture_load_32bpb_cs)},
     {texture_load_64bpb_cs, sizeof(texture_load_64bpb_cs)},
     {texture_load_128bpb_cs, sizeof(texture_load_128bpb_cs)},
+    {texture_load_ctx1_cs, sizeof(texture_load_ctx1_cs)},
 };
 
 TextureCache::TextureCache(D3D12CommandProcessor* command_processor,
@@ -820,11 +822,14 @@ bool TextureCache::LoadTextureData(Texture* texture) {
                                        : texture->mip_pitches[j];
       copy_constants.host_base = uint32_t(host_layouts[j].Offset);
       copy_constants.host_pitch = host_layouts[j].Footprint.RowPitch;
-      copy_constants.size[0] =
-          (std::max(width >> j, 1u) + (block_width - 1)) / block_width;
-      copy_constants.size[1] =
-          (std::max(height >> j, 1u) + (block_height - 1)) / block_height;
-      copy_constants.size[2] = std::max(depth >> j, 1u);
+      copy_constants.size_texels[0] = std::max(width >> j, 1u);
+      copy_constants.size_texels[1] = std::max(height >> j, 1u);
+      copy_constants.size_texels[2] = std::max(depth >> j, 1u);
+      copy_constants.size_blocks[0] =
+          (copy_constants.size_texels[0] + (block_width - 1)) / block_width;
+      copy_constants.size_blocks[1] =
+          (copy_constants.size_texels[1] + (block_height - 1)) / block_height;
+      copy_constants.size_blocks[2] = copy_constants.size_texels[2];
       if (texture->key.packed_mips) {
         texture_util::GetPackedMipOffset(width, height, depth, guest_format, j,
                                          copy_constants.guest_mip_offset[0],
@@ -843,9 +848,9 @@ bool TextureCache::LoadTextureData(Texture* texture) {
       std::memcpy(cbuffer_mapping, &copy_constants, sizeof(copy_constants));
       command_list->SetComputeRootConstantBufferView(0, cbuffer_gpu_address);
       // Each thread group processes 32x32x1 blocks.
-      command_list->Dispatch((copy_constants.size[0] + 31) >> 5,
-                             (copy_constants.size[1] + 31) >> 5,
-                             copy_constants.size[2]);
+      command_list->Dispatch((copy_constants.size_blocks[0] + 31) >> 5,
+                             (copy_constants.size_blocks[1] + 31) >> 5,
+                             copy_constants.size_blocks[2]);
     }
     barriers[0].Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
     barriers[0].UAV.pResource = copy_buffer;

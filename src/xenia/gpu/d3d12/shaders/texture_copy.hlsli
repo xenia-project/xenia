@@ -11,13 +11,14 @@ cbuffer xe_texture_copy_constants : register(b0) {
   uint xe_texture_copy_host_base;
   uint xe_texture_copy_host_pitch;
 
-  // Size in blocks.
-  uint3 xe_texture_copy_size;
+  uint3 xe_texture_copy_size_texels;
   bool xe_texture_copy_is_3d;
+
+  uint3 xe_texture_copy_size_blocks;
+  uint xe_texture_copy_endianness;
 
   // Offset within the packed mip for small mips.
   uint3 xe_texture_copy_guest_mip_offset;
-  uint xe_texture_copy_endianness;
 };
 
 #define XeTextureCopyGuestPitchTiled 0xFFFFFFFFu
@@ -33,15 +34,15 @@ uint4 XeTextureCopyGuestBlockOffsets(uint3 block_index, uint bpb,
   [branch] if (xe_texture_copy_guest_pitch == XeTextureCopyGuestPitchTiled) {
     [branch] if (xe_texture_copy_is_3d) {
       block_offsets_guest = XeTextureTiledOffset3D(
-          block_index_guest, xe_texture_copy_size.xy, bpb_log2);
+          block_index_guest, xe_texture_copy_size_blocks.xy, bpb_log2);
     } else {
       block_offsets_guest = XeTextureTiledOffset2D(
-          block_index_guest.xy, xe_texture_copy_size.x, bpb_log2);
+          block_index_guest.xy, xe_texture_copy_size_blocks.x, bpb_log2);
     }
   } else {
     block_offsets_guest =
         uint4(0u, 1u, 2u, 3u) * bpb + XeTextureGuestLinearOffset(
-            block_index_guest, xe_texture_copy_size.y,
+            block_index_guest, xe_texture_copy_size_blocks.y,
             xe_texture_copy_guest_pitch, 16u);
   }
   return block_offsets_guest + xe_texture_copy_guest_base;
