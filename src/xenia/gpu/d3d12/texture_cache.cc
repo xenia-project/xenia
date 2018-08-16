@@ -542,18 +542,22 @@ void TextureCache::TextureKeyFromFetchConstant(
   key_out.endianness = Endian(fetch.endianness);
 
   uint32_t swizzle = fetch.swizzle;
+  const uint32_t swizzle_constant_mask = 4 | (4 << 3) | (4 << 6) | (4 << 9);
+  uint32_t swizzle_constant = swizzle & swizzle_constant_mask;
+  uint32_t swizzle_not_constant = swizzle_constant ^ swizzle_constant_mask;
   // Get rid of 6 and 7 values (to prevent device losses if the game has
   // something broken) the quick and dirty way - by changing them to 4 and 5.
-  swizzle &= ~((swizzle & (4 | (4 << 3) | (4 << 6) | (4 << 9))) >> 1);
+  swizzle &= ~(swizzle_constant >> 1);
   // Remap the swizzle according to the texture format.
   if (format == TextureFormat::k_DXT3A) {
     // DXT3A is emulated as DXT3 with zero color, but the alpha should be
     // replicated into all channels.
     // http://fileadmin.cs.lth.se/cs/Personal/Michael_Doggett/talks/unc-xenos-doggett.pdf
     // If not 0.0 or 1.0 (if the high bit isn't set), make 3 (alpha).
-    uint32_t swizzle_not_constant =
-        ~swizzle & (4 | (4 << 3) | (4 << 6) | (4 << 9));
     swizzle |= (swizzle_not_constant >> 1) | (swizzle_not_constant >> 2);
+  } else if (format == TextureFormat::k_DXT5A) {
+    // DXT5A is emulated as BC4, but DXT5 alpha (BC4 red) should be replicated.
+    swizzle &= ~((swizzle_not_constant >> 1) | (swizzle_not_constant >> 2));
   }
   swizzle_out = swizzle;
 }
