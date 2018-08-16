@@ -177,6 +177,9 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
       "  float xe_pixel_half_pixel_offset;\n"
       "  float2 xe_ssaa_inv_scale;\n"
       "  uint xe_pixel_pos_reg;\n"
+      "  bool xe_alpha_test_enabled;\n"
+      "  float2 xe_alpha_test_range;\n"
+      "  bool xe_alpha_test_range_pass;\n"
       "  uint4 xe_color_output_map;\n"
       "};\n"
       "\n"
@@ -382,15 +385,29 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
         "      xe_output.position.xyz * xe_ndc_scale +\n"
         "      xe_ndc_offset * xe_output.position.www;\n");
   } else if (is_pixel_shader()) {
-    // Remap guest color outputs to host render targets because null render
-    // target descriptors are broken.
     source.Append(
+        // Perform alpha test - check if the alpha is within the specified
+        // bounds (inclusively), fail or pass depending on comparison mode and
+        // on the results of the bound test.
+        "  [branch] if (xe_alpha_test_enabled) {\n"
+        "    bool xe_alpha_test_failed =\n"
+        "        xe_color_output[0u].a >= xe_alpha_test_range.x &&\n"
+        "        xe_color_output[0u].a <= xe_alpha_test_range.y;\n"
+        "    [flatten] if (xe_alpha_test_range_pass) {\n"
+        "      xe_alpha_test_failed = !xe_alpha_test_failed;\n"
+        "    }\n"
+        "    if (xe_alpha_test_failed) {\n"
+        "      discard;\n"
+        "    }\n"
+        "  }\n"
+        // Remap guest color outputs to host render targets because null render
+        // target descriptors are broken.
         "  xe_output.colors[0] = xe_color_output[xe_color_output_map.r];\n"
         "  xe_output.colors[1] = xe_color_output[xe_color_output_map.g];\n"
         "  xe_output.colors[2] = xe_color_output[xe_color_output_map.b];\n"
         "  xe_output.colors[3] = xe_color_output[xe_color_output_map.a];\n");
   }
-  // TODO(Triang3l): Window offset, half pixel offset, alpha test, gamma.
+  // TODO(Triang3l): Half pixel offset, alpha test, gamma.
   source.Append(
       "  return xe_output;\n"
       "}\n");
