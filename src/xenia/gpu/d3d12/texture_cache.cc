@@ -723,14 +723,14 @@ bool TextureCache::LoadTextureData(Texture* texture) {
 
   // Request uploading of the texture data to the shared memory.
   if (!texture->base_in_sync) {
-    if (!shared_memory_->UseRange(texture->key.base_page << 12,
-                                  texture->base_size)) {
+    if (!shared_memory_->RequestRange(texture->key.base_page << 12,
+                                      texture->base_size, command_list)) {
       return false;
     }
   }
   if (!texture->mips_in_sync) {
-    if (!shared_memory_->UseRange(texture->key.mip_page << 12,
-                                  texture->mip_size)) {
+    if (!shared_memory_->RequestRange(texture->key.mip_page << 12,
+                                      texture->mip_size, command_list)) {
       return false;
     }
   }

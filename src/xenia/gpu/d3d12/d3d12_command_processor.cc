@@ -454,11 +454,9 @@ bool D3D12CommandProcessor::SetupContext() {
   auto direct_queue = provider->GetDirectQueue();
 
   for (uint32_t i = 0; i < ui::d3d12::D3D12Context::kQueuedFrames; ++i) {
-    command_lists_setup_[i] = ui::d3d12::CommandList::Create(
-        device, direct_queue, D3D12_COMMAND_LIST_TYPE_DIRECT);
     command_lists_[i] = ui::d3d12::CommandList::Create(
         device, direct_queue, D3D12_COMMAND_LIST_TYPE_DIRECT);
-    if (command_lists_setup_[i] == nullptr || command_lists_[i] == nullptr) {
+    if (command_lists_[i] == nullptr) {
       XELOGE("Failed to create the command lists");
       return false;
     }
@@ -532,7 +530,6 @@ void D3D12CommandProcessor::ShutdownContext() {
 
   for (uint32_t i = 0; i < ui::d3d12::D3D12Context::kQueuedFrames; ++i) {
     command_lists_[i].reset();
-    command_lists_setup_[i].reset();
   }
 
   CommandProcessor::ShutdownContext();
@@ -752,7 +749,6 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
   // Ensure vertex and index buffers are resident and draw.
   // TODO(Triang3l): Cache residency for ranges in a way similar to how texture
   // validity will be tracked.
-  shared_memory_->UseForReading(command_list);
   uint64_t vertex_buffers_resident[2] = {};
   for (const auto& vertex_binding : vertex_shader->vertex_bindings()) {
     uint32_t vfetch_index = vertex_binding.fetch_constant;
@@ -766,8 +762,9 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
       XELOGGPU("Vertex fetch type is not 3!");
       return false;
     }
-    shared_memory_->UseRange(regs[vfetch_constant_index].u32 & 0x1FFFFFFC,
-                             regs[vfetch_constant_index + 1].u32 & 0x3FFFFFC);
+    shared_memory_->RequestRange(
+        regs[vfetch_constant_index].u32 & 0x1FFFFFFC,
+        regs[vfetch_constant_index + 1].u32 & 0x3FFFFFC, command_list);
     vertex_buffers_resident[vfetch_index >> 6] |= 1ull << (vfetch_index & 63);
   }
   if (indexed) {
@@ -777,7 +774,9 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
                               : sizeof(uint16_t);
     index_base &= ~(index_size - 1);
     uint32_t index_buffer_size = index_buffer_info->count * index_size;
-    shared_memory_->UseRange(index_base, index_buffer_size);
+    shared_memory_->RequestRange(index_base, index_buffer_size, command_list);
+
+    shared_memory_->UseForReading(command_list);
     D3D12_INDEX_BUFFER_VIEW index_buffer_view;
     index_buffer_view.BufferLocation =
         shared_memory_->GetGPUAddress() + index_base;
@@ -788,6 +787,7 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     command_list->IASetIndexBuffer(&index_buffer_view);
     command_list->DrawIndexedInstanced(index_count, 1, 0, 0, 0);
   } else {
+    shared_memory_->UseForReading(command_list);
     command_list->DrawInstanced(index_count, 1, 0, 0);
   }
 
@@ -841,7 +841,6 @@ bool D3D12CommandProcessor::BeginFrame() {
   draw_sampler_full_update_ = 0;
   primitive_topology_ = D3D_PRIMITIVE_TOPOLOGY_UNDEFINED;
 
-  command_lists_setup_[current_queue_frame_]->BeginRecording();
   command_lists_[current_queue_frame_]->BeginRecording();
 
   constant_buffer_pool_->BeginFrame();
@@ -864,20 +863,11 @@ bool D3D12CommandProcessor::EndFrame() {
 
   assert_false(scratch_buffer_used_);
 
-  auto command_list_setup = command_lists_setup_[current_queue_frame_].get();
-  auto command_list = command_lists_[current_queue_frame_].get();
-
   render_target_cache_->EndFrame();
 
-  bool setup_written = shared_memory_->EndFrame(
-      command_list_setup->GetCommandList(), command_list->GetCommandList());
+  shared_memory_->EndFrame();
 
-  if (setup_written) {
-    command_list_setup->Execute();
-  } else {
-    command_list_setup->AbortRecording();
-  }
-  command_list->Execute();
+  command_lists_[current_queue_frame_]->Execute();
 
   sampler_heap_pool_->EndFrame();
   view_heap_pool_->EndFrame();

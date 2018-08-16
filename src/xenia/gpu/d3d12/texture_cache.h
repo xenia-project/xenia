@@ -230,8 +230,8 @@ class TextureCache {
   // made.
   Texture* FindOrCreateTexture(TextureKey key);
 
-  // Writes data from the shared memory to the texture. This binds pipelines and
-  // allocates descriptors!
+  // Writes data from the shared memory to the texture. This binds pipelines,
+  // allocates descriptors and copies!
   bool LoadTextureData(Texture* texture);
 
   // Makes all bindings invalid. Also requesting textures after calling this
