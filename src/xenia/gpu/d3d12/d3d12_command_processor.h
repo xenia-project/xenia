@@ -159,8 +159,6 @@ class D3D12CommandProcessor : public CommandProcessor {
   bool cache_clear_requested_ = false;
 
   std::unique_ptr<ui::d3d12::CommandList>
-  command_lists_setup_[ui::d3d12::D3D12Context::kQueuedFrames] = {};
-  std::unique_ptr<ui::d3d12::CommandList>
   command_lists_[ui::d3d12::D3D12Context::kQueuedFrames] = {};
 
   std::unique_ptr<SharedMemory> shared_memory_ = nullptr;
