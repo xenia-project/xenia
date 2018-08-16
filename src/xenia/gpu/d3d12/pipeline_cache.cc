@@ -403,11 +403,15 @@ PipelineCache::UpdateStatus PipelineCache::UpdateBlendStateAndRenderTargets(
   for (uint32_t i = 0; i < 4; ++i) {
     auto& blend_desc = update_desc_.BlendState.RenderTarget[i];
     uint32_t guest_render_target = render_targets[i].guest_render_target;
+    uint32_t blend_control = regs.blendcontrol[guest_render_target];
     DXGI_FORMAT format = render_targets[i].format;
-    if (blend_enable && format != DXGI_FORMAT_UNKNOWN &&
+    // Also treat 1 * src + 0 * dest as disabled blending (there are opaque
+    // surfaces drawn with blending enabled, but it's 1 * src + 0 * dest, in
+    // Call of Duty 4 - GPU performance is better when not blending.
+    if (blend_enable && (blend_control & 0x1FFF1FFF) != 0x00010001 &&
+        format != DXGI_FORMAT_UNKNOWN &&
         (color_mask & (0xF << (guest_render_target * 4)))) {
       blend_desc.BlendEnable = TRUE;
-      uint32_t blend_control = regs.blendcontrol[guest_render_target];
       // A2XX_RB_BLEND_CONTROL_COLOR_SRCBLEND
       blend_desc.SrcBlend = kBlendFactorMap[(blend_control & 0x0000001F) >> 0];
       // A2XX_RB_BLEND_CONTROL_COLOR_DESTBLEND
