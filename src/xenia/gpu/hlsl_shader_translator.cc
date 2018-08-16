@@ -277,7 +277,6 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
     for (uint32_t i = 0; i < kMaxInterpolators; ++i) {
       source.AppendFormat("  xe_output.interpolators[%u] = (0.0).xxxx;\n", i);
     }
-    // TODO(Triang3l): Reset interpolators to zero if really needed.
   } else if (is_pixel_shader()) {
     // Pixel shader inputs, outputs and prologue.
     // If the shader writes to depth, it needs to define
@@ -313,7 +312,15 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
     for (uint32_t i = 0; i < interpolator_register_count; ++i) {
       source.AppendFormat("  xe_r[%u] = xe_input.interpolators[%u];\n", i, i);
     }
-    // TODO(Triang3l): ps_param_gen.
+    // Write pixel position to the register specified by ps_param_gen.
+    source.AppendFormat(
+        "  [branch] if (xe_pixel_pos_reg < %uu) {\n"
+        "    float4 xe_pixel_pos = xe_input.position;\n"
+        "    xe_pixel_pos.xy = xe_pixel_pos.xy * xe_ssaa_inv_scale +\n"
+        "                      xe_pixel_half_pixel_offset;\n"
+        "    xe_r[xe_pixel_pos_reg] = xe_pixel_pos;\n"
+        "  }\n",
+        register_count());
   }
 
   // Common main function variables and prologue.
@@ -407,7 +414,7 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
         "  xe_output.colors[2] = xe_color_output[xe_color_output_map.b];\n"
         "  xe_output.colors[3] = xe_color_output[xe_color_output_map.a];\n");
   }
-  // TODO(Triang3l): Half pixel offset, alpha test, gamma.
+  // TODO(Triang3l): Gamma if needed.
   source.Append(
       "  return xe_output;\n"
       "}\n");
