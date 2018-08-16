@@ -1048,7 +1048,7 @@ void HlslShaderTranslator::ProcessVertexFetchInstruction(
       EmitSourceDepth("xe_pv.zw = float2(0.0, 1.0);\n");
       break;
     case VertexFormat::k_16_16_16_16:
-      EmitSourceDepth("xe_vertex_element = (xe_vertex_element.xxxx >>\n");
+      EmitSourceDepth("xe_vertex_element = (xe_vertex_element.xxyy >>\n");
       EmitSourceDepth("    uint4(0u, 16u, 0u, 16u)) & 65535u;\n");
       if (instr.attributes.is_signed) {
         EmitSourceDepth(
@@ -1073,7 +1073,7 @@ void HlslShaderTranslator::ProcessVertexFetchInstruction(
       EmitSourceDepth("xe_pv.zw = float2(0.0, 1.0);\n");
       break;
     case VertexFormat::k_16_16_16_16_FLOAT:
-      EmitSourceDepth("xe_vertex_element = (xe_vertex_element.xxxx >>\n");
+      EmitSourceDepth("xe_vertex_element = (xe_vertex_element.xxyy >>\n");
       EmitSourceDepth("    uint4(0u, 16u, 0u, 16u)) & 65535u;\n");
       EmitSourceDepth("xe_pv = f16tof32(xe_vertex_element);\n");
       break;
