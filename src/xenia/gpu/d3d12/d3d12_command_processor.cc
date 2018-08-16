@@ -1032,6 +1032,8 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   uint32_t sq_program_cntl = regs[XE_GPU_REG_SQ_PROGRAM_CNTL].u32;
   uint32_t sq_context_misc = regs[XE_GPU_REG_SQ_CONTEXT_MISC].u32;
   uint32_t rb_surface_info = regs[XE_GPU_REG_RB_SURFACE_INFO].u32;
+  uint32_t rb_colorcontrol = regs[XE_GPU_REG_RB_COLORCONTROL].u32;
+  uint32_t rb_alpha_ref = regs[XE_GPU_REG_RB_ALPHA_REF].u32;
 
   bool dirty = false;
 
@@ -1136,6 +1138,39 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   dirty |= system_constants_.ssaa_inv_scale[1] != ssaa_inv_scale_y;
   system_constants_.ssaa_inv_scale[0] = ssaa_inv_scale_x;
   system_constants_.ssaa_inv_scale[1] = ssaa_inv_scale_y;
+
+  // Alpha test.
+  uint32_t alpha_test_enabled = (rb_colorcontrol & 0x8) ? 1 : 0;
+  dirty |= system_constants_.alpha_test_enabled != alpha_test_enabled;
+  system_constants_.alpha_test_enabled = alpha_test_enabled;
+  if (rb_colorcontrol & 0x8) {
+    uint32_t alpha_test_function = rb_colorcontrol & 0x7;
+    // 0: Never - fail in [-inf, +inf].
+    // 1: Less - fail in [ref, +inf].
+    // 2: Equal - pass in [ref, ref].
+    // 3: Less or equal - pass in [-inf, ref].
+    // 4: Greater - fail in [-inf, ref].
+    // 5: Not equal - fail in [ref, ref].
+    // 6: Greater or equal - pass in [ref, +inf].
+    // 7: Always - pass in [-inf, +inf].
+    uint32_t alpha_test_range_start =
+        (alpha_test_function == 1 || alpha_test_function == 2 ||
+         alpha_test_function == 5 || alpha_test_function == 6)
+            ? rb_alpha_ref
+            : 0xFF800000u;
+    uint32_t alpha_test_range_end =
+        (alpha_test_function == 2 || alpha_test_function == 3 ||
+         alpha_test_function == 4 || alpha_test_function == 5)
+            ? rb_alpha_ref
+            : 0x7F800000u;
+    uint32_t alpha_test_range_pass = (alpha_test_function & 0x2) ? 1 : 0;
+    dirty |= system_constants_.alpha_test_range[0] != alpha_test_range_start;
+    dirty |= system_constants_.alpha_test_range[1] != alpha_test_range_end;
+    dirty |= system_constants_.alpha_test_range_pass != alpha_test_range_pass;
+    system_constants_.alpha_test_range[0] = alpha_test_range_start;
+    system_constants_.alpha_test_range[1] = alpha_test_range_end;
+    system_constants_.alpha_test_range_pass = alpha_test_range_pass;
+  }
 
   // Color output index mapping.
   for (uint32_t i = 0; i < 4; ++i) {

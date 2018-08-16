@@ -37,8 +37,13 @@ class HlslShaderTranslator : public ShaderTranslator {
     // vec4 3
     float ssaa_inv_scale[2];
     uint32_t pixel_pos_reg;
-    uint32_t padding_3;
+    uint32_t alpha_test_enabled;
     // vec4 4
+    // The range is floats as uints so it's easier to pass infinity.
+    uint32_t alpha_test_range[2];
+    uint32_t alpha_test_range_pass;
+    uint32_t padding_4;
+    // vec4 5
     uint32_t color_output_map[4];
   };
 
