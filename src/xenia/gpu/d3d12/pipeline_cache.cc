@@ -353,7 +353,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateBlendStateAndRenderTargets(
   regs.color_mask = color_mask;
   bool blend_enable =
       color_mask != 0 &&
-      !(register_file_->values[XE_GPU_REG_RB_COLOR_MASK].u32 & 0x20);
+      !(register_file_->values[XE_GPU_REG_RB_COLORCONTROL].u32 & 0x20);
   dirty |= regs.colorcontrol_blend_enable != blend_enable;
   regs.colorcontrol_blend_enable = blend_enable;
   static const Register kBlendControlRegs[] = {
