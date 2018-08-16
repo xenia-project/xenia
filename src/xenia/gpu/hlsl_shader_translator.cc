@@ -1767,7 +1767,7 @@ void HlslShaderTranslator::ProcessScalarAluInstruction(
       EmitSourceDepth("clip(-xe_ps);\n");
       break;
     case AluScalarOpcode::kSqrt:
-      EmitSourceDepth("xe_ps = float(xe_src0.x);\n");
+      EmitSourceDepth("xe_ps = sqrt(xe_src0.x);\n");
       break;
     case AluScalarOpcode::kMulsc0:
     case AluScalarOpcode::kMulsc1:
