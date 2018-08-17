@@ -47,10 +47,16 @@ class SharedMemory {
   typedef void* WatchHandle;
   // Registers a callback invoked when something is written to the specified
   // memory range by the CPU or (if triggered explicitly - such as by a resolve)
-  // the GPU. Generally the context is the subsystem pointer (for example, the
+  // the GPU.
+  //
+  // Generally the context is the subsystem pointer (for example, the
   // texture cache), the data is the object (such as a texture), and the
   // argument is additional subsystem/object-specific data (such as whether the
   // range belongs to the base mip level or to the rest of the mips).
+  //
+  // The callback is called with the mutex locked. Do NOT watch or unwatch
+  // ranges from within it! The watch for the callback is cancelled after the
+  // callback.
   WatchHandle WatchMemoryRange(uint32_t start, uint32_t length,
                                WatchCallback callback, void* callback_context,
                                void* callback_data, uint64_t callback_argument);
@@ -119,50 +125,55 @@ class SharedMemory {
   static bool MemoryWriteCallbackThunk(void* context_ptr, uint32_t address);
   bool MemoryWriteCallback(uint32_t address);
 
+  struct WatchNode;
   // Watched range placed by other GPU subsystems.
   struct WatchRange {
-    WatchCallback callback;
-    void* callback_context;
-    void* callback_data;
-    uint64_t callback_argument;
-    struct WatchNode* node_first;
-    uint32_t page_first;
-    uint32_t page_last;
+    union {
+      struct {
+        WatchCallback callback;
+        void* callback_context;
+        void* callback_data;
+        uint64_t callback_argument;
+        WatchNode* node_first;
+        uint32_t page_first;
+        uint32_t page_last;
+      };
+      WatchRange* next_free;
+    };
   };
   // Node for faster checking of watches when pages have been written to - all
   // 512 MB are split into smaller equally sized buckets, and then ranges are
   // linearly checked.
   struct WatchNode {
-    WatchRange* range;
-    // Links to nodes belonging to other watched ranges in the bucket.
-    WatchNode* bucket_node_previous;
-    WatchNode* bucket_node_next;
-    // Link to another node of this watched range in the next bucket.
-    WatchNode* range_node_next;
+    union {
+      struct {
+        WatchRange* range;
+        // Link to another node of this watched range in the next bucket.
+        WatchNode* range_node_next;
+        // Links to nodes belonging to other watched ranges in the bucket.
+        WatchNode* bucket_node_previous;
+        WatchNode* bucket_node_next;
+      };
+      WatchNode* next_free;
+    };
   };
   static constexpr uint32_t kWatchBucketSizeLog2 = 22;
   static constexpr uint32_t kWatchBucketCount =
       1 << (kBufferSizeLog2 - kWatchBucketSizeLog2);
   WatchNode* watch_buckets_[kWatchBucketCount] = {};
-  // Allocations in pools - taking new WatchRanges and WatchNodes from the free
+  // Allocation from pools - taking new WatchRanges and WatchNodes from the free
   // list, and if there are none, creating a pool if the current one is fully
   // used, and linearly allocating from the current pool.
-  union WatchRangeAllocation {
-    WatchRange range;
-    WatchRangeAllocation* next_free;
-  };
-  union WatchNodeAllocation {
-    WatchNode node;
-    WatchNodeAllocation* next_free;
-  };
   static constexpr uint32_t kWatchRangePoolSize = 8192;
   static constexpr uint32_t kWatchNodePoolSize = 8192;
-  std::vector<WatchRangeAllocation*> watch_range_pools_;
-  std::vector<WatchNodeAllocation*> watch_node_pools_;
+  std::vector<WatchRange*> watch_range_pools_;
+  std::vector<WatchNode*> watch_node_pools_;
   uint32_t watch_range_current_pool_allocated_ = 0;
   uint32_t watch_node_current_pool_allocated_ = 0;
-  WatchRangeAllocation* watch_range_first_free = nullptr;
-  WatchNodeAllocation* watch_node_first_free = nullptr;
+  WatchRange* watch_range_first_free_ = nullptr;
+  WatchNode* watch_node_first_free_ = nullptr;
+  // Unlinks and frees the range and its nodes. Call this with the mutex locked.
+  void UnlinkWatchRange(WatchRange* range);
 
   // ***************************************************************************
   // Things above should be protected by validity_mutex_.
