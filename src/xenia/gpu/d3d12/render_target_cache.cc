@@ -15,6 +15,7 @@
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
+#include "xenia/base/profiling.h"
 #include "xenia/gpu/d3d12/d3d12_command_processor.h"
 
 namespace xe {
@@ -304,8 +305,12 @@ bool RenderTargetCache::UpdateRenderTargets() {
   if (command_list == nullptr) {
     return false;
   }
-
   auto& regs = *register_file_;
+
+#if FINE_GRAINED_DRAW_SCOPES
+  SCOPE_profile_cpu_f("gpu");
+#endif  // FINE_GRAINED_DRAW_SCOPES
+
   uint32_t rb_surface_info = regs[XE_GPU_REG_RB_SURFACE_INFO].u32;
   uint32_t surface_pitch = std::min(rb_surface_info & 0x3FFF, 2560u);
   if (surface_pitch == 0) {
