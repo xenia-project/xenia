@@ -115,6 +115,77 @@ void SharedMemory::BeginFrame() {
 
 void SharedMemory::EndFrame() { upload_buffer_pool_->EndFrame(); }
 
+SharedMemory::WatchHandle SharedMemory::WatchMemoryRange(
+    uint32_t start, uint32_t length, WatchCallback callback,
+    void* callback_context, void* callback_data, uint64_t callback_argument) {
+  start &= kAddressMask;
+  if (start >= kBufferSize || length == 0) {
+    return nullptr;
+  }
+  length = std::min(length, kBufferSize - start);
+  uint32_t watch_page_first = start >> page_size_log2_;
+  uint32_t watch_page_last = (start + length - 1) >> page_size_log2_;
+  uint32_t bucket_first =
+      watch_page_first << page_size_log2_ >> kWatchBucketSizeLog2;
+  uint32_t bucket_last =
+      watch_page_last << page_size_log2_ >> kWatchBucketSizeLog2;
+
+  std::lock_guard<std::mutex> lock(validity_mutex_);
+
+  // Allocate the range.
+  WatchRange* range = watch_range_first_free_;
+  if (range != nullptr) {
+    watch_range_first_free_ = range->next_free;
+  } else {
+    if (watch_range_pools_.empty() ||
+        watch_range_current_pool_allocated_ >= kWatchRangePoolSize) {
+      watch_range_pools_.push_back(new WatchRange[kWatchRangePoolSize]);
+      watch_range_current_pool_allocated_ = 0;
+      range =
+          &(watch_range_pools_.back()[watch_range_current_pool_allocated_++]);
+    }
+  }
+  range->callback = callback;
+  range->callback_context = callback_context;
+  range->callback_data = callback_data;
+  range->callback_argument = callback_argument;
+  range->page_first = watch_page_first;
+  range->page_last = watch_page_last;
+
+  // Allocate and link the nodes.
+  WatchNode* node_previous = nullptr;
+  for (uint32_t i = bucket_first; i <= bucket_last; ++i) {
+    WatchNode* node = watch_node_first_free_;
+    if (node != nullptr) {
+      watch_node_first_free_ = node->next_free;
+    } else {
+      if (watch_node_pools_.empty() ||
+          watch_node_current_pool_allocated_ >= kWatchNodePoolSize) {
+        watch_node_pools_.push_back(new WatchNode[kWatchNodePoolSize]);
+        watch_node_current_pool_allocated_ = 0;
+        node =
+            &(watch_node_pools_.back()[watch_node_current_pool_allocated_++]);
+      }
+    }
+    node->range = range;
+    node->range_node_next = nullptr;
+    if (node_previous != nullptr) {
+      node_previous->range_node_next = node;
+    } else {
+      range->node_first = node;
+    }
+    node_previous = node;
+    node->bucket_node_previous = nullptr;
+    node->bucket_node_next = watch_buckets_[i];
+    if (watch_buckets_[i] != nullptr) {
+      watch_buckets_[i]->bucket_node_previous = node;
+    }
+    watch_buckets_[i] = node;
+  }
+
+  return reinterpret_cast<WatchHandle>(range);
+}
+
 bool SharedMemory::RequestRange(uint32_t start, uint32_t length,
                                 ID3D12GraphicsCommandList* command_list) {
   if (length == 0) {
@@ -122,7 +193,7 @@ bool SharedMemory::RequestRange(uint32_t start, uint32_t length,
     return true;
   }
   start &= kAddressMask;
-  if ((kBufferSize - start) < length) {
+  if (start >= kBufferSize || (kBufferSize - start) < length) {
     // Exceeds the physical address space.
     return false;
   }
@@ -245,6 +316,29 @@ void SharedMemory::MakeRangeValid(uint32_t valid_page_first,
   memory_->ProtectPhysicalMemory(
       valid_page_first << page_size_log2_, valid_page_count << page_size_log2_,
       cpu::MMIOHandler::WatchType::kWatchWrite, false);
+}
+
+void SharedMemory::UnlinkWatchRange(WatchRange* range) {
+  uint32_t bucket =
+      range->page_first << page_size_log2_ >> kWatchBucketSizeLog2;
+  WatchNode* node = range->node_first;
+  while (node != nullptr) {
+    WatchNode* node_next = node->range_node_next;
+    if (node->bucket_node_previous != nullptr) {
+      node->bucket_node_previous->bucket_node_next = node->bucket_node_next;
+    } else {
+      watch_buckets_[bucket] = node->bucket_node_next;
+    }
+    if (node->bucket_node_next != nullptr) {
+      node->bucket_node_next->bucket_node_previous = node->bucket_node_previous;
+    }
+    node->next_free = watch_node_first_free_;
+    watch_node_first_free_ = node;
+    node = node_next;
+    ++bucket;
+  }
+  range->next_free = watch_range_first_free_;
+  watch_range_first_free_ = range;
 }
 
 void SharedMemory::GetRangesToUpload(uint32_t request_page_first,
