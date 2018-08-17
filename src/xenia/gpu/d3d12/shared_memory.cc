@@ -30,7 +30,7 @@ SharedMemory::SharedMemory(Memory* memory, ui::d3d12::D3D12Context* context)
   assert_true(page_bitmap_length != 0);
 
   valid_pages_.resize(page_bitmap_length);
-  watched_pages_.resize(page_bitmap_length);
+  protected_pages_.resize(page_bitmap_length);
 }
 
 SharedMemory::~SharedMemory() { Shutdown(); }
@@ -76,13 +76,13 @@ bool SharedMemory::Initialize() {
 
   std::memset(valid_pages_.data(), 0, valid_pages_.size() * sizeof(uint64_t));
 
-  std::memset(watched_pages_.data(), 0,
-              watched_pages_.size() * sizeof(uint64_t));
+  std::memset(protected_pages_.data(), 0,
+              protected_pages_.size() * sizeof(uint64_t));
 
   upload_buffer_pool_ =
       std::make_unique<ui::d3d12::UploadBufferPool>(context_, 4 * 1024 * 1024);
 
-  memory_->SetGlobalPhysicalAccessWatch(WatchCallbackThunk, this);
+  memory_->SetGlobalPhysicalAccessWatch(MemoryWriteCallbackThunk, this);
 
   return true;
 }
@@ -179,7 +179,7 @@ bool SharedMemory::RequestRange(uint32_t start, uint32_t length,
     }
   }
 
-  // Upload and watch used ranges.
+  // Upload and protect used ranges.
   GetRangesToUpload(start >> page_size_log2_,
                     ((start & ((1 << page_size_log2_) - 1)) + length +
                      ((1 << page_size_log2_) - 1)) >>
@@ -239,7 +239,7 @@ void SharedMemory::MakeRangeValid(uint32_t valid_page_first,
       valid_bits &= (1ull << ((valid_page_last & 63) + 1)) - 1;
     }
     valid_pages_[i] |= valid_bits;
-    watched_pages_[i] |= valid_bits;
+    protected_pages_[i] |= valid_bits;
   }
 
   memory_->ProtectPhysicalMemory(
@@ -309,27 +309,29 @@ void SharedMemory::GetRangesToUpload(uint32_t request_page_first,
   }
 }
 
-bool SharedMemory::WatchCallbackThunk(void* context_ptr, uint32_t address) {
-  return reinterpret_cast<SharedMemory*>(context_ptr)->WatchCallback(address);
+bool SharedMemory::MemoryWriteCallbackThunk(void* context_ptr,
+                                            uint32_t address) {
+  SharedMemory* shared_memory = reinterpret_cast<SharedMemory*>(context_ptr);
+  return shared_memory->MemoryWriteCallback(address);
 }
 
-bool SharedMemory::WatchCallback(uint32_t address) {
+bool SharedMemory::MemoryWriteCallback(uint32_t address) {
   uint32_t page_index = (address & kAddressMask) >> page_size_log2_;
   uint32_t block_index = page_index >> 6;
   uint64_t page_bit = 1ull << (page_index & 63);
 
   std::lock_guard<std::mutex> lock(validity_mutex_);
 
-  if (!(watched_pages_[block_index] & page_bit)) {
+  if (!(protected_pages_[block_index] & page_bit)) {
     return false;
   }
 
   valid_pages_[block_index] &= ~page_bit;
-  // TODO(Triang3l): Invoke texture invalidation callbacks.
+  // TODO(Triang3l): Invoke watch callbacks.
 
   memory_->UnprotectPhysicalMemory(page_index << page_size_log2_,
                                    1 << page_size_log2_, false);
-  watched_pages_[block_index] &= ~page_bit;
+  protected_pages_[block_index] &= ~page_bit;
   return true;
 }
 
