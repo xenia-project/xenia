@@ -12,10 +12,12 @@
 
 #include <deque>
 #include <memory>
+#include <vector>
 
 #include "xenia/ui/d3d12/command_list.h"
 #include "xenia/ui/d3d12/d3d12_api.h"
 #include "xenia/ui/d3d12/d3d12_context.h"
+#include "xenia/ui/d3d12/pools.h"
 #include "xenia/ui/immediate_drawer.h"
 
 namespace xe {
@@ -48,13 +50,16 @@ class D3D12ImmediateDrawer : public ImmediateDrawer {
 
   ID3D12RootSignature* root_signature_ = nullptr;
   enum class RootParameter {
+    kRestrictTextureSamples,
     kTexture,
     kSampler,
-    kRestrictTextureSamples,
     kViewportInvSize,
 
     kCount
   };
+
+  ID3D12PipelineState* pipeline_triangle_ = nullptr;
+  ID3D12PipelineState* pipeline_line_ = nullptr;
 
   enum class SamplerIndex {
     kNearestClamp,
@@ -62,19 +67,36 @@ class D3D12ImmediateDrawer : public ImmediateDrawer {
     kNearestRepeat,
     kLinearRepeat,
 
-    kCount
+    kCount,
+    kInvalid = kCount
   };
   ID3D12DescriptorHeap* sampler_heap_ = nullptr;
   D3D12_CPU_DESCRIPTOR_HANDLE sampler_heap_cpu_start_;
   D3D12_GPU_DESCRIPTOR_HANDLE sampler_heap_gpu_start_;
 
-  ID3D12GraphicsCommandList* current_command_list_ = nullptr;
+  std::unique_ptr<UploadBufferPool> vertex_buffer_pool_ = nullptr;
+  std::unique_ptr<DescriptorHeapPool> texture_descriptor_pool_ = nullptr;
+
+  struct PendingTextureUpload {
+    ImmediateTexture* texture;
+    ID3D12Resource* buffer;
+  };
+  std::vector<PendingTextureUpload> texture_uploads_pending_;
 
   struct SubmittedTextureUpload {
-    ID3D12Resource* data_resource;
+    ID3D12Resource* buffer;
     uint64_t frame;
   };
   std::deque<SubmittedTextureUpload> texture_uploads_submitted_;
+
+  ID3D12GraphicsCommandList* current_command_list_ = nullptr;
+  int current_render_target_width_, current_render_target_height_;
+  bool batch_open_ = false;
+  bool batch_has_index_buffer_;
+  uint64_t texture_descriptor_pool_full_update_;
+  D3D_PRIMITIVE_TOPOLOGY current_primitive_topology_;
+  ImmediateTexture* current_texture_;
+  SamplerIndex current_sampler_index_;
 };
 
 }  // namespace d3d12

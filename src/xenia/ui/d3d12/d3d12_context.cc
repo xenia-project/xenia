@@ -256,6 +256,10 @@ void D3D12Context::BeginSwap() {
     barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
     barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
     graphics_command_list->ResourceBarrier(1, &barrier);
+
+    D3D12_CPU_DESCRIPTOR_HANDLE back_buffer_rtv = GetSwapChainBackBufferRTV();
+    graphics_command_list->OMSetRenderTargets(1, &back_buffer_rtv, TRUE,
+                                              nullptr);
   }
 }
 

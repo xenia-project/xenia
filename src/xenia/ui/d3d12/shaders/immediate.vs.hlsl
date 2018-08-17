@@ -1,21 +1,23 @@
-float2 viewport_inv_size : register(b0);
+float2 xe_viewport_inv_size : register(b0);
 
-struct vs_input {
-  float2 pos : POSITION;
-  float2 uv : TEXCOORD;
+struct XeVertexShaderInput {
+  float2 position : POSITION;
+  float2 texcoord : TEXCOORD;
   float4 color : COLOR;
 };
 
-struct vs_output {
-  float4 pos : SV_Position;
-  float2 uv : TEXCOORD0;
+struct XeVertexShaderOutput {
+  float2 texcoord : TEXCOORD0;
   float4 color : TEXCOORD1;
+  float4 position : SV_Position;
 };
 
-vs_output main(vs_input input) {
-  vs_output output;
-  output.pos = float4(viewport_inv_size * input.pos, 0.0, 1.0);
-  output.uv = input.uv;
+XeVertexShaderOutput main(XeVertexShaderInput input) {
+  XeVertexShaderOutput output;
+  output.position = float4(
+      input.position * xe_viewport_inv_size * float2(2.0, -2.0) +
+      float2(-1.0, 1.0), 0.0, 1.0);
+  output.texcoord = input.texcoord;
   output.color = input.color;
   return output;
 }
