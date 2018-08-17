@@ -43,6 +43,18 @@ class SharedMemory {
   // The draw command list is needed for the transition.
   void EndFrame();
 
+  typedef void (*WatchCallback)(void* context, void* data, uint64_t argument);
+  typedef void* WatchHandle;
+  // Registers a callback invoked when something is written to the specified
+  // memory range by the CPU or (if triggered explicitly - such as by a resolve)
+  // the GPU. Generally the context is the subsystem pointer (for example, the
+  // texture cache), the data is the object (such as a texture), and the
+  // argument is additional subsystem/object-specific data (such as whether the
+  // range belongs to the base mip level or to the rest of the mips).
+  WatchHandle WatchMemoryRange(uint32_t start, uint32_t length,
+                               WatchCallback callback, void* callback_context,
+                               void* callback_data, uint64_t callback_argument);
+
   // Checks if the range has been updated, uploads new data if needed and
   // ensures the buffer tiles backing the range are resident. May transition the
   // tiled buffer to copy destination - call this before UseForReading or
@@ -91,10 +103,70 @@ class SharedMemory {
   // Mutex between the exception handler and the command processor, to be locked
   // when checking or updating validity of pages/ranges.
   std::mutex validity_mutex_;
+
+  // ***************************************************************************
+  // Things below should be protected by validity_mutex_.
+  // ***************************************************************************
+
   // Bit vector containing whether physical memory system pages are up to date.
   std::vector<uint64_t> valid_pages_;
-  // Mark the memory range as updated and watch it.
+  // Mark the memory range as updated and protect it.
   void MakeRangeValid(uint32_t valid_page_first, uint32_t valid_page_count);
+
+  // Whether each physical page is protected by the GPU code (after uploading).
+  std::vector<uint64_t> protected_pages_;
+  // Memory access callback.
+  static bool MemoryWriteCallbackThunk(void* context_ptr, uint32_t address);
+  bool MemoryWriteCallback(uint32_t address);
+
+  // Watched range placed by other GPU subsystems.
+  struct WatchRange {
+    WatchCallback callback;
+    void* callback_context;
+    void* callback_data;
+    uint64_t callback_argument;
+    struct WatchNode* node_first;
+    uint32_t page_first;
+    uint32_t page_last;
+  };
+  // Node for faster checking of watches when pages have been written to - all
+  // 512 MB are split into smaller equally sized buckets, and then ranges are
+  // linearly checked.
+  struct WatchNode {
+    WatchRange* range;
+    // Links to nodes belonging to other watched ranges in the bucket.
+    WatchNode* bucket_node_previous;
+    WatchNode* bucket_node_next;
+    // Link to another node of this watched range in the next bucket.
+    WatchNode* range_node_next;
+  };
+  static constexpr uint32_t kWatchBucketSizeLog2 = 22;
+  static constexpr uint32_t kWatchBucketCount =
+      1 << (kBufferSizeLog2 - kWatchBucketSizeLog2);
+  WatchNode* watch_buckets_[kWatchBucketCount] = {};
+  // Allocations in pools - taking new WatchRanges and WatchNodes from the free
+  // list, and if there are none, creating a pool if the current one is fully
+  // used, and linearly allocating from the current pool.
+  union WatchRangeAllocation {
+    WatchRange range;
+    WatchRangeAllocation* next_free;
+  };
+  union WatchNodeAllocation {
+    WatchNode node;
+    WatchNodeAllocation* next_free;
+  };
+  static constexpr uint32_t kWatchRangePoolSize = 8192;
+  static constexpr uint32_t kWatchNodePoolSize = 8192;
+  std::vector<WatchRangeAllocation*> watch_range_pools_;
+  std::vector<WatchNodeAllocation*> watch_node_pools_;
+  uint32_t watch_range_current_pool_allocated_ = 0;
+  uint32_t watch_node_current_pool_allocated_ = 0;
+  WatchRangeAllocation* watch_range_first_free = nullptr;
+  WatchNodeAllocation* watch_node_first_free = nullptr;
+
+  // ***************************************************************************
+  // Things above should be protected by validity_mutex_.
+  // ***************************************************************************
 
   // First page and length in pages.
   typedef std::pair<uint32_t, uint32_t> UploadRange;
@@ -104,13 +176,6 @@ class SharedMemory {
   void GetRangesToUpload(uint32_t request_page_first,
                          uint32_t request_page_count);
   std::unique_ptr<ui::d3d12::UploadBufferPool> upload_buffer_pool_ = nullptr;
-
-  // Whether each physical page is watched by the GPU (after uploading).
-  // Once a watch is triggered, it's not watched anymore.
-  std::vector<uint64_t> watched_pages_;
-  // Memory access callback.
-  static bool WatchCallbackThunk(void* context_ptr, uint32_t address);
-  bool WatchCallback(uint32_t address);
 
   void TransitionBuffer(D3D12_RESOURCE_STATES new_state,
                         ID3D12GraphicsCommandList* command_list);
