@@ -16,6 +16,7 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/memory.h"
+#include "xenia/base/profiling.h"
 
 namespace xe {
 namespace gpu {
@@ -126,7 +127,10 @@ bool SharedMemory::RequestRange(uint32_t start, uint32_t length,
     return false;
   }
   uint32_t last = start + length - 1;
-  // XELOGGPU("Shared memory: Range %.8X-%.8X is being used", start, last);
+
+#if FINE_GRAINED_DRAW_SCOPES
+  SCOPE_profile_cpu_f("gpu");
+#endif  // FINE_GRAINED_DRAW_SCOPES
 
   // Ensure all tile heaps are present.
   if (FLAGS_d3d12_tiled_resources) {
@@ -188,10 +192,6 @@ bool SharedMemory::RequestRange(uint32_t start, uint32_t length,
     uint32_t upload_range_start = upload_range.first;
     uint32_t upload_range_length = upload_range.second;
     while (upload_range_length != 0) {
-      XELOGGPU(
-          "Shared memory: Uploading %.8X:%.8X",
-          upload_range_start << page_size_log2_,
-          ((upload_range_start + upload_range_length) << page_size_log2_) - 1);
       ID3D12Resource* upload_buffer;
       uint32_t upload_buffer_offset, upload_buffer_size;
       uint8_t* upload_buffer_mapping = upload_buffer_pool_->RequestPartial(

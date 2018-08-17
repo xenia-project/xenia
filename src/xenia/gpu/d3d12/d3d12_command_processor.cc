@@ -884,6 +884,10 @@ void D3D12CommandProcessor::UpdateFixedFunctionState(
     ID3D12GraphicsCommandList* command_list) {
   auto& regs = *register_file_;
 
+#if FINE_GRAINED_DRAW_SCOPES
+  SCOPE_profile_cpu_f("gpu");
+#endif  // FINE_GRAINED_DRAW_SCOPES
+
   // Window parameters.
   // http://ftp.tku.edu.tw/NetBSD/NetBSD-current/xsrc/external/mit/xf86-video-ati/dist/src/r600_reg_auto_r6xx.h
   // See r200UpdateWindow:
@@ -1025,6 +1029,11 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
     Endian index_endian,
     const RenderTargetCache::PipelineRenderTarget render_targets[4]) {
   auto& regs = *register_file_;
+
+#if FINE_GRAINED_DRAW_SCOPES
+  SCOPE_profile_cpu_f("gpu");
+#endif  // FINE_GRAINED_DRAW_SCOPES
+
   uint32_t vgt_indx_offset = regs[XE_GPU_REG_VGT_INDX_OFFSET].u32;
   uint32_t pa_cl_vte_cntl = regs[XE_GPU_REG_PA_CL_VTE_CNTL].u32;
   uint32_t pa_cl_clip_cntl = regs[XE_GPU_REG_PA_CL_CLIP_CNTL].u32;
@@ -1189,6 +1198,10 @@ bool D3D12CommandProcessor::UpdateBindings(
   auto provider = GetD3D12Context()->GetD3D12Provider();
   auto device = provider->GetDevice();
   auto& regs = *register_file_;
+
+#if FINE_GRAINED_DRAW_SCOPES
+  SCOPE_profile_cpu_f("gpu");
+#endif  // FINE_GRAINED_DRAW_SCOPES
 
   // Bind the new root signature.
   if (current_graphics_root_signature_ != root_signature) {

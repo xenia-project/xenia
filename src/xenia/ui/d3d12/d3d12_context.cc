@@ -9,12 +9,19 @@
 
 #include "xenia/ui/d3d12/d3d12_context.h"
 
+#include <gflags/gflags.h>
+
+#include <cstdlib>
+
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/gpu/gpu_flags.h"
 #include "xenia/ui/d3d12/d3d12_immediate_drawer.h"
 #include "xenia/ui/d3d12/d3d12_provider.h"
 #include "xenia/ui/window.h"
+
+DEFINE_bool(d3d12_random_clear_color, false,
+            "Randomize presentation back buffer clear color.");
 
 namespace xe {
 namespace ui {
@@ -244,7 +251,7 @@ void D3D12Context::BeginSwap() {
       }
     }
 
-    // Make the back buffer a render target.
+    // Bind the back buffer as a render target and clear it.
     auto command_list = swap_command_lists_[current_queue_frame_].get();
     auto graphics_command_list = command_list->BeginRecording();
     D3D12_RESOURCE_BARRIER barrier;
@@ -256,10 +263,23 @@ void D3D12Context::BeginSwap() {
     barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
     barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
     graphics_command_list->ResourceBarrier(1, &barrier);
-
     D3D12_CPU_DESCRIPTOR_HANDLE back_buffer_rtv = GetSwapChainBackBufferRTV();
     graphics_command_list->OMSetRenderTargets(1, &back_buffer_rtv, TRUE,
                                               nullptr);
+    float clear_color[4];
+    if (FLAGS_d3d12_random_clear_color) {
+      clear_color[0] =
+          rand() / float(RAND_MAX);  // NOLINT(runtime/threadsafe_fn)
+      clear_color[1] = 1.0f;
+      clear_color[2] = 0.0f;
+    } else {
+      clear_color[0] = 238.0f / 255.0f;
+      clear_color[1] = 238.0f / 255.0f;
+      clear_color[2] = 238.0f / 255.0f;
+    }
+    clear_color[3] = 1.0f;
+    graphics_command_list->ClearRenderTargetView(back_buffer_rtv, clear_color,
+                                                 0, nullptr);
   }
 }
 

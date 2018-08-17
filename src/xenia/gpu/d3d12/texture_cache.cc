@@ -15,6 +15,7 @@
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
+#include "xenia/base/profiling.h"
 #include "xenia/gpu/d3d12/d3d12_command_processor.h"
 #include "xenia/gpu/texture_info.h"
 #include "xenia/gpu/texture_util.h"
@@ -252,6 +253,10 @@ void TextureCache::RequestTextures(uint32_t used_vertex_texture_mask,
     return;
   }
   auto& regs = *register_file_;
+
+#if FINE_GRAINED_DRAW_SCOPES
+  SCOPE_profile_cpu_f("gpu");
+#endif  // FINE_GRAINED_DRAW_SCOPES
 
   // Update the texture keys and the textures.
   uint32_t used_texture_mask =
