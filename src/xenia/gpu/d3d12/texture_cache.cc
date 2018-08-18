@@ -701,6 +701,8 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
     texture->base_size *= key.depth;
     texture->mip_size *= key.depth;
   }
+  texture->base_watch_handle = nullptr;
+  texture->mip_watch_handle = nullptr;
   textures_.insert(std::make_pair(map_key, texture));
   LogTextureAction(texture, "Created");
 
@@ -708,7 +710,12 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
 }
 
 bool TextureCache::LoadTextureData(Texture* texture) {
-  if (texture->base_in_sync && texture->mips_in_sync) {
+  // See what we need to upload.
+  shared_memory_->LockWatchMutex();
+  bool base_in_sync = texture->base_in_sync;
+  bool mips_in_sync = texture->mips_in_sync;
+  shared_memory_->UnlockWatchMutex();
+  if (base_in_sync && mips_in_sync) {
     return true;
   }
 
@@ -731,13 +738,13 @@ bool TextureCache::LoadTextureData(Texture* texture) {
   }
 
   // Request uploading of the texture data to the shared memory.
-  if (!texture->base_in_sync) {
+  if (!base_in_sync) {
     if (!shared_memory_->RequestRange(texture->key.base_page << 12,
                                       texture->base_size, command_list)) {
       return false;
     }
   }
-  if (!texture->mips_in_sync) {
+  if (!mips_in_sync) {
     if (!shared_memory_->RequestRange(texture->key.mip_page << 12,
                                       texture->mip_size, command_list)) {
       return false;
@@ -811,8 +818,8 @@ bool TextureCache::LoadTextureData(Texture* texture) {
     command_list->ResourceBarrier(1, barriers);
     texture->state = D3D12_RESOURCE_STATE_COPY_DEST;
   }
-  uint32_t mip_first = texture->base_in_sync ? 1 : 0;
-  uint32_t mip_last = texture->mips_in_sync ? 0 : resource_desc.MipLevels - 1;
+  uint32_t mip_first = base_in_sync ? 1 : 0;
+  uint32_t mip_last = mips_in_sync ? 0 : resource_desc.MipLevels - 1;
   auto cbuffer_pool = command_processor_->GetConstantBufferPool();
   CopyConstants copy_constants;
   copy_constants.is_3d = is_3d ? 1 : 0;
@@ -903,11 +910,44 @@ bool TextureCache::LoadTextureData(Texture* texture) {
 
   command_processor_->ReleaseScratchGPUBuffer(copy_buffer, copy_buffer_state);
 
+  // Mark the ranges as uploaded and watch them.
+  shared_memory_->LockWatchMutex();
   texture->base_in_sync = true;
   texture->mips_in_sync = true;
+  if (!base_in_sync) {
+    texture->base_watch_handle = shared_memory_->WatchMemoryRange(
+        texture->key.base_page << 12, texture->base_size, WatchCallbackThunk,
+        this, texture, 0);
+  }
+  if (!mips_in_sync) {
+    texture->mip_watch_handle = shared_memory_->WatchMemoryRange(
+        texture->key.mip_page << 12, texture->mip_size, WatchCallbackThunk,
+        this, texture, 1);
+  }
+  shared_memory_->UnlockWatchMutex();
 
   LogTextureAction(texture, "Loaded");
   return true;
+}
+
+void TextureCache::WatchCallbackThunk(void* context, void* data,
+                                      uint64_t argument) {
+  TextureCache* texture_cache = reinterpret_cast<TextureCache*>(context);
+  texture_cache->WatchCallback(reinterpret_cast<Texture*>(data), argument != 0);
+}
+
+void TextureCache::WatchCallback(Texture* texture, bool is_mip) {
+  // Mutex already locked here.
+  if (is_mip) {
+    texture->mips_in_sync = false;
+    texture->mip_watch_handle = nullptr;
+  } else {
+    texture->base_in_sync = false;
+    texture->base_watch_handle = nullptr;
+  }
+  XELOGE("Texture %s at %.8X invalidated", is_mip ? "mips" : "base",
+         (is_mip ? texture->key.mip_page : texture->key.base_page) << 12);
+  // TODO(Triang3l): Notify bindings that ranges should be requested again.
 }
 
 void TextureCache::ClearBindings() {

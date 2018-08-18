@@ -130,7 +130,7 @@ SharedMemory::WatchHandle SharedMemory::WatchMemoryRange(
   uint32_t bucket_last =
       watch_page_last << page_size_log2_ >> kWatchBucketSizeLog2;
 
-  std::lock_guard<std::mutex> lock(validity_mutex_);
+  std::lock_guard<std::recursive_mutex> lock(validity_mutex_);
 
   // Allocate the range.
   WatchRange* range = watch_range_first_free_;
@@ -141,9 +141,8 @@ SharedMemory::WatchHandle SharedMemory::WatchMemoryRange(
         watch_range_current_pool_allocated_ >= kWatchRangePoolSize) {
       watch_range_pools_.push_back(new WatchRange[kWatchRangePoolSize]);
       watch_range_current_pool_allocated_ = 0;
-      range =
-          &(watch_range_pools_.back()[watch_range_current_pool_allocated_++]);
     }
+    range = &(watch_range_pools_.back()[watch_range_current_pool_allocated_++]);
   }
   range->callback = callback;
   range->callback_context = callback_context;
@@ -163,9 +162,8 @@ SharedMemory::WatchHandle SharedMemory::WatchMemoryRange(
           watch_node_current_pool_allocated_ >= kWatchNodePoolSize) {
         watch_node_pools_.push_back(new WatchNode[kWatchNodePoolSize]);
         watch_node_current_pool_allocated_ = 0;
-        node =
-            &(watch_node_pools_.back()[watch_node_current_pool_allocated_++]);
       }
+      node = &(watch_node_pools_.back()[watch_node_current_pool_allocated_++]);
     }
     node->range = range;
     node->range_node_next = nullptr;
@@ -184,6 +182,15 @@ SharedMemory::WatchHandle SharedMemory::WatchMemoryRange(
   }
 
   return reinterpret_cast<WatchHandle>(range);
+}
+
+void SharedMemory::UnwatchMemoryRange(WatchHandle handle) {
+  if (handle == nullptr) {
+    // Could be a zero length range.
+    return;
+  }
+  std::lock_guard<std::recursive_mutex> lock(validity_mutex_);
+  UnlinkWatchRange(reinterpret_cast<WatchRange*>(handle));
 }
 
 bool SharedMemory::RequestRange(uint32_t start, uint32_t length,
@@ -299,7 +306,7 @@ void SharedMemory::MakeRangeValid(uint32_t valid_page_first,
   uint32_t valid_block_first = valid_page_first >> 6;
   uint32_t valid_block_last = valid_page_last >> 6;
 
-  std::lock_guard<std::mutex> lock(validity_mutex_);
+  std::lock_guard<std::recursive_mutex> lock(validity_mutex_);
 
   for (uint32_t i = valid_block_first; i <= valid_block_last; ++i) {
     uint64_t valid_bits = UINT64_MAX;
@@ -353,7 +360,7 @@ void SharedMemory::GetRangesToUpload(uint32_t request_page_first,
   uint32_t request_block_first = request_page_first >> 6;
   uint32_t request_block_last = request_page_last >> 6;
 
-  std::lock_guard<std::mutex> lock(validity_mutex_);
+  std::lock_guard<std::recursive_mutex> lock(validity_mutex_);
 
   uint32_t range_start = UINT32_MAX;
   for (uint32_t i = request_block_first; i <= request_block_last; ++i) {
@@ -414,14 +421,28 @@ bool SharedMemory::MemoryWriteCallback(uint32_t address) {
   uint32_t block_index = page_index >> 6;
   uint64_t page_bit = 1ull << (page_index & 63);
 
-  std::lock_guard<std::mutex> lock(validity_mutex_);
+  std::lock_guard<std::recursive_mutex> lock(validity_mutex_);
 
   if (!(protected_pages_[block_index] & page_bit)) {
     return false;
   }
 
   valid_pages_[block_index] &= ~page_bit;
-  // TODO(Triang3l): Invoke watch callbacks.
+
+  // Trigger watch callbacks.
+  WatchNode* node =
+      watch_buckets_[page_index << page_size_log2_ >> kWatchBucketSizeLog2];
+  while (node != nullptr) {
+    WatchRange* range = node->range;
+    // Store the next node now since when the callback is triggered, the links
+    // will be broken.
+    node = node->bucket_node_next;
+    if (page_index >= range->page_first && page_index <= range->page_last) {
+      range->callback(range->callback_context, range->callback_data,
+                      range->callback_argument);
+      UnlinkWatchRange(range);
+    }
+  }
 
   memory_->UnprotectPhysicalMemory(page_index << page_size_log2_,
                                    1 << page_size_log2_, false);
