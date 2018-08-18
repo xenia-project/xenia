@@ -67,6 +67,10 @@ class SharedMemory {
   inline void LockWatchMutex() { validity_mutex_.lock(); }
   inline void UnlockWatchMutex() { validity_mutex_.unlock(); }
 
+  // Ensures the buffer tiles backing the range are resident, but doesn't upload
+  // anything.
+  bool MakeTilesResident(uint32_t start, uint32_t length);
+
   // Checks if the range has been updated, uploads new data if needed and
   // ensures the buffer tiles backing the range are resident. May transition the
   // tiled buffer to copy destination - call this before UseForReading or
@@ -74,6 +78,12 @@ class SharedMemory {
   // usable.
   bool RequestRange(uint32_t start, uint32_t length,
                     ID3D12GraphicsCommandList* command_list);
+
+  // Marks the range as containing GPU-generated data (such as resolves),
+  // triggering modification callbacks, making it valid (so pages are not
+  // copied from the main memory until they're modified by the CPU) and
+  // protecting it.
+  void RangeWrittenByGPU(uint32_t start, uint32_t length);
 
   // Makes the buffer usable for vertices, indices and texture untiling.
   void UseForReading(ID3D12GraphicsCommandList* command_list);
