@@ -258,8 +258,8 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
         "XE_BYTE_SWAP_OVERLOAD(uint4)\n"
         "\n"
         "struct XeVertexShaderOutput {\n"
-        "  float4 position : SV_Position;\n"
         "  float4 interpolators[%u] : TEXCOORD;\n"
+        "  float4 position : SV_Position;\n"
         "  float point_size : PSIZE;\n"
         "};\n"
         "\n"
@@ -283,8 +283,8 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
     // XE_PIXEL_SHADER_WRITES_DEPTH in the beginning of the final output.
     source.AppendFormat(
         "struct XePixelShaderInput {\n"
-        "  float4 position : SV_Position;\n"
         "  float4 interpolators[%u] : TEXCOORD;\n"
+        "  float4 position : SV_Position;\n"
         "};\n"
         "\n"
         "struct XePixelShaderOutput {\n"
