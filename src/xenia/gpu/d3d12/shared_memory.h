@@ -56,10 +56,16 @@ class SharedMemory {
   //
   // The callback is called with the mutex locked. Do NOT watch or unwatch
   // ranges from within it! The watch for the callback is cancelled after the
-  // callback.
+  // callback - the handle becomes invalid.
   WatchHandle WatchMemoryRange(uint32_t start, uint32_t length,
                                WatchCallback callback, void* callback_context,
                                void* callback_data, uint64_t callback_argument);
+  // Unregisters previously registered watched memory range.
+  void UnwatchMemoryRange(WatchHandle handle);
+  // Locks the mutex that gets locked when watch callbacks are invoked - must be
+  // done when checking variables that may be changed by a watch callback.
+  inline void LockWatchMutex() { validity_mutex_.lock(); }
+  inline void UnlockWatchMutex() { validity_mutex_.unlock(); }
 
   // Checks if the range has been updated, uploads new data if needed and
   // ensures the buffer tiles backing the range are resident. May transition the
@@ -108,7 +114,7 @@ class SharedMemory {
 
   // Mutex between the exception handler and the command processor, to be locked
   // when checking or updating validity of pages/ranges.
-  std::mutex validity_mutex_;
+  std::recursive_mutex validity_mutex_;
 
   // ***************************************************************************
   // Things below should be protected by validity_mutex_.

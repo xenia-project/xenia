@@ -181,9 +181,16 @@ class TextureCache {
     uint32_t mip_offsets[14];
     // Byte pitches of each mipmap within one slice (for linear layout mainly).
     uint32_t mip_pitches[14];
-    // Whether the recent base level data has been loaded from the memory.
+
+    // Watch handles for the memory ranges (protected by the shared memory watch
+    // mutex).
+    SharedMemory::WatchHandle base_watch_handle;
+    SharedMemory::WatchHandle mip_watch_handle;
+    // Whether the recent base level data has been loaded from the memory
+    // (protected by the shared memory watch mutex).
     bool base_in_sync;
-    // Whether the recent mip data has been loaded from the memory.
+    // Whether the recent mip data has been loaded from the memory (protected by
+    // the shared memory watch mutex).
     bool mips_in_sync;
   };
 
@@ -233,6 +240,10 @@ class TextureCache {
   // Writes data from the shared memory to the texture. This binds pipelines,
   // allocates descriptors and copies!
   bool LoadTextureData(Texture* texture);
+
+  // Shared memory callback for texture data invalidation.
+  static void WatchCallbackThunk(void* context, void* data, uint64_t argument);
+  void WatchCallback(Texture* texture, bool is_mip);
 
   // Makes all bindings invalid. Also requesting textures after calling this
   // will cause another attempt to create a texture or to untile it if there was
