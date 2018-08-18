@@ -34,7 +34,6 @@ void HlslShaderTranslator::Reset() {
   depth_ = 0;
   depth_prefix_[0] = 0;
 
-  cf_wrote_pc_ = false;
   cf_exec_pred_ = false;
   cf_exec_pred_cond_ = false;
 
@@ -71,11 +70,11 @@ void HlslShaderTranslator::Unindent() {
 void HlslShaderTranslator::StartTranslation() {
   // Main function level (1).
   Indent();
-  // Do while PC != 0xFFFF level (2).
+  // While level (2).
   Indent();
-  // Switch level (3).
+  EmitSourceDepth("[branch] if (xe_pc == 0u) {\n");
+  // If level (3).
   Indent();
-  EmitSourceDepth("case 0u:\n");
 }
 
 std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
@@ -85,8 +84,11 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
   // Common preprocessor statements.
   // 3557 is the "loop only executes for 1 iteration" warning caused by the
   // control flow loop design.
+  // 3595 is for texture fetches in loops/conditionals, which may have undefined
+  // gradients.
   source.Append(
       "#pragma warning(disable : 3557)\n"
+      "#pragma warning(disable : 3595)\n"
       "\n"
       "#define XE_FLT_MAX 3.402823466e+38\n"
       "\n");
@@ -355,27 +357,22 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
       // Explicit gradients for texture fetches.
       "  float3 xe_texture_grad_h = float3(0.0, 0.0, 0.0);\n"
       "  float3 xe_texture_grad_v = float3(0.0, 0.0, 0.0);\n"
-      // Master loop and switch for flow control.
+      // Master loop and instruction pointer for flow control.
+      // It's very easy to cause internal compiler errors with anything related
+      // to flow control. Switch, for example, used to cause "l-value expected",
+      // so it was replaced with ifs (and also it's easy to fall through).
       "  uint xe_pc = 0u;\n"
       "\n"
-      "  do {\n"
-      "    switch (xe_pc) {\n");
+      "  [loop] while (xe_pc < 0xFFFFu) {\n");
 
   // Translated code.
   source.Append(source_inner_.GetString());
 
   // Epilogue.
-  if (!cf_wrote_pc_) {
-    source.Append(
-        "        xe_pc = 0xFFFFu;\n"
-        "        break;\n");
-  }
   source.Append(
-      "      default:\n"
-      "        xe_pc = 0xFFFFu;\n"
-      "        break;\n"
       "    }\n"
-      "  } while (xe_pc != 0xFFFFu);\n");
+      "    xe_pc = 0xFFFFu;\n"
+      "  }\n");
   if (is_vertex_shader()) {
     // Restore the original W if the shader has already taken its reciprocal,
     // and restore the original XYZ if the shader has divided them by W. Also
@@ -424,37 +421,17 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
 
 void HlslShaderTranslator::ProcessLabel(uint32_t cf_index) {
   // 0 is always added in the beginning.
-  if (cf_index != 0) {
-    if (!cf_wrote_pc_) {
-      EmitSourceDepth("  xe_pc = %uu;\n", cf_index);
-      EmitSourceDepth("  break;\n");
-    }
-    EmitSourceDepth("case %uu:\n", cf_index);
-    cf_wrote_pc_ = false;
+  if (cf_index == 0) {
+    return;
   }
+  Unindent();
+  EmitSourceDepth("}\n");
+  EmitSourceDepth("[branch] if (xe_pc <= %uu) {\n", cf_index);
+  Indent();
 }
 
 void HlslShaderTranslator::ProcessControlFlowNopInstruction(uint32_t cf_index) {
   EmitSourceDepth("// cnop\n");
-}
-
-void HlslShaderTranslator::ProcessControlFlowInstructionBegin(
-    uint32_t cf_index) {
-  if (cf_wrote_pc_) {
-    // In case there are instructions after setting the PC and breaking (if
-    // there's an `if` setting the PC, there's an `else` setting the PC as well
-    // for falling through).
-    EmitSourceDepth("case %uu:\n", cf_index);
-    cf_wrote_pc_ = false;
-  }
-  Indent();
-}
-
-void HlslShaderTranslator::ProcessControlFlowInstructionEnd(uint32_t cf_index) {
-  if (!cf_wrote_pc_) {
-    EmitSourceDepth("// Falling through to L%u\n", cf_index + 1);
-  }
-  Unindent();
 }
 
 void HlslShaderTranslator::ProcessExecInstructionBegin(
@@ -468,15 +445,15 @@ void HlslShaderTranslator::ProcessExecInstructionBegin(
       EmitSourceDepth("{\n");
       break;
     case ParsedExecInstruction::Type::kConditional:
-      EmitSourceDepth("if ((xe_bool_constants[%u].x & (1u << %uu)) %c= 0u) {\n",
-                      instr.bool_constant_index >> 5,
-                      instr.bool_constant_index & 31,
-                      instr.condition ? '!' : '=');
+      EmitSourceDepth(
+          "[branch] if ((xe_bool_constants[%u].x & (1u << %uu)) %c= 0u) {\n",
+          instr.bool_constant_index >> 5, instr.bool_constant_index & 31,
+          instr.condition ? '!' : '=');
       break;
     case ParsedExecInstruction::Type::kPredicated:
       cf_exec_pred_ = true;
       cf_exec_pred_cond_ = instr.condition;
-      EmitSourceDepth("if (%cxe_p0) {\n", instr.condition ? ' ' : '!');
+      EmitSourceDepth("[branch] if (%cxe_p0) {\n", instr.condition ? ' ' : '!');
       break;
   }
   Indent();
@@ -484,13 +461,14 @@ void HlslShaderTranslator::ProcessExecInstructionBegin(
 
 void HlslShaderTranslator::ProcessExecInstructionEnd(
     const ParsedExecInstruction& instr) {
+  if (instr.is_end) {
+    // Break causes internal errors, set PC to 0xFFFF and go to the next
+    // iteration.
+    EmitSourceDepth("xe_pc = 0xFFFFu;\n");
+    EmitSourceDepth("continue;\n");
+  }
   Unindent();
   EmitSourceDepth("}\n");
-  if (instr.is_end) {
-    EmitSourceDepth("xe_pc = 0xFFFFu;\n");
-    EmitSourceDepth("break;\n");
-    cf_wrote_pc_ = true;
-  }
 }
 
 void HlslShaderTranslator::ProcessLoopStartInstruction(
@@ -512,15 +490,11 @@ void HlslShaderTranslator::ProcessLoopStartInstruction(
   }
 
   // Quick skip loop if zero count.
-  EmitSourceDepth("if (xe_loop_count.x == 0u) {\n");
+  EmitSourceDepth("[branch] if (xe_loop_count.x == 0u) {\n");
   EmitSourceDepth("  xe_pc = %uu;  // Skip loop to L%u\n",
                   instr.loop_skip_address, instr.loop_skip_address);
-  EmitSourceDepth("} else {\n");
-  EmitSourceDepth("  xe_pc = %uu;  // Fallthrough to loop body L%u\n",
-                  instr.dword_index + 1, instr.dword_index + 1);
+  EmitSourceDepth("  continue;\n");
   EmitSourceDepth("}\n");
-  EmitSourceDepth("break;\n");
-  cf_wrote_pc_ = true;
 }
 
 void HlslShaderTranslator::ProcessLoopEndInstruction(
@@ -529,38 +503,31 @@ void HlslShaderTranslator::ProcessLoopEndInstruction(
   instr.Disassemble(&source_inner_);
 
   // Decrement loop counter, and if we are done break out.
-  EmitSourceDepth("if (--xe_loop_count.x == 0u");
+  EmitSourceDepth("[branch] if (--xe_loop_count.x == 0u");
   if (instr.is_predicated_break) {
-    // If the predicate condition is met we 'break;' out of the loop.
+    // If the predicate condition is met we break out of the loop.
     // Need to restore stack and fall through to the next cf.
     EmitSource(" || %cxe_p0) {\n", instr.predicate_condition ? ' ' : '!');
   } else {
     EmitSource(") {\n");
   }
   Indent();
-
   // Loop completed - pop and fall through to next cf.
   EmitSourceDepth("xe_loop_count.xyz = xe_loop_count.yzw;\n");
   EmitSourceDepth("xe_loop_count.w = 0u;\n");
   EmitSourceDepth("xe_aL.xyz = xe_aL.yzw;\n");
   EmitSourceDepth("xe_aL.w = 0;\n");
-  EmitSourceDepth("xe_pc = %uu;  // Exit loop to L%u\n", instr.dword_index + 1,
-                  instr.dword_index + 1);
-
   Unindent();
   EmitSourceDepth("} else {\n");
   Indent();
-
   // Still looping. Adjust index and jump back to body.
   EmitSourceDepth("xe_aL.x += int(xe_loop_constants[%u].x << 8u) >> 24;\n",
                   instr.loop_constant_index);
   EmitSourceDepth("xe_pc = %uu;  // Loop back to body L%u\n",
                   instr.loop_body_address, instr.loop_body_address);
-
+  EmitSourceDepth("continue;\n");
   Unindent();
   EmitSourceDepth("}\n");
-  EmitSourceDepth("break;\n");
-  cf_wrote_pc_ = true;
 }
 
 void HlslShaderTranslator::ProcessCallInstruction(
@@ -589,14 +556,14 @@ void HlslShaderTranslator::ProcessJumpInstruction(
     case ParsedJumpInstruction::Type::kUnconditional:
       break;
     case ParsedJumpInstruction::Type::kConditional:
-      EmitSourceDepth("if ((xe_bool_constants[%u].x & (1u << %uu)) %c= 0u) {\n",
-                      instr.bool_constant_index >> 5,
-                      instr.bool_constant_index & 31,
-                      instr.condition ? '!' : '=');
+      EmitSourceDepth(
+          "[branch] if ((xe_bool_constants[%u].x & (1u << %uu)) %c= 0u) {\n",
+          instr.bool_constant_index >> 5, instr.bool_constant_index & 31,
+          instr.condition ? '!' : '=');
       conditional = true;
       break;
     case ParsedJumpInstruction::Type::kPredicated:
-      EmitSourceDepth("if (%cxe_p0) {\n", instr.condition ? ' ' : '!');
+      EmitSourceDepth("[branch] if (%cxe_p0) {\n", instr.condition ? ' ' : '!');
       conditional = true;
       break;
   }
@@ -605,16 +572,11 @@ void HlslShaderTranslator::ProcessJumpInstruction(
   }
   EmitSourceDepth("xe_pc = %uu;  // L%u\n", instr.target_address,
                   instr.target_address);
+  EmitSourceDepth("continue;\n");
   if (conditional) {
     Unindent();
-    uint32_t next_address = instr.dword_index + 1;
-    EmitSourceDepth("} else {\n");
-    EmitSourceDepth("  xe_pc = %uu;  // Fallthrough to L%u\n", next_address,
-                    next_address);
     EmitSourceDepth("}\n");
   }
-  EmitSourceDepth("break;\n");
-  cf_wrote_pc_ = true;
 }
 
 void HlslShaderTranslator::ProcessAllocInstruction(
@@ -627,7 +589,8 @@ bool HlslShaderTranslator::BeginPredicatedInstruction(
     bool is_predicated, bool predicate_condition) {
   if (is_predicated &&
       (!cf_exec_pred_ || cf_exec_pred_cond_ != predicate_condition)) {
-    EmitSourceDepth("if (%cxe_p0) {\n", predicate_condition ? ' ' : '!');
+    EmitSourceDepth("[branch] if (%cxe_p0) {\n",
+                    predicate_condition ? ' ' : '!');
     Indent();
     return true;
   }

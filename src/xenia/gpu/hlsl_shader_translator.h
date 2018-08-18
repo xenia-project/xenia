@@ -72,8 +72,6 @@ class HlslShaderTranslator : public ShaderTranslator {
   void ProcessLabel(uint32_t cf_index) override;
 
   void ProcessControlFlowNopInstruction(uint32_t cf_index) override;
-  void ProcessControlFlowInstructionBegin(uint32_t cf_index) override;
-  void ProcessControlFlowInstructionEnd(uint32_t cf_index) override;
   void ProcessExecInstructionBegin(const ParsedExecInstruction& instr) override;
   void ProcessExecInstructionEnd(const ParsedExecInstruction& instr) override;
   void ProcessLoopStartInstruction(
@@ -106,7 +104,6 @@ class HlslShaderTranslator : public ShaderTranslator {
   uint32_t depth_ = 0;
   char depth_prefix_[32] = {0};
 
-  bool cf_wrote_pc_ = false;
   bool cf_exec_pred_ = false;
   bool cf_exec_pred_cond_ = false;
 
