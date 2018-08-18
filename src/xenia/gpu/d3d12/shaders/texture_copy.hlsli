@@ -43,7 +43,7 @@ uint4 XeTextureCopyGuestBlockOffsets(uint3 block_index, uint bpb,
     block_offsets_guest =
         uint4(0u, 1u, 2u, 3u) * bpb + XeTextureGuestLinearOffset(
             block_index_guest, xe_texture_copy_size_blocks.y,
-            xe_texture_copy_guest_pitch, 16u);
+            xe_texture_copy_guest_pitch, bpb);
   }
   return block_offsets_guest + xe_texture_copy_guest_base;
 }
