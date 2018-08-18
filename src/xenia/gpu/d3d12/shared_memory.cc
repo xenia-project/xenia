@@ -193,6 +193,67 @@ void SharedMemory::UnwatchMemoryRange(WatchHandle handle) {
   UnlinkWatchRange(reinterpret_cast<WatchRange*>(handle));
 }
 
+bool SharedMemory::MakeTilesResident(uint32_t start, uint32_t length) {
+  if (length == 0) {
+    // Some texture is empty, for example - safe to draw in this case.
+    return true;
+  }
+  start &= kAddressMask;
+  if (start >= kBufferSize || (kBufferSize - start) < length) {
+    // Exceeds the physical address space.
+    return false;
+  }
+
+  if (!FLAGS_d3d12_tiled_resources) {
+    return true;
+  }
+
+  uint32_t heap_first = start >> kHeapSizeLog2;
+  uint32_t heap_last = (start + length - 1) >> kHeapSizeLog2;
+  for (uint32_t i = heap_first; i <= heap_last; ++i) {
+    if (heaps_[i] != nullptr) {
+      continue;
+    }
+    if (heap_creation_failed_) {
+      // Don't try to create a heap for every vertex buffer or texture in the
+      // current frame anymore if have failed at least once.
+      return false;
+    }
+    auto provider = context_->GetD3D12Provider();
+    auto device = provider->GetDevice();
+    auto direct_queue = provider->GetDirectQueue();
+    D3D12_HEAP_DESC heap_desc = {};
+    heap_desc.SizeInBytes = kHeapSize;
+    heap_desc.Properties.Type = D3D12_HEAP_TYPE_DEFAULT;
+    heap_desc.Flags = D3D12_HEAP_FLAG_ALLOW_ONLY_BUFFERS;
+    if (FAILED(device->CreateHeap(&heap_desc, IID_PPV_ARGS(&heaps_[i])))) {
+      XELOGE("Shared memory: Failed to create a tile heap");
+      heap_creation_failed_ = true;
+      return false;
+    }
+    D3D12_TILED_RESOURCE_COORDINATE region_start_coordinates;
+    region_start_coordinates.X = i << (kHeapSizeLog2 - kTileSizeLog2);
+    region_start_coordinates.Y = 0;
+    region_start_coordinates.Z = 0;
+    region_start_coordinates.Subresource = 0;
+    D3D12_TILE_REGION_SIZE region_size;
+    region_size.NumTiles = kHeapSize >> kTileSizeLog2;
+    region_size.UseBox = FALSE;
+    D3D12_TILE_RANGE_FLAGS range_flags = D3D12_TILE_RANGE_FLAG_NONE;
+    UINT heap_range_start_offset = 0;
+    UINT range_tile_count = kHeapSize >> kTileSizeLog2;
+    // FIXME(Triang3l): This may cause issues if the emulator is shut down
+    // mid-frame and the heaps are destroyed before tile mappings are updated
+    // (AwaitAllFramesCompletion won't catch this then). Defer this until the
+    // actual command list submission at the end of the frame.
+    direct_queue->UpdateTileMappings(
+        buffer_, 1, &region_start_coordinates, &region_size, heaps_[i], 1,
+        &range_flags, &heap_range_start_offset, &range_tile_count,
+        D3D12_TILE_MAPPING_FLAG_NONE);
+  }
+  return true;
+}
+
 bool SharedMemory::RequestRange(uint32_t start, uint32_t length,
                                 ID3D12GraphicsCommandList* command_list) {
   if (length == 0) {
@@ -211,50 +272,8 @@ bool SharedMemory::RequestRange(uint32_t start, uint32_t length,
 #endif  // FINE_GRAINED_DRAW_SCOPES
 
   // Ensure all tile heaps are present.
-  if (FLAGS_d3d12_tiled_resources) {
-    uint32_t heap_first = start >> kHeapSizeLog2;
-    uint32_t heap_last = last >> kHeapSizeLog2;
-    for (uint32_t i = heap_first; i <= heap_last; ++i) {
-      if (heaps_[i] != nullptr) {
-        continue;
-      }
-      if (heap_creation_failed_) {
-        // Don't try to create a heap for every vertex buffer or texture in the
-        // current frame anymore if have failed at least once.
-        return false;
-      }
-      auto provider = context_->GetD3D12Provider();
-      auto device = provider->GetDevice();
-      auto direct_queue = provider->GetDirectQueue();
-      D3D12_HEAP_DESC heap_desc = {};
-      heap_desc.SizeInBytes = kHeapSize;
-      heap_desc.Properties.Type = D3D12_HEAP_TYPE_DEFAULT;
-      heap_desc.Flags = D3D12_HEAP_FLAG_ALLOW_ONLY_BUFFERS;
-      if (FAILED(device->CreateHeap(&heap_desc, IID_PPV_ARGS(&heaps_[i])))) {
-        XELOGE("Shared memory: Failed to create a tile heap");
-        heap_creation_failed_ = true;
-        return false;
-      }
-      D3D12_TILED_RESOURCE_COORDINATE region_start_coordinates;
-      region_start_coordinates.X = i << (kHeapSizeLog2 - kTileSizeLog2);
-      region_start_coordinates.Y = 0;
-      region_start_coordinates.Z = 0;
-      region_start_coordinates.Subresource = 0;
-      D3D12_TILE_REGION_SIZE region_size;
-      region_size.NumTiles = kHeapSize >> kTileSizeLog2;
-      region_size.UseBox = FALSE;
-      D3D12_TILE_RANGE_FLAGS range_flags = D3D12_TILE_RANGE_FLAG_NONE;
-      UINT heap_range_start_offset = 0;
-      UINT range_tile_count = kHeapSize >> kTileSizeLog2;
-      // FIXME(Triang3l): This may cause issues if the emulator is shut down
-      // mid-frame and the heaps are destroyed before tile mappings are updated
-      // (AwaitAllFramesCompletion won't catch this then). Defer this until the
-      // actual command list submission at the end of the frame.
-      direct_queue->UpdateTileMappings(
-          buffer_, 1, &region_start_coordinates, &region_size, heaps_[i], 1,
-          &range_flags, &heap_range_start_offset, &range_tile_count,
-          D3D12_TILE_MAPPING_FLAG_NONE);
-    }
+  if (!MakeTilesResident(start, length)) {
+    return false;
   }
 
   // Upload and protect used ranges.
@@ -294,6 +313,42 @@ bool SharedMemory::RequestRange(uint32_t start, uint32_t length,
   }
 
   return true;
+}
+
+void SharedMemory::RangeWrittenByGPU(uint32_t start, uint32_t length) {
+  start &= kAddressMask;
+  if (length == 0 || start >= kBufferSize) {
+    return;
+  }
+  length = std::min(length, kBufferSize - start);
+  uint32_t end = start + length - 1;
+  uint32_t page_first = start >> page_size_log2_;
+  uint32_t page_last = end >> page_size_log2_;
+  uint32_t bucket_first = start >> kWatchBucketSizeLog2;
+  uint32_t bucket_last = end >> kWatchBucketSizeLog2;
+
+  std::lock_guard<std::recursive_mutex> lock(validity_mutex_);
+
+  // Trigger modification callbacks so, for instance, resolved data is loaded to
+  // the texture.
+  for (uint32_t i = bucket_first; i <= bucket_last; ++i) {
+    WatchNode* node = watch_buckets_[i];
+    while (node != nullptr) {
+      WatchRange* range = node->range;
+      // Store the next node now since when the callback is triggered, the links
+      // will be broken.
+      node = node->bucket_node_next;
+      if (page_first <= range->page_last && page_last >= range->page_first) {
+        range->callback(range->callback_context, range->callback_data,
+                        range->callback_argument);
+        UnlinkWatchRange(range);
+      }
+    }
+  }
+
+  // Mark the range as valid (so pages are not reuploaded until modified by the
+  // CPU) and protect it so the CPU can reuse it.
+  MakeRangeValid(page_first, page_last - page_first + 1);
 }
 
 void SharedMemory::MakeRangeValid(uint32_t valid_page_first,
