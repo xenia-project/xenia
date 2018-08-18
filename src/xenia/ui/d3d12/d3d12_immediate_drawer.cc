@@ -29,6 +29,7 @@ class D3D12ImmediateTexture : public ImmediateTexture {
 
   D3D12ImmediateTexture(uint32_t width, uint32_t height,
                         ImmediateTextureFilter filter, bool repeat);
+  ~D3D12ImmediateTexture() override;
 
   bool Initialize(ID3D12Device* device);
   void Shutdown();
@@ -53,6 +54,8 @@ D3D12ImmediateTexture::D3D12ImmediateTexture(uint32_t width, uint32_t height,
     : ImmediateTexture(width, height), filter_(filter), repeat_(repeat) {
   handle = reinterpret_cast<uintptr_t>(this);
 }
+
+D3D12ImmediateTexture::~D3D12ImmediateTexture() { Shutdown(); }
 
 bool D3D12ImmediateTexture::Initialize(ID3D12Device* device) {
   // The first operation will likely be copying the contents.
