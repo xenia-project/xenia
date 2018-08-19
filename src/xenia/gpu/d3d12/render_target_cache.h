@@ -215,6 +215,10 @@ class RenderTargetCache {
   const PipelineRenderTarget* GetCurrentPipelineRenderTargets() const {
     return current_pipeline_render_targets_;
   }
+  // Performs the resolve to a shared memory area according to the current
+  // register values, and also clears the EDRAM buffer if needed. Must be in a
+  // frame for calling.
+  bool Resolve(SharedMemory* shared_memory);
   void EndFrame();
 
   static inline bool IsColorFormat64bpp(ColorRenderTargetFormat format) {
@@ -234,25 +238,24 @@ class RenderTargetCache {
   }
 
  private:
-  enum class EDRAMLoadStorePipelineIndex {
-    kColor32bppLoad,
-    kColor32bppStore,
-    kColor64bppLoad,
-    kColor64bppStore,
-    kColor7e3Load,
-    kColor7e3Store,
-    kDepthUnormLoad,
-    kDepthUnormStore,
-    kDepthFloatLoad,
-    kDepthFloatStore,
+  enum class EDRAMLoadStoreMode {
+    kColor32bpp,
+    kColor64bpp,
+    kColor7e3,
+    kDepthUnorm,
+    kDepthFloat,
 
     kCount
   };
 
-  struct EDRAMLoadStorePipelineInfo {
-    const void* shader;
-    size_t shader_size;
-    const WCHAR* name;
+  struct EDRAMLoadStoreModeInfo {
+    const void* load_shader;
+    size_t load_shader_size;
+    const WCHAR* load_pipeline_name;
+
+    const void* store_shader;
+    size_t store_shader_size;
+    const WCHAR* store_pipeline_name;
   };
 
   union RenderTargetKey {
@@ -320,6 +323,7 @@ class RenderTargetCache {
   RenderTarget* FindOrCreateRenderTarget(RenderTargetKey key,
                                          uint32_t heap_page_first);
 
+  static EDRAMLoadStoreMode GetLoadStoreMode(bool is_depth, uint32_t format);
   // Must be in a frame to call. Stores the dirty areas of the currently bound
   // render targets and marks them as clean.
   void StoreRenderTargetsToEDRAM();
@@ -329,6 +333,9 @@ class RenderTargetCache {
   void LoadRenderTargetsFromEDRAM(uint32_t render_target_count,
                                   RenderTarget* const* render_targets,
                                   const uint32_t* edram_bases);
+
+  // Performs the copy part of resolving.
+  bool ResolveCopy(SharedMemory* shared_memory);
 
   D3D12CommandProcessor* command_processor_;
   RegisterFile* register_file_;
@@ -348,11 +355,12 @@ class RenderTargetCache {
     uint32_t rt_stencil_pitch;
   };
   // EDRAM buffer load/store pipelines.
-  static const EDRAMLoadStorePipelineInfo
-      edram_load_store_pipeline_info_[size_t(
-          EDRAMLoadStorePipelineIndex::kCount)];
-  ID3D12PipelineState* edram_load_store_pipelines_[size_t(
-      EDRAMLoadStorePipelineIndex::kCount)] = {};
+  static const EDRAMLoadStoreModeInfo
+      edram_load_store_mode_info_[size_t(EDRAMLoadStoreMode::kCount)];
+  ID3D12PipelineState*
+      edram_load_pipelines_[size_t(EDRAMLoadStoreMode::kCount)] = {};
+  ID3D12PipelineState*
+      edram_store_pipelines_[size_t(EDRAMLoadStoreMode::kCount)] = {};
 
   // 32 MB heaps backing used render targets resources, created when needed.
   // 24 MB proved to be not enough to store a single render target occupying the

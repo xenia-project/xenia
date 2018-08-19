@@ -794,7 +794,10 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
   return true;
 }
 
-bool D3D12CommandProcessor::IssueCopy() { return true; }
+bool D3D12CommandProcessor::IssueCopy() {
+  BeginFrame();
+  return render_target_cache_->Resolve(shared_memory_.get());
+}
 
 bool D3D12CommandProcessor::BeginFrame() {
   if (current_queue_frame_ != UINT32_MAX) {
