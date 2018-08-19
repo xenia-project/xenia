@@ -34,29 +34,24 @@ namespace d3d12 {
 #include "xenia/gpu/d3d12/shaders/bin/edram_store_depth_float_cs.h"
 #include "xenia/gpu/d3d12/shaders/bin/edram_store_depth_unorm_cs.h"
 
-const RenderTargetCache::EDRAMLoadStorePipelineInfo
-    RenderTargetCache::edram_load_store_pipeline_info_[size_t(
-        RenderTargetCache::EDRAMLoadStorePipelineIndex::kCount)] = {
+const RenderTargetCache::EDRAMLoadStoreModeInfo
+    RenderTargetCache::edram_load_store_mode_info_[size_t(
+        RenderTargetCache::EDRAMLoadStoreMode::kCount)] = {
         {edram_load_color_32bpp_cs, sizeof(edram_load_color_32bpp_cs),
-         L"EDRAM Load 32bpp Color"},
-        {edram_store_color_32bpp_cs, sizeof(edram_store_color_32bpp_cs),
-         L"EDRAM Store 32bpp Color"},
+         L"EDRAM Load 32bpp Color", edram_store_color_32bpp_cs,
+         sizeof(edram_store_color_32bpp_cs), L"EDRAM Store 32bpp Color"},
         {edram_load_color_64bpp_cs, sizeof(edram_load_color_64bpp_cs),
-         L"EDRAM Load 64bpp Color"},
-        {edram_store_color_64bpp_cs, sizeof(edram_store_color_64bpp_cs),
-         L"EDRAM Store 64bpp Color"},
+         L"EDRAM Load 64bpp Color", edram_store_color_64bpp_cs,
+         sizeof(edram_store_color_64bpp_cs), L"EDRAM Store 64bpp Color"},
         {edram_load_color_7e3_cs, sizeof(edram_load_color_7e3_cs),
-         L"EDRAM Load 7e3 Color"},
-        {edram_store_color_7e3_cs, sizeof(edram_store_color_7e3_cs),
-         L"EDRAM Store 7e3 Color"},
+         L"EDRAM Load 7e3 Color", edram_store_color_7e3_cs,
+         sizeof(edram_store_color_7e3_cs), L"EDRAM Store 7e3 Color"},
         {edram_load_depth_unorm_cs, sizeof(edram_load_depth_unorm_cs),
-         L"EDRAM Load UNorm Depth"},
-        {edram_store_depth_unorm_cs, sizeof(edram_store_depth_unorm_cs),
-         L"EDRAM Store UNorm Depth"},
+         L"EDRAM Load UNorm Depth", edram_store_depth_unorm_cs,
+         sizeof(edram_store_depth_unorm_cs), L"EDRAM Store UNorm Depth"},
         {edram_load_depth_float_cs, sizeof(edram_load_depth_float_cs),
-         L"EDRAM Load Float Depth"},
-        {edram_store_depth_float_cs, sizeof(edram_store_depth_float_cs),
-         L"EDRAM Store Float Depth"},
+         L"EDRAM Load Float Depth", edram_store_depth_float_cs,
+         sizeof(edram_store_depth_float_cs), L"EDRAM Store Float Depth"},
 };
 
 RenderTargetCache::RenderTargetCache(D3D12CommandProcessor* command_processor,
@@ -163,18 +158,28 @@ bool RenderTargetCache::Initialize() {
   pipeline_desc.CachedPSO.pCachedBlob = nullptr;
   pipeline_desc.CachedPSO.CachedBlobSizeInBytes = 0;
   pipeline_desc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
-  for (uint32_t i = 0; i < uint32_t(EDRAMLoadStorePipelineIndex::kCount); ++i) {
-    const EDRAMLoadStorePipelineInfo& pipeline_info =
-        edram_load_store_pipeline_info_[i];
-    pipeline_desc.CS.pShaderBytecode = pipeline_info.shader;
-    pipeline_desc.CS.BytecodeLength = pipeline_info.shader_size;
+  for (uint32_t i = 0; i < uint32_t(EDRAMLoadStoreMode::kCount); ++i) {
+    // Load.
+    const EDRAMLoadStoreModeInfo& mode_info = edram_load_store_mode_info_[i];
+    pipeline_desc.CS.pShaderBytecode = mode_info.load_shader;
+    pipeline_desc.CS.BytecodeLength = mode_info.load_shader_size;
     if (FAILED(device->CreateComputePipelineState(
-            &pipeline_desc, IID_PPV_ARGS(&edram_load_store_pipelines_[i])))) {
-      XELOGE("Failed to create EDRAM load/store pipeline for mode %u", i);
+            &pipeline_desc, IID_PPV_ARGS(&edram_load_pipelines_[i])))) {
+      XELOGE("Failed to create EDRAM load pipeline for mode %u", i);
       Shutdown();
       return false;
     }
-    edram_load_store_pipelines_[i]->SetName(pipeline_info.name);
+    edram_load_pipelines_[i]->SetName(mode_info.load_pipeline_name);
+    // Store.
+    pipeline_desc.CS.pShaderBytecode = mode_info.store_shader;
+    pipeline_desc.CS.BytecodeLength = mode_info.store_shader_size;
+    if (FAILED(device->CreateComputePipelineState(
+            &pipeline_desc, IID_PPV_ARGS(&edram_store_pipelines_[i])))) {
+      XELOGE("Failed to create EDRAM store pipeline for mode %u", i);
+      Shutdown();
+      return false;
+    }
+    edram_store_pipelines_[i]->SetName(mode_info.store_pipeline_name);
   }
 
   return true;
@@ -183,6 +188,16 @@ bool RenderTargetCache::Initialize() {
 void RenderTargetCache::Shutdown() {
   ClearCache();
 
+  for (uint32_t i = 0; i < uint32_t(EDRAMLoadStoreMode::kCount); ++i) {
+    if (edram_load_pipelines_[i] != nullptr) {
+      edram_load_pipelines_[i]->Release();
+      edram_load_pipelines_[i] = nullptr;
+    }
+    if (edram_store_pipelines_[i] != nullptr) {
+      edram_store_pipelines_[i]->Release();
+      edram_store_pipelines_[i] = nullptr;
+    }
+  }
   if (edram_load_store_root_signature_ != nullptr) {
     edram_load_store_root_signature_->Release();
     edram_load_store_root_signature_ = nullptr;
@@ -713,6 +728,22 @@ bool RenderTargetCache::UpdateRenderTargets() {
   return true;
 }
 
+bool RenderTargetCache::Resolve(SharedMemory* shared_memory) {
+  bool copied = ResolveCopy(shared_memory);
+  // TODO(Triang3l): Clear.
+  return copied;
+}
+
+bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory) {
+  auto command_list = command_processor_->GetCurrentCommandList();
+  if (command_list == nullptr) {
+    return false;
+  }
+  auto& regs = *register_file_;
+
+  return true;
+}
+
 void RenderTargetCache::EndFrame() {
   StoreRenderTargetsToEDRAM();
   ClearBindings();
@@ -918,6 +949,23 @@ RenderTargetCache::RenderTarget* RenderTargetCache::FindOrCreateRenderTarget(
   return render_target;
 }
 
+RenderTargetCache::EDRAMLoadStoreMode RenderTargetCache::GetLoadStoreMode(
+    bool is_depth, uint32_t format) {
+  if (is_depth) {
+    return DepthRenderTargetFormat(format) == DepthRenderTargetFormat::kD24FS8
+               ? EDRAMLoadStoreMode::kDepthFloat
+               : EDRAMLoadStoreMode::kDepthUnorm;
+  }
+  ColorRenderTargetFormat color_format = ColorRenderTargetFormat(format);
+  if (color_format == ColorRenderTargetFormat::k_2_10_10_10_FLOAT ||
+      color_format ==
+          ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16) {
+    return EDRAMLoadStoreMode::kColor7e3;
+  }
+  return IsColorFormat64bpp(color_format) ? EDRAMLoadStoreMode::kColor64bpp
+                                          : EDRAMLoadStoreMode::kColor32bpp;
+}
+
 void RenderTargetCache::StoreRenderTargetsToEDRAM() {
   auto command_list = command_processor_->GetCurrentCommandList();
   if (command_list == nullptr) {
@@ -1042,42 +1090,9 @@ void RenderTargetCache::StoreRenderTargetsToEDRAM() {
   for (uint32_t i = 0; i < store_binding_count; ++i) {
     const RenderTargetBinding& binding = current_bindings_[store_bindings[i]];
     const RenderTarget* render_target = binding.render_target;
-    EDRAMLoadStorePipelineIndex pipeline_index;
     bool is_64bpp = false;
-    if (render_target->key.is_depth) {
-      if (DepthRenderTargetFormat(render_target->key.format) ==
-          DepthRenderTargetFormat::kD24FS8) {
-        pipeline_index = EDRAMLoadStorePipelineIndex::kDepthFloatStore;
-      } else {
-        pipeline_index = EDRAMLoadStorePipelineIndex::kDepthUnormStore;
-      }
-    } else {
-      switch (ColorRenderTargetFormat(render_target->key.format)) {
-        case ColorRenderTargetFormat::k_8_8_8_8:
-        case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
-        case ColorRenderTargetFormat::k_2_10_10_10:
-        case ColorRenderTargetFormat::k_16_16:
-        case ColorRenderTargetFormat::k_16_16_FLOAT:
-        case ColorRenderTargetFormat::k_2_10_10_10_AS_16_16_16_16:
-        case ColorRenderTargetFormat::k_32_FLOAT:
-          pipeline_index = EDRAMLoadStorePipelineIndex::kColor32bppStore;
-          break;
-        case ColorRenderTargetFormat::k_16_16_16_16:
-        case ColorRenderTargetFormat::k_16_16_16_16_FLOAT:
-        case ColorRenderTargetFormat::k_32_32_FLOAT:
-          pipeline_index = EDRAMLoadStorePipelineIndex::kColor64bppStore;
-          is_64bpp = true;
-          break;
-        case ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
-        case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
-          pipeline_index = EDRAMLoadStorePipelineIndex::kColor7e3Store;
-          break;
-        default:
-          assert_unhandled_case(render_target->key.format);
-          continue;
-      }
-    }
 
+    // Copy from the render target planes and set up the layout.
     D3D12_TEXTURE_COPY_LOCATION location_source, location_dest;
     location_source.pResource = render_target->resource;
     location_source.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
@@ -1090,7 +1105,12 @@ void RenderTargetCache::StoreRenderTargetsToEDRAM() {
                                     nullptr);
     EDRAMLoadStoreRootConstants root_constants;
     root_constants.base_tiles = binding.edram_base;
-    root_constants.pitch_tiles = surface_pitch_tiles * (is_64bpp ? 2 : 1);
+    root_constants.pitch_tiles = surface_pitch_tiles;
+    if (!render_target->key.is_depth &&
+        IsColorFormat64bpp(
+            ColorRenderTargetFormat(render_target->key.format))) {
+      root_constants.pitch_tiles *= 2;
+    }
     root_constants.rt_color_depth_pitch =
         location_dest.PlacedFootprint.Footprint.RowPitch;
     if (render_target->key.is_depth) {
@@ -1119,8 +1139,9 @@ void RenderTargetCache::StoreRenderTargetsToEDRAM() {
     // Store the data.
     command_list->SetComputeRoot32BitConstants(
         0, sizeof(root_constants) / sizeof(uint32_t), &root_constants, 0);
-    command_processor_->SetPipeline(
-        edram_load_store_pipelines_[size_t(pipeline_index)]);
+    EDRAMLoadStoreMode mode = GetLoadStoreMode(render_target->key.is_depth,
+                                               render_target->key.format);
+    command_processor_->SetPipeline(edram_store_pipelines_[size_t(mode)]);
     command_list->Dispatch(root_constants.pitch_tiles, binding.edram_dirty_rows,
                            1);
 
@@ -1251,49 +1272,17 @@ void RenderTargetCache::LoadRenderTargetsFromEDRAM(
       // Something is wrong with the resolve.
       return;
     }
-
     const RenderTarget* render_target = render_targets[i];
-    EDRAMLoadStorePipelineIndex pipeline_index;
-    bool is_64bpp = false;
-    if (render_target->key.is_depth) {
-      if (DepthRenderTargetFormat(render_target->key.format) ==
-          DepthRenderTargetFormat::kD24FS8) {
-        pipeline_index = EDRAMLoadStorePipelineIndex::kDepthFloatLoad;
-      } else {
-        pipeline_index = EDRAMLoadStorePipelineIndex::kDepthUnormLoad;
-      }
-    } else {
-      switch (ColorRenderTargetFormat(render_target->key.format)) {
-        case ColorRenderTargetFormat::k_8_8_8_8:
-        case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
-        case ColorRenderTargetFormat::k_2_10_10_10:
-        case ColorRenderTargetFormat::k_16_16:
-        case ColorRenderTargetFormat::k_16_16_FLOAT:
-        case ColorRenderTargetFormat::k_2_10_10_10_AS_16_16_16_16:
-        case ColorRenderTargetFormat::k_32_FLOAT:
-          pipeline_index = EDRAMLoadStorePipelineIndex::kColor32bppLoad;
-          break;
-        case ColorRenderTargetFormat::k_16_16_16_16:
-        case ColorRenderTargetFormat::k_16_16_16_16_FLOAT:
-        case ColorRenderTargetFormat::k_32_32_FLOAT:
-          pipeline_index = EDRAMLoadStorePipelineIndex::kColor64bppLoad;
-          is_64bpp = true;
-          break;
-        case ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
-        case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
-          pipeline_index = EDRAMLoadStorePipelineIndex::kColor7e3Load;
-          break;
-        default:
-          assert_unhandled_case(render_target->key.format);
-          continue;
-      }
-    }
 
     // Set up the layout.
     EDRAMLoadStoreRootConstants root_constants;
     root_constants.base_tiles = edram_bases[i];
-    root_constants.pitch_tiles =
-        render_target->key.width_ss_div_80 * (is_64bpp ? 2 : 1);
+    root_constants.pitch_tiles = render_target->key.width_ss_div_80;
+    if (!render_target->key.is_depth &&
+        IsColorFormat64bpp(
+            ColorRenderTargetFormat(render_target->key.format))) {
+      root_constants.pitch_tiles *= 2;
+    }
     root_constants.rt_color_depth_pitch =
         render_target->footprints[0].Footprint.RowPitch;
     if (render_target->key.is_depth) {
@@ -1328,8 +1317,9 @@ void RenderTargetCache::LoadRenderTargetsFromEDRAM(
     // Load the data.
     command_list->SetComputeRoot32BitConstants(
         0, sizeof(root_constants) / sizeof(uint32_t), &root_constants, 0);
-    command_processor_->SetPipeline(
-        edram_load_store_pipelines_[size_t(pipeline_index)]);
+    EDRAMLoadStoreMode mode = GetLoadStoreMode(render_target->key.is_depth,
+                                               render_target->key.format);
+    command_processor_->SetPipeline(edram_load_pipelines_[size_t(mode)]);
     command_list->Dispatch(root_constants.pitch_tiles, edram_rows, 1);
 
     // Commit the UAV write and transition the copy buffer to copy source.
@@ -1346,7 +1336,7 @@ void RenderTargetCache::LoadRenderTargetsFromEDRAM(
     copy_buffer_state = D3D12_RESOURCE_STATE_COPY_SOURCE;
     command_list->ResourceBarrier(2, barriers);
 
-    // Copy to the render targets.
+    // Copy to the render target planes.
     D3D12_TEXTURE_COPY_LOCATION location_source, location_dest;
     location_source.pResource = copy_buffer;
     location_source.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
