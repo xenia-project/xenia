@@ -15,6 +15,7 @@
 #include "xenia/gpu/d3d12/shared_memory.h"
 #include "xenia/gpu/register_file.h"
 #include "xenia/gpu/xenos.h"
+#include "xenia/memory.h"
 #include "xenia/ui/d3d12/d3d12_api.h"
 
 namespace xe {
@@ -218,7 +219,7 @@ class RenderTargetCache {
   // Performs the resolve to a shared memory area according to the current
   // register values, and also clears the EDRAM buffer if needed. Must be in a
   // frame for calling.
-  bool Resolve(SharedMemory* shared_memory);
+  bool Resolve(SharedMemory* shared_memory, Memory* memory);
   void EndFrame();
 
   static inline bool IsColorFormat64bpp(ColorRenderTargetFormat format) {
@@ -333,9 +334,6 @@ class RenderTargetCache {
   void LoadRenderTargetsFromEDRAM(uint32_t render_target_count,
                                   RenderTarget* const* render_targets,
                                   const uint32_t* edram_bases);
-
-  // Performs the copy part of resolving.
-  bool ResolveCopy(SharedMemory* shared_memory);
 
   D3D12CommandProcessor* command_processor_;
   RegisterFile* register_file_;
