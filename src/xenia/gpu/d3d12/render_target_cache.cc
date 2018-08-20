@@ -9,12 +9,14 @@
 
 #include "xenia/gpu/d3d12/render_target_cache.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
+#include "xenia/base/memory.h"
 #include "xenia/base/profiling.h"
 #include "xenia/gpu/d3d12/d3d12_command_processor.h"
 
@@ -728,19 +730,143 @@ bool RenderTargetCache::UpdateRenderTargets() {
   return true;
 }
 
-bool RenderTargetCache::Resolve(SharedMemory* shared_memory) {
-  bool copied = ResolveCopy(shared_memory);
-  // TODO(Triang3l): Clear.
-  return copied;
-}
+bool RenderTargetCache::Resolve(SharedMemory* shared_memory, Memory* memory) {
+  // Save the currently bound render targets to the EDRAM buffer that will be
+  // used as the resolve source and clear bindings to allow render target
+  // resources to be reused as source textures for format conversion, resolving
+  // samples, to let format conversion bind other render targets, and so after a
+  // clear new data will be loaded.
+  StoreRenderTargetsToEDRAM();
+  ClearBindings();
 
-bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory) {
-  auto command_list = command_processor_->GetCurrentCommandList();
-  if (command_list == nullptr) {
-    return false;
-  }
   auto& regs = *register_file_;
 
+  // Get the render target properties.
+  uint32_t rb_surface_info = regs[XE_GPU_REG_RB_SURFACE_INFO].u32;
+  uint32_t surface_pitch = std::min(rb_surface_info & 0x3FFF, 2560u);
+  if (surface_pitch == 0) {
+    // Nothing to copy or clear.
+    return true;
+  }
+  MsaaSamples msaa_samples = MsaaSamples((rb_surface_info >> 16) & 0x3);
+  uint32_t rb_copy_control = regs[XE_GPU_REG_RB_COPY_CONTROL].u32;
+  uint32_t surface_index = rb_copy_control & 0x7;
+  if (surface_index > 4) {
+    assert_always();
+    return false;
+  }
+  uint32_t surface_is_depth = surface_index == 4;
+  uint32_t surface_edram_base;
+  uint32_t surface_format;
+  bool surface_format_64bpp;
+  if (surface_is_depth) {
+    uint32_t rb_depth_info = regs[XE_GPU_REG_RB_DEPTH_INFO].u32;
+    surface_edram_base = rb_depth_info & 0xFFF;
+    surface_format = (rb_depth_info >> 16) & 0x1;
+    surface_format_64bpp = false;
+  } else {
+    uint32_t rb_color_info;
+    switch (surface_index) {
+      case 1:
+        rb_color_info = regs[XE_GPU_REG_RB_COLOR1_INFO].u32;
+        break;
+      case 2:
+        rb_color_info = regs[XE_GPU_REG_RB_COLOR2_INFO].u32;
+        break;
+      case 3:
+        rb_color_info = regs[XE_GPU_REG_RB_COLOR3_INFO].u32;
+        break;
+      default:
+        rb_color_info = regs[XE_GPU_REG_RB_COLOR_INFO].u32;
+        break;
+    }
+    surface_edram_base = rb_color_info & 0xFFF;
+    surface_format = (rb_color_info >> 16) & 0xF;
+    surface_format_64bpp =
+        IsColorFormat64bpp(ColorRenderTargetFormat(surface_format));
+  }
+  if (surface_edram_base >= 2048) {
+    // The surface is totally outside of EDRAM - shouldn't happen.
+    return false;
+  }
+  // Calculate the maximum number of rows to clamp the source rectangle.
+  uint32_t surface_pitch_ss =
+      surface_pitch * (msaa_samples >= MsaaSamples::k4X ? 2 : 1);
+  uint32_t surface_pitch_tiles =
+      (surface_pitch_ss + 79) / 80 * (surface_format_64bpp ? 2 : 1);
+  uint32_t surface_edram_max_rows =
+      (2048 - surface_edram_base) / surface_pitch_tiles;
+  if (surface_edram_max_rows == 0) {
+    // The surface is too close to the end of EDRAM.
+    return true;
+  }
+  uint32_t surface_max_height =
+      surface_edram_max_rows * (msaa_samples >= MsaaSamples::k2X ? 8 : 16);
+
+  // Get the resolve region since both copying and clearing need it.
+  // HACK: Vertices to use are always in vf0.
+  auto fetch_group = reinterpret_cast<const xenos::xe_gpu_fetch_group_t*>(
+      &regs.values[XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0]);
+  const auto& fetch = fetch_group->vertex_fetch_0;
+  assert_true(fetch.type == 3);
+  assert_true(fetch.endian == 2);
+  assert_true(fetch.size == 6);
+  const uint8_t* src_vertex_address =
+      memory->TranslatePhysical(fetch.address << 2);
+  float src_vertices[6];
+  // Most vertices have a negative half pixel offset applied, which we reverse.
+  float src_vertex_offset =
+      (regs[XE_GPU_REG_PA_SU_VTX_CNTL].u32 & 0x1) ? 0.0f : 0.5f;
+  for (uint32_t i = 0; i < 6; ++i) {
+    src_vertices[i] =
+        xenos::GpuSwap(xe::load<float>(src_vertex_address + i * sizeof(float)),
+                       Endian(fetch.endian)) +
+        src_vertex_offset;
+  }
+  // Xenos only supports rectangle copies (luckily).
+  D3D12_RECT src_rect;
+  src_rect.left = LONG(
+      std::min(std::min(src_vertices[0], src_vertices[2]), src_vertices[4]));
+  src_rect.right = LONG(
+      std::max(std::max(src_vertices[0], src_vertices[2]), src_vertices[4]));
+  src_rect.top = LONG(
+      std::min(std::min(src_vertices[1], src_vertices[3]), src_vertices[5]));
+  src_rect.bottom = LONG(
+      std::max(std::max(src_vertices[1], src_vertices[3]), src_vertices[5]));
+  if (regs[XE_GPU_REG_PA_SU_SC_MODE_CNTL].u32 & (1 << 16)) {
+    uint32_t pa_sc_window_offset = regs[XE_GPU_REG_PA_SC_WINDOW_OFFSET].u32;
+    int16_t window_offset_x = pa_sc_window_offset & 0x7FFF;
+    int16_t window_offset_y = (pa_sc_window_offset >> 16) & 0x7FFF;
+    if (window_offset_x & 0x4000) {
+      window_offset_x |= 0x8000;
+    }
+    if (window_offset_y & 0x4000) {
+      window_offset_y |= 0x8000;
+    }
+    src_rect.left += window_offset_x;
+    src_rect.right += window_offset_x;
+    src_rect.top += window_offset_y;
+    src_rect.bottom += window_offset_y;
+  }
+  src_rect.right = std::min(src_rect.right, LONG(surface_pitch));
+  src_rect.bottom = std::min(src_rect.bottom, LONG(surface_max_height));
+  if (src_rect.right <= 0 || src_rect.bottom <= 0 ||
+      src_rect.right <= src_rect.left || src_rect.bottom <= src_rect.top) {
+    // Totally off screen or empty - nothing to copy.
+    return true;
+  }
+  src_rect.left = std::max(src_rect.left, LONG(0));
+  src_rect.top = std::max(src_rect.top, LONG(0));
+
+  XELOGGPU(
+      "Resolving (%d,%d)->(%d,%d) of RT %u (pitch %u, %u sample%s, format "
+      "%u) at %u",
+      src_rect.left, src_rect.top, src_rect.right, src_rect.bottom,
+      surface_index, surface_pitch, 1 << uint32_t(msaa_samples),
+      msaa_samples != MsaaSamples::k1X ? "s" : "", surface_format,
+      surface_edram_base);
+
+  // TODO(Triang3l): Copy and clear.
   return true;
 }
 

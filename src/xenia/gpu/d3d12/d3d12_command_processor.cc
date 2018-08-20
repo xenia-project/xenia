@@ -795,8 +795,11 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
 }
 
 bool D3D12CommandProcessor::IssueCopy() {
+#if FINE_GRAINED_DRAW_SCOPES
+  SCOPE_profile_cpu_f("gpu");
+#endif  // FINE_GRAINED_DRAW_SCOPES
   BeginFrame();
-  return render_target_cache_->Resolve(shared_memory_.get());
+  return render_target_cache_->Resolve(shared_memory_.get(), memory_);
 }
 
 bool D3D12CommandProcessor::BeginFrame() {
