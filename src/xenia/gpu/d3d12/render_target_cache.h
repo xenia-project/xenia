@@ -335,6 +335,11 @@ class RenderTargetCache {
                                   RenderTarget* const* render_targets,
                                   const uint32_t* edram_bases);
 
+  // Performs the copying part of a resolve.
+  bool ResolveCopy(SharedMemory* shared_memory, uint32_t edram_base,
+                   uint32_t surface_pitch, MsaaSamples msaa_samples,
+                   bool is_depth, uint32_t format, const D3D12_RECT& src_rect);
+
   D3D12CommandProcessor* command_processor_;
   RegisterFile* register_file_;
 

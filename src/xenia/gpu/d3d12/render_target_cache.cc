@@ -755,7 +755,7 @@ bool RenderTargetCache::Resolve(SharedMemory* shared_memory, Memory* memory) {
     assert_always();
     return false;
   }
-  uint32_t surface_is_depth = surface_index == 4;
+  bool surface_is_depth = surface_index == 4;
   uint32_t surface_edram_base;
   uint32_t surface_format;
   bool surface_format_64bpp;
@@ -866,7 +866,53 @@ bool RenderTargetCache::Resolve(SharedMemory* shared_memory, Memory* memory) {
       msaa_samples != MsaaSamples::k1X ? "s" : "", surface_format,
       surface_edram_base);
 
-  // TODO(Triang3l): Copy and clear.
+  bool copied =
+      ResolveCopy(shared_memory, surface_edram_base, surface_pitch,
+                  msaa_samples, surface_is_depth, surface_format, src_rect);
+  // TODO(Triang3l): Clear.
+  return copied;
+}
+
+bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
+                                    uint32_t edram_base, uint32_t surface_pitch,
+                                    MsaaSamples msaa_samples, bool is_depth,
+                                    uint32_t format,
+                                    const D3D12_RECT& src_rect) {
+  auto& regs = *register_file_;
+
+  uint32_t rb_copy_control = regs[XE_GPU_REG_RB_COPY_CONTROL].u32;
+  xenos::CopyCommand copy_command =
+      xenos::CopyCommand((rb_copy_control >> 20) & 0x3);
+  if (copy_command != xenos::CopyCommand::kRaw &&
+      copy_command != xenos::CopyCommand::kConvert) {
+    // TODO(Triang3l): Handle kConstantOne and kNull.
+    return false;
+  }
+
+  auto command_list = command_processor_->GetCurrentCommandList();
+  if (command_list == nullptr) {
+    return false;
+  }
+
+  // Get the destination region and clamp the source region to it.
+  uint32_t rb_copy_dest_pitch = regs[XE_GPU_REG_RB_COPY_DEST_PITCH].u32;
+  uint32_t dest_pitch = rb_copy_dest_pitch & 0x3FFF;
+  uint32_t dest_height = (rb_copy_dest_pitch >> 16) & 0x3FFF;
+  if (dest_pitch == 0 || dest_height == 0) {
+    // Nothing to copy.
+    return true;
+  }
+  uint32_t src_x = uint32_t(src_rect.left);
+  uint32_t src_y = uint32_t(src_rect.top);
+  uint32_t src_width =
+      std::min(uint32_t(src_rect.right - src_rect.left), dest_pitch);
+  uint32_t src_height =
+      std::min(uint32_t(src_rect.bottom - src_rect.top), dest_height);
+
+  XELOGGPU("Copying samples %u to 0x%.8X (%ux%u), info 0x%.8X",
+           (rb_copy_control >> 4) & 0x7, regs[XE_GPU_REG_RB_COPY_DEST_BASE].u32,
+           dest_pitch, dest_height, regs[XE_GPU_REG_RB_COPY_DEST_INFO].u32);
+
   return true;
 }
 
