@@ -31,6 +31,8 @@ namespace d3d12 {
 #include "xenia/gpu/d3d12/shaders/bin/texture_load_64bpb_cs.h"
 #include "xenia/gpu/d3d12/shaders/bin/texture_load_8bpb_cs.h"
 #include "xenia/gpu/d3d12/shaders/bin/texture_load_ctx1_cs.h"
+#include "xenia/gpu/d3d12/shaders/bin/texture_load_depth_float_cs.h"
+#include "xenia/gpu/d3d12/shaders/bin/texture_load_depth_unorm_cs.h"
 #include "xenia/gpu/d3d12/shaders/bin/texture_load_dxt3a_cs.h"
 
 const TextureCache::HostFormat TextureCache::host_formats_[64] = {
@@ -56,8 +58,10 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
     {DXGI_FORMAT_BC2_UNORM, CopyMode::k128bpb},          // k_DXT2_3
     {DXGI_FORMAT_BC3_UNORM, CopyMode::k128bpb},          // k_DXT4_5
     {DXGI_FORMAT_R16G16B16A16_UNORM, CopyMode::k64bpb},  // k_16_16_16_16_EDRAM
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_24_8
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_24_8_FLOAT
+    // R32_FLOAT for depth because shaders would require an additional SRV to
+    // sample stencil, which we don't provide.
+    {DXGI_FORMAT_R32_FLOAT, CopyMode::kDepthUnorm},      // k_24_8
+    {DXGI_FORMAT_R32_FLOAT, CopyMode::kDepthFloat},      // k_24_8_FLOAT
     {DXGI_FORMAT_R16_UNORM, CopyMode::k16bpb},           // k_16
     {DXGI_FORMAT_R16G16_UNORM, CopyMode::k32bpb},        // k_16_16
     {DXGI_FORMAT_R16G16B16A16_UNORM, CopyMode::k64bpb},  // k_16_16_16_16
@@ -112,6 +116,8 @@ const TextureCache::CopyModeInfo TextureCache::copy_mode_info_[] = {
     {texture_load_128bpb_cs, sizeof(texture_load_128bpb_cs)},
     {texture_load_dxt3a_cs, sizeof(texture_load_dxt3a_cs)},
     {texture_load_ctx1_cs, sizeof(texture_load_ctx1_cs)},
+    {texture_load_depth_unorm_cs, sizeof(texture_load_depth_unorm_cs)},
+    {texture_load_depth_float_cs, sizeof(texture_load_depth_float_cs)},
 };
 
 TextureCache::TextureCache(D3D12CommandProcessor* command_processor,
