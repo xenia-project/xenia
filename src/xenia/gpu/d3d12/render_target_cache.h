@@ -338,7 +338,8 @@ class RenderTargetCache {
   // Performs the copying part of a resolve.
   bool ResolveCopy(SharedMemory* shared_memory, uint32_t edram_base,
                    uint32_t surface_pitch, MsaaSamples msaa_samples,
-                   bool is_depth, uint32_t format, const D3D12_RECT& src_rect);
+                   bool is_depth, uint32_t src_format,
+                   const D3D12_RECT& src_rect);
 
   D3D12CommandProcessor* command_processor_;
   RegisterFile* register_file_;
@@ -354,7 +355,7 @@ class RenderTargetCache {
     uint32_t base_tiles;
     uint32_t pitch_tiles;
     uint32_t rt_color_depth_pitch;
-    uint32_t rt_stencil_offset;
+    uint32_t rt_stencil_offset_or_swap_red_blue;
     uint32_t rt_stencil_pitch;
   };
   // EDRAM buffer load/store pipelines.
