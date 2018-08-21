@@ -19,6 +19,7 @@
 #include "xenia/base/memory.h"
 #include "xenia/base/profiling.h"
 #include "xenia/gpu/d3d12/d3d12_command_processor.h"
+#include "xenia/gpu/texture_info.h"
 
 namespace xe {
 namespace gpu {
@@ -876,7 +877,7 @@ bool RenderTargetCache::Resolve(SharedMemory* shared_memory, Memory* memory) {
 bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
                                     uint32_t edram_base, uint32_t surface_pitch,
                                     MsaaSamples msaa_samples, bool is_depth,
-                                    uint32_t format,
+                                    uint32_t src_format,
                                     const D3D12_RECT& src_rect) {
   auto& regs = *register_file_;
 
@@ -909,9 +910,77 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
   uint32_t src_height =
       std::min(uint32_t(src_rect.bottom - src_rect.top), dest_height);
 
-  XELOGGPU("Copying samples %u to 0x%.8X (%ux%u), info 0x%.8X",
-           (rb_copy_control >> 4) & 0x7, regs[XE_GPU_REG_RB_COPY_DEST_BASE].u32,
-           dest_pitch, dest_height, regs[XE_GPU_REG_RB_COPY_DEST_INFO].u32);
+  // Get format info.
+  uint32_t dest_info = regs[XE_GPU_REG_RB_COPY_DEST_INFO].u32;
+  TextureFormat src_texture_format;
+  if (is_depth) {
+    src_texture_format =
+        DepthRenderTargetToTextureFormat(DepthRenderTargetFormat(src_format));
+  } else {
+    src_texture_format =
+        ColorRenderTargetToTextureFormat(ColorRenderTargetFormat(src_format));
+  }
+  assert_true(src_texture_format != TextureFormat::kUnknown);
+  src_texture_format = GetBaseFormat(src_texture_format);
+  TextureFormat dest_format =
+      GetBaseFormat(TextureFormat((dest_info >> 7) & 0x3F));
+
+  // Get the destination location.
+  uint32_t dest_address = regs[XE_GPU_REG_RB_COPY_DEST_BASE].u32 & 0x1FFFFFFF;
+  if (dest_address & 0x3) {
+    assert_always();
+    // Not 4-aligning may break UAV access significantly, let's hope games don't
+    // resolve to 8bpp or 16bpp textures at very odd locations.
+    return false;
+  }
+  int32_t dest_exp_bias = int32_t((dest_info >> 16) << 26) >> 26;
+  uint32_t dest_swap = (dest_info >> 24) & 0x1;
+  // TODO(Triang3l): Copy to array slices.
+  // TODO(Triang3l): Investigate what copy_dest_number is.
+  XELOGGPU(
+      "Copying samples %u to 0x%.8X (%ux%u), destination format %s, "
+      "exponent bias %d, red and blue %sswapped",
+      (rb_copy_control >> 4) & 0x7, dest_address, dest_pitch, dest_height,
+      FormatInfo::Get(dest_format)->name, dest_exp_bias,
+      dest_swap ? "" : "not ");
+
+  // There are 3 paths for resolving in this function - they don't necessarily
+  // have to map directly to kRaw and kConvert CopyCommands.
+  // - Raw color - when the source is single-sampled and has the same format as
+  //   the destination, and there's no need to apply exponent bias. A regular
+  //   EDRAM load is done to a buffer, and the buffer is then tiled to the
+  //   shared memory. Because swapping red and blue is very common, this path
+  //   supports swapping.
+  // - Depth to depth - when the source and the destination formats are
+  //   renderable depth-stencil ones (D24S8 or D24FS8). A single sample is
+  //   taken from the EDRAM buffer, converted between D24 and D24F if needed,
+  //   and tiled directly to the shared memory buffer.
+  // - Conversion - when a simple copy is not enough. The EDRAM region is loaded
+  //   to a render target resource, which is then used as a texture in a shader
+  //   performing the resolve (by sampling the texture on or between pixels with
+  //   bilinear filtering), applying exponent bias and swapping red and blue in
+  //   a format-agnostic way, then the resulting color is written to a temporary
+  //   RTV of the destination format. This also works for converting depth to
+  //   16-bit or 32-bit.
+  if (dest_format == TextureFormat::k_24_8 ||
+      dest_format == TextureFormat::k_24_8_FLOAT) {
+    // Depth to depth.
+    XELOGGPU("Resolving to a depth texture");
+    if (!is_depth) {
+      return false;
+    }
+    // TODO(Triang3l): Depth to depth.
+    return false;
+  } else if (src_texture_format == dest_format &&
+             msaa_samples == MsaaSamples::k1X && dest_exp_bias == 0) {
+    XELOGGPU("Resolving a single-sampled surface without conversion");
+    // TODO(Triang3l): Raw resolve.
+    return false;
+  } else {
+    XELOGGPU("Resolving with a pixel shader");
+    // TODO(Triang3l): Conversion.
+    return false;
+  }
 
   return true;
 }
@@ -1290,10 +1359,12 @@ void RenderTargetCache::StoreRenderTargetsToEDRAM() {
       location_dest.PlacedFootprint = render_target->footprints[1];
       command_list->CopyTextureRegion(&location_dest, 0, 0, 0, &location_source,
                                       nullptr);
-      root_constants.rt_stencil_offset =
+      root_constants.rt_stencil_offset_or_swap_red_blue =
           uint32_t(location_dest.PlacedFootprint.Offset);
       root_constants.rt_stencil_pitch =
           location_dest.PlacedFootprint.Footprint.RowPitch;
+    } else {
+      root_constants.rt_stencil_offset_or_swap_red_blue = 0;
     }
 
     // Transition the copy buffer to SRV.
@@ -1458,10 +1529,12 @@ void RenderTargetCache::LoadRenderTargetsFromEDRAM(
     root_constants.rt_color_depth_pitch =
         render_target->footprints[0].Footprint.RowPitch;
     if (render_target->key.is_depth) {
-      root_constants.rt_stencil_offset =
+      root_constants.rt_stencil_offset_or_swap_red_blue =
           uint32_t(render_target->footprints[1].Offset);
       root_constants.rt_stencil_pitch =
           render_target->footprints[1].Footprint.RowPitch;
+    } else {
+      root_constants.rt_stencil_offset_or_swap_red_blue = 0;
     }
 
     // Validate the height in case the resolve is somehow too large (shouldn't
