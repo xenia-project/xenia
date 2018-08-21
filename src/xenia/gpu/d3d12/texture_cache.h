@@ -92,6 +92,8 @@ class TextureCache {
     k128bpb,
     kDXT3A,
     kCTX1,
+    kDepthUnorm,
+    kDepthFloat,
 
     kCount,
 

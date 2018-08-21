@@ -922,8 +922,11 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
   }
   assert_true(src_texture_format != TextureFormat::kUnknown);
   src_texture_format = GetBaseFormat(src_texture_format);
+  // The destination format is specified as k_8_8_8_8 when resolving depth,
+  // apparently there's no format conversion.
   TextureFormat dest_format =
-      GetBaseFormat(TextureFormat((dest_info >> 7) & 0x3F));
+      is_depth ? src_texture_format
+               : GetBaseFormat(TextureFormat((dest_info >> 7) & 0x3F));
 
   // Get the destination location.
   uint32_t dest_address = regs[XE_GPU_REG_RB_COPY_DEST_BASE].u32 & 0x1FFFFFFF;
@@ -946,30 +949,25 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
 
   // There are 3 paths for resolving in this function - they don't necessarily
   // have to map directly to kRaw and kConvert CopyCommands.
+  // - Depth - tiling raw D24S8 or D24FS8 directly from the EDRAM buffer to the
+  //   shared memory. Only 1 sample is resolved from a depth buffer, and it
+  //   looks like format conversion can't be done when resolving depth buffers
+  //   since k_8_8_8_8 is specified as the destination format, while the texture
+  //   is being used as k_24_8 or k_24_8_FLOAT.
   // - Raw color - when the source is single-sampled and has the same format as
   //   the destination, and there's no need to apply exponent bias. A regular
   //   EDRAM load is done to a buffer, and the buffer is then tiled to the
   //   shared memory. Because swapping red and blue is very common, this path
   //   supports swapping.
-  // - Depth to depth - when the source and the destination formats are
-  //   renderable depth-stencil ones (D24S8 or D24FS8). A single sample is
-  //   taken from the EDRAM buffer, converted between D24 and D24F if needed,
-  //   and tiled directly to the shared memory buffer.
   // - Conversion - when a simple copy is not enough. The EDRAM region is loaded
   //   to a render target resource, which is then used as a texture in a shader
   //   performing the resolve (by sampling the texture on or between pixels with
   //   bilinear filtering), applying exponent bias and swapping red and blue in
   //   a format-agnostic way, then the resulting color is written to a temporary
-  //   RTV of the destination format. This also works for converting depth to
-  //   16-bit or 32-bit.
-  if (dest_format == TextureFormat::k_24_8 ||
-      dest_format == TextureFormat::k_24_8_FLOAT) {
-    // Depth to depth.
-    XELOGGPU("Resolving to a depth texture");
-    if (!is_depth) {
-      return false;
-    }
-    // TODO(Triang3l): Depth to depth.
+  //   RTV of the destination format.
+  if (is_depth) {
+    // Depth.
+    // TODO(Triang3l): Resolve depth.
     return false;
   } else if (src_texture_format == dest_format &&
              msaa_samples == MsaaSamples::k1X && dest_exp_bias == 0) {
