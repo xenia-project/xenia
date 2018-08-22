@@ -23,12 +23,14 @@ namespace xe {
 namespace gpu {
 namespace d3d12 {
 
+class D3D12CommandProcessor;
+
 // Manages memory for unconverted textures, resolve targets, vertex and index
 // buffers that can be accessed from shaders with Xenon physical addresses, with
 // system page size granularity.
 class SharedMemory {
  public:
-  SharedMemory(Memory* memory, ui::d3d12::D3D12Context* context);
+  SharedMemory(D3D12CommandProcessor* command_processor, Memory* memory);
   ~SharedMemory();
 
   bool Initialize();
@@ -39,8 +41,6 @@ class SharedMemory {
   }
 
   void BeginFrame();
-  // Returns true if anything has been written to command_list been done.
-  // The draw command list is needed for the transition.
   void EndFrame();
 
   typedef void (*WatchCallback)(void* context, void* data, uint64_t argument);
@@ -76,8 +76,7 @@ class SharedMemory {
   // tiled buffer to copy destination - call this before UseForReading or
   // UseForWriting. Returns true if the range has been fully updated and is
   // usable.
-  bool RequestRange(uint32_t start, uint32_t length,
-                    ID3D12GraphicsCommandList* command_list);
+  bool RequestRange(uint32_t start, uint32_t length);
 
   // Marks the range as containing GPU-generated data (such as resolves),
   // triggering modification callbacks, making it valid (so pages are not
@@ -86,17 +85,17 @@ class SharedMemory {
   void RangeWrittenByGPU(uint32_t start, uint32_t length);
 
   // Makes the buffer usable for vertices, indices and texture untiling.
-  void UseForReading(ID3D12GraphicsCommandList* command_list);
+  void UseForReading();
   // Makes the buffer usable for texture tiling after a resolve.
-  void UseForWriting(ID3D12GraphicsCommandList* command_list);
+  void UseForWriting();
 
   void CreateSRV(D3D12_CPU_DESCRIPTOR_HANDLE handle);
   void CreateUAV(D3D12_CPU_DESCRIPTOR_HANDLE handle);
 
  private:
-  Memory* memory_;
+  D3D12CommandProcessor* command_processor_;
 
-  ui::d3d12::D3D12Context* context_;
+  Memory* memory_;
 
   // The 512 MB tiled buffer.
   static constexpr uint32_t kBufferSizeLog2 = 29;
@@ -204,8 +203,7 @@ class SharedMemory {
                          uint32_t request_page_count);
   std::unique_ptr<ui::d3d12::UploadBufferPool> upload_buffer_pool_ = nullptr;
 
-  void TransitionBuffer(D3D12_RESOURCE_STATES new_state,
-                        ID3D12GraphicsCommandList* command_list);
+  void TransitionBuffer(D3D12_RESOURCE_STATES new_state);
 };
 
 }  // namespace d3d12

@@ -47,6 +47,15 @@ class D3D12CommandProcessor : public CommandProcessor {
   // Returns the drawing command list for the currently open frame.
   ID3D12GraphicsCommandList* GetCurrentCommandList() const;
 
+  void PushTransitionBarrier(
+      ID3D12Resource* resource, D3D12_RESOURCE_STATES old_state,
+      D3D12_RESOURCE_STATES new_state,
+      UINT subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES);
+  void PushAliasingBarrier(ID3D12Resource* old_resource,
+                           ID3D12Resource* new_resource);
+  void PushUAVBarrier(ID3D12Resource* resource);
+  void SubmitBarriers();
+
   // Finds or creates root signature for a pipeline.
   ID3D12RootSignature* GetRootSignature(const D3D12Shader* vertex_shader,
                                         const D3D12Shader* pixel_shader);
@@ -175,6 +184,9 @@ class D3D12CommandProcessor : public CommandProcessor {
   std::unique_ptr<ui::d3d12::UploadBufferPool> constant_buffer_pool_ = nullptr;
   std::unique_ptr<ui::d3d12::DescriptorHeapPool> view_heap_pool_ = nullptr;
   std::unique_ptr<ui::d3d12::DescriptorHeapPool> sampler_heap_pool_ = nullptr;
+
+  // Unsubmitted barrier batch.
+  std::vector<D3D12_RESOURCE_BARRIER> barriers_;
 
   struct BufferForDeletion {
     ID3D12Resource* buffer;

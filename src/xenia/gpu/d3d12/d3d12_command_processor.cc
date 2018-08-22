@@ -42,6 +42,48 @@ ID3D12GraphicsCommandList* D3D12CommandProcessor::GetCurrentCommandList()
   return command_lists_[current_queue_frame_]->GetCommandList();
 }
 
+void D3D12CommandProcessor::PushTransitionBarrier(
+    ID3D12Resource* resource, D3D12_RESOURCE_STATES old_state,
+    D3D12_RESOURCE_STATES new_state, UINT subresource) {
+  if (old_state == new_state) {
+    return;
+  }
+  D3D12_RESOURCE_BARRIER barrier;
+  barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+  barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+  barrier.Transition.pResource = resource;
+  barrier.Transition.Subresource = subresource;
+  barrier.Transition.StateBefore = old_state;
+  barrier.Transition.StateAfter = new_state;
+  barriers_.push_back(barrier);
+}
+
+void D3D12CommandProcessor::PushAliasingBarrier(ID3D12Resource* old_resource,
+                                                ID3D12Resource* new_resource) {
+  D3D12_RESOURCE_BARRIER barrier;
+  barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_ALIASING;
+  barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+  barrier.Aliasing.pResourceBefore = old_resource;
+  barrier.Aliasing.pResourceAfter = new_resource;
+  barriers_.push_back(barrier);
+}
+
+void D3D12CommandProcessor::PushUAVBarrier(ID3D12Resource* resource) {
+  D3D12_RESOURCE_BARRIER barrier;
+  barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
+  barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+  barrier.UAV.pResource = resource;
+  barriers_.push_back(barrier);
+}
+
+void D3D12CommandProcessor::SubmitBarriers() {
+  UINT barrier_count = UINT(barriers_.size());
+  if (barrier_count != 0) {
+    GetCurrentCommandList()->ResourceBarrier(barrier_count, barriers_.data());
+    barriers_.clear();
+  }
+}
+
 ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(
     const D3D12Shader* vertex_shader, const D3D12Shader* pixel_shader) {
   assert_true(vertex_shader->is_translated());
@@ -372,17 +414,8 @@ ID3D12Resource* D3D12CommandProcessor::RequestScratchGPUBuffer(
   }
 
   if (size <= scratch_buffer_size_) {
-    if (scratch_buffer_state_ != state) {
-      D3D12_RESOURCE_BARRIER barrier;
-      barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-      barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-      barrier.Transition.pResource = scratch_buffer_;
-      barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-      barrier.Transition.StateBefore = scratch_buffer_state_;
-      barrier.Transition.StateAfter = state;
-      GetCurrentCommandList()->ResourceBarrier(1, &barrier);
-      scratch_buffer_state_ = state;
-    }
+    PushTransitionBarrier(scratch_buffer_, scratch_buffer_state_, state);
+    scratch_buffer_state_ = state;
     scratch_buffer_used_ = true;
     return scratch_buffer_;
   }
@@ -470,7 +503,7 @@ bool D3D12CommandProcessor::SetupContext() {
   sampler_heap_pool_ = std::make_unique<ui::d3d12::DescriptorHeapPool>(
       context, D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, 2048);
 
-  shared_memory_ = std::make_unique<SharedMemory>(memory_, context);
+  shared_memory_ = std::make_unique<SharedMemory>(this, memory_);
   if (!shared_memory_->Initialize()) {
     XELOGE("Failed to initialize shared memory");
     return false;
@@ -764,7 +797,7 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     }
     shared_memory_->RequestRange(
         regs[vfetch_constant_index].u32 & 0x1FFFFFFC,
-        regs[vfetch_constant_index + 1].u32 & 0x3FFFFFC, command_list);
+        regs[vfetch_constant_index + 1].u32 & 0x3FFFFFC);
     vertex_buffers_resident[vfetch_index >> 6] |= 1ull << (vfetch_index & 63);
   }
   if (indexed) {
@@ -774,9 +807,9 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
                               : sizeof(uint16_t);
     index_base &= ~(index_size - 1);
     uint32_t index_buffer_size = index_buffer_info->count * index_size;
-    shared_memory_->RequestRange(index_base, index_buffer_size, command_list);
+    shared_memory_->RequestRange(index_base, index_buffer_size);
 
-    shared_memory_->UseForReading(command_list);
+    shared_memory_->UseForReading();
     D3D12_INDEX_BUFFER_VIEW index_buffer_view;
     index_buffer_view.BufferLocation =
         shared_memory_->GetGPUAddress() + index_base;
@@ -785,9 +818,11 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
                                    ? DXGI_FORMAT_R32_UINT
                                    : DXGI_FORMAT_R16_UINT;
     command_list->IASetIndexBuffer(&index_buffer_view);
+    SubmitBarriers();
     command_list->DrawIndexedInstanced(index_count, 1, 0, 0, 0);
   } else {
-    shared_memory_->UseForReading(command_list);
+    shared_memory_->UseForReading();
+    SubmitBarriers();
     command_list->DrawInstanced(index_count, 1, 0, 0);
   }
 
@@ -873,6 +908,9 @@ bool D3D12CommandProcessor::EndFrame() {
 
   shared_memory_->EndFrame();
 
+  // Submit barriers now because resources the queued barriers are for may be
+  // destroyed between frames.
+  SubmitBarriers();
   command_lists_[current_queue_frame_]->Execute();
 
   sampler_heap_pool_->EndFrame();

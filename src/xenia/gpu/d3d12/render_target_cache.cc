@@ -578,9 +578,6 @@ bool RenderTargetCache::UpdateRenderTargets() {
     auto device =
         command_processor_->GetD3D12Context()->GetD3D12Provider()->GetDevice();
 
-    D3D12_RESOURCE_BARRIER barriers[5];
-    uint32_t barrier_count = 0;
-
     // Allocate new render targets and add them to the bindings list.
     for (uint32_t i = 0; i < 5; ++i) {
       if (!(render_targets_to_attach & (1 << i))) {
@@ -636,14 +633,8 @@ bool RenderTargetCache::UpdateRenderTargets() {
       heap_usage[heap_page_first >> 3] += heap_page_count;
 
       // Inform Direct3D that we're reusing the heap for this render target.
-      D3D12_RESOURCE_BARRIER& barrier = barriers[barrier_count++];
-      barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_ALIASING;
-      barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-      barrier.Aliasing.pResourceBefore = nullptr;
-      barrier.Aliasing.pResourceAfter = binding.render_target->resource;
-    }
-    if (barrier_count != 0) {
-      command_list->ResourceBarrier(barrier_count, barriers);
+      command_processor_->PushAliasingBarrier(nullptr,
+                                              binding.render_target->resource);
     }
 
     // Load the contents of the new render targets from the EDRAM buffer (will
@@ -671,7 +662,6 @@ bool RenderTargetCache::UpdateRenderTargets() {
     // Transition the render targets to the appropriate state if needed,
     // compress the list of the render target because null RTV descriptors are
     // broken in Direct3D 12 and bind the render targets to the command list.
-    barrier_count = 0;
     D3D12_CPU_DESCRIPTOR_HANDLE rtv_handles[4];
     uint32_t rtv_count = 0;
     for (uint32_t i = 0; i < 4; ++i) {
@@ -680,17 +670,10 @@ bool RenderTargetCache::UpdateRenderTargets() {
       if (!binding.is_bound || render_target == nullptr) {
         continue;
       }
-      if (render_target->state != D3D12_RESOURCE_STATE_RENDER_TARGET) {
-        D3D12_RESOURCE_BARRIER& barrier = barriers[barrier_count++];
-        barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-        barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-        barrier.Transition.pResource = render_target->resource;
-        barrier.Transition.Subresource =
-            D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-        barrier.Transition.StateBefore = render_target->state;
-        barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
-        render_target->state = D3D12_RESOURCE_STATE_RENDER_TARGET;
-      }
+      command_processor_->PushTransitionBarrier(
+          render_target->resource, render_target->state,
+          D3D12_RESOURCE_STATE_RENDER_TARGET);
+      render_target->state = D3D12_RESOURCE_STATE_RENDER_TARGET;
       rtv_handles[rtv_count] = render_target->handle;
       current_pipeline_render_targets_[rtv_count].guest_render_target = i;
       current_pipeline_render_targets_[rtv_count].format =
@@ -706,17 +689,10 @@ bool RenderTargetCache::UpdateRenderTargets() {
     RenderTarget* depth_render_target = depth_binding.render_target;
     current_pipeline_render_targets_[4].guest_render_target = 4;
     if (depth_binding.is_bound && depth_render_target != nullptr) {
-      if (depth_render_target->state != D3D12_RESOURCE_STATE_DEPTH_WRITE) {
-        D3D12_RESOURCE_BARRIER& barrier = barriers[barrier_count++];
-        barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-        barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-        barrier.Transition.pResource = depth_render_target->resource;
-        barrier.Transition.Subresource =
-            D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-        barrier.Transition.StateBefore = depth_render_target->state;
-        barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_DEPTH_WRITE;
-        depth_render_target->state = D3D12_RESOURCE_STATE_DEPTH_WRITE;
-      }
+      command_processor_->PushTransitionBarrier(
+          depth_render_target->resource, depth_render_target->state,
+          D3D12_RESOURCE_STATE_DEPTH_WRITE);
+      depth_render_target->state = D3D12_RESOURCE_STATE_DEPTH_WRITE;
       dsv_handle = &depth_binding.render_target->handle;
       current_pipeline_render_targets_[4].format =
           GetDepthDXGIFormat(DepthRenderTargetFormat(formats[4]));
@@ -724,9 +700,7 @@ bool RenderTargetCache::UpdateRenderTargets() {
       dsv_handle = nullptr;
       current_pipeline_render_targets_[4].format = DXGI_FORMAT_UNKNOWN;
     }
-    if (barrier_count != 0) {
-      command_list->ResourceBarrier(barrier_count, barriers);
-    }
+    command_processor_->SubmitBarriers();
     command_list->OMSetRenderTargets(rtv_count, rtv_handles, FALSE, dsv_handle);
   }
 
@@ -1282,17 +1256,11 @@ void RenderTargetCache::StoreRenderTargetsToEDRAM() {
     return;
   }
 
-  uint32_t store_bindings[5];
-  uint32_t store_binding_count = 0;
-
-  // 6 for 5 render targets + the EDRAM buffer.
-  D3D12_RESOURCE_BARRIER barriers[6];
-  uint32_t barrier_count;
-
   // Extract only the render targets that need to be stored, transition them to
   // copy sources and calculate copy buffer size.
+  uint32_t store_bindings[5];
+  uint32_t store_binding_count = 0;
   uint32_t copy_buffer_size = 0;
-  barrier_count = 0;
   for (uint32_t i = 0; i < 5; ++i) {
     const RenderTargetBinding& binding = current_bindings_[i];
     RenderTarget* render_target = binding.render_target;
@@ -1300,37 +1268,12 @@ void RenderTargetCache::StoreRenderTargetsToEDRAM() {
         binding.edram_dirty_rows < 0) {
       continue;
     }
-    store_bindings[store_binding_count] = i;
+    store_bindings[store_binding_count++] = i;
     copy_buffer_size =
         std::max(copy_buffer_size, render_target->copy_buffer_size);
-    ++store_binding_count;
-    if (render_target->state != D3D12_RESOURCE_STATE_COPY_SOURCE) {
-      D3D12_RESOURCE_BARRIER& barrier = barriers[barrier_count++];
-      barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-      barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-      barrier.Transition.pResource = render_target->resource;
-      barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-      barrier.Transition.StateBefore = render_target->state;
-      barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_SOURCE;
-      render_target->state = D3D12_RESOURCE_STATE_COPY_SOURCE;
-    }
   }
   if (store_binding_count == 0) {
     return;
-  }
-  if (edram_buffer_state_ != D3D12_RESOURCE_STATE_UNORDERED_ACCESS) {
-    // Also transition the EDRAM buffer to UAV.
-    D3D12_RESOURCE_BARRIER& barrier = barriers[barrier_count++];
-    barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-    barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-    barrier.Transition.pResource = edram_buffer_;
-    barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-    barrier.Transition.StateBefore = edram_buffer_state_;
-    barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
-    edram_buffer_state_ = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
-  }
-  if (barrier_count != 0) {
-    command_list->ResourceBarrier(barrier_count, barriers);
   }
 
   // Allocate descriptors for the buffers.
@@ -1348,6 +1291,21 @@ void RenderTargetCache::StoreRenderTargetsToEDRAM() {
   if (copy_buffer == nullptr) {
     return;
   }
+
+  // Transition the render targets that need to be stored to copy sources and
+  // the EDRAM buffer to a UAV.
+  for (uint32_t i = 0; i < store_binding_count; ++i) {
+    RenderTarget* render_target =
+        current_bindings_[store_bindings[i]].render_target;
+    command_processor_->PushTransitionBarrier(render_target->resource,
+                                              render_target->state,
+                                              D3D12_RESOURCE_STATE_COPY_SOURCE);
+    render_target->state = D3D12_RESOURCE_STATE_COPY_SOURCE;
+  }
+  command_processor_->PushTransitionBarrier(
+      edram_buffer_, edram_buffer_state_,
+      D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+  edram_buffer_state_ = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
 
   // Prepare for storing.
   auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
@@ -1410,6 +1368,12 @@ void RenderTargetCache::StoreRenderTargetsToEDRAM() {
       rt_pitch_tiles *= 2;
     }
 
+    // Transition the copy buffer to copy destination.
+    command_processor_->PushTransitionBarrier(copy_buffer, copy_buffer_state,
+                                              D3D12_RESOURCE_STATE_COPY_DEST);
+    copy_buffer_state = D3D12_RESOURCE_STATE_COPY_DEST;
+    command_processor_->SubmitBarriers();
+
     // Copy from the render target planes and set up the layout.
     D3D12_TEXTURE_COPY_LOCATION location_source, location_dest;
     location_source.pResource = render_target->resource;
@@ -1440,16 +1404,11 @@ void RenderTargetCache::StoreRenderTargetsToEDRAM() {
     }
 
     // Transition the copy buffer to SRV.
-    barriers[0].Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-    barriers[0].Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-    barriers[0].Transition.pResource = copy_buffer;
-    barriers[0].Transition.Subresource =
-        D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-    barriers[0].Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
-    barriers[0].Transition.StateAfter =
-        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
+    command_processor_->PushTransitionBarrier(
+        copy_buffer, copy_buffer_state,
+        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
     copy_buffer_state = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
-    command_list->ResourceBarrier(1, barriers);
+    command_processor_->SubmitBarriers();
 
     // Store the data.
     command_list->SetComputeRoot32BitConstants(
@@ -1459,24 +1418,8 @@ void RenderTargetCache::StoreRenderTargetsToEDRAM() {
     command_processor_->SetPipeline(edram_store_pipelines_[size_t(mode)]);
     command_list->Dispatch(rt_pitch_tiles, binding.edram_dirty_rows, 1);
 
-    // Commit the UAV write and prepare for copying again.
-    barrier_count = 1;
-    barriers[0].Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
-    barriers[0].Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-    barriers[0].UAV.pResource = edram_buffer_;
-    if (i + 1 < store_binding_count) {
-      barrier_count = 2;
-      barriers[1].Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-      barriers[1].Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-      barriers[1].Transition.pResource = copy_buffer;
-      barriers[1].Transition.Subresource =
-          D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-      barriers[1].Transition.StateBefore =
-          D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
-      barriers[1].Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_DEST;
-      copy_buffer_state = D3D12_RESOURCE_STATE_COPY_DEST;
-    }
-    command_list->ResourceBarrier(barrier_count, barriers);
+    // Commit the UAV write.
+    command_processor_->PushUAVBarrier(edram_buffer_);
   }
 
   command_processor_->ReleaseScratchGPUBuffer(copy_buffer, copy_buffer_state);
@@ -1495,45 +1438,6 @@ void RenderTargetCache::LoadRenderTargetsFromEDRAM(
     return;
   }
 
-  // 6 for 5 render targets + the EDRAM buffer.
-  D3D12_RESOURCE_BARRIER barriers[6];
-  uint32_t barrier_count;
-
-  // Transition the render targets to copy destinations and calculate copy
-  // buffer size.
-  uint32_t copy_buffer_size = 0;
-  barrier_count = 0;
-  for (uint32_t i = 0; i < render_target_count; ++i) {
-    RenderTarget* render_target = render_targets[i];
-    copy_buffer_size =
-        std::max(copy_buffer_size, render_target->copy_buffer_size);
-    if (render_target->state != D3D12_RESOURCE_STATE_COPY_DEST) {
-      D3D12_RESOURCE_BARRIER& barrier = barriers[barrier_count++];
-      barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-      barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-      barrier.Transition.pResource = render_target->resource;
-      barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-      barrier.Transition.StateBefore = render_target->state;
-      barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_DEST;
-      render_target->state = D3D12_RESOURCE_STATE_COPY_DEST;
-    }
-  }
-  if (edram_buffer_state_ != D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE) {
-    // Also transition the EDRAM buffer to SRV.
-    D3D12_RESOURCE_BARRIER& barrier = barriers[barrier_count++];
-    barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-    barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-    barrier.Transition.pResource = edram_buffer_;
-    barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-    barrier.Transition.StateBefore = edram_buffer_state_;
-    barrier.Transition.StateAfter =
-        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
-    edram_buffer_state_ = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
-  }
-  if (barrier_count != 0) {
-    command_list->ResourceBarrier(barrier_count, barriers);
-  }
-
   // Allocate descriptors for the buffers.
   D3D12_CPU_DESCRIPTOR_HANDLE descriptor_cpu_start;
   D3D12_GPU_DESCRIPTOR_HANDLE descriptor_gpu_start;
@@ -1543,6 +1447,11 @@ void RenderTargetCache::LoadRenderTargetsFromEDRAM(
   }
 
   // Get the buffer for copying.
+  uint32_t copy_buffer_size = 0;
+  for (uint32_t i = 0; i < render_target_count; ++i) {
+    copy_buffer_size =
+        std::max(copy_buffer_size, render_targets[i]->copy_buffer_size);
+  }
   D3D12_RESOURCE_STATES copy_buffer_state =
       D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
   ID3D12Resource* copy_buffer = command_processor_->RequestScratchGPUBuffer(
@@ -1551,7 +1460,21 @@ void RenderTargetCache::LoadRenderTargetsFromEDRAM(
     return;
   }
 
-  // Prepare for loading.
+  // Transition the render targets to copy destinations and the EDRAM buffer to
+  // a SRV.
+  for (uint32_t i = 0; i < render_target_count; ++i) {
+    RenderTarget* render_target = render_targets[i];
+    command_processor_->PushTransitionBarrier(render_target->resource,
+                                              render_target->state,
+                                              D3D12_RESOURCE_STATE_COPY_DEST);
+    render_target->state = D3D12_RESOURCE_STATE_COPY_DEST;
+  }
+  command_processor_->PushTransitionBarrier(
+      edram_buffer_, edram_buffer_state_,
+      D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+  edram_buffer_state_ = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
+
+  // Set up the bindings.
   auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
   auto device = provider->GetDevice();
   auto descriptor_size_view = provider->GetDescriptorSizeView();
@@ -1583,8 +1506,8 @@ void RenderTargetCache::LoadRenderTargetsFromEDRAM(
   // Load each render target.
   for (uint32_t i = 0; i < render_target_count; ++i) {
     if (edram_bases[i] >= 2048) {
-      // Something is wrong with the resolve.
-      return;
+      // Something is wrong with the load.
+      continue;
     }
     const RenderTarget* render_target = render_targets[i];
 
@@ -1595,8 +1518,7 @@ void RenderTargetCache::LoadRenderTargetsFromEDRAM(
             ColorRenderTargetFormat(render_target->key.format))) {
       edram_pitch_tiles *= 2;
     }
-    // Validate the height in case the resolve is somehow too large (shouldn't
-    // happen though, but who knows what games do).
+    // Clamp the height if somehow requested a render target that is too large.
     uint32_t edram_rows =
         std::min(render_target->key.height_ss_div_16,
                  (2048u - edram_bases[i]) / edram_pitch_tiles);
@@ -1605,19 +1527,12 @@ void RenderTargetCache::LoadRenderTargetsFromEDRAM(
     }
 
     // Transition the copy buffer back to UAV if it's not the first load.
-    if (copy_buffer_state != D3D12_RESOURCE_STATE_UNORDERED_ACCESS) {
-      barriers[0].Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-      barriers[0].Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-      barriers[0].Transition.pResource = copy_buffer;
-      barriers[0].Transition.Subresource =
-          D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-      barriers[0].Transition.StateBefore = copy_buffer_state;
-      barriers[0].Transition.StateAfter = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
-      copy_buffer_state = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
-      command_list->ResourceBarrier(1, barriers);
-    }
+    command_processor_->PushTransitionBarrier(
+        copy_buffer, copy_buffer_state, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+    copy_buffer_state = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
 
     // Load the data.
+    command_processor_->SubmitBarriers();
     EDRAMLoadStoreRootConstants root_constants;
     root_constants.base_pitch_tiles =
         edram_bases[i] | (edram_pitch_tiles << 11);
@@ -1638,21 +1553,14 @@ void RenderTargetCache::LoadRenderTargetsFromEDRAM(
     command_processor_->SetPipeline(edram_load_pipelines_[size_t(mode)]);
     command_list->Dispatch(edram_pitch_tiles, edram_rows, 1);
 
-    // Commit the UAV write and transition the copy buffer to copy source.
-    barriers[0].Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
-    barriers[0].Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-    barriers[0].UAV.pResource = copy_buffer;
-    barriers[1].Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-    barriers[1].Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-    barriers[1].Transition.pResource = copy_buffer;
-    barriers[1].Transition.Subresource =
-        D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-    barriers[1].Transition.StateBefore = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
-    barriers[1].Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_SOURCE;
+    // Commit the UAV write and transition the copy buffer to copy source now.
+    command_processor_->PushUAVBarrier(copy_buffer);
+    command_processor_->PushTransitionBarrier(copy_buffer, copy_buffer_state,
+                                              D3D12_RESOURCE_STATE_COPY_SOURCE);
     copy_buffer_state = D3D12_RESOURCE_STATE_COPY_SOURCE;
-    command_list->ResourceBarrier(2, barriers);
 
     // Copy to the render target planes.
+    command_processor_->SubmitBarriers();
     D3D12_TEXTURE_COPY_LOCATION location_source, location_dest;
     location_source.pResource = copy_buffer;
     location_source.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
