@@ -56,7 +56,7 @@ void GetGuestMipBlocks(Dimension dimension, uint32_t width, uint32_t height,
 
 uint32_t GetGuestMipStorageSize(uint32_t width_blocks, uint32_t height_blocks,
                                 uint32_t depth_blocks, bool is_tiled,
-                                TextureFormat format, uint32_t& row_pitch_out) {
+                                TextureFormat format, uint32_t* row_pitch_out) {
   const FormatInfo* format_info = FormatInfo::Get(format);
   uint32_t row_pitch = width_blocks * format_info->block_width *
                        format_info->block_height * format_info->bits_per_pixel /
@@ -64,7 +64,9 @@ uint32_t GetGuestMipStorageSize(uint32_t width_blocks, uint32_t height_blocks,
   if (!is_tiled) {
     row_pitch = xe::align(row_pitch, 256u);
   }
-  row_pitch_out = row_pitch;
+  if (row_pitch_out != nullptr) {
+    *row_pitch_out = row_pitch;
+  }
   return xe::align(row_pitch * height_blocks * depth_blocks, 4096u);
 }
 
