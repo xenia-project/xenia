@@ -404,6 +404,7 @@ class RenderTargetCache {
       edram_load_pipelines_[size_t(EDRAMLoadStoreMode::kCount)] = {};
   ID3D12PipelineState*
       edram_store_pipelines_[size_t(EDRAMLoadStoreMode::kCount)] = {};
+  ID3D12PipelineState* edram_tile_sample_32bpp_pipeline_ = nullptr;
 
   // 32 MB heaps backing used render targets resources, created when needed.
   // 24 MB proved to be not enough to store a single render target occupying the

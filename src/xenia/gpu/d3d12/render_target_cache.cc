@@ -37,6 +37,7 @@ namespace d3d12 {
 #include "xenia/gpu/d3d12/shaders/bin/edram_store_color_7e3_cs.h"
 #include "xenia/gpu/d3d12/shaders/bin/edram_store_depth_float_cs.h"
 #include "xenia/gpu/d3d12/shaders/bin/edram_store_depth_unorm_cs.h"
+#include "xenia/gpu/d3d12/shaders/bin/edram_tile_sample_32bpp_cs.h"
 
 const RenderTargetCache::EDRAMLoadStoreModeInfo
     RenderTargetCache::edram_load_store_mode_info_[size_t(
@@ -169,7 +170,7 @@ bool RenderTargetCache::Initialize() {
     pipeline_desc.CS.BytecodeLength = mode_info.load_shader_size;
     if (FAILED(device->CreateComputePipelineState(
             &pipeline_desc, IID_PPV_ARGS(&edram_load_pipelines_[i])))) {
-      XELOGE("Failed to create EDRAM load pipeline for mode %u", i);
+      XELOGE("Failed to create the EDRAM load pipeline for mode %u", i);
       Shutdown();
       return false;
     }
@@ -179,12 +180,22 @@ bool RenderTargetCache::Initialize() {
     pipeline_desc.CS.BytecodeLength = mode_info.store_shader_size;
     if (FAILED(device->CreateComputePipelineState(
             &pipeline_desc, IID_PPV_ARGS(&edram_store_pipelines_[i])))) {
-      XELOGE("Failed to create EDRAM store pipeline for mode %u", i);
+      XELOGE("Failed to create the EDRAM store pipeline for mode %u", i);
       Shutdown();
       return false;
     }
     edram_store_pipelines_[i]->SetName(mode_info.store_pipeline_name);
   }
+  // Tile single sample into a texture - 32 bits per pixel.
+  pipeline_desc.CS.pShaderBytecode = edram_tile_sample_32bpp_cs;
+  pipeline_desc.CS.BytecodeLength = sizeof(edram_tile_sample_32bpp_cs);
+  if (FAILED(device->CreateComputePipelineState(
+          &pipeline_desc, IID_PPV_ARGS(&edram_tile_sample_32bpp_pipeline_)))) {
+    XELOGE("Failed to create the 32bpp EDRAM raw resolve pipeline");
+    Shutdown();
+    return false;
+  }
+  edram_tile_sample_32bpp_pipeline_->SetName(L"EDRAM Raw Resolve 32bpp");
 
   return true;
 }
@@ -192,6 +203,10 @@ bool RenderTargetCache::Initialize() {
 void RenderTargetCache::Shutdown() {
   ClearCache();
 
+  if (edram_tile_sample_32bpp_pipeline_ != nullptr) {
+    edram_tile_sample_32bpp_pipeline_->Release();
+    edram_tile_sample_32bpp_pipeline_ = nullptr;
+  }
   for (uint32_t i = 0; i < uint32_t(EDRAMLoadStoreMode::kCount); ++i) {
     if (edram_load_pipelines_[i] != nullptr) {
       edram_load_pipelines_[i]->Release();
