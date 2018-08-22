@@ -369,11 +369,33 @@ class RenderTargetCache {
   // EDRAM buffer load/store root signature.
   ID3D12RootSignature* edram_load_store_root_signature_ = nullptr;
   struct EDRAMLoadStoreRootConstants {
-    uint32_t base_tiles;
-    uint32_t pitch_tiles;
-    uint32_t rt_color_depth_pitch;
-    uint32_t rt_stencil_offset_or_swap_red_blue;
-    uint32_t rt_stencil_pitch;
+    union {
+      struct {
+        uint32_t rt_color_depth_offset;
+        uint32_t rt_color_depth_pitch;
+        uint32_t rt_stencil_offset;
+        uint32_t rt_stencil_pitch;
+      };
+      struct {
+        // 16 bits for X, 16 bits for Y.
+        uint32_t tile_sample_rect_tl;
+        uint32_t tile_sample_rect_br;
+        uint32_t tile_sample_dest_base;
+        // 0:13 - destination pitch.
+        // 14 - log2(vertical sample count), 0 for 1x AA, 1 for 2x/4x AA.
+        // 15 - log2(horizontal sample count), 0 for 1x/2x AA, 1 for 4x AA.
+        // 16:17 - sample to load (16 - vertical index, 17 - horizontal index).
+        // 18:19 - destination endianness.
+        // 20:31 - BPP-specific info for swapping red/blue, 0 if not swapping.
+        //   For 32 bits per pixel:
+        //     20:24 - red/blue bit depth.
+        //     25:29 - blue offset.
+        //   For 64 bits per pixel, it's 1 if need to swap 0:15 and 32:47.
+        uint32_t tile_sample_dest_info;
+      };
+    };
+    // Base in the lower 11 bits, pitch above.
+    uint32_t base_pitch_tiles;
   };
   // EDRAM buffer load/store pipelines.
   static const EDRAMLoadStoreModeInfo

@@ -10,13 +10,13 @@ void main(uint3 xe_group_id : SV_GroupID,
       XeEDRAMOffset(xe_group_id.xy, tile_dword_index));
   // Depth.
   uint rt_offset = xe_thread_id.y * xe_edram_rt_color_depth_pitch +
-                   xe_thread_id.x * 16u;
+                   xe_thread_id.x * 16u + xe_edram_rt_color_depth_offset;
   xe_edram_load_store_dest.Store4(rt_offset, pixels >> 8u);
   // Stencil.
   uint4 stencil = (pixels & 0xFFu) << uint4(0u, 8u, 16u, 24u);
   stencil.xy |= stencil.zw;
   stencil.x |= stencil.y;
-  rt_offset = xe_edram_rt_stencil_offset +
-              xe_thread_id.y * xe_edram_rt_stencil_pitch + xe_thread_id.x * 4u;
+  rt_offset = xe_thread_id.y * xe_edram_rt_stencil_pitch + xe_thread_id.x * 4u +
+              xe_edram_rt_stencil_offset;
   xe_edram_load_store_dest.Store(rt_offset, stencil.x);
 }

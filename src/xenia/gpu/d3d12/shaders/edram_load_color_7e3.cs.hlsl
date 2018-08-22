@@ -14,11 +14,7 @@ void main(uint3 xe_group_id : SV_GroupID,
   uint4 pixels_f16u32_packed =
       uint4(pixel_0_f16u32.xz, pixel_1_f16u32.xz) |
       (uint4(pixel_0_f16u32.yw, pixel_1_f16u32.yw) << 16u);
-  if (xe_edram_swap_red_blue != 0u) {
-    pixels_f16u32_packed = (pixels_f16u32_packed.yxwz & 0xFFFFu) |
-                           (pixels_f16u32_packed & 0xFFFF0000u);
-  }
   uint rt_offset = xe_thread_id.y * xe_edram_rt_color_depth_pitch +
-                   xe_thread_id.x * 16u;
+                   xe_thread_id.x * 16u + xe_edram_rt_color_depth_offset;
   xe_edram_load_store_dest.Store4(rt_offset, pixels_f16u32_packed);
 }

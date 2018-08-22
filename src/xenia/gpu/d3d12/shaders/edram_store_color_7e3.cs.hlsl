@@ -6,7 +6,7 @@ void main(uint3 xe_group_id : SV_GroupID,
           uint3 xe_group_thread_id : SV_GroupThreadID,
           uint3 xe_thread_id : SV_DispatchThreadID) {
   uint rt_offset = xe_thread_id.y * xe_edram_rt_color_depth_pitch +
-                   xe_thread_id.x * 16u;
+                   xe_thread_id.x * 16u + xe_edram_rt_color_depth_offset;
   uint4 pixels_f16u32_packed = xe_edram_load_store_source.Load4(rt_offset);
   uint4 pixel_0_f16u32 = pixels_f16u32_packed.xxyy >> uint4(0u, 16u, 0u, 16u);
   uint4 pixel_1_f16u32 = pixels_f16u32_packed.zzww >> uint4(0u, 16u, 0u, 16u);
