@@ -20,6 +20,7 @@
 #include "xenia/base/profiling.h"
 #include "xenia/gpu/d3d12/d3d12_command_processor.h"
 #include "xenia/gpu/texture_info.h"
+#include "xenia/gpu/texture_util.h"
 
 namespace xe {
 namespace gpu {
@@ -744,11 +745,7 @@ bool RenderTargetCache::Resolve(SharedMemory* shared_memory, Memory* memory) {
 
   // Get the render target properties.
   uint32_t rb_surface_info = regs[XE_GPU_REG_RB_SURFACE_INFO].u32;
-  uint32_t surface_pitch = std::min(rb_surface_info & 0x3FFF, 2560u);
-  if (surface_pitch == 0) {
-    // Nothing to copy or clear.
-    return true;
-  }
+  uint32_t surface_pitch = rb_surface_info & 0x3FFF;
   MsaaSamples msaa_samples = MsaaSamples((rb_surface_info >> 16) & 0x3);
   uint32_t rb_copy_control = regs[XE_GPU_REG_RB_COPY_CONTROL].u32;
   uint32_t surface_index = rb_copy_control & 0x7;
@@ -759,12 +756,10 @@ bool RenderTargetCache::Resolve(SharedMemory* shared_memory, Memory* memory) {
   bool surface_is_depth = surface_index == 4;
   uint32_t surface_edram_base;
   uint32_t surface_format;
-  bool surface_format_64bpp;
   if (surface_is_depth) {
     uint32_t rb_depth_info = regs[XE_GPU_REG_RB_DEPTH_INFO].u32;
     surface_edram_base = rb_depth_info & 0xFFF;
     surface_format = (rb_depth_info >> 16) & 0x1;
-    surface_format_64bpp = false;
   } else {
     uint32_t rb_color_info;
     switch (surface_index) {
@@ -783,26 +778,7 @@ bool RenderTargetCache::Resolve(SharedMemory* shared_memory, Memory* memory) {
     }
     surface_edram_base = rb_color_info & 0xFFF;
     surface_format = (rb_color_info >> 16) & 0xF;
-    surface_format_64bpp =
-        IsColorFormat64bpp(ColorRenderTargetFormat(surface_format));
   }
-  if (surface_edram_base >= 2048) {
-    // The surface is totally outside of EDRAM - shouldn't happen.
-    return false;
-  }
-  // Calculate the maximum number of rows to clamp the source rectangle.
-  uint32_t surface_pitch_ss =
-      surface_pitch * (msaa_samples >= MsaaSamples::k4X ? 2 : 1);
-  uint32_t surface_pitch_tiles =
-      (surface_pitch_ss + 79) / 80 * (surface_format_64bpp ? 2 : 1);
-  uint32_t surface_edram_max_rows =
-      (2048 - surface_edram_base) / surface_pitch_tiles;
-  if (surface_edram_max_rows == 0) {
-    // The surface is too close to the end of EDRAM.
-    return true;
-  }
-  uint32_t surface_max_height =
-      surface_edram_max_rows * (msaa_samples >= MsaaSamples::k2X ? 8 : 16);
 
   // Get the resolve region since both copying and clearing need it.
   // HACK: Vertices to use are always in vf0.
@@ -849,15 +825,6 @@ bool RenderTargetCache::Resolve(SharedMemory* shared_memory, Memory* memory) {
     src_rect.top += window_offset_y;
     src_rect.bottom += window_offset_y;
   }
-  src_rect.right = std::min(src_rect.right, LONG(surface_pitch));
-  src_rect.bottom = std::min(src_rect.bottom, LONG(surface_max_height));
-  if (src_rect.right <= 0 || src_rect.bottom <= 0 ||
-      src_rect.right <= src_rect.left || src_rect.bottom <= src_rect.top) {
-    // Totally off screen or empty - nothing to copy.
-    return true;
-  }
-  src_rect.left = std::max(src_rect.left, LONG(0));
-  src_rect.top = std::max(src_rect.top, LONG(0));
 
   XELOGGPU(
       "Resolving (%d,%d)->(%d,%d) of RT %u (pitch %u, %u sample%s, format "
@@ -903,22 +870,24 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
     // Nothing to copy.
     return true;
   }
-  uint32_t src_x = uint32_t(src_rect.left);
-  uint32_t src_y = uint32_t(src_rect.top);
-  uint32_t src_width =
-      std::min(uint32_t(src_rect.right - src_rect.left), dest_pitch);
-  uint32_t src_height =
-      std::min(uint32_t(src_rect.bottom - src_rect.top), dest_height);
+  D3D12_RECT copy_rect = src_rect;
+  copy_rect.right =
+      std::min(copy_rect.right, LONG(copy_rect.left + dest_pitch));
+  copy_rect.bottom =
+      std::min(copy_rect.bottom, LONG(copy_rect.top + dest_height));
 
   // Get format info.
   uint32_t dest_info = regs[XE_GPU_REG_RB_COPY_DEST_INFO].u32;
   TextureFormat src_texture_format;
+  bool src_64bpp;
   if (is_depth) {
     src_texture_format =
         DepthRenderTargetToTextureFormat(DepthRenderTargetFormat(src_format));
+    src_64bpp = false;
   } else {
     src_texture_format =
         ColorRenderTargetToTextureFormat(ColorRenderTargetFormat(src_format));
+    src_64bpp = IsColorFormat64bpp(ColorRenderTargetFormat(src_format));
   }
   assert_true(src_texture_format != TextureFormat::kUnknown);
   src_texture_format = GetBaseFormat(src_texture_format);
@@ -928,6 +897,17 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
       is_depth ? src_texture_format
                : GetBaseFormat(TextureFormat((dest_info >> 7) & 0x3F));
 
+  // See what samples we need and what we should do with them.
+  xenos::CopySampleSelect sample_select =
+      xenos::CopySampleSelect((rb_copy_control >> 4) & 0x7);
+  if (is_depth && sample_select > xenos::CopySampleSelect::k3) {
+    assert_always();
+    return false;
+  }
+  int32_t dest_exp_bias =
+      !is_depth ? (int32_t((dest_info >> 16) << 26) >> 26) : 0;
+  uint32_t dest_swap = (dest_info >> 24) & 0x1;
+
   // Get the destination location.
   uint32_t dest_address = regs[XE_GPU_REG_RB_COPY_DEST_BASE].u32 & 0x1FFFFFFF;
   if (dest_address & 0x3) {
@@ -936,44 +916,59 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
     // resolve to 8bpp or 16bpp textures at very odd locations.
     return false;
   }
-  int32_t dest_exp_bias = int32_t((dest_info >> 16) << 26) >> 26;
-  uint32_t dest_swap = (dest_info >> 24) & 0x1;
-  // TODO(Triang3l): Copy to array slices.
+  uint32_t dest_size = texture_util::GetGuestMipStorageSize(
+      xe::align(dest_pitch, 32u), xe::align(dest_height, 32u), 1, true,
+      dest_format, nullptr);
+  if (dest_info & (1 << 3)) {
+    // Copying to an array slice.
+    dest_address += dest_size * ((dest_info >> 4) & 0x7);
+  }
   // TODO(Triang3l): Investigate what copy_dest_number is.
+
   XELOGGPU(
       "Copying samples %u to 0x%.8X (%ux%u), destination format %s, "
       "exponent bias %d, red and blue %sswapped",
-      (rb_copy_control >> 4) & 0x7, dest_address, dest_pitch, dest_height,
+      uint32_t(sample_select), dest_address, dest_pitch, dest_height,
       FormatInfo::Get(dest_format)->name, dest_exp_bias,
       dest_swap ? "" : "not ");
 
-  // There are 3 paths for resolving in this function - they don't necessarily
+  // Validate and clamp the source region, skip parts that don't need to be
+  // copied and calculate the number of threads needed for copying/loading.
+  uint32_t surface_pitch_tiles, row_tiles, rows;
+  if (!GetEDRAMLayout(surface_pitch, msaa_samples, src_64bpp, edram_base,
+                      copy_rect, surface_pitch_tiles, row_tiles, rows)) {
+    // Nothing to copy.
+    return true;
+  }
+  XELOGGPU("Pitch is %u tiles, %u rows of %u tiles", surface_pitch_tiles, rows,
+           row_tiles);
+
+  // There are 2 paths for resolving in this function - they don't necessarily
   // have to map directly to kRaw and kConvert CopyCommands.
-  // - Depth - tiling raw D24S8 or D24FS8 directly from the EDRAM buffer to the
-  //   shared memory. Only 1 sample is resolved from a depth buffer, and it
-  //   looks like format conversion can't be done when resolving depth buffers
-  //   since k_8_8_8_8 is specified as the destination format, while the texture
-  //   is being used as k_24_8 or k_24_8_FLOAT.
-  // - Raw color - when the source is single-sampled and has the same format as
-  //   the destination, and there's no need to apply exponent bias. A regular
-  //   EDRAM load is done to a buffer, and the buffer is then tiled to the
-  //   shared memory. Because swapping red and blue is very common, this path
-  //   supports swapping.
+  // - Raw - when extracting a single color to a texture of the same format as
+  //   the EDRAM surface and exponent bias is not applied, or when resolving a
+  //   depth buffer (games read only one sample of it - resolving multiple
+  //   samples of a depth buffer is meaningless anyway - and apparently there's
+  //   no format conversion as well because k_8_8_8_8 is specified in the
+  //   destination format in the register, which is obviously not true, and the
+  //   texture is then read as k_24_8 or k_24_8_FLOAT). Swapping red and blue is
+  //   possible in this mode.
   // - Conversion - when a simple copy is not enough. The EDRAM region is loaded
   //   to a render target resource, which is then used as a texture in a shader
   //   performing the resolve (by sampling the texture on or between pixels with
   //   bilinear filtering), applying exponent bias and swapping red and blue in
   //   a format-agnostic way, then the resulting color is written to a temporary
   //   RTV of the destination format.
-  if (is_depth) {
-    // Depth.
-    // TODO(Triang3l): Resolve depth.
-    return false;
-  } else if (src_texture_format == dest_format &&
-             msaa_samples == MsaaSamples::k1X && dest_exp_bias == 0) {
-    XELOGGPU("Resolving a single-sampled surface without conversion");
+  if (sample_select <= xenos::CopySampleSelect::k3 &&
+      src_texture_format == dest_format && dest_exp_bias == 0) {
+    XELOGGPU("Resolving a single sample without conversion");
+    // Make sure we have the memory to write to.
+    if (!shared_memory->MakeTilesResident(dest_address, dest_size)) {
+      return false;
+    }
     // TODO(Triang3l): Raw resolve.
-    return false;
+    // Make the texture cache refresh the data.
+    shared_memory->RangeWrittenByGPU(dest_address, dest_size);
   } else {
     XELOGGPU("Resolving with a pixel shader");
     // TODO(Triang3l): Conversion.
@@ -1186,6 +1181,65 @@ RenderTargetCache::RenderTarget* RenderTargetCache::FindOrCreateRenderTarget(
       key.is_depth ? "depth" : "color", key.format, heap_page_first,
       heap_page_first + heap_page_count - 1);
   return render_target;
+}
+
+bool RenderTargetCache::GetEDRAMLayout(
+    uint32_t pitch_pixels, MsaaSamples msaa_samples, bool is_64bpp,
+    uint32_t& base_in_out, D3D12_RECT& rect_in_out, uint32_t& pitch_tiles_out,
+    uint32_t& row_tiles_out, uint32_t& rows_out) {
+  if (pitch_pixels == 0 || rect_in_out.right <= 0 || rect_in_out.bottom <= 0 ||
+      rect_in_out.top >= rect_in_out.bottom) {
+    return false;
+  }
+  pitch_pixels = std::min(pitch_pixels, 2560u);
+  D3D12_RECT rect = rect_in_out;
+  rect.left = std::max(rect.left, LONG(0));
+  rect.top = std::max(rect.top, LONG(0));
+  rect.right = std::min(rect.right, LONG(pitch_pixels));
+  if (rect.left >= rect.right) {
+    return false;
+  }
+
+  uint32_t samples_x_log2 = msaa_samples >= MsaaSamples::k4X ? 1 : 0;
+  uint32_t samples_y_log2 = msaa_samples >= MsaaSamples::k2X ? 1 : 0;
+  uint32_t sample_size_log2 = is_64bpp ? 1 : 0;
+
+  uint32_t pitch_tiles = (((pitch_pixels << samples_x_log2) + 79) / 80)
+                         << sample_size_log2;
+
+  // Adjust the base and the rectangle to skip tiles to the left of the left
+  // bound of the rectangle and to the top of the top bound.
+  uint32_t base = base_in_out;
+  uint32_t skip = rect.top << samples_y_log2 >> 4;
+  base += skip * pitch_tiles;
+  skip <<= 4 - samples_y_log2;
+  rect.top -= skip;
+  rect.bottom -= skip;
+  skip = (rect.left << samples_x_log2) / 80;
+  base += skip << sample_size_log2;
+  skip *= 80 >> samples_x_log2;
+  rect.left -= skip;
+  rect.right -= skip;
+
+  // Calculate the number of 16-sample rows this rectangle spans.
+  uint32_t rows = ((rect.bottom << samples_y_log2) + 15) >> 4;
+  uint32_t rows_max = (2048 - base) / pitch_tiles;
+  if (rows_max == 0) {
+    return false;
+  }
+  if (rows > rows_max) {
+    // Clamp the rectangle if it's partially outside of EDRAM.
+    rows = rows_max;
+    rect.bottom = rows_max << (4 - samples_y_log2);
+  }
+
+  base_in_out = base;
+  rect_in_out = rect;
+  pitch_tiles_out = pitch_tiles;
+  row_tiles_out = (((rect.right << samples_x_log2) + 79) / 80)
+                  << sample_size_log2;
+  rows_out = rows;
+  return true;
 }
 
 RenderTargetCache::EDRAMLoadStoreMode RenderTargetCache::GetLoadStoreMode(

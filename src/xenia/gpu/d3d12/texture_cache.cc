@@ -661,7 +661,7 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
                                     height_blocks, depth_blocks);
     texture->base_slice_size = texture_util::GetGuestMipStorageSize(
         width_blocks, height_blocks, depth_blocks, key.tiled, key.format,
-        texture->mip_pitches[0]);
+        &texture->mip_pitches[0]);
     texture->base_in_sync = false;
   } else {
     texture->base_slice_size = 0;
@@ -684,7 +684,7 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
       texture->mip_offsets[i] = texture->mip_slice_size;
       texture->mip_slice_size += texture_util::GetGuestMipStorageSize(
           width_blocks, height_blocks, depth_blocks, key.tiled, key.format,
-          texture->mip_pitches[i]);
+          &texture->mip_pitches[i]);
     }
     // The rest are either packed levels or don't exist at all.
     for (uint32_t i = mip_max_storage_level + 1;

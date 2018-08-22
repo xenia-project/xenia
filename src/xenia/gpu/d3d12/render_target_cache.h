@@ -324,7 +324,24 @@ class RenderTargetCache {
   RenderTarget* FindOrCreateRenderTarget(RenderTargetKey key,
                                          uint32_t heap_page_first);
 
+  // Calculates the tile layout for a rectangle on a render target of the given
+  // configuration. The base is adjusted so it points to the tile containing the
+  // top-left pixel of the rectangle, the rectangle is also adjusted so it's
+  // relative to that tile (because its coordinates don't have to be multiples
+  // of the tile size) and so it's not larger than the pitch and the available
+  // memory space. EDRAM row pitch in tiles (for memory access) and actual width
+  // and height of the region containing the rectangle in tiles (for thread
+  // group count) are also written. This function returns true if the requested
+  // rectangle is within the bounds of EDRAM and is not empty, but if it returns
+  // false, the output values may not be written, so the return value must be
+  // checked.
+  static bool GetEDRAMLayout(uint32_t pitch_pixels, MsaaSamples msaa_samples,
+                             bool is_64bpp, uint32_t& base_in_out,
+                             D3D12_RECT& rect_in_out, uint32_t& pitch_tiles_out,
+                             uint32_t& row_tiles_out, uint32_t& rows_out);
+
   static EDRAMLoadStoreMode GetLoadStoreMode(bool is_depth, uint32_t format);
+
   // Must be in a frame to call. Stores the dirty areas of the currently bound
   // render targets and marks them as clean.
   void StoreRenderTargetsToEDRAM();

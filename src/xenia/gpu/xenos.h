@@ -285,6 +285,17 @@ enum class CopyCommand : uint32_t {
   kNull = 3,  // ?
 };
 
+// a2xx_rb_copy_sample_select
+enum class CopySampleSelect : uint32_t {
+  k0,
+  k1,
+  k2,
+  k3,
+  k01,
+  k23,
+  k0123,
+};
+
 #define XE_GPU_MAKE_SWIZZLE(x, y, z, w)                        \
   (((XE_GPU_SWIZZLE_##x) << 0) | ((XE_GPU_SWIZZLE_##y) << 3) | \
    ((XE_GPU_SWIZZLE_##z) << 6) | ((XE_GPU_SWIZZLE_##w) << 9))
