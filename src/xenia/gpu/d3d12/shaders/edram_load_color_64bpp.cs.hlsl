@@ -13,12 +13,7 @@ void main(uint3 xe_group_id : SV_GroupID,
   }
   uint4 pixels = xe_edram_load_store_source.Load4(
       XeEDRAMOffset(xe_group_id.xy, tile_dword_index));
-  if (xe_edram_swap_red_blue != 0u) {
-    // The only 64-bit formats with a blue component are 16_16_16_16 and
-    // 16_16_16_16_FLOAT.
-    pixels = (pixels.yxwz & 0xFFFFu) | (pixels & 0xFFFF0000u);
-  }
   uint rt_offset = xe_thread_id.y * xe_edram_rt_color_depth_pitch +
-                   xe_thread_id.x * 16u;
+                   xe_thread_id.x * 16u + xe_edram_rt_color_depth_offset;
   xe_edram_load_store_dest.Store4(rt_offset, pixels);
 }

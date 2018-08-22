@@ -1,25 +1,43 @@
 #ifndef XENIA_GPU_D3D12_SHADERS_EDRAM_LOAD_STORE_HLSLI_
 #define XENIA_GPU_D3D12_SHADERS_EDRAM_LOAD_STORE_HLSLI_
 
+// Root constants.
 cbuffer XeEDRAMLoadStoreConstants : register(b0) {
-  uint xe_edram_base_tiles;
-  uint xe_edram_pitch_tiles;
-  uint xe_edram_rt_color_depth_pitch;
-  uint xe_edram_rt_stencil_offset_or_swap_red_blue;
-  uint xe_edram_rt_stencil_pitch;
+  uint4 xe_edram_load_store_constants;
+  // Base in the lower 11 bits, pitch in the upper part, in tiles.
+  uint xe_edram_base_pitch_tiles;
 };
-#define xe_edram_rt_stencil_offset xe_edram_rt_stencil_offset_or_swap_red_blue
-// For loads only. How exactly it's handled depends on the specific load shader,
-// but 0 always means red and blue shouldn't be swapped.
-#define xe_edram_swap_red_blue xe_edram_rt_stencil_offset_or_swap_red_blue
+
+// For loading and storing render targets.
+#define xe_edram_rt_color_depth_offset (xe_edram_load_store_constants.x)
+#define xe_edram_rt_color_depth_pitch (xe_edram_load_store_constants.y)
+#define xe_edram_rt_stencil_offset (xe_edram_load_store_constants.z)
+#define xe_edram_rt_stencil_pitch (xe_edram_load_store_constants.w)
+
+// For single sample resolving.
+// Left/top of the copied region (relative to EDRAM base) in the lower 16 bits,
+// right/bottom in the upper.
+#define xe_edram_tile_sample_rect (xe_edram_load_store_constants.xy)
+#define xe_edram_tile_sample_dest_base (xe_edram_load_store_constants.z)
+// 0:13 - destination pitch.
+// 14 - log2(vertical sample count), 0 for 1x AA, 1 for 2x/4x AA.
+// 15 - log2(horizontal sample count), 0 for 1x/2x AA, 1 for 4x AA.
+// 16:17 - sample to load (16 - vertical index, 17 - horizontal index).
+// 18:19 - destination endianness.
+// 20:31 - BPP-specific info for swapping red/blue, 0 if not swapping.
+//   For 32 bits per pixel:
+//     20:24 - red/blue bit depth.
+//     25:29 - blue offset.
+//   For 64 bits per pixel, it's 1 if need to swap 0:15 and 32:47.
+#define xe_edram_tile_sample_dest_info (xe_edram_load_store_constants.w)
 
 ByteAddressBuffer xe_edram_load_store_source : register(t0);
 RWByteAddressBuffer xe_edram_load_store_dest : register(u0);
 
 uint XeEDRAMOffset(uint2 tile_index, uint2 tile_dword_index) {
-  return (xe_edram_base_tiles + (tile_index.y * xe_edram_pitch_tiles) +
-          tile_index.x) * 5120u + tile_dword_index.y * 320u +
-         tile_dword_index.x * 4u;
+  return ((xe_edram_base_pitch_tiles & 2047u) +
+          tile_index.y * (xe_edram_base_pitch_tiles >> 11u) + tile_index.x) *
+         5120u + tile_dword_index.y * 320u + tile_dword_index.x * 4u;
 }
 
 #endif  // XENIA_GPU_D3D12_SHADERS_EDRAM_LOAD_STORE_HLSLI_

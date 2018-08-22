@@ -959,6 +959,8 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
   //   bilinear filtering), applying exponent bias and swapping red and blue in
   //   a format-agnostic way, then the resulting color is written to a temporary
   //   RTV of the destination format.
+  auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
+  auto device = provider->GetDevice();
   if (sample_select <= xenos::CopySampleSelect::k3 &&
       src_texture_format == dest_format && dest_exp_bias == 0) {
     XELOGGPU("Resolving a single sample without conversion");
@@ -1385,6 +1387,14 @@ void RenderTargetCache::StoreRenderTargetsToEDRAM() {
     const RenderTarget* render_target = binding.render_target;
     bool is_64bpp = false;
 
+    // Get the number of X thread groups.
+    uint32_t rt_pitch_tiles = surface_pitch_tiles;
+    if (!render_target->key.is_depth &&
+        IsColorFormat64bpp(
+            ColorRenderTargetFormat(render_target->key.format))) {
+      rt_pitch_tiles *= 2;
+    }
+
     // Copy from the render target planes and set up the layout.
     D3D12_TEXTURE_COPY_LOCATION location_source, location_dest;
     location_source.pResource = render_target->resource;
@@ -1397,13 +1407,10 @@ void RenderTargetCache::StoreRenderTargetsToEDRAM() {
     command_list->CopyTextureRegion(&location_dest, 0, 0, 0, &location_source,
                                     nullptr);
     EDRAMLoadStoreRootConstants root_constants;
-    root_constants.base_tiles = binding.edram_base;
-    root_constants.pitch_tiles = surface_pitch_tiles;
-    if (!render_target->key.is_depth &&
-        IsColorFormat64bpp(
-            ColorRenderTargetFormat(render_target->key.format))) {
-      root_constants.pitch_tiles *= 2;
-    }
+    root_constants.base_pitch_tiles =
+        binding.edram_base | (rt_pitch_tiles << 11);
+    root_constants.rt_color_depth_offset =
+        uint32_t(location_dest.PlacedFootprint.Offset);
     root_constants.rt_color_depth_pitch =
         location_dest.PlacedFootprint.Footprint.RowPitch;
     if (render_target->key.is_depth) {
@@ -1411,12 +1418,10 @@ void RenderTargetCache::StoreRenderTargetsToEDRAM() {
       location_dest.PlacedFootprint = render_target->footprints[1];
       command_list->CopyTextureRegion(&location_dest, 0, 0, 0, &location_source,
                                       nullptr);
-      root_constants.rt_stencil_offset_or_swap_red_blue =
+      root_constants.rt_stencil_offset =
           uint32_t(location_dest.PlacedFootprint.Offset);
       root_constants.rt_stencil_pitch =
           location_dest.PlacedFootprint.Footprint.RowPitch;
-    } else {
-      root_constants.rt_stencil_offset_or_swap_red_blue = 0;
     }
 
     // Transition the copy buffer to SRV.
@@ -1437,8 +1442,7 @@ void RenderTargetCache::StoreRenderTargetsToEDRAM() {
     EDRAMLoadStoreMode mode = GetLoadStoreMode(render_target->key.is_depth,
                                                render_target->key.format);
     command_processor_->SetPipeline(edram_store_pipelines_[size_t(mode)]);
-    command_list->Dispatch(root_constants.pitch_tiles, binding.edram_dirty_rows,
-                           1);
+    command_list->Dispatch(rt_pitch_tiles, binding.edram_dirty_rows, 1);
 
     // Commit the UAV write and prepare for copying again.
     barrier_count = 1;
@@ -1569,31 +1573,18 @@ void RenderTargetCache::LoadRenderTargetsFromEDRAM(
     }
     const RenderTarget* render_target = render_targets[i];
 
-    // Set up the layout.
-    EDRAMLoadStoreRootConstants root_constants;
-    root_constants.base_tiles = edram_bases[i];
-    root_constants.pitch_tiles = render_target->key.width_ss_div_80;
+    // Get the number of X thread groups.
+    uint32_t edram_pitch_tiles = render_target->key.width_ss_div_80;
     if (!render_target->key.is_depth &&
         IsColorFormat64bpp(
             ColorRenderTargetFormat(render_target->key.format))) {
-      root_constants.pitch_tiles *= 2;
+      edram_pitch_tiles *= 2;
     }
-    root_constants.rt_color_depth_pitch =
-        render_target->footprints[0].Footprint.RowPitch;
-    if (render_target->key.is_depth) {
-      root_constants.rt_stencil_offset_or_swap_red_blue =
-          uint32_t(render_target->footprints[1].Offset);
-      root_constants.rt_stencil_pitch =
-          render_target->footprints[1].Footprint.RowPitch;
-    } else {
-      root_constants.rt_stencil_offset_or_swap_red_blue = 0;
-    }
-
     // Validate the height in case the resolve is somehow too large (shouldn't
     // happen though, but who knows what games do).
     uint32_t edram_rows =
         std::min(render_target->key.height_ss_div_16,
-                 (2048u - edram_bases[i]) / root_constants.pitch_tiles);
+                 (2048u - edram_bases[i]) / edram_pitch_tiles);
     if (edram_rows == 0) {
       continue;
     }
@@ -1612,12 +1603,25 @@ void RenderTargetCache::LoadRenderTargetsFromEDRAM(
     }
 
     // Load the data.
+    EDRAMLoadStoreRootConstants root_constants;
+    root_constants.base_pitch_tiles =
+        edram_bases[i] | (edram_pitch_tiles << 11);
+    root_constants.rt_color_depth_offset =
+        uint32_t(render_target->footprints[0].Offset);
+    root_constants.rt_color_depth_pitch =
+        render_target->footprints[0].Footprint.RowPitch;
+    if (render_target->key.is_depth) {
+      root_constants.rt_stencil_offset =
+          uint32_t(render_target->footprints[1].Offset);
+      root_constants.rt_stencil_pitch =
+          render_target->footprints[1].Footprint.RowPitch;
+    }
     command_list->SetComputeRoot32BitConstants(
         0, sizeof(root_constants) / sizeof(uint32_t), &root_constants, 0);
     EDRAMLoadStoreMode mode = GetLoadStoreMode(render_target->key.is_depth,
                                                render_target->key.format);
     command_processor_->SetPipeline(edram_load_pipelines_[size_t(mode)]);
-    command_list->Dispatch(root_constants.pitch_tiles, edram_rows, 1);
+    command_list->Dispatch(edram_pitch_tiles, edram_rows, 1);
 
     // Commit the UAV write and transition the copy buffer to copy source.
     barriers[0].Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
