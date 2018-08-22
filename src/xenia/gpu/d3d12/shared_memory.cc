@@ -17,13 +17,15 @@
 #include "xenia/base/math.h"
 #include "xenia/base/memory.h"
 #include "xenia/base/profiling.h"
+#include "xenia/gpu/d3d12/d3d12_command_processor.h"
 
 namespace xe {
 namespace gpu {
 namespace d3d12 {
 
-SharedMemory::SharedMemory(Memory* memory, ui::d3d12::D3D12Context* context)
-    : memory_(memory), context_(context) {
+SharedMemory::SharedMemory(D3D12CommandProcessor* command_processor,
+                           Memory* memory)
+    : command_processor_(command_processor), memory_(memory) {
   page_size_log2_ = xe::log2_ceil(uint32_t(xe::memory::page_size()));
   page_count_ = kBufferSize >> page_size_log2_;
   uint32_t page_bitmap_length = page_count_ >> 6;
@@ -36,7 +38,8 @@ SharedMemory::SharedMemory(Memory* memory, ui::d3d12::D3D12Context* context)
 SharedMemory::~SharedMemory() { Shutdown(); }
 
 bool SharedMemory::Initialize() {
-  auto device = context_->GetD3D12Provider()->GetDevice();
+  auto context = command_processor_->GetD3D12Context();
+  auto device = context->GetD3D12Provider()->GetDevice();
 
   buffer_state_ = D3D12_RESOURCE_STATE_COPY_DEST;
   D3D12_RESOURCE_DESC buffer_desc;
@@ -80,7 +83,7 @@ bool SharedMemory::Initialize() {
               protected_pages_.size() * sizeof(uint64_t));
 
   upload_buffer_pool_ =
-      std::make_unique<ui::d3d12::UploadBufferPool>(context_, 4 * 1024 * 1024);
+      std::make_unique<ui::d3d12::UploadBufferPool>(context, 4 * 1024 * 1024);
 
   memory_->SetGlobalPhysicalAccessWatch(MemoryWriteCallbackThunk, this);
 
@@ -219,7 +222,7 @@ bool SharedMemory::MakeTilesResident(uint32_t start, uint32_t length) {
       // current frame anymore if have failed at least once.
       return false;
     }
-    auto provider = context_->GetD3D12Provider();
+    auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
     auto device = provider->GetDevice();
     auto direct_queue = provider->GetDirectQueue();
     D3D12_HEAP_DESC heap_desc = {};
@@ -254,8 +257,7 @@ bool SharedMemory::MakeTilesResident(uint32_t start, uint32_t length) {
   return true;
 }
 
-bool SharedMemory::RequestRange(uint32_t start, uint32_t length,
-                                ID3D12GraphicsCommandList* command_list) {
+bool SharedMemory::RequestRange(uint32_t start, uint32_t length) {
   if (length == 0) {
     // Some texture is empty, for example - safe to draw in this case.
     return true;
@@ -266,6 +268,11 @@ bool SharedMemory::RequestRange(uint32_t start, uint32_t length,
     return false;
   }
   uint32_t last = start + length - 1;
+
+  auto command_list = command_processor_->GetCurrentCommandList();
+  if (command_list == nullptr) {
+    return false;
+  }
 
 #if FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
@@ -284,7 +291,8 @@ bool SharedMemory::RequestRange(uint32_t start, uint32_t length,
   if (upload_ranges_.size() == 0) {
     return true;
   }
-  TransitionBuffer(D3D12_RESOURCE_STATE_COPY_DEST, command_list);
+  TransitionBuffer(D3D12_RESOURCE_STATE_COPY_DEST);
+  command_processor_->SubmitBarriers();
   for (auto upload_range : upload_ranges_) {
     uint32_t upload_range_start = upload_range.first;
     uint32_t upload_range_length = upload_range.second;
@@ -505,33 +513,23 @@ bool SharedMemory::MemoryWriteCallback(uint32_t address) {
   return true;
 }
 
-void SharedMemory::TransitionBuffer(D3D12_RESOURCE_STATES new_state,
-                                    ID3D12GraphicsCommandList* command_list) {
-  if (buffer_state_ == new_state) {
-    return;
-  }
-  D3D12_RESOURCE_BARRIER barrier;
-  barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-  barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-  barrier.Transition.pResource = buffer_;
-  barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-  barrier.Transition.StateBefore = buffer_state_;
-  barrier.Transition.StateAfter = new_state;
-  command_list->ResourceBarrier(1, &barrier);
+void SharedMemory::TransitionBuffer(D3D12_RESOURCE_STATES new_state) {
+  command_processor_->PushTransitionBarrier(buffer_, buffer_state_, new_state);
   buffer_state_ = new_state;
 }
 
-void SharedMemory::UseForReading(ID3D12GraphicsCommandList* command_list) {
+void SharedMemory::UseForReading() {
   TransitionBuffer(D3D12_RESOURCE_STATE_INDEX_BUFFER |
-                       D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-                   command_list);
+                   D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 }
 
-void SharedMemory::UseForWriting(ID3D12GraphicsCommandList* command_list) {
-  TransitionBuffer(D3D12_RESOURCE_STATE_UNORDERED_ACCESS, command_list);
+void SharedMemory::UseForWriting() {
+  TransitionBuffer(D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 }
 
 void SharedMemory::CreateSRV(D3D12_CPU_DESCRIPTOR_HANDLE handle) {
+  auto device =
+      command_processor_->GetD3D12Context()->GetD3D12Provider()->GetDevice();
   D3D12_SHADER_RESOURCE_VIEW_DESC desc;
   desc.Format = DXGI_FORMAT_R32_TYPELESS;
   desc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
@@ -540,11 +538,12 @@ void SharedMemory::CreateSRV(D3D12_CPU_DESCRIPTOR_HANDLE handle) {
   desc.Buffer.NumElements = kBufferSize >> 2;
   desc.Buffer.StructureByteStride = 0;
   desc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_RAW;
-  context_->GetD3D12Provider()->GetDevice()->CreateShaderResourceView(
-      buffer_, &desc, handle);
+  device->CreateShaderResourceView(buffer_, &desc, handle);
 }
 
 void SharedMemory::CreateUAV(D3D12_CPU_DESCRIPTOR_HANDLE handle) {
+  auto device =
+      command_processor_->GetD3D12Context()->GetD3D12Provider()->GetDevice();
   D3D12_UNORDERED_ACCESS_VIEW_DESC desc;
   desc.Format = DXGI_FORMAT_R32_TYPELESS;
   desc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
@@ -553,8 +552,7 @@ void SharedMemory::CreateUAV(D3D12_CPU_DESCRIPTOR_HANDLE handle) {
   desc.Buffer.StructureByteStride = 0;
   desc.Buffer.CounterOffsetInBytes = 0;
   desc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_RAW;
-  context_->GetD3D12Provider()->GetDevice()->CreateUnorderedAccessView(
-      buffer_, nullptr, &desc, handle);
+  device->CreateUnorderedAccessView(buffer_, nullptr, &desc, handle);
 }
 
 }  // namespace d3d12

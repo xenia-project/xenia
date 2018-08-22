@@ -296,8 +296,6 @@ void TextureCache::RequestTextures(uint32_t used_vertex_texture_mask,
   }
 
   // Transition the textures to the needed usage.
-  D3D12_RESOURCE_BARRIER barriers[32];
-  uint32_t barrier_count = 0;
   used_texture_mask = used_vertex_texture_mask | used_pixel_texture_mask;
   while (xe::bit_scan_forward(used_texture_mask, &index)) {
     uint32_t index_bit = 1u << index;
@@ -313,20 +311,9 @@ void TextureCache::RequestTextures(uint32_t used_vertex_texture_mask,
     if (used_pixel_texture_mask & index_bit) {
       state |= D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
     }
-    if (texture->state != state) {
-      D3D12_RESOURCE_BARRIER& barrier = barriers[barrier_count];
-      barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-      barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-      barrier.Transition.pResource = texture->resource;
-      barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-      barrier.Transition.StateBefore = texture->state;
-      barrier.Transition.StateAfter = state;
-      ++barrier_count;
-      texture->state = state;
-    }
-  }
-  if (barrier_count != 0) {
-    command_list->ResourceBarrier(barrier_count, barriers);
+    command_processor_->PushTransitionBarrier(texture->resource, texture->state,
+                                              state);
+    texture->state = state;
   }
 }
 
@@ -746,13 +733,13 @@ bool TextureCache::LoadTextureData(Texture* texture) {
   // Request uploading of the texture data to the shared memory.
   if (!base_in_sync) {
     if (!shared_memory_->RequestRange(texture->key.base_page << 12,
-                                      texture->base_size, command_list)) {
+                                      texture->base_size)) {
       return false;
     }
   }
   if (!mips_in_sync) {
     if (!shared_memory_->RequestRange(texture->key.mip_page << 12,
-                                      texture->mip_size, command_list)) {
+                                      texture->mip_size)) {
       return false;
     }
   }
@@ -791,7 +778,7 @@ bool TextureCache::LoadTextureData(Texture* texture) {
     command_processor_->ReleaseScratchGPUBuffer(copy_buffer, copy_buffer_state);
     return false;
   }
-  shared_memory_->UseForReading(command_list);
+  shared_memory_->UseForReading();
   shared_memory_->CreateSRV(descriptor_cpu_start);
   D3D12_UNORDERED_ACCESS_VIEW_DESC uav_desc;
   uav_desc.Format = DXGI_FORMAT_R32_TYPELESS;
@@ -811,19 +798,9 @@ bool TextureCache::LoadTextureData(Texture* texture) {
   command_list->SetComputeRootDescriptorTable(1, descriptor_gpu_start);
 
   // Submit commands.
-  D3D12_RESOURCE_BARRIER barriers[2];
-  barriers[0].Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-  barriers[1].Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-  if (texture->state != D3D12_RESOURCE_STATE_COPY_DEST) {
-    barriers[0].Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-    barriers[0].Transition.pResource = texture->resource;
-    barriers[0].Transition.Subresource =
-        D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-    barriers[0].Transition.StateBefore = texture->state;
-    barriers[0].Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_DEST;
-    command_list->ResourceBarrier(1, barriers);
-    texture->state = D3D12_RESOURCE_STATE_COPY_DEST;
-  }
+  command_processor_->PushTransitionBarrier(texture->resource, texture->state,
+                                            D3D12_RESOURCE_STATE_COPY_DEST);
+  texture->state = D3D12_RESOURCE_STATE_COPY_DEST;
   uint32_t mip_first = base_in_sync ? 1 : 0;
   uint32_t mip_last = mips_in_sync ? 0 : resource_desc.MipLevels - 1;
   auto cbuffer_pool = command_processor_->GetConstantBufferPool();
@@ -836,16 +813,9 @@ bool TextureCache::LoadTextureData(Texture* texture) {
     copy_constants.guest_mip_offset[2] = 0;
   }
   for (uint32_t i = 0; i < slice_count; ++i) {
-    if (copy_buffer_state != D3D12_RESOURCE_STATE_UNORDERED_ACCESS) {
-      barriers[0].Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-      barriers[0].Transition.pResource = copy_buffer;
-      barriers[0].Transition.Subresource =
-          D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-      barriers[0].Transition.StateBefore = copy_buffer_state;
-      barriers[0].Transition.StateAfter = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
-      command_list->ResourceBarrier(1, barriers);
-      copy_buffer_state = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
-    }
+    command_processor_->PushTransitionBarrier(
+        copy_buffer, copy_buffer_state, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+    copy_buffer_state = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
     for (uint32_t j = mip_first; j <= mip_last; ++j) {
       if (j == 0) {
         copy_constants.guest_base =
@@ -885,21 +855,17 @@ bool TextureCache::LoadTextureData(Texture* texture) {
       }
       std::memcpy(cbuffer_mapping, &copy_constants, sizeof(copy_constants));
       command_list->SetComputeRootConstantBufferView(0, cbuffer_gpu_address);
+      command_processor_->SubmitBarriers();
       // Each thread group processes 32x32x1 blocks.
       command_list->Dispatch((copy_constants.size_blocks[0] + 31) >> 5,
                              (copy_constants.size_blocks[1] + 31) >> 5,
                              copy_constants.size_blocks[2]);
     }
-    barriers[0].Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
-    barriers[0].UAV.pResource = copy_buffer;
-    barriers[1].Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-    barriers[1].Transition.pResource = copy_buffer;
-    barriers[1].Transition.Subresource =
-        D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-    barriers[1].Transition.StateBefore = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
-    barriers[1].Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_SOURCE;
-    command_list->ResourceBarrier(2, barriers);
+    command_processor_->PushUAVBarrier(copy_buffer);
+    command_processor_->PushTransitionBarrier(copy_buffer, copy_buffer_state,
+                                              D3D12_RESOURCE_STATE_COPY_SOURCE);
     copy_buffer_state = D3D12_RESOURCE_STATE_COPY_SOURCE;
+    command_processor_->SubmitBarriers();
     UINT slice_first_subresource = i * resource_desc.MipLevels;
     for (uint32_t j = mip_first; j <= mip_last; ++j) {
       D3D12_TEXTURE_COPY_LOCATION location_source, location_dest;
