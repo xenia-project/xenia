@@ -541,7 +541,7 @@ void SharedMemory::CreateSRV(D3D12_CPU_DESCRIPTOR_HANDLE handle) {
   device->CreateShaderResourceView(buffer_, &desc, handle);
 }
 
-void SharedMemory::CreateUAV(D3D12_CPU_DESCRIPTOR_HANDLE handle) {
+void SharedMemory::CreateRawUAV(D3D12_CPU_DESCRIPTOR_HANDLE handle) {
   auto device =
       command_processor_->GetD3D12Context()->GetD3D12Provider()->GetDevice();
   D3D12_UNORDERED_ACCESS_VIEW_DESC desc;

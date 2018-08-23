@@ -36,6 +36,7 @@ class SharedMemory {
   bool Initialize();
   void Shutdown();
 
+  ID3D12Resource* GetBuffer() const { return buffer_; }
   D3D12_GPU_VIRTUAL_ADDRESS GetGPUAddress() const {
     return buffer_gpu_address_;
   }
@@ -90,7 +91,7 @@ class SharedMemory {
   void UseForWriting();
 
   void CreateSRV(D3D12_CPU_DESCRIPTOR_HANDLE handle);
-  void CreateUAV(D3D12_CPU_DESCRIPTOR_HANDLE handle);
+  void CreateRawUAV(D3D12_CPU_DESCRIPTOR_HANDLE handle);
 
  private:
   D3D12CommandProcessor* command_processor_;

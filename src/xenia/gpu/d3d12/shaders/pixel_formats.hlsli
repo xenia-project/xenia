@@ -57,7 +57,7 @@ uint4 XeFloat32To20e4(uint4 f32u32) {
 }
 
 uint4 XeFloat20e4To32(uint4 f24u32) {
-  uint4 mantissa = f24u32 & 0xF00000u;
+  uint4 mantissa = f24u32 & 0xFFFFFu;
   uint4 exponent = f24u32 >> 20u;
   // Normalize the values for the denormalized components.
   // Exponent = 1;
