@@ -220,6 +220,10 @@ class RenderTargetCache {
   // register values, and also clears the EDRAM buffer if needed. Must be in a
   // frame for calling.
   bool Resolve(SharedMemory* shared_memory, Memory* memory);
+  // Flushes the render targets to EDRAM and unbinds them, for instance, when
+  // the command processor takes over framebuffer bindings to draw something
+  // special.
+  void UnbindRenderTargets();
   void EndFrame();
 
   static inline bool IsColorFormat64bpp(ColorRenderTargetFormat format) {

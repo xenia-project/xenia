@@ -69,6 +69,10 @@ class D3D12Context : public GraphicsContext {
   D3D12_CPU_DESCRIPTOR_HANDLE GetSwapChainBackBufferRTV() const {
     return GetSwapChainBufferRTV(GetSwapChainBackBufferIndex());
   }
+  void GetSwapChainSize(uint32_t& width, uint32_t& height) const {
+    width = swap_chain_width_;
+    height = swap_chain_height_;
+  }
   ID3D12GraphicsCommandList* GetSwapCommandList() const {
     return swap_command_lists_[current_queue_frame_]->GetCommandList();
   }

@@ -450,6 +450,39 @@ void TextureCache::WriteSampler(uint32_t fetch_constant,
   device->CreateSampler(&desc, handle);
 }
 
+bool TextureCache::RequestSwapTexture(D3D12_CPU_DESCRIPTOR_HANDLE handle) {
+  auto group = reinterpret_cast<const xenos::xe_gpu_fetch_group_t*>(
+      &register_file_->values[XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0]);
+  auto& fetch = group->texture_fetch;
+  TextureKey key;
+  uint32_t swizzle;
+  TextureKeyFromFetchConstant(group->texture_fetch, key, swizzle);
+  if (key.base_page == 0 || key.dimension != Dimension::k2D) {
+    return false;
+  }
+  Texture* texture = FindOrCreateTexture(key);
+  if (texture == nullptr || !LoadTextureData(texture)) {
+    return false;
+  }
+  command_processor_->PushTransitionBarrier(
+      texture->resource, texture->state,
+      D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+  D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc;
+  srv_desc.Format = host_formats_[uint32_t(key.format)].dxgi_format;
+  srv_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+  srv_desc.Shader4ComponentMapping =
+      swizzle |
+      D3D12_SHADER_COMPONENT_MAPPING_ALWAYS_SET_BIT_AVOIDING_ZEROMEM_MISTAKES;
+  srv_desc.Texture2D.MostDetailedMip = 0;
+  srv_desc.Texture2D.MipLevels = 1;
+  srv_desc.Texture2D.PlaneSlice = 0;
+  srv_desc.Texture2D.ResourceMinLODClamp = 0.0f;
+  auto device =
+      command_processor_->GetD3D12Context()->GetD3D12Provider()->GetDevice();
+  device->CreateShaderResourceView(texture->resource, &srv_desc, handle);
+  return true;
+}
+
 void TextureCache::TextureKeyFromFetchConstant(
     const xenos::xe_gpu_texture_fetch_t& fetch, TextureKey& key_out,
     uint32_t& swizzle_out) {

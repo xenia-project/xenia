@@ -78,6 +78,8 @@ class TextureCache {
   void WriteSampler(uint32_t fetch_constant,
                     D3D12_CPU_DESCRIPTOR_HANDLE handle);
 
+  bool RequestSwapTexture(D3D12_CPU_DESCRIPTOR_HANDLE handle);
+
  private:
   struct CopyModeInfo {
     const void* load_shader;

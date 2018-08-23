@@ -1061,10 +1061,12 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
   return true;
 }
 
-void RenderTargetCache::EndFrame() {
+void RenderTargetCache::UnbindRenderTargets() {
   StoreRenderTargetsToEDRAM();
   ClearBindings();
 }
+
+void RenderTargetCache::EndFrame() { UnbindRenderTargets(); }
 
 DXGI_FORMAT RenderTargetCache::GetColorDXGIFormat(
     ColorRenderTargetFormat format) {
