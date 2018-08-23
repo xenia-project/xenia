@@ -23,11 +23,11 @@ cbuffer XeEDRAMLoadStoreConstants : register(b0) {
 // 14 - log2(vertical sample count), 0 for 1x AA, 1 for 2x/4x AA.
 // 15 - log2(horizontal sample count), 0 for 1x/2x AA, 1 for 4x AA.
 // 16:17 - sample to load (16 - vertical index, 17 - horizontal index).
-// 18:19 - destination endianness.
-// 20:31 - BPP-specific info for swapping red/blue, 0 if not swapping.
+// 18:20 - destination endianness.
+// 21:31 - BPP-specific info for swapping red/blue, 0 if not swapping.
 //   For 32 bits per pixel:
-//     20:24 - red/blue bit depth.
-//     25:29 - blue offset.
+//     21:25 - red/blue bit depth.
+//     26:30 - blue offset.
 //   For 64 bits per pixel, it's 1 if need to swap 0:15 and 32:47.
 #define xe_edram_tile_sample_dest_info (xe_edram_load_store_constants.w)
 

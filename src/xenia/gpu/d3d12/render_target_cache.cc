@@ -893,9 +893,10 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
     assert_always();
     return false;
   }
+  Endian128 dest_endian = Endian128(dest_info & 0x7);
   int32_t dest_exp_bias =
       !is_depth ? (int32_t((dest_info >> 16) << 26) >> 26) : 0;
-  uint32_t dest_swap = (dest_info >> 24) & 0x1;
+  bool dest_swap = !is_depth && ((dest_info >> 24) & 0x1);
 
   // Get the destination location.
   uint32_t dest_address = regs[XE_GPU_REG_RB_COPY_DEST_BASE].u32 & 0x1FFFFFFF;
@@ -950,14 +951,105 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
   //   RTV of the destination format.
   auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
   auto device = provider->GetDevice();
+  auto descriptor_size_view = provider->GetDescriptorSizeView();
   if (sample_select <= xenos::CopySampleSelect::k3 &&
       src_texture_format == dest_format && dest_exp_bias == 0) {
     XELOGGPU("Resolving a single sample without conversion");
+    if (src_64bpp) {
+      // TODO(Triang3l): 64bpp sample copy shader.
+      return false;
+    }
+
     // Make sure we have the memory to write to.
     if (!shared_memory->MakeTilesResident(dest_address, dest_size)) {
       return false;
     }
-    // TODO(Triang3l): Raw resolve.
+
+    // Write the source and destination descriptors.
+    D3D12_CPU_DESCRIPTOR_HANDLE descriptor_cpu_start;
+    D3D12_GPU_DESCRIPTOR_HANDLE descriptor_gpu_start;
+    if (command_processor_->RequestViewDescriptors(
+            0, 2, 2, descriptor_cpu_start, descriptor_gpu_start) == 0) {
+      return false;
+    }
+    D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc;
+    srv_desc.Format = DXGI_FORMAT_R32_TYPELESS;
+    srv_desc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+    srv_desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    srv_desc.Buffer.FirstElement = 0;
+    srv_desc.Buffer.NumElements = 2 * 2048 * 1280;
+    srv_desc.Buffer.StructureByteStride = 0;
+    srv_desc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_RAW;
+    device->CreateShaderResourceView(edram_buffer_, &srv_desc,
+                                     descriptor_cpu_start);
+    D3D12_CPU_DESCRIPTOR_HANDLE uav_cpu_handle;
+    uav_cpu_handle.ptr = descriptor_cpu_start.ptr + descriptor_size_view;
+    shared_memory->CreateRawUAV(uav_cpu_handle);
+
+    // Transition the buffers.
+    command_processor_->PushTransitionBarrier(
+        edram_buffer_, edram_buffer_state_,
+        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+    edram_buffer_state_ = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
+    shared_memory->UseForWriting();
+    command_processor_->SubmitBarriers();
+
+    // Dispatch the computation.
+    command_list->SetComputeRootSignature(edram_load_store_root_signature_);
+    EDRAMLoadStoreRootConstants root_constants;
+    root_constants.tile_sample_rect_tl = copy_rect.left | (copy_rect.top << 16);
+    root_constants.tile_sample_rect_br =
+        copy_rect.right | (copy_rect.bottom << 16);
+    root_constants.tile_sample_dest_base = dest_address;
+    assert_true(dest_pitch <= 8192);
+    root_constants.tile_sample_dest_info = dest_pitch |
+                                           (uint32_t(sample_select) << 16) |
+                                           (uint32_t(dest_endian) << 18);
+    if (msaa_samples >= MsaaSamples::k2X) {
+      root_constants.tile_sample_dest_info |= 1 << 14;
+      if (msaa_samples >= MsaaSamples::k4X) {
+        root_constants.tile_sample_dest_info |= 1 << 15;
+      }
+    }
+    if (dest_swap) {
+      switch (ColorRenderTargetFormat(src_format)) {
+        case ColorRenderTargetFormat::k_8_8_8_8:
+        case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
+          root_constants.tile_sample_dest_info |= (8 << 21) | (16 << 26);
+          break;
+        case ColorRenderTargetFormat::k_2_10_10_10:
+        case ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
+        case ColorRenderTargetFormat::k_2_10_10_10_AS_16_16_16_16:
+        case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
+          root_constants.tile_sample_dest_info |= (10 << 21) | (20 << 26);
+          break;
+        case ColorRenderTargetFormat::k_16_16_16_16:
+        case ColorRenderTargetFormat::k_16_16_16_16_FLOAT:
+          root_constants.tile_sample_dest_info |= 1 << 21;
+          break;
+        default:
+          break;
+      }
+    }
+    root_constants.base_pitch_tiles = edram_base | (surface_pitch_tiles << 11);
+    command_list->SetComputeRoot32BitConstants(
+        0, sizeof(root_constants) / sizeof(uint32_t), &root_constants, 0);
+    command_list->SetComputeRootDescriptorTable(1, descriptor_gpu_start);
+    // TODO(Triang3l): 64bpp pipeline.
+    command_processor_->SetPipeline(edram_tile_sample_32bpp_pipeline_);
+    // 1 group per destination 80x16 (32bpp) / 80x8 (64bpp) region.
+    uint32_t group_count_x = row_tiles, group_count_y = rows;
+    if (msaa_samples >= MsaaSamples::k2X) {
+      group_count_y = (group_count_y + 1) >> 1;
+      if (msaa_samples >= MsaaSamples::k4X) {
+        group_count_x = (group_count_x + 1) >> 1;
+      }
+    }
+    command_list->Dispatch(group_count_x, group_count_y, 1);
+
+    // Commit the write.
+    command_processor_->PushUAVBarrier(shared_memory->GetBuffer());
+
     // Make the texture cache refresh the data.
     shared_memory->RangeWrittenByGPU(dest_address, dest_size);
   } else {
@@ -1386,8 +1478,6 @@ void RenderTargetCache::StoreRenderTargetsToEDRAM() {
     command_list->CopyTextureRegion(&location_dest, 0, 0, 0, &location_source,
                                     nullptr);
     EDRAMLoadStoreRootConstants root_constants;
-    root_constants.base_pitch_tiles =
-        binding.edram_base | (rt_pitch_tiles << 11);
     root_constants.rt_color_depth_offset =
         uint32_t(location_dest.PlacedFootprint.Offset);
     root_constants.rt_color_depth_pitch =
@@ -1402,6 +1492,8 @@ void RenderTargetCache::StoreRenderTargetsToEDRAM() {
       root_constants.rt_stencil_pitch =
           location_dest.PlacedFootprint.Footprint.RowPitch;
     }
+    root_constants.base_pitch_tiles =
+        binding.edram_base | (rt_pitch_tiles << 11);
 
     // Transition the copy buffer to SRV.
     command_processor_->PushTransitionBarrier(
@@ -1534,8 +1626,6 @@ void RenderTargetCache::LoadRenderTargetsFromEDRAM(
     // Load the data.
     command_processor_->SubmitBarriers();
     EDRAMLoadStoreRootConstants root_constants;
-    root_constants.base_pitch_tiles =
-        edram_bases[i] | (edram_pitch_tiles << 11);
     root_constants.rt_color_depth_offset =
         uint32_t(render_target->footprints[0].Offset);
     root_constants.rt_color_depth_pitch =
@@ -1546,6 +1636,8 @@ void RenderTargetCache::LoadRenderTargetsFromEDRAM(
       root_constants.rt_stencil_pitch =
           render_target->footprints[1].Footprint.RowPitch;
     }
+    root_constants.base_pitch_tiles =
+        edram_bases[i] | (edram_pitch_tiles << 11);
     command_list->SetComputeRoot32BitConstants(
         0, sizeof(root_constants) / sizeof(uint32_t), &root_constants, 0);
     EDRAMLoadStoreMode mode = GetLoadStoreMode(render_target->key.is_depth,
