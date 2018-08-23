@@ -16,6 +16,7 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/profiling.h"
+#include "xenia/gpu/d3d12/d3d12_graphics_system.h"
 #include "xenia/gpu/d3d12/d3d12_shader.h"
 #include "xenia/gpu/xenos.h"
 
@@ -525,6 +526,69 @@ bool D3D12CommandProcessor::SetupContext() {
     return false;
   }
 
+  D3D12_HEAP_PROPERTIES swap_texture_heap_properties = {};
+  swap_texture_heap_properties.Type = D3D12_HEAP_TYPE_DEFAULT;
+  D3D12_RESOURCE_DESC swap_texture_desc;
+  swap_texture_desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+  swap_texture_desc.Alignment = 0;
+  swap_texture_desc.Width = kSwapTextureWidth;
+  swap_texture_desc.Height = kSwapTextureHeight;
+  swap_texture_desc.DepthOrArraySize = 1;
+  swap_texture_desc.MipLevels = 1;
+  swap_texture_desc.Format = ui::d3d12::D3D12Context::kSwapChainFormat;
+  swap_texture_desc.SampleDesc.Count = 1;
+  swap_texture_desc.SampleDesc.Quality = 0;
+  swap_texture_desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+  swap_texture_desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+  // Can be sampled at any time, switch to render target when needed, then back.
+  if (FAILED(device->CreateCommittedResource(
+          &swap_texture_heap_properties, D3D12_HEAP_FLAG_NONE,
+          &swap_texture_desc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+          nullptr, IID_PPV_ARGS(&swap_texture_)))) {
+    XELOGE("Failed to create the command processor front buffer");
+    return false;
+  }
+  D3D12_DESCRIPTOR_HEAP_DESC swap_descriptor_heap_desc;
+  swap_descriptor_heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+  swap_descriptor_heap_desc.NumDescriptors = 1;
+  swap_descriptor_heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+  swap_descriptor_heap_desc.NodeMask = 0;
+  if (FAILED(device->CreateDescriptorHeap(
+          &swap_descriptor_heap_desc,
+          IID_PPV_ARGS(&swap_texture_rtv_descriptor_heap_)))) {
+    XELOGE("Failed to create the command processor front buffer RTV heap");
+    return false;
+  }
+  swap_texture_rtv_ =
+      swap_texture_rtv_descriptor_heap_->GetCPUDescriptorHandleForHeapStart();
+  D3D12_RENDER_TARGET_VIEW_DESC swap_rtv_desc;
+  swap_rtv_desc.Format = ui::d3d12::D3D12Context::kSwapChainFormat;
+  swap_rtv_desc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+  swap_rtv_desc.Texture2D.MipSlice = 0;
+  swap_rtv_desc.Texture2D.PlaneSlice = 0;
+  device->CreateRenderTargetView(swap_texture_, &swap_rtv_desc,
+                                 swap_texture_rtv_);
+  swap_descriptor_heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+  swap_descriptor_heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+  if (FAILED(device->CreateDescriptorHeap(
+          &swap_descriptor_heap_desc,
+          IID_PPV_ARGS(&swap_texture_srv_descriptor_heap_)))) {
+    XELOGE("Failed to create the command processor front buffer SRV heap");
+    return false;
+  }
+  D3D12_SHADER_RESOURCE_VIEW_DESC swap_srv_desc;
+  swap_srv_desc.Format = ui::d3d12::D3D12Context::kSwapChainFormat;
+  swap_srv_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+  swap_srv_desc.Shader4ComponentMapping =
+      D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+  swap_srv_desc.Texture2D.MostDetailedMip = 0;
+  swap_srv_desc.Texture2D.MipLevels = 1;
+  swap_srv_desc.Texture2D.PlaneSlice = 0;
+  swap_srv_desc.Texture2D.ResourceMinLODClamp = 0.0f;
+  device->CreateShaderResourceView(
+      swap_texture_, &swap_srv_desc,
+      swap_texture_srv_descriptor_heap_->GetCPUDescriptorHandleForHeapStart());
+
   return true;
 }
 
@@ -542,6 +606,26 @@ void D3D12CommandProcessor::ShutdownContext() {
     buffer_for_deletion.buffer->Release();
   }
   buffers_for_deletion_.clear();
+
+  if (swap_texture_srv_descriptor_heap_ != nullptr) {
+    {
+      std::lock_guard<std::mutex> lock(swap_state_.mutex);
+      swap_state_.pending = false;
+      swap_state_.front_buffer_texture = 0;
+    }
+    auto graphics_system = static_cast<D3D12GraphicsSystem*>(graphics_system_);
+    graphics_system->AwaitFrontBufferUnused();
+    swap_texture_srv_descriptor_heap_->Release();
+    swap_texture_srv_descriptor_heap_ = nullptr;
+  }
+  if (swap_texture_rtv_descriptor_heap_ != nullptr) {
+    swap_texture_rtv_descriptor_heap_->Release();
+    swap_texture_rtv_descriptor_heap_ = nullptr;
+  }
+  if (swap_texture_ != nullptr) {
+    swap_texture_->Release();
+    swap_texture_ = nullptr;
+  }
 
   sampler_heap_pool_.reset();
   view_heap_pool_.reset();
@@ -592,6 +676,54 @@ void D3D12CommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
                                         uint32_t frontbuffer_width,
                                         uint32_t frontbuffer_height) {
   SCOPE_profile_cpu_f("gpu");
+
+  // In case the swap command is the only one in the frame.
+  BeginFrame();
+
+  D3D12_CPU_DESCRIPTOR_HANDLE frontbuffer_cpu_handle;
+  D3D12_GPU_DESCRIPTOR_HANDLE frontbuffer_gpu_handle;
+  if (RequestViewDescriptors(0, 1, 1, frontbuffer_cpu_handle,
+                             frontbuffer_gpu_handle) != 0) {
+    if (texture_cache_->RequestSwapTexture(frontbuffer_cpu_handle)) {
+      auto command_list = GetCurrentCommandList();
+      render_target_cache_->UnbindRenderTargets();
+      // The swap texture is kept as an SRV because the graphics system may draw
+      // with it at any time. It's switched to RTV and back when needed.
+      PushTransitionBarrier(swap_texture_,
+                            D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+                            D3D12_RESOURCE_STATE_RENDER_TARGET);
+      SubmitBarriers();
+      command_list->OMSetRenderTargets(1, &swap_texture_rtv_, TRUE, nullptr);
+      D3D12_VIEWPORT viewport;
+      viewport.TopLeftX = 0.0f;
+      viewport.TopLeftY = 0.0f;
+      viewport.Width = float(kSwapTextureWidth);
+      viewport.Height = float(kSwapTextureHeight);
+      viewport.MinDepth = 0.0f;
+      viewport.MaxDepth = 0.0f;
+      command_list->RSSetViewports(1, &viewport);
+      D3D12_RECT scissor;
+      scissor.left = 0;
+      scissor.top = 0;
+      scissor.right = kSwapTextureWidth;
+      scissor.bottom = kSwapTextureHeight;
+      command_list->RSSetScissorRects(1, &scissor);
+      D3D12GraphicsSystem* graphics_system =
+          static_cast<D3D12GraphicsSystem*>(graphics_system_);
+      graphics_system->StretchTextureToFrontBuffer(frontbuffer_gpu_handle,
+                                                   command_list);
+      PushTransitionBarrier(swap_texture_, D3D12_RESOURCE_STATE_RENDER_TARGET,
+                            D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+      // Don't care about graphics state because the frame is ending anyway.
+      {
+        std::lock_guard<std::mutex> lock(swap_state_.mutex);
+        swap_state_.width = kSwapTextureWidth;
+        swap_state_.height = kSwapTextureHeight;
+        swap_state_.front_buffer_texture =
+            reinterpret_cast<uintptr_t>(swap_texture_srv_descriptor_heap_);
+      }
+    }
+  }
 
   EndFrame();
 

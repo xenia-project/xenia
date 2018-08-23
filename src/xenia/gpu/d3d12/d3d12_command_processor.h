@@ -185,6 +185,13 @@ class D3D12CommandProcessor : public CommandProcessor {
   std::unique_ptr<ui::d3d12::DescriptorHeapPool> view_heap_pool_ = nullptr;
   std::unique_ptr<ui::d3d12::DescriptorHeapPool> sampler_heap_pool_ = nullptr;
 
+  static constexpr uint32_t kSwapTextureWidth = 1280;
+  static constexpr uint32_t kSwapTextureHeight = 720;
+  ID3D12Resource* swap_texture_ = nullptr;
+  ID3D12DescriptorHeap* swap_texture_rtv_descriptor_heap_ = nullptr;
+  D3D12_CPU_DESCRIPTOR_HANDLE swap_texture_rtv_;
+  ID3D12DescriptorHeap* swap_texture_srv_descriptor_heap_ = nullptr;
+
   // Unsubmitted barrier batch.
   std::vector<D3D12_RESOURCE_BARRIER> barriers_;
 

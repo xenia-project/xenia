@@ -16,7 +16,6 @@
 
 #include "xenia/memory.h"
 #include "xenia/ui/d3d12/d3d12_api.h"
-#include "xenia/ui/d3d12/d3d12_context.h"
 #include "xenia/ui/d3d12/pools.h"
 
 namespace xe {

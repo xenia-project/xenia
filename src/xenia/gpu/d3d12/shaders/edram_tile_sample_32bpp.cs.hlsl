@@ -22,7 +22,7 @@ void main(uint3 xe_group_id : SV_GroupID,
   uint4 sample_info =
       (xe_edram_tile_sample_dest_info.xxxx >> uint4(15u, 14u, 17u, 16u)) & 1u;
   uint2 edram_tile_quarter =
-      uint2(uint2(10u, 8u) <= xe_group_thread_id) * sample_info.xy;
+      uint2(uint2(10u, 8u) <= xe_group_thread_id.xy) * sample_info.xy;
   uint edram_offset = XeEDRAMOffset(
       (xe_group_id.xy << sample_info.xy) + edram_tile_quarter,
       (xe_group_thread_id.xy - edram_tile_quarter * uint2(10u, 8u)) <<
