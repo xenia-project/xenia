@@ -410,10 +410,13 @@ class RenderTargetCache {
       edram_store_pipelines_[size_t(EDRAMLoadStoreMode::kCount)] = {};
   ID3D12PipelineState* edram_tile_sample_32bpp_pipeline_ = nullptr;
 
-  // 32 MB heaps backing used render targets resources, created when needed.
+  // 48 MB heaps backing used render targets resources, created when needed.
   // 24 MB proved to be not enough to store a single render target occupying the
   // entire EDRAM - a 32-bit depth/stencil one - at some resolution.
+  // But we also need more than 32 MB to be able to resolve the entire EDRAM
+  // into a k_32_32_32_32_FLOAT texture.
   ID3D12Heap* heaps_[5] = {};
+  static constexpr uint32_t kHeap4MBPages = 12;
 
   static constexpr uint32_t kRenderTargetDescriptorHeapSize = 2048;
   // Descriptor heap, for linear allocation of heaps and descriptors.
