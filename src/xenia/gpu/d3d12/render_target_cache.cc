@@ -565,7 +565,7 @@ bool RenderTargetCache::UpdateRenderTargets() {
         const RenderTarget* render_target = binding.render_target;
         if (render_target != nullptr) {
           // There are no holes between 4 MB pages in each heap.
-          heap_usage[render_target->heap_page_first >> 3] +=
+          heap_usage[render_target->heap_page_first / kHeap4MBPages] +=
               render_target->heap_page_count;
           continue;
         }
@@ -601,11 +601,11 @@ bool RenderTargetCache::UpdateRenderTargets() {
         continue;
       }
 
-      // Calculate the number of 4 MB pages of 32 MB heaps this RT will use.
+      // Calculate the number of 4 MB pages of the heaps this RT will use.
       D3D12_RESOURCE_ALLOCATION_INFO allocation_info =
           device->GetResourceAllocationInfo(0, 1, &resource_desc);
       if (allocation_info.SizeInBytes == 0 ||
-          allocation_info.SizeInBytes > (32 << 20)) {
+          allocation_info.SizeInBytes > (kHeap4MBPages << 22)) {
         assert_always();
         continue;
       }
@@ -615,8 +615,8 @@ bool RenderTargetCache::UpdateRenderTargets() {
       // Find the heap page range for this render target.
       uint32_t heap_page_first = UINT32_MAX;
       for (uint32_t j = 0; j < 5; ++j) {
-        if (heap_usage[j] + heap_page_count <= 8) {
-          heap_page_first = j * 8 + heap_usage[j];
+        if (heap_usage[j] + heap_page_count <= kHeap4MBPages) {
+          heap_page_first = j * kHeap4MBPages + heap_usage[j];
           break;
         }
       }
@@ -630,7 +630,7 @@ bool RenderTargetCache::UpdateRenderTargets() {
       if (binding.render_target == nullptr) {
         continue;
       }
-      heap_usage[heap_page_first >> 3] += heap_page_count;
+      heap_usage[heap_page_first / kHeap4MBPages] += heap_page_count;
 
       // Inform Direct3D that we're reusing the heap for this render target.
       command_processor_->PushAliasingBarrier(nullptr,
@@ -1133,7 +1133,7 @@ bool RenderTargetCache::GetResourceDesc(RenderTargetKey key,
 
 RenderTargetCache::RenderTarget* RenderTargetCache::FindOrCreateRenderTarget(
     RenderTargetKey key, uint32_t heap_page_first) {
-  assert_true(heap_page_first <= 8 * 5);
+  assert_true(heap_page_first <= kHeap4MBPages * 5);
 
   // Try to find an existing render target.
   auto found_range = render_targets_.equal_range(key.value);
@@ -1157,7 +1157,8 @@ RenderTargetCache::RenderTarget* RenderTargetCache::FindOrCreateRenderTarget(
       device->GetResourceAllocationInfo(0, 1, &resource_desc);
   uint32_t heap_page_count =
       (uint32_t(allocation_info.SizeInBytes) + ((4 << 20) - 1)) >> 22;
-  if (heap_page_count == 0 || (heap_page_first & 7) + heap_page_count > 8) {
+  if (heap_page_count == 0 ||
+      (heap_page_first % kHeap4MBPages) + heap_page_count > kHeap4MBPages) {
     assert_always();
     return nullptr;
   }
@@ -1191,27 +1192,28 @@ RenderTargetCache::RenderTarget* RenderTargetCache::FindOrCreateRenderTarget(
   }
 
   // Create the memory heap if it doesn't exist yet.
-  ID3D12Heap* heap = heaps_[heap_page_first >> 3];
+  ID3D12Heap* heap = heaps_[heap_page_first / kHeap4MBPages];
   if (heap == nullptr) {
     D3D12_HEAP_DESC heap_desc = {};
-    heap_desc.SizeInBytes = 32 << 20;
+    heap_desc.SizeInBytes = kHeap4MBPages << 22;
     heap_desc.Properties.Type = D3D12_HEAP_TYPE_DEFAULT;
     // TODO(Triang3l): If real MSAA is added, alignment must be 4 MB.
     heap_desc.Alignment = 0;
     heap_desc.Flags = D3D12_HEAP_FLAG_ALLOW_ONLY_RT_DS_TEXTURES;
     if (FAILED(device->CreateHeap(&heap_desc, IID_PPV_ARGS(&heap)))) {
-      XELOGE("Failed to create a 32 MB heap for render targets");
+      XELOGE("Failed to create a %u MB heap for render targets",
+             kHeap4MBPages * 4);
       return nullptr;
     }
-    heaps_[heap_page_first >> 3] = heap;
+    heaps_[heap_page_first / kHeap4MBPages] = heap;
   }
 
   // The first action likely to be done is EDRAM buffer load.
   D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_COPY_DEST;
   ID3D12Resource* resource;
-  if (FAILED(device->CreatePlacedResource(heap, (heap_page_first & 7) << 22,
-                                          &resource_desc, state, nullptr,
-                                          IID_PPV_ARGS(&resource)))) {
+  if (FAILED(device->CreatePlacedResource(
+          heap, (heap_page_first % kHeap4MBPages) << 22, &resource_desc, state,
+          nullptr, IID_PPV_ARGS(&resource)))) {
     XELOGE(
         "Failed to create a placed resource for %ux%u %s render target with "
         "format %u at heap 4 MB pages %u:%u",
