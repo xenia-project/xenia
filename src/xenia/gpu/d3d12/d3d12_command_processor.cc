@@ -469,10 +469,36 @@ void D3D12CommandProcessor::ReleaseScratchGPUBuffer(
   }
 }
 
-void D3D12CommandProcessor::SetPipeline(ID3D12PipelineState* pipeline) {
+void D3D12CommandProcessor::SetComputePipeline(ID3D12PipelineState* pipeline) {
   if (current_pipeline_ != pipeline) {
     GetCurrentCommandList()->SetPipelineState(pipeline);
     current_pipeline_ = pipeline;
+  }
+}
+
+void D3D12CommandProcessor::UnbindRenderTargets() {
+  render_target_cache_->UnbindRenderTargets();
+}
+
+void D3D12CommandProcessor::SetExternalGraphicsPipeline(
+    ID3D12PipelineState* pipeline, bool reset_viewport, bool reset_blend_factor,
+    bool reset_stencil_ref) {
+  if (current_pipeline_ != pipeline) {
+    GetCurrentCommandList()->SetPipelineState(pipeline);
+    current_pipeline_ = pipeline;
+  }
+  current_graphics_root_signature_ = nullptr;
+  current_graphics_root_up_to_date_ = 0;
+  primitive_topology_ = D3D_PRIMITIVE_TOPOLOGY_UNDEFINED;
+  if (reset_viewport) {
+    ff_viewport_update_needed_ = true;
+    ff_scissor_update_needed_ = true;
+  }
+  if (reset_blend_factor) {
+    ff_blend_factor_update_needed_ = true;
+  }
+  if (reset_stencil_ref) {
+    ff_stencil_ref_update_needed_ = true;
   }
 }
 
@@ -898,7 +924,10 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
   UpdateFixedFunctionState(command_list);
 
   // Bind the pipeline.
-  SetPipeline(pipeline);
+  if (current_pipeline_ != pipeline) {
+    GetCurrentCommandList()->SetPipelineState(pipeline);
+    current_pipeline_ = pipeline;
+  }
 
   // Update system constants before uploading them.
   UpdateSystemConstantValues(
@@ -966,7 +995,8 @@ bool D3D12CommandProcessor::IssueCopy() {
   SCOPE_profile_cpu_f("gpu");
 #endif  // FINE_GRAINED_DRAW_SCOPES
   BeginFrame();
-  return render_target_cache_->Resolve(shared_memory_.get(), memory_);
+  return render_target_cache_->Resolve(shared_memory_.get(),
+                                       texture_cache_.get(), memory_);
 }
 
 bool D3D12CommandProcessor::BeginFrame() {
