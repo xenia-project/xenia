@@ -34,81 +34,145 @@ namespace d3d12 {
 #include "xenia/gpu/d3d12/shaders/bin/texture_load_depth_float_cs.h"
 #include "xenia/gpu/d3d12/shaders/bin/texture_load_depth_unorm_cs.h"
 #include "xenia/gpu/d3d12/shaders/bin/texture_load_dxt3a_cs.h"
+#include "xenia/gpu/d3d12/shaders/bin/texture_tile_32bpp_cs.h"
 
 const TextureCache::HostFormat TextureCache::host_formats_[64] = {
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_1_REVERSE
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_1
-    {DXGI_FORMAT_R8_UNORM, CopyMode::k8bpb},             // k_8
-    {DXGI_FORMAT_B5G5R5A1_UNORM, CopyMode::k16bpb},      // k_1_5_5_5
-    {DXGI_FORMAT_B5G6R5_UNORM, CopyMode::k16bpb},        // k_5_6_5
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_6_5_5
-    {DXGI_FORMAT_R8G8B8A8_UNORM, CopyMode::k32bpb},      // k_8_8_8_8
-    {DXGI_FORMAT_R10G10B10A2_UNORM, CopyMode::k32bpb},   // k_2_10_10_10
-    {DXGI_FORMAT_R8_UNORM, CopyMode::k8bpb},             // k_8_A
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_8_B
-    {DXGI_FORMAT_R8G8_UNORM, CopyMode::k16bpb},          // k_8_8
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_Cr_Y1_Cb_Y0_REP
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_Y1_Cr_Y0_Cb_REP
-    {DXGI_FORMAT_R16G16_UNORM, CopyMode::k32bpb},        // k_16_16_EDRAM
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_8_8_8_8_A
-    {DXGI_FORMAT_B4G4R4A4_UNORM, CopyMode::k16bpb},      // k_4_4_4_4
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_10_11_11
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_11_11_10
-    {DXGI_FORMAT_BC1_UNORM, CopyMode::k64bpb},           // k_DXT1
-    {DXGI_FORMAT_BC2_UNORM, CopyMode::k128bpb},          // k_DXT2_3
-    {DXGI_FORMAT_BC3_UNORM, CopyMode::k128bpb},          // k_DXT4_5
-    {DXGI_FORMAT_R16G16B16A16_UNORM, CopyMode::k64bpb},  // k_16_16_16_16_EDRAM
+    // k_1_REVERSE
+    {DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, TileMode::kUnknown},
+    // k_1
+    {DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, TileMode::kUnknown},
+    // k_8
+    {DXGI_FORMAT_R8_UNORM, LoadMode::k8bpb, TileMode::kUnknown},
+    // k_1_5_5_5
+    {DXGI_FORMAT_B5G5R5A1_UNORM, LoadMode::k16bpb, TileMode::kUnknown},
+    // k_5_6_5
+    {DXGI_FORMAT_B5G6R5_UNORM, LoadMode::k16bpb, TileMode::kUnknown},
+    // k_6_5_5
+    {DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, TileMode::kUnknown},
+    // k_8_8_8_8
+    {DXGI_FORMAT_R8G8B8A8_UNORM, LoadMode::k32bpb, TileMode::k32bpp},
+    // k_2_10_10_10
+    {DXGI_FORMAT_R10G10B10A2_UNORM, LoadMode::k32bpb, TileMode::kUnknown},
+    // k_8_A
+    {DXGI_FORMAT_R8_UNORM, LoadMode::k8bpb, TileMode::kUnknown},
+    // k_8_B
+    {DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, TileMode::kUnknown},
+    // k_8_8
+    {DXGI_FORMAT_R8G8_UNORM, LoadMode::k16bpb, TileMode::kUnknown},
+    // k_Cr_Y1_Cb_Y0_REP
+    {DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, TileMode::kUnknown},
+    // k_Y1_Cr_Y0_Cb_REP
+    {DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, TileMode::kUnknown},
+    // k_16_16_EDRAM
+    {DXGI_FORMAT_R16G16_UNORM, LoadMode::k32bpb, TileMode::kUnknown},
+    // k_8_8_8_8_A
+    {DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, TileMode::kUnknown},
+    // k_4_4_4_4
+    {DXGI_FORMAT_B4G4R4A4_UNORM, LoadMode::k16bpb, TileMode::kUnknown},
+    // k_10_11_11
+    {DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, TileMode::kUnknown},
+    // k_11_11_10
+    {DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, TileMode::kUnknown},
+    // k_DXT1
+    {DXGI_FORMAT_BC1_UNORM, LoadMode::k64bpb, TileMode::kUnknown},
+    // k_DXT2_3
+    {DXGI_FORMAT_BC2_UNORM, LoadMode::k128bpb, TileMode::kUnknown},
+    // k_DXT4_5
+    {DXGI_FORMAT_BC3_UNORM, LoadMode::k128bpb, TileMode::kUnknown},
+    // k_16_16_16_16_EDRAM
+    {DXGI_FORMAT_R16G16B16A16_UNORM, LoadMode::k64bpb, TileMode::kUnknown},
     // R32_FLOAT for depth because shaders would require an additional SRV to
     // sample stencil, which we don't provide.
-    {DXGI_FORMAT_R32_FLOAT, CopyMode::kDepthUnorm},      // k_24_8
-    {DXGI_FORMAT_R32_FLOAT, CopyMode::kDepthFloat},      // k_24_8_FLOAT
-    {DXGI_FORMAT_R16_UNORM, CopyMode::k16bpb},           // k_16
-    {DXGI_FORMAT_R16G16_UNORM, CopyMode::k32bpb},        // k_16_16
-    {DXGI_FORMAT_R16G16B16A16_UNORM, CopyMode::k64bpb},  // k_16_16_16_16
-    {DXGI_FORMAT_R16_FLOAT, CopyMode::k16bpb},           // k_16_EXPAND
-    {DXGI_FORMAT_R16G16_FLOAT, CopyMode::k32bpb},        // k_16_16_EXPAND
-    {DXGI_FORMAT_R16G16B16A16_FLOAT, CopyMode::k64bpb},  // k_16_16_16_16_EXPAND
-    {DXGI_FORMAT_R16_FLOAT, CopyMode::k16bpb},           // k_16_FLOAT
-    {DXGI_FORMAT_R16G16_FLOAT, CopyMode::k32bpb},        // k_16_16_FLOAT
-    {DXGI_FORMAT_R16G16B16A16_FLOAT, CopyMode::k64bpb},  // k_16_16_16_16_FLOAT
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_32
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_32_32
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},           // k_32_32_32_32
-    {DXGI_FORMAT_R32_FLOAT, CopyMode::k32bpb},           // k_32_FLOAT
-    {DXGI_FORMAT_R32G32_FLOAT, CopyMode::k64bpb},        // k_32_32_FLOAT
-    {DXGI_FORMAT_R32G32B32A32_FLOAT, CopyMode::k128bpb},  // k_32_32_32_32_FLOAT
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},            // k_32_AS_8
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},            // k_32_AS_8_8
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},            // k_16_MPEG
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},            // k_16_16_MPEG
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},            // k_8_INTERLACED
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},       // k_32_AS_8_INTERLACED
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},       // k_32_AS_8_8_INTERLACED
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},       // k_16_INTERLACED
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},       // k_16_MPEG_INTERLACED
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},       // k_16_16_MPEG_INTERLACED
-    {DXGI_FORMAT_BC5_UNORM, CopyMode::k128bpb},      // k_DXN
-    {DXGI_FORMAT_R8G8B8A8_UNORM, CopyMode::k32bpb},  // k_8_8_8_8_AS_16_16_16_16
-    {DXGI_FORMAT_BC1_UNORM, CopyMode::k64bpb},       // k_DXT1_AS_16_16_16_16
-    {DXGI_FORMAT_BC2_UNORM, CopyMode::k128bpb},      // k_DXT2_3_AS_16_16_16_16
-    {DXGI_FORMAT_BC3_UNORM, CopyMode::k128bpb},      // k_DXT4_5_AS_16_16_16_16
-    {DXGI_FORMAT_R10G10B10A2_UNORM,
-     CopyMode::k32bpb},                         // k_2_10_10_10_AS_16_16_16_16
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_10_11_11_AS_16_16_16_16
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_11_11_10_AS_16_16_16_16
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_32_32_32_FLOAT
-    {DXGI_FORMAT_BC2_UNORM, CopyMode::kDXT3A},  // k_DXT3A
-    {DXGI_FORMAT_BC4_UNORM, CopyMode::k64bpb},  // k_DXT5A
-    {DXGI_FORMAT_R8G8_UNORM, CopyMode::kCTX1},  // k_CTX1
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},  // k_DXT3A_AS_1_1_1_1
-    {DXGI_FORMAT_R8G8B8A8_UNORM, CopyMode::k32bpb},  // k_8_8_8_8_GAMMA
-    {DXGI_FORMAT_UNKNOWN, CopyMode::kUnknown},       // k_2_10_10_10_FLOAT_EDRAM
+    // k_24_8
+    {DXGI_FORMAT_R32_FLOAT, LoadMode::kDepthUnorm, TileMode::kUnknown},
+    // k_24_8_FLOAT
+    {DXGI_FORMAT_R32_FLOAT, LoadMode::kDepthFloat, TileMode::kUnknown},
+    // k_16
+    {DXGI_FORMAT_R16_UNORM, LoadMode::k16bpb, TileMode::kUnknown},
+    // k_16_16
+    {DXGI_FORMAT_R16G16_UNORM, LoadMode::k32bpb, TileMode::kUnknown},
+    // k_16_16_16_16
+    {DXGI_FORMAT_R16G16B16A16_UNORM, LoadMode::k64bpb, TileMode::kUnknown},
+    // k_16_EXPAND
+    {DXGI_FORMAT_R16_FLOAT, LoadMode::k16bpb, TileMode::kUnknown},
+    // k_16_16_EXPAND
+    {DXGI_FORMAT_R16G16_FLOAT, LoadMode::k32bpb, TileMode::kUnknown},
+    // k_16_16_16_16_EXPAND
+    {DXGI_FORMAT_R16G16B16A16_FLOAT, LoadMode::k64bpb, TileMode::kUnknown},
+    // k_16_FLOAT
+    {DXGI_FORMAT_R16_FLOAT, LoadMode::k16bpb, TileMode::kUnknown},
+    // k_16_16_FLOAT
+    {DXGI_FORMAT_R16G16_FLOAT, LoadMode::k32bpb, TileMode::kUnknown},
+    // k_16_16_16_16_FLOAT
+    {DXGI_FORMAT_R16G16B16A16_FLOAT, LoadMode::k64bpb, TileMode::kUnknown},
+    // k_32
+    {DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, TileMode::kUnknown},
+    // k_32_32
+    {DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, TileMode::kUnknown},
+    // k_32_32_32_32
+    {DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, TileMode::kUnknown},
+    // k_32_FLOAT
+    {DXGI_FORMAT_R32_FLOAT, LoadMode::k32bpb, TileMode::kUnknown},
+    // k_32_32_FLOAT
+    {DXGI_FORMAT_R32G32_FLOAT, LoadMode::k64bpb, TileMode::kUnknown},
+    // k_32_32_32_32_FLOAT
+    {DXGI_FORMAT_R32G32B32A32_FLOAT, LoadMode::k128bpb, TileMode::kUnknown},
+    // k_32_AS_8
+    {DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, TileMode::kUnknown},
+    // k_32_AS_8_8
+    {DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, TileMode::kUnknown},
+    // k_16_MPEG
+    {DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, TileMode::kUnknown},
+    // k_16_16_MPEG
+    {DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, TileMode::kUnknown},
+    // k_8_INTERLACED
+    {DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, TileMode::kUnknown},
+    // k_32_AS_8_INTERLACED
+    {DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, TileMode::kUnknown},
+    // k_32_AS_8_8_INTERLACED
+    {DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, TileMode::kUnknown},
+    // k_16_INTERLACED
+    {DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, TileMode::kUnknown},
+    // k_16_MPEG_INTERLACED
+    {DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, TileMode::kUnknown},
+    // k_16_16_MPEG_INTERLACED
+    {DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, TileMode::kUnknown},
+    // k_DXN
+    {DXGI_FORMAT_BC5_UNORM, LoadMode::k128bpb, TileMode::kUnknown},
+    // k_8_8_8_8_AS_16_16_16_16
+    {DXGI_FORMAT_R8G8B8A8_UNORM, LoadMode::k32bpb, TileMode::kUnknown},
+    // k_DXT1_AS_16_16_16_16
+    {DXGI_FORMAT_BC1_UNORM, LoadMode::k64bpb, TileMode::kUnknown},
+    // k_DXT2_3_AS_16_16_16_16
+    {DXGI_FORMAT_BC2_UNORM, LoadMode::k128bpb, TileMode::kUnknown},
+    // k_DXT4_5_AS_16_16_16_16
+    {DXGI_FORMAT_BC3_UNORM, LoadMode::k128bpb, TileMode::kUnknown},
+    // k_2_10_10_10_AS_16_16_16_16
+    {DXGI_FORMAT_R10G10B10A2_UNORM, LoadMode::k32bpb, TileMode::kUnknown},
+    // k_10_11_11_AS_16_16_16_16
+    {DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, TileMode::kUnknown},
+    // k_11_11_10_AS_16_16_16_16
+    {DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, TileMode::kUnknown},
+    // k_32_32_32_FLOAT
+    {DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, TileMode::kUnknown},
+    // k_DXT3A
+    {DXGI_FORMAT_BC2_UNORM, LoadMode::kDXT3A, TileMode::kUnknown},
+    // k_DXT5A
+    {DXGI_FORMAT_BC4_UNORM, LoadMode::k64bpb, TileMode::kUnknown},
+    // k_CTX1
+    {DXGI_FORMAT_R8G8_UNORM, LoadMode::kCTX1, TileMode::kUnknown},
+    // k_DXT3A_AS_1_1_1_1
+    {DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, TileMode::kUnknown},
+    // k_8_8_8_8_GAMMA
+    {DXGI_FORMAT_R8G8B8A8_UNORM, LoadMode::k32bpb, TileMode::kUnknown},
+    // k_2_10_10_10_FLOAT_EDRAM
+    {DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, TileMode::kUnknown},
 };
 
 const char* const TextureCache::dimension_names_[4] = {"1D", "2D", "3D",
                                                        "cube"};
 
-const TextureCache::CopyModeInfo TextureCache::copy_mode_info_[] = {
+const TextureCache::LoadModeInfo TextureCache::load_mode_info_[] = {
     {texture_load_8bpb_cs, sizeof(texture_load_8bpb_cs)},
     {texture_load_16bpb_cs, sizeof(texture_load_16bpb_cs)},
     {texture_load_32bpb_cs, sizeof(texture_load_32bpb_cs)},
@@ -118,6 +182,10 @@ const TextureCache::CopyModeInfo TextureCache::copy_mode_info_[] = {
     {texture_load_ctx1_cs, sizeof(texture_load_ctx1_cs)},
     {texture_load_depth_unorm_cs, sizeof(texture_load_depth_unorm_cs)},
     {texture_load_depth_float_cs, sizeof(texture_load_depth_float_cs)},
+};
+
+const TextureCache::TileModeInfo TextureCache::tile_mode_info_[] = {
+    {texture_tile_32bpp_cs, sizeof(texture_tile_32bpp_cs)},
 };
 
 TextureCache::TextureCache(D3D12CommandProcessor* command_processor,
@@ -133,7 +201,7 @@ bool TextureCache::Initialize() {
   auto device =
       command_processor_->GetD3D12Context()->GetD3D12Provider()->GetDevice();
 
-  // Create the copying root signature.
+  // Create the loading root signature.
   D3D12_ROOT_PARAMETER root_parameters[2];
   // Parameter 0 is constants (changed very often when untiling).
   root_parameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
@@ -167,7 +235,7 @@ bool TextureCache::Initialize() {
   if (FAILED(D3D12SerializeRootSignature(
           &root_signature_desc, D3D_ROOT_SIGNATURE_VERSION_1,
           &root_signature_blob, &root_signature_error_blob))) {
-    XELOGE("Failed to serialize the texture copying root signature");
+    XELOGE("Failed to serialize the texture loading root signature");
     if (root_signature_error_blob != nullptr) {
       XELOGE("%s", reinterpret_cast<const char*>(
                        root_signature_error_blob->GetBufferPointer()));
@@ -178,36 +246,80 @@ bool TextureCache::Initialize() {
   }
   if (root_signature_error_blob != nullptr) {
     root_signature_error_blob->Release();
+    root_signature_error_blob = nullptr;
   }
   if (FAILED(device->CreateRootSignature(
           0, root_signature_blob->GetBufferPointer(),
           root_signature_blob->GetBufferSize(),
-          IID_PPV_ARGS(&copy_root_signature_)))) {
-    XELOGE("Failed to create the texture copying root signature");
+          IID_PPV_ARGS(&load_root_signature_)))) {
+    XELOGE("Failed to create the texture loading root signature");
+    root_signature_blob->Release();
+    Shutdown();
+    return false;
+  }
+  root_signature_blob->Release();
+  // Create the tiling root signature (almost the same, but with root constants
+  // in parameter 0).
+  root_parameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+  root_parameters[0].Constants.ShaderRegister = 0;
+  root_parameters[0].Constants.RegisterSpace = 0;
+  root_parameters[0].Constants.Num32BitValues =
+      sizeof(TileConstants) / sizeof(uint32_t);
+  if (FAILED(D3D12SerializeRootSignature(
+          &root_signature_desc, D3D_ROOT_SIGNATURE_VERSION_1,
+          &root_signature_blob, &root_signature_error_blob))) {
+    XELOGE("Failed to serialize the texture tiling root signature");
+    if (root_signature_error_blob != nullptr) {
+      XELOGE("%s", reinterpret_cast<const char*>(
+                       root_signature_error_blob->GetBufferPointer()));
+      root_signature_error_blob->Release();
+    }
+    Shutdown();
+    return false;
+  }
+  if (root_signature_error_blob != nullptr) {
+    root_signature_error_blob->Release();
+    root_signature_error_blob = nullptr;
+  }
+  if (FAILED(device->CreateRootSignature(
+          0, root_signature_blob->GetBufferPointer(),
+          root_signature_blob->GetBufferSize(),
+          IID_PPV_ARGS(&tile_root_signature_)))) {
+    XELOGE("Failed to create the texture tiling root signature");
     root_signature_blob->Release();
     Shutdown();
     return false;
   }
   root_signature_blob->Release();
 
-  // Create the copying pipelines.
+  // Create the loading and tiling pipelines.
   D3D12_COMPUTE_PIPELINE_STATE_DESC pipeline_desc;
-  pipeline_desc.pRootSignature = copy_root_signature_;
+  pipeline_desc.pRootSignature = load_root_signature_;
   pipeline_desc.NodeMask = 0;
   pipeline_desc.CachedPSO.pCachedBlob = nullptr;
   pipeline_desc.CachedPSO.CachedBlobSizeInBytes = 0;
   pipeline_desc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
-  for (uint32_t i = 0; i < uint32_t(CopyMode::kCount); ++i) {
-    const CopyModeInfo& mode_info = copy_mode_info_[i];
-    if (mode_info.load_shader != nullptr) {
-      pipeline_desc.CS.pShaderBytecode = mode_info.load_shader;
-      pipeline_desc.CS.BytecodeLength = mode_info.load_shader_size;
-      if (FAILED(device->CreateComputePipelineState(
-              &pipeline_desc, IID_PPV_ARGS(&copy_load_pipelines_[i])))) {
-        XELOGE("Failed to create the texture copying pipeline for mode %u", i);
-        Shutdown();
-        return false;
-      }
+  for (uint32_t i = 0; i < uint32_t(LoadMode::kCount); ++i) {
+    const LoadModeInfo& mode_info = load_mode_info_[i];
+    pipeline_desc.CS.pShaderBytecode = mode_info.shader;
+    pipeline_desc.CS.BytecodeLength = mode_info.shader_size;
+    if (FAILED(device->CreateComputePipelineState(
+            &pipeline_desc, IID_PPV_ARGS(&load_pipelines_[i])))) {
+      XELOGE("Failed to create the texture loading pipeline for mode %u", i);
+      Shutdown();
+      return false;
+    }
+  }
+  pipeline_desc.pRootSignature = tile_root_signature_;
+  for (uint32_t i = 0; i < uint32_t(TileMode::kCount); ++i) {
+    const TileModeInfo& mode_info = tile_mode_info_[i];
+    pipeline_desc.CS.pShaderBytecode = mode_info.shader;
+    pipeline_desc.CS.BytecodeLength = mode_info.shader_size;
+    if (FAILED(device->CreateComputePipelineState(
+            &pipeline_desc, IID_PPV_ARGS(&tile_pipelines_[i])))) {
+      XELOGE("Failed to create the texture tiling pipeline for mode %u", i);
+      Shutdown();
+      return false;
     }
   }
 
@@ -217,15 +329,25 @@ bool TextureCache::Initialize() {
 void TextureCache::Shutdown() {
   ClearCache();
 
-  for (uint32_t i = 0; i < uint32_t(CopyMode::kCount); ++i) {
-    if (copy_load_pipelines_[i] != nullptr) {
-      copy_load_pipelines_[i]->Release();
-      copy_load_pipelines_[i] = nullptr;
+  for (uint32_t i = 0; i < uint32_t(TileMode::kCount); ++i) {
+    if (tile_pipelines_[i] != nullptr) {
+      tile_pipelines_[i]->Release();
+      tile_pipelines_[i] = nullptr;
     }
   }
-  if (copy_root_signature_ != nullptr) {
-    copy_root_signature_->Release();
-    copy_root_signature_ = nullptr;
+  if (tile_root_signature_ != nullptr) {
+    tile_root_signature_->Release();
+    tile_root_signature_ = nullptr;
+  }
+  for (uint32_t i = 0; i < uint32_t(LoadMode::kCount); ++i) {
+    if (load_pipelines_[i] != nullptr) {
+      load_pipelines_[i]->Release();
+      load_pipelines_[i] = nullptr;
+    }
+  }
+  if (load_root_signature_ != nullptr) {
+    load_root_signature_->Release();
+    load_root_signature_ = nullptr;
   }
 }
 
@@ -451,14 +573,87 @@ void TextureCache::WriteSampler(uint32_t fetch_constant,
 }
 
 DXGI_FORMAT TextureCache::GetResolveDXGIFormat(TextureFormat format) {
-  // TODO(Triang3l): Change this to a check whether there is a tiling pipeline.
-  switch (format) {
-    case TextureFormat::k_8_8_8_8:
-      return host_formats_[uint32_t(format)].dxgi_format;
-    default:
-      break;
+  const HostFormat& host_format = host_formats_[uint32_t(format)];
+  return host_format.tile_mode != TileMode::kUnknown ? host_format.dxgi_format
+                                                     : DXGI_FORMAT_UNKNOWN;
+}
+
+bool TextureCache::TileResolvedTexture(
+    TextureFormat format, uint32_t texture_base, uint32_t texture_pitch,
+    uint32_t texture_height, uint32_t resolve_width, uint32_t resolve_height,
+    Endian128 endian, ID3D12Resource* buffer, uint32_t buffer_size,
+    const D3D12_PLACED_SUBRESOURCE_FOOTPRINT& footprint) {
+  TileMode tile_mode = host_formats_[uint32_t(format)].tile_mode;
+  if (tile_mode == TileMode::kUnknown) {
+    assert_always();
+    return false;
   }
-  return DXGI_FORMAT_UNKNOWN;
+
+  auto command_list = command_processor_->GetCurrentCommandList();
+  if (command_list == nullptr) {
+    return false;
+  }
+  auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
+  auto device = provider->GetDevice();
+
+  texture_base &= 0x1FFFFFFF;
+  // TODO(Triang3l): Allow smaller alignment for 8- and 16-bit textures (but
+  // probably not really needed).
+  assert_false(texture_base & 0x3);
+
+  // Calculate the texture size for memory operations and ensure we can write to
+  // the specified shared memory location.
+  uint32_t texture_size = texture_util::GetGuestMipStorageSize(
+      xe::align(texture_pitch, 32u), xe::align(texture_height, 32u), 1, true,
+      format, nullptr);
+  if (!shared_memory_->MakeTilesResident(texture_base, texture_size)) {
+    return false;
+  }
+
+  // Tile the texture.
+  // TODO(Triang3l): Typed UAVs for 8- and 16-bit textures.
+  D3D12_CPU_DESCRIPTOR_HANDLE descriptor_cpu_start;
+  D3D12_GPU_DESCRIPTOR_HANDLE descriptor_gpu_start;
+  if (command_processor_->RequestViewDescriptors(0, 2, 2, descriptor_cpu_start,
+                                                 descriptor_gpu_start) == 0) {
+    return false;
+  }
+  shared_memory_->UseForWriting();
+  command_processor_->SubmitBarriers();
+  command_list->SetComputeRootSignature(tile_root_signature_);
+  TileConstants tile_constants;
+  tile_constants.guest_base = texture_base;
+  tile_constants.endian_guest_pitch = uint32_t(endian) | (texture_pitch << 3);
+  tile_constants.size = resolve_width | (resolve_height << 16);
+  tile_constants.host_base = uint32_t(footprint.Offset);
+  tile_constants.host_pitch = uint32_t(footprint.Footprint.RowPitch);
+  command_list->SetComputeRoot32BitConstants(
+      0, sizeof(tile_constants) / sizeof(uint32_t), &tile_constants, 0);
+  D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc;
+  srv_desc.Format = DXGI_FORMAT_R32_TYPELESS;
+  srv_desc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+  srv_desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+  srv_desc.Buffer.FirstElement = 0;
+  srv_desc.Buffer.NumElements = buffer_size;
+  srv_desc.Buffer.StructureByteStride = 0;
+  srv_desc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_RAW;
+  device->CreateShaderResourceView(buffer, &srv_desc, descriptor_cpu_start);
+  D3D12_CPU_DESCRIPTOR_HANDLE uav_cpu_handle;
+  uav_cpu_handle.ptr =
+      descriptor_cpu_start.ptr + provider->GetDescriptorSizeView();
+  shared_memory_->CreateRawUAV(uav_cpu_handle);
+  command_list->SetComputeRootDescriptorTable(1, descriptor_gpu_start);
+  command_processor_->SetComputePipeline(tile_pipelines_[uint32_t(tile_mode)]);
+  command_list->Dispatch((resolve_width + 31) >> 5, (resolve_height + 31) >> 5,
+                         1);
+
+  // Commit the write.
+  command_processor_->PushUAVBarrier(shared_memory_->GetBuffer());
+
+  // Invalidate textures.
+  shared_memory_->RangeWrittenByGPU(texture_base, texture_size);
+
+  return true;
 }
 
 bool TextureCache::RequestSwapTexture(D3D12_CPU_DESCRIPTOR_HANDLE handle) {
@@ -766,11 +961,11 @@ bool TextureCache::LoadTextureData(Texture* texture) {
 
   // Get the pipeline.
   const HostFormat& host_format = host_formats_[uint32_t(texture->key.format)];
-  if (host_format.copy_mode == CopyMode::kUnknown) {
+  if (host_format.load_mode == LoadMode::kUnknown) {
     return false;
   }
   ID3D12PipelineState* pipeline =
-      copy_load_pipelines_[uint32_t(host_format.copy_mode)];
+      load_pipelines_[uint32_t(host_format.load_mode)];
   if (pipeline == nullptr) {
     return false;
   }
@@ -839,7 +1034,7 @@ bool TextureCache::LoadTextureData(Texture* texture) {
   device->CreateUnorderedAccessView(copy_buffer, nullptr, &uav_desc,
                                     descriptor_cpu_uav);
   command_processor_->SetComputePipeline(pipeline);
-  command_list->SetComputeRootSignature(copy_root_signature_);
+  command_list->SetComputeRootSignature(load_root_signature_);
   command_list->SetComputeRootDescriptorTable(1, descriptor_gpu_start);
 
   // Submit commands.
@@ -849,13 +1044,13 @@ bool TextureCache::LoadTextureData(Texture* texture) {
   uint32_t mip_first = base_in_sync ? 1 : 0;
   uint32_t mip_last = mips_in_sync ? 0 : resource_desc.MipLevels - 1;
   auto cbuffer_pool = command_processor_->GetConstantBufferPool();
-  CopyConstants copy_constants;
-  copy_constants.is_3d = is_3d ? 1 : 0;
-  copy_constants.endianness = uint32_t(texture->key.endianness);
+  LoadConstants load_constants;
+  load_constants.is_3d = is_3d ? 1 : 0;
+  load_constants.endianness = uint32_t(texture->key.endianness);
   if (!texture->key.packed_mips) {
-    copy_constants.guest_mip_offset[0] = 0;
-    copy_constants.guest_mip_offset[1] = 0;
-    copy_constants.guest_mip_offset[2] = 0;
+    load_constants.guest_mip_offset[0] = 0;
+    load_constants.guest_mip_offset[1] = 0;
+    load_constants.guest_mip_offset[2] = 0;
   }
   for (uint32_t i = 0; i < slice_count; ++i) {
     command_processor_->PushTransitionBarrier(
@@ -863,48 +1058,48 @@ bool TextureCache::LoadTextureData(Texture* texture) {
     copy_buffer_state = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
     for (uint32_t j = mip_first; j <= mip_last; ++j) {
       if (j == 0) {
-        copy_constants.guest_base =
+        load_constants.guest_base =
             (texture->key.base_page << 12) + i * texture->base_slice_size;
       } else {
-        copy_constants.guest_base =
+        load_constants.guest_base =
             (texture->key.mip_page << 12) + i * texture->mip_slice_size;
       }
-      copy_constants.guest_base += texture->mip_offsets[j];
-      copy_constants.guest_pitch = texture->key.tiled
-                                       ? CopyConstants::kGuestPitchTiled
+      load_constants.guest_base += texture->mip_offsets[j];
+      load_constants.guest_pitch = texture->key.tiled
+                                       ? LoadConstants::kGuestPitchTiled
                                        : texture->mip_pitches[j];
-      copy_constants.host_base = uint32_t(host_layouts[j].Offset);
-      copy_constants.host_pitch = host_layouts[j].Footprint.RowPitch;
-      copy_constants.size_texels[0] = std::max(width >> j, 1u);
-      copy_constants.size_texels[1] = std::max(height >> j, 1u);
-      copy_constants.size_texels[2] = std::max(depth >> j, 1u);
-      copy_constants.size_blocks[0] =
-          (copy_constants.size_texels[0] + (block_width - 1)) / block_width;
-      copy_constants.size_blocks[1] =
-          (copy_constants.size_texels[1] + (block_height - 1)) / block_height;
-      copy_constants.size_blocks[2] = copy_constants.size_texels[2];
+      load_constants.host_base = uint32_t(host_layouts[j].Offset);
+      load_constants.host_pitch = host_layouts[j].Footprint.RowPitch;
+      load_constants.size_texels[0] = std::max(width >> j, 1u);
+      load_constants.size_texels[1] = std::max(height >> j, 1u);
+      load_constants.size_texels[2] = std::max(depth >> j, 1u);
+      load_constants.size_blocks[0] =
+          (load_constants.size_texels[0] + (block_width - 1)) / block_width;
+      load_constants.size_blocks[1] =
+          (load_constants.size_texels[1] + (block_height - 1)) / block_height;
+      load_constants.size_blocks[2] = load_constants.size_texels[2];
       if (texture->key.packed_mips) {
         texture_util::GetPackedMipOffset(width, height, depth, guest_format, j,
-                                         copy_constants.guest_mip_offset[0],
-                                         copy_constants.guest_mip_offset[1],
-                                         copy_constants.guest_mip_offset[2]);
+                                         load_constants.guest_mip_offset[0],
+                                         load_constants.guest_mip_offset[1],
+                                         load_constants.guest_mip_offset[2]);
       }
       D3D12_GPU_VIRTUAL_ADDRESS cbuffer_gpu_address;
       uint8_t* cbuffer_mapping = cbuffer_pool->RequestFull(
-          xe::align(uint32_t(sizeof(copy_constants)), 256u), nullptr, nullptr,
+          xe::align(uint32_t(sizeof(load_constants)), 256u), nullptr, nullptr,
           &cbuffer_gpu_address);
       if (cbuffer_mapping == nullptr) {
         command_processor_->ReleaseScratchGPUBuffer(copy_buffer,
                                                     copy_buffer_state);
         return false;
       }
-      std::memcpy(cbuffer_mapping, &copy_constants, sizeof(copy_constants));
+      std::memcpy(cbuffer_mapping, &load_constants, sizeof(load_constants));
       command_list->SetComputeRootConstantBufferView(0, cbuffer_gpu_address);
       command_processor_->SubmitBarriers();
       // Each thread group processes 32x32x1 blocks.
-      command_list->Dispatch((copy_constants.size_blocks[0] + 31) >> 5,
-                             (copy_constants.size_blocks[1] + 31) >> 5,
-                             copy_constants.size_blocks[2]);
+      command_list->Dispatch((load_constants.size_blocks[0] + 31) >> 5,
+                             (load_constants.size_blocks[1] + 31) >> 5,
+                             load_constants.size_blocks[2]);
     }
     command_processor_->PushUAVBarrier(copy_buffer);
     command_processor_->PushTransitionBarrier(copy_buffer, copy_buffer_state,

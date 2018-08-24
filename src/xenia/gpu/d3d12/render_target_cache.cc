@@ -1208,7 +1208,9 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
     D3D12_RESOURCE_STATES copy_buffer_state =
         D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
     ID3D12Resource* copy_buffer = command_processor_->RequestScratchGPUBuffer(
-        render_target->copy_buffer_size, copy_buffer_state);
+        std::max(render_target->copy_buffer_size,
+                 resolve_target->copy_buffer_size),
+        copy_buffer_state);
     if (copy_buffer == nullptr) {
       return false;
     }
@@ -1288,10 +1290,6 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
     location_dest.SubresourceIndex = 0;
     command_list->CopyTextureRegion(&location_dest, 0, 0, 0, &location_source,
                                     nullptr);
-
-    // Done with the copy buffer.
-
-    command_processor_->ReleaseScratchGPUBuffer(copy_buffer, copy_buffer_state);
 
     // Do the resolve. Render targets unbound already, safe to call
     // OMSetRenderTargets.
@@ -1417,7 +1415,40 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
     command_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     command_list->DrawInstanced(3, 1, 0, 0);
 
-    // TODO(Triang3l): Tile the resolve target in the texture cache.
+    // Copy the resolve target to the buffer.
+
+    command_processor_->PushTransitionBarrier(resolve_target->resource,
+                                              resolve_target->state,
+                                              D3D12_RESOURCE_STATE_COPY_SOURCE);
+    resolve_target->state = D3D12_RESOURCE_STATE_COPY_SOURCE;
+    command_processor_->PushTransitionBarrier(copy_buffer, copy_buffer_state,
+                                              D3D12_RESOURCE_STATE_COPY_DEST);
+    copy_buffer_state = D3D12_RESOURCE_STATE_COPY_DEST;
+    command_processor_->SubmitBarriers();
+    location_source.pResource = resolve_target->resource;
+    location_source.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+    location_source.SubresourceIndex = 0;
+    location_dest.pResource = copy_buffer;
+    location_dest.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+    location_dest.PlacedFootprint = resolve_target->footprint;
+    command_list->CopyTextureRegion(&location_dest, 0, 0, 0, &location_source,
+                                    nullptr);
+
+    // Tile the resolved texture. The texture cache expects the buffer to be a
+    // non-pixel-shader SRV.
+
+    command_processor_->PushTransitionBarrier(
+        copy_buffer, copy_buffer_state,
+        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+    copy_buffer_state = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
+    texture_cache->TileResolvedTexture(
+        dest_format, dest_address, dest_pitch, dest_height, copy_width,
+        copy_height, dest_endian, copy_buffer, resolve_target->copy_buffer_size,
+        resolve_target->footprint);
+
+    // Done with the copy buffer.
+
+    command_processor_->ReleaseScratchGPUBuffer(copy_buffer, copy_buffer_state);
   }
 
   return true;
@@ -1566,6 +1597,11 @@ RenderTargetCache::ResolveTarget* RenderTargetCache::FindOrCreateResolveTarget(
   resolve_target->rtv_handle.ptr = rtv_handle.ptr;
   resolve_target->key.value = key.value;
   resolve_target->heap_page_first = min_heap_page_first;
+  UINT64 copy_buffer_size;
+  device->GetCopyableFootprints(&resource_desc, 0, 1, 0,
+                                &resolve_target->footprint, nullptr, nullptr,
+                                &copy_buffer_size);
+  resolve_target->copy_buffer_size = uint32_t(copy_buffer_size);
   resolve_targets_.insert(std::make_pair(key.value, resolve_target));
 
   return resolve_target;

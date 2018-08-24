@@ -1,4 +1,4 @@
-cbuffer XeResolveCbuffer : register(b0) {
+cbuffer XeResolveConstants : register(b0) {
   // In samples.
   // Left and top in the lower 16 bits, width and height in the upper.
   uint2 xe_resolve_rect_samples;

@@ -4,7 +4,7 @@
 #include "byte_swap.hlsli"
 #include "texture_address.hlsli"
 
-cbuffer xe_texture_copy_constants : register(b0) {
+cbuffer XeTextureCopyConstants : register(b0) {
   uint xe_texture_copy_guest_base;
   // For linear textures - row byte pitch.
   uint xe_texture_copy_guest_pitch;
