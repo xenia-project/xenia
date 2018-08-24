@@ -13,6 +13,7 @@
 #include <unordered_map>
 
 #include "xenia/gpu/d3d12/shared_memory.h"
+#include "xenia/gpu/d3d12/texture_cache.h"
 #include "xenia/gpu/register_file.h"
 #include "xenia/gpu/xenos.h"
 #include "xenia/memory.h"
@@ -219,7 +220,8 @@ class RenderTargetCache {
   // Performs the resolve to a shared memory area according to the current
   // register values, and also clears the EDRAM buffer if needed. Must be in a
   // frame for calling.
-  bool Resolve(SharedMemory* shared_memory, Memory* memory);
+  bool Resolve(SharedMemory* shared_memory, TextureCache* texture_cache,
+               Memory* memory);
   // Flushes the render targets to EDRAM and unbinds them, for instance, when
   // the command processor takes over framebuffer bindings to draw something
   // special.
@@ -320,7 +322,39 @@ class RenderTargetCache {
     RenderTarget* render_target;
   };
 
+  // Converting resolve pipeline.
+  struct ResolvePipeline {
+    ID3D12PipelineState* pipeline;
+    DXGI_FORMAT dest_format;
+  };
+
+  union ResolveTargetKey {
+    struct {
+      uint32_t width_div_32 : 9;
+      uint32_t height_div_32 : 9;
+      DXGI_FORMAT format : 14;
+    };
+    uint32_t value;
+  };
+
+  // Target for converting resolves.
+  struct ResolveTarget {
+    ID3D12Resource* resource;
+    D3D12_RESOURCE_STATES state;
+    D3D12_CPU_DESCRIPTOR_HANDLE rtv_handle;
+    ResolveTargetKey key;
+    uint32_t heap_page_first;
+  };
+
   void ClearBindings();
+
+  // Checks if the heap for the render target exists and tries to create it if
+  // it's not.
+  bool MakeHeapResident(uint32_t heap_index);
+
+  // Creates a new RTV/DSV descriptor heap if needed to be able to allocate one
+  // descriptor in it.
+  bool EnsureRTVHeapAvailable(bool is_depth);
 
   // Returns true if a render target with such key can be created.
   static bool GetResourceDesc(RenderTargetKey key, D3D12_RESOURCE_DESC& desc);
@@ -357,10 +391,18 @@ class RenderTargetCache {
                                   const uint32_t* edram_bases);
 
   // Performs the copying part of a resolve.
-  bool ResolveCopy(SharedMemory* shared_memory, uint32_t edram_base,
-                   uint32_t surface_pitch, MsaaSamples msaa_samples,
-                   bool is_depth, uint32_t src_format,
+  bool ResolveCopy(SharedMemory* shared_memory, TextureCache* texture_cache,
+                   uint32_t edram_base, uint32_t surface_pitch,
+                   MsaaSamples msaa_samples, bool is_depth, uint32_t src_format,
                    const D3D12_RECT& src_rect);
+
+  ID3D12PipelineState* GetResolvePipeline(DXGI_FORMAT dest_format);
+  // Returns any available resolve target placed at least at
+  // min_heap_first_page, or tries to place it at the specified position (if not
+  // possible, will place it in the next heap).
+  ResolveTarget* FindOrCreateResolveTarget(uint32_t width, uint32_t height,
+                                           DXGI_FORMAT format,
+                                           uint32_t min_heap_first_page);
 
   D3D12CommandProcessor* command_processor_;
   RegisterFile* register_file_;
@@ -382,8 +424,8 @@ class RenderTargetCache {
       };
       struct {
         // 16 bits for X, 16 bits for Y.
-        uint32_t tile_sample_rect_tl;
-        uint32_t tile_sample_rect_br;
+        uint32_t tile_sample_rect_lt;
+        uint32_t tile_sample_rect_rb;
         uint32_t tile_sample_dest_base;
         // 0:13 - destination pitch.
         // 14 - log2(vertical sample count), 0 for 1x AA, 1 for 2x/4x AA.
@@ -439,6 +481,30 @@ class RenderTargetCache {
   RenderTargetBinding current_bindings_[5] = {};
 
   PipelineRenderTarget current_pipeline_render_targets_[5];
+
+  ID3D12RootSignature* resolve_root_signature_ = nullptr;
+  struct ResolveRootConstants {
+    // In samples.
+    // Left and top in the lower 16 bits, width and height in the upper.
+    uint32_t rect_samples_lw;
+    uint32_t rect_samples_th;
+    // In samples. Width in the lower 16 bits, height in the upper.
+    uint32_t source_size;
+    // 0 - log2(vertical sample count), 0 for 1x AA, 1 for 2x/4x AA.
+    // 1 - log2(horizontal sample count), 0 for 1x/2x AA, 1 for 4x AA.
+    // 2:3 - vertical sample position:
+    //       0 for the upper samples with 2x/4x AA.
+    //       1 for 1x AA or to mix samples with 2x/4x AA.
+    //       2 for the lower samples with 2x/4x AA.
+    // 4:5 - horizontal sample position:
+    //       0 for the left samples with 4x AA.
+    //       1 for 1x/2x AA or to mix samples with 4x AA.
+    //       2 for the right samples with 4x AA.
+    // 6:11 - exponent bias.
+    uint32_t resolve_info;
+  };
+  std::vector<ResolvePipeline> resolve_pipelines_;
+  std::unordered_multimap<uint32_t, ResolveTarget*> resolve_targets_;
 };
 
 }  // namespace d3d12

@@ -86,9 +86,23 @@ class D3D12CommandProcessor : public CommandProcessor {
   void ReleaseScratchGPUBuffer(ID3D12Resource* buffer,
                                D3D12_RESOURCE_STATES new_state);
 
-  // Sets the current pipeline state - may be called internally or externally.
-  // This is for cache invalidation primarily. A frame must be open.
-  void SetPipeline(ID3D12PipelineState* pipeline);
+  // Sets the current pipeline state to a compute pipeline. This is for cache
+  // invalidation primarily. A frame must be open.
+  void SetComputePipeline(ID3D12PipelineState* pipeline);
+
+  // Stores and unbinds render targets before binding changing render targets
+  // externally. This is separate from SetExternalGraphicsPipeline because it
+  // causes computations to be dispatched, and the scratch buffer may also be
+  // used.
+  void UnbindRenderTargets();
+
+  // Sets the current pipeline state to a special drawing pipeline, invalidating
+  // various cached state variables. UnbindRenderTargets may be needed before
+  // calling this. A frame must be open.
+  void SetExternalGraphicsPipeline(ID3D12PipelineState* pipeline,
+                                   bool reset_viewport = true,
+                                   bool reset_blend_factor = false,
+                                   bool reset_stencil_ref = false);
 
  protected:
   bool SetupContext() override;

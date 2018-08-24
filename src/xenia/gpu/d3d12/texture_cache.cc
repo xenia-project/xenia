@@ -450,6 +450,17 @@ void TextureCache::WriteSampler(uint32_t fetch_constant,
   device->CreateSampler(&desc, handle);
 }
 
+DXGI_FORMAT TextureCache::GetResolveDXGIFormat(TextureFormat format) {
+  // TODO(Triang3l): Change this to a check whether there is a tiling pipeline.
+  switch (format) {
+    case TextureFormat::k_8_8_8_8:
+      return host_formats_[uint32_t(format)].dxgi_format;
+    default:
+      break;
+  }
+  return DXGI_FORMAT_UNKNOWN;
+}
+
 bool TextureCache::RequestSwapTexture(D3D12_CPU_DESCRIPTOR_HANDLE handle) {
   auto group = reinterpret_cast<const xenos::xe_gpu_fetch_group_t*>(
       &register_file_->values[XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0]);
@@ -467,6 +478,7 @@ bool TextureCache::RequestSwapTexture(D3D12_CPU_DESCRIPTOR_HANDLE handle) {
   command_processor_->PushTransitionBarrier(
       texture->resource, texture->state,
       D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+  texture->state = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
   D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc;
   srv_desc.Format = host_formats_[uint32_t(key.format)].dxgi_format;
   srv_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
@@ -826,7 +838,7 @@ bool TextureCache::LoadTextureData(Texture* texture) {
       descriptor_cpu_start.ptr + provider->GetDescriptorSizeView();
   device->CreateUnorderedAccessView(copy_buffer, nullptr, &uav_desc,
                                     descriptor_cpu_uav);
-  command_processor_->SetPipeline(pipeline);
+  command_processor_->SetComputePipeline(pipeline);
   command_list->SetComputeRootSignature(copy_root_signature_);
   command_list->SetComputeRootDescriptorTable(1, descriptor_gpu_start);
 

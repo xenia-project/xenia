@@ -38,6 +38,8 @@ namespace d3d12 {
 #include "xenia/gpu/d3d12/shaders/bin/edram_store_depth_float_cs.h"
 #include "xenia/gpu/d3d12/shaders/bin/edram_store_depth_unorm_cs.h"
 #include "xenia/gpu/d3d12/shaders/bin/edram_tile_sample_32bpp_cs.h"
+#include "xenia/gpu/d3d12/shaders/bin/resolve_ps.h"
+#include "xenia/gpu/d3d12/shaders/bin/resolve_vs.h"
 
 const RenderTargetCache::EDRAMLoadStoreModeInfo
     RenderTargetCache::edram_load_store_mode_info_[size_t(
@@ -98,63 +100,67 @@ bool RenderTargetCache::Initialize() {
   edram_buffer_cleared_ = false;
 
   // Create the root signature for EDRAM buffer load/store.
-  D3D12_ROOT_PARAMETER root_parameters[2];
+  D3D12_ROOT_PARAMETER load_store_root_parameters[2];
   // Parameter 0 is constants (changed for each render target binding).
-  root_parameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
-  root_parameters[0].Constants.ShaderRegister = 0;
-  root_parameters[0].Constants.RegisterSpace = 0;
-  root_parameters[0].Constants.Num32BitValues =
+  load_store_root_parameters[0].ParameterType =
+      D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+  load_store_root_parameters[0].Constants.ShaderRegister = 0;
+  load_store_root_parameters[0].Constants.RegisterSpace = 0;
+  load_store_root_parameters[0].Constants.Num32BitValues =
       sizeof(EDRAMLoadStoreRootConstants) / sizeof(uint32_t);
-  root_parameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+  load_store_root_parameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
   // Parameter 1 is source and target.
-  D3D12_DESCRIPTOR_RANGE root_load_store_ranges[2];
-  root_load_store_ranges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-  root_load_store_ranges[0].NumDescriptors = 1;
-  root_load_store_ranges[0].BaseShaderRegister = 0;
-  root_load_store_ranges[0].RegisterSpace = 0;
-  root_load_store_ranges[0].OffsetInDescriptorsFromTableStart = 0;
-  root_load_store_ranges[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
-  root_load_store_ranges[1].NumDescriptors = 1;
-  root_load_store_ranges[1].BaseShaderRegister = 0;
-  root_load_store_ranges[1].RegisterSpace = 0;
-  root_load_store_ranges[1].OffsetInDescriptorsFromTableStart = 1;
-  root_parameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-  root_parameters[1].DescriptorTable.NumDescriptorRanges = 2;
-  root_parameters[1].DescriptorTable.pDescriptorRanges = root_load_store_ranges;
-  root_parameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-  D3D12_ROOT_SIGNATURE_DESC root_signature_desc;
-  root_signature_desc.NumParameters = UINT(xe::countof(root_parameters));
-  root_signature_desc.pParameters = root_parameters;
-  root_signature_desc.NumStaticSamplers = 0;
-  root_signature_desc.pStaticSamplers = nullptr;
-  root_signature_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_NONE;
-  ID3DBlob* root_signature_blob;
-  ID3DBlob* root_signature_error_blob = nullptr;
+  D3D12_DESCRIPTOR_RANGE load_store_root_ranges[2];
+  load_store_root_ranges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+  load_store_root_ranges[0].NumDescriptors = 1;
+  load_store_root_ranges[0].BaseShaderRegister = 0;
+  load_store_root_ranges[0].RegisterSpace = 0;
+  load_store_root_ranges[0].OffsetInDescriptorsFromTableStart = 0;
+  load_store_root_ranges[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+  load_store_root_ranges[1].NumDescriptors = 1;
+  load_store_root_ranges[1].BaseShaderRegister = 0;
+  load_store_root_ranges[1].RegisterSpace = 0;
+  load_store_root_ranges[1].OffsetInDescriptorsFromTableStart = 1;
+  load_store_root_parameters[1].ParameterType =
+      D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+  load_store_root_parameters[1].DescriptorTable.NumDescriptorRanges = 2;
+  load_store_root_parameters[1].DescriptorTable.pDescriptorRanges =
+      load_store_root_ranges;
+  load_store_root_parameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+  D3D12_ROOT_SIGNATURE_DESC load_store_root_desc;
+  load_store_root_desc.NumParameters =
+      UINT(xe::countof(load_store_root_parameters));
+  load_store_root_desc.pParameters = load_store_root_parameters;
+  load_store_root_desc.NumStaticSamplers = 0;
+  load_store_root_desc.pStaticSamplers = nullptr;
+  load_store_root_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_NONE;
+  ID3DBlob* load_store_root_blob;
+  ID3DBlob* load_store_root_error_blob = nullptr;
   if (FAILED(D3D12SerializeRootSignature(
-          &root_signature_desc, D3D_ROOT_SIGNATURE_VERSION_1,
-          &root_signature_blob, &root_signature_error_blob))) {
+          &load_store_root_desc, D3D_ROOT_SIGNATURE_VERSION_1,
+          &load_store_root_blob, &load_store_root_error_blob))) {
     XELOGE("Failed to serialize the EDRAM buffer load/store root signature");
-    if (root_signature_error_blob != nullptr) {
+    if (load_store_root_error_blob != nullptr) {
       XELOGE("%s", reinterpret_cast<const char*>(
-                       root_signature_error_blob->GetBufferPointer()));
-      root_signature_error_blob->Release();
+                       load_store_root_error_blob->GetBufferPointer()));
+      load_store_root_error_blob->Release();
     }
     Shutdown();
     return false;
   }
-  if (root_signature_error_blob != nullptr) {
-    root_signature_error_blob->Release();
+  if (load_store_root_error_blob != nullptr) {
+    load_store_root_error_blob->Release();
   }
   if (FAILED(device->CreateRootSignature(
-          0, root_signature_blob->GetBufferPointer(),
-          root_signature_blob->GetBufferSize(),
+          0, load_store_root_blob->GetBufferPointer(),
+          load_store_root_blob->GetBufferSize(),
           IID_PPV_ARGS(&edram_load_store_root_signature_)))) {
     XELOGE("Failed to create the EDRAM buffer load/store root signature");
-    root_signature_blob->Release();
+    load_store_root_blob->Release();
     Shutdown();
     return false;
   }
-  root_signature_blob->Release();
+  load_store_root_blob->Release();
 
   // Create the load/store pipelines.
   D3D12_COMPUTE_PIPELINE_STATE_DESC pipeline_desc;
@@ -197,11 +203,93 @@ bool RenderTargetCache::Initialize() {
   }
   edram_tile_sample_32bpp_pipeline_->SetName(L"EDRAM Raw Resolve 32bpp");
 
+  // Create the converting resolve root signature.
+  D3D12_ROOT_PARAMETER resolve_root_parameters[2];
+  // Parameter 0 is constants.
+  resolve_root_parameters[0].ParameterType =
+      D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+  resolve_root_parameters[0].Constants.ShaderRegister = 0;
+  resolve_root_parameters[0].Constants.RegisterSpace = 0;
+  resolve_root_parameters[0].Constants.Num32BitValues =
+      sizeof(ResolveRootConstants) / sizeof(uint32_t);
+  resolve_root_parameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+  // Parameter 1 is the source render target.
+  D3D12_DESCRIPTOR_RANGE resolve_root_srv_range;
+  resolve_root_srv_range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+  resolve_root_srv_range.NumDescriptors = 1;
+  resolve_root_srv_range.BaseShaderRegister = 0;
+  resolve_root_srv_range.RegisterSpace = 0;
+  resolve_root_srv_range.OffsetInDescriptorsFromTableStart = 0;
+  resolve_root_parameters[1].ParameterType =
+      D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+  resolve_root_parameters[1].DescriptorTable.NumDescriptorRanges = 1;
+  resolve_root_parameters[1].DescriptorTable.pDescriptorRanges =
+      &resolve_root_srv_range;
+  resolve_root_parameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+  // Static sampler for resolving AA using bilinear filtering.
+  D3D12_STATIC_SAMPLER_DESC resolve_sampler_desc;
+  resolve_sampler_desc.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+  resolve_sampler_desc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+  resolve_sampler_desc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+  resolve_sampler_desc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+  resolve_sampler_desc.MipLODBias = 0.0f;
+  resolve_sampler_desc.MaxAnisotropy = 1;
+  resolve_sampler_desc.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+  resolve_sampler_desc.BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_BLACK;
+  resolve_sampler_desc.MinLOD = 0.0f;
+  resolve_sampler_desc.MaxLOD = 0.0f;
+  resolve_sampler_desc.ShaderRegister = 0;
+  resolve_sampler_desc.RegisterSpace = 0;
+  resolve_sampler_desc.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+  D3D12_ROOT_SIGNATURE_DESC resolve_root_desc;
+  resolve_root_desc.NumParameters = UINT(xe::countof(resolve_root_parameters));
+  resolve_root_desc.pParameters = resolve_root_parameters;
+  resolve_root_desc.NumStaticSamplers = 1;
+  resolve_root_desc.pStaticSamplers = &resolve_sampler_desc;
+  resolve_root_desc.Flags =
+      D3D12_ROOT_SIGNATURE_FLAG_DENY_VERTEX_SHADER_ROOT_ACCESS;
+  ID3DBlob* resolve_root_blob;
+  ID3DBlob* resolve_root_error_blob = nullptr;
+  if (FAILED(D3D12SerializeRootSignature(
+          &resolve_root_desc, D3D_ROOT_SIGNATURE_VERSION_1, &resolve_root_blob,
+          &resolve_root_error_blob))) {
+    XELOGE("Failed to serialize the converting resolve root signature");
+    if (resolve_root_error_blob != nullptr) {
+      XELOGE("%s", reinterpret_cast<const char*>(
+                       resolve_root_error_blob->GetBufferPointer()));
+      resolve_root_error_blob->Release();
+    }
+    Shutdown();
+    return false;
+  }
+  if (resolve_root_error_blob != nullptr) {
+    resolve_root_error_blob->Release();
+  }
+  if (FAILED(device->CreateRootSignature(
+          0, resolve_root_blob->GetBufferPointer(),
+          resolve_root_blob->GetBufferSize(),
+          IID_PPV_ARGS(&resolve_root_signature_)))) {
+    XELOGE("Failed to create the converting resolve root signature");
+    resolve_root_blob->Release();
+    Shutdown();
+    return false;
+  }
+  resolve_root_blob->Release();
+
   return true;
 }
 
 void RenderTargetCache::Shutdown() {
   ClearCache();
+
+  for (auto& resolve_pipeline : resolve_pipelines_) {
+    resolve_pipeline.pipeline->Release();
+  }
+  resolve_pipelines_.clear();
+  if (resolve_root_signature_ != nullptr) {
+    resolve_root_signature_->Release();
+    resolve_root_signature_ = nullptr;
+  }
 
   if (edram_tile_sample_32bpp_pipeline_ != nullptr) {
     edram_tile_sample_32bpp_pipeline_->Release();
@@ -229,11 +317,16 @@ void RenderTargetCache::Shutdown() {
 }
 
 void RenderTargetCache::ClearCache() {
+  for (auto resolve_target_pair : resolve_targets_) {
+    ResolveTarget* resolve_target = resolve_target_pair.second;
+    resolve_target->resource->Release();
+    delete resolve_target;
+  }
+  resolve_targets_.clear();
+
   for (auto render_target_pair : render_targets_) {
     RenderTarget* render_target = render_target_pair.second;
-    if (render_target->resource != nullptr) {
-      render_target->resource->Release();
-    }
+    render_target->resource->Release();
     delete render_target;
   }
   render_targets_.clear();
@@ -721,7 +814,8 @@ bool RenderTargetCache::UpdateRenderTargets() {
   return true;
 }
 
-bool RenderTargetCache::Resolve(SharedMemory* shared_memory, Memory* memory) {
+bool RenderTargetCache::Resolve(SharedMemory* shared_memory,
+                                TextureCache* texture_cache, Memory* memory) {
   // Save the currently bound render targets to the EDRAM buffer that will be
   // used as the resolve source and clear bindings to allow render target
   // resources to be reused as source textures for format conversion, resolving
@@ -823,14 +917,15 @@ bool RenderTargetCache::Resolve(SharedMemory* shared_memory, Memory* memory) {
       msaa_samples != MsaaSamples::k1X ? "s" : "", surface_format,
       surface_edram_base);
 
-  bool copied =
-      ResolveCopy(shared_memory, surface_edram_base, surface_pitch,
-                  msaa_samples, surface_is_depth, surface_format, src_rect);
+  bool copied = ResolveCopy(shared_memory, texture_cache, surface_edram_base,
+                            surface_pitch, msaa_samples, surface_is_depth,
+                            surface_format, src_rect);
   // TODO(Triang3l): Clear.
   return copied;
 }
 
 bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
+                                    TextureCache* texture_cache,
                                     uint32_t edram_base, uint32_t surface_pitch,
                                     MsaaSamples msaa_samples, bool is_depth,
                                     uint32_t src_format,
@@ -954,6 +1049,9 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
   auto descriptor_size_view = provider->GetDescriptorSizeView();
   if (sample_select <= xenos::CopySampleSelect::k3 &&
       src_texture_format == dest_format && dest_exp_bias == 0) {
+    // *************************************************************************
+    // Raw copy
+    // *************************************************************************
     XELOGGPU("Resolving a single sample without conversion");
     if (src_64bpp) {
       // TODO(Triang3l): 64bpp sample copy shader.
@@ -997,8 +1095,8 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
     // Dispatch the computation.
     command_list->SetComputeRootSignature(edram_load_store_root_signature_);
     EDRAMLoadStoreRootConstants root_constants;
-    root_constants.tile_sample_rect_tl = copy_rect.left | (copy_rect.top << 16);
-    root_constants.tile_sample_rect_br =
+    root_constants.tile_sample_rect_lt = copy_rect.left | (copy_rect.top << 16);
+    root_constants.tile_sample_rect_rb =
         copy_rect.right | (copy_rect.bottom << 16);
     root_constants.tile_sample_dest_base = dest_address;
     assert_true(dest_pitch <= 8192);
@@ -1036,7 +1134,7 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
         0, sizeof(root_constants) / sizeof(uint32_t), &root_constants, 0);
     command_list->SetComputeRootDescriptorTable(1, descriptor_gpu_start);
     // TODO(Triang3l): 64bpp pipeline.
-    command_processor_->SetPipeline(edram_tile_sample_32bpp_pipeline_);
+    command_processor_->SetComputePipeline(edram_tile_sample_32bpp_pipeline_);
     // 1 group per destination 80x16 (32bpp) / 80x8 (64bpp) region.
     uint32_t group_count_x = row_tiles, group_count_y = rows;
     if (msaa_samples >= MsaaSamples::k2X) {
@@ -1053,12 +1151,424 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
     // Make the texture cache refresh the data.
     shared_memory->RangeWrittenByGPU(dest_address, dest_size);
   } else {
+    // *************************************************************************
+    // Conversion and AA resolving
+    // *************************************************************************
     XELOGGPU("Resolving with a pixel shader");
-    // TODO(Triang3l): Conversion.
-    return false;
+
+    // Get everything we need for the conversion.
+
+    // DXGI format (also checking whether this resolve is possible).
+    DXGI_FORMAT dest_dxgi_format =
+        texture_cache->GetResolveDXGIFormat(dest_format);
+    if (dest_dxgi_format == DXGI_FORMAT_UNKNOWN) {
+      XELOGE(
+          "No resolve pipeline for destination format %s - tell Xenia "
+          "developers!",
+          FormatInfo::Get(dest_format)->name);
+      return false;
+    }
+    // Resolve pipeline.
+    ID3D12PipelineState* resolve_pipeline =
+        GetResolvePipeline(dest_dxgi_format);
+    if (resolve_pipeline == nullptr) {
+      return false;
+    }
+    RenderTargetKey render_target_key;
+    render_target_key.width_ss_div_80 = row_tiles >> (src_64bpp ? 1 : 0);
+    render_target_key.height_ss_div_16 = rows;
+    render_target_key.is_depth = false;
+    render_target_key.format = src_format;
+    // Render target for loading the EDRAM buffer contents as a texture.
+    RenderTarget* render_target =
+        FindOrCreateRenderTarget(render_target_key, 0);
+    if (render_target == nullptr) {
+      return false;
+    }
+    const D3D12_PLACED_SUBRESOURCE_FOOTPRINT& footprint =
+        render_target->footprints[0];
+    // Size of the resolved area.
+    uint32_t copy_width = copy_rect.right - copy_rect.left;
+    uint32_t copy_height = copy_rect.bottom - copy_rect.top;
+    // Resolve target for output merger format conversion.
+    ResolveTarget* resolve_target =
+        FindOrCreateResolveTarget(copy_width, copy_height, dest_dxgi_format,
+                                  render_target->heap_page_count);
+    if (resolve_target == nullptr) {
+      return false;
+    }
+    // Descriptors. 2 for EDRAM load, 1 for conversion.
+    D3D12_CPU_DESCRIPTOR_HANDLE descriptor_cpu_start;
+    D3D12_GPU_DESCRIPTOR_HANDLE descriptor_gpu_start;
+    if (command_processor_->RequestViewDescriptors(
+            0, 3, 3, descriptor_cpu_start, descriptor_gpu_start) == 0) {
+      return false;
+    }
+    // Buffer for copying.
+    D3D12_RESOURCE_STATES copy_buffer_state =
+        D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+    ID3D12Resource* copy_buffer = command_processor_->RequestScratchGPUBuffer(
+        render_target->copy_buffer_size, copy_buffer_state);
+    if (copy_buffer == nullptr) {
+      return false;
+    }
+
+    // Load the EDRAM buffer contents to the copy buffer.
+
+    command_processor_->PushTransitionBarrier(
+        edram_buffer_, edram_buffer_state_,
+        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+    edram_buffer_state_ = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
+    command_processor_->SubmitBarriers();
+
+    command_list->SetComputeRootSignature(edram_load_store_root_signature_);
+
+    EDRAMLoadStoreRootConstants load_root_constants;
+    load_root_constants.rt_color_depth_offset = uint32_t(footprint.Offset);
+    load_root_constants.rt_color_depth_pitch =
+        uint32_t(footprint.Footprint.RowPitch);
+    load_root_constants.base_pitch_tiles =
+        edram_base | (surface_pitch_tiles << 11);
+    command_list->SetComputeRoot32BitConstants(
+        0, sizeof(load_root_constants) / sizeof(uint32_t), &load_root_constants,
+        0);
+
+    D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc;
+    srv_desc.Format = DXGI_FORMAT_R32_TYPELESS;
+    srv_desc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+    srv_desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    srv_desc.Buffer.FirstElement = 0;
+    srv_desc.Buffer.NumElements = 2048 * 1280;
+    srv_desc.Buffer.StructureByteStride = 0;
+    srv_desc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_RAW;
+    device->CreateShaderResourceView(edram_buffer_, &srv_desc,
+                                     descriptor_cpu_start);
+    D3D12_UNORDERED_ACCESS_VIEW_DESC uav_desc;
+    uav_desc.Format = DXGI_FORMAT_R32_TYPELESS;
+    uav_desc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+    uav_desc.Buffer.FirstElement = 0;
+    uav_desc.Buffer.NumElements = render_target->copy_buffer_size >> 2;
+    uav_desc.Buffer.StructureByteStride = 0;
+    uav_desc.Buffer.CounterOffsetInBytes = 0;
+    uav_desc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_RAW;
+    D3D12_CPU_DESCRIPTOR_HANDLE copy_buffer_cpu_handle;
+    copy_buffer_cpu_handle.ptr =
+        descriptor_cpu_start.ptr + descriptor_size_view;
+    device->CreateUnorderedAccessView(copy_buffer, nullptr, &uav_desc,
+                                      copy_buffer_cpu_handle);
+    command_list->SetComputeRootDescriptorTable(1, descriptor_gpu_start);
+
+    command_processor_->SetComputePipeline(
+        edram_load_pipelines_[size_t(GetLoadStoreMode(false, src_format))]);
+    command_list->Dispatch(row_tiles, rows, 1);
+    command_processor_->PushUAVBarrier(copy_buffer);
+
+    // Go to the next descriptor set.
+
+    descriptor_cpu_start.ptr += 2 * descriptor_size_view;
+    descriptor_gpu_start.ptr += 2 * descriptor_size_view;
+
+    // Copy the EDRAM buffer contents to the source texture.
+
+    command_processor_->PushAliasingBarrier(nullptr, render_target->resource);
+    command_processor_->PushTransitionBarrier(copy_buffer, copy_buffer_state,
+                                              D3D12_RESOURCE_STATE_COPY_SOURCE);
+    copy_buffer_state = D3D12_RESOURCE_STATE_COPY_SOURCE;
+    command_processor_->PushTransitionBarrier(render_target->resource,
+                                              render_target->state,
+                                              D3D12_RESOURCE_STATE_COPY_DEST);
+    render_target->state = D3D12_RESOURCE_STATE_COPY_DEST;
+    command_processor_->SubmitBarriers();
+    D3D12_TEXTURE_COPY_LOCATION location_source, location_dest;
+    location_source.pResource = copy_buffer;
+    location_source.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+    location_source.PlacedFootprint = render_target->footprints[0];
+    location_dest.pResource = render_target->resource;
+    location_dest.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+    location_dest.SubresourceIndex = 0;
+    command_list->CopyTextureRegion(&location_dest, 0, 0, 0, &location_source,
+                                    nullptr);
+
+    // Done with the copy buffer.
+
+    command_processor_->ReleaseScratchGPUBuffer(copy_buffer, copy_buffer_state);
+
+    // Do the resolve. Render targets unbound already, safe to call
+    // OMSetRenderTargets.
+
+    command_processor_->PushAliasingBarrier(nullptr, resolve_target->resource);
+    command_processor_->PushTransitionBarrier(
+        render_target->resource, render_target->state,
+        D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    render_target->state = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+    command_processor_->PushTransitionBarrier(
+        resolve_target->resource, resolve_target->state,
+        D3D12_RESOURCE_STATE_RENDER_TARGET);
+    resolve_target->state = D3D12_RESOURCE_STATE_RENDER_TARGET;
+
+    command_list->SetGraphicsRootSignature(resolve_root_signature_);
+
+    ResolveRootConstants resolve_root_constants;
+    uint32_t samples_x_log2 = msaa_samples >= MsaaSamples::k4X ? 1 : 0;
+    uint32_t samples_y_log2 = msaa_samples >= MsaaSamples::k2X ? 1 : 0;
+    resolve_root_constants.rect_samples_lw =
+        (copy_rect.left << samples_x_log2) |
+        (copy_width << (16 + samples_x_log2));
+    resolve_root_constants.rect_samples_th =
+        (copy_rect.top << samples_y_log2) |
+        (copy_height << (16 + samples_y_log2));
+    resolve_root_constants.source_size =
+        (render_target_key.width_ss_div_80 * 80) |
+        (render_target_key.height_ss_div_16 << (4 + 16));
+    resolve_root_constants.resolve_info =
+        samples_y_log2 | (samples_x_log2 << 1) |
+        ((uint32_t(dest_exp_bias) & 0x3F) << 6);
+    if (msaa_samples == MsaaSamples::k1X) {
+      // No offset.
+      resolve_root_constants.resolve_info |= (1 << 2) | (1 << 4);
+    } else if (msaa_samples == MsaaSamples::k2X) {
+      // -0.5 or +0.5 samples vertical offset if getting only one sample.
+      if (sample_select == xenos::CopySampleSelect::k0) {
+        resolve_root_constants.resolve_info |= (0 << 2) | (1 << 4);
+      } else if (sample_select == xenos::CopySampleSelect::k1) {
+        resolve_root_constants.resolve_info |= (2 << 2) | (1 << 4);
+      } else {
+        resolve_root_constants.resolve_info |= (1 << 2) | (1 << 4);
+      }
+    } else {
+      // -0.5 or +0.5 samples offsets if getting one or two samples.
+      switch (sample_select) {
+        case xenos::CopySampleSelect::k0:
+          resolve_root_constants.resolve_info |= (0 << 2) | (0 << 4);
+          break;
+        case xenos::CopySampleSelect::k1:
+          resolve_root_constants.resolve_info |= (2 << 2) | (0 << 4);
+          break;
+        case xenos::CopySampleSelect::k2:
+          resolve_root_constants.resolve_info |= (0 << 2) | (2 << 4);
+          break;
+        case xenos::CopySampleSelect::k3:
+          resolve_root_constants.resolve_info |= (2 << 2) | (2 << 4);
+          break;
+        case xenos::CopySampleSelect::k01:
+          resolve_root_constants.resolve_info |= (1 << 2) | (0 << 4);
+          break;
+        case xenos::CopySampleSelect::k23:
+          resolve_root_constants.resolve_info |= (1 << 2) | (2 << 4);
+          break;
+        default:
+          resolve_root_constants.resolve_info |= (1 << 2) | (1 << 4);
+          break;
+      }
+    }
+    command_list->SetGraphicsRoot32BitConstants(
+        0, sizeof(resolve_root_constants) / sizeof(uint32_t),
+        &resolve_root_constants, 0);
+
+    srv_desc.Format = GetColorDXGIFormat(ColorRenderTargetFormat(src_format));
+    srv_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+    if (dest_swap) {
+      switch (ColorRenderTargetFormat(src_format)) {
+        case ColorRenderTargetFormat::k_8_8_8_8:
+        case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
+        case ColorRenderTargetFormat::k_2_10_10_10:
+        case ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
+        case ColorRenderTargetFormat::k_16_16_16_16:
+        case ColorRenderTargetFormat::k_16_16_16_16_FLOAT:
+        case ColorRenderTargetFormat::k_2_10_10_10_AS_16_16_16_16:
+        case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
+          srv_desc.Shader4ComponentMapping =
+              D3D12_ENCODE_SHADER_4_COMPONENT_MAPPING(2, 1, 0, 3);
+          break;
+        default:
+          srv_desc.Shader4ComponentMapping =
+              D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+      }
+    } else {
+      srv_desc.Shader4ComponentMapping =
+          D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    }
+    srv_desc.Texture2D.MostDetailedMip = 0;
+    srv_desc.Texture2D.MipLevels = 1;
+    srv_desc.Texture2D.PlaneSlice = 0;
+    srv_desc.Texture2D.ResourceMinLODClamp = 0.0f;
+    device->CreateShaderResourceView(render_target->resource, &srv_desc,
+                                     descriptor_cpu_start);
+    command_list->SetGraphicsRootDescriptorTable(1, descriptor_gpu_start);
+
+    command_processor_->SetExternalGraphicsPipeline(resolve_pipeline);
+    command_processor_->SubmitBarriers();
+    command_list->OMSetRenderTargets(1, &resolve_target->rtv_handle, TRUE,
+                                     nullptr);
+    D3D12_VIEWPORT viewport;
+    viewport.TopLeftX = 0.0f;
+    viewport.TopLeftY = 0.0f;
+    viewport.Width = float(copy_width);
+    viewport.Height = float(copy_height);
+    viewport.MinDepth = 0.0f;
+    viewport.MaxDepth = 1.0f;
+    command_list->RSSetViewports(1, &viewport);
+    D3D12_RECT scissor;
+    scissor.left = 0;
+    scissor.top = 0;
+    scissor.right = copy_width;
+    scissor.bottom = copy_height;
+    command_list->RSSetScissorRects(1, &scissor);
+    command_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    command_list->DrawInstanced(3, 1, 0, 0);
+
+    // TODO(Triang3l): Tile the resolve target in the texture cache.
   }
 
   return true;
+}
+
+ID3D12PipelineState* RenderTargetCache::GetResolvePipeline(
+    DXGI_FORMAT dest_format) {
+  // Try to find an existing pipeline.
+  for (auto& resolve_pipeline : resolve_pipelines_) {
+    if (resolve_pipeline.dest_format == dest_format) {
+      return resolve_pipeline.pipeline;
+    }
+  }
+  // Create a new pipeline.
+  auto device =
+      command_processor_->GetD3D12Context()->GetD3D12Provider()->GetDevice();
+  D3D12_GRAPHICS_PIPELINE_STATE_DESC pipeline_desc = {};
+  pipeline_desc.pRootSignature = resolve_root_signature_;
+  pipeline_desc.VS.pShaderBytecode = resolve_vs;
+  pipeline_desc.VS.BytecodeLength = sizeof(resolve_vs);
+  pipeline_desc.PS.pShaderBytecode = resolve_ps;
+  pipeline_desc.PS.BytecodeLength = sizeof(resolve_ps);
+  pipeline_desc.BlendState.RenderTarget[0].RenderTargetWriteMask =
+      D3D12_COLOR_WRITE_ENABLE_ALL;
+  pipeline_desc.SampleMask = UINT_MAX;
+  pipeline_desc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
+  pipeline_desc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+  pipeline_desc.RasterizerState.DepthClipEnable = TRUE;
+  pipeline_desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+  pipeline_desc.NumRenderTargets = 1;
+  pipeline_desc.RTVFormats[0] = dest_format;
+  pipeline_desc.SampleDesc.Count = 1;
+  ID3D12PipelineState* pipeline;
+  if (FAILED(device->CreateGraphicsPipelineState(&pipeline_desc,
+                                                 IID_PPV_ARGS(&pipeline)))) {
+    XELOGE("Failed to create the resolve pipeline for DXGI format %u",
+           dest_format);
+    return nullptr;
+  }
+  ResolvePipeline new_resolve_pipeline;
+  new_resolve_pipeline.pipeline = pipeline;
+  new_resolve_pipeline.dest_format = dest_format;
+  resolve_pipelines_.push_back(new_resolve_pipeline);
+  return pipeline;
+}
+
+RenderTargetCache::ResolveTarget* RenderTargetCache::FindOrCreateResolveTarget(
+    uint32_t width, uint32_t height, DXGI_FORMAT format,
+    uint32_t min_heap_page_first) {
+  assert_true(min_heap_page_first < kHeap4MBPages * 5);
+  if (width == 0 || height == 0 || width > 8192 || height > 8192) {
+    assert_always();
+    return nullptr;
+  }
+  ResolveTargetKey key;
+  key.width_div_32 = (width + 31) >> 5;
+  key.height_div_32 = (height + 31) >> 5;
+  key.format = format;
+
+  // Try to find an existing target that isn't overlapping the resolve source.
+  auto found_range = resolve_targets_.equal_range(key.value);
+  for (auto iter = found_range.first; iter != found_range.second; ++iter) {
+    ResolveTarget* found_resolve_target = iter->second;
+    if (found_resolve_target->heap_page_first >= min_heap_page_first) {
+      return found_resolve_target;
+    }
+  }
+
+  // Ensure the new resolve target can get an RTV descriptor.
+  if (!EnsureRTVHeapAvailable(false)) {
+    return nullptr;
+  }
+
+  // Allocate a new resolve target.
+  auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
+  auto device = provider->GetDevice();
+  D3D12_RESOURCE_DESC resource_desc;
+  resource_desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+  resource_desc.Alignment = 0;
+  resource_desc.Width = key.width_div_32 << 5;
+  resource_desc.Height = key.height_div_32 << 5;
+  resource_desc.DepthOrArraySize = 1;
+  resource_desc.MipLevels = 1;
+  resource_desc.Format = format;
+  resource_desc.SampleDesc.Count = 1;
+  resource_desc.SampleDesc.Quality = 0;
+  resource_desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+  resource_desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+  D3D12_RESOURCE_ALLOCATION_INFO allocation_info =
+      device->GetResourceAllocationInfo(0, 1, &resource_desc);
+  uint32_t heap_page_count =
+      (uint32_t(allocation_info.SizeInBytes) + ((4 << 20) - 1)) >> 22;
+  if (heap_page_count == 0 || heap_page_count > kHeap4MBPages) {
+    assert_always();
+    XELOGE(
+        "%ux%u resolve target with DXGI format %u can't fit in a heap, "
+        "needs %u bytes - tell Xenia developers to increase the heap size!",
+        uint32_t(resource_desc.Width), resource_desc.Height, format,
+        uint32_t(allocation_info.SizeInBytes));
+    return nullptr;
+  }
+  if (kHeap4MBPages - (min_heap_page_first % kHeap4MBPages) < heap_page_count) {
+    // Go to the next heap if no free space in the current one.
+    min_heap_page_first = xe::round_up(min_heap_page_first, kHeap4MBPages);
+    assert_true(min_heap_page_first < kHeap4MBPages * 5);
+  }
+
+  // Create the memory heap if it doesn't exist yet.
+  uint32_t heap_index = min_heap_page_first / kHeap4MBPages;
+  if (!MakeHeapResident(heap_index)) {
+    return nullptr;
+  }
+
+  // Create it.
+  // The first action likely to be done is resolve.
+  D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_RENDER_TARGET;
+  ID3D12Resource* resource;
+  if (FAILED(device->CreatePlacedResource(
+          heaps_[heap_index], (min_heap_page_first % kHeap4MBPages) << 22,
+          &resource_desc, state, nullptr, IID_PPV_ARGS(&resource)))) {
+    XELOGE(
+        "Failed to create a placed resource for %ux%u resolve target with DXGI "
+        "format %u at heap 4 MB pages %u:%u",
+        uint32_t(resource_desc.Width), resource_desc.Height, format,
+        min_heap_page_first, min_heap_page_first + heap_page_count - 1);
+    return nullptr;
+  }
+
+  // Create the RTV.
+  D3D12_CPU_DESCRIPTOR_HANDLE rtv_handle;
+  rtv_handle.ptr = descriptor_heaps_color_->start_handle.ptr +
+                   descriptor_heaps_color_->descriptors_used *
+                       provider->GetDescriptorSizeRTV();
+  D3D12_RENDER_TARGET_VIEW_DESC rtv_desc;
+  rtv_desc.Format = format;
+  rtv_desc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+  rtv_desc.Texture2D.MipSlice = 0;
+  rtv_desc.Texture2D.PlaneSlice = 0;
+  device->CreateRenderTargetView(resource, &rtv_desc, rtv_handle);
+  ++descriptor_heaps_color_->descriptors_used;
+
+  // Add the new resolve target to the cache.
+  ResolveTarget* resolve_target = new ResolveTarget;
+  resolve_target->resource = resource;
+  resolve_target->state = state;
+  resolve_target->rtv_handle.ptr = rtv_handle.ptr;
+  resolve_target->key.value = key.value;
+  resolve_target->heap_page_first = min_heap_page_first;
+  resolve_targets_.insert(std::make_pair(key.value, resolve_target));
+
+  return resolve_target;
 }
 
 void RenderTargetCache::UnbindRenderTargets() {
@@ -1104,6 +1614,61 @@ void RenderTargetCache::ClearBindings() {
   std::memset(current_bindings_, 0, sizeof(current_bindings_));
 }
 
+bool RenderTargetCache::MakeHeapResident(uint32_t heap_index) {
+  if (heap_index >= 5) {
+    assert_always();
+    return false;
+  }
+  if (heaps_[heap_index] != nullptr) {
+    return true;
+  }
+  auto device =
+      command_processor_->GetD3D12Context()->GetD3D12Provider()->GetDevice();
+  D3D12_HEAP_DESC heap_desc = {};
+  heap_desc.SizeInBytes = kHeap4MBPages << 22;
+  heap_desc.Properties.Type = D3D12_HEAP_TYPE_DEFAULT;
+  // TODO(Triang3l): If real MSAA is added, alignment must be 4 MB.
+  heap_desc.Alignment = 0;
+  heap_desc.Flags = D3D12_HEAP_FLAG_ALLOW_ONLY_RT_DS_TEXTURES;
+  if (FAILED(
+          device->CreateHeap(&heap_desc, IID_PPV_ARGS(&heaps_[heap_index])))) {
+    XELOGE("Failed to create a %u MB heap for render targets",
+           kHeap4MBPages * 4);
+    return false;
+  }
+  return true;
+}
+
+bool RenderTargetCache::EnsureRTVHeapAvailable(bool is_depth) {
+  auto& heap = is_depth ? descriptor_heaps_depth_ : descriptor_heaps_color_;
+  if (heap != nullptr &&
+      heap->descriptors_used < kRenderTargetDescriptorHeapSize) {
+    return true;
+  }
+  auto device =
+      command_processor_->GetD3D12Context()->GetD3D12Provider()->GetDevice();
+  D3D12_DESCRIPTOR_HEAP_DESC heap_desc;
+  heap_desc.Type = is_depth ? D3D12_DESCRIPTOR_HEAP_TYPE_DSV
+                            : D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+  heap_desc.NumDescriptors = kRenderTargetDescriptorHeapSize;
+  heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+  heap_desc.NodeMask = 0;
+  ID3D12DescriptorHeap* new_d3d_heap;
+  if (FAILED(device->CreateDescriptorHeap(&heap_desc,
+                                          IID_PPV_ARGS(&new_d3d_heap)))) {
+    XELOGE("Failed to create a heap for %u %s buffer descriptors",
+           kRenderTargetDescriptorHeapSize, is_depth ? "depth" : "color");
+    return false;
+  }
+  RenderTargetDescriptorHeap* new_heap = new RenderTargetDescriptorHeap;
+  new_heap->heap = new_d3d_heap;
+  new_heap->start_handle = new_d3d_heap->GetCPUDescriptorHandleForHeapStart();
+  new_heap->descriptors_used = 0;
+  new_heap->previous = heap;
+  heap = new_heap;
+  return true;
+}
+
 bool RenderTargetCache::GetResourceDesc(RenderTargetKey key,
                                         D3D12_RESOURCE_DESC& desc) {
   if (key.width_ss_div_80 == 0 || key.height_ss_div_16 == 0) {
@@ -1133,7 +1698,7 @@ bool RenderTargetCache::GetResourceDesc(RenderTargetKey key,
 
 RenderTargetCache::RenderTarget* RenderTargetCache::FindOrCreateRenderTarget(
     RenderTargetKey key, uint32_t heap_page_first) {
-  assert_true(heap_page_first <= kHeap4MBPages * 5);
+  assert_true(heap_page_first < kHeap4MBPages * 5);
 
   // Try to find an existing render target.
   auto found_range = render_targets_.equal_range(key.value);
@@ -1163,57 +1728,23 @@ RenderTargetCache::RenderTarget* RenderTargetCache::FindOrCreateRenderTarget(
     return nullptr;
   }
 
-  // Create a new descriptor heap if needed, and get a place for the descriptor.
-  auto& descriptor_heap =
-      key.is_depth ? descriptor_heaps_depth_ : descriptor_heaps_color_;
-  if (descriptor_heap == nullptr ||
-      descriptor_heap->descriptors_used >= kRenderTargetDescriptorHeapSize) {
-    D3D12_DESCRIPTOR_HEAP_DESC descriptor_heap_desc;
-    descriptor_heap_desc.Type = key.is_depth ? D3D12_DESCRIPTOR_HEAP_TYPE_DSV
-                                             : D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
-    descriptor_heap_desc.NumDescriptors = kRenderTargetDescriptorHeapSize;
-    descriptor_heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-    descriptor_heap_desc.NodeMask = 0;
-    ID3D12DescriptorHeap* new_d3d_descriptor_heap;
-    if (FAILED(device->CreateDescriptorHeap(
-            &descriptor_heap_desc, IID_PPV_ARGS(&new_d3d_descriptor_heap)))) {
-      XELOGE("Failed to create a heap for %u %s buffer descriptors",
-             kRenderTargetDescriptorHeapSize, key.is_depth ? "depth" : "color");
-      return nullptr;
-    }
-    RenderTargetDescriptorHeap* new_descriptor_heap =
-        new RenderTargetDescriptorHeap;
-    new_descriptor_heap->heap = new_d3d_descriptor_heap;
-    new_descriptor_heap->start_handle =
-        new_d3d_descriptor_heap->GetCPUDescriptorHandleForHeapStart();
-    new_descriptor_heap->descriptors_used = 0;
-    new_descriptor_heap->previous = descriptor_heap;
-    descriptor_heap = new_descriptor_heap;
+  // Ensure we can create a new descriptor in the render target heap.
+  if (!EnsureRTVHeapAvailable(key.is_depth)) {
+    return nullptr;
   }
 
   // Create the memory heap if it doesn't exist yet.
-  ID3D12Heap* heap = heaps_[heap_page_first / kHeap4MBPages];
-  if (heap == nullptr) {
-    D3D12_HEAP_DESC heap_desc = {};
-    heap_desc.SizeInBytes = kHeap4MBPages << 22;
-    heap_desc.Properties.Type = D3D12_HEAP_TYPE_DEFAULT;
-    // TODO(Triang3l): If real MSAA is added, alignment must be 4 MB.
-    heap_desc.Alignment = 0;
-    heap_desc.Flags = D3D12_HEAP_FLAG_ALLOW_ONLY_RT_DS_TEXTURES;
-    if (FAILED(device->CreateHeap(&heap_desc, IID_PPV_ARGS(&heap)))) {
-      XELOGE("Failed to create a %u MB heap for render targets",
-             kHeap4MBPages * 4);
-      return nullptr;
-    }
-    heaps_[heap_page_first / kHeap4MBPages] = heap;
+  uint32_t heap_index = heap_page_first / kHeap4MBPages;
+  if (!MakeHeapResident(heap_index)) {
+    return nullptr;
   }
 
   // The first action likely to be done is EDRAM buffer load.
   D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_COPY_DEST;
   ID3D12Resource* resource;
   if (FAILED(device->CreatePlacedResource(
-          heap, (heap_page_first % kHeap4MBPages) << 22, &resource_desc, state,
-          nullptr, IID_PPV_ARGS(&resource)))) {
+          heaps_[heap_index], (heap_page_first % kHeap4MBPages) << 22,
+          &resource_desc, state, nullptr, IID_PPV_ARGS(&resource)))) {
     XELOGE(
         "Failed to create a placed resource for %ux%u %s render target with "
         "format %u at heap 4 MB pages %u:%u",
@@ -1226,27 +1757,28 @@ RenderTargetCache::RenderTarget* RenderTargetCache::FindOrCreateRenderTarget(
   // Create the descriptor for the render target.
   D3D12_CPU_DESCRIPTOR_HANDLE descriptor_handle;
   if (key.is_depth) {
-    descriptor_handle.ptr =
-        descriptor_heap->start_handle.ptr +
-        descriptor_heap->descriptors_used * provider->GetDescriptorSizeDSV();
+    descriptor_handle.ptr = descriptor_heaps_depth_->start_handle.ptr +
+                            descriptor_heaps_depth_->descriptors_used *
+                                provider->GetDescriptorSizeDSV();
     D3D12_DEPTH_STENCIL_VIEW_DESC dsv_desc;
     dsv_desc.Format = resource_desc.Format;
     dsv_desc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
     dsv_desc.Flags = D3D12_DSV_FLAG_NONE;
     dsv_desc.Texture2D.MipSlice = 0;
     device->CreateDepthStencilView(resource, &dsv_desc, descriptor_handle);
+    ++descriptor_heaps_depth_->descriptors_used;
   } else {
-    descriptor_handle.ptr =
-        descriptor_heap->start_handle.ptr +
-        descriptor_heap->descriptors_used * provider->GetDescriptorSizeRTV();
+    descriptor_handle.ptr = descriptor_heaps_color_->start_handle.ptr +
+                            descriptor_heaps_color_->descriptors_used *
+                                provider->GetDescriptorSizeRTV();
     D3D12_RENDER_TARGET_VIEW_DESC rtv_desc;
     rtv_desc.Format = resource_desc.Format;
     rtv_desc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
     rtv_desc.Texture2D.MipSlice = 0;
     rtv_desc.Texture2D.PlaneSlice = 0;
     device->CreateRenderTargetView(resource, &rtv_desc, descriptor_handle);
+    ++descriptor_heaps_color_->descriptors_used;
   }
-  ++descriptor_heap->descriptors_used;
 
   // Get the layout for copying to the EDRAM buffer.
   RenderTarget* render_target = new RenderTarget;
@@ -1511,7 +2043,8 @@ void RenderTargetCache::StoreRenderTargetsToEDRAM() {
         0, sizeof(root_constants) / sizeof(uint32_t), &root_constants, 0);
     EDRAMLoadStoreMode mode = GetLoadStoreMode(render_target->key.is_depth,
                                                render_target->key.format);
-    command_processor_->SetPipeline(edram_store_pipelines_[size_t(mode)]);
+    command_processor_->SetComputePipeline(
+        edram_store_pipelines_[size_t(mode)]);
     command_list->Dispatch(rt_pitch_tiles, binding.edram_dirty_rows, 1);
 
     // Commit the UAV write.
@@ -1646,7 +2179,7 @@ void RenderTargetCache::LoadRenderTargetsFromEDRAM(
         0, sizeof(root_constants) / sizeof(uint32_t), &root_constants, 0);
     EDRAMLoadStoreMode mode = GetLoadStoreMode(render_target->key.is_depth,
                                                render_target->key.format);
-    command_processor_->SetPipeline(edram_load_pipelines_[size_t(mode)]);
+    command_processor_->SetComputePipeline(edram_load_pipelines_[size_t(mode)]);
     command_list->Dispatch(edram_pitch_tiles, edram_rows, 1);
 
     // Commit the UAV write and transition the copy buffer to copy source now.
