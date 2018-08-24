@@ -79,16 +79,18 @@ class TextureCache {
                     D3D12_CPU_DESCRIPTOR_HANDLE handle);
 
   static DXGI_FORMAT GetResolveDXGIFormat(TextureFormat format);
+  // The source buffer must be in the non-pixel-shader SRV state.
+  bool TileResolvedTexture(TextureFormat format, uint32_t texture_base,
+                           uint32_t texture_pitch, uint32_t texture_height,
+                           uint32_t resolve_width, uint32_t resolve_height,
+                           Endian128 endian, ID3D12Resource* buffer,
+                           uint32_t buffer_size,
+                           const D3D12_PLACED_SUBRESOURCE_FOOTPRINT& footprint);
 
   bool RequestSwapTexture(D3D12_CPU_DESCRIPTOR_HANDLE handle);
 
  private:
-  struct CopyModeInfo {
-    const void* load_shader;
-    size_t load_shader_size;
-  };
-
-  enum class CopyMode {
+  enum class LoadMode {
     k8bpb,
     k16bpb,
     k32bpb,
@@ -104,9 +106,30 @@ class TextureCache {
     kUnknown = kCount
   };
 
+  struct LoadModeInfo {
+    const void* shader;
+    size_t shader_size;
+  };
+
+  // Tiling modes for storing textures after resolving - needed only for the
+  // formats that can be resolved to.
+  enum class TileMode {
+    k32bpp,
+
+    kCount,
+
+    kUnknown = kCount
+  };
+
+  struct TileModeInfo {
+    const void* shader;
+    size_t shader_size;
+  };
+
   struct HostFormat {
     DXGI_FORMAT dxgi_format;
-    CopyMode copy_mode;
+    LoadMode load_mode;
+    TileMode tile_mode;
   };
 
   union TextureKey {
@@ -200,7 +223,7 @@ class TextureCache {
     bool mips_in_sync;
   };
 
-  struct CopyConstants {
+  struct LoadConstants {
     // vec4 0.
     uint32_t guest_base;
     // For linear textures - row byte pitch.
@@ -221,6 +244,22 @@ class TextureCache {
     uint32_t guest_mip_offset[3];
 
     static constexpr uint32_t kGuestPitchTiled = UINT32_MAX;
+  };
+
+  struct TileConstants {
+    // Either from the start of the shared memory or from the start of the typed
+    // UAV, in bytes.
+    uint32_t guest_base;
+    // 0:2 - endianness (up to Xin128).
+    // 3:31 - actual guest texture width.
+    uint32_t endian_guest_pitch;
+    // Size to copy, texels with index bigger than this won't be written.
+    // Width in the lower 16 bits, height in the upper.
+    uint32_t size;
+    // Byte offset to the first texel from the beginning of the source buffer.
+    uint32_t host_base;
+    // Row pitch of the source buffer.
+    uint32_t host_pitch;
   };
 
   struct TextureBinding {
@@ -264,9 +303,12 @@ class TextureCache {
   RegisterFile* register_file_;
   SharedMemory* shared_memory_;
 
-  static const CopyModeInfo copy_mode_info_[];
-  ID3D12RootSignature* copy_root_signature_ = nullptr;
-  ID3D12PipelineState* copy_load_pipelines_[size_t(CopyMode::kCount)] = {};
+  static const LoadModeInfo load_mode_info_[];
+  ID3D12RootSignature* load_root_signature_ = nullptr;
+  ID3D12PipelineState* load_pipelines_[size_t(LoadMode::kCount)] = {};
+  static const TileModeInfo tile_mode_info_[];
+  ID3D12RootSignature* tile_root_signature_ = nullptr;
+  ID3D12PipelineState* tile_pipelines_[size_t(TileMode::kCount)] = {};
 
   std::unordered_multimap<uint64_t, Texture*> textures_;
 

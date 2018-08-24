@@ -32,15 +32,23 @@ XE_BYTE_SWAP_16_OVERLOAD(uint3)
 XE_BYTE_SWAP_16_OVERLOAD(uint4)
 
 uint2 XeByteSwap64(uint2 v, uint endian) {
-  if (endian & 4u) {
+  if ((endian & 4u) != 0u) {
     v = v.yx;
     endian = 2u;
   }
   return XeByteSwap(v, endian);
 }
 uint4 XeByteSwap64(uint4 v, uint endian) {
-  if (endian & 4u) {
+  if ((endian & 4u) != 0u) {
     v = v.yxwz;
+    endian = 2u;
+  }
+  return XeByteSwap(v, endian);
+}
+
+uint4 XeByteSwap128(uint4 v, uint endian) {
+  if ((endian & 4u) != 0u) {
+    v = ((endian & 1u) != 0u) ? v.wzyx /* 8in128 */ : v.yxwz /* 8in64 */;
     endian = 2u;
   }
   return XeByteSwap(v, endian);

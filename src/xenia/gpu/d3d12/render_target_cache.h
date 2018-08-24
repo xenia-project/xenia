@@ -343,7 +343,11 @@ class RenderTargetCache {
     D3D12_RESOURCE_STATES state;
     D3D12_CPU_DESCRIPTOR_HANDLE rtv_handle;
     ResolveTargetKey key;
+    // The first 4 MB page in the heaps.
     uint32_t heap_page_first;
+    D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint;
+    // Buffer size needed to copy the resolve target to a linear buffer.
+    uint32_t copy_buffer_size;
   };
 
   void ClearBindings();
