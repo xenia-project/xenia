@@ -27,6 +27,9 @@ class CommandList {
                                              D3D12_COMMAND_LIST_TYPE type);
 
   ID3D12GraphicsCommandList* GetCommandList() const { return command_list_; }
+  ID3D12GraphicsCommandList1* GetCommandList1() const {
+    return command_list_1_;
+  }
 
   ID3D12GraphicsCommandList* BeginRecording();
   void AbortRecording();
@@ -43,6 +46,7 @@ class CommandList {
 
   ID3D12CommandAllocator* command_allocator_ = nullptr;
   ID3D12GraphicsCommandList* command_list_ = nullptr;
+  ID3D12GraphicsCommandList1* command_list_1_ = nullptr;
 };
 
 }  // namespace d3d12

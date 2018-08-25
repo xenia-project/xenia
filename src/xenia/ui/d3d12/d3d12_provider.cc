@@ -146,6 +146,18 @@ bool D3D12Provider::Initialize() {
   descriptor_size_dsv_ =
       device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
 
+  // Check if programmable sample positions are supported (added in Creators
+  // Update).
+  programmable_sample_positions_tier_ = 0;
+  D3D12_FEATURE_DATA_D3D12_OPTIONS2 options2;
+  if (SUCCEEDED(device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS2,
+                                            &options2, sizeof(options2)))) {
+    programmable_sample_positions_tier_ =
+        uint32_t(options2.ProgrammableSamplePositionsTier);
+  }
+  XELOGD3D("Direct3D 12 device supports programmable sample positions tier %u",
+           programmable_sample_positions_tier_);
+
   return true;
 }
 

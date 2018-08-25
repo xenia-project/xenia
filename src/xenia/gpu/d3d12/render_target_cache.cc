@@ -730,6 +730,10 @@ bool RenderTargetCache::UpdateRenderTargets() {
                                               binding.render_target->resource);
     }
 
+    // Sample positions when loading depth must match sample positions when
+    // drawing.
+    command_processor_->SetSamplePositions(msaa_samples);
+
     // Load the contents of the new render targets from the EDRAM buffer (will
     // change the state of the render targets to copy destination).
     RenderTarget* load_render_targets[5];
@@ -1394,8 +1398,9 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
                                      descriptor_cpu_start);
     command_list->SetGraphicsRootDescriptorTable(1, descriptor_gpu_start);
 
-    command_processor_->SetExternalGraphicsPipeline(resolve_pipeline);
     command_processor_->SubmitBarriers();
+    command_processor_->SetSamplePositions(MsaaSamples::k1X);
+    command_processor_->SetExternalGraphicsPipeline(resolve_pipeline);
     command_list->OMSetRenderTargets(1, &resolve_target->rtv_handle, TRUE,
                                      nullptr);
     D3D12_VIEWPORT viewport;

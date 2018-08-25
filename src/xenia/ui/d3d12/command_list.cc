@@ -31,6 +31,9 @@ CommandList::CommandList(ID3D12Device* device, ID3D12CommandQueue* queue,
     : device_(device), queue_(queue), type_(type) {}
 
 CommandList::~CommandList() {
+  if (command_list_1_ != nullptr) {
+    command_list_1_->Release();
+  }
   if (command_list_ != nullptr) {
     command_list_->Release();
   }
@@ -52,6 +55,8 @@ bool CommandList::Initialize() {
     command_allocator_ = nullptr;
     return false;
   }
+  // Optional - added in Creators Update (SDK 10.0.15063.0).
+  command_list_->QueryInterface(IID_PPV_ARGS(&command_list_1_));
   // A command list is initially open, need to close it before resetting.
   command_list_->Close();
   return true;

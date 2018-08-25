@@ -38,6 +38,10 @@ class D3D12Provider : public GraphicsProvider {
   uint32_t GetDescriptorSizeRTV() const { return descriptor_size_rtv_; }
   uint32_t GetDescriptorSizeDSV() const { return descriptor_size_dsv_; }
 
+  uint32_t GetProgrammableSamplePositionsTier() const {
+    return programmable_sample_positions_tier_;
+  }
+
  private:
   explicit D3D12Provider(Window* main_window);
 
@@ -52,6 +56,8 @@ class D3D12Provider : public GraphicsProvider {
   uint32_t descriptor_size_sampler_;
   uint32_t descriptor_size_rtv_;
   uint32_t descriptor_size_dsv_;
+
+  uint32_t programmable_sample_positions_tier_;
 };
 
 }  // namespace d3d12
