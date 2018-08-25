@@ -1308,6 +1308,8 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   float ndc_offset_z = gl_clip_space_def ? 0.5f : 0.0f;
   float pixel_half_pixel_offset = 0.0f;
   if (!(pa_su_vtx_cntl & (1 << 0))) {
+    // Signs are hopefully correct here, tested in GTA IV on both clearing
+    // (without a viewport) and drawing things near the edges of the screen.
     if (pa_cl_vte_cntl & (1 << 0)) {
       if (viewport_scale_x != 0.0f) {
         ndc_offset_x += 0.5f / viewport_scale_x;
@@ -1317,7 +1319,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
     }
     if (pa_cl_vte_cntl & (1 << 2)) {
       if (viewport_scale_y != 0.0f) {
-        ndc_offset_y -= 0.5f / viewport_scale_y;
+        ndc_offset_y += 0.5f / viewport_scale_y;
       }
     } else {
       ndc_offset_y -= 1.0f / 2560.0f;
