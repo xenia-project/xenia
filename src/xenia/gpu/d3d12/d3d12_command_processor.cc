@@ -666,10 +666,7 @@ void D3D12CommandProcessor::ShutdownContext() {
   auto context = GetD3D12Context();
   context->AwaitAllFramesCompletion();
 
-  if (scratch_buffer_ != nullptr) {
-    scratch_buffer_->Release();
-    scratch_buffer_ = nullptr;
-  }
+  ui::d3d12::util::ReleaseAndNull(scratch_buffer_);
   scratch_buffer_size_ = 0;
 
   for (auto& buffer_for_deletion : buffers_for_deletion_) {
@@ -688,14 +685,8 @@ void D3D12CommandProcessor::ShutdownContext() {
     swap_texture_srv_descriptor_heap_->Release();
     swap_texture_srv_descriptor_heap_ = nullptr;
   }
-  if (swap_texture_rtv_descriptor_heap_ != nullptr) {
-    swap_texture_rtv_descriptor_heap_->Release();
-    swap_texture_rtv_descriptor_heap_ = nullptr;
-  }
-  if (swap_texture_ != nullptr) {
-    swap_texture_->Release();
-    swap_texture_ = nullptr;
-  }
+  ui::d3d12::util::ReleaseAndNull(swap_texture_rtv_descriptor_heap_);
+  ui::d3d12::util::ReleaseAndNull(swap_texture_);
 
   sampler_heap_pool_.reset();
   view_heap_pool_.reset();
@@ -801,10 +792,7 @@ void D3D12CommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
     cache_clear_requested_ = false;
     GetD3D12Context()->AwaitAllFramesCompletion();
 
-    if (scratch_buffer_ != nullptr) {
-      scratch_buffer_->Release();
-      scratch_buffer_ = nullptr;
-    }
+    ui::d3d12::util::ReleaseAndNull(scratch_buffer_);
     scratch_buffer_size_ = 0;
 
     sampler_heap_pool_->ClearCache();

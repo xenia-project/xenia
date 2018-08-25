@@ -291,25 +291,13 @@ void TextureCache::Shutdown() {
   ClearCache();
 
   for (uint32_t i = 0; i < uint32_t(TileMode::kCount); ++i) {
-    if (tile_pipelines_[i] != nullptr) {
-      tile_pipelines_[i]->Release();
-      tile_pipelines_[i] = nullptr;
-    }
+    ui::d3d12::util::ReleaseAndNull(tile_pipelines_[i]);
   }
-  if (tile_root_signature_ != nullptr) {
-    tile_root_signature_->Release();
-    tile_root_signature_ = nullptr;
-  }
+  ui::d3d12::util::ReleaseAndNull(tile_root_signature_);
   for (uint32_t i = 0; i < uint32_t(LoadMode::kCount); ++i) {
-    if (load_pipelines_[i] != nullptr) {
-      load_pipelines_[i]->Release();
-      load_pipelines_[i] = nullptr;
-    }
+    ui::d3d12::util::ReleaseAndNull(load_pipelines_[i]);
   }
-  if (load_root_signature_ != nullptr) {
-    load_root_signature_->Release();
-    load_root_signature_ = nullptr;
-  }
+  ui::d3d12::util::ReleaseAndNull(load_root_signature_);
 }
 
 void TextureCache::ClearCache() {
