@@ -52,7 +52,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
     // k_8_8_8_8
     {DXGI_FORMAT_R8G8B8A8_UNORM, LoadMode::k32bpb, TileMode::k32bpp},
     // k_2_10_10_10
-    {DXGI_FORMAT_R10G10B10A2_UNORM, LoadMode::k32bpb, TileMode::kUnknown},
+    {DXGI_FORMAT_R10G10B10A2_UNORM, LoadMode::k32bpb, TileMode::k32bpp},
     // k_8_A
     {DXGI_FORMAT_R8_UNORM, LoadMode::k8bpb, TileMode::kUnknown},
     // k_8_B
@@ -64,7 +64,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
     // k_Y1_Cr_Y0_Cb_REP
     {DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, TileMode::kUnknown},
     // k_16_16_EDRAM
-    {DXGI_FORMAT_R16G16_UNORM, LoadMode::k32bpb, TileMode::kUnknown},
+    {DXGI_FORMAT_R16G16_UNORM, LoadMode::k32bpb, TileMode::k32bpp},
     // k_8_8_8_8_A
     {DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, TileMode::kUnknown},
     // k_4_4_4_4
@@ -90,19 +90,19 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
     // k_16
     {DXGI_FORMAT_R16_UNORM, LoadMode::k16bpb, TileMode::kUnknown},
     // k_16_16
-    {DXGI_FORMAT_R16G16_UNORM, LoadMode::k32bpb, TileMode::kUnknown},
+    {DXGI_FORMAT_R16G16_UNORM, LoadMode::k32bpb, TileMode::k32bpp},
     // k_16_16_16_16
     {DXGI_FORMAT_R16G16B16A16_UNORM, LoadMode::k64bpb, TileMode::kUnknown},
     // k_16_EXPAND
     {DXGI_FORMAT_R16_FLOAT, LoadMode::k16bpb, TileMode::kUnknown},
     // k_16_16_EXPAND
-    {DXGI_FORMAT_R16G16_FLOAT, LoadMode::k32bpb, TileMode::kUnknown},
+    {DXGI_FORMAT_R16G16_FLOAT, LoadMode::k32bpb, TileMode::k32bpp},
     // k_16_16_16_16_EXPAND
     {DXGI_FORMAT_R16G16B16A16_FLOAT, LoadMode::k64bpb, TileMode::kUnknown},
     // k_16_FLOAT
     {DXGI_FORMAT_R16_FLOAT, LoadMode::k16bpb, TileMode::kUnknown},
     // k_16_16_FLOAT
-    {DXGI_FORMAT_R16G16_FLOAT, LoadMode::k32bpb, TileMode::kUnknown},
+    {DXGI_FORMAT_R16G16_FLOAT, LoadMode::k32bpb, TileMode::k32bpp},
     // k_16_16_16_16_FLOAT
     {DXGI_FORMAT_R16G16B16A16_FLOAT, LoadMode::k64bpb, TileMode::kUnknown},
     // k_32
@@ -112,7 +112,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
     // k_32_32_32_32
     {DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, TileMode::kUnknown},
     // k_32_FLOAT
-    {DXGI_FORMAT_R32_FLOAT, LoadMode::k32bpb, TileMode::kUnknown},
+    {DXGI_FORMAT_R32_FLOAT, LoadMode::k32bpb, TileMode::k32bpp},
     // k_32_32_FLOAT
     {DXGI_FORMAT_R32G32_FLOAT, LoadMode::k64bpb, TileMode::kUnknown},
     // k_32_32_32_32_FLOAT
@@ -140,7 +140,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
     // k_DXN
     {DXGI_FORMAT_BC5_UNORM, LoadMode::k128bpb, TileMode::kUnknown},
     // k_8_8_8_8_AS_16_16_16_16
-    {DXGI_FORMAT_R8G8B8A8_UNORM, LoadMode::k32bpb, TileMode::kUnknown},
+    {DXGI_FORMAT_R8G8B8A8_UNORM, LoadMode::k32bpb, TileMode::k32bpp},
     // k_DXT1_AS_16_16_16_16
     {DXGI_FORMAT_BC1_UNORM, LoadMode::k64bpb, TileMode::kUnknown},
     // k_DXT2_3_AS_16_16_16_16
@@ -148,7 +148,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
     // k_DXT4_5_AS_16_16_16_16
     {DXGI_FORMAT_BC3_UNORM, LoadMode::k128bpb, TileMode::kUnknown},
     // k_2_10_10_10_AS_16_16_16_16
-    {DXGI_FORMAT_R10G10B10A2_UNORM, LoadMode::k32bpb, TileMode::kUnknown},
+    {DXGI_FORMAT_R10G10B10A2_UNORM, LoadMode::k32bpb, TileMode::k32bpp},
     // k_10_11_11_AS_16_16_16_16
     {DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, TileMode::kUnknown},
     // k_11_11_10_AS_16_16_16_16
@@ -164,7 +164,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
     // k_DXT3A_AS_1_1_1_1
     {DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, TileMode::kUnknown},
     // k_8_8_8_8_GAMMA
-    {DXGI_FORMAT_R8G8B8A8_UNORM, LoadMode::k32bpb, TileMode::kUnknown},
+    {DXGI_FORMAT_R8G8B8A8_UNORM, LoadMode::k32bpb, TileMode::k32bpp},
     // k_2_10_10_10_FLOAT_EDRAM
     {DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, TileMode::kUnknown},
 };
