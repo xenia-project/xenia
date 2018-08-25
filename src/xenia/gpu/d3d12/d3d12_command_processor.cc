@@ -9,6 +9,8 @@
 
 #include "xenia/gpu/d3d12/d3d12_command_processor.h"
 
+#include <gflags/gflags.h>
+
 #include <algorithm>
 #include <cstring>
 
@@ -19,6 +21,10 @@
 #include "xenia/gpu/d3d12/d3d12_graphics_system.h"
 #include "xenia/gpu/d3d12/d3d12_shader.h"
 #include "xenia/gpu/xenos.h"
+
+// Disabled because the current positions look worse than sampling at centers.
+DEFINE_bool(d3d12_programmable_sample_positions, false,
+            "Enable custom SSAA sample positions where available");
 
 namespace xe {
 namespace gpu {
@@ -41,6 +47,15 @@ ID3D12GraphicsCommandList* D3D12CommandProcessor::GetCurrentCommandList()
     return nullptr;
   }
   return command_lists_[current_queue_frame_]->GetCommandList();
+}
+
+ID3D12GraphicsCommandList1* D3D12CommandProcessor::GetCurrentCommandList1()
+    const {
+  assert_true(current_queue_frame_ != UINT_MAX);
+  if (current_queue_frame_ == UINT_MAX) {
+    return nullptr;
+  }
+  return command_lists_[current_queue_frame_]->GetCommandList1();
 }
 
 void D3D12CommandProcessor::PushTransitionBarrier(
@@ -467,6 +482,61 @@ void D3D12CommandProcessor::ReleaseScratchGPUBuffer(
   if (buffer == scratch_buffer_) {
     scratch_buffer_state_ = new_state;
   }
+}
+
+void D3D12CommandProcessor::SetSamplePositions(MsaaSamples sample_positions) {
+  if (current_sample_positions_ == sample_positions) {
+    return;
+  }
+  if (FLAGS_d3d12_programmable_sample_positions) {
+    auto provider = GetD3D12Context()->GetD3D12Provider();
+    auto tier = provider->GetProgrammableSamplePositionsTier();
+    auto command_list = GetCurrentCommandList1();
+    if (tier >= 2 && command_list != nullptr) {
+      // Depth buffer transitions are affected by sample positions.
+      SubmitBarriers();
+      // Standard sample positions in Direct3D 10.1, but adjusted to take the
+      // fact that SSAA samples are already shifted by 1/4 of a pixel.
+      // TODO(Triang3l): Find what sample positions are used by Xenos, though
+      // they are not necessarily better. The purpose is just to make 2x SSAA
+      // work a little bit better for tall stairs.
+      // FIXME(Triang3l): This is currently even uglier than without custom
+      // sample positions.
+      if (sample_positions >= MsaaSamples::k2X) {
+        // Sample 1 is lower-left on Xenos, but upper-right in Direct3D 12.
+        D3D12_SAMPLE_POSITION d3d_sample_positions[4];
+        if (sample_positions >= MsaaSamples::k4X) {
+          // Upper-left.
+          d3d_sample_positions[0].X = -2 + 4;
+          d3d_sample_positions[0].Y = -6 + 4;
+          // Upper-right.
+          d3d_sample_positions[1].X = 6 - 4;
+          d3d_sample_positions[1].Y = -2 + 4;
+          // Lower-left.
+          d3d_sample_positions[2].X = -6 + 4;
+          d3d_sample_positions[2].Y = 2 - 4;
+          // Lower-right.
+          d3d_sample_positions[3].X = 2 - 4;
+          d3d_sample_positions[3].Y = 6 - 4;
+        } else {
+          // Upper.
+          d3d_sample_positions[0].X = -4;
+          d3d_sample_positions[0].Y = -4 + 4;
+          d3d_sample_positions[1].X = -4;
+          d3d_sample_positions[1].Y = -4 + 4;
+          // Lower.
+          d3d_sample_positions[2].X = 4;
+          d3d_sample_positions[2].Y = 4 - 4;
+          d3d_sample_positions[3].X = 4;
+          d3d_sample_positions[3].Y = 4 - 4;
+        }
+        command_list->SetSamplePositions(1, 4, d3d_sample_positions);
+      } else {
+        command_list->SetSamplePositions(0, 0, nullptr);
+      }
+    }
+  }
+  current_sample_positions_ = sample_positions;
 }
 
 void D3D12CommandProcessor::SetComputePipeline(ID3D12PipelineState* pipeline) {
@@ -1027,6 +1097,10 @@ bool D3D12CommandProcessor::BeginFrame() {
   ff_scissor_update_needed_ = true;
   ff_blend_factor_update_needed_ = true;
   ff_stencil_ref_update_needed_ = true;
+
+  // Since a new command list is being started, sample positions are reset to
+  // centers.
+  current_sample_positions_ = MsaaSamples::k1X;
 
   // Reset bindings, particularly because the buffers backing them are recycled.
   current_pipeline_ = nullptr;

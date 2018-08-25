@@ -46,6 +46,7 @@ class D3D12CommandProcessor : public CommandProcessor {
 
   // Returns the drawing command list for the currently open frame.
   ID3D12GraphicsCommandList* GetCurrentCommandList() const;
+  ID3D12GraphicsCommandList1* GetCurrentCommandList1() const;
 
   void PushTransitionBarrier(
       ID3D12Resource* resource, D3D12_RESOURCE_STATES old_state,
@@ -85,6 +86,10 @@ class D3D12CommandProcessor : public CommandProcessor {
   // by its user.
   void ReleaseScratchGPUBuffer(ID3D12Resource* buffer,
                                D3D12_RESOURCE_STATES new_state);
+
+  // Sets the current SSAA sample positions, needs to be done before setting
+  // render targets or copying to depth render targets.
+  void SetSamplePositions(MsaaSamples sample_positions);
 
   // Sets the current pipeline state to a compute pipeline. This is for cache
   // invalidation primarily. A frame must be open.
@@ -232,6 +237,9 @@ class D3D12CommandProcessor : public CommandProcessor {
   bool ff_scissor_update_needed_;
   bool ff_blend_factor_update_needed_;
   bool ff_stencil_ref_update_needed_;
+
+  // Current SSAA sample positions (to be updated by the render target cache).
+  MsaaSamples current_sample_positions_;
 
   // Currently bound graphics or compute pipeline.
   ID3D12PipelineState* current_pipeline_;
