@@ -26,10 +26,18 @@ namespace xinput {
 
 XInputInputDriver::XInputInputDriver(xe::ui::Window* window)
     : InputDriver(window) {
+#if (_WIN32_WINNT >= _WIN32_WINNT_WIN8 && _WIN32_WINNT < _WIN32_WINNT_WIN10)
+  // TODO(gibbed): Is this necessary?
   XInputEnable(TRUE);
+#endif
 }
 
-XInputInputDriver::~XInputInputDriver() { XInputEnable(FALSE); }
+XInputInputDriver::~XInputInputDriver() {
+#if (_WIN32_WINNT >= _WIN32_WINNT_WIN8 && _WIN32_WINNT < _WIN32_WINNT_WIN10)
+  // TODO(gibbed): Is this necessary?
+  XInputEnable(FALSE);
+#endif
+}
 
 #pragma warning(pop)
 
