@@ -342,9 +342,8 @@ void D3D12Context::AwaitAllFramesCompletion() {
 
 D3D12_CPU_DESCRIPTOR_HANDLE D3D12Context::GetSwapChainBufferRTV(
     uint32_t buffer_index) const {
-  D3D12_CPU_DESCRIPTOR_HANDLE handle = swap_chain_rtv_heap_start_;
-  handle.ptr += buffer_index * GetD3D12Provider()->GetDescriptorSizeRTV();
-  return handle;
+  return GetD3D12Provider()->OffsetRTVDescriptor(swap_chain_rtv_heap_start_,
+                                                 buffer_index);
 }
 
 }  // namespace d3d12

@@ -377,13 +377,11 @@ uint64_t D3D12CommandProcessor::RequestViewDescriptors(
     }
     GetCurrentCommandList()->SetDescriptorHeaps(heap_count, heaps);
   }
-  uint32_t descriptor_offset =
-      descriptor_index *
-      GetD3D12Context()->GetD3D12Provider()->GetDescriptorSizeView();
-  cpu_handle_out.ptr =
-      view_heap_pool_->GetLastRequestHeapCPUStart().ptr + descriptor_offset;
-  gpu_handle_out.ptr =
-      view_heap_pool_->GetLastRequestHeapGPUStart().ptr + descriptor_offset;
+  auto provider = GetD3D12Context()->GetD3D12Provider();
+  cpu_handle_out = provider->OffsetViewDescriptor(
+      view_heap_pool_->GetLastRequestHeapCPUStart(), descriptor_index);
+  gpu_handle_out = provider->OffsetViewDescriptor(
+      view_heap_pool_->GetLastRequestHeapGPUStart(), descriptor_index);
   return current_full_update;
 }
 
@@ -413,7 +411,7 @@ uint64_t D3D12CommandProcessor::RequestSamplerDescriptors(
   }
   uint32_t descriptor_offset =
       descriptor_index *
-      GetD3D12Context()->GetD3D12Provider()->GetDescriptorSizeSampler();
+      GetD3D12Context()->GetD3D12Provider()->GetSamplerDescriptorSize();
   cpu_handle_out.ptr =
       sampler_heap_pool_->GetLastRequestHeapCPUStart().ptr + descriptor_offset;
   gpu_handle_out.ptr =
@@ -1619,7 +1617,7 @@ bool D3D12CommandProcessor::UpdateBindings(
   uint32_t view_count_full_update = 20 + texture_count;
   D3D12_CPU_DESCRIPTOR_HANDLE view_cpu_handle;
   D3D12_GPU_DESCRIPTOR_HANDLE view_gpu_handle;
-  uint32_t view_handle_size = provider->GetDescriptorSizeView();
+  uint32_t descriptor_size_view = provider->GetViewDescriptorSize();
   uint64_t view_full_update_index = RequestViewDescriptors(
       draw_view_full_update_, view_count_partial_update, view_count_full_update,
       view_cpu_handle, view_gpu_handle);
@@ -1629,7 +1627,7 @@ bool D3D12CommandProcessor::UpdateBindings(
   }
   D3D12_CPU_DESCRIPTOR_HANDLE sampler_cpu_handle = {};
   D3D12_GPU_DESCRIPTOR_HANDLE sampler_gpu_handle = {};
-  uint32_t sampler_handle_size = provider->GetDescriptorSizeSampler();
+  uint32_t descriptor_size_sampler = provider->GetSamplerDescriptorSize();
   uint64_t sampler_full_update_index = 0;
   if (sampler_count != 0) {
     sampler_full_update_index = RequestSamplerDescriptors(
@@ -1651,8 +1649,8 @@ bool D3D12CommandProcessor::UpdateBindings(
     // If updating fully, write the shared memory descriptor (t0, space1).
     shared_memory_->CreateSRV(view_cpu_handle);
     gpu_handle_shared_memory_ = view_gpu_handle;
-    view_cpu_handle.ptr += view_handle_size;
-    view_gpu_handle.ptr += view_handle_size;
+    view_cpu_handle.ptr += descriptor_size_view;
+    view_gpu_handle.ptr += descriptor_size_view;
     current_graphics_root_up_to_date_ &= ~(1u << kRootParameter_SharedMemory);
   }
   if (sampler_count != 0 &&
@@ -1671,15 +1669,15 @@ bool D3D12CommandProcessor::UpdateBindings(
     constant_buffer_desc.SizeInBytes =
         xe::align(uint32_t(sizeof(system_constants_)), 256u);
     device->CreateConstantBufferView(&constant_buffer_desc, view_cpu_handle);
-    view_cpu_handle.ptr += view_handle_size;
-    view_gpu_handle.ptr += view_handle_size;
+    view_cpu_handle.ptr += descriptor_size_view;
+    view_gpu_handle.ptr += descriptor_size_view;
     // Bool/loop constants (b1).
     constant_buffer_desc.BufferLocation =
         cbuffer_bindings_bool_loop_.buffer_address;
     constant_buffer_desc.SizeInBytes = 768;
     device->CreateConstantBufferView(&constant_buffer_desc, view_cpu_handle);
-    view_cpu_handle.ptr += view_handle_size;
-    view_gpu_handle.ptr += view_handle_size;
+    view_cpu_handle.ptr += descriptor_size_view;
+    view_gpu_handle.ptr += descriptor_size_view;
     current_graphics_root_up_to_date_ &=
         ~(1u << kRootParameter_CommonConstants);
   }
@@ -1690,8 +1688,8 @@ bool D3D12CommandProcessor::UpdateBindings(
         cbuffer_bindings_fetch_.buffer_address;
     constant_buffer_desc.SizeInBytes = 768;
     device->CreateConstantBufferView(&constant_buffer_desc, view_cpu_handle);
-    view_cpu_handle.ptr += view_handle_size;
-    view_gpu_handle.ptr += view_handle_size;
+    view_cpu_handle.ptr += descriptor_size_view;
+    view_gpu_handle.ptr += descriptor_size_view;
     current_graphics_root_up_to_date_ &= ~(1u << kRootParameter_FetchConstants);
   }
   if (write_vertex_float_constant_views) {
@@ -1702,8 +1700,8 @@ bool D3D12CommandProcessor::UpdateBindings(
           cbuffer_bindings_float_[i].buffer_address;
       constant_buffer_desc.SizeInBytes = 512;
       device->CreateConstantBufferView(&constant_buffer_desc, view_cpu_handle);
-      view_cpu_handle.ptr += view_handle_size;
-      view_gpu_handle.ptr += view_handle_size;
+      view_cpu_handle.ptr += descriptor_size_view;
+      view_gpu_handle.ptr += descriptor_size_view;
     }
     current_graphics_root_up_to_date_ &=
         ~(1u << kRootParameter_VertexFloatConstants);
@@ -1716,8 +1714,8 @@ bool D3D12CommandProcessor::UpdateBindings(
           cbuffer_bindings_float_[8 + i].buffer_address;
       constant_buffer_desc.SizeInBytes = 512;
       device->CreateConstantBufferView(&constant_buffer_desc, view_cpu_handle);
-      view_cpu_handle.ptr += view_handle_size;
-      view_gpu_handle.ptr += view_handle_size;
+      view_cpu_handle.ptr += descriptor_size_view;
+      view_gpu_handle.ptr += descriptor_size_view;
     }
     current_graphics_root_up_to_date_ &=
         ~(1u << kRootParameter_PixelFloatConstants);
@@ -1731,8 +1729,8 @@ bool D3D12CommandProcessor::UpdateBindings(
         const D3D12Shader::TextureSRV& srv = pixel_textures[i];
         texture_cache_->WriteTextureSRV(srv.fetch_constant, srv.dimension,
                                         view_cpu_handle);
-        view_cpu_handle.ptr += view_handle_size;
-        view_gpu_handle.ptr += view_handle_size;
+        view_cpu_handle.ptr += descriptor_size_view;
+        view_gpu_handle.ptr += descriptor_size_view;
       }
       current_graphics_root_up_to_date_ &=
           ~(1u << current_graphics_root_extras_.pixel_textures);
@@ -1745,8 +1743,8 @@ bool D3D12CommandProcessor::UpdateBindings(
         const D3D12Shader::TextureSRV& srv = vertex_textures[i];
         texture_cache_->WriteTextureSRV(srv.fetch_constant, srv.dimension,
                                         view_cpu_handle);
-        view_cpu_handle.ptr += view_handle_size;
-        view_gpu_handle.ptr += view_handle_size;
+        view_cpu_handle.ptr += descriptor_size_view;
+        view_gpu_handle.ptr += descriptor_size_view;
       }
       current_graphics_root_up_to_date_ &=
           ~(1u << current_graphics_root_extras_.vertex_textures);
@@ -1759,8 +1757,8 @@ bool D3D12CommandProcessor::UpdateBindings(
       gpu_handle_pixel_samplers_ = sampler_gpu_handle;
       for (uint32_t i = 0; i < pixel_sampler_count; ++i) {
         texture_cache_->WriteSampler(pixel_samplers[i], sampler_cpu_handle);
-        sampler_cpu_handle.ptr += sampler_handle_size;
-        sampler_gpu_handle.ptr += sampler_handle_size;
+        sampler_cpu_handle.ptr += descriptor_size_sampler;
+        sampler_gpu_handle.ptr += descriptor_size_sampler;
       }
       current_graphics_root_up_to_date_ &=
           ~(1u << current_graphics_root_extras_.pixel_samplers);
@@ -1771,8 +1769,8 @@ bool D3D12CommandProcessor::UpdateBindings(
       gpu_handle_vertex_samplers_ = sampler_gpu_handle;
       for (uint32_t i = 0; i < vertex_sampler_count; ++i) {
         texture_cache_->WriteSampler(vertex_samplers[i], sampler_cpu_handle);
-        sampler_cpu_handle.ptr += sampler_handle_size;
-        sampler_gpu_handle.ptr += sampler_handle_size;
+        sampler_cpu_handle.ptr += descriptor_size_sampler;
+        sampler_gpu_handle.ptr += descriptor_size_sampler;
       }
       current_graphics_root_up_to_date_ &=
           ~(1u << current_graphics_root_extras_.vertex_samplers);

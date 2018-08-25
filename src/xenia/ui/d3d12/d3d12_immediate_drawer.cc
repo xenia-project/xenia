@@ -266,7 +266,7 @@ bool D3D12ImmediateDrawer::Initialize() {
   }
   sampler_heap_cpu_start_ = sampler_heap_->GetCPUDescriptorHandleForHeapStart();
   sampler_heap_gpu_start_ = sampler_heap_->GetGPUDescriptorHandleForHeapStart();
-  uint32_t sampler_size = provider->GetDescriptorSizeSampler();
+  uint32_t sampler_size = provider->GetSamplerDescriptorSize();
   // Nearest neighbor, clamp.
   D3D12_SAMPLER_DESC sampler_desc;
   sampler_desc.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
@@ -616,7 +616,6 @@ void D3D12ImmediateDrawer::Draw(const ImmediateDraw& draw) {
     current_command_list_->SetDescriptorHeaps(2, descriptor_heaps);
   }
   if (bind_texture) {
-    auto descriptor_size_view = provider->GetDescriptorSizeView();
     D3D12_SHADER_RESOURCE_VIEW_DESC texture_view_desc;
     texture_view_desc.Format = D3D12ImmediateTexture::kFormat;
     texture_view_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
@@ -626,18 +625,16 @@ void D3D12ImmediateDrawer::Draw(const ImmediateDraw& draw) {
     texture_view_desc.Texture2D.MipLevels = 1;
     texture_view_desc.Texture2D.PlaneSlice = 0;
     texture_view_desc.Texture2D.ResourceMinLODClamp = 0.0f;
-    D3D12_CPU_DESCRIPTOR_HANDLE texture_view_cpu_handle;
-    texture_view_cpu_handle.ptr =
-        texture_descriptor_pool_->GetLastRequestHeapCPUStart().ptr +
-        texture_descriptor_index * descriptor_size_view;
-    device->CreateShaderResourceView(texture_resource, &texture_view_desc,
-                                     texture_view_cpu_handle);
-    D3D12_GPU_DESCRIPTOR_HANDLE texture_view_gpu_handle;
-    texture_view_gpu_handle.ptr =
-        texture_descriptor_pool_->GetLastRequestHeapGPUStart().ptr +
-        texture_descriptor_index * descriptor_size_view;
+    device->CreateShaderResourceView(
+        texture_resource, &texture_view_desc,
+        provider->OffsetViewDescriptor(
+            texture_descriptor_pool_->GetLastRequestHeapCPUStart(),
+            texture_descriptor_index));
     current_command_list_->SetGraphicsRootDescriptorTable(
-        UINT(RootParameter::kTexture), texture_view_gpu_handle);
+        UINT(RootParameter::kTexture),
+        provider->OffsetViewDescriptor(
+            texture_descriptor_pool_->GetLastRequestHeapGPUStart(),
+            texture_descriptor_index));
     current_texture_ = texture;
   }
 
@@ -655,12 +652,10 @@ void D3D12ImmediateDrawer::Draw(const ImmediateDraw& draw) {
     sampler_index = SamplerIndex::kNearestClamp;
   }
   if (current_sampler_index_ != sampler_index) {
-    D3D12_GPU_DESCRIPTOR_HANDLE sampler_gpu_handle;
-    sampler_gpu_handle.ptr =
-        sampler_heap_gpu_start_.ptr +
-        UINT(sampler_index) * provider->GetDescriptorSizeSampler();
     current_command_list_->SetGraphicsRootDescriptorTable(
-        UINT(RootParameter::kSampler), sampler_gpu_handle);
+        UINT(RootParameter::kSampler),
+        provider->OffsetSamplerDescriptor(sampler_heap_gpu_start_,
+                                          uint32_t(sampler_index)));
     current_sampler_index_ = sampler_index;
   }
 
