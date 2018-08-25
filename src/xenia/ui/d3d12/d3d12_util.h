@@ -30,6 +30,11 @@ inline bool ReleaseAndNull(T& object) {
 ID3D12RootSignature* CreateRootSignature(ID3D12Device* device,
                                          const D3D12_ROOT_SIGNATURE_DESC& desc);
 
+ID3D12PipelineState* CreateComputePipeline(ID3D12Device* device,
+                                           const void* shader,
+                                           size_t shader_size,
+                                           ID3D12RootSignature* root_signature);
+
 }  // namespace util
 }  // namespace d3d12
 }  // namespace ui
