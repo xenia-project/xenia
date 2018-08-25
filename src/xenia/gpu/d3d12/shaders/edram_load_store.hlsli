@@ -31,7 +31,18 @@ cbuffer XeEDRAMLoadStoreConstants : register(b0) {
 //   For 64 bits per pixel, it's 1 if need to swap 0:15 and 32:47.
 #define xe_edram_tile_sample_dest_info (xe_edram_load_store_constants.w)
 
+// For clearing.
+// Left/top of the cleared region (relative to EDRAM base) in the lower 16 bits,
+// right/bottom in the upper, in samples.
+#define xe_edram_clear_rect (xe_edram_load_store_constants.xy)
+#define xe_edram_clear_color32 (xe_edram_load_store_constants.z)
+#define xe_edram_clear_color64 (xe_edram_load_store_constants.zw)
+#define xe_edram_clear_depth24 (xe_edram_load_store_constants.z)
+#define xe_edram_clear_depth32 (xe_edram_load_store_constants.w)
+
+#ifndef XE_EDRAM_WRITE_ONLY
 ByteAddressBuffer xe_edram_load_store_source : register(t0);
+#endif
 RWByteAddressBuffer xe_edram_load_store_dest : register(u0);
 
 uint XeEDRAMOffset(uint2 tile_index, uint2 tile_dword_index) {
