@@ -21,6 +21,7 @@
 #include "xenia/gpu/d3d12/d3d12_command_processor.h"
 #include "xenia/gpu/texture_info.h"
 #include "xenia/gpu/texture_util.h"
+#include "xenia/ui/d3d12/d3d12_util.h"
 
 namespace xe {
 namespace gpu {
@@ -136,64 +137,24 @@ bool RenderTargetCache::Initialize() {
   load_store_root_desc.NumStaticSamplers = 0;
   load_store_root_desc.pStaticSamplers = nullptr;
   load_store_root_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_NONE;
-  ID3DBlob* load_store_root_blob;
-  ID3DBlob* load_store_root_error_blob = nullptr;
-  if (FAILED(D3D12SerializeRootSignature(
-          &load_store_root_desc, D3D_ROOT_SIGNATURE_VERSION_1,
-          &load_store_root_blob, &load_store_root_error_blob))) {
-    XELOGE("Failed to serialize the EDRAM buffer load/store root signature");
-    if (load_store_root_error_blob != nullptr) {
-      XELOGE("%s", reinterpret_cast<const char*>(
-                       load_store_root_error_blob->GetBufferPointer()));
-      load_store_root_error_blob->Release();
-    }
-    Shutdown();
-    return false;
-  }
-  if (load_store_root_error_blob != nullptr) {
-    load_store_root_error_blob->Release();
-    load_store_root_error_blob = nullptr;
-  }
-  if (FAILED(device->CreateRootSignature(
-          0, load_store_root_blob->GetBufferPointer(),
-          load_store_root_blob->GetBufferSize(),
-          IID_PPV_ARGS(&edram_load_store_root_signature_)))) {
-    XELOGE("Failed to create the EDRAM buffer load/store root signature");
-    load_store_root_blob->Release();
-    Shutdown();
-    return false;
-  }
-  load_store_root_blob->Release();
 
+  edram_load_store_root_signature_ =
+      ui::d3d12::util::CreateRootSignature(device, load_store_root_desc);
+  if (edram_load_store_root_signature_ == nullptr) {
+    XELOGE("Failed to create the EDRAM load/store root signature");
+    Shutdown();
+    return false;
+  }
   // Create the clear root signature (the same, but with the UAV only).
   load_store_root_parameters[1].DescriptorTable.NumDescriptorRanges = 1;
   ++load_store_root_parameters[1].DescriptorTable.pDescriptorRanges;
-  if (FAILED(D3D12SerializeRootSignature(
-          &load_store_root_desc, D3D_ROOT_SIGNATURE_VERSION_1,
-          &load_store_root_blob, &load_store_root_error_blob))) {
-    XELOGE("Failed to serialize the EDRAM buffer clear root signature");
-    if (load_store_root_error_blob != nullptr) {
-      XELOGE("%s", reinterpret_cast<const char*>(
-                       load_store_root_error_blob->GetBufferPointer()));
-      load_store_root_error_blob->Release();
-    }
-    Shutdown();
-    return false;
-  }
-  if (load_store_root_error_blob != nullptr) {
-    load_store_root_error_blob->Release();
-    load_store_root_error_blob = nullptr;
-  }
-  if (FAILED(device->CreateRootSignature(
-          0, load_store_root_blob->GetBufferPointer(),
-          load_store_root_blob->GetBufferSize(),
-          IID_PPV_ARGS(&edram_clear_root_signature_)))) {
+  edram_clear_root_signature_ =
+      ui::d3d12::util::CreateRootSignature(device, load_store_root_desc);
+  if (edram_clear_root_signature_ == nullptr) {
     XELOGE("Failed to create the EDRAM buffer clear root signature");
-    load_store_root_blob->Release();
     Shutdown();
     return false;
   }
-  load_store_root_blob->Release();
 
   // Create the load/store pipelines.
   D3D12_COMPUTE_PIPELINE_STATE_DESC pipeline_desc;
@@ -304,33 +265,13 @@ bool RenderTargetCache::Initialize() {
   resolve_root_desc.pStaticSamplers = &resolve_sampler_desc;
   resolve_root_desc.Flags =
       D3D12_ROOT_SIGNATURE_FLAG_DENY_VERTEX_SHADER_ROOT_ACCESS;
-  ID3DBlob* resolve_root_blob;
-  ID3DBlob* resolve_root_error_blob = nullptr;
-  if (FAILED(D3D12SerializeRootSignature(
-          &resolve_root_desc, D3D_ROOT_SIGNATURE_VERSION_1, &resolve_root_blob,
-          &resolve_root_error_blob))) {
-    XELOGE("Failed to serialize the converting resolve root signature");
-    if (resolve_root_error_blob != nullptr) {
-      XELOGE("%s", reinterpret_cast<const char*>(
-                       resolve_root_error_blob->GetBufferPointer()));
-      resolve_root_error_blob->Release();
-    }
-    Shutdown();
-    return false;
-  }
-  if (resolve_root_error_blob != nullptr) {
-    resolve_root_error_blob->Release();
-  }
-  if (FAILED(device->CreateRootSignature(
-          0, resolve_root_blob->GetBufferPointer(),
-          resolve_root_blob->GetBufferSize(),
-          IID_PPV_ARGS(&resolve_root_signature_)))) {
+  resolve_root_signature_ =
+      ui::d3d12::util::CreateRootSignature(device, resolve_root_desc);
+  if (resolve_root_signature_ == nullptr) {
     XELOGE("Failed to create the converting resolve root signature");
-    resolve_root_blob->Release();
     Shutdown();
     return false;
   }
-  resolve_root_blob->Release();
 
   return true;
 }

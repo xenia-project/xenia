@@ -19,6 +19,7 @@
 #include "xenia/gpu/d3d12/d3d12_command_processor.h"
 #include "xenia/gpu/texture_info.h"
 #include "xenia/gpu/texture_util.h"
+#include "xenia/ui/d3d12/d3d12_util.h"
 
 namespace xe {
 namespace gpu {
@@ -230,34 +231,13 @@ bool TextureCache::Initialize() {
   root_signature_desc.NumStaticSamplers = 0;
   root_signature_desc.pStaticSamplers = nullptr;
   root_signature_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_NONE;
-  ID3DBlob* root_signature_blob;
-  ID3DBlob* root_signature_error_blob = nullptr;
-  if (FAILED(D3D12SerializeRootSignature(
-          &root_signature_desc, D3D_ROOT_SIGNATURE_VERSION_1,
-          &root_signature_blob, &root_signature_error_blob))) {
-    XELOGE("Failed to serialize the texture loading root signature");
-    if (root_signature_error_blob != nullptr) {
-      XELOGE("%s", reinterpret_cast<const char*>(
-                       root_signature_error_blob->GetBufferPointer()));
-      root_signature_error_blob->Release();
-    }
-    Shutdown();
-    return false;
-  }
-  if (root_signature_error_blob != nullptr) {
-    root_signature_error_blob->Release();
-    root_signature_error_blob = nullptr;
-  }
-  if (FAILED(device->CreateRootSignature(
-          0, root_signature_blob->GetBufferPointer(),
-          root_signature_blob->GetBufferSize(),
-          IID_PPV_ARGS(&load_root_signature_)))) {
+  load_root_signature_ =
+      ui::d3d12::util::CreateRootSignature(device, root_signature_desc);
+  if (load_root_signature_ == nullptr) {
     XELOGE("Failed to create the texture loading root signature");
-    root_signature_blob->Release();
     Shutdown();
     return false;
   }
-  root_signature_blob->Release();
   // Create the tiling root signature (almost the same, but with root constants
   // in parameter 0).
   root_parameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
@@ -265,32 +245,13 @@ bool TextureCache::Initialize() {
   root_parameters[0].Constants.RegisterSpace = 0;
   root_parameters[0].Constants.Num32BitValues =
       sizeof(TileConstants) / sizeof(uint32_t);
-  if (FAILED(D3D12SerializeRootSignature(
-          &root_signature_desc, D3D_ROOT_SIGNATURE_VERSION_1,
-          &root_signature_blob, &root_signature_error_blob))) {
-    XELOGE("Failed to serialize the texture tiling root signature");
-    if (root_signature_error_blob != nullptr) {
-      XELOGE("%s", reinterpret_cast<const char*>(
-                       root_signature_error_blob->GetBufferPointer()));
-      root_signature_error_blob->Release();
-    }
-    Shutdown();
-    return false;
-  }
-  if (root_signature_error_blob != nullptr) {
-    root_signature_error_blob->Release();
-    root_signature_error_blob = nullptr;
-  }
-  if (FAILED(device->CreateRootSignature(
-          0, root_signature_blob->GetBufferPointer(),
-          root_signature_blob->GetBufferSize(),
-          IID_PPV_ARGS(&tile_root_signature_)))) {
+  tile_root_signature_ =
+      ui::d3d12::util::CreateRootSignature(device, root_signature_desc);
+  if (tile_root_signature_ == nullptr) {
     XELOGE("Failed to create the texture tiling root signature");
-    root_signature_blob->Release();
     Shutdown();
     return false;
   }
-  root_signature_blob->Release();
 
   // Create the loading and tiling pipelines.
   D3D12_COMPUTE_PIPELINE_STATE_DESC pipeline_desc;

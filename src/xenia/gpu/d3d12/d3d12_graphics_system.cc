@@ -11,7 +11,7 @@
 
 #include "xenia/base/logging.h"
 #include "xenia/gpu/d3d12/d3d12_command_processor.h"
-#include "xenia/ui/d3d12/d3d12_provider.h"
+#include "xenia/ui/d3d12/d3d12_util.h"
 #include "xenia/xbox.h"
 
 namespace xe {
@@ -78,31 +78,12 @@ X_STATUS D3D12GraphicsSystem::Setup(cpu::Processor* processor,
   stretch_root_desc.pStaticSamplers = &stretch_sampler_desc;
   stretch_root_desc.Flags =
       D3D12_ROOT_SIGNATURE_FLAG_DENY_VERTEX_SHADER_ROOT_ACCESS;
-  ID3DBlob* stretch_root_blob;
-  ID3DBlob* stretch_root_error_blob = nullptr;
-  if (FAILED(D3D12SerializeRootSignature(
-          &stretch_root_desc, D3D_ROOT_SIGNATURE_VERSION_1, &stretch_root_blob,
-          &stretch_root_error_blob))) {
-    XELOGE("Failed to serialize the front buffer stretch root signature");
-    if (stretch_root_error_blob != nullptr) {
-      XELOGE("%s", reinterpret_cast<const char*>(
-                       stretch_root_error_blob->GetBufferPointer()));
-      stretch_root_error_blob->Release();
-    }
-    return X_STATUS_UNSUCCESSFUL;
-  }
-  if (stretch_root_error_blob != nullptr) {
-    stretch_root_error_blob->Release();
-  }
-  if (FAILED(device->CreateRootSignature(
-          0, stretch_root_blob->GetBufferPointer(),
-          stretch_root_blob->GetBufferSize(),
-          IID_PPV_ARGS(&stretch_root_signature_)))) {
+  stretch_root_signature_ =
+      ui::d3d12::util::CreateRootSignature(device, stretch_root_desc);
+  if (stretch_root_signature_ == nullptr) {
     XELOGE("Failed to create the front buffer stretch root signature");
-    stretch_root_blob->Release();
     return X_STATUS_UNSUCCESSFUL;
   }
-  stretch_root_blob->Release();
 
   // Create the stretch pipeline.
   D3D12_GRAPHICS_PIPELINE_STATE_DESC stretch_pipeline_desc = {};
