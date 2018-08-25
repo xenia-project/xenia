@@ -254,30 +254,21 @@ bool TextureCache::Initialize() {
   }
 
   // Create the loading and tiling pipelines.
-  D3D12_COMPUTE_PIPELINE_STATE_DESC pipeline_desc;
-  pipeline_desc.pRootSignature = load_root_signature_;
-  pipeline_desc.NodeMask = 0;
-  pipeline_desc.CachedPSO.pCachedBlob = nullptr;
-  pipeline_desc.CachedPSO.CachedBlobSizeInBytes = 0;
-  pipeline_desc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
   for (uint32_t i = 0; i < uint32_t(LoadMode::kCount); ++i) {
     const LoadModeInfo& mode_info = load_mode_info_[i];
-    pipeline_desc.CS.pShaderBytecode = mode_info.shader;
-    pipeline_desc.CS.BytecodeLength = mode_info.shader_size;
-    if (FAILED(device->CreateComputePipelineState(
-            &pipeline_desc, IID_PPV_ARGS(&load_pipelines_[i])))) {
+    load_pipelines_[i] = ui::d3d12::util::CreateComputePipeline(
+        device, mode_info.shader, mode_info.shader_size, load_root_signature_);
+    if (load_pipelines_[i] == nullptr) {
       XELOGE("Failed to create the texture loading pipeline for mode %u", i);
       Shutdown();
       return false;
     }
   }
-  pipeline_desc.pRootSignature = tile_root_signature_;
   for (uint32_t i = 0; i < uint32_t(TileMode::kCount); ++i) {
     const TileModeInfo& mode_info = tile_mode_info_[i];
-    pipeline_desc.CS.pShaderBytecode = mode_info.shader;
-    pipeline_desc.CS.BytecodeLength = mode_info.shader_size;
-    if (FAILED(device->CreateComputePipelineState(
-            &pipeline_desc, IID_PPV_ARGS(&tile_pipelines_[i])))) {
+    tile_pipelines_[i] = ui::d3d12::util::CreateComputePipeline(
+        device, mode_info.shader, mode_info.shader_size, tile_root_signature_);
+    if (tile_pipelines_[i] == nullptr) {
       XELOGE("Failed to create the texture tiling pipeline for mode %u", i);
       Shutdown();
       return false;

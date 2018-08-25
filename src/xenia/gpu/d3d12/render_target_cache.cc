@@ -156,64 +156,50 @@ bool RenderTargetCache::Initialize() {
     return false;
   }
 
-  // Create the load/store pipelines.
-  D3D12_COMPUTE_PIPELINE_STATE_DESC pipeline_desc;
-  pipeline_desc.pRootSignature = edram_load_store_root_signature_;
-  pipeline_desc.NodeMask = 0;
-  pipeline_desc.CachedPSO.pCachedBlob = nullptr;
-  pipeline_desc.CachedPSO.CachedBlobSizeInBytes = 0;
-  pipeline_desc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
+  // Create the pipelines.
+  // Load and store.
   for (uint32_t i = 0; i < uint32_t(EDRAMLoadStoreMode::kCount); ++i) {
-    // Load.
     const EDRAMLoadStoreModeInfo& mode_info = edram_load_store_mode_info_[i];
-    pipeline_desc.CS.pShaderBytecode = mode_info.load_shader;
-    pipeline_desc.CS.BytecodeLength = mode_info.load_shader_size;
-    if (FAILED(device->CreateComputePipelineState(
-            &pipeline_desc, IID_PPV_ARGS(&edram_load_pipelines_[i])))) {
-      XELOGE("Failed to create the EDRAM load pipeline for mode %u", i);
+    edram_load_pipelines_[i] = ui::d3d12::util::CreateComputePipeline(
+        device, mode_info.load_shader, mode_info.load_shader_size,
+        edram_load_store_root_signature_);
+    edram_store_pipelines_[i] = ui::d3d12::util::CreateComputePipeline(
+        device, mode_info.store_shader, mode_info.store_shader_size,
+        edram_load_store_root_signature_);
+    if (edram_load_pipelines_[i] == nullptr ||
+        edram_store_pipelines_[i] == nullptr) {
+      XELOGE("Failed to create the EDRAM load/store pipelines for mode %u", i);
       Shutdown();
       return false;
     }
     edram_load_pipelines_[i]->SetName(mode_info.load_pipeline_name);
-    // Store.
-    pipeline_desc.CS.pShaderBytecode = mode_info.store_shader;
-    pipeline_desc.CS.BytecodeLength = mode_info.store_shader_size;
-    if (FAILED(device->CreateComputePipelineState(
-            &pipeline_desc, IID_PPV_ARGS(&edram_store_pipelines_[i])))) {
-      XELOGE("Failed to create the EDRAM store pipeline for mode %u", i);
-      Shutdown();
-      return false;
-    }
     edram_store_pipelines_[i]->SetName(mode_info.store_pipeline_name);
   }
   // Tile single sample into a texture - 32 bits per pixel.
-  pipeline_desc.CS.pShaderBytecode = edram_tile_sample_32bpp_cs;
-  pipeline_desc.CS.BytecodeLength = sizeof(edram_tile_sample_32bpp_cs);
-  if (FAILED(device->CreateComputePipelineState(
-          &pipeline_desc, IID_PPV_ARGS(&edram_tile_sample_32bpp_pipeline_)))) {
+  edram_tile_sample_32bpp_pipeline_ = ui::d3d12::util::CreateComputePipeline(
+      device, edram_tile_sample_32bpp_cs, sizeof(edram_tile_sample_32bpp_cs),
+      edram_load_store_root_signature_);
+  if (edram_tile_sample_32bpp_pipeline_ == nullptr) {
     XELOGE("Failed to create the 32bpp EDRAM raw resolve pipeline");
     Shutdown();
     return false;
   }
   edram_tile_sample_32bpp_pipeline_->SetName(L"EDRAM Raw Resolve 32bpp");
-
-  // Create the clear pipelines.
-  pipeline_desc.pRootSignature = edram_clear_root_signature_;
-  // 32-bit color or unorm depth.
-  pipeline_desc.CS.pShaderBytecode = edram_clear_32bpp_cs;
-  pipeline_desc.CS.BytecodeLength = sizeof(edram_clear_32bpp_cs);
-  if (FAILED(device->CreateComputePipelineState(
-          &pipeline_desc, IID_PPV_ARGS(&edram_clear_32bpp_pipeline_)))) {
+  // Clear 32-bit color or unorm depth.
+  edram_clear_32bpp_pipeline_ = ui::d3d12::util::CreateComputePipeline(
+      device, edram_clear_32bpp_cs, sizeof(edram_clear_32bpp_cs),
+      edram_clear_root_signature_);
+  if (edram_clear_32bpp_pipeline_ == nullptr) {
     XELOGE("Failed to create the EDRAM 32bpp clear pipeline");
     Shutdown();
     return false;
   }
   edram_clear_32bpp_pipeline_->SetName(L"EDRAM Clear 32bpp");
-  // Float depth.
-  pipeline_desc.CS.pShaderBytecode = edram_clear_depth_float_cs;
-  pipeline_desc.CS.BytecodeLength = sizeof(edram_clear_depth_float_cs);
-  if (FAILED(device->CreateComputePipelineState(
-          &pipeline_desc, IID_PPV_ARGS(&edram_clear_depth_float_pipeline_)))) {
+  // Clear float depth.
+  edram_clear_depth_float_pipeline_ = ui::d3d12::util::CreateComputePipeline(
+      device, edram_clear_depth_float_cs, sizeof(edram_clear_depth_float_cs),
+      edram_clear_root_signature_);
+  if (edram_clear_depth_float_pipeline_ == nullptr) {
     XELOGE("Failed to create the EDRAM float depth clear pipeline");
     Shutdown();
     return false;

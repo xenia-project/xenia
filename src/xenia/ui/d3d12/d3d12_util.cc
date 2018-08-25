@@ -41,6 +41,22 @@ ID3D12RootSignature* CreateRootSignature(
   return root_signature;
 }
 
+ID3D12PipelineState* CreateComputePipeline(
+    ID3D12Device* device, const void* shader, size_t shader_size,
+    ID3D12RootSignature* root_signature) {
+  D3D12_COMPUTE_PIPELINE_STATE_DESC desc;
+  desc.pRootSignature = root_signature;
+  desc.CS.pShaderBytecode = shader;
+  desc.CS.BytecodeLength = shader_size;
+  desc.NodeMask = 0;
+  desc.CachedPSO.pCachedBlob = nullptr;
+  desc.CachedPSO.CachedBlobSizeInBytes = 0;
+  desc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
+  ID3D12PipelineState* pipeline = nullptr;
+  device->CreateComputePipelineState(&desc, IID_PPV_ARGS(&pipeline));
+  return pipeline;
+}
+
 }  // namespace util
 }  // namespace d3d12
 }  // namespace ui
