@@ -982,8 +982,8 @@ bool RenderTargetCache::Resolve(SharedMemory* shared_memory,
   }
 
   XELOGGPU(
-      "Resolving (%d,%d)->(%d,%d) of RT %u (pitch %u, %u sample%s, format "
-      "%u) at %u",
+      "Resolve: (%d,%d)->(%d,%d) of RT %u (pitch %u, %u sample%s, format %u) "
+      "at %u",
       src_rect.left, src_rect.top, src_rect.right, src_rect.bottom,
       surface_index, surface_pitch, 1 << uint32_t(msaa_samples),
       msaa_samples != MsaaSamples::k1X ? "s" : "", surface_format,
@@ -1084,7 +1084,7 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
   // TODO(Triang3l): Investigate what copy_dest_number is.
 
   XELOGGPU(
-      "Copying samples %u to 0x%.8X (%ux%u), destination format %s, "
+      "Resolve: Copying samples %u to 0x%.8X (%ux%u), destination format %s, "
       "exponent bias %d, red and blue %sswapped",
       uint32_t(sample_select), dest_address, dest_pitch, dest_height,
       FormatInfo::Get(dest_format)->name, dest_exp_bias,
@@ -1098,8 +1098,6 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
     // Nothing to copy.
     return true;
   }
-  XELOGGPU("Pitch is %u tiles, %u rows of %u tiles", surface_pitch_tiles, rows,
-           row_tiles);
 
   // There are 2 paths for resolving in this function - they don't necessarily
   // have to map directly to kRaw and kConvert CopyCommands.
@@ -1119,13 +1117,12 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
   //   RTV of the destination format.
   auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
   auto device = provider->GetDevice();
-  auto descriptor_size_view = provider->GetDescriptorSizeView();
   if (sample_select <= xenos::CopySampleSelect::k3 &&
       src_texture_format == dest_format && dest_exp_bias == 0) {
     // *************************************************************************
     // Raw copy
     // *************************************************************************
-    XELOGGPU("Resolving a single sample without conversion");
+    XELOGGPU("Resolve: Copying using a compute shader");
     if (src_64bpp) {
       // TODO(Triang3l): 64bpp sample copy shader.
       return false;
@@ -1153,9 +1150,8 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
     srv_desc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_RAW;
     device->CreateShaderResourceView(edram_buffer_, &srv_desc,
                                      descriptor_cpu_start);
-    D3D12_CPU_DESCRIPTOR_HANDLE uav_cpu_handle;
-    uav_cpu_handle.ptr = descriptor_cpu_start.ptr + descriptor_size_view;
-    shared_memory->CreateRawUAV(uav_cpu_handle);
+    shared_memory->CreateRawUAV(
+        provider->OffsetViewDescriptor(descriptor_cpu_start, 1));
 
     // Transition the buffers.
     command_processor_->PushTransitionBarrier(
@@ -1227,7 +1223,7 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
     // *************************************************************************
     // Conversion and AA resolving
     // *************************************************************************
-    XELOGGPU("Resolving with a pixel shader");
+    XELOGGPU("Resolve: Copying via drawing");
 
     // Get everything we need for the conversion.
 
@@ -1326,11 +1322,9 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
     uav_desc.Buffer.StructureByteStride = 0;
     uav_desc.Buffer.CounterOffsetInBytes = 0;
     uav_desc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_RAW;
-    D3D12_CPU_DESCRIPTOR_HANDLE copy_buffer_cpu_handle;
-    copy_buffer_cpu_handle.ptr =
-        descriptor_cpu_start.ptr + descriptor_size_view;
-    device->CreateUnorderedAccessView(copy_buffer, nullptr, &uav_desc,
-                                      copy_buffer_cpu_handle);
+    device->CreateUnorderedAccessView(
+        copy_buffer, nullptr, &uav_desc,
+        provider->OffsetViewDescriptor(descriptor_cpu_start, 1));
     command_list->SetComputeRootDescriptorTable(1, descriptor_gpu_start);
 
     command_processor_->SetComputePipeline(
@@ -1340,8 +1334,10 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
 
     // Go to the next descriptor set.
 
-    descriptor_cpu_start.ptr += 2 * descriptor_size_view;
-    descriptor_gpu_start.ptr += 2 * descriptor_size_view;
+    descriptor_cpu_start =
+        provider->OffsetViewDescriptor(descriptor_cpu_start, 2);
+    descriptor_gpu_start =
+        provider->OffsetViewDescriptor(descriptor_gpu_start, 2);
 
     // Copy the EDRAM buffer contents to the source texture.
 
@@ -1539,6 +1535,8 @@ bool RenderTargetCache::ResolveClear(uint32_t edram_base,
   if (!(rb_copy_control & (is_depth ? (1 << 9) : (1 << 8)))) {
     return true;
   }
+
+  XELOGGPU("Resolve: Clearing the render target");
 
   // Calculate the layout.
   bool is_64bpp =
@@ -1752,10 +1750,9 @@ RenderTargetCache::ResolveTarget* RenderTargetCache::FindOrCreateResolveTarget(
   }
 
   // Create the RTV.
-  D3D12_CPU_DESCRIPTOR_HANDLE rtv_handle;
-  rtv_handle.ptr = descriptor_heaps_color_->start_handle.ptr +
-                   descriptor_heaps_color_->descriptors_used *
-                       provider->GetDescriptorSizeRTV();
+  D3D12_CPU_DESCRIPTOR_HANDLE rtv_handle =
+      provider->OffsetRTVDescriptor(descriptor_heaps_color_->start_handle,
+                                    descriptor_heaps_color_->descriptors_used);
   D3D12_RENDER_TARGET_VIEW_DESC rtv_desc;
   rtv_desc.Format = format;
   rtv_desc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
@@ -1967,9 +1964,9 @@ RenderTargetCache::RenderTarget* RenderTargetCache::FindOrCreateRenderTarget(
   // Create the descriptor for the render target.
   D3D12_CPU_DESCRIPTOR_HANDLE descriptor_handle;
   if (key.is_depth) {
-    descriptor_handle.ptr = descriptor_heaps_depth_->start_handle.ptr +
-                            descriptor_heaps_depth_->descriptors_used *
-                                provider->GetDescriptorSizeDSV();
+    descriptor_handle = provider->OffsetDSVDescriptor(
+        descriptor_heaps_depth_->start_handle,
+        descriptor_heaps_depth_->descriptors_used);
     D3D12_DEPTH_STENCIL_VIEW_DESC dsv_desc;
     dsv_desc.Format = resource_desc.Format;
     dsv_desc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
@@ -1978,9 +1975,9 @@ RenderTargetCache::RenderTarget* RenderTargetCache::FindOrCreateRenderTarget(
     device->CreateDepthStencilView(resource, &dsv_desc, descriptor_handle);
     ++descriptor_heaps_depth_->descriptors_used;
   } else {
-    descriptor_handle.ptr = descriptor_heaps_color_->start_handle.ptr +
-                            descriptor_heaps_color_->descriptors_used *
-                                provider->GetDescriptorSizeRTV();
+    descriptor_handle = provider->OffsetRTVDescriptor(
+        descriptor_heaps_color_->start_handle,
+        descriptor_heaps_color_->descriptors_used);
     D3D12_RENDER_TARGET_VIEW_DESC rtv_desc;
     rtv_desc.Format = resource_desc.Format;
     rtv_desc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
@@ -2148,7 +2145,6 @@ void RenderTargetCache::StoreRenderTargetsToEDRAM() {
   // Prepare for storing.
   auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
   auto device = provider->GetDevice();
-  auto descriptor_size_view = provider->GetDescriptorSizeView();
   D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc;
   srv_desc.Format = DXGI_FORMAT_R32_TYPELESS;
   srv_desc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
@@ -2167,10 +2163,9 @@ void RenderTargetCache::StoreRenderTargetsToEDRAM() {
   uav_desc.Buffer.StructureByteStride = 0;
   uav_desc.Buffer.CounterOffsetInBytes = 0;
   uav_desc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_RAW;
-  D3D12_CPU_DESCRIPTOR_HANDLE uav_cpu_handle;
-  uav_cpu_handle.ptr = descriptor_cpu_start.ptr + descriptor_size_view;
-  device->CreateUnorderedAccessView(edram_buffer_, nullptr, &uav_desc,
-                                    uav_cpu_handle);
+  device->CreateUnorderedAccessView(
+      edram_buffer_, nullptr, &uav_desc,
+      provider->OffsetViewDescriptor(descriptor_cpu_start, 1));
   command_list->SetComputeRootSignature(edram_load_store_root_signature_);
   command_list->SetComputeRootDescriptorTable(1, descriptor_gpu_start);
 
@@ -2316,7 +2311,6 @@ void RenderTargetCache::LoadRenderTargetsFromEDRAM(
   // Set up the bindings.
   auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
   auto device = provider->GetDevice();
-  auto descriptor_size_view = provider->GetDescriptorSizeView();
   D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc;
   srv_desc.Format = DXGI_FORMAT_R32_TYPELESS;
   srv_desc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
@@ -2335,10 +2329,9 @@ void RenderTargetCache::LoadRenderTargetsFromEDRAM(
   uav_desc.Buffer.StructureByteStride = 0;
   uav_desc.Buffer.CounterOffsetInBytes = 0;
   uav_desc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_RAW;
-  D3D12_CPU_DESCRIPTOR_HANDLE uav_cpu_handle;
-  uav_cpu_handle.ptr = descriptor_cpu_start.ptr + descriptor_size_view;
-  device->CreateUnorderedAccessView(copy_buffer, nullptr, &uav_desc,
-                                    uav_cpu_handle);
+  device->CreateUnorderedAccessView(
+      copy_buffer, nullptr, &uav_desc,
+      provider->OffsetViewDescriptor(descriptor_cpu_start, 1));
   command_list->SetComputeRootSignature(edram_load_store_root_signature_);
   command_list->SetComputeRootDescriptorTable(1, descriptor_gpu_start);
 

@@ -638,10 +638,8 @@ bool TextureCache::TileResolvedTexture(
   srv_desc.Buffer.StructureByteStride = 0;
   srv_desc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_RAW;
   device->CreateShaderResourceView(buffer, &srv_desc, descriptor_cpu_start);
-  D3D12_CPU_DESCRIPTOR_HANDLE uav_cpu_handle;
-  uav_cpu_handle.ptr =
-      descriptor_cpu_start.ptr + provider->GetDescriptorSizeView();
-  shared_memory_->CreateRawUAV(uav_cpu_handle);
+  shared_memory_->CreateRawUAV(
+      provider->OffsetViewDescriptor(descriptor_cpu_start, 1));
   command_list->SetComputeRootDescriptorTable(1, descriptor_gpu_start);
   command_processor_->SetComputePipeline(tile_pipelines_[uint32_t(tile_mode)]);
   command_list->Dispatch((resolve_width + 31) >> 5, (resolve_height + 31) >> 5,
@@ -1028,11 +1026,9 @@ bool TextureCache::LoadTextureData(Texture* texture) {
   uav_desc.Buffer.StructureByteStride = 0;
   uav_desc.Buffer.CounterOffsetInBytes = 0;
   uav_desc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_RAW;
-  D3D12_CPU_DESCRIPTOR_HANDLE descriptor_cpu_uav;
-  descriptor_cpu_uav.ptr =
-      descriptor_cpu_start.ptr + provider->GetDescriptorSizeView();
-  device->CreateUnorderedAccessView(copy_buffer, nullptr, &uav_desc,
-                                    descriptor_cpu_uav);
+  device->CreateUnorderedAccessView(
+      copy_buffer, nullptr, &uav_desc,
+      provider->OffsetViewDescriptor(descriptor_cpu_start, 1));
   command_processor_->SetComputePipeline(pipeline);
   command_list->SetComputeRootSignature(load_root_signature_);
   command_list->SetComputeRootDescriptorTable(1, descriptor_gpu_start);

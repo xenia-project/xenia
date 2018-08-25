@@ -33,10 +33,30 @@ class D3D12Provider : public GraphicsProvider {
   ID3D12Device* GetDevice() const { return device_; }
   ID3D12CommandQueue* GetDirectQueue() const { return direct_queue_; }
 
-  uint32_t GetDescriptorSizeView() const { return descriptor_size_view_; }
-  uint32_t GetDescriptorSizeSampler() const { return descriptor_size_sampler_; }
-  uint32_t GetDescriptorSizeRTV() const { return descriptor_size_rtv_; }
-  uint32_t GetDescriptorSizeDSV() const { return descriptor_size_dsv_; }
+  uint32_t GetViewDescriptorSize() const { return descriptor_size_view_; }
+  uint32_t GetSamplerDescriptorSize() const { return descriptor_size_sampler_; }
+  uint32_t GetRTVDescriptorSize() const { return descriptor_size_rtv_; }
+  uint32_t GetDSVDescriptorSize() const { return descriptor_size_dsv_; }
+  template <typename T>
+  inline T OffsetViewDescriptor(T start, uint32_t index) const {
+    start.ptr += index * descriptor_size_view_;
+    return start;
+  }
+  template <typename T>
+  inline T OffsetSamplerDescriptor(T start, uint32_t index) const {
+    start.ptr += index * descriptor_size_sampler_;
+    return start;
+  }
+  template <typename T>
+  inline T OffsetRTVDescriptor(T start, uint32_t index) const {
+    start.ptr += index * descriptor_size_rtv_;
+    return start;
+  }
+  template <typename T>
+  inline T OffsetDSVDescriptor(T start, uint32_t index) const {
+    start.ptr += index * descriptor_size_dsv_;
+    return start;
+  }
 
   uint32_t GetProgrammableSamplePositionsTier() const {
     return programmable_sample_positions_tier_;
