@@ -27,6 +27,8 @@ namespace gpu {
 namespace d3d12 {
 
 // Generated with `xb buildhlsl`.
+#include "xenia/gpu/d3d12/shaders/bin/edram_clear_32bpp_cs.h"
+#include "xenia/gpu/d3d12/shaders/bin/edram_clear_depth_float_cs.h"
 #include "xenia/gpu/d3d12/shaders/bin/edram_load_color_32bpp_cs.h"
 #include "xenia/gpu/d3d12/shaders/bin/edram_load_color_64bpp_cs.h"
 #include "xenia/gpu/d3d12/shaders/bin/edram_load_color_7e3_cs.h"
@@ -150,12 +152,43 @@ bool RenderTargetCache::Initialize() {
   }
   if (load_store_root_error_blob != nullptr) {
     load_store_root_error_blob->Release();
+    load_store_root_error_blob = nullptr;
   }
   if (FAILED(device->CreateRootSignature(
           0, load_store_root_blob->GetBufferPointer(),
           load_store_root_blob->GetBufferSize(),
           IID_PPV_ARGS(&edram_load_store_root_signature_)))) {
     XELOGE("Failed to create the EDRAM buffer load/store root signature");
+    load_store_root_blob->Release();
+    Shutdown();
+    return false;
+  }
+  load_store_root_blob->Release();
+
+  // Create the clear root signature (the same, but with the UAV only).
+  load_store_root_parameters[1].DescriptorTable.NumDescriptorRanges = 1;
+  ++load_store_root_parameters[1].DescriptorTable.pDescriptorRanges;
+  if (FAILED(D3D12SerializeRootSignature(
+          &load_store_root_desc, D3D_ROOT_SIGNATURE_VERSION_1,
+          &load_store_root_blob, &load_store_root_error_blob))) {
+    XELOGE("Failed to serialize the EDRAM buffer clear root signature");
+    if (load_store_root_error_blob != nullptr) {
+      XELOGE("%s", reinterpret_cast<const char*>(
+                       load_store_root_error_blob->GetBufferPointer()));
+      load_store_root_error_blob->Release();
+    }
+    Shutdown();
+    return false;
+  }
+  if (load_store_root_error_blob != nullptr) {
+    load_store_root_error_blob->Release();
+    load_store_root_error_blob = nullptr;
+  }
+  if (FAILED(device->CreateRootSignature(
+          0, load_store_root_blob->GetBufferPointer(),
+          load_store_root_blob->GetBufferSize(),
+          IID_PPV_ARGS(&edram_clear_root_signature_)))) {
+    XELOGE("Failed to create the EDRAM buffer clear root signature");
     load_store_root_blob->Release();
     Shutdown();
     return false;
@@ -202,6 +235,29 @@ bool RenderTargetCache::Initialize() {
     return false;
   }
   edram_tile_sample_32bpp_pipeline_->SetName(L"EDRAM Raw Resolve 32bpp");
+
+  // Create the clear pipelines.
+  pipeline_desc.pRootSignature = edram_clear_root_signature_;
+  // 32-bit color or unorm depth.
+  pipeline_desc.CS.pShaderBytecode = edram_clear_32bpp_cs;
+  pipeline_desc.CS.BytecodeLength = sizeof(edram_clear_32bpp_cs);
+  if (FAILED(device->CreateComputePipelineState(
+          &pipeline_desc, IID_PPV_ARGS(&edram_clear_32bpp_pipeline_)))) {
+    XELOGE("Failed to create the EDRAM 32bpp clear pipeline");
+    Shutdown();
+    return false;
+  }
+  edram_clear_32bpp_pipeline_->SetName(L"EDRAM Clear 32bpp");
+  // Float depth.
+  pipeline_desc.CS.pShaderBytecode = edram_clear_depth_float_cs;
+  pipeline_desc.CS.BytecodeLength = sizeof(edram_clear_depth_float_cs);
+  if (FAILED(device->CreateComputePipelineState(
+          &pipeline_desc, IID_PPV_ARGS(&edram_clear_depth_float_pipeline_)))) {
+    XELOGE("Failed to create the EDRAM float depth clear pipeline");
+    Shutdown();
+    return false;
+  }
+  edram_clear_depth_float_pipeline_->SetName(L"EDRAM Clear Float Depth");
 
   // Create the converting resolve root signature.
   D3D12_ROOT_PARAMETER resolve_root_parameters[2];
@@ -295,6 +351,14 @@ void RenderTargetCache::Shutdown() {
     edram_tile_sample_32bpp_pipeline_->Release();
     edram_tile_sample_32bpp_pipeline_ = nullptr;
   }
+  if (edram_clear_depth_float_pipeline_ != nullptr) {
+    edram_clear_depth_float_pipeline_->Release();
+    edram_clear_depth_float_pipeline_ = nullptr;
+  }
+  if (edram_clear_32bpp_pipeline_ != nullptr) {
+    edram_clear_32bpp_pipeline_->Release();
+    edram_clear_32bpp_pipeline_ = nullptr;
+  }
   for (uint32_t i = 0; i < uint32_t(EDRAMLoadStoreMode::kCount); ++i) {
     if (edram_load_pipelines_[i] != nullptr) {
       edram_load_pipelines_[i]->Release();
@@ -304,6 +368,10 @@ void RenderTargetCache::Shutdown() {
       edram_store_pipelines_[i]->Release();
       edram_store_pipelines_[i] = nullptr;
     }
+  }
+  if (edram_clear_root_signature_ != nullptr) {
+    edram_clear_root_signature_->Release();
+    edram_clear_root_signature_ = nullptr;
   }
   if (edram_load_store_root_signature_ != nullptr) {
     edram_load_store_root_signature_->Release();
@@ -924,8 +992,9 @@ bool RenderTargetCache::Resolve(SharedMemory* shared_memory,
   bool copied = ResolveCopy(shared_memory, texture_cache, surface_edram_base,
                             surface_pitch, msaa_samples, surface_is_depth,
                             surface_format, src_rect);
-  // TODO(Triang3l): Clear.
-  return copied;
+  bool cleared = ResolveClear(surface_edram_base, surface_pitch, msaa_samples,
+                              surface_is_depth, surface_format, src_rect);
+  return copied || cleared;
 }
 
 bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
@@ -1455,6 +1524,106 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
 
     command_processor_->ReleaseScratchGPUBuffer(copy_buffer, copy_buffer_state);
   }
+
+  return true;
+}
+
+bool RenderTargetCache::ResolveClear(uint32_t edram_base,
+                                     uint32_t surface_pitch,
+                                     MsaaSamples msaa_samples, bool is_depth,
+                                     uint32_t format, const D3D12_RECT& rect) {
+  auto& regs = *register_file_;
+
+  // Check if clearing is enabled.
+  uint32_t rb_copy_control = regs[XE_GPU_REG_RB_COPY_CONTROL].u32;
+  if (!(rb_copy_control & (is_depth ? (1 << 9) : (1 << 8)))) {
+    return true;
+  }
+
+  // Calculate the layout.
+  bool is_64bpp =
+      !is_depth && IsColorFormat64bpp(ColorRenderTargetFormat(format));
+  D3D12_RECT clear_rect = rect;
+  uint32_t surface_pitch_tiles, row_tiles, rows;
+  if (!GetEDRAMLayout(surface_pitch, msaa_samples, is_64bpp, edram_base,
+                      clear_rect, surface_pitch_tiles, row_tiles, rows)) {
+    // Nothing to clear.
+    return true;
+  }
+  uint32_t samples_x_log2 = msaa_samples >= MsaaSamples::k4X ? 1 : 0;
+  uint32_t samples_y_log2 = msaa_samples >= MsaaSamples::k2X ? 1 : 0;
+
+  // Get everything needed for clearing.
+  auto command_list = command_processor_->GetCurrentCommandList();
+  if (command_list == nullptr) {
+    return false;
+  }
+  auto device =
+      command_processor_->GetD3D12Context()->GetD3D12Provider()->GetDevice();
+  D3D12_CPU_DESCRIPTOR_HANDLE descriptor_cpu_start;
+  D3D12_GPU_DESCRIPTOR_HANDLE descriptor_gpu_start;
+  if (command_processor_->RequestViewDescriptors(0, 1, 1, descriptor_cpu_start,
+                                                 descriptor_gpu_start) == 0) {
+    return false;
+  }
+
+  // Submit the clear.
+  command_processor_->PushTransitionBarrier(
+      edram_buffer_, edram_buffer_state_,
+      D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+  edram_buffer_state_ = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+  command_processor_->SubmitBarriers();
+  EDRAMLoadStoreRootConstants root_constants;
+  root_constants.clear_rect_lt = (clear_rect.left << samples_x_log2) |
+                                 (clear_rect.top << (16 + samples_y_log2));
+  root_constants.clear_rect_rb = (clear_rect.right << samples_x_log2) |
+                                 (clear_rect.bottom << (16 + samples_y_log2));
+  root_constants.base_pitch_tiles = edram_base | (surface_pitch_tiles << 11);
+  if (is_depth &&
+      DepthRenderTargetFormat(format) == DepthRenderTargetFormat::kD24FS8) {
+    root_constants.clear_depth24 = regs[XE_GPU_REG_RB_DEPTH_CLEAR].u32;
+    // 20e4 [0,2), based on CFloat24 from d3dref9.dll and on 6e4 in DirectXTex.
+    uint32_t depth24 = root_constants.clear_depth24 >> 8;
+    if (depth24 == 0) {
+      root_constants.clear_depth32 = 0;
+    } else {
+      uint32_t mantissa = depth24 & 0xFFFFFu, exponent = depth24 >> 20;
+      if (exponent == 0) {
+        // Normalize the value in the resulting float.
+        // do { Exponent--; Mantissa <<= 1; } while ((Mantissa & 0x100000) == 0)
+        uint32_t mantissa_lzcnt = xe::lzcnt(mantissa) - (32u - 21u);
+        exponent = 1u - mantissa_lzcnt;
+        mantissa = (mantissa << mantissa_lzcnt) & 0xFFFFFu;
+      }
+      root_constants.clear_depth32 =
+          ((exponent + 112u) << 23) | (mantissa << 3);
+    }
+    command_processor_->SetComputePipeline(edram_clear_depth_float_pipeline_);
+  } else if (is_64bpp) {
+    // TODO(Triang3l): 64bpp color clear.
+    return false;
+  } else {
+    Register reg =
+        is_depth ? XE_GPU_REG_RB_DEPTH_CLEAR : XE_GPU_REG_RB_COLOR_CLEAR;
+    root_constants.clear_color_high = regs[reg].u32;
+    command_processor_->SetComputePipeline(edram_clear_32bpp_pipeline_);
+  }
+  command_list->SetComputeRootSignature(edram_clear_root_signature_);
+  command_list->SetComputeRoot32BitConstants(
+      0, sizeof(root_constants) / sizeof(uint32_t), &root_constants, 0);
+  D3D12_UNORDERED_ACCESS_VIEW_DESC uav_desc;
+  uav_desc.Format = DXGI_FORMAT_R32_TYPELESS;
+  uav_desc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+  uav_desc.Buffer.FirstElement = 0;
+  uav_desc.Buffer.NumElements = 2 * 2048 * 1280;
+  uav_desc.Buffer.StructureByteStride = 0;
+  uav_desc.Buffer.CounterOffsetInBytes = 0;
+  uav_desc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_RAW;
+  device->CreateUnorderedAccessView(edram_buffer_, nullptr, &uav_desc,
+                                    descriptor_cpu_start);
+  command_list->SetComputeRootDescriptorTable(1, descriptor_gpu_start);
+  command_list->Dispatch(row_tiles, rows, 1);
+  command_processor_->PushUAVBarrier(edram_buffer_);
 
   return true;
 }

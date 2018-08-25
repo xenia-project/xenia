@@ -399,6 +399,10 @@ class RenderTargetCache {
                    uint32_t edram_base, uint32_t surface_pitch,
                    MsaaSamples msaa_samples, bool is_depth, uint32_t src_format,
                    const D3D12_RECT& src_rect);
+  // Performs the clearing part of a resolve.
+  bool ResolveClear(uint32_t edram_base, uint32_t surface_pitch,
+                    MsaaSamples msaa_samples, bool is_depth, uint32_t format,
+                    const D3D12_RECT& rect);
 
   ID3D12PipelineState* GetResolvePipeline(DXGI_FORMAT dest_format);
   // Returns any available resolve target placed at least at
@@ -416,8 +420,9 @@ class RenderTargetCache {
   D3D12_RESOURCE_STATES edram_buffer_state_;
   bool edram_buffer_cleared_;
 
-  // EDRAM buffer load/store root signature.
+  // EDRAM root signatures.
   ID3D12RootSignature* edram_load_store_root_signature_ = nullptr;
+  ID3D12RootSignature* edram_clear_root_signature_ = nullptr;
   struct EDRAMLoadStoreRootConstants {
     union {
       struct {
@@ -443,11 +448,26 @@ class RenderTargetCache {
         //   For 64 bits per pixel, it's 1 if need to swap 0:15 and 32:47.
         uint32_t tile_sample_dest_info;
       };
+      struct {
+        // 16 bits for X, 16 bits for Y.
+        uint32_t clear_rect_lt;
+        uint32_t clear_rect_rb;
+        union {
+          struct {
+            uint32_t clear_color_high;
+            uint32_t clear_color_low;
+          };
+          struct {
+            uint32_t clear_depth24;
+            uint32_t clear_depth32;
+          };
+        };
+      };
     };
     // Base in the lower 11 bits, pitch above.
     uint32_t base_pitch_tiles;
   };
-  // EDRAM buffer load/store pipelines.
+  // EDRAM pipelines.
   static const EDRAMLoadStoreModeInfo
       edram_load_store_mode_info_[size_t(EDRAMLoadStoreMode::kCount)];
   ID3D12PipelineState*
@@ -455,6 +475,8 @@ class RenderTargetCache {
   ID3D12PipelineState*
       edram_store_pipelines_[size_t(EDRAMLoadStoreMode::kCount)] = {};
   ID3D12PipelineState* edram_tile_sample_32bpp_pipeline_ = nullptr;
+  ID3D12PipelineState* edram_clear_32bpp_pipeline_ = nullptr;
+  ID3D12PipelineState* edram_clear_depth_float_pipeline_ = nullptr;
 
   // 48 MB heaps backing used render targets resources, created when needed.
   // 24 MB proved to be not enough to store a single render target occupying the
