@@ -116,14 +116,8 @@ X_STATUS D3D12GraphicsSystem::Setup(cpu::Processor* processor,
 }
 
 void D3D12GraphicsSystem::Shutdown() {
-  if (stretch_pipeline_ != nullptr) {
-    stretch_pipeline_->Release();
-    stretch_pipeline_ = nullptr;
-  }
-  if (stretch_root_signature_ != nullptr) {
-    stretch_root_signature_->Release();
-    stretch_root_signature_ = nullptr;
-  }
+  ui::d3d12::util::ReleaseAndNull(stretch_pipeline_);
+  ui::d3d12::util::ReleaseAndNull(stretch_root_signature_);
 
   GraphicsSystem::Shutdown();
 }

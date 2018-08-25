@@ -17,7 +17,8 @@ namespace ui {
 namespace d3d12 {
 namespace util {
 
-inline bool ReleaseAndNull(IUnknown*& object) {
+template <typename T>
+inline bool ReleaseAndNull(T& object) {
   if (object != nullptr) {
     object->Release();
     object = nullptr;

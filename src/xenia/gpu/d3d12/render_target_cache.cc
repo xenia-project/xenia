@@ -283,46 +283,17 @@ void RenderTargetCache::Shutdown() {
     resolve_pipeline.pipeline->Release();
   }
   resolve_pipelines_.clear();
-  if (resolve_root_signature_ != nullptr) {
-    resolve_root_signature_->Release();
-    resolve_root_signature_ = nullptr;
-  }
-
-  if (edram_tile_sample_32bpp_pipeline_ != nullptr) {
-    edram_tile_sample_32bpp_pipeline_->Release();
-    edram_tile_sample_32bpp_pipeline_ = nullptr;
-  }
-  if (edram_clear_depth_float_pipeline_ != nullptr) {
-    edram_clear_depth_float_pipeline_->Release();
-    edram_clear_depth_float_pipeline_ = nullptr;
-  }
-  if (edram_clear_32bpp_pipeline_ != nullptr) {
-    edram_clear_32bpp_pipeline_->Release();
-    edram_clear_32bpp_pipeline_ = nullptr;
-  }
+  ui::d3d12::util::ReleaseAndNull(resolve_root_signature_);
+  ui::d3d12::util::ReleaseAndNull(edram_tile_sample_32bpp_pipeline_);
+  ui::d3d12::util::ReleaseAndNull(edram_clear_depth_float_pipeline_);
+  ui::d3d12::util::ReleaseAndNull(edram_clear_32bpp_pipeline_);
   for (uint32_t i = 0; i < uint32_t(EDRAMLoadStoreMode::kCount); ++i) {
-    if (edram_load_pipelines_[i] != nullptr) {
-      edram_load_pipelines_[i]->Release();
-      edram_load_pipelines_[i] = nullptr;
-    }
-    if (edram_store_pipelines_[i] != nullptr) {
-      edram_store_pipelines_[i]->Release();
-      edram_store_pipelines_[i] = nullptr;
-    }
+    ui::d3d12::util::ReleaseAndNull(edram_store_pipelines_[i]);
+    ui::d3d12::util::ReleaseAndNull(edram_load_pipelines_[i]);
   }
-  if (edram_clear_root_signature_ != nullptr) {
-    edram_clear_root_signature_->Release();
-    edram_clear_root_signature_ = nullptr;
-  }
-  if (edram_load_store_root_signature_ != nullptr) {
-    edram_load_store_root_signature_->Release();
-    edram_load_store_root_signature_ = nullptr;
-  }
-
-  if (edram_buffer_ != nullptr) {
-    edram_buffer_->Release();
-    edram_buffer_ = nullptr;
-  }
+  ui::d3d12::util::ReleaseAndNull(edram_clear_root_signature_);
+  ui::d3d12::util::ReleaseAndNull(edram_load_store_root_signature_);
+  ui::d3d12::util::ReleaseAndNull(edram_buffer_);
 }
 
 void RenderTargetCache::ClearCache() {
