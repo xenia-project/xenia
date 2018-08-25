@@ -14,6 +14,7 @@
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
+#include "xenia/ui/d3d12/d3d12_util.h"
 
 namespace xe {
 namespace ui {
@@ -172,33 +173,13 @@ bool D3D12ImmediateDrawer::Initialize() {
   root_signature_desc.pStaticSamplers = nullptr;
   root_signature_desc.Flags =
       D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
-  ID3DBlob* root_signature_blob;
-  ID3DBlob* root_signature_error_blob = nullptr;
-  if (FAILED(D3D12SerializeRootSignature(
-          &root_signature_desc, D3D_ROOT_SIGNATURE_VERSION_1,
-          &root_signature_blob, &root_signature_error_blob))) {
-    XELOGE("Failed to serialize immediate drawer root signature");
-    if (root_signature_error_blob != nullptr) {
-      XELOGE("%s", reinterpret_cast<const char*>(
-                       root_signature_error_blob->GetBufferPointer()));
-      root_signature_error_blob->Release();
-    }
+  root_signature_ =
+      ui::d3d12::util::CreateRootSignature(device, root_signature_desc);
+  if (root_signature_ == nullptr) {
+    XELOGE("Failed to create the immediate drawer root signature");
     Shutdown();
     return false;
   }
-  if (root_signature_error_blob != nullptr) {
-    root_signature_error_blob->Release();
-  }
-  if (FAILED(device->CreateRootSignature(
-          0, root_signature_blob->GetBufferPointer(),
-          root_signature_blob->GetBufferSize(),
-          IID_PPV_ARGS(&root_signature_)))) {
-    XELOGE("Failed to create immediate drawer root signature");
-    root_signature_blob->Release();
-    Shutdown();
-    return false;
-  }
-  root_signature_blob->Release();
 
   // Create the pipelines.
   D3D12_GRAPHICS_PIPELINE_STATE_DESC pipeline_desc = {};

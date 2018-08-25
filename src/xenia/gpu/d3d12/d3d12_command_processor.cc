@@ -21,6 +21,7 @@
 #include "xenia/gpu/d3d12/d3d12_graphics_system.h"
 #include "xenia/gpu/d3d12/d3d12_shader.h"
 #include "xenia/gpu/xenos.h"
+#include "xenia/ui/d3d12/d3d12_util.h"
 
 // Disabled because the current positions look worse than sampling at centers.
 DEFINE_bool(d3d12_programmable_sample_positions, false,
@@ -278,41 +279,16 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(
     ++desc.NumParameters;
   }
 
-  ID3DBlob* blob;
-  ID3DBlob* error_blob = nullptr;
-  if (FAILED(D3D12SerializeRootSignature(&desc, D3D_ROOT_SIGNATURE_VERSION_1,
-                                         &blob, &error_blob))) {
-    XELOGE(
-        "Failed to serialize a root signature with %u pixel textures, %u "
-        "pixel samplers, %u vertex textures and %u vertex samplers",
-        pixel_texture_count, pixel_sampler_count, vertex_texture_count,
-        vertex_sampler_count);
-    if (error_blob != nullptr) {
-      XELOGE("%s",
-             reinterpret_cast<const char*>(error_blob->GetBufferPointer()));
-      error_blob->Release();
-    }
-    return nullptr;
-  }
-  if (error_blob != nullptr) {
-    error_blob->Release();
-  }
-
-  auto device = GetD3D12Context()->GetD3D12Provider()->GetDevice();
-  ID3D12RootSignature* root_signature;
-  if (FAILED(device->CreateRootSignature(0, blob->GetBufferPointer(),
-                                         blob->GetBufferSize(),
-                                         IID_PPV_ARGS(&root_signature)))) {
+  ID3D12RootSignature* root_signature = ui::d3d12::util::CreateRootSignature(
+      GetD3D12Context()->GetD3D12Provider()->GetDevice(), desc);
+  if (root_signature == nullptr) {
     XELOGE(
         "Failed to create a root signature with %u pixel textures, %u pixel "
         "samplers, %u vertex textures and %u vertex samplers",
         pixel_texture_count, pixel_sampler_count, vertex_texture_count,
         vertex_sampler_count);
-    blob->Release();
     return nullptr;
   }
-  blob->Release();
-
   root_signatures_.insert({index, root_signature});
   return root_signature;
 }
