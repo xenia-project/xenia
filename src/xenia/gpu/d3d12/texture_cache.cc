@@ -941,6 +941,13 @@ bool TextureCache::LoadTextureData(Texture* texture) {
   device->GetCopyableFootprints(&resource_desc, 0, resource_desc.MipLevels, 0,
                                 host_layouts, nullptr, nullptr,
                                 &host_slice_size);
+  // The shaders deliberately overflow for simplicity, and GetCopyableFootprints
+  // doesn't align the size of the last row (or the size if there's only one
+  // row, not really sure) to row pitch, so add some excess bytes for safety.
+  // 1x1 8-bit and 16-bit textures even give a device loss because the raw UAV
+  // has a size of 0.
+  host_slice_size =
+      xe::align(host_slice_size, UINT64(D3D12_TEXTURE_DATA_PITCH_ALIGNMENT));
   D3D12_RESOURCE_STATES copy_buffer_state =
       D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
   ID3D12Resource* copy_buffer = command_processor_->RequestScratchGPUBuffer(

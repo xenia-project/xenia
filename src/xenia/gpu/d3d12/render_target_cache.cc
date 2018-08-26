@@ -1634,6 +1634,10 @@ RenderTargetCache::ResolveTarget* RenderTargetCache::FindOrCreateResolveTarget(
   device->GetCopyableFootprints(&resource_desc, 0, 1, 0,
                                 &resolve_target->footprint, nullptr, nullptr,
                                 &copy_buffer_size);
+  // Safety (though if width and height are aligned to 32 it will be fine, but
+  // just in case this changes).
+  copy_buffer_size =
+      xe::align(copy_buffer_size, UINT64(D3D12_TEXTURE_DATA_PITCH_ALIGNMENT));
   resolve_target->copy_buffer_size = uint32_t(copy_buffer_size);
   resolve_targets_.insert(std::make_pair(key.value, resolve_target));
 
