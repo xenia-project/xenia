@@ -5,21 +5,13 @@ struct XeVertex {
 };
 
 [maxvertexcount(6)]
-void main(triangle XeVertex xe_in[3], inout TriangleStream<XeVertex> xe_stream) {
+void main(triangle XeVertex xe_in[3],
+          inout TriangleStream<XeVertex> xe_stream) {
   XeVertex xe_out;
 
-  xe_out.interpolators = xe_in[0].interpolators;
-  xe_out.position = xe_in[0].position;
-  xe_out.point_size = xe_in[0].point_size;
-  xe_stream.Append(xe_out);
-  xe_out.interpolators = xe_in[1].interpolators;
-  xe_out.position = xe_in[1].position;
-  xe_out.point_size = xe_in[1].point_size;
-  xe_stream.Append(xe_out);
-  xe_out.interpolators = xe_in[2].interpolators;
-  xe_out.position = xe_in[2].position;
-  xe_out.point_size = xe_in[2].point_size;
-  xe_stream.Append(xe_out);
+  xe_stream.Append(xe_in[0]);
+  xe_stream.Append(xe_in[1]);
+  xe_stream.Append(xe_in[2]);
   xe_stream.RestartStrip();
 
   // Most games use a left-aligned form.
@@ -38,14 +30,8 @@ void main(triangle XeVertex xe_in[3], inout TriangleStream<XeVertex> xe_stream) 
     //  |   //   |   2:   1,-1
     //  | -      |   3: [ 1, 1 ]
     //  1 ------[3]
-    xe_out.interpolators = xe_in[2].interpolators;
-    xe_out.position = xe_in[2].position;
-    xe_out.point_size = xe_in[2].point_size;
-    xe_stream.Append(xe_out);
-    xe_out.interpolators = xe_in[1].interpolators;
-    xe_out.position = xe_in[1].position;
-    xe_out.point_size = xe_in[1].point_size;
-    xe_stream.Append(xe_out);
+    xe_stream.Append(xe_in[2]);
+    xe_stream.Append(xe_in[1]);
     [unroll] for (int i = 0; i < 16; ++i) {
       xe_out.interpolators[i] = xe_in[1].interpolators[i] -
                                 xe_in[0].interpolators[i] +
@@ -61,14 +47,8 @@ void main(triangle XeVertex xe_in[3], inout TriangleStream<XeVertex> xe_stream) 
     //  |   \\   |   2:   1, 1
     //  |      - |   3: [-1, 1 ]
     // [3] ----- 2
-    xe_out.interpolators = xe_in[0].interpolators;
-    xe_out.position = xe_in[0].position;
-    xe_out.point_size = xe_in[0].point_size;
-    xe_stream.Append(xe_out);
-    xe_out.interpolators = xe_in[2].interpolators;
-    xe_out.position = xe_in[2].position;
-    xe_out.point_size = xe_in[2].point_size;
-    xe_stream.Append(xe_out);
+    xe_stream.Append(xe_in[0]);
+    xe_stream.Append(xe_in[2]);
     [unroll] for (int i = 0; i < 16; ++i) {
       xe_out.interpolators[i] = xe_in[0].interpolators[i] -
                                 xe_in[1].interpolators[i] +

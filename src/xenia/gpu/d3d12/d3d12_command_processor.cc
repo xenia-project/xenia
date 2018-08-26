@@ -948,6 +948,9 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     case PrimitiveType::kTriangleStrip:
       primitive_topology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP;
       break;
+    case PrimitiveType::kQuadList:
+      primitive_topology = D3D_PRIMITIVE_TOPOLOGY_LINELIST_ADJ;
+      break;
     default:
       return false;
   }
