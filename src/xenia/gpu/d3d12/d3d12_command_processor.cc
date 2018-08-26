@@ -23,6 +23,11 @@
 #include "xenia/gpu/xenos.h"
 #include "xenia/ui/d3d12/d3d12_util.h"
 
+// Some games (such as Banjo-Kazooie) are not aware of the half-pixel offset and
+// may be blurry or have texture sampling artifacts, in this case the user may
+// disable half-pixel offset by setting this to false.
+DEFINE_bool(d3d12_half_pixel_offset, true,
+            "Enable half-pixel vertex and VPOS offset");
 // Disabled because the current positions look worse than sampling at centers.
 DEFINE_bool(d3d12_programmable_sample_positions, false,
             "Enable custom SSAA sample positions where available");
@@ -1366,7 +1371,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   float ndc_offset_y = (pa_cl_vte_cntl & (1 << 3)) ? 0.0f : 1.0f;
   float ndc_offset_z = gl_clip_space_def ? 0.5f : 0.0f;
   float pixel_half_pixel_offset = 0.0f;
-  if (!(pa_su_vtx_cntl & (1 << 0))) {
+  if (FLAGS_d3d12_half_pixel_offset && !(pa_su_vtx_cntl & (1 << 0))) {
     // Signs are hopefully correct here, tested in GTA IV on both clearing
     // (without a viewport) and drawing things near the edges of the screen.
     if (pa_cl_vte_cntl & (1 << 0)) {
