@@ -909,6 +909,11 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     // Need a pixel shader in normal color mode.
     return false;
   }
+  // Translate shaders now because to get the color mask, which is needed by the
+  // render target cache.
+  if (!pipeline_cache_->EnsureShadersTranslated(vertex_shader, pixel_shader)) {
+    return false;
+  }
 
   uint32_t color_mask = GetCurrentColorMask(pixel_shader);
   if (!color_mask && !(regs[XE_GPU_REG_RB_DEPTHCONTROL].u32 & (0x1 | 0x4))) {

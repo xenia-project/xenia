@@ -69,6 +69,40 @@ D3D12Shader* PipelineCache::LoadShader(ShaderType shader_type,
   return shader;
 }
 
+bool PipelineCache::EnsureShadersTranslated(D3D12Shader* vertex_shader,
+                                            D3D12Shader* pixel_shader) {
+  auto& regs = *register_file_;
+
+  // These are the constant base addresses/ranges for shaders.
+  // We have these hardcoded right now cause nothing seems to differ.
+  assert_true(regs[XE_GPU_REG_SQ_VS_CONST].u32 == 0x000FF000 ||
+              regs[XE_GPU_REG_SQ_VS_CONST].u32 == 0x00000000);
+  assert_true(regs[XE_GPU_REG_SQ_PS_CONST].u32 == 0x000FF100 ||
+              regs[XE_GPU_REG_SQ_PS_CONST].u32 == 0x00000000);
+
+  xenos::xe_gpu_program_cntl_t sq_program_cntl;
+  sq_program_cntl.dword_0 = regs[XE_GPU_REG_SQ_PROGRAM_CNTL].u32;
+  if (!vertex_shader->is_translated() &&
+      !TranslateShader(vertex_shader, sq_program_cntl)) {
+    XELOGE("Failed to translate the vertex shader!");
+    return false;
+  }
+  if (pixel_shader != nullptr && !pixel_shader->is_translated() &&
+      !TranslateShader(pixel_shader, sq_program_cntl)) {
+    XELOGE("Failed to translate the pixel shader!");
+    return false;
+  }
+  if (!vertex_shader->is_valid()) {
+    XELOGE("Failed to prepare the vertex shader!");
+    return false;
+  }
+  if (pixel_shader != nullptr && !pixel_shader->is_valid()) {
+    XELOGE("Failed to prepare the pixel shader!");
+    return false;
+  }
+  return true;
+}
+
 PipelineCache::UpdateStatus PipelineCache::ConfigurePipeline(
     D3D12Shader* vertex_shader, D3D12Shader* pixel_shader,
     PrimitiveType primitive_type, IndexFormat index_format,
@@ -160,7 +194,8 @@ bool PipelineCache::TranslateShader(D3D12Shader* shader,
   // Perform translation.
   // If this fails the shader will be marked as invalid and ignored later.
   if (!shader_translator_->Translate(shader, cntl)) {
-    XELOGE("Shader translation failed; marking shader as ignored");
+    XELOGE("Shader %.16" PRIX64 "translation failed; marking as ignored",
+           shader->ucode_data_hash());
     return false;
   }
 
@@ -175,7 +210,8 @@ bool PipelineCache::TranslateShader(D3D12Shader* shader,
   // Prepare the shader for use (creates the Shader Model bytecode).
   // It could still fail at this point.
   if (!shader->Prepare()) {
-    XELOGE("Shader preparation failed; marking shader as ignored");
+    XELOGE("Shader %.16" PRIX64 "preparation failed; marking as ignored",
+           shader->ucode_data_hash());
     return false;
   }
 
@@ -234,17 +270,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateShaderStages(
     PrimitiveType primitive_type) {
   auto& regs = update_shader_stages_regs_;
 
-  // These are the constant base addresses/ranges for shaders.
-  // We have these hardcoded right now cause nothing seems to differ.
-  assert_true(register_file_->values[XE_GPU_REG_SQ_VS_CONST].u32 ==
-                  0x000FF000 ||
-              register_file_->values[XE_GPU_REG_SQ_VS_CONST].u32 == 0x00000000);
-  assert_true(register_file_->values[XE_GPU_REG_SQ_PS_CONST].u32 ==
-                  0x000FF100 ||
-              register_file_->values[XE_GPU_REG_SQ_PS_CONST].u32 == 0x00000000);
-
   bool dirty = current_pipeline_ == nullptr;
-  dirty |= SetShadowRegister(&regs.sq_program_cntl, XE_GPU_REG_SQ_PROGRAM_CNTL);
   dirty |= regs.vertex_shader != vertex_shader;
   dirty |= regs.pixel_shader != pixel_shader;
   regs.vertex_shader = vertex_shader;
@@ -269,24 +295,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateShaderStages(
     return UpdateStatus::kCompatible;
   }
 
-  xenos::xe_gpu_program_cntl_t sq_program_cntl;
-  sq_program_cntl.dword_0 = regs.sq_program_cntl;
-  if (!vertex_shader->is_translated() &&
-      !TranslateShader(vertex_shader, sq_program_cntl)) {
-    XELOGE("Failed to translate the vertex shader!");
-    return UpdateStatus::kError;
-  }
-  if (pixel_shader != nullptr && !pixel_shader->is_translated() &&
-      !TranslateShader(pixel_shader, sq_program_cntl)) {
-    XELOGE("Failed to translate the pixel shader!");
-    return UpdateStatus::kError;
-  }
-  if (!vertex_shader->is_valid()) {
-    XELOGE("Failed to prepare the vertex shader!");
-    return UpdateStatus::kError;
-  }
-  if (pixel_shader != nullptr && !pixel_shader->is_valid()) {
-    XELOGE("Failed to prepare the pixel shader!");
+  if (!EnsureShadersTranslated(vertex_shader, pixel_shader)) {
     return UpdateStatus::kError;
   }
 
