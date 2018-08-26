@@ -48,6 +48,16 @@ class D3D12CommandProcessor : public CommandProcessor {
   ID3D12GraphicsCommandList* GetCurrentCommandList() const;
   ID3D12GraphicsCommandList1* GetCurrentCommandList1() const;
 
+  // Gets the current color write mask, taking the pixel shader's write mask
+  // into account. If a shader doesn't write to a render target, it shouldn't be
+  // written to and it shouldn't be even bound - otherwise, in Halo 3, one
+  // render target is being destroyed by a shader not writing anything, and in
+  // Banjo-Tooie, the result of clearing the top tile is being ignored because
+  // there are 4 render targets bound with the same EDRAM base (clearly not
+  // correct usage), but the shader only clears 1, and then EDRAM buffer stores
+  // conflict with each other.
+  uint32_t GetCurrentColorMask(const D3D12Shader* pixel_shader) const;
+
   void PushTransitionBarrier(
       ID3D12Resource* resource, D3D12_RESOURCE_STATES old_state,
       D3D12_RESOURCE_STATES new_state,

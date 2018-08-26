@@ -59,6 +59,21 @@ ID3D12GraphicsCommandList1* D3D12CommandProcessor::GetCurrentCommandList1()
   return command_lists_[current_queue_frame_]->GetCommandList1();
 }
 
+uint32_t D3D12CommandProcessor::GetCurrentColorMask(
+    const D3D12Shader* pixel_shader) const {
+  if (pixel_shader == nullptr) {
+    return 0;
+  }
+  auto& regs = *register_file_;
+  uint32_t color_mask = regs[XE_GPU_REG_RB_COLOR_MASK].u32 & 0xFFFF;
+  for (uint32_t i = 0; i < 4; ++i) {
+    if (!pixel_shader->writes_color_target(i)) {
+      color_mask &= ~(0xF << (i * 4));
+    }
+  }
+  return color_mask;
+}
+
 void D3D12CommandProcessor::PushTransitionBarrier(
     ID3D12Resource* resource, D3D12_RESOURCE_STATES old_state,
     D3D12_RESOURCE_STATES new_state, UINT subresource) {
@@ -848,12 +863,6 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     // Doesn't actually draw.
     return true;
   }
-  uint32_t color_mask = enable_mode == xenos::ModeControl::kColorDepth ?
-                        regs[XE_GPU_REG_RB_COLOR_MASK].u32 & 0xFFFF : 0;
-  if (!color_mask && !(regs[XE_GPU_REG_RB_DEPTHCONTROL].u32 & (0x1 | 0x4))) {
-    // Not writing to color, depth or doing stencil test, so doesn't draw.
-    return true;
-  }
   if ((regs[XE_GPU_REG_PA_SU_SC_MODE_CNTL].u32 & 0x3) == 0x3 &&
       primitive_type != PrimitiveType::kPointList &&
       primitive_type != PrimitiveType::kRectangleList) {
@@ -901,11 +910,17 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     return false;
   }
 
+  uint32_t color_mask = GetCurrentColorMask(pixel_shader);
+  if (!color_mask && !(regs[XE_GPU_REG_RB_DEPTHCONTROL].u32 & (0x1 | 0x4))) {
+    // Not writing to color, depth or doing stencil test, so doesn't draw.
+    return true;
+  }
+
   bool new_frame = BeginFrame();
   auto command_list = GetCurrentCommandList();
 
   // Set up the render targets - this may bind pipelines.
-  if (!render_target_cache_->UpdateRenderTargets()) {
+  if (!render_target_cache_->UpdateRenderTargets(pixel_shader)) {
     // Doesn't actually draw.
     return true;
   }

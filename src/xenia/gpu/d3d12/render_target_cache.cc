@@ -323,7 +323,7 @@ void RenderTargetCache::BeginFrame() {
   // stable D24F==D32F comparison.
 }
 
-bool RenderTargetCache::UpdateRenderTargets() {
+bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
   // There are two kinds of render target binding updates in this implementation
   // in case something has been changed - full and partial.
   //
@@ -416,16 +416,12 @@ bool RenderTargetCache::UpdateRenderTargets() {
   uint32_t edram_bases[5];
   uint32_t formats[5];
   bool formats_are_64bpp[5];
-  uint32_t rb_color_mask = regs[XE_GPU_REG_RB_COLOR_MASK].u32;
-  if (xenos::ModeControl(regs[XE_GPU_REG_RB_MODECONTROL].u32 & 0x7) !=
-      xenos::ModeControl::kColorDepth) {
-    rb_color_mask = 0;
-  }
+  uint32_t color_mask = command_processor_->GetCurrentColorMask(pixel_shader);
   uint32_t rb_color_info[4] = {
       regs[XE_GPU_REG_RB_COLOR_INFO].u32, regs[XE_GPU_REG_RB_COLOR1_INFO].u32,
       regs[XE_GPU_REG_RB_COLOR2_INFO].u32, regs[XE_GPU_REG_RB_COLOR3_INFO].u32};
   for (uint32_t i = 0; i < 4; ++i) {
-    enabled[i] = (rb_color_mask & (0xF << (i * 4))) != 0;
+    enabled[i] = (color_mask & (0xF << (i * 4))) != 0;
     edram_bases[i] = std::min(rb_color_info[i] & 0xFFF, 2048u);
     formats[i] = (rb_color_info[i] >> 16) & 0xF;
     formats_are_64bpp[i] =
@@ -2027,7 +2023,13 @@ void RenderTargetCache::StoreRenderTargetsToEDRAM() {
         if (current_bindings_[a].edram_base < current_bindings_[b].edram_base) {
           return true;
         }
-        return a < b;
+        // If EDRAM bases are the same (not really a valid usage, but happens in
+        // Banjo-Tooie - in case color writing was enabled for invalid render
+        // targets in some draw call), treat the render targets with the lowest
+        // index as more important (it's the primary one after all, while the
+        // rest are additional). Also treat the depth buffer as highest-priority
+        // (in the comparison, treat depth as 0 and color as 1-4).
+        return ((a + 1) % 5) > ((b + 1) % 5);
       });
 
   // Calculate the dispatch width.
