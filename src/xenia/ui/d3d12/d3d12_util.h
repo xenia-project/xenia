@@ -35,6 +35,15 @@ ID3D12PipelineState* CreateComputePipeline(ID3D12Device* device,
                                            size_t shader_size,
                                            ID3D12RootSignature* root_signature);
 
+void CreateRawBufferSRV(ID3D12Device* device,
+                        D3D12_CPU_DESCRIPTOR_HANDLE handle,
+                        ID3D12Resource* buffer, uint32_t size,
+                        uint64_t offset = 0);
+void CreateRawBufferUAV(ID3D12Device* device,
+                        D3D12_CPU_DESCRIPTOR_HANDLE handle,
+                        ID3D12Resource* buffer, uint32_t size,
+                        uint64_t offset = 0);
+
 }  // namespace util
 }  // namespace d3d12
 }  // namespace ui

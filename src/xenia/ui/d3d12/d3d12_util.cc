@@ -9,6 +9,7 @@
 
 #include "xenia/ui/d3d12/d3d12_util.h"
 
+#include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
 
 namespace xe {
@@ -55,6 +56,40 @@ ID3D12PipelineState* CreateComputePipeline(
   ID3D12PipelineState* pipeline = nullptr;
   device->CreateComputePipelineState(&desc, IID_PPV_ARGS(&pipeline));
   return pipeline;
+}
+
+void CreateRawBufferSRV(ID3D12Device* device,
+                        D3D12_CPU_DESCRIPTOR_HANDLE handle,
+                        ID3D12Resource* buffer, uint32_t size,
+                        uint64_t offset) {
+  assert_false(size & (D3D12_RAW_UAV_SRV_BYTE_ALIGNMENT - 1));
+  assert_false(offset & (D3D12_RAW_UAV_SRV_BYTE_ALIGNMENT - 1));
+  D3D12_SHADER_RESOURCE_VIEW_DESC desc;
+  desc.Format = DXGI_FORMAT_R32_TYPELESS;
+  desc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+  desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+  desc.Buffer.FirstElement = offset >> 2;
+  desc.Buffer.NumElements = size >> 2;
+  desc.Buffer.StructureByteStride = 0;
+  desc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_RAW;
+  device->CreateShaderResourceView(buffer, &desc, handle);
+}
+
+void CreateRawBufferUAV(ID3D12Device* device,
+                        D3D12_CPU_DESCRIPTOR_HANDLE handle,
+                        ID3D12Resource* buffer, uint32_t size,
+                        uint64_t offset) {
+  assert_false(size & (D3D12_RAW_UAV_SRV_BYTE_ALIGNMENT - 1));
+  assert_false(offset & (D3D12_RAW_UAV_SRV_BYTE_ALIGNMENT - 1));
+  D3D12_UNORDERED_ACCESS_VIEW_DESC desc;
+  desc.Format = DXGI_FORMAT_R32_TYPELESS;
+  desc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+  desc.Buffer.FirstElement = offset >> 2;
+  desc.Buffer.NumElements = size >> 2;
+  desc.Buffer.StructureByteStride = 0;
+  desc.Buffer.CounterOffsetInBytes = 0;
+  desc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_RAW;
+  device->CreateUnorderedAccessView(buffer, nullptr, &desc, handle);
 }
 
 }  // namespace util

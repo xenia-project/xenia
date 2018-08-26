@@ -78,9 +78,7 @@ bool RenderTargetCache::Initialize() {
   D3D12_RESOURCE_DESC edram_buffer_desc;
   edram_buffer_desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
   edram_buffer_desc.Alignment = 0;
-  // First 10 MB is guest pixel data, second 10 MB is 32-bit depth when using
-  // D24FS8 so loads/stores don't corrupt multipass rendering.
-  edram_buffer_desc.Width = 2 * 2048 * 5120;
+  edram_buffer_desc.Width = kEDRAMBufferSize;
   edram_buffer_desc.Height = 1;
   edram_buffer_desc.DepthOrArraySize = 1;
   edram_buffer_desc.MipLevels = 1;
@@ -1038,16 +1036,8 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
             0, 2, 2, descriptor_cpu_start, descriptor_gpu_start) == 0) {
       return false;
     }
-    D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc;
-    srv_desc.Format = DXGI_FORMAT_R32_TYPELESS;
-    srv_desc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
-    srv_desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-    srv_desc.Buffer.FirstElement = 0;
-    srv_desc.Buffer.NumElements = 2 * 2048 * 1280;
-    srv_desc.Buffer.StructureByteStride = 0;
-    srv_desc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_RAW;
-    device->CreateShaderResourceView(edram_buffer_, &srv_desc,
-                                     descriptor_cpu_start);
+    ui::d3d12::util::CreateRawBufferSRV(device, descriptor_cpu_start,
+                                        edram_buffer_, kEDRAMBufferSize);
     shared_memory->CreateRawUAV(
         provider->OffsetViewDescriptor(descriptor_cpu_start, 1));
 
@@ -1202,27 +1192,11 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
         0, sizeof(load_root_constants) / sizeof(uint32_t), &load_root_constants,
         0);
 
-    D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc;
-    srv_desc.Format = DXGI_FORMAT_R32_TYPELESS;
-    srv_desc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
-    srv_desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-    srv_desc.Buffer.FirstElement = 0;
-    srv_desc.Buffer.NumElements = 2048 * 1280;
-    srv_desc.Buffer.StructureByteStride = 0;
-    srv_desc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_RAW;
-    device->CreateShaderResourceView(edram_buffer_, &srv_desc,
-                                     descriptor_cpu_start);
-    D3D12_UNORDERED_ACCESS_VIEW_DESC uav_desc;
-    uav_desc.Format = DXGI_FORMAT_R32_TYPELESS;
-    uav_desc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
-    uav_desc.Buffer.FirstElement = 0;
-    uav_desc.Buffer.NumElements = render_target->copy_buffer_size >> 2;
-    uav_desc.Buffer.StructureByteStride = 0;
-    uav_desc.Buffer.CounterOffsetInBytes = 0;
-    uav_desc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_RAW;
-    device->CreateUnorderedAccessView(
-        copy_buffer, nullptr, &uav_desc,
-        provider->OffsetViewDescriptor(descriptor_cpu_start, 1));
+    ui::d3d12::util::CreateRawBufferSRV(device, descriptor_cpu_start,
+                                        edram_buffer_, kEDRAMBufferSize);
+    ui::d3d12::util::CreateRawBufferUAV(
+        device, provider->OffsetViewDescriptor(descriptor_cpu_start, 1),
+        copy_buffer, render_target->copy_buffer_size);
     command_list->SetComputeRootDescriptorTable(1, descriptor_gpu_start);
 
     command_processor_->SetComputePipeline(
@@ -1330,8 +1304,10 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
         0, sizeof(resolve_root_constants) / sizeof(uint32_t),
         &resolve_root_constants, 0);
 
-    srv_desc.Format = GetColorDXGIFormat(ColorRenderTargetFormat(src_format));
-    srv_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+    D3D12_SHADER_RESOURCE_VIEW_DESC rt_srv_desc;
+    rt_srv_desc.Format =
+        GetColorDXGIFormat(ColorRenderTargetFormat(src_format));
+    rt_srv_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
     if (dest_swap) {
       switch (ColorRenderTargetFormat(src_format)) {
         case ColorRenderTargetFormat::k_8_8_8_8:
@@ -1342,22 +1318,22 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
         case ColorRenderTargetFormat::k_16_16_16_16_FLOAT:
         case ColorRenderTargetFormat::k_2_10_10_10_AS_16_16_16_16:
         case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
-          srv_desc.Shader4ComponentMapping =
+          rt_srv_desc.Shader4ComponentMapping =
               D3D12_ENCODE_SHADER_4_COMPONENT_MAPPING(2, 1, 0, 3);
           break;
         default:
-          srv_desc.Shader4ComponentMapping =
+          rt_srv_desc.Shader4ComponentMapping =
               D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
       }
     } else {
-      srv_desc.Shader4ComponentMapping =
+      rt_srv_desc.Shader4ComponentMapping =
           D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
     }
-    srv_desc.Texture2D.MostDetailedMip = 0;
-    srv_desc.Texture2D.MipLevels = 1;
-    srv_desc.Texture2D.PlaneSlice = 0;
-    srv_desc.Texture2D.ResourceMinLODClamp = 0.0f;
-    device->CreateShaderResourceView(render_target->resource, &srv_desc,
+    rt_srv_desc.Texture2D.MostDetailedMip = 0;
+    rt_srv_desc.Texture2D.MipLevels = 1;
+    rt_srv_desc.Texture2D.PlaneSlice = 0;
+    rt_srv_desc.Texture2D.ResourceMinLODClamp = 0.0f;
+    device->CreateShaderResourceView(render_target->resource, &rt_srv_desc,
                                      descriptor_cpu_start);
     command_list->SetGraphicsRootDescriptorTable(1, descriptor_gpu_start);
 
@@ -1507,16 +1483,8 @@ bool RenderTargetCache::ResolveClear(uint32_t edram_base,
   command_list->SetComputeRootSignature(edram_clear_root_signature_);
   command_list->SetComputeRoot32BitConstants(
       0, sizeof(root_constants) / sizeof(uint32_t), &root_constants, 0);
-  D3D12_UNORDERED_ACCESS_VIEW_DESC uav_desc;
-  uav_desc.Format = DXGI_FORMAT_R32_TYPELESS;
-  uav_desc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
-  uav_desc.Buffer.FirstElement = 0;
-  uav_desc.Buffer.NumElements = 2 * 2048 * 1280;
-  uav_desc.Buffer.StructureByteStride = 0;
-  uav_desc.Buffer.CounterOffsetInBytes = 0;
-  uav_desc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_RAW;
-  device->CreateUnorderedAccessView(edram_buffer_, nullptr, &uav_desc,
-                                    descriptor_cpu_start);
+  ui::d3d12::util::CreateRawBufferUAV(device, descriptor_cpu_start,
+                                      edram_buffer_, kEDRAMBufferSize);
   command_list->SetComputeRootDescriptorTable(1, descriptor_gpu_start);
   command_list->Dispatch(row_tiles, rows, 1);
   command_processor_->PushUAVBarrier(edram_buffer_);
@@ -2040,31 +2008,15 @@ void RenderTargetCache::StoreRenderTargetsToEDRAM() {
       D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
   edram_buffer_state_ = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
 
-  // Prepare for storing.
+  // Set up the bindings.
   auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
   auto device = provider->GetDevice();
-  D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc;
-  srv_desc.Format = DXGI_FORMAT_R32_TYPELESS;
-  srv_desc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
-  srv_desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-  srv_desc.Buffer.FirstElement = 0;
-  srv_desc.Buffer.NumElements = copy_buffer_size >> 2;
-  srv_desc.Buffer.StructureByteStride = 0;
-  srv_desc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_RAW;
-  device->CreateShaderResourceView(copy_buffer, &srv_desc,
-                                   descriptor_cpu_start);
-  D3D12_UNORDERED_ACCESS_VIEW_DESC uav_desc;
-  uav_desc.Format = DXGI_FORMAT_R32_TYPELESS;
-  uav_desc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
-  uav_desc.Buffer.FirstElement = 0;
-  uav_desc.Buffer.NumElements = 2 * 2048 * 1280;
-  uav_desc.Buffer.StructureByteStride = 0;
-  uav_desc.Buffer.CounterOffsetInBytes = 0;
-  uav_desc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_RAW;
-  device->CreateUnorderedAccessView(
-      edram_buffer_, nullptr, &uav_desc,
-      provider->OffsetViewDescriptor(descriptor_cpu_start, 1));
   command_list->SetComputeRootSignature(edram_load_store_root_signature_);
+  ui::d3d12::util::CreateRawBufferSRV(device, descriptor_cpu_start, copy_buffer,
+                                      copy_buffer_size);
+  ui::d3d12::util::CreateRawBufferUAV(
+      device, provider->OffsetViewDescriptor(descriptor_cpu_start, 1),
+      edram_buffer_, kEDRAMBufferSize);
   command_list->SetComputeRootDescriptorTable(1, descriptor_gpu_start);
 
   // Sort the bindings in ascending order of EDRAM base so data in the render
@@ -2209,28 +2161,12 @@ void RenderTargetCache::LoadRenderTargetsFromEDRAM(
   // Set up the bindings.
   auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
   auto device = provider->GetDevice();
-  D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc;
-  srv_desc.Format = DXGI_FORMAT_R32_TYPELESS;
-  srv_desc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
-  srv_desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-  srv_desc.Buffer.FirstElement = 0;
-  srv_desc.Buffer.NumElements = 2 * 2048 * 1280;
-  srv_desc.Buffer.StructureByteStride = 0;
-  srv_desc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_RAW;
-  device->CreateShaderResourceView(edram_buffer_, &srv_desc,
-                                   descriptor_cpu_start);
-  D3D12_UNORDERED_ACCESS_VIEW_DESC uav_desc;
-  uav_desc.Format = DXGI_FORMAT_R32_TYPELESS;
-  uav_desc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
-  uav_desc.Buffer.FirstElement = 0;
-  uav_desc.Buffer.NumElements = copy_buffer_size >> 2;
-  uav_desc.Buffer.StructureByteStride = 0;
-  uav_desc.Buffer.CounterOffsetInBytes = 0;
-  uav_desc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_RAW;
-  device->CreateUnorderedAccessView(
-      copy_buffer, nullptr, &uav_desc,
-      provider->OffsetViewDescriptor(descriptor_cpu_start, 1));
   command_list->SetComputeRootSignature(edram_load_store_root_signature_);
+  ui::d3d12::util::CreateRawBufferSRV(device, descriptor_cpu_start,
+                                      edram_buffer_, kEDRAMBufferSize);
+  ui::d3d12::util::CreateRawBufferUAV(
+      device, provider->OffsetViewDescriptor(descriptor_cpu_start, 1),
+      copy_buffer, copy_buffer_size);
   command_list->SetComputeRootDescriptorTable(1, descriptor_gpu_start);
 
   // Load each render target.
