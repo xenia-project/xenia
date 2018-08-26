@@ -569,15 +569,8 @@ bool TextureCache::TileResolvedTexture(
   tile_constants.host_pitch = uint32_t(footprint.Footprint.RowPitch);
   command_list->SetComputeRoot32BitConstants(
       0, sizeof(tile_constants) / sizeof(uint32_t), &tile_constants, 0);
-  D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc;
-  srv_desc.Format = DXGI_FORMAT_R32_TYPELESS;
-  srv_desc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
-  srv_desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-  srv_desc.Buffer.FirstElement = 0;
-  srv_desc.Buffer.NumElements = buffer_size;
-  srv_desc.Buffer.StructureByteStride = 0;
-  srv_desc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_RAW;
-  device->CreateShaderResourceView(buffer, &srv_desc, descriptor_cpu_start);
+  ui::d3d12::util::CreateRawBufferSRV(device, descriptor_cpu_start, buffer,
+                                      buffer_size);
   shared_memory_->CreateRawUAV(
       provider->OffsetViewDescriptor(descriptor_cpu_start, 1));
   command_list->SetComputeRootDescriptorTable(1, descriptor_gpu_start);
@@ -958,17 +951,9 @@ bool TextureCache::LoadTextureData(Texture* texture) {
   }
   shared_memory_->UseForReading();
   shared_memory_->CreateSRV(descriptor_cpu_start);
-  D3D12_UNORDERED_ACCESS_VIEW_DESC uav_desc;
-  uav_desc.Format = DXGI_FORMAT_R32_TYPELESS;
-  uav_desc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
-  uav_desc.Buffer.FirstElement = 0;
-  uav_desc.Buffer.NumElements = UINT(host_slice_size >> 2);
-  uav_desc.Buffer.StructureByteStride = 0;
-  uav_desc.Buffer.CounterOffsetInBytes = 0;
-  uav_desc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_RAW;
-  device->CreateUnorderedAccessView(
-      copy_buffer, nullptr, &uav_desc,
-      provider->OffsetViewDescriptor(descriptor_cpu_start, 1));
+  ui::d3d12::util::CreateRawBufferUAV(
+      device, provider->OffsetViewDescriptor(descriptor_cpu_start, 1),
+      copy_buffer, uint32_t(host_slice_size));
   command_processor_->SetComputePipeline(pipeline);
   command_list->SetComputeRootSignature(load_root_signature_);
   command_list->SetComputeRootDescriptorTable(1, descriptor_gpu_start);

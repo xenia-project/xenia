@@ -18,6 +18,7 @@
 #include "xenia/base/memory.h"
 #include "xenia/base/profiling.h"
 #include "xenia/gpu/d3d12/d3d12_command_processor.h"
+#include "xenia/ui/d3d12/d3d12_util.h"
 
 namespace xe {
 namespace gpu {
@@ -528,31 +529,15 @@ void SharedMemory::UseForWriting() {
 }
 
 void SharedMemory::CreateSRV(D3D12_CPU_DESCRIPTOR_HANDLE handle) {
-  auto device =
-      command_processor_->GetD3D12Context()->GetD3D12Provider()->GetDevice();
-  D3D12_SHADER_RESOURCE_VIEW_DESC desc;
-  desc.Format = DXGI_FORMAT_R32_TYPELESS;
-  desc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
-  desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-  desc.Buffer.FirstElement = 0;
-  desc.Buffer.NumElements = kBufferSize >> 2;
-  desc.Buffer.StructureByteStride = 0;
-  desc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_RAW;
-  device->CreateShaderResourceView(buffer_, &desc, handle);
+  ui::d3d12::util::CreateRawBufferSRV(
+      command_processor_->GetD3D12Context()->GetD3D12Provider()->GetDevice(),
+      handle, buffer_, kBufferSize);
 }
 
 void SharedMemory::CreateRawUAV(D3D12_CPU_DESCRIPTOR_HANDLE handle) {
-  auto device =
-      command_processor_->GetD3D12Context()->GetD3D12Provider()->GetDevice();
-  D3D12_UNORDERED_ACCESS_VIEW_DESC desc;
-  desc.Format = DXGI_FORMAT_R32_TYPELESS;
-  desc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
-  desc.Buffer.FirstElement = 0;
-  desc.Buffer.NumElements = kBufferSize >> 2;
-  desc.Buffer.StructureByteStride = 0;
-  desc.Buffer.CounterOffsetInBytes = 0;
-  desc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_RAW;
-  device->CreateUnorderedAccessView(buffer_, nullptr, &desc, handle);
+  ui::d3d12::util::CreateRawBufferUAV(
+      command_processor_->GetD3D12Context()->GetD3D12Provider()->GetDevice(),
+      handle, buffer_, kBufferSize);
 }
 
 }  // namespace d3d12
