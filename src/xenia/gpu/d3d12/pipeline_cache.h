@@ -43,6 +43,10 @@ class PipelineCache {
   D3D12Shader* LoadShader(ShaderType shader_type, uint32_t guest_address,
                           const uint32_t* host_address, uint32_t dword_count);
 
+  // Translates shaders if needed, also making shader info up to date.
+  bool EnsureShadersTranslated(D3D12Shader* vertex_shader,
+                               D3D12Shader* pixel_shader);
+
   UpdateStatus ConfigurePipeline(
       D3D12Shader* vertex_shader, D3D12Shader* pixel_shader,
       PrimitiveType primitive_type, IndexFormat index_format,
@@ -111,7 +115,6 @@ class PipelineCache {
   struct UpdateShaderStagesRegisters {
     D3D12Shader* vertex_shader;
     D3D12Shader* pixel_shader;
-    uint32_t sq_program_cntl;
     bool primitive_topology_is_line;
     // Primitive type if it needs a geometry shader, or kNone.
     PrimitiveType geometry_shader_primitive_type;
