@@ -10,6 +10,7 @@
 #ifndef XENIA_GPU_D3D12_TEXTURE_CACHE_H_
 #define XENIA_GPU_D3D12_TEXTURE_CACHE_H_
 
+#include <atomic>
 #include <unordered_map>
 
 #include "xenia/gpu/d3d12/shared_memory.h"
@@ -316,6 +317,12 @@ class TextureCache {
   // Bit vector with bits reset on fetch constant writes to avoid getting
   // texture keys from the fetch constants again and again.
   uint32_t texture_keys_in_sync_ = 0;
+
+  // Whether a texture has been invalidated (a watch has been triggered), so
+  // need to try to reload textures, disregarding whether fetch constants have
+  // been changed. A simple notification (texture validity is protected by a
+  // mutex), so memory_order_relaxed is enough.
+  std::atomic<bool> texture_invalidated_ = false;
 };
 
 }  // namespace d3d12
