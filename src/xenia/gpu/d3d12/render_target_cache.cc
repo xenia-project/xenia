@@ -2031,9 +2031,9 @@ void RenderTargetCache::StoreRenderTargetsToEDRAM() {
         // Banjo-Tooie - in case color writing was enabled for invalid render
         // targets in some draw call), treat the render targets with the lowest
         // index as more important (it's the primary one after all, while the
-        // rest are additional). Also treat the depth buffer as highest-priority
-        // (in the comparison, treat depth as 0 and color as 1-4).
-        return ((a + 1) % 5) > ((b + 1) % 5);
+        // rest are additional). Depth buffer has lower priority, otherwise the
+        // Xbox Live Arcade logo disappears.
+        return a > b;
       });
 
   // Calculate the dispatch width.
