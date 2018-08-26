@@ -12,6 +12,7 @@
 
 #include <unordered_map>
 
+#include "xenia/gpu/d3d12/d3d12_shader.h"
 #include "xenia/gpu/d3d12/shared_memory.h"
 #include "xenia/gpu/d3d12/texture_cache.h"
 #include "xenia/gpu/register_file.h"
@@ -209,7 +210,7 @@ class RenderTargetCache {
 
   void BeginFrame();
   // Called in the beginning of a draw call - may bind pipelines.
-  bool UpdateRenderTargets();
+  bool UpdateRenderTargets(const D3D12Shader* pixel_shader);
   // Returns the host-to-guest mappings and host formats of currently bound
   // render targets for pipeline creation and remapping in shaders. They are
   // consecutive, and format DXGI_FORMAT_UNKNOWN terminates the list. Depth

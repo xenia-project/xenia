@@ -335,20 +335,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateBlendStateAndRenderTargets(
     dirty |= regs.render_targets[i].format != render_targets[i].format;
     regs.render_targets[i].format = render_targets[i].format;
   }
-  uint32_t color_mask;
-  if (pixel_shader != nullptr) {
-    color_mask = register_file_->values[XE_GPU_REG_RB_COLOR_MASK].u32 & 0xFFFF;
-    for (uint32_t i = 0; i < 4; ++i) {
-      // If the pixel shader doesn't write to a render target, writing to it is
-      // disabled in the blend state. Otherwise, in Halo 3, one important render
-      // target is destroyed by a shader not writing to one of the outputs.
-      if (!pixel_shader->writes_color_target(i)) {
-        color_mask &= ~(0xF << (i * 4));
-      }
-    }
-  } else {
-    color_mask = 0;
-  }
+  uint32_t color_mask = command_processor_->GetCurrentColorMask(pixel_shader);
   dirty |= regs.color_mask != color_mask;
   regs.color_mask = color_mask;
   bool blend_enable =
