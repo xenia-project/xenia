@@ -115,7 +115,7 @@ class PipelineCache {
   struct UpdateShaderStagesRegisters {
     D3D12Shader* vertex_shader;
     D3D12Shader* pixel_shader;
-    bool primitive_topology_is_line;
+    D3D12_PRIMITIVE_TOPOLOGY_TYPE primitive_topology_type;
     // Primitive type if it needs a geometry shader, or kNone.
     PrimitiveType geometry_shader_primitive_type;
 

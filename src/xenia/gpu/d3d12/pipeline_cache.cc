@@ -27,6 +27,7 @@ namespace gpu {
 namespace d3d12 {
 
 // Generated with `xb buildhlsl`.
+#include "xenia/gpu/d3d12/shaders/bin/primitive_quad_list_gs.h"
 #include "xenia/gpu/d3d12/shaders/bin/primitive_rectangle_list_gs.h"
 
 PipelineCache::PipelineCache(D3D12CommandProcessor* command_processor,
@@ -275,15 +276,26 @@ PipelineCache::UpdateStatus PipelineCache::UpdateShaderStages(
   dirty |= regs.pixel_shader != pixel_shader;
   regs.vertex_shader = vertex_shader;
   regs.pixel_shader = pixel_shader;
-  // Points are emulated via a geometry shader because Direct3D 10+ doesn't
-  // support point sizes other than 1.
-  bool primitive_topology_is_line =
-      primitive_type == PrimitiveType::kLineList ||
-      primitive_type == PrimitiveType::kLineStrip ||
-      primitive_type == PrimitiveType::kLineLoop ||
-      primitive_type == PrimitiveType::k2DLineStrip;
-  dirty |= regs.primitive_topology_is_line != primitive_topology_is_line;
-  if (primitive_type == PrimitiveType::kRectangleList) {
+  // This topology type is before the geometry shader stage.
+  D3D12_PRIMITIVE_TOPOLOGY_TYPE primitive_topology_type;
+  switch (primitive_type) {
+    case PrimitiveType::kPointList:
+      primitive_topology_type = D3D12_PRIMITIVE_TOPOLOGY_TYPE_POINT;
+      break;
+    case PrimitiveType::kLineList:
+    case PrimitiveType::kLineStrip:
+    case PrimitiveType::kLineLoop:
+    // Quads are emulated as line lists with adjacency.
+    case PrimitiveType::kQuadList:
+    case PrimitiveType::k2DLineStrip:
+      primitive_topology_type = D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE;
+      break;
+    default:
+      primitive_topology_type = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+  };
+  dirty |= regs.primitive_topology_type != primitive_topology_type;
+  if (primitive_type == PrimitiveType::kRectangleList ||
+      primitive_type == PrimitiveType::kQuadList) {
     dirty |= regs.geometry_shader_primitive_type != primitive_type;
     regs.geometry_shader_primitive_type = primitive_type;
   } else {
@@ -318,14 +330,16 @@ PipelineCache::UpdateStatus PipelineCache::UpdateShaderStages(
       update_desc_.GS.pShaderBytecode = primitive_rectangle_list_gs;
       update_desc_.GS.BytecodeLength = sizeof(primitive_rectangle_list_gs);
       break;
+    case PrimitiveType::kQuadList:
+      update_desc_.GS.pShaderBytecode = primitive_quad_list_gs;
+      update_desc_.GS.BytecodeLength = sizeof(primitive_quad_list_gs);
+      break;
     default:
       // TODO(Triang3l): More geometry shaders for various primitive types.
       update_desc_.GS.pShaderBytecode = nullptr;
       update_desc_.GS.BytecodeLength = 0;
   }
-  update_desc_.PrimitiveTopologyType =
-      primitive_topology_is_line ? D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE
-                                 : D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+  update_desc_.PrimitiveTopologyType = primitive_topology_type;
 
   return UpdateStatus::kMismatch;
 }
