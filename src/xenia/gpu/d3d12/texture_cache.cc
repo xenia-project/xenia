@@ -326,6 +326,14 @@ void TextureCache::RequestTextures(uint32_t used_vertex_texture_mask,
   SCOPE_profile_cpu_f("gpu");
 #endif  // FINE_GRAINED_DRAW_SCOPES
 
+  // If a texture was invalidated, ignore whether bindings have been changed
+  // when determining whether textures need to be reloaded.
+  bool force_load =
+      texture_invalidated_.exchange(false, std::memory_order_relaxed);
+  if (force_load) {
+    texture_keys_in_sync_ = 0;
+  }
+
   // Update the texture keys and the textures.
   uint32_t used_texture_mask =
       used_vertex_texture_mask | used_pixel_texture_mask;
@@ -337,7 +345,6 @@ void TextureCache::RequestTextures(uint32_t used_vertex_texture_mask,
       continue;
     }
     TextureBinding& binding = texture_bindings_[index];
-
     uint32_t r = XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + index * 6;
     auto group =
         reinterpret_cast<const xenos::xe_gpu_fetch_group_t*>(&regs.values[r]);
@@ -345,16 +352,17 @@ void TextureCache::RequestTextures(uint32_t used_vertex_texture_mask,
     TextureKeyFromFetchConstant(group->texture_fetch, binding.key,
                                 binding.swizzle);
     texture_keys_in_sync_ |= index_bit;
-    if (binding.key.IsInvalid() || binding.key == old_key) {
+    if (binding.key.IsInvalid()) {
       continue;
     }
-
-    binding.texture = FindOrCreateTexture(binding.key);
-    if (binding.texture == nullptr) {
-      continue;
+    bool load = force_load;
+    if (binding.key != old_key) {
+      binding.texture = FindOrCreateTexture(binding.key);
+      load = true;
     }
-
-    LoadTextureData(binding.texture);
+    if (load && binding.texture != nullptr) {
+      LoadTextureData(binding.texture);
+    }
   }
 
   // Transition the textures to the needed usage.
@@ -1080,12 +1088,14 @@ void TextureCache::WatchCallback(Texture* texture, bool is_mip) {
   }
   XELOGE("Texture %s at %.8X invalidated", is_mip ? "mips" : "base",
          (is_mip ? texture->key.mip_page : texture->key.base_page) << 12);
-  // TODO(Triang3l): Notify bindings that ranges should be requested again.
+  texture_invalidated_.store(true, std::memory_order_relaxed);
 }
 
 void TextureCache::ClearBindings() {
   std::memset(texture_bindings_, 0, sizeof(texture_bindings_));
   texture_keys_in_sync_ = 0;
+  // Already reset everything.
+  texture_invalidated_.store(false, std::memory_order_relaxed);
 }
 
 }  // namespace d3d12
