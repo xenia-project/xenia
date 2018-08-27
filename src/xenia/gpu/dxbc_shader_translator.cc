@@ -30,7 +30,7 @@ void DxbcShaderTranslator::Reset() {
 std::vector<uint8_t> DxbcShaderTranslator::CompleteTranslation() {
   shader_object_.clear();
 
-  // Shader object header.
+  // Write the shader object header.
   shader_object_.push_back('CBXD');
   // Reserve space for the checksum.
   for (uint32_t i = 0; i < 4; ++i) {
@@ -42,12 +42,19 @@ std::vector<uint8_t> DxbcShaderTranslator::CompleteTranslation() {
   // 5 chunks - RDEF, ISGN, OSGN, SHEX, STAT.
   shader_object_.push_back(5);
 
-  // Copy bytes out.
-  // TODO(Triang3l): avoid copy?
+  // Fill the remaining fields of the header and copy bytes out.
+  uint32_t shader_object_size =
+      uint32_t(shader_object_.size() * sizeof(uint32_t));
+  shader_object_[6] = shader_object_size;
+  // The checksum includes the size field, so it must be the last.
+  CalculateDXBCChecksum(reinterpret_cast<unsigned char*>(shader_object_.data()),
+                        shader_object_size,
+                        reinterpret_cast<unsigned int*>(&shader_object_[1]));
+  // TODO(Triang3l): Avoid copy?
   std::vector<uint8_t> shader_object_bytes;
-  shader_object_bytes.resize(shader_object_.size() * sizeof(uint32_t));
+  shader_object_bytes.resize(shader_object_size);
   std::memcpy(shader_object_bytes.data(), shader_object_.data(),
-              shader_object_bytes.size());
+              shader_object_size);
   return shader_object_bytes;
 }
 
