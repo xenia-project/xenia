@@ -170,27 +170,35 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
   // Bool and loop constants are quadrupled to allow dynamic indexing (constant
   // registers are vectors).
   source.Append(
-      "cbuffer xe_system_constants : register(b0) {\n"
+      "cbuffer XeSystemConstants : register(b0) {\n"
+      // vec4 0
       "  float3 xe_mul_rcp_w;\n"
       "  uint xe_vertex_base_index;\n"
+      // vec4 1
       "  float3 xe_ndc_scale;\n"
       "  uint xe_vertex_index_endian;\n"
+      // vec4 2
       "  float3 xe_ndc_offset;\n"
       "  float xe_pixel_half_pixel_offset;\n"
+      // vec4 3
+      "  float2 xe_point_size;\n"
       "  float2 xe_ssaa_inv_scale;\n"
+      // vec4 4
       "  uint xe_pixel_pos_reg;\n"
-      "  bool xe_alpha_test_enabled;\n"
+      "  int xe_alpha_test;\n"
       "  float2 xe_alpha_test_range;\n"
-      "  bool xe_alpha_test_range_pass;\n"
+      // vec4 5
+      "  float4 xe_color_exp_bias;\n"
+      // vec4 6
       "  uint4 xe_color_output_map;\n"
       "};\n"
       "\n"
-      "cbuffer xe_loop_bool_constants : register(b1) {\n"
+      "cbuffer XeLoopBoolConstants : register(b1) {\n"
       "  uint4 xe_bool_constants[8];\n"
       "  uint4 xe_loop_constants[32];\n"
       "};\n"
       "\n"
-      "cbuffer xe_fetch_constants : register(b2) {\n"
+      "cbuffer XeFetchConstants : register(b2) {\n"
       "  uint4 xe_fetch[48];\n"
       "};\n"
       "\n"
@@ -260,7 +268,8 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
         "XE_BYTE_SWAP_OVERLOAD(uint4)\n"
         "\n"
         "struct XeVertexShaderOutput {\n"
-        "  float4 interpolators[%u] : TEXCOORD;\n"
+        "  float4 interpolators[%u] : TEXCOORD0;\n"
+        "  float2 point_coord : TEXCOORD16;\n"
         "  float4 position : SV_Position;\n"
         "  float point_size : PSIZE;\n"
         "};\n"
@@ -273,6 +282,8 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
         "  uint4 xe_vertex_element;\n"
         "  xe_r[0].r = float(xe_vertex_index);\n"
         "  XeVertexShaderOutput xe_output;\n"
+        // point_coord is written by the geometry shader.
+        "  xe_output.point_coord = float2(0.0, 0.0);\n"
         "  xe_output.position = float4(0.0, 0.0, 0.0, 1.0);\n"
         "  xe_output.point_size = -1.0;\n",
         kMaxInterpolators, register_count());
@@ -285,7 +296,8 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
     // XE_PIXEL_SHADER_WRITES_DEPTH in the beginning of the final output.
     source.AppendFormat(
         "struct XePixelShaderInput {\n"
-        "  float4 interpolators[%u] : TEXCOORD;\n"
+        "  float4 interpolators[%u] : TEXCOORD0;\n"
+        "  float2 point_coord : TEXCOORD16;\n"
         "  float4 position : SV_Position;\n"
         "};\n"
         "\n"
@@ -314,13 +326,13 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
     for (uint32_t i = 0; i < interpolator_register_count; ++i) {
       source.AppendFormat("  xe_r[%u] = xe_input.interpolators[%u];\n", i, i);
     }
-    // Write pixel position to the register specified by ps_param_gen.
+    // Write pixel position and point coordinate to the register specified by
+    // ps_param_gen.
     source.AppendFormat(
         "  [branch] if (xe_pixel_pos_reg < %uu) {\n"
-        "    float4 xe_pixel_pos = xe_input.position;\n"
-        "    xe_pixel_pos.xy = xe_pixel_pos.xy * xe_ssaa_inv_scale +\n"
-        "                      xe_pixel_half_pixel_offset;\n"
-        "    xe_r[xe_pixel_pos_reg] = xe_pixel_pos;\n"
+        "    xe_r[xe_pixel_pos_reg] =\n"
+        "        float4(xe_input.position.xy * xe_ssaa_inv_scale +\n"
+        "               xe_pixel_half_pixel_offset, xe_input.point_coord);\n"
         "  }\n",
         register_count());
   }
@@ -390,14 +402,19 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
         "      xe_ndc_offset * xe_output.position.www;\n");
   } else if (is_pixel_shader()) {
     source.Append(
+        // Apply the exponent bias.
+        "  xe_color_output[0] *= xe_color_exp_bias.x;\n"
+        "  xe_color_output[1] *= xe_color_exp_bias.y;\n"
+        "  xe_color_output[2] *= xe_color_exp_bias.z;\n"
+        "  xe_color_output[3] *= xe_color_exp_bias.w;\n"
         // Perform alpha test - check if the alpha is within the specified
         // bounds (inclusively), fail or pass depending on comparison mode and
         // on the results of the bound test.
-        "  [branch] if (xe_alpha_test_enabled) {\n"
+        "  [branch] if (xe_alpha_test != 0) {\n"
         "    bool xe_alpha_test_failed =\n"
         "        xe_color_output[0u].a >= xe_alpha_test_range.x &&\n"
         "        xe_color_output[0u].a <= xe_alpha_test_range.y;\n"
-        "    [flatten] if (xe_alpha_test_range_pass) {\n"
+        "    [flatten] if (xe_alpha_test > 0) {\n"
         "      xe_alpha_test_failed = !xe_alpha_test_failed;\n"
         "    }\n"
         "    if (xe_alpha_test_failed) {\n"

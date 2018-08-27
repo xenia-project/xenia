@@ -27,6 +27,7 @@ namespace gpu {
 namespace d3d12 {
 
 // Generated with `xb buildhlsl`.
+#include "xenia/gpu/d3d12/shaders/bin/primitive_point_list_gs.h"
 #include "xenia/gpu/d3d12/shaders/bin/primitive_quad_list_gs.h"
 #include "xenia/gpu/d3d12/shaders/bin/primitive_rectangle_list_gs.h"
 
@@ -294,7 +295,8 @@ PipelineCache::UpdateStatus PipelineCache::UpdateShaderStages(
       primitive_topology_type = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
   };
   dirty |= regs.primitive_topology_type != primitive_topology_type;
-  if (primitive_type == PrimitiveType::kRectangleList ||
+  if (primitive_type == PrimitiveType::kPointList ||
+      primitive_type == PrimitiveType::kRectangleList ||
       primitive_type == PrimitiveType::kQuadList) {
     dirty |= regs.geometry_shader_primitive_type != primitive_type;
     regs.geometry_shader_primitive_type = primitive_type;
@@ -326,6 +328,10 @@ PipelineCache::UpdateStatus PipelineCache::UpdateShaderStages(
     update_desc_.PS.BytecodeLength = 0;
   }
   switch (primitive_type) {
+    case PrimitiveType::kPointList:
+      update_desc_.GS.pShaderBytecode = primitive_point_list_gs;
+      update_desc_.GS.BytecodeLength = sizeof(primitive_point_list_gs);
+      break;
     case PrimitiveType::kRectangleList:
       update_desc_.GS.pShaderBytecode = primitive_rectangle_list_gs;
       update_desc_.GS.BytecodeLength = sizeof(primitive_rectangle_list_gs);

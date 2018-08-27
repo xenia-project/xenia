@@ -940,6 +940,9 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
   // Set the primitive topology.
   D3D_PRIMITIVE_TOPOLOGY primitive_topology;
   switch (primitive_type) {
+    case PrimitiveType::kPointList:
+      primitive_topology = D3D_PRIMITIVE_TOPOLOGY_POINTLIST;
+      break;
     case PrimitiveType::kLineList:
       primitive_topology = D3D_PRIMITIVE_TOPOLOGY_LINELIST;
       break;
@@ -1308,6 +1311,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   uint32_t pa_cl_vte_cntl = regs[XE_GPU_REG_PA_CL_VTE_CNTL].u32;
   uint32_t pa_cl_clip_cntl = regs[XE_GPU_REG_PA_CL_CLIP_CNTL].u32;
   uint32_t pa_su_vtx_cntl = regs[XE_GPU_REG_PA_SU_VTX_CNTL].u32;
+  uint32_t pa_su_point_size = regs[XE_GPU_REG_PA_SU_POINT_SIZE].u32;
   uint32_t sq_program_cntl = regs[XE_GPU_REG_SQ_PROGRAM_CNTL].u32;
   uint32_t sq_context_misc = regs[XE_GPU_REG_SQ_CONTEXT_MISC].u32;
   uint32_t rb_surface_info = regs[XE_GPU_REG_RB_SURFACE_INFO].u32;
@@ -1405,6 +1409,15 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   system_constants_.ndc_offset[2] = ndc_offset_z;
   system_constants_.pixel_half_pixel_offset = pixel_half_pixel_offset;
 
+  // Point size.
+  float point_size[2];
+  point_size[0] = float(pa_su_point_size >> 16) * 0.125f;
+  point_size[1] = float(pa_su_point_size & 0xFFFF) * 0.125f;
+  dirty |= system_constants_.point_size[0] != point_size[0];
+  dirty |= system_constants_.point_size[1] != point_size[1];
+  system_constants_.point_size[0] = point_size[0];
+  system_constants_.point_size[1] = point_size[1];
+
   // Pixel position register.
   uint32_t pixel_pos_reg =
       (sq_program_cntl & (1 << 18)) ? (sq_context_misc >> 8) & 0xFF : UINT_MAX;
@@ -1421,9 +1434,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   system_constants_.ssaa_inv_scale[1] = ssaa_inv_scale_y;
 
   // Alpha test.
-  uint32_t alpha_test_enabled = (rb_colorcontrol & 0x8) ? 1 : 0;
-  dirty |= system_constants_.alpha_test_enabled != alpha_test_enabled;
-  system_constants_.alpha_test_enabled = alpha_test_enabled;
+  int32_t alpha_test = 0;
   if (rb_colorcontrol & 0x8) {
     uint32_t alpha_test_function = rb_colorcontrol & 0x7;
     // 0: Never - fail in [-inf, +inf].
@@ -1434,6 +1445,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
     // 5: Not equal - fail in [ref, ref].
     // 6: Greater or equal - pass in [ref, +inf].
     // 7: Always - pass in [-inf, +inf].
+    int32_t alpha_test = (alpha_test_function & 0x2) ? 1 : -1;
     uint32_t alpha_test_range_start =
         (alpha_test_function == 1 || alpha_test_function == 2 ||
          alpha_test_function == 5 || alpha_test_function == 6)
@@ -1444,17 +1456,38 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
          alpha_test_function == 4 || alpha_test_function == 5)
             ? rb_alpha_ref
             : 0x7F800000u;
-    uint32_t alpha_test_range_pass = (alpha_test_function & 0x2) ? 1 : 0;
     dirty |= system_constants_.alpha_test_range[0] != alpha_test_range_start;
     dirty |= system_constants_.alpha_test_range[1] != alpha_test_range_end;
-    dirty |= system_constants_.alpha_test_range_pass != alpha_test_range_pass;
     system_constants_.alpha_test_range[0] = alpha_test_range_start;
     system_constants_.alpha_test_range[1] = alpha_test_range_end;
-    system_constants_.alpha_test_range_pass = alpha_test_range_pass;
+  } else {
+    alpha_test = 0;
   }
+  dirty |= system_constants_.alpha_test != alpha_test;
+  system_constants_.alpha_test = alpha_test;
 
-  // Color output index mapping.
+  // Color exponent bias and output index mapping.
   for (uint32_t i = 0; i < 4; ++i) {
+    uint32_t color_info;
+    switch (i) {
+      case 1:
+        color_info = regs[XE_GPU_REG_RB_COLOR1_INFO].u32;
+        break;
+      case 2:
+        color_info = regs[XE_GPU_REG_RB_COLOR2_INFO].u32;
+        break;
+      case 3:
+        color_info = regs[XE_GPU_REG_RB_COLOR3_INFO].u32;
+        break;
+      default:
+        color_info = regs[XE_GPU_REG_RB_COLOR_INFO].u32;
+    }
+    float color_exp_bias;
+    // Exponent bias is in bits 20:25 of RB_COLOR_INFO.
+    *reinterpret_cast<int32_t*>(&color_exp_bias) =
+        0x3F800000 + (int32_t((color_info & (0x3F << 20)) << 6) >> 3);
+    dirty |= system_constants_.color_exp_bias[i] != color_exp_bias;
+    system_constants_.color_exp_bias[i] = color_exp_bias;
     dirty |= system_constants_.color_output_map[i] !=
              render_targets[i].guest_render_target;
     system_constants_.color_output_map[i] =
