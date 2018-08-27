@@ -29,6 +29,9 @@ class DxbcShaderTranslator : public ShaderTranslator {
   std::vector<uint8_t> CompleteTranslation() override;
 
  private:
+  // Appends a string to a DWORD stream, returns the DWORD-aligned length.
+  static uint32_t AppendString(std::vector<uint32_t>& dest, const char* source);
+
   // Executable instructions - generated during translation.
   std::vector<uint32_t> shader_code_;
   // Complete shader object, with all the needed chunks and dcl_ instructions -
