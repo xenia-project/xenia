@@ -7,6 +7,7 @@ project("xenia-gpu")
   kind("StaticLib")
   language("C++")
   links({
+    "dxbc",
     "glslang-spirv",
     "snappy",
     "spirv-tools",
