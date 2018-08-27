@@ -1067,6 +1067,10 @@ bool D3D12CommandProcessor::BeginFrame() {
     return false;
   }
 
+#if FINE_GRAINED_DRAW_SCOPES
+  SCOPE_profile_cpu_f("gpu");
+#endif  // FINE_GRAINED_DRAW_SCOPES
+
   auto context = GetD3D12Context();
   context->BeginSwap();
   current_queue_frame_ = context->GetCurrentQueueFrame();
