@@ -403,10 +403,10 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
   } else if (is_pixel_shader()) {
     source.Append(
         // Apply the exponent bias.
-        "  xe_color_output[0] *= xe_color_exp_bias.x;\n"
-        "  xe_color_output[1] *= xe_color_exp_bias.y;\n"
-        "  xe_color_output[2] *= xe_color_exp_bias.z;\n"
-        "  xe_color_output[3] *= xe_color_exp_bias.w;\n"
+        "  xe_color_output[0u] *= xe_color_exp_bias.x;\n"
+        "  xe_color_output[1u] *= xe_color_exp_bias.y;\n"
+        "  xe_color_output[2u] *= xe_color_exp_bias.z;\n"
+        "  xe_color_output[3u] *= xe_color_exp_bias.w;\n"
         // Perform alpha test - check if the alpha is within the specified
         // bounds (inclusively), fail or pass depending on comparison mode and
         // on the results of the bound test.
@@ -414,7 +414,7 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
         "    bool xe_alpha_test_failed =\n"
         "        xe_color_output[0u].a >= xe_alpha_test_range.x &&\n"
         "        xe_color_output[0u].a <= xe_alpha_test_range.y;\n"
-        "    [flatten] if (xe_alpha_test > 0) {\n"
+        "    if (xe_alpha_test > 0) {\n"
         "      xe_alpha_test_failed = !xe_alpha_test_failed;\n"
         "    }\n"
         "    if (xe_alpha_test_failed) {\n"
@@ -423,10 +423,10 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
         "  }\n"
         // Remap guest color outputs to host render targets because null render
         // target descriptors are broken.
-        "  xe_output.colors[0] = xe_color_output[xe_color_output_map.r];\n"
-        "  xe_output.colors[1] = xe_color_output[xe_color_output_map.g];\n"
-        "  xe_output.colors[2] = xe_color_output[xe_color_output_map.b];\n"
-        "  xe_output.colors[3] = xe_color_output[xe_color_output_map.a];\n");
+        "  xe_output.colors[0u] = xe_color_output[xe_color_output_map.r];\n"
+        "  xe_output.colors[1u] = xe_color_output[xe_color_output_map.g];\n"
+        "  xe_output.colors[2u] = xe_color_output[xe_color_output_map.b];\n"
+        "  xe_output.colors[3u] = xe_color_output[xe_color_output_map.a];\n");
   }
   // TODO(Triang3l): Gamma if needed.
   source.Append(

@@ -1438,7 +1438,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   system_constants_.ssaa_inv_scale[1] = ssaa_inv_scale_y;
 
   // Alpha test.
-  int32_t alpha_test = 0;
+  int32_t alpha_test;
   if (rb_colorcontrol & 0x8) {
     uint32_t alpha_test_function = rb_colorcontrol & 0x7;
     // 0: Never - fail in [-inf, +inf].
@@ -1449,7 +1449,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
     // 5: Not equal - fail in [ref, ref].
     // 6: Greater or equal - pass in [ref, +inf].
     // 7: Always - pass in [-inf, +inf].
-    int32_t alpha_test = (alpha_test_function & 0x2) ? 1 : -1;
+    alpha_test = (alpha_test_function & 0x2) ? 1 : -1;
     uint32_t alpha_test_range_start =
         (alpha_test_function == 1 || alpha_test_function == 2 ||
          alpha_test_function == 5 || alpha_test_function == 6)
