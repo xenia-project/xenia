@@ -14,6 +14,8 @@
 #include "third_party/dxbc/DXBCChecksum.h"
 #include "third_party/dxbc/d3d12TokenizedProgramFormat.hpp"
 
+#include "xenia/base/math.h"
+
 namespace xe {
 namespace gpu {
 using namespace ucode;
@@ -56,6 +58,18 @@ std::vector<uint8_t> DxbcShaderTranslator::CompleteTranslation() {
   std::memcpy(shader_object_bytes.data(), shader_object_.data(),
               shader_object_size);
   return shader_object_bytes;
+}
+
+uint32_t DxbcShaderTranslator::AppendString(std::vector<uint32_t>& dest,
+                                            const char* source) {
+  size_t size = std::strlen(source) + 1;
+  size_t size_aligned = xe::align(size_aligned, sizeof(uint32_t));
+  size_t dest_pos = dest.size();
+  dest.resize(dest_pos + size_aligned / sizeof(uint32_t));
+  std::memcpy(&dest[dest_pos], source, size);
+  std::memset(reinterpret_cast<uint8_t*>(&dest[dest_pos]) + size, 0xAB,
+              size_aligned - size);
+  return uint32_t(size_aligned);
 }
 
 }  // namespace gpu
