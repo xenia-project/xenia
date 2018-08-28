@@ -49,7 +49,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
     // k_5_6_5
     {DXGI_FORMAT_B5G6R5_UNORM, LoadMode::k16bpb, TileMode::kUnknown},
     // k_6_5_5
-    {DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, TileMode::kUnknown},
+    {DXGI_FORMAT_B5G6R5_UNORM, LoadMode::k16bpb, TileMode::kUnknown},
     // k_8_8_8_8
     {DXGI_FORMAT_R8G8B8A8_UNORM, LoadMode::k32bpb, TileMode::k32bpp},
     // k_2_10_10_10
@@ -727,11 +727,16 @@ void TextureCache::TextureKeyFromFetchConstant(
   swizzle &= ~(swizzle_constant >> 1);
   // Remap the swizzle according to the texture format.
   if (format == TextureFormat::k_1_5_5_5 || format == TextureFormat::k_5_6_5 ||
-      format == TextureFormat::k_4_4_4_4) {
+      format == TextureFormat::k_6_5_5 || format == TextureFormat::k_4_4_4_4) {
     // Swap red and blue.
-    swizzle ^= (~swizzle & (1 | (1 << 3) | (1 << 6) | (1 << 9)) &
-                (swizzle_not_constant >> 2))
-               << 1;
+    swizzle ^= ((~swizzle & (1 | (1 << 3) | (1 << 6) | (1 << 9))) << 1) &
+               (swizzle_not_constant >> 1);
+    if (format == TextureFormat::k_6_5_5) {
+      // R6G5B5 is emulated with B5G6R5, but it's already swizzled to R5G6B5.
+      // Swap red and green.
+      swizzle ^= ((~swizzle & (2 | (2 << 3) | (2 << 6) | (2 << 9))) >> 1) &
+                 (swizzle_not_constant >> 2);
+    }
   } else if (format == TextureFormat::k_DXT3A) {
     // DXT3A is emulated as DXT3 with zero color, but the alpha should be
     // replicated into all channels.
