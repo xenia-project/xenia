@@ -229,7 +229,7 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(
     range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
     range.NumDescriptors = 1;
     range.BaseShaderRegister = 0;
-    range.RegisterSpace = 1;
+    range.RegisterSpace = 0;
     range.OffsetInDescriptorsFromTableStart = 0;
   }
 
@@ -277,7 +277,7 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(
     parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
     range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
     range.NumDescriptors = vertex_texture_count;
-    range.BaseShaderRegister = 0;
+    range.BaseShaderRegister = 1;
     range.RegisterSpace = 0;
     range.OffsetInDescriptorsFromTableStart = 0;
     ++desc.NumParameters;

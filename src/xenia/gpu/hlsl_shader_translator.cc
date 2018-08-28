@@ -228,9 +228,10 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
         srv_name_suffix = "2d";
         break;
     }
-    source.AppendFormat(
-        "Texture%s<float4> xe_texture%u_%s : register(t%u, space0);\n",
-        srv_type_dimension, srv.fetch_constant, srv_name_suffix, i);
+    // t0 is shared memory in vertex shaders.
+    source.AppendFormat("Texture%s<float4> xe_texture%u_%s : register(t%u);\n",
+                        srv_type_dimension, srv.fetch_constant, srv_name_suffix,
+                        i + (is_vertex_shader() ? 1 : 0));
   }
   for (uint32_t i = 0; i < sampler_count_; ++i) {
     source.AppendFormat("SamplerState xe_sampler%u : register(s%u);\n",
@@ -250,7 +251,7 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
     // -1 point size means the geometry shader will use the global setting by
     // default.
     source.AppendFormat(
-        "ByteAddressBuffer xe_shared_memory : register(t0, space1);\n"
+        "ByteAddressBuffer xe_shared_memory : register(t0);\n"
         "\n"
         "#define XE_BYTE_SWAP_OVERLOAD(XeByteSwapType) \\\n"
         "XeByteSwapType XeByteSwap(XeByteSwapType v, uint endian) { \\\n"
