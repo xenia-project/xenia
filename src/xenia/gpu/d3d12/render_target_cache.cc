@@ -727,6 +727,8 @@ bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
       if (!binding.is_bound || render_target == nullptr) {
         continue;
       }
+      XELOGGPU("RT Color %u: base %u, format %u", i, edram_bases[i],
+               formats[i]);
       command_processor_->PushTransitionBarrier(
           render_target->resource, render_target->state,
           D3D12_RESOURCE_STATE_RENDER_TARGET);
@@ -746,6 +748,7 @@ bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
     RenderTarget* depth_render_target = depth_binding.render_target;
     current_pipeline_render_targets_[4].guest_render_target = 4;
     if (depth_binding.is_bound && depth_render_target != nullptr) {
+      XELOGGPU("RT Depth: base %u, format %u", edram_bases[4], formats[4]);
       command_processor_->PushTransitionBarrier(
           depth_render_target->resource, depth_render_target->state,
           D3D12_RESOURCE_STATE_DEPTH_WRITE);
@@ -2021,20 +2024,22 @@ void RenderTargetCache::StoreRenderTargetsToEDRAM() {
 
   // Sort the bindings in ascending order of EDRAM base so data in the render
   // targets placed farther in EDRAM isn't lost in case of overlap.
-  std::sort(
-      store_bindings, store_bindings + store_binding_count,
-      [this](uint32_t a, uint32_t b) {
-        if (current_bindings_[a].edram_base < current_bindings_[b].edram_base) {
-          return true;
-        }
-        // If EDRAM bases are the same (not really a valid usage, but happens in
-        // Banjo-Tooie - in case color writing was enabled for invalid render
-        // targets in some draw call), treat the render targets with the lowest
-        // index as more important (it's the primary one after all, while the
-        // rest are additional). Depth buffer has lower priority, otherwise the
-        // Xbox Live Arcade logo disappears.
-        return a > b;
-      });
+  std::sort(store_bindings, store_bindings + store_binding_count,
+            [this](uint32_t a, uint32_t b) {
+              uint32_t base_a = current_bindings_[a].edram_base;
+              uint32_t base_b = current_bindings_[b].edram_base;
+              if (base_a == base_b) {
+                // If EDRAM bases are the same (not really a valid usage, but
+                // happens in Banjo-Tooie - in case color writing was enabled
+                // for invalid render targets in some draw call), treat the
+                // render targets with the lowest index as more important (it's
+                // the primary one after all, while the rest are additional).
+                // Depth buffer has lower priority, otherwise the Xbox Live
+                // Arcade logo disappears.
+                return a > b;
+              }
+              return base_a < base_b;
+            });
 
   // Calculate the dispatch width.
   uint32_t surface_pitch_ss =
