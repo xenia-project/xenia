@@ -726,7 +726,13 @@ void TextureCache::TextureKeyFromFetchConstant(
   // something broken) the quick and dirty way - by changing them to 4 and 5.
   swizzle &= ~(swizzle_constant >> 1);
   // Remap the swizzle according to the texture format.
-  if (format == TextureFormat::k_DXT3A) {
+  if (format == TextureFormat::k_1_5_5_5 || format == TextureFormat::k_5_6_5 ||
+      format == TextureFormat::k_4_4_4_4) {
+    // Swap red and blue.
+    swizzle ^= (~swizzle & (1 | (1 << 3) | (1 << 6) | (1 << 9)) &
+                (swizzle_not_constant >> 2))
+               << 1;
+  } else if (format == TextureFormat::k_DXT3A) {
     // DXT3A is emulated as DXT3 with zero color, but the alpha should be
     // replicated into all channels.
     // http://fileadmin.cs.lth.se/cs/Personal/Michael_Doggett/talks/unc-xenos-doggett.pdf
