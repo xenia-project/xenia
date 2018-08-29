@@ -9,6 +9,7 @@
 
 #include "xenia/gpu/dxbc_shader_translator.h"
 
+#include <algorithm>
 #include <cstring>
 
 #include "third_party/dxbc/DXBCChecksum.h"
@@ -59,6 +60,16 @@ std::vector<uint8_t> DxbcShaderTranslator::CompleteTranslation() {
   shader_object_.push_back('FEDR');
   shader_object_.push_back(0);
   WriteResourceDefinitions();
+  shader_object_[chunk_position_dwords + 1] =
+      (uint32_t(shader_object_.size()) - chunk_position_dwords - 2) *
+      sizeof(uint32_t);
+
+  // Write Input SiGNature.
+  chunk_position_dwords = uint32_t(shader_object_.size());
+  shader_object_[91] = chunk_position_dwords * sizeof(uint32_t);
+  shader_object_.push_back('NGSI');
+  shader_object_.push_back(0);
+  WriteInputSignature();
   shader_object_[chunk_position_dwords + 1] =
       (uint32_t(shader_object_.size()) - chunk_position_dwords - 2) *
       sizeof(uint32_t);
@@ -358,6 +369,94 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
     // Register space 0.
     shader_object_.push_back(0);
     shader_object_.push_back(i);
+  }
+}
+
+void DxbcShaderTranslator::WriteInputSignature() {
+  uint32_t chunk_position_dwords = uint32_t(shader_object_.size());
+  uint32_t new_offset;
+
+  const uint32_t signature_position_dwords = 2;
+  const uint32_t signature_size_dwords = 6;
+
+  if (is_vertex_shader()) {
+    // Only unswapped vertex index.
+    shader_object_.push_back(1);
+    // Unknown.
+    shader_object_.push_back(8);
+
+    // Vertex index.
+    // Semantic name SV_VertexID (the only one in the signature).
+    shader_object_.push_back(
+        (signature_position_dwords + signature_size_dwords) * sizeof(uint32_t));
+    // Semantic index.
+    shader_object_.push_back(0);
+    // D3D_NAME_VERTEX_ID.
+    shader_object_.push_back(6);
+    // D3D_REGISTER_COMPONENT_UINT32.
+    shader_object_.push_back(1);
+    shader_object_.push_back(kVSInVertexIndexRegister);
+    // x present, x used (always written to GPR 0).
+    shader_object_.push_back(0x1 | (0x1 << 8));
+
+    // Vertex index semantic name.
+    AppendString(shader_object_, "SV_VertexID");
+  } else {
+    assert_true(is_pixel_shader());
+    // Interpolators, point parameters (coordinates, size), screen position.
+    shader_object_.push_back(kInterpolatorCount + 2);
+    // Unknown.
+    shader_object_.push_back(8);
+
+    // Intepolators.
+    for (uint32_t i = 0; i < kInterpolatorCount; ++i) {
+      // Reserve space for the semantic name (TEXCOORD).
+      shader_object_.push_back(0);
+      shader_object_.push_back(i);
+      // D3D_NAME_UNDEFINED.
+      shader_object_.push_back(0);
+      // D3D_REGISTER_COMPONENT_FLOAT32.
+      shader_object_.push_back(3);
+      shader_object_.push_back(kPSInInterpolatorRegister + i);
+      // Interpolators are copied to GPRs in the beginning of the shader. If
+      // there's a register to copy to, this interpolator is used.
+      shader_object_.push_back(0xF | (i < register_count() ? (0xF << 8) : 0));
+    }
+
+    // Point parameters - coordinate on the point and point size as a float3
+    // TEXCOORD. Always used because ps_param_gen is handled dynamically.
+    shader_object_.push_back(0);
+    shader_object_.push_back(kPointParametersTexCoord);
+    shader_object_.push_back(0);
+    shader_object_.push_back(3);
+    shader_object_.push_back(kPSInPointParametersRegister);
+    shader_object_.push_back(0x7 | (0x7 << 8));
+
+    // Position (only XY). Always used because ps_param_gen is handled
+    // dynamically.
+    shader_object_.push_back(0);
+    shader_object_.push_back(0);
+    // D3D_NAME_POSITION.
+    shader_object_.push_back(1);
+    shader_object_.push_back(3);
+    shader_object_.push_back(kPSInPositionRegister);
+    shader_object_.push_back(0xF | (0xF << 8));
+
+    // Write the semantic names.
+    new_offset = (uint32_t(shader_object_.size()) - chunk_position_dwords) *
+                 sizeof(uint32_t);
+    for (uint32_t i = 0; i < kInterpolatorCount + 1; ++i) {
+      uint32_t texcoord_name_position_dwords = chunk_position_dwords +
+                                               signature_position_dwords +
+                                               i * signature_size_dwords;
+      shader_object_[texcoord_name_position_dwords] = new_offset;
+    }
+    new_offset += AppendString(shader_object_, "TEXCOORD");
+    uint32_t position_name_position_dwords =
+        chunk_position_dwords + signature_position_dwords +
+        (kInterpolatorCount + 1) * signature_size_dwords;
+    shader_object_[position_name_position_dwords] = new_offset;
+    new_offset += AppendString(shader_object_, "POSITION");
   }
 }
 
