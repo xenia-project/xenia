@@ -28,6 +28,8 @@ void DxbcShaderTranslator::Reset() {
   ShaderTranslator::Reset();
 
   shader_code_.clear();
+
+  rdef_constants_used_ = 0;
 }
 
 std::vector<uint8_t> DxbcShaderTranslator::CompleteTranslation() {
@@ -89,20 +91,43 @@ uint32_t DxbcShaderTranslator::AppendString(std::vector<uint32_t>& dest,
   return uint32_t(size_aligned);
 }
 
+const DxbcShaderTranslator::RdefStructMember
+    DxbcShaderTranslator::rdef_float_constant_page_member_ = {
+        "c", RdefTypeIndex::kFloat4Array32, 0};
+
+const DxbcShaderTranslator::RdefType DxbcShaderTranslator::rdef_types_[size_t(
+    DxbcShaderTranslator::RdefTypeIndex::kCount)] = {
+    {"float", 0, 3, 1, 1, 0, 0, RdefTypeIndex::kUnknown, nullptr},
+    {"float2", 1, 3, 1, 2, 0, 0, RdefTypeIndex::kUnknown, nullptr},
+    {"float3", 1, 3, 1, 3, 0, 0, RdefTypeIndex::kUnknown, nullptr},
+    {"float4", 1, 3, 1, 4, 0, 0, RdefTypeIndex::kUnknown, nullptr},
+    {"int", 0, 2, 1, 1, 0, 0, RdefTypeIndex::kUnknown, nullptr},
+    {"uint", 0, 19, 1, 1, 0, 0, RdefTypeIndex::kUnknown, nullptr},
+    {"uint4", 1, 19, 1, 4, 0, 0, RdefTypeIndex::kUnknown, nullptr},
+    {nullptr, 1, 3, 1, 4, 20, 0, RdefTypeIndex::kFloat4, nullptr},
+    {nullptr, 1, 19, 1, 4, 8, 0, RdefTypeIndex::kUint4, nullptr},
+    {nullptr, 1, 19, 1, 4, 32, 0, RdefTypeIndex::kUint4, nullptr},
+    {nullptr, 1, 19, 1, 4, 48, 0, RdefTypeIndex::kUint4, nullptr},
+    {"XeFloatConstantPage", 5, 0, 1, 128, 1, 1, RdefTypeIndex::kUnknown,
+     &rdef_float_constant_page_member_},
+};
+
 void DxbcShaderTranslator::WriteResourceDefinitions() {
   uint32_t chunk_position_dwords = uint32_t(shader_object_.size());
+  uint32_t new_offset;
 
-  // Write the header.
+  // TODO(Triang3l): Include shared memory, textures, samplers.
+  uint32_t binding_count = uint32_t(RdefConstantBufferIndex::kCount);
+
+  // ***************************************************************************
+  // Header
+  // ***************************************************************************
   // Constant buffer count.
-  // b0 - Xenia system constants.
-  // b1 - bool and loop constants.
-  // b2 - fetch constants.
-  // b3-b10 - float constants.
-  shader_object_.push_back(4);
+  shader_object_.push_back(uint32_t(RdefConstantBufferIndex::kCount));
   // Constant buffer offset (set later).
   shader_object_.push_back(0);
-  // TODO(Triang3l): Bound resource count (CBV + other views) (set later).
-  shader_object_.push_back(4);
+  // Bound resource count (CBV, SRV, UAV, samplers).
+  shader_object_.push_back(binding_count);
   // TODO(Triang3l): Bound resource buffer offset (set later).
   shader_object_.push_back(0);
   if (is_vertex_shader()) {
@@ -131,10 +156,72 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
   // Generator name.
   AppendString(shader_object_, "Xenia");
 
-  // Constant buffers.
-  uint32_t cbuffer_position_dwords = uint32_t(shader_object_.size());
-  shader_object_[chunk_position_dwords + 1] =
-      cbuffer_position_dwords * sizeof(uint32_t);
+  // ***************************************************************************
+  // Constant types
+  // ***************************************************************************
+  // Type names.
+  new_offset = (uint32_t(shader_object_.size()) - chunk_position_dwords) *
+               sizeof(uint32_t);
+  uint32_t type_name_offsets[size_t(RdefTypeIndex::kCount)];
+  for (uint32_t i = 0; i < uint32_t(RdefTypeIndex::kCount); ++i) {
+    const RdefType& type = rdef_types_[i];
+    if (type.name == nullptr) {
+      // Array - use the name of the element type.
+      type_name_offsets[i] =
+          type_name_offsets[uint32_t(type.array_element_type)];
+      continue;
+    }
+    type_name_offsets[i] = new_offset;
+    new_offset += AppendString(shader_object_, type.name);
+  }
+  // Types.
+  uint32_t types_position_dwords = uint32_t(shader_object_.size());
+  const uint32_t type_size_dwords = 9;
+  uint32_t types_offset =
+      (types_position_dwords - chunk_position_dwords) * sizeof(uint32_t);
+  const uint32_t type_size = type_size_dwords * sizeof(uint32_t);
+  for (uint32_t i = 0; i < uint32_t(RdefTypeIndex::kCount); ++i) {
+    const RdefType& type = rdef_types_[i];
+    shader_object_.push_back(type.type_class | (type.type << 16));
+    shader_object_.push_back(type.row_count | (type.column_count << 16));
+    shader_object_.push_back(type.element_count |
+                             (type.struct_member_count << 16));
+    // Struct member offset (set later).
+    shader_object_.push_back(0);
+    // Unknown.
+    shader_object_.push_back(0);
+    shader_object_.push_back(0);
+    shader_object_.push_back(0);
+    shader_object_.push_back(0);
+    shader_object_.push_back(type_name_offsets[i]);
+  }
+  // Struct members.
+  for (uint32_t i = 0; i < uint32_t(RdefTypeIndex::kCount); ++i) {
+    const RdefType& type = rdef_types_[i];
+    const RdefStructMember* struct_members = type.struct_members;
+    if (struct_members == nullptr) {
+      continue;
+    }
+    uint32_t struct_member_position_dwords = uint32_t(shader_object_.size());
+    shader_object_[types_position_dwords + i * type_size_dwords + 3] =
+        (struct_member_position_dwords - chunk_position_dwords) *
+        sizeof(uint32_t);
+    uint32_t struct_member_count = type.struct_member_count;
+    // Reserve space for names and write types and offsets.
+    for (uint32_t j = 0; j < struct_member_count; ++j) {
+      shader_object_.push_back(0);
+      shader_object_.push_back(types_offset +
+                               uint32_t(struct_members[j].type) * type_size);
+      shader_object_.push_back(struct_members[j].offset);
+    }
+    // Write member names.
+    new_offset = (uint32_t(shader_object_.size()) - chunk_position_dwords) *
+                 sizeof(uint32_t);
+    for (uint32_t j = 0; j < struct_member_count; ++j) {
+      shader_object_[struct_member_position_dwords + j * 3] = new_offset;
+      new_offset += AppendString(shader_object_, struct_members[j].name);
+    }
+  }
 }
 
 }  // namespace gpu
