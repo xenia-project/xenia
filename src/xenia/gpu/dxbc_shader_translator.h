@@ -23,6 +23,10 @@ class DxbcShaderTranslator : public ShaderTranslator {
   DxbcShaderTranslator();
   ~DxbcShaderTranslator() override;
 
+  // IF SYSTEM CONSTANTS ARE CHANGED OR ADDED, THE FOLLOWING MUST BE UPDATED:
+  // - rdef_constants_.
+  // - rdef_constant_buffers_ system constant buffer size.
+  // - d3d12/shaders/xenos_draw.hlsli (for geometry shaders).
   struct SystemConstants {
     // vec4 0
     float mul_rcp_w[3];
@@ -60,6 +64,18 @@ class DxbcShaderTranslator : public ShaderTranslator {
   std::vector<uint8_t> CompleteTranslation() override;
 
  private:
+  static constexpr uint32_t kFloatConstantsPerPage = 32;
+  static constexpr uint32_t kFloatConstantPageCount = 8;
+
+  // Constant buffer bindings in space 0.
+  enum class CbufferRegister {
+    kSystemConstants,
+    kBoolLoopConstants,
+    kFetchConstants,
+    kFloatConstantsFirst,
+    kFloatConstantsLast = kFloatConstantsFirst + kFloatConstantPageCount - 1,
+  };
+
   // Appends a string to a DWORD stream, returns the DWORD-aligned length.
   static uint32_t AppendString(std::vector<uint32_t>& dest, const char* source);
 
@@ -80,14 +96,14 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kInt,
     kUint,
     kUint4,
-    // Float constants in one page.
-    kFloat4Array32,
     // Bool constants.
     kUint4Array8,
     // Loop constants.
     kUint4Array32,
     // Fetch constants.
     kUint4Array48,
+    // Float constants in one page.
+    kFloatConstantPageArray,
     kFloatConstantPageStruct,
 
     kCount,
@@ -170,12 +186,12 @@ class DxbcShaderTranslator : public ShaderTranslator {
     RdefConstantIndex first_constant;
     uint32_t constant_count;
     uint32_t size;
-    uint32_t register_index;
+    CbufferRegister register_index;
     uint32_t binding_count;
     bool dynamic_indexed;
   };
   static const RdefConstantBuffer
-      rdef_constant_buffers[size_t(RdefConstantBufferIndex::kCount)];
+      rdef_constant_buffers_[size_t(RdefConstantBufferIndex::kCount)];
 };
 
 }  // namespace gpu

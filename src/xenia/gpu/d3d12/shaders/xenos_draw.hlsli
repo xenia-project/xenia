@@ -1,7 +1,7 @@
 #ifndef XENIA_GPU_D3D12_SHADERS_XENOS_DRAW_HLSLI_
 #define XENIA_GPU_D3D12_SHADERS_XENOS_DRAW_HLSLI_
 
-cbuffer XeSystemConstants : register(b0) {
+cbuffer xe_system_cbuffer : register(b0) {
   // vec4 0
   float3 xe_mul_rcp_w;
   uint xe_vertex_base_index;

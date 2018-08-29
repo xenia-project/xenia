@@ -93,7 +93,7 @@ uint32_t DxbcShaderTranslator::AppendString(std::vector<uint32_t>& dest,
 
 const DxbcShaderTranslator::RdefStructMember
     DxbcShaderTranslator::rdef_float_constant_page_member_ = {
-        "c", RdefTypeIndex::kFloat4Array32, 0};
+        "c", RdefTypeIndex::kFloatConstantPageArray, 0};
 
 const DxbcShaderTranslator::RdefType DxbcShaderTranslator::rdef_types_[size_t(
     DxbcShaderTranslator::RdefTypeIndex::kCount)] = {
@@ -104,17 +104,19 @@ const DxbcShaderTranslator::RdefType DxbcShaderTranslator::rdef_types_[size_t(
     {"int", 0, 2, 1, 1, 0, 0, RdefTypeIndex::kUnknown, nullptr},
     {"uint", 0, 19, 1, 1, 0, 0, RdefTypeIndex::kUnknown, nullptr},
     {"uint4", 1, 19, 1, 4, 0, 0, RdefTypeIndex::kUnknown, nullptr},
-    {nullptr, 1, 3, 1, 4, 20, 0, RdefTypeIndex::kFloat4, nullptr},
     {nullptr, 1, 19, 1, 4, 8, 0, RdefTypeIndex::kUint4, nullptr},
     {nullptr, 1, 19, 1, 4, 32, 0, RdefTypeIndex::kUint4, nullptr},
     {nullptr, 1, 19, 1, 4, 48, 0, RdefTypeIndex::kUint4, nullptr},
-    {"XeFloatConstantPage", 5, 0, 1, 128, 1, 1, RdefTypeIndex::kUnknown,
-     &rdef_float_constant_page_member_},
+    {nullptr, 1, 3, 1, 4, kFloatConstantsPerPage, 0, RdefTypeIndex::kFloat4,
+     nullptr},
+    {"XeFloatConstantPage", 5, 0, 1, kFloatConstantsPerPage * 4, 1, 1,
+     RdefTypeIndex::kUnknown, &rdef_float_constant_page_member_},
 };
 
 const DxbcShaderTranslator::RdefConstant
     DxbcShaderTranslator::rdef_constants_[size_t(
         DxbcShaderTranslator::RdefConstantIndex::kCount)] = {
+        // SYSTEM CONSTANTS MUST BE UPDATED IF THEIR LAYOUT CHANGES!
         // System constants vec4 0.
         {"xe_mul_rcp_w", RdefTypeIndex::kFloat3, 0, 12},
         {"xe_vertex_base_index", RdefTypeIndex::kUint, 12, 4},
@@ -141,7 +143,24 @@ const DxbcShaderTranslator::RdefConstant
 
         {"xe_fetch_constants", RdefTypeIndex::kUint4Array48, 0, 768},
 
-        {"xe_float_constants", RdefTypeIndex::kFloat4Array32, 0, 512},
+        {"xe_float_constants", RdefTypeIndex::kFloatConstantPageArray, 0,
+         kFloatConstantsPerPage * 16},
+};
+
+const DxbcShaderTranslator::RdefConstantBuffer
+    DxbcShaderTranslator::rdef_constant_buffers_[size_t(
+        DxbcShaderTranslator::RdefConstantBufferIndex::kCount)] = {
+        // SYSTEM CONSTANT SIZE MUST BE UPDATED IF THEIR LAYOUT CHANGES!
+        {"xe_system_cbuffer", RdefConstantIndex::kSystemConstantFirst,
+         uint32_t(RdefConstantIndex::kSystemConstantCount), 112,
+         CbufferRegister::kSystemConstants, 1, false},
+        {"xe_bool_loop_cbuffer", RdefConstantIndex::kBoolConstants, 2, 40 * 16,
+         CbufferRegister::kBoolLoopConstants, 1, true},
+        {"xe_fetch_cbuffer", RdefConstantIndex::kFetchConstants, 1, 48 * 16,
+         CbufferRegister::kFetchConstants, 1, false},
+        {"xe_float_constants", RdefConstantIndex::kFloatConstants, 1,
+         kFloatConstantsPerPage * 16, CbufferRegister::kFloatConstantsFirst,
+         kFloatConstantPageCount, true},
 };
 
 void DxbcShaderTranslator::WriteResourceDefinitions() {
@@ -282,6 +301,31 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
     shader_object_.push_back(0xFFFFFFFFu);
     shader_object_.push_back(0);
     shader_object_.push_back(0xFFFFFFFFu);
+    shader_object_.push_back(0);
+  }
+
+  // ***************************************************************************
+  // Constant buffers
+  // ***************************************************************************
+  new_offset = (uint32_t(shader_object_.size()) - chunk_position_dwords) *
+               sizeof(uint32_t);
+  uint32_t cbuffer_name_offsets[size_t(RdefConstantBufferIndex::kCount)];
+  for (uint32_t i = 0; i < uint32_t(RdefConstantBufferIndex::kCount); ++i) {
+    cbuffer_name_offsets[i] = new_offset;
+    new_offset += AppendString(shader_object_, rdef_constant_buffers_[i].name);
+  }
+  // Write the offset to the header.
+  shader_object_[chunk_position_dwords + 1] = new_offset;
+  for (uint32_t i = 0; i < uint32_t(RdefConstantBufferIndex::kCount); ++i) {
+    const RdefConstantBuffer& cbuffer = rdef_constant_buffers_[i];
+    shader_object_.push_back(cbuffer_name_offsets[i]);
+    shader_object_.push_back(cbuffer.constant_count);
+    shader_object_.push_back(constants_offset +
+                             uint32_t(cbuffer.first_constant) * constant_size);
+    shader_object_.push_back(cbuffer.size);
+    // D3D_CT_CBUFFER.
+    shader_object_.push_back(0);
+    // No D3D_SHADER_CBUFFER_FLAGS.
     shader_object_.push_back(0);
   }
 }
