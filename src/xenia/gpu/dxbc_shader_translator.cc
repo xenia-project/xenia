@@ -153,14 +153,14 @@ const DxbcShaderTranslator::RdefConstantBuffer
         // SYSTEM CONSTANT SIZE MUST BE UPDATED IF THEIR LAYOUT CHANGES!
         {"xe_system_cbuffer", RdefConstantIndex::kSystemConstantFirst,
          uint32_t(RdefConstantIndex::kSystemConstantCount), 112,
-         CbufferRegister::kSystemConstants, 1, false},
+         CbufferRegister::kSystemConstants, 1, true, false},
         {"xe_bool_loop_cbuffer", RdefConstantIndex::kBoolConstants, 2, 40 * 16,
-         CbufferRegister::kBoolLoopConstants, 1, true},
+         CbufferRegister::kBoolLoopConstants, 1, true, true},
         {"xe_fetch_cbuffer", RdefConstantIndex::kFetchConstants, 1, 48 * 16,
-         CbufferRegister::kFetchConstants, 1, false},
+         CbufferRegister::kFetchConstants, 1, true, false},
         {"xe_float_constants", RdefConstantIndex::kFloatConstants, 1,
          kFloatConstantsPerPage * 16, CbufferRegister::kFloatConstantsFirst,
-         kFloatConstantPageCount, true},
+         kFloatConstantPageCount, false, true},
 };
 
 void DxbcShaderTranslator::WriteResourceDefinitions() {
@@ -189,8 +189,9 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
     // ps_5_1
     shader_object_.push_back(0xFFFF0501u);
   }
-  // Compiler flags - default for SM 5.1 (no preshader, prefer flow control).
-  shader_object_.push_back(0x500);
+  // Compiler flags - default for SM 5.1 (no preshader, prefer flow control),
+  // and also skip optimization and IEEE strictness.
+  shader_object_.push_back(0x2504);
   // Generator offset (directly after the RDEF header in our case).
   shader_object_.push_back(60);
   // RD11, but with nibbles inverted (unlike in SM 5.0).
@@ -327,6 +328,36 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
     shader_object_.push_back(0);
     // No D3D_SHADER_CBUFFER_FLAGS.
     shader_object_.push_back(0);
+  }
+
+  // ***************************************************************************
+  // Bindings
+  // ***************************************************************************
+  // TODO(Triang3l): Shared memory, textures, samplers.
+  new_offset = (uint32_t(shader_object_.size()) - chunk_position_dwords) *
+               sizeof(uint32_t);
+  // TODO(Triang3l): t# and s# names.
+  // Write the offset to the header.
+  shader_object_[chunk_position_dwords + 3] = new_offset;
+  // Constant buffers.
+  for (uint32_t i = 0; i < uint32_t(RdefConstantBufferIndex::kCount); ++i) {
+    const RdefConstantBuffer& cbuffer = rdef_constant_buffers_[i];
+    shader_object_.push_back(cbuffer_name_offsets[i]);
+    // D3D_SIT_CBUFFER.
+    shader_object_.push_back(0);
+    // No D3D_RESOURCE_RETURN_TYPE.
+    shader_object_.push_back(0);
+    // D3D_SRV_DIMENSION_UNKNOWN (not an SRV).
+    shader_object_.push_back(0);
+    // Not multisampled.
+    shader_object_.push_back(0);
+    shader_object_.push_back(uint32_t(cbuffer.register_index));
+    shader_object_.push_back(cbuffer.binding_count);
+    // D3D_SIF_USERPACKED if a `cbuffer` rather than a `ConstantBuffer<T>`.
+    shader_object_.push_back(cbuffer.user_packed ? 1 : 0);
+    // Register space 0.
+    shader_object_.push_back(0);
+    shader_object_.push_back(i);
   }
 }
 

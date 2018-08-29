@@ -188,6 +188,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
     uint32_t size;
     CbufferRegister register_index;
     uint32_t binding_count;
+    // True if created like `cbuffer`, false for `ConstantBuffer<T>`.
+    bool user_packed;
     bool dynamic_indexed;
   };
   static const RdefConstantBuffer
