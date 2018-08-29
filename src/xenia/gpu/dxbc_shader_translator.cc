@@ -112,6 +112,38 @@ const DxbcShaderTranslator::RdefType DxbcShaderTranslator::rdef_types_[size_t(
      &rdef_float_constant_page_member_},
 };
 
+const DxbcShaderTranslator::RdefConstant
+    DxbcShaderTranslator::rdef_constants_[size_t(
+        DxbcShaderTranslator::RdefConstantIndex::kCount)] = {
+        // System constants vec4 0.
+        {"xe_mul_rcp_w", RdefTypeIndex::kFloat3, 0, 12},
+        {"xe_vertex_base_index", RdefTypeIndex::kUint, 12, 4},
+        // System constants vec4 1.
+        {"xe_ndc_scale", RdefTypeIndex::kFloat3, 16, 12},
+        {"xe_vertex_index_endian", RdefTypeIndex::kUint, 28, 4},
+        // System constants vec4 2.
+        {"xe_ndc_offset", RdefTypeIndex::kFloat3, 32, 12},
+        {"xe_pixel_half_pixel_offset", RdefTypeIndex::kFloat, 44, 4},
+        // System constants vec4 3.
+        {"xe_point_size", RdefTypeIndex::kFloat2, 48, 8},
+        {"xe_ssaa_inv_scale", RdefTypeIndex::kFloat2, 56, 8},
+        // System constants vec4 4.
+        {"xe_pixel_pos_reg", RdefTypeIndex::kUint, 64, 4},
+        {"xe_alpha_test", RdefTypeIndex::kInt, 68, 4},
+        {"xe_alpha_test_range", RdefTypeIndex::kFloat2, 72, 8},
+        // System constants vec4 5.
+        {"xe_color_exp_bias", RdefTypeIndex::kFloat4, 80, 16},
+        // System constants vec4 6.
+        {"xe_color_output_map", RdefTypeIndex::kUint4, 96, 16},
+
+        {"xe_bool_constants", RdefTypeIndex::kUint4Array8, 0, 128},
+        {"xe_loop_constants", RdefTypeIndex::kUint4Array32, 128, 512},
+
+        {"xe_fetch_constants", RdefTypeIndex::kUint4Array48, 0, 768},
+
+        {"xe_float_constants", RdefTypeIndex::kFloat4Array32, 0, 512},
+};
+
 void DxbcShaderTranslator::WriteResourceDefinitions() {
   uint32_t chunk_position_dwords = uint32_t(shader_object_.size());
   uint32_t new_offset;
@@ -195,7 +227,7 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
     shader_object_.push_back(0);
     shader_object_.push_back(type_name_offsets[i]);
   }
-  // Struct members.
+  // Structure members.
   for (uint32_t i = 0; i < uint32_t(RdefTypeIndex::kCount); ++i) {
     const RdefType& type = rdef_types_[i];
     const RdefStructMember* struct_members = type.struct_members;
@@ -221,6 +253,36 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
       shader_object_[struct_member_position_dwords + j * 3] = new_offset;
       new_offset += AppendString(shader_object_, struct_members[j].name);
     }
+  }
+
+  // ***************************************************************************
+  // Constants
+  // ***************************************************************************
+  new_offset = (uint32_t(shader_object_.size()) - chunk_position_dwords) *
+               sizeof(uint32_t);
+  uint32_t constant_name_offsets[size_t(RdefConstantIndex::kCount)];
+  for (uint32_t i = 0; i < uint32_t(RdefConstantIndex::kCount); ++i) {
+    constant_name_offsets[i] = new_offset;
+    new_offset += AppendString(shader_object_, rdef_constants_[i].name);
+  }
+  uint32_t constants_offset = new_offset;
+  const uint32_t constant_size = 40;
+  for (uint32_t i = 0; i < uint32_t(RdefConstantIndex::kCount); ++i) {
+    const RdefConstant& constant = rdef_constants_[i];
+    shader_object_.push_back(constant_name_offsets[i]);
+    shader_object_.push_back(constant.offset);
+    shader_object_.push_back(constant.size);
+    // Flag 2 is D3D_SVF_USED.
+    shader_object_.push_back((rdef_constants_used_ & (1ull << i)) ? 2 : 0);
+    shader_object_.push_back(types_offset +
+                             uint32_t(constant.type) * type_size);
+    // Default value (always 0).
+    shader_object_.push_back(0);
+    // Unknown.
+    shader_object_.push_back(0xFFFFFFFFu);
+    shader_object_.push_back(0);
+    shader_object_.push_back(0xFFFFFFFFu);
+    shader_object_.push_back(0);
   }
 }
 
