@@ -76,10 +76,32 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kFloatConstantsLast = kFloatConstantsFirst + kFloatConstantPageCount - 1,
   };
 
+  static constexpr uint32_t kInterpolatorCount = 16;
+  static constexpr uint32_t kPointParametersTexCoord = kInterpolatorCount;
+
+  // IF ANY OF THESE ARE CHANGED, WriteInputSignature and WriteOutputSignature
+  // MUST BE UPDATED!
+
+  static constexpr uint32_t kVSInVertexIndexRegister = 0;
+  static constexpr uint32_t kVSOutInterpolatorRegister = 0;
+  static constexpr uint32_t kVSOutPointParametersRegister =
+      kVSOutInterpolatorRegister + kInterpolatorCount;
+  static constexpr uint32_t kVSOutPositionRegister =
+      kVSOutPointParametersRegister + 1;
+
+  static constexpr uint32_t kPSInInterpolatorRegister = 0;
+  static constexpr uint32_t kPSInPointParametersRegister =
+      kPSInInterpolatorRegister + kInterpolatorCount;
+  static constexpr uint32_t kPSInPositionRegister =
+      kPSInPointParametersRegister + 1;
+  static constexpr uint32_t kPSOutColorRegister = 0;
+  static constexpr uint32_t kPSOutDepthRegister = kPSOutColorRegister + 4;
+
   // Appends a string to a DWORD stream, returns the DWORD-aligned length.
   static uint32_t AppendString(std::vector<uint32_t>& dest, const char* source);
 
   void WriteResourceDefinitions();
+  void WriteInputSignature();
 
   // Executable instructions - generated during translation.
   std::vector<uint32_t> shader_code_;
