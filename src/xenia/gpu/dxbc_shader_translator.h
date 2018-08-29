@@ -94,14 +94,13 @@ class DxbcShaderTranslator : public ShaderTranslator {
       kPSInInterpolatorRegister + kInterpolatorCount;
   static constexpr uint32_t kPSInPositionRegister =
       kPSInPointParametersRegister + 1;
-  static constexpr uint32_t kPSOutColorRegister = 0;
-  static constexpr uint32_t kPSOutDepthRegister = kPSOutColorRegister + 4;
 
   // Appends a string to a DWORD stream, returns the DWORD-aligned length.
   static uint32_t AppendString(std::vector<uint32_t>& dest, const char* source);
 
   void WriteResourceDefinitions();
   void WriteInputSignature();
+  void WriteOutputSignature();
 
   // Executable instructions - generated during translation.
   std::vector<uint32_t> shader_code_;
@@ -216,6 +215,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
   };
   static const RdefConstantBuffer
       rdef_constant_buffers_[size_t(RdefConstantBufferIndex::kCount)];
+
+  bool writes_depth_;
 };
 
 }  // namespace gpu
