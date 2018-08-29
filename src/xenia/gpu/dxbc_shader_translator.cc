@@ -31,6 +31,7 @@ void DxbcShaderTranslator::Reset() {
   shader_code_.clear();
 
   rdef_constants_used_ = 0;
+  writes_depth_ = false;
 }
 
 std::vector<uint8_t> DxbcShaderTranslator::CompleteTranslation() {
@@ -66,10 +67,20 @@ std::vector<uint8_t> DxbcShaderTranslator::CompleteTranslation() {
 
   // Write Input SiGNature.
   chunk_position_dwords = uint32_t(shader_object_.size());
-  shader_object_[91] = chunk_position_dwords * sizeof(uint32_t);
+  shader_object_[9] = chunk_position_dwords * sizeof(uint32_t);
   shader_object_.push_back('NGSI');
   shader_object_.push_back(0);
   WriteInputSignature();
+  shader_object_[chunk_position_dwords + 1] =
+      (uint32_t(shader_object_.size()) - chunk_position_dwords - 2) *
+      sizeof(uint32_t);
+
+  // Write Output SiGNature.
+  chunk_position_dwords = uint32_t(shader_object_.size());
+  shader_object_[10] = chunk_position_dwords * sizeof(uint32_t);
+  shader_object_.push_back('NGSO');
+  shader_object_.push_back(0);
+  WriteOutputSignature();
   shader_object_[chunk_position_dwords + 1] =
       (uint32_t(shader_object_.size()) - chunk_position_dwords - 2) *
       sizeof(uint32_t);
@@ -456,7 +467,122 @@ void DxbcShaderTranslator::WriteInputSignature() {
         chunk_position_dwords + signature_position_dwords +
         (kInterpolatorCount + 1) * signature_size_dwords;
     shader_object_[position_name_position_dwords] = new_offset;
-    new_offset += AppendString(shader_object_, "POSITION");
+    new_offset += AppendString(shader_object_, "SV_Position");
+  }
+}
+
+void DxbcShaderTranslator::WriteOutputSignature() {
+  uint32_t chunk_position_dwords = uint32_t(shader_object_.size());
+  uint32_t new_offset;
+
+  const uint32_t signature_position_dwords = 2;
+  const uint32_t signature_size_dwords = 6;
+
+  if (is_vertex_shader()) {
+    // Interpolators, point parameters (coordinates, size), screen position.
+    shader_object_.push_back(1);
+    // Unknown.
+    shader_object_.push_back(8);
+
+    // Intepolators.
+    for (uint32_t i = 0; i < kInterpolatorCount; ++i) {
+      // Reserve space for the semantic name (TEXCOORD).
+      shader_object_.push_back(0);
+      // Semantic index.
+      shader_object_.push_back(i);
+      // D3D_NAME_UNDEFINED.
+      shader_object_.push_back(0);
+      // D3D_REGISTER_COMPONENT_FLOAT32.
+      shader_object_.push_back(3);
+      shader_object_.push_back(kVSOutInterpolatorRegister + i);
+      // Unlike in ISGN, the second byte contains the unused components, not the
+      // used ones. All components are always used because they are reset to 0.
+      shader_object_.push_back(0xF);
+    }
+
+    // Point parameters - coordinate on the point and point size as a float3
+    // TEXCOORD. Always used because reset to (0, 0, -1).
+    shader_object_.push_back(0);
+    shader_object_.push_back(kPointParametersTexCoord);
+    shader_object_.push_back(0);
+    shader_object_.push_back(3);
+    shader_object_.push_back(kVSOutPointParametersRegister);
+    shader_object_.push_back(0x7 | (0x8 << 8));
+
+    // Position.
+    shader_object_.push_back(0);
+    shader_object_.push_back(0);
+    // D3D_NAME_POSITION.
+    shader_object_.push_back(1);
+    shader_object_.push_back(3);
+    shader_object_.push_back(kVSOutPositionRegister);
+    shader_object_.push_back(0xF);
+
+    // Write the semantic names.
+    new_offset = (uint32_t(shader_object_.size()) - chunk_position_dwords) *
+                 sizeof(uint32_t);
+    for (uint32_t i = 0; i < kInterpolatorCount + 1; ++i) {
+      uint32_t texcoord_name_position_dwords = chunk_position_dwords +
+                                               signature_position_dwords +
+                                               i * signature_size_dwords;
+      shader_object_[texcoord_name_position_dwords] = new_offset;
+    }
+    new_offset += AppendString(shader_object_, "TEXCOORD");
+    uint32_t position_name_position_dwords =
+        chunk_position_dwords + signature_position_dwords +
+        (kInterpolatorCount + 1) * signature_size_dwords;
+    shader_object_[position_name_position_dwords] = new_offset;
+    new_offset += AppendString(shader_object_, "SV_Position");
+  } else {
+    assert_true(is_pixel_shader());
+    // Color render targets, optionally depth.
+    shader_object_.push_back(4 + (writes_depth_ ? 1 : 0));
+    // Unknown.
+    shader_object_.push_back(8);
+
+    // Color render targets.
+    for (uint32_t i = 0; i < 4; ++i) {
+      // Reserve space for the semantic name (SV_Target).
+      shader_object_.push_back(0);
+      shader_object_.push_back(i);
+      // D3D_NAME_UNDEFINED for some reason - this is correct.
+      shader_object_.push_back(0);
+      shader_object_.push_back(3);
+      // Register must match the render target index.
+      shader_object_.push_back(i);
+      // All are used because X360 RTs are dynamically remapped to D3D12 RTs to
+      // make the indices consecutive.
+      shader_object_.push_back(0xF);
+    }
+
+    // Depth.
+    if (writes_depth_) {
+      // Reserve space for the semantic name (SV_Depth).
+      shader_object_.push_back(0);
+      shader_object_.push_back(0);
+      shader_object_.push_back(0);
+      shader_object_.push_back(3);
+      shader_object_.push_back(0xFFFFFFFFu);
+      shader_object_.push_back(0x1 | (0xE << 8));
+    }
+
+    // Write the semantic names.
+    new_offset = (uint32_t(shader_object_.size()) - chunk_position_dwords) *
+                 sizeof(uint32_t);
+    for (uint32_t i = 0; i < 4; ++i) {
+      uint32_t color_name_position_dwords = chunk_position_dwords +
+                                            signature_position_dwords +
+                                            i * signature_size_dwords;
+      shader_object_[color_name_position_dwords] = new_offset;
+    }
+    new_offset += AppendString(shader_object_, "SV_Target");
+    if (writes_depth_) {
+      uint32_t depth_name_position_dwords = chunk_position_dwords +
+                                            signature_position_dwords +
+                                            4 * signature_size_dwords;
+      shader_object_[depth_name_position_dwords] = new_offset;
+      new_offset += AppendString(shader_object_, "SV_Depth");
+    }
   }
 }
 
