@@ -95,6 +95,10 @@ class DxbcShaderTranslator : public ShaderTranslator {
   static constexpr uint32_t kPSInPositionRegister =
       kPSInPointParametersRegister + 1;
 
+  // 4 tokens emitted to shader_object_ (NOT shader_code_).
+  void EmitDclResourceOperand(uint32_t type, uint32_t id, uint32_t lower_bound,
+                              uint32_t upper_bound);
+
   void EmitRet();
 
   // Writes the epilogue.
@@ -221,6 +225,11 @@ class DxbcShaderTranslator : public ShaderTranslator {
   };
   static const RdefConstantBuffer
       rdef_constant_buffers_[size_t(RdefConstantBufferIndex::kCount)];
+
+  // Order of dcl_constantbuffer instructions, from most frequenly accessed to
+  // least frequently accessed (hint to driver according to the DXBC header).
+  static const RdefConstantBufferIndex
+      constant_buffer_dcl_order_[size_t(RdefConstantBufferIndex::kCount)];
 
   bool writes_depth_;
 
