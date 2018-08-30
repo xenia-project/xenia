@@ -20,7 +20,7 @@
 #include "xenia/gpu/d3d12/render_target_cache.h"
 #include "xenia/gpu/d3d12/shared_memory.h"
 #include "xenia/gpu/d3d12/texture_cache.h"
-#include "xenia/gpu/hlsl_shader_translator.h"
+#include "xenia/gpu/dxbc_shader_translator.h"
 #include "xenia/gpu/xenos.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/ui/d3d12/command_list.h"
@@ -266,7 +266,7 @@ class D3D12CommandProcessor : public CommandProcessor {
   ID3D12DescriptorHeap* current_sampler_heap_;
 
   // System shader constants.
-  HlslShaderTranslator::SystemConstants system_constants_;
+  DxbcShaderTranslator::SystemConstants system_constants_;
 
   // Constant buffer bindings.
   struct ConstantBufferBinding {

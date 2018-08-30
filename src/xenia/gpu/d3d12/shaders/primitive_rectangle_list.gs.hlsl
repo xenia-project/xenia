@@ -33,9 +33,9 @@ void main(triangle XeVertex xe_in[3],
                                 xe_in[0].interpolators[i] +
                                 xe_in[2].interpolators[i];
     }
-    xe_out.point_coord = xe_in[1].point_coord +
-                         xe_in[0].point_coord -
-                         xe_in[2].point_coord;
+    xe_out.point_params.xy = xe_in[1].point_params.xy +
+                             xe_in[0].point_params.xy -
+                             xe_in[2].point_params.xy;
     xe_out.position = float4(xe_in[1].position.xy -
                              xe_in[0].position.xy +
                              xe_in[2].position.xy,
@@ -53,15 +53,15 @@ void main(triangle XeVertex xe_in[3],
                                 xe_in[1].interpolators[i] +
                                 xe_in[2].interpolators[i];
     }
-    xe_out.point_coord = xe_in[0].point_coord +
-                         xe_in[1].point_coord -
-                         xe_in[2].point_coord;
+    xe_out.point_params.xy = xe_in[0].point_params.xy +
+                             xe_in[1].point_params.xy -
+                             xe_in[2].point_params.xy;
     xe_out.position = float4(xe_in[0].position.xy -
                              xe_in[1].position.xy +
                              xe_in[2].position.xy,
                              xe_in[2].position.zw);
   }
-  xe_out.point_size = xe_in[2].point_size;
+  xe_out.point_params.z = xe_in[2].point_params.z;
   xe_stream.Append(xe_out);
   xe_stream.RestartStrip();
 }
