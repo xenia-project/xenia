@@ -228,10 +228,10 @@ std::vector<uint8_t> HlslShaderTranslator::CompleteTranslation() {
         srv_name_suffix = "2d";
         break;
     }
-    // t0 is shared memory in vertex shaders.
+    // t0 is shared memory for vfetch, so textures start from t1.
     source.AppendFormat("Texture%s<float4> xe_texture%u_%s : register(t%u);\n",
                         srv_type_dimension, srv.fetch_constant, srv_name_suffix,
-                        i + (is_vertex_shader() ? 1 : 0));
+                        i + 1);
   }
   for (uint32_t i = 0; i < sampler_count_; ++i) {
     source.AppendFormat("SamplerState xe_sampler%u : register(s%u);\n",
