@@ -40,7 +40,7 @@ void DxbcShaderTranslator::EmitDclResourceOperand(uint32_t type, uint32_t id,
                                                   uint32_t lower_bound,
                                                   uint32_t upper_bound) {
   // TODO(Triang3l): Check if component selection is correct for samplers.
-  uint32_t token =
+  shader_object_.push_back(
       ENCODE_D3D10_SB_OPERAND_NUM_COMPONENTS(D3D10_SB_OPERAND_4_COMPONENT) |
       ENCODE_D3D10_SB_OPERAND_4_COMPONENT_SELECTION_MODE(
           D3D10_SB_OPERAND_4_COMPONENT_SWIZZLE_MODE) |
@@ -52,17 +52,15 @@ void DxbcShaderTranslator::EmitDclResourceOperand(uint32_t type, uint32_t id,
       ENCODE_D3D10_SB_OPERAND_INDEX_REPRESENTATION(
           1, D3D10_SB_OPERAND_INDEX_IMMEDIATE32) |
       ENCODE_D3D10_SB_OPERAND_INDEX_REPRESENTATION(
-          2, D3D10_SB_OPERAND_INDEX_IMMEDIATE32);
-  shader_object_.push_back(token);
+          2, D3D10_SB_OPERAND_INDEX_IMMEDIATE32));
   shader_object_.push_back(id);
   shader_object_.push_back(lower_bound);
   shader_object_.push_back(upper_bound);
 }
 
 void DxbcShaderTranslator::EmitRet() {
-  const uint32_t token = ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_RET) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1);
-  shader_code_.push_back(token);
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_RET) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
   ++stat_.instruction_count;
   ++stat_.static_flow_control_count;
 }
@@ -693,35 +691,34 @@ void DxbcShaderTranslator::WriteOutputSignature() {
 void DxbcShaderTranslator::WriteShaderCode() {
   uint32_t chunk_position_dwords = uint32_t(shader_object_.size());
 
-  // vs_5_1 or ps_5_1.
   D3D10_SB_TOKENIZED_PROGRAM_TYPE program_type =
       is_vertex_shader() ? D3D10_SB_VERTEX_SHADER : D3D10_SB_PIXEL_SHADER;
-  shader_object_.push_back((program_type << 16) | 0x51);
-  // Reserve space for the length.
+  shader_object_.push_back(
+      ENCODE_D3D10_SB_TOKENIZED_PROGRAM_VERSION_TOKEN(program_type, 5, 1));
+  // Reserve space for the length token.
   shader_object_.push_back(0);
 
   // Declarations (don't increase the instruction count stat, and only inputs
   // and outputs are counted in dcl_count).
-  uint32_t token;
 
   // Don't allow refactoring when converting to native code to maintain position
   // invariance (needed even in pixel shaders for oDepth invariance).
-  token = ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_GLOBAL_FLAGS) |
-          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1) |
-          D3D11_1_SB_GLOBAL_FLAG_SKIP_OPTIMIZATION;
-  shader_object_.push_back(token);
+  shader_object_.push_back(
+      ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_GLOBAL_FLAGS) |
+      ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1) |
+      D3D11_1_SB_GLOBAL_FLAG_SKIP_OPTIMIZATION);
 
   // Constant buffers.
   for (uint32_t i = 0; i < uint32_t(RdefConstantBufferIndex::kCount); ++i) {
     uint32_t cbuffer_index = uint32_t(constant_buffer_dcl_order_[i]);
     const RdefConstantBuffer& cbuffer = rdef_constant_buffers_[cbuffer_index];
-    token = ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_CONSTANT_BUFFER) |
-            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7) |
-            ENCODE_D3D10_SB_D3D10_SB_CONSTANT_BUFFER_ACCESS_PATTERN(
-                cbuffer.dynamic_indexed
-                    ? D3D10_SB_CONSTANT_BUFFER_DYNAMIC_INDEXED
-                    : D3D10_SB_CONSTANT_BUFFER_IMMEDIATE_INDEXED);
-    shader_object_.push_back(token);
+    shader_object_.push_back(
+        ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_CONSTANT_BUFFER) |
+        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7) |
+        ENCODE_D3D10_SB_D3D10_SB_CONSTANT_BUFFER_ACCESS_PATTERN(
+            cbuffer.dynamic_indexed
+                ? D3D10_SB_CONSTANT_BUFFER_DYNAMIC_INDEXED
+                : D3D10_SB_CONSTANT_BUFFER_IMMEDIATE_INDEXED));
     EmitDclResourceOperand(
         D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, cbuffer_index,
         uint32_t(cbuffer.register_index),
@@ -733,11 +730,71 @@ void DxbcShaderTranslator::WriteShaderCode() {
 
   // Shader resources.
   // Shared memory ByteAddressBuffer.
-  token = ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_DCL_RESOURCE_RAW) |
-          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(6);
-  shader_object_.push_back(token);
+  shader_object_.push_back(
+      ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_DCL_RESOURCE_RAW) |
+      ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(6));
   EmitDclResourceOperand(D3D10_SB_OPERAND_TYPE_RESOURCE, 0, 0, 0);
   shader_object_.push_back(0);
+
+  // Inputs and outputs (operands are 4-component masked v# and o#).
+  const uint32_t input_operand_token_unmasked =
+      ENCODE_D3D10_SB_OPERAND_NUM_COMPONENTS(D3D10_SB_OPERAND_4_COMPONENT) |
+      ENCODE_D3D10_SB_OPERAND_4_COMPONENT_SELECTION_MODE(
+          D3D10_SB_OPERAND_4_COMPONENT_MASK_MODE) |
+      ENCODE_D3D10_SB_OPERAND_TYPE(D3D10_SB_OPERAND_TYPE_INPUT) |
+      ENCODE_D3D10_SB_OPERAND_INDEX_DIMENSION(D3D10_SB_OPERAND_INDEX_1D) |
+      ENCODE_D3D10_SB_OPERAND_INDEX_REPRESENTATION(
+          0, D3D10_SB_OPERAND_INDEX_IMMEDIATE32);
+  const uint32_t output_operand_token_unmasked =
+      ENCODE_D3D10_SB_OPERAND_NUM_COMPONENTS(D3D10_SB_OPERAND_4_COMPONENT) |
+      ENCODE_D3D10_SB_OPERAND_4_COMPONENT_SELECTION_MODE(
+          D3D10_SB_OPERAND_4_COMPONENT_MASK_MODE) |
+      ENCODE_D3D10_SB_OPERAND_TYPE(D3D10_SB_OPERAND_TYPE_OUTPUT) |
+      ENCODE_D3D10_SB_OPERAND_INDEX_DIMENSION(D3D10_SB_OPERAND_INDEX_1D) |
+      ENCODE_D3D10_SB_OPERAND_INDEX_REPRESENTATION(
+          0, D3D10_SB_OPERAND_INDEX_IMMEDIATE32);
+  if (is_vertex_shader()) {
+    // Unswapped vertex index input (only X component).
+    shader_object_.push_back(
+        ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_INPUT_SGV) |
+        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4));
+    shader_object_.push_back(input_operand_token_unmasked |
+                             D3D10_SB_OPERAND_4_COMPONENT_MASK_X);
+    shader_object_.push_back(kVSInVertexIndexRegister);
+    shader_object_.push_back(ENCODE_D3D10_SB_NAME(D3D10_SB_NAME_VERTEX_ID));
+    ++stat_.dcl_count;
+    // Interpolator output.
+    for (uint32_t i = 0; i < kInterpolatorCount; ++i) {
+      shader_object_.push_back(
+          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_OUTPUT) |
+          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
+      shader_object_.push_back(output_operand_token_unmasked |
+                               D3D10_SB_OPERAND_4_COMPONENT_MASK_ALL);
+      shader_object_.push_back(kVSOutInterpolatorRegister + i);
+      ++stat_.dcl_count;
+    }
+    // Point parameters output.
+    shader_object_.push_back(
+        ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_OUTPUT) |
+        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
+    shader_object_.push_back(output_operand_token_unmasked |
+                             D3D10_SB_OPERAND_4_COMPONENT_MASK_X |
+                             D3D10_SB_OPERAND_4_COMPONENT_MASK_Y |
+                             D3D10_SB_OPERAND_4_COMPONENT_MASK_Z);
+    shader_object_.push_back(kVSOutPointParametersRegister);
+    ++stat_.dcl_count;
+    // Position output.
+    shader_object_.push_back(
+        ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_OUTPUT_SIV) |
+        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4));
+    shader_object_.push_back(output_operand_token_unmasked |
+                             D3D10_SB_OPERAND_4_COMPONENT_MASK_ALL);
+    shader_object_.push_back(kVSOutPositionRegister);
+    shader_object_.push_back(ENCODE_D3D10_SB_NAME(D3D10_SB_NAME_POSITION));
+    ++stat_.dcl_count;
+  } else if (is_pixel_shader()) {
+    // TODO(Triang3l): Pixel shader input.
+  }
 
   // Write the translated shader code.
   size_t code_size_dwords = shader_code_.size();
