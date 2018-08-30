@@ -101,6 +101,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
   void WriteResourceDefinitions();
   void WriteInputSignature();
   void WriteOutputSignature();
+  void WriteShaderCode();
 
   // Executable instructions - generated during translation.
   std::vector<uint32_t> shader_code_;

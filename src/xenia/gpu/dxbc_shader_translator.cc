@@ -87,7 +87,15 @@ std::vector<uint8_t> DxbcShaderTranslator::CompleteTranslation() {
       (uint32_t(shader_object_.size()) - chunk_position_dwords - 2) *
       sizeof(uint32_t);
 
-  // TODO(Triang3l): Write SHEX.
+  // Write SHader EXtended.
+  chunk_position_dwords = uint32_t(shader_object_.size());
+  shader_object_[11] = chunk_position_dwords * sizeof(uint32_t);
+  shader_object_.push_back('XEHS');
+  shader_object_.push_back(0);
+  WriteShaderCode();
+  shader_object_[chunk_position_dwords + 1] =
+      (uint32_t(shader_object_.size()) - chunk_position_dwords - 2) *
+      sizeof(uint32_t);
 
   // Write STATistics.
   chunk_position_dwords = uint32_t(shader_object_.size());
@@ -598,6 +606,32 @@ void DxbcShaderTranslator::WriteOutputSignature() {
       new_offset += AppendString(shader_object_, "SV_Depth");
     }
   }
+}
+
+void DxbcShaderTranslator::WriteShaderCode() {
+  uint32_t chunk_position_dwords = uint32_t(shader_object_.size());
+
+  // vs_5_1 or ps_5_1.
+  D3D10_SB_TOKENIZED_PROGRAM_TYPE program_type =
+      is_vertex_shader() ? D3D10_SB_VERTEX_SHADER : D3D10_SB_PIXEL_SHADER;
+  shader_object_.push_back((program_type << 16) | 0x51);
+  // Reserve space for the length.
+  shader_object_.push_back(0);
+
+  // TODO(Triang3l): Declarations.
+
+  // Write the translated shader code.
+  size_t code_size_dwords = shader_code_.size();
+  // So [] won't crash in case the size is zero somehow.
+  if (code_size_dwords != 0) {
+    shader_object_.resize(shader_object_.size() + code_size_dwords);
+    std::memcpy(&shader_object_[shader_object_.size() - code_size_dwords],
+                shader_code_.data(), code_size_dwords * sizeof(uint32_t));
+  }
+
+  // Write the length.
+  shader_object_[chunk_position_dwords + 1] =
+      uint32_t(shader_object_.size()) - chunk_position_dwords;
 }
 
 }  // namespace gpu
