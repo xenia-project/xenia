@@ -39,8 +39,7 @@ void DxbcShaderTranslator::Reset() {
 void DxbcShaderTranslator::EmitDclResourceOperand(uint32_t type, uint32_t id,
                                                   uint32_t lower_bound,
                                                   uint32_t upper_bound) {
-  // TODO(Triang3l): Check if component selection is correct for textures and
-  // samplers.
+  // TODO(Triang3l): Check if component selection is correct for samplers.
   uint32_t token =
       ENCODE_D3D10_SB_OPERAND_NUM_COMPONENTS(D3D10_SB_OPERAND_4_COMPONENT) |
       ENCODE_D3D10_SB_OPERAND_4_COMPONENT_SELECTION_MODE(
@@ -260,12 +259,15 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
   uint32_t chunk_position_dwords = uint32_t(shader_object_.size());
   uint32_t new_offset;
 
-  // TODO(Triang3l): Include shared memory, textures, samplers.
-  uint32_t binding_count = uint32_t(RdefConstantBufferIndex::kCount);
+  // + 1 for shared memory (vfetches can probably appear in pixel shaders too,
+  // they are handled safely there anyway).
+  // TODO(Triang3l): Textures, samplers.
+  uint32_t binding_count = uint32_t(RdefConstantBufferIndex::kCount) + 1;
 
   // ***************************************************************************
   // Header
   // ***************************************************************************
+
   // Constant buffer count.
   shader_object_.push_back(uint32_t(RdefConstantBufferIndex::kCount));
   // Constant buffer offset (set later).
@@ -304,6 +306,7 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
   // ***************************************************************************
   // Constant types
   // ***************************************************************************
+
   // Type names.
   new_offset = (uint32_t(shader_object_.size()) - chunk_position_dwords) *
                sizeof(uint32_t);
@@ -371,6 +374,7 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
   // ***************************************************************************
   // Constants
   // ***************************************************************************
+
   new_offset = (uint32_t(shader_object_.size()) - chunk_position_dwords) *
                sizeof(uint32_t);
   uint32_t constant_name_offsets[size_t(RdefConstantIndex::kCount)];
@@ -401,6 +405,7 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
   // ***************************************************************************
   // Constant buffers
   // ***************************************************************************
+
   new_offset = (uint32_t(shader_object_.size()) - chunk_position_dwords) *
                sizeof(uint32_t);
   uint32_t cbuffer_name_offsets[size_t(RdefConstantBufferIndex::kCount)];
@@ -424,14 +429,43 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
   }
 
   // ***************************************************************************
-  // Bindings
+  // Bindings, in t#, cb# order
   // ***************************************************************************
-  // TODO(Triang3l): Shared memory, textures, samplers.
+
+  // Write used resource names, except for constant buffers because we have
+  // their names already.
   new_offset = (uint32_t(shader_object_.size()) - chunk_position_dwords) *
                sizeof(uint32_t);
-  // TODO(Triang3l): t# and s# names.
+  uint32_t shared_memory_name_offset = new_offset;
+  new_offset += AppendString(shader_object_, "xe_shared_memory");
+  // TODO(Triang3l): Texture and sampler names.
+
   // Write the offset to the header.
   shader_object_[chunk_position_dwords + 3] = new_offset;
+
+  // Shared memory.
+  shader_object_.push_back(shared_memory_name_offset);
+  // D3D_SIT_BYTEADDRESS.
+  shader_object_.push_back(7);
+  // D3D_RETURN_TYPE_MIXED.
+  shader_object_.push_back(6);
+  // D3D_SRV_DIMENSION_UNKNOWN.
+  shader_object_.push_back(1);
+  // Not multisampled.
+  shader_object_.push_back(0);
+  // Register t0.
+  shader_object_.push_back(0);
+  // One binding.
+  shader_object_.push_back(1);
+  // No D3D_SHADER_INPUT_FLAGS.
+  shader_object_.push_back(0);
+  // Register space 0.
+  shader_object_.push_back(0);
+  // SRV ID T0.
+  shader_object_.push_back(0);
+
+  // TODO(Triang3l): Textures and samplers.
+
   // Constant buffers.
   for (uint32_t i = 0; i < uint32_t(RdefConstantBufferIndex::kCount); ++i) {
     const RdefConstantBuffer& cbuffer = rdef_constant_buffers_[i];
@@ -442,7 +476,6 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
     shader_object_.push_back(0);
     // D3D_SRV_DIMENSION_UNKNOWN (not an SRV).
     shader_object_.push_back(0);
-    // Not multisampled.
     shader_object_.push_back(0);
     shader_object_.push_back(uint32_t(cbuffer.register_index));
     shader_object_.push_back(cbuffer.binding_count);
@@ -697,6 +730,14 @@ void DxbcShaderTranslator::WriteShaderCode() {
     // Space 0.
     shader_object_.push_back(0);
   }
+
+  // Shader resources.
+  // Shared memory ByteAddressBuffer.
+  token = ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_DCL_RESOURCE_RAW) |
+          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(6);
+  shader_object_.push_back(token);
+  EmitDclResourceOperand(D3D10_SB_OPERAND_TYPE_RESOURCE, 0, 0, 0);
+  shader_object_.push_back(0);
 
   // Write the translated shader code.
   size_t code_size_dwords = shader_code_.size();
