@@ -217,6 +217,55 @@ class DxbcShaderTranslator : public ShaderTranslator {
       rdef_constant_buffers_[size_t(RdefConstantBufferIndex::kCount)];
 
   bool writes_depth_;
+
+  // The STAT chunk (based on Wine d3dcompiler_parse_stat).
+  struct Statistics {
+    uint32_t instruction_count;
+    uint32_t temp_register_count;
+    // Unknown in Wine.
+    uint32_t def_count;
+    uint32_t dcl_count;
+    uint32_t float_instruction_count;
+    uint32_t int_instruction_count;
+    uint32_t uint_instruction_count;
+    uint32_t static_flow_control_count;
+    uint32_t dynamic_flow_control_count;
+    // Unknown in Wine.
+    uint32_t macro_instruction_count;
+    uint32_t temp_array_count;
+    uint32_t array_instruction_count;
+    uint32_t cut_instruction_count;
+    uint32_t emit_instruction_count;
+    uint32_t texture_normal_instructions;
+    uint32_t texture_load_instructions;
+    uint32_t texture_comp_instructions;
+    uint32_t texture_bias_instructions;
+    uint32_t texture_gradient_instructions;
+    uint32_t mov_instruction_count;
+    // Unknown in Wine.
+    uint32_t movc_instruction_count;
+    uint32_t conversion_instruction_count;
+    // Unknown in Wine.
+    uint32_t unknown_22;
+    uint32_t input_primitive;
+    uint32_t gs_output_topology;
+    uint32_t gs_max_output_vertex_count;
+    uint32_t unknown_26;
+    uint32_t unknown_27;
+    uint32_t unknown_28;
+    uint32_t unknown_29;
+    uint32_t c_control_points;
+    uint32_t hs_output_primitive;
+    uint32_t hs_partitioning;
+    uint32_t tessellator_domain;
+    // Unknown in Wine.
+    uint32_t c_barrier_instructions;
+    // Unknown in Wine.
+    uint32_t c_interlocked_instructions;
+    // Unknown in Wine.
+    uint32_t c_texture_store_instructions;
+  };
+  Statistics stat_;
 };
 
 }  // namespace gpu
