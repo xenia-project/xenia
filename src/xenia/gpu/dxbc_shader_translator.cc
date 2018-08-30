@@ -32,6 +32,8 @@ void DxbcShaderTranslator::Reset() {
 
   rdef_constants_used_ = 0;
   writes_depth_ = false;
+
+  std::memset(&stat_, 0, sizeof(stat_));
 }
 
 std::vector<uint8_t> DxbcShaderTranslator::CompleteTranslation() {
@@ -84,6 +86,18 @@ std::vector<uint8_t> DxbcShaderTranslator::CompleteTranslation() {
   shader_object_[chunk_position_dwords + 1] =
       (uint32_t(shader_object_.size()) - chunk_position_dwords - 2) *
       sizeof(uint32_t);
+
+  // TODO(Triang3l): Write SHEX.
+
+  // Write STATistics.
+  chunk_position_dwords = uint32_t(shader_object_.size());
+  shader_object_[12] = chunk_position_dwords * sizeof(uint32_t);
+  shader_object_.push_back('TATS');
+  shader_object_.push_back(sizeof(stat_));
+  shader_object_.resize(shader_object_.size() +
+                        sizeof(stat_) / sizeof(uint32_t));
+  std::memcpy(&shader_object_[chunk_position_dwords + 2], &stat_,
+              sizeof(stat_));
 
   // Fill the remaining fields of the header and copy bytes out.
   uint32_t shader_object_size =
