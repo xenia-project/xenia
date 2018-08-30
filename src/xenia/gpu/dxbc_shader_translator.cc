@@ -165,7 +165,7 @@ std::vector<uint8_t> DxbcShaderTranslator::CompleteTranslation() {
 uint32_t DxbcShaderTranslator::AppendString(std::vector<uint32_t>& dest,
                                             const char* source) {
   size_t size = std::strlen(source) + 1;
-  size_t size_aligned = xe::align(size_aligned, sizeof(uint32_t));
+  size_t size_aligned = xe::align(size, sizeof(uint32_t));
   size_t dest_position = dest.size();
   dest.resize(dest_position + size_aligned / sizeof(uint32_t));
   std::memcpy(&dest[dest_position], source, size);

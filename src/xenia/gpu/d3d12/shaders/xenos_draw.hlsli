@@ -26,9 +26,8 @@ cbuffer xe_system_cbuffer : register(b0) {
 
 struct XeVertex {
   float4 interpolators[16] : TEXCOORD0;
-  float2 point_coord : TEXCOORD16;
+  float3 point_params : TEXCOORD16;
   float4 position : SV_Position;
-  float point_size : PSIZE;
 };
 
 #endif  // XENIA_GPU_D3D12_SHADERS_XENOS_DRAW_HLSLI_

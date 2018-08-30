@@ -10,6 +10,7 @@
 #ifndef XENIA_GPU_D3D12_D3D12_SHADER_H_
 #define XENIA_GPU_D3D12_D3D12_SHADER_H_
 
+// TODO(Triang3l): Remove hlsl_shader_translator.
 #include "xenia/gpu/hlsl_shader_translator.h"
 #include "xenia/gpu/shader.h"
 #include "xenia/ui/d3d12/d3d12_api.h"
@@ -24,15 +25,14 @@ class D3D12Shader : public Shader {
               const uint32_t* dword_ptr, uint32_t dword_count);
   ~D3D12Shader() override;
 
+#if 0
   void SetTexturesAndSamplers(
       const HlslShaderTranslator::TextureSRV* texture_srvs,
       uint32_t texture_srv_count, const uint32_t* sampler_fetch_constants,
       uint32_t sampler_count);
+#endif
 
-  bool Prepare();
-
-  const uint8_t* GetDXBC() const;
-  size_t GetDXBCSize() const;
+  bool DisassembleDXBC();
 
   struct TextureSRV {
     uint32_t fetch_constant;

@@ -9,6 +9,8 @@
 
 #include "xenia/gpu/d3d12/pipeline_cache.h"
 
+#include <gflags/gflags.h>
+
 #include <algorithm>
 #include <cinttypes>
 #include <cmath>
@@ -18,9 +20,10 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/profiling.h"
 #include "xenia/gpu/d3d12/d3d12_command_processor.h"
-#include "xenia/gpu/d3d12/render_target_cache.h"
 #include "xenia/gpu/gpu_flags.h"
-#include "xenia/gpu/hlsl_shader_translator.h"
+
+DEFINE_bool(d3d12_dxbc_disasm, false,
+            "Disassemble DXBC shaders after generation.");
 
 namespace xe {
 namespace gpu {
@@ -34,7 +37,7 @@ namespace d3d12 {
 PipelineCache::PipelineCache(D3D12CommandProcessor* command_processor,
                              RegisterFile* register_file)
     : command_processor_(command_processor), register_file_(register_file) {
-  shader_translator_ = std::make_unique<HlslShaderTranslator>();
+  shader_translator_ = std::make_unique<DxbcShaderTranslator>();
 
   // Set pipeline state description values we never change.
   // Zero out tessellation, stream output, blend state and formats for render
@@ -92,14 +95,6 @@ bool PipelineCache::EnsureShadersTranslated(D3D12Shader* vertex_shader,
   if (pixel_shader != nullptr && !pixel_shader->is_translated() &&
       !TranslateShader(pixel_shader, sq_program_cntl)) {
     XELOGE("Failed to translate the pixel shader!");
-    return false;
-  }
-  if (!vertex_shader->is_valid()) {
-    XELOGE("Failed to prepare the vertex shader!");
-    return false;
-  }
-  if (pixel_shader != nullptr && !pixel_shader->is_valid()) {
-    XELOGE("Failed to prepare the pixel shader!");
     return false;
   }
   return true;
@@ -201,6 +196,9 @@ bool PipelineCache::TranslateShader(D3D12Shader* shader,
     return false;
   }
 
+  // TODO(Triang3l): Re-enable this when the DXBC shader translators supports
+  // textures.
+#if 0
   uint32_t texture_srv_count, sampler_count;
   const HlslShaderTranslator::TextureSRV* texture_srvs =
       shader_translator_->GetTextureSRVs(texture_srv_count);
@@ -208,20 +206,21 @@ bool PipelineCache::TranslateShader(D3D12Shader* shader,
       shader_translator_->GetSamplerFetchConstants(sampler_count);
   shader->SetTexturesAndSamplers(texture_srvs, texture_srv_count,
                                  sampler_fetch_constants, sampler_count);
-
-  // Prepare the shader for use (creates the Shader Model bytecode).
-  // It could still fail at this point.
-  if (!shader->Prepare()) {
-    XELOGE("Shader %.16" PRIX64 "preparation failed; marking as ignored",
-           shader->ucode_data_hash());
-    return false;
-  }
+#endif
 
   if (shader->is_valid()) {
     XELOGGPU("Generated %s shader (%db) - hash %.16" PRIX64 ":\n%s\n",
              shader->type() == ShaderType::kVertex ? "vertex" : "pixel",
              shader->ucode_dword_count() * 4, shader->ucode_data_hash(),
              shader->ucode_disassembly().c_str());
+  }
+
+  // Disassemble the shader for dumping.
+  if (FLAGS_d3d12_dxbc_disasm) {
+    if (!shader->DisassembleDXBC()) {
+      XELOGE("Failed to disassemble DXBC shader %.16" PRIX64,
+             shader->ucode_data_hash());
+    }
   }
 
   // Dump shader files if desired.
@@ -318,11 +317,11 @@ PipelineCache::UpdateStatus PipelineCache::UpdateShaderStages(
   if (update_desc_.pRootSignature == nullptr) {
     return UpdateStatus::kError;
   }
-  update_desc_.VS.pShaderBytecode = vertex_shader->GetDXBC();
-  update_desc_.VS.BytecodeLength = vertex_shader->GetDXBCSize();
+  update_desc_.VS.pShaderBytecode = vertex_shader->translated_binary().data();
+  update_desc_.VS.BytecodeLength = vertex_shader->translated_binary().size();
   if (pixel_shader != nullptr) {
-    update_desc_.PS.pShaderBytecode = pixel_shader->GetDXBC();
-    update_desc_.PS.BytecodeLength = pixel_shader->GetDXBCSize();
+    update_desc_.PS.pShaderBytecode = pixel_shader->translated_binary().data();
+    update_desc_.PS.BytecodeLength = pixel_shader->translated_binary().size();
   } else {
     update_desc_.PS.pShaderBytecode = nullptr;
     update_desc_.PS.BytecodeLength = 0;
