@@ -95,6 +95,11 @@ class DxbcShaderTranslator : public ShaderTranslator {
   static constexpr uint32_t kPSInPositionRegister =
       kPSInPointParametersRegister + 1;
 
+  void EmitRet();
+
+  // Writes the epilogue.
+  void CompleteShaderCode();
+
   // Appends a string to a DWORD stream, returns the DWORD-aligned length.
   static uint32_t AppendString(std::vector<uint32_t>& dest, const char* source);
 

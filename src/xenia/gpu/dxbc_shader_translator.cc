@@ -36,7 +36,23 @@ void DxbcShaderTranslator::Reset() {
   std::memset(&stat_, 0, sizeof(stat_));
 }
 
+void DxbcShaderTranslator::EmitRet() {
+  const uint32_t opcode = ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_RET) |
+                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1);
+  shader_code_.push_back(opcode);
+  ++stat_.instruction_count;
+  ++stat_.static_flow_control_count;
+}
+
+void DxbcShaderTranslator::CompleteShaderCode() {
+  // Return from `main`.
+  EmitRet();
+}
+
 std::vector<uint8_t> DxbcShaderTranslator::CompleteTranslation() {
+  // Write the code epilogue.
+  CompleteShaderCode();
+
   shader_object_.clear();
 
   // Write the shader object header.
@@ -187,7 +203,7 @@ const DxbcShaderTranslator::RdefConstant
 
         {"xe_fetch_constants", RdefTypeIndex::kUint4Array48, 0, 768},
 
-        {"xe_float_constants", RdefTypeIndex::kFloatConstantPageArray, 0,
+        {"xe_float_constants", RdefTypeIndex::kFloatConstantPageStruct, 0,
          kFloatConstantsPerPage * 16},
 };
 
@@ -502,7 +518,7 @@ void DxbcShaderTranslator::WriteOutputSignature() {
 
   if (is_vertex_shader()) {
     // Interpolators, point parameters (coordinates, size), screen position.
-    shader_object_.push_back(1);
+    shader_object_.push_back(kInterpolatorCount + 2);
     // Unknown.
     shader_object_.push_back(8);
 
