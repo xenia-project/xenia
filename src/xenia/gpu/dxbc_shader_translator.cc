@@ -36,10 +36,34 @@ void DxbcShaderTranslator::Reset() {
   std::memset(&stat_, 0, sizeof(stat_));
 }
 
+void DxbcShaderTranslator::EmitDclResourceOperand(uint32_t type, uint32_t id,
+                                                  uint32_t lower_bound,
+                                                  uint32_t upper_bound) {
+  // TODO(Triang3l): Check if component selection is correct for textures and
+  // samplers.
+  uint32_t token =
+      ENCODE_D3D10_SB_OPERAND_NUM_COMPONENTS(D3D10_SB_OPERAND_4_COMPONENT) |
+      ENCODE_D3D10_SB_OPERAND_4_COMPONENT_SELECTION_MODE(
+          D3D10_SB_OPERAND_4_COMPONENT_SWIZZLE_MODE) |
+      D3D10_SB_OPERAND_4_COMPONENT_NOSWIZZLE |
+      ENCODE_D3D10_SB_OPERAND_TYPE(type) |
+      ENCODE_D3D10_SB_OPERAND_INDEX_DIMENSION(D3D10_SB_OPERAND_INDEX_3D) |
+      ENCODE_D3D10_SB_OPERAND_INDEX_REPRESENTATION(
+          0, D3D10_SB_OPERAND_INDEX_IMMEDIATE32) |
+      ENCODE_D3D10_SB_OPERAND_INDEX_REPRESENTATION(
+          1, D3D10_SB_OPERAND_INDEX_IMMEDIATE32) |
+      ENCODE_D3D10_SB_OPERAND_INDEX_REPRESENTATION(
+          2, D3D10_SB_OPERAND_INDEX_IMMEDIATE32);
+  shader_object_.push_back(token);
+  shader_object_.push_back(id);
+  shader_object_.push_back(lower_bound);
+  shader_object_.push_back(upper_bound);
+}
+
 void DxbcShaderTranslator::EmitRet() {
-  const uint32_t opcode = ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_RET) |
-                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1);
-  shader_code_.push_back(opcode);
+  const uint32_t token = ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_RET) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1);
+  shader_code_.push_back(token);
   ++stat_.instruction_count;
   ++stat_.static_flow_control_count;
 }
@@ -221,6 +245,15 @@ const DxbcShaderTranslator::RdefConstantBuffer
         {"xe_float_constants", RdefConstantIndex::kFloatConstants, 1,
          kFloatConstantsPerPage * 16, CbufferRegister::kFloatConstantsFirst,
          kFloatConstantPageCount, false, true},
+};
+
+const DxbcShaderTranslator::RdefConstantBufferIndex
+    DxbcShaderTranslator::constant_buffer_dcl_order_[size_t(
+        DxbcShaderTranslator::RdefConstantBufferIndex::kCount)] = {
+        RdefConstantBufferIndex::kFloatConstants,
+        RdefConstantBufferIndex::kFetchConstants,
+        RdefConstantBufferIndex::kSystemConstants,
+        RdefConstantBufferIndex::kBoolLoopConstants,
 };
 
 void DxbcShaderTranslator::WriteResourceDefinitions() {
@@ -634,7 +667,36 @@ void DxbcShaderTranslator::WriteShaderCode() {
   // Reserve space for the length.
   shader_object_.push_back(0);
 
-  // TODO(Triang3l): Declarations.
+  // Declarations (don't increase the instruction count stat, and only inputs
+  // and outputs are counted in dcl_count).
+  uint32_t token;
+
+  // Don't allow refactoring when converting to native code to maintain position
+  // invariance (needed even in pixel shaders for oDepth invariance).
+  token = ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_GLOBAL_FLAGS) |
+          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1) |
+          D3D11_1_SB_GLOBAL_FLAG_SKIP_OPTIMIZATION;
+  shader_object_.push_back(token);
+
+  // Constant buffers.
+  for (uint32_t i = 0; i < uint32_t(RdefConstantBufferIndex::kCount); ++i) {
+    uint32_t cbuffer_index = uint32_t(constant_buffer_dcl_order_[i]);
+    const RdefConstantBuffer& cbuffer = rdef_constant_buffers_[cbuffer_index];
+    token = ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_CONSTANT_BUFFER) |
+            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7) |
+            ENCODE_D3D10_SB_D3D10_SB_CONSTANT_BUFFER_ACCESS_PATTERN(
+                cbuffer.dynamic_indexed
+                    ? D3D10_SB_CONSTANT_BUFFER_DYNAMIC_INDEXED
+                    : D3D10_SB_CONSTANT_BUFFER_IMMEDIATE_INDEXED);
+    shader_object_.push_back(token);
+    EmitDclResourceOperand(
+        D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, cbuffer_index,
+        uint32_t(cbuffer.register_index),
+        uint32_t(cbuffer.register_index) + cbuffer.binding_count - 1);
+    shader_object_.push_back((cbuffer.size + 15) >> 4);
+    // Space 0.
+    shader_object_.push_back(0);
+  }
 
   // Write the translated shader code.
   size_t code_size_dwords = shader_code_.size();
