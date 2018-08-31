@@ -45,6 +45,11 @@ class ShaderTranslator {
   bool is_vertex_shader() const { return shader_type_ == ShaderType::kVertex; }
   // True if the current shader is a pixel shader.
   bool is_pixel_shader() const { return shader_type_ == ShaderType::kPixel; }
+  // True if the current shader addresses general-purpose registers with dynamic
+  // indices.
+  bool uses_register_relative_addressing() const {
+    return uses_register_relative_addressing_;
+  }
   // A list of all vertex bindings, populated before translation occurs.
   const std::vector<Shader::VertexBinding>& vertex_bindings() const {
     return vertex_bindings_;
