@@ -130,6 +130,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
       kPSInPointParametersRegister + 1;
 
   enum class TempRegister {
+    // Color output map in pixel shader epilogue.
     kColorOutputMap,
 
     kCount,
