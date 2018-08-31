@@ -836,7 +836,7 @@ void DxbcShaderTranslator::WriteShaderCode() {
     shader_object_.push_back(ENCODE_D3D10_SB_NAME(D3D10_SB_NAME_POSITION));
     ++stat_.dcl_count;
     // Color output.
-    for (uint32_t i = 0; i < kInterpolatorCount; ++i) {
+    for (uint32_t i = 0; i < 4; ++i) {
       shader_object_.push_back(
           ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_OUTPUT) |
           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
@@ -856,6 +856,28 @@ void DxbcShaderTranslator::WriteShaderCode() {
           ENCODE_D3D10_SB_OPERAND_INDEX_DIMENSION(D3D10_SB_OPERAND_INDEX_0D));
       ++stat_.dcl_count;
     }
+  }
+
+  // General-purpose registers (x0).
+  shader_object_.push_back(
+      ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_INDEXABLE_TEMP) |
+      ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4));
+  // x0.
+  shader_object_.push_back(0);
+  shader_object_.push_back(register_count());
+  // 4 components in each.
+  shader_object_.push_back(4);
+  stat_.temp_array_count += register_count();
+
+  // Color outputs on the Xbox 360 side (x1), for remapping to D3D12 bindings.
+  if (is_pixel_shader()) {
+    shader_object_.push_back(
+        ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_INDEXABLE_TEMP) |
+        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4));
+    shader_object_.push_back(1);
+    shader_object_.push_back(4);
+    shader_object_.push_back(4);
+    stat_.temp_array_count += 4;
   }
 
   // Write the translated shader code.
