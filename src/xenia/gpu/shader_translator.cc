@@ -58,6 +58,7 @@ void ShaderTranslator::Reset() {
   texture_bindings_.clear();
   unique_texture_bindings_ = 0;
   std::memset(&constant_register_map_, 0, sizeof(constant_register_map_));
+  uses_register_relative_addressing_ = false;
   for (size_t i = 0; i < xe::countof(writes_color_targets_); ++i) {
     writes_color_targets_[i] = false;
   }
@@ -85,8 +86,8 @@ bool ShaderTranslator::GatherAllBindingInformation(Shader* shader) {
           std::min(max_cf_dword_index, cf_b.exec.address() * 3);
     }
 
-    GatherBindingInformation(cf_a);
-    GatherBindingInformation(cf_b);
+    GatherInstructionInformation(cf_a);
+    GatherInstructionInformation(cf_b);
   }
 
   shader->vertex_bindings_ = std::move(vertex_bindings_);
@@ -117,7 +118,8 @@ bool ShaderTranslator::TranslateInternal(Shader* shader) {
   ucode_dwords_ = shader->ucode_dwords();
   ucode_dword_count_ = shader->ucode_dword_count();
 
-  // Run through and gather all binding information.
+  // Run through and gather all binding information and to check whether
+  // registers are dynamically addressed.
   // Translators may need this before they start codegen.
   uint32_t max_cf_dword_index = static_cast<uint32_t>(ucode_dword_count_);
   for (uint32_t i = 0; i < max_cf_dword_index; i += 3) {
@@ -133,8 +135,8 @@ bool ShaderTranslator::TranslateInternal(Shader* shader) {
           std::min(max_cf_dword_index, cf_b.exec.address() * 3);
     }
 
-    GatherBindingInformation(cf_a);
-    GatherBindingInformation(cf_b);
+    GatherInstructionInformation(cf_a);
+    GatherInstructionInformation(cf_b);
   }
 
   StartTranslation();
@@ -225,7 +227,7 @@ void ShaderTranslator::EmitUnimplementedTranslationError() {
   errors_.push_back(std::move(error));
 }
 
-void ShaderTranslator::GatherBindingInformation(
+void ShaderTranslator::GatherInstructionInformation(
     const ControlFlowInstruction& cf) {
   switch (cf.opcode()) {
     case ControlFlowOpcode::kExec:
@@ -247,24 +249,52 @@ void ShaderTranslator::GatherBindingInformation(
               static_cast<FetchOpcode>(ucode_dwords_[instr_offset * 3] & 0x1F);
           if (fetch_opcode == FetchOpcode::kVertexFetch) {
             assert_true(is_vertex_shader());
-            GatherVertexBindingInformation(
+            GatherVertexFetchInformation(
                 *reinterpret_cast<const VertexFetchInstruction*>(
                     ucode_dwords_ + instr_offset * 3));
           } else {
-            GatherTextureBindingInformation(
+            GatherTextureFetchInformation(
                 *reinterpret_cast<const TextureFetchInstruction*>(
                     ucode_dwords_ + instr_offset * 3));
           }
-        } else if (is_pixel_shader()) {
-          // Gather up color targets written to.
+        } else {
+          // Gather up color targets written to, and check if using dynamic
+          // register indices.
           auto& op = *reinterpret_cast<const AluInstruction*>(ucode_dwords_ +
                                                               instr_offset * 3);
-          if (op.is_export()) {
-            if (op.has_vector_op() && op.vector_dest() <= 3) {
-              writes_color_targets_[op.vector_dest()] = true;
+          if (op.has_vector_op()) {
+            const auto& opcode_info =
+                alu_vector_opcode_infos_[static_cast<int>(op.vector_opcode())];
+            for (size_t i = 0; i < opcode_info.argument_count; ++i) {
+              if (op.src_is_temp(i) && (op.src_reg(i) & 0x40)) {
+                uses_register_relative_addressing_ = true;
+              }
             }
-            if (op.has_scalar_op() && op.scalar_dest() <= 3) {
-              writes_color_targets_[op.scalar_dest()] = true;
+            if (op.is_export()) {
+              if (is_pixel_shader() && op.vector_dest() <= 3) {
+                writes_color_targets_[op.vector_dest()] = true;
+              }
+            } else {
+              if (op.is_vector_dest_relative()) {
+                uses_register_relative_addressing_ = true;
+              }
+            }
+          }
+          if (op.has_scalar_op()) {
+            const auto& opcode_info =
+                alu_scalar_opcode_infos_[static_cast<int>(op.scalar_opcode())];
+            if (opcode_info.argument_count == 1 && op.src_is_temp(0) &&
+                (op.src_reg(0) & 0x40)) {
+              uses_register_relative_addressing_ = true;
+            }
+            if (op.is_export()) {
+              if (is_pixel_shader() && op.scalar_dest() <= 3) {
+                writes_color_targets_[op.scalar_dest()] = true;
+              }
+            } else {
+              if (op.is_scalar_dest_relative()) {
+                uses_register_relative_addressing_ = true;
+              }
             }
           }
         }
@@ -275,7 +305,7 @@ void ShaderTranslator::GatherBindingInformation(
   }
 }
 
-void ShaderTranslator::GatherVertexBindingInformation(
+void ShaderTranslator::GatherVertexFetchInformation(
     const VertexFetchInstruction& op) {
   ParsedVertexFetchInstruction fetch_instr;
   ParseVertexFetchInstruction(op, &fetch_instr);
@@ -283,6 +313,11 @@ void ShaderTranslator::GatherVertexBindingInformation(
   // Don't bother setting up a binding for an instruction that fetches nothing.
   if (!op.fetches_any_data()) {
     return;
+  }
+
+  // Check if using dynamic register indices.
+  if (op.is_dest_relative() || op.is_src_relative()) {
+    uses_register_relative_addressing_ = true;
   }
 
   // Try to allocate an attribute on an existing binding.
@@ -317,8 +352,13 @@ void ShaderTranslator::GatherVertexBindingInformation(
       GetVertexFormatSizeInWords(attrib->fetch_instr.attributes.data_format);
 }
 
-void ShaderTranslator::GatherTextureBindingInformation(
+void ShaderTranslator::GatherTextureFetchInformation(
     const TextureFetchInstruction& op) {
+  // Check if using dynamic register indices.
+  if (op.is_dest_relative() || op.is_src_relative()) {
+    uses_register_relative_addressing_ = true;
+  }
+
   switch (op.opcode()) {
     case FetchOpcode::kSetTextureLod:
     case FetchOpcode::kSetTextureGradientsHorz:
