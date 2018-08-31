@@ -24,6 +24,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
   ~DxbcShaderTranslator() override;
 
   // IF SYSTEM CONSTANTS ARE CHANGED OR ADDED, THE FOLLOWING MUST BE UPDATED:
+  // - kSysConst enum (registers and first components).
   // - rdef_constants_.
   // - rdef_constant_buffers_ system constant buffer size.
   // - d3d12/shaders/xenos_draw.hlsli (for geometry shaders).
@@ -76,6 +77,39 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kFloatConstantsLast = kFloatConstantsFirst + kFloatConstantPageCount - 1,
   };
 
+  enum : uint32_t {
+    kSysConst_MulRcpW_Vec = 0,
+    kSysConst_MulRcpW_Comp = 0,
+    kSysConst_VertexBaseIndex_Vec = 0,
+    kSysConst_VertexBaseIndex_Comp = 3,
+
+    kSysConst_NDCScale_Vec = 1,
+    kSysConst_NDCScale_Comp = 0,
+    kSysConst_VertexIndexEndian_Vec = 1,
+    kSysConst_VertexIndexEndian_Comp = 3,
+
+    kSysConst_NDCOffset_Vec = 2,
+    kSysConst_NDCOffset_Comp = 0,
+    kSysConst_PixelHalfPixelOffset_Vec = 2,
+    kSysConst_PixelHalfPixelOffset_Comp = 3,
+
+    kSysConst_PointSize_Vec = 3,
+    kSysConst_PointSize_Comp = 0,
+    kSysConst_SSAAInvScale_Vec = 0,
+    kSysConst_SSAAInvScale_Comp = 2,
+
+    kSysConst_PixelPosReg_Vec = 4,
+    kSysConst_PixelPosReg_Comp = 0,
+    kSysConst_AlphaTest_Vec = 4,
+    kSysConst_AlphaTest_Comp = 1,
+    kSysConst_AlphaTestRange_Vec = 4,
+    kSysConst_AlphaTestRange_Comp = 2,
+
+    kSysConst_ColorExpBias_Vec = 5,
+
+    kSysConst_ColorOutputMap_Vec = 6,
+  };
+
   static constexpr uint32_t kInterpolatorCount = 16;
   static constexpr uint32_t kPointParametersTexCoord = kInterpolatorCount;
 
@@ -95,7 +129,15 @@ class DxbcShaderTranslator : public ShaderTranslator {
   static constexpr uint32_t kPSInPositionRegister =
       kPSInPointParametersRegister + 1;
 
-  // Writes the epilogue.
+  enum class TempRegister {
+    kColorOutputMap,
+
+    kCount,
+  };
+
+  // Writing the epilogue.
+  void CompleteVertexShaderCode();
+  void CompletePixelShaderCode();
   void CompleteShaderCode();
 
   // Appends a string to a DWORD stream, returns the DWORD-aligned length.
@@ -233,6 +275,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
     uint32_t temp_register_count;
     // Unknown in Wine.
     uint32_t def_count;
+    // Only inputs and outputs.
     uint32_t dcl_count;
     uint32_t float_instruction_count;
     uint32_t int_instruction_count;
@@ -250,6 +293,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
     uint32_t texture_comp_instructions;
     uint32_t texture_bias_instructions;
     uint32_t texture_gradient_instructions;
+    // Moving to outputs only.
     uint32_t mov_instruction_count;
     // Unknown in Wine.
     uint32_t movc_instruction_count;
