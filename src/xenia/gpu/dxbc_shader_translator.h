@@ -129,12 +129,10 @@ class DxbcShaderTranslator : public ShaderTranslator {
   static constexpr uint32_t kPSInPositionRegister =
       kPSInPointParametersRegister + 1;
 
-  enum class TempRegister {
-    // Color output map in pixel shader epilogue.
-    kColorOutputMap,
-
-    kCount,
-  };
+  // Allocates a new r# register for internal use and returns its index.
+  uint32_t PushSystemTemp();
+  // Frees the last allocated internal r# registers for later reuse.
+  void PopSystemTemp(uint32_t count = 1);
 
   // Writing the epilogue.
   void CompleteVertexShaderCode();
@@ -268,6 +266,12 @@ class DxbcShaderTranslator : public ShaderTranslator {
   static const RdefConstantBufferIndex
       constant_buffer_dcl_order_[size_t(RdefConstantBufferIndex::kCount)];
 
+  // Number of currently allocated Xenia internal r# registers.
+  uint32_t system_temp_count_current_;
+  // Total maximum number of temporary registers ever used during this
+  // translation (for the declaration).
+  uint32_t system_temp_count_max_;
+
   bool writes_depth_;
 
   // The STAT chunk (based on Wine d3dcompiler_parse_stat).
@@ -294,7 +298,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
     uint32_t texture_comp_instructions;
     uint32_t texture_bias_instructions;
     uint32_t texture_gradient_instructions;
-    // Moving to outputs only.
+    // Not including indexable temp load/store.
     uint32_t mov_instruction_count;
     // Unknown in Wine.
     uint32_t movc_instruction_count;
