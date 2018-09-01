@@ -81,6 +81,81 @@ void DxbcShaderTranslator::PopSystemTemp(uint32_t count) {
   system_temp_count_current_ -= std::min(count, system_temp_count_current_);
 }
 
+void DxbcShaderTranslator::StartVertexShaderCode() {
+  // Zero the interpolators.
+  for (uint32_t i = 0; i < kInterpolatorCount; ++i) {
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(8));
+    shader_code_.push_back(
+        ENCODE_D3D10_SB_OPERAND_NUM_COMPONENTS(D3D10_SB_OPERAND_4_COMPONENT) |
+        ENCODE_D3D10_SB_OPERAND_4_COMPONENT_SELECTION_MODE(
+            D3D10_SB_OPERAND_4_COMPONENT_MASK_MODE) |
+        D3D10_SB_OPERAND_4_COMPONENT_MASK_ALL |
+        ENCODE_D3D10_SB_OPERAND_TYPE(D3D10_SB_OPERAND_TYPE_OUTPUT) |
+        ENCODE_D3D10_SB_OPERAND_INDEX_DIMENSION(D3D10_SB_OPERAND_INDEX_1D) |
+        ENCODE_D3D10_SB_OPERAND_INDEX_REPRESENTATION(
+            0, D3D10_SB_OPERAND_INDEX_IMMEDIATE32));
+    shader_code_.push_back(kVSOutInterpolatorRegister + i);
+    shader_code_.push_back(
+        ENCODE_D3D10_SB_OPERAND_NUM_COMPONENTS(D3D10_SB_OPERAND_4_COMPONENT) |
+        ENCODE_D3D10_SB_OPERAND_4_COMPONENT_SELECTION_MODE(
+            D3D10_SB_OPERAND_4_COMPONENT_SWIZZLE_MODE) |
+        D3D10_SB_OPERAND_4_COMPONENT_NOSWIZZLE |
+        ENCODE_D3D10_SB_OPERAND_TYPE(D3D10_SB_OPERAND_TYPE_IMMEDIATE32) |
+        ENCODE_D3D10_SB_OPERAND_INDEX_DIMENSION(D3D10_SB_OPERAND_INDEX_0D));
+    shader_code_.push_back(0);
+    shader_code_.push_back(0);
+    shader_code_.push_back(0);
+    shader_code_.push_back(0);
+    ++stat_.instruction_count;
+    ++stat_.mov_instruction_count;
+  }
+
+  // Zero the point coordinate (will be set in the geometry shader if needed)
+  // and set the point size to a negative value to tell the geometry shader that
+  // it should use the global point size - the vertex shader may overwrite it
+  // later.
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(8));
+  shader_code_.push_back(
+      ENCODE_D3D10_SB_OPERAND_NUM_COMPONENTS(D3D10_SB_OPERAND_4_COMPONENT) |
+      ENCODE_D3D10_SB_OPERAND_4_COMPONENT_SELECTION_MODE(
+          D3D10_SB_OPERAND_4_COMPONENT_MASK_MODE) |
+      D3D10_SB_OPERAND_4_COMPONENT_MASK_X |
+      D3D10_SB_OPERAND_4_COMPONENT_MASK_Y |
+      D3D10_SB_OPERAND_4_COMPONENT_MASK_Z |
+      ENCODE_D3D10_SB_OPERAND_TYPE(D3D10_SB_OPERAND_TYPE_OUTPUT) |
+      ENCODE_D3D10_SB_OPERAND_INDEX_DIMENSION(D3D10_SB_OPERAND_INDEX_1D) |
+      ENCODE_D3D10_SB_OPERAND_INDEX_REPRESENTATION(
+          0, D3D10_SB_OPERAND_INDEX_IMMEDIATE32));
+  shader_code_.push_back(kVSOutPointParametersRegister);
+  shader_code_.push_back(
+      ENCODE_D3D10_SB_OPERAND_NUM_COMPONENTS(D3D10_SB_OPERAND_4_COMPONENT) |
+      ENCODE_D3D10_SB_OPERAND_4_COMPONENT_SELECTION_MODE(
+          D3D10_SB_OPERAND_4_COMPONENT_SWIZZLE_MODE) |
+      D3D10_SB_OPERAND_4_COMPONENT_NOSWIZZLE |
+      ENCODE_D3D10_SB_OPERAND_TYPE(D3D10_SB_OPERAND_TYPE_IMMEDIATE32) |
+      ENCODE_D3D10_SB_OPERAND_INDEX_DIMENSION(D3D10_SB_OPERAND_INDEX_0D));
+  shader_code_.push_back(0);
+  shader_code_.push_back(0);
+  // -1.0f
+  shader_code_.push_back(0xBF800000u);
+  shader_code_.push_back(0);
+  ++stat_.instruction_count;
+  ++stat_.mov_instruction_count;
+}
+
+void DxbcShaderTranslator::StartPixelShaderCode() {}
+
+void DxbcShaderTranslator::StartTranslation() {
+  // Write stage-specific prologue.
+  if (is_vertex_shader()) {
+    StartVertexShaderCode();
+  } else if (is_pixel_shader()) {
+    StartPixelShaderCode();
+  }
+}
+
 void DxbcShaderTranslator::CompleteVertexShaderCode() {}
 
 void DxbcShaderTranslator::CompletePixelShaderCode() {}

@@ -62,6 +62,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
  protected:
   void Reset() override;
 
+  void StartTranslation() override;
+
   std::vector<uint8_t> CompleteTranslation() override;
 
  private:
@@ -133,6 +135,10 @@ class DxbcShaderTranslator : public ShaderTranslator {
   uint32_t PushSystemTemp();
   // Frees the last allocated internal r# registers for later reuse.
   void PopSystemTemp(uint32_t count = 1);
+
+  // Writing the prologue.
+  void StartVertexShaderCode();
+  void StartPixelShaderCode();
 
   // Writing the epilogue.
   void CompleteVertexShaderCode();
