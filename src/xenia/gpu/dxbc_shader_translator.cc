@@ -22,6 +22,29 @@ namespace xe {
 namespace gpu {
 using namespace ucode;
 
+// Notes about operands:
+//
+// Reading and writing:
+// - Writes to 4-component registers must be masked.
+// - Reads from 4-component registers can be swizzled, or 1 component can be
+//   selected.
+// - r# (temporary registers) are 4-component and can be used anywhere.
+// - v# (inputs) are 4-component and read-only.
+// - o# (outputs) are 4-component and write-only.
+// - oDepth (pixel shader depth output) is 1-component and write-only.
+// - x# (indexable temporary registers) are 4-component (though not sure what
+//   happens if you dcl them as 1-component) and can be accessed either via
+//   a mov load or a mov store (and those movs are counted as ArrayInstructions
+//   in STAT, not as MovInstructions).
+//
+// Indexing:
+// - Constant buffers use 3D indices in CBx[y][z] format, where x is the ID of
+//   the binding (CB#), y is the register to access within its space, z is the
+//   4-component vector to access within the register binding.
+//   For example, if the requested vector is located in the beginning of the
+//   second buffer in the descriptor array at b2, which is assigned to CB1, the
+//   index would be CB1[3][0].
+
 DxbcShaderTranslator::DxbcShaderTranslator() {
   // Don't allocate again and again for the first shader.
   shader_code_.reserve(8192);
