@@ -35,9 +35,27 @@ void DxbcShaderTranslator::Reset() {
   shader_code_.clear();
 
   rdef_constants_used_ = 0;
+  system_temp_count_current_ = 0;
+  system_temp_count_max_ = 0;
   writes_depth_ = false;
 
   std::memset(&stat_, 0, sizeof(stat_));
+}
+
+uint32_t DxbcShaderTranslator::PushSystemTemp() {
+  uint32_t register_index = system_temp_count_current_;
+  if (!uses_register_relative_addressing()) {
+    // Guest shader registers first if they're not in x0.
+    register_index += register_count();
+  }
+  ++system_temp_count_current_;
+  system_temp_count_max_ =
+      std::max(system_temp_count_max_, system_temp_count_current_);
+}
+
+void DxbcShaderTranslator::PopSystemTemp(uint32_t count) {
+  assert_true(count <= system_temp_count_current_);
+  system_temp_count_current_ -= std::min(count, system_temp_count_current_);
 }
 
 void DxbcShaderTranslator::CompleteVertexShaderCode() {}
@@ -869,15 +887,17 @@ void DxbcShaderTranslator::WriteShaderCode() {
     }
   }
 
-  // Temporary registers - system registers, and also Xbox 360 general-purpose
-  // registers if not using dynamic indexing.
+  // Temporary registers - guest general-purpose registers if not using dynamic
+  // indexing and Xenia internal registers.
   stat_.temp_register_count =
-      uint32_t(TempRegister::kCount) +
-      (uses_register_relative_addressing() ? 0 : register_count());
-  shader_object_.push_back(
-      ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_TEMPS) |
-      ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(2));
-  shader_object_.push_back(stat_.temp_register_count);
+      (uses_register_relative_addressing() ? 0 : register_count()) +
+      system_temp_count_max_;
+  if (stat_.temp_register_count != 0) {
+    shader_object_.push_back(
+        ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_TEMPS) |
+        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(2));
+    shader_object_.push_back(stat_.temp_register_count);
+  }
 
   // General-purpose registers if using dynamic indexing (x0).
   if (uses_register_relative_addressing()) {
