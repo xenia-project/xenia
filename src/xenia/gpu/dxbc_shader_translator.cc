@@ -510,6 +510,188 @@ std::vector<uint8_t> DxbcShaderTranslator::CompleteTranslation() {
   return shader_object_bytes;
 }
 
+void DxbcShaderTranslator::LoadDxbcSourceOperand(
+    const InstructionOperand& operand, DxbcSourceOperand& dxbc_operand) {
+  // TODO(Triang3l): Load source operands.
+}
+
+uint32_t DxbcShaderTranslator::DxbcSourceOperandLength(
+    const DxbcSourceOperand& operand) const {
+  uint32_t length;
+  switch (operand.type) {
+    case DxbcSourceOperand::Type::kRegister:
+    case DxbcSourceOperand::Type::kIntermediateRegister:
+      // Either a game register (for non-indexable GPRs) or the intermediate
+      // register with the data loaded (for indexable GPRs, bool and loop
+      // constants).
+      length = 2;
+      break;
+    case DxbcSourceOperand::Type::kConstantFloat:
+      if (operand.is_dynamic_indexed) {
+        // Constant buffer, 3D index - immediate 0, immediate + register 1,
+        // register 2.
+        length = 7;
+      } else {
+        // Constant buffer, 3D immediate index.
+        length = 4;
+      }
+      break;
+    default:
+      // Pre-negated literal of zeros and ones (no extension dword), or a
+      // totally invalid operand replaced by a literal.
+      return 5;
+  }
+  // Modifier extension - neg/abs or non-uniform binding index.
+  if (operand.is_negated || operand.is_absolute_value ||
+      (operand.type == DxbcSourceOperand::Type::kConstantFloat &&
+       operand.is_dynamic_indexed)) {
+    ++length;
+  }
+  return length;
+}
+
+void DxbcShaderTranslator::UseDxbcSourceOperand(
+    const DxbcSourceOperand& operand) {
+  // Build OperandToken1 for modifiers (negate, absolute, minimum precision,
+  // non-uniform binding index) - if it has any, it will be non-zero.
+  uint32_t modifiers = 0;
+  if (operand.is_negated && operand.is_absolute_value) {
+    modifiers |= D3D10_SB_OPERAND_MODIFIER_ABSNEG
+                 << D3D10_SB_OPERAND_MODIFIER_SHIFT;
+  } else if (operand.is_negated) {
+    modifiers |= D3D10_SB_OPERAND_MODIFIER_NEG
+                 << D3D10_SB_OPERAND_MODIFIER_SHIFT;
+  } else if (operand.is_absolute_value) {
+    modifiers |= D3D10_SB_OPERAND_MODIFIER_ABS
+                 << D3D10_SB_OPERAND_MODIFIER_SHIFT;
+  }
+  // Dynamic constant indices can have any values, and we use pages bound to
+  // different b#.
+  if (operand.type == DxbcSourceOperand::Type::kConstantFloat &&
+      operand.is_dynamic_indexed) {
+    modifiers |= ENCODE_D3D12_SB_OPERAND_NON_UNIFORM(1);
+  }
+  if (modifiers != 0) {
+    // Mark the extension as containing modifiers.
+    modifiers |= ENCODE_D3D10_SB_EXTENDED_OPERAND_TYPE(
+        D3D10_SB_EXTENDED_OPERAND_MODIFIER);
+  }
+  uint32_t extended_bit = ENCODE_D3D10_SB_OPERAND_EXTENDED(modifiers);
+
+  // Actually write the operand tokens.
+  switch (operand.type) {
+    case DxbcSourceOperand::Type::kRegister:
+      shader_code_.push_back(
+          EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP,
+                                      operand.swizzle, 1) |
+          extended_bit);
+      if (modifiers != 0) {
+        shader_code_.push_back(modifiers);
+      }
+      shader_code_.push_back(operand.index);
+      break;
+    case DxbcSourceOperand::Type::kConstantFloat:
+      rdef_constants_used_ |= 1ull
+                              << uint32_t(RdefConstantIndex::kFloatConstants);
+      if (operand.is_dynamic_indexed) {
+        // Index loaded as uint2 in the intermediate register, the page number
+        // in X, the vector number in the page in Y.
+        shader_code_.push_back(
+            EncodeVectorSwizzledOperand(
+                D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, operand.swizzle, 3,
+                D3D10_SB_OPERAND_INDEX_IMMEDIATE32,
+                D3D10_SB_OPERAND_INDEX_IMMEDIATE32_PLUS_RELATIVE,
+                D3D10_SB_OPERAND_INDEX_RELATIVE) |
+            extended_bit);
+        if (modifiers != 0) {
+          shader_code_.push_back(modifiers);
+        }
+        // Dimension 0 (CB#) - immediate.
+        shader_code_.push_back(
+            uint32_t(RdefConstantBufferIndex::kFloatConstants));
+        // Dimension 1 (b#) - immediate + temporary X.
+        shader_code_.push_back(uint32_t(CbufferRegister::kFloatConstantsFirst));
+        shader_code_.push_back(
+            EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
+        shader_code_.push_back(operand.intermediate_temp_register);
+        // Dimension 2 (vector) - temporary Y.
+        shader_code_.push_back(
+            EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
+        shader_code_.push_back(operand.intermediate_temp_register);
+      } else {
+        shader_code_.push_back(
+            EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
+                                        operand.swizzle, 3) |
+            extended_bit);
+        if (modifiers != 0) {
+          shader_code_.push_back(modifiers);
+        }
+        shader_code_.push_back(
+            uint32_t(RdefConstantBufferIndex::kFloatConstants));
+        shader_code_.push_back(uint32_t(CbufferRegister::kFloatConstantsFirst) +
+                               (operand.index >> 5));
+        shader_code_.push_back(operand.index & 31);
+      }
+      break;
+    case DxbcSourceOperand::Type::kIntermediateRegister:
+      // Already loaded as float to the intermediate temporary register.
+      shader_code_.push_back(
+          EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP,
+                                      operand.swizzle, 1) |
+          extended_bit);
+      if (modifiers != 0) {
+        shader_code_.push_back(modifiers);
+      }
+      shader_code_.push_back(operand.intermediate_temp_register);
+      break;
+    default:
+      // Only zeros and ones in the swizzle, or the safest replacement for an
+      // invalid operand (such as a fetch constant).
+      shader_code_.push_back(EncodeVectorSwizzledOperand(
+          D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+      for (uint32_t i = 0; i < 4; ++i) {
+        if (operand.index & (1 << i)) {
+          shader_code_.push_back(operand.is_negated ? 0xBF800000u
+                                                    : 0x3F800000u);
+        } else {
+          shader_code_.push_back(0);
+        }
+      }
+  }
+}
+
+void DxbcShaderTranslator::UnloadDxbcSourceOperand(
+    const DxbcSourceOperand& operand) {
+  if (operand.intermediate_temp_register !=
+      DxbcSourceOperand::kIntermediateTempRegisterNone) {
+    PopSystemTemp();
+  }
+}
+
+void DxbcShaderTranslator::ProcessVectorAluInstruction(
+    const ParsedAluInstruction& instr) {
+  // TODO(Triang3l): Predicate.
+}
+
+void DxbcShaderTranslator::ProcessScalarAluInstruction(
+    const ParsedAluInstruction& instr) {
+  // TODO(Triang3l): Predicate.
+}
+
+void DxbcShaderTranslator::ProcessAluInstruction(
+    const ParsedAluInstruction& instr) {
+  switch (instr.type) {
+    case ParsedAluInstruction::Type::kNop:
+      break;
+    case ParsedAluInstruction::Type::kVector:
+      ProcessVectorAluInstruction(instr);
+      break;
+    case ParsedAluInstruction::Type::kScalar:
+      ProcessScalarAluInstruction(instr);
+      break;
+  }
+}
+
 uint32_t DxbcShaderTranslator::AppendString(std::vector<uint32_t>& dest,
                                             const char* source) {
   size_t size = std::strlen(source) + 1;
