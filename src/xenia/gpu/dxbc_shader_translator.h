@@ -131,18 +131,66 @@ class DxbcShaderTranslator : public ShaderTranslator {
   static constexpr uint32_t kPSInPositionRegister =
       kPSInPointParametersRegister + 1;
 
+  static constexpr uint32_t kSwizzleXYZW = 0b11100100;
+  static constexpr uint32_t kSwizzleXXXX = 0b00000000;
+  static constexpr uint32_t kSwizzleYYYY = 0b01010101;
+  static constexpr uint32_t kSwizzleZZZZ = 0b10101010;
+  static constexpr uint32_t kSwizzleWWWW = 0b11111111;
+
+  // Operand encoding, with 32-bit immediate indices by default. None of the
+  // arguments must be shifted when calling.
+  static constexpr uint32_t EncodeScalarOperand(
+      uint32_t type, uint32_t index_dimension,
+      uint32_t index_representation_0 = 0, uint32_t index_representation_1 = 0,
+      uint32_t index_representation_2 = 0) {
+    // D3D10_SB_OPERAND_1_COMPONENT.
+    return 1 | (type << 12) | (index_dimension << 20) |
+           (index_representation_0 << 22) | (index_representation_1 << 25) |
+           (index_representation_0 << 28);
+  }
+  // For writing to vectors. Mask literal can be written as 0bWZYX.
+  static constexpr uint32_t EncodeVectorMaskedOperand(
+      uint32_t type, uint32_t mask, uint32_t index_dimension,
+      uint32_t index_representation_0 = 0, uint32_t index_representation_1 = 0,
+      uint32_t index_representation_2 = 0) {
+    // D3D10_SB_OPERAND_4_COMPONENT, D3D10_SB_OPERAND_4_COMPONENT_MASK_MODE.
+    return 2 | (0 << 2) | (mask << 4) | (type << 12) | (index_dimension << 20) |
+           (index_representation_0 << 22) | (index_representation_1 << 25) |
+           (index_representation_2 << 28);
+  }
+  // For reading from vectors. Swizzle can be written as 0bWWZZYYXX.
+  static constexpr uint32_t EncodeVectorSwizzledOperand(
+      uint32_t type, uint32_t swizzle, uint32_t index_dimension,
+      uint32_t index_representation_0 = 0, uint32_t index_representation_1 = 0,
+      uint32_t index_representation_2 = 0) {
+    // D3D10_SB_OPERAND_4_COMPONENT, D3D10_SB_OPERAND_4_COMPONENT_SWIZZLE_MODE.
+    return 2 | (1 << 2) | (swizzle << 4) | (type << 12) |
+           (index_dimension << 20) | (index_representation_0 << 22) |
+           (index_representation_1 << 25) | (index_representation_2 << 28);
+  }
+  // For reading from vectors.
+  static constexpr uint32_t EncodeVectorSelectOperand(
+      uint32_t type, uint32_t component, uint32_t index_dimension,
+      uint32_t index_representation_0 = 0, uint32_t index_representation_1 = 0,
+      uint32_t index_representation_2 = 0) {
+    // D3D10_SB_OPERAND_4_COMPONENT, D3D10_SB_OPERAND_4_COMPONENT_SELECT_1_MODE.
+    return 2 | (2 << 2) | (component << 4) | (type << 12) |
+           (index_dimension << 20) | (index_representation_0 << 22) |
+           (index_representation_1 << 25) | (index_representation_2 << 28);
+  }
+
   // Allocates a new r# register for internal use and returns its index.
   uint32_t PushSystemTemp();
   // Frees the last allocated internal r# registers for later reuse.
   void PopSystemTemp(uint32_t count = 1);
 
   // Writing the prologue.
-  void StartVertexShaderCode();
-  void StartPixelShaderCode();
+  void StartVertexShader();
+  void StartPixelShader();
 
   // Writing the epilogue.
-  void CompleteVertexShaderCode();
-  void CompletePixelShaderCode();
+  void CompleteVertexShader();
+  void CompletePixelShader();
   void CompleteShaderCode();
 
   // Appends a string to a DWORD stream, returns the DWORD-aligned length.
