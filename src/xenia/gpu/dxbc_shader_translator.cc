@@ -866,8 +866,9 @@ void DxbcShaderTranslator::WriteInputSignature() {
     AppendString(shader_object_, "SV_VertexID");
   } else {
     assert_true(is_pixel_shader());
-    // Interpolators, point parameters (coordinates, size), screen position.
-    shader_object_.push_back(kInterpolatorCount + 2);
+    // Interpolators, point parameters (coordinates, size), screen position,
+    // is front face.
+    shader_object_.push_back(kInterpolatorCount + 3);
     // Unknown.
     shader_object_.push_back(8);
 
@@ -906,6 +907,15 @@ void DxbcShaderTranslator::WriteInputSignature() {
     shader_object_.push_back(kPSInPositionRegister);
     shader_object_.push_back(0xF | (0x3 << 8));
 
+    // Is front face. Always used because ps_param_gen is handled dynamically.
+    shader_object_.push_back(0);
+    shader_object_.push_back(0);
+    // D3D_NAME_IS_FRONT_FACE.
+    shader_object_.push_back(9);
+    shader_object_.push_back(1);
+    shader_object_.push_back(kPSInFrontFaceRegister);
+    shader_object_.push_back(0x1 | (0x1 << 8));
+
     // Write the semantic names.
     new_offset = (uint32_t(shader_object_.size()) - chunk_position_dwords) *
                  sizeof(uint32_t);
@@ -916,11 +926,17 @@ void DxbcShaderTranslator::WriteInputSignature() {
       shader_object_[texcoord_name_position_dwords] = new_offset;
     }
     new_offset += AppendString(shader_object_, "TEXCOORD");
+
     uint32_t position_name_position_dwords =
         chunk_position_dwords + signature_position_dwords +
         (kInterpolatorCount + 1) * signature_size_dwords;
     shader_object_[position_name_position_dwords] = new_offset;
     new_offset += AppendString(shader_object_, "SV_Position");
+
+    uint32_t front_face_name_position_dwords =
+        position_name_position_dwords + signature_size_dwords;
+    shader_object_[front_face_name_position_dwords] = new_offset;
+    new_offset += AppendString(shader_object_, "SV_IsFrontFace");
   }
 }
 
@@ -1172,6 +1188,19 @@ void DxbcShaderTranslator::WriteShaderCode() {
         EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_INPUT, 0b0011, 1));
     shader_object_.push_back(kPSInPositionRegister);
     shader_object_.push_back(ENCODE_D3D10_SB_NAME(D3D10_SB_NAME_POSITION));
+    ++stat_.dcl_count;
+    // Is front face.
+    shader_object_.push_back(
+        ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_INPUT_PS_SGV) |
+        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4) |
+        // This needs to be set according to FXC output, despite the description
+        // in d3d12TokenizedProgramFormat.hpp saying bits 11:23 are ignored.
+        ENCODE_D3D10_SB_INPUT_INTERPOLATION_MODE(
+            D3D10_SB_INTERPOLATION_CONSTANT));
+    shader_object_.push_back(
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_INPUT, 0b0001, 1));
+    shader_object_.push_back(kPSInFrontFaceRegister);
+    shader_object_.push_back(ENCODE_D3D10_SB_NAME(D3D10_SB_NAME_IS_FRONT_FACE));
     ++stat_.dcl_count;
     // Color output.
     for (uint32_t i = 0; i < 4; ++i) {

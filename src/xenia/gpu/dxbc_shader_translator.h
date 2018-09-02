@@ -130,6 +130,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
       kPSInInterpolatorRegister + kInterpolatorCount;
   static constexpr uint32_t kPSInPositionRegister =
       kPSInPointParametersRegister + 1;
+  static constexpr uint32_t kPSInFrontFaceRegister = kPSInPositionRegister + 1;
 
   static constexpr uint32_t kSwizzleXYZW = 0b11100100;
   static constexpr uint32_t kSwizzleXXXX = 0b00000000;
