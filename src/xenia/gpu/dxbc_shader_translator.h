@@ -185,6 +185,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
   void PopSystemTemp(uint32_t count = 1);
 
   // Writing the prologue.
+  void StartVertexShader_SwapVertexIndex();
   void StartVertexShader();
   void StartPixelShader();
 
