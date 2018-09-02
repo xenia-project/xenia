@@ -229,8 +229,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
 
     // Temporary register containing data required to access the value if it has
     // to be accessed in multiple operations (allocated with PushSystemTemp).
-    uint32_t intermediate_temp_register;
-    static constexpr uint32_t kIntermediateTempRegisterNone = UINT32_MAX;
+    uint32_t intermediate_register;
+    static constexpr uint32_t kIntermediateRegisterNone = UINT32_MAX;
   };
   // Each Load must be followed by Unload, otherwise there may be a temporary
   // register leak.
