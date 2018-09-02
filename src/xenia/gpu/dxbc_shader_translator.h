@@ -66,6 +66,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
 
   std::vector<uint8_t> CompleteTranslation() override;
 
+  void ProcessAluInstruction(const ParsedAluInstruction& instr) override;
+
  private:
   static constexpr uint32_t kFloatConstantsPerPage = 32;
   static constexpr uint32_t kFloatConstantPageCount = 8;
@@ -194,6 +196,54 @@ class DxbcShaderTranslator : public ShaderTranslator {
   void CompleteVertexShader();
   void CompletePixelShader();
   void CompleteShaderCode();
+
+  // Abstract 4-component vector source operand.
+  struct DxbcSourceOperand {
+    enum class Type {
+      // GPR number in the index - used only when GPRs are not dynamically
+      // indexed in the shader and there are no constant zeros and ones in the
+      // swizzle.
+      kRegister,
+      // Immediate: float constant vector number in the index.
+      // Dynamic: intermediate X contains page number, intermediate Y contains
+      // vector number in the page.
+      kConstantFloat,
+      // The whole value preloaded to the intermediate register - used for GPRs
+      // when they are indexable, for bool/loop constants pre-converted to
+      // float, and for other operands if their swizzle contains 0 or 1.
+      kIntermediateRegister,
+      // Literal vector of zeros and positive or negative ones - when the
+      // swizzle contains only them, or when the parsed operand is invalid (for
+      // example, if it's a fetch constant in a non-tfetch texture instruction).
+      // 0 or 1 specified in the index as bits, can be negated.
+      kZerosOnes,
+    };
+
+    Type type;
+    uint32_t index;
+    bool is_dynamic_indexed;
+
+    uint32_t swizzle;
+    bool is_negated;
+    bool is_absolute_value;
+
+    // Temporary register containing data required to access the value if it has
+    // to be accessed in multiple operations (allocated with PushSystemTemp).
+    uint32_t intermediate_temp_register;
+    static constexpr uint32_t kIntermediateTempRegisterNone = UINT32_MAX;
+  };
+  // Each Load must be followed by Unload, otherwise there may be a temporary
+  // register leak.
+  void LoadDxbcSourceOperand(const InstructionOperand& operand,
+                             DxbcSourceOperand& dxbc_operand);
+  // Number of tokens this operand adds to the instruction length when used.
+  uint32_t DxbcSourceOperandLength(const DxbcSourceOperand& operand) const;
+  // Writes the operand access tokens to the instruction.
+  void UseDxbcSourceOperand(const DxbcSourceOperand& operand);
+  void UnloadDxbcSourceOperand(const DxbcSourceOperand& operand);
+
+  void ProcessVectorAluInstruction(const ParsedAluInstruction& instr);
+  void ProcessScalarAluInstruction(const ParsedAluInstruction& instr);
 
   // Appends a string to a DWORD stream, returns the DWORD-aligned length.
   static uint32_t AppendString(std::vector<uint32_t>& dest, const char* source);
@@ -350,7 +400,9 @@ class DxbcShaderTranslator : public ShaderTranslator {
     uint32_t float_instruction_count;
     uint32_t int_instruction_count;
     uint32_t uint_instruction_count;
+    // endif, ret.
     uint32_t static_flow_control_count;
+    // if (but not else).
     uint32_t dynamic_flow_control_count;
     // Unknown in Wine.
     uint32_t macro_instruction_count;
