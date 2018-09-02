@@ -594,7 +594,7 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
   shader_object_.push_back(0);
   // Bound resource count (CBV, SRV, UAV, samplers).
   shader_object_.push_back(binding_count);
-  // TODO(Triang3l): Bound resource buffer offset (set later).
+  // Bound resource buffer offset (set later).
   shader_object_.push_back(0);
   if (is_vertex_shader()) {
     // vs_5_1
