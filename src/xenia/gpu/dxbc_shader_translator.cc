@@ -81,28 +81,16 @@ void DxbcShaderTranslator::PopSystemTemp(uint32_t count) {
   system_temp_count_current_ -= std::min(count, system_temp_count_current_);
 }
 
-void DxbcShaderTranslator::StartVertexShaderCode() {
+void DxbcShaderTranslator::StartVertexShader() {
   // Zero the interpolators.
   for (uint32_t i = 0; i < kInterpolatorCount; ++i) {
     shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
                            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(8));
     shader_code_.push_back(
-        ENCODE_D3D10_SB_OPERAND_NUM_COMPONENTS(D3D10_SB_OPERAND_4_COMPONENT) |
-        ENCODE_D3D10_SB_OPERAND_4_COMPONENT_SELECTION_MODE(
-            D3D10_SB_OPERAND_4_COMPONENT_MASK_MODE) |
-        D3D10_SB_OPERAND_4_COMPONENT_MASK_ALL |
-        ENCODE_D3D10_SB_OPERAND_TYPE(D3D10_SB_OPERAND_TYPE_OUTPUT) |
-        ENCODE_D3D10_SB_OPERAND_INDEX_DIMENSION(D3D10_SB_OPERAND_INDEX_1D) |
-        ENCODE_D3D10_SB_OPERAND_INDEX_REPRESENTATION(
-            0, D3D10_SB_OPERAND_INDEX_IMMEDIATE32));
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_OUTPUT, 0b1111, 1));
     shader_code_.push_back(kVSOutInterpolatorRegister + i);
-    shader_code_.push_back(
-        ENCODE_D3D10_SB_OPERAND_NUM_COMPONENTS(D3D10_SB_OPERAND_4_COMPONENT) |
-        ENCODE_D3D10_SB_OPERAND_4_COMPONENT_SELECTION_MODE(
-            D3D10_SB_OPERAND_4_COMPONENT_SWIZZLE_MODE) |
-        D3D10_SB_OPERAND_4_COMPONENT_NOSWIZZLE |
-        ENCODE_D3D10_SB_OPERAND_TYPE(D3D10_SB_OPERAND_TYPE_IMMEDIATE32) |
-        ENCODE_D3D10_SB_OPERAND_INDEX_DIMENSION(D3D10_SB_OPERAND_INDEX_0D));
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
     shader_code_.push_back(0);
     shader_code_.push_back(0);
     shader_code_.push_back(0);
@@ -118,24 +106,10 @@ void DxbcShaderTranslator::StartVertexShaderCode() {
   shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(8));
   shader_code_.push_back(
-      ENCODE_D3D10_SB_OPERAND_NUM_COMPONENTS(D3D10_SB_OPERAND_4_COMPONENT) |
-      ENCODE_D3D10_SB_OPERAND_4_COMPONENT_SELECTION_MODE(
-          D3D10_SB_OPERAND_4_COMPONENT_MASK_MODE) |
-      D3D10_SB_OPERAND_4_COMPONENT_MASK_X |
-      D3D10_SB_OPERAND_4_COMPONENT_MASK_Y |
-      D3D10_SB_OPERAND_4_COMPONENT_MASK_Z |
-      ENCODE_D3D10_SB_OPERAND_TYPE(D3D10_SB_OPERAND_TYPE_OUTPUT) |
-      ENCODE_D3D10_SB_OPERAND_INDEX_DIMENSION(D3D10_SB_OPERAND_INDEX_1D) |
-      ENCODE_D3D10_SB_OPERAND_INDEX_REPRESENTATION(
-          0, D3D10_SB_OPERAND_INDEX_IMMEDIATE32));
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_OUTPUT, 0b0111, 1));
   shader_code_.push_back(kVSOutPointParametersRegister);
-  shader_code_.push_back(
-      ENCODE_D3D10_SB_OPERAND_NUM_COMPONENTS(D3D10_SB_OPERAND_4_COMPONENT) |
-      ENCODE_D3D10_SB_OPERAND_4_COMPONENT_SELECTION_MODE(
-          D3D10_SB_OPERAND_4_COMPONENT_SWIZZLE_MODE) |
-      D3D10_SB_OPERAND_4_COMPONENT_NOSWIZZLE |
-      ENCODE_D3D10_SB_OPERAND_TYPE(D3D10_SB_OPERAND_TYPE_IMMEDIATE32) |
-      ENCODE_D3D10_SB_OPERAND_INDEX_DIMENSION(D3D10_SB_OPERAND_INDEX_0D));
+  shader_code_.push_back(EncodeVectorSwizzledOperand(
+      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
   shader_code_.push_back(0);
   shader_code_.push_back(0);
   // -1.0f
@@ -145,27 +119,27 @@ void DxbcShaderTranslator::StartVertexShaderCode() {
   ++stat_.mov_instruction_count;
 }
 
-void DxbcShaderTranslator::StartPixelShaderCode() {}
+void DxbcShaderTranslator::StartPixelShader() {}
 
 void DxbcShaderTranslator::StartTranslation() {
   // Write stage-specific prologue.
   if (is_vertex_shader()) {
-    StartVertexShaderCode();
+    StartVertexShader();
   } else if (is_pixel_shader()) {
-    StartPixelShaderCode();
+    StartPixelShader();
   }
 }
 
-void DxbcShaderTranslator::CompleteVertexShaderCode() {}
+void DxbcShaderTranslator::CompleteVertexShader() {}
 
-void DxbcShaderTranslator::CompletePixelShaderCode() {}
+void DxbcShaderTranslator::CompletePixelShader() {}
 
 void DxbcShaderTranslator::CompleteShaderCode() {
   // Write stage-specific epilogue.
   if (is_vertex_shader()) {
-    CompleteVertexShaderCode();
+    CompleteVertexShader();
   } else if (is_pixel_shader()) {
-    CompletePixelShaderCode();
+    CompletePixelShader();
   }
 
   // Return from `main`.
@@ -812,34 +786,6 @@ void DxbcShaderTranslator::WriteShaderCode() {
   // bound.
   // Inputs/outputs have 1D-indexed operands with a component mask and a
   // register index.
-  const uint32_t binding_operand_token =
-      ENCODE_D3D10_SB_OPERAND_NUM_COMPONENTS(D3D10_SB_OPERAND_4_COMPONENT) |
-      ENCODE_D3D10_SB_OPERAND_4_COMPONENT_SELECTION_MODE(
-          D3D10_SB_OPERAND_4_COMPONENT_SWIZZLE_MODE) |
-      D3D10_SB_OPERAND_4_COMPONENT_NOSWIZZLE |
-      ENCODE_D3D10_SB_OPERAND_INDEX_DIMENSION(D3D10_SB_OPERAND_INDEX_3D) |
-      ENCODE_D3D10_SB_OPERAND_INDEX_REPRESENTATION(
-          0, D3D10_SB_OPERAND_INDEX_IMMEDIATE32) |
-      ENCODE_D3D10_SB_OPERAND_INDEX_REPRESENTATION(
-          1, D3D10_SB_OPERAND_INDEX_IMMEDIATE32) |
-      ENCODE_D3D10_SB_OPERAND_INDEX_REPRESENTATION(
-          2, D3D10_SB_OPERAND_INDEX_IMMEDIATE32);
-  const uint32_t input_operand_unmasked_token =
-      ENCODE_D3D10_SB_OPERAND_NUM_COMPONENTS(D3D10_SB_OPERAND_4_COMPONENT) |
-      ENCODE_D3D10_SB_OPERAND_4_COMPONENT_SELECTION_MODE(
-          D3D10_SB_OPERAND_4_COMPONENT_MASK_MODE) |
-      ENCODE_D3D10_SB_OPERAND_TYPE(D3D10_SB_OPERAND_TYPE_INPUT) |
-      ENCODE_D3D10_SB_OPERAND_INDEX_DIMENSION(D3D10_SB_OPERAND_INDEX_1D) |
-      ENCODE_D3D10_SB_OPERAND_INDEX_REPRESENTATION(
-          0, D3D10_SB_OPERAND_INDEX_IMMEDIATE32);
-  const uint32_t output_operand_unmasked_token =
-      ENCODE_D3D10_SB_OPERAND_NUM_COMPONENTS(D3D10_SB_OPERAND_4_COMPONENT) |
-      ENCODE_D3D10_SB_OPERAND_4_COMPONENT_SELECTION_MODE(
-          D3D10_SB_OPERAND_4_COMPONENT_MASK_MODE) |
-      ENCODE_D3D10_SB_OPERAND_TYPE(D3D10_SB_OPERAND_TYPE_OUTPUT) |
-      ENCODE_D3D10_SB_OPERAND_INDEX_DIMENSION(D3D10_SB_OPERAND_INDEX_1D) |
-      ENCODE_D3D10_SB_OPERAND_INDEX_REPRESENTATION(
-          0, D3D10_SB_OPERAND_INDEX_IMMEDIATE32);
 
   // Don't allow refactoring when converting to native code to maintain position
   // invariance (needed even in pixel shaders for oDepth invariance).
@@ -859,9 +805,8 @@ void DxbcShaderTranslator::WriteShaderCode() {
             cbuffer.dynamic_indexed
                 ? D3D10_SB_CONSTANT_BUFFER_DYNAMIC_INDEXED
                 : D3D10_SB_CONSTANT_BUFFER_IMMEDIATE_INDEXED));
-    shader_object_.push_back(
-        binding_operand_token |
-        ENCODE_D3D10_SB_OPERAND_TYPE(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER));
+    shader_object_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSwizzleXYZW, 3));
     shader_object_.push_back(cbuffer_index);
     shader_object_.push_back(uint32_t(cbuffer.register_index));
     shader_object_.push_back(uint32_t(cbuffer.register_index) +
@@ -876,9 +821,8 @@ void DxbcShaderTranslator::WriteShaderCode() {
   shader_object_.push_back(
       ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_DCL_RESOURCE_RAW) |
       ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(6));
-  shader_object_.push_back(
-      binding_operand_token |
-      ENCODE_D3D10_SB_OPERAND_TYPE(D3D10_SB_OPERAND_TYPE_RESOURCE));
+  shader_object_.push_back(EncodeVectorSwizzledOperand(
+      D3D10_SB_OPERAND_TYPE_RESOURCE, kSwizzleXYZW, 3));
   shader_object_.push_back(0);
   shader_object_.push_back(0);
   shader_object_.push_back(0);
@@ -890,8 +834,8 @@ void DxbcShaderTranslator::WriteShaderCode() {
     shader_object_.push_back(
         ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_INPUT_SGV) |
         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4));
-    shader_object_.push_back(input_operand_unmasked_token |
-                             D3D10_SB_OPERAND_4_COMPONENT_MASK_X);
+    shader_object_.push_back(
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_INPUT, 0b0001, 1));
     shader_object_.push_back(kVSInVertexIndexRegister);
     shader_object_.push_back(ENCODE_D3D10_SB_NAME(D3D10_SB_NAME_VERTEX_ID));
     ++stat_.dcl_count;
@@ -900,8 +844,8 @@ void DxbcShaderTranslator::WriteShaderCode() {
       shader_object_.push_back(
           ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_OUTPUT) |
           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
-      shader_object_.push_back(output_operand_unmasked_token |
-                               D3D10_SB_OPERAND_4_COMPONENT_MASK_ALL);
+      shader_object_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_OUTPUT, 0b1111, 1));
       shader_object_.push_back(kVSOutInterpolatorRegister + i);
       ++stat_.dcl_count;
     }
@@ -909,18 +853,16 @@ void DxbcShaderTranslator::WriteShaderCode() {
     shader_object_.push_back(
         ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_OUTPUT) |
         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
-    shader_object_.push_back(output_operand_unmasked_token |
-                             D3D10_SB_OPERAND_4_COMPONENT_MASK_X |
-                             D3D10_SB_OPERAND_4_COMPONENT_MASK_Y |
-                             D3D10_SB_OPERAND_4_COMPONENT_MASK_Z);
+    shader_object_.push_back(
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_OUTPUT, 0b0111, 1));
     shader_object_.push_back(kVSOutPointParametersRegister);
     ++stat_.dcl_count;
     // Position output.
     shader_object_.push_back(
         ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_OUTPUT_SIV) |
         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4));
-    shader_object_.push_back(output_operand_unmasked_token |
-                             D3D10_SB_OPERAND_4_COMPONENT_MASK_ALL);
+    shader_object_.push_back(
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_OUTPUT, 0b1111, 1));
     shader_object_.push_back(kVSOutPositionRegister);
     shader_object_.push_back(ENCODE_D3D10_SB_NAME(D3D10_SB_NAME_POSITION));
     ++stat_.dcl_count;
@@ -934,8 +876,8 @@ void DxbcShaderTranslator::WriteShaderCode() {
           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3) |
           ENCODE_D3D10_SB_INPUT_INTERPOLATION_MODE(
               D3D10_SB_INTERPOLATION_LINEAR));
-      shader_object_.push_back(input_operand_unmasked_token |
-                               D3D10_SB_OPERAND_4_COMPONENT_MASK_ALL);
+      shader_object_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_INPUT, 0b1111, 1));
       shader_object_.push_back(kPSInInterpolatorRegister + i);
       ++stat_.dcl_count;
     }
@@ -945,9 +887,8 @@ void DxbcShaderTranslator::WriteShaderCode() {
         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3) |
         ENCODE_D3D10_SB_INPUT_INTERPOLATION_MODE(
             D3D10_SB_INTERPOLATION_LINEAR));
-    shader_object_.push_back(input_operand_unmasked_token |
-                             D3D10_SB_OPERAND_4_COMPONENT_MASK_X |
-                             D3D10_SB_OPERAND_4_COMPONENT_MASK_Y);
+    shader_object_.push_back(
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_INPUT, 0b0011, 1));
     shader_object_.push_back(kPSInPointParametersRegister);
     ++stat_.dcl_count;
     // Position input (only XY needed).
@@ -956,9 +897,8 @@ void DxbcShaderTranslator::WriteShaderCode() {
         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4) |
         ENCODE_D3D10_SB_INPUT_INTERPOLATION_MODE(
             D3D10_SB_INTERPOLATION_LINEAR_NOPERSPECTIVE));
-    shader_object_.push_back(input_operand_unmasked_token |
-                             D3D10_SB_OPERAND_4_COMPONENT_MASK_X |
-                             D3D10_SB_OPERAND_4_COMPONENT_MASK_Y);
+    shader_object_.push_back(
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_INPUT, 0b0011, 1));
     shader_object_.push_back(kPSInPositionRegister);
     shader_object_.push_back(ENCODE_D3D10_SB_NAME(D3D10_SB_NAME_POSITION));
     ++stat_.dcl_count;
@@ -967,8 +907,8 @@ void DxbcShaderTranslator::WriteShaderCode() {
       shader_object_.push_back(
           ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_OUTPUT) |
           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
-      shader_object_.push_back(output_operand_unmasked_token |
-                               D3D10_SB_OPERAND_4_COMPONENT_MASK_ALL);
+      shader_object_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_OUTPUT, 0b1111, 1));
       shader_object_.push_back(i);
       ++stat_.dcl_count;
     }
@@ -978,9 +918,7 @@ void DxbcShaderTranslator::WriteShaderCode() {
           ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_OUTPUT) |
           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(2));
       shader_object_.push_back(
-          ENCODE_D3D10_SB_OPERAND_NUM_COMPONENTS(D3D10_SB_OPERAND_1_COMPONENT) |
-          ENCODE_D3D10_SB_OPERAND_TYPE(D3D10_SB_OPERAND_TYPE_OUTPUT_DEPTH) |
-          ENCODE_D3D10_SB_OPERAND_INDEX_DIMENSION(D3D10_SB_OPERAND_INDEX_0D));
+          EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_OUTPUT_DEPTH, 0));
       ++stat_.dcl_count;
     }
   }
@@ -1016,13 +954,9 @@ void DxbcShaderTranslator::WriteShaderCode() {
     shader_object_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
                              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4));
     shader_object_.push_back(
-        ENCODE_D3D10_SB_OPERAND_NUM_COMPONENTS(D3D10_SB_OPERAND_1_COMPONENT) |
-        ENCODE_D3D10_SB_OPERAND_TYPE(D3D10_SB_OPERAND_TYPE_OUTPUT_DEPTH) |
-        ENCODE_D3D10_SB_OPERAND_INDEX_DIMENSION(D3D10_SB_OPERAND_INDEX_0D));
+        EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_OUTPUT_DEPTH, 0));
     shader_object_.push_back(
-        ENCODE_D3D10_SB_OPERAND_NUM_COMPONENTS(D3D10_SB_OPERAND_1_COMPONENT) |
-        ENCODE_D3D10_SB_OPERAND_TYPE(D3D10_SB_OPERAND_TYPE_IMMEDIATE32) |
-        ENCODE_D3D10_SB_OPERAND_INDEX_DIMENSION(D3D10_SB_OPERAND_INDEX_0D));
+        EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
     shader_object_.push_back(0);
     ++stat_.instruction_count;
     ++stat_.mov_instruction_count;
