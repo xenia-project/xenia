@@ -180,7 +180,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
   }
 
   // Allocates a new r# register for internal use and returns its index.
-  uint32_t PushSystemTemp();
+  uint32_t PushSystemTemp(bool zero = false);
   // Frees the last allocated internal r# registers for later reuse.
   void PopSystemTemp(uint32_t count = 1);
 
@@ -326,6 +326,15 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // Total maximum number of temporary registers ever used during this
   // translation (for the declaration).
   uint32_t system_temp_count_max_;
+
+  // Temporary register ID for previous scalar result, program counter,
+  // predicate and absolute address register.
+  uint32_t system_temp_ps_pc_p0_a0_;
+  // Loop index stack - .x is the active loop, shifted right to .yzw on push.
+  uint32_t system_temp_aL_;
+  // Loop counter stack, .x is the active loop. Represents number of times
+  // remaining to loop.
+  uint32_t system_temp_loop_count_;
 
   bool writes_depth_;
 

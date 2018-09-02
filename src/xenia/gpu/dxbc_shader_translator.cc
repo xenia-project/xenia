@@ -65,7 +65,7 @@ void DxbcShaderTranslator::Reset() {
   std::memset(&stat_, 0, sizeof(stat_));
 }
 
-uint32_t DxbcShaderTranslator::PushSystemTemp() {
+uint32_t DxbcShaderTranslator::PushSystemTemp(bool zero) {
   uint32_t register_index = system_temp_count_current_;
   if (!uses_register_dynamic_addressing()) {
     // Guest shader registers first if they're not in x0.
@@ -74,6 +74,23 @@ uint32_t DxbcShaderTranslator::PushSystemTemp() {
   ++system_temp_count_current_;
   system_temp_count_max_ =
       std::max(system_temp_count_max_, system_temp_count_current_);
+
+  if (zero) {
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(8));
+    shader_code_.push_back(
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+    shader_code_.push_back(register_index);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+    shader_code_.push_back(0);
+    shader_code_.push_back(0);
+    shader_code_.push_back(0);
+    shader_code_.push_back(0);
+    ++stat_.instruction_count;
+    ++stat_.mov_instruction_count;
+  }
+
   return register_index;
 }
 
@@ -371,6 +388,11 @@ void DxbcShaderTranslator::StartTranslation() {
   } else if (is_pixel_shader()) {
     StartPixelShader();
   }
+
+  // Request global system temporary variables.
+  system_temp_ps_pc_p0_a0_ = PushSystemTemp(true);
+  system_temp_aL_ = PushSystemTemp(true);
+  system_temp_loop_count_ = PushSystemTemp(true);
 }
 
 void DxbcShaderTranslator::CompleteVertexShader() {}
@@ -378,6 +400,12 @@ void DxbcShaderTranslator::CompleteVertexShader() {}
 void DxbcShaderTranslator::CompletePixelShader() {}
 
 void DxbcShaderTranslator::CompleteShaderCode() {
+  // Release the following system temporary values so epilogue can reuse them:
+  // - system_temp_ps_pc_p0_a0_.
+  // - system_temp_aL_.
+  // - system_temp_loop_count_.
+  PopSystemTemp(3);
+
   // Write stage-specific epilogue.
   if (is_vertex_shader()) {
     CompleteVertexShader();
