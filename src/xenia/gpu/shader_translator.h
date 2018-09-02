@@ -47,8 +47,8 @@ class ShaderTranslator {
   bool is_pixel_shader() const { return shader_type_ == ShaderType::kPixel; }
   // True if the current shader addresses general-purpose registers with dynamic
   // indices.
-  bool uses_register_relative_addressing() const {
-    return uses_register_relative_addressing_;
+  bool uses_register_dynamic_addressing() const {
+    return uses_register_dynamic_addressing_;
   }
   // A list of all vertex bindings, populated before translation occurs.
   const std::vector<Shader::VertexBinding>& vertex_bindings() const {
@@ -220,7 +220,7 @@ class ShaderTranslator {
   uint32_t unique_texture_bindings_ = 0;
 
   Shader::ConstantRegisterMap constant_register_map_ = {0};
-  bool uses_register_relative_addressing_ = false;
+  bool uses_register_dynamic_addressing_ = false;
   bool writes_color_targets_[4] = {false, false, false, false};
 
   static const AluOpcodeInfo alu_vector_opcode_infos_[0x20];

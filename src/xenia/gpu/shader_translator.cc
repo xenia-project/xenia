@@ -58,7 +58,7 @@ void ShaderTranslator::Reset() {
   texture_bindings_.clear();
   unique_texture_bindings_ = 0;
   std::memset(&constant_register_map_, 0, sizeof(constant_register_map_));
-  uses_register_relative_addressing_ = false;
+  uses_register_dynamic_addressing_ = false;
   for (size_t i = 0; i < xe::countof(writes_color_targets_); ++i) {
     writes_color_targets_[i] = false;
   }
@@ -267,7 +267,7 @@ void ShaderTranslator::GatherInstructionInformation(
                 alu_vector_opcode_infos_[static_cast<int>(op.vector_opcode())];
             for (size_t i = 0; i < opcode_info.argument_count; ++i) {
               if (op.src_is_temp(i) && (op.src_reg(i) & 0x40)) {
-                uses_register_relative_addressing_ = true;
+                uses_register_dynamic_addressing_ = true;
               }
             }
             if (op.is_export()) {
@@ -276,7 +276,7 @@ void ShaderTranslator::GatherInstructionInformation(
               }
             } else {
               if (op.is_vector_dest_relative()) {
-                uses_register_relative_addressing_ = true;
+                uses_register_dynamic_addressing_ = true;
               }
             }
           }
@@ -285,7 +285,7 @@ void ShaderTranslator::GatherInstructionInformation(
                 alu_scalar_opcode_infos_[static_cast<int>(op.scalar_opcode())];
             if (opcode_info.argument_count == 1 && op.src_is_temp(0) &&
                 (op.src_reg(0) & 0x40)) {
-              uses_register_relative_addressing_ = true;
+              uses_register_dynamic_addressing_ = true;
             }
             if (op.is_export()) {
               if (is_pixel_shader() && op.scalar_dest() <= 3) {
@@ -293,7 +293,7 @@ void ShaderTranslator::GatherInstructionInformation(
               }
             } else {
               if (op.is_scalar_dest_relative()) {
-                uses_register_relative_addressing_ = true;
+                uses_register_dynamic_addressing_ = true;
               }
             }
           }
@@ -317,7 +317,7 @@ void ShaderTranslator::GatherVertexFetchInformation(
 
   // Check if using dynamic register indices.
   if (op.is_dest_relative() || op.is_src_relative()) {
-    uses_register_relative_addressing_ = true;
+    uses_register_dynamic_addressing_ = true;
   }
 
   // Try to allocate an attribute on an existing binding.
@@ -356,7 +356,7 @@ void ShaderTranslator::GatherTextureFetchInformation(
     const TextureFetchInstruction& op) {
   // Check if using dynamic register indices.
   if (op.is_dest_relative() || op.is_src_relative()) {
-    uses_register_relative_addressing_ = true;
+    uses_register_dynamic_addressing_ = true;
   }
 
   switch (op.opcode()) {

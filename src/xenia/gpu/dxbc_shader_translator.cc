@@ -67,7 +67,7 @@ void DxbcShaderTranslator::Reset() {
 
 uint32_t DxbcShaderTranslator::PushSystemTemp() {
   uint32_t register_index = system_temp_count_current_;
-  if (!uses_register_relative_addressing()) {
+  if (!uses_register_dynamic_addressing()) {
     // Guest shader registers first if they're not in x0.
     register_index += register_count();
   }
@@ -97,7 +97,7 @@ void DxbcShaderTranslator::StartVertexShader_SwapVertexIndex() {
   // Write to GPR 0 - either directly if not using indexable registers, or via a
   // system temporary register.
   uint32_t reg;
-  if (uses_register_relative_addressing()) {
+  if (uses_register_dynamic_addressing()) {
     reg = PushSystemTemp();
   } else {
     reg = 0;
@@ -304,7 +304,7 @@ void DxbcShaderTranslator::StartVertexShader_SwapVertexIndex() {
   ++stat_.instruction_count;
   ++stat_.movc_instruction_count;
 
-  if (uses_register_relative_addressing()) {
+  if (uses_register_dynamic_addressing()) {
     // Store to indexed GPR 0 in x0[0].
     shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
                            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(6));
@@ -1169,7 +1169,7 @@ void DxbcShaderTranslator::WriteShaderCode() {
   // Temporary registers - guest general-purpose registers if not using dynamic
   // indexing and Xenia internal registers.
   stat_.temp_register_count =
-      (uses_register_relative_addressing() ? 0 : register_count()) +
+      (uses_register_dynamic_addressing() ? 0 : register_count()) +
       system_temp_count_max_;
   if (stat_.temp_register_count != 0) {
     shader_object_.push_back(
@@ -1179,7 +1179,7 @@ void DxbcShaderTranslator::WriteShaderCode() {
   }
 
   // General-purpose registers if using dynamic indexing (x0).
-  if (uses_register_relative_addressing()) {
+  if (uses_register_dynamic_addressing()) {
     shader_object_.push_back(
         ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_INDEXABLE_TEMP) |
         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4));
