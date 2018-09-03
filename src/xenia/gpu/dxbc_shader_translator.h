@@ -378,6 +378,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // translation (for the declaration).
   uint32_t system_temp_count_max_;
 
+  // Vector ALU result/scratch (since Xenos write masks can contain swizzles).
+  uint32_t system_temp_pv_;
   // Temporary register ID for previous scalar result, program counter,
   // predicate and absolute address register.
   uint32_t system_temp_ps_pc_p0_a0_;

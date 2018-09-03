@@ -390,6 +390,7 @@ void DxbcShaderTranslator::StartTranslation() {
   }
 
   // Request global system temporary variables.
+  system_temp_pv_ = PushSystemTemp();
   system_temp_ps_pc_p0_a0_ = PushSystemTemp(true);
   system_temp_aL_ = PushSystemTemp(true);
   system_temp_loop_count_ = PushSystemTemp(true);
@@ -401,10 +402,11 @@ void DxbcShaderTranslator::CompletePixelShader() {}
 
 void DxbcShaderTranslator::CompleteShaderCode() {
   // Release the following system temporary values so epilogue can reuse them:
+  // - system_temp_pv_.
   // - system_temp_ps_pc_p0_a0_.
   // - system_temp_aL_.
   // - system_temp_loop_count_.
-  PopSystemTemp(3);
+  PopSystemTemp(4);
 
   // Write stage-specific epilogue.
   if (is_vertex_shader()) {
@@ -1068,11 +1070,149 @@ void DxbcShaderTranslator::UnloadDxbcSourceOperand(
 void DxbcShaderTranslator::ProcessVectorAluInstruction(
     const ParsedAluInstruction& instr) {
   // TODO(Triang3l): Predicate.
+
+  // True if the result is only in X and all components should be remapped to X
+  // while storing.
+  bool replicate_result = false;
+
+  DxbcSourceOperand dxbc_operands[3];
+  uint32_t operand_length_sums[3];
+  for (uint32_t i = 0; i < uint32_t(instr.operand_count); ++i) {
+    LoadDxbcSourceOperand(instr.operands[i], dxbc_operands[i]);
+    operand_length_sums[i] = DxbcSourceOperandLength(dxbc_operands[i]);
+    if (i != 0) {
+      operand_length_sums[i] += operand_length_sums[i - 1];
+    }
+  }
+
+  switch (instr.vector_opcode) {
+    case AluVectorOpcode::kAdd:
+      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ADD) |
+                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(
+                                 3 + operand_length_sums[1]));
+      shader_code_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+      shader_code_.push_back(system_temp_pv_);
+      UseDxbcSourceOperand(dxbc_operands[0]);
+      UseDxbcSourceOperand(dxbc_operands[1]);
+      ++stat_.instruction_count;
+      ++stat_.float_instruction_count;
+      break;
+    case AluVectorOpcode::kMul:
+      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MUL) |
+                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(
+                                 3 + operand_length_sums[1]));
+      shader_code_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+      shader_code_.push_back(system_temp_pv_);
+      UseDxbcSourceOperand(dxbc_operands[0]);
+      UseDxbcSourceOperand(dxbc_operands[1]);
+      ++stat_.instruction_count;
+      ++stat_.float_instruction_count;
+      break;
+    case AluVectorOpcode::kMax:
+      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MAX) |
+                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(
+                                 3 + operand_length_sums[1]));
+      shader_code_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+      shader_code_.push_back(system_temp_pv_);
+      UseDxbcSourceOperand(dxbc_operands[0]);
+      UseDxbcSourceOperand(dxbc_operands[1]);
+      ++stat_.instruction_count;
+      ++stat_.float_instruction_count;
+      break;
+    // TODO(Triang3l): Many other opcodes.
+    case AluVectorOpcode::kDp4:
+      // Replicated implicitly.
+      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DP4) |
+                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(
+                                 3 + operand_length_sums[1]));
+      shader_code_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+      shader_code_.push_back(system_temp_pv_);
+      UseDxbcSourceOperand(dxbc_operands[0]);
+      UseDxbcSourceOperand(dxbc_operands[1]);
+      ++stat_.instruction_count;
+      ++stat_.float_instruction_count;
+      break;
+    case AluVectorOpcode::kDp3:
+      // Replicated implicitly.
+      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DP3) |
+                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(
+                                 3 + operand_length_sums[1]));
+      shader_code_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+      shader_code_.push_back(system_temp_pv_);
+      UseDxbcSourceOperand(dxbc_operands[0]);
+      UseDxbcSourceOperand(dxbc_operands[1]);
+      ++stat_.instruction_count;
+      ++stat_.float_instruction_count;
+      break;
+    case AluVectorOpcode::kDp2Add:
+      // (dot(src0.xy, src1.xy) + src2.x).xxxx
+      replicate_result = true;
+      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DP2) |
+                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(
+                                 3 + operand_length_sums[1]));
+      shader_code_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+      shader_code_.push_back(system_temp_pv_);
+      UseDxbcSourceOperand(dxbc_operands[0]);
+      UseDxbcSourceOperand(dxbc_operands[1]);
+      ++stat_.instruction_count;
+      ++stat_.float_instruction_count;
+      shader_code_.push_back(
+          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ADD) |
+          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(
+              5 + DxbcSourceOperandLength(dxbc_operands[2])));
+      shader_code_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+      shader_code_.push_back(system_temp_pv_);
+      shader_code_.push_back(EncodeVectorSwizzledOperand(
+          D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+      shader_code_.push_back(system_temp_pv_);
+      UseDxbcSourceOperand(dxbc_operands[2]);
+      ++stat_.instruction_count;
+      ++stat_.float_instruction_count;
+      break;
+    // TODO(Triang3l): Many other opcodes.
+    default:
+      // assert_always();
+      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(8));
+      shader_code_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+      shader_code_.push_back(system_temp_pv_);
+      shader_code_.push_back(EncodeVectorSwizzledOperand(
+          D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+      shader_code_.push_back(0);
+      shader_code_.push_back(0);
+      shader_code_.push_back(0);
+      shader_code_.push_back(0);
+      ++stat_.instruction_count;
+      ++stat_.mov_instruction_count;
+  }
+
+  for (uint32_t i = 0; i < uint32_t(instr.operand_count); ++i) {
+    UnloadDxbcSourceOperand(dxbc_operands[instr.operand_count - 1 - i]);
+  }
+
+  // TODO(Triang3l): Store pv.
 }
 
 void DxbcShaderTranslator::ProcessScalarAluInstruction(
     const ParsedAluInstruction& instr) {
   // TODO(Triang3l): Predicate.
+
+  DxbcSourceOperand dxbc_operands[3];
+  for (uint32_t i = 0; i < uint32_t(instr.operand_count); ++i) {
+    LoadDxbcSourceOperand(instr.operands[i], dxbc_operands[i]);
+  }
+
+  for (uint32_t i = 0; i < uint32_t(instr.operand_count); ++i) {
+    UnloadDxbcSourceOperand(dxbc_operands[instr.operand_count - 1 - i]);
+  }
 }
 
 void DxbcShaderTranslator::ProcessAluInstruction(
