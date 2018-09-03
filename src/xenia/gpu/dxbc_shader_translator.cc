@@ -513,6 +513,9 @@ std::vector<uint8_t> DxbcShaderTranslator::CompleteTranslation() {
 void DxbcShaderTranslator::LoadDxbcSourceOperand(
     const InstructionOperand& operand, DxbcSourceOperand& dxbc_operand) {
   // Initialize the values to their defaults.
+  dxbc_operand.type = DxbcSourceOperand::Type::kZerosOnes;
+  dxbc_operand.index = 0;
+  dxbc_operand.swizzle = kSwizzleXYZW;
   dxbc_operand.is_dynamic_indexed = false;
   dxbc_operand.is_negated = operand.is_negated;
   dxbc_operand.is_absolute_value = operand.is_absolute_value;
@@ -523,8 +526,6 @@ void DxbcShaderTranslator::LoadDxbcSourceOperand(
     // No components requested, probably totally invalid - give something more
     // or less safe (zeros) and exit.
     assert_always();
-    dxbc_operand.type = DxbcSourceOperand::Type::kZerosOnes;
-    dxbc_operand.index = 0;
     return;
   }
 
@@ -557,7 +558,6 @@ void DxbcShaderTranslator::LoadDxbcSourceOperand(
 
   // If all components are constant, just write a literal.
   if (constant_components == 0xF) {
-    dxbc_operand.type = DxbcSourceOperand::Type::kZerosOnes;
     dxbc_operand.index = constant_component_values;
     return;
   }
@@ -624,9 +624,72 @@ void DxbcShaderTranslator::LoadDxbcSourceOperand(
         dxbc_operand.index = uint32_t(operand.storage_index);
       }
       break;
+    case InstructionStorageSource::kConstantFloat:
+      dxbc_operand.type = DxbcSourceOperand::Type::kConstantFloat;
+      if (operand.storage_addressing_mode ==
+          InstructionStorageAddressingMode::kStatic) {
+        // Constant buffers with a constant index can be used directly.
+        dxbc_operand.index = uint32_t(operand.storage_index);
+      } else {
+        dxbc_operand.is_dynamic_indexed = true;
+        if (dxbc_operand.intermediate_register ==
+            DxbcSourceOperand::kIntermediateRegisterNone) {
+          dxbc_operand.intermediate_register = PushSystemTemp();
+        }
+        uint32_t constant_address_register = dynamic_address_register;
+        uint32_t constant_address_component = dynamic_address_component;
+        if (operand.storage_index != 0) {
+          // Has an offset - add it.
+          shader_code_.push_back(
+              ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IADD) |
+              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+          shader_code_.push_back(
+              EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+          shader_code_.push_back(dxbc_operand.intermediate_register);
+          shader_code_.push_back(EncodeVectorSelectOperand(
+              D3D10_SB_OPERAND_TYPE_TEMP, constant_address_component, 1));
+          shader_code_.push_back(constant_address_register);
+          shader_code_.push_back(
+              EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+          shader_code_.push_back(uint32_t(operand.storage_index));
+          ++stat_.instruction_count;
+          ++stat_.int_instruction_count;
+          constant_address_register = dxbc_operand.intermediate_register;
+          constant_address_component = 0;
+        }
+        // Load the high part (page, 3 bits) and the low part (vector, 5 bits)
+        // of the index.
+        shader_code_.push_back(
+            ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_UBFE) |
+            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(15));
+        shader_code_.push_back(
+            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0011, 1));
+        shader_code_.push_back(dxbc_operand.intermediate_register);
+        shader_code_.push_back(EncodeVectorSwizzledOperand(
+            D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+        shader_code_.push_back(3);
+        shader_code_.push_back(5);
+        shader_code_.push_back(0);
+        shader_code_.push_back(0);
+        shader_code_.push_back(EncodeVectorSwizzledOperand(
+            D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+        shader_code_.push_back(5);
+        shader_code_.push_back(0);
+        shader_code_.push_back(0);
+        shader_code_.push_back(0);
+        shader_code_.push_back(EncodeVectorSwizzledOperand(
+            D3D10_SB_OPERAND_TYPE_TEMP,
+            constant_address_component | (constant_address_component << 2) |
+                (constant_address_component << 4) |
+                (constant_address_component << 6),
+            1));
+        shader_code_.push_back(constant_address_register);
+        ++stat_.instruction_count;
+        ++stat_.uint_instruction_count;
+      }
+      break;
     // TODO(Triang3l): Load other types.
     default:
-      dxbc_operand.type = DxbcSourceOperand::Type::kZerosOnes;
       dxbc_operand.index = constant_component_values;
       return;
   }
