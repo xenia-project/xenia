@@ -688,6 +688,42 @@ void DxbcShaderTranslator::LoadDxbcSourceOperand(
         ++stat_.uint_instruction_count;
       }
       break;
+    case InstructionStorageSource::kConstantInt: {
+      // Convert to float and store in the intermediate register.
+      dxbc_operand.type = DxbcSourceOperand::Type::kIntermediateRegister;
+      if (dxbc_operand.intermediate_register ==
+          DxbcSourceOperand::kIntermediateRegisterNone) {
+        dxbc_operand.intermediate_register = PushSystemTemp();
+      }
+      rdef_constants_used_ |= 1ull
+                              << uint32_t(RdefConstantIndex::kLoopConstants);
+      bool is_static = operand.storage_addressing_mode ==
+                       InstructionStorageAddressingMode::kStatic;
+      shader_code_.push_back(
+          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ITOF) |
+          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(is_static ? 7 : 9));
+      shader_code_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+      shader_code_.push_back(dxbc_operand.intermediate_register);
+      shader_code_.push_back(EncodeVectorSwizzledOperand(
+          D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSwizzleXXXX, 3,
+          D3D10_SB_OPERAND_INDEX_IMMEDIATE32,
+          D3D10_SB_OPERAND_INDEX_IMMEDIATE32,
+          is_static ? D3D10_SB_OPERAND_INDEX_IMMEDIATE32
+                    : D3D10_SB_OPERAND_INDEX_IMMEDIATE32_PLUS_RELATIVE));
+      shader_code_.push_back(
+          uint32_t(RdefConstantBufferIndex::kBoolLoopConstants));
+      shader_code_.push_back(uint32_t(CbufferRegister::kBoolLoopConstants));
+      // 8 to skip bool constants.
+      shader_code_.push_back(8 + uint32_t(operand.storage_index));
+      if (!is_static) {
+        shader_code_.push_back(EncodeVectorSelectOperand(
+            D3D10_SB_OPERAND_TYPE_TEMP, dynamic_address_component, 1));
+        shader_code_.push_back(dynamic_address_register);
+      }
+      ++stat_.instruction_count;
+      ++stat_.conversion_instruction_count;
+    } break;
     // TODO(Triang3l): Load other types.
     default:
       dxbc_operand.index = constant_component_values;
