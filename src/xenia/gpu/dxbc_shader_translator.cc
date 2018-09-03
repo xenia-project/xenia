@@ -579,6 +579,9 @@ void DxbcShaderTranslator::LoadDxbcSourceOperand(
   // Actually load the operand.
   switch (operand.storage_source) {
     case InstructionStorageSource::kRegister:
+      // ***********************************************************************
+      // General-purpose register
+      // ***********************************************************************
       if (uses_register_dynamic_addressing()) {
         // GPRs are in x0 - need to load to the intermediate register (indexable
         // temps are only accessible via mov load/store).
@@ -625,6 +628,9 @@ void DxbcShaderTranslator::LoadDxbcSourceOperand(
       }
       break;
     case InstructionStorageSource::kConstantFloat:
+      // ***********************************************************************
+      // Float constant
+      // ***********************************************************************
       dxbc_operand.type = DxbcSourceOperand::Type::kConstantFloat;
       if (operand.storage_addressing_mode ==
           InstructionStorageAddressingMode::kStatic) {
@@ -689,7 +695,12 @@ void DxbcShaderTranslator::LoadDxbcSourceOperand(
       }
       break;
     case InstructionStorageSource::kConstantInt: {
+      // ***********************************************************************
+      // Loop constant
+      // ***********************************************************************
       // Convert to float and store in the intermediate register.
+      // The constant buffer contains each integer replicated in XYZW so dynamic
+      // indexing is possible.
       dxbc_operand.type = DxbcSourceOperand::Type::kIntermediateRegister;
       if (dxbc_operand.intermediate_register ==
           DxbcSourceOperand::kIntermediateRegisterNone) {
@@ -724,13 +735,181 @@ void DxbcShaderTranslator::LoadDxbcSourceOperand(
       ++stat_.instruction_count;
       ++stat_.conversion_instruction_count;
     } break;
-    // TODO(Triang3l): Load other types.
+    case InstructionStorageSource::kConstantBool: {
+      // ***********************************************************************
+      // Boolean constant
+      // ***********************************************************************
+      // Extract, convert to float and store in the intermediate register.
+      // The constant buffer contains each 32-bit vector replicated in XYZW so
+      // dynamic indexing is possible.
+      dxbc_operand.type = DxbcSourceOperand::Type::kIntermediateRegister;
+      if (dxbc_operand.intermediate_register ==
+          DxbcSourceOperand::kIntermediateRegisterNone) {
+        dxbc_operand.intermediate_register = PushSystemTemp();
+      }
+      rdef_constants_used_ |= 1ull
+                              << uint32_t(RdefConstantIndex::kBoolConstants);
+      if (operand.storage_addressing_mode ==
+          InstructionStorageAddressingMode::kStatic) {
+        // Extract the bit directly.
+        shader_code_.push_back(
+            ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_UBFE) |
+            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(11));
+        shader_code_.push_back(
+            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+        shader_code_.push_back(dxbc_operand.intermediate_register);
+        shader_code_.push_back(
+            EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+        shader_code_.push_back(1);
+        shader_code_.push_back(
+            EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+        shader_code_.push_back(uint32_t(operand.storage_index) & 31);
+        shader_code_.push_back(EncodeVectorSelectOperand(
+            D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, 0, 3));
+        shader_code_.push_back(
+            uint32_t(RdefConstantBufferIndex::kBoolLoopConstants));
+        shader_code_.push_back(uint32_t(CbufferRegister::kBoolLoopConstants));
+        shader_code_.push_back(uint32_t(operand.storage_index) >> 5);
+        ++stat_.instruction_count;
+        ++stat_.uint_instruction_count;
+      } else {
+        uint32_t constant_address_register = dynamic_address_register;
+        uint32_t constant_address_component = dynamic_address_component;
+        if (operand.storage_index != 0) {
+          // Has an offset - add it.
+          shader_code_.push_back(
+              ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IADD) |
+              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+          shader_code_.push_back(
+              EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+          shader_code_.push_back(dxbc_operand.intermediate_register);
+          shader_code_.push_back(EncodeVectorSelectOperand(
+              D3D10_SB_OPERAND_TYPE_TEMP, constant_address_component, 1));
+          shader_code_.push_back(constant_address_register);
+          shader_code_.push_back(
+              EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+          shader_code_.push_back(uint32_t(operand.storage_index));
+          ++stat_.instruction_count;
+          ++stat_.int_instruction_count;
+          constant_address_register = dxbc_operand.intermediate_register;
+          constant_address_component = 0;
+        }
+        // Split the index into constant index and bit offset and store them in
+        // the intermediate register.
+        shader_code_.push_back(
+            ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_UBFE) |
+            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(15));
+        shader_code_.push_back(
+            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0011, 1));
+        shader_code_.push_back(dxbc_operand.intermediate_register);
+        shader_code_.push_back(EncodeVectorSwizzledOperand(
+            D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+        shader_code_.push_back(5);
+        shader_code_.push_back(3);
+        shader_code_.push_back(0);
+        shader_code_.push_back(0);
+        shader_code_.push_back(EncodeVectorSwizzledOperand(
+            D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+        shader_code_.push_back(0);
+        shader_code_.push_back(5);
+        shader_code_.push_back(0);
+        shader_code_.push_back(0);
+        shader_code_.push_back(EncodeVectorSwizzledOperand(
+            D3D10_SB_OPERAND_TYPE_TEMP,
+            constant_address_component | (constant_address_component << 2) |
+                (constant_address_component << 4) |
+                (constant_address_component << 6),
+            1));
+        shader_code_.push_back(constant_address_register);
+        ++stat_.instruction_count;
+        ++stat_.uint_instruction_count;
+        // Extract the bits.
+        shader_code_.push_back(
+            ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_UBFE) |
+            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(12));
+        shader_code_.push_back(
+            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+        shader_code_.push_back(dxbc_operand.intermediate_register);
+        shader_code_.push_back(
+            EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+        shader_code_.push_back(1);
+        shader_code_.push_back(
+            EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
+        shader_code_.push_back(dxbc_operand.intermediate_register);
+        shader_code_.push_back(
+            EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, 0,
+                                      3, D3D10_SB_OPERAND_INDEX_IMMEDIATE32,
+                                      D3D10_SB_OPERAND_INDEX_IMMEDIATE32,
+                                      D3D10_SB_OPERAND_INDEX_RELATIVE));
+        shader_code_.push_back(
+            uint32_t(RdefConstantBufferIndex::kBoolLoopConstants));
+        shader_code_.push_back(uint32_t(CbufferRegister::kBoolLoopConstants));
+        shader_code_.push_back(
+            EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
+        shader_code_.push_back(dxbc_operand.intermediate_register);
+        ++stat_.instruction_count;
+        ++stat_.uint_instruction_count;
+      }
+      // Convert the bit to float and replicate it.
+      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_UTOF) |
+                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
+      shader_code_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+      shader_code_.push_back(dxbc_operand.intermediate_register);
+      shader_code_.push_back(EncodeVectorSwizzledOperand(
+          D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXXXX, 1));
+      shader_code_.push_back(dxbc_operand.intermediate_register);
+      ++stat_.instruction_count;
+      ++stat_.conversion_instruction_count;
+    } break;
     default:
+      // Fall back to constant zeros for invalid types.
       dxbc_operand.index = constant_component_values;
       return;
   }
 
-  // TODO(Triang3l): Load constant components.
+  // If there are zeros or ones in the swizzle, force load the operand into the
+  // intermediate register (applying the swizzle and the modifiers), and then
+  // replace the components there.
+  if (constant_components != 0) {
+    if (dxbc_operand.intermediate_register ==
+        DxbcSourceOperand::kIntermediateRegisterNone) {
+      dxbc_operand.intermediate_register = PushSystemTemp();
+    }
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(
+                               3 + DxbcSourceOperandLength(dxbc_operand)));
+    shader_code_.push_back(
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+    shader_code_.push_back(dxbc_operand.intermediate_register);
+    UseDxbcSourceOperand(dxbc_operand);
+    ++stat_.instruction_count;
+    ++stat_.mov_instruction_count;
+
+    // Write the constant components.
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(8));
+    shader_code_.push_back(EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP,
+                                                     constant_components, 1));
+    shader_code_.push_back(dxbc_operand.intermediate_register);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+    for (uint32_t i = 0; i < 4; ++i) {
+      if (constant_component_values & (1 << i)) {
+        shader_code_.push_back(operand.is_negated ? 0xBF800000u : 0x3F800000u);
+      } else {
+        shader_code_.push_back(0);
+      }
+    }
+    ++stat_.instruction_count;
+    ++stat_.mov_instruction_count;
+
+    dxbc_operand.type = DxbcSourceOperand::Type::kIntermediateRegister;
+    // Swizzle and modifiers already applied.
+    dxbc_operand.swizzle = kSwizzleXYZW;
+    dxbc_operand.is_negated = false;
+    dxbc_operand.is_absolute_value = false;
+  }
 }
 
 uint32_t DxbcShaderTranslator::DxbcSourceOperandLength(
