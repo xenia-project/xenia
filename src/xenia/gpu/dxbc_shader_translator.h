@@ -187,6 +187,12 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // Frees the last allocated internal r# registers for later reuse.
   void PopSystemTemp(uint32_t count = 1);
 
+  // Gets the x# register array used for color outputs (since colors are
+  // remapped).
+  inline uint32_t GetColorIndexableTemp() const {
+    return uses_register_dynamic_addressing() ? 1 : 0;
+  }
+
   // Writing the prologue.
   void StartVertexShader_SwapVertexIndex();
   void StartVertexShader();
@@ -245,6 +251,10 @@ class DxbcShaderTranslator : public ShaderTranslator {
                             uint32_t additional_swizzle = kSwizzleXYZW,
                             uint32_t select_component = 4, bool negate = false);
   void UnloadDxbcSourceOperand(const DxbcSourceOperand& operand);
+
+  // Writes xyzw or xxxx of the specified r# to the destination.
+  void StoreResult(const InstructionResult& result, uint32_t reg,
+                   bool replicate_x);
 
   void ProcessVectorAluInstruction(const ParsedAluInstruction& instr);
   void ProcessScalarAluInstruction(const ParsedAluInstruction& instr);
