@@ -390,7 +390,7 @@ void DxbcShaderTranslator::StartTranslation() {
   }
 
   // Request global system temporary variables.
-  system_temp_pv_ = PushSystemTemp();
+  system_temp_pv_ = PushSystemTemp(true);
   system_temp_ps_pc_p0_a0_ = PushSystemTemp(true);
   system_temp_aL_ = PushSystemTemp(true);
   system_temp_loop_count_ = PushSystemTemp(true);
@@ -919,7 +919,7 @@ void DxbcShaderTranslator::LoadDxbcSourceOperand(
 }
 
 uint32_t DxbcShaderTranslator::DxbcSourceOperandLength(
-    const DxbcSourceOperand& operand) const {
+    const DxbcSourceOperand& operand, bool negate) const {
   uint32_t length;
   switch (operand.type) {
     case DxbcSourceOperand::Type::kRegister:
@@ -944,8 +944,12 @@ uint32_t DxbcShaderTranslator::DxbcSourceOperandLength(
       // totally invalid operand replaced by a literal.
       return 5;
   }
+  // Apply both the operand negation and the usage negation (for subtraction).
+  if (operand.is_negated) {
+    negate = !negate;
+  }
   // Modifier extension - neg/abs or non-uniform binding index.
-  if (operand.is_negated || operand.is_absolute_value ||
+  if (negate || operand.is_absolute_value ||
       (operand.type == DxbcSourceOperand::Type::kConstantFloat &&
        operand.is_dynamic_indexed)) {
     ++length;
@@ -955,7 +959,7 @@ uint32_t DxbcShaderTranslator::DxbcSourceOperandLength(
 
 void DxbcShaderTranslator::UseDxbcSourceOperand(
     const DxbcSourceOperand& operand, uint32_t additional_swizzle,
-    uint32_t select_component) {
+    uint32_t select_component, bool negate) {
   // Apply swizzle needed by the instruction implementation in addition to the
   // operand swizzle.
   uint32_t swizzle = 0;
@@ -980,13 +984,17 @@ void DxbcShaderTranslator::UseDxbcSourceOperand(
         (operand.swizzle << D3D10_SB_OPERAND_4_COMPONENT_SWIZZLE_SHIFT);
   }
 
+  // Apply both the operand negation and the usage negation (for subtraction).
+  if (operand.is_negated) {
+    negate = !negate;
+  }
   // Build OperandToken1 for modifiers (negate, absolute, minimum precision,
   // non-uniform binding index) - if it has any, it will be non-zero.
   uint32_t modifiers = 0;
-  if (operand.is_negated && operand.is_absolute_value) {
+  if (negate && operand.is_absolute_value) {
     modifiers |= D3D10_SB_OPERAND_MODIFIER_ABSNEG
                  << D3D10_SB_OPERAND_MODIFIER_SHIFT;
-  } else if (operand.is_negated) {
+  } else if (negate) {
     modifiers |= D3D10_SB_OPERAND_MODIFIER_NEG
                  << D3D10_SB_OPERAND_MODIFIER_SHIFT;
   } else if (operand.is_absolute_value) {
@@ -1099,8 +1107,7 @@ void DxbcShaderTranslator::UseDxbcSourceOperand(
           component_bits);
       for (uint32_t i = 0; i < 4; ++i) {
         if (operand.index & (1 << i)) {
-          shader_code_.push_back(operand.is_negated ? 0xBF800000u
-                                                    : 0x3F800000u);
+          shader_code_.push_back(negate ? 0xBF800000u : 0x3F800000u);
         } else {
           shader_code_.push_back(0);
         }
@@ -1714,19 +1721,8 @@ void DxbcShaderTranslator::ProcessVectorAluInstruction(
     default:
       // TODO(Triang3l): Add this assert when kCube is added.
       // assert_always();
-      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(8));
-      shader_code_.push_back(
-          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
-      shader_code_.push_back(system_temp_pv_);
-      shader_code_.push_back(EncodeVectorSwizzledOperand(
-          D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-      shader_code_.push_back(0);
-      shader_code_.push_back(0);
-      shader_code_.push_back(0);
-      shader_code_.push_back(0);
-      ++stat_.instruction_count;
-      ++stat_.mov_instruction_count;
+      // Unknown instruction - don't modify pv.
+      break;
   }
 
   for (uint32_t i = 0; i < uint32_t(instr.operand_count); ++i) {
@@ -1740,9 +1736,385 @@ void DxbcShaderTranslator::ProcessScalarAluInstruction(
     const ParsedAluInstruction& instr) {
   // TODO(Triang3l): Predicate.
 
+  // Whether the instruction has changed the predicate and it needs to be
+  // checked again.
+  bool close_predicate_block = false;
+
   DxbcSourceOperand dxbc_operands[3];
+  uint32_t operand_lengths[3];
   for (uint32_t i = 0; i < uint32_t(instr.operand_count); ++i) {
     LoadDxbcSourceOperand(instr.operands[i], dxbc_operands[i]);
+    operand_lengths[i] = DxbcSourceOperandLength(dxbc_operands[i]);
+  }
+
+  // So the same code can be used for instructions with the same format.
+  static const uint32_t kCoreOpcodes[] = {
+      D3D10_SB_OPCODE_ADD,
+      D3D10_SB_OPCODE_ADD,
+      D3D10_SB_OPCODE_MUL,
+      D3D10_SB_OPCODE_MUL,
+      D3D10_SB_OPCODE_MUL,
+      D3D10_SB_OPCODE_MAX,
+      D3D10_SB_OPCODE_MIN,
+      D3D10_SB_OPCODE_EQ,
+      D3D10_SB_OPCODE_LT,
+      D3D10_SB_OPCODE_GE,
+      D3D10_SB_OPCODE_NE,
+      D3D10_SB_OPCODE_FRC,
+      D3D10_SB_OPCODE_ROUND_Z,
+      D3D10_SB_OPCODE_ROUND_NI,
+      D3D10_SB_OPCODE_EXP,
+      D3D10_SB_OPCODE_LOG,
+      D3D10_SB_OPCODE_LOG,
+      D3D11_SB_OPCODE_RCP,
+      D3D11_SB_OPCODE_RCP,
+      D3D11_SB_OPCODE_RCP,
+      D3D10_SB_OPCODE_RSQ,
+      D3D10_SB_OPCODE_RSQ,
+      D3D10_SB_OPCODE_RSQ,
+      D3D10_SB_OPCODE_MAX,
+      D3D10_SB_OPCODE_MAX,
+      D3D10_SB_OPCODE_ADD,
+      D3D10_SB_OPCODE_ADD,
+      D3D10_SB_OPCODE_EQ,
+      D3D10_SB_OPCODE_NE,
+      D3D10_SB_OPCODE_LT,
+      D3D10_SB_OPCODE_GE,
+      0,
+      0,
+      0,
+      0,
+      D3D10_SB_OPCODE_EQ,
+      D3D10_SB_OPCODE_LT,
+      D3D10_SB_OPCODE_GE,
+      D3D10_SB_OPCODE_NE,
+      D3D10_SB_OPCODE_EQ,
+      D3D10_SB_OPCODE_SQRT,
+      0,
+      D3D10_SB_OPCODE_MUL,
+      D3D10_SB_OPCODE_MUL,
+      D3D10_SB_OPCODE_ADD,
+      D3D10_SB_OPCODE_ADD,
+      D3D10_SB_OPCODE_ADD,
+      D3D10_SB_OPCODE_ADD,
+      D3D10_SB_OPCODE_SINCOS,
+      D3D10_SB_OPCODE_SINCOS,
+  };
+
+  switch (instr.scalar_opcode) {
+    case AluScalarOpcode::kAdds:
+    case AluScalarOpcode::kMuls:
+    case AluScalarOpcode::kMaxs:
+    case AluScalarOpcode::kMins:
+    case AluScalarOpcode::kSubs: {
+      bool subtract = instr.scalar_opcode == AluScalarOpcode::kSubs;
+      shader_code_.push_back(
+          ENCODE_D3D10_SB_OPCODE_TYPE(
+              kCoreOpcodes[uint32_t(instr.scalar_opcode)]) |
+          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(
+              3 + operand_lengths[0] +
+              DxbcSourceOperandLength(dxbc_operands[0], subtract)));
+      shader_code_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+      shader_code_.push_back(system_temp_ps_pc_p0_a0_);
+      UseDxbcSourceOperand(dxbc_operands[0], kSwizzleXYZW, 0);
+      UseDxbcSourceOperand(dxbc_operands[0], kSwizzleXYZW, 1, subtract);
+      ++stat_.instruction_count;
+      ++stat_.float_instruction_count;
+    } break;
+
+    case AluScalarOpcode::kAddsPrev:
+    case AluScalarOpcode::kMulsPrev:
+      shader_code_.push_back(
+          ENCODE_D3D10_SB_OPCODE_TYPE(
+              kCoreOpcodes[uint32_t(instr.scalar_opcode)]) |
+          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5 + operand_lengths[0]));
+      shader_code_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+      shader_code_.push_back(system_temp_ps_pc_p0_a0_);
+      UseDxbcSourceOperand(dxbc_operands[0], kSwizzleXYZW, 0);
+      shader_code_.push_back(
+          EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
+      shader_code_.push_back(system_temp_ps_pc_p0_a0_);
+      ++stat_.instruction_count;
+      ++stat_.float_instruction_count;
+      break;
+
+      // TODO(Triang3l): kMulsPrev2.
+
+    case AluScalarOpcode::kSeqs:
+    case AluScalarOpcode::kSgts:
+    case AluScalarOpcode::kSges:
+    case AluScalarOpcode::kSnes:
+      shader_code_.push_back(
+          ENCODE_D3D10_SB_OPCODE_TYPE(
+              kCoreOpcodes[uint32_t(instr.scalar_opcode)]) |
+          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5 + operand_lengths[0]));
+      shader_code_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+      shader_code_.push_back(system_temp_ps_pc_p0_a0_);
+      if (instr.scalar_opcode != AluScalarOpcode::kSgts) {
+        // lt in DXBC, not gt.
+        UseDxbcSourceOperand(dxbc_operands[0], kSwizzleXYZW, 0);
+      }
+      shader_code_.push_back(
+          EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+      shader_code_.push_back(0);
+      if (instr.scalar_opcode == AluScalarOpcode::kSgts) {
+        UseDxbcSourceOperand(dxbc_operands[0], kSwizzleXYZW, 0);
+      }
+      ++stat_.instruction_count;
+      ++stat_.float_instruction_count;
+      // Convert 0xFFFFFFFF to 1.0f.
+      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
+                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+      shader_code_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+      shader_code_.push_back(system_temp_ps_pc_p0_a0_);
+      shader_code_.push_back(
+          EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
+      shader_code_.push_back(system_temp_ps_pc_p0_a0_);
+      shader_code_.push_back(
+          EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+      shader_code_.push_back(0x3F800000);
+      ++stat_.instruction_count;
+      ++stat_.uint_instruction_count;
+      break;
+
+    case AluScalarOpcode::kFrcs:
+    case AluScalarOpcode::kTruncs:
+    case AluScalarOpcode::kFloors:
+    case AluScalarOpcode::kExp:
+    case AluScalarOpcode::kLog:
+    case AluScalarOpcode::kSqrt:
+      shader_code_.push_back(
+          ENCODE_D3D10_SB_OPCODE_TYPE(
+              kCoreOpcodes[uint32_t(instr.scalar_opcode)]) |
+          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3 + operand_lengths[0]));
+      shader_code_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+      shader_code_.push_back(system_temp_ps_pc_p0_a0_);
+      UseDxbcSourceOperand(dxbc_operands[0], kSwizzleXYZW, 0);
+      ++stat_.instruction_count;
+      ++stat_.float_instruction_count;
+      break;
+
+      // TODO(Triang3l): kLogc, kRcpc, kRcpf, kRcp, kRsqc, kRsqf, kRsq, kMaxAs,
+      // kMasAsf.
+
+    case AluScalarOpcode::kSubsPrev:
+      shader_code_.push_back(
+          ENCODE_D3D10_SB_OPCODE_TYPE(
+              kCoreOpcodes[uint32_t(instr.scalar_opcode)]) |
+          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(6 + operand_lengths[0]));
+      shader_code_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+      shader_code_.push_back(system_temp_ps_pc_p0_a0_);
+      UseDxbcSourceOperand(dxbc_operands[0], kSwizzleXYZW, 0);
+      shader_code_.push_back(
+          ENCODE_D3D10_SB_OPERAND_NUM_COMPONENTS(D3D10_SB_OPERAND_4_COMPONENT) |
+          ENCODE_D3D10_SB_OPERAND_4_COMPONENT_SELECTION_MODE(
+              D3D10_SB_OPERAND_4_COMPONENT_SELECT_1_MODE) |
+          ENCODE_D3D10_SB_OPERAND_4_COMPONENT_SELECT_1(0) |
+          ENCODE_D3D10_SB_OPERAND_TYPE(D3D10_SB_OPERAND_TYPE_TEMP) |
+          ENCODE_D3D10_SB_OPERAND_INDEX_DIMENSION(D3D10_SB_OPERAND_INDEX_1D) |
+          ENCODE_D3D10_SB_OPERAND_INDEX_REPRESENTATION(
+              0, D3D10_SB_OPERAND_INDEX_IMMEDIATE32) |
+          ENCODE_D3D10_SB_OPERAND_EXTENDED(1));
+      shader_code_.push_back(ENCODE_D3D10_SB_EXTENDED_OPERAND_MODIFIER(
+          D3D10_SB_OPERAND_MODIFIER_NEG));
+      shader_code_.push_back(system_temp_ps_pc_p0_a0_);
+      ++stat_.instruction_count;
+      ++stat_.float_instruction_count;
+      break;
+
+    case AluScalarOpcode::kSetpEq:
+    case AluScalarOpcode::kSetpNe:
+    case AluScalarOpcode::kSetpGt:
+    case AluScalarOpcode::kSetpGe:
+      close_predicate_block = true;
+      // Write true (0xFFFFFFFF) to p0 if the comparison passes.
+      shader_code_.push_back(
+          ENCODE_D3D10_SB_OPCODE_TYPE(
+              kCoreOpcodes[uint32_t(instr.scalar_opcode)]) |
+          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5 + operand_lengths[0]));
+      shader_code_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0100, 1));
+      shader_code_.push_back(system_temp_ps_pc_p0_a0_);
+      if (instr.scalar_opcode != AluScalarOpcode::kSetpGt) {
+        // lt in DXBC, not gt.
+        UseDxbcSourceOperand(dxbc_operands[0], kSwizzleXYZW, 0);
+      }
+      shader_code_.push_back(
+          EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+      shader_code_.push_back(0);
+      if (instr.scalar_opcode == AluScalarOpcode::kSetpGt) {
+        UseDxbcSourceOperand(dxbc_operands[0], kSwizzleXYZW, 0);
+      }
+      ++stat_.instruction_count;
+      ++stat_.float_instruction_count;
+      // Need to write 0 if the comparison passes and 1 if it fails - flip p0
+      // into ps.
+      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_NOT) |
+                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
+      shader_code_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+      shader_code_.push_back(system_temp_ps_pc_p0_a0_);
+      shader_code_.push_back(
+          EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
+      shader_code_.push_back(system_temp_ps_pc_p0_a0_);
+      ++stat_.instruction_count;
+      ++stat_.uint_instruction_count;
+      // Convert mask to float.
+      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
+                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+      shader_code_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+      shader_code_.push_back(system_temp_ps_pc_p0_a0_);
+      shader_code_.push_back(
+          EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
+      shader_code_.push_back(system_temp_ps_pc_p0_a0_);
+      shader_code_.push_back(
+          EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+      shader_code_.push_back(0x3F800000);
+      ++stat_.instruction_count;
+      ++stat_.uint_instruction_count;
+      break;
+
+      // TODO(Triang3l): kSetpInv, kSetpPop, kSetpRstr.
+
+    case AluScalarOpcode::kSetpClr:
+      close_predicate_block = true;
+      // ps = FLT_MAX
+      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
+      shader_code_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+      shader_code_.push_back(system_temp_ps_pc_p0_a0_);
+      shader_code_.push_back(
+          EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+      shader_code_.push_back(0x7F7FFFFF);
+      ++stat_.instruction_count;
+      ++stat_.mov_instruction_count;
+      // p0 = false
+      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
+      shader_code_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0100, 1));
+      shader_code_.push_back(system_temp_ps_pc_p0_a0_);
+      shader_code_.push_back(
+          EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+      shader_code_.push_back(0);
+      ++stat_.instruction_count;
+      ++stat_.mov_instruction_count;
+      break;
+
+    case AluScalarOpcode::kKillsEq:
+    case AluScalarOpcode::kKillsGt:
+    case AluScalarOpcode::kKillsGe:
+    case AluScalarOpcode::kKillsNe:
+    case AluScalarOpcode::kKillsOne:
+      // ps = src0.x op 0.0 (or src0.x == 1.0 for kills_one)
+      shader_code_.push_back(
+          ENCODE_D3D10_SB_OPCODE_TYPE(
+              kCoreOpcodes[uint32_t(instr.scalar_opcode)]) |
+          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5 + operand_lengths[0]));
+      shader_code_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+      shader_code_.push_back(system_temp_ps_pc_p0_a0_);
+      if (instr.scalar_opcode != AluScalarOpcode::kKillsGt) {
+        // lt in DXBC, not gt.
+        UseDxbcSourceOperand(dxbc_operands[0], kSwizzleXYZW, 0);
+      }
+      shader_code_.push_back(EncodeScalarOperand(
+          D3D10_SB_OPERAND_TYPE_IMMEDIATE32,
+          instr.scalar_opcode == AluScalarOpcode::kKillsOne ? 0x3F800000 : 0));
+      shader_code_.push_back(0);
+      if (instr.scalar_opcode == AluScalarOpcode::kKillsGt) {
+        UseDxbcSourceOperand(dxbc_operands[0], kSwizzleXYZW, 0);
+      }
+      ++stat_.instruction_count;
+      ++stat_.float_instruction_count;
+      // Convert 0xFFFFFFFF to 1.0f.
+      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
+                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+      shader_code_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+      shader_code_.push_back(system_temp_ps_pc_p0_a0_);
+      shader_code_.push_back(
+          EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
+      shader_code_.push_back(system_temp_ps_pc_p0_a0_);
+      shader_code_.push_back(
+          EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+      shader_code_.push_back(0x3F800000);
+      ++stat_.instruction_count;
+      ++stat_.uint_instruction_count;
+      // Discard.
+      shader_code_.push_back(
+          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DISCARD) |
+          ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(
+              D3D10_SB_INSTRUCTION_TEST_NONZERO) |
+          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
+      shader_code_.push_back(
+          EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
+      shader_code_.push_back(system_temp_ps_pc_p0_a0_);
+      ++stat_.instruction_count;
+      break;
+
+    case AluScalarOpcode::kMulsc0:
+    case AluScalarOpcode::kMulsc1:
+    case AluScalarOpcode::kAddsc0:
+    case AluScalarOpcode::kAddsc1:
+    case AluScalarOpcode::kSubsc0:
+    case AluScalarOpcode::kSubsc1: {
+      bool subtract = instr.scalar_opcode == AluScalarOpcode::kSubsc0 ||
+                      instr.scalar_opcode == AluScalarOpcode::kSubsc1;
+      shader_code_.push_back(
+          ENCODE_D3D10_SB_OPCODE_TYPE(
+              kCoreOpcodes[uint32_t(instr.scalar_opcode)]) |
+          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(
+              3 + operand_lengths[0] +
+              DxbcSourceOperandLength(dxbc_operands[1], subtract)));
+      shader_code_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+      shader_code_.push_back(system_temp_ps_pc_p0_a0_);
+      UseDxbcSourceOperand(dxbc_operands[0], kSwizzleXYZW, 0);
+      UseDxbcSourceOperand(dxbc_operands[1], kSwizzleXYZW, 0, subtract);
+      ++stat_.instruction_count;
+      ++stat_.float_instruction_count;
+    } break;
+
+    case AluScalarOpcode::kSin:
+    case AluScalarOpcode::kCos: {
+      shader_code_.push_back(
+          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_SINCOS) |
+          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4 + operand_lengths[0]));
+      // sincos ps, null, src0.x for sin
+      // sincos null, ps, src0.x for cos
+      const uint32_t null_operand_token =
+          ENCODE_D3D10_SB_OPERAND_NUM_COMPONENTS(D3D10_SB_OPERAND_0_COMPONENT) |
+          ENCODE_D3D10_SB_OPERAND_TYPE(D3D10_SB_OPERAND_TYPE_NULL) |
+          ENCODE_D3D10_SB_OPERAND_INDEX_DIMENSION(D3D10_SB_OPERAND_INDEX_0D);
+      if (instr.scalar_opcode != AluScalarOpcode::kSin) {
+        shader_code_.push_back(null_operand_token);
+      }
+      shader_code_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+      shader_code_.push_back(system_temp_ps_pc_p0_a0_);
+      if (instr.scalar_opcode != AluScalarOpcode::kCos) {
+        shader_code_.push_back(null_operand_token);
+      }
+      UseDxbcSourceOperand(dxbc_operands[0], kSwizzleXYZW, 0);
+      ++stat_.instruction_count;
+      ++stat_.float_instruction_count;
+    } break;
+
+    default:
+      // TODO(Triang3l): Enable this assert when all instruction are added.
+      // May be retain_prev, in this case the current ps should be written, or
+      // something invalid that's better to ignore.
+      // assert_true(instr.scalar_opcode == AluScalarOpcode::kRetainPrev);
+      break;
   }
 
   for (uint32_t i = 0; i < uint32_t(instr.operand_count); ++i) {

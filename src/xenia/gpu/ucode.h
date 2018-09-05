@@ -1009,17 +1009,17 @@ enum class AluScalarOpcode {
   //     dest.xyzw = sqrt(src0.a);
   kSqrt = 40,
 
-  // mulsc dest, src0.a, src0.b
+  // mulsc dest, src0.a, src1.a
   kMulsc0 = 42,
-  // mulsc dest, src0.a, src0.b
+  // mulsc dest, src0.a, src1.a
   kMulsc1 = 43,
-  // addsc dest, src0.a, src0.b
+  // addsc dest, src0.a, src1.a
   kAddsc0 = 44,
-  // addsc dest, src0.a, src0.b
+  // addsc dest, src0.a, src1.a
   kAddsc1 = 45,
-  // subsc dest, src0.a, src0.b
+  // subsc dest, src0.a, src1.a
   kSubsc0 = 46,
-  // subsc dest, src0.a, src0.b
+  // subsc dest, src0.a, src1.a
   kSubsc1 = 47,
 
   // Scalar Sin
