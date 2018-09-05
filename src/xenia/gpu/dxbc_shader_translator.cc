@@ -1158,7 +1158,7 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
         shader_code_.push_back(
             ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4) | saturate_bit);
-        shader_object_.push_back(
+        shader_code_.push_back(
             EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_OUTPUT_DEPTH, 0));
         break;
       default:
@@ -1166,13 +1166,13 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
         return;
     }
     if (component <= SwizzleSource::kW) {
-      shader_object_.push_back(EncodeVectorSelectOperand(
+      shader_code_.push_back(EncodeVectorSelectOperand(
           D3D10_SB_OPERAND_TYPE_TEMP, uint32_t(component), 1));
-      shader_object_.push_back(reg);
+      shader_code_.push_back(reg);
     } else {
-      shader_object_.push_back(
+      shader_code_.push_back(
           EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-      shader_object_.push_back(component == SwizzleSource::k1 ? 0x3F800000 : 0);
+      shader_code_.push_back(component == SwizzleSource::k1 ? 0x3F800000 : 0);
     }
     ++stat_.instruction_count;
     ++stat_.mov_instruction_count;
@@ -1213,39 +1213,113 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
     if (mask == 0) {
       continue;
     }
+
     // r# for the swizzled part, 4-component imm32 for the constant part.
     uint32_t source_length = i == 0 ? 2 : 5;
     switch (result.storage_target) {
       case InstructionStorageTarget::kRegister:
-        // TODO(Triang3l): Register store.
-        continue;
+        if (uses_register_dynamic_addressing()) {
+          bool is_static = result.storage_addressing_mode ==
+                           InstructionStorageAddressingMode::kStatic;
+          ++stat_.instruction_count;
+          ++stat_.array_instruction_count;
+          shader_code_.push_back(
+              ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH((is_static ? 4 : 6) +
+                                                           source_length) |
+              saturate_bit);
+          shader_code_.push_back(EncodeVectorMaskedOperand(
+              D3D10_SB_OPERAND_TYPE_INDEXABLE_TEMP, mask, 2,
+              D3D10_SB_OPERAND_INDEX_IMMEDIATE32,
+              is_static ? D3D10_SB_OPERAND_INDEX_IMMEDIATE32
+                        : D3D10_SB_OPERAND_INDEX_IMMEDIATE32_PLUS_RELATIVE));
+          shader_code_.push_back(0);
+          shader_code_.push_back(uint32_t(result.storage_index));
+          if (!is_static) {
+            uint32_t dynamic_address_register;
+            uint32_t dynamic_address_component;
+            if (result.storage_addressing_mode ==
+                InstructionStorageAddressingMode::kAddressRelative) {
+              // Addressed by aL.x.
+              dynamic_address_register = system_temp_aL_;
+              dynamic_address_component = 0;
+            } else {
+              // Addressed by a0.
+              dynamic_address_register = system_temp_ps_pc_p0_a0_;
+              dynamic_address_component = 3;
+            }
+            shader_code_.push_back(EncodeVectorSelectOperand(
+                D3D10_SB_OPERAND_TYPE_TEMP, dynamic_address_component, 1));
+            shader_code_.push_back(dynamic_address_register);
+          }
+        } else {
+          ++stat_.instruction_count;
+          ++stat_.mov_instruction_count;
+          shader_code_.push_back(
+              ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3 + source_length) |
+              saturate_bit);
+          shader_code_.push_back(
+              EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, mask, 1));
+          shader_code_.push_back(uint32_t(result.storage_index));
+        }
         break;
+
       case InstructionStorageTarget::kInterpolant:
-        // TODO(Triang3l): Interpolant store.
-        continue;
+        ++stat_.instruction_count;
+        ++stat_.mov_instruction_count;
+        shader_code_.push_back(
+            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3 + source_length) |
+            saturate_bit);
+        shader_code_.push_back(
+            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_OUTPUT, mask, 1));
+        shader_code_.push_back(kVSOutInterpolatorRegister +
+                               uint32_t(result.storage_index));
         break;
+
       case InstructionStorageTarget::kPosition:
-        // TODO(Triang3l): Position store.
-        continue;
+        // TODO(Triang3l): Change to a temporary register because of vtx_fmt,
+        // drawing without a viewport and half-pixel offset.
+        ++stat_.instruction_count;
+        ++stat_.mov_instruction_count;
+        shader_code_.push_back(
+            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3 + source_length) |
+            saturate_bit);
+        shader_code_.push_back(
+            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_OUTPUT, mask, 1));
+        shader_code_.push_back(kVSOutPositionRegister);
         break;
+
       case InstructionStorageTarget::kColorTarget:
-        // TODO(Triang3l): Color target store.
-        continue;
+        ++stat_.instruction_count;
+        ++stat_.array_instruction_count;
+        shader_code_.push_back(
+            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4 + source_length) |
+            saturate_bit);
+        shader_code_.push_back(EncodeVectorMaskedOperand(
+            D3D10_SB_OPERAND_TYPE_INDEXABLE_TEMP, mask, 2));
+        shader_code_.push_back(GetColorIndexableTemp());
+        shader_code_.push_back(uint32_t(result.storage_index));
         break;
+
       default:
         continue;
     }
+
     if (i == 0) {
       // Copy from the source r#.
-      shader_object_.push_back(EncodeVectorSwizzledOperand(
+      shader_code_.push_back(EncodeVectorSwizzledOperand(
           D3D10_SB_OPERAND_TYPE_TEMP, swizzle_components, 1));
-      shader_object_.push_back(reg);
+      shader_code_.push_back(reg);
     } else {
       // Load constants.
-      shader_object_.push_back(EncodeVectorSwizzledOperand(
+      shader_code_.push_back(EncodeVectorSwizzledOperand(
           D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
       for (uint32_t j = 0; j < 4; ++j) {
-        shader_object_.push_back((constant_values & (1 << j)) ? 0x3F800000 : 0);
+        shader_code_.push_back((constant_values & (1 << j)) ? 0x3F800000 : 0);
       }
     }
   }
@@ -1858,7 +1932,9 @@ void DxbcShaderTranslator::ProcessVectorAluInstruction(
     UnloadDxbcSourceOperand(dxbc_operands[instr.operand_count - 1 - i]);
   }
 
-  // TODO(Triang3l): Store pv.
+  StoreResult(instr.result, system_temp_pv_, replicate_result);
+
+  // TODO(Triang3l): Close predicate check.
 }
 
 void DxbcShaderTranslator::ProcessScalarAluInstruction(
@@ -2477,6 +2553,10 @@ void DxbcShaderTranslator::ProcessScalarAluInstruction(
   for (uint32_t i = 0; i < uint32_t(instr.operand_count); ++i) {
     UnloadDxbcSourceOperand(dxbc_operands[instr.operand_count - 1 - i]);
   }
+
+  StoreResult(instr.result, system_temp_ps_pc_p0_a0_, true);
+
+  // TODO(Triang3l): Close predicate check.
 }
 
 void DxbcShaderTranslator::ProcessAluInstruction(
