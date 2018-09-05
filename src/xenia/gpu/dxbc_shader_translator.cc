@@ -1933,7 +1933,7 @@ void DxbcShaderTranslator::ProcessScalarAluInstruction(
     case AluScalarOpcode::kSetpGt:
     case AluScalarOpcode::kSetpGe:
       close_predicate_block = true;
-      // Write true (0xFFFFFFFF) to p0 if the comparison passes.
+      // Set p0 to whether the comparison with zero passes.
       shader_code_.push_back(
           ENCODE_D3D10_SB_OPCODE_TYPE(
               kCoreOpcodes[uint32_t(instr.scalar_opcode)]) |
@@ -1953,21 +1953,46 @@ void DxbcShaderTranslator::ProcessScalarAluInstruction(
       }
       ++stat_.instruction_count;
       ++stat_.float_instruction_count;
-      // Need to write 0 if the comparison passes and 1 if it fails - flip p0
-      // into ps.
-      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_NOT) |
-                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
+      // Set ps to 0.0 if the comparison passes or to 1.0 if it fails.
+      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
+                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
       shader_code_.push_back(
           EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
       shader_code_.push_back(system_temp_ps_pc_p0_a0_);
       shader_code_.push_back(
           EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
       shader_code_.push_back(system_temp_ps_pc_p0_a0_);
+      shader_code_.push_back(
+          EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+      shader_code_.push_back(0);
+      shader_code_.push_back(
+          EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+      shader_code_.push_back(0x3F800000);
       ++stat_.instruction_count;
-      ++stat_.uint_instruction_count;
-      // Convert mask to float.
-      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
-                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+      ++stat_.movc_instruction_count;
+      break;
+
+    case AluScalarOpcode::kSetpInv:
+      close_predicate_block = true;
+      // Compare src0 to 0.0 (taking denormals into account, for instance) to
+      // know what to set ps to in case src0 is not 1.0.
+      shader_code_.push_back(
+          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_EQ) |
+          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5 + operand_lengths[0]));
+      shader_code_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+      shader_code_.push_back(system_temp_ps_pc_p0_a0_);
+      UseDxbcSourceOperand(dxbc_operands[0], kSwizzleXYZW, 0);
+      shader_code_.push_back(
+          EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+      shader_code_.push_back(0);
+      ++stat_.instruction_count;
+      ++stat_.float_instruction_count;
+      // Assuming src0 is not 1.0 (this case will be handled later), set ps to
+      // src0, except when it's zero - in this case, set ps to 1.0.
+      shader_code_.push_back(
+          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
+          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7 + operand_lengths[0]));
       shader_code_.push_back(
           EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
       shader_code_.push_back(system_temp_ps_pc_p0_a0_);
@@ -1977,11 +2002,86 @@ void DxbcShaderTranslator::ProcessScalarAluInstruction(
       shader_code_.push_back(
           EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
       shader_code_.push_back(0x3F800000);
+      UseDxbcSourceOperand(dxbc_operands[0], kSwizzleXYZW, 0);
       ++stat_.instruction_count;
-      ++stat_.uint_instruction_count;
+      ++stat_.movc_instruction_count;
+      // Set p0 to whether src0 is 1.0.
+      shader_code_.push_back(
+          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_EQ) |
+          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5 + operand_lengths[0]));
+      shader_code_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0100, 1));
+      shader_code_.push_back(system_temp_ps_pc_p0_a0_);
+      UseDxbcSourceOperand(dxbc_operands[0], kSwizzleXYZW, 0);
+      shader_code_.push_back(
+          EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+      shader_code_.push_back(0x3F800000);
+      ++stat_.instruction_count;
+      ++stat_.float_instruction_count;
+      // If src0 is 1.0, set ps to zero.
+      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
+                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
+      shader_code_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+      shader_code_.push_back(system_temp_ps_pc_p0_a0_);
+      shader_code_.push_back(
+          EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
+      shader_code_.push_back(system_temp_ps_pc_p0_a0_);
+      shader_code_.push_back(
+          EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+      shader_code_.push_back(0x3F800000);
+      shader_code_.push_back(
+          EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
+      shader_code_.push_back(system_temp_ps_pc_p0_a0_);
+      ++stat_.instruction_count;
+      ++stat_.movc_instruction_count;
       break;
 
-      // TODO(Triang3l): kSetpInv, kSetpPop, kSetpRstr.
+    case AluScalarOpcode::kSetpPop:
+      close_predicate_block = true;
+      // ps = src0 - 1.0
+      shader_code_.push_back(
+          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ADD) |
+          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5 + operand_lengths[0]));
+      shader_code_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+      shader_code_.push_back(system_temp_ps_pc_p0_a0_);
+      UseDxbcSourceOperand(dxbc_operands[0], kSwizzleXYZW, 0);
+      shader_code_.push_back(
+          EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+      shader_code_.push_back(0xBF800000u);
+      ++stat_.instruction_count;
+      ++stat_.float_instruction_count;
+      // Set p0 to whether (src0 - 1.0) is 0.0 or smaller.
+      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_GE) |
+                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+      shader_code_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0100, 1));
+      shader_code_.push_back(system_temp_ps_pc_p0_a0_);
+      shader_code_.push_back(
+          EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+      shader_code_.push_back(0);
+      shader_code_.push_back(
+          EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
+      shader_code_.push_back(system_temp_ps_pc_p0_a0_);
+      ++stat_.instruction_count;
+      ++stat_.float_instruction_count;
+      // If (src0 - 1.0) is 0.0 or smaller, set ps to 0.0 (already has
+      // (src0 - 1.0), so clamping to zero is enough).
+      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MAX) |
+                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+      shader_code_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+      shader_code_.push_back(system_temp_ps_pc_p0_a0_);
+      shader_code_.push_back(
+          EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
+      shader_code_.push_back(system_temp_ps_pc_p0_a0_);
+      shader_code_.push_back(
+          EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+      shader_code_.push_back(0);
+      ++stat_.instruction_count;
+      ++stat_.float_instruction_count;
+      break;
 
     case AluScalarOpcode::kSetpClr:
       close_predicate_block = true;
@@ -2007,6 +2107,34 @@ void DxbcShaderTranslator::ProcessScalarAluInstruction(
       shader_code_.push_back(0);
       ++stat_.instruction_count;
       ++stat_.mov_instruction_count;
+      break;
+
+    case AluScalarOpcode::kSetpRstr:
+      close_predicate_block = true;
+      // Copy src0 to ps.
+      shader_code_.push_back(
+          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3 + operand_lengths[0]));
+      shader_code_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+      shader_code_.push_back(system_temp_ps_pc_p0_a0_);
+      UseDxbcSourceOperand(dxbc_operands[0], kSwizzleXYZW, 0);
+      ++stat_.instruction_count;
+      ++stat_.mov_instruction_count;
+      // Set p0 to whether src0 is zero.
+      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_EQ) |
+                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+      shader_code_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0100, 1));
+      shader_code_.push_back(system_temp_ps_pc_p0_a0_);
+      shader_code_.push_back(
+          EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
+      shader_code_.push_back(system_temp_ps_pc_p0_a0_);
+      shader_code_.push_back(
+          EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+      shader_code_.push_back(0);
+      ++stat_.instruction_count;
+      ++stat_.float_instruction_count;
       break;
 
     case AluScalarOpcode::kKillsEq:
