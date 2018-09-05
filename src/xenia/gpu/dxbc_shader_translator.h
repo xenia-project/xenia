@@ -237,12 +237,13 @@ class DxbcShaderTranslator : public ShaderTranslator {
   void LoadDxbcSourceOperand(const InstructionOperand& operand,
                              DxbcSourceOperand& dxbc_operand);
   // Number of tokens this operand adds to the instruction length when used.
-  uint32_t DxbcSourceOperandLength(const DxbcSourceOperand& operand) const;
+  uint32_t DxbcSourceOperandLength(const DxbcSourceOperand& operand,
+                                   bool negate = false) const;
   // Writes the operand access tokens to the instruction (either for a scalar if
   // select_component is <= 3, or for a vector).
   void UseDxbcSourceOperand(const DxbcSourceOperand& operand,
                             uint32_t additional_swizzle = kSwizzleXYZW,
-                            uint32_t select_component = 4);
+                            uint32_t select_component = 4, bool negate = false);
   void UnloadDxbcSourceOperand(const DxbcSourceOperand& operand);
 
   void ProcessVectorAluInstruction(const ParsedAluInstruction& instr);
