@@ -1123,6 +1123,134 @@ void DxbcShaderTranslator::UnloadDxbcSourceOperand(
   }
 }
 
+void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
+                                       uint32_t reg, bool replicate_x) {
+  if (result.storage_target == InstructionStorageTarget::kNone ||
+      !result.has_any_writes()) {
+    return;
+  }
+
+  uint32_t saturate_bit =
+      ENCODE_D3D10_SB_INSTRUCTION_SATURATE(result.is_clamped);
+
+  // Scalar targets get only one component.
+  if (result.storage_target == InstructionStorageTarget::kPointSize ||
+      result.storage_target == InstructionStorageTarget::kDepth) {
+    if (!result.write_mask[0]) {
+      return;
+    }
+    SwizzleSource component = result.components[0];
+    if (replicate_x && component <= SwizzleSource::kW) {
+      component = SwizzleSource::kX;
+    }
+    // Both r[imm32] and imm32 operands are 2 tokens long.
+    switch (result.storage_target) {
+      case InstructionStorageTarget::kPointSize:
+        shader_code_.push_back(
+            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5) | saturate_bit);
+        shader_code_.push_back(
+            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_OUTPUT, 0b0100, 1));
+        shader_code_.push_back(kVSOutPointParametersRegister);
+        break;
+      case InstructionStorageTarget::kDepth:
+        writes_depth_ = true;
+        shader_code_.push_back(
+            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4) | saturate_bit);
+        shader_object_.push_back(
+            EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_OUTPUT_DEPTH, 0));
+        break;
+      default:
+        assert_unhandled_case(result.storage_target);
+        return;
+    }
+    if (component <= SwizzleSource::kW) {
+      shader_object_.push_back(EncodeVectorSelectOperand(
+          D3D10_SB_OPERAND_TYPE_TEMP, uint32_t(component), 1));
+      shader_object_.push_back(reg);
+    } else {
+      shader_object_.push_back(
+          EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+      shader_object_.push_back(component == SwizzleSource::k1 ? 0x3F800000 : 0);
+    }
+    ++stat_.instruction_count;
+    ++stat_.mov_instruction_count;
+    return;
+  }
+
+  // Get the write masks and data required for loading of both the swizzled part
+  // and the constant (zero/one) part.
+  uint32_t swizzle_mask = 0;
+  uint32_t swizzle_components = 0;
+  uint32_t swizzle_shift = 0;
+  uint32_t constant_mask = 0;
+  uint32_t constant_values = 0;
+  uint32_t constant_shift = 0;
+  for (uint32_t i = 0; i < 4; ++i) {
+    if (!result.write_mask[i]) {
+      continue;
+    }
+    SwizzleSource component = result.components[i];
+    if (component <= SwizzleSource::kW) {
+      swizzle_mask |= 1 << i;
+      // If replicating X, just keep zero swizzle (XXXX).
+      if (!replicate_x) {
+        swizzle_components |= uint32_t(component) << swizzle_shift;
+        swizzle_shift += 2;
+      }
+    } else {
+      constant_mask |= 1 << i;
+      constant_values |= (component == SwizzleSource::k1 ? 1 : 0)
+                         << constant_shift;
+      ++constant_shift;
+    }
+  }
+
+  // Store both parts of the write (i == 0 - swizzled, i == 1 - constant).
+  for (uint32_t i = 0; i < 2; ++i) {
+    uint32_t mask = i == 0 ? swizzle_mask : constant_mask;
+    if (mask == 0) {
+      continue;
+    }
+    // r# for the swizzled part, 4-component imm32 for the constant part.
+    uint32_t source_length = i == 0 ? 2 : 5;
+    switch (result.storage_target) {
+      case InstructionStorageTarget::kRegister:
+        // TODO(Triang3l): Register store.
+        continue;
+        break;
+      case InstructionStorageTarget::kInterpolant:
+        // TODO(Triang3l): Interpolant store.
+        continue;
+        break;
+      case InstructionStorageTarget::kPosition:
+        // TODO(Triang3l): Position store.
+        continue;
+        break;
+      case InstructionStorageTarget::kColorTarget:
+        // TODO(Triang3l): Color target store.
+        continue;
+        break;
+      default:
+        continue;
+    }
+    if (i == 0) {
+      // Copy from the source r#.
+      shader_object_.push_back(EncodeVectorSwizzledOperand(
+          D3D10_SB_OPERAND_TYPE_TEMP, swizzle_components, 1));
+      shader_object_.push_back(reg);
+    } else {
+      // Load constants.
+      shader_object_.push_back(EncodeVectorSwizzledOperand(
+          D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+      for (uint32_t j = 0; j < 4; ++j) {
+        shader_object_.push_back((constant_values & (1 << j)) ? 0x3F800000 : 0);
+      }
+    }
+  }
+}
+
 void DxbcShaderTranslator::ProcessVectorAluInstruction(
     const ParsedAluInstruction& instr) {
   // TODO(Triang3l): Predicate.
@@ -3103,18 +3231,50 @@ void DxbcShaderTranslator::WriteShaderCode() {
     stat_.temp_array_count += register_count();
   }
 
+  // Pixel shader color output (remapped in the end of the shader).
+  if (is_pixel_shader()) {
+    shader_object_.push_back(
+        ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_INDEXABLE_TEMP) |
+        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4));
+    shader_object_.push_back(GetColorIndexableTemp());
+    shader_object_.push_back(4);
+    shader_object_.push_back(4);
+    stat_.temp_array_count += 4;
+  }
+
   // Initialize the depth output if used, which must be initialized on every
-  // execution path.
-  if (is_pixel_shader() && writes_depth_) {
-    shader_object_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4));
-    shader_object_.push_back(
-        EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_OUTPUT_DEPTH, 0));
-    shader_object_.push_back(
-        EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-    shader_object_.push_back(0);
-    ++stat_.instruction_count;
-    ++stat_.mov_instruction_count;
+  // execution path, and also initialize color outputs to make them stable if
+  // the shader somehow didn't write to them on its execution path.
+  if (is_pixel_shader()) {
+    for (uint32_t i = 0; i < 4; ++i) {
+      shader_object_.push_back(
+          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
+      shader_object_.push_back(EncodeVectorMaskedOperand(
+          D3D10_SB_OPERAND_TYPE_INDEXABLE_TEMP, 0b1111, 2));
+      shader_object_.push_back(GetColorIndexableTemp());
+      shader_object_.push_back(i);
+      shader_object_.push_back(EncodeVectorSwizzledOperand(
+          D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+      shader_object_.push_back(0);
+      shader_object_.push_back(0);
+      shader_object_.push_back(0);
+      shader_object_.push_back(0);
+      ++stat_.instruction_count;
+      ++stat_.array_instruction_count;
+    }
+    if (writes_depth_) {
+      shader_object_.push_back(
+          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4));
+      shader_object_.push_back(
+          EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_OUTPUT_DEPTH, 0));
+      shader_object_.push_back(
+          EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+      shader_object_.push_back(0);
+      ++stat_.instruction_count;
+      ++stat_.mov_instruction_count;
+    }
   }
 
   // Write the translated shader code.
