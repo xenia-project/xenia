@@ -258,6 +258,9 @@ class DxbcShaderTranslator : public ShaderTranslator {
   void StoreResult(const InstructionResult& result, uint32_t reg,
                    bool replicate_x);
 
+  // Emits copde for endian swapping of the data located in pv.
+  void SwapVertexData(uint32_t vfetch_index, uint32_t write_mask);
+
   void ProcessVectorAluInstruction(const ParsedAluInstruction& instr);
   void ProcessScalarAluInstruction(const ParsedAluInstruction& instr);
 
