@@ -380,6 +380,34 @@ void DxbcShaderTranslator::StartVertexShader() {
 }
 
 void DxbcShaderTranslator::StartPixelShader() {
+  // Copy interpolants to GPRs.
+  uint32_t interpolator_count = std::min(kInterpolatorCount, register_count());
+  for (uint32_t i = 0; i < interpolator_count; ++i) {
+    ++stat_.instruction_count;
+    if (uses_register_dynamic_addressing()) {
+      ++stat_.array_instruction_count;
+      shader_object_.push_back(
+          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(6));
+      shader_object_.push_back(EncodeVectorMaskedOperand(
+          D3D10_SB_OPERAND_TYPE_INDEXABLE_TEMP, 0b1111, 2));
+      shader_object_.push_back(0);
+    } else {
+      ++stat_.mov_instruction_count;
+      shader_object_.push_back(
+          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
+      shader_object_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+    }
+    shader_object_.push_back(i);
+    shader_object_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_INPUT, kSwizzleXYZW, 1));
+    shader_object_.push_back(kPSInInterpolatorRegister + i);
+  }
+
+  // TODO(Triang3l): ps_param_gen.
+
   // Initialize color indexable temporary registers so they have a defined value
   // in case the shader doesn't write to all used outputs on all execution
   // paths.
