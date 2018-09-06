@@ -1490,6 +1490,149 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
   }
 }
 
+void DxbcShaderTranslator::ProcessVertexFetchInstruction(
+    const ParsedVertexFetchInstruction& instr) {
+  if (instr.operand_count < 2 ||
+      instr.operands[1].storage_source !=
+      InstructionStorageSource::kVertexFetchConstant) {
+    assert_always();
+    return;
+  }
+
+  // Get the mask for ld_raw and byte swapping.
+  uint32_t load_dword_count;
+  switch (instr.attributes.data_format) {
+    case VertexFormat::k_8_8_8_8:
+    case VertexFormat::k_2_10_10_10:
+    case VertexFormat::k_10_11_11:
+    case VertexFormat::k_11_11_10:
+    case VertexFormat::k_16_16:
+    case VertexFormat::k_16_16_FLOAT:
+    case VertexFormat::k_32:
+    case VertexFormat::k_32_FLOAT:
+      load_dword_count = 1;
+      break;
+    case VertexFormat::k_16_16_16_16:
+    case VertexFormat::k_16_16_16_16_FLOAT:
+    case VertexFormat::k_32_32:
+    case VertexFormat::k_32_32_FLOAT:
+      load_dword_count = 2;
+      break;
+    case VertexFormat::k_32_32_32_FLOAT:
+      load_dword_count = 3;
+      break;
+    case VertexFormat::k_32_32_32_32:
+    case VertexFormat::k_32_32_32_32_FLOAT:
+      load_dword_count = 4;
+      break;
+    default:
+      assert_unhandled_case(instr.attributes.data_format);
+      return;
+  }
+  // Get the resulting component count.
+  uint32_t component_count =
+      GetVertexFormatComponentCount(instr.attributes.data_format);
+  if (component_count == 0) {
+    assert_always();
+    return;
+  }
+
+  // TODO(Triang3l): Predicate.
+
+  // Convert the index to an integer.
+  DxbcSourceOperand index_operand;
+  LoadDxbcSourceOperand(instr.operands[0], index_operand);
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_FTOI) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(
+                             3 + DxbcSourceOperandLength(index_operand)));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+  shader_code_.push_back(system_temp_pv_);
+  UseDxbcSourceOperand(index_operand, kSwizzleXYZW, 0);
+  ++stat_.instruction_count;
+  ++stat_.conversion_instruction_count;
+  // TODO(Triang3l): Index clamping maybe.
+
+  uint32_t vfetch_index = instr.operands[1].storage_index;
+
+  // Get the memory address (taken from the fetch constant - the low 2 bits of
+  // it are removed because vertices and raw buffer operations are 4-aligned and
+  // fetch type - 3 for vertices - is stored there). Vertex fetch is specified
+  // by 2 dwords in fetch constants, but in our case they are 4-component, so
+  // one vector of fetch constants contains two vfetches.
+  // TODO(Triang3l): Clamp to buffer size maybe (may be difficult if the buffer
+  // is smaller than 16).
+  // http://xboxforums.create.msdn.com/forums/p/7537/39919.aspx#39919
+  rdef_constants_used_ |= 1ull << uint32_t(RdefConstantIndex::kFetchConstants);
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0010, 1));
+  shader_code_.push_back(system_temp_pv_);
+  shader_code_.push_back(EncodeVectorSelectOperand(
+      D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, (vfetch_index & 1) * 2, 3));
+  shader_code_.push_back(uint32_t(RdefConstantBufferIndex::kFetchConstants));
+  shader_code_.push_back(uint32_t(CbufferRegister::kFetchConstants));
+  shader_code_.push_back(vfetch_index >> 1);
+  shader_code_.push_back(
+      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+  shader_code_.push_back(0x1FFFFFFC);
+  ++stat_.instruction_count;
+  ++stat_.uint_instruction_count;
+
+  // Calculate the address of the vertex.
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IMAD) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+  shader_code_.push_back(system_temp_pv_);
+  shader_code_.push_back(
+      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
+  shader_code_.push_back(system_temp_pv_);
+  shader_code_.push_back(
+      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+  shader_code_.push_back(instr.attributes.stride * 4);
+  shader_code_.push_back(
+      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
+  shader_code_.push_back(system_temp_pv_);
+  ++stat_.instruction_count;
+  ++stat_.int_instruction_count;
+
+  // Add the element offset.
+  if (instr.attributes.offset != 0) {
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IADD) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+    shader_code_.push_back(
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+    shader_code_.push_back(system_temp_pv_);
+    shader_code_.push_back(
+        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
+    shader_code_.push_back(system_temp_pv_);
+    shader_code_.push_back(
+        EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+    shader_code_.push_back(instr.attributes.offset * 4);
+    ++stat_.instruction_count;
+    ++stat_.int_instruction_count;
+  }
+
+  // Load the vertex data from the shared memory at T0, register t0.
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_LD_RAW) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(8));
+  shader_code_.push_back(EncodeVectorMaskedOperand(
+      D3D10_SB_OPERAND_TYPE_TEMP, (1 << load_dword_count) - 1, 1));
+  shader_code_.push_back(system_temp_pv_);
+  shader_code_.push_back(
+      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
+  shader_code_.push_back(system_temp_pv_);
+  shader_code_.push_back(EncodeVectorSwizzledOperand(
+      D3D10_SB_OPERAND_TYPE_RESOURCE,
+      kSwizzleXYZW & ((1 << (load_dword_count * 2)) - 1), 2));
+  shader_code_.push_back(0);
+  shader_code_.push_back(0);
+  ++stat_.instruction_count;
+  ++stat_.texture_load_instructions;
+}
+
 void DxbcShaderTranslator::ProcessVectorAluInstruction(
     const ParsedAluInstruction& instr) {
   // TODO(Triang3l): Predicate.

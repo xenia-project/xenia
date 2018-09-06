@@ -66,6 +66,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
 
   std::vector<uint8_t> CompleteTranslation() override;
 
+  void ProcessVertexFetchInstruction(
+      const ParsedVertexFetchInstruction& instr) override;
   void ProcessAluInstruction(const ParsedAluInstruction& instr) override;
 
  private:
