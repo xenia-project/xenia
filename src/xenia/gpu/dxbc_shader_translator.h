@@ -173,7 +173,18 @@ class DxbcShaderTranslator : public ShaderTranslator {
            (index_dimension << 20) | (index_representation_0 << 22) |
            (index_representation_1 << 25) | (index_representation_2 << 28);
   }
-  // For reading from vectors.
+  // For reading a single component of a vector as a 4-component vector.
+  static constexpr uint32_t EncodeVectorReplicatedOperand(
+      uint32_t type, uint32_t component, uint32_t index_dimension,
+      uint32_t index_representation_0 = 0, uint32_t index_representation_1 = 0,
+      uint32_t index_representation_2 = 0) {
+    // D3D10_SB_OPERAND_4_COMPONENT, D3D10_SB_OPERAND_4_COMPONENT_SWIZZLE_MODE.
+    return 2 | (1 << 2) | (component << 4) | (component << 6) |
+           (component << 8) | (component << 10) | (type << 12) |
+           (index_dimension << 20) | (index_representation_0 << 22) |
+           (index_representation_1 << 25) | (index_representation_2 << 28);
+  }
+  // For reading scalars from vectors.
   static constexpr uint32_t EncodeVectorSelectOperand(
       uint32_t type, uint32_t component, uint32_t index_dimension,
       uint32_t index_representation_0 = 0, uint32_t index_representation_1 = 0,
@@ -196,7 +207,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
   }
 
   // Writing the prologue.
-  void StartVertexShader_SwapVertexIndex();
+  void StartVertexShader_LoadVertexIndex();
   void StartVertexShader();
   void StartPixelShader();
 
