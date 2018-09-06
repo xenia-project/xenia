@@ -315,20 +315,18 @@ void DxbcShaderTranslator::StartVertexShader_LoadVertexIndex() {
   ++stat_.instruction_count;
   ++stat_.movc_instruction_count;
 
-  // Add the base vertex index and replicate the swapped value in the
-  // destination register (what should be in YZW is unknown, but just to make it
-  // a bit cleaner).
+  // Add the base vertex index.
   shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IADD) |
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
   shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
   shader_code_.push_back(reg);
   shader_code_.push_back(
-      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXXXX, 1));
+      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
   shader_code_.push_back(reg);
   rdef_constants_used_ |= 1ull
                           << uint32_t(RdefConstantIndex::kSysVertexBaseIndex);
-  shader_code_.push_back(EncodeVectorReplicatedOperand(
+  shader_code_.push_back(EncodeVectorSelectOperand(
       D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSysConst_VertexBaseIndex_Comp,
       3));
   shader_code_.push_back(uint32_t(RdefConstantBufferIndex::kSystemConstants));
@@ -336,6 +334,20 @@ void DxbcShaderTranslator::StartVertexShader_LoadVertexIndex() {
   shader_code_.push_back(kSysConst_VertexBaseIndex_Vec);
   ++stat_.instruction_count;
   ++stat_.int_instruction_count;
+
+  // Convert to float and replicate the swapped value in the destination
+  // register (what should be in YZW is unknown, but just to make it a bit
+  // cleaner).
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ITOF) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+  shader_code_.push_back(reg);
+  shader_code_.push_back(
+      EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
+  shader_code_.push_back(reg);
+  ++stat_.instruction_count;
+  ++stat_.conversion_instruction_count;
 
   if (uses_register_dynamic_addressing()) {
     // Store to indexed GPR 0 in x0[0].
@@ -391,7 +403,7 @@ void DxbcShaderTranslator::StartVertexShader() {
   ++stat_.instruction_count;
   ++stat_.mov_instruction_count;
 
-  // Byte swap and write the vertex index to GPR 0.
+  // Write the vertex index to GPR 0.
   StartVertexShader_LoadVertexIndex();
 }
 
