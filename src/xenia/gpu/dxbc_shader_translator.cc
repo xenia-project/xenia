@@ -99,7 +99,7 @@ void DxbcShaderTranslator::PopSystemTemp(uint32_t count) {
   system_temp_count_current_ -= std::min(count, system_temp_count_current_);
 }
 
-void DxbcShaderTranslator::StartVertexShader_SwapVertexIndex() {
+void DxbcShaderTranslator::StartVertexShader_LoadVertexIndex() {
   // Vertex index is in an input bound to SV_VertexID, byte swapped according to
   // xe_vertex_index_endian system constant and written to GPR 0 (which is
   // always present because register_count includes +1).
@@ -208,13 +208,9 @@ void DxbcShaderTranslator::StartVertexShader_SwapVertexIndex() {
   shader_code_.push_back(0);
   rdef_constants_used_ |= 1ull
                           << uint32_t(RdefConstantIndex::kSysVertexIndexEndian);
-  shader_code_.push_back(
-      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
-                                  kSysConst_VertexIndexEndian_Comp |
-                                      (kSysConst_VertexIndexEndian_Comp << 2) |
-                                      (kSysConst_VertexIndexEndian_Comp << 4) |
-                                      (kSysConst_VertexIndexEndian_Comp << 6),
-                                  3));
+  shader_code_.push_back(EncodeVectorReplicatedOperand(
+      D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSysConst_VertexIndexEndian_Comp,
+      3));
   shader_code_.push_back(uint32_t(RdefConstantBufferIndex::kSystemConstants));
   shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
   shader_code_.push_back(kSysConst_VertexIndexEndian_Vec);
@@ -300,26 +296,46 @@ void DxbcShaderTranslator::StartVertexShader_SwapVertexIndex() {
   ++stat_.instruction_count;
   ++stat_.uint_instruction_count;
 
-  // Apply the 16-in-32 swap if needed and replicate the swapped value in the
+  // Apply the 16-in-32 swap if needed.
+  // movc reg.x, reg.w, reg.y, reg.x
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+  shader_code_.push_back(reg);
+  shader_code_.push_back(
+      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 3, 1));
+  shader_code_.push_back(reg);
+  shader_code_.push_back(
+      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
+  shader_code_.push_back(reg);
+  shader_code_.push_back(
+      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
+  shader_code_.push_back(reg);
+  ++stat_.instruction_count;
+  ++stat_.movc_instruction_count;
+
+  // Add the base vertex index and replicate the swapped value in the
   // destination register (what should be in YZW is unknown, but just to make it
   // a bit cleaner).
-  // movc reg, reg.wwww, reg.yyyy, reg.xxxx
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IADD) |
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
   shader_code_.push_back(
       EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
   shader_code_.push_back(reg);
   shader_code_.push_back(
-      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleWWWW, 1));
-  shader_code_.push_back(reg);
-  shader_code_.push_back(
-      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleYYYY, 1));
-  shader_code_.push_back(reg);
-  shader_code_.push_back(
       EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXXXX, 1));
   shader_code_.push_back(reg);
+  rdef_constants_used_ |= 1ull
+                          << uint32_t(RdefConstantIndex::kSysVertexBaseIndex);
+  shader_code_.push_back(EncodeVectorReplicatedOperand(
+      D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSysConst_VertexBaseIndex_Comp,
+      3));
+  shader_code_.push_back(uint32_t(RdefConstantBufferIndex::kSystemConstants));
+  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
+  shader_code_.push_back(kSysConst_VertexBaseIndex_Vec);
   ++stat_.instruction_count;
-  ++stat_.movc_instruction_count;
+  ++stat_.int_instruction_count;
 
   if (uses_register_dynamic_addressing()) {
     // Store to indexed GPR 0 in x0[0].
@@ -376,7 +392,7 @@ void DxbcShaderTranslator::StartVertexShader() {
   ++stat_.mov_instruction_count;
 
   // Byte swap and write the vertex index to GPR 0.
-  StartVertexShader_SwapVertexIndex();
+  StartVertexShader_LoadVertexIndex();
 }
 
 void DxbcShaderTranslator::StartPixelShader() {
@@ -498,9 +514,8 @@ void DxbcShaderTranslator::CompletePixelShader() {
     shader_code_.push_back(EncodeVectorSwizzledOperand(
         D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
     shader_code_.push_back(temp_register);
-    shader_code_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
-        i | (i << 2) | (i << 4) | (i << 6), 3));
+    shader_code_.push_back(EncodeVectorReplicatedOperand(
+        D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, i, 3));
     shader_code_.push_back(uint32_t(RdefConstantBufferIndex::kSystemConstants));
     shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
     shader_code_.push_back(kSysConst_ColorExpBias_Vec);
@@ -852,12 +867,8 @@ void DxbcShaderTranslator::LoadDxbcSourceOperand(
         shader_code_.push_back(0);
         shader_code_.push_back(0);
         shader_code_.push_back(0);
-        shader_code_.push_back(EncodeVectorSwizzledOperand(
-            D3D10_SB_OPERAND_TYPE_TEMP,
-            constant_address_component | (constant_address_component << 2) |
-                (constant_address_component << 4) |
-                (constant_address_component << 6),
-            1));
+        shader_code_.push_back(EncodeVectorReplicatedOperand(
+            D3D10_SB_OPERAND_TYPE_TEMP, constant_address_component, 1));
         shader_code_.push_back(constant_address_register);
         ++stat_.instruction_count;
         ++stat_.uint_instruction_count;
@@ -985,12 +996,8 @@ void DxbcShaderTranslator::LoadDxbcSourceOperand(
         shader_code_.push_back(5);
         shader_code_.push_back(0);
         shader_code_.push_back(0);
-        shader_code_.push_back(EncodeVectorSwizzledOperand(
-            D3D10_SB_OPERAND_TYPE_TEMP,
-            constant_address_component | (constant_address_component << 2) |
-                (constant_address_component << 4) |
-                (constant_address_component << 6),
-            1));
+        shader_code_.push_back(EncodeVectorReplicatedOperand(
+            D3D10_SB_OPERAND_TYPE_TEMP, constant_address_component, 1));
         shader_code_.push_back(constant_address_register);
         ++stat_.instruction_count;
         ++stat_.uint_instruction_count;
@@ -1620,12 +1627,8 @@ void DxbcShaderTranslator::SwapVertexData(uint32_t vfetch_index,
   shader_code_.push_back(0);
   shader_code_.push_back(0);
   rdef_constants_used_ |= 1ull << uint32_t(RdefConstantIndex::kFetchConstants);
-  uint32_t vfetch_component = (vfetch_index & 1) * 2 + 1;
-  shader_code_.push_back(EncodeVectorSwizzledOperand(
-      D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
-      vfetch_component | (vfetch_component << 2) |
-      (vfetch_component << 4) | (vfetch_component << 6),
-      3));
+  shader_code_.push_back(EncodeVectorReplicatedOperand(
+      D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, (vfetch_index & 1) * 2 + 1, 3));
   shader_code_.push_back(uint32_t(RdefConstantBufferIndex::kFetchConstants));
   shader_code_.push_back(uint32_t(CbufferRegister::kFetchConstants));
   shader_code_.push_back(vfetch_index >> 1);
