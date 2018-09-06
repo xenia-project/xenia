@@ -379,26 +379,165 @@ void DxbcShaderTranslator::StartVertexShader() {
   StartVertexShader_SwapVertexIndex();
 }
 
-void DxbcShaderTranslator::StartPixelShader() {}
+void DxbcShaderTranslator::StartPixelShader() {
+  // Initialize color indexable temporary registers so they have a defined value
+  // in case the shader doesn't write to all used outputs on all execution
+  // paths.
+  for (uint32_t i = 0; i < 4; ++i) {
+    shader_object_.push_back(
+        ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
+    shader_object_.push_back(EncodeVectorMaskedOperand(
+        D3D10_SB_OPERAND_TYPE_INDEXABLE_TEMP, 0b1111, 2));
+    shader_object_.push_back(GetColorIndexableTemp());
+    shader_object_.push_back(i);
+    shader_object_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+    shader_object_.push_back(0);
+    shader_object_.push_back(0);
+    shader_object_.push_back(0);
+    shader_object_.push_back(0);
+    ++stat_.instruction_count;
+    ++stat_.array_instruction_count;
+  }
+}
 
 void DxbcShaderTranslator::StartTranslation() {
+  // Request global system temporary variables.
+  system_temp_pv_ = PushSystemTemp(true);
+  system_temp_ps_pc_p0_a0_ = PushSystemTemp(true);
+  system_temp_aL_ = PushSystemTemp(true);
+  system_temp_loop_count_ = PushSystemTemp(true);
+  if (is_vertex_shader()) {
+    system_temp_position_ = PushSystemTemp(true);
+  }
+
   // Write stage-specific prologue.
   if (is_vertex_shader()) {
     StartVertexShader();
   } else if (is_pixel_shader()) {
     StartPixelShader();
   }
-
-  // Request global system temporary variables.
-  system_temp_pv_ = PushSystemTemp(true);
-  system_temp_ps_pc_p0_a0_ = PushSystemTemp(true);
-  system_temp_aL_ = PushSystemTemp(true);
-  system_temp_loop_count_ = PushSystemTemp(true);
 }
 
-void DxbcShaderTranslator::CompleteVertexShader() {}
+void DxbcShaderTranslator::CompleteVertexShader() {
+  // TODO(Triang3l): vtx_fmt, disabled viewport, half pixel offset.
+  // Write the position to the output.
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_OUTPUT, 0b1111, 1));
+  shader_code_.push_back(kVSOutPositionRegister);
+  shader_code_.push_back(
+      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+  shader_code_.push_back(system_temp_position_);
+  ++stat_.instruction_count;
+  ++stat_.mov_instruction_count;
+}
 
-void DxbcShaderTranslator::CompletePixelShader() {}
+void DxbcShaderTranslator::CompletePixelShader() {
+  uint32_t color_indexable_temp = GetColorIndexableTemp();
+
+  // Allocate a temporary register for alpha testing, color indexable temp
+  // load/store and storing the color output map.
+  uint32_t temp_register = PushSystemTemp();
+
+  // TODO(Triang3l): Alpha testing.
+
+  // Apply color exponent bias (need to use a temporary register because
+  // indexable temps are load/store).
+  rdef_constants_used_ |= 1ull
+                          << uint32_t(RdefConstantIndex::kSysColorExpBias);
+  for (uint32_t i = 0; i < 4; ++i) {
+    // Load the color from the indexable temp.
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(6));
+    shader_code_.push_back(
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+    shader_code_.push_back(temp_register);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_INDEXABLE_TEMP, kSwizzleXYZW, 2));
+    shader_code_.push_back(color_indexable_temp);
+    shader_code_.push_back(i);
+    ++stat_.instruction_count;
+    ++stat_.array_instruction_count;
+    // Multiply by the exponent bias (the constant contains 2.0^b).
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MUL) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
+    shader_code_.push_back(
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+    shader_code_.push_back(temp_register);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+    shader_code_.push_back(temp_register);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
+        i | (i << 2) | (i << 4) | (i << 6), 3));
+    shader_code_.push_back(uint32_t(RdefConstantBufferIndex::kSystemConstants));
+    shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
+    shader_code_.push_back(kSysConst_ColorExpBias_Vec);
+    ++stat_.instruction_count;
+    ++stat_.float_instruction_count;
+    // Store the biased color back to the indexable temp.
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(6));
+    shader_code_.push_back(EncodeVectorMaskedOperand(
+        D3D10_SB_OPERAND_TYPE_INDEXABLE_TEMP, 0b1111, 2));
+    shader_code_.push_back(color_indexable_temp);
+    shader_code_.push_back(i);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+    shader_code_.push_back(temp_register);
+    ++stat_.instruction_count;
+    ++stat_.array_instruction_count;
+  }
+
+  // Remap guest render target indices to host since because on the host, the
+  // indices of the bound render targets are consecutive.
+  // temp = xe_color_output_map
+  // SV_Target0 = oC[temp.x]
+  // SV_Target1 = oC[temp.y]
+  // SV_Target2 = oC[temp.z]
+  // SV_Target3 = oC[temp.w]
+  //
+  // Load the constant to a temporary register so it can be used for relative
+  // addressing.
+  rdef_constants_used_ |= 1ull
+                          << uint32_t(RdefConstantIndex::kSysColorOutputMap);
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+  shader_code_.push_back(temp_register);
+  shader_code_.push_back(EncodeVectorSwizzledOperand(
+      D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSwizzleXYZW, 3));
+  shader_code_.push_back(uint32_t(RdefConstantBufferIndex::kSystemConstants));
+  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
+  shader_code_.push_back(kSysConst_ColorOutputMap_Vec);
+  ++stat_.instruction_count;
+  ++stat_.mov_instruction_count;
+  // Do the remapping.
+  for (uint32_t i = 0; i < 4; ++i) {
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+    shader_code_.push_back(
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_OUTPUT, 0b1111, 1));
+    shader_code_.push_back(i);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_INDEXABLE_TEMP, kSwizzleXYZW, 2,
+        D3D10_SB_OPERAND_INDEX_IMMEDIATE32,
+        D3D10_SB_OPERAND_INDEX_RELATIVE));
+    shader_code_.push_back(color_indexable_temp);
+    shader_code_.push_back(
+        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, i, 1));
+    shader_code_.push_back(temp_register);
+    ++stat_.instruction_count;
+    ++stat_.array_instruction_count;
+  }
+
+  // Free the temporary register.
+  PopSystemTemp();
+}
 
 void DxbcShaderTranslator::CompleteShaderCode() {
   // Release the following system temporary values so epilogue can reuse them:
@@ -1279,8 +1418,6 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
         break;
 
       case InstructionStorageTarget::kPosition:
-        // TODO(Triang3l): Change to a temporary register because of vtx_fmt,
-        // drawing without a viewport and half-pixel offset.
         ++stat_.instruction_count;
         ++stat_.mov_instruction_count;
         shader_code_.push_back(
@@ -1288,8 +1425,8 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3 + source_length) |
             saturate_bit);
         shader_code_.push_back(
-            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_OUTPUT, mask, 1));
-        shader_code_.push_back(kVSOutPositionRegister);
+            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, mask, 1));
+        shader_code_.push_back(system_temp_position_);
         break;
 
       case InstructionStorageTarget::kColorTarget:
@@ -3323,38 +3460,17 @@ void DxbcShaderTranslator::WriteShaderCode() {
   }
 
   // Initialize the depth output if used, which must be initialized on every
-  // execution path, and also initialize color outputs to make them stable if
-  // the shader somehow didn't write to them on its execution path.
-  if (is_pixel_shader()) {
-    for (uint32_t i = 0; i < 4; ++i) {
-      shader_object_.push_back(
-          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-      shader_object_.push_back(EncodeVectorMaskedOperand(
-          D3D10_SB_OPERAND_TYPE_INDEXABLE_TEMP, 0b1111, 2));
-      shader_object_.push_back(GetColorIndexableTemp());
-      shader_object_.push_back(i);
-      shader_object_.push_back(EncodeVectorSwizzledOperand(
-          D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-      shader_object_.push_back(0);
-      shader_object_.push_back(0);
-      shader_object_.push_back(0);
-      shader_object_.push_back(0);
-      ++stat_.instruction_count;
-      ++stat_.array_instruction_count;
-    }
-    if (writes_depth_) {
-      shader_object_.push_back(
-          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4));
-      shader_object_.push_back(
-          EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_OUTPUT_DEPTH, 0));
-      shader_object_.push_back(
-          EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-      shader_object_.push_back(0);
-      ++stat_.instruction_count;
-      ++stat_.mov_instruction_count;
-    }
+  // execution path.
+  if (is_pixel_shader() && writes_depth_) {
+    shader_object_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4));
+    shader_object_.push_back(
+        EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_OUTPUT_DEPTH, 0));
+    shader_object_.push_back(
+        EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+    shader_object_.push_back(0);
+    ++stat_.instruction_count;
+    ++stat_.mov_instruction_count;
   }
 
   // Write the translated shader code.

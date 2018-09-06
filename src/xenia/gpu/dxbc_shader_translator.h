@@ -403,6 +403,10 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // remaining to loop.
   uint32_t system_temp_loop_count_;
 
+  // Position in vertex shaders (because viewport and W transformations can be
+  // applied in the end of the shader).
+  uint32_t system_temp_position_;
+
   bool writes_depth_;
 
   // The STAT chunk (based on Wine d3dcompiler_parse_stat).
