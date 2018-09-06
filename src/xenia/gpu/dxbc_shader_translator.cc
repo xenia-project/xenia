@@ -1796,13 +1796,14 @@ void DxbcShaderTranslator::ProcessVertexFetchInstruction(
       assert_unhandled_case(instr.attributes.data_format);
       return;
   }
-  // Get the resulting component count.
-  uint32_t component_count =
+  // Get the result write mask.
+  uint32_t result_component_count =
       GetVertexFormatComponentCount(instr.attributes.data_format);
-  if (component_count == 0) {
+  if (result_component_count == 0) {
     assert_always();
     return;
   }
+  uint32_t result_write_mask = (1 << result_component_count) - 1;
 
   // TODO(Triang3l): Predicate.
 
@@ -1901,6 +1902,214 @@ void DxbcShaderTranslator::ProcessVertexFetchInstruction(
 
   // Byte swap the data.
   SwapVertexData(vfetch_index, (1 << load_dword_count) - 1);
+
+  // Get the data needed for unpacking and converting.
+  bool extract_signed = instr.attributes.is_signed;
+  uint32_t extract_widths[4] = {}, extract_offsets[4] = {};
+  uint32_t extract_swizzle = kSwizzleXXXX;
+  float normalize_scales[4] = {};
+  switch (instr.attributes.data_format) {
+    case VertexFormat::k_8_8_8_8:
+      extract_widths[0] = extract_widths[1] = extract_widths[2] =
+          extract_widths[3] = 8;
+      // Assuming little endian ByteAddressBuffer Load.
+      extract_offsets[1] = 8;
+      extract_offsets[2] = 16;
+      extract_offsets[3] = 24;
+      normalize_scales[0] = normalize_scales[1] = normalize_scales[2] =
+          normalize_scales[3] = instr.attributes.is_signed ? (1.0f / 127.0f)
+                                                           : (1.0f / 255.0f);
+      break;
+    case VertexFormat::k_2_10_10_10:
+      extract_widths[0] = extract_widths[1] = extract_widths[2] = 10;
+      extract_widths[3] = 2;
+      extract_offsets[1] = 10;
+      extract_offsets[2] = 20;
+      extract_offsets[3] = 30;
+      normalize_scales[0] = normalize_scales[1] = normalize_scales[2] =
+          instr.attributes.is_signed ? (1.0f / 511.0f) : (1.0f / 1023.0f);
+      normalize_scales[3] = instr.attributes.is_signed ? 1.0f : (1.0f / 3.0f);
+      break;
+    case VertexFormat::k_10_11_11:
+      extract_widths[0] = extract_widths[1] = 11;
+      extract_widths[2] = 10;
+      extract_offsets[1] = 11;
+      extract_offsets[2] = 22;
+      normalize_scales[0] = normalize_scales[1] =
+          instr.attributes.is_signed ? (1.0f / 1023.0f) : (1.0f / 2047.0f);
+      normalize_scales[2] =
+          instr.attributes.is_signed ? (1.0f / 511.0f) : (1.0f / 1023.0f);
+      break;
+    case VertexFormat::k_11_11_10:
+      extract_widths[0] = 10;
+      extract_widths[1] = extract_widths[2] = 11;
+      extract_offsets[1] = 10;
+      extract_offsets[2] = 21;
+      normalize_scales[0] =
+          instr.attributes.is_signed ? (1.0f / 511.0f) : (1.0f / 1023.0f);
+      normalize_scales[1] = normalize_scales[2] =
+          instr.attributes.is_signed ? (1.0f / 1023.0f) : (1.0f / 2047.0f);
+      break;
+    case VertexFormat::k_16_16:
+      extract_widths[0] = extract_widths[1] = 16;
+      extract_offsets[1] = 16;
+      normalize_scales[0] = normalize_scales[1] =
+          instr.attributes.is_signed ? (1.0f / 32767.0f) : (1.0f / 65535.0f);
+      break;
+    case VertexFormat::k_16_16_16_16:
+      extract_widths[0] = extract_widths[1] = extract_widths[2] =
+          extract_widths[3] = 16;
+      extract_offsets[1] = extract_offsets[3] = 16;
+      extract_swizzle = 0b01010000;
+      normalize_scales[0] = normalize_scales[1] =
+          instr.attributes.is_signed ? (1.0f / 32767.0f) : (1.0f / 65535.0f);
+      break;
+    case VertexFormat::k_16_16_FLOAT:
+      extract_signed = false;
+      extract_widths[0] = extract_widths[1] = 16;
+      extract_offsets[1] = 16;
+      break;
+    case VertexFormat::k_16_16_16_16_FLOAT:
+      extract_signed = false;
+      extract_widths[0] = extract_widths[1] = extract_widths[2] =
+          extract_widths[3] = 16;
+      extract_offsets[1] = extract_offsets[3] = 16;
+      extract_swizzle = 0b01010000;
+      break;
+    // For 32-bit, extraction is not done at all, so its parameters are ignored.
+    case VertexFormat::k_32:
+    case VertexFormat::k_32_32:
+    case VertexFormat::k_32_32_32_32:
+      normalize_scales[0] = normalize_scales[1] = normalize_scales[2] =
+          normalize_scales[3] =
+              instr.attributes.is_signed ? (1.0f / 2147483647.0f)
+                                         : (1.0f / 4294967295.0f);
+      break;
+  }
+
+  // Extract components from packed data if needed.
+  if (extract_widths[0] != 0) {
+    shader_code_.push_back(
+        ENCODE_D3D10_SB_OPCODE_TYPE(extract_signed ? D3D11_SB_OPCODE_IBFE
+                                                   : D3D11_SB_OPCODE_UBFE) |
+        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(15));
+    shader_code_.push_back(EncodeVectorMaskedOperand(
+        D3D10_SB_OPERAND_TYPE_TEMP, result_write_mask, 1));
+    shader_code_.push_back(system_temp_pv_);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+    shader_code_.push_back(extract_widths[0]);
+    shader_code_.push_back(extract_widths[1]);
+    shader_code_.push_back(extract_widths[2]);
+    shader_code_.push_back(extract_widths[3]);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+    shader_code_.push_back(extract_offsets[0]);
+    shader_code_.push_back(extract_offsets[1]);
+    shader_code_.push_back(extract_offsets[2]);
+    shader_code_.push_back(extract_offsets[3]);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_TEMP, extract_swizzle, 1));
+    shader_code_.push_back(system_temp_pv_);
+    ++stat_.instruction_count;
+    if (extract_signed) {
+      ++stat_.int_instruction_count;
+    } else {
+      ++stat_.uint_instruction_count;
+    }
+  }
+
+  // Convert to float and normalize if needed.
+  if (instr.attributes.data_format == VertexFormat::k_16_16_FLOAT ||
+      instr.attributes.data_format == VertexFormat::k_16_16_16_16_FLOAT) {
+    shader_code_.push_back(
+        ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_F16TOF32) |
+        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
+    shader_code_.push_back(EncodeVectorMaskedOperand(
+        D3D10_SB_OPERAND_TYPE_TEMP, result_write_mask, 1));
+    shader_code_.push_back(system_temp_pv_);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+    shader_code_.push_back(system_temp_pv_);
+    ++stat_.instruction_count;
+    ++stat_.conversion_instruction_count;
+  } else if (normalize_scales[0] != 0.0f) {
+    // If no normalize_scales, it's a float value already. Otherwise, convert to
+    // float and normalize if needed.
+    shader_code_.push_back(
+        ENCODE_D3D10_SB_OPCODE_TYPE(
+            instr.attributes.is_signed ? D3D10_SB_OPCODE_ITOF
+                                       : D3D10_SB_OPCODE_UTOF) |
+        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
+    shader_code_.push_back(EncodeVectorMaskedOperand(
+        D3D10_SB_OPERAND_TYPE_TEMP, result_write_mask, 1));
+    shader_code_.push_back(system_temp_pv_);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+    shader_code_.push_back(system_temp_pv_);
+    ++stat_.instruction_count;
+    ++stat_.conversion_instruction_count;
+    if (!instr.attributes.is_integer) {
+      // Normalize.
+      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MUL) |
+                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(10));
+      shader_code_.push_back(EncodeVectorMaskedOperand(
+          D3D10_SB_OPERAND_TYPE_TEMP, result_write_mask, 1));
+      shader_code_.push_back(system_temp_pv_);
+      shader_code_.push_back(EncodeVectorSwizzledOperand(
+          D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+      shader_code_.push_back(system_temp_pv_);
+      shader_code_.push_back(EncodeVectorSwizzledOperand(
+          D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+      for (uint32_t i = 0; i < 4; ++i) {
+        shader_code_.push_back(
+            reinterpret_cast<const uint32_t*>(normalize_scales)[i]);
+      }
+      ++stat_.instruction_count;
+      ++stat_.float_instruction_count;
+      // Clamp to -1 (both -127 and -128 should be -1 in graphics APIs for
+      // snorm8).
+      if (instr.attributes.is_signed) {
+        shader_code_.push_back(
+            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MAX) |
+            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(10));
+        shader_code_.push_back(EncodeVectorMaskedOperand(
+            D3D10_SB_OPERAND_TYPE_TEMP, result_write_mask, 1));
+        shader_code_.push_back(system_temp_pv_);
+        shader_code_.push_back(EncodeVectorSwizzledOperand(
+            D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+        shader_code_.push_back(system_temp_pv_);
+        shader_code_.push_back(EncodeVectorSwizzledOperand(
+            D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+        shader_code_.push_back(0xBF800000u);
+        shader_code_.push_back(0xBF800000u);
+        shader_code_.push_back(0xBF800000u);
+        shader_code_.push_back(0xBF800000u);
+        ++stat_.instruction_count;
+        ++stat_.float_instruction_count;
+      }
+    }
+  }
+
+  // Zero unused components if loaded a 32-bit component (because it's not
+  // bfe'd, in this case, the unused components would have been zeroed already).
+  if (extract_widths[0] == 0 && result_write_mask != 0b1111) {
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(8));
+    shader_code_.push_back(EncodeVectorMaskedOperand(
+        D3D10_SB_OPERAND_TYPE_TEMP, 0b1111 & ~result_write_mask, 1));
+    shader_code_.push_back(system_temp_pv_);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+    shader_code_.push_back(0);
+    shader_code_.push_back(0);
+    shader_code_.push_back(0);
+    shader_code_.push_back(0);
+    ++stat_.instruction_count;
+    ++stat_.mov_instruction_count;
+  }
+
+  StoreResult(instr.result, system_temp_pv_, false);
 }
 
 void DxbcShaderTranslator::ProcessVectorAluInstruction(
