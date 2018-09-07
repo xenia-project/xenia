@@ -2106,6 +2106,28 @@ void DxbcShaderTranslator::ProcessVertexFetchInstruction(
     ++stat_.mov_instruction_count;
   }
 
+  // Apply the exponent bias.
+  if (instr.attributes.exp_adjust != 0) {
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MUL) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(10));
+    shader_code_.push_back(EncodeVectorMaskedOperand(
+        D3D10_SB_OPERAND_TYPE_TEMP, result_write_mask, 1));
+    shader_code_.push_back(system_temp_pv_);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+    shader_code_.push_back(system_temp_pv_);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+    uint32_t exp_adjust_scale =
+        uint32_t(0x3F800000 + (instr.attributes.exp_adjust << 23));
+    shader_code_.push_back(exp_adjust_scale);
+    shader_code_.push_back(exp_adjust_scale);
+    shader_code_.push_back(exp_adjust_scale);
+    shader_code_.push_back(exp_adjust_scale);
+    ++stat_.instruction_count;
+    ++stat_.float_instruction_count;
+  }
+
   StoreResult(instr.result, system_temp_pv_, false);
 }
 
