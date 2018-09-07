@@ -457,22 +457,23 @@ void DxbcShaderTranslator::StartPixelShader() {
 
   // Initialize color indexable temporary registers so they have a defined value
   // in case the shader doesn't write to all used outputs on all execution
-  // paths. This must be done via r#.
-  uint32_t zero_temp_register = PushSystemTemp(true);
+  // paths.
   for (uint32_t i = 0; i < 4; ++i) {
     shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(6));
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
     shader_code_.push_back(EncodeVectorMaskedOperand(
         D3D10_SB_OPERAND_TYPE_INDEXABLE_TEMP, 0b1111, 2));
     shader_code_.push_back(GetColorIndexableTemp());
     shader_code_.push_back(i);
     shader_code_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-    shader_code_.push_back(zero_temp_register);
+        D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+    shader_code_.push_back(0);
+    shader_code_.push_back(0);
+    shader_code_.push_back(0);
+    shader_code_.push_back(0);
     ++stat_.instruction_count;
     ++stat_.array_instruction_count;
   }
-  PopSystemTemp();
 }
 
 void DxbcShaderTranslator::StartTranslation() {
@@ -1424,31 +1425,6 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
     }
   }
 
-  // If writing to an indexable temp, the constant part must be written via r#.
-  uint32_t constant_temp = UINT32_MAX;
-  if (constant_mask != 0) {
-    if ((result.storage_target == InstructionStorageTarget::kRegister &&
-         uses_register_dynamic_addressing()) ||
-        result.storage_target == InstructionStorageTarget::kColorTarget) {
-      constant_temp = PushSystemTemp();
-    }
-  }
-  if (constant_temp != UINT32_MAX) {
-    // Load constants to r#.
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(8));
-    shader_code_.push_back(EncodeVectorMaskedOperand(
-        D3D10_SB_OPERAND_TYPE_TEMP, constant_mask, 1));
-    shader_code_.push_back(constant_temp);
-    shader_code_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-    for (uint32_t j = 0; j < 4; ++j) {
-      shader_code_.push_back((constant_values & (1 << j)) ? 0x3F800000 : 0);
-    }
-    ++stat_.instruction_count;
-    ++stat_.mov_instruction_count;
-  }
-
   // Store both parts of the write (i == 0 - swizzled, i == 1 - constant).
   for (uint32_t i = 0; i < 2; ++i) {
     uint32_t mask = i == 0 ? swizzle_mask : constant_mask;
@@ -1457,7 +1433,7 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
     }
 
     // r# for the swizzled part, 4-component imm32 for the constant part.
-    uint32_t source_length = (i == 1 && constant_temp == UINT32_MAX) ? 5 : 2;
+    uint32_t source_length = i != 0 ? 5 : 2;
     switch (result.storage_target) {
       case InstructionStorageTarget::kRegister:
         if (uses_register_dynamic_addressing()) {
@@ -1555,25 +1531,13 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
           D3D10_SB_OPERAND_TYPE_TEMP, swizzle_components, 1));
       shader_code_.push_back(reg);
     } else {
-      if (constant_temp != UINT32_MAX) {
-        // Load constants from the r#.
-        shader_code_.push_back(EncodeVectorSwizzledOperand(
-            D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-        shader_code_.push_back(constant_temp);
-      } else {
-        // Load constants from an immediate.
-        shader_code_.push_back(EncodeVectorSwizzledOperand(
-            D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-        for (uint32_t j = 0; j < 4; ++j) {
-          shader_code_.push_back((constant_values & (1 << j)) ? 0x3F800000 : 0);
-        }
+      // Load constants.
+      shader_code_.push_back(EncodeVectorSwizzledOperand(
+          D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+      for (uint32_t j = 0; j < 4; ++j) {
+        shader_code_.push_back((constant_values & (1 << j)) ? 0x3F800000 : 0);
       }
     }
-  }
-
-  // Free the r# with constants if used.
-  if (constant_temp != UINT32_MAX) {
-    PopSystemTemp();
   }
 }
 
