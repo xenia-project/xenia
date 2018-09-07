@@ -196,9 +196,9 @@ enum class ColorFormat : uint32_t {
   k_32_FLOAT = 36,
   k_32_32_FLOAT = 37,
   k_32_32_32_32_FLOAT = 38,
-  k_2_10_10_10_FLOAT = 62,
-
-  kUnknown0x36 = 0x36,  // not sure, but like 8888
+  k_2_10_10_10_AS_16_16_16_16 = 54,
+  k_8_8_8_8_GAMMA = 62,
+  k_2_10_10_10_FLOAT = 63,
 };
 
 enum class VertexFormat : uint32_t {
