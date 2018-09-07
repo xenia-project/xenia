@@ -414,24 +414,22 @@ void DxbcShaderTranslator::StartPixelShader() {
     ++stat_.instruction_count;
     if (uses_register_dynamic_addressing()) {
       ++stat_.array_instruction_count;
-      shader_object_.push_back(
-          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(6));
-      shader_object_.push_back(EncodeVectorMaskedOperand(
+      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(6));
+      shader_code_.push_back(EncodeVectorMaskedOperand(
           D3D10_SB_OPERAND_TYPE_INDEXABLE_TEMP, 0b1111, 2));
-      shader_object_.push_back(0);
+      shader_code_.push_back(0);
     } else {
       ++stat_.mov_instruction_count;
-      shader_object_.push_back(
-          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
-      shader_object_.push_back(
+      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
+      shader_code_.push_back(
           EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
     }
-    shader_object_.push_back(i);
-    shader_object_.push_back(EncodeVectorSwizzledOperand(
+    shader_code_.push_back(i);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
         D3D10_SB_OPERAND_TYPE_INPUT, kSwizzleXYZW, 1));
-    shader_object_.push_back(kPSInInterpolatorRegister + i);
+    shader_code_.push_back(kPSInInterpolatorRegister + i);
   }
 
   // TODO(Triang3l): ps_param_gen.
@@ -440,19 +438,18 @@ void DxbcShaderTranslator::StartPixelShader() {
   // in case the shader doesn't write to all used outputs on all execution
   // paths.
   for (uint32_t i = 0; i < 4; ++i) {
-    shader_object_.push_back(
-        ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-    shader_object_.push_back(EncodeVectorMaskedOperand(
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
+    shader_code_.push_back(EncodeVectorMaskedOperand(
         D3D10_SB_OPERAND_TYPE_INDEXABLE_TEMP, 0b1111, 2));
-    shader_object_.push_back(GetColorIndexableTemp());
-    shader_object_.push_back(i);
-    shader_object_.push_back(EncodeVectorSwizzledOperand(
+    shader_code_.push_back(GetColorIndexableTemp());
+    shader_code_.push_back(i);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
         D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-    shader_object_.push_back(0);
-    shader_object_.push_back(0);
-    shader_object_.push_back(0);
-    shader_object_.push_back(0);
+    shader_code_.push_back(0);
+    shader_code_.push_back(0);
+    shader_code_.push_back(0);
+    shader_code_.push_back(0);
     ++stat_.instruction_count;
     ++stat_.array_instruction_count;
   }
