@@ -187,7 +187,7 @@ void DxbcShaderTranslator::StartVertexShader_LoadVertexIndex() {
   ++stat_.uint_instruction_count;
 
   // Get bits indicating what swaps should be done.
-  // ubfe reg.zw, l(1, 1), l(0, 1), xe_vertex_index_endian.xx
+  // ubfe reg.zw, l(0, 0, 1, 1).zw, l(0, 0, 0, 1).zw, xe_vertex_index_endian.xx
   // ABCD | BADC | 8in16/16in32? | 8in32/16in32?
   shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_UBFE) |
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(17));
@@ -196,16 +196,16 @@ void DxbcShaderTranslator::StartVertexShader_LoadVertexIndex() {
   shader_code_.push_back(reg);
   shader_code_.push_back(EncodeVectorSwizzledOperand(
       D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-  shader_code_.push_back(1);
-  shader_code_.push_back(1);
   shader_code_.push_back(0);
   shader_code_.push_back(0);
+  shader_code_.push_back(1);
+  shader_code_.push_back(1);
   shader_code_.push_back(EncodeVectorSwizzledOperand(
       D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
   shader_code_.push_back(0);
+  shader_code_.push_back(0);
+  shader_code_.push_back(0);
   shader_code_.push_back(1);
-  shader_code_.push_back(0);
-  shader_code_.push_back(0);
   rdef_constants_used_ |= 1ull
                           << uint32_t(RdefConstantIndex::kSysVertexIndexEndian);
   shader_code_.push_back(EncodeVectorReplicatedOperand(
@@ -1363,13 +1363,13 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
   }
 
   // Get the write masks and data required for loading of both the swizzled part
-  // and the constant (zero/one) part.
+  // and the constant (zero/one) part. The write mask is treated also as a read
+  // mask in DXBC, and `mov r0.zw, r1.xyzw` actually means r0.zw = r1.zw, not
+  // r0.zw = r1.xy.
   uint32_t swizzle_mask = 0;
   uint32_t swizzle_components = 0;
-  uint32_t swizzle_shift = 0;
   uint32_t constant_mask = 0;
   uint32_t constant_values = 0;
-  uint32_t constant_shift = 0;
   for (uint32_t i = 0; i < 4; ++i) {
     if (!result.write_mask[i]) {
       continue;
@@ -1379,14 +1379,11 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
       swizzle_mask |= 1 << i;
       // If replicating X, just keep zero swizzle (XXXX).
       if (!replicate_x) {
-        swizzle_components |= uint32_t(component) << swizzle_shift;
-        swizzle_shift += 2;
+        swizzle_components |= uint32_t(component) << (i * 2);
       }
     } else {
       constant_mask |= 1 << i;
-      constant_values |= (component == SwizzleSource::k1 ? 1 : 0)
-                         << constant_shift;
-      ++constant_shift;
+      constant_values |= (component == SwizzleSource::k1 ? 1 : 0) << i;
     }
   }
 
@@ -2441,7 +2438,7 @@ void DxbcShaderTranslator::ProcessVectorAluInstruction(
       shader_code_.push_back(system_temp_pv_);
       if (instr.vector_opcode != AluVectorOpcode::kSetpGtPush) {
         // lt in DXBC, not gt.
-        UseDxbcSourceOperand(dxbc_operands[1], 0b11001100);
+        UseDxbcSourceOperand(dxbc_operands[1], 0b11000000);
       }
       shader_code_.push_back(EncodeVectorSwizzledOperand(
           D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
@@ -2450,7 +2447,7 @@ void DxbcShaderTranslator::ProcessVectorAluInstruction(
       shader_code_.push_back(0);
       shader_code_.push_back(0);
       if (instr.vector_opcode == AluVectorOpcode::kSetpGtPush) {
-        UseDxbcSourceOperand(dxbc_operands[1], 0b11001100);
+        UseDxbcSourceOperand(dxbc_operands[1], 0b11000000);
       }
       ++stat_.instruction_count;
       ++stat_.float_instruction_count;
