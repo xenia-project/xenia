@@ -491,7 +491,52 @@ void DxbcShaderTranslator::StartTranslation() {
 }
 
 void DxbcShaderTranslator::CompleteVertexShader() {
-  // TODO(Triang3l): vtx_fmt, disabled viewport, half pixel offset.
+  // TODO(Triang3l): vtx_fmt.
+
+  // Apply scale for drawing without a viewport.
+  rdef_constants_used_ |= 1ull << uint32_t(RdefConstantIndex::kSysNDCScale);
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MUL) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0111, 1));
+  shader_code_.push_back(system_temp_position_);
+  shader_code_.push_back(
+      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+  shader_code_.push_back(system_temp_position_);
+  shader_code_.push_back(EncodeVectorSwizzledOperand(
+      D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
+      kSysConst_NDCScale_Comp | ((kSysConst_NDCScale_Comp + 1) << 2) |
+      ((kSysConst_NDCScale_Comp + 2) << 4), 3));
+  shader_code_.push_back(uint32_t(RdefConstantBufferIndex::kSystemConstants));
+  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
+  shader_code_.push_back(kSysConst_NDCScale_Vec);
+  ++stat_.instruction_count;
+  ++stat_.float_instruction_count;
+
+  // Apply offset (multiplied by W) for drawing without a viewport and for half
+  // pixel offset.
+  rdef_constants_used_ |= 1ull << uint32_t(RdefConstantIndex::kSysNDCOffset);
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MAD) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(11));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0111, 1));
+  shader_code_.push_back(system_temp_position_);
+  shader_code_.push_back(EncodeVectorSwizzledOperand(
+      D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
+      kSysConst_NDCOffset_Comp | ((kSysConst_NDCOffset_Comp + 1) << 2) |
+      ((kSysConst_NDCOffset_Comp + 2) << 4), 3));
+  shader_code_.push_back(uint32_t(RdefConstantBufferIndex::kSystemConstants));
+  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
+  shader_code_.push_back(kSysConst_NDCOffset_Vec);
+  shader_code_.push_back(
+      EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 3, 1));
+  shader_code_.push_back(system_temp_position_);
+  shader_code_.push_back(
+      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+  shader_code_.push_back(system_temp_position_);
+  ++stat_.instruction_count;
+  ++stat_.float_instruction_count;
+
   // Write the position to the output.
   shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
