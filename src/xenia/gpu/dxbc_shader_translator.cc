@@ -9,6 +9,8 @@
 
 #include "xenia/gpu/dxbc_shader_translator.h"
 
+#include <gflags/gflags.h>
+
 #include <algorithm>
 #include <cstring>
 
@@ -17,6 +19,12 @@
 
 #include "xenia/base/assert.h"
 #include "xenia/base/math.h"
+
+DEFINE_bool(dxbc_indexable_temps, false,
+            "Use indexable temporary registers in translated DXBC shaders for "
+            "relative addressing of general-purpose registers - shaders rarely "
+            "do that, but when they do, this may improve performance on AMD, "
+            "but may cause GPU hangs on Nvidia.");
 
 namespace xe {
 namespace gpu {
@@ -35,7 +43,8 @@ using namespace ucode;
 // - x# (indexable temporary registers) are 4-component (though not sure what
 //   happens if you dcl them as 1-component) and can be accessed either via
 //   a mov load or a mov store (and those movs are counted as ArrayInstructions
-//   in STAT, not as MovInstructions).
+//   in STAT, not as MovInstructions). They may hang Nvidia GPUs totally though
+//   (happened on GTX 850M).
 //
 // Indexing:
 // - Constant buffers use 3D indices in CBx[y][z] format, where x is the ID of
@@ -67,7 +76,7 @@ void DxbcShaderTranslator::Reset() {
 
 uint32_t DxbcShaderTranslator::PushSystemTemp(bool zero) {
   uint32_t register_index = system_temp_count_current_;
-  if (!uses_register_dynamic_addressing()) {
+  if (!IndexableGPRsUsed()) {
     // Guest shader registers first if they're not in x0.
     register_index += register_count();
   }
@@ -99,6 +108,10 @@ void DxbcShaderTranslator::PopSystemTemp(uint32_t count) {
   system_temp_count_current_ -= std::min(count, system_temp_count_current_);
 }
 
+bool DxbcShaderTranslator::IndexableGPRsUsed() const {
+  return FLAGS_dxbc_indexable_temps && uses_register_dynamic_addressing();
+}
+
 void DxbcShaderTranslator::StartVertexShader_LoadVertexIndex() {
   // Vertex index is in an input bound to SV_VertexID, byte swapped according to
   // xe_vertex_index_endian system constant and written to GPR 0 (which is
@@ -114,7 +127,7 @@ void DxbcShaderTranslator::StartVertexShader_LoadVertexIndex() {
   // Write to GPR 0 - either directly if not using indexable registers, or via a
   // system temporary register.
   uint32_t reg;
-  if (uses_register_dynamic_addressing()) {
+  if (IndexableGPRsUsed()) {
     reg = PushSystemTemp();
   } else {
     reg = 0;
@@ -349,7 +362,7 @@ void DxbcShaderTranslator::StartVertexShader_LoadVertexIndex() {
   ++stat_.instruction_count;
   ++stat_.conversion_instruction_count;
 
-  if (uses_register_dynamic_addressing()) {
+  if (IndexableGPRsUsed()) {
     // Store to indexed GPR 0 in x0[0].
     shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
                            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(6));
@@ -410,7 +423,7 @@ void DxbcShaderTranslator::StartVertexShader() {
 void DxbcShaderTranslator::StartPixelShader() {
   // Copy interpolants to GPRs.
   uint32_t interpolator_count = std::min(kInterpolatorCount, register_count());
-  if (uses_register_dynamic_addressing()) {
+  if (IndexableGPRsUsed()) {
     // Copy through r# to x0[#].
     uint32_t interpolator_temp_register = PushSystemTemp();
     for (uint32_t i = 0; i < interpolator_count; ++i) {
@@ -454,26 +467,6 @@ void DxbcShaderTranslator::StartPixelShader() {
   }
 
   // TODO(Triang3l): ps_param_gen.
-
-  // Initialize color indexable temporary registers so they have a defined value
-  // in case the shader doesn't write to all used outputs on all execution
-  // paths.
-  for (uint32_t i = 0; i < 4; ++i) {
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-    shader_code_.push_back(EncodeVectorMaskedOperand(
-        D3D10_SB_OPERAND_TYPE_INDEXABLE_TEMP, 0b1111, 2));
-    shader_code_.push_back(GetColorIndexableTemp());
-    shader_code_.push_back(i);
-    shader_code_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-    shader_code_.push_back(0);
-    shader_code_.push_back(0);
-    shader_code_.push_back(0);
-    shader_code_.push_back(0);
-    ++stat_.instruction_count;
-    ++stat_.array_instruction_count;
-  }
 }
 
 void DxbcShaderTranslator::StartTranslation() {
@@ -484,6 +477,10 @@ void DxbcShaderTranslator::StartTranslation() {
   system_temp_loop_count_ = PushSystemTemp(true);
   if (is_vertex_shader()) {
     system_temp_position_ = PushSystemTemp(true);
+  } else if (is_pixel_shader()) {
+    for (uint32_t i = 0; i < 4; ++i) {
+      system_temp_color_[i] = PushSystemTemp(true);
+    }
   }
 
   // Write stage-specific prologue.
@@ -510,41 +507,20 @@ void DxbcShaderTranslator::CompleteVertexShader() {
 }
 
 void DxbcShaderTranslator::CompletePixelShader() {
-  uint32_t color_indexable_temp = GetColorIndexableTemp();
-
-  // Allocate temporary registers for alpha testing, color indexable temp
-  // load/store and storing the color output map.
-  uint32_t temp1 = PushSystemTemp();
-  uint32_t temp2 = PushSystemTemp();
-
   // TODO(Triang3l): Alpha testing.
 
-  // Apply color exponent bias (need to use a temporary register because
-  // indexable temps are load/store).
+  // Apply color exponent bias (the constant contains 2.0^bias).
   rdef_constants_used_ |= 1ull
                           << uint32_t(RdefConstantIndex::kSysColorExpBias);
   for (uint32_t i = 0; i < 4; ++i) {
-    // Load the color from the indexable temp.
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(6));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
-    shader_code_.push_back(temp1);
-    shader_code_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_INDEXABLE_TEMP, kSwizzleXYZW, 2));
-    shader_code_.push_back(color_indexable_temp);
-    shader_code_.push_back(i);
-    ++stat_.instruction_count;
-    ++stat_.array_instruction_count;
-    // Multiply by the exponent bias (the constant contains 2.0^b).
     shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MUL) |
                            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
     shader_code_.push_back(
         EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
-    shader_code_.push_back(temp1);
+    shader_code_.push_back(system_temp_color_[i]);
     shader_code_.push_back(EncodeVectorSwizzledOperand(
         D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-    shader_code_.push_back(temp1);
+    shader_code_.push_back(system_temp_color_[i]);
     shader_code_.push_back(EncodeVectorReplicatedOperand(
         D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, i, 3));
     shader_code_.push_back(uint32_t(RdefConstantBufferIndex::kSystemConstants));
@@ -552,84 +528,81 @@ void DxbcShaderTranslator::CompletePixelShader() {
     shader_code_.push_back(kSysConst_ColorExpBias_Vec);
     ++stat_.instruction_count;
     ++stat_.float_instruction_count;
-    // Store the biased color back to the indexable temp.
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(6));
-    shader_code_.push_back(EncodeVectorMaskedOperand(
-        D3D10_SB_OPERAND_TYPE_INDEXABLE_TEMP, 0b1111, 2));
-    shader_code_.push_back(color_indexable_temp);
-    shader_code_.push_back(i);
-    shader_code_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-    shader_code_.push_back(temp1);
-    ++stat_.instruction_count;
-    ++stat_.array_instruction_count;
   }
 
   // Remap guest render target indices to host since because on the host, the
-  // indices of the bound render targets are consecutive.
-  // temp1 = xe_color_output_map
-  // temp2 = oC[temp1.x]
-  // SV_Target0 = temp2
-  // temp2 = oC[temp1.y]
-  // SV_Target1 = temp2
-  // temp2 = oC[temp1.w]
-  // SV_Target2 = temp2
-  // temp2 = oC[temp1.z]
-  // SV_Target3 = temp2
-  //
-  // Load the constant to a temporary register so it can be used for relative
-  // addressing.
+  // indices of the bound render targets are consecutive. This is done using 16
+  // movc instructions because indexable temps hang Nvidia GPUs like GTX 850M.
+  // In the map, the components are host render target indices, and the values
+  // are the guest ones.
+  uint32_t remap_movc_mask_register = PushSystemTemp();
+  uint32_t remap_movc_target_register = PushSystemTemp();
   rdef_constants_used_ |= 1ull
                           << uint32_t(RdefConstantIndex::kSysColorOutputMap);
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
-  shader_code_.push_back(temp1);
-  shader_code_.push_back(EncodeVectorSwizzledOperand(
-      D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSwizzleXYZW, 3));
-  shader_code_.push_back(uint32_t(RdefConstantBufferIndex::kSystemConstants));
-  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-  shader_code_.push_back(kSysConst_ColorOutputMap_Vec);
-  ++stat_.instruction_count;
-  ++stat_.mov_instruction_count;
-  // Do the remapping.
+  // Host RT i, guest RT j.
   for (uint32_t i = 0; i < 4; ++i) {
-    // Copy to r# because indexable temps must be loaded/stored via r#.
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+    // mask = map.iiii == (0, 1, 2, 3)
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IEQ) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(12));
     shader_code_.push_back(
         EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
-    shader_code_.push_back(temp2);
+    shader_code_.push_back(remap_movc_mask_register);
+    shader_code_.push_back(EncodeVectorReplicatedOperand(
+        D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, i, 3));
+    shader_code_.push_back(uint32_t(RdefConstantBufferIndex::kSystemConstants));
+    shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
+    shader_code_.push_back(kSysConst_ColorOutputMap_Vec);
     shader_code_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_INDEXABLE_TEMP, kSwizzleXYZW, 2,
-        D3D10_SB_OPERAND_INDEX_IMMEDIATE32,
-        D3D10_SB_OPERAND_INDEX_RELATIVE));
-    shader_code_.push_back(color_indexable_temp);
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, i, 1));
-    shader_code_.push_back(temp1);
+        D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+    shader_code_.push_back(0);
+    shader_code_.push_back(1);
+    shader_code_.push_back(2);
+    shader_code_.push_back(3);
     ++stat_.instruction_count;
-    ++stat_.array_instruction_count;
-    // Write to o#.
+    ++stat_.int_instruction_count;
+    for (uint32_t j = 0; j < 4; ++j) {
+      // If map.i == j, move guest color j to the temporary host color.
+      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
+                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
+      shader_code_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+      shader_code_.push_back(remap_movc_target_register);
+      shader_code_.push_back(
+          EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, j, 1));
+      shader_code_.push_back(remap_movc_mask_register);
+      shader_code_.push_back(EncodeVectorSwizzledOperand(
+          D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+      shader_code_.push_back(system_temp_color_[j]);
+      shader_code_.push_back(EncodeVectorSwizzledOperand(
+          D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+      shader_code_.push_back(remap_movc_target_register);
+      ++stat_.instruction_count;
+      ++stat_.movc_instruction_count;
+    }
+    // Write the remapped color to host render target i.
     shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
                            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
     shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_OUTPUT, 0b1111, 1));
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_OUTPUT, 0b1111, 1));
     shader_code_.push_back(i);
     shader_code_.push_back(EncodeVectorSwizzledOperand(
         D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-    shader_code_.push_back(temp2);
+    shader_code_.push_back(remap_movc_target_register);
     ++stat_.instruction_count;
     ++stat_.mov_instruction_count;
   }
-
-  // Free the temporary registers.
+  // Free the temporary registers used for remapping.
   PopSystemTemp(2);
 }
 
 void DxbcShaderTranslator::CompleteShaderCode() {
+  if (is_vertex_shader()) {
+    // Release system_temp_position_.
+    PopSystemTemp();
+  } else if (is_pixel_shader()) {
+    // Release system_temp_color_.
+    PopSystemTemp(4);
+  }
   // Release the following system temporary values so epilogue can reuse them:
   // - system_temp_pv_.
   // - system_temp_ps_pc_p0_a0_.
@@ -812,7 +785,7 @@ void DxbcShaderTranslator::LoadDxbcSourceOperand(
       // ***********************************************************************
       // General-purpose register
       // ***********************************************************************
-      if (uses_register_dynamic_addressing()) {
+      if (IndexableGPRsUsed()) {
         // GPRs are in x0 - need to load to the intermediate register (indexable
         // temps are only accessible via mov load/store).
         if (dxbc_operand.intermediate_register ==
@@ -852,9 +825,62 @@ void DxbcShaderTranslator::LoadDxbcSourceOperand(
         ++stat_.instruction_count;
         ++stat_.array_instruction_count;
       } else {
-        // GPRs are in r# - can access directly.
-        dxbc_operand.type = DxbcSourceOperand::Type::kRegister;
-        dxbc_operand.index = uint32_t(operand.storage_index);
+        // GPRs are in r# - can access directly if addressed statically, load
+        // by checking every register whether it's the needed one if addressed
+        // dynamically.
+        if (operand.storage_addressing_mode ==
+            InstructionStorageAddressingMode::kStatic) {
+          dxbc_operand.type = DxbcSourceOperand::Type::kRegister;
+          dxbc_operand.index = uint32_t(operand.storage_index);
+        } else {
+          if (dxbc_operand.intermediate_register ==
+              DxbcSourceOperand::kIntermediateRegisterNone) {
+            dxbc_operand.intermediate_register = PushSystemTemp();
+          }
+          dxbc_operand.type = DxbcSourceOperand::Type::kIntermediateRegister;
+          uint32_t gpr_movc_mask_register = PushSystemTemp();
+          for (uint32_t i = 0; i < register_count(); ++i) {
+            if ((i & 3) == 0) {
+              // Compare the dynamic address to each register number to check if
+              // it's the one that's needed.
+              shader_code_.push_back(
+                  ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IEQ) |
+                  ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(10));
+              shader_code_.push_back(EncodeVectorMaskedOperand(
+                  D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+              shader_code_.push_back(gpr_movc_mask_register);
+              shader_code_.push_back(EncodeVectorReplicatedOperand(
+                  D3D10_SB_OPERAND_TYPE_TEMP, dynamic_address_component, 1));
+              shader_code_.push_back(dynamic_address_register);
+              shader_code_.push_back(EncodeVectorSwizzledOperand(
+                  D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+              for (uint32_t j = 0; j < 4; ++j) {
+                shader_code_.push_back(i + j - uint32_t(operand.storage_index));
+              }
+              ++stat_.instruction_count;
+              ++stat_.int_instruction_count;
+            }
+            shader_code_.push_back(
+                ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
+                ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
+            shader_code_.push_back(EncodeVectorMaskedOperand(
+                D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+            shader_code_.push_back(dxbc_operand.intermediate_register);
+            shader_code_.push_back(EncodeVectorReplicatedOperand(
+                D3D10_SB_OPERAND_TYPE_TEMP, i & 3, 1));
+            shader_code_.push_back(gpr_movc_mask_register);
+            shader_code_.push_back(EncodeVectorSwizzledOperand(
+                D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+            shader_code_.push_back(i);
+            shader_code_.push_back(EncodeVectorSwizzledOperand(
+                D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+            shader_code_.push_back(dxbc_operand.intermediate_register);
+            ++stat_.instruction_count;
+            ++stat_.movc_instruction_count;
+          }
+          // Release gpr_movc_mask_register.
+          PopSystemTemp();
+        }
       }
       break;
 
@@ -1425,6 +1451,31 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
     }
   }
 
+  bool is_static = result.storage_addressing_mode ==
+                   InstructionStorageAddressingMode::kStatic;
+  // If the index is dynamic, choose where it's taken from.
+  uint32_t dynamic_address_register;
+  uint32_t dynamic_address_component;
+  if (result.storage_addressing_mode ==
+      InstructionStorageAddressingMode::kAddressRelative) {
+    // Addressed by aL.x.
+    dynamic_address_register = system_temp_aL_;
+    dynamic_address_component = 0;
+  } else {
+    // Addressed by a0.
+    dynamic_address_register = system_temp_ps_pc_p0_a0_;
+    dynamic_address_component = 3;
+  }
+
+  // Temporary registers for storing dynamically indexed GPRs via movc.
+  uint32_t gpr_movc_source_register = UINT32_MAX;
+  uint32_t gpr_movc_mask_register = UINT32_MAX;
+  if (result.storage_target == InstructionStorageTarget::kRegister &&
+      !is_static && !IndexableGPRsUsed()) {
+    gpr_movc_source_register = PushSystemTemp();
+    gpr_movc_mask_register = PushSystemTemp();
+  }
+
   // Store both parts of the write (i == 0 - swizzled, i == 1 - constant).
   for (uint32_t i = 0; i < 2; ++i) {
     uint32_t mask = i == 0 ? swizzle_mask : constant_mask;
@@ -1436,9 +1487,7 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
     uint32_t source_length = i != 0 ? 5 : 2;
     switch (result.storage_target) {
       case InstructionStorageTarget::kRegister:
-        if (uses_register_dynamic_addressing()) {
-          bool is_static = result.storage_addressing_mode ==
-                           InstructionStorageAddressingMode::kStatic;
+        if (IndexableGPRsUsed()) {
           ++stat_.instruction_count;
           ++stat_.array_instruction_count;
           shader_code_.push_back(
@@ -1454,18 +1503,6 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
           shader_code_.push_back(0);
           shader_code_.push_back(uint32_t(result.storage_index));
           if (!is_static) {
-            uint32_t dynamic_address_register;
-            uint32_t dynamic_address_component;
-            if (result.storage_addressing_mode ==
-                InstructionStorageAddressingMode::kAddressRelative) {
-              // Addressed by aL.x.
-              dynamic_address_register = system_temp_aL_;
-              dynamic_address_component = 0;
-            } else {
-              // Addressed by a0.
-              dynamic_address_register = system_temp_ps_pc_p0_a0_;
-              dynamic_address_component = 3;
-            }
             shader_code_.push_back(EncodeVectorSelectOperand(
                 D3D10_SB_OPERAND_TYPE_TEMP, dynamic_address_component, 1));
             shader_code_.push_back(dynamic_address_register);
@@ -1479,7 +1516,8 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
               saturate_bit);
           shader_code_.push_back(
               EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, mask, 1));
-          shader_code_.push_back(uint32_t(result.storage_index));
+          shader_code_.push_back(is_static ? uint32_t(result.storage_index)
+                                           : gpr_movc_source_register);
         }
         break;
 
@@ -1510,15 +1548,15 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
 
       case InstructionStorageTarget::kColorTarget:
         ++stat_.instruction_count;
-        ++stat_.array_instruction_count;
+        ++stat_.mov_instruction_count;
         shader_code_.push_back(
             ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4 + source_length) |
+            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3 + source_length) |
             saturate_bit);
-        shader_code_.push_back(EncodeVectorMaskedOperand(
-            D3D10_SB_OPERAND_TYPE_INDEXABLE_TEMP, mask, 2));
-        shader_code_.push_back(GetColorIndexableTemp());
-        shader_code_.push_back(uint32_t(result.storage_index));
+        shader_code_.push_back(
+            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, mask, 1));
+        shader_code_.push_back(
+            system_temp_color_[uint32_t(result.storage_index)]);
         break;
 
       default:
@@ -1538,6 +1576,50 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
         shader_code_.push_back((constant_values & (1 << j)) ? 0x3F800000 : 0);
       }
     }
+  }
+
+  // Store to the GPR using lots of movc instructions if not using indexable
+  // temps, but the target has a relative address.
+  if (gpr_movc_source_register != UINT32_MAX) {
+    for (uint32_t i = 0; i < register_count(); ++i) {
+      if ((i & 3) == 0) {
+        // Compare the dynamic address to each register number to check if it's
+        // the one that's needed.
+        shader_code_.push_back(
+            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IEQ) |
+            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(10));
+        shader_code_.push_back(
+            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+        shader_code_.push_back(gpr_movc_mask_register);
+        shader_code_.push_back(EncodeVectorReplicatedOperand(
+            D3D10_SB_OPERAND_TYPE_TEMP, dynamic_address_component, 1));
+        shader_code_.push_back(dynamic_address_register);
+        shader_code_.push_back(EncodeVectorSwizzledOperand(
+            D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+        for (uint32_t j = 0; j < 4; ++j) {
+          shader_code_.push_back(i + j - uint32_t(result.storage_index));
+        }
+        ++stat_.instruction_count;
+        ++stat_.int_instruction_count;
+      }
+      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
+                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
+      shader_code_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+      shader_code_.push_back(i);
+      shader_code_.push_back(EncodeVectorReplicatedOperand(
+          D3D10_SB_OPERAND_TYPE_TEMP, i & 3, 1));
+      shader_code_.push_back(gpr_movc_mask_register);
+      shader_code_.push_back(EncodeVectorSwizzledOperand(
+          D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+      shader_code_.push_back(gpr_movc_source_register);
+      shader_code_.push_back(EncodeVectorSwizzledOperand(
+          D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+      shader_code_.push_back(i);
+      ++stat_.instruction_count;
+      ++stat_.movc_instruction_count;
+    }
+    PopSystemTemp(2);
   }
 }
 
@@ -4129,9 +4211,10 @@ void DxbcShaderTranslator::WriteShaderCode() {
 
   // Temporary registers - guest general-purpose registers if not using dynamic
   // indexing and Xenia internal registers.
-  stat_.temp_register_count =
-      (uses_register_dynamic_addressing() ? 0 : register_count()) +
-      system_temp_count_max_;
+  stat_.temp_register_count = system_temp_count_max_;
+  if (!IndexableGPRsUsed()) {
+    stat_.temp_register_count += register_count();
+  }
   if (stat_.temp_register_count != 0) {
     shader_object_.push_back(
         ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_TEMPS) |
@@ -4140,7 +4223,7 @@ void DxbcShaderTranslator::WriteShaderCode() {
   }
 
   // General-purpose registers if using dynamic indexing (x0).
-  if (uses_register_dynamic_addressing()) {
+  if (IndexableGPRsUsed()) {
     shader_object_.push_back(
         ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_INDEXABLE_TEMP) |
         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4));
@@ -4150,17 +4233,6 @@ void DxbcShaderTranslator::WriteShaderCode() {
     // 4 components in each.
     shader_object_.push_back(4);
     stat_.temp_array_count += register_count();
-  }
-
-  // Pixel shader color output (remapped in the end of the shader).
-  if (is_pixel_shader()) {
-    shader_object_.push_back(
-        ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_INDEXABLE_TEMP) |
-        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4));
-    shader_object_.push_back(GetColorIndexableTemp());
-    shader_object_.push_back(4);
-    shader_object_.push_back(4);
-    stat_.temp_array_count += 4;
   }
 
   // Initialize the depth output if used, which must be initialized on every
