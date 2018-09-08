@@ -2311,6 +2311,9 @@ void DxbcShaderTranslator::ProcessVectorAluInstruction(
     // max is commonly used as mov, but probably better not to convert it to
     // make sure things like flusing denormals aren't affected.
     case AluVectorOpcode::kMin:
+    case AluVectorOpcode::kDp4:
+    case AluVectorOpcode::kDp3:
+    // dp4 and dp3 replicate the result implicitly.
       shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(
                                  kCoreOpcodes[uint32_t(instr.vector_opcode)]) |
                              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(
@@ -2436,34 +2439,6 @@ void DxbcShaderTranslator::ProcessVectorAluInstruction(
       UseDxbcSourceOperand(dxbc_operands[2]);
       ++stat_.instruction_count;
       ++stat_.movc_instruction_count;
-      break;
-
-    case AluVectorOpcode::kDp4:
-      // Replicated implicitly.
-      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DP4) |
-                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(
-                                 3 + operand_length_sums[1]));
-      shader_code_.push_back(
-          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
-      shader_code_.push_back(system_temp_pv_);
-      UseDxbcSourceOperand(dxbc_operands[0]);
-      UseDxbcSourceOperand(dxbc_operands[1]);
-      ++stat_.instruction_count;
-      ++stat_.float_instruction_count;
-      break;
-
-    case AluVectorOpcode::kDp3:
-      // Replicated implicitly.
-      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DP3) |
-                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(
-                                 3 + operand_length_sums[1]));
-      shader_code_.push_back(
-          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
-      shader_code_.push_back(system_temp_pv_);
-      UseDxbcSourceOperand(dxbc_operands[0]);
-      UseDxbcSourceOperand(dxbc_operands[1]);
-      ++stat_.instruction_count;
-      ++stat_.float_instruction_count;
       break;
 
     case AluVectorOpcode::kDp2Add:
