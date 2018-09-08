@@ -20,11 +20,11 @@
 #include "xenia/base/assert.h"
 #include "xenia/base/math.h"
 
-DEFINE_bool(dxbc_indexable_temps, false,
+DEFINE_bool(dxbc_indexable_temps, true,
             "Use indexable temporary registers in translated DXBC shaders for "
             "relative addressing of general-purpose registers - shaders rarely "
             "do that, but when they do, this may improve performance on AMD, "
-            "but may cause GPU hangs on Nvidia.");
+            "but may cause unknown issues on Nvidia.");
 
 namespace xe {
 namespace gpu {
@@ -43,8 +43,7 @@ using namespace ucode;
 // - x# (indexable temporary registers) are 4-component (though not sure what
 //   happens if you dcl them as 1-component) and can be accessed either via
 //   a mov load or a mov store (and those movs are counted as ArrayInstructions
-//   in STAT, not as MovInstructions). They may hang Nvidia GPUs totally though
-//   (happened on GTX 850M).
+//   in STAT, not as MovInstructions).
 //
 // Indexing:
 // - Constant buffers use 3D indices in CBx[y][z] format, where x is the ID of
@@ -532,9 +531,9 @@ void DxbcShaderTranslator::CompletePixelShader() {
 
   // Remap guest render target indices to host since because on the host, the
   // indices of the bound render targets are consecutive. This is done using 16
-  // movc instructions because indexable temps hang Nvidia GPUs like GTX 850M.
-  // In the map, the components are host render target indices, and the values
-  // are the guest ones.
+  // movc instructions because indexable temps are known to be causing
+  // performance issues on some Nvidia GPUs. In the map, the components are host
+  // render target indices, and the values are the guest ones.
   uint32_t remap_movc_mask_register = PushSystemTemp();
   uint32_t remap_movc_target_register = PushSystemTemp();
   rdef_constants_used_ |= 1ull
