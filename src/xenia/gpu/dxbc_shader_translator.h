@@ -200,11 +200,9 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // Frees the last allocated internal r# registers for later reuse.
   void PopSystemTemp(uint32_t count = 1);
 
-  // Gets the x# register array used for color outputs (since colors are
-  // remapped).
-  inline uint32_t GetColorIndexableTemp() const {
-    return uses_register_dynamic_addressing() ? 1 : 0;
-  }
+  // Whether general-purpose register values should be stored in x0 rather than
+  // r# in this shader.
+  bool IndexableGPRsUsed() const;
 
   // Writing the prologue.
   void StartVertexShader_LoadVertexIndex();
@@ -422,6 +420,10 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // Position in vertex shaders (because viewport and W transformations can be
   // applied in the end of the shader).
   uint32_t system_temp_position_;
+
+  // Color outputs in pixel shaders (because of exponent bias, alpha test and
+  // remapping).
+  uint32_t system_temp_color_[4];
 
   bool writes_depth_;
 
