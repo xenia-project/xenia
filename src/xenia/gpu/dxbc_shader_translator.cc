@@ -1982,6 +1982,7 @@ void DxbcShaderTranslator::ProcessVertexFetchInstruction(
   UseDxbcSourceOperand(index_operand, kSwizzleXYZW, 0);
   ++stat_.instruction_count;
   ++stat_.conversion_instruction_count;
+  UnloadDxbcSourceOperand(index_operand);
   // TODO(Triang3l): Index clamping maybe.
 
   uint32_t vfetch_index = instr.operands[1].storage_index;
