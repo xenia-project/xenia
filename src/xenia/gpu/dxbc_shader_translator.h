@@ -10,8 +10,11 @@
 #ifndef XENIA_GPU_DXBC_SHADER_TRANSLATOR_H_
 #define XENIA_GPU_DXBC_SHADER_TRANSLATOR_H_
 
+#include <cstring>
+#include <string>
 #include <vector>
 
+#include "xenia/base/math.h"
 #include "xenia/gpu/shader_translator.h"
 
 namespace xe {
@@ -59,6 +62,30 @@ class DxbcShaderTranslator : public ShaderTranslator {
     uint32_t color_output_map[4];
   };
 
+  struct TextureSRV {
+    uint32_t fetch_constant;
+    TextureDimension dimension;
+    std::string name;
+  };
+  // The first binding returned is at t1 because t0 is shared memory.
+  const TextureSRV* GetTextureSRVs(uint32_t& count_out) const {
+    count_out = uint32_t(texture_srvs_.size());
+    return texture_srvs_.data();
+  }
+
+  struct SamplerBinding {
+    uint32_t fetch_constant;
+    TextureFilter mag_filter;
+    TextureFilter min_filter;
+    TextureFilter mip_filter;
+    AnisoFilter aniso_filter;
+    std::string name;
+  };
+  const SamplerBinding* GetSamplerBindings(uint32_t& count_out) const {
+    count_out = uint32_t(sampler_bindings_.size());
+    return sampler_bindings_.data();
+  }
+
  protected:
   void Reset() override;
 
@@ -68,6 +95,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
 
   void ProcessVertexFetchInstruction(
       const ParsedVertexFetchInstruction& instr) override;
+  void ProcessTextureFetchInstruction(
+      const ParsedTextureFetchInstruction& instr) override;
   void ProcessAluInstruction(const ParsedAluInstruction& instr) override;
 
  private:
@@ -272,11 +301,20 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // Emits copde for endian swapping of the data located in pv.
   void SwapVertexData(uint32_t vfetch_index, uint32_t write_mask);
 
+  // Returns T#/t# index (they are the same in this translator).
+  uint32_t FindOrAddTextureSRV(uint32_t fetch_constant,
+                               TextureDimension dimension);
+
   void ProcessVectorAluInstruction(const ParsedAluInstruction& instr);
   void ProcessScalarAluInstruction(const ParsedAluInstruction& instr);
 
   // Appends a string to a DWORD stream, returns the DWORD-aligned length.
   static uint32_t AppendString(std::vector<uint32_t>& dest, const char* source);
+  // Returns the length of a string as if it was appended to a DWORD stream, in
+  // bytes.
+  static inline uint32_t GetStringLength(const char* source) {
+    return uint32_t(xe::align(std::strlen(source) + 1, sizeof(uint32_t)));
+  }
 
   void WriteResourceDefinitions();
   void WriteInputSignature();
@@ -418,6 +456,9 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // Loop counter stack, .x is the active loop. Represents number of times
   // remaining to loop.
   uint32_t system_temp_loop_count_;
+  // Explicitly set texture gradients and LOD.
+  uint32_t system_temp_grad_h_lod_;
+  uint32_t system_temp_grad_v_;
 
   // Position in vertex shaders (because viewport and W transformations can be
   // applied in the end of the shader).
@@ -428,6 +469,9 @@ class DxbcShaderTranslator : public ShaderTranslator {
   uint32_t system_temp_color_[4];
 
   bool writes_depth_;
+
+  std::vector<TextureSRV> texture_srvs_;
+  std::vector<SamplerBinding> sampler_bindings_;
 
   // The STAT chunk (based on Wine d3dcompiler_parse_stat).
   struct Statistics {

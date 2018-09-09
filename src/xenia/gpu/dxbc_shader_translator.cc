@@ -19,6 +19,7 @@
 
 #include "xenia/base/assert.h"
 #include "xenia/base/math.h"
+#include "xenia/base/string.h"
 
 DEFINE_bool(dxbc_indexable_temps, true,
             "Use indexable temporary registers in translated DXBC shaders for "
@@ -69,6 +70,8 @@ void DxbcShaderTranslator::Reset() {
   system_temp_count_current_ = 0;
   system_temp_count_max_ = 0;
   writes_depth_ = false;
+  texture_srvs_.clear();
+  sampler_bindings_.clear();
 
   std::memset(&stat_, 0, sizeof(stat_));
 }
@@ -474,6 +477,8 @@ void DxbcShaderTranslator::StartTranslation() {
   system_temp_ps_pc_p0_a0_ = PushSystemTemp(true);
   system_temp_aL_ = PushSystemTemp(true);
   system_temp_loop_count_ = PushSystemTemp(true);
+  system_temp_grad_h_lod_ = PushSystemTemp(true);
+  system_temp_grad_v_ = PushSystemTemp(true);
   if (is_vertex_shader()) {
     system_temp_position_ = PushSystemTemp(true);
   } else if (is_pixel_shader()) {
@@ -653,7 +658,9 @@ void DxbcShaderTranslator::CompleteShaderCode() {
   // - system_temp_ps_pc_p0_a0_.
   // - system_temp_aL_.
   // - system_temp_loop_count_.
-  PopSystemTemp(4);
+  // - system_temp_grad_h_lod_.
+  // - system_temp_grad_v_.
+  PopSystemTemp(6);
 
   // Write stage-specific epilogue.
   if (is_vertex_shader()) {
@@ -2296,6 +2303,126 @@ void DxbcShaderTranslator::ProcessVertexFetchInstruction(
   }
 
   StoreResult(instr.result, system_temp_pv_, false);
+}
+
+uint32_t DxbcShaderTranslator::FindOrAddTextureSRV(uint32_t fetch_constant,
+                                                   TextureDimension dimension) {
+  // 1D and 2D textures (including stacked ones) are treated as 2D arrays for
+  // binding and coordinate simplicity.
+  if (dimension == TextureDimension::k1D) {
+    dimension = TextureDimension::k2D;
+  }
+  // 1 is added to the return value because T0/t0 is shared memory.
+  for (uint32_t i = 0; i < uint32_t(texture_srvs_.size()); ++i) {
+    const TextureSRV& texture_srv = texture_srvs_[i];
+    if (texture_srv.fetch_constant == fetch_constant &&
+        texture_srv.dimension == dimension) {
+      return 1 + i;
+    }
+  }
+  TextureSRV new_texture_srv;
+  new_texture_srv.fetch_constant = fetch_constant;
+  new_texture_srv.dimension = dimension;
+  const char* dimension_name;
+  switch (dimension) {
+    case TextureDimension::k3D:
+      dimension_name = "3d";
+      break;
+    case TextureDimension::kCube:
+      dimension_name = "cube";
+      break;
+    default:
+      dimension_name = "2d";
+  }
+  new_texture_srv.name =
+      xe::format_string("xe_texture%u_%s", fetch_constant, dimension_name);
+  uint32_t srv_register = 1 + uint32_t(texture_srvs_.size());
+  texture_srvs_.push_back(new_texture_srv);
+  return srv_register;
+}
+
+void DxbcShaderTranslator::ProcessTextureFetchInstruction(
+    const ParsedTextureFetchInstruction& instr) {
+  // TODO(Triang3l): Predicate.
+
+  bool store_result = false;
+
+  DxbcSourceOperand operand;
+  uint32_t operand_length = 0;
+  if (instr.operand_count >= 1) {
+    LoadDxbcSourceOperand(instr.operands[0], operand);
+    operand_length = DxbcSourceOperandLength(operand);
+  }
+
+  uint32_t tfetch_index = instr.operands[1].storage_index;
+  // Fetch constants are laid out like:
+  // tf0[0] tf0[1] tf0[2] tf0[3]
+  // tf0[4] tf0[5] tf1[0] tf1[1]
+  // tf1[2] tf1[3] tf1[4] tf1[5]
+  uint32_t tfetch_pair_offset = (tfetch_index >> 1) * 3;
+
+  // TODO(Triang3l): kTextureFetch, kGetTextureBorderColorFrac,
+  // kGetTextureComputedLod, kGetTextureGradients, kGetTextureWeights,
+  if (instr.opcode == FetchOpcode::kTextureFetch ||
+      instr.opcode == FetchOpcode::kGetTextureComputedLod) {
+    store_result = true;
+
+    uint32_t srv_register = FindOrAddTextureSRV(tfetch_index, instr.dimension);
+    // 3D or 2D stacked is selected dynamically.
+    uint32_t srv_register_3d;
+    if (instr.dimension == TextureDimension::k3D) {
+      srv_register_3d =
+          FindOrAddTextureSRV(tfetch_index, TextureDimension::k2D);
+    } else {
+      srv_register_3d = UINT32_MAX;
+    }
+
+    // TODO(Triang3l): Sampler, actually sample instead of this stub.
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(8));
+    shader_code_.push_back(
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+    shader_code_.push_back(system_temp_pv_);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+    shader_code_.push_back(0x3F800000);
+    shader_code_.push_back(0x3F800000);
+    shader_code_.push_back(0x3F800000);
+    shader_code_.push_back(0x3F800000);
+    ++stat_.instruction_count;
+    ++stat_.mov_instruction_count;
+  } else if (instr.opcode == FetchOpcode::kSetTextureLod) {
+    shader_code_.push_back(
+        ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3 + operand_length));
+    shader_code_.push_back(
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1000, 1));
+    shader_code_.push_back(system_temp_grad_h_lod_);
+    UseDxbcSourceOperand(operand, kSwizzleXYZW, 0);
+    ++stat_.instruction_count;
+    ++stat_.mov_instruction_count;
+  } else if (instr.opcode == FetchOpcode::kSetTextureGradientsHorz ||
+             instr.opcode == FetchOpcode::kSetTextureGradientsVert) {
+    shader_code_.push_back(
+        ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3 + operand_length));
+    shader_code_.push_back(
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0111, 1));
+    shader_code_.push_back(instr.opcode == FetchOpcode::kSetTextureGradientsVert
+                               ? system_temp_grad_v_
+                               : system_temp_grad_h_lod_);
+    UseDxbcSourceOperand(operand, kSwizzleXYZW);
+    ++stat_.instruction_count;
+    ++stat_.mov_instruction_count;
+  }
+
+  if (instr.operand_count >= 1) {
+    UnloadDxbcSourceOperand(operand);
+  }
+
+  if (store_result) {
+    StoreResult(instr.result, system_temp_pv_, false);
+  }
 }
 
 void DxbcShaderTranslator::ProcessVectorAluInstruction(
@@ -4362,19 +4489,52 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
   }
 
   // ***************************************************************************
-  // Bindings, in t#, cb# order
+  // Bindings, in s#, t#, cb# order
   // ***************************************************************************
 
   // Write used resource names, except for constant buffers because we have
   // their names already.
   new_offset = (uint32_t(shader_object_.size()) - chunk_position_dwords) *
                sizeof(uint32_t);
+  uint32_t sampler_name_offset = new_offset;
+  for (uint32_t i = 0; i < uint32_t(sampler_bindings_.size()); ++i) {
+    new_offset +=
+        AppendString(shader_object_, sampler_bindings_[i].name.c_str());
+  }
   uint32_t shared_memory_name_offset = new_offset;
   new_offset += AppendString(shader_object_, "xe_shared_memory");
-  // TODO(Triang3l): Texture and sampler names.
+  uint32_t texture_name_offset = new_offset;
+  for (uint32_t i = 0; i < uint32_t(texture_srvs_.size()); ++i) {
+    new_offset += AppendString(shader_object_, texture_srvs_[i].name.c_str());
+  }
 
   // Write the offset to the header.
   shader_object_[chunk_position_dwords + 3] = new_offset;
+
+  // Samplers.
+  for (uint32_t i = 0; i < uint32_t(sampler_bindings_.size()); ++i) {
+    const SamplerBinding& sampler_binding = sampler_bindings_[i];
+    shader_object_.push_back(sampler_name_offset);
+    // D3D_SIT_SAMPLER.
+    shader_object_.push_back(3);
+    // No D3D_RESOURCE_RETURN_TYPE.
+    shader_object_.push_back(0);
+    // D3D_SRV_DIMENSION_UNKNOWN (not an SRV).
+    shader_object_.push_back(0);
+    // Multisampling not applicable.
+    shader_object_.push_back(0);
+    // Register s[i].
+    shader_object_.push_back(i);
+    // One binding.
+    shader_object_.push_back(1);
+    // No D3D_SHADER_INPUT_FLAGS.
+    shader_object_.push_back(0);
+    // Register space 0.
+    shader_object_.push_back(0);
+    // Sampler ID S[i].
+    shader_object_.push_back(i);
+    sampler_name_offset += GetStringLength(sampler_binding.name.c_str());
+  }
 
   // Shared memory.
   shader_object_.push_back(shared_memory_name_offset);
@@ -4382,9 +4542,9 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
   shader_object_.push_back(7);
   // D3D_RETURN_TYPE_MIXED.
   shader_object_.push_back(6);
-  // D3D_SRV_DIMENSION_UNKNOWN.
+  // D3D_SRV_DIMENSION_BUFFER.
   shader_object_.push_back(1);
-  // Not multisampled.
+  // Multisampling not applicable.
   shader_object_.push_back(0);
   // Register t0.
   shader_object_.push_back(0);
@@ -4397,7 +4557,40 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
   // SRV ID T0.
   shader_object_.push_back(0);
 
-  // TODO(Triang3l): Textures and samplers.
+  for (uint32_t i = 0; i < uint32_t(texture_srvs_.size()); ++i) {
+    const TextureSRV& texture_srv = texture_srvs_[i];
+    shader_object_.push_back(texture_name_offset);
+    // D3D_SIT_TEXTURE.
+    shader_object_.push_back(2);
+    // D3D_RETURN_TYPE_FLOAT.
+    shader_object_.push_back(5);
+    switch (texture_srv.dimension) {
+      case TextureDimension::k3D:
+        // D3D_SRV_DIMENSION_TEXTURE3D.
+        shader_object_.push_back(8);
+        break;
+      case TextureDimension::kCube:
+        // D3D_SRV_DIMENSION_TEXTURECUBE.
+        shader_object_.push_back(9);
+        break;
+      default:
+        // D3D_SRV_DIMENSION_TEXTURE2DARRAY.
+        shader_object_.push_back(5);
+    }
+    // Not multisampled.
+    shader_object_.push_back(0xFFFFFFFFu);
+    // Register t[1 + i] - t0 is shared memory.
+    shader_object_.push_back(1 + i);
+    // One binding.
+    shader_object_.push_back(1);
+    // D3D_SIF_TEXTURE_COMPONENTS (4-component).
+    shader_object_.push_back(0xC);
+    // Register space 0.
+    shader_object_.push_back(0);
+    // SRV ID T[1 + i] - T0 is shared memory.
+    shader_object_.push_back(1 + i);
+    texture_name_offset += GetStringLength(texture_srv.name.c_str());
+  }
 
   // Constant buffers.
   for (uint32_t i = 0; i < uint32_t(RdefConstantBufferIndex::kCount); ++i) {
@@ -4409,6 +4602,7 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
     shader_object_.push_back(0);
     // D3D_SRV_DIMENSION_UNKNOWN (not an SRV).
     shader_object_.push_back(0);
+    // Multisampling not applicable.
     shader_object_.push_back(0);
     shader_object_.push_back(uint32_t(cbuffer.register_index));
     shader_object_.push_back(cbuffer.binding_count);
@@ -4416,6 +4610,7 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
     shader_object_.push_back(cbuffer.user_packed ? 1 : 0);
     // Register space 0.
     shader_object_.push_back(0);
+    // CBV ID CB[i].
     shader_object_.push_back(i);
   }
 }
@@ -4680,11 +4875,28 @@ void DxbcShaderTranslator::WriteShaderCode() {
     shader_object_.push_back(EncodeVectorSwizzledOperand(
         D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSwizzleXYZW, 3));
     shader_object_.push_back(cbuffer_index);
+    // Lower register bound in the space.
     shader_object_.push_back(uint32_t(cbuffer.register_index));
+    // Upper register bound in the space.
     shader_object_.push_back(uint32_t(cbuffer.register_index) +
                              cbuffer.binding_count - 1);
     shader_object_.push_back((cbuffer.size + 15) >> 4);
     // Space 0.
+    shader_object_.push_back(0);
+  }
+
+  // Samplers.
+  for (uint32_t i = 0; i < uint32_t(sampler_bindings_.size()); ++i) {
+    const SamplerBinding& sampler_binding = sampler_bindings_[i];
+    shader_object_.push_back(
+        ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_SAMPLER) |
+        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(6) |
+        ENCODE_D3D10_SB_SAMPLER_MODE(D3D10_SB_SAMPLER_MODE_DEFAULT));
+    shader_object_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_SAMPLER, kSwizzleXYZW, 3));
+    shader_object_.push_back(i);
+    shader_object_.push_back(i);
+    shader_object_.push_back(i);
     shader_object_.push_back(0);
   }
 
@@ -4699,6 +4911,39 @@ void DxbcShaderTranslator::WriteShaderCode() {
   shader_object_.push_back(0);
   shader_object_.push_back(0);
   shader_object_.push_back(0);
+
+  // Textures.
+  for (uint32_t i = 0; i < uint32_t(texture_srvs_.size()); ++i) {
+    const TextureSRV& texture_srv = texture_srvs_[i];
+    D3D10_SB_RESOURCE_DIMENSION texture_srv_dimension;
+    switch (texture_srv.dimension) {
+      case TextureDimension::k3D:
+        texture_srv_dimension = D3D10_SB_RESOURCE_DIMENSION_TEXTURE3D;
+        break;
+      case TextureDimension::kCube:
+        texture_srv_dimension = D3D10_SB_RESOURCE_DIMENSION_TEXTURECUBE;
+        break;
+      default:
+        texture_srv_dimension = D3D10_SB_RESOURCE_DIMENSION_TEXTURE2DARRAY;
+    }
+    shader_object_.push_back(
+        ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_RESOURCE) |
+        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7) |
+        ENCODE_D3D10_SB_RESOURCE_DIMENSION(texture_srv_dimension));
+    shader_object_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_RESOURCE, kSwizzleXYZW, 3));
+    // T0 is shared memory.
+    shader_object_.push_back(1 + i);
+    // t0 is shared memory.
+    shader_object_.push_back(1 + i);
+    shader_object_.push_back(1 + i);
+    shader_object_.push_back(
+        ENCODE_D3D10_SB_RESOURCE_RETURN_TYPE(D3D10_SB_RETURN_TYPE_FLOAT, 0) |
+        ENCODE_D3D10_SB_RESOURCE_RETURN_TYPE(D3D10_SB_RETURN_TYPE_FLOAT, 1) |
+        ENCODE_D3D10_SB_RESOURCE_RETURN_TYPE(D3D10_SB_RETURN_TYPE_FLOAT, 2) |
+        ENCODE_D3D10_SB_RESOURCE_RETURN_TYPE(D3D10_SB_RETURN_TYPE_FLOAT, 3));
+    shader_object_.push_back(0);
+  }
 
   // Inputs and outputs.
   if (is_vertex_shader()) {
