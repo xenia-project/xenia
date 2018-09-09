@@ -20,7 +20,7 @@ using namespace ucode;
 constexpr uint32_t kMaxInterpolators = 16;
 
 #define EmitSource(...) source_inner_.AppendFormat(__VA_ARGS__)
-#define EmitSourceDepth(...) \
+#define EmitSourceDepth(...)           \
   source_inner_.Append(depth_prefix_); \
   source_inner_.AppendFormat(__VA_ARGS__)
 
@@ -892,13 +892,13 @@ void HlslShaderTranslator::EmitStoreResult(const InstructionResult& result,
 }
 
 void HlslShaderTranslator::ProcessVertexFetchInstruction(
-      const ParsedVertexFetchInstruction& instr) {
+    const ParsedVertexFetchInstruction& instr) {
   EmitSourceDepth("// ");
   instr.Disassemble(&source_inner_);
 
   if (instr.operand_count < 2 ||
       instr.operands[1].storage_source !=
-      InstructionStorageSource::kVertexFetchConstant) {
+          InstructionStorageSource::kVertexFetchConstant) {
     assert_always();
     return;
   }
@@ -979,8 +979,9 @@ void HlslShaderTranslator::ProcessVertexFetchInstruction(
       }
       if (!instr.attributes.is_integer) {
         if (instr.attributes.is_signed) {
-          EmitSourceDepth("xe_pv = max(xe_pv * float4((1.0 / 511.0).xxx, 1.0), "
-                          "(-1.0).xxxx);\n");
+          EmitSourceDepth(
+              "xe_pv = max(xe_pv * float4((1.0 / 511.0).xxx, 1.0), "
+              "(-1.0).xxxx);\n");
         } else {
           EmitSourceDepth("xe_pv *= float4((1.0 / 1023.0).xxx, 1.0 / 3.0);\n");
         }
@@ -1189,7 +1190,7 @@ uint32_t HlslShaderTranslator::AddSampler(uint32_t fetch_constant) {
 }
 
 void HlslShaderTranslator::ProcessTextureFetchInstruction(
-      const ParsedTextureFetchInstruction& instr) {
+    const ParsedTextureFetchInstruction& instr) {
   EmitSourceDepth("// ");
   instr.Disassemble(&source_inner_);
 
@@ -1529,26 +1530,30 @@ void HlslShaderTranslator::ProcessVectorAluInstruction(
     case AluVectorOpcode::kSetpEqPush:
       cf_exec_pred_ = false;
       EmitSourceDepth("xe_p0 = xe_src0.w == 0.0 && xe_src1.w == 0.0;\n");
-      EmitSourceDepth("xe_pv = (xe_src0.x == 0.0 && xe_src1.x == 0.0 ? "
-                      "0.0 : xe_src0.x + 1.0).xxxx;\n");
+      EmitSourceDepth(
+          "xe_pv = (xe_src0.x == 0.0 && xe_src1.x == 0.0 ? "
+          "0.0 : xe_src0.x + 1.0).xxxx;\n");
       break;
     case AluVectorOpcode::kSetpNePush:
       cf_exec_pred_ = false;
       EmitSourceDepth("xe_p0 = xe_src0.w == 0.0 && xe_src1.w != 0.0;\n");
-      EmitSourceDepth("xe_pv = (xe_src0.x == 0.0 && xe_src1.x != 0.0 ? "
-                      "0.0 : xe_src0.x + 1.0).xxxx;\n");
+      EmitSourceDepth(
+          "xe_pv = (xe_src0.x == 0.0 && xe_src1.x != 0.0 ? "
+          "0.0 : xe_src0.x + 1.0).xxxx;\n");
       break;
     case AluVectorOpcode::kSetpGtPush:
       cf_exec_pred_ = false;
       EmitSourceDepth("xe_p0 = xe_src0.w == 0.0 && xe_src1.w > 0.0;\n");
-      EmitSourceDepth("xe_pv = (xe_src0.x == 0.0 && xe_src1.x > 0.0 ? "
-                      "0.0 : xe_src0.x + 1.0).xxxx;\n");
+      EmitSourceDepth(
+          "xe_pv = (xe_src0.x == 0.0 && xe_src1.x > 0.0 ? "
+          "0.0 : xe_src0.x + 1.0).xxxx;\n");
       break;
     case AluVectorOpcode::kSetpGePush:
       cf_exec_pred_ = false;
       EmitSourceDepth("xe_p0 = xe_src0.w == 0.0 && xe_src1.w >= 0.0;\n");
-      EmitSourceDepth("xe_pv = (xe_src0.x == 0.0 && xe_src1.x >= 0.0 ? "
-                      "0.0 : xe_src0.x + 1.0).xxxx;\n");
+      EmitSourceDepth(
+          "xe_pv = (xe_src0.x == 0.0 && xe_src1.x >= 0.0 ? "
+          "0.0 : xe_src0.x + 1.0).xxxx;\n");
       break;
     case AluVectorOpcode::kKillEq:
       EmitSourceDepth("xe_pv.xxxx = float(any(xe_src0 == xe_src1));\n");

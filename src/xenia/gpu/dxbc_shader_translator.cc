@@ -220,9 +220,9 @@ void DxbcShaderTranslator::StartVertexShader_LoadVertexIndex() {
   shader_code_.push_back(1);
   rdef_constants_used_ |= 1ull
                           << uint32_t(RdefConstantIndex::kSysVertexIndexEndian);
-  shader_code_.push_back(EncodeVectorReplicatedOperand(
-      D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSysConst_VertexIndexEndian_Comp,
-      3));
+  shader_code_.push_back(
+      EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
+                                    kSysConst_VertexIndexEndian_Comp, 3));
   shader_code_.push_back(uint32_t(RdefConstantBufferIndex::kSystemConstants));
   shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
   shader_code_.push_back(kSysConst_VertexIndexEndian_Vec);
@@ -338,9 +338,9 @@ void DxbcShaderTranslator::StartVertexShader_LoadVertexIndex() {
   shader_code_.push_back(reg);
   rdef_constants_used_ |= 1ull
                           << uint32_t(RdefConstantIndex::kSysVertexBaseIndex);
-  shader_code_.push_back(EncodeVectorSelectOperand(
-      D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSysConst_VertexBaseIndex_Comp,
-      3));
+  shader_code_.push_back(
+      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
+                                kSysConst_VertexBaseIndex_Comp, 3));
   shader_code_.push_back(uint32_t(RdefConstantBufferIndex::kSystemConstants));
   shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
   shader_code_.push_back(kSysConst_VertexBaseIndex_Vec);
@@ -506,7 +506,8 @@ void DxbcShaderTranslator::CompleteVertexShader() {
   shader_code_.push_back(EncodeVectorSwizzledOperand(
       D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
       kSysConst_NDCScale_Comp | ((kSysConst_NDCScale_Comp + 1) << 2) |
-      ((kSysConst_NDCScale_Comp + 2) << 4), 3));
+          ((kSysConst_NDCScale_Comp + 2) << 4),
+      3));
   shader_code_.push_back(uint32_t(RdefConstantBufferIndex::kSystemConstants));
   shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
   shader_code_.push_back(kSysConst_NDCScale_Vec);
@@ -524,7 +525,8 @@ void DxbcShaderTranslator::CompleteVertexShader() {
   shader_code_.push_back(EncodeVectorSwizzledOperand(
       D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
       kSysConst_NDCOffset_Comp | ((kSysConst_NDCOffset_Comp + 1) << 2) |
-      ((kSysConst_NDCOffset_Comp + 2) << 4), 3));
+          ((kSysConst_NDCOffset_Comp + 2) << 4),
+      3));
   shader_code_.push_back(uint32_t(RdefConstantBufferIndex::kSystemConstants));
   shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
   shader_code_.push_back(kSysConst_NDCOffset_Vec);
@@ -554,8 +556,7 @@ void DxbcShaderTranslator::CompletePixelShader() {
   // TODO(Triang3l): Alpha testing.
 
   // Apply color exponent bias (the constant contains 2.0^bias).
-  rdef_constants_used_ |= 1ull
-                          << uint32_t(RdefConstantIndex::kSysColorExpBias);
+  rdef_constants_used_ |= 1ull << uint32_t(RdefConstantIndex::kSysColorExpBias);
   for (uint32_t i = 0; i < 4; ++i) {
     shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MUL) |
                            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
@@ -627,7 +628,7 @@ void DxbcShaderTranslator::CompletePixelShader() {
     shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
                            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
     shader_code_.push_back(
-          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_OUTPUT, 0b1111, 1));
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_OUTPUT, 0b1111, 1));
     shader_code_.push_back(i);
     shader_code_.push_back(EncodeVectorSwizzledOperand(
         D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
@@ -1651,8 +1652,8 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
       shader_code_.push_back(
           EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
       shader_code_.push_back(i);
-      shader_code_.push_back(EncodeVectorReplicatedOperand(
-          D3D10_SB_OPERAND_TYPE_TEMP, i & 3, 1));
+      shader_code_.push_back(
+          EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, i & 3, 1));
       shader_code_.push_back(gpr_movc_mask_register);
       shader_code_.push_back(EncodeVectorSwizzledOperand(
           D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
@@ -1919,7 +1920,7 @@ void DxbcShaderTranslator::ProcessVertexFetchInstruction(
     const ParsedVertexFetchInstruction& instr) {
   if (instr.operand_count < 2 ||
       instr.operands[1].storage_source !=
-      InstructionStorageSource::kVertexFetchConstant) {
+          InstructionStorageSource::kVertexFetchConstant) {
     assert_always();
     return;
   }
@@ -2075,8 +2076,8 @@ void DxbcShaderTranslator::ProcessVertexFetchInstruction(
       extract_offsets[2] = 16;
       extract_offsets[3] = 24;
       normalize_scales[0] = normalize_scales[1] = normalize_scales[2] =
-          normalize_scales[3] = instr.attributes.is_signed ? (1.0f / 127.0f)
-                                                           : (1.0f / 255.0f);
+          normalize_scales[3] =
+              instr.attributes.is_signed ? (1.0f / 127.0f) : (1.0f / 255.0f);
       break;
     case VertexFormat::k_2_10_10_10:
       extract_widths[0] = extract_widths[1] = extract_widths[2] = 10;
@@ -2151,8 +2152,8 @@ void DxbcShaderTranslator::ProcessVertexFetchInstruction(
         ENCODE_D3D10_SB_OPCODE_TYPE(extract_signed ? D3D11_SB_OPCODE_IBFE
                                                    : D3D11_SB_OPCODE_UBFE) |
         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(15));
-    shader_code_.push_back(EncodeVectorMaskedOperand(
-        D3D10_SB_OPERAND_TYPE_TEMP, result_write_mask, 1));
+    shader_code_.push_back(EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP,
+                                                     result_write_mask, 1));
     shader_code_.push_back(system_temp_pv_);
     shader_code_.push_back(EncodeVectorSwizzledOperand(
         D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
@@ -2183,8 +2184,8 @@ void DxbcShaderTranslator::ProcessVertexFetchInstruction(
     shader_code_.push_back(
         ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_F16TOF32) |
         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
-    shader_code_.push_back(EncodeVectorMaskedOperand(
-        D3D10_SB_OPERAND_TYPE_TEMP, result_write_mask, 1));
+    shader_code_.push_back(EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP,
+                                                     result_write_mask, 1));
     shader_code_.push_back(system_temp_pv_);
     shader_code_.push_back(EncodeVectorSwizzledOperand(
         D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
@@ -2195,12 +2196,12 @@ void DxbcShaderTranslator::ProcessVertexFetchInstruction(
     // If no normalize_scales, it's a float value already. Otherwise, convert to
     // float and normalize if needed.
     shader_code_.push_back(
-        ENCODE_D3D10_SB_OPCODE_TYPE(
-            instr.attributes.is_signed ? D3D10_SB_OPCODE_ITOF
-                                       : D3D10_SB_OPCODE_UTOF) |
+        ENCODE_D3D10_SB_OPCODE_TYPE(instr.attributes.is_signed
+                                        ? D3D10_SB_OPCODE_ITOF
+                                        : D3D10_SB_OPCODE_UTOF) |
         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
-    shader_code_.push_back(EncodeVectorMaskedOperand(
-        D3D10_SB_OPERAND_TYPE_TEMP, result_write_mask, 1));
+    shader_code_.push_back(EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP,
+                                                     result_write_mask, 1));
     shader_code_.push_back(system_temp_pv_);
     shader_code_.push_back(EncodeVectorSwizzledOperand(
         D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
@@ -2271,8 +2272,8 @@ void DxbcShaderTranslator::ProcessVertexFetchInstruction(
   if (instr.attributes.exp_adjust != 0) {
     shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MUL) |
                            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(10));
-    shader_code_.push_back(EncodeVectorMaskedOperand(
-        D3D10_SB_OPERAND_TYPE_TEMP, result_write_mask, 1));
+    shader_code_.push_back(EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP,
+                                                     result_write_mask, 1));
     shader_code_.push_back(system_temp_pv_);
     shader_code_.push_back(EncodeVectorSwizzledOperand(
         D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
@@ -2357,7 +2358,7 @@ void DxbcShaderTranslator::ProcessVectorAluInstruction(
     case AluVectorOpcode::kMin:
     case AluVectorOpcode::kDp4:
     case AluVectorOpcode::kDp3:
-    // dp4 and dp3 replicate the result implicitly.
+      // dp4 and dp3 replicate the result implicitly.
       shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(
                                  kCoreOpcodes[uint32_t(instr.vector_opcode)]) |
                              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(
@@ -3022,9 +3023,9 @@ void DxbcShaderTranslator::ProcessScalarAluInstruction(
       ++stat_.instruction_count;
       ++stat_.float_instruction_count;
       // src0.y <= 0.0
-      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_GE) |
-                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(
-                                 5 + operand_lengths[0]));
+      shader_code_.push_back(
+          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_GE) |
+          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5 + operand_lengths[0]));
       shader_code_.push_back(
           EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0100, 1));
       shader_code_.push_back(minus_max_mask);
@@ -3074,9 +3075,9 @@ void DxbcShaderTranslator::ProcessScalarAluInstruction(
       ++stat_.uint_instruction_count;
       // Calculate the product for the regular path of the instruction.
       // ps = src0.x * ps
-      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MUL) |
-                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(
-                                 5 + operand_lengths[0]));
+      shader_code_.push_back(
+          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MUL) |
+          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5 + operand_lengths[0]));
       shader_code_.push_back(
           EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
       shader_code_.push_back(system_temp_ps_pc_p0_a0_);
@@ -3300,7 +3301,7 @@ void DxbcShaderTranslator::ProcessScalarAluInstruction(
       ++stat_.movc_instruction_count;
       // Release isinf_and_sign.
       PopSystemTemp();
-      } break;
+    } break;
 
     case AluScalarOpcode::kMaxAs:
     case AluScalarOpcode::kMaxAsf:
