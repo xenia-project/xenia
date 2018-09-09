@@ -27,18 +27,20 @@ D3D12Shader::~D3D12Shader() {
   }
 }
 
-#if 0
 void D3D12Shader::SetTexturesAndSamplers(
-    const HlslShaderTranslator::TextureSRV* texture_srvs,
+    const DxbcShaderTranslator::TextureSRV* texture_srvs,
     uint32_t texture_srv_count, const uint32_t* sampler_fetch_constants,
     uint32_t sampler_count) {
+  used_texture_mask_ = 0;
   for (uint32_t i = 0; i < texture_srv_count; ++i) {
     TextureSRV& srv = texture_srvs_[i];
-    const HlslShaderTranslator::TextureSRV& translator_srv = texture_srvs[i];
+    const DxbcShaderTranslator::TextureSRV& translator_srv = texture_srvs[i];
     srv.fetch_constant = translator_srv.fetch_constant;
     srv.dimension = translator_srv.dimension;
+    used_texture_mask_ |= 1u << translator_srv.fetch_constant;
   }
   texture_srv_count_ = texture_srv_count;
+#if 0
   // If there's a texture, there's a sampler for it.
   used_texture_mask_ = 0;
   for (uint32_t i = 0; i < sampler_count; ++i) {
@@ -47,8 +49,8 @@ void D3D12Shader::SetTexturesAndSamplers(
     used_texture_mask_ |= 1u << sampler_fetch_constant;
   }
   sampler_count_ = sampler_count;
-}
 #endif
+}
 
 bool D3D12Shader::DisassembleDXBC() {
   if (!host_disassembly_.empty()) {

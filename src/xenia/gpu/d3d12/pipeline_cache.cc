@@ -198,15 +198,15 @@ bool PipelineCache::TranslateShader(D3D12Shader* shader,
 
   // TODO(Triang3l): Re-enable this when the DXBC shader translators supports
   // textures.
-#if 0
-  uint32_t texture_srv_count, sampler_count;
-  const HlslShaderTranslator::TextureSRV* texture_srvs =
+  uint32_t texture_srv_count;
+  const DxbcShaderTranslator::TextureSRV* texture_srvs =
       shader_translator_->GetTextureSRVs(texture_srv_count);
+#if 0
+  uint32_t sampler_count;
   const uint32_t* sampler_fetch_constants =
       shader_translator_->GetSamplerFetchConstants(sampler_count);
-  shader->SetTexturesAndSamplers(texture_srvs, texture_srv_count,
-                                 sampler_fetch_constants, sampler_count);
 #endif
+  shader->SetTexturesAndSamplers(texture_srvs, texture_srv_count, nullptr, 0);
 
   if (shader->is_valid()) {
     XELOGGPU("Generated %s shader (%db) - hash %.16" PRIX64 ":\n%s\n",
