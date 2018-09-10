@@ -2132,9 +2132,134 @@ void DxbcShaderTranslator::ProcessExecInstructionBegin(
 
 void DxbcShaderTranslator::ProcessExecInstructionEnd(
     const ParsedExecInstruction& instr) {
+  // TODO(Triang3l): Check whether is_end is conditional or not.
+  if (instr.is_end) {
+    // In case some instruction has flipped the predicate condition.
+    if (cf_exec_predicated_) {
+      CheckPredicate(cf_exec_predicated_, cf_exec_predicate_condition_);
+    }
+    // Break out of the main loop.
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_BREAK) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
+    ++stat_.instruction_count;
+  }
   ClosePredicate();
   cf_exec_predicated_ = false;
   SetExecBoolConstant(kCfExecBoolConstantNone, false);
+}
+
+void DxbcShaderTranslator::ProcessLoopStartInstruction(
+    const ParsedLoopStartInstruction& instr) {
+  // loop il<idx>, L<idx> - loop with loop data il<idx>, end @ L<idx>
+
+  uint32_t loop_count_and_aL = PushSystemTemp();
+
+  // Count (as uint) in bits 0:7 of the loop constant, aL in 8:15.
+  rdef_constants_used_ |= 1ull
+                          << uint32_t(RdefConstantIndex::kLoopConstants);
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_UBFE) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(17));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0011, 1));
+  shader_code_.push_back(loop_count_and_aL);
+  shader_code_.push_back(EncodeVectorSwizzledOperand(
+      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+  shader_code_.push_back(8);
+  shader_code_.push_back(8);
+  shader_code_.push_back(0);
+  shader_code_.push_back(0);
+  shader_code_.push_back(EncodeVectorSwizzledOperand(
+      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+  shader_code_.push_back(0);
+  shader_code_.push_back(8);
+  shader_code_.push_back(0);
+  shader_code_.push_back(0);
+  shader_code_.push_back(EncodeVectorReplicatedOperand(
+      D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, 0, 3));
+  shader_code_.push_back(uint32_t(RdefConstantBufferIndex::kBoolLoopConstants));
+  shader_code_.push_back(uint32_t(CbufferRegister::kBoolLoopConstants));
+  // 8 because of bool constants.
+  shader_code_.push_back(8 + instr.loop_constant_index);
+  ++stat_.instruction_count;
+  ++stat_.uint_instruction_count;
+
+  // Push the count to the loop count stack - move XYZ to YZW and set X to this
+  // loop count.
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1110, 1));
+  shader_code_.push_back(system_temp_loop_count_);
+  shader_code_.push_back(EncodeVectorSwizzledOperand(
+      D3D10_SB_OPERAND_TYPE_TEMP, 0b10010000, 1));
+  shader_code_.push_back(system_temp_loop_count_);
+  ++stat_.instruction_count;
+  ++stat_.mov_instruction_count;
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+  shader_code_.push_back(system_temp_loop_count_);
+  shader_code_.push_back(
+      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
+  shader_code_.push_back(loop_count_and_aL);
+  ++stat_.instruction_count;
+  ++stat_.mov_instruction_count;
+
+  // Push aL - keep the same value as in the previous loop if repeating, or the
+  // new one otherwise.
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+  shader_code_.push_back(system_temp_aL_);
+  shader_code_.push_back(EncodeVectorSwizzledOperand(
+      D3D10_SB_OPERAND_TYPE_TEMP, 0b10010000, 1));
+  shader_code_.push_back(system_temp_aL_);
+  ++stat_.instruction_count;
+  ++stat_.mov_instruction_count;
+  if (!instr.is_repeat) {
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
+    shader_code_.push_back(
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+    shader_code_.push_back(system_temp_aL_);
+    shader_code_.push_back(
+        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
+    shader_code_.push_back(loop_count_and_aL);
+    ++stat_.instruction_count;
+    ++stat_.mov_instruction_count;
+  }
+
+  // Release loop_count_and_aL.
+  PopSystemTemp();
+
+  // Short-circuit if loop counter is 0.
+  shader_code_.push_back(
+      ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
+      ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3) |
+      ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(D3D10_SB_INSTRUCTION_TEST_ZERO));
+  shader_code_.push_back(
+      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
+  shader_code_.push_back(system_temp_loop_count_);
+  ++stat_.instruction_count;
+  ++stat_.dynamic_flow_control_count;
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0010, 1));
+  shader_code_.push_back(system_temp_ps_pc_p0_a0_);
+  shader_code_.push_back(
+      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+  shader_code_.push_back(instr.loop_skip_address);
+  ++stat_.instruction_count;
+  ++stat_.mov_instruction_count;
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_CONTINUE) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
+  ++stat_.instruction_count;
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
+  ++stat_.instruction_count;
 }
 
 void DxbcShaderTranslator::ProcessVertexFetchInstruction(
