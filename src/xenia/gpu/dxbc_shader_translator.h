@@ -95,6 +95,9 @@ class DxbcShaderTranslator : public ShaderTranslator {
 
   void ProcessLabel(uint32_t cf_index) override;
 
+  void ProcessExecInstructionBegin(const ParsedExecInstruction& instr) override;
+  void ProcessExecInstructionEnd(const ParsedExecInstruction& instr) override;
+
   void ProcessVertexFetchInstruction(
       const ParsedVertexFetchInstruction& instr) override;
   void ProcessTextureFetchInstruction(
@@ -300,6 +303,32 @@ class DxbcShaderTranslator : public ShaderTranslator {
   void StoreResult(const InstructionResult& result, uint32_t reg,
                    bool replicate_x);
 
+  // The nesting of `if` instructions is the following:
+  // - pc checks (labels).
+  // - Bool constant checks (can only be done by exec).
+  // - Predicate checks (can be done both by exec and by instructions).
+  // It's probably fine to place instruction predicate checks and exec predicate
+  // on the same level rather than creating another level for instruction-level
+  // predicates, because (at least in Halo 3), in a `(p0) exec`, all
+  // instructions are `(p0)`, and `setp` isn't invoked in `(p0) exec`. Another
+  // possible constraint making things easier is labels not appearing within
+  // execs - so a label doesn't have to recheck the exec's condition.
+  // TODO(Triang3l): Check if these control flow constrains are true for all
+  // games.
+
+  // Closes the current predicate `if` (but doesn't reset the current exec's
+  // predicate).
+  void ClosePredicate();
+  // Updates the current predicate, placing if/endif when needed. This MUST be
+  // called before emitting any translated instructions because the exec
+  // implementation here doesn't place if/endif, only defers updating the
+  // predicate.
+  void CheckPredicate(bool instruction_predicated,
+                      bool instruction_predicate_condition);
+  // Opens or closes the `if` checking the value of a bool constant - call with
+  // kCfExecBoolConstantNone to force close.
+  void SetExecBoolConstant(uint32_t index, bool condition);
+
   // Emits copde for endian swapping of the data located in pv.
   void SwapVertexData(uint32_t vfetch_index, uint32_t write_mask);
 
@@ -469,6 +498,20 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // Color outputs in pixel shaders (because of exponent bias, alpha test and
   // remapping).
   uint32_t system_temp_color_[4];
+
+  // Whether a predicate `if` is open.
+  bool cf_currently_predicated_;
+  // Currently expected predicate value.
+  bool cf_current_predicate_condition_;
+  // Whether the current `exec` is predicated.
+  bool cf_exec_predicated_;
+  // Predicate condition in the current `exec`.
+  bool cf_exec_predicate_condition_;
+  // The bool constant number containing the condition for the current `exec`.
+  uint32_t cf_exec_bool_constant_;
+  static constexpr uint32_t kCfExecBoolConstantNone = UINT32_MAX;
+  // The expected value in the current conditional exec.
+  bool cf_exec_bool_constant_condition_;
 
   bool writes_depth_;
 
