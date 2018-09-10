@@ -493,6 +493,22 @@ void DxbcShaderTranslator::StartTranslation() {
   } else if (is_pixel_shader()) {
     StartPixelShader();
   }
+
+  // Start the main loop (for jumping to labels by setting pc and continuing).
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_LOOP) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
+  ++stat_.instruction_count;
+  ++stat_.dynamic_flow_control_count;
+  // First label (pc == 0).
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3) |
+                         ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(
+                             D3D10_SB_INSTRUCTION_TEST_ZERO));
+  shader_code_.push_back(
+      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
+  shader_code_.push_back(system_temp_ps_pc_p0_a0_);
+  ++stat_.instruction_count;
+  ++stat_.dynamic_flow_control_count;
 }
 
 void DxbcShaderTranslator::CompleteVertexShader() {
@@ -646,6 +662,18 @@ void DxbcShaderTranslator::CompletePixelShader() {
 }
 
 void DxbcShaderTranslator::CompleteShaderCode() {
+  // Close the last label.
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
+  ++stat_.instruction_count;
+  // End the main loop.
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_BREAK) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
+  ++stat_.instruction_count;
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDLOOP) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
+  ++stat_.instruction_count;
+
   if (is_vertex_shader()) {
     // Release system_temp_position_.
     PopSystemTemp();
@@ -1925,6 +1953,43 @@ void DxbcShaderTranslator::SwapVertexData(uint32_t vfetch_index,
   ++stat_.movc_instruction_count;
 
   PopSystemTemp(2);
+}
+
+void DxbcShaderTranslator::ProcessLabel(uint32_t cf_index) {
+  if (cf_index == 0) {
+    // 0 already added in the beginning.
+    return;
+  }
+  // Close the previous label.
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
+  ++stat_.instruction_count;
+  // pc <= cf_index
+  uint32_t test_register = PushSystemTemp();
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_UGE) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+  shader_code_.push_back(test_register);
+  shader_code_.push_back(
+      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+  shader_code_.push_back(cf_index);
+  shader_code_.push_back(
+      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
+  shader_code_.push_back(system_temp_ps_pc_p0_a0_);
+  ++stat_.instruction_count;
+  ++stat_.uint_instruction_count;
+  // if (pc <= cf_index)
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3) |
+                         ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(
+                             D3D10_SB_INSTRUCTION_TEST_NONZERO));
+  shader_code_.push_back(
+      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
+  shader_code_.push_back(test_register);
+  ++stat_.instruction_count;
+  ++stat_.dynamic_flow_control_count;
+  PopSystemTemp();
 }
 
 void DxbcShaderTranslator::ProcessVertexFetchInstruction(
