@@ -500,10 +500,10 @@ void DxbcShaderTranslator::StartTranslation() {
   ++stat_.instruction_count;
   ++stat_.dynamic_flow_control_count;
   // First label (pc == 0).
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3) |
-                         ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(
-                             D3D10_SB_INSTRUCTION_TEST_ZERO));
+  shader_code_.push_back(
+      ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
+      ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3) |
+      ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(D3D10_SB_INSTRUCTION_TEST_ZERO));
   shader_code_.push_back(
       EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
   shader_code_.push_back(system_temp_ps_pc_p0_a0_);
