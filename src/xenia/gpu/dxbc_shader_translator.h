@@ -99,6 +99,9 @@ class DxbcShaderTranslator : public ShaderTranslator {
   void ProcessExecInstructionEnd(const ParsedExecInstruction& instr) override;
   void ProcessLoopStartInstruction(
       const ParsedLoopStartInstruction& instr) override;
+  void ProcessLoopEndInstruction(
+      const ParsedLoopEndInstruction& instr) override;
+  void ProcessJumpInstruction(const ParsedJumpInstruction& instr) override;
 
   void ProcessVertexFetchInstruction(
       const ParsedVertexFetchInstruction& instr) override;
@@ -330,6 +333,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // Opens or closes the `if` checking the value of a bool constant - call with
   // kCfExecBoolConstantNone to force close.
   void SetExecBoolConstant(uint32_t index, bool condition);
+  void JumpToLabel(uint32_t address);
 
   // Emits copde for endian swapping of the data located in pv.
   void SwapVertexData(uint32_t vfetch_index, uint32_t write_mask);
