@@ -97,6 +97,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
 
   void ProcessExecInstructionBegin(const ParsedExecInstruction& instr) override;
   void ProcessExecInstructionEnd(const ParsedExecInstruction& instr) override;
+  void ProcessLoopStartInstruction(
+      const ParsedLoopStartInstruction& instr) override;
 
   void ProcessVertexFetchInstruction(
       const ParsedVertexFetchInstruction& instr) override;
@@ -320,7 +322,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // predicate).
   void ClosePredicate();
   // Updates the current predicate, placing if/endif when needed. This MUST be
-  // called before emitting any translated instructions because the exec
+  // called before emitting any instructions within an exec because the exec
   // implementation here doesn't place if/endif, only defers updating the
   // predicate.
   void CheckPredicate(bool instruction_predicated,
