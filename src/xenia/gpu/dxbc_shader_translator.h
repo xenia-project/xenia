@@ -93,6 +93,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
 
   std::vector<uint8_t> CompleteTranslation() override;
 
+  void ProcessLabel(uint32_t cf_index) override;
+
   void ProcessVertexFetchInstruction(
       const ParsedVertexFetchInstruction& instr) override;
   void ProcessTextureFetchInstruction(
