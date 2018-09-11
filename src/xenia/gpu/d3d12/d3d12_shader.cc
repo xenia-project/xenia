@@ -29,27 +29,33 @@ D3D12Shader::~D3D12Shader() {
 
 void D3D12Shader::SetTexturesAndSamplers(
     const DxbcShaderTranslator::TextureSRV* texture_srvs,
-    uint32_t texture_srv_count, const uint32_t* sampler_fetch_constants,
-    uint32_t sampler_count) {
+    uint32_t texture_srv_count,
+    const DxbcShaderTranslator::SamplerBinding* sampler_bindings,
+    uint32_t sampler_binding_count) {
+  texture_srvs_.clear();
+  texture_srvs_.reserve(texture_srv_count);
   used_texture_mask_ = 0;
   for (uint32_t i = 0; i < texture_srv_count; ++i) {
-    TextureSRV& srv = texture_srvs_[i];
+    TextureSRV srv;
     const DxbcShaderTranslator::TextureSRV& translator_srv = texture_srvs[i];
     srv.fetch_constant = translator_srv.fetch_constant;
     srv.dimension = translator_srv.dimension;
+    texture_srvs_.push_back(srv);
     used_texture_mask_ |= 1u << translator_srv.fetch_constant;
   }
-  texture_srv_count_ = texture_srv_count;
-#if 0
-  // If there's a texture, there's a sampler for it.
-  used_texture_mask_ = 0;
-  for (uint32_t i = 0; i < sampler_count; ++i) {
-    uint32_t sampler_fetch_constant = sampler_fetch_constants[i];
-    sampler_fetch_constants_[i] = sampler_fetch_constant;
-    used_texture_mask_ |= 1u << sampler_fetch_constant;
+  sampler_bindings_.clear();
+  sampler_bindings_.reserve(sampler_binding_count);
+  for (uint32_t i = 0; i < texture_srv_count; ++i) {
+    SamplerBinding sampler;
+    const DxbcShaderTranslator::SamplerBinding& translator_sampler =
+        sampler_bindings[i];
+    sampler.fetch_constant = translator_sampler.fetch_constant;
+    sampler.mag_filter = translator_sampler.mag_filter;
+    sampler.min_filter = translator_sampler.min_filter;
+    sampler.mip_filter = translator_sampler.mip_filter;
+    sampler.aniso_filter = translator_sampler.aniso_filter;
+    sampler_bindings_.push_back(sampler);
   }
-  sampler_count_ = sampler_count;
-#endif
 }
 
 bool D3D12Shader::DisassembleDXBC() {
