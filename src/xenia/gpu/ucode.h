@@ -640,6 +640,10 @@ struct TextureFetchInstruction {
   SampleLocation sample_location() const {
     return static_cast<SampleLocation>(data_.sample_location);
   }
+  float lod_bias() const {
+    // http://web.archive.org/web/20090514012026/http://msdn.microsoft.com:80/en-us/library/bb313957.aspx
+    return ((static_cast<int>(data_.lod_bias) << 25) >> 25) / 16.0f;
+  }
   float offset_x() const {
     return ((static_cast<int>(data_.offset_x) << 27) >> 27) / 2.0f;
   }

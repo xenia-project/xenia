@@ -583,7 +583,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
     uint32_t gs_output_topology;
     uint32_t gs_max_output_vertex_count;
     uint32_t unknown_26;
-    uint32_t unknown_27;
+    // Unknown in Wine, but confirmed by testing.
+    uint32_t lod_instructions;
     uint32_t unknown_28;
     uint32_t unknown_29;
     uint32_t c_control_points;
