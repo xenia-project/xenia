@@ -2945,7 +2945,7 @@ uint32_t DxbcShaderTranslator::FindOrAddSamplerBinding(
   new_sampler_binding.mip_filter = mip_filter;
   new_sampler_binding.aniso_filter = aniso_filter;
   new_sampler_binding.name = name.str();
-  uint32_t sampler_register = 1 + uint32_t(sampler_bindings_.size());
+  uint32_t sampler_register = uint32_t(sampler_bindings_.size());
   sampler_bindings_.emplace_back(std::move(new_sampler_binding));
   return sampler_register;
 }
