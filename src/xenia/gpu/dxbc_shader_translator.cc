@@ -2978,32 +2978,348 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
 
     uint32_t srv_register = FindOrAddTextureSRV(tfetch_index, instr.dimension);
     // 3D or 2D stacked is selected dynamically.
-    uint32_t srv_register_3d;
+    uint32_t srv_register_stacked;
     if (instr.dimension == TextureDimension::k3D) {
-      srv_register_3d =
+      srv_register_stacked =
           FindOrAddTextureSRV(tfetch_index, TextureDimension::k2D);
     } else {
-      srv_register_3d = UINT32_MAX;
+      srv_register_stacked = UINT32_MAX;
     }
 
     uint32_t sampler_register = FindOrAddSamplerBinding(
         tfetch_index, instr.attributes.mag_filter, instr.attributes.min_filter,
         instr.attributes.mip_filter, instr.attributes.aniso_filter);
 
-    // TODO(Triang3l): Actually sample instead of this stub.
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(8));
+    // Will use the fetch constants unconditionally, for exponent bias.
+    rdef_constants_used_ |= 1ull
+                            << uint32_t(RdefConstantIndex::kFetchConstants);
+
+    // Move coordinates to pv temporarily so zeros can be added to expand them
+    // to Texture2DArray coordinates and to apply offset.
+    uint32_t coord_mask;
+    switch (instr.dimension) {
+      case TextureDimension::k1D:
+        coord_mask = 0b0001;
+        break;
+      case TextureDimension::k2D:
+        coord_mask = 0b0011;
+        break;
+      default:
+        coord_mask = 0b0111;
+    }
     shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+        ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3 + operand_length));
+    shader_code_.push_back(
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, coord_mask, 1));
     shader_code_.push_back(system_temp_pv_);
-    shader_code_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-    shader_code_.push_back(0x3F800000);
-    shader_code_.push_back(0x3F800000);
-    shader_code_.push_back(0x3F800000);
-    shader_code_.push_back(0x3F800000);
+    UseDxbcSourceOperand(operand);
     ++stat_.instruction_count;
     ++stat_.mov_instruction_count;
+
+    // If 1D or 2D, fill the unused coordinates with zeros (sampling the only
+    // row of the only slice).
+    if (0b0111 & ~coord_mask) {
+      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(8));
+      shader_code_.push_back(EncodeVectorMaskedOperand(
+          D3D10_SB_OPERAND_TYPE_TEMP, 0b0111 & ~coord_mask, 1));
+      shader_code_.push_back(system_temp_pv_);
+      shader_code_.push_back(EncodeVectorSwizzledOperand(
+          D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+      shader_code_.push_back(0);
+      shader_code_.push_back(0);
+      shader_code_.push_back(0);
+      shader_code_.push_back(0);
+      ++stat_.instruction_count;
+      ++stat_.mov_instruction_count;
+    }
+
+    // Get the offset to see if the size of the texture is needed.
+    // It's probably applicable to tfetchCube too, we're going to assume it's
+    // used for them the same way as for stacked textures.
+    // http://web.archive.org/web/20090511231340/http://msdn.microsoft.com:80/en-us/library/bb313959.aspx
+    float offset_x = instr.attributes.offset_x;
+    float offset_y = 0.0f, offset_z = 0.0f;
+    if (instr.dimension == TextureDimension::k2D ||
+        instr.dimension == TextureDimension::k3D ||
+        instr.dimension == TextureDimension::kCube) {
+      offset_y = instr.attributes.offset_y;
+      if (instr.dimension == TextureDimension::k3D ||
+          instr.dimension == TextureDimension::kCube) {
+        offset_z = instr.attributes.offset_z;
+      }
+    }
+
+    // Get the texture size if needed, apply offset and switch between
+    // normalized and unnormalized coordinates if needed. The offset is
+    // fractional on the Xbox 360 (has 0.5 granularity), unlike in Direct3D 12,
+    // and cubemaps
+    // TODO(Triang3l): Unnormalized coordinates should be disabled when the
+    // wrap mode is not a clamped one, though it's probably a very rare case,
+    // unlikely to be used on purpose.
+    // http://web.archive.org/web/20090514012026/http://msdn.microsoft.com:80/en-us/library/bb313957.aspx
+    uint32_t size_and_is_3d_temp = UINT32_MAX;
+    bool has_offset = offset_x != 0.0f || offset_y != 0.0f || offset_z != 0.0f;
+    if (has_offset || instr.attributes.unnormalized_coordinates ||
+        instr.dimension == TextureDimension::k3D) {
+      size_and_is_3d_temp = PushSystemTemp();
+
+      // Get 2D texture size and array layer count, in bits 0:12, 13:25, 26:31
+      // of dword 2 ([0].z or [2].x).
+      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_UBFE) |
+                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(17));
+      shader_code_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0111, 1));
+      shader_code_.push_back(size_and_is_3d_temp);
+      shader_code_.push_back(EncodeVectorSwizzledOperand(
+          D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+      shader_code_.push_back(13);
+      shader_code_.push_back(instr.dimension != TextureDimension::k1D ? 13 : 0);
+      shader_code_.push_back(instr.dimension == TextureDimension::k3D ? 6 : 0);
+      shader_code_.push_back(0);
+      shader_code_.push_back(EncodeVectorSwizzledOperand(
+          D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+      shader_code_.push_back(0);
+      shader_code_.push_back(13);
+      shader_code_.push_back(26);
+      shader_code_.push_back(0);
+      shader_code_.push_back(
+          EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
+                                        2 - 2 * (tfetch_index & 1), 3));
+      shader_code_.push_back(
+          uint32_t(RdefConstantBufferIndex::kFetchConstants));
+      shader_code_.push_back(uint32_t(CbufferRegister::kFetchConstants));
+      shader_code_.push_back(tfetch_pair_offset + (tfetch_index & 1) * 2);
+      ++stat_.instruction_count;
+      ++stat_.uint_instruction_count;
+
+      if (instr.dimension == TextureDimension::k3D) {
+        // Write whether the texture is 3D to W if it's 3D/stacked. The
+        // dimension is in dword 5 in bith 9:10.
+        shader_code_.push_back(
+            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
+            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
+        shader_code_.push_back(
+            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1000, 1));
+        shader_code_.push_back(size_and_is_3d_temp);
+        // Dword 5 is [1].y or [2].w.
+        shader_code_.push_back(
+            EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
+                                      1 + 2 * (tfetch_index & 1), 3));
+        shader_code_.push_back(
+            uint32_t(RdefConstantBufferIndex::kFetchConstants));
+        shader_code_.push_back(uint32_t(CbufferRegister::kFetchConstants));
+        shader_code_.push_back(tfetch_pair_offset + 1 + (tfetch_index & 1));
+        shader_code_.push_back(
+            EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+        shader_code_.push_back(0x3 << 9);
+        ++stat_.instruction_count;
+        ++stat_.uint_instruction_count;
+        shader_code_.push_back(
+            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IEQ) |
+            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+        shader_code_.push_back(
+            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1000, 1));
+        shader_code_.push_back(size_and_is_3d_temp);
+        shader_code_.push_back(
+            EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 3, 1));
+        shader_code_.push_back(size_and_is_3d_temp);
+        shader_code_.push_back(
+            EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+        shader_code_.push_back(uint32_t(Dimension::k3D) << 9);
+        ++stat_.instruction_count;
+        ++stat_.int_instruction_count;
+
+        uint32_t size_3d_temp = PushSystemTemp();
+
+        // Get 3D texture size to a temporary variable (in the same constant,
+        // but 11:11:10).
+        shader_code_.push_back(
+            ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_UBFE) |
+            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(17));
+        shader_code_.push_back(
+            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0111, 1));
+        shader_code_.push_back(size_3d_temp);
+        shader_code_.push_back(EncodeVectorSwizzledOperand(
+            D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+        shader_code_.push_back(11);
+        shader_code_.push_back(11);
+        shader_code_.push_back(10);
+        shader_code_.push_back(0);
+        shader_code_.push_back(EncodeVectorSwizzledOperand(
+            D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+        shader_code_.push_back(0);
+        shader_code_.push_back(11);
+        shader_code_.push_back(22);
+        shader_code_.push_back(0);
+        shader_code_.push_back(
+            EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
+                                          2 - 2 * (tfetch_index & 1), 3));
+        shader_code_.push_back(
+            uint32_t(RdefConstantBufferIndex::kFetchConstants));
+        shader_code_.push_back(uint32_t(CbufferRegister::kFetchConstants));
+        shader_code_.push_back(tfetch_pair_offset + (tfetch_index & 1) * 2);
+        ++stat_.instruction_count;
+        ++stat_.uint_instruction_count;
+
+        // Replace the 2D size with the 3D one if the texture is 3D.
+        shader_code_.push_back(
+            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
+            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
+        shader_code_.push_back(
+            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0111, 1));
+        shader_code_.push_back(size_and_is_3d_temp);
+        shader_code_.push_back(
+            EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 3, 1));
+        shader_code_.push_back(size_and_is_3d_temp);
+        shader_code_.push_back(EncodeVectorSwizzledOperand(
+            D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+        shader_code_.push_back(size_3d_temp);
+        shader_code_.push_back(EncodeVectorSwizzledOperand(
+            D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+        shader_code_.push_back(size_and_is_3d_temp);
+        ++stat_.instruction_count;
+        ++stat_.movc_instruction_count;
+
+        // Release size_3d_temp.
+        PopSystemTemp();
+      }
+
+      // Convert the size to float.
+      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_UTOF) |
+                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
+      shader_code_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0111, 1));
+      shader_code_.push_back(size_and_is_3d_temp);
+      shader_code_.push_back(EncodeVectorSwizzledOperand(
+          D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+      shader_code_.push_back(size_and_is_3d_temp);
+      ++stat_.instruction_count;
+      ++stat_.conversion_instruction_count;
+
+      // Add 1 to the size because fetch constants store size minus one.
+      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ADD) |
+                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(10));
+      shader_code_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0111, 1));
+      shader_code_.push_back(size_and_is_3d_temp);
+      shader_code_.push_back(EncodeVectorSwizzledOperand(
+          D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+      shader_code_.push_back(size_and_is_3d_temp);
+      shader_code_.push_back(EncodeVectorSwizzledOperand(
+          D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+      shader_code_.push_back(0x3F800000);
+      shader_code_.push_back(0x3F800000);
+      shader_code_.push_back(0x3F800000);
+      shader_code_.push_back(0);
+      ++stat_.instruction_count;
+      ++stat_.float_instruction_count;
+
+      if (instr.dimension == TextureDimension::k3D) {
+        // Both 3D textures and 2D arrays have their Z coordinate normalized,
+        // however, on PC, array elements have unnormalized indices.
+        // https://www.slideshare.net/blackdevilvikas/next-generation-graphics-programming-on-xbox-360
+        // Put the array layer in W - Z * depth if the fetch uses normalized
+        // coordinates, and Z if it uses unnormalized.
+        if (instr.attributes.unnormalized_coordinates) {
+          shader_code_.push_back(
+              ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
+          shader_code_.push_back(
+              EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1000, 1));
+          shader_code_.push_back(system_temp_pv_);
+          shader_code_.push_back(
+              EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
+          shader_code_.push_back(system_temp_pv_);
+          ++stat_.instruction_count;
+          ++stat_.mov_instruction_count;
+        } else {
+          shader_code_.push_back(
+              ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MUL) |
+              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+          shader_code_.push_back(
+              EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1000, 1));
+          shader_code_.push_back(system_temp_pv_);
+          shader_code_.push_back(
+              EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
+          shader_code_.push_back(system_temp_pv_);
+          shader_code_.push_back(
+              EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
+          shader_code_.push_back(size_and_is_3d_temp);
+          ++stat_.instruction_count;
+          ++stat_.float_instruction_count;
+        }
+      }
+
+      if (has_offset || instr.attributes.unnormalized_coordinates) {
+        // Take the reciprocal of the size to normalize the coordinates and the
+        // offset (this is not necessary to just sample 3D/array with normalized
+        // coordinates and no offset). For cubemaps, there will be 1 in Z, so
+        // this will work.
+        shader_code_.push_back(
+            ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_RCP) |
+            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
+        shader_code_.push_back(EncodeVectorMaskedOperand(
+            D3D10_SB_OPERAND_TYPE_TEMP, coord_mask, 1));
+        shader_code_.push_back(size_and_is_3d_temp);
+        shader_code_.push_back(EncodeVectorSwizzledOperand(
+            D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+        shader_code_.push_back(size_and_is_3d_temp);
+        ++stat_.instruction_count;
+        ++stat_.float_instruction_count;
+
+        // Normalize the coordinates.
+        if (instr.attributes.unnormalized_coordinates) {
+          shader_code_.push_back(
+              ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MUL) |
+              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+          shader_code_.push_back(EncodeVectorMaskedOperand(
+              D3D10_SB_OPERAND_TYPE_TEMP, coord_mask, 1));
+          shader_code_.push_back(system_temp_pv_);
+          shader_code_.push_back(EncodeVectorSwizzledOperand(
+              D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+          shader_code_.push_back(system_temp_pv_);
+          shader_code_.push_back(EncodeVectorSwizzledOperand(
+              D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+          shader_code_.push_back(size_and_is_3d_temp);
+          ++stat_.instruction_count;
+          ++stat_.float_instruction_count;
+        }
+
+        // Apply the offset.
+        if (has_offset) {
+          shader_code_.push_back(
+              ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MAD) |
+              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(12));
+          shader_code_.push_back(EncodeVectorMaskedOperand(
+              D3D10_SB_OPERAND_TYPE_TEMP, coord_mask, 1));
+          shader_code_.push_back(system_temp_pv_);
+          shader_code_.push_back(EncodeVectorSwizzledOperand(
+              D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+          shader_code_.push_back(*reinterpret_cast<const uint32_t*>(&offset_x));
+          shader_code_.push_back(*reinterpret_cast<const uint32_t*>(&offset_y));
+          shader_code_.push_back(*reinterpret_cast<const uint32_t*>(&offset_z));
+          shader_code_.push_back(0);
+          shader_code_.push_back(EncodeVectorSwizzledOperand(
+              D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+          shader_code_.push_back(size_and_is_3d_temp);
+          shader_code_.push_back(EncodeVectorSwizzledOperand(
+              D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+          shader_code_.push_back(system_temp_pv_);
+          ++stat_.instruction_count;
+          ++stat_.float_instruction_count;
+        }
+      }
+    }
+
+    // TODO(Triang3l): Revert the `cube` instruction.
+    // TODO(Triang3l): Actually fetch the texture.
+
+    if (size_and_is_3d_temp != UINT32_MAX) {
+      PopSystemTemp();
+    }
+
   } else if (instr.opcode == FetchOpcode::kSetTextureLod) {
     shader_code_.push_back(
         ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
@@ -3024,7 +3340,7 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
     shader_code_.push_back(instr.opcode == FetchOpcode::kSetTextureGradientsVert
                                ? system_temp_grad_v_
                                : system_temp_grad_h_lod_);
-    UseDxbcSourceOperand(operand, kSwizzleXYZW);
+    UseDxbcSourceOperand(operand);
     ++stat_.instruction_count;
     ++stat_.mov_instruction_count;
   }
