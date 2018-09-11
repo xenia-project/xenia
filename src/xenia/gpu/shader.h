@@ -421,6 +421,7 @@ struct ParsedTextureFetchInstruction {
     bool use_computed_lod = true;
     bool use_register_lod = false;
     bool use_register_gradients = false;
+    float lod_bias = 0.0f;
     float offset_x = 0.0f;
     float offset_y = 0.0f;
     float offset_z = 0.0f;

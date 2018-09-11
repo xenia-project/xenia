@@ -45,7 +45,7 @@ void D3D12Shader::SetTexturesAndSamplers(
   }
   sampler_bindings_.clear();
   sampler_bindings_.reserve(sampler_binding_count);
-  for (uint32_t i = 0; i < texture_srv_count; ++i) {
+  for (uint32_t i = 0; i < sampler_binding_count; ++i) {
     SamplerBinding sampler;
     const DxbcShaderTranslator::SamplerBinding& translator_sampler =
         sampler_bindings[i];

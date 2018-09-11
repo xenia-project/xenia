@@ -468,7 +468,7 @@ void TextureCache::WriteSampler(uint32_t fetch_constant,
     aniso_filter = AnisoFilter(fetch.aniso_filter);
   }
   D3D12_SAMPLER_DESC desc;
-  if (fetch.aniso_filter) {
+  if (aniso_filter != AnisoFilter::kDisabled) {
     desc.Filter = D3D12_FILTER_ANISOTROPIC;
     desc.MaxAnisotropy = std::min(1u << (uint32_t(aniso_filter) - 1), 16u);
   } else {
