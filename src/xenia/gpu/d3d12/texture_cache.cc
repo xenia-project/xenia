@@ -445,34 +445,46 @@ void TextureCache::WriteTextureSRV(uint32_t fetch_constant,
 }
 
 void TextureCache::WriteSampler(uint32_t fetch_constant,
+                                TextureFilter mag_filter,
+                                TextureFilter min_filter,
+                                TextureFilter mip_filter,
+                                AnisoFilter aniso_filter,
                                 D3D12_CPU_DESCRIPTOR_HANDLE handle) {
   auto& regs = *register_file_;
   uint32_t r = XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + fetch_constant * 6;
   auto group =
       reinterpret_cast<const xenos::xe_gpu_fetch_group_t*>(&regs.values[r]);
   auto& fetch = group->texture_fetch;
-  // TODO(Triang3l): Fetch shader instruction overrides.
+  if (mag_filter == TextureFilter::kUseFetchConst) {
+    mag_filter = TextureFilter(fetch.mag_filter);
+  }
+  if (min_filter == TextureFilter::kUseFetchConst) {
+    min_filter = TextureFilter(fetch.min_filter);
+  }
+  if (mip_filter == TextureFilter::kUseFetchConst) {
+    mip_filter = TextureFilter(fetch.mip_filter);
+  }
+  if (aniso_filter == AnisoFilter::kUseFetchConst) {
+    aniso_filter = AnisoFilter(fetch.aniso_filter);
+  }
   D3D12_SAMPLER_DESC desc;
   if (fetch.aniso_filter) {
     desc.Filter = D3D12_FILTER_ANISOTROPIC;
-    desc.MaxAnisotropy = std::min(1u << (fetch.aniso_filter - 1), 16u);
+    desc.MaxAnisotropy = std::min(1u << (uint32_t(aniso_filter) - 1), 16u);
   } else {
-    D3D12_FILTER_TYPE filter_min =
-        TextureFilter(fetch.min_filter) == TextureFilter::kLinear
-            ? D3D12_FILTER_TYPE_LINEAR
-            : D3D12_FILTER_TYPE_POINT;
-    D3D12_FILTER_TYPE filter_mag =
-        TextureFilter(fetch.mag_filter) == TextureFilter::kLinear
-            ? D3D12_FILTER_TYPE_LINEAR
-            : D3D12_FILTER_TYPE_POINT;
-    D3D12_FILTER_TYPE filter_mip =
-        TextureFilter(fetch.mip_filter) == TextureFilter::kLinear
-            ? D3D12_FILTER_TYPE_LINEAR
-            : D3D12_FILTER_TYPE_POINT;
+    D3D12_FILTER_TYPE d3d_filter_min = min_filter == TextureFilter::kLinear
+                                           ? D3D12_FILTER_TYPE_LINEAR
+                                           : D3D12_FILTER_TYPE_POINT;
+    D3D12_FILTER_TYPE d3d_filter_mag = mag_filter == TextureFilter::kLinear
+                                           ? D3D12_FILTER_TYPE_LINEAR
+                                           : D3D12_FILTER_TYPE_POINT;
+    D3D12_FILTER_TYPE d3d_filter_mip = mip_filter == TextureFilter::kLinear
+                                           ? D3D12_FILTER_TYPE_LINEAR
+                                           : D3D12_FILTER_TYPE_POINT;
     // TODO(Triang3l): Investigate mip_filter TextureFilter::kBaseMap.
-    desc.Filter =
-        D3D12_ENCODE_BASIC_FILTER(filter_min, filter_mag, filter_mip,
-                                  D3D12_FILTER_REDUCTION_TYPE_STANDARD);
+    desc.Filter = D3D12_ENCODE_BASIC_FILTER(
+        d3d_filter_min, d3d_filter_mag, d3d_filter_mip,
+        D3D12_FILTER_REDUCTION_TYPE_STANDARD);
     desc.MaxAnisotropy = 1;
   }
   // FIXME(Triang3l): Halfway and mirror clamp to border aren't mapped properly.

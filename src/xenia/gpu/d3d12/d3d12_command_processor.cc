@@ -129,11 +129,11 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(
   uint32_t pixel_texture_count = 0, pixel_sampler_count = 0;
   if (pixel_shader != nullptr) {
     pixel_shader->GetTextureSRVs(pixel_texture_count);
-    pixel_shader->GetSamplerFetchConstants(pixel_sampler_count);
+    pixel_shader->GetSamplerBindings(pixel_sampler_count);
   }
   uint32_t vertex_texture_count, vertex_sampler_count;
   vertex_shader->GetTextureSRVs(vertex_texture_count);
-  vertex_shader->GetSamplerFetchConstants(vertex_sampler_count);
+  vertex_shader->GetSamplerBindings(vertex_sampler_count);
   // Max 96 textures (if all kinds of tfetch instructions are used for all fetch
   // registers) and 32 samplers (one sampler per used fetch), but different
   // shader stages have different texture sets.
@@ -319,11 +319,11 @@ uint32_t D3D12CommandProcessor::GetRootExtraParameterIndices(
   uint32_t pixel_texture_count = 0, pixel_sampler_count = 0;
   if (pixel_shader != nullptr) {
     pixel_shader->GetTextureSRVs(pixel_texture_count);
-    pixel_shader->GetSamplerFetchConstants(pixel_sampler_count);
+    pixel_shader->GetSamplerBindings(pixel_sampler_count);
   }
   uint32_t vertex_texture_count, vertex_sampler_count;
   vertex_shader->GetTextureSRVs(vertex_texture_count);
-  vertex_shader->GetSamplerFetchConstants(vertex_sampler_count);
+  vertex_shader->GetSamplerBindings(vertex_sampler_count);
 
   uint32_t index = kRootParameter_Count_Base;
   if (pixel_texture_count != 0) {
@@ -1525,11 +1525,10 @@ bool D3D12CommandProcessor::UpdateBindings(
   // Get used textures and samplers.
   uint32_t pixel_texture_count, pixel_sampler_count;
   const D3D12Shader::TextureSRV* pixel_textures;
-  const uint32_t* pixel_samplers;
+  const D3D12Shader::SamplerBinding* pixel_samplers;
   if (pixel_shader != nullptr) {
     pixel_textures = pixel_shader->GetTextureSRVs(pixel_texture_count);
-    pixel_samplers =
-        pixel_shader->GetSamplerFetchConstants(pixel_sampler_count);
+    pixel_samplers = pixel_shader->GetSamplerBindings(pixel_sampler_count);
   } else {
     pixel_textures = nullptr;
     pixel_texture_count = 0;
@@ -1539,8 +1538,8 @@ bool D3D12CommandProcessor::UpdateBindings(
   uint32_t vertex_texture_count, vertex_sampler_count;
   const D3D12Shader::TextureSRV* vertex_textures =
       vertex_shader->GetTextureSRVs(vertex_texture_count);
-  const uint32_t* vertex_samplers =
-      vertex_shader->GetSamplerFetchConstants(vertex_sampler_count);
+  const D3D12Shader::SamplerBinding* vertex_samplers =
+      vertex_shader->GetSamplerBindings(vertex_sampler_count);
   uint32_t texture_count = pixel_texture_count + vertex_texture_count;
   uint32_t sampler_count = pixel_sampler_count + vertex_sampler_count;
 
@@ -1785,7 +1784,10 @@ bool D3D12CommandProcessor::UpdateBindings(
                   RootExtraParameterIndices::kUnavailable);
       gpu_handle_pixel_samplers_ = sampler_gpu_handle;
       for (uint32_t i = 0; i < pixel_sampler_count; ++i) {
-        texture_cache_->WriteSampler(pixel_samplers[i], sampler_cpu_handle);
+        const D3D12Shader::SamplerBinding& sampler = pixel_samplers[i];
+        texture_cache_->WriteSampler(sampler.fetch_constant, sampler.mag_filter,
+                                     sampler.min_filter, sampler.mip_filter,
+                                     sampler.aniso_filter, sampler_cpu_handle);
         sampler_cpu_handle.ptr += descriptor_size_sampler;
         sampler_gpu_handle.ptr += descriptor_size_sampler;
       }
@@ -1797,7 +1799,10 @@ bool D3D12CommandProcessor::UpdateBindings(
                   RootExtraParameterIndices::kUnavailable);
       gpu_handle_vertex_samplers_ = sampler_gpu_handle;
       for (uint32_t i = 0; i < vertex_sampler_count; ++i) {
-        texture_cache_->WriteSampler(vertex_samplers[i], sampler_cpu_handle);
+        const D3D12Shader::SamplerBinding& sampler = vertex_samplers[i];
+        texture_cache_->WriteSampler(sampler.fetch_constant, sampler.mag_filter,
+                                     sampler.min_filter, sampler.mip_filter,
+                                     sampler.aniso_filter, sampler_cpu_handle);
         sampler_cpu_handle.ptr += descriptor_size_sampler;
         sampler_gpu_handle.ptr += descriptor_size_sampler;
       }

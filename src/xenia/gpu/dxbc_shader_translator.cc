@@ -13,6 +13,8 @@
 
 #include <algorithm>
 #include <cstring>
+#include <memory>
+#include <sstream>
 
 #include "third_party/dxbc/DXBCChecksum.h"
 #include "third_party/dxbc/d3d12TokenizedProgramFormat.hpp"
@@ -2870,6 +2872,10 @@ uint32_t DxbcShaderTranslator::FindOrAddTextureSRV(uint32_t fetch_constant,
       return 1 + i;
     }
   }
+  if (texture_srvs_.size() >= kMaxTextureSRVs) {
+    assert_always();
+    return 1 + (kMaxTextureSRVs - 1);
+  }
   TextureSRV new_texture_srv;
   new_texture_srv.fetch_constant = fetch_constant;
   new_texture_srv.dimension = dimension;
@@ -2887,8 +2893,61 @@ uint32_t DxbcShaderTranslator::FindOrAddTextureSRV(uint32_t fetch_constant,
   new_texture_srv.name =
       xe::format_string("xe_texture%u_%s", fetch_constant, dimension_name);
   uint32_t srv_register = 1 + uint32_t(texture_srvs_.size());
-  texture_srvs_.push_back(new_texture_srv);
+  texture_srvs_.emplace_back(std::move(new_texture_srv));
   return srv_register;
+}
+
+uint32_t DxbcShaderTranslator::FindOrAddSamplerBinding(
+    uint32_t fetch_constant, TextureFilter mag_filter, TextureFilter min_filter,
+    TextureFilter mip_filter, AnisoFilter aniso_filter) {
+  // In Direct3D 12, anisotropic filtering implies linear filtering.
+  if (aniso_filter != AnisoFilter::kDisabled &&
+      aniso_filter != AnisoFilter::kUseFetchConst) {
+    mag_filter = TextureFilter::kLinear;
+    min_filter = TextureFilter::kLinear;
+    mip_filter = TextureFilter::kLinear;
+    aniso_filter = std::min(aniso_filter, AnisoFilter::kMax_16_1);
+  }
+
+  for (uint32_t i = 0; i < uint32_t(sampler_bindings_.size()); ++i) {
+    const SamplerBinding& sampler_binding = sampler_bindings_[i];
+    if (sampler_binding.fetch_constant == fetch_constant &&
+        sampler_binding.mag_filter == mag_filter &&
+        sampler_binding.min_filter == min_filter &&
+        sampler_binding.mip_filter == mip_filter &&
+        sampler_binding.aniso_filter == aniso_filter) {
+      return i;
+    }
+  }
+
+  if (sampler_bindings_.size() >= kMaxSamplerBindings) {
+    assert_always();
+    return kMaxSamplerBindings - 1;
+  }
+
+  std::ostringstream name;
+  name << "xe_sampler" << fetch_constant;
+  if (aniso_filter != AnisoFilter::kUseFetchConst) {
+    name << "_a" << (1u << uint32_t(aniso_filter));
+  }
+  if (aniso_filter == AnisoFilter::kDisabled ||
+      aniso_filter == AnisoFilter::kUseFetchConst) {
+    static const char* kFilterSuffixes[] = {"p", "l", "b", "f"};
+    name << "_" << kFilterSuffixes[uint32_t(mag_filter)]
+         << kFilterSuffixes[uint32_t(min_filter)]
+         << kFilterSuffixes[uint32_t(mip_filter)];
+  }
+
+  SamplerBinding new_sampler_binding;
+  new_sampler_binding.fetch_constant = fetch_constant;
+  new_sampler_binding.mag_filter = mag_filter;
+  new_sampler_binding.min_filter = min_filter;
+  new_sampler_binding.mip_filter = mip_filter;
+  new_sampler_binding.aniso_filter = aniso_filter;
+  new_sampler_binding.name = name.str();
+  uint32_t sampler_register = 1 + uint32_t(sampler_bindings_.size());
+  sampler_bindings_.emplace_back(std::move(new_sampler_binding));
+  return sampler_register;
 }
 
 void DxbcShaderTranslator::ProcessTextureFetchInstruction(
@@ -2927,7 +2986,11 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
       srv_register_3d = UINT32_MAX;
     }
 
-    // TODO(Triang3l): Sampler, actually sample instead of this stub.
+    uint32_t sampler_register = FindOrAddSamplerBinding(
+        tfetch_index, instr.attributes.mag_filter, instr.attributes.min_filter,
+        instr.attributes.mip_filter, instr.attributes.aniso_filter);
+
+    // TODO(Triang3l): Actually sample instead of this stub.
     shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
                            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(8));
     shader_code_.push_back(

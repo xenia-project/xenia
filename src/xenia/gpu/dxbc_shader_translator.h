@@ -62,6 +62,11 @@ class DxbcShaderTranslator : public ShaderTranslator {
     uint32_t color_output_map[4];
   };
 
+  // 96 textures at most because there are 32 fetch constants, and textures can
+  // be 2D array, 3D or cube.
+  static constexpr uint32_t kMaxTextureSRVIndexBits = 7;
+  static constexpr uint32_t kMaxTextureSRVs =
+      (1 << kMaxTextureSRVIndexBits) - 1;
   struct TextureSRV {
     uint32_t fetch_constant;
     TextureDimension dimension;
@@ -73,6 +78,17 @@ class DxbcShaderTranslator : public ShaderTranslator {
     return texture_srvs_.data();
   }
 
+  // Arbitrary limit - there can't be more than 2048 in a shader-visible
+  // descriptor heap, though some older hardware (tier 1 resource binding -
+  // Nvidia Fermi) doesn't support more than 16 samplers bound at once (we can't
+  // really do anything if a game uses more than 16), but just to have some
+  // limit so sampler count can easily be packed into 32-bit map keys (for
+  // instance, for root signatures). But shaders can specify overrides for
+  // filtering modes, and the number of possible combinations is huge - let's
+  // limit it to something sane.
+  static constexpr uint32_t kMaxSamplerBindingIndexBits = 7;
+  static constexpr uint32_t kMaxSamplerBindings =
+      (1 << kMaxSamplerBindingIndexBits) - 1;
   struct SamplerBinding {
     uint32_t fetch_constant;
     TextureFilter mag_filter;
@@ -341,6 +357,12 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // Returns T#/t# index (they are the same in this translator).
   uint32_t FindOrAddTextureSRV(uint32_t fetch_constant,
                                TextureDimension dimension);
+  // Returns S#/s# index (they are the same in this translator).
+  uint32_t FindOrAddSamplerBinding(uint32_t fetch_constant,
+                                   TextureFilter mag_filter,
+                                   TextureFilter min_filter,
+                                   TextureFilter mip_filter,
+                                   AnisoFilter aniso_filter);
 
   void ProcessVectorAluInstruction(const ParsedAluInstruction& instr);
   void ProcessScalarAluInstruction(const ParsedAluInstruction& instr);

@@ -76,7 +76,9 @@ class TextureCache {
   void WriteTextureSRV(uint32_t fetch_constant,
                        TextureDimension shader_dimension,
                        D3D12_CPU_DESCRIPTOR_HANDLE handle);
-  void WriteSampler(uint32_t fetch_constant,
+  void WriteSampler(uint32_t fetch_constant, TextureFilter mag_filter,
+                    TextureFilter min_filter, TextureFilter mip_filter,
+                    AnisoFilter aniso_filter,
                     D3D12_CPU_DESCRIPTOR_HANDLE handle);
 
   static DXGI_FORMAT GetResolveDXGIFormat(TextureFormat format);
