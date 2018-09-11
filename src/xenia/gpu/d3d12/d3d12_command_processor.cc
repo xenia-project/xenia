@@ -134,11 +134,18 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(
   uint32_t vertex_texture_count, vertex_sampler_count;
   vertex_shader->GetTextureSRVs(vertex_texture_count);
   vertex_shader->GetSamplerBindings(vertex_sampler_count);
-  // Max 96 textures (if all kinds of tfetch instructions are used for all fetch
-  // registers) and 32 samplers (one sampler per used fetch), but different
-  // shader stages have different texture sets.
-  uint32_t index = pixel_texture_count | (pixel_sampler_count << 7) |
-                   (vertex_texture_count << 12) | (vertex_sampler_count << 19);
+
+  uint32_t index = 0;
+  uint32_t index_offset = 0;
+  index |= pixel_texture_count << index_offset;
+  index_offset += D3D12Shader::kMaxTextureSRVIndexBits;
+  index |= pixel_sampler_count << index_offset;
+  index_offset += D3D12Shader::kMaxSamplerBindingIndexBits;
+  index |= vertex_texture_count << index_offset;
+  index_offset += D3D12Shader::kMaxTextureSRVIndexBits;
+  index |= vertex_sampler_count << index_offset;
+  index_offset += D3D12Shader::kMaxSamplerBindingIndexBits;
+  assert_true(index_offset <= 32);
 
   // Try an existing root signature.
   auto it = root_signatures_.find(index);
