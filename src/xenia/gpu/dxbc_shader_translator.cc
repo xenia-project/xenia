@@ -4190,7 +4190,297 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
         ++stat_.instruction_count;
       }
 
-      // TODO(Triang3l): Apply exponent bias, sign bias and gamma.
+      if (instr.opcode == FetchOpcode::kTextureFetch) {
+        // Apply sign bias (2 * color - 1) and linearize gamma textures. This is
+        // done before applying the exponent bias because this must be done on
+        // color values in 0...1 range, and this is closer to the storage
+        // format, while exponent bias is closer to the actual usage in shaders.
+        uint32_t signs_temp = PushSystemTemp();
+        // Extract the sign values from dword 0 ([0].x or [1].z) of the fetch
+        // constant, in bits 2:3, 4:5, 6:7 and 8:9.
+        shader_code_.push_back(
+            ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_UBFE) |
+            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(17));
+        shader_code_.push_back(
+            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+        shader_code_.push_back(signs_temp);
+        shader_code_.push_back(EncodeVectorSwizzledOperand(
+            D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+        shader_code_.push_back(2);
+        shader_code_.push_back(2);
+        shader_code_.push_back(2);
+        shader_code_.push_back(2);
+        shader_code_.push_back(EncodeVectorSwizzledOperand(
+            D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+        shader_code_.push_back(2);
+        shader_code_.push_back(4);
+        shader_code_.push_back(6);
+        shader_code_.push_back(8);
+        shader_code_.push_back(EncodeVectorReplicatedOperand(
+            D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, (tfetch_index & 1) * 2, 3));
+        shader_code_.push_back(
+            uint32_t(RdefConstantBufferIndex::kFetchConstants));
+        shader_code_.push_back(uint32_t(CbufferRegister::kFetchConstants));
+        shader_code_.push_back(tfetch_pair_offset + (tfetch_index & 1));
+        ++stat_.instruction_count;
+        ++stat_.uint_instruction_count;
+
+        // TODO(Triang3l): Handle TextureSign::kSigned somehow - would possibly
+        // require conditionally sampling unsigned and signed versions of the
+        // texture.
+
+        // Expand 0...1 to -1...1 (for normal and DuDv maps, for instance).
+        uint32_t color_biased_temp = PushSystemTemp();
+        shader_code_.push_back(
+            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MAD) |
+            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(15));
+        shader_code_.push_back(
+            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+        shader_code_.push_back(color_biased_temp);
+        shader_code_.push_back(EncodeVectorSwizzledOperand(
+            D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+        shader_code_.push_back(system_temp_pv_);
+        shader_code_.push_back(EncodeVectorSwizzledOperand(
+            D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+        shader_code_.push_back(0x40000000u);
+        shader_code_.push_back(0x40000000u);
+        shader_code_.push_back(0x40000000u);
+        shader_code_.push_back(0x40000000u);
+        shader_code_.push_back(EncodeVectorSwizzledOperand(
+            D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+        shader_code_.push_back(0xBF800000u);
+        shader_code_.push_back(0xBF800000u);
+        shader_code_.push_back(0xBF800000u);
+        shader_code_.push_back(0xBF800000u);
+        ++stat_.instruction_count;
+        ++stat_.float_instruction_count;
+        // Change the color to the biased one where needed.
+        uint32_t signs_are_bias_temp = PushSystemTemp();
+        shader_code_.push_back(
+            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IEQ) |
+            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(10));
+        shader_code_.push_back(
+            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+        shader_code_.push_back(signs_are_bias_temp);
+        shader_code_.push_back(EncodeVectorSwizzledOperand(
+            D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+        shader_code_.push_back(signs_temp);
+        shader_code_.push_back(EncodeVectorSwizzledOperand(
+            D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+        shader_code_.push_back(uint32_t(TextureSign::kUnsignedBiased));
+        shader_code_.push_back(uint32_t(TextureSign::kUnsignedBiased));
+        shader_code_.push_back(uint32_t(TextureSign::kUnsignedBiased));
+        shader_code_.push_back(uint32_t(TextureSign::kUnsignedBiased));
+        ++stat_.instruction_count;
+        ++stat_.int_instruction_count;
+        shader_code_.push_back(
+            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
+            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
+        shader_code_.push_back(
+            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+        shader_code_.push_back(system_temp_pv_);
+        shader_code_.push_back(EncodeVectorSwizzledOperand(
+            D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+        shader_code_.push_back(signs_are_bias_temp);
+        shader_code_.push_back(EncodeVectorSwizzledOperand(
+            D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+        shader_code_.push_back(color_biased_temp);
+        shader_code_.push_back(EncodeVectorSwizzledOperand(
+            D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+        shader_code_.push_back(system_temp_pv_);
+        ++stat_.instruction_count;
+        ++stat_.movc_instruction_count;
+        // Release color_biased_temp and signs_are_bias_temp.
+        PopSystemTemp(2);
+
+        // Linearize the texture if it's stored in a gamma format.
+        // TODO(Triang3l): Check how SetPWLGamma effects this - currently using
+        // the default curve.
+        // Check which components need gamma correction.
+        uint32_t signs_are_gamma_temp = PushSystemTemp();
+        shader_code_.push_back(
+            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IEQ) |
+            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(10));
+        shader_code_.push_back(
+            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+        shader_code_.push_back(signs_are_gamma_temp);
+        shader_code_.push_back(EncodeVectorSwizzledOperand(
+            D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+        shader_code_.push_back(signs_temp);
+        shader_code_.push_back(EncodeVectorSwizzledOperand(
+            D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+        shader_code_.push_back(uint32_t(TextureSign::kGamma));
+        shader_code_.push_back(uint32_t(TextureSign::kGamma));
+        shader_code_.push_back(uint32_t(TextureSign::kGamma));
+        shader_code_.push_back(uint32_t(TextureSign::kGamma));
+        ++stat_.instruction_count;
+        ++stat_.int_instruction_count;
+        uint32_t gamma_pieces_temp = PushSystemTemp();
+        for (uint32_t i = 0; i < 4; ++i) {
+          shader_code_.push_back(
+              ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
+              ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(
+                  D3D10_SB_INSTRUCTION_TEST_NONZERO) |
+              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
+          shader_code_.push_back(
+              EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, i, 1));
+          shader_code_.push_back(signs_are_gamma_temp);
+          ++stat_.instruction_count;
+          ++stat_.dynamic_flow_control_count;
+          // Gamma can only be corrected in the 0...1 range.
+          shader_code_.push_back(
+              ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+              ENCODE_D3D10_SB_INSTRUCTION_SATURATE(1) |
+              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
+          shader_code_.push_back(
+              EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1 << i, 1));
+          shader_code_.push_back(system_temp_pv_);
+          shader_code_.push_back(
+              EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, i, 1));
+          shader_code_.push_back(system_temp_pv_);
+          ++stat_.instruction_count;
+          ++stat_.mov_instruction_count;
+          // Calculate how far we are on each piece of the curve. Multiply by
+          // 1/width of each piece, subtract start/width of it and saturate.
+          shader_code_.push_back(
+              ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MAD) |
+              ENCODE_D3D10_SB_INSTRUCTION_SATURATE(1) |
+              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(15));
+          shader_code_.push_back(
+              EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+          shader_code_.push_back(gamma_pieces_temp);
+          shader_code_.push_back(
+              EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, i, 1));
+          shader_code_.push_back(system_temp_pv_);
+          shader_code_.push_back(EncodeVectorSwizzledOperand(
+              D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+          // 1 / 0.25
+          shader_code_.push_back(0x40800000u);
+          // 1 / 0.125
+          shader_code_.push_back(0x41000000u);
+          // 1 / 0.375
+          shader_code_.push_back(0x402AAAABu);
+          // 1 / 0.25
+          shader_code_.push_back(0x40800000u);
+          shader_code_.push_back(EncodeVectorSwizzledOperand(
+              D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+          // -0 / 0.25
+          shader_code_.push_back(0);
+          // -0.25 / 0.125
+          shader_code_.push_back(0xC0000000u);
+          // -0.375 / 0.375
+          shader_code_.push_back(0xBF800000u);
+          // -0.75 / 0.25
+          shader_code_.push_back(0xC0400000u);
+          ++stat_.instruction_count;
+          ++stat_.float_instruction_count;
+          // Combine the contribution of all pieces to the resulting linearized
+          // value - multiply each piece by slope*width and sum them.
+          shader_code_.push_back(
+              ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DP4) |
+              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(10));
+          shader_code_.push_back(
+              EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1 << i, 1));
+          shader_code_.push_back(system_temp_pv_);
+          shader_code_.push_back(EncodeVectorSwizzledOperand(
+              D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+          shader_code_.push_back(gamma_pieces_temp);
+          shader_code_.push_back(EncodeVectorSwizzledOperand(
+              D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+          // 0.25 * 0.25
+          shader_code_.push_back(0x3D800000u);
+          // 0.5 * 0.125
+          shader_code_.push_back(0x3D800000u);
+          // 1.0 * 0.375
+          shader_code_.push_back(0x3EC00000u);
+          // 2.0 * 0.25
+          shader_code_.push_back(0x3F000000u);
+          ++stat_.instruction_count;
+          ++stat_.float_instruction_count;
+          // Done with this component.
+          shader_code_.push_back(
+              ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
+              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
+          ++stat_.instruction_count;
+        }
+        // Release signs_are_gamma_temp and gamma_pieces_temp.
+        PopSystemTemp(2);
+
+        // Release signs_temp.
+        PopSystemTemp();
+
+        // Apply exponent bias.
+        uint32_t exp_adjust_temp = PushSystemTemp();
+        // Get the bias value in bits 13:18 of dword 3, which is [0].w or [2].y.
+        shader_code_.push_back(
+            ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_IBFE) |
+            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(11));
+        shader_code_.push_back(
+            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+        shader_code_.push_back(exp_adjust_temp);
+        shader_code_.push_back(
+            EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+        shader_code_.push_back(6);
+        shader_code_.push_back(
+            EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+        shader_code_.push_back(13);
+        shader_code_.push_back(
+            EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
+                                      3 - 2 * (tfetch_index & 1), 3));
+        shader_code_.push_back(
+            uint32_t(RdefConstantBufferIndex::kFetchConstants));
+        shader_code_.push_back(uint32_t(CbufferRegister::kFetchConstants));
+        shader_code_.push_back(tfetch_pair_offset + (tfetch_index & 1) * 2);
+        ++stat_.instruction_count;
+        ++stat_.uint_instruction_count;
+        // Shift it into float exponent bits.
+        shader_code_.push_back(
+            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ISHL) |
+            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+        shader_code_.push_back(
+            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+        shader_code_.push_back(exp_adjust_temp);
+        shader_code_.push_back(
+            EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
+        shader_code_.push_back(exp_adjust_temp);
+        shader_code_.push_back(
+            EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+        shader_code_.push_back(23);
+        ++stat_.instruction_count;
+        ++stat_.int_instruction_count;
+        // Add this to the exponent of 1.0.
+        shader_code_.push_back(
+            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IADD) |
+            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+        shader_code_.push_back(
+            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+        shader_code_.push_back(exp_adjust_temp);
+        shader_code_.push_back(
+            EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
+        shader_code_.push_back(exp_adjust_temp);
+        shader_code_.push_back(
+            EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+        shader_code_.push_back(0x3F800000);
+        ++stat_.instruction_count;
+        ++stat_.int_instruction_count;
+        // Multiply the value from the texture by 2.0^bias.
+        shader_code_.push_back(
+            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MUL) |
+            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+        shader_code_.push_back(
+            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+        shader_code_.push_back(system_temp_pv_);
+        shader_code_.push_back(EncodeVectorSwizzledOperand(
+            D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+        shader_code_.push_back(system_temp_pv_);
+        shader_code_.push_back(
+            EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
+        shader_code_.push_back(exp_adjust_temp);
+        ++stat_.instruction_count;
+        ++stat_.float_instruction_count;
+        // Release exp_adjust_temp.
+        PopSystemTemp();
+      }
     }
 
     if (size_and_is_3d_temp != UINT32_MAX) {
