@@ -1309,13 +1309,12 @@ void DxbcShaderTranslator::UseDxbcSourceOperand(
   if (select_component <= 3) {
     component_bits |= ENCODE_D3D10_SB_OPERAND_4_COMPONENT_SELECTION_MODE(
                           D3D10_SB_OPERAND_4_COMPONENT_SELECT_1_MODE) |
-                      (((operand.swizzle >> (select_component * 2)) & 0x3)
+                      (((swizzle >> (select_component * 2)) & 0x3)
                        << D3D10_SB_OPERAND_4_COMPONENT_SELECT_1_SHIFT);
   } else {
-    component_bits |=
-        ENCODE_D3D10_SB_OPERAND_4_COMPONENT_SELECTION_MODE(
-            D3D10_SB_OPERAND_4_COMPONENT_SWIZZLE_MODE) |
-        (operand.swizzle << D3D10_SB_OPERAND_4_COMPONENT_SWIZZLE_SHIFT);
+    component_bits |= ENCODE_D3D10_SB_OPERAND_4_COMPONENT_SELECTION_MODE(
+                          D3D10_SB_OPERAND_4_COMPONENT_SWIZZLE_MODE) |
+                      (swizzle << D3D10_SB_OPERAND_4_COMPONENT_SWIZZLE_SHIFT);
   }
 
   // Apply both the operand negation and the usage negation (for subtraction)
@@ -2950,7 +2949,7 @@ uint32_t DxbcShaderTranslator::FindOrAddSamplerBinding(
   return sampler_register;
 }
 
-void DxbcShaderTranslator::ArrayToCubeDirection(uint32_t reg) {
+void DxbcShaderTranslator::ArrayCoordToCubeDirection(uint32_t reg) {
   // This does the reverse of what the cube vector ALU instruction does, but
   // assuming S and T are normalized.
   //
@@ -3794,7 +3793,7 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
         // at the edges, especially in pixel shader helper invocations, the
         // major axis changes, causing S/T to jump between 0 and 1, breaking
         // gradient calculation and causing the 1x1 mipmap to be sampled.
-        ArrayToCubeDirection(system_temp_pv_);
+        ArrayCoordToCubeDirection(system_temp_pv_);
       }
 
       // tfetch1D/2D/Cube just fetch directly. tfetch3D needs to fetch either
@@ -4545,14 +4544,14 @@ void DxbcShaderTranslator::ProcessVectorAluInstruction(
       ++stat_.uint_instruction_count;
 
       // Flip T or S.
-      // movc pv.xy__, mask.xy__, -pv.xy__, pv.xy__
+      // movc pv.xy__, mask.yx__, -pv.xy__, pv.xy__
       shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
                              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(10));
       shader_code_.push_back(
           EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0011, 1));
       shader_code_.push_back(system_temp_pv_);
       shader_code_.push_back(EncodeVectorSwizzledOperand(
-          D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+          D3D10_SB_OPERAND_TYPE_TEMP, 0b11100001, 1));
       shader_code_.push_back(cube_mask_temp);
       shader_code_.push_back(EncodeVectorSwizzledOperand(
                                  D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1) |
@@ -5941,11 +5940,6 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
   uint32_t chunk_position_dwords = uint32_t(shader_object_.size());
   uint32_t new_offset;
 
-  // + 1 for shared memory (vfetches can probably appear in pixel shaders too,
-  // they are handled safely there anyway).
-  // TODO(Triang3l): Textures, samplers.
-  uint32_t binding_count = uint32_t(RdefConstantBufferIndex::kCount) + 1;
-
   // ***************************************************************************
   // Header
   // ***************************************************************************
@@ -5954,8 +5948,12 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
   shader_object_.push_back(uint32_t(RdefConstantBufferIndex::kCount));
   // Constant buffer offset (set later).
   shader_object_.push_back(0);
-  // Bound resource count (CBV, SRV, UAV, samplers).
-  shader_object_.push_back(binding_count);
+  // Bound resource count (samplers, SRV, UAV, CBV).
+  // + 1 for shared memory (vfetches can probably appear in pixel shaders too,
+  // they are handled safely there anyway).
+  shader_object_.push_back(uint32_t(sampler_bindings_.size()) + 1 +
+                           uint32_t(texture_srvs_.size()) +
+                           uint32_t(RdefConstantBufferIndex::kCount));
   // Bound resource buffer offset (set later).
   shader_object_.push_back(0);
   if (is_vertex_shader()) {
