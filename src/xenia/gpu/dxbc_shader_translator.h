@@ -363,6 +363,9 @@ class DxbcShaderTranslator : public ShaderTranslator {
                                    TextureFilter min_filter,
                                    TextureFilter mip_filter,
                                    AnisoFilter aniso_filter);
+  // Converts (S, T, face index) in the specified temporary register to a 3D
+  // cubemap coordinate.
+  void ArrayToCubeDirection(uint32_t reg);
 
   void ProcessVectorAluInstruction(const ParsedAluInstruction& instr);
   void ProcessScalarAluInstruction(const ParsedAluInstruction& instr);
