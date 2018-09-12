@@ -1347,15 +1347,15 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   //           = false: multiply the Z coordinate by 1/W0.
   // VTX_W0_FMT = true: the incoming W0 is not 1/W0. Perform the reciprocal to
   //                    get 1/W0.
-  float vtx_xy_fmt = (pa_cl_vte_cntl & (1 << 8)) ? 1.0f : 0.0f;
-  float vtx_z_fmt = (pa_cl_vte_cntl & (1 << 9)) ? 1.0f : 0.0f;
-  float vtx_w0_fmt = (pa_cl_vte_cntl & (1 << 10)) ? 1.0f : 0.0f;
-  dirty |= system_constants_.mul_rcp_w[0] != vtx_xy_fmt;
-  dirty |= system_constants_.mul_rcp_w[1] != vtx_z_fmt;
-  dirty |= system_constants_.mul_rcp_w[2] != vtx_w0_fmt;
-  system_constants_.mul_rcp_w[0] = vtx_xy_fmt;
-  system_constants_.mul_rcp_w[1] = vtx_z_fmt;
-  system_constants_.mul_rcp_w[2] = vtx_w0_fmt;
+  uint32_t vtx_xy_fmt = (pa_cl_vte_cntl >> 8) & 1;
+  uint32_t vtx_z_fmt = (pa_cl_vte_cntl >> 9) & 1;
+  uint32_t vtx_w0_fmt = (pa_cl_vte_cntl >> 10) & 1;
+  dirty |= system_constants_.vertex_w_format[0] != vtx_xy_fmt;
+  dirty |= system_constants_.vertex_w_format[1] != vtx_z_fmt;
+  dirty |= system_constants_.vertex_w_format[2] != vtx_w0_fmt;
+  system_constants_.vertex_w_format[0] = vtx_xy_fmt;
+  system_constants_.vertex_w_format[1] = vtx_z_fmt;
+  system_constants_.vertex_w_format[2] = vtx_w0_fmt;
 
   // Conversion to Direct3D 12 normalized device coordinates.
   // See viewport configuration in UpdateFixedFunctionState for explanations.

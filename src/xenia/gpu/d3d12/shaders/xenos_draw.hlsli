@@ -3,7 +3,7 @@
 
 cbuffer xe_system_cbuffer : register(b0) {
   // vec4 0
-  float3 xe_mul_rcp_w;
+  uint3 xe_vertex_w_format;
   uint xe_vertex_base_index;
   // vec4 1
   float3 xe_ndc_scale;

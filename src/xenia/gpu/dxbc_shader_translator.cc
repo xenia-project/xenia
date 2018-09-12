@@ -517,7 +517,85 @@ void DxbcShaderTranslator::StartTranslation() {
 }
 
 void DxbcShaderTranslator::CompleteVertexShader() {
-  // TODO(Triang3l): vtx_fmt.
+  // Revert getting the reciprocal of W and dividing XY by W if needed.
+  // TODO(Triang3l): Check if having XY or Z pre-divided by W should enable
+  // affine interpolation.
+  rdef_constants_used_ |= 1ull
+                          << uint32_t(RdefConstantIndex::kSysVertexWFormat);
+  uint32_t w_format_temp = PushSystemTemp();
+  // If the shader has returned 1/W, restore W. First take the reciprocal, which
+  // may be either W (what we need) or 1/W, depending on the vertex W format.
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_RCP) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+  shader_code_.push_back(w_format_temp);
+  shader_code_.push_back(
+      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 3, 1));
+  shader_code_.push_back(system_temp_position_);
+  ++stat_.instruction_count;
+  ++stat_.float_instruction_count;
+  // Then, if the shader returns 1/W (vtx_w0_fmt is 0), write 1/(1/W) to the
+  // position.
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(11));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1000, 1));
+  shader_code_.push_back(system_temp_position_);
+  shader_code_.push_back(
+      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
+                                kSysConst_VertexWFormat_Comp + 2, 3));
+  shader_code_.push_back(uint32_t(RdefConstantBufferIndex::kSystemConstants));
+  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
+  shader_code_.push_back(kSysConst_VertexWFormat_Vec);
+  shader_code_.push_back(
+      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 3, 1));
+  shader_code_.push_back(system_temp_position_);
+  shader_code_.push_back(
+      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
+  shader_code_.push_back(w_format_temp);
+  ++stat_.instruction_count;
+  ++stat_.movc_instruction_count;
+  // Multiply XYZ by W in case the shader returns XYZ/W and we'll need to
+  // restore XYZ.
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MUL) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0111, 1));
+  shader_code_.push_back(w_format_temp);
+  shader_code_.push_back(
+      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+  shader_code_.push_back(system_temp_position_);
+  shader_code_.push_back(
+      EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 3, 1));
+  shader_code_.push_back(system_temp_position_);
+  ++stat_.instruction_count;
+  ++stat_.float_instruction_count;
+  // If vtx_xy_fmt and/or vtx_z_fmt are 1, XY and/or Z are pre-divided by W.
+  // Restore them in this case.
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(11));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0111, 1));
+  shader_code_.push_back(system_temp_position_);
+  shader_code_.push_back(EncodeVectorSwizzledOperand(
+      D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
+      kSysConst_VertexWFormat_Comp | (kSysConst_VertexWFormat_Comp << 2) |
+          ((kSysConst_VertexWFormat_Comp + 1) << 4),
+      3));
+  shader_code_.push_back(uint32_t(RdefConstantBufferIndex::kSystemConstants));
+  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
+  shader_code_.push_back(kSysConst_VertexWFormat_Vec);
+  shader_code_.push_back(
+      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+  shader_code_.push_back(w_format_temp);
+  shader_code_.push_back(
+      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+  shader_code_.push_back(system_temp_position_);
+  ++stat_.instruction_count;
+  ++stat_.movc_instruction_count;
+  // Release w_format_temp.
+  PopSystemTemp();
 
   // Apply scale for drawing without a viewport.
   rdef_constants_used_ |= 1ull << uint32_t(RdefConstantIndex::kSysNDCScale);
@@ -5976,6 +6054,7 @@ const DxbcShaderTranslator::RdefType DxbcShaderTranslator::rdef_types_[size_t(
     {"float4", 1, 3, 1, 4, 0, 0, RdefTypeIndex::kUnknown, nullptr},
     {"int", 0, 2, 1, 1, 0, 0, RdefTypeIndex::kUnknown, nullptr},
     {"uint", 0, 19, 1, 1, 0, 0, RdefTypeIndex::kUnknown, nullptr},
+    {"uint3", 1, 19, 1, 3, 0, 0, RdefTypeIndex::kUnknown, nullptr},
     {"uint4", 1, 19, 1, 4, 0, 0, RdefTypeIndex::kUnknown, nullptr},
     {nullptr, 1, 19, 1, 4, 8, 0, RdefTypeIndex::kUint4, nullptr},
     {nullptr, 1, 19, 1, 4, 32, 0, RdefTypeIndex::kUint4, nullptr},
@@ -5991,7 +6070,7 @@ const DxbcShaderTranslator::RdefConstant
         DxbcShaderTranslator::RdefConstantIndex::kCount)] = {
         // SYSTEM CONSTANTS MUST BE UPDATED IF THEIR LAYOUT CHANGES!
         // System constants vec4 0.
-        {"xe_mul_rcp_w", RdefTypeIndex::kFloat3, 0, 12},
+        {"xe_vertex_w_format", RdefTypeIndex::kUint3, 0, 12},
         {"xe_vertex_base_index", RdefTypeIndex::kUint, 12, 4},
         // System constants vec4 1.
         {"xe_ndc_scale", RdefTypeIndex::kFloat3, 16, 12},

@@ -33,7 +33,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // - d3d12/shaders/xenos_draw.hlsli (for geometry shaders).
   struct SystemConstants {
     // vec4 0
-    float mul_rcp_w[3];
+    uint32_t vertex_w_format[3];
     uint32_t vertex_base_index;
 
     // vec4 1
@@ -139,8 +139,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
   };
 
   enum : uint32_t {
-    kSysConst_MulRcpW_Vec = 0,
-    kSysConst_MulRcpW_Comp = 0,
+    kSysConst_VertexWFormat_Vec = 0,
+    kSysConst_VertexWFormat_Comp = 0,
     kSysConst_VertexBaseIndex_Vec = 0,
     kSysConst_VertexBaseIndex_Comp = 3,
 
@@ -397,6 +397,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kFloat4,
     kInt,
     kUint,
+    kUint3,
     kUint4,
     // Bool constants.
     kUint4Array8,
@@ -438,7 +439,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
 
   enum class RdefConstantIndex {
     kSystemConstantFirst,
-    kSysMulRcpW = kSystemConstantFirst,
+    kSysVertexWFormat = kSystemConstantFirst,
     kSysVertexBaseIndex,
     kSysNDCScale,
     kSysVertexIndexEndian,
