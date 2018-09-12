@@ -2950,6 +2950,310 @@ uint32_t DxbcShaderTranslator::FindOrAddSamplerBinding(
   return sampler_register;
 }
 
+void DxbcShaderTranslator::ArrayToCubeDirection(uint32_t reg) {
+  // This does the reverse of what the cube vector ALU instruction does, but
+  // assuming S and T are normalized.
+  //
+  // The major axis depends on the face index (passed as a float in reg.z):
+  // +X for 0, -X for 1, +Y for 2, -Y for 3, +Z for 4, -Z for 5.
+  //
+  // If the major axis is X:
+  // * X is 1.0 or -1.0.
+  // * Y is -T.
+  // * Z is -S for positive X, +S for negative X.
+  // If it's Y:
+  // * X is +S.
+  // * Y is 1.0 or -1.0.
+  // * Z is +T for positive Y, -T for negative Y.
+  // If it's Z:
+  // * X is +S for positive Z, -S for negative Z.
+  // * Y is -T.
+  // * Z is 1.0 or -1.0.
+
+  // Make 0, not 0.5, the center of S and T.
+  // mad reg.xy__, reg.xy__, l(2.0, 2.0, _, _), l(-1.0, -1.0, _, _)
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MAD) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(15));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0011, 1));
+  shader_code_.push_back(reg);
+  shader_code_.push_back(
+      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+  shader_code_.push_back(reg);
+  shader_code_.push_back(EncodeVectorSwizzledOperand(
+      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+  shader_code_.push_back(0x40000000u);
+  shader_code_.push_back(0x40000000u);
+  shader_code_.push_back(0x3F800000u);
+  shader_code_.push_back(0x3F800000u);
+  shader_code_.push_back(EncodeVectorSwizzledOperand(
+      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+  shader_code_.push_back(0xBF800000u);
+  shader_code_.push_back(0xBF800000u);
+  shader_code_.push_back(0);
+  shader_code_.push_back(0);
+  ++stat_.instruction_count;
+  ++stat_.float_instruction_count;
+
+  // Clamp the face index to 0...5 for safety (in case an offset was applied).
+  // max reg.z, reg.z, l(0.0)
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MAX) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0100, 1));
+  shader_code_.push_back(reg);
+  shader_code_.push_back(
+      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
+  shader_code_.push_back(reg);
+  shader_code_.push_back(
+      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+  shader_code_.push_back(0);
+  ++stat_.instruction_count;
+  ++stat_.float_instruction_count;
+  // min reg.z, reg.z, l(5.0)
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MIN) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0100, 1));
+  shader_code_.push_back(reg);
+  shader_code_.push_back(
+      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
+  shader_code_.push_back(reg);
+  shader_code_.push_back(
+      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+  shader_code_.push_back(0x40A00000);
+  ++stat_.instruction_count;
+  ++stat_.float_instruction_count;
+
+  // Allocate a register for major axis info.
+  uint32_t major_axis_temp = PushSystemTemp();
+
+  // Convert the face index to an integer.
+  // ftou major_axis_temp.x, reg.z
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_FTOU) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+  shader_code_.push_back(major_axis_temp);
+  shader_code_.push_back(
+      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
+  shader_code_.push_back(reg);
+  ++stat_.instruction_count;
+  ++stat_.conversion_instruction_count;
+
+  // Split the face number into major axis number and direction.
+  // ubfe major_axis_temp.x__w, l(2, _, _, 1), l(1, _, _, 0),
+  //      major_axis_temp.x__x
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_UBFE) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(15));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1001, 1));
+  shader_code_.push_back(major_axis_temp);
+  shader_code_.push_back(EncodeVectorSwizzledOperand(
+      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+  shader_code_.push_back(2);
+  shader_code_.push_back(0);
+  shader_code_.push_back(0);
+  shader_code_.push_back(1);
+  shader_code_.push_back(EncodeVectorSwizzledOperand(
+      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+  shader_code_.push_back(1);
+  shader_code_.push_back(0);
+  shader_code_.push_back(0);
+  shader_code_.push_back(0);
+  shader_code_.push_back(
+      EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
+  shader_code_.push_back(major_axis_temp);
+  ++stat_.instruction_count;
+  ++stat_.uint_instruction_count;
+
+  // Make booleans for whether each axis is major.
+  // ieq major_axis_temp.xyz_, major_axis_temp.xxx_, l(0, 1, 2, _)
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IEQ) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(10));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0111, 1));
+  shader_code_.push_back(major_axis_temp);
+  shader_code_.push_back(
+      EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
+  shader_code_.push_back(major_axis_temp);
+  shader_code_.push_back(EncodeVectorSwizzledOperand(
+      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+  shader_code_.push_back(0);
+  shader_code_.push_back(1);
+  shader_code_.push_back(2);
+  shader_code_.push_back(0);
+  ++stat_.instruction_count;
+  ++stat_.int_instruction_count;
+
+  // Replace the face index in the source/destination with 1.0 or -1.0 for
+  // swizzling.
+  // movc reg.z, major_axis_temp.w, l(-1.0), l(1.0)
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0100, 1));
+  shader_code_.push_back(reg);
+  shader_code_.push_back(
+      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 3, 1));
+  shader_code_.push_back(major_axis_temp);
+  shader_code_.push_back(
+      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+  shader_code_.push_back(0xBF800000u);
+  shader_code_.push_back(
+      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+  shader_code_.push_back(0x3F800000u);
+  ++stat_.instruction_count;
+  ++stat_.movc_instruction_count;
+
+  // Swizzle and negate the coordinates depending on which axis is major, but
+  // don't negate according to the direction of the major axis (will be done
+  // later).
+
+  // X case.
+  // movc reg.xyz_, major_axis_temp.xxx_, reg.zyx_, reg.xyz_
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0111, 1));
+  shader_code_.push_back(reg);
+  shader_code_.push_back(
+      EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
+  shader_code_.push_back(major_axis_temp);
+  shader_code_.push_back(
+      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b11000110, 1));
+  shader_code_.push_back(reg);
+  shader_code_.push_back(
+      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+  shader_code_.push_back(reg);
+  ++stat_.instruction_count;
+  ++stat_.movc_instruction_count;
+  // movc reg._yz_, major_axis_temp._xx_, -reg._yz_, reg._yz_
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(10));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0110, 1));
+  shader_code_.push_back(reg);
+  shader_code_.push_back(
+      EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
+  shader_code_.push_back(major_axis_temp);
+  shader_code_.push_back(
+      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1) |
+      ENCODE_D3D10_SB_OPERAND_EXTENDED(1));
+  shader_code_.push_back(
+      ENCODE_D3D10_SB_EXTENDED_OPERAND_MODIFIER(D3D10_SB_OPERAND_MODIFIER_NEG));
+  shader_code_.push_back(reg);
+  shader_code_.push_back(
+      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+  shader_code_.push_back(reg);
+  ++stat_.instruction_count;
+  ++stat_.movc_instruction_count;
+
+  // Y case.
+  // movc reg._yz_, major_axis_temp._yy_, reg._zy_, reg._yz_
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0110, 1));
+  shader_code_.push_back(reg);
+  shader_code_.push_back(
+      EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
+  shader_code_.push_back(major_axis_temp);
+  shader_code_.push_back(
+      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b11011000, 1));
+  shader_code_.push_back(reg);
+  shader_code_.push_back(
+      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+  shader_code_.push_back(reg);
+  ++stat_.instruction_count;
+  ++stat_.movc_instruction_count;
+
+  // Z case.
+  // movc reg.y, major_axis_temp.z, -reg.y, reg.y
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(10));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0010, 1));
+  shader_code_.push_back(reg);
+  shader_code_.push_back(
+      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
+  shader_code_.push_back(major_axis_temp);
+  shader_code_.push_back(
+      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1) |
+      ENCODE_D3D10_SB_OPERAND_EXTENDED(1));
+  shader_code_.push_back(
+      ENCODE_D3D10_SB_EXTENDED_OPERAND_MODIFIER(D3D10_SB_OPERAND_MODIFIER_NEG));
+  shader_code_.push_back(reg);
+  shader_code_.push_back(
+      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
+  shader_code_.push_back(reg);
+  ++stat_.instruction_count;
+  ++stat_.movc_instruction_count;
+
+  // Flip coordinates according to the direction of the major axis.
+
+  // Z needs to be flipped if the major axis is X or Y, so make an X || Y mask.
+  // X is flipped only when the major axis is Z.
+  // or major_axis_temp.x, major_axis_temp.x, major_axis_temp.y
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_OR) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+  shader_code_.push_back(major_axis_temp);
+  shader_code_.push_back(
+      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
+  shader_code_.push_back(major_axis_temp);
+  shader_code_.push_back(
+      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
+  shader_code_.push_back(major_axis_temp);
+  ++stat_.instruction_count;
+  ++stat_.uint_instruction_count;
+
+  // If the major axis is positive, nothing needs to be flipped. We have
+  // 0xFFFFFFFF/0 at this point in the major axis mask, but 1/0 in the major
+  // axis direction (didn't include W in ieq to waste less scalar operations),
+  // but AND would result in 1/0, which is fine for movc too.
+  // and major_axis_temp.x_z_, major_axis_temp.x_z_, major_axis_temp.w_w_
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0101, 1));
+  shader_code_.push_back(major_axis_temp);
+  shader_code_.push_back(
+      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+  shader_code_.push_back(major_axis_temp);
+  shader_code_.push_back(
+      EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 3, 1));
+  shader_code_.push_back(major_axis_temp);
+  ++stat_.instruction_count;
+  ++stat_.uint_instruction_count;
+
+  // Flip axes that need to be flipped.
+  // movc reg.x_z_, major_axis_temp.z_x_, -reg.x_z_, reg.x_z_
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(10));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0101, 1));
+  shader_code_.push_back(reg);
+  shader_code_.push_back(
+      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b11000110, 1));
+  shader_code_.push_back(major_axis_temp);
+  shader_code_.push_back(
+      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1) |
+      ENCODE_D3D10_SB_OPERAND_EXTENDED(1));
+  shader_code_.push_back(
+      ENCODE_D3D10_SB_EXTENDED_OPERAND_MODIFIER(D3D10_SB_OPERAND_MODIFIER_NEG));
+  shader_code_.push_back(reg);
+  shader_code_.push_back(
+      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+  shader_code_.push_back(reg);
+  ++stat_.instruction_count;
+  ++stat_.movc_instruction_count;
+
+  // Release major_axis_temp.
+  PopSystemTemp();
+}
+
 void DxbcShaderTranslator::ProcessTextureFetchInstruction(
     const ParsedTextureFetchInstruction& instr) {
   CheckPredicate(instr.is_predicated, instr.predicate_condition);
@@ -3351,21 +3655,40 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
           // Put the array layer in W - Z * depth if the fetch uses normalized
           // coordinates, and Z if it uses unnormalized.
           if (instr.attributes.unnormalized_coordinates) {
-            shader_code_.push_back(
-                ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-                ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
+            ++stat_.instruction_count;
+            if (offset_z != 0.0f) {
+              ++stat_.float_instruction_count;
+              shader_code_.push_back(
+                  ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ADD) |
+                  ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+            } else {
+              ++stat_.mov_instruction_count;
+              shader_code_.push_back(
+                  ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+                  ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
+            }
             shader_code_.push_back(EncodeVectorMaskedOperand(
                 D3D10_SB_OPERAND_TYPE_TEMP, 0b1000, 1));
             shader_code_.push_back(system_temp_pv_);
             shader_code_.push_back(
                 EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
             shader_code_.push_back(system_temp_pv_);
-            ++stat_.instruction_count;
-            ++stat_.mov_instruction_count;
+            if (offset_z != 0.0f) {
+              shader_code_.push_back(
+                  EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+              shader_code_.push_back(
+                  *reinterpret_cast<const uint32_t*>(&offset_x));
+            }
           } else {
-            shader_code_.push_back(
-                ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MUL) |
-                ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+            if (offset_z != 0.0f) {
+              shader_code_.push_back(
+                  ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MAD) |
+                  ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
+            } else {
+              shader_code_.push_back(
+                  ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MUL) |
+                  ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+            }
             shader_code_.push_back(EncodeVectorMaskedOperand(
                 D3D10_SB_OPERAND_TYPE_TEMP, 0b1000, 1));
             shader_code_.push_back(system_temp_pv_);
@@ -3375,6 +3698,12 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
             shader_code_.push_back(
                 EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
             shader_code_.push_back(size_and_is_3d_temp);
+            if (offset_z != 0.0f) {
+              shader_code_.push_back(
+                  EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+              shader_code_.push_back(
+                  *reinterpret_cast<const uint32_t*>(&offset_x));
+            }
             ++stat_.instruction_count;
             ++stat_.float_instruction_count;
           }
@@ -3459,7 +3788,14 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
       ++stat_.instruction_count;
       ++stat_.float_instruction_count;
     } else {
-      // TODO(Triang3l): Revert the `cube` instruction.
+      if (instr.dimension == TextureDimension::kCube) {
+        // Convert cubemap coordinates passed as 2D array texture coordinates to
+        // a 3D direction. We can't use a 2D array to emulate cubemaps because
+        // at the edges, especially in pixel shader helper invocations, the
+        // major axis changes, causing S/T to jump between 0 and 1, breaking
+        // gradient calculation and causing the 1x1 mipmap to be sampled.
+        ArrayToCubeDirection(system_temp_pv_);
+      }
 
       // tfetch1D/2D/Cube just fetch directly. tfetch3D needs to fetch either
       // the 3D texture or the 2D stacked texture, so two sample instructions
