@@ -2507,8 +2507,7 @@ void DxbcShaderTranslator::ProcessLoopStartInstruction(
   uint32_t loop_count_and_aL = PushSystemTemp();
 
   // Count (as uint) in bits 0:7 of the loop constant, aL in 8:15.
-  rdef_constants_used_ |= 1ull
-                          << uint32_t(RdefConstantIndex::kLoopConstants);
+  rdef_constants_used_ |= 1ull << uint32_t(RdefConstantIndex::kLoopConstants);
   shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_UBFE) |
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(17));
   shader_code_.push_back(
@@ -2542,8 +2541,8 @@ void DxbcShaderTranslator::ProcessLoopStartInstruction(
   shader_code_.push_back(
       EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1110, 1));
   shader_code_.push_back(system_temp_loop_count_);
-  shader_code_.push_back(EncodeVectorSwizzledOperand(
-      D3D10_SB_OPERAND_TYPE_TEMP, 0b10010000, 1));
+  shader_code_.push_back(
+      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b10010000, 1));
   shader_code_.push_back(system_temp_loop_count_);
   ++stat_.instruction_count;
   ++stat_.mov_instruction_count;
@@ -2565,8 +2564,8 @@ void DxbcShaderTranslator::ProcessLoopStartInstruction(
   shader_code_.push_back(
       EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
   shader_code_.push_back(system_temp_aL_);
-  shader_code_.push_back(EncodeVectorSwizzledOperand(
-      D3D10_SB_OPERAND_TYPE_TEMP, 0b10010000, 1));
+  shader_code_.push_back(
+      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b10010000, 1));
   shader_code_.push_back(system_temp_aL_);
   ++stat_.instruction_count;
   ++stat_.mov_instruction_count;
@@ -4673,8 +4672,7 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
                             << uint32_t(RdefConstantIndex::kFetchConstants);
     shader_code_.push_back(EncodeVectorReplicatedOperand(
         D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, (tfetch_index & 1) * 2, 3));
-    shader_code_.push_back(
-        uint32_t(RdefConstantBufferIndex::kFetchConstants));
+    shader_code_.push_back(uint32_t(RdefConstantBufferIndex::kFetchConstants));
     shader_code_.push_back(uint32_t(CbufferRegister::kFetchConstants));
     shader_code_.push_back(tfetch_pair_offset + 1 + (tfetch_index & 1));
     ++stat_.instruction_count;
@@ -4722,8 +4720,8 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
     shader_code_.push_back(EncodeVectorSwizzledOperand(
         D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
     shader_code_.push_back(system_temp_pv_);
-    shader_code_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_TEMP, 0b01000100, 1));
+    shader_code_.push_back(
+        EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b01000100, 1));
     shader_code_.push_back(exp_bias_temp);
     ++stat_.instruction_count;
     ++stat_.float_instruction_count;
