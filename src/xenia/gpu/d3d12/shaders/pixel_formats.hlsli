@@ -6,9 +6,11 @@
 uint XeFloat16To7e3(uint4 rgba_f16u32) {
   float4 rgba_f32 = f16tof32(rgba_f16u32);
   uint3 rgb_f32u32 = asuint(rgba_f32.xyz);
-  // Keep only positive (high bit set means negative for both float and int) and
-  // saturate to 31.875 (also dropping NaNs).
-  rgb_f32u32 = uint3(clamp(int3(rgb_f32u32), 0, 0x41FF0000));
+  // Keep only positive integers and saturate to 31.875 (also dropping NaNs).
+  // Was previously done with `asuint(clamp(asint(rgb_f32u32), 0, 0x41FF0000))`,
+  // but FXC decides to ignore the uint->int cast, and negative numbers become
+  // 0x41FF0000.
+  rgb_f32u32 = min(rgb_f32u32 * uint3(rgb_f32u32 <= 0x7FFFFFFFu), 0x41FF0000u);
   uint3 normalized = rgb_f32u32 + 0xC2000000u;
   uint3 denormalized = ((rgb_f32u32 & 0x7FFFFFu) | 0x800000u) >>
                        ((125u).xxx - (rgb_f32u32 >> 23u));
@@ -47,7 +49,7 @@ uint4 XeFloat7e3To16(uint rgba_packed) {
 uint4 XeFloat32To20e4(uint4 f32u32) {
   // Keep only positive (high bit set means negative for both float and int) and
   // saturate to the maximum representable value near 2 (also dropping NaNs).
-  f32u32 = uint4(clamp(int4(f32u32), 0, 0x3FFFFFF8));
+  f32u32 = min(f32u32 * uint4(f32u32 <= 0x7FFFFFFFu), 0x3FFFFFF8u);
   uint4 normalized = f32u32 + 0xC8000000u;
   uint4 denormalized =
       ((f32u32 & 0x7FFFFFu) | 0x800000u) >> ((113u).xxxx - (f32u32 >> 23u));
