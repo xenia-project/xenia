@@ -156,7 +156,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
 
     kSysConst_PointSize_Vec = 3,
     kSysConst_PointSize_Comp = 0,
-    kSysConst_SSAAInvScale_Vec = 0,
+    kSysConst_SSAAInvScale_Vec = 3,
     kSysConst_SSAAInvScale_Comp = 2,
 
     kSysConst_PixelPosReg_Vec = 4,
