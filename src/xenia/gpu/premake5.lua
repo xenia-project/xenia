@@ -32,6 +32,7 @@ project("xenia-gpu-shader-compiler")
   kind("ConsoleApp")
   language("C++")
   links({
+    "dxbc",
     "gflags",
     "glslang-spirv",
     "spirv-tools",

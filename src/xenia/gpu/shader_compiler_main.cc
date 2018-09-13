@@ -16,18 +16,25 @@
 
 #include "xenia/base/logging.h"
 #include "xenia/base/main.h"
+#include "xenia/base/platform.h"
 #include "xenia/base/string.h"
+#include "xenia/gpu/dxbc_shader_translator.h"
 #include "xenia/gpu/glsl_shader_translator.h"
 #include "xenia/gpu/shader_translator.h"
 #include "xenia/gpu/spirv_shader_translator.h"
 #include "xenia/ui/spirv/spirv_disassembler.h"
+
+// For D3DDisassemble:
+#if XE_PLATFORM_WIN32
+#include "xenia/ui/d3d12/d3d12_api.h"
+#endif  // XE_PLATFORM_WIN32
 
 DEFINE_string(shader_input, "", "Input shader binary file path.");
 DEFINE_string(shader_input_type, "",
               "'vs', 'ps', or unspecified to infer from the given filename.");
 DEFINE_string(shader_output, "", "Output shader file path.");
 DEFINE_string(shader_output_type, "ucode",
-              "Translator to use: [ucode, glsl45, spirv, spirvtext].");
+              "Translator to use: [ucode, glsl45, spirv, spirvtext, dxbc].");
 
 namespace xe {
 namespace gpu {
@@ -92,6 +99,8 @@ int shader_compiler_main(const std::vector<std::wstring>& args) {
   } else if (FLAGS_shader_output_type == "glsl45") {
     translator = std::make_unique<GlslShaderTranslator>(
         GlslShaderTranslator::Dialect::kGL45);
+  } else if (FLAGS_shader_output_type == "dxbc") {
+    translator = std::make_unique<DxbcShaderTranslator>();
   } else {
     translator = std::make_unique<UcodeShaderTranslator>();
   }
@@ -109,12 +118,31 @@ int shader_compiler_main(const std::vector<std::wstring>& args) {
     source_data = spirv_disasm_result->text();
     source_data_size = std::strlen(spirv_disasm_result->text()) + 1;
   }
+#if XE_PLATFORM_WIN32
+  ID3DBlob* dxbc_disasm_blob = nullptr;
+  if (FLAGS_shader_output_type == "dxbc") {
+    // Diassemble DXBC.
+    if (SUCCEEDED(D3DDisassemble(source_data, source_data_size,
+                                 D3D_DISASM_ENABLE_INSTRUCTION_NUMBERING |
+                                     D3D_DISASM_ENABLE_INSTRUCTION_OFFSET,
+                                 nullptr, &dxbc_disasm_blob))) {
+      source_data = dxbc_disasm_blob->GetBufferPointer();
+      source_data_size = dxbc_disasm_blob->GetBufferSize();
+    }
+  }
+#endif  // XE_PLATFORM_WIN32
 
   if (!FLAGS_shader_output.empty()) {
     auto output_file = fopen(FLAGS_shader_output.c_str(), "wb");
     fwrite(source_data, 1, source_data_size, output_file);
     fclose(output_file);
   }
+
+#if XE_PLATFORM_WIN32
+  if (dxbc_disasm_blob != nullptr) {
+    dxbc_disasm_blob->Release();
+  }
+#endif  // XE_PLATFORM_WIN32
 
   return 0;
 }
