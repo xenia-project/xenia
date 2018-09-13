@@ -4343,6 +4343,10 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
       }
 
       if (instr.opcode == FetchOpcode::kTextureFetch) {
+        // Will take sign values and exponent bias from the fetch constant.
+        rdef_constants_used_ |= 1ull
+                                << uint32_t(RdefConstantIndex::kFetchConstants);
+
         // Apply sign bias (2 * color - 1) and linearize gamma textures. This is
         // done before applying the exponent bias because this must be done on
         // color values in 0...1 range, and this is closer to the storage
@@ -4622,7 +4626,109 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
     if (size_and_is_3d_temp != UINT32_MAX) {
       PopSystemTemp();
     }
-
+  } else if (instr.opcode == FetchOpcode::kGetTextureGradients) {
+    assert_true(is_pixel_shader());
+    store_result = true;
+    // pv.xz = ddx(coord.xy)
+    shader_code_.push_back(
+        ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_DERIV_RTX_COARSE) |
+        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3 + operand_length));
+    shader_code_.push_back(
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0101, 1));
+    shader_code_.push_back(system_temp_pv_);
+    UseDxbcSourceOperand(operand, 0b01010000);
+    ++stat_.instruction_count;
+    ++stat_.float_instruction_count;
+    // pv.yw = ddy(coord.xy)
+    shader_code_.push_back(
+        ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_DERIV_RTY_COARSE) |
+        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3 + operand_length));
+    shader_code_.push_back(
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1010, 1));
+    shader_code_.push_back(system_temp_pv_);
+    UseDxbcSourceOperand(operand, 0b01010000);
+    ++stat_.instruction_count;
+    ++stat_.float_instruction_count;
+    // Get the exponent bias (horizontal in bits 22:26, vertical in bits 27:31
+    // of dword 4 ([1].x or [2].z) of the fetch constant).
+    uint32_t exp_bias_temp = PushSystemTemp();
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_IBFE) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(17));
+    shader_code_.push_back(
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0011, 1));
+    shader_code_.push_back(exp_bias_temp);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+    shader_code_.push_back(5);
+    shader_code_.push_back(5);
+    shader_code_.push_back(0);
+    shader_code_.push_back(0);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+    shader_code_.push_back(22);
+    shader_code_.push_back(27);
+    shader_code_.push_back(0);
+    shader_code_.push_back(0);
+    rdef_constants_used_ |= 1ull
+                            << uint32_t(RdefConstantIndex::kFetchConstants);
+    shader_code_.push_back(EncodeVectorReplicatedOperand(
+        D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, (tfetch_index & 1) * 2, 3));
+    shader_code_.push_back(
+        uint32_t(RdefConstantBufferIndex::kFetchConstants));
+    shader_code_.push_back(uint32_t(CbufferRegister::kFetchConstants));
+    shader_code_.push_back(tfetch_pair_offset + 1 + (tfetch_index & 1));
+    ++stat_.instruction_count;
+    ++stat_.int_instruction_count;
+    // Shift the exponent bias into float exponent bits.
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ISHL) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(10));
+    shader_code_.push_back(
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0011, 1));
+    shader_code_.push_back(exp_bias_temp);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+    shader_code_.push_back(exp_bias_temp);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+    shader_code_.push_back(23);
+    shader_code_.push_back(23);
+    shader_code_.push_back(0);
+    shader_code_.push_back(0);
+    ++stat_.instruction_count;
+    ++stat_.int_instruction_count;
+    // Add the bias to the exponent of 1.0.
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IADD) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(10));
+    shader_code_.push_back(
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0011, 1));
+    shader_code_.push_back(exp_bias_temp);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+    shader_code_.push_back(exp_bias_temp);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+    shader_code_.push_back(0x3F800000);
+    shader_code_.push_back(0x3F800000);
+    shader_code_.push_back(0);
+    shader_code_.push_back(0);
+    ++stat_.instruction_count;
+    ++stat_.int_instruction_count;
+    // Apply the exponent bias.
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MUL) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+    shader_code_.push_back(
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+    shader_code_.push_back(system_temp_pv_);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+    shader_code_.push_back(system_temp_pv_);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_TEMP, 0b01000100, 1));
+    shader_code_.push_back(exp_bias_temp);
+    ++stat_.instruction_count;
+    ++stat_.float_instruction_count;
+    // Release exp_bias_temp.
+    PopSystemTemp();
   } else if (instr.opcode == FetchOpcode::kSetTextureLod) {
     shader_code_.push_back(
         ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
@@ -5465,12 +5571,14 @@ void DxbcShaderTranslator::ProcessVectorAluInstruction(
       // The `a0 = int(clamp(floor(src0.w + 0.5), -256.0, 255.0))` part.
       //
       // Using specifically floor(src0.w + 0.5) rather than round(src0.w)
-      // because the R600 ISA reference says so - this makes a difference at
-      // 0.5 because round rounds to the nearest even.
+      // because the R600 ISA reference and MSDN say so - this makes a
+      // difference at 0.5 because round_ni rounds to the nearest even.
       // There's one deviation from the R600 specification though - the value is
       // clamped to 255 rather than set to -256 if it's over 255. We don't know
       // yet which is the correct - the mova_int description, for example, says
-      // "clamp" explicitly.
+      // "clamp" explicitly. MSDN, however, says the value should actually be
+      // clamped.
+      // http://web.archive.org/web/20100705151335/http://msdn.microsoft.com:80/en-us/library/bb313931.aspx
       //
       // pv.x (temporary) = src0.w + 0.5
       shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ADD) |
