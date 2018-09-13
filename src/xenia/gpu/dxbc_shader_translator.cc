@@ -3262,7 +3262,11 @@ uint32_t DxbcShaderTranslator::FindOrAddSamplerBinding(
   std::ostringstream name;
   name << "xe_sampler" << fetch_constant;
   if (aniso_filter != AnisoFilter::kUseFetchConst) {
-    name << "_a" << (1u << uint32_t(aniso_filter));
+    if (aniso_filter == AnisoFilter::kDisabled) {
+      name << "_a0";
+    } else {
+      name << "_a" << (1u << (uint32_t(aniso_filter) - 1));
+    }
   }
   if (aniso_filter == AnisoFilter::kDisabled ||
       aniso_filter == AnisoFilter::kUseFetchConst) {
