@@ -42,19 +42,10 @@ bool SharedMemory::Initialize() {
   auto context = command_processor_->GetD3D12Context();
   auto device = context->GetD3D12Provider()->GetDevice();
 
-  buffer_state_ = D3D12_RESOURCE_STATE_COPY_DEST;
   D3D12_RESOURCE_DESC buffer_desc;
-  buffer_desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-  buffer_desc.Alignment = 0;
-  buffer_desc.Width = kBufferSize;
-  buffer_desc.Height = 1;
-  buffer_desc.DepthOrArraySize = 1;
-  buffer_desc.MipLevels = 1;
-  buffer_desc.Format = DXGI_FORMAT_UNKNOWN;
-  buffer_desc.SampleDesc.Count = 1;
-  buffer_desc.SampleDesc.Quality = 0;
-  buffer_desc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-  buffer_desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+  ui::d3d12::util::FillBufferResourceDesc(
+      buffer_desc, kBufferSize, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+  buffer_state_ = D3D12_RESOURCE_STATE_COPY_DEST;
   if (FLAGS_d3d12_tiled_resources) {
     if (FAILED(device->CreateReservedResource(
             &buffer_desc, buffer_state_, nullptr, IID_PPV_ARGS(&buffer_)))) {
@@ -63,11 +54,9 @@ bool SharedMemory::Initialize() {
       return false;
     }
   } else {
-    D3D12_HEAP_PROPERTIES heap_properties = {};
-    heap_properties.Type = D3D12_HEAP_TYPE_DEFAULT;
     if (FAILED(device->CreateCommittedResource(
-            &heap_properties, D3D12_HEAP_FLAG_NONE, &buffer_desc, buffer_state_,
-            nullptr, IID_PPV_ARGS(&buffer_)))) {
+            &ui::d3d12::util::kHeapPropertiesDefault, D3D12_HEAP_FLAG_NONE,
+            &buffer_desc, buffer_state_, nullptr, IID_PPV_ARGS(&buffer_)))) {
       XELOGE("Shared memory: Failed to create the 512 MB buffer");
       Shutdown();
       return false;

@@ -13,6 +13,7 @@
 
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
+#include "xenia/ui/d3d12/d3d12_util.h"
 
 namespace xe {
 namespace ui {
@@ -157,23 +158,12 @@ bool UploadBufferPool::BeginNextPage() {
 
   if (unsent_ == nullptr) {
     auto device = context_->GetD3D12Provider()->GetDevice();
-    D3D12_HEAP_PROPERTIES heap_properties = {};
-    heap_properties.Type = D3D12_HEAP_TYPE_UPLOAD;
     D3D12_RESOURCE_DESC buffer_desc;
-    buffer_desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-    buffer_desc.Alignment = 0;
-    buffer_desc.Width = page_size_;
-    buffer_desc.Height = 1;
-    buffer_desc.DepthOrArraySize = 1;
-    buffer_desc.MipLevels = 1;
-    buffer_desc.Format = DXGI_FORMAT_UNKNOWN;
-    buffer_desc.SampleDesc.Count = 1;
-    buffer_desc.SampleDesc.Quality = 0;
-    buffer_desc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-    buffer_desc.Flags = D3D12_RESOURCE_FLAG_NONE;
+    util::FillBufferResourceDesc(buffer_desc, page_size_,
+                                 D3D12_RESOURCE_FLAG_NONE);
     ID3D12Resource* buffer_resource;
     if (FAILED(device->CreateCommittedResource(
-            &heap_properties, D3D12_HEAP_FLAG_NONE, &buffer_desc,
+            &util::kHeapPropertiesUpload, D3D12_HEAP_FLAG_NONE, &buffer_desc,
             D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
             IID_PPV_ARGS(&buffer_resource)))) {
       XELOGE("Failed to create a D3D upload buffer with %u bytes", page_size_);

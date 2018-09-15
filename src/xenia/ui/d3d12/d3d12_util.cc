@@ -17,6 +17,9 @@ namespace ui {
 namespace d3d12 {
 namespace util {
 
+const D3D12_HEAP_PROPERTIES kHeapPropertiesDefault = {D3D12_HEAP_TYPE_DEFAULT};
+const D3D12_HEAP_PROPERTIES kHeapPropertiesUpload = {D3D12_HEAP_TYPE_UPLOAD};
+
 ID3D12RootSignature* CreateRootSignature(
     ID3D12Device* device, const D3D12_ROOT_SIGNATURE_DESC& desc) {
   ID3DBlob* blob;

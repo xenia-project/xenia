@@ -442,23 +442,12 @@ ID3D12Resource* D3D12CommandProcessor::RequestScratchGPUBuffer(
   auto context = GetD3D12Context();
   auto device = context->GetD3D12Provider()->GetDevice();
   D3D12_RESOURCE_DESC buffer_desc;
-  buffer_desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-  buffer_desc.Alignment = 0;
-  buffer_desc.Width = size;
-  buffer_desc.Height = 1;
-  buffer_desc.DepthOrArraySize = 1;
-  buffer_desc.MipLevels = 1;
-  buffer_desc.Format = DXGI_FORMAT_UNKNOWN;
-  buffer_desc.SampleDesc.Count = 1;
-  buffer_desc.SampleDesc.Quality = 0;
-  buffer_desc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-  buffer_desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
-  D3D12_HEAP_PROPERTIES heap_properties = {};
-  heap_properties.Type = D3D12_HEAP_TYPE_DEFAULT;
+  ui::d3d12::util::FillBufferResourceDesc(
+      buffer_desc, size, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
   ID3D12Resource* buffer;
   if (FAILED(device->CreateCommittedResource(
-          &heap_properties, D3D12_HEAP_FLAG_NONE, &buffer_desc, state, nullptr,
-          IID_PPV_ARGS(&buffer)))) {
+          &ui::d3d12::util::kHeapPropertiesDefault, D3D12_HEAP_FLAG_NONE,
+          &buffer_desc, state, nullptr, IID_PPV_ARGS(&buffer)))) {
     XELOGE("Failed to create a %u MB scratch GPU buffer", size >> 20);
     return nullptr;
   }
@@ -624,11 +613,12 @@ bool D3D12CommandProcessor::SetupContext() {
   }
 
   primitive_converter_ = std::make_unique<PrimitiveConverter>(
-      context, register_file_, memory_, shared_memory_.get());
-  primitive_converter_->Initialize();
+      this, register_file_, memory_, shared_memory_.get());
+  if (!primitive_converter_->Initialize()) {
+    XELOGE("Failed to initialize the geometric primitive converter");
+    return false;
+  }
 
-  D3D12_HEAP_PROPERTIES swap_texture_heap_properties = {};
-  swap_texture_heap_properties.Type = D3D12_HEAP_TYPE_DEFAULT;
   D3D12_RESOURCE_DESC swap_texture_desc;
   swap_texture_desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
   swap_texture_desc.Alignment = 0;
@@ -643,7 +633,7 @@ bool D3D12CommandProcessor::SetupContext() {
   swap_texture_desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
   // Can be sampled at any time, switch to render target when needed, then back.
   if (FAILED(device->CreateCommittedResource(
-          &swap_texture_heap_properties, D3D12_HEAP_FLAG_NONE,
+          &ui::d3d12::util::kHeapPropertiesDefault, D3D12_HEAP_FLAG_NONE,
           &swap_texture_desc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
           nullptr, IID_PPV_ARGS(&swap_texture_)))) {
     XELOGE("Failed to create the command processor front buffer");
@@ -1055,10 +1045,9 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     uint32_t converted_index_count;
     PrimitiveConverter::ConversionResult conversion_result =
         primitive_converter_->ConvertPrimitives(
-            primitive_type, index_buffer_info->guest_base,
-            index_buffer_info->count, index_buffer_info->format,
-            index_buffer_info->endianness, index_buffer_view.BufferLocation,
-            converted_index_count);
+            primitive_type, index_buffer_info->guest_base, index_count,
+            index_buffer_info->format, index_buffer_info->endianness,
+            index_buffer_view.BufferLocation, converted_index_count);
     if (conversion_result == PrimitiveConverter::ConversionResult::kFailed) {
       return false;
     }
@@ -1068,6 +1057,7 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     }
     if (conversion_result == PrimitiveConverter::ConversionResult::kConverted) {
       index_buffer_view.SizeInBytes = converted_index_count * index_size;
+      index_count = converted_index_count;
     } else {
       uint32_t index_buffer_size = index_buffer_info->count * index_size;
       shared_memory_->RequestRange(index_base, index_buffer_size);
@@ -1080,11 +1070,23 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     SubmitBarriers();
     command_list->DrawIndexedInstanced(index_count, 1, 0, 0, 0);
   } else {
-    // TODO(Triang3l): Get a static index buffer for unsupported primitive types
-    // from the primitive converter.
+    // Check if need to draw using a conversion index buffer.
+    uint32_t converted_index_count;
+    D3D12_GPU_VIRTUAL_ADDRESS conversion_gpu_address =
+        primitive_converter_->GetStaticIndexBuffer(primitive_type, index_count,
+                                                   converted_index_count);
     shared_memory_->UseForReading();
     SubmitBarriers();
-    command_list->DrawInstanced(index_count, 1, 0, 0);
+    if (conversion_gpu_address) {
+      D3D12_INDEX_BUFFER_VIEW index_buffer_view;
+      index_buffer_view.BufferLocation = conversion_gpu_address;
+      index_buffer_view.SizeInBytes = converted_index_count * sizeof(uint16_t);
+      index_buffer_view.Format = DXGI_FORMAT_R16_UINT;
+      command_list->IASetIndexBuffer(&index_buffer_view);
+      command_list->DrawIndexedInstanced(converted_index_count, 1, 0, 0, 0);
+    } else {
+      command_list->DrawInstanced(index_count, 1, 0, 0);
+    }
   }
 
   return true;
@@ -1164,7 +1166,7 @@ bool D3D12CommandProcessor::BeginFrame() {
 
   render_target_cache_->BeginFrame();
 
-  primitive_converter_->BeginFrame(GetCurrentCommandList());
+  primitive_converter_->BeginFrame();
 
   return true;
 }
