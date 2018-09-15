@@ -62,8 +62,6 @@ bool D3D12ImmediateTexture::Initialize(ID3D12Device* device) {
   // The first operation will likely be copying the contents.
   state_ = D3D12_RESOURCE_STATE_COPY_DEST;
 
-  D3D12_HEAP_PROPERTIES heap_properties = {};
-  heap_properties.Type = D3D12_HEAP_TYPE_DEFAULT;
   D3D12_RESOURCE_DESC resource_desc;
   resource_desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
   resource_desc.Alignment = 0;
@@ -77,8 +75,8 @@ bool D3D12ImmediateTexture::Initialize(ID3D12Device* device) {
   resource_desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
   resource_desc.Flags = D3D12_RESOURCE_FLAG_NONE;
   if (FAILED(device->CreateCommittedResource(
-          &heap_properties, D3D12_HEAP_FLAG_NONE, &resource_desc, state_,
-          nullptr, IID_PPV_ARGS(&resource_)))) {
+          &util::kHeapPropertiesDefault, D3D12_HEAP_FLAG_NONE, &resource_desc,
+          state_, nullptr, IID_PPV_ARGS(&resource_)))) {
     XELOGE("Failed to create a %ux%u texture for immediate drawing", width,
            height);
     return false;
@@ -173,8 +171,7 @@ bool D3D12ImmediateDrawer::Initialize() {
   root_signature_desc.pStaticSamplers = nullptr;
   root_signature_desc.Flags =
       D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
-  root_signature_ =
-      ui::d3d12::util::CreateRootSignature(device, root_signature_desc);
+  root_signature_ = util::CreateRootSignature(device, root_signature_desc);
   if (root_signature_ == nullptr) {
     XELOGE("Failed to create the immediate drawer root signature");
     Shutdown();
@@ -362,23 +359,12 @@ void D3D12ImmediateDrawer::UpdateTexture(ImmediateTexture* texture,
   UINT64 upload_size;
   device->GetCopyableFootprints(&texture_desc, 0, 1, 0, &upload_footprint,
                                 nullptr, nullptr, &upload_size);
-  D3D12_HEAP_PROPERTIES heap_properties = {};
-  heap_properties.Type = D3D12_HEAP_TYPE_UPLOAD;
   D3D12_RESOURCE_DESC buffer_desc;
-  buffer_desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-  buffer_desc.Alignment = 0;
-  buffer_desc.Width = upload_size;
-  buffer_desc.Height = 1;
-  buffer_desc.DepthOrArraySize = 1;
-  buffer_desc.MipLevels = 1;
-  buffer_desc.Format = DXGI_FORMAT_UNKNOWN;
-  buffer_desc.SampleDesc.Count = 1;
-  buffer_desc.SampleDesc.Quality = 0;
-  buffer_desc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-  buffer_desc.Flags = D3D12_RESOURCE_FLAG_NONE;
+  util::FillBufferResourceDesc(buffer_desc, upload_size,
+                               D3D12_RESOURCE_FLAG_NONE);
   ID3D12Resource* buffer;
   if (FAILED(device->CreateCommittedResource(
-          &heap_properties, D3D12_HEAP_FLAG_NONE, &buffer_desc,
+          &util::kHeapPropertiesUpload, D3D12_HEAP_FLAG_NONE, &buffer_desc,
           D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&buffer)))) {
     XELOGE(
         "Failed to create an upload buffer for a %ux%u texture for "

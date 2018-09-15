@@ -24,6 +24,8 @@ namespace xe {
 namespace gpu {
 namespace d3d12 {
 
+class D3D12CommandProcessor;
+
 // Index buffer cache for primitive types not natively supported by Direct3D 12:
 // - Triangle and line strips with non-0xFFFF/0xFFFFFFFF reset index.
 // - Triangle fans.
@@ -32,16 +34,16 @@ namespace d3d12 {
 //   vertex count value).
 class PrimitiveConverter {
  public:
-  PrimitiveConverter(ui::d3d12::D3D12Context* context,
+  PrimitiveConverter(D3D12CommandProcessor* command_processor,
                      RegisterFile* register_file, Memory* memory,
                      SharedMemory* shared_memory);
   ~PrimitiveConverter();
 
-  void Initialize();
+  bool Initialize();
   void Shutdown();
   void ClearCache();
 
-  void BeginFrame(ID3D12GraphicsCommandList* command_list);
+  void BeginFrame();
   void EndFrame();
 
   // Returns the primitive type that the original type will be converted to.
@@ -70,6 +72,12 @@ class PrimitiveConverter {
                                      D3D12_GPU_VIRTUAL_ADDRESS& gpu_address_out,
                                      uint32_t& index_count_out);
 
+  // Returns the 16-bit index buffer for drawing unsupported non-indexed
+  // primitives in INDEX_BUFFER state, for non-indexed drawing. Returns 0 if
+  // conversion is not available (can draw natively).
+  D3D12_GPU_VIRTUAL_ADDRESS GetStaticIndexBuffer(
+      PrimitiveType source_type, uint32_t index_count,
+      uint32_t& index_count_out) const;
   // TODO(Triang3l): A function that returns a static index buffer for
   // non-indexed drawing of unsupported primitives
 
@@ -81,12 +89,29 @@ class PrimitiveConverter {
                         uint32_t simd_offset,
                         D3D12_GPU_VIRTUAL_ADDRESS& gpu_address_out);
 
-  ui::d3d12::D3D12Context* context_;
+  D3D12CommandProcessor* command_processor_;
   RegisterFile* register_file_;
   Memory* memory_;
   SharedMemory* shared_memory_;
 
   std::unique_ptr<ui::d3d12::UploadBufferPool> buffer_pool_ = nullptr;
+
+  // Static index buffers for emulating unsupported primitive types when drawing
+  // without an index buffer.
+  // CPU-side, used only for uploading - destroyed once the copy commands have
+  // been completed.
+  ID3D12Resource* static_ib_upload_ = nullptr;
+  uint64_t static_ib_upload_frame_;
+  // GPU-side - used for drawing.
+  ID3D12Resource* static_ib_ = nullptr;
+  D3D12_GPU_VIRTUAL_ADDRESS static_ib_gpu_address_;
+  // In PM4 draw packets, 16 bits are used for the vertex count.
+  static constexpr uint32_t kMaxNonIndexedVertices = 65535;
+  static constexpr uint32_t kStaticIBTriangleFanOffset = 0;
+  static constexpr uint32_t kStaticIBTriangleFanCount =
+      (kMaxNonIndexedVertices - 2) * 3;
+  static constexpr uint32_t kStaticIBTotalCount =
+      kStaticIBTriangleFanOffset + kStaticIBTriangleFanCount;
 
   struct ConvertedIndices {
     D3D12_GPU_VIRTUAL_ADDRESS gpu_address;

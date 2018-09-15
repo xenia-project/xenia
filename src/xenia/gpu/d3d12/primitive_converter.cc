@@ -9,40 +9,123 @@
 
 #include "xenia/gpu/d3d12/primitive_converter.h"
 
+#include <algorithm>
+
+#include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/platform.h"
+#include "xenia/gpu/d3d12/d3d12_command_processor.h"
+#include "xenia/ui/d3d12/d3d12_util.h"
 
 namespace xe {
 namespace gpu {
 namespace d3d12 {
 
-PrimitiveConverter::PrimitiveConverter(ui::d3d12::D3D12Context* context,
+PrimitiveConverter::PrimitiveConverter(D3D12CommandProcessor* command_processor,
                                        RegisterFile* register_file,
                                        Memory* memory,
                                        SharedMemory* shared_memory)
-    : context_(context),
+    : command_processor_(command_processor),
       register_file_(register_file),
       memory_(memory),
       shared_memory_(shared_memory) {}
 
 PrimitiveConverter::~PrimitiveConverter() { Shutdown(); }
 
-void PrimitiveConverter::Initialize() {
+bool PrimitiveConverter::Initialize() {
+  auto context = command_processor_->GetD3D12Context();
+  auto device = context->GetD3D12Provider()->GetDevice();
+
   // There can be at most 65535 indices in a Xenos draw call, but they can be up
   // to 4 bytes large, and conversion can add more indices (almost triple the
   // count for triangle strips, for instance).
   buffer_pool_ =
-      std::make_unique<ui::d3d12::UploadBufferPool>(context_, 4 * 1024 * 1024);
+      std::make_unique<ui::d3d12::UploadBufferPool>(context, 4 * 1024 * 1024);
+
+  // Create the static index buffer for non-indexed drawing.
+  D3D12_RESOURCE_DESC static_ib_desc;
+  ui::d3d12::util::FillBufferResourceDesc(
+      static_ib_desc, kStaticIBTotalCount * sizeof(uint16_t),
+      D3D12_RESOURCE_FLAG_NONE);
+  if (FAILED(device->CreateCommittedResource(
+          &ui::d3d12::util::kHeapPropertiesUpload, D3D12_HEAP_FLAG_NONE,
+          &static_ib_desc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
+          IID_PPV_ARGS(&static_ib_upload_)))) {
+    XELOGE(
+        "Failed to create the upload buffer for the primitive conversion "
+        "static index buffer");
+    Shutdown();
+    return false;
+  }
+  D3D12_RANGE static_ib_read_range;
+  static_ib_read_range.Begin = 0;
+  static_ib_read_range.End = 0;
+  void* static_ib_mapping;
+  if (FAILED(static_ib_upload_->Map(0, &static_ib_read_range,
+                                    &static_ib_mapping))) {
+    XELOGE(
+        "Failed to map the upload buffer for the primitive conversion "
+        "static index buffer");
+    Shutdown();
+    return false;
+  }
+  uint16_t* static_ib_data = reinterpret_cast<uint16_t*>(static_ib_mapping);
+  // Triangle fans as triangle lists.
+  // https://docs.microsoft.com/en-us/windows/desktop/direct3d9/triangle-fans
+  // Ordered as (v1, v2, v0), (v2, v3, v0).
+  uint16_t* static_ib_data_triangle_fan =
+      &static_ib_data[kStaticIBTriangleFanOffset];
+  for (uint32_t i = 2; i < kMaxNonIndexedVertices; ++i) {
+    *(static_ib_data_triangle_fan++) = i;
+    *(static_ib_data_triangle_fan++) = i - 1;
+    *(static_ib_data_triangle_fan++) = 0;
+  }
+  static_ib_upload_->Unmap(0, nullptr);
+  // Not uploaded yet.
+  static_ib_upload_frame_ = UINT64_MAX;
+  if (FAILED(device->CreateCommittedResource(
+          &ui::d3d12::util::kHeapPropertiesDefault, D3D12_HEAP_FLAG_NONE,
+          &static_ib_desc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr,
+          IID_PPV_ARGS(&static_ib_)))) {
+    XELOGE("Failed to create the primitive conversion static index buffer");
+    Shutdown();
+    return false;
+  }
+  static_ib_gpu_address_ = static_ib_->GetGPUVirtualAddress();
+
+  return true;
 }
 
-void PrimitiveConverter::Shutdown() { buffer_pool_.reset(); }
+void PrimitiveConverter::Shutdown() {
+  ui::d3d12::util::ReleaseAndNull(static_ib_);
+  ui::d3d12::util::ReleaseAndNull(static_ib_upload_);
+  buffer_pool_.reset();
+}
 
 void PrimitiveConverter::ClearCache() { buffer_pool_->ClearCache(); }
 
-void PrimitiveConverter::BeginFrame(ID3D12GraphicsCommandList* command_list) {
+void PrimitiveConverter::BeginFrame() {
   buffer_pool_->BeginFrame();
-  // TODO(Triang3l): Create the static index buffer for unindexed triangle fans.
+
+  // Got a command list now - upload and transition the static index buffer if
+  // needed.
+  if (static_ib_upload_ != nullptr) {
+    auto context = command_processor_->GetD3D12Context();
+    if (static_ib_upload_frame_ == UINT64_MAX) {
+      // Not uploaded yet - upload.
+      command_processor_->GetCurrentCommandList()->CopyResource(
+          static_ib_, static_ib_upload_);
+      command_processor_->PushTransitionBarrier(
+          static_ib_, D3D12_RESOURCE_STATE_COPY_DEST,
+          D3D12_RESOURCE_STATE_INDEX_BUFFER);
+      static_ib_upload_frame_ = context->GetCurrentFrame();
+    } else if (context->GetLastCompletedFrame() >= static_ib_upload_frame_) {
+      // Completely uploaded - release the upload buffer.
+      static_ib_upload_->Release();
+      static_ib_upload_ = nullptr;
+    }
+  }
 }
 
 void PrimitiveConverter::EndFrame() { buffer_pool_->EndFrame(); }
@@ -192,6 +275,21 @@ void* PrimitiveConverter::AllocateIndices(
   }
   gpu_address_out = gpu_address + simd_offset;
   return mapping + simd_offset;
+}
+
+D3D12_GPU_VIRTUAL_ADDRESS PrimitiveConverter::GetStaticIndexBuffer(
+    PrimitiveType source_type, uint32_t index_count,
+    uint32_t& index_count_out) const {
+  if (index_count >= kMaxNonIndexedVertices) {
+    assert_always();
+    return D3D12_GPU_VIRTUAL_ADDRESS(0);
+  }
+  if (source_type == PrimitiveType::kTriangleFan) {
+    index_count_out = (std::max(index_count, uint32_t(2)) - 2) * 3;
+    return static_ib_gpu_address_ +
+           kStaticIBTriangleFanOffset * sizeof(uint16_t);
+  }
+  return D3D12_GPU_VIRTUAL_ADDRESS(0);
 }
 
 }  // namespace d3d12

@@ -819,14 +819,12 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
   desc.Flags = D3D12_RESOURCE_FLAG_NONE;
   auto device =
       command_processor_->GetD3D12Context()->GetD3D12Provider()->GetDevice();
-  D3D12_HEAP_PROPERTIES heap_properties = {};
-  heap_properties.Type = D3D12_HEAP_TYPE_DEFAULT;
   // Assuming untiling will be the next operation.
   D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_COPY_DEST;
   ID3D12Resource* resource;
   if (FAILED(device->CreateCommittedResource(
-          &heap_properties, D3D12_HEAP_FLAG_NONE, &desc, state, nullptr,
-          IID_PPV_ARGS(&resource)))) {
+          &ui::d3d12::util::kHeapPropertiesDefault, D3D12_HEAP_FLAG_NONE, &desc,
+          state, nullptr, IID_PPV_ARGS(&resource)))) {
     LogTextureKeyAction(key, "Failed to create");
     return nullptr;
   }

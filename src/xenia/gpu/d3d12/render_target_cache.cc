@@ -76,23 +76,13 @@ bool RenderTargetCache::Initialize() {
 
   // Create the buffer for reinterpreting EDRAM contents.
   D3D12_RESOURCE_DESC edram_buffer_desc;
-  edram_buffer_desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-  edram_buffer_desc.Alignment = 0;
-  edram_buffer_desc.Width = kEDRAMBufferSize;
-  edram_buffer_desc.Height = 1;
-  edram_buffer_desc.DepthOrArraySize = 1;
-  edram_buffer_desc.MipLevels = 1;
-  edram_buffer_desc.Format = DXGI_FORMAT_UNKNOWN;
-  edram_buffer_desc.SampleDesc.Count = 1;
-  edram_buffer_desc.SampleDesc.Quality = 0;
-  edram_buffer_desc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-  edram_buffer_desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
-  D3D12_HEAP_PROPERTIES edram_buffer_heap_properties = {};
-  edram_buffer_heap_properties.Type = D3D12_HEAP_TYPE_DEFAULT;
+  ui::d3d12::util::FillBufferResourceDesc(
+      edram_buffer_desc, kEDRAMBufferSize,
+      D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
   // The first operation will be a clear.
   edram_buffer_state_ = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
   if (FAILED(device->CreateCommittedResource(
-          &edram_buffer_heap_properties, D3D12_HEAP_FLAG_NONE,
+          &ui::d3d12::util::kHeapPropertiesDefault, D3D12_HEAP_FLAG_NONE,
           &edram_buffer_desc, edram_buffer_state_, nullptr,
           IID_PPV_ARGS(&edram_buffer_)))) {
     XELOGE("Failed to create the EDRAM buffer");

@@ -17,6 +17,9 @@ namespace ui {
 namespace d3d12 {
 namespace util {
 
+extern const D3D12_HEAP_PROPERTIES kHeapPropertiesDefault;
+extern const D3D12_HEAP_PROPERTIES kHeapPropertiesUpload;
+
 template <typename T>
 inline bool ReleaseAndNull(T& object) {
   if (object != nullptr) {
@@ -34,6 +37,21 @@ ID3D12PipelineState* CreateComputePipeline(ID3D12Device* device,
                                            const void* shader,
                                            size_t shader_size,
                                            ID3D12RootSignature* root_signature);
+
+inline void FillBufferResourceDesc(D3D12_RESOURCE_DESC& desc, UINT64 size,
+                                   D3D12_RESOURCE_FLAGS flags) {
+  desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+  desc.Alignment = 0;
+  desc.Width = size;
+  desc.Height = 1;
+  desc.DepthOrArraySize = 1;
+  desc.MipLevels = 1;
+  desc.Format = DXGI_FORMAT_UNKNOWN;
+  desc.SampleDesc.Count = 1;
+  desc.SampleDesc.Quality = 0;
+  desc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+  desc.Flags = flags;
+}
 
 void CreateRawBufferSRV(ID3D12Device* device,
                         D3D12_CPU_DESCRIPTOR_HANDLE handle,
