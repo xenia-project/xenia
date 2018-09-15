@@ -623,6 +623,10 @@ bool D3D12CommandProcessor::SetupContext() {
     return false;
   }
 
+  primitive_converter_ = std::make_unique<PrimitiveConverter>(
+      context, register_file_, memory_, shared_memory_.get());
+  primitive_converter_->Initialize();
+
   D3D12_HEAP_PROPERTIES swap_texture_heap_properties = {};
   swap_texture_heap_properties.Type = D3D12_HEAP_TYPE_DEFAULT;
   D3D12_RESOURCE_DESC swap_texture_desc;
@@ -718,6 +722,8 @@ void D3D12CommandProcessor::ShutdownContext() {
   sampler_heap_pool_.reset();
   view_heap_pool_.reset();
   constant_buffer_pool_.reset();
+
+  primitive_converter_.reset();
 
   render_target_cache_.reset();
 
@@ -825,6 +831,8 @@ void D3D12CommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
     sampler_heap_pool_->ClearCache();
     view_heap_pool_->ClearCache();
     constant_buffer_pool_->ClearCache();
+
+    primitive_converter_->ClearCache();
 
     render_target_cache_->ClearCache();
 
@@ -945,8 +953,10 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
       render_target_cache_->GetCurrentPipelineRenderTargets();
 
   // Set the primitive topology.
+  PrimitiveType primitive_type_converted =
+      PrimitiveConverter::GetReplacementPrimitiveType(primitive_type);
   D3D_PRIMITIVE_TOPOLOGY primitive_topology;
-  switch (primitive_type) {
+  switch (primitive_type_converted) {
     case PrimitiveType::kPointList:
       primitive_topology = D3D_PRIMITIVE_TOPOLOGY_POINTLIST;
       break;
@@ -978,7 +988,7 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
   ID3D12PipelineState* pipeline;
   ID3D12RootSignature* root_signature;
   auto pipeline_status = pipeline_cache_->ConfigurePipeline(
-      vertex_shader, pixel_shader, primitive_type,
+      vertex_shader, pixel_shader, primitive_type_converted,
       indexed ? index_buffer_info->format : IndexFormat::kInt16,
       pipeline_render_targets, &pipeline, &root_signature);
   if (pipeline_status == PipelineCache::UpdateStatus::kError) {
@@ -1031,27 +1041,47 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
         regs[vfetch_constant_index + 1].u32 & 0x3FFFFFC);
     vertex_buffers_resident[vfetch_index >> 6] |= 1ull << (vfetch_index & 63);
   }
+
   if (indexed) {
-    uint32_t index_base = index_buffer_info->guest_base & 0x1FFFFFFF;
     uint32_t index_size = index_buffer_info->format == IndexFormat::kInt32
                               ? sizeof(uint32_t)
                               : sizeof(uint16_t);
-    index_base &= ~(index_size - 1);
-    uint32_t index_buffer_size = index_buffer_info->count * index_size;
-    shared_memory_->RequestRange(index_base, index_buffer_size);
-
-    shared_memory_->UseForReading();
+    assert_false(index_buffer_info->guest_base & (index_size - 1));
+    uint32_t index_base = index_buffer_info->guest_base & ~(index_size - 1);
     D3D12_INDEX_BUFFER_VIEW index_buffer_view;
-    index_buffer_view.BufferLocation =
-        shared_memory_->GetGPUAddress() + index_base;
-    index_buffer_view.SizeInBytes = index_buffer_size;
     index_buffer_view.Format = index_buffer_info->format == IndexFormat::kInt32
                                    ? DXGI_FORMAT_R32_UINT
                                    : DXGI_FORMAT_R16_UINT;
+    uint32_t converted_index_count;
+    PrimitiveConverter::ConversionResult conversion_result =
+        primitive_converter_->ConvertPrimitives(
+            primitive_type, index_buffer_info->guest_base,
+            index_buffer_info->count, index_buffer_info->format,
+            index_buffer_info->endianness, index_buffer_view.BufferLocation,
+            converted_index_count);
+    if (conversion_result == PrimitiveConverter::ConversionResult::kFailed) {
+      return false;
+    }
+    if (conversion_result ==
+        PrimitiveConverter::ConversionResult::kPrimitiveEmpty) {
+      return true;
+    }
+    if (conversion_result == PrimitiveConverter::ConversionResult::kConverted) {
+      index_buffer_view.SizeInBytes = converted_index_count * index_size;
+    } else {
+      uint32_t index_buffer_size = index_buffer_info->count * index_size;
+      shared_memory_->RequestRange(index_base, index_buffer_size);
+      index_buffer_view.BufferLocation =
+          shared_memory_->GetGPUAddress() + index_base;
+      index_buffer_view.SizeInBytes = index_buffer_size;
+    }
+    shared_memory_->UseForReading();
     command_list->IASetIndexBuffer(&index_buffer_view);
     SubmitBarriers();
     command_list->DrawIndexedInstanced(index_count, 1, 0, 0, 0);
   } else {
+    // TODO(Triang3l): Get a static index buffer for unsupported primitive types
+    // from the primitive converter.
     shared_memory_->UseForReading();
     SubmitBarriers();
     command_list->DrawInstanced(index_count, 1, 0, 0);
@@ -1134,6 +1164,8 @@ bool D3D12CommandProcessor::BeginFrame() {
 
   render_target_cache_->BeginFrame();
 
+  primitive_converter_->BeginFrame(GetCurrentCommandList());
+
   return true;
 }
 
@@ -1143,6 +1175,8 @@ bool D3D12CommandProcessor::EndFrame() {
   }
 
   assert_false(scratch_buffer_used_);
+
+  primitive_converter_->EndFrame();
 
   render_target_cache_->EndFrame();
 

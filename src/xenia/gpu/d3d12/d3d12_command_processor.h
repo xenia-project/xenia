@@ -17,6 +17,7 @@
 #include "xenia/gpu/command_processor.h"
 #include "xenia/gpu/d3d12/d3d12_graphics_system.h"
 #include "xenia/gpu/d3d12/pipeline_cache.h"
+#include "xenia/gpu/d3d12/primitive_converter.h"
 #include "xenia/gpu/d3d12/render_target_cache.h"
 #include "xenia/gpu/d3d12/shared_memory.h"
 #include "xenia/gpu/d3d12/texture_cache.h"
@@ -197,7 +198,7 @@ class D3D12CommandProcessor : public CommandProcessor {
   bool cache_clear_requested_ = false;
 
   std::unique_ptr<ui::d3d12::CommandList>
-  command_lists_[ui::d3d12::D3D12Context::kQueuedFrames] = {};
+      command_lists_[ui::d3d12::D3D12Context::kQueuedFrames] = {};
 
   std::unique_ptr<SharedMemory> shared_memory_ = nullptr;
 
@@ -209,6 +210,8 @@ class D3D12CommandProcessor : public CommandProcessor {
   std::unique_ptr<TextureCache> texture_cache_ = nullptr;
 
   std::unique_ptr<RenderTargetCache> render_target_cache_ = nullptr;
+
+  std::unique_ptr<PrimitiveConverter> primitive_converter_ = nullptr;
 
   std::unique_ptr<ui::d3d12::UploadBufferPool> constant_buffer_pool_ = nullptr;
   std::unique_ptr<ui::d3d12::DescriptorHeapPool> view_heap_pool_ = nullptr;
