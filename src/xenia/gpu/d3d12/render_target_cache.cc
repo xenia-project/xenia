@@ -812,6 +812,10 @@ bool RenderTargetCache::Resolve(SharedMemory* shared_memory,
   uint32_t surface_pitch = rb_surface_info & 0x3FFF;
   MsaaSamples msaa_samples = MsaaSamples((rb_surface_info >> 16) & 0x3);
   uint32_t rb_copy_control = regs[XE_GPU_REG_RB_COPY_CONTROL].u32;
+  // Depth info is always needed because color resolve may also clear depth.
+  uint32_t rb_depth_info = regs[XE_GPU_REG_RB_DEPTH_INFO].u32;
+  uint32_t depth_edram_base = rb_depth_info & 0xFFF;
+  uint32_t depth_format = (rb_depth_info >> 16) & 0x1;
   uint32_t surface_index = rb_copy_control & 0x7;
   if (surface_index > 4) {
     assert_always();
@@ -821,9 +825,8 @@ bool RenderTargetCache::Resolve(SharedMemory* shared_memory,
   uint32_t surface_edram_base;
   uint32_t surface_format;
   if (surface_is_depth) {
-    uint32_t rb_depth_info = regs[XE_GPU_REG_RB_DEPTH_INFO].u32;
-    surface_edram_base = rb_depth_info & 0xFFF;
-    surface_format = (rb_depth_info >> 16) & 0x1;
+    surface_edram_base = depth_edram_base;
+    surface_format = depth_format;
   } else {
     uint32_t rb_color_info;
     switch (surface_index) {
@@ -898,12 +901,18 @@ bool RenderTargetCache::Resolve(SharedMemory* shared_memory,
       msaa_samples != MsaaSamples::k1X ? "s" : "", surface_format,
       surface_edram_base);
 
-  bool copied = ResolveCopy(shared_memory, texture_cache, surface_edram_base,
+  bool result = ResolveCopy(shared_memory, texture_cache, surface_edram_base,
                             surface_pitch, msaa_samples, surface_is_depth,
                             surface_format, src_rect);
-  bool cleared = ResolveClear(surface_edram_base, surface_pitch, msaa_samples,
-                              surface_is_depth, surface_format, src_rect);
-  return copied || cleared;
+  // Clear the color RT if needed.
+  if (!surface_is_depth) {
+    result &= ResolveClear(surface_edram_base, surface_pitch, msaa_samples,
+                           false, surface_format, src_rect);
+  }
+  // Clear the depth RT if needed (may be cleared alongside color).
+  result &= ResolveClear(depth_edram_base, surface_pitch, msaa_samples, true,
+                         depth_format, src_rect);
+  return result;
 }
 
 bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
@@ -1422,7 +1431,8 @@ bool RenderTargetCache::ResolveClear(uint32_t edram_base,
     return true;
   }
 
-  XELOGGPU("Resolve: Clearing the render target");
+  XELOGGPU("Resolve: Clearing the %s render target",
+           is_depth ? "depth" : "color");
 
   // Calculate the layout.
   bool is_64bpp =
