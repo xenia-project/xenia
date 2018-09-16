@@ -292,6 +292,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateShaderStages(
       primitive_topology_type = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
   };
   dirty |= regs.primitive_topology_type != primitive_topology_type;
+  regs.primitive_topology_type = primitive_topology_type;
   if (primitive_type == PrimitiveType::kPointList ||
       primitive_type == PrimitiveType::kRectangleList ||
       primitive_type == PrimitiveType::kQuadList) {
