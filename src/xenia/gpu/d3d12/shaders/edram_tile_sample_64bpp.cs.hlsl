@@ -47,8 +47,8 @@ void main(uint3 xe_group_id : SV_GroupID,
   }
 
   // Tile the pixels to the shared memory.
-  pixels_01 = XeByteSwap(pixels_01, xe_edram_tile_sample_dest_info >> 18u);
-  pixels_23 = XeByteSwap(pixels_23, xe_edram_tile_sample_dest_info >> 18u);
+  pixels_01 = XeByteSwap64(pixels_01, xe_edram_tile_sample_dest_info >> 18u);
+  pixels_23 = XeByteSwap64(pixels_23, xe_edram_tile_sample_dest_info >> 18u);
   uint4 texel_addresses =
       xe_edram_tile_sample_dest_base +
       XeTextureTiledOffset2D(texel_index - copy_rect.xy,
