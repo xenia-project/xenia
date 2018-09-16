@@ -41,6 +41,7 @@ namespace d3d12 {
 #include "xenia/gpu/d3d12/shaders/bin/edram_store_depth_float_cs.h"
 #include "xenia/gpu/d3d12/shaders/bin/edram_store_depth_unorm_cs.h"
 #include "xenia/gpu/d3d12/shaders/bin/edram_tile_sample_32bpp_cs.h"
+#include "xenia/gpu/d3d12/shaders/bin/edram_tile_sample_64bpp_cs.h"
 #include "xenia/gpu/d3d12/shaders/bin/resolve_ps.h"
 #include "xenia/gpu/d3d12/shaders/bin/resolve_vs.h"
 
@@ -173,6 +174,16 @@ bool RenderTargetCache::Initialize() {
     return false;
   }
   edram_tile_sample_32bpp_pipeline_->SetName(L"EDRAM Raw Resolve 32bpp");
+  // Tile single sample into a texture - 64 bits per pixel.
+  edram_tile_sample_64bpp_pipeline_ = ui::d3d12::util::CreateComputePipeline(
+      device, edram_tile_sample_64bpp_cs, sizeof(edram_tile_sample_64bpp_cs),
+      edram_load_store_root_signature_);
+  if (edram_tile_sample_64bpp_pipeline_ == nullptr) {
+    XELOGE("Failed to create the 64bpp EDRAM raw resolve pipeline");
+    Shutdown();
+    return false;
+  }
+  edram_tile_sample_64bpp_pipeline_->SetName(L"EDRAM Raw Resolve 64bpp");
   // Clear 32-bit color or unorm depth.
   edram_clear_32bpp_pipeline_ = ui::d3d12::util::CreateComputePipeline(
       device, edram_clear_32bpp_cs, sizeof(edram_clear_32bpp_cs),
@@ -258,6 +269,7 @@ void RenderTargetCache::Shutdown() {
   }
   resolve_pipelines_.clear();
   ui::d3d12::util::ReleaseAndNull(resolve_root_signature_);
+  ui::d3d12::util::ReleaseAndNull(edram_tile_sample_64bpp_pipeline_);
   ui::d3d12::util::ReleaseAndNull(edram_tile_sample_32bpp_pipeline_);
   ui::d3d12::util::ReleaseAndNull(edram_clear_depth_float_pipeline_);
   ui::d3d12::util::ReleaseAndNull(edram_clear_32bpp_pipeline_);
@@ -977,9 +989,10 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
 
   // Validate and clamp the source region, skip parts that don't need to be
   // copied and calculate the number of threads needed for copying/loading.
-  uint32_t surface_pitch_tiles, row_tiles, rows;
+  uint32_t surface_pitch_tiles, row_width_ss_div_80, rows;
   if (!GetEDRAMLayout(surface_pitch, msaa_samples, src_64bpp, edram_base,
-                      copy_rect, surface_pitch_tiles, row_tiles, rows)) {
+                      copy_rect, surface_pitch_tiles, row_width_ss_div_80,
+                      rows)) {
     // Nothing to copy.
     return true;
   }
@@ -1008,10 +1021,6 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
     // Raw copy
     // *************************************************************************
     XELOGGPU("Resolve: Copying using a compute shader");
-    if (src_64bpp) {
-      // TODO(Triang3l): 64bpp sample copy shader.
-      return false;
-    }
 
     // Make sure we have the memory to write to.
     if (!shared_memory->MakeTilesResident(dest_address, dest_size)) {
@@ -1079,10 +1088,11 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
     command_list->SetComputeRoot32BitConstants(
         0, sizeof(root_constants) / sizeof(uint32_t), &root_constants, 0);
     command_list->SetComputeRootDescriptorTable(1, descriptor_gpu_start);
-    // TODO(Triang3l): 64bpp pipeline.
-    command_processor_->SetComputePipeline(edram_tile_sample_32bpp_pipeline_);
-    // 1 group per destination 80x16 (32bpp) / 80x8 (64bpp) region.
-    uint32_t group_count_x = row_tiles, group_count_y = rows;
+    command_processor_->SetComputePipeline(
+        src_64bpp ? edram_tile_sample_64bpp_pipeline_
+                  : edram_tile_sample_32bpp_pipeline_);
+    // 1 group per destination 80x16 region.
+    uint32_t group_count_x = row_width_ss_div_80, group_count_y = rows;
     if (msaa_samples >= MsaaSamples::k2X) {
       group_count_y = (group_count_y + 1) >> 1;
       if (msaa_samples >= MsaaSamples::k4X) {
@@ -1121,7 +1131,7 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
       return false;
     }
     RenderTargetKey render_target_key;
-    render_target_key.width_ss_div_80 = row_tiles >> (src_64bpp ? 1 : 0);
+    render_target_key.width_ss_div_80 = row_width_ss_div_80;
     render_target_key.height_ss_div_16 = rows;
     render_target_key.is_depth = false;
     render_target_key.format = src_format;
@@ -1190,7 +1200,8 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
 
     command_processor_->SetComputePipeline(
         edram_load_pipelines_[size_t(GetLoadStoreMode(false, src_format))]);
-    command_list->Dispatch(row_tiles, rows, 1);
+    // 1 group per 80x16 samples.
+    command_list->Dispatch(row_width_ss_div_80, rows, 1);
     command_processor_->PushUAVBarrier(copy_buffer);
 
     // Go to the next descriptor set.
@@ -1405,9 +1416,10 @@ bool RenderTargetCache::ResolveClear(uint32_t edram_base,
   bool is_64bpp =
       !is_depth && IsColorFormat64bpp(ColorRenderTargetFormat(format));
   D3D12_RECT clear_rect = rect;
-  uint32_t surface_pitch_tiles, row_tiles, rows;
+  uint32_t surface_pitch_tiles, row_width_ss_div_80, rows;
   if (!GetEDRAMLayout(surface_pitch, msaa_samples, is_64bpp, edram_base,
-                      clear_rect, surface_pitch_tiles, row_tiles, rows)) {
+                      clear_rect, surface_pitch_tiles, row_width_ss_div_80,
+                      rows)) {
     // Nothing to clear.
     return true;
   }
@@ -1475,7 +1487,8 @@ bool RenderTargetCache::ResolveClear(uint32_t edram_base,
   ui::d3d12::util::CreateRawBufferUAV(device, descriptor_cpu_start,
                                       edram_buffer_, kEDRAMBufferSize);
   command_list->SetComputeRootDescriptorTable(1, descriptor_gpu_start);
-  command_list->Dispatch(row_tiles, rows, 1);
+  // 1 group per 80x16 samples.
+  command_list->Dispatch(row_width_ss_div_80, rows, 1);
   command_processor_->PushUAVBarrier(edram_buffer_);
 
   return true;
@@ -1871,7 +1884,7 @@ RenderTargetCache::RenderTarget* RenderTargetCache::FindOrCreateRenderTarget(
 bool RenderTargetCache::GetEDRAMLayout(
     uint32_t pitch_pixels, MsaaSamples msaa_samples, bool is_64bpp,
     uint32_t& base_in_out, D3D12_RECT& rect_in_out, uint32_t& pitch_tiles_out,
-    uint32_t& row_tiles_out, uint32_t& rows_out) {
+    uint32_t& row_width_ss_div_80_out, uint32_t& rows_out) {
   if (pitch_pixels == 0 || rect_in_out.right <= 0 || rect_in_out.bottom <= 0 ||
       rect_in_out.top >= rect_in_out.bottom) {
     return false;
@@ -1921,8 +1934,7 @@ bool RenderTargetCache::GetEDRAMLayout(
   base_in_out = base;
   rect_in_out = rect;
   pitch_tiles_out = pitch_tiles;
-  row_tiles_out = (((rect.right << samples_x_log2) + 79) / 80)
-                  << sample_size_log2;
+  row_width_ss_div_80_out = ((rect.right << samples_x_log2) + 79) / 80;
   rows_out = rows;
   return true;
 }
@@ -2044,14 +2056,6 @@ void RenderTargetCache::StoreRenderTargetsToEDRAM() {
     const RenderTarget* render_target = binding.render_target;
     bool is_64bpp = false;
 
-    // Get the number of X thread groups.
-    uint32_t rt_pitch_tiles = surface_pitch_tiles;
-    if (!render_target->key.is_depth &&
-        IsColorFormat64bpp(
-            ColorRenderTargetFormat(render_target->key.format))) {
-      rt_pitch_tiles *= 2;
-    }
-
     // Transition the copy buffer to copy destination.
     command_processor_->PushTransitionBarrier(copy_buffer, copy_buffer_state,
                                               D3D12_RESOURCE_STATE_COPY_DEST);
@@ -2084,6 +2088,12 @@ void RenderTargetCache::StoreRenderTargetsToEDRAM() {
       root_constants.rt_stencil_pitch =
           location_dest.PlacedFootprint.Footprint.RowPitch;
     }
+    uint32_t rt_pitch_tiles = surface_pitch_tiles;
+    if (!render_target->key.is_depth &&
+        IsColorFormat64bpp(
+            ColorRenderTargetFormat(render_target->key.format))) {
+      rt_pitch_tiles *= 2;
+    }
     root_constants.base_pitch_tiles =
         binding.edram_base | (rt_pitch_tiles << 11);
 
@@ -2101,7 +2111,8 @@ void RenderTargetCache::StoreRenderTargetsToEDRAM() {
                                                render_target->key.format);
     command_processor_->SetComputePipeline(
         edram_store_pipelines_[size_t(mode)]);
-    command_list->Dispatch(rt_pitch_tiles, binding.edram_dirty_rows, 1);
+    // 1 group per 80x16 samples.
+    command_list->Dispatch(surface_pitch_tiles, binding.edram_dirty_rows, 1);
 
     // Commit the UAV write.
     command_processor_->PushUAVBarrier(edram_buffer_);
@@ -2178,7 +2189,7 @@ void RenderTargetCache::LoadRenderTargetsFromEDRAM(
     }
     const RenderTarget* render_target = render_targets[i];
 
-    // Get the number of X thread groups.
+    // Get the number of EDRAM tiles per row.
     uint32_t edram_pitch_tiles = render_target->key.width_ss_div_80;
     if (!render_target->key.is_depth &&
         IsColorFormat64bpp(
@@ -2218,7 +2229,8 @@ void RenderTargetCache::LoadRenderTargetsFromEDRAM(
     EDRAMLoadStoreMode mode = GetLoadStoreMode(render_target->key.is_depth,
                                                render_target->key.format);
     command_processor_->SetComputePipeline(edram_load_pipelines_[size_t(mode)]);
-    command_list->Dispatch(edram_pitch_tiles, edram_rows, 1);
+    // 1 group per 80x16 samples.
+    command_list->Dispatch(render_target->key.width_ss_div_80, edram_rows, 1);
 
     // Commit the UAV write and transition the copy buffer to copy source now.
     command_processor_->PushUAVBarrier(copy_buffer);

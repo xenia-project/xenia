@@ -381,7 +381,8 @@ class RenderTargetCache {
   static bool GetEDRAMLayout(uint32_t pitch_pixels, MsaaSamples msaa_samples,
                              bool is_64bpp, uint32_t& base_in_out,
                              D3D12_RECT& rect_in_out, uint32_t& pitch_tiles_out,
-                             uint32_t& row_tiles_out, uint32_t& rows_out);
+                             uint32_t& row_width_ss_div_80_out,
+                             uint32_t& rows_out);
 
   static EDRAMLoadStoreMode GetLoadStoreMode(bool is_depth, uint32_t format);
 
@@ -480,6 +481,7 @@ class RenderTargetCache {
   ID3D12PipelineState*
       edram_store_pipelines_[size_t(EDRAMLoadStoreMode::kCount)] = {};
   ID3D12PipelineState* edram_tile_sample_32bpp_pipeline_ = nullptr;
+  ID3D12PipelineState* edram_tile_sample_64bpp_pipeline_ = nullptr;
   ID3D12PipelineState* edram_clear_32bpp_pipeline_ = nullptr;
   ID3D12PipelineState* edram_clear_depth_float_pipeline_ = nullptr;
 

@@ -23,43 +23,44 @@ void main(uint3 xe_group_id : SV_GroupID,
       (xe_edram_tile_sample_dest_info.xxxx >> uint4(15u, 14u, 17u, 16u)) & 1u;
   uint2 edram_tile_quarter =
       uint2(uint2(10u, 8u) <= xe_group_thread_id.xy) * sample_info.xy;
-  uint edram_offset = XeEDRAMOffset32bpp(
+  uint edram_offset = XeEDRAMOffset64bpp(
       (xe_group_id.xy << sample_info.xy) + edram_tile_quarter,
       (xe_group_thread_id.xy - edram_tile_quarter * uint2(10u, 8u)) <<
       (sample_info.xy + uint2(2u, 0u)) + sample_info.zw);
-  // At 1x and 2x, this contains samples of 4 pixels. At 4x, this contains
-  // samples of 2, need to load 2 more.
-  uint4 pixels = xe_edram_load_store_source.Load4(edram_offset);
+  // Loaded with the first 2 pixels at 1x and 2x, or the first 1 pixel at 4x.
+  uint4 pixels_01 = xe_edram_load_store_source.Load4(edram_offset);
+  // Loaded with the second 2 pixels at 1x and 2x, or the second 1 pixel at 4x.
+  uint4 pixels_23 = xe_edram_load_store_source.Load4(edram_offset + 16u);
   [branch] if (sample_info.x != 0u) {
-    pixels.xy = pixels.xz;
-    pixels.zw = xe_edram_load_store_source.Load3(edram_offset + 16u).xz;
+    // Rather than 4 pixels, at 4x, we only have 2 - in xy of each variable
+    // rather than in xyzw of pixels_01. Combine and load 2 more.
+    pixels_01.zw = pixels_23.xy;
+    pixels_23.xy = xe_edram_load_store_source.Load2(edram_offset + 32u);
+    pixels_23.zw = xe_edram_load_store_source.Load2(edram_offset + 48u);
   }
 
-  uint red_blue_swap = xe_edram_tile_sample_dest_info >> 21u;
-  if (red_blue_swap != 0u) {
-    uint red_mask = (1u << (red_blue_swap & 31u)) - 1u;
-    // No need to be ready for a long shift Barney, it's just 16 or 20.
-    uint blue_shift = red_blue_swap >> 5u;
-    uint blue_mask = red_mask << blue_shift;
-    pixels = (pixels & ~(red_mask | blue_mask)) |
-             ((pixels & red_mask) << blue_shift) |
-             ((pixels >> blue_shift) & red_mask);
+  if ((xe_edram_tile_sample_dest_info >> 21u) != 0u) {
+    // Swap red and blue - all 64bpp formats where this is possible are
+    // 16:16:16:16.
+    pixels_01 = (pixels_01 & 0xFFFF0000u) | (pixels_01.yxwz & 0xFFFFu);
+    pixels_23 = (pixels_23 & 0xFFFF0000u) | (pixels_23.yxwz & 0xFFFFu);
   }
 
   // Tile the pixels to the shared memory.
-  pixels = XeByteSwap(pixels, xe_edram_tile_sample_dest_info >> 18u);
+  pixels_01 = XeByteSwap(pixels_01, xe_edram_tile_sample_dest_info >> 18u);
+  pixels_23 = XeByteSwap(pixels_23, xe_edram_tile_sample_dest_info >> 18u);
   uint4 texel_addresses =
       xe_edram_tile_sample_dest_base +
       XeTextureTiledOffset2D(texel_index - copy_rect.xy,
-                             xe_edram_tile_sample_dest_info & 16383u, 2u);
-  xe_edram_load_store_dest.Store(texel_addresses.x, pixels.x);
+                             xe_edram_tile_sample_dest_info & 16383u, 3u);
+  xe_edram_load_store_dest.Store2(texel_addresses.x, pixels_01.xy);
   bool3 texels_in_rect = uint3(1u, 2u, 3u) + texel_index.x < copy_rect.z;
   [branch] if (texels_in_rect.x) {
-    xe_edram_load_store_dest.Store(texel_addresses.y, pixels.y);
+    xe_edram_load_store_dest.Store2(texel_addresses.y, pixels_01.zw);
     [branch] if (texels_in_rect.y) {
-      xe_edram_load_store_dest.Store(texel_addresses.z, pixels.z);
+      xe_edram_load_store_dest.Store2(texel_addresses.z, pixels_23.xy);
       [branch] if (texels_in_rect.z) {
-        xe_edram_load_store_dest.Store(texel_addresses.w, pixels.w);
+        xe_edram_load_store_dest.Store2(texel_addresses.w, pixels_23.zw);
       }
     }
   }
