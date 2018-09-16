@@ -29,6 +29,7 @@ namespace d3d12 {
 
 // Generated with `xb buildhlsl`.
 #include "xenia/gpu/d3d12/shaders/bin/edram_clear_32bpp_cs.h"
+#include "xenia/gpu/d3d12/shaders/bin/edram_clear_64bpp_cs.h"
 #include "xenia/gpu/d3d12/shaders/bin/edram_clear_depth_float_cs.h"
 #include "xenia/gpu/d3d12/shaders/bin/edram_load_color_32bpp_cs.h"
 #include "xenia/gpu/d3d12/shaders/bin/edram_load_color_64bpp_cs.h"
@@ -194,6 +195,16 @@ bool RenderTargetCache::Initialize() {
     return false;
   }
   edram_clear_32bpp_pipeline_->SetName(L"EDRAM Clear 32bpp");
+  // Clear 64-bit color.
+  edram_clear_64bpp_pipeline_ = ui::d3d12::util::CreateComputePipeline(
+      device, edram_clear_64bpp_cs, sizeof(edram_clear_64bpp_cs),
+      edram_clear_root_signature_);
+  if (edram_clear_64bpp_pipeline_ == nullptr) {
+    XELOGE("Failed to create the EDRAM 64bpp clear pipeline");
+    Shutdown();
+    return false;
+  }
+  edram_clear_64bpp_pipeline_->SetName(L"EDRAM Clear 64bpp");
   // Clear float depth.
   edram_clear_depth_float_pipeline_ = ui::d3d12::util::CreateComputePipeline(
       device, edram_clear_depth_float_cs, sizeof(edram_clear_depth_float_cs),
@@ -272,6 +283,7 @@ void RenderTargetCache::Shutdown() {
   ui::d3d12::util::ReleaseAndNull(edram_tile_sample_64bpp_pipeline_);
   ui::d3d12::util::ReleaseAndNull(edram_tile_sample_32bpp_pipeline_);
   ui::d3d12::util::ReleaseAndNull(edram_clear_depth_float_pipeline_);
+  ui::d3d12::util::ReleaseAndNull(edram_clear_64bpp_pipeline_);
   ui::d3d12::util::ReleaseAndNull(edram_clear_32bpp_pipeline_);
   for (uint32_t i = 0; i < uint32_t(EDRAMLoadStoreMode::kCount); ++i) {
     ui::d3d12::util::ReleaseAndNull(edram_store_pipelines_[i]);
@@ -1473,8 +1485,10 @@ bool RenderTargetCache::ResolveClear(uint32_t edram_base,
     }
     command_processor_->SetComputePipeline(edram_clear_depth_float_pipeline_);
   } else if (is_64bpp) {
-    // TODO(Triang3l): 64bpp color clear.
-    return false;
+    // TODO(Triang3l): Check which 32-bit portion is in which register.
+    root_constants.clear_color_high = regs[XE_GPU_REG_RB_COLOR_CLEAR].u32;
+    root_constants.clear_color_low = regs[XE_GPU_REG_RB_COLOR_CLEAR_LOW].u32;
+    command_processor_->SetComputePipeline(edram_clear_64bpp_pipeline_);
   } else {
     Register reg =
         is_depth ? XE_GPU_REG_RB_DEPTH_CLEAR : XE_GPU_REG_RB_COLOR_CLEAR;
