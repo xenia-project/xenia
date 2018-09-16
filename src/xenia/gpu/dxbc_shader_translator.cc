@@ -3017,8 +3017,9 @@ void DxbcShaderTranslator::ProcessVertexFetchInstruction(
           extract_widths[3] = 16;
       extract_offsets[1] = extract_offsets[3] = 16;
       extract_swizzle = 0b01010000;
-      normalize_scales[0] = normalize_scales[1] =
-          instr.attributes.is_signed ? (1.0f / 32767.0f) : (1.0f / 65535.0f);
+      normalize_scales[0] = normalize_scales[1] = normalize_scales[2] =
+          normalize_scales[3] = instr.attributes.is_signed ? (1.0f / 32767.0f)
+                                                           : (1.0f / 65535.0f);
       break;
     case VertexFormat::k_16_16_FLOAT:
       extract_signed = false;
@@ -3040,6 +3041,9 @@ void DxbcShaderTranslator::ProcessVertexFetchInstruction(
           normalize_scales[3] =
               instr.attributes.is_signed ? (1.0f / 2147483647.0f)
                                          : (1.0f / 4294967295.0f);
+      break;
+    default:
+      // 32-bit float.
       break;
   }
 
