@@ -19,8 +19,8 @@ namespace gpu {
 namespace d3d12 {
 
 // Generated with `xb buildhlsl`.
-#include "xenia/gpu/d3d12/shaders/bin/fullscreen_vs.h"
-#include "xenia/gpu/d3d12/shaders/bin/stretch_ps.h"
+#include "xenia/gpu/d3d12/shaders/dxbc/fullscreen_vs.h"
+#include "xenia/gpu/d3d12/shaders/dxbc/stretch_ps.h"
 
 D3D12GraphicsSystem::D3D12GraphicsSystem() {}
 

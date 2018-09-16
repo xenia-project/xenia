@@ -26,17 +26,17 @@ namespace gpu {
 namespace d3d12 {
 
 // Generated with `xb buildhlsl`.
-#include "xenia/gpu/d3d12/shaders/bin/texture_load_128bpb_cs.h"
-#include "xenia/gpu/d3d12/shaders/bin/texture_load_16bpb_cs.h"
-#include "xenia/gpu/d3d12/shaders/bin/texture_load_32bpb_cs.h"
-#include "xenia/gpu/d3d12/shaders/bin/texture_load_64bpb_cs.h"
-#include "xenia/gpu/d3d12/shaders/bin/texture_load_8bpb_cs.h"
-#include "xenia/gpu/d3d12/shaders/bin/texture_load_ctx1_cs.h"
-#include "xenia/gpu/d3d12/shaders/bin/texture_load_depth_float_cs.h"
-#include "xenia/gpu/d3d12/shaders/bin/texture_load_depth_unorm_cs.h"
-#include "xenia/gpu/d3d12/shaders/bin/texture_load_dxt3a_cs.h"
-#include "xenia/gpu/d3d12/shaders/bin/texture_tile_32bpp_cs.h"
-#include "xenia/gpu/d3d12/shaders/bin/texture_tile_64bpp_cs.h"
+#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_128bpb_cs.h"
+#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_16bpb_cs.h"
+#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_32bpb_cs.h"
+#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_64bpb_cs.h"
+#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_8bpb_cs.h"
+#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_ctx1_cs.h"
+#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_depth_float_cs.h"
+#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_depth_unorm_cs.h"
+#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_dxt3a_cs.h"
+#include "xenia/gpu/d3d12/shaders/dxbc/texture_tile_32bpp_cs.h"
+#include "xenia/gpu/d3d12/shaders/dxbc/texture_tile_64bpp_cs.h"
 
 const TextureCache::HostFormat TextureCache::host_formats_[64] = {
     // k_1_REVERSE

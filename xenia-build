@@ -756,7 +756,7 @@ class BuildHlslCommand(Command):
             name='buildhlsl',
             help_short='Generates Direct3D shader binaries and header files.',
             help_long='''
-            Generates the .cso/.h binaries under src/xenia/*/d3d12/shaders/bin/.
+            Generates the .cso/.h binaries under src/xenia/*/d3d12/shaders/dxbc/.
             Run after modifying any .vs.hlsl/.ps.hlsl/.gs.hlsl/.cs.hlsl files.
             ''',
             *args, **kwargs)
@@ -792,7 +792,7 @@ class BuildHlslCommand(Command):
             src_name = os.path.splitext(os.path.basename(src_file))[0]
             identifier = os.path.basename(src_file)[:-5].replace('.', '_')
 
-            bin_path = os.path.join(os.path.dirname(src_file), 'bin')
+            bin_path = os.path.join(os.path.dirname(src_file), 'dxbc')
             if not os.path.exists(bin_path):
                 os.mkdir(bin_path)
             cso_file = os.path.join(bin_path, identifier) + '.cso'
