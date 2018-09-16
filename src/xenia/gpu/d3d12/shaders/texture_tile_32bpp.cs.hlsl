@@ -14,7 +14,7 @@ void main(uint3 xe_thread_id : SV_DispatchThreadID) {
   uint4 texels = xe_texture_tile_source.Load4(
       xe_texture_tile_host_base + texel_index.y * xe_texture_tile_host_pitch +
       texel_index.x * 4u);
-  texels = XeByteSwap(texels, xe_texture_tile_endian_guest_pitch & 7u);
+  texels = XeByteSwap(texels, xe_texture_tile_endian_guest_pitch);
   uint4 texel_addresses = xe_texture_tile_guest_base + XeTextureTiledOffset2D(
       texel_index, xe_texture_tile_endian_guest_pitch >> 3u, 2u);
   xe_texture_tile_dest.Store(texel_addresses.x, texels.x);

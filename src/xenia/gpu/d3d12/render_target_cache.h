@@ -483,6 +483,7 @@ class RenderTargetCache {
   ID3D12PipelineState* edram_tile_sample_32bpp_pipeline_ = nullptr;
   ID3D12PipelineState* edram_tile_sample_64bpp_pipeline_ = nullptr;
   ID3D12PipelineState* edram_clear_32bpp_pipeline_ = nullptr;
+  ID3D12PipelineState* edram_clear_64bpp_pipeline_ = nullptr;
   ID3D12PipelineState* edram_clear_depth_float_pipeline_ = nullptr;
 
   // 48 MB heaps backing used render targets resources, created when needed.

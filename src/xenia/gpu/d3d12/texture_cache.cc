@@ -36,6 +36,7 @@ namespace d3d12 {
 #include "xenia/gpu/d3d12/shaders/bin/texture_load_depth_unorm_cs.h"
 #include "xenia/gpu/d3d12/shaders/bin/texture_load_dxt3a_cs.h"
 #include "xenia/gpu/d3d12/shaders/bin/texture_tile_32bpp_cs.h"
+#include "xenia/gpu/d3d12/shaders/bin/texture_tile_64bpp_cs.h"
 
 const TextureCache::HostFormat TextureCache::host_formats_[64] = {
     // k_1_REVERSE
@@ -81,7 +82,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
     // k_DXT4_5
     {DXGI_FORMAT_BC3_UNORM, LoadMode::k128bpb, TileMode::kUnknown},
     // k_16_16_16_16_EDRAM
-    {DXGI_FORMAT_R16G16B16A16_UNORM, LoadMode::k64bpb, TileMode::kUnknown},
+    {DXGI_FORMAT_R16G16B16A16_UNORM, LoadMode::k64bpb, TileMode::k64bpp},
     // R32_FLOAT for depth because shaders would require an additional SRV to
     // sample stencil, which we don't provide.
     // k_24_8
@@ -93,19 +94,19 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
     // k_16_16
     {DXGI_FORMAT_R16G16_UNORM, LoadMode::k32bpb, TileMode::k32bpp},
     // k_16_16_16_16
-    {DXGI_FORMAT_R16G16B16A16_UNORM, LoadMode::k64bpb, TileMode::kUnknown},
+    {DXGI_FORMAT_R16G16B16A16_UNORM, LoadMode::k64bpb, TileMode::k64bpp},
     // k_16_EXPAND
     {DXGI_FORMAT_R16_FLOAT, LoadMode::k16bpb, TileMode::kUnknown},
     // k_16_16_EXPAND
     {DXGI_FORMAT_R16G16_FLOAT, LoadMode::k32bpb, TileMode::k32bpp},
     // k_16_16_16_16_EXPAND
-    {DXGI_FORMAT_R16G16B16A16_FLOAT, LoadMode::k64bpb, TileMode::kUnknown},
+    {DXGI_FORMAT_R16G16B16A16_FLOAT, LoadMode::k64bpb, TileMode::k64bpp},
     // k_16_FLOAT
     {DXGI_FORMAT_R16_FLOAT, LoadMode::k16bpb, TileMode::kUnknown},
     // k_16_16_FLOAT
     {DXGI_FORMAT_R16G16_FLOAT, LoadMode::k32bpb, TileMode::k32bpp},
     // k_16_16_16_16_FLOAT
-    {DXGI_FORMAT_R16G16B16A16_FLOAT, LoadMode::k64bpb, TileMode::kUnknown},
+    {DXGI_FORMAT_R16G16B16A16_FLOAT, LoadMode::k64bpb, TileMode::k64bpp},
     // k_32
     {DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, TileMode::kUnknown},
     // k_32_32
@@ -115,7 +116,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
     // k_32_FLOAT
     {DXGI_FORMAT_R32_FLOAT, LoadMode::k32bpb, TileMode::k32bpp},
     // k_32_32_FLOAT
-    {DXGI_FORMAT_R32G32_FLOAT, LoadMode::k64bpb, TileMode::kUnknown},
+    {DXGI_FORMAT_R32G32_FLOAT, LoadMode::k64bpb, TileMode::k64bpp},
     // k_32_32_32_32_FLOAT
     {DXGI_FORMAT_R32G32B32A32_FLOAT, LoadMode::k128bpb, TileMode::kUnknown},
     // k_32_AS_8
@@ -187,6 +188,7 @@ const TextureCache::LoadModeInfo TextureCache::load_mode_info_[] = {
 
 const TextureCache::TileModeInfo TextureCache::tile_mode_info_[] = {
     {texture_tile_32bpp_cs, sizeof(texture_tile_32bpp_cs)},
+    {texture_tile_64bpp_cs, sizeof(texture_tile_64bpp_cs)},
 };
 
 TextureCache::TextureCache(D3D12CommandProcessor* command_processor,

@@ -118,6 +118,7 @@ class TextureCache {
   // formats that can be resolved to.
   enum class TileMode {
     k32bpp,
+    k64bpp,
 
     kCount,
 
