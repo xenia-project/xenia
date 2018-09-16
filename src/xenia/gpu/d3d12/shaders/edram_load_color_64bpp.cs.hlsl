@@ -1,19 +1,14 @@
 #include "edram_load_store.hlsli"
 
-[numthreads(40, 8, 1)]
+[numthreads(40, 16, 1)]
 void main(uint3 xe_group_id : SV_GroupID,
           uint3 xe_group_thread_id : SV_GroupThreadID,
           uint3 xe_thread_id : SV_DispatchThreadID) {
-  // One tile contains 80x8 texels, and 2 rows within a 80x16 tile contain data
-  // from 1 render target row rather than 1. Threads with X 0-19 are for the
-  // first row, with 20-39 are for the second.
-  uint2 tile_dword_index = xe_group_thread_id.xy * uint2(4u, 2u);
-  [flatten] if (xe_group_thread_id.x >= 20u) {
-    tile_dword_index += uint2(uint(-80), 1u);
-  }
-  uint4 pixels = xe_edram_load_store_source.Load4(
-      XeEDRAMOffset(xe_group_id.xy, tile_dword_index));
+  uint2 tile_sample_index = xe_group_thread_id.xy;
+  tile_sample_index.x *= 2u;
+  uint4 samples = xe_edram_load_store_source.Load4(
+      XeEDRAMOffset64bpp(xe_group_id.xy, tile_sample_index));
   uint rt_offset = xe_thread_id.y * xe_edram_rt_color_depth_pitch +
                    xe_thread_id.x * 16u + xe_edram_rt_color_depth_offset;
-  xe_edram_load_store_dest.Store4(rt_offset, pixels);
+  xe_edram_load_store_dest.Store4(rt_offset, samples);
 }

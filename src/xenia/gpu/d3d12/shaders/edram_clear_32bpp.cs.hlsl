@@ -15,9 +15,9 @@ void main(uint3 xe_group_id : SV_GroupID,
                any(sample_index >= clear_rect.zw)) {
     return;
   }
-  uint2 tile_dword_index = xe_group_thread_id.xy;
-  tile_dword_index.x *= 2u;
-  uint edram_offset = XeEDRAMOffset(xe_group_id.xy, tile_dword_index);
+  uint2 tile_sample_index = xe_group_thread_id.xy;
+  tile_sample_index.x *= 2u;
+  uint edram_offset = XeEDRAMOffset32bpp(xe_group_id.xy, tile_sample_index);
   xe_edram_load_store_dest.Store(edram_offset, xe_edram_clear_color32);
   if (sample_index.x + 1u < clear_rect.z) {
     xe_edram_load_store_dest.Store(edram_offset + 4u, xe_edram_clear_color32);

@@ -25,10 +25,10 @@ cbuffer XeEDRAMLoadStoreConstants : register(b0) {
 // 16:17 - sample to load (16 - vertical index, 17 - horizontal index).
 // 18:20 - destination endianness.
 // 21:31 - BPP-specific info for swapping red/blue, 0 if not swapping.
-//   For 32 bits per pixel:
+//   For 32 bits per sample:
 //     21:25 - red/blue bit depth.
 //     26:30 - blue offset.
-//   For 64 bits per pixel, it's 1 if need to swap 0:15 and 32:47.
+//   For 64 bits per sample, it's 1 if need to swap 0:15 and 32:47.
 #define xe_edram_tile_sample_dest_info (xe_edram_load_store_constants.w)
 
 // For clearing.
@@ -45,10 +45,20 @@ ByteAddressBuffer xe_edram_load_store_source : register(t0);
 #endif
 RWByteAddressBuffer xe_edram_load_store_dest : register(u0);
 
-uint XeEDRAMOffset(uint2 tile_index, uint2 tile_dword_index) {
+uint XeEDRAMOffset32bpp(uint2 tile_index, uint2 tile_sample_index) {
   return ((xe_edram_base_pitch_tiles & 2047u) +
           tile_index.y * (xe_edram_base_pitch_tiles >> 11u) + tile_index.x) *
-         5120u + tile_dword_index.y * 320u + tile_dword_index.x * 4u;
+         5120u + tile_sample_index.y * 320u + tile_sample_index.x * 4u;
+}
+
+// Instead of individual tiles, this works on two consecutive tiles, the first
+// one containing the top 80x8 samples, and the second one containing the bottom
+// 80x8 samples.
+uint XeEDRAMOffset64bpp(uint2 tile_pair_index, uint2 tile_pair_sample_index) {
+  return ((xe_edram_base_pitch_tiles & 2047u) +
+          tile_pair_index.y * (xe_edram_base_pitch_tiles >> 11u) +
+          (tile_pair_index.x << 1u)) * 5120u +
+         tile_pair_sample_index.y * 640u + tile_pair_sample_index.x * 8u;
 }
 
 #endif  // XENIA_GPU_D3D12_SHADERS_EDRAM_LOAD_STORE_HLSLI_
