@@ -31,9 +31,9 @@ namespace gpu {
 namespace d3d12 {
 
 // Generated with `xb buildhlsl`.
-#include "xenia/gpu/d3d12/shaders/bin/primitive_point_list_gs.h"
-#include "xenia/gpu/d3d12/shaders/bin/primitive_quad_list_gs.h"
-#include "xenia/gpu/d3d12/shaders/bin/primitive_rectangle_list_gs.h"
+#include "xenia/gpu/d3d12/shaders/dxbc/primitive_point_list_gs.h"
+#include "xenia/gpu/d3d12/shaders/dxbc/primitive_quad_list_gs.h"
+#include "xenia/gpu/d3d12/shaders/dxbc/primitive_rectangle_list_gs.h"
 
 PipelineCache::PipelineCache(D3D12CommandProcessor* command_processor,
                              RegisterFile* register_file)
