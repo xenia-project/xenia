@@ -19,6 +19,7 @@
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/profiling.h"
+#include "xenia/base/string.h"
 #include "xenia/gpu/d3d12/d3d12_command_processor.h"
 #include "xenia/gpu/gpu_flags.h"
 
@@ -692,7 +693,19 @@ PipelineCache::Pipeline* PipelineCache::GetPipeline(uint64_t hash_key) {
     XELOGE("Failed to create graphics pipeline state");
     return nullptr;
   }
-  // TODO(Triang3l): Set the name for the pipeline, with shader hashes.
+
+  std::wstring name;
+  if (update_shader_stages_regs_.pixel_shader != nullptr) {
+    name = xe::format_string(
+        L"VS %.16I64X, PS %.16I64X, PL %.16I64X",
+        update_shader_stages_regs_.vertex_shader->ucode_data_hash(),
+        update_shader_stages_regs_.pixel_shader->ucode_data_hash(), hash_key);
+  } else {
+    name = xe::format_string(
+        L"VS %.16I64X, PL %.16I64X",
+        update_shader_stages_regs_.vertex_shader->ucode_data_hash(), hash_key);
+  }
+  state->SetName(name.c_str());
 
   // Add to cache with the hash key for reuse.
   Pipeline* pipeline = new Pipeline;
