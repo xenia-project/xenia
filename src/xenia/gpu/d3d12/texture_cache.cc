@@ -355,6 +355,7 @@ void TextureCache::RequestTextures(uint32_t used_vertex_texture_mask,
                                 binding.swizzle);
     texture_keys_in_sync_ |= index_bit;
     if (binding.key.IsInvalid()) {
+      binding.texture = nullptr;
       continue;
     }
     bool load = force_load;
