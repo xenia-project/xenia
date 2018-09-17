@@ -266,7 +266,7 @@ void ShaderTranslator::GatherInstructionInformation(
             const auto& opcode_info =
                 alu_vector_opcode_infos_[static_cast<int>(op.vector_opcode())];
             for (size_t i = 0; i < opcode_info.argument_count; ++i) {
-              if (op.src_is_temp(i) && (op.src_reg(i) & 0x40)) {
+              if (op.src_is_temp(i + 1) && (op.src_reg(i + 1) & 0x40)) {
                 uses_register_dynamic_addressing_ = true;
               }
             }
@@ -283,8 +283,8 @@ void ShaderTranslator::GatherInstructionInformation(
           if (op.has_scalar_op()) {
             const auto& opcode_info =
                 alu_scalar_opcode_infos_[static_cast<int>(op.scalar_opcode())];
-            if (opcode_info.argument_count == 1 && op.src_is_temp(0) &&
-                (op.src_reg(0) & 0x40)) {
+            if (opcode_info.argument_count == 1 && op.src_is_temp(3) &&
+                (op.src_reg(3) & 0x40)) {
               uses_register_dynamic_addressing_ = true;
             }
             if (op.is_export()) {
