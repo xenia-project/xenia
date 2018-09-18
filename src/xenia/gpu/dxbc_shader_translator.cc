@@ -4825,8 +4825,6 @@ void DxbcShaderTranslator::ProcessVectorAluInstruction(
     case AluVectorOpcode::kMax:
     // max is commonly used as mov, but probably better not to convert it to
     // make sure things like flusing denormals aren't affected.
-    // TODO(Triang3l): Implement Shader Model 3 behavior of min/max - return the
-    // non-NaN operand if any is NaN.
     case AluVectorOpcode::kMin:
       shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(
                                  kCoreOpcodes[uint32_t(instr.vector_opcode)]) |
@@ -4853,26 +4851,26 @@ void DxbcShaderTranslator::ProcessVectorAluInstruction(
       ++stat_.instruction_count;
       ++stat_.float_instruction_count;
       // Reproduce Shader Model 3 multiplication behavior (0 * anything = 0),
-      // flushing denormals.
+      // flushing denormals (must be done using eq - doing bitwise comparison
+      // doesn't flush denormals).
       // With Shader Model 4 behavior, Halo 3 has a significant portion of the
       // image missing because rcp(0) is multiplied by 0, which results in NaN
       // rather than 0.
       uint32_t is_subnormal_temp = PushSystemTemp();
       // Check the first operand.
-      shader_code_.push_back(
-          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_LT) |
-          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(
-              8 + DxbcSourceOperandLength(dxbc_operands[0], false, true)));
+      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_EQ) |
+                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(
+                                 8 + operand_length_sums[0]));
       shader_code_.push_back(
           EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
       shader_code_.push_back(is_subnormal_temp);
-      UseDxbcSourceOperand(dxbc_operands[0], kSwizzleXYZW, 4, false, true);
+      UseDxbcSourceOperand(dxbc_operands[0]);
       shader_code_.push_back(EncodeVectorSwizzledOperand(
           D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-      shader_code_.push_back(0x00800000);
-      shader_code_.push_back(0x00800000);
-      shader_code_.push_back(0x00800000);
-      shader_code_.push_back(0x00800000);
+      shader_code_.push_back(0);
+      shader_code_.push_back(0);
+      shader_code_.push_back(0);
+      shader_code_.push_back(0);
       ++stat_.instruction_count;
       ++stat_.float_instruction_count;
       shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
@@ -4896,19 +4894,19 @@ void DxbcShaderTranslator::ProcessVectorAluInstruction(
       ++stat_.movc_instruction_count;
       // Check the second operand.
       shader_code_.push_back(
-          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_LT) |
+          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_EQ) |
           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(
-              8 + DxbcSourceOperandLength(dxbc_operands[1], false, true)));
+              8 + DxbcSourceOperandLength(dxbc_operands[1])));
       shader_code_.push_back(
           EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
       shader_code_.push_back(is_subnormal_temp);
-      UseDxbcSourceOperand(dxbc_operands[1], kSwizzleXYZW, 4, false, true);
+      UseDxbcSourceOperand(dxbc_operands[1]);
       shader_code_.push_back(EncodeVectorSwizzledOperand(
           D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-      shader_code_.push_back(0x00800000);
-      shader_code_.push_back(0x00800000);
-      shader_code_.push_back(0x00800000);
-      shader_code_.push_back(0x00800000);
+      shader_code_.push_back(0);
+      shader_code_.push_back(0);
+      shader_code_.push_back(0);
+      shader_code_.push_back(0);
       ++stat_.instruction_count;
       ++stat_.float_instruction_count;
       shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
@@ -5005,20 +5003,19 @@ void DxbcShaderTranslator::ProcessVectorAluInstruction(
       // If any operand is zero or denormalized, just leave the addition part.
       uint32_t is_subnormal_temp = PushSystemTemp();
       // Check the first operand.
-      shader_code_.push_back(
-          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_LT) |
-          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(
-              8 + DxbcSourceOperandLength(dxbc_operands[0], false, true)));
+      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_EQ) |
+                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(
+                                 8 + operand_length_sums[0]));
       shader_code_.push_back(
           EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
       shader_code_.push_back(is_subnormal_temp);
-      UseDxbcSourceOperand(dxbc_operands[0], kSwizzleXYZW, 4, false, true);
+      UseDxbcSourceOperand(dxbc_operands[0]);
       shader_code_.push_back(EncodeVectorSwizzledOperand(
           D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-      shader_code_.push_back(0x00800000);
-      shader_code_.push_back(0x00800000);
-      shader_code_.push_back(0x00800000);
-      shader_code_.push_back(0x00800000);
+      shader_code_.push_back(0);
+      shader_code_.push_back(0);
+      shader_code_.push_back(0);
+      shader_code_.push_back(0);
       ++stat_.instruction_count;
       ++stat_.float_instruction_count;
       shader_code_.push_back(
@@ -5039,19 +5036,19 @@ void DxbcShaderTranslator::ProcessVectorAluInstruction(
       ++stat_.movc_instruction_count;
       // Check the second operand.
       shader_code_.push_back(
-          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_LT) |
+          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_EQ) |
           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(
-              8 + DxbcSourceOperandLength(dxbc_operands[1], false, true)));
+              8 + DxbcSourceOperandLength(dxbc_operands[1])));
       shader_code_.push_back(
           EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
       shader_code_.push_back(is_subnormal_temp);
-      UseDxbcSourceOperand(dxbc_operands[1], kSwizzleXYZW, 4, false, true);
+      UseDxbcSourceOperand(dxbc_operands[1]);
       shader_code_.push_back(EncodeVectorSwizzledOperand(
           D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-      shader_code_.push_back(0x00800000);
-      shader_code_.push_back(0x00800000);
-      shader_code_.push_back(0x00800000);
-      shader_code_.push_back(0x00800000);
+      shader_code_.push_back(0);
+      shader_code_.push_back(0);
+      shader_code_.push_back(0);
+      shader_code_.push_back(0);
       ++stat_.instruction_count;
       ++stat_.float_instruction_count;
       shader_code_.push_back(
@@ -5136,19 +5133,19 @@ void DxbcShaderTranslator::ProcessVectorAluInstruction(
       uint32_t src1_temp = PushSystemTemp();
       // Load the first operand into pv.
       shader_code_.push_back(
-          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_LT) |
+          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_EQ) |
           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(
-              8 + DxbcSourceOperandLength(dxbc_operands[1], false, true)));
+              8 + DxbcSourceOperandLength(dxbc_operands[1])));
       shader_code_.push_back(EncodeVectorMaskedOperand(
           D3D10_SB_OPERAND_TYPE_TEMP, operand_mask, 1));
       shader_code_.push_back(system_temp_pv_);
-      UseDxbcSourceOperand(dxbc_operands[1], kSwizzleXYZW, 4, false, true);
+      UseDxbcSourceOperand(dxbc_operands[1]);
       shader_code_.push_back(EncodeVectorSwizzledOperand(
           D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-      shader_code_.push_back(0x00800000);
-      shader_code_.push_back(0x00800000);
-      shader_code_.push_back(0x00800000);
-      shader_code_.push_back(0x00800000);
+      shader_code_.push_back(0);
+      shader_code_.push_back(0);
+      shader_code_.push_back(0);
+      shader_code_.push_back(0);
       ++stat_.instruction_count;
       ++stat_.float_instruction_count;
       shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
@@ -5170,20 +5167,19 @@ void DxbcShaderTranslator::ProcessVectorAluInstruction(
       ++stat_.instruction_count;
       ++stat_.movc_instruction_count;
       // Load the second operand into src1_temp.
-      shader_code_.push_back(
-          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_LT) |
-          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(
-              8 + DxbcSourceOperandLength(dxbc_operands[0], false, true)));
+      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_EQ) |
+                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(
+                                 8 + operand_length_sums[0]));
       shader_code_.push_back(EncodeVectorMaskedOperand(
           D3D10_SB_OPERAND_TYPE_TEMP, operand_mask, 1));
       shader_code_.push_back(src1_temp);
-      UseDxbcSourceOperand(dxbc_operands[0], kSwizzleXYZW, 4, false, true);
+      UseDxbcSourceOperand(dxbc_operands[0]);
       shader_code_.push_back(EncodeVectorSwizzledOperand(
           D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-      shader_code_.push_back(0x00800000);
-      shader_code_.push_back(0x00800000);
-      shader_code_.push_back(0x00800000);
-      shader_code_.push_back(0x00800000);
+      shader_code_.push_back(0);
+      shader_code_.push_back(0);
+      shader_code_.push_back(0);
+      shader_code_.push_back(0);
       ++stat_.instruction_count;
       ++stat_.float_instruction_count;
       shader_code_.push_back(
@@ -5799,31 +5795,30 @@ void DxbcShaderTranslator::ProcessVectorAluInstruction(
       // not very unlikely.
       uint32_t is_subnormal_temp = PushSystemTemp();
       // Check if src0.y is zero.
-      shader_code_.push_back(
-          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_LT) |
-          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(
-              5 + DxbcSourceOperandLength(dxbc_operands[0], false, true)));
+      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_EQ) |
+                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(
+                                 5 + operand_length_sums[0]));
       shader_code_.push_back(
           EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
       shader_code_.push_back(is_subnormal_temp);
-      UseDxbcSourceOperand(dxbc_operands[0], kSwizzleXYZW, 1, false, true);
+      UseDxbcSourceOperand(dxbc_operands[0]);
       shader_code_.push_back(
           EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-      shader_code_.push_back(0x00800000);
+      shader_code_.push_back(0);
       ++stat_.instruction_count;
       ++stat_.float_instruction_count;
       // Check if src1.y is zero.
       shader_code_.push_back(
-          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_LT) |
+          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_EQ) |
           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(
-              5 + DxbcSourceOperandLength(dxbc_operands[1], false, true)));
+              5 + DxbcSourceOperandLength(dxbc_operands[1])));
       shader_code_.push_back(
           EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0010, 1));
       shader_code_.push_back(is_subnormal_temp);
-      UseDxbcSourceOperand(dxbc_operands[1], kSwizzleXYZW, 1, false, true);
+      UseDxbcSourceOperand(dxbc_operands[1]);
       shader_code_.push_back(
           EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-      shader_code_.push_back(0x00800000);
+      shader_code_.push_back(0);
       ++stat_.instruction_count;
       ++stat_.float_instruction_count;
       // Check if any operand is zero.
@@ -6120,19 +6115,18 @@ void DxbcShaderTranslator::ProcessScalarAluInstruction(
       // Check if the operands are zero or denormalized.
       uint32_t is_subnormal_temp = PushSystemTemp();
       shader_code_.push_back(
-          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_LT) |
-          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(
-              8 + DxbcSourceOperandLength(dxbc_operands[0], false, true)));
+          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_EQ) |
+          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(8 + operand_lengths[0]));
       shader_code_.push_back(
           EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0011, 1));
       shader_code_.push_back(is_subnormal_temp);
-      UseDxbcSourceOperand(dxbc_operands[0], kSwizzleXYZW, 4, false, true);
+      UseDxbcSourceOperand(dxbc_operands[0]);
       shader_code_.push_back(EncodeVectorSwizzledOperand(
           D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-      shader_code_.push_back(0x00800000);
-      shader_code_.push_back(0x00800000);
-      shader_code_.push_back(0x00800000);
-      shader_code_.push_back(0x00800000);
+      shader_code_.push_back(0);
+      shader_code_.push_back(0);
+      shader_code_.push_back(0);
+      shader_code_.push_back(0);
       ++stat_.instruction_count;
       ++stat_.float_instruction_count;
       shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_OR) |
@@ -6174,33 +6168,29 @@ void DxbcShaderTranslator::ProcessScalarAluInstruction(
       uint32_t is_subnormal_temp = PushSystemTemp();
       // Check if the first operand (src0.x) is zero.
       shader_code_.push_back(
-          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_LT) |
-          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(
-              5 + DxbcSourceOperandLength(dxbc_operands[0], false, true)));
+          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_EQ) |
+          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5 + operand_lengths[0]));
       shader_code_.push_back(
           EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
       shader_code_.push_back(is_subnormal_temp);
-      UseDxbcSourceOperand(dxbc_operands[0], kSwizzleXYZW, 0, false, true);
+      UseDxbcSourceOperand(dxbc_operands[0]);
       shader_code_.push_back(
           EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-      shader_code_.push_back(0x00800000);
+      shader_code_.push_back(0);
       ++stat_.instruction_count;
       ++stat_.float_instruction_count;
       // Check if the second operand (ps) is zero.
-      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_LT) |
-                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(8));
+      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_EQ) |
+                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
       shader_code_.push_back(
           EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0010, 1));
       shader_code_.push_back(is_subnormal_temp);
       shader_code_.push_back(
-          EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1) |
-          ENCODE_D3D10_SB_OPERAND_EXTENDED(1));
-      shader_code_.push_back(ENCODE_D3D10_SB_EXTENDED_OPERAND_MODIFIER(
-          D3D10_SB_OPERAND_MODIFIER_ABS));
+          EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
       shader_code_.push_back(system_temp_ps_pc_p0_a0_);
       shader_code_.push_back(
           EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-      shader_code_.push_back(0x00800000);
+      shader_code_.push_back(0);
       ++stat_.instruction_count;
       ++stat_.float_instruction_count;
       // Check if any operand is zero.
@@ -6960,30 +6950,28 @@ void DxbcShaderTranslator::ProcessScalarAluInstruction(
       uint32_t is_subnormal_temp = PushSystemTemp();
       // Check if the first operand (src0.x) is zero.
       shader_code_.push_back(
-          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_LT) |
-          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(
-              5 + DxbcSourceOperandLength(dxbc_operands[0], false, true)));
+          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_EQ) |
+          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5 + operand_lengths[0]));
       shader_code_.push_back(
           EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
       shader_code_.push_back(is_subnormal_temp);
-      UseDxbcSourceOperand(dxbc_operands[0], kSwizzleXYZW, 0, false, true);
+      UseDxbcSourceOperand(dxbc_operands[0]);
       shader_code_.push_back(
           EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-      shader_code_.push_back(0x00800000);
+      shader_code_.push_back(0);
       ++stat_.instruction_count;
       ++stat_.float_instruction_count;
       // Check if the second operand (src0.y) is zero.
       shader_code_.push_back(
-          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_LT) |
-          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(
-              5 + DxbcSourceOperandLength(dxbc_operands[1], false, true)));
+          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_EQ) |
+          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5 + operand_lengths[1]));
       shader_code_.push_back(
           EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0010, 1));
       shader_code_.push_back(is_subnormal_temp);
-      UseDxbcSourceOperand(dxbc_operands[1], kSwizzleXYZW, 0, false, true);
+      UseDxbcSourceOperand(dxbc_operands[1]);
       shader_code_.push_back(
           EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-      shader_code_.push_back(0x00800000);
+      shader_code_.push_back(0);
       ++stat_.instruction_count;
       ++stat_.float_instruction_count;
       // Check if any operand is zero.
