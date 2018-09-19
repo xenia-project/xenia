@@ -8,7 +8,7 @@
 // {
 //
 //   uint4 xe_edram_load_store_constants;// Offset:    0 Size:    16
-//   uint xe_edram_base_pitch_tiles;    // Offset:   16 Size:     4
+//   uint xe_edram_base_depth_pitch;    // Offset:   16 Size:     4
 //
 // }
 //
@@ -67,7 +67,7 @@ iadd r3.zw, r2.xxxy, l(0, 0, 2, 0)
 iadd r2.yz, r2.zzwz, r3.zzwz
 ishl r2.yz, r3.xxyx, r2.yyzy
 and r0.w, CB0[0][1].x, l(2047)
-ushr r2.w, CB0[0][1].x, l(11)
+ushr r2.w, CB0[0][1].x, l(12)
 imad r0.w, r1.w, r2.w, r0.w
 ishl r1.z, r1.z, l(1)
 iadd r0.w, r0.w, r1.z

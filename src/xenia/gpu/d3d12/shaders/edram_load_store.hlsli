@@ -4,8 +4,10 @@
 // Root constants.
 cbuffer XeEDRAMLoadStoreConstants : register(b0) {
   uint4 xe_edram_load_store_constants;
-  // Base in the lower 11 bits, pitch in the upper part, in tiles.
-  uint xe_edram_base_pitch_tiles;
+  // 0:10 - EDRAM base in tiles.
+  // 11 - whether it's a depth render target.
+  // 12: - EDRAM pitch in tiles.
+  uint xe_edram_base_depth_pitch;
 };
 
 // For loading and storing render targets.
@@ -46,8 +48,14 @@ ByteAddressBuffer xe_edram_load_store_source : register(t0);
 RWByteAddressBuffer xe_edram_load_store_dest : register(u0);
 
 uint XeEDRAMOffset32bpp(uint2 tile_index, uint2 tile_sample_index) {
-  return ((xe_edram_base_pitch_tiles & 2047u) +
-          tile_index.y * (xe_edram_base_pitch_tiles >> 11u) + tile_index.x) *
+  if (xe_edram_base_depth_pitch & (1u << 11u)) {
+    // Depth render targets apparently have samples 0:39 and 40:79 swapped -
+    // affects loading depth to EDRAM via color aliasing in GTA IV and Halo 3.
+    tile_sample_index.x += 40u * uint(tile_sample_index.x < 40u) -
+                           40u * uint(tile_sample_index.x >= 40u);
+  }
+  return ((xe_edram_base_depth_pitch & 2047u) +
+          tile_index.y * (xe_edram_base_depth_pitch >> 12u) + tile_index.x) *
          5120u + tile_sample_index.y * 320u + tile_sample_index.x * 4u;
 }
 
@@ -55,8 +63,8 @@ uint XeEDRAMOffset32bpp(uint2 tile_index, uint2 tile_sample_index) {
 // one containing the top 80x8 samples, and the second one containing the bottom
 // 80x8 samples.
 uint XeEDRAMOffset64bpp(uint2 tile_pair_index, uint2 tile_pair_sample_index) {
-  return ((xe_edram_base_pitch_tiles & 2047u) +
-          tile_pair_index.y * (xe_edram_base_pitch_tiles >> 11u) +
+  return ((xe_edram_base_depth_pitch & 2047u) +
+          tile_pair_index.y * (xe_edram_base_depth_pitch >> 12u) +
           (tile_pair_index.x << 1u)) * 5120u +
          tile_pair_sample_index.y * 640u + tile_pair_sample_index.x * 8u;
 }

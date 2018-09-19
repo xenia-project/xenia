@@ -1105,7 +1105,8 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
           break;
       }
     }
-    root_constants.base_pitch_tiles = edram_base | (surface_pitch_tiles << 11);
+    root_constants.base_depth_pitch =
+        edram_base | (is_depth ? (1 << 11) : 0) | (surface_pitch_tiles << 12);
     command_list->SetComputeRoot32BitConstants(
         0, sizeof(root_constants) / sizeof(uint32_t), &root_constants, 0);
     command_list->SetComputeRootDescriptorTable(1, descriptor_gpu_start);
@@ -1206,8 +1207,8 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
     load_root_constants.rt_color_depth_offset = uint32_t(footprint.Offset);
     load_root_constants.rt_color_depth_pitch =
         uint32_t(footprint.Footprint.RowPitch);
-    load_root_constants.base_pitch_tiles =
-        edram_base | (surface_pitch_tiles << 11);
+    load_root_constants.base_depth_pitch =
+        edram_base | (surface_pitch_tiles << 12);
     command_list->SetComputeRoot32BitConstants(
         0, sizeof(load_root_constants) / sizeof(uint32_t), &load_root_constants,
         0);
@@ -1473,7 +1474,8 @@ bool RenderTargetCache::ResolveClear(uint32_t edram_base,
                                  (clear_rect.top << (16 + samples_y_log2));
   root_constants.clear_rect_rb = (clear_rect.right << samples_x_log2) |
                                  (clear_rect.bottom << (16 + samples_y_log2));
-  root_constants.base_pitch_tiles = edram_base | (surface_pitch_tiles << 11);
+  root_constants.base_depth_pitch =
+      edram_base | (is_depth ? (1 << 11) : 0) | (surface_pitch_tiles << 12);
   if (is_depth &&
       DepthRenderTargetFormat(format) == DepthRenderTargetFormat::kD24FS8) {
     root_constants.clear_depth24 = regs[XE_GPU_REG_RB_DEPTH_CLEAR].u32;
@@ -2098,11 +2100,20 @@ void RenderTargetCache::StoreRenderTargetsToEDRAM() {
     command_list->CopyTextureRegion(&location_dest, 0, 0, 0, &location_source,
                                     nullptr);
     EDRAMLoadStoreRootConstants root_constants;
+    uint32_t rt_pitch_tiles = surface_pitch_tiles;
+    if (!render_target->key.is_depth &&
+        IsColorFormat64bpp(
+            ColorRenderTargetFormat(render_target->key.format))) {
+      rt_pitch_tiles *= 2;
+    }
+    root_constants.base_depth_pitch =
+        binding.edram_base | (rt_pitch_tiles << 12);
     root_constants.rt_color_depth_offset =
         uint32_t(location_dest.PlacedFootprint.Offset);
     root_constants.rt_color_depth_pitch =
         location_dest.PlacedFootprint.Footprint.RowPitch;
     if (render_target->key.is_depth) {
+      root_constants.base_depth_pitch |= 1 << 11;
       location_source.SubresourceIndex = 1;
       location_dest.PlacedFootprint = render_target->footprints[1];
       command_list->CopyTextureRegion(&location_dest, 0, 0, 0, &location_source,
@@ -2112,14 +2123,6 @@ void RenderTargetCache::StoreRenderTargetsToEDRAM() {
       root_constants.rt_stencil_pitch =
           location_dest.PlacedFootprint.Footprint.RowPitch;
     }
-    uint32_t rt_pitch_tiles = surface_pitch_tiles;
-    if (!render_target->key.is_depth &&
-        IsColorFormat64bpp(
-            ColorRenderTargetFormat(render_target->key.format))) {
-      rt_pitch_tiles *= 2;
-    }
-    root_constants.base_pitch_tiles =
-        binding.edram_base | (rt_pitch_tiles << 11);
 
     // Transition the copy buffer to SRV.
     command_processor_->PushTransitionBarrier(
@@ -2236,18 +2239,19 @@ void RenderTargetCache::LoadRenderTargetsFromEDRAM(
     // Load the data.
     command_processor_->SubmitBarriers();
     EDRAMLoadStoreRootConstants root_constants;
+    root_constants.base_depth_pitch =
+        edram_bases[i] | (edram_pitch_tiles << 12);
     root_constants.rt_color_depth_offset =
         uint32_t(render_target->footprints[0].Offset);
     root_constants.rt_color_depth_pitch =
         render_target->footprints[0].Footprint.RowPitch;
     if (render_target->key.is_depth) {
+      root_constants.base_depth_pitch |= 1 << 11;
       root_constants.rt_stencil_offset =
           uint32_t(render_target->footprints[1].Offset);
       root_constants.rt_stencil_pitch =
           render_target->footprints[1].Footprint.RowPitch;
     }
-    root_constants.base_pitch_tiles =
-        edram_bases[i] | (edram_pitch_tiles << 11);
     command_list->SetComputeRoot32BitConstants(
         0, sizeof(root_constants) / sizeof(uint32_t), &root_constants, 0);
     EDRAMLoadStoreMode mode = GetLoadStoreMode(render_target->key.is_depth,

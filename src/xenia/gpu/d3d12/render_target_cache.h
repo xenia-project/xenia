@@ -470,8 +470,10 @@ class RenderTargetCache {
         };
       };
     };
-    // Base in the lower 11 bits, pitch above.
-    uint32_t base_pitch_tiles;
+    // 0:10 - EDRAM base in tiles.
+    // 11 - whether it's a depth render target.
+    // 12: - EDRAM pitch in tiles.
+    uint32_t base_depth_pitch;
   };
   // EDRAM pipelines.
   static const EDRAMLoadStoreModeInfo
