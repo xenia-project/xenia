@@ -14,7 +14,6 @@
 
 #include "xenia/gpu/dxbc_shader_translator.h"
 #include "xenia/gpu/shader.h"
-#include "xenia/ui/d3d12/d3d12_api.h"
 
 namespace xe {
 namespace gpu {
@@ -24,7 +23,6 @@ class D3D12Shader : public Shader {
  public:
   D3D12Shader(ShaderType shader_type, uint64_t data_hash,
               const uint32_t* dword_ptr, uint32_t dword_count);
-  ~D3D12Shader() override;
 
   void SetTexturesAndSamplers(
       const DxbcShaderTranslator::TextureSRV* texture_srvs,
@@ -65,8 +63,6 @@ class D3D12Shader : public Shader {
   }
 
  private:
-  ID3DBlob* blob_ = nullptr;
-
   std::vector<TextureSRV> texture_srvs_;
   uint32_t used_texture_mask_ = 0;
   std::vector<SamplerBinding> sampler_bindings_;
