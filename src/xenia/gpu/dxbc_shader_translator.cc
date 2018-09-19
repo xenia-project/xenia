@@ -31,7 +31,9 @@ DEFINE_bool(dxbc_indexable_temps, true,
 DEFINE_bool(dxbc_switch, true,
             "Use switch rather than if for flow control. Turning this off or "
             "on may improve stability, though this heavily depends on the "
-            "driver.");
+            "driver - on AMD, it's recommended to have this set to true, as "
+            "Halo 3 appears to crash when if is used for flow control "
+            "(possibly the shader compiler tries to flatten them).");
 
 namespace xe {
 namespace gpu {
