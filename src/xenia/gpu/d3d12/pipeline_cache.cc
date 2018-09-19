@@ -406,6 +406,27 @@ PipelineCache::UpdateStatus PipelineCache::UpdateBlendStateAndRenderTargets(
       /* 15 */ D3D12_BLEND_INV_BLEND_FACTOR,  // ONE_MINUS_CONSTANT_ALPHA
       /* 16 */ D3D12_BLEND_SRC_ALPHA_SAT,
   };
+  // Like kBlendFactorMap, but with _COLOR modes changed to _ALPHA. Some
+  // pipelines aren't created in Prey because a color mode is used for alpha.
+  static const D3D12_BLEND kBlendFactorAlphaMap[] = {
+      /*  0 */ D3D12_BLEND_ZERO,
+      /*  1 */ D3D12_BLEND_ONE,
+      /*  2 */ D3D12_BLEND_ZERO,  // ?
+      /*  3 */ D3D12_BLEND_ZERO,  // ?
+      /*  4 */ D3D12_BLEND_SRC_ALPHA,
+      /*  5 */ D3D12_BLEND_INV_SRC_ALPHA,
+      /*  6 */ D3D12_BLEND_SRC_ALPHA,
+      /*  7 */ D3D12_BLEND_INV_SRC_ALPHA,
+      /*  8 */ D3D12_BLEND_DEST_ALPHA,
+      /*  9 */ D3D12_BLEND_INV_DEST_ALPHA,
+      /* 10 */ D3D12_BLEND_DEST_ALPHA,
+      /* 11 */ D3D12_BLEND_INV_DEST_ALPHA,
+      /* 12 */ D3D12_BLEND_BLEND_FACTOR,      // CONSTANT_COLOR
+      /* 13 */ D3D12_BLEND_INV_BLEND_FACTOR,  // ONE_MINUS_CONSTANT_COLOR
+      /* 14 */ D3D12_BLEND_BLEND_FACTOR,      // CONSTANT_ALPHA
+      /* 15 */ D3D12_BLEND_INV_BLEND_FACTOR,  // ONE_MINUS_CONSTANT_ALPHA
+      /* 16 */ D3D12_BLEND_SRC_ALPHA_SAT,
+  };
   static const D3D12_BLEND_OP kBlendOpMap[] = {
       /*  0 */ D3D12_BLEND_OP_ADD,
       /*  1 */ D3D12_BLEND_OP_SUBTRACT,
@@ -434,10 +455,10 @@ PipelineCache::UpdateStatus PipelineCache::UpdateBlendStateAndRenderTargets(
       blend_desc.BlendOp = kBlendOpMap[(blend_control & 0x000000E0) >> 5];
       // A2XX_RB_BLEND_CONTROL_ALPHA_SRCBLEND
       blend_desc.SrcBlendAlpha =
-          kBlendFactorMap[(blend_control & 0x001F0000) >> 16];
+          kBlendFactorAlphaMap[(blend_control & 0x001F0000) >> 16];
       // A2XX_RB_BLEND_CONTROL_ALPHA_DESTBLEND
       blend_desc.DestBlendAlpha =
-          kBlendFactorMap[(blend_control & 0x1F000000) >> 24];
+          kBlendFactorAlphaMap[(blend_control & 0x1F000000) >> 24];
       // A2XX_RB_BLEND_CONTROL_ALPHA_COMB_FCN
       blend_desc.BlendOpAlpha = kBlendOpMap[(blend_control & 0x00E00000) >> 21];
     } else {
