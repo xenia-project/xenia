@@ -1111,8 +1111,8 @@ void TextureCache::WatchCallback(Texture* texture, bool is_mip) {
     texture->base_in_sync = false;
     texture->base_watch_handle = nullptr;
   }
-  XELOGE("Texture %s at %.8X invalidated", is_mip ? "mips" : "base",
-         (is_mip ? texture->key.mip_page : texture->key.base_page) << 12);
+  XELOGGPU("Texture %s at 0x%.8X invalidated", is_mip ? "mips" : "base",
+           (is_mip ? texture->key.mip_page : texture->key.base_page) << 12);
   texture_invalidated_.store(true, std::memory_order_relaxed);
 }
 
