@@ -686,6 +686,16 @@ PipelineCache::Pipeline* PipelineCache::GetPipeline(uint64_t hash_key) {
 
   // TODO(Triang3l): Cache create pipelines using CachedPSO.
 
+  if (update_shader_stages_regs_.pixel_shader != nullptr) {
+    XELOGGPU(
+        "Creating pipeline %.16" PRIX64 ", VS %.16" PRIX64 ", PS %.16" PRIX64,
+        hash_key, update_shader_stages_regs_.vertex_shader->ucode_data_hash(),
+        update_shader_stages_regs_.pixel_shader->ucode_data_hash());
+  } else {
+    XELOGGPU("Creating pipeline %.16" PRIX64 ", VS %.16" PRIX64, hash_key,
+             update_shader_stages_regs_.vertex_shader->ucode_data_hash());
+  }
+
   auto device =
       command_processor_->GetD3D12Context()->GetD3D12Provider()->GetDevice();
   ID3D12PipelineState* state;
