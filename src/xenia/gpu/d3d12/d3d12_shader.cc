@@ -12,6 +12,7 @@
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
 #include "xenia/gpu/gpu_flags.h"
+#include "xenia/ui/d3d12/d3d12_api.h"
 
 namespace xe {
 namespace gpu {
@@ -20,12 +21,6 @@ namespace d3d12 {
 D3D12Shader::D3D12Shader(ShaderType shader_type, uint64_t data_hash,
                          const uint32_t* dword_ptr, uint32_t dword_count)
     : Shader(shader_type, data_hash, dword_ptr, dword_count) {}
-
-D3D12Shader::~D3D12Shader() {
-  if (blob_ != nullptr) {
-    blob_->Release();
-  }
-}
 
 void D3D12Shader::SetTexturesAndSamplers(
     const DxbcShaderTranslator::TextureSRV* texture_srvs,
