@@ -42,25 +42,22 @@ dcl_uav_raw U0[0:0], space=0
 dcl_input vThreadGroupID.xy
 dcl_input vThreadIDInGroup.xy
 dcl_input vThreadID.xy
-dcl_temps 6
+dcl_temps 5
 dcl_thread_group 20, 16, 1
 ishl r0.xy, vThreadID.xxxx, l(4, 2, 0, 0)
 imad r0.xy, vThreadID.yyyy, CB0[0][0].ywyy, r0.xyxx
 iadd r0.xy, r0.xyxx, CB0[0][0].xzxx
 ld_raw r1.xyzw, r0.x, T0[0].xyzw
 uge r2.xyzw, l(0x7fffffff, 0x7fffffff, 0x7fffffff, 0x7fffffff), r1.xyzw
-and r2.xyzw, r2.xyzw, l(1, 1, 1, 1)
-imul null, r2.xyzw, r1.xyzw, r2.xyzw
+and r2.xyzw, r1.xyzw, r2.xyzw
 umin r2.xyzw, r2.xyzw, l(0x3ffffff8, 0x3ffffff8, 0x3ffffff8, 0x3ffffff8)
-iadd r3.xyzw, r2.xyzw, l(0xc8000000, 0xc8000000, 0xc8000000, 0xc8000000)
-bfi r4.xyzw, l(23, 23, 23, 23), l(0, 0, 0, 0), r2.xyzw, l(0x00800000, 0x00800000, 0x00800000, 0x00800000)
-ushr r5.xyzw, r2.xyzw, l(23, 23, 23, 23)
-iadd r5.xyzw, -r5.xyzw, l(113, 113, 113, 113)
-ushr r4.xyzw, r4.xyzw, r5.xyzw
-iadd r4.xyzw, -r3.xyzw, r4.xyzw
-ult r2.xyzw, r2.xyzw, l(0x38800000, 0x38800000, 0x38800000, 0x38800000)
-and r2.xyzw, r2.xyzw, l(1, 1, 1, 1)
-imad r2.xyzw, r4.xyzw, r2.xyzw, r3.xyzw
+bfi r3.xyzw, l(23, 23, 23, 23), l(0, 0, 0, 0), r2.xyzw, l(0x00800000, 0x00800000, 0x00800000, 0x00800000)
+ushr r4.xyzw, r2.xyzw, l(23, 23, 23, 23)
+iadd r4.xyzw, -r4.xyzw, l(113, 113, 113, 113)
+ushr r3.xyzw, r3.xyzw, r4.xyzw
+ult r4.xyzw, r2.xyzw, l(0x38800000, 0x38800000, 0x38800000, 0x38800000)
+iadd r2.xyzw, r2.xyzw, l(0xc8000000, 0xc8000000, 0xc8000000, 0xc8000000)
+movc r2.xyzw, r4.xyzw, r3.xyzw, r2.xyzw
 iadd r3.xyzw, r2.xyzw, l(3, 3, 3, 3)
 ubfe r2.xyzw, l(1, 1, 1, 1), l(3, 3, 3, 3), r2.xyzw
 iadd r2.xyzw, r2.xyzw, r3.xyzw
@@ -88,4 +85,4 @@ store_raw U0[0].xyzw, r2.x, r0.xyzw
 iadd r0.x, r2.x, l(0x00a00000)
 store_raw U0[0].xyzw, r0.x, r1.xyzw
 ret 
-// Approximately 44 instruction slots used
+// Approximately 41 instruction slots used

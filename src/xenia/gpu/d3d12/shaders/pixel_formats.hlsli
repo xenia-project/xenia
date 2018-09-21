@@ -10,12 +10,12 @@ uint XeFloat16To7e3(uint4 rgba_f16u32) {
   // Was previously done with `asuint(clamp(asint(rgb_f32u32), 0, 0x41FF0000))`,
   // but FXC decides to ignore the uint->int cast, and negative numbers become
   // 0x41FF0000.
-  rgb_f32u32 = min(rgb_f32u32 * uint3(rgb_f32u32 <= 0x7FFFFFFFu), 0x41FF0000u);
-  uint3 normalized = rgb_f32u32 + 0xC2000000u;
+  rgb_f32u32 =
+      min((rgb_f32u32 <= 0x7FFFFFFFu) ? rgb_f32u32 : (0u).xxx, 0x41FF0000u);
   uint3 denormalized = ((rgb_f32u32 & 0x7FFFFFu) | 0x800000u) >>
                        ((125u).xxx - (rgb_f32u32 >> 23u));
-  uint3 rgb_f10u32 = normalized + (denormalized - normalized) *
-                     uint3(rgb_f32u32 < 0x3E800000u);
+  uint3 rgb_f10u32 =
+      (rgb_f32u32 < 0x3E800000u) ? denormalized : (rgb_f32u32 + 0xC2000000u);
   rgb_f10u32 =
       ((rgb_f10u32 + 0x7FFFu + ((rgb_f10u32 >> 16u) & 1u)) >> 16u) & 0x3FFu;
   return rgb_f10u32.r | (rgb_f10u32.g << 10u) | (rgb_f10u32.b << 20u) |
@@ -29,14 +29,15 @@ uint4 XeFloat7e3To16(uint rgba_packed) {
   // Normalize the values for the denormalized components.
   // Exponent = 1;
   // do { Exponent--; Mantissa <<= 1; } while ((Mantissa & 0x80) == 0);
-  uint3 is_denormalized = uint3(exponent == 0u);
+  bool3 is_denormalized = exponent == 0u;
   uint3 mantissa_lzcnt = (7u).xxx - firstbithigh(mantissa);
-  exponent += ((1u).xxx - mantissa_lzcnt - exponent) * is_denormalized;
-  mantissa +=
-      (((mantissa << mantissa_lzcnt) & 0x7Fu) - mantissa) * is_denormalized;
+  exponent = is_denormalized ? ((1u).xxx - mantissa_lzcnt) : exponent;
+  mantissa =
+      is_denormalized ? ((mantissa << mantissa_lzcnt) & 0x7Fu) : mantissa;
   // Combine into 32-bit float bits and clear zeros.
-  uint3 rgb_f32u32 = (((exponent + 124u) << 23u) | (mantissa << 16u)) *
-                     uint3(rgb_f10u32 != 0u);
+  uint3 rgb_f32u32 =
+      (rgb_f10u32 != 0u) ? (((exponent + 124u) << 23u) | (mantissa << 16u))
+                         : (0u).xxx;
   return f32tof16(float4(asfloat(rgb_f32u32),
                          float(rgba_packed >> 30u) * (1.0 / 3.0)));
 }
@@ -49,12 +50,10 @@ uint4 XeFloat7e3To16(uint rgba_packed) {
 uint4 XeFloat32To20e4(uint4 f32u32) {
   // Keep only positive (high bit set means negative for both float and int) and
   // saturate to the maximum representable value near 2 (also dropping NaNs).
-  f32u32 = min(f32u32 * uint4(f32u32 <= 0x7FFFFFFFu), 0x3FFFFFF8u);
-  uint4 normalized = f32u32 + 0xC8000000u;
+  f32u32 = min((f32u32 <= 0x7FFFFFFFu) ? f32u32 : (0u).xxxx, 0x3FFFFFF8u);
   uint4 denormalized =
       ((f32u32 & 0x7FFFFFu) | 0x800000u) >> ((113u).xxxx - (f32u32 >> 23u));
-  uint4 f24u32 =
-      normalized + (denormalized - normalized) * uint4(f32u32 < 0x38800000u);
+  uint4 f24u32 = (f32u32 < 0x38800000u) ? denormalized : (f32u32 + 0xC8000000u);
   return ((f24u32 + 3u + ((f24u32 >> 3u) & 1u)) >> 3u) & 0xFFFFFFu;
 }
 
@@ -64,13 +63,14 @@ uint4 XeFloat20e4To32(uint4 f24u32) {
   // Normalize the values for the denormalized components.
   // Exponent = 1;
   // do { Exponent--; Mantissa <<= 1; } while ((Mantissa & 0x100000) == 0);
-  uint4 is_denormalized = uint4(exponent == 0u);
+  bool4 is_denormalized = exponent == 0u;
   uint4 mantissa_lzcnt = (20u).xxxx - firstbithigh(mantissa);
-  exponent += ((1u).xxxx - mantissa_lzcnt - exponent) * is_denormalized;
-  mantissa +=
-      (((mantissa << mantissa_lzcnt) & 0xFFFFFu) - mantissa) * is_denormalized;
+  exponent = is_denormalized ? ((1u).xxxx - mantissa_lzcnt) : exponent;
+  mantissa =
+      is_denormalized ? ((mantissa << mantissa_lzcnt) & 0xFFFFFu) : mantissa;
   // Combine into 32-bit float bits and clear zeros.
-  return (((exponent + 112u) << 23u) | (mantissa << 3u)) * uint4(f24u32 != 0u);
+  return (f24u32 != 0u) ? (((exponent + 112u) << 23u) | (mantissa << 3u))
+                        : (0u).xxxx;
 }
 
 // Sorts the color indices of four DXT3/DXT5 or DXT1 opaque blocks so they can
@@ -141,6 +141,69 @@ void XeDXTFourBlocksRowToRGB8(uint4 rgb_10b_low, uint4 rgb_10b_high,
   row_3 = ((block_row_10b_3x & 1023u) / 3u) |
           ((((block_row_10b_3x >> 10u) & 1023u) / 3u) << 8u) |
           (((block_row_10b_3x >> 20u) / 3u) << 16u);
+}
+
+// & 0x249249 = bits 0 of 24 bits of DXT5 alpha codes.
+// & 0x492492 = bits 1 of 24 bits of DXT5 alpha codes.
+// & 0x6DB6DB = bits 2 of 24 bits of DXT5 alpha codes.
+
+// Sorts half (24 bits) of the codes of four DXT5 alpha blocks so they can be
+// used as weights for the second endpoint, from 0 to 7, in alpha0 > alpha1
+// mode.
+uint4 XeDXT5High8StepAlphaWeights(uint4 codes_24b) {
+  // Initially 000 - first endpoint, 001 - second endpoint, 010 and above -
+  // weights from 6:1 to 1:6. Need to make 001 111, and subtract 1 from 010 and
+  // above.
+  // Whether the bits are 000 (the first endpoint only).
+  uint4 is_first = ((codes_24b & 0x249249u) & ((codes_24b & 0x492492u) >> 1u) &
+                    ((codes_24b & 0x6DB6DBu) >> 2u)) ^ 0x249249u;
+  // Whether the bits are 001 (the second endpoint only).
+  uint4 is_second =
+      (codes_24b & 0x249249u) & (0x249249u ^
+          (((codes_24b & 0x492492u) >> 1u) & ((codes_24b & 0x6DB6DBu) >> 2u)));
+  // Change 000 to 001 so subtracting 1 will result in 0 (and there will never
+  // be overflow), subtract 1, and if the code was originally 001 (the second
+  // endpoint only), make it 111.
+  return ((codes_24b | is_first) - 0x249249u) |
+         is_second | (is_second << 1u) | (is_second << 2u);
+}
+
+// Sorts half (24 bits) of the codes of four DXT5 alpha blocks so they can be
+// used as weights for the second endpoint, from 0 to 5, in alpha0 <= alpha1
+// mode, except for 110 and 111 which represent 0 and 1 constants.
+uint4 XeDXT5High6StepAlphaWeights(uint4 codes_24b) {
+  // Initially:
+  // 000 - first endpoint.
+  // 001 - second endpoint.
+  // 010 - 4:1.
+  // 011 - 3:2.
+  // 100 - 2:3.
+  // 101 - 1:4.
+  // 110 - constant 0.
+  // 111 - constant 1.
+  // Create 3-bit masks (111 or 000) of whether the codes represent 0 or 1
+  // constants to keep them 110 and 111 later.
+  uint4 is_constant = (codes_24b & 0x492492u) & ((codes_24b & 0x6DB6DBu) >> 1u);
+  is_constant |= (is_constant << 1u) | (is_constant >> 1u);
+  // Store the codes for the constants (110 or 111), or 0 if not a constant.
+  uint4 constant_values =
+      ((codes_24b & 0x249249u) | (0x492492u | 0x6DB6DBu)) & is_constant;
+  // Need to make 001 101, and subtract 1 from 010 and above (constants will be
+  // handled separately later).
+  // Whether the bits are 000 (the first endpoint only).
+  uint4 is_first = ((codes_24b & 0x249249u) & ((codes_24b & 0x492492u) >> 1u) &
+                    ((codes_24b & 0x6DB6DBu) >> 2u)) ^ 0x249249u;
+  // Whether the bits are 001 (the second endpoint only).
+  uint4 is_second =
+      (codes_24b & 0x249249u) & (0x249249u ^
+          (((codes_24b & 0x492492u) >> 1u) & ((codes_24b & 0x6DB6DBu) >> 2u)));
+  // Change 000 to 001 so subtracting 1 will result in 0 (and there will never
+  // be overflow), subtract 1, and if the code was originally 001 (the second
+  // endpoint only), make it 101.
+  codes_24b =
+      ((codes_24b | is_first) - 0x249249u) | is_second | (is_second << 2u);
+  // Make constants 110 and 111 again (they are 101 and 110 now).
+  return (codes_24b & ~is_constant) | constant_values;
 }
 
 #endif  // XENIA_GPU_D3D12_SHADERS_PIXEL_FORMATS_HLSLI_
