@@ -73,4 +73,74 @@ uint4 XeFloat20e4To32(uint4 f24u32) {
   return (((exponent + 112u) << 23u) | (mantissa << 3u)) * uint4(f24u32 != 0u);
 }
 
+// Sorts the color indices of four DXT3/DXT5 or DXT1 opaque blocks so they can
+// be used as the weights for the second endpoint, from 0 to 3. To get the
+// weights for the first endpoint, apply bitwise NOT to the result.
+uint4 XeDXTHighColorWeights(uint4 codes) {
+  // Initially 00 = 3:0, 01 = 0:3, 10 = 2:1, 11 = 1:2.
+  // Swap bits. 00 = 3:0, 01 = 2:1, 10 = 0:3, 11 = 1:2.
+  codes = ((codes & 0x55555555u) << 1u) | ((codes & 0xAAAAAAAAu) >> 1u);
+  // Swap 10 and 11. 00 = 3:0, 01 = 2:1, 10 = 1:2, 11 = 0:3.
+  return codes ^ ((codes & 0xAAAAAAAAu) >> 1u);
+}
+
+// Converts endpoint RGB (first in the low 16 bits, second in the high) of four
+// DXT blocks to 8-bit, with 2 unused bits between each component to allow for
+// overflow when multiplying by values up to 3 (so multiplication can be done
+// for all components at once).
+void XeDXTColorEndpointsTo8In10(uint4 rgb_565, out uint4 rgb_10b_low,
+                                out uint4 rgb_10b_high) {
+  // Converting 5:6:5 to 8:8:8 similar to how Compressonator does that.
+  // https://github.com/GPUOpen-Tools/Compressonator/blob/master/Compressonator/Source/Codec/DXTC/Codec_DXTC_RGBA.cpp#L429
+  rgb_10b_low = ((rgb_565 & 31u) << 23u) |
+                ((rgb_565 & (7u << 2u)) << (20u - 2u)) |
+                ((rgb_565 & (63u << 5u)) << (12u - 5u)) |
+                ((rgb_565 & (3u << 9u)) << (10u - 9u)) |
+                ((rgb_565 & (31u << 11u)) >> (11u - 3u)) |
+                ((rgb_565 & (7u << 13u)) >> 13u);
+  rgb_10b_high = ((rgb_565 & (31u << 16u)) << (23u - 16u)) |
+                 ((rgb_565 & (7u << 18u)) << (20u - 18u)) |
+                 ((rgb_565 & (63u << 21u)) >> (21u - 12u)) |
+                 ((rgb_565 & (3u << 25u)) >> (25u - 10u)) |
+                 ((rgb_565 & (31u << 27u)) >> (27u - 3u)) |
+                 ((rgb_565 & (7u << 29u)) >> 29u);
+}
+
+// Gets the colors of one row of four DXT opaque blocks. Endpoint colors can be
+// obtained using XeDXTColorEndpointsTo8In10 (8 bits with 2 bits of free space
+// between each), weights can be obtained using XeDXTHighColorWeights. Alpha is
+// set to 0 in the result. weights_shift is 0 for the first row, 8 for the
+// second, 16 for the third, and 24 for the fourth.
+void XeDXTFourBlocksRowToRGB8(uint4 rgb_10b_low, uint4 rgb_10b_high,
+                              uint4 weights_high, uint weights_shift,
+                              out uint4 row_0, out uint4 row_1,
+                              out uint4 row_2, out uint4 row_3) {
+  uint4 weights_low = ~weights_high;
+  uint4 weights_shifts = weights_shift + uint4(0u, 2u, 4u, 6u);
+  uint4 block_row_10b_3x =
+      ((weights_low.xxxx >> weights_shifts) & 3u) * rgb_10b_low.x +
+      ((weights_high.xxxx >> weights_shifts) & 3u) * rgb_10b_high.x;
+  row_0 = ((block_row_10b_3x & 1023u) / 3u) |
+          ((((block_row_10b_3x >> 10u) & 1023u) / 3u) << 8u) |
+          (((block_row_10b_3x >> 20u) / 3u) << 16u);
+  block_row_10b_3x =
+      ((weights_low.yyyy >> weights_shifts) & 3u) * rgb_10b_low.y +
+      ((weights_high.yyyy >> weights_shifts) & 3u) * rgb_10b_high.y;
+  row_1 = ((block_row_10b_3x & 1023u) / 3u) |
+          ((((block_row_10b_3x >> 10u) & 1023u) / 3u) << 8u) |
+          (((block_row_10b_3x >> 20u) / 3u) << 16u);
+  block_row_10b_3x =
+      ((weights_low.zzzz >> weights_shifts) & 3u) * rgb_10b_low.z +
+      ((weights_high.zzzz >> weights_shifts) & 3u) * rgb_10b_high.z;
+  row_2 = ((block_row_10b_3x & 1023u) / 3u) |
+          ((((block_row_10b_3x >> 10u) & 1023u) / 3u) << 8u) |
+          (((block_row_10b_3x >> 20u) / 3u) << 16u);
+  block_row_10b_3x =
+      ((weights_low.wwww >> weights_shifts) & 3u) * rgb_10b_low.w +
+      ((weights_high.wwww >> weights_shifts) & 3u) * rgb_10b_high.w;
+  row_3 = ((block_row_10b_3x & 1023u) / 3u) |
+          ((((block_row_10b_3x >> 10u) & 1023u) / 3u) << 8u) |
+          (((block_row_10b_3x >> 20u) / 3u) << 16u);
+}
+
 #endif  // XENIA_GPU_D3D12_SHADERS_PIXEL_FORMATS_HLSLI_

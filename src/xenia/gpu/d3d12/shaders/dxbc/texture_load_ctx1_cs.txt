@@ -178,20 +178,20 @@ else
   mov r1.zw, r3.xxxz
   mov r2.zw, r3.yyyw
 endif 
-ishl r3.xyzw, r2.xyzw, l(1, 1, 1, 1)
-and r3.xyzw, r3.xyzw, l(0xaaaaaaaa, 0xaaaaaaaa, 0xaaaaaaaa, 0xaaaaaaaa)
-ushr r2.xyzw, r2.xyzw, l(1, 1, 1, 1)
-and r2.xyzw, r2.xyzw, l(0x55555555, 0x55555555, 0x55555555, 0x55555555)
-iadd r2.xyzw, r2.xyzw, r3.xyzw
-ushr r3.xyzw, r2.xyzw, l(1, 1, 1, 1)
-and r3.xyzw, r3.xyzw, l(0x55555555, 0x55555555, 0x55555555, 0x55555555)
-xor r2.xyzw, r2.xyzw, r3.xyzw
 ishl r3.xyzw, r1.xyzw, l(8, 8, 8, 8)
 and r3.xyzw, r3.xyzw, l(0x00ff0000, 0x00ff0000, 0x00ff0000, 0x00ff0000)
 bfi r3.xyzw, l(8, 8, 8, 8), l(0, 0, 0, 0), r1.xyzw, r3.xyzw
 ubfe r4.xyzw, l(8, 8, 8, 8), l(16, 16, 16, 16), r1.xyzw
 ushr r1.xyzw, r1.xyzw, l(8, 8, 8, 8)
 bfi r1.xyzw, l(16, 16, 16, 16), l(0, 0, 0, 0), r4.xyzw, r1.xyzw
+ishl r4.xyzw, r2.xyzw, l(1, 1, 1, 1)
+and r4.xyzw, r4.xyzw, l(0xaaaaaaaa, 0xaaaaaaaa, 0xaaaaaaaa, 0xaaaaaaaa)
+ushr r2.xyzw, r2.xyzw, l(1, 1, 1, 1)
+and r2.xyzw, r2.xyzw, l(0x55555555, 0x55555555, 0x55555555, 0x55555555)
+iadd r2.xyzw, r2.xyzw, r4.xyzw
+ushr r4.xyzw, r2.xyzw, l(1, 1, 1, 1)
+and r4.xyzw, r4.xyzw, l(0x55555555, 0x55555555, 0x55555555, 0x55555555)
+xor r2.xyzw, r2.xyzw, r4.xyzw
 ishl r0.xy, r0.xyxx, l(2, 2, 0, 0)
 ishl r0.x, r0.x, l(1)
 imad r0.z, vThreadID.z, CB0[0][1].y, r0.y
