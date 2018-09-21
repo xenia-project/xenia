@@ -42,7 +42,7 @@ dcl_uav_raw U0[0:0], space=0
 dcl_input vThreadGroupID.xy
 dcl_input vThreadIDInGroup.xy
 dcl_input vThreadID.xy
-dcl_temps 8
+dcl_temps 7
 dcl_thread_group 40, 16, 1
 ishl r0.x, vThreadIDInGroup.x, l(1)
 and r0.yz, CB0[0][1].xxxx, l(0, 2048, 2047, 0)
@@ -66,23 +66,19 @@ mov r0.zw, r1.xxxy
 and r2.xyz, r0.yzwy, l(1023, 1023, 1023, 0)
 and r3.xyz, r0.yzwy, l(127, 127, 127, 0)
 ubfe r4.xyz, l(3, 3, 3, 0), l(7, 7, 7, 0), r0.yzwy
-movc r5.xyz, r4.xyzx, l(0,0,0,0), l(1,1,1,0)
-firstbit_hi r6.xyz, r3.xyzx
-iadd r6.xyz, r6.xyzx, l(-24, -24, -24, 0)
-movc r6.xyz, r3.xyzx, r6.xyzx, l(8,8,8,0)
-iadd r7.xyz, -r6.xyzx, l(1, 1, 1, 0)
-iadd r7.xyz, -r4.xyzx, r7.xyzx
-imad r4.xyz, r7.xyzx, r5.xyzx, r4.xyzx
-bfi r6.xyz, l(7, 7, 7, 0), r6.xyzx, r0.yzwy, l(0, 0, 0, 0)
-and r6.xyz, r6.xyzx, l(127, 127, 127, 0)
-iadd r6.xyz, -r3.xyzx, r6.xyzx
-imad r3.xyz, r6.xyzx, r5.xyzx, r3.xyzx
-ishl r4.xyz, r4.xyzx, l(23, 23, 23, 0)
+firstbit_hi r5.xyz, r3.xyzx
+iadd r5.xyz, r5.xyzx, l(-24, -24, -24, 0)
+movc r5.xyz, r3.xyzx, r5.xyzx, l(8,8,8,0)
+iadd r6.xyz, -r5.xyzx, l(1, 1, 1, 0)
+movc r6.xyz, r4.xyzx, r4.xyzx, r6.xyzx
+bfi r5.xyz, l(7, 7, 7, 0), r5.xyzx, r0.yzwy, l(0, 0, 0, 0)
+and r5.xyz, r5.xyzx, l(127, 127, 127, 0)
+movc r3.xyz, r4.xyzx, r3.xyzx, r5.xyzx
+ishl r4.xyz, r6.xyzx, l(23, 23, 23, 0)
 iadd r4.xyz, r4.xyzx, l(0x3e000000, 0x3e000000, 0x3e000000, 0)
 ishl r3.xyz, r3.xyzx, l(16, 16, 16, 0)
-or r3.xyz, r3.xyzx, r4.xyzx
-movc r2.xyz, r2.xyzx, l(1,1,1,0), l(0,0,0,0)
-imul null, r2.xyz, r2.xyzx, r3.xyzx
+iadd r3.xyz, r4.xyzx, r3.xyzx
+movc r2.xyz, r2.xyzx, r3.xyzx, l(0,0,0,0)
 utof r1.xy, r1.zwzz
 mul r1.xy, r1.xyxx, l(0.333333, 0.333333, 0.000000, 0.000000)
 f32tof16 r2.xyz, r2.xyzx
@@ -91,23 +87,19 @@ ushr r0.yz, r0.xxxx, l(0, 10, 20, 0)
 and r1.xzw, r0.xxyz, l(1023, 0, 1023, 1023)
 and r3.xyz, r0.xyzx, l(127, 127, 127, 0)
 ubfe r4.xyz, l(3, 3, 3, 0), l(7, 7, 7, 0), r0.xyzx
-movc r5.xyz, r4.xyzx, l(0,0,0,0), l(1,1,1,0)
-firstbit_hi r6.xyz, r3.xyzx
-iadd r6.xyz, r6.xyzx, l(-24, -24, -24, 0)
-movc r6.xyz, r3.xyzx, r6.xyzx, l(8,8,8,0)
-iadd r7.xyz, -r6.xyzx, l(1, 1, 1, 0)
-iadd r7.xyz, -r4.xyzx, r7.xyzx
-imad r4.xyz, r7.xyzx, r5.xyzx, r4.xyzx
-bfi r0.xyz, l(7, 7, 7, 0), r6.xyzx, r0.xyzx, l(0, 0, 0, 0)
+firstbit_hi r5.xyz, r3.xyzx
+iadd r5.xyz, r5.xyzx, l(-24, -24, -24, 0)
+movc r5.xyz, r3.xyzx, r5.xyzx, l(8,8,8,0)
+iadd r6.xyz, -r5.xyzx, l(1, 1, 1, 0)
+movc r6.xyz, r4.xyzx, r4.xyzx, r6.xyzx
+bfi r0.xyz, l(7, 7, 7, 0), r5.xyzx, r0.xyzx, l(0, 0, 0, 0)
 and r0.xyz, r0.xyzx, l(127, 127, 127, 0)
-iadd r0.xyz, -r3.xyzx, r0.xyzx
-imad r0.xyz, r0.xyzx, r5.xyzx, r3.xyzx
-ishl r3.xyz, r4.xyzx, l(23, 23, 23, 0)
+movc r0.xyz, r4.xyzx, r3.xyzx, r0.xyzx
+ishl r3.xyz, r6.xyzx, l(23, 23, 23, 0)
 iadd r3.xyz, r3.xyzx, l(0x3e000000, 0x3e000000, 0x3e000000, 0)
 ishl r0.xyz, r0.xyzx, l(16, 16, 16, 0)
-or r0.xyz, r0.xyzx, r3.xyzx
-movc r1.xzw, r1.xxzw, l(1,0,1,1), l(0,0,0,0)
-imul null, r0.xyz, r0.xyzx, r1.xzwx
+iadd r0.xyz, r3.xyzx, r0.xyzx
+movc r0.xyz, r1.xzwx, r0.xyzx, l(0,0,0,0)
 f32tof16 r0.xzw, r0.yyxz
 f32tof16 r0.y, r1.y
 mov r1.xy, r2.ywyy
@@ -119,4 +111,4 @@ imad r1.x, vThreadID.y, CB0[0][0].y, r1.x
 iadd r1.x, r1.x, CB0[0][0].x
 store_raw U0[0].xyzw, r1.x, r0.xyzw
 ret 
-// Approximately 75 instruction slots used
+// Approximately 67 instruction slots used

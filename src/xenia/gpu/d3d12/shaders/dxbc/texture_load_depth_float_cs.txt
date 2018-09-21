@@ -166,23 +166,19 @@ iadd r0.x, r0.x, CB0[0][0].z
 ushr r1.xyzw, r2.xyzw, l(8, 8, 8, 8)
 ubfe r2.xyzw, l(20, 20, 20, 20), l(8, 8, 8, 8), r2.xyzw
 ushr r3.xyzw, r1.xyzw, l(20, 20, 20, 20)
-movc r4.xyzw, r3.xyzw, l(0,0,0,0), l(1,1,1,1)
-firstbit_hi r5.xyzw, r2.xyzw
-iadd r5.xyzw, r5.xyzw, l(-11, -11, -11, -11)
-movc r5.xyzw, r2.xyzw, r5.xyzw, l(21,21,21,21)
-iadd r6.xyzw, -r5.xyzw, l(1, 1, 1, 1)
-iadd r6.xyzw, -r3.xyzw, r6.xyzw
-imad r3.xyzw, r6.xyzw, r4.xyzw, r3.xyzw
-ishl r5.xyzw, r2.xyzw, r5.xyzw
-and r5.xyzw, r5.xyzw, l(0x000fffff, 0x000fffff, 0x000fffff, 0x000fffff)
-iadd r5.xyzw, -r2.xyzw, r5.xyzw
-imad r2.xyzw, r5.xyzw, r4.xyzw, r2.xyzw
-ishl r3.xyzw, r3.xyzw, l(23, 23, 23, 23)
+firstbit_hi r4.xyzw, r2.xyzw
+iadd r4.xyzw, r4.xyzw, l(-11, -11, -11, -11)
+movc r4.xyzw, r2.xyzw, r4.xyzw, l(21,21,21,21)
+iadd r5.xyzw, -r4.xyzw, l(1, 1, 1, 1)
+movc r5.xyzw, r3.xyzw, r3.xyzw, r5.xyzw
+ishl r4.xyzw, r2.xyzw, r4.xyzw
+and r4.xyzw, r4.xyzw, l(0x000fffff, 0x000fffff, 0x000fffff, 0x000fffff)
+movc r2.xyzw, r3.xyzw, r2.xyzw, r4.xyzw
+ishl r3.xyzw, r5.xyzw, l(23, 23, 23, 23)
 iadd r3.xyzw, r3.xyzw, l(0x38000000, 0x38000000, 0x38000000, 0x38000000)
 ishl r2.xyzw, r2.xyzw, l(3, 3, 3, 3)
-or r2.xyzw, r2.xyzw, r3.xyzw
-movc r1.xyzw, r1.xyzw, l(1,1,1,1), l(0,0,0,0)
-imul null, r1.xyzw, r1.xyzw, r2.xyzw
+iadd r2.xyzw, r3.xyzw, r2.xyzw
+movc r1.xyzw, r1.xyzw, r2.xyzw, l(0,0,0,0)
 store_raw U0[0].xyzw, r0.x, r1.xyzw
 ret 
-// Approximately 136 instruction slots used
+// Approximately 132 instruction slots used
