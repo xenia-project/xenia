@@ -229,6 +229,10 @@ class RenderTargetCache {
   void UnbindRenderTargets();
   void EndFrame();
 
+  // Totally necessary to rely on the base format - Too Human switches between
+  // 2_10_10_10_FLOAT and 2_10_10_10_FLOAT_AS_16_16_16_16 every draw.
+  static ColorRenderTargetFormat GetBaseColorFormat(
+      ColorRenderTargetFormat format);
   static inline bool IsColorFormat64bpp(ColorRenderTargetFormat format) {
     return format == ColorRenderTargetFormat::k_16_16_16_16 ||
            format == ColorRenderTargetFormat::k_16_16_16_16_FLOAT ||
