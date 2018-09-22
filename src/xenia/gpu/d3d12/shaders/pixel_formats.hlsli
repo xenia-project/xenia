@@ -142,6 +142,16 @@ void XeDXTFourBlocksRowToRGB8(
           (((block_row_10b_3x >> 20u) / 3u) << 16u);
 }
 
+uint4 XeDXT3FourBlocksRowToA8(uint4 alpha4) {
+  // (alpha4 & 0xFu) | ((alpha4 & 0xFu) << 4u) |
+  // ((alpha4 & 0xF0u) << (8u - 4u)) | ((alpha4 & 0xF0u) << (12u - 4u)) |
+  // ((alpha4 & 0xF00u) << (16u - 8u)) | ((alpha4 & 0xF00u) << (20u - 8u)) |
+  // ((alpha4 & 0xF000u) << (24u - 12u)) | ((alpha4 & 0xF000u) << (28u - 12u))
+  return (alpha4 & 0xFu) | ((alpha4 & 0xFFu) << 4u) |
+         ((alpha4 & 0xFF0u) << 8u) | ((alpha4 & 0xFF00u) << 12u) |
+         ((alpha4 & 0xF000u) << 16u);
+}
+
 // & 0x249249 = bits 0 of 24 bits of DXT5 alpha codes.
 // & 0x492492 = bits 1 of 24 bits of DXT5 alpha codes.
 // & 0x924924 = bits 2 of 24 bits of DXT5 alpha codes.

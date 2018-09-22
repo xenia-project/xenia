@@ -99,9 +99,12 @@ class TextureCache {
     k32bpb,
     k64bpb,
     k128bpb,
-    kDXT1AsRGBA8,
-    kDXT5AsRGBA8,
+    kDXT1ToRGBA8,
+    kDXT3ToRGBA8,
+    kDXT5ToRGBA8,
+    kDXNToRG8,
     kDXT3A,
+    kDXT5AToR8,
     kCTX1,
     kDepthUnorm,
     kDepthFloat,
@@ -133,9 +136,15 @@ class TextureCache {
   };
 
   struct HostFormat {
+    // Format info for the regular case.
     DXGI_FORMAT dxgi_format;
     LoadMode load_mode;
     TileMode tile_mode;
+    // Uncompression info for when the regular host format for this texture is
+    // block-compressed, but the size is not block-aligned, and thus such
+    // texture cannot be created in Direct3D on PC and needs decompression.
+    DXGI_FORMAT dxgi_format_uncompressed;
+    LoadMode decompress_mode;
   };
 
   union TextureKey {
@@ -273,6 +282,21 @@ class TextureCache {
     uint32_t swizzle;
     Texture* texture;
   };
+
+  // Whether decompression is needed on the host (Direct3D only allows creation
+  // of block-compressed textures with 4x4-aligned dimensions on PC).
+  static bool IsDecompressionNeeded(TextureFormat format, uint32_t width,
+                                    uint32_t height);
+  static inline DXGI_FORMAT GetDXGIFormat(TextureFormat format, uint32_t width,
+                                          uint32_t height) {
+    const HostFormat& host_format = host_formats_[uint32_t(format)];
+    return IsDecompressionNeeded(format, width, height)
+               ? host_format.dxgi_format_uncompressed
+               : host_format.dxgi_format;
+  }
+  static inline DXGI_FORMAT GetDXGIFormat(TextureKey key) {
+    return GetDXGIFormat(key.format, key.width, key.height);
+  }
 
   // Converts a texture fetch constant to a texture key, normalizing and
   // validating the values, or creating an invalid key.
