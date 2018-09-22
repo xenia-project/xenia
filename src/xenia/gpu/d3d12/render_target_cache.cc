@@ -437,7 +437,8 @@ bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
   for (uint32_t i = 0; i < 4; ++i) {
     enabled[i] = (color_mask & (0xF << (i * 4))) != 0;
     edram_bases[i] = std::min(rb_color_info[i] & 0xFFF, 2048u);
-    formats[i] = (rb_color_info[i] >> 16) & 0xF;
+    formats[i] = uint32_t(GetBaseColorFormat(
+        ColorRenderTargetFormat((rb_color_info[i] >> 16) & 0xF)));
     formats_are_64bpp[i] =
         IsColorFormat64bpp(ColorRenderTargetFormat(formats[i]));
   }
@@ -844,7 +845,8 @@ bool RenderTargetCache::Resolve(SharedMemory* shared_memory,
         break;
     }
     surface_edram_base = rb_color_info & 0xFFF;
-    surface_format = (rb_color_info >> 16) & 0xF;
+    surface_format = uint32_t(GetBaseColorFormat(
+        ColorRenderTargetFormat((rb_color_info >> 16) & 0xF)));
   }
 
   // Get the resolve region since both copying and clearing need it.
@@ -1682,6 +1684,20 @@ void RenderTargetCache::UnbindRenderTargets() {
 }
 
 void RenderTargetCache::EndFrame() { UnbindRenderTargets(); }
+
+ColorRenderTargetFormat RenderTargetCache::GetBaseColorFormat(
+    ColorRenderTargetFormat format) {
+  switch (format) {
+    case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
+      return ColorRenderTargetFormat::k_8_8_8_8;
+    case ColorRenderTargetFormat::k_2_10_10_10_AS_16_16_16_16:
+      return ColorRenderTargetFormat::k_2_10_10_10;
+    case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
+      return ColorRenderTargetFormat::k_2_10_10_10_FLOAT;
+    default:
+      return format;
+  }
+}
 
 DXGI_FORMAT RenderTargetCache::GetColorDXGIFormat(
     ColorRenderTargetFormat format) {
