@@ -36,6 +36,7 @@ namespace d3d12 {
 #include "xenia/gpu/d3d12/shaders/dxbc/texture_load_depth_unorm_cs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/texture_load_dxt1_rgba8_cs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/texture_load_dxt3a_cs.h"
+#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_dxt5_rgba8_cs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/texture_tile_32bpp_cs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/texture_tile_64bpp_cs.h"
 
@@ -182,6 +183,7 @@ const TextureCache::LoadModeInfo TextureCache::load_mode_info_[] = {
     {texture_load_64bpb_cs, sizeof(texture_load_64bpb_cs)},
     {texture_load_128bpb_cs, sizeof(texture_load_128bpb_cs)},
     {texture_load_dxt1_rgba8_cs, sizeof(texture_load_dxt1_rgba8_cs)},
+    {texture_load_dxt5_rgba8_cs, sizeof(texture_load_dxt5_rgba8_cs)},
     {texture_load_dxt3a_cs, sizeof(texture_load_dxt3a_cs)},
     {texture_load_ctx1_cs, sizeof(texture_load_ctx1_cs)},
     {texture_load_depth_unorm_cs, sizeof(texture_load_depth_unorm_cs)},

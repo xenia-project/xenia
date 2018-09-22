@@ -1,12 +1,11 @@
 #include "pixel_formats.hlsli"
 #include "texture_copy.hlsli"
 
-void XeDXT1FourTransBlocksRowToRGBA8(uint4 rgb_10b_low, uint4 rgb_10b_high,
-                                     uint4 weights, uint4 weights_shift,
-                                     out uint4 row_0, out uint4 row_1,
-                                     out uint4 row_2, out uint4 row_3) {
-  uint4 weights_shifts_low = weights_shift + uint4(0u, 2u, 4u, 6u);
-  uint4 weights_shifts_high = weights_shifts_low + 1u;
+void XeDXT1FourTransBlocksRowToRGBA8(
+    uint4 rgb_10b_low, uint4 rgb_10b_high, uint4 weights, out uint4 row_0,
+    out uint4 row_1, out uint4 row_2, out uint4 row_3) {
+  const uint4 weights_shifts_low = uint4(0u, 2u, 4u, 6u);
+  const uint4 weights_shifts_high = uint4(1u, 3u, 5u, 7u);
   // Whether the texel is (RGB0+RGB1)/2 - divide the weighted sum by 2 (shift
   // right by 1) if it is.
   uint4 weights_sums_log2 = weights & ((weights & 0xAAAAAAAAu) >> 1u);
@@ -92,17 +91,17 @@ void main(uint3 xe_thread_id : SV_DispatchThreadID) {
       xe_texture_copy_host_pitch, 4u) + xe_texture_copy_host_base;
   for (uint i = 0u; i < 4u; ++i) {
     uint4 row_opaque_0, row_opaque_1, row_opaque_2, row_opaque_3;
-    XeDXTFourBlocksRowToRGB8(rgb_10b_low, rgb_10b_high, weights_opaque_high,
-                             i * 8u, row_opaque_0, row_opaque_1, row_opaque_2,
-                             row_opaque_3);
+    XeDXTFourBlocksRowToRGB8(rgb_10b_low, rgb_10b_high,
+                             weights_opaque_high >> (i * 8u), row_opaque_0,
+                             row_opaque_1, row_opaque_2, row_opaque_3);
     row_opaque_0 |= 0xFF000000u;
     row_opaque_1 |= 0xFF000000u;
     row_opaque_2 |= 0xFF000000u;
     row_opaque_3 |= 0xFF000000u;
     uint4 row_trans_0, row_trans_1, row_trans_2, row_trans_3;
-    XeDXT1FourTransBlocksRowToRGBA8(rgb_10b_low, rgb_10b_high, weights_trans,
-                                    i * 8u, row_trans_0, row_trans_1,
-                                    row_trans_2, row_trans_3);
+    XeDXT1FourTransBlocksRowToRGBA8(rgb_10b_low, rgb_10b_high,
+                                    weights_trans >> (i * 8u), row_trans_0,
+                                    row_trans_1, row_trans_2, row_trans_3);
     xe_texture_copy_dest.Store4(texel_offset_host,
                                 is_trans.x ? row_trans_0 : row_opaque_0);
     xe_texture_copy_dest.Store4(texel_offset_host + 16u,

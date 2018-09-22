@@ -109,14 +109,13 @@ void XeDXTColorEndpointsTo8In10(uint4 rgb_565, out uint4 rgb_10b_low,
 // Gets the colors of one row of four DXT opaque blocks. Endpoint colors can be
 // obtained using XeDXTColorEndpointsTo8In10 (8 bits with 2 bits of free space
 // between each), weights can be obtained using XeDXTHighColorWeights. Alpha is
-// set to 0 in the result. weights_shift is 0 for the first row, 8 for the
-// second, 16 for the third, and 24 for the fourth.
-void XeDXTFourBlocksRowToRGB8(uint4 rgb_10b_low, uint4 rgb_10b_high,
-                              uint4 weights_high, uint weights_shift,
-                              out uint4 row_0, out uint4 row_1,
-                              out uint4 row_2, out uint4 row_3) {
+// set to 0 in the result. Weights must be shifted right by 8 * row index before
+// calling.
+void XeDXTFourBlocksRowToRGB8(
+    uint4 rgb_10b_low, uint4 rgb_10b_high, uint4 weights_high, out uint4 row_0,
+    out uint4 row_1, out uint4 row_2, out uint4 row_3) {
   uint4 weights_low = ~weights_high;
-  uint4 weights_shifts = weights_shift + uint4(0u, 2u, 4u, 6u);
+  const uint4 weights_shifts = uint4(0u, 2u, 4u, 6u);
   uint4 block_row_10b_3x =
       ((weights_low.xxxx >> weights_shifts) & 3u) * rgb_10b_low.x +
       ((weights_high.xxxx >> weights_shifts) & 3u) * rgb_10b_high.x;
@@ -145,7 +144,7 @@ void XeDXTFourBlocksRowToRGB8(uint4 rgb_10b_low, uint4 rgb_10b_high,
 
 // & 0x249249 = bits 0 of 24 bits of DXT5 alpha codes.
 // & 0x492492 = bits 1 of 24 bits of DXT5 alpha codes.
-// & 0x6DB6DB = bits 2 of 24 bits of DXT5 alpha codes.
+// & 0x924924 = bits 2 of 24 bits of DXT5 alpha codes.
 
 // Sorts half (24 bits) of the codes of four DXT5 alpha blocks so they can be
 // used as weights for the second endpoint, from 0 to 7, in alpha0 > alpha1
@@ -155,12 +154,11 @@ uint4 XeDXT5High8StepAlphaWeights(uint4 codes_24b) {
   // weights from 6:1 to 1:6. Need to make 001 111, and subtract 1 from 010 and
   // above.
   // Whether the bits are 000 (the first endpoint only).
-  uint4 is_first = ((codes_24b & 0x249249u) & ((codes_24b & 0x492492u) >> 1u) &
-                    ((codes_24b & 0x6DB6DBu) >> 2u)) ^ 0x249249u;
+  uint4 is_first = ((codes_24b & 0x249249u) | ((codes_24b & 0x492492u) >> 1u) |
+                    ((codes_24b & 0x924924u) >> 2u)) ^ 0x249249u;
   // Whether the bits are 001 (the second endpoint only).
-  uint4 is_second =
-      (codes_24b & 0x249249u) & (0x249249u ^
-          (((codes_24b & 0x492492u) >> 1u) & ((codes_24b & 0x6DB6DBu) >> 2u)));
+  uint4 is_second = (codes_24b & 0x249249u) & ~((codes_24b & 0x492492u) >> 1u) &
+                    ~((codes_24b & 0x924924u) >> 2u);
   // Change 000 to 001 so subtracting 1 will result in 0 (and there will never
   // be overflow), subtract 1, and if the code was originally 001 (the second
   // endpoint only), make it 111.
@@ -183,20 +181,19 @@ uint4 XeDXT5High6StepAlphaWeights(uint4 codes_24b) {
   // 111 - constant 1.
   // Create 3-bit masks (111 or 000) of whether the codes represent 0 or 1
   // constants to keep them 110 and 111 later.
-  uint4 is_constant = (codes_24b & 0x492492u) & ((codes_24b & 0x6DB6DBu) >> 1u);
+  uint4 is_constant = codes_24b & 0x492492u & ((codes_24b & 0x924924u) >> 1u);
   is_constant |= (is_constant << 1u) | (is_constant >> 1u);
   // Store the codes for the constants (110 or 111), or 0 if not a constant.
   uint4 constant_values =
-      ((codes_24b & 0x249249u) | (0x492492u | 0x6DB6DBu)) & is_constant;
+      ((codes_24b & 0x249249u) | (0x492492u | 0x924924u)) & is_constant;
   // Need to make 001 101, and subtract 1 from 010 and above (constants will be
   // handled separately later).
   // Whether the bits are 000 (the first endpoint only).
-  uint4 is_first = ((codes_24b & 0x249249u) & ((codes_24b & 0x492492u) >> 1u) &
-                    ((codes_24b & 0x6DB6DBu) >> 2u)) ^ 0x249249u;
+  uint4 is_first = ((codes_24b & 0x249249u) | ((codes_24b & 0x492492u) >> 1u) |
+                    ((codes_24b & 0x924924u) >> 2u)) ^ 0x249249u;
   // Whether the bits are 001 (the second endpoint only).
-  uint4 is_second =
-      (codes_24b & 0x249249u) & (0x249249u ^
-          (((codes_24b & 0x492492u) >> 1u) & ((codes_24b & 0x6DB6DBu) >> 2u)));
+  uint4 is_second = (codes_24b & 0x249249u) & ~((codes_24b & 0x492492u) >> 1u) &
+                    ~((codes_24b & 0x924924u) >> 2u);
   // Change 000 to 001 so subtracting 1 will result in 0 (and there will never
   // be overflow), subtract 1, and if the code was originally 001 (the second
   // endpoint only), make it 101.
@@ -204,6 +201,43 @@ uint4 XeDXT5High6StepAlphaWeights(uint4 codes_24b) {
       ((codes_24b | is_first) - 0x249249u) | is_second | (is_second << 2u);
   // Make constants 110 and 111 again (they are 101 and 110 now).
   return (codes_24b & ~is_constant) | constant_values;
+}
+
+uint4 XeDXT5Four8StepBlocksRowToA8(uint4 end_low, uint4 end_high,
+                                   uint4 weights_8step, uint4 weights_6step) {
+  // Choose the mode.
+  bool4 is_6step = end_low <= end_high;
+  uint4 weights_high = is_6step ? weights_6step : weights_8step;
+  uint4 weight_max = is_6step ? (5u.xxxx) : (7u.xxxx);
+  // In the 6-step mode, make a mask for whether the weights are constants.
+  uint4 is_constant = is_6step ? (weights_6step & 0x492u &
+                                  ((weights_6step & 0x924u) >> 1u))
+                               : (0u).xxxx;
+  is_constant |= (is_constant << 1u) | (is_constant >> 1u);
+  // Get the weights for the first endpoint and remove constant from the
+  // interpolation (set weights of the endpoints to 0 for them). First need to
+  // zero the weights of the second endpoint so 6 or 7 won't be subtracted from
+  // 5 while getting the weights of the first endpoint.
+  weights_high &= ~is_constant;
+  uint4 weights_low = ((weight_max * 0x249u) - weights_high) & ~is_constant;
+  // Interpolate.
+  uint4 row =
+      ((end_low * (weights_low & 7u) +
+        end_high * (weights_high & 7u)) / weight_max) |
+      (((end_low * ((weights_low >> 3u) & 7u) +
+         end_high * ((weights_high >> 3u) & 7u)) / weight_max) << 8u) |
+      (((end_low * ((weights_low >> 6u) & 7u) +
+         end_high * ((weights_high >> 6u) & 7u)) / weight_max) << 16u) |
+      (((end_low * ((weights_low >> 9u) & 7u) +
+         end_high * ((weights_high >> 9u) & 7u)) / weight_max) << 24u);
+  // Get the constant values as 1 bit per pixel separated by 7 bits.
+  uint4 constant_values = weights_6step & is_constant;
+  constant_values = (constant_values & 1u) |
+                    ((constant_values & (1u << 3u)) << (8u - 3u)) |
+                    ((constant_values & (1u << 6u)) << (16u - 6u)) |
+                    ((constant_values & (1u << 9u)) << (24u - 9u));
+  // Add constant 1 where needed.
+  return row + constant_values * 0xFFu;
 }
 
 #endif  // XENIA_GPU_D3D12_SHADERS_PIXEL_FORMATS_HLSLI_
