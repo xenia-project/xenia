@@ -5653,7 +5653,7 @@ void DxbcShaderTranslator::ProcessVectorAluInstruction(
       // pv.xy = max(src0.xy, src0.zw)
       shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MAX) |
                              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(
-                                 3 + 2 * operand_length_sums[1]));
+                                 3 + 2 * operand_length_sums[0]));
       shader_code_.push_back(
           EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0011, 1));
       shader_code_.push_back(system_temp_pv_);
