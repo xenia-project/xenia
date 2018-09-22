@@ -15,22 +15,17 @@
 // MM NN OO PP
 
 void XeCTX1FourBlocksRowToR8G8(uint4 end_low_rr00gg00, uint4 end_high_rr00gg00,
-                               uint4 weights_high, uint weights_shift,
-                               out uint4 row_01, out uint4 row_23) {
+                               uint4 weights_high, out uint4 row_01,
+                               out uint4 row_23) {
   uint4 weights_low = ~weights_high;
-  uint4 weights_shifts = weights_shift + uint4(0u, 2u, 4u, 6u);
-  uint4 row_3aaaa =
-      ((weights_low >> weights_shifts.x) & 3u) * end_low_rr00gg00 +
-      ((weights_high >> weights_shifts.x) & 3u) * end_high_rr00gg00;
-  uint4 row_3bbbb =
-      ((weights_low >> weights_shifts.y) & 3u) * end_low_rr00gg00 +
-      ((weights_high >> weights_shifts.y) & 3u) * end_high_rr00gg00;
-  uint4 row_3cccc =
-      ((weights_low >> weights_shifts.z) & 3u) * end_low_rr00gg00 +
-      ((weights_high >> weights_shifts.z) & 3u) * end_high_rr00gg00;
-  uint4 row_3dddd =
-      ((weights_low >> weights_shifts.w) & 3u) * end_low_rr00gg00 +
-      ((weights_high >> weights_shifts.w) & 3u) * end_high_rr00gg00;
+  uint4 row_3aaaa = (weights_low & 3u) * end_low_rr00gg00 +
+                    (weights_high & 3u) * end_high_rr00gg00;
+  uint4 row_3bbbb = ((weights_low >> 2u) & 3u) * end_low_rr00gg00 +
+                    ((weights_high >> 2u) & 3u) * end_high_rr00gg00;
+  uint4 row_3cccc = ((weights_low >> 4u) & 3u) * end_low_rr00gg00 +
+                    ((weights_high >> 4u) & 3u) * end_high_rr00gg00;
+  uint4 row_3dddd = ((weights_low >> 6u) & 3u) * end_low_rr00gg00 +
+                    ((weights_high >> 6u) & 3u) * end_high_rr00gg00;
   uint4 row_half_3acac = uint4(row_3aaaa.xy, row_3cccc.xy).xzyw;
   uint4 row_half_3bdbd = uint4(row_3bbbb.xy, row_3dddd.xy).xzyw;
   // R0A G0A R0B G0B | R0C G0C R0D G0D | R1A G1A R1B G1B | R1C G1C R1D G1D
@@ -85,8 +80,8 @@ void main(uint3 xe_thread_id : SV_DispatchThreadID) {
       xe_texture_copy_host_pitch, 2u) + xe_texture_copy_host_base;
   for (uint i = 0u; i < 4u; ++i) {
     uint4 row_01, row_23;
-    XeCTX1FourBlocksRowToR8G8(end_low_rr00gg00, end_high_rr00gg00, weights_high,
-                              i * 8u, row_01, row_23);
+    XeCTX1FourBlocksRowToR8G8(end_low_rr00gg00, end_high_rr00gg00,
+                              weights_high >> (i * 8u), row_01, row_23);
     xe_texture_copy_dest.Store4(texel_offset_host, row_01);
     xe_texture_copy_dest.Store4(texel_offset_host + 16u, row_23);
     if (++texel_index_host.y >= xe_texture_copy_size_texels.y) {
