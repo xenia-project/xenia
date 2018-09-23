@@ -274,10 +274,7 @@ bool SharedMemory::RequestRange(uint32_t start, uint32_t length) {
   }
 
   // Upload and protect used ranges.
-  GetRangesToUpload(start >> page_size_log2_,
-                    ((start & ((1 << page_size_log2_) - 1)) + length +
-                     ((1 << page_size_log2_) - 1)) >>
-                        page_size_log2_);
+  GetRangesToUpload(start >> page_size_log2_, last >> page_size_log2_);
   if (upload_ranges_.size() == 0) {
     return true;
   }
@@ -402,14 +399,12 @@ void SharedMemory::UnlinkWatchRange(WatchRange* range) {
 }
 
 void SharedMemory::GetRangesToUpload(uint32_t request_page_first,
-                                     uint32_t request_page_count) {
+                                     uint32_t request_page_last) {
   upload_ranges_.clear();
-  if (request_page_first >= page_count_ || request_page_count == 0) {
+  request_page_last = std::min(request_page_last, page_count_ - 1u);
+  if (request_page_first > request_page_last) {
     return;
   }
-  request_page_count =
-      std::min(request_page_count, page_count_ - request_page_first);
-  uint32_t request_page_last = request_page_first + request_page_count - 1;
   uint32_t request_block_first = request_page_first >> 6;
   uint32_t request_block_last = request_page_last >> 6;
 
@@ -418,43 +413,39 @@ void SharedMemory::GetRangesToUpload(uint32_t request_page_first,
   uint32_t range_start = UINT32_MAX;
   for (uint32_t i = request_block_first; i <= request_block_last; ++i) {
     uint64_t block_valid = valid_pages_[i];
-    uint64_t block_invalid = ~block_valid;
-
-    // Ignore pages outside the requested range in bits scans completely.
-    uint64_t bits_to_keep;
+    // Consider pages in the block outside the requested range valid.
     if (i == request_block_first) {
-      bits_to_keep = ~((1ull << (request_page_first & 63)) - 1);
-      block_valid &= bits_to_keep;
-      block_invalid &= bits_to_keep;
+      block_valid |= (1ull << (request_page_first & 63)) - 1;
     }
     if (i == request_block_last && (request_page_last & 63) != 63) {
-      bits_to_keep = (1ull << ((request_page_last & 63) + 1)) - 1;
-      block_valid &= bits_to_keep;
-      block_invalid &= bits_to_keep;
+      block_valid |= ~((1ull << ((request_page_last & 63) + 1)) - 1);
     }
 
     while (true) {
       uint32_t block_page;
       if (range_start == UINT32_MAX) {
         // Check if need to open a new range.
-        if (!xe::bit_scan_forward(block_invalid, &block_page)) {
+        if (!xe::bit_scan_forward(~block_valid, &block_page)) {
           break;
         }
         range_start = (i << 6) + block_page;
       } else {
         // Check if need to close the range.
-        if (!xe::bit_scan_forward(block_valid, &block_page)) {
+        // Ignore the valid pages before the beginning of the range.
+        uint64_t block_valid_from_start = block_valid;
+        if (i == (range_start >> 6)) {
+          block_valid_from_start &= ~((1ull << (range_start & 63)) - 1);
+        }
+        if (!xe::bit_scan_forward(block_valid_from_start, &block_page)) {
           break;
         }
         upload_ranges_.push_back(
             std::make_pair(range_start, (i << 6) + block_page - range_start));
+        // In the next interation within this block, consider this range valid
+        // since it has been queued for upload.
+        block_valid |= (1ull << block_page) - 1;
         range_start = UINT32_MAX;
       }
-      // There may be multiple ranges within a single block, so ignore the bits
-      // that have already been processed.
-      bits_to_keep = ~((1ull << block_page) - 1);
-      block_valid &= bits_to_keep;
-      block_invalid &= bits_to_keep;
     }
   }
   if (range_start != UINT32_MAX) {

@@ -200,7 +200,7 @@ class SharedMemory {
   // persistently allocated vector).
   std::vector<UploadRange> upload_ranges_;
   void GetRangesToUpload(uint32_t request_page_first,
-                         uint32_t request_page_count);
+                         uint32_t request_page_last);
   std::unique_ptr<ui::d3d12::UploadBufferPool> upload_buffer_pool_ = nullptr;
 
   void TransitionBuffer(D3D12_RESOURCE_STATES new_state);
