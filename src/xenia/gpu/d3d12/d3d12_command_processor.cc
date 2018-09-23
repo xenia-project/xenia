@@ -1037,7 +1037,8 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
                               ? sizeof(uint32_t)
                               : sizeof(uint16_t);
     assert_false(index_buffer_info->guest_base & (index_size - 1));
-    uint32_t index_base = index_buffer_info->guest_base & ~(index_size - 1);
+    uint32_t index_base =
+        index_buffer_info->guest_base & 0x1FFFFFFF & ~(index_size - 1);
     D3D12_INDEX_BUFFER_VIEW index_buffer_view;
     index_buffer_view.Format = index_buffer_info->format == IndexFormat::kInt32
                                    ? DXGI_FORMAT_R32_UINT
