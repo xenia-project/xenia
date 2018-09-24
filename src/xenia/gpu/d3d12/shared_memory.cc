@@ -33,7 +33,6 @@ SharedMemory::SharedMemory(D3D12CommandProcessor* command_processor,
   assert_true(page_bitmap_length != 0);
 
   valid_pages_.resize(page_bitmap_length);
-  protected_pages_.resize(page_bitmap_length);
 }
 
 SharedMemory::~SharedMemory() { Shutdown(); }
@@ -69,19 +68,20 @@ bool SharedMemory::Initialize() {
 
   std::memset(valid_pages_.data(), 0, valid_pages_.size() * sizeof(uint64_t));
 
-  std::memset(protected_pages_.data(), 0,
-              protected_pages_.size() * sizeof(uint64_t));
-
   upload_buffer_pool_ =
       std::make_unique<ui::d3d12::UploadBufferPool>(context, 4 * 1024 * 1024);
 
-  memory_->SetGlobalPhysicalAccessWatch(MemoryWriteCallbackThunk, this);
+  physical_write_watch_handle_ =
+      memory_->RegisterPhysicalWriteWatch(MemoryWriteCallbackThunk, this);
 
   return true;
 }
 
 void SharedMemory::Shutdown() {
-  memory_->SetGlobalPhysicalAccessWatch(nullptr, nullptr);
+  if (physical_write_watch_handle_ != nullptr) {
+    memory_->UnregisterPhysicalWriteWatch(physical_write_watch_handle_);
+    physical_write_watch_handle_ = nullptr;
+  }
 
   upload_buffer_pool_.reset();
 
@@ -294,6 +294,7 @@ bool SharedMemory::RequestRange(uint32_t start, uint32_t length) {
         return false;
       }
       uint32_t upload_buffer_pages = upload_buffer_size >> page_size_log2_;
+      // No mutex holding here!
       MakeRangeValid(upload_range_start, upload_buffer_pages);
       std::memcpy(
           upload_buffer_mapping,
@@ -310,22 +311,12 @@ bool SharedMemory::RequestRange(uint32_t start, uint32_t length) {
   return true;
 }
 
-void SharedMemory::RangeWrittenByGPU(uint32_t start, uint32_t length) {
-  start &= kAddressMask;
-  if (length == 0 || start >= kBufferSize) {
-    return;
-  }
-  length = std::min(length, kBufferSize - start);
-  uint32_t end = start + length - 1;
-  uint32_t page_first = start >> page_size_log2_;
-  uint32_t page_last = end >> page_size_log2_;
-  uint32_t bucket_first = start >> kWatchBucketSizeLog2;
-  uint32_t bucket_last = end >> kWatchBucketSizeLog2;
+void SharedMemory::FireWatches(uint32_t page_first, uint32_t page_last) {
+  uint32_t bucket_first = page_first << page_size_log2_ >> kWatchBucketSizeLog2;
+  uint32_t bucket_last = page_last << page_size_log2_ >> kWatchBucketSizeLog2;
 
   std::lock_guard<std::recursive_mutex> lock(validity_mutex_);
 
-  // Trigger modification callbacks so, for instance, resolved data is loaded to
-  // the texture.
   for (uint32_t i = bucket_first; i <= bucket_last; ++i) {
     WatchNode* node = watch_buckets_[i];
     while (node != nullptr) {
@@ -340,9 +331,25 @@ void SharedMemory::RangeWrittenByGPU(uint32_t start, uint32_t length) {
       }
     }
   }
+}
+
+void SharedMemory::RangeWrittenByGPU(uint32_t start, uint32_t length) {
+  start &= kAddressMask;
+  if (length == 0 || start >= kBufferSize) {
+    return;
+  }
+  length = std::min(length, kBufferSize - start);
+  uint32_t end = start + length - 1;
+  uint32_t page_first = start >> page_size_log2_;
+  uint32_t page_last = end >> page_size_log2_;
+
+  // Trigger modification callbacks so, for instance, resolved data is loaded to
+  // the texture.
+  FireWatches(page_first, page_last);
 
   // Mark the range as valid (so pages are not reuploaded until modified by the
-  // CPU) and protect it so the CPU can reuse it.
+  // CPU) and watch it so the CPU can reuse it and this will be caught.
+  // No mutex holding here!
   MakeRangeValid(page_first, page_last - page_first + 1);
 }
 
@@ -356,23 +363,23 @@ void SharedMemory::MakeRangeValid(uint32_t valid_page_first,
   uint32_t valid_block_first = valid_page_first >> 6;
   uint32_t valid_block_last = valid_page_last >> 6;
 
-  std::lock_guard<std::recursive_mutex> lock(validity_mutex_);
+  {
+    std::lock_guard<std::recursive_mutex> lock(validity_mutex_);
 
-  for (uint32_t i = valid_block_first; i <= valid_block_last; ++i) {
-    uint64_t valid_bits = UINT64_MAX;
-    if (i == valid_block_first) {
-      valid_bits &= ~((1ull << (valid_page_first & 63)) - 1);
+    for (uint32_t i = valid_block_first; i <= valid_block_last; ++i) {
+      uint64_t valid_bits = UINT64_MAX;
+      if (i == valid_block_first) {
+        valid_bits &= ~((1ull << (valid_page_first & 63)) - 1);
+      }
+      if (i == valid_block_last && (valid_page_last & 63) != 63) {
+        valid_bits &= (1ull << ((valid_page_last & 63) + 1)) - 1;
+      }
+      valid_pages_[i] |= valid_bits;
     }
-    if (i == valid_block_last && (valid_page_last & 63) != 63) {
-      valid_bits &= (1ull << ((valid_page_last & 63) + 1)) - 1;
-    }
-    valid_pages_[i] |= valid_bits;
-    protected_pages_[i] |= valid_bits;
   }
 
-  memory_->ProtectPhysicalMemory(
-      valid_page_first << page_size_log2_, valid_page_count << page_size_log2_,
-      cpu::MMIOHandler::WatchType::kWatchWrite, false);
+  memory_->WatchPhysicalMemoryWrite(valid_page_first << page_size_log2_,
+                                    valid_page_count << page_size_log2_);
 }
 
 void SharedMemory::UnlinkWatchRange(WatchRange* range) {
@@ -454,44 +461,32 @@ void SharedMemory::GetRangesToUpload(uint32_t request_page_first,
   }
 }
 
-bool SharedMemory::MemoryWriteCallbackThunk(void* context_ptr,
-                                            uint32_t address) {
-  SharedMemory* shared_memory = reinterpret_cast<SharedMemory*>(context_ptr);
-  return shared_memory->MemoryWriteCallback(address);
+void SharedMemory::MemoryWriteCallbackThunk(void* context_ptr,
+                                            uint32_t page_first,
+                                            uint32_t page_last) {
+  reinterpret_cast<SharedMemory*>(context_ptr)
+      ->MemoryWriteCallback(page_first, page_last);
 }
 
-bool SharedMemory::MemoryWriteCallback(uint32_t address) {
-  uint32_t page_index = (address & kAddressMask) >> page_size_log2_;
-  uint32_t block_index = page_index >> 6;
-  uint64_t page_bit = 1ull << (page_index & 63);
+void SharedMemory::MemoryWriteCallback(uint32_t page_first,
+                                       uint32_t page_last) {
+  uint32_t block_first = page_first >> 6;
+  uint32_t block_last = page_last >> 6;
 
   std::lock_guard<std::recursive_mutex> lock(validity_mutex_);
 
-  if (!(protected_pages_[block_index] & page_bit)) {
-    return false;
-  }
-
-  valid_pages_[block_index] &= ~page_bit;
-
-  // Trigger watch callbacks.
-  WatchNode* node =
-      watch_buckets_[page_index << page_size_log2_ >> kWatchBucketSizeLog2];
-  while (node != nullptr) {
-    WatchRange* range = node->range;
-    // Store the next node now since when the callback is triggered, the links
-    // will be broken.
-    node = node->bucket_node_next;
-    if (page_index >= range->page_first && page_index <= range->page_last) {
-      range->callback(range->callback_context, range->callback_data,
-                      range->callback_argument);
-      UnlinkWatchRange(range);
+  for (uint32_t i = block_first; i <= block_last; ++i) {
+    uint64_t invalidate_bits = UINT64_MAX;
+    if (i == block_first) {
+      invalidate_bits &= ~((1ull << (page_first & 63)) - 1);
     }
+    if (i == block_last && (page_last & 63) != 63) {
+      invalidate_bits &= (1ull << ((page_last & 63) + 1)) - 1;
+    }
+    valid_pages_[i] &= ~invalidate_bits;
   }
 
-  memory_->UnprotectPhysicalMemory(page_index << page_size_log2_,
-                                   1 << page_size_log2_, false);
-  protected_pages_[block_index] &= ~page_bit;
-  return true;
+  FireWatches(page_first, page_last);
 }
 
 void SharedMemory::TransitionBuffer(D3D12_RESOURCE_STATES new_state) {

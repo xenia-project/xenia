@@ -93,6 +93,10 @@ class SharedMemory {
   void CreateRawUAV(D3D12_CPU_DESCRIPTOR_HANDLE handle);
 
  private:
+  // Mark the memory range as updated and protect it. The validity mutex must
+  // NOT be held when calling!!!
+  void MakeRangeValid(uint32_t valid_page_first, uint32_t valid_page_count);
+
   D3D12CommandProcessor* command_processor_;
 
   Memory* memory_;
@@ -121,6 +125,9 @@ class SharedMemory {
   // Total physical page count.
   uint32_t page_count_;
 
+  // Handle of the physical memory write callback.
+  void* physical_write_watch_handle_ = nullptr;
+
   // Mutex between the exception handler and the command processor, to be locked
   // when checking or updating validity of pages/ranges.
   std::recursive_mutex validity_mutex_;
@@ -131,14 +138,11 @@ class SharedMemory {
 
   // Bit vector containing whether physical memory system pages are up to date.
   std::vector<uint64_t> valid_pages_;
-  // Mark the memory range as updated and protect it.
-  void MakeRangeValid(uint32_t valid_page_first, uint32_t valid_page_count);
 
-  // Whether each physical page is protected by the GPU code (after uploading).
-  std::vector<uint64_t> protected_pages_;
   // Memory access callback.
-  static bool MemoryWriteCallbackThunk(void* context_ptr, uint32_t address);
-  bool MemoryWriteCallback(uint32_t address);
+  static void MemoryWriteCallbackThunk(void* context_ptr, uint32_t page_first,
+                                       uint32_t page_last);
+  void MemoryWriteCallback(uint32_t page_first, uint32_t page_last);
 
   struct WatchNode;
   // Watched range placed by other GPU subsystems.
@@ -187,6 +191,8 @@ class SharedMemory {
   uint32_t watch_node_current_pool_allocated_ = 0;
   WatchRange* watch_range_first_free_ = nullptr;
   WatchNode* watch_node_first_free_ = nullptr;
+  // Triggers the watches, removing them when triggered.
+  void FireWatches(uint32_t page_first, uint32_t page_last);
   // Unlinks and frees the range and its nodes. Call this with the mutex locked.
   void UnlinkWatchRange(WatchRange* range);
 
