@@ -22,7 +22,7 @@ XE_BYTE_SWAP_OVERLOAD(uint4)
 #define XE_BYTE_SWAP_16_OVERLOAD(XeByteSwapType) \
 XeByteSwapType XeByteSwap16(XeByteSwapType v, uint endian) { \
   if (((endian ^ (endian >> 1u)) & 1u) != 0u) { \
-    v = (v << 8u) | (v >> 8u); \
+    v = ((v & 0xFFu) << 8u) | ((v & 0xFF00u) >> 8u); \
   } \
   return v; \
 }

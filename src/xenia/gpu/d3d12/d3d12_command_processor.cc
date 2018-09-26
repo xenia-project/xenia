@@ -1530,12 +1530,24 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
       default:
         color_info = regs[XE_GPU_REG_RB_COLOR_INFO].u32;
     }
-    float color_exp_bias;
     // Exponent bias is in bits 20:25 of RB_COLOR_INFO.
-    *reinterpret_cast<int32_t*>(&color_exp_bias) =
-        0x3F800000 + (int32_t((color_info & (0x3F << 20)) << 6) >> 3);
-    dirty |= system_constants_.color_exp_bias[i] != color_exp_bias;
-    system_constants_.color_exp_bias[i] = color_exp_bias;
+    int32_t color_exp_bias = int32_t(color_info << 6) >> 26;
+    ColorRenderTargetFormat color_format =
+        ColorRenderTargetFormat((color_info >> 16) & 0xF);
+    if (color_format == ColorRenderTargetFormat::k_16_16 ||
+        color_format == ColorRenderTargetFormat::k_16_16_16_16) {
+      // On the Xbox 360, k_16_16_EDRAM and k_16_16_16_16_EDRAM internally have
+      // -32...32 range and expect shaders to give -32...32 values, but they're
+      // emulated using normalized RG16/RGBA16, so the value returned from the
+      // shader needs to be divided by 32.
+      // http://www.students.science.uu.nl/~3220516/advancedgraphics/papers/inferred_lighting.pdf
+      color_exp_bias -= 5;
+    }
+    float color_exp_bias_scale;
+    *reinterpret_cast<int32_t*>(&color_exp_bias_scale) =
+        0x3F800000 + (color_exp_bias << 23);
+    dirty |= system_constants_.color_exp_bias[i] != color_exp_bias_scale;
+    system_constants_.color_exp_bias[i] = color_exp_bias_scale;
     dirty |= system_constants_.color_output_map[i] !=
              render_targets[i].guest_render_target;
     system_constants_.color_output_map[i] =

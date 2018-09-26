@@ -8,7 +8,7 @@
 // {
 //
 //   uint xe_texture_tile_guest_base;   // Offset:    0 Size:     4
-//   uint xe_texture_tile_endian_guest_pitch;// Offset:    4 Size:     4
+//   uint xe_texture_tile_endian_format_guest_pitch;// Offset:    4 Size:     4
 //   uint xe_texture_tile_size;         // Offset:    8 Size:     4
 //   uint xe_texture_tile_host_base;    // Offset:   12 Size:     4
 //   uint xe_texture_tile_host_pitch;   // Offset:   16 Size:     4
@@ -55,7 +55,7 @@ or r0.y, r0.z, r0.y
 if_nz r0.y
   ret 
 endif 
-ushr r0.y, CB0[0][0].y, l(3)
+ushr r0.y, CB0[0][0].y, l(9)
 imad r2.xyzw, vThreadID.xxxx, l(4, 4, 4, 4), l(0, 1, 2, 3)
 ubfe r0.zw, l(0, 0, 27, 29), l(0, 0, 3, 1), vThreadID.xxxx
 ushr r1.yz, vThreadID.yyyy, l(0, 5, 2, 0)

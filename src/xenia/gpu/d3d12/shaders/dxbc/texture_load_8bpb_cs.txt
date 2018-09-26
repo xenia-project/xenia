@@ -16,6 +16,7 @@
 //   uint3 xe_texture_copy_size_blocks; // Offset:   32 Size:    12
 //   uint xe_texture_copy_endianness;   // Offset:   44 Size:     4 [unused]
 //   uint3 xe_texture_copy_guest_mip_offset;// Offset:   48 Size:    12
+//   uint xe_texture_copy_guest_format; // Offset:   60 Size:     4 [unused]
 //
 // }
 //

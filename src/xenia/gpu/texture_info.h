@@ -93,10 +93,6 @@ enum class TextureFormat : uint32_t {
 inline TextureFormat GetBaseFormat(TextureFormat texture_format) {
   // These formats are used for resampling textures / gamma control.
   switch (texture_format) {
-    case TextureFormat::k_16_16_EDRAM:
-      return TextureFormat::k_16_16;
-    case TextureFormat::k_16_16_16_16_EDRAM:
-      return TextureFormat::k_16_16_16_16;
     case TextureFormat::k_16_EXPAND:
       return TextureFormat::k_16_FLOAT;
     case TextureFormat::k_16_16_EXPAND:

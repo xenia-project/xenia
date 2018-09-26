@@ -6,11 +6,13 @@
 
 cbuffer XeTextureTileConstants : register(b0) {
   // Either from the start of the shared memory or from the start of the typed
-  // UAV, in bytes.
+  // UAV, in bytes (even for typed UAVs, so XeTextureTiledOffset2D is easier to
+  // use).
   uint xe_texture_tile_guest_base;
   // 0:2 - endianness (up to Xin128).
-  // 3:31 - actual guest texture width.
-  uint xe_texture_tile_endian_guest_pitch;
+  // 3:8 - guest format (primarily for 16-bit textures).
+  // 9:31 - actual guest texture width.
+  uint xe_texture_tile_endian_format_guest_pitch;
   // Size to copy, texels with index bigger than this won't be written.
   // Width in the lower 16 bits, height in the upper.
   uint xe_texture_tile_size;

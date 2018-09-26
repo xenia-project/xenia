@@ -962,8 +962,20 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
         DepthRenderTargetToTextureFormat(DepthRenderTargetFormat(src_format));
     src_64bpp = false;
   } else {
-    src_texture_format =
-        ColorRenderTargetToTextureFormat(ColorRenderTargetFormat(src_format));
+    // Texture formats k_16_16_EDRAM and k_16_16_16_16_EDRAM are not the same as
+    // k_16_16 and k_16_16_16_16, but they are emulated with the same DXGI
+    // formats as k_16_16 and k_16_16_16_16 on the host, so they are treated as
+    // a special case of such formats.
+    if (ColorRenderTargetFormat(src_format) ==
+        ColorRenderTargetFormat::k_16_16) {
+      src_texture_format = TextureFormat::k_16_16;
+    } else if (ColorRenderTargetFormat(src_format) ==
+               ColorRenderTargetFormat::k_16_16_16_16) {
+      src_texture_format = TextureFormat::k_16_16_16_16;
+    } else {
+      src_texture_format =
+          ColorRenderTargetToTextureFormat(ColorRenderTargetFormat(src_format));
+    }
     src_64bpp = IsColorFormat64bpp(ColorRenderTargetFormat(src_format));
   }
   assert_true(src_texture_format != TextureFormat::kUnknown);
@@ -982,8 +994,23 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
     return false;
   }
   Endian128 dest_endian = Endian128(dest_info & 0x7);
-  int32_t dest_exp_bias =
-      !is_depth ? (int32_t((dest_info >> 16) << 26) >> 26) : 0;
+  int32_t dest_exp_bias;
+  if (is_depth) {
+    dest_exp_bias = 0;
+  } else {
+    dest_exp_bias = int32_t((dest_info >> 16) << 26) >> 26;
+    if (ColorRenderTargetFormat(src_format) ==
+            ColorRenderTargetFormat::k_16_16 ||
+        ColorRenderTargetFormat(src_format) ==
+            ColorRenderTargetFormat::k_16_16_16_16) {
+      // On the Xbox 360, k_16_16_EDRAM and k_16_16_16_16_EDRAM internally have
+      // -32...32 range, but they're emulated using normalized RG16/RGBA16, so
+      // sampling the host render target gives 1/32 of what is actually stored
+      // there on the guest side.
+      // http://www.students.science.uu.nl/~3220516/advancedgraphics/papers/inferred_lighting.pdf
+      dest_exp_bias += 5;
+    }
+  }
   bool dest_swap = !is_depth && ((dest_info >> 24) & 0x1);
 
   // Get the destination location.
@@ -1713,8 +1740,10 @@ DXGI_FORMAT RenderTargetCache::GetColorDXGIFormat(
     case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
       return DXGI_FORMAT_R16G16B16A16_FLOAT;
     case ColorRenderTargetFormat::k_16_16:
+      // TODO(Triang3l): Change to SNORM when signed textures are supported.
       return DXGI_FORMAT_R16G16_UNORM;
     case ColorRenderTargetFormat::k_16_16_16_16:
+      // TODO(Triang3l): Change to SNORM when signed textures are supported.
       return DXGI_FORMAT_R16G16B16A16_UNORM;
     case ColorRenderTargetFormat::k_16_16_FLOAT:
       return DXGI_FORMAT_R16G16_FLOAT;
