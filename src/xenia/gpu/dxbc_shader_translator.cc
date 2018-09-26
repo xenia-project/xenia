@@ -828,26 +828,6 @@ void DxbcShaderTranslator::CompleteVertexShader() {
 }
 
 void DxbcShaderTranslator::CompletePixelShader() {
-  // Apply color exponent bias (the constant contains 2.0^bias).
-  rdef_constants_used_ |= 1ull << uint32_t(RdefConstantIndex::kSysColorExpBias);
-  for (uint32_t i = 0; i < 4; ++i) {
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MUL) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
-    shader_code_.push_back(system_temp_color_[i]);
-    shader_code_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-    shader_code_.push_back(system_temp_color_[i]);
-    shader_code_.push_back(EncodeVectorReplicatedOperand(
-        D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, i, 3));
-    shader_code_.push_back(uint32_t(RdefConstantBufferIndex::kSystemConstants));
-    shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-    shader_code_.push_back(kSysConst_ColorExpBias_Vec);
-    ++stat_.instruction_count;
-    ++stat_.float_instruction_count;
-  }
-
   // Alpha test.
   // Check if alpha test is enabled (if the constant is not 0).
   rdef_constants_used_ |= 1ull << uint32_t(RdefConstantIndex::kSysAlphaTest);
@@ -959,6 +939,33 @@ void DxbcShaderTranslator::CompletePixelShader() {
   shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
   ++stat_.instruction_count;
+
+  // Apply color exponent bias (the constant contains 2.0^bias).
+  // Not sure if this should be done before alpha testing or after, but this is
+  // render target state, and alpha test works with values obtained mainly from
+  // textures (so conceptually closer to the shader rather than the
+  // output-merger in the pipeline).
+  // TODO(Triang3l): Verify whether the order of alpha testing and exponent bias
+  // is correct.
+  rdef_constants_used_ |= 1ull << uint32_t(RdefConstantIndex::kSysColorExpBias);
+  for (uint32_t i = 0; i < 4; ++i) {
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MUL) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
+    shader_code_.push_back(
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+    shader_code_.push_back(system_temp_color_[i]);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+    shader_code_.push_back(system_temp_color_[i]);
+    shader_code_.push_back(EncodeVectorReplicatedOperand(
+        D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, i, 3));
+    shader_code_.push_back(uint32_t(RdefConstantBufferIndex::kSystemConstants));
+    shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
+    shader_code_.push_back(kSysConst_ColorExpBias_Vec);
+    ++stat_.instruction_count;
+    ++stat_.float_instruction_count;
+  }
+
   // Remap guest render target indices to host since because on the host, the
   // indices of the bound render targets are consecutive. This is done using 16
   // movc instructions because indexable temps are known to be causing
