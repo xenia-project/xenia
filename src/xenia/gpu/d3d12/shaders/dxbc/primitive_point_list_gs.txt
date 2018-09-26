@@ -7,17 +7,17 @@
 // cbuffer xe_system_cbuffer
 // {
 //
-//   uint3 xe_vertex_w_format;          // Offset:    0 Size:    12 [unused]
-//   uint xe_vertex_base_index;         // Offset:   12 Size:     4 [unused]
+//   uint xe_vertex_index_endian;       // Offset:    0 Size:     4 [unused]
+//   uint xe_vertex_base_index;         // Offset:    4 Size:     4 [unused]
+//   uint xe_ndc_control;               // Offset:    8 Size:     4 [unused]
+//   uint xe_pixel_pos_reg;             // Offset:   12 Size:     4 [unused]
 //   float3 xe_ndc_scale;               // Offset:   16 Size:    12
-//   uint xe_vertex_index_endian;       // Offset:   28 Size:     4 [unused]
+//   float xe_pixel_half_pixel_offset;  // Offset:   28 Size:     4 [unused]
 //   float3 xe_ndc_offset;              // Offset:   32 Size:    12 [unused]
-//   float xe_pixel_half_pixel_offset;  // Offset:   44 Size:     4 [unused]
+//   int xe_alpha_test;                 // Offset:   44 Size:     4 [unused]
 //   float2 xe_point_size;              // Offset:   48 Size:     8
 //   float2 xe_ssaa_inv_scale;          // Offset:   56 Size:     8 [unused]
-//   uint xe_pixel_pos_reg;             // Offset:   64 Size:     4 [unused]
-//   int xe_alpha_test;                 // Offset:   68 Size:     4 [unused]
-//   float2 xe_alpha_test_range;        // Offset:   72 Size:     8 [unused]
+//   float2 xe_alpha_test_range;        // Offset:   64 Size:     8 [unused]
 //   float4 xe_color_exp_bias;          // Offset:   80 Size:    16 [unused]
 //   uint4 xe_color_output_map;         // Offset:   96 Size:    16 [unused]
 //

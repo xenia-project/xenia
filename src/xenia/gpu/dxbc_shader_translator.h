@@ -33,27 +33,28 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // - d3d12/shaders/xenos_draw.hlsli (for geometry shaders).
   struct SystemConstants {
     // vec4 0
-    uint32_t vertex_w_format[3];
+    uint32_t vertex_index_endian;
     uint32_t vertex_base_index;
+    uint32_t ndc_control;
+    uint32_t pixel_pos_reg;
 
     // vec4 1
     float ndc_scale[3];
-    uint32_t vertex_index_endian;
+    float pixel_half_pixel_offset;
 
     // vec4 2
     float ndc_offset[3];
-    float pixel_half_pixel_offset;
+    // 0 - disabled, 1 - passes if in range, -1 - fails if in range.
+    int32_t alpha_test;
 
     // vec4 3
     float point_size[2];
     float ssaa_inv_scale[2];
 
     // vec3 4
-    uint32_t pixel_pos_reg;
-    // 0 - disabled, 1 - passes if in range, -1 - fails if in range.
-    int32_t alpha_test;
     // The range is floats as uints so it's easier to pass infinity.
     uint32_t alpha_test_range[2];
+    uint32_t padding_4[2];
 
     // vec4 5
     float color_exp_bias[4];
@@ -139,32 +140,32 @@ class DxbcShaderTranslator : public ShaderTranslator {
   };
 
   enum : uint32_t {
-    kSysConst_VertexWFormat_Vec = 0,
-    kSysConst_VertexWFormat_Comp = 0,
+    kSysConst_VertexIndexEndian_Vec = 0,
+    kSysConst_VertexIndexEndian_Comp = 0,
     kSysConst_VertexBaseIndex_Vec = 0,
-    kSysConst_VertexBaseIndex_Comp = 3,
+    kSysConst_VertexBaseIndex_Comp = 1,
+    kSysConst_NDCControl_Vec = 0,
+    kSysConst_NDCControl_Comp = 2,
+    kSysConst_PixelPosReg_Vec = 0,
+    kSysConst_PixelPosReg_Comp = 3,
 
     kSysConst_NDCScale_Vec = 1,
     kSysConst_NDCScale_Comp = 0,
-    kSysConst_VertexIndexEndian_Vec = 1,
-    kSysConst_VertexIndexEndian_Comp = 3,
+    kSysConst_PixelHalfPixelOffset_Vec = 1,
+    kSysConst_PixelHalfPixelOffset_Comp = 3,
 
     kSysConst_NDCOffset_Vec = 2,
     kSysConst_NDCOffset_Comp = 0,
-    kSysConst_PixelHalfPixelOffset_Vec = 2,
-    kSysConst_PixelHalfPixelOffset_Comp = 3,
+    kSysConst_AlphaTest_Vec = 2,
+    kSysConst_AlphaTest_Comp = 3,
 
     kSysConst_PointSize_Vec = 3,
     kSysConst_PointSize_Comp = 0,
     kSysConst_SSAAInvScale_Vec = 3,
     kSysConst_SSAAInvScale_Comp = 2,
 
-    kSysConst_PixelPosReg_Vec = 4,
-    kSysConst_PixelPosReg_Comp = 0,
-    kSysConst_AlphaTest_Vec = 4,
-    kSysConst_AlphaTest_Comp = 1,
     kSysConst_AlphaTestRange_Vec = 4,
-    kSysConst_AlphaTestRange_Comp = 2,
+    kSysConst_AlphaTestRange_Comp = 0,
 
     kSysConst_ColorExpBias_Vec = 5,
 
@@ -397,7 +398,6 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kFloat4,
     kInt,
     kUint,
-    kUint3,
     kUint4,
     // Bool constants.
     kUint4Array8,
@@ -439,16 +439,16 @@ class DxbcShaderTranslator : public ShaderTranslator {
 
   enum class RdefConstantIndex {
     kSystemConstantFirst,
-    kSysVertexWFormat = kSystemConstantFirst,
-    kSysVertexBaseIndex,
-    kSysNDCScale,
+    kSysVertexBaseIndex = kSystemConstantFirst,
     kSysVertexIndexEndian,
-    kSysNDCOffset,
+    kSysNDCControl,
+    kSysPixelPosReg,
+    kSysNDCScale,
     kSysPixelHalfPixelOffset,
+    kSysNDCOffset,
+    kSysAlphaTest,
     kSysPointSize,
     kSysSSAAInvScale,
-    kSysPixelPosReg,
-    kSysAlphaTest,
     kSysAlphaTestRange,
     kSysColorExpBias,
     kSysColorOutputMap,
