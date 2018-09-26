@@ -1275,6 +1275,11 @@ void D3D12CommandProcessor::UpdateFixedFunctionState(
   viewport.Height = viewport_scale_y * 2.0f * float(ssaa_scale_y);
   viewport.MinDepth = viewport_offset_z;
   viewport.MaxDepth = viewport_offset_z + viewport_scale_z;
+  if (viewport_scale_z < 0.0f) {
+    // MinDepth > MaxDepth doesn't work on Nvidia, emulating it in vertex
+    // shaders and when applying polygon offset.
+    std::swap(viewport.MinDepth, viewport.MaxDepth);
+  }
   ff_viewport_update_needed_ |= ff_viewport_.TopLeftX != viewport.TopLeftX;
   ff_viewport_update_needed_ |= ff_viewport_.TopLeftY != viewport.TopLeftY;
   ff_viewport_update_needed_ |= ff_viewport_.Width != viewport.Width;
@@ -1378,21 +1383,20 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
 
   // W0 division control.
   // http://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
-  // VTX_XY_FMT = true: the incoming XY have already been multiplied by 1/W0.
-  //            = false: multiply the X, Y coordinates by 1/W0.
-  // VTX_Z_FMT = true: the incoming Z has already been multiplied by 1/W0.
-  //           = false: multiply the Z coordinate by 1/W0.
-  // VTX_W0_FMT = true: the incoming W0 is not 1/W0. Perform the reciprocal to
-  //                    get 1/W0.
-  uint32_t vtx_xy_fmt = (pa_cl_vte_cntl >> 8) & 1;
-  uint32_t vtx_z_fmt = (pa_cl_vte_cntl >> 9) & 1;
-  uint32_t vtx_w0_fmt = (pa_cl_vte_cntl >> 10) & 1;
-  dirty |= system_constants_.vertex_w_format[0] != vtx_xy_fmt;
-  dirty |= system_constants_.vertex_w_format[1] != vtx_z_fmt;
-  dirty |= system_constants_.vertex_w_format[2] != vtx_w0_fmt;
-  system_constants_.vertex_w_format[0] = vtx_xy_fmt;
-  system_constants_.vertex_w_format[1] = vtx_z_fmt;
-  system_constants_.vertex_w_format[2] = vtx_w0_fmt;
+  // 8: VTX_XY_FMT = true: the incoming XY have already been multiplied by 1/W0.
+  //               = false: multiply the X, Y coordinates by 1/W0.
+  // 9: VTX_Z_FMT = true: the incoming Z has already been multiplied by 1/W0.
+  //              = false: multiply the Z coordinate by 1/W0.
+  // 10: VTX_W0_FMT = true: the incoming W0 is not 1/W0. Perform the reciprocal
+  //                        to get 1/W0.
+  uint32_t ndc_control = (pa_cl_vte_cntl >> 8) & 0x7;
+  // Reversed depth.
+  if ((pa_cl_vte_cntl & (1 << 4)) &&
+      regs[XE_GPU_REG_PA_CL_VPORT_ZSCALE].f32 < 0.0f) {
+    ndc_control |= 1 << 3;
+  }
+  dirty |= system_constants_.ndc_control != ndc_control;
+  system_constants_.ndc_control = ndc_control;
 
   // Conversion to Direct3D 12 normalized device coordinates.
   // See viewport configuration in UpdateFixedFunctionState for explanations.

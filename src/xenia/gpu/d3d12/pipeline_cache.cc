@@ -540,6 +540,13 @@ PipelineCache::UpdateStatus PipelineCache::UpdateRasterizerState(
           register_file_->values[XE_GPU_REG_PA_SU_POLY_OFFSET_BACK_SCALE].f32;
     }
   }
+  // Reversed depth is emulated in vertex shaders because MinDepth > MaxDepth
+  // in viewports doesn't seem to work on Nvidia.
+  if ((register_file_->values[XE_GPU_REG_PA_CL_VTE_CNTL].u32 & (1 << 4)) &&
+      register_file_->values[XE_GPU_REG_PA_CL_VPORT_ZSCALE].f32 < 0.0f) {
+    poly_offset = -poly_offset;
+    poly_offset_scale = -poly_offset_scale;
+  }
   if (((pa_su_sc_mode_cntl >> 3) & 0x3) == 0) {
     // Fill mode is disabled.
     fill_mode_wireframe = false;

@@ -688,11 +688,35 @@ void DxbcShaderTranslator::StartTranslation() {
 }
 
 void DxbcShaderTranslator::CompleteVertexShader() {
+  // Get flags of what we should do with the position.
+  // Bit 0: XY are pre-divided by W.
+  // Bit 1: Z is pre-divided by W.
+  // Bit 2: W is not 1/W.
+  // Bit 3: Viewport depth is reversed.
+  rdef_constants_used_ |= 1ull << uint32_t(RdefConstantIndex::kSysNDCControl);
+  uint32_t ndc_control_temp = PushSystemTemp();
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(12));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+  shader_code_.push_back(ndc_control_temp);
+  shader_code_.push_back(EncodeVectorReplicatedOperand(
+      D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSysConst_NDCControl_Comp, 3));
+  shader_code_.push_back(uint32_t(RdefConstantBufferIndex::kSystemConstants));
+  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
+  shader_code_.push_back(kSysConst_NDCControl_Vec);
+  shader_code_.push_back(EncodeVectorSwizzledOperand(
+      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+  shader_code_.push_back(1 << 0);
+  shader_code_.push_back(1 << 1);
+  shader_code_.push_back(1 << 2);
+  shader_code_.push_back(1 << 3);
+  ++stat_.instruction_count;
+  ++stat_.int_instruction_count;
+
   // Revert getting the reciprocal of W and dividing XY by W if needed.
   // TODO(Triang3l): Check if having XY or Z pre-divided by W should enable
   // affine interpolation.
-  rdef_constants_used_ |= 1ull
-                          << uint32_t(RdefConstantIndex::kSysVertexWFormat);
   uint32_t w_format_temp = PushSystemTemp();
   // If the shader has returned 1/W, restore W. First take the reciprocal, which
   // may be either W (what we need) or 1/W, depending on the vertex W format.
@@ -709,16 +733,13 @@ void DxbcShaderTranslator::CompleteVertexShader() {
   // Then, if the shader returns 1/W (vtx_w0_fmt is 0), write 1/(1/W) to the
   // position.
   shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(11));
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
   shader_code_.push_back(
       EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1000, 1));
   shader_code_.push_back(system_temp_position_);
   shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
-                                kSysConst_VertexWFormat_Comp + 2, 3));
-  shader_code_.push_back(uint32_t(RdefConstantBufferIndex::kSystemConstants));
-  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-  shader_code_.push_back(kSysConst_VertexWFormat_Vec);
+      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
+  shader_code_.push_back(ndc_control_temp);
   shader_code_.push_back(
       EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 3, 1));
   shader_code_.push_back(system_temp_position_);
@@ -745,18 +766,13 @@ void DxbcShaderTranslator::CompleteVertexShader() {
   // If vtx_xy_fmt and/or vtx_z_fmt are 1, XY and/or Z are pre-divided by W.
   // Restore them in this case.
   shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(11));
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
   shader_code_.push_back(
       EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0111, 1));
   shader_code_.push_back(system_temp_position_);
-  shader_code_.push_back(EncodeVectorSwizzledOperand(
-      D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
-      kSysConst_VertexWFormat_Comp | (kSysConst_VertexWFormat_Comp << 2) |
-          ((kSysConst_VertexWFormat_Comp + 1) << 4),
-      3));
-  shader_code_.push_back(uint32_t(RdefConstantBufferIndex::kSystemConstants));
-  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-  shader_code_.push_back(kSysConst_VertexWFormat_Vec);
+  shader_code_.push_back(
+      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b00010000, 1));
+  shader_code_.push_back(ndc_control_temp);
   shader_code_.push_back(
       EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
   shader_code_.push_back(w_format_temp);
@@ -768,7 +784,8 @@ void DxbcShaderTranslator::CompleteVertexShader() {
   // Release w_format_temp.
   PopSystemTemp();
 
-  // Apply scale for drawing without a viewport.
+  // Apply scale for drawing without a viewport, and also remap from OpenGL
+  // Z clip space to Direct3D if needed.
   rdef_constants_used_ |= 1ull << uint32_t(RdefConstantIndex::kSysNDCScale);
   shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MUL) |
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
@@ -788,6 +805,46 @@ void DxbcShaderTranslator::CompleteVertexShader() {
   shader_code_.push_back(kSysConst_NDCScale_Vec);
   ++stat_.instruction_count;
   ++stat_.float_instruction_count;
+
+  // Reverse Z (Z = W - Z) if the viewport depth is inverted.
+  uint32_t reverse_z_temp = PushSystemTemp();
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ADD) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(8));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+  shader_code_.push_back(reverse_z_temp);
+  shader_code_.push_back(
+      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 3, 1));
+  shader_code_.push_back(system_temp_position_);
+  shader_code_.push_back(
+      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1) |
+      ENCODE_D3D10_SB_OPERAND_EXTENDED(1));
+  shader_code_.push_back(
+      ENCODE_D3D10_SB_EXTENDED_OPERAND_MODIFIER(D3D10_SB_OPERAND_MODIFIER_NEG));
+  shader_code_.push_back(system_temp_position_);
+  ++stat_.instruction_count;
+  ++stat_.float_instruction_count;
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0100, 1));
+  shader_code_.push_back(system_temp_position_);
+  shader_code_.push_back(
+      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 3, 1));
+  shader_code_.push_back(ndc_control_temp);
+  shader_code_.push_back(
+      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
+  shader_code_.push_back(reverse_z_temp);
+  shader_code_.push_back(
+      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
+  shader_code_.push_back(system_temp_position_);
+  ++stat_.instruction_count;
+  ++stat_.movc_instruction_count;
+  // Release reverse_z_temp.
+  PopSystemTemp();
+
+  // Release ndc_control_temp.
+  PopSystemTemp();
 
   // Apply offset (multiplied by W) for drawing without a viewport and for half
   // pixel offset.
@@ -7214,7 +7271,6 @@ const DxbcShaderTranslator::RdefType DxbcShaderTranslator::rdef_types_[size_t(
     {"float4", 1, 3, 1, 4, 0, 0, RdefTypeIndex::kUnknown, nullptr},
     {"int", 0, 2, 1, 1, 0, 0, RdefTypeIndex::kUnknown, nullptr},
     {"uint", 0, 19, 1, 1, 0, 0, RdefTypeIndex::kUnknown, nullptr},
-    {"uint3", 1, 19, 1, 3, 0, 0, RdefTypeIndex::kUnknown, nullptr},
     {"uint4", 1, 19, 1, 4, 0, 0, RdefTypeIndex::kUnknown, nullptr},
     {nullptr, 1, 19, 1, 4, 8, 0, RdefTypeIndex::kUint4, nullptr},
     {nullptr, 1, 19, 1, 4, 32, 0, RdefTypeIndex::kUint4, nullptr},
@@ -7230,21 +7286,21 @@ const DxbcShaderTranslator::RdefConstant
         DxbcShaderTranslator::RdefConstantIndex::kCount)] = {
         // SYSTEM CONSTANTS MUST BE UPDATED IF THEIR LAYOUT CHANGES!
         // System constants vec4 0.
-        {"xe_vertex_w_format", RdefTypeIndex::kUint3, 0, 12},
-        {"xe_vertex_base_index", RdefTypeIndex::kUint, 12, 4},
+        {"xe_vertex_index_endian", RdefTypeIndex::kUint, 0, 4},
+        {"xe_vertex_base_index", RdefTypeIndex::kUint, 4, 4},
+        {"xe_ndc_control", RdefTypeIndex::kUint, 8, 4},
+        {"xe_pixel_pos_reg", RdefTypeIndex::kUint, 12, 4},
         // System constants vec4 1.
         {"xe_ndc_scale", RdefTypeIndex::kFloat3, 16, 12},
-        {"xe_vertex_index_endian", RdefTypeIndex::kUint, 28, 4},
+        {"xe_pixel_half_pixel_offset", RdefTypeIndex::kFloat, 28, 4},
         // System constants vec4 2.
         {"xe_ndc_offset", RdefTypeIndex::kFloat3, 32, 12},
-        {"xe_pixel_half_pixel_offset", RdefTypeIndex::kFloat, 44, 4},
+        {"xe_alpha_test", RdefTypeIndex::kInt, 44, 4},
         // System constants vec4 3.
         {"xe_point_size", RdefTypeIndex::kFloat2, 48, 8},
         {"xe_ssaa_inv_scale", RdefTypeIndex::kFloat2, 56, 8},
         // System constants vec4 4.
-        {"xe_pixel_pos_reg", RdefTypeIndex::kUint, 64, 4},
-        {"xe_alpha_test", RdefTypeIndex::kInt, 68, 4},
-        {"xe_alpha_test_range", RdefTypeIndex::kFloat2, 72, 8},
+        {"xe_alpha_test_range", RdefTypeIndex::kFloat2, 64, 8},
         // System constants vec4 5.
         {"xe_color_exp_bias", RdefTypeIndex::kFloat4, 80, 16},
         // System constants vec4 6.
