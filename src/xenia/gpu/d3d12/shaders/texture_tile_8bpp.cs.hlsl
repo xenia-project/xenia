@@ -1,6 +1,6 @@
 #include "texture_tile.hlsli"
 
-RWByteAddressBuffer xe_texture_tile_dest : register(u0);
+RWBuffer<uint> xe_texture_tile_dest : register(u0);
 
 [numthreads(8, 32, 1)]
 void main(uint3 xe_thread_id : SV_DispatchThreadID) {
@@ -11,20 +11,19 @@ void main(uint3 xe_thread_id : SV_DispatchThreadID) {
   [branch] if (any(texel_index >= texture_size)) {
     return;
   }
-  uint4 texels = xe_texture_tile_source.Load4(
+  uint4 texels = (xe_texture_tile_source.Load(
       xe_texture_tile_host_base + texel_index.y * xe_texture_tile_host_pitch +
-      texel_index.x * 4u);
-  texels = XeByteSwap(texels, xe_texture_tile_endian_format_guest_pitch);
+      texel_index.x).xxxx >> uint4(0u, 8u, 16u, 24u)) & 0xFFu;
   uint4 texel_addresses = xe_texture_tile_guest_base + XeTextureTiledOffset2D(
-      texel_index, xe_texture_tile_endian_format_guest_pitch >> 9u, 2u);
-  xe_texture_tile_dest.Store(texel_addresses.x, texels.x);
+      texel_index, xe_texture_tile_endian_format_guest_pitch >> 9u, 0u);
+  xe_texture_tile_dest[texel_addresses.x] = texels.x;
   bool3 texels_inside = uint3(1u, 2u, 3u) + texel_index.x < texture_size.x;
   [branch] if (texels_inside.x) {
-    xe_texture_tile_dest.Store(texel_addresses.y, texels.y);
+    xe_texture_tile_dest[texel_addresses.y] = texels.y;
     [branch] if (texels_inside.y) {
-      xe_texture_tile_dest.Store(texel_addresses.z, texels.z);
+      xe_texture_tile_dest[texel_addresses.z] = texels.z;
       [branch] if (texels_inside.z) {
-        xe_texture_tile_dest.Store(texel_addresses.w, texels.w);
+        xe_texture_tile_dest[texel_addresses.w] = texels.w;
       }
     }
   }

@@ -16,6 +16,7 @@
 //   uint3 xe_texture_copy_size_blocks; // Offset:   32 Size:    12
 //   uint xe_texture_copy_endianness;   // Offset:   44 Size:     4
 //   uint3 xe_texture_copy_guest_mip_offset;// Offset:   48 Size:    12
+//   uint xe_texture_copy_guest_format; // Offset:   60 Size:     4
 //
 // }
 //
@@ -152,18 +153,41 @@ ushr r0.y, CB0[0][2].w, l(1)
 xor r0.y, r0.y, CB0[0][2].w
 and r0.y, r0.y, l(1)
 if_nz r0.y
-  bfi r3.xyzw, l(16, 16, 16, 16), l(8, 8, 8, 8), r1.xyzw, l(0, 0, 0, 0)
+  bfi r3.xyzw, l(8, 8, 8, 8), l(8, 8, 8, 8), r1.xyzw, l(0, 0, 0, 0)
   ubfe r1.xyzw, l(8, 8, 8, 8), l(8, 8, 8, 8), r1.xyzw
   iadd r2.xyzw, r3.xzyw, r1.xzyw
 else 
   and r2.xyzw, r1.xzyw, l(0x0000ffff, 0x0000ffff, 0x0000ffff, 0x0000ffff)
 endif 
+ieq r0.y, CB0[0][3].w, l(3)
+if_nz r0.y
+  and r1.xyzw, r2.xzyw, l(0x000083e0, 0x000083e0, 0x000083e0, 0x000083e0)
+  bfi r1.xyzw, l(5, 5, 5, 5), l(10, 10, 10, 10), r2.xzyw, r1.xyzw
+  ubfe r3.xyzw, l(5, 5, 5, 5), l(10, 10, 10, 10), r2.xzyw
+  iadd r2.xyzw, r1.xzyw, r3.xzyw
+else 
+  ieq r0.y, CB0[0][3].w, l(4)
+  if_nz r0.y
+    and r1.xyzw, r2.xzyw, l(2016, 2016, 2016, 2016)
+    bfi r3.xyzw, l(5, 5, 5, 5), l(11, 11, 11, 11), r2.xzyw, l(0, 0, 0, 0)
+    iadd r1.xyzw, r1.xyzw, r3.xyzw
+    ushr r3.xyzw, r2.xzyw, l(11, 11, 11, 11)
+    iadd r2.xyzw, r1.xzyw, r3.xzyw
+  else 
+    ieq r0.y, CB0[0][3].w, l(15)
+    if_nz r0.y
+      and r1.xyzw, r2.xzyw, l(0x0000f0f0, 0x0000f0f0, 0x0000f0f0, 0x0000f0f0)
+      bfi r1.xyzw, l(4, 4, 4, 4), l(8, 8, 8, 8), r2.xzyw, r1.xyzw
+      ubfe r3.xyzw, l(4, 4, 4, 4), l(8, 8, 8, 8), r2.xzyw
+      iadd r2.xyzw, r1.xzyw, r3.xzyw
+    endif 
+  endif 
+endif 
 ishl r0.x, r0.x, l(1)
 imad r0.y, vThreadID.z, CB0[0][2].y, vThreadID.y
 imad r0.x, r0.y, CB0[0][0].w, r0.x
 iadd r0.x, r0.x, CB0[0][0].z
-ishl r0.yz, r2.zzwz, l(0, 16, 16, 0)
-or r0.yz, r0.yyzy, r2.xxyx
+imad r0.yz, r2.zzwz, l(0, 0x00010000, 0x00010000, 0), r2.xxyx
 store_raw U0[0].xy, r0.x, r0.yzyy
 ret 
-// Approximately 117 instruction slots used
+// Approximately 140 instruction slots used

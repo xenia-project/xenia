@@ -19,6 +19,7 @@ cbuffer XeTextureCopyConstants : register(b0) {
 
   // Offset within the packed mip for small mips.
   uint3 xe_texture_copy_guest_mip_offset;
+  uint xe_texture_copy_guest_format;
 };
 
 #define XeTextureCopyGuestPitchTiled 0xFFFFFFFFu

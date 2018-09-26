@@ -153,11 +153,18 @@ enum class MsaaSamples : uint32_t {
 };
 
 enum class ColorRenderTargetFormat : uint32_t {
-  k_8_8_8_8 = 0,        // D3DFMT_A8R8G8B8 (or ABGR?)
-  k_8_8_8_8_GAMMA = 1,  // D3DFMT_A8R8G8B8 with gamma correction
+  // D3DFMT_A8R8G8B8 (or ABGR?).
+  k_8_8_8_8 = 0,
+  // D3DFMT_A8R8G8B8 with gamma correction.
+  k_8_8_8_8_GAMMA = 1,
   k_2_10_10_10 = 2,
+  // 7e3 [0, 32) RGB, unorm alpha.
+  // http://fileadmin.cs.lth.se/cs/Personal/Michael_Doggett/talks/eg05-xenos-doggett.pdf
   k_2_10_10_10_FLOAT = 3,
+  // Fixed point -32...32.
+  // http://www.students.science.uu.nl/~3220516/advancedgraphics/papers/inferred_lighting.pdf
   k_16_16 = 4,
+  // Fixed point -32...32.
   k_16_16_16_16 = 5,
   k_16_16_FLOAT = 6,
   k_16_16_16_16_FLOAT = 7,
@@ -169,6 +176,7 @@ enum class ColorRenderTargetFormat : uint32_t {
 
 enum class DepthRenderTargetFormat : uint32_t {
   kD24S8 = 0,
+  // 20e4 [0, 2).
   kD24FS8 = 1,
 };
 
