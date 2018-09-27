@@ -1183,6 +1183,8 @@ bool D3D12CommandProcessor::EndFrame() {
 
   render_target_cache_->EndFrame();
 
+  texture_cache_->EndFrame();
+
   shared_memory_->EndFrame();
 
   // Submit barriers now because resources the queued barriers are for may be

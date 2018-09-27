@@ -65,6 +65,7 @@ class TextureCache {
   void TextureFetchConstantWritten(uint32_t index);
 
   void BeginFrame();
+  void EndFrame();
 
   // Must be called within a frame - creates and untiles textures needed by
   // shaders and puts them in the SRV state. This may bind compute pipelines
@@ -373,6 +374,10 @@ class TextureCache {
   // been changed. A simple notification (texture validity is protected by a
   // mutex), so memory_order_relaxed is enough.
   std::atomic<bool> texture_invalidated_ = false;
+
+  // Unsupported texture formats used during this frame (for research and
+  // testing).
+  uint64_t unsupported_formats_used_;
 };
 
 }  // namespace d3d12
