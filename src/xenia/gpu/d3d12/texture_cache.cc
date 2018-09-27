@@ -411,6 +411,19 @@ void TextureCache::BeginFrame() {
   // sure bindings are reset so a new attempt will surely be made if the texture
   // is requested again.
   ClearBindings();
+
+  unsupported_formats_used_ = 0;
+}
+
+void TextureCache::EndFrame() {
+  if (unsupported_formats_used_ != 0) {
+    XELOGE("Unsupported texture formats used in the frame:");
+    uint32_t format;
+    while (xe::bit_scan_forward(unsupported_formats_used_, &format)) {
+      unsupported_formats_used_ &= ~(1ull << format);
+      XELOGE("* %s", FormatInfo::Get(TextureFormat(format))->name);
+    }
+  }
 }
 
 void TextureCache::RequestTextures(uint32_t used_vertex_texture_mask,
@@ -935,6 +948,7 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
   D3D12_RESOURCE_DESC desc;
   desc.Format = GetDXGIFormat(key);
   if (desc.Format == DXGI_FORMAT_UNKNOWN) {
+    unsupported_formats_used_ |= 1ull << uint32_t(key.format);
     return nullptr;
   }
   if (key.dimension == Dimension::k3D) {
@@ -1248,8 +1262,6 @@ void TextureCache::WatchCallback(Texture* texture, bool is_mip) {
     texture->base_in_sync = false;
     texture->base_watch_handle = nullptr;
   }
-  XELOGGPU("Texture %s at 0x%.8X invalidated", is_mip ? "mips" : "base",
-           (is_mip ? texture->key.mip_page : texture->key.base_page) << 12);
   texture_invalidated_.store(true, std::memory_order_relaxed);
 }
 
