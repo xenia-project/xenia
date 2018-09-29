@@ -136,7 +136,8 @@ class PipelineCache {
   } update_blend_state_and_render_targets_regs_;
 
   struct UpdateRasterizerStateRegisters {
-    // Polygon offset is in Xenos units.
+    // The constant factor of the polygon offset is multiplied by a value that
+    // depends on the depth buffer format here.
     float poly_offset;
     float poly_offset_scale;
     uint8_t cull_mode;

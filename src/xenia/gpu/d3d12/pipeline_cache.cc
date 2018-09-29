@@ -540,6 +540,23 @@ PipelineCache::UpdateStatus PipelineCache::UpdateRasterizerState(
           register_file_->values[XE_GPU_REG_PA_SU_POLY_OFFSET_BACK_SCALE].f32;
     }
   }
+  // Conversion based on the calculations in Call of Duty 4 and the values it
+  // writes to the registers, and also on:
+  // https://github.com/mesa3d/mesa/blob/54ad9b444c8e73da498211870e785239ad3ff1aa/src/gallium/drivers/radeonsi/si_state.c#L943
+  // Dividing the scale by 2 - Call of Duty 4 sets the constant bias of 1/32768
+  // for decals, however, it's done in two steps in separate places: first it's
+  // divided by 65536, and then it's multiplied by 2 (which is consistent with
+  // what si_create_rs_state does, which multiplies the offset by 2 if it comes
+  // from a non-D3D9 API for 24-bit depth buffers) - and multiplying by 2 to the
+  // number of significand bits. Tested mostly in Call of Duty 4 (vehicledamage
+  // map explosion decals) and Red Dead Redemption (shadows - 2^17 is not
+  // enough, 2^18 hasn't been tested, but 2^19 eliminates the acne).
+  if (((register_file_->values[XE_GPU_REG_RB_DEPTH_INFO].u32 >> 16) & 0x1) ==
+      uint32_t(DepthRenderTargetFormat::kD24FS8)) {
+    poly_offset *= float(1 << 19);
+  } else {
+    poly_offset *= float(1 << 23);
+  }
   // Reversed depth is emulated in vertex shaders because MinDepth > MaxDepth
   // in viewports doesn't seem to work on Nvidia.
   if ((register_file_->values[XE_GPU_REG_PA_CL_VTE_CNTL].u32 & (1 << 4)) &&
@@ -588,24 +605,12 @@ PipelineCache::UpdateStatus PipelineCache::UpdateRasterizerState(
   }
   update_desc_.RasterizerState.FrontCounterClockwise =
       front_counter_clockwise ? TRUE : FALSE;
-  // Conversion based on the calculations in Call of Duty 4 and the values it
-  // writes to the registers, and also on:
-  // https://github.com/mesa3d/mesa/blob/54ad9b444c8e73da498211870e785239ad3ff1aa/src/gallium/drivers/radeonsi/si_state.c#L943
-  // Call of Duty 4 sets the constant bias of 1/32768 and the slope scale of 32.
-  // However, it's calculated from a console variable in 2 parts: first it's
-  // divided by 65536, and then it's multiplied by 2.
-  // TODO(Triang3l): Find the best scale. According to si_state.c, the value in
-  // the register should be divided by 2 to get the value suitable for PC
-  // graphics APIs if the depth buffer is 24-bit. However, even multiplying by
-  // 65536 rather than 32768 still doesn't remove shadow acne in Bomberman Live
-  // completely. Maybe 131072 would work the best.
   // Using ceil here just in case a game wants the offset but passes a value
   // that is too small - it's better to apply more offset than to make depth
   // fighting worse or to disable the offset completely (Direct3D 12 takes an
   // integer value).
   update_desc_.RasterizerState.DepthBias =
-      int32_t(std::ceil(std::abs(poly_offset) * 131072.0f));
-  update_desc_.RasterizerState.DepthBias *= poly_offset < 0.0f ? -1 : 1;
+      int32_t(std::ceil(std::abs(poly_offset))) * (poly_offset < 0.0f ? -1 : 1);
   update_desc_.RasterizerState.DepthBiasClamp = 0.0f;
   update_desc_.RasterizerState.SlopeScaledDepthBias =
       poly_offset_scale * (1.0f / 16.0f);
