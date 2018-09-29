@@ -688,31 +688,27 @@ void DxbcShaderTranslator::StartTranslation() {
 }
 
 void DxbcShaderTranslator::CompleteVertexShader() {
-  // Get flags of what we should do with the position.
-  // Bit 0: XY are pre-divided by W.
-  // Bit 1: Z is pre-divided by W.
-  // Bit 2: W is not 1/W.
-  // Bit 3: Viewport depth is reversed.
-  rdef_constants_used_ |= 1ull << uint32_t(RdefConstantIndex::kSysNDCControl);
+  // Get what we need to do with the position.
   uint32_t ndc_control_temp = PushSystemTemp();
+  rdef_constants_used_ |= 1ull << uint32_t(RdefConstantIndex::kSysFlags);
   shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(12));
   shader_code_.push_back(
       EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
   shader_code_.push_back(ndc_control_temp);
   shader_code_.push_back(EncodeVectorReplicatedOperand(
-      D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSysConst_NDCControl_Comp, 3));
+      D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSysConst_Flags_Comp, 3));
   shader_code_.push_back(uint32_t(RdefConstantBufferIndex::kSystemConstants));
   shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-  shader_code_.push_back(kSysConst_NDCControl_Vec);
+  shader_code_.push_back(kSysConst_Flags_Vec);
   shader_code_.push_back(EncodeVectorSwizzledOperand(
       D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-  shader_code_.push_back(1 << 0);
-  shader_code_.push_back(1 << 1);
-  shader_code_.push_back(1 << 2);
-  shader_code_.push_back(1 << 3);
+  shader_code_.push_back(kSysFlag_XYDividedByW);
+  shader_code_.push_back(kSysFlag_ZDividedByW);
+  shader_code_.push_back(kSysFlag_WNotReciprocal);
+  shader_code_.push_back(kSysFlag_ReverseZ);
   ++stat_.instruction_count;
-  ++stat_.int_instruction_count;
+  ++stat_.uint_instruction_count;
 
   // Revert getting the reciprocal of W and dividing XY by W if needed.
   // TODO(Triang3l): Check if having XY or Z pre-divided by W should enable
@@ -1023,13 +1019,111 @@ void DxbcShaderTranslator::CompletePixelShader() {
     ++stat_.float_instruction_count;
   }
 
+  // Convert to gamma space (likely needs to be done after the exponent bias
+  // since gamma is a property of the storage format).
+  // TODO(Triang3l): Check how SetPWLGamma effects this - currently using the
+  // default curve.
+  // Get which render targets need the conversion.
+  uint32_t gamma_toggle_temp = PushSystemTemp();
+  uint32_t gamma_pieces_temp = PushSystemTemp();
+  rdef_constants_used_ |= 1ull << uint32_t(RdefConstantIndex::kSysFlags);
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(12));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+  shader_code_.push_back(gamma_toggle_temp);
+  shader_code_.push_back(EncodeVectorReplicatedOperand(
+      D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSysConst_Flags_Comp, 3));
+  shader_code_.push_back(uint32_t(RdefConstantBufferIndex::kSystemConstants));
+  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
+  shader_code_.push_back(kSysConst_Flags_Vec);
+  shader_code_.push_back(EncodeVectorSwizzledOperand(
+      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+  shader_code_.push_back(kSysFlag_Color0Gamma);
+  shader_code_.push_back(kSysFlag_Color1Gamma);
+  shader_code_.push_back(kSysFlag_Color2Gamma);
+  shader_code_.push_back(kSysFlag_Color3Gamma);
+  ++stat_.instruction_count;
+  ++stat_.uint_instruction_count;
+  for (uint32_t i = 0; i < 4; ++i) {
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
+                           ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(
+                               D3D10_SB_INSTRUCTION_TEST_NONZERO) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
+    shader_code_.push_back(
+        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, i, 1));
+    shader_code_.push_back(gamma_toggle_temp);
+    ++stat_.instruction_count;
+    ++stat_.dynamic_flow_control_count;
+    for (uint32_t j = 0; j < 3; ++j) {
+      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MAD) |
+                             ENCODE_D3D10_SB_INSTRUCTION_SATURATE(1) |
+                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(15));
+      shader_code_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+      shader_code_.push_back(gamma_pieces_temp);
+      shader_code_.push_back(
+          EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, j, 1));
+      shader_code_.push_back(system_temp_color_[i]);
+      shader_code_.push_back(EncodeVectorSwizzledOperand(
+          D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+      // 1.0 / 0.0625
+      shader_code_.push_back(0x41800000u);
+      // 1.0 / 0.0625
+      shader_code_.push_back(0x41800000u);
+      // 1.0 / 0.375
+      shader_code_.push_back(0x402AAAABu);
+      // 1.0 / 0.5
+      shader_code_.push_back(0x40000000u);
+      shader_code_.push_back(EncodeVectorSwizzledOperand(
+          D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+      // -0.0 / 0.0625
+      shader_code_.push_back(0);
+      // -0.0625 / 0.0625
+      shader_code_.push_back(0xBF800000u);
+      // -0.125 / 0.375
+      shader_code_.push_back(0xBEAAAAABu);
+      // -0.5 / 0.5
+      shader_code_.push_back(0xBF800000u);
+      ++stat_.instruction_count;
+      ++stat_.float_instruction_count;
+      // Combine the contribution of all pieces to the resulting gamma value -
+      // multiply each piece by slope*width and sum them.
+      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DP4) |
+                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(10));
+      shader_code_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1 << j, 1));
+      shader_code_.push_back(system_temp_color_[i]);
+      shader_code_.push_back(EncodeVectorSwizzledOperand(
+          D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+      shader_code_.push_back(gamma_pieces_temp);
+      shader_code_.push_back(EncodeVectorSwizzledOperand(
+          D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+      // 4.0 * 0.0625
+      shader_code_.push_back(0x3E800000u);
+      // 2.0 * 0.0625
+      shader_code_.push_back(0x3E000000u);
+      // 1.0 * 0.375
+      shader_code_.push_back(0x3EC00000u);
+      // 0.5 * 0.5
+      shader_code_.push_back(0x3E800000u);
+      ++stat_.instruction_count;
+      ++stat_.float_instruction_count;
+    }
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
+    ++stat_.instruction_count;
+  }
+  // Release gamma_toggle_temp and gamma_pieces_temp.
+  PopSystemTemp(2);
+
   // Remap guest render target indices to host since because on the host, the
   // indices of the bound render targets are consecutive. This is done using 16
   // movc instructions because indexable temps are known to be causing
   // performance issues on some Nvidia GPUs. In the map, the components are host
   // render target indices, and the values are the guest ones.
-  uint32_t remap_movc_mask_register = PushSystemTemp();
-  uint32_t remap_movc_target_register = PushSystemTemp();
+  uint32_t remap_movc_mask_temp = PushSystemTemp();
+  uint32_t remap_movc_target_temp = PushSystemTemp();
   rdef_constants_used_ |= 1ull
                           << uint32_t(RdefConstantIndex::kSysColorOutputMap);
   // Host RT i, guest RT j.
@@ -1039,7 +1133,7 @@ void DxbcShaderTranslator::CompletePixelShader() {
                            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(12));
     shader_code_.push_back(
         EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
-    shader_code_.push_back(remap_movc_mask_register);
+    shader_code_.push_back(remap_movc_mask_temp);
     shader_code_.push_back(EncodeVectorReplicatedOperand(
         D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, i, 3));
     shader_code_.push_back(uint32_t(RdefConstantBufferIndex::kSystemConstants));
@@ -1059,16 +1153,16 @@ void DxbcShaderTranslator::CompletePixelShader() {
                              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
       shader_code_.push_back(
           EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
-      shader_code_.push_back(remap_movc_target_register);
+      shader_code_.push_back(remap_movc_target_temp);
       shader_code_.push_back(
           EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, j, 1));
-      shader_code_.push_back(remap_movc_mask_register);
+      shader_code_.push_back(remap_movc_mask_temp);
       shader_code_.push_back(EncodeVectorSwizzledOperand(
           D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
       shader_code_.push_back(system_temp_color_[j]);
       shader_code_.push_back(EncodeVectorSwizzledOperand(
           D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-      shader_code_.push_back(remap_movc_target_register);
+      shader_code_.push_back(remap_movc_target_temp);
       ++stat_.instruction_count;
       ++stat_.movc_instruction_count;
     }
@@ -1080,7 +1174,7 @@ void DxbcShaderTranslator::CompletePixelShader() {
     shader_code_.push_back(i);
     shader_code_.push_back(EncodeVectorSwizzledOperand(
         D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-    shader_code_.push_back(remap_movc_target_register);
+    shader_code_.push_back(remap_movc_target_temp);
     ++stat_.instruction_count;
     ++stat_.mov_instruction_count;
   }
@@ -4618,17 +4712,17 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
           shader_code_.push_back(system_temp_pv_);
           shader_code_.push_back(EncodeVectorSwizzledOperand(
               D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-          // 1 / 0.25
+          // 1.0 / 0.25
           shader_code_.push_back(0x40800000u);
-          // 1 / 0.125
+          // 1.0 / 0.125
           shader_code_.push_back(0x41000000u);
-          // 1 / 0.375
+          // 1.0 / 0.375
           shader_code_.push_back(0x402AAAABu);
-          // 1 / 0.25
+          // 1.0 / 0.25
           shader_code_.push_back(0x40800000u);
           shader_code_.push_back(EncodeVectorSwizzledOperand(
               D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-          // -0 / 0.25
+          // -0.0 / 0.25
           shader_code_.push_back(0);
           // -0.25 / 0.125
           shader_code_.push_back(0xC0000000u);
@@ -7286,9 +7380,9 @@ const DxbcShaderTranslator::RdefConstant
         DxbcShaderTranslator::RdefConstantIndex::kCount)] = {
         // SYSTEM CONSTANTS MUST BE UPDATED IF THEIR LAYOUT CHANGES!
         // System constants vec4 0.
-        {"xe_vertex_index_endian", RdefTypeIndex::kUint, 0, 4},
-        {"xe_vertex_base_index", RdefTypeIndex::kUint, 4, 4},
-        {"xe_ndc_control", RdefTypeIndex::kUint, 8, 4},
+        {"xe_flags", RdefTypeIndex::kUint, 0, 4},
+        {"xe_vertex_index_endian", RdefTypeIndex::kUint, 4, 4},
+        {"xe_vertex_base_index", RdefTypeIndex::kUint, 8, 4},
         {"xe_pixel_pos_reg", RdefTypeIndex::kUint, 12, 4},
         // System constants vec4 1.
         {"xe_ndc_scale", RdefTypeIndex::kFloat3, 16, 12},
