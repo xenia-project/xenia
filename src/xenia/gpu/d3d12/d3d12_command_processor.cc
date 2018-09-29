@@ -1376,14 +1376,8 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
 
   bool dirty = false;
 
-  // Vertex index offset.
-  dirty |= system_constants_.vertex_base_index != vgt_indx_offset;
-  system_constants_.vertex_base_index = vgt_indx_offset;
-
-  // Index buffer endianness.
-  dirty |= system_constants_.vertex_index_endian != uint32_t(index_endian);
-  system_constants_.vertex_index_endian = uint32_t(index_endian);
-
+  // Flags.
+  uint32_t flags = 0;
   // W0 division control.
   // http://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
   // 8: VTX_XY_FMT = true: the incoming XY have already been multiplied by 1/W0.
@@ -1392,14 +1386,47 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   //              = false: multiply the Z coordinate by 1/W0.
   // 10: VTX_W0_FMT = true: the incoming W0 is not 1/W0. Perform the reciprocal
   //                        to get 1/W0.
-  uint32_t ndc_control = (pa_cl_vte_cntl >> 8) & 0x7;
+  if (pa_cl_vte_cntl & (1 << 8)) {
+    flags |= DxbcShaderTranslator::kSysFlag_XYDividedByW;
+  }
+  if (pa_cl_vte_cntl & (1 << 9)) {
+    flags |= DxbcShaderTranslator::kSysFlag_ZDividedByW;
+  }
+  if (pa_cl_vte_cntl & (1 << 10)) {
+    flags |= DxbcShaderTranslator::kSysFlag_WNotReciprocal;
+  }
   // Reversed depth.
   if ((pa_cl_vte_cntl & (1 << 4)) &&
       regs[XE_GPU_REG_PA_CL_VPORT_ZSCALE].f32 < 0.0f) {
-    ndc_control |= 1 << 3;
+    flags |= DxbcShaderTranslator::kSysFlag_ReverseZ;
   }
-  dirty |= system_constants_.ndc_control != ndc_control;
-  system_constants_.ndc_control = ndc_control;
+  // Gamma writing.
+  if (((regs[XE_GPU_REG_RB_COLOR_INFO].u32 >> 16) & 0xF) ==
+      uint32_t(ColorRenderTargetFormat::k_8_8_8_8_GAMMA)) {
+    flags |= DxbcShaderTranslator::kSysFlag_Color0Gamma;
+  }
+  if (((regs[XE_GPU_REG_RB_COLOR1_INFO].u32 >> 16) & 0xF) ==
+      uint32_t(ColorRenderTargetFormat::k_8_8_8_8_GAMMA)) {
+    flags |= DxbcShaderTranslator::kSysFlag_Color1Gamma;
+  }
+  if (((regs[XE_GPU_REG_RB_COLOR2_INFO].u32 >> 16) & 0xF) ==
+      uint32_t(ColorRenderTargetFormat::k_8_8_8_8_GAMMA)) {
+    flags |= DxbcShaderTranslator::kSysFlag_Color2Gamma;
+  }
+  if (((regs[XE_GPU_REG_RB_COLOR3_INFO].u32 >> 16) & 0xF) ==
+      uint32_t(ColorRenderTargetFormat::k_8_8_8_8_GAMMA)) {
+    flags |= DxbcShaderTranslator::kSysFlag_Color3Gamma;
+  }
+  dirty |= system_constants_.flags != flags;
+  system_constants_.flags = flags;
+
+  // Vertex index offset.
+  dirty |= system_constants_.vertex_base_index != vgt_indx_offset;
+  system_constants_.vertex_base_index = vgt_indx_offset;
+
+  // Index buffer endianness.
+  dirty |= system_constants_.vertex_index_endian != uint32_t(index_endian);
+  system_constants_.vertex_index_endian = uint32_t(index_endian);
 
   // Conversion to Direct3D 12 normalized device coordinates.
   // See viewport configuration in UpdateFixedFunctionState for explanations.

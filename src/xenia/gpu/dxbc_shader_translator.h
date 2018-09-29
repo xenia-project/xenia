@@ -26,6 +26,17 @@ class DxbcShaderTranslator : public ShaderTranslator {
   DxbcShaderTranslator();
   ~DxbcShaderTranslator() override;
 
+  enum : uint32_t {
+    kSysFlag_XYDividedByW = 1,
+    kSysFlag_ZDividedByW = kSysFlag_XYDividedByW << 1,
+    kSysFlag_WNotReciprocal = kSysFlag_ZDividedByW << 1,
+    kSysFlag_ReverseZ = kSysFlag_WNotReciprocal << 1,
+    kSysFlag_Color0Gamma = kSysFlag_ReverseZ << 1,
+    kSysFlag_Color1Gamma = kSysFlag_Color0Gamma << 1,
+    kSysFlag_Color2Gamma = kSysFlag_Color1Gamma << 1,
+    kSysFlag_Color3Gamma = kSysFlag_Color2Gamma << 1
+  };
+
   // IF SYSTEM CONSTANTS ARE CHANGED OR ADDED, THE FOLLOWING MUST BE UPDATED:
   // - kSysConst enum (registers and first components).
   // - rdef_constants_.
@@ -33,9 +44,9 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // - d3d12/shaders/xenos_draw.hlsli (for geometry shaders).
   struct SystemConstants {
     // vec4 0
+    uint32_t flags;
     uint32_t vertex_index_endian;
     uint32_t vertex_base_index;
-    uint32_t ndc_control;
     uint32_t pixel_pos_reg;
 
     // vec4 1
@@ -146,12 +157,12 @@ class DxbcShaderTranslator : public ShaderTranslator {
   };
 
   enum : uint32_t {
+    kSysConst_Flags_Vec = 0,
+    kSysConst_Flags_Comp = 0,
     kSysConst_VertexIndexEndian_Vec = 0,
-    kSysConst_VertexIndexEndian_Comp = 0,
+    kSysConst_VertexIndexEndian_Comp = 1,
     kSysConst_VertexBaseIndex_Vec = 0,
-    kSysConst_VertexBaseIndex_Comp = 1,
-    kSysConst_NDCControl_Vec = 0,
-    kSysConst_NDCControl_Comp = 2,
+    kSysConst_VertexBaseIndex_Comp = 2,
     kSysConst_PixelPosReg_Vec = 0,
     kSysConst_PixelPosReg_Comp = 3,
 
@@ -450,9 +461,9 @@ class DxbcShaderTranslator : public ShaderTranslator {
 
   enum class RdefConstantIndex {
     kSystemConstantFirst,
-    kSysVertexBaseIndex = kSystemConstantFirst,
+    kSysFlags = kSystemConstantFirst,
+    kSysVertexBaseIndex,
     kSysVertexIndexEndian,
-    kSysNDCControl,
     kSysPixelPosReg,
     kSysNDCScale,
     kSysPixelHalfPixelOffset,
