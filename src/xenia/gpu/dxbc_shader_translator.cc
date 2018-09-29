@@ -7298,13 +7298,16 @@ const DxbcShaderTranslator::RdefConstant
         {"xe_alpha_test", RdefTypeIndex::kInt, 44, 4},
         // System constants vec4 3.
         {"xe_point_size", RdefTypeIndex::kFloat2, 48, 8},
-        {"xe_ssaa_inv_scale", RdefTypeIndex::kFloat2, 56, 8},
+        {"xe_point_size_min_max", RdefTypeIndex::kFloat2, 56, 8},
         // System constants vec4 4.
-        {"xe_alpha_test_range", RdefTypeIndex::kFloat2, 64, 8},
+        {"xe_point_screen_to_ndc", RdefTypeIndex::kFloat2, 64, 8},
+        {"xe_ssaa_inv_scale", RdefTypeIndex::kFloat2, 72, 8},
         // System constants vec4 5.
-        {"xe_color_exp_bias", RdefTypeIndex::kFloat4, 80, 16},
+        {"xe_alpha_test_range", RdefTypeIndex::kFloat2, 80, 8},
         // System constants vec4 6.
-        {"xe_color_output_map", RdefTypeIndex::kUint4, 96, 16},
+        {"xe_color_exp_bias", RdefTypeIndex::kFloat4, 96, 16},
+        // System constants vec4 7.
+        {"xe_color_output_map", RdefTypeIndex::kUint4, 112, 16},
 
         {"xe_bool_constants", RdefTypeIndex::kUint4Array8, 0, 128},
         {"xe_loop_constants", RdefTypeIndex::kUint4Array32, 128, 512},

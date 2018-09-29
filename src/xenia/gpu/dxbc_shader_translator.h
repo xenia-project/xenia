@@ -49,17 +49,23 @@ class DxbcShaderTranslator : public ShaderTranslator {
 
     // vec4 3
     float point_size[2];
-    float ssaa_inv_scale[2];
+    float point_size_min_max[2];
 
     // vec3 4
-    // The range is floats as uints so it's easier to pass infinity.
-    uint32_t alpha_test_range[2];
-    uint32_t padding_4[2];
+    // Inverse scale of the host viewport (but not supersampled), with signs
+    // pre-applied.
+    float point_screen_to_ndc[2];
+    float ssaa_inv_scale[2];
 
     // vec4 5
-    float color_exp_bias[4];
+    // The range is floats as uints so it's easier to pass infinity.
+    uint32_t alpha_test_range[2];
+    uint32_t padding_5[2];
 
     // vec4 6
+    float color_exp_bias[4];
+
+    // vec4 7
     uint32_t color_output_map[4];
   };
 
@@ -161,15 +167,20 @@ class DxbcShaderTranslator : public ShaderTranslator {
 
     kSysConst_PointSize_Vec = 3,
     kSysConst_PointSize_Comp = 0,
-    kSysConst_SSAAInvScale_Vec = 3,
+    kSysConst_PointSizeMinMax_Vec = 3,
+    kSysConst_PointSizeMinMax_Comp = 2,
+
+    kSysConst_PointScreenToNDC_Vec = 4,
+    kSysConst_PointScreenToNDC_Comp = 0,
+    kSysConst_SSAAInvScale_Vec = 4,
     kSysConst_SSAAInvScale_Comp = 2,
 
-    kSysConst_AlphaTestRange_Vec = 4,
+    kSysConst_AlphaTestRange_Vec = 5,
     kSysConst_AlphaTestRange_Comp = 0,
 
-    kSysConst_ColorExpBias_Vec = 5,
+    kSysConst_ColorExpBias_Vec = 6,
 
-    kSysConst_ColorOutputMap_Vec = 6,
+    kSysConst_ColorOutputMap_Vec = 7,
   };
 
   static constexpr uint32_t kInterpolatorCount = 16;
@@ -448,6 +459,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kSysNDCOffset,
     kSysAlphaTest,
     kSysPointSize,
+    kSysPointSizeMinMax,
+    kSysPointScreenToNDC,
     kSysSSAAInvScale,
     kSysAlphaTestRange,
     kSysColorExpBias,

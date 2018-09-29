@@ -11,15 +11,17 @@
 //   uint xe_vertex_base_index;         // Offset:    4 Size:     4 [unused]
 //   uint xe_ndc_control;               // Offset:    8 Size:     4 [unused]
 //   uint xe_pixel_pos_reg;             // Offset:   12 Size:     4 [unused]
-//   float3 xe_ndc_scale;               // Offset:   16 Size:    12
+//   float3 xe_ndc_scale;               // Offset:   16 Size:    12 [unused]
 //   float xe_pixel_half_pixel_offset;  // Offset:   28 Size:     4 [unused]
 //   float3 xe_ndc_offset;              // Offset:   32 Size:    12 [unused]
 //   int xe_alpha_test;                 // Offset:   44 Size:     4 [unused]
 //   float2 xe_point_size;              // Offset:   48 Size:     8
-//   float2 xe_ssaa_inv_scale;          // Offset:   56 Size:     8 [unused]
-//   float2 xe_alpha_test_range;        // Offset:   64 Size:     8 [unused]
-//   float4 xe_color_exp_bias;          // Offset:   80 Size:    16 [unused]
-//   uint4 xe_color_output_map;         // Offset:   96 Size:    16 [unused]
+//   float2 xe_point_size_min_max;      // Offset:   56 Size:     8
+//   float2 xe_point_screen_to_ndc;     // Offset:   64 Size:     8
+//   float2 xe_ssaa_inv_scale;          // Offset:   72 Size:     8 [unused]
+//   float2 xe_alpha_test_range;        // Offset:   80 Size:     8 [unused]
+//   float4 xe_color_exp_bias;          // Offset:   96 Size:    16 [unused]
+//   uint4 xe_color_output_map;         // Offset:  112 Size:    16 [unused]
 //
 // }
 //
@@ -81,7 +83,7 @@
 //
 gs_5_1
 dcl_globalFlags refactoringAllowed
-dcl_constantbuffer CB0[0:0][4], immediateIndexed, space=0
+dcl_constantbuffer CB0[0:0][5], immediateIndexed, space=0
 dcl_input v[1][0].xyzw
 dcl_input v[1][1].xyzw
 dcl_input v[1][2].xyzw
@@ -125,7 +127,10 @@ dcl_output_siv o17.xyzw, position
 dcl_maxout 4
 lt r0.x, l(0.000000), v[0][16].z
 movc r0.xy, r0.xxxx, v[0][16].zzzz, CB0[0][3].xyxx
-mul r0.zw, r0.xxxy, CB0[0][1].xxxy
+max r0.xy, r0.xyxx, CB0[0][3].zzzz
+min r0.xy, r0.xyxx, CB0[0][3].wwww
+mul r0.xy, r0.xyxx, CB0[0][4].xyxx
+mul r0.zw, r0.xxxy, v[0][17].wwww
 mad r1.xyzw, r0.zwzw, l(-1.000000, 1.000000, 1.000000, -1.000000), v[0][17].xyxy
 mov o0.xyzw, v[0][0].xyzw
 mov o1.xyzw, v[0][1].xyzw
@@ -148,7 +153,7 @@ mov o16.z, v[0][16].z
 mov o17.xy, r1.xyxx
 mov o17.zw, v[0][17].zzzw
 emit_stream m0
-mad r0.zw, r0.xxxy, CB0[0][1].xxxy, v[0][17].xxxy
+mad r0.zw, r0.xxxy, v[0][17].wwww, v[0][17].xxxy
 mov o0.xyzw, v[0][0].xyzw
 mov o1.xyzw, v[0][1].xyzw
 mov o2.xyzw, v[0][2].xyzw
@@ -170,7 +175,7 @@ mov o16.z, v[0][16].z
 mov o17.xy, r0.zwzz
 mov o17.zw, v[0][17].zzzw
 emit_stream m0
-mad r0.xy, -r0.xyxx, CB0[0][1].xyxx, v[0][17].xyxx
+mad r0.xy, -r0.xyxx, v[0][17].wwww, v[0][17].xyxx
 mov o0.xyzw, v[0][0].xyzw
 mov o1.xyzw, v[0][1].xyzw
 mov o2.xyzw, v[0][2].xyzw
@@ -215,4 +220,4 @@ mov o17.zw, v[0][17].zzzw
 emit_stream m0
 cut_stream m0
 ret 
-// Approximately 92 instruction slots used
+// Approximately 95 instruction slots used

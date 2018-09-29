@@ -1367,6 +1367,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   uint32_t pa_cl_clip_cntl = regs[XE_GPU_REG_PA_CL_CLIP_CNTL].u32;
   uint32_t pa_su_vtx_cntl = regs[XE_GPU_REG_PA_SU_VTX_CNTL].u32;
   uint32_t pa_su_point_size = regs[XE_GPU_REG_PA_SU_POINT_SIZE].u32;
+  uint32_t pa_su_point_minmax = regs[XE_GPU_REG_PA_SU_POINT_MINMAX].u32;
   uint32_t sq_program_cntl = regs[XE_GPU_REG_SQ_PROGRAM_CNTL].u32;
   uint32_t sq_context_misc = regs[XE_GPU_REG_SQ_CONTEXT_MISC].u32;
   uint32_t rb_surface_info = regs[XE_GPU_REG_RB_SURFACE_INFO].u32;
@@ -1464,13 +1465,35 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   system_constants_.pixel_half_pixel_offset = pixel_half_pixel_offset;
 
   // Point size.
-  float point_size[2];
-  point_size[0] = float(pa_su_point_size >> 16) * 0.125f;
-  point_size[1] = float(pa_su_point_size & 0xFFFF) * 0.125f;
-  dirty |= system_constants_.point_size[0] != point_size[0];
-  dirty |= system_constants_.point_size[1] != point_size[1];
-  system_constants_.point_size[0] = point_size[0];
-  system_constants_.point_size[1] = point_size[1];
+  float point_size_x = float(pa_su_point_size >> 16) * 0.125f;
+  float point_size_y = float(pa_su_point_size & 0xFFFF) * 0.125f;
+  float point_size_min = float(pa_su_point_minmax & 0xFFFF) * 0.125f;
+  float point_size_max = float(pa_su_point_minmax >> 16) * 0.125f;
+  dirty |= system_constants_.point_size[0] != point_size_x;
+  dirty |= system_constants_.point_size[1] != point_size_y;
+  dirty |= system_constants_.point_size_min_max[0] != point_size_min;
+  dirty |= system_constants_.point_size_min_max[1] != point_size_max;
+  system_constants_.point_size[0] = point_size_x;
+  system_constants_.point_size[1] = point_size_y;
+  system_constants_.point_size_min_max[0] = point_size_min;
+  system_constants_.point_size_min_max[1] = point_size_max;
+  float point_screen_to_ndc_x, point_screen_to_ndc_y;
+  if (pa_cl_vte_cntl & (1 << 0)) {
+    point_screen_to_ndc_x =
+        (viewport_scale_x != 0.0f) ? (0.5f / viewport_scale_x) : 0.0f;
+  } else {
+    point_screen_to_ndc_x = 1.0f / 2560.0f;
+  }
+  if (pa_cl_vte_cntl & (1 << 2)) {
+    point_screen_to_ndc_y =
+        (viewport_scale_y != 0.0f) ? (-0.5f / viewport_scale_y) : 0.0f;
+  } else {
+    point_screen_to_ndc_y = -1.0f / 2560.0f;
+  }
+  dirty |= system_constants_.point_screen_to_ndc[0] != point_screen_to_ndc_x;
+  dirty |= system_constants_.point_screen_to_ndc[1] != point_screen_to_ndc_y;
+  system_constants_.point_screen_to_ndc[0] = point_screen_to_ndc_x;
+  system_constants_.point_screen_to_ndc[1] = point_screen_to_ndc_y;
 
   // Pixel position register.
   uint32_t pixel_pos_reg =

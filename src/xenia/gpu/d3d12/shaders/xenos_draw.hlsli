@@ -15,12 +15,15 @@ cbuffer xe_system_cbuffer : register(b0) {
   int xe_alpha_test;
   // vec4 3
   float2 xe_point_size;
-  float2 xe_ssaa_inv_scale;
+  float2 xe_point_size_min_max;
   // vec4 4
-  float2 xe_alpha_test_range;
+  float2 xe_point_screen_to_ndc;
+  float2 xe_ssaa_inv_scale;
   // vec4 5
-  float4 xe_color_exp_bias;
+  float2 xe_alpha_test_range;
   // vec4 6
+  float4 xe_color_exp_bias;
+  // vec4 7
   uint4 xe_color_output_map;
 };
 
