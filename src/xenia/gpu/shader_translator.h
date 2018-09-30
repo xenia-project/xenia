@@ -45,6 +45,9 @@ class ShaderTranslator {
   bool is_vertex_shader() const { return shader_type_ == ShaderType::kVertex; }
   // True if the current shader is a pixel shader.
   bool is_pixel_shader() const { return shader_type_ == ShaderType::kPixel; }
+  const Shader::ConstantRegisterMap& constant_register_map() const {
+    return constant_register_map_;
+  }
   // True if the current shader addresses general-purpose registers with dynamic
   // indices.
   bool uses_register_dynamic_addressing() const {

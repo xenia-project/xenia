@@ -142,28 +142,26 @@ class D3D12CommandProcessor : public CommandProcessor {
     // These are always present.
 
     // Very frequently changed, especially for UI draws, and for models drawn in
-    // multiple parts - contains vertex and texture fetch constants (b2).
+    // multiple parts - contains vertex and texture fetch constants (b3).
     kRootParameter_FetchConstants,
     // Quite frequently changed (for one object drawn multiple times, for
-    // instance - may contain projection matrices) - 8 pages of float constants
-    // (b3-b10).
+    // instance - may contain projection matrices) (b2).
     kRootParameter_VertexFloatConstants,
-    // Less frequently changed (per-material) - 8 pages of float constants
-    // (b3-b10).
+    // Less frequently changed (per-material) (b2).
     kRootParameter_PixelFloatConstants,
     // Rarely changed - system constants like viewport and alpha testing (b0)
     // and loop and bool constants (b1).
     kRootParameter_CommonConstants,
-    // Never changed - shared memory byte address buffer (t0, space1).
+    // Never changed - shared memory byte address buffer (t0).
     kRootParameter_SharedMemory,
 
     kRootParameter_Count_Base,
 
     // Extra parameter that may or may not exist:
-    // - Pixel textures.
-    // - Pixel samplers.
-    // - Vertex textures.
-    // - Vertex samplers.
+    // - Pixel textures (t1+).
+    // - Pixel samplers (s0+).
+    // - Vertex textures (t1+).
+    // - Vertex samplers (s0+).
 
     kRootParameter_Count_Max = kRootParameter_Count_Base + 4,
   };
@@ -271,13 +269,18 @@ class D3D12CommandProcessor : public CommandProcessor {
   // System shader constants.
   DxbcShaderTranslator::SystemConstants system_constants_;
 
+  // Float constant usage masks of the last draw call.
+  uint64_t float_constant_map_vertex_[4];
+  uint64_t float_constant_map_pixel_[4];
+
   // Constant buffer bindings.
   struct ConstantBufferBinding {
     D3D12_GPU_VIRTUAL_ADDRESS buffer_address;
     bool up_to_date;
   };
   ConstantBufferBinding cbuffer_bindings_system_;
-  ConstantBufferBinding cbuffer_bindings_float_[16];
+  ConstantBufferBinding cbuffer_bindings_vertex_float_;
+  ConstantBufferBinding cbuffer_bindings_pixel_float_;
   ConstantBufferBinding cbuffer_bindings_bool_loop_;
   ConstantBufferBinding cbuffer_bindings_fetch_;
 
