@@ -175,7 +175,8 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(
     parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
     range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
     range.NumDescriptors = 1;
-    range.BaseShaderRegister = 2;
+    range.BaseShaderRegister =
+        uint32_t(DxbcShaderTranslator::CbufferRegister::kFetchConstants);
     range.RegisterSpace = 0;
     range.OffsetInDescriptorsFromTableStart = 0;
   }
@@ -189,8 +190,9 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(
     parameter.DescriptorTable.pDescriptorRanges = &range;
     parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
     range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
-    range.NumDescriptors = 8;
-    range.BaseShaderRegister = 3;
+    range.NumDescriptors = 1;
+    range.BaseShaderRegister =
+        uint32_t(DxbcShaderTranslator::CbufferRegister::kFloatConstants);
     range.RegisterSpace = 0;
     range.OffsetInDescriptorsFromTableStart = 0;
   }
@@ -204,8 +206,9 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(
     parameter.DescriptorTable.pDescriptorRanges = &range;
     parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
     range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
-    range.NumDescriptors = 8;
-    range.BaseShaderRegister = 3;
+    range.NumDescriptors = 1;
+    range.BaseShaderRegister =
+        uint32_t(DxbcShaderTranslator::CbufferRegister::kFloatConstants);
     range.RegisterSpace = 0;
     range.OffsetInDescriptorsFromTableStart = 0;
   }
@@ -220,7 +223,8 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(
     parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
     range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
     range.NumDescriptors = 2;
-    range.BaseShaderRegister = 0;
+    range.BaseShaderRegister =
+        uint32_t(DxbcShaderTranslator::CbufferRegister::kSystemConstants);
     range.RegisterSpace = 0;
     range.OffsetInDescriptorsFromTableStart = 0;
   }
@@ -741,8 +745,22 @@ void D3D12CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
 
   if (index >= XE_GPU_REG_SHADER_CONSTANT_000_X &&
       index <= XE_GPU_REG_SHADER_CONSTANT_511_W) {
-    uint32_t component_index = index - XE_GPU_REG_SHADER_CONSTANT_000_X;
-    cbuffer_bindings_float_[component_index >> 7].up_to_date = false;
+    if (current_queue_frame_ != UINT32_MAX) {
+      uint32_t float_constant_index =
+          (index - XE_GPU_REG_SHADER_CONSTANT_000_X) >> 2;
+      if (float_constant_index >= 256) {
+        float_constant_index -= 256;
+        if (float_constant_map_pixel_[float_constant_index >> 6] &
+            (1ull << (float_constant_index & 63))) {
+          cbuffer_bindings_pixel_float_.up_to_date = false;
+        }
+      } else {
+        if (float_constant_map_vertex_[float_constant_index >> 6] &
+            (1ull << (float_constant_index & 63))) {
+          cbuffer_bindings_vertex_float_.up_to_date = false;
+        }
+      }
+    }
   } else if (index >= XE_GPU_REG_SHADER_CONSTANT_BOOL_000_031 &&
              index <= XE_GPU_REG_SHADER_CONSTANT_LOOP_31) {
     cbuffer_bindings_bool_loop_.up_to_date = false;
@@ -1145,10 +1163,12 @@ bool D3D12CommandProcessor::BeginFrame() {
   current_graphics_root_up_to_date_ = 0;
   current_view_heap_ = nullptr;
   current_sampler_heap_ = nullptr;
+  std::memset(float_constant_map_vertex_, 0,
+              sizeof(float_constant_map_vertex_));
+  std::memset(float_constant_map_pixel_, 0, sizeof(float_constant_map_pixel_));
   cbuffer_bindings_system_.up_to_date = false;
-  for (uint32_t i = 0; i < xe::countof(cbuffer_bindings_float_); ++i) {
-    cbuffer_bindings_float_[i].up_to_date = false;
-  }
+  cbuffer_bindings_vertex_float_.up_to_date = false;
+  cbuffer_bindings_pixel_float_.up_to_date = false;
   cbuffer_bindings_bool_loop_.up_to_date = false;
   cbuffer_bindings_fetch_.up_to_date = false;
   draw_view_full_update_ = 0;
@@ -1657,13 +1677,63 @@ bool D3D12CommandProcessor::UpdateBindings(
 
   // Begin updating descriptors.
   bool write_common_constant_views = false;
+  bool write_vertex_float_constant_view = false;
+  bool write_pixel_float_constant_view = false;
   bool write_fetch_constant_view = false;
-  bool write_vertex_float_constant_views = false;
-  bool write_pixel_float_constant_views = false;
   // TODO(Triang3l): Update textures and samplers only if shaders or binding
   // hash change.
   bool write_textures = texture_count != 0;
   bool write_samplers = sampler_count != 0;
+
+  // Check if the float constant layout is still the same and get the counts.
+  const Shader::ConstantRegisterMap& vertex_shader_float_constant_map =
+      vertex_shader->constant_register_map();
+  uint32_t vertex_shader_float_constant_count =
+      vertex_shader_float_constant_map.float_count;
+  // Even if the shader doesn't need any float constants, a valid binding must
+  // still be provided, so if the first draw in the frame with the current root
+  // signature doesn't have float constants at all, still allocate an empty
+  // buffer.
+  uint32_t vertex_shader_float_constant_size =
+      xe::align(uint32_t(std::max(vertex_shader_float_constant_count, 1u) * 4 *
+                         sizeof(float)),
+                256u);
+  for (uint32_t i = 0; i < 4; ++i) {
+    if (float_constant_map_vertex_[i] !=
+        vertex_shader_float_constant_map.float_bitmap[i]) {
+      float_constant_map_vertex_[i] =
+          vertex_shader_float_constant_map.float_bitmap[i];
+      // If no float constants at all, we can reuse any buffer for them, so not
+      // invalidating.
+      if (vertex_shader_float_constant_map.float_count != 0) {
+        cbuffer_bindings_vertex_float_.up_to_date = false;
+      }
+    }
+  }
+  uint32_t pixel_shader_float_constant_count = 0;
+  if (pixel_shader != nullptr) {
+    const Shader::ConstantRegisterMap& pixel_shader_float_constant_map =
+        pixel_shader->constant_register_map();
+    pixel_shader_float_constant_count =
+        pixel_shader_float_constant_map.float_count;
+    for (uint32_t i = 0; i < 4; ++i) {
+      if (float_constant_map_pixel_[i] !=
+          pixel_shader_float_constant_map.float_bitmap[i]) {
+        float_constant_map_pixel_[i] =
+            pixel_shader_float_constant_map.float_bitmap[i];
+        if (pixel_shader_float_constant_map.float_count != 0) {
+          cbuffer_bindings_pixel_float_.up_to_date = false;
+        }
+      }
+    }
+  } else {
+    std::memset(float_constant_map_pixel_, 0,
+                sizeof(float_constant_map_pixel_));
+  }
+  uint32_t pixel_shader_float_constant_size =
+      xe::align(uint32_t(std::max(pixel_shader_float_constant_count, 1u) * 4 *
+                         sizeof(float)),
+                256u);
 
   // Update constant buffers.
   if (!cbuffer_bindings_system_.up_to_date) {
@@ -1677,6 +1747,60 @@ bool D3D12CommandProcessor::UpdateBindings(
                 sizeof(system_constants_));
     cbuffer_bindings_system_.up_to_date = true;
     write_common_constant_views = true;
+  }
+  if (!cbuffer_bindings_vertex_float_.up_to_date) {
+    uint8_t* float_constants = constant_buffer_pool_->RequestFull(
+        vertex_shader_float_constant_size, nullptr, nullptr,
+        &cbuffer_bindings_vertex_float_.buffer_address);
+    if (float_constants == nullptr) {
+      return false;
+    }
+    for (uint32_t i = 0; i < 4; ++i) {
+      uint64_t float_constant_map_entry =
+          vertex_shader_float_constant_map.float_bitmap[i];
+      uint32_t float_constant_index;
+      while (xe::bit_scan_forward(float_constant_map_entry,
+                                  &float_constant_index)) {
+        float_constant_map_entry &= ~(1ull << float_constant_index);
+        std::memcpy(float_constants,
+                    &regs[XE_GPU_REG_SHADER_CONSTANT_000_X + (i << 8) +
+                          (float_constant_index << 2)]
+                         .f32,
+                    4 * sizeof(float));
+        float_constants += 4 * sizeof(float);
+      }
+    }
+    cbuffer_bindings_vertex_float_.up_to_date = true;
+    write_vertex_float_constant_view = true;
+  }
+  if (!cbuffer_bindings_pixel_float_.up_to_date) {
+    uint8_t* float_constants = constant_buffer_pool_->RequestFull(
+        pixel_shader_float_constant_size, nullptr, nullptr,
+        &cbuffer_bindings_pixel_float_.buffer_address);
+    if (float_constants == nullptr) {
+      return false;
+    }
+    if (pixel_shader != nullptr) {
+      const Shader::ConstantRegisterMap& pixel_shader_float_constant_map =
+          pixel_shader->constant_register_map();
+      for (uint32_t i = 0; i < 4; ++i) {
+        uint64_t float_constant_map_entry =
+            pixel_shader_float_constant_map.float_bitmap[i];
+        uint32_t float_constant_index;
+        while (xe::bit_scan_forward(float_constant_map_entry,
+                                    &float_constant_index)) {
+          float_constant_map_entry &= ~(1ull << float_constant_index);
+          std::memcpy(float_constants,
+                      &regs[XE_GPU_REG_SHADER_CONSTANT_256_X + (i << 8) +
+                            (float_constant_index << 2)]
+                           .f32,
+                      4 * sizeof(float));
+          float_constants += 4 * sizeof(float);
+        }
+      }
+    }
+    cbuffer_bindings_pixel_float_.up_to_date = true;
+    write_pixel_float_constant_view = true;
   }
   if (!cbuffer_bindings_bool_loop_.up_to_date) {
     uint32_t* bool_loop_constants =
@@ -1711,26 +1835,6 @@ bool D3D12CommandProcessor::UpdateBindings(
     cbuffer_bindings_fetch_.up_to_date = true;
     write_fetch_constant_view = true;
   }
-  for (uint32_t i = 0; i < 16; ++i) {
-    ConstantBufferBinding& float_binding = cbuffer_bindings_float_[i];
-    if (float_binding.up_to_date) {
-      continue;
-    }
-    uint8_t* float_constants = constant_buffer_pool_->RequestFull(
-        512, nullptr, nullptr, &float_binding.buffer_address);
-    if (float_constants == nullptr) {
-      return false;
-    }
-    std::memcpy(float_constants,
-                &regs[XE_GPU_REG_SHADER_CONSTANT_000_X + (i << 7)].f32,
-                32 * 4 * sizeof(uint32_t));
-    float_binding.up_to_date = true;
-    if (i < 8) {
-      write_vertex_float_constant_views = true;
-    } else {
-      write_pixel_float_constant_views = true;
-    }
-  }
 
   // Allocate the descriptors.
   uint32_t view_count_partial_update = 0;
@@ -1738,17 +1842,17 @@ bool D3D12CommandProcessor::UpdateBindings(
     // System and bool/loop constants.
     view_count_partial_update += 2;
   }
+  if (write_vertex_float_constant_view) {
+    // Vertex float constants.
+    ++view_count_partial_update;
+  }
+  if (write_pixel_float_constant_view) {
+    // Pixel float constants.
+    ++view_count_partial_update;
+  }
   if (write_fetch_constant_view) {
     // Fetch constants.
     ++view_count_partial_update;
-  }
-  if (write_vertex_float_constant_views) {
-    // Vertex float constants.
-    view_count_partial_update += 8;
-  }
-  if (write_pixel_float_constant_views) {
-    // Pixel float constants.
-    view_count_partial_update += 8;
   }
   if (write_textures) {
     view_count_partial_update += texture_count;
@@ -1783,8 +1887,8 @@ bool D3D12CommandProcessor::UpdateBindings(
     draw_view_full_update_ = view_full_update_index;
     write_common_constant_views = true;
     write_fetch_constant_view = true;
-    write_vertex_float_constant_views = true;
-    write_pixel_float_constant_views = true;
+    write_vertex_float_constant_view = true;
+    write_pixel_float_constant_view = true;
     write_textures = texture_count != 0;
     // If updating fully, write the shared memory descriptor (t0, space1).
     shared_memory_->CreateSRV(view_cpu_handle);
@@ -1821,9 +1925,33 @@ bool D3D12CommandProcessor::UpdateBindings(
     current_graphics_root_up_to_date_ &=
         ~(1u << kRootParameter_CommonConstants);
   }
+  if (write_vertex_float_constant_view) {
+    gpu_handle_vertex_float_constants_ = view_gpu_handle;
+    // Vertex float constants (b2).
+    constant_buffer_desc.BufferLocation =
+        cbuffer_bindings_vertex_float_.buffer_address;
+    constant_buffer_desc.SizeInBytes = vertex_shader_float_constant_size;
+    device->CreateConstantBufferView(&constant_buffer_desc, view_cpu_handle);
+    view_cpu_handle.ptr += descriptor_size_view;
+    view_gpu_handle.ptr += descriptor_size_view;
+    current_graphics_root_up_to_date_ &=
+        ~(1u << kRootParameter_VertexFloatConstants);
+  }
+  if (write_pixel_float_constant_view) {
+    gpu_handle_pixel_float_constants_ = view_gpu_handle;
+    // Pixel float constants (b2).
+    constant_buffer_desc.BufferLocation =
+        cbuffer_bindings_pixel_float_.buffer_address;
+    constant_buffer_desc.SizeInBytes = pixel_shader_float_constant_size;
+    device->CreateConstantBufferView(&constant_buffer_desc, view_cpu_handle);
+    view_cpu_handle.ptr += descriptor_size_view;
+    view_gpu_handle.ptr += descriptor_size_view;
+    current_graphics_root_up_to_date_ &=
+        ~(1u << kRootParameter_PixelFloatConstants);
+  }
   if (write_fetch_constant_view) {
     gpu_handle_fetch_constants_ = view_gpu_handle;
-    // Fetch constants (b2).
+    // Fetch constants (b3).
     constant_buffer_desc.BufferLocation =
         cbuffer_bindings_fetch_.buffer_address;
     constant_buffer_desc.SizeInBytes = 768;
@@ -1831,34 +1959,6 @@ bool D3D12CommandProcessor::UpdateBindings(
     view_cpu_handle.ptr += descriptor_size_view;
     view_gpu_handle.ptr += descriptor_size_view;
     current_graphics_root_up_to_date_ &= ~(1u << kRootParameter_FetchConstants);
-  }
-  if (write_vertex_float_constant_views) {
-    gpu_handle_vertex_float_constants_ = view_gpu_handle;
-    // Vertex float constants (b3-b10).
-    for (uint32_t i = 0; i < 8; ++i) {
-      constant_buffer_desc.BufferLocation =
-          cbuffer_bindings_float_[i].buffer_address;
-      constant_buffer_desc.SizeInBytes = 512;
-      device->CreateConstantBufferView(&constant_buffer_desc, view_cpu_handle);
-      view_cpu_handle.ptr += descriptor_size_view;
-      view_gpu_handle.ptr += descriptor_size_view;
-    }
-    current_graphics_root_up_to_date_ &=
-        ~(1u << kRootParameter_VertexFloatConstants);
-  }
-  if (write_pixel_float_constant_views) {
-    gpu_handle_pixel_float_constants_ = view_gpu_handle;
-    // Pixel float constants (b3-b10).
-    for (uint32_t i = 0; i < 8; ++i) {
-      constant_buffer_desc.BufferLocation =
-          cbuffer_bindings_float_[8 + i].buffer_address;
-      constant_buffer_desc.SizeInBytes = 512;
-      device->CreateConstantBufferView(&constant_buffer_desc, view_cpu_handle);
-      view_cpu_handle.ptr += descriptor_size_view;
-      view_gpu_handle.ptr += descriptor_size_view;
-    }
-    current_graphics_root_up_to_date_ &=
-        ~(1u << kRootParameter_PixelFloatConstants);
   }
   if (write_textures) {
     if (pixel_texture_count != 0) {

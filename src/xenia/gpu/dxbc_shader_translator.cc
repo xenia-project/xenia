@@ -66,6 +66,7 @@ DxbcShaderTranslator::DxbcShaderTranslator() {
   // Don't allocate again and again for the first shader.
   shader_code_.reserve(8192);
   shader_object_.reserve(16384);
+  float_constant_index_offsets_.reserve(512);
 }
 DxbcShaderTranslator::~DxbcShaderTranslator() = default;
 
@@ -74,13 +75,27 @@ void DxbcShaderTranslator::Reset() {
 
   shader_code_.clear();
 
-  rdef_constants_used_ = 0;
+  cbuffer_count_ = 0;
+  // System constants always used in prologues/epilogues.
+  cbuffer_index_system_constants_ = cbuffer_count_++;
+  cbuffer_index_float_constants_ = kCbufferIndexUnallocated;
+  cbuffer_index_bool_loop_constants_ = kCbufferIndexUnallocated;
+  cbuffer_index_fetch_constants_ = kCbufferIndexUnallocated;
+
+  system_constants_used_ = 0;
+  float_constants_dynamic_indexed_ = false;
+  bool_loop_constants_dynamic_indexed_ = false;
+  float_constant_index_offsets_.clear();
+
   system_temp_count_current_ = 0;
   system_temp_count_max_ = 0;
+
   cf_currently_predicated_ = false;
   cf_exec_predicated_ = false;
   cf_exec_bool_constant_ = kCfExecBoolConstantNone;
+
   writes_depth_ = false;
+
   texture_srvs_.clear();
   sampler_bindings_.clear();
 
@@ -215,6 +230,7 @@ void DxbcShaderTranslator::StartVertexShader_LoadVertexIndex() {
   // Get bits indicating what swaps should be done.
   // ubfe reg.zw, l(0, 0, 1, 1).zw, l(0, 0, 0, 1).zw, xe_vertex_index_endian.xx
   // ABCD | BADC | 8in16/16in32? | 8in32/16in32?
+  system_constants_used_ |= 1u << kSysConst_VertexIndexEndian_Index;
   shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_UBFE) |
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(17));
   shader_code_.push_back(
@@ -232,12 +248,10 @@ void DxbcShaderTranslator::StartVertexShader_LoadVertexIndex() {
   shader_code_.push_back(0);
   shader_code_.push_back(0);
   shader_code_.push_back(1);
-  rdef_constants_used_ |= 1ull
-                          << uint32_t(RdefConstantIndex::kSysVertexIndexEndian);
   shader_code_.push_back(
       EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
                                     kSysConst_VertexIndexEndian_Comp, 3));
-  shader_code_.push_back(uint32_t(RdefConstantBufferIndex::kSystemConstants));
+  shader_code_.push_back(uint32_t(cbuffer_index_system_constants_));
   shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
   shader_code_.push_back(kSysConst_VertexIndexEndian_Vec);
   ++stat_.instruction_count;
@@ -342,6 +356,7 @@ void DxbcShaderTranslator::StartVertexShader_LoadVertexIndex() {
   ++stat_.movc_instruction_count;
 
   // Add the base vertex index.
+  system_constants_used_ |= 1u << kSysConst_VertexBaseIndex_Index;
   shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IADD) |
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
   shader_code_.push_back(
@@ -350,12 +365,10 @@ void DxbcShaderTranslator::StartVertexShader_LoadVertexIndex() {
   shader_code_.push_back(
       EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
   shader_code_.push_back(reg);
-  rdef_constants_used_ |= 1ull
-                          << uint32_t(RdefConstantIndex::kSysVertexBaseIndex);
   shader_code_.push_back(
       EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
                                 kSysConst_VertexBaseIndex_Comp, 3));
-  shader_code_.push_back(uint32_t(RdefConstantBufferIndex::kSystemConstants));
+  shader_code_.push_back(uint32_t(cbuffer_index_system_constants_));
   shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
   shader_code_.push_back(kSysConst_VertexBaseIndex_Vec);
   ++stat_.instruction_count;
@@ -484,7 +497,7 @@ void DxbcShaderTranslator::StartPixelShader() {
   uint32_t param_gen_select_temp = PushSystemTemp();
   uint32_t param_gen_value_temp = PushSystemTemp();
   // Check if they need to be written.
-  rdef_constants_used_ |= 1ull << uint32_t(RdefConstantIndex::kSysPixelPosReg);
+  system_constants_used_ |= 1u << kSysConst_PixelPosReg_Index;
   shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ULT) |
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
   shader_code_.push_back(
@@ -492,7 +505,7 @@ void DxbcShaderTranslator::StartPixelShader() {
   shader_code_.push_back(param_gen_select_temp);
   shader_code_.push_back(EncodeVectorSelectOperand(
       D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSysConst_PixelPosReg_Comp, 3));
-  shader_code_.push_back(uint32_t(RdefConstantBufferIndex::kSystemConstants));
+  shader_code_.push_back(cbuffer_index_system_constants_);
   shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
   shader_code_.push_back(kSysConst_PixelPosReg_Vec);
   shader_code_.push_back(
@@ -511,9 +524,8 @@ void DxbcShaderTranslator::StartPixelShader() {
   ++stat_.dynamic_flow_control_count;
   // Write VPOS (without supersampling because SSAA is used to fake MSAA, and
   // at integer coordinates rather than half-pixel if needed) to XY.
-  rdef_constants_used_ |= 1ull << uint32_t(RdefConstantIndex::kSysSSAAInvScale);
-  rdef_constants_used_ |=
-      1ull << uint32_t(RdefConstantIndex::kSysPixelHalfPixelOffset);
+  system_constants_used_ |= (1u << kSysConst_SSAAInvScale_Index) |
+                            (1u << kSysConst_PixelHalfPixelOffset_Index);
   shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MAD) |
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(13));
   shader_code_.push_back(
@@ -526,13 +538,13 @@ void DxbcShaderTranslator::StartPixelShader() {
       D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
       kSysConst_SSAAInvScale_Comp | ((kSysConst_SSAAInvScale_Comp + 1) << 2),
       3));
-  shader_code_.push_back(uint32_t(RdefConstantBufferIndex::kSystemConstants));
+  shader_code_.push_back(cbuffer_index_system_constants_);
   shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
   shader_code_.push_back(kSysConst_SSAAInvScale_Vec);
   shader_code_.push_back(
       EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
                                     kSysConst_PixelHalfPixelOffset_Comp, 3));
-  shader_code_.push_back(uint32_t(RdefConstantBufferIndex::kSystemConstants));
+  shader_code_.push_back(cbuffer_index_system_constants_);
   shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
   shader_code_.push_back(kSysConst_PixelHalfPixelOffset_Vec);
   ++stat_.instruction_count;
@@ -558,7 +570,7 @@ void DxbcShaderTranslator::StartPixelShader() {
     shader_code_.push_back(param_gen_select_temp);
     shader_code_.push_back(EncodeVectorSelectOperand(
         D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSysConst_PixelPosReg_Comp, 3));
-    shader_code_.push_back(uint32_t(RdefConstantBufferIndex::kSystemConstants));
+    shader_code_.push_back(cbuffer_index_system_constants_);
     shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
     shader_code_.push_back(kSysConst_PixelPosReg_Vec);
     ++stat_.instruction_count;
@@ -592,8 +604,7 @@ void DxbcShaderTranslator::StartPixelShader() {
         shader_code_.push_back(
             EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
                                           kSysConst_PixelPosReg_Comp, 3));
-        shader_code_.push_back(
-            uint32_t(RdefConstantBufferIndex::kSystemConstants));
+        shader_code_.push_back(cbuffer_index_system_constants_);
         shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
         shader_code_.push_back(kSysConst_PixelPosReg_Vec);
         shader_code_.push_back(EncodeVectorSwizzledOperand(
@@ -690,7 +701,7 @@ void DxbcShaderTranslator::StartTranslation() {
 void DxbcShaderTranslator::CompleteVertexShader() {
   // Get what we need to do with the position.
   uint32_t ndc_control_temp = PushSystemTemp();
-  rdef_constants_used_ |= 1ull << uint32_t(RdefConstantIndex::kSysFlags);
+  system_constants_used_ |= 1u << kSysConst_Flags_Index;
   shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(12));
   shader_code_.push_back(
@@ -698,7 +709,7 @@ void DxbcShaderTranslator::CompleteVertexShader() {
   shader_code_.push_back(ndc_control_temp);
   shader_code_.push_back(EncodeVectorReplicatedOperand(
       D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSysConst_Flags_Comp, 3));
-  shader_code_.push_back(uint32_t(RdefConstantBufferIndex::kSystemConstants));
+  shader_code_.push_back(cbuffer_index_system_constants_);
   shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
   shader_code_.push_back(kSysConst_Flags_Vec);
   shader_code_.push_back(EncodeVectorSwizzledOperand(
@@ -782,7 +793,7 @@ void DxbcShaderTranslator::CompleteVertexShader() {
 
   // Apply scale for drawing without a viewport, and also remap from OpenGL
   // Z clip space to Direct3D if needed.
-  rdef_constants_used_ |= 1ull << uint32_t(RdefConstantIndex::kSysNDCScale);
+  system_constants_used_ |= 1u << kSysConst_NDCScale_Index;
   shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MUL) |
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
   shader_code_.push_back(
@@ -796,7 +807,7 @@ void DxbcShaderTranslator::CompleteVertexShader() {
       kSysConst_NDCScale_Comp | ((kSysConst_NDCScale_Comp + 1) << 2) |
           ((kSysConst_NDCScale_Comp + 2) << 4),
       3));
-  shader_code_.push_back(uint32_t(RdefConstantBufferIndex::kSystemConstants));
+  shader_code_.push_back(cbuffer_index_system_constants_);
   shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
   shader_code_.push_back(kSysConst_NDCScale_Vec);
   ++stat_.instruction_count;
@@ -844,7 +855,7 @@ void DxbcShaderTranslator::CompleteVertexShader() {
 
   // Apply offset (multiplied by W) for drawing without a viewport and for half
   // pixel offset.
-  rdef_constants_used_ |= 1ull << uint32_t(RdefConstantIndex::kSysNDCOffset);
+  system_constants_used_ |= 1u << kSysConst_NDCOffset_Index;
   shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MAD) |
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(11));
   shader_code_.push_back(
@@ -855,7 +866,7 @@ void DxbcShaderTranslator::CompleteVertexShader() {
       kSysConst_NDCOffset_Comp | ((kSysConst_NDCOffset_Comp + 1) << 2) |
           ((kSysConst_NDCOffset_Comp + 2) << 4),
       3));
-  shader_code_.push_back(uint32_t(RdefConstantBufferIndex::kSystemConstants));
+  shader_code_.push_back(cbuffer_index_system_constants_);
   shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
   shader_code_.push_back(kSysConst_NDCOffset_Vec);
   shader_code_.push_back(
@@ -883,16 +894,15 @@ void DxbcShaderTranslator::CompleteVertexShader() {
 void DxbcShaderTranslator::CompletePixelShader() {
   // Alpha test.
   // Check if alpha test is enabled (if the constant is not 0).
-  rdef_constants_used_ |= 1ull << uint32_t(RdefConstantIndex::kSysAlphaTest);
-  rdef_constants_used_ |= 1ull
-                          << uint32_t(RdefConstantIndex::kSysAlphaTestRange);
+  system_constants_used_ |= (1u << kSysConst_AlphaTest_Index) |
+                            (1u << kSysConst_AlphaTestRange_Index);
   shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
                          ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(
                              D3D10_SB_INSTRUCTION_TEST_NONZERO) |
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
   shader_code_.push_back(EncodeVectorSelectOperand(
       D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSysConst_AlphaTest_Comp, 3));
-  shader_code_.push_back(uint32_t(RdefConstantBufferIndex::kSystemConstants));
+  shader_code_.push_back(cbuffer_index_system_constants_);
   shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
   shader_code_.push_back(kSysConst_AlphaTest_Vec);
   ++stat_.instruction_count;
@@ -910,7 +920,7 @@ void DxbcShaderTranslator::CompletePixelShader() {
   shader_code_.push_back(system_temp_color_[0]);
   shader_code_.push_back(EncodeVectorSelectOperand(
       D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSysConst_AlphaTestRange_Comp, 3));
-  shader_code_.push_back(uint32_t(RdefConstantBufferIndex::kSystemConstants));
+  shader_code_.push_back(cbuffer_index_system_constants_);
   shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
   shader_code_.push_back(kSysConst_AlphaTestRange_Vec);
   ++stat_.instruction_count;
@@ -924,7 +934,7 @@ void DxbcShaderTranslator::CompletePixelShader() {
   shader_code_.push_back(
       EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
                                 kSysConst_AlphaTestRange_Comp + 1, 3));
-  shader_code_.push_back(uint32_t(RdefConstantBufferIndex::kSystemConstants));
+  shader_code_.push_back(cbuffer_index_system_constants_);
   shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
   shader_code_.push_back(kSysConst_AlphaTestRange_Vec);
   shader_code_.push_back(
@@ -958,7 +968,7 @@ void DxbcShaderTranslator::CompletePixelShader() {
   shader_code_.push_back(0);
   shader_code_.push_back(EncodeVectorSelectOperand(
       D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSysConst_AlphaTest_Comp, 3));
-  shader_code_.push_back(uint32_t(RdefConstantBufferIndex::kSystemConstants));
+  shader_code_.push_back(cbuffer_index_system_constants_);
   shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
   shader_code_.push_back(kSysConst_AlphaTest_Vec);
   ++stat_.instruction_count;
@@ -1000,7 +1010,7 @@ void DxbcShaderTranslator::CompletePixelShader() {
   // output-merger in the pipeline).
   // TODO(Triang3l): Verify whether the order of alpha testing and exponent bias
   // is correct.
-  rdef_constants_used_ |= 1ull << uint32_t(RdefConstantIndex::kSysColorExpBias);
+  system_constants_used_ |= 1u << kSysConst_ColorExpBias_Index;
   for (uint32_t i = 0; i < 4; ++i) {
     shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MUL) |
                            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
@@ -1012,7 +1022,7 @@ void DxbcShaderTranslator::CompletePixelShader() {
     shader_code_.push_back(system_temp_color_[i]);
     shader_code_.push_back(EncodeVectorReplicatedOperand(
         D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, i, 3));
-    shader_code_.push_back(uint32_t(RdefConstantBufferIndex::kSystemConstants));
+    shader_code_.push_back(cbuffer_index_system_constants_);
     shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
     shader_code_.push_back(kSysConst_ColorExpBias_Vec);
     ++stat_.instruction_count;
@@ -1026,7 +1036,7 @@ void DxbcShaderTranslator::CompletePixelShader() {
   // Get which render targets need the conversion.
   uint32_t gamma_toggle_temp = PushSystemTemp();
   uint32_t gamma_pieces_temp = PushSystemTemp();
-  rdef_constants_used_ |= 1ull << uint32_t(RdefConstantIndex::kSysFlags);
+  system_constants_used_ |= 1u << kSysConst_Flags_Index;
   shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(12));
   shader_code_.push_back(
@@ -1034,7 +1044,7 @@ void DxbcShaderTranslator::CompletePixelShader() {
   shader_code_.push_back(gamma_toggle_temp);
   shader_code_.push_back(EncodeVectorReplicatedOperand(
       D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSysConst_Flags_Comp, 3));
-  shader_code_.push_back(uint32_t(RdefConstantBufferIndex::kSystemConstants));
+  shader_code_.push_back(cbuffer_index_system_constants_);
   shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
   shader_code_.push_back(kSysConst_Flags_Vec);
   shader_code_.push_back(EncodeVectorSwizzledOperand(
@@ -1124,8 +1134,7 @@ void DxbcShaderTranslator::CompletePixelShader() {
   // render target indices, and the values are the guest ones.
   uint32_t remap_movc_mask_temp = PushSystemTemp();
   uint32_t remap_movc_target_temp = PushSystemTemp();
-  rdef_constants_used_ |= 1ull
-                          << uint32_t(RdefConstantIndex::kSysColorOutputMap);
+  system_constants_used_ |= 1u << kSysConst_ColorOutputMap_Index;
   // Host RT i, guest RT j.
   for (uint32_t i = 0; i < 4; ++i) {
     // mask = map.iiii == (0, 1, 2, 3)
@@ -1136,7 +1145,7 @@ void DxbcShaderTranslator::CompletePixelShader() {
     shader_code_.push_back(remap_movc_mask_temp);
     shader_code_.push_back(EncodeVectorReplicatedOperand(
         D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, i, 3));
-    shader_code_.push_back(uint32_t(RdefConstantBufferIndex::kSystemConstants));
+    shader_code_.push_back(cbuffer_index_system_constants_);
     shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
     shader_code_.push_back(kSysConst_ColorOutputMap_Vec);
     shader_code_.push_back(EncodeVectorSwizzledOperand(
@@ -1233,6 +1242,29 @@ void DxbcShaderTranslator::CompleteShaderCode() {
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
   ++stat_.instruction_count;
   ++stat_.static_flow_control_count;
+
+  // Remap float constant indices if not indexed dynamically.
+  if (!float_constants_dynamic_indexed_ &&
+      !float_constant_index_offsets_.empty()) {
+    uint8_t float_constant_map[256] = {};
+    uint32_t float_constant_count = 0;
+    for (uint32_t i = 0; i < 4; ++i) {
+      uint64_t float_constants_used = constant_register_map().float_bitmap[i];
+      uint32_t float_constant_index;
+      while (
+          xe::bit_scan_forward(float_constants_used, &float_constant_index)) {
+        float_constants_used &= ~(1ull << float_constant_index);
+        float_constant_map[i * 64 + float_constant_index] =
+            float_constant_count++;
+      }
+    }
+    size_t index_count = float_constant_index_offsets_.size();
+    for (size_t i = 0; i < index_count; ++i) {
+      uint32_t index_offset = float_constant_index_offsets_[i];
+      shader_code_[index_offset] =
+          float_constant_map[shader_code_[index_offset] & 255];
+    }
+  }
 }
 
 std::vector<uint8_t> DxbcShaderTranslator::CompleteTranslation() {
@@ -1330,8 +1362,8 @@ void DxbcShaderTranslator::LoadDxbcSourceOperand(
   // Initialize the values to their defaults.
   dxbc_operand.type = DxbcSourceOperand::Type::kZerosOnes;
   dxbc_operand.index = 0;
+  dxbc_operand.addressing_mode = InstructionStorageAddressingMode::kStatic;
   dxbc_operand.swizzle = kSwizzleXYZW;
-  dxbc_operand.is_dynamic_indexed = false;
   dxbc_operand.is_negated = operand.is_negated;
   dxbc_operand.is_absolute_value = operand.is_absolute_value;
   dxbc_operand.intermediate_register =
@@ -1377,8 +1409,7 @@ void DxbcShaderTranslator::LoadDxbcSourceOperand(
   dxbc_operand.swizzle = swizzle;
 
   // If the index is dynamic, choose where it's taken from.
-  uint32_t dynamic_address_register;
-  uint32_t dynamic_address_component;
+  uint32_t dynamic_address_register, dynamic_address_component;
   if (operand.storage_addressing_mode ==
       InstructionStorageAddressingMode::kAddressRelative) {
     // Addressed by aL.x.
@@ -1499,63 +1530,15 @@ void DxbcShaderTranslator::LoadDxbcSourceOperand(
       // ***********************************************************************
       // Float constant
       // ***********************************************************************
+      if (cbuffer_index_float_constants_ == kCbufferIndexUnallocated) {
+        cbuffer_index_float_constants_ = cbuffer_count_++;
+      }
       dxbc_operand.type = DxbcSourceOperand::Type::kConstantFloat;
-      if (operand.storage_addressing_mode ==
+      dxbc_operand.index = uint32_t(operand.storage_index);
+      dxbc_operand.addressing_mode = operand.storage_addressing_mode;
+      if (operand.storage_addressing_mode !=
           InstructionStorageAddressingMode::kStatic) {
-        // Constant buffers with a constant index can be used directly.
-        dxbc_operand.index = uint32_t(operand.storage_index);
-      } else {
-        dxbc_operand.is_dynamic_indexed = true;
-        if (dxbc_operand.intermediate_register ==
-            DxbcSourceOperand::kIntermediateRegisterNone) {
-          dxbc_operand.intermediate_register = PushSystemTemp();
-        }
-        uint32_t constant_address_register = dynamic_address_register;
-        uint32_t constant_address_component = dynamic_address_component;
-        if (operand.storage_index != 0) {
-          // Has an offset - add it.
-          shader_code_.push_back(
-              ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IADD) |
-              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-          shader_code_.push_back(
-              EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-          shader_code_.push_back(dxbc_operand.intermediate_register);
-          shader_code_.push_back(EncodeVectorSelectOperand(
-              D3D10_SB_OPERAND_TYPE_TEMP, constant_address_component, 1));
-          shader_code_.push_back(constant_address_register);
-          shader_code_.push_back(
-              EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-          shader_code_.push_back(uint32_t(operand.storage_index));
-          ++stat_.instruction_count;
-          ++stat_.int_instruction_count;
-          constant_address_register = dxbc_operand.intermediate_register;
-          constant_address_component = 0;
-        }
-        // Load the high part (page, 3 bits) and the low part (vector, 5 bits)
-        // of the index.
-        shader_code_.push_back(
-            ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_UBFE) |
-            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(15));
-        shader_code_.push_back(
-            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0011, 1));
-        shader_code_.push_back(dxbc_operand.intermediate_register);
-        shader_code_.push_back(EncodeVectorSwizzledOperand(
-            D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-        shader_code_.push_back(3);
-        shader_code_.push_back(5);
-        shader_code_.push_back(0);
-        shader_code_.push_back(0);
-        shader_code_.push_back(EncodeVectorSwizzledOperand(
-            D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-        shader_code_.push_back(5);
-        shader_code_.push_back(0);
-        shader_code_.push_back(0);
-        shader_code_.push_back(0);
-        shader_code_.push_back(EncodeVectorReplicatedOperand(
-            D3D10_SB_OPERAND_TYPE_TEMP, constant_address_component, 1));
-        shader_code_.push_back(constant_address_register);
-        ++stat_.instruction_count;
-        ++stat_.uint_instruction_count;
+        float_constants_dynamic_indexed_ = true;
       }
       break;
 
@@ -1563,6 +1546,9 @@ void DxbcShaderTranslator::LoadDxbcSourceOperand(
       // ***********************************************************************
       // Loop constant
       // ***********************************************************************
+      if (cbuffer_index_bool_loop_constants_ == kCbufferIndexUnallocated) {
+        cbuffer_index_bool_loop_constants_ = cbuffer_count_++;
+      }
       // Convert to float and store in the intermediate register.
       // The constant buffer contains each integer replicated in XYZW so dynamic
       // indexing is possible.
@@ -1571,8 +1557,6 @@ void DxbcShaderTranslator::LoadDxbcSourceOperand(
           DxbcSourceOperand::kIntermediateRegisterNone) {
         dxbc_operand.intermediate_register = PushSystemTemp();
       }
-      rdef_constants_used_ |= 1ull
-                              << uint32_t(RdefConstantIndex::kLoopConstants);
       bool is_static = operand.storage_addressing_mode ==
                        InstructionStorageAddressingMode::kStatic;
       shader_code_.push_back(
@@ -1587,8 +1571,7 @@ void DxbcShaderTranslator::LoadDxbcSourceOperand(
           D3D10_SB_OPERAND_INDEX_IMMEDIATE32,
           is_static ? D3D10_SB_OPERAND_INDEX_IMMEDIATE32
                     : D3D10_SB_OPERAND_INDEX_IMMEDIATE32_PLUS_RELATIVE));
-      shader_code_.push_back(
-          uint32_t(RdefConstantBufferIndex::kBoolLoopConstants));
+      shader_code_.push_back(cbuffer_index_bool_loop_constants_);
       shader_code_.push_back(uint32_t(CbufferRegister::kBoolLoopConstants));
       // 8 to skip bool constants.
       shader_code_.push_back(8 + uint32_t(operand.storage_index));
@@ -1596,6 +1579,7 @@ void DxbcShaderTranslator::LoadDxbcSourceOperand(
         shader_code_.push_back(EncodeVectorSelectOperand(
             D3D10_SB_OPERAND_TYPE_TEMP, dynamic_address_component, 1));
         shader_code_.push_back(dynamic_address_register);
+        bool_loop_constants_dynamic_indexed_ = true;
       }
       ++stat_.instruction_count;
       ++stat_.conversion_instruction_count;
@@ -1605,6 +1589,9 @@ void DxbcShaderTranslator::LoadDxbcSourceOperand(
       // ***********************************************************************
       // Boolean constant
       // ***********************************************************************
+      if (cbuffer_index_bool_loop_constants_ == kCbufferIndexUnallocated) {
+        cbuffer_index_bool_loop_constants_ = cbuffer_count_++;
+      }
       // Extract, convert to float and store in the intermediate register.
       // The constant buffer contains each 32-bit vector replicated in XYZW so
       // dynamic indexing is possible.
@@ -1613,8 +1600,6 @@ void DxbcShaderTranslator::LoadDxbcSourceOperand(
           DxbcSourceOperand::kIntermediateRegisterNone) {
         dxbc_operand.intermediate_register = PushSystemTemp();
       }
-      rdef_constants_used_ |= 1ull
-                              << uint32_t(RdefConstantIndex::kBoolConstants);
       if (operand.storage_addressing_mode ==
           InstructionStorageAddressingMode::kStatic) {
         // Extract the bit directly.
@@ -1632,13 +1617,13 @@ void DxbcShaderTranslator::LoadDxbcSourceOperand(
         shader_code_.push_back(uint32_t(operand.storage_index) & 31);
         shader_code_.push_back(EncodeVectorSelectOperand(
             D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, 0, 3));
-        shader_code_.push_back(
-            uint32_t(RdefConstantBufferIndex::kBoolLoopConstants));
+        shader_code_.push_back(cbuffer_index_bool_loop_constants_);
         shader_code_.push_back(uint32_t(CbufferRegister::kBoolLoopConstants));
         shader_code_.push_back(uint32_t(operand.storage_index) >> 5);
         ++stat_.instruction_count;
         ++stat_.uint_instruction_count;
       } else {
+        bool_loop_constants_dynamic_indexed_ = true;
         uint32_t constant_address_register = dynamic_address_register;
         uint32_t constant_address_component = dynamic_address_component;
         if (operand.storage_index != 0) {
@@ -1703,8 +1688,7 @@ void DxbcShaderTranslator::LoadDxbcSourceOperand(
                                       3, D3D10_SB_OPERAND_INDEX_IMMEDIATE32,
                                       D3D10_SB_OPERAND_INDEX_IMMEDIATE32,
                                       D3D10_SB_OPERAND_INDEX_RELATIVE));
-        shader_code_.push_back(
-            uint32_t(RdefConstantBufferIndex::kBoolLoopConstants));
+        shader_code_.push_back(cbuffer_index_bool_loop_constants_);
         shader_code_.push_back(uint32_t(CbufferRegister::kBoolLoopConstants));
         shader_code_.push_back(
             EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
@@ -1788,10 +1772,11 @@ uint32_t DxbcShaderTranslator::DxbcSourceOperandLength(
       length = 2;
       break;
     case DxbcSourceOperand::Type::kConstantFloat:
-      if (operand.is_dynamic_indexed) {
-        // Constant buffer, 3D index - immediate 0, immediate + register 1,
+      if (operand.addressing_mode !=
+          InstructionStorageAddressingMode::kStatic) {
+        // Constant buffer, 3D index - immediate 0, immediate 1, immediate plus
         // register 2.
-        length = 7;
+        length = 6;
       } else {
         // Constant buffer, 3D immediate index.
         length = 4;
@@ -1809,9 +1794,7 @@ uint32_t DxbcShaderTranslator::DxbcSourceOperandLength(
   }
   absolute |= operand.is_absolute_value;
   // Modifier extension - neg/abs or non-uniform binding index.
-  if (negate || absolute ||
-      (operand.type == DxbcSourceOperand::Type::kConstantFloat &&
-       operand.is_dynamic_indexed)) {
+  if (negate || absolute) {
     ++length;
   }
   return length;
@@ -1862,12 +1845,6 @@ void DxbcShaderTranslator::UseDxbcSourceOperand(
     modifiers |= D3D10_SB_OPERAND_MODIFIER_ABS
                  << D3D10_SB_OPERAND_MODIFIER_SHIFT;
   }
-  // Dynamic constant indices can have any values, and we use pages bound to
-  // different b#.
-  if (operand.type == DxbcSourceOperand::Type::kConstantFloat &&
-      operand.is_dynamic_indexed) {
-    modifiers |= ENCODE_D3D12_SB_OPERAND_NON_UNIFORM(1);
-  }
   if (modifiers != 0) {
     // Mark the extension as containing modifiers.
     modifiers |= ENCODE_D3D10_SB_EXTENDED_OPERAND_TYPE(
@@ -1890,60 +1867,48 @@ void DxbcShaderTranslator::UseDxbcSourceOperand(
       shader_code_.push_back(operand.index);
       break;
 
-    case DxbcSourceOperand::Type::kConstantFloat:
-      rdef_constants_used_ |= 1ull
-                              << uint32_t(RdefConstantIndex::kFloatConstants);
-      if (operand.is_dynamic_indexed) {
-        // Index loaded as uint2 in the intermediate register, the page number
-        // in X, the vector number in the page in Y.
-        shader_code_.push_back(
-            ENCODE_D3D10_SB_OPERAND_TYPE(
-                D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER) |
-            ENCODE_D3D10_SB_OPERAND_INDEX_DIMENSION(D3D10_SB_OPERAND_INDEX_3D) |
-            ENCODE_D3D10_SB_OPERAND_INDEX_REPRESENTATION(
-                0, D3D10_SB_OPERAND_INDEX_IMMEDIATE32) |
-            ENCODE_D3D10_SB_OPERAND_INDEX_REPRESENTATION(
-                1, D3D10_SB_OPERAND_INDEX_IMMEDIATE32_PLUS_RELATIVE) |
-            ENCODE_D3D10_SB_OPERAND_INDEX_REPRESENTATION(
-                2, D3D10_SB_OPERAND_INDEX_RELATIVE) |
-            component_bits | extended_bit);
-        if (modifiers != 0) {
-          shader_code_.push_back(modifiers);
-        }
-        // Dimension 0 (CB#) - immediate.
-        shader_code_.push_back(
-            uint32_t(RdefConstantBufferIndex::kFloatConstants));
-        // Dimension 1 (b#) - immediate + temporary X.
-        shader_code_.push_back(uint32_t(CbufferRegister::kFloatConstantsFirst));
-        shader_code_.push_back(
-            EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-        shader_code_.push_back(operand.intermediate_register);
-        // Dimension 2 (vector) - temporary Y.
-        shader_code_.push_back(
-            EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
-        shader_code_.push_back(operand.intermediate_register);
-      } else {
-        shader_code_.push_back(
-            ENCODE_D3D10_SB_OPERAND_TYPE(
-                D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER) |
-            ENCODE_D3D10_SB_OPERAND_INDEX_DIMENSION(D3D10_SB_OPERAND_INDEX_3D) |
-            ENCODE_D3D10_SB_OPERAND_INDEX_REPRESENTATION(
-                0, D3D10_SB_OPERAND_INDEX_IMMEDIATE32) |
-            ENCODE_D3D10_SB_OPERAND_INDEX_REPRESENTATION(
-                1, D3D10_SB_OPERAND_INDEX_IMMEDIATE32) |
-            ENCODE_D3D10_SB_OPERAND_INDEX_REPRESENTATION(
-                2, D3D10_SB_OPERAND_INDEX_IMMEDIATE32) |
-            component_bits | extended_bit);
-        if (modifiers != 0) {
-          shader_code_.push_back(modifiers);
-        }
-        shader_code_.push_back(
-            uint32_t(RdefConstantBufferIndex::kFloatConstants));
-        shader_code_.push_back(uint32_t(CbufferRegister::kFloatConstantsFirst) +
-                               (operand.index >> 5));
-        shader_code_.push_back(operand.index & 31);
+    case DxbcSourceOperand::Type::kConstantFloat: {
+      bool is_static =
+          operand.addressing_mode == InstructionStorageAddressingMode::kStatic;
+      shader_code_.push_back(
+          ENCODE_D3D10_SB_OPERAND_TYPE(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER) |
+          ENCODE_D3D10_SB_OPERAND_INDEX_DIMENSION(D3D10_SB_OPERAND_INDEX_3D) |
+          ENCODE_D3D10_SB_OPERAND_INDEX_REPRESENTATION(
+              0, D3D10_SB_OPERAND_INDEX_IMMEDIATE32) |
+          ENCODE_D3D10_SB_OPERAND_INDEX_REPRESENTATION(
+              1, D3D10_SB_OPERAND_INDEX_IMMEDIATE32) |
+          ENCODE_D3D10_SB_OPERAND_INDEX_REPRESENTATION(
+              2, is_static ? D3D10_SB_OPERAND_INDEX_IMMEDIATE32
+                           : D3D10_SB_OPERAND_INDEX_IMMEDIATE32_PLUS_RELATIVE) |
+          component_bits | extended_bit);
+      if (modifiers != 0) {
+        shader_code_.push_back(modifiers);
       }
-      break;
+      shader_code_.push_back(cbuffer_index_float_constants_);
+      shader_code_.push_back(uint32_t(CbufferRegister::kFloatConstants));
+      if (!float_constants_dynamic_indexed_) {
+        // If there's no dynamic indexing in the shader, constants are compacted
+        // and remapped. Store where the index has been written.
+        float_constant_index_offsets_.push_back(uint32_t(shader_code_.size()));
+      }
+      shader_code_.push_back(operand.index);
+      if (!is_static) {
+        uint32_t dynamic_address_register, dynamic_address_component;
+        if (operand.addressing_mode ==
+            InstructionStorageAddressingMode::kAddressRelative) {
+          // Addressed by aL.x.
+          dynamic_address_register = system_temp_aL_;
+          dynamic_address_component = 0;
+        } else {
+          // Addressed by a0.
+          dynamic_address_register = system_temp_ps_pc_p0_a0_;
+          dynamic_address_component = 3;
+        }
+        shader_code_.push_back(EncodeVectorSelectOperand(
+            D3D10_SB_OPERAND_TYPE_TEMP, dynamic_address_component, 1));
+        shader_code_.push_back(dynamic_address_register);
+      }
+    } break;
 
     case DxbcSourceOperand::Type::kIntermediateRegister:
       // Already loaded as float to the intermediate temporary register.
@@ -2068,8 +2033,7 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
   bool is_static = result.storage_addressing_mode ==
                    InstructionStorageAddressingMode::kStatic;
   // If the index is dynamic, choose where it's taken from.
-  uint32_t dynamic_address_register;
-  uint32_t dynamic_address_component;
+  uint32_t dynamic_address_register, dynamic_address_component;
   if (result.storage_addressing_mode ==
       InstructionStorageAddressingMode::kAddressRelative) {
     // Addressed by aL.x.
@@ -2300,7 +2264,9 @@ void DxbcShaderTranslator::SetExecBoolConstant(uint32_t index, bool condition) {
   if (index != kCfExecBoolConstantNone) {
     uint32_t bool_constant_test_register = PushSystemTemp();
     // Check the bool constant's value.
-    rdef_constants_used_ |= 1ull << uint32_t(RdefConstantIndex::kBoolConstants);
+    if (cbuffer_index_bool_loop_constants_ == kCbufferIndexUnallocated) {
+      cbuffer_index_bool_loop_constants_ = cbuffer_count_++;
+    }
     shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
                            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
     shader_code_.push_back(
@@ -2308,8 +2274,7 @@ void DxbcShaderTranslator::SetExecBoolConstant(uint32_t index, bool condition) {
     shader_code_.push_back(bool_constant_test_register);
     shader_code_.push_back(
         EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, 0, 3));
-    shader_code_.push_back(
-        uint32_t(RdefConstantBufferIndex::kBoolLoopConstants));
+    shader_code_.push_back(cbuffer_index_bool_loop_constants_);
     shader_code_.push_back(uint32_t(CbufferRegister::kBoolLoopConstants));
     shader_code_.push_back(index >> 5);
     shader_code_.push_back(
@@ -2354,6 +2319,11 @@ void DxbcShaderTranslator::JumpToLabel(uint32_t address) {
 
 void DxbcShaderTranslator::SwapVertexData(uint32_t vfetch_index,
                                           uint32_t write_mask) {
+  // Make sure we have fetch constants.
+  if (cbuffer_index_fetch_constants_ == kCbufferIndexUnallocated) {
+    cbuffer_index_fetch_constants_ = cbuffer_count_++;
+  }
+
   // Allocate temporary registers for intermediate values.
   uint32_t temp1 = PushSystemTemp();
   uint32_t temp2 = PushSystemTemp();
@@ -2481,10 +2451,9 @@ void DxbcShaderTranslator::SwapVertexData(uint32_t vfetch_index,
   shader_code_.push_back(1);
   shader_code_.push_back(0);
   shader_code_.push_back(0);
-  rdef_constants_used_ |= 1ull << uint32_t(RdefConstantIndex::kFetchConstants);
   shader_code_.push_back(EncodeVectorReplicatedOperand(
       D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, (vfetch_index & 1) * 2 + 1, 3));
-  shader_code_.push_back(uint32_t(RdefConstantBufferIndex::kFetchConstants));
+  shader_code_.push_back(cbuffer_index_fetch_constants_);
   shader_code_.push_back(uint32_t(CbufferRegister::kFetchConstants));
   shader_code_.push_back(vfetch_index >> 1);
   ++stat_.instruction_count;
@@ -2750,7 +2719,9 @@ void DxbcShaderTranslator::ProcessLoopStartInstruction(
   uint32_t loop_count_and_aL = PushSystemTemp();
 
   // Count (as uint) in bits 0:7 of the loop constant, aL in 8:15.
-  rdef_constants_used_ |= 1ull << uint32_t(RdefConstantIndex::kLoopConstants);
+  if (cbuffer_index_bool_loop_constants_ == kCbufferIndexUnallocated) {
+    cbuffer_index_bool_loop_constants_ = cbuffer_count_++;
+  }
   shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_UBFE) |
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(17));
   shader_code_.push_back(
@@ -2770,7 +2741,7 @@ void DxbcShaderTranslator::ProcessLoopStartInstruction(
   shader_code_.push_back(0);
   shader_code_.push_back(EncodeVectorReplicatedOperand(
       D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, 0, 3));
-  shader_code_.push_back(uint32_t(RdefConstantBufferIndex::kBoolLoopConstants));
+  shader_code_.push_back(cbuffer_index_bool_loop_constants_);
   shader_code_.push_back(uint32_t(CbufferRegister::kBoolLoopConstants));
   // 8 because of bool constants.
   shader_code_.push_back(8 + instr.loop_constant_index);
@@ -2949,7 +2920,9 @@ void DxbcShaderTranslator::ProcessLoopEndInstruction(
   uint32_t aL_add_temp = PushSystemTemp();
 
   // Extract the value to add to aL (in bits 16:23 of the loop constant).
-  rdef_constants_used_ |= 1ull << uint32_t(RdefConstantIndex::kLoopConstants);
+  if (cbuffer_index_bool_loop_constants_ == kCbufferIndexUnallocated) {
+    cbuffer_index_bool_loop_constants_ = cbuffer_count_++;
+  }
   shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_UBFE) |
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(11));
   shader_code_.push_back(
@@ -2963,7 +2936,7 @@ void DxbcShaderTranslator::ProcessLoopEndInstruction(
   shader_code_.push_back(16);
   shader_code_.push_back(
       EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, 0, 3));
-  shader_code_.push_back(uint32_t(RdefConstantBufferIndex::kBoolLoopConstants));
+  shader_code_.push_back(cbuffer_index_bool_loop_constants_);
   shader_code_.push_back(uint32_t(CbufferRegister::kBoolLoopConstants));
   // 8 because of bool constants.
   shader_code_.push_back(8 + instr.loop_constant_index);
@@ -3005,7 +2978,9 @@ void DxbcShaderTranslator::ProcessJumpInstruction(
   if (instr.type == ParsedJumpInstruction::Type::kConditional) {
     uint32_t bool_constant_test_register = PushSystemTemp();
     // Check the bool constant's value.
-    rdef_constants_used_ |= 1ull << uint32_t(RdefConstantIndex::kBoolConstants);
+    if (cbuffer_index_bool_loop_constants_ == kCbufferIndexUnallocated) {
+      cbuffer_index_bool_loop_constants_ = cbuffer_count_++;
+    }
     shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
                            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
     shader_code_.push_back(
@@ -3013,8 +2988,7 @@ void DxbcShaderTranslator::ProcessJumpInstruction(
     shader_code_.push_back(bool_constant_test_register);
     shader_code_.push_back(
         EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, 0, 3));
-    shader_code_.push_back(
-        uint32_t(RdefConstantBufferIndex::kBoolLoopConstants));
+    shader_code_.push_back(cbuffer_index_bool_loop_constants_);
     shader_code_.push_back(uint32_t(CbufferRegister::kBoolLoopConstants));
     shader_code_.push_back(instr.bool_constant_index >> 5);
     shader_code_.push_back(
@@ -3130,7 +3104,9 @@ void DxbcShaderTranslator::ProcessVertexFetchInstruction(
   // TODO(Triang3l): Clamp to buffer size maybe (may be difficult if the buffer
   // is smaller than 16).
   // http://xboxforums.create.msdn.com/forums/p/7537/39919.aspx#39919
-  rdef_constants_used_ |= 1ull << uint32_t(RdefConstantIndex::kFetchConstants);
+  if (cbuffer_index_fetch_constants_ == kCbufferIndexUnallocated) {
+    cbuffer_index_fetch_constants_ = cbuffer_count_++;
+  }
   shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
   shader_code_.push_back(
@@ -3138,7 +3114,7 @@ void DxbcShaderTranslator::ProcessVertexFetchInstruction(
   shader_code_.push_back(system_temp_pv_);
   shader_code_.push_back(EncodeVectorSelectOperand(
       D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, (vfetch_index & 1) * 2, 3));
-  shader_code_.push_back(uint32_t(RdefConstantBufferIndex::kFetchConstants));
+  shader_code_.push_back(cbuffer_index_fetch_constants_);
   shader_code_.push_back(uint32_t(CbufferRegister::kFetchConstants));
   shader_code_.push_back(vfetch_index >> 1);
   shader_code_.push_back(
@@ -4000,8 +3976,10 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
         instr.dimension == TextureDimension::k3D) {
       size_and_is_3d_temp = PushSystemTemp();
 
-      rdef_constants_used_ |= 1ull
-                              << uint32_t(RdefConstantIndex::kFetchConstants);
+      // Will use fetch constants for the size.
+      if (cbuffer_index_fetch_constants_ == kCbufferIndexUnallocated) {
+        cbuffer_index_fetch_constants_ = cbuffer_count_++;
+      }
 
       // Get 2D texture size and array layer count, in bits 0:12, 13:25, 26:31
       // of dword 2 ([0].z or [2].x).
@@ -4025,8 +4003,7 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
       shader_code_.push_back(
           EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
                                         2 - 2 * (tfetch_index & 1), 3));
-      shader_code_.push_back(
-          uint32_t(RdefConstantBufferIndex::kFetchConstants));
+      shader_code_.push_back(cbuffer_index_fetch_constants_);
       shader_code_.push_back(uint32_t(CbufferRegister::kFetchConstants));
       shader_code_.push_back(tfetch_pair_offset + (tfetch_index & 1) * 2);
       ++stat_.instruction_count;
@@ -4046,8 +4023,7 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
         shader_code_.push_back(
             EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
                                       1 + 2 * (tfetch_index & 1), 3));
-        shader_code_.push_back(
-            uint32_t(RdefConstantBufferIndex::kFetchConstants));
+        shader_code_.push_back(cbuffer_index_fetch_constants_);
         shader_code_.push_back(uint32_t(CbufferRegister::kFetchConstants));
         shader_code_.push_back(tfetch_pair_offset + 1 + (tfetch_index & 1));
         shader_code_.push_back(
@@ -4095,8 +4071,7 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
         shader_code_.push_back(
             EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
                                           2 - 2 * (tfetch_index & 1), 3));
-        shader_code_.push_back(
-            uint32_t(RdefConstantBufferIndex::kFetchConstants));
+        shader_code_.push_back(cbuffer_index_fetch_constants_);
         shader_code_.push_back(uint32_t(CbufferRegister::kFetchConstants));
         shader_code_.push_back(tfetch_pair_offset + (tfetch_index & 1) * 2);
         ++stat_.instruction_count;
@@ -4590,8 +4565,9 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
 
       if (instr.opcode == FetchOpcode::kTextureFetch) {
         // Will take sign values and exponent bias from the fetch constant.
-        rdef_constants_used_ |= 1ull
-                                << uint32_t(RdefConstantIndex::kFetchConstants);
+        if (cbuffer_index_fetch_constants_ == kCbufferIndexUnallocated) {
+          cbuffer_index_fetch_constants_ = cbuffer_count_++;
+        }
 
         // Apply sign bias (2 * color - 1) and linearize gamma textures. This is
         // done before applying the exponent bias because this must be done on
@@ -4623,8 +4599,7 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
         shader_code_.push_back(8);
         shader_code_.push_back(EncodeVectorReplicatedOperand(
             D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, (tfetch_index & 1) * 2, 3));
-        shader_code_.push_back(
-            uint32_t(RdefConstantBufferIndex::kFetchConstants));
+        shader_code_.push_back(cbuffer_index_fetch_constants_);
         shader_code_.push_back(uint32_t(CbufferRegister::kFetchConstants));
         shader_code_.push_back(tfetch_pair_offset + (tfetch_index & 1));
         ++stat_.instruction_count;
@@ -4813,8 +4788,7 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
         shader_code_.push_back(
             EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
                                       3 - 2 * (tfetch_index & 1), 3));
-        shader_code_.push_back(
-            uint32_t(RdefConstantBufferIndex::kFetchConstants));
+        shader_code_.push_back(cbuffer_index_fetch_constants_);
         shader_code_.push_back(uint32_t(CbufferRegister::kFetchConstants));
         shader_code_.push_back(tfetch_pair_offset + (tfetch_index & 1) * 2);
         ++stat_.instruction_count;
@@ -4897,6 +4871,9 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
     ++stat_.float_instruction_count;
     // Get the exponent bias (horizontal in bits 22:26, vertical in bits 27:31
     // of dword 4 ([1].x or [2].z) of the fetch constant).
+    if (cbuffer_index_fetch_constants_ == kCbufferIndexUnallocated) {
+      cbuffer_index_fetch_constants_ = cbuffer_count_++;
+    }
     uint32_t exp_bias_temp = PushSystemTemp();
     shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_IBFE) |
                            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(17));
@@ -4915,11 +4892,9 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
     shader_code_.push_back(27);
     shader_code_.push_back(0);
     shader_code_.push_back(0);
-    rdef_constants_used_ |= 1ull
-                            << uint32_t(RdefConstantIndex::kFetchConstants);
     shader_code_.push_back(EncodeVectorReplicatedOperand(
         D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, (tfetch_index & 1) * 2, 3));
-    shader_code_.push_back(uint32_t(RdefConstantBufferIndex::kFetchConstants));
+    shader_code_.push_back(cbuffer_index_fetch_constants_);
     shader_code_.push_back(uint32_t(CbufferRegister::kFetchConstants));
     shader_code_.push_back(tfetch_pair_offset + 1 + (tfetch_index & 1));
     ++stat_.instruction_count;
@@ -7353,10 +7328,6 @@ uint32_t DxbcShaderTranslator::AppendString(std::vector<uint32_t>& dest,
   return uint32_t(size_aligned);
 }
 
-const DxbcShaderTranslator::RdefStructMember
-    DxbcShaderTranslator::rdef_float_constant_page_member_ = {
-        "c", RdefTypeIndex::kFloatConstantPageArray, 0};
-
 const DxbcShaderTranslator::RdefType DxbcShaderTranslator::rdef_types_[size_t(
     DxbcShaderTranslator::RdefTypeIndex::kCount)] = {
     {"float", 0, 3, 1, 1, 0, 0, RdefTypeIndex::kUnknown, nullptr},
@@ -7366,78 +7337,54 @@ const DxbcShaderTranslator::RdefType DxbcShaderTranslator::rdef_types_[size_t(
     {"int", 0, 2, 1, 1, 0, 0, RdefTypeIndex::kUnknown, nullptr},
     {"uint", 0, 19, 1, 1, 0, 0, RdefTypeIndex::kUnknown, nullptr},
     {"uint4", 1, 19, 1, 4, 0, 0, RdefTypeIndex::kUnknown, nullptr},
+    // Float constants - size written dynamically.
+    {nullptr, 1, 3, 1, 4, 0, 0, RdefTypeIndex::kFloat4, nullptr},
     {nullptr, 1, 19, 1, 4, 8, 0, RdefTypeIndex::kUint4, nullptr},
     {nullptr, 1, 19, 1, 4, 32, 0, RdefTypeIndex::kUint4, nullptr},
     {nullptr, 1, 19, 1, 4, 48, 0, RdefTypeIndex::kUint4, nullptr},
-    {nullptr, 1, 3, 1, 4, kFloatConstantsPerPage, 0, RdefTypeIndex::kFloat4,
-     nullptr},
-    {"XeFloatConstantPage", 5, 0, 1, kFloatConstantsPerPage * 4, 1, 1,
-     RdefTypeIndex::kUnknown, &rdef_float_constant_page_member_},
 };
 
-const DxbcShaderTranslator::RdefConstant
-    DxbcShaderTranslator::rdef_constants_[size_t(
-        DxbcShaderTranslator::RdefConstantIndex::kCount)] = {
-        // SYSTEM CONSTANTS MUST BE UPDATED IF THEIR LAYOUT CHANGES!
-        // System constants vec4 0.
+const DxbcShaderTranslator::SystemConstantRdef DxbcShaderTranslator::
+    system_constant_rdef_[DxbcShaderTranslator::kSysConst_Count] = {
+        // vec4 0
         {"xe_flags", RdefTypeIndex::kUint, 0, 4},
         {"xe_vertex_index_endian", RdefTypeIndex::kUint, 4, 4},
         {"xe_vertex_base_index", RdefTypeIndex::kUint, 8, 4},
         {"xe_pixel_pos_reg", RdefTypeIndex::kUint, 12, 4},
-        // System constants vec4 1.
+        // vec4 1
         {"xe_ndc_scale", RdefTypeIndex::kFloat3, 16, 12},
         {"xe_pixel_half_pixel_offset", RdefTypeIndex::kFloat, 28, 4},
-        // System constants vec4 2.
+        // vec4 2
         {"xe_ndc_offset", RdefTypeIndex::kFloat3, 32, 12},
         {"xe_alpha_test", RdefTypeIndex::kInt, 44, 4},
-        // System constants vec4 3.
+        // vec4 3
         {"xe_point_size", RdefTypeIndex::kFloat2, 48, 8},
         {"xe_point_size_min_max", RdefTypeIndex::kFloat2, 56, 8},
-        // System constants vec4 4.
+        // vec4 4
         {"xe_point_screen_to_ndc", RdefTypeIndex::kFloat2, 64, 8},
         {"xe_ssaa_inv_scale", RdefTypeIndex::kFloat2, 72, 8},
-        // System constants vec4 5.
+        // vec4 5
         {"xe_alpha_test_range", RdefTypeIndex::kFloat2, 80, 8},
-        // System constants vec4 6.
+        // vec4 6
         {"xe_color_exp_bias", RdefTypeIndex::kFloat4, 96, 16},
-        // System constants vec4 7.
+        // vec4 7
         {"xe_color_output_map", RdefTypeIndex::kUint4, 112, 16},
-
-        {"xe_bool_constants", RdefTypeIndex::kUint4Array8, 0, 128},
-        {"xe_loop_constants", RdefTypeIndex::kUint4Array32, 128, 512},
-
-        {"xe_fetch_constants", RdefTypeIndex::kUint4Array48, 0, 768},
-
-        {"xe_float_constants", RdefTypeIndex::kFloatConstantPageStruct, 0,
-         kFloatConstantsPerPage * 16},
-};
-
-const DxbcShaderTranslator::RdefConstantBuffer
-    DxbcShaderTranslator::rdef_constant_buffers_[size_t(
-        DxbcShaderTranslator::RdefConstantBufferIndex::kCount)] = {
-        // SYSTEM CONSTANT SIZE MUST BE UPDATED IF THEIR LAYOUT CHANGES!
-        {"xe_system_cbuffer", RdefConstantIndex::kSystemConstantFirst,
-         uint32_t(RdefConstantIndex::kSystemConstantCount), 112,
-         CbufferRegister::kSystemConstants, 1, true, false},
-        {"xe_bool_loop_cbuffer", RdefConstantIndex::kBoolConstants, 2, 40 * 16,
-         CbufferRegister::kBoolLoopConstants, 1, true, true},
-        {"xe_fetch_cbuffer", RdefConstantIndex::kFetchConstants, 1, 48 * 16,
-         CbufferRegister::kFetchConstants, 1, true, false},
-        {"xe_float_constants", RdefConstantIndex::kFloatConstants, 1,
-         kFloatConstantsPerPage * 16, CbufferRegister::kFloatConstantsFirst,
-         kFloatConstantPageCount, false, true},
-};
-
-const DxbcShaderTranslator::RdefConstantBufferIndex
-    DxbcShaderTranslator::constant_buffer_dcl_order_[size_t(
-        DxbcShaderTranslator::RdefConstantBufferIndex::kCount)] = {
-        RdefConstantBufferIndex::kFloatConstants,
-        RdefConstantBufferIndex::kFetchConstants,
-        RdefConstantBufferIndex::kSystemConstants,
-        RdefConstantBufferIndex::kBoolLoopConstants,
 };
 
 void DxbcShaderTranslator::WriteResourceDefinitions() {
+  // ***************************************************************************
+  // Preparation
+  // ***************************************************************************
+
+  // Float constant count.
+  uint32_t float_constant_count = 0;
+  if (cbuffer_index_float_constants_ != kCbufferIndexUnallocated) {
+    for (uint32_t i = 0; i < 4; ++i) {
+      float_constant_count +=
+          xe::bit_count(constant_register_map().float_bitmap[i]);
+    }
+  }
+
   uint32_t chunk_position_dwords = uint32_t(shader_object_.size());
   uint32_t new_offset;
 
@@ -7446,15 +7393,14 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
   // ***************************************************************************
 
   // Constant buffer count.
-  shader_object_.push_back(uint32_t(RdefConstantBufferIndex::kCount));
+  shader_object_.push_back(cbuffer_count_);
   // Constant buffer offset (set later).
   shader_object_.push_back(0);
   // Bound resource count (samplers, SRV, UAV, CBV).
   // + 1 for shared memory (vfetches can probably appear in pixel shaders too,
   // they are handled safely there anyway).
   shader_object_.push_back(uint32_t(sampler_bindings_.size()) + 1 +
-                           uint32_t(texture_srvs_.size()) +
-                           uint32_t(RdefConstantBufferIndex::kCount));
+                           uint32_t(texture_srvs_.size()) + cbuffer_count_);
   // Bound resource buffer offset (set later).
   shader_object_.push_back(0);
   if (is_vertex_shader()) {
@@ -7513,8 +7459,14 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
     const RdefType& type = rdef_types_[i];
     shader_object_.push_back(type.type_class | (type.type << 16));
     shader_object_.push_back(type.row_count | (type.column_count << 16));
-    shader_object_.push_back(type.element_count |
-                             (type.struct_member_count << 16));
+    if (RdefTypeIndex(i) == RdefTypeIndex::kFloat4ConstantArray) {
+      // Declaring a 0-sized array may not be safe, so write something valid
+      // even if they aren't used.
+      shader_object_.push_back(std::max(float_constant_count, 1u));
+    } else {
+      shader_object_.push_back(type.element_count |
+                               (type.struct_member_count << 16));
+    }
     // Struct member offset (set later).
     shader_object_.push_back(0);
     // Unknown.
@@ -7524,7 +7476,9 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
     shader_object_.push_back(0);
     shader_object_.push_back(type_name_offsets[i]);
   }
-  // Structure members.
+  // Structure members. Structures are not used currently, but were used in the
+  // past, so the code is kept here.
+#if 0
   for (uint32_t i = 0; i < uint32_t(RdefTypeIndex::kCount); ++i) {
     const RdefType& type = rdef_types_[i];
     const RdefStructMember* struct_members = type.struct_members;
@@ -7551,62 +7505,191 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
       new_offset += AppendString(shader_object_, struct_members[j].name);
     }
   }
+#endif
 
   // ***************************************************************************
   // Constants
   // ***************************************************************************
 
+  // Names.
   new_offset = (uint32_t(shader_object_.size()) - chunk_position_dwords) *
                sizeof(uint32_t);
-  uint32_t constant_name_offsets[size_t(RdefConstantIndex::kCount)];
-  for (uint32_t i = 0; i < uint32_t(RdefConstantIndex::kCount); ++i) {
-    constant_name_offsets[i] = new_offset;
-    new_offset += AppendString(shader_object_, rdef_constants_[i].name);
+  uint32_t constant_name_offsets_system[kSysConst_Count];
+  if (cbuffer_index_system_constants_ != kCbufferIndexUnallocated) {
+    for (uint32_t i = 0; i < kSysConst_Count; ++i) {
+      constant_name_offsets_system[i] = new_offset;
+      new_offset += AppendString(shader_object_, system_constant_rdef_[i].name);
+    }
   }
-  uint32_t constants_offset = new_offset;
-  const uint32_t constant_size = 40;
-  for (uint32_t i = 0; i < uint32_t(RdefConstantIndex::kCount); ++i) {
-    const RdefConstant& constant = rdef_constants_[i];
-    shader_object_.push_back(constant_name_offsets[i]);
-    shader_object_.push_back(constant.offset);
-    shader_object_.push_back(constant.size);
-    // Flag 2 is D3D_SVF_USED.
-    shader_object_.push_back((rdef_constants_used_ & (1ull << i)) ? 2 : 0);
+  uint32_t constant_name_offset_float = new_offset;
+  if (cbuffer_index_float_constants_ != kCbufferIndexUnallocated) {
+    new_offset += AppendString(shader_object_, "xe_float_constants");
+  }
+  uint32_t constant_name_offset_bool = new_offset;
+  uint32_t constant_name_offset_loop = constant_name_offset_bool;
+  if (cbuffer_index_bool_loop_constants_ != kCbufferIndexUnallocated) {
+    new_offset += AppendString(shader_object_, "xe_bool_constants");
+    constant_name_offset_loop = new_offset;
+    new_offset += AppendString(shader_object_, "xe_loop_constants");
+  }
+  uint32_t constant_name_offset_fetch = new_offset;
+  if (constant_name_offset_fetch != kCbufferIndexUnallocated) {
+    new_offset += AppendString(shader_object_, "xe_fetch_constants");
+  }
+
+  const uint32_t constant_size = 10 * sizeof(uint32_t);
+
+  // System constants.
+  uint32_t constant_offset_system = new_offset;
+  if (cbuffer_index_system_constants_ != kCbufferIndexUnallocated) {
+    for (uint32_t i = 0; i < kSysConst_Count; ++i) {
+      const SystemConstantRdef& constant = system_constant_rdef_[i];
+      shader_object_.push_back(constant_name_offsets_system[i]);
+      shader_object_.push_back(constant.offset);
+      shader_object_.push_back(constant.size);
+      // Flag 0x2 is D3D_SVF_USED.
+      shader_object_.push_back((system_constants_used_ & (1u << i)) ? 0x2 : 0);
+      shader_object_.push_back(types_offset +
+                               uint32_t(constant.type) * type_size);
+      // Default value (always 0).
+      shader_object_.push_back(0);
+      // Unknown.
+      shader_object_.push_back(0xFFFFFFFFu);
+      shader_object_.push_back(0);
+      shader_object_.push_back(0xFFFFFFFFu);
+      shader_object_.push_back(0);
+      new_offset += constant_size;
+    }
+  }
+
+  // Float constants.
+  uint32_t constant_offset_float = new_offset;
+  if (cbuffer_index_float_constants_ != kCbufferIndexUnallocated) {
+    shader_object_.push_back(constant_name_offset_float);
+    shader_object_.push_back(0);
+    shader_object_.push_back(std::max(float_constant_count, 1u) * 4 *
+                             sizeof(float));
+    shader_object_.push_back(0x2);
     shader_object_.push_back(types_offset +
-                             uint32_t(constant.type) * type_size);
-    // Default value (always 0).
+                             uint32_t(RdefTypeIndex::kFloat4ConstantArray) *
+                                 type_size);
     shader_object_.push_back(0);
-    // Unknown.
+    shader_object_.push_back(0xFFFFFFFFu);
+    shader_object_.push_back(0);
+    shader_object_.push_back(0xFFFFFFFFu);
+    shader_object_.push_back(0);
+    new_offset += constant_size;
+  }
+
+  // Bool and loop constants.
+  uint32_t constant_offset_bool_loop = new_offset;
+  if (cbuffer_index_bool_loop_constants_ != kCbufferIndexUnallocated) {
+    shader_object_.push_back(constant_name_offset_bool);
+    shader_object_.push_back(0);
+    shader_object_.push_back(8 * 4 * sizeof(uint32_t));
+    shader_object_.push_back(0x2);
+    shader_object_.push_back(types_offset +
+                             uint32_t(RdefTypeIndex::kUint4Array8) * type_size);
+    shader_object_.push_back(0);
     shader_object_.push_back(0xFFFFFFFFu);
     shader_object_.push_back(0);
     shader_object_.push_back(0xFFFFFFFFu);
     shader_object_.push_back(0);
+    new_offset += constant_size;
+    shader_object_.push_back(constant_name_offset_loop);
+    shader_object_.push_back(8 * 4 * sizeof(uint32_t));
+    shader_object_.push_back(32 * 4 * sizeof(uint32_t));
+    shader_object_.push_back(0x2);
+    shader_object_.push_back(
+        types_offset + uint32_t(RdefTypeIndex::kUint4Array32) * type_size);
+    shader_object_.push_back(0);
+    shader_object_.push_back(0xFFFFFFFFu);
+    shader_object_.push_back(0);
+    shader_object_.push_back(0xFFFFFFFFu);
+    shader_object_.push_back(0);
+    new_offset += constant_size;
+  }
+
+  // Fetch constants.
+  uint32_t constant_offset_fetch = new_offset;
+  if (cbuffer_index_fetch_constants_ != kCbufferIndexUnallocated) {
+    shader_object_.push_back(constant_name_offset_fetch);
+    shader_object_.push_back(0);
+    shader_object_.push_back(32 * 6 * sizeof(uint32_t));
+    shader_object_.push_back(0x2);
+    shader_object_.push_back(
+        types_offset + uint32_t(RdefTypeIndex::kUint4Array48) * type_size);
+    shader_object_.push_back(0);
+    shader_object_.push_back(0xFFFFFFFFu);
+    shader_object_.push_back(0);
+    shader_object_.push_back(0xFFFFFFFFu);
+    shader_object_.push_back(0);
+    new_offset += constant_size;
   }
 
   // ***************************************************************************
   // Constant buffers
   // ***************************************************************************
 
+  // Write the names.
   new_offset = (uint32_t(shader_object_.size()) - chunk_position_dwords) *
                sizeof(uint32_t);
-  uint32_t cbuffer_name_offsets[size_t(RdefConstantBufferIndex::kCount)];
-  for (uint32_t i = 0; i < uint32_t(RdefConstantBufferIndex::kCount); ++i) {
-    cbuffer_name_offsets[i] = new_offset;
-    new_offset += AppendString(shader_object_, rdef_constant_buffers_[i].name);
+  uint32_t cbuffer_name_offset_system = new_offset;
+  if (cbuffer_index_system_constants_ != kCbufferIndexUnallocated) {
+    new_offset += AppendString(shader_object_, "xe_system_cbuffer");
   }
+  uint32_t cbuffer_name_offset_float = new_offset;
+  if (cbuffer_index_float_constants_ != kCbufferIndexUnallocated) {
+    new_offset += AppendString(shader_object_, "xe_float_cbuffer");
+  }
+  uint32_t cbuffer_name_offset_bool_loop = new_offset;
+  if (cbuffer_index_bool_loop_constants_ != kCbufferIndexUnallocated) {
+    new_offset += AppendString(shader_object_, "xe_bool_loop_cbuffer");
+  }
+  uint32_t cbuffer_name_offset_fetch = new_offset;
+  if (cbuffer_index_fetch_constants_ != kCbufferIndexUnallocated) {
+    new_offset += AppendString(shader_object_, "xe_fetch_cbuffer");
+  }
+
   // Write the offset to the header.
   shader_object_[chunk_position_dwords + 1] = new_offset;
-  for (uint32_t i = 0; i < uint32_t(RdefConstantBufferIndex::kCount); ++i) {
-    const RdefConstantBuffer& cbuffer = rdef_constant_buffers_[i];
-    shader_object_.push_back(cbuffer_name_offsets[i]);
-    shader_object_.push_back(cbuffer.constant_count);
-    shader_object_.push_back(constants_offset +
-                             uint32_t(cbuffer.first_constant) * constant_size);
-    shader_object_.push_back(cbuffer.size);
-    // D3D_CT_CBUFFER.
-    shader_object_.push_back(0);
-    // No D3D_SHADER_CBUFFER_FLAGS.
-    shader_object_.push_back(0);
+
+  // Write all the constant buffers, sorted by their binding index.
+  for (uint32_t i = 0; i < cbuffer_count_; ++i) {
+    if (i == cbuffer_index_system_constants_) {
+      shader_object_.push_back(cbuffer_name_offset_system);
+      shader_object_.push_back(kSysConst_Count);
+      shader_object_.push_back(constant_offset_system);
+      shader_object_.push_back(
+          uint32_t(xe::align(sizeof(SystemConstants), 4 * sizeof(uint32_t))));
+      // D3D_CT_CBUFFER.
+      shader_object_.push_back(0);
+      // No D3D_SHADER_CBUFFER_FLAGS.
+      shader_object_.push_back(0);
+    } else if (i == cbuffer_index_float_constants_) {
+      shader_object_.push_back(cbuffer_name_offset_float);
+      shader_object_.push_back(1);
+      shader_object_.push_back(constant_offset_float);
+      shader_object_.push_back(std::max(float_constant_count, 1u) * 4 *
+                               sizeof(float));
+      shader_object_.push_back(0);
+      shader_object_.push_back(0);
+    } else if (i == cbuffer_index_bool_loop_constants_) {
+      shader_object_.push_back(cbuffer_name_offset_bool_loop);
+      // Bool constants and loop constants are separate for easier debugging.
+      shader_object_.push_back(2);
+      shader_object_.push_back(constant_offset_bool_loop);
+      shader_object_.push_back((8 + 32) * 4 * sizeof(uint32_t));
+      shader_object_.push_back(0);
+      shader_object_.push_back(0);
+    } else if (i == cbuffer_index_fetch_constants_) {
+      shader_object_.push_back(cbuffer_name_offset_fetch);
+      shader_object_.push_back(1);
+      shader_object_.push_back(constant_offset_fetch);
+      shader_object_.push_back(32 * 6 * sizeof(uint32_t));
+      shader_object_.push_back(0);
+      shader_object_.push_back(0);
+    }
   }
 
   // ***************************************************************************
@@ -7714,9 +7797,21 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
   }
 
   // Constant buffers.
-  for (uint32_t i = 0; i < uint32_t(RdefConstantBufferIndex::kCount); ++i) {
-    const RdefConstantBuffer& cbuffer = rdef_constant_buffers_[i];
-    shader_object_.push_back(cbuffer_name_offsets[i]);
+  for (uint32_t i = 0; i < cbuffer_count_; ++i) {
+    uint32_t register_index = 0;
+    if (i == cbuffer_index_system_constants_) {
+      shader_object_.push_back(cbuffer_name_offset_system);
+      register_index = uint32_t(CbufferRegister::kSystemConstants);
+    } else if (i == cbuffer_index_float_constants_) {
+      shader_object_.push_back(cbuffer_name_offset_float);
+      register_index = uint32_t(CbufferRegister::kFloatConstants);
+    } else if (i == cbuffer_index_bool_loop_constants_) {
+      shader_object_.push_back(cbuffer_name_offset_bool_loop);
+      register_index = uint32_t(CbufferRegister::kBoolLoopConstants);
+    } else if (i == cbuffer_index_fetch_constants_) {
+      shader_object_.push_back(cbuffer_name_offset_fetch);
+      register_index = uint32_t(CbufferRegister::kFetchConstants);
+    }
     // D3D_SIT_CBUFFER.
     shader_object_.push_back(0);
     // No D3D_RESOURCE_RETURN_TYPE.
@@ -7725,10 +7820,13 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
     shader_object_.push_back(0);
     // Multisampling not applicable.
     shader_object_.push_back(0);
-    shader_object_.push_back(uint32_t(cbuffer.register_index));
-    shader_object_.push_back(cbuffer.binding_count);
-    // D3D_SIF_USERPACKED if a `cbuffer` rather than a `ConstantBuffer<T>`.
-    shader_object_.push_back(cbuffer.user_packed ? 1 : 0);
+    shader_object_.push_back(register_index);
+    // One binding.
+    shader_object_.push_back(1);
+    // D3D_SIF_USERPACKED if a `cbuffer` rather than a `ConstantBuffer<T>`, but
+    // we don't use indexable constant buffer descriptors since they seem to be
+    // causing significant visual issues on AMD.
+    shader_object_.push_back(0);
     // Register space 0.
     shader_object_.push_back(0);
     // CBV ID CB[i].
@@ -7968,10 +8066,13 @@ void DxbcShaderTranslator::WriteShaderCode() {
 
   // Declarations (don't increase the instruction count stat, and only inputs
   // and outputs are counted in dcl_count).
+  //
   // Binding declarations have 3D-indexed operands with XYZW swizzle, the first
   // index being the binding ID (local to the shader), the second being the
   // lower register index bound, and the third being the highest register index
-  // bound.
+  // bound. Also dcl_ instructions for bindings are followed by the register
+  // space index.
+  //
   // Inputs/outputs have 1D-indexed operands with a component mask and a
   // register index.
 
@@ -7982,27 +8083,71 @@ void DxbcShaderTranslator::WriteShaderCode() {
       ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1) |
       D3D11_1_SB_GLOBAL_FLAG_SKIP_OPTIMIZATION);
 
-  // Constant buffers.
-  for (uint32_t i = 0; i < uint32_t(RdefConstantBufferIndex::kCount); ++i) {
-    uint32_t cbuffer_index = uint32_t(constant_buffer_dcl_order_[i]);
-    const RdefConstantBuffer& cbuffer = rdef_constant_buffers_[cbuffer_index];
+  // Constant buffers, from most frequenly accessed to least frequently accessed
+  // (the order is a hint to the driver according to the DXBC header).
+  if (cbuffer_index_float_constants_ != kCbufferIndexUnallocated) {
+    uint32_t float_constant_count = 0;
+    for (uint32_t i = 0; i < 4; ++i) {
+      float_constant_count +=
+          xe::bit_count(constant_register_map().float_bitmap[i]);
+    }
     shader_object_.push_back(
         ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_CONSTANT_BUFFER) |
         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7) |
         ENCODE_D3D10_SB_D3D10_SB_CONSTANT_BUFFER_ACCESS_PATTERN(
-            cbuffer.dynamic_indexed
+            float_constants_dynamic_indexed_
                 ? D3D10_SB_CONSTANT_BUFFER_DYNAMIC_INDEXED
                 : D3D10_SB_CONSTANT_BUFFER_IMMEDIATE_INDEXED));
     shader_object_.push_back(EncodeVectorSwizzledOperand(
         D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSwizzleXYZW, 3));
-    shader_object_.push_back(cbuffer_index);
-    // Lower register bound in the space.
-    shader_object_.push_back(uint32_t(cbuffer.register_index));
-    // Upper register bound in the space.
-    shader_object_.push_back(uint32_t(cbuffer.register_index) +
-                             cbuffer.binding_count - 1);
-    shader_object_.push_back((cbuffer.size + 15) >> 4);
-    // Space 0.
+    shader_object_.push_back(cbuffer_index_float_constants_);
+    shader_object_.push_back(uint32_t(CbufferRegister::kFloatConstants));
+    shader_object_.push_back(uint32_t(CbufferRegister::kFloatConstants));
+    shader_object_.push_back(float_constant_count);
+    shader_object_.push_back(0);
+  }
+  if (cbuffer_index_system_constants_ != kCbufferIndexUnallocated) {
+    shader_object_.push_back(
+        ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_CONSTANT_BUFFER) |
+        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7) |
+        ENCODE_D3D10_SB_D3D10_SB_CONSTANT_BUFFER_ACCESS_PATTERN(
+            D3D10_SB_CONSTANT_BUFFER_IMMEDIATE_INDEXED));
+    shader_object_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSwizzleXYZW, 3));
+    shader_object_.push_back(cbuffer_index_system_constants_);
+    shader_object_.push_back(uint32_t(CbufferRegister::kSystemConstants));
+    shader_object_.push_back(uint32_t(CbufferRegister::kSystemConstants));
+    shader_object_.push_back((sizeof(SystemConstants) + 15) >> 4);
+    shader_object_.push_back(0);
+  }
+  if (cbuffer_index_fetch_constants_ != kCbufferIndexUnallocated) {
+    shader_object_.push_back(
+        ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_CONSTANT_BUFFER) |
+        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7) |
+        ENCODE_D3D10_SB_D3D10_SB_CONSTANT_BUFFER_ACCESS_PATTERN(
+            D3D10_SB_CONSTANT_BUFFER_IMMEDIATE_INDEXED));
+    shader_object_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSwizzleXYZW, 3));
+    shader_object_.push_back(cbuffer_index_fetch_constants_);
+    shader_object_.push_back(uint32_t(CbufferRegister::kFetchConstants));
+    shader_object_.push_back(uint32_t(CbufferRegister::kFetchConstants));
+    shader_object_.push_back(48);
+    shader_object_.push_back(0);
+  }
+  if (cbuffer_index_bool_loop_constants_ != kCbufferIndexUnallocated) {
+    shader_object_.push_back(
+        ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_CONSTANT_BUFFER) |
+        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7) |
+        ENCODE_D3D10_SB_D3D10_SB_CONSTANT_BUFFER_ACCESS_PATTERN(
+            bool_loop_constants_dynamic_indexed_
+                ? D3D10_SB_CONSTANT_BUFFER_DYNAMIC_INDEXED
+                : D3D10_SB_CONSTANT_BUFFER_IMMEDIATE_INDEXED));
+    shader_object_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSwizzleXYZW, 3));
+    shader_object_.push_back(cbuffer_index_bool_loop_constants_);
+    shader_object_.push_back(uint32_t(CbufferRegister::kBoolLoopConstants));
+    shader_object_.push_back(uint32_t(CbufferRegister::kBoolLoopConstants));
+    shader_object_.push_back(40);
     shader_object_.push_back(0);
   }
 

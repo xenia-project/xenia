@@ -26,6 +26,17 @@ class DxbcShaderTranslator : public ShaderTranslator {
   DxbcShaderTranslator();
   ~DxbcShaderTranslator() override;
 
+  // Constant buffer bindings in space 0.
+  enum class CbufferRegister {
+    // The D3D12 command processor has system and bool/loop constants in a
+    // single descriptor range.
+    // TODO(Triang3l): Make them root CBVs for speed.
+    kSystemConstants,
+    kBoolLoopConstants,
+    kFloatConstants,
+    kFetchConstants,
+  };
+
   enum : uint32_t {
     kSysFlag_XYDividedByW = 1,
     kSysFlag_ZDividedByW = kSysFlag_XYDividedByW << 1,
@@ -38,9 +49,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
   };
 
   // IF SYSTEM CONSTANTS ARE CHANGED OR ADDED, THE FOLLOWING MUST BE UPDATED:
-  // - kSysConst enum (registers and first components).
-  // - rdef_constants_.
-  // - rdef_constant_buffers_ system constant buffer size.
+  // - kSysConst enum (indices, registers and first components).
+  // - system_constant_rdef_.
   // - d3d12/shaders/xenos_draw.hlsli (for geometry shaders).
   struct SystemConstants {
     // vec4 0
@@ -144,54 +154,59 @@ class DxbcShaderTranslator : public ShaderTranslator {
   void ProcessAluInstruction(const ParsedAluInstruction& instr) override;
 
  private:
-  static constexpr uint32_t kFloatConstantsPerPage = 32;
-  static constexpr uint32_t kFloatConstantPageCount = 8;
-
-  // Constant buffer bindings in space 0.
-  enum class CbufferRegister {
-    kSystemConstants,
-    kBoolLoopConstants,
-    kFetchConstants,
-    kFloatConstantsFirst,
-    kFloatConstantsLast = kFloatConstantsFirst + kFloatConstantPageCount - 1,
-  };
-
   enum : uint32_t {
+    kSysConst_Flags_Index = 0,
     kSysConst_Flags_Vec = 0,
     kSysConst_Flags_Comp = 0,
+    kSysConst_VertexIndexEndian_Index = kSysConst_Flags_Index + 1,
     kSysConst_VertexIndexEndian_Vec = 0,
     kSysConst_VertexIndexEndian_Comp = 1,
+    kSysConst_VertexBaseIndex_Index = kSysConst_VertexIndexEndian_Index + 1,
     kSysConst_VertexBaseIndex_Vec = 0,
     kSysConst_VertexBaseIndex_Comp = 2,
+    kSysConst_PixelPosReg_Index = kSysConst_VertexBaseIndex_Index + 1,
     kSysConst_PixelPosReg_Vec = 0,
     kSysConst_PixelPosReg_Comp = 3,
 
+    kSysConst_NDCScale_Index = kSysConst_PixelPosReg_Index + 1,
     kSysConst_NDCScale_Vec = 1,
     kSysConst_NDCScale_Comp = 0,
+    kSysConst_PixelHalfPixelOffset_Index = kSysConst_NDCScale_Index + 1,
     kSysConst_PixelHalfPixelOffset_Vec = 1,
     kSysConst_PixelHalfPixelOffset_Comp = 3,
 
+    kSysConst_NDCOffset_Index = kSysConst_PixelHalfPixelOffset_Index + 1,
     kSysConst_NDCOffset_Vec = 2,
     kSysConst_NDCOffset_Comp = 0,
+    kSysConst_AlphaTest_Index = kSysConst_NDCOffset_Index + 1,
     kSysConst_AlphaTest_Vec = 2,
     kSysConst_AlphaTest_Comp = 3,
 
+    kSysConst_PointSize_Index = kSysConst_AlphaTest_Index + 1,
     kSysConst_PointSize_Vec = 3,
     kSysConst_PointSize_Comp = 0,
+    kSysConst_PointSizeMinMax_Index = kSysConst_PointSize_Index + 1,
     kSysConst_PointSizeMinMax_Vec = 3,
     kSysConst_PointSizeMinMax_Comp = 2,
 
+    kSysConst_PointScreenToNDC_Index = kSysConst_PointSizeMinMax_Index + 1,
     kSysConst_PointScreenToNDC_Vec = 4,
     kSysConst_PointScreenToNDC_Comp = 0,
+    kSysConst_SSAAInvScale_Index = kSysConst_PointScreenToNDC_Index + 1,
     kSysConst_SSAAInvScale_Vec = 4,
     kSysConst_SSAAInvScale_Comp = 2,
 
+    kSysConst_AlphaTestRange_Index = kSysConst_SSAAInvScale_Index + 1,
     kSysConst_AlphaTestRange_Vec = 5,
     kSysConst_AlphaTestRange_Comp = 0,
 
+    kSysConst_ColorExpBias_Index = kSysConst_AlphaTestRange_Index + 1,
     kSysConst_ColorExpBias_Vec = 6,
 
+    kSysConst_ColorOutputMap_Index = kSysConst_ColorExpBias_Index + 1,
     kSysConst_ColorOutputMap_Vec = 7,
+
+    kSysConst_Count = kSysConst_ColorOutputMap_Index + 1
   };
 
   static constexpr uint32_t kInterpolatorCount = 16;
@@ -316,7 +331,9 @@ class DxbcShaderTranslator : public ShaderTranslator {
 
     Type type;
     uint32_t index;
-    bool is_dynamic_indexed;
+    // If the operand is dynamically indexed directly when it's used as an
+    // operand in DXBC instructions.
+    InstructionStorageAddressingMode addressing_mode;
 
     uint32_t swizzle;
     bool is_negated;
@@ -421,15 +438,14 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kInt,
     kUint,
     kUint4,
+    // Float constants - size written dynamically.
+    kFloat4ConstantArray,
     // Bool constants.
     kUint4Array8,
     // Loop constants.
     kUint4Array32,
     // Fetch constants.
     kUint4Array48,
-    // Float constants in one page.
-    kFloatConstantPageArray,
-    kFloatConstantPageStruct,
 
     kCount,
     kUnknown = kCount
@@ -440,7 +456,6 @@ class DxbcShaderTranslator : public ShaderTranslator {
     RdefTypeIndex type;
     uint32_t offset;
   };
-  static const RdefStructMember rdef_float_constant_page_member_;
 
   struct RdefType {
     // Name ignored for arrays.
@@ -459,73 +474,35 @@ class DxbcShaderTranslator : public ShaderTranslator {
   };
   static const RdefType rdef_types_[size_t(RdefTypeIndex::kCount)];
 
-  enum class RdefConstantIndex {
-    kSystemConstantFirst,
-    kSysFlags = kSystemConstantFirst,
-    kSysVertexBaseIndex,
-    kSysVertexIndexEndian,
-    kSysPixelPosReg,
-    kSysNDCScale,
-    kSysPixelHalfPixelOffset,
-    kSysNDCOffset,
-    kSysAlphaTest,
-    kSysPointSize,
-    kSysPointSizeMinMax,
-    kSysPointScreenToNDC,
-    kSysSSAAInvScale,
-    kSysAlphaTestRange,
-    kSysColorExpBias,
-    kSysColorOutputMap,
-    kSystemConstantLast = kSysColorOutputMap,
+  // Number of constant buffer bindings used in this shader - also used for
+  // generation of indices of constant buffers that are optional.
+  uint32_t cbuffer_count_;
+  static constexpr uint32_t kCbufferIndexUnallocated = UINT32_MAX;
+  uint32_t cbuffer_index_system_constants_;
+  uint32_t cbuffer_index_float_constants_;
+  uint32_t cbuffer_index_bool_loop_constants_;
+  uint32_t cbuffer_index_fetch_constants_;
 
-    kBoolConstants,
-    kLoopConstants,
-
-    kFetchConstants,
-
-    kFloatConstants,
-
-    kCount,
-    kSystemConstantCount = kSystemConstantLast - kSystemConstantFirst + 1,
-  };
-  struct RdefConstant {
+  struct SystemConstantRdef {
     const char* name;
     RdefTypeIndex type;
     uint32_t offset;
     uint32_t size;
   };
-  static const RdefConstant rdef_constants_[size_t(RdefConstantIndex::kCount)];
-  static_assert(uint32_t(RdefConstantIndex::kCount) <= 64,
-                "Too many constants in all constant buffers - can't use a 64 "
-                "bit vector to store which constants are used");
-  uint64_t rdef_constants_used_;
+  static const SystemConstantRdef system_constant_rdef_[kSysConst_Count];
+  // Mask of system constants (1 << kSysConst_#_Index) used in the shader, so
+  // the remaining ones can be marked as unused in RDEF.
+  uint32_t system_constants_used_;
 
-  enum class RdefConstantBufferIndex {
-    kSystemConstants,
-    kBoolLoopConstants,
-    kFetchConstants,
-    kFloatConstants,
+  // Whether constants are dynamically indexed and need to be marked as such in
+  // dcl_constantBuffer.
+  bool float_constants_dynamic_indexed_;
+  bool bool_loop_constants_dynamic_indexed_;
 
-    kCount
-  };
-  struct RdefConstantBuffer {
-    const char* name;
-    RdefConstantIndex first_constant;
-    uint32_t constant_count;
-    uint32_t size;
-    CbufferRegister register_index;
-    uint32_t binding_count;
-    // True if created like `cbuffer`, false for `ConstantBuffer<T>`.
-    bool user_packed;
-    bool dynamic_indexed;
-  };
-  static const RdefConstantBuffer
-      rdef_constant_buffers_[size_t(RdefConstantBufferIndex::kCount)];
-
-  // Order of dcl_constantbuffer instructions, from most frequenly accessed to
-  // least frequently accessed (hint to driver according to the DXBC header).
-  static const RdefConstantBufferIndex
-      constant_buffer_dcl_order_[size_t(RdefConstantBufferIndex::kCount)];
+  // Offsets of float constant indices in shader_code_, for remapping in
+  // CompleteTranslation (initially, at these offsets, guest float constant
+  // indices are written).
+  std::vector<uint32_t> float_constant_index_offsets_;
 
   // Number of currently allocated Xenia internal r# registers.
   uint32_t system_temp_count_current_;

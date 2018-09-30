@@ -524,6 +524,9 @@ class Shader {
     // Each bit corresponds to a storage index [0-255].
     uint32_t bool_bitmap[256 / 32];
 
+    // Total number of kConstantFloat registers read by the shader.
+    uint32_t float_count;
+
     // Computed byte count of all registers required when packed.
     uint32_t packed_byte_length;
   };
