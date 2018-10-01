@@ -1446,7 +1446,15 @@ void ShaderTranslator::ParseAluScalarInstruction(
         op, InstructionStorageSource::kConstantFloat, op.src_reg(3),
         op.src_negate(3), 0, swiz_a, &i.operands[0]);
 
-    // Track constant float register loads.
+    ParseAluInstructionOperandSpecial(op, InstructionStorageSource::kRegister,
+                                      reg2, op.src_negate(3), const_slot,
+                                      swiz_b, &i.operands[1]);
+  }
+
+  // Track constant float register loads - in either case, a float constant may
+  // be used in operand 0.
+  if (i.operands[0].storage_source ==
+      InstructionStorageSource::kConstantFloat) {
     auto register_index = i.operands[0].storage_index;
     if (i.operands[0].storage_addressing_mode !=
         InstructionStorageAddressingMode::kStatic) {
@@ -1457,10 +1465,6 @@ void ShaderTranslator::ParseAluScalarInstruction(
       constant_register_map_.float_bitmap[register_index / 64] |=
           1ull << (register_index % 64);
     }
-
-    ParseAluInstructionOperandSpecial(op, InstructionStorageSource::kRegister,
-                                      reg2, op.src_negate(3), const_slot,
-                                      swiz_b, &i.operands[1]);
   }
 
   i.Disassemble(&ucode_disasm_buffer_);
