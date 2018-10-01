@@ -1834,6 +1834,10 @@ void DxbcShaderTranslator::UseDxbcSourceOperand(
   absolute |= operand.is_absolute_value;
   // Build OperandToken1 for modifiers (negate, absolute, minimum precision,
   // non-uniform binding index) - if it has any, it will be non-zero.
+  // NOTE: AMD GPUs or drivers do NOT support non-uniform constant buffer
+  // indices as of October 1, 2018 - they were causing significant skinned mesh
+  // corruption when Xenia used multiple descriptors for float constants rather
+  // than remapping.
   uint32_t modifiers = 0;
   if (negate && absolute) {
     modifiers |= D3D10_SB_OPERAND_MODIFIER_ABSNEG
@@ -7824,8 +7828,7 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
     // One binding.
     shader_object_.push_back(1);
     // D3D_SIF_USERPACKED if a `cbuffer` rather than a `ConstantBuffer<T>`, but
-    // we don't use indexable constant buffer descriptors since they seem to be
-    // causing significant visual issues on AMD.
+    // we don't use indexable constant buffer descriptors.
     shader_object_.push_back(0);
     // Register space 0.
     shader_object_.push_back(0);

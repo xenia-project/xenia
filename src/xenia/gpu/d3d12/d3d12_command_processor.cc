@@ -1858,7 +1858,7 @@ bool D3D12CommandProcessor::UpdateBindings(
     view_count_partial_update += texture_count;
   }
   // All the constants + shared memory + textures.
-  uint32_t view_count_full_update = 20 + texture_count;
+  uint32_t view_count_full_update = 6 + texture_count;
   D3D12_CPU_DESCRIPTOR_HANDLE view_cpu_handle;
   D3D12_GPU_DESCRIPTOR_HANDLE view_gpu_handle;
   uint32_t descriptor_size_view = provider->GetViewDescriptorSize();
