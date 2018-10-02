@@ -28,12 +28,9 @@ class DxbcShaderTranslator : public ShaderTranslator {
 
   // Constant buffer bindings in space 0.
   enum class CbufferRegister {
-    // The D3D12 command processor has system and bool/loop constants in a
-    // single descriptor range.
-    // TODO(Triang3l): Make them root CBVs for speed.
     kSystemConstants,
-    kBoolLoopConstants,
     kFloatConstants,
+    kBoolLoopConstants,
     kFetchConstants,
   };
 

@@ -213,18 +213,34 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(
     range.OffsetInDescriptorsFromTableStart = 0;
   }
 
-  // Common constants - system and loop/bool.
+  // System constants.
   {
-    auto& parameter = parameters[kRootParameter_CommonConstants];
-    auto& range = ranges[kRootParameter_CommonConstants];
+    auto& parameter = parameters[kRootParameter_SystemConstants];
+    auto& range = ranges[kRootParameter_SystemConstants];
     parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
     parameter.DescriptorTable.NumDescriptorRanges = 1;
     parameter.DescriptorTable.pDescriptorRanges = &range;
     parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
     range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
-    range.NumDescriptors = 2;
+    range.NumDescriptors = 1;
     range.BaseShaderRegister =
         uint32_t(DxbcShaderTranslator::CbufferRegister::kSystemConstants);
+    range.RegisterSpace = 0;
+    range.OffsetInDescriptorsFromTableStart = 0;
+  }
+
+  // Bool and loop constants.
+  {
+    auto& parameter = parameters[kRootParameter_BoolLoopConstants];
+    auto& range = ranges[kRootParameter_BoolLoopConstants];
+    parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    parameter.DescriptorTable.NumDescriptorRanges = 1;
+    parameter.DescriptorTable.pDescriptorRanges = &range;
+    parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+    range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
+    range.NumDescriptors = 1;
+    range.BaseShaderRegister =
+        uint32_t(DxbcShaderTranslator::CbufferRegister::kBoolLoopConstants);
     range.RegisterSpace = 0;
     range.OffsetInDescriptorsFromTableStart = 0;
   }
@@ -1676,9 +1692,10 @@ bool D3D12CommandProcessor::UpdateBindings(
   uint32_t sampler_count = pixel_sampler_count + vertex_sampler_count;
 
   // Begin updating descriptors.
-  bool write_common_constant_views = false;
+  bool write_system_constant_view = false;
   bool write_vertex_float_constant_view = false;
   bool write_pixel_float_constant_view = false;
+  bool write_bool_loop_constant_view = false;
   bool write_fetch_constant_view = false;
   // TODO(Triang3l): Update textures and samplers only if shaders or binding
   // hash change.
@@ -1746,7 +1763,7 @@ bool D3D12CommandProcessor::UpdateBindings(
     std::memcpy(system_constants, &system_constants_,
                 sizeof(system_constants_));
     cbuffer_bindings_system_.up_to_date = true;
-    write_common_constant_views = true;
+    write_system_constant_view = true;
   }
   if (!cbuffer_bindings_vertex_float_.up_to_date) {
     uint8_t* float_constants = constant_buffer_pool_->RequestFull(
@@ -1821,7 +1838,7 @@ bool D3D12CommandProcessor::UpdateBindings(
       bool_loop_constant_vector[3] = bool_loop_constant;
     }
     cbuffer_bindings_bool_loop_.up_to_date = true;
-    write_common_constant_views = true;
+    write_bool_loop_constant_view = true;
   }
   if (!cbuffer_bindings_fetch_.up_to_date) {
     uint8_t* fetch_constants = constant_buffer_pool_->RequestFull(
@@ -1838,20 +1855,19 @@ bool D3D12CommandProcessor::UpdateBindings(
 
   // Allocate the descriptors.
   uint32_t view_count_partial_update = 0;
-  if (write_common_constant_views) {
-    // System and bool/loop constants.
-    view_count_partial_update += 2;
+  if (write_system_constant_view) {
+    ++view_count_partial_update;
   }
   if (write_vertex_float_constant_view) {
-    // Vertex float constants.
     ++view_count_partial_update;
   }
   if (write_pixel_float_constant_view) {
-    // Pixel float constants.
+    ++view_count_partial_update;
+  }
+  if (write_bool_loop_constant_view) {
     ++view_count_partial_update;
   }
   if (write_fetch_constant_view) {
-    // Fetch constants.
     ++view_count_partial_update;
   }
   if (write_textures) {
@@ -1885,12 +1901,13 @@ bool D3D12CommandProcessor::UpdateBindings(
   if (draw_view_full_update_ != view_full_update_index) {
     // Need to update all view descriptors.
     draw_view_full_update_ = view_full_update_index;
-    write_common_constant_views = true;
+    write_system_constant_view = true;
     write_fetch_constant_view = true;
     write_vertex_float_constant_view = true;
     write_pixel_float_constant_view = true;
+    write_bool_loop_constant_view = true;
     write_textures = texture_count != 0;
-    // If updating fully, write the shared memory descriptor (t0, space1).
+    // If updating fully, write the shared memory descriptor (t0).
     shared_memory_->CreateSRV(view_cpu_handle);
     gpu_handle_shared_memory_ = view_gpu_handle;
     view_cpu_handle.ptr += descriptor_size_view;
@@ -1905,9 +1922,9 @@ bool D3D12CommandProcessor::UpdateBindings(
 
   // Write the descriptors.
   D3D12_CONSTANT_BUFFER_VIEW_DESC constant_buffer_desc;
-  if (write_common_constant_views) {
-    gpu_handle_common_constants_ = view_gpu_handle;
-    // System constants (b0).
+  if (write_system_constant_view) {
+    gpu_handle_system_constants_ = view_gpu_handle;
+    // System constants.
     constant_buffer_desc.BufferLocation =
         cbuffer_bindings_system_.buffer_address;
     constant_buffer_desc.SizeInBytes =
@@ -1915,19 +1932,12 @@ bool D3D12CommandProcessor::UpdateBindings(
     device->CreateConstantBufferView(&constant_buffer_desc, view_cpu_handle);
     view_cpu_handle.ptr += descriptor_size_view;
     view_gpu_handle.ptr += descriptor_size_view;
-    // Bool/loop constants (b1).
-    constant_buffer_desc.BufferLocation =
-        cbuffer_bindings_bool_loop_.buffer_address;
-    constant_buffer_desc.SizeInBytes = 768;
-    device->CreateConstantBufferView(&constant_buffer_desc, view_cpu_handle);
-    view_cpu_handle.ptr += descriptor_size_view;
-    view_gpu_handle.ptr += descriptor_size_view;
     current_graphics_root_up_to_date_ &=
-        ~(1u << kRootParameter_CommonConstants);
+        ~(1u << kRootParameter_SystemConstants);
   }
   if (write_vertex_float_constant_view) {
     gpu_handle_vertex_float_constants_ = view_gpu_handle;
-    // Vertex float constants (b2).
+    // Vertex float constants.
     constant_buffer_desc.BufferLocation =
         cbuffer_bindings_vertex_float_.buffer_address;
     constant_buffer_desc.SizeInBytes = vertex_shader_float_constant_size;
@@ -1939,7 +1949,7 @@ bool D3D12CommandProcessor::UpdateBindings(
   }
   if (write_pixel_float_constant_view) {
     gpu_handle_pixel_float_constants_ = view_gpu_handle;
-    // Pixel float constants (b2).
+    // Pixel float constants.
     constant_buffer_desc.BufferLocation =
         cbuffer_bindings_pixel_float_.buffer_address;
     constant_buffer_desc.SizeInBytes = pixel_shader_float_constant_size;
@@ -1949,9 +1959,21 @@ bool D3D12CommandProcessor::UpdateBindings(
     current_graphics_root_up_to_date_ &=
         ~(1u << kRootParameter_PixelFloatConstants);
   }
+  if (write_bool_loop_constant_view) {
+    gpu_handle_bool_loop_constants_ = view_gpu_handle;
+    // Bool/loop constants.
+    constant_buffer_desc.BufferLocation =
+        cbuffer_bindings_bool_loop_.buffer_address;
+    constant_buffer_desc.SizeInBytes = 768;
+    device->CreateConstantBufferView(&constant_buffer_desc, view_cpu_handle);
+    view_cpu_handle.ptr += descriptor_size_view;
+    view_gpu_handle.ptr += descriptor_size_view;
+    current_graphics_root_up_to_date_ &=
+        ~(1u << kRootParameter_BoolLoopConstants);
+  }
   if (write_fetch_constant_view) {
     gpu_handle_fetch_constants_ = view_gpu_handle;
-    // Fetch constants (b3).
+    // Fetch constants.
     constant_buffer_desc.BufferLocation =
         cbuffer_bindings_fetch_.buffer_address;
     constant_buffer_desc.SizeInBytes = 768;
@@ -2046,10 +2068,16 @@ bool D3D12CommandProcessor::UpdateBindings(
                                          << kRootParameter_PixelFloatConstants;
   }
   if (!(current_graphics_root_up_to_date_ &
-        (1u << kRootParameter_CommonConstants))) {
-    command_list->SetGraphicsRootDescriptorTable(kRootParameter_CommonConstants,
-                                                 gpu_handle_common_constants_);
-    current_graphics_root_up_to_date_ |= 1u << kRootParameter_CommonConstants;
+        (1u << kRootParameter_SystemConstants))) {
+    command_list->SetGraphicsRootDescriptorTable(kRootParameter_SystemConstants,
+                                                 gpu_handle_system_constants_);
+    current_graphics_root_up_to_date_ |= 1u << kRootParameter_SystemConstants;
+  }
+  if (!(current_graphics_root_up_to_date_ &
+        (1u << kRootParameter_BoolLoopConstants))) {
+    command_list->SetGraphicsRootDescriptorTable(
+        kRootParameter_BoolLoopConstants, gpu_handle_bool_loop_constants_);
+    current_graphics_root_up_to_date_ |= 1u << kRootParameter_BoolLoopConstants;
   }
   if (!(current_graphics_root_up_to_date_ &
         (1u << kRootParameter_SharedMemory))) {
