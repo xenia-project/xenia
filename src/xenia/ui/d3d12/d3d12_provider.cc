@@ -15,7 +15,8 @@
 #include "xenia/ui/d3d12/d3d12_context.h"
 
 DEFINE_bool(d3d12_debug, false, "Enable Direct3D 12 and DXGI debug layer.");
-DEFINE_int32(d3d12_adapter_index, -1, "Index of the DXGI adapter to use. "
+DEFINE_int32(d3d12_adapter_index, -1,
+             "Index of the DXGI adapter to use. "
              "-1 for any physical adapter, -2 for WARP software rendering.");
 
 namespace xe {
@@ -29,7 +30,7 @@ std::unique_ptr<D3D12Provider> D3D12Provider::Create(Window* main_window) {
         "Unable to initialize Direct3D 12 graphics subsystem.\n"
         "\n"
         "Ensure that you have the latest drivers for your GPU and it supports "
-        "Direct3D 12 feature level 11_0 and tiled resources tier 1.\n"
+        "Direct3D 12 feature level 11_0.\n"
         "\n"
         "See http://xenia.jp/faq/ for more information and a list of supported "
         "GPUs.");
@@ -79,44 +80,44 @@ bool D3D12Provider::Initialize() {
   // TODO(Triang3l): Log adapter info (contains a wide string).
   uint32_t adapter_index = 0;
   IDXGIAdapter1* adapter = nullptr;
-  ID3D12Device* device = nullptr;
   while (dxgi_factory->EnumAdapters1(adapter_index, &adapter) == S_OK) {
     DXGI_ADAPTER_DESC1 adapter_desc;
     if (SUCCEEDED(adapter->GetDesc1(&adapter_desc))) {
       if (SUCCEEDED(D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_11_0,
-                                      IID_PPV_ARGS(&device)))) {
-        if (IsDeviceSupported(device)) {
-          if (FLAGS_d3d12_adapter_index >= 0) {
-            if (adapter_index == FLAGS_d3d12_adapter_index) {
-              break;
-            }
-          } else if (FLAGS_d3d12_adapter_index == -2) {
-            if (adapter_desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) {
-              break;
-            }
-          } else {
-            if (!(adapter_desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)) {
-              break;
-            }
+                                      _uuidof(ID3D12Device), nullptr))) {
+        if (FLAGS_d3d12_adapter_index >= 0) {
+          if (adapter_index == FLAGS_d3d12_adapter_index) {
+            break;
+          }
+        } else if (FLAGS_d3d12_adapter_index == -2) {
+          if (adapter_desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) {
+            break;
+          }
+        } else {
+          if (!(adapter_desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)) {
+            break;
           }
         }
-        device->Release();
-        device = nullptr;
       }
     }
     adapter->Release();
     adapter = nullptr;
     ++adapter_index;
   }
-  if (adapter != nullptr) {
-    adapter->Release();
-  }
-  if (device == nullptr) {
-    XELOGE("Failed to get an adapter supporting Direct3D feature level 11_0 "
-           "with required options, or failed to create a Direct3D 12 device.");
+  if (adapter == nullptr) {
+    XELOGE("Failed to get an adapter supporting Direct3D feature level 11_0.");
     dxgi_factory->Release();
     return false;
   }
+  ID3D12Device* device;
+  if (FAILED(D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_11_0,
+                               IID_PPV_ARGS(&device)))) {
+    XELOGE("Failed to create a Direct3D 12 feature level 11_0 device.");
+    adapter->Release();
+    dxgi_factory->Release();
+    return false;
+  }
+  adapter->Release();
 
   // Create the command queue for graphics.
   D3D12_COMMAND_QUEUE_DESC queue_desc;
@@ -146,8 +147,14 @@ bool D3D12Provider::Initialize() {
   descriptor_size_dsv_ =
       device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
 
-  // Check if programmable sample positions are supported (added in Creators
-  // Update).
+  // Check if tiled resources and programmable sample positions (programmable
+  // sample positions added in Creators Update) are supported.
+  tiled_resources_tier_ = 0;
+  D3D12_FEATURE_DATA_D3D12_OPTIONS options;
+  if (SUCCEEDED(device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS,
+                                            &options, sizeof(options)))) {
+    tiled_resources_tier_ = uint32_t(options.TiledResourcesTier);
+  }
   programmable_sample_positions_tier_ = 0;
   D3D12_FEATURE_DATA_D3D12_OPTIONS2 options2;
   if (SUCCEEDED(device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS2,
@@ -155,25 +162,10 @@ bool D3D12Provider::Initialize() {
     programmable_sample_positions_tier_ =
         uint32_t(options2.ProgrammableSamplePositionsTier);
   }
-  XELOGD3D("Direct3D 12 device supports programmable sample positions tier %u",
-           programmable_sample_positions_tier_);
-
-  return true;
-}
-
-bool D3D12Provider::IsDeviceSupported(ID3D12Device* device) {
-  D3D12_FEATURE_DATA_D3D12_OPTIONS options;
-  if (FAILED(device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS, &options,
-                                         sizeof(options)))) {
-    return false;
-  }
-
-  // Tiled resources required for shared memory emulation without excessive
-  // video memory usage.
-  if (FLAGS_d3d12_tiled_resources &&
-      options.TiledResourcesTier < D3D12_TILED_RESOURCES_TIER_1) {
-    return false;
-  }
+  XELOGD3D(
+      "Direct3D 12 device supports tiled resources tier %u, programmable "
+      "sample positions tier %u",
+      tiled_resources_tier_, programmable_sample_positions_tier_);
 
   return true;
 }
