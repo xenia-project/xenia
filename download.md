@@ -11,4 +11,7 @@ permalink: /download/
     </svg>
 </span>
 [Windows 10+ x64](https://ci.appveyor.com/project/benvanik/xenia/build/artifacts)
+
+Choose Configuration: Release NOT CHECKED!
+
 To use Vulkan on D3D12 builds you must make a shortcut to xenia.exe with --gpu=vulkan.
