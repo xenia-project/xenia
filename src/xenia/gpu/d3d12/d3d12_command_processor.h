@@ -142,17 +142,19 @@ class D3D12CommandProcessor : public CommandProcessor {
     // These are always present.
 
     // Very frequently changed, especially for UI draws, and for models drawn in
-    // multiple parts - contains vertex and texture fetch constants (b3).
+    // multiple parts - contains vertex and texture fetch constants.
     kRootParameter_FetchConstants,
     // Quite frequently changed (for one object drawn multiple times, for
-    // instance - may contain projection matrices) (b2).
+    // instance - may contain projection matrices).
     kRootParameter_VertexFloatConstants,
-    // Less frequently changed (per-material) (b2).
+    // Less frequently changed (per-material).
     kRootParameter_PixelFloatConstants,
-    // Rarely changed - system constants like viewport and alpha testing (b0)
-    // and loop and bool constants (b1).
-    kRootParameter_CommonConstants,
-    // Never changed - shared memory byte address buffer (t0).
+    // Rarely changed - system constants like viewport and alpha testing.
+    kRootParameter_SystemConstants,
+    // Pretty rarely used and rarely changed - flow control constants.
+    kRootParameter_BoolLoopConstants,
+    // Never changed except for when starting a new descriptor heap - shared
+    // memory byte address buffer (t0).
     kRootParameter_SharedMemory,
 
     kRootParameter_Count_Base,
@@ -289,10 +291,11 @@ class D3D12CommandProcessor : public CommandProcessor {
   uint64_t draw_sampler_full_update_;
 
   // Latest descriptor handles used for handling Xenos draw calls.
-  D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_common_constants_;
-  D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_fetch_constants_;
+  D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_system_constants_;
   D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_vertex_float_constants_;
   D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_pixel_float_constants_;
+  D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_bool_loop_constants_;
+  D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_fetch_constants_;
   D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_shared_memory_;
   D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_pixel_textures_;
   D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_pixel_samplers_;
