@@ -9,6 +9,8 @@
 
 #include "xenia/gpu/d3d12/shared_memory.h"
 
+#include <gflags/gflags.h>
+
 #include <algorithm>
 #include <cstring>
 
@@ -19,6 +21,12 @@
 #include "xenia/base/profiling.h"
 #include "xenia/gpu/d3d12/d3d12_command_processor.h"
 #include "xenia/ui/d3d12/d3d12_util.h"
+
+DEFINE_bool(d3d12_tiled_resources, true,
+            "Enable tiled resources for shared memory emulation. Disabling "
+            "them greatly increases video memory usage - a 512 MB buffer is "
+            "created - but allows graphics debuggers that don't support tiled "
+            "resources to work.");
 
 namespace xe {
 namespace gpu {
@@ -45,7 +53,7 @@ bool SharedMemory::Initialize() {
   ui::d3d12::util::FillBufferResourceDesc(
       buffer_desc, kBufferSize, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
   buffer_state_ = D3D12_RESOURCE_STATE_COPY_DEST;
-  if (FLAGS_d3d12_tiled_resources) {
+  if (AreTiledResourcesUsed()) {
     if (FAILED(device->CreateReservedResource(
             &buffer_desc, buffer_state_, nullptr, IID_PPV_ARGS(&buffer_)))) {
       XELOGE("Shared memory: Failed to create the 512 MB tiled buffer");
@@ -53,6 +61,10 @@ bool SharedMemory::Initialize() {
       return false;
     }
   } else {
+    XELOGGPU(
+        "Direct3D 12 tiled resources are not used for shared memory "
+        "emulation - video memory usage may increase significantly "
+        "because a full 512 MB buffer will be created!");
     if (FAILED(device->CreateCommittedResource(
             &ui::d3d12::util::kHeapPropertiesDefault, D3D12_HEAP_FLAG_NONE,
             &buffer_desc, buffer_state_, nullptr, IID_PPV_ARGS(&buffer_)))) {
@@ -91,7 +103,7 @@ void SharedMemory::Shutdown() {
     buffer_ = nullptr;
   }
 
-  if (FLAGS_d3d12_tiled_resources) {
+  if (AreTiledResourcesUsed()) {
     for (uint32_t i = 0; i < xe::countof(heaps_); ++i) {
       if (heaps_[i] != nullptr) {
         heaps_[i]->Release();
@@ -197,7 +209,7 @@ bool SharedMemory::MakeTilesResident(uint32_t start, uint32_t length) {
     return false;
   }
 
-  if (!FLAGS_d3d12_tiled_resources) {
+  if (!AreTiledResourcesUsed()) {
     return true;
   }
 
@@ -351,6 +363,14 @@ void SharedMemory::RangeWrittenByGPU(uint32_t start, uint32_t length) {
   // CPU) and watch it so the CPU can reuse it and this will be caught.
   // No mutex holding here!
   MakeRangeValid(page_first, page_last - page_first + 1);
+}
+
+bool SharedMemory::AreTiledResourcesUsed() const {
+  if (!FLAGS_d3d12_tiled_resources) {
+    return false;
+  }
+  auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
+  return provider->GetTiledResourcesTier() >= 1;
 }
 
 void SharedMemory::MakeRangeValid(uint32_t valid_page_first,

@@ -93,6 +93,8 @@ class SharedMemory {
   void CreateRawUAV(D3D12_CPU_DESCRIPTOR_HANDLE handle);
 
  private:
+  bool AreTiledResourcesUsed() const;
+
   // Mark the memory range as updated and protect it. The validity mutex must
   // NOT be held when calling!!!
   void MakeRangeValid(uint32_t valid_page_first, uint32_t valid_page_count);
