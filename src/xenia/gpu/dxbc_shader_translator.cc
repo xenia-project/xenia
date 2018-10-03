@@ -1031,8 +1031,6 @@ void DxbcShaderTranslator::CompletePixelShader() {
 
   // Convert to gamma space (likely needs to be done after the exponent bias
   // since gamma is a property of the storage format).
-  // TODO(Triang3l): Check how SetPWLGamma effects this - currently using the
-  // default curve.
   // Get which render targets need the conversion.
   uint32_t gamma_toggle_temp = PushSystemTemp();
   uint32_t gamma_pieces_temp = PushSystemTemp();
@@ -4674,8 +4672,6 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
         ++stat_.movc_instruction_count;
 
         // Linearize the texture if it's stored in a gamma format.
-        // TODO(Triang3l): Check how SetPWLGamma effects this - currently using
-        // the default curve.
         for (uint32_t i = 0; i < 4; ++i) {
           // Calculate how far we are on each piece of the curve. Multiply by
           // 1/width of each piece, subtract start/width of it and saturate.

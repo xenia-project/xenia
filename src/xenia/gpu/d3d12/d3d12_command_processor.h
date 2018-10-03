@@ -217,6 +217,17 @@ class D3D12CommandProcessor : public CommandProcessor {
   std::unique_ptr<ui::d3d12::DescriptorHeapPool> view_heap_pool_ = nullptr;
   std::unique_ptr<ui::d3d12::DescriptorHeapPool> sampler_heap_pool_ = nullptr;
 
+  // Mip 0 contains the normal gamma ramp (256 entries), mip 1 contains the PWL
+  // ramp (128 entries). DXGI_FORMAT_R10G10B10A2_UNORM 1D.
+  ID3D12Resource* gamma_ramp_texture_ = nullptr;
+  D3D12_RESOURCE_STATES gamma_ramp_texture_state_;
+  // Upload buffer for an image that is the same as gamma_ramp_, but with
+  // ui::d3d12::D3D12Context::kQueuedFrames array layers.
+  ID3D12Resource* gamma_ramp_upload_ = nullptr;
+  uint8_t* gamma_ramp_upload_mapping_ = nullptr;
+  D3D12_PLACED_SUBRESOURCE_FOOTPRINT
+  gamma_ramp_footprints_[ui::d3d12::D3D12Context::kQueuedFrames * 2];
+
   static constexpr uint32_t kSwapTextureWidth = 1280;
   static constexpr uint32_t kSwapTextureHeight = 720;
   ID3D12Resource* swap_texture_ = nullptr;

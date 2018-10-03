@@ -639,6 +639,55 @@ bool D3D12CommandProcessor::SetupContext() {
     return false;
   }
 
+  // Create gamma ramp resources. The PWL gamma ramp is 16-bit, but 6 bits are
+  // hardwired to zero, so DXGI_FORMAT_R10G10B10A2_UNORM can be used for it too.
+  // https://www.x.org/docs/AMD/old/42590_m76_rrg_1.01o.pdf
+  dirty_gamma_ramp_normal_ = true;
+  dirty_gamma_ramp_pwl_ = true;
+  D3D12_RESOURCE_DESC gamma_ramp_desc;
+  gamma_ramp_desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE1D;
+  gamma_ramp_desc.Alignment = 0;
+  gamma_ramp_desc.Width = 256;
+  gamma_ramp_desc.Height = 1;
+  gamma_ramp_desc.DepthOrArraySize = 1;
+  // Normal gamma is 256x1, PWL gamma is 128x1.
+  gamma_ramp_desc.MipLevels = 2;
+  gamma_ramp_desc.Format = DXGI_FORMAT_R10G10B10A2_UNORM;
+  gamma_ramp_desc.SampleDesc.Count = 1;
+  gamma_ramp_desc.SampleDesc.Quality = 0;
+  gamma_ramp_desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+  gamma_ramp_desc.Flags = D3D12_RESOURCE_FLAG_NONE;
+  // The first action will be uploading.
+  gamma_ramp_texture_state_ = D3D12_RESOURCE_STATE_COPY_DEST;
+  if (FAILED(device->CreateCommittedResource(
+          &ui::d3d12::util::kHeapPropertiesDefault, D3D12_HEAP_FLAG_NONE,
+          &gamma_ramp_desc, gamma_ramp_texture_state_, nullptr,
+          IID_PPV_ARGS(&gamma_ramp_texture_)))) {
+    XELOGE("Failed to create the gamma ramp texture");
+    return false;
+  }
+  // Get the layout for the upload buffer.
+  gamma_ramp_desc.DepthOrArraySize = ui::d3d12::D3D12Context::kQueuedFrames;
+  UINT64 gamma_ramp_upload_size;
+  device->GetCopyableFootprints(
+      &gamma_ramp_desc, 0, ui::d3d12::D3D12Context::kQueuedFrames * 2, 0,
+      gamma_ramp_footprints_, nullptr, nullptr, &gamma_ramp_upload_size);
+  // Create the upload buffer for the gamma ramp.
+  ui::d3d12::util::FillBufferResourceDesc(
+      gamma_ramp_desc, gamma_ramp_upload_size, D3D12_RESOURCE_FLAG_NONE);
+  if (FAILED(device->CreateCommittedResource(
+          &ui::d3d12::util::kHeapPropertiesUpload, D3D12_HEAP_FLAG_NONE,
+          &gamma_ramp_desc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
+          IID_PPV_ARGS(&gamma_ramp_upload_)))) {
+    XELOGE("Failed to create the gamma ramp upload buffer");
+    return false;
+  }
+  if (FAILED(gamma_ramp_upload_->Map(
+          0, nullptr, reinterpret_cast<void**>(&gamma_ramp_upload_mapping_)))) {
+    XELOGE("Failed to map the gamma ramp upload buffer");
+    return false;
+  }
+
   D3D12_RESOURCE_DESC swap_texture_desc;
   swap_texture_desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
   swap_texture_desc.Alignment = 0;
@@ -729,6 +778,17 @@ void D3D12CommandProcessor::ShutdownContext() {
   ui::d3d12::util::ReleaseAndNull(swap_texture_rtv_descriptor_heap_);
   ui::d3d12::util::ReleaseAndNull(swap_texture_);
 
+  // Don't need the data anymore, so zero range.
+  if (gamma_ramp_upload_mapping_ != nullptr) {
+    D3D12_RANGE gamma_ramp_written_range;
+    gamma_ramp_written_range.Begin = 0;
+    gamma_ramp_written_range.End = 0;
+    gamma_ramp_upload_->Unmap(0, &gamma_ramp_written_range);
+    gamma_ramp_upload_mapping_ = nullptr;
+  }
+  ui::d3d12::util::ReleaseAndNull(gamma_ramp_upload_);
+  ui::d3d12::util::ReleaseAndNull(gamma_ramp_texture_);
+
   sampler_heap_pool_.reset();
   view_heap_pool_.reset();
   constant_buffer_pool_.reset();
@@ -787,6 +847,12 @@ void D3D12CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
       texture_cache_->TextureFetchConstantWritten(
           (index - XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0) / 6);
     }
+  } else if (index == XE_GPU_REG_DC_LUT_PWL_DATA) {
+    UpdateGammaRampValue(GammaRampType::kPWL, value);
+  } else if (index == XE_GPU_REG_DC_LUT_30_COLOR) {
+    UpdateGammaRampValue(GammaRampType::kNormal, value);
+  } else if (index == XE_GPU_REG_DC_LUT_RW_MODE) {
+    gamma_ramp_rw_subindex_ = 0;
   }
 }
 
@@ -798,19 +864,95 @@ void D3D12CommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
   // In case the swap command is the only one in the frame.
   BeginFrame();
 
-  D3D12_CPU_DESCRIPTOR_HANDLE frontbuffer_cpu_handle;
-  D3D12_GPU_DESCRIPTOR_HANDLE frontbuffer_gpu_handle;
-  if (RequestViewDescriptors(0, 1, 1, frontbuffer_cpu_handle,
-                             frontbuffer_gpu_handle) != 0) {
-    if (texture_cache_->RequestSwapTexture(frontbuffer_cpu_handle)) {
-      auto command_list = GetCurrentCommandList();
+  auto provider = GetD3D12Context()->GetD3D12Provider();
+  auto device = provider->GetDevice();
+  auto command_list = GetCurrentCommandList();
+
+  // Upload the new gamma ramps.
+  if (dirty_gamma_ramp_normal_) {
+    const D3D12_PLACED_SUBRESOURCE_FOOTPRINT& gamma_ramp_footprint =
+        gamma_ramp_footprints_[current_queue_frame_ * 2];
+    std::memcpy(gamma_ramp_upload_mapping_ + gamma_ramp_footprint.Offset,
+                gamma_ramp_.normal, 256 * sizeof(uint32_t));
+    PushTransitionBarrier(gamma_ramp_texture_, gamma_ramp_texture_state_,
+                          D3D12_RESOURCE_STATE_COPY_DEST);
+    gamma_ramp_texture_state_ = D3D12_RESOURCE_STATE_COPY_DEST;
+    D3D12_TEXTURE_COPY_LOCATION location_source, location_dest;
+    location_source.pResource = gamma_ramp_upload_;
+    location_source.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+    location_source.PlacedFootprint = gamma_ramp_footprint;
+    location_dest.pResource = gamma_ramp_texture_;
+    location_dest.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+    location_dest.SubresourceIndex = 0;
+    command_list->CopyTextureRegion(&location_dest, 0, 0, 0, &location_source,
+                                    nullptr);
+    dirty_gamma_ramp_normal_ = false;
+  }
+  if (dirty_gamma_ramp_pwl_) {
+    const D3D12_PLACED_SUBRESOURCE_FOOTPRINT& gamma_ramp_footprint =
+        gamma_ramp_footprints_[current_queue_frame_ * 2 + 1];
+    volatile uint32_t* mapping = reinterpret_cast<uint32_t*>(
+        gamma_ramp_upload_mapping_ + gamma_ramp_footprint.Offset);
+    for (uint32_t i = 0; i < 128; ++i) {
+      mapping[i] = (gamma_ramp_.pwl[i].values[0].base >> 6) |
+                   (uint32_t(gamma_ramp_.pwl[i].values[1].base >> 6) << 10) |
+                   (uint32_t(gamma_ramp_.pwl[i].values[2].base >> 6) << 20);
+    }
+    PushTransitionBarrier(gamma_ramp_texture_, gamma_ramp_texture_state_,
+                          D3D12_RESOURCE_STATE_COPY_DEST);
+    gamma_ramp_texture_state_ = D3D12_RESOURCE_STATE_COPY_DEST;
+    D3D12_TEXTURE_COPY_LOCATION location_source, location_dest;
+    location_source.pResource = gamma_ramp_upload_;
+    location_source.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+    location_source.PlacedFootprint = gamma_ramp_footprint;
+    location_dest.pResource = gamma_ramp_texture_;
+    location_dest.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+    location_dest.SubresourceIndex = 1;
+    command_list->CopyTextureRegion(&location_dest, 0, 0, 0, &location_source,
+                                    nullptr);
+    dirty_gamma_ramp_pwl_ = false;
+  }
+
+  D3D12_CPU_DESCRIPTOR_HANDLE descriptor_cpu_start;
+  D3D12_GPU_DESCRIPTOR_HANDLE descriptor_gpu_start;
+  if (RequestViewDescriptors(0, 2, 2, descriptor_cpu_start,
+                             descriptor_gpu_start) != 0) {
+    TextureFormat frontbuffer_format;
+    if (texture_cache_->RequestSwapTexture(descriptor_cpu_start,
+                                           frontbuffer_format)) {
       render_target_cache_->UnbindRenderTargets();
+
+      // Create the gamma ramp texture descriptor.
+      // This is according to D3D::InitializePresentationParameters from a game
+      // executable, which initializes the normal gamma ramp for 8_8_8_8 output
+      // and the PWL gamma ramp for 2_10_10_10.
+      bool use_pwl_gamma_ramp =
+          frontbuffer_format == TextureFormat::k_2_10_10_10 ||
+          frontbuffer_format == TextureFormat::k_2_10_10_10_AS_16_16_16_16;
+      D3D12_SHADER_RESOURCE_VIEW_DESC gamma_ramp_srv_desc;
+      gamma_ramp_srv_desc.Format = DXGI_FORMAT_R10G10B10A2_UNORM;
+      gamma_ramp_srv_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE1D;
+      gamma_ramp_srv_desc.Shader4ComponentMapping =
+          D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+      gamma_ramp_srv_desc.Texture1D.MostDetailedMip =
+          use_pwl_gamma_ramp ? 1 : 0;
+      gamma_ramp_srv_desc.Texture1D.MipLevels = 1;
+      gamma_ramp_srv_desc.Texture1D.ResourceMinLODClamp = 0.0f;
+      device->CreateShaderResourceView(
+          gamma_ramp_texture_, &gamma_ramp_srv_desc,
+          provider->OffsetViewDescriptor(descriptor_cpu_start, 1));
+
       // The swap texture is kept as an SRV because the graphics system may draw
       // with it at any time. It's switched to RTV and back when needed.
       PushTransitionBarrier(swap_texture_,
                             D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
                             D3D12_RESOURCE_STATE_RENDER_TARGET);
+      PushTransitionBarrier(gamma_ramp_texture_, gamma_ramp_texture_state_,
+                            D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+      gamma_ramp_texture_state_ = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
       SubmitBarriers();
+
+      // Draw the stretching rectangle.
       command_list->OMSetRenderTargets(1, &swap_texture_rtv_, TRUE, nullptr);
       D3D12_VIEWPORT viewport;
       viewport.TopLeftX = 0.0f;
@@ -828,8 +970,12 @@ void D3D12CommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
       command_list->RSSetScissorRects(1, &scissor);
       D3D12GraphicsSystem* graphics_system =
           static_cast<D3D12GraphicsSystem*>(graphics_system_);
-      graphics_system->StretchTextureToFrontBuffer(frontbuffer_gpu_handle,
-                                                   command_list);
+      D3D12_GPU_DESCRIPTOR_HANDLE gamma_ramp_gpu_handle =
+          provider->OffsetViewDescriptor(descriptor_gpu_start, 1);
+      graphics_system->StretchTextureToFrontBuffer(
+          descriptor_gpu_start, &gamma_ramp_gpu_handle,
+          use_pwl_gamma_ramp ? (1.0f / 128.0f) : (1.0f / 256.0f), command_list);
+
       PushTransitionBarrier(swap_texture_, D3D12_RESOURCE_STATE_RENDER_TARGET,
                             D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
       // Don't care about graphics state because the frame is ending anyway.
