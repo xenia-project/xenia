@@ -36,9 +36,12 @@ class D3D12GraphicsSystem : public GraphicsSystem {
   // Draws a texture covering the entire viewport to the render target currently
   // bound on the specified command list (in D3D12Context::kSwapChainFormat).
   // This changes the current pipeline, graphics root signature and primitive
-  // topology.
-  void StretchTextureToFrontBuffer(D3D12_GPU_DESCRIPTOR_HANDLE handle,
-                                   ID3D12GraphicsCommandList* command_list);
+  // topology. The gamma ramp texture must be 1D if present at all, for linear
+  // space, pass nullptr as the gamma ramp.
+  void StretchTextureToFrontBuffer(
+      D3D12_GPU_DESCRIPTOR_HANDLE handle,
+      D3D12_GPU_DESCRIPTOR_HANDLE* gamma_ramp_handle, float gamma_ramp_inv_size,
+      ID3D12GraphicsCommandList* command_list);
 
  private:
   std::unique_ptr<CommandProcessor> CreateCommandProcessor() override;
@@ -48,7 +51,9 @@ class D3D12GraphicsSystem : public GraphicsSystem {
   ui::d3d12::D3D12Context* display_context_ = nullptr;
 
   ID3D12RootSignature* stretch_root_signature_ = nullptr;
+  ID3D12RootSignature* stretch_gamma_root_signature_ = nullptr;
   ID3D12PipelineState* stretch_pipeline_ = nullptr;
+  ID3D12PipelineState* stretch_gamma_pipeline_ = nullptr;
 };
 
 }  // namespace d3d12

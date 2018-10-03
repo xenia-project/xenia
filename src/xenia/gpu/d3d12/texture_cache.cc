@@ -750,7 +750,8 @@ bool TextureCache::TileResolvedTexture(
   return true;
 }
 
-bool TextureCache::RequestSwapTexture(D3D12_CPU_DESCRIPTOR_HANDLE handle) {
+bool TextureCache::RequestSwapTexture(D3D12_CPU_DESCRIPTOR_HANDLE handle,
+                                      TextureFormat& format_out) {
   auto group = reinterpret_cast<const xenos::xe_gpu_fetch_group_t*>(
       &register_file_->values[XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0]);
   auto& fetch = group->texture_fetch;
@@ -781,6 +782,7 @@ bool TextureCache::RequestSwapTexture(D3D12_CPU_DESCRIPTOR_HANDLE handle) {
   auto device =
       command_processor_->GetD3D12Context()->GetD3D12Provider()->GetDevice();
   device->CreateShaderResourceView(texture->resource, &srv_desc, handle);
+  format_out = key.format;
   return true;
 }
 

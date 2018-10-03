@@ -93,7 +93,8 @@ class TextureCache {
                            uint32_t buffer_size,
                            const D3D12_PLACED_SUBRESOURCE_FOOTPRINT& footprint);
 
-  bool RequestSwapTexture(D3D12_CPU_DESCRIPTOR_HANDLE handle);
+  bool RequestSwapTexture(D3D12_CPU_DESCRIPTOR_HANDLE handle,
+                          TextureFormat& format_out);
 
  private:
   enum class LoadMode {
