@@ -193,7 +193,9 @@ class D3D12CommandProcessor : public CommandProcessor {
   bool UpdateBindings(ID3D12GraphicsCommandList* command_list,
                       const D3D12Shader* vertex_shader,
                       const D3D12Shader* pixel_shader,
-                      ID3D12RootSignature* root_signature);
+                      ID3D12RootSignature* root_signature,
+                      uint64_t new_texture_bindings_hash_vertex,
+                      uint64_t new_texture_bindings_hash_pixel);
 
   bool cache_clear_requested_ = false;
 
@@ -300,6 +302,10 @@ class D3D12CommandProcessor : public CommandProcessor {
   // Pages with the descriptors currently used for handling Xenos draw calls.
   uint64_t draw_view_full_update_;
   uint64_t draw_sampler_full_update_;
+
+  // Hashes of the current texture descriptor layout.
+  uint64_t texture_bindings_hash_vertex_;
+  uint64_t texture_bindings_hash_pixel_;
 
   // Latest descriptor handles used for handling Xenos draw calls.
   D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_system_constants_;

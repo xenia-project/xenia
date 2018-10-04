@@ -1166,9 +1166,11 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
   }
 
   // Update the textures - this may bind pipelines.
+  uint64_t new_texture_bindings_hash_vertex, new_texture_bindings_hash_pixel;
   texture_cache_->RequestTextures(
       vertex_shader->GetUsedTextureMask(),
-      pixel_shader != nullptr ? pixel_shader->GetUsedTextureMask() : 0);
+      pixel_shader != nullptr ? pixel_shader->GetUsedTextureMask() : 0,
+      new_texture_bindings_hash_vertex, new_texture_bindings_hash_pixel);
 
   // Update viewport, scissor, blend factor and stencil reference.
   UpdateFixedFunctionState(command_list);
@@ -1185,8 +1187,9 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
       pipeline_render_targets);
 
   // Update constant buffers, descriptors and root parameters.
-  if (!UpdateBindings(command_list, vertex_shader, pixel_shader,
-                      root_signature)) {
+  if (!UpdateBindings(command_list, vertex_shader, pixel_shader, root_signature,
+                      new_texture_bindings_hash_vertex,
+                      new_texture_bindings_hash_pixel)) {
     return false;
   }
 
@@ -1335,6 +1338,8 @@ bool D3D12CommandProcessor::BeginFrame() {
   cbuffer_bindings_fetch_.up_to_date = false;
   draw_view_full_update_ = 0;
   draw_sampler_full_update_ = 0;
+  texture_bindings_hash_vertex_ = texture_bindings_hash_pixel_ =
+      texture_cache_->GetEmptyTextureBindingsHash();
   primitive_topology_ = D3D_PRIMITIVE_TOPOLOGY_UNDEFINED;
 
   command_lists_[current_queue_frame_]->BeginRecording();
@@ -1797,7 +1802,9 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
 
 bool D3D12CommandProcessor::UpdateBindings(
     ID3D12GraphicsCommandList* command_list, const D3D12Shader* vertex_shader,
-    const D3D12Shader* pixel_shader, ID3D12RootSignature* root_signature) {
+    const D3D12Shader* pixel_shader, ID3D12RootSignature* root_signature,
+    uint64_t new_texture_bindings_hash_vertex,
+    uint64_t new_texture_bindings_hash_pixel) {
   auto provider = GetD3D12Context()->GetD3D12Provider();
   auto device = provider->GetDevice();
   auto& regs = *register_file_;
@@ -1834,7 +1841,6 @@ bool D3D12CommandProcessor::UpdateBindings(
       vertex_shader->GetTextureSRVs(vertex_texture_count);
   const D3D12Shader::SamplerBinding* vertex_samplers =
       vertex_shader->GetSamplerBindings(vertex_sampler_count);
-  uint32_t texture_count = pixel_texture_count + vertex_texture_count;
   uint32_t sampler_count = pixel_sampler_count + vertex_sampler_count;
 
   // Begin updating descriptors.
@@ -1843,9 +1849,14 @@ bool D3D12CommandProcessor::UpdateBindings(
   bool write_pixel_float_constant_view = false;
   bool write_bool_loop_constant_view = false;
   bool write_fetch_constant_view = false;
-  // TODO(Triang3l): Update textures and samplers only if shaders or binding
+  // TODO(Triang3l): Update samplers only if shaders or binding
   // hash change.
-  bool write_textures = texture_count != 0;
+  bool write_vertex_textures =
+      vertex_texture_count != 0 &&
+      (texture_bindings_hash_vertex_ != new_texture_bindings_hash_vertex);
+  bool write_pixel_textures =
+      pixel_texture_count != 0 &&
+      (texture_bindings_hash_pixel_ != new_texture_bindings_hash_pixel);
   bool write_samplers = sampler_count != 0;
 
   // Check if the float constant layout is still the same and get the counts.
@@ -2016,11 +2027,15 @@ bool D3D12CommandProcessor::UpdateBindings(
   if (write_fetch_constant_view) {
     ++view_count_partial_update;
   }
-  if (write_textures) {
-    view_count_partial_update += texture_count;
+  if (write_vertex_textures) {
+    view_count_partial_update += vertex_texture_count;
+  }
+  if (write_pixel_textures) {
+    view_count_partial_update += pixel_texture_count;
   }
   // All the constants + shared memory + textures.
-  uint32_t view_count_full_update = 6 + texture_count;
+  uint32_t view_count_full_update =
+      6 + vertex_texture_count + pixel_texture_count;
   D3D12_CPU_DESCRIPTOR_HANDLE view_cpu_handle;
   D3D12_GPU_DESCRIPTOR_HANDLE view_gpu_handle;
   uint32_t descriptor_size_view = provider->GetViewDescriptorSize();
@@ -2046,13 +2061,13 @@ bool D3D12CommandProcessor::UpdateBindings(
   }
   if (draw_view_full_update_ != view_full_update_index) {
     // Need to update all view descriptors.
-    draw_view_full_update_ = view_full_update_index;
     write_system_constant_view = true;
     write_fetch_constant_view = true;
     write_vertex_float_constant_view = true;
     write_pixel_float_constant_view = true;
     write_bool_loop_constant_view = true;
-    write_textures = texture_count != 0;
+    write_vertex_textures = vertex_texture_count != 0;
+    write_pixel_textures = pixel_texture_count != 0;
     // If updating fully, write the shared memory descriptor (t0).
     shared_memory_->CreateSRV(view_cpu_handle);
     gpu_handle_shared_memory_ = view_gpu_handle;
@@ -2062,7 +2077,6 @@ bool D3D12CommandProcessor::UpdateBindings(
   }
   if (sampler_count != 0 &&
       draw_sampler_full_update_ != sampler_full_update_index) {
-    draw_sampler_full_update_ = sampler_full_update_index;
     write_samplers = true;
   }
 
@@ -2128,35 +2142,35 @@ bool D3D12CommandProcessor::UpdateBindings(
     view_gpu_handle.ptr += descriptor_size_view;
     current_graphics_root_up_to_date_ &= ~(1u << kRootParameter_FetchConstants);
   }
-  if (write_textures) {
-    if (pixel_texture_count != 0) {
-      assert_true(current_graphics_root_extras_.pixel_textures !=
-                  RootExtraParameterIndices::kUnavailable);
-      gpu_handle_pixel_textures_ = view_gpu_handle;
-      for (uint32_t i = 0; i < pixel_texture_count; ++i) {
-        const D3D12Shader::TextureSRV& srv = pixel_textures[i];
-        texture_cache_->WriteTextureSRV(srv.fetch_constant, srv.dimension,
-                                        view_cpu_handle);
-        view_cpu_handle.ptr += descriptor_size_view;
-        view_gpu_handle.ptr += descriptor_size_view;
-      }
-      current_graphics_root_up_to_date_ &=
-          ~(1u << current_graphics_root_extras_.pixel_textures);
+  if (write_pixel_textures) {
+    assert_true(current_graphics_root_extras_.pixel_textures !=
+                RootExtraParameterIndices::kUnavailable);
+    gpu_handle_pixel_textures_ = view_gpu_handle;
+    for (uint32_t i = 0; i < pixel_texture_count; ++i) {
+      const D3D12Shader::TextureSRV& srv = pixel_textures[i];
+      texture_cache_->WriteTextureSRV(srv.fetch_constant, srv.dimension,
+                                      view_cpu_handle);
+      view_cpu_handle.ptr += descriptor_size_view;
+      view_gpu_handle.ptr += descriptor_size_view;
     }
-    if (vertex_texture_count != 0) {
-      assert_true(current_graphics_root_extras_.vertex_textures !=
-                  RootExtraParameterIndices::kUnavailable);
-      gpu_handle_vertex_textures_ = view_gpu_handle;
-      for (uint32_t i = 0; i < vertex_texture_count; ++i) {
-        const D3D12Shader::TextureSRV& srv = vertex_textures[i];
-        texture_cache_->WriteTextureSRV(srv.fetch_constant, srv.dimension,
-                                        view_cpu_handle);
-        view_cpu_handle.ptr += descriptor_size_view;
-        view_gpu_handle.ptr += descriptor_size_view;
-      }
-      current_graphics_root_up_to_date_ &=
-          ~(1u << current_graphics_root_extras_.vertex_textures);
+    texture_bindings_hash_pixel_ = new_texture_bindings_hash_pixel;
+    current_graphics_root_up_to_date_ &=
+        ~(1u << current_graphics_root_extras_.pixel_textures);
+  }
+  if (write_vertex_textures) {
+    assert_true(current_graphics_root_extras_.vertex_textures !=
+                RootExtraParameterIndices::kUnavailable);
+    gpu_handle_vertex_textures_ = view_gpu_handle;
+    for (uint32_t i = 0; i < vertex_texture_count; ++i) {
+      const D3D12Shader::TextureSRV& srv = vertex_textures[i];
+      texture_cache_->WriteTextureSRV(srv.fetch_constant, srv.dimension,
+                                      view_cpu_handle);
+      view_cpu_handle.ptr += descriptor_size_view;
+      view_gpu_handle.ptr += descriptor_size_view;
     }
+    texture_bindings_hash_vertex_ = new_texture_bindings_hash_vertex;
+    current_graphics_root_up_to_date_ &=
+        ~(1u << current_graphics_root_extras_.vertex_textures);
   }
   if (write_samplers) {
     if (pixel_sampler_count != 0) {
@@ -2190,6 +2204,10 @@ bool D3D12CommandProcessor::UpdateBindings(
           ~(1u << current_graphics_root_extras_.vertex_samplers);
     }
   }
+
+  // Wrote new descriptors on the current page.
+  draw_view_full_update_ = view_full_update_index;
+  draw_sampler_full_update_ = sampler_full_update_index;
 
   // Update the root parameters.
   if (!(current_graphics_root_up_to_date_ &

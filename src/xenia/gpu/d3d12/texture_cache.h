@@ -72,7 +72,12 @@ class TextureCache {
   // (notifying the command processor about that), so this must be called before
   // binding the actual drawing pipeline.
   void RequestTextures(uint32_t used_vertex_texture_mask,
-                       uint32_t used_pixel_texture_mask);
+                       uint32_t used_pixel_texture_mask,
+                       uint64_t& descriptor_layout_vertex_hash_out,
+                       uint64_t& descriptor_layout_pixel_hash_out);
+  inline uint64_t GetEmptyTextureBindingsHash() const {
+    return texture_bindings_empty_hash_;
+  }
 
   void WriteTextureSRV(uint32_t fetch_constant,
                        TextureDimension shader_dimension,
@@ -366,6 +371,8 @@ class TextureCache {
   std::unordered_multimap<uint64_t, Texture*> textures_;
 
   TextureBinding texture_bindings_[32] = {};
+  // Hash for no textures bound.
+  uint64_t texture_bindings_empty_hash_;
   // Bit vector with bits reset on fetch constant writes to avoid getting
   // texture keys from the fetch constants again and again.
   uint32_t texture_keys_in_sync_ = 0;
