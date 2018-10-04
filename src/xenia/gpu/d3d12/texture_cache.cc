@@ -294,11 +294,7 @@ TextureCache::TextureCache(D3D12CommandProcessor* command_processor,
                            SharedMemory* shared_memory)
     : command_processor_(command_processor),
       register_file_(register_file),
-      shared_memory_(shared_memory) {
-  XXH64_state_t hash_state;
-  XXH64_reset(&hash_state, 0);
-  texture_bindings_empty_hash_ = XXH64_digest(&hash_state);
-}
+      shared_memory_(shared_memory) {}
 
 TextureCache::~TextureCache() { Shutdown(); }
 
@@ -433,9 +429,7 @@ void TextureCache::EndFrame() {
 }
 
 void TextureCache::RequestTextures(uint32_t used_vertex_texture_mask,
-                                   uint32_t used_pixel_texture_mask,
-                                   uint64_t& descriptor_layout_vertex_hash_out,
-                                   uint64_t& descriptor_layout_pixel_hash_out) {
+                                   uint32_t used_pixel_texture_mask) {
   auto command_list = command_processor_->GetCurrentCommandList();
   if (command_list == nullptr) {
     return;
@@ -506,31 +500,24 @@ void TextureCache::RequestTextures(uint32_t used_vertex_texture_mask,
                                               state);
     texture->state = state;
   }
+}
 
-  // Compute descriptor layout hashes so descriptors don't have to be written
-  // again if the bindings are the same. The hash is computed from indices, keys
-  // and swizzles.
+uint64_t TextureCache::GetDescriptorHashForActiveTextures(
+    const D3D12Shader::TextureSRV* texture_srvs,
+    uint32_t texture_srv_count) const {
   XXH64_state_t hash_state;
   XXH64_reset(&hash_state, 0);
-  used_texture_mask = used_vertex_texture_mask;
-  while (xe::bit_scan_forward(used_texture_mask, &index)) {
-    used_texture_mask &= ~(1u << index);
-    XXH64_update(&hash_state, &index, sizeof(index));
-    const TextureBinding& binding = texture_bindings_[index];
+  for (uint32_t i = 0; i < texture_srv_count; ++i) {
+    const D3D12Shader::TextureSRV& texture_srv = texture_srvs[i];
+    // There can be multiple SRVs of the same texture.
+    XXH64_update(&hash_state, &texture_srv.dimension,
+                 sizeof(texture_srv.dimension));
+    const TextureBinding& binding =
+        texture_bindings_[texture_srv.fetch_constant];
     XXH64_update(&hash_state, &binding.key, sizeof(binding.key));
     XXH64_update(&hash_state, &binding.swizzle, sizeof(binding.swizzle));
   }
-  descriptor_layout_vertex_hash_out = XXH64_digest(&hash_state);
-  XXH64_reset(&hash_state, 0);
-  used_texture_mask = used_pixel_texture_mask;
-  while (xe::bit_scan_forward(used_texture_mask, &index)) {
-    used_texture_mask &= ~(1u << index);
-    XXH64_update(&hash_state, &index, sizeof(index));
-    const TextureBinding& binding = texture_bindings_[index];
-    XXH64_update(&hash_state, &binding.key, sizeof(binding.key));
-    XXH64_update(&hash_state, &binding.swizzle, sizeof(binding.swizzle));
-  }
-  descriptor_layout_pixel_hash_out = XXH64_digest(&hash_state);
+  return XXH64_digest(&hash_state);
 }
 
 void TextureCache::WriteTextureSRV(uint32_t fetch_constant,
