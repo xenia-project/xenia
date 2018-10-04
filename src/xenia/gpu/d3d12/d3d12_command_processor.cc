@@ -1166,11 +1166,9 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
   }
 
   // Update the textures - this may bind pipelines.
-  uint64_t new_texture_bindings_hash_vertex, new_texture_bindings_hash_pixel;
   texture_cache_->RequestTextures(
       vertex_shader->GetUsedTextureMask(),
-      pixel_shader != nullptr ? pixel_shader->GetUsedTextureMask() : 0,
-      new_texture_bindings_hash_vertex, new_texture_bindings_hash_pixel);
+      pixel_shader != nullptr ? pixel_shader->GetUsedTextureMask() : 0);
 
   // Update viewport, scissor, blend factor and stencil reference.
   UpdateFixedFunctionState(command_list);
@@ -1187,9 +1185,8 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
       pipeline_render_targets);
 
   // Update constant buffers, descriptors and root parameters.
-  if (!UpdateBindings(command_list, vertex_shader, pixel_shader, root_signature,
-                      new_texture_bindings_hash_vertex,
-                      new_texture_bindings_hash_pixel)) {
+  if (!UpdateBindings(command_list, vertex_shader, pixel_shader,
+                      root_signature)) {
     return false;
   }
 
@@ -1338,8 +1335,8 @@ bool D3D12CommandProcessor::BeginFrame() {
   cbuffer_bindings_fetch_.up_to_date = false;
   draw_view_full_update_ = 0;
   draw_sampler_full_update_ = 0;
-  texture_bindings_hash_vertex_ = texture_bindings_hash_pixel_ =
-      texture_cache_->GetEmptyTextureBindingsHash();
+  texture_bindings_written_vertex_ = false;
+  texture_bindings_written_pixel_ = false;
   primitive_topology_ = D3D_PRIMITIVE_TOPOLOGY_UNDEFINED;
 
   command_lists_[current_queue_frame_]->BeginRecording();
@@ -1802,9 +1799,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
 
 bool D3D12CommandProcessor::UpdateBindings(
     ID3D12GraphicsCommandList* command_list, const D3D12Shader* vertex_shader,
-    const D3D12Shader* pixel_shader, ID3D12RootSignature* root_signature,
-    uint64_t new_texture_bindings_hash_vertex,
-    uint64_t new_texture_bindings_hash_pixel) {
+    const D3D12Shader* pixel_shader, ID3D12RootSignature* root_signature) {
   auto provider = GetD3D12Context()->GetD3D12Provider();
   auto device = provider->GetDevice();
   auto& regs = *register_file_;
@@ -1836,9 +1831,19 @@ bool D3D12CommandProcessor::UpdateBindings(
     pixel_samplers = nullptr;
     pixel_sampler_count = 0;
   }
+  uint64_t new_pixel_texture_bindings_hash =
+      pixel_texture_count != 0
+          ? texture_cache_->GetDescriptorHashForActiveTextures(
+                pixel_textures, pixel_texture_count)
+          : 0;
   uint32_t vertex_texture_count, vertex_sampler_count;
   const D3D12Shader::TextureSRV* vertex_textures =
       vertex_shader->GetTextureSRVs(vertex_texture_count);
+  uint64_t new_vertex_texture_bindings_hash =
+      vertex_texture_count != 0
+          ? texture_cache_->GetDescriptorHashForActiveTextures(
+                vertex_textures, vertex_texture_count)
+          : 0;
   const D3D12Shader::SamplerBinding* vertex_samplers =
       vertex_shader->GetSamplerBindings(vertex_sampler_count);
   uint32_t sampler_count = pixel_sampler_count + vertex_sampler_count;
@@ -1849,14 +1854,15 @@ bool D3D12CommandProcessor::UpdateBindings(
   bool write_pixel_float_constant_view = false;
   bool write_bool_loop_constant_view = false;
   bool write_fetch_constant_view = false;
-  // TODO(Triang3l): Update samplers only if shaders or binding
-  // hash change.
+  // TODO(Triang3l): Update samplers only if shaders or binding hash change.
   bool write_vertex_textures =
       vertex_texture_count != 0 &&
-      (texture_bindings_hash_vertex_ != new_texture_bindings_hash_vertex);
+      (!texture_bindings_written_vertex_ ||
+       texture_bindings_hash_vertex_ != new_vertex_texture_bindings_hash);
   bool write_pixel_textures =
       pixel_texture_count != 0 &&
-      (texture_bindings_hash_pixel_ != new_texture_bindings_hash_pixel);
+      (!texture_bindings_written_pixel_ ||
+       texture_bindings_hash_pixel_ != new_pixel_texture_bindings_hash);
   bool write_samplers = sampler_count != 0;
 
   // Check if the float constant layout is still the same and get the counts.
@@ -2068,6 +2074,8 @@ bool D3D12CommandProcessor::UpdateBindings(
     write_bool_loop_constant_view = true;
     write_vertex_textures = vertex_texture_count != 0;
     write_pixel_textures = pixel_texture_count != 0;
+    texture_bindings_written_vertex_ = false;
+    texture_bindings_written_pixel_ = false;
     // If updating fully, write the shared memory descriptor (t0).
     shared_memory_->CreateSRV(view_cpu_handle);
     gpu_handle_shared_memory_ = view_gpu_handle;
@@ -2153,7 +2161,8 @@ bool D3D12CommandProcessor::UpdateBindings(
       view_cpu_handle.ptr += descriptor_size_view;
       view_gpu_handle.ptr += descriptor_size_view;
     }
-    texture_bindings_hash_pixel_ = new_texture_bindings_hash_pixel;
+    texture_bindings_written_pixel_ = true;
+    texture_bindings_hash_pixel_ = new_pixel_texture_bindings_hash;
     current_graphics_root_up_to_date_ &=
         ~(1u << current_graphics_root_extras_.pixel_textures);
   }
@@ -2168,7 +2177,8 @@ bool D3D12CommandProcessor::UpdateBindings(
       view_cpu_handle.ptr += descriptor_size_view;
       view_gpu_handle.ptr += descriptor_size_view;
     }
-    texture_bindings_hash_vertex_ = new_texture_bindings_hash_vertex;
+    texture_bindings_written_vertex_ = true;
+    texture_bindings_hash_vertex_ = new_vertex_texture_bindings_hash;
     current_graphics_root_up_to_date_ &=
         ~(1u << current_graphics_root_extras_.vertex_textures);
   }

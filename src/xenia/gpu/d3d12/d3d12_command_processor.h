@@ -193,9 +193,7 @@ class D3D12CommandProcessor : public CommandProcessor {
   bool UpdateBindings(ID3D12GraphicsCommandList* command_list,
                       const D3D12Shader* vertex_shader,
                       const D3D12Shader* pixel_shader,
-                      ID3D12RootSignature* root_signature,
-                      uint64_t new_texture_bindings_hash_vertex,
-                      uint64_t new_texture_bindings_hash_pixel);
+                      ID3D12RootSignature* root_signature);
 
   bool cache_clear_requested_ = false;
 
@@ -303,7 +301,13 @@ class D3D12CommandProcessor : public CommandProcessor {
   uint64_t draw_view_full_update_;
   uint64_t draw_sampler_full_update_;
 
-  // Hashes of the current texture descriptor layout.
+  // Whether the last used texture bindings have been written to the current
+  // view descriptor heap.
+  bool texture_bindings_written_vertex_;
+  bool texture_bindings_written_pixel_;
+  // Hashes of the last texture bindings written to the current view descriptor
+  // heap with the last used descriptor layout. Valid only when the
+  // corresponding "written" variables are true.
   uint64_t texture_bindings_hash_vertex_;
   uint64_t texture_bindings_hash_pixel_;
 
