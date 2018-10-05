@@ -281,9 +281,14 @@ class TextureCache {
     uint32_t endianness;
 
     // vec4 3.
+    // Block-aligned and, for mipmaps, power-of-two-aligned width and height.
+    uint32_t guest_storage_width_height[2];
+    uint32_t guest_format;
+    uint32_t padding_3;
+
+    // vec4 4.
     // Offset within the packed mip for small mips.
     uint32_t guest_mip_offset[3];
-    uint32_t guest_format;
 
     static constexpr uint32_t kGuestPitchTiled = UINT32_MAX;
   };

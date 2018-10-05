@@ -695,11 +695,14 @@ bool TextureCache::TileResolvedTexture(
     texture_base &= ~((1u << resolve_tile_mode_info.uav_texel_size_log2) - 1);
   }
 
+  assert_false(texture_pitch & 31);
+  texture_pitch = xe::align(texture_pitch, 32u);
+  texture_height = xe::align(texture_height, 32u);
+
   // Calculate the texture size for memory operations and ensure we can write to
   // the specified shared memory location.
   uint32_t texture_size = texture_util::GetGuestMipStorageSize(
-      xe::align(texture_pitch, 32u), xe::align(texture_height, 32u), 1, true,
-      format, nullptr);
+      texture_pitch, texture_height, 1, true, format, nullptr);
   if (texture_size == 0) {
     return true;
   }
@@ -1204,6 +1207,17 @@ bool TextureCache::LoadTextureData(Texture* texture) {
       load_constants.size_blocks[1] =
           (load_constants.size_texels[1] + (block_height - 1)) / block_height;
       load_constants.size_blocks[2] = load_constants.size_texels[2];
+      if (j == 0) {
+        load_constants.guest_storage_width_height[0] =
+            xe::align(load_constants.size_blocks[0], 32u);
+        load_constants.guest_storage_width_height[1] =
+            xe::align(load_constants.size_blocks[1], 32u);
+      } else {
+        load_constants.guest_storage_width_height[0] =
+            xe::align(xe::next_pow2(load_constants.size_blocks[0]), 32u);
+        load_constants.guest_storage_width_height[1] =
+            xe::align(xe::next_pow2(load_constants.size_blocks[1]), 32u);
+      }
       if (texture->key.packed_mips) {
         texture_util::GetPackedMipOffset(width, height, depth, guest_format, j,
                                          load_constants.guest_mip_offset[0],

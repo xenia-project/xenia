@@ -5,11 +5,11 @@
 // consecutive blocks along X.
 
 // https://github.com/gildor2/UModel/blob/de8fbd3bc922427ea056b7340202dcdcc19ccff5/Unreal/UnTexture.cpp#L495
-uint4 XeTextureTiledOffset2D(uint2 p, uint width, uint bpb_log2) {
+uint4 XeTextureTiledOffset2D(uint2 p, uint storage_width, uint bpb_log2) {
   uint4 x4 = uint4(0u, 1u, 2u, 3u) + p.xxxx;
   // Top bits of coordinates.
-  uint4 macro =
-      ((x4 >> 5u) + (p.y >> 5u) * ((width + 31u) >> 5u)) << (bpb_log2 + 7u);
+  uint4 macro = ((x4 >> 5u) + (p.y >> 5u) * ((storage_width + 31u) >> 5u)) <<
+                (bpb_log2 + 7u);
   // Lower bits of coordinates (result is 6-bit value).
   uint4 micro = ((x4 & 7u) + ((p.y & 0xEu) << 2u)) << bpb_log2;
   // Mix micro/macro + add few remaining x/y bits.
@@ -26,11 +26,11 @@ uint4 XeTextureTiledOffset2D(uint2 p, uint width, uint bpb_log2) {
 // Reverse-engineered from an executable.
 // The base/micro/macro names were chosen pretty much at random and don't have
 // the same meaning as in TiledOffset2D.
-uint4 XeTextureTiledOffset3D(uint3 p, uint2 width_height, uint bpb_log2) {
+uint4 XeTextureTiledOffset3D(uint3 p, uint2 storage_width_height,
+                             uint bpb_log2) {
   uint4 x4 = uint4(0u, 1u, 2u, 3u) + p.xxxx;
-  uint2 aligned_size = (width_height + 31u) & ~31u;
-  uint base = ((p.z >> 2u) * (aligned_size.y >> 4u) + (p.y >> 4u)) *
-              (aligned_size.x >> 5u);
+  uint base = ((p.z >> 2u) * (storage_width_height.y >> 4u) + (p.y >> 4u)) *
+              (storage_width_height.x >> 5u);
   uint4 micro = (((p.z >> 2u) + (p.y >> 3u)) & 1u).xxxx;
   micro += (((micro << 1u) + (x4 >> 3u)) & 3u) << 1u;
   uint4 macro = (((x4 & 7u) + ((p.y & 6u) << 2u)) << (bpb_log2 + 6u)) >> 6u;
