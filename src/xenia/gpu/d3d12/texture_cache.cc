@@ -440,11 +440,12 @@ void TextureCache::RequestTextures(uint32_t used_vertex_texture_mask,
   SCOPE_profile_cpu_f("gpu");
 #endif  // FINE_GRAINED_DRAW_SCOPES
 
-  // If a texture was invalidated, ignore whether bindings have been changed
-  // when determining whether textures need to be reloaded.
-  bool force_load =
-      texture_invalidated_.exchange(false, std::memory_order_relaxed);
-  if (force_load) {
+  if (texture_invalidated_.exchange(false, std::memory_order_relaxed)) {
+    // Clear the bindings not only for this draw call, but entirely, because
+    // loading may be needed in some draw call later, which may have the same
+    // key for some binding as before the invalidation, but texture_invalidated_
+    // being false (menu background in Halo 3).
+    std::memset(texture_bindings_, 0, sizeof(texture_bindings_));
     texture_keys_in_sync_ = 0;
   }
 
@@ -470,13 +471,11 @@ void TextureCache::RequestTextures(uint32_t used_vertex_texture_mask,
       binding.texture = nullptr;
       continue;
     }
-    bool load = force_load;
     if (binding.key != old_key) {
       binding.texture = FindOrCreateTexture(binding.key);
-      load = true;
-    }
-    if (load && binding.texture != nullptr) {
-      LoadTextureData(binding.texture);
+      if (binding.texture != nullptr) {
+        LoadTextureData(binding.texture);
+      }
     }
   }
 
