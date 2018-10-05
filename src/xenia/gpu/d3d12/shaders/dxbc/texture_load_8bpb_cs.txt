@@ -4,19 +4,19 @@
 //
 // Buffer Definitions: 
 //
-// cbuffer XeTextureCopyConstants
+// cbuffer XeTextureLoadConstants
 // {
 //
-//   uint xe_texture_copy_guest_base;   // Offset:    0 Size:     4
-//   uint xe_texture_copy_guest_pitch;  // Offset:    4 Size:     4
-//   uint xe_texture_copy_host_base;    // Offset:    8 Size:     4
-//   uint xe_texture_copy_host_pitch;   // Offset:   12 Size:     4
-//   uint3 xe_texture_copy_size_texels; // Offset:   16 Size:    12 [unused]
-//   bool xe_texture_copy_is_3d;        // Offset:   28 Size:     4
-//   uint3 xe_texture_copy_size_blocks; // Offset:   32 Size:    12
-//   uint xe_texture_copy_endianness;   // Offset:   44 Size:     4 [unused]
-//   uint3 xe_texture_copy_guest_mip_offset;// Offset:   48 Size:    12
-//   uint xe_texture_copy_guest_format; // Offset:   60 Size:     4 [unused]
+//   uint xe_texture_load_guest_base;   // Offset:    0 Size:     4
+//   uint xe_texture_load_guest_pitch;  // Offset:    4 Size:     4
+//   uint xe_texture_load_host_base;    // Offset:    8 Size:     4
+//   uint xe_texture_load_host_pitch;   // Offset:   12 Size:     4
+//   uint3 xe_texture_load_size_texels; // Offset:   16 Size:    12 [unused]
+//   bool xe_texture_load_is_3d;        // Offset:   28 Size:     4
+//   uint3 xe_texture_load_size_blocks; // Offset:   32 Size:    12
+//   uint xe_texture_load_endianness;   // Offset:   44 Size:     4 [unused]
+//   uint3 xe_texture_load_guest_mip_offset;// Offset:   48 Size:    12
+//   uint xe_texture_load_guest_format; // Offset:   60 Size:     4 [unused]
 //
 // }
 //
@@ -25,9 +25,9 @@
 //
 // Name                                 Type  Format         Dim      ID      HLSL Bind  Count
 // ------------------------------ ---------- ------- ----------- ------- -------------- ------
-// xe_texture_copy_source            texture    byte         r/o      T0             t0      1 
-// xe_texture_copy_dest                  UAV    byte         r/w      U0             u0      1 
-// XeTextureCopyConstants            cbuffer      NA          NA     CB0            cb0      1 
+// xe_texture_load_source            texture    byte         r/o      T0             t0      1 
+// xe_texture_load_dest                  UAV    byte         r/w      U0             u0      1 
+// XeTextureLoadConstants            cbuffer      NA          NA     CB0            cb0      1 
 //
 //
 //
