@@ -1,24 +1,24 @@
 #include "pixel_formats.hlsli"
-#include "texture_copy.hlsli"
+#include "texture_load.hlsli"
 
 [numthreads(8, 32, 1)]
 void main(uint3 xe_thread_id : SV_DispatchThreadID) {
   // 1 thread = 4 DXT3 (16bpb) blocks to 16x4 R8G8B8A8 texels.
   uint3 block_index = xe_thread_id;
   block_index.x <<= 2u;
-  [branch] if (any(block_index >= xe_texture_copy_size_blocks)) {
+  [branch] if (any(block_index >= xe_texture_load_size_blocks)) {
     return;
   }
   uint4 block_offsets_guest =
-      XeTextureCopyGuestBlockOffsets(block_index, 16u, 4u);
-  uint4 block_0 = xe_texture_copy_source.Load4(block_offsets_guest.x);
-  uint4 block_1 = xe_texture_copy_source.Load4(block_offsets_guest.y);
-  uint4 block_2 = xe_texture_copy_source.Load4(block_offsets_guest.z);
-  uint4 block_3 = xe_texture_copy_source.Load4(block_offsets_guest.w);
-  block_0 = XeByteSwap(block_0, xe_texture_copy_endianness);
-  block_1 = XeByteSwap(block_1, xe_texture_copy_endianness);
-  block_2 = XeByteSwap(block_2, xe_texture_copy_endianness);
-  block_3 = XeByteSwap(block_3, xe_texture_copy_endianness);
+      XeTextureLoadGuestBlockOffsets(block_index, 16u, 4u);
+  uint4 block_0 = xe_texture_load_source.Load4(block_offsets_guest.x);
+  uint4 block_1 = xe_texture_load_source.Load4(block_offsets_guest.y);
+  uint4 block_2 = xe_texture_load_source.Load4(block_offsets_guest.z);
+  uint4 block_3 = xe_texture_load_source.Load4(block_offsets_guest.w);
+  block_0 = XeByteSwap(block_0, xe_texture_load_endianness);
+  block_1 = XeByteSwap(block_1, xe_texture_load_endianness);
+  block_2 = XeByteSwap(block_2, xe_texture_load_endianness);
+  block_3 = XeByteSwap(block_3, xe_texture_load_endianness);
   uint4 alpha4_r01 = uint4(block_0.x, block_1.x, block_2.x, block_3.x);
   uint4 alpha4_r23 = uint4(block_0.y, block_1.y, block_2.y, block_3.y);
 
@@ -35,8 +35,8 @@ void main(uint3 xe_thread_id : SV_DispatchThreadID) {
   // Uncompress and write the rows.
   uint3 texel_index_host = block_index << uint3(2u, 2u, 0u);
   uint texel_offset_host = XeTextureHostLinearOffset(
-      texel_index_host, xe_texture_copy_size_texels.y,
-      xe_texture_copy_host_pitch, 4u) + xe_texture_copy_host_base;
+      texel_index_host, xe_texture_load_size_texels.y,
+      xe_texture_load_host_pitch, 4u) + xe_texture_load_host_base;
   for (uint i = 0u; i < 4u; ++i) {
     uint4 row_0, row_1, row_2, row_3;
     XeDXTFourBlocksRowToRGB8(rgb_10b_low, rgb_10b_high,
@@ -44,21 +44,21 @@ void main(uint3 xe_thread_id : SV_DispatchThreadID) {
                              row_0, row_1, row_2, row_3);
     uint4 alpha_row = XeDXT3FourBlocksRowToA8(
         (i < 2u ? alpha4_r01 : alpha4_r23) >> ((i & 1u) * 16u));
-    xe_texture_copy_dest.Store4(
+    xe_texture_load_dest.Store4(
         texel_offset_host,
         row_0 | ((alpha_row.xxxx << uint4(24u, 16u, 8u, 0u)) & 0xFF000000u));
-    xe_texture_copy_dest.Store4(
+    xe_texture_load_dest.Store4(
         texel_offset_host + 16u,
         row_1 | ((alpha_row.yyyy << uint4(24u, 16u, 8u, 0u)) & 0xFF000000u));
-    xe_texture_copy_dest.Store4(
+    xe_texture_load_dest.Store4(
         texel_offset_host + 32u,
         row_2 | ((alpha_row.zzzz << uint4(24u, 16u, 8u, 0u)) & 0xFF000000u));
-    xe_texture_copy_dest.Store4(
+    xe_texture_load_dest.Store4(
         texel_offset_host + 48u,
         row_3 | ((alpha_row.wwww << uint4(24u, 16u, 8u, 0u)) & 0xFF000000u));
-    if (++texel_index_host.y >= xe_texture_copy_size_texels.y) {
+    if (++texel_index_host.y >= xe_texture_load_size_texels.y) {
       return;
     }
-    texel_offset_host += xe_texture_copy_host_pitch;
+    texel_offset_host += xe_texture_load_host_pitch;
   }
 }
