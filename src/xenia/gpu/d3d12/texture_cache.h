@@ -384,8 +384,7 @@ class TextureCache {
 
   // Whether a texture has been invalidated (a watch has been triggered), so
   // need to try to reload textures, disregarding whether fetch constants have
-  // been changed. A simple notification (texture validity is protected by a
-  // mutex), so memory_order_relaxed is enough.
+  // been changed.
   std::atomic<bool> texture_invalidated_ = false;
 
   // Unsupported texture formats used during this frame (for research and

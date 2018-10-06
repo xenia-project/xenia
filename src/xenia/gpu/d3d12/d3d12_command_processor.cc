@@ -632,8 +632,8 @@ bool D3D12CommandProcessor::SetupContext() {
     return false;
   }
 
-  primitive_converter_ = std::make_unique<PrimitiveConverter>(
-      this, register_file_, memory_, shared_memory_.get());
+  primitive_converter_ =
+      std::make_unique<PrimitiveConverter>(this, register_file_, memory_);
   if (!primitive_converter_->Initialize()) {
     XELOGE("Failed to initialize the geometric primitive converter");
     return false;
@@ -1060,30 +1060,6 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     return true;
   }
 
-  bool indexed = index_buffer_info != nullptr && index_buffer_info->guest_base;
-  if (indexed && regs[XE_GPU_REG_PA_SU_SC_MODE_CNTL].u32 & (1 << 21)) {
-    uint32_t reset_index = regs[XE_GPU_REG_VGT_MULTI_PRIM_IB_RESET_INDX].u32;
-    uint32_t reset_index_expected;
-    if (index_buffer_info->format == IndexFormat::kInt32) {
-      reset_index_expected = 0xFFFFFFFFu;
-    } else {
-      reset_index_expected = 0xFFFFu;
-    }
-    if (reset_index != reset_index_expected) {
-      // Only 0xFFFF and 0xFFFFFFFF primitive restart indices are supported by
-      // Direct3D 12 (endianness doesn't matter for them). With shared memory,
-      // it's impossible to replace the cut index in the buffer without
-      // affecting the game memory.
-      XELOGE(
-          "The game uses the primitive restart index 0x%X that isn't 0xFFFF or "
-          "0xFFFFFFFF. Report the game to Xenia developers so geometry shaders "
-          "will be added to handle this!",
-          reset_index);
-      assert_always();
-      return false;
-    }
-  }
-
   // Shaders will have already been defined by previous loads.
   // We need them to do just about anything so validate here.
   auto vertex_shader = static_cast<D3D12Shader*>(active_vertex_shader());
@@ -1121,6 +1097,8 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
   }
   const RenderTargetCache::PipelineRenderTarget* pipeline_render_targets =
       render_target_cache_->GetCurrentPipelineRenderTargets();
+
+  bool indexed = index_buffer_info != nullptr && index_buffer_info->guest_base;
 
   // Set the primitive topology.
   PrimitiveType primitive_type_converted =
