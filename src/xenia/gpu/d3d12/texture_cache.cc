@@ -440,7 +440,7 @@ void TextureCache::RequestTextures(uint32_t used_vertex_texture_mask,
   SCOPE_profile_cpu_f("gpu");
 #endif  // FINE_GRAINED_DRAW_SCOPES
 
-  if (texture_invalidated_.exchange(false, std::memory_order_relaxed)) {
+  if (texture_invalidated_.exchange(false, std::memory_order_acquire)) {
     // Clear the bindings not only for this draw call, but entirely, because
     // loading may be needed in some draw call later, which may have the same
     // key for some binding as before the invalidation, but texture_invalidated_
@@ -1297,7 +1297,7 @@ void TextureCache::WatchCallback(Texture* texture, bool is_mip) {
     texture->base_in_sync = false;
     texture->base_watch_handle = nullptr;
   }
-  texture_invalidated_.store(true, std::memory_order_relaxed);
+  texture_invalidated_.store(true, std::memory_order_release);
 }
 
 void TextureCache::ClearBindings() {

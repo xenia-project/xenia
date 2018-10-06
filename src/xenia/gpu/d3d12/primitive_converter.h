@@ -14,11 +14,11 @@
 #include <memory>
 #include <unordered_map>
 
-#include "xenia/gpu/d3d12/shared_memory.h"
 #include "xenia/gpu/register_file.h"
 #include "xenia/gpu/xenos.h"
 #include "xenia/memory.h"
 #include "xenia/ui/d3d12/d3d12_context.h"
+#include "xenia/ui/d3d12/pools.h"
 
 namespace xe {
 namespace gpu {
@@ -35,8 +35,7 @@ class D3D12CommandProcessor;
 class PrimitiveConverter {
  public:
   PrimitiveConverter(D3D12CommandProcessor* command_processor,
-                     RegisterFile* register_file, Memory* memory,
-                     SharedMemory* shared_memory);
+                     RegisterFile* register_file, Memory* memory);
   ~PrimitiveConverter();
 
   bool Initialize();
@@ -78,8 +77,6 @@ class PrimitiveConverter {
   D3D12_GPU_VIRTUAL_ADDRESS GetStaticIndexBuffer(
       PrimitiveType source_type, uint32_t index_count,
       uint32_t& index_count_out) const;
-  // TODO(Triang3l): A function that returns a static index buffer for
-  // non-indexed drawing of unsupported primitives
 
  private:
   // simd_offset is source address & 15 - if SIMD is used, the source and the
@@ -89,10 +86,14 @@ class PrimitiveConverter {
                         uint32_t simd_offset,
                         D3D12_GPU_VIRTUAL_ADDRESS& gpu_address_out);
 
+  // Callback for invalidating buffers mid-frame.
+  void MemoryWriteCallback(uint32_t page_first, uint32_t page_last);
+  static void MemoryWriteCallbackThunk(void* context_ptr, uint32_t page_first,
+                                       uint32_t page_last);
+
   D3D12CommandProcessor* command_processor_;
   RegisterFile* register_file_;
   Memory* memory_;
-  SharedMemory* shared_memory_;
 
   std::unique_ptr<ui::d3d12::UploadBufferPool> buffer_pool_ = nullptr;
 
@@ -113,17 +114,56 @@ class PrimitiveConverter {
   static constexpr uint32_t kStaticIBTotalCount =
       kStaticIBTriangleFanOffset + kStaticIBTriangleFanCount;
 
-  struct ConvertedIndices {
-    D3D12_GPU_VIRTUAL_ADDRESS gpu_address;
-    PrimitiveType primitive_type;
-    uint32_t index_count;
-    IndexFormat index_format;
-    // Index pre-swapped - in guest storage endian.
-    uint32_t reset_index;
-    bool reset;
+  // Not identifying the index buffer uniquely - reset index must also be
+  // checked if reset is enabled.
+  union ConvertedIndicesKey {
+    uint64_t value;
+    struct {
+      uint32_t address;               // 32
+      PrimitiveType source_type : 6;  // 38
+      IndexFormat format : 1;         // 39
+      uint32_t count : 16;            // 55
+      uint32_t reset : 1;             // 56;
+    };
+
+    // Clearing the unused bits.
+    ConvertedIndicesKey() : value(0) {}
+    ConvertedIndicesKey(const ConvertedIndicesKey& key) : value(key.value) {}
+    ConvertedIndicesKey& operator=(const ConvertedIndicesKey& key) {
+      value = key.value;
+      return *this;
+    }
+    bool operator==(const ConvertedIndicesKey& key) const {
+      return value == key.value;
+    }
+    bool operator!=(const ConvertedIndicesKey& key) const {
+      return value != key.value;
+    }
   };
+
+  struct ConvertedIndices {
+    ConvertedIndicesKey key;
+    // If reset is enabled, this also must be checked to find cached indices.
+    uint32_t reset_index;
+
+    // Zero GPU address if conversion not needed or the resulting index buffer
+    // is empty.
+    D3D12_GPU_VIRTUAL_ADDRESS gpu_address;
+    // When conversion is not needed, this must be equal to the original index
+    // count.
+    uint32_t converted_index_count;
+  };
+
   // Cache for a single frame.
-  std::unordered_multimap<uint32_t, ConvertedIndices> converted_indices_;
+  std::unordered_multimap<uint64_t, ConvertedIndices> converted_indices_cache_;
+
+  // Very coarse cache invalidation - if something is modified in a 8 MB portion
+  // of the physical memory and converted indices are also there, invalidate all
+  // the cache.
+  uint64_t memory_regions_used_;
+  std::atomic<uint64_t> memory_regions_invalidated_ = 0;
+  void* physical_write_watch_handle_ = nullptr;
+  uint32_t system_page_size_;
 };
 
 }  // namespace d3d12
