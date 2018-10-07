@@ -7476,9 +7476,10 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
     shader_object_.push_back(0);
     shader_object_.push_back(type_name_offsets[i]);
   }
+
+#if 0
   // Structure members. Structures are not used currently, but were used in the
   // past, so the code is kept here.
-#if 0
   for (uint32_t i = 0; i < uint32_t(RdefTypeIndex::kCount); ++i) {
     const RdefType& type = rdef_types_[i];
     const RdefStructMember* struct_members = type.struct_members;

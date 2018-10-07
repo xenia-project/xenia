@@ -74,9 +74,9 @@ bool D3D12Context::Initialize() {
     swap_chain_desc.Flags = 0;
     IDXGISwapChain1* swap_chain_1;
     if (FAILED(dxgi_factory->CreateSwapChainForHwnd(
-        provider->GetDirectQueue(),
-        static_cast<HWND>(target_window_->native_handle()), &swap_chain_desc,
-        nullptr, nullptr, &swap_chain_1))) {
+            provider->GetDirectQueue(),
+            static_cast<HWND>(target_window_->native_handle()),
+            &swap_chain_desc, nullptr, nullptr, &swap_chain_1))) {
       XELOGE("Failed to create a DXGI swap chain");
       Shutdown();
       return false;
