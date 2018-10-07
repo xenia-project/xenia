@@ -146,9 +146,9 @@ class D3D12CommandProcessor : public CommandProcessor {
     kRootParameter_FetchConstants,
     // Quite frequently changed (for one object drawn multiple times, for
     // instance - may contain projection matrices).
-    kRootParameter_VertexFloatConstants,
+    kRootParameter_FloatConstantsVertex,
     // Less frequently changed (per-material).
-    kRootParameter_PixelFloatConstants,
+    kRootParameter_FloatConstantsPixel,
     // Rarely changed - system constants like viewport and alpha testing.
     kRootParameter_SystemConstants,
     // Pretty rarely used and rarely changed - flow control constants.
@@ -169,10 +169,10 @@ class D3D12CommandProcessor : public CommandProcessor {
   };
 
   struct RootExtraParameterIndices {
-    uint32_t pixel_textures;
-    uint32_t pixel_samplers;
-    uint32_t vertex_textures;
-    uint32_t vertex_samplers;
+    uint32_t textures_pixel;
+    uint32_t samplers_pixel;
+    uint32_t textures_vertex;
+    uint32_t samplers_vertex;
     static constexpr uint32_t kUnavailable = UINT32_MAX;
   };
   // Gets the indices of optional root parameters. Returns the total parameter
@@ -283,8 +283,8 @@ class D3D12CommandProcessor : public CommandProcessor {
   DxbcShaderTranslator::SystemConstants system_constants_;
 
   // Float constant usage masks of the last draw call.
-  uint64_t float_constant_map_vertex_[4];
-  uint64_t float_constant_map_pixel_[4];
+  uint64_t current_float_constant_map_vertex_[4];
+  uint64_t current_float_constant_map_pixel_[4];
 
   // Constant buffer bindings.
   struct ConstantBufferBinding {
@@ -292,8 +292,8 @@ class D3D12CommandProcessor : public CommandProcessor {
     bool up_to_date;
   };
   ConstantBufferBinding cbuffer_bindings_system_;
-  ConstantBufferBinding cbuffer_bindings_vertex_float_;
-  ConstantBufferBinding cbuffer_bindings_pixel_float_;
+  ConstantBufferBinding cbuffer_bindings_float_vertex_;
+  ConstantBufferBinding cbuffer_bindings_float_pixel_;
   ConstantBufferBinding cbuffer_bindings_bool_loop_;
   ConstantBufferBinding cbuffer_bindings_fetch_;
 
@@ -308,20 +308,30 @@ class D3D12CommandProcessor : public CommandProcessor {
   // Hashes of the last texture bindings written to the current view descriptor
   // heap with the last used descriptor layout. Valid only when the
   // corresponding "written" variables are true.
-  uint64_t texture_bindings_hash_vertex_;
-  uint64_t texture_bindings_hash_pixel_;
+  uint64_t current_texture_bindings_hash_vertex_;
+  uint64_t current_texture_bindings_hash_pixel_;
+
+  // Whether the last used samplers have been written to the current sampler
+  // descriptor heap.
+  bool samplers_written_vertex_;
+  bool samplers_written_pixel_;
+  // Hashes of the last sampler parameters written to the current sampler
+  // descriptor heap with the last used descriptor layout. Valid only when the
+  // corresponding "written" variables are true.
+  uint64_t current_samplers_hash_vertex_;
+  uint64_t current_samplers_hash_pixel_;
 
   // Latest descriptor handles used for handling Xenos draw calls.
   D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_system_constants_;
-  D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_vertex_float_constants_;
-  D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_pixel_float_constants_;
+  D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_float_constants_vertex_;
+  D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_float_constants_pixel_;
   D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_bool_loop_constants_;
   D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_fetch_constants_;
   D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_shared_memory_;
-  D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_pixel_textures_;
-  D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_pixel_samplers_;
-  D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_vertex_textures_;
-  D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_vertex_samplers_;
+  D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_textures_vertex_;
+  D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_textures_pixel_;
+  D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_samplers_vertex_;
+  D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_samplers_pixel_;
 
   // Current primitive topology.
   D3D_PRIMITIVE_TOPOLOGY primitive_topology_;

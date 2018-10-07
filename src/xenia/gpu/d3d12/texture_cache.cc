@@ -576,41 +576,82 @@ void TextureCache::WriteTextureSRV(uint32_t fetch_constant,
   device->CreateShaderResourceView(resource, &desc, handle);
 }
 
-void TextureCache::WriteSampler(uint32_t fetch_constant,
-                                TextureFilter mag_filter,
-                                TextureFilter min_filter,
-                                TextureFilter mip_filter,
-                                AnisoFilter aniso_filter,
-                                D3D12_CPU_DESCRIPTOR_HANDLE handle) {
+TextureCache::SamplerParameters TextureCache::GetSamplerParameters(
+    const D3D12Shader::SamplerBinding& binding) const {
   auto& regs = *register_file_;
-  uint32_t r = XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + fetch_constant * 6;
+  uint32_t r =
+      XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + binding.fetch_constant * 6;
   auto group =
       reinterpret_cast<const xenos::xe_gpu_fetch_group_t*>(&regs.values[r]);
   auto& fetch = group->texture_fetch;
-  if (mag_filter == TextureFilter::kUseFetchConst) {
-    mag_filter = TextureFilter(fetch.mag_filter);
+
+  SamplerParameters parameters;
+
+  parameters.clamp_x = ClampMode(fetch.clamp_x);
+  parameters.clamp_y = ClampMode(fetch.clamp_y);
+  parameters.clamp_z = ClampMode(fetch.clamp_z);
+  parameters.border_color = BorderColor(fetch.border_color);
+
+  uint32_t mip_min_level = fetch.mip_min_level;
+  uint32_t mip_max_level = fetch.mip_max_level;
+  uint32_t base_page = fetch.base_address & 0x1FFFF;
+  uint32_t mip_page = fetch.mip_address & 0x1FFFF;
+  if (base_page == 0 || base_page == mip_page) {
+    // Games should clamp mip level in this case anyway, but just for safety.
+    mip_min_level = std::max(mip_min_level, 1u);
   }
-  if (min_filter == TextureFilter::kUseFetchConst) {
-    min_filter = TextureFilter(fetch.min_filter);
+  if (mip_page == 0) {
+    mip_max_level = 0;
   }
-  if (mip_filter == TextureFilter::kUseFetchConst) {
-    mip_filter = TextureFilter(fetch.mip_filter);
-  }
-  if (aniso_filter == AnisoFilter::kUseFetchConst) {
-    aniso_filter = AnisoFilter(fetch.aniso_filter);
-  }
-  D3D12_SAMPLER_DESC desc;
+  parameters.mip_min_level = mip_min_level;
+  parameters.mip_max_level = std::max(mip_max_level, mip_min_level);
+  parameters.lod_bias = fetch.lod_bias;
+
+  AnisoFilter aniso_filter = binding.aniso_filter == AnisoFilter::kUseFetchConst
+                                 ? AnisoFilter(fetch.aniso_filter)
+                                 : binding.aniso_filter;
+  aniso_filter = std::min(aniso_filter, AnisoFilter::kMax_16_1);
+  parameters.aniso_filter = aniso_filter;
   if (aniso_filter != AnisoFilter::kDisabled) {
-    desc.Filter = D3D12_FILTER_ANISOTROPIC;
-    desc.MaxAnisotropy = std::min(1u << (uint32_t(aniso_filter) - 1), 16u);
+    parameters.mag_linear = 1;
+    parameters.min_linear = 1;
+    parameters.mip_linear = 1;
   } else {
-    D3D12_FILTER_TYPE d3d_filter_min = min_filter == TextureFilter::kLinear
+    TextureFilter mag_filter =
+        binding.mag_filter == TextureFilter::kUseFetchConst
+            ? TextureFilter(fetch.mag_filter)
+            : binding.mag_filter;
+    parameters.mag_linear = mag_filter == TextureFilter::kLinear;
+    TextureFilter min_filter =
+        binding.min_filter == TextureFilter::kUseFetchConst
+            ? TextureFilter(fetch.min_filter)
+            : binding.min_filter;
+    parameters.min_linear = min_filter == TextureFilter::kLinear;
+    TextureFilter mip_filter =
+        binding.mip_filter == TextureFilter::kUseFetchConst
+            ? TextureFilter(fetch.mip_filter)
+            : binding.mip_filter;
+    parameters.mip_linear = mip_filter == TextureFilter::kLinear;
+    // TODO(Triang3l): Investigate mip_filter TextureFilter::kBaseMap.
+  }
+
+  return parameters;
+}
+
+void TextureCache::WriteSampler(SamplerParameters parameters,
+                                D3D12_CPU_DESCRIPTOR_HANDLE handle) const {
+  D3D12_SAMPLER_DESC desc;
+  if (parameters.aniso_filter != AnisoFilter::kDisabled) {
+    desc.Filter = D3D12_FILTER_ANISOTROPIC;
+    desc.MaxAnisotropy = 1u << (uint32_t(parameters.aniso_filter) - 1);
+  } else {
+    D3D12_FILTER_TYPE d3d_filter_min = parameters.min_linear
                                            ? D3D12_FILTER_TYPE_LINEAR
                                            : D3D12_FILTER_TYPE_POINT;
-    D3D12_FILTER_TYPE d3d_filter_mag = mag_filter == TextureFilter::kLinear
+    D3D12_FILTER_TYPE d3d_filter_mag = parameters.mag_linear
                                            ? D3D12_FILTER_TYPE_LINEAR
                                            : D3D12_FILTER_TYPE_POINT;
-    D3D12_FILTER_TYPE d3d_filter_mip = mip_filter == TextureFilter::kLinear
+    D3D12_FILTER_TYPE d3d_filter_mip = parameters.mip_linear
                                            ? D3D12_FILTER_TYPE_LINEAR
                                            : D3D12_FILTER_TYPE_POINT;
     // TODO(Triang3l): Investigate mip_filter TextureFilter::kBaseMap.
@@ -630,13 +671,13 @@ void TextureCache::WriteSampler(uint32_t fetch_constant,
       /* kClampToBorder        */ D3D12_TEXTURE_ADDRESS_MODE_BORDER,
       /* kMirrorClampToBorder  */ D3D12_TEXTURE_ADDRESS_MODE_MIRROR_ONCE,
   };
-  desc.AddressU = kAddressModeMap[fetch.clamp_x];
-  desc.AddressV = kAddressModeMap[fetch.clamp_y];
-  desc.AddressW = kAddressModeMap[fetch.clamp_z];
-  desc.MipLODBias = fetch.lod_bias * (1.0f / 32.0f);
+  desc.AddressU = kAddressModeMap[uint32_t(parameters.clamp_x)];
+  desc.AddressV = kAddressModeMap[uint32_t(parameters.clamp_y)];
+  desc.AddressW = kAddressModeMap[uint32_t(parameters.clamp_z)];
+  desc.MipLODBias = parameters.lod_bias * (1.0f / 32.0f);
   desc.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
   // TODO(Triang3l): Border colors k_ACBYCR_BLACK and k_ACBCRY_BLACK.
-  if (BorderColor(fetch.border_color) == BorderColor::k_AGBR_White) {
+  if (parameters.border_color == BorderColor::k_AGBR_White) {
     desc.BorderColor[0] = 1.0f;
     desc.BorderColor[1] = 1.0f;
     desc.BorderColor[2] = 1.0f;
@@ -647,18 +688,8 @@ void TextureCache::WriteSampler(uint32_t fetch_constant,
     desc.BorderColor[2] = 0.0f;
     desc.BorderColor[3] = 0.0f;
   }
-  desc.MinLOD = float(fetch.mip_min_level);
-  desc.MaxLOD = float(fetch.mip_max_level);
-  uint32_t base_page = fetch.base_address & 0x1FFFF;
-  uint32_t mip_page = fetch.mip_address & 0x1FFFF;
-  if (base_page == 0 || base_page == mip_page) {
-    // Games should clamp mip level in this case anyway, but just for safety.
-    desc.MinLOD = std::max(desc.MinLOD, 1.0f);
-  }
-  if (mip_page == 0) {
-    desc.MaxLOD = 0.0f;
-  }
-  desc.MaxLOD = std::max(desc.MaxLOD, desc.MinLOD);
+  desc.MinLOD = float(parameters.mip_min_level);
+  desc.MaxLOD = float(parameters.mip_max_level);
   auto device =
       command_processor_->GetD3D12Context()->GetD3D12Provider()->GetDevice();
   device->CreateSampler(&desc, handle);

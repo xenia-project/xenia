@@ -55,6 +55,42 @@ class D3D12CommandProcessor;
 //   this way anyway.
 class TextureCache {
  public:
+  // Sampler parameters that can be directly converted to a host sampler or used
+  // for binding hashing.
+  union SamplerParameters {
+    struct {
+      ClampMode clamp_x : 3;         // 3
+      ClampMode clamp_y : 3;         // 6
+      ClampMode clamp_z : 3;         // 9
+      BorderColor border_color : 2;  // 11
+      // For anisotropic, these are true.
+      uint32_t mag_linear : 1;       // 12
+      uint32_t min_linear : 1;       // 13
+      uint32_t mip_linear : 1;       // 14
+      AnisoFilter aniso_filter : 3;  // 17
+      uint32_t mip_min_level : 4;    // 21
+      uint32_t mip_max_level : 4;    // 25
+
+      int32_t lod_bias : 10;  // 42
+    };
+    uint64_t value;
+
+    // Clearing the unused bits.
+    SamplerParameters() : value(0) {}
+    SamplerParameters(const SamplerParameters& parameters)
+        : value(parameters.value) {}
+    SamplerParameters& operator=(const SamplerParameters& parameters) {
+      value = parameters.value;
+      return *this;
+    }
+    bool operator==(const SamplerParameters& parameters) const {
+      return value == parameters.value;
+    }
+    bool operator!=(const SamplerParameters& parameters) const {
+      return value != parameters.value;
+    }
+  };
+
   TextureCache(D3D12CommandProcessor* command_processor,
                RegisterFile* register_file, SharedMemory* shared_memory);
   ~TextureCache();
@@ -84,10 +120,11 @@ class TextureCache {
   void WriteTextureSRV(uint32_t fetch_constant,
                        TextureDimension shader_dimension,
                        D3D12_CPU_DESCRIPTOR_HANDLE handle);
-  void WriteSampler(uint32_t fetch_constant, TextureFilter mag_filter,
-                    TextureFilter min_filter, TextureFilter mip_filter,
-                    AnisoFilter aniso_filter,
-                    D3D12_CPU_DESCRIPTOR_HANDLE handle);
+
+  SamplerParameters GetSamplerParameters(
+      const D3D12Shader::SamplerBinding& binding) const;
+  void WriteSampler(SamplerParameters parameters,
+                    D3D12_CPU_DESCRIPTOR_HANDLE handle) const;
 
   static inline DXGI_FORMAT GetResolveDXGIFormat(TextureFormat format) {
     return host_formats_[uint32_t(format)].dxgi_format_resolve_tile;
