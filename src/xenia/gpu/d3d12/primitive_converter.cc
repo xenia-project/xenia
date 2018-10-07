@@ -399,12 +399,12 @@ PrimitiveConverter::ConversionResult PrimitiveConverter::ConvertPrimitives(
     }
   } else if (source_type == PrimitiveType::kTriangleStrip ||
              source_type == PrimitiveType::kLineStrip) {
+#if XE_ARCH_AMD64
     // Replace the reset index with the maximum representable value - vector OR
     // gives 0 or 0xFFFF/0xFFFFFFFF, which is exactly what is needed.
     // Allocations in the target index buffer are aligned with 16-byte
     // granularity, and within 16-byte vectors, both the source and the target
     // start at the same offset.
-#if XE_ARCH_AMD64
     union {
       const __m128i* source_aligned_128;
       uintptr_t source_aligned_uintptr;

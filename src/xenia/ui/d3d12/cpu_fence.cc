@@ -15,8 +15,8 @@ namespace xe {
 namespace ui {
 namespace d3d12 {
 
-std::unique_ptr<CPUFence>
-CPUFence::Create(ID3D12Device* device, ID3D12CommandQueue* queue) {
+std::unique_ptr<CPUFence> CPUFence::Create(ID3D12Device* device,
+                                           ID3D12CommandQueue* queue) {
   std::unique_ptr<CPUFence> fence(new CPUFence(device, queue));
   if (!fence->Initialize()) {
     return nullptr;

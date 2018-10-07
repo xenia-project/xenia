@@ -15,11 +15,11 @@ namespace xe {
 namespace ui {
 namespace d3d12 {
 
-std::unique_ptr<CommandList>
-CommandList::Create(ID3D12Device* device, ID3D12CommandQueue* queue,
-                    D3D12_COMMAND_LIST_TYPE type) {
-  std::unique_ptr<CommandList> command_list(new CommandList(device, queue,
-                                                            type));
+std::unique_ptr<CommandList> CommandList::Create(ID3D12Device* device,
+                                                 ID3D12CommandQueue* queue,
+                                                 D3D12_COMMAND_LIST_TYPE type) {
+  std::unique_ptr<CommandList> command_list(
+      new CommandList(device, queue, type));
   if (!command_list->Initialize()) {
     return nullptr;
   }
@@ -44,7 +44,7 @@ CommandList::~CommandList() {
 
 bool CommandList::Initialize() {
   if (FAILED(device_->CreateCommandAllocator(
-      type_, IID_PPV_ARGS(&command_allocator_)))) {
+          type_, IID_PPV_ARGS(&command_allocator_)))) {
     XELOGE("Failed to create a command allocator");
     return false;
   }
@@ -68,9 +68,7 @@ ID3D12GraphicsCommandList* CommandList::BeginRecording() {
   return command_list_;
 }
 
-void CommandList::AbortRecording() {
-  command_list_->Close();
-}
+void CommandList::AbortRecording() { command_list_->Close(); }
 
 void CommandList::Execute() {
   command_list_->Close();
@@ -81,4 +79,3 @@ void CommandList::Execute() {
 }  // namespace d3d12
 }  // namespace ui
 }  // namespace xe
-
