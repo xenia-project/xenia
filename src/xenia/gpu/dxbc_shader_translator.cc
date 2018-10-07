@@ -4137,24 +4137,29 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
         // unnormalized coordinates.
 
         if (instr.attributes.unnormalized_coordinates) {
-          // Apply the offset.
-          shader_code_.push_back(
-              ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ADD) |
-              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(10));
-          shader_code_.push_back(EncodeVectorMaskedOperand(
-              D3D10_SB_OPERAND_TYPE_TEMP, coord_mask, 1));
-          shader_code_.push_back(system_temp_pv_);
-          shader_code_.push_back(EncodeVectorSwizzledOperand(
-              D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-          shader_code_.push_back(system_temp_pv_);
-          shader_code_.push_back(EncodeVectorSwizzledOperand(
-              D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-          shader_code_.push_back(*reinterpret_cast<const uint32_t*>(&offset_x));
-          shader_code_.push_back(*reinterpret_cast<const uint32_t*>(&offset_y));
-          shader_code_.push_back(*reinterpret_cast<const uint32_t*>(&offset_z));
-          shader_code_.push_back(0);
-          ++stat_.instruction_count;
-          ++stat_.float_instruction_count;
+          if (has_offset) {
+            // Apply the offset.
+            shader_code_.push_back(
+                ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ADD) |
+                ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(10));
+            shader_code_.push_back(EncodeVectorMaskedOperand(
+                D3D10_SB_OPERAND_TYPE_TEMP, coord_mask, 1));
+            shader_code_.push_back(system_temp_pv_);
+            shader_code_.push_back(EncodeVectorSwizzledOperand(
+                D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+            shader_code_.push_back(system_temp_pv_);
+            shader_code_.push_back(EncodeVectorSwizzledOperand(
+                D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+            shader_code_.push_back(
+                *reinterpret_cast<const uint32_t*>(&offset_x));
+            shader_code_.push_back(
+                *reinterpret_cast<const uint32_t*>(&offset_y));
+            shader_code_.push_back(
+                *reinterpret_cast<const uint32_t*>(&offset_z));
+            shader_code_.push_back(0);
+            ++stat_.instruction_count;
+            ++stat_.float_instruction_count;
+          }
         } else {
           // Unnormalize the coordinates and apply the offset.
           shader_code_.push_back(
