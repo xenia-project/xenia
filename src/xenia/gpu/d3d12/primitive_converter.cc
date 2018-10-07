@@ -16,6 +16,7 @@
 #include "xenia/base/math.h"
 #include "xenia/base/memory.h"
 #include "xenia/base/platform.h"
+#include "xenia/base/profiling.h"
 #include "xenia/gpu/d3d12/d3d12_command_processor.h"
 #include "xenia/ui/d3d12/d3d12_util.h"
 
@@ -176,6 +177,10 @@ PrimitiveConverter::ConversionResult PrimitiveConverter::ConvertPrimitives(
     }
   }
 
+#if FINE_GRAINED_DRAW_SCOPES
+  SCOPE_profile_cpu_f("gpu");
+#endif  // FINE_GRAINED_DRAW_SCOPES
+
   // Exit early for clearly empty draws, without even reading the memory.
   uint32_t index_count_min;
   if (source_type == PrimitiveType::kLineStrip ||
@@ -234,6 +239,15 @@ PrimitiveConverter::ConversionResult PrimitiveConverter::ConvertPrimitives(
     memory_regions_used_bits = (1ull << ((address_last >> 23) + 1)) - 1;
   }
 
+  union {
+    const void* source;
+    const uint8_t* source_8;
+    const uint16_t* source_16;
+    const uint32_t* source_32;
+    uintptr_t source_uintptr;
+  };
+  source = memory_->TranslatePhysical(address);
+
   // Calculate the new index count, and also check if there's nothing to convert
   // in the buffer (for instance, if not using actually primitive reset).
   uint32_t converted_index_count = 0;
@@ -250,10 +264,93 @@ PrimitiveConverter::ConversionResult PrimitiveConverter::ConvertPrimitives(
     }
   } else if (source_type == PrimitiveType::kTriangleStrip ||
              source_type == PrimitiveType::kLineStrip) {
-    // TODO(Triang3l): Check if the restart index is used at all in this buffer.
-    conversion_needed = true;
     converted_index_count = index_count;
+    // Check if the restart index is used at all in this buffer because reading
+    // vertices from a default heap is faster than from an upload heap.
+    conversion_needed = false;
+#if XE_ARCH_AMD64
+    // Will use SIMD to copy 16-byte blocks using _mm_or_si128.
     simd = true;
+    union {
+      const void* check_source;
+      const uint32_t* check_source_16;
+      const uint32_t* check_source_32;
+      const __m128i* check_source_128;
+      uintptr_t check_source_uintptr;
+    };
+    check_source = source;
+    uint32_t check_indices_remaining = index_count;
+    alignas(16) uint64_t check_result[2];
+    if (index_format == IndexFormat::kInt32) {
+      while (check_indices_remaining != 0 && (check_source_uintptr & 15)) {
+        --check_indices_remaining;
+        if (*(check_source_32++) == reset_index) {
+          conversion_needed = true;
+          check_indices_remaining = 0;
+        }
+      }
+      __m128i check_reset_index_vector = _mm_set1_epi32(reset_index);
+      while (check_indices_remaining >= 4) {
+        check_indices_remaining -= 4;
+        _mm_store_si128(reinterpret_cast<__m128i*>(&check_result),
+                        _mm_cmpeq_epi32(_mm_load_si128(check_source_128++),
+                                        check_reset_index_vector));
+        if (check_result[0] || check_result[1]) {
+          conversion_needed = true;
+          check_indices_remaining = 0;
+        }
+      }
+      while (check_indices_remaining != 0) {
+        --check_indices_remaining;
+        if (*(check_source_32++) == reset_index) {
+          conversion_needed = true;
+          check_indices_remaining = 0;
+        }
+      }
+    } else {
+      while (check_indices_remaining != 0 && (check_source_uintptr & 15)) {
+        --check_indices_remaining;
+        if (*(check_source_16++) == reset_index) {
+          conversion_needed = true;
+          check_indices_remaining = 0;
+        }
+      }
+      __m128i check_reset_index_vector = _mm_set1_epi16(reset_index);
+      while (check_indices_remaining >= 8) {
+        check_indices_remaining -= 8;
+        _mm_store_si128(reinterpret_cast<__m128i*>(&check_result),
+                        _mm_cmpeq_epi16(_mm_load_si128(check_source_128++),
+                                        check_reset_index_vector));
+        if (check_result[0] || check_result[1]) {
+          conversion_needed = true;
+          check_indices_remaining = 0;
+        }
+      }
+      while (check_indices_remaining != 0) {
+        --check_indices_remaining;
+        if (*(check_source_16++) == reset_index) {
+          conversion_needed = true;
+          check_indices_remaining = 0;
+        }
+      }
+    }
+#else
+    if (index_format == IndexFormat::kInt32) {
+      for (uint32_t i = 0; i < index_count; ++i) {
+        if (source_32[i] == reset_index) {
+          conversion_needed = true;
+          break;
+        }
+      }
+    } else {
+      for (uint32_t i = 0; i < index_count; ++i) {
+        if (source_16[i] == reset_index) {
+          conversion_needed = true;
+          break;
+        }
+      }
+    }
+#endif  // XE_ARCH_AMD64
   }
   converted_indices.converted_index_count = converted_index_count;
 
@@ -270,22 +367,9 @@ PrimitiveConverter::ConversionResult PrimitiveConverter::ConvertPrimitives(
 
   // Convert.
 
-  union {
-    const void* source;
-    const uint8_t* source_8;
-    const uint16_t* source_16;
-    const uint32_t* source_32;
-  };
-  source = memory_->TranslatePhysical(address);
-  union {
-    void* target;
-    uint8_t* target_8;
-    uint16_t* target_16;
-    uint32_t* target_32;
-  };
   D3D12_GPU_VIRTUAL_ADDRESS gpu_address;
-  target = AllocateIndices(index_format, converted_index_count,
-                           simd ? address & 15 : 0, gpu_address);
+  void* target = AllocateIndices(index_format, converted_index_count,
+                                 simd ? address & 15 : 0, gpu_address);
   if (target == nullptr) {
     return ConversionResult::kFailed;
   }
@@ -298,12 +382,14 @@ PrimitiveConverter::ConversionResult PrimitiveConverter::ConvertPrimitives(
       return ConversionResult::kFailed;
     } else {
       if (index_format == IndexFormat::kInt32) {
+        uint32_t* target_32 = reinterpret_cast<uint32_t*>(target);
         for (uint32_t i = 2; i < index_count; ++i) {
           *(target_32++) = source_32[i];
           *(target_32++) = source_32[i - 1];
           *(target_32++) = source_32[0];
         }
       } else {
+        uint16_t* target_16 = reinterpret_cast<uint16_t*>(target);
         for (uint32_t i = 2; i < index_count; ++i) {
           *(target_16++) = source_16[i];
           *(target_16++) = source_16[i - 1];
@@ -319,29 +405,34 @@ PrimitiveConverter::ConversionResult PrimitiveConverter::ConvertPrimitives(
     // granularity, and within 16-byte vectors, both the source and the target
     // start at the same offset.
 #if XE_ARCH_AMD64
-    source = reinterpret_cast<const void*>(reinterpret_cast<uintptr_t>(source) &
-                                           ~(uintptr_t(15)));
-    target = reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(target) &
-                                     ~(uintptr_t(15)));
+    union {
+      const __m128i* source_aligned_128;
+      uintptr_t source_aligned_uintptr;
+    };
+    source_aligned_uintptr = source_uintptr & ~(uintptr_t(15));
+    union {
+      __m128i* target_aligned_128;
+      uintptr_t target_aligned_uintptr;
+    };
+    target_aligned_uintptr =
+        reinterpret_cast<uintptr_t>(target) & ~(uintptr_t(15));
     uint32_t vector_count = (address_last >> 4) - (address >> 4) + 1;
     if (index_format == IndexFormat::kInt32) {
       __m128i reset_index_vector = _mm_set1_epi32(reset_index);
       for (uint32_t i = 0; i < vector_count; ++i) {
-        __m128i indices_vector =
-            _mm_load_si128(reinterpret_cast<const __m128i*>(&source_8[i << 4]));
+        __m128i indices_vector = _mm_load_si128(source_aligned_128++);
         __m128i indices_are_reset_vector =
             _mm_cmpeq_epi32(indices_vector, reset_index_vector);
-        _mm_store_si128(reinterpret_cast<__m128i*>(&target_8[i << 4]),
+        _mm_store_si128(target_aligned_128++,
                         _mm_or_si128(indices_vector, indices_are_reset_vector));
       }
     } else {
       __m128i reset_index_vector = _mm_set1_epi16(reset_index);
       for (uint32_t i = 0; i < vector_count; ++i) {
-        __m128i indices_vector =
-            _mm_load_si128(reinterpret_cast<const __m128i*>(&source_8[i << 4]));
+        __m128i indices_vector = _mm_load_si128(source_aligned_128++);
         __m128i indices_are_reset_vector =
             _mm_cmpeq_epi16(indices_vector, reset_index_vector);
-        _mm_store_si128(reinterpret_cast<__m128i*>(&target_8[i << 4]),
+        _mm_store_si128(target_aligned_128++,
                         _mm_or_si128(indices_vector, indices_are_reset_vector));
       }
     }
@@ -349,15 +440,17 @@ PrimitiveConverter::ConversionResult PrimitiveConverter::ConvertPrimitives(
     if (index_format == IndexFormat::kInt32) {
       for (uint32_t i = 0; i < index_count; ++i) {
         uint32_t index = source_32[i];
-        target_32[i] = index == reset_index ? 0xFFFFFFFFu : index;
+        reinterpret_cast<uint32_t*>(target)[i] =
+            index == reset_index ? 0xFFFFFFFFu : index;
       }
     } else {
       for (uint32_t i = 0; i < index_count; ++i) {
         uint16_t index = source_16[i];
-        target_16[i] = index == reset_index ? 0xFFFFu : index;
+        reinterpret_cast<uint16_t*>(target)[i] =
+            index == reset_index ? 0xFFFFu : index;
       }
     }
-#endif
+#endif  // XE_ARCH_AMD64
   }
 
   // TODO(Triang3l): Line loops.
