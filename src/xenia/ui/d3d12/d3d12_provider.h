@@ -30,6 +30,10 @@ class D3D12Provider : public GraphicsProvider {
   std::unique_ptr<GraphicsContext> CreateOffscreenContext() override;
 
   IDXGIFactory2* GetDXGIFactory() const { return dxgi_factory_; }
+  // nullptr if PIX not attached.
+  IDXGraphicsAnalysis* GetGraphicsAnalysis() const {
+    return graphics_analysis_;
+  }
   ID3D12Device* GetDevice() const { return device_; }
   ID3D12CommandQueue* GetDirectQueue() const { return direct_queue_; }
 
@@ -69,6 +73,7 @@ class D3D12Provider : public GraphicsProvider {
   bool Initialize();
 
   IDXGIFactory2* dxgi_factory_ = nullptr;
+  IDXGraphicsAnalysis* graphics_analysis_ = nullptr;
   ID3D12Device* device_ = nullptr;
   ID3D12CommandQueue* direct_queue_ = nullptr;
 

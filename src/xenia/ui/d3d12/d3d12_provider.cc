@@ -43,6 +43,9 @@ D3D12Provider::D3D12Provider(Window* main_window)
     : GraphicsProvider(main_window) {}
 
 D3D12Provider::~D3D12Provider() {
+  if (graphics_analysis_ != nullptr) {
+    graphics_analysis_->Release();
+  }
   if (direct_queue_ != nullptr) {
     direct_queue_->Release();
   }
@@ -166,6 +169,10 @@ bool D3D12Provider::Initialize() {
       "Direct3D 12 device supports tiled resources tier %u, programmable "
       "sample positions tier %u",
       tiled_resources_tier_, programmable_sample_positions_tier_);
+
+  // Get the graphics analysis interface, will silently fail if PIX not
+  // attached.
+  DXGIGetDebugInterface1(0, IID_PPV_ARGS(&graphics_analysis_));
 
   return true;
 }

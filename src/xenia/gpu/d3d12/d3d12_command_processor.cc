@@ -47,6 +47,15 @@ void D3D12CommandProcessor::ClearCaches() {
   cache_clear_requested_ = true;
 }
 
+void D3D12CommandProcessor::RequestFrameTrace(const std::wstring& root_path) {
+  // Capture with PIX if attached.
+  if (GetD3D12Context()->GetD3D12Provider()->GetGraphicsAnalysis() != nullptr) {
+    pix_capture_requested_.store(true, std::memory_order_relaxed);
+    return;
+  }
+  CommandProcessor::RequestFrameTrace(root_path);
+}
+
 ID3D12GraphicsCommandList* D3D12CommandProcessor::GetCurrentCommandList()
     const {
   assert_true(current_queue_frame_ != UINT_MAX);
@@ -752,6 +761,9 @@ bool D3D12CommandProcessor::SetupContext() {
       swap_texture_, &swap_srv_desc,
       swap_texture_srv_descriptor_heap_->GetCPUDescriptorHandleForHeapStart());
 
+  pix_capture_requested_.store(false, std::memory_order_relaxed);
+  pix_capturing_ = false;
+
   return true;
 }
 
@@ -1273,6 +1285,7 @@ bool D3D12CommandProcessor::BeginFrame() {
 #endif  // FINE_GRAINED_DRAW_SCOPES
 
   auto context = GetD3D12Context();
+  auto provider = context->GetD3D12Provider();
   context->BeginSwap();
   current_queue_frame_ = context->GetCurrentQueueFrame();
 
@@ -1323,6 +1336,14 @@ bool D3D12CommandProcessor::BeginFrame() {
   samplers_written_pixel_ = false;
   primitive_topology_ = D3D_PRIMITIVE_TOPOLOGY_UNDEFINED;
 
+  pix_capturing_ =
+      pix_capture_requested_.exchange(false, std::memory_order_relaxed);
+  if (pix_capturing_) {
+    IDXGraphicsAnalysis* graphics_analysis = provider->GetGraphicsAnalysis();
+    if (graphics_analysis != nullptr) {
+      graphics_analysis->BeginCapture();
+    }
+  }
   command_lists_[current_queue_frame_]->BeginRecording();
 
   constant_buffer_pool_->BeginFrame();
@@ -1359,6 +1380,15 @@ bool D3D12CommandProcessor::EndFrame() {
   // destroyed between frames.
   SubmitBarriers();
   command_lists_[current_queue_frame_]->Execute();
+
+  if (pix_capturing_) {
+    IDXGraphicsAnalysis* graphics_analysis =
+        GetD3D12Context()->GetD3D12Provider()->GetGraphicsAnalysis();
+    if (graphics_analysis != nullptr) {
+      graphics_analysis->EndCapture();
+    }
+    pix_capturing_ = false;
+  }
 
   sampler_heap_pool_->EndFrame();
   view_heap_pool_->EndFrame();
