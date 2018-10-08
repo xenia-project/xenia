@@ -892,6 +892,7 @@ void D3D12CommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
     PushTransitionBarrier(gamma_ramp_texture_, gamma_ramp_texture_state_,
                           D3D12_RESOURCE_STATE_COPY_DEST);
     gamma_ramp_texture_state_ = D3D12_RESOURCE_STATE_COPY_DEST;
+    SubmitBarriers();
     D3D12_TEXTURE_COPY_LOCATION location_source, location_dest;
     location_source.pResource = gamma_ramp_upload_;
     location_source.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
@@ -916,6 +917,7 @@ void D3D12CommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
     PushTransitionBarrier(gamma_ramp_texture_, gamma_ramp_texture_state_,
                           D3D12_RESOURCE_STATE_COPY_DEST);
     gamma_ramp_texture_state_ = D3D12_RESOURCE_STATE_COPY_DEST;
+    SubmitBarriers();
     D3D12_TEXTURE_COPY_LOCATION location_source, location_dest;
     location_source.pResource = gamma_ramp_upload_;
     location_source.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
