@@ -10,6 +10,7 @@
 #ifndef XENIA_GPU_D3D12_D3D12_COMMAND_PROCESSOR_H_
 #define XENIA_GPU_D3D12_D3D12_COMMAND_PROCESSOR_H_
 
+#include <atomic>
 #include <deque>
 #include <memory>
 #include <unordered_map>
@@ -39,6 +40,8 @@ class D3D12CommandProcessor : public CommandProcessor {
   ~D3D12CommandProcessor();
 
   void ClearCaches() override;
+
+  void RequestFrameTrace(const std::wstring& root_path) override;
 
   // Needed by everything that owns transient objects.
   xe::ui::d3d12::D3D12Context* GetD3D12Context() const {
@@ -251,6 +254,9 @@ class D3D12CommandProcessor : public CommandProcessor {
   bool scratch_buffer_used_ = false;
 
   uint32_t current_queue_frame_ = UINT32_MAX;
+
+  std::atomic<bool> pix_capture_requested_ = false;
+  bool pix_capturing_;
 
   // The current fixed-function drawing state.
   D3D12_VIEWPORT ff_viewport_;

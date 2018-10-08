@@ -47,7 +47,8 @@ SharedMemory::~SharedMemory() { Shutdown(); }
 
 bool SharedMemory::Initialize() {
   auto context = command_processor_->GetD3D12Context();
-  auto device = context->GetD3D12Provider()->GetDevice();
+  auto provider = context->GetD3D12Provider();
+  auto device = provider->GetDevice();
 
   D3D12_RESOURCE_DESC buffer_desc;
   ui::d3d12::util::FillBufferResourceDesc(
@@ -65,6 +66,13 @@ bool SharedMemory::Initialize() {
         "Direct3D 12 tiled resources are not used for shared memory "
         "emulation - video memory usage may increase significantly "
         "because a full 512 MB buffer will be created!");
+    if (provider->GetGraphicsAnalysis() != nullptr) {
+      // As of October 8th, 2018, PIX doesn't support tiled buffers.
+      // FIXME(Triang3l): Re-enable tiled resources with PIX once fixed.
+      XELOGGPU(
+          "This is caused by PIX being attached, which doesn't support tiled "
+          "resources yet.");
+    }
     if (FAILED(device->CreateCommittedResource(
             &ui::d3d12::util::kHeapPropertiesDefault, D3D12_HEAP_FLAG_NONE,
             &buffer_desc, buffer_state_, nullptr, IID_PPV_ARGS(&buffer_)))) {
@@ -370,7 +378,10 @@ bool SharedMemory::AreTiledResourcesUsed() const {
     return false;
   }
   auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
-  return provider->GetTiledResourcesTier() >= 1;
+  // As of October 8th, 2018, PIX doesn't support tiled buffers.
+  // FIXME(Triang3l): Re-enable tiled resources with PIX once fixed.
+  return provider->GetTiledResourcesTier() >= 1 &&
+         provider->GetGraphicsAnalysis() == nullptr;
 }
 
 void SharedMemory::MakeRangeValid(uint32_t valid_page_first,
