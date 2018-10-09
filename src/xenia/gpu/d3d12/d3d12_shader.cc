@@ -35,6 +35,8 @@ void D3D12Shader::SetTexturesAndSamplers(
     const DxbcShaderTranslator::TextureSRV& translator_srv = texture_srvs[i];
     srv.fetch_constant = translator_srv.fetch_constant;
     srv.dimension = translator_srv.dimension;
+    srv.is_signed = translator_srv.is_signed;
+    srv.is_sign_required = translator_srv.is_sign_required;
     texture_srvs_.push_back(srv);
     used_texture_mask_ |= 1u << translator_srv.fetch_constant;
   }
