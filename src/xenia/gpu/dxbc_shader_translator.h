@@ -87,9 +87,9 @@ class DxbcShaderTranslator : public ShaderTranslator {
     uint32_t color_output_map[4];
   };
 
-  // 96 textures at most because there are 32 fetch constants, and textures can
-  // be 2D array, 3D or cube.
-  static constexpr uint32_t kMaxTextureSRVIndexBits = 7;
+  // 192 textures at most because there are 32 fetch constants, and textures can
+  // be 2D array, 3D or cube, and also signed and unsigned.
+  static constexpr uint32_t kMaxTextureSRVIndexBits = 8;
   static constexpr uint32_t kMaxTextureSRVs =
       (1 << kMaxTextureSRVIndexBits) - 1;
   struct TextureSRV {

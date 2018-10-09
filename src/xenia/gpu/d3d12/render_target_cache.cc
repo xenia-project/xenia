@@ -1740,11 +1740,9 @@ DXGI_FORMAT RenderTargetCache::GetColorDXGIFormat(
     case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
       return DXGI_FORMAT_R16G16B16A16_FLOAT;
     case ColorRenderTargetFormat::k_16_16:
-      // TODO(Triang3l): Change to SNORM when signed textures are supported.
-      return DXGI_FORMAT_R16G16_UNORM;
+      return DXGI_FORMAT_R16G16_SNORM;
     case ColorRenderTargetFormat::k_16_16_16_16:
-      // TODO(Triang3l): Change to SNORM when signed textures are supported.
-      return DXGI_FORMAT_R16G16B16A16_UNORM;
+      return DXGI_FORMAT_R16G16B16A16_SNORM;
     case ColorRenderTargetFormat::k_16_16_FLOAT:
       return DXGI_FORMAT_R16G16_FLOAT;
     case ColorRenderTargetFormat::k_32_FLOAT:
