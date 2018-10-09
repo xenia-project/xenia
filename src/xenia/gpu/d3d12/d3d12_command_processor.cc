@@ -2196,8 +2196,7 @@ bool D3D12CommandProcessor::UpdateBindings(
     gpu_handle_textures_vertex_ = view_gpu_handle;
     for (uint32_t i = 0; i < texture_count_vertex; ++i) {
       const D3D12Shader::TextureSRV& srv = textures_vertex[i];
-      texture_cache_->WriteTextureSRV(srv.fetch_constant, srv.dimension,
-                                      view_cpu_handle);
+      texture_cache_->WriteTextureSRV(srv, view_cpu_handle);
       view_cpu_handle.ptr += descriptor_size_view;
       view_gpu_handle.ptr += descriptor_size_view;
     }
@@ -2212,8 +2211,7 @@ bool D3D12CommandProcessor::UpdateBindings(
     gpu_handle_textures_pixel_ = view_gpu_handle;
     for (uint32_t i = 0; i < texture_count_pixel; ++i) {
       const D3D12Shader::TextureSRV& srv = textures_pixel[i];
-      texture_cache_->WriteTextureSRV(srv.fetch_constant, srv.dimension,
-                                      view_cpu_handle);
+      texture_cache_->WriteTextureSRV(srv, view_cpu_handle);
       view_cpu_handle.ptr += descriptor_size_view;
       view_gpu_handle.ptr += descriptor_size_view;
     }

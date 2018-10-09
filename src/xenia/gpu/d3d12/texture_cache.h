@@ -117,8 +117,7 @@ class TextureCache {
       const D3D12Shader::TextureSRV* texture_srvs,
       uint32_t texture_srv_count) const;
 
-  void WriteTextureSRV(uint32_t fetch_constant,
-                       TextureDimension shader_dimension,
+  void WriteTextureSRV(const D3D12Shader::TextureSRV& texture_srv,
                        D3D12_CPU_DESCRIPTOR_HANDLE handle);
 
   SamplerParameters GetSamplerParameters(
@@ -165,6 +164,9 @@ class TextureCache {
   struct LoadModeInfo {
     const void* shader;
     size_t shader_size;
+    // TODO(Triang3l): Whether signed and integer textures need to be separate
+    // resources loaded differently than unorm textures (k_10_11_11,
+    // k_11_11_10 because they are expanded to R16G16B16A16).
   };
 
   // Tiling modes for storing textures after resolving - needed only for the
@@ -195,14 +197,26 @@ class TextureCache {
 
   struct HostFormat {
     // Format info for the regular case.
-    DXGI_FORMAT dxgi_format;
+    // DXGI format (typeless when different signedness or number representation
+    // is used) for the texture resource.
+    DXGI_FORMAT dxgi_format_resource;
+    // DXGI format for unsigned normalized or unsigned/signed float SRV.
+    DXGI_FORMAT dxgi_format_unorm;
+    // DXGI format for signed normalized or unsigned/signed float SRV.
+    DXGI_FORMAT dxgi_format_snorm;
     LoadMode load_mode;
+
+    // TODO(Triang3l): Integer formats.
+
     // Uncompression info for when the regular host format for this texture is
     // block-compressed, but the size is not block-aligned, and thus such
     // texture cannot be created in Direct3D on PC and needs decompression,
-    // however, such textures are common, for instance, in Halo 3.
+    // however, such textures are common, for instance, in Halo 3. This only
+    // supports unsigned normalized formats - let's hope GPUSIGN_SIGNED was not
+    // used for DXN and DXT5A.
     DXGI_FORMAT dxgi_format_uncompressed;
     LoadMode decompress_mode;
+
     // For writing textures after resolving render targets. The format itself
     // must be renderable, because resolving is done by drawing a quad into a
     // texture of this format.
@@ -351,6 +365,10 @@ class TextureCache {
   struct TextureBinding {
     TextureKey key;
     uint32_t swizzle;
+    // Whether the fetch has unsigned/biased/gamma components.
+    bool has_unsigned;
+    // Whether the fetch has signed components.
+    bool has_signed;
     Texture* texture;
   };
 
@@ -358,22 +376,35 @@ class TextureCache {
   // of block-compressed textures with 4x4-aligned dimensions on PC).
   static bool IsDecompressionNeeded(TextureFormat format, uint32_t width,
                                     uint32_t height);
-  static inline DXGI_FORMAT GetDXGIFormat(TextureFormat format, uint32_t width,
-                                          uint32_t height) {
+  static inline DXGI_FORMAT GetDXGIResourceFormat(TextureFormat format,
+                                                  uint32_t width,
+                                                  uint32_t height) {
     const HostFormat& host_format = host_formats_[uint32_t(format)];
     return IsDecompressionNeeded(format, width, height)
                ? host_format.dxgi_format_uncompressed
-               : host_format.dxgi_format;
+               : host_format.dxgi_format_resource;
   }
-  static inline DXGI_FORMAT GetDXGIFormat(TextureKey key) {
-    return GetDXGIFormat(key.format, key.width, key.height);
+  static inline DXGI_FORMAT GetDXGIResourceFormat(TextureKey key) {
+    return GetDXGIResourceFormat(key.format, key.width, key.height);
+  }
+  static inline DXGI_FORMAT GetDXGIUnormFormat(TextureFormat format,
+                                               uint32_t width,
+                                               uint32_t height) {
+    const HostFormat& host_format = host_formats_[uint32_t(format)];
+    return IsDecompressionNeeded(format, width, height)
+               ? host_format.dxgi_format_uncompressed
+               : host_format.dxgi_format_unorm;
+  }
+  static inline DXGI_FORMAT GetDXGIUnormFormat(TextureKey key) {
+    return GetDXGIUnormFormat(key.format, key.width, key.height);
   }
 
   // Converts a texture fetch constant to a texture key, normalizing and
-  // validating the values, or creating an invalid key.
-  static void TextureKeyFromFetchConstant(
+  // validating the values, or creating an invalid key, and also gets the
+  // swizzle and used signedness.
+  static void BindingInfoFromFetchConstant(
       const xenos::xe_gpu_texture_fetch_t& fetch, TextureKey& key_out,
-      uint32_t& swizzle_out);
+      uint32_t* swizzle_out, bool* has_unsigned_out, bool* has_signed_out);
 
   static void LogTextureKeyAction(TextureKey key, const char* action);
   static void LogTextureAction(const Texture* texture, const char* action);
@@ -426,7 +457,12 @@ class TextureCache {
 
   // Unsupported texture formats used during this frame (for research and
   // testing).
-  uint64_t unsupported_formats_used_;
+  enum : uint8_t {
+    kUnsupportedResourceBit = 1,
+    kUnsupportedUnormBit = kUnsupportedResourceBit << 1,
+    kUnsupportedSnormBit = kUnsupportedUnormBit << 1,
+  };
+  uint8_t unsupported_format_features_used_[64];
 };
 
 }  // namespace d3d12
