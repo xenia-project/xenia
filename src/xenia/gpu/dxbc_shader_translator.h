@@ -95,6 +95,10 @@ class DxbcShaderTranslator : public ShaderTranslator {
   struct TextureSRV {
     uint32_t fetch_constant;
     TextureDimension dimension;
+    bool is_signed;
+    // Whether this SRV must be bound even if it's signed and all components are
+    // unsigned and vice versa (for kGetTextureComputedLod).
+    bool is_sign_required;
     std::string name;
   };
   // The first binding returned is at t1 because t0 is shared memory.
@@ -393,7 +397,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
 
   // Returns T#/t# index (they are the same in this translator).
   uint32_t FindOrAddTextureSRV(uint32_t fetch_constant,
-                               TextureDimension dimension);
+                               TextureDimension dimension, bool is_signed,
+                               bool is_sign_required = false);
   // Returns S#/s# index (they are the same in this translator).
   uint32_t FindOrAddSamplerBinding(uint32_t fetch_constant,
                                    TextureFilter mag_filter,
