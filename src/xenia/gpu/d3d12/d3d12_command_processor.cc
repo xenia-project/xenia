@@ -1198,7 +1198,9 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     uint32_t vfetch_constant_index =
         XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + vfetch_index * 2;
     if ((regs[vfetch_constant_index].u32 & 0x3) != 3) {
-      XELOGGPU("Vertex fetch type is not 3!");
+      XELOGW("Vertex fetch type is not 3 (fetch constant %u is %.8X %.8X)!",
+             vfetch_index, regs[vfetch_constant_index].u32,
+             regs[vfetch_constant_index + 1].u32);
       return false;
     }
     shared_memory_->RequestRange(
