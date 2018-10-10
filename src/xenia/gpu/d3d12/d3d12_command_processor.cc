@@ -257,19 +257,30 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(
     range.OffsetInDescriptorsFromTableStart = 0;
   }
 
-  // Shared memory.
+  // Shared memory and, if ROVs are used, EDRAM.
+  D3D12_DESCRIPTOR_RANGE shared_memory_and_edram_ranges[2];
   {
-    auto& parameter = parameters[kRootParameter_SharedMemory];
-    auto& range = ranges[kRootParameter_SharedMemory];
+    auto& parameter = parameters[kRootParameter_SharedMemoryAndEDRAM];
     parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
     parameter.DescriptorTable.NumDescriptorRanges = 1;
-    parameter.DescriptorTable.pDescriptorRanges = &range;
+    parameter.DescriptorTable.pDescriptorRanges =
+        shared_memory_and_edram_ranges;
     parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-    range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-    range.NumDescriptors = 1;
-    range.BaseShaderRegister = 0;
-    range.RegisterSpace = 0;
-    range.OffsetInDescriptorsFromTableStart = 0;
+    shared_memory_and_edram_ranges[0].RangeType =
+        D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+    shared_memory_and_edram_ranges[0].NumDescriptors = 1;
+    shared_memory_and_edram_ranges[0].BaseShaderRegister = 0;
+    shared_memory_and_edram_ranges[0].RegisterSpace = 0;
+    shared_memory_and_edram_ranges[0].OffsetInDescriptorsFromTableStart = 0;
+    if (render_target_cache_->IsROVUsedForEDRAM()) {
+      ++parameter.DescriptorTable.NumDescriptorRanges;
+      shared_memory_and_edram_ranges[1].RangeType =
+          D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+      shared_memory_and_edram_ranges[1].NumDescriptors = 1;
+      shared_memory_and_edram_ranges[1].BaseShaderRegister = 0;
+      shared_memory_and_edram_ranges[1].RegisterSpace = 0;
+      shared_memory_and_edram_ranges[1].OffsetInDescriptorsFromTableStart = 1;
+    }
   }
 
   // Extra parameters.
@@ -1210,6 +1221,9 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     vertex_buffers_resident[vfetch_index >> 6] |= 1ull << (vfetch_index & 63);
   }
 
+  if (render_target_cache_->IsROVUsedForEDRAM()) {
+    render_target_cache_->UseEDRAMAsUAV();
+  }
   if (indexed) {
     uint32_t index_size = index_buffer_info->format == IndexFormat::kInt32
                               ? sizeof(uint32_t)
@@ -2080,6 +2094,10 @@ bool D3D12CommandProcessor::UpdateBindings(
   // All the constants + shared memory + textures.
   uint32_t view_count_full_update =
       6 + texture_count_vertex + texture_count_pixel;
+  if (render_target_cache_->IsROVUsedForEDRAM()) {
+    // + EDRAM UAV.
+    ++view_count_full_update;
+  }
   D3D12_CPU_DESCRIPTOR_HANDLE view_cpu_handle;
   D3D12_GPU_DESCRIPTOR_HANDLE view_gpu_handle;
   uint32_t descriptor_size_view = provider->GetViewDescriptorSize();
@@ -2122,12 +2140,19 @@ bool D3D12CommandProcessor::UpdateBindings(
     write_textures_pixel = texture_count_pixel != 0;
     texture_bindings_written_vertex_ = false;
     texture_bindings_written_pixel_ = false;
-    // If updating fully, write the shared memory descriptor (t0).
+    // If updating fully, write the shared memory descriptor (t0) and, if
+    // needed, the EDRAM descriptor (u0).
     shared_memory_->CreateSRV(view_cpu_handle);
-    gpu_handle_shared_memory_ = view_gpu_handle;
+    gpu_handle_shared_memory_and_edram_ = view_gpu_handle;
     view_cpu_handle.ptr += descriptor_size_view;
     view_gpu_handle.ptr += descriptor_size_view;
-    current_graphics_root_up_to_date_ &= ~(1u << kRootParameter_SharedMemory);
+    if (render_target_cache_->IsROVUsedForEDRAM()) {
+      render_target_cache_->CreateEDRAMUint32UAV(view_cpu_handle);
+      view_cpu_handle.ptr += descriptor_size_view;
+      view_gpu_handle.ptr += descriptor_size_view;
+    }
+    current_graphics_root_up_to_date_ &=
+        ~(1u << kRootParameter_SharedMemoryAndEDRAM);
   }
   if (draw_sampler_full_update_ != sampler_full_update_index) {
     write_samplers_vertex = sampler_count_vertex != 0;
@@ -2295,10 +2320,12 @@ bool D3D12CommandProcessor::UpdateBindings(
     current_graphics_root_up_to_date_ |= 1u << kRootParameter_BoolLoopConstants;
   }
   if (!(current_graphics_root_up_to_date_ &
-        (1u << kRootParameter_SharedMemory))) {
-    command_list->SetGraphicsRootDescriptorTable(kRootParameter_SharedMemory,
-                                                 gpu_handle_shared_memory_);
-    current_graphics_root_up_to_date_ |= 1u << kRootParameter_SharedMemory;
+        (1u << kRootParameter_SharedMemoryAndEDRAM))) {
+    command_list->SetGraphicsRootDescriptorTable(
+        kRootParameter_SharedMemoryAndEDRAM,
+        gpu_handle_shared_memory_and_edram_);
+    current_graphics_root_up_to_date_ |= 1u
+                                         << kRootParameter_SharedMemoryAndEDRAM;
   }
   uint32_t extra_index;
   extra_index = current_graphics_root_extras_.textures_pixel;

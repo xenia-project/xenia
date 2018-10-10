@@ -607,7 +607,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
     uint32_t c_barrier_instructions;
     // Unknown in Wine.
     uint32_t c_interlocked_instructions;
-    // Unknown in Wine.
+    // Unknown in Wine, but confirmed by testing.
     uint32_t c_texture_store_instructions;
   };
   Statistics stat_;
