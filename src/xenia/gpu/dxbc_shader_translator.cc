@@ -62,8 +62,8 @@ using namespace ucode;
 //   second buffer in the descriptor array at b2, which is assigned to CB1, the
 //   index would be CB1[3][0].
 
-DxbcShaderTranslator::DxbcShaderTranslator(bool edram_rovs_used)
-    : edram_rovs_used_(edram_rovs_used) {
+DxbcShaderTranslator::DxbcShaderTranslator(bool edram_rov_used)
+    : edram_rov_used_(edram_rov_used) {
   // Don't allocate again and again for the first shader.
   shader_code_.reserve(8192);
   shader_object_.reserve(16384);
@@ -892,6 +892,75 @@ void DxbcShaderTranslator::CompleteVertexShader() {
   ++stat_.mov_instruction_count;
 }
 
+void DxbcShaderTranslator::CompletePixelShader_WriteToRTVs() {
+  // Remap guest render target indices to host since because on the host, the
+  // indices of the bound render targets are consecutive. This is done using 16
+  // movc instructions because indexable temps are known to be causing
+  // performance issues on some Nvidia GPUs. In the map, the components are host
+  // render target indices, and the values are the guest ones.
+  uint32_t remap_movc_mask_temp = PushSystemTemp();
+  uint32_t remap_movc_target_temp = PushSystemTemp();
+  system_constants_used_ |= 1u << kSysConst_ColorOutputMap_Index;
+  // Host RT i, guest RT j.
+  for (uint32_t i = 0; i < 4; ++i) {
+    // mask = map.iiii == (0, 1, 2, 3)
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IEQ) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(12));
+    shader_code_.push_back(
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+    shader_code_.push_back(remap_movc_mask_temp);
+    shader_code_.push_back(EncodeVectorReplicatedOperand(
+        D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, i, 3));
+    shader_code_.push_back(cbuffer_index_system_constants_);
+    shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
+    shader_code_.push_back(kSysConst_ColorOutputMap_Vec);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+    shader_code_.push_back(0);
+    shader_code_.push_back(1);
+    shader_code_.push_back(2);
+    shader_code_.push_back(3);
+    ++stat_.instruction_count;
+    ++stat_.int_instruction_count;
+    for (uint32_t j = 0; j < 4; ++j) {
+      // If map.i == j, move guest color j to the temporary host color.
+      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
+                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
+      shader_code_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+      shader_code_.push_back(remap_movc_target_temp);
+      shader_code_.push_back(
+          EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, j, 1));
+      shader_code_.push_back(remap_movc_mask_temp);
+      shader_code_.push_back(EncodeVectorSwizzledOperand(
+          D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+      shader_code_.push_back(system_temp_color_[j]);
+      shader_code_.push_back(EncodeVectorSwizzledOperand(
+          D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+      shader_code_.push_back(remap_movc_target_temp);
+      ++stat_.instruction_count;
+      ++stat_.movc_instruction_count;
+    }
+    // Write the remapped color to host render target i.
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
+    shader_code_.push_back(
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_OUTPUT, 0b1111, 1));
+    shader_code_.push_back(i);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+    shader_code_.push_back(remap_movc_target_temp);
+    ++stat_.instruction_count;
+    ++stat_.mov_instruction_count;
+  }
+  // Free the temporary registers used for remapping.
+  PopSystemTemp(2);
+}
+
+void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
+  // TODO(Triang3l): Write the output to the EDRAM rasterizer-ordered view.
+}
+
 void DxbcShaderTranslator::CompletePixelShader() {
   // Alpha test.
   // Check if alpha test is enabled (if the constant is not 0).
@@ -1126,68 +1195,12 @@ void DxbcShaderTranslator::CompletePixelShader() {
   // Release gamma_toggle_temp and gamma_pieces_temp.
   PopSystemTemp(2);
 
-  // Remap guest render target indices to host since because on the host, the
-  // indices of the bound render targets are consecutive. This is done using 16
-  // movc instructions because indexable temps are known to be causing
-  // performance issues on some Nvidia GPUs. In the map, the components are host
-  // render target indices, and the values are the guest ones.
-  uint32_t remap_movc_mask_temp = PushSystemTemp();
-  uint32_t remap_movc_target_temp = PushSystemTemp();
-  system_constants_used_ |= 1u << kSysConst_ColorOutputMap_Index;
-  // Host RT i, guest RT j.
-  for (uint32_t i = 0; i < 4; ++i) {
-    // mask = map.iiii == (0, 1, 2, 3)
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IEQ) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(12));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
-    shader_code_.push_back(remap_movc_mask_temp);
-    shader_code_.push_back(EncodeVectorReplicatedOperand(
-        D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, i, 3));
-    shader_code_.push_back(cbuffer_index_system_constants_);
-    shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-    shader_code_.push_back(kSysConst_ColorOutputMap_Vec);
-    shader_code_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-    shader_code_.push_back(0);
-    shader_code_.push_back(1);
-    shader_code_.push_back(2);
-    shader_code_.push_back(3);
-    ++stat_.instruction_count;
-    ++stat_.int_instruction_count;
-    for (uint32_t j = 0; j < 4; ++j) {
-      // If map.i == j, move guest color j to the temporary host color.
-      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
-                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-      shader_code_.push_back(
-          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
-      shader_code_.push_back(remap_movc_target_temp);
-      shader_code_.push_back(
-          EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, j, 1));
-      shader_code_.push_back(remap_movc_mask_temp);
-      shader_code_.push_back(EncodeVectorSwizzledOperand(
-          D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-      shader_code_.push_back(system_temp_color_[j]);
-      shader_code_.push_back(EncodeVectorSwizzledOperand(
-          D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-      shader_code_.push_back(remap_movc_target_temp);
-      ++stat_.instruction_count;
-      ++stat_.movc_instruction_count;
-    }
-    // Write the remapped color to host render target i.
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_OUTPUT, 0b1111, 1));
-    shader_code_.push_back(i);
-    shader_code_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-    shader_code_.push_back(remap_movc_target_temp);
-    ++stat_.instruction_count;
-    ++stat_.mov_instruction_count;
+  // Write the values to the render targets.
+  if (edram_rov_used_) {
+    CompletePixelShader_WriteToROV();
+  } else {
+    CompletePixelShader_WriteToRTVs();
   }
-  // Free the temporary registers used for remapping.
-  PopSystemTemp(2);
 }
 
 void DxbcShaderTranslator::CompleteShaderCode() {
@@ -8389,16 +8402,19 @@ void DxbcShaderTranslator::WriteShaderCode() {
     shader_object_.push_back(ENCODE_D3D10_SB_NAME(D3D10_SB_NAME_IS_FRONT_FACE));
     ++stat_.dcl_count;
     // Color output.
-    for (uint32_t i = 0; i < 4; ++i) {
-      shader_object_.push_back(
-          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_OUTPUT) |
-          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
-      shader_object_.push_back(
-          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_OUTPUT, 0b1111, 1));
-      shader_object_.push_back(i);
-      ++stat_.dcl_count;
+    if (!edram_rov_used_) {
+      for (uint32_t i = 0; i < 4; ++i) {
+        shader_object_.push_back(
+            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_OUTPUT) |
+            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
+        shader_object_.push_back(
+            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_OUTPUT, 0b1111, 1));
+        shader_object_.push_back(i);
+        ++stat_.dcl_count;
+      }
     }
     // Depth output.
+    // TODO(Triang3l): Do something with this for ROV.
     if (writes_depth_) {
       shader_object_.push_back(
           ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_OUTPUT) |

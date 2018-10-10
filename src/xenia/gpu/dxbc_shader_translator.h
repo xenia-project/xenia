@@ -23,7 +23,7 @@ namespace gpu {
 // Generates shader model 5_1 byte code (for Direct3D 12).
 class DxbcShaderTranslator : public ShaderTranslator {
  public:
-  DxbcShaderTranslator(bool edram_rovs_used);
+  DxbcShaderTranslator(bool edram_rov_used);
   ~DxbcShaderTranslator() override;
 
   // Constant buffer bindings in space 0.
@@ -305,6 +305,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
 
   // Writing the epilogue.
   void CompleteVertexShader();
+  void CompletePixelShader_WriteToRTVs();
+  void CompletePixelShader_WriteToROV();
   void CompletePixelShader();
   void CompleteShaderCode();
 
@@ -432,7 +434,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
   std::vector<uint32_t> shader_object_;
 
   // Whether the output merger should be emulated in pixel shaders.
-  bool edram_rovs_used_;
+  bool edram_rov_used_;
 
   // Data types used in constants buffers. Listed in dependency order.
   enum class RdefTypeIndex {

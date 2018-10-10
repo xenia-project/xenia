@@ -352,6 +352,10 @@ void RenderTargetCache::BeginFrame() {
 }
 
 bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
+  if (IsROVUsedForEDRAM()) {
+    return true;
+  }
+
   // There are two kinds of render target binding updates in this implementation
   // in case something has been changed - full and partial.
   //
