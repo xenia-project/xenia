@@ -46,7 +46,8 @@ PipelineCache::PipelineCache(D3D12CommandProcessor* command_processor,
   // Zero out tessellation, stream output, blend state and formats for render
   // targets 4+, node mask, cached PSO, flags and other things.
   std::memset(&update_desc_, 0, sizeof(update_desc_));
-  update_desc_.BlendState.IndependentBlendEnable = TRUE;
+  update_desc_.BlendState.IndependentBlendEnable =
+      edram_rov_used_ ? FALSE : TRUE;
   update_desc_.SampleMask = UINT_MAX;
   update_desc_.SampleDesc.Count = 1;
 }
@@ -353,6 +354,11 @@ PipelineCache::UpdateStatus PipelineCache::UpdateShaderStages(
 PipelineCache::UpdateStatus PipelineCache::UpdateBlendStateAndRenderTargets(
     D3D12Shader* pixel_shader,
     const RenderTargetCache::PipelineRenderTarget render_targets[4]) {
+  if (edram_rov_used_) {
+    return current_pipeline_ == nullptr ? UpdateStatus::kMismatch
+                                        : UpdateStatus::kCompatible;
+  }
+
   auto& regs = update_blend_state_and_render_targets_regs_;
 
   bool dirty = current_pipeline_ == nullptr;
@@ -624,6 +630,11 @@ PipelineCache::UpdateStatus PipelineCache::UpdateRasterizerState(
 
 PipelineCache::UpdateStatus PipelineCache::UpdateDepthStencilState(
     DXGI_FORMAT format) {
+  if (edram_rov_used_) {
+    return current_pipeline_ == nullptr ? UpdateStatus::kMismatch
+                                        : UpdateStatus::kCompatible;
+  }
+
   auto& regs = update_depth_stencil_state_regs_;
 
   bool dirty = current_pipeline_ == nullptr;
