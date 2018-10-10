@@ -264,6 +264,9 @@ class RenderTargetCache {
   // the command processor takes over framebuffer bindings to draw something
   // special.
   void UnbindRenderTargets();
+  // Transitions the EDRAM buffer to a UAV - for use with ROV rendering.
+  void UseEDRAMAsUAV();
+  void CreateEDRAMUint32UAV(D3D12_CPU_DESCRIPTOR_HANDLE handle);
   void EndFrame();
 
   // Totally necessary to rely on the base format - Too Human switches between
@@ -391,6 +394,8 @@ class RenderTargetCache {
     // Buffer size needed to copy the resolve target to a linear buffer.
     uint32_t copy_buffer_size;
   };
+
+  void TransitionEDRAMBuffer(D3D12_RESOURCE_STATES new_state);
 
   void ClearBindings();
 

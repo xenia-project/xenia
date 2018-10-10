@@ -1108,10 +1108,7 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
         provider->OffsetViewDescriptor(descriptor_cpu_start, 1));
 
     // Transition the buffers.
-    command_processor_->PushTransitionBarrier(
-        edram_buffer_, edram_buffer_state_,
-        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-    edram_buffer_state_ = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
+    TransitionEDRAMBuffer(D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
     shared_memory->UseForWriting();
     command_processor_->SubmitBarriers();
 
@@ -1242,10 +1239,7 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
 
     // Load the EDRAM buffer contents to the copy buffer.
 
-    command_processor_->PushTransitionBarrier(
-        edram_buffer_, edram_buffer_state_,
-        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-    edram_buffer_state_ = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
+    TransitionEDRAMBuffer(D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
     command_processor_->SubmitBarriers();
 
     command_list->SetComputeRootSignature(edram_load_store_root_signature_);
@@ -1511,10 +1505,7 @@ bool RenderTargetCache::ResolveClear(uint32_t edram_base,
   }
 
   // Submit the clear.
-  command_processor_->PushTransitionBarrier(
-      edram_buffer_, edram_buffer_state_,
-      D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-  edram_buffer_state_ = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+  TransitionEDRAMBuffer(D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
   command_processor_->SubmitBarriers();
   EDRAMLoadStoreRootConstants root_constants;
   root_constants.clear_rect_lt = (clear_rect.left << samples_x_log2) |
@@ -1728,6 +1719,25 @@ void RenderTargetCache::UnbindRenderTargets() {
   ClearBindings();
 }
 
+void RenderTargetCache::UseEDRAMAsUAV() {
+  TransitionEDRAMBuffer(D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+}
+
+void RenderTargetCache::CreateEDRAMUint32UAV(
+    D3D12_CPU_DESCRIPTOR_HANDLE handle) {
+  auto device =
+      command_processor_->GetD3D12Context()->GetD3D12Provider()->GetDevice();
+  D3D12_UNORDERED_ACCESS_VIEW_DESC desc;
+  desc.Format = DXGI_FORMAT_R32_UINT;
+  desc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+  desc.Buffer.FirstElement = 0;
+  desc.Buffer.NumElements = kEDRAMBufferSize / sizeof(uint32_t);
+  desc.Buffer.StructureByteStride = 0;
+  desc.Buffer.CounterOffsetInBytes = 0;
+  desc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_NONE;
+  device->CreateUnorderedAccessView(edram_buffer_, nullptr, &desc, handle);
+}
+
 void RenderTargetCache::EndFrame() { UnbindRenderTargets(); }
 
 ColorRenderTargetFormat RenderTargetCache::GetBaseColorFormat(
@@ -1771,6 +1781,12 @@ DXGI_FORMAT RenderTargetCache::GetColorDXGIFormat(
       break;
   }
   return DXGI_FORMAT_UNKNOWN;
+}
+
+void RenderTargetCache::TransitionEDRAMBuffer(D3D12_RESOURCE_STATES new_state) {
+  command_processor_->PushTransitionBarrier(edram_buffer_, edram_buffer_state_,
+                                            new_state);
+  edram_buffer_state_ = new_state;
 }
 
 void RenderTargetCache::ClearBindings() {
@@ -2095,10 +2111,7 @@ void RenderTargetCache::StoreRenderTargetsToEDRAM() {
                                               D3D12_RESOURCE_STATE_COPY_SOURCE);
     render_target->state = D3D12_RESOURCE_STATE_COPY_SOURCE;
   }
-  command_processor_->PushTransitionBarrier(
-      edram_buffer_, edram_buffer_state_,
-      D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-  edram_buffer_state_ = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+  TransitionEDRAMBuffer(D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
   // Set up the bindings.
   auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
@@ -2253,10 +2266,7 @@ void RenderTargetCache::LoadRenderTargetsFromEDRAM(
                                               D3D12_RESOURCE_STATE_COPY_DEST);
     render_target->state = D3D12_RESOURCE_STATE_COPY_DEST;
   }
-  command_processor_->PushTransitionBarrier(
-      edram_buffer_, edram_buffer_state_,
-      D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-  edram_buffer_state_ = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
+  TransitionEDRAMBuffer(D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
   // Set up the bindings.
   auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();

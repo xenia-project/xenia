@@ -157,8 +157,9 @@ class D3D12CommandProcessor : public CommandProcessor {
     // Pretty rarely used and rarely changed - flow control constants.
     kRootParameter_BoolLoopConstants,
     // Never changed except for when starting a new descriptor heap - shared
-    // memory byte address buffer (t0).
-    kRootParameter_SharedMemory,
+    // memory byte address buffer (t0) and, if ROV is used for EDRAM, EDRAM UAV
+    // (u0).
+    kRootParameter_SharedMemoryAndEDRAM,
 
     kRootParameter_Count_Base,
 
@@ -333,7 +334,7 @@ class D3D12CommandProcessor : public CommandProcessor {
   D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_float_constants_pixel_;
   D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_bool_loop_constants_;
   D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_fetch_constants_;
-  D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_shared_memory_;
+  D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_shared_memory_and_edram_;
   D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_textures_vertex_;
   D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_textures_pixel_;
   D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_samplers_vertex_;

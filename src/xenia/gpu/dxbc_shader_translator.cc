@@ -7502,8 +7502,13 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
   // Bound resource count (samplers, SRV, UAV, CBV).
   // + 1 for shared memory (vfetches can probably appear in pixel shaders too,
   // they are handled safely there anyway).
-  shader_object_.push_back(uint32_t(sampler_bindings_.size()) + 1 +
-                           uint32_t(texture_srvs_.size()) + cbuffer_count_);
+  uint32_t resource_count = uint32_t(sampler_bindings_.size()) + 1 +
+                            uint32_t(texture_srvs_.size()) + cbuffer_count_;
+  if (is_pixel_shader() && edram_rov_used_) {
+    // EDRAM.
+    ++resource_count;
+  }
+  shader_object_.push_back(resource_count);
   // Bound resource buffer offset (set later).
   shader_object_.push_back(0);
   if (is_vertex_shader()) {
@@ -7797,7 +7802,7 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
   }
 
   // ***************************************************************************
-  // Bindings, in s#, t#, cb# order
+  // Bindings, in s#, t#, u#, cb# order
   // ***************************************************************************
 
   // Write used resource names, except for constant buffers because we have
@@ -7814,6 +7819,10 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
   uint32_t texture_name_offset = new_offset;
   for (uint32_t i = 0; i < uint32_t(texture_srvs_.size()); ++i) {
     new_offset += AppendString(shader_object_, texture_srvs_[i].name.c_str());
+  }
+  uint32_t edram_name_offset = new_offset;
+  if (is_pixel_shader() && edram_rov_used_) {
+    new_offset += AppendString(shader_object_, "xe_edram");
   }
 
   // Write the offset to the header.
@@ -7898,6 +7907,29 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
     // SRV ID T[1 + i] - T0 is shared memory.
     shader_object_.push_back(1 + i);
     texture_name_offset += GetStringLength(texture_srv.name.c_str());
+  }
+
+  if (is_pixel_shader() && edram_rov_used_) {
+    // EDRAM uint32 buffer.
+    shader_object_.push_back(edram_name_offset);
+    // D3D_SIT_UAV_RWTYPED.
+    shader_object_.push_back(4);
+    // D3D_RETURN_TYPE_UINT.
+    shader_object_.push_back(4);
+    // D3D_UAV_DIMENSION_BUFFER.
+    shader_object_.push_back(1);
+    // Not multisampled.
+    shader_object_.push_back(0xFFFFFFFFu);
+    // Register u0.
+    shader_object_.push_back(0);
+    // One binding.
+    shader_object_.push_back(1);
+    // No D3D_SHADER_INPUT_FLAGS.
+    shader_object_.push_back(0);
+    // Register space 0.
+    shader_object_.push_back(0);
+    // UAV ID U0.
+    shader_object_.push_back(0);
   }
 
   // Constant buffers.
@@ -8297,8 +8329,8 @@ void DxbcShaderTranslator::WriteShaderCode() {
     }
     shader_object_.push_back(
         ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_RESOURCE) |
-        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7) |
-        ENCODE_D3D10_SB_RESOURCE_DIMENSION(texture_srv_dimension));
+        ENCODE_D3D10_SB_RESOURCE_DIMENSION(texture_srv_dimension) |
+        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
     shader_object_.push_back(EncodeVectorSwizzledOperand(
         D3D10_SB_OPERAND_TYPE_RESOURCE, kSwizzleXYZW, 3));
     // T0 is shared memory.
@@ -8311,6 +8343,28 @@ void DxbcShaderTranslator::WriteShaderCode() {
         ENCODE_D3D10_SB_RESOURCE_RETURN_TYPE(D3D10_SB_RETURN_TYPE_FLOAT, 1) |
         ENCODE_D3D10_SB_RESOURCE_RETURN_TYPE(D3D10_SB_RETURN_TYPE_FLOAT, 2) |
         ENCODE_D3D10_SB_RESOURCE_RETURN_TYPE(D3D10_SB_RETURN_TYPE_FLOAT, 3));
+    shader_object_.push_back(0);
+  }
+
+  // Unordered access views.
+  if (is_pixel_shader() && edram_rov_used_) {
+    // EDRAM uint32 rasterizer-ordered buffer (U0, at u0, space0).
+    shader_object_.push_back(
+        ENCODE_D3D10_SB_OPCODE_TYPE(
+            D3D11_SB_OPCODE_DCL_UNORDERED_ACCESS_VIEW_TYPED) |
+        ENCODE_D3D10_SB_RESOURCE_DIMENSION(D3D10_SB_RESOURCE_DIMENSION_BUFFER) |
+        D3D11_SB_RASTERIZER_ORDERED_ACCESS |
+        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+    shader_object_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_RESOURCE, kSwizzleXYZW, 3));
+    shader_object_.push_back(0);
+    shader_object_.push_back(0);
+    shader_object_.push_back(0);
+    shader_object_.push_back(
+        ENCODE_D3D10_SB_RESOURCE_RETURN_TYPE(D3D10_SB_RETURN_TYPE_UINT, 0) |
+        ENCODE_D3D10_SB_RESOURCE_RETURN_TYPE(D3D10_SB_RETURN_TYPE_UINT, 1) |
+        ENCODE_D3D10_SB_RESOURCE_RETURN_TYPE(D3D10_SB_RETURN_TYPE_UINT, 2) |
+        ENCODE_D3D10_SB_RESOURCE_RETURN_TYPE(D3D10_SB_RETURN_TYPE_UINT, 3));
     shader_object_.push_back(0);
   }
 
