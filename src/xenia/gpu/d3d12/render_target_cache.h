@@ -185,6 +185,38 @@ class D3D12CommandProcessor;
 // multisampled surface is the same as a single-sampled surface with 2x height
 // and width - however, format size doesn't effect the dimensions. Surface pitch
 // in the surface info register is single-sampled.
+//
+// =============================================================================
+// Rasterizer-ordered view usage:
+// =============================================================================
+//
+// There is a separate output merger emulation path currently in development,
+// using rasterizer-ordered views for writing directly to the 10 MB EDRAM buffer
+// instead of the host output merger for render target output.
+//
+// The convential method of implementing Xenos render targets via host render
+// targets has various flaws that may be impossible to fix:
+// - k_16_16 and k_16_16_16_16 have -32...32 range on Xenos, but there's no
+//   equivalent format on PC APIs. They may be emulated using snorm16 (by
+//   dividing shader color output by 32) or float32, however, blending behaves
+//   incorrectly for both. In the former case, multiplicative blending may not
+//   work correctly - 1 becomes 1/32, and instead of 1 * 1 = 1, you get
+//   1/32 * 1/32 = 1/1024. For 32-bit floats, additive blending result may go up
+//   to infinity.
+// - k_2_10_10_10_FLOAT has similar blending issues, though less prominent, when
+//   emulated via float16 render targets. In addition to a greater range for
+//   RGB (values can go up to 65504 and infinity rather than 31.875), alpha is
+//   represented totally differently - in k_2_10_10_10_FLOAT, it may have only
+//   4 values, and adding, for example, 0.1 to 0.333 will still result in 0.333,
+//   while with float16, it will be increasing, and the limit is infinity.
+// - Due to simultaneously bound host render targets being independent from each
+//   other, and because the height is unknown (and the viewport and scissor are
+//   not always present - D3DPT_RECTLIST is used very commonly, especially for
+//   clearing (Direct3D 9 Clear is implemented this way on the Xbox 360) and
+//   copying, and it's usually drawn without a viewport and with 8192x8192
+//   scissor), there may be cases of simulatenously bound render targets
+//   overlapping each other in the EDRAM in a way that is difficult to resolve,
+//   and stores/loads may destroy data.
 class RenderTargetCache {
  public:
   // Direct3D 12 debug layer does some kaschenit-style trolling by giving errors
@@ -207,6 +239,11 @@ class RenderTargetCache {
   bool Initialize();
   void Shutdown();
   void ClearCache();
+
+  // Should a rasterizer-ordered UAV of the EDRAM buffer with format conversion
+  // and blending performed in pixel shaders be used instead of host render
+  // targets.
+  bool IsROVUsedForEDRAM() const;
 
   void BeginFrame();
   // Called in the beginning of a draw call - may bind pipelines.
