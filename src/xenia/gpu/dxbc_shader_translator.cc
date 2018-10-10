@@ -62,7 +62,8 @@ using namespace ucode;
 //   second buffer in the descriptor array at b2, which is assigned to CB1, the
 //   index would be CB1[3][0].
 
-DxbcShaderTranslator::DxbcShaderTranslator() {
+DxbcShaderTranslator::DxbcShaderTranslator(bool edram_rovs_used)
+    : edram_rovs_used_(edram_rovs_used) {
   // Don't allocate again and again for the first shader.
   shader_code_.reserve(8192);
   shader_object_.reserve(16384);

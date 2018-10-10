@@ -150,12 +150,13 @@ bool D3D12Provider::Initialize() {
   descriptor_size_dsv_ =
       device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
 
-  // Check if tiled resources and programmable sample positions (programmable
-  // sample positions added in Creators Update) are supported.
+  // Check if optional features are supported.
+  rasterizer_ordered_views_supported_ = false;
   tiled_resources_tier_ = 0;
   D3D12_FEATURE_DATA_D3D12_OPTIONS options;
   if (SUCCEEDED(device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS,
                                             &options, sizeof(options)))) {
+    rasterizer_ordered_views_supported_ = options.ROVsSupported ? true : false;
     tiled_resources_tier_ = uint32_t(options.TiledResourcesTier);
   }
   programmable_sample_positions_tier_ = 0;
@@ -167,8 +168,9 @@ bool D3D12Provider::Initialize() {
   }
   XELOGD3D(
       "Direct3D 12 device supports tiled resources tier %u, programmable "
-      "sample positions tier %u",
-      tiled_resources_tier_, programmable_sample_positions_tier_);
+      "sample positions tier %u; rasterizer-ordered views %ssupported",
+      tiled_resources_tier_, programmable_sample_positions_tier_,
+      rasterizer_ordered_views_supported_ ? "" : "un");
 
   // Get the graphics analysis interface, will silently fail if PIX not
   // attached.

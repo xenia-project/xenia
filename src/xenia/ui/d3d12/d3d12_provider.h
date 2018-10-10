@@ -62,6 +62,9 @@ class D3D12Provider : public GraphicsProvider {
     return start;
   }
 
+  bool AreRasterizerOrderedViewsSupported() const {
+    return rasterizer_ordered_views_supported_;
+  }
   uint32_t GetTiledResourcesTier() const { return tiled_resources_tier_; }
   uint32_t GetProgrammableSamplePositionsTier() const {
     return programmable_sample_positions_tier_;
@@ -82,6 +85,7 @@ class D3D12Provider : public GraphicsProvider {
   uint32_t descriptor_size_rtv_;
   uint32_t descriptor_size_dsv_;
 
+  bool rasterizer_ordered_views_supported_;
   uint32_t tiled_resources_tier_;
   uint32_t programmable_sample_positions_tier_;
 };

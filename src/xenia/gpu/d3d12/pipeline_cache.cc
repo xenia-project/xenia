@@ -36,9 +36,11 @@ namespace d3d12 {
 #include "xenia/gpu/d3d12/shaders/dxbc/primitive_rectangle_list_gs.h"
 
 PipelineCache::PipelineCache(D3D12CommandProcessor* command_processor,
-                             RegisterFile* register_file)
-    : command_processor_(command_processor), register_file_(register_file) {
-  shader_translator_ = std::make_unique<DxbcShaderTranslator>();
+                             RegisterFile* register_file, bool edram_rov_used)
+    : command_processor_(command_processor),
+      register_file_(register_file),
+      edram_rov_used_(edram_rov_used) {
+  shader_translator_ = std::make_unique<DxbcShaderTranslator>(edram_rov_used_);
 
   // Set pipeline state description values we never change.
   // Zero out tessellation, stream output, blend state and formats for render

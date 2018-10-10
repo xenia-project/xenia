@@ -9,6 +9,8 @@
 
 #include "xenia/gpu/d3d12/render_target_cache.h"
 
+#include <gflags/gflags.h>
+
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -22,6 +24,10 @@
 #include "xenia/gpu/texture_info.h"
 #include "xenia/gpu/texture_util.h"
 #include "xenia/ui/d3d12/d3d12_util.h"
+
+DEFINE_bool(d3d12_rov, false,
+            "Use rasterizer-ordered views for render target emulation where "
+            "available (experimental and currently largely unimplemented).");
 
 namespace xe {
 namespace gpu {
@@ -328,6 +334,14 @@ void RenderTargetCache::ClearCache() {
       heaps_[i] = nullptr;
     }
   }
+}
+
+bool RenderTargetCache::IsROVUsedForEDRAM() const {
+  if (!FLAGS_d3d12_rov) {
+    return false;
+  }
+  auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
+  return provider->AreRasterizerOrderedViewsSupported();
 }
 
 void RenderTargetCache::BeginFrame() {
