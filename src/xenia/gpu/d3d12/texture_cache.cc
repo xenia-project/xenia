@@ -976,7 +976,11 @@ void TextureCache::BindingInfoFromFetchConstant(
   }
 
   if (fetch.type != 2) {
-    XELOGGPU("Texture fetch type is not 2 - ignoring!");
+    XELOGW(
+        "Texture fetch type is not 2 - ignoring (fetch constant is %.8X %.8X "
+        "%.8X %.8X %.8X %.8X)!",
+        fetch.dword_0, fetch.dword_1, fetch.dword_2, fetch.dword_3,
+        fetch.dword_4, fetch.dword_5);
     return;
   }
 
