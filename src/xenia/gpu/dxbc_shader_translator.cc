@@ -7657,7 +7657,7 @@ const DxbcShaderTranslator::SystemConstantRdef DxbcShaderTranslator::
         {"xe_ssaa_inv_scale", RdefTypeIndex::kFloat2, 72, 8},
         // vec4 5
         {"xe_alpha_test_range", RdefTypeIndex::kFloat2, 80, 8},
-        {"xe_edram_pitch_tiles", RdefTypeIndex::kUint, 88, 8},
+        {"xe_edram_pitch_tiles", RdefTypeIndex::kUint, 88, 4},
         // vec4 6
         {"xe_color_exp_bias", RdefTypeIndex::kFloat4, 96, 16},
         // vec4 7
