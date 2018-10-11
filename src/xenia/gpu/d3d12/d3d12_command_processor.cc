@@ -1821,10 +1821,23 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
         0x3F800000 + (color_exp_bias << 23);
     dirty |= system_constants_.color_exp_bias[i] != color_exp_bias_scale;
     system_constants_.color_exp_bias[i] = color_exp_bias_scale;
-    dirty |= system_constants_.color_output_map[i] !=
-             render_targets[i].guest_render_target;
-    system_constants_.color_output_map[i] =
-        render_targets[i].guest_render_target;
+    if (render_target_cache_->IsROVUsedForEDRAM()) {
+      uint32_t edram_base_dwords = (color_info & 0xFFF) * 1280;
+      dirty |= system_constants_.edram_base_dwords[i] != edram_base_dwords;
+      system_constants_.edram_base_dwords[i] = edram_base_dwords;
+      uint32_t edram_pitch_tiles =
+          ((std::min(rb_surface_info & 0x3FFFu, 2560u) *
+            (msaa_samples >= MsaaSamples::k4X ? 2 : 1)) +
+           79) /
+          80;
+      dirty |= system_constants_.edram_pitch_tiles != edram_pitch_tiles;
+      system_constants_.edram_pitch_tiles = edram_pitch_tiles;
+    } else {
+      dirty |= system_constants_.color_output_map[i] !=
+               render_targets[i].guest_render_target;
+      system_constants_.color_output_map[i] =
+          render_targets[i].guest_render_target;
+    }
   }
 
   cbuffer_bindings_system_.up_to_date &= !dirty;
