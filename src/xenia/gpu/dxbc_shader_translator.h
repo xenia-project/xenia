@@ -78,13 +78,17 @@ class DxbcShaderTranslator : public ShaderTranslator {
     // vec4 5
     // The range is floats as uints so it's easier to pass infinity.
     uint32_t alpha_test_range[2];
-    uint32_t padding_5[2];
+    uint32_t edram_pitch_tiles;
+    uint32_t padding_5;
 
     // vec4 6
     float color_exp_bias[4];
 
     // vec4 7
     uint32_t color_output_map[4];
+
+    // vec4 8
+    uint32_t edram_base_dwords[4];
   };
 
   // 192 textures at most because there are 32 fetch constants, and textures can
@@ -200,14 +204,20 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kSysConst_AlphaTestRange_Index = kSysConst_SSAAInvScale_Index + 1,
     kSysConst_AlphaTestRange_Vec = 5,
     kSysConst_AlphaTestRange_Comp = 0,
+    kSysConst_EDRAMPitchTiles_Index = kSysConst_AlphaTestRange_Index + 1,
+    kSysConst_EDRAMPitchTiles_Vec = 5,
+    kSysConst_EDRAMPitchTiles_Comp = 2,
 
-    kSysConst_ColorExpBias_Index = kSysConst_AlphaTestRange_Index + 1,
+    kSysConst_ColorExpBias_Index = kSysConst_EDRAMPitchTiles_Index + 1,
     kSysConst_ColorExpBias_Vec = 6,
 
     kSysConst_ColorOutputMap_Index = kSysConst_ColorExpBias_Index + 1,
     kSysConst_ColorOutputMap_Vec = 7,
 
-    kSysConst_Count = kSysConst_ColorOutputMap_Index + 1
+    kSysConst_EDRAMBaseDwords_Index = kSysConst_ColorOutputMap_Index + 1,
+    kSysConst_EDRAMBaseDwords_Vec = 8,
+
+    kSysConst_Count = kSysConst_EDRAMBaseDwords_Index + 1
   };
 
   static constexpr uint32_t kInterpolatorCount = 16;

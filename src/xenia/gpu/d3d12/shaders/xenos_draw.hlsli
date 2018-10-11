@@ -21,10 +21,13 @@ cbuffer xe_system_cbuffer : register(b0) {
   float2 xe_ssaa_inv_scale;
   // vec4 5
   float2 xe_alpha_test_range;
+  uint xe_edram_pitch_tiles;
   // vec4 6
   float4 xe_color_exp_bias;
   // vec4 7
   uint4 xe_color_output_map;
+  // vec4 8
+  uint4 xe_edram_base_dwords;
 };
 
 struct XeVertex {
