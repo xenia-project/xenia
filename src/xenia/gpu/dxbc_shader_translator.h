@@ -46,9 +46,14 @@ class DxbcShaderTranslator : public ShaderTranslator {
   };
 
   enum : uint32_t {
+    // Whether the write mask is non-zero.
     kRTFlag_Used = 1,
+    // Whether the render target needs to be merged with another (if the write
+    // mask is not 1111, or 11 for 16_16, or 1 for 32_FLOAT, or blending is
+    // enabled and it's not no-op).
+    kRTFlag_LoadingNeeded = kRTFlag_Used << 1,
     // Whether the format is represented by 2 dwords.
-    kRTFlag_Format64bpp = kRTFlag_Used << 1,
+    kRTFlag_Format64bpp = kRTFlag_LoadingNeeded << 1,
     // Whether the format is fixed-point and needs to be converted to integer
     // (k_8_8_8_8, k_2_10_10_10, k_16_16, k_16_16_16_16).
     kRTFlag_FormatFixed = kRTFlag_Format64bpp << 1,
@@ -118,18 +123,25 @@ class DxbcShaderTranslator : public ShaderTranslator {
     uint32_t edram_rt_pack_offset_low[4][4];
 
     // vec4 18:19
+    // Format info - mask of color and alpha after unpacking, but before float
+    // conversion. Primarily to differentiate between signed and unsigned
+    // formats because ibfe is used for both since k_16_16 and k_16_16_16_16 are
+    // signed.
+    uint32_t edram_load_mask_rt01_rt23[2][4];
+
+    // vec4 20:21
     // Format info - minimum color and alpha values (as float, before
     // conversion) writable to the each render target. Integer so it's easier to
     // write infinity.
     uint32_t edram_store_min_rt01_rt23[2][4];
 
-    // vec4 20:21
+    // vec4 22:23
     // Format info - maximum color and alpha values (as float, before
     // conversion) writable to the each render target. Integer so it's easier to
     // write infinity.
     uint32_t edram_store_max_rt01_rt23[2][4];
 
-    // vec4 22:23
+    // vec4 24:25
     // Format info - scale to apply to the color and the alpha of each render
     // target before packing.
     float edram_store_scale_rt01_rt23[2][4];
@@ -302,9 +314,15 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kSysConst_EDRAMRTPackOffsetLowRT3_Vec =
         kSysConst_EDRAMRTPackOffsetLowRT2_Vec + 1,
 
-    kSysConst_EDRAMStoreMinRT01_Index =
+    kSysConst_EDRAMLoadMaskRT01_Index =
         kSysConst_EDRAMRTPackOffsetLowRT3_Index + 1,
-    kSysConst_EDRAMStoreMinRT01_Vec = kSysConst_EDRAMRTPackOffsetLowRT3_Vec + 1,
+    kSysConst_EDRAMLoadMaskRT01_Vec = kSysConst_EDRAMRTPackOffsetLowRT3_Vec + 1,
+
+    kSysConst_EDRAMLoadMaskRT23_Index = kSysConst_EDRAMLoadMaskRT01_Index + 1,
+    kSysConst_EDRAMLoadMaskRT23_Vec = kSysConst_EDRAMLoadMaskRT01_Vec + 1,
+
+    kSysConst_EDRAMStoreMinRT01_Index = kSysConst_EDRAMLoadMaskRT23_Index + 1,
+    kSysConst_EDRAMStoreMinRT01_Vec = kSysConst_EDRAMLoadMaskRT23_Vec + 1,
 
     kSysConst_EDRAMStoreMinRT23_Index = kSysConst_EDRAMStoreMinRT01_Index + 1,
     kSysConst_EDRAMStoreMinRT23_Vec = kSysConst_EDRAMStoreMinRT01_Vec + 1,
@@ -421,6 +439,9 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // Writing the epilogue.
   void CompleteVertexShader();
   void CompletePixelShader_WriteToRTVs();
+  void CompletePixelShader_WriteToROV_LoadColor(
+      uint32_t edram_dword_offset_temp, uint32_t rt_index,
+      uint32_t target_index);
   void CompletePixelShader_WriteToROV_StoreColor(
       uint32_t edram_dword_offset_temp, uint32_t rt_index,
       uint32_t source_and_scratch_temp);
