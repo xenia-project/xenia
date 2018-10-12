@@ -957,6 +957,166 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToRTVs() {
   PopSystemTemp(2);
 }
 
+void DxbcShaderTranslator::CompletePixelShader_WriteToROV_LoadColor(
+    uint32_t edram_dword_offset_temp, uint32_t rt_index, uint32_t target_temp) {
+  // For indexing of the format constants.
+  uint32_t rt_pair_index = rt_index >> 1;
+  uint32_t rt_pair_swizzle = rt_index & 1 ? 0b11101010 : 0b01000000;
+
+  // Extract the needed flags.
+  uint32_t flags_temp = PushSystemTemp();
+  system_constants_used_ |= 1ull << kSysConst_EDRAMRTFlags_Index;
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(12));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+  shader_code_.push_back(flags_temp);
+  shader_code_.push_back(EncodeVectorReplicatedOperand(
+      D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, rt_index, 3));
+  shader_code_.push_back(cbuffer_index_system_constants_);
+  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
+  shader_code_.push_back(kSysConst_EDRAMRTFlags_Vec);
+  shader_code_.push_back(EncodeVectorSwizzledOperand(
+      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+  shader_code_.push_back(kRTFlag_Format64bpp);
+  shader_code_.push_back(kRTFlag_FormatFixed);
+  shader_code_.push_back(kRTFlag_FormatFloat10);
+  shader_code_.push_back(kRTFlag_FormatFloat16);
+  ++stat_.instruction_count;
+  ++stat_.uint_instruction_count;
+
+  // Load the low 32 bits.
+  shader_code_.push_back(
+      ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_LD_UAV_TYPED) |
+      ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(8));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+  shader_code_.push_back(target_temp);
+  shader_code_.push_back(
+      EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
+  shader_code_.push_back(edram_dword_offset_temp);
+  shader_code_.push_back(EncodeVectorSwizzledOperand(
+      D3D11_SB_OPERAND_TYPE_UNORDERED_ACCESS_VIEW, kSwizzleXYZW, 2));
+  shader_code_.push_back(0);
+  shader_code_.push_back(0);
+  ++stat_.instruction_count;
+  ++stat_.texture_load_instructions;
+
+  // Unpack the low 32 bits, as signed because of k_16_16 and k_16_16_16_16
+  // (will be masked later if needed).
+  system_constants_used_ |= ((1ull << kSysConst_EDRAMRTPackWidthLowRT0_Index) |
+                             (1ull << kSysConst_EDRAMRTPackOffsetLowRT0_Index))
+                            << rt_index;
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_IBFE) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(13));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+  shader_code_.push_back(target_temp);
+  shader_code_.push_back(EncodeVectorSwizzledOperand(
+      D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSwizzleXYZW, 3));
+  shader_code_.push_back(cbuffer_index_system_constants_);
+  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
+  shader_code_.push_back(kSysConst_EDRAMRTPackWidthLowRT0_Vec + rt_index);
+  shader_code_.push_back(EncodeVectorSwizzledOperand(
+      D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSwizzleXYZW, 3));
+  shader_code_.push_back(cbuffer_index_system_constants_);
+  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
+  shader_code_.push_back(kSysConst_EDRAMRTPackOffsetLowRT0_Vec + rt_index);
+  shader_code_.push_back(
+      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXXXX, 1));
+  shader_code_.push_back(target_temp);
+  ++stat_.instruction_count;
+  ++stat_.int_instruction_count;
+
+  // Mask the components to differentiate between signed and unsigned.
+  system_constants_used_ |= (1ull << kSysConst_EDRAMLoadMaskRT01_Index)
+                            << rt_pair_index;
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+  shader_code_.push_back(target_temp);
+  shader_code_.push_back(
+      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+  shader_code_.push_back(target_temp);
+  shader_code_.push_back(EncodeVectorSwizzledOperand(
+      D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, rt_pair_swizzle, 3));
+  shader_code_.push_back(cbuffer_index_system_constants_);
+  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
+  shader_code_.push_back(kSysConst_EDRAMLoadMaskRT01_Vec + rt_pair_index);
+  ++stat_.instruction_count;
+  ++stat_.uint_instruction_count;
+
+  // TODO(Triang3l): 64bpp loading and unpacking.
+
+  // Convert from fixed-point.
+  uint32_t fixed_temp = PushSystemTemp();
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ITOF) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+  shader_code_.push_back(fixed_temp);
+  shader_code_.push_back(
+      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+  shader_code_.push_back(target_temp);
+  ++stat_.instruction_count;
+  ++stat_.conversion_instruction_count;
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+  shader_code_.push_back(target_temp);
+  shader_code_.push_back(
+      EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
+  shader_code_.push_back(flags_temp);
+  shader_code_.push_back(
+      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+  shader_code_.push_back(fixed_temp);
+  shader_code_.push_back(
+      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+  shader_code_.push_back(target_temp);
+  ++stat_.instruction_count;
+  ++stat_.movc_instruction_count;
+  // Release fixed_temp.
+  PopSystemTemp();
+
+  // TODO(Triang3l): Convert from 7e3.
+
+  // Convert from 16-bit float.
+  uint32_t f16_temp = PushSystemTemp();
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_F16TOF32) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+  shader_code_.push_back(f16_temp);
+  shader_code_.push_back(
+      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+  shader_code_.push_back(target_temp);
+  ++stat_.instruction_count;
+  ++stat_.conversion_instruction_count;
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+  shader_code_.push_back(target_temp);
+  shader_code_.push_back(
+      EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 3, 1));
+  shader_code_.push_back(flags_temp);
+  shader_code_.push_back(
+      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+  shader_code_.push_back(f16_temp);
+  shader_code_.push_back(
+      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+  shader_code_.push_back(target_temp);
+  ++stat_.instruction_count;
+  ++stat_.movc_instruction_count;
+  // Release f16_temp.
+  PopSystemTemp();
+
+  // Release flags_temp.
+  PopSystemTemp();
+}
+
 void DxbcShaderTranslator::CompletePixelShader_WriteToROV_StoreColor(
     uint32_t edram_dword_offset_temp, uint32_t rt_index,
     uint32_t source_and_scratch_temp) {
@@ -1355,14 +1515,80 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
   ++stat_.int_instruction_count;
 
   // ***************************************************************************
-  // Test pixel writing.
+  // Write to color render targets.
   // ***************************************************************************
 
-  CompletePixelShader_WriteToROV_StoreColor(edram_coord_temp, 0,
-                                            system_temp_color_[0]);
+  system_constants_used_ |= 1ull << kSysConst_EDRAMRTFlags_Index;
 
-  // Release edram_coord_temp.
-  PopSystemTemp();
+  // Get what render targets need to be written to.
+  uint32_t rt_used_temp = PushSystemTemp();
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(12));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+  shader_code_.push_back(rt_used_temp);
+  shader_code_.push_back(EncodeVectorSwizzledOperand(
+      D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSwizzleXYZW, 3));
+  shader_code_.push_back(cbuffer_index_system_constants_);
+  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
+  shader_code_.push_back(kSysConst_EDRAMRTFlags_Vec);
+  shader_code_.push_back(EncodeVectorSwizzledOperand(
+      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+  shader_code_.push_back(kRTFlag_Used);
+  shader_code_.push_back(kRTFlag_Used);
+  shader_code_.push_back(kRTFlag_Used);
+  shader_code_.push_back(kRTFlag_Used);
+  ++stat_.instruction_count;
+  ++stat_.uint_instruction_count;
+
+  // Get what render targets need to be read (for write masks and blending).
+  uint32_t rt_loading_needed_temp = PushSystemTemp();
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(12));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+  shader_code_.push_back(rt_loading_needed_temp);
+  shader_code_.push_back(EncodeVectorSwizzledOperand(
+      D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSwizzleXYZW, 3));
+  shader_code_.push_back(cbuffer_index_system_constants_);
+  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
+  shader_code_.push_back(kSysConst_EDRAMRTFlags_Vec);
+  shader_code_.push_back(EncodeVectorSwizzledOperand(
+      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+  shader_code_.push_back(kRTFlag_LoadingNeeded);
+  shader_code_.push_back(kRTFlag_LoadingNeeded);
+  shader_code_.push_back(kRTFlag_LoadingNeeded);
+  shader_code_.push_back(kRTFlag_LoadingNeeded);
+  ++stat_.instruction_count;
+  ++stat_.uint_instruction_count;
+
+  for (uint32_t i = 0; i < 4; ++i) {
+    // In case of overlap, the render targets with the lower index have higher
+    // priority since they usually have the most important value.
+    uint32_t rt_index = 3 - i;
+
+    // Check if the render target needs to be written to.
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
+                           ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(
+                               D3D10_SB_INSTRUCTION_TEST_NONZERO) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
+    shader_code_.push_back(
+        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, rt_index, 1));
+    shader_code_.push_back(rt_used_temp);
+    ++stat_.instruction_count;
+    ++stat_.dynamic_flow_control_count;
+
+    CompletePixelShader_WriteToROV_StoreColor(edram_coord_temp, rt_index,
+                                              system_temp_color_[rt_index]);
+
+    // Close the check whether the RT is used.
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
+    ++stat_.instruction_count;
+  }
+
+  // Release rt_used_temp, rt_loading_needed_temp and edram_coord_temp.
+  PopSystemTemp(3);
 }
 
 void DxbcShaderTranslator::CompletePixelShader() {
@@ -1503,8 +1729,9 @@ void DxbcShaderTranslator::CompletePixelShader() {
     ++stat_.float_instruction_count;
   }
 
-  // Convert to gamma space (likely needs to be done after the exponent bias
-  // since gamma is a property of the storage format).
+  // Convert to gamma space.
+  // TODO(Triang3l): Do it after blending for ROV.
+  // https://steamcdn-a.akamaihd.net/apps/valve/2008/GDC2008_PostProcessingInTheOrangeBox.pdf
   // Get which render targets need the conversion.
   uint32_t gamma_toggle_temp = PushSystemTemp();
   uint32_t gamma_pieces_temp = PushSystemTemp();
@@ -7898,17 +8125,21 @@ const DxbcShaderTranslator::SystemConstantRdef DxbcShaderTranslator::
         // vec4 17
         {"xe_edram_rt_pack_offset_low_rt3", RdefTypeIndex::kUint4, 272, 16},
         // vec4 18
-        {"xe_edram_store_min_rt01", RdefTypeIndex::kFloat4, 288, 16},
+        {"xe_edram_rt_unpack_mask_low_rt01", RdefTypeIndex::kUint4, 288, 16},
         // vec4 19
-        {"xe_edram_store_min_rt23", RdefTypeIndex::kFloat4, 304, 16},
+        {"xe_edram_rt_unpack_mask_low_rt23", RdefTypeIndex::kUint4, 304, 16},
         // vec4 20
-        {"xe_edram_store_max_rt01", RdefTypeIndex::kFloat4, 320, 16},
+        {"xe_edram_store_min_rt01", RdefTypeIndex::kFloat4, 320, 16},
         // vec4 21
-        {"xe_edram_store_max_rt23", RdefTypeIndex::kFloat4, 336, 16},
+        {"xe_edram_store_min_rt23", RdefTypeIndex::kFloat4, 336, 16},
         // vec4 22
-        {"xe_edram_store_scale_rt01", RdefTypeIndex::kFloat4, 352, 16},
+        {"xe_edram_store_max_rt01", RdefTypeIndex::kFloat4, 352, 16},
         // vec4 23
-        {"xe_edram_store_scale_rt23", RdefTypeIndex::kFloat4, 368, 16},
+        {"xe_edram_store_max_rt23", RdefTypeIndex::kFloat4, 368, 16},
+        // vec4 24
+        {"xe_edram_store_scale_rt01", RdefTypeIndex::kFloat4, 384, 16},
+        // vec4 25
+        {"xe_edram_store_scale_rt23", RdefTypeIndex::kFloat4, 400, 16},
 };
 
 void DxbcShaderTranslator::WriteResourceDefinitions() {
