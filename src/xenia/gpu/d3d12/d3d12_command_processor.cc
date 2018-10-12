@@ -776,6 +776,12 @@ bool D3D12CommandProcessor::SetupContext() {
   pix_capture_requested_.store(false, std::memory_order_relaxed);
   pix_capturing_ = false;
 
+  // Just not to expose uninitialized memory.
+  std::memset(&system_constants_, 0, sizeof(system_constants_));
+  // Force writing of new format data.
+  std::memset(system_constants_color_formats_, 0xFF,
+              sizeof(system_constants_color_formats_));
+
   return true;
 }
 
@@ -1811,10 +1817,13 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
         color_format == ColorRenderTargetFormat::k_16_16_16_16) {
       // On the Xbox 360, k_16_16_EDRAM and k_16_16_16_16_EDRAM internally have
       // -32...32 range and expect shaders to give -32...32 values, but they're
-      // emulated using normalized RG16/RGBA16, so the value returned from the
-      // shader needs to be divided by 32.
+      // emulated using normalized RG16/RGBA16 when not using the ROV, so the
+      // value returned from the shader needs to be divided by 32 (blending will
+      // be incorrect in this case, but there's no other way without using ROV).
       // http://www.students.science.uu.nl/~3220516/advancedgraphics/papers/inferred_lighting.pdf
-      color_exp_bias -= 5;
+      if (!render_target_cache_->IsROVUsedForEDRAM()) {
+        color_exp_bias -= 5;
+      }
     }
     float color_exp_bias_scale;
     *reinterpret_cast<int32_t*>(&color_exp_bias_scale) =
@@ -1832,6 +1841,131 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
           80;
       dirty |= system_constants_.edram_pitch_tiles != edram_pitch_tiles;
       system_constants_.edram_pitch_tiles = edram_pitch_tiles;
+      if (system_constants_color_formats_[i] != color_format) {
+        dirty = true;
+        uint32_t rt_flags = 0;
+        // Initialize min/max to Infinity.
+        uint32_t color_min = 0xFF800000u, alpha_min = 0xFF800000u;
+        uint32_t color_max = 0x7F800000u, alpha_max = 0x7F800000u;
+        float color_store_scale = 1.0f, alpha_store_scale = 1.0f;
+        switch (color_format) {
+          case ColorRenderTargetFormat::k_8_8_8_8:
+          case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
+            rt_flags |= DxbcShaderTranslator::kRTFlag_FormatFixed;
+            system_constants_.edram_rt_pack_width_low[i][0] = 8;
+            system_constants_.edram_rt_pack_width_low[i][1] = 8;
+            system_constants_.edram_rt_pack_width_low[i][2] = 8;
+            system_constants_.edram_rt_pack_width_low[i][3] = 8;
+            system_constants_.edram_rt_pack_offset_low[i][0] = 0;
+            system_constants_.edram_rt_pack_offset_low[i][1] = 8;
+            system_constants_.edram_rt_pack_offset_low[i][2] = 16;
+            system_constants_.edram_rt_pack_offset_low[i][3] = 24;
+            color_min = alpha_min = 0;
+            color_max = alpha_max = 0x3F800000;
+            color_store_scale = alpha_store_scale = 255.0f;
+            break;
+          case ColorRenderTargetFormat::k_2_10_10_10:
+          case ColorRenderTargetFormat::k_2_10_10_10_AS_16_16_16_16:
+            rt_flags |= DxbcShaderTranslator::kRTFlag_FormatFixed;
+            system_constants_.edram_rt_pack_width_low[i][0] = 10;
+            system_constants_.edram_rt_pack_width_low[i][1] = 10;
+            system_constants_.edram_rt_pack_width_low[i][2] = 10;
+            system_constants_.edram_rt_pack_width_low[i][3] = 2;
+            system_constants_.edram_rt_pack_offset_low[i][0] = 0;
+            system_constants_.edram_rt_pack_offset_low[i][1] = 10;
+            system_constants_.edram_rt_pack_offset_low[i][2] = 20;
+            system_constants_.edram_rt_pack_offset_low[i][3] = 30;
+            color_min = alpha_min = 0;
+            color_max = alpha_max = 0x3F800000;
+            // 1023.0.
+            color_store_scale = 1023.0f;
+            alpha_store_scale = 3.0f;
+            break;
+          case ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
+          case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
+            rt_flags |= DxbcShaderTranslator::kRTFlag_FormatFloat10;
+            system_constants_.edram_rt_pack_width_low[i][0] = 10;
+            system_constants_.edram_rt_pack_width_low[i][1] = 10;
+            system_constants_.edram_rt_pack_width_low[i][2] = 10;
+            system_constants_.edram_rt_pack_width_low[i][3] = 2;
+            system_constants_.edram_rt_pack_offset_low[i][0] = 0;
+            system_constants_.edram_rt_pack_offset_low[i][1] = 10;
+            system_constants_.edram_rt_pack_offset_low[i][2] = 20;
+            system_constants_.edram_rt_pack_offset_low[i][3] = 30;
+            color_min = alpha_min = 0;
+            // 31.875.
+            color_max = 0x41FF0000;
+            alpha_max = 0x3F800000;
+            alpha_store_scale = 3.0f;
+            break;
+          case ColorRenderTargetFormat::k_16_16:
+          case ColorRenderTargetFormat::k_16_16_16_16:
+            rt_flags |= DxbcShaderTranslator::kRTFlag_FormatFixed;
+            system_constants_.edram_rt_pack_width_low[i][0] = 16;
+            system_constants_.edram_rt_pack_width_low[i][1] = 16;
+            system_constants_.edram_rt_pack_width_low[i][2] = 0;
+            system_constants_.edram_rt_pack_width_low[i][3] = 0;
+            system_constants_.edram_rt_pack_offset_low[i][0] = 0;
+            system_constants_.edram_rt_pack_offset_low[i][1] = 16;
+            system_constants_.edram_rt_pack_offset_low[i][2] = 0;
+            system_constants_.edram_rt_pack_offset_low[i][3] = 0;
+            // TODO(Triang3l): 64bpp variant.
+            // -32.0.
+            color_min = alpha_min = 0xC2000000u;
+            // 32.0.
+            color_max = alpha_max = 0x42000000u;
+            color_store_scale = alpha_store_scale = 32767.0f / 32.0f;
+            break;
+          case ColorRenderTargetFormat::k_16_16_FLOAT:
+          case ColorRenderTargetFormat::k_16_16_16_16_FLOAT:
+            rt_flags |= DxbcShaderTranslator::kRTFlag_FormatFloat16;
+            system_constants_.edram_rt_pack_width_low[i][0] = 16;
+            system_constants_.edram_rt_pack_width_low[i][1] = 16;
+            system_constants_.edram_rt_pack_width_low[i][2] = 0;
+            system_constants_.edram_rt_pack_width_low[i][3] = 0;
+            system_constants_.edram_rt_pack_offset_low[i][0] = 0;
+            system_constants_.edram_rt_pack_offset_low[i][1] = 16;
+            system_constants_.edram_rt_pack_offset_low[i][2] = 0;
+            system_constants_.edram_rt_pack_offset_low[i][3] = 0;
+            // TODO(Triang3l): 64bpp variant.
+            break;
+          case ColorRenderTargetFormat::k_32_FLOAT:
+          case ColorRenderTargetFormat::k_32_32_FLOAT:
+            system_constants_.edram_rt_pack_width_low[i][0] = 32;
+            system_constants_.edram_rt_pack_width_low[i][1] = 0;
+            system_constants_.edram_rt_pack_width_low[i][2] = 0;
+            system_constants_.edram_rt_pack_width_low[i][3] = 0;
+            system_constants_.edram_rt_pack_offset_low[i][0] = 0;
+            system_constants_.edram_rt_pack_offset_low[i][1] = 0;
+            system_constants_.edram_rt_pack_offset_low[i][2] = 0;
+            system_constants_.edram_rt_pack_offset_low[i][3] = 0;
+            // TODO(Triang3l): 64bpp variant.
+            break;
+          default:
+            assert_always();
+            break;
+        }
+        system_constants_.edram_rt_flags[i] = rt_flags;
+        uint32_t rt_pair_index = i >> 1;
+        uint32_t rt_pair_comp = (i & 1) << 1;
+        system_constants_
+            .edram_store_min_rt01_rt23[rt_pair_index][rt_pair_comp] = color_min;
+        system_constants_
+            .edram_store_min_rt01_rt23[rt_pair_index][rt_pair_comp + 1] =
+            alpha_min;
+        system_constants_
+            .edram_store_max_rt01_rt23[rt_pair_index][rt_pair_comp] = color_max;
+        system_constants_
+            .edram_store_max_rt01_rt23[rt_pair_index][rt_pair_comp + 1] =
+            alpha_max;
+        system_constants_
+            .edram_store_scale_rt01_rt23[rt_pair_index][rt_pair_comp] =
+            color_store_scale;
+        system_constants_
+            .edram_store_scale_rt01_rt23[rt_pair_index][rt_pair_comp + 1] =
+            alpha_store_scale;
+        system_constants_color_formats_[i] = color_format;
+      }
     } else {
       dirty |= system_constants_.color_output_map[i] !=
                render_targets[i].guest_render_target;

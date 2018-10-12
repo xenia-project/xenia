@@ -42,7 +42,21 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kSysFlag_Color0Gamma = kSysFlag_ReverseZ << 1,
     kSysFlag_Color1Gamma = kSysFlag_Color0Gamma << 1,
     kSysFlag_Color2Gamma = kSysFlag_Color1Gamma << 1,
-    kSysFlag_Color3Gamma = kSysFlag_Color2Gamma << 1
+    kSysFlag_Color3Gamma = kSysFlag_Color2Gamma << 1,
+  };
+
+  enum : uint32_t {
+    kRTFlag_Used = 1,
+    // Whether the format is represented by 2 dwords.
+    kRTFlag_Format64bpp = kRTFlag_Used << 1,
+    // Whether the format is fixed-point and needs to be converted to integer
+    // (k_8_8_8_8, k_2_10_10_10, k_16_16, k_16_16_16_16).
+    kRTFlag_FormatFixed = kRTFlag_Format64bpp << 1,
+    // Whether the format is k_2_10_10_10_FLOAT and 7e3 conversion is needed.
+    kRTFlag_FormatFloat10 = kRTFlag_FormatFixed << 1,
+    // Whether the format is k_16_16_FLOAT or k_16_16_16_16_FLOAT and
+    // f16tof32/f32tof16 is needed.
+    kRTFlag_FormatFloat16 = kRTFlag_FormatFloat10 << 1,
   };
 
   // IF SYSTEM CONSTANTS ARE CHANGED OR ADDED, THE FOLLOWING MUST BE UPDATED:
@@ -89,6 +103,36 @@ class DxbcShaderTranslator : public ShaderTranslator {
 
     // vec4 8
     uint32_t edram_base_dwords[4];
+
+    // vec4 9
+    // Binding and format info flags.
+    uint32_t edram_rt_flags[4];
+
+    // vec4 10:13
+    // Format info - widths of components in the lower 32 bits (for ibfe/bfi).
+    uint32_t edram_rt_pack_width_low[4][4];
+
+    // vec4 14:17
+    // Format info - offsets of components in the lower 32 bits (for ibfe/bfi),
+    // each in 8 bits.
+    uint32_t edram_rt_pack_offset_low[4][4];
+
+    // vec4 18:19
+    // Format info - minimum color and alpha values (as float, before
+    // conversion) writable to the each render target. Integer so it's easier to
+    // write infinity.
+    uint32_t edram_store_min_rt01_rt23[2][4];
+
+    // vec4 20:21
+    // Format info - maximum color and alpha values (as float, before
+    // conversion) writable to the each render target. Integer so it's easier to
+    // write infinity.
+    uint32_t edram_store_max_rt01_rt23[2][4];
+
+    // vec4 22:23
+    // Format info - scale to apply to the color and the alpha of each render
+    // target before packing.
+    float edram_store_scale_rt01_rt23[2][4];
   };
 
   // 192 textures at most because there are 32 fetch constants, and textures can
@@ -164,60 +208,121 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kSysConst_Flags_Vec = 0,
     kSysConst_Flags_Comp = 0,
     kSysConst_VertexIndexEndian_Index = kSysConst_Flags_Index + 1,
-    kSysConst_VertexIndexEndian_Vec = 0,
+    kSysConst_VertexIndexEndian_Vec = kSysConst_Flags_Vec,
     kSysConst_VertexIndexEndian_Comp = 1,
     kSysConst_VertexBaseIndex_Index = kSysConst_VertexIndexEndian_Index + 1,
-    kSysConst_VertexBaseIndex_Vec = 0,
+    kSysConst_VertexBaseIndex_Vec = kSysConst_Flags_Vec,
     kSysConst_VertexBaseIndex_Comp = 2,
     kSysConst_PixelPosReg_Index = kSysConst_VertexBaseIndex_Index + 1,
-    kSysConst_PixelPosReg_Vec = 0,
+    kSysConst_PixelPosReg_Vec = kSysConst_Flags_Vec,
     kSysConst_PixelPosReg_Comp = 3,
 
     kSysConst_NDCScale_Index = kSysConst_PixelPosReg_Index + 1,
-    kSysConst_NDCScale_Vec = 1,
+    kSysConst_NDCScale_Vec = kSysConst_Flags_Vec + 1,
     kSysConst_NDCScale_Comp = 0,
     kSysConst_PixelHalfPixelOffset_Index = kSysConst_NDCScale_Index + 1,
-    kSysConst_PixelHalfPixelOffset_Vec = 1,
+    kSysConst_PixelHalfPixelOffset_Vec = kSysConst_NDCScale_Vec,
     kSysConst_PixelHalfPixelOffset_Comp = 3,
 
     kSysConst_NDCOffset_Index = kSysConst_PixelHalfPixelOffset_Index + 1,
-    kSysConst_NDCOffset_Vec = 2,
+    kSysConst_NDCOffset_Vec = kSysConst_NDCScale_Vec + 1,
     kSysConst_NDCOffset_Comp = 0,
     kSysConst_AlphaTest_Index = kSysConst_NDCOffset_Index + 1,
-    kSysConst_AlphaTest_Vec = 2,
+    kSysConst_AlphaTest_Vec = kSysConst_NDCOffset_Vec,
     kSysConst_AlphaTest_Comp = 3,
 
     kSysConst_PointSize_Index = kSysConst_AlphaTest_Index + 1,
-    kSysConst_PointSize_Vec = 3,
+    kSysConst_PointSize_Vec = kSysConst_NDCOffset_Vec + 1,
     kSysConst_PointSize_Comp = 0,
     kSysConst_PointSizeMinMax_Index = kSysConst_PointSize_Index + 1,
-    kSysConst_PointSizeMinMax_Vec = 3,
+    kSysConst_PointSizeMinMax_Vec = kSysConst_PointSize_Vec,
     kSysConst_PointSizeMinMax_Comp = 2,
 
     kSysConst_PointScreenToNDC_Index = kSysConst_PointSizeMinMax_Index + 1,
-    kSysConst_PointScreenToNDC_Vec = 4,
+    kSysConst_PointScreenToNDC_Vec = kSysConst_PointSize_Vec + 1,
     kSysConst_PointScreenToNDC_Comp = 0,
     kSysConst_SSAAInvScale_Index = kSysConst_PointScreenToNDC_Index + 1,
-    kSysConst_SSAAInvScale_Vec = 4,
+    kSysConst_SSAAInvScale_Vec = kSysConst_PointScreenToNDC_Vec,
     kSysConst_SSAAInvScale_Comp = 2,
 
     kSysConst_AlphaTestRange_Index = kSysConst_SSAAInvScale_Index + 1,
-    kSysConst_AlphaTestRange_Vec = 5,
+    kSysConst_AlphaTestRange_Vec = kSysConst_PointScreenToNDC_Vec + 1,
     kSysConst_AlphaTestRange_Comp = 0,
     kSysConst_EDRAMPitchTiles_Index = kSysConst_AlphaTestRange_Index + 1,
-    kSysConst_EDRAMPitchTiles_Vec = 5,
+    kSysConst_EDRAMPitchTiles_Vec = kSysConst_AlphaTestRange_Vec,
     kSysConst_EDRAMPitchTiles_Comp = 2,
 
     kSysConst_ColorExpBias_Index = kSysConst_EDRAMPitchTiles_Index + 1,
-    kSysConst_ColorExpBias_Vec = 6,
+    kSysConst_ColorExpBias_Vec = kSysConst_AlphaTestRange_Vec + 1,
 
     kSysConst_ColorOutputMap_Index = kSysConst_ColorExpBias_Index + 1,
-    kSysConst_ColorOutputMap_Vec = 7,
+    kSysConst_ColorOutputMap_Vec = kSysConst_ColorExpBias_Vec + 1,
 
     kSysConst_EDRAMBaseDwords_Index = kSysConst_ColorOutputMap_Index + 1,
-    kSysConst_EDRAMBaseDwords_Vec = 8,
+    kSysConst_EDRAMBaseDwords_Vec = kSysConst_ColorOutputMap_Vec + 1,
 
-    kSysConst_Count = kSysConst_EDRAMBaseDwords_Index + 1
+    kSysConst_EDRAMRTFlags_Index = kSysConst_EDRAMBaseDwords_Index + 1,
+    kSysConst_EDRAMRTFlags_Vec = kSysConst_EDRAMBaseDwords_Vec + 1,
+
+    kSysConst_EDRAMRTPackWidthLowRT0_Index = kSysConst_EDRAMRTFlags_Index + 1,
+    kSysConst_EDRAMRTPackWidthLowRT0_Vec = kSysConst_EDRAMRTFlags_Vec + 1,
+
+    kSysConst_EDRAMRTPackWidthLowRT1_Index =
+        kSysConst_EDRAMRTPackWidthLowRT0_Index + 1,
+    kSysConst_EDRAMRTPackWidthLowRT1_Vec =
+        kSysConst_EDRAMRTPackWidthLowRT0_Vec + 1,
+
+    kSysConst_EDRAMRTPackWidthLowRT2_Index =
+        kSysConst_EDRAMRTPackWidthLowRT1_Index + 1,
+    kSysConst_EDRAMRTPackWidthLowRT2_Vec =
+        kSysConst_EDRAMRTPackWidthLowRT1_Vec + 1,
+
+    kSysConst_EDRAMRTPackWidthLowRT3_Index =
+        kSysConst_EDRAMRTPackWidthLowRT2_Index + 1,
+    kSysConst_EDRAMRTPackWidthLowRT3_Vec =
+        kSysConst_EDRAMRTPackWidthLowRT2_Vec + 1,
+
+    kSysConst_EDRAMRTPackOffsetLowRT0_Index =
+        kSysConst_EDRAMRTPackWidthLowRT3_Index + 1,
+    kSysConst_EDRAMRTPackOffsetLowRT0_Vec =
+        kSysConst_EDRAMRTPackWidthLowRT3_Vec + 1,
+
+    kSysConst_EDRAMRTPackOffsetLowRT1_Index =
+        kSysConst_EDRAMRTPackOffsetLowRT0_Index + 1,
+    kSysConst_EDRAMRTPackOffsetLowRT1_Vec =
+        kSysConst_EDRAMRTPackOffsetLowRT0_Vec + 1,
+
+    kSysConst_EDRAMRTPackOffsetLowRT2_Index =
+        kSysConst_EDRAMRTPackOffsetLowRT1_Index + 1,
+    kSysConst_EDRAMRTPackOffsetLowRT2_Vec =
+        kSysConst_EDRAMRTPackOffsetLowRT1_Vec + 1,
+
+    kSysConst_EDRAMRTPackOffsetLowRT3_Index =
+        kSysConst_EDRAMRTPackOffsetLowRT2_Index + 1,
+    kSysConst_EDRAMRTPackOffsetLowRT3_Vec =
+        kSysConst_EDRAMRTPackOffsetLowRT2_Vec + 1,
+
+    kSysConst_EDRAMStoreMinRT01_Index =
+        kSysConst_EDRAMRTPackOffsetLowRT3_Index + 1,
+    kSysConst_EDRAMStoreMinRT01_Vec = kSysConst_EDRAMRTPackOffsetLowRT3_Vec + 1,
+
+    kSysConst_EDRAMStoreMinRT23_Index = kSysConst_EDRAMStoreMinRT01_Index + 1,
+    kSysConst_EDRAMStoreMinRT23_Vec = kSysConst_EDRAMStoreMinRT01_Vec + 1,
+
+    kSysConst_EDRAMStoreMaxRT01_Index = kSysConst_EDRAMStoreMinRT23_Index + 1,
+    kSysConst_EDRAMStoreMaxRT01_Vec = kSysConst_EDRAMStoreMinRT23_Vec + 1,
+
+    kSysConst_EDRAMStoreMaxRT23_Index = kSysConst_EDRAMStoreMaxRT01_Index + 1,
+    kSysConst_EDRAMStoreMaxRT23_Vec = kSysConst_EDRAMStoreMaxRT01_Vec + 1,
+
+    kSysConst_EDRAMStoreScaleRT01_Index = kSysConst_EDRAMStoreMaxRT23_Index + 1,
+    kSysConst_EDRAMStoreScaleRT01_Vec = kSysConst_EDRAMStoreMaxRT23_Vec + 1,
+
+    kSysConst_EDRAMStoreScaleRT23_Index =
+        kSysConst_EDRAMStoreScaleRT01_Index + 1,
+    kSysConst_EDRAMStoreScaleRT23_Vec = kSysConst_EDRAMStoreScaleRT01_Vec + 1,
+
+    kSysConst_Count = kSysConst_EDRAMStoreScaleRT23_Index + 1
   };
 
   static constexpr uint32_t kInterpolatorCount = 16;
@@ -316,6 +421,9 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // Writing the epilogue.
   void CompleteVertexShader();
   void CompletePixelShader_WriteToRTVs();
+  void CompletePixelShader_WriteToROV_StoreColor(
+      uint32_t edram_dword_offset_temp, uint32_t rt_index,
+      uint32_t source_and_scratch_temp);
   void CompletePixelShader_WriteToROV();
   void CompletePixelShader();
   void CompleteShaderCode();
@@ -509,7 +617,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
   static const SystemConstantRdef system_constant_rdef_[kSysConst_Count];
   // Mask of system constants (1 << kSysConst_#_Index) used in the shader, so
   // the remaining ones can be marked as unused in RDEF.
-  uint32_t system_constants_used_;
+  uint64_t system_constants_used_;
 
   // Whether constants are dynamically indexed and need to be marked as such in
   // dcl_constantBuffer.

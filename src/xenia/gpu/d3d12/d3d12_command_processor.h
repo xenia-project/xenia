@@ -288,6 +288,7 @@ class D3D12CommandProcessor : public CommandProcessor {
 
   // System shader constants.
   DxbcShaderTranslator::SystemConstants system_constants_;
+  ColorRenderTargetFormat system_constants_color_formats_[4];
 
   // Float constant usage masks of the last draw call.
   uint64_t current_float_constant_map_vertex_[4];
