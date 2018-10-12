@@ -28,6 +28,36 @@ cbuffer xe_system_cbuffer : register(b0) {
   uint4 xe_color_output_map;
   // vec4 8
   uint4 xe_edram_base_dwords;
+  // vec4 9
+  uint4 xe_edram_rt_flags;
+  // vec4 10
+  uint4 xe_edram_rt_pack_width_low_rt0;
+  // vec4 11
+  uint4 xe_edram_rt_pack_width_low_rt1;
+  // vec4 12
+  uint4 xe_edram_rt_pack_width_low_rt2;
+  // vec4 13
+  uint4 xe_edram_rt_pack_width_low_rt3;
+  // vec4 14
+  uint4 xe_edram_rt_pack_offset_low_rt0;
+  // vec4 15
+  uint4 xe_edram_rt_pack_offset_low_rt1;
+  // vec4 16
+  uint4 xe_edram_rt_pack_offset_low_rt2;
+  // vec4 17
+  uint4 xe_edram_rt_pack_offset_low_rt3;
+  // vec4 18
+  float4 xe_edram_store_min_rt01;
+  // vec4 19
+  float4 xe_edram_store_min_rt23;
+  // vec4 20
+  float4 xe_edram_store_max_rt01;
+  // vec4 21
+  float4 xe_edram_store_max_rt23;
+  // vec4 22
+  float4 xe_edram_store_scale_rt01;
+  // vec4 23
+  float4 xe_edram_store_scale_rt23;
 };
 
 struct XeVertex {
