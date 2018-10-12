@@ -174,6 +174,10 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kBlend2_Color_OpMin = 1u << kBlend2_Color_OpMin_Shift,
     kBlend2_Color_OpMax_Shift = 25,
     kBlend2_Color_OpMax = 1u << kBlend2_Color_OpMax_Shift,
+    kBlend2_Alpha_OpMin_Shift = 26,
+    kBlend2_Alpha_OpMin = 1u << kBlend2_Alpha_OpMin_Shift,
+    kBlend2_Alpha_OpMax_Shift = 27,
+    kBlend2_Alpha_OpMax = 1u << kBlend2_Alpha_OpMax_Shift,
   };
 
   // IF SYSTEM CONSTANTS ARE CHANGED OR ADDED, THE FOLLOWING MUST BE UPDATED:
@@ -314,6 +318,10 @@ class DxbcShaderTranslator : public ShaderTranslator {
     count_out = uint32_t(sampler_bindings_.size());
     return sampler_bindings_.data();
   }
+
+  // Returns whether blending should be done at all (not 1 * src + 0 * dest).
+  static bool GetBlendConstants(uint32_t blend_control, uint32_t& blend1_out,
+                                uint32_t& blend2_out);
 
  protected:
   void Reset() override;

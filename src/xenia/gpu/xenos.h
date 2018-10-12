@@ -281,6 +281,38 @@ inline int GetVertexFormatSizeInWords(VertexFormat format) {
   }
 }
 
+// adreno_rb_blend_factor
+enum class BlendFactor : uint32_t {
+  kZero = 0,
+  kOne = 1,
+  kSrcColor = 4,
+  kOneMinusSrcColor = 5,
+  kSrcAlpha = 6,
+  kOneMinusSrcAlpha = 7,
+  kDstColor = 8,
+  kOneMinusDstColor = 9,
+  kDstAlpha = 10,
+  kOneMinusDstAlpha = 11,
+  kConstantColor = 12,
+  kOneMinusConstantColor = 13,
+  kConstantAlpha = 14,
+  kOneMinusConstantAlpha = 15,
+  kSrcAlphaSaturate = 16,
+  // SRC1 likely not used on the Xbox 360 - only available in Direct3D 9Ex.
+  kSrc1Color = 20,
+  kOneMinusSrc1Color = 21,
+  kSrc1Alpha = 22,
+  kOneMinusSrc1Alpha = 23,
+};
+
+enum class BlendOp : uint32_t {
+  kAdd = 0,
+  kSubtract = 1,
+  kMin = 2,
+  kMax = 3,
+  kRevSubtract = 4,
+};
+
 namespace xenos {
 
 typedef enum {
