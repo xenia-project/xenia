@@ -71,6 +71,215 @@ DxbcShaderTranslator::DxbcShaderTranslator(bool edram_rov_used)
 }
 DxbcShaderTranslator::~DxbcShaderTranslator() = default;
 
+bool DxbcShaderTranslator::GetBlendConstants(uint32_t blend_control,
+                                             uint32_t& blend1_out,
+                                             uint32_t& blend2_out) {
+  static const uint32_t kBlend1SrcFactorMap[32] = {
+      0,
+      kBlend1_Src_One,
+      0,
+      0,
+      kBlend1_Src_SrcColor_Pos,
+      kBlend1_Src_One | kBlend1_Src_SrcColor_Neg,
+      kBlend1_Src_SrcAlpha_Pos,
+      kBlend1_Src_One | kBlend1_Src_SrcAlpha_Neg,
+      kBlend1_Src_DestColor_Pos,
+      kBlend1_Src_One | kBlend1_Src_DestColor_Neg,
+      kBlend1_Src_DestAlpha_Pos,
+      kBlend1_Src_One | kBlend1_Src_DestAlpha_Neg,
+      0,
+      kBlend1_Src_One,
+      0,
+      kBlend1_Src_One,
+  };
+  static const uint32_t kBlend2SrcFactorMap[32] = {
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      kBlend2_Src_ConstantColor_Pos,
+      kBlend2_Src_ConstantColor_Neg,
+      kBlend2_Src_ConstantAlpha_Pos,
+      kBlend2_Src_ConstantAlpha_Neg,
+      kBlend2_Src_AlphaSaturate,
+  };
+  static const uint32_t kBlend1SrcAlphaFactorMap[32] = {
+      0,
+      kBlend1_SrcAlpha_One,
+      0,
+      0,
+      kBlend1_SrcAlpha_SrcAlpha_Pos,
+      kBlend1_SrcAlpha_One | kBlend1_SrcAlpha_SrcAlpha_Neg,
+      kBlend1_SrcAlpha_SrcAlpha_Pos,
+      kBlend1_SrcAlpha_One | kBlend1_SrcAlpha_SrcAlpha_Neg,
+      kBlend1_SrcAlpha_DestAlpha_Pos,
+      kBlend1_SrcAlpha_One | kBlend1_SrcAlpha_DestAlpha_Neg,
+      kBlend1_SrcAlpha_DestAlpha_Pos,
+      kBlend1_SrcAlpha_One | kBlend1_SrcAlpha_DestAlpha_Neg,
+      0,
+      kBlend1_SrcAlpha_One,
+      0,
+      kBlend1_SrcAlpha_One,
+  };
+  static const uint32_t kBlend2SrcAlphaFactorMap[32] = {
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      kBlend2_SrcAlpha_ConstantAlpha_Pos,
+      kBlend2_SrcAlpha_ConstantAlpha_Neg,
+      kBlend2_SrcAlpha_ConstantAlpha_Pos,
+      kBlend2_SrcAlpha_ConstantAlpha_Neg,
+      kBlend2_SrcAlpha_AlphaSaturate,
+  };
+  static const uint32_t kBlend1DestFactorMap[32] = {
+      0,
+      kBlend1_Dest_One,
+      0,
+      0,
+      kBlend1_Dest_SrcColor_Pos,
+      kBlend1_Dest_One | kBlend1_Dest_SrcColor_Neg,
+      kBlend1_Dest_SrcAlpha_Pos,
+      kBlend1_Dest_One | kBlend1_Dest_SrcAlpha_Neg,
+      kBlend1_Dest_DestColor_Pos,
+      kBlend1_Dest_One | kBlend1_Dest_DestColor_Neg,
+      kBlend1_Dest_DestAlpha_Pos,
+      kBlend1_Dest_One | kBlend1_Dest_DestAlpha_Neg,
+      0,
+      kBlend1_Dest_One,
+      0,
+      kBlend1_Dest_One,
+  };
+  static const uint32_t kBlend2DestFactorMap[32] = {
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      kBlend2_Dest_ConstantColor_Pos,
+      kBlend2_Dest_ConstantColor_Neg,
+      kBlend2_Dest_ConstantAlpha_Pos,
+      kBlend2_Dest_ConstantAlpha_Neg,
+      kBlend2_Dest_AlphaSaturate,
+  };
+  static const uint32_t kBlend1DestAlphaFactorMap[32] = {
+      0,
+      kBlend1_DestAlpha_One,
+      0,
+      0,
+      kBlend1_DestAlpha_SrcAlpha_Pos,
+      kBlend1_DestAlpha_One | kBlend1_DestAlpha_SrcAlpha_Neg,
+      kBlend1_DestAlpha_SrcAlpha_Pos,
+      kBlend1_DestAlpha_One | kBlend1_DestAlpha_SrcAlpha_Neg,
+      kBlend1_DestAlpha_DestAlpha_Pos,
+      kBlend1_DestAlpha_One | kBlend1_DestAlpha_DestAlpha_Neg,
+      kBlend1_DestAlpha_DestAlpha_Pos,
+      kBlend1_DestAlpha_One | kBlend1_DestAlpha_DestAlpha_Neg,
+      0,
+      kBlend1_DestAlpha_One,
+      0,
+      kBlend1_DestAlpha_One,
+  };
+  static const uint32_t kBlend2DestAlphaFactorMap[32] = {
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      kBlend2_DestAlpha_ConstantAlpha_Pos,
+      kBlend2_DestAlpha_ConstantAlpha_Neg,
+      kBlend2_DestAlpha_ConstantAlpha_Pos,
+      kBlend2_DestAlpha_ConstantAlpha_Neg,
+      kBlend2_DestAlpha_AlphaSaturate,
+  };
+
+  BlendFactor src_factor = BlendFactor(blend_control & 0x1F);
+  BlendFactor src_alpha_factor = BlendFactor((blend_control >> 16) & 0x1F);
+  BlendFactor dest_factor = BlendFactor((blend_control >> 8) & 0x1F);
+  BlendFactor dest_alpha_factor = BlendFactor((blend_control >> 24) & 0x1F);
+
+  blend1_out = kBlend1SrcFactorMap[uint32_t(src_factor)] |
+               kBlend1SrcAlphaFactorMap[uint32_t(src_alpha_factor)] |
+               kBlend1DestFactorMap[uint32_t(dest_factor)] |
+               kBlend1DestAlphaFactorMap[uint32_t(dest_alpha_factor)];
+  uint32_t blend2 = kBlend2SrcFactorMap[uint32_t(src_factor)] |
+                    kBlend2SrcAlphaFactorMap[uint32_t(src_alpha_factor)] |
+                    kBlend2DestFactorMap[uint32_t(dest_factor)] |
+                    kBlend2DestAlphaFactorMap[uint32_t(dest_alpha_factor)];
+  switch (BlendOp((blend_control >> 5) & 0x7)) {
+    case BlendOp::kAdd:
+      blend2 |= kBlend2_Src_OpSign_Pos | kBlend2_Dest_OpSign_Pos;
+      break;
+    case BlendOp::kSubtract:
+      blend2 |= kBlend2_Src_OpSign_Pos | kBlend2_Dest_OpSign_Neg;
+      break;
+    case BlendOp::kMin:
+      blend2 |= kBlend2_Color_OpMin;
+      break;
+    case BlendOp::kMax:
+      blend2 |= kBlend2_Color_OpMax;
+      break;
+    case BlendOp::kRevSubtract:
+      blend2 |= kBlend2_Src_OpSign_Neg | kBlend2_Dest_OpSign_Pos;
+      break;
+    default:
+      assert_always();
+  }
+  switch (BlendOp((blend_control >> 21) & 0x7)) {
+    case BlendOp::kAdd:
+      blend2 |= kBlend2_SrcAlpha_OpSign_Pos | kBlend2_DestAlpha_OpSign_Pos;
+      break;
+    case BlendOp::kSubtract:
+      blend2 |= kBlend2_SrcAlpha_OpSign_Pos | kBlend2_DestAlpha_OpSign_Neg;
+      break;
+    case BlendOp::kMin:
+      blend2 |= kBlend2_Alpha_OpMin;
+      break;
+    case BlendOp::kMax:
+      blend2 |= kBlend2_Alpha_OpMax;
+      break;
+    case BlendOp::kRevSubtract:
+      blend2 |= kBlend2_SrcAlpha_OpSign_Neg | kBlend2_DestAlpha_OpSign_Pos;
+      break;
+    default:
+      assert_always();
+  }
+  blend2_out = blend2;
+
+  // 1 * src + 0 * dest is nop, don't waste GPU time.
+  return (blend_control & 0x1FFF1FFF) != 0x00010001;
+}
+
 void DxbcShaderTranslator::Reset() {
   ShaderTranslator::Reset();
 
