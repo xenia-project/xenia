@@ -1355,14 +1355,80 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
   ++stat_.int_instruction_count;
 
   // ***************************************************************************
-  // Test pixel writing.
+  // Write to color render targets.
   // ***************************************************************************
 
-  CompletePixelShader_WriteToROV_StoreColor(edram_coord_temp, 0,
-                                            system_temp_color_[0]);
+  system_constants_used_ |= 1ull << kSysConst_EDRAMRTFlags_Index;
 
-  // Release edram_coord_temp.
-  PopSystemTemp();
+  // Get what render targets need to be written to.
+  uint32_t rt_used_temp = PushSystemTemp();
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(12));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+  shader_code_.push_back(rt_used_temp);
+  shader_code_.push_back(EncodeVectorSwizzledOperand(
+      D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSwizzleXYZW, 3));
+  shader_code_.push_back(cbuffer_index_system_constants_);
+  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
+  shader_code_.push_back(kSysConst_EDRAMRTFlags_Vec);
+  shader_code_.push_back(EncodeVectorSwizzledOperand(
+      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+  shader_code_.push_back(kRTFlag_Used);
+  shader_code_.push_back(kRTFlag_Used);
+  shader_code_.push_back(kRTFlag_Used);
+  shader_code_.push_back(kRTFlag_Used);
+  ++stat_.instruction_count;
+  ++stat_.uint_instruction_count;
+
+  // Get what render targets need to be read (for write masks and blending).
+  uint32_t rt_loading_needed_temp = PushSystemTemp();
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(12));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+  shader_code_.push_back(rt_loading_needed_temp);
+  shader_code_.push_back(EncodeVectorSwizzledOperand(
+      D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSwizzleXYZW, 3));
+  shader_code_.push_back(cbuffer_index_system_constants_);
+  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
+  shader_code_.push_back(kSysConst_EDRAMRTFlags_Vec);
+  shader_code_.push_back(EncodeVectorSwizzledOperand(
+      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+  shader_code_.push_back(kRTFlag_LoadingNeeded);
+  shader_code_.push_back(kRTFlag_LoadingNeeded);
+  shader_code_.push_back(kRTFlag_LoadingNeeded);
+  shader_code_.push_back(kRTFlag_LoadingNeeded);
+  ++stat_.instruction_count;
+  ++stat_.uint_instruction_count;
+
+  for (uint32_t i = 0; i < 4; ++i) {
+    // In case of overlap, the render targets with the lower index have higher
+    // priority since they usually have the most important value.
+    uint32_t rt_index = 3 - i;
+
+    // Check if the render target needs to be written to.
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
+                           ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(
+                               D3D10_SB_INSTRUCTION_TEST_NONZERO) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
+    shader_code_.push_back(
+        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, rt_index, 1));
+    shader_code_.push_back(rt_used_temp);
+    ++stat_.instruction_count;
+    ++stat_.dynamic_flow_control_count;
+
+    CompletePixelShader_WriteToROV_StoreColor(edram_coord_temp, rt_index,
+                                              system_temp_color_[rt_index]);
+
+    // Close the check whether the RT is used.
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
+    ++stat_.instruction_count;
+  }
+
+  // Release rt_used_temp, rt_loading_needed_temp and edram_coord_temp.
+  PopSystemTemp(3);
 }
 
 void DxbcShaderTranslator::CompletePixelShader() {

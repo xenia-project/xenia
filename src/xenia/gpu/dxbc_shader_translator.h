@@ -46,9 +46,14 @@ class DxbcShaderTranslator : public ShaderTranslator {
   };
 
   enum : uint32_t {
+    // Whether the write mask is non-zero.
     kRTFlag_Used = 1,
+    // Whether the render target needs to be merged with another (if the write
+    // mask is not 1111, or 11 for 16_16, or 1 for 32_FLOAT, or blending is
+    // enabled and it's not no-op).
+    kRTFlag_LoadingNeeded = kRTFlag_Used << 1,
     // Whether the format is represented by 2 dwords.
-    kRTFlag_Format64bpp = kRTFlag_Used << 1,
+    kRTFlag_Format64bpp = kRTFlag_LoadingNeeded << 1,
     // Whether the format is fixed-point and needs to be converted to integer
     // (k_8_8_8_8, k_2_10_10_10, k_16_16, k_16_16_16_16).
     kRTFlag_FormatFixed = kRTFlag_Format64bpp << 1,
