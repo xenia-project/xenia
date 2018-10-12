@@ -1548,31 +1548,33 @@ void D3D12CommandProcessor::UpdateFixedFunctionState(
     ff_scissor_update_needed_ = false;
   }
 
-  // Blend factor.
-  ff_blend_factor_update_needed_ |=
-      ff_blend_factor_[0] != regs[XE_GPU_REG_RB_BLEND_RED].f32;
-  ff_blend_factor_update_needed_ |=
-      ff_blend_factor_[1] != regs[XE_GPU_REG_RB_BLEND_GREEN].f32;
-  ff_blend_factor_update_needed_ |=
-      ff_blend_factor_[2] != regs[XE_GPU_REG_RB_BLEND_BLUE].f32;
-  ff_blend_factor_update_needed_ |=
-      ff_blend_factor_[3] != regs[XE_GPU_REG_RB_BLEND_ALPHA].f32;
-  if (ff_blend_factor_update_needed_) {
-    ff_blend_factor_[0] = regs[XE_GPU_REG_RB_BLEND_RED].f32;
-    ff_blend_factor_[1] = regs[XE_GPU_REG_RB_BLEND_GREEN].f32;
-    ff_blend_factor_[2] = regs[XE_GPU_REG_RB_BLEND_BLUE].f32;
-    ff_blend_factor_[3] = regs[XE_GPU_REG_RB_BLEND_ALPHA].f32;
-    command_list->OMSetBlendFactor(ff_blend_factor_);
-    ff_blend_factor_update_needed_ = false;
-  }
+  if (!render_target_cache_->IsROVUsedForEDRAM()) {
+    // Blend factor.
+    ff_blend_factor_update_needed_ |=
+        ff_blend_factor_[0] != regs[XE_GPU_REG_RB_BLEND_RED].f32;
+    ff_blend_factor_update_needed_ |=
+        ff_blend_factor_[1] != regs[XE_GPU_REG_RB_BLEND_GREEN].f32;
+    ff_blend_factor_update_needed_ |=
+        ff_blend_factor_[2] != regs[XE_GPU_REG_RB_BLEND_BLUE].f32;
+    ff_blend_factor_update_needed_ |=
+        ff_blend_factor_[3] != regs[XE_GPU_REG_RB_BLEND_ALPHA].f32;
+    if (ff_blend_factor_update_needed_) {
+      ff_blend_factor_[0] = regs[XE_GPU_REG_RB_BLEND_RED].f32;
+      ff_blend_factor_[1] = regs[XE_GPU_REG_RB_BLEND_GREEN].f32;
+      ff_blend_factor_[2] = regs[XE_GPU_REG_RB_BLEND_BLUE].f32;
+      ff_blend_factor_[3] = regs[XE_GPU_REG_RB_BLEND_ALPHA].f32;
+      command_list->OMSetBlendFactor(ff_blend_factor_);
+      ff_blend_factor_update_needed_ = false;
+    }
 
-  // Stencil reference value.
-  uint32_t stencil_ref = regs[XE_GPU_REG_RB_STENCILREFMASK].u32 & 0xFF;
-  ff_stencil_ref_update_needed_ |= ff_stencil_ref_ != stencil_ref;
-  if (ff_stencil_ref_update_needed_) {
-    ff_stencil_ref_ = stencil_ref;
-    command_list->OMSetStencilRef(stencil_ref);
-    ff_stencil_ref_update_needed_ = false;
+    // Stencil reference value.
+    uint32_t stencil_ref = regs[XE_GPU_REG_RB_STENCILREFMASK].u32 & 0xFF;
+    ff_stencil_ref_update_needed_ |= ff_stencil_ref_ != stencil_ref;
+    if (ff_stencil_ref_update_needed_) {
+      ff_stencil_ref_ = stencil_ref;
+      command_list->OMSetStencilRef(stencil_ref);
+      ff_stencil_ref_update_needed_ = false;
+    }
   }
 }
 
@@ -1888,7 +1890,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
       if (rt_mask != 0) {
         rt_flags |= DxbcShaderTranslator::kRTFlag_Used;
         if (rt_mask != rt_mask_all) {
-          rt_flags |= DxbcShaderTranslator::kRTFlag_LoadingNeeded;
+          rt_flags |= DxbcShaderTranslator::kRTFlag_Load;
         }
       }
       dirty |= system_constants_.edram_rt_flags[i] != rt_flags;

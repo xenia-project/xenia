@@ -51,9 +51,10 @@ class DxbcShaderTranslator : public ShaderTranslator {
     // Whether the render target needs to be merged with another (if the write
     // mask is not 1111, or 11 for 16_16, or 1 for 32_FLOAT, or blending is
     // enabled and it's not no-op).
-    kRTFlag_LoadingNeeded = kRTFlag_Used << 1,
+    kRTFlag_Load = kRTFlag_Used << 1,
+    kRTFlag_Blend = kRTFlag_Load << 1,
     // Whether the format is represented by 2 dwords.
-    kRTFlag_Format64bpp = kRTFlag_LoadingNeeded << 1,
+    kRTFlag_Format64bpp = kRTFlag_Blend << 1,
     // Whether the format is fixed-point and needs to be converted to integer
     // (k_8_8_8_8, k_2_10_10_10, k_16_16, k_16_16_16_16).
     kRTFlag_FormatFixed = kRTFlag_Format64bpp << 1,
@@ -62,6 +63,117 @@ class DxbcShaderTranslator : public ShaderTranslator {
     // Whether the format is k_16_16_FLOAT or k_16_16_16_16_FLOAT and
     // f16tof32/f32tof16 is needed.
     kRTFlag_FormatFloat16 = kRTFlag_FormatFloat10 << 1,
+  };
+
+  enum : uint32_t {
+    // First blend constant of the render target.
+
+    kBlend1_Src_SrcColor_Shift = 0,
+    kBlend1_Src_SrcColor_Pos = 1u << kBlend1_Src_SrcColor_Shift,
+    kBlend1_Src_SrcColor_Neg = 3u << kBlend1_Src_SrcColor_Shift,
+    kBlend1_Src_SrcAlpha_Shift = 2,
+    kBlend1_Src_SrcAlpha_Pos = 1u << kBlend1_Src_SrcAlpha_Shift,
+    kBlend1_Src_SrcAlpha_Neg = 3u << kBlend1_Src_SrcAlpha_Shift,
+    kBlend1_Src_DestColor_Shift = 4,
+    kBlend1_Src_DestColor_Pos = 1u << kBlend1_Src_DestColor_Shift,
+    kBlend1_Src_DestColor_Neg = 3u << kBlend1_Src_DestColor_Shift,
+    kBlend1_Src_DestAlpha_Shift = 6,
+    kBlend1_Src_DestAlpha_Pos = 1u << kBlend1_Src_DestAlpha_Shift,
+    kBlend1_Src_DestAlpha_Neg = 3u << kBlend1_Src_DestAlpha_Shift,
+    // For ONE_MINUS modes, enable both One and the needed factor with _Neg.
+    kBlend1_Src_One_Shift = 8,
+    kBlend1_Src_One = 1u << kBlend1_Src_One_Shift,
+
+    kBlend1_SrcAlpha_SrcAlpha_Shift = 9,
+    kBlend1_SrcAlpha_SrcAlpha_Pos = 1u << kBlend1_SrcAlpha_SrcAlpha_Shift,
+    kBlend1_SrcAlpha_SrcAlpha_Neg = 3u << kBlend1_SrcAlpha_SrcAlpha_Shift,
+    kBlend1_SrcAlpha_DestAlpha_Shift = 11,
+    kBlend1_SrcAlpha_DestAlpha_Pos = 1u << kBlend1_SrcAlpha_DestAlpha_Shift,
+    kBlend1_SrcAlpha_DestAlpha_Neg = 3u << kBlend1_SrcAlpha_DestAlpha_Shift,
+    kBlend1_SrcAlpha_One_Shift = 13,
+    kBlend1_SrcAlpha_One = 1u << kBlend1_SrcAlpha_One_Shift,
+
+    kBlend1_Dest_SrcColor_Shift = 14,
+    kBlend1_Dest_SrcColor_Pos = 1u << kBlend1_Dest_SrcColor_Shift,
+    kBlend1_Dest_SrcColor_Neg = 3u << kBlend1_Dest_SrcColor_Shift,
+    kBlend1_Dest_SrcAlpha_Shift = 16,
+    kBlend1_Dest_SrcAlpha_Pos = 1u << kBlend1_Dest_SrcAlpha_Shift,
+    kBlend1_Dest_SrcAlpha_Neg = 3u << kBlend1_Dest_SrcAlpha_Shift,
+    kBlend1_Dest_DestColor_Shift = 18,
+    kBlend1_Dest_DestColor_Pos = 1u << kBlend1_Dest_DestColor_Shift,
+    kBlend1_Dest_DestColor_Neg = 3u << kBlend1_Dest_DestColor_Shift,
+    kBlend1_Dest_DestAlpha_Shift = 20,
+    kBlend1_Dest_DestAlpha_Pos = 1u << kBlend1_Dest_DestAlpha_Shift,
+    kBlend1_Dest_DestAlpha_Neg = 3u << kBlend1_Dest_DestAlpha_Shift,
+    // For ONE_MINUS modes, enable both One and the needed factor with _Neg.
+    kBlend1_Dest_One_Shift = 22,
+    kBlend1_Dest_One = 1u << kBlend1_Dest_One_Shift,
+
+    kBlend1_DestAlpha_SrcAlpha_Shift = 23,
+    kBlend1_DestAlpha_SrcAlpha_Pos = 1u << kBlend1_DestAlpha_SrcAlpha_Shift,
+    kBlend1_DestAlpha_SrcAlpha_Neg = 3u << kBlend1_DestAlpha_SrcAlpha_Shift,
+    kBlend1_DestAlpha_DestAlpha_Shift = 25,
+    kBlend1_DestAlpha_DestAlpha_Pos = 1u << kBlend1_DestAlpha_DestAlpha_Shift,
+    kBlend1_DestAlpha_DestAlpha_Neg = 3u << kBlend1_DestAlpha_DestAlpha_Shift,
+    kBlend1_DestAlpha_One_Shift = 27,
+    kBlend1_DestAlpha_One = 1u << kBlend1_DestAlpha_One_Shift,
+
+    // Second blend constant of the render target.
+
+    kBlend2_Src_ConstantColor_Shift = 0,
+    kBlend2_Src_ConstantColor_Pos = 1u << kBlend2_Src_ConstantColor_Shift,
+    kBlend2_Src_ConstantColor_Neg = 3u << kBlend2_Src_ConstantColor_Shift,
+    kBlend2_Src_ConstantAlpha_Shift = 2,
+    kBlend2_Src_ConstantAlpha_Pos = 1u << kBlend2_Src_ConstantAlpha_Shift,
+    kBlend2_Src_ConstantAlpha_Neg = 3u << kBlend2_Src_ConstantAlpha_Shift,
+
+    kBlend2_SrcAlpha_ConstantAlpha_Shift = 4,
+    kBlend2_SrcAlpha_ConstantAlpha_Pos =
+        1u << kBlend2_SrcAlpha_ConstantAlpha_Shift,
+    kBlend2_SrcAlpha_ConstantAlpha_Neg =
+        3u << kBlend2_SrcAlpha_ConstantAlpha_Shift,
+
+    kBlend2_Dest_ConstantColor_Shift = 6,
+    kBlend2_Dest_ConstantColor_Pos = 1u << kBlend2_Dest_ConstantColor_Shift,
+    kBlend2_Dest_ConstantColor_Neg = 3u << kBlend2_Dest_ConstantColor_Shift,
+    kBlend2_Dest_ConstantAlpha_Shift = 8,
+    kBlend2_Dest_ConstantAlpha_Pos = 1u << kBlend2_Dest_ConstantAlpha_Shift,
+    kBlend2_Dest_ConstantAlpha_Neg = 3u << kBlend2_Dest_ConstantAlpha_Shift,
+
+    kBlend2_DestAlpha_ConstantAlpha_Shift = 10,
+    kBlend2_DestAlpha_ConstantAlpha_Pos =
+        1u << kBlend2_DestAlpha_ConstantAlpha_Shift,
+    kBlend2_DestAlpha_ConstantAlpha_Neg =
+        3u << kBlend2_DestAlpha_ConstantAlpha_Shift,
+
+    kBlend2_Src_AlphaSaturate_Shift = 12,
+    kBlend2_Src_AlphaSaturate = 1u << kBlend2_Src_AlphaSaturate_Shift,
+    kBlend2_SrcAlpha_AlphaSaturate_Shift = 13,
+    kBlend2_SrcAlpha_AlphaSaturate = 1u << kBlend2_SrcAlpha_AlphaSaturate_Shift,
+    kBlend2_Dest_AlphaSaturate_Shift = 14,
+    kBlend2_Dest_AlphaSaturate = 1u << kBlend2_Dest_AlphaSaturate_Shift,
+    kBlend2_DestAlpha_AlphaSaturate_Shift = 15,
+    kBlend2_DestAlpha_AlphaSaturate = 1u
+                                      << kBlend2_DestAlpha_AlphaSaturate_Shift,
+
+    // For addition/subtraction/inverse subtraction.
+    kBlend2_Src_OpSign_Shift = 16,
+    kBlend2_Src_OpSign_Pos = 1u << kBlend2_Src_OpSign_Shift,
+    kBlend2_Src_OpSign_Neg = 3u << kBlend2_Src_OpSign_Shift,
+    kBlend2_SrcAlpha_OpSign_Shift = 18,
+    kBlend2_SrcAlpha_OpSign_Pos = 1u << kBlend2_SrcAlpha_OpSign_Shift,
+    kBlend2_SrcAlpha_OpSign_Neg = 3u << kBlend2_SrcAlpha_OpSign_Shift,
+    kBlend2_Dest_OpSign_Shift = 20,
+    kBlend2_Dest_OpSign_Pos = 1u << kBlend2_Dest_OpSign_Shift,
+    kBlend2_Dest_OpSign_Neg = 3u << kBlend2_Dest_OpSign_Shift,
+    kBlend2_DestAlpha_OpSign_Shift = 22,
+    kBlend2_DestAlpha_OpSign_Pos = 1u << kBlend2_DestAlpha_OpSign_Shift,
+    kBlend2_DestAlpha_OpSign_Neg = 3u << kBlend2_DestAlpha_OpSign_Shift,
+
+    kBlend2_Color_OpMin_Shift = 24,
+    kBlend2_Color_OpMin = 1u << kBlend2_Color_OpMin_Shift,
+    kBlend2_Color_OpMax_Shift = 25,
+    kBlend2_Color_OpMax = 1u << kBlend2_Color_OpMax_Shift,
   };
 
   // IF SYSTEM CONSTANTS ARE CHANGED OR ADDED, THE FOLLOWING MUST BE UPDATED:
@@ -129,19 +241,31 @@ class DxbcShaderTranslator : public ShaderTranslator {
     // signed.
     uint32_t edram_load_mask_rt01_rt23[2][4];
 
-    // vec4 20:21
+    // vec4 20
+    // First part of the blending options.
+    uint32_t edram_blend1[4];
+
+    // vec4 21
+    // Second part of the blending options.
+    uint32_t edram_blend2[4];
+
+    // vec4 22
+    // The constant blend factor for the respective modes.
+    float edram_blend_constant[4];
+
+    // vec4 23:24
     // Format info - minimum color and alpha values (as float, before
     // conversion) writable to the each render target. Integer so it's easier to
     // write infinity.
     uint32_t edram_store_min_rt01_rt23[2][4];
 
-    // vec4 22:23
+    // vec4 25:26
     // Format info - maximum color and alpha values (as float, before
     // conversion) writable to the each render target. Integer so it's easier to
     // write infinity.
     uint32_t edram_store_max_rt01_rt23[2][4];
 
-    // vec4 24:25
+    // vec4 27:28
     // Format info - scale to apply to the color and the alpha of each render
     // target before packing.
     float edram_store_scale_rt01_rt23[2][4];
@@ -321,8 +445,17 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kSysConst_EDRAMLoadMaskRT23_Index = kSysConst_EDRAMLoadMaskRT01_Index + 1,
     kSysConst_EDRAMLoadMaskRT23_Vec = kSysConst_EDRAMLoadMaskRT01_Vec + 1,
 
-    kSysConst_EDRAMStoreMinRT01_Index = kSysConst_EDRAMLoadMaskRT23_Index + 1,
-    kSysConst_EDRAMStoreMinRT01_Vec = kSysConst_EDRAMLoadMaskRT23_Vec + 1,
+    kSysConst_EDRAMBlend1_Index = kSysConst_EDRAMLoadMaskRT23_Index + 1,
+    kSysConst_EDRAMBlend1_Vec = kSysConst_EDRAMLoadMaskRT23_Vec + 1,
+
+    kSysConst_EDRAMBlend2_Index = kSysConst_EDRAMBlend1_Index + 1,
+    kSysConst_EDRAMBlend2_Vec = kSysConst_EDRAMBlend1_Vec + 1,
+
+    kSysConst_EDRAMBlendConstant_Index = kSysConst_EDRAMBlend2_Index + 1,
+    kSysConst_EDRAMBlendConstant_Vec = kSysConst_EDRAMBlend2_Vec + 1,
+
+    kSysConst_EDRAMStoreMinRT01_Index = kSysConst_EDRAMBlendConstant_Index + 1,
+    kSysConst_EDRAMStoreMinRT01_Vec = kSysConst_EDRAMBlendConstant_Vec + 1,
 
     kSysConst_EDRAMStoreMinRT23_Index = kSysConst_EDRAMStoreMinRT01_Index + 1,
     kSysConst_EDRAMStoreMinRT23_Vec = kSysConst_EDRAMStoreMinRT01_Vec + 1,
