@@ -72,27 +72,27 @@ DxbcShaderTranslator::DxbcShaderTranslator(bool edram_rov_used)
 DxbcShaderTranslator::~DxbcShaderTranslator() = default;
 
 bool DxbcShaderTranslator::GetBlendConstants(uint32_t blend_control,
-                                             uint32_t& blend1_out,
-                                             uint32_t& blend2_out) {
-  static const uint32_t kBlend1SrcFactorMap[32] = {
+                                             uint32_t& blend_x_out,
+                                             uint32_t& blend_y_out) {
+  static const uint32_t kBlendXSrcFactorMap[32] = {
       0,
-      kBlend1_Src_One,
+      kBlendX_Src_One,
       0,
       0,
-      kBlend1_Src_SrcColor_Pos,
-      kBlend1_Src_One | kBlend1_Src_SrcColor_Neg,
-      kBlend1_Src_SrcAlpha_Pos,
-      kBlend1_Src_One | kBlend1_Src_SrcAlpha_Neg,
-      kBlend1_Src_DestColor_Pos,
-      kBlend1_Src_One | kBlend1_Src_DestColor_Neg,
-      kBlend1_Src_DestAlpha_Pos,
-      kBlend1_Src_One | kBlend1_Src_DestAlpha_Neg,
+      kBlendX_Src_SrcColor_Pos,
+      kBlendX_Src_One | kBlendX_Src_SrcColor_Neg,
+      kBlendX_Src_SrcAlpha_Pos,
+      kBlendX_Src_One | kBlendX_Src_SrcAlpha_Neg,
+      kBlendX_Src_DestColor_Pos,
+      kBlendX_Src_One | kBlendX_Src_DestColor_Neg,
+      kBlendX_Src_DestAlpha_Pos,
+      kBlendX_Src_One | kBlendX_Src_DestAlpha_Neg,
       0,
-      kBlend1_Src_One,
+      kBlendX_Src_One,
       0,
-      kBlend1_Src_One,
+      kBlendX_Src_One | kBlendX_Src_DestAlpha_Neg,
   };
-  static const uint32_t kBlend2SrcFactorMap[32] = {
+  static const uint32_t kBlendYSrcFactorMap[32] = {
       0,
       0,
       0,
@@ -105,31 +105,31 @@ bool DxbcShaderTranslator::GetBlendConstants(uint32_t blend_control,
       0,
       0,
       0,
-      kBlend2_Src_ConstantColor_Pos,
-      kBlend2_Src_ConstantColor_Neg,
-      kBlend2_Src_ConstantAlpha_Pos,
-      kBlend2_Src_ConstantAlpha_Neg,
-      kBlend2_Src_AlphaSaturate,
+      kBlendY_Src_ConstantColor_Pos,
+      kBlendY_Src_ConstantColor_Neg,
+      kBlendY_Src_ConstantAlpha_Pos,
+      kBlendY_Src_ConstantAlpha_Neg,
+      kBlendY_Src_AlphaSaturate,
   };
-  static const uint32_t kBlend1SrcAlphaFactorMap[32] = {
+  static const uint32_t kBlendXSrcAlphaFactorMap[32] = {
       0,
-      kBlend1_SrcAlpha_One,
+      kBlendX_SrcAlpha_One,
       0,
       0,
-      kBlend1_SrcAlpha_SrcAlpha_Pos,
-      kBlend1_SrcAlpha_One | kBlend1_SrcAlpha_SrcAlpha_Neg,
-      kBlend1_SrcAlpha_SrcAlpha_Pos,
-      kBlend1_SrcAlpha_One | kBlend1_SrcAlpha_SrcAlpha_Neg,
-      kBlend1_SrcAlpha_DestAlpha_Pos,
-      kBlend1_SrcAlpha_One | kBlend1_SrcAlpha_DestAlpha_Neg,
-      kBlend1_SrcAlpha_DestAlpha_Pos,
-      kBlend1_SrcAlpha_One | kBlend1_SrcAlpha_DestAlpha_Neg,
+      kBlendX_SrcAlpha_SrcAlpha_Pos,
+      kBlendX_SrcAlpha_One | kBlendX_SrcAlpha_SrcAlpha_Neg,
+      kBlendX_SrcAlpha_SrcAlpha_Pos,
+      kBlendX_SrcAlpha_One | kBlendX_SrcAlpha_SrcAlpha_Neg,
+      kBlendX_SrcAlpha_DestAlpha_Pos,
+      kBlendX_SrcAlpha_One | kBlendX_SrcAlpha_DestAlpha_Neg,
+      kBlendX_SrcAlpha_DestAlpha_Pos,
+      kBlendX_SrcAlpha_One | kBlendX_SrcAlpha_DestAlpha_Neg,
       0,
-      kBlend1_SrcAlpha_One,
+      kBlendX_SrcAlpha_One,
       0,
-      kBlend1_SrcAlpha_One,
+      kBlendX_SrcAlpha_One,
   };
-  static const uint32_t kBlend2SrcAlphaFactorMap[32] = {
+  static const uint32_t kBlendYSrcAlphaFactorMap[32] = {
       0,
       0,
       0,
@@ -142,31 +142,31 @@ bool DxbcShaderTranslator::GetBlendConstants(uint32_t blend_control,
       0,
       0,
       0,
-      kBlend2_SrcAlpha_ConstantAlpha_Pos,
-      kBlend2_SrcAlpha_ConstantAlpha_Neg,
-      kBlend2_SrcAlpha_ConstantAlpha_Pos,
-      kBlend2_SrcAlpha_ConstantAlpha_Neg,
-      kBlend2_SrcAlpha_AlphaSaturate,
+      kBlendY_SrcAlpha_ConstantAlpha_Pos,
+      kBlendY_SrcAlpha_ConstantAlpha_Neg,
+      kBlendY_SrcAlpha_ConstantAlpha_Pos,
+      kBlendY_SrcAlpha_ConstantAlpha_Neg,
+      kBlendY_SrcAlpha_AlphaSaturate,
   };
-  static const uint32_t kBlend1DestFactorMap[32] = {
+  static const uint32_t kBlendXDestFactorMap[32] = {
       0,
-      kBlend1_Dest_One,
+      kBlendX_Dest_One,
       0,
       0,
-      kBlend1_Dest_SrcColor_Pos,
-      kBlend1_Dest_One | kBlend1_Dest_SrcColor_Neg,
-      kBlend1_Dest_SrcAlpha_Pos,
-      kBlend1_Dest_One | kBlend1_Dest_SrcAlpha_Neg,
-      kBlend1_Dest_DestColor_Pos,
-      kBlend1_Dest_One | kBlend1_Dest_DestColor_Neg,
-      kBlend1_Dest_DestAlpha_Pos,
-      kBlend1_Dest_One | kBlend1_Dest_DestAlpha_Neg,
+      kBlendX_Dest_SrcColor_Pos,
+      kBlendX_Dest_One | kBlendX_Dest_SrcColor_Neg,
+      kBlendX_Dest_SrcAlpha_Pos,
+      kBlendX_Dest_One | kBlendX_Dest_SrcAlpha_Neg,
+      kBlendX_Dest_DestColor_Pos,
+      kBlendX_Dest_One | kBlendX_Dest_DestColor_Neg,
+      kBlendX_Dest_DestAlpha_Pos,
+      kBlendX_Dest_One | kBlendX_Dest_DestAlpha_Neg,
       0,
-      kBlend1_Dest_One,
+      kBlendX_Dest_One,
       0,
-      kBlend1_Dest_One,
+      kBlendX_Dest_One | kBlendX_Src_DestAlpha_Neg,
   };
-  static const uint32_t kBlend2DestFactorMap[32] = {
+  static const uint32_t kBlendYDestFactorMap[32] = {
       0,
       0,
       0,
@@ -179,31 +179,31 @@ bool DxbcShaderTranslator::GetBlendConstants(uint32_t blend_control,
       0,
       0,
       0,
-      kBlend2_Dest_ConstantColor_Pos,
-      kBlend2_Dest_ConstantColor_Neg,
-      kBlend2_Dest_ConstantAlpha_Pos,
-      kBlend2_Dest_ConstantAlpha_Neg,
-      kBlend2_Dest_AlphaSaturate,
+      kBlendY_Dest_ConstantColor_Pos,
+      kBlendY_Dest_ConstantColor_Neg,
+      kBlendY_Dest_ConstantAlpha_Pos,
+      kBlendY_Dest_ConstantAlpha_Neg,
+      kBlendY_Dest_AlphaSaturate,
   };
-  static const uint32_t kBlend1DestAlphaFactorMap[32] = {
+  static const uint32_t kBlendXDestAlphaFactorMap[32] = {
       0,
-      kBlend1_DestAlpha_One,
+      kBlendX_DestAlpha_One,
       0,
       0,
-      kBlend1_DestAlpha_SrcAlpha_Pos,
-      kBlend1_DestAlpha_One | kBlend1_DestAlpha_SrcAlpha_Neg,
-      kBlend1_DestAlpha_SrcAlpha_Pos,
-      kBlend1_DestAlpha_One | kBlend1_DestAlpha_SrcAlpha_Neg,
-      kBlend1_DestAlpha_DestAlpha_Pos,
-      kBlend1_DestAlpha_One | kBlend1_DestAlpha_DestAlpha_Neg,
-      kBlend1_DestAlpha_DestAlpha_Pos,
-      kBlend1_DestAlpha_One | kBlend1_DestAlpha_DestAlpha_Neg,
+      kBlendX_DestAlpha_SrcAlpha_Pos,
+      kBlendX_DestAlpha_One | kBlendX_DestAlpha_SrcAlpha_Neg,
+      kBlendX_DestAlpha_SrcAlpha_Pos,
+      kBlendX_DestAlpha_One | kBlendX_DestAlpha_SrcAlpha_Neg,
+      kBlendX_DestAlpha_DestAlpha_Pos,
+      kBlendX_DestAlpha_One | kBlendX_DestAlpha_DestAlpha_Neg,
+      kBlendX_DestAlpha_DestAlpha_Pos,
+      kBlendX_DestAlpha_One | kBlendX_DestAlpha_DestAlpha_Neg,
       0,
-      kBlend1_DestAlpha_One,
+      kBlendX_DestAlpha_One,
       0,
-      kBlend1_DestAlpha_One,
+      kBlendX_DestAlpha_One,
   };
-  static const uint32_t kBlend2DestAlphaFactorMap[32] = {
+  static const uint32_t kBlendYDestAlphaFactorMap[32] = {
       0,
       0,
       0,
@@ -216,65 +216,80 @@ bool DxbcShaderTranslator::GetBlendConstants(uint32_t blend_control,
       0,
       0,
       0,
-      kBlend2_DestAlpha_ConstantAlpha_Pos,
-      kBlend2_DestAlpha_ConstantAlpha_Neg,
-      kBlend2_DestAlpha_ConstantAlpha_Pos,
-      kBlend2_DestAlpha_ConstantAlpha_Neg,
-      kBlend2_DestAlpha_AlphaSaturate,
+      kBlendY_DestAlpha_ConstantAlpha_Pos,
+      kBlendY_DestAlpha_ConstantAlpha_Neg,
+      kBlendY_DestAlpha_ConstantAlpha_Pos,
+      kBlendY_DestAlpha_ConstantAlpha_Neg,
+      kBlendY_DestAlpha_AlphaSaturate,
   };
 
-  BlendFactor src_factor = BlendFactor(blend_control & 0x1F);
-  BlendFactor src_alpha_factor = BlendFactor((blend_control >> 16) & 0x1F);
-  BlendFactor dest_factor = BlendFactor((blend_control >> 8) & 0x1F);
-  BlendFactor dest_alpha_factor = BlendFactor((blend_control >> 24) & 0x1F);
+  uint32_t blend_x = 0, blend_y = 0;
 
-  blend1_out = kBlend1SrcFactorMap[uint32_t(src_factor)] |
-               kBlend1SrcAlphaFactorMap[uint32_t(src_alpha_factor)] |
-               kBlend1DestFactorMap[uint32_t(dest_factor)] |
-               kBlend1DestAlphaFactorMap[uint32_t(dest_alpha_factor)];
-  uint32_t blend2 = kBlend2SrcFactorMap[uint32_t(src_factor)] |
-                    kBlend2SrcAlphaFactorMap[uint32_t(src_alpha_factor)] |
-                    kBlend2DestFactorMap[uint32_t(dest_factor)] |
-                    kBlend2DestAlphaFactorMap[uint32_t(dest_alpha_factor)];
-  switch (BlendOp((blend_control >> 5) & 0x7)) {
-    case BlendOp::kAdd:
-      blend2 |= kBlend2_Src_OpSign_Pos | kBlend2_Dest_OpSign_Pos;
-      break;
-    case BlendOp::kSubtract:
-      blend2 |= kBlend2_Src_OpSign_Pos | kBlend2_Dest_OpSign_Neg;
-      break;
-    case BlendOp::kMin:
-      blend2 |= kBlend2_Color_OpMin;
-      break;
-    case BlendOp::kMax:
-      blend2 |= kBlend2_Color_OpMax;
-      break;
-    case BlendOp::kRevSubtract:
-      blend2 |= kBlend2_Src_OpSign_Neg | kBlend2_Dest_OpSign_Pos;
-      break;
-    default:
-      assert_always();
+  // Min and max don't use the factors, so set them to one.
+
+  BlendOp op_color = BlendOp((blend_control >> 5) & 0x7);
+  if (op_color == BlendOp::kMin) {
+    blend_x |= kBlendX_Src_One | kBlendX_Dest_One;
+    blend_y |=
+        kBlendY_Src_OpSign_Pos | kBlendY_Dest_OpSign_Pos | kBlendY_Color_OpMin;
+  } else if (op_color == BlendOp::kMax) {
+    blend_x |= kBlendX_Src_One | kBlendX_Dest_One;
+    kBlendY_Src_OpSign_Pos | kBlendY_Dest_OpSign_Pos | kBlendY_Color_OpMax;
+  } else {
+    uint32_t src_factor = blend_control & 0x1F;
+    uint32_t dest_factor = (blend_control >> 8) & 0x1F;
+    blend_x |=
+        kBlendXSrcFactorMap[src_factor] | kBlendXDestFactorMap[dest_factor];
+    blend_y |=
+        kBlendYSrcFactorMap[src_factor] | kBlendYDestFactorMap[dest_factor];
+    switch (op_color) {
+      case BlendOp::kAdd:
+        blend_y |= kBlendY_Src_OpSign_Pos | kBlendY_Dest_OpSign_Pos;
+        break;
+      case BlendOp::kSubtract:
+        blend_y |= kBlendY_Src_OpSign_Pos | kBlendY_Dest_OpSign_Neg;
+        break;
+      case BlendOp::kRevSubtract:
+        blend_y |= kBlendY_Src_OpSign_Neg | kBlendY_Dest_OpSign_Pos;
+        break;
+      default:
+        assert_always();
+    }
   }
-  switch (BlendOp((blend_control >> 21) & 0x7)) {
-    case BlendOp::kAdd:
-      blend2 |= kBlend2_SrcAlpha_OpSign_Pos | kBlend2_DestAlpha_OpSign_Pos;
-      break;
-    case BlendOp::kSubtract:
-      blend2 |= kBlend2_SrcAlpha_OpSign_Pos | kBlend2_DestAlpha_OpSign_Neg;
-      break;
-    case BlendOp::kMin:
-      blend2 |= kBlend2_Alpha_OpMin;
-      break;
-    case BlendOp::kMax:
-      blend2 |= kBlend2_Alpha_OpMax;
-      break;
-    case BlendOp::kRevSubtract:
-      blend2 |= kBlend2_SrcAlpha_OpSign_Neg | kBlend2_DestAlpha_OpSign_Pos;
-      break;
-    default:
-      assert_always();
+
+  BlendOp op_alpha = BlendOp((blend_control >> 21) & 0x7);
+  if (op_alpha == BlendOp::kMin) {
+    blend_x |= kBlendX_SrcAlpha_One | kBlendX_DestAlpha_One;
+    blend_y |= kBlendY_SrcAlpha_OpSign_Pos | kBlendY_DestAlpha_OpSign_Pos |
+               kBlendY_Alpha_OpMin;
+  } else if (op_alpha == BlendOp::kMax) {
+    blend_x |= kBlendX_SrcAlpha_One | kBlendX_DestAlpha_One;
+    blend_y |= kBlendY_SrcAlpha_OpSign_Pos | kBlendY_DestAlpha_OpSign_Pos |
+               kBlendY_Alpha_OpMax;
+  } else {
+    uint32_t src_alpha_factor = (blend_control >> 16) & 0x1F;
+    uint32_t dest_alpha_factor = (blend_control >> 24) & 0x1F;
+    blend_x |= kBlendXSrcAlphaFactorMap[src_alpha_factor] |
+               kBlendYDestAlphaFactorMap[dest_alpha_factor];
+    blend_y |= kBlendXSrcAlphaFactorMap[src_alpha_factor] |
+               kBlendYDestAlphaFactorMap[dest_alpha_factor];
+    switch (op_alpha) {
+      case BlendOp::kAdd:
+        blend_y |= kBlendY_SrcAlpha_OpSign_Pos | kBlendY_DestAlpha_OpSign_Pos;
+        break;
+      case BlendOp::kSubtract:
+        blend_y |= kBlendY_SrcAlpha_OpSign_Pos | kBlendY_DestAlpha_OpSign_Neg;
+        break;
+      case BlendOp::kRevSubtract:
+        blend_y |= kBlendY_SrcAlpha_OpSign_Neg | kBlendY_DestAlpha_OpSign_Pos;
+        break;
+      default:
+        assert_always();
+    }
   }
-  blend2_out = blend2;
+
+  blend_x_out = blend_x;
+  blend_y_out = blend_y;
 
   // 1 * src + 0 * dest is nop, don't waste GPU time.
   return (blend_control & 0x1FFF1FFF) != 0x00010001;
@@ -1326,6 +1341,277 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV_LoadColor(
   PopSystemTemp();
 }
 
+void DxbcShaderTranslator::CompletePixelShader_WriteToROV_ExtractBlendScales(
+    uint32_t rt_index, uint32_t constant_swizzle, bool is_signed,
+    uint32_t shift_x, uint32_t shift_y, uint32_t shift_z, uint32_t shift_w,
+    uint32_t target_temp, uint32_t write_mask) {
+  uint32_t rt_pair_index = rt_index >> 1;
+  if (rt_index & 1) {
+    constant_swizzle |= 0b10101010;
+  }
+
+  // Sign-extend 2 bits for signed, extract 1 bit for unsigned.
+  system_constants_used_ |= (1ull << kSysConst_EDRAMBlendRT01_Index)
+                            << rt_pair_index;
+  shader_code_.push_back(
+      ENCODE_D3D10_SB_OPCODE_TYPE(is_signed ? D3D11_SB_OPCODE_UBFE
+                                            : D3D11_SB_OPCODE_IBFE) |
+      ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(17));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, write_mask, 1));
+  shader_code_.push_back(target_temp);
+  shader_code_.push_back(EncodeVectorSwizzledOperand(
+      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+  uint32_t width = is_signed ? 2 : 1;
+  shader_code_.push_back(width);
+  shader_code_.push_back(width);
+  shader_code_.push_back(width);
+  shader_code_.push_back(width);
+  shader_code_.push_back(EncodeVectorSwizzledOperand(
+      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+  shader_code_.push_back(shift_x);
+  shader_code_.push_back(shift_y);
+  shader_code_.push_back(shift_z);
+  shader_code_.push_back(shift_w);
+  shader_code_.push_back(EncodeVectorSwizzledOperand(
+      D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, constant_swizzle, 3));
+  shader_code_.push_back(cbuffer_index_system_constants_);
+  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
+  shader_code_.push_back(kSysConst_EDRAMBlendRT01_Vec + rt_pair_index);
+  ++stat_.instruction_count;
+  if (is_signed) {
+    ++stat_.int_instruction_count;
+  } else {
+    ++stat_.uint_instruction_count;
+  }
+
+  // Convert -1, 0 or 1 integer to float.
+  shader_code_.push_back(
+      ENCODE_D3D10_SB_OPCODE_TYPE(is_signed ? D3D10_SB_OPCODE_UTOF
+                                            : D3D10_SB_OPCODE_ITOF) |
+      ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, write_mask, 1));
+  shader_code_.push_back(target_temp);
+  shader_code_.push_back(
+      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+  shader_code_.push_back(target_temp);
+  ++stat_.instruction_count;
+  ++stat_.conversion_instruction_count;
+}
+
+void DxbcShaderTranslator::CompletePixelShader_WriteToROV_Blend(
+    uint32_t rt_index, uint32_t src_color_and_output_temp,
+    uint32_t dest_color_temp) {
+  // Temporary register for scales of things that contribute to the blending,
+  // usually -1.0, 0.0 or 1.0.
+  uint32_t scale_temp = PushSystemTemp();
+
+  // First, calculate the factors. Min/max is handled in constant setting, since
+  // they don't use the factors, their factors are set to one there.
+  // Interleaving source and destination writes when possible to reduce
+  // write-read dependencies.
+
+  uint32_t src_factor_temp = PushSystemTemp();
+  uint32_t dest_factor_temp = PushSystemTemp();
+
+  // Constant one for factors, reusing dest_factor_temp (since it's the last to
+  // be modified).
+  CompletePixelShader_WriteToROV_ExtractBlendScales(
+      rt_index, 0b00000000, false, kBlendX_Src_One_Shift,
+      kBlendX_SrcAlpha_One_Shift, kBlendX_Dest_One_Shift,
+      kBlendX_DestAlpha_One_Shift, dest_factor_temp);
+
+  // Source color for color factors, source alpha for alpha factors, plus ones.
+  // This will initialize src_factor_temp and dest_factor_temp.
+  CompletePixelShader_WriteToROV_ExtractBlendScales(
+      rt_index, 0b00000000, true, kBlendX_Src_SrcColor_Shift,
+      kBlendX_SrcAlpha_SrcAlpha_Shift, kBlendX_Dest_DestColor_Shift,
+      kBlendX_DestAlpha_DestAlpha_Shift, scale_temp);
+  for (uint32_t i = 0; i < 2; ++i) {
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MAD) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
+    shader_code_.push_back(
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+    shader_code_.push_back(i ? dest_factor_temp : src_factor_temp);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+    shader_code_.push_back(src_color_and_output_temp);
+    uint32_t swizzle = i ? 0b11101010 : 0b01000000;
+    shader_code_.push_back(
+        EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, swizzle, 1));
+    shader_code_.push_back(scale_temp);
+    // dest_factor_temp is the last one to be modified, so it stores the ones
+    // (not to allocate an additional temporary register).
+    shader_code_.push_back(
+        EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, swizzle, 1));
+    shader_code_.push_back(dest_factor_temp);
+    ++stat_.instruction_count;
+    ++stat_.float_instruction_count;
+  }
+
+  // Destination color for color factors, destination alpha for alpha factors.
+  CompletePixelShader_WriteToROV_ExtractBlendScales(
+      rt_index, 0b00000000, true, kBlendX_Src_DestColor_Shift,
+      kBlendX_SrcAlpha_DestAlpha_Shift, kBlendX_Dest_DestColor_Shift,
+      kBlendX_DestAlpha_DestAlpha_Shift, scale_temp);
+  for (uint32_t i = 0; i < 2; ++i) {
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MAD) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
+    shader_code_.push_back(
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+    shader_code_.push_back(i ? dest_factor_temp : src_factor_temp);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+    shader_code_.push_back(dest_color_temp);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_TEMP, i ? 0b11101010 : 0b01000000, 1));
+    shader_code_.push_back(scale_temp);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+    shader_code_.push_back(i ? dest_factor_temp : src_factor_temp);
+    ++stat_.instruction_count;
+    ++stat_.float_instruction_count;
+  }
+
+  // Source and destination alphas for color factors.
+  CompletePixelShader_WriteToROV_ExtractBlendScales(
+      rt_index, 0b00000000, true, kBlendX_Src_SrcAlpha_Shift,
+      kBlendX_Dest_SrcAlpha_Shift, kBlendX_Src_DestAlpha_Shift,
+      kBlendX_Dest_DestAlpha_Shift, scale_temp);
+  for (uint32_t i = 0; i < 4; ++i) {
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MAD) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
+    shader_code_.push_back(
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0111, 1));
+    shader_code_.push_back(i & 1 ? dest_factor_temp : src_factor_temp);
+    shader_code_.push_back(
+        EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 3, 1));
+    shader_code_.push_back(i & 2 ? dest_color_temp : src_color_and_output_temp);
+    shader_code_.push_back(
+        EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, i, 1));
+    shader_code_.push_back(scale_temp);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+    shader_code_.push_back(i & 1 ? dest_factor_temp : src_factor_temp);
+    ++stat_.instruction_count;
+    ++stat_.float_instruction_count;
+  }
+
+  // Constant color for color factors, constant alpha for alpha factors.
+  system_constants_used_ |= 1ull << kSysConst_EDRAMBlendConstant_Index;
+  CompletePixelShader_WriteToROV_ExtractBlendScales(
+      rt_index, 0b01010101, true, kBlendY_Src_ConstantColor_Shift,
+      kBlendY_SrcAlpha_ConstantAlpha_Shift, kBlendY_Dest_ConstantColor_Shift,
+      kBlendY_DestAlpha_ConstantAlpha_Shift, scale_temp);
+  for (uint32_t i = 0; i < 2; ++i) {
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MAD) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(11));
+    shader_code_.push_back(
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+    shader_code_.push_back(i ? dest_factor_temp : src_factor_temp);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSwizzleXYZW, 3));
+    shader_code_.push_back(cbuffer_index_system_constants_);
+    shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
+    shader_code_.push_back(kSysConst_EDRAMBlendConstant_Vec);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_TEMP, i ? 0b11101010 : 0b01000000, 1));
+    shader_code_.push_back(scale_temp);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+    shader_code_.push_back(i ? dest_factor_temp : src_factor_temp);
+    ++stat_.instruction_count;
+    ++stat_.float_instruction_count;
+  }
+
+  // Constant alpha for color factors.
+  CompletePixelShader_WriteToROV_ExtractBlendScales(
+      rt_index, 0b01010101, true, kBlendY_Src_ConstantAlpha_Shift,
+      kBlendY_Dest_ConstantAlpha_Shift, 0, 0, scale_temp, 0b0011);
+  for (uint32_t i = 0; i < 2; ++i) {
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MAD) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(11));
+    shader_code_.push_back(
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0111, 1));
+    shader_code_.push_back(i ? dest_factor_temp : src_factor_temp);
+    shader_code_.push_back(EncodeVectorReplicatedOperand(
+        D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, 3, 3));
+    shader_code_.push_back(cbuffer_index_system_constants_);
+    shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
+    shader_code_.push_back(kSysConst_EDRAMBlendConstant_Vec);
+    shader_code_.push_back(
+        EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, i, 1));
+    shader_code_.push_back(scale_temp);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+    shader_code_.push_back(i ? dest_factor_temp : src_factor_temp);
+    ++stat_.instruction_count;
+    ++stat_.float_instruction_count;
+  }
+
+  // TODO(Triang3l): Saturate blend mode.
+
+  // Multiply the factors by the colors (for min/max, factors are 1).
+  for (uint32_t i = 0; i < 2; ++i) {
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MUL) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+    shader_code_.push_back(
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+    shader_code_.push_back(i ? dest_factor_temp : src_factor_temp);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+    shader_code_.push_back(i ? dest_color_temp : src_color_and_output_temp);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+    shader_code_.push_back(i ? dest_factor_temp : src_factor_temp);
+    ++stat_.instruction_count;
+    ++stat_.float_instruction_count;
+  }
+
+  // Apply the signs to the factors for addition/subtraction/inverse subtraction
+  // (for min/max, they are set to positive in the constant, so will be a nop).
+  CompletePixelShader_WriteToROV_ExtractBlendScales(
+      rt_index, 0b01010101, true, kBlendY_Src_OpSign_Shift,
+      kBlendY_SrcAlpha_OpSign_Shift, kBlendY_Dest_OpSign_Shift,
+      kBlendY_DestAlpha_OpSign_Shift, scale_temp);
+  for (uint32_t i = 0; i < 2; ++i) {
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MUL) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+    shader_code_.push_back(
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+    shader_code_.push_back(i ? dest_factor_temp : src_factor_temp);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+    shader_code_.push_back(i ? dest_factor_temp : src_factor_temp);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_TEMP, i ? 0b11101010 : 0b01000000, 1));
+    shader_code_.push_back(scale_temp);
+    ++stat_.instruction_count;
+    ++stat_.float_instruction_count;
+  }
+
+  // Sum the factors into the resulting color.
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ADD) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+  shader_code_.push_back(src_color_and_output_temp);
+  shader_code_.push_back(
+      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+  shader_code_.push_back(src_factor_temp);
+  shader_code_.push_back(
+      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+  shader_code_.push_back(dest_factor_temp);
+  ++stat_.instruction_count;
+  ++stat_.float_instruction_count;
+
+  // TODO(Triang3l): Min/max.
+
+  // Release scale_temp, src_factor_temp and dest_factor_temp.
+  PopSystemTemp();
+}
+
 void DxbcShaderTranslator::CompletePixelShader_WriteToROV_StoreColor(
     uint32_t edram_dword_offset_temp, uint32_t rt_index,
     uint32_t source_and_scratch_temp) {
@@ -1751,12 +2037,12 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
   ++stat_.uint_instruction_count;
 
   // Get what render targets need to be read (for write masks and blending).
-  uint32_t rt_load_blend_temp = PushSystemTemp();
+  uint32_t rt_load_temp = PushSystemTemp();
   shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(12));
   shader_code_.push_back(
       EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
-  shader_code_.push_back(rt_load_blend_temp);
+  shader_code_.push_back(rt_load_temp);
   shader_code_.push_back(EncodeVectorSwizzledOperand(
       D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSwizzleXYZW, 3));
   shader_code_.push_back(cbuffer_index_system_constants_);
@@ -1768,6 +2054,28 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
   shader_code_.push_back(kRTFlag_Load);
   shader_code_.push_back(kRTFlag_Load);
   shader_code_.push_back(kRTFlag_Load);
+  ++stat_.instruction_count;
+  ++stat_.uint_instruction_count;
+
+  // Get what render targets need blending (if only write mask is used and no
+  // blending, skip blending).
+  uint32_t rt_blend_temp = PushSystemTemp();
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(12));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+  shader_code_.push_back(rt_blend_temp);
+  shader_code_.push_back(EncodeVectorSwizzledOperand(
+      D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSwizzleXYZW, 3));
+  shader_code_.push_back(cbuffer_index_system_constants_);
+  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
+  shader_code_.push_back(kSysConst_EDRAMRTFlags_Vec);
+  shader_code_.push_back(EncodeVectorSwizzledOperand(
+      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+  shader_code_.push_back(kRTFlag_Blend);
+  shader_code_.push_back(kRTFlag_Blend);
+  shader_code_.push_back(kRTFlag_Blend);
+  shader_code_.push_back(kRTFlag_Blend);
   ++stat_.instruction_count;
   ++stat_.uint_instruction_count;
 
@@ -1795,17 +2103,40 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
                            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
     shader_code_.push_back(
         EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, rt_index, 1));
-    shader_code_.push_back(rt_load_blend_temp);
+    shader_code_.push_back(rt_load_temp);
     ++stat_.instruction_count;
     ++stat_.dynamic_flow_control_count;
-
+    uint32_t dest_color_temp = PushSystemTemp();
     CompletePixelShader_WriteToROV_LoadColor(edram_coord_temp, rt_index,
-                                             system_temp_color_[rt_index]);
+                                             dest_color_temp);
 
+    // Blend if needed.
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
+                           ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(
+                               D3D10_SB_INSTRUCTION_TEST_NONZERO) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
+    shader_code_.push_back(
+        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, rt_index, 1));
+    shader_code_.push_back(rt_blend_temp);
+    ++stat_.instruction_count;
+    ++stat_.dynamic_flow_control_count;
+    CompletePixelShader_WriteToROV_Blend(rt_index, system_temp_color_[rt_index],
+                                         dest_color_temp);
     shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
                            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
     ++stat_.instruction_count;
 
+    // TODO(Triang3l): Apply the write mask.
+
+    // Release dest_color_temp.
+    PopSystemTemp();
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
+    ++stat_.instruction_count;
+
+    // TODO(Triang3l): Convert to sRGB for k_8_8_8_8_GAMMA.
+
+    // Write the new color, which may have been modified by blending.
     CompletePixelShader_WriteToROV_StoreColor(edram_coord_temp, rt_index,
                                               system_temp_color_[rt_index]);
 
@@ -1815,8 +2146,8 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
     ++stat_.instruction_count;
   }
 
-  // Release rt_used_temp, rt_load_blend_temp and edram_coord_temp.
-  PopSystemTemp(3);
+  // Release edram_coord_temp, rt_used_temp, rt_load_temp and rt_blend_temp.
+  PopSystemTemp(4);
 }
 
 void DxbcShaderTranslator::CompletePixelShader() {
@@ -8357,9 +8688,9 @@ const DxbcShaderTranslator::SystemConstantRdef DxbcShaderTranslator::
         // vec4 19
         {"xe_edram_load_mask_low_rt23", RdefTypeIndex::kUint4, 304, 16},
         // vec4 20
-        {"xe_edram_blend1", RdefTypeIndex::kUint4, 320, 16},
+        {"xe_edram_blend_rt01", RdefTypeIndex::kUint4, 320, 16},
         // vec4 21
-        {"xe_edram_blend2", RdefTypeIndex::kUint4, 336, 16},
+        {"xe_edram_blend_rt23", RdefTypeIndex::kUint4, 336, 16},
         // vec4 20
         {"xe_edram_blend_constant", RdefTypeIndex::kFloat4, 352, 16},
         // vec4 23
