@@ -51,9 +51,9 @@ cbuffer xe_system_cbuffer : register(b0) {
   // vec4 19
   uint4 xe_edram_load_mask_rt23;
   // vec4 20
-  uint4 xe_edram_blend1;
+  uint4 xe_edram_blend_rt01;
   // vec4 21
-  uint4 xe_edram_blend2;
+  uint4 xe_edram_blend_rt23;
   // vec4 22
   float4 xe_edram_blend_constant;
   // vec4 23
