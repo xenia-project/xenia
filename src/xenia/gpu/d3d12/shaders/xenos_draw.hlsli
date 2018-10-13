@@ -51,22 +51,26 @@ cbuffer xe_system_cbuffer : register(b0) {
   // vec4 19
   uint4 xe_edram_load_mask_rt23;
   // vec4 20
-  uint4 xe_edram_blend_rt01;
+  float4 xe_edram_load_scale_rt01;
   // vec4 21
-  uint4 xe_edram_blend_rt23;
+  float4 xe_edram_load_scale_rt23;
   // vec4 22
-  float4 xe_edram_blend_constant;
+  uint4 xe_edram_blend_rt01;
   // vec4 23
-  float4 xe_edram_store_min_rt01;
+  uint4 xe_edram_blend_rt23;
   // vec4 24
-  float4 xe_edram_store_min_rt23;
+  float4 xe_edram_blend_constant;
   // vec4 25
-  float4 xe_edram_store_max_rt01;
+  float4 xe_edram_store_min_rt01;
   // vec4 26
-  float4 xe_edram_store_max_rt23;
+  float4 xe_edram_store_min_rt23;
   // vec4 27
-  float4 xe_edram_store_scale_rt01;
+  float4 xe_edram_store_max_rt01;
   // vec4 28
+  float4 xe_edram_store_max_rt23;
+  // vec4 29
+  float4 xe_edram_store_scale_rt01;
+  // vec4 30
   float4 xe_edram_store_scale_rt23;
 };
 

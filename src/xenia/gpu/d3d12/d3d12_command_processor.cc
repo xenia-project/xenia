@@ -1928,6 +1928,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
         // Initialize min/max to Infinity.
         uint32_t color_min = 0xFF800000u, alpha_min = 0xFF800000u;
         uint32_t color_max = 0x7F800000u, alpha_max = 0x7F800000u;
+        float color_load_scale = 1.0f, alpha_load_scale = 1.0f;
         float color_store_scale = 1.0f, alpha_store_scale = 1.0f;
         switch (color_format) {
           case ColorRenderTargetFormat::k_8_8_8_8:
@@ -1943,6 +1944,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
             color_mask = alpha_mask = 255;
             color_min = alpha_min = 0;
             color_max = alpha_max = 0x3F800000;
+            color_load_scale = alpha_load_scale = 1.0f / 255.0f;
             color_store_scale = alpha_store_scale = 255.0f;
             break;
           case ColorRenderTargetFormat::k_2_10_10_10:
@@ -1959,7 +1961,8 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
             alpha_mask = 3;
             color_min = alpha_min = 0;
             color_max = alpha_max = 0x3F800000;
-            // 1023.0.
+            color_load_scale = 1.0f / 1023.0f;
+            alpha_load_scale = 1.0f / 3.0f;
             color_store_scale = 1023.0f;
             alpha_store_scale = 3.0f;
             break;
@@ -1979,6 +1982,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
             // 31.875.
             color_max = 0x41FF0000;
             alpha_max = 0x3F800000;
+            alpha_load_scale = 1.0f / 3.0f;
             alpha_store_scale = 3.0f;
             break;
           case ColorRenderTargetFormat::k_16_16:
@@ -1997,6 +2001,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
             color_min = alpha_min = 0xC2000000u;
             // 32.0.
             color_max = alpha_max = 0x42000000u;
+            color_load_scale = alpha_load_scale = 32.0f / 32767.0f;
             color_store_scale = alpha_store_scale = 32767.0f / 32.0f;
             break;
           case ColorRenderTargetFormat::k_16_16_FLOAT:
@@ -2034,6 +2039,12 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
         system_constants_
             .edram_load_mask_rt01_rt23[rt_pair_index][rt_pair_comp + 1] =
             alpha_mask;
+        system_constants_
+            .edram_load_scale_rt01_rt23[rt_pair_index][rt_pair_comp] =
+            color_load_scale;
+        system_constants_
+            .edram_load_scale_rt01_rt23[rt_pair_index][rt_pair_comp + 1] =
+            alpha_load_scale;
         system_constants_
             .edram_store_min_rt01_rt23[rt_pair_index][rt_pair_comp] = color_min;
         system_constants_

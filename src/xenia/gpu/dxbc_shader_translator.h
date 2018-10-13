@@ -247,28 +247,33 @@ class DxbcShaderTranslator : public ShaderTranslator {
     uint32_t edram_load_mask_rt01_rt23[2][4];
 
     // vec4 20:21
+    // Format info - scale to apply to the color and the alpha of each render
+    // target after unpacking and converting.
+    float edram_load_scale_rt01_rt23[2][4];
+
+    // vec4 22:23
     // Render target blending options.
     uint32_t edram_blend_rt01_rt23[2][4];
 
-    // vec4 22
+    // vec4 24
     // The constant blend factor for the respective modes.
     float edram_blend_constant[4];
 
-    // vec4 23:24
+    // vec4 25:26
     // Format info - minimum color and alpha values (as float, before
     // conversion) writable to the each render target. Integer so it's easier to
     // write infinity.
     uint32_t edram_store_min_rt01_rt23[2][4];
 
-    // vec4 25:26
+    // vec4 27:28
     // Format info - maximum color and alpha values (as float, before
     // conversion) writable to the each render target. Integer so it's easier to
     // write infinity.
     uint32_t edram_store_max_rt01_rt23[2][4];
 
-    // vec4 27:28
+    // vec4 29:30
     // Format info - scale to apply to the color and the alpha of each render
-    // target before packing.
+    // target before converting and packing.
     float edram_store_scale_rt01_rt23[2][4];
   };
 
@@ -450,8 +455,14 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kSysConst_EDRAMLoadMaskRT23_Index = kSysConst_EDRAMLoadMaskRT01_Index + 1,
     kSysConst_EDRAMLoadMaskRT23_Vec = kSysConst_EDRAMLoadMaskRT01_Vec + 1,
 
-    kSysConst_EDRAMBlendRT01_Index = kSysConst_EDRAMLoadMaskRT23_Index + 1,
-    kSysConst_EDRAMBlendRT01_Vec = kSysConst_EDRAMLoadMaskRT23_Vec + 1,
+    kSysConst_EDRAMLoadScaleRT01_Index = kSysConst_EDRAMLoadMaskRT23_Index + 1,
+    kSysConst_EDRAMLoadScaleRT01_Vec = kSysConst_EDRAMLoadMaskRT23_Vec + 1,
+
+    kSysConst_EDRAMLoadScaleRT23_Index = kSysConst_EDRAMLoadScaleRT01_Index + 1,
+    kSysConst_EDRAMLoadScaleRT23_Vec = kSysConst_EDRAMLoadScaleRT01_Vec + 1,
+
+    kSysConst_EDRAMBlendRT01_Index = kSysConst_EDRAMLoadScaleRT23_Index + 1,
+    kSysConst_EDRAMBlendRT01_Vec = kSysConst_EDRAMLoadScaleRT23_Vec + 1,
 
     kSysConst_EDRAMBlendRT23_Index = kSysConst_EDRAMBlendRT01_Index + 1,
     kSysConst_EDRAMBlendRT23_Vec = kSysConst_EDRAMBlendRT01_Vec + 1,
