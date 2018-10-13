@@ -1797,6 +1797,8 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
 
   // Color exponent bias and output index mapping or ROV writing.
   uint32_t rb_color_mask = regs[XE_GPU_REG_RB_COLOR_MASK].u32;
+  bool colorcontrol_blend_enable =
+      (regs[XE_GPU_REG_RB_COLORCONTROL].u32 & 0x20) == 0;
   for (uint32_t i = 0; i < 4; ++i) {
     uint32_t color_info, blend_control;
     switch (i) {
@@ -1899,7 +1901,8 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
           rt_flags |= DxbcShaderTranslator::kRTFlag_Load;
         }
         uint32_t blend_x, blend_y;
-        if (DxbcShaderTranslator::GetBlendConstants(blend_control, blend_x,
+        if (colorcontrol_blend_enable &&
+            DxbcShaderTranslator::GetBlendConstants(blend_control, blend_x,
                                                     blend_y)) {
           rt_flags |= DxbcShaderTranslator::kRTFlag_Load |
                       DxbcShaderTranslator::kRTFlag_Blend;
@@ -1912,7 +1915,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
           }
           if (system_constants_
                   .edram_blend_rt01_rt23[rt_pair_index][rt_pair_comp + 1] !=
-              blend_x) {
+              blend_y) {
             dirty = true;
             system_constants_
                 .edram_blend_rt01_rt23[rt_pair_index][rt_pair_comp + 1] =
