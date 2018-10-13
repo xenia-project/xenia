@@ -90,6 +90,7 @@ bool DxbcShaderTranslator::GetBlendConstants(uint32_t blend_control,
       0,
       kBlendX_Src_One,
       0,
+      kBlendX_Src_One,
       kBlendX_Src_One | kBlendX_Src_DestAlpha_Neg,
   };
   static const uint32_t kBlendYSrcFactorMap[32] = {
@@ -128,6 +129,7 @@ bool DxbcShaderTranslator::GetBlendConstants(uint32_t blend_control,
       kBlendX_SrcAlpha_One,
       0,
       kBlendX_SrcAlpha_One,
+      kBlendX_SrcAlpha_One,
   };
   static const uint32_t kBlendYSrcAlphaFactorMap[32] = {
       0,
@@ -164,6 +166,7 @@ bool DxbcShaderTranslator::GetBlendConstants(uint32_t blend_control,
       0,
       kBlendX_Dest_One,
       0,
+      kBlendX_Dest_One,
       kBlendX_Dest_One | kBlendX_Src_DestAlpha_Neg,
   };
   static const uint32_t kBlendYDestFactorMap[32] = {
@@ -201,6 +204,7 @@ bool DxbcShaderTranslator::GetBlendConstants(uint32_t blend_control,
       0,
       kBlendX_DestAlpha_One,
       0,
+      kBlendX_DestAlpha_One,
       kBlendX_DestAlpha_One,
   };
   static const uint32_t kBlendYDestAlphaFactorMap[32] = {
@@ -270,8 +274,8 @@ bool DxbcShaderTranslator::GetBlendConstants(uint32_t blend_control,
     uint32_t src_alpha_factor = (blend_control >> 16) & 0x1F;
     uint32_t dest_alpha_factor = (blend_control >> 24) & 0x1F;
     blend_x |= kBlendXSrcAlphaFactorMap[src_alpha_factor] |
-               kBlendYDestAlphaFactorMap[dest_alpha_factor];
-    blend_y |= kBlendXSrcAlphaFactorMap[src_alpha_factor] |
+               kBlendXDestAlphaFactorMap[dest_alpha_factor];
+    blend_y |= kBlendYSrcAlphaFactorMap[src_alpha_factor] |
                kBlendYDestAlphaFactorMap[dest_alpha_factor];
     switch (op_alpha) {
       case BlendOp::kAdd:
@@ -1376,8 +1380,8 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV_ExtractBlendScales(
   system_constants_used_ |= (1ull << kSysConst_EDRAMBlendRT01_Index)
                             << rt_pair_index;
   shader_code_.push_back(
-      ENCODE_D3D10_SB_OPCODE_TYPE(is_signed ? D3D11_SB_OPCODE_UBFE
-                                            : D3D11_SB_OPCODE_IBFE) |
+      ENCODE_D3D10_SB_OPCODE_TYPE(is_signed ? D3D11_SB_OPCODE_IBFE
+                                            : D3D11_SB_OPCODE_UBFE) |
       ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(17));
   shader_code_.push_back(
       EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, write_mask, 1));
@@ -1409,8 +1413,8 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV_ExtractBlendScales(
 
   // Convert -1, 0 or 1 integer to float.
   shader_code_.push_back(
-      ENCODE_D3D10_SB_OPCODE_TYPE(is_signed ? D3D10_SB_OPCODE_UTOF
-                                            : D3D10_SB_OPCODE_ITOF) |
+      ENCODE_D3D10_SB_OPCODE_TYPE(is_signed ? D3D10_SB_OPCODE_ITOF
+                                            : D3D10_SB_OPCODE_UTOF) |
       ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
   shader_code_.push_back(
       EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, write_mask, 1));
@@ -1448,8 +1452,8 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV_Blend(
   // This will initialize src_factor_temp and dest_factor_temp.
   CompletePixelShader_WriteToROV_ExtractBlendScales(
       rt_index, 0b00000000, true, kBlendX_Src_SrcColor_Shift,
-      kBlendX_SrcAlpha_SrcAlpha_Shift, kBlendX_Dest_DestColor_Shift,
-      kBlendX_DestAlpha_DestAlpha_Shift, scale_temp);
+      kBlendX_SrcAlpha_SrcAlpha_Shift, kBlendX_Dest_SrcColor_Shift,
+      kBlendX_DestAlpha_SrcAlpha_Shift, scale_temp);
   for (uint32_t i = 0; i < 2; ++i) {
     shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MAD) |
                            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
