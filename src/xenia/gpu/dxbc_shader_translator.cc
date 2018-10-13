@@ -867,13 +867,8 @@ void DxbcShaderTranslator::StartPixelShader() {
 }
 
 void DxbcShaderTranslator::StartTranslation() {
-  // Request global system temporary variables.
-  system_temp_pv_ = PushSystemTemp(true);
-  system_temp_ps_pc_p0_a0_ = PushSystemTemp(true);
-  system_temp_aL_ = PushSystemTemp(true);
-  system_temp_loop_count_ = PushSystemTemp(true);
-  system_temp_grad_h_lod_ = PushSystemTemp(true);
-  system_temp_grad_v_ = PushSystemTemp(true);
+  // Allocate global system temporary registers that may also be used in the
+  // epilogue.
   if (is_vertex_shader()) {
     system_temp_position_ = PushSystemTemp(true);
   } else if (is_pixel_shader()) {
@@ -881,6 +876,14 @@ void DxbcShaderTranslator::StartTranslation() {
       system_temp_color_[i] = PushSystemTemp(true);
     }
   }
+
+  // Allocate system temporary variables for the translated code.
+  system_temp_pv_ = PushSystemTemp(true);
+  system_temp_ps_pc_p0_a0_ = PushSystemTemp(true);
+  system_temp_aL_ = PushSystemTemp(true);
+  system_temp_loop_count_ = PushSystemTemp(true);
+  system_temp_grad_h_lod_ = PushSystemTemp(true);
+  system_temp_grad_v_ = PushSystemTemp(true);
 
   // Write stage-specific prologue.
   if (is_vertex_shader()) {
@@ -1217,7 +1220,7 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV_LoadColor(
       EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
   shader_code_.push_back(target_temp);
   shader_code_.push_back(
-      EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
+      EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, rt_index, 1));
   shader_code_.push_back(edram_dword_offset_temp);
   shader_code_.push_back(EncodeVectorSwizzledOperand(
       D3D11_SB_OPERAND_TYPE_UNORDERED_ACCESS_VIEW, kSwizzleXYZW, 2));
@@ -1339,6 +1342,25 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV_LoadColor(
 
   // Release flags_temp.
   PopSystemTemp();
+
+  // Scale by the fixed-point conversion factor.
+  system_constants_used_ |= (1ull << kSysConst_EDRAMLoadScaleRT01_Index)
+                            << rt_pair_index;
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MUL) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+  shader_code_.push_back(target_temp);
+  shader_code_.push_back(
+      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+  shader_code_.push_back(target_temp);
+  shader_code_.push_back(EncodeVectorSwizzledOperand(
+      D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, rt_pair_swizzle, 3));
+  shader_code_.push_back(cbuffer_index_system_constants_);
+  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
+  shader_code_.push_back(kSysConst_EDRAMLoadScaleRT01_Vec + rt_pair_index);
+  ++stat_.instruction_count;
+  ++stat_.float_instruction_count;
 }
 
 void DxbcShaderTranslator::CompletePixelShader_WriteToROV_ExtractBlendScales(
@@ -1678,7 +1700,7 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV_StoreColor(
   ++stat_.instruction_count;
   ++stat_.float_instruction_count;
 
-  // Scale by the float->int conversion factor.
+  // Scale by the fixed-point conversion factor.
   system_constants_used_ |= (1ull << kSysConst_EDRAMStoreScaleRT01_Index)
                             << rt_pair_index;
   shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MUL) |
@@ -1827,7 +1849,7 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV_StoreColor(
   shader_code_.push_back(0);
   shader_code_.push_back(0);
   shader_code_.push_back(
-      EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
+      EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, rt_index, 1));
   shader_code_.push_back(edram_dword_offset_temp);
   shader_code_.push_back(
       EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
@@ -2416,13 +2438,6 @@ void DxbcShaderTranslator::CompleteShaderCode() {
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
   ++stat_.instruction_count;
 
-  if (is_vertex_shader()) {
-    // Release system_temp_position_.
-    PopSystemTemp();
-  } else if (is_pixel_shader()) {
-    // Release system_temp_color_.
-    PopSystemTemp(4);
-  }
   // Release the following system temporary values so epilogue can reuse them:
   // - system_temp_pv_.
   // - system_temp_ps_pc_p0_a0_.
@@ -2437,6 +2452,14 @@ void DxbcShaderTranslator::CompleteShaderCode() {
     CompleteVertexShader();
   } else if (is_pixel_shader()) {
     CompletePixelShader();
+  }
+
+  if (is_vertex_shader()) {
+    // Release system_temp_position_.
+    PopSystemTemp();
+  } else if (is_pixel_shader()) {
+    // Release system_temp_color_.
+    PopSystemTemp(4);
   }
 
   // Return from `main`.
@@ -8688,23 +8711,27 @@ const DxbcShaderTranslator::SystemConstantRdef DxbcShaderTranslator::
         // vec4 19
         {"xe_edram_load_mask_low_rt23", RdefTypeIndex::kUint4, 304, 16},
         // vec4 20
-        {"xe_edram_blend_rt01", RdefTypeIndex::kUint4, 320, 16},
+        {"xe_edram_load_scale_rt01", RdefTypeIndex::kFloat4, 320, 16},
         // vec4 21
-        {"xe_edram_blend_rt23", RdefTypeIndex::kUint4, 336, 16},
-        // vec4 20
-        {"xe_edram_blend_constant", RdefTypeIndex::kFloat4, 352, 16},
+        {"xe_edram_load_scale_rt23", RdefTypeIndex::kFloat4, 336, 16},
+        // vec4 22
+        {"xe_edram_blend_rt01", RdefTypeIndex::kUint4, 352, 16},
         // vec4 23
-        {"xe_edram_store_min_rt01", RdefTypeIndex::kFloat4, 368, 16},
+        {"xe_edram_blend_rt23", RdefTypeIndex::kUint4, 368, 16},
         // vec4 24
-        {"xe_edram_store_min_rt23", RdefTypeIndex::kFloat4, 384, 16},
+        {"xe_edram_blend_constant", RdefTypeIndex::kFloat4, 384, 16},
         // vec4 25
-        {"xe_edram_store_max_rt01", RdefTypeIndex::kFloat4, 400, 16},
+        {"xe_edram_store_min_rt01", RdefTypeIndex::kFloat4, 400, 16},
         // vec4 26
-        {"xe_edram_store_max_rt23", RdefTypeIndex::kFloat4, 416, 16},
+        {"xe_edram_store_min_rt23", RdefTypeIndex::kFloat4, 416, 16},
         // vec4 27
-        {"xe_edram_store_scale_rt01", RdefTypeIndex::kFloat4, 432, 16},
+        {"xe_edram_store_max_rt01", RdefTypeIndex::kFloat4, 432, 16},
         // vec4 28
-        {"xe_edram_store_scale_rt23", RdefTypeIndex::kFloat4, 448, 16},
+        {"xe_edram_store_max_rt23", RdefTypeIndex::kFloat4, 448, 16},
+        // vec4 29
+        {"xe_edram_store_scale_rt01", RdefTypeIndex::kFloat4, 464, 16},
+        // vec4 30
+        {"xe_edram_store_scale_rt23", RdefTypeIndex::kFloat4, 480, 16},
 };
 
 void DxbcShaderTranslator::WriteResourceDefinitions() {
