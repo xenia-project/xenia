@@ -34,7 +34,7 @@ namespace xe {
 namespace kernel {
 namespace xboxkrnl {
 
-// http://msdn.microsoft.com/en-us/library/ff561778
+// https://msdn.microsoft.com/en-us/library/ff561778
 dword_result_t RtlCompareMemory(lpvoid_t source1, lpvoid_t source2,
                                 dword_t length) {
   uint8_t* p1 = source1;
@@ -55,7 +55,7 @@ dword_result_t RtlCompareMemory(lpvoid_t source1, lpvoid_t source2,
 }
 DECLARE_XBOXKRNL_EXPORT(RtlCompareMemory, ExportTag::kImplemented);
 
-// http://msdn.microsoft.com/en-us/library/ff552123
+// https://msdn.microsoft.com/en-us/library/ff552123
 dword_result_t RtlCompareMemoryUlong(lpvoid_t source, dword_t length,
                                      dword_t pattern) {
   // Return 0 if source/length not aligned
@@ -76,7 +76,7 @@ dword_result_t RtlCompareMemoryUlong(lpvoid_t source, dword_t length,
 }
 DECLARE_XBOXKRNL_EXPORT(RtlCompareMemoryUlong, ExportTag::kImplemented);
 
-// http://msdn.microsoft.com/en-us/library/ff552263
+// https://msdn.microsoft.com/en-us/library/ff552263
 void RtlFillMemoryUlong(lpvoid_t destination, dword_t length, dword_t pattern) {
   // NOTE: length must be % 4, so we can work on uint32s.
   uint32_t count = length >> 2;
@@ -139,7 +139,7 @@ dword_result_t RtlCompareStringN(lpstring_t string_1, dword_t string_1_len,
 }
 DECLARE_XBOXKRNL_EXPORT(RtlCompareStringN, ExportTag::kImplemented);
 
-// http://msdn.microsoft.com/en-us/library/ff561918
+// https://msdn.microsoft.com/en-us/library/ff561918
 void RtlInitAnsiString(pointer_t<X_ANSI_STRING> destination,
                        lpstring_t source) {
   if (source) {
@@ -154,7 +154,7 @@ void RtlInitAnsiString(pointer_t<X_ANSI_STRING> destination,
 }
 DECLARE_XBOXKRNL_EXPORT(RtlInitAnsiString, ExportTag::kImplemented);
 
-// http://msdn.microsoft.com/en-us/library/ff561899
+// https://msdn.microsoft.com/en-us/library/ff561899
 void RtlFreeAnsiString(pointer_t<X_ANSI_STRING> string) {
   if (string->pointer) {
     kernel_memory()->SystemHeapFree(string->pointer);
@@ -164,7 +164,7 @@ void RtlFreeAnsiString(pointer_t<X_ANSI_STRING> string) {
 }
 DECLARE_XBOXKRNL_EXPORT(RtlFreeAnsiString, ExportTag::kImplemented);
 
-// http://msdn.microsoft.com/en-us/library/ff561934
+// https://msdn.microsoft.com/en-us/library/ff561934
 void RtlInitUnicodeString(pointer_t<X_UNICODE_STRING> destination,
                           lpwstring_t source) {
   if (source) {
@@ -177,7 +177,7 @@ void RtlInitUnicodeString(pointer_t<X_UNICODE_STRING> destination,
 }
 DECLARE_XBOXKRNL_EXPORT(RtlInitUnicodeString, ExportTag::kImplemented);
 
-// http://msdn.microsoft.com/en-us/library/ff561903
+// https://msdn.microsoft.com/en-us/library/ff561903
 void RtlFreeUnicodeString(pointer_t<X_UNICODE_STRING> string) {
   if (string->pointer) {
     kernel_memory()->SystemHeapFree(string->pointer);
@@ -187,7 +187,7 @@ void RtlFreeUnicodeString(pointer_t<X_UNICODE_STRING> string) {
 }
 DECLARE_XBOXKRNL_EXPORT(RtlFreeUnicodeString, ExportTag::kImplemented);
 
-// http://msdn.microsoft.com/en-us/library/ff562969
+// https://msdn.microsoft.com/en-us/library/ff562969
 dword_result_t RtlUnicodeStringToAnsiString(
     pointer_t<X_ANSI_STRING> destination_ptr,
     pointer_t<X_UNICODE_STRING> source_ptr, dword_t alloc_dest) {
@@ -301,9 +301,9 @@ DECLARE_XBOXKRNL_EXPORT(RtlImageXexHeaderField, ExportTag::kImplemented);
 // into guest memory, as it should be opaque and so long as our size is right
 // the user code will never know.
 //
-// Ref: http://msdn.microsoft.com/en-us/magazine/cc164040.aspx
+// Ref: https://web.archive.org/web/20161214022602/https://msdn.microsoft.com/en-us/magazine/cc164040.aspx
 // Ref:
-// http://svn.reactos.org/svn/reactos/trunk/reactos/lib/rtl/critical.c?view=markup
+// https://github.com/reactos/reactos/blob/master/sdk/lib/rtl/critical.c
 
 // This structure tries to match the one on the 360 as best I can figure out.
 // Unfortunately some games have the critical sections pre-initialized in

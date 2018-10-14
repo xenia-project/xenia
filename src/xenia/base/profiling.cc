@@ -114,7 +114,7 @@ void Profiler::ThreadEnter(const char* name) {
 void Profiler::ThreadExit() { MicroProfileOnThreadExit(); }
 
 bool Profiler::OnKeyDown(int key_code) {
-  // http://msdn.microsoft.com/en-us/library/windows/desktop/dd375731(v=vs.85).aspx
+  // https://msdn.microsoft.com/en-us/library/windows/desktop/dd375731(v=vs.85).aspx
   switch (key_code) {
     case VK_OEM_3:  // `
       MicroProfileTogglePause();

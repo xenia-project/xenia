@@ -489,7 +489,7 @@ int CompareValueUse(const Value::Use* a, const Value::Use* b) {
 }  // namespace
 void RegisterAllocationPass::SortUsageList(Value* value) {
   // Modified in-place linked list sort from:
-  // http://www.chiark.greenend.org.uk/~sgtatham/algorithms/listsort.c
+  // https://www.chiark.greenend.org.uk/~sgtatham/algorithms/listsort.c
   if (!value->use_head) {
     return;
   }

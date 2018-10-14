@@ -68,7 +68,7 @@ enum class TextureSign : uint32_t {
   kUnsigned = 0,
   // Two's complement texture data.
   kSigned = 1,
-  // 2*color-1 - http://xboxforums.create.msdn.com/forums/t/107374.aspx
+  // 2*color-1 - https://xboxforums.create.msdn.com/forums/t/107374.aspx
   kUnsignedBiased = 2,
   // Linearized when sampled.
   kGamma = 3,

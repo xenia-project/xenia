@@ -581,7 +581,7 @@ void KernelState::RegisterNotifyListener(NotifyListener* listener) {
 
   // Games seem to expect a few notifications on startup, only for the first
   // listener.
-  // http://cs.rin.ru/forum/viewtopic.php?f=38&t=60668&hilit=resident+evil+5&start=375
+  // https://cs.rin.ru/forum/viewtopic.php?f=38&t=60668&hilit=resident+evil+5&start=375
   if (!has_notified_startup_ && listener->mask() & 0x00000001) {
     has_notified_startup_ = true;
     // XN_SYS_UI (on, off)

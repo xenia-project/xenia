@@ -65,7 +65,7 @@ void RtlRaiseException(pointer_t<X_EXCEPTION_RECORD> record) {
 
   if (record->exception_code == 0xE06D7363) {
     // C++ exception.
-    // http://blogs.msdn.com/b/oldnewthing/archive/2010/07/30/10044061.aspx
+    // https://blogs.msdn.com/b/oldnewthing/archive/2010/07/30/10044061.aspx
     xe::debugging::Break();
     return;
   }

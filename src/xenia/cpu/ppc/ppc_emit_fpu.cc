@@ -26,7 +26,7 @@ using xe::cpu::hir::RoundMode;
 using xe::cpu::hir::Value;
 
 // Good source of information:
-// http://mamedev.org/source/src/emu/cpu/powerpc/ppc_ops.c
+// https://github.com/mamedev/historic-mame/blob/master/src/emu/cpu/powerpc/ppc_ops.c
 // The correctness of that code is not reflected here yet -_-
 
 // Enable rounding numbers to single precision as required.

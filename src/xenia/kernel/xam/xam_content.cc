@@ -153,7 +153,7 @@ SHIM_CALL XamContentResolve_shim(PPCContext* ppc_context,
   SHIM_SET_RETURN_32(X_ERROR_NOT_FOUND);
 }
 
-// http://gameservice.googlecode.com/svn-history/r14/trunk/ContentManager.cpp
+// https://github.com/MrColdbird/gameservice/blob/master/ContentManager.cpp
 // https://github.com/LestaD/SourceEngine2007/blob/master/se2007/engine/xboxsystem.cpp#L499
 dword_result_t XamContentCreateEnumerator(dword_t user_index, dword_t device_id,
                                           dword_t content_type,

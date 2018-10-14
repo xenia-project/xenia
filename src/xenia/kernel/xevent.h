@@ -17,7 +17,7 @@
 namespace xe {
 namespace kernel {
 
-// http://www.nirsoft.net/kernel_struct/vista/KEVENT.html
+// https://www.nirsoft.net/kernel_struct/vista/KEVENT.html
 struct X_KEVENT {
   X_DISPATCH_HEADER header;
 };

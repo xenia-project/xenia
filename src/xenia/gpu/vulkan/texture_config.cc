@@ -99,7 +99,7 @@ const TextureConfig texture_configs[64] = {
     /* k_16_MPEG_INTERLACED        */ ___(UNDEFINED),
     /* k_16_16_MPEG_INTERLACED     */ ___(UNDEFINED),
 
-    // http://fileadmin.cs.lth.se/cs/Personal/Michael_Doggett/talks/unc-xenos-doggett.pdf
+    // https://fileadmin.cs.lth.se/cs/Personal/Michael_Doggett/talks/unc-xenos-doggett.pdf
     /* k_DXN                       */ ___(BC5_UNORM_BLOCK),  // ?
 
     /* k_8_8_8_8_AS_16_16_16_16    */ ___(R8G8B8A8_UNORM),
@@ -116,7 +116,7 @@ const TextureConfig texture_configs[64] = {
     /* k_DXT3A                     */ _c_(BC2_UNORM_BLOCK, ___R),
     /* k_DXT5A                     */ _c_(BC4_UNORM_BLOCK, RRRR),  // ATI1N
 
-    // http://fileadmin.cs.lth.se/cs/Personal/Michael_Doggett/talks/unc-xenos-doggett.pdf
+    // https://fileadmin.cs.lth.se/cs/Personal/Michael_Doggett/talks/unc-xenos-doggett.pdf
     /* k_CTX1                      */ ___(R8G8_UINT),
 
     /* k_DXT3A_AS_1_1_1_1          */ ___(UNDEFINED),

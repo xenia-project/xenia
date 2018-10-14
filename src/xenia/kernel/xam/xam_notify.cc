@@ -32,7 +32,7 @@ dword_result_t XamNotifyCreateListener(qword_t mask, dword_t one) {
 }
 DECLARE_XAM_EXPORT(XamNotifyCreateListener, ExportTag::kImplemented);
 
-// http://ffplay360.googlecode.com/svn/Test/Common/AtgSignIn.cpp
+// https://github.com/CodeAsm/ffplay360/blob/master/Common/AtgSignIn.cpp
 dword_result_t XNotifyGetNext(dword_t handle, dword_t match_id,
                               lpdword_t id_ptr, lpdword_t param_ptr) {
   if (!handle) {

@@ -245,7 +245,7 @@ void Win32Window::ToggleFullscreen(bool fullscreen) {
 
   DWORD style = GetWindowLong(hwnd_, GWL_STYLE);
   if (fullscreen) {
-    // http://blogs.msdn.com/b/oldnewthing/archive/2010/04/12/9994016.aspx
+    // https://blogs.msdn.com/b/oldnewthing/archive/2010/04/12/9994016.aspx
     MONITORINFO mi = {sizeof(mi)};
     if (GetWindowPlacement(hwnd_, &windowed_pos_) &&
         GetMonitorInfo(MonitorFromWindow(hwnd_, MONITOR_DEFAULTTOPRIMARY),

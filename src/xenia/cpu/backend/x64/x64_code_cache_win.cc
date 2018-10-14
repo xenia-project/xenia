@@ -150,7 +150,7 @@ void Win32X64CodeCache::PlaceCode(uint32_t guest_address, void* machine_code,
   FlushInstructionCache(GetCurrentProcess(), code_address, code_size);
 }
 
-// http://msdn.microsoft.com/en-us/library/ssa62fwe.aspx
+// https://msdn.microsoft.com/en-us/library/ssa62fwe.aspx
 typedef enum _UNWIND_OP_CODES {
   UWOP_PUSH_NONVOL = 0, /* info == register number */
   UWOP_ALLOC_LARGE,     /* no info, alloc size in next 2 slots */
@@ -217,7 +217,7 @@ void Win32X64CodeCache::InitializeUnwindEntry(uint8_t* unwind_entry_address,
   auto unwind_info = reinterpret_cast<UNWIND_INFO*>(unwind_entry_address);
 
   if (!stack_size) {
-    // http://msdn.microsoft.com/en-us/library/ddssxxy8.aspx
+    // https://msdn.microsoft.com/en-us/library/ddssxxy8.aspx
     unwind_info->Version = 1;
     unwind_info->Flags = 0;
     unwind_info->SizeOfProlog = 0;
@@ -227,7 +227,7 @@ void Win32X64CodeCache::InitializeUnwindEntry(uint8_t* unwind_entry_address,
   } else if (stack_size <= 128) {
     uint8_t prolog_size = 4;
 
-    // http://msdn.microsoft.com/en-us/library/ddssxxy8.aspx
+    // https://msdn.microsoft.com/en-us/library/ddssxxy8.aspx
     unwind_info->Version = 1;
     unwind_info->Flags = 0;
     unwind_info->SizeOfProlog = prolog_size;
@@ -235,7 +235,7 @@ void Win32X64CodeCache::InitializeUnwindEntry(uint8_t* unwind_entry_address,
     unwind_info->FrameRegister = 0;
     unwind_info->FrameOffset = 0;
 
-    // http://msdn.microsoft.com/en-us/library/ck9asaa9.aspx
+    // https://msdn.microsoft.com/en-us/library/ck9asaa9.aspx
     size_t co = 0;
     auto& unwind_code = unwind_info->UnwindCode[co++];
     unwind_code.CodeOffset =
@@ -246,7 +246,7 @@ void Win32X64CodeCache::InitializeUnwindEntry(uint8_t* unwind_entry_address,
     // TODO(benvanik): take as parameters?
     uint8_t prolog_size = 7;
 
-    // http://msdn.microsoft.com/en-us/library/ddssxxy8.aspx
+    // https://msdn.microsoft.com/en-us/library/ddssxxy8.aspx
     unwind_info->Version = 1;
     unwind_info->Flags = 0;
     unwind_info->SizeOfProlog = prolog_size;
@@ -254,7 +254,7 @@ void Win32X64CodeCache::InitializeUnwindEntry(uint8_t* unwind_entry_address,
     unwind_info->FrameRegister = 0;
     unwind_info->FrameOffset = 0;
 
-    // http://msdn.microsoft.com/en-us/library/ck9asaa9.aspx
+    // https://msdn.microsoft.com/en-us/library/ck9asaa9.aspx
     size_t co = 0;
     auto& unwind_code = unwind_info->UnwindCode[co++];
     unwind_code.CodeOffset =
