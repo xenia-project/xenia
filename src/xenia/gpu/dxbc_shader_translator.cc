@@ -1645,8 +1645,11 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV_LoadColor(
 
   // Normalize the mantissa for denormalized numbers (with zero exponent -
   // exponent can be used for selection in movc).
+  // Note that HLSL firstbithigh(x) is compiled to DXBC like:
+  // `x ? 31 - firstbit_hi(x) : -1`
+  // (it returns the index from the LSB, not the MSB, but -1 for zero as well).
 
-  // denormalized_temp = firstbithigh(mantissa)
+  // denormalized_temp = firstbit_hi(mantissa)
   shader_code_.push_back(
       ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_FIRSTBIT_HI) |
       ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
@@ -1659,26 +1662,49 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV_LoadColor(
   ++stat_.instruction_count;
   ++stat_.uint_instruction_count;
 
-  // denormalized_temp = 7 - firstbithigh(mantissa)
+  // denormalized_temp = 7 - (31 - firstbit_hi(mantissa))
+  // Or, if expanded:
+  // denormalized_temp = firstbit_hi(mantissa) - 24
   shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IADD) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(11));
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(10));
   shader_code_.push_back(
       EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0111, 1));
   shader_code_.push_back(f10_denormalized_temp);
+  shader_code_.push_back(
+      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+  shader_code_.push_back(f10_denormalized_temp);
   shader_code_.push_back(EncodeVectorSwizzledOperand(
       D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-  shader_code_.push_back(7);
-  shader_code_.push_back(7);
-  shader_code_.push_back(7);
-  shader_code_.push_back(7);
-  shader_code_.push_back(
-      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1) |
-      ENCODE_D3D10_SB_OPERAND_EXTENDED(1));
-  shader_code_.push_back(
-      ENCODE_D3D10_SB_EXTENDED_OPERAND_MODIFIER(D3D10_SB_OPERAND_MODIFIER_NEG));
-  shader_code_.push_back(f10_denormalized_temp);
+  shader_code_.push_back(uint32_t(-24));
+  shader_code_.push_back(uint32_t(-24));
+  shader_code_.push_back(uint32_t(-24));
+  shader_code_.push_back(uint32_t(-24));
   ++stat_.instruction_count;
   ++stat_.int_instruction_count;
+
+  // If mantissa is zero, then:
+  // denormalized_temp = 7 - (-1) = 8
+  // After this, it works like the following HLSL:
+  // denormalized_temp = 7 - firstbithigh(mantissa)
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(12));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0111, 1));
+  shader_code_.push_back(f10_denormalized_temp);
+  shader_code_.push_back(
+      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+  shader_code_.push_back(f10_mantissa_temp);
+  shader_code_.push_back(
+      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+  shader_code_.push_back(f10_denormalized_temp);
+  shader_code_.push_back(EncodeVectorSwizzledOperand(
+      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+  shader_code_.push_back(8);
+  shader_code_.push_back(8);
+  shader_code_.push_back(8);
+  shader_code_.push_back(8);
+  ++stat_.instruction_count;
+  ++stat_.movc_instruction_count;
 
   // If the number is not denormalized, make
   // `(mantissa << (7 - firstbithigh(mantissa))) & 0x7F`
@@ -2857,10 +2883,6 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
   shader_code_.push_back(edram_coord_low_temp);
   ++stat_.instruction_count;
   ++stat_.int_instruction_count;
-
-  // TODO(Triang3l): Handle 64bpp - the pitch in tiles and the X tile index are
-  // multiplied by 2, the tile index now contains the index of a pair of tiles,
-  // not one tile.
 
   // Calculate the address in the EDRAM buffer.
 
