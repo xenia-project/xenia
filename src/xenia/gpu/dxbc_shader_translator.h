@@ -47,22 +47,27 @@ class DxbcShaderTranslator : public ShaderTranslator {
 
   enum : uint32_t {
     // Whether the write mask is non-zero.
-    kRTFlag_Used = 1,
+    kRTFlag_Used_Shift = 0,
+    kRTFlag_Used = 1u << kRTFlag_Used_Shift,
     // Whether the render target needs to be merged with another (if the write
     // mask is not 1111, or 11 for 16_16, or 1 for 32_FLOAT, or blending is
     // enabled and it's not no-op).
-    kRTFlag_Load = kRTFlag_Used << 1,
-    kRTFlag_Blend = kRTFlag_Load << 1,
-    // Whether the format is represented by 2 dwords.
-    kRTFlag_Format64bpp = kRTFlag_Blend << 1,
+    kRTFlag_Load_Shift = kRTFlag_Used_Shift + 1,
+    kRTFlag_Load = 1u << kRTFlag_Load_Shift,
+    kRTFlag_Blend_Shift = kRTFlag_Load_Shift + 1,
+    kRTFlag_Blend = 1u << kRTFlag_Blend_Shift,
+
     // Whether the format is fixed-point and needs to be converted to integer
     // (k_8_8_8_8, k_2_10_10_10, k_16_16, k_16_16_16_16).
-    kRTFlag_FormatFixed = kRTFlag_Format64bpp << 1,
+    kRTFlag_FormatFixed_Shift = kRTFlag_Blend_Shift + 1,
+    kRTFlag_FormatFixed = 1u << kRTFlag_FormatFixed_Shift,
     // Whether the format is k_2_10_10_10_FLOAT and 7e3 conversion is needed.
-    kRTFlag_FormatFloat10 = kRTFlag_FormatFixed << 1,
+    kRTFlag_FormatFloat10_Shift = kRTFlag_FormatFixed_Shift + 1,
+    kRTFlag_FormatFloat10 = 1u << kRTFlag_FormatFloat10_Shift,
     // Whether the format is k_16_16_FLOAT or k_16_16_16_16_FLOAT and
     // f16tof32/f32tof16 is needed.
-    kRTFlag_FormatFloat16 = kRTFlag_FormatFloat10 << 1,
+    kRTFlag_FormatFloat16_Shift = kRTFlag_FormatFloat10_Shift + 1,
+    kRTFlag_FormatFloat16 = 1u << kRTFlag_FormatFloat16_Shift,
   };
 
   enum : uint32_t {
@@ -230,48 +235,59 @@ class DxbcShaderTranslator : public ShaderTranslator {
     // Binding and format info flags.
     uint32_t edram_rt_flags[4];
 
-    // vec4 10:13
-    // Format info - widths of components in the lower 32 bits (for ibfe/bfi).
-    uint32_t edram_rt_pack_width_low[4][4];
+    // vec4 10
+    // Format info - widths of components in the lower 32 bits (for ibfe/bfi),
+    // packed as 8:8:8:8 for each render target.
+    uint32_t edram_rt_pack_width_low[4];
 
-    // vec4 14:17
+    // vec4 11
     // Format info - offsets of components in the lower 32 bits (for ibfe/bfi),
-    // each in 8 bits.
-    uint32_t edram_rt_pack_offset_low[4][4];
+    // packed as 8:8:8:8 for each render target.
+    uint32_t edram_rt_pack_offset_low[4];
 
-    // vec4 18:19
+    // vec4 12
+    // Format info - widths of components in the upper 32 bits (for ibfe/bfi),
+    // packed as 8:8:8:8 for each render target.
+    uint32_t edram_rt_pack_width_high[4];
+
+    // vec4 13
+    // Format info - offsets of components in the upper 32 bits (for ibfe/bfi),
+    // packed as 8:8:8:8 for each render target.
+    uint32_t edram_rt_pack_offset_high[4];
+
+    // vec4 14:15
     // Format info - mask of color and alpha after unpacking, but before float
     // conversion. Primarily to differentiate between signed and unsigned
     // formats because ibfe is used for both since k_16_16 and k_16_16_16_16 are
     // signed.
     uint32_t edram_load_mask_rt01_rt23[2][4];
 
-    // vec4 20:21
+    // vec4 16:17
     // Format info - scale to apply to the color and the alpha of each render
     // target after unpacking and converting.
     float edram_load_scale_rt01_rt23[2][4];
 
-    // vec4 22:23
+    // vec4 18:19
     // Render target blending options.
     uint32_t edram_blend_rt01_rt23[2][4];
 
-    // vec4 24
+    // vec4 20
     // The constant blend factor for the respective modes.
     float edram_blend_constant[4];
 
-    // vec4 25:26
+    // vec4 21:22
     // Format info - minimum color and alpha values (as float, before
     // conversion) writable to the each render target. Integer so it's easier to
     // write infinity.
     uint32_t edram_store_min_rt01_rt23[2][4];
 
-    // vec4 27:28
+    // vec4 23:24
     // Format info - maximum color and alpha values (as float, before
     // conversion) writable to the each render target. Integer so it's easier to
     // write infinity.
     uint32_t edram_store_max_rt01_rt23[2][4];
 
-    // vec4 29:30
+    // vec4 25:26
     // Format info - scale to apply to the color and the alpha of each render
     // target before converting and packing.
     float edram_store_scale_rt01_rt23[2][4];
@@ -321,6 +337,13 @@ class DxbcShaderTranslator : public ShaderTranslator {
     return sampler_bindings_.data();
   }
 
+  // Returns the bits that need to be added to the RT flags constant - needs to
+  // be done externally, not in SetColorFormatConstants, because the flags
+  // contain other state.
+  static uint32_t GetColorFormatRTFlags(ColorRenderTargetFormat format);
+  static void SetColorFormatSystemConstants(SystemConstants& constants,
+                                            uint32_t rt_index,
+                                            ColorRenderTargetFormat format);
   // Returns whether blending should be done at all (not 1 * src + 0 * dest).
   static bool GetBlendConstants(uint32_t blend_control, uint32_t& blend_x_out,
                                 uint32_t& blend_y_out);
@@ -410,47 +433,25 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kSysConst_EDRAMRTFlags_Index = kSysConst_EDRAMBaseDwords_Index + 1,
     kSysConst_EDRAMRTFlags_Vec = kSysConst_EDRAMBaseDwords_Vec + 1,
 
-    kSysConst_EDRAMRTPackWidthLowRT0_Index = kSysConst_EDRAMRTFlags_Index + 1,
-    kSysConst_EDRAMRTPackWidthLowRT0_Vec = kSysConst_EDRAMRTFlags_Vec + 1,
+    kSysConst_EDRAMRTPackWidthLow_Index = kSysConst_EDRAMRTFlags_Index + 1,
+    kSysConst_EDRAMRTPackWidthLow_Vec = kSysConst_EDRAMRTFlags_Vec + 1,
 
-    kSysConst_EDRAMRTPackWidthLowRT1_Index =
-        kSysConst_EDRAMRTPackWidthLowRT0_Index + 1,
-    kSysConst_EDRAMRTPackWidthLowRT1_Vec =
-        kSysConst_EDRAMRTPackWidthLowRT0_Vec + 1,
+    kSysConst_EDRAMRTPackOffsetLow_Index =
+        kSysConst_EDRAMRTPackWidthLow_Index + 1,
+    kSysConst_EDRAMRTPackOffsetLow_Vec = kSysConst_EDRAMRTPackWidthLow_Vec + 1,
 
-    kSysConst_EDRAMRTPackWidthLowRT2_Index =
-        kSysConst_EDRAMRTPackWidthLowRT1_Index + 1,
-    kSysConst_EDRAMRTPackWidthLowRT2_Vec =
-        kSysConst_EDRAMRTPackWidthLowRT1_Vec + 1,
+    kSysConst_EDRAMRTPackWidthHigh_Index =
+        kSysConst_EDRAMRTPackOffsetLow_Index + 1,
+    kSysConst_EDRAMRTPackWidthHigh_Vec = kSysConst_EDRAMRTPackOffsetLow_Vec + 1,
 
-    kSysConst_EDRAMRTPackWidthLowRT3_Index =
-        kSysConst_EDRAMRTPackWidthLowRT2_Index + 1,
-    kSysConst_EDRAMRTPackWidthLowRT3_Vec =
-        kSysConst_EDRAMRTPackWidthLowRT2_Vec + 1,
-
-    kSysConst_EDRAMRTPackOffsetLowRT0_Index =
-        kSysConst_EDRAMRTPackWidthLowRT3_Index + 1,
-    kSysConst_EDRAMRTPackOffsetLowRT0_Vec =
-        kSysConst_EDRAMRTPackWidthLowRT3_Vec + 1,
-
-    kSysConst_EDRAMRTPackOffsetLowRT1_Index =
-        kSysConst_EDRAMRTPackOffsetLowRT0_Index + 1,
-    kSysConst_EDRAMRTPackOffsetLowRT1_Vec =
-        kSysConst_EDRAMRTPackOffsetLowRT0_Vec + 1,
-
-    kSysConst_EDRAMRTPackOffsetLowRT2_Index =
-        kSysConst_EDRAMRTPackOffsetLowRT1_Index + 1,
-    kSysConst_EDRAMRTPackOffsetLowRT2_Vec =
-        kSysConst_EDRAMRTPackOffsetLowRT1_Vec + 1,
-
-    kSysConst_EDRAMRTPackOffsetLowRT3_Index =
-        kSysConst_EDRAMRTPackOffsetLowRT2_Index + 1,
-    kSysConst_EDRAMRTPackOffsetLowRT3_Vec =
-        kSysConst_EDRAMRTPackOffsetLowRT2_Vec + 1,
+    kSysConst_EDRAMRTPackOffsetHigh_Index =
+        kSysConst_EDRAMRTPackWidthHigh_Index + 1,
+    kSysConst_EDRAMRTPackOffsetHigh_Vec =
+        kSysConst_EDRAMRTPackWidthHigh_Vec + 1,
 
     kSysConst_EDRAMLoadMaskRT01_Index =
-        kSysConst_EDRAMRTPackOffsetLowRT3_Index + 1,
-    kSysConst_EDRAMLoadMaskRT01_Vec = kSysConst_EDRAMRTPackOffsetLowRT3_Vec + 1,
+        kSysConst_EDRAMRTPackOffsetHigh_Index + 1,
+    kSysConst_EDRAMLoadMaskRT01_Vec = kSysConst_EDRAMRTPackOffsetHigh_Vec + 1,
 
     kSysConst_EDRAMLoadMaskRT23_Index = kSysConst_EDRAMLoadMaskRT01_Index + 1,
     kSysConst_EDRAMLoadMaskRT23_Vec = kSysConst_EDRAMLoadMaskRT01_Vec + 1,
@@ -588,8 +589,16 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // Writing the epilogue.
   void CompleteVertexShader();
   void CompletePixelShader_WriteToRTVs();
+  // Extracts widths and offsets of the components in the lower or the upper
+  // dword of a pixel from the format constants, for use as ibfe and bfi
+  // operands later.
+  void CompletePixelShader_WriteToROV_ExtractPackLayout(uint32_t rt_index,
+                                                        bool high,
+                                                        uint32_t width_temp,
+                                                        uint32_t offset_temp);
   void CompletePixelShader_WriteToROV_LoadColor(
-      uint32_t edram_dword_offset_temp, uint32_t rt_index,
+      uint32_t edram_dword_offset_low_temp,
+      uint32_t edram_dword_offset_high_temp, uint32_t rt_index,
       uint32_t target_temp);
   void CompletePixelShader_WriteToROV_Blend(uint32_t rt_index,
                                             uint32_t src_color_and_output_temp,
@@ -606,7 +615,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
       uint32_t shift_x, uint32_t shift_y, uint32_t shift_z, uint32_t shift_w,
       uint32_t target_temp, uint32_t write_mask = 0b1111);
   void CompletePixelShader_WriteToROV_StoreColor(
-      uint32_t edram_dword_offset_temp, uint32_t rt_index,
+      uint32_t edram_dword_offset_low_temp,
+      uint32_t edram_dword_offset_high_temp, uint32_t rt_index,
       uint32_t source_and_scratch_temp);
   void CompletePixelShader_WriteToROV();
   void CompletePixelShader();
