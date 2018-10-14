@@ -1821,7 +1821,8 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
     // Exponent bias is in bits 20:25 of RB_COLOR_INFO.
     int32_t color_exp_bias = int32_t(color_info << 6) >> 26;
     ColorRenderTargetFormat color_format =
-        ColorRenderTargetFormat((color_info >> 16) & 0xF);
+        RenderTargetCache::GetBaseColorFormat(
+            ColorRenderTargetFormat((color_info >> 16) & 0xF));
     if (color_format == ColorRenderTargetFormat::k_16_16 ||
         color_format == ColorRenderTargetFormat::k_16_16_16_16) {
       // On the Xbox 360, k_16_16_EDRAM and k_16_16_16_16_EDRAM internally have
@@ -1840,8 +1841,6 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
     dirty |= system_constants_.color_exp_bias[i] != color_exp_bias_scale;
     system_constants_.color_exp_bias[i] = color_exp_bias_scale;
     if (render_target_cache_->IsROVUsedForEDRAM()) {
-      uint32_t rt_pair_index = i >> 1;
-      uint32_t rt_pair_comp = (i & 1) << 1;
       uint32_t edram_base_dwords = (color_info & 0xFFF) * 1280;
       dirty |= system_constants_.edram_base_dwords[i] != edram_base_dwords;
       system_constants_.edram_base_dwords[i] = edram_base_dwords;
@@ -1852,49 +1851,14 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
           80;
       dirty |= system_constants_.edram_pitch_tiles != edram_pitch_tiles;
       system_constants_.edram_pitch_tiles = edram_pitch_tiles;
-      static const uint32_t kRTFormatFlags[16] = {
-          // k_8_8_8_8
-          DxbcShaderTranslator::kRTFlag_FormatFixed,
-          // k_8_8_8_8_GAMMA
-          DxbcShaderTranslator::kRTFlag_FormatFixed,
-          // k_2_10_10_10
-          DxbcShaderTranslator::kRTFlag_FormatFixed,
-          // k_2_10_10_10_FLOAT
-          DxbcShaderTranslator::kRTFlag_FormatFloat10,
-          // k_16_16
-          DxbcShaderTranslator::kRTFlag_FormatFixed,
-          // k_16_16_16_16
-          DxbcShaderTranslator::kRTFlag_Format64bpp |
-              DxbcShaderTranslator::kRTFlag_FormatFixed,
-          // k_16_16_FLOAT
-          DxbcShaderTranslator::kRTFlag_FormatFloat16,
-          // k_16_16_16_16_FLOAT
-          DxbcShaderTranslator::kRTFlag_Format64bpp |
-              DxbcShaderTranslator::kRTFlag_FormatFloat16,
-          // Unused
-          0,
-          // Unused
-          0,
-          // k_2_10_10_10_AS_16_16_16_16
-          DxbcShaderTranslator::kRTFlag_FormatFixed,
-          // Unused.
-          0,
-          // k_2_10_10_10_FLOAT_AS_16_16_16_16
-          DxbcShaderTranslator::kRTFlag_FormatFloat10,
-          // Unused.
-          0,
-          // k_32_FLOAT
-          0,
-          // k_32_32_FLOAT
-          DxbcShaderTranslator::kRTFlag_Format64bpp,
-      };
       static const uint32_t kRTFormatAllComponentsMask[16] = {
           0b1111, 0b1111, 0b1111, 0b1111, 0b0011, 0b1111, 0b0011, 0b1111,
           0b0000, 0b0000, 0b1111, 0b0000, 0b1111, 0b0000, 0b0001, 0b0011,
       };
       uint32_t rt_mask_all = kRTFormatAllComponentsMask[uint32_t(color_format)];
       uint32_t rt_mask = (rb_color_mask >> (i * 4)) & rt_mask_all;
-      uint32_t rt_flags = kRTFormatFlags[uint32_t(color_format)];
+      uint32_t rt_flags =
+          DxbcShaderTranslator::GetColorFormatRTFlags(color_format);
       if (rt_mask != 0) {
         rt_flags |= DxbcShaderTranslator::kRTFlag_Used;
         if (rt_mask != rt_mask_all) {
@@ -1906,6 +1870,8 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
                                                     blend_y)) {
           rt_flags |= DxbcShaderTranslator::kRTFlag_Load |
                       DxbcShaderTranslator::kRTFlag_Blend;
+          uint32_t rt_pair_index = i >> 1;
+          uint32_t rt_pair_comp = (i & 1) << 1;
           if (system_constants_
                   .edram_blend_rt01_rt23[rt_pair_index][rt_pair_comp] !=
               blend_x) {
@@ -1927,143 +1893,8 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
       system_constants_.edram_rt_flags[i] = rt_flags;
       if (system_constants_color_formats_[i] != color_format) {
         dirty = true;
-        uint32_t color_mask = UINT32_MAX, alpha_mask = UINT32_MAX;
-        // Initialize min/max to Infinity.
-        uint32_t color_min = 0xFF800000u, alpha_min = 0xFF800000u;
-        uint32_t color_max = 0x7F800000u, alpha_max = 0x7F800000u;
-        float color_load_scale = 1.0f, alpha_load_scale = 1.0f;
-        float color_store_scale = 1.0f, alpha_store_scale = 1.0f;
-        switch (color_format) {
-          case ColorRenderTargetFormat::k_8_8_8_8:
-          case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
-            system_constants_.edram_rt_pack_width_low[i][0] = 8;
-            system_constants_.edram_rt_pack_width_low[i][1] = 8;
-            system_constants_.edram_rt_pack_width_low[i][2] = 8;
-            system_constants_.edram_rt_pack_width_low[i][3] = 8;
-            system_constants_.edram_rt_pack_offset_low[i][0] = 0;
-            system_constants_.edram_rt_pack_offset_low[i][1] = 8;
-            system_constants_.edram_rt_pack_offset_low[i][2] = 16;
-            system_constants_.edram_rt_pack_offset_low[i][3] = 24;
-            color_mask = alpha_mask = 255;
-            color_min = alpha_min = 0;
-            color_max = alpha_max = 0x3F800000;
-            color_load_scale = alpha_load_scale = 1.0f / 255.0f;
-            color_store_scale = alpha_store_scale = 255.0f;
-            break;
-          case ColorRenderTargetFormat::k_2_10_10_10:
-          case ColorRenderTargetFormat::k_2_10_10_10_AS_16_16_16_16:
-            system_constants_.edram_rt_pack_width_low[i][0] = 10;
-            system_constants_.edram_rt_pack_width_low[i][1] = 10;
-            system_constants_.edram_rt_pack_width_low[i][2] = 10;
-            system_constants_.edram_rt_pack_width_low[i][3] = 2;
-            system_constants_.edram_rt_pack_offset_low[i][0] = 0;
-            system_constants_.edram_rt_pack_offset_low[i][1] = 10;
-            system_constants_.edram_rt_pack_offset_low[i][2] = 20;
-            system_constants_.edram_rt_pack_offset_low[i][3] = 30;
-            color_mask = 1023;
-            alpha_mask = 3;
-            color_min = alpha_min = 0;
-            color_max = alpha_max = 0x3F800000;
-            color_load_scale = 1.0f / 1023.0f;
-            alpha_load_scale = 1.0f / 3.0f;
-            color_store_scale = 1023.0f;
-            alpha_store_scale = 3.0f;
-            break;
-          case ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
-          case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
-            system_constants_.edram_rt_pack_width_low[i][0] = 10;
-            system_constants_.edram_rt_pack_width_low[i][1] = 10;
-            system_constants_.edram_rt_pack_width_low[i][2] = 10;
-            system_constants_.edram_rt_pack_width_low[i][3] = 2;
-            system_constants_.edram_rt_pack_offset_low[i][0] = 0;
-            system_constants_.edram_rt_pack_offset_low[i][1] = 10;
-            system_constants_.edram_rt_pack_offset_low[i][2] = 20;
-            system_constants_.edram_rt_pack_offset_low[i][3] = 30;
-            color_mask = 1023;
-            alpha_mask = 3;
-            color_min = alpha_min = 0;
-            // 31.875.
-            color_max = 0x41FF0000;
-            alpha_max = 0x3F800000;
-            alpha_load_scale = 1.0f / 3.0f;
-            alpha_store_scale = 3.0f;
-            break;
-          case ColorRenderTargetFormat::k_16_16:
-          case ColorRenderTargetFormat::k_16_16_16_16:
-            system_constants_.edram_rt_pack_width_low[i][0] = 16;
-            system_constants_.edram_rt_pack_width_low[i][1] = 16;
-            system_constants_.edram_rt_pack_width_low[i][2] = 0;
-            system_constants_.edram_rt_pack_width_low[i][3] = 0;
-            system_constants_.edram_rt_pack_offset_low[i][0] = 0;
-            system_constants_.edram_rt_pack_offset_low[i][1] = 16;
-            system_constants_.edram_rt_pack_offset_low[i][2] = 0;
-            system_constants_.edram_rt_pack_offset_low[i][3] = 0;
-            // TODO(Triang3l): 64bpp variant.
-            // Color and alpha mask UINT32_MAX because the format is signed.
-            // -32.0.
-            color_min = alpha_min = 0xC2000000u;
-            // 32.0.
-            color_max = alpha_max = 0x42000000u;
-            color_load_scale = alpha_load_scale = 32.0f / 32767.0f;
-            color_store_scale = alpha_store_scale = 32767.0f / 32.0f;
-            break;
-          case ColorRenderTargetFormat::k_16_16_FLOAT:
-          case ColorRenderTargetFormat::k_16_16_16_16_FLOAT:
-            system_constants_.edram_rt_pack_width_low[i][0] = 16;
-            system_constants_.edram_rt_pack_width_low[i][1] = 16;
-            system_constants_.edram_rt_pack_width_low[i][2] = 0;
-            system_constants_.edram_rt_pack_width_low[i][3] = 0;
-            system_constants_.edram_rt_pack_offset_low[i][0] = 0;
-            system_constants_.edram_rt_pack_offset_low[i][1] = 16;
-            system_constants_.edram_rt_pack_offset_low[i][2] = 0;
-            system_constants_.edram_rt_pack_offset_low[i][3] = 0;
-            // TODO(Triang3l): 64bpp variant.
-            color_mask = alpha_mask = 0xFFFF;
-            break;
-          case ColorRenderTargetFormat::k_32_FLOAT:
-          case ColorRenderTargetFormat::k_32_32_FLOAT:
-            system_constants_.edram_rt_pack_width_low[i][0] = 32;
-            system_constants_.edram_rt_pack_width_low[i][1] = 0;
-            system_constants_.edram_rt_pack_width_low[i][2] = 0;
-            system_constants_.edram_rt_pack_width_low[i][3] = 0;
-            system_constants_.edram_rt_pack_offset_low[i][0] = 0;
-            system_constants_.edram_rt_pack_offset_low[i][1] = 0;
-            system_constants_.edram_rt_pack_offset_low[i][2] = 0;
-            system_constants_.edram_rt_pack_offset_low[i][3] = 0;
-            // TODO(Triang3l): 64bpp variant.
-            break;
-          default:
-            assert_always();
-            break;
-        }
-        system_constants_
-            .edram_load_mask_rt01_rt23[rt_pair_index][rt_pair_comp] =
-            color_mask;
-        system_constants_
-            .edram_load_mask_rt01_rt23[rt_pair_index][rt_pair_comp + 1] =
-            alpha_mask;
-        system_constants_
-            .edram_load_scale_rt01_rt23[rt_pair_index][rt_pair_comp] =
-            color_load_scale;
-        system_constants_
-            .edram_load_scale_rt01_rt23[rt_pair_index][rt_pair_comp + 1] =
-            alpha_load_scale;
-        system_constants_
-            .edram_store_min_rt01_rt23[rt_pair_index][rt_pair_comp] = color_min;
-        system_constants_
-            .edram_store_min_rt01_rt23[rt_pair_index][rt_pair_comp + 1] =
-            alpha_min;
-        system_constants_
-            .edram_store_max_rt01_rt23[rt_pair_index][rt_pair_comp] = color_max;
-        system_constants_
-            .edram_store_max_rt01_rt23[rt_pair_index][rt_pair_comp + 1] =
-            alpha_max;
-        system_constants_
-            .edram_store_scale_rt01_rt23[rt_pair_index][rt_pair_comp] =
-            color_store_scale;
-        system_constants_
-            .edram_store_scale_rt01_rt23[rt_pair_index][rt_pair_comp + 1] =
-            alpha_store_scale;
+        DxbcShaderTranslator::SetColorFormatSystemConstants(system_constants_,
+                                                            i, color_format);
         system_constants_color_formats_[i] = color_format;
       }
     } else {
