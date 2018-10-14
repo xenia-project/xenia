@@ -9,11 +9,10 @@
 
 #include "xenia/cpu/ppc/ppc_emit-private.h"
 
+#include <stddef.h>
 #include "xenia/base/assert.h"
 #include "xenia/cpu/ppc/ppc_context.h"
 #include "xenia/cpu/ppc/ppc_hir_builder.h"
-
-#include <stddef.h>
 
 namespace xe {
 namespace cpu {
@@ -504,10 +503,26 @@ int InstrEmit_stw(PPCHIRBuilder& f, const InstrData& i) {
   } else {
     b = f.LoadGPR(i.D.RA);
   }
-
   Value* offset = f.LoadConstantInt64(XEEXTS16(i.D.DS));
   f.StoreOffset(b, offset,
                 f.ByteSwap(f.Truncate(f.LoadGPR(i.D.RT), INT32_TYPE)));
+
+  return 0;
+}
+
+int InstrEmit_stmw(PPCHIRBuilder& f, const InstrData& i) {
+  Value* b;
+  if (i.D.RA == 0) {
+    b = f.LoadZeroInt64();
+  } else {
+    b = f.LoadGPR(i.D.RA);
+  }
+
+  for (uint32_t j = 0; j < 32 - i.D.RT; ++j) {
+    Value* offset = f.LoadConstantInt64(XEEXTS16(i.D.DS) + j * 4);
+    f.StoreOffset(b, offset,
+                  f.ByteSwap(f.Truncate(f.LoadGPR(i.D.RT + j), INT32_TYPE)));
+  }
   return 0;
 }
 
@@ -674,13 +689,23 @@ int InstrEmit_stdbrx(PPCHIRBuilder& f, const InstrData& i) {
 // Integer load and store multiple (A-16)
 
 int InstrEmit_lmw(PPCHIRBuilder& f, const InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
+  Value* b;
+  if (i.D.RA == 0) {
+    b = f.LoadZeroInt64();
+  } else {
+    b = f.LoadGPR(i.D.RA);
+  }
 
-int InstrEmit_stmw(PPCHIRBuilder& f, const InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  for (uint32_t j = 0; j < 32 - i.D.RT; ++j) {
+    if (i.D.RT + j == i.D.RA) {
+      continue;
+    }
+    Value* offset = f.LoadConstantInt64(XEEXTS16(i.D.DS) + j * 4);
+    Value* rt = f.ZeroExtend(f.ByteSwap(f.LoadOffset(b, offset, INT32_TYPE)),
+                             INT64_TYPE);
+    f.StoreGPR(i.D.RT + j, rt);
+  }
+  return 0;
 }
 
 // Integer load and store string (A-17)
