@@ -1646,16 +1646,16 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   if (render_target_cache_->IsROVUsedForEDRAM()) {
     uint32_t rb_depthcontrol = regs[XE_GPU_REG_RB_DEPTHCONTROL].u32;
     if (rb_depthcontrol & 0x2) {
-      if (DepthRenderTargetFormat(rb_depth_info) ==
-          DepthRenderTargetFormat::kD24FS8) {
-        flags |= DxbcShaderTranslator::kSysFlag_DepthFloat24;
-      }
       // Read depth/stencil if depth comparison function is not "always".
       uint32_t depth_comparison = (rb_depthcontrol >> 4) & 0x7;
       flags |= depth_comparison
                << DxbcShaderTranslator::kSysFlag_DepthPassIfLess_Shift;
       if (depth_comparison != 0x7) {
         flags |= DxbcShaderTranslator::kSysFlag_DepthStencilRead;
+        if (DepthRenderTargetFormat(rb_depth_info) ==
+            DepthRenderTargetFormat::kD24FS8) {
+          flags |= DxbcShaderTranslator::kSysFlag_DepthFloat24;
+        }
       }
       if (rb_depthcontrol & 0x4) {
         flags |= DxbcShaderTranslator::kSysFlag_DepthStencilWrite;
