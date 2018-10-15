@@ -1750,8 +1750,8 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV_LoadColor(
   shader_code_.push_back(
       EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, rt_index, 1));
   shader_code_.push_back(edram_dword_offset_low_temp);
-  shader_code_.push_back(EncodeVectorSwizzledOperand(
-      D3D11_SB_OPERAND_TYPE_UNORDERED_ACCESS_VIEW, kSwizzleXYZW, 2));
+  shader_code_.push_back(EncodeVectorReplicatedOperand(
+      D3D11_SB_OPERAND_TYPE_UNORDERED_ACCESS_VIEW, 0, 2));
   shader_code_.push_back(0);
   shader_code_.push_back(0);
   ++stat_.instruction_count;
@@ -1806,8 +1806,8 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV_LoadColor(
   shader_code_.push_back(
       EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, rt_index, 1));
   shader_code_.push_back(edram_dword_offset_high_temp);
-  shader_code_.push_back(EncodeVectorSwizzledOperand(
-      D3D11_SB_OPERAND_TYPE_UNORDERED_ACCESS_VIEW, kSwizzleXYZW, 2));
+  shader_code_.push_back(EncodeVectorReplicatedOperand(
+      D3D11_SB_OPERAND_TYPE_UNORDERED_ACCESS_VIEW, 0, 2));
   shader_code_.push_back(0);
   shader_code_.push_back(0);
   ++stat_.instruction_count;
@@ -3529,8 +3529,8 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
   shader_code_.push_back(
       EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 3, 1));
   shader_code_.push_back(system_temp_depth_);
-  shader_code_.push_back(EncodeVectorSwizzledOperand(
-      D3D11_SB_OPERAND_TYPE_UNORDERED_ACCESS_VIEW, kSwizzleXYZW, 2));
+  shader_code_.push_back(EncodeVectorReplicatedOperand(
+      D3D11_SB_OPERAND_TYPE_UNORDERED_ACCESS_VIEW, 0, 2));
   shader_code_.push_back(0);
   shader_code_.push_back(0);
   ++stat_.instruction_count;
