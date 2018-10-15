@@ -22,6 +22,7 @@ cbuffer xe_system_cbuffer : register(b0) {
   // vec4 5
   float2 xe_alpha_test_range;
   uint xe_edram_pitch_tiles;
+  uint xe_edram_depth_base_dwords;
   // vec4 6
   float4 xe_color_exp_bias;
   // vec4 7
