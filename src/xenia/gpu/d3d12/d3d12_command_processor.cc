@@ -1589,6 +1589,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
 
   uint32_t vgt_indx_offset = regs[XE_GPU_REG_VGT_INDX_OFFSET].u32;
   uint32_t pa_cl_vte_cntl = regs[XE_GPU_REG_PA_CL_VTE_CNTL].u32;
+  uint32_t rb_depth_info = regs[XE_GPU_REG_RB_DEPTH_INFO].u32;
   uint32_t pa_cl_clip_cntl = regs[XE_GPU_REG_PA_CL_CLIP_CNTL].u32;
   uint32_t pa_su_vtx_cntl = regs[XE_GPU_REG_PA_SU_VTX_CNTL].u32;
   uint32_t pa_su_point_size = regs[XE_GPU_REG_PA_SU_POINT_SIZE].u32;
@@ -1641,6 +1642,25 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   if (((regs[XE_GPU_REG_RB_COLOR3_INFO].u32 >> 16) & 0xF) ==
       uint32_t(ColorRenderTargetFormat::k_8_8_8_8_GAMMA)) {
     flags |= DxbcShaderTranslator::kSysFlag_Color3Gamma;
+  }
+  if (render_target_cache_->IsROVUsedForEDRAM()) {
+    uint32_t rb_depthcontrol = regs[XE_GPU_REG_RB_DEPTHCONTROL].u32;
+    if (rb_depthcontrol & 0x2) {
+      if (DepthRenderTargetFormat(rb_depth_info) ==
+          DepthRenderTargetFormat::kD24FS8) {
+        flags |= DxbcShaderTranslator::kSysFlag_DepthFloat24;
+      }
+      // Read depth/stencil if depth comparison function is not "always".
+      uint32_t depth_comparison = (rb_depthcontrol >> 4) & 0x7;
+      flags |= depth_comparison
+               << DxbcShaderTranslator::kSysFlag_DepthPassIfLess_Shift;
+      if (depth_comparison != 0x7) {
+        flags |= DxbcShaderTranslator::kSysFlag_DepthStencilRead;
+      }
+      if (rb_depthcontrol & 0x4) {
+        flags |= DxbcShaderTranslator::kSysFlag_DepthStencilWrite;
+      }
+    }
   }
   dirty |= system_constants_.flags != flags;
   system_constants_.flags = flags;
@@ -1905,8 +1925,12 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
     }
   }
 
-  // Blend constant for ROV blending.
+  // Depth testing and blend constant for ROV blending.
   if (render_target_cache_->IsROVUsedForEDRAM()) {
+    uint32_t depth_base_dwords =
+        (regs[XE_GPU_REG_RB_DEPTH_INFO].u32 & 0xFFF) * 1280;
+    dirty |= system_constants_.edram_depth_base_dwords != depth_base_dwords;
+    system_constants_.edram_depth_base_dwords = depth_base_dwords;
     dirty |= system_constants_.edram_blend_constant[0] !=
              regs[XE_GPU_REG_RB_BLEND_RED].f32;
     system_constants_.edram_blend_constant[0] =

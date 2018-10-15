@@ -35,38 +35,66 @@ class DxbcShaderTranslator : public ShaderTranslator {
   };
 
   enum : uint32_t {
-    kSysFlag_XYDividedByW = 1,
-    kSysFlag_ZDividedByW = kSysFlag_XYDividedByW << 1,
-    kSysFlag_WNotReciprocal = kSysFlag_ZDividedByW << 1,
-    kSysFlag_ReverseZ = kSysFlag_WNotReciprocal << 1,
-    kSysFlag_Color0Gamma = kSysFlag_ReverseZ << 1,
-    kSysFlag_Color1Gamma = kSysFlag_Color0Gamma << 1,
-    kSysFlag_Color2Gamma = kSysFlag_Color1Gamma << 1,
-    kSysFlag_Color3Gamma = kSysFlag_Color2Gamma << 1,
+    kSysFlag_XYDividedByW_Shift,
+    kSysFlag_ZDividedByW_Shift,
+    kSysFlag_WNotReciprocal_Shift,
+    kSysFlag_ReverseZ_Shift,
+    kSysFlag_DepthStencilRead_Shift,
+    // Depth/stencil testing not done if DepthStencilRead is disabled, but
+    // writing may still be done.
+    kSysFlag_DepthPassIfLess_Shift,
+    kSysFlag_DepthPassIfEqual_Shift,
+    kSysFlag_DepthPassIfGreater_Shift,
+    // This doesn't include depth/stencil masks - only reflects the fact that
+    // the new value must be written.
+    kSysFlag_DepthStencilWrite_Shift,
+    // If don't need to read or write the depth component of the depth/stencil
+    // buffer, better disable kSysFlag_DepthFloat24 because float->unorm is
+    // easier to perform than float32->float24.
+    kSysFlag_DepthFloat24_Shift,
+    kSysFlag_Color0Gamma_Shift,
+    kSysFlag_Color1Gamma_Shift,
+    kSysFlag_Color2Gamma_Shift,
+    kSysFlag_Color3Gamma_Shift,
+
+    kSysFlag_XYDividedByW = 1u << kSysFlag_XYDividedByW_Shift,
+    kSysFlag_ZDividedByW = 1u << kSysFlag_ZDividedByW_Shift,
+    kSysFlag_WNotReciprocal = 1u << kSysFlag_WNotReciprocal_Shift,
+    kSysFlag_ReverseZ = 1u << kSysFlag_ReverseZ_Shift,
+    kSysFlag_DepthStencilRead = 1u << kSysFlag_DepthStencilRead_Shift,
+    kSysFlag_DepthPassIfLess = 1u << kSysFlag_DepthPassIfLess_Shift,
+    kSysFlag_DepthPassIfEqual = 1u << kSysFlag_DepthPassIfEqual_Shift,
+    kSysFlag_DepthPassIfGreater = 1u << kSysFlag_DepthPassIfGreater_Shift,
+    kSysFlag_DepthStencilWrite = 1u << kSysFlag_DepthStencilWrite_Shift,
+    kSysFlag_DepthFloat24 = 1u << kSysFlag_DepthFloat24_Shift,
+    kSysFlag_Color0Gamma = 1u << kSysFlag_Color0Gamma_Shift,
+    kSysFlag_Color1Gamma = 1u << kSysFlag_Color1Gamma_Shift,
+    kSysFlag_Color2Gamma = 1u << kSysFlag_Color2Gamma_Shift,
+    kSysFlag_Color3Gamma = 1u << kSysFlag_Color3Gamma_Shift,
   };
 
   enum : uint32_t {
     // Whether the write mask is non-zero.
-    kRTFlag_Used_Shift = 0,
-    kRTFlag_Used = 1u << kRTFlag_Used_Shift,
+    kRTFlag_Used_Shift,
     // Whether the render target needs to be merged with another (if the write
     // mask is not 1111, or 11 for 16_16, or 1 for 32_FLOAT, or blending is
     // enabled and it's not no-op).
-    kRTFlag_Load_Shift = kRTFlag_Used_Shift + 1,
-    kRTFlag_Load = 1u << kRTFlag_Load_Shift,
-    kRTFlag_Blend_Shift = kRTFlag_Load_Shift + 1,
-    kRTFlag_Blend = 1u << kRTFlag_Blend_Shift,
-
+    kRTFlag_Load_Shift,
+    kRTFlag_Blend_Shift,
     // Whether the format is fixed-point and needs to be converted to integer
     // (k_8_8_8_8, k_2_10_10_10, k_16_16, k_16_16_16_16).
-    kRTFlag_FormatFixed_Shift = kRTFlag_Blend_Shift + 1,
-    kRTFlag_FormatFixed = 1u << kRTFlag_FormatFixed_Shift,
+    kRTFlag_FormatFixed_Shift,
     // Whether the format is k_2_10_10_10_FLOAT and 7e3 conversion is needed.
-    kRTFlag_FormatFloat10_Shift = kRTFlag_FormatFixed_Shift + 1,
-    kRTFlag_FormatFloat10 = 1u << kRTFlag_FormatFloat10_Shift,
+    kRTFlag_FormatFloat10_Shift,
     // Whether the format is k_16_16_FLOAT or k_16_16_16_16_FLOAT and
     // f16tof32/f32tof16 is needed.
-    kRTFlag_FormatFloat16_Shift = kRTFlag_FormatFloat10_Shift + 1,
+    kRTFlag_FormatFloat16_Shift,
+
+    kRTFlag_Used = 1u << kRTFlag_Used_Shift,
+    kRTFlag_Load = 1u << kRTFlag_Load_Shift,
+    kRTFlag_Blend = 1u << kRTFlag_Blend_Shift,
+    kRTFlag_FormatFixed = 1u << kRTFlag_FormatFixed_Shift,
+    kRTFlag_FormatFloat10 = 1u << kRTFlag_FormatFloat10_Shift,
     kRTFlag_FormatFloat16 = 1u << kRTFlag_FormatFloat16_Shift,
   };
 
@@ -220,7 +248,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
     // The range is floats as uints so it's easier to pass infinity.
     uint32_t alpha_test_range[2];
     uint32_t edram_pitch_tiles;
-    uint32_t padding_5;
+    uint32_t edram_depth_base_dwords;
 
     // vec4 6
     float color_exp_bias[4];
@@ -420,8 +448,11 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kSysConst_EDRAMPitchTiles_Index = kSysConst_AlphaTestRange_Index + 1,
     kSysConst_EDRAMPitchTiles_Vec = kSysConst_AlphaTestRange_Vec,
     kSysConst_EDRAMPitchTiles_Comp = 2,
+    kSysConst_EDRAMDepthBaseDwords_Index = kSysConst_EDRAMPitchTiles_Index + 1,
+    kSysConst_EDRAMDepthBaseDwords_Vec = kSysConst_AlphaTestRange_Vec,
+    kSysConst_EDRAMDepthBaseDwords_Comp = 3,
 
-    kSysConst_ColorExpBias_Index = kSysConst_EDRAMPitchTiles_Index + 1,
+    kSysConst_ColorExpBias_Index = kSysConst_EDRAMDepthBaseDwords_Index + 1,
     kSysConst_ColorExpBias_Vec = kSysConst_AlphaTestRange_Vec + 1,
 
     kSysConst_ColorOutputMap_Index = kSysConst_ColorExpBias_Index + 1,
@@ -588,6 +619,10 @@ class DxbcShaderTranslator : public ShaderTranslator {
 
   // Writing the epilogue.
   void CompleteVertexShader();
+  // Converts the depth in system_temp_depth_.x to 24-bit unorm or float,
+  // depending on the flag value. Uses system_temp_depth_.yz as scratch - w not
+  // touched.
+  void CompletePixelShader_DepthTo24Bit();
   void CompletePixelShader_WriteToRTVs();
   // Extracts widths and offsets of the components in the lower or the upper
   // dword of a pixel from the format constants, for use as ibfe and bfi
@@ -850,6 +885,11 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // Color outputs in pixel shaders (because of exponent bias, alpha test and
   // remapping).
   uint32_t system_temp_color_[4];
+  // Depth output in pixel shader, and 3 dwords usable as scratch for operations
+  // related to depth. Currently only used for ROV depth.
+  // TODO(Triang3l): Reduce depth to 24-bit in pixel shaders when using a DSV
+  // for accuracy.
+  uint32_t system_temp_depth_;
 
   // Whether a predicate `if` is open.
   bool cf_currently_predicated_;
