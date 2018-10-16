@@ -3859,25 +3859,20 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
     ++stat_.uint_instruction_count;
 
     for (uint32_t i = 0; i < 4; ++i) {
-      // In case of overlap, the render targets with the lower index have higher
-      // priority since they usually have the most important value.
-      uint32_t rt_index = 3 - i;
-
       // Check if the render target needs to be written to.
       shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
                              ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(
                                  D3D10_SB_INSTRUCTION_TEST_NONZERO) |
                              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
       shader_code_.push_back(
-          EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, rt_index, 1));
+          EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, i, 1));
       shader_code_.push_back(rt_used_temp);
       ++stat_.instruction_count;
       ++stat_.dynamic_flow_control_count;
 
       // Clamp the color (the source value) before blending.
       // https://stackoverflow.com/questions/30153911/untangling-when-and-what-values-are-clamped-in-opengl-blending-on-different-rend
-      CompletePixelShader_WriteToROV_ClampColor(rt_index,
-                                                system_temp_color_[rt_index]);
+      CompletePixelShader_WriteToROV_ClampColor(i, system_temp_color_[i]);
 
       // Load the previous value in the render target to blend and to apply the
       // write mask.
@@ -3886,14 +3881,13 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
                                  D3D10_SB_INSTRUCTION_TEST_NONZERO) |
                              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
       shader_code_.push_back(
-          EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, rt_index, 1));
+          EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, i, 1));
       shader_code_.push_back(rt_load_temp);
       ++stat_.instruction_count;
       ++stat_.dynamic_flow_control_count;
       uint32_t dest_color_temp = PushSystemTemp();
-      CompletePixelShader_WriteToROV_LoadColor(edram_coord_low_temp,
-                                               edram_coord_high_temp, rt_index,
-                                               dest_color_temp);
+      CompletePixelShader_WriteToROV_LoadColor(
+          edram_coord_low_temp, edram_coord_high_temp, i, dest_color_temp);
 
       // Blend if needed.
       shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
@@ -3901,18 +3895,55 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
                                  D3D10_SB_INSTRUCTION_TEST_NONZERO) |
                              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
       shader_code_.push_back(
-          EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, rt_index, 1));
+          EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, i, 1));
       shader_code_.push_back(rt_blend_temp);
       ++stat_.instruction_count;
       ++stat_.dynamic_flow_control_count;
-      CompletePixelShader_WriteToROV_Blend(
-          rt_index, system_temp_color_[rt_index], dest_color_temp);
+      CompletePixelShader_WriteToROV_Blend(i, system_temp_color_[i],
+                                           dest_color_temp);
       shader_code_.push_back(
           ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
       ++stat_.instruction_count;
 
-      // TODO(Triang3l): Apply the write mask.
+      // Mask the components to overwrite.
+      uint32_t write_mask_temp = PushSystemTemp();
+      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
+                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(12));
+      shader_code_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+      shader_code_.push_back(write_mask_temp);
+      shader_code_.push_back(EncodeVectorReplicatedOperand(
+          D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, i, 3));
+      shader_code_.push_back(cbuffer_index_system_constants_);
+      shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
+      shader_code_.push_back(kSysConst_EDRAMRTFlags_Vec);
+      shader_code_.push_back(EncodeVectorSwizzledOperand(
+          D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+      shader_code_.push_back(kRTFlag_WriteR);
+      shader_code_.push_back(kRTFlag_WriteG);
+      shader_code_.push_back(kRTFlag_WriteB);
+      shader_code_.push_back(kRTFlag_WriteA);
+      ++stat_.instruction_count;
+      ++stat_.uint_instruction_count;
+      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
+                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
+      shader_code_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+      shader_code_.push_back(system_temp_color_[i]);
+      shader_code_.push_back(EncodeVectorSwizzledOperand(
+          D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+      shader_code_.push_back(write_mask_temp);
+      shader_code_.push_back(EncodeVectorSwizzledOperand(
+          D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+      shader_code_.push_back(system_temp_color_[i]);
+      shader_code_.push_back(EncodeVectorSwizzledOperand(
+          D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+      shader_code_.push_back(dest_color_temp);
+      ++stat_.instruction_count;
+      ++stat_.movc_instruction_count;
+      // Release write_mask_temp.
+      PopSystemTemp();
 
       // Release dest_color_temp.
       PopSystemTemp();
@@ -3925,8 +3956,8 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
 
       // Write the new color, which may have been modified by blending.
       CompletePixelShader_WriteToROV_StoreColor(edram_coord_low_temp,
-                                                edram_coord_high_temp, rt_index,
-                                                system_temp_color_[rt_index]);
+                                                edram_coord_high_temp, i,
+                                                system_temp_color_[i]);
 
       // Close the check whether the RT is used.
       shader_code_.push_back(
