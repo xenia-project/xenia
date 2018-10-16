@@ -1880,7 +1880,8 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
       uint32_t rt_flags =
           DxbcShaderTranslator::GetColorFormatRTFlags(color_format);
       if (rt_mask != 0) {
-        rt_flags |= DxbcShaderTranslator::kRTFlag_Used;
+        rt_flags |= DxbcShaderTranslator::kRTFlag_Used |
+                    (rt_mask << DxbcShaderTranslator::kRTFlag_WriteR_Shift);
         if (rt_mask != rt_mask_all) {
           rt_flags |= DxbcShaderTranslator::kRTFlag_Load;
         }

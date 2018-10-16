@@ -81,6 +81,10 @@ class DxbcShaderTranslator : public ShaderTranslator {
     // enabled and it's not no-op).
     kRTFlag_Load_Shift,
     kRTFlag_Blend_Shift,
+    kRTFlag_WriteR_Shift,
+    kRTFlag_WriteG_Shift,
+    kRTFlag_WriteB_Shift,
+    kRTFlag_WriteA_Shift,
     // Whether the format is fixed-point and needs to be converted to integer
     // (k_8_8_8_8, k_2_10_10_10, k_16_16, k_16_16_16_16).
     kRTFlag_FormatFixed_Shift,
@@ -93,6 +97,10 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kRTFlag_Used = 1u << kRTFlag_Used_Shift,
     kRTFlag_Load = 1u << kRTFlag_Load_Shift,
     kRTFlag_Blend = 1u << kRTFlag_Blend_Shift,
+    kRTFlag_WriteR = 1u << kRTFlag_WriteR_Shift,
+    kRTFlag_WriteG = 1u << kRTFlag_WriteG_Shift,
+    kRTFlag_WriteB = 1u << kRTFlag_WriteB_Shift,
+    kRTFlag_WriteA = 1u << kRTFlag_WriteA_Shift,
     kRTFlag_FormatFixed = 1u << kRTFlag_FormatFixed_Shift,
     kRTFlag_FormatFloat10 = 1u << kRTFlag_FormatFloat10_Shift,
     kRTFlag_FormatFloat16 = 1u << kRTFlag_FormatFloat16_Shift,
