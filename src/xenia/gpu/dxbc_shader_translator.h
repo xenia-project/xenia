@@ -376,6 +376,10 @@ class DxbcShaderTranslator : public ShaderTranslator {
   static bool GetBlendConstants(uint32_t blend_control, uint32_t& blend_x_out,
                                 uint32_t& blend_y_out);
 
+  // Creates a special pixel shader without color outputs - this resets the
+  // state of the translator.
+  std::vector<uint8_t> CreateDepthOnlyPixelShader();
+
  protected:
   void Reset() override;
 
@@ -603,6 +607,15 @@ class DxbcShaderTranslator : public ShaderTranslator {
            (index_representation_1 << 25) | (index_representation_2 << 28);
   }
 
+  // Use these instead of is_vertex_shader/is_pixel_shader because they don't
+  // take is_depth_only_pixel_shader_ into account.
+  inline bool IsDXBCVertexShader() const {
+    return !is_depth_only_pixel_shader_ && is_vertex_shader();
+  }
+  inline bool IsDXBCPixelShader() const {
+    return is_depth_only_pixel_shader_ || is_pixel_shader();
+  }
+
   // Allocates a new r# register for internal use and returns its index.
   uint32_t PushSystemTemp(bool zero = false);
   // Frees the last allocated internal r# registers for later reuse.
@@ -782,6 +795,10 @@ class DxbcShaderTranslator : public ShaderTranslator {
 
   // Whether the output merger should be emulated in pixel shaders.
   bool edram_rov_used_;
+
+  // Is currently writing the empty depth-only pixel shader, for
+  // CompleteTranslation.
+  bool is_depth_only_pixel_shader_;
 
   // Data types used in constants buffers. Listed in dependency order.
   enum class RdefTypeIndex {

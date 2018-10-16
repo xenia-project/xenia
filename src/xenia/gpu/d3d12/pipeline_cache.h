@@ -11,6 +11,7 @@
 #define XENIA_GPU_D3D12_PIPELINE_CACHE_H_
 
 #include <unordered_map>
+#include <vector>
 
 #include "third_party/xxhash/xxhash.h"
 
@@ -92,6 +93,10 @@ class PipelineCache {
   std::unique_ptr<DxbcShaderTranslator> shader_translator_ = nullptr;
   // All loaded shaders mapped by their guest hash key.
   std::unordered_map<uint64_t, D3D12Shader*> shader_map_;
+
+  // Empty depth-only pixel shader for writing to depth buffer via ROV when no
+  // Xenos pixel shader provided.
+  std::vector<uint8_t> depth_only_pixel_shader_;
 
   // Hash state used to incrementally produce pipeline hashes during update.
   // By the time the full update pass has run the hash will represent the
