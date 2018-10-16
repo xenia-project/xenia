@@ -648,6 +648,10 @@ class DxbcShaderTranslator : public ShaderTranslator {
       uint32_t edram_dword_offset_low_temp,
       uint32_t edram_dword_offset_high_temp, uint32_t rt_index,
       uint32_t target_temp);
+  // Clamps the color to the range representable by the render target's format.
+  // Will also remove NaN since min and max return the non-NaN value.
+  void CompletePixelShader_WriteToROV_ClampColor(uint32_t rt_index,
+                                                 uint32_t color_temp);
   void CompletePixelShader_WriteToROV_Blend(uint32_t rt_index,
                                             uint32_t src_color_and_output_temp,
                                             uint32_t dest_color_temp);
@@ -662,6 +666,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
       uint32_t rt_index, uint32_t constant_swizzle, bool is_signed,
       uint32_t shift_x, uint32_t shift_y, uint32_t shift_z, uint32_t shift_w,
       uint32_t target_temp, uint32_t write_mask = 0b1111);
+  // Assumes the incoming color is already clamped to the range representable by
+  // the RT format.
   void CompletePixelShader_WriteToROV_StoreColor(
       uint32_t edram_dword_offset_low_temp,
       uint32_t edram_dword_offset_high_temp, uint32_t rt_index,
