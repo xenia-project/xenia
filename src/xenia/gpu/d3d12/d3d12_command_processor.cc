@@ -1652,7 +1652,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
                << DxbcShaderTranslator::kSysFlag_DepthPassIfLess_Shift;
       if (depth_comparison != 0x7) {
         flags |= DxbcShaderTranslator::kSysFlag_DepthStencilRead;
-        if (DepthRenderTargetFormat(rb_depth_info) ==
+        if (DepthRenderTargetFormat((rb_depth_info >> 16) & 0x1) ==
             DepthRenderTargetFormat::kD24FS8) {
           flags |= DxbcShaderTranslator::kSysFlag_DepthFloat24;
         }
