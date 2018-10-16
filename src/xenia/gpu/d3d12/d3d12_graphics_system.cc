@@ -27,6 +27,15 @@ D3D12GraphicsSystem::D3D12GraphicsSystem() {}
 
 D3D12GraphicsSystem::~D3D12GraphicsSystem() {}
 
+std::wstring D3D12GraphicsSystem::name() const {
+  auto d3d12_provider = static_cast<xe::ui::d3d12::D3D12Provider*>(provider());
+  if (d3d12_provider != nullptr &&
+      d3d12_provider->AreRasterizerOrderedViewsSupported()) {
+    return L"Direct3D 12 + ROV";
+  }
+  return L"Direct3D 12";
+}
+
 X_STATUS D3D12GraphicsSystem::Setup(cpu::Processor* processor,
                                     kernel::KernelState* kernel_state,
                                     ui::Window* target_window) {
