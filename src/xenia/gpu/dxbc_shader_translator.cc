@@ -2385,6 +2385,48 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV_ExtractBlendScales(
   ++stat_.conversion_instruction_count;
 }
 
+void DxbcShaderTranslator::CompletePixelShader_WriteToROV_ClampColor(
+    uint32_t rt_index, uint32_t color_temp) {
+  uint32_t rt_pair_index = rt_index >> 1;
+  uint32_t rt_pair_swizzle = rt_index & 1 ? 0b11101010 : 0b01000000;
+
+  system_constants_used_ |= (1ull << kSysConst_EDRAMStoreMinRT01_Index)
+                            << rt_pair_index;
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MAX) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+  shader_code_.push_back(color_temp);
+  shader_code_.push_back(
+      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+  shader_code_.push_back(color_temp);
+  shader_code_.push_back(EncodeVectorSwizzledOperand(
+      D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, rt_pair_swizzle, 3));
+  shader_code_.push_back(cbuffer_index_system_constants_);
+  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
+  shader_code_.push_back(kSysConst_EDRAMStoreMinRT01_Vec + rt_pair_index);
+  ++stat_.instruction_count;
+  ++stat_.float_instruction_count;
+
+  system_constants_used_ |= (1ull << kSysConst_EDRAMStoreMaxRT01_Index)
+                            << rt_pair_index;
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MIN) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+  shader_code_.push_back(color_temp);
+  shader_code_.push_back(
+      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+  shader_code_.push_back(color_temp);
+  shader_code_.push_back(EncodeVectorSwizzledOperand(
+      D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, rt_pair_swizzle, 3));
+  shader_code_.push_back(cbuffer_index_system_constants_);
+  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
+  shader_code_.push_back(kSysConst_EDRAMStoreMaxRT01_Vec + rt_pair_index);
+  ++stat_.instruction_count;
+  ++stat_.float_instruction_count;
+}
+
 void DxbcShaderTranslator::CompletePixelShader_WriteToROV_Blend(
     uint32_t rt_index, uint32_t src_color_and_output_temp,
     uint32_t dest_color_temp) {
@@ -2554,6 +2596,11 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV_Blend(
     ++stat_.float_instruction_count;
   }
 
+  // Clamp the factors.
+  // https://stackoverflow.com/questions/30153911/untangling-when-and-what-values-are-clamped-in-opengl-blending-on-different-rend
+  CompletePixelShader_WriteToROV_ClampColor(rt_index, src_factor_temp);
+  CompletePixelShader_WriteToROV_ClampColor(rt_index, dest_factor_temp);
+
   // Apply the signs to the factors for addition/subtraction/inverse subtraction
   // (for min/max, they are set to positive in the constant, so will be a nop).
   CompletePixelShader_WriteToROV_ExtractBlendScales(
@@ -2595,6 +2642,10 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV_Blend(
 
   // Release scale_temp, src_factor_temp and dest_factor_temp.
   PopSystemTemp();
+
+  // Clamp the resulting color.
+  CompletePixelShader_WriteToROV_ClampColor(rt_index,
+                                            src_color_and_output_temp);
 }
 
 void DxbcShaderTranslator::CompletePixelShader_WriteToROV_StoreColor(
@@ -2625,43 +2676,6 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV_StoreColor(
   shader_code_.push_back(0);
   ++stat_.instruction_count;
   ++stat_.uint_instruction_count;
-
-  // Clamp to min/max - this will also remove NaN since min and max return the
-  // non-NaN value.
-  system_constants_used_ |= (1ull << kSysConst_EDRAMStoreMinRT01_Index)
-                            << rt_pair_index;
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MAX) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
-  shader_code_.push_back(source_and_scratch_temp);
-  shader_code_.push_back(
-      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-  shader_code_.push_back(source_and_scratch_temp);
-  shader_code_.push_back(EncodeVectorSwizzledOperand(
-      D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, rt_pair_swizzle, 3));
-  shader_code_.push_back(cbuffer_index_system_constants_);
-  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-  shader_code_.push_back(kSysConst_EDRAMStoreMinRT01_Vec + rt_pair_index);
-  ++stat_.instruction_count;
-  ++stat_.float_instruction_count;
-  system_constants_used_ |= (1ull << kSysConst_EDRAMStoreMaxRT01_Index)
-                            << rt_pair_index;
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MIN) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
-  shader_code_.push_back(source_and_scratch_temp);
-  shader_code_.push_back(
-      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-  shader_code_.push_back(source_and_scratch_temp);
-  shader_code_.push_back(EncodeVectorSwizzledOperand(
-      D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, rt_pair_swizzle, 3));
-  shader_code_.push_back(cbuffer_index_system_constants_);
-  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-  shader_code_.push_back(kSysConst_EDRAMStoreMaxRT01_Vec + rt_pair_index);
-  ++stat_.instruction_count;
-  ++stat_.float_instruction_count;
 
   // Scale by the fixed-point conversion factor.
   system_constants_used_ |= (1ull << kSysConst_EDRAMStoreScaleRT01_Index)
@@ -3859,6 +3873,11 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
       shader_code_.push_back(rt_used_temp);
       ++stat_.instruction_count;
       ++stat_.dynamic_flow_control_count;
+
+      // Clamp the color (the source value) before blending.
+      // https://stackoverflow.com/questions/30153911/untangling-when-and-what-values-are-clamped-in-opengl-blending-on-different-rend
+      CompletePixelShader_WriteToROV_ClampColor(rt_index,
+                                                system_temp_color_[rt_index]);
 
       // Load the previous value in the render target to blend and to apply the
       // write mask.
