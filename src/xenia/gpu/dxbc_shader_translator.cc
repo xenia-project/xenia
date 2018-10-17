@@ -380,16 +380,13 @@ bool DxbcShaderTranslator::GetBlendConstants(uint32_t blend_control,
 
   uint32_t blend_x = 0, blend_y = 0;
 
-  // Min and max don't use the factors, so set them to one.
+  // Min and max don't use the factors.
 
   BlendOp op_color = BlendOp((blend_control >> 5) & 0x7);
   if (op_color == BlendOp::kMin) {
-    blend_x |= kBlendX_Src_One | kBlendX_Dest_One;
-    blend_y |=
-        kBlendY_Src_OpSign_Pos | kBlendY_Dest_OpSign_Pos | kBlendY_Color_OpMin;
+    blend_y |= kBlendY_Color_OpMin;
   } else if (op_color == BlendOp::kMax) {
-    blend_x |= kBlendX_Src_One | kBlendX_Dest_One;
-    kBlendY_Src_OpSign_Pos | kBlendY_Dest_OpSign_Pos | kBlendY_Color_OpMax;
+    blend_y |= kBlendY_Color_OpMax;
   } else {
     uint32_t src_factor = blend_control & 0x1F;
     uint32_t dest_factor = (blend_control >> 8) & 0x1F;
@@ -414,13 +411,9 @@ bool DxbcShaderTranslator::GetBlendConstants(uint32_t blend_control,
 
   BlendOp op_alpha = BlendOp((blend_control >> 21) & 0x7);
   if (op_alpha == BlendOp::kMin) {
-    blend_x |= kBlendX_SrcAlpha_One | kBlendX_DestAlpha_One;
-    blend_y |= kBlendY_SrcAlpha_OpSign_Pos | kBlendY_DestAlpha_OpSign_Pos |
-               kBlendY_Alpha_OpMin;
+    blend_y |= kBlendY_Alpha_OpMin;
   } else if (op_alpha == BlendOp::kMax) {
-    blend_x |= kBlendX_SrcAlpha_One | kBlendX_DestAlpha_One;
-    blend_y |= kBlendY_SrcAlpha_OpSign_Pos | kBlendY_DestAlpha_OpSign_Pos |
-               kBlendY_Alpha_OpMax;
+    blend_y |= kBlendY_Alpha_OpMax;
   } else {
     uint32_t src_alpha_factor = (blend_control >> 16) & 0x1F;
     uint32_t dest_alpha_factor = (blend_control >> 24) & 0x1F;
@@ -2433,24 +2426,22 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV_Blend(
   // Temporary register for scales of things that contribute to the blending,
   // usually -1.0, 0.0 or 1.0.
   uint32_t scale_temp = PushSystemTemp();
+  uint32_t src_factor_and_result_temp = PushSystemTemp();
+  uint32_t dest_factor_and_minmax_temp = PushSystemTemp();
 
-  // First, calculate the factors. Min/max is handled in constant setting, since
-  // they don't use the factors, their factors are set to one there.
   // Interleaving source and destination writes when possible to reduce
   // write-read dependencies.
 
-  uint32_t src_factor_temp = PushSystemTemp();
-  uint32_t dest_factor_temp = PushSystemTemp();
-
-  // Constant one for factors, reusing dest_factor_temp (since it's the last to
-  // be modified).
+  // Constant one for factors, reusing dest_factor_and_minmax_temp (since it's
+  // the last to be modified).
   CompletePixelShader_WriteToROV_ExtractBlendScales(
       rt_index, 0b00000000, false, kBlendX_Src_One_Shift,
       kBlendX_SrcAlpha_One_Shift, kBlendX_Dest_One_Shift,
-      kBlendX_DestAlpha_One_Shift, dest_factor_temp);
+      kBlendX_DestAlpha_One_Shift, dest_factor_and_minmax_temp);
 
   // Source color for color factors, source alpha for alpha factors, plus ones.
-  // This will initialize src_factor_temp and dest_factor_temp.
+  // This will initialize src_factor_and_result temp and
+  // dest_factor_and_minmax_temp.
   CompletePixelShader_WriteToROV_ExtractBlendScales(
       rt_index, 0b00000000, true, kBlendX_Src_SrcColor_Shift,
       kBlendX_SrcAlpha_SrcAlpha_Shift, kBlendX_Dest_SrcColor_Shift,
@@ -2460,7 +2451,8 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV_Blend(
                            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
     shader_code_.push_back(
         EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
-    shader_code_.push_back(i ? dest_factor_temp : src_factor_temp);
+    shader_code_.push_back(i ? dest_factor_and_minmax_temp
+                             : src_factor_and_result_temp);
     shader_code_.push_back(EncodeVectorSwizzledOperand(
         D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
     shader_code_.push_back(src_color_and_output_temp);
@@ -2468,11 +2460,11 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV_Blend(
     shader_code_.push_back(
         EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, swizzle, 1));
     shader_code_.push_back(scale_temp);
-    // dest_factor_temp is the last one to be modified, so it stores the ones
-    // (not to allocate an additional temporary register).
+    // dest_factor_and_minmax_temp is the last one to be modified, so it stores
+    // the ones (not to allocate an additional temporary register).
     shader_code_.push_back(
         EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, swizzle, 1));
-    shader_code_.push_back(dest_factor_temp);
+    shader_code_.push_back(dest_factor_and_minmax_temp);
     ++stat_.instruction_count;
     ++stat_.float_instruction_count;
   }
@@ -2487,7 +2479,8 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV_Blend(
                            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
     shader_code_.push_back(
         EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
-    shader_code_.push_back(i ? dest_factor_temp : src_factor_temp);
+    shader_code_.push_back(i ? dest_factor_and_minmax_temp
+                             : src_factor_and_result_temp);
     shader_code_.push_back(EncodeVectorSwizzledOperand(
         D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
     shader_code_.push_back(dest_color_temp);
@@ -2496,7 +2489,8 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV_Blend(
     shader_code_.push_back(scale_temp);
     shader_code_.push_back(EncodeVectorSwizzledOperand(
         D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-    shader_code_.push_back(i ? dest_factor_temp : src_factor_temp);
+    shader_code_.push_back(i ? dest_factor_and_minmax_temp
+                             : src_factor_and_result_temp);
     ++stat_.instruction_count;
     ++stat_.float_instruction_count;
   }
@@ -2511,7 +2505,8 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV_Blend(
                            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
     shader_code_.push_back(
         EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0111, 1));
-    shader_code_.push_back(i & 1 ? dest_factor_temp : src_factor_temp);
+    shader_code_.push_back(i & 1 ? dest_factor_and_minmax_temp
+                                 : src_factor_and_result_temp);
     shader_code_.push_back(
         EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 3, 1));
     shader_code_.push_back(i & 2 ? dest_color_temp : src_color_and_output_temp);
@@ -2520,7 +2515,8 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV_Blend(
     shader_code_.push_back(scale_temp);
     shader_code_.push_back(EncodeVectorSwizzledOperand(
         D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-    shader_code_.push_back(i & 1 ? dest_factor_temp : src_factor_temp);
+    shader_code_.push_back(i & 1 ? dest_factor_and_minmax_temp
+                                 : src_factor_and_result_temp);
     ++stat_.instruction_count;
     ++stat_.float_instruction_count;
   }
@@ -2536,7 +2532,8 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV_Blend(
                            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(11));
     shader_code_.push_back(
         EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
-    shader_code_.push_back(i ? dest_factor_temp : src_factor_temp);
+    shader_code_.push_back(i ? dest_factor_and_minmax_temp
+                             : src_factor_and_result_temp);
     shader_code_.push_back(EncodeVectorSwizzledOperand(
         D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSwizzleXYZW, 3));
     shader_code_.push_back(cbuffer_index_system_constants_);
@@ -2547,7 +2544,8 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV_Blend(
     shader_code_.push_back(scale_temp);
     shader_code_.push_back(EncodeVectorSwizzledOperand(
         D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-    shader_code_.push_back(i ? dest_factor_temp : src_factor_temp);
+    shader_code_.push_back(i ? dest_factor_and_minmax_temp
+                             : src_factor_and_result_temp);
     ++stat_.instruction_count;
     ++stat_.float_instruction_count;
   }
@@ -2561,7 +2559,8 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV_Blend(
                            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(11));
     shader_code_.push_back(
         EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0111, 1));
-    shader_code_.push_back(i ? dest_factor_temp : src_factor_temp);
+    shader_code_.push_back(i ? dest_factor_and_minmax_temp
+                             : src_factor_and_result_temp);
     shader_code_.push_back(EncodeVectorReplicatedOperand(
         D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, 3, 3));
     shader_code_.push_back(cbuffer_index_system_constants_);
@@ -2572,76 +2571,150 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV_Blend(
     shader_code_.push_back(scale_temp);
     shader_code_.push_back(EncodeVectorSwizzledOperand(
         D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-    shader_code_.push_back(i ? dest_factor_temp : src_factor_temp);
+    shader_code_.push_back(i ? dest_factor_and_minmax_temp
+                             : src_factor_and_result_temp);
     ++stat_.instruction_count;
     ++stat_.float_instruction_count;
   }
 
   // TODO(Triang3l): Saturate blend mode.
 
-  // Multiply the factors by the colors (for min/max, factors are 1).
+  // Multiply the colors by the factors.
   for (uint32_t i = 0; i < 2; ++i) {
     shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MUL) |
                            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
     shader_code_.push_back(
         EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
-    shader_code_.push_back(i ? dest_factor_temp : src_factor_temp);
+    shader_code_.push_back(i ? dest_factor_and_minmax_temp
+                             : src_factor_and_result_temp);
     shader_code_.push_back(EncodeVectorSwizzledOperand(
         D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
     shader_code_.push_back(i ? dest_color_temp : src_color_and_output_temp);
     shader_code_.push_back(EncodeVectorSwizzledOperand(
         D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-    shader_code_.push_back(i ? dest_factor_temp : src_factor_temp);
+    shader_code_.push_back(i ? dest_factor_and_minmax_temp
+                             : src_factor_and_result_temp);
     ++stat_.instruction_count;
     ++stat_.float_instruction_count;
   }
 
   // Clamp the factors.
   // https://stackoverflow.com/questions/30153911/untangling-when-and-what-values-are-clamped-in-opengl-blending-on-different-rend
-  CompletePixelShader_WriteToROV_ClampColor(rt_index, src_factor_temp);
-  CompletePixelShader_WriteToROV_ClampColor(rt_index, dest_factor_temp);
+  CompletePixelShader_WriteToROV_ClampColor(rt_index,
+                                            src_factor_and_result_temp);
+  CompletePixelShader_WriteToROV_ClampColor(rt_index,
+                                            dest_factor_and_minmax_temp);
 
   // Apply the signs to the factors for addition/subtraction/inverse subtraction
-  // (for min/max, they are set to positive in the constant, so will be a nop).
+  // and add/subtract/inverse subtract (for min/max, this will be overwritten
+  // later).
   CompletePixelShader_WriteToROV_ExtractBlendScales(
       rt_index, 0b01010101, true, kBlendY_Src_OpSign_Shift,
       kBlendY_SrcAlpha_OpSign_Shift, kBlendY_Dest_OpSign_Shift,
       kBlendY_DestAlpha_OpSign_Shift, scale_temp);
-  for (uint32_t i = 0; i < 2; ++i) {
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MUL) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
-    shader_code_.push_back(i ? dest_factor_temp : src_factor_temp);
-    shader_code_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-    shader_code_.push_back(i ? dest_factor_temp : src_factor_temp);
-    shader_code_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_TEMP, i ? 0b11101010 : 0b01000000, 1));
-    shader_code_.push_back(scale_temp);
-    ++stat_.instruction_count;
-    ++stat_.float_instruction_count;
-  }
 
-  // Sum the factors into the resulting color.
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ADD) |
+  // 1) Apply the source signs.
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MUL) |
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
   shader_code_.push_back(
       EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
-  shader_code_.push_back(src_color_and_output_temp);
+  shader_code_.push_back(src_factor_and_result_temp);
   shader_code_.push_back(
       EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-  shader_code_.push_back(src_factor_temp);
+  shader_code_.push_back(src_factor_and_result_temp);
   shader_code_.push_back(
-      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-  shader_code_.push_back(dest_factor_temp);
+      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b01000000, 1));
+  shader_code_.push_back(scale_temp);
   ++stat_.instruction_count;
   ++stat_.float_instruction_count;
 
-  // TODO(Triang3l): Min/max.
+  // 2) Apply the destination signs and combine. dest_factor_and_minmax_temp
+  // may be reused for min/max from now on.
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MAD) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+  shader_code_.push_back(src_factor_and_result_temp);
+  shader_code_.push_back(
+      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+  shader_code_.push_back(dest_factor_and_minmax_temp);
+  shader_code_.push_back(
+      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b11101010, 1));
+  shader_code_.push_back(scale_temp);
+  shader_code_.push_back(
+      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+  shader_code_.push_back(src_factor_and_result_temp);
+  ++stat_.instruction_count;
+  ++stat_.float_instruction_count;
 
-  // Release scale_temp, src_factor_temp and dest_factor_temp.
-  PopSystemTemp();
+  // Extract whether min/max should be done.
+  system_constants_used_ |= (1ull << kSysConst_EDRAMBlendRT01_Index)
+                            << (rt_index >> 1);
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(12));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+  shader_code_.push_back(scale_temp);
+  shader_code_.push_back(
+      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
+                                  (rt_index & 1) ? 0b11111111 : 0b01010101, 3));
+  shader_code_.push_back(cbuffer_index_system_constants_);
+  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
+  shader_code_.push_back(kSysConst_EDRAMBlendRT01_Vec + (rt_index >> 1));
+  shader_code_.push_back(EncodeVectorSwizzledOperand(
+      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+  shader_code_.push_back(kBlendY_Color_OpMin);
+  shader_code_.push_back(kBlendY_Alpha_OpMin);
+  shader_code_.push_back(kBlendY_Color_OpMax);
+  shader_code_.push_back(kBlendY_Alpha_OpMax);
+  ++stat_.instruction_count;
+  ++stat_.uint_instruction_count;
+
+  // Replace the result with the minimum or the maximum of the source and the
+  // destination because min/max don't use factors (also not using anything
+  // involving multiplication for this so 0 * Infinity may not affect this).
+  // Final output to src_color_and_output_temp happens here.
+  for (uint32_t i = 0; i < 2; ++i) {
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(
+                               i ? D3D10_SB_OPCODE_MAX : D3D10_SB_OPCODE_MIN) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+    shader_code_.push_back(
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+    shader_code_.push_back(dest_factor_and_minmax_temp);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+    shader_code_.push_back(src_color_and_output_temp);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+    shader_code_.push_back(dest_color_temp);
+    ++stat_.instruction_count;
+    ++stat_.float_instruction_count;
+
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
+    shader_code_.push_back(
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+    // In min, writing to the intermediate result register because max still
+    // needs to original source color.
+    // In max, doing the final output.
+    shader_code_.push_back(i ? src_color_and_output_temp
+                             : src_factor_and_result_temp);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_TEMP, i ? 0b01000000 : 0b11101010, 1));
+    shader_code_.push_back(scale_temp);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+    shader_code_.push_back(dest_factor_and_minmax_temp);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+    shader_code_.push_back(src_factor_and_result_temp);
+    ++stat_.instruction_count;
+    ++stat_.movc_instruction_count;
+  }
+
+  // Release scale_temp, src_factor_and_result_temp and
+  // dest_factor_and_minmax_temp.
+  PopSystemTemp(3);
 
   // Clamp the resulting color.
   CompletePixelShader_WriteToROV_ClampColor(rt_index,
