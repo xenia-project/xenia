@@ -39,19 +39,20 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kSysFlag_ZDividedByW_Shift,
     kSysFlag_WNotReciprocal_Shift,
     kSysFlag_ReverseZ_Shift,
-    kSysFlag_DepthStencilRead_Shift,
+    kSysFlag_DepthStencil_Shift,
+    kSysFlag_DepthFloat24_Shift,
     // Depth/stencil testing not done if DepthStencilRead is disabled, but
     // writing may still be done.
     kSysFlag_DepthPassIfLess_Shift,
     kSysFlag_DepthPassIfEqual_Shift,
     kSysFlag_DepthPassIfGreater_Shift,
+    // 1 to write new depth to the depth buffer, 0 to keep the old one if the
+    // depth test passes.
+    kSysFlag_DepthWriteMask_Shift,
+    kSysFlag_StencilTest_Shift,
     // This doesn't include depth/stencil masks - only reflects the fact that
     // the new value must be written.
     kSysFlag_DepthStencilWrite_Shift,
-    // If don't need to read or write the depth component of the depth/stencil
-    // buffer, better disable kSysFlag_DepthFloat24 because float->unorm is
-    // easier to perform than float32->float24.
-    kSysFlag_DepthFloat24_Shift,
     kSysFlag_Color0Gamma_Shift,
     kSysFlag_Color1Gamma_Shift,
     kSysFlag_Color2Gamma_Shift,
@@ -61,12 +62,14 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kSysFlag_ZDividedByW = 1u << kSysFlag_ZDividedByW_Shift,
     kSysFlag_WNotReciprocal = 1u << kSysFlag_WNotReciprocal_Shift,
     kSysFlag_ReverseZ = 1u << kSysFlag_ReverseZ_Shift,
-    kSysFlag_DepthStencilRead = 1u << kSysFlag_DepthStencilRead_Shift,
+    kSysFlag_DepthStencil = 1u << kSysFlag_DepthStencil_Shift,
+    kSysFlag_DepthFloat24 = 1u << kSysFlag_DepthFloat24_Shift,
     kSysFlag_DepthPassIfLess = 1u << kSysFlag_DepthPassIfLess_Shift,
     kSysFlag_DepthPassIfEqual = 1u << kSysFlag_DepthPassIfEqual_Shift,
     kSysFlag_DepthPassIfGreater = 1u << kSysFlag_DepthPassIfGreater_Shift,
+    kSysFlag_DepthWriteMask = 1u << kSysFlag_DepthWriteMask_Shift,
+    kSysFlag_StencilTest = 1u << kSysFlag_StencilTest_Shift,
     kSysFlag_DepthStencilWrite = 1u << kSysFlag_DepthStencilWrite_Shift,
-    kSysFlag_DepthFloat24 = 1u << kSysFlag_DepthFloat24_Shift,
     kSysFlag_Color0Gamma = 1u << kSysFlag_Color0Gamma_Shift,
     kSysFlag_Color1Gamma = 1u << kSysFlag_Color1Gamma_Shift,
     kSysFlag_Color2Gamma = 1u << kSysFlag_Color2Gamma_Shift,

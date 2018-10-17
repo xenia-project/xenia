@@ -3593,22 +3593,17 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
   // TODO(Triang3l): Do depth/stencil before the translated shader if possible.
   // ***************************************************************************
 
-  // Convert the depth to the target format - won't modify the W value. No need
-  // to do this in an if - if the value is not needed, the command processor can
-  // specify that the format is unorm24 - the conversion is much easier this way
-  // than for float24, only 2 instructions.
-  CompletePixelShader_DepthTo24Bit();
-
-  uint32_t depth_flags_temp = PushSystemTemp();
+  uint32_t depth_stencil_flags_temp = PushSystemTemp();
   system_constants_used_ |= 1ull << kSysConst_Flags_Index;
 
-  // Extract 0 or 0xFFFFFFFF for whether depth/stencil needs to be read and for
-  // the comparison results when the test should pass to depth_flags_temp.
+  // Check if anything related to depth/stencil needs to be done at all, and get
+  // the conditions of passing the depth test - as 0 or 0xFFFFFFFF - into
+  // depth_stencil_flags_temp.
   shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_IBFE) |
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(17));
   shader_code_.push_back(
       EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
-  shader_code_.push_back(depth_flags_temp);
+  shader_code_.push_back(depth_stencil_flags_temp);
   shader_code_.push_back(EncodeVectorSwizzledOperand(
       D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
   shader_code_.push_back(1);
@@ -3617,7 +3612,7 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
   shader_code_.push_back(1);
   shader_code_.push_back(EncodeVectorSwizzledOperand(
       D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-  shader_code_.push_back(kSysFlag_DepthStencilRead_Shift);
+  shader_code_.push_back(kSysFlag_DepthStencil_Shift);
   shader_code_.push_back(kSysFlag_DepthPassIfLess_Shift);
   shader_code_.push_back(kSysFlag_DepthPassIfEqual_Shift);
   shader_code_.push_back(kSysFlag_DepthPassIfGreater_Shift);
@@ -3629,17 +3624,22 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
   ++stat_.instruction_count;
   ++stat_.int_instruction_count;
 
-  // Check if operations involving the previous depth/stencil value need to be
-  // done.
+  // Enter the depth/stencil test if needed.
   shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
                          ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(
                              D3D10_SB_INSTRUCTION_TEST_NONZERO) |
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
   shader_code_.push_back(
       EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-  shader_code_.push_back(depth_flags_temp);
+  shader_code_.push_back(depth_stencil_flags_temp);
   ++stat_.instruction_count;
   ++stat_.dynamic_flow_control_count;
+
+  // Convert the depth to the target format - won't modify the W value. No need
+  // to do this in an if - if the value is not needed, the command processor can
+  // specify that the format is unorm24 - the conversion is much easier this way
+  // than for float24, only 2 instructions.
+  CompletePixelShader_DepthTo24Bit();
 
   // Load the previous combined depth/stencil value into system_temp_depth_.y.
   shader_code_.push_back(
@@ -3683,8 +3683,8 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
   ++stat_.instruction_count;
   ++stat_.uint_instruction_count;
 
-  // Do depth/stencil testing.
-  uint32_t depth_stencil_test_temp = PushSystemTemp();
+  // Allocate a register for depth/stencil testing.
+  uint32_t depth_stencil_test_result_temp = PushSystemTemp();
 
   // First, the depth test.
   // New depth in system_temp_depth_.x, old depth in system_temp_depth_.y.
@@ -3694,7 +3694,7 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
   shader_code_.push_back(
       EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1010, 1));
-  shader_code_.push_back(depth_stencil_test_temp);
+  shader_code_.push_back(depth_stencil_test_result_temp);
   shader_code_.push_back(
       EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b01000000, 1));
   shader_code_.push_back(system_temp_depth_);
@@ -3709,7 +3709,7 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
   shader_code_.push_back(
       EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0100, 1));
-  shader_code_.push_back(depth_stencil_test_temp);
+  shader_code_.push_back(depth_stencil_test_result_temp);
   shader_code_.push_back(
       EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
   shader_code_.push_back(system_temp_depth_);
@@ -3724,79 +3724,111 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
   shader_code_.push_back(
       EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1110, 1));
-  shader_code_.push_back(depth_stencil_test_temp);
+  shader_code_.push_back(depth_stencil_test_result_temp);
   shader_code_.push_back(
       EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-  shader_code_.push_back(depth_stencil_test_temp);
+  shader_code_.push_back(depth_stencil_test_result_temp);
   shader_code_.push_back(
       EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-  shader_code_.push_back(depth_flags_temp);
+  shader_code_.push_back(depth_stencil_flags_temp);
   ++stat_.instruction_count;
   ++stat_.uint_instruction_count;
 
-  // 4) Start combining the results into system_temp_depth_.x - using .x
-  // specifically to keep the value because the stencil test also depends on the
-  // result of the depth test.
+  // 4) Start combining the results into depth_stencil_test_result_temp.x.
   shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_OR) |
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
   shader_code_.push_back(
       EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-  shader_code_.push_back(depth_stencil_test_temp);
+  shader_code_.push_back(depth_stencil_test_result_temp);
   shader_code_.push_back(
       EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
-  shader_code_.push_back(depth_stencil_test_temp);
+  shader_code_.push_back(depth_stencil_test_result_temp);
   shader_code_.push_back(
       EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
-  shader_code_.push_back(depth_stencil_test_temp);
+  shader_code_.push_back(depth_stencil_test_result_temp);
   ++stat_.instruction_count;
   ++stat_.uint_instruction_count;
 
-  // 5) Finish combining the results into system_temp_depth_.w.
+  // 5) Finish combining the results into depth_stencil_test_result_temp.x.
   shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_OR) |
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
   shader_code_.push_back(
       EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-  shader_code_.push_back(depth_stencil_test_temp);
+  shader_code_.push_back(depth_stencil_test_result_temp);
   shader_code_.push_back(
       EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-  shader_code_.push_back(depth_stencil_test_temp);
+  shader_code_.push_back(depth_stencil_test_result_temp);
   shader_code_.push_back(
       EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 3, 1));
-  shader_code_.push_back(depth_stencil_test_temp);
+  shader_code_.push_back(depth_stencil_test_result_temp);
   ++stat_.instruction_count;
   ++stat_.uint_instruction_count;
 
-  // 6) Discard the pixel if depth test failed.
+  // Depth test done, and we don't need to compare the new value with anything
+  // anymore, so check if we need to apply the depth write mask  and keep the
+  // old depth value if it's disabled. Also check if the stencil test needs to
+  // be performed.
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(12));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0011, 1));
+  shader_code_.push_back(depth_stencil_flags_temp);
+  shader_code_.push_back(EncodeVectorReplicatedOperand(
+      D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSysConst_Flags_Comp, 3));
+  shader_code_.push_back(cbuffer_index_system_constants_);
+  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
+  shader_code_.push_back(kSysConst_Flags_Vec);
+  shader_code_.push_back(EncodeVectorSwizzledOperand(
+      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+  shader_code_.push_back(kSysFlag_DepthWriteMask);
+  shader_code_.push_back(kSysFlag_StencilTest);
+  shader_code_.push_back(0);
+  shader_code_.push_back(0);
+  ++stat_.instruction_count;
+  ++stat_.uint_instruction_count;
+
+  // Preserve the original depth if the depth write mask is disabled - copy
+  // system_temp_depth_.y to system_temp_depth_.x if needed.
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+  shader_code_.push_back(system_temp_depth_);
+  shader_code_.push_back(
+      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
+  shader_code_.push_back(depth_stencil_flags_temp);
+  shader_code_.push_back(
+      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
+  shader_code_.push_back(system_temp_depth_);
+  shader_code_.push_back(
+      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
+  shader_code_.push_back(system_temp_depth_);
+  ++stat_.instruction_count;
+  ++stat_.movc_instruction_count;
+
+  // TODO(Triang3l): Do stencil testing.
+
+  // Discard the pixel if depth/stencil test failed.
   shader_code_.push_back(
       ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DISCARD) |
       ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(D3D10_SB_INSTRUCTION_TEST_ZERO) |
       ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
   shader_code_.push_back(
       EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-  shader_code_.push_back(depth_stencil_test_temp);
+  shader_code_.push_back(depth_stencil_test_result_temp);
   ++stat_.instruction_count;
 
-  // TODO(Triang3l): Preserve the original depth if the depth write mask is
-  // false.
-
-  // TODO(Triang3l): Do stencil testing.
-
-  // Release depth_stencil_test_temp.
+  // Release depth_stencil_test_result_temp.
   PopSystemTemp();
-
-  // Operations involving the previous value done.
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
-  ++stat_.instruction_count;
 
   // Get the bit to check if need to write the new depth/stencil value.
   // The write masks of depth specifically and stencil specifically are handled
-  // in the depth/stencil test code.
+  // before.
   shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
   shader_code_.push_back(
       EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-  shader_code_.push_back(depth_flags_temp);
+  shader_code_.push_back(depth_stencil_flags_temp);
   shader_code_.push_back(EncodeVectorSelectOperand(
       D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSysConst_Flags_Comp, 3));
   shader_code_.push_back(cbuffer_index_system_constants_);
@@ -3815,7 +3847,7 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
   shader_code_.push_back(
       EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-  shader_code_.push_back(depth_flags_temp);
+  shader_code_.push_back(depth_stencil_flags_temp);
   ++stat_.instruction_count;
   ++stat_.dynamic_flow_control_count;
 
@@ -3852,12 +3884,17 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
   ++stat_.instruction_count;
   ++stat_.c_texture_store_instructions;
 
-  // Done writing to the depth/stencil buffer.
+  // Depth/stencil writing done.
   shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
   ++stat_.instruction_count;
 
-  // Release depth_flags_temp.
+  // Depth/stencil operations done.
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
+  ++stat_.instruction_count;
+
+  // Release depth_stencil_flags_temp.
   PopSystemTemp();
 
   // ***************************************************************************

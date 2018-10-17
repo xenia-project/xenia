@@ -1645,20 +1645,25 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   }
   if (render_target_cache_->IsROVUsedForEDRAM()) {
     uint32_t rb_depthcontrol = regs[XE_GPU_REG_RB_DEPTHCONTROL].u32;
-    if (rb_depthcontrol & 0x2) {
-      // Read depth/stencil if depth comparison function is not "always".
-      uint32_t depth_comparison = (rb_depthcontrol >> 4) & 0x7;
-      flags |= depth_comparison
-               << DxbcShaderTranslator::kSysFlag_DepthPassIfLess_Shift;
-      if (depth_comparison != 0x7) {
-        flags |= DxbcShaderTranslator::kSysFlag_DepthStencilRead;
-        if (DepthRenderTargetFormat((rb_depth_info >> 16) & 0x1) ==
-            DepthRenderTargetFormat::kD24FS8) {
-          flags |= DxbcShaderTranslator::kSysFlag_DepthFloat24;
-        }
+    if (rb_depthcontrol & (0x1 | 0x2)) {
+      flags |= DxbcShaderTranslator::kSysFlag_DepthStencil;
+      if (DepthRenderTargetFormat((rb_depth_info >> 16) & 0x1) ==
+          DepthRenderTargetFormat::kD24FS8) {
+        flags |= DxbcShaderTranslator::kSysFlag_DepthFloat24;
       }
-      if (rb_depthcontrol & 0x4) {
-        flags |= DxbcShaderTranslator::kSysFlag_DepthStencilWrite;
+      if (rb_depthcontrol & 0x2) {
+        flags |= ((rb_depthcontrol >> 4) & 0x7)
+                 << DxbcShaderTranslator::kSysFlag_DepthPassIfLess_Shift;
+        if (rb_depthcontrol & 0x4) {
+          flags |= DxbcShaderTranslator::kSysFlag_DepthWriteMask |
+                   DxbcShaderTranslator::kSysFlag_DepthStencilWrite;
+        }
+      } else {
+        // In case stencil is used without depth testing - always pass, and
+        // don't modify the stored depth.
+        flags |= DxbcShaderTranslator::kSysFlag_DepthPassIfLess |
+                 DxbcShaderTranslator::kSysFlag_DepthPassIfEqual |
+                 DxbcShaderTranslator::kSysFlag_DepthPassIfGreater;
       }
     }
   }
