@@ -52,6 +52,11 @@ class D3D12CommandProcessor : public CommandProcessor {
   ID3D12GraphicsCommandList* GetCurrentCommandList() const;
   ID3D12GraphicsCommandList1* GetCurrentCommandList1() const;
 
+  // Should a rasterizer-ordered UAV of the EDRAM buffer with format conversion
+  // and blending performed in pixel shaders be used instead of host render
+  // targets.
+  bool IsROVUsedForEDRAM() const;
+
   // Gets the current color write mask, taking the pixel shader's write mask
   // into account. If a shader doesn't write to a render target, it shouldn't be
   // written to and it shouldn't be even bound - otherwise, in Halo 3, one

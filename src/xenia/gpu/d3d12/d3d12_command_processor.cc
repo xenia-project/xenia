@@ -32,6 +32,9 @@ DEFINE_bool(d3d12_half_pixel_offset, true,
 // Disabled because the current positions look worse than sampling at centers.
 DEFINE_bool(d3d12_programmable_sample_positions, false,
             "Enable custom SSAA sample positions where available");
+DEFINE_bool(d3d12_rov, false,
+            "Use rasterizer-ordered views for render target emulation where "
+            "available.");
 
 namespace xe {
 namespace gpu {
@@ -72,6 +75,14 @@ ID3D12GraphicsCommandList1* D3D12CommandProcessor::GetCurrentCommandList1()
     return nullptr;
   }
   return command_lists_[current_queue_frame_]->GetCommandList1();
+}
+
+bool D3D12CommandProcessor::IsROVUsedForEDRAM() const {
+  if (!FLAGS_d3d12_rov) {
+    return false;
+  }
+  auto provider = GetD3D12Context()->GetD3D12Provider();
+  return provider->AreRasterizerOrderedViewsSupported();
 }
 
 uint32_t D3D12CommandProcessor::GetCurrentColorMask(
@@ -272,7 +283,7 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(
     shared_memory_and_edram_ranges[0].BaseShaderRegister = 0;
     shared_memory_and_edram_ranges[0].RegisterSpace = 0;
     shared_memory_and_edram_ranges[0].OffsetInDescriptorsFromTableStart = 0;
-    if (render_target_cache_->IsROVUsedForEDRAM()) {
+    if (IsROVUsedForEDRAM()) {
       ++parameter.DescriptorTable.NumDescriptorRanges;
       shared_memory_and_edram_ranges[1].RangeType =
           D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
@@ -653,8 +664,8 @@ bool D3D12CommandProcessor::SetupContext() {
     return false;
   }
 
-  pipeline_cache_ = std::make_unique<PipelineCache>(
-      this, register_file_, render_target_cache_->IsROVUsedForEDRAM());
+  pipeline_cache_ = std::make_unique<PipelineCache>(this, register_file_,
+                                                    IsROVUsedForEDRAM());
 
   primitive_converter_ =
       std::make_unique<PrimitiveConverter>(this, register_file_, memory_);
@@ -1227,7 +1238,7 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     vertex_buffers_resident[vfetch_index >> 6] |= 1ull << (vfetch_index & 63);
   }
 
-  if (render_target_cache_->IsROVUsedForEDRAM()) {
+  if (IsROVUsedForEDRAM()) {
     render_target_cache_->UseEDRAMAsUAV();
   }
   if (indexed) {
@@ -1548,7 +1559,7 @@ void D3D12CommandProcessor::UpdateFixedFunctionState(
     ff_scissor_update_needed_ = false;
   }
 
-  if (!render_target_cache_->IsROVUsedForEDRAM()) {
+  if (!IsROVUsedForEDRAM()) {
     // Blend factor.
     ff_blend_factor_update_needed_ |=
         ff_blend_factor_[0] != regs[XE_GPU_REG_RB_BLEND_RED].f32;
@@ -1643,7 +1654,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
       uint32_t(ColorRenderTargetFormat::k_8_8_8_8_GAMMA)) {
     flags |= DxbcShaderTranslator::kSysFlag_Color3Gamma;
   }
-  if (render_target_cache_->IsROVUsedForEDRAM()) {
+  if (IsROVUsedForEDRAM()) {
     uint32_t rb_depthcontrol = regs[XE_GPU_REG_RB_DEPTHCONTROL].u32;
     if (rb_depthcontrol & (0x1 | 0x2)) {
       flags |= DxbcShaderTranslator::kSysFlag_DepthStencil;
@@ -1856,7 +1867,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
       // value returned from the shader needs to be divided by 32 (blending will
       // be incorrect in this case, but there's no other way without using ROV).
       // http://www.students.science.uu.nl/~3220516/advancedgraphics/papers/inferred_lighting.pdf
-      if (!render_target_cache_->IsROVUsedForEDRAM()) {
+      if (!IsROVUsedForEDRAM()) {
         color_exp_bias -= 5;
       }
     }
@@ -1865,7 +1876,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
         0x3F800000 + (color_exp_bias << 23);
     dirty |= system_constants_.color_exp_bias[i] != color_exp_bias_scale;
     system_constants_.color_exp_bias[i] = color_exp_bias_scale;
-    if (render_target_cache_->IsROVUsedForEDRAM()) {
+    if (IsROVUsedForEDRAM()) {
       uint32_t edram_base_dwords = (color_info & 0xFFF) * 1280;
       dirty |= system_constants_.edram_base_dwords[i] != edram_base_dwords;
       system_constants_.edram_base_dwords[i] = edram_base_dwords;
@@ -1932,7 +1943,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   }
 
   // Depth testing and blend constant for ROV blending.
-  if (render_target_cache_->IsROVUsedForEDRAM()) {
+  if (IsROVUsedForEDRAM()) {
     uint32_t depth_base_dwords =
         (regs[XE_GPU_REG_RB_DEPTH_INFO].u32 & 0xFFF) * 1280;
     dirty |= system_constants_.edram_depth_base_dwords != depth_base_dwords;
@@ -2222,7 +2233,7 @@ bool D3D12CommandProcessor::UpdateBindings(
   // All the constants + shared memory + textures.
   uint32_t view_count_full_update =
       6 + texture_count_vertex + texture_count_pixel;
-  if (render_target_cache_->IsROVUsedForEDRAM()) {
+  if (IsROVUsedForEDRAM()) {
     // + EDRAM UAV.
     ++view_count_full_update;
   }
@@ -2274,7 +2285,7 @@ bool D3D12CommandProcessor::UpdateBindings(
     gpu_handle_shared_memory_and_edram_ = view_gpu_handle;
     view_cpu_handle.ptr += descriptor_size_view;
     view_gpu_handle.ptr += descriptor_size_view;
-    if (render_target_cache_->IsROVUsedForEDRAM()) {
+    if (IsROVUsedForEDRAM()) {
       render_target_cache_->CreateEDRAMUint32UAV(view_cpu_handle);
       view_cpu_handle.ptr += descriptor_size_view;
       view_gpu_handle.ptr += descriptor_size_view;

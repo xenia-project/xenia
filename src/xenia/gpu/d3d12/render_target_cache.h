@@ -240,11 +240,6 @@ class RenderTargetCache {
   void Shutdown();
   void ClearCache();
 
-  // Should a rasterizer-ordered UAV of the EDRAM buffer with format conversion
-  // and blending performed in pixel shaders be used instead of host render
-  // targets.
-  bool IsROVUsedForEDRAM() const;
-
   void BeginFrame();
   // Called in the beginning of a draw call - may bind pipelines.
   bool UpdateRenderTargets(const D3D12Shader* pixel_shader);
