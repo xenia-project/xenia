@@ -1887,26 +1887,19 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
           80;
       dirty |= system_constants_.edram_pitch_tiles != edram_pitch_tiles;
       system_constants_.edram_pitch_tiles = edram_pitch_tiles;
-      static const uint32_t kRTFormatAllComponentsMask[16] = {
-          0b1111, 0b1111, 0b1111, 0b1111, 0b0011, 0b1111, 0b0011, 0b1111,
-          0b0000, 0b0000, 0b1111, 0b0000, 0b1111, 0b0000, 0b0001, 0b0011,
-      };
-      uint32_t rt_mask_all = kRTFormatAllComponentsMask[uint32_t(color_format)];
-      uint32_t rt_mask = (rb_color_mask >> (i * 4)) & rt_mask_all;
       uint32_t rt_flags =
           DxbcShaderTranslator::GetColorFormatRTFlags(color_format);
+      // Exclude unused components from the write mask.
+      uint32_t rt_mask =
+          (rb_color_mask >> (i * 4)) & 0xF &
+          ~(rt_flags >> DxbcShaderTranslator::kRTFlag_FormatUnusedR_Shift);
       if (rt_mask != 0) {
-        rt_flags |= DxbcShaderTranslator::kRTFlag_Used |
-                    (rt_mask << DxbcShaderTranslator::kRTFlag_WriteR_Shift);
-        if (rt_mask != rt_mask_all) {
-          rt_flags |= DxbcShaderTranslator::kRTFlag_Load;
-        }
+        rt_flags |= rt_mask << DxbcShaderTranslator::kRTFlag_WriteR_Shift;
         uint32_t blend_x, blend_y;
         if (colorcontrol_blend_enable &&
             DxbcShaderTranslator::GetBlendConstants(blend_control, blend_x,
                                                     blend_y)) {
-          rt_flags |= DxbcShaderTranslator::kRTFlag_Load |
-                      DxbcShaderTranslator::kRTFlag_Blend;
+          rt_flags |= DxbcShaderTranslator::kRTFlag_Blend;
           uint32_t rt_pair_index = i >> 1;
           uint32_t rt_pair_comp = (i & 1) << 1;
           if (system_constants_
