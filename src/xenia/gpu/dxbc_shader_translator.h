@@ -77,6 +77,37 @@ class DxbcShaderTranslator : public ShaderTranslator {
   };
 
   enum : uint32_t {
+    kStencilOp_Flag_CurrentMask_Shift,
+    kStencilOp_Flag_Invert_Shift,
+    // 0, 1 or 3 expanded to 0 or 1 or 0xFF - the value to add.
+    kStencilOp_Flag_Add_Shift,
+    kStencilOp_Flag_Saturate_Shift = kStencilOp_Flag_Add_Shift + 2,
+    kStencilOp_Flag_NewMask_Shift,
+
+    kStencilOp_Flag_CurrentMask = 1u << kStencilOp_Flag_CurrentMask_Shift,
+    kStencilOp_Flag_Invert = 1u << kStencilOp_Flag_Invert_Shift,
+    kStencilOp_Flag_Increment = 1u << kStencilOp_Flag_Add_Shift,
+    kStencilOp_Flag_Decrement = 3u << kStencilOp_Flag_Add_Shift,
+    kStencilOp_Flag_Saturate = 1u << kStencilOp_Flag_Saturate_Shift,
+    kStencilOp_Flag_NewMask = 1u << kStencilOp_Flag_NewMask_Shift,
+
+    kStencilOp_Keep = kStencilOp_Flag_CurrentMask,
+    kStencilOp_Zero = 0,
+    kStencilOp_Replace = kStencilOp_Flag_NewMask,
+    kStencilOp_IncrementSaturate = kStencilOp_Flag_CurrentMask |
+                                   kStencilOp_Flag_Increment |
+                                   kStencilOp_Flag_Saturate,
+    kStencilOp_DecrementSaturate = kStencilOp_Flag_CurrentMask |
+                                   kStencilOp_Flag_Decrement |
+                                   kStencilOp_Flag_Saturate,
+    kStencilOp_Invert = kStencilOp_Flag_CurrentMask | kStencilOp_Flag_Invert,
+    kStencilOp_Increment =
+        kStencilOp_Flag_CurrentMask | kStencilOp_Flag_Increment,
+    kStencilOp_Decrement =
+        kStencilOp_Flag_CurrentMask | kStencilOp_Flag_Decrement,
+  };
+
+  enum : uint32_t {
     // Whether the render target needs to be merged with another (if the write
     // mask is not 1111, or 11 for 16_16, or 1 for 32_FLOAT, or blending is
     // enabled and it's not no-op).
@@ -272,65 +303,95 @@ class DxbcShaderTranslator : public ShaderTranslator {
     uint32_t color_output_map[4];
 
     // vec4 8
-    uint32_t edram_base_dwords[4];
+    uint32_t edram_stencil_reference;
+    uint32_t edram_stencil_read_mask;
+    uint32_t edram_stencil_write_mask;
+    uint32_t padding_8;
 
     // vec4 9
+    union {
+      struct {
+        // kStencilOp, separated into sub-operations - not the Xenos enum.
+        uint32_t edram_stencil_front_fail;
+        uint32_t edram_stencil_front_depth_fail;
+        uint32_t edram_stencil_front_pass;
+        uint32_t edram_stencil_front_comparison;
+      };
+      uint32_t edram_stencil_front[4];
+    };
+
+    // vec4 10
+    union {
+      struct {
+        // kStencilOp, separated into sub-operations - not the Xenos enum.
+        uint32_t edram_stencil_back_fail;
+        uint32_t edram_stencil_back_depth_fail;
+        uint32_t edram_stencil_back_pass;
+        uint32_t edram_stencil_back_comparison;
+      };
+      uint32_t edram_stencil_back[4];
+    };
+
+    // vec4 11
+    uint32_t edram_base_dwords[4];
+
+    // vec4 12
     // Binding and format info flags.
     uint32_t edram_rt_flags[4];
 
-    // vec4 10
+    // vec4 13
     // Format info - widths of components in the lower 32 bits (for ibfe/bfi),
     // packed as 8:8:8:8 for each render target.
     uint32_t edram_rt_pack_width_low[4];
 
-    // vec4 11
+    // vec4 14
     // Format info - offsets of components in the lower 32 bits (for ibfe/bfi),
     // packed as 8:8:8:8 for each render target.
     uint32_t edram_rt_pack_offset_low[4];
 
-    // vec4 12
+    // vec4 15
     // Format info - widths of components in the upper 32 bits (for ibfe/bfi),
     // packed as 8:8:8:8 for each render target.
     uint32_t edram_rt_pack_width_high[4];
 
-    // vec4 13
+    // vec4 16
     // Format info - offsets of components in the upper 32 bits (for ibfe/bfi),
     // packed as 8:8:8:8 for each render target.
     uint32_t edram_rt_pack_offset_high[4];
 
-    // vec4 14:15
+    // vec4 17:18
     // Format info - mask of color and alpha after unpacking, but before float
     // conversion. Primarily to differentiate between signed and unsigned
     // formats because ibfe is used for both since k_16_16 and k_16_16_16_16 are
     // signed.
     uint32_t edram_load_mask_rt01_rt23[2][4];
 
-    // vec4 16:17
+    // vec4 19:20
     // Format info - scale to apply to the color and the alpha of each render
     // target after unpacking and converting.
     float edram_load_scale_rt01_rt23[2][4];
 
-    // vec4 18:19
+    // vec4 21:22
     // Render target blending options.
     uint32_t edram_blend_rt01_rt23[2][4];
 
-    // vec4 20
+    // vec4 23
     // The constant blend factor for the respective modes.
     float edram_blend_constant[4];
 
-    // vec4 21:22
+    // vec4 24:25
     // Format info - minimum color and alpha values (as float, before
     // conversion) writable to the each render target. Integer so it's easier to
     // write infinity.
     uint32_t edram_store_min_rt01_rt23[2][4];
 
-    // vec4 23:24
+    // vec4 26:27
     // Format info - maximum color and alpha values (as float, before
     // conversion) writable to the each render target. Integer so it's easier to
     // write infinity.
     uint32_t edram_store_max_rt01_rt23[2][4];
 
-    // vec4 25:26
+    // vec4 28:29
     // Format info - scale to apply to the color and the alpha of each render
     // target before converting and packing.
     float edram_store_scale_rt01_rt23[2][4];
@@ -455,14 +516,14 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kSysConst_PointSizeMinMax_Comp = 2,
 
     kSysConst_PointScreenToNDC_Index = kSysConst_PointSizeMinMax_Index + 1,
-    kSysConst_PointScreenToNDC_Vec = kSysConst_PointSize_Vec + 1,
+    kSysConst_PointScreenToNDC_Vec = kSysConst_PointSizeMinMax_Vec + 1,
     kSysConst_PointScreenToNDC_Comp = 0,
     kSysConst_SSAAInvScale_Index = kSysConst_PointScreenToNDC_Index + 1,
     kSysConst_SSAAInvScale_Vec = kSysConst_PointScreenToNDC_Vec,
     kSysConst_SSAAInvScale_Comp = 2,
 
     kSysConst_AlphaTestRange_Index = kSysConst_SSAAInvScale_Index + 1,
-    kSysConst_AlphaTestRange_Vec = kSysConst_PointScreenToNDC_Vec + 1,
+    kSysConst_AlphaTestRange_Vec = kSysConst_SSAAInvScale_Vec + 1,
     kSysConst_AlphaTestRange_Comp = 0,
     kSysConst_EDRAMPitchTiles_Index = kSysConst_AlphaTestRange_Index + 1,
     kSysConst_EDRAMPitchTiles_Vec = kSysConst_AlphaTestRange_Vec,
@@ -472,13 +533,38 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kSysConst_EDRAMDepthBaseDwords_Comp = 3,
 
     kSysConst_ColorExpBias_Index = kSysConst_EDRAMDepthBaseDwords_Index + 1,
-    kSysConst_ColorExpBias_Vec = kSysConst_AlphaTestRange_Vec + 1,
+    kSysConst_ColorExpBias_Vec = kSysConst_EDRAMDepthBaseDwords_Vec + 1,
 
     kSysConst_ColorOutputMap_Index = kSysConst_ColorExpBias_Index + 1,
     kSysConst_ColorOutputMap_Vec = kSysConst_ColorExpBias_Vec + 1,
 
-    kSysConst_EDRAMBaseDwords_Index = kSysConst_ColorOutputMap_Index + 1,
-    kSysConst_EDRAMBaseDwords_Vec = kSysConst_ColorOutputMap_Vec + 1,
+    kSysConst_EDRAMStencilReference_Index = kSysConst_ColorOutputMap_Index + 1,
+    kSysConst_EDRAMStencilReference_Vec = kSysConst_ColorOutputMap_Vec + 1,
+    kSysConst_EDRAMStencilReference_Comp = 0,
+    kSysConst_EDRAMStencilReadMask_Index =
+        kSysConst_EDRAMStencilReference_Index + 1,
+    kSysConst_EDRAMStencilReadMask_Vec = kSysConst_EDRAMStencilReference_Vec,
+    kSysConst_EDRAMStencilReadMask_Comp = 1,
+    kSysConst_EDRAMStencilWriteMask_Index =
+        kSysConst_EDRAMStencilReadMask_Index + 1,
+    kSysConst_EDRAMStencilWriteMask_Vec = kSysConst_EDRAMStencilReference_Vec,
+    kSysConst_EDRAMStencilWriteMask_Comp = 2,
+
+    kSysConst_EDRAMStencilFront_Index =
+        kSysConst_EDRAMStencilWriteMask_Index + 1,
+    kSysConst_EDRAMStencilFront_Vec = kSysConst_EDRAMStencilWriteMask_Vec + 1,
+
+    kSysConst_EDRAMStencilBack_Index = kSysConst_EDRAMStencilFront_Index + 1,
+    kSysConst_EDRAMStencilBack_Vec = kSysConst_EDRAMStencilFront_Vec + 1,
+
+    // Components of stencil front and back.
+    kSysConst_EDRAMStencilSide_Fail_Comp = 0,
+    kSysConst_EDRAMStencilSide_DepthFail_Comp = 1,
+    kSysConst_EDRAMStencilSide_Pass_Comp = 2,
+    kSysConst_EDRAMStencilSide_Comparison_Comp = 3,
+
+    kSysConst_EDRAMBaseDwords_Index = kSysConst_EDRAMStencilBack_Index + 1,
+    kSysConst_EDRAMBaseDwords_Vec = kSysConst_EDRAMStencilBack_Vec + 1,
 
     kSysConst_EDRAMRTFlags_Index = kSysConst_EDRAMBaseDwords_Index + 1,
     kSysConst_EDRAMRTFlags_Vec = kSysConst_EDRAMBaseDwords_Vec + 1,
