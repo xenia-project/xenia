@@ -10842,43 +10842,51 @@ const DxbcShaderTranslator::SystemConstantRdef DxbcShaderTranslator::
         // vec4 7
         {"xe_color_output_map", RdefTypeIndex::kUint4, 112, 16},
         // vec4 8
-        {"xe_edram_base_dwords", RdefTypeIndex::kUint4, 128, 16},
+        {"xe_edram_stencil_reference", RdefTypeIndex::kUint, 128, 4},
+        {"xe_edram_stencil_read_mask", RdefTypeIndex::kUint, 132, 4},
+        {"xe_edram_stencil_write_mask", RdefTypeIndex::kUint, 136, 4},
         // vec4 9
-        {"xe_edram_rt_flags", RdefTypeIndex::kUint4, 144, 16},
+        {"xe_edram_stencil_front", RdefTypeIndex::kUint4, 144, 16},
         // vec4 10
-        {"xe_edram_rt_pack_width_low", RdefTypeIndex::kUint4, 160, 16},
+        {"xe_edram_stencil_back", RdefTypeIndex::kUint4, 160, 16},
         // vec4 11
-        {"xe_edram_rt_pack_offset_low", RdefTypeIndex::kUint4, 176, 16},
+        {"xe_edram_base_dwords", RdefTypeIndex::kUint4, 176, 16},
         // vec4 12
-        {"xe_edram_rt_pack_width_high", RdefTypeIndex::kUint4, 192, 16},
+        {"xe_edram_rt_flags", RdefTypeIndex::kUint4, 192, 16},
         // vec4 13
-        {"xe_edram_rt_pack_offset_high", RdefTypeIndex::kUint4, 208, 16},
+        {"xe_edram_rt_pack_width_low", RdefTypeIndex::kUint4, 208, 16},
         // vec4 14
-        {"xe_edram_load_mask_low_rt01", RdefTypeIndex::kUint4, 224, 16},
+        {"xe_edram_rt_pack_offset_low", RdefTypeIndex::kUint4, 224, 16},
         // vec4 15
-        {"xe_edram_load_mask_low_rt23", RdefTypeIndex::kUint4, 240, 16},
+        {"xe_edram_rt_pack_width_high", RdefTypeIndex::kUint4, 240, 16},
         // vec4 16
-        {"xe_edram_load_scale_rt01", RdefTypeIndex::kFloat4, 256, 16},
+        {"xe_edram_rt_pack_offset_high", RdefTypeIndex::kUint4, 256, 16},
         // vec4 17
-        {"xe_edram_load_scale_rt23", RdefTypeIndex::kFloat4, 272, 16},
+        {"xe_edram_load_mask_low_rt01", RdefTypeIndex::kUint4, 272, 16},
         // vec4 18
-        {"xe_edram_blend_rt01", RdefTypeIndex::kUint4, 288, 16},
+        {"xe_edram_load_mask_low_rt23", RdefTypeIndex::kUint4, 288, 16},
         // vec4 19
-        {"xe_edram_blend_rt23", RdefTypeIndex::kUint4, 304, 16},
+        {"xe_edram_load_scale_rt01", RdefTypeIndex::kFloat4, 304, 16},
         // vec4 20
-        {"xe_edram_blend_constant", RdefTypeIndex::kFloat4, 320, 16},
+        {"xe_edram_load_scale_rt23", RdefTypeIndex::kFloat4, 320, 16},
         // vec4 21
-        {"xe_edram_store_min_rt01", RdefTypeIndex::kFloat4, 336, 16},
+        {"xe_edram_blend_rt01", RdefTypeIndex::kUint4, 336, 16},
         // vec4 22
-        {"xe_edram_store_min_rt23", RdefTypeIndex::kFloat4, 352, 16},
+        {"xe_edram_blend_rt23", RdefTypeIndex::kUint4, 352, 16},
         // vec4 23
-        {"xe_edram_store_max_rt01", RdefTypeIndex::kFloat4, 368, 16},
+        {"xe_edram_blend_constant", RdefTypeIndex::kFloat4, 368, 16},
         // vec4 24
-        {"xe_edram_store_max_rt23", RdefTypeIndex::kFloat4, 384, 16},
+        {"xe_edram_store_min_rt01", RdefTypeIndex::kFloat4, 384, 16},
         // vec4 25
-        {"xe_edram_store_scale_rt01", RdefTypeIndex::kFloat4, 400, 16},
+        {"xe_edram_store_min_rt23", RdefTypeIndex::kFloat4, 400, 16},
         // vec4 26
-        {"xe_edram_store_scale_rt23", RdefTypeIndex::kFloat4, 416, 16},
+        {"xe_edram_store_max_rt01", RdefTypeIndex::kFloat4, 416, 16},
+        // vec4 27
+        {"xe_edram_store_max_rt23", RdefTypeIndex::kFloat4, 432, 16},
+        // vec4 28
+        {"xe_edram_store_scale_rt01", RdefTypeIndex::kFloat4, 448, 16},
+        // vec4 29
+        {"xe_edram_store_scale_rt23", RdefTypeIndex::kFloat4, 464, 16},
 };
 
 void DxbcShaderTranslator::WriteResourceDefinitions() {
