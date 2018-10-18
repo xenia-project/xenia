@@ -4204,21 +4204,19 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
       // Mask the components to overwrite.
       uint32_t write_mask_temp = PushSystemTemp();
       shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
-                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(12));
+                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(10));
       shader_code_.push_back(
           EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
       shader_code_.push_back(write_mask_temp);
-      shader_code_.push_back(EncodeVectorReplicatedOperand(
-          D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, i, 3));
-      shader_code_.push_back(cbuffer_index_system_constants_);
-      shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-      shader_code_.push_back(kSysConst_EDRAMRTFlags_Vec);
+      shader_code_.push_back(
+          EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, i, 1));
+      shader_code_.push_back(system_temp_color_written_);
       shader_code_.push_back(EncodeVectorSwizzledOperand(
           D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-      shader_code_.push_back(kRTFlag_WriteR);
-      shader_code_.push_back(kRTFlag_WriteG);
-      shader_code_.push_back(kRTFlag_WriteB);
-      shader_code_.push_back(kRTFlag_WriteA);
+      shader_code_.push_back(1 << 0);
+      shader_code_.push_back(1 << 1);
+      shader_code_.push_back(1 << 2);
+      shader_code_.push_back(1 << 3);
       ++stat_.instruction_count;
       ++stat_.uint_instruction_count;
       shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
