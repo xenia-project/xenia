@@ -77,17 +77,19 @@ class DxbcShaderTranslator : public ShaderTranslator {
   };
 
   enum : uint32_t {
-    // Whether the write mask is non-zero.
-    kRTFlag_Used_Shift,
     // Whether the render target needs to be merged with another (if the write
     // mask is not 1111, or 11 for 16_16, or 1 for 32_FLOAT, or blending is
     // enabled and it's not no-op).
-    kRTFlag_Load_Shift,
-    kRTFlag_Blend_Shift,
     kRTFlag_WriteR_Shift,
     kRTFlag_WriteG_Shift,
     kRTFlag_WriteB_Shift,
     kRTFlag_WriteA_Shift,
+    kRTFlag_Blend_Shift,
+    // Whether the component does not exist in the render target format.
+    kRTFlag_FormatUnusedR_Shift,
+    kRTFlag_FormatUnusedG_Shift,
+    kRTFlag_FormatUnusedB_Shift,
+    kRTFlag_FormatUnusedA_Shift,
     // Whether the format is fixed-point and needs to be converted to integer
     // (k_8_8_8_8, k_2_10_10_10, k_16_16, k_16_16_16_16).
     kRTFlag_FormatFixed_Shift,
@@ -97,13 +99,15 @@ class DxbcShaderTranslator : public ShaderTranslator {
     // f16tof32/f32tof16 is needed.
     kRTFlag_FormatFloat16_Shift,
 
-    kRTFlag_Used = 1u << kRTFlag_Used_Shift,
-    kRTFlag_Load = 1u << kRTFlag_Load_Shift,
-    kRTFlag_Blend = 1u << kRTFlag_Blend_Shift,
     kRTFlag_WriteR = 1u << kRTFlag_WriteR_Shift,
     kRTFlag_WriteG = 1u << kRTFlag_WriteG_Shift,
     kRTFlag_WriteB = 1u << kRTFlag_WriteB_Shift,
     kRTFlag_WriteA = 1u << kRTFlag_WriteA_Shift,
+    kRTFlag_Blend = 1u << kRTFlag_Blend_Shift,
+    kRTFlag_FormatUnusedR = 1u << kRTFlag_FormatUnusedR_Shift,
+    kRTFlag_FormatUnusedG = 1u << kRTFlag_FormatUnusedG_Shift,
+    kRTFlag_FormatUnusedB = 1u << kRTFlag_FormatUnusedB_Shift,
+    kRTFlag_FormatUnusedA = 1u << kRTFlag_FormatUnusedA_Shift,
     kRTFlag_FormatFixed = 1u << kRTFlag_FormatFixed_Shift,
     kRTFlag_FormatFloat10 = 1u << kRTFlag_FormatFloat10_Shift,
     kRTFlag_FormatFloat16 = 1u << kRTFlag_FormatFloat16_Shift,
@@ -919,6 +923,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // Color outputs in pixel shaders (because of exponent bias, alpha test and
   // remapping).
   uint32_t system_temp_color_[4];
+  // Whether the color output has been written in the execution path (ROV only).
+  uint32_t system_temp_color_written_;
   // Depth output in pixel shader, and 3 dwords usable as scratch for operations
   // related to depth. Currently only used for ROV depth.
   // TODO(Triang3l): Reduce depth to 24-bit in pixel shaders when using a DSV

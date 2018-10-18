@@ -53,6 +53,8 @@ class ShaderTranslator {
   bool uses_register_dynamic_addressing() const {
     return uses_register_dynamic_addressing_;
   }
+  // True if the current shader writes to a color target on any execution path.
+  bool writes_color_target(int i) const { return writes_color_targets_[i]; }
   // A list of all vertex bindings, populated before translation occurs.
   const std::vector<Shader::VertexBinding>& vertex_bindings() const {
     return vertex_bindings_;
