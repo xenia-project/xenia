@@ -11919,8 +11919,12 @@ void DxbcShaderTranslator::WriteInputSignature() {
     shader_object_.push_back(9);
     shader_object_.push_back(1);
     shader_object_.push_back(kPSInFrontFaceRegister);
-    shader_object_.push_back(0x1 |
-                             (is_depth_only_pixel_shader_ ? 0 : (0x1 << 8)));
+    if (edram_rov_used_) {
+      shader_object_.push_back(0x1 | (0x1 << 8));
+    } else {
+      shader_object_.push_back(0x1 |
+                               (is_depth_only_pixel_shader_ ? 0 : (0x1 << 8)));
+    }
 
     // Write the semantic names.
     new_offset = (uint32_t(shader_object_.size()) - chunk_position_dwords) *
@@ -12329,7 +12333,7 @@ void DxbcShaderTranslator::WriteShaderCode() {
     shader_object_.push_back(kPSInPositionRegister);
     shader_object_.push_back(ENCODE_D3D10_SB_NAME(D3D10_SB_NAME_POSITION));
     ++stat_.dcl_count;
-    if (!is_depth_only_pixel_shader_) {
+    if (edram_rov_used_ || !is_depth_only_pixel_shader_) {
       // Is front face.
       shader_object_.push_back(
           ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_INPUT_PS_SGV) |
