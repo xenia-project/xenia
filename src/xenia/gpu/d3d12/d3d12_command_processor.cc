@@ -1600,6 +1600,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
 
   uint32_t vgt_indx_offset = regs[XE_GPU_REG_VGT_INDX_OFFSET].u32;
   uint32_t pa_cl_vte_cntl = regs[XE_GPU_REG_PA_CL_VTE_CNTL].u32;
+  uint32_t rb_depthcontrol = regs[XE_GPU_REG_RB_DEPTHCONTROL].u32;
   uint32_t rb_depth_info = regs[XE_GPU_REG_RB_DEPTH_INFO].u32;
   uint32_t pa_cl_clip_cntl = regs[XE_GPU_REG_PA_CL_CLIP_CNTL].u32;
   uint32_t pa_su_vtx_cntl = regs[XE_GPU_REG_PA_SU_VTX_CNTL].u32;
@@ -1655,7 +1656,6 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
     flags |= DxbcShaderTranslator::kSysFlag_Color3Gamma;
   }
   if (IsROVUsedForEDRAM()) {
-    uint32_t rb_depthcontrol = regs[XE_GPU_REG_RB_DEPTHCONTROL].u32;
     if (rb_depthcontrol & (0x1 | 0x2)) {
       flags |= DxbcShaderTranslator::kSysFlag_DepthStencil;
       if (DepthRenderTargetFormat((rb_depth_info >> 16) & 0x1) ==
@@ -1675,6 +1675,12 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
         flags |= DxbcShaderTranslator::kSysFlag_DepthPassIfLess |
                  DxbcShaderTranslator::kSysFlag_DepthPassIfEqual |
                  DxbcShaderTranslator::kSysFlag_DepthPassIfGreater;
+      }
+      if (rb_depthcontrol & 0x1) {
+        // Stencil test may modify the stencil buffer arbitrarily, so enable
+        // writing.
+        flags |= DxbcShaderTranslator::kSysFlag_StencilTest |
+                 DxbcShaderTranslator::kSysFlag_DepthStencilWrite;
       }
     }
   }
@@ -1935,12 +1941,67 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
     }
   }
 
-  // Depth testing and blend constant for ROV blending.
+  // Depth/stencil testing and blend constant for ROV blending.
   if (IsROVUsedForEDRAM()) {
     uint32_t depth_base_dwords =
         (regs[XE_GPU_REG_RB_DEPTH_INFO].u32 & 0xFFF) * 1280;
     dirty |= system_constants_.edram_depth_base_dwords != depth_base_dwords;
     system_constants_.edram_depth_base_dwords = depth_base_dwords;
+
+    if (rb_depthcontrol & 0x1) {
+      uint32_t rb_stencilrefmask = regs[XE_GPU_REG_RB_STENCILREFMASK].u32;
+      uint32_t stencil_value;
+
+      stencil_value = rb_stencilrefmask & 0xFF;
+      dirty |= system_constants_.edram_stencil_reference != stencil_value;
+      system_constants_.edram_stencil_reference = stencil_value;
+      stencil_value = (rb_stencilrefmask >> 8) & 0xFF;
+      dirty |= system_constants_.edram_stencil_read_mask != stencil_value;
+      system_constants_.edram_stencil_read_mask = stencil_value;
+      stencil_value = (rb_stencilrefmask >> 16) & 0xFF;
+      dirty |= system_constants_.edram_stencil_write_mask != stencil_value;
+      system_constants_.edram_stencil_write_mask = stencil_value;
+
+      static const uint32_t kStencilOpMap[] = {
+          DxbcShaderTranslator::kStencilOp_Keep,
+          DxbcShaderTranslator::kStencilOp_Zero,
+          DxbcShaderTranslator::kStencilOp_Replace,
+          DxbcShaderTranslator::kStencilOp_IncrementSaturate,
+          DxbcShaderTranslator::kStencilOp_DecrementSaturate,
+          DxbcShaderTranslator::kStencilOp_Invert,
+          DxbcShaderTranslator::kStencilOp_Increment,
+          DxbcShaderTranslator::kStencilOp_Decrement,
+      };
+
+      stencil_value = kStencilOpMap[(rb_depthcontrol >> 11) & 0x7];
+      dirty |= system_constants_.edram_stencil_front_fail != stencil_value;
+      system_constants_.edram_stencil_front_fail = stencil_value;
+      stencil_value = kStencilOpMap[(rb_depthcontrol >> 17) & 0x7];
+      dirty |=
+          system_constants_.edram_stencil_front_depth_fail != stencil_value;
+      system_constants_.edram_stencil_front_depth_fail = stencil_value;
+      stencil_value = kStencilOpMap[(rb_depthcontrol >> 14) & 0x7];
+      dirty |= system_constants_.edram_stencil_front_pass != stencil_value;
+      system_constants_.edram_stencil_front_pass = stencil_value;
+      stencil_value = (rb_depthcontrol >> 8) & 0x7;
+      dirty |=
+          system_constants_.edram_stencil_front_comparison != stencil_value;
+      system_constants_.edram_stencil_front_comparison = stencil_value;
+
+      stencil_value = kStencilOpMap[(rb_depthcontrol >> 23) & 0x7];
+      dirty |= system_constants_.edram_stencil_back_fail != stencil_value;
+      system_constants_.edram_stencil_back_fail = stencil_value;
+      stencil_value = kStencilOpMap[(rb_depthcontrol >> 29) & 0x7];
+      dirty |= system_constants_.edram_stencil_back_depth_fail != stencil_value;
+      system_constants_.edram_stencil_back_depth_fail = stencil_value;
+      stencil_value = kStencilOpMap[(rb_depthcontrol >> 26) & 0x7];
+      dirty |= system_constants_.edram_stencil_back_pass != stencil_value;
+      system_constants_.edram_stencil_back_pass = stencil_value;
+      stencil_value = (rb_depthcontrol >> 20) & 0x7;
+      dirty |= system_constants_.edram_stencil_back_comparison != stencil_value;
+      system_constants_.edram_stencil_back_comparison = stencil_value;
+    }
+
     dirty |= system_constants_.edram_blend_constant[0] !=
              regs[XE_GPU_REG_RB_BLEND_RED].f32;
     system_constants_.edram_blend_constant[0] =

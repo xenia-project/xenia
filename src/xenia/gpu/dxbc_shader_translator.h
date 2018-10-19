@@ -78,17 +78,17 @@ class DxbcShaderTranslator : public ShaderTranslator {
 
   enum : uint32_t {
     kStencilOp_Flag_CurrentMask_Shift,
-    kStencilOp_Flag_Invert_Shift,
     // 0, 1 or 3 expanded to 0 or 1 or 0xFF - the value to add.
     kStencilOp_Flag_Add_Shift,
     kStencilOp_Flag_Saturate_Shift = kStencilOp_Flag_Add_Shift + 2,
+    kStencilOp_Flag_Invert_Shift,
     kStencilOp_Flag_NewMask_Shift,
 
     kStencilOp_Flag_CurrentMask = 1u << kStencilOp_Flag_CurrentMask_Shift,
-    kStencilOp_Flag_Invert = 1u << kStencilOp_Flag_Invert_Shift,
     kStencilOp_Flag_Increment = 1u << kStencilOp_Flag_Add_Shift,
     kStencilOp_Flag_Decrement = 3u << kStencilOp_Flag_Add_Shift,
     kStencilOp_Flag_Saturate = 1u << kStencilOp_Flag_Saturate_Shift,
+    kStencilOp_Flag_Invert = 1u << kStencilOp_Flag_Invert_Shift,
     kStencilOp_Flag_NewMask = 1u << kStencilOp_Flag_NewMask_Shift,
 
     kStencilOp_Keep = kStencilOp_Flag_CurrentMask,
