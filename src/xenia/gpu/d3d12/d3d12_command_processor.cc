@@ -1988,18 +1988,29 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
           system_constants_.edram_stencil_front_comparison != stencil_value;
       system_constants_.edram_stencil_front_comparison = stencil_value;
 
-      stencil_value = kStencilOpMap[(rb_depthcontrol >> 23) & 0x7];
-      dirty |= system_constants_.edram_stencil_back_fail != stencil_value;
-      system_constants_.edram_stencil_back_fail = stencil_value;
-      stencil_value = kStencilOpMap[(rb_depthcontrol >> 29) & 0x7];
-      dirty |= system_constants_.edram_stencil_back_depth_fail != stencil_value;
-      system_constants_.edram_stencil_back_depth_fail = stencil_value;
-      stencil_value = kStencilOpMap[(rb_depthcontrol >> 26) & 0x7];
-      dirty |= system_constants_.edram_stencil_back_pass != stencil_value;
-      system_constants_.edram_stencil_back_pass = stencil_value;
-      stencil_value = (rb_depthcontrol >> 20) & 0x7;
-      dirty |= system_constants_.edram_stencil_back_comparison != stencil_value;
-      system_constants_.edram_stencil_back_comparison = stencil_value;
+      if (rb_depthcontrol & 0x80) {
+        stencil_value = kStencilOpMap[(rb_depthcontrol >> 23) & 0x7];
+        dirty |= system_constants_.edram_stencil_back_fail != stencil_value;
+        system_constants_.edram_stencil_back_fail = stencil_value;
+        stencil_value = kStencilOpMap[(rb_depthcontrol >> 29) & 0x7];
+        dirty |=
+            system_constants_.edram_stencil_back_depth_fail != stencil_value;
+        system_constants_.edram_stencil_back_depth_fail = stencil_value;
+        stencil_value = kStencilOpMap[(rb_depthcontrol >> 26) & 0x7];
+        dirty |= system_constants_.edram_stencil_back_pass != stencil_value;
+        system_constants_.edram_stencil_back_pass = stencil_value;
+        stencil_value = (rb_depthcontrol >> 20) & 0x7;
+        dirty |=
+            system_constants_.edram_stencil_back_comparison != stencil_value;
+        system_constants_.edram_stencil_back_comparison = stencil_value;
+      } else {
+        dirty |= std::memcmp(system_constants_.edram_stencil_back,
+                             system_constants_.edram_stencil_front,
+                             4 * sizeof(uint32_t)) != 0;
+        std::memcpy(system_constants_.edram_stencil_back,
+                    system_constants_.edram_stencil_front,
+                    4 * sizeof(uint32_t));
+      }
     }
 
     dirty |= system_constants_.edram_blend_constant[0] !=
