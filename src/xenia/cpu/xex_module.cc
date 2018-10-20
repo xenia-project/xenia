@@ -1231,10 +1231,10 @@ bool XexModule::SetupLibraryImports(const char* name,
   }
 
   ImportLibrary library_info;
-  library_info.Name = libbasename;
-  library_info.ID = library->id;
-  library_info.Version.value = library->version.value;
-  library_info.MinVersion.value = library->version_min.value;
+  library_info.name = libbasename;
+  library_info.id = library->id;
+  library_info.version.value = library->version.value;
+  library_info.min_version.value = library->version_min.value;
 
   // Imports are stored as {import descriptor, thunk addr, import desc, ...}
   // Even thunks have an import descriptor (albeit unused/useless)
@@ -1271,9 +1271,9 @@ bool XexModule::SetupLibraryImports(const char* name,
       // Variable.
 
       ImportLibraryFn import_info;
-      import_info.Ordinal = ordinal;
-      import_info.ValueAddress = record_addr;
-      library_info.Imports.push_back(import_info);
+      import_info.ordinal = ordinal;
+      import_info.value_address = record_addr;
+      library_info.imports.push_back(import_info);
 
       import_name.AppendFormat("__imp__");
       if (kernel_export) {
@@ -1314,10 +1314,10 @@ bool XexModule::SetupLibraryImports(const char* name,
       var_info->set_status(Symbol::Status::kDefined);
     } else if (record_type == 1) {
       // Thunk.
-      assert_true(library_info.Imports.size() > 0);
-      auto& prev_import = library_info.Imports[library_info.Imports.size() - 1];
-      assert_true(prev_import.Ordinal == ordinal);
-      prev_import.ThunkAddress = record_addr;
+      assert_true(library_info.imports.size() > 0);
+      auto& prev_import = library_info.imports[library_info.imports.size() - 1];
+      assert_true(prev_import.ordinal == ordinal);
+      prev_import.thunk_address = record_addr;
 
       if (kernel_export) {
         import_name.AppendFormat("%s", kernel_export->name);

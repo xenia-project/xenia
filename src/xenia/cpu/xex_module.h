@@ -31,17 +31,17 @@ class XexModule : public xe::cpu::Module {
  public:
   struct ImportLibraryFn {
    public:
-    uint32_t Ordinal;
-    uint32_t ValueAddress;
-    uint32_t ThunkAddress;
+    uint32_t ordinal;
+    uint32_t value_address;
+    uint32_t thunk_address;
   };
   struct ImportLibrary {
    public:
-    std::string Name;
-    uint32_t ID;
-    xe_xex2_version_t Version;
-    xe_xex2_version_t MinVersion;
-    std::vector<ImportLibraryFn> Imports;
+    std::string name;
+    uint32_t id;
+    xe_xex2_version_t version;
+    xe_xex2_version_t min_version;
+    std::vector<ImportLibraryFn> imports;
   };
 
   XexModule(Processor* processor, kernel::KernelState* kernel_state);
