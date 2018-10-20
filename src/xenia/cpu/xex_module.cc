@@ -410,6 +410,17 @@ int XexModule::ApplyPatch(XexModule* module) {
   // TODO: actually use delta_*_offset / delta_*_size etc
   assert_zero(patch_header->delta_headers_source_offset);
   assert_zero(patch_header->delta_headers_target_offset);
+  assert_zero(patch_header->delta_image_source_offset);
+  assert_zero(patch_header->delta_image_target_offset);
+
+  if (patch_header->delta_headers_source_offset ||
+      patch_header->delta_headers_target_offset ||
+      patch_header->delta_image_source_offset ||
+      patch_header->delta_image_target_offset) {
+    XELOGW(
+        "XEX patch descriptor has a non-zero delta_*_offset field, patch might "
+        "not get applied properly!");
+  }
 
   // Patch base XEX's header
   module->xex_header_mem_.resize(patch_header->size_of_target_headers);
