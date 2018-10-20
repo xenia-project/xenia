@@ -695,15 +695,15 @@ void UserModule::Dump() {
   for (std::vector<cpu::XexModule::ImportLibrary>::const_iterator library =
            import_libs->begin();
        library != import_libs->end(); ++library) {
-    if (library->Imports.size() > 0) {
-      sb.AppendFormat(" %s - %lld imports\n", library->Name.c_str(),
-                      library->Imports.size());
-      sb.AppendFormat("   Version: %d.%d.%d.%d\n", library->Version.major,
-                      library->Version.minor, library->Version.build,
-                      library->Version.qfe);
+    if (library->imports.size() > 0) {
+      sb.AppendFormat(" %s - %lld imports\n", library->name.c_str(),
+                      library->imports.size());
+      sb.AppendFormat("   Version: %d.%d.%d.%d\n", library->version.major,
+                      library->version.minor, library->version.build,
+                      library->version.qfe);
       sb.AppendFormat("   Min Version: %d.%d.%d.%d\n",
-                      library->MinVersion.major, library->MinVersion.minor,
-                      library->MinVersion.build, library->MinVersion.qfe);
+                      library->min_version.major, library->min_version.minor,
+                      library->min_version.build, library->min_version.qfe);
       sb.AppendFormat("\n");
 
       // Counts.
@@ -713,11 +713,11 @@ void UserModule::Dump() {
       int unimpl_count = 0;
 
       for (std::vector<cpu::XexModule::ImportLibraryFn>::const_iterator info =
-               library->Imports.begin();
-           info != library->Imports.end(); ++info) {
-        if (kernel_state_->IsKernelModule(library->Name.c_str())) {
+               library->imports.begin();
+           info != library->imports.end(); ++info) {
+        if (kernel_state_->IsKernelModule(library->name.c_str())) {
           auto kernel_export = export_resolver->GetExportByOrdinal(
-              library->Name.c_str(), info->Ordinal);
+              library->name.c_str(), info->ordinal);
           if (kernel_export) {
             known_count++;
             if (kernel_export->is_implemented()) {
@@ -730,10 +730,10 @@ void UserModule::Dump() {
             unimpl_count++;
           }
         } else {
-          auto module = kernel_state_->GetModule(library->Name.c_str());
+          auto module = kernel_state_->GetModule(library->name.c_str());
           if (module) {
             uint32_t export_addr =
-                module->GetProcAddressByOrdinal(info->Ordinal);
+                module->GetProcAddressByOrdinal(info->ordinal);
             if (export_addr) {
               impl_count++;
               known_count++;
@@ -747,8 +747,8 @@ void UserModule::Dump() {
           }
         }
       }
-      float total_count = static_cast<float>(library->Imports.size()) / 100.0f;
-      sb.AppendFormat("         Total: %4llu\n", library->Imports.size());
+      float total_count = static_cast<float>(library->imports.size()) / 100.0f;
+      sb.AppendFormat("         Total: %4llu\n", library->imports.size());
       sb.AppendFormat("         Known:  %3d%% (%d known, %d unknown)\n",
                       static_cast<int>(known_count / total_count), known_count,
                       unknown_count);
@@ -759,22 +759,22 @@ void UserModule::Dump() {
 
       // Listing.
       for (std::vector<cpu::XexModule::ImportLibraryFn>::const_iterator info =
-               library->Imports.begin();
-           info != library->Imports.end(); ++info) {
+               library->imports.begin();
+           info != library->imports.end(); ++info) {
         const char* name = "UNKNOWN";
         bool implemented = false;
 
         cpu::Export* kernel_export = nullptr;
-        if (kernel_state_->IsKernelModule(library->Name.c_str())) {
+        if (kernel_state_->IsKernelModule(library->name.c_str())) {
           kernel_export = export_resolver->GetExportByOrdinal(
-              library->Name.c_str(), info->Ordinal);
+              library->name.c_str(), info->ordinal);
           if (kernel_export) {
             name = kernel_export->name;
             implemented = kernel_export->is_implemented();
           }
         } else {
-          auto module = kernel_state_->GetModule(library->Name.c_str());
-          if (module && module->GetProcAddressByOrdinal(info->Ordinal)) {
+          auto module = kernel_state_->GetModule(library->name.c_str());
+          if (module && module->GetProcAddressByOrdinal(info->ordinal)) {
             // TODO(benvanik): name lookup.
             implemented = true;
           }
@@ -782,12 +782,12 @@ void UserModule::Dump() {
         if (kernel_export &&
             kernel_export->type == cpu::Export::Type::kVariable) {
           sb.AppendFormat("   V %.8X          %.3X (%3d) %s %s\n",
-                          info->ValueAddress, info->Ordinal, info->Ordinal,
+                          info->value_address, info->ordinal, info->ordinal,
                           implemented ? "  " : "!!", name);
-        } else if (info->ThunkAddress) {
+        } else if (info->thunk_address) {
           sb.AppendFormat("   F %.8X %.8X %.3X (%3d) %s %s\n",
-                          info->ValueAddress, info->ThunkAddress, info->Ordinal,
-                          info->Ordinal, implemented ? "  " : "!!", name);
+                          info->value_address, info->thunk_address, info->ordinal,
+                          info->ordinal, implemented ? "  " : "!!", name);
         }
       }
     }
