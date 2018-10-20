@@ -71,19 +71,18 @@ class UserModule : public XModule {
                       uint32_t* out_section_size) override;
 
   // Get optional header - FOR HOST USE ONLY!
-  X_STATUS GetOptHeader(xe_xex2_header_keys key, void** out_ptr);
+  X_STATUS GetOptHeader(xex2_header_keys key, void** out_ptr);
 
   // Get optional header - FOR HOST USE ONLY!
   template <typename T>
-  X_STATUS GetOptHeader(xe_xex2_header_keys key, T* out_ptr) {
+  X_STATUS GetOptHeader(xex2_header_keys key, T* out_ptr) {
     return GetOptHeader(key, reinterpret_cast<void**>(out_ptr));
   }
 
   // Get optional header that can safely be returned to guest code.
-  X_STATUS GetOptHeader(xe_xex2_header_keys key,
-                        uint32_t* out_header_guest_ptr);
+  X_STATUS GetOptHeader(xex2_header_keys key, uint32_t* out_header_guest_ptr);
   static X_STATUS GetOptHeader(uint8_t* membase, const xex2_header* header,
-                               xe_xex2_header_keys key,
+                               xex2_header_keys key,
                                uint32_t* out_header_guest_ptr);
 
   void Dump();
