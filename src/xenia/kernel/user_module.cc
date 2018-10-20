@@ -95,7 +95,36 @@ X_STATUS UserModule::LoadFromFile(std::string path) {
     file->Destroy();
   }
 
-  return result;
+  // Only XEX returns X_STATUS_PENDING
+  if (result != X_STATUS_PENDING) {
+    return result;
+  }
+
+  // Search for xexp patch file
+  auto patch_entry = kernel_state()->file_system()->ResolvePath(path_ + "p");
+
+  if (patch_entry) {
+    auto patch_path = patch_entry->absolute_path();
+
+    XELOGI("Loading XEX patch from %s", patch_path.c_str());
+
+    auto patch_module = object_ref<UserModule>(new UserModule(kernel_state_));
+    result = patch_module->LoadFromFile(patch_path);
+    if (!result) {
+      result = patch_module->xex_module()->ApplyPatch(xex_module());
+      if (result) {
+        XELOGE("Failed to apply XEX patch, code: %d", result);
+      }
+    } else {
+      XELOGE("Failed to load XEX patch, code: %d", result);
+    }
+
+    if (result) {
+      return X_STATUS_UNSUCCESSFUL;
+    }
+  }
+
+  return LoadXexContinue();
 }
 
 X_STATUS UserModule::LoadFromMemory(const void* addr, const size_t length) {
@@ -130,29 +159,13 @@ X_STATUS UserModule::LoadFromMemory(const void* addr, const size_t length) {
       return X_STATUS_UNSUCCESSFUL;
     }
 
-    // Copy the xex2 header into guest memory.
-    auto header = this->xex_module()->xex_header();
-    auto security_header = this->xex_module()->xex_security_info();
-    guest_xex_header_ = memory()->SystemHeapAlloc(header->header_size);
+    // Only XEX headers + image are loaded right now
+    // Caller will have to call LoadXexContinue after they've loaded in a patch
+    // (or after patch isn't found anywhere)
+    // or if this is an XEXP being loaded return success since there's nothing
+    // else to load
+    return this->xex_module()->is_patch() ? X_STATUS_SUCCESS : X_STATUS_PENDING;
 
-    uint8_t* xex_header_ptr = memory()->TranslateVirtual(guest_xex_header_);
-    std::memcpy(xex_header_ptr, header, header->header_size);
-
-    // Cache some commonly used headers...
-    this->xex_module()->GetOptHeader(XEX_HEADER_ENTRY_POINT, &entry_point_);
-    this->xex_module()->GetOptHeader(XEX_HEADER_DEFAULT_STACK_SIZE,
-                                     &stack_size_);
-    is_dll_module_ = !!(header->module_flags & XEX_MODULE_DLL_MODULE);
-
-    // Setup the loader data entry
-    auto ldr_data =
-        memory()->TranslateVirtual<X_LDR_DATA_TABLE_ENTRY*>(hmodule_ptr_);
-
-    ldr_data->dll_base = 0;  // GetProcAddress will read this.
-    ldr_data->xex_header_base = guest_xex_header_;
-    ldr_data->full_image_size = security_header->image_size;
-    ldr_data->image_base = this->xex_module()->base_address();
-    ldr_data->entry_point = entry_point_;
   } else if (module_format_ == kModuleFormatElf) {
     auto elf_module =
         std::make_unique<cpu::ElfModule>(processor, kernel_state());
@@ -169,6 +182,52 @@ X_STATUS UserModule::LoadFromMemory(const void* addr, const size_t length) {
       return X_STATUS_UNSUCCESSFUL;
     }
   }
+
+  OnLoad();
+
+  return X_STATUS_SUCCESS;
+}
+
+X_STATUS UserModule::LoadXexContinue() {
+  // LoadXexContinue: finishes loading XEX after a patch has been applied (or
+  // patch wasn't found)
+
+  if (!this->xex_module()) {
+    return X_STATUS_UNSUCCESSFUL;
+  }
+
+  // If guest_xex_header is set we must have already loaded the XEX
+  if (guest_xex_header_) {
+    return X_STATUS_SUCCESS;
+  }
+
+  // Finish XexModule load (PE sections/imports/symbols...)
+  if (!xex_module()->LoadContinue()) {
+    return X_STATUS_UNSUCCESSFUL;
+  }
+
+  // Copy the xex2 header into guest memory.
+  auto header = this->xex_module()->xex_header();
+  auto security_header = this->xex_module()->xex_security_info();
+  guest_xex_header_ = memory()->SystemHeapAlloc(header->header_size);
+
+  uint8_t* xex_header_ptr = memory()->TranslateVirtual(guest_xex_header_);
+  std::memcpy(xex_header_ptr, header, header->header_size);
+
+  // Cache some commonly used headers...
+  this->xex_module()->GetOptHeader(XEX_HEADER_ENTRY_POINT, &entry_point_);
+  this->xex_module()->GetOptHeader(XEX_HEADER_DEFAULT_STACK_SIZE, &stack_size_);
+  is_dll_module_ = !!(header->module_flags & XEX_MODULE_DLL_MODULE);
+
+  // Setup the loader data entry
+  auto ldr_data =
+      memory()->TranslateVirtual<X_LDR_DATA_TABLE_ENTRY*>(hmodule_ptr_);
+
+  ldr_data->dll_base = 0;  // GetProcAddress will read this.
+  ldr_data->xex_header_base = guest_xex_header_;
+  ldr_data->full_image_size = security_header->image_size;
+  ldr_data->image_base = this->xex_module()->base_address();
+  ldr_data->entry_point = entry_point_;
 
   OnLoad();
 

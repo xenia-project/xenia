@@ -436,12 +436,20 @@ struct xex2_opt_resource_info {
   xex2_resource resources[1];  // 0x4
 };
 
+struct xex2_delta_patch {
+  xe::be<uint32_t> old_addr;
+  xe::be<uint32_t> new_addr;
+  xe::be<uint16_t> uncompressed_len;
+  xe::be<uint16_t> compressed_len;
+  char patch_data[1];
+};
+
 struct xex2_opt_delta_patch_descriptor {
   xe::be<uint32_t> size;                         // 0x0
   xex2_version target_version;                   // 0x4
   xex2_version source_version;                   // 0x8
-  char digest_source[0x14];                      // 0xC
-  char image_key_source[0x10];                   // 0x20
+  uint8_t digest_source[0x14];                   // 0xC
+  uint8_t image_key_source[0x10];                // 0x20
   xe::be<uint32_t> size_of_target_headers;       // 0x30
   xe::be<uint32_t> delta_headers_source_offset;  // 0x34
   xe::be<uint32_t> delta_headers_source_size;    // 0x38
@@ -449,9 +457,8 @@ struct xex2_opt_delta_patch_descriptor {
   xe::be<uint32_t> delta_image_source_offset;    // 0x40
   xe::be<uint32_t> delta_image_source_size;      // 0x44
   xe::be<uint32_t> delta_image_target_offset;    // 0x48
-  char delta_header_patch_data[1];
+  xex2_delta_patch info;                         // 0x4C
 };
-// static_assert_size(xex2_opt_delta_patch_descriptor, 0x4D);
 
 struct xex2_opt_execution_info {
   xe::be<uint32_t> media_id;          // 0x0
