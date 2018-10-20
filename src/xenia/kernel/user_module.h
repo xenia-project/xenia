@@ -92,6 +92,8 @@ class UserModule : public XModule {
                                         ByteStream* stream, std::string path);
 
  private:
+  X_STATUS LoadXexContinue();
+
   uint32_t guest_xex_header_ = 0;
   ModuleFormat module_format_ = kModuleFormatUndefined;
 
