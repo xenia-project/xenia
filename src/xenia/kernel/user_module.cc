@@ -138,6 +138,12 @@ X_STATUS UserModule::LoadFromMemory(const void* addr, const size_t length) {
     uint8_t* xex_header_ptr = memory()->TranslateVirtual(guest_xex_header_);
     std::memcpy(xex_header_ptr, header, header->header_size);
 
+    // Cache some commonly used headers...
+    this->xex_module()->GetOptHeader(XEX_HEADER_ENTRY_POINT, &entry_point_);
+    this->xex_module()->GetOptHeader(XEX_HEADER_DEFAULT_STACK_SIZE,
+                                     &stack_size_);
+    is_dll_module_ = !!(header->module_flags & XEX_MODULE_DLL_MODULE);
+
     // Setup the loader data entry
     auto ldr_data =
         memory()->TranslateVirtual<X_LDR_DATA_TABLE_ENTRY*>(hmodule_ptr_);
@@ -145,20 +151,8 @@ X_STATUS UserModule::LoadFromMemory(const void* addr, const size_t length) {
     ldr_data->dll_base = 0;  // GetProcAddress will read this.
     ldr_data->xex_header_base = guest_xex_header_;
     ldr_data->full_image_size = security_header->image_size;
-    this->xex_module()->GetOptHeader(XEX_HEADER_ENTRY_POINT,
-                                     &ldr_data->entry_point);
-
-    xe::be<uint32_t>* image_base_ptr = nullptr;
-    if (this->xex_module()->GetOptHeader(XEX_HEADER_IMAGE_BASE_ADDRESS,
-                                         &image_base_ptr)) {
-      ldr_data->image_base = *image_base_ptr;
-    }
-
-    // Cache some commonly used headers...
-    this->xex_module()->GetOptHeader(XEX_HEADER_ENTRY_POINT, &entry_point_);
-    this->xex_module()->GetOptHeader(XEX_HEADER_DEFAULT_STACK_SIZE,
-                                     &stack_size_);
-    is_dll_module_ = !!(header->module_flags & XEX_MODULE_DLL_MODULE);
+    ldr_data->image_base = this->xex_module()->base_address();
+    ldr_data->entry_point = entry_point_;
   } else if (module_format_ == kModuleFormatElf) {
     auto elf_module =
         std::make_unique<cpu::ElfModule>(processor, kernel_state());
@@ -229,7 +223,7 @@ X_STATUS UserModule::GetSection(const char* name, uint32_t* out_section_data,
   return X_STATUS_NOT_FOUND;
 }
 
-X_STATUS UserModule::GetOptHeader(xe_xex2_header_keys key, void** out_ptr) {
+X_STATUS UserModule::GetOptHeader(xex2_header_keys key, void** out_ptr) {
   assert_not_null(out_ptr);
 
   if (module_format_ == kModuleFormatElf) {
@@ -245,7 +239,7 @@ X_STATUS UserModule::GetOptHeader(xe_xex2_header_keys key, void** out_ptr) {
   return X_STATUS_SUCCESS;
 }
 
-X_STATUS UserModule::GetOptHeader(xe_xex2_header_keys key,
+X_STATUS UserModule::GetOptHeader(xex2_header_keys key,
                                   uint32_t* out_header_guest_ptr) {
   if (module_format_ == kModuleFormatElf) {
     // Quick die.
@@ -262,7 +256,7 @@ X_STATUS UserModule::GetOptHeader(xe_xex2_header_keys key,
 }
 
 X_STATUS UserModule::GetOptHeader(uint8_t* membase, const xex2_header* header,
-                                  xe_xex2_header_keys key,
+                                  xex2_header_keys key,
                                   uint32_t* out_header_guest_ptr) {
   assert_not_null(out_header_guest_ptr);
   uint32_t field_value = 0;
@@ -575,7 +569,7 @@ void UserModule::Dump() {
         auto dir =
             reinterpret_cast<const xex2_opt_data_directory*>(opt_header_ptr);
 
-        auto exe_address = xex_module()->xex_security_info()->load_address;
+        auto exe_address = xex_module()->base_address();
         auto e = memory()->TranslateVirtual<const X_IMAGE_EXPORT_DIRECTORY*>(
             exe_address + dir->offset);
         auto e_base = reinterpret_cast<uintptr_t>(e);
@@ -624,8 +618,8 @@ void UserModule::Dump() {
     }
 
     const uint32_t page_size =
-        security_info->load_address < 0x90000000 ? 64 * 1024 : 4 * 1024;
-    uint32_t start_address = security_info->load_address + (page * page_size);
+        xex_module()->base_address() < 0x90000000 ? 64 * 1024 : 4 * 1024;
+    uint32_t start_address = xex_module()->base_address() + (page * page_size);
     uint32_t end_address = start_address + (page_descriptor.size * page_size);
 
     sb.AppendFormat("  %3u %s %3u pages    %.8X - %.8X (%d bytes)\n", page,
@@ -635,24 +629,22 @@ void UserModule::Dump() {
   }
 
   // Print out imports.
-  // TODO(benvanik): figure out a way to remove dependency on old xex header.
-  auto old_header = xe_xex2_get_header(xex_module()->xex());
+
+  auto import_libs = xex_module()->import_libraries();
 
   sb.AppendFormat("Imports:\n");
-  for (size_t n = 0; n < old_header->import_library_count; n++) {
-    const xe_xex2_import_library_t* library = &old_header->import_libraries[n];
-
-    xe_xex2_import_info_t* import_infos;
-    size_t import_info_count;
-    if (!xe_xex2_get_import_infos(xex_module()->xex(), library, &import_infos,
-                                  &import_info_count)) {
-      sb.AppendFormat(" %s - %lld imports\n", library->name, import_info_count);
-      sb.AppendFormat("   Version: %d.%d.%d.%d\n", library->version.major,
-                      library->version.minor, library->version.build,
-                      library->version.qfe);
+  for (std::vector<cpu::XexModule::ImportLibrary>::const_iterator library =
+           import_libs->begin();
+       library != import_libs->end(); ++library) {
+    if (library->Imports.size() > 0) {
+      sb.AppendFormat(" %s - %lld imports\n", library->Name.c_str(),
+                      library->Imports.size());
+      sb.AppendFormat("   Version: %d.%d.%d.%d\n", library->Version.major,
+                      library->Version.minor, library->Version.build,
+                      library->Version.qfe);
       sb.AppendFormat("   Min Version: %d.%d.%d.%d\n",
-                      library->min_version.major, library->min_version.minor,
-                      library->min_version.build, library->min_version.qfe);
+                      library->MinVersion.major, library->MinVersion.minor,
+                      library->MinVersion.build, library->MinVersion.qfe);
       sb.AppendFormat("\n");
 
       // Counts.
@@ -660,12 +652,13 @@ void UserModule::Dump() {
       int unknown_count = 0;
       int impl_count = 0;
       int unimpl_count = 0;
-      for (size_t m = 0; m < import_info_count; m++) {
-        const xe_xex2_import_info_t* info = &import_infos[m];
 
-        if (kernel_state_->IsKernelModule(library->name)) {
-          auto kernel_export =
-              export_resolver->GetExportByOrdinal(library->name, info->ordinal);
+      for (std::vector<cpu::XexModule::ImportLibraryFn>::const_iterator info =
+               library->Imports.begin();
+           info != library->Imports.end(); ++info) {
+        if (kernel_state_->IsKernelModule(library->Name.c_str())) {
+          auto kernel_export = export_resolver->GetExportByOrdinal(
+              library->Name.c_str(), info->Ordinal);
           if (kernel_export) {
             known_count++;
             if (kernel_export->is_implemented()) {
@@ -678,10 +671,10 @@ void UserModule::Dump() {
             unimpl_count++;
           }
         } else {
-          auto module = kernel_state_->GetModule(library->name);
+          auto module = kernel_state_->GetModule(library->Name.c_str());
           if (module) {
             uint32_t export_addr =
-                module->GetProcAddressByOrdinal(info->ordinal);
+                module->GetProcAddressByOrdinal(info->Ordinal);
             if (export_addr) {
               impl_count++;
               known_count++;
@@ -695,8 +688,8 @@ void UserModule::Dump() {
           }
         }
       }
-      float total_count = static_cast<float>(import_info_count) / 100.0f;
-      sb.AppendFormat("         Total: %4llu\n", import_info_count);
+      float total_count = static_cast<float>(library->Imports.size()) / 100.0f;
+      sb.AppendFormat("         Total: %4llu\n", library->Imports.size());
       sb.AppendFormat("         Known:  %3d%% (%d known, %d unknown)\n",
                       static_cast<int>(known_count / total_count), known_count,
                       unknown_count);
@@ -706,22 +699,23 @@ void UserModule::Dump() {
       sb.AppendFormat("\n");
 
       // Listing.
-      for (size_t m = 0; m < import_info_count; m++) {
-        const xe_xex2_import_info_t* info = &import_infos[m];
+      for (std::vector<cpu::XexModule::ImportLibraryFn>::const_iterator info =
+               library->Imports.begin();
+           info != library->Imports.end(); ++info) {
         const char* name = "UNKNOWN";
         bool implemented = false;
 
         cpu::Export* kernel_export = nullptr;
-        if (kernel_state_->IsKernelModule(library->name)) {
-          kernel_export =
-              export_resolver->GetExportByOrdinal(library->name, info->ordinal);
+        if (kernel_state_->IsKernelModule(library->Name.c_str())) {
+          kernel_export = export_resolver->GetExportByOrdinal(
+              library->Name.c_str(), info->Ordinal);
           if (kernel_export) {
             name = kernel_export->name;
             implemented = kernel_export->is_implemented();
           }
         } else {
-          auto module = kernel_state_->GetModule(library->name);
-          if (module && module->GetProcAddressByOrdinal(info->ordinal)) {
+          auto module = kernel_state_->GetModule(library->Name.c_str());
+          if (module && module->GetProcAddressByOrdinal(info->Ordinal)) {
             // TODO(benvanik): name lookup.
             implemented = true;
           }
@@ -729,13 +723,12 @@ void UserModule::Dump() {
         if (kernel_export &&
             kernel_export->type == cpu::Export::Type::kVariable) {
           sb.AppendFormat("   V %.8X          %.3X (%3d) %s %s\n",
-                          info->value_address, info->ordinal, info->ordinal,
+                          info->ValueAddress, info->Ordinal, info->Ordinal,
                           implemented ? "  " : "!!", name);
-        } else if (info->thunk_address) {
+        } else if (info->ThunkAddress) {
           sb.AppendFormat("   F %.8X %.8X %.3X (%3d) %s %s\n",
-                          info->value_address, info->thunk_address,
-                          info->ordinal, info->ordinal,
-                          implemented ? "  " : "!!", name);
+                          info->ValueAddress, info->ThunkAddress, info->Ordinal,
+                          info->Ordinal, implemented ? "  " : "!!", name);
         }
       }
     }
