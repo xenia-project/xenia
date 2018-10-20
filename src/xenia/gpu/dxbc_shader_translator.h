@@ -753,9 +753,6 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // Will also remove NaN since min and max return the non-NaN value.
   void CompletePixelShader_WriteToROV_ClampColor(uint32_t rt_index,
                                                  uint32_t color_temp);
-  void CompletePixelShader_WriteToROV_Blend(uint32_t rt_index,
-                                            uint32_t src_color_and_output_temp,
-                                            uint32_t dest_color_temp);
   // Extracts 0.0 or plus/minus 1.0 from a blend constant. For example, it can
   // be used to extract one scale for color and alpha into XY, and another scale
   // for color and alpha into ZW. constant_swizzle is a bit mask indicating
@@ -767,6 +764,13 @@ class DxbcShaderTranslator : public ShaderTranslator {
       uint32_t rt_index, uint32_t constant_swizzle, bool is_signed,
       uint32_t shift_x, uint32_t shift_y, uint32_t shift_z, uint32_t shift_w,
       uint32_t target_temp, uint32_t write_mask = 0b1111);
+  void CompletePixelShader_WriteToROV_ApplyZeroBlendScale(
+      uint32_t scale_temp, uint32_t scale_swizzle, uint32_t factor_in_temp,
+      uint32_t factor_swizzle, uint32_t factor_out_temp,
+      uint32_t write_mask = 0b1111);
+  void CompletePixelShader_WriteToROV_Blend(uint32_t rt_index,
+                                            uint32_t src_color_and_output_temp,
+                                            uint32_t dest_color_temp);
   // Assumes the incoming color is already clamped to the range representable by
   // the RT format.
   void CompletePixelShader_WriteToROV_StoreColor(
