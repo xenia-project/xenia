@@ -120,9 +120,8 @@ void DxbcShaderTranslator::SetColorFormatSystemConstants(
   constants.edram_rt_pack_width_high[rt_index] = 0;
   constants.edram_rt_pack_offset_high[rt_index] = 0;
   uint32_t color_mask = UINT32_MAX, alpha_mask = UINT32_MAX;
-  // Initialize min/max to Infinity.
-  uint32_t color_min = 0xFF800000u, alpha_min = 0xFF800000u;
-  uint32_t color_max = 0x7F800000u, alpha_max = 0x7F800000u;
+  uint32_t color_min = 0, alpha_min = 0;
+  uint32_t color_max = 0x3F800000, alpha_max = 0x3F800000;
   float color_load_scale = 1.0f, alpha_load_scale = 1.0f;
   float color_store_scale = 1.0f, alpha_store_scale = 1.0f;
   switch (format) {
@@ -133,8 +132,6 @@ void DxbcShaderTranslator::SetColorFormatSystemConstants(
       constants.edram_rt_pack_offset_low[rt_index] =
           (8 << 8) | (16 << 16) | (24 << 24);
       color_mask = alpha_mask = 255;
-      color_min = alpha_min = 0;
-      color_max = alpha_max = 0x3F800000;
       color_load_scale = alpha_load_scale = 1.0f / 255.0f;
       color_store_scale = alpha_store_scale = 255.0f;
       break;
@@ -146,8 +143,6 @@ void DxbcShaderTranslator::SetColorFormatSystemConstants(
           (10 << 8) | (20 << 16) | (30 << 24);
       color_mask = 1023;
       alpha_mask = 3;
-      color_min = alpha_min = 0;
-      color_max = alpha_max = 0x3F800000;
       color_load_scale = 1.0f / 1023.0f;
       alpha_load_scale = 1.0f / 3.0f;
       color_store_scale = 1023.0f;
@@ -161,10 +156,8 @@ void DxbcShaderTranslator::SetColorFormatSystemConstants(
           (10 << 8) | (20 << 16) | (30 << 24);
       color_mask = 1023;
       alpha_mask = 3;
-      color_min = alpha_min = 0;
       // 31.875.
       color_max = 0x41FF0000;
-      alpha_max = 0x3F800000;
       alpha_load_scale = 1.0f / 3.0f;
       alpha_store_scale = 3.0f;
       break;
@@ -192,6 +185,18 @@ void DxbcShaderTranslator::SetColorFormatSystemConstants(
         constants.edram_rt_pack_offset_high[rt_index] = 16 << 24;
       }
       color_mask = alpha_mask = 0xFFFF;
+      // -65504.0 to 65504.0 - the Xbox 360 doesn't have Infinity or NaN in
+      // float16, instead it has the range expanded to 131008.0, however,
+      // supporting it correctly would require making changes to texture
+      // formats (float32 would be required for emulating textures, which is
+      // pretty big, resolves also will require conversion; vertex fetch, vpkd3d
+      // CPU instruction). The precision in the 65504-131008 range is very low
+      // anyway, let's hope games don't really rely on it. So let's only clamp
+      // to a finite value to remove specials from blending.
+      // https://blogs.msdn.microsoft.com/chuckw/2013/03/05/known-issues-directxmath-3-03/
+      // TODO(Triang3l): Maybe handle float16 correctly everywhere.
+      color_min = alpha_min = 0xC77FE000u;
+      color_max = alpha_max = 0x477FE000u;
       break;
     case ColorRenderTargetFormat::k_32_FLOAT:
     case ColorRenderTargetFormat::k_32_32_FLOAT:
@@ -200,6 +205,10 @@ void DxbcShaderTranslator::SetColorFormatSystemConstants(
       if (format == ColorRenderTargetFormat::k_32_32_FLOAT) {
         constants.edram_rt_pack_width_high[rt_index] = 32;
       }
+      // -Infinity.
+      color_min = alpha_min = 0xFF800000u;
+      // Infinity.
+      color_max = alpha_max = 0x7F800000u;
       break;
     default:
       assert_always();
