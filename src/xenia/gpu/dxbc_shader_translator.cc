@@ -2240,18 +2240,6 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV_LoadColor(
   // Release f10_mantissa_temp, f10_exponent_temp and f10_denormalized_temp.
   PopSystemTemp(3);
 
-  // Convert alpha from fixed-point.
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_UTOF) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1000, 1));
-  shader_code_.push_back(target_temp);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 3, 1));
-  shader_code_.push_back(target_temp);
-  ++stat_.instruction_count;
-  ++stat_.conversion_instruction_count;
-
   // 7e3 conversion done.
   shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
@@ -3244,18 +3232,6 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV_StoreColor(
 
   // Release f10_temp1 and f10_temp2.
   PopSystemTemp(2);
-
-  // Convert alpha to fixed-point.
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_FTOU) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1000, 1));
-  shader_code_.push_back(source_and_scratch_temp);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 3, 1));
-  shader_code_.push_back(source_and_scratch_temp);
-  ++stat_.instruction_count;
-  ++stat_.conversion_instruction_count;
 
   // 7e3 conversion done.
   shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
