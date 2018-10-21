@@ -907,6 +907,11 @@ bool RenderTargetCache::Resolve(SharedMemory* shared_memory,
       msaa_samples != MsaaSamples::k1X ? "s" : "", surface_format,
       surface_edram_base);
 
+  if (command_processor_->IsROVUsedForEDRAM()) {
+    // Commit ROV writes.
+    command_processor_->PushUAVBarrier(edram_buffer_);
+  }
+
   bool result = ResolveCopy(shared_memory, texture_cache, surface_edram_base,
                             surface_pitch, msaa_samples, surface_is_depth,
                             surface_format, src_rect);
