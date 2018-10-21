@@ -1128,8 +1128,11 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
   }
 
   uint32_t color_mask = GetCurrentColorMask(pixel_shader);
-  if (!color_mask && !(regs[XE_GPU_REG_RB_DEPTHCONTROL].u32 & (0x1 | 0x4))) {
-    // Not writing to color, depth or doing stencil test, so doesn't draw.
+  uint32_t rb_depthcontrol = regs[XE_GPU_REG_RB_DEPTHCONTROL].u32;
+  uint32_t rb_stencilrefmask = regs[XE_GPU_REG_RB_STENCILREFMASK].u32;
+  if (!color_mask && ((rb_depthcontrol & (0x2 | 0x4)) != (0x2 | 0x4)) &&
+      (!(rb_depthcontrol & 0x1) || !(rb_stencilrefmask & (0xFF << 16)))) {
+    // Not writing to color, depth or stencil, so doesn't draw.
     return true;
   }
 
@@ -1601,6 +1604,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   uint32_t vgt_indx_offset = regs[XE_GPU_REG_VGT_INDX_OFFSET].u32;
   uint32_t pa_cl_vte_cntl = regs[XE_GPU_REG_PA_CL_VTE_CNTL].u32;
   uint32_t rb_depthcontrol = regs[XE_GPU_REG_RB_DEPTHCONTROL].u32;
+  uint32_t rb_stencilrefmask = regs[XE_GPU_REG_RB_STENCILREFMASK].u32;
   uint32_t rb_depth_info = regs[XE_GPU_REG_RB_DEPTH_INFO].u32;
   uint32_t pa_cl_clip_cntl = regs[XE_GPU_REG_PA_CL_CLIP_CNTL].u32;
   uint32_t pa_su_vtx_cntl = regs[XE_GPU_REG_PA_SU_VTX_CNTL].u32;
@@ -1677,10 +1681,10 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
                  DxbcShaderTranslator::kSysFlag_DepthPassIfGreater;
       }
       if (rb_depthcontrol & 0x1) {
-        // Stencil test may modify the stencil buffer arbitrarily, so enable
-        // writing.
-        flags |= DxbcShaderTranslator::kSysFlag_StencilTest |
-                 DxbcShaderTranslator::kSysFlag_DepthStencilWrite;
+        flags |= DxbcShaderTranslator::kSysFlag_StencilTest;
+        if (rb_stencilrefmask & (0xFF << 16)) {
+          flags |= DxbcShaderTranslator::kSysFlag_DepthStencilWrite;
+        }
       }
     }
   }
@@ -1949,7 +1953,6 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
     system_constants_.edram_depth_base_dwords = depth_base_dwords;
 
     if (rb_depthcontrol & 0x1) {
-      uint32_t rb_stencilrefmask = regs[XE_GPU_REG_RB_STENCILREFMASK].u32;
       uint32_t stencil_value;
 
       stencil_value = rb_stencilrefmask & 0xFF;
