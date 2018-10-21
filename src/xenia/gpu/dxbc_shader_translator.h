@@ -745,14 +745,27 @@ class DxbcShaderTranslator : public ShaderTranslator {
                                                         bool high,
                                                         uint32_t width_temp,
                                                         uint32_t offset_temp);
+  // Components of rt_format_flags_temp.
+  enum : uint32_t {
+    kROVRTFormatFlagTemp_ColorFixed,
+    kROVRTFormatFlagTemp_AlphaFixed,
+    kROVRTFormatFlagTemp_Float10,
+    kROVRTFormatFlagTemp_Float16,
+
+    kROVRTFormatFlagTemp_Fixed_Swizzle =
+        kROVRTFormatFlagTemp_ColorFixed * 0b00010101 +
+        kROVRTFormatFlagTemp_AlphaFixed * 0b01000000,
+  };
   void CompletePixelShader_WriteToROV_LoadColor(
       uint32_t edram_dword_offset_low_temp,
       uint32_t edram_dword_offset_high_temp, uint32_t rt_index,
-      uint32_t target_temp);
+      uint32_t rt_format_flags_temp, uint32_t target_temp);
   // Clamps the color to the range representable by the render target's format.
   // Will also remove NaN since min and max return the non-NaN value.
+  // color_in_temp and color_out_temp may be the same.
   void CompletePixelShader_WriteToROV_ClampColor(uint32_t rt_index,
-                                                 uint32_t color_temp);
+                                                 uint32_t color_in_temp,
+                                                 uint32_t color_out_temp);
   // Extracts 0.0 or plus/minus 1.0 from a blend constant. For example, it can
   // be used to extract one scale for color and alpha into XY, and another scale
   // for color and alpha into ZW. constant_swizzle is a bit mask indicating
@@ -769,6 +782,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
       uint32_t factor_swizzle, uint32_t factor_out_temp,
       uint32_t write_mask = 0b1111);
   void CompletePixelShader_WriteToROV_Blend(uint32_t rt_index,
+                                            uint32_t rt_format_flags_temp,
                                             uint32_t src_color_and_output_temp,
                                             uint32_t dest_color_temp);
   // Assumes the incoming color is already clamped to the range representable by
@@ -776,7 +790,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
   void CompletePixelShader_WriteToROV_StoreColor(
       uint32_t edram_dword_offset_low_temp,
       uint32_t edram_dword_offset_high_temp, uint32_t rt_index,
-      uint32_t source_and_scratch_temp);
+      uint32_t rt_format_flags_temp, uint32_t source_and_scratch_temp);
   void CompletePixelShader_WriteToROV();
   void CompletePixelShader();
   void CompleteShaderCode();
