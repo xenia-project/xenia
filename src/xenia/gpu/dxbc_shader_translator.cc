@@ -4224,7 +4224,7 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
   // can mark the pixel to be discarded if the stencil test has failed - by
   // setting that whole depth/stencil test has failed. The original depth value
   // will be restored in this case, and after writing the new stencil, the pixel
-  // will be discared.
+  // will be discarded.
   shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
   shader_code_.push_back(
@@ -4370,7 +4370,7 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
       EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0010, 1));
   shader_code_.push_back(depth_stencil_test_temp);
   shader_code_.push_back(
-      EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
+      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
   shader_code_.push_back(depth_stencil_test_result_temp);
   shader_code_.push_back(
       EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
