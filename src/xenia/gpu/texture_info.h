@@ -114,6 +114,8 @@ inline TextureFormat GetBaseFormat(TextureFormat texture_format) {
       return TextureFormat::k_10_11_11;
     case TextureFormat::k_11_11_10_AS_16_16_16_16:
       return TextureFormat::k_11_11_10;
+    case TextureFormat::k_8_8_8_8_GAMMA:
+      return TextureFormat::k_8_8_8_8;
     default:
       break;
   }
@@ -211,6 +213,7 @@ inline bool IsSRGBCapable(TextureFormat format) {
     case TextureFormat::k_2_10_10_10_AS_16_16_16_16:
     case TextureFormat::k_10_11_11_AS_16_16_16_16:
     case TextureFormat::k_11_11_10_AS_16_16_16_16:
+    case TextureFormat::k_8_8_8_8_GAMMA:
       return true;
     default:
       return false;
