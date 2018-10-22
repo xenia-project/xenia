@@ -36,9 +36,9 @@ class CDialogEventHandler : public IFileDialogEvents,
   IFACEMETHODIMP QueryInterface(REFIID riid, void** ppv) {
     static const QITAB qit[] = {
         {&__uuidof(IFileDialogEvents),
-         OFFSETOFCLASS(IFileDialogEvents, CDialogEventHandler)},
+         (int)OFFSETOFCLASS(IFileDialogEvents, CDialogEventHandler)},
         {&__uuidof(IFileDialogControlEvents),
-         OFFSETOFCLASS(IFileDialogControlEvents, CDialogEventHandler)},
+         (int)OFFSETOFCLASS(IFileDialogControlEvents, CDialogEventHandler)},
         {0},
     };
     return QISearch(this, qit, riid, ppv);
