@@ -159,6 +159,14 @@ XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state)
   xe::store_and_swap<uint8_t>(lpXboxHardwareInfo + 4, 0x06);  // cpu count
   // Remaining 11b are zeroes?
 
+  // ExConsoleGameRegion, probably same values as keyvault region uses?
+  // Just return all 0xFF, should satisfy anything that checks it
+  uint32_t pExConsoleGameRegion = memory_->SystemHeapAlloc(4);
+  auto lpExConsoleGameRegion = memory_->TranslateVirtual(pExConsoleGameRegion);
+  export_resolver_->SetVariableMapping(
+      "xboxkrnl.exe", ordinals::ExConsoleGameRegion, pExConsoleGameRegion);
+  xe::store<uint32_t>(lpExConsoleGameRegion, 0xFFFFFFFF);
+
   // XexExecutableModuleHandle (?**)
   // Games try to dereference this to get a pointer to some module struct.
   // So far it seems like it's just in loader code, and only used to look up
