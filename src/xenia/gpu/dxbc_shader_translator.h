@@ -731,6 +731,9 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // depending on the flag value. Uses system_temp_depth_.yz as scratch - w not
   // touched.
   void CompletePixelShader_DepthTo24Bit();
+  // This just converts the color output value from/to gamma space, not checking
+  // any conditions.
+  void CompletePixelShader_GammaCorrect(uint32_t color_temp, bool to_gamma);
   void CompletePixelShader_WriteToRTVs();
   // Extracts widths and offsets of the components in the lower or the upper
   // dword of a pixel from the format constants, for use as ibfe and bfi

@@ -1636,7 +1636,145 @@ void DxbcShaderTranslator::CompletePixelShader_DepthTo24Bit() {
   ++stat_.instruction_count;
 }
 
+void DxbcShaderTranslator::CompletePixelShader_GammaCorrect(uint32_t color_temp,
+                                                            bool to_gamma) {
+  uint32_t pieces_temp = PushSystemTemp();
+  for (uint32_t j = 0; j < 3; ++j) {
+    // Calculate how far we are on each piece of the curve. Multiply by 1/width
+    // of each piece, subtract start/width of it and saturate.
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MAD) |
+                           ENCODE_D3D10_SB_INSTRUCTION_SATURATE(1) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(15));
+    shader_code_.push_back(
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+    shader_code_.push_back(pieces_temp);
+    shader_code_.push_back(
+        EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, j, 1));
+    shader_code_.push_back(color_temp);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+    if (to_gamma) {
+      // 1.0 / 0.0625
+      shader_code_.push_back(0x41800000u);
+      // 1.0 / 0.0625
+      shader_code_.push_back(0x41800000u);
+      // 1.0 / 0.375
+      shader_code_.push_back(0x402AAAABu);
+      // 1.0 / 0.5
+      shader_code_.push_back(0x40000000u);
+    } else {
+      // 1.0 / 0.25
+      shader_code_.push_back(0x40800000u);
+      // 1.0 / 0.125
+      shader_code_.push_back(0x41000000u);
+      // 1.0 / 0.375
+      shader_code_.push_back(0x402AAAABu);
+      // 1.0 / 0.25
+      shader_code_.push_back(0x40800000u);
+    }
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+    if (to_gamma) {
+      // -0.0 / 0.0625
+      shader_code_.push_back(0);
+      // -0.0625 / 0.0625
+      shader_code_.push_back(0xBF800000u);
+      // -0.125 / 0.375
+      shader_code_.push_back(0xBEAAAAABu);
+      // -0.5 / 0.5
+      shader_code_.push_back(0xBF800000u);
+    } else {
+      // -0.0 / 0.25
+      shader_code_.push_back(0);
+      // -0.25 / 0.125
+      shader_code_.push_back(0xC0000000u);
+      // -0.375 / 0.375
+      shader_code_.push_back(0xBF800000u);
+      // -0.75 / 0.25
+      shader_code_.push_back(0xC0400000u);
+    }
+    ++stat_.instruction_count;
+    ++stat_.float_instruction_count;
+    // Combine the contribution of all pieces to the resulting value - multiply
+    // each piece by slope*width and sum them.
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DP4) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(10));
+    shader_code_.push_back(
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1 << j, 1));
+    shader_code_.push_back(color_temp);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+    shader_code_.push_back(pieces_temp);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+    if (to_gamma) {
+      // 4.0 * 0.0625
+      shader_code_.push_back(0x3E800000u);
+      // 2.0 * 0.0625
+      shader_code_.push_back(0x3E000000u);
+      // 1.0 * 0.375
+      shader_code_.push_back(0x3EC00000u);
+      // 0.5 * 0.5
+      shader_code_.push_back(0x3E800000u);
+    } else {
+      // 0.25 * 0.25
+      shader_code_.push_back(0x3D800000u);
+      // 0.5 * 0.125
+      shader_code_.push_back(0x3D800000u);
+      // 1.0 * 0.375
+      shader_code_.push_back(0x3EC00000u);
+      // 2.0 * 0.25
+      shader_code_.push_back(0x3F000000u);
+    }
+    ++stat_.instruction_count;
+    ++stat_.float_instruction_count;
+  }
+  // Release pieces_temp.
+  PopSystemTemp();
+}
+
 void DxbcShaderTranslator::CompletePixelShader_WriteToRTVs() {
+  // Convert to gamma space - this is incorrect, since it must be done after
+  // blending on the Xbox 360, but this is just one of many blending issues in
+  // the RTV path.
+  uint32_t gamma_temp = PushSystemTemp();
+  system_constants_used_ |= 1ull << kSysConst_Flags_Index;
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(12));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+  shader_code_.push_back(gamma_temp);
+  shader_code_.push_back(EncodeVectorReplicatedOperand(
+      D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSysConst_Flags_Comp, 3));
+  shader_code_.push_back(cbuffer_index_system_constants_);
+  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
+  shader_code_.push_back(kSysConst_Flags_Vec);
+  shader_code_.push_back(EncodeVectorSwizzledOperand(
+      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+  shader_code_.push_back(kSysFlag_Color0Gamma);
+  shader_code_.push_back(kSysFlag_Color1Gamma);
+  shader_code_.push_back(kSysFlag_Color2Gamma);
+  shader_code_.push_back(kSysFlag_Color3Gamma);
+  ++stat_.instruction_count;
+  ++stat_.uint_instruction_count;
+  for (uint32_t i = 0; i < 4; ++i) {
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
+                           ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(
+                               D3D10_SB_INSTRUCTION_TEST_NONZERO) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
+    shader_code_.push_back(
+        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, i, 1));
+    shader_code_.push_back(gamma_temp);
+    ++stat_.instruction_count;
+    ++stat_.dynamic_flow_control_count;
+    CompletePixelShader_GammaCorrect(system_temp_color_[i], true);
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
+    ++stat_.instruction_count;
+  }
+  // Release gamma_temp.
+  PopSystemTemp();
+
   // Remap guest render target indices to host since because on the host, the
   // indices of the bound render targets are consecutive. This is done using 16
   // movc instructions because indexable temps are known to be causing
@@ -4746,6 +4884,28 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
     // Release rt_write_masks_temp.
     PopSystemTemp();
 
+    // Get what render targets need gamma conversion.
+    uint32_t rt_gamma_temp = PushSystemTemp();
+    system_constants_used_ |= 1ull << kSysConst_Flags_Index;
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(12));
+    shader_code_.push_back(
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+    shader_code_.push_back(rt_gamma_temp);
+    shader_code_.push_back(EncodeVectorReplicatedOperand(
+        D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSysConst_Flags_Comp, 3));
+    shader_code_.push_back(cbuffer_index_system_constants_);
+    shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
+    shader_code_.push_back(kSysConst_Flags_Vec);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+    shader_code_.push_back(kSysFlag_Color0Gamma);
+    shader_code_.push_back(kSysFlag_Color1Gamma);
+    shader_code_.push_back(kSysFlag_Color2Gamma);
+    shader_code_.push_back(kSysFlag_Color3Gamma);
+    ++stat_.instruction_count;
+    ++stat_.uint_instruction_count;
+
     // Get what render targets need blending (if only write mask is used and no
     // blending, skip blending).
     uint32_t rt_blend_temp = PushSystemTemp();
@@ -4926,8 +5086,38 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
       shader_code_.push_back(rt_blend_temp);
       ++stat_.instruction_count;
       ++stat_.dynamic_flow_control_count;
+      // Convert the destination to linear before blending - to an intermediate
+      // register because write masking will use dest_color_temp too.
+      // https://steamcdn-a.akamaihd.net/apps/valve/2008/GDC2008_PostProcessingInTheOrangeBox.pdf
+      uint32_t dest_color_linear_temp = PushSystemTemp();
+      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
+      shader_code_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+      shader_code_.push_back(dest_color_linear_temp);
+      shader_code_.push_back(EncodeVectorSwizzledOperand(
+          D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+      shader_code_.push_back(dest_color_temp);
+      ++stat_.instruction_count;
+      ++stat_.mov_instruction_count;
+      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
+                             ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(
+                                 D3D10_SB_INSTRUCTION_TEST_NONZERO) |
+                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
+      shader_code_.push_back(
+          EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, i, 1));
+      shader_code_.push_back(rt_gamma_temp);
+      ++stat_.instruction_count;
+      ++stat_.dynamic_flow_control_count;
+      CompletePixelShader_GammaCorrect(dest_color_linear_temp, false);
+      shader_code_.push_back(
+          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
+          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
+      ++stat_.instruction_count;
       CompletePixelShader_WriteToROV_Blend(
-          i, format_flags_temp, system_temp_color_[i], dest_color_temp);
+          i, format_flags_temp, system_temp_color_[i], dest_color_linear_temp);
+      // Release dest_color_linear_temp.
+      PopSystemTemp();
       shader_code_.push_back(
           ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
@@ -4981,7 +5171,22 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
       CompletePixelShader_WriteToROV_ClampColor(i, system_temp_color_[i],
                                                 system_temp_color_[i]);
 
-      // TODO(Triang3l): Convert to sRGB for k_8_8_8_8_GAMMA.
+      // Convert to gamma space after blending.
+      // https://steamcdn-a.akamaihd.net/apps/valve/2008/GDC2008_PostProcessingInTheOrangeBox.pdf
+      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
+                             ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(
+                                 D3D10_SB_INSTRUCTION_TEST_NONZERO) |
+                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
+      shader_code_.push_back(
+          EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, i, 1));
+      shader_code_.push_back(rt_gamma_temp);
+      ++stat_.instruction_count;
+      ++stat_.dynamic_flow_control_count;
+      CompletePixelShader_GammaCorrect(system_temp_color_[i], true);
+      shader_code_.push_back(
+          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
+          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
+      ++stat_.instruction_count;
 
       // Keep previous values of the components where needed.
       shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
@@ -5016,8 +5221,8 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
       ++stat_.instruction_count;
     }
 
-    // Release rt_blend_temp and rt_overwritten_temp.
-    PopSystemTemp(2);
+    // Release rt_gamma_temp, rt_blend_temp and rt_overwritten_temp.
+    PopSystemTemp(3);
   }
 
   // Release edram_coord_low_temp and, if used, edram_coord_high_temp.
@@ -5170,103 +5375,6 @@ void DxbcShaderTranslator::CompletePixelShader() {
     ++stat_.instruction_count;
     ++stat_.float_instruction_count;
   }
-
-  // Convert to gamma space.
-  // TODO(Triang3l): Do it after blending for ROV.
-  // https://steamcdn-a.akamaihd.net/apps/valve/2008/GDC2008_PostProcessingInTheOrangeBox.pdf
-  // Get which render targets need the conversion.
-  uint32_t gamma_toggle_temp = PushSystemTemp();
-  uint32_t gamma_pieces_temp = PushSystemTemp();
-  system_constants_used_ |= 1ull << kSysConst_Flags_Index;
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(12));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
-  shader_code_.push_back(gamma_toggle_temp);
-  shader_code_.push_back(EncodeVectorReplicatedOperand(
-      D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSysConst_Flags_Comp, 3));
-  shader_code_.push_back(cbuffer_index_system_constants_);
-  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-  shader_code_.push_back(kSysConst_Flags_Vec);
-  shader_code_.push_back(EncodeVectorSwizzledOperand(
-      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-  shader_code_.push_back(kSysFlag_Color0Gamma);
-  shader_code_.push_back(kSysFlag_Color1Gamma);
-  shader_code_.push_back(kSysFlag_Color2Gamma);
-  shader_code_.push_back(kSysFlag_Color3Gamma);
-  ++stat_.instruction_count;
-  ++stat_.uint_instruction_count;
-  for (uint32_t i = 0; i < 4; ++i) {
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
-                           ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(
-                               D3D10_SB_INSTRUCTION_TEST_NONZERO) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, i, 1));
-    shader_code_.push_back(gamma_toggle_temp);
-    ++stat_.instruction_count;
-    ++stat_.dynamic_flow_control_count;
-    for (uint32_t j = 0; j < 3; ++j) {
-      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MAD) |
-                             ENCODE_D3D10_SB_INSTRUCTION_SATURATE(1) |
-                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(15));
-      shader_code_.push_back(
-          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
-      shader_code_.push_back(gamma_pieces_temp);
-      shader_code_.push_back(
-          EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, j, 1));
-      shader_code_.push_back(system_temp_color_[i]);
-      shader_code_.push_back(EncodeVectorSwizzledOperand(
-          D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-      // 1.0 / 0.0625
-      shader_code_.push_back(0x41800000u);
-      // 1.0 / 0.0625
-      shader_code_.push_back(0x41800000u);
-      // 1.0 / 0.375
-      shader_code_.push_back(0x402AAAABu);
-      // 1.0 / 0.5
-      shader_code_.push_back(0x40000000u);
-      shader_code_.push_back(EncodeVectorSwizzledOperand(
-          D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-      // -0.0 / 0.0625
-      shader_code_.push_back(0);
-      // -0.0625 / 0.0625
-      shader_code_.push_back(0xBF800000u);
-      // -0.125 / 0.375
-      shader_code_.push_back(0xBEAAAAABu);
-      // -0.5 / 0.5
-      shader_code_.push_back(0xBF800000u);
-      ++stat_.instruction_count;
-      ++stat_.float_instruction_count;
-      // Combine the contribution of all pieces to the resulting gamma value -
-      // multiply each piece by slope*width and sum them.
-      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DP4) |
-                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(10));
-      shader_code_.push_back(
-          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1 << j, 1));
-      shader_code_.push_back(system_temp_color_[i]);
-      shader_code_.push_back(EncodeVectorSwizzledOperand(
-          D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-      shader_code_.push_back(gamma_pieces_temp);
-      shader_code_.push_back(EncodeVectorSwizzledOperand(
-          D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-      // 4.0 * 0.0625
-      shader_code_.push_back(0x3E800000u);
-      // 2.0 * 0.0625
-      shader_code_.push_back(0x3E000000u);
-      // 1.0 * 0.375
-      shader_code_.push_back(0x3EC00000u);
-      // 0.5 * 0.5
-      shader_code_.push_back(0x3E800000u);
-      ++stat_.instruction_count;
-      ++stat_.float_instruction_count;
-    }
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
-    ++stat_.instruction_count;
-  }
-  // Release gamma_toggle_temp and gamma_pieces_temp.
-  PopSystemTemp(2);
 
   // Write the values to the render targets.
   if (edram_rov_used_) {
