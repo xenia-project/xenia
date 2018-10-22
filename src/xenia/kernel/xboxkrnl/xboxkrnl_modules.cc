@@ -16,6 +16,9 @@
 #include "xenia/kernel/xboxkrnl/xboxkrnl_private.h"
 #include "xenia/xbox.h"
 
+DEFINE_bool(xconfig_initial_setup, false,
+            "Enable the dashboard initial setup/OOBE");
+
 namespace xe {
 namespace kernel {
 namespace xboxkrnl {
@@ -33,6 +36,9 @@ X_STATUS xeExGetXConfigSetting(uint16_t category, uint16_t setting,
     case 0x0002:
       // XCONFIG_SECURED_CATEGORY
       switch (setting) {
+        case 0x0001:                // XCONFIG_SECURED_MAC_ADDRESS (6 bytes)
+          return X_STATUS_SUCCESS;  // Just return, easier than setting up code
+                                    // for different size configs
         case 0x0002:  // XCONFIG_SECURED_AV_REGION
           setting_size = 4;
           value = 0x00001000;  // USA/Canada
@@ -67,11 +73,23 @@ X_STATUS xeExGetXConfigSetting(uint16_t category, uint16_t setting,
         case 0x000C:  // XCONFIG_USER_RETAIL_FLAGS
           setting_size = 4;
           // TODO(benvanik): get this value.
-          value = 0;
+
+          // 0x40 = dashboard initial setup complete
+          value = FLAGS_xconfig_initial_setup ? 0 : 0x40;
           break;
         case 0x000E:  // XCONFIG_USER_COUNTRY
           setting_size = 4;
           // TODO(benvanik): get this value.
+          value = 0;
+          break;
+        case 0x000F:  // XCONFIG_USER_PC_FLAGS (parental control?)
+          setting_size = 1;
+          value = 0;
+          break;
+        case 0x0010:  // XCONFIG_USER_SMB_CONFIG (0x100 byte string)
+                      // Just set the start of the buffer to 0 so that callers
+                      // don't error from an un-inited buffer
+          setting_size = 4;
           value = 0;
           break;
         default:
