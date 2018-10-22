@@ -101,7 +101,7 @@ struct mspack_system* mspack_memory_sys_create() {
 void mspack_memory_sys_destroy(struct mspack_system* sys) { free(sys); }
 
 int lzx_decompress(const void* lzx_data, size_t lzx_len, void* dest,
-                   size_t dest_len, int window_size, void* window_data,
+                   size_t dest_len, uint32_t window_size, void* window_data,
                    size_t window_data_len) {
   uint32_t window_bits = 0;
   uint32_t temp_sz = window_size;
@@ -152,7 +152,7 @@ int lzx_decompress(const void* lzx_data, size_t lzx_len, void* dest,
 }
 
 int lzxdelta_apply_patch(xe::xex2_delta_patch* patch, size_t patch_len,
-                         void* dest) {
+                         uint32_t window_size, void* dest) {
   void* patch_end = (char*)patch + patch_len;
   auto* cur_patch = patch;
 
@@ -178,7 +178,7 @@ int lzxdelta_apply_patch(xe::xex2_delta_patch* patch, size_t patch_len,
         int result = lzx_decompress(
             cur_patch->patch_data, cur_patch->compressed_len,
             (char*)dest + cur_patch->new_addr, cur_patch->uncompressed_len,
-            0x8000, (char*)dest + cur_patch->old_addr,
+            window_size, (char*)dest + cur_patch->old_addr,
             cur_patch->uncompressed_len);
 
         if (result) {
@@ -369,7 +369,7 @@ int XexModule::ApplyPatch(XexModule* module) {
                reinterpret_cast<void**>(&patch_header));
   assert_not_null(patch_header);
 
-  // Compare hash inside delta descriptor to our loaded base XEX
+  // Compare hash inside delta descriptor to base XEX signature
   uint8_t digest[0x14];
   sha1::SHA1 s;
   s.processBytes(module->xex_security_info()->rsa_signature, 0x100);
@@ -407,37 +407,61 @@ int XexModule::ApplyPatch(XexModule* module) {
                // though
   }
 
-  // TODO: actually use delta_*_offset / delta_*_size etc
-  assert_zero(patch_header->delta_headers_source_offset);
-  assert_zero(patch_header->delta_headers_target_offset);
-  assert_zero(patch_header->delta_image_source_offset);
-  assert_zero(patch_header->delta_image_target_offset);
+  // Patch base XEX header
+  uint32_t original_image_size = module->image_size();
+  uint32_t header_target_size = patch_header->delta_headers_target_offset +
+                                patch_header->delta_headers_source_size;
 
-  if (patch_header->delta_headers_source_offset ||
-      patch_header->delta_headers_target_offset ||
-      patch_header->delta_image_source_offset ||
-      patch_header->delta_image_target_offset) {
-    XELOGW(
-        "XEX patch descriptor has a non-zero delta_*_offset field, patch might "
-        "not get applied properly!");
+  if (!header_target_size) {
+    header_target_size =
+        patch_header->size_of_target_headers;  // unsure which is more correct..
   }
 
-  // Patch base XEX's header
-  module->xex_header_mem_.resize(patch_header->size_of_target_headers);
+  size_t mem_size = module->xex_header_mem_.size();
 
-  uint32_t original_image_size = module->image_size();
-  uint32_t headerpatch_size = patch_header->info.compressed_len;
+  // Increase xex header buffer length if needed
+  if (header_target_size > module->xex_header_mem_.size()) {
+    module->xex_header_mem_.resize(header_target_size);
+  }
 
-  auto dest_header = module->xex_header();
+  auto header_ptr = (uint8_t*)module->xex_header();
+
+  // If headers_source_offset is set, copy [source_offset:source_size] to
+  // target_offset
+  if (patch_header->delta_headers_source_offset) {
+    memcpy(header_ptr + patch_header->delta_headers_target_offset,
+           header_ptr + patch_header->delta_headers_source_offset,
+           patch_header->delta_headers_source_size);
+  }
+
+  // If new size is smaller than original, null out the difference
+  if (header_target_size < module->xex_header_mem_.size()) {
+    memset(header_ptr + header_target_size, 0,
+           module->xex_header_mem_.size() - header_target_size);
+  }
+
+  auto file_format_header = opt_file_format_info();
+  assert_not_null(file_format_header);
+
+  // Apply header patch...
+  uint32_t headerpatch_size = patch_header->info.compressed_len + 0xC;
+
   int result_code = lzxdelta_apply_patch(
-      &patch_header->info, headerpatch_size + 0xC, (void*)dest_header);
+      &patch_header->info, headerpatch_size,
+      file_format_header->compression_info.normal.window_size, header_ptr);
   if (result_code) {
     XELOGE("XEX header patch application failed, error code %d", result_code);
     return result_code;
   }
 
-  // Check if we need to alloc new memory for the patched xex
+  // Decrease xex header buffer length if needed (but only after patching)
+  if (module->xex_header_mem_.size() > header_target_size) {
+    module->xex_header_mem_.resize(header_target_size);
+  }
+
   uint32_t new_image_size = module->image_size();
+
+  // Check if we need to alloc new memory for the patched xex
   if (new_image_size > original_image_size) {
     uint32_t size_delta = new_image_size - original_image_size;
     uint32_t addr_new_mem = module->base_address_ + original_image_size;
@@ -487,35 +511,52 @@ int XexModule::ApplyPatch(XexModule* module) {
 
   // Decrypt (if needed).
   bool free_input = false;
-  const uint8_t* exe_buffer = xexp_data_mem_.data();
-  const size_t exe_length = xexp_data_mem_.size();
+  const uint8_t* patch_buffer = xexp_data_mem_.data();
+  const size_t patch_length = xexp_data_mem_.size();
 
-  const uint8_t* input_buffer = exe_buffer;
+  const uint8_t* input_buffer = patch_buffer;
 
-  switch (opt_file_format_info()->encryption_type) {
+  switch (file_format_header->encryption_type) {
     case XEX_ENCRYPTION_NONE:
       // No-op.
       break;
     case XEX_ENCRYPTION_NORMAL:
       // TODO: a way to do without a copy/alloc?
       free_input = true;
-      input_buffer = (const uint8_t*)calloc(1, exe_length);
-      aes_decrypt_buffer(session_key_, exe_buffer, exe_length,
-                         (uint8_t*)input_buffer, exe_length);
+      input_buffer = (const uint8_t*)calloc(1, patch_length);
+      aes_decrypt_buffer(session_key_, patch_buffer, patch_length,
+                         (uint8_t*)input_buffer, patch_length);
       break;
     default:
       assert_always();
       return 8;
   }
 
-  // Now loop through each block and apply the delta patches inside
-
   const xex2_compressed_block_info* cur_block =
-      &opt_file_format_info()->compression_info.normal.first_block;
+      &file_format_header->compression_info.normal.first_block;
 
   const uint8_t* p = input_buffer;
   uint8_t* base_exe = memory()->TranslateVirtual(module->base_address_);
 
+  // If image_source_offset is set, copy [source_offset:source_size] to
+  // target_offset
+  if (patch_header->delta_image_source_offset) {
+    memcpy(base_exe + patch_header->delta_image_target_offset,
+           base_exe + patch_header->delta_image_source_offset,
+           patch_header->delta_image_source_size);
+  }
+
+  // TODO: should we use new_image_size here instead?
+  uint32_t image_target_size = patch_header->delta_image_target_offset +
+                               patch_header->delta_image_source_size;
+
+  // If new size is smaller than original, null out the difference
+  if (image_target_size < original_image_size) {
+    memset(base_exe + image_target_size, 0,
+           original_image_size - image_target_size);
+  }
+
+  // Now loop through each block and apply the delta patches inside
   while (cur_block->block_size) {
     const auto* next_block = (const xex2_compressed_block_info*)p;
 
@@ -536,8 +577,10 @@ int XexModule::ApplyPatch(XexModule* module) {
 
     uint32_t block_data_size = cur_block->block_size - 20 - 4;
 
-    result_code =
-        lzxdelta_apply_patch((xex2_delta_patch*)p, block_data_size, base_exe);
+    // Apply delta patch
+    result_code = lzxdelta_apply_patch(
+        (xex2_delta_patch*)p, block_data_size,
+        file_format_header->compression_info.normal.window_size, base_exe);
     if (result_code) {
       break;
     }
@@ -547,6 +590,22 @@ int XexModule::ApplyPatch(XexModule* module) {
   }
 
   if (!result_code) {
+    // Decommit unused pages if new image size is smaller than original
+    if (original_image_size > new_image_size) {
+      uint32_t size_delta = original_image_size - new_image_size;
+      uint32_t addr_free_mem = module->base_address_ + new_image_size;
+
+      bool free_result = memory()
+                             ->LookupHeap(addr_free_mem)
+                             ->Decommit(addr_free_mem, size_delta);
+
+      if (!free_result) {
+        XELOGE("Unable to decommit XEX memory at %.8X-%.8X.", addr_free_mem,
+               size_delta);
+        assert_always();
+      }
+    }
+
     // byteswap versions because of bitfields...
     xex2_version source_ver, target_ver;
     source_ver.value =
