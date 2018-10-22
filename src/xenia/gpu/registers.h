@@ -253,7 +253,7 @@ union RB_DEPTH_INFO {
 
 union RB_COPY_CONTROL {
   xe::bf<uint32_t, 0, 3> copy_src_select;
-  xe::bf<uint32_t, 4, 3> copy_sample_select;
+  xe::bf<xenos::CopySampleSelect, 4, 3> copy_sample_select;
   xe::bf<uint32_t, 8, 1> color_clear_enable;
   xe::bf<uint32_t, 9, 1> depth_clear_enable;
 

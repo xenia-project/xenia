@@ -153,11 +153,18 @@ enum class MsaaSamples : uint32_t {
 };
 
 enum class ColorRenderTargetFormat : uint32_t {
-  k_8_8_8_8 = 0,        // D3DFMT_A8R8G8B8 (or ABGR?)
-  k_8_8_8_8_GAMMA = 1,  // D3DFMT_A8R8G8B8 with gamma correction
+  // D3DFMT_A8R8G8B8 (or ABGR?).
+  k_8_8_8_8 = 0,
+  // D3DFMT_A8R8G8B8 with gamma correction.
+  k_8_8_8_8_GAMMA = 1,
   k_2_10_10_10 = 2,
+  // 7e3 [0, 32) RGB, unorm alpha.
+  // http://fileadmin.cs.lth.se/cs/Personal/Michael_Doggett/talks/eg05-xenos-doggett.pdf
   k_2_10_10_10_FLOAT = 3,
+  // Fixed point -32...32.
+  // http://www.students.science.uu.nl/~3220516/advancedgraphics/papers/inferred_lighting.pdf
   k_16_16 = 4,
+  // Fixed point -32...32.
   k_16_16_16_16 = 5,
   k_16_16_FLOAT = 6,
   k_16_16_16_16_FLOAT = 7,
@@ -169,10 +176,11 @@ enum class ColorRenderTargetFormat : uint32_t {
 
 enum class DepthRenderTargetFormat : uint32_t {
   kD24S8 = 0,
+  // 20e4 [0, 2).
   kD24FS8 = 1,
 };
 
-// Subset of a2xx_sq_surfaceformat.
+// Subset of a2xx_sq_surfaceformat - formats that RTs can be resolved to.
 enum class ColorFormat : uint32_t {
   k_8 = 2,
   k_1_5_5_5 = 3,
@@ -196,9 +204,10 @@ enum class ColorFormat : uint32_t {
   k_32_FLOAT = 36,
   k_32_32_FLOAT = 37,
   k_32_32_32_32_FLOAT = 38,
+  k_8_8_8_8_AS_16_16_16_16 = 50,
   k_2_10_10_10_AS_16_16_16_16 = 54,
-  k_8_8_8_8_GAMMA = 62,
-  k_2_10_10_10_FLOAT = 63,
+  k_10_11_11_AS_16_16_16_16 = 55,
+  k_11_11_10_AS_16_16_16_16 = 56,
 };
 
 enum class VertexFormat : uint32_t {
@@ -274,6 +283,38 @@ inline int GetVertexFormatSizeInWords(VertexFormat format) {
   }
 }
 
+// adreno_rb_blend_factor
+enum class BlendFactor : uint32_t {
+  kZero = 0,
+  kOne = 1,
+  kSrcColor = 4,
+  kOneMinusSrcColor = 5,
+  kSrcAlpha = 6,
+  kOneMinusSrcAlpha = 7,
+  kDstColor = 8,
+  kOneMinusDstColor = 9,
+  kDstAlpha = 10,
+  kOneMinusDstAlpha = 11,
+  kConstantColor = 12,
+  kOneMinusConstantColor = 13,
+  kConstantAlpha = 14,
+  kOneMinusConstantAlpha = 15,
+  kSrcAlphaSaturate = 16,
+  // SRC1 likely not used on the Xbox 360 - only available in Direct3D 9Ex.
+  kSrc1Color = 20,
+  kOneMinusSrc1Color = 21,
+  kSrc1Alpha = 22,
+  kOneMinusSrc1Alpha = 23,
+};
+
+enum class BlendOp : uint32_t {
+  kAdd = 0,
+  kSubtract = 1,
+  kMin = 2,
+  kMax = 3,
+  kRevSubtract = 4,
+};
+
 namespace xenos {
 
 typedef enum {
@@ -295,6 +336,17 @@ enum class CopyCommand : uint32_t {
   kConvert = 1,
   kConstantOne = 2,
   kNull = 3,  // ?
+};
+
+// a2xx_rb_copy_sample_select
+enum class CopySampleSelect : uint32_t {
+  k0,
+  k1,
+  k2,
+  k3,
+  k01,
+  k23,
+  k0123,
 };
 
 #define XE_GPU_MAKE_SWIZZLE(x, y, z, w)                        \
