@@ -100,7 +100,6 @@ inline TextureFormat GetBaseFormat(TextureFormat texture_format) {
     case TextureFormat::k_16_16_16_16_EXPAND:
       return TextureFormat::k_16_16_16_16_FLOAT;
     case TextureFormat::k_8_8_8_8_AS_16_16_16_16:
-    case TextureFormat::k_8_8_8_8_GAMMA_EDRAM:
       return TextureFormat::k_8_8_8_8;
     case TextureFormat::k_DXT1_AS_16_16_16_16:
       return TextureFormat::k_DXT1;
@@ -114,7 +113,7 @@ inline TextureFormat GetBaseFormat(TextureFormat texture_format) {
       return TextureFormat::k_10_11_11;
     case TextureFormat::k_11_11_10_AS_16_16_16_16:
       return TextureFormat::k_11_11_10;
-    case TextureFormat::k_8_8_8_8_GAMMA:
+    case TextureFormat::k_8_8_8_8_GAMMA_EDRAM:
       return TextureFormat::k_8_8_8_8;
     default:
       break;
@@ -213,7 +212,6 @@ inline bool IsSRGBCapable(TextureFormat format) {
     case TextureFormat::k_2_10_10_10_AS_16_16_16_16:
     case TextureFormat::k_10_11_11_AS_16_16_16_16:
     case TextureFormat::k_11_11_10_AS_16_16_16_16:
-    case TextureFormat::k_8_8_8_8_GAMMA:
       return true;
     default:
       return false;
