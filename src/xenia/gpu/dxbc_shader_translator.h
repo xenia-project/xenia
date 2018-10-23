@@ -626,22 +626,20 @@ class DxbcShaderTranslator : public ShaderTranslator {
   static constexpr uint32_t kInterpolatorCount = 16;
   static constexpr uint32_t kPointParametersTexCoord = kInterpolatorCount;
 
-  // IF ANY OF THESE ARE CHANGED, WriteInputSignature and WriteOutputSignature
-  // MUST BE UPDATED!
+  enum class InOutRegister : uint32_t {
+    // IF ANY OF THESE ARE CHANGED, WriteInputSignature and WriteOutputSignature
+    // MUST BE UPDATED!
+    kVSInVertexIndex = 0,
 
-  static constexpr uint32_t kVSInVertexIndexRegister = 0;
-  static constexpr uint32_t kVSOutInterpolatorRegister = 0;
-  static constexpr uint32_t kVSOutPointParametersRegister =
-      kVSOutInterpolatorRegister + kInterpolatorCount;
-  static constexpr uint32_t kVSOutPositionRegister =
-      kVSOutPointParametersRegister + 1;
+    kVSOutInterpolators = 0,
+    kVSOutPointParameters = kVSOutInterpolators + kInterpolatorCount,
+    kVSOutPosition,
 
-  static constexpr uint32_t kPSInInterpolatorRegister = 0;
-  static constexpr uint32_t kPSInPointParametersRegister =
-      kPSInInterpolatorRegister + kInterpolatorCount;
-  static constexpr uint32_t kPSInPositionRegister =
-      kPSInPointParametersRegister + 1;
-  static constexpr uint32_t kPSInFrontFaceRegister = kPSInPositionRegister + 1;
+    kPSInInterpolators = 0,
+    kPSInPointParameters = kPSInInterpolators + kInterpolatorCount,
+    kPSInPosition,
+    kPSInFrontFace,
+  };
 
   static constexpr uint32_t kSwizzleXYZW = 0b11100100;
   static constexpr uint32_t kSwizzleXXXX = 0b00000000;

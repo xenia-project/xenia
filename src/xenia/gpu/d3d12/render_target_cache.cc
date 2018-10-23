@@ -46,6 +46,9 @@ namespace d3d12 {
 #include "xenia/gpu/d3d12/shaders/dxbc/resolve_ps.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/resolve_vs.h"
 
+constexpr uint32_t RenderTargetCache::kHeap4MBPages;
+constexpr uint32_t RenderTargetCache::kRenderTargetDescriptorHeapSize;
+
 const RenderTargetCache::EDRAMLoadStoreModeInfo
     RenderTargetCache::edram_load_store_mode_info_[size_t(
         RenderTargetCache::EDRAMLoadStoreMode::kCount)] = {
@@ -79,7 +82,7 @@ bool RenderTargetCache::Initialize() {
   // Create the buffer for reinterpreting EDRAM contents.
   D3D12_RESOURCE_DESC edram_buffer_desc;
   ui::d3d12::util::FillBufferResourceDesc(
-      edram_buffer_desc, kEDRAMBufferSize,
+      edram_buffer_desc, GetEDRAMBufferSize(),
       D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
   // The first operation will be a clear.
   edram_buffer_state_ = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
@@ -1094,7 +1097,7 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
       return false;
     }
     ui::d3d12::util::CreateRawBufferSRV(device, descriptor_cpu_start,
-                                        edram_buffer_, kEDRAMBufferSize);
+                                        edram_buffer_, GetEDRAMBufferSize());
     shared_memory->CreateRawUAV(
         provider->OffsetViewDescriptor(descriptor_cpu_start, 1));
 
@@ -1246,7 +1249,7 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
         0);
 
     ui::d3d12::util::CreateRawBufferSRV(device, descriptor_cpu_start,
-                                        edram_buffer_, kEDRAMBufferSize);
+                                        edram_buffer_, GetEDRAMBufferSize());
     ui::d3d12::util::CreateRawBufferUAV(
         device, provider->OffsetViewDescriptor(descriptor_cpu_start, 1),
         copy_buffer, render_target->copy_buffer_size);
@@ -1540,7 +1543,7 @@ bool RenderTargetCache::ResolveClear(uint32_t edram_base,
   command_list->SetComputeRoot32BitConstants(
       0, sizeof(root_constants) / sizeof(uint32_t), &root_constants, 0);
   ui::d3d12::util::CreateRawBufferUAV(device, descriptor_cpu_start,
-                                      edram_buffer_, kEDRAMBufferSize);
+                                      edram_buffer_, GetEDRAMBufferSize());
   command_list->SetComputeRootDescriptorTable(1, descriptor_gpu_start);
   // 1 group per 80x16 samples.
   command_list->Dispatch(row_width_ss_div_80, rows, 1);
@@ -1722,7 +1725,7 @@ void RenderTargetCache::CreateEDRAMUint32UAV(
   desc.Format = DXGI_FORMAT_R32_UINT;
   desc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
   desc.Buffer.FirstElement = 0;
-  desc.Buffer.NumElements = kEDRAMBufferSize / sizeof(uint32_t);
+  desc.Buffer.NumElements = GetEDRAMBufferSize() / sizeof(uint32_t);
   desc.Buffer.StructureByteStride = 0;
   desc.Buffer.CounterOffsetInBytes = 0;
   desc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_NONE;
@@ -1772,6 +1775,17 @@ DXGI_FORMAT RenderTargetCache::GetColorDXGIFormat(
       break;
   }
   return DXGI_FORMAT_UNKNOWN;
+}
+
+uint32_t RenderTargetCache::GetEDRAMBufferSize() const {
+  uint32_t size = 2048 * 5120;
+  if (!command_processor_->IsROVUsedForEDRAM()) {
+    // Two 10 MB pages, one containing color and integer depth data, another
+    // with 32-bit float depth when 20e4 depth is used to allow for multipass
+    // drawing without precision loss in case of EDRAM store/load.
+    size *= 2;
+  }
+  return size;
 }
 
 void RenderTargetCache::TransitionEDRAMBuffer(D3D12_RESOURCE_STATES new_state) {
@@ -2112,7 +2126,7 @@ void RenderTargetCache::StoreRenderTargetsToEDRAM() {
                                       copy_buffer_size);
   ui::d3d12::util::CreateRawBufferUAV(
       device, provider->OffsetViewDescriptor(descriptor_cpu_start, 1),
-      edram_buffer_, kEDRAMBufferSize);
+      edram_buffer_, GetEDRAMBufferSize());
   command_list->SetComputeRootDescriptorTable(1, descriptor_gpu_start);
 
   // Sort the bindings in ascending order of EDRAM base so data in the render
@@ -2264,7 +2278,7 @@ void RenderTargetCache::LoadRenderTargetsFromEDRAM(
   auto device = provider->GetDevice();
   command_list->SetComputeRootSignature(edram_load_store_root_signature_);
   ui::d3d12::util::CreateRawBufferSRV(device, descriptor_cpu_start,
-                                      edram_buffer_, kEDRAMBufferSize);
+                                      edram_buffer_, GetEDRAMBufferSize());
   ui::d3d12::util::CreateRawBufferUAV(
       device, provider->OffsetViewDescriptor(descriptor_cpu_start, 1),
       copy_buffer, copy_buffer_size);

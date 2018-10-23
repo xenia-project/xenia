@@ -40,6 +40,12 @@ namespace xe {
 namespace gpu {
 namespace d3d12 {
 
+constexpr uint32_t
+    D3D12CommandProcessor::RootExtraParameterIndices::kUnavailable;
+constexpr uint32_t D3D12CommandProcessor::kSwapTextureWidth;
+constexpr uint32_t D3D12CommandProcessor::kSwapTextureHeight;
+constexpr uint32_t D3D12CommandProcessor::kScratchBufferSizeIncrement;
+
 D3D12CommandProcessor::D3D12CommandProcessor(
     D3D12GraphicsSystem* graphics_system, kernel::KernelState* kernel_state)
     : CommandProcessor(graphics_system, kernel_state) {}

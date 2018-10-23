@@ -48,6 +48,8 @@ namespace d3d12 {
 #include "xenia/gpu/d3d12/shaders/dxbc/texture_tile_64bpp_cs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/texture_tile_8bpp_cs.h"
 
+constexpr uint32_t TextureCache::LoadConstants::kGuestPitchTiled;
+
 const TextureCache::HostFormat TextureCache::host_formats_[64] = {
     // k_1_REVERSE
     {DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN,
