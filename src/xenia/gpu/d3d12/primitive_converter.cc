@@ -145,8 +145,13 @@ void PrimitiveConverter::EndFrame() { buffer_pool_->EndFrame(); }
 
 PrimitiveType PrimitiveConverter::GetReplacementPrimitiveType(
     PrimitiveType type) {
-  if (type == PrimitiveType::kTriangleFan) {
-    return PrimitiveType::kTriangleList;
+  switch (type) {
+    case PrimitiveType::kTriangleFan:
+      return PrimitiveType::kTriangleList;
+    case PrimitiveType::kLineLoop:
+      return PrimitiveType::kLineStrip;
+    default:
+      break;
   }
   return type;
 }
@@ -166,15 +171,20 @@ PrimitiveConverter::ConversionResult PrimitiveConverter::ConvertPrimitives(
   // 16-bit and the latter for 32-bit indices), we can use the buffer directly.
   uint32_t reset_index_host = index_32bit ? 0xFFFFFFFFu : 0xFFFFu;
 
+  // Degenerate line loops are just lines.
+  if (source_type == PrimitiveType::kLineLoop && index_count == 2) {
+    source_type = PrimitiveType::kLineStrip;
+  }
+
   // Check if need to convert at all.
-  if (source_type != PrimitiveType::kTriangleFan) {
+  if (source_type == PrimitiveType::kTriangleStrip ||
+      source_type == PrimitiveType::kLineStrip) {
     if (!reset || reset_index == reset_index_host) {
       return ConversionResult::kConversionNotNeeded;
     }
-    if (source_type != PrimitiveType::kTriangleStrip &&
-        source_type != PrimitiveType::kLineStrip) {
-      return ConversionResult::kConversionNotNeeded;
-    }
+  } else if (source_type != PrimitiveType::kTriangleFan &&
+             source_type != PrimitiveType::kLineLoop) {
+    return ConversionResult::kConversionNotNeeded;
   }
 
 #if FINE_GRAINED_DRAW_SCOPES
@@ -253,30 +263,23 @@ PrimitiveConverter::ConversionResult PrimitiveConverter::ConvertPrimitives(
   uint32_t converted_index_count = 0;
   bool conversion_needed = false;
   bool simd = false;
+  // Optimization specific to primitive types - if reset index not found in the
+  // source index buffer, can set this to false and use a faster way of copying.
+  bool reset_actually_used = reset;
   if (source_type == PrimitiveType::kTriangleFan) {
     // Triangle fans are not supported by Direct3D 12 at all.
     conversion_needed = true;
     if (reset) {
       uint32_t current_fan_index_count = 0;
-      if (index_format == IndexFormat::kInt32) {
-        for (uint32_t i = 0; i < index_count; ++i) {
-          if (source_32[i] == reset_index) {
-            current_fan_index_count = 0;
-            continue;
-          }
-          if (++current_fan_index_count >= 3) {
-            converted_index_count += 3;
-          }
+      for (uint32_t i = 0; i < index_count; ++i) {
+        uint32_t index =
+            index_format == IndexFormat::kInt32 ? source_32[i] : source_16[i];
+        if (index == reset_index) {
+          current_fan_index_count = 0;
+          continue;
         }
-      } else {
-        for (uint32_t i = 0; i < index_count; ++i) {
-          if (source_16[i] == reset_index) {
-            current_fan_index_count = 0;
-            continue;
-          }
-          if (++current_fan_index_count >= 3) {
-            converted_index_count += 3;
-          }
+        if (++current_fan_index_count >= 3) {
+          converted_index_count += 3;
         }
       }
     } else {
@@ -371,6 +374,31 @@ PrimitiveConverter::ConversionResult PrimitiveConverter::ConvertPrimitives(
       }
     }
 #endif  // XE_ARCH_AMD64
+  } else if (source_type == PrimitiveType::kLineLoop) {
+    conversion_needed = true;
+    if (reset) {
+      reset_actually_used = false;
+      uint32_t current_strip_index_count = 0;
+      for (uint32_t i = 0; i < index_count; ++i) {
+        uint32_t index =
+            index_format == IndexFormat::kInt32 ? source_32[i] : source_16[i];
+        if (index == reset_index) {
+          reset_actually_used = true;
+          // Loop strips with more than 2 vertices.
+          if (current_strip_index_count > 2) {
+            ++converted_index_count;
+          }
+          current_strip_index_count = 0;
+          continue;
+        }
+        // Start a new strip if 2 vertices, add one vertex if more.
+        if (++current_strip_index_count >= 2) {
+          converted_index_count += current_strip_index_count == 2 ? 2 : 1;
+        }
+      }
+    } else {
+      converted_index_count = index_count + 1;
+    }
   }
   converted_indices.converted_index_count = converted_index_count;
 
@@ -506,9 +534,66 @@ PrimitiveConverter::ConversionResult PrimitiveConverter::ConvertPrimitives(
       }
     }
 #endif  // XE_ARCH_AMD64
+  } else if (source_type == PrimitiveType::kLineLoop) {
+    if (reset_actually_used) {
+      uint32_t current_strip_index_count = 0;
+      uint32_t current_strip_first_index = 0;
+      if (index_format == IndexFormat::kInt32) {
+        uint32_t* target_32 = reinterpret_cast<uint32_t*>(target);
+        for (uint32_t i = 0; i < index_count; ++i) {
+          uint32_t index = source_32[i];
+          if (index == reset_index) {
+            if (current_strip_index_count > 2) {
+              *(target_32++) = current_strip_first_index;
+            }
+            current_strip_index_count = 0;
+            continue;
+          }
+          if (current_strip_index_count == 0) {
+            current_strip_first_index = index;
+          }
+          ++current_strip_index_count;
+          if (current_strip_index_count >= 2) {
+            if (current_strip_index_count == 2) {
+              *(target_32++) = current_strip_first_index;
+            }
+            *(target_32++) = index;
+          }
+        }
+      } else {
+        uint16_t* target_16 = reinterpret_cast<uint16_t*>(target);
+        for (uint32_t i = 0; i < index_count; ++i) {
+          uint16_t index = source_16[i];
+          if (index == reset_index) {
+            if (current_strip_index_count > 2) {
+              *(target_16++) = uint16_t(current_strip_first_index);
+            }
+            current_strip_index_count = 0;
+            continue;
+          }
+          if (current_strip_index_count == 0) {
+            current_strip_first_index = index;
+          }
+          ++current_strip_index_count;
+          if (current_strip_index_count >= 2) {
+            if (current_strip_index_count == 2) {
+              *(target_16++) = uint16_t(current_strip_first_index);
+            }
+            *(target_16++) = index;
+          }
+        }
+      }
+    } else {
+      std::memcpy(target, source, index_count * index_size);
+      if (converted_index_count > index_count) {
+        if (index_format == IndexFormat::kInt32) {
+          reinterpret_cast<uint32_t*>(target)[index_count] = source_32[0];
+        } else {
+          reinterpret_cast<uint16_t*>(target)[index_count] = source_16[0];
+        }
+      }
+    }
   }
-
-  // TODO(Triang3l): Line loops.
 
   // Cache and return the indices.
   converted_indices.gpu_address = gpu_address;
