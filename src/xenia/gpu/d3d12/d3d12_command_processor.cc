@@ -1149,6 +1149,12 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
 
   bool indexed = index_buffer_info != nullptr && index_buffer_info->guest_base;
 
+  // TODO(Triang3l): Non-indexed line loops (by movc'ing zero to the vertex
+  // index if it's one beyond the end).
+  if (primitive_type == PrimitiveType::kLineLoop && !indexed) {
+    return false;
+  }
+
   // Set the primitive topology.
   PrimitiveType primitive_type_converted =
       PrimitiveConverter::GetReplacementPrimitiveType(primitive_type);
