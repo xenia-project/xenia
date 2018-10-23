@@ -39,7 +39,7 @@ X_STATUS xeExGetXConfigSetting(uint16_t category, uint16_t setting,
         case 0x0001:                // XCONFIG_SECURED_MAC_ADDRESS (6 bytes)
           return X_STATUS_SUCCESS;  // Just return, easier than setting up code
                                     // for different size configs
-        case 0x0002:  // XCONFIG_SECURED_AV_REGION
+        case 0x0002:                // XCONFIG_SECURED_AV_REGION
           setting_size = 4;
           value = 0x00001000;  // USA/Canada
           break;
