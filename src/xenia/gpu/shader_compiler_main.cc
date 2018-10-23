@@ -124,13 +124,21 @@ int shader_compiler_main(const std::vector<std::wstring>& args) {
 #if XE_PLATFORM_WIN32
   ID3DBlob* dxbc_disasm_blob = nullptr;
   if (FLAGS_shader_output_type == "dxbc") {
-    // Diassemble DXBC.
-    if (SUCCEEDED(D3DDisassemble(source_data, source_data_size,
-                                 D3D_DISASM_ENABLE_INSTRUCTION_NUMBERING |
-                                     D3D_DISASM_ENABLE_INSTRUCTION_OFFSET,
-                                 nullptr, &dxbc_disasm_blob))) {
-      source_data = dxbc_disasm_blob->GetBufferPointer();
-      source_data_size = dxbc_disasm_blob->GetBufferSize();
+    HMODULE d3d_compiler = LoadLibrary(L"D3DCompiler_47.dll");
+    if (d3d_compiler != nullptr) {
+      pD3DDisassemble d3d_disassemble =
+          pD3DDisassemble(GetProcAddress(d3d_compiler, "D3DDisassemble"));
+      if (d3d_disassemble != nullptr) {
+        // Disassemble DXBC.
+        if (SUCCEEDED(d3d_disassemble(source_data, source_data_size,
+                                      D3D_DISASM_ENABLE_INSTRUCTION_NUMBERING |
+                                          D3D_DISASM_ENABLE_INSTRUCTION_OFFSET,
+                                      nullptr, &dxbc_disasm_blob))) {
+          source_data = dxbc_disasm_blob->GetBufferPointer();
+          source_data_size = dxbc_disasm_blob->GetBufferSize();
+        }
+      }
+      FreeLibrary(d3d_compiler);
     }
   }
 #endif  // XE_PLATFORM_WIN32

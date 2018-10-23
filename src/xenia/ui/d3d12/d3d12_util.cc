@@ -21,11 +21,11 @@ const D3D12_HEAP_PROPERTIES kHeapPropertiesDefault = {D3D12_HEAP_TYPE_DEFAULT};
 const D3D12_HEAP_PROPERTIES kHeapPropertiesUpload = {D3D12_HEAP_TYPE_UPLOAD};
 
 ID3D12RootSignature* CreateRootSignature(
-    ID3D12Device* device, const D3D12_ROOT_SIGNATURE_DESC& desc) {
+    D3D12Provider* provider, const D3D12_ROOT_SIGNATURE_DESC& desc) {
   ID3DBlob* blob;
   ID3DBlob* error_blob = nullptr;
-  if (FAILED(D3D12SerializeRootSignature(&desc, D3D_ROOT_SIGNATURE_VERSION_1,
-                                         &blob, &error_blob))) {
+  if (FAILED(provider->SerializeRootSignature(
+          &desc, D3D_ROOT_SIGNATURE_VERSION_1, &blob, &error_blob))) {
     XELOGE("Failed to serialize a root signature");
     if (error_blob != nullptr) {
       XELOGE("%s",
@@ -38,9 +38,9 @@ ID3D12RootSignature* CreateRootSignature(
     error_blob->Release();
   }
   ID3D12RootSignature* root_signature = nullptr;
-  device->CreateRootSignature(0, blob->GetBufferPointer(),
-                              blob->GetBufferSize(),
-                              IID_PPV_ARGS(&root_signature));
+  provider->GetDevice()->CreateRootSignature(0, blob->GetBufferPointer(),
+                                             blob->GetBufferSize(),
+                                             IID_PPV_ARGS(&root_signature));
   blob->Release();
   return root_signature;
 }
