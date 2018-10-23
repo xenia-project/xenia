@@ -257,8 +257,28 @@ PrimitiveConverter::ConversionResult PrimitiveConverter::ConvertPrimitives(
     // Triangle fans are not supported by Direct3D 12 at all.
     conversion_needed = true;
     if (reset) {
-      // TODO(Triang3l): Triangle fans with primitive reset.
-      return ConversionResult::kFailed;
+      uint32_t current_fan_index_count = 0;
+      if (index_format == IndexFormat::kInt32) {
+        for (uint32_t i = 0; i < index_count; ++i) {
+          if (source_32[i] == reset_index) {
+            current_fan_index_count = 0;
+            continue;
+          }
+          if (++current_fan_index_count >= 3) {
+            converted_index_count += 3;
+          }
+        }
+      } else {
+        for (uint32_t i = 0; i < index_count; ++i) {
+          if (source_16[i] == reset_index) {
+            current_fan_index_count = 0;
+            continue;
+          }
+          if (++current_fan_index_count >= 3) {
+            converted_index_count += 3;
+          }
+        }
+      }
     } else {
       converted_index_count = 3 * (index_count - 2);
     }
@@ -378,8 +398,43 @@ PrimitiveConverter::ConversionResult PrimitiveConverter::ConvertPrimitives(
     // https://docs.microsoft.com/en-us/windows/desktop/direct3d9/triangle-fans
     // Ordered as (v1, v2, v0), (v2, v3, v0).
     if (reset) {
-      // TODO(Triang3l): Triangle fans with primitive restart.
-      return ConversionResult::kFailed;
+      uint32_t current_fan_index_count = 0;
+      uint32_t current_fan_first_index = 0;
+      if (index_format == IndexFormat::kInt32) {
+        uint32_t* target_32 = reinterpret_cast<uint32_t*>(target);
+        for (uint32_t i = 0; i < index_count; ++i) {
+          uint32_t index = source_32[i];
+          if (index == reset_index) {
+            current_fan_index_count = 0;
+            continue;
+          }
+          if (current_fan_index_count == 0) {
+            current_fan_first_index = index;
+          }
+          if (++current_fan_index_count >= 3) {
+            *(target_32++) = index;
+            *(target_32++) = source_32[i - 1];
+            *(target_32++) = current_fan_first_index;
+          }
+        }
+      } else {
+        uint16_t* target_16 = reinterpret_cast<uint16_t*>(target);
+        for (uint32_t i = 0; i < index_count; ++i) {
+          uint16_t index = source_16[i];
+          if (index == reset_index) {
+            current_fan_index_count = 0;
+            continue;
+          }
+          if (current_fan_index_count == 0) {
+            current_fan_first_index = index;
+          }
+          if (++current_fan_index_count >= 3) {
+            *(target_16++) = index;
+            *(target_16++) = source_16[i - 1];
+            *(target_16++) = uint16_t(current_fan_first_index);
+          }
+        }
+      }
     } else {
       if (index_format == IndexFormat::kInt32) {
         uint32_t* target_32 = reinterpret_cast<uint32_t*>(target);
