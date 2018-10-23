@@ -35,6 +35,8 @@ DEFINE_string(shader_input_type, "",
 DEFINE_string(shader_output, "", "Output shader file path.");
 DEFINE_string(shader_output_type, "ucode",
               "Translator to use: [ucode, glsl45, spirv, spirvtext, dxbc].");
+DEFINE_bool(shader_output_dxbc_rov, false,
+            "Output ROV-based output-merger code in DXBC pixel shaders.");
 
 namespace xe {
 namespace gpu {
@@ -100,7 +102,8 @@ int shader_compiler_main(const std::vector<std::wstring>& args) {
     translator = std::make_unique<GlslShaderTranslator>(
         GlslShaderTranslator::Dialect::kGL45);
   } else if (FLAGS_shader_output_type == "dxbc") {
-    translator = std::make_unique<DxbcShaderTranslator>();
+    translator =
+        std::make_unique<DxbcShaderTranslator>(FLAGS_shader_output_dxbc_rov);
   } else {
     translator = std::make_unique<UcodeShaderTranslator>();
   }
