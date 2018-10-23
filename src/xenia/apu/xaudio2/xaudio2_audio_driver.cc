@@ -69,7 +69,32 @@ bool XAudio2AudioDriver::Initialize() {
 
   voice_callback_ = new VoiceCallback(semaphore_);
 
-  hr = XAudio2Create(&audio_, 0, XAUDIO2_DEFAULT_PROCESSOR);
+  // Load XAudio2_8.dll dynamically - Windows 8.1 SDK references XAudio2_8.dll
+  // in xaudio2.lib, which is available on Windows 8.1, however, Windows 10 SDK
+  // references XAudio2_9.dll in it, which is only available in Windows 10, and
+  // XAudio2_8.dll is linked through a different .lib - xaudio2_8.lib, so easier
+  // not to link the .lib at all.
+  xaudio2_module_ = reinterpret_cast<void*>(LoadLibrary(L"XAudio2_8.dll"));
+  if (!xaudio2_module_) {
+    XELOGE("LoadLibrary(XAudio2_8.dll) failed");
+    assert_always();
+    return false;
+  }
+
+  union {
+    HRESULT(__stdcall* xaudio2_create)
+    (IXAudio2** xaudio2_out, UINT32 flags, XAUDIO2_PROCESSOR xaudio2_processor);
+    FARPROC xaudio2_create_ptr;
+  };
+  xaudio2_create_ptr = GetProcAddress(
+      reinterpret_cast<HMODULE>(xaudio2_module_), "XAudio2Create");
+  if (!xaudio2_create_ptr) {
+    XELOGE("GetProcAddress(XAudio2_8.dll, XAudio2Create) failed");
+    assert_always();
+    return false;
+  }
+
+  hr = xaudio2_create(&audio_, 0, XAUDIO2_DEFAULT_PROCESSOR);
   if (FAILED(hr)) {
     XELOGE("XAudio2Create failed with %.8X", hr);
     assert_always();
@@ -194,6 +219,11 @@ void XAudio2AudioDriver::Shutdown() {
     audio_->StopEngine();
     audio_->Release();
     audio_ = nullptr;
+  }
+
+  if (xaudio2_module_) {
+    FreeLibrary(reinterpret_cast<HMODULE>(xaudio2_module_));
+    xaudio2_module_ = nullptr;
   }
 
   if (voice_callback_) {

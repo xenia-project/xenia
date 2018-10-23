@@ -174,7 +174,6 @@ filter("platforms:Windows")
     "wsock32",
     "ws2_32",
     "xinput",
-    "xaudio2",
     "glu32",
     "opengl32",
     "comctl32",
