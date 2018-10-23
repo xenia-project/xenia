@@ -76,8 +76,8 @@ RenderTargetCache::RenderTargetCache(D3D12CommandProcessor* command_processor,
 RenderTargetCache::~RenderTargetCache() { Shutdown(); }
 
 bool RenderTargetCache::Initialize() {
-  auto device =
-      command_processor_->GetD3D12Context()->GetD3D12Provider()->GetDevice();
+  auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
+  auto device = provider->GetDevice();
 
   // Create the buffer for reinterpreting EDRAM contents.
   D3D12_RESOURCE_DESC edram_buffer_desc;
@@ -132,7 +132,7 @@ bool RenderTargetCache::Initialize() {
   load_store_root_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_NONE;
 
   edram_load_store_root_signature_ =
-      ui::d3d12::util::CreateRootSignature(device, load_store_root_desc);
+      ui::d3d12::util::CreateRootSignature(provider, load_store_root_desc);
   if (edram_load_store_root_signature_ == nullptr) {
     XELOGE("Failed to create the EDRAM load/store root signature");
     Shutdown();
@@ -142,7 +142,7 @@ bool RenderTargetCache::Initialize() {
   load_store_root_parameters[1].DescriptorTable.NumDescriptorRanges = 1;
   ++load_store_root_parameters[1].DescriptorTable.pDescriptorRanges;
   edram_clear_root_signature_ =
-      ui::d3d12::util::CreateRootSignature(device, load_store_root_desc);
+      ui::d3d12::util::CreateRootSignature(provider, load_store_root_desc);
   if (edram_clear_root_signature_ == nullptr) {
     XELOGE("Failed to create the EDRAM buffer clear root signature");
     Shutdown();
@@ -265,7 +265,7 @@ bool RenderTargetCache::Initialize() {
   resolve_root_desc.Flags =
       D3D12_ROOT_SIGNATURE_FLAG_DENY_VERTEX_SHADER_ROOT_ACCESS;
   resolve_root_signature_ =
-      ui::d3d12::util::CreateRootSignature(device, resolve_root_desc);
+      ui::d3d12::util::CreateRootSignature(provider, resolve_root_desc);
   if (resolve_root_signature_ == nullptr) {
     XELOGE("Failed to create the converting resolve root signature");
     Shutdown();

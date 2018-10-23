@@ -14,6 +14,7 @@
 
 #include "xenia/gpu/dxbc_shader_translator.h"
 #include "xenia/gpu/shader.h"
+#include "xenia/ui/d3d12/d3d12_provider.h"
 
 namespace xe {
 namespace gpu {
@@ -30,7 +31,7 @@ class D3D12Shader : public Shader {
       const DxbcShaderTranslator::SamplerBinding* sampler_bindings,
       uint32_t sampler_binding_count);
 
-  bool DisassembleDXBC();
+  bool DisassembleDXBC(const ui::d3d12::D3D12Provider* provider);
 
   static constexpr uint32_t kMaxTextureSRVIndexBits =
       DxbcShaderTranslator::kMaxTextureSRVIndexBits;

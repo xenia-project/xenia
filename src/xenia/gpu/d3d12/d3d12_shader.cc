@@ -60,16 +60,16 @@ void D3D12Shader::SetTexturesAndSamplers(
   }
 }
 
-bool D3D12Shader::DisassembleDXBC() {
+bool D3D12Shader::DisassembleDXBC(const ui::d3d12::D3D12Provider* provider) {
   if (!host_disassembly_.empty()) {
     return true;
   }
   ID3DBlob* blob;
-  if (FAILED(D3DDisassemble(translated_binary().data(),
-                            translated_binary().size(),
-                            D3D_DISASM_ENABLE_INSTRUCTION_NUMBERING |
-                                D3D_DISASM_ENABLE_INSTRUCTION_OFFSET,
-                            nullptr, &blob))) {
+  if (FAILED(provider->Disassemble(translated_binary().data(),
+                                   translated_binary().size(),
+                                   D3D_DISASM_ENABLE_INSTRUCTION_NUMBERING |
+                                       D3D_DISASM_ENABLE_INSTRUCTION_OFFSET,
+                                   nullptr, &blob))) {
     return false;
   }
   host_disassembly_ = reinterpret_cast<const char*>(blob->GetBufferPointer());

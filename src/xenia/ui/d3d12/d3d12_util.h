@@ -30,7 +30,7 @@ inline bool ReleaseAndNull(T& object) {
   return false;
 };
 
-ID3D12RootSignature* CreateRootSignature(ID3D12Device* device,
+ID3D12RootSignature* CreateRootSignature(D3D12Provider* provider,
                                          const D3D12_ROOT_SIGNATURE_DESC& desc);
 
 ID3D12PipelineState* CreateComputePipeline(ID3D12Device* device,

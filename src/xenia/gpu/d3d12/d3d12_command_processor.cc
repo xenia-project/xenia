@@ -367,7 +367,7 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(
   }
 
   ID3D12RootSignature* root_signature = ui::d3d12::util::CreateRootSignature(
-      GetD3D12Context()->GetD3D12Provider()->GetDevice(), desc);
+      GetD3D12Context()->GetD3D12Provider(), desc);
   if (root_signature == nullptr) {
     XELOGE(
         "Failed to create a root signature with %u pixel textures, %u pixel "

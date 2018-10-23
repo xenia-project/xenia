@@ -25,15 +25,18 @@ namespace d3d12 {
 
 std::unique_ptr<D3D12Provider> D3D12Provider::Create(Window* main_window) {
   std::unique_ptr<D3D12Provider> provider(new D3D12Provider(main_window));
-  if (!provider->Initialize()) {
-    xe::FatalError(
-        "Unable to initialize Direct3D 12 graphics subsystem.\n"
-        "\n"
-        "Ensure that you have the latest drivers for your GPU and it supports "
-        "Direct3D 12 feature level 11_0.\n"
-        "\n"
-        "See http://xenia.jp/faq/ for more information and a list of supported "
-        "GPUs.");
+  InitializationResult result = provider->Initialize();
+  if (result != InitializationResult::kSucceeded) {
+    if (result != InitializationResult::kLibraryLoadFailed) {
+      xe::FatalError(
+          "Unable to initialize Direct3D 12 graphics subsystem.\n"
+          "\n"
+          "Ensure that you have the latest drivers for your GPU and it "
+          "supports Direct3D 12 feature level 11_0.\n"
+          "\n"
+          "See http://xenia.jp/faq/ for more information and a list of "
+          "supported GPUs.");
+    }
     return nullptr;
   }
   return provider;
@@ -55,14 +58,57 @@ D3D12Provider::~D3D12Provider() {
   if (dxgi_factory_ != nullptr) {
     dxgi_factory_->Release();
   }
+
+  if (library_d3dcompiler_ != nullptr) {
+    FreeLibrary(library_d3dcompiler_);
+  }
+  if (library_d3d12_ != nullptr) {
+    FreeLibrary(library_d3d12_);
+  }
+  if (library_dxgi_ != nullptr) {
+    FreeLibrary(library_dxgi_);
+  }
 }
 
-bool D3D12Provider::Initialize() {
+D3D12Provider::InitializationResult D3D12Provider::Initialize() {
+  // Load the libraries.
+  library_dxgi_ = LoadLibrary(L"dxgi.dll");
+  library_d3d12_ = LoadLibrary(L"D3D12.dll");
+  library_d3dcompiler_ = LoadLibrary(L"D3DCompiler_47.dll");
+  if (library_dxgi_ == nullptr || library_d3d12_ == nullptr ||
+      library_d3dcompiler_ == nullptr) {
+    return InitializationResult::kLibraryLoadFailed;
+  }
+  bool libraries_loaded = true;
+  libraries_loaded &=
+      (pfn_create_dxgi_factory2_ = PFNCreateDXGIFactory2(
+           GetProcAddress(library_dxgi_, "CreateDXGIFactory2"))) != nullptr;
+  libraries_loaded &=
+      (pfn_dxgi_get_debug_interface1_ = PFNDXGIGetDebugInterface1(
+           GetProcAddress(library_dxgi_, "DXGIGetDebugInterface1"))) != nullptr;
+  libraries_loaded &=
+      (pfn_d3d12_get_debug_interface_ = PFN_D3D12_GET_DEBUG_INTERFACE(
+           GetProcAddress(library_d3d12_, "D3D12GetDebugInterface"))) !=
+      nullptr;
+  libraries_loaded &=
+      (pfn_d3d12_create_device_ = PFN_D3D12_CREATE_DEVICE(
+           GetProcAddress(library_d3d12_, "D3D12CreateDevice"))) != nullptr;
+  libraries_loaded &=
+      (pfn_d3d12_serialize_root_signature_ = PFN_D3D12_SERIALIZE_ROOT_SIGNATURE(
+           GetProcAddress(library_d3d12_, "D3D12SerializeRootSignature"))) !=
+      nullptr;
+  libraries_loaded &= (pfn_d3d_disassemble_ = pD3DDisassemble(GetProcAddress(
+                           library_d3dcompiler_, "D3DDisassemble"))) != nullptr;
+  if (!libraries_loaded) {
+    return InitializationResult::kLibraryLoadFailed;
+  }
+
   // Enable the debug layer.
   bool debug = FLAGS_d3d12_debug;
   if (debug) {
     ID3D12Debug* debug_interface;
-    if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debug_interface)))) {
+    if (SUCCEEDED(
+            pfn_d3d12_get_debug_interface_(IID_PPV_ARGS(&debug_interface)))) {
       debug_interface->EnableDebugLayer();
       debug_interface->Release();
     } else {
@@ -73,10 +119,10 @@ bool D3D12Provider::Initialize() {
 
   // Create the DXGI factory.
   IDXGIFactory2* dxgi_factory;
-  if (FAILED(CreateDXGIFactory2(debug ? DXGI_CREATE_FACTORY_DEBUG : 0,
-                                IID_PPV_ARGS(&dxgi_factory)))) {
+  if (FAILED(pfn_create_dxgi_factory2_(debug ? DXGI_CREATE_FACTORY_DEBUG : 0,
+                                       IID_PPV_ARGS(&dxgi_factory)))) {
     XELOGE("Failed to create a DXGI factory");
-    return false;
+    return InitializationResult::kDeviceInitializationFailed;
   }
 
   // Choose the adapter and create a device with required features.
@@ -86,8 +132,8 @@ bool D3D12Provider::Initialize() {
   while (dxgi_factory->EnumAdapters1(adapter_index, &adapter) == S_OK) {
     DXGI_ADAPTER_DESC1 adapter_desc;
     if (SUCCEEDED(adapter->GetDesc1(&adapter_desc))) {
-      if (SUCCEEDED(D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_11_0,
-                                      _uuidof(ID3D12Device), nullptr))) {
+      if (SUCCEEDED(pfn_d3d12_create_device_(adapter, D3D_FEATURE_LEVEL_11_0,
+                                             _uuidof(ID3D12Device), nullptr))) {
         if (FLAGS_d3d12_adapter_index >= 0) {
           if (adapter_index == FLAGS_d3d12_adapter_index) {
             break;
@@ -110,15 +156,15 @@ bool D3D12Provider::Initialize() {
   if (adapter == nullptr) {
     XELOGE("Failed to get an adapter supporting Direct3D feature level 11_0.");
     dxgi_factory->Release();
-    return false;
+    return InitializationResult::kDeviceInitializationFailed;
   }
   ID3D12Device* device;
-  if (FAILED(D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_11_0,
-                               IID_PPV_ARGS(&device)))) {
+  if (FAILED(pfn_d3d12_create_device_(adapter, D3D_FEATURE_LEVEL_11_0,
+                                      IID_PPV_ARGS(&device)))) {
     XELOGE("Failed to create a Direct3D 12 feature level 11_0 device.");
     adapter->Release();
     dxgi_factory->Release();
-    return false;
+    return InitializationResult::kDeviceInitializationFailed;
   }
   adapter->Release();
 
@@ -172,11 +218,11 @@ bool D3D12Provider::Initialize() {
       tiled_resources_tier_, programmable_sample_positions_tier_,
       rasterizer_ordered_views_supported_ ? "" : "un");
 
-  // Get the graphics analysis interface, will silently fail if PIX not
+  // Get the graphics analysis interface, will silently fail if PIX is not
   // attached.
-  DXGIGetDebugInterface1(0, IID_PPV_ARGS(&graphics_analysis_));
+  pfn_dxgi_get_debug_interface1_(0, IID_PPV_ARGS(&graphics_analysis_));
 
-  return true;
+  return InitializationResult::kSucceeded;
 }
 
 std::unique_ptr<GraphicsContext> D3D12Provider::CreateContext(

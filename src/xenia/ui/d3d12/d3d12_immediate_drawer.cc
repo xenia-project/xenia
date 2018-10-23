@@ -171,7 +171,7 @@ bool D3D12ImmediateDrawer::Initialize() {
   root_signature_desc.pStaticSamplers = nullptr;
   root_signature_desc.Flags =
       D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
-  root_signature_ = util::CreateRootSignature(device, root_signature_desc);
+  root_signature_ = util::CreateRootSignature(provider, root_signature_desc);
   if (root_signature_ == nullptr) {
     XELOGE("Failed to create the immediate drawer root signature");
     Shutdown();

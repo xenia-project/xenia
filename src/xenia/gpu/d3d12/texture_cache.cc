@@ -369,8 +369,8 @@ TextureCache::TextureCache(D3D12CommandProcessor* command_processor,
 TextureCache::~TextureCache() { Shutdown(); }
 
 bool TextureCache::Initialize() {
-  auto device =
-      command_processor_->GetD3D12Context()->GetD3D12Provider()->GetDevice();
+  auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
+  auto device = provider->GetDevice();
 
   // Create the loading root signature.
   D3D12_ROOT_PARAMETER root_parameters[2];
@@ -402,7 +402,7 @@ bool TextureCache::Initialize() {
   root_signature_desc.pStaticSamplers = nullptr;
   root_signature_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_NONE;
   load_root_signature_ =
-      ui::d3d12::util::CreateRootSignature(device, root_signature_desc);
+      ui::d3d12::util::CreateRootSignature(provider, root_signature_desc);
   if (load_root_signature_ == nullptr) {
     XELOGE("Failed to create the texture loading root signature");
     Shutdown();
@@ -416,7 +416,7 @@ bool TextureCache::Initialize() {
   root_parameters[0].Constants.Num32BitValues =
       sizeof(ResolveTileConstants) / sizeof(uint32_t);
   resolve_tile_root_signature_ =
-      ui::d3d12::util::CreateRootSignature(device, root_signature_desc);
+      ui::d3d12::util::CreateRootSignature(provider, root_signature_desc);
   if (resolve_tile_root_signature_ == nullptr) {
     XELOGE("Failed to create the texture tiling root signature");
     Shutdown();

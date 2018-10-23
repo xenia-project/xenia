@@ -180,9 +180,6 @@ filter("platforms:Windows")
     "comctl32",
     "shcore",
     "shlwapi",
-    "d3d12",
-    "d3dcompiler",
-    "dxgi",
     "dxguid",
   })
 
