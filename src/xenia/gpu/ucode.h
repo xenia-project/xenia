@@ -1325,6 +1325,27 @@ enum class AluVectorOpcode {
   kMaxA = 29,
 };
 
+// Whether the vector instruction has side effects such as discarding a pixel or
+// setting the predicate and can't be ignored even if it doesn't write to
+// anywhere.
+inline bool AluVectorOpcodeHasSideEffects(AluVectorOpcode vector_opcode) {
+  switch (vector_opcode) {
+    case AluVectorOpcode::kSetpEqPush:
+    case AluVectorOpcode::kSetpNePush:
+    case AluVectorOpcode::kSetpGtPush:
+    case AluVectorOpcode::kSetpGePush:
+    case AluVectorOpcode::kKillEq:
+    case AluVectorOpcode::kKillGt:
+    case AluVectorOpcode::kKillGe:
+    case AluVectorOpcode::kKillNe:
+    case AluVectorOpcode::kMaxA:
+      return true;
+    default:
+      break;
+  }
+  return false;
+}
+
 struct AluInstruction {
   // Whether data is being exported (or written to local registers).
   bool is_export() const { return data_.export_data == 1; }
@@ -1340,7 +1361,10 @@ struct AluInstruction {
   bool is_const_1_addressed() const { return data_.const_1_rel_abs == 1; }
   bool is_address_relative() const { return data_.address_absolute == 1; }
 
-  bool has_vector_op() const { return vector_write_mask() || is_export(); }
+  bool has_vector_op() const {
+    return vector_write_mask() || is_export() ||
+           AluVectorOpcodeHasSideEffects(vector_opcode());
+  }
   AluVectorOpcode vector_opcode() const {
     return static_cast<AluVectorOpcode>(data_.vector_opc);
   }
