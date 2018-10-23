@@ -28,8 +28,10 @@ namespace xam {
 constexpr uint32_t X_LANGUAGE_ENGLISH = 1;
 constexpr uint32_t X_LANGUAGE_JAPANESE = 2;
 
-void XamFormatDateString(dword_t unk, qword_t filetime, lpwstring_t buffer,
+void XamFormatDateString(dword_t unk, qword_t filetime, lpvoid_t buffer,
                          dword_t buffer_length) {
+  std::memset(buffer, 0, buffer_length * 2);
+
 // TODO: implement this for other platforms
 #if XE_PLATFORM_WIN32
   FILETIME t;
@@ -43,21 +45,19 @@ void XamFormatDateString(dword_t unk, qword_t filetime, lpwstring_t buffer,
   SystemTimeToTzSpecificLocalTime(NULL, &st, &stLocal);
 
   wchar_t buf[256];
-  std::memset(buf, 0, 256 * 2);
-  size_t size = 256 > buffer_length ? buffer_length : 256;
   // TODO: format this depending on users locale?
-  swprintf_s(buf, size, L"%02d/%02d/%d", stLocal.wMonth, stLocal.wDay,
-             stLocal.wYear);
-#endif
-  std::memset(buffer, 0, buffer_length * 2);
-#if XE_PLATFORM_WIN32
-  xe::store_and_swap<std::wstring>(buffer, buf);
+  swprintf(buf, 256, L"%02d/%02d/%d", stLocal.wMonth, stLocal.wDay,
+           stLocal.wYear);
+
+  xe::copy_and_swap((wchar_t*)buffer.host_address(), buf, buffer_length);
 #endif
 }
 DECLARE_XAM_EXPORT(XamFormatDateString, ExportTag::kImplemented);
 
-void XamFormatTimeString(dword_t unk, qword_t filetime, lpwstring_t buffer,
+void XamFormatTimeString(dword_t unk, qword_t filetime, lpvoid_t buffer,
                          dword_t buffer_length) {
+  std::memset(buffer, 0, buffer_length * 2);
+
 // TODO: implement this for other platforms
 #if XE_PLATFORM_WIN32
   FILETIME t;
@@ -71,13 +71,9 @@ void XamFormatTimeString(dword_t unk, qword_t filetime, lpwstring_t buffer,
   SystemTimeToTzSpecificLocalTime(NULL, &st, &stLocal);
 
   wchar_t buf[256];
-  std::memset(buf, 0, 256 * 2);
-  size_t size = 256 > buffer_length ? buffer_length : 256;
-  swprintf_s(buf, size, L"%02d:%02d", stLocal.wHour, stLocal.wMinute);
-#endif
-  std::memset(buffer, 0, buffer_length * 2);
-#if XE_PLATFORM_WIN32
-  xe::store_and_swap<std::wstring>(buffer, buf);
+  swprintf(buf, 256, L"%02d:%02d", stLocal.wHour, stLocal.wMinute);
+
+  xe::copy_and_swap((wchar_t*)buffer.host_address(), buf, buffer_length);
 #endif
 }
 DECLARE_XAM_EXPORT(XamFormatTimeString, ExportTag::kImplemented);
@@ -85,29 +81,26 @@ DECLARE_XAM_EXPORT(XamFormatTimeString, ExportTag::kImplemented);
 dword_result_t keXamBuildResourceLocator(uint64_t module,
                                          const wchar_t* container,
                                          const wchar_t* resource,
-                                         lpwstring_t buffer,
+                                         lpvoid_t buffer,
                                          uint32_t buffer_length) {
   wchar_t buf[256];
-  size_t size = 256 > buffer_length ? buffer_length : 256;
 
   if (!module) {
-    swprintf_s(buf, size, L"file://media:/%s.xzp#%s", container, resource);
+    swprintf(buf, 256, L"file://media:/%s.xzp#%s", container, resource);
     XELOGD(
         "XamBuildResourceLocator(%ws) returning locator to local file %ws.xzp",
         container, container);
   } else {
-    swprintf_s(buf, size, L"section://%X,%s#%s", (uint32_t)module, container,
-               resource);
+    swprintf(buf, 256, L"section://%X,%s#%s", (uint32_t)module, container,
+             resource);
   }
 
-  memset(buffer, 0, buffer_length * 2);
-  xe::store_and_swap<std::wstring>(buffer, buf);
-
+  xe::copy_and_swap((wchar_t*)buffer.host_address(), buf, buffer_length);
   return 0;
 }
 
 dword_result_t XamBuildResourceLocator(qword_t module, lpwstring_t container,
-                                       lpwstring_t resource, lpwstring_t buffer,
+                                       lpwstring_t resource, lpvoid_t buffer,
                                        dword_t buffer_length) {
   return keXamBuildResourceLocator(module, container.value().c_str(),
                                    resource.value().c_str(), buffer,
@@ -116,7 +109,7 @@ dword_result_t XamBuildResourceLocator(qword_t module, lpwstring_t container,
 DECLARE_XAM_EXPORT(XamBuildResourceLocator, ExportTag::kImplemented);
 
 dword_result_t XamBuildGamercardResourceLocator(lpwstring_t filename,
-                                                lpwstring_t buffer,
+                                                lpvoid_t buffer,
                                                 dword_t buffer_length) {
   // On an actual xbox these funcs would return a locator to xam.xex resources,
   // but for Xenia we can return a locator to the resources as local files. (big
@@ -132,7 +125,7 @@ dword_result_t XamBuildGamercardResourceLocator(lpwstring_t filename,
 DECLARE_XAM_EXPORT(XamBuildGamercardResourceLocator, ExportTag::kImplemented);
 
 dword_result_t XamBuildSharedSystemResourceLocator(lpwstring_t filename,
-                                                   lpwstring_t buffer,
+                                                   lpvoid_t buffer,
                                                    dword_t buffer_length) {
   // see notes inside XamBuildGamercardResourceLocator above
   return keXamBuildResourceLocator(0, L"shrdres", filename.value().c_str(),
@@ -142,15 +135,14 @@ DECLARE_XAM_EXPORT(XamBuildSharedSystemResourceLocator,
                    ExportTag::kImplemented);
 
 dword_result_t XamBuildLegacySystemResourceLocator(lpwstring_t filename,
-                                                   lpwstring_t buffer,
-                                                   dword_t buffer_len) {
-  return XamBuildSharedSystemResourceLocator(filename, buffer, buffer_len);
+                                                   lpvoid_t buffer,
+                                                   dword_t buffer_length) {
+  return XamBuildSharedSystemResourceLocator(filename, buffer, buffer_length);
 }
 DECLARE_XAM_EXPORT(XamBuildLegacySystemResourceLocator,
                    ExportTag::kImplemented);
 
-dword_result_t XamBuildXamResourceLocator(lpwstring_t filename,
-                                          lpwstring_t buffer,
+dword_result_t XamBuildXamResourceLocator(lpwstring_t filename, lpvoid_t buffer,
                                           dword_t buffer_length) {
   return keXamBuildResourceLocator(0, L"xam", filename.value().c_str(), buffer,
                                    buffer_length);
