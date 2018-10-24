@@ -8282,7 +8282,9 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
           (instr.dimension == TextureDimension::kCube &&
            instr.opcode != FetchOpcode::kGetTextureWeights)) {
         offset_z = instr.attributes.offset_z;
-        if (instr.opcode != FetchOpcode::kGetTextureWeights) {
+        if (instr.opcode != FetchOpcode::kGetTextureWeights &&
+            instr.dimension == TextureDimension::k3D) {
+          // Z is the face index for cubemaps, so don't apply the epsilon to it.
           offset_z += 1.0f / 1024.0f;
         }
       }
