@@ -1739,7 +1739,10 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   float ndc_offset_x = (pa_cl_vte_cntl & (1 << 1)) ? 0.0f : -1.0f;
   float ndc_offset_y = (pa_cl_vte_cntl & (1 << 3)) ? 0.0f : 1.0f;
   float ndc_offset_z = gl_clip_space_def ? 0.5f : 0.0f;
-  float pixel_half_pixel_offset = 0.0f;
+  // Like in OpenGL - VPOS giving pixel centers.
+  // TODO(Triang3l): Check if ps_param_gen should give center positions in
+  // OpenGL mode on the Xbox 360.
+  float pixel_half_pixel_offset = 0.5f;
   if (FLAGS_d3d12_half_pixel_offset && !(pa_su_vtx_cntl & (1 << 0))) {
     // Signs are hopefully correct here, tested in GTA IV on both clearing
     // (without a viewport) and drawing things near the edges of the screen.
@@ -1757,7 +1760,8 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
     } else {
       ndc_offset_y -= 1.0f / 2560.0f;
     }
-    pixel_half_pixel_offset = -0.5f;
+    // Like in Direct3D 9 - VPOS giving the top-left corner.
+    pixel_half_pixel_offset = 0.0f;
   }
   dirty |= system_constants_.ndc_scale[0] != ndc_scale_x;
   dirty |= system_constants_.ndc_scale[1] != ndc_scale_y;
