@@ -43,6 +43,32 @@ bool HostPathDevice::Initialize() {
   return true;
 }
 
+void HostPathDevice::Dump(StringBuffer* string_buffer) {
+  auto global_lock = global_critical_region_.Acquire();
+  root_entry_->Dump(string_buffer, 0);
+}
+
+Entry* HostPathDevice::ResolvePath(std::string path) {
+  // The filesystem will have stripped our prefix off already, so the path will
+  // be in the form:
+  // some\PATH.foo
+
+  XELOGFS("HostPathDevice::ResolvePath(%s)", path.c_str());
+
+  // Walk the path, one separator at a time.
+  auto entry = root_entry_.get();
+  auto path_parts = xe::split_path(path);
+  for (auto& part : path_parts) {
+    entry = entry->GetChild(part);
+    if (!entry) {
+      // Not found.
+      return nullptr;
+    }
+  }
+
+  return entry;
+}
+
 void HostPathDevice::PopulateEntry(HostPathEntry* parent_entry) {
   auto child_infos = xe::filesystem::ListFiles(parent_entry->local_path());
   for (auto& child_info : child_infos) {

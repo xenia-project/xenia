@@ -13,6 +13,7 @@
 // NOTE: if you're including this file it means you are explicitly depending
 // on Linux headers. Including this file outside of linux platform specific
 // source code will break portability
+#include <cstddef>
 
 #include "xenia/base/platform.h"
 

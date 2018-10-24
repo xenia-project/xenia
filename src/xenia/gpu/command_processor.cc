@@ -49,6 +49,24 @@ bool CommandProcessor::Initialize(
     std::unique_ptr<xe::ui::GraphicsContext> context) {
   context_ = std::move(context);
 
+  // Initialize the gamma ramps to their default (linear) values - taken from
+  // what games set when starting.
+  for (uint32_t i = 0; i < 256; ++i) {
+    uint32_t value = i * 1023 / 255;
+    gamma_ramp_.normal[i].value = value | (value << 10) | (value << 20);
+  }
+  for (uint32_t i = 0; i < 128; ++i) {
+    uint32_t value = (i * 65535 / 127) & ~63;
+    if (i < 127) {
+      value |= 0x200 << 16;
+    }
+    for (uint32_t j = 0; j < 3; ++j) {
+      gamma_ramp_.pwl[i].values[j].value = value;
+    }
+  }
+  dirty_gamma_ramp_normal_ = true;
+  dirty_gamma_ramp_pwl_ = true;
+
   worker_running_ = true;
   worker_thread_ = kernel::object_ref<kernel::XHostThread>(
       new kernel::XHostThread(kernel_state_, 128 * 1024, 0, [this]() {
@@ -236,7 +254,7 @@ void CommandProcessor::ShutdownContext() { context_.reset(); }
 void CommandProcessor::InitializeRingBuffer(uint32_t ptr, uint32_t log2_size) {
   read_ptr_index_ = 0;
   primary_buffer_ptr_ = ptr;
-  primary_buffer_size_ = uint32_t(std::pow(2u, log2_size));
+  primary_buffer_size_ = 1 << log2_size;
 }
 
 void CommandProcessor::EnableReadPointerWriteBack(uint32_t ptr,
@@ -263,7 +281,6 @@ void CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
     return;
   }
 
-  // 0x1844 - pointer to frontbuffer
   regs->values[index].u32 = value;
   if (!regs->GetRegisterInfo(index)) {
     XELOGW("GPU: Write to unknown register (%.4X = %.8X)", index, value);
@@ -284,6 +301,39 @@ void CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
       uint32_t scratch_addr = regs->values[XE_GPU_REG_SCRATCH_ADDR].u32;
       uint32_t mem_addr = scratch_addr + (scratch_reg * 4);
       xe::store_and_swap<uint32_t>(memory_->TranslatePhysical(mem_addr), value);
+    }
+  }
+}
+
+void CommandProcessor::UpdateGammaRampValue(GammaRampType type,
+                                            uint32_t value) {
+  RegisterFile* regs = register_file_;
+
+  auto index = regs->values[XE_GPU_REG_DC_LUT_RW_INDEX].u32;
+
+  auto mask = regs->values[XE_GPU_REG_DC_LUT_WRITE_EN_MASK].u32;
+  auto mask_lo = (mask >> 0) & 0x7;
+  auto mask_hi = (mask >> 3) & 0x7;
+
+  // If games update individual components we're going to have a problem.
+  assert_true(mask_lo == 0 || mask_lo == 7);
+  assert_true(mask_hi == 0);
+
+  if (mask_lo) {
+    switch (type) {
+      case GammaRampType::kNormal:
+        assert_true(regs->values[XE_GPU_REG_DC_LUT_RW_MODE].u32 == 0);
+        gamma_ramp_.normal[index].value = value;
+        dirty_gamma_ramp_normal_ = true;
+        break;
+      case GammaRampType::kPWL:
+        assert_true(regs->values[XE_GPU_REG_DC_LUT_RW_MODE].u32 == 1);
+        gamma_ramp_.pwl[index].values[gamma_ramp_rw_subindex_].value = value;
+        gamma_ramp_rw_subindex_ = (gamma_ramp_rw_subindex_ + 1) % 3;
+        dirty_gamma_ramp_pwl_ = true;
+        break;
+      default:
+        assert_unhandled_case(type);
     }
   }
 }
@@ -309,9 +359,18 @@ void CommandProcessor::MakeCoherent() {
     return;
   }
 
+  const char* action = "N/A";
+  if (status_host & 0x03000000) {
+    action = "VC | TC";
+  } else if (status_host & 0x02000000) {
+    action = "TC";
+  } else if (status_host & 0x01000000) {
+    action = "VC";
+  }
+
   // TODO(benvanik): notify resource cache of base->size and type.
-  // XELOGD("Make %.8X -> %.8X (%db) coherent", base_host, base_host +
-  // size_host, size_host);
+  XELOGD("Make %.8X -> %.8X (%db) coherent, action = %s", base_host,
+         base_host + size_host, size_host, action);
 
   // Mark coherent.
   status_host &= ~0x80000000ul;
@@ -657,6 +716,14 @@ bool CommandProcessor::ExecutePacketType3(RingBuffer* reader, uint32_t packet) {
       bin_select_ = (val_hi << 32) | val_lo;
       result = true;
     } break;
+    case PM4_CONTEXT_UPDATE: {
+      assert_true(count == 1);
+      uint64_t value = reader->ReadAndSwap<uint32_t>();
+      XELOGGPU("GPU context update = %.8X", value);
+      assert_true(value == 0);
+      result = true;
+      break;
+    }
 
     default:
       XELOGGPU("Unimplemented GPU OPCODE: 0x%.2X\t\tCOUNT: %d\n", opcode,
@@ -695,7 +762,11 @@ bool CommandProcessor::ExecutePacketType3_ME_INIT(RingBuffer* reader,
                                                   uint32_t packet,
                                                   uint32_t count) {
   // initialize CP's micro-engine
-  reader->AdvanceRead(count * sizeof(uint32_t));
+  me_bin_.clear();
+  for (uint32_t i = 0; i < count; i++) {
+    me_bin_.push_back(reader->ReadAndSwap<uint32_t>());
+  }
+
   return true;
 }
 
@@ -1047,8 +1118,8 @@ bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_EXT(RingBuffer* reader,
       1,          // max z
   };
   assert_true(endianness == Endian::k8in16);
-  xe::copy_and_swap_16_aligned(memory_->TranslatePhysical(address), extents,
-                               xe::countof(extents));
+  xe::copy_and_swap_16_unaligned(memory_->TranslatePhysical(address), extents,
+                                 xe::countof(extents));
   trace_writer_.WriteMemoryWrite(CpuToGpu(address), sizeof(extents));
   return true;
 }

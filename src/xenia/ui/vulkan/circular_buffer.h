@@ -10,7 +10,7 @@
 #ifndef XENIA_UI_VULKAN_CIRCULAR_BUFFER_H_
 #define XENIA_UI_VULKAN_CIRCULAR_BUFFER_H_
 
-#include <list>
+#include <queue>
 
 #include "xenia/ui/vulkan/vulkan.h"
 #include "xenia/ui/vulkan/vulkan_device.h"
@@ -83,7 +83,7 @@ class CircularBuffer {
   VkDeviceSize gpu_base_ = 0;
   uint8_t* host_base_ = nullptr;
 
-  std::list<Allocation*> allocations_;
+  std::queue<Allocation> allocations_;
 };
 
 }  // namespace vulkan

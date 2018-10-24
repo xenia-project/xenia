@@ -31,7 +31,7 @@ project("xenia-ui-window-vulkan-demo")
   links({
     "gflags",
     "imgui",
-    "vulkan-loader",
+    "volk",
     "xenia-base",
     "xenia-ui",
     "xenia-ui-spirv",
@@ -54,3 +54,12 @@ project("xenia-ui-window-vulkan-demo")
   resincludedirs({
     project_root,
   })
+
+  filter("platforms:Linux")
+    links({
+      "X11",
+      "xcb",
+      "X11-xcb",
+      "GL",
+      "vulkan",
+    })

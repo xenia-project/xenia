@@ -41,8 +41,9 @@ ContentPackage::ContentPackage(KernelState* kernel_state, std::string root_name,
 }
 
 ContentPackage::~ContentPackage() {
-  kernel_state_->file_system()->UnregisterSymbolicLink(root_name_ + ":");
-  // TODO(benvanik): unregister device.
+  auto fs = kernel_state_->file_system();
+  fs->UnregisterSymbolicLink(root_name_ + ":");
+  fs->UnregisterDevice(device_path_);
 }
 
 ContentManager::ContentManager(KernelState* kernel_state,
@@ -144,7 +145,7 @@ X_RESULT ContentManager::CreateContent(std::string root_name,
 
   if (open_packages_.count(root_name)) {
     // Already content open with this root name.
-    return X_ERROR_INVALID_NAME;
+    return X_ERROR_ALREADY_EXISTS;
   }
 
   auto package_path = ResolvePackagePath(data);
@@ -171,7 +172,7 @@ X_RESULT ContentManager::OpenContent(std::string root_name,
 
   if (open_packages_.count(root_name)) {
     // Already content open with this root name.
-    return X_ERROR_INVALID_NAME;
+    return X_ERROR_ALREADY_EXISTS;
   }
 
   auto package_path = ResolvePackagePath(data);

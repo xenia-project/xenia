@@ -104,6 +104,7 @@ class VulkanCommandProcessor : public CommandProcessor {
   uint64_t dirty_float_constants_ = 0;  // Dirty float constants in blocks of 4
   uint8_t dirty_bool_constants_ = 0;
   uint32_t dirty_loop_constants_ = 0;
+  uint8_t dirty_gamma_constants_ = 0;
 
   uint32_t coher_base_vc_ = 0;
   uint32_t coher_size_vc_ = 0;

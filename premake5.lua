@@ -28,9 +28,11 @@ defines({
 })
 
 -- TODO(DrChat): Find a way to disable this on other architectures.
-filter("architecture:x86_64")
-  vectorextensions("AVX")
-filter({})
+if ARCH ~= "ppc64" then
+  filter("architecture:x86_64")
+    vectorextensions("AVX")
+  filter({})
+end
 
 characterset("Unicode")
 flags({
@@ -95,13 +97,6 @@ filter("platforms:Linux")
     "dl",
     "lz4",
     "rt",
-    "X11",
-    "xcb",
-    "X11-xcb",
-    "GL",
-    "vulkan",
-    "c++",
-    "c++abi"
   })
   linkoptions({
     "`pkg-config --libs gtk+-3.0`",
@@ -112,10 +107,25 @@ filter({"platforms:Linux", "kind:*App"})
 
 filter({"platforms:Linux", "language:C++", "toolset:gcc"})
   buildoptions({
-    "--std=c++11",
+    "-std=c++14",
   })
   links({
   })
+  disablewarnings({
+    "unused-result"
+  })
+
+filter({"platforms:Linux", "toolset:gcc"})
+  if ARCH == "ppc64" then
+    buildoptions({
+      "-m32",
+      "-mpowerpc64"
+    })
+    linkoptions({
+      "-m32",
+      "-mpowerpc64"
+    })
+  end
 
 filter({"platforms:Linux", "language:C++", "toolset:clang"})
   buildoptions({
@@ -123,6 +133,8 @@ filter({"platforms:Linux", "language:C++", "toolset:clang"})
     "-stdlib=libstdc++",
   })
   links({
+    "c++",
+    "c++abi"
   })
   disablewarnings({
     "deprecated-register"
@@ -162,7 +174,6 @@ filter("platforms:Windows")
     "wsock32",
     "ws2_32",
     "xinput",
-    "xaudio2",
     "glu32",
     "opengl32",
     "comctl32",
@@ -219,7 +230,7 @@ solution("xenia")
   include("third_party/libav.lua")
   include("third_party/snappy.lua")
   include("third_party/spirv-tools.lua")
-  include("third_party/vulkan/loader")
+  include("third_party/volk.lua")
   include("third_party/xxhash.lua")
   include("third_party/yaml-cpp.lua")
 
@@ -233,13 +244,11 @@ solution("xenia")
   include("src/xenia/debug/ui")
   include("src/xenia/gpu")
   include("src/xenia/gpu/null")
-  include("src/xenia/gpu/gl4")
   include("src/xenia/gpu/vulkan")
   include("src/xenia/hid")
   include("src/xenia/hid/nop")
   include("src/xenia/kernel")
   include("src/xenia/ui")
-  include("src/xenia/ui/gl")
   include("src/xenia/ui/spirv")
   include("src/xenia/ui/vulkan")
   include("src/xenia/vfs")

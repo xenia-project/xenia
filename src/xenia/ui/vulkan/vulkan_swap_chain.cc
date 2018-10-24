@@ -448,8 +448,8 @@ VkResult VulkanSwapChain::Reinitialize() {
   return Initialize(surface);
 }
 
-void VulkanSwapChain::WaitAndSignalSemaphore(VkSemaphore sem) {
-  wait_and_signal_semaphores_.push_back(sem);
+void VulkanSwapChain::WaitOnSemaphore(VkSemaphore sem) {
+  wait_semaphores_.push_back(sem);
 }
 
 void VulkanSwapChain::Shutdown() {
@@ -491,7 +491,7 @@ void VulkanSwapChain::Shutdown() {
 }
 
 VkResult VulkanSwapChain::Begin() {
-  wait_and_signal_semaphores_.clear();
+  wait_semaphores_.clear();
 
   VkResult status;
 
@@ -729,12 +729,14 @@ VkResult VulkanSwapChain::End() {
     return status;
   }
 
-  VkPipelineStageFlags wait_dst_stage = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
   std::vector<VkSemaphore> semaphores;
-  for (size_t i = 0; i < wait_and_signal_semaphores_.size(); i++) {
-    semaphores.push_back(wait_and_signal_semaphores_[i]);
+  std::vector<VkPipelineStageFlags> wait_dst_stages;
+  for (size_t i = 0; i < wait_semaphores_.size(); i++) {
+    semaphores.push_back(wait_semaphores_[i]);
+    wait_dst_stages.push_back(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
   }
   semaphores.push_back(image_usage_semaphore_);
+  wait_dst_stages.push_back(VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
 
   // Submit commands.
   // Wait on the image usage semaphore (signaled when an image is available)
@@ -743,11 +745,11 @@ VkResult VulkanSwapChain::End() {
   render_submit_info.pNext = nullptr;
   render_submit_info.waitSemaphoreCount = uint32_t(semaphores.size());
   render_submit_info.pWaitSemaphores = semaphores.data();
-  render_submit_info.pWaitDstStageMask = &wait_dst_stage;
+  render_submit_info.pWaitDstStageMask = wait_dst_stages.data();
   render_submit_info.commandBufferCount = 1;
   render_submit_info.pCommandBuffers = &cmd_buffer_;
-  render_submit_info.signalSemaphoreCount = uint32_t(semaphores.size()) - 1;
-  render_submit_info.pSignalSemaphores = semaphores.data();
+  render_submit_info.signalSemaphoreCount = 0;
+  render_submit_info.pSignalSemaphores = nullptr;
   if (presentation_queue_mutex_) {
     presentation_queue_mutex_->lock();
   }

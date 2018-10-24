@@ -447,8 +447,9 @@ dword_result_t KeSetEvent(pointer_t<X_KEVENT> event_ptr, dword_t increment,
 
   return ev->Set(increment, !!wait);
 }
-DECLARE_XBOXKRNL_EXPORT(KeSetEvent,
-                        ExportTag::kImplemented | ExportTag::kThreading);
+DECLARE_XBOXKRNL_EXPORT(KeSetEvent, ExportTag::kImplemented |
+                                        ExportTag::kThreading |
+                                        ExportTag::kHighFrequency);
 
 dword_result_t KePulseEvent(pointer_t<X_KEVENT> event_ptr, dword_t increment,
                             dword_t wait) {
@@ -460,7 +461,9 @@ dword_result_t KePulseEvent(pointer_t<X_KEVENT> event_ptr, dword_t increment,
 
   return ev->Pulse(increment, !!wait);
 }
-DECLARE_XBOXKRNL_EXPORT(KePulseEvent, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT(KePulseEvent, ExportTag::kImplemented |
+                                          ExportTag::kThreading |
+                                          ExportTag::kHighFrequency);
 
 dword_result_t KeResetEvent(pointer_t<X_KEVENT> event_ptr) {
   auto ev = XObject::GetNativeObject<XEvent>(kernel_state(), event_ptr);
@@ -523,8 +526,9 @@ dword_result_t NtSetEvent(dword_t handle, lpdword_t previous_state_ptr) {
 
   return result;
 }
-DECLARE_XBOXKRNL_EXPORT(NtSetEvent,
-                        ExportTag::kImplemented | ExportTag::kThreading);
+DECLARE_XBOXKRNL_EXPORT(NtSetEvent, ExportTag::kImplemented |
+                                        ExportTag::kThreading |
+                                        ExportTag::kHighFrequency);
 
 dword_result_t NtPulseEvent(dword_t handle, lpdword_t previous_state_ptr) {
   X_STATUS result = X_STATUS_SUCCESS;
@@ -541,8 +545,9 @@ dword_result_t NtPulseEvent(dword_t handle, lpdword_t previous_state_ptr) {
 
   return result;
 }
-DECLARE_XBOXKRNL_EXPORT(NtPulseEvent,
-                        ExportTag::kImplemented | ExportTag::kThreading);
+DECLARE_XBOXKRNL_EXPORT(NtPulseEvent, ExportTag::kImplemented |
+                                          ExportTag::kThreading |
+                                          ExportTag::kHighFrequency);
 
 dword_result_t NtClearEvent(dword_t handle) {
   X_STATUS result = X_STATUS_SUCCESS;
@@ -556,8 +561,9 @@ dword_result_t NtClearEvent(dword_t handle) {
 
   return result;
 }
-DECLARE_XBOXKRNL_EXPORT(NtClearEvent,
-                        ExportTag::kImplemented | ExportTag::kThreading);
+DECLARE_XBOXKRNL_EXPORT(NtClearEvent, ExportTag::kImplemented |
+                                          ExportTag::kThreading |
+                                          ExportTag::kHighFrequency);
 
 // https://msdn.microsoft.com/en-us/library/windows/hardware/ff552150(v=vs.85).aspx
 void KeInitializeSemaphore(pointer_t<X_KSEMAPHORE> semaphore_ptr, dword_t count,
@@ -838,9 +844,9 @@ dword_result_t KeWaitForSingleObject(lpvoid_t object_ptr, dword_t wait_reason,
 
   return result;
 }
-DECLARE_XBOXKRNL_EXPORT(KeWaitForSingleObject, ExportTag::kImplemented |
-                                                   ExportTag::kThreading |
-                                                   ExportTag::kBlocking);
+DECLARE_XBOXKRNL_EXPORT(KeWaitForSingleObject,
+                        ExportTag::kImplemented | ExportTag::kThreading |
+                            ExportTag::kBlocking | ExportTag::kHighFrequency);
 
 dword_result_t NtWaitForSingleObjectEx(dword_t object_handle, dword_t wait_mode,
                                        dword_t alertable,
@@ -859,9 +865,9 @@ dword_result_t NtWaitForSingleObjectEx(dword_t object_handle, dword_t wait_mode,
 
   return result;
 }
-DECLARE_XBOXKRNL_EXPORT(NtWaitForSingleObjectEx, ExportTag::kImplemented |
-                                                     ExportTag::kThreading |
-                                                     ExportTag::kBlocking);
+DECLARE_XBOXKRNL_EXPORT(NtWaitForSingleObjectEx,
+                        ExportTag::kImplemented | ExportTag::kThreading |
+                            ExportTag::kBlocking | ExportTag::kHighFrequency);
 
 dword_result_t KeWaitForMultipleObjects(dword_t count, lpdword_t objects_ptr,
                                         dword_t wait_type, dword_t wait_reason,
@@ -893,9 +899,9 @@ dword_result_t KeWaitForMultipleObjects(dword_t count, lpdword_t objects_ptr,
 
   return result;
 }
-DECLARE_XBOXKRNL_EXPORT(KeWaitForMultipleObjects, ExportTag::kImplemented |
-                                                      ExportTag::kThreading |
-                                                      ExportTag::kBlocking);
+DECLARE_XBOXKRNL_EXPORT(KeWaitForMultipleObjects,
+                        ExportTag::kImplemented | ExportTag::kThreading |
+                            ExportTag::kBlocking | ExportTag::kHighFrequency);
 
 dword_result_t NtWaitForMultipleObjectsEx(dword_t count, lpdword_t handles,
                                           dword_t wait_type, dword_t wait_mode,
@@ -922,9 +928,9 @@ dword_result_t NtWaitForMultipleObjectsEx(dword_t count, lpdword_t handles,
 
   return result;
 }
-DECLARE_XBOXKRNL_EXPORT(NtWaitForMultipleObjectsEx, ExportTag::kImplemented |
-                                                        ExportTag::kThreading |
-                                                        ExportTag::kBlocking);
+DECLARE_XBOXKRNL_EXPORT(NtWaitForMultipleObjectsEx,
+                        ExportTag::kImplemented | ExportTag::kThreading |
+                            ExportTag::kBlocking | ExportTag::kHighFrequency);
 
 dword_result_t NtSignalAndWaitForSingleObjectEx(dword_t signal_handle,
                                                 dword_t wait_handle,
@@ -949,7 +955,7 @@ dword_result_t NtSignalAndWaitForSingleObjectEx(dword_t signal_handle,
 }
 DECLARE_XBOXKRNL_EXPORT(NtSignalAndWaitForSingleObjectEx,
                         ExportTag::kImplemented | ExportTag::kThreading |
-                            ExportTag::kBlocking);
+                            ExportTag::kBlocking | ExportTag::kHighFrequency);
 
 dword_result_t KfAcquireSpinLock(lpdword_t lock_ptr) {
   // XELOGD(
@@ -1244,6 +1250,28 @@ SHIM_CALL KeRemoveQueueDpc_shim(PPCContext* ppc_context,
 
   SHIM_SET_RETURN_32(result ? 1 : 0);
 }
+
+// https://github.com/Cxbx-Reloaded/Cxbx-Reloaded/blob/51e4dfcaacfdbd1a9692272931a436371492f72d/import/OpenXDK/include/xboxkrnl/xboxkrnl.h#L1372
+struct X_ERWLOCK {
+  be<int32_t> lock_count;              // 0x0
+  be<uint32_t> writers_waiting_count;  // 0x4
+  be<uint32_t> readers_waiting_count;  // 0x8
+  be<uint32_t> readers_entry_count;    // 0xC
+  X_KEVENT writer_event;               // 0x10
+  X_KSEMAPHORE reader_semaphore;       // 0x20
+  be<uint32_t> spin_lock;              // 0x34
+};
+
+void ExInitializeReadWriteLock(pointer_t<X_ERWLOCK> lock_ptr) {
+  lock_ptr->lock_count = -1;
+  lock_ptr->writers_waiting_count = 0;
+  lock_ptr->readers_waiting_count = 0;
+  lock_ptr->readers_entry_count = 0;
+  KeInitializeEvent(&lock_ptr->writer_event, 1, 0);
+  KeInitializeSemaphore(&lock_ptr->reader_semaphore, 0, 0x7FFFFFFF);
+}
+DECLARE_XBOXKRNL_EXPORT(ExInitializeReadWriteLock,
+                        ExportTag::kThreading | ExportTag::kImplemented);
 
 // NOTE: This function is very commonly inlined, and probably won't be called!
 pointer_result_t InterlockedPushEntrySList(

@@ -11,6 +11,9 @@ Thumbs.db
 Desktop.ini
 .svn
 
+# Microprofile settings
+.microprofilepreset.*
+
 # ==============================================================================
 # Projects/IDE files
 # ==============================================================================
@@ -43,6 +46,7 @@ tmtags
 *.user
 *.sdf
 *.opensdf
+*.suo
 bin/
 obj/
 
@@ -96,3 +100,4 @@ node_modules/.bin/
 /third_party/binutils/share/
 /third_party/binutils/binutils*
 /third_party/vasm/
+/tools/shader-playground/*.dll

@@ -88,6 +88,15 @@ namespace xe {
   MICROPROFILE_SCOPEGPUI(group_name, __FUNCTION__, \
                          xe::Profiler::GetColor(__FUNCTION__))
 
+// Adds a number to a counter
+#define COUNT_profile_add(name, count) MICROPROFILE_COUNTER_ADD(name, count)
+
+// Subtracts a number to a counter
+#define COUNT_profile_sub(name, count) MICROPROFILE_COUNTER_SUB(name, count)
+
+// Sets a counter's value
+#define COUNT_profile_set(name, count) MICROPROFILE_COUNTER_SET(name, count)
+
 // Tracks a CPU value counter.
 #define COUNT_profile_cpu(name, count) MICROPROFILE_META_CPU(name, count)
 
@@ -117,6 +126,15 @@ namespace xe {
   } while (false)
 #define SCOPE_profile_gpu_i(group_name, scope_name) \
   do {                                              \
+  } while (false)
+#define COUNT_profile_add(name, count) \
+  do {                                 \
+  } while (false)
+#define COUNT_profile_sub(name, count) \
+  do {                                 \
+  } while (false)
+#define COUNT_profile_set(name, count) \
+  do {                                 \
   } while (false)
 #define COUNT_profile_cpu(name, count) \
   do {                                 \

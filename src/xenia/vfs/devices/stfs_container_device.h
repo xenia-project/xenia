@@ -21,6 +21,8 @@ namespace vfs {
 
 // http://www.free60.org/wiki/STFS
 
+class StfsContainerEntry;
+
 enum class StfsPackageType {
   kCon,
   kPirs,
@@ -32,6 +34,7 @@ enum class StfsContentType : uint32_t {
   kAvatarItem = 0x00009000,
   kCacheFile = 0x00040000,
   kCommunityGame = 0x02000000,
+  kGamesOnDemand = 0x00007000,
   kGameDemo = 0x00080000,
   kGamerPicture = 0x00020000,
   kGameTitle = 0x000A0000,
@@ -75,13 +78,31 @@ struct StfsVolumeDescriptor {
   bool Read(const uint8_t* p);
 
   uint8_t descriptor_size;
-  uint8_t reserved;
-  uint8_t block_separation;
+  uint8_t version;
+  uint8_t flags;
   uint16_t file_table_block_count;
   uint32_t file_table_block_number;
   uint8_t top_hash_table_hash[0x14];
   uint32_t total_allocated_block_count;
   uint32_t total_unallocated_block_count;
+};
+
+enum SvodDeviceFeatures {
+  kFeatureHasEnhancedGDFLayout = 0x40,
+};
+
+struct SvodVolumeDescriptor {
+  bool Read(const uint8_t* p);
+
+  uint8_t descriptor_size;
+  uint8_t block_cache_element_count;
+  uint8_t worker_thread_processor;
+  uint8_t worker_thread_priority;
+  uint8_t hash[0x14];
+  uint8_t device_features;
+  uint32_t data_block_count;
+  uint32_t data_block_offset;
+  // 0x5 padding bytes...
 };
 
 class StfsHeader {
@@ -105,7 +126,10 @@ class StfsHeader {
   uint32_t save_game_id;
   uint8_t console_id[0x5];
   uint8_t profile_id[0x8];
-  StfsVolumeDescriptor volume_descriptor;
+  union {
+    StfsVolumeDescriptor stfs_volume_descriptor;
+    SvodVolumeDescriptor svod_volume_descriptor;
+  };
   uint32_t data_file_count;
   uint64_t data_file_combined_size;
   StfsDescriptorType descriptor_type;
@@ -128,6 +152,8 @@ class StfsContainerDevice : public Device {
   ~StfsContainerDevice() override;
 
   bool Initialize() override;
+  void Dump(StringBuffer* string_buffer) override;
+  Entry* ResolvePath(std::string path) override;
 
   uint32_t total_allocation_units() const override {
     return uint32_t(mmap_->size() / sectors_per_allocation_unit() /
@@ -151,10 +177,17 @@ class StfsContainerDevice : public Device {
     uint32_t info;
   };
 
+  const uint32_t kSTFSHashSpacing = 170;
+  const uint32_t kSVODHashSpacing = 204;
+
   Error ReadHeaderAndVerify(const uint8_t* map_ptr);
-  Error ReadAllEntries(const uint8_t* map_ptr);
-  size_t BlockToOffset(uint32_t block);
-  uint32_t ComputeBlockNumber(uint32_t block_index);
+  Error ReadAllEntriesEGDF(const uint8_t* map_ptr);
+  bool ReadEntryEGDF(const uint8_t* buffer, uint16_t entry_ordinal,
+                     StfsContainerEntry* parent);
+
+  Error ReadAllEntriesSTFS(const uint8_t* map_ptr);
+  size_t BlockToOffsetSTFS(uint64_t block);
+  size_t BlockToOffsetEGDF(uint64_t block);
 
   BlockHash GetBlockHash(const uint8_t* map_ptr, uint32_t block_index,
                          uint32_t table_offset);
@@ -162,6 +195,7 @@ class StfsContainerDevice : public Device {
   std::wstring local_path_;
   std::unique_ptr<MappedMemory> mmap_;
 
+  std::unique_ptr<Entry> root_entry_;
   StfsPackageType package_type_;
   StfsHeader header_;
   uint32_t table_size_shift_;

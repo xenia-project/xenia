@@ -1,6 +1,6 @@
 ; SPIR-V
 ; Version: 1.0
-; Generator: Khronos Glslang Reference Front End; 3
+; Generator: Khronos Glslang Reference Front End; 6
 ; Bound: 50
 ; Schema: 0
                OpCapability Shader
@@ -10,6 +10,9 @@
                OpEntryPoint Fragment %main "main" %in_interpolators %oC
                OpExecutionMode %main OriginUpperLeft
                OpSource GLSL 450
+               OpSourceExtension "GL_ARB_explicit_attrib_location"
+               OpSourceExtension "GL_ARB_separate_shader_objects"
+               OpSourceExtension "GL_ARB_shading_language_420pack"
                OpName %main "main"
                OpName %consts_type "consts_type"
                OpMemberName %consts_type 0 "float_consts"

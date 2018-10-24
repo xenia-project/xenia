@@ -26,11 +26,12 @@ project("xenia-hid-demo")
     "gflags",
     "glew",
     "imgui",
+    "volk",
     "xenia-base",
     "xenia-hid",
     "xenia-hid-nop",
     "xenia-ui",
-    "xenia-ui-gl",
+    "xenia-ui-vulkan",
   })
   flags({
     "WinMain",  -- Use WinMain instead of main.
@@ -44,13 +45,20 @@ project("xenia-hid-demo")
   })
   files({
     "hid_demo.cc",
-    project_root.."/src/xenia/base/main_"..platform_suffix..".cc",
-  })
-  files({
+    "../base/main_"..platform_suffix..".cc",
   })
   resincludedirs({
     project_root,
   })
+
+  filter("platforms:Linux")
+    links({
+      "X11",
+      "xcb",
+      "X11-xcb",
+      "GL",
+      "vulkan",
+    })
 
   filter("platforms:Windows")
     links({

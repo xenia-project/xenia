@@ -911,6 +911,7 @@ void ShaderTranslator::ParseTextureFetchInstruction(
     i.attributes.use_computed_lod = op.use_computed_lod();
     i.attributes.use_register_lod = op.use_register_lod();
     i.attributes.use_register_gradients = op.use_register_gradients();
+    i.attributes.lod_bias = op.lod_bias();
     i.attributes.offset_x = op.offset_x();
     i.attributes.offset_y = op.offset_y();
     i.attributes.offset_z = op.offset_z();
@@ -1147,14 +1148,15 @@ void ShaderTranslator::ParseAluVectorInstruction(
   } else if (is_vertex_shader()) {
     switch (dest_num) {
       case 32:
+        i.result.storage_target = InstructionStorageTarget::kExportAddress;
+        break;
       case 33:
       case 34:
       case 35:
       case 36:
       case 37:
-        // TODO: Memexport registers
-        i.result.storage_target = InstructionStorageTarget::kNone;
-        i.result.storage_index = 0;
+        i.result.storage_index = dest_num - 33;
+        i.result.storage_target = InstructionStorageTarget::kExportData;
         break;
       case 62:
         i.result.storage_target = InstructionStorageTarget::kPosition;
@@ -1198,14 +1200,15 @@ void ShaderTranslator::ParseAluVectorInstruction(
         i.result.storage_index = 3;
         break;
       case 32:
+        i.result.storage_target = InstructionStorageTarget::kExportAddress;
+        break;
       case 33:
       case 34:
       case 35:
       case 36:
       case 37:
-        // TODO: Memexport registers
-        i.result.storage_target = InstructionStorageTarget::kNone;
-        i.result.storage_index = 0;
+        i.result.storage_index = dest_num - 33;
+        i.result.storage_target = InstructionStorageTarget::kExportData;
         break;
       case 61:
         i.result.storage_target = InstructionStorageTarget::kDepth;
@@ -1303,6 +1306,17 @@ void ShaderTranslator::ParseAluScalarInstruction(
             : InstructionStorageAddressingMode::kStatic;
   } else if (is_vertex_shader()) {
     switch (dest_num) {
+      case 32:
+        i.result.storage_target = InstructionStorageTarget::kExportAddress;
+        break;
+      case 33:
+      case 34:
+      case 35:
+      case 36:
+      case 37:
+        i.result.storage_index = dest_num - 33;
+        i.result.storage_target = InstructionStorageTarget::kExportData;
+        break;
       case 62:
         i.result.storage_target = InstructionStorageTarget::kPosition;
         break;
@@ -1343,6 +1357,17 @@ void ShaderTranslator::ParseAluScalarInstruction(
       case 3:
         i.result.storage_target = InstructionStorageTarget::kColorTarget;
         i.result.storage_index = 3;
+        break;
+      case 32:
+        i.result.storage_target = InstructionStorageTarget::kExportAddress;
+        break;
+      case 33:
+      case 34:
+      case 35:
+      case 36:
+      case 37:
+        i.result.storage_index = dest_num - 33;
+        i.result.storage_target = InstructionStorageTarget::kExportData;
         break;
       case 61:
         i.result.storage_target = InstructionStorageTarget::kDepth;

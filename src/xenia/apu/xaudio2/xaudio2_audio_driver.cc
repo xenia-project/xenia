@@ -64,16 +64,41 @@ const DWORD ChannelMasks[] = {
     0,
 };
 
-void XAudio2AudioDriver::Initialize() {
+bool XAudio2AudioDriver::Initialize() {
   HRESULT hr;
 
   voice_callback_ = new VoiceCallback(semaphore_);
 
-  hr = XAudio2Create(&audio_, 0, XAUDIO2_DEFAULT_PROCESSOR);
+  // Load XAudio2_8.dll dynamically - Windows 8.1 SDK references XAudio2_8.dll
+  // in xaudio2.lib, which is available on Windows 8.1, however, Windows 10 SDK
+  // references XAudio2_9.dll in it, which is only available in Windows 10, and
+  // XAudio2_8.dll is linked through a different .lib - xaudio2_8.lib, so easier
+  // not to link the .lib at all.
+  xaudio2_module_ = reinterpret_cast<void*>(LoadLibrary(L"XAudio2_8.dll"));
+  if (!xaudio2_module_) {
+    XELOGE("LoadLibrary(XAudio2_8.dll) failed");
+    assert_always();
+    return false;
+  }
+
+  union {
+    HRESULT(__stdcall* xaudio2_create)
+    (IXAudio2** xaudio2_out, UINT32 flags, XAUDIO2_PROCESSOR xaudio2_processor);
+    FARPROC xaudio2_create_ptr;
+  };
+  xaudio2_create_ptr = GetProcAddress(
+      reinterpret_cast<HMODULE>(xaudio2_module_), "XAudio2Create");
+  if (!xaudio2_create_ptr) {
+    XELOGE("GetProcAddress(XAudio2_8.dll, XAudio2Create) failed");
+    assert_always();
+    return false;
+  }
+
+  hr = xaudio2_create(&audio_, 0, XAUDIO2_DEFAULT_PROCESSOR);
   if (FAILED(hr)) {
     XELOGE("XAudio2Create failed with %.8X", hr);
     assert_always();
-    return;
+    return false;
   }
 
   XAUDIO2_DEBUG_CONFIGURATION config;
@@ -89,7 +114,7 @@ void XAudio2AudioDriver::Initialize() {
   if (FAILED(hr)) {
     XELOGE("CreateMasteringVoice failed with %.8X", hr);
     assert_always();
-    return;
+    return false;
   }
 
   WAVEFORMATIEEEFLOATEX waveformat;
@@ -116,19 +141,21 @@ void XAudio2AudioDriver::Initialize() {
   if (FAILED(hr)) {
     XELOGE("CreateSourceVoice failed with %.8X", hr);
     assert_always();
-    return;
+    return false;
   }
 
   hr = pcm_voice_->Start();
   if (FAILED(hr)) {
     XELOGE("Start failed with %.8X", hr);
     assert_always();
-    return;
+    return false;
   }
 
   if (FLAGS_mute) {
     pcm_voice_->SetVolume(0.0f);
   }
+
+  return true;
 }
 
 void XAudio2AudioDriver::SubmitFrame(uint32_t frame_ptr) {
@@ -177,17 +204,32 @@ void XAudio2AudioDriver::SubmitFrame(uint32_t frame_ptr) {
 }
 
 void XAudio2AudioDriver::Shutdown() {
-  pcm_voice_->Stop();
-  pcm_voice_->DestroyVoice();
-  pcm_voice_ = NULL;
+  if (pcm_voice_) {
+    pcm_voice_->Stop();
+    pcm_voice_->DestroyVoice();
+    pcm_voice_ = NULL;
+  }
 
-  mastering_voice_->DestroyVoice();
-  mastering_voice_ = NULL;
+  if (mastering_voice_) {
+    mastering_voice_->DestroyVoice();
+    mastering_voice_ = NULL;
+  }
 
-  audio_->StopEngine();
-  audio_->Release();
+  if (audio_) {
+    audio_->StopEngine();
+    audio_->Release();
+    audio_ = nullptr;
+  }
 
-  delete voice_callback_;
+  if (xaudio2_module_) {
+    FreeLibrary(reinterpret_cast<HMODULE>(xaudio2_module_));
+    xaudio2_module_ = nullptr;
+  }
+
+  if (voice_callback_) {
+    delete voice_callback_;
+    voice_callback_ = nullptr;
+  }
 }
 
 }  // namespace xaudio2

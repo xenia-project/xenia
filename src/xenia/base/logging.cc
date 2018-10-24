@@ -227,8 +227,8 @@ class Logger {
     }
   }
 
+  volatile size_t write_tail_ = 0;
   size_t write_head_ = 0;
-  size_t write_tail_ = 0;
   size_t read_head_ = 0;
   uint8_t buffer_[kBufferSize];
   FILE* file_ = nullptr;
@@ -238,13 +238,24 @@ class Logger {
 };
 
 void InitializeLogging(const std::wstring& app_name) {
-  // We leak this intentionally - lots of cleanup code needs it.
   auto mem = memory::AlignedAlloc<Logger>(0x10);
   logger_ = new (mem) Logger(app_name);
 }
 
+void ShutdownLogging() {
+  Logger* logger = logger_;
+  logger_ = nullptr;
+
+  logger->~Logger();
+  memory::AlignedFree(logger);
+}
+
 void LogLineFormat(LogLevel log_level, const char prefix_char, const char* fmt,
                    ...) {
+  if (!logger_) {
+    return;
+  }
+
   va_list args;
   va_start(args, fmt);
   int chars_written = vsnprintf(log_format_buffer_.data(),
@@ -261,6 +272,10 @@ void LogLineFormat(LogLevel log_level, const char prefix_char, const char* fmt,
 
 void LogLineVarargs(LogLevel log_level, const char prefix_char, const char* fmt,
                     va_list args) {
+  if (!logger_) {
+    return;
+  }
+
   int chars_written = vsnprintf(log_format_buffer_.data(),
                                 log_format_buffer_.capacity(), fmt, args);
   if (chars_written < 0) {
@@ -275,6 +290,10 @@ void LogLineVarargs(LogLevel log_level, const char prefix_char, const char* fmt,
 
 void LogLine(LogLevel log_level, const char prefix_char, const char* str,
              size_t str_length) {
+  if (!logger_) {
+    return;
+  }
+
   logger_->AppendLine(
       xe::threading::current_thread_id(), log_level, prefix_char, str,
       str_length == std::string::npos ? std::strlen(str) : str_length);
@@ -282,6 +301,10 @@ void LogLine(LogLevel log_level, const char prefix_char, const char* str,
 
 void LogLine(LogLevel log_level, const char prefix_char,
              const std::string& str) {
+  if (!logger_) {
+    return;
+  }
+
   logger_->AppendLine(xe::threading::current_thread_id(), log_level,
                       prefix_char, str.c_str(), str.length());
 }

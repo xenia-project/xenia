@@ -63,6 +63,17 @@ enum class ClampMode : uint32_t {
   kMirrorClampToBorder = 7,
 };
 
+// TEX_FORMAT_COMP, known as GPUSIGN on the Xbox 360.
+enum class TextureSign : uint32_t {
+  kUnsigned = 0,
+  // Two's complement texture data.
+  kSigned = 1,
+  // 2*color-1 - http://xboxforums.create.msdn.com/forums/t/107374.aspx
+  kUnsignedBiased = 2,
+  // Linearized when sampled.
+  kGamma = 3,
+};
+
 enum class TextureFilter : uint32_t {
   kPoint = 0,
   kLinear = 1,
@@ -142,26 +153,34 @@ enum class MsaaSamples : uint32_t {
 };
 
 enum class ColorRenderTargetFormat : uint32_t {
-  k_8_8_8_8 = 0,        // D3DFMT_A8R8G8B8 (or ABGR?)
-  k_8_8_8_8_GAMMA = 1,  // D3DFMT_A8R8G8B8 with gamma correction
+  // D3DFMT_A8R8G8B8 (or ABGR?).
+  k_8_8_8_8 = 0,
+  // D3DFMT_A8R8G8B8 with gamma correction.
+  k_8_8_8_8_GAMMA = 1,
   k_2_10_10_10 = 2,
+  // 7e3 [0, 32) RGB, unorm alpha.
+  // http://fileadmin.cs.lth.se/cs/Personal/Michael_Doggett/talks/eg05-xenos-doggett.pdf
   k_2_10_10_10_FLOAT = 3,
+  // Fixed point -32...32.
+  // http://www.students.science.uu.nl/~3220516/advancedgraphics/papers/inferred_lighting.pdf
   k_16_16 = 4,
+  // Fixed point -32...32.
   k_16_16_16_16 = 5,
   k_16_16_FLOAT = 6,
   k_16_16_16_16_FLOAT = 7,
-  k_2_10_10_10_unknown = 10,
-  k_2_10_10_10_FLOAT_unknown = 12,
+  k_2_10_10_10_AS_16_16_16_16 = 10,
+  k_2_10_10_10_FLOAT_AS_16_16_16_16 = 12,
   k_32_FLOAT = 14,
   k_32_32_FLOAT = 15,
 };
 
 enum class DepthRenderTargetFormat : uint32_t {
   kD24S8 = 0,
+  // 20e4 [0, 2).
   kD24FS8 = 1,
 };
 
-// Subset of a2xx_sq_surfaceformat.
+// Subset of a2xx_sq_surfaceformat - formats that RTs can be resolved to.
 enum class ColorFormat : uint32_t {
   k_8 = 2,
   k_1_5_5_5 = 3,
@@ -185,9 +204,10 @@ enum class ColorFormat : uint32_t {
   k_32_FLOAT = 36,
   k_32_32_FLOAT = 37,
   k_32_32_32_32_FLOAT = 38,
-  k_2_10_10_10_FLOAT = 62,
-
-  kUnknown0x36 = 0x36,  // not sure, but like 8888
+  k_8_8_8_8_AS_16_16_16_16 = 50,
+  k_2_10_10_10_AS_16_16_16_16 = 54,
+  k_10_11_11_AS_16_16_16_16 = 55,
+  k_11_11_10_AS_16_16_16_16 = 56,
 };
 
 enum class VertexFormat : uint32_t {
@@ -263,6 +283,38 @@ inline int GetVertexFormatSizeInWords(VertexFormat format) {
   }
 }
 
+// adreno_rb_blend_factor
+enum class BlendFactor : uint32_t {
+  kZero = 0,
+  kOne = 1,
+  kSrcColor = 4,
+  kOneMinusSrcColor = 5,
+  kSrcAlpha = 6,
+  kOneMinusSrcAlpha = 7,
+  kDstColor = 8,
+  kOneMinusDstColor = 9,
+  kDstAlpha = 10,
+  kOneMinusDstAlpha = 11,
+  kConstantColor = 12,
+  kOneMinusConstantColor = 13,
+  kConstantAlpha = 14,
+  kOneMinusConstantAlpha = 15,
+  kSrcAlphaSaturate = 16,
+  // SRC1 likely not used on the Xbox 360 - only available in Direct3D 9Ex.
+  kSrc1Color = 20,
+  kOneMinusSrc1Color = 21,
+  kSrc1Alpha = 22,
+  kOneMinusSrc1Alpha = 23,
+};
+
+enum class BlendOp : uint32_t {
+  kAdd = 0,
+  kSubtract = 1,
+  kMin = 2,
+  kMax = 3,
+  kRevSubtract = 4,
+};
+
 namespace xenos {
 
 typedef enum {
@@ -284,6 +336,17 @@ enum class CopyCommand : uint32_t {
   kConvert = 1,
   kConstantOne = 2,
   kNull = 3,  // ?
+};
+
+// a2xx_rb_copy_sample_select
+enum class CopySampleSelect : uint32_t {
+  k0,
+  k1,
+  k2,
+  k3,
+  k01,
+  k23,
+  k0123,
 };
 
 #define XE_GPU_MAKE_SWIZZLE(x, y, z, w)                        \
@@ -408,12 +471,12 @@ XEPACKEDUNION(xe_gpu_texture_fetch_t, {
     uint32_t pitch : 9;     // +22 byte_pitch >> 5
     uint32_t tiled : 1;     // +31
 
-    uint32_t format : 6;        // +0 dword_1
-    uint32_t endianness : 2;    // +6
-    uint32_t request_size : 2;  // +8
-    uint32_t stacked : 1;       // +10
-    uint32_t clamp_policy : 1;  // +11 d3d/opengl
-    uint32_t address : 20;      // +12
+    uint32_t format : 6;         // +0 dword_1
+    uint32_t endianness : 2;     // +6
+    uint32_t request_size : 2;   // +8
+    uint32_t stacked : 1;        // +10
+    uint32_t clamp_policy : 1;   // +11 d3d/opengl
+    uint32_t base_address : 20;  // +12
 
     union {  // dword_2
       struct {
@@ -601,20 +664,18 @@ enum Type3Opcode {
 };
 // clang-format on
 
-template <uint16_t index, uint16_t count, bool one_reg = false>
-constexpr inline uint32_t MakePacketType0() {
+inline uint32_t MakePacketType0(uint16_t index, uint16_t count,
+                                bool one_reg = false) {
   // ttcccccc cccccccc oiiiiiii iiiiiiii
-  static_assert(index <= 0x7FFF, "index must be <= 0x7FFF");
-  static_assert(count >= 1 && count <= 0x4000,
-                "count must be >= 1 and <= 0x4000");
+  assert(index <= 0x7FFF);
+  assert(count >= 1 && count <= 0x4000);
   return (0u << 30) | (((count - 1) & 0x3FFF) << 16) | (index & 0x7FFF);
 }
 
-template <uint16_t index_1, uint16_t index_2>
-constexpr inline uint32_t MakePacketType1() {
+inline uint32_t MakePacketType1(uint16_t index_1, uint16_t index_2) {
   // tt?????? ??222222 22222111 11111111
-  static_assert(index_1 <= 0x7FF, "index_1 must be <= 0x7FF");
-  static_assert(index_2 <= 0x7FF, "index_2 must be <= 0x7FF");
+  assert(index_1 <= 0x7FF);
+  assert(index_2 <= 0x7FF);
   return (1u << 30) | ((index_2 & 0x7FF) << 11) | (index_1 & 0x7FF);
 }
 
@@ -623,12 +684,11 @@ constexpr inline uint32_t MakePacketType2() {
   return (2u << 30);
 }
 
-template <Type3Opcode opcode, uint16_t count, bool predicate = false>
-constexpr inline uint32_t MakePacketType3() {
+inline uint32_t MakePacketType3(Type3Opcode opcode, uint16_t count,
+                                bool predicate = false) {
   // ttcccccc cccccccc ?ooooooo ???????p
-  static_assert(opcode <= 0x7F, "opcode must be <= 0x7F");
-  static_assert(count >= 1 && count <= 0x4000,
-                "count must be >= 1 and <= 0x4000");
+  assert(opcode <= 0x7F);
+  assert(count >= 1 && count <= 0x4000);
   return (3u << 30) | (((count - 1) & 0x3FFF) << 16) | ((opcode & 0x7F) << 8) |
          (predicate ? 1 : 0);
 }

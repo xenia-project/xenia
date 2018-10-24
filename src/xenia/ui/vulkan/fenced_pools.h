@@ -93,6 +93,7 @@ class BaseFencedPool {
         // Transfer owned -> external
         vkDestroyFence(device_, batch->fence, nullptr);
         batch->fence = fence;
+        batch->flags &= ~kBatchOwnsFence;
       } else if (!(batch->flags & kBatchOwnsFence) && !fence) {
         // external -> owned
         VkFenceCreateInfo info;

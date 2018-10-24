@@ -16,6 +16,7 @@
 #include <string>
 
 #include "third_party/renderdoc/renderdoc_app.h"
+#include "third_party/volk/volk.h"
 
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
@@ -30,7 +31,7 @@
 #include "xenia/ui/window_gtk.h"
 #endif
 
-#define VK_API_VERSION VK_API_VERSION_1_0
+#define VK_API_VERSION VK_API_VERSION_1_1
 
 namespace xe {
 namespace ui {
@@ -72,6 +73,10 @@ VulkanInstance::~VulkanInstance() { DestroyInstance(); }
 bool VulkanInstance::Initialize() {
   auto version = Version::Parse(VK_API_VERSION);
   XELOGVK("Initializing Vulkan %s...", version.pretty_string.c_str());
+  if (volkInitialize() != VK_SUCCESS) {
+    XELOGE("volkInitialize() failed!");
+    return false;
+  }
 
   // Get all of the global layers and extensions provided by the system.
   if (!QueryGlobals()) {
@@ -271,6 +276,9 @@ bool VulkanInstance::CreateInstance() {
       return false;
   }
 
+  // Load Vulkan entrypoints and extensions.
+  volkLoadInstance(handle);
+
   // Enable debug validation, if needed.
   EnableDebugValidation();
 
@@ -292,6 +300,19 @@ VkBool32 VKAPI_PTR DebugMessageCallback(VkDebugReportFlagsEXT flags,
                                         int32_t messageCode,
                                         const char* pLayerPrefix,
                                         const char* pMessage, void* pUserData) {
+  if (strcmp(pLayerPrefix, "Validation") == 0) {
+    const char* blacklist[] = {
+        "bound but it was never updated. You may want to either update it or "
+        "not bind it.",
+        "is being used in draw but has not been updated.",
+    };
+    for (uint32_t i = 0; i < xe::countof(blacklist); ++i) {
+      if (strstr(pMessage, blacklist[i]) != nullptr) {
+        return false;
+      }
+    }
+  }
+
   auto instance = reinterpret_cast<VulkanInstance*>(pUserData);
   const char* message_type = "UNKNOWN";
   if (flags & VK_DEBUG_REPORT_ERROR_BIT_EXT) {
@@ -305,6 +326,7 @@ VkBool32 VKAPI_PTR DebugMessageCallback(VkDebugReportFlagsEXT flags,
   } else if (flags & VK_DEBUG_REPORT_DEBUG_BIT_EXT) {
     message_type = "DEBUG";
   }
+
   XELOGVK("[%s/%s:%d] %s", pLayerPrefix, message_type, messageCode, pMessage);
   return false;
 }

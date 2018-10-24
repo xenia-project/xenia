@@ -55,7 +55,7 @@ class VulkanSwapChain {
   VkResult Reinitialize();
 
   // Waits on and signals a semaphore in this operation.
-  void WaitAndSignalSemaphore(VkSemaphore sem);
+  void WaitOnSemaphore(VkSemaphore sem);
 
   // Begins the swap operation, preparing state for rendering.
   VkResult Begin();
@@ -96,7 +96,7 @@ class VulkanSwapChain {
   VkSemaphore image_usage_semaphore_ = nullptr;
   uint32_t current_buffer_index_ = 0;
   std::vector<Buffer> buffers_;
-  std::vector<VkSemaphore> wait_and_signal_semaphores_;
+  std::vector<VkSemaphore> wait_semaphores_;
 };
 
 }  // namespace vulkan

@@ -13,7 +13,9 @@
 
 #include "third_party/capstone/include/capstone.h"
 #include "third_party/capstone/include/x86.h"
+
 #include "xenia/base/exception_handler.h"
+#include "xenia/base/logging.h"
 #include "xenia/cpu/backend/x64/x64_assembler.h"
 #include "xenia/cpu/backend/x64/x64_code_cache.h"
 #include "xenia/cpu/backend/x64/x64_emitter.h"
@@ -65,11 +67,16 @@ bool X64Backend::Initialize(Processor* processor) {
     return false;
   }
 
+  Xbyak::util::Cpu cpu;
+  if (!cpu.has(Xbyak::util::Cpu::tAVX)) {
+    XELOGE("This CPU does not support AVX. The emulator will now crash.");
+    return false;
+  }
+
   RegisterSequences();
 
   // Need movbe to do advanced LOAD/STORE tricks.
   if (FLAGS_enable_haswell_instructions) {
-    Xbyak::util::Cpu cpu;
     machine_info_.supports_extended_load_store =
         cpu.has(Xbyak::util::Cpu::tMOVBE);
   } else {

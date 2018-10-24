@@ -67,6 +67,7 @@ void SpirvShaderTranslator::StartTranslation() {
   vec2_int_type_ = b.makeVectorType(int_type_, 2);
   vec2_uint_type_ = b.makeVectorType(uint_type_, 2);
   vec2_float_type_ = b.makeVectorType(float_type_, 2);
+  vec3_int_type_ = b.makeVectorType(int_type_, 3);
   vec3_float_type_ = b.makeVectorType(float_type_, 3);
   vec4_float_type_ = b.makeVectorType(float_type_, 4);
   vec4_int_type_ = b.makeVectorType(int_type_, 4);
@@ -111,20 +112,24 @@ void SpirvShaderTranslator::StartTranslation() {
                          "pc");
   a0_ = b.createVariable(spv::StorageClass::StorageClassFunction, int_type_,
                          "a0");
+  lod_ = b.createVariable(spv::StorageClass::StorageClassFunction, float_type_,
+                          "lod");
 
   // Uniform constants.
   Id float_consts_type =
       b.makeArrayType(vec4_float_type_, b.makeUintConstant(512), 1);
-  Id loop_consts_type = b.makeArrayType(uint_type_, b.makeUintConstant(32), 1);
-  Id bool_consts_type = b.makeArrayType(uint_type_, b.makeUintConstant(8), 1);
+  Id loop_consts_type =
+      b.makeArrayType(vec4_uint_type_, b.makeUintConstant(8), 1);
+  Id bool_consts_type =
+      b.makeArrayType(vec4_uint_type_, b.makeUintConstant(2), 1);
 
   // Strides
   b.addDecoration(float_consts_type, spv::Decoration::DecorationArrayStride,
                   4 * sizeof(float));
   b.addDecoration(loop_consts_type, spv::Decoration::DecorationArrayStride,
-                  sizeof(uint32_t));
+                  4 * sizeof(uint32_t));
   b.addDecoration(bool_consts_type, spv::Decoration::DecorationArrayStride,
-                  sizeof(uint32_t));
+                  4 * sizeof(uint32_t));
 
   Id consts_struct_type = b.makeStructType(
       {float_consts_type, loop_consts_type, bool_consts_type}, "consts_type");
@@ -158,7 +163,7 @@ void SpirvShaderTranslator::StartTranslation() {
   // Push constants, represented by SpirvPushConstants.
   Id push_constants_type =
       b.makeStructType({vec4_float_type_, vec4_float_type_, vec4_float_type_,
-                        vec4_float_type_, uint_type_},
+                        vec4_float_type_, vec4_float_type_, uint_type_},
                        "push_consts_type");
   b.addDecoration(push_constants_type, spv::Decoration::DecorationBlock);
 
@@ -182,11 +187,16 @@ void SpirvShaderTranslator::StartTranslation() {
       push_constants_type, 3, spv::Decoration::DecorationOffset,
       static_cast<int>(offsetof(SpirvPushConstants, alpha_test)));
   b.addMemberName(push_constants_type, 3, "alpha_test");
-  // uint ps_param_gen;
+  // float4 color_exp_bias;
   b.addMemberDecoration(
       push_constants_type, 4, spv::Decoration::DecorationOffset,
+      static_cast<int>(offsetof(SpirvPushConstants, color_exp_bias)));
+  b.addMemberName(push_constants_type, 4, "color_exp_bias");
+  // uint ps_param_gen;
+  b.addMemberDecoration(
+      push_constants_type, 5, spv::Decoration::DecorationOffset,
       static_cast<int>(offsetof(SpirvPushConstants, ps_param_gen)));
-  b.addMemberName(push_constants_type, 4, "ps_param_gen");
+  b.addMemberName(push_constants_type, 5, "ps_param_gen");
   push_consts_ = b.createVariable(spv::StorageClass::StorageClassPushConstant,
                                   push_constants_type, "push_consts");
 
@@ -382,7 +392,7 @@ void SpirvShaderTranslator::StartTranslation() {
     // Setup ps_param_gen
     auto ps_param_gen_idx_ptr = b.createAccessChain(
         spv::StorageClass::StorageClassPushConstant, push_consts_,
-        std::vector<Id>({b.makeUintConstant(4)}));
+        std::vector<Id>({b.makeUintConstant(5)}));
     auto ps_param_gen_idx = b.createLoad(ps_param_gen_idx_ptr);
 
     auto frag_coord = b.createVariable(spv::StorageClass::StorageClassInput,
@@ -480,8 +490,10 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
                                  mainFn, "main");
     b.addExecutionMode(mainFn, spv::ExecutionModeOriginUpperLeft);
 
-    // FIXME(DrChat): We need to declare the DepthReplacing execution mode if
-    // we write depth, and we must unconditionally write depth if declared!
+    // If we write a new depth value, we must declare this mode!
+    if (writes_depth_) {
+      b.addExecutionMode(mainFn, spv::ExecutionModeDepthReplacing);
+    }
 
     for (auto id : interface_ids_) {
       entry->addIdOperand(id);
@@ -525,75 +537,105 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
     // Reinsert w
     p = b.createCompositeInsert(p_w, p, vec4_float_type_, 3);
 
+    // Apply window offset
+    // pos.xy += window_scale.zw
+    auto window_offset = b.createOp(spv::Op::OpVectorShuffle, vec4_float_type_,
+                                    {window_scale, window_scale, 2, 3, 0, 1});
+    auto p_offset =
+        b.createBinOp(spv::Op::OpFAdd, vec4_float_type_, p, window_offset);
+
     // Apply window scaling
     // pos.xy *= window_scale.xy
-    auto p_scaled =
-        b.createBinOp(spv::Op::OpFMul, vec4_float_type_, p, window_scale);
+    auto p_scaled = b.createBinOp(spv::Op::OpFMul, vec4_float_type_, p_offset,
+                                  window_scale);
+
     p = b.createOp(spv::Op::OpVectorShuffle, vec4_float_type_,
                    {p, p_scaled, 4, 5, 2, 3});
 
     b.createStore(p, pos_);
   } else {
-    // Alpha test
-    auto alpha_test_ptr = b.createAccessChain(
-        spv::StorageClass::StorageClassPushConstant, push_consts_,
-        std::vector<Id>({b.makeUintConstant(3)}));
-    auto alpha_test = b.createLoad(alpha_test_ptr);
-
-    auto alpha_test_enabled =
-        b.createCompositeExtract(alpha_test, float_type_, 0);
-    auto alpha_test_func = b.createCompositeExtract(alpha_test, float_type_, 1);
-    auto alpha_test_ref = b.createCompositeExtract(alpha_test, float_type_, 2);
-
-    alpha_test_func =
-        b.createUnaryOp(spv::Op::OpConvertFToU, uint_type_, alpha_test_func);
-
-    auto oC0_ptr = b.createAccessChain(
-        spv::StorageClass::StorageClassOutput, frag_outputs_,
-        std::vector<Id>({b.makeUintConstant(0)}));
-    auto oC0_alpha =
-        b.createCompositeExtract(b.createLoad(oC0_ptr), float_type_, 3);
-
-    auto cond = b.createBinOp(spv::Op::OpFOrdEqual, bool_type_,
-                              alpha_test_enabled, b.makeFloatConstant(1.f));
-    spv::Builder::If alpha_if(cond, 0, b);
-
-    std::vector<spv::Block*> switch_segments;
-    b.makeSwitch(
-        alpha_test_func, 0, 8, std::vector<int>({0, 1, 2, 3, 4, 5, 6, 7}),
-        std::vector<int>({0, 1, 2, 3, 4, 5, 6, 7}), 7, switch_segments);
-
-    const static spv::Op alpha_op_map[] = {
-        spv::Op::OpNop,
-        spv::Op::OpFOrdGreaterThanEqual,
-        spv::Op::OpFOrdNotEqual,
-        spv::Op::OpFOrdGreaterThan,
-        spv::Op::OpFOrdLessThanEqual,
-        spv::Op::OpFOrdEqual,
-        spv::Op::OpFOrdLessThan,
-        spv::Op::OpNop,
-    };
-
-    // if (alpha_func == 0) passes = false;
-    b.nextSwitchSegment(switch_segments, 0);
-    b.makeDiscard();
-    b.addSwitchBreak();
-
-    for (int i = 1; i < 7; i++) {
-      b.nextSwitchSegment(switch_segments, i);
-      auto cond =
-          b.createBinOp(alpha_op_map[i], bool_type_, oC0_alpha, alpha_test_ref);
-      spv::Builder::If discard_if(cond, 0, b);
-      b.makeDiscard();
-      discard_if.makeEndIf();
-      b.addSwitchBreak();
+    // Color exponent bias
+    {
+      auto bias_ptr = b.createAccessChain(
+          spv::StorageClass::StorageClassPushConstant, push_consts_,
+          std::vector<Id>({b.makeUintConstant(4)}));
+      auto bias = b.createLoad(bias_ptr);
+      for (uint32_t i = 0; i < 4; i++) {
+        auto bias_value = b.createOp(spv::Op::OpVectorShuffle, vec4_float_type_,
+                                     {bias, bias, i, i, i, i});
+        auto oC_ptr = b.createAccessChain(
+            spv::StorageClass::StorageClassOutput, frag_outputs_,
+            std::vector<Id>({b.makeUintConstant(i)}));
+        auto oC_biased = b.createBinOp(spv::Op::OpFMul, vec4_float_type_,
+                                       b.createLoad(oC_ptr), bias_value);
+        b.createStore(oC_biased, oC_ptr);
+      }
     }
 
-    // if (alpha_func == 7) passes = true;
-    b.nextSwitchSegment(switch_segments, 7);
-    b.endSwitch(switch_segments);
+    // Alpha test
+    {
+      auto alpha_test_ptr = b.createAccessChain(
+          spv::StorageClass::StorageClassPushConstant, push_consts_,
+          std::vector<Id>({b.makeUintConstant(3)}));
+      auto alpha_test = b.createLoad(alpha_test_ptr);
 
-    alpha_if.makeEndIf();
+      auto alpha_test_enabled =
+          b.createCompositeExtract(alpha_test, float_type_, 0);
+      auto alpha_test_func =
+          b.createCompositeExtract(alpha_test, float_type_, 1);
+      auto alpha_test_ref =
+          b.createCompositeExtract(alpha_test, float_type_, 2);
+
+      alpha_test_func =
+          b.createUnaryOp(spv::Op::OpConvertFToU, uint_type_, alpha_test_func);
+
+      auto oC0_ptr = b.createAccessChain(
+          spv::StorageClass::StorageClassOutput, frag_outputs_,
+          std::vector<Id>({b.makeUintConstant(0)}));
+      auto oC0_alpha =
+          b.createCompositeExtract(b.createLoad(oC0_ptr), float_type_, 3);
+
+      auto cond = b.createBinOp(spv::Op::OpFOrdEqual, bool_type_,
+                                alpha_test_enabled, b.makeFloatConstant(1.f));
+      spv::Builder::If alpha_if(cond, 0, b);
+
+      std::vector<spv::Block*> switch_segments;
+      b.makeSwitch(
+          alpha_test_func, 0, 8, std::vector<int>({0, 1, 2, 3, 4, 5, 6, 7}),
+          std::vector<int>({0, 1, 2, 3, 4, 5, 6, 7}), 7, switch_segments);
+
+      const static spv::Op alpha_op_map[] = {
+          spv::Op::OpNop,
+          spv::Op::OpFOrdGreaterThanEqual,
+          spv::Op::OpFOrdNotEqual,
+          spv::Op::OpFOrdGreaterThan,
+          spv::Op::OpFOrdLessThanEqual,
+          spv::Op::OpFOrdEqual,
+          spv::Op::OpFOrdLessThan,
+          spv::Op::OpNop,
+      };
+
+      // if (alpha_func == 0) passes = false;
+      b.nextSwitchSegment(switch_segments, 0);
+      b.makeDiscard();
+      b.addSwitchBreak();
+
+      for (int i = 1; i < 7; i++) {
+        b.nextSwitchSegment(switch_segments, i);
+        auto cond = b.createBinOp(alpha_op_map[i], bool_type_, oC0_alpha,
+                                  alpha_test_ref);
+        spv::Builder::If discard_if(cond, 0, b);
+        b.makeDiscard();
+        discard_if.makeEndIf();
+        b.addSwitchBreak();
+      }
+
+      // if (alpha_func == 7) passes = true;
+      b.nextSwitchSegment(switch_segments, 7);
+      b.endSwitch(switch_segments);
+
+      alpha_if.makeEndIf();
+    }
   }
 
   b.makeReturn(false);
@@ -606,6 +648,7 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
 
   // Cleanup builder.
   cf_blocks_.clear();
+  writes_depth_ = false;
   loop_head_block_ = nullptr;
   loop_body_block_ = nullptr;
   loop_cont_block_ = nullptr;
@@ -783,10 +826,12 @@ void SpirvShaderTranslator::ProcessExecInstructionBegin(
       // Based off of bool_consts
       std::vector<Id> offsets;
       offsets.push_back(b.makeUintConstant(2));  // bool_consts
-      offsets.push_back(b.makeUintConstant(instr.bool_constant_index / 32));
+      uint32_t bitfield_index = instr.bool_constant_index / 32;
+      offsets.push_back(b.makeUintConstant(bitfield_index / 4));
       auto v = b.createAccessChain(spv::StorageClass::StorageClassUniform,
                                    consts_, offsets);
       v = b.createLoad(v);
+      v = b.createCompositeExtract(v, uint_type_, bitfield_index % 4);
 
       // Bitfield extract the bool constant.
       // FIXME: NVidia's compiler seems to be broken on this instruction?
@@ -795,6 +840,7 @@ void SpirvShaderTranslator::ProcessExecInstructionBegin(
                         b.makeUintConstant(instr.bool_constant_index % 32),
                         b.makeUintConstant(1));
 
+      // Conditional branch
       auto cond = b.createBinOp(spv::Op::OpIEqual, bool_type_, v,
                                 b.makeUintConstant(instr.condition ? 1 : 0));
       */
@@ -882,10 +928,12 @@ void SpirvShaderTranslator::ProcessLoopStartInstruction(
 
   std::vector<Id> offsets;
   offsets.push_back(b.makeUintConstant(1));  // loop_consts
-  offsets.push_back(b.makeUintConstant(instr.loop_constant_index));
+  offsets.push_back(b.makeUintConstant(instr.loop_constant_index / 4));
   auto loop_const = b.createAccessChain(spv::StorageClass::StorageClassUniform,
                                         consts_, offsets);
   loop_const = b.createLoad(loop_const);
+  loop_const = b.createCompositeExtract(loop_const, uint_type_,
+                                        instr.loop_constant_index % 4);
 
   // uint loop_count_value = loop_const & 0xFF;
   auto loop_count_value = b.createBinOp(spv::Op::OpBitwiseAnd, uint_type_,
@@ -988,10 +1036,12 @@ void SpirvShaderTranslator::ProcessLoopEndInstruction(
 
   std::vector<Id> offsets;
   offsets.push_back(b.makeUintConstant(1));  // loop_consts
-  offsets.push_back(b.makeUintConstant(instr.loop_constant_index));
+  offsets.push_back(b.makeUintConstant(instr.loop_constant_index / 4));
   auto loop_const = b.createAccessChain(spv::StorageClass::StorageClassUniform,
                                         consts_, offsets);
   loop_const = b.createLoad(loop_const);
+  loop_const = b.createCompositeExtract(loop_const, uint_type_,
+                                        instr.loop_constant_index % 4);
 
   // uint loop_aL_value = (loop_const >> 16) & 0xFF;
   auto loop_aL_value = b.createBinOp(spv::Op::OpShiftRightLogical, uint_type_,
@@ -1060,14 +1110,16 @@ void SpirvShaderTranslator::ProcessJumpInstruction(
       // Based off of bool_consts
       std::vector<Id> offsets;
       offsets.push_back(b.makeUintConstant(2));  // bool_consts
-      offsets.push_back(b.makeUintConstant(instr.bool_constant_index / 32));
+      uint32_t bitfield_index = instr.bool_constant_index / 32;
+      offsets.push_back(b.makeUintConstant(bitfield_index / 4));
       auto v = b.createAccessChain(spv::StorageClass::StorageClassUniform,
                                    consts_, offsets);
       v = b.createLoad(v);
+      v = b.createCompositeExtract(v, uint_type_, bitfield_index % 4);
 
+      // Bitfield extract the bool constant.
       // FIXME: NVidia's compiler seems to be broken on this instruction?
       /*
-      // Bitfield extract the bool constant.
       v = b.createTriOp(spv::Op::OpBitFieldUExtract, uint_type_, v,
                         b.makeUintConstant(instr.bool_constant_index % 32),
                         b.makeUintConstant(1));
@@ -1784,67 +1836,66 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
                               tex_[dim_idx], std::vector<Id>({texture_index}));
       auto texture = b.createLoad(texture_ptr);
 
-      spv::Id size = 0;
-      if (instr.attributes.offset_x || instr.attributes.offset_y) {
-        auto image =
-            b.createUnaryOp(spv::OpImage, b.getImageType(texture), texture);
-
-        spv::Builder::TextureParameters params;
-        std::memset(&params, 0, sizeof(params));
-        params.sampler = image;
-        params.lod = b.makeIntConstant(0);
-        size = b.createTextureQueryCall(spv::Op::OpImageQuerySizeLod, params,
-                                        false);
-
-        if (instr.dimension == TextureDimension::k1D) {
-          size = b.createUnaryOp(spv::Op::OpConvertSToF, float_type_, size);
-        } else if (instr.dimension == TextureDimension::k2D) {
-          size =
-              b.createUnaryOp(spv::Op::OpConvertSToF, vec2_float_type_, size);
-        } else if (instr.dimension == TextureDimension::k3D) {
-          size =
-              b.createUnaryOp(spv::Op::OpConvertSToF, vec3_float_type_, size);
-        } else if (instr.dimension == TextureDimension::kCube) {
-          size =
-              b.createUnaryOp(spv::Op::OpConvertSToF, vec4_float_type_, size);
-        }
-      }
-
       if (instr.dimension == TextureDimension::k1D) {
-        src = b.createCompositeExtract(src, float_type_, 0);
-        if (instr.attributes.offset_x) {
-          auto offset = b.makeFloatConstant(instr.attributes.offset_x + 0.5f);
-          offset = b.createBinOp(spv::Op::OpFDiv, float_type_, offset, size);
-          src = b.createBinOp(spv::Op::OpFAdd, float_type_, src, offset);
-        }
-
-        // https://msdn.microsoft.com/en-us/library/windows/desktop/bb944006.aspx
-        // "Because the runtime does not support 1D textures, the compiler will
-        //  use a 2D texture with the knowledge that the y-coordinate is
-        //  unimportant."
-        src = b.createCompositeConstruct(
-            vec2_float_type_,
-            std::vector<Id>({src, b.makeFloatConstant(0.0f)}));
-      } else if (instr.dimension == TextureDimension::k2D) {
-        src = b.createRvalueSwizzle(spv::NoPrecision, vec2_float_type_, src,
-                                    std::vector<uint32_t>({0, 1}));
-        if (instr.attributes.offset_x || instr.attributes.offset_y) {
-          auto offset = b.makeCompositeConstant(
-              vec2_float_type_,
-              std::vector<Id>(
-                  {b.makeFloatConstant(instr.attributes.offset_x + 0.5f),
-                   b.makeFloatConstant(instr.attributes.offset_y + 0.5f)}));
-          offset =
-              b.createBinOp(spv::Op::OpFDiv, vec2_float_type_, offset, size);
-          src = b.createBinOp(spv::Op::OpFAdd, vec2_float_type_, src, offset);
-        }
+        // Upgrade 1D src coordinate into 2D
+        src = b.createCompositeConstruct(vec2_float_type_,
+                                         {src, b.makeFloatConstant(0.f)});
       }
 
       spv::Builder::TextureParameters params = {0};
       params.coords = src;
       params.sampler = texture;
-      dest = b.createTextureCall(spv::NoPrecision, vec4_float_type_, false,
-                                 false, false, false, false, params);
+      if (instr.attributes.use_register_lod) {
+        params.lod = b.createLoad(lod_);
+      }
+      if (instr.attributes.offset_x || instr.attributes.offset_y ||
+          instr.attributes.offset_z) {
+        float offset_x = instr.attributes.offset_x;
+        float offset_y = instr.attributes.offset_y;
+        float offset_z = instr.attributes.offset_z;
+
+        // Round numbers away from zero. No effect if offset is 0.
+        offset_x += instr.attributes.offset_x < 0 ? -0.5f : 0.5f;
+        offset_y += instr.attributes.offset_y < 0 ? -0.5f : 0.5f;
+        offset_z += instr.attributes.offset_z < 0 ? -0.5f : 0.5f;
+
+        Id offset = 0;
+        switch (instr.dimension) {
+          case TextureDimension::k1D: {
+            // https://msdn.microsoft.com/en-us/library/windows/desktop/bb944006.aspx
+            // "Because the runtime does not support 1D textures, the compiler
+            // will use a 2D texture with the knowledge that the y-coordinate is
+            // unimportant."
+            offset = b.makeCompositeConstant(
+                vec2_int_type_,
+                {b.makeIntConstant(int(offset_x)), b.makeIntConstant(0)});
+          } break;
+          case TextureDimension::k2D: {
+            offset = b.makeCompositeConstant(
+                vec2_int_type_, {b.makeIntConstant(int(offset_x)),
+                                 b.makeIntConstant(int(offset_y))});
+          } break;
+          case TextureDimension::k3D: {
+            offset = b.makeCompositeConstant(
+                vec3_int_type_, {b.makeIntConstant(int(offset_x)),
+                                 b.makeIntConstant(int(offset_y)),
+                                 b.makeIntConstant(int(offset_z))});
+          } break;
+          case TextureDimension::kCube: {
+            // FIXME(DrChat): Is this the correct dimension? I forget
+            offset = b.makeCompositeConstant(
+                vec3_int_type_, {b.makeIntConstant(int(offset_x)),
+                                 b.makeIntConstant(int(offset_y)),
+                                 b.makeIntConstant(int(offset_z))});
+          } break;
+        }
+
+        params.offset = offset;
+      }
+
+      dest =
+          b.createTextureCall(spv::NoPrecision, vec4_float_type_, false, false,
+                              false, false, is_vertex_shader(), params);
     } break;
 
     case FetchOpcode::kGetTextureGradients: {
@@ -1901,10 +1952,39 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
       }
     } break;
 
+    case FetchOpcode::kGetTextureComputedLod: {
+      // TODO(DrChat): Verify if this implementation is correct.
+      // This is only valid in pixel shaders.
+      assert_true(is_pixel_shader());
+
+      auto texture_index =
+          b.makeUintConstant(tex_binding_map_[instr.operands[1].storage_index]);
+      auto texture_ptr =
+          b.createAccessChain(spv::StorageClass::StorageClassUniformConstant,
+                              tex_[dim_idx], std::vector<Id>({texture_index}));
+      auto texture = b.createLoad(texture_ptr);
+
+      if (instr.dimension == TextureDimension::k1D) {
+        // Upgrade 1D src coordinate into 2D
+        src = b.createCompositeConstruct(vec2_float_type_,
+                                         {src, b.makeFloatConstant(0.f)});
+      }
+
+      spv::Builder::TextureParameters params = {};
+      params.sampler = texture;
+      params.coords = src;
+      auto lod =
+          b.createTextureQueryCall(spv::Op::OpImageQueryLod, params, false);
+
+      dest = b.createCompositeExtract(lod, float_type_, 1);
+      dest = b.smearScalar(spv::NoPrecision, dest, vec4_float_type_);
+    } break;
+
     case FetchOpcode::kSetTextureLod: {
       // <lod register> = src1.x (MIP level)
       // ... immediately after
       // tfetch UseRegisterLOD=true
+      b.createStore(src, lod_);
     } break;
 
     default:
@@ -2202,8 +2282,8 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
       auto src1_y = b.createCompositeExtract(sources[1], float_type_, 1);
       auto dst_y = b.createBinOp(spv::Op::OpFMul, float_type_, src0_y, src1_y);
 
-      auto src0_z = b.createCompositeExtract(sources[0], float_type_, 3);
-      auto src1_w = b.createCompositeExtract(sources[1], float_type_, 4);
+      auto src0_z = b.createCompositeExtract(sources[0], float_type_, 2);
+      auto src1_w = b.createCompositeExtract(sources[1], float_type_, 3);
       dest = b.createCompositeConstruct(
           vec4_float_type_,
           std::vector<Id>({b.makeFloatConstant(1.f), dst_y, src0_z, src1_w}));
@@ -3259,8 +3339,12 @@ void SpirvShaderTranslator::StoreToResult(Id source_value_id,
       storage_type = float_type_;
       storage_offsets.push_back(0);
       storage_array = false;
+      writes_depth_ = true;
       break;
     case InstructionStorageTarget::kNone:
+      assert_always();
+      break;
+    default:
       assert_unhandled_case(result.storage_target);
       break;
   }

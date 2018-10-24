@@ -310,7 +310,7 @@ def get_clang_format_binary():
     sys.exit(1)
 
 
-def run_premake(target_os, action):
+def run_premake(target_os, action, cc=None):
     """Runs premake on the main project with the given format.
 
     Args:
@@ -318,11 +318,11 @@ def run_premake(target_os, action):
       action: action to preform.
     """
     ret = subprocess.call([
-        'python',
+        sys.executable,
         os.path.join('tools', 'build', 'premake'),
         '--file=premake5.lua',
         '--os=%s' % target_os,
-        '--cc=clang',
+        '--cc=%s' % ('clang' if not cc else cc),
         '--test-suite-mode=combined',
         '--verbose',
         action,
@@ -344,7 +344,7 @@ def run_premake_clean():
         return run_premake('linux', 'clean')
 
 
-def run_platform_premake():
+def run_platform_premake(cc=None):
     """Runs all gyp configurations.
     """
     if sys.platform == 'darwin':
@@ -356,7 +356,7 @@ def run_platform_premake():
 
         return run_premake('windows', 'vs' + vs_version)
     else:
-        ret = run_premake('linux', 'gmake')
+        ret = run_premake('linux', 'gmake', cc)
         ret = ret != 0 and run_premake('linux', 'codelite') or ret
         return ret
 
@@ -389,7 +389,7 @@ def get_build_bin_path(args):
         platform = 'windows'
     else:
         platform = 'linux'
-    return os.path.join(self_path, 'build', 'bin', platform, args['config'])
+    return os.path.join(self_path, 'build', 'bin', platform.capitalize(), args['config'].capitalize())
 
 
 def discover_commands(subparsers):
@@ -546,12 +546,14 @@ class PremakeCommand(Command):
             name='premake',
             help_short='Runs premake to update all projects.',
             *args, **kwargs)
+        self.parser.add_argument(
+            '--cc', default='clang', help='Compiler toolchain passed to premake')
 
     def execute(self, args, pass_args, cwd):
         # Update premake. If no binary found, it will be built from source.
         print('Running premake...')
         print('')
-        if run_platform_premake() == 0:
+        if run_platform_premake(args['cc']) == 0:
             print('Success!')
 
         return 0
@@ -564,6 +566,8 @@ class BaseBuildCommand(Command):
         super(BaseBuildCommand, self).__init__(
             subparsers,
             *args, **kwargs)
+        self.parser.add_argument(
+            '--cc', default='clang', help='Compiler toolchain passed to premake')
         self.parser.add_argument(
             '--config', choices=['checked', 'debug', 'release'], default='debug',
             type=str.lower, help='Chooses the build configuration.')
@@ -582,7 +586,7 @@ class BaseBuildCommand(Command):
     def execute(self, args, pass_args, cwd):
         if not args['no_premake']:
             print('- running premake...')
-            run_platform_premake()
+            run_platform_premake(args['cc'])
             print('')
 
         threads = args['j']
@@ -613,12 +617,6 @@ class BaseBuildCommand(Command):
             print('ERROR: don\'t know how to build on this platform.')
             result = 1
         else:
-            # TODO(benvanik): allow gcc?
-            if 'CXX' not in os.environ:
-                os.environ['CXX'] = 'clang++-3.8'
-            if 'CC' not in os.environ:
-                os.environ['CC'] = 'clang-3.8'
-
             result = subprocess.call([
                 'make',
                 '-j' if threads is 0 else '-j%d' % threads,
@@ -975,7 +973,7 @@ class GpuTestCommand(BaseBuildCommand):
         # Run tests.
         any_failed = False
         result = shell_call([
-            'python',
+            sys.executable,
             os.path.join(self_path, 'tools', 'gpu-trace-diff'),
             '--executable=' + test_executables[0],
             '--trace_path=' + os.path.join(reference_trace_root, 'traces'),
@@ -1120,7 +1118,7 @@ class LintCommand(Command):
                         file_path,
                         ], throw_on_error=False, stdout_path=difftemp)
                     shell_call([
-                        'python',
+                        sys.executable,
                         'tools/diff.py',
                         file_path,
                         difftemp,
@@ -1143,7 +1141,7 @@ class LintCommand(Command):
             print('- git-clang-format --diff')
             if os.path.exists(difftemp): os.remove(difftemp)
             ret = shell_call([
-                'python',
+                sys.executable,
                 'third_party/clang-format/git-clang-format',
                 '--binary=%s' % (clang_format_binary),
                 '--commit=%s' % ('origin/master' if args['origin'] else 'HEAD'),
@@ -1159,7 +1157,7 @@ class LintCommand(Command):
                 any_errors = True
                 print('')
                 shell_call([
-                    'python',
+                    sys.executable,
                     'third_party/clang-format/git-clang-format',
                     '--binary=%s' % (clang_format_binary),
                     '--commit=%s' % ('origin/master' if args['origin'] else 'HEAD'),
@@ -1215,7 +1213,7 @@ class FormatCommand(Command):
         else:
             print('- git-clang-format')
             shell_call([
-                'python',
+                sys.executable,
                 'third_party/clang-format/git-clang-format',
                 '--binary=%s' % (clang_format_binary),
                 '--commit=%s' % ('origin/master' if args['origin'] else 'HEAD'),
@@ -1241,7 +1239,7 @@ class StyleCommand(Command):
                      if not file_path.endswith('_test.cc')]
         print('- cpplint [%d files]' % (len(all_files)))
         ret = shell_call([
-            'python',
+            sys.executable,
             'third_party/google-styleguide/cpplint/cpplint.py',
             '--output=vs7',
             '--linelength=80',

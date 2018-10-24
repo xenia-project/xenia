@@ -18,6 +18,7 @@
 #include "xenia/debug/ui/debug_window.h"
 #include "xenia/emulator.h"
 #include "xenia/ui/file_picker.h"
+#include "xenia/vfs/devices/host_path_device.h"
 
 // Available audio systems:
 #include "xenia/apu/nop/nop_audio_system.h"
@@ -26,7 +27,6 @@
 #endif  // XE_PLATFORM_WIN32
 
 // Available graphics systems:
-#include "xenia/gpu/gl4/gl4_graphics_system.h"
 #include "xenia/gpu/null/null_graphics_system.h"
 #include "xenia/gpu/vulkan/vulkan_graphics_system.h"
 
@@ -38,11 +38,14 @@
 #endif  // XE_PLATFORM_WIN32
 
 DEFINE_string(apu, "any", "Audio system. Use: [any, nop, xaudio2]");
-DEFINE_string(gpu, "any", "Graphics system. Use: [any, gl4, vulkan, null]");
+DEFINE_string(gpu, "any", "Graphics system. Use: [any, vulkan, null]");
 DEFINE_string(hid, "any", "Input system. Use: [any, nop, winkey, xinput]");
 
 DEFINE_string(target, "", "Specifies the target .xex or .iso to execute.");
 DEFINE_bool(fullscreen, false, "Toggles fullscreen");
+
+DEFINE_bool(mount_scratch, false, "Enable scratch mount");
+DEFINE_bool(mount_cache, false, "Enable cache mount");
 
 namespace xe {
 namespace app {
@@ -71,10 +74,7 @@ std::unique_ptr<apu::AudioSystem> CreateAudioSystem(cpu::Processor* processor) {
 }
 
 std::unique_ptr<gpu::GraphicsSystem> CreateGraphicsSystem() {
-  if (FLAGS_gpu.compare("gl4") == 0) {
-    return std::unique_ptr<gpu::GraphicsSystem>(
-        new xe::gpu::gl4::GL4GraphicsSystem());
-  } else if (FLAGS_gpu.compare("vulkan") == 0) {
+  if (FLAGS_gpu.compare("vulkan") == 0) {
     return std::unique_ptr<gpu::GraphicsSystem>(
         new xe::gpu::vulkan::VulkanGraphicsSystem());
   } else if (FLAGS_gpu.compare("null") == 0) {
@@ -145,6 +145,46 @@ int xenia_main(const std::vector<std::wstring>& args) {
     return 1;
   }
 
+  if (FLAGS_mount_scratch) {
+    auto scratch_device = std::make_unique<xe::vfs::HostPathDevice>(
+        "\\SCRATCH", L"scratch", false);
+    if (!scratch_device->Initialize()) {
+      XELOGE("Unable to scan scratch path");
+    } else {
+      if (!emulator->file_system()->RegisterDevice(std::move(scratch_device))) {
+        XELOGE("Unable to register scratch path");
+      } else {
+        emulator->file_system()->RegisterSymbolicLink("scratch:", "\\SCRATCH");
+      }
+    }
+  }
+
+  if (FLAGS_mount_cache) {
+    auto cache0_device =
+        std::make_unique<xe::vfs::HostPathDevice>("\\CACHE0", L"cache0", false);
+    if (!cache0_device->Initialize()) {
+      XELOGE("Unable to scan cache0 path");
+    } else {
+      if (!emulator->file_system()->RegisterDevice(std::move(cache0_device))) {
+        XELOGE("Unable to register cache0 path");
+      } else {
+        emulator->file_system()->RegisterSymbolicLink("cache0:", "\\CACHE0");
+      }
+    }
+
+    auto cache1_device =
+        std::make_unique<xe::vfs::HostPathDevice>("\\CACHE1", L"cache1", false);
+    if (!cache1_device->Initialize()) {
+      XELOGE("Unable to scan cache1 path");
+    } else {
+      if (!emulator->file_system()->RegisterDevice(std::move(cache1_device))) {
+        XELOGE("Unable to register cache1 path");
+      } else {
+        emulator->file_system()->RegisterSymbolicLink("cache1:", "\\CACHE1");
+      }
+    }
+  }
+
   // Set a debug handler.
   // This will respond to debugging requests so we can open the debug UI.
   std::unique_ptr<xe::debug::ui::DebugWindow> debug_window;
@@ -174,13 +214,17 @@ int xenia_main(const std::vector<std::wstring>& args) {
     evt->Set();
   });
 
+  emulator_window->window()->on_closing.AddListener([&](ui::UIEvent* e) {
+    // This needs to shut down before the graphics context.
+    Profiler::Shutdown();
+  });
+
   bool exiting = false;
   emulator_window->loop()->on_quit.AddListener([&](ui::UIEvent* e) {
     exiting = true;
     evt->Set();
 
     // TODO(DrChat): Remove this code and do a proper exit.
-    Profiler::Shutdown();
     XELOGI("Cheap-skate exit!");
     exit(0);
   });

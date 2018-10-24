@@ -526,8 +526,8 @@ class Value {
   void VectorCompareSGE(Value* other, TypeName type);
   void VectorCompareUGT(Value* other, TypeName type);
   void VectorCompareUGE(Value* other, TypeName type);
-  void VectorConvertI2F(Value* other);
-  void VectorConvertF2I(Value* other);
+  void VectorConvertI2F(Value* other, bool is_unsigned);
+  void VectorConvertF2I(Value* other, bool is_unsigned);
   void VectorShl(Value* other, TypeName type);
   void VectorShr(Value* other, TypeName type);
   void VectorRol(Value* other, TypeName type);

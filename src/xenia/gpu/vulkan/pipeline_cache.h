@@ -80,6 +80,8 @@ class PipelineCache {
   VkPipeline GetPipeline(const RenderState* render_state, uint64_t hash_key);
 
   bool TranslateShader(VulkanShader* shader, xenos::xe_gpu_program_cntl_t cntl);
+
+  void DumpShaderDisasmAMD(VkPipeline pipeline);
   void DumpShaderDisasmNV(const VkGraphicsPipelineCreateInfo& info);
 
   // Gets a geometry shader used to emulate the given primitive type.
@@ -226,6 +228,7 @@ class PipelineCache {
     uint32_t pa_sc_screen_scissor_tl;
     uint32_t pa_sc_screen_scissor_br;
     uint32_t pa_sc_viz_query;
+    uint32_t pa_su_poly_offset_enable;
     uint32_t multi_prim_ib_reset_index;
 
     UpdateRasterizationStateRegisters() { Reset(); }
@@ -272,6 +275,10 @@ class PipelineCache {
     uint32_t pa_sc_window_scissor_br;
 
     uint32_t rb_surface_info;
+    uint32_t pa_su_sc_vtx_cntl;
+    // Bias is in Vulkan units because depth format may potentially effect it.
+    float pa_su_poly_offset_scale;
+    float pa_su_poly_offset_offset;
     uint32_t pa_cl_vte_cntl;
     float pa_cl_vport_xoffset;
     float pa_cl_vport_yoffset;
@@ -286,6 +293,10 @@ class PipelineCache {
     uint32_t sq_program_cntl;
     uint32_t sq_context_misc;
     uint32_t rb_colorcontrol;
+    uint32_t rb_color_info;
+    uint32_t rb_color1_info;
+    uint32_t rb_color2_info;
+    uint32_t rb_color3_info;
     float rb_alpha_ref;
     uint32_t pa_su_point_size;
 

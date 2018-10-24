@@ -37,9 +37,16 @@ namespace xboxkrnl {
 // http://www.microsoft.com/en-za/download/details.aspx?id=5313 -- "Stripped
 // Down Direct3D: Xbox 360 Command Buffer and Resource Management"
 
-void VdGetCurrentDisplayGamma(lpdword_t arg0_ptr, lpfloat_t arg1_ptr) {
-  *arg0_ptr = 2;
-  *arg1_ptr = 2.22222233f;
+void VdGetCurrentDisplayGamma(lpdword_t type_ptr, lpfloat_t unknown_ptr) {
+  /*
+  enum class GammaType {
+    SRGB = 1,
+    Unknown = 2,
+    Linear = 3,
+  };
+  */
+  *type_ptr = 1;
+  *unknown_ptr = 2.22222233f;  // maybe brightness?
 }
 DECLARE_XBOXKRNL_EXPORT(VdGetCurrentDisplayGamma, ExportTag::kVideo);
 
@@ -72,8 +79,8 @@ static_assert_size(X_D3DPRIVATE_SCALER_PARAMETERS, 0x38);
 struct X_DISPLAY_INFO {
   xe::be<uint16_t> front_buffer_width;               // 0x0
   xe::be<uint16_t> front_buffer_height;              // 0x2
-  xe::be<uint8_t> front_buffer_color_format;         // 0x4
-  xe::be<uint8_t> front_buffer_pixel_format;         // 0x5
+  uint8_t front_buffer_color_format;                 // 0x4
+  uint8_t front_buffer_pixel_format;                 // 0x5
   X_D3DPRIVATE_SCALER_PARAMETERS scaler_parameters;  // 0x8
   xe::be<uint16_t> display_window_overscan_left;     // 0x40
   xe::be<uint16_t> display_window_overscan_top;      // 0x42
@@ -83,7 +90,7 @@ struct X_DISPLAY_INFO {
   xe::be<uint16_t> display_height;                   // 0x4A
   xe::be<float> display_refresh_rate;                // 0x4C
   xe::be<uint32_t> display_interlaced;               // 0x50
-  xe::be<uint8_t> display_color_format;              // 0x54
+  uint8_t display_color_format;                      // 0x54
   xe::be<uint16_t> actual_display_width;             // 0x56
 };
 static_assert_size(X_DISPLAY_INFO, 0x58);
@@ -144,8 +151,21 @@ dword_result_t VdQueryVideoFlags() {
 }
 DECLARE_XBOXKRNL_EXPORT(VdQueryVideoFlags, ExportTag::kVideo);
 
-dword_result_t VdSetDisplayMode(dword_t mode) {
+dword_result_t VdSetDisplayMode(dword_t flags) {
   // Often 0x40000000.
+
+  // 0?ccf000 00000000 00000000 000000r0
+
+  // r: 0x00000002 |     1
+  // f: 0x08000000 |    27
+  // c: 0x30000000 | 28-29
+  // ?: 0x40000000 |    30
+
+  // r: 1 = Resolution is 720x480 or 720x576
+  // f: 1 = Texture format is k_2_10_10_10 or k_2_10_10_10_AS_16_16_16_16
+  // c: Color space (0 = RGB, 1 = ?, 2 = ?)
+  // ?: (always set?)
+
   return 0;
 }
 DECLARE_XBOXKRNL_EXPORT(VdSetDisplayMode, ExportTag::kVideo | ExportTag::kStub);
@@ -160,13 +180,13 @@ DECLARE_XBOXKRNL_EXPORT(VdSetDisplayModeOverride,
                         ExportTag::kVideo | ExportTag::kStub);
 
 dword_result_t VdInitializeEngines(unknown_t unk0, function_t callback,
-                                   lpvoid_t arg, lpunknown_t unk2_ptr,
-                                   lpunknown_t unk3_ptr) {
+                                   lpvoid_t arg, lpdword_t pfp_ptr,
+                                   lpdword_t me_ptr) {
   // r3 = 0x4F810000
   // r4 = function ptr (cleanup callback?)
   // r5 = function arg
-  // r6 = register init cmds(?)
-  // r7 = gpu init cmds(?)
+  // r6 = PFP Microcode
+  // r7 = ME Microcode
   return 1;
 }
 DECLARE_XBOXKRNL_EXPORT(VdInitializeEngines,
@@ -205,12 +225,6 @@ DECLARE_XBOXKRNL_EXPORT(VdSetGraphicsInterruptCallback, ExportTag::kVideo);
 void VdInitializeRingBuffer(lpvoid_t ptr, int_t log2_size) {
   // r3 = result of MmGetPhysicalAddress
   // r4 = log2(size)
-  // r4 is or'd with 0x802 and then stuffed into CP_RB_CNTL
-  // according to AMD docs, this corresponds with RB_BUFSZ, which is log2
-  // actual size.
-  // 0x8 is RB_BLKSZ, or number of words gpu will read before updating the
-  // host read pointer.
-  // So being or'd with 0x2 makes the ring buffer size always a multiple of 4.
   // Buffer pointers are from MmAllocatePhysicalMemory with WRITE_COMBINE.
   auto graphics_system = kernel_state()->emulator()->graphics_system();
   graphics_system->InitializeRingBuffer(ptr, log2_size);
@@ -355,7 +369,7 @@ void VdSwap(lpvoid_t buffer_ptr,  // ptr into primary ringbuffer
               texture_format ==
                   gpu::TextureFormat::k_2_10_10_10_AS_16_16_16_16);
   assert_true(color_space == 0);  // RGB(0)
-  assert_true(*frontbuffer_ptr == fetch.address << 12);
+  assert_true(*frontbuffer_ptr == fetch.base_address << 12);
   assert_true(*width == 1 + fetch.size_2d.width);
   assert_true(*height == 1 + fetch.size_2d.height);
 
@@ -367,14 +381,14 @@ void VdSwap(lpvoid_t buffer_ptr,  // ptr into primary ringbuffer
   buffer_ptr.Zero(64 * 4);
 
   // virtual -> physical
-  fetch.address &= 0x1FFFF;
+  fetch.base_address &= 0x1FFFF;
 
   uint32_t offset = 0;
   auto dwords = buffer_ptr.as_array<uint32_t>();
 
   // Write in the texture fetch.
   dwords[offset++] =
-      xenos::MakePacketType0<gpu::XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0, 6>();
+      xenos::MakePacketType0(gpu::XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0, 6);
   dwords[offset++] = fetch.dword_0;
   dwords[offset++] = fetch.dword_1;
   dwords[offset++] = fetch.dword_2;
@@ -382,7 +396,7 @@ void VdSwap(lpvoid_t buffer_ptr,  // ptr into primary ringbuffer
   dwords[offset++] = fetch.dword_4;
   dwords[offset++] = fetch.dword_5;
 
-  dwords[offset++] = xenos::MakePacketType3<xenos::PM4_XE_SWAP, 4>();
+  dwords[offset++] = xenos::MakePacketType3(xenos::PM4_XE_SWAP, 4);
   dwords[offset++] = 'SWAP';
   dwords[offset++] = (*frontbuffer_ptr) & 0x1FFFFFFF;
 

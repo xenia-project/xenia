@@ -147,6 +147,8 @@ X_STATUS XFile::Write(const void* buffer, size_t buffer_length,
   return result;
 }
 
+X_STATUS XFile::SetLength(size_t length) { return file_->SetLength(length); }
+
 void XFile::RegisterIOCompletionPort(uint32_t key,
                                      object_ref<XIOCompletion> port) {
   std::lock_guard<std::mutex> lock(completion_port_lock_);

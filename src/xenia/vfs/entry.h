@@ -98,6 +98,9 @@ class Entry {
 
   Entry* GetChild(std::string name);
 
+  const std::vector<std::unique_ptr<Entry>>& children() const {
+    return children_;
+  }
   size_t child_count() const { return children_.size(); }
   Entry* IterateChildren(const xe::filesystem::WildcardEngine& engine,
                          size_t* current_index);

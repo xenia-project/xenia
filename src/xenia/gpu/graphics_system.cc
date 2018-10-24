@@ -68,10 +68,14 @@ X_STATUS GraphicsSystem::Setup(cpu::Processor* processor,
 
     if (!processor_context) {
       xe::FatalError(
-          "Unable to initialize graphics context. Xenia requires OpenGL 4.5 or "
-          "Vulkan support. Ensure you have the latest drivers for your GPU and "
-          "that it supports OpenGL or Vulkan. See http://xenia.jp/faq/ for "
-          "more information.");
+          "Unable to initialize graphics context. Xenia requires Vulkan "
+          "support.\n"
+          "\n"
+          "Ensure you have the latest drivers for your GPU and "
+          "that it supports Vulkan.\n"
+          "\n"
+          "See http://xenia.jp/faq/ for more information and a list of "
+          "supported GPUs.");
       return X_STATUS_UNSUCCESSFUL;
     }
   }
@@ -138,12 +142,7 @@ X_STATUS GraphicsSystem::Setup(cpu::Processor* processor,
 void GraphicsSystem::Shutdown() {
   if (command_processor_) {
     EndTracing();
-  }
-
-  if (command_processor_) {
     command_processor_->Shutdown();
-    // TODO(benvanik): remove mapped range.
-    command_processor_.reset();
   }
 
   if (vsync_worker_thread_) {
@@ -175,7 +174,7 @@ uint32_t GraphicsSystem::ReadRegister(uint32_t addr) {
   uint32_t r = (addr & 0xFFFF) / 4;
 
   switch (r) {
-    case 0x0F00:  // ?
+    case 0x0F00:  // RB_EDRAM_TIMING
       return 0x08100748;
     case 0x0F01:  // RB_BC_CONTROL
       return 0x0000200E;
@@ -216,7 +215,7 @@ void GraphicsSystem::WriteRegister(uint32_t addr, uint32_t value) {
 }
 
 void GraphicsSystem::InitializeRingBuffer(uint32_t ptr, uint32_t log2_size) {
-  command_processor_->InitializeRingBuffer(ptr, (log2_size | 0x2) + 1);
+  command_processor_->InitializeRingBuffer(ptr, log2_size + 0x3);
 }
 
 void GraphicsSystem::EnableReadPointerWriteBack(uint32_t ptr,

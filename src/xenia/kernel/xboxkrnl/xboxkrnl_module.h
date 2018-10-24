@@ -32,6 +32,13 @@ class XboxkrnlModule : public KernelModule {
 
   static void RegisterExportTable(xe::cpu::ExportResolver* export_resolver);
 
+  bool SendPIXCommand(const char* cmd);
+
+  void set_pix_function(uint32_t addr) { pix_function_ = addr; }
+
+ protected:
+  uint32_t pix_function_ = 0;
+
  private:
   std::unique_ptr<xe::threading::HighResolutionTimer> timestamp_timer_;
 };

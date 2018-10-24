@@ -38,6 +38,13 @@ void DisassembleResultOperand(const InstructionResult& result,
     case InstructionStorageTarget::kPointSize:
       out->Append("oPts");
       break;
+    case InstructionStorageTarget::kExportAddress:
+      out->Append("eA");
+      break;
+    case InstructionStorageTarget::kExportData:
+      out->Append("eM");
+      uses_storage_index = true;
+      break;
     case InstructionStorageTarget::kColorTarget:
       out->AppendFormat("oC");
       uses_storage_index = true;
@@ -424,6 +431,9 @@ void ParsedTextureFetchInstruction::Disassemble(StringBuffer* out) const {
   }
   if (attributes.use_register_gradients) {
     out->Append(", UseRegisterGradients=true");
+  }
+  if (attributes.lod_bias != 0.0f) {
+    out->AppendFormat(", LODBias=%g", attributes.lod_bias);
   }
   int component_count = GetTextureDimensionComponentCount(dimension);
   if (attributes.offset_x != 0.0f) {

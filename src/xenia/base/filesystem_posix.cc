@@ -99,6 +99,9 @@ class PosixFileHandle : public FileHandle {
     *out_bytes_written = out;
     return out >= 0 ? true : false;
   }
+  bool SetLength(size_t length) override {
+    return ftruncate(handle_, length) >= 0 ? true : false;
+  }
   void Flush() override { fsync(handle_); }
 
  private:
