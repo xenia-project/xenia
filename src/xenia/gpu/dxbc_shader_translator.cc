@@ -961,10 +961,9 @@ void DxbcShaderTranslator::StartPixelShader() {
   ++stat_.dynamic_flow_control_count;
   // Write VPOS (without supersampling because SSAA is used to fake MSAA, and
   // at integer coordinates rather than half-pixel if needed) to XY.
-  system_constants_used_ |= (1ull << kSysConst_SSAAInvScale_Index) |
-                            (1ull << kSysConst_PixelHalfPixelOffset_Index);
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MAD) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(13));
+  system_constants_used_ |= 1ull << kSysConst_SSAAInvScale_Index;
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MUL) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
   shader_code_.push_back(
       EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0011, 1));
   shader_code_.push_back(param_gen_value_temp);
@@ -978,6 +977,30 @@ void DxbcShaderTranslator::StartPixelShader() {
   shader_code_.push_back(cbuffer_index_system_constants_);
   shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
   shader_code_.push_back(kSysConst_SSAAInvScale_Vec);
+  ++stat_.instruction_count;
+  ++stat_.float_instruction_count;
+  // Floor VPOS so with AA, the resulting pixel corner/center is written, not
+  // the sample position (games likely don't expect it to be fractional).
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ROUND_NI) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0011, 1));
+  shader_code_.push_back(param_gen_value_temp);
+  shader_code_.push_back(
+      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+  shader_code_.push_back(param_gen_value_temp);
+  ++stat_.instruction_count;
+  ++stat_.float_instruction_count;
+  // If in OpenGL half-pixel offset mode, write the center of the pixel.
+  system_constants_used_ |= 1ull << kSysConst_PixelHalfPixelOffset_Index;
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ADD) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0011, 1));
+  shader_code_.push_back(param_gen_value_temp);
+  shader_code_.push_back(
+      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+  shader_code_.push_back(param_gen_value_temp);
   shader_code_.push_back(
       EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
                                     kSysConst_PixelHalfPixelOffset_Comp, 3));
