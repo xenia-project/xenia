@@ -176,6 +176,7 @@ class TextureCache {
     k16bpp,
     k32bpp,
     k64bpp,
+    k128bpp,
     // B5G5R5A1 and B4G4R4A4 are optional in DXGI for render targets, and aren't
     // supported on Nvidia.
     k16bppRGBA,
