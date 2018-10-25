@@ -42,6 +42,7 @@ namespace d3d12 {
 #include "xenia/gpu/d3d12/shaders/dxbc/texture_load_dxt3a_cs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/texture_load_dxt5_rgba8_cs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/texture_load_dxt5a_r8_cs.h"
+#include "xenia/gpu/d3d12/shaders/dxbc/texture_tile_128bpp_cs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/texture_tile_16bpp_cs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/texture_tile_16bpp_rgba_cs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/texture_tile_32bpp_cs.h"
@@ -220,7 +221,8 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
     // k_32_32_32_32_FLOAT
     {DXGI_FORMAT_R32G32B32A32_FLOAT, DXGI_FORMAT_R32G32B32A32_FLOAT,
      DXGI_FORMAT_R32G32B32A32_FLOAT, LoadMode::k128bpb, DXGI_FORMAT_UNKNOWN,
-     LoadMode::kUnknown, DXGI_FORMAT_UNKNOWN, ResolveTileMode::kUnknown},
+     LoadMode::kUnknown, DXGI_FORMAT_R32G32B32A32_FLOAT,
+     ResolveTileMode::k128bpp},
     // k_32_AS_8
     {DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown, DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown,
@@ -354,6 +356,8 @@ const TextureCache::ResolveTileModeInfo
         {texture_tile_32bpp_cs, sizeof(texture_tile_32bpp_cs),
          DXGI_FORMAT_UNKNOWN, 0},
         {texture_tile_64bpp_cs, sizeof(texture_tile_64bpp_cs),
+         DXGI_FORMAT_UNKNOWN, 0},
+        {texture_tile_128bpp_cs, sizeof(texture_tile_128bpp_cs),
          DXGI_FORMAT_UNKNOWN, 0},
         {texture_tile_16bpp_rgba_cs, sizeof(texture_tile_16bpp_rgba_cs),
          DXGI_FORMAT_R16_UINT, 1},
