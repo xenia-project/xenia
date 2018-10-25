@@ -316,10 +316,11 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
     {DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown, DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown,
      DXGI_FORMAT_UNKNOWN, ResolveTileMode::kUnknown},
-    // k_8_8_8_8_GAMMA
-    {DXGI_FORMAT_R8G8B8A8_TYPELESS, DXGI_FORMAT_R8G8B8A8_UNORM,
-     DXGI_FORMAT_R8G8B8A8_SNORM, LoadMode::k32bpb, DXGI_FORMAT_UNKNOWN,
-     LoadMode::kUnknown, DXGI_FORMAT_R8G8B8A8_UNORM, ResolveTileMode::k32bpp},
+    // k_8_8_8_8_GAMMA_EDRAM
+    // Not usable as a texture.
+    {DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN,
+     LoadMode::kUnknown, DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown,
+     DXGI_FORMAT_UNKNOWN, ResolveTileMode::kUnknown},
     // k_2_10_10_10_FLOAT_EDRAM
     // Not usable as a texture.
     {DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN,
