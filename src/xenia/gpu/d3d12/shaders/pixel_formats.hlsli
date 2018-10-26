@@ -18,8 +18,10 @@ uint XeFloat16To7e3(uint4 rgba_f16u32) {
       (rgb_f32u32 < 0x3E800000u) ? denormalized : (rgb_f32u32 + 0xC2000000u);
   rgb_f10u32 =
       ((rgb_f10u32 + 0x7FFFu + ((rgb_f10u32 >> 16u) & 1u)) >> 16u) & 0x3FFu;
+  // Rounding alpha to the nearest integer.
+  // https://docs.microsoft.com/en-us/windows/desktop/direct3d10/d3d10-graphics-programming-guide-resources-data-conversion
   return rgb_f10u32.r | (rgb_f10u32.g << 10u) | (rgb_f10u32.b << 20u) |
-         (uint(saturate(rgba_f32.a) * 3.0) << 30u);
+         (uint(round(saturate(rgba_f32.a) * 3.0)) << 30u);
 }
 
 uint4 XeFloat7e3To16(uint rgba_packed) {
