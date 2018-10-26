@@ -69,6 +69,7 @@ imad r0.x, r2.z, l(1024), r2.y
 imad r0.x, r2.w, l(0x00100000), r0.x
 mov_sat r2.x, r2.x
 mul r0.y, r2.x, l(3.000000)
+round_ne r0.y, r0.y
 ftou r0.y, r0.y
 imad r0.x, r0.y, l(0x40000000), r0.x
 f16tof32 r2.yw, r0.zzzw
@@ -91,6 +92,7 @@ imad r0.z, r1.y, l(1024), r1.x
 imad r0.z, r1.z, l(0x00100000), r0.z
 mov_sat r2.x, r2.x
 mul r0.w, r2.x, l(3.000000)
+round_ne r0.w, r0.w
 ftou r0.w, r0.w
 imad r0.y, r0.w, l(0x40000000), r0.z
 ishl r0.z, vThreadIDInGroup.x, l(1)
@@ -112,4 +114,4 @@ ishl r0.z, r0.z, l(2)
 iadd r0.z, r0.z, r0.w
 store_raw U0[0].xy, r0.z, r0.xyxx
 ret 
-// Approximately 68 instruction slots used
+// Approximately 70 instruction slots used
