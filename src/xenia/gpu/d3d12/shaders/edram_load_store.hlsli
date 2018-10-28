@@ -17,9 +17,11 @@ cbuffer XeEDRAMLoadStoreConstants : register(b0) {
 #define xe_edram_rt_stencil_pitch (xe_edram_load_store_constants.w)
 
 // For single sample resolving.
-// Left/top of the copied region (relative to EDRAM base) in the lower 16 bits,
-// right/bottom in the upper.
-#define xe_edram_tile_sample_rect (xe_edram_load_store_constants.xy)
+// 0:11 - resolve area width/height in pixels.
+// 12:16 - offset in the destination texture (only up to 31 - assuming 32*n is
+//         pre-applied to the base pointer).
+// 17: - left/top of the copied region (relative to EDRAM base).
+#define xe_edram_tile_sample_dimensions (xe_edram_load_store_constants.xy)
 #define xe_edram_tile_sample_dest_base (xe_edram_load_store_constants.z)
 // 0:13 - destination pitch.
 // 14 - log2(vertical sample count), 0 for 1x AA, 1 for 2x/4x AA.

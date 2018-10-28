@@ -13,6 +13,9 @@ cbuffer XeTextureTileConstants : register(b0) {
   // 3:8 - guest format (primarily for 16-bit textures).
   // 9:31 - actual guest texture width.
   uint xe_texture_tile_endian_format_guest_pitch;
+  // Origin of the written data in the destination texture. X in the lower 16
+  // bits, Y in the upper.
+  uint xe_texture_tile_offset;
   // Size to copy, texels with index bigger than this won't be written.
   // Width in the lower 16 bits, height in the upper.
   uint xe_texture_tile_size;

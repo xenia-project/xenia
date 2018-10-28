@@ -15,7 +15,8 @@ void main(uint3 xe_thread_id : SV_DispatchThreadID) {
       xe_texture_tile_host_base + texel_index.y * xe_texture_tile_host_pitch +
       texel_index.x).xxxx >> uint4(0u, 8u, 16u, 24u)) & 0xFFu;
   uint4 texel_addresses = xe_texture_tile_guest_base + XeTextureTiledOffset2D(
-      texel_index, xe_texture_tile_endian_format_guest_pitch >> 9u, 0u);
+      ((xe_texture_tile_offset >> uint2(0u, 16u)) & 0xFFFFu) + texel_index,
+      xe_texture_tile_endian_format_guest_pitch >> 9u, 0u);
   xe_texture_tile_dest[texel_addresses.x] = texels.x;
   bool3 texels_inside = uint3(1u, 2u, 3u) + texel_index.x < texture_size.x;
   [branch] if (texels_inside.x) {

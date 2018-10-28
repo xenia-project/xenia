@@ -817,7 +817,10 @@ bool RenderTargetCache::Resolve(SharedMemory* shared_memory,
 
   // Get the render target properties.
   uint32_t rb_surface_info = regs[XE_GPU_REG_RB_SURFACE_INFO].u32;
-  uint32_t surface_pitch = rb_surface_info & 0x3FFF;
+  uint32_t surface_pitch = std::min(rb_surface_info & 0x3FFF, 2560u);
+  if (surface_pitch == 0) {
+    return true;
+  }
   MsaaSamples msaa_samples = MsaaSamples((rb_surface_info >> 16) & 0x3);
   uint32_t rb_copy_control = regs[XE_GPU_REG_RB_COPY_CONTROL].u32;
   // Depth info is always needed because color resolve may also clear depth.
@@ -866,26 +869,24 @@ bool RenderTargetCache::Resolve(SharedMemory* shared_memory,
   assert_true(fetch.size == 6);
   const uint8_t* src_vertex_address =
       memory->TranslatePhysical(fetch.address << 2);
-  float src_vertices[6];
+  float vertices[6];
   // Most vertices have a negative half pixel offset applied, which we reverse.
-  float src_vertex_offset =
+  float vertex_offset =
       (regs[XE_GPU_REG_PA_SU_VTX_CNTL].u32 & 0x1) ? 0.0f : 0.5f;
   for (uint32_t i = 0; i < 6; ++i) {
-    src_vertices[i] =
+    vertices[i] =
         xenos::GpuSwap(xe::load<float>(src_vertex_address + i * sizeof(float)),
                        Endian(fetch.endian)) +
-        src_vertex_offset;
+        vertex_offset;
   }
   // Xenos only supports rectangle copies (luckily).
-  D3D12_RECT src_rect;
-  src_rect.left = LONG(
-      std::min(std::min(src_vertices[0], src_vertices[2]), src_vertices[4]));
-  src_rect.right = LONG(
-      std::max(std::max(src_vertices[0], src_vertices[2]), src_vertices[4]));
-  src_rect.top = LONG(
-      std::min(std::min(src_vertices[1], src_vertices[3]), src_vertices[5]));
-  src_rect.bottom = LONG(
-      std::max(std::max(src_vertices[1], src_vertices[3]), src_vertices[5]));
+  // The rectangle is for both the source and the destination, according to how
+  // it's used in Tales of Vesperia.
+  D3D12_RECT rect;
+  rect.left = LONG(std::min(std::min(vertices[0], vertices[2]), vertices[4]));
+  rect.right = LONG(std::max(std::max(vertices[0], vertices[2]), vertices[4]));
+  rect.top = LONG(std::min(std::min(vertices[1], vertices[3]), vertices[5]));
+  rect.bottom = LONG(std::max(std::max(vertices[1], vertices[3]), vertices[5]));
   if (regs[XE_GPU_REG_PA_SU_SC_MODE_CNTL].u32 & (1 << 16)) {
     uint32_t pa_sc_window_offset = regs[XE_GPU_REG_PA_SC_WINDOW_OFFSET].u32;
     int16_t window_offset_x = pa_sc_window_offset & 0x7FFF;
@@ -896,36 +897,51 @@ bool RenderTargetCache::Resolve(SharedMemory* shared_memory,
     if (window_offset_y & 0x4000) {
       window_offset_y |= 0x8000;
     }
-    src_rect.left += window_offset_x;
-    src_rect.right += window_offset_x;
-    src_rect.top += window_offset_y;
-    src_rect.bottom += window_offset_y;
+    rect.left += window_offset_x;
+    rect.right += window_offset_x;
+    rect.top += window_offset_y;
+    rect.bottom += window_offset_y;
   }
 
   XELOGGPU(
       "Resolve: (%d,%d)->(%d,%d) of RT %u (pitch %u, %u sample%s, format %u) "
       "at %u",
-      src_rect.left, src_rect.top, src_rect.right, src_rect.bottom,
-      surface_index, surface_pitch, 1 << uint32_t(msaa_samples),
+      rect.left, rect.top, rect.right, rect.bottom, surface_index,
+      surface_pitch, 1 << uint32_t(msaa_samples),
       msaa_samples != MsaaSamples::k1X ? "s" : "", surface_format,
       surface_edram_base);
+
+  // Ignore the negative part (though do this after logging, just in case this
+  // needs more research). In F.E.A.R., the right tile is resolved with vertices
+  // (-640,0)->(640,720), however, the destination texture pointer is adjusted
+  // properly to the right half of the texture, and the source render target has
+  // a pitch of 800.
+  rect.left = std::max(rect.left, LONG(0));
+  rect.top = std::max(rect.top, LONG(0));
+  if (rect.left >= rect.right || rect.top >= rect.bottom) {
+    // Nothing to copy.
+    return true;
+  }
 
   if (command_processor_->IsROVUsedForEDRAM()) {
     // Commit ROV writes.
     command_processor_->PushUAVBarrier(edram_buffer_);
   }
 
+  // GetEDRAMLayout in ResolveCopy and ResolveClear will perform the needed
+  // clamping to the source render target size.
+
   bool result = ResolveCopy(shared_memory, texture_cache, surface_edram_base,
                             surface_pitch, msaa_samples, surface_is_depth,
-                            surface_format, src_rect);
+                            surface_format, rect);
   // Clear the color RT if needed.
   if (!surface_is_depth) {
     result &= ResolveClear(surface_edram_base, surface_pitch, msaa_samples,
-                           false, surface_format, src_rect);
+                           false, surface_format, rect);
   }
   // Clear the depth RT if needed (may be cleared alongside color).
   result &= ResolveClear(depth_edram_base, surface_pitch, msaa_samples, true,
-                         depth_format, src_rect);
+                         depth_format, rect);
   return result;
 }
 
@@ -934,7 +950,7 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
                                     uint32_t edram_base, uint32_t surface_pitch,
                                     MsaaSamples msaa_samples, bool is_depth,
                                     uint32_t src_format,
-                                    const D3D12_RECT& src_rect) {
+                                    const D3D12_RECT& rect) {
   auto& regs = *register_file_;
 
   uint32_t rb_copy_control = regs[XE_GPU_REG_RB_COPY_CONTROL].u32;
@@ -959,11 +975,13 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
     // Nothing to copy.
     return true;
   }
-  D3D12_RECT copy_rect = src_rect;
-  copy_rect.right =
-      std::min(copy_rect.right, LONG(copy_rect.left + dest_pitch));
-  copy_rect.bottom =
-      std::min(copy_rect.bottom, LONG(copy_rect.top + dest_height));
+  D3D12_RECT copy_rect = rect;
+  copy_rect.right = std::min(copy_rect.right, LONG(dest_pitch));
+  copy_rect.bottom = std::min(copy_rect.bottom, LONG(dest_height));
+  if (copy_rect.left >= copy_rect.right || copy_rect.top >= copy_rect.bottom) {
+    // Nothing to copy.
+    return true;
+  }
 
   // Get format info.
   uint32_t dest_info = regs[XE_GPU_REG_RB_COPY_DEST_INFO].u32;
@@ -1051,6 +1069,8 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
 
   // Validate and clamp the source region, skip parts that don't need to be
   // copied and calculate the number of threads needed for copying/loading.
+  // copy_rect will be modified and will become only the source rectangle, for
+  // the destination offset, use the original rect from the arguments.
   uint32_t surface_pitch_tiles, row_width_ss_div_80, rows;
   if (!GetEDRAMLayout(surface_pitch, msaa_samples, src_64bpp, edram_base,
                       copy_rect, surface_pitch_tiles, row_width_ss_div_80,
@@ -1109,10 +1129,19 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
     // Dispatch the computation.
     command_list->SetComputeRootSignature(edram_load_store_root_signature_);
     EDRAMLoadStoreRootConstants root_constants;
-    root_constants.tile_sample_rect_lt = copy_rect.left | (copy_rect.top << 16);
-    root_constants.tile_sample_rect_rb =
-        copy_rect.right | (copy_rect.bottom << 16);
-    root_constants.tile_sample_dest_base = dest_address;
+    // Adjust the destination pointer so only 5 bits can be used for the
+    // destination offset (GetTiledOffset2D(32*n+m) == GetTiledOffset2D(32*n) +
+    // GetTiledOffset2D(m)).
+    root_constants.tile_sample_dimensions[0] =
+        uint32_t(copy_rect.right - copy_rect.left) |
+        ((uint32_t(rect.left) & 31) << 12) | (uint32_t(copy_rect.left) << 17);
+    root_constants.tile_sample_dimensions[1] =
+        uint32_t(copy_rect.bottom - copy_rect.top) |
+        ((uint32_t(rect.top) & 31) << 12) | (uint32_t(copy_rect.top) << 17);
+    root_constants.tile_sample_dest_base =
+        dest_address + texture_util::GetTiledOffset2D(int(rect.left),
+                                                      int(rect.top), dest_pitch,
+                                                      src_64bpp ? 3 : 2);
     assert_true(dest_pitch <= 8192);
     root_constants.tile_sample_dest_info = dest_pitch |
                                            (uint32_t(sample_select) << 16) |
@@ -1443,9 +1472,9 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
         D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
     copy_buffer_state = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
     texture_cache->TileResolvedTexture(
-        dest_format, dest_address, dest_pitch, dest_height, copy_width,
-        copy_height, dest_endian, copy_buffer, resolve_target->copy_buffer_size,
-        resolve_target->footprint);
+        dest_format, dest_address, dest_pitch, dest_height, uint32_t(rect.left),
+        uint32_t(rect.top), copy_width, copy_height, dest_endian, copy_buffer,
+        resolve_target->copy_buffer_size, resolve_target->footprint);
 
     // Done with the copy buffer.
 

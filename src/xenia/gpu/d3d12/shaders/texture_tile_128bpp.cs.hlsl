@@ -10,7 +10,8 @@ void main(uint3 xe_thread_id : SV_DispatchThreadID) {
     return;
   }
   uint texel_address = xe_texture_tile_guest_base + XeTextureTiledOffset2D(
-      xe_thread_id.xy, xe_texture_tile_endian_format_guest_pitch >> 9u, 4u).x;
+      ((xe_texture_tile_offset >> uint2(0u, 16u)) & 0xFFFFu) + xe_thread_id.xy,
+      xe_texture_tile_endian_format_guest_pitch >> 9u, 4u).x;
   uint texel_source_offset = xe_texture_tile_host_base + xe_thread_id.y *
                              xe_texture_tile_host_pitch + xe_thread_id.x * 16u;
   uint4 texel = XeByteSwap128(
