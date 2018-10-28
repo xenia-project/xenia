@@ -19,7 +19,6 @@
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/user_module.h"
 #include "xenia/kernel/util/shim_utils.h"
-#include "xenia/kernel/util/xex2.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_private.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_threading.h"
 #include "xenia/kernel/xevent.h"
@@ -285,7 +284,7 @@ pointer_result_t RtlImageXexHeaderField(pointer_t<xex2_header> xex_header,
   uint32_t field = field_dword;  // VS acts weird going from dword_t -> enum
 
   UserModule::GetOptHeader(kernel_memory()->virtual_membase(), xex_header,
-                           xe_xex2_header_keys(field), &field_value);
+                           xex2_header_keys(field), &field_value);
 
   return field_value;
 }
