@@ -61,6 +61,9 @@ inline uint32_t GetSmallestMipLevel(uint32_t width, uint32_t height,
   return smallest_mip;
 }
 
+int32_t GetTiledOffset2D(int32_t x, int32_t y, uint32_t width,
+                         uint32_t log2_bpb);
+
 }  // namespace texture_util
 }  // namespace gpu
 }  // namespace xe

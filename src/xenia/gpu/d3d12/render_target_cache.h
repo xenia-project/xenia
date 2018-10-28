@@ -443,7 +443,7 @@ class RenderTargetCache {
   bool ResolveCopy(SharedMemory* shared_memory, TextureCache* texture_cache,
                    uint32_t edram_base, uint32_t surface_pitch,
                    MsaaSamples msaa_samples, bool is_depth, uint32_t src_format,
-                   const D3D12_RECT& src_rect);
+                   const D3D12_RECT& rect);
   // Performs the clearing part of a resolve.
   bool ResolveClear(uint32_t edram_base, uint32_t surface_pitch,
                     MsaaSamples msaa_samples, bool is_depth, uint32_t format,
@@ -477,9 +477,11 @@ class RenderTargetCache {
         uint32_t rt_stencil_pitch;
       };
       struct {
-        // 16 bits for X, 16 bits for Y.
-        uint32_t tile_sample_rect_lt;
-        uint32_t tile_sample_rect_rb;
+        // 0:11 - resolve area width/height in pixels.
+        // 12:16 - offset in the destination texture (only up to 31 - assuming
+        //         32*n is pre-applied to the base pointer).
+        // 17: - left/top of the copied region (relative to EDRAM base).
+        uint32_t tile_sample_dimensions[2];
         uint32_t tile_sample_dest_base;
         // 0:13 - destination pitch.
         // 14 - log2(vertical sample count), 0 for 1x AA, 1 for 2x/4x AA.

@@ -9,9 +9,10 @@
 //
 //   uint xe_texture_tile_guest_base;   // Offset:    0 Size:     4
 //   uint xe_texture_tile_endian_format_guest_pitch;// Offset:    4 Size:     4
-//   uint xe_texture_tile_size;         // Offset:    8 Size:     4
-//   uint xe_texture_tile_host_base;    // Offset:   12 Size:     4
-//   uint xe_texture_tile_host_pitch;   // Offset:   16 Size:     4
+//   uint xe_texture_tile_offset;       // Offset:    8 Size:     4
+//   uint xe_texture_tile_size;         // Offset:   12 Size:     4
+//   uint xe_texture_tile_host_base;    // Offset:   16 Size:     4
+//   uint xe_texture_tile_host_pitch;   // Offset:   20 Size:     4
 //
 // }
 //
@@ -45,39 +46,43 @@ dcl_uav_raw U0[0:0], space=0
 dcl_input vThreadID.xy
 dcl_temps 4
 dcl_thread_group 32, 32, 1
-ushr r0.y, CB0[0][0].z, l(16)
-mov r0.x, CB0[0][0].z
+ushr r0.y, CB0[0][0].w, l(16)
+mov r0.x, CB0[0][0].w
 and r0.xy, r0.xyxx, l(0x0000ffff, 0x0000ffff, 0, 0)
 uge r0.xy, vThreadID.xyxx, r0.xyxx
 or r0.x, r0.y, r0.x
 if_nz r0.x
   ret 
 endif 
-ushr r0.x, CB0[0][0].y, l(9)
-ushr r1.xyzw, vThreadID.xyxy, l(5, 5, 3, 2)
-iadd r0.x, r0.x, l(31)
+ushr r0.xy, CB0[0][0].zyzz, l(16, 9, 0, 0)
+mov r0.z, CB0[0][0].z
+and r1.xyzw, r0.zxzx, l(0x0000ffff, 0x0000ffff, 0x0000ffff, 0x0000ffff)
+iadd r1.xyzw, r1.xyzw, vThreadID.xyxy
+ushr r2.xyzw, r1.xyzw, l(5, 5, 3, 2)
+iadd r0.x, r0.y, l(31)
 ushr r0.x, r0.x, l(5)
-imad r0.x, r1.y, r0.x, r1.x
-ishl r0.yz, vThreadID.yyxy, l(0, 7, 4, 0)
-and r0.yw, r0.yyyy, l(0, 1792, 0, 2048)
-bfi r1.x, l(3), l(5), vThreadID.x, r0.y
-bfi r1.x, l(21), l(11), r0.x, r1.x
-bfi r1.y, l(1), l(4), vThreadID.y, l(0)
-iadd r1.x, r1.x, r1.y
-ishl r2.xy, r0.yyyy, l(3, 2, 0, 0)
-bfi r2.xy, l(3, 3, 0, 0), l(8, 7, 0, 0), vThreadID.xxxx, r2.xyxx
-bfi r0.xy, l(21, 21, 0, 0), l(14, 13, 0, 0), r0.xxxx, r2.xyxx
-imad r0.xy, r1.yyyy, l(8, 4, 0, 0), r0.xyxx
-bfi r0.x, l(12), l(0), r0.w, r0.x
+imad r0.x, r2.y, r0.x, r2.x
+ishl r0.y, r1.w, l(7)
+and r0.yz, r0.yyyy, l(0, 1792, 2048, 0)
+bfi r0.w, l(3), l(5), r1.z, r0.y
+bfi r0.w, l(21), l(11), r0.x, r0.w
+bfi r1.x, l(1), l(4), r1.w, l(0)
+iadd r0.w, r0.w, r1.x
+ishl r1.yw, r0.yyyy, l(0, 3, 0, 2)
+bfi r1.yz, l(0, 3, 3, 0), l(0, 8, 7, 0), r1.zzzz, r1.yywy
+bfi r0.xy, l(21, 21, 0, 0), l(14, 13, 0, 0), r0.xxxx, r1.yzyy
+imad r0.xy, r1.xxxx, l(8, 4, 0, 0), r0.xyxx
+bfi r0.x, l(12), l(0), r0.z, r0.x
 and r0.y, r0.y, l(1792)
 iadd r0.x, r0.x, r0.y
-and r0.y, r1.w, l(2)
-iadd r0.y, r0.y, r1.z
+and r0.y, r2.w, l(2)
+iadd r0.y, r0.y, r2.z
 bfi r0.y, l(2), l(6), r0.y, l(0)
 iadd r0.x, r0.x, r0.y
-bfi r0.x, l(6), l(0), r1.x, r0.x
+bfi r0.x, l(6), l(0), r0.w, r0.x
 iadd r0.x, r0.x, CB0[0][0].x
-imad r0.y, vThreadID.y, CB0[0][1].x, CB0[0][0].w
+imad r0.y, vThreadID.y, CB0[0][1].y, CB0[0][1].x
+ishl r0.z, vThreadID.x, l(4)
 iadd r0.y, r0.z, r0.y
 ld_raw r1.xyzw, r0.y, T0[0].xyzw
 and r0.y, CB0[0][0].y, l(4)
@@ -104,4 +109,4 @@ if_nz r0.y
 endif 
 store_raw U0[0].xyzw, r0.x, r1.xyzw
 ret 
-// Approximately 59 instruction slots used
+// Approximately 63 instruction slots used

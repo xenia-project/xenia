@@ -7,13 +7,14 @@ void main(uint3 xe_group_id : SV_GroupID,
           uint3 xe_group_thread_id : SV_GroupThreadID,
           uint3 xe_thread_id : SV_DispatchThreadID) {
   // Check if not outside of the destination texture completely.
-  uint4 copy_rect;
-  copy_rect.xz = xe_edram_tile_sample_rect & 0xFFFFu;
-  copy_rect.yw = xe_edram_tile_sample_rect >> 16u;
-  uint2 texel_index = xe_thread_id.xy;
+  uint2 source_offset = xe_edram_tile_sample_dimensions >> 17u;
+  [branch] if (any(xe_thread_id.xy * uint2(4u, 1u) < source_offset.xy)) {
+    return;
+  }
+  uint2 texel_index = xe_thread_id.xy - source_offset;
   texel_index.x *= 4u;
-  [branch] if (any(texel_index < copy_rect.xy) ||
-               any(texel_index >= copy_rect.zw)) {
+  uint2 copy_size = xe_edram_tile_sample_dimensions & 0xFFFu;
+  [branch] if (any(texel_index >= copy_size)) {
     return;
   }
 
@@ -50,10 +51,11 @@ void main(uint3 xe_group_id : SV_GroupID,
   pixels = XeByteSwap(pixels, xe_edram_tile_sample_dest_info >> 18u);
   uint4 texel_addresses =
       xe_edram_tile_sample_dest_base +
-      XeTextureTiledOffset2D(texel_index - copy_rect.xy,
-                             xe_edram_tile_sample_dest_info & 16383u, 2u);
+      XeTextureTiledOffset2D(
+          ((xe_edram_tile_sample_dimensions >> 12u) & 31u) + texel_index,
+          xe_edram_tile_sample_dest_info & 16383u, 2u);
   xe_edram_load_store_dest.Store(texel_addresses.x, pixels.x);
-  bool3 texels_in_rect = uint3(1u, 2u, 3u) + texel_index.x < copy_rect.z;
+  bool3 texels_in_rect = uint3(1u, 2u, 3u) + texel_index.x < copy_size.x;
   [branch] if (texels_in_rect.x) {
     xe_edram_load_store_dest.Store(texel_addresses.y, pixels.y);
     [branch] if (texels_in_rect.y) {

@@ -810,8 +810,9 @@ void TextureCache::WriteSampler(SamplerParameters parameters,
 
 bool TextureCache::TileResolvedTexture(
     TextureFormat format, uint32_t texture_base, uint32_t texture_pitch,
-    uint32_t texture_height, uint32_t resolve_width, uint32_t resolve_height,
-    Endian128 endian, ID3D12Resource* buffer, uint32_t buffer_size,
+    uint32_t texture_height, uint32_t offset_x, uint32_t offset_y,
+    uint32_t resolve_width, uint32_t resolve_height, Endian128 endian,
+    ID3D12Resource* buffer, uint32_t buffer_size,
     const D3D12_PLACED_SUBRESOURCE_FOOTPRINT& footprint) {
   ResolveTileMode resolve_tile_mode =
       host_formats_[uint32_t(format)].resolve_tile_mode;
@@ -867,6 +868,7 @@ bool TextureCache::TileResolvedTexture(
   ResolveTileConstants resolve_tile_constants;
   resolve_tile_constants.endian_format_guest_pitch =
       uint32_t(endian) | (uint32_t(format) << 3) | (texture_pitch << 9);
+  resolve_tile_constants.offset = offset_x | (offset_y << 16);
   resolve_tile_constants.size = resolve_width | (resolve_height << 16);
   resolve_tile_constants.host_base = uint32_t(footprint.Offset);
   resolve_tile_constants.host_pitch = uint32_t(footprint.Footprint.RowPitch);
