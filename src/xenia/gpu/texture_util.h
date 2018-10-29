@@ -29,11 +29,14 @@ void GetGuestMipBlocks(Dimension dimension, uint32_t width, uint32_t height,
                        uint32_t& width_blocks_out, uint32_t& height_blocks_out,
                        uint32_t& depth_blocks_out);
 
-// Calculates the number of bytes required to store a single mip level - width,
-// height and depth must be obtained via GetGuestMipExtent.
-uint32_t GetGuestMipStorageSize(uint32_t width_blocks, uint32_t height_blocks,
-                                uint32_t depth_blocks, bool is_tiled,
-                                TextureFormat format, uint32_t* row_pitch_out);
+// Calculates the number of bytes required to store a single array slice within
+// a single mip level - width, height and depth must be obtained via
+// GetGuestMipBlocks.
+uint32_t GetGuestMipSliceStorageSize(uint32_t width_blocks,
+                                     uint32_t height_blocks,
+                                     uint32_t depth_blocks, bool is_tiled,
+                                     TextureFormat format,
+                                     uint32_t* row_pitch_out);
 
 // Gets the number of the mipmap level where the packed mips are stored.
 inline uint32_t GetPackedMipLevel(uint32_t width, uint32_t height) {

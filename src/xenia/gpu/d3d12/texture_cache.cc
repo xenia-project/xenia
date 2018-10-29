@@ -846,7 +846,7 @@ bool TextureCache::TileResolvedTexture(
 
   // Calculate the texture size for memory operations and ensure we can write to
   // the specified shared memory location.
-  uint32_t texture_size = texture_util::GetGuestMipStorageSize(
+  uint32_t texture_size = texture_util::GetGuestMipSliceStorageSize(
       texture_pitch, texture_height, 1, true, format, nullptr);
   if (texture_size == 0) {
     return true;
@@ -1187,21 +1187,25 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
   texture->state = state;
   texture->mip_offsets[0] = 0;
   uint32_t width_blocks, height_blocks, depth_blocks;
+  uint32_t array_size = key.dimension != Dimension::k3D ? key.depth : 1;
   if (key.base_page != 0) {
     texture_util::GetGuestMipBlocks(key.dimension, key.width, key.height,
                                     key.depth, key.format, 0, width_blocks,
                                     height_blocks, depth_blocks);
-    texture->base_slice_size = texture_util::GetGuestMipStorageSize(
+    uint32_t slice_size = texture_util::GetGuestMipSliceStorageSize(
         width_blocks, height_blocks, depth_blocks, key.tiled, key.format,
-        &texture->mip_pitches[0]);
+        &texture->pitches[0]);
+    texture->slice_sizes[0] = slice_size;
+    texture->base_size = slice_size * array_size;
     texture->base_in_sync = false;
   } else {
-    texture->base_slice_size = 0;
-    texture->mip_pitches[0] = 0;
+    texture->base_size = 0;
+    texture->slice_sizes[0] = 0;
+    texture->pitches[0] = 0;
     // Never try to upload the base level if there is none.
     texture->base_in_sync = true;
   }
-  texture->mip_slice_size = 0;
+  texture->mip_size = 0;
   if (key.mip_page != 0) {
     uint32_t mip_max_storage_level = key.mip_max_level;
     if (key.packed_mips) {
@@ -1213,31 +1217,30 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
       texture_util::GetGuestMipBlocks(key.dimension, key.width, key.height,
                                       key.depth, key.format, i, width_blocks,
                                       height_blocks, depth_blocks);
-      texture->mip_offsets[i] = texture->mip_slice_size;
-      texture->mip_slice_size += texture_util::GetGuestMipStorageSize(
+      texture->mip_offsets[i] = texture->mip_size;
+      uint32_t slice_size = texture_util::GetGuestMipSliceStorageSize(
           width_blocks, height_blocks, depth_blocks, key.tiled, key.format,
-          &texture->mip_pitches[i]);
+          &texture->pitches[i]);
+      texture->slice_sizes[i] = slice_size;
+      texture->mip_size += slice_size * array_size;
     }
     // The rest are either packed levels or don't exist at all.
     for (uint32_t i = mip_max_storage_level + 1;
          i < xe::countof(texture->mip_offsets); ++i) {
       texture->mip_offsets[i] = texture->mip_offsets[mip_max_storage_level];
-      texture->mip_pitches[i] = texture->mip_pitches[mip_max_storage_level];
+      texture->slice_sizes[i] = texture->slice_sizes[mip_max_storage_level];
+      texture->pitches[i] = texture->pitches[mip_max_storage_level];
     }
     texture->mips_in_sync = false;
   } else {
     std::memset(&texture->mip_offsets[1], 0,
                 (xe::countof(texture->mip_offsets) - 1) * sizeof(uint32_t));
-    std::memset(&texture->mip_pitches[1], 0,
-                (xe::countof(texture->mip_pitches) - 1) * sizeof(uint32_t));
+    std::memset(&texture->slice_sizes[1], 0,
+                (xe::countof(texture->slice_sizes) - 1) * sizeof(uint32_t));
+    std::memset(&texture->pitches[1], 0,
+                (xe::countof(texture->pitches) - 1) * sizeof(uint32_t));
     // Never try to upload the mipmaps if there are none.
     texture->mips_in_sync = true;
-  }
-  texture->base_size = texture->base_slice_size;
-  texture->mip_size = texture->mip_slice_size;
-  if (key.dimension != Dimension::k3D) {
-    texture->base_size *= key.depth;
-    texture->mip_size *= key.depth;
   }
   texture->base_watch_handle = nullptr;
   texture->mip_watch_handle = nullptr;
@@ -1363,16 +1366,15 @@ bool TextureCache::LoadTextureData(Texture* texture) {
     copy_buffer_state = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
     for (uint32_t j = mip_first; j <= mip_last; ++j) {
       if (j == 0) {
-        load_constants.guest_base =
-            (texture->key.base_page << 12) + i * texture->base_slice_size;
+        load_constants.guest_base = texture->key.base_page << 12;
       } else {
-        load_constants.guest_base =
-            (texture->key.mip_page << 12) + i * texture->mip_slice_size;
+        load_constants.guest_base = texture->key.mip_page << 12;
       }
-      load_constants.guest_base += texture->mip_offsets[j];
+      load_constants.guest_base +=
+          texture->mip_offsets[j] + i * texture->slice_sizes[j];
       load_constants.guest_pitch = texture->key.tiled
                                        ? LoadConstants::kGuestPitchTiled
-                                       : texture->mip_pitches[j];
+                                       : texture->pitches[j];
       load_constants.host_base = uint32_t(host_layouts[j].Offset);
       load_constants.host_pitch = host_layouts[j].Footprint.RowPitch;
       load_constants.size_texels[0] = std::max(width >> j, 1u);

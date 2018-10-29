@@ -292,18 +292,19 @@ class TextureCache {
     TextureKey key;
     ID3D12Resource* resource;
     D3D12_RESOURCE_STATES state;
-    // Byte size of one array slice of the top guest mip level.
-    uint32_t base_slice_size;
+
     // Byte size of the top guest mip level.
     uint32_t base_size;
-    // Byte size of one array slice of mips between 1 and key.mip_max_level.
-    uint32_t mip_slice_size;
-    // Byte size of mips between 1 and key.mip_max_level.
+    // Byte size of mips between 1 and key.mip_max_level, containing all array
+    // slices.
     uint32_t mip_size;
-    // Byte offsets of each mipmap within one slice.
+    // Offsets of all the array slices on a mip level relative to mips_address
+    // (0 for mip 0, it's relative to base_address then, and for mip 1).
     uint32_t mip_offsets[14];
-    // Byte pitches of each mipmap within one slice (for linear layout mainly).
-    uint32_t mip_pitches[14];
+    // Byte sizes of an array slice on each mip level.
+    uint32_t slice_sizes[14];
+    // Row pitches on each mip level (for linear layout mainly).
+    uint32_t pitches[14];
 
     // Watch handles for the memory ranges (protected by the shared memory watch
     // mutex).

@@ -54,9 +54,11 @@ void GetGuestMipBlocks(Dimension dimension, uint32_t width, uint32_t height,
   }
 }
 
-uint32_t GetGuestMipStorageSize(uint32_t width_blocks, uint32_t height_blocks,
-                                uint32_t depth_blocks, bool is_tiled,
-                                TextureFormat format, uint32_t* row_pitch_out) {
+uint32_t GetGuestMipSliceStorageSize(uint32_t width_blocks,
+                                     uint32_t height_blocks,
+                                     uint32_t depth_blocks, bool is_tiled,
+                                     TextureFormat format,
+                                     uint32_t* row_pitch_out) {
   const FormatInfo* format_info = FormatInfo::Get(format);
   uint32_t row_pitch = width_blocks * format_info->block_width *
                        format_info->block_height * format_info->bits_per_pixel /
