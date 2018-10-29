@@ -1051,7 +1051,7 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
     // resolve to 8bpp or 16bpp textures at very odd locations.
     return false;
   }
-  uint32_t dest_size = texture_util::GetGuestMipStorageSize(
+  uint32_t dest_size = texture_util::GetGuestMipSliceStorageSize(
       xe::align(dest_pitch, 32u), xe::align(dest_height, 32u), 1, true,
       dest_format, nullptr);
   if (dest_info & (1 << 3)) {
