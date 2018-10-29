@@ -3165,12 +3165,12 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV_Blend(
     shader_code_.push_back(
         EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
     // In min, writing to the intermediate result register because max still
-    // needs to original source color.
+    // needs the original source color.
     // In max, doing the final output.
     shader_code_.push_back(i ? src_color_and_output_temp
                              : src_factor_and_result_temp);
     shader_code_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_TEMP, i ? 0b01000000 : 0b11101010, 1));
+        D3D10_SB_OPERAND_TYPE_TEMP, i ? 0b11101010 : 0b01000000, 1));
     shader_code_.push_back(scale_temp);
     shader_code_.push_back(EncodeVectorSwizzledOperand(
         D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
