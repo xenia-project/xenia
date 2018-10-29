@@ -786,8 +786,9 @@ void UserModule::Dump() {
                           implemented ? "  " : "!!", name);
         } else if (info->thunk_address) {
           sb.AppendFormat("   F %.8X %.8X %.3X (%3d) %s %s\n",
-                          info->value_address, info->thunk_address, info->ordinal,
-                          info->ordinal, implemented ? "  " : "!!", name);
+                          info->value_address, info->thunk_address,
+                          info->ordinal, info->ordinal,
+                          implemented ? "  " : "!!", name);
         }
       }
     }
