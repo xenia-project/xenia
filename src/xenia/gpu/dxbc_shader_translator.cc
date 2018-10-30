@@ -504,9 +504,10 @@ void DxbcShaderTranslator::Reset() {
   system_temp_count_current_ = 0;
   system_temp_count_max_ = 0;
 
-  cf_currently_predicated_ = false;
-  cf_exec_predicated_ = false;
   cf_exec_bool_constant_ = kCfExecBoolConstantNone;
+  cf_exec_predicated_ = false;
+  cf_instruction_predicate_if_open_ = false;
+  cf_exec_predicate_written_ = false;
 
   writes_depth_ = false;
 
@@ -5454,6 +5455,9 @@ void DxbcShaderTranslator::CompletePixelShader() {
 
 void DxbcShaderTranslator::CompleteShaderCode() {
   if (!is_depth_only_pixel_shader_) {
+    // Close the last exec, there's nothing to merge it with anymore, and we're
+    // closing upper-level flow control blocks.
+    CloseExecConditionals();
     // Close the last label and the switch.
     if (FLAGS_dxbc_switch) {
       shader_code_.push_back(
@@ -6517,69 +6521,44 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
   }
 }
 
-void DxbcShaderTranslator::ClosePredicate() {
-  if (cf_currently_predicated_) {
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
-    ++stat_.instruction_count;
-    cf_currently_predicated_ = false;
+void DxbcShaderTranslator::UpdateExecConditionals(
+    ParsedExecInstruction::Type type, uint32_t bool_constant_index,
+    bool condition) {
+  // Check if we can merge the new exec with the previous one, or the jump with
+  // the previous exec. The instruction-level predicate check is also merged in
+  // this case.
+  if (type == ParsedExecInstruction::Type::kConditional) {
+    // Can merge conditional with conditional, as long as the bool constant and
+    // the expected values are the same.
+    if (cf_exec_bool_constant_ == bool_constant_index &&
+        cf_exec_bool_constant_condition_ == condition) {
+      return;
+    }
+  } else if (type == ParsedExecInstruction::Type::kPredicated) {
+    // Can merge predicated with predicated if the conditions are the same and
+    // the previous exec hasn't modified the predicate register.
+    if (!cf_exec_predicate_written_ && cf_exec_predicated_ &&
+        cf_exec_predicate_condition_ == condition) {
+      return;
+    }
+  } else {
+    // Can merge unconditional with unconditional.
+    if (cf_exec_bool_constant_ == kCfExecBoolConstantNone &&
+        !cf_exec_predicated_) {
+      return;
+    }
   }
-}
 
-void DxbcShaderTranslator::CheckPredicate(
-    bool instruction_predicated, bool instruction_predicate_condition) {
-  // If the instruction doesn't have its own predicate check, inherit it from
-  // the exec.
-  if (!instruction_predicated) {
-    instruction_predicated = cf_exec_predicated_;
-    instruction_predicate_condition = cf_exec_predicate_condition_;
-  }
-  // Close the current predicate if the conditions don't match or not predicated
-  // anymore.
-  if (cf_currently_predicated_ &&
-      (!instruction_predicated ||
-       cf_current_predicate_condition_ != instruction_predicate_condition)) {
-    ClosePredicate();
-  }
-  // Open a new predicate if predicated now, but the conditions don't match (or
-  // the previous instruction wasn't predicated).
-  if (instruction_predicated &&
-      (!cf_currently_predicated_ ||
-       cf_current_predicate_condition_ != instruction_predicate_condition)) {
-    D3D10_SB_INSTRUCTION_TEST_BOOLEAN test =
-        instruction_predicate_condition ? D3D10_SB_INSTRUCTION_TEST_NONZERO
-                                        : D3D10_SB_INSTRUCTION_TEST_ZERO;
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
-                           ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(test) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
-    shader_code_.push_back(system_temp_ps_pc_p0_a0_);
-    ++stat_.instruction_count;
-    ++stat_.dynamic_flow_control_count;
-    cf_currently_predicated_ = true;
-    cf_current_predicate_condition_ = instruction_predicate_condition;
-  }
-}
+  CloseExecConditionals();
 
-void DxbcShaderTranslator::SetExecBoolConstant(uint32_t index, bool condition) {
-  if (cf_exec_bool_constant_ == index &&
-      (index == kCfExecBoolConstantNone ||
-       cf_exec_bool_constant_condition_ == condition)) {
-    return;
-  }
-  if (cf_exec_bool_constant_ != kCfExecBoolConstantNone) {
-    // Predicates are checked deeper than the bool constant.
-    ClosePredicate();
-    // Close the current `if`.
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
-    ++stat_.instruction_count;
-    cf_exec_bool_constant_ = kCfExecBoolConstantNone;
-  }
-  if (index != kCfExecBoolConstantNone) {
+  D3D10_SB_INSTRUCTION_TEST_BOOLEAN test =
+      condition ? D3D10_SB_INSTRUCTION_TEST_NONZERO
+                : D3D10_SB_INSTRUCTION_TEST_ZERO;
+
+  if (type == ParsedExecInstruction::Type::kConditional) {
     uint32_t bool_constant_test_register = PushSystemTemp();
-    // Check the bool constant's value.
+
+    // Check the bool constant value.
     if (cbuffer_index_bool_loop_constants_ == kCbufferIndexUnallocated) {
       cbuffer_index_bool_loop_constants_ = cbuffer_count_++;
     }
@@ -6592,16 +6571,14 @@ void DxbcShaderTranslator::SetExecBoolConstant(uint32_t index, bool condition) {
         EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, 0, 3));
     shader_code_.push_back(cbuffer_index_bool_loop_constants_);
     shader_code_.push_back(uint32_t(CbufferRegister::kBoolLoopConstants));
-    shader_code_.push_back(index >> 5);
+    shader_code_.push_back(bool_constant_index >> 5);
     shader_code_.push_back(
         EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-    shader_code_.push_back(1u << (index & 31));
+    shader_code_.push_back(1u << (bool_constant_index & 31));
     ++stat_.instruction_count;
     ++stat_.uint_instruction_count;
+
     // Open the new `if`.
-    D3D10_SB_INSTRUCTION_TEST_BOOLEAN test =
-        condition ? D3D10_SB_INSTRUCTION_TEST_NONZERO
-                  : D3D10_SB_INSTRUCTION_TEST_ZERO;
     shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
                            ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(test) |
                            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
@@ -6610,10 +6587,87 @@ void DxbcShaderTranslator::SetExecBoolConstant(uint32_t index, bool condition) {
     shader_code_.push_back(bool_constant_test_register);
     ++stat_.instruction_count;
     ++stat_.dynamic_flow_control_count;
+
     // Release bool_constant_test_register.
     PopSystemTemp();
-    cf_exec_bool_constant_ = index;
+
+    cf_exec_bool_constant_ = bool_constant_index;
     cf_exec_bool_constant_condition_ = condition;
+  } else if (type == ParsedExecInstruction::Type::kPredicated) {
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
+                           ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(test) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
+    shader_code_.push_back(
+        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
+    shader_code_.push_back(system_temp_ps_pc_p0_a0_);
+    ++stat_.instruction_count;
+    ++stat_.dynamic_flow_control_count;
+
+    cf_exec_predicated_ = true;
+    cf_exec_predicate_condition_ = condition;
+  }
+}
+
+void DxbcShaderTranslator::CloseExecConditionals() {
+  // Within the exec - instruction-level predicate check.
+  CloseInstructionPredication();
+  // Exec level.
+  if (cf_exec_bool_constant_ != kCfExecBoolConstantNone ||
+      cf_exec_predicated_) {
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
+    ++stat_.instruction_count;
+    cf_exec_bool_constant_ = kCfExecBoolConstantNone;
+    cf_exec_predicated_ = false;
+  }
+  // Nothing relies on the predicate value being unchanged now.
+  cf_exec_predicate_written_ = false;
+}
+
+void DxbcShaderTranslator::UpdateInstructionPredication(bool predicated,
+                                                        bool condition) {
+  if (predicated) {
+    if (cf_instruction_predicate_if_open_) {
+      if (cf_instruction_predicate_condition_ == condition) {
+        // Already in the needed instruction-level `if`.
+        return;
+      }
+      CloseInstructionPredication();
+    }
+    // If the instruction predicate condition is the same as the exec predicate
+    // condition, no need to open a check. However, if there was a `setp` prior
+    // to this instruction, the predicate value now may be different than it was
+    // in the beginning of the exec.
+    if (!cf_exec_predicate_written_ && cf_exec_predicated_ &&
+        cf_exec_predicate_condition_ == condition) {
+      return;
+    }
+
+    D3D10_SB_INSTRUCTION_TEST_BOOLEAN test =
+        condition ? D3D10_SB_INSTRUCTION_TEST_NONZERO
+                  : D3D10_SB_INSTRUCTION_TEST_ZERO;
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
+                           ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(test) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
+    shader_code_.push_back(
+        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
+    shader_code_.push_back(system_temp_ps_pc_p0_a0_);
+    ++stat_.instruction_count;
+    ++stat_.dynamic_flow_control_count;
+
+    cf_instruction_predicate_if_open_ = true;
+    cf_instruction_predicate_condition_ = condition;
+  } else {
+    CloseInstructionPredication();
+  }
+}
+
+void DxbcShaderTranslator::CloseInstructionPredication() {
+  if (cf_instruction_predicate_if_open_) {
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
+    ++stat_.instruction_count;
+    cf_instruction_predicate_if_open_ = false;
   }
 }
 
@@ -6891,14 +6945,9 @@ void DxbcShaderTranslator::ProcessLabel(uint32_t cf_index) {
     return;
   }
 
-  // Force close all `if`s on the levels below for safety (they should be closed
-  // anyway, but what if).
-  // TODO(Triang3l): See if that's enough. At least in Halo 3, labels are only
-  // placed between different `exec`s - however, if in some game they can be
-  // located within `exec`s, this would require restoring all those `if`s after
-  // the label.
-  ClosePredicate();
-  SetExecBoolConstant(kCfExecBoolConstantNone, false);
+  // Close flow control on the deeper levels below - prevent attempts to merge
+  // execs across labels.
+  CloseExecConditionals();
 
   if (FLAGS_dxbc_switch) {
     // Fallthrough to the label from the previous one on the next iteration if
@@ -6967,38 +7016,19 @@ void DxbcShaderTranslator::ProcessLabel(uint32_t cf_index) {
 
 void DxbcShaderTranslator::ProcessExecInstructionBegin(
     const ParsedExecInstruction& instr) {
-  // Force close the last `exec` if ProcessExecInstructionEnd was somehow not
-  // called, just for safety.
-  ClosePredicate();
-  cf_exec_predicated_ = false;
-  SetExecBoolConstant(kCfExecBoolConstantNone, false);
-
-  // TODO(Triang3l): Handle PredicateClean=true somehow - still not known how it
-  // should be done (execs doing setp are marked as PredicateClean=false,
-  // however it's very unlikely that PredicateClean=true means clean the
-  // predicate after the exec - shaders in Halo 3 have sequences of (p0) exec
-  // without setp in them and without PredicateClean=false, if it was actually
-  // cleaned after exec, all but the first would never be executed. Let's just
-  // ignore them for now.
-
-  if (instr.type == ParsedExecInstruction::Type::kConditional) {
-    SetExecBoolConstant(instr.bool_constant_index, instr.condition);
-  } else if (instr.type == ParsedExecInstruction::Type::kPredicated) {
-    // The predicate will actually be checked by the next ALU/fetch instruction.
-    cf_exec_predicated_ = true;
-    cf_exec_predicate_condition_ = instr.condition;
-  }
+  UpdateExecConditionals(instr.type, instr.bool_constant_index,
+                         instr.condition);
+  // TODO(Triang3l): Find out what PredicateClean=false in exec actually means
+  // (execs containing setp have PredicateClean=false, it possibly means that
+  // the predicate is dirty after the exec).
 }
 
 void DxbcShaderTranslator::ProcessExecInstructionEnd(
     const ParsedExecInstruction& instr) {
   // TODO(Triang3l): Check whether is_end is conditional or not.
   if (instr.is_end) {
-    // In case some instruction has flipped the predicate condition.
-    if (cf_exec_predicated_) {
-      CheckPredicate(cf_exec_predicated_, cf_exec_predicate_condition_);
-    }
     // Break out of the main loop.
+    CloseInstructionPredication();
     if (FLAGS_dxbc_switch) {
       // Write an invalid value to pc.
       shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
@@ -7023,14 +7053,14 @@ void DxbcShaderTranslator::ProcessExecInstructionEnd(
       ++stat_.instruction_count;
     }
   }
-  ClosePredicate();
-  cf_exec_predicated_ = false;
-  SetExecBoolConstant(kCfExecBoolConstantNone, false);
 }
 
 void DxbcShaderTranslator::ProcessLoopStartInstruction(
     const ParsedLoopStartInstruction& instr) {
   // loop il<idx>, L<idx> - loop with loop data il<idx>, end @ L<idx>
+
+  // Loop control is outside execs - actually close the last exec.
+  CloseExecConditionals();
 
   uint32_t loop_count_and_aL = PushSystemTemp();
 
@@ -7134,6 +7164,9 @@ void DxbcShaderTranslator::ProcessLoopStartInstruction(
 void DxbcShaderTranslator::ProcessLoopEndInstruction(
     const ParsedLoopEndInstruction& instr) {
   // endloop il<idx>, L<idx> - end loop w/ data il<idx>, head @ L<idx>
+
+  // Loop control is outside execs - actually close the last exec.
+  CloseExecConditionals();
 
   // Subtract 1 from the loop counter.
   shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IADD) |
@@ -7287,62 +7320,24 @@ void DxbcShaderTranslator::ProcessLoopEndInstruction(
 
 void DxbcShaderTranslator::ProcessJumpInstruction(
     const ParsedJumpInstruction& instr) {
-  D3D10_SB_INSTRUCTION_TEST_BOOLEAN test =
-      instr.condition ? D3D10_SB_INSTRUCTION_TEST_NONZERO
-                      : D3D10_SB_INSTRUCTION_TEST_ZERO;
-
+  // Treat like exec, merge with execs if possible, since it's an if too.
+  ParsedExecInstruction::Type type;
   if (instr.type == ParsedJumpInstruction::Type::kConditional) {
-    uint32_t bool_constant_test_register = PushSystemTemp();
-    // Check the bool constant's value.
-    if (cbuffer_index_bool_loop_constants_ == kCbufferIndexUnallocated) {
-      cbuffer_index_bool_loop_constants_ = cbuffer_count_++;
-    }
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-    shader_code_.push_back(bool_constant_test_register);
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, 0, 3));
-    shader_code_.push_back(cbuffer_index_bool_loop_constants_);
-    shader_code_.push_back(uint32_t(CbufferRegister::kBoolLoopConstants));
-    shader_code_.push_back(instr.bool_constant_index >> 5);
-    shader_code_.push_back(
-        EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-    shader_code_.push_back(1u << (instr.bool_constant_index & 31));
-    ++stat_.instruction_count;
-    ++stat_.uint_instruction_count;
-    // Open the `if`.
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
-                           ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(test) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-    shader_code_.push_back(bool_constant_test_register);
-    ++stat_.instruction_count;
-    ++stat_.dynamic_flow_control_count;
-    // Release bool_constant_test_register.
-    PopSystemTemp();
+    type = ParsedExecInstruction::Type::kConditional;
   } else if (instr.type == ParsedJumpInstruction::Type::kPredicated) {
-    // Called outside of exec - need to check the predicate explicitly.
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
-                           ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(test) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
-    shader_code_.push_back(system_temp_ps_pc_p0_a0_);
-    ++stat_.instruction_count;
-    ++stat_.dynamic_flow_control_count;
+    type = ParsedExecInstruction::Type::kPredicated;
+  } else {
+    type = ParsedExecInstruction::Type::kUnconditional;
   }
+  UpdateExecConditionals(type, instr.bool_constant_index, instr.condition);
+
+  // UpdateExecConditionals may not necessarily close the instruction-level
+  // predicate check (it's not necessary if the execs are merged), but here the
+  // instruction itself is on the flow control level, so the predicate check is
+  // on the flow control level too.
+  CloseInstructionPredication();
 
   JumpToLabel(instr.target_address);
-
-  if (instr.type == ParsedJumpInstruction::Type::kConditional ||
-      instr.type == ParsedJumpInstruction::Type::kPredicated) {
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
-    ++stat_.instruction_count;
-  }
 }
 
 void DxbcShaderTranslator::ProcessVertexFetchInstruction(
@@ -7393,7 +7388,7 @@ void DxbcShaderTranslator::ProcessVertexFetchInstruction(
   }
   uint32_t result_write_mask = (1 << result_component_count) - 1;
 
-  CheckPredicate(instr.is_predicated, instr.predicate_condition);
+  UpdateInstructionPredication(instr.is_predicated, instr.predicate_condition);
 
   // Convert the index to an integer.
   DxbcSourceOperand index_operand;
@@ -8143,7 +8138,69 @@ void DxbcShaderTranslator::ArrayCoordToCubeDirection(uint32_t reg) {
 
 void DxbcShaderTranslator::ProcessTextureFetchInstruction(
     const ParsedTextureFetchInstruction& instr) {
-  CheckPredicate(instr.is_predicated, instr.predicate_condition);
+  // Predication should not affect derivative calculation:
+  // https://docs.microsoft.com/en-us/windows/desktop/direct3dhlsl/dx9-graphics-reference-asm-ps-registers-output-color
+  // Do the part involving derivative calculation unconditionally, and re-enter
+  // the predicate check before writing the result.
+  bool suppress_predication = false;
+  if (IsDXBCPixelShader()) {
+    if (instr.opcode == FetchOpcode::kGetTextureComputedLod ||
+        instr.opcode == FetchOpcode::kGetTextureGradients) {
+      suppress_predication = true;
+    } else if (instr.opcode == FetchOpcode::kTextureFetch) {
+      suppress_predication = instr.attributes.use_computed_lod &&
+                             !instr.attributes.use_register_lod;
+    }
+  }
+  uint32_t exec_p0_temp = UINT32_MAX;
+  if (suppress_predication) {
+    // Close instruction-level predication.
+    CloseInstructionPredication();
+    // Temporarily close exec-level predication - will reopen at the end, so not
+    // changing cf_exec_predicated_.
+    if (cf_exec_predicated_) {
+      if (cf_exec_predicate_written_) {
+        // Restore the predicate value in the beginning of the exec and put it
+        // in exec_p0_temp.
+        exec_p0_temp = PushSystemTemp();
+        // `if` case - the value was cf_exec_predicate_condition_.
+        shader_code_.push_back(
+            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
+        shader_code_.push_back(
+            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+        shader_code_.push_back(exec_p0_temp);
+        shader_code_.push_back(
+            EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+        shader_code_.push_back(cf_exec_predicate_condition_ ? 0xFFFFFFFFu : 0u);
+        ++stat_.instruction_count;
+        ++stat_.mov_instruction_count;
+        shader_code_.push_back(
+            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ELSE) |
+            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
+        ++stat_.instruction_count;
+        // `else` case - the value was !cf_exec_predicate_condition_.
+        shader_code_.push_back(
+            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
+        shader_code_.push_back(
+            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+        shader_code_.push_back(exec_p0_temp);
+        shader_code_.push_back(
+            EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+        shader_code_.push_back(cf_exec_predicate_condition_ ? 0u : 0xFFFFFFFFu);
+        ++stat_.instruction_count;
+        ++stat_.mov_instruction_count;
+      }
+      shader_code_.push_back(
+          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
+          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
+      ++stat_.instruction_count;
+    }
+  } else {
+    UpdateInstructionPredication(instr.is_predicated,
+                                 instr.predicate_condition);
+  }
 
   bool store_result = false;
   // Whether the result is only in X and all components should be remapped to X
@@ -9401,6 +9458,31 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
     UnloadDxbcSourceOperand(operand);
   }
 
+  // Re-enter conditional execution if closed it.
+  if (suppress_predication) {
+    // Re-enter exec-level predication.
+    if (cf_exec_predicated_) {
+      D3D10_SB_INSTRUCTION_TEST_BOOLEAN test =
+          cf_exec_predicate_condition_ ? D3D10_SB_INSTRUCTION_TEST_NONZERO
+                                       : D3D10_SB_INSTRUCTION_TEST_ZERO;
+      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
+                             ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(test) |
+                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
+      shader_code_.push_back(EncodeVectorSelectOperand(
+          D3D10_SB_OPERAND_TYPE_TEMP, exec_p0_temp != UINT32_MAX ? 0 : 2, 1));
+      shader_code_.push_back(
+          exec_p0_temp != UINT32_MAX ? exec_p0_temp : system_temp_ps_pc_p0_a0_);
+      ++stat_.instruction_count;
+      ++stat_.dynamic_flow_control_count;
+      if (exec_p0_temp != UINT32_MAX) {
+        PopSystemTemp();
+      }
+    }
+    // Update instruction-level predication to the one needed by this tfetch.
+    UpdateInstructionPredication(instr.is_predicated,
+                                 instr.predicate_condition);
+  }
+
   if (store_result) {
     StoreResult(instr.result, system_temp_pv_, replicate_result);
   }
@@ -9408,10 +9490,10 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
 
 void DxbcShaderTranslator::ProcessVectorAluInstruction(
     const ParsedAluInstruction& instr) {
-  CheckPredicate(instr.is_predicated, instr.predicate_condition);
+  UpdateInstructionPredication(instr.is_predicated, instr.predicate_condition);
   // Whether the instruction has changed the predicate and it needs to be
-  // checked again.
-  bool close_predicate = false;
+  // checked again later.
+  bool predicate_written = false;
 
   // Whether the result is only in X and all components should be remapped to X
   // while storing.
@@ -10237,7 +10319,7 @@ void DxbcShaderTranslator::ProcessVectorAluInstruction(
     case AluVectorOpcode::kSetpNePush:
     case AluVectorOpcode::kSetpGtPush:
     case AluVectorOpcode::kSetpGePush:
-      close_predicate = true;
+      predicate_written = true;
       replicate_result = true;
       // pv.xy = (src0.x == 0.0, src0.w == 0.0)
       shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_EQ) |
@@ -10631,17 +10713,18 @@ void DxbcShaderTranslator::ProcessVectorAluInstruction(
 
   StoreResult(instr.result, system_temp_pv_, replicate_result);
 
-  if (close_predicate) {
-    ClosePredicate();
+  if (predicate_written) {
+    cf_exec_predicate_written_ = true;
+    CloseInstructionPredication();
   }
 }
 
 void DxbcShaderTranslator::ProcessScalarAluInstruction(
     const ParsedAluInstruction& instr) {
-  CheckPredicate(instr.is_predicated, instr.predicate_condition);
+  UpdateInstructionPredication(instr.is_predicated, instr.predicate_condition);
   // Whether the instruction has changed the predicate and it needs to be
-  // checked again.
-  bool close_predicate = false;
+  // checked again later.
+  bool predicate_written = false;
 
   DxbcSourceOperand dxbc_operands[3];
   uint32_t operand_lengths[3];
@@ -11328,7 +11411,7 @@ void DxbcShaderTranslator::ProcessScalarAluInstruction(
     case AluScalarOpcode::kSetpNe:
     case AluScalarOpcode::kSetpGt:
     case AluScalarOpcode::kSetpGe:
-      close_predicate = true;
+      predicate_written = true;
       // Set p0 to whether the comparison with zero passes.
       shader_code_.push_back(
           ENCODE_D3D10_SB_OPCODE_TYPE(
@@ -11369,7 +11452,7 @@ void DxbcShaderTranslator::ProcessScalarAluInstruction(
       break;
 
     case AluScalarOpcode::kSetpInv:
-      close_predicate = true;
+      predicate_written = true;
       // Compare src0 to 0.0 (taking denormals into account, for instance) to
       // know what to set ps to in case src0 is not 1.0.
       shader_code_.push_back(
@@ -11434,7 +11517,7 @@ void DxbcShaderTranslator::ProcessScalarAluInstruction(
       break;
 
     case AluScalarOpcode::kSetpPop:
-      close_predicate = true;
+      predicate_written = true;
       // ps = src0 - 1.0
       shader_code_.push_back(
           ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ADD) |
@@ -11480,7 +11563,7 @@ void DxbcShaderTranslator::ProcessScalarAluInstruction(
       break;
 
     case AluScalarOpcode::kSetpClr:
-      close_predicate = true;
+      predicate_written = true;
       // ps = FLT_MAX
       shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
                              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
@@ -11506,7 +11589,7 @@ void DxbcShaderTranslator::ProcessScalarAluInstruction(
       break;
 
     case AluScalarOpcode::kSetpRstr:
-      close_predicate = true;
+      predicate_written = true;
       // Copy src0 to ps.
       shader_code_.push_back(
           ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
@@ -11720,8 +11803,9 @@ void DxbcShaderTranslator::ProcessScalarAluInstruction(
 
   StoreResult(instr.result, system_temp_ps_pc_p0_a0_, true);
 
-  if (close_predicate) {
-    ClosePredicate();
+  if (predicate_written) {
+    cf_exec_predicate_written_ = true;
+    CloseInstructionPredication();
   }
 }
 
