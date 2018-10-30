@@ -849,29 +849,40 @@ class DxbcShaderTranslator : public ShaderTranslator {
 
   // The nesting of `if` instructions is the following:
   // - pc checks (labels).
-  // - Bool constant checks (can only be done by exec).
-  // - Predicate checks (can be done both by exec and by instructions).
-  // It's probably fine to place instruction predicate checks and exec predicate
-  // on the same level rather than creating another level for instruction-level
-  // predicates, because (at least in Halo 3), in a `(p0) exec`, all
-  // instructions are `(p0)`, and `setp` isn't invoked in `(p0) exec`. Another
-  // possible constraint making things easier is labels not appearing within
-  // execs - so a label doesn't have to recheck the exec's condition.
-  // TODO(Triang3l): Check if these control flow constrains are true for all
-  // games.
+  // - exec predicate/bool constant check.
+  // - Instruction-level predicate checks.
+  // As an optimization, where possible, the DXBC translator tries to merge
+  // multiple execs into one, not creating endif/if doing nothing, if the
+  // execution condition is the same. This can't be done across labels
+  // (obviously) and in case `setp` is done in a predicated exec - in this case,
+  // the predicate value in the current exec may not match the predicate value
+  // in the next exec.
+  // Instruction-level predicate checks are also merged, and until a `setp` is
+  // done, if the instruction has the same predicate condition as the exec it is
+  // in, no instruction-level predicate `if` is created as well. One exception
+  // to the usual way of instruction-level predicate handling is made for
+  // instructions involving derivative computation, such as texture fetches with
+  // computed LOD. The part involving derivatives is executed disregarding the
+  // predication, but the result storing is predicated (this is handled in
+  // texture fetch instruction implementation):
+  // https://docs.microsoft.com/en-us/windows/desktop/direct3dhlsl/dx9-graphics-reference-asm-ps-registers-output-color
 
-  // Closes the current predicate `if` (but doesn't reset the current exec's
-  // predicate).
-  void ClosePredicate();
-  // Updates the current predicate, placing if/endif when needed. This MUST be
-  // called before emitting any instructions within an exec because the exec
-  // implementation here doesn't place if/endif, only defers updating the
-  // predicate.
-  void CheckPredicate(bool instruction_predicated,
-                      bool instruction_predicate_condition);
-  // Opens or closes the `if` checking the value of a bool constant - call with
-  // kCfExecBoolConstantNone to force close.
-  void SetExecBoolConstant(uint32_t index, bool condition);
+  // Updates the current flow control condition (to be called in the beginning
+  // of exec and in jumps), closing the previous conditionals if needed.
+  // However, if the condition is not different, the instruction-level predicate
+  // `if` also won't be closed - this must be checked separately if needed (for
+  // example, in jumps).
+  void UpdateExecConditionals(ParsedExecInstruction::Type type,
+                              uint32_t bool_constant_index, bool condition);
+  // Closes `if`s opened by exec and instructions within them (but not by
+  // labels) and updates the state accordingly.
+  void CloseExecConditionals();
+  // Opens or reopens the predicate check conditional for the instruction.
+  void UpdateInstructionPredication(bool predicated, bool condition);
+  // Closes the instruction-level predicate `if` if it's open, useful if a flow
+  // control instruction needs to do some code which needs to respect the exec's
+  // conditional, but can't itself be predicated.
+  void CloseInstructionPredication();
   void JumpToLabel(uint32_t address);
 
   // Emits copde for endian swapping of the data located in pv.
@@ -1030,19 +1041,29 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // for accuracy.
   uint32_t system_temp_depth_;
 
-  // Whether a predicate `if` is open.
-  bool cf_currently_predicated_;
-  // Currently expected predicate value.
-  bool cf_current_predicate_condition_;
-  // Whether the current `exec` is predicated.
-  bool cf_exec_predicated_;
-  // Predicate condition in the current `exec`.
-  bool cf_exec_predicate_condition_;
-  // The bool constant number containing the condition for the current `exec`.
+  // The bool constant number containing the condition for the currently
+  // processed exec (or the last - unless a label has reset this), or
+  // kCfExecBoolConstantNone if it's not checked.
   uint32_t cf_exec_bool_constant_;
   static constexpr uint32_t kCfExecBoolConstantNone = UINT32_MAX;
-  // The expected value in the current conditional exec.
+  // The expected bool constant value in the current exec if
+  // cf_exec_bool_constant_ is not kCfExecBoolConstantNone.
   bool cf_exec_bool_constant_condition_;
+  // Whether the currently processed exec is executed if a predicate is
+  // set/unset.
+  bool cf_exec_predicated_;
+  // The expected predicated condition if cf_exec_predicated_ is true.
+  bool cf_exec_predicate_condition_;
+  // Whether an `if` for instruction-level predicate check is currently open.
+  bool cf_instruction_predicate_if_open_;
+  // The expected predicate condition for the current or the last instruction if
+  // cf_exec_instruction_predicated_ is true.
+  bool cf_instruction_predicate_condition_;
+  // Whether there was a `setp` in the current exec before the current
+  // instruction, thus instruction-level predicate value can be different than
+  // the exec-level predicate value, and can't merge two execs with the same
+  // predicate condition anymore.
+  bool cf_exec_predicate_written_;
 
   bool writes_depth_;
 
