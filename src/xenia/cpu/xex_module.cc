@@ -754,7 +754,7 @@ int XexModule::ReadImageBasicCompressed(const void* xex_addr,
     xex2_page_descriptor desc;
     desc.value = xe::byte_swap(xex_security_info()->page_descriptors[i].value);
 
-    total_size += desc.size * heap->page_size();
+    total_size += desc.page_count * heap->page_size();
   }
 
   // Allocate in-place the XEX memory.
@@ -1108,13 +1108,13 @@ bool XexModule::LoadContinue() {
     desc.value = xe::byte_swap(sec_header->page_descriptors[i].value);
 
     const auto start_address = base_address_ + (page * page_size);
-    const auto end_address = start_address + (desc.size * page_size);
+    const auto end_address = start_address + (desc.page_count * page_size);
     if (desc.info == XEX_SECTION_CODE) {
       low_address_ = std::min(low_address_, start_address);
       high_address_ = std::max(high_address_, end_address);
     }
 
-    page += desc.size;
+    page += desc.page_count;
   }
 
   // Notify backend that we have an executable range.
@@ -1180,7 +1180,7 @@ bool XexModule::LoadContinue() {
     desc.value = xe::byte_swap(sec_header->page_descriptors[i].value);
 
     auto address = base_address_ + (page * page_size);
-    auto size = desc.size * page_size;
+    auto size = desc.page_count * page_size;
     switch (desc.info) {
       case XEX_SECTION_CODE:
       case XEX_SECTION_READONLY_DATA:
@@ -1191,7 +1191,7 @@ bool XexModule::LoadContinue() {
         break;
     }
 
-    page += desc.size;
+    page += desc.page_count;
   }
 
   return true;
@@ -1576,12 +1576,14 @@ bool XexModule::FindSaveRest() {
   auto page_size = base_address_ <= 0x90000000 ? 64 * 1024 : 4 * 1024;
   auto sec_header = xex_security_info();
   for (uint32_t i = 0, page = 0; i < sec_header->page_descriptor_count; i++) {
-    const xex2_page_descriptor* section =
-        &xex_security_info()->page_descriptors[i];
-    const auto start_address = base_address_ + (page * page_size);
-    const auto end_address = start_address + (section->size * page_size);
+    // Byteswap the bitfield manually.
+    xex2_page_descriptor desc;
+    desc.value = xe::byte_swap(sec_header->page_descriptors[i].value);
 
-    if (section->info == XEX_SECTION_CODE) {
+    const auto start_address = base_address_ + (page * page_size);
+    const auto end_address = start_address + (desc.page_count * page_size);
+
+    if (desc.info == XEX_SECTION_CODE) {
       if (!gplr_start) {
         gplr_start = memory_->SearchAligned(start_address, end_address,
                                             gprlr_code_values,
@@ -1602,7 +1604,7 @@ bool XexModule::FindSaveRest() {
       }
     }
 
-    page += section->size;
+    page += desc.page_count;
   }
 
   // Add function stubs.

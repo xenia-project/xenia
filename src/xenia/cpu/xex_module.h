@@ -67,7 +67,7 @@ class XexModule : public xe::cpu::Module {
       desc.value =
           xe::byte_swap(xex_security_info()->page_descriptors[i].value);
 
-      total_size += desc.size * heap->page_size();
+      total_size += desc.page_count * heap->page_size();
     }
     return total_size;
   }
