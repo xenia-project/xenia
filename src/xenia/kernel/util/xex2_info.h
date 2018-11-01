@@ -514,8 +514,8 @@ struct xex2_header {
 struct xex2_page_descriptor {
   union {
     struct {
-      uint32_t info : 4;
-      uint32_t size : 28;
+      xex2_section_type info : 4;
+      uint32_t page_count : 28;
     };
     xe::be<uint32_t> value;  // 0x0
   };
