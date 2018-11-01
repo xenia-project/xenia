@@ -1444,6 +1444,10 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
     command_list->RSSetScissorRects(1, &scissor);
     command_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     command_list->DrawInstanced(3, 1, 0, 0);
+    if (command_processor_->IsROVUsedForEDRAM()) {
+      // Clean up - the ROV path doesn't need render targets bound.
+      command_list->OMSetRenderTargets(0, nullptr, FALSE, nullptr);
+    }
 
     // Copy the resolve target to the buffer.
 
