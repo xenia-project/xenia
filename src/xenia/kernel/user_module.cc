@@ -19,6 +19,7 @@
 #include "xenia/emulator.h"
 #include "xenia/kernel/xfile.h"
 #include "xenia/kernel/xthread.h"
+#include "xenia/vfs/devices/stfs_container_device.h"
 
 namespace xe {
 namespace kernel {
@@ -49,9 +50,11 @@ uint32_t UserModule::title_id() const {
 X_STATUS UserModule::LoadFromFile(std::string path) {
   X_STATUS result = X_STATUS_UNSUCCESSFUL;
 
+  auto file_system = kernel_state()->file_system();
+
   // Resolve the file to open.
   // TODO(benvanik): make this code shared?
-  auto fs_entry = kernel_state()->file_system()->ResolvePath(path);
+  auto fs_entry = file_system->ResolvePath(path);
   if (!fs_entry) {
     XELOGE("File not found: %s", path.c_str());
     return X_STATUS_NO_SUCH_FILE;
@@ -100,8 +103,46 @@ X_STATUS UserModule::LoadFromFile(std::string path) {
     return result;
   }
 
-  // Search for xexp patch file
-  auto patch_entry = kernel_state()->file_system()->ResolvePath(path_ + "p");
+  auto module_path = fs_entry->path();
+
+  auto content_manager = kernel_state()->content_manager();
+
+  if (!file_system->IsSymbolicLink("update:")) {
+    // update:\\ path isn't symlinked, try searching for an update package
+
+    xex2_opt_execution_info* exec_info = 0;
+    xex_module()->GetOptHeader(XEX_HEADER_EXECUTION_INFO, &exec_info);
+
+    if (exec_info) {
+      content_manager->SetTitleIdOverride(exec_info->title_id);
+
+      auto update_packages = content_manager->ListContent(
+          0, (uint32_t)vfs::StfsContentType::kInstaller);
+
+      for (auto& update : update_packages) {
+        auto result = content_manager->OpenContent("update", update);
+
+        if (!file_system->ResolvePath("update:\\" + module_path + "p")) {
+          // XEXP/DLLP doesn't exist in this package, lets just close it
+          content_manager->CloseContent("update");
+          continue;
+        } else {
+          // XEXP/DLLP found, break out of package loop
+          // TODO: verify XEXP/DLLP works first?
+          break;
+        }
+      }
+    }
+  }
+
+  // Unset content_manager title ID override
+  content_manager->SetTitleIdOverride(0);
+
+  // First try checking update:\ root for patch, otherwise try same path as XEX
+  auto patch_entry = file_system->ResolvePath("update:\\" + module_path + "p");
+  if (!patch_entry) {
+    patch_entry = file_system->ResolvePath(path_ + "p");
+  }
 
   if (patch_entry) {
     auto patch_path = patch_entry->absolute_path();
