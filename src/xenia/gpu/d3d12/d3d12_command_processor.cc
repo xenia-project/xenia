@@ -1027,6 +1027,8 @@ void D3D12CommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
       graphics_system->StretchTextureToFrontBuffer(
           descriptor_gpu_start, &gamma_ramp_gpu_handle,
           use_pwl_gamma_ramp ? (1.0f / 128.0f) : (1.0f / 256.0f), command_list);
+      // Ending the current frame's command list anyway, so no need to unbind
+      // the render targets when using ROV.
 
       PushTransitionBarrier(swap_texture_, D3D12_RESOURCE_STATE_RENDER_TARGET,
                             D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
