@@ -84,8 +84,8 @@ bool PrimitiveConverter::Initialize() {
   uint16_t* static_ib_data_triangle_fan =
       &static_ib_data[kStaticIBTriangleFanOffset];
   for (uint32_t i = 2; i < kMaxNonIndexedVertices; ++i) {
-    *(static_ib_data_triangle_fan++) = i;
     *(static_ib_data_triangle_fan++) = i - 1;
+    *(static_ib_data_triangle_fan++) = i;
     *(static_ib_data_triangle_fan++) = 0;
   }
   static_ib_upload_->Unmap(0, nullptr);
@@ -445,8 +445,8 @@ PrimitiveConverter::ConversionResult PrimitiveConverter::ConvertPrimitives(
             current_fan_first_index = index;
           }
           if (++current_fan_index_count >= 3) {
-            *(target_32++) = index;
             *(target_32++) = source_32[i - 1];
+            *(target_32++) = index;
             *(target_32++) = current_fan_first_index;
           }
         }
@@ -462,8 +462,8 @@ PrimitiveConverter::ConversionResult PrimitiveConverter::ConvertPrimitives(
             current_fan_first_index = index;
           }
           if (++current_fan_index_count >= 3) {
-            *(target_16++) = index;
             *(target_16++) = source_16[i - 1];
+            *(target_16++) = index;
             *(target_16++) = uint16_t(current_fan_first_index);
           }
         }
@@ -472,15 +472,15 @@ PrimitiveConverter::ConversionResult PrimitiveConverter::ConvertPrimitives(
       if (index_format == IndexFormat::kInt32) {
         uint32_t* target_32 = reinterpret_cast<uint32_t*>(target);
         for (uint32_t i = 2; i < index_count; ++i) {
-          *(target_32++) = source_32[i];
           *(target_32++) = source_32[i - 1];
+          *(target_32++) = source_32[i];
           *(target_32++) = source_32[0];
         }
       } else {
         uint16_t* target_16 = reinterpret_cast<uint16_t*>(target);
         for (uint32_t i = 2; i < index_count; ++i) {
-          *(target_16++) = source_16[i];
           *(target_16++) = source_16[i - 1];
+          *(target_16++) = source_16[i];
           *(target_16++) = source_16[0];
         }
       }
