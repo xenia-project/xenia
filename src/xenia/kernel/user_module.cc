@@ -679,12 +679,13 @@ void UserModule::Dump() {
     const uint32_t page_size =
         xex_module()->base_address() < 0x90000000 ? 64 * 1024 : 4 * 1024;
     uint32_t start_address = xex_module()->base_address() + (page * page_size);
-    uint32_t end_address = start_address + (page_descriptor.size * page_size);
+    uint32_t end_address =
+        start_address + (page_descriptor.page_count * page_size);
 
     sb.AppendFormat("  %3u %s %3u pages    %.8X - %.8X (%d bytes)\n", page,
-                    type, page_descriptor.size, start_address, end_address,
-                    page_descriptor.size * page_size);
-    page += page_descriptor.size;
+                    type, page_descriptor.page_count, start_address,
+                    end_address, page_descriptor.page_count * page_size);
+    page += page_descriptor.page_count;
   }
 
   // Print out imports.
