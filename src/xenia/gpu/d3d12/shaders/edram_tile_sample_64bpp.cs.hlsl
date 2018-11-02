@@ -26,8 +26,8 @@ void main(uint3 xe_group_id : SV_GroupID,
       uint2(uint2(10u, 8u) <= xe_group_thread_id.xy) * sample_info.xy;
   uint edram_offset = XeEDRAMOffset64bpp(
       (xe_group_id.xy << sample_info.xy) + edram_tile_quarter,
-      (xe_group_thread_id.xy - edram_tile_quarter * uint2(10u, 8u)) <<
-      (sample_info.xy + uint2(2u, 0u)) + sample_info.zw);
+      ((xe_group_thread_id.xy - edram_tile_quarter * uint2(10u, 8u)) <<
+       (sample_info.xy + uint2(2u, 0u))) + sample_info.zw);
   // Loaded with the first 2 pixels at 1x and 2x, or the first 1 pixel at 4x.
   uint4 pixels_01 = xe_edram_load_store_source.Load4(edram_offset);
   // Loaded with the second 2 pixels at 1x and 2x, or the second 1 pixel at 4x.
