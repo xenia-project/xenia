@@ -100,8 +100,8 @@ class ContentManager {
   xe::global_critical_region global_critical_region_;
   std::unordered_map<std::string, ContentPackage*> open_packages_;
 
-  uint32_t title_id_override_;  // can be used for games/apps that request
-                                // content for other IDs
+  uint32_t title_id_override_ =
+      0;  // can be used for games/apps that request content for other IDs
 };
 
 }  // namespace xam

@@ -40,7 +40,8 @@ ContentPackage::ContentPackage(KernelState* kernel_state, std::string root_name,
 
   // If this isn't a folder try mounting as STFS package
   // Otherwise mount as a local host path
-  if (!filesystem::IsFolder(package_path)) {
+  if (filesystem::PathExists(package_path) &&
+      !filesystem::IsFolder(package_path)) {
     device =
         std::make_unique<vfs::StfsContainerDevice>(device_path_, package_path);
   } else {
@@ -95,6 +96,13 @@ std::wstring ContentManager::ResolvePackagePath(const XCONTENT_DATA& data) {
   auto package_root = ResolvePackageRoot(data.content_type);
   auto package_path =
       xe::join_paths(package_root, xe::to_wstring(data.file_name));
+
+  // Add slash to end of path if this is a folder
+  // (or package doesn't exist, meaning we're creating a new folder)
+  if (!xe::filesystem::PathExists(package_path) ||
+      xe::filesystem::IsFolder(package_path)) {
+    package_path += xe::kPathSeparator;
+  }
   return package_path;
 }
 
