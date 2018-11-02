@@ -67,8 +67,8 @@ ishl r3.zw, vThreadGroupID.xxxy, r2.xxxy
 imad r1.yz, r1.yyzy, r2.xxyx, r3.zzwz
 imad r3.xy, -r3.xyxx, l(10, 8, 0, 0), vThreadIDInGroup.xyxx
 iadd r3.zw, r2.xxxy, l(0, 0, 2, 0)
-iadd r2.yz, r2.zzwz, r3.zzwz
-ishl r2.yz, r3.xxyx, r2.yyzy
+ishl r3.xy, r3.xyxx, r3.zwzz
+iadd r2.yz, r2.zzwz, r3.xxyx
 and r0.w, CB0[0][1].x, l(2047)
 ushr r1.w, CB0[0][1].x, l(12)
 imad r0.w, r1.z, r1.w, r0.w

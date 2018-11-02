@@ -67,8 +67,8 @@ ishl r3.zw, vThreadGroupID.xxxy, r2.xxxy
 imad r1.yz, r1.yyzy, r2.xxyx, r3.zzwz
 imad r3.xy, -r3.xyxx, l(10, 8, 0, 0), vThreadIDInGroup.xyxx
 iadd r3.zw, r2.xxxy, l(0, 0, 2, 0)
-iadd r2.yz, r2.zzwz, r3.zzwz
-ishl r2.yz, r3.xxyx, r2.yyzy
+ishl r3.xy, r3.xyxx, r3.zwzz
+iadd r2.yz, r2.zzwz, r3.xxyx
 and r3.xy, CB0[0][1].xxxx, l(2048, 2047, 0, 0)
 if_nz r3.x
   ult r0.w, r2.y, l(40)
@@ -87,9 +87,10 @@ ishl r1.y, r2.y, l(2)
 iadd r0.w, r0.w, r1.y
 ld_raw r3.xyzw, r0.w, T0[0].xyzw
 if_nz r2.x
-  iadd r1.yz, r0.wwww, l(0, 16, 24, 0)
-  ld_raw r2.y, r1.y, T0[0].xxxx
-  ld_raw r2.z, r1.z, T0[0].xxxx
+  iadd r0.w, r0.w, l(16)
+  ld_raw r2.y, r0.w, T0[0].xxxx
+  iadd r0.w, r0.w, l(8)
+  ld_raw r2.z, r0.w, T0[0].xxxx
   mov r2.x, r3.z
   mov r3.yzw, r2.xxyz
 endif 
@@ -171,4 +172,4 @@ if_nz r0.x
   endif 
 endif 
 ret 
-// Approximately 127 instruction slots used
+// Approximately 128 instruction slots used
