@@ -1541,7 +1541,8 @@ bool RenderTargetCache::ResolveClear(uint32_t edram_base,
                                  (clear_rect.bottom << (16 + samples_y_log2));
   root_constants.base_depth_pitch =
       edram_base | (is_depth ? (1 << 11) : 0) | (surface_pitch_tiles << 12);
-  if (is_depth &&
+  // When ROV is used, there's no 32-bit depth buffer.
+  if (!command_processor_->IsROVUsedForEDRAM() && is_depth &&
       DepthRenderTargetFormat(format) == DepthRenderTargetFormat::kD24FS8) {
     root_constants.clear_depth24 = regs[XE_GPU_REG_RB_DEPTH_CLEAR].u32;
     // 20e4 [0,2), based on CFloat24 from d3dref9.dll and on 6e4 in DirectXTex.
