@@ -10,6 +10,7 @@
 #ifndef XENIA_VFS_DEVICES_STFS_CONTAINER_DEVICE_H_
 #define XENIA_VFS_DEVICES_STFS_CONTAINER_DEVICE_H_
 
+#include <map>
 #include <memory>
 #include <string>
 
@@ -156,7 +157,7 @@ class StfsContainerDevice : public Device {
   Entry* ResolvePath(std::string path) override;
 
   uint32_t total_allocation_units() const override {
-    return uint32_t(mmap_->size() / sectors_per_allocation_unit() /
+    return uint32_t(mmap_total_size_ / sectors_per_allocation_unit() /
                     bytes_per_sector());
   }
   uint32_t available_allocation_units() const override { return 0; }
@@ -180,20 +181,26 @@ class StfsContainerDevice : public Device {
   const uint32_t kSTFSHashSpacing = 170;
   const uint32_t kSVODHashSpacing = 204;
 
+  const char* ReadMagic(const std::wstring& path);
+  bool ResolveFromFolder(const std::wstring& path);
+
   Error ReadHeaderAndVerify(const uint8_t* map_ptr);
-  Error ReadAllEntriesEGDF(const uint8_t* map_ptr);
-  bool ReadEntryEGDF(const uint8_t* buffer, uint16_t entry_ordinal,
+  Error ReadAllEntriesSVOD();
+  bool ReadEntrySVOD(uint32_t sector, uint32_t ordinal,
                      StfsContainerEntry* parent);
 
   Error ReadAllEntriesSTFS(const uint8_t* map_ptr);
   size_t BlockToOffsetSTFS(uint64_t block);
-  size_t BlockToOffsetEGDF(uint64_t block);
+  void BlockToOffsetSVOD(size_t sector, size_t* address, size_t* file_index);
 
   BlockHash GetBlockHash(const uint8_t* map_ptr, uint32_t block_index,
                          uint32_t table_offset);
 
   std::wstring local_path_;
-  std::unique_ptr<MappedMemory> mmap_;
+  std::map<size_t, std::unique_ptr<MappedMemory>> mmap_;
+  size_t mmap_total_size_;
+
+  size_t base_address_;
 
   std::unique_ptr<Entry> root_entry_;
   StfsPackageType package_type_;
