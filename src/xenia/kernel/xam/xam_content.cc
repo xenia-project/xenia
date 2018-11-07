@@ -158,7 +158,7 @@ SHIM_CALL XamContentResolve_shim(PPCContext* ppc_context,
 dword_result_t XamContentCreateEnumerator(dword_t user_index, dword_t device_id,
                                           dword_t content_type,
                                           dword_t content_flags,
-                                          dword_t max_count,
+                                          dword_t items_per_enumerate,
                                           lpdword_t buffer_size_ptr,
                                           lpdword_t handle_out) {
   assert_not_null(handle_out);
@@ -173,11 +173,11 @@ dword_result_t XamContentCreateEnumerator(dword_t user_index, dword_t device_id,
   }
 
   if (buffer_size_ptr) {
-    *buffer_size_ptr = (uint32_t)XCONTENT_DATA::kSize * max_count;
+    *buffer_size_ptr = (uint32_t)XCONTENT_DATA::kSize * items_per_enumerate;
   }
 
-  auto e =
-      new XStaticEnumerator(kernel_state(), max_count, XCONTENT_DATA::kSize);
+  auto e = new XStaticEnumerator(kernel_state(), items_per_enumerate,
+                                 XCONTENT_DATA::kSize);
   e->Initialize();
 
   // Get all content data.
@@ -187,13 +187,12 @@ dword_result_t XamContentCreateEnumerator(dword_t user_index, dword_t device_id,
       content_type);
   for (auto& content_data : content_datas) {
     auto ptr = e->AppendItem();
-    if (!ptr) {
-      // Too many items.
-      break;
-    }
-
+    assert_not_null(ptr);
     content_data.Write(ptr);
   }
+
+  XELOGD("XamContentCreateEnumerator: added %d items to enumerator",
+         e->item_count());
 
   *handle_out = e->handle();
   return X_ERROR_SUCCESS;
