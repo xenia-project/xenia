@@ -185,6 +185,7 @@ bool GetInfo(const std::wstring& path, FileInfo* out_info) {
     out_info->total_size =
         (data.nFileSizeHigh * (size_t(MAXDWORD) + 1)) + data.nFileSizeLow;
   }
+  out_info->path = xe::find_base_path(path);
   out_info->name = xe::find_name_from_path(path);
   out_info->create_timestamp = COMBINE_TIME(data.ftCreationTime);
   out_info->access_timestamp = COMBINE_TIME(data.ftLastAccessTime);
@@ -214,6 +215,7 @@ std::vector<FileInfo> ListFiles(const std::wstring& path) {
       info.total_size =
           (ffd.nFileSizeHigh * (size_t(MAXDWORD) + 1)) + ffd.nFileSizeLow;
     }
+    info.path = path;
     info.name = ffd.cFileName;
     info.create_timestamp = COMBINE_TIME(ffd.ftCreationTime);
     info.access_timestamp = COMBINE_TIME(ffd.ftLastAccessTime);
