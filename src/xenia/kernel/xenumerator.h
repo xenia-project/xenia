@@ -23,7 +23,7 @@ class XEnumerator : public XObject {
  public:
   static const Type kType = kTypeEnumerator;
 
-  XEnumerator(KernelState* kernel_state, size_t item_capacity,
+  XEnumerator(KernelState* kernel_state, size_t items_per_enumerate,
               size_t item_size);
   virtual ~XEnumerator();
 
@@ -34,30 +34,28 @@ class XEnumerator : public XObject {
   virtual bool WriteItem(uint8_t* buffer) = 0;
 
   size_t item_size() const { return item_size_; }
+  size_t items_per_enumerate() const { return items_per_enumerate_; }
   size_t current_item() const { return current_item_; }
 
  protected:
-  size_t item_capacity_ = 0;
+  size_t items_per_enumerate_ = 0;
   size_t item_size_ = 0;
   size_t current_item_ = 0;
 };
 
 class XStaticEnumerator : public XEnumerator {
  public:
-  XStaticEnumerator(KernelState* kernel_state, size_t item_capacity,
+  XStaticEnumerator(KernelState* kernel_state, size_t items_per_enumerate,
                     size_t item_size)
-      : XEnumerator(kernel_state, item_capacity, item_size), item_count_(0) {
-    buffer_.resize(item_capacity_ * item_size_);
-  }
+      : XEnumerator(kernel_state, items_per_enumerate, item_size),
+        item_count_(0) {}
 
   uint32_t item_count() const override { return item_count_; }
 
   uint8_t* AppendItem() {
-    if (item_count_ + 1 > item_capacity_) {
-      return nullptr;
-    }
-    auto ptr = const_cast<uint8_t*>(buffer_.data() + item_count_ * item_size_);
-    ++item_count_;
+    buffer_.resize(++item_count_ * item_size_);
+    auto ptr =
+        const_cast<uint8_t*>(buffer_.data() + (item_count_ - 1) * item_size_);
     return ptr;
   }
 
