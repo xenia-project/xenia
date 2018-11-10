@@ -27,7 +27,10 @@ StringBuffer::~StringBuffer() {
   buffer_ = nullptr;
 }
 
-void StringBuffer::Reset() { buffer_offset_ = 0; }
+void StringBuffer::Reset() {
+  buffer_offset_ = 0;
+  buffer_[0] = 0;
+}
 
 void StringBuffer::Grow(size_t additional_length) {
   if (buffer_offset_ + additional_length <= buffer_capacity_) {

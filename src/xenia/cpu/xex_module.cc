@@ -831,7 +831,6 @@ int XexModule::ReadImageCompressed(const void* xex_addr, size_t xex_length) {
   uint8_t* compress_buffer = NULL;
   const uint8_t* p = NULL;
   uint8_t* d = NULL;
-  uint32_t uncompressed_size = 0;
   sha1::SHA1 s;
 
   // Decrypt (if needed).
@@ -895,8 +894,6 @@ int XexModule::ReadImageCompressed(const void* xex_addr, size_t xex_length) {
       memcpy(d, p, chunk_size);
       p += chunk_size;
       d += chunk_size;
-
-      uncompressed_size += 0x8000;
     }
 
     p = pnext;
@@ -904,6 +901,8 @@ int XexModule::ReadImageCompressed(const void* xex_addr, size_t xex_length) {
   }
 
   if (!result_code) {
+    uint32_t uncompressed_size = image_size();
+
     // Allocate in-place the XEX memory.
     bool alloc_result =
         memory()
