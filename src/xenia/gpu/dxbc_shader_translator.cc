@@ -34,6 +34,9 @@ DEFINE_bool(dxbc_switch, true,
             "driver - on AMD, it's recommended to have this set to true, as "
             "Halo 3 appears to crash when if is used for flow control "
             "(possibly the shader compiler tries to flatten them).");
+DEFINE_bool(dxbc_source_map, false,
+            "Disassemble Xenos instructions as comments in the resulting DXBC "
+            "for debugging.");
 
 namespace xe {
 namespace gpu {
@@ -5638,6 +5641,42 @@ std::vector<uint8_t> DxbcShaderTranslator::CompleteTranslation() {
   return shader_object_bytes;
 }
 
+void DxbcShaderTranslator::EmitInstructionDisassembly() {
+  if (!FLAGS_dxbc_source_map) {
+    return;
+  }
+
+  const char* source = instruction_disassembly_buffer_.GetString();
+  uint32_t length = uint32_t(instruction_disassembly_buffer_.length());
+  // Trim leading spaces and trailing new line.
+  while (length != 0 && source[0] == ' ') {
+    ++source;
+    --length;
+  }
+  while (length != 0 && source[length - 1] == '\n') {
+    --length;
+  }
+  if (length == 0) {
+    return;
+  }
+
+  uint32_t length_dwords =
+      (length + 1 + (sizeof(uint32_t) - 1)) / sizeof(uint32_t);
+  shader_code_.push_back(
+      ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_CUSTOMDATA) |
+      ENCODE_D3D10_SB_CUSTOMDATA_CLASS(D3D10_SB_CUSTOMDATA_COMMENT));
+  shader_code_.push_back(2 + length_dwords);
+  size_t offset_dwords = shader_code_.size();
+  shader_code_.resize(offset_dwords + length_dwords);
+  char* target = reinterpret_cast<char*>(&shader_code_[offset_dwords]);
+  std::memcpy(target, source, length);
+  target[length] = '\0';
+  // Don't leave uninitialized data, and make sure multiple invocations of the
+  // translator for the same Xenos shader give the same DXBC.
+  std::memset(target + length + 1, 0xAB,
+              length_dwords * sizeof(uint32_t) - length - 1);
+}
+
 void DxbcShaderTranslator::LoadDxbcSourceOperand(
     const InstructionOperand& operand, DxbcSourceOperand& dxbc_operand) {
   // Initialize the values to their defaults.
@@ -6523,33 +6562,47 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
 
 void DxbcShaderTranslator::UpdateExecConditionals(
     ParsedExecInstruction::Type type, uint32_t bool_constant_index,
-    bool condition) {
+    bool condition, bool emit_disassembly) {
   // Check if we can merge the new exec with the previous one, or the jump with
   // the previous exec. The instruction-level predicate check is also merged in
   // this case.
+  bool merge = false;
   if (type == ParsedExecInstruction::Type::kConditional) {
     // Can merge conditional with conditional, as long as the bool constant and
     // the expected values are the same.
     if (cf_exec_bool_constant_ == bool_constant_index &&
         cf_exec_bool_constant_condition_ == condition) {
-      return;
+      merge = true;
     }
   } else if (type == ParsedExecInstruction::Type::kPredicated) {
     // Can merge predicated with predicated if the conditions are the same and
     // the previous exec hasn't modified the predicate register.
     if (!cf_exec_predicate_written_ && cf_exec_predicated_ &&
         cf_exec_predicate_condition_ == condition) {
-      return;
+      merge = true;
     }
   } else {
     // Can merge unconditional with unconditional.
     if (cf_exec_bool_constant_ == kCfExecBoolConstantNone &&
         !cf_exec_predicated_) {
-      return;
+      merge = true;
     }
   }
 
+  if (merge) {
+    // Emit the disassembly for the exec/jump merged with the previous one.
+    if (emit_disassembly) {
+      EmitInstructionDisassembly();
+    }
+    return;
+  }
+
   CloseExecConditionals();
+
+  // Emit the disassembly for the new exec/jump.
+  if (emit_disassembly) {
+    EmitInstructionDisassembly();
+  }
 
   D3D10_SB_INSTRUCTION_TEST_BOOLEAN test =
       condition ? D3D10_SB_INSTRUCTION_TEST_NONZERO
@@ -6625,15 +6678,25 @@ void DxbcShaderTranslator::CloseExecConditionals() {
 }
 
 void DxbcShaderTranslator::UpdateInstructionPredication(bool predicated,
-                                                        bool condition) {
+                                                        bool condition,
+                                                        bool emit_disassembly) {
   if (predicated) {
     if (cf_instruction_predicate_if_open_) {
       if (cf_instruction_predicate_condition_ == condition) {
         // Already in the needed instruction-level `if`.
+        if (emit_disassembly) {
+          EmitInstructionDisassembly();
+        }
         return;
       }
       CloseInstructionPredication();
     }
+
+    // Emit the disassembly before opening (or not opening) the new conditional.
+    if (emit_disassembly) {
+      EmitInstructionDisassembly();
+    }
+
     // If the instruction predicate condition is the same as the exec predicate
     // condition, no need to open a check. However, if there was a `setp` prior
     // to this instruction, the predicate value now may be different than it was
@@ -6659,6 +6722,9 @@ void DxbcShaderTranslator::UpdateInstructionPredication(bool predicated,
     cf_instruction_predicate_condition_ = condition;
   } else {
     CloseInstructionPredication();
+    if (emit_disassembly) {
+      EmitInstructionDisassembly();
+    }
   }
 }
 
@@ -7016,8 +7082,13 @@ void DxbcShaderTranslator::ProcessLabel(uint32_t cf_index) {
 
 void DxbcShaderTranslator::ProcessExecInstructionBegin(
     const ParsedExecInstruction& instr) {
-  UpdateExecConditionals(instr.type, instr.bool_constant_index,
-                         instr.condition);
+  if (FLAGS_dxbc_source_map) {
+    instruction_disassembly_buffer_.Reset();
+    instr.Disassemble(&instruction_disassembly_buffer_);
+    // Will be emitted by UpdateExecConditionals.
+  }
+  UpdateExecConditionals(instr.type, instr.bool_constant_index, instr.condition,
+                         true);
   // TODO(Triang3l): Find out what PredicateClean=false in exec actually means
   // (execs containing setp have PredicateClean=false, it possibly means that
   // the predicate is dirty after the exec).
@@ -7061,6 +7132,12 @@ void DxbcShaderTranslator::ProcessLoopStartInstruction(
 
   // Loop control is outside execs - actually close the last exec.
   CloseExecConditionals();
+
+  if (FLAGS_dxbc_source_map) {
+    instruction_disassembly_buffer_.Reset();
+    instr.Disassemble(&instruction_disassembly_buffer_);
+    EmitInstructionDisassembly();
+  }
 
   uint32_t loop_count_and_aL = PushSystemTemp();
 
@@ -7167,6 +7244,12 @@ void DxbcShaderTranslator::ProcessLoopEndInstruction(
 
   // Loop control is outside execs - actually close the last exec.
   CloseExecConditionals();
+
+  if (FLAGS_dxbc_source_map) {
+    instruction_disassembly_buffer_.Reset();
+    instr.Disassemble(&instruction_disassembly_buffer_);
+    EmitInstructionDisassembly();
+  }
 
   // Subtract 1 from the loop counter.
   shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IADD) |
@@ -7320,6 +7403,12 @@ void DxbcShaderTranslator::ProcessLoopEndInstruction(
 
 void DxbcShaderTranslator::ProcessJumpInstruction(
     const ParsedJumpInstruction& instr) {
+  if (FLAGS_dxbc_source_map) {
+    instruction_disassembly_buffer_.Reset();
+    instr.Disassemble(&instruction_disassembly_buffer_);
+    // Will be emitted by UpdateExecConditionals.
+  }
+
   // Treat like exec, merge with execs if possible, since it's an if too.
   ParsedExecInstruction::Type type;
   if (instr.type == ParsedJumpInstruction::Type::kConditional) {
@@ -7329,7 +7418,8 @@ void DxbcShaderTranslator::ProcessJumpInstruction(
   } else {
     type = ParsedExecInstruction::Type::kUnconditional;
   }
-  UpdateExecConditionals(type, instr.bool_constant_index, instr.condition);
+  UpdateExecConditionals(type, instr.bool_constant_index, instr.condition,
+                         true);
 
   // UpdateExecConditionals may not necessarily close the instruction-level
   // predicate check (it's not necessary if the execs are merged), but here the
@@ -7388,7 +7478,13 @@ void DxbcShaderTranslator::ProcessVertexFetchInstruction(
   }
   uint32_t result_write_mask = (1 << result_component_count) - 1;
 
-  UpdateInstructionPredication(instr.is_predicated, instr.predicate_condition);
+  if (FLAGS_dxbc_source_map) {
+    instruction_disassembly_buffer_.Reset();
+    instr.Disassemble(&instruction_disassembly_buffer_);
+    // Will be emitted by UpdateInstructionPredication.
+  }
+  UpdateInstructionPredication(instr.is_predicated, instr.predicate_condition,
+                               true);
 
   // Convert the index to an integer.
   DxbcSourceOperand index_operand;
@@ -8138,6 +8234,12 @@ void DxbcShaderTranslator::ArrayCoordToCubeDirection(uint32_t reg) {
 
 void DxbcShaderTranslator::ProcessTextureFetchInstruction(
     const ParsedTextureFetchInstruction& instr) {
+  if (FLAGS_dxbc_source_map) {
+    instruction_disassembly_buffer_.Reset();
+    instr.Disassemble(&instruction_disassembly_buffer_);
+    // Will be emitted later explicitly or by UpdateInstructionPredication.
+  }
+
   // Predication should not affect derivative calculation:
   // https://docs.microsoft.com/en-us/windows/desktop/direct3dhlsl/dx9-graphics-reference-asm-ps-registers-output-color
   // Do the part involving derivative calculation unconditionally, and re-enter
@@ -8154,6 +8256,9 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
   }
   uint32_t exec_p0_temp = UINT32_MAX;
   if (suppress_predication) {
+    // Emit the disassembly before all this to indicate the reason of going
+    // unconditional.
+    EmitInstructionDisassembly();
     // Close instruction-level predication.
     CloseInstructionPredication();
     // Temporarily close exec-level predication - will reopen at the end, so not
@@ -8198,8 +8303,8 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
       ++stat_.instruction_count;
     }
   } else {
-    UpdateInstructionPredication(instr.is_predicated,
-                                 instr.predicate_condition);
+    UpdateInstructionPredication(instr.is_predicated, instr.predicate_condition,
+                                 true);
   }
 
   bool store_result = false;
@@ -9479,8 +9584,8 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
       }
     }
     // Update instruction-level predication to the one needed by this tfetch.
-    UpdateInstructionPredication(instr.is_predicated,
-                                 instr.predicate_condition);
+    UpdateInstructionPredication(instr.is_predicated, instr.predicate_condition,
+                                 false);
   }
 
   if (store_result) {
@@ -9490,7 +9595,13 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
 
 void DxbcShaderTranslator::ProcessVectorAluInstruction(
     const ParsedAluInstruction& instr) {
-  UpdateInstructionPredication(instr.is_predicated, instr.predicate_condition);
+  if (FLAGS_dxbc_source_map) {
+    instruction_disassembly_buffer_.Reset();
+    instr.Disassemble(&instruction_disassembly_buffer_);
+    // Will be emitted by UpdateInstructionPredication.
+  }
+  UpdateInstructionPredication(instr.is_predicated, instr.predicate_condition,
+                               true);
   // Whether the instruction has changed the predicate and it needs to be
   // checked again later.
   bool predicate_written = false;
@@ -10721,7 +10832,13 @@ void DxbcShaderTranslator::ProcessVectorAluInstruction(
 
 void DxbcShaderTranslator::ProcessScalarAluInstruction(
     const ParsedAluInstruction& instr) {
-  UpdateInstructionPredication(instr.is_predicated, instr.predicate_condition);
+  if (FLAGS_dxbc_source_map) {
+    instruction_disassembly_buffer_.Reset();
+    instr.Disassemble(&instruction_disassembly_buffer_);
+    // Will be emitted by UpdateInstructionPredication.
+  }
+  UpdateInstructionPredication(instr.is_predicated, instr.predicate_condition,
+                               true);
   // Whether the instruction has changed the predicate and it needs to be
   // checked again later.
   bool predicate_written = false;
@@ -11830,6 +11947,8 @@ uint32_t DxbcShaderTranslator::AppendString(std::vector<uint32_t>& dest,
   size_t dest_position = dest.size();
   dest.resize(dest_position + size_aligned / sizeof(uint32_t));
   std::memcpy(&dest[dest_position], source, size);
+  // Don't leave uninitialized data, and make sure multiple invocations of the
+  // translator for the same Xenos shader give the same DXBC.
   std::memset(reinterpret_cast<uint8_t*>(&dest[dest_position]) + size, 0xAB,
               size_aligned - size);
   return uint32_t(size_aligned);
