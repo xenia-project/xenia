@@ -46,7 +46,9 @@ namespace d3d12 {
 #include "xenia/gpu/d3d12/shaders/dxbc/resolve_ps.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/resolve_vs.h"
 
+#if 0
 constexpr uint32_t RenderTargetCache::kHeap4MBPages;
+#endif
 constexpr uint32_t RenderTargetCache::kRenderTargetDescriptorHeapSize;
 
 const RenderTargetCache::EDRAMLoadStoreModeInfo
@@ -325,12 +327,14 @@ void RenderTargetCache::ClearCache() {
     delete heap;
   }
 
+#if 0
   for (uint32_t i = 0; i < xe::countof(heaps_); ++i) {
     if (heaps_[i] != nullptr) {
       heaps_[i]->Release();
       heaps_[i] = nullptr;
     }
   }
+#endif
 }
 
 void RenderTargetCache::BeginFrame() {
@@ -613,7 +617,9 @@ bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
 
   // Need to change the bindings.
   if (full_update || render_targets_to_attach) {
+#if 0
     uint32_t heap_usage[5] = {};
+#endif
     if (full_update) {
       // Export the currently bound render targets before we ruin the bindings.
       StoreRenderTargetsToEDRAM();
@@ -631,6 +637,7 @@ bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
         }
       }
     } else {
+#if 0
       // If updating partially, only need to attach new render targets.
       for (uint32_t i = 0; i < 5; ++i) {
         const RenderTargetBinding& binding = current_bindings_[i];
@@ -642,9 +649,9 @@ bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
           // There are no holes between 4 MB pages in each heap.
           heap_usage[render_target->heap_page_first / kHeap4MBPages] +=
               render_target->heap_page_count;
-          continue;
         }
       }
+#endif
     }
     XELOGGPU("RT Cache: %s update - pitch %u, samples %u, RTs to attach %u",
              full_update ? "Full" : "Partial", surface_pitch, msaa_samples,
@@ -676,6 +683,7 @@ bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
         continue;
       }
 
+#if 0
       // Calculate the number of 4 MB pages of the heaps this RT will use.
       D3D12_RESOURCE_ALLOCATION_INFO allocation_info =
           device->GetResourceAllocationInfo(0, 1, &resource_desc);
@@ -710,6 +718,22 @@ bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
       // Inform Direct3D that we're reusing the heap for this render target.
       command_processor_->PushAliasingBarrier(nullptr,
                                               binding.render_target->resource);
+#else
+      // If multiple render targets have the same format, assign different
+      // instance numbers to them.
+      uint32_t instance = 0;
+      if (i != 4) {
+        for (uint32_t j = 0; j < i; ++j) {
+          const RenderTargetBinding& other_binding = current_bindings_[j];
+          if (other_binding.is_bound &&
+              other_binding.render_target != nullptr &&
+              other_binding.format == formats[i]) {
+            ++instance;
+          }
+        }
+      }
+      binding.render_target = FindOrCreateRenderTarget(key, instance);
+#endif
     }
 
     // Sample positions when loading depth must match sample positions when
@@ -1236,9 +1260,14 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
     uint32_t copy_width = copy_rect.right - copy_rect.left;
     uint32_t copy_height = copy_rect.bottom - copy_rect.top;
     // Resolve target for output merger format conversion.
+#if 0
     ResolveTarget* resolve_target =
         FindOrCreateResolveTarget(copy_width, copy_height, dest_dxgi_format,
                                   render_target->heap_page_count);
+#else
+    ResolveTarget* resolve_target =
+        FindOrCreateResolveTarget(copy_width, copy_height, dest_dxgi_format);
+#endif
     if (resolve_target == nullptr) {
       return false;
     }
@@ -1299,7 +1328,9 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
 
     // Copy the EDRAM buffer contents to the source texture.
 
+#if 0
     command_processor_->PushAliasingBarrier(nullptr, render_target->resource);
+#endif
     command_processor_->PushTransitionBarrier(copy_buffer, copy_buffer_state,
                                               D3D12_RESOURCE_STATE_COPY_SOURCE);
     copy_buffer_state = D3D12_RESOURCE_STATE_COPY_SOURCE;
@@ -1321,7 +1352,9 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
     // Do the resolve. Render targets unbound already, safe to call
     // OMSetRenderTargets.
 
+#if 0
     command_processor_->PushAliasingBarrier(nullptr, resolve_target->resource);
+#endif
     command_processor_->PushTransitionBarrier(
         render_target->resource, render_target->state,
         D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
@@ -1628,9 +1661,17 @@ ID3D12PipelineState* RenderTargetCache::GetResolvePipeline(
 }
 
 RenderTargetCache::ResolveTarget* RenderTargetCache::FindOrCreateResolveTarget(
+#if 0
     uint32_t width, uint32_t height, DXGI_FORMAT format,
     uint32_t min_heap_page_first) {
+#else
+    uint32_t width, uint32_t height, DXGI_FORMAT format
+#endif
+) {
+#if 0
   assert_true(min_heap_page_first < kHeap4MBPages * 5);
+#endif
+
   if (width == 0 || height == 0 || width > 8192 || height > 8192) {
     assert_always();
     return nullptr;
@@ -1641,6 +1682,7 @@ RenderTargetCache::ResolveTarget* RenderTargetCache::FindOrCreateResolveTarget(
   key.format = format;
 
   // Try to find an existing target that isn't overlapping the resolve source.
+#if 0
   auto found_range = resolve_targets_.equal_range(key.value);
   for (auto iter = found_range.first; iter != found_range.second; ++iter) {
     ResolveTarget* found_resolve_target = iter->second;
@@ -1648,6 +1690,12 @@ RenderTargetCache::ResolveTarget* RenderTargetCache::FindOrCreateResolveTarget(
       return found_resolve_target;
     }
   }
+#else
+  auto found_iter = resolve_targets_.find(key.value);
+  if (found_iter != resolve_targets_.end()) {
+    return found_iter->second;
+  }
+#endif
 
   // Ensure the new resolve target can get an RTV descriptor.
   if (!EnsureRTVHeapAvailable(false)) {
@@ -1669,6 +1717,8 @@ RenderTargetCache::ResolveTarget* RenderTargetCache::FindOrCreateResolveTarget(
   resource_desc.SampleDesc.Quality = 0;
   resource_desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
   resource_desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+
+#if 0
   D3D12_RESOURCE_ALLOCATION_INFO allocation_info =
       device->GetResourceAllocationInfo(0, 1, &resource_desc);
   uint32_t heap_page_count =
@@ -1687,17 +1737,18 @@ RenderTargetCache::ResolveTarget* RenderTargetCache::FindOrCreateResolveTarget(
     min_heap_page_first = xe::round_up(min_heap_page_first, kHeap4MBPages);
     assert_true(min_heap_page_first < kHeap4MBPages * 5);
   }
-
   // Create the memory heap if it doesn't exist yet.
   uint32_t heap_index = min_heap_page_first / kHeap4MBPages;
   if (!MakeHeapResident(heap_index)) {
     return nullptr;
   }
+#endif
 
   // Create it.
   // The first action likely to be done is resolve.
   D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_RENDER_TARGET;
   ID3D12Resource* resource;
+#if 0
   if (FAILED(device->CreatePlacedResource(
           heaps_[heap_index], (min_heap_page_first % kHeap4MBPages) << 22,
           &resource_desc, state, nullptr, IID_PPV_ARGS(&resource)))) {
@@ -1708,6 +1759,17 @@ RenderTargetCache::ResolveTarget* RenderTargetCache::FindOrCreateResolveTarget(
         min_heap_page_first, min_heap_page_first + heap_page_count - 1);
     return nullptr;
   }
+#else
+  if (FAILED(device->CreateCommittedResource(
+          &ui::d3d12::util::kHeapPropertiesDefault, D3D12_HEAP_FLAG_NONE,
+          &resource_desc, state, nullptr, IID_PPV_ARGS(&resource)))) {
+    XELOGE(
+        "Failed to create a committed resource for %ux%u resolve target with "
+        "DXGI format %u",
+        uint32_t(resource_desc.Width), resource_desc.Height, format);
+    return nullptr;
+  }
+#endif
 
   // Create the RTV.
   D3D12_CPU_DESCRIPTOR_HANDLE rtv_handle =
@@ -1727,7 +1789,9 @@ RenderTargetCache::ResolveTarget* RenderTargetCache::FindOrCreateResolveTarget(
   resolve_target->state = state;
   resolve_target->rtv_handle.ptr = rtv_handle.ptr;
   resolve_target->key.value = key.value;
+#if 0
   resolve_target->heap_page_first = min_heap_page_first;
+#endif
   UINT64 copy_buffer_size;
   device->GetCopyableFootprints(&resource_desc, 0, 1, 0,
                                 &resolve_target->footprint, nullptr, nullptr,
@@ -1835,6 +1899,7 @@ void RenderTargetCache::ClearBindings() {
   std::memset(current_bindings_, 0, sizeof(current_bindings_));
 }
 
+#if 0
 bool RenderTargetCache::MakeHeapResident(uint32_t heap_index) {
   if (heap_index >= 5) {
     assert_always();
@@ -1859,6 +1924,7 @@ bool RenderTargetCache::MakeHeapResident(uint32_t heap_index) {
   }
   return true;
 }
+#endif
 
 bool RenderTargetCache::EnsureRTVHeapAvailable(bool is_depth) {
   auto& heap = is_depth ? descriptor_heaps_depth_ : descriptor_heaps_color_;
@@ -1918,16 +1984,29 @@ bool RenderTargetCache::GetResourceDesc(RenderTargetKey key,
 }
 
 RenderTargetCache::RenderTarget* RenderTargetCache::FindOrCreateRenderTarget(
-    RenderTargetKey key, uint32_t heap_page_first) {
+#if 0
+    RenderTargetKey key, uint32_t heap_page_first
+#else
+    RenderTargetKey key, uint32_t instance
+#endif
+) {
+#if 0
   assert_true(heap_page_first < kHeap4MBPages * 5);
+#endif
 
   // Try to find an existing render target.
   auto found_range = render_targets_.equal_range(key.value);
   for (auto iter = found_range.first; iter != found_range.second; ++iter) {
     RenderTarget* found_render_target = iter->second;
+#if 0
     if (found_render_target->heap_page_first == heap_page_first) {
       return found_render_target;
     }
+#else
+    if (found_render_target->instance == instance) {
+      return found_render_target;
+    }
+#endif
   }
 
   D3D12_RESOURCE_DESC resource_desc;
@@ -1938,6 +2017,7 @@ RenderTargetCache::RenderTarget* RenderTargetCache::FindOrCreateRenderTarget(
   auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
   auto device = provider->GetDevice();
 
+#if 0
   // Get the number of heap pages needed for the render target.
   D3D12_RESOURCE_ALLOCATION_INFO allocation_info =
       device->GetResourceAllocationInfo(0, 1, &resource_desc);
@@ -1948,21 +2028,25 @@ RenderTargetCache::RenderTarget* RenderTargetCache::FindOrCreateRenderTarget(
     assert_always();
     return nullptr;
   }
+#endif
 
   // Ensure we can create a new descriptor in the render target heap.
   if (!EnsureRTVHeapAvailable(key.is_depth)) {
     return nullptr;
   }
 
+#if 0
   // Create the memory heap if it doesn't exist yet.
   uint32_t heap_index = heap_page_first / kHeap4MBPages;
   if (!MakeHeapResident(heap_index)) {
     return nullptr;
   }
+#endif
 
   // The first action likely to be done is EDRAM buffer load.
   D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_COPY_DEST;
   ID3D12Resource* resource;
+#if 0
   if (FAILED(device->CreatePlacedResource(
           heaps_[heap_index], (heap_page_first % kHeap4MBPages) << 22,
           &resource_desc, state, nullptr, IID_PPV_ARGS(&resource)))) {
@@ -1974,6 +2058,18 @@ RenderTargetCache::RenderTarget* RenderTargetCache::FindOrCreateRenderTarget(
         heap_page_first + heap_page_count - 1);
     return nullptr;
   }
+#else
+  if (FAILED(device->CreateCommittedResource(
+          &ui::d3d12::util::kHeapPropertiesDefault, D3D12_HEAP_FLAG_NONE,
+          &resource_desc, state, nullptr, IID_PPV_ARGS(&resource)))) {
+    XELOGE(
+        "Failed to create a committed resource for %ux%u %s render target with "
+        "format %u",
+        uint32_t(resource_desc.Width), resource_desc.Height,
+        key.is_depth ? "depth" : "color", key.format);
+    return nullptr;
+  }
+#endif
 
   // Create the descriptor for the render target.
   D3D12_CPU_DESCRIPTOR_HANDLE descriptor_handle;
@@ -2007,19 +2103,29 @@ RenderTargetCache::RenderTarget* RenderTargetCache::FindOrCreateRenderTarget(
   render_target->state = state;
   render_target->handle = descriptor_handle;
   render_target->key = key;
+#if 0
   render_target->heap_page_first = heap_page_first;
   render_target->heap_page_count = heap_page_count;
+#else
+  render_target->instance = instance;
+#endif
   UINT64 copy_buffer_size;
   device->GetCopyableFootprints(&resource_desc, 0, key.is_depth ? 2 : 1, 0,
                                 render_target->footprints, nullptr, nullptr,
                                 &copy_buffer_size);
   render_target->copy_buffer_size = uint32_t(copy_buffer_size);
   render_targets_.insert(std::make_pair(key.value, render_target));
+#if 0
   XELOGGPU(
       "Created %ux%u %s render target with format %u at heap 4 MB pages %u:%u",
       uint32_t(resource_desc.Width), resource_desc.Height,
       key.is_depth ? "depth" : "color", key.format, heap_page_first,
       heap_page_first + heap_page_count - 1);
+#else
+  XELOGGPU("Created %ux%u %s render target with format %u",
+           uint32_t(resource_desc.Width), resource_desc.Height,
+           key.is_depth ? "depth" : "color", key.format);
+#endif
   return render_target;
 }
 
