@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "xenia/base/math.h"
+#include "xenia/base/string_buffer.h"
 #include "xenia/gpu/shader_translator.h"
 
 namespace xe {
@@ -790,6 +791,10 @@ class DxbcShaderTranslator : public ShaderTranslator {
   void CompletePixelShader();
   void CompleteShaderCode();
 
+  // Writes the original instruction disassembly in the output DXBC if enabled,
+  // as shader messages, from instruction_disassembly_buffer_.
+  void EmitInstructionDisassembly();
+
   // Abstract 4-component vector source operand.
   struct DxbcSourceOperand {
     enum class Type {
@@ -871,14 +876,21 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // of exec and in jumps), closing the previous conditionals if needed.
   // However, if the condition is not different, the instruction-level predicate
   // `if` also won't be closed - this must be checked separately if needed (for
-  // example, in jumps).
+  // example, in jumps). If emit_disassembly is true, this function emits the
+  // last disassembly written to instruction_disassembly_buffer_ after closing
+  // the previous conditional and before opening a new one.
   void UpdateExecConditionals(ParsedExecInstruction::Type type,
-                              uint32_t bool_constant_index, bool condition);
+                              uint32_t bool_constant_index, bool condition,
+                              bool emit_disassembly);
   // Closes `if`s opened by exec and instructions within them (but not by
   // labels) and updates the state accordingly.
   void CloseExecConditionals();
-  // Opens or reopens the predicate check conditional for the instruction.
-  void UpdateInstructionPredication(bool predicated, bool condition);
+  // Opens or reopens the predicate check conditional for the instruction. If
+  // emit_disassembly is true, this function emits the last disassembly written
+  // to instruction_disassembly_buffer_ after closing the previous predicate
+  // conditional and before opening a new one.
+  void UpdateInstructionPredication(bool predicated, bool condition,
+                                    bool emit_disassembly);
   // Closes the instruction-level predicate `if` if it's open, useful if a flow
   // control instruction needs to do some code which needs to respect the exec's
   // conditional, but can't itself be predicated.
@@ -923,6 +935,9 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // Complete shader object, with all the needed chunks and dcl_ instructions -
   // generated in the end of translation.
   std::vector<uint32_t> shader_object_;
+
+  // Buffer for instruction disassembly comments.
+  StringBuffer instruction_disassembly_buffer_;
 
   // Whether the output merger should be emulated in pixel shaders.
   bool edram_rov_used_;
