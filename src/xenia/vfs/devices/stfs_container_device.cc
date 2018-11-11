@@ -572,11 +572,6 @@ bool StfsHeader::Read(const uint8_t* p) {
   header_size = xe::load_and_swap<uint32_t>(p + 0x340);
   content_type = (StfsContentType)xe::load_and_swap<uint32_t>(p + 0x344);
   metadata_version = xe::load_and_swap<uint32_t>(p + 0x348);
-  if (metadata_version > 1) {
-    // This is a variant of thumbnail data/etc.
-    // Can just ignore it for now (until we parse thumbnails).
-    XELOGW("STFSContainer doesn't support version %d yet", metadata_version);
-  }
   content_size = xe::load_and_swap<uint32_t>(p + 0x34C);
   media_id = xe::load_and_swap<uint32_t>(p + 0x354);
   version = xe::load_and_swap<uint32_t>(p + 0x358);
@@ -617,6 +612,20 @@ bool StfsHeader::Read(const uint8_t* p) {
   title_thumbnail_image_size = xe::load_and_swap<uint32_t>(p + 0x1716);
   std::memcpy(thumbnail_image, p + 0x171A, 0x4000);
   std::memcpy(title_thumbnail_image, p + 0x571A, 0x4000);
+
+  // Metadata v2 Fields
+  std::memcpy(series_id, p + 0x3B1, 0x10);
+  std::memcpy(season_id, p + 0x3C1, 0x10);
+  season_number = xe::load_and_swap<uint16_t>(p + 0x3D1);
+  episode_number = xe::load_and_swap<uint16_t>(p + 0x3D5);
+
+  for (size_t n = 0; n < 0x300 / 2; n++) {
+    additonal_display_names[n] =
+        xe::load_and_swap<uint16_t>(p + 0x541A + n * 2);
+    additional_display_descriptions[n] =
+        xe::load_and_swap<uint16_t>(p + 0x941A + n * 2);
+  }
+
   return true;
 }
 
