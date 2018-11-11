@@ -144,6 +144,14 @@ class StfsHeader {
   uint32_t title_thumbnail_image_size;
   uint8_t thumbnail_image[0x4000];
   uint8_t title_thumbnail_image[0x4000];
+
+  // Metadata v2 Fields
+  uint8_t series_id[0x10];
+  uint8_t season_id[0x10];
+  int16_t season_number;
+  int16_t episode_number;
+  wchar_t additonal_display_names[0x300 / 2];
+  wchar_t additional_display_descriptions[0x300 / 2];
 };
 
 class StfsContainerDevice : public Device {
