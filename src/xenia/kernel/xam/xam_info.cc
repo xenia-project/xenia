@@ -28,6 +28,29 @@ namespace xam {
 constexpr uint32_t X_LANGUAGE_ENGLISH = 1;
 constexpr uint32_t X_LANGUAGE_JAPANESE = 2;
 
+dword_result_t XamGetOnlineSchema() {
+  static uint32_t schema_guest = 0;
+  static uint32_t schema_ptr_guest = 0;
+
+  if (!schema_guest) {
+    // create a dummy schema, 8 bytes of 0 seems to work fine
+    // (with another 8 bytes for schema ptr/schema size)
+    schema_guest = kernel_state()->memory()->SystemHeapAlloc(16);
+    schema_ptr_guest = schema_guest + 8;
+
+    auto schema = kernel_state()->memory()->TranslateVirtual(schema_guest);
+    memset(schema, 0, 16);
+
+    // store schema ptr + size
+    xe::store_and_swap<uint32_t>(schema + 0x8, schema_guest);
+    xe::store_and_swap<uint32_t>(schema + 0xC, 0x8);
+  }
+
+  // return pointer to the schema ptr/schema size struct
+  return schema_ptr_guest;
+}
+DECLARE_XAM_EXPORT(XamGetOnlineSchema, ExportTag::kImplemented);
+
 void XamFormatDateString(dword_t unk, qword_t filetime, lpvoid_t buffer,
                          dword_t buffer_length) {
   std::memset(buffer, 0, buffer_length * 2);
