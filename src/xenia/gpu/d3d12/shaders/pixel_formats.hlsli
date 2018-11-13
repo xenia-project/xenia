@@ -1,6 +1,32 @@
 #ifndef XENIA_GPU_D3D12_SHADERS_PIXEL_FORMATS_HLSLI_
 #define XENIA_GPU_D3D12_SHADERS_PIXEL_FORMATS_HLSLI_
 
+// Assuming the original number has only 10 bits.
+uint4 XeSNorm10To16(uint4 s10) {
+  uint4 signs = s10 >> 9u;
+  // -512 and -511 are both -1.0, but with -512 the conversion will overflow.
+  s10 = s10 == 0x200u ? 0x201u : s10;
+  // Take the absolute value.
+  s10 = (s10 ^ (signs ? 0x3FFu : 0u)) + signs;
+  // Expand the 9-bit absolute value to 15 bits like unorm.
+  s10 = (s10 << 6u) | (s10 >> 3u);
+  // Apply the sign.
+  return (s10 ^ (signs ? 0xFFFFu : 0u)) + signs;
+}
+
+// Assuming the original number has only 11 bits.
+uint4 XeSNorm11To16(uint4 s11) {
+  uint4 signs = s11 >> 10u;
+  // -1024 and -1023 are both -1.0, but with -1024 the conversion will overflow.
+  s11 = s11 == 0x400u ? 0x401u : s11;
+  // Take the absolute value.
+  s11 = (s11 ^ (signs ? 0x7FFu : 0u)) + signs;
+  // Expand the 10-bit absolute value to 15 bits like unorm.
+  s11 = (s11 << 5u) | (s11 >> 5u);
+  // Apply the sign.
+  return (s11 ^ (signs ? 0xFFFFu : 0u)) + signs;
+}
+
 // https://github.com/Microsoft/DirectXTex/blob/master/DirectXTex/DirectXTexConvert.cpp
 
 uint XeFloat16To7e3(uint4 rgba_f16u32) {
