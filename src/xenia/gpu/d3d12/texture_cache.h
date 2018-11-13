@@ -147,6 +147,7 @@ class TextureCache {
     k32bpb,
     k64bpb,
     k128bpb,
+    kR11G11B10ToRGBA16,
     kDXT1ToRGBA8,
     kDXT3ToRGBA8,
     kDXT5ToRGBA8,
@@ -181,6 +182,7 @@ class TextureCache {
     // B5G5R5A1 and B4G4R4A4 are optional in DXGI for render targets, and aren't
     // supported on Nvidia.
     k16bppRGBA,
+    kR11G11B10AsRGBA16,
 
     kCount,
 
