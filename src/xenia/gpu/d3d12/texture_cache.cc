@@ -42,6 +42,8 @@ namespace d3d12 {
 #include "xenia/gpu/d3d12/shaders/dxbc/texture_load_dxt3a_cs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/texture_load_dxt5_rgba8_cs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/texture_load_dxt5a_r8_cs.h"
+#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_r10g11b11_rgba16_cs.h"
+#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_r10g11b11_rgba16_snorm_cs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/texture_load_r11g11b10_rgba16_cs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/texture_load_r11g11b10_rgba16_snorm_cs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/texture_tile_128bpp_cs.h"
@@ -50,6 +52,7 @@ namespace d3d12 {
 #include "xenia/gpu/d3d12/shaders/dxbc/texture_tile_32bpp_cs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/texture_tile_64bpp_cs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/texture_tile_8bpp_cs.h"
+#include "xenia/gpu/d3d12/shaders/dxbc/texture_tile_r10g11b11_rgba16_cs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/texture_tile_r11g11b10_rgba16_cs.h"
 
 constexpr uint32_t TextureCache::LoadConstants::kGuestPitchTiled;
@@ -130,9 +133,10 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::kR11G11B10ToRGBA16SNorm, DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown,
      DXGI_FORMAT_R16G16B16A16_UNORM, ResolveTileMode::kR11G11B10AsRGBA16},
     // k_11_11_10
-    {DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown,
-     DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, DXGI_FORMAT_UNKNOWN,
-     LoadMode::kUnknown, DXGI_FORMAT_UNKNOWN, ResolveTileMode::kUnknown},
+    {DXGI_FORMAT_R16G16B16A16_TYPELESS, DXGI_FORMAT_R16G16B16A16_UNORM,
+     LoadMode::kR10G11B11ToRGBA16, DXGI_FORMAT_R16G16B16A16_SNORM,
+     LoadMode::kR10G11B11ToRGBA16SNorm, DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown,
+     DXGI_FORMAT_R16G16B16A16_UNORM, ResolveTileMode::kR10G11B11AsRGBA16},
     // k_DXT1
     {DXGI_FORMAT_BC1_UNORM, DXGI_FORMAT_BC1_UNORM, LoadMode::k64bpb,
      DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, DXGI_FORMAT_R8G8B8A8_UNORM,
@@ -300,9 +304,10 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::kR11G11B10ToRGBA16SNorm, DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown,
      DXGI_FORMAT_R16G16B16A16_UNORM, ResolveTileMode::kR11G11B10AsRGBA16},
     // k_11_11_10_AS_16_16_16_16
-    {DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown,
-     DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, DXGI_FORMAT_UNKNOWN,
-     LoadMode::kUnknown, DXGI_FORMAT_UNKNOWN, ResolveTileMode::kUnknown},
+    {DXGI_FORMAT_R16G16B16A16_TYPELESS, DXGI_FORMAT_R16G16B16A16_UNORM,
+     LoadMode::kR10G11B11ToRGBA16, DXGI_FORMAT_R16G16B16A16_SNORM,
+     LoadMode::kR10G11B11ToRGBA16SNorm, DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown,
+     DXGI_FORMAT_R16G16B16A16_UNORM, ResolveTileMode::kR10G11B11AsRGBA16},
     // k_32_32_32_FLOAT
     {DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown,
      DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, DXGI_FORMAT_UNKNOWN,
@@ -348,6 +353,10 @@ const TextureCache::LoadModeInfo TextureCache::load_mode_info_[] = {
      sizeof(texture_load_r11g11b10_rgba16_cs)},
     {texture_load_r11g11b10_rgba16_snorm_cs,
      sizeof(texture_load_r11g11b10_rgba16_snorm_cs)},
+    {texture_load_r10g11b11_rgba16_cs,
+     sizeof(texture_load_r10g11b11_rgba16_cs)},
+    {texture_load_r10g11b11_rgba16_snorm_cs,
+     sizeof(texture_load_r10g11b11_rgba16_snorm_cs)},
     {texture_load_dxt1_rgba8_cs, sizeof(texture_load_dxt1_rgba8_cs)},
     {texture_load_dxt3_rgba8_cs, sizeof(texture_load_dxt3_rgba8_cs)},
     {texture_load_dxt5_rgba8_cs, sizeof(texture_load_dxt5_rgba8_cs)},
@@ -375,6 +384,8 @@ const TextureCache::ResolveTileModeInfo
          DXGI_FORMAT_R16_UINT, 1},
         {texture_tile_r11g11b10_rgba16_cs,
          sizeof(texture_tile_r11g11b10_rgba16_cs), DXGI_FORMAT_UNKNOWN, 0},
+        {texture_tile_r10g11b11_rgba16_cs,
+         sizeof(texture_tile_r10g11b11_rgba16_cs), DXGI_FORMAT_UNKNOWN, 0},
 };
 
 TextureCache::TextureCache(D3D12CommandProcessor* command_processor,

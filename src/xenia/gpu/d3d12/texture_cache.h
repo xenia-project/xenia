@@ -149,6 +149,8 @@ class TextureCache {
     k128bpb,
     kR11G11B10ToRGBA16,
     kR11G11B10ToRGBA16SNorm,
+    kR10G11B11ToRGBA16,
+    kR10G11B11ToRGBA16SNorm,
     kDXT1ToRGBA8,
     kDXT3ToRGBA8,
     kDXT5ToRGBA8,
@@ -181,6 +183,7 @@ class TextureCache {
     // supported on Nvidia.
     k16bppRGBA,
     kR11G11B10AsRGBA16,
+    kR10G11B11AsRGBA16,
 
     kCount,
 
