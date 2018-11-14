@@ -1629,6 +1629,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   uint32_t rb_surface_info = regs[XE_GPU_REG_RB_SURFACE_INFO].u32;
   uint32_t rb_colorcontrol = regs[XE_GPU_REG_RB_COLORCONTROL].u32;
   uint32_t rb_alpha_ref = regs[XE_GPU_REG_RB_ALPHA_REF].u32;
+  uint32_t rb_color_mask = regs[XE_GPU_REG_RB_COLOR_MASK].u32;
 
   bool dirty = false;
 
@@ -1860,9 +1861,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   system_constants_.alpha_test = alpha_test;
 
   // Color exponent bias and output index mapping or ROV writing.
-  uint32_t rb_color_mask = regs[XE_GPU_REG_RB_COLOR_MASK].u32;
-  bool colorcontrol_blend_enable =
-      (regs[XE_GPU_REG_RB_COLORCONTROL].u32 & 0x20) == 0;
+  bool colorcontrol_blend_enable = (rb_colorcontrol & 0x20) == 0;
   for (uint32_t i = 0; i < 4; ++i) {
     uint32_t color_info, blend_control;
     switch (i) {
@@ -1965,8 +1964,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
 
   // Depth/stencil testing and blend constant for ROV blending.
   if (IsROVUsedForEDRAM()) {
-    uint32_t depth_base_dwords =
-        (regs[XE_GPU_REG_RB_DEPTH_INFO].u32 & 0xFFF) * 1280;
+    uint32_t depth_base_dwords = (rb_depth_info & 0xFFF) * 1280;
     dirty |= system_constants_.edram_depth_base_dwords != depth_base_dwords;
     system_constants_.edram_depth_base_dwords = depth_base_dwords;
 

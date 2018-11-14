@@ -215,7 +215,11 @@ class TextureCache {
     // created if both unsigned and signed are used.
     LoadMode load_mode_snorm;
 
-    // TODO(Triang3l): Integer formats.
+    // Do NOT add integer DXGI formats to this - they are not filterable, can
+    // only be read with Load, not Sample! If any game is seen using num_format
+    // 1 for fixed-point formats (for floating-point, it's normally set to 1
+    // though), add a constant buffer containing multipliers for the
+    // textures and multiplication to the tfetch implementation.
 
     // Uncompression info for when the regular host format for this texture is
     // block-compressed, but the size is not block-aligned, and thus such
@@ -393,8 +397,8 @@ class TextureCache {
   };
 
   // Whether the signed version of the texture has a different representation on
-  // the host than its unsigned version (for example, if it's a normalized or an
-  // integer texture emulated with a larger host pixel format).
+  // the host than its unsigned version (for example, if it's a fixed-point
+  // texture emulated with a larger host pixel format).
   static inline bool IsSignedVersionSeparate(TextureFormat format) {
     const HostFormat& host_format = host_formats_[uint32_t(format)];
     return host_format.load_mode_snorm != LoadMode::kUnknown &&
