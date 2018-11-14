@@ -154,15 +154,13 @@ X_RESULT WinKeyInputDriver::GetState(uint32_t user_index,
       // L
       buttons |= 0x4000;  // XINPUT_GAMEPAD_X
     }
-    if (IS_KEY_DOWN(VK_OEM_7)) {
+    
+	if (IS_KEY_DOWN("'")) {
       // '
       buttons |= 0x2000;  // XINPUT_GAMEPAD_B
     }
-    if (IS_KEY_DOWN(VK_OEM_3)) { // For UK keyboard standard
-      // '
-      buttons |= 0x2000;  // XINPUT_GAMEPAD_B
-    }
-    if (IS_KEY_DOWN(VK_OEM_1)) {
+    
+	if (IS_KEY_DOWN(VK_OEM_1)) {
       // ;
       buttons |= 0x1000;  // XINPUT_GAMEPAD_A
     }
