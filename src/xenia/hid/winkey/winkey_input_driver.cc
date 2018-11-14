@@ -158,6 +158,10 @@ X_RESULT WinKeyInputDriver::GetState(uint32_t user_index,
       // '
       buttons |= 0x2000;  // XINPUT_GAMEPAD_B
     }
+    if (IS_KEY_DOWN(VK_OEM_3)) { // For UK keyboard standard
+      // '
+      buttons |= 0x2000;  // XINPUT_GAMEPAD_B
+    }
     if (IS_KEY_DOWN(VK_OEM_1)) {
       // ;
       buttons |= 0x1000;  // XINPUT_GAMEPAD_A
