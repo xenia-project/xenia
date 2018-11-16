@@ -662,13 +662,14 @@ X_STATUS Emulator::CompleteLaunch(const std::wstring& path,
     uint32_t resource_size = 0;
     if (XSUCCEEDED(
             module->GetSection(title_id, &resource_data, &resource_size))) {
-      kernel::util::XdbfGameData db(
-          module->memory()->TranslateVirtual(resource_data), resource_size);
-      if (db.is_valid()) {
-        game_title_ = xe::to_wstring(db.title());
-        auto icon_block = db.icon();
+      kernel::util::SpaFile spa;
+      if (spa.Read(module->memory()->TranslateVirtual(resource_data),
+                   resource_size)) {
+        game_title_ = xe::to_wstring(spa.GetTitle());
+        auto icon_block = spa.GetIcon();
         if (icon_block) {
-          display_window_->SetIcon(icon_block.buffer, icon_block.size);
+          display_window_->SetIcon(icon_block->data.data(),
+                                   icon_block->data.size());
         }
       }
     }
