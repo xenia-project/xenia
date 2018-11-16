@@ -13,6 +13,7 @@
 #include <string>
 #include <vector>
 
+#include "xenia/base/clock.h"
 #include "xenia/base/memory.h"
 
 namespace xe {
@@ -165,7 +166,7 @@ struct X_XDBF_GPD_TITLEPLAYED {
   xe::be<uint16_t> male_avatar_awards;
   xe::be<uint16_t> female_avatar_awards;
   xe::be<uint32_t> reserved_flags;
-  xe::be<uint64_t> last_loaded;
+  xe::be<uint64_t> last_played;
   // wchar_t* title_name;
 };
 #pragma pack(pop)
@@ -193,7 +194,7 @@ struct XdbfTitlePlayed {
   uint16_t male_avatar_awards = 0;
   uint16_t female_avatar_awards = 0;
   uint32_t reserved_flags = 0;
-  uint64_t last_loaded = 0;
+  uint64_t last_played = 0;
 
   void ReadGPD(const X_XDBF_GPD_TITLEPLAYED* src) {
     title_id = src->title_id;
@@ -206,7 +207,7 @@ struct XdbfTitlePlayed {
     male_avatar_awards = src->male_avatar_awards;
     female_avatar_awards = src->female_avatar_awards;
     reserved_flags = src->reserved_flags;
-    last_loaded = src->last_loaded;
+    last_played = src->last_played;
 
     auto* txt_ptr = reinterpret_cast<const uint8_t*>(src + 1);
     title_name = ReadNullTermString((const wchar_t*)txt_ptr);
@@ -223,7 +224,7 @@ struct XdbfTitlePlayed {
     dest->male_avatar_awards = male_avatar_awards;
     dest->female_avatar_awards = female_avatar_awards;
     dest->reserved_flags = reserved_flags;
-    dest->last_loaded = last_loaded;
+    dest->last_played = last_played;
 
     auto* txt_ptr = reinterpret_cast<const uint8_t*>(dest + 1);
     xe::copy_and_swap<wchar_t>((wchar_t*)txt_ptr, title_name.c_str(),
@@ -276,7 +277,8 @@ struct XdbfAchievement {
     if (online) {
       flags |= static_cast<uint32_t>(XdbfAchievementFlags::kAchievedOnline);
     }
-    // TODO: set unlock time?
+
+    unlock_time = Clock::QueryHostSystemTime();
   }
 
   void Lock() {

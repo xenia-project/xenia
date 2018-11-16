@@ -83,7 +83,7 @@ X_RESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
         }
       }
       if (modified) {
-        kernel_state_->user_profile()->UpdateGpdFiles();
+        kernel_state_->user_profile()->UpdateTitleGpd();
       }
 
       return X_ERROR_SUCCESS;

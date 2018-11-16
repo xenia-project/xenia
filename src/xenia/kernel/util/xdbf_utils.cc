@@ -283,7 +283,9 @@ bool GpdFile::GetAchievement(uint16_t id, XdbfAchievement* dest) {
     auto* ach_data =
         reinterpret_cast<const X_XDBF_GPD_ACHIEVEMENT*>(entry->data.data());
 
-    dest->ReadGPD(ach_data);
+    if (dest) {
+      dest->ReadGPD(ach_data);
+    }
     return true;
   }
 

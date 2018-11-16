@@ -12,6 +12,7 @@
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xam/user_profile.h"
+#include "xenia/base/clock.h"
 #include "xenia/base/filesystem.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/mapped_memory.h"
@@ -99,7 +100,8 @@ void UserProfile::LoadGpdFiles() {
   auto mmap_ =
       MappedMemory::Open(L"profile\\FFFE07D1.gpd", MappedMemory::Mode::kRead);
   if (!mmap_) {
-    XELOGW("Dash GPD not found, using blank one");
+    XELOGW(
+        "Failed to open dash GPD (FFFE07D1.gpd) for reading, using blank one");
     return;
   }
 
@@ -114,7 +116,7 @@ void UserProfile::LoadGpdFiles() {
     _swprintf(fname, L"profile\\%X.gpd", title.title_id);
     mmap_ = MappedMemory::Open(fname, MappedMemory::Mode::kRead);
     if (!mmap_) {
-      XELOGE("GPD for title %X (%ws) not found!", title.title_id,
+      XELOGE("Failed to open GPD for title %X (%ws)!", title.title_id,
              title.title_name.c_str());
       continue;
     }
@@ -130,19 +132,73 @@ void UserProfile::LoadGpdFiles() {
 util::GpdFile* UserProfile::SetTitleSpaData(const util::SpaFile& spa_data) {
   uint32_t spa_title = spa_data.GetTitleId();
 
-  auto gpd = title_gpds_.find(spa_title);
+  std::vector<util::XdbfAchievement> spa_achievements;
+  // TODO: let user choose locale?
+  spa_data.GetAchievements(spa_data.GetDefaultLocale(), &spa_achievements);
 
-  if (gpd == title_gpds_.end()) {
+  util::XdbfTitlePlayed title_info;
+
+  auto gpd = title_gpds_.find(spa_title);
+  if (gpd != title_gpds_.end()) {
+    auto& title_gpd = (*gpd).second;
+
+    bool always_update_title = false;
+    if (!dash_gpd_.GetTitle(spa_title, &title_info)) {
+      assert_always();
+      XELOGE(
+          "GPD exists but is missing XbdfTitlePlayed entry? (this shouldn't be "
+          "happening!)");
+      // Try to work around it...
+      title_info.title_name = xe::to_wstring(spa_data.GetTitleName());
+      title_info.title_id = spa_title;
+      title_info.achievements_possible = 0;
+      title_info.achievements_earned = 0;
+      title_info.gamerscore_total = 0;
+      title_info.gamerscore_earned = 0;
+      always_update_title = true;
+    }
+    title_info.last_played = Clock::QueryHostSystemTime();
+
+    // Check SPA for any achievements current GPD might be missing
+    // (maybe added in TUs etc?)
+    bool ach_updated = false;
+    for (auto ach : spa_achievements) {
+      bool ach_exists = title_gpd.GetAchievement(ach.id, nullptr);
+      if (ach_exists && !always_update_title) {
+        continue;
+      }
+
+      // Achievement doesn't exist in current title info, lets add it
+      title_info.achievements_possible++;
+      title_info.gamerscore_total += ach.gamerscore;
+
+      // If it doesn't exist in GPD, add it to that too
+      if (!ach_exists) {
+        XELOGD(
+            "Adding new achievement %d (%ws) from SPA (wasn't inside existing "
+            "GPD)",
+            ach.id, ach.label.c_str());
+
+        ach_updated = true;
+        title_gpd.UpdateAchievement(ach);
+      }
+    }
+
+    // Update dash with new title_info
+    dash_gpd_.UpdateTitle(title_info);
+
+    // Only write game GPD if achievements were updated
+    if (ach_updated) {
+      UpdateGpd(spa_title, title_gpd);
+    }
+    UpdateGpd(kDashboardID, dash_gpd_);
+  } else {
     // GPD not found... have to create it!
     XELOGD("Creating new GPD for title %X", spa_title);
 
-    util::XdbfTitlePlayed title_info;
     title_info.title_name = xe::to_wstring(spa_data.GetTitleName());
     title_info.title_id = spa_title;
-
-    std::vector<util::XdbfAchievement> spa_achievements;
-    // TODO: let user choose locale?
-    spa_data.GetAchievements(spa_data.GetDefaultLocale(), &spa_achievements);
+    title_info.last_played = Clock::QueryHostSystemTime();
 
     // Copy cheevos from SPA -> GPD
     util::GpdFile title_gpd;
@@ -162,7 +218,7 @@ util::GpdFile* UserProfile::SetTitleSpaData(const util::SpaFile& spa_data) {
       }
     }
 
-    // try adding title image & name
+    // Try adding title image & name
     auto* title_image =
         spa_data.GetEntry(static_cast<uint16_t>(util::XdbfSpaSection::kImage),
                           static_cast<uint64_t>(util::XdbfSpaID::Title));
@@ -191,21 +247,33 @@ util::GpdFile* UserProfile::SetTitleSpaData(const util::SpaFile& spa_data) {
     UpdateGpd(kDashboardID, dash_gpd_);
   }
 
-  // TODO: check SPA for any achievements current GPD might be missing
-  // (maybe added in TUs etc?)
-
   curr_gpd_ = &title_gpds_[spa_title];
+  curr_title_id_ = spa_title;
   return curr_gpd_;
 }
 
-bool UserProfile::UpdateGpdFiles() {
+bool UserProfile::UpdateTitleGpd() {
+  if (!curr_gpd_ || curr_title_id_ == -1) {
+    return false;
+  }
+
+  bool result = UpdateGpd(curr_title_id_, *curr_gpd_);
+  if (!result) {
+    XELOGE("UpdateTitleGpd failed on title %X!", curr_title_id_);
+  } else {
+    XELOGD("Updated title %X GPD successfully!", curr_title_id_);
+  }
+  return result;
+}
+
+bool UserProfile::UpdateAllGpds() {
   // TODO: optimize so we only have to update the current title?
   for (const auto& pair : title_gpds_) {
     auto gpd = pair.second;
     bool result = UpdateGpd(pair.first, gpd);
     if (!result) {
-      XELOGE("UpdateGpdFiles failed on title %X...", pair.first);
-      return false;
+      XELOGE("UpdateGpdFiles failed on title %X!", pair.first);
+      continue;
     }
   }
 
@@ -217,7 +285,7 @@ bool UserProfile::UpdateGpdFiles() {
 bool UserProfile::UpdateGpd(uint32_t title_id, util::GpdFile& gpd_data) {
   size_t gpd_length = 0;
   if (!gpd_data.Write(nullptr, &gpd_length)) {
-    XELOGE("Failed to get GPD size for %X!", title_id);
+    XELOGE("Failed to get GPD size for title %X!", title_id);
     return false;
   }
 
