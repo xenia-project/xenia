@@ -448,6 +448,20 @@ dword_result_t XamShowSigninUI(dword_t unk, dword_t unk_mask) {
 }
 DECLARE_XAM_EXPORT1(XamShowSigninUI, kUserProfiles, kStub);
 
+#pragma pack(push, 1)
+struct X_XACHIEVEMENT_DETAILS {
+  xe::be<uint32_t> id;
+  xe::be<uint32_t> label_ptr;
+  xe::be<uint32_t> description_ptr;
+  xe::be<uint32_t> unachieved_ptr;
+  xe::be<uint32_t> image_id;
+  xe::be<uint32_t> gamerscore;
+  xe::be<uint64_t> unlock_time;
+  xe::be<uint32_t> flags;
+};
+static_assert_size(X_XACHIEVEMENT_DETAILS, 36);
+#pragma pack(pop)
+
 dword_result_t XamUserCreateAchievementEnumerator(dword_t title_id,
                                                   dword_t user_index,
                                                   dword_t xuid, dword_t flags,
@@ -455,13 +469,58 @@ dword_result_t XamUserCreateAchievementEnumerator(dword_t title_id,
                                                   lpdword_t buffer_size_ptr,
                                                   lpdword_t handle_ptr) {
   if (buffer_size_ptr) {
-    *buffer_size_ptr = 500 * count;
+    *buffer_size_ptr = sizeof(X_XACHIEVEMENT_DETAILS) * count;
   }
 
-  auto e = new XStaticEnumerator(kernel_state(), count, 500);
+  auto e = new XStaticEnumerator(kernel_state(), count,
+                                 sizeof(X_XACHIEVEMENT_DETAILS));
   e->Initialize();
 
   *handle_ptr = e->handle();
+
+  // Copy achievements into the enumerator if game GPD is loaded
+  auto* game_gpd = kernel_state()->user_profile()->GetTitleGpd();
+  if (!game_gpd) {
+    XELOGE(
+        "XamUserCreateAchievementEnumerator called without GPD being loaded!");
+    return X_ERROR_SUCCESS;
+  }
+
+  static uint32_t placeholder = 0;
+
+  if (!placeholder) {
+    wchar_t* placeholder_val = L"<placeholder>";
+
+    placeholder = kernel_memory()->SystemHeapAlloc(
+        ((uint32_t)wcslen(placeholder_val) + 1) * 2);
+    auto* place_addr = kernel_memory()->TranslateVirtual<wchar_t*>(placeholder);
+
+    memset(place_addr, 0, (wcslen(placeholder_val) + 1) * 2);
+    xe::copy_and_swap(place_addr, placeholder_val, wcslen(placeholder_val));
+  }
+
+  std::vector<util::XdbfAchievement> achievements;
+  game_gpd->GetAchievements(&achievements);
+
+  for (auto ach : achievements) {
+    auto* details = (X_XACHIEVEMENT_DETAILS*)e->AppendItem();
+    details->id = ach.id;
+    details->image_id = ach.image_id;
+    details->gamerscore = ach.gamerscore;
+    details->unlock_time = ach.unlock_time;
+    details->flags = ach.flags;
+
+    // TODO: these, allocating guest mem for them every CreateEnum call would be
+    // very bad...
+
+    // maybe we could alloc these in guest when the title GPD is first loaded?
+    details->label_ptr = placeholder;
+    details->description_ptr = placeholder;
+    details->unachieved_ptr = placeholder;
+  }
+
+  XELOGD("XamUserCreateAchievementEnumerator: added %d items to enumerator",
+         e->item_count());
 
   return X_ERROR_SUCCESS;
 }
