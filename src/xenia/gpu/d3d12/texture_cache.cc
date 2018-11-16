@@ -80,9 +80,10 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown, DXGI_FORMAT_B5G6R5_UNORM, ResolveTileMode::k16bpp},
     // k_6_5_5
-    {DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown,
+    // Green bits in blue, blue bits in green - RBGA swizzle must be used.
+    {DXGI_FORMAT_B5G6R5_UNORM, DXGI_FORMAT_B5G6R5_UNORM, LoadMode::k16bpb,
      DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, DXGI_FORMAT_UNKNOWN,
-     LoadMode::kUnknown, DXGI_FORMAT_UNKNOWN, ResolveTileMode::kUnknown},
+     LoadMode::kUnknown, DXGI_FORMAT_B5G6R5_UNORM, ResolveTileMode::k16bpp},
     // k_8_8_8_8
     {DXGI_FORMAT_R8G8B8A8_TYPELESS, DXGI_FORMAT_R8G8B8A8_UNORM,
      LoadMode::k32bpb, DXGI_FORMAT_R8G8B8A8_SNORM, LoadMode::kUnknown,
@@ -1181,7 +1182,15 @@ void TextureCache::BindingInfoFromFetchConstant(
     // Remap the swizzle according to the texture format. k_1_5_5_5, k_5_6_5 and
     // k_4_4_4_4 already have red and blue swapped in the load shader for
     // simplicity.
-    if (format == TextureFormat::k_DXT3A || format == TextureFormat::k_DXT5A) {
+    if (format == TextureFormat::k_6_5_5) {
+      // Green bits of the texture used for blue, and blue bits used for green.
+      // Swap 001 and 010 (XOR 011 if either 001 or 010).
+      uint32_t swizzle_green_or_blue =
+          ((swizzle & 0b001001001001) ^ ((swizzle >> 1) & 0b001001001001)) &
+          swizzle_not_constant;
+      swizzle ^= swizzle_green_or_blue | (swizzle_green_or_blue << 1);
+    } else if (format == TextureFormat::k_DXT3A ||
+               format == TextureFormat::k_DXT5A) {
       // DXT3A is emulated as R8, DXT5A is emulated as BC4 or (for unaligned
       // size) R8, but DXT5 alpha (in the red component of R8 and BC4) should be
       // replicated.

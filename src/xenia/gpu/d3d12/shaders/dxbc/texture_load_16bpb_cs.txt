@@ -173,12 +173,21 @@ else
     ushr r3.xyzw, r2.xzyw, l(11, 11, 11, 11)
     iadd r2.xyzw, r1.xzyw, r3.xzyw
   else 
-    ieq r0.y, CB0[0][3].z, l(15)
+    ieq r0.y, CB0[0][3].z, l(5)
     if_nz r0.y
-      and r1.xyzw, r2.xzyw, l(0x0000f0f0, 0x0000f0f0, 0x0000f0f0, 0x0000f0f0)
-      bfi r1.xyzw, l(4, 4, 4, 4), l(8, 8, 8, 8), r2.xzyw, r1.xyzw
-      ubfe r3.xyzw, l(4, 4, 4, 4), l(8, 8, 8, 8), r2.xzyw
-      iadd r2.xyzw, r1.xzyw, r3.xzyw
+      bfi r1.xyzw, l(5, 5, 5, 5), l(11, 11, 11, 11), r2.xzyw, l(0, 0, 0, 0)
+      ubfe r3.xyzw, l(5, 5, 5, 5), l(5, 5, 5, 5), r2.xzyw
+      iadd r1.xyzw, r1.xyzw, r3.xyzw
+      ushr r3.xyzw, r2.xzyw, l(10, 10, 10, 10)
+      imad r2.xyzw, r3.xzyw, l(32, 32, 32, 32), r1.xzyw
+    else 
+      ieq r0.y, CB0[0][3].z, l(15)
+      if_nz r0.y
+        and r1.xyzw, r2.xzyw, l(0x0000f0f0, 0x0000f0f0, 0x0000f0f0, 0x0000f0f0)
+        bfi r1.xyzw, l(4, 4, 4, 4), l(8, 8, 8, 8), r2.xzyw, r1.xyzw
+        ubfe r3.xyzw, l(4, 4, 4, 4), l(8, 8, 8, 8), r2.xzyw
+        iadd r2.xyzw, r1.xzyw, r3.xzyw
+      endif 
     endif 
   endif 
 endif 
@@ -189,4 +198,4 @@ iadd r0.x, r0.x, CB0[0][0].z
 imad r0.yz, r2.zzwz, l(0, 0x00010000, 0x00010000, 0), r2.xxyx
 store_raw U0[0].xy, r0.x, r0.yzyy
 ret 
-// Approximately 138 instruction slots used
+// Approximately 147 instruction slots used

@@ -1427,6 +1427,7 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
     rt_srv_desc.Format =
         GetColorDXGIFormat(ColorRenderTargetFormat(src_format));
     rt_srv_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+    UINT swizzle = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
     if (dest_swap) {
       switch (ColorRenderTargetFormat(src_format)) {
         case ColorRenderTargetFormat::k_8_8_8_8:
@@ -1437,17 +1438,22 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
         case ColorRenderTargetFormat::k_16_16_16_16_FLOAT:
         case ColorRenderTargetFormat::k_2_10_10_10_AS_16_16_16_16:
         case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
-          rt_srv_desc.Shader4ComponentMapping =
-              D3D12_ENCODE_SHADER_4_COMPONENT_MAPPING(2, 1, 0, 3);
+          swizzle = D3D12_ENCODE_SHADER_4_COMPONENT_MAPPING(2, 1, 0, 3);
           break;
         default:
-          rt_srv_desc.Shader4ComponentMapping =
-              D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+          break;
       }
-    } else {
-      rt_srv_desc.Shader4ComponentMapping =
-          D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
     }
+    if (dest_format == TextureFormat::k_6_5_5) {
+      // Green bits of the resolve target used for blue, and blue bits used for
+      // green.
+      swizzle = D3D12_ENCODE_SHADER_4_COMPONENT_MAPPING(
+          D3D12_DECODE_SHADER_4_COMPONENT_MAPPING(0, swizzle),
+          D3D12_DECODE_SHADER_4_COMPONENT_MAPPING(2, swizzle),
+          D3D12_DECODE_SHADER_4_COMPONENT_MAPPING(1, swizzle),
+          D3D12_DECODE_SHADER_4_COMPONENT_MAPPING(3, swizzle));
+    }
+    rt_srv_desc.Shader4ComponentMapping = swizzle;
     rt_srv_desc.Texture2D.MostDetailedMip = 0;
     rt_srv_desc.Texture2D.MipLevels = 1;
     rt_srv_desc.Texture2D.PlaneSlice = 0;
