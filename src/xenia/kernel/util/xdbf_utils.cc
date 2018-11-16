@@ -249,36 +249,6 @@ std::string SpaFile::GetTitle() const {
                              static_cast<uint16_t>(XdbfSpaID::Title));
 }
 
-std::wstring ReadNullTermString(const wchar_t* ptr) {
-  std::wstring retval;
-  wchar_t data = xe::byte_swap(*ptr);
-  while (data != 0) {
-    retval += data;
-    ptr++;
-    data = xe::byte_swap(*ptr);
-  }
-  return retval;
-}
-
-void ConvertGPDToXdbfAchievement(const X_XDBF_GPD_ACHIEVEMENT* src,
-                                 XdbfAchievement* dest) {
-  dest->id = src->id;
-  dest->image_id = src->image_id;
-  dest->gamerscore = src->gamerscore;
-  dest->flags = src->flags;
-  dest->unlock_time = src->unlock_time;
-
-  auto* txt_ptr = reinterpret_cast<const uint8_t*>(src + 1);
-
-  dest->label = ReadNullTermString((const wchar_t*)txt_ptr);
-
-  txt_ptr += (dest->label.length() * 2) + 2;
-  dest->description = ReadNullTermString((const wchar_t*)txt_ptr);
-
-  txt_ptr += (dest->description.length() * 2) + 2;
-  dest->unachieved_desc = ReadNullTermString((const wchar_t*)txt_ptr);
-}
-
 bool GpdFile::GetAchievement(uint16_t id, XdbfAchievement* dest) {
   for (size_t i = 0; i < entries.size(); i++) {
     auto* entry = (XdbfEntry*)&entries[i];
@@ -291,7 +261,7 @@ bool GpdFile::GetAchievement(uint16_t id, XdbfAchievement* dest) {
     auto* ach_data =
         reinterpret_cast<const X_XDBF_GPD_ACHIEVEMENT*>(entry->data.data());
 
-    ConvertGPDToXdbfAchievement(ach_data, dest);
+    dest->ReadGPD(ach_data);
     return true;
   }
 
@@ -308,6 +278,9 @@ uint32_t GpdFile::GetAchievements(
         static_cast<uint16_t>(XdbfGpdSection::kAchievement)) {
       continue;
     }
+    if (entry->info.id == 0x100000000 || entry->info.id == 0x200000000) {
+      continue;  // achievement sync data, ignore it
+    }
 
     ach_count++;
 
@@ -316,13 +289,59 @@ uint32_t GpdFile::GetAchievements(
           reinterpret_cast<const X_XDBF_GPD_ACHIEVEMENT*>(entry->data.data());
 
       XdbfAchievement ach;
-      ConvertGPDToXdbfAchievement(ach_data, &ach);
+      ach.ReadGPD(ach_data);
 
       achievements->push_back(ach);
     }
   }
 
   return ach_count;
+}
+
+bool GpdFile::GetTitle(uint32_t title_id, XdbfTitlePlayed* dest) {
+  for (size_t i = 0; i < entries.size(); i++) {
+    auto* entry = (XdbfEntry*)&entries[i];
+    if (entry->info.section != static_cast<uint16_t>(XdbfGpdSection::kTitle) ||
+        entry->info.id != title_id) {
+      continue;
+    }
+
+    auto* title_data =
+        reinterpret_cast<const X_XDBF_GPD_TITLEPLAYED*>(entry->data.data());
+
+    dest->ReadGPD(title_data);
+
+    return true;
+  }
+
+  return false;
+}
+
+uint32_t GpdFile::GetTitles(std::vector<XdbfTitlePlayed>* titles) const {
+  uint32_t title_count = 0;
+
+  for (size_t i = 0; i < entries.size(); i++) {
+    auto* entry = (XdbfEntry*)&entries[i];
+    if (entry->info.section != static_cast<uint16_t>(XdbfGpdSection::kTitle)) {
+      continue;
+    }
+    if (entry->info.id == 0x100000000 || entry->info.id == 0x200000000) {
+      continue;  // achievement sync data, ignore it
+    }
+
+    title_count++;
+
+    if (titles) {
+      auto* title_data =
+          reinterpret_cast<const X_XDBF_GPD_TITLEPLAYED*>(entry->data.data());
+
+      XdbfTitlePlayed title;
+      title.ReadGPD(title_data);
+      titles->push_back(title);
+    }
+  }
+
+  return title_count;
 }
 
 bool GpdFile::UpdateAchievement(XdbfAchievement ach) {
@@ -363,8 +382,28 @@ bool GpdFile::UpdateAchievement(XdbfAchievement ach) {
   xe::copy_and_swap<wchar_t>((wchar_t*)unach_ptr, ach.unachieved_desc.c_str(),
                              ach.unachieved_desc.size());
 
-  UpdateEntry(ent);
-  return true;
+  return UpdateEntry(ent);
+}
+
+bool GpdFile::UpdateTitle(XdbfTitlePlayed title) {
+  XdbfEntry ent;
+  ent.info.section = static_cast<uint16_t>(XdbfGpdSection::kTitle);
+  ent.info.id = title.title_id;
+
+  // calculate entry size...
+  size_t name_len = (title.title_name.length() * 2) + 2;
+
+  size_t est_size = sizeof(X_XDBF_GPD_TITLEPLAYED);
+  est_size += name_len;
+
+  ent.data.resize(est_size);
+  memset(ent.data.data(), 0, est_size);
+
+  // convert XdbfTitlePlayed to GPD title
+  auto* title_data = reinterpret_cast<X_XDBF_GPD_TITLEPLAYED*>(ent.data.data());
+  title.WriteGPD(title_data);
+
+  return UpdateEntry(ent);
 }
 
 }  // namespace util

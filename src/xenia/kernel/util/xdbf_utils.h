@@ -132,7 +132,86 @@ struct X_XDBF_GPD_ACHIEVEMENT {
   // wchar_t* unlocked_description;
 };
 
+// from https://github.com/xemio/testdev/blob/master/xkelib/xam/_xamext.h
+struct X_XDBF_GPD_TITLEPLAYED {
+  xe::be<uint32_t> title_id;
+  xe::be<uint32_t> achievements_possible;
+  xe::be<uint32_t> achievements_earned;
+  xe::be<uint32_t> gamerscore_total;
+  xe::be<uint32_t> gamerscore_earned;
+  xe::be<uint16_t> reserved_achievement_count;
+
+  // the following are meant to be split into possible/earned, 1 byte each
+  // but who cares
+  xe::be<uint16_t> all_avatar_awards;
+  xe::be<uint16_t> male_avatar_awards;
+  xe::be<uint16_t> female_avatar_awards;
+  xe::be<uint32_t> reserved_flags;
+  xe::be<uint64_t> last_loaded;
+  // wchar_t* title_name;
+};
 #pragma pack(pop)
+
+inline std::wstring ReadNullTermString(const wchar_t* ptr) {
+  std::wstring retval;
+  wchar_t data = xe::byte_swap(*ptr);
+  while (data != 0) {
+    retval += data;
+    ptr++;
+    data = xe::byte_swap(*ptr);
+  }
+  return retval;
+}
+
+struct XdbfTitlePlayed {
+  uint32_t title_id = 0;
+  std::wstring title_name;
+  uint32_t achievements_possible = 0;
+  uint32_t achievements_earned = 0;
+  uint32_t gamerscore_total = 0;
+  uint32_t gamerscore_earned = 0;
+  uint16_t reserved_achievement_count = 0;
+  uint16_t all_avatar_awards = 0;
+  uint16_t male_avatar_awards = 0;
+  uint16_t female_avatar_awards = 0;
+  uint32_t reserved_flags = 0;
+  uint64_t last_loaded = 0;
+
+  void ReadGPD(const X_XDBF_GPD_TITLEPLAYED* src) {
+    title_id = src->title_id;
+    achievements_possible = src->achievements_possible;
+    achievements_earned = src->achievements_earned;
+    gamerscore_total = src->gamerscore_total;
+    gamerscore_earned = src->gamerscore_earned;
+    reserved_achievement_count = src->reserved_achievement_count;
+    all_avatar_awards = src->all_avatar_awards;
+    male_avatar_awards = src->male_avatar_awards;
+    female_avatar_awards = src->female_avatar_awards;
+    reserved_flags = src->reserved_flags;
+    last_loaded = src->last_loaded;
+
+    auto* txt_ptr = reinterpret_cast<const uint8_t*>(src + 1);
+    title_name = ReadNullTermString((const wchar_t*)txt_ptr);
+  }
+
+  void WriteGPD(X_XDBF_GPD_TITLEPLAYED* dest) {
+    dest->title_id = title_id;
+    dest->achievements_possible = achievements_possible;
+    dest->achievements_earned = achievements_earned;
+    dest->gamerscore_total = gamerscore_total;
+    dest->gamerscore_earned = gamerscore_earned;
+    dest->reserved_achievement_count = reserved_achievement_count;
+    dest->all_avatar_awards = all_avatar_awards;
+    dest->male_avatar_awards = male_avatar_awards;
+    dest->female_avatar_awards = female_avatar_awards;
+    dest->reserved_flags = reserved_flags;
+    dest->last_loaded = last_loaded;
+
+    auto* txt_ptr = reinterpret_cast<const uint8_t*>(dest + 1);
+    xe::copy_and_swap<wchar_t>((wchar_t*)txt_ptr, title_name.c_str(),
+                               title_name.size());
+  }
+};
 
 enum class XdbfAchievementType : uint32_t {
   kCompletion = 1,
@@ -188,6 +267,24 @@ struct XdbfAchievement {
         flags & ~(static_cast<uint32_t>(XdbfAchievementFlags::kAchievedOnline));
     unlock_time = 0;
   }
+
+  void ReadGPD(const X_XDBF_GPD_ACHIEVEMENT* src) {
+    id = src->id;
+    image_id = src->image_id;
+    gamerscore = src->gamerscore;
+    flags = src->flags;
+    unlock_time = src->unlock_time;
+
+    auto* txt_ptr = reinterpret_cast<const uint8_t*>(src + 1);
+
+    label = ReadNullTermString((const wchar_t*)txt_ptr);
+
+    txt_ptr += (label.length() * 2) + 2;
+    description = ReadNullTermString((const wchar_t*)txt_ptr);
+
+    txt_ptr += (description.length() * 2) + 2;
+    unachieved_desc = ReadNullTermString((const wchar_t*)txt_ptr);
+  }
 };
 
 struct XdbfEntry {
@@ -235,8 +332,14 @@ class GpdFile : public XdbfFile {
   bool GetAchievement(uint16_t id, XdbfAchievement* dest);
   uint32_t GetAchievements(std::vector<XdbfAchievement>* achievements) const;
 
+  bool GetTitle(uint32_t title_id, XdbfTitlePlayed* title);
+  uint32_t GetTitles(std::vector<XdbfTitlePlayed>* titles) const;
+
   // Updates (or adds) an achievement
   bool UpdateAchievement(XdbfAchievement ach);
+
+  // Updates (or adds) a title
+  bool UpdateTitle(XdbfTitlePlayed title);
 };
 
 }  // namespace util
