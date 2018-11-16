@@ -81,6 +81,7 @@ permalink: /
 <script src="{{ site.baseurl }}/scripts/merged-github-underscore.js"></script>
 
 <script>
+  /*
   // Build server can be slow, so do this async.
   var buildStatusImage = document.getElementById('buildStatusImage');
   var buildStatusLoader = new Image();
@@ -89,6 +90,7 @@ permalink: /
     buildStatusImage.src = buildStatusLoader.src;
     buildStatusImage.style.visibility = '';
   };
+  */
 
   var repoDataString = localStorage.getItem('github-repo-info');
   if (!repoDataString) {
