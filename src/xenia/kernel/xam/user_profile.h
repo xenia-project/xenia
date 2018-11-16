@@ -208,7 +208,7 @@ class UserProfile {
   Setting* GetSetting(uint32_t setting_id);
 
   util::GpdFile* SetTitleSpaData(const util::SpaFile& spa_data);
-  util::GpdFile* GetTitleGpd() { return curr_gpd_; }
+  util::GpdFile* GetTitleGpd(uint32_t title_id = 0);
 
   bool UpdateTitleGpd();
   bool UpdateAllGpds();

@@ -251,6 +251,18 @@ util::GpdFile* UserProfile::SetTitleSpaData(const util::SpaFile& spa_data) {
   curr_title_id_ = spa_title;
   return curr_gpd_;
 }
+util::GpdFile* UserProfile::GetTitleGpd(uint32_t title_id) {
+  if (!title_id) {
+    return curr_gpd_;
+  }
+
+  auto gpd = title_gpds_.find(title_id);
+  if (gpd == title_gpds_.end()) {
+    return nullptr;
+  }
+
+  return &(*gpd).second;
+}
 
 bool UserProfile::UpdateTitleGpd() {
   if (!curr_gpd_ || curr_title_id_ == -1) {
