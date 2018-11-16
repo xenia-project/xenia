@@ -11014,7 +11014,7 @@ void DxbcShaderTranslator::ProcessScalarAluInstruction(
       shader_code_.push_back(
           EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
       shader_code_.push_back(is_subnormal_temp);
-      UseDxbcSourceOperand(dxbc_operands[0]);
+      UseDxbcSourceOperand(dxbc_operands[0], kSwizzleXYZW, 0);
       shader_code_.push_back(
           EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
       shader_code_.push_back(0);
@@ -11796,20 +11796,20 @@ void DxbcShaderTranslator::ProcessScalarAluInstruction(
       shader_code_.push_back(
           EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
       shader_code_.push_back(is_subnormal_temp);
-      UseDxbcSourceOperand(dxbc_operands[0]);
+      UseDxbcSourceOperand(dxbc_operands[0], kSwizzleXYZW, 0);
       shader_code_.push_back(
           EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
       shader_code_.push_back(0);
       ++stat_.instruction_count;
       ++stat_.float_instruction_count;
-      // Check if the second operand (src0.y) is zero.
+      // Check if the second operand (src1.x) is zero.
       shader_code_.push_back(
           ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_EQ) |
           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5 + operand_lengths[1]));
       shader_code_.push_back(
           EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0010, 1));
       shader_code_.push_back(is_subnormal_temp);
-      UseDxbcSourceOperand(dxbc_operands[1]);
+      UseDxbcSourceOperand(dxbc_operands[1], kSwizzleXYZW, 0);
       shader_code_.push_back(
           EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
       shader_code_.push_back(0);
