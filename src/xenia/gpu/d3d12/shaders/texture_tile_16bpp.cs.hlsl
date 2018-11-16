@@ -20,10 +20,13 @@ void main(uint3 xe_thread_id : SV_DispatchThreadID) {
   uint format = (xe_texture_tile_endian_format_guest_pitch >> 3u) & 63u;
   if (format == 4u) {
     // k_5_6_5.
-    texels = (texels & (63u << 5u)) | ((texels & 31u) << 11u) |
-             ((texels >> 11u) & 31u);
+    texels = (texels & (63u << 5u)) | ((texels & 31u) << 11u) | (texels >> 11u);
+  } else if (format == 5u) {
+    // k_6_5_5 - GGGGG BBBBBB RRRRR to RRRRR GGGGG BBBBBB (use RBGA swizzle when
+    // resolving).
+    texels = ((texels & 31u) << 5u) | ((texels & (63u << 5u)) << (10u - 5u)) |
+             (texels >> 11u);
   }
-  // TODO(Triang3l): k_6_5_5.
   texels = XeByteSwap16(texels, xe_texture_tile_endian_format_guest_pitch);
 
   uint4 texel_addresses = (xe_texture_tile_guest_base + XeTextureTiledOffset2D(

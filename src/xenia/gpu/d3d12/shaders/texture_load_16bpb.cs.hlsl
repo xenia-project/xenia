@@ -28,12 +28,16 @@ void main(uint3 xe_thread_id : SV_DispatchThreadID) {
     // k_5_6_5.
     blocks = (blocks & (63u << 5u)) | ((blocks & 31u) << 11u) |
              ((blocks >> 11u) & 31u);
+  } else if (xe_texture_load_guest_format == 5u) {
+    // k_6_5_5 - RRRRR GGGGG BBBBBB to GGGGG BBBBBB RRRRR (use RBGA swizzle when
+    // reading).
+    blocks = ((blocks & 31u) << 11u) | ((blocks >> 5u) & 31u) |
+             ((blocks >> 10u) << 5u);
   } else if (xe_texture_load_guest_format == 15u) {
     // k_4_4_4_4.
     blocks =
         (blocks & 0xF0F0u) | ((blocks & 15u) << 8u) | ((blocks >> 8u) & 15u);
   }
-  // TODO(Triang3l): k_6_5_5.
 
   uint block_offset_host = XeTextureHostLinearOffset(
       block_index, xe_texture_load_size_blocks.y, xe_texture_load_host_pitch,
