@@ -26,6 +26,7 @@ enum class XdbfSpaID : uint64_t {
   Xach = 'XACH',
   Xstr = 'XSTR',
   Xstc = 'XSTC',
+  Xthd = 'XTHD',
   Title = 0x8000,
 };
 
@@ -95,6 +96,23 @@ struct X_XDBF_XSTC_DATA {
   xe::be<uint32_t> default_language;
 };
 static_assert_size(X_XDBF_XSTC_DATA, 16);
+
+struct X_XDBF_XTHD_DATA {
+  xe::be<uint32_t> magic;
+  xe::be<uint32_t> version;
+  xe::be<uint32_t> unk8;
+  xe::be<uint32_t> title_id;
+  xe::be<uint32_t> unk10;  // always 1?
+  xe::be<uint16_t> title_version_major;
+  xe::be<uint16_t> title_version_minor;
+  xe::be<uint16_t> title_version_build;
+  xe::be<uint16_t> title_version_revision;
+  xe::be<uint32_t> unk1C;
+  xe::be<uint32_t> unk20;
+  xe::be<uint32_t> unk24;
+  xe::be<uint32_t> unk28;
+};
+static_assert_size(X_XDBF_XTHD_DATA, 0x2C);
 
 struct X_XDBF_TABLE_HEADER {
   xe::be<uint32_t> magic;
@@ -324,7 +342,8 @@ class SpaFile : public XdbfFile {
 
   XdbfEntry* GetIcon() const;
   XdbfLocale GetDefaultLocale() const;
-  std::string GetTitle() const;
+  std::string GetTitleName() const;
+  uint32_t GetTitleId() const;
 };
 
 class GpdFile : public XdbfFile {

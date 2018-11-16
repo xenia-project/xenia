@@ -15,6 +15,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "xenia/kernel/util/xdbf_utils.h"
 #include "xenia/xbox.h"
 
 namespace xe {
@@ -206,7 +207,15 @@ class UserProfile {
   void AddSetting(std::unique_ptr<Setting> setting);
   Setting* GetSetting(uint32_t setting_id);
 
+  util::GpdFile* SetTitleSpaData(const util::SpaFile& spa_data);
+  util::GpdFile* GetTitleGpd() { return curr_gpd_; }
+
+  bool UpdateGpdFiles();
+
  private:
+  void LoadGpdFiles();
+  bool UpdateGpd(uint32_t title_id, util::GpdFile& gpd_data);
+
   uint64_t xuid_;
   std::string name_;
   std::vector<std::unique_ptr<Setting>> setting_list_;
@@ -214,6 +223,10 @@ class UserProfile {
 
   void LoadSetting(UserProfile::Setting*);
   void SaveSetting(UserProfile::Setting*);
+  
+  std::unordered_map<uint32_t, util::GpdFile> title_gpds_;
+  util::GpdFile dash_gpd_;
+  util::GpdFile* curr_gpd_ = nullptr;
 };
 
 }  // namespace xam

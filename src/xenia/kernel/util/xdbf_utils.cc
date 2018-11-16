@@ -244,9 +244,22 @@ XdbfLocale SpaFile::GetDefaultLocale() const {
   return static_cast<XdbfLocale>(static_cast<uint32_t>(xstc->default_language));
 }
 
-std::string SpaFile::GetTitle() const {
+std::string SpaFile::GetTitleName() const {
   return GetStringTableEntry(GetDefaultLocale(),
                              static_cast<uint16_t>(XdbfSpaID::Title));
+}
+
+uint32_t SpaFile::GetTitleId() const {
+  auto block = GetEntry(static_cast<uint16_t>(XdbfSpaSection::kMetadata),
+                        static_cast<uint64_t>(XdbfSpaID::Xthd));
+  if (!block) {
+    return -1;
+  }
+
+  auto xthd = reinterpret_cast<const X_XDBF_XTHD_DATA*>(block->data.data());
+  assert_true(xthd->magic == static_cast<uint32_t>(XdbfSpaID::Xthd));
+
+  return xthd->title_id;
 }
 
 bool GpdFile::GetAchievement(uint16_t id, XdbfAchievement* dest) {
