@@ -57,7 +57,7 @@ bool XdbfFile::Write(uint8_t* data, size_t* data_size) {
 
   *data_size += sizeof(X_XDBF_HEADER);
   *data_size += entries.size() * sizeof(X_XDBF_ENTRY);
-  *data_size += free_entries.size() * sizeof(X_XDBF_FILELOC);
+  *data_size += 1 * sizeof(X_XDBF_FILELOC);
 
   size_t entries_size = 0;
   for (auto ent : entries) {
@@ -71,7 +71,7 @@ bool XdbfFile::Write(uint8_t* data, size_t* data_size) {
   }
 
   header.entry_count = header.entry_used = (uint32_t)entries.size();
-  header.free_count = header.free_used = (uint32_t)free_entries.size();
+  header.free_count = header.free_used = 1;
 
   auto* ptr = data;
   memcpy(ptr, &header, sizeof(X_XDBF_HEADER));
@@ -92,6 +92,15 @@ bool XdbfFile::Write(uint8_t* data, size_t* data_size) {
     data_ptr += ent.data.size();
     ptr += sizeof(X_XDBF_ENTRY);
   }
+
+  free_entries.clear();
+  X_XDBF_FILELOC free_ent;
+  free_ent.offset = (uint32_t)*data_size - sizeof(X_XDBF_HEADER) -
+                    (sizeof(X_XDBF_ENTRY) * header.entry_count) -
+                    (sizeof(X_XDBF_FILELOC) * header.free_count);
+
+  free_ent.size = 0 - free_ent.offset;
+  free_entries.push_back(free_ent);
 
   for (auto ent : free_entries) {
     memcpy(free_ptr, &ent, sizeof(X_XDBF_FILELOC));

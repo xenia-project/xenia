@@ -162,6 +162,26 @@ util::GpdFile* UserProfile::SetTitleSpaData(const util::SpaFile& spa_data) {
       }
     }
 
+    // try adding title image & name
+    auto* title_image =
+        spa_data.GetEntry(static_cast<uint16_t>(util::XdbfSpaSection::kImage),
+                          static_cast<uint64_t>(util::XdbfSpaID::Title));
+    if (title_image) {
+      title_gpd.UpdateEntry(*title_image);
+    }
+
+    auto title_name = xe::to_wstring(spa_data.GetTitleName());
+    if (title_name.length()) {
+      util::XdbfEntry title_name_ent;
+      title_name_ent.info.section =
+          static_cast<uint16_t>(util::XdbfGpdSection::kString);
+      title_name_ent.info.id = static_cast<uint64_t>(util::XdbfSpaID::Title);
+      title_name_ent.data.resize((title_name.length() + 1) * 2);
+      xe::copy_and_swap((wchar_t*)title_name_ent.data.data(),
+                        title_name.c_str(), title_name.length());
+      title_gpd.UpdateEntry(title_name_ent);
+    }
+
     title_gpds_[spa_title] = title_gpd;
 
     // Update dash GPD with title and write updated GPDs
