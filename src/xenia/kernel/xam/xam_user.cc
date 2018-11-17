@@ -21,6 +21,105 @@ namespace xe {
 namespace kernel {
 namespace xam {
 
+// from https://github.com/xemio/testdev/blob/master/xkelib/xam/_xamext.h
+#pragma pack(push, 4)
+struct X_XAMACCOUNTINFO {
+  xe::be<uint32_t> reserved;
+  xe::be<uint32_t> live_flags;
+  wchar_t gamertag[0x10];
+  xe::be<uint64_t> xuid_online;  // 09....
+  xe::be<uint32_t> user_flags;
+  xe::be<uint32_t> network_id;
+  char passcode[4];
+  char online_domain[0x14];
+  char online_kerberos_realm[0x18];
+  char online_key[0x10];
+  char passport_membername[0x72];
+  char passport_password[0x20];
+  char owner_passport_membername[0x72];
+};
+static_assert_size(X_XAMACCOUNTINFO, 0x17C);
+#pragma pack(pop)
+
+struct X_PROFILEENUMRESULT {
+  xe::be<uint64_t> xuid_offline;  // E0.....
+  X_XAMACCOUNTINFO account;
+  xe::be<uint32_t> device_id;
+};
+static_assert_size(X_PROFILEENUMRESULT, 0x188);
+
+dword_result_t XamProfileCreateEnumerator(dword_t device_id,
+                                          lpdword_t handle_out) {
+  assert_not_null(handle_out);
+
+  auto e =
+      new XStaticEnumerator(kernel_state(), 1, sizeof(X_PROFILEENUMRESULT));
+
+  e->Initialize();
+
+  const auto& user_profile = kernel_state()->user_profile();
+
+  X_PROFILEENUMRESULT* profile = (X_PROFILEENUMRESULT*)e->AppendItem();
+  memset(profile, 0, sizeof(X_PROFILEENUMRESULT));
+  profile->xuid_offline = user_profile->xuid();
+  profile->device_id = 0xF00D0000;
+
+  auto tag = xe::to_wstring(user_profile->name());
+  xe::copy_and_swap<wchar_t>(profile->account.gamertag, tag.c_str(),
+                             tag.length());
+  profile->account.xuid_online = user_profile->xuid();
+
+  *handle_out = e->handle();
+  return X_ERROR_SUCCESS;
+}
+DECLARE_XAM_EXPORT(XamProfileCreateEnumerator,
+                   ExportTag::kUserProfiles | ExportTag::kImplemented);
+
+dword_result_t XamProfileEnumerate(dword_t handle, dword_t flags,
+                                   lpvoid_t buffer,
+                                   pointer_t<XAM_OVERLAPPED> overlapped) {
+  assert_true(flags == 0);
+
+  auto e = kernel_state()->object_table()->LookupObject<XEnumerator>(handle);
+  if (!e) {
+    if (overlapped) {
+      kernel_state()->CompleteOverlappedImmediateEx(
+          overlapped, X_ERROR_INVALID_HANDLE, X_ERROR_INVALID_HANDLE, 0);
+      return X_ERROR_IO_PENDING;
+    } else {
+      return X_ERROR_INVALID_HANDLE;
+    }
+  }
+
+  buffer.Zero(sizeof(X_PROFILEENUMRESULT));
+
+  X_RESULT result;
+
+  if (e->current_item() >= e->item_count()) {
+    result = X_ERROR_NO_MORE_FILES;
+  } else {
+    auto item_buffer = buffer.as<uint8_t*>();
+    if (!e->WriteItem(item_buffer)) {
+      result = X_ERROR_NO_MORE_FILES;
+    } else {
+      result = X_ERROR_SUCCESS;
+    }
+  }
+
+  // Return X_ERROR_NO_MORE_FILES in HRESULT form.
+  X_HRESULT extended_result = result != 0 ? X_HRESULT_FROM_WIN32(result) : 0;
+  if (overlapped) {
+    kernel_state()->CompleteOverlappedImmediateEx(
+        overlapped, result, extended_result, result == X_ERROR_SUCCESS ? 1 : 0);
+    return X_ERROR_IO_PENDING;
+  } else {
+    assert_always();
+    return X_ERROR_INVALID_PARAMETER;
+  }
+}
+DECLARE_XAM_EXPORT(XamProfileEnumerate,
+                   ExportTag::kUserProfiles | ExportTag::kImplemented);
+
 X_HRESULT_result_t XamUserGetXUID(dword_t user_index, dword_t unk,
                                   lpqword_t xuid_ptr) {
   if (user_index) {
