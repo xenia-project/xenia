@@ -70,8 +70,8 @@ X_RESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       bool modified = false;
       auto* achievement =
           (X_XUSER_ACHIEVEMENT*)memory_->TranslateVirtual(achievements_ptr);
-      for (uint32_t i = 0; i < achievement_count; i++) {
-        util::XdbfAchievement ach;
+      util::XdbfAchievement ach;
+      for (uint32_t i = 0; i < achievement_count; i++, achievement++) {
         if (game_gpd->GetAchievement(achievement->achievement_id, &ach)) {
           if (!ach.IsUnlocked()) {
             XELOGI("Achievement Unlocked! %ws (%d gamerscore) - %ws",
