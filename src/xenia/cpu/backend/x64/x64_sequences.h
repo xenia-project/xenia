@@ -42,6 +42,7 @@ static bool Register() {
 
 // Registration functions to force inclusion of several files
 void RegisterControl();
+void RegisterMemory();
 void RegisterVector();
 
 void RegisterSequences();
