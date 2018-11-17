@@ -148,11 +148,13 @@ bool X64Emitter::Emit(HIRBuilder* builder, size_t* out_stack_size) {
   for (auto it = locals.begin(); it != locals.end(); ++it) {
     auto slot = *it;
     size_t type_size = GetTypeSize(slot->type);
+
     // Align to natural size.
     stack_offset = xe::align(stack_offset, type_size);
     slot->set_constant((uint32_t)stack_offset);
     stack_offset += type_size;
   }
+
   // Ensure 16b alignment.
   stack_offset -= StackLayout::GUEST_STACK_SIZE;
   stack_offset = xe::align(stack_offset, static_cast<size_t>(16));
@@ -160,7 +162,7 @@ bool X64Emitter::Emit(HIRBuilder* builder, size_t* out_stack_size) {
   // Function prolog.
   // Must be 16b aligned.
   // Windows is very strict about the form of this and the epilog:
-  // https://msdn.microsoft.com/en-us/library/tawsa7cb.aspx
+  // https://docs.microsoft.com/en-us/cpp/build/prolog-and-epilog?view=vs-2017
   // IMPORTANT: any changes to the prolog must be kept in sync with
   //     X64CodeCache, which dynamically generates exception information.
   //     Adding or changing anything here must be matched!
@@ -168,6 +170,7 @@ bool X64Emitter::Emit(HIRBuilder* builder, size_t* out_stack_size) {
   assert_true((stack_size + 8) % 16 == 0);
   *out_stack_size = stack_size;
   stack_size_ = stack_size;
+
   sub(rsp, (uint32_t)stack_size);
   mov(qword[rsp + StackLayout::GUEST_CTX_HOME], GetContextReg());
   mov(qword[rsp + StackLayout::GUEST_RET_ADDR], rcx);
@@ -340,13 +343,14 @@ void X64Emitter::UnimplementedInstr(const hir::Instr* i) {
 
 // This is used by the X64ThunkEmitter's ResolveFunctionThunk.
 extern "C" uint64_t ResolveFunction(void* raw_context,
-                                    uint32_t target_address) {
+                                    uint64_t target_address) {
   auto thread_state = *reinterpret_cast<ThreadState**>(raw_context);
 
   // TODO(benvanik): required?
   assert_not_zero(target_address);
 
-  auto fn = thread_state->processor()->ResolveFunction(target_address);
+  auto fn =
+      thread_state->processor()->ResolveFunction((uint32_t)target_address);
   assert_not_null(fn);
   auto x64_fn = static_cast<X64Function*>(fn);
   uint64_t addr = reinterpret_cast<uint64_t>(x64_fn->machine_code());
@@ -373,10 +377,7 @@ void X64Emitter::Call(const hir::Instr* instr, GuestFunction* function) {
     // Old-style resolve.
     // Not too important because indirection table is almost always available.
     // TODO: Overwrite the call-site with a straight call.
-    mov(rax, reinterpret_cast<uint64_t>(ResolveFunction));
-    mov(rcx, GetContextReg());
-    mov(rdx, function->address());
-    call(rax);
+    CallNative(&ResolveFunction, function->address());
   }
 
   // Actually jump/call to rax.
