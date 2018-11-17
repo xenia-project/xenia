@@ -11,6 +11,9 @@
 
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/util/shim_utils.h"
+
+#include <gflags/gflags.h>
+
 #include "xenia/kernel/xam/user_profile.h"
 #include "xenia/base/clock.h"
 #include "xenia/base/filesystem.h"
@@ -20,6 +23,9 @@
 namespace xe {
 namespace kernel {
 namespace xam {
+
+DEFINE_string(profile_directory, "Content\\Profile\\",
+              "The directory to store profile data inside");
 
 constexpr uint32_t kDashboardID = 0xFFFE07D1;
 
@@ -97,8 +103,11 @@ UserProfile::UserProfile() {
 }
 
 void UserProfile::LoadGpdFiles() {
-  auto mmap_ =
-      MappedMemory::Open(L"profile\\FFFE07D1.gpd", MappedMemory::Mode::kRead);
+  XELOGI("Loading profile GPDs from path %s", FLAGS_profile_directory.c_str());
+
+  auto mmap_ = MappedMemory::Open(
+      xe::to_wstring(FLAGS_profile_directory) + L"FFFE07D1.gpd",
+      MappedMemory::Mode::kRead);
   if (!mmap_) {
     XELOGW(
         "Failed to open dash GPD (FFFE07D1.gpd) for reading, using blank one");
@@ -113,20 +122,29 @@ void UserProfile::LoadGpdFiles() {
 
   for (auto title : titles) {
     wchar_t fname[256];
-    _swprintf(fname, L"profile\\%X.gpd", title.title_id);
-    mmap_ = MappedMemory::Open(fname, MappedMemory::Mode::kRead);
+    _swprintf(fname, L"%X.gpd", title.title_id);
+    mmap_ = MappedMemory::Open(xe::to_wstring(FLAGS_profile_directory) + fname,
+                               MappedMemory::Mode::kRead);
     if (!mmap_) {
-      XELOGE("Failed to open GPD for title %X (%ws)!", title.title_id,
-             title.title_name.c_str());
+      XELOGE("Failed to open GPD for title %X (%s)!", title.title_id,
+             xe::to_string(title.title_name).c_str());
       continue;
     }
 
     util::GpdFile title_gpd;
-    title_gpd.Read(mmap_->data(), mmap_->size());
+    bool result = title_gpd.Read(mmap_->data(), mmap_->size());
     mmap_->Close();
+
+    if (!result) {
+      XELOGE("Failed to read GPD for title %X (%s)!", title.title_id,
+             xe::to_string(title.title_name).c_str());
+      continue;
+    }
 
     title_gpds_[title.title_id] = title_gpd;
   }
+
+  XELOGI("Loaded %d profile GPDs", title_gpds_.size() + 1);
 }
 
 util::GpdFile* UserProfile::SetTitleSpaData(const util::SpaFile& spa_data) {
@@ -141,6 +159,8 @@ util::GpdFile* UserProfile::SetTitleSpaData(const util::SpaFile& spa_data) {
   auto gpd = title_gpds_.find(spa_title);
   if (gpd != title_gpds_.end()) {
     auto& title_gpd = (*gpd).second;
+
+    XELOGI("Loaded existing GPD for title %X", spa_title);
 
     bool always_update_title = false;
     if (!dash_gpd_.GetTitle(spa_title, &title_info)) {
@@ -175,9 +195,9 @@ util::GpdFile* UserProfile::SetTitleSpaData(const util::SpaFile& spa_data) {
       // If it doesn't exist in GPD, add it to that too
       if (!ach_exists) {
         XELOGD(
-            "Adding new achievement %d (%ws) from SPA (wasn't inside existing "
+            "Adding new achievement %d (%s) from SPA (wasn't inside existing "
             "GPD)",
-            ach.id, ach.label.c_str());
+            ach.id, xe::to_string(ach.label).c_str());
 
         ach_updated = true;
         title_gpd.UpdateAchievement(ach);
@@ -194,7 +214,7 @@ util::GpdFile* UserProfile::SetTitleSpaData(const util::SpaFile& spa_data) {
     UpdateGpd(kDashboardID, dash_gpd_);
   } else {
     // GPD not found... have to create it!
-    XELOGD("Creating new GPD for title %X", spa_title);
+    XELOGI("Creating new GPD for title %X", spa_title);
 
     title_info.title_name = xe::to_wstring(spa_data.GetTitleName());
     title_info.title_id = spa_title;
@@ -249,8 +269,30 @@ util::GpdFile* UserProfile::SetTitleSpaData(const util::SpaFile& spa_data) {
 
   curr_gpd_ = &title_gpds_[spa_title];
   curr_title_id_ = spa_title;
+
+  // Print achievement list to log, ATM there's no other way for users to see
+  // achievement status...
+  std::vector<util::XdbfAchievement> achievements;
+  if (curr_gpd_->GetAchievements(&achievements)) {
+    XELOGI("Achievement list:");
+
+    for (auto ach : achievements) {
+      // TODO: use ach.unachieved_desc for locked achievements?
+      // depends on XdbfAchievementFlags::kShowUnachieved afaik
+      XELOGI("%d - %s - %s - %d GS - %s", ach.id,
+             xe::to_string(ach.label).c_str(),
+             xe::to_string(ach.description).c_str(), ach.gamerscore,
+             ach.IsUnlocked() ? "unlocked" : "locked");
+    }
+
+    XELOGI("Unlocked achievements: %d/%d, gamerscore: %d/%d\r\n",
+           title_info.achievements_earned, title_info.achievements_possible,
+           title_info.gamerscore_earned, title_info.gamerscore_total);
+  }
+
   return curr_gpd_;
 }
+
 util::GpdFile* UserProfile::GetTitleGpd(uint32_t title_id) {
   if (!title_id) {
     return curr_gpd_;
@@ -279,7 +321,6 @@ bool UserProfile::UpdateTitleGpd() {
 }
 
 bool UserProfile::UpdateAllGpds() {
-  // TODO: optimize so we only have to update the current title?
   for (const auto& pair : title_gpds_) {
     auto gpd = pair.second;
     bool result = UpdateGpd(pair.first, gpd);
@@ -301,16 +342,17 @@ bool UserProfile::UpdateGpd(uint32_t title_id, util::GpdFile& gpd_data) {
     return false;
   }
 
-  if (!filesystem::PathExists(L"profile\\")) {
-    filesystem::CreateFolder(L"profile\\");
+  if (!filesystem::PathExists(xe::to_wstring(FLAGS_profile_directory))) {
+    filesystem::CreateFolder(xe::to_wstring(FLAGS_profile_directory));
   }
 
   wchar_t fname[256];
-  _swprintf(fname, L"profile\\%X.gpd", title_id);
+  _swprintf(fname, L"%X.gpd", title_id);
 
-  filesystem::CreateFile(fname);
+  filesystem::CreateFile(xe::to_wstring(FLAGS_profile_directory) + fname);
   auto mmap_ =
-      MappedMemory::Open(fname, MappedMemory::Mode::kReadWrite, 0, gpd_length);
+      MappedMemory::Open(xe::to_wstring(FLAGS_profile_directory) + fname,
+                         MappedMemory::Mode::kReadWrite, 0, gpd_length);
   if (!mmap_) {
     XELOGE("Failed to open %X.gpd for writing!", title_id);
     return false;
@@ -327,8 +369,8 @@ bool UserProfile::UpdateGpd(uint32_t title_id, util::GpdFile& gpd_data) {
       util::XdbfTitlePlayed title_info;
       if (dash_gpd_.GetTitle(title_id, &title_info)) {
         std::vector<util::XdbfAchievement> gpd_achievements;
-        // TODO: let user choose locale?
         gpd_data.GetAchievements(&gpd_achievements);
+
         uint32_t num_ach_total = 0;
         uint32_t num_ach_earned = 0;
         uint32_t gamerscore_total = 0;
@@ -342,6 +384,7 @@ bool UserProfile::UpdateGpd(uint32_t title_id, util::GpdFile& gpd_data) {
           }
         }
 
+        // Only update dash GPD if something has changed
         if (num_ach_total != title_info.achievements_possible ||
             num_ach_earned != title_info.achievements_earned ||
             gamerscore_total != title_info.gamerscore_total ||
@@ -353,6 +396,9 @@ bool UserProfile::UpdateGpd(uint32_t title_id, util::GpdFile& gpd_data) {
 
           dash_gpd_.UpdateTitle(title_info);
           UpdateGpd(kDashboardID, dash_gpd_);
+
+          // TODO: update gamerscore/achievements earned/titles played settings
+          // in dashboard GPD
         }
       }
     }
