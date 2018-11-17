@@ -655,16 +655,19 @@ struct Sequence {
 };
 
 template <typename T>
-void Register() {
+static bool Register() {
   sequence_table.insert({T::head_key(), T::Select});
+  return true;
 }
 template <typename T, typename Tn, typename... Ts>
-void Register() {
-  Register<T>();
-  Register<Tn, Ts...>();
+static bool Register() {
+  bool b = true;
+  b = b && Register<T>();          // Call the above function
+  b = b && Register<Tn, Ts...>();  // Call ourself again (recursively)
+  return b;
 }
 #define EMITTER_OPCODE_TABLE(name, ...) \
-  void Register_##name() { Register<__VA_ARGS__>(); }
+  static bool Registered_##name = Register<__VA_ARGS__>();
 
 // ============================================================================
 // OPCODE_COMMENT
@@ -7812,126 +7815,6 @@ struct SET_ROUNDING_MODE_I32
 EMITTER_OPCODE_TABLE(OPCODE_SET_ROUNDING_MODE, SET_ROUNDING_MODE_I32);
 
 void RegisterSequences() {
-  Register_OPCODE_COMMENT();
-  Register_OPCODE_NOP();
-  Register_OPCODE_SOURCE_OFFSET();
-  Register_OPCODE_DEBUG_BREAK();
-  Register_OPCODE_DEBUG_BREAK_TRUE();
-  Register_OPCODE_TRAP();
-  Register_OPCODE_TRAP_TRUE();
-  Register_OPCODE_CALL();
-  Register_OPCODE_CALL_TRUE();
-  Register_OPCODE_CALL_INDIRECT();
-  Register_OPCODE_CALL_INDIRECT_TRUE();
-  Register_OPCODE_CALL_EXTERN();
-  Register_OPCODE_RETURN();
-  Register_OPCODE_RETURN_TRUE();
-  Register_OPCODE_SET_RETURN_ADDRESS();
-  Register_OPCODE_BRANCH();
-  Register_OPCODE_BRANCH_TRUE();
-  Register_OPCODE_BRANCH_FALSE();
-  Register_OPCODE_ASSIGN();
-  Register_OPCODE_CAST();
-  Register_OPCODE_ZERO_EXTEND();
-  Register_OPCODE_SIGN_EXTEND();
-  Register_OPCODE_TRUNCATE();
-  Register_OPCODE_CONVERT();
-  Register_OPCODE_ROUND();
-  Register_OPCODE_VECTOR_CONVERT_I2F();
-  Register_OPCODE_VECTOR_CONVERT_F2I();
-  Register_OPCODE_LOAD_VECTOR_SHL();
-  Register_OPCODE_LOAD_VECTOR_SHR();
-  Register_OPCODE_LOAD_CLOCK();
-  Register_OPCODE_LOAD_LOCAL();
-  Register_OPCODE_STORE_LOCAL();
-  Register_OPCODE_LOAD_CONTEXT();
-  Register_OPCODE_STORE_CONTEXT();
-  Register_OPCODE_CONTEXT_BARRIER();
-  Register_OPCODE_LOAD_MMIO();
-  Register_OPCODE_STORE_MMIO();
-  Register_OPCODE_LOAD_OFFSET();
-  Register_OPCODE_STORE_OFFSET();
-  Register_OPCODE_LOAD();
-  Register_OPCODE_STORE();
-  Register_OPCODE_MEMSET();
-  Register_OPCODE_PREFETCH();
-  Register_OPCODE_MEMORY_BARRIER();
-  Register_OPCODE_MAX();
-  Register_OPCODE_VECTOR_MAX();
-  Register_OPCODE_MIN();
-  Register_OPCODE_VECTOR_MIN();
-  Register_OPCODE_SELECT();
-  Register_OPCODE_IS_TRUE();
-  Register_OPCODE_IS_FALSE();
-  Register_OPCODE_IS_NAN();
-  Register_OPCODE_COMPARE_EQ();
-  Register_OPCODE_COMPARE_NE();
-  Register_OPCODE_COMPARE_SLT();
-  Register_OPCODE_COMPARE_SLE();
-  Register_OPCODE_COMPARE_SGT();
-  Register_OPCODE_COMPARE_SGE();
-  Register_OPCODE_COMPARE_ULT();
-  Register_OPCODE_COMPARE_ULE();
-  Register_OPCODE_COMPARE_UGT();
-  Register_OPCODE_COMPARE_UGE();
-  Register_OPCODE_COMPARE_SLT_FLT();
-  Register_OPCODE_COMPARE_SLE_FLT();
-  Register_OPCODE_COMPARE_SGT_FLT();
-  Register_OPCODE_COMPARE_SGE_FLT();
-  Register_OPCODE_COMPARE_ULT_FLT();
-  Register_OPCODE_COMPARE_ULE_FLT();
-  Register_OPCODE_COMPARE_UGT_FLT();
-  Register_OPCODE_COMPARE_UGE_FLT();
-  Register_OPCODE_DID_SATURATE();
-  Register_OPCODE_VECTOR_COMPARE_EQ();
-  Register_OPCODE_VECTOR_COMPARE_SGT();
-  Register_OPCODE_VECTOR_COMPARE_SGE();
-  Register_OPCODE_VECTOR_COMPARE_UGT();
-  Register_OPCODE_VECTOR_COMPARE_UGE();
-  Register_OPCODE_ADD();
-  Register_OPCODE_ADD_CARRY();
-  Register_OPCODE_VECTOR_ADD();
-  Register_OPCODE_SUB();
-  Register_OPCODE_VECTOR_SUB();
-  Register_OPCODE_MUL();
-  Register_OPCODE_MUL_HI();
-  Register_OPCODE_DIV();
-  Register_OPCODE_MUL_ADD();
-  Register_OPCODE_MUL_SUB();
-  Register_OPCODE_NEG();
-  Register_OPCODE_ABS();
-  Register_OPCODE_SQRT();
-  Register_OPCODE_RSQRT();
-  Register_OPCODE_RECIP();
-  Register_OPCODE_POW2();
-  Register_OPCODE_LOG2();
-  Register_OPCODE_DOT_PRODUCT_3();
-  Register_OPCODE_DOT_PRODUCT_4();
-  Register_OPCODE_AND();
-  Register_OPCODE_OR();
-  Register_OPCODE_XOR();
-  Register_OPCODE_NOT();
-  Register_OPCODE_SHL();
-  Register_OPCODE_SHR();
-  Register_OPCODE_SHA();
-  Register_OPCODE_VECTOR_SHL();
-  Register_OPCODE_VECTOR_SHR();
-  Register_OPCODE_VECTOR_SHA();
-  Register_OPCODE_ROTATE_LEFT();
-  Register_OPCODE_VECTOR_ROTATE_LEFT();
-  Register_OPCODE_VECTOR_AVERAGE();
-  Register_OPCODE_BYTE_SWAP();
-  Register_OPCODE_CNTLZ();
-  Register_OPCODE_INSERT();
-  Register_OPCODE_EXTRACT();
-  Register_OPCODE_SPLAT();
-  Register_OPCODE_PERMUTE();
-  Register_OPCODE_SWIZZLE();
-  Register_OPCODE_PACK();
-  Register_OPCODE_UNPACK();
-  Register_OPCODE_ATOMIC_EXCHANGE();
-  Register_OPCODE_ATOMIC_COMPARE_EXCHANGE();
-  Register_OPCODE_SET_ROUNDING_MODE();
 }
 
 bool SelectSequence(X64Emitter* e, const Instr* i, const Instr** new_tail) {
