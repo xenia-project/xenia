@@ -41,6 +41,7 @@ static bool Register() {
   const auto X64_INSTR_##name = Register<__VA_ARGS__>();
 
 // Registration functions to force inclusion of several files
+void RegisterControl();
 void RegisterVector();
 
 void RegisterSequences();
