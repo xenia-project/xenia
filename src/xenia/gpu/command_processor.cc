@@ -49,6 +49,24 @@ bool CommandProcessor::Initialize(
     std::unique_ptr<xe::ui::GraphicsContext> context) {
   context_ = std::move(context);
 
+  // Initialize the gamma ramps to their default (linear) values - taken from
+  // what games set when starting.
+  for (uint32_t i = 0; i < 256; ++i) {
+    uint32_t value = i * 1023 / 255;
+    gamma_ramp_.normal[i].value = value | (value << 10) | (value << 20);
+  }
+  for (uint32_t i = 0; i < 128; ++i) {
+    uint32_t value = (i * 65535 / 127) & ~63;
+    if (i < 127) {
+      value |= 0x200 << 16;
+    }
+    for (uint32_t j = 0; j < 3; ++j) {
+      gamma_ramp_.pwl[i].values[j].value = value;
+    }
+  }
+  dirty_gamma_ramp_normal_ = true;
+  dirty_gamma_ramp_pwl_ = true;
+
   worker_running_ = true;
   worker_thread_ = kernel::object_ref<kernel::XHostThread>(
       new kernel::XHostThread(kernel_state_, 128 * 1024, 0, [this]() {
@@ -301,25 +319,23 @@ void CommandProcessor::UpdateGammaRampValue(GammaRampType type,
   assert_true(mask_lo == 0 || mask_lo == 7);
   assert_true(mask_hi == 0);
 
-  auto subindex = gamma_ramp_rw_subindex_;
-
   if (mask_lo) {
     switch (type) {
       case GammaRampType::kNormal:
         assert_true(regs->values[XE_GPU_REG_DC_LUT_RW_MODE].u32 == 0);
         gamma_ramp_.normal[index].value = value;
+        dirty_gamma_ramp_normal_ = true;
         break;
       case GammaRampType::kPWL:
         assert_true(regs->values[XE_GPU_REG_DC_LUT_RW_MODE].u32 == 1);
-        gamma_ramp_.pwl[index].values[subindex].value = value;
+        gamma_ramp_.pwl[index].values[gamma_ramp_rw_subindex_].value = value;
+        gamma_ramp_rw_subindex_ = (gamma_ramp_rw_subindex_ + 1) % 3;
+        dirty_gamma_ramp_pwl_ = true;
         break;
       default:
         assert_unhandled_case(type);
     }
   }
-
-  gamma_ramp_rw_subindex_ = (subindex + 1) % 3;
-  dirty_gamma_ramp_ = true;
 }
 
 void CommandProcessor::MakeCoherent() {

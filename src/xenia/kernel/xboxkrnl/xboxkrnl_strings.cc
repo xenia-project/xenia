@@ -15,7 +15,6 @@
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/user_module.h"
 #include "xenia/kernel/util/shim_utils.h"
-#include "xenia/kernel/util/xex2.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_private.h"
 #include "xenia/kernel/xthread.h"
 #include "xenia/xbox.h"
@@ -925,7 +924,7 @@ SHIM_CALL _snwprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
   StackArgList args(ppc_context, 3);
   WideStringFormatData data(format);
 
-  int32_t count = format_core(ppc_context, data, args, false);
+  int32_t count = format_core(ppc_context, data, args, true);
   if (count < 0) {
     if (buffer_count > 0) {
       buffer[0] = '\0';  // write a null, just to be safe

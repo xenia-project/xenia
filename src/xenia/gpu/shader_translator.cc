@@ -911,6 +911,7 @@ void ShaderTranslator::ParseTextureFetchInstruction(
     i.attributes.use_computed_lod = op.use_computed_lod();
     i.attributes.use_register_lod = op.use_register_lod();
     i.attributes.use_register_gradients = op.use_register_gradients();
+    i.attributes.lod_bias = op.lod_bias();
     i.attributes.offset_x = op.offset_x();
     i.attributes.offset_y = op.offset_y();
     i.attributes.offset_z = op.offset_z();
