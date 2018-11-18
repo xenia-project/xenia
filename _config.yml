@@ -61,7 +61,7 @@ navigation:
 #    - title: Buildbot
 #      url: http://build.xenia.jp/waterfall
 #      icon: settings_system_daydream
-    - path: development/irc.md
+#    - path: development/irc.md
 
 artifacts:
   - title: Windows 8+ x64
