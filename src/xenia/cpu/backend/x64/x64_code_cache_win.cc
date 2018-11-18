@@ -29,9 +29,69 @@ namespace cpu {
 namespace backend {
 namespace x64 {
 
+// http://msdn.microsoft.com/en-us/library/ssa62fwe.aspx
+typedef enum _UNWIND_OP_CODES {
+  UWOP_PUSH_NONVOL = 0, /* info == register number */
+  UWOP_ALLOC_LARGE,     /* no info, alloc size in next 2 slots */
+  UWOP_ALLOC_SMALL,     /* info == size of allocation / 8 - 1 */
+  UWOP_SET_FPREG,       /* no info, FP = RSP + UNWIND_INFO.FPRegOffset*16 */
+  UWOP_SAVE_NONVOL,     /* info == register number, offset in next slot */
+  UWOP_SAVE_NONVOL_FAR, /* info == register number, offset in next 2 slots */
+  UWOP_SAVE_XMM128,     /* info == XMM reg number, offset in next slot */
+  UWOP_SAVE_XMM128_FAR, /* info == XMM reg number, offset in next 2 slots */
+  UWOP_PUSH_MACHFRAME   /* info == 0: no error-code, 1: error-code */
+} UNWIND_CODE_OPS;
+class UNWIND_REGISTER {
+ public:
+  enum _ {
+    RAX = 0,
+    RCX = 1,
+    RDX = 2,
+    RBX = 3,
+    RSP = 4,
+    RBP = 5,
+    RSI = 6,
+    RDI = 7,
+    R8 = 8,
+    R9 = 9,
+    R10 = 10,
+    R11 = 11,
+    R12 = 12,
+    R13 = 13,
+    R14 = 14,
+    R15 = 15,
+  };
+};
+
+typedef union _UNWIND_CODE {
+  struct {
+    uint8_t CodeOffset;
+    uint8_t UnwindOp : 4;
+    uint8_t OpInfo : 4;
+  };
+  USHORT FrameOffset;
+} UNWIND_CODE, *PUNWIND_CODE;
+
+typedef struct _UNWIND_INFO {
+  uint8_t Version : 3;
+  uint8_t Flags : 5;
+  uint8_t SizeOfProlog;
+  uint8_t CountOfCodes;
+  uint8_t FrameRegister : 4;
+  uint8_t FrameOffset : 4;
+  UNWIND_CODE UnwindCode[1];
+  /*  UNWIND_CODE MoreUnwindCode[((CountOfCodes + 1) & ~1) - 1];
+   *   union {
+   *       OPTIONAL ULONG ExceptionHandler;
+   *       OPTIONAL ULONG FunctionEntry;
+   *   };
+   *   OPTIONAL ULONG ExceptionData[]; */
+} UNWIND_INFO, *PUNWIND_INFO;
+
 // Size of unwind info per function.
 // TODO(benvanik): move this to emitter.
-static const uint32_t kUnwindInfoSize = 4 + (2 * 1 + 2 + 2);
+static const uint32_t kUnwindInfoSize =
+    sizeof(UNWIND_INFO) + (sizeof(UNWIND_CODE) * (6 - 1));
 
 class Win32X64CodeCache : public X64CodeCache {
  public:
@@ -106,10 +166,10 @@ bool Win32X64CodeCache::Initialize() {
   if (!RtlInstallFunctionTableCallback(
           reinterpret_cast<DWORD64>(generated_code_base_) | 0x3,
           reinterpret_cast<DWORD64>(generated_code_base_), kGeneratedCodeSize,
-          [](uintptr_t control_pc, void* context) {
-            auto code_cache = reinterpret_cast<X64CodeCache*>(context);
+          [](DWORD64 control_pc, PVOID context) {
+            auto code_cache = reinterpret_cast<Win32X64CodeCache*>(context);
             return reinterpret_cast<PRUNTIME_FUNCTION>(
-                code_cache->LookupUnwindEntry(control_pc));
+                code_cache->LookupUnwindInfo(control_pc));
           },
           this, nullptr)) {
     XELOGE("Unable to install function table callback");
@@ -150,71 +210,13 @@ void Win32X64CodeCache::PlaceCode(uint32_t guest_address, void* machine_code,
   FlushInstructionCache(GetCurrentProcess(), code_address, code_size);
 }
 
-// http://msdn.microsoft.com/en-us/library/ssa62fwe.aspx
-typedef enum _UNWIND_OP_CODES {
-  UWOP_PUSH_NONVOL = 0, /* info == register number */
-  UWOP_ALLOC_LARGE,     /* no info, alloc size in next 2 slots */
-  UWOP_ALLOC_SMALL,     /* info == size of allocation / 8 - 1 */
-  UWOP_SET_FPREG,       /* no info, FP = RSP + UNWIND_INFO.FPRegOffset*16 */
-  UWOP_SAVE_NONVOL,     /* info == register number, offset in next slot */
-  UWOP_SAVE_NONVOL_FAR, /* info == register number, offset in next 2 slots */
-  UWOP_SAVE_XMM128,     /* info == XMM reg number, offset in next slot */
-  UWOP_SAVE_XMM128_FAR, /* info == XMM reg number, offset in next 2 slots */
-  UWOP_PUSH_MACHFRAME   /* info == 0: no error-code, 1: error-code */
-} UNWIND_CODE_OPS;
-class UNWIND_REGISTER {
- public:
-  enum _ {
-    RAX = 0,
-    RCX = 1,
-    RDX = 2,
-    RBX = 3,
-    RSP = 4,
-    RBP = 5,
-    RSI = 6,
-    RDI = 7,
-    R8 = 8,
-    R9 = 9,
-    R10 = 10,
-    R11 = 11,
-    R12 = 12,
-    R13 = 13,
-    R14 = 14,
-    R15 = 15,
-  };
-};
-
-typedef union _UNWIND_CODE {
-  struct {
-    uint8_t CodeOffset;
-    uint8_t UnwindOp : 4;
-    uint8_t OpInfo : 4;
-  };
-  USHORT FrameOffset;
-} UNWIND_CODE, *PUNWIND_CODE;
-
-typedef struct _UNWIND_INFO {
-  uint8_t Version : 3;
-  uint8_t Flags : 5;
-  uint8_t SizeOfProlog;
-  uint8_t CountOfCodes;
-  uint8_t FrameRegister : 4;
-  uint8_t FrameOffset : 4;
-  UNWIND_CODE UnwindCode[1];
-  /*  UNWIND_CODE MoreUnwindCode[((CountOfCodes + 1) & ~1) - 1];
-   *   union {
-   *       OPTIONAL ULONG ExceptionHandler;
-   *       OPTIONAL ULONG FunctionEntry;
-   *   };
-   *   OPTIONAL ULONG ExceptionData[]; */
-} UNWIND_INFO, *PUNWIND_INFO;
-
 void Win32X64CodeCache::InitializeUnwindEntry(uint8_t* unwind_entry_address,
                                               size_t unwind_table_slot,
                                               void* code_address,
                                               size_t code_size,
                                               size_t stack_size) {
   auto unwind_info = reinterpret_cast<UNWIND_INFO*>(unwind_entry_address);
+  UNWIND_CODE* unwind_code = nullptr;
 
   if (!stack_size) {
     // http://msdn.microsoft.com/en-us/library/ddssxxy8.aspx
@@ -231,17 +233,16 @@ void Win32X64CodeCache::InitializeUnwindEntry(uint8_t* unwind_entry_address,
     unwind_info->Version = 1;
     unwind_info->Flags = 0;
     unwind_info->SizeOfProlog = prolog_size;
-    unwind_info->CountOfCodes = 1;
+    unwind_info->CountOfCodes = 0;
     unwind_info->FrameRegister = 0;
     unwind_info->FrameOffset = 0;
 
     // http://msdn.microsoft.com/en-us/library/ck9asaa9.aspx
-    size_t co = 0;
-    auto& unwind_code = unwind_info->UnwindCode[co++];
-    unwind_code.CodeOffset =
+    unwind_code = &unwind_info->UnwindCode[unwind_info->CountOfCodes++];
+    unwind_code->CodeOffset =
         14;  // end of instruction + 1 == offset of next instruction
-    unwind_code.UnwindOp = UWOP_ALLOC_SMALL;
-    unwind_code.OpInfo = stack_size / 8 - 1;
+    unwind_code->UnwindOp = UWOP_ALLOC_SMALL;
+    unwind_code->OpInfo = stack_size / 8 - 1;
   } else {
     // TODO(benvanik): take as parameters?
     uint8_t prolog_size = 7;
@@ -250,21 +251,26 @@ void Win32X64CodeCache::InitializeUnwindEntry(uint8_t* unwind_entry_address,
     unwind_info->Version = 1;
     unwind_info->Flags = 0;
     unwind_info->SizeOfProlog = prolog_size;
-    unwind_info->CountOfCodes = 2;
+    unwind_info->CountOfCodes = 0;
     unwind_info->FrameRegister = 0;
     unwind_info->FrameOffset = 0;
 
     // http://msdn.microsoft.com/en-us/library/ck9asaa9.aspx
-    size_t co = 0;
-    auto& unwind_code = unwind_info->UnwindCode[co++];
-    unwind_code.CodeOffset =
+    unwind_code = &unwind_info->UnwindCode[unwind_info->CountOfCodes++];
+    unwind_code->CodeOffset =
         7;  // end of instruction + 1 == offset of next instruction
-    unwind_code.UnwindOp = UWOP_ALLOC_LARGE;
-    unwind_code.OpInfo = 0;
+    unwind_code->UnwindOp = UWOP_ALLOC_LARGE;
+    unwind_code->OpInfo = 0;  // One slot for size
 
     assert_true((stack_size / 8) < 65536u);
-    unwind_code = unwind_info->UnwindCode[co++];
-    unwind_code.FrameOffset = (USHORT)(stack_size) / 8;
+    unwind_code = &unwind_info->UnwindCode[unwind_info->CountOfCodes++];
+    unwind_code->FrameOffset = (USHORT)(stack_size) / 8;
+  }
+
+  if (unwind_info->CountOfCodes % 1) {
+    // Count of unwind codes must always be even.
+    std::memset(&unwind_info->UnwindCode[unwind_info->CountOfCodes + 1], 0,
+                sizeof(UNWIND_CODE));
   }
 
   // Add entry.

@@ -5621,6 +5621,14 @@ struct VECTOR_SHL_V128
     return _mm_load_si128(reinterpret_cast<__m128i*>(value));
   }
   static void EmitInt16(X64Emitter& e, const EmitArgType& i) {
+    Xmm src1;
+    if (i.src1.is_constant) {
+      src1 = e.xmm2;
+      e.LoadConstantXmm(src1, i.src1.constant());
+    } else {
+      src1 = i.src1;
+    }
+
     if (i.src2.is_constant) {
       const auto& shamt = i.src2.constant();
       bool all_same = true;
@@ -5632,7 +5640,7 @@ struct VECTOR_SHL_V128
       }
       if (all_same) {
         // Every count is the same, so we can use vpsllw.
-        e.vpsllw(i.dest, i.src1, shamt.u16[0] & 0xF);
+        e.vpsllw(i.dest, src1, shamt.u16[0] & 0xF);
         return;
       }
     }
@@ -5653,7 +5661,7 @@ struct VECTOR_SHL_V128
       e.mov(e.rax, 0xF);
       e.vmovq(e.xmm1, e.rax);
       e.vpand(e.xmm0, e.xmm0, e.xmm1);
-      e.vpsllw(i.dest, i.src1, e.xmm0);
+      e.vpsllw(i.dest, src1, e.xmm0);
       e.jmp(end);
     }
 
@@ -5665,7 +5673,7 @@ struct VECTOR_SHL_V128
     } else {
       e.lea(e.r9, e.StashXmm(1, i.src2));
     }
-    e.lea(e.r8, e.StashXmm(0, i.src1));
+    e.lea(e.r8, e.StashXmm(0, src1));
     e.CallNativeSafe(reinterpret_cast<void*>(EmulateVectorShlI16));
     e.vmovaps(i.dest, e.xmm0);
 
