@@ -23,6 +23,4 @@ permalink: /download/
   {% endfor %}
 {% endfor %}
 
-From there go to Jobs > Configuration Release > Artifacts then you can download the zip file.
-
 Linux builds coming eventually...
