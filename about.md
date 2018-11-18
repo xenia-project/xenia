@@ -44,6 +44,6 @@ games to play I'm really just hacking to have fun.
 
 ## Team
 
-Contributors can be seen [here on GitHub](https://github.com/benvanik/xenia/graphs/contributors).
+Contributors can be seen [here on GitHub](https://github.com/xenia-project/xenia/graphs/contributors).
 
 TODO: auto generate a list from API.

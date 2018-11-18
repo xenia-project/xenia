@@ -10,20 +10,20 @@ permalink: /
 
 <div class="home">
   <div id="github-widget">
-    <div class="" data-repo="benvanik/xenia">
+    <div class="" data-repo="xenia-project/xenia">
       <div class="github-box repo">
         <div class="github-box-title">
           <h3>
-            <a class="owner" href="https://github.com/benvanik">benvanik</a>/<a class="repo" href="http://github.com/benvanik/xenia">xenia</a>
+            <a class="owner" href="https://github.com/xenia-project">xenia-project</a>/<a class="repo" href="http://github.com/xenia-project/xenia">xenia</a>
           </h3>
           <div class="github-stats">
-            <a class="watchers" href="https://github.com/benvanik/xenia/watchers">???</a>
-            <a class="forks" href="https://github.com/benvanik/xenia/network/members">???</a>
+            <a class="watchers" href="https://github.com/xenia-project/xenia/watchers">???</a>
+            <a class="forks" href="https://github.com/xenia-project/xenia/network/members">???</a>
           </div>
         </div>
         <div class="github-box-content">
           <p class="description">
-            <span>Xbox 360 Emulator Research Project </span> &mdash; <a href="http://github.com/benvanik/xenia#readme">Read More</a>
+            <span>Xbox 360 Emulator Research Project </span> &mdash; <a href="http://github.com/xenia-project/xenia#readme">Read More</a>
           </p>
           <p class="link">
             <a href="http://xenia.jp">http://xenia.jp</a>
@@ -109,7 +109,7 @@ permalink: /
 
   function fetchRepoData(callback) {
     var gh = new Github({});
-    var repoAdapter = gh.getRepo('benvanik', 'xenia');
+    var repoAdapter = gh.getRepo('xenia-project', 'xenia');
     repoAdapter.show(function(err, repoData) {
       // Store with timestamp for expiration.
       repoData.__cache_time__ = Date.now();

@@ -62,7 +62,7 @@ games it's not worth the maintenance burden. OSX will likely remain unsupported
 until Apple supports Vulkan.
 
 There's only a few major pieces that need cleanup before a Linux port can
-proceed in earnest, listed with the [cross-platform tag](https://github.com/benvanik/xenia/labels/cross%20platform).
+proceed in earnest, listed with the [cross-platform tag](https://github.com/xenia-project/xenia/labels/cross%20platform).
 Most of the code compiles with the latest Clang, and very few files have
 dependencies on Windows APIs (all of that is isolated to `_win.cc` files).
 Though the codebase is ready for the port, it's not a trivial task and anyone
@@ -91,12 +91,12 @@ Constructive contributions and improvements are welcome.
 ### Have you heard of LLVM/asmjit/jitasm/luajit/etc?
 
 Yes, I have heard of them. In fact, I spent a long time trying them out:
-[LLVM](https://github.com/benvanik/xenia/tree/85bdbd24d1b5923cfb104f45194a96e7ac57026e/src/xenia/cpu/codegen),
-[libjit](https://github.com/benvanik/xenia/tree/eee856be0499a4bc721b6097f5f2b9446929f2cc/src/xenia/cpu/libjit),
-[asmjit](https://github.com/benvanik/xenia/tree/ca208fa60a0285d396409743064784cc2320c094/src/xenia/cpu/x64).
+[LLVM](https://github.com/xenia-project/xenia/tree/85bdbd24d1b5923cfb104f45194a96e7ac57026e/src/xenia/cpu/codegen),
+[libjit](https://github.com/xenia-project/xenia/tree/eee856be0499a4bc721b6097f5f2b9446929f2cc/src/xenia/cpu/libjit),
+[asmjit](https://github.com/xenia-project/xenia/tree/ca208fa60a0285d396409743064784cc2320c094/src/xenia/cpu/x64).
 I did not find them acceptable for use in this project for various reasons. If
 for some reason you feel strongly otherwise, feel free to either contribute a
-[new CPU backend](https://github.com/benvanik/xenia/tree/master/src/xenia/cpu/backend).
+[new CPU backend](https://github.com/xenia-project/xenia/tree/master/src/xenia/cpu/backend).
 
 ### (some argument over an unimportant technical choice)
 

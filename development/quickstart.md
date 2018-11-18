@@ -12,12 +12,12 @@ permalink: /development/quickstart/
 
 Have Windows 8 or later with Python 2.7 and [Visual Studio 2015 or 2017](https://www.visualstudio.com/downloads/download-visual-studio-vs) and the Windows SDKs installed:
 
-    > git clone --recursive https://github.com/benvanik/xenia.git
+    > git clone --recursive https://github.com/xenia-project/xenia.git
     > xb setup
     > xb devenv
 
 That's mostly it. Run the `xenia-app` project. For debugging setup instructions
-see [the github docs](https://github.com/benvanik/xenia/blob/master/building.md).
+see [the github docs](https://github.com/xenia-project/xenia/blob/master/building.md).
 
 When pulling new code use either `xb pull` to fetch the latest changes to both
 the main repository and all submodules as well as run premake, or else be sure
@@ -61,10 +61,10 @@ and ensure your processor supports AVX or AVX2.
 
 Pull requests are very welcome, but must be of a certain level of quality to
 merge into the main repository.
-This means that they must adhere to [the style guide](https://github.com/benvanik/xenia/blob/master/style_guide.md),
+This means that they must adhere to [the style guide](https://github.com/xenia-project/xenia/blob/master/style_guide.md),
 not pollute the git history (you may be asked to rebase if you've been bad),
 and build clean. Changes that are obviously untested or unsafe will not be
 accepted without additional verification.
 
-For more information, see [CONTRIBUTING.md](https://github.com/benvanik/xenia/blob/master/CONTRIBUTING.md)
+For more information, see [CONTRIBUTING.md](https://github.com/xenia-project/xenia/blob/master/CONTRIBUTING.md)
 in the repository.

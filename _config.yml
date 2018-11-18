@@ -53,10 +53,10 @@ navigation:
     - path: development/quickstart.md
     - path: development/debugging.md
     - title: Source Code
-      url: https://github.com/benvanik/xenia
+      url: https://github.com/xenia-project/xenia
       icon: code
     - title: Issues
-      url: https://github.com/benvanik/xenia/issues
+      url: https://github.com/xenia-project/xenia/issues
       icon: bug_report
     - title: Buildbot
       url: http://build.xenia.jp/waterfall
