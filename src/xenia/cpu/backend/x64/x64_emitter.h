@@ -187,6 +187,8 @@ class X64Emitter : public Xbyak::CodeGenerator {
   void CallNativeSafe(void* fn);
   void SetReturnAddress(uint64_t value);
 
+  Xbyak::Reg64 GetNativeParam(uint32_t param);
+
   Xbyak::Reg64 GetContextReg();
   Xbyak::Reg64 GetMembaseReg();
   void ReloadContext();

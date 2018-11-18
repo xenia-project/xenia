@@ -224,6 +224,8 @@ bool X64Emitter::Emit(HIRBuilder* builder, size_t* out_stack_size) {
       const Instr* new_tail = instr;
       if (!SelectSequence(this, instr, &new_tail)) {
         // No sequence found!
+        // NOTE: If you encounter this after adding a new instruction, do a full
+        // rebuild!
         assert_always();
         XELOGE("Unable to process HIR opcode %s", instr->opcode->name);
         break;
@@ -458,16 +460,15 @@ void X64Emitter::CallExtern(const hir::Instr* instr, const Function* function) {
     auto builtin_function = static_cast<const BuiltinFunction*>(function);
     if (builtin_function->handler()) {
       undefined = false;
-      // rcx = context
-      // rdx = target host function
-      // r8  = arg0
-      // r9  = arg1
-      mov(rcx, GetContextReg());
-      mov(rdx, reinterpret_cast<uint64_t>(builtin_function->handler()));
-      mov(r8, reinterpret_cast<uint64_t>(builtin_function->arg0()));
-      mov(r9, reinterpret_cast<uint64_t>(builtin_function->arg1()));
+      // rcx = target function
+      // rdx = arg0
+      // r8  = arg1
+      // r9  = arg2
       auto thunk = backend()->guest_to_host_thunk();
       mov(rax, reinterpret_cast<uint64_t>(thunk));
+      mov(rcx, reinterpret_cast<uint64_t>(builtin_function->handler()));
+      mov(rdx, reinterpret_cast<uint64_t>(builtin_function->arg0()));
+      mov(r8, reinterpret_cast<uint64_t>(builtin_function->arg1()));
       call(rax);
       // rax = host return
     }
@@ -475,13 +476,15 @@ void X64Emitter::CallExtern(const hir::Instr* instr, const Function* function) {
     auto extern_function = static_cast<const GuestFunction*>(function);
     if (extern_function->extern_handler()) {
       undefined = false;
-      // rcx = context
-      // rdx = target host function
-      mov(rcx, GetContextReg());
-      mov(rdx, reinterpret_cast<uint64_t>(extern_function->extern_handler()));
-      mov(r8, qword[GetContextReg() + offsetof(ppc::PPCContext, kernel_state)]);
+      // rcx = target function
+      // rdx = arg0
+      // r8  = arg1
+      // r9  = arg2
       auto thunk = backend()->guest_to_host_thunk();
       mov(rax, reinterpret_cast<uint64_t>(thunk));
+      mov(rcx, reinterpret_cast<uint64_t>(extern_function->extern_handler()));
+      mov(rdx,
+          qword[GetContextReg() + offsetof(ppc::PPCContext, kernel_state)]);
       call(rax);
       // rax = host return
     }
@@ -518,15 +521,13 @@ void X64Emitter::CallNative(uint64_t (*fn)(void* raw_context, uint64_t arg0),
 }
 
 void X64Emitter::CallNativeSafe(void* fn) {
-  // rcx = context
-  // rdx = target function
-  // r8  = arg0
-  // r9  = arg1
-  // r10 = arg2
+  // rcx = target function
+  // rdx = arg0
+  // r8  = arg1
+  // r9  = arg2
   auto thunk = backend()->guest_to_host_thunk();
   mov(rax, reinterpret_cast<uint64_t>(thunk));
-  mov(rcx, GetContextReg());
-  mov(rdx, reinterpret_cast<uint64_t>(fn));
+  mov(rcx, reinterpret_cast<uint64_t>(fn));
   call(rax);
   // rax = host return
 }
@@ -534,6 +535,19 @@ void X64Emitter::CallNativeSafe(void* fn) {
 void X64Emitter::SetReturnAddress(uint64_t value) {
   mov(rax, value);
   mov(qword[rsp + StackLayout::GUEST_CALL_RET_ADDR], rax);
+}
+
+Xbyak::Reg64 X64Emitter::GetNativeParam(uint32_t param)
+{
+  if (param == 0)
+    return rdx;
+  else if (param == 1)
+    return r8;
+  else if (param == 2)
+    return r9;
+
+  assert_always();
+  return r9;
 }
 
 // Important: If you change these, you must update the thunks in x64_backend.cc!

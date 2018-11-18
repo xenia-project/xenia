@@ -2360,7 +2360,7 @@ struct POW2_F32 : Sequence<POW2_F32, I<OPCODE_POW2, F32Op, F32Op>> {
   }
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     assert_always();
-    e.lea(e.r8, e.StashXmm(0, i.src1));
+    e.lea(e.GetNativeParam(0), e.StashXmm(0, i.src1));
     e.CallNativeSafe(reinterpret_cast<void*>(EmulatePow2));
     e.vmovaps(i.dest, e.xmm0);
   }
@@ -2374,7 +2374,7 @@ struct POW2_F64 : Sequence<POW2_F64, I<OPCODE_POW2, F64Op, F64Op>> {
   }
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     assert_always();
-    e.lea(e.r8, e.StashXmm(0, i.src1));
+    e.lea(e.GetNativeParam(0), e.StashXmm(0, i.src1));
     e.CallNativeSafe(reinterpret_cast<void*>(EmulatePow2));
     e.vmovaps(i.dest, e.xmm0);
   }
@@ -2389,7 +2389,7 @@ struct POW2_V128 : Sequence<POW2_V128, I<OPCODE_POW2, V128Op, V128Op>> {
     return _mm_load_ps(values);
   }
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.lea(e.r8, e.StashXmm(0, i.src1));
+    e.lea(e.GetNativeParam(0), e.StashXmm(0, i.src1));
     e.CallNativeSafe(reinterpret_cast<void*>(EmulatePow2));
     e.vmovaps(i.dest, e.xmm0);
   }
@@ -2411,7 +2411,7 @@ struct LOG2_F32 : Sequence<LOG2_F32, I<OPCODE_LOG2, F32Op, F32Op>> {
   }
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     assert_always();
-    e.lea(e.r8, e.StashXmm(0, i.src1));
+    e.lea(e.GetNativeParam(0), e.StashXmm(0, i.src1));
     e.CallNativeSafe(reinterpret_cast<void*>(EmulateLog2));
     e.vmovaps(i.dest, e.xmm0);
   }
@@ -2425,7 +2425,7 @@ struct LOG2_F64 : Sequence<LOG2_F64, I<OPCODE_LOG2, F64Op, F64Op>> {
   }
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     assert_always();
-    e.lea(e.r8, e.StashXmm(0, i.src1));
+    e.lea(e.GetNativeParam(0), e.StashXmm(0, i.src1));
     e.CallNativeSafe(reinterpret_cast<void*>(EmulateLog2));
     e.vmovaps(i.dest, e.xmm0);
   }
@@ -2440,7 +2440,7 @@ struct LOG2_V128 : Sequence<LOG2_V128, I<OPCODE_LOG2, V128Op, V128Op>> {
     return _mm_load_ps(values);
   }
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.lea(e.r8, e.StashXmm(0, i.src1));
+    e.lea(e.GetNativeParam(0), e.StashXmm(0, i.src1));
     e.CallNativeSafe(reinterpret_cast<void*>(EmulateLog2));
     e.vmovaps(i.dest, e.xmm0);
   }
@@ -2705,11 +2705,11 @@ struct SHL_V128 : Sequence<SHL_V128, I<OPCODE_SHL, V128Op, V128Op, I8Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     // TODO(benvanik): native version (with shift magic).
     if (i.src2.is_constant) {
-      e.mov(e.r9, i.src2.constant());
+      e.mov(e.GetNativeParam(1), i.src2.constant());
     } else {
-      e.mov(e.r9, i.src2);
+      e.mov(e.GetNativeParam(1), i.src2);
     }
-    e.lea(e.r8, e.StashXmm(0, i.src1));
+    e.lea(e.GetNativeParam(0), e.StashXmm(0, i.src1));
     e.CallNativeSafe(reinterpret_cast<void*>(EmulateShlV128));
     e.vmovaps(i.dest, e.xmm0);
   }
@@ -2782,11 +2782,11 @@ struct SHR_V128 : Sequence<SHR_V128, I<OPCODE_SHR, V128Op, V128Op, I8Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     // TODO(benvanik): native version (with shift magic).
     if (i.src2.is_constant) {
-      e.mov(e.r9, i.src2.constant());
+      e.mov(e.GetNativeParam(1), i.src2.constant());
     } else {
-      e.mov(e.r9, i.src2);
+      e.mov(e.GetNativeParam(1), i.src2);
     }
-    e.lea(e.r8, e.StashXmm(0, i.src1));
+    e.lea(e.GetNativeParam(0), e.StashXmm(0, i.src1));
     e.CallNativeSafe(reinterpret_cast<void*>(EmulateShrV128));
     e.vmovaps(i.dest, e.xmm0);
   }
