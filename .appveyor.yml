@@ -6,14 +6,11 @@
 version: 1.0.{build}-{branch}
 
 # branches to build
+# Only building master (and pull requests)
 branches:
   # whitelist
-  # only:
-  #   - master
-
-  # blacklist
-  except:
-    - gh-pages
+  only:
+    - master
 
 # Do not build on tags (GitHub only)
 skip_tags: true
