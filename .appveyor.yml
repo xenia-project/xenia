@@ -8,9 +8,9 @@ version: 1.0.{build}-{branch}
 # branches to build
 # Only building master (and pull requests)
 branches:
-  # whitelist
-  only:
-    - master
+  # blacklist
+  except:
+    - gh-pages
 
 # Do not build on tags (GitHub only)
 skip_tags: true
@@ -20,6 +20,10 @@ skip_commits:
     - docs/*
     - LICENSE
     - README.md
+    - .travis.yml
+
+# Skip branches that have an open pull request.
+skip_branch_with_pr: true
 
 pull_requests:
   do_not_increment_build_number: true
