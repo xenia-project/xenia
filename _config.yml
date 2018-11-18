@@ -58,9 +58,9 @@ navigation:
     - title: Issues
       url: https://github.com/xenia-project/xenia/issues
       icon: bug_report
-    - title: Buildbot
-      url: http://build.xenia.jp/waterfall
-      icon: settings_system_daydream
+#    - title: Buildbot
+#      url: http://build.xenia.jp/waterfall
+#      icon: settings_system_daydream
     - path: development/irc.md
 
 artifacts:
