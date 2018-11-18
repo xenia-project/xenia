@@ -1380,7 +1380,7 @@ void Value::VectorAverage(Value* other, TypeName type, bool is_unsigned,
                           bool saturate) {
   assert_true(this->type == VEC128_TYPE && other->type == VEC128_TYPE);
   switch (type) {
-    case INT16_TYPE:
+    case INT16_TYPE: {
       // TODO(gibbed): is this correct?
       alignas(16) int8_t result[16];
       __m128i src1 =
@@ -1390,7 +1390,7 @@ void Value::VectorAverage(Value* other, TypeName type, bool is_unsigned,
       __m128i dest = _mm_avg_epu16(src1, src2);
       _mm_store_si128(reinterpret_cast<__m128i*>(result), dest);
       std::memcpy(constant.v128.i8, result, sizeof(result));
-      break;
+    } break;
     default:
       assert_unhandled_case(type);
       break;
