@@ -42,6 +42,12 @@ void RtlRaiseException(pointer_t<X_EXCEPTION_RECORD> record) {
         reinterpret_cast<X_THREADNAME_INFO*>(&record->exception_information[0]);
 
     assert_true(thread_info->type == 0x1000);
+
+    if (!thread_info->name_ptr) {
+      XELOGD("SetThreadName called with null name_ptr");
+      return;
+    }
+
     auto name =
         kernel_memory()->TranslateVirtual<const char*>(thread_info->name_ptr);
 
