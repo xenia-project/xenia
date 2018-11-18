@@ -92,6 +92,8 @@ class StackWalker {
   // populated.
   virtual bool ResolveStack(uint64_t* frame_host_pcs, StackFrame* frames,
                             size_t frame_count) = 0;
+
+  virtual ~StackWalker() = default;
 };
 
 }  // namespace cpu
