@@ -350,6 +350,7 @@ class SpaFile : public XdbfFile {
 
 class GpdFile : public XdbfFile {
  public:
+  GpdFile() : title_id_(-1) {}
   GpdFile(uint32_t title_id) : title_id_(title_id) {}
 
   bool GetAchievement(uint16_t id, XdbfAchievement* dest);

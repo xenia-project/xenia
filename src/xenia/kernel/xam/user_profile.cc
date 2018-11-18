@@ -29,7 +29,7 @@ DEFINE_string(profile_directory, "Content\\Profile\\",
 
 constexpr uint32_t kDashboardID = 0xFFFE07D1;
 
-UserProfile::UserProfile() {
+UserProfile::UserProfile() : dash_gpd_(kDashboardID) {
   xuid_ = 0xBABEBABEBABEBABE;
   name_ = "User";
 
