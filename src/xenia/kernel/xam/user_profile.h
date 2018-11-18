@@ -208,9 +208,11 @@ class UserProfile {
   Setting* GetSetting(uint32_t setting_id);
 
   util::GpdFile* SetTitleSpaData(const util::SpaFile& spa_data);
-  util::GpdFile* GetTitleGpd(uint32_t title_id = 0);
+  util::GpdFile* GetTitleGpd(uint32_t title_id = -1);
 
-  bool UpdateTitleGpd();
+  void GetTitles(std::vector<util::GpdFile*>& titles);
+
+  bool UpdateTitleGpd(uint32_t title_id = -1);
   bool UpdateAllGpds();
 
  private:

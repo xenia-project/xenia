@@ -294,7 +294,7 @@ util::GpdFile* UserProfile::SetTitleSpaData(const util::SpaFile& spa_data) {
 }
 
 util::GpdFile* UserProfile::GetTitleGpd(uint32_t title_id) {
-  if (!title_id) {
+  if (title_id == -1) {
     return curr_gpd_;
   }
 
@@ -306,16 +306,25 @@ util::GpdFile* UserProfile::GetTitleGpd(uint32_t title_id) {
   return &(*gpd).second;
 }
 
-bool UserProfile::UpdateTitleGpd() {
-  if (!curr_gpd_ || curr_title_id_ == -1) {
-    return false;
+void UserProfile::GetTitles(std::vector<util::GpdFile*>& titles) {
+  for (auto title : title_gpds_) {
+    titles.push_back(&title.second);
+  }
+}
+
+bool UserProfile::UpdateTitleGpd(uint32_t title_id) {
+  if (title_id == -1) {
+    if (!curr_gpd_ || curr_title_id_ == -1) {
+      return false;
+    }
+    title_id = curr_title_id_;
   }
 
-  bool result = UpdateGpd(curr_title_id_, *curr_gpd_);
+  bool result = UpdateGpd(title_id, *curr_gpd_);
   if (!result) {
-    XELOGE("UpdateTitleGpd failed on title %X!", curr_title_id_);
+    XELOGE("UpdateTitleGpd failed on title %X!", title_id);
   } else {
-    XELOGD("Updated title %X GPD successfully!", curr_title_id_);
+    XELOGD("Updated title %X GPD successfully!", title_id);
   }
   return result;
 }
