@@ -350,6 +350,8 @@ class SpaFile : public XdbfFile {
 
 class GpdFile : public XdbfFile {
  public:
+  GpdFile(uint32_t title_id) : title_id_(title_id) {}
+
   bool GetAchievement(uint16_t id, XdbfAchievement* dest);
   uint32_t GetAchievements(std::vector<XdbfAchievement>* achievements) const;
 
@@ -361,6 +363,11 @@ class GpdFile : public XdbfFile {
 
   // Updates (or adds) a title
   bool UpdateTitle(XdbfTitlePlayed title);
+
+  uint32_t GetTitleId() { return title_id_; }
+
+ private:
+  uint32_t title_id_ = -1;
 };
 
 }  // namespace util

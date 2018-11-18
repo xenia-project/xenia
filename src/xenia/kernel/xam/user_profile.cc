@@ -131,7 +131,7 @@ void UserProfile::LoadGpdFiles() {
       continue;
     }
 
-    util::GpdFile title_gpd;
+    util::GpdFile title_gpd(title.title_id);
     bool result = title_gpd.Read(mmap_->data(), mmap_->size());
     mmap_->Close();
 
@@ -221,7 +221,7 @@ util::GpdFile* UserProfile::SetTitleSpaData(const util::SpaFile& spa_data) {
     title_info.last_played = Clock::QueryHostSystemTime();
 
     // Copy cheevos from SPA -> GPD
-    util::GpdFile title_gpd;
+    util::GpdFile title_gpd(spa_title);
     for (auto ach : spa_achievements) {
       title_gpd.UpdateAchievement(ach);
 
