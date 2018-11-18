@@ -22,30 +22,30 @@ bool XdbfFile::Read(const uint8_t* data, size_t data_size) {
   }
 
   auto* ptr = data;
-  memcpy(&header, ptr, sizeof(X_XDBF_HEADER));
-  if (header.magic != kXdbfMagicXdbf) {
+  memcpy(&header_, ptr, sizeof(X_XDBF_HEADER));
+  if (header_.magic != kXdbfMagicXdbf) {
     return false;
   }
 
   ptr += sizeof(X_XDBF_HEADER);
 
   auto* free_ptr = (const X_XDBF_FILELOC*)(ptr + (sizeof(X_XDBF_ENTRY) *
-                                                  header.entry_count));
+                                                  header_.entry_count));
   auto* data_ptr =
-      (uint8_t*)free_ptr + (sizeof(X_XDBF_FILELOC) * header.free_count);
+      (uint8_t*)free_ptr + (sizeof(X_XDBF_FILELOC) * header_.free_count);
 
-  for (uint32_t i = 0; i < header.entry_used; i++) {
+  for (uint32_t i = 0; i < header_.entry_used; i++) {
     XdbfEntry entry;
     memcpy(&entry.info, ptr, sizeof(X_XDBF_ENTRY));
     entry.data.resize(entry.info.size);
     memcpy(entry.data.data(), data_ptr + entry.info.offset, entry.info.size);
-    entries.push_back(entry);
+    entries_.push_back(entry);
 
     ptr += sizeof(X_XDBF_ENTRY);
   }
 
-  for (uint32_t i = 0; i < header.free_used; i++) {
-    free_entries.push_back(*free_ptr);
+  for (uint32_t i = 0; i < header_.free_used; i++) {
+    free_entries_.push_back(*free_ptr);
     free_ptr++;
   }
 
@@ -56,11 +56,11 @@ bool XdbfFile::Write(uint8_t* data, size_t* data_size) {
   *data_size = 0;
 
   *data_size += sizeof(X_XDBF_HEADER);
-  *data_size += entries.size() * sizeof(X_XDBF_ENTRY);
+  *data_size += entries_.size() * sizeof(X_XDBF_ENTRY);
   *data_size += 1 * sizeof(X_XDBF_FILELOC);
 
   size_t entries_size = 0;
-  for (auto ent : entries) {
+  for (auto ent : entries_) {
     entries_size += ent.data.size();
   }
 
@@ -70,20 +70,20 @@ bool XdbfFile::Write(uint8_t* data, size_t* data_size) {
     return true;
   }
 
-  header.entry_count = header.entry_used = (uint32_t)entries.size();
-  header.free_count = header.free_used = 1;
+  header_.entry_count = header_.entry_used = (uint32_t)entries_.size();
+  header_.free_count = header_.free_used = 1;
 
   auto* ptr = data;
-  memcpy(ptr, &header, sizeof(X_XDBF_HEADER));
+  memcpy(ptr, &header_, sizeof(X_XDBF_HEADER));
   ptr += sizeof(X_XDBF_HEADER);
 
   auto* free_ptr =
-      (X_XDBF_FILELOC*)(ptr + (sizeof(X_XDBF_ENTRY) * header.entry_count));
+      (X_XDBF_FILELOC*)(ptr + (sizeof(X_XDBF_ENTRY) * header_.entry_count));
   auto* data_start =
-      (uint8_t*)free_ptr + (sizeof(X_XDBF_FILELOC) * header.free_count);
+      (uint8_t*)free_ptr + (sizeof(X_XDBF_FILELOC) * header_.free_count);
 
   auto* data_ptr = data_start;
-  for (auto ent : entries) {
+  for (auto ent : entries_) {
     ent.info.offset = (uint32_t)(data_ptr - data_start);
     ent.info.size = (uint32_t)ent.data.size();
     memcpy(ptr, &ent.info, sizeof(X_XDBF_ENTRY));
@@ -93,16 +93,16 @@ bool XdbfFile::Write(uint8_t* data, size_t* data_size) {
     ptr += sizeof(X_XDBF_ENTRY);
   }
 
-  free_entries.clear();
+  free_entries_.clear();
   X_XDBF_FILELOC free_ent;
   free_ent.offset = (uint32_t)*data_size - sizeof(X_XDBF_HEADER) -
-                    (sizeof(X_XDBF_ENTRY) * header.entry_count) -
-                    (sizeof(X_XDBF_FILELOC) * header.free_count);
+                    (sizeof(X_XDBF_ENTRY) * header_.entry_count) -
+                    (sizeof(X_XDBF_FILELOC) * header_.free_count);
 
   free_ent.size = 0 - free_ent.offset;
-  free_entries.push_back(free_ent);
+  free_entries_.push_back(free_ent);
 
-  for (auto ent : free_entries) {
+  for (auto ent : free_entries_) {
     memcpy(free_ptr, &ent, sizeof(X_XDBF_FILELOC));
     free_ptr++;
   }
@@ -111,8 +111,8 @@ bool XdbfFile::Write(uint8_t* data, size_t* data_size) {
 }
 
 XdbfEntry* XdbfFile::GetEntry(uint16_t section, uint64_t id) const {
-  for (size_t i = 0; i < entries.size(); i++) {
-    auto* entry = (XdbfEntry*)&entries[i];
+  for (size_t i = 0; i < entries_.size(); i++) {
+    auto* entry = (XdbfEntry*)&entries_[i];
     if (entry->info.section != section || entry->info.id != id) {
       continue;
     }
@@ -124,8 +124,8 @@ XdbfEntry* XdbfFile::GetEntry(uint16_t section, uint64_t id) const {
 }
 
 bool XdbfFile::UpdateEntry(XdbfEntry entry) {
-  for (size_t i = 0; i < entries.size(); i++) {
-    auto* ent = (XdbfEntry*)&entries[i];
+  for (size_t i = 0; i < entries_.size(); i++) {
+    auto* ent = (XdbfEntry*)&entries_[i];
     if (ent->info.section != entry.info.section ||
         ent->info.id != entry.info.id) {
       continue;
@@ -142,7 +142,7 @@ bool XdbfFile::UpdateEntry(XdbfEntry entry) {
   new_entry.info.size = (uint32_t)entry.data.size();
   new_entry.data = entry.data;
 
-  entries.push_back(new_entry);
+  entries_.push_back(new_entry);
   return true;
 }
 
@@ -272,8 +272,8 @@ uint32_t SpaFile::GetTitleId() const {
 }
 
 bool GpdFile::GetAchievement(uint16_t id, XdbfAchievement* dest) {
-  for (size_t i = 0; i < entries.size(); i++) {
-    auto* entry = (XdbfEntry*)&entries[i];
+  for (size_t i = 0; i < entries_.size(); i++) {
+    auto* entry = (XdbfEntry*)&entries_[i];
     if (entry->info.section !=
             static_cast<uint16_t>(XdbfGpdSection::kAchievement) ||
         entry->info.id != id) {
@@ -296,8 +296,8 @@ uint32_t GpdFile::GetAchievements(
     std::vector<XdbfAchievement>* achievements) const {
   uint32_t ach_count = 0;
 
-  for (size_t i = 0; i < entries.size(); i++) {
-    auto* entry = (XdbfEntry*)&entries[i];
+  for (size_t i = 0; i < entries_.size(); i++) {
+    auto* entry = (XdbfEntry*)&entries_[i];
     if (entry->info.section !=
         static_cast<uint16_t>(XdbfGpdSection::kAchievement)) {
       continue;
@@ -323,8 +323,8 @@ uint32_t GpdFile::GetAchievements(
 }
 
 bool GpdFile::GetTitle(uint32_t title_id, XdbfTitlePlayed* dest) {
-  for (size_t i = 0; i < entries.size(); i++) {
-    auto* entry = (XdbfEntry*)&entries[i];
+  for (size_t i = 0; i < entries_.size(); i++) {
+    auto* entry = (XdbfEntry*)&entries_[i];
     if (entry->info.section != static_cast<uint16_t>(XdbfGpdSection::kTitle) ||
         entry->info.id != title_id) {
       continue;
@@ -344,8 +344,8 @@ bool GpdFile::GetTitle(uint32_t title_id, XdbfTitlePlayed* dest) {
 uint32_t GpdFile::GetTitles(std::vector<XdbfTitlePlayed>* titles) const {
   uint32_t title_count = 0;
 
-  for (size_t i = 0; i < entries.size(); i++) {
-    auto* entry = (XdbfEntry*)&entries[i];
+  for (size_t i = 0; i < entries_.size(); i++) {
+    auto* entry = (XdbfEntry*)&entries_[i];
     if (entry->info.section != static_cast<uint16_t>(XdbfGpdSection::kTitle)) {
       continue;
     }

@@ -317,8 +317,8 @@ struct XdbfEntry {
 class XdbfFile {
  public:
   XdbfFile() {
-    header.magic = 'XDBF';
-    header.version = 1;
+    header_.magic = 'XDBF';
+    header_.version = 1;
   }
 
   bool Read(const uint8_t* data, size_t data_size);
@@ -330,9 +330,9 @@ class XdbfFile {
   bool UpdateEntry(XdbfEntry entry);
 
  protected:
-  X_XDBF_HEADER header;
-  std::vector<XdbfEntry> entries;
-  std::vector<X_XDBF_FILELOC> free_entries;
+  X_XDBF_HEADER header_;
+  std::vector<XdbfEntry> entries_;
+  std::vector<X_XDBF_FILELOC> free_entries_;
 };
 
 class SpaFile : public XdbfFile {
