@@ -50,7 +50,9 @@ navigation:
 #      icon: people
   - title: Development
     pages:
-    - path: development/quickstart.md
+    - title: Quickstart
+      url: https://github.com/xenia-project/xenia#quickstart
+      icon: build
     - path: development/debugging.md
     - title: Source Code
       url: https://github.com/xenia-project/xenia
