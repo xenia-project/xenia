@@ -26,7 +26,7 @@ namespace xdbf {
 // https://github.com/oukiar/freestyledash/blob/master/Freestyle/Tools/XEX/SPA.h
 // https://github.com/oukiar/freestyledash/blob/master/Freestyle/Tools/XEX/SPA.cpp
 
-enum class XdbfSpaID : uint64_t {
+enum class SpaID : uint64_t {
   Xach = 'XACH',
   Xstr = 'XSTR',
   Xstc = 'XSTC',
@@ -34,13 +34,13 @@ enum class XdbfSpaID : uint64_t {
   Title = 0x8000,
 };
 
-enum class XdbfSpaSection : uint16_t {
+enum class SpaSection : uint16_t {
   kMetadata = 0x1,
   kImage = 0x2,
   kStringTable = 0x3,
 };
 
-enum class XdbfGpdSection : uint16_t {
+enum class GpdSection : uint16_t {
   kAchievement = 0x1,
   kImage = 0x2,
   kSetting = 0x3,
@@ -50,7 +50,7 @@ enum class XdbfGpdSection : uint16_t {
 };
 
 // Found by dumping the kSectionStringTable sections of various games:
-enum class XdbfLocale : uint32_t {
+enum class Locale : uint32_t {
   kUnknown = 0,
   kEnglish = 1,
   kJapanese = 2,
@@ -73,7 +73,7 @@ inline std::wstring ReadNullTermString(const wchar_t* ptr) {
   return retval;
 }
 
-struct XdbfTitlePlayed {
+struct TitlePlayed {
   uint32_t title_id = 0;
   std::wstring title_name;
   uint32_t achievements_possible = 0;
@@ -123,7 +123,7 @@ struct XdbfTitlePlayed {
   }
 };
 
-enum class XdbfAchievementType : uint32_t {
+enum class AchievementType : uint32_t {
   kCompletion = 1,
   kLeveling = 2,
   kUnlock = 3,
@@ -133,14 +133,14 @@ enum class XdbfAchievementType : uint32_t {
   kOther = 7,
 };
 
-enum class XdbfAchievementFlags : uint32_t {
+enum class AchievementFlags : uint32_t {
   kTypeMask = 0x7,
   kShowUnachieved = 0x8,
   kAchievedOnline = 0x10000,
   kAchieved = 0x20000
 };
 
-struct XdbfAchievement {
+struct Achievement {
   uint16_t id = 0;
   std::wstring label;
   std::wstring description;
@@ -150,32 +150,31 @@ struct XdbfAchievement {
   uint32_t flags = 0;
   uint64_t unlock_time = 0;
 
-  XdbfAchievementType GetType() {
-    return static_cast<XdbfAchievementType>(
-        flags & static_cast<uint32_t>(XdbfAchievementFlags::kTypeMask));
+  AchievementType GetType() {
+    return static_cast<AchievementType>(
+        flags & static_cast<uint32_t>(AchievementFlags::kTypeMask));
   }
 
   bool IsUnlocked() {
-    return flags & static_cast<uint32_t>(XdbfAchievementFlags::kAchieved);
+    return flags & static_cast<uint32_t>(AchievementFlags::kAchieved);
   }
 
   bool IsUnlockedOnline() {
-    return flags & static_cast<uint32_t>(XdbfAchievementFlags::kAchievedOnline);
+    return flags & static_cast<uint32_t>(AchievementFlags::kAchievedOnline);
   }
 
   void Unlock(bool online = false) {
-    flags |= static_cast<uint32_t>(XdbfAchievementFlags::kAchieved);
+    flags |= static_cast<uint32_t>(AchievementFlags::kAchieved);
     if (online) {
-      flags |= static_cast<uint32_t>(XdbfAchievementFlags::kAchievedOnline);
+      flags |= static_cast<uint32_t>(AchievementFlags::kAchievedOnline);
     }
 
     unlock_time = Clock::QueryHostSystemTime();
   }
 
   void Lock() {
-    flags = flags & ~(static_cast<uint32_t>(XdbfAchievementFlags::kAchieved));
-    flags =
-        flags & ~(static_cast<uint32_t>(XdbfAchievementFlags::kAchievedOnline));
+    flags = flags & ~(static_cast<uint32_t>(AchievementFlags::kAchieved));
+    flags = flags & ~(static_cast<uint32_t>(AchievementFlags::kAchievedOnline));
     unlock_time = 0;
   }
 
@@ -198,7 +197,7 @@ struct XdbfAchievement {
   }
 };
 
-struct XdbfEntry {
+struct Entry {
   X_XDBF_ENTRY info;
   std::vector<uint8_t> data;
 };
@@ -215,26 +214,26 @@ class XdbfFile {
   bool Read(const uint8_t* data, size_t data_size);
   bool Write(uint8_t* data, size_t* data_size);
 
-  XdbfEntry* GetEntry(uint16_t section, uint64_t id) const;
+  Entry* GetEntry(uint16_t section, uint64_t id) const;
 
   // Updates (or adds) an entry
-  bool UpdateEntry(XdbfEntry entry);
+  bool UpdateEntry(Entry entry);
 
  protected:
   X_XDBF_HEADER header_;
-  std::vector<XdbfEntry> entries_;
+  std::vector<Entry> entries_;
   std::vector<X_XDBF_FILELOC> free_entries_;
 };
 
 class SpaFile : public XdbfFile {
  public:
-  std::string GetStringTableEntry(XdbfLocale locale, uint16_t string_id) const;
+  std::string GetStringTableEntry(Locale locale, uint16_t string_id) const;
 
-  uint32_t GetAchievements(XdbfLocale locale,
-                           std::vector<XdbfAchievement>* achievements) const;
+  uint32_t GetAchievements(Locale locale,
+                           std::vector<Achievement>* achievements) const;
 
-  XdbfEntry* GetIcon() const;
-  XdbfLocale GetDefaultLocale() const;
+  Entry* GetIcon() const;
+  Locale GetDefaultLocale() const;
   std::string GetTitleName() const;
   uint32_t GetTitleId() const;
 };
@@ -244,17 +243,17 @@ class GpdFile : public XdbfFile {
   GpdFile() : title_id_(-1) {}
   GpdFile(uint32_t title_id) : title_id_(title_id) {}
 
-  bool GetAchievement(uint16_t id, XdbfAchievement* dest);
-  uint32_t GetAchievements(std::vector<XdbfAchievement>* achievements) const;
+  bool GetAchievement(uint16_t id, Achievement* dest);
+  uint32_t GetAchievements(std::vector<Achievement>* achievements) const;
 
-  bool GetTitle(uint32_t title_id, XdbfTitlePlayed* title);
-  uint32_t GetTitles(std::vector<XdbfTitlePlayed>* titles) const;
+  bool GetTitle(uint32_t title_id, TitlePlayed* title);
+  uint32_t GetTitles(std::vector<TitlePlayed>* titles) const;
 
   // Updates (or adds) an achievement
-  bool UpdateAchievement(XdbfAchievement ach);
+  bool UpdateAchievement(Achievement ach);
 
   // Updates (or adds) a title
-  bool UpdateTitle(XdbfTitlePlayed title);
+  bool UpdateTitle(TitlePlayed title);
 
   uint32_t GetTitleId() { return title_id_; }
 

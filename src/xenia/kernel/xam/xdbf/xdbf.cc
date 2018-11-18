@@ -36,7 +36,7 @@ bool XdbfFile::Read(const uint8_t* data, size_t data_size) {
       (uint8_t*)free_ptr + (sizeof(X_XDBF_FILELOC) * header_.free_count);
 
   for (uint32_t i = 0; i < header_.entry_used; i++) {
-    XdbfEntry entry;
+    Entry entry;
     memcpy(&entry.info, ptr, sizeof(X_XDBF_ENTRY));
     entry.data.resize(entry.info.size);
     memcpy(entry.data.data(), data_ptr + entry.info.offset, entry.info.size);
@@ -111,9 +111,9 @@ bool XdbfFile::Write(uint8_t* data, size_t* data_size) {
   return true;
 }
 
-XdbfEntry* XdbfFile::GetEntry(uint16_t section, uint64_t id) const {
+Entry* XdbfFile::GetEntry(uint16_t section, uint64_t id) const {
   for (size_t i = 0; i < entries_.size(); i++) {
-    auto* entry = (XdbfEntry*)&entries_[i];
+    auto* entry = (Entry*)&entries_[i];
     if (entry->info.section != section || entry->info.id != id) {
       continue;
     }
@@ -124,9 +124,9 @@ XdbfEntry* XdbfFile::GetEntry(uint16_t section, uint64_t id) const {
   return nullptr;
 }
 
-bool XdbfFile::UpdateEntry(XdbfEntry entry) {
+bool XdbfFile::UpdateEntry(Entry entry) {
   for (size_t i = 0; i < entries_.size(); i++) {
-    auto* ent = (XdbfEntry*)&entries_[i];
+    auto* ent = (Entry*)&entries_[i];
     if (ent->info.section != entry.info.section ||
         ent->info.id != entry.info.id) {
       continue;
@@ -137,7 +137,7 @@ bool XdbfFile::UpdateEntry(XdbfEntry entry) {
     return true;
   }
 
-  XdbfEntry new_entry;
+  Entry new_entry;
   new_entry.info.section = entry.info.section;
   new_entry.info.id = entry.info.id;
   new_entry.info.size = (uint32_t)entry.data.size();
@@ -162,18 +162,17 @@ std::string GetStringTableEntry_(const uint8_t* table_start, uint16_t string_id,
   return "";
 }
 
-std::string SpaFile::GetStringTableEntry(XdbfLocale locale,
+std::string SpaFile::GetStringTableEntry(Locale locale,
                                          uint16_t string_id) const {
-  auto xstr_table =
-      GetEntry(static_cast<uint16_t>(XdbfSpaSection::kStringTable),
-               static_cast<uint64_t>(locale));
+  auto xstr_table = GetEntry(static_cast<uint16_t>(SpaSection::kStringTable),
+                             static_cast<uint64_t>(locale));
   if (!xstr_table) {
     return "";
   }
 
   auto xstr_head =
       reinterpret_cast<const X_XDBF_TABLE_HEADER*>(xstr_table->data.data());
-  assert_true(xstr_head->magic == static_cast<uint32_t>(XdbfSpaID::Xstr));
+  assert_true(xstr_head->magic == static_cast<uint32_t>(SpaID::Xstr));
   assert_true(xstr_head->version == 1);
 
   const uint8_t* ptr = xstr_table->data.data() + sizeof(X_XDBF_TABLE_HEADER);
@@ -182,28 +181,27 @@ std::string SpaFile::GetStringTableEntry(XdbfLocale locale,
 }
 
 uint32_t SpaFile::GetAchievements(
-    XdbfLocale locale, std::vector<XdbfAchievement>* achievements) const {
-  auto xach_table = GetEntry(static_cast<uint16_t>(XdbfSpaSection::kMetadata),
-                             static_cast<uint64_t>(XdbfSpaID::Xach));
+    Locale locale, std::vector<Achievement>* achievements) const {
+  auto xach_table = GetEntry(static_cast<uint16_t>(SpaSection::kMetadata),
+                             static_cast<uint64_t>(SpaID::Xach));
   if (!xach_table) {
     return 0;
   }
 
   auto xach_head =
       reinterpret_cast<const X_XDBF_TABLE_HEADER*>(xach_table->data.data());
-  assert_true(xach_head->magic == static_cast<uint32_t>(XdbfSpaID::Xach));
+  assert_true(xach_head->magic == static_cast<uint32_t>(SpaID::Xach));
   assert_true(xach_head->version == 1);
 
-  auto xstr_table =
-      GetEntry(static_cast<uint16_t>(XdbfSpaSection::kStringTable),
-               static_cast<uint64_t>(locale));
+  auto xstr_table = GetEntry(static_cast<uint16_t>(SpaSection::kStringTable),
+                             static_cast<uint64_t>(locale));
   if (!xstr_table) {
     return 0;
   }
 
   auto xstr_head =
       reinterpret_cast<const X_XDBF_TABLE_HEADER*>(xstr_table->data.data());
-  assert_true(xstr_head->magic == static_cast<uint32_t>(XdbfSpaID::Xstr));
+  assert_true(xstr_head->magic == static_cast<uint32_t>(SpaID::Xstr));
   assert_true(xstr_head->version == 1);
 
   const uint8_t* xstr_ptr =
@@ -213,7 +211,7 @@ uint32_t SpaFile::GetAchievements(
     auto* ach_data =
         reinterpret_cast<const X_XDBF_SPA_ACHIEVEMENT*>(xach_head + 1);
     for (uint32_t i = 0; i < xach_head->count; i++) {
-      XdbfAchievement ach;
+      Achievement ach;
       ach.id = ach_data->id;
       ach.image_id = ach_data->image_id;
       ach.gamerscore = ach_data->gamerscore;
@@ -236,47 +234,47 @@ uint32_t SpaFile::GetAchievements(
   return xach_head->count;
 }
 
-XdbfEntry* SpaFile::GetIcon() const {
-  return GetEntry(static_cast<uint16_t>(XdbfSpaSection::kImage),
-                  static_cast<uint64_t>(XdbfSpaID::Title));
+Entry* SpaFile::GetIcon() const {
+  return GetEntry(static_cast<uint16_t>(SpaSection::kImage),
+                  static_cast<uint64_t>(SpaID::Title));
 }
 
-XdbfLocale SpaFile::GetDefaultLocale() const {
-  auto block = GetEntry(static_cast<uint16_t>(XdbfSpaSection::kMetadata),
-                        static_cast<uint64_t>(XdbfSpaID::Xstc));
+Locale SpaFile::GetDefaultLocale() const {
+  auto block = GetEntry(static_cast<uint16_t>(SpaSection::kMetadata),
+                        static_cast<uint64_t>(SpaID::Xstc));
   if (!block) {
-    return XdbfLocale::kEnglish;
+    return Locale::kEnglish;
   }
 
   auto xstc = reinterpret_cast<const X_XDBF_XSTC_DATA*>(block->data.data());
-  assert_true(xstc->magic == static_cast<uint32_t>(XdbfSpaID::Xstc));
+  assert_true(xstc->magic == static_cast<uint32_t>(SpaID::Xstc));
 
-  return static_cast<XdbfLocale>(static_cast<uint32_t>(xstc->default_language));
+  return static_cast<Locale>(static_cast<uint32_t>(xstc->default_language));
 }
 
 std::string SpaFile::GetTitleName() const {
   return GetStringTableEntry(GetDefaultLocale(),
-                             static_cast<uint16_t>(XdbfSpaID::Title));
+                             static_cast<uint16_t>(SpaID::Title));
 }
 
 uint32_t SpaFile::GetTitleId() const {
-  auto block = GetEntry(static_cast<uint16_t>(XdbfSpaSection::kMetadata),
-                        static_cast<uint64_t>(XdbfSpaID::Xthd));
+  auto block = GetEntry(static_cast<uint16_t>(SpaSection::kMetadata),
+                        static_cast<uint64_t>(SpaID::Xthd));
   if (!block) {
     return -1;
   }
 
   auto xthd = reinterpret_cast<const X_XDBF_XTHD_DATA*>(block->data.data());
-  assert_true(xthd->magic == static_cast<uint32_t>(XdbfSpaID::Xthd));
+  assert_true(xthd->magic == static_cast<uint32_t>(SpaID::Xthd));
 
   return xthd->title_id;
 }
 
-bool GpdFile::GetAchievement(uint16_t id, XdbfAchievement* dest) {
+bool GpdFile::GetAchievement(uint16_t id, Achievement* dest) {
   for (size_t i = 0; i < entries_.size(); i++) {
-    auto* entry = (XdbfEntry*)&entries_[i];
+    auto* entry = (Entry*)&entries_[i];
     if (entry->info.section !=
-            static_cast<uint16_t>(XdbfGpdSection::kAchievement) ||
+            static_cast<uint16_t>(GpdSection::kAchievement) ||
         entry->info.id != id) {
       continue;
     }
@@ -294,13 +292,13 @@ bool GpdFile::GetAchievement(uint16_t id, XdbfAchievement* dest) {
 }
 
 uint32_t GpdFile::GetAchievements(
-    std::vector<XdbfAchievement>* achievements) const {
+    std::vector<Achievement>* achievements) const {
   uint32_t ach_count = 0;
 
   for (size_t i = 0; i < entries_.size(); i++) {
-    auto* entry = (XdbfEntry*)&entries_[i];
+    auto* entry = (Entry*)&entries_[i];
     if (entry->info.section !=
-        static_cast<uint16_t>(XdbfGpdSection::kAchievement)) {
+        static_cast<uint16_t>(GpdSection::kAchievement)) {
       continue;
     }
     if (entry->info.id == 0x100000000 || entry->info.id == 0x200000000) {
@@ -313,7 +311,7 @@ uint32_t GpdFile::GetAchievements(
       auto* ach_data =
           reinterpret_cast<const X_XDBF_GPD_ACHIEVEMENT*>(entry->data.data());
 
-      XdbfAchievement ach;
+      Achievement ach;
       ach.ReadGPD(ach_data);
 
       achievements->push_back(ach);
@@ -323,10 +321,10 @@ uint32_t GpdFile::GetAchievements(
   return ach_count;
 }
 
-bool GpdFile::GetTitle(uint32_t title_id, XdbfTitlePlayed* dest) {
+bool GpdFile::GetTitle(uint32_t title_id, TitlePlayed* dest) {
   for (size_t i = 0; i < entries_.size(); i++) {
-    auto* entry = (XdbfEntry*)&entries_[i];
-    if (entry->info.section != static_cast<uint16_t>(XdbfGpdSection::kTitle) ||
+    auto* entry = (Entry*)&entries_[i];
+    if (entry->info.section != static_cast<uint16_t>(GpdSection::kTitle) ||
         entry->info.id != title_id) {
       continue;
     }
@@ -342,12 +340,12 @@ bool GpdFile::GetTitle(uint32_t title_id, XdbfTitlePlayed* dest) {
   return false;
 }
 
-uint32_t GpdFile::GetTitles(std::vector<XdbfTitlePlayed>* titles) const {
+uint32_t GpdFile::GetTitles(std::vector<TitlePlayed>* titles) const {
   uint32_t title_count = 0;
 
   for (size_t i = 0; i < entries_.size(); i++) {
-    auto* entry = (XdbfEntry*)&entries_[i];
-    if (entry->info.section != static_cast<uint16_t>(XdbfGpdSection::kTitle)) {
+    auto* entry = (Entry*)&entries_[i];
+    if (entry->info.section != static_cast<uint16_t>(GpdSection::kTitle)) {
       continue;
     }
     if (entry->info.id == 0x100000000 || entry->info.id == 0x200000000) {
@@ -360,7 +358,7 @@ uint32_t GpdFile::GetTitles(std::vector<XdbfTitlePlayed>* titles) const {
       auto* title_data =
           reinterpret_cast<const X_XDBF_GPD_TITLEPLAYED*>(entry->data.data());
 
-      XdbfTitlePlayed title;
+      TitlePlayed title;
       title.ReadGPD(title_data);
       titles->push_back(title);
     }
@@ -369,9 +367,9 @@ uint32_t GpdFile::GetTitles(std::vector<XdbfTitlePlayed>* titles) const {
   return title_count;
 }
 
-bool GpdFile::UpdateAchievement(XdbfAchievement ach) {
-  XdbfEntry ent;
-  ent.info.section = static_cast<uint16_t>(XdbfGpdSection::kAchievement);
+bool GpdFile::UpdateAchievement(Achievement ach) {
+  Entry ent;
+  ent.info.section = static_cast<uint16_t>(GpdSection::kAchievement);
   ent.info.id = ach.id;
 
   // calculate entry size...
@@ -387,7 +385,7 @@ bool GpdFile::UpdateAchievement(XdbfAchievement ach) {
   ent.data.resize(est_size);
   memset(ent.data.data(), 0, est_size);
 
-  // convert XdbfAchievement to GPD achievement
+  // convert Achievement to GPD achievement
   auto* ach_data = reinterpret_cast<X_XDBF_GPD_ACHIEVEMENT*>(ent.data.data());
   ach_data->id = ach.id;
   ach_data->image_id = ach.image_id;
@@ -410,9 +408,9 @@ bool GpdFile::UpdateAchievement(XdbfAchievement ach) {
   return UpdateEntry(ent);
 }
 
-bool GpdFile::UpdateTitle(XdbfTitlePlayed title) {
-  XdbfEntry ent;
-  ent.info.section = static_cast<uint16_t>(XdbfGpdSection::kTitle);
+bool GpdFile::UpdateTitle(TitlePlayed title) {
+  Entry ent;
+  ent.info.section = static_cast<uint16_t>(GpdSection::kTitle);
   ent.info.id = title.title_id;
 
   // calculate entry size...
