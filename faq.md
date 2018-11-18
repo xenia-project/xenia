@@ -128,8 +128,3 @@ if they are aesthetic and even more so if they are from someone who has not
 contributed before. If a pull request of this nature is denied that doesn't
 necessarily mean your help is not wanted, just that it may need to be more
 carefully applied.
-
-Contributions adding large untested pieces of functionality may take some time
-to land, so engage early in [IRC]({{ site.baseurl }}/development/irc/) to ensure
-someone else is not already working on it or that things can be done to ensure
-smooth sailing.
