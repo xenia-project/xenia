@@ -62,3 +62,12 @@ navigation:
       url: http://build.xenia.jp/waterfall
       icon: settings_system_daydream
     - path: development/irc.md
+
+artifacts:
+  - title: Windows 8+ x64
+    icon: windows
+    branches:
+    - name: master
+      download_url: "https://ci.appveyor.com/api/projects/benvanik/xenia/artifacts/xenia-master.zip?branch=master&job=Configuration%3A%20Release&pr=false"
+    - name: d3d12
+      download_url: "https://ci.appveyor.com/api/projects/benvanik/xenia/artifacts/xenia-master.zip?branch=d3d12&job=Configuration%3A%20Release&pr=false"

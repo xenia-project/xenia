@@ -10,7 +10,7 @@ permalink: /faq/
 
 ## Can I get an exe?
 
-Yes, by going to the latest build <a href="https://ci.appveyor.com/project/benvanik/xenia/build/artifacts">here</a> for Windows. From there go to Jobs > Configuration Release > Artifacts then you can download the zip file.  
+Yes, <a href="download/">choose a download</a>.
 
 Don't be an idiot and download a binary claiming to be of this project. In fact,
 don't be an idiot and download *any* binary claiming to be an Xbox 360 or PS3
