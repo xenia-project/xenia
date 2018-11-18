@@ -8,7 +8,7 @@ version: 1.0.{build}-{branch}
 # branches to build
 # Only building master (and pull requests)
 branches:
-  whitelist
+  # whitelist
   only:
     - master
 
