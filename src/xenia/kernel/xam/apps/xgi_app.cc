@@ -70,7 +70,7 @@ X_RESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       bool modified = false;
       auto* achievement =
           (X_XUSER_ACHIEVEMENT*)memory_->TranslateVirtual(achievements_ptr);
-      util::XdbfAchievement ach;
+      xdbf::XdbfAchievement ach;
       for (uint32_t i = 0; i < achievement_count; i++, achievement++) {
         if (game_gpd->GetAchievement(achievement->achievement_id, &ach)) {
           if (!ach.IsUnlocked()) {

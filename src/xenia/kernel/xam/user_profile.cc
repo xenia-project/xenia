@@ -117,7 +117,7 @@ void UserProfile::LoadGpdFiles() {
   dash_gpd_.Read(mmap_->data(), mmap_->size());
   mmap_->Close();
 
-  std::vector<util::XdbfTitlePlayed> titles;
+  std::vector<xdbf::XdbfTitlePlayed> titles;
   dash_gpd_.GetTitles(&titles);
 
   for (auto title : titles) {
@@ -131,7 +131,7 @@ void UserProfile::LoadGpdFiles() {
       continue;
     }
 
-    util::GpdFile title_gpd(title.title_id);
+    xdbf::GpdFile title_gpd(title.title_id);
     bool result = title_gpd.Read(mmap_->data(), mmap_->size());
     mmap_->Close();
 
@@ -147,14 +147,14 @@ void UserProfile::LoadGpdFiles() {
   XELOGI("Loaded %d profile GPDs", title_gpds_.size() + 1);
 }
 
-util::GpdFile* UserProfile::SetTitleSpaData(const util::SpaFile& spa_data) {
+xdbf::GpdFile* UserProfile::SetTitleSpaData(const xdbf::SpaFile& spa_data) {
   uint32_t spa_title = spa_data.GetTitleId();
 
-  std::vector<util::XdbfAchievement> spa_achievements;
+  std::vector<xdbf::XdbfAchievement> spa_achievements;
   // TODO: let user choose locale?
   spa_data.GetAchievements(spa_data.GetDefaultLocale(), &spa_achievements);
 
-  util::XdbfTitlePlayed title_info;
+  xdbf::XdbfTitlePlayed title_info;
 
   auto gpd = title_gpds_.find(spa_title);
   if (gpd != title_gpds_.end()) {
@@ -221,7 +221,7 @@ util::GpdFile* UserProfile::SetTitleSpaData(const util::SpaFile& spa_data) {
     title_info.last_played = Clock::QueryHostSystemTime();
 
     // Copy cheevos from SPA -> GPD
-    util::GpdFile title_gpd(spa_title);
+    xdbf::GpdFile title_gpd(spa_title);
     for (auto ach : spa_achievements) {
       title_gpd.UpdateAchievement(ach);
 
@@ -232,7 +232,7 @@ util::GpdFile* UserProfile::SetTitleSpaData(const util::SpaFile& spa_data) {
     // Try copying achievement images if we can...
     for (auto ach : spa_achievements) {
       auto* image_entry = spa_data.GetEntry(
-          static_cast<uint16_t>(util::XdbfSpaSection::kImage), ach.image_id);
+          static_cast<uint16_t>(xdbf::XdbfSpaSection::kImage), ach.image_id);
       if (image_entry) {
         title_gpd.UpdateEntry(*image_entry);
       }
@@ -240,18 +240,18 @@ util::GpdFile* UserProfile::SetTitleSpaData(const util::SpaFile& spa_data) {
 
     // Try adding title image & name
     auto* title_image =
-        spa_data.GetEntry(static_cast<uint16_t>(util::XdbfSpaSection::kImage),
-                          static_cast<uint64_t>(util::XdbfSpaID::Title));
+        spa_data.GetEntry(static_cast<uint16_t>(xdbf::XdbfSpaSection::kImage),
+                          static_cast<uint64_t>(xdbf::XdbfSpaID::Title));
     if (title_image) {
       title_gpd.UpdateEntry(*title_image);
     }
 
     auto title_name = xe::to_wstring(spa_data.GetTitleName());
     if (title_name.length()) {
-      util::XdbfEntry title_name_ent;
+      xdbf::XdbfEntry title_name_ent;
       title_name_ent.info.section =
-          static_cast<uint16_t>(util::XdbfGpdSection::kString);
-      title_name_ent.info.id = static_cast<uint64_t>(util::XdbfSpaID::Title);
+          static_cast<uint16_t>(xdbf::XdbfGpdSection::kString);
+      title_name_ent.info.id = static_cast<uint64_t>(xdbf::XdbfSpaID::Title);
       title_name_ent.data.resize((title_name.length() + 1) * 2);
       xe::copy_and_swap((wchar_t*)title_name_ent.data.data(),
                         title_name.c_str(), title_name.length());
@@ -272,7 +272,7 @@ util::GpdFile* UserProfile::SetTitleSpaData(const util::SpaFile& spa_data) {
 
   // Print achievement list to log, ATM there's no other way for users to see
   // achievement status...
-  std::vector<util::XdbfAchievement> achievements;
+  std::vector<xdbf::XdbfAchievement> achievements;
   if (curr_gpd_->GetAchievements(&achievements)) {
     XELOGI("Achievement list:");
 
@@ -293,7 +293,7 @@ util::GpdFile* UserProfile::SetTitleSpaData(const util::SpaFile& spa_data) {
   return curr_gpd_;
 }
 
-util::GpdFile* UserProfile::GetTitleGpd(uint32_t title_id) {
+xdbf::GpdFile* UserProfile::GetTitleGpd(uint32_t title_id) {
   if (title_id == -1) {
     return curr_gpd_;
   }
@@ -306,7 +306,7 @@ util::GpdFile* UserProfile::GetTitleGpd(uint32_t title_id) {
   return &(*gpd).second;
 }
 
-void UserProfile::GetTitles(std::vector<util::GpdFile*>& titles) {
+void UserProfile::GetTitles(std::vector<xdbf::GpdFile*>& titles) {
   for (auto title : title_gpds_) {
     titles.push_back(&title.second);
   }
@@ -344,7 +344,7 @@ bool UserProfile::UpdateAllGpds() {
   return true;
 }
 
-bool UserProfile::UpdateGpd(uint32_t title_id, util::GpdFile& gpd_data) {
+bool UserProfile::UpdateGpd(uint32_t title_id, xdbf::GpdFile& gpd_data) {
   size_t gpd_length = 0;
   if (!gpd_data.Write(nullptr, &gpd_length)) {
     XELOGE("Failed to get GPD size for title %X!", title_id);
@@ -375,9 +375,9 @@ bool UserProfile::UpdateGpd(uint32_t title_id, util::GpdFile& gpd_data) {
   } else {
     // Check if we need to update dashboard data...
     if (title_id != kDashboardID) {
-      util::XdbfTitlePlayed title_info;
+      xdbf::XdbfTitlePlayed title_info;
       if (dash_gpd_.GetTitle(title_id, &title_info)) {
-        std::vector<util::XdbfAchievement> gpd_achievements;
+        std::vector<xdbf::XdbfAchievement> gpd_achievements;
         gpd_data.GetAchievements(&gpd_achievements);
 
         uint32_t num_ach_total = 0;

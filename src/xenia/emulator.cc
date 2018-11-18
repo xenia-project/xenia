@@ -33,8 +33,8 @@
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/user_module.h"
 #include "xenia/kernel/util/gameinfo_utils.h"
-#include "xenia/kernel/util/xdbf_utils.h"
 #include "xenia/kernel/xam/xam_module.h"
+#include "xenia/kernel/xam/xdbf/xdbf.h"
 #include "xenia/kernel/xbdm/xbdm_module.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_module.h"
 #include "xenia/memory.h"
@@ -662,7 +662,7 @@ X_STATUS Emulator::CompleteLaunch(const std::wstring& path,
     uint32_t resource_size = 0;
     if (XSUCCEEDED(
             module->GetSection(title_id, &resource_data, &resource_size))) {
-      kernel::util::SpaFile spa;
+      kernel::xam::xdbf::SpaFile spa;
       if (spa.Read(module->memory()->TranslateVirtual(resource_data),
                    resource_size)) {
         // Set title SPA and get title name/icon

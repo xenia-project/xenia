@@ -599,7 +599,7 @@ dword_result_t XamUserCreateAchievementEnumerator(dword_t title_id,
     xe::copy_and_swap(place_addr, placeholder_val, wcslen(placeholder_val));
   }
 
-  std::vector<util::XdbfAchievement> achievements;
+  std::vector<xdbf::XdbfAchievement> achievements;
   game_gpd->GetAchievements(&achievements);
 
   for (auto ach : achievements) {

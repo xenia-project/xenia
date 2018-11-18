@@ -7,12 +7,13 @@
  ******************************************************************************
  */
 
-#include "xenia/kernel/util/xdbf_utils.h"
+#include "xenia/kernel/xam/xdbf/xdbf.h"
 #include "xenia/base/string.h"
 
 namespace xe {
 namespace kernel {
-namespace util {
+namespace xam {
+namespace xdbf {
 
 constexpr uint32_t kXdbfMagicXdbf = 'XDBF';
 
@@ -430,6 +431,7 @@ bool GpdFile::UpdateTitle(XdbfTitlePlayed title) {
   return UpdateEntry(ent);
 }
 
-}  // namespace util
+}  // namespace xdbf
+}  // namespace xam
 }  // namespace kernel
 }  // namespace xe

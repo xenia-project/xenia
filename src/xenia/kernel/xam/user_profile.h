@@ -15,7 +15,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "xenia/kernel/util/xdbf_utils.h"
+#include "xenia/kernel/xam/xdbf/xdbf.h"
 #include "xenia/xbox.h"
 
 namespace xe {
@@ -207,17 +207,17 @@ class UserProfile {
   void AddSetting(std::unique_ptr<Setting> setting);
   Setting* GetSetting(uint32_t setting_id);
 
-  util::GpdFile* SetTitleSpaData(const util::SpaFile& spa_data);
-  util::GpdFile* GetTitleGpd(uint32_t title_id = -1);
+  xdbf::GpdFile* SetTitleSpaData(const xdbf::SpaFile& spa_data);
+  xdbf::GpdFile* GetTitleGpd(uint32_t title_id = -1);
 
-  void GetTitles(std::vector<util::GpdFile*>& titles);
+  void GetTitles(std::vector<xdbf::GpdFile*>& titles);
 
   bool UpdateTitleGpd(uint32_t title_id = -1);
   bool UpdateAllGpds();
 
  private:
   void LoadGpdFiles();
-  bool UpdateGpd(uint32_t title_id, util::GpdFile& gpd_data);
+  bool UpdateGpd(uint32_t title_id, xdbf::GpdFile& gpd_data);
 
   uint64_t xuid_;
   std::string name_;
@@ -226,10 +226,10 @@ class UserProfile {
 
   void LoadSetting(UserProfile::Setting*);
   void SaveSetting(UserProfile::Setting*);
-  
-  std::unordered_map<uint32_t, util::GpdFile> title_gpds_;
-  util::GpdFile dash_gpd_;
-  util::GpdFile* curr_gpd_ = nullptr;
+
+  std::unordered_map<uint32_t, xdbf::GpdFile> title_gpds_;
+  xdbf::GpdFile dash_gpd_;
+  xdbf::GpdFile* curr_gpd_ = nullptr;
   uint32_t curr_title_id_ = -1;
 };
 
