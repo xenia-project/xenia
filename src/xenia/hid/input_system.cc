@@ -16,7 +16,7 @@
 namespace xe {
 namespace hid {
 
-InputSystem::InputSystem(xe::ui::Window* window) : window_(window) {}
+InputSystem::InputSystem() {}
 
 InputSystem::~InputSystem() = default;
 

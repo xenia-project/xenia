@@ -60,7 +60,7 @@ bool VulkanCommandProcessor::SetupContext() {
   }
 
   // Acquire our device and queue.
-  auto context = static_cast<xe::ui::vulkan::VulkanContext*>(context_.get());
+  auto context = static_cast<ui::vulkan::VulkanContext*>(context_.get());
   device_ = context->device();
   queue_ = device_->AcquireQueue(device_->queue_family_index());
   if (!queue_) {
@@ -127,11 +127,6 @@ bool VulkanCommandProcessor::SetupContext() {
 
 void VulkanCommandProcessor::ShutdownContext() {
   // TODO(benvanik): wait until idle.
-
-  if (swap_state_.front_buffer_texture) {
-    // Free swap chain image.
-    DestroySwapImage();
-  }
 
   buffer_cache_.reset();
   pipeline_cache_.reset();
@@ -229,113 +224,27 @@ void VulkanCommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
   }
 }
 
-void VulkanCommandProcessor::CreateSwapImage(VkCommandBuffer setup_buffer,
-                                             VkExtent2D extents) {
-  VkImageCreateInfo image_info;
-  std::memset(&image_info, 0, sizeof(VkImageCreateInfo));
-  image_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-  image_info.imageType = VK_IMAGE_TYPE_2D;
-  image_info.format = VK_FORMAT_R8G8B8A8_UNORM;
-  image_info.extent = {extents.width, extents.height, 1};
-  image_info.mipLevels = 1;
-  image_info.arrayLayers = 1;
-  image_info.samples = VK_SAMPLE_COUNT_1_BIT;
-  image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
-  image_info.usage =
-      VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-  image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-  image_info.queueFamilyIndexCount = 0;
-  image_info.pQueueFamilyIndices = nullptr;
-  image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-
-  VkImage image_fb;
-  auto status = vkCreateImage(*device_, &image_info, nullptr, &image_fb);
-  CheckResult(status, "vkCreateImage");
-
-  // Bind memory to image.
-  VkMemoryRequirements mem_requirements;
-  vkGetImageMemoryRequirements(*device_, image_fb, &mem_requirements);
-  fb_memory_ = device_->AllocateMemory(mem_requirements, 0);
-  assert_not_null(fb_memory_);
-
-  status = vkBindImageMemory(*device_, image_fb, fb_memory_, 0);
-  CheckResult(status, "vkBindImageMemory");
-
-  std::lock_guard<std::mutex> lock(swap_state_.mutex);
-  swap_state_.front_buffer_texture = reinterpret_cast<uintptr_t>(image_fb);
-
-  VkImageViewCreateInfo view_create_info = {
-      VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-      nullptr,
-      0,
-      image_fb,
-      VK_IMAGE_VIEW_TYPE_2D,
-      VK_FORMAT_R8G8B8A8_UNORM,
-      {VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B,
-       VK_COMPONENT_SWIZZLE_A},
-      {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1},
-  };
-  status =
-      vkCreateImageView(*device_, &view_create_info, nullptr, &fb_image_view_);
-  CheckResult(status, "vkCreateImageView");
-
-  VkFramebufferCreateInfo framebuffer_create_info = {
-      VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
-      nullptr,
-      0,
-      blitter_->GetRenderPass(VK_FORMAT_R8G8B8A8_UNORM, true),
-      1,
-      &fb_image_view_,
-      extents.width,
-      extents.height,
-      1,
-  };
-  status = vkCreateFramebuffer(*device_, &framebuffer_create_info, nullptr,
-                               &fb_framebuffer_);
-  CheckResult(status, "vkCreateFramebuffer");
-
-  // Transition image to general layout.
-  VkImageMemoryBarrier barrier;
-  std::memset(&barrier, 0, sizeof(VkImageMemoryBarrier));
-  barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-  barrier.srcAccessMask = 0;
-  barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-  barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-  barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
-  barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-  barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-  barrier.image = image_fb;
-  barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
-
-  vkCmdPipelineBarrier(setup_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                       VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0,
-                       nullptr, 0, nullptr, 1, &barrier);
-}
-
-void VulkanCommandProcessor::DestroySwapImage() {
-  vkDestroyFramebuffer(*device_, fb_framebuffer_, nullptr);
-  vkDestroyImageView(*device_, fb_image_view_, nullptr);
-
-  std::lock_guard<std::mutex> lock(swap_state_.mutex);
-  vkDestroyImage(*device_,
-                 reinterpret_cast<VkImage>(swap_state_.front_buffer_texture),
-                 nullptr);
-  vkFreeMemory(*device_, fb_memory_, nullptr);
-
-  swap_state_.front_buffer_texture = 0;
-  fb_memory_ = nullptr;
-  fb_framebuffer_ = nullptr;
-  fb_image_view_ = nullptr;
-}
-
 void VulkanCommandProcessor::BeginFrame() {
   assert_false(frame_open_);
+  VkResult status = VK_SUCCESS;
+
+  // Grab a fence from the backbuffer.
+  auto swap_state =
+      reinterpret_cast<VulkanGraphicsSystem*>(graphics_system_)->swap_state();
+  auto& swap_resources =
+      swap_state->buffer_resources[(swap_state->current_buffer + 1) %
+                                   kNumSwapBuffers];
+
+  // Wait for the fence, in-case it's still in-use by the GPU.
+  status = vkWaitForFences(*device_, 1, &swap_resources.buf_fence, VK_TRUE, -1);
+  vkResetFences(*device_, 1, &swap_resources.buf_fence);
 
   // TODO(benvanik): bigger batches.
   // TODO(DrChat): Decouple setup buffer from current batch.
   // Begin a new batch, and allocate and begin a command buffer and setup
   // buffer.
-  current_batch_fence_ = command_buffer_pool_->BeginBatch();
+  current_batch_fence_ =
+      command_buffer_pool_->BeginBatch(swap_resources.buf_fence);
   current_command_buffer_ = command_buffer_pool_->AcquireEntry();
   current_setup_buffer_ = command_buffer_pool_->AcquireEntry();
 
@@ -344,7 +253,7 @@ void VulkanCommandProcessor::BeginFrame() {
   command_buffer_begin_info.pNext = nullptr;
   command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
   command_buffer_begin_info.pInheritanceInfo = nullptr;
-  auto status =
+  status =
       vkBeginCommandBuffer(current_command_buffer_, &command_buffer_begin_info);
   CheckResult(status, "vkBeginCommandBuffer");
 
@@ -397,18 +306,32 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
                                          uint32_t frontbuffer_height) {
   SCOPE_profile_cpu_f("gpu");
 
+  auto swap_state =
+      reinterpret_cast<VulkanGraphicsSystem*>(graphics_system_)->swap_state();
+  // Increment the current buffer.
+  swap_state->current_buffer =
+      (swap_state->current_buffer + 1) % kNumSwapBuffers;
+
+  auto& swap_resources =
+      swap_state->buffer_resources[swap_state->current_buffer];
+
   // Build a final command buffer that copies the game's frontbuffer texture
   // into our backbuffer texture.
   VkCommandBuffer copy_commands = nullptr;
-  bool opened_batch;
-  if (command_buffer_pool_->has_open_batch()) {
-    copy_commands = command_buffer_pool_->AcquireEntry();
-    opened_batch = false;
-  } else {
-    current_batch_fence_ = command_buffer_pool_->BeginBatch();
-    copy_commands = command_buffer_pool_->AcquireEntry();
+  bool opened_batch = false;
+  if (!command_buffer_pool_->has_open_batch()) {
+    // Wait for the fence, in-case it's still in-use by the GPU.
+    auto status =
+        vkWaitForFences(*device_, 1, &swap_resources.buf_fence, VK_TRUE, -1);
+    vkResetFences(*device_, 1, &swap_resources.buf_fence);
+
+    // We'll have to open a batch if there isn't one open.
+    current_batch_fence_ =
+        command_buffer_pool_->BeginBatch(swap_resources.buf_fence);
     opened_batch = true;
   }
+
+  copy_commands = command_buffer_pool_->AcquireEntry();
 
   VkCommandBufferBeginInfo begin_info;
   std::memset(&begin_info, 0, sizeof(begin_info));
@@ -422,11 +345,46 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
     frontbuffer_ptr = last_copy_base_;
   }
 
-  if (!swap_state_.front_buffer_texture) {
-    CreateSwapImage(copy_commands, {frontbuffer_width, frontbuffer_height});
+  // Create a framebuffer if it isn't already created.
+  if (!swap_resources.buf_framebuffer) {
+    VkFramebufferCreateInfo framebuffer_create_info = {
+        VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+        nullptr,
+        0,
+        blitter_->GetRenderPass(VK_FORMAT_R8G8B8A8_UNORM, true),
+        1,
+        &swap_resources.buf_image_view,
+        swap_state->width,
+        swap_state->height,
+        1,
+    };
+    status = vkCreateFramebuffer(*device_, &framebuffer_create_info, nullptr,
+                                 &swap_resources.buf_framebuffer);
+    CheckResult(status, "vkCreateFramebuffer");
   }
-  auto swap_fb = reinterpret_cast<VkImage>(swap_state_.front_buffer_texture);
 
+  auto swap_fb = reinterpret_cast<VkImage>(
+      swap_state->buffer_textures[swap_state->current_buffer]);
+  if (swap_resources.buf_image_layout == VK_IMAGE_LAYOUT_UNDEFINED) {
+    // Transition image to general layout.
+    VkImageMemoryBarrier barrier;
+    std::memset(&barrier, 0, sizeof(VkImageMemoryBarrier));
+    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    barrier.srcAccessMask = 0;
+    barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.image = swap_fb;
+    barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+
+    vkCmdPipelineBarrier(copy_commands, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0,
+                         nullptr, 0, nullptr, 1, &barrier);
+  }
+
+  // Grab the game's frontbuffer from a fetch constant populated by VdSwap.
   auto& regs = *register_file_;
   int r = XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0;
   auto group =
@@ -463,6 +421,7 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
                          VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr,
                          0, nullptr, 1, &barrier);
 
+    // Notify the GPU we're gonna write to the swap image.
     barrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
     barrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
@@ -490,8 +449,8 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
         texture_cache_->DemandView(texture, 0x688)->view, src_rect,
         {texture->texture_info.width + 1, texture->texture_info.height + 1},
         VK_FORMAT_R8G8B8A8_UNORM, dst_rect,
-        {frontbuffer_width, frontbuffer_height}, fb_framebuffer_, viewport,
-        scissor, VK_FILTER_LINEAR, true, true);
+        {frontbuffer_width, frontbuffer_height}, swap_resources.buf_framebuffer,
+        viewport, scissor, VK_FILTER_LINEAR, true, true);
 
     std::swap(barrier.oldLayout, barrier.newLayout);
     barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
@@ -500,9 +459,9 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
         copy_commands, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
         VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
 
-    std::lock_guard<std::mutex> lock(swap_state_.mutex);
-    swap_state_.width = frontbuffer_width;
-    swap_state_.height = frontbuffer_height;
+    std::lock_guard<std::mutex> lock(swap_state->mutex);
+    swap_state->width = frontbuffer_width;
+    swap_state->height = frontbuffer_height;
   }
 
   status = vkEndCommandBuffer(copy_commands);
@@ -553,8 +512,8 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
     }
   }
 
-  vkWaitForFences(*device_, 1, &current_batch_fence_, VK_TRUE, -1);
   if (cache_clear_requested_) {
+    vkWaitForFences(*device_, 1, &current_batch_fence_, VK_TRUE, -1);
     cache_clear_requested_ = false;
 
     buffer_cache_->ClearCache();

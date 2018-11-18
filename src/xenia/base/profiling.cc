@@ -47,7 +47,6 @@ DEFINE_bool(show_profiler, false, "Show profiling UI by default.");
 namespace xe {
 
 #if XE_OPTION_PROFILING_UI
-ui::Window* Profiler::window_ = nullptr;
 std::unique_ptr<ui::MicroprofileDrawer> Profiler::drawer_ = nullptr;
 #endif  // XE_OPTION_PROFILING_UI
 
@@ -97,7 +96,6 @@ void Profiler::Dump() {
 
 void Profiler::Shutdown() {
   drawer_.reset();
-  window_ = nullptr;
   MicroProfileShutdown();
 }
 
@@ -176,72 +174,19 @@ void Profiler::TogglePause() {}
 
 #endif  // XE_OPTION_PROFILING_UI
 
-void Profiler::set_window(ui::Window* window) {
-  assert_null(window_);
-  if (!window) {
-    return;
-  }
-  window_ = window;
-  drawer_ = std::make_unique<ui::MicroprofileDrawer>(window);
-
-  window_->on_painted.AddListener([](ui::UIEvent* e) { Profiler::Present(); });
-
-  // Pass through mouse events.
-  window_->on_mouse_down.AddListener([](ui::MouseEvent* e) {
-    if (Profiler::is_visible()) {
-      Profiler::OnMouseDown(e->button() == ui::MouseEvent::Button::kLeft,
-                            e->button() == ui::MouseEvent::Button::kRight);
-      e->set_handled(true);
-      window_->Invalidate();
-    }
-  });
-  window_->on_mouse_up.AddListener([](ui::MouseEvent* e) {
-    if (Profiler::is_visible()) {
-      Profiler::OnMouseUp();
-      e->set_handled(true);
-      window_->Invalidate();
-    }
-  });
-  window_->on_mouse_move.AddListener([](ui::MouseEvent* e) {
-    if (Profiler::is_visible()) {
-      Profiler::OnMouseMove(e->x(), e->y());
-      e->set_handled(true);
-      window_->Invalidate();
-    }
-  });
-  window_->on_mouse_wheel.AddListener([](ui::MouseEvent* e) {
-    if (Profiler::is_visible()) {
-      Profiler::OnMouseWheel(e->x(), e->y(), -e->dy());
-      e->set_handled(true);
-      window_->Invalidate();
-    }
-  });
-
-  // Watch for toggle/mode keys and such.
-  window_->on_key_down.AddListener([](ui::KeyEvent* e) {
-    if (Profiler::is_visible()) {
-      Profiler::OnKeyDown(e->key_code());
-      e->set_handled(true);
-      window_->Invalidate();
-    }
-  });
-  window_->on_key_up.AddListener([](ui::KeyEvent* e) {
-    if (Profiler::is_visible()) {
-      Profiler::OnKeyUp(e->key_code());
-      e->set_handled(true);
-      window_->Invalidate();
-    }
-  });
+void Profiler::set_context(ui::GraphicsContext* graphics_context) {
+  drawer_ = std::make_unique<ui::MicroprofileDrawer>(graphics_context);
 }
 
-void Profiler::Present() {
+void Profiler::Present(uint32_t width, uint32_t height) {
   SCOPE_profile_cpu_f("internal");
 #if XE_OPTION_PROFILING_UI
-  if (!window_ || !drawer_) {
+  if (!drawer_) {
+    assert_always();
     return;
   }
-  drawer_->Begin();
-  MicroProfileDraw(window_->scaled_width(), window_->scaled_height());
+  drawer_->Begin(width, height);
+  MicroProfileDraw(width, height);
   drawer_->End();
 #endif  // XE_OPTION_PROFILING_UI
 }

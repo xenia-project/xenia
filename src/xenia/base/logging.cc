@@ -75,8 +75,10 @@ class Logger {
   ~Logger() {
     running_ = false;
     xe::threading::Wait(write_thread_.get(), true);
-    fflush(file_);
-    fclose(file_);
+    if (file_) {
+      fflush(file_);
+      fclose(file_);
+    }
   }
 
   void AppendLine(uint32_t thread_id, LogLevel level, const char prefix_char,
@@ -92,8 +94,8 @@ class Logger {
     line.prefix_char = prefix_char;
 
     // First, run a check and see if we can increment write
-    // head without any problems. If so, cmpxchg it to reserve some space in the
-    // ring. If someone beats us, loop around.
+    // head without any problems. If so, cmpxchg it to reserve some space in
+    // the ring. If someone beats us, loop around.
     //
     // Once we have a reservation, write our data and then increment the write
     // tail.
@@ -184,8 +186,8 @@ class Logger {
                       line.thread_id);
         Write(prefix, sizeof(prefix) - 1);
         if (line.buffer_length) {
-          // Get access to the line data - which may be split in the ring buffer
-          // - and write it out in parts.
+          // Get access to the line data - which may be split in the ring
+          // buffer - and write it out in parts.
           auto line_range = rb.BeginRead(line.buffer_length);
           Write(reinterpret_cast<const char*>(line_range.first),
                 line_range.first_length);

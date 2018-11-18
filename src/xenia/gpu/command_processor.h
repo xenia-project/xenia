@@ -37,27 +37,6 @@ namespace gpu {
 class GraphicsSystem;
 class Shader;
 
-struct SwapState {
-  // Lock must be held when changing data in this structure.
-  std::mutex mutex;
-  // Dimensions of the framebuffer textures. Should match window size.
-  uint32_t width = 0;
-  uint32_t height = 0;
-  // Current front buffer, being drawn to the screen.
-  uintptr_t front_buffer_texture = 0;
-  // Current back buffer, being updated by the CP.
-  uintptr_t back_buffer_texture = 0;
-  // Backend data
-  void* backend_data = nullptr;
-  // Whether the back buffer is dirty and a swap is pending.
-  bool pending = false;
-};
-
-enum class SwapMode {
-  kNormal,
-  kIgnored,
-};
-
 enum class GammaRampType {
   kUnknown = 0,
   kNormal,
@@ -114,19 +93,17 @@ class CommandProcessor {
   Shader* active_vertex_shader() const { return active_vertex_shader_; }
   Shader* active_pixel_shader() const { return active_pixel_shader_; }
 
-  virtual bool Initialize(std::unique_ptr<xe::ui::GraphicsContext> context);
+  virtual bool Initialize(std::unique_ptr<ui::GraphicsContext> context);
   virtual void Shutdown();
 
   void CallInThread(std::function<void()> fn);
 
   virtual void ClearCaches();
 
-  SwapState& swap_state() { return swap_state_; }
-  void set_swap_mode(SwapMode swap_mode) { swap_mode_ = swap_mode; }
   void IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontbuffer_width,
                  uint32_t frontbuffer_height);
 
-  void set_swap_request_handler(std::function<void()> fn) {
+  void SetSwapCallback(std::function<void()> fn) {
     swap_request_handler_ = fn;
   }
 
@@ -255,9 +232,7 @@ class CommandProcessor {
   std::atomic<bool> worker_running_;
   kernel::object_ref<kernel::XHostThread> worker_thread_;
 
-  std::unique_ptr<xe::ui::GraphicsContext> context_;
-  SwapMode swap_mode_ = SwapMode::kNormal;
-  SwapState swap_state_;
+  std::unique_ptr<ui::GraphicsContext> context_;
   std::function<void()> swap_request_handler_;
   std::queue<std::function<void()>> pending_fns_;
 

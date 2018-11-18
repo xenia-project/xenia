@@ -23,6 +23,8 @@ skip_commits:
     - docs/*
     - LICENSE
     - README.md
+    - .clang-format
+    - .travis.yml
 
 pull_requests:
   do_not_increment_build_number: true
@@ -41,10 +43,14 @@ init:
 # clone directory
 clone_folder: c:\dev\xenia
 
+# build cache
+cache:
+  - C:\Qt\5.10.1\msvc2017_64-static -> .appveyor.yml
+
 # environment variables
 environment:
-  my_var1: value1
-  my_var2: value2
+  QT_DIR: C:\Qt\5.10.1\msvc2017_64-static
+  QT_STATIC: 1
 
 # build cache to preserve files/folders between builds
 #cache:
@@ -52,6 +58,11 @@ environment:
 # scripts that run after cloning repository
 install:
   - cmd: set PATH=C:\Program Files (x86)\MSBuild\14.0\Bin;%PATH%
+  - ps: |
+      if (!(Test-Path $env:QT_DIR -PathType Container)) {
+        Invoke-WebRequest $env:QT_S3 -OutFile C:\Qt\5.10.1\msvc2017_64-static.7z
+        7z x C:\Qt\5.10.1\msvc2017_64-static.7z -oc:\Qt\5.10.1
+      }
   - cmd: xb.bat setup
 
 

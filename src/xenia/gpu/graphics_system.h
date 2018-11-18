@@ -15,10 +15,10 @@
 #include <thread>
 
 #include "xenia/cpu/processor.h"
+#include "xenia/gpu/command_processor.h"
 #include "xenia/gpu/register_file.h"
 #include "xenia/kernel/xthread.h"
 #include "xenia/memory.h"
-#include "xenia/ui/window.h"
 #include "xenia/xbox.h"
 
 namespace xe {
@@ -28,7 +28,26 @@ class Emulator;
 namespace xe {
 namespace gpu {
 
-class CommandProcessor;
+const uint32_t kNumSwapBuffers = 2;
+
+struct SwapState {
+  // Lock must be held when changing data in this structure.
+  std::mutex mutex;
+  // Dimensions of the framebuffer textures. Should match window size.
+  uint32_t width = 0;
+  uint32_t height = 0;
+  // Array of swap textures.
+  uintptr_t buffer_textures[kNumSwapBuffers];
+  // Current swap buffer index
+  size_t current_buffer = 0;
+  // Whether the back buffer is dirty and a swap is pending.
+  bool pending = false;
+};
+
+enum class SwapMode {
+  kNormal,
+  kIgnored,
+};
 
 class GraphicsSystem {
  public:
@@ -43,7 +62,7 @@ class GraphicsSystem {
 
   virtual X_STATUS Setup(cpu::Processor* processor,
                          kernel::KernelState* kernel_state,
-                         ui::Window* target_window);
+                         std::unique_ptr<ui::GraphicsContext> graphics_context);
   virtual void Shutdown();
   virtual void Reset();
 
@@ -61,6 +80,12 @@ class GraphicsSystem {
   void DispatchInterruptCallback(uint32_t source, uint32_t cpu);
 
   virtual void ClearCaches();
+
+  void SetSwapCallback(std::function<void()> fn);
+  virtual SwapState* swap_state() = 0;
+
+  SwapMode swap_mode() { return swap_mode_; }
+  void set_swap_mode(SwapMode swap_mode) { swap_mode_ = swap_mode; }
 
   void RequestFrameTrace();
   void BeginTracing();
@@ -86,16 +111,16 @@ class GraphicsSystem {
   void WriteRegister(uint32_t addr, uint32_t value);
 
   void MarkVblank();
-  virtual void Swap(xe::ui::UIEvent* e) = 0;
 
   Memory* memory_ = nullptr;
   cpu::Processor* processor_ = nullptr;
   kernel::KernelState* kernel_state_ = nullptr;
-  ui::Window* target_window_ = nullptr;
   std::unique_ptr<ui::GraphicsProvider> provider_;
 
   uint32_t interrupt_callback_ = 0;
   uint32_t interrupt_callback_data_ = 0;
+
+  SwapMode swap_mode_ = SwapMode::kNormal;
 
   std::atomic<bool> vsync_worker_running_;
   kernel::object_ref<kernel::XHostThread> vsync_worker_thread_;

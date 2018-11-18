@@ -105,8 +105,9 @@ bool DebugWindow::Initialize() {
   window_->Resize(1500, 1000);
 
   // Create the graphics context used for drawing.
-  auto provider = emulator_->display_window()->context()->provider();
-  window_->set_context(provider->CreateContext(window_.get()));
+  // TODO(DrChat): Refactor this.
+  // auto provider = emulator_->display_window()->context()->provider();
+  // window_->set_context(provider->CreateContext(window_.get()));
 
   // Enable imgui input.
   window_->set_imgui_input_enabled(true);

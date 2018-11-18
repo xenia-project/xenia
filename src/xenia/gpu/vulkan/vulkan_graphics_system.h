@@ -19,15 +19,27 @@ namespace xe {
 namespace gpu {
 namespace vulkan {
 
+struct SwapState : public gpu::SwapState {
+  // front buffer / back buffer memory
+  struct BufferResources {
+    VkDeviceMemory buf_memory = nullptr;
+    VkImageView buf_image_view = nullptr;
+    VkImageLayout buf_image_layout = VK_IMAGE_LAYOUT_UNDEFINED;
+    VkFramebuffer buf_framebuffer = nullptr;  // Used and created by CP.
+    VkFence buf_fence = nullptr;              // Completion fence. Used by CP.
+  } buffer_resources[kNumSwapBuffers];
+};
+
 class VulkanGraphicsSystem : public GraphicsSystem {
  public:
   VulkanGraphicsSystem();
   ~VulkanGraphicsSystem() override;
 
   std::wstring name() const override { return L"Vulkan"; }
+  SwapState* swap_state() override { return &swap_state_; }
 
   X_STATUS Setup(cpu::Processor* processor, kernel::KernelState* kernel_state,
-                 ui::Window* target_window) override;
+                 std::unique_ptr<ui::GraphicsContext> context) override;
   void Shutdown() override;
 
   std::unique_ptr<xe::ui::RawImage> Capture() override;
@@ -36,11 +48,17 @@ class VulkanGraphicsSystem : public GraphicsSystem {
   VkResult CreateCaptureBuffer(VkCommandBuffer cmd, VkExtent2D extents);
   void DestroyCaptureBuffer();
 
-  std::unique_ptr<CommandProcessor> CreateCommandProcessor() override;
-  void Swap(xe::ui::UIEvent* e) override;
+  VkResult CreateSwapImage(VkExtent2D extents, uintptr_t* image_out,
+                           SwapState::BufferResources* buffer_resources);
+  void DestroySwapImage(uintptr_t* image,
+                        SwapState::BufferResources* buffer_resources);
 
-  xe::ui::vulkan::VulkanDevice* device_ = nullptr;
-  xe::ui::vulkan::VulkanContext* display_context_ = nullptr;
+  std::unique_ptr<CommandProcessor> CreateCommandProcessor() override;
+
+  ui::vulkan::VulkanDevice* device_ = nullptr;
+  ui::vulkan::VulkanContext* display_context_ = nullptr;
+
+  SwapState swap_state_;
 
   VkCommandPool command_pool_ = nullptr;
 

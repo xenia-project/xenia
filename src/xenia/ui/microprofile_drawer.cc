@@ -123,10 +123,8 @@ const uint8_t kFontData[] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 };
 
-MicroprofileDrawer::MicroprofileDrawer(xe::ui::Window* window)
-    : window_(window),
-      graphics_context_(window->context()),
-      vertices_(kMaxVertices) {
+MicroprofileDrawer::MicroprofileDrawer(GraphicsContext* graphics_context)
+    : graphics_context_(graphics_context), vertices_(kMaxVertices) {
   SetupFont();
 }
 
@@ -177,9 +175,8 @@ void MicroprofileDrawer::SetupFont() {
 
 MicroprofileDrawer::~MicroprofileDrawer() = default;
 
-void MicroprofileDrawer::Begin() {
-  graphics_context_->immediate_drawer()->Begin(window_->scaled_width(),
-                                               window_->scaled_height());
+void MicroprofileDrawer::Begin(uint32_t width, uint32_t height) {
+  graphics_context_->immediate_drawer()->Begin(width, height);
 }
 
 void MicroprofileDrawer::End() {

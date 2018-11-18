@@ -30,7 +30,7 @@
 namespace xe {
 namespace ui {
 class MicroprofileDrawer;
-class Window;
+class GraphicsContext;
 }  // namespace ui
 }  // namespace xe
 
@@ -180,17 +180,16 @@ class Profiler {
   static void ToggleDisplay();
   static void TogglePause();
 
-  // Initializes input and drawing with the given display.
-  static void set_window(ui::Window* window);
+  // Initializes drawing with the given context.
+  static void set_context(ui::GraphicsContext* graphics_context);
   // Gets the current display, if any.
   static ui::MicroprofileDrawer* drawer() { return drawer_.get(); }
   // Presents the profiler to the bound display, if any.
-  static void Present();
+  static void Present(uint32_t width, uint32_t height);
   // Starts a new frame on the profiler
   static void Flip();
 
  private:
-  static ui::Window* window_;
   static std::unique_ptr<ui::MicroprofileDrawer> drawer_;
 };
 

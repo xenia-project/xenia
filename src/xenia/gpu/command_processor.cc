@@ -46,7 +46,7 @@ CommandProcessor::CommandProcessor(GraphicsSystem* graphics_system,
 CommandProcessor::~CommandProcessor() = default;
 
 bool CommandProcessor::Initialize(
-    std::unique_ptr<xe::ui::GraphicsContext> context) {
+    std::unique_ptr<ui::GraphicsContext> context) {
   context_ = std::move(context);
 
   // Initialize the gamma ramps to their default (linear) values - taken from
@@ -207,7 +207,7 @@ void CommandProcessor::Pause() {
   });
 
   // HACK - Prevents a hang in IssueSwap()
-  swap_state_.pending = false;
+  graphics_system_->swap_state()->pending = false;
 
   fence.Wait();
 }
@@ -249,7 +249,7 @@ bool CommandProcessor::Restore(ByteStream* stream) {
 
 bool CommandProcessor::SetupContext() { return true; }
 
-void CommandProcessor::ShutdownContext() { context_.reset(); }
+void CommandProcessor::ShutdownContext() {}
 
 void CommandProcessor::InitializeRingBuffer(uint32_t ptr, uint32_t log2_size) {
   read_ptr_index_ = 0;
@@ -393,10 +393,11 @@ void CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
   // This prevents the display from pulling the backbuffer out from under us.
   // If we skip a lot then we may need to buffer more, but as the display
   // thread should be fairly idle that shouldn't happen.
+  auto swap_state = graphics_system_->swap_state();
   if (!FLAGS_vsync) {
-    std::lock_guard<std::mutex> lock(swap_state_.mutex);
-    if (swap_state_.pending) {
-      swap_state_.pending = false;
+    std::lock_guard<std::mutex> lock(swap_state->mutex);
+    if (swap_state->pending) {
+      swap_state->pending = false;
       // TODO(benvanik): frame skip counter.
       XELOGW("Skipped frame!");
     }
@@ -404,8 +405,8 @@ void CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
     // Spin until no more pending swap.
     while (worker_running_) {
       {
-        std::lock_guard<std::mutex> lock(swap_state_.mutex);
-        if (!swap_state_.pending) {
+        std::lock_guard<std::mutex> lock(swap_state->mutex);
+        if (!swap_state->pending) {
           break;
         }
       }
@@ -417,8 +418,8 @@ void CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
 
   {
     // Set pending so that the display will swap the next time it can.
-    std::lock_guard<std::mutex> lock(swap_state_.mutex);
-    swap_state_.pending = true;
+    std::lock_guard<std::mutex> lock(swap_state->mutex);
+    swap_state->pending = true;
   }
 
   // Notify the display a swap is pending so that our changes are picked up.
@@ -815,7 +816,7 @@ bool CommandProcessor::ExecutePacketType3_XE_SWAP(RingBuffer* reader,
   uint32_t frontbuffer_height = reader->ReadAndSwap<uint32_t>();
   reader->AdvanceRead((count - 4) * sizeof(uint32_t));
 
-  if (swap_mode_ == SwapMode::kNormal) {
+  if (graphics_system_->swap_mode() == SwapMode::kNormal) {
     IssueSwap(frontbuffer_ptr, frontbuffer_width, frontbuffer_height);
   }
 

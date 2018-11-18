@@ -26,6 +26,7 @@ class InputSystem;
 
 class InputDriver {
  public:
+  InputDriver();
   virtual ~InputDriver();
 
   virtual X_STATUS Setup() = 0;
@@ -37,11 +38,6 @@ class InputDriver {
                             X_INPUT_VIBRATION* vibration) = 0;
   virtual X_RESULT GetKeystroke(uint32_t user_index, uint32_t flags,
                                 X_INPUT_KEYSTROKE* out_keystroke) = 0;
-
- protected:
-  explicit InputDriver(xe::ui::Window* window);
-
-  xe::ui::Window* window_ = nullptr;
 };
 
 }  // namespace hid
