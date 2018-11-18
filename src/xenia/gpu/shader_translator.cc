@@ -1074,7 +1074,7 @@ void ParseAluInstructionOperand(const AluInstruction& op, int i,
   out_op->component_count = swizzle_component_count;
   uint32_t swizzle = op.src_swizzle(i);
   if (swizzle_component_count == 1) {
-    uint32_t a = swizzle & 0x3;
+    uint32_t a = ((swizzle >> 6) + 3) & 0x3;
     out_op->components[0] = GetSwizzleFromComponentIndex(a);
   } else if (swizzle_component_count == 2) {
     uint32_t a = ((swizzle >> 6) + 3) & 0x3;
