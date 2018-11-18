@@ -56,12 +56,13 @@ static const size_t kStashOffset = 32;
 // static const size_t kStashOffsetHigh = 32 + 32;
 
 const uint32_t X64Emitter::gpr_reg_map_[X64Emitter::GPR_COUNT] = {
-    Xbyak::Operand::RBX, Xbyak::Operand::R12, Xbyak::Operand::R13,
-    Xbyak::Operand::R14, Xbyak::Operand::R15,
+    Xbyak::Operand::RBX, Xbyak::Operand::R10, Xbyak::Operand::R11,
+    Xbyak::Operand::R12, Xbyak::Operand::R13, Xbyak::Operand::R14,
+    Xbyak::Operand::R15,
 };
 
 const uint32_t X64Emitter::xmm_reg_map_[X64Emitter::XMM_COUNT] = {
-    6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+    4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
 };
 
 X64Emitter::X64Emitter(X64Backend* backend, XbyakAllocator* allocator)
@@ -494,30 +495,20 @@ void X64Emitter::CallExtern(const hir::Instr* instr, const Function* function) {
   }
 }
 
-void X64Emitter::CallNative(void* fn) {
-  mov(rax, reinterpret_cast<uint64_t>(fn));
-  mov(rcx, GetContextReg());
-  call(rax);
-}
+void X64Emitter::CallNative(void* fn) { CallNativeSafe(fn); }
 
 void X64Emitter::CallNative(uint64_t (*fn)(void* raw_context)) {
-  mov(rax, reinterpret_cast<uint64_t>(fn));
-  mov(rcx, GetContextReg());
-  call(rax);
+  CallNativeSafe(reinterpret_cast<void*>(fn));
 }
 
 void X64Emitter::CallNative(uint64_t (*fn)(void* raw_context, uint64_t arg0)) {
-  mov(rax, reinterpret_cast<uint64_t>(fn));
-  mov(rcx, GetContextReg());
-  call(rax);
+  CallNativeSafe(reinterpret_cast<void*>(fn));
 }
 
 void X64Emitter::CallNative(uint64_t (*fn)(void* raw_context, uint64_t arg0),
                             uint64_t arg0) {
-  mov(rax, reinterpret_cast<uint64_t>(fn));
-  mov(rcx, GetContextReg());
-  mov(rdx, arg0);
-  call(rax);
+  mov(GetNativeParam(0), arg0);
+  CallNativeSafe(reinterpret_cast<void*>(fn));
 }
 
 void X64Emitter::CallNativeSafe(void* fn) {
@@ -537,8 +528,7 @@ void X64Emitter::SetReturnAddress(uint64_t value) {
   mov(qword[rsp + StackLayout::GUEST_CALL_RET_ADDR], rax);
 }
 
-Xbyak::Reg64 X64Emitter::GetNativeParam(uint32_t param)
-{
+Xbyak::Reg64 X64Emitter::GetNativeParam(uint32_t param) {
   if (param == 0)
     return rdx;
   else if (param == 1)

@@ -446,14 +446,13 @@ GuestToHostThunk X64ThunkEmitter::EmitGuestToHostThunk() {
   sub(rsp, stack_size);
 
   // Save off volatile registers.
-  // TODO(DrChat): Enable when necessary.
-  // EmitSaveVolatileRegs();
+  EmitSaveVolatileRegs();
 
   mov(rax, rcx);              // function
   mov(rcx, GetContextReg());  // context
   call(rax);
 
-  // EmitLoadVolatileRegs();
+  EmitLoadVolatileRegs();
 
   add(rsp, stack_size);
   ret();
@@ -468,21 +467,22 @@ extern "C" uint64_t ResolveFunction(void* raw_context, uint32_t target_address);
 ResolveFunctionThunk X64ThunkEmitter::EmitResolveFunctionThunk() {
   // ebx = target PPC address
   // rcx = context
-  uint32_t stack_size = 0x18;
+  const size_t stack_size = StackLayout::THUNK_STACK_SIZE;
 
   // rsp + 0 = return address
-  mov(qword[rsp + 8 * 2], rdx);
-  mov(qword[rsp + 8 * 1], rcx);
   sub(rsp, stack_size);
+
+  // Save volatile registers
+  EmitSaveVolatileRegs();
 
   mov(rcx, rsi);  // context
   mov(rdx, rbx);
   mov(rax, uint64_t(&ResolveFunction));
   call(rax);
 
+  EmitLoadVolatileRegs();
+
   add(rsp, stack_size);
-  mov(rcx, qword[rsp + 8 * 1]);
-  mov(rdx, qword[rsp + 8 * 2]);
   jmp(rax);
 
   void* fn = Emplace(stack_size);
@@ -491,34 +491,38 @@ ResolveFunctionThunk X64ThunkEmitter::EmitResolveFunctionThunk() {
 
 void X64ThunkEmitter::EmitSaveVolatileRegs() {
   // Save off volatile registers.
-  mov(qword[rsp + offsetof(StackLayout::Thunk, r[0])], rcx);
-  mov(qword[rsp + offsetof(StackLayout::Thunk, r[1])], rdx);
-  mov(qword[rsp + offsetof(StackLayout::Thunk, r[2])], r8);
-  mov(qword[rsp + offsetof(StackLayout::Thunk, r[3])], r9);
-  mov(qword[rsp + offsetof(StackLayout::Thunk, r[4])], r10);
-  mov(qword[rsp + offsetof(StackLayout::Thunk, r[5])], r11);
+  // mov(qword[rsp + offsetof(StackLayout::Thunk, r[0])], rax);
+  mov(qword[rsp + offsetof(StackLayout::Thunk, r[1])], rcx);
+  mov(qword[rsp + offsetof(StackLayout::Thunk, r[2])], rdx);
+  mov(qword[rsp + offsetof(StackLayout::Thunk, r[3])], r8);
+  mov(qword[rsp + offsetof(StackLayout::Thunk, r[4])], r9);
+  mov(qword[rsp + offsetof(StackLayout::Thunk, r[5])], r10);
+  mov(qword[rsp + offsetof(StackLayout::Thunk, r[6])], r11);
 
-  movaps(qword[rsp + offsetof(StackLayout::Thunk, xmm[0])], xmm1);
-  movaps(qword[rsp + offsetof(StackLayout::Thunk, xmm[1])], xmm2);
-  movaps(qword[rsp + offsetof(StackLayout::Thunk, xmm[2])], xmm3);
-  movaps(qword[rsp + offsetof(StackLayout::Thunk, xmm[3])], xmm4);
-  movaps(qword[rsp + offsetof(StackLayout::Thunk, xmm[4])], xmm5);
+  // movaps(qword[rsp + offsetof(StackLayout::Thunk, xmm[0])], xmm0);
+  movaps(qword[rsp + offsetof(StackLayout::Thunk, xmm[1])], xmm1);
+  movaps(qword[rsp + offsetof(StackLayout::Thunk, xmm[2])], xmm2);
+  movaps(qword[rsp + offsetof(StackLayout::Thunk, xmm[3])], xmm3);
+  movaps(qword[rsp + offsetof(StackLayout::Thunk, xmm[4])], xmm4);
+  movaps(qword[rsp + offsetof(StackLayout::Thunk, xmm[5])], xmm5);
 }
 
 void X64ThunkEmitter::EmitLoadVolatileRegs() {
   // Load volatile registers from our stack frame.
-  movaps(xmm1, qword[rsp + offsetof(StackLayout::Thunk, xmm[0])]);
-  movaps(xmm2, qword[rsp + offsetof(StackLayout::Thunk, xmm[1])]);
-  movaps(xmm3, qword[rsp + offsetof(StackLayout::Thunk, xmm[2])]);
-  movaps(xmm4, qword[rsp + offsetof(StackLayout::Thunk, xmm[3])]);
-  movaps(xmm5, qword[rsp + offsetof(StackLayout::Thunk, xmm[4])]);
+  // movaps(xmm0, qword[rsp + offsetof(StackLayout::Thunk, xmm[0])]);
+  movaps(xmm1, qword[rsp + offsetof(StackLayout::Thunk, xmm[1])]);
+  movaps(xmm2, qword[rsp + offsetof(StackLayout::Thunk, xmm[2])]);
+  movaps(xmm3, qword[rsp + offsetof(StackLayout::Thunk, xmm[3])]);
+  movaps(xmm4, qword[rsp + offsetof(StackLayout::Thunk, xmm[4])]);
+  movaps(xmm5, qword[rsp + offsetof(StackLayout::Thunk, xmm[5])]);
 
-  mov(rcx, qword[rsp + offsetof(StackLayout::Thunk, r[0])]);
-  mov(rdx, qword[rsp + offsetof(StackLayout::Thunk, r[1])]);
-  mov(r8, qword[rsp + offsetof(StackLayout::Thunk, r[2])]);
-  mov(r9, qword[rsp + offsetof(StackLayout::Thunk, r[3])]);
-  mov(r10, qword[rsp + offsetof(StackLayout::Thunk, r[4])]);
-  mov(r11, qword[rsp + offsetof(StackLayout::Thunk, r[5])]);
+  // mov(rax, qword[rsp + offsetof(StackLayout::Thunk, r[0])]);
+  mov(rcx, qword[rsp + offsetof(StackLayout::Thunk, r[1])]);
+  mov(rdx, qword[rsp + offsetof(StackLayout::Thunk, r[2])]);
+  mov(r8, qword[rsp + offsetof(StackLayout::Thunk, r[3])]);
+  mov(r9, qword[rsp + offsetof(StackLayout::Thunk, r[4])]);
+  mov(r10, qword[rsp + offsetof(StackLayout::Thunk, r[5])]);
+  mov(r11, qword[rsp + offsetof(StackLayout::Thunk, r[6])]);
 }
 
 void X64ThunkEmitter::EmitSaveNonvolatileRegs() {
