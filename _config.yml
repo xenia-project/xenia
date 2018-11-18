@@ -53,7 +53,6 @@ navigation:
     - title: Quickstart
       url: https://github.com/xenia-project/xenia#quickstart
       icon: build
-    - path: development/debugging.md
     - title: Source Code
       url: https://github.com/xenia-project/xenia
       icon: code
@@ -63,7 +62,6 @@ navigation:
 #    - title: Buildbot
 #      url: http://build.xenia.jp/waterfall
 #      icon: settings_system_daydream
-#    - path: development/irc.md
 
 artifacts:
   - title: Windows 8+ x64
