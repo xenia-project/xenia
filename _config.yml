@@ -45,9 +45,9 @@ navigation:
     - title: YouTube
       url: https://www.youtube.com/channel/UC6bJhkUUHE18HVG2mpbygSQ
       icon: videocam
-    - title: "#xenia @ freenode"
-      url: http://webchat.freenode.net/?channels=%23xenia
-      icon: people
+#    - title: "#xenia @ freenode"
+#      url: http://webchat.freenode.net/?channels=%23xenia
+#      icon: people
   - title: Development
     pages:
     - path: development/quickstart.md
