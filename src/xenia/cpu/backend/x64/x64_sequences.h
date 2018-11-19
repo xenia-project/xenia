@@ -40,6 +40,9 @@ static bool Register() {
 #define EMITTER_OPCODE_TABLE(name, ...) \
   const auto X64_INSTR_##name = Register<__VA_ARGS__>();
 
+// Registration functions to force inclusion of several files
+void RegisterVector();
+
 void RegisterSequences();
 bool SelectSequence(X64Emitter* e, const hir::Instr* i,
                     const hir::Instr** new_tail);
