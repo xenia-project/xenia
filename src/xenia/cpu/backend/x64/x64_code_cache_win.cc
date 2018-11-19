@@ -20,9 +20,17 @@
 #include "xenia/base/platform_win.h"
 #include "xenia/cpu/function.h"
 
-// When enabled, this will use Windows 8 APIs to get unwind info.
-// TODO(benvanik): figure out why the callback variant doesn't work.
-#define USE_GROWABLE_FUNCTION_TABLE
+// Function pointer definitions
+typedef DWORD(NTAPI* FnRtlAddGrowableFunctionTable)(
+    _Out_ PVOID* DynamicTable,
+    _In_reads_(MaximumEntryCount) PRUNTIME_FUNCTION FunctionTable,
+    _In_ DWORD EntryCount, _In_ DWORD MaximumEntryCount,
+    _In_ ULONG_PTR RangeBase, _In_ ULONG_PTR RangeEnd);
+
+typedef VOID(NTAPI* FnRtlGrowFunctionTable)(_Inout_ PVOID DynamicTable,
+                                            _In_ DWORD NewEntryCount);
+
+typedef VOID(NTAPI* FnRtlDeleteGrowableFunctionTable)(_In_ PVOID DynamicTable);
 
 namespace xe {
 namespace cpu {
@@ -118,6 +126,12 @@ class Win32X64CodeCache : public X64CodeCache {
   std::vector<RUNTIME_FUNCTION> unwind_table_;
   // Current number of entries in the table.
   std::atomic<uint32_t> unwind_table_count_ = {0};
+  // Does this version of Windows support growable funciton tables?
+  bool supports_growable_table_ = false;
+
+  FnRtlAddGrowableFunctionTable add_growable_table_ = nullptr;
+  FnRtlDeleteGrowableFunctionTable delete_growable_table_ = nullptr;
+  FnRtlGrowFunctionTable grow_table_ = nullptr;
 };
 
 std::unique_ptr<X64CodeCache> X64CodeCache::Create() {
@@ -127,16 +141,16 @@ std::unique_ptr<X64CodeCache> X64CodeCache::Create() {
 Win32X64CodeCache::Win32X64CodeCache() = default;
 
 Win32X64CodeCache::~Win32X64CodeCache() {
-#ifdef USE_GROWABLE_FUNCTION_TABLE
-  if (unwind_table_handle_) {
-    RtlDeleteGrowableFunctionTable(unwind_table_handle_);
+  if (supports_growable_table_) {
+    if (unwind_table_handle_) {
+      delete_growable_table_(unwind_table_handle_);
+    }
+  } else {
+    if (generated_code_base_) {
+      RtlDeleteFunctionTable(reinterpret_cast<PRUNTIME_FUNCTION>(
+          reinterpret_cast<DWORD64>(generated_code_base_) | 0x3));
+    }
   }
-#else
-  if (generated_code_base_) {
-    RtlDeleteFunctionTable(reinterpret_cast<PRUNTIME_FUNCTION>(
-        reinterpret_cast<DWORD64>(generated_code_base_) | 0x3));
-  }
-#endif  // USE_GROWABLE_FUNCTION_TABLE
 }
 
 bool Win32X64CodeCache::Initialize() {
@@ -148,34 +162,43 @@ bool Win32X64CodeCache::Initialize() {
   // We don't support reallocing right now, so this should be high.
   unwind_table_.resize(kMaximumFunctionCount);
 
-#ifdef USE_GROWABLE_FUNCTION_TABLE
+  // Check if this version of Windows supports growable function tables.
+  add_growable_table_ = (FnRtlAddGrowableFunctionTable)GetProcAddress(
+      GetModuleHandleW(L"ntdll.dll"), "RtlAddGrowableFunctionTable");
+  delete_growable_table_ = (FnRtlDeleteGrowableFunctionTable)GetProcAddress(
+      GetModuleHandleW(L"ntdll.dll"), "RtlDeleteGrowableFunctionTable");
+  grow_table_ = (FnRtlGrowFunctionTable)GetProcAddress(
+      GetModuleHandleW(L"ntdll.dll"), "RtlGrowFunctionTable");
+  supports_growable_table_ =
+      add_growable_table_ && delete_growable_table_ && grow_table_;
+
   // Create table and register with the system. It's empty now, but we'll grow
   // it as functions are added.
-  if (RtlAddGrowableFunctionTable(
-          &unwind_table_handle_, unwind_table_.data(), unwind_table_count_,
-          DWORD(unwind_table_.size()),
-          reinterpret_cast<ULONG_PTR>(generated_code_base_),
-          reinterpret_cast<ULONG_PTR>(generated_code_base_ +
-                                      kGeneratedCodeSize))) {
-    XELOGE("Unable to create unwind function table");
-    return false;
+  if (supports_growable_table_) {
+    if (add_growable_table_(&unwind_table_handle_, unwind_table_.data(),
+                            unwind_table_count_, DWORD(unwind_table_.size()),
+                            reinterpret_cast<ULONG_PTR>(generated_code_base_),
+                            reinterpret_cast<ULONG_PTR>(generated_code_base_ +
+                                                        kGeneratedCodeSize))) {
+      XELOGE("Unable to create unwind function table");
+      return false;
+    }
+  } else {
+    // Install a callback that the debugger will use to lookup unwind info on
+    // demand.
+    if (!RtlInstallFunctionTableCallback(
+            reinterpret_cast<DWORD64>(generated_code_base_) | 0x3,
+            reinterpret_cast<DWORD64>(generated_code_base_), kGeneratedCodeSize,
+            [](DWORD64 control_pc, PVOID context) {
+              auto code_cache = reinterpret_cast<Win32X64CodeCache*>(context);
+              return reinterpret_cast<PRUNTIME_FUNCTION>(
+                  code_cache->LookupUnwindInfo(control_pc));
+            },
+            this, nullptr)) {
+      XELOGE("Unable to install function table callback");
+      return false;
+    }
   }
-#else
-  // Install a callback that the debugger will use to lookup unwind info on
-  // demand.
-  if (!RtlInstallFunctionTableCallback(
-          reinterpret_cast<DWORD64>(generated_code_base_) | 0x3,
-          reinterpret_cast<DWORD64>(generated_code_base_), kGeneratedCodeSize,
-          [](DWORD64 control_pc, PVOID context) {
-            auto code_cache = reinterpret_cast<Win32X64CodeCache*>(context);
-            return reinterpret_cast<PRUNTIME_FUNCTION>(
-                code_cache->LookupUnwindInfo(control_pc));
-          },
-          this, nullptr)) {
-    XELOGE("Unable to install function table callback");
-    return false;
-  }
-#endif  // USE_GROWABLE_FUNCTION_TABLE
 
   return true;
 }
@@ -200,11 +223,11 @@ void Win32X64CodeCache::PlaceCode(uint32_t guest_address, void* machine_code,
                         unwind_reservation.table_slot, code_address, code_size,
                         stack_size);
 
-#ifdef USE_GROWABLE_FUNCTION_TABLE
-  // Notify that the unwind table has grown.
-  // We do this outside of the lock, but with the latest total count.
-  RtlGrowFunctionTable(unwind_table_handle_, unwind_table_count_);
-#endif  // USE_GROWABLE_FUNCTION_TABLE
+  if (supports_growable_table_) {
+    // Notify that the unwind table has grown.
+    // We do this outside of the lock, but with the latest total count.
+    grow_table_(unwind_table_handle_, unwind_table_count_);
+  }
 
   // This isn't needed on x64 (probably), but is convention.
   FlushInstructionCache(GetCurrentProcess(), code_address, code_size);
