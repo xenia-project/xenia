@@ -302,9 +302,12 @@ dword_result_t XamContentCreate(dword_t user_index, lpstring_t root_name,
 }
 DECLARE_XAM_EXPORT(XamContentCreate, ExportTag::kImplemented);
 
-dword_result_t XamContentOpenFile(dword_t r3, lpstring_t r4, lpstring_t r5,
-                                  dword_t r6, dword_t r7, dword_t r8,
-                                  dword_t r9) {
+dword_result_t XamContentOpenFile(dword_t user_index, lpstring_t root_name,
+                                  lpstring_t path, dword_t flags,
+                                  lpdword_t disposition_ptr,
+                                  lpdword_t license_mask_ptr,
+                                  lpvoid_t overlapped_ptr) {
+  // TODO(gibbed): arguments assumed based on XamContentCreate.
   return X_ERROR_FILE_NOT_FOUND;
 }
 DECLARE_XAM_EXPORT(XamContentOpenFile, ExportTag::kStub);
