@@ -48,7 +48,7 @@ dword_result_t XamContentGetLicenseMask(lpdword_t mask_ptr,
     return X_ERROR_SUCCESS;
   }
 }
-DECLARE_XAM_EXPORT1(XamContentGetLicenseMask, kContent, kStub);
+DECLARE_XAM_EXPORT2(XamContentGetLicenseMask, kContent, kStub, kHighFrequency);
 
 dword_result_t XamContentGetDeviceName(dword_t device_id,
                                        lpwstring_t name_buffer,
