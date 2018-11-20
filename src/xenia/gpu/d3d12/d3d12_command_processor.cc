@@ -32,7 +32,7 @@ DEFINE_bool(d3d12_half_pixel_offset, true,
 // Disabled because the current positions look worse than sampling at centers.
 DEFINE_bool(d3d12_programmable_sample_positions, false,
             "Enable custom SSAA sample positions where available");
-DEFINE_bool(d3d12_rov, false,
+DEFINE_bool(d3d12_rov, true,
             "Use rasterizer-ordered views for render target emulation where "
             "available.");
 
