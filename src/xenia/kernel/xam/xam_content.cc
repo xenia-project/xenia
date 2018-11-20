@@ -180,8 +180,6 @@ dword_result_t XamContentCreateEx(dword_t user_index, lpstring_t root_name,
                                   lpdword_t license_mask_ptr,
                                   dword_t cache_size, qword_t content_size,
                                   lpvoid_t overlapped_ptr) {
-  assert_null(license_mask_ptr);
-
   X_RESULT result = X_ERROR_INVALID_PARAMETER;
   auto content_data = XCONTENT_DATA((uint8_t*)content_data_ptr);
 
@@ -254,6 +252,10 @@ dword_result_t XamContentCreateEx(dword_t user_index, lpstring_t root_name,
     result = content_manager->CreateContent(root_name.value(), content_data);
   } else if (open) {
     result = content_manager->OpenContent(root_name.value(), content_data);
+  }
+
+  if (license_mask_ptr && XSUCCEEDED(result)) {
+    *license_mask_ptr = 0;
   }
 
   if (overlapped_ptr) {
@@ -421,8 +423,7 @@ dword_result_t XamContentDelete(dword_t user_index, lpvoid_t content_data_ptr,
 DECLARE_XAM_EXPORT1(XamContentDelete, kContent, kImplemented);
 
 void RegisterContentExports(xe::cpu::ExportResolver* export_resolver,
-                            KernelState* kernel_state) {
-}
+                            KernelState* kernel_state) {}
 
 }  // namespace xam
 }  // namespace kernel
