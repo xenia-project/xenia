@@ -335,8 +335,7 @@ void XamShowDirtyDiscErrorUI(dword_t user_index) {
 DECLARE_XAM_EXPORT1(XamShowDirtyDiscErrorUI, kUI, kImplemented);
 
 void RegisterUIExports(xe::cpu::ExportResolver* export_resolver,
-                       KernelState* kernel_state) {
-}
+                       KernelState* kernel_state) {}
 
 }  // namespace xam
 }  // namespace kernel
