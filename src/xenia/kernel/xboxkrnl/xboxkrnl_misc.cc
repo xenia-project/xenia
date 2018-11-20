@@ -21,7 +21,7 @@ namespace xboxkrnl {
 void KeEnableFpuExceptions(dword_t enabled) {
   // TODO(benvanik): can we do anything about exceptions?
 }
-DECLARE_XBOXKRNL_EXPORT(KeEnableFpuExceptions, ExportTag::kStub);
+DECLARE_XBOXKRNL_EXPORT1(KeEnableFpuExceptions, kNone, kStub);
 
 void RegisterMiscExports(xe::cpu::ExportResolver* export_resolver,
                          KernelState* kernel_state) {}

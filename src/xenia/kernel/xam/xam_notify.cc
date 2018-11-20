@@ -30,7 +30,7 @@ dword_result_t XamNotifyCreateListener(qword_t mask, dword_t one) {
 
   return handle;
 }
-DECLARE_XAM_EXPORT(XamNotifyCreateListener, ExportTag::kImplemented);
+DECLARE_XAM_EXPORT1(XamNotifyCreateListener, kNone, kImplemented);
 
 // http://ffplay360.googlecode.com/svn/Test/Common/AtgSignIn.cpp
 dword_result_t XNotifyGetNext(dword_t handle, dword_t match_id,
@@ -68,19 +68,18 @@ dword_result_t XNotifyGetNext(dword_t handle, dword_t match_id,
 
   return dequeued ? 1 : 0;
 }
-DECLARE_XAM_EXPORT(XNotifyGetNext,
-                   ExportTag::kImplemented | ExportTag::kHighFrequency);
+DECLARE_XAM_EXPORT2(XNotifyGetNext, kNone, kImplemented, kHighFrequency);
 
 dword_result_t XNotifyDelayUI(dword_t delay_ms) {
   // Ignored.
   return 0;
 }
-DECLARE_XAM_EXPORT(XNotifyDelayUI, ExportTag::kStub);
+DECLARE_XAM_EXPORT1(XNotifyDelayUI, kNone, kStub);
 
 void XNotifyPositionUI(dword_t position) {
   // Ignored.
 }
-DECLARE_XAM_EXPORT(XNotifyPositionUI, ExportTag::kStub);
+DECLARE_XAM_EXPORT1(XNotifyPositionUI, kNone, kStub);
 
 void RegisterNotifyExports(xe::cpu::ExportResolver* export_resolver,
                            KernelState* kernel_state) {}
