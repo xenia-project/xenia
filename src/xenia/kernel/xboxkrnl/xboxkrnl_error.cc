@@ -997,7 +997,7 @@ dword_result_t RtlNtStatusToDosError(dword_t source_status) {
       if (!result) {
         break;
       }
-      XELOGI("RtlNtStatusToDosError => %X", result);
+      XELOGI("RtlNtStatusToDosError %X => %X", status, result);
       return result;
     }
     ++error_table;
@@ -1010,7 +1010,8 @@ dword_result_t RtlNtStatusToDosError(dword_t source_status) {
   XELOGE("RtlNtStatusToDosError lookup NOT IMPLEMENTED");
   return 317;  // ERROR_MR_MID_NOT_FOUND
 }
-DECLARE_XBOXKRNL_EXPORT2(RtlNtStatusToDosError, kNone, kImportant, kLogResult);
+DECLARE_XBOXKRNL_EXPORT3(RtlNtStatusToDosError, kNone, kImportant,
+                         kHighFrequency, kLogResult);
 
 void RegisterErrorExports(xe::cpu::ExportResolver* export_resolver,
                           KernelState* kernel_state) {}
