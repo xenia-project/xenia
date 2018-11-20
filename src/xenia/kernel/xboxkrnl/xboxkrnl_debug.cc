@@ -20,7 +20,7 @@ namespace kernel {
 namespace xboxkrnl {
 
 void DbgBreakPoint() { xe::debugging::Break(); }
-DECLARE_XBOXKRNL_EXPORT(DbgBreakPoint, ExportTag::kImportant);
+DECLARE_XBOXKRNL_EXPORT2(DbgBreakPoint, kDebug, kStub, kImportant);
 
 // https://msdn.microsoft.com/en-us/library/xcb2z8hs.aspx
 typedef struct {
@@ -80,7 +80,7 @@ void RtlRaiseException(pointer_t<X_EXCEPTION_RECORD> record) {
   // This is going to suck.
   xe::debugging::Break();
 }
-DECLARE_XBOXKRNL_EXPORT(RtlRaiseException, ExportTag::kImportant);
+DECLARE_XBOXKRNL_EXPORT2(RtlRaiseException, kDebug, kStub, kImportant);
 
 void KeBugCheckEx(dword_t code, dword_t param1, dword_t param2, dword_t param3,
                   dword_t param4) {
@@ -90,10 +90,10 @@ void KeBugCheckEx(dword_t code, dword_t param1, dword_t param2, dword_t param3,
   xe::debugging::Break();
   assert_always();
 }
-DECLARE_XBOXKRNL_EXPORT(KeBugCheckEx, ExportTag::kImportant);
+DECLARE_XBOXKRNL_EXPORT2(KeBugCheckEx, kDebug, kStub, kImportant);
 
 void KeBugCheck(dword_t code) { KeBugCheckEx(code, 0, 0, 0, 0); }
-DECLARE_XBOXKRNL_EXPORT(KeBugCheck, ExportTag::kImportant);
+DECLARE_XBOXKRNL_EXPORT2(KeBugCheck, kDebug, kImplemented, kImportant);
 
 void RegisterDebugExports(xe::cpu::ExportResolver* export_resolver,
                           KernelState* kernel_state) {}
