@@ -161,8 +161,7 @@ dword_result_t NtAllocateVirtualMemory(lpdword_t base_addr_ptr,
   *region_size_ptr = adjusted_size;
   return X_STATUS_SUCCESS;
 }
-DECLARE_XBOXKRNL_EXPORT(NtAllocateVirtualMemory,
-                        ExportTag::kImplemented | ExportTag::kMemory);
+DECLARE_XBOXKRNL_EXPORT1(NtAllocateVirtualMemory, kMemory, kImplemented);
 
 dword_result_t NtProtectVirtualMemory(lpdword_t base_addr_ptr,
                                       lpdword_t region_size_ptr,
@@ -210,8 +209,7 @@ dword_result_t NtProtectVirtualMemory(lpdword_t base_addr_ptr,
 
   return X_STATUS_SUCCESS;
 }
-DECLARE_XBOXKRNL_EXPORT(NtProtectVirtualMemory,
-                        ExportTag::kImplemented | ExportTag::kMemory);
+DECLARE_XBOXKRNL_EXPORT1(NtProtectVirtualMemory, kMemory, kImplemented);
 
 dword_result_t NtFreeVirtualMemory(lpdword_t base_addr_ptr,
                                    lpdword_t region_size_ptr, dword_t free_type,
@@ -252,7 +250,7 @@ dword_result_t NtFreeVirtualMemory(lpdword_t base_addr_ptr,
   *region_size_ptr = region_size_value;
   return X_STATUS_SUCCESS;
 }
-DECLARE_XBOXKRNL_EXPORT(NtFreeVirtualMemory, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(NtFreeVirtualMemory, kMemory, kImplemented);
 
 struct X_MEMORY_BASIC_INFORMATION {
   be<uint32_t> base_address;
@@ -291,7 +289,7 @@ dword_result_t NtQueryVirtualMemory(
 
   return X_STATUS_SUCCESS;
 }
-DECLARE_XBOXKRNL_EXPORT(NtQueryVirtualMemory, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(NtQueryVirtualMemory, kMemory, kImplemented);
 
 dword_result_t MmAllocatePhysicalMemoryEx(dword_t flags, dword_t region_size,
                                           dword_t protect_bits,
@@ -344,16 +342,14 @@ dword_result_t MmAllocatePhysicalMemoryEx(dword_t flags, dword_t region_size,
 
   return base_address;
 }
-DECLARE_XBOXKRNL_EXPORT(MmAllocatePhysicalMemoryEx,
-                        ExportTag::kImplemented | ExportTag::kMemory);
+DECLARE_XBOXKRNL_EXPORT1(MmAllocatePhysicalMemoryEx, kMemory, kImplemented);
 
 dword_result_t MmAllocatePhysicalMemory(dword_t flags, dword_t region_size,
                                         dword_t protect_bits) {
   return MmAllocatePhysicalMemoryEx(flags, region_size, protect_bits, 0,
                                     0xFFFFFFFFu, 0);
 }
-DECLARE_XBOXKRNL_EXPORT(MmAllocatePhysicalMemory,
-                        ExportTag::kImplemented | ExportTag::kMemory);
+DECLARE_XBOXKRNL_EXPORT1(MmAllocatePhysicalMemory, kMemory, kImplemented);
 
 void MmFreePhysicalMemory(dword_t type, dword_t base_address) {
   // base_address = result of MmAllocatePhysicalMemory.
@@ -363,7 +359,7 @@ void MmFreePhysicalMemory(dword_t type, dword_t base_address) {
   auto heap = kernel_state()->memory()->LookupHeap(base_address);
   heap->Release(base_address);
 }
-DECLARE_XBOXKRNL_EXPORT(MmFreePhysicalMemory, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(MmFreePhysicalMemory, kMemory, kImplemented);
 
 dword_result_t MmQueryAddressProtect(dword_t base_address) {
   auto heap = kernel_state()->memory()->LookupHeap(base_address);
@@ -375,7 +371,7 @@ dword_result_t MmQueryAddressProtect(dword_t base_address) {
 
   return access;
 }
-DECLARE_XBOXKRNL_EXPORT(MmQueryAddressProtect, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(MmQueryAddressProtect, kMemory, kImplemented);
 
 void MmSetAddressProtect(lpvoid_t base_address, dword_t region_size,
                          dword_t protect_bits) {
@@ -383,8 +379,7 @@ void MmSetAddressProtect(lpvoid_t base_address, dword_t region_size,
   auto heap = kernel_memory()->LookupHeap(base_address);
   heap->Protect(base_address.guest_address(), region_size, protect);
 }
-DECLARE_XBOXKRNL_EXPORT(MmSetAddressProtect,
-                        ExportTag::kImplemented | ExportTag::kMemory);
+DECLARE_XBOXKRNL_EXPORT1(MmSetAddressProtect, kMemory, kImplemented);
 
 dword_result_t MmQueryAllocationSize(lpvoid_t base_address) {
   auto heap = kernel_state()->memory()->LookupHeap(base_address);
@@ -395,7 +390,7 @@ dword_result_t MmQueryAllocationSize(lpvoid_t base_address) {
 
   return size;
 }
-DECLARE_XBOXKRNL_EXPORT(MmQueryAllocationSize, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(MmQueryAllocationSize, kMemory, kImplemented);
 
 // https://code.google.com/p/vdash/source/browse/trunk/vdash/include/kernel.h
 struct X_MM_QUERY_STATISTICS_SECTION {
@@ -498,7 +493,7 @@ dword_result_t MmQueryStatistics(
 
   return X_STATUS_SUCCESS;
 }
-DECLARE_XBOXKRNL_EXPORT(MmQueryStatistics, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(MmQueryStatistics, kMemory, kImplemented);
 
 // http://msdn.microsoft.com/en-us/library/windows/hardware/ff554547(v=vs.85).aspx
 dword_result_t MmGetPhysicalAddress(dword_t base_address) {
@@ -515,7 +510,7 @@ dword_result_t MmGetPhysicalAddress(dword_t base_address) {
 
   return physical_address;
 }
-DECLARE_XBOXKRNL_EXPORT(MmGetPhysicalAddress, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(MmGetPhysicalAddress, kMemory, kImplemented);
 
 dword_result_t MmMapIoSpace(dword_t unk0, lpvoid_t src_address, dword_t size,
                             dword_t flags) {
@@ -528,7 +523,7 @@ dword_result_t MmMapIoSpace(dword_t unk0, lpvoid_t src_address, dword_t size,
 
   return src_address.guest_address();
 }
-DECLARE_XBOXKRNL_EXPORT(MmMapIoSpace, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(MmMapIoSpace, kMemory, kImplemented);
 
 dword_result_t ExAllocatePoolTypeWithTag(dword_t size, dword_t tag,
                                          dword_t zero) {
@@ -545,27 +540,27 @@ dword_result_t ExAllocatePoolTypeWithTag(dword_t size, dword_t tag,
 
   return addr;
 }
-DECLARE_XBOXKRNL_EXPORT(ExAllocatePoolTypeWithTag, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(ExAllocatePoolTypeWithTag, kMemory, kImplemented);
 
 void ExFreePool(lpvoid_t base_address) {
   kernel_state()->memory()->SystemHeapFree(base_address);
 }
-DECLARE_XBOXKRNL_EXPORT(ExFreePool, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(ExFreePool, kMemory, kImplemented);
 
 dword_result_t KeGetImagePageTableEntry(lpvoid_t address) {
   // Unknown
   return 1;
 }
-DECLARE_XBOXKRNL_EXPORT(KeGetImagePageTableEntry, ExportTag::kStub);
+DECLARE_XBOXKRNL_EXPORT1(KeGetImagePageTableEntry, kMemory, kStub);
 
 dword_result_t KeLockL2() {
   // TODO
   return 0;
 }
-DECLARE_XBOXKRNL_EXPORT(KeLockL2, ExportTag::kStub);
+DECLARE_XBOXKRNL_EXPORT1(KeLockL2, kMemory, kStub);
 
 void KeUnlockL2() {}
-DECLARE_XBOXKRNL_EXPORT(KeUnlockL2, ExportTag::kStub);
+DECLARE_XBOXKRNL_EXPORT1(KeUnlockL2, kMemory, kStub);
 
 dword_result_t MmCreateKernelStack(dword_t stack_size, dword_t r4) {
   assert_zero(r4);  // Unknown argument.
@@ -582,7 +577,7 @@ dword_result_t MmCreateKernelStack(dword_t stack_size, dword_t r4) {
                    &stack_address);
   return stack_address + stack_size;
 }
-DECLARE_XBOXKRNL_EXPORT(MmCreateKernelStack, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(MmCreateKernelStack, kMemory, kImplemented);
 
 dword_result_t MmDeleteKernelStack(lpvoid_t stack_base, lpvoid_t stack_end) {
   // Release the stack (where stack_end is the low address)
@@ -592,7 +587,7 @@ dword_result_t MmDeleteKernelStack(lpvoid_t stack_base, lpvoid_t stack_end) {
 
   return X_STATUS_UNSUCCESSFUL;
 }
-DECLARE_XBOXKRNL_EXPORT(MmDeleteKernelStack, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(MmDeleteKernelStack, kMemory, kImplemented);
 
 void RegisterMemoryExports(xe::cpu::ExportResolver* export_resolver,
                            KernelState* kernel_state) {}

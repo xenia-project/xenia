@@ -285,7 +285,7 @@ dword_result_t XamShowKeyboardUI(dword_t user_index, dword_t flags,
     return X_ERROR_SUCCESS;
   }
 }
-DECLARE_XAM_EXPORT(XamShowKeyboardUI, ExportTag::kImplemented);
+DECLARE_XAM_EXPORT1(XamShowKeyboardUI, kUI, kImplemented);
 
 dword_result_t XamShowDeviceSelectorUI(dword_t user_index, dword_t content_type,
                                        dword_t content_flags,
@@ -316,7 +316,7 @@ dword_result_t XamShowDeviceSelectorUI(dword_t user_index, dword_t content_type,
     return X_ERROR_SUCCESS;
   }
 }
-DECLARE_XAM_EXPORT(XamShowDeviceSelectorUI, ExportTag::kImplemented);
+DECLARE_XAM_EXPORT1(XamShowDeviceSelectorUI, kUI, kImplemented);
 
 SHIM_CALL XamShowDirtyDiscErrorUI_shim(PPCContext* ppc_context,
                                        KernelState* kernel_state) {

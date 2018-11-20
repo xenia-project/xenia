@@ -36,7 +36,7 @@ void XamNuiGetDeviceStatus(pointer_t<X_NUI_DEVICE_STATUS> status_ptr) {
   status_ptr.Zero();
   status_ptr->status = 0;  // Not connected.
 }
-DECLARE_XAM_EXPORT(XamNuiGetDeviceStatus, ExportTag::kStub);
+DECLARE_XAM_EXPORT1(XamNuiGetDeviceStatus, kNone, kStub);
 
 dword_result_t XamShowNuiTroubleshooterUI(unknown_t unk1, unknown_t unk2,
                                           unknown_t unk3) {
@@ -61,7 +61,7 @@ dword_result_t XamShowNuiTroubleshooterUI(unknown_t unk1, unknown_t unk2,
 
   return 0;
 }
-DECLARE_XAM_EXPORT(XamShowNuiTroubleshooterUI, ExportTag::kStub);
+DECLARE_XAM_EXPORT1(XamShowNuiTroubleshooterUI, kNone, kStub);
 
 void RegisterNuiExports(xe::cpu::ExportResolver* export_resolver,
                         KernelState* kernel_state) {}
