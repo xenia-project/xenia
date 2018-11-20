@@ -347,6 +347,14 @@ dword_result_t MmAllocatePhysicalMemoryEx(dword_t flags, dword_t region_size,
 DECLARE_XBOXKRNL_EXPORT(MmAllocatePhysicalMemoryEx,
                         ExportTag::kImplemented | ExportTag::kMemory);
 
+dword_result_t MmAllocatePhysicalMemory(dword_t flags, dword_t region_size,
+                                        dword_t protect_bits) {
+  return MmAllocatePhysicalMemoryEx(flags, region_size, protect_bits, 0,
+                                    0xFFFFFFFFu, 0);
+}
+DECLARE_XBOXKRNL_EXPORT(MmAllocatePhysicalMemory,
+                        ExportTag::kImplemented | ExportTag::kMemory);
+
 void MmFreePhysicalMemory(dword_t type, dword_t base_address) {
   // base_address = result of MmAllocatePhysicalMemory.
 
