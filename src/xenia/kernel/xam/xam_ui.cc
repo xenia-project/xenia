@@ -100,7 +100,6 @@ dword_result_t XamShowMessageBoxUI(dword_t user_index, lpwstring_t title_ptr,
   std::vector<std::wstring> buttons;
   std::wstring all_buttons;
   for (uint32_t j = 0; j < button_count; ++j) {
-    auto test = button_ptrs[1];
     uint32_t button_ptr = button_ptrs[j];
     auto button = xe::load_and_swap<std::wstring>(
         kernel_state()->memory()->TranslateVirtual(button_ptr));
