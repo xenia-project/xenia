@@ -29,7 +29,7 @@ void HalReturnToFirmware(dword_t routine) {
   XELOGE("Game requested shutdown via HalReturnToFirmware");
   exit(0);
 }
-DECLARE_XBOXKRNL_EXPORT(HalReturnToFirmware, ExportTag::kImportant);
+DECLARE_XBOXKRNL_EXPORT2(HalReturnToFirmware, kNone, kStub, kImportant);
 
 void RegisterHalExports(xe::cpu::ExportResolver* export_resolver,
                         KernelState* kernel_state) {}

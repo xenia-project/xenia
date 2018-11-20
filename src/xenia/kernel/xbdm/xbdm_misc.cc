@@ -19,30 +19,28 @@ namespace kernel {
 namespace xbdm {
 
 void DmCloseLoadedModules(lpdword_t unk0_ptr) {}
-DECLARE_XBDM_EXPORT(DmCloseLoadedModules, ExportTag::kStub | ExportTag::kDebug);
+DECLARE_XBDM_EXPORT1(DmCloseLoadedModules, kDebug, kStub);
 
 void DmSendNotificationString(lpdword_t unk0_ptr) {}
-DECLARE_XBDM_EXPORT(DmSendNotificationString,
-                    ExportTag::kStub | ExportTag::kDebug);
+DECLARE_XBDM_EXPORT1(DmSendNotificationString, kDebug, kStub);
 
 dword_result_t DmWalkLoadedModules(lpdword_t unk0_ptr, lpdword_t unk1_ptr) {
   return X_STATUS_INVALID_PARAMETER;
 }
-DECLARE_XBDM_EXPORT(DmWalkLoadedModules, ExportTag::kStub | ExportTag::kDebug);
+DECLARE_XBDM_EXPORT1(DmWalkLoadedModules, kDebug, kStub);
 
 dword_result_t DmCaptureStackBackTrace(lpdword_t unk0_ptr, lpdword_t unk1_ptr) {
   return X_STATUS_INVALID_PARAMETER;
 }
-DECLARE_XBDM_EXPORT(DmCaptureStackBackTrace,
-                    ExportTag::kStub | ExportTag::kDebug);
+DECLARE_XBDM_EXPORT1(DmCaptureStackBackTrace, kDebug, kStub);
 
 void DmMapDevkitDrive() {}
-DECLARE_XBDM_EXPORT(DmMapDevkitDrive, ExportTag::kStub | ExportTag::kDebug);
+DECLARE_XBDM_EXPORT1(DmMapDevkitDrive, kDebug, kStub);
 
 dword_result_t DmFindPdbSignature(lpdword_t unk0_ptr, lpdword_t unk1_ptr) {
   return X_STATUS_INVALID_PARAMETER;
 }
-DECLARE_XBDM_EXPORT(DmFindPdbSignature, ExportTag::kStub | ExportTag::kDebug);
+DECLARE_XBDM_EXPORT1(DmFindPdbSignature, kDebug, kStub);
 
 void RegisterMiscExports(xe::cpu::ExportResolver* export_resolver,
                          KernelState* kernel_state) {}

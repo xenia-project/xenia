@@ -197,7 +197,7 @@ dword_result_t XamContentCreateEnumerator(dword_t user_index, dword_t device_id,
   *handle_out = e->handle();
   return X_ERROR_SUCCESS;
 }
-DECLARE_XAM_EXPORT(XamContentCreateEnumerator, ExportTag::kImplemented);
+DECLARE_XAM_EXPORT1(XamContentCreateEnumerator, kContent, kImplemented);
 
 dword_result_t XamContentCreateEx(dword_t user_index, lpstring_t root_name,
                                   lpvoid_t content_data_ptr, dword_t flags,
@@ -289,7 +289,7 @@ dword_result_t XamContentCreateEx(dword_t user_index, lpstring_t root_name,
     return result;
   }
 }
-DECLARE_XAM_EXPORT(XamContentCreateEx, ExportTag::kImplemented);
+DECLARE_XAM_EXPORT1(XamContentCreateEx, kContent, kImplemented);
 
 dword_result_t XamContentCreate(dword_t user_index, lpstring_t root_name,
                                 lpvoid_t content_data_ptr, dword_t flags,
@@ -300,14 +300,17 @@ dword_result_t XamContentCreate(dword_t user_index, lpstring_t root_name,
                             disposition_ptr, license_mask_ptr, 0, 0,
                             overlapped_ptr);
 }
-DECLARE_XAM_EXPORT(XamContentCreate, ExportTag::kImplemented);
+DECLARE_XAM_EXPORT1(XamContentCreate, kContent, kImplemented);
 
-dword_result_t XamContentOpenFile(dword_t r3, lpstring_t r4, lpstring_t r5,
-                                  dword_t r6, dword_t r7, dword_t r8,
-                                  dword_t r9) {
+dword_result_t XamContentOpenFile(dword_t user_index, lpstring_t root_name,
+                                  lpstring_t path, dword_t flags,
+                                  lpdword_t disposition_ptr,
+                                  lpdword_t license_mask_ptr,
+                                  lpvoid_t overlapped_ptr) {
+  // TODO(gibbed): arguments assumed based on XamContentCreate.
   return X_ERROR_FILE_NOT_FOUND;
 }
-DECLARE_XAM_EXPORT(XamContentOpenFile, ExportTag::kStub);
+DECLARE_XAM_EXPORT1(XamContentOpenFile, kContent, kStub);
 
 SHIM_CALL XamContentFlush_shim(PPCContext* ppc_context,
                                KernelState* kernel_state) {
