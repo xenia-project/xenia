@@ -186,6 +186,40 @@ void RtlFreeUnicodeString(pointer_t<X_UNICODE_STRING> string) {
 }
 DECLARE_XBOXKRNL_EXPORT(RtlFreeUnicodeString, ExportTag::kImplemented);
 
+void RtlCopyString(pointer_t<X_ANSI_STRING> destination,
+                   pointer_t<X_ANSI_STRING> source) {
+  if (!source) {
+    destination->length = 0;
+    return;
+  }
+
+  auto length = std::min(destination->maximum_length, source->length);
+  if (length > 0) {
+    auto dst_buf = kernel_memory()->TranslateVirtual(destination->pointer);
+    auto src_buf = kernel_memory()->TranslateVirtual(source->pointer);
+    std::memcpy(dst_buf, src_buf, length);
+  }
+  destination->length = length;
+}
+DECLARE_XBOXKRNL_EXPORT(RtlCopyString, ExportTag::kImplemented);
+
+void RtlCopyUnicodeString(pointer_t<X_UNICODE_STRING> destination,
+                          pointer_t<X_UNICODE_STRING> source) {
+  if (!source) {
+    destination->length = 0;
+    return;
+  }
+
+  auto length = std::min(destination->maximum_length, source->length);
+  if (length > 0) {
+    auto dst_buf = kernel_memory()->TranslateVirtual(destination->pointer);
+    auto src_buf = kernel_memory()->TranslateVirtual(source->pointer);
+    std::memcpy(dst_buf, src_buf, length * 2);
+  }
+  destination->length = length;
+}
+DECLARE_XBOXKRNL_EXPORT(RtlCopyUnicodeString, ExportTag::kImplemented);
+
 // http://msdn.microsoft.com/en-us/library/ff562969
 dword_result_t RtlUnicodeStringToAnsiString(
     pointer_t<X_ANSI_STRING> destination_ptr,
