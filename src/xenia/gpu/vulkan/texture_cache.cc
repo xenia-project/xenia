@@ -1078,10 +1078,11 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
   if (dest->format == VK_FORMAT_D16_UNORM_S8_UINT ||
       dest->format == VK_FORMAT_D24_UNORM_S8_UINT ||
       dest->format == VK_FORMAT_D32_SFLOAT_S8_UINT) {
-    // Do just a depth upload (for now).
-    // This assumes depth buffers don't have mips (hopefully they don't)
-    assert_true(src.mip_levels() == 1);
-    copy_regions[0].imageSubresource.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+    // Depth buffers can have mips too
+    int mip_levels = src.mip_levels();
+    for (int i = 0; i < mip_levels; i++) {
+        copy_regions[i].imageSubresource.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+    }
   }
 
   vkCmdCopyBufferToImage(command_buffer, staging_buffer_.gpu_buffer(),
