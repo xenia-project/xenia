@@ -141,6 +141,7 @@ bool RenderTargetCache::Initialize() {
     return false;
   }
   // Create the clear root signature (the same, but with the UAV only).
+  load_store_root_ranges[1].OffsetInDescriptorsFromTableStart = 0;
   load_store_root_parameters[1].DescriptorTable.NumDescriptorRanges = 1;
   ++load_store_root_parameters[1].DescriptorTable.pDescriptorRanges;
   edram_clear_root_signature_ =
