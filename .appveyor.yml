@@ -83,6 +83,7 @@ configuration:
 # scripts to run after build
 after_build:
   - 7z a xenia-%appveyor_repo_branch%.zip LICENSE %APPVEYOR_BUILD_FOLDER%\build\bin\%PLATFORM%\%CONFIGURATION%\xenia.exe %APPVEYOR_BUILD_FOLDER%\build\bin\%PLATFORM%\%CONFIGURATION%\xenia.pdb
+  - 7z a xenia-vfs-dump-%appveyor_repo_branch%.zip LICENSE %APPVEYOR_BUILD_FOLDER%\build\bin\%PLATFORM%\%CONFIGURATION%\xenia-vfs-dump.exe %APPVEYOR_BUILD_FOLDER%\build\bin\%PLATFORM%\%CONFIGURATION%\xenia-vfs-dump.pdb
 
 # to run your custom scripts instead of automatic MSBuild
 # We also compile the tests here instead of later on.
@@ -132,6 +133,7 @@ artifacts:
 
   - path: xenia-cpu-ppc-test.log
   - path: xenia-$(appveyor_repo_branch).zip
+  - path: xenia-vfs-dump-$(appveyor_repo_branch).zip
 
 
 #---------------------------------#
@@ -144,7 +146,7 @@ deploy:
   - provider: Environment
     name: xenia-master
     release: xenia-$(appveyor_repo_branch)-v$(appveyor_build_version)
-    artifact: xenia-$(appveyor_repo_branch).zip
+    artifact: xenia-$(appveyor_repo_branch).zip,xenia-vfs-dump-$(appveyor_repo_branch).zip
     draft: false
     prerelease: true
     on:
