@@ -636,6 +636,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateRasterizerState(
       poly_offset_scale * (1.0f / 16.0f);
   update_desc_.RasterizerState.DepthClipEnable =
       !depth_clamp_enable ? TRUE : FALSE;
+  update_desc_.RasterizerState.ForcedSampleCount = edram_rov_used_ ? 1 : 0;
 
   return UpdateStatus::kMismatch;
 }
