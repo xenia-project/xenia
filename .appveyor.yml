@@ -88,7 +88,7 @@ after_build:
 # to run your custom scripts instead of automatic MSBuild
 # We also compile the tests here instead of later on.
 build_script:
-  - cmd: xb.bat build --config=%CONFIGURATION% --target=src\xenia-app --target=tests\xenia-cpu-ppc-tests
+  - cmd: xb.bat build --config=%CONFIGURATION% --target=src\xenia-app --target=tests\xenia-cpu-ppc-tests --target=tests\xenia-vfs-dump
 
 # to disable automatic builds
 #build: off
