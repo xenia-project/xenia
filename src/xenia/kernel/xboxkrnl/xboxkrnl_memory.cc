@@ -371,7 +371,8 @@ dword_result_t MmQueryAddressProtect(dword_t base_address) {
 
   return access;
 }
-DECLARE_XBOXKRNL_EXPORT1(MmQueryAddressProtect, kMemory, kImplemented);
+DECLARE_XBOXKRNL_EXPORT2(MmQueryAddressProtect, kMemory, kImplemented,
+                         kHighFrequency);
 
 void MmSetAddressProtect(lpvoid_t base_address, dword_t region_size,
                          dword_t protect_bits) {
