@@ -907,11 +907,26 @@ bool RenderTargetCache::Resolve(SharedMemory* shared_memory,
   // Xenos only supports rectangle copies (luckily).
   // The rectangle is for both the source and the destination, according to how
   // it's used in Tales of Vesperia.
+  // Window scissor must also be applied - in the jigsaw puzzle in Banjo-Tooie,
+  // there are 1280x720 resolve rectangles, but only the scissored 1280x256
+  // needs to be copied, otherwise it overflows even beyond the EDRAM, and the
+  // depth buffer is visible on the screen. It also ensures the coordinates are
+  // not negative (in F.E.A.R., for example, the right tile is resolved with
+  // vertices (-640,0)->(640,720), however, the destination texture pointer is
+  // adjusted properly to the right half of the texture, and the source render
+  // target has a pitch of 800).
   D3D12_RECT rect;
   rect.left = LONG(std::min(std::min(vertices[0], vertices[2]), vertices[4]));
   rect.right = LONG(std::max(std::max(vertices[0], vertices[2]), vertices[4]));
   rect.top = LONG(std::min(std::min(vertices[1], vertices[3]), vertices[5]));
   rect.bottom = LONG(std::max(std::max(vertices[1], vertices[3]), vertices[5]));
+  D3D12_RECT scissor;
+  uint32_t window_scissor_tl = regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL].u32;
+  uint32_t window_scissor_br = regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_BR].u32;
+  scissor.left = LONG(window_scissor_tl & 0x7FFF);
+  scissor.right = LONG(window_scissor_br & 0x7FFF);
+  scissor.top = LONG((window_scissor_tl >> 16) & 0x7FFF);
+  scissor.bottom = LONG((window_scissor_br >> 16) & 0x7FFF);
   if (regs[XE_GPU_REG_PA_SU_SC_MODE_CNTL].u32 & (1 << 16)) {
     uint32_t pa_sc_window_offset = regs[XE_GPU_REG_PA_SC_WINDOW_OFFSET].u32;
     int16_t window_offset_x = pa_sc_window_offset & 0x7FFF;
@@ -926,7 +941,18 @@ bool RenderTargetCache::Resolve(SharedMemory* shared_memory,
     rect.right += window_offset_x;
     rect.top += window_offset_y;
     rect.bottom += window_offset_y;
+    if (!(window_scissor_tl & (1u << 31))) {
+      scissor.left = std::max(LONG(scissor.left + window_offset_x), LONG(0));
+      scissor.right = std::max(LONG(scissor.right + window_offset_x), LONG(0));
+      scissor.top = std::max(LONG(scissor.top + window_offset_y), LONG(0));
+      scissor.bottom =
+          std::max(LONG(scissor.bottom + window_offset_y), LONG(0));
+    }
   }
+  rect.left = std::max(rect.left, scissor.left);
+  rect.right = std::min(rect.right, scissor.right);
+  rect.top = std::max(rect.top, scissor.top);
+  rect.bottom = std::min(rect.bottom, scissor.bottom);
 
   XELOGGPU(
       "Resolve: (%d,%d)->(%d,%d) of RT %u (pitch %u, %u sample%s, format %u) "
@@ -936,13 +962,6 @@ bool RenderTargetCache::Resolve(SharedMemory* shared_memory,
       msaa_samples != MsaaSamples::k1X ? "s" : "", surface_format,
       surface_edram_base);
 
-  // Ignore the negative part (though do this after logging, just in case this
-  // needs more research). In F.E.A.R., the right tile is resolved with vertices
-  // (-640,0)->(640,720), however, the destination texture pointer is adjusted
-  // properly to the right half of the texture, and the source render target has
-  // a pitch of 800.
-  rect.left = std::max(rect.left, LONG(0));
-  rect.top = std::max(rect.top, LONG(0));
   if (rect.left >= rect.right || rect.top >= rect.bottom) {
     // Nothing to copy.
     return true;
