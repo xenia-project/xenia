@@ -22,7 +22,19 @@ namespace d3d12 {
 UploadBufferPool::UploadBufferPool(D3D12Context* context, uint32_t page_size)
     : context_(context), page_size_(page_size) {}
 
-UploadBufferPool::~UploadBufferPool() { ClearCache(); }
+UploadBufferPool::~UploadBufferPool() {
+  // Allow mid-frame destruction in cases like device loss.
+  if (current_mapping_ != nullptr) {
+    // Don't care about the written range - destroying anyway.
+    D3D12_RANGE written_range;
+    written_range.Begin = 0;
+    written_range.End = 0;
+    unsent_->buffer->Unmap(0, &written_range);
+    current_mapping_ = nullptr;
+  }
+  current_size_ = 0;
+  ClearCache();
+}
 
 void UploadBufferPool::BeginFrame() {
   // Recycle submitted pages not used by the GPU anymore.
@@ -195,7 +207,11 @@ DescriptorHeapPool::DescriptorHeapPool(D3D12Context* context,
                                        uint32_t page_size)
     : context_(context), type_(type), page_size_(page_size) {}
 
-DescriptorHeapPool::~DescriptorHeapPool() { ClearCache(); }
+DescriptorHeapPool::~DescriptorHeapPool() {
+  // Allow mid-frame destruction in cases like device loss.
+  current_size_ = 0;
+  ClearCache();
+}
 
 void DescriptorHeapPool::BeginFrame() {
   // Don't hold old pages if few descriptors are written, also make 0 usable as
