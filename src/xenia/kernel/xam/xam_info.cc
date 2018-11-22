@@ -202,8 +202,11 @@ dword_result_t XamEnumerate(dword_t handle, dword_t flags, lpvoid_t buffer,
   if (actual_buffer_length != buffer_length) {
     // Known culprits:
     //   Final Fight: Double Impact
-    XELOGW("Broken usage of XamEnumerate! %.X vs %.X", buffer_length,
-           actual_buffer_length);
+    XELOGW(
+        "Broken usage of XamEnumerate! buffer length=%.X vs actual length=%.X "
+        "(item size=%.X, items per enumerate=%u)",
+        (uint32_t)buffer_length, actual_buffer_length, e->item_size(),
+        e->items_per_enumerate());
   }
 
   buffer.Zero(actual_buffer_length);
