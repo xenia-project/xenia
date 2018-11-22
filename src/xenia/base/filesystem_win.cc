@@ -12,10 +12,32 @@
 
 #include <string>
 
+#include <shlobj.h>
+
 #include "xenia/base/platform_win.h"
 
 namespace xe {
 namespace filesystem {
+
+std::wstring GetExecutablePath() {
+  wchar_t* path;
+  auto error = _get_wpgmptr(&path);
+  return !error ? std::wstring(path) : std::wstring();
+}
+
+std::wstring GetExecutableFolder() {
+  auto path = GetExecutablePath();
+  return xe::find_base_path(path);
+}
+
+std::wstring GetUserFolder() {
+  wchar_t path[MAX_PATH];
+  if (!SUCCEEDED(SHGetFolderPathW(nullptr, CSIDL_MYDOCUMENTS, nullptr,
+                                  SHGFP_TYPE_CURRENT, path))) {
+    return std::wstring();
+  }
+  return std::wstring(path);
+}
 
 bool PathExists(const std::wstring& path) {
   DWORD attrib = GetFileAttributes(path.c_str());

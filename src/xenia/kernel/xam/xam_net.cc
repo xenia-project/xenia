@@ -483,7 +483,7 @@ dword_result_t NetDll_XNetInAddrToXnAddr(dword_t caller, lpvoid_t in_addr,
 }
 DECLARE_XAM_EXPORT1(NetDll_XNetInAddrToXnAddr, kNetworking, kStub);
 
-// http://www.google.com/patents/WO2008112448A1?cl=en
+// https://www.google.com/patents/WO2008112448A1?cl=en
 // Reserves a port for use by system link
 dword_result_t NetDll_XNetSetSystemLinkPort(dword_t caller, dword_t port) {
   return 1;

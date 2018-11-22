@@ -83,7 +83,7 @@ class MessageBoxDialog : public xe::ui::ImGuiDialog {
   uint32_t* out_chosen_button_ = nullptr;
 };
 
-// http://www.se7ensins.com/forums/threads/working-xshowmessageboxui.844116/?jdfwkey=sb0vm
+// https://www.se7ensins.com/forums/threads/working-xshowmessageboxui.844116/
 dword_result_t XamShowMessageBoxUI(dword_t user_index, lpwstring_t title_ptr,
                                    lpwstring_t text_ptr, dword_t button_count,
                                    lpdword_t button_ptrs, dword_t active_button,
@@ -221,7 +221,7 @@ class KeyboardInputDialog : public xe::ui::ImGuiDialog {
   size_t max_length_ = 0;
 };
 
-// http://www.se7ensins.com/forums/threads/release-how-to-use-xshowkeyboardui-release.906568/
+// https://www.se7ensins.com/forums/threads/release-how-to-use-xshowkeyboardui-release.906568/
 dword_result_t XamShowKeyboardUI(dword_t user_index, dword_t flags,
                                  lpwstring_t default_text, lpwstring_t title,
                                  lpwstring_t description, lpwstring_t buffer,

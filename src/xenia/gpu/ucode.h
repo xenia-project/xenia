@@ -17,7 +17,7 @@
 #include "xenia/gpu/xenos.h"
 
 // Closest AMD doc:
-// http://developer.amd.com/wordpress/media/2012/10/R600_Instruction_Set_Architecture.pdf
+// https://developer.amd.com/wordpress/media/2012/10/R600_Instruction_Set_Architecture.pdf
 // Microcode format differs, but most fields/enums are the same.
 
 // This code comes from the freedreno project:
@@ -701,7 +701,7 @@ static_assert_size(TextureFetchInstruction, 12);
 // R600 docs that have a near 1:1 with the instructions available in the xenos
 // GPU. Some of the behavior has been experimentally verified. Some has been
 // guessed.
-// Docs: http://www.x.org/docs/AMD/old/r600isa.pdf
+// Docs: https://www.x.org/docs/AMD/old/r600isa.pdf
 //
 // Conventions:
 // - All temporary registers are vec4s.

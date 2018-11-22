@@ -26,7 +26,7 @@ using namespace xe::gpu::xenos;
 
 bool TextureInfo::Prepare(const xe_gpu_texture_fetch_t& fetch,
                           TextureInfo* out_info) {
-  // http://msdn.microsoft.com/en-us/library/windows/desktop/cc308051(v=vs.85).aspx
+  // https://msdn.microsoft.com/en-us/library/windows/desktop/cc308051(v=vs.85).aspx
   // a2xx_sq_surfaceformat
 
   std::memset(out_info, 0, sizeof(TextureInfo));

@@ -7,6 +7,7 @@
  ******************************************************************************
  */
 
+#include "xenia/base/assert.h"
 #include "xenia/base/filesystem.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/string.h"
@@ -20,6 +21,21 @@
 
 namespace xe {
 namespace filesystem {
+
+std::wstring GetExecutablePath() {
+  assert_always();  // IMPLEMENT ME.
+  return std::wstring();
+}
+
+std::wstring GetExecutableFolder() {
+  assert_always();  // IMPLEMENT ME.
+  return std::wstring();
+}
+
+std::wstring GetUserFolder() {
+  assert_always();  // IMPLEMENT ME.
+  return std::wstring();
+}
 
 bool PathExists(const std::wstring& path) {
   struct stat st;

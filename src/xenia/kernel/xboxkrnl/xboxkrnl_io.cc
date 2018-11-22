@@ -24,7 +24,7 @@ namespace xe {
 namespace kernel {
 namespace xboxkrnl {
 
-// http://msdn.microsoft.com/en-us/library/windows/hardware/ff540287.aspx
+// https://msdn.microsoft.com/en-us/library/windows/hardware/ff540287.aspx
 struct X_FILE_FS_VOLUME_INFORMATION {
   // FILE_FS_VOLUME_INFORMATION
   xe::be<uint64_t> creation_time;
@@ -45,7 +45,7 @@ struct X_FILE_FS_SIZE_INFORMATION {
 };
 static_assert_size(X_FILE_FS_SIZE_INFORMATION, 24);
 
-// http://msdn.microsoft.com/en-us/library/windows/hardware/ff540251(v=vs.85).aspx
+// https://msdn.microsoft.com/en-us/library/windows/hardware/ff540251(v=vs.85).aspx
 struct X_FILE_FS_ATTRIBUTE_INFORMATION {
   // FILE_FS_ATTRIBUTE_INFORMATION
   xe::be<uint32_t> attributes;
@@ -56,7 +56,7 @@ struct X_FILE_FS_ATTRIBUTE_INFORMATION {
 static_assert_size(X_FILE_FS_ATTRIBUTE_INFORMATION, 16);
 
 struct CreateOptions {
-  // http://processhacker.sourceforge.net/doc/ntioapi_8h.html
+  // https://processhacker.sourceforge.io/doc/ntioapi_8h.html
   static const uint32_t FILE_DIRECTORY_FILE = 0x00000001;
   // Optimization - files access will be sequential, not random.
   static const uint32_t FILE_SEQUENTIAL_ONLY = 0x00000004;

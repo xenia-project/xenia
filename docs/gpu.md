@@ -121,6 +121,6 @@ PM4 commands documented at [src/xenia/gpu/xenos.h](../src/xenia/gpu/xenos.h#L521
 
 ### Shaders
 
-* [LLVM R600 Tables](http://llvm.org/viewvc/llvm-project/llvm/trunk/lib/Target/AMDGPU/R600Instructions.td)
+* [LLVM R600 Tables](https://llvm.org/viewvc/llvm-project/llvm/trunk/lib/Target/AMDGPU/R600Instructions.td)
 ** The opcode formats don't match, but the name->psuedo code is correct.
 * [xemit](https://github.com/gligli/libxemit/blob/master/xemitops.c)

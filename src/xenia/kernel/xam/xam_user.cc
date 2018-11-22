@@ -108,7 +108,7 @@ typedef struct {
 } X_USER_READ_PROFILE_SETTING;
 static_assert_size(X_USER_READ_PROFILE_SETTING, 40);
 
-// http://freestyledash.googlecode.com/svn/trunk/Freestyle/Tools/Generic/xboxtools.cpp
+// https://github.com/oukiar/freestyledash/blob/master/Freestyle/Tools/Generic/xboxtools.cpp
 dword_result_t XamUserReadProfileSettings(
     dword_t title_id, dword_t user_index, dword_t unk_0, dword_t unk_1,
     dword_t setting_count, lpdword_t setting_ids, lpdword_t buffer_size_ptr,
@@ -285,6 +285,7 @@ dword_result_t XamUserWriteProfileSettings(
         static_cast<xam::UserProfile::Setting::Type>(settings_data.type);
 
     switch (settingType) {
+      case UserProfile::Setting::Type::CONTENT:
       case UserProfile::Setting::Type::BINARY: {
         uint8_t* settings_data_ptr = kernel_state()->memory()->TranslateVirtual(
             settings_data.binary.ptr);
