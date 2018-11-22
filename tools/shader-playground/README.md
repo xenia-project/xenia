@@ -1,5 +1,5 @@
 This requires XNA Game Studio 3.1 to be installed (not just the redist):
-http://www.microsoft.com/en-us/download/details.aspx?id=39
+https://www.microsoft.com/en-us/download/details.aspx?id=39
 
 It's not really compatible with modern VS', but you can open the downloaded
 `XNAGS31_setup.exe` with 7zip and run the included `redists.msi` directly.

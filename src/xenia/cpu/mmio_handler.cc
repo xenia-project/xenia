@@ -316,7 +316,7 @@ bool TryDecodeMov(const uint8_t* p, DecodedMov* mov) {
   }
   if (p[i] == 0x0F && p[i + 1] == 0x38 && p[i + 2] == 0xF1) {
     // MOVBE m32, r32 (store)
-    // http://www.tptp.cc/mirrors/siyobik.info/instruction/MOVBE.html
+    // https://web.archive.org/web/20170629091435/https://www.tptp.cc/mirrors/siyobik.info/instruction/MOVBE.html
     // 44 0f 38 f1 a4 02 00     movbe  DWORD PTR [rdx+rax*1+0x0],r12d
     // 42 0f 38 f1 8c 22 00     movbe  DWORD PTR [rdx+r12*1+0x0],ecx
     // 0f 38 f1 8c 02 00 00     movbe  DWORD PTR [rdx + rax * 1 + 0x0], ecx
@@ -325,7 +325,7 @@ bool TryDecodeMov(const uint8_t* p, DecodedMov* mov) {
     i += 3;
   } else if (p[i] == 0x0F && p[i + 1] == 0x38 && p[i + 2] == 0xF0) {
     // MOVBE r32, m32 (load)
-    // http://www.tptp.cc/mirrors/siyobik.info/instruction/MOVBE.html
+    // https://web.archive.org/web/20170629091435/https://www.tptp.cc/mirrors/siyobik.info/instruction/MOVBE.html
     // 44 0f 38 f0 a4 02 00     movbe  r12d,DWORD PTR [rdx+rax*1+0x0]
     // 42 0f 38 f0 8c 22 00     movbe  ecx,DWORD PTR [rdx+r12*1+0x0]
     // 46 0f 38 f0 a4 22 00     movbe  r12d,DWORD PTR [rdx+r12*1+0x0]
@@ -336,7 +336,7 @@ bool TryDecodeMov(const uint8_t* p, DecodedMov* mov) {
     i += 3;
   } else if (p[i] == 0x89) {
     // MOV m32, r32 (store)
-    // http://www.tptp.cc/mirrors/siyobik.info/instruction/MOV.html
+    // https://web.archive.org/web/20170629072136/https://www.tptp.cc/mirrors/siyobik.info/instruction/MOV.html
     // 44 89 24 02              mov  DWORD PTR[rdx + rax * 1], r12d
     // 42 89 0c 22              mov  DWORD PTR[rdx + r12 * 1], ecx
     // 89 0c 02                 mov  DWORD PTR[rdx + rax * 1], ecx
@@ -345,7 +345,7 @@ bool TryDecodeMov(const uint8_t* p, DecodedMov* mov) {
     ++i;
   } else if (p[i] == 0x8B) {
     // MOV r32, m32 (load)
-    // http://www.tptp.cc/mirrors/siyobik.info/instruction/MOV.html
+    // https://web.archive.org/web/20170629072136/https://www.tptp.cc/mirrors/siyobik.info/instruction/MOV.html
     // 44 8b 24 02              mov  r12d, DWORD PTR[rdx + rax * 1]
     // 42 8b 0c 22              mov  ecx, DWORD PTR[rdx + r12 * 1]
     // 46 8b 24 22              mov  r12d, DWORD PTR[rdx + r12 * 1]
@@ -355,7 +355,7 @@ bool TryDecodeMov(const uint8_t* p, DecodedMov* mov) {
     ++i;
   } else if (p[i] == 0xC7) {
     // MOV m32, simm32
-    // http://www.asmpedia.org/index.php?title=MOV
+    // https://web.archive.org/web/20161017042413/https://www.asmpedia.org/index.php?title=MOV
     // C7 04 02 02 00 00 00     mov  dword ptr [rdx+rax],2
     mov->is_load = false;
     mov->byte_swap = false;

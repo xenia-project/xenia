@@ -187,7 +187,7 @@ uint64_t ReadCapstoneReg(X64Context* context, x86_reg reg) {
 #define X86_EFLAGS_SF 0x00000080  // Sign Flag
 #define X86_EFLAGS_OF 0x00000800  // Overflow Flag
 bool TestCapstoneEflags(uint32_t eflags, uint32_t insn) {
-  // http://www.felixcloutier.com/x86/Jcc.html
+  // https://www.felixcloutier.com/x86/Jcc.html
   switch (insn) {
     case X86_INS_JAE:
       // CF=0 && ZF=0

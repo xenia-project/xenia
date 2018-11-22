@@ -99,7 +99,7 @@ X_RESULT XInputInputDriver::GetKeystroke(uint32_t user_index, uint32_t flags,
 
   // XInputGetKeystroke on Windows has a bug where it will return
   // ERROR_SUCCESS (0) even if the device is not connected:
-  // http://stackoverflow.com/questions/23669238/xinputgetkeystroke-returning-error-success-while-controller-is-unplugged
+  // https://stackoverflow.com/questions/23669238/xinputgetkeystroke-returning-error-success-while-controller-is-unplugged
   //
   // So we first check if the device is connected via XInputGetCapabilities, so
   // we are not passing back an uninitialized X_INPUT_KEYSTROKE structure:

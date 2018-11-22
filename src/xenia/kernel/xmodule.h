@@ -19,7 +19,7 @@
 namespace xe {
 namespace kernel {
 
-// http://www.nirsoft.net/kernel_struct/vista/LDR_DATA_TABLE_ENTRY.html
+// https://www.nirsoft.net/kernel_struct/vista/LDR_DATA_TABLE_ENTRY.html
 // HMODULE points to this struct!
 struct X_LDR_DATA_TABLE_ENTRY {
   X_LIST_ENTRY in_load_order_links;            // 0x0

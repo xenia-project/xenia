@@ -26,8 +26,8 @@ X_STATUS xeExGetXConfigSetting(uint16_t category, uint16_t setting,
   uint32_t value = 0;
 
   // TODO(benvanik): have real structs here that just get copied from.
-  // http://free60.org/XConfig
-  // http://freestyledash.googlecode.com/svn/trunk/Freestyle/Tools/Generic/ExConfig.h
+  // https://free60project.github.io/wiki/XConfig.html
+  // https://github.com/oukiar/freestyledash/blob/master/Freestyle/Tools/Generic/ExConfig.h
   switch (category) {
     case 0x0002:
       // XCONFIG_SECURED_CATEGORY

@@ -25,7 +25,7 @@
 
 // Helpful resources:
 // https://github.com/koolkdev/libertyv/blob/master/libav_wrapper/xma2dec.c
-// http://hcs64.com/mboard/forum.php?showthread=14818
+// https://hcs64.com/mboard/forum.php?showthread=14818
 // https://github.com/hrydgard/minidx9/blob/master/Include/xma2defs.h
 
 // Forward declarations
@@ -41,7 +41,7 @@ namespace apu {
 // We load and swap the whole thing to splat here so that we can
 // use bitfields.
 // This could be important:
-// http://www.fmod.org/questions/question/forum-15859
+// https://www.fmod.org/questions/question/forum-15859
 // Appears to be dumped in order (for the most part)
 
 struct XMA_CONTEXT_DATA {

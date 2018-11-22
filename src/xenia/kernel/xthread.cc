@@ -313,7 +313,7 @@ X_STATUS XThread::Create() {
   }
 
   // Allocate thread state block from heap.
-  // http://www.microsoft.com/msj/archive/s2ce.aspx
+  // https://web.archive.org/web/20170704035330/https://www.microsoft.com/msj/archive/S2CE.aspx
   // This is set as r13 for user code and some special inlined Win32 calls
   // (like GetLastError/etc) will poke it directly.
   // We try to use it as our primary store of data just to keep things all
@@ -568,8 +568,8 @@ void XThread::EnqueueApc(uint32_t normal_routine, uint32_t normal_context,
 }
 
 void XThread::DeliverAPCs() {
-  // http://www.drdobbs.com/inside-nts-asynchronous-procedure-call/184416590?pgno=1
-  // http://www.drdobbs.com/inside-nts-asynchronous-procedure-call/184416590?pgno=7
+  // https://www.drdobbs.com/inside-nts-asynchronous-procedure-call/184416590?pgno=1
+  // https://www.drdobbs.com/inside-nts-asynchronous-procedure-call/184416590?pgno=7
   auto processor = kernel_state()->processor();
   LockApc();
   while (apc_list_.HasPending()) {
