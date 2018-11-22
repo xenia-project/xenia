@@ -119,10 +119,17 @@ std::vector<std::unique_ptr<hid::InputDriver>> CreateInputDrivers(
       drivers.emplace_back(std::move(winkey_driver));
     }
 #endif  // XE_PLATFORM_WIN32
-    if (drivers.empty()) {
-      // Fallback to nop if none created.
-      drivers.emplace_back(xe::hid::nop::Create(window));
+  }
+  for (auto it = drivers.begin(); it != drivers.end();) {
+    if (XFAILED((*it)->Setup())) {
+      it = drivers.erase(it);
+    } else {
+      ++it;
     }
+  }
+  if (drivers.empty()) {
+    // Fallback to nop if none created.
+    drivers.emplace_back(xe::hid::nop::Create(window));
   }
   return drivers;
 }
