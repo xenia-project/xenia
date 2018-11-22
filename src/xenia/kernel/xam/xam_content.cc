@@ -128,7 +128,7 @@ dword_result_t XamContentResolve(dword_t user_index, lpvoid_t content_data_ptr,
 }
 DECLARE_XAM_EXPORT1(XamContentResolve, kContent, kStub);
 
-// http://gameservice.googlecode.com/svn-history/r14/trunk/ContentManager.cpp
+// https://github.com/MrColdbird/gameservice/blob/master/ContentManager.cpp
 // https://github.com/LestaD/SourceEngine2007/blob/master/se2007/engine/xboxsystem.cpp#L499
 dword_result_t XamContentCreateEnumerator(dword_t user_index, dword_t device_id,
                                           dword_t content_type,

@@ -15,9 +15,13 @@
 namespace xe {
 
 // TODO(benvanik): fancy AVX versions.
-// http://gnuradio.org/redmine/projects/gnuradio/repository/revisions/cb32b70b79f430456208a2cd521d028e0ece5d5b/entry/volk/kernels/volk/volk_16u_byteswap.h
-// http://gnuradio.org/redmine/projects/gnuradio/repository/revisions/f2bc76cc65ffba51a141950f98e75364e49df874/entry/volk/kernels/volk/volk_32u_byteswap.h
-// http://gnuradio.org/redmine/projects/gnuradio/repository/revisions/2c4c371885c31222362f70a1cd714415d1398021/entry/volk/kernels/volk/volk_64u_byteswap.h
+// https://github.com/gnuradio/volk/blob/master/kernels/volk/volk_16u_byteswap.h
+// https://github.com/gnuradio/volk/blob/master/kernels/volk/volk_32u_byteswap.h
+// https://github.com/gnuradio/volk/blob/master/kernels/volk/volk_64u_byteswap.h
+// Original links:
+// https://gnuradio.org/redmine/projects/gnuradio/repository/revisions/cb32b70b79f430456208a2cd521d028e0ece5d5b/entry/volk/kernels/volk/volk_16u_byteswap.h
+// https://gnuradio.org/redmine/projects/gnuradio/repository/revisions/f2bc76cc65ffba51a141950f98e75364e49df874/entry/volk/kernels/volk/volk_32u_byteswap.h
+// https://gnuradio.org/redmine/projects/gnuradio/repository/revisions/2c4c371885c31222362f70a1cd714415d1398021/entry/volk/kernels/volk/volk_64u_byteswap.h
 
 void copy_128_aligned(void* dest, const void* src, size_t count) {
   std::memcpy(dest, src, count * 16);

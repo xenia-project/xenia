@@ -786,7 +786,7 @@ bool RenderCache::ParseConfiguration(RenderConfiguration* config) {
   config->mode_control = regs.rb_modecontrol.edram_mode;
 
   // RB_SURFACE_INFO
-  // http://fossies.org/dox/MesaLib-10.3.5/fd2__gmem_8c_source.html
+  // https://fossies.org/dox/MesaLib-10.3.5/fd2__gmem_8c_source.html
   config->surface_pitch_px = regs.rb_surface_info.surface_pitch;
   config->surface_msaa = regs.rb_surface_info.msaa_samples;
 

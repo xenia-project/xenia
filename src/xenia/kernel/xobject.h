@@ -32,7 +32,7 @@ class KernelState;
 template <typename T>
 class object_ref;
 
-// http://www.nirsoft.net/kernel_struct/vista/DISPATCHER_HEADER.html
+// https://www.nirsoft.net/kernel_struct/vista/DISPATCHER_HEADER.html
 typedef struct {
   struct {
     uint8_t type;
@@ -60,7 +60,7 @@ typedef struct {
 } X_DISPATCH_HEADER;
 static_assert_size(X_DISPATCH_HEADER, 0x10);
 
-// http://www.nirsoft.net/kernel_struct/vista/OBJECT_HEADER.html
+// https://www.nirsoft.net/kernel_struct/vista/OBJECT_HEADER.html
 struct X_OBJECT_HEADER {
   xe::be<uint32_t> pointer_count;
   union {
@@ -82,7 +82,7 @@ struct X_OBJECT_HEADER {
   // (There's actually a body field here which is the object itself)
 };
 
-// http://www.nirsoft.net/kernel_struct/vista/OBJECT_CREATE_INFORMATION.html
+// https://www.nirsoft.net/kernel_struct/vista/OBJECT_CREATE_INFORMATION.html
 struct X_OBJECT_CREATE_INFORMATION {
   xe::be<uint32_t> attributes;                  // 0x0
   xe::be<uint32_t> root_directory_ptr;          // 0x4

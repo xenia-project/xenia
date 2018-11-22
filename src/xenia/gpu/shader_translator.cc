@@ -40,7 +40,7 @@ using namespace ucode;
 // https://github.com/freedreno/freedreno/blob/master/util/disasm-a2xx.c
 //
 // Lots of naming comes from the disassembly spit out by the XNA GS compiler
-// and dumps of d3dcompiler and games: http://pastebin.com/i4kAv7bB
+// and dumps of d3dcompiler and games: https://pastebin.com/i4kAv7bB
 
 ShaderTranslator::ShaderTranslator() = default;
 
