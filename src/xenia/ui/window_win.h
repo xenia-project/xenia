@@ -85,6 +85,9 @@ class Win32Window : public Window {
 
   WINDOWPLACEMENT windowed_pos_ = {0};
   POINT last_mouse_pos_ = {0};
+
+  void* SetProcessDpiAwareness_ = nullptr;
+  void* GetDpiForMonitor_ = nullptr;
 };
 
 class Win32MenuItem : public MenuItem {
