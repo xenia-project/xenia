@@ -92,27 +92,24 @@ dword_result_t XamLoaderSetLaunchData(lpvoid_t data, dword_t size) {
   loader_data.launch_data_present = size ? true : false;
   loader_data.launch_data.resize(size);
   std::memcpy(loader_data.launch_data.data(), data, size);
-
-  // FIXME: Unknown return value.
   return 0;
 }
 DECLARE_XAM_EXPORT1(XamLoaderSetLaunchData, kNone, kSketchy);
 
 dword_result_t XamLoaderGetLaunchDataSize(lpdword_t size_ptr) {
-  auto xam = kernel_state()->GetKernelModule<XamModule>("xam.xex");
-  auto& loader_data = xam->loader_data();
-
   if (!size_ptr) {
     return X_ERROR_INVALID_PARAMETER;
   }
 
-  if (loader_data.launch_data_present) {
-    *size_ptr = uint32_t(xam->loader_data().launch_data.size());
-    return X_ERROR_SUCCESS;
+  auto xam = kernel_state()->GetKernelModule<XamModule>("xam.xex");
+  auto& loader_data = xam->loader_data();
+  if (!loader_data.launch_data_present) {
+    *size_ptr = 0;
+    return X_ERROR_NOT_FOUND;
   }
 
-  *size_ptr = 0;
-  return X_ERROR_NOT_FOUND;
+  *size_ptr = uint32_t(xam->loader_data().launch_data.size());
+  return X_ERROR_SUCCESS;
 }
 DECLARE_XAM_EXPORT1(XamLoaderGetLaunchDataSize, kNone, kSketchy);
 
