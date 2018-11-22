@@ -21,6 +21,21 @@
 namespace xe {
 namespace filesystem {
 
+std::wstring GetExecutablePath() {
+  assert_always();  // IMPLEMENT ME.
+  return std::wstring();
+}
+
+std::wstring GetExecutableFolder() {
+  assert_always();  // IMPLEMENT ME.
+  return std::wstring();
+}
+
+std::wstring GetUserFolder() {
+  assert_always();  // IMPLEMENT ME.
+  return std::wstring();
+}
+
 bool PathExists(const std::wstring& path) {
   struct stat st;
   return stat(xe::to_string(path).c_str(), &st) == 0;

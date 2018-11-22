@@ -103,7 +103,7 @@ int TraceDump::Main(const std::vector<std::wstring>& args) {
 
 bool TraceDump::Setup() {
   // Create the emulator but don't initialize so we can setup the window.
-  emulator_ = std::make_unique<Emulator>(L"");
+  emulator_ = std::make_unique<Emulator>(L"", L"");
   X_STATUS result = emulator_->Setup(
       nullptr, nullptr, [this]() { return CreateGraphicsSystem(); }, nullptr);
   if (XFAILED(result)) {

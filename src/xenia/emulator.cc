@@ -48,8 +48,9 @@ DEFINE_double(time_scalar, 1.0,
 
 namespace xe {
 
-Emulator::Emulator(const std::wstring& command_line)
-    : command_line_(command_line) {}
+Emulator::Emulator(const std::wstring& command_line,
+                   const std::wstring& content_root)
+    : command_line_(command_line), content_root_(content_root) {}
 
 Emulator::~Emulator() {
   // Note that we delete things in the reverse order they were initialized.
