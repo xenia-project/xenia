@@ -31,8 +31,6 @@
 
 DEFINE_bool(headless, false,
             "Don't display any UI, using defaults for prompts as needed.");
-DEFINE_string(content_root, "content",
-              "Root path for content (save/etc) storage.");
 
 namespace xe {
 namespace kernel {
@@ -57,7 +55,7 @@ KernelState::KernelState(Emulator* emulator)
   app_manager_ = std::make_unique<xam::AppManager>();
   user_profile_ = std::make_unique<xam::UserProfile>();
 
-  auto content_root = xe::to_wstring(FLAGS_content_root);
+  auto content_root = emulator_->content_root();
   content_root = xe::to_absolute_path(content_root);
   content_manager_ = std::make_unique<xam::ContentManager>(this, content_root);
 
