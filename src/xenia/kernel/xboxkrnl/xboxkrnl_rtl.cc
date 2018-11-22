@@ -332,7 +332,8 @@ DECLARE_XBOXKRNL_EXPORT1(RtlImageXexHeaderField, kNone, kImplemented);
 // into guest memory, as it should be opaque and so long as our size is right
 // the user code will never know.
 //
-// Ref: https://web.archive.org/web/20161214022602/https://msdn.microsoft.com/en-us/magazine/cc164040.aspx
+// Ref:
+// https://web.archive.org/web/20161214022602/https://msdn.microsoft.com/en-us/magazine/cc164040.aspx
 // Ref:
 // https://github.com/reactos/reactos/blob/master/sdk/lib/rtl/critical.c
 
