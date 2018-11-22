@@ -88,7 +88,6 @@ DECLARE_XAM_EXPORT1(XamGetExecutionId, kNone, kImplemented);
 
 dword_result_t XamLoaderSetLaunchData(lpvoid_t data, dword_t size) {
   auto xam = kernel_state()->GetKernelModule<XamModule>("xam.xex");
-
   auto& loader_data = xam->loader_data();
   loader_data.launch_data_present = size ? true : false;
   loader_data.launch_data.resize(size);
@@ -202,18 +201,26 @@ dword_result_t XamEnumerate(dword_t handle, dword_t flags, lpvoid_t buffer,
     }
   }
 
-  buffer.Zero(buffer_length);
+  size_t actual_buffer_length = e->item_size() * e->items_per_enumerate();
+  if (actual_buffer_length != buffer_length) {
+    // Known culprits:
+    //   Final Fight: Double Impact
+    XELOGW("Broken usage of XamEnumerate! %.X vs %.X", buffer_length,
+           actual_buffer_length);
+  }
+
+  buffer.Zero(actual_buffer_length);
 
   X_RESULT result;
   uint32_t item_count = 0;
 
-  if (buffer_length < e->item_size()) {
+  if (actual_buffer_length < e->item_size()) {
     result = X_ERROR_INSUFFICIENT_BUFFER;
   } else if (e->current_item() >= e->item_count()) {
     result = X_ERROR_NO_MORE_FILES;
   } else {
     auto item_buffer = buffer.as<uint8_t*>();
-    auto max_items = buffer_length / e->item_size();
+    auto max_items = actual_buffer_length / e->item_size();
     while (max_items--) {
       if (!e->WriteItem(item_buffer)) {
         break;
