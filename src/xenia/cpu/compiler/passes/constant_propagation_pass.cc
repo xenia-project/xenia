@@ -772,6 +772,17 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder) {
           }
           break;
 
+        case OPCODE_VECTOR_AVERAGE:
+          if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
+            v->set_from(i->src1.value);
+            uint32_t arith_flags = i->flags >> 8;
+            v->VectorAverage(i->src2.value, hir::TypeName(i->flags & 0xFF),
+                             !!(arith_flags & ARITHMETIC_UNSIGNED),
+                             !!(arith_flags & ARITHMETIC_SATURATE));
+            i->Remove();
+          }
+          break;
+
         default:
           // Ignored.
           break;

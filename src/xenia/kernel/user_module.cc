@@ -20,6 +20,8 @@
 #include "xenia/kernel/xfile.h"
 #include "xenia/kernel/xthread.h"
 
+DEFINE_bool(xex_apply_patches, true, "Apply XEX patches.");
+
 namespace xe {
 namespace kernel {
 
@@ -100,27 +102,29 @@ X_STATUS UserModule::LoadFromFile(std::string path) {
     return result;
   }
 
-  // Search for xexp patch file
-  auto patch_entry = kernel_state()->file_system()->ResolvePath(path_ + "p");
+  if (FLAGS_xex_apply_patches) {
+    // Search for xexp patch file
+    auto patch_entry = kernel_state()->file_system()->ResolvePath(path_ + "p");
 
-  if (patch_entry) {
-    auto patch_path = patch_entry->absolute_path();
+    if (patch_entry) {
+      auto patch_path = patch_entry->absolute_path();
 
-    XELOGI("Loading XEX patch from %s", patch_path.c_str());
+      XELOGI("Loading XEX patch from %s", patch_path.c_str());
 
-    auto patch_module = object_ref<UserModule>(new UserModule(kernel_state_));
-    result = patch_module->LoadFromFile(patch_path);
-    if (!result) {
-      result = patch_module->xex_module()->ApplyPatch(xex_module());
-      if (result) {
-        XELOGE("Failed to apply XEX patch, code: %d", result);
+      auto patch_module = object_ref<UserModule>(new UserModule(kernel_state_));
+      result = patch_module->LoadFromFile(patch_path);
+      if (!result) {
+        result = patch_module->xex_module()->ApplyPatch(xex_module());
+        if (result) {
+          XELOGE("Failed to apply XEX patch, code: %d", result);
+        }
+      } else {
+        XELOGE("Failed to load XEX patch, code: %d", result);
       }
-    } else {
-      XELOGE("Failed to load XEX patch, code: %d", result);
-    }
 
-    if (result) {
-      return X_STATUS_UNSUCCESSFUL;
+      if (result) {
+        return X_STATUS_UNSUCCESSFUL;
+      }
     }
   }
 

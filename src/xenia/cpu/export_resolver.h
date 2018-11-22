@@ -19,8 +19,31 @@
 namespace xe {
 namespace cpu {
 
+enum class ExportCategory : uint8_t {
+  kNone = 0,
+  kAudio,
+  kAvatars,
+  kContent,
+  kDebug,
+  kFileSystem,
+  kInput,
+  kMemory,
+  kMisc,
+  kModules,
+  kNetworking,
+  kThreading,
+  kUI,
+  kUserProfiles,
+  kVideo,
+};
+
 struct ExportTag {
   typedef uint32_t type;
+
+  // packed like so:
+  // ll...... cccccccc ........ ..bihssi
+
+  static const int CategoryShift = 16;
 
   // Export is implemented in some form and can be used.
   static const type kImplemented = 1u << 0;
@@ -34,17 +57,6 @@ struct ExportTag {
   static const type kImportant = 1u << 4;
   // Export blocks the calling thread
   static const type kBlocking = 1u << 5;
-
-  static const type kThreading = 1u << 10;
-  static const type kInput = 1u << 11;
-  static const type kAudio = 1u << 12;
-  static const type kVideo = 1u << 13;
-  static const type kFileSystem = 1u << 14;
-  static const type kModules = 1u << 15;
-  static const type kUserProfiles = 1u << 16;
-  static const type kNetworking = 1u << 17;
-  static const type kMemory = 1u << 18;
-  static const type kDebug = 1u << 19;
 
   // Export will be logged on each call.
   static const type kLog = 1u << 30;
