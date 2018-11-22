@@ -385,7 +385,7 @@ object_ref<XObject> XObject::GetNativeObject(KernelState* kernel_state,
     return object;
   } else {
     // First use, create new.
-    // http://www.nirsoft.net/kernel_struct/vista/KOBJECTS.html
+    // https://www.nirsoft.net/kernel_struct/vista/KOBJECTS.html
     XObject* object = nullptr;
     switch (as_type) {
       case 0:  // EventNotificationObject

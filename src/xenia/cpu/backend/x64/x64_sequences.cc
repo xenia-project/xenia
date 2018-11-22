@@ -3367,7 +3367,8 @@ EMITTER_ASSOCIATIVE_COMPARE_XX(ULE, setbe, setae);
 EMITTER_ASSOCIATIVE_COMPARE_XX(UGT, seta, setb);
 EMITTER_ASSOCIATIVE_COMPARE_XX(UGE, setae, setbe);
 
-// http://x86.renejeschke.de/html/file_module_x86_id_288.html
+// https://web.archive.org/web/20171129015931/https://x86.renejeschke.de/html/file_module_x86_id_288.html
+// Original link: https://x86.renejeschke.de/html/file_module_x86_id_288.html
 #define EMITTER_ASSOCIATIVE_COMPARE_FLT_XX(op, instr)                 \
   struct COMPARE_##op##_F32                                           \
       : Sequence<COMPARE_##op##_F32,                                  \
@@ -3793,7 +3794,7 @@ struct VECTOR_ADD
                   // If result is smaller than either of the inputs, we've
                   // overflowed (only need to check one input)
                   // if (src1 > res) then overflowed
-                  // http://locklessinc.com/articles/sat_arithmetic/
+                  // https://locklessinc.com/articles/sat_arithmetic/
                   e.vpxor(e.xmm2, src1, e.GetXmmConstPtr(XMMSignMaskI32));
                   e.vpxor(e.xmm0, e.xmm1, e.GetXmmConstPtr(XMMSignMaskI32));
                   e.vpcmpgtd(e.xmm0, e.xmm2, e.xmm0);
@@ -3804,7 +3805,7 @@ struct VECTOR_ADD
                   // Overflow results if two inputs are the same sign and the
                   // result isn't the same sign. if ((s32b)(~(src1 ^ src2) &
                   // (src1 ^ res)) < 0) then overflowed
-                  // http://locklessinc.com/articles/sat_arithmetic/
+                  // https://locklessinc.com/articles/sat_arithmetic/
                   e.vpxor(e.xmm2, src1, src2);
                   e.vpxor(e.xmm3, src1, e.xmm1);
                   e.vpandn(e.xmm2, e.xmm2, e.xmm3);
@@ -3950,7 +3951,7 @@ struct VECTOR_SUB
                   // If result is greater than either of the inputs, we've
                   // underflowed (only need to check one input)
                   // if (res > src1) then underflowed
-                  // http://locklessinc.com/articles/sat_arithmetic/
+                  // https://locklessinc.com/articles/sat_arithmetic/
                   e.vpxor(e.xmm2, src1, e.GetXmmConstPtr(XMMSignMaskI32));
                   e.vpxor(e.xmm0, e.xmm1, e.GetXmmConstPtr(XMMSignMaskI32));
                   e.vpcmpgtd(e.xmm0, e.xmm0, e.xmm2);
@@ -3962,7 +3963,7 @@ struct VECTOR_SUB
                   // opposite. If signs are opposite and result sign isn't the
                   // same as src1's sign, we've overflowed. if ((s32b)((src1 ^
                   // src2) & (src1 ^ res)) < 0) then overflowed
-                  // http://locklessinc.com/articles/sat_arithmetic/
+                  // https://locklessinc.com/articles/sat_arithmetic/
                   e.vpxor(e.xmm2, src1, src2);
                   e.vpxor(e.xmm3, src1, e.xmm1);
                   e.vpand(e.xmm2, e.xmm2, e.xmm3);
@@ -5062,7 +5063,7 @@ EMITTER_OPCODE_TABLE(OPCODE_RECIP, RECIP_F32, RECIP_F64, RECIP_V128);
 // OPCODE_POW2
 // ============================================================================
 // TODO(benvanik): use approx here:
-//     http://jrfonseca.blogspot.com/2008/09/fast-sse2-pow-tables-or-polynomials.html
+//     https://jrfonseca.blogspot.com/2008/09/fast-sse2-pow-tables-or-polynomials.html
 struct POW2_F32 : Sequence<POW2_F32, I<OPCODE_POW2, F32Op, F32Op>> {
   static __m128 EmulatePow2(void*, __m128 src) {
     float src_value;
@@ -5112,7 +5113,7 @@ EMITTER_OPCODE_TABLE(OPCODE_POW2, POW2_F32, POW2_F64, POW2_V128);
 // OPCODE_LOG2
 // ============================================================================
 // TODO(benvanik): use approx here:
-//     http://jrfonseca.blogspot.com/2008/09/fast-sse2-pow-tables-or-polynomials.html
+//     https://jrfonseca.blogspot.com/2008/09/fast-sse2-pow-tables-or-polynomials.html
 // TODO(benvanik): this emulated fn destroys all xmm registers! don't do it!
 struct LOG2_F32 : Sequence<LOG2_F32, I<OPCODE_LOG2, F32Op, F32Op>> {
   static __m128 EmulateLog2(void*, __m128 src) {
@@ -5166,7 +5167,7 @@ struct DOT_PRODUCT_3_V128
     : Sequence<DOT_PRODUCT_3_V128,
                I<OPCODE_DOT_PRODUCT_3, F32Op, V128Op, V128Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    // http://msdn.microsoft.com/en-us/library/bb514054(v=vs.90).aspx
+    // https://msdn.microsoft.com/en-us/library/bb514054(v=vs.90).aspx
     EmitCommutativeBinaryXmmOp(e, i,
                                [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
                                  // TODO(benvanik): apparently this is very slow
@@ -5184,7 +5185,7 @@ struct DOT_PRODUCT_4_V128
     : Sequence<DOT_PRODUCT_4_V128,
                I<OPCODE_DOT_PRODUCT_4, F32Op, V128Op, V128Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    // http://msdn.microsoft.com/en-us/library/bb514054(v=vs.90).aspx
+    // https://msdn.microsoft.com/en-us/library/bb514054(v=vs.90).aspx
     EmitCommutativeBinaryXmmOp(e, i,
                                [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
                                  // TODO(benvanik): apparently this is very slow
@@ -7003,7 +7004,7 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
   }
   static void EmitFLOAT16_2(X64Emitter& e, const EmitArgType& i) {
     assert_true(i.src2.value->IsConstantZero());
-    // http://blogs.msdn.com/b/chuckw/archive/2012/09/11/directxmath-f16c-and-fma.aspx
+    // https://blogs.msdn.com/b/chuckw/archive/2012/09/11/directxmath-f16c-and-fma.aspx
     // dest = [(src1.x | src1.y), 0, 0, 0]
 
     Xmm src;
@@ -7398,10 +7399,10 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
     // 1 bit sign, 5 bit exponent, 10 bit mantissa
     // D3D10 half float format
     // TODO(benvanik):
-    // http://blogs.msdn.com/b/chuckw/archive/2012/09/11/directxmath-f16c-and-fma.aspx
+    // https://blogs.msdn.com/b/chuckw/archive/2012/09/11/directxmath-f16c-and-fma.aspx
     // Use _mm_cvtph_ps -- requires very modern processors (SSE5+)
     // Unpacking half floats:
-    // http://fgiesen.wordpress.com/2012/03/28/half-to-float-done-quic/
+    // https://fgiesen.wordpress.com/2012/03/28/half-to-float-done-quic/
     // Packing half floats: https://gist.github.com/rygorous/2156668
     // Load source, move from tight pack of X16Y16.... to X16...Y16...
     // Also zero out the high end.

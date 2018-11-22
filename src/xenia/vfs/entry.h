@@ -34,7 +34,7 @@ namespace vfs {
 class Device;
 class File;
 
-// Matches http://source.winehq.org/source/include/winternl.h#1591.
+// Matches https://source.winehq.org/source/include/winternl.h#1591.
 enum class FileAction {
   kSuperseded = 0,
   kOpened = 1,

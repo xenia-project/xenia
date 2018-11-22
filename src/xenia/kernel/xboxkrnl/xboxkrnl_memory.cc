@@ -371,7 +371,8 @@ dword_result_t MmQueryAddressProtect(dword_t base_address) {
 
   return access;
 }
-DECLARE_XBOXKRNL_EXPORT1(MmQueryAddressProtect, kMemory, kImplemented);
+DECLARE_XBOXKRNL_EXPORT2(MmQueryAddressProtect, kMemory, kImplemented,
+                         kHighFrequency);
 
 void MmSetAddressProtect(lpvoid_t base_address, dword_t region_size,
                          dword_t protect_bits) {
@@ -495,7 +496,7 @@ dword_result_t MmQueryStatistics(
 }
 DECLARE_XBOXKRNL_EXPORT1(MmQueryStatistics, kMemory, kImplemented);
 
-// http://msdn.microsoft.com/en-us/library/windows/hardware/ff554547(v=vs.85).aspx
+// https://msdn.microsoft.com/en-us/library/windows/hardware/ff554547(v=vs.85).aspx
 dword_result_t MmGetPhysicalAddress(dword_t base_address) {
   // PHYSICAL_ADDRESS MmGetPhysicalAddress(
   //   _In_  PVOID BaseAddress

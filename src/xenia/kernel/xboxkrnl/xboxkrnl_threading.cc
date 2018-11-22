@@ -313,7 +313,7 @@ void KeQuerySystemTime(lpqword_t time_ptr) {
 }
 DECLARE_XBOXKRNL_EXPORT1(KeQuerySystemTime, kThreading, kImplemented);
 
-// http://msdn.microsoft.com/en-us/library/ms686801
+// https://msdn.microsoft.com/en-us/library/ms686801
 dword_result_t KeTlsAlloc() {
   uint32_t slot = kernel_state()->AllocateTLS();
   XThread::GetCurrentThread()->SetTLSValue(slot, 0);
@@ -322,7 +322,7 @@ dword_result_t KeTlsAlloc() {
 }
 DECLARE_XBOXKRNL_EXPORT1(KeTlsAlloc, kThreading, kImplemented);
 
-// http://msdn.microsoft.com/en-us/library/ms686804
+// https://msdn.microsoft.com/en-us/library/ms686804
 dword_result_t KeTlsFree(dword_t tls_index) {
   if (tls_index == X_TLS_OUT_OF_INDEXES) {
     return 0;
@@ -333,7 +333,7 @@ dword_result_t KeTlsFree(dword_t tls_index) {
 }
 DECLARE_XBOXKRNL_EXPORT1(KeTlsFree, kThreading, kImplemented);
 
-// http://msdn.microsoft.com/en-us/library/ms686812
+// https://msdn.microsoft.com/en-us/library/ms686812
 dword_result_t KeTlsGetValue(dword_t tls_index) {
   // xboxkrnl doesn't actually have an error branch - it always succeeds, even
   // if it overflows the TLS.
@@ -347,7 +347,7 @@ dword_result_t KeTlsGetValue(dword_t tls_index) {
 DECLARE_XBOXKRNL_EXPORT2(KeTlsGetValue, kThreading, kImplemented,
                          kHighFrequency);
 
-// http://msdn.microsoft.com/en-us/library/ms686818
+// https://msdn.microsoft.com/en-us/library/ms686818
 dword_result_t KeTlsSetValue(dword_t tls_index, dword_t tls_value) {
   // xboxkrnl doesn't actually have an error branch - it always succeeds, even
   // if it overflows the TLS.
@@ -624,8 +624,6 @@ dword_result_t NtReleaseMutant(dword_t mutant_handle, dword_t unknown) {
   uint32_t priority_increment = 0;
   bool abandon = false;
   bool wait = false;
-
-  XELOGD("NtReleaseMutant(%.8X, %.8X)", mutant_handle, unknown);
 
   X_STATUS result = X_STATUS_SUCCESS;
 

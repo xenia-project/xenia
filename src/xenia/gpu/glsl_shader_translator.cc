@@ -131,8 +131,8 @@ struct VertexData {
 };
 )");
 
-  // http://www.nvidia.com/object/cube_map_ogl_tutorial.html
-  // http://developer.amd.com/wordpress/media/2012/10/R600_Instruction_Set_Architecture.pdf
+  // https://www.nvidia.com/object/cube_map_ogl_tutorial.html
+  // https://developer.amd.com/wordpress/media/2012/10/R600_Instruction_Set_Architecture.pdf
   // src0 = Rn.zzxy, src1 = Rn.yxzz
   // dst.W = FaceId;
   // dst.Z = 2.0f * MajorAxis;

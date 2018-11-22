@@ -38,7 +38,7 @@ dword_result_t XamEnableInactivityProcessing(dword_t unk, dword_t enable) {
 }
 DECLARE_XAM_EXPORT1(XamEnableInactivityProcessing, kInput, kStub);
 
-// http://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinputgetcapabilities(v=vs.85).aspx
+// https://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinputgetcapabilities(v=vs.85).aspx
 dword_result_t XamInputGetCapabilities(dword_t user_index, dword_t flags,
                                        pointer_t<X_INPUT_CAPABILITIES> caps) {
   if (!caps) {
@@ -84,7 +84,7 @@ dword_result_t XamInputGetCapabilitiesEx(dword_t unk, dword_t user_index,
 }
 DECLARE_XAM_EXPORT1(XamInputGetCapabilitiesEx, kInput, kSketchy);
 
-// http://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinputgetstate(v=vs.85).aspx
+// https://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinputgetstate(v=vs.85).aspx
 dword_result_t XamInputGetState(dword_t user_index, dword_t flags,
                                 pointer_t<X_INPUT_STATE> input_state) {
   // Games call this with a NULL state ptr, probably as a query.
@@ -105,7 +105,7 @@ dword_result_t XamInputGetState(dword_t user_index, dword_t flags,
 }
 DECLARE_XAM_EXPORT1(XamInputGetState, kInput, kImplemented);
 
-// http://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinputsetstate(v=vs.85).aspx
+// https://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinputsetstate(v=vs.85).aspx
 dword_result_t XamInputSetState(dword_t user_index, dword_t unk,
                                 pointer_t<X_INPUT_VIBRATION> vibration) {
   if (!vibration) {
@@ -123,10 +123,10 @@ dword_result_t XamInputSetState(dword_t user_index, dword_t unk,
 }
 DECLARE_XAM_EXPORT1(XamInputSetState, kInput, kImplemented);
 
-// http://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinputgetkeystroke(v=vs.85).aspx
+// https://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinputgetkeystroke(v=vs.85).aspx
 dword_result_t XamInputGetKeystroke(dword_t user_index, dword_t flags,
                                     pointer_t<X_INPUT_KEYSTROKE> keystroke) {
-  // http://ffplay360.googlecode.com/svn/Test/Common/AtgXime.cpp
+  // https://github.com/CodeAsm/ffplay360/blob/master/Common/AtgXime.cpp
   // user index = index or XUSER_INDEX_ANY
   // flags = XINPUT_FLAG_GAMEPAD (| _ANYUSER | _ANYDEVICE)
 

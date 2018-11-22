@@ -34,8 +34,8 @@ std::unique_ptr<VulkanProvider> VulkanProvider::Create(Window* main_window) {
         "Ensure you have the latest drivers for your GPU and that it "
         "supports Vulkan.\n"
         "\n"
-        "See http://xenia.jp/faq/ for more information and a list of supported "
-        "GPUs.");
+        "See https://xenia.jp/faq/ for more information and a list of "
+        "supported GPUs.");
     return nullptr;
   }
   return provider;

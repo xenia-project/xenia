@@ -27,7 +27,7 @@ typedef uint32_t X_HANDLE;
 // TODO(benvanik): type all of this so we get some safety.
 
 // NT_STATUS (STATUS_*)
-// http://msdn.microsoft.com/en-us/library/cc704588.aspx
+// https://msdn.microsoft.com/en-us/library/cc704588.aspx
 // Adding as needed.
 typedef uint32_t X_STATUS;
 #define XSUCCEEDED(s)     ((s & 0xC0000000) == 0)
@@ -60,6 +60,7 @@ typedef uint32_t X_STATUS;
 #define X_STATUS_OBJECT_NAME_COLLISION                  ((X_STATUS)0xC0000035L)
 #define X_STATUS_INVALID_PAGE_PROTECTION                ((X_STATUS)0xC0000045L)
 #define X_STATUS_MUTANT_NOT_OWNED                       ((X_STATUS)0xC0000046L)
+#define X_STATUS_PROCEDURE_NOT_FOUND                    ((X_STATUS)0xC000007AL)
 #define X_STATUS_INSUFFICIENT_RESOURCES                 ((X_STATUS)0xC000009AL)
 #define X_STATUS_MEMORY_NOT_ALLOCATED                   ((X_STATUS)0xC00000A0L)
 #define X_STATUS_NOT_SUPPORTED                          ((X_STATUS)0xC00000BBL)
@@ -67,6 +68,7 @@ typedef uint32_t X_STATUS;
 #define X_STATUS_INVALID_PARAMETER_2                    ((X_STATUS)0xC00000F0L)
 #define X_STATUS_INVALID_PARAMETER_3                    ((X_STATUS)0xC00000F1L)
 #define X_STATUS_DLL_NOT_FOUND                          ((X_STATUS)0xC0000135L)
+#define X_STATUS_ENTRYPOINT_NOT_FOUND                   ((X_STATUS)0xC0000139L)
 #define X_STATUS_MAPPED_ALIGNMENT                       ((X_STATUS)0xC0000220L)
 #define X_STATUS_NOT_FOUND                              ((X_STATUS)0xC0000225L)
 #define X_STATUS_DRIVER_ORDINAL_NOT_FOUND               ((X_STATUS)0xC0000262L)
@@ -160,7 +162,7 @@ enum X_FILE_ATTRIBUTES : uint32_t {
   X_FILE_ATTRIBUTE_ENCRYPTED = 0x4000,
 };
 
-// http://code.google.com/p/vdash/source/browse/trunk/vdash/include/kernel.h
+// https://github.com/oukiar/vdash/blob/master/vdash/include/kernel.h
 enum X_FILE_INFORMATION_CLASS {
   XFileDirectoryInformation = 1,
   XFileFullDirectoryInformation,
@@ -324,10 +326,10 @@ struct X_UNICODE_STRING {
 };
 static_assert_size(X_UNICODE_STRING, 8);
 
-// http://pastebin.com/SMypYikG
+// https://pastebin.com/SMypYikG
 typedef uint32_t XNotificationID;
 
-// http://ffplay360.googlecode.com/svn/trunk/Common/XTLOnPC.h
+// https://github.com/CodeAsm/ffplay360/blob/master/Common/XTLOnPC.h
 struct X_VIDEO_MODE {
   be<uint32_t> display_width;
   be<uint32_t> display_height;
@@ -361,7 +363,7 @@ struct X_SINGLE_LIST_ENTRY {
 };
 static_assert_size(X_SINGLE_LIST_ENTRY, 4);
 
-// http://www.nirsoft.net/kernel_struct/vista/SLIST_HEADER.html
+// https://www.nirsoft.net/kernel_struct/vista/SLIST_HEADER.html
 struct X_SLIST_HEADER {
   X_SINGLE_LIST_ENTRY next;  // 0x0
   be<uint16_t> depth;        // 0x4

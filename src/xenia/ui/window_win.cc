@@ -47,12 +47,20 @@ bool Win32Window::Initialize() { return OnCreate(); }
 bool Win32Window::OnCreate() {
   HINSTANCE hInstance = GetModuleHandle(nullptr);
 
+  if (!SetProcessDpiAwareness_ || !GetDpiForMonitor_) {
+    auto shcore = GetModuleHandle(L"shcore.dll");
+    if (shcore) {
+      SetProcessDpiAwareness_ =
+          GetProcAddress(shcore, "SetProcessDpiAwareness");
+      GetDpiForMonitor_ = GetProcAddress(shcore, "GetDpiForMonitor");
+    }
+  }
+
   static bool has_registered_class = false;
   if (!has_registered_class) {
     // Tell Windows that we're DPI aware.
-    auto spda = (decltype(&SetProcessDpiAwareness))GetProcAddress(
-        GetModuleHandle(L"shcore.dll"), "SetProcessDpiAwareness");
-    if (spda) {
+    if (SetProcessDpiAwareness_) {
+      auto spda = (decltype(&SetProcessDpiAwareness))SetProcessDpiAwareness_;
       auto res = spda(PROCESS_PER_MONITOR_DPI_AWARE);
       if (res != S_OK) {
         XELOGE("Failed to set process DPI awareness. (code = 0x%.8X)", res);
@@ -245,7 +253,7 @@ void Win32Window::ToggleFullscreen(bool fullscreen) {
 
   DWORD style = GetWindowLong(hwnd_, GWL_STYLE);
   if (fullscreen) {
-    // http://blogs.msdn.com/b/oldnewthing/archive/2010/04/12/9994016.aspx
+    // https://blogs.msdn.com/b/oldnewthing/archive/2010/04/12/9994016.aspx
     MONITORINFO mi = {sizeof(mi)};
     if (GetWindowPlacement(hwnd_, &windowed_pos_) &&
         GetMonitorInfo(MonitorFromWindow(hwnd_, MONITOR_DEFAULTTOPRIMARY),
@@ -303,11 +311,16 @@ void Win32Window::set_bordered(bool enabled) {
 }
 
 int Win32Window::get_dpi() const {
+  if (!GetDpiForMonitor_) {
+    return 96;
+  }
+
   HMONITOR monitor = MonitorFromWindow(hwnd_, MONITOR_DEFAULTTOPRIMARY);
 
   // According to msdn, x and y are identical...
   UINT dpi_x, dpi_y;
-  GetDpiForMonitor(monitor, MDT_DEFAULT, &dpi_x, &dpi_y);
+  auto gdfm = (decltype(&GetDpiForMonitor))GetDpiForMonitor_;
+  gdfm(monitor, MDT_DEFAULT, &dpi_x, &dpi_y);
   return dpi_x;
 }
 
