@@ -625,8 +625,6 @@ dword_result_t NtReleaseMutant(dword_t mutant_handle, dword_t unknown) {
   bool abandon = false;
   bool wait = false;
 
-  XELOGD("NtReleaseMutant(%.8X, %.8X)", mutant_handle, unknown);
-
   X_STATUS result = X_STATUS_SUCCESS;
 
   auto mutant =
