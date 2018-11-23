@@ -40,3 +40,6 @@
 [submodule "third_party/volk"]
 	path = third_party/volk
 	url = https://github.com/zeux/volk.git
+[submodule "third_party/pevents"]
+	path = third_party/pevents
+	url = https://github.com/neosmart/pevents.git
