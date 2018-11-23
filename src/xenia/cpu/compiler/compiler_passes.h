@@ -10,6 +10,8 @@
 #ifndef XENIA_CPU_COMPILER_COMPILER_PASSES_H_
 #define XENIA_CPU_COMPILER_COMPILER_PASSES_H_
 
+#include "xenia/cpu/compiler/passes/conditional_group_pass.h"
+#include "xenia/cpu/compiler/passes/conditional_group_subpass.h"
 #include "xenia/cpu/compiler/passes/constant_propagation_pass.h"
 #include "xenia/cpu/compiler/passes/context_promotion_pass.h"
 #include "xenia/cpu/compiler/passes/control_flow_analysis_pass.h"
