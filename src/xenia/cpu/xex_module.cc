@@ -25,7 +25,6 @@
 #include "third_party/crypto/rijndael-alg-fst.c"
 #include "third_party/crypto/rijndael-alg-fst.h"
 #include "third_party/mspack/lzx.h"
-#include "third_party/mspack/lzxd.c"
 #include "third_party/mspack/mspack.h"
 #include "third_party/pe/pe_image.h"
 
@@ -120,7 +119,7 @@ int lzx_decompress(const void* lzx_data, size_t lzx_len, void* dest,
   mspack_memory_file* lzxdst = mspack_memory_open(sys, dest, dest_len);
   lzxd_stream* lzxd =
       lzxd_init(sys, (struct mspack_file*)lzxsrc, (struct mspack_file*)lzxdst,
-                window_bits, 0, 0x8000, (off_t)dest_len);
+                window_bits, 0, 0x8000, (off_t)dest_len, 0);
 
   if (lzxd) {
     if (window_data) {
