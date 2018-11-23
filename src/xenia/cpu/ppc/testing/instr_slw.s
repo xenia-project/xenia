@@ -159,3 +159,44 @@ test_slw_9_constant:
   #_ REGISTER_OUT r3 0
   #_ REGISTER_OUT r4 0xFFFFFFFFFFFFFFFF
   #_ REGISTER_OUT r5 32
+
+test_slw_10:
+  #_ REGISTER_IN r4 99
+  #_ REGISTER_IN r5 1
+  cntlzw r5, r5
+  subi r5, r5, 28
+  slw r3, r4, r5
+  blr
+  #_ REGISTER_OUT r3 792
+  #_ REGISTER_OUT r4 99
+  #_ REGISTER_OUT r5 3
+
+test_slw_10_constant:
+  #_ REGISTER_IN r4 99
+  li r5, 1
+  cntlzw r5, r5
+  subi r5, r5, 28
+  slw r3, r4, r5
+  blr
+  #_ REGISTER_OUT r3 792
+  #_ REGISTER_OUT r4 99
+  #_ REGISTER_OUT r5 3
+
+test_slw_11:
+  #_ REGISTER_IN r4 99
+  #_ REGISTER_IN r5 3
+  li r5, 3
+  slw r3, r4, r5
+  blr
+  #_ REGISTER_OUT r3 792
+  #_ REGISTER_OUT r4 99
+  #_ REGISTER_OUT r5 3
+
+test_slw_11_constant:
+  #_ REGISTER_IN r4 99
+  li r5, 3
+  slw r3, r4, r5
+  blr
+  #_ REGISTER_OUT r3 792
+  #_ REGISTER_OUT r4 99
+  #_ REGISTER_OUT r5 3
