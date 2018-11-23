@@ -5691,6 +5691,15 @@ struct VECTOR_SHL_V128
     return _mm_load_si128(reinterpret_cast<__m128i*>(value));
   }
   static void EmitInt32(X64Emitter& e, const EmitArgType& i) {
+    Xmm src1;
+    if (i.src1.is_constant) {
+      src1 = e.xmm2;
+      e.LoadConstantXmm(src1, i.src1.constant());
+    }
+    else {
+      src1 = i.src1;
+    }
+
     if (i.src2.is_constant) {
       const auto& shamt = i.src2.constant();
       bool all_same = true;
@@ -5702,7 +5711,7 @@ struct VECTOR_SHL_V128
       }
       if (all_same) {
         // Every count is the same, so we can use vpslld.
-        e.vpslld(i.dest, i.src1, shamt.u8[0] & 0x1F);
+        e.vpslld(i.dest, src1, shamt.u8[0] & 0x1F);
         return;
       }
     }
@@ -5716,13 +5725,13 @@ struct VECTOR_SHL_V128
           masked.u32[n] &= 0x1F;
         }
         e.LoadConstantXmm(e.xmm0, masked);
-        e.vpsllvd(i.dest, i.src1, e.xmm0);
+        e.vpsllvd(i.dest, src1, e.xmm0);
       } else {
         // Fully variable shift.
         // src shift mask may have values >31, and x86 sets to zero when
         // that happens so we mask.
         e.vandps(e.xmm0, i.src2, e.GetXmmConstPtr(XMMShiftMaskPS));
-        e.vpsllvd(i.dest, i.src1, e.xmm0);
+        e.vpsllvd(i.dest, src1, e.xmm0);
       }
     } else {
       // Shift 4 words in src1 by amount specified in src2.
@@ -5740,7 +5749,8 @@ struct VECTOR_SHL_V128
         e.mov(e.rax, 0x1F);
         e.vmovq(e.xmm1, e.rax);
         e.vpand(e.xmm0, e.xmm0, e.xmm1);
-        e.vpslld(i.dest, i.src1, e.xmm0);
+
+        e.vpslld(i.dest, src1, e.xmm0);
         e.jmp(end);
       }
 
@@ -5752,7 +5762,7 @@ struct VECTOR_SHL_V128
       } else {
         e.lea(e.r9, e.StashXmm(1, i.src2));
       }
-      e.lea(e.r8, e.StashXmm(0, i.src1));
+      e.lea(e.r8, e.StashXmm(0, src1));
       e.CallNativeSafe(reinterpret_cast<void*>(EmulateVectorShlI32));
       e.vmovaps(i.dest, e.xmm0);
 
@@ -5877,6 +5887,15 @@ struct VECTOR_SHR_V128
     return _mm_load_si128(reinterpret_cast<__m128i*>(value));
   }
   static void EmitInt32(X64Emitter& e, const EmitArgType& i) {
+    Xmm src1;
+    if (i.src1.is_constant) {
+      src1 = e.xmm2;
+      e.LoadConstantXmm(src1, i.src1.constant());
+    }
+    else {
+      src1 = i.src1;
+    }
+
     if (i.src2.is_constant) {
       const auto& shamt = i.src2.constant();
       bool all_same = true;
@@ -5888,7 +5907,7 @@ struct VECTOR_SHR_V128
       }
       if (all_same) {
         // Every count is the same, so we can use vpsrld.
-        e.vpsrld(i.dest, i.src1, shamt.u8[0] & 0x1F);
+        e.vpsrld(i.dest, src1, shamt.u8[0] & 0x1F);
         return;
       } else {
         if (e.IsFeatureEnabled(kX64EmitAVX2)) {
@@ -5898,7 +5917,7 @@ struct VECTOR_SHR_V128
             masked.u32[n] &= 0x1F;
           }
           e.LoadConstantXmm(e.xmm0, masked);
-          e.vpsrlvd(i.dest, i.src1, e.xmm0);
+          e.vpsrlvd(i.dest, src1, e.xmm0);
           return;
         }
       }
@@ -5909,7 +5928,7 @@ struct VECTOR_SHR_V128
       // src shift mask may have values >31, and x86 sets to zero when
       // that happens so we mask.
       e.vandps(e.xmm0, i.src2, e.GetXmmConstPtr(XMMShiftMaskPS));
-      e.vpsrlvd(i.dest, i.src1, e.xmm0);
+      e.vpsrlvd(i.dest, src1, e.xmm0);
     } else {
       // Shift 4 words in src1 by amount specified in src2.
       Xbyak::Label emu, end;
@@ -5926,7 +5945,7 @@ struct VECTOR_SHR_V128
         e.mov(e.rax, 0x1F);
         e.vmovq(e.xmm1, e.rax);
         e.vpand(e.xmm0, e.xmm0, e.xmm1);
-        e.vpsrld(i.dest, i.src1, e.xmm0);
+        e.vpsrld(i.dest, src1, e.xmm0);
         e.jmp(end);
       }
 
@@ -5938,7 +5957,7 @@ struct VECTOR_SHR_V128
       } else {
         e.lea(e.r9, e.StashXmm(1, i.src2));
       }
-      e.lea(e.r8, e.StashXmm(0, i.src1));
+      e.lea(e.r8, e.StashXmm(0, src1));
       e.CallNativeSafe(reinterpret_cast<void*>(EmulateVectorShrI32));
       e.vmovaps(i.dest, e.xmm0);
 
