@@ -49,7 +49,7 @@ dword_result_t XamGetOnlineSchema() {
   // return pointer to the schema ptr/schema size struct
   return schema_ptr_guest;
 }
-DECLARE_XAM_EXPORT(XamGetOnlineSchema, ExportTag::kImplemented);
+DECLARE_XAM_EXPORT2(XamGetOnlineSchema, kNone, kImplemented, kSketchy);
 
 void XamFormatDateString(dword_t unk, qword_t filetime, lpvoid_t buffer,
                          dword_t buffer_length) {
@@ -73,9 +73,11 @@ void XamFormatDateString(dword_t unk, qword_t filetime, lpvoid_t buffer,
            stLocal.wYear);
 
   xe::copy_and_swap((wchar_t*)buffer.host_address(), buf, buffer_length);
+#else
+  assert_always();
 #endif
 }
-DECLARE_XAM_EXPORT(XamFormatDateString, ExportTag::kImplemented);
+DECLARE_XAM_EXPORT1(XamFormatDateString, kNone, kImplemented);
 
 void XamFormatTimeString(dword_t unk, qword_t filetime, lpvoid_t buffer,
                          dword_t buffer_length) {
@@ -97,9 +99,11 @@ void XamFormatTimeString(dword_t unk, qword_t filetime, lpvoid_t buffer,
   swprintf(buf, 256, L"%02d:%02d", stLocal.wHour, stLocal.wMinute);
 
   xe::copy_and_swap((wchar_t*)buffer.host_address(), buf, buffer_length);
+#else
+  assert_always();
 #endif
 }
-DECLARE_XAM_EXPORT(XamFormatTimeString, ExportTag::kImplemented);
+DECLARE_XAM_EXPORT1(XamFormatTimeString, kNone, kImplemented);
 
 dword_result_t keXamBuildResourceLocator(uint64_t module,
                                          const wchar_t* container,
@@ -129,7 +133,7 @@ dword_result_t XamBuildResourceLocator(qword_t module, lpwstring_t container,
                                    resource.value().c_str(), buffer,
                                    buffer_length);
 }
-DECLARE_XAM_EXPORT(XamBuildResourceLocator, ExportTag::kImplemented);
+DECLARE_XAM_EXPORT1(XamBuildResourceLocator, kNone, kImplemented);
 
 dword_result_t XamBuildGamercardResourceLocator(lpwstring_t filename,
                                                 lpvoid_t buffer,
@@ -145,7 +149,7 @@ dword_result_t XamBuildGamercardResourceLocator(lpwstring_t filename,
   return keXamBuildResourceLocator(0, L"gamercrd", filename.value().c_str(),
                                    buffer, buffer_length);
 }
-DECLARE_XAM_EXPORT(XamBuildGamercardResourceLocator, ExportTag::kImplemented);
+DECLARE_XAM_EXPORT1(XamBuildGamercardResourceLocator, kNone, kImplemented);
 
 dword_result_t XamBuildSharedSystemResourceLocator(lpwstring_t filename,
                                                    lpvoid_t buffer,
@@ -154,23 +158,21 @@ dword_result_t XamBuildSharedSystemResourceLocator(lpwstring_t filename,
   return keXamBuildResourceLocator(0, L"shrdres", filename.value().c_str(),
                                    buffer, buffer_length);
 }
-DECLARE_XAM_EXPORT(XamBuildSharedSystemResourceLocator,
-                   ExportTag::kImplemented);
+DECLARE_XAM_EXPORT1(XamBuildSharedSystemResourceLocator, kNone, kImplemented);
 
 dword_result_t XamBuildLegacySystemResourceLocator(lpwstring_t filename,
                                                    lpvoid_t buffer,
                                                    dword_t buffer_length) {
   return XamBuildSharedSystemResourceLocator(filename, buffer, buffer_length);
 }
-DECLARE_XAM_EXPORT(XamBuildLegacySystemResourceLocator,
-                   ExportTag::kImplemented);
+DECLARE_XAM_EXPORT1(XamBuildLegacySystemResourceLocator, kNone, kImplemented);
 
 dword_result_t XamBuildXamResourceLocator(lpwstring_t filename, lpvoid_t buffer,
                                           dword_t buffer_length) {
   return keXamBuildResourceLocator(0, L"xam", filename.value().c_str(), buffer,
                                    buffer_length);
 }
-DECLARE_XAM_EXPORT(XamBuildXamResourceLocator, ExportTag::kImplemented);
+DECLARE_XAM_EXPORT1(XamBuildXamResourceLocator, kNone, kImplemented);
 
 dword_result_t XamGetSystemVersion() {
   // eh, just picking one. If we go too low we may break new games, but
