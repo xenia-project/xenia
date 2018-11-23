@@ -618,6 +618,10 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder) {
             v->set_from(i->src1.value);
             v->Shl(i->src2.value);
             i->Remove();
+          } else if (i->src2.value->IsConstantZero()) {
+            auto src1 = i->src1.value;
+            i->Replace(&OPCODE_ASSIGN_info, 0);
+            i->set_src1(src1);
           }
           break;
         case OPCODE_SHR:
@@ -625,6 +629,10 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder) {
             v->set_from(i->src1.value);
             v->Shr(i->src2.value);
             i->Remove();
+          } else if (i->src2.value->IsConstantZero()) {
+            auto src1 = i->src1.value;
+            i->Replace(&OPCODE_ASSIGN_info, 0);
+            i->set_src1(src1);
           }
           break;
         case OPCODE_SHA:
