@@ -5695,8 +5695,7 @@ struct VECTOR_SHL_V128
     if (i.src1.is_constant) {
       src1 = e.xmm2;
       e.LoadConstantXmm(src1, i.src1.constant());
-    }
-    else {
+    } else {
       src1 = i.src1;
     }
 
@@ -5891,8 +5890,7 @@ struct VECTOR_SHR_V128
     if (i.src1.is_constant) {
       src1 = e.xmm2;
       e.LoadConstantXmm(src1, i.src1.constant());
-    }
-    else {
+    } else {
       src1 = i.src1;
     }
 
