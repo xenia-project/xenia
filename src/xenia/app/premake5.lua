@@ -15,6 +15,7 @@ project("xenia-app")
     "imgui",
     "libavcodec",
     "libavutil",
+    "mspack",
     "snappy",
     "spirv-tools",
     "volk",
