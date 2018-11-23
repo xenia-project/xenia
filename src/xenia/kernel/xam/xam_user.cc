@@ -49,7 +49,8 @@ dword_result_t XamUserGetSigninState(dword_t user_index) {
     return 0;
   }
 }
-DECLARE_XAM_EXPORT1(XamUserGetSigninState, kUserProfiles, kImplemented);
+DECLARE_XAM_EXPORT2(XamUserGetSigninState, kUserProfiles, kImplemented,
+                    kHighFrequency);
 
 typedef struct {
   xe::be<uint64_t> xuid;

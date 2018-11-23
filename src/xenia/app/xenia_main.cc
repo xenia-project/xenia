@@ -176,9 +176,9 @@ int xenia_main(const std::vector<std::wstring>& args) {
 #endif
       content_root = xe::join_paths(content_root, L"content");
     }
-
-    content_root = xe::to_absolute_path(content_root);
   }
+  content_root = xe::to_absolute_path(content_root);
+  XELOGI("Content root: %S", content_root.c_str());
 
   // Create the emulator but don't initialize so we can setup the window.
   auto emulator = std::make_unique<Emulator>(L"", content_root);

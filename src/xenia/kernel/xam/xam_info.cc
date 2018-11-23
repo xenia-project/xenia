@@ -198,12 +198,16 @@ dword_result_t XamEnumerate(dword_t handle, dword_t flags, lpvoid_t buffer,
     }
   }
 
-  size_t actual_buffer_length = e->item_size() * e->items_per_enumerate();
-  if (actual_buffer_length != buffer_length) {
+  size_t actual_buffer_length = (uint32_t)buffer_length;
+  if (buffer_length == e->items_per_enumerate()) {
+    actual_buffer_length = e->item_size() * e->items_per_enumerate();
     // Known culprits:
-    //   Final Fight: Double Impact
-    XELOGW("Broken usage of XamEnumerate! %.X vs %.X", buffer_length,
-           actual_buffer_length);
+    //   Final Fight: Double Impact (saves)
+    XELOGW(
+        "Broken usage of XamEnumerate! buffer length=%.X vs actual length=%.X "
+        "(item size=%.X, items per enumerate=%u)",
+        (uint32_t)buffer_length, actual_buffer_length, e->item_size(),
+        e->items_per_enumerate());
   }
 
   buffer.Zero(actual_buffer_length);

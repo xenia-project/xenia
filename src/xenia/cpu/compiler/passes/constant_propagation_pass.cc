@@ -278,11 +278,13 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder) {
           if (i->src1.value->IsConstant()) {
             if (i->src1.value->type != VEC128_TYPE) {
               if (i->src1.value->IsConstantTrue()) {
-                v->set_from(i->src2.value);
-                i->Remove();
+                auto src2 = i->src2.value;
+                i->Replace(&OPCODE_ASSIGN_info, 0);
+                i->set_src1(src2);
               } else if (i->src1.value->IsConstantFalse()) {
-                v->set_from(i->src3.value);
-                i->Remove();
+                auto src3 = i->src3.value;
+                i->Replace(&OPCODE_ASSIGN_info, 0);
+                i->set_src1(src3);
               } else if (i->src2.value->IsConstant() &&
                          i->src3.value->IsConstant()) {
                 // TODO: Select
@@ -616,6 +618,10 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder) {
             v->set_from(i->src1.value);
             v->Shl(i->src2.value);
             i->Remove();
+          } else if (i->src2.value->IsConstantZero()) {
+            auto src1 = i->src1.value;
+            i->Replace(&OPCODE_ASSIGN_info, 0);
+            i->set_src1(src1);
           }
           break;
         case OPCODE_SHR:
@@ -623,6 +629,10 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder) {
             v->set_from(i->src1.value);
             v->Shr(i->src2.value);
             i->Remove();
+          } else if (i->src2.value->IsConstantZero()) {
+            auto src1 = i->src1.value;
+            i->Replace(&OPCODE_ASSIGN_info, 0);
+            i->set_src1(src1);
           }
           break;
         case OPCODE_SHA:
