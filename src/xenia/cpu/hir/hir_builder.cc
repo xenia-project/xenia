@@ -764,7 +764,7 @@ void HIRBuilder::CommentFormat(const char* format, ...) {
   va_start(args, format);
   size_t chars_written = vsnprintf(p, kMaxCommentSize - 1, format, args);
   va_end(args);
-  size_t rewind = kMaxCommentSize - chars_written;
+  size_t rewind = kMaxCommentSize - chars_written - 1;
   arena_->Rewind(rewind);
   Instr* i = AppendInstr(OPCODE_COMMENT_info, 0);
   i->src1.offset = (uint64_t)p;
