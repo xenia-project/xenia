@@ -7,9 +7,14 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_CPU_COMPILER_PASSES_CONSTANT_PROPAGATION_PASS_H_
-#define XENIA_CPU_COMPILER_PASSES_CONSTANT_PROPAGATION_PASS_H_
+#ifndef XENIA_CPU_COMPILER_PASSES_CONDITIONAL_GROUP_PASS_H_
+#define XENIA_CPU_COMPILER_PASSES_CONDITIONAL_GROUP_PASS_H_
 
+#include <cmath>
+#include <vector>
+
+#include "xenia/base/platform.h"
+#include "xenia/cpu/compiler/compiler_pass.h"
 #include "xenia/cpu/compiler/passes/conditional_group_subpass.h"
 
 namespace xe {
@@ -17,14 +22,19 @@ namespace cpu {
 namespace compiler {
 namespace passes {
 
-class ConstantPropagationPass : public ConditionalGroupSubpass {
+class ConditionalGroupPass : public CompilerPass {
  public:
-  ConstantPropagationPass();
-  ~ConstantPropagationPass() override;
+  ConditionalGroupPass();
+  virtual ~ConditionalGroupPass() override;
 
-  bool Run(hir::HIRBuilder* builder, bool& result) override;
+  bool Initialize(Compiler* compiler) override;
+
+  bool Run(hir::HIRBuilder* builder) override;
+
+  void AddPass(std::unique_ptr<CompilerPass> pass);
 
  private:
+  std::vector<std::unique_ptr<CompilerPass>> passes_;
 };
 
 }  // namespace passes
@@ -32,4 +42,4 @@ class ConstantPropagationPass : public ConditionalGroupSubpass {
 }  // namespace cpu
 }  // namespace xe
 
-#endif  // XENIA_CPU_COMPILER_PASSES_CONSTANT_PROPAGATION_PASS_H_
+#endif  // XENIA_CPU_COMPILER_PASSES_CONDITIONAL_GROUP_PASS_H_
