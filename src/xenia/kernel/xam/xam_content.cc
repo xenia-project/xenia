@@ -201,7 +201,7 @@ dword_result_t XamContentCreateDeviceEnumerator(dword_t content_type,
   *handle_out = e->handle();
   return X_ERROR_SUCCESS;
 }
-DECLARE_XAM_EXPORT(XamContentCreateDeviceEnumerator, ExportTag::kImplemented);
+DECLARE_XAM_EXPORT1(XamContentCreateDeviceEnumerator, kNone, kImplemented);
 
 dword_result_t XamContentCreateEx(dword_t user_index, lpstring_t root_name,
                                   lpvoid_t content_data_ptr, dword_t flags,
