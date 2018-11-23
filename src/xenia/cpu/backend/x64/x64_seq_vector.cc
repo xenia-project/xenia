@@ -22,7 +22,7 @@ namespace cpu {
 namespace backend {
 namespace x64 {
 
-void RegisterVector() {}
+volatile int anchor_vector = 0;
 
 // ============================================================================
 // OPCODE_VECTOR_CONVERT_I2F

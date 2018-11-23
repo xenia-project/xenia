@@ -19,7 +19,7 @@ namespace cpu {
 namespace backend {
 namespace x64 {
 
-void RegisterControl() {}
+volatile int anchor_control = 0;
 
 // ============================================================================
 // OPCODE_DEBUG_BREAK

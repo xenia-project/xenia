@@ -3057,11 +3057,15 @@ struct SET_ROUNDING_MODE_I32
 };
 EMITTER_OPCODE_TABLE(OPCODE_SET_ROUNDING_MODE, SET_ROUNDING_MODE_I32);
 
-void RegisterSequences() {
-  RegisterControl();
-  RegisterMemory();
-  RegisterVector();
-}
+// Include anchors to other sequence sources so they get included in the build.
+extern volatile int anchor_control;
+static int anchor_control_dest = anchor_control;
+
+extern volatile int anchor_memory;
+static int anchor_memory_dest = anchor_memory;
+
+extern volatile int anchor_vector;
+static int anchor_vector_dest = anchor_vector;
 
 bool SelectSequence(X64Emitter* e, const Instr* i, const Instr** new_tail) {
   const InstrKey key(i);
