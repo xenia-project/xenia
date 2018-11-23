@@ -10,10 +10,7 @@ permalink: /about/
 
 ## System Requirements
 
-* Windows 8 or later
-* Intel Sandy Bridge or Haswell processor (supporting AVX or AVX2)
-* A Vulkan compatible GPU (NVIDIA preferred)
-* An XInput-compatible controller
+See [here](faq/#system-requirements).
 
 ## Overview
 

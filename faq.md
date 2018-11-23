@@ -12,18 +12,15 @@ permalink: /faq/
 
 Yes, <a href="download/">choose a download</a>.
 
-Don't be an idiot and download a binary claiming to be of this project. In fact,
-don't be an idiot and download *any* binary claiming to be an Xbox 360 or PS3
-emulator from *any* source, especially not YouTube videos and shady websites.
-Come on people. Jeez.
-
 ## Xenia crashes when I run it!
 
+Make sure your PC meets the [system requirements](faq/#system-requirements) of Xenia.
 This project is in early development phases and is not meant to be used by those
 who aren't comfortable debugging the code. Issues filed with 'it's broken' are
 generally unhelpful, and in most cases the team knows what's broken (the
 assumption is everything). If it doesn't work for you and you cannot figure out
-why, come back in a few months/years when the project is more complete.
+why, come to the [Discord](https://discord.gg/5g93S8H) for community-provided
+support.
 
 ## I have a copy of the XDK. Do you want it?
 
@@ -31,22 +28,15 @@ No. Do not post links or downloads to such resources or you will be banned.
 
 ## System Requirements
 
-* Windows 8 or later
+* Windows 7 or later
 * 64-bit x86 processor supporting AVX
-* A Vulkan compatible GPU from [this list](http://vulkan.gpuinfo.org/) (NVIDIA recommended)
-* An XInput-compatible controller
+* Vulkan compatible GPU from [this list](https://vulkan.gpuinfo.org/) or
+a D3D12 compatible GPU.
+* (Optional) XInput-compatible controller
 
 Xenia will check for the minimum supported CPU and GPU on startup and error out
-if one is not detected. Check that your GPU is on [this list](http://vulkan.gpuinfo.org/)
-and that you have the latest drivers installed.
+if one is not detected, make sure that you have the latest drivers installed.
 **You cannot just remove the checks in the code and assume things will work.**
-
-### What kind of GPU do I need?
-
-Vulkan support and drivers are required. You can check if your GPU is supported by referencing [this list](http://vulkan.gpuinfo.org/).
-
-To get full speed and compatibility the project adapted to Vulkan.
-OpenGL is no longer supported in this project and deprecated.
 
 ### Can you add support for Windows Me? How about my Pentium II?
 
@@ -55,10 +45,10 @@ contributor steps up to build and maintain them. All active contributors are on
 modern systems and busy with higher priority tasks. Whether the emulator runs on
 Windows Vista or not doesn't matter if it can't run games.
 
-### Does Xenia run on Linux or OSX?
+### Does Xenia run on Linux or macOS?
 
 The project is designed to support non-Windows platforms but until it's running
-games it's not worth the maintenance burden. OSX will likely remain unsupported
+games it's not worth the maintenance burden. MacOS will likely remain unsupported
 until Apple supports Vulkan.
 
 There's only a few major pieces that need cleanup before a Linux port can
@@ -110,7 +100,6 @@ contributions are welcome.
 
 Here's a short list of common ones:
 
-* 'Why Python 2.7? 3 is awesome!' -- agreed, but git-clang-format needs 2.7.
 * 'Why this xb stuff?' -- I like it, it helps me. If you want to
 manually execute commands have fun, nothing is stopping you.
 * 'Why not just take the code from project X?' -- the point of this project
