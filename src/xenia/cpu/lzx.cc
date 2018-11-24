@@ -10,6 +10,7 @@
 #include "xenia/cpu/lzx.h"
 
 #include <algorithm>
+#include <climits>
 
 #include "xenia/base/byte_order.h"
 #include "xenia/base/logging.h"
