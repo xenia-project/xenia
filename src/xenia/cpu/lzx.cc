@@ -50,7 +50,7 @@ int mspack_memory_read(struct mspack_file* file, void* buffer, int chars) {
   mspack_memory_file* memfile = (mspack_memory_file*)file;
   const off_t remaining = memfile->buffer_size - memfile->offset;
   const off_t total = std::min(static_cast<off_t>(chars), remaining);
-  memcpy(buffer, (uint8_t*)memfile->buffer + memfile->offset, total);
+  std::memcpy(buffer, (uint8_t*)memfile->buffer + memfile->offset, total);
   memfile->offset += total;
   return (int)total;
 }
@@ -58,20 +58,20 @@ int mspack_memory_write(struct mspack_file* file, void* buffer, int chars) {
   mspack_memory_file* memfile = (mspack_memory_file*)file;
   const off_t remaining = memfile->buffer_size - memfile->offset;
   const off_t total = std::min(static_cast<off_t>(chars), remaining);
-  memcpy((uint8_t*)memfile->buffer + memfile->offset, buffer, total);
+  std::memcpy((uint8_t*)memfile->buffer + memfile->offset, buffer, total);
   memfile->offset += total;
   return (int)total;
 }
 void* mspack_memory_alloc(struct mspack_system* sys, size_t chars) {
-  return calloc(chars, 1);
+  return std::calloc(chars, 1);
 }
 void mspack_memory_free(void* ptr) { free(ptr); }
 void mspack_memory_copy(void* src, void* dest, size_t chars) {
-  memcpy(dest, src, chars);
+  std::memcpy(dest, src, chars);
 }
 struct mspack_system* mspack_memory_sys_create() {
   struct mspack_system* sys =
-      (struct mspack_system*)calloc(1, sizeof(struct mspack_system));
+      (struct mspack_system*)std::calloc(1, sizeof(struct mspack_system));
   if (!sys) {
     return NULL;
   }
@@ -109,9 +109,9 @@ int lzx_decompress(const void* lzx_data, size_t lzx_len, void* dest,
   if (lzxd) {
     if (window_data) {
       // zero the window and then copy window_data to the end of it
-      memset(lzxd->window, 0, window_data_len);
-      memcpy(lzxd->window + (window_size - window_data_len), window_data,
-             window_data_len);
+      std::memset(lzxd->window, 0, window_data_len);
+      std::memcpy(lzxd->window + (window_size - window_data_len), window_data,
+                  window_data_len);
     }
 
     result_code = lzxd_decompress(lzxd, (off_t)dest_len);
@@ -148,12 +148,13 @@ int lzxdelta_apply_patch(xe::xex2_delta_patch* patch, size_t patch_len,
       break;
     switch (cur_patch->compressed_len) {
       case 0:  // fill with 0
-        memset((char*)dest + cur_patch->new_addr, 0,
-               cur_patch->uncompressed_len);
+        std::memset((char*)dest + cur_patch->new_addr, 0,
+                    cur_patch->uncompressed_len);
         break;
       case 1:  // copy from old -> new
-        memcpy((char*)dest + cur_patch->new_addr,
-               (char*)dest + cur_patch->old_addr, cur_patch->uncompressed_len);
+        std::memcpy((char*)dest + cur_patch->new_addr,
+                    (char*)dest + cur_patch->old_addr,
+                    cur_patch->uncompressed_len);
         break;
       default:  // delta patch
         patch_sz =
