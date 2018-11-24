@@ -23,7 +23,7 @@ struct DeviceInfo {
   uint32_t device_type;
   uint64_t total_bytes;
   uint64_t free_bytes;
-  std::wstring name;
+  wchar_t name[28];
 };
 static const DeviceInfo dummy_device_info_ = {
     0xF00D0000,
@@ -57,7 +57,7 @@ dword_result_t XamContentGetDeviceName(dword_t device_id,
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }
 
-  if (name_capacity < dummy_device_info_.name.size() + 1) {
+  if (name_capacity < wcslen(dummy_device_info_.name) + 1) {
     return X_ERROR_INSUFFICIENT_BUFFER;
   }
 
@@ -173,6 +173,35 @@ dword_result_t XamContentCreateEnumerator(dword_t user_index, dword_t device_id,
   return X_ERROR_SUCCESS;
 }
 DECLARE_XAM_EXPORT1(XamContentCreateEnumerator, kContent, kImplemented);
+
+dword_result_t XamContentCreateDeviceEnumerator(dword_t content_type,
+                                                dword_t content_flags,
+                                                dword_t max_count,
+                                                lpdword_t buffer_size_ptr,
+                                                lpdword_t handle_out) {
+  assert_not_null(handle_out);
+
+  if (buffer_size_ptr) {
+    *buffer_size_ptr = sizeof(DeviceInfo) * max_count;
+  }
+
+  auto e = new XStaticEnumerator(kernel_state(), max_count, sizeof(DeviceInfo));
+  e->Initialize();
+
+  // Copy our dummy device into the enumerator
+  DeviceInfo* dev = (DeviceInfo*)e->AppendItem();
+  if (dev) {
+    xe::store_and_swap(&dev->device_id, dummy_device_info_.device_id);
+    xe::store_and_swap(&dev->device_type, dummy_device_info_.device_type);
+    xe::store_and_swap(&dev->total_bytes, dummy_device_info_.total_bytes);
+    xe::store_and_swap(&dev->free_bytes, dummy_device_info_.free_bytes);
+    xe::copy_and_swap(dev->name, dummy_device_info_.name, 28);
+  }
+
+  *handle_out = e->handle();
+  return X_ERROR_SUCCESS;
+}
+DECLARE_XAM_EXPORT1(XamContentCreateDeviceEnumerator, kNone, kImplemented);
 
 dword_result_t XamContentCreateEx(dword_t user_index, lpstring_t root_name,
                                   lpvoid_t content_data_ptr, dword_t flags,

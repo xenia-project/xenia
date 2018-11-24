@@ -170,6 +170,7 @@ class Value {
     constant.v128 = value;
   }
   void set_from(const Value* other) {
+    assert_true(other->IsConstant());
     type = other->type;
     flags = other->flags;
     constant.v128 = other->constant.v128;

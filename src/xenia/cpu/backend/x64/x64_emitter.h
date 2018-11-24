@@ -139,13 +139,13 @@ class X64Emitter : public Xbyak::CodeGenerator {
             std::vector<SourceMapEntry>* out_source_map);
 
  public:
-  // Reserved:  rsp
+  // Reserved:  rsp, rsi, rdi
   // Scratch:   rax/rcx/rdx
   //            xmm0-2
-  // Available: rbx, r12-r15 (save to get r8-r11, rbp, rsi, rdi?)
-  //            xmm6-xmm15 (save to get xmm3-xmm5)
-  static const int GPR_COUNT = 5;
-  static const int XMM_COUNT = 10;
+  // Available: rbx, r10-r15
+  //            xmm4-xmm15 (save to get xmm3)
+  static const int GPR_COUNT = 7;
+  static const int XMM_COUNT = 12;
 
   static void SetupReg(const hir::Value* v, Xbyak::Reg8& r) {
     auto idx = gpr_reg_map_[v->reg.index];
@@ -186,6 +186,8 @@ class X64Emitter : public Xbyak::CodeGenerator {
                   uint64_t arg0);
   void CallNativeSafe(void* fn);
   void SetReturnAddress(uint64_t value);
+
+  Xbyak::Reg64 GetNativeParam(uint32_t param);
 
   Xbyak::Reg64 GetContextReg();
   Xbyak::Reg64 GetMembaseReg();

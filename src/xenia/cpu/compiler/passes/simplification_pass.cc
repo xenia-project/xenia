@@ -23,17 +23,18 @@ using xe::cpu::hir::HIRBuilder;
 using xe::cpu::hir::Instr;
 using xe::cpu::hir::Value;
 
-SimplificationPass::SimplificationPass() : CompilerPass() {}
+SimplificationPass::SimplificationPass() : ConditionalGroupSubpass() {}
 
 SimplificationPass::~SimplificationPass() {}
 
-bool SimplificationPass::Run(HIRBuilder* builder) {
-  EliminateConversions(builder);
-  SimplifyAssignments(builder);
+bool SimplificationPass::Run(HIRBuilder* builder, bool& result) {
+  result = false;
+  result |= EliminateConversions(builder);
+  result |= SimplifyAssignments(builder);
   return true;
 }
 
-void SimplificationPass::EliminateConversions(HIRBuilder* builder) {
+bool SimplificationPass::EliminateConversions(HIRBuilder* builder) {
   // First, we check for truncates/extensions that can be skipped.
   // This generates some assignments which then the second step will clean up.
   // Both zero/sign extends can be skipped:
@@ -43,6 +44,7 @@ void SimplificationPass::EliminateConversions(HIRBuilder* builder) {
   //   v1.i64 = zero/sign_extend v0.i32 (may be dead code removed later)
   //   v2.i32 = v0.i32
 
+  bool result = false;
   auto block = builder->first_block();
   while (block) {
     auto i = block->instr_head;
@@ -51,20 +53,21 @@ void SimplificationPass::EliminateConversions(HIRBuilder* builder) {
       // back to definition).
       if (i->opcode == &OPCODE_TRUNCATE_info) {
         // Matches zero/sign_extend + truncate.
-        CheckTruncate(i);
+        result |= CheckTruncate(i);
       } else if (i->opcode == &OPCODE_BYTE_SWAP_info) {
         // Matches byte swap + byte swap.
         // This is pretty rare within the same basic block, but is in the
         // memcpy hot path and (probably) worth it. Maybe.
-        CheckByteSwap(i);
+        result |= CheckByteSwap(i);
       }
       i = i->next;
     }
     block = block->next;
   }
+  return result;
 }
 
-void SimplificationPass::CheckTruncate(Instr* i) {
+bool SimplificationPass::CheckTruncate(Instr* i) {
   // Walk backward up src's chain looking for an extend. We may have
   // assigns, so skip those.
   auto src = i->src1.value;
@@ -80,6 +83,7 @@ void SimplificationPass::CheckTruncate(Instr* i) {
         // Types match, use original by turning this into an assign.
         i->Replace(&OPCODE_ASSIGN_info, 0);
         i->set_src1(def->src1.value);
+        return true;
       }
     } else if (def->opcode == &OPCODE_ZERO_EXTEND_info) {
       // Value comes from a zero extend.
@@ -87,12 +91,14 @@ void SimplificationPass::CheckTruncate(Instr* i) {
         // Types match, use original by turning this into an assign.
         i->Replace(&OPCODE_ASSIGN_info, 0);
         i->set_src1(def->src1.value);
+        return true;
       }
     }
   }
+  return false;
 }
 
-void SimplificationPass::CheckByteSwap(Instr* i) {
+bool SimplificationPass::CheckByteSwap(Instr* i) {
   // Walk backward up src's chain looking for a byte swap. We may have
   // assigns, so skip those.
   auto src = i->src1.value;
@@ -107,11 +113,13 @@ void SimplificationPass::CheckByteSwap(Instr* i) {
       // Types match, use original by turning this into an assign.
       i->Replace(&OPCODE_ASSIGN_info, 0);
       i->set_src1(def->src1.value);
+      return true;
     }
   }
+  return false;
 }
 
-void SimplificationPass::SimplifyAssignments(HIRBuilder* builder) {
+bool SimplificationPass::SimplifyAssignments(HIRBuilder* builder) {
   // Run over the instructions and rename assigned variables:
   //   v1 = v0
   //   v2 = v1
@@ -129,27 +137,35 @@ void SimplificationPass::SimplifyAssignments(HIRBuilder* builder) {
   // of that instr. Because we may have chains, we do this recursively until
   // we find a non-assign def.
 
+  bool result = false;
   auto block = builder->first_block();
   while (block) {
     auto i = block->instr_head;
     while (i) {
       uint32_t signature = i->opcode->signature;
       if (GET_OPCODE_SIG_TYPE_SRC1(signature) == OPCODE_SIG_TYPE_V) {
-        i->set_src1(CheckValue(i->src1.value));
+        bool modified = false;
+        i->set_src1(CheckValue(i->src1.value, modified));
+        result |= modified;
       }
       if (GET_OPCODE_SIG_TYPE_SRC2(signature) == OPCODE_SIG_TYPE_V) {
-        i->set_src2(CheckValue(i->src2.value));
+        bool modified = false;
+        i->set_src2(CheckValue(i->src2.value, modified));
+        result |= modified;
       }
       if (GET_OPCODE_SIG_TYPE_SRC3(signature) == OPCODE_SIG_TYPE_V) {
-        i->set_src3(CheckValue(i->src3.value));
+        bool modified = false;
+        i->set_src3(CheckValue(i->src3.value, modified));
+        result |= modified;
       }
       i = i->next;
     }
     block = block->next;
   }
+  return result;
 }
 
-Value* SimplificationPass::CheckValue(Value* value) {
+Value* SimplificationPass::CheckValue(Value* value, bool& result) {
   auto def = value->def;
   if (def && def->opcode == &OPCODE_ASSIGN_info) {
     // Value comes from an assignment - recursively find if it comes from
@@ -162,8 +178,10 @@ Value* SimplificationPass::CheckValue(Value* value) {
       }
       replacement = def->src1.value;
     }
+    result = true;
     return replacement;
   }
+  result = false;
   return value;
 }
 
