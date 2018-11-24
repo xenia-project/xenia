@@ -1144,9 +1144,8 @@ bool XexModule::LoadContinue() {
       }
     }
 
-    auto library_data = reinterpret_cast<uint8_t*>(opt_import_libraries) +
-                        opt_import_libraries->string_table.size + 12;
-    uint32_t library_offset = 0;
+    auto library_data = reinterpret_cast<uint8_t*>(opt_import_libraries);
+    uint32_t library_offset = opt_import_libraries->string_table.size + 12;
     while (library_offset < opt_import_libraries->size) {
       auto library =
           reinterpret_cast<xex2_import_library*>(library_data + library_offset);
