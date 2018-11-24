@@ -502,9 +502,8 @@ void UserModule::Dump() {
         }
 
         auto library_data =
-            reinterpret_cast<const uint8_t*>(opt_import_libraries) +
-            opt_import_libraries->string_table.size + 12;
-        uint32_t library_offset = 0;
+            reinterpret_cast<const uint8_t*>(opt_import_libraries);
+        uint32_t library_offset = opt_import_libraries->string_table.size + 12;
         while (library_offset < opt_import_libraries->size) {
           auto library = reinterpret_cast<const xex2_import_library*>(
               library_data + library_offset);
