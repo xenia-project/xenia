@@ -8,6 +8,7 @@ project("xenia-cpu")
   language("C++")
   links({
     "xenia-base",
+    "mspack",
   })
   includedirs({
     project_root.."/third_party/llvm/include",

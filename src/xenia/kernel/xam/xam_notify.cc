@@ -18,7 +18,8 @@ namespace xe {
 namespace kernel {
 namespace xam {
 
-dword_result_t XamNotifyCreateListener(qword_t mask, dword_t one) {
+dword_result_t XamNotifyCreateListenerInternal(qword_t mask, dword_t unk,
+                                               dword_t one) {
   // r4=1 may indicate user process?
 
   auto listener =
@@ -29,6 +30,12 @@ dword_result_t XamNotifyCreateListener(qword_t mask, dword_t one) {
   uint32_t handle = listener->handle();
 
   return handle;
+}
+DECLARE_XAM_EXPORT2(XamNotifyCreateListenerInternal, kNone, kImplemented,
+                    kSketchy);
+
+dword_result_t XamNotifyCreateListener(qword_t mask, dword_t one) {
+  return XamNotifyCreateListenerInternal(mask, 0, one);
 }
 DECLARE_XAM_EXPORT1(XamNotifyCreateListener, kNone, kImplemented);
 
