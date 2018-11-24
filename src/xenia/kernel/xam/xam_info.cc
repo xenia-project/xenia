@@ -28,28 +28,30 @@ namespace xam {
 constexpr uint32_t X_LANGUAGE_ENGLISH = 1;
 constexpr uint32_t X_LANGUAGE_JAPANESE = 2;
 
+// Empty stub schema binary.
+uint8_t schema_bin[] = {
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x2C, 0x00, 0x00, 0x00, 0x2C, 0x00, 0x00,
+    0x00, 0x2C, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x2C, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x2C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x18,
+};
+
 dword_result_t XamGetOnlineSchema() {
   static uint32_t schema_guest = 0;
-  static uint32_t schema_ptr_guest = 0;
 
   if (!schema_guest) {
-    // create a dummy schema, 8 bytes of 0 seems to work fine
-    // (with another 8 bytes for schema ptr/schema size)
-    schema_guest = kernel_state()->memory()->SystemHeapAlloc(16);
-    schema_ptr_guest = schema_guest + 8;
-
+    schema_guest =
+        kernel_state()->memory()->SystemHeapAlloc(8 + sizeof(schema_bin));
     auto schema = kernel_state()->memory()->TranslateVirtual(schema_guest);
-    memset(schema, 0, 16);
-
-    // store schema ptr + size
-    xe::store_and_swap<uint32_t>(schema + 0x8, schema_guest);
-    xe::store_and_swap<uint32_t>(schema + 0xC, 0x8);
+    std::memcpy(schema + 8, schema_bin, sizeof(schema_bin));
+    xe::store_and_swap<uint32_t>(schema + 0, schema_guest + 8);
+    xe::store_and_swap<uint32_t>(schema + 4, sizeof(schema_bin));
   }
 
   // return pointer to the schema ptr/schema size struct
-  return schema_ptr_guest;
+  return schema_guest;
 }
-DECLARE_XAM_EXPORT2(XamGetOnlineSchema, kNone, kImplemented, kSketchy);
+DECLARE_XAM_EXPORT1(XamGetOnlineSchema, kNone, kImplemented);
 
 void XamFormatDateString(dword_t unk, qword_t filetime, lpvoid_t buffer,
                          dword_t buffer_length) {
