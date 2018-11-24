@@ -112,6 +112,7 @@ int lzx_decompress(const void* lzx_data, size_t lzx_len, void* dest,
       std::memset(lzxd->window, 0, window_data_len);
       std::memcpy(lzxd->window + (window_size - window_data_len), window_data,
                   window_data_len);
+      lzxd->ref_data_size = (uint32_t)window_data_len;
     }
 
     result_code = lzxd_decompress(lzxd, (off_t)dest_len);
