@@ -156,9 +156,12 @@ class Logger {
   void WriteThread() {
     RingBuffer rb(buffer_, kBufferSize);
     uint32_t idle_loops = 0;
-    while (running_) {
+    while (true) {
       bool did_write = false;
       rb.set_write_offset(write_tail_);
+      if (!running_ && rb.empty()) {
+        break;
+      }
       while (!rb.empty()) {
         did_write = true;
 
