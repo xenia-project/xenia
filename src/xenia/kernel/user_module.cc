@@ -490,7 +490,7 @@ void UserModule::Dump() {
                                   o < opt_import_libraries->string_table.count;
              o++) {
           assert_true(o < xe::countof(string_table));
-          const char* str = &opt_import_libraries->string_table.data[o];
+          const char* str = &opt_import_libraries->string_table.data[j];
 
           string_table[o] = str;
           j += std::strlen(str) + 1;
