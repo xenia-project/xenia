@@ -26,4 +26,4 @@ int lzx_decompress(const void* lzx_data, size_t lzx_len, void* dest,
 int lzxdelta_apply_patch(xe::xex2_delta_patch* patch, size_t patch_len,
                          uint32_t window_size, void* dest);
 
-#endif  // XENIA_CPU_XEX_MODULE_H_
+#endif  // XENIA_CPU_LZX_H_
