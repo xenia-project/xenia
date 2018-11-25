@@ -128,16 +128,17 @@ filter({"platforms:Linux", "toolset:gcc"})
   end
 
 filter({"platforms:Linux", "language:C++", "toolset:clang"})
-  buildoptions({
-    "-std=c++14",
-    "-stdlib=libstdc++",
-  })
   links({
     "c++",
     "c++abi"
   })
   disablewarnings({
     "deprecated-register"
+  })
+filter({"platforms:Linux", "language:C++", "toolset:clang", "files:*.cc or *.cpp"})
+  buildoptions({
+    "-std=c++14",
+    "-stdlib=libstdc++",
   })
 
 filter("platforms:Windows")
