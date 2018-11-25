@@ -19,19 +19,18 @@ struct X_KEVENT;
 
 namespace xboxkrnl {
 
-dword_result_t NtSetEvent(dword_t handle, lpdword_t previous_state_ptr);
-dword_result_t NtClearEvent(dword_t handle);
+uint32_t xeNtSetEvent(uint32_t handle, xe::be<uint32_t>* previous_state_ptr);
+uint32_t xeNtClearEvent(uint32_t handle);
 
-dword_result_t NtWaitForMultipleObjectsEx(dword_t count, lpdword_t handles,
-                                          dword_t wait_type, dword_t wait_mode,
-                                          dword_t alertable,
-                                          lpqword_t timeout_ptr);
+uint32_t xeNtWaitForMultipleObjectsEx(uint32_t count, xe::be<uint32_t>* handles,
+                                      uint32_t wait_type, uint32_t wait_mode,
+                                      uint32_t alertable,
+                                      uint64_t* timeout_ptr);
 
-dword_result_t KeWaitForSingleObject(lpvoid_t object_ptr, dword_t wait_reason,
-                                     dword_t processor_mode, dword_t alertable,
-                                     lpqword_t timeout_ptr);
-dword_result_t KeSetEvent(pointer_t<X_KEVENT> event_ptr, dword_t increment,
-                          dword_t wait);
+uint32_t xeKeWaitForSingleObject(void* object_ptr, uint32_t wait_reason,
+                                 uint32_t processor_mode, uint32_t alertable,
+                                 uint64_t* timeout_ptr);
+uint32_t xeKeSetEvent(X_KEVENT* event_ptr, uint32_t increment, uint32_t wait);
 
 }  // namespace xboxkrnl
 }  // namespace kernel
