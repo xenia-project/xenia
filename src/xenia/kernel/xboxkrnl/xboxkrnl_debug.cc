@@ -31,49 +31,101 @@ typedef struct {
 } X_THREADNAME_INFO;
 static_assert_size(X_THREADNAME_INFO, 0x10);
 
-void RtlRaiseException(pointer_t<X_EXCEPTION_RECORD> record) {
-  if (record->exception_code == 0x406D1388) {
-    // SetThreadName. FFS.
-    // https://msdn.microsoft.com/en-us/library/xcb2z8hs.aspx
+void HandleSetThreadName(pointer_t<X_EXCEPTION_RECORD> record) {
+  // SetThreadName. FFS.
+  // https://msdn.microsoft.com/en-us/library/xcb2z8hs.aspx
 
-    // TODO(benvanik): check record->number_parameters to make sure it's a
-    // correct size.
-    auto thread_info =
-        reinterpret_cast<X_THREADNAME_INFO*>(&record->exception_information[0]);
+  // TODO(benvanik): check record->number_parameters to make sure it's a
+  // correct size.
+  auto thread_info =
+      reinterpret_cast<X_THREADNAME_INFO*>(&record->exception_information[0]);
 
-    assert_true(thread_info->type == 0x1000);
+  assert_true(thread_info->type == 0x1000);
 
-    if (!thread_info->name_ptr) {
-      XELOGD("SetThreadName called with null name_ptr");
-      return;
-    }
-
-    auto name =
-        kernel_memory()->TranslateVirtual<const char*>(thread_info->name_ptr);
-
-    object_ref<XThread> thread;
-    if (thread_info->thread_id == -1) {
-      // Current thread.
-      thread = retain_object(XThread::GetCurrentThread());
-    } else {
-      // Lookup thread by ID.
-      thread = kernel_state()->GetThreadByID(thread_info->thread_id);
-    }
-
-    if (thread) {
-      XELOGD("SetThreadName(%d, %s)", thread->thread_id(), name);
-      thread->set_name(name);
-    }
-
-    // TODO(benvanik): unwinding required here?
+  if (!thread_info->name_ptr) {
+    XELOGD("SetThreadName called with null name_ptr");
     return;
   }
 
-  if (record->exception_code == 0xE06D7363) {
-    // C++ exception.
-    // https://blogs.msdn.com/b/oldnewthing/archive/2010/07/30/10044061.aspx
-    xe::debugging::Break();
-    return;
+  auto name =
+      kernel_memory()->TranslateVirtual<const char*>(thread_info->name_ptr);
+
+  object_ref<XThread> thread;
+  if (thread_info->thread_id == -1) {
+    // Current thread.
+    thread = retain_object(XThread::GetCurrentThread());
+  } else {
+    // Lookup thread by ID.
+    thread = kernel_state()->GetThreadByID(thread_info->thread_id);
+  }
+
+  if (thread) {
+    XELOGD("SetThreadName(%d, %s)", thread->thread_id(), name);
+    thread->set_name(name);
+  }
+
+  // TODO(benvanik): unwinding required here?
+}
+
+typedef struct {
+  xe::be<int32_t> mdisp;
+  xe::be<int32_t> pdisp;
+  xe::be<int32_t> vdisp;
+} x_PMD;
+
+typedef struct {
+  xe::be<uint32_t> properties;
+  xe::be<uint32_t> type_ptr;
+  x_PMD this_displacement;
+  xe::be<int32_t> size_or_offset;
+  xe::be<uint32_t> copy_function_ptr;
+} x_s__CatchableType;
+
+typedef struct {
+  xe::be<int32_t> number_catchable_types;
+  xe::be<uint32_t> catchable_type_ptrs[1];
+} x_s__CatchableTypeArray;
+
+typedef struct {
+  xe::be<uint32_t> attributes;
+  xe::be<uint32_t> unwind_ptr;
+  xe::be<uint32_t> forward_compat_ptr;
+  xe::be<uint32_t> catchable_type_array_ptr;
+} x_s__ThrowInfo;
+
+void HandleCppException(pointer_t<X_EXCEPTION_RECORD> record) {
+  // C++ exception.
+  // https://blogs.msdn.com/b/oldnewthing/archive/2010/07/30/10044061.aspx
+  // http://www.drdobbs.com/visual-c-exception-handling-instrumentat/184416600
+  // http://www.openrce.org/articles/full_view/21
+
+  assert_true(record->number_parameters == 3);
+  assert_true(record->exception_information[0] == 0x19930520);
+
+  auto thrown_ptr = record->exception_information[1];
+  auto thrown = kernel_memory()->TranslateVirtual(thrown_ptr);
+  auto vftable_ptr = *reinterpret_cast<xe::be<uint32_t>*>(thrown);
+
+  auto throw_info_ptr = record->exception_information[2];
+  auto throw_info =
+      kernel_memory()->TranslateVirtual<x_s__ThrowInfo*>(throw_info_ptr);
+  auto catchable_types =
+      kernel_memory()->TranslateVirtual<x_s__CatchableTypeArray*>(
+          throw_info->catchable_type_array_ptr);
+
+  xe::debugging::Break();
+}
+
+void RtlRaiseException(pointer_t<X_EXCEPTION_RECORD> record) {
+  switch (record->exception_code) {
+    case 0x406D1388: {
+      HandleSetThreadName(record);
+      return;
+    }
+    case 0xE06D7363: {
+      HandleCppException(record);
+      return;
+    }
   }
 
   // TODO(benvanik): unwinding.
