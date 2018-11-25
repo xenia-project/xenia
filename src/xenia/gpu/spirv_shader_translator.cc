@@ -491,7 +491,7 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
     b.addExecutionMode(mainFn, spv::ExecutionModeOriginUpperLeft);
 
     // If we write a new depth value, we must declare this mode!
-    if (writes_depth_) {
+    if (writes_depth()) {
       b.addExecutionMode(mainFn, spv::ExecutionModeDepthReplacing);
     }
 
@@ -648,7 +648,6 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
 
   // Cleanup builder.
   cf_blocks_.clear();
-  writes_depth_ = false;
   loop_head_block_ = nullptr;
   loop_body_block_ = nullptr;
   loop_cont_block_ = nullptr;
@@ -3339,7 +3338,6 @@ void SpirvShaderTranslator::StoreToResult(Id source_value_id,
       storage_type = float_type_;
       storage_offsets.push_back(0);
       storage_array = false;
-      writes_depth_ = true;
       break;
     case InstructionStorageTarget::kNone:
       assert_always();

@@ -62,6 +62,7 @@ void ShaderTranslator::Reset() {
   for (size_t i = 0; i < xe::countof(writes_color_targets_); ++i) {
     writes_color_targets_[i] = false;
   }
+  writes_depth_ = false;
 }
 
 bool ShaderTranslator::GatherAllBindingInformation(Shader* shader) {
@@ -274,8 +275,12 @@ void ShaderTranslator::GatherInstructionInformation(
               }
             }
             if (op.is_export()) {
-              if (is_pixel_shader() && op.vector_dest() <= 3) {
-                writes_color_targets_[op.vector_dest()] = true;
+              if (is_pixel_shader()) {
+                if (op.vector_dest() <= 3) {
+                  writes_color_targets_[op.vector_dest()] = true;
+                } else if (op.vector_dest() == 61) {
+                  writes_depth_ = true;
+                }
               }
             } else {
               if (op.is_vector_dest_relative()) {
@@ -291,8 +296,12 @@ void ShaderTranslator::GatherInstructionInformation(
               uses_register_dynamic_addressing_ = true;
             }
             if (op.is_export()) {
-              if (is_pixel_shader() && op.scalar_dest() <= 3) {
-                writes_color_targets_[op.scalar_dest()] = true;
+              if (is_pixel_shader()) {
+                if (op.scalar_dest() <= 3) {
+                  writes_color_targets_[op.scalar_dest()] = true;
+                } else if (op.scalar_dest() == 61) {
+                  writes_depth_ = true;
+                }
               }
             } else {
               if (op.is_scalar_dest_relative()) {

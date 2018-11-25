@@ -531,13 +531,15 @@ PipelineCache::UpdateStatus PipelineCache::UpdateRasterizerState(
   // the D3D12 command processor will drop such draw early.
   bool fill_mode_wireframe = false;
   float poly_offset = 0.0f, poly_offset_scale = 0.0f;
+  // With ROV, the depth bias is applied in the pixel shader because per-sample
+  // depth is needed for MSAA.
   if (!(cull_mode & 1)) {
     // Front faces aren't culled.
     uint32_t fill_mode = (pa_su_sc_mode_cntl >> 5) & 0x7;
     if (fill_mode == 0 || fill_mode == 1) {
       fill_mode_wireframe = true;
     }
-    if ((pa_su_sc_mode_cntl >> 11) & 0x1) {
+    if (!edram_rov_used_ && ((pa_su_sc_mode_cntl >> 11) & 0x1)) {
       poly_offset =
           register_file_->values[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_OFFSET].f32;
       poly_offset_scale =
@@ -550,39 +552,42 @@ PipelineCache::UpdateStatus PipelineCache::UpdateRasterizerState(
     if (fill_mode == 0 || fill_mode == 1) {
       fill_mode_wireframe = true;
     }
-    // Prefer front depth bias because in general, front faces are the ones that
-    // are rendered (except for shadow volumes).
-    if (((pa_su_sc_mode_cntl >> 12) & 0x1) && poly_offset == 0.0f &&
-        poly_offset_scale == 0.0f) {
+    // Prefer front depth bias because in general, front faces are the ones
+    // that are rendered (except for shadow volumes).
+    if (!edram_rov_used_ && ((pa_su_sc_mode_cntl >> 12) & 0x1) &&
+        poly_offset == 0.0f && poly_offset_scale == 0.0f) {
       poly_offset =
           register_file_->values[XE_GPU_REG_PA_SU_POLY_OFFSET_BACK_OFFSET].f32;
       poly_offset_scale =
           register_file_->values[XE_GPU_REG_PA_SU_POLY_OFFSET_BACK_SCALE].f32;
     }
   }
-  // Conversion based on the calculations in Call of Duty 4 and the values it
-  // writes to the registers, and also on:
-  // https://github.com/mesa3d/mesa/blob/54ad9b444c8e73da498211870e785239ad3ff1aa/src/gallium/drivers/radeonsi/si_state.c#L943
-  // Dividing the scale by 2 - Call of Duty 4 sets the constant bias of 1/32768
-  // for decals, however, it's done in two steps in separate places: first it's
-  // divided by 65536, and then it's multiplied by 2 (which is consistent with
-  // what si_create_rs_state does, which multiplies the offset by 2 if it comes
-  // from a non-D3D9 API for 24-bit depth buffers) - and multiplying by 2 to the
-  // number of significand bits. Tested mostly in Call of Duty 4 (vehicledamage
-  // map explosion decals) and Red Dead Redemption (shadows - 2^17 is not
-  // enough, 2^18 hasn't been tested, but 2^19 eliminates the acne).
-  if (((register_file_->values[XE_GPU_REG_RB_DEPTH_INFO].u32 >> 16) & 0x1) ==
-      uint32_t(DepthRenderTargetFormat::kD24FS8)) {
-    poly_offset *= float(1 << 19);
-  } else {
-    poly_offset *= float(1 << 23);
-  }
-  // Reversed depth is emulated in vertex shaders because MinDepth > MaxDepth
-  // in viewports doesn't seem to work on Nvidia.
-  if ((register_file_->values[XE_GPU_REG_PA_CL_VTE_CNTL].u32 & (1 << 4)) &&
-      register_file_->values[XE_GPU_REG_PA_CL_VPORT_ZSCALE].f32 < 0.0f) {
-    poly_offset = -poly_offset;
-    poly_offset_scale = -poly_offset_scale;
+  if (!edram_rov_used_) {
+    // Conversion based on the calculations in Call of Duty 4 and the values it
+    // writes to the registers, and also on:
+    // https://github.com/mesa3d/mesa/blob/54ad9b444c8e73da498211870e785239ad3ff1aa/src/gallium/drivers/radeonsi/si_state.c#L943
+    // Dividing the scale by 2 - Call of Duty 4 sets the constant bias of
+    // 1/32768 for decals, however, it's done in two steps in separate places:
+    // first it's divided by 65536, and then it's multiplied by 2 (which is
+    // consistent with what si_create_rs_state does, which multiplies the offset
+    // by 2 if it comes from a non-D3D9 API for 24-bit depth buffers) - and
+    // multiplying by 2 to the number of significand bits. Tested mostly in Call
+    // of Duty 4 (vehicledamage map explosion decals) and Red Dead Redemption
+    // (shadows - 2^17 is not enough, 2^18 hasn't been tested, but 2^19
+    // eliminates the acne).
+    if (((register_file_->values[XE_GPU_REG_RB_DEPTH_INFO].u32 >> 16) & 0x1) ==
+        uint32_t(DepthRenderTargetFormat::kD24FS8)) {
+      poly_offset *= float(1 << 19);
+    } else {
+      poly_offset *= float(1 << 23);
+    }
+    // Reversed depth is emulated in vertex shaders because MinDepth > MaxDepth
+    // in viewports doesn't seem to work on Nvidia.
+    if ((register_file_->values[XE_GPU_REG_PA_CL_VTE_CNTL].u32 & (1 << 4)) &&
+        register_file_->values[XE_GPU_REG_PA_CL_VPORT_ZSCALE].f32 < 0.0f) {
+      poly_offset = -poly_offset;
+      poly_offset_scale = -poly_offset_scale;
+    }
   }
   if (((pa_su_sc_mode_cntl >> 3) & 0x3) == 0) {
     // Fill mode is disabled.
@@ -609,6 +614,14 @@ PipelineCache::UpdateStatus PipelineCache::UpdateRasterizerState(
   // Disable rendering in command processor if regs.pa_cl_clip_cntl & (1 << 22)?
   dirty |= regs.depth_clamp_enable != depth_clamp_enable;
   regs.depth_clamp_enable = depth_clamp_enable;
+  bool msaa_rov = false;
+  if (edram_rov_used_) {
+    if ((register_file_->values[XE_GPU_REG_RB_SURFACE_INFO].u32 >> 16) & 0x3) {
+      msaa_rov = true;
+    }
+    dirty |= regs.msaa_rov != msaa_rov;
+    regs.msaa_rov = msaa_rov;
+  }
   XXH64_update(&hash_state_, &regs, sizeof(regs));
   if (!dirty) {
     return UpdateStatus::kCompatible;
@@ -636,7 +649,15 @@ PipelineCache::UpdateStatus PipelineCache::UpdateRasterizerState(
       poly_offset_scale * (1.0f / 16.0f);
   update_desc_.RasterizerState.DepthClipEnable =
       !depth_clamp_enable ? TRUE : FALSE;
-  update_desc_.RasterizerState.ForcedSampleCount = edram_rov_used_ ? 1 : 0;
+  if (edram_rov_used_) {
+    // Only 1, 4, 8 and (not on all GPUs) 16 are allowed, using sample 0 as 0
+    // and 3 as 1 for 2x instead (not exactly the same sample positions, but
+    // still top-left and bottom-right - however, this can be adjusted with
+    // programmable sample positions).
+    update_desc_.RasterizerState.ForcedSampleCount = msaa_rov ? 4 : 1;
+  } else {
+    update_desc_.RasterizerState.ForcedSampleCount = 0;
+  }
 
   return UpdateStatus::kMismatch;
 }

@@ -3,13 +3,14 @@
 [maxvertexcount(6)]
 void main(triangle XeVertex xe_in[3],
           inout TriangleStream<XeVertex> xe_stream) {
-  XeVertex xe_out;
-
   xe_stream.Append(xe_in[0]);
   xe_stream.Append(xe_in[1]);
   xe_stream.Append(xe_in[2]);
   xe_stream.RestartStrip();
 
+  XeVertex xe_out;
+  xe_out.point_params.z = xe_in[2].point_params.z;
+  xe_out.clip_space_zw = xe_in[2].clip_space_zw;
   // Most games use a left-aligned form.
   [branch] if (all(xe_in[0].position.xy ==
                    float2(xe_in[2].position.x, xe_in[1].position.y)) ||
@@ -61,7 +62,6 @@ void main(triangle XeVertex xe_in[3],
                              xe_in[2].position.xy,
                              xe_in[2].position.zw);
   }
-  xe_out.point_params.z = xe_in[2].point_params.z;
   xe_stream.Append(xe_out);
   xe_stream.RestartStrip();
 }
