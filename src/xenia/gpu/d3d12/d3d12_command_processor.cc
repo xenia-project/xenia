@@ -28,10 +28,11 @@
 // may be blurry or have texture sampling artifacts, in this case the user may
 // disable half-pixel offset by setting this to false.
 DEFINE_bool(d3d12_half_pixel_offset, true,
-            "Enable half-pixel vertex and VPOS offset");
-// Disabled because the current positions look worse than sampling at centers.
+            "Enable half-pixel vertex and VPOS offset.");
 DEFINE_bool(d3d12_programmable_sample_positions, false,
-            "Enable custom SSAA sample positions where available");
+            "Enable custom SSAA sample positions for the RTV/DSV rendering "
+            "path where available instead of centers (experimental, not very "
+            "high-quality).");
 DEFINE_bool(d3d12_rov, true,
             "Use rasterizer-ordered views for render target emulation where "
             "available.");
@@ -538,7 +539,12 @@ void D3D12CommandProcessor::SetSamplePositions(MsaaSamples sample_positions) {
   if (current_sample_positions_ == sample_positions) {
     return;
   }
-  if (FLAGS_d3d12_programmable_sample_positions) {
+  // Evaluating attributes by sample index - which is done for per-sample
+  // depth - is undefined with programmable sample positions, so can't use them
+  // for ROV output. There's hardly any difference between 2,6 (of 0 and 3 with
+  // 4x MSAA) and 4,4 anyway.
+  // https://docs.microsoft.com/en-us/windows/desktop/api/d3d12/nf-d3d12-id3d12graphicscommandlist1-setsamplepositions
+  if (FLAGS_d3d12_programmable_sample_positions && !IsROVUsedForEDRAM()) {
     auto provider = GetD3D12Context()->GetD3D12Provider();
     auto tier = provider->GetProgrammableSamplePositionsTier();
     auto command_list = GetCurrentCommandList1();
@@ -1222,6 +1228,7 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
 
   // Update system constants before uploading them.
   UpdateSystemConstantValues(
+      primitive_type,
       indexed ? index_buffer_info->endianness : Endian::kUnspecified,
       color_mask, pipeline_render_targets);
 
@@ -1477,11 +1484,17 @@ void D3D12CommandProcessor::UpdateFixedFunctionState(
   }
 
   // Supersampling replacing multisampling due to difficulties of emulating
-  // EDRAM with multisampling.
-  MsaaSamples msaa_samples =
-      MsaaSamples((regs[XE_GPU_REG_RB_SURFACE_INFO].u32 >> 16) & 0x3);
-  uint32_t ssaa_scale_x = msaa_samples >= MsaaSamples::k4X ? 2 : 1;
-  uint32_t ssaa_scale_y = msaa_samples >= MsaaSamples::k2X ? 2 : 1;
+  // EDRAM with multisampling with RTV/DSV (with ROV, there's MSAA).
+  uint32_t ssaa_scale_x, ssaa_scale_y;
+  if (IsROVUsedForEDRAM()) {
+    ssaa_scale_x = 1;
+    ssaa_scale_y = 1;
+  } else {
+    MsaaSamples msaa_samples =
+        MsaaSamples((regs[XE_GPU_REG_RB_SURFACE_INFO].u32 >> 16) & 0x3);
+    ssaa_scale_x = msaa_samples >= MsaaSamples::k4X ? 2 : 1;
+    ssaa_scale_y = msaa_samples >= MsaaSamples::k2X ? 2 : 1;
+  }
 
   // Viewport.
   // PA_CL_VTE_CNTL contains whether offsets and scales are enabled.
@@ -1607,7 +1620,7 @@ void D3D12CommandProcessor::UpdateFixedFunctionState(
 }
 
 void D3D12CommandProcessor::UpdateSystemConstantValues(
-    Endian index_endian, uint32_t color_mask,
+    PrimitiveType primitive_type, Endian index_endian, uint32_t color_mask,
     const RenderTargetCache::PipelineRenderTarget render_targets[4]) {
   auto& regs = *register_file_;
 
@@ -1629,6 +1642,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   uint32_t rb_surface_info = regs[XE_GPU_REG_RB_SURFACE_INFO].u32;
   uint32_t rb_colorcontrol = regs[XE_GPU_REG_RB_COLORCONTROL].u32;
   uint32_t rb_alpha_ref = regs[XE_GPU_REG_RB_ALPHA_REF].u32;
+  uint32_t pa_su_sc_mode_cntl = regs[XE_GPU_REG_PA_SU_SC_MODE_CNTL].u32;
 
   // Get the color info register values for each render target, and also put
   // some safety measures for the ROV path - disable fully aliased render
@@ -1695,6 +1709,11 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
     }
   }
 
+  // Get viewport Z scale - needed for flags and ROV output.
+  float viewport_scale_z = (pa_cl_vte_cntl & (1 << 4))
+                               ? regs[XE_GPU_REG_PA_CL_VPORT_ZSCALE].f32
+                               : 1.0f;
+
   bool dirty = false;
 
   // Flags.
@@ -1717,8 +1736,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
     flags |= DxbcShaderTranslator::kSysFlag_WNotReciprocal;
   }
   // Reversed depth.
-  if ((pa_cl_vte_cntl & (1 << 4)) &&
-      regs[XE_GPU_REG_PA_CL_VPORT_ZSCALE].f32 < 0.0f) {
+  if (viewport_scale_z < 0.0f) {
     flags |= DxbcShaderTranslator::kSysFlag_ReverseZ;
   }
   // Gamma writing.
@@ -1880,14 +1898,15 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   dirty |= system_constants_.pixel_pos_reg != pixel_pos_reg;
   system_constants_.pixel_pos_reg = pixel_pos_reg;
 
-  // Supersampling anti-aliasing pixel scale inverse for pixel positions.
+  // Log2 of sample count, for scaling VPOS with SSAA (without ROV) and for
+  // EDRAM address calculation with MSAA (with ROV).
   MsaaSamples msaa_samples = MsaaSamples((rb_surface_info >> 16) & 0x3);
-  float ssaa_inv_scale_x = msaa_samples >= MsaaSamples::k4X ? 0.5f : 1.0f;
-  float ssaa_inv_scale_y = msaa_samples >= MsaaSamples::k2X ? 0.5f : 1.0f;
-  dirty |= system_constants_.ssaa_inv_scale[0] != ssaa_inv_scale_x;
-  dirty |= system_constants_.ssaa_inv_scale[1] != ssaa_inv_scale_y;
-  system_constants_.ssaa_inv_scale[0] = ssaa_inv_scale_x;
-  system_constants_.ssaa_inv_scale[1] = ssaa_inv_scale_y;
+  uint32_t sample_count_log2_x = msaa_samples >= MsaaSamples::k4X ? 1 : 0;
+  uint32_t sample_count_log2_y = msaa_samples >= MsaaSamples::k2X ? 1 : 0;
+  dirty |= system_constants_.sample_count_log2[0] != sample_count_log2_x;
+  dirty |= system_constants_.sample_count_log2[1] != sample_count_log2_y;
+  system_constants_.sample_count_log2[0] = sample_count_log2_x;
+  system_constants_.sample_count_log2[1] = sample_count_log2_y;
 
   // Alpha test.
   int32_t alpha_test;
@@ -2027,6 +2046,76 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
     uint32_t depth_base_dwords = (rb_depth_info & 0xFFF) * 1280;
     dirty |= system_constants_.edram_depth_base_dwords != depth_base_dwords;
     system_constants_.edram_depth_base_dwords = depth_base_dwords;
+
+    // The Z range is reversed in the vertex shader if it's reverse - use the
+    // absolute value of the scale.
+    float depth_range_scale = std::abs(viewport_scale_z);
+    dirty |= system_constants_.edram_depth_range_scale != depth_range_scale;
+    system_constants_.edram_depth_range_scale = depth_range_scale;
+    float depth_range_offset = (pa_cl_vte_cntl & (1 << 5))
+                                   ? regs[XE_GPU_REG_PA_CL_VPORT_ZOFFSET].f32
+                                   : 0.0f;
+    if (viewport_scale_z < 0.0f) {
+      // Similar to MinDepth in fixed-function viewport calculation.
+      depth_range_offset += viewport_scale_z;
+    }
+    dirty |= system_constants_.edram_depth_range_offset != depth_range_offset;
+    system_constants_.edram_depth_range_offset = depth_range_offset;
+
+    // For points and lines, front polygon offset is used, and it's enabled if
+    // POLY_OFFSET_PARA_ENABLED is set, for polygons, separate front and back
+    // are used.
+    float poly_offset_front_scale = 0.0f, poly_offset_front_offset = 0.0f;
+    float poly_offset_back_scale = 0.0f, poly_offset_back_offset = 0.0f;
+    if (primitive_type == PrimitiveType::kPointList ||
+        primitive_type == PrimitiveType::kLineList ||
+        primitive_type == PrimitiveType::kLineStrip ||
+        primitive_type == PrimitiveType::kLineLoop ||
+        primitive_type == PrimitiveType::k2DLineStrip) {
+      if (pa_su_sc_mode_cntl & (1 << 13)) {
+        poly_offset_front_scale =
+            regs[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_SCALE].f32;
+        poly_offset_front_offset =
+            regs[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_OFFSET].f32;
+        poly_offset_back_scale = poly_offset_front_scale;
+        poly_offset_back_offset = poly_offset_front_offset;
+      }
+    } else {
+      if (pa_su_sc_mode_cntl & (1 << 11)) {
+        poly_offset_front_scale =
+            regs[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_SCALE].f32;
+        poly_offset_front_offset =
+            regs[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_OFFSET].f32;
+      }
+      if (pa_su_sc_mode_cntl & (1 << 12)) {
+        poly_offset_back_scale =
+            regs[XE_GPU_REG_PA_SU_POLY_OFFSET_BACK_SCALE].f32;
+        poly_offset_back_offset =
+            regs[XE_GPU_REG_PA_SU_POLY_OFFSET_BACK_OFFSET].f32;
+      }
+    }
+    if (viewport_scale_z < 0.0f) {
+      // Clip space flipped in the vertex shader, so flip polygon offset too.
+      poly_offset_front_scale = -poly_offset_front_scale;
+      poly_offset_front_offset = -poly_offset_front_offset;
+      poly_offset_back_scale = -poly_offset_back_scale;
+      poly_offset_back_offset = -poly_offset_back_offset;
+    }
+    // See PipelineCache for explanation.
+    poly_offset_front_scale *= 1.0f / 16.0f;
+    poly_offset_back_scale *= 1.0f / 16.0f;
+    dirty |= system_constants_.edram_poly_offset_front_scale !=
+             poly_offset_front_scale;
+    system_constants_.edram_poly_offset_front_scale = poly_offset_front_scale;
+    dirty |= system_constants_.edram_poly_offset_front_offset !=
+             poly_offset_front_offset;
+    system_constants_.edram_poly_offset_front_offset = poly_offset_front_offset;
+    dirty |= system_constants_.edram_poly_offset_back_scale !=
+             poly_offset_back_scale;
+    system_constants_.edram_poly_offset_back_scale = poly_offset_back_scale;
+    dirty |= system_constants_.edram_poly_offset_back_offset !=
+             poly_offset_back_offset;
+    system_constants_.edram_poly_offset_back_offset = poly_offset_back_offset;
 
     if (rb_depthcontrol & 0x1) {
       uint32_t stencil_value;

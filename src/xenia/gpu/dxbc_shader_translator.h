@@ -283,7 +283,10 @@ class DxbcShaderTranslator : public ShaderTranslator {
     // Inverse scale of the host viewport (but not supersampled), with signs
     // pre-applied.
     float point_screen_to_ndc[2];
-    float ssaa_inv_scale[2];
+    // Log2 of X and Y sample size. For SSAA with RTV/DSV, this is used to get
+    // VPOS to pass to the game's shader. For MSAA with ROV, this is used for
+    // EDRAM address calculation.
+    uint32_t sample_count_log2[2];
 
     // vec4 5
     // The range is floats as uints so it's easier to pass infinity.
@@ -298,12 +301,38 @@ class DxbcShaderTranslator : public ShaderTranslator {
     uint32_t color_output_map[4];
 
     // vec4 8
+    union {
+      struct {
+        float edram_depth_range_scale;
+        float edram_depth_range_offset;
+      };
+      float edram_depth_range[2];
+    };
+    union {
+      struct {
+        float edram_poly_offset_front_scale;
+        float edram_poly_offset_front_offset;
+      };
+      float edram_poly_offset_front[2];
+    };
+
+    // vec4 9
+    union {
+      struct {
+        float edram_poly_offset_back_scale;
+        float edram_poly_offset_back_offset;
+      };
+      float edram_poly_offset_back[2];
+    };
+    uint32_t padding_9[2];
+
+    // vec4 10
     uint32_t edram_stencil_reference;
     uint32_t edram_stencil_read_mask;
     uint32_t edram_stencil_write_mask;
-    uint32_t padding_8;
+    uint32_t padding_10;
 
-    // vec4 9
+    // vec4 11
     union {
       struct {
         // kStencilOp, separated into sub-operations - not the Xenos enum.
@@ -315,7 +344,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
       uint32_t edram_stencil_front[4];
     };
 
-    // vec4 10
+    // vec4 12
     union {
       struct {
         // kStencilOp, separated into sub-operations - not the Xenos enum.
@@ -327,66 +356,66 @@ class DxbcShaderTranslator : public ShaderTranslator {
       uint32_t edram_stencil_back[4];
     };
 
-    // vec4 11
+    // vec4 13
     uint32_t edram_base_dwords[4];
 
-    // vec4 12
+    // vec4 14
     // Binding and format info flags.
     uint32_t edram_rt_flags[4];
 
-    // vec4 13
+    // vec4 15
     // Format info - widths of components in the lower 32 bits (for ibfe/bfi),
     // packed as 8:8:8:8 for each render target.
     uint32_t edram_rt_pack_width_low[4];
 
-    // vec4 14
+    // vec4 16
     // Format info - offsets of components in the lower 32 bits (for ibfe/bfi),
     // packed as 8:8:8:8 for each render target.
     uint32_t edram_rt_pack_offset_low[4];
 
-    // vec4 15
+    // vec4 17
     // Format info - widths of components in the upper 32 bits (for ibfe/bfi),
     // packed as 8:8:8:8 for each render target.
     uint32_t edram_rt_pack_width_high[4];
 
-    // vec4 16
+    // vec4 18
     // Format info - offsets of components in the upper 32 bits (for ibfe/bfi),
     // packed as 8:8:8:8 for each render target.
     uint32_t edram_rt_pack_offset_high[4];
 
-    // vec4 17:18
+    // vec4 19:20
     // Format info - mask of color and alpha after unpacking, but before float
     // conversion. Primarily to differentiate between signed and unsigned
     // formats because ibfe is used for both since k_16_16 and k_16_16_16_16 are
     // signed.
     uint32_t edram_load_mask_rt01_rt23[2][4];
 
-    // vec4 19:20
+    // vec4 21:22
     // Format info - scale to apply to the color and the alpha of each render
     // target after unpacking and converting.
     float edram_load_scale_rt01_rt23[2][4];
 
-    // vec4 21:22
+    // vec4 23:24
     // Render target blending options.
     uint32_t edram_blend_rt01_rt23[2][4];
 
-    // vec4 23
+    // vec4 25
     // The constant blend factor for the respective modes.
     float edram_blend_constant[4];
 
-    // vec4 24:25
+    // vec4 26:27
     // Format info - minimum color and alpha values (as float, before
     // conversion) writable to the each render target. Integer so it's easier to
     // write infinity.
     uint32_t edram_store_min_rt01_rt23[2][4];
 
-    // vec4 26:27
+    // vec4 28:29
     // Format info - maximum color and alpha values (as float, before
     // conversion) writable to the each render target. Integer so it's easier to
     // write infinity.
     uint32_t edram_store_max_rt01_rt23[2][4];
 
-    // vec4 28:29
+    // vec4 30:31
     // Format info - scale to apply to the color and the alpha of each render
     // target before converting and packing.
     float edram_store_scale_rt01_rt23[2][4];
@@ -513,12 +542,12 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kSysConst_PointScreenToNDC_Index = kSysConst_PointSizeMinMax_Index + 1,
     kSysConst_PointScreenToNDC_Vec = kSysConst_PointSizeMinMax_Vec + 1,
     kSysConst_PointScreenToNDC_Comp = 0,
-    kSysConst_SSAAInvScale_Index = kSysConst_PointScreenToNDC_Index + 1,
-    kSysConst_SSAAInvScale_Vec = kSysConst_PointScreenToNDC_Vec,
-    kSysConst_SSAAInvScale_Comp = 2,
+    kSysConst_SampleCountLog2_Index = kSysConst_PointScreenToNDC_Index + 1,
+    kSysConst_SampleCountLog2_Vec = kSysConst_PointScreenToNDC_Vec,
+    kSysConst_SampleCountLog2_Comp = 2,
 
-    kSysConst_AlphaTestRange_Index = kSysConst_SSAAInvScale_Index + 1,
-    kSysConst_AlphaTestRange_Vec = kSysConst_SSAAInvScale_Vec + 1,
+    kSysConst_AlphaTestRange_Index = kSysConst_SampleCountLog2_Index + 1,
+    kSysConst_AlphaTestRange_Vec = kSysConst_SampleCountLog2_Vec + 1,
     kSysConst_AlphaTestRange_Comp = 0,
     kSysConst_EDRAMPitchTiles_Index = kSysConst_AlphaTestRange_Index + 1,
     kSysConst_EDRAMPitchTiles_Vec = kSysConst_AlphaTestRange_Vec,
@@ -533,8 +562,24 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kSysConst_ColorOutputMap_Index = kSysConst_ColorExpBias_Index + 1,
     kSysConst_ColorOutputMap_Vec = kSysConst_ColorExpBias_Vec + 1,
 
-    kSysConst_EDRAMStencilReference_Index = kSysConst_ColorOutputMap_Index + 1,
-    kSysConst_EDRAMStencilReference_Vec = kSysConst_ColorOutputMap_Vec + 1,
+    kSysConst_EDRAMDepthRange_Index = kSysConst_ColorOutputMap_Index + 1,
+    kSysConst_EDRAMDepthRange_Vec = kSysConst_ColorOutputMap_Vec + 1,
+    kSysConst_EDRAMDepthRangeScale_Comp = 0,
+    kSysConst_EDRAMDepthRangeOffset_Comp = 1,
+    kSysConst_EDRAMPolyOffsetFront_Index = kSysConst_EDRAMDepthRange_Index + 1,
+    kSysConst_EDRAMPolyOffsetFront_Vec = kSysConst_EDRAMDepthRange_Vec,
+    kSysConst_EDRAMPolyOffsetFrontScale_Comp = 2,
+    kSysConst_EDRAMPolyOffsetFrontOffset_Comp = 3,
+
+    kSysConst_EDRAMPolyOffsetBack_Index =
+        kSysConst_EDRAMPolyOffsetFront_Index + 1,
+    kSysConst_EDRAMPolyOffsetBack_Vec = kSysConst_EDRAMPolyOffsetFront_Vec + 1,
+    kSysConst_EDRAMPolyOffsetBackScale_Comp = 0,
+    kSysConst_EDRAMPolyOffsetBackOffset_Comp = 1,
+
+    kSysConst_EDRAMStencilReference_Index =
+        kSysConst_EDRAMPolyOffsetBack_Index + 1,
+    kSysConst_EDRAMStencilReference_Vec = kSysConst_EDRAMPolyOffsetBack_Vec + 1,
     kSysConst_EDRAMStencilReference_Comp = 0,
     kSysConst_EDRAMStencilReadMask_Index =
         kSysConst_EDRAMStencilReference_Index + 1,
@@ -626,6 +671,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
 
   static constexpr uint32_t kInterpolatorCount = 16;
   static constexpr uint32_t kPointParametersTexCoord = kInterpolatorCount;
+  static constexpr uint32_t kClipSpaceZWTexCoord = kPointParametersTexCoord + 1;
 
   enum class InOutRegister : uint32_t {
     // IF ANY OF THESE ARE CHANGED, WriteInputSignature and WriteOutputSignature
@@ -634,10 +680,12 @@ class DxbcShaderTranslator : public ShaderTranslator {
 
     kVSOutInterpolators = 0,
     kVSOutPointParameters = kVSOutInterpolators + kInterpolatorCount,
+    kVSOutClipSpaceZW,
     kVSOutPosition,
 
     kPSInInterpolators = 0,
     kPSInPointParameters = kPSInInterpolators + kInterpolatorCount,
+    kPSInClipSpaceZW,
     kPSInPosition,
     kPSInFrontFace,
   };
@@ -726,14 +774,22 @@ class DxbcShaderTranslator : public ShaderTranslator {
 
   // Writing the epilogue.
   void CompleteVertexShader();
-  // Converts the depth in system_temp_depth_.x to 24-bit unorm or float,
-  // depending on the flag value. Uses system_temp_depth_.yz as scratch - w not
-  // touched.
-  void CompletePixelShader_DepthTo24Bit();
+  // Converts four depth values to 24-bit unorm or float, depending on the flag
+  // value.
+  void CompletePixelShader_DepthTo24Bit(uint32_t depths_temp);
   // This just converts the color output value from/to gamma space, not checking
   // any conditions.
   void CompletePixelShader_GammaCorrect(uint32_t color_temp, bool to_gamma);
   void CompletePixelShader_WriteToRTVs();
+  // Performs depth/stencil testing. After the test, coverage_out_temp will
+  // contain non-zero values for samples that passed the depth/stencil test and
+  // are included in SV_Coverage, and zeros for those who didn't.
+  //
+  // edram_dword_offset_temp.x must contain the address of the first
+  // depth/stencil sample - .yzw will be overwritten by this function with the
+  // addresses for the other samples if depth/stencil is enabled.
+  void CompletePixelShader_WriteToROV_DepthStencil(
+      uint32_t edram_dword_offset_temp, uint32_t coverage_out_temp);
   // Extracts widths and offsets of the components in the lower or the upper
   // dword of a pixel from the format constants, for use as ibfe and bfi
   // operands later.
@@ -752,10 +808,9 @@ class DxbcShaderTranslator : public ShaderTranslator {
         kROVRTFormatFlagTemp_ColorFixed * 0b00010101 +
         kROVRTFormatFlagTemp_AlphaFixed * 0b01000000,
   };
-  void CompletePixelShader_WriteToROV_LoadColor(
-      uint32_t edram_dword_offset_low_temp,
-      uint32_t edram_dword_offset_high_temp, uint32_t rt_index,
-      uint32_t rt_format_flags_temp, uint32_t target_temp);
+  void CompletePixelShader_WriteToROV_UnpackColor(
+      uint32_t data_low_temp, uint32_t data_high_temp, uint32_t data_component,
+      uint32_t rt_index, uint32_t rt_format_flags_temp, uint32_t target_temp);
   // Clamps the color to the range representable by the render target's format.
   // Will also remove NaN since min and max return the non-NaN value.
   // color_in_temp and color_out_temp may be the same.
@@ -783,10 +838,10 @@ class DxbcShaderTranslator : public ShaderTranslator {
                                             uint32_t dest_color_temp);
   // Assumes the incoming color is already clamped to the range representable by
   // the RT format.
-  void CompletePixelShader_WriteToROV_StoreColor(
-      uint32_t edram_dword_offset_low_temp,
-      uint32_t edram_dword_offset_high_temp, uint32_t rt_index,
-      uint32_t rt_format_flags_temp, uint32_t source_and_scratch_temp);
+  void CompletePixelShader_WriteToROV_PackColor(
+      uint32_t data_low_temp, uint32_t data_high_temp, uint32_t data_component,
+      uint32_t rt_index, uint32_t rt_format_flags_temp,
+      uint32_t source_and_scratch_temp);
   void CompletePixelShader_WriteToROV();
   void CompletePixelShader();
   void CompleteShaderCode();
@@ -954,6 +1009,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kFloat4,
     kInt,
     kUint,
+    kUint2,
     kUint4,
     // Float constants - size written dynamically.
     kFloat4ConstantArray,
@@ -1050,10 +1106,14 @@ class DxbcShaderTranslator : public ShaderTranslator {
   uint32_t system_temp_color_[4];
   // Whether the color output has been written in the execution path (ROV only).
   uint32_t system_temp_color_written_;
-  // Depth output in pixel shader, and 3 dwords usable as scratch for operations
-  // related to depth. Currently only used for ROV depth.
-  // TODO(Triang3l): Reduce depth to 24-bit in pixel shaders when using a DSV
-  // for accuracy.
+  // Depth value (ROV only). The meaning depends on whether the shader writes to
+  // depth.
+  // If depth is written to:
+  // - X - the value that was written to oDepth.
+  // If not:
+  // - X - clip space Z / clip space W from the respective pixel shader input.
+  // - Y - depth X derivative (for polygon offset).
+  // - Z - depth Y derivative.
   uint32_t system_temp_depth_;
 
   // The bool constant number containing the condition for the currently
@@ -1079,8 +1139,6 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // the exec-level predicate value, and can't merge two execs with the same
   // predicate condition anymore.
   bool cf_exec_predicate_written_;
-
-  bool writes_depth_;
 
   std::vector<TextureSRV> texture_srvs_;
   std::vector<SamplerBinding> sampler_bindings_;

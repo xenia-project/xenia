@@ -164,8 +164,6 @@ class SpirvShaderTranslator : public ShaderTranslator {
   spv::Id vtx_ = 0;  // Vertex buffer array (32 runtime arrays)
   std::unordered_map<uint32_t, uint32_t> vtx_binding_map_;
 
-  bool writes_depth_ = false;
-
   // SPIR-V IDs that are part of the in/out interface.
   std::vector<spv::Id> interface_ids_;
 

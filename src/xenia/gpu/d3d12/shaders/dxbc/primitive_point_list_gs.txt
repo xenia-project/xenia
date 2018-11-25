@@ -24,30 +24,34 @@
 //   uint xe_edram_depth_base_dwords;   // Offset:   92 Size:     4 [unused]
 //   float4 xe_color_exp_bias;          // Offset:   96 Size:    16 [unused]
 //   uint4 xe_color_output_map;         // Offset:  112 Size:    16 [unused]
-//   uint xe_edram_stencil_reference;   // Offset:  128 Size:     4 [unused]
-//   uint xe_edram_stencil_read_mask;   // Offset:  132 Size:     4 [unused]
-//   uint xe_edram_stencil_write_mask;  // Offset:  136 Size:     4 [unused]
-//   uint4 xe_edram_stencil_front;      // Offset:  144 Size:    16 [unused]
-//   uint4 xe_edram_stencil_back;       // Offset:  160 Size:    16 [unused]
-//   uint4 xe_edram_base_dwords;        // Offset:  176 Size:    16 [unused]
-//   uint4 xe_edram_rt_flags;           // Offset:  192 Size:    16 [unused]
-//   uint4 xe_edram_rt_pack_width_low;  // Offset:  208 Size:    16 [unused]
-//   uint4 xe_edram_rt_pack_offset_low; // Offset:  224 Size:    16 [unused]
-//   uint4 xe_edram_rt_pack_width_high; // Offset:  240 Size:    16 [unused]
-//   uint4 xe_edram_rt_pack_offset_high;// Offset:  256 Size:    16 [unused]
-//   uint4 xe_edram_load_mask_rt01;     // Offset:  272 Size:    16 [unused]
-//   uint4 xe_edram_load_mask_rt23;     // Offset:  288 Size:    16 [unused]
-//   float4 xe_edram_load_scale_rt01;   // Offset:  304 Size:    16 [unused]
-//   float4 xe_edram_load_scale_rt23;   // Offset:  320 Size:    16 [unused]
-//   uint4 xe_edram_blend_rt01;         // Offset:  336 Size:    16 [unused]
-//   uint4 xe_edram_blend_rt23;         // Offset:  352 Size:    16 [unused]
-//   float4 xe_edram_blend_constant;    // Offset:  368 Size:    16 [unused]
-//   float4 xe_edram_store_min_rt01;    // Offset:  384 Size:    16 [unused]
-//   float4 xe_edram_store_min_rt23;    // Offset:  400 Size:    16 [unused]
-//   float4 xe_edram_store_max_rt01;    // Offset:  416 Size:    16 [unused]
-//   float4 xe_edram_store_max_rt23;    // Offset:  432 Size:    16 [unused]
-//   float4 xe_edram_store_scale_rt01;  // Offset:  448 Size:    16 [unused]
-//   float4 xe_edram_store_scale_rt23;  // Offset:  464 Size:    16 [unused]
+//   float2 xe_edram_depth_range;       // Offset:  128 Size:     8 [unused]
+//   float2 xe_edram_poly_offset_front; // Offset:  136 Size:     8 [unused]
+//   float2 xe_edram_poly_offset_back;  // Offset:  144 Size:     8 [unused]
+//   float2 xe_system_constant_padding_9;// Offset:  152 Size:     8 [unused]
+//   uint xe_edram_stencil_reference;   // Offset:  160 Size:     4 [unused]
+//   uint xe_edram_stencil_read_mask;   // Offset:  164 Size:     4 [unused]
+//   uint xe_edram_stencil_write_mask;  // Offset:  168 Size:     4 [unused]
+//   uint4 xe_edram_stencil_front;      // Offset:  176 Size:    16 [unused]
+//   uint4 xe_edram_stencil_back;       // Offset:  192 Size:    16 [unused]
+//   uint4 xe_edram_base_dwords;        // Offset:  208 Size:    16 [unused]
+//   uint4 xe_edram_rt_flags;           // Offset:  224 Size:    16 [unused]
+//   uint4 xe_edram_rt_pack_width_low;  // Offset:  240 Size:    16 [unused]
+//   uint4 xe_edram_rt_pack_offset_low; // Offset:  256 Size:    16 [unused]
+//   uint4 xe_edram_rt_pack_width_high; // Offset:  272 Size:    16 [unused]
+//   uint4 xe_edram_rt_pack_offset_high;// Offset:  288 Size:    16 [unused]
+//   uint4 xe_edram_load_mask_rt01;     // Offset:  304 Size:    16 [unused]
+//   uint4 xe_edram_load_mask_rt23;     // Offset:  320 Size:    16 [unused]
+//   float4 xe_edram_load_scale_rt01;   // Offset:  336 Size:    16 [unused]
+//   float4 xe_edram_load_scale_rt23;   // Offset:  352 Size:    16 [unused]
+//   uint4 xe_edram_blend_rt01;         // Offset:  368 Size:    16 [unused]
+//   uint4 xe_edram_blend_rt23;         // Offset:  384 Size:    16 [unused]
+//   float4 xe_edram_blend_constant;    // Offset:  400 Size:    16 [unused]
+//   float4 xe_edram_store_min_rt01;    // Offset:  416 Size:    16 [unused]
+//   float4 xe_edram_store_min_rt23;    // Offset:  432 Size:    16 [unused]
+//   float4 xe_edram_store_max_rt01;    // Offset:  448 Size:    16 [unused]
+//   float4 xe_edram_store_max_rt23;    // Offset:  464 Size:    16 [unused]
+//   float4 xe_edram_store_scale_rt01;  // Offset:  480 Size:    16 [unused]
+//   float4 xe_edram_store_scale_rt23;  // Offset:  496 Size:    16 [unused]
 //
 // }
 //
@@ -81,7 +85,8 @@
 // TEXCOORD                14   xyzw       14     NONE   float   xyzw
 // TEXCOORD                15   xyzw       15     NONE   float   xyzw
 // TEXCOORD                16   xyz        16     NONE   float     z 
-// SV_Position              0   xyzw       17      POS   float   xyzw
+// TEXCOORD                17   xy         17     NONE   float   xy  
+// SV_Position              0   xyzw       18      POS   float   xyzw
 //
 //
 // Output signature:
@@ -105,7 +110,8 @@
 // TEXCOORD                14   xyzw       14     NONE   float   xyzw
 // TEXCOORD                15   xyzw       15     NONE   float   xyzw
 // TEXCOORD                16   xyz        16     NONE   float   xyz 
-// SV_Position              0   xyzw       17      POS   float   xyzw
+// TEXCOORD                17   xy         17     NONE   float   xy  
+// SV_Position              0   xyzw       18      POS   float   xyzw
 //
 gs_5_1
 dcl_globalFlags refactoringAllowed
@@ -127,7 +133,8 @@ dcl_input v[1][13].xyzw
 dcl_input v[1][14].xyzw
 dcl_input v[1][15].xyzw
 dcl_input v[1][16].xyz
-dcl_input_siv v[1][17].xyzw, position
+dcl_input v[1][17].xy
+dcl_input_siv v[1][18].xyzw, position
 dcl_temps 2
 dcl_inputprimitive point 
 dcl_stream m0
@@ -149,15 +156,16 @@ dcl_output o13.xyzw
 dcl_output o14.xyzw
 dcl_output o15.xyzw
 dcl_output o16.xyz
-dcl_output_siv o17.xyzw, position
+dcl_output o17.xy
+dcl_output_siv o18.xyzw, position
 dcl_maxout 4
 lt r0.x, l(0.000000), v[0][16].z
 movc r0.xy, r0.xxxx, v[0][16].zzzz, CB0[0][3].xyxx
 max r0.xy, r0.xyxx, CB0[0][3].zzzz
 min r0.xy, r0.xyxx, CB0[0][3].wwww
 mul r0.xy, r0.xyxx, CB0[0][4].xyxx
-mul r0.zw, r0.xxxy, v[0][17].wwww
-mad r1.xyzw, r0.zwzw, l(-1.000000, 1.000000, 1.000000, -1.000000), v[0][17].xyxy
+mul r0.zw, r0.xxxy, v[0][18].wwww
+mad r1.xyzw, r0.zwzw, l(-1.000000, 1.000000, 1.000000, -1.000000), v[0][18].xyxy
 mov o0.xyzw, v[0][0].xyzw
 mov o1.xyzw, v[0][1].xyzw
 mov o2.xyzw, v[0][2].xyzw
@@ -176,10 +184,11 @@ mov o14.xyzw, v[0][14].xyzw
 mov o15.xyzw, v[0][15].xyzw
 mov o16.xy, l(0,1.000000,0,0)
 mov o16.z, v[0][16].z
-mov o17.xy, r1.xyxx
-mov o17.zw, v[0][17].zzzw
+mov o17.xy, v[0][17].xyxx
+mov o18.xy, r1.xyxx
+mov o18.zw, v[0][18].zzzw
 emit_stream m0
-mad r0.zw, r0.xxxy, v[0][17].wwww, v[0][17].xxxy
+mad r0.zw, r0.xxxy, v[0][18].wwww, v[0][18].xxxy
 mov o0.xyzw, v[0][0].xyzw
 mov o1.xyzw, v[0][1].xyzw
 mov o2.xyzw, v[0][2].xyzw
@@ -198,10 +207,11 @@ mov o14.xyzw, v[0][14].xyzw
 mov o15.xyzw, v[0][15].xyzw
 mov o16.xy, l(1.000000,1.000000,0,0)
 mov o16.z, v[0][16].z
-mov o17.xy, r0.zwzz
-mov o17.zw, v[0][17].zzzw
+mov o17.xy, v[0][17].xyxx
+mov o18.xy, r0.zwzz
+mov o18.zw, v[0][18].zzzw
 emit_stream m0
-mad r0.xy, -r0.xyxx, v[0][17].wwww, v[0][17].xyxx
+mad r0.xy, -r0.xyxx, v[0][18].wwww, v[0][18].xyxx
 mov o0.xyzw, v[0][0].xyzw
 mov o1.xyzw, v[0][1].xyzw
 mov o2.xyzw, v[0][2].xyzw
@@ -220,8 +230,9 @@ mov o14.xyzw, v[0][14].xyzw
 mov o15.xyzw, v[0][15].xyzw
 mov o16.xy, l(0,0,0,0)
 mov o16.z, v[0][16].z
-mov o17.xy, r0.xyxx
-mov o17.zw, v[0][17].zzzw
+mov o17.xy, v[0][17].xyxx
+mov o18.xy, r0.xyxx
+mov o18.zw, v[0][18].zzzw
 emit_stream m0
 mov o0.xyzw, v[0][0].xyzw
 mov o1.xyzw, v[0][1].xyzw
@@ -241,9 +252,10 @@ mov o14.xyzw, v[0][14].xyzw
 mov o15.xyzw, v[0][15].xyzw
 mov o16.xy, l(1.000000,0,0,0)
 mov o16.z, v[0][16].z
-mov o17.xy, r1.zwzz
-mov o17.zw, v[0][17].zzzw
+mov o17.xy, v[0][17].xyxx
+mov o18.xy, r1.zwzz
+mov o18.zw, v[0][18].zzzw
 emit_stream m0
 cut_stream m0
 ret 
-// Approximately 95 instruction slots used
+// Approximately 99 instruction slots used

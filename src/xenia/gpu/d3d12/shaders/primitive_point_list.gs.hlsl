@@ -6,8 +6,9 @@
 void main(point XeVertex xe_in[1], inout TriangleStream<XeVertex> xe_stream) {
   XeVertex xe_out;
   xe_out.interpolators = xe_in[0].interpolators;
-  xe_out.position.zw = xe_in[0].position.zw;
   xe_out.point_params.z = xe_in[0].point_params.z;
+  xe_out.clip_space_zw = xe_in[0].clip_space_zw;
+  xe_out.position.zw = xe_in[0].position.zw;
 
   // Shader header writes -1.0f to point_size by default, so any positive value
   // means that it was overwritten by the translated vertex shader.

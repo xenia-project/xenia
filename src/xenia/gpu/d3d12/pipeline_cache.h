@@ -152,6 +152,7 @@ class PipelineCache {
     bool fill_mode_wireframe;
     bool front_counter_clockwise;
     bool depth_clamp_enable;
+    bool msaa_rov;
 
     UpdateRasterizerStateRegisters() { Reset(); }
     void Reset() { std::memset(this, 0, sizeof(*this)); }

@@ -55,6 +55,8 @@ class ShaderTranslator {
   }
   // True if the current shader writes to a color target on any execution path.
   bool writes_color_target(int i) const { return writes_color_targets_[i]; }
+  // True if the current shader overrides the pixel depth.
+  bool writes_depth() const { return writes_depth_; }
   // A list of all vertex bindings, populated before translation occurs.
   const std::vector<Shader::VertexBinding>& vertex_bindings() const {
     return vertex_bindings_;
@@ -227,6 +229,7 @@ class ShaderTranslator {
   Shader::ConstantRegisterMap constant_register_map_ = {0};
   bool uses_register_dynamic_addressing_ = false;
   bool writes_color_targets_[4] = {false, false, false, false};
+  bool writes_depth_ = false;
 
   static const AluOpcodeInfo alu_vector_opcode_infos_[0x20];
   static const AluOpcodeInfo alu_scalar_opcode_infos_[0x40];
