@@ -21,6 +21,7 @@ namespace kernel {
 struct X_KEVENT {
   X_DISPATCH_HEADER header;
 };
+static_assert_size(X_KEVENT, 0x10);
 
 class XEvent : public XObject {
  public:
