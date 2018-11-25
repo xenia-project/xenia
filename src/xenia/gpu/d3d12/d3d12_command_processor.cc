@@ -24,18 +24,18 @@
 #include "xenia/gpu/xenos.h"
 #include "xenia/ui/d3d12/d3d12_util.h"
 
+DEFINE_bool(d3d12_edram_rov, true,
+            "Use rasterizer-ordered views for render target emulation where "
+            "available.");
 // Some games (such as Banjo-Kazooie) are not aware of the half-pixel offset and
 // may be blurry or have texture sampling artifacts, in this case the user may
 // disable half-pixel offset by setting this to false.
 DEFINE_bool(d3d12_half_pixel_offset, true,
             "Enable half-pixel vertex and VPOS offset.");
-DEFINE_bool(d3d12_programmable_sample_positions, false,
+DEFINE_bool(d3d12_ssaa_custom_sample_positions, false,
             "Enable custom SSAA sample positions for the RTV/DSV rendering "
             "path where available instead of centers (experimental, not very "
             "high-quality).");
-DEFINE_bool(d3d12_rov, true,
-            "Use rasterizer-ordered views for render target emulation where "
-            "available.");
 
 namespace xe {
 namespace gpu {
@@ -85,7 +85,7 @@ ID3D12GraphicsCommandList1* D3D12CommandProcessor::GetCurrentCommandList1()
 }
 
 bool D3D12CommandProcessor::IsROVUsedForEDRAM() const {
-  if (!FLAGS_d3d12_rov) {
+  if (!FLAGS_d3d12_edram_rov) {
     return false;
   }
   auto provider = GetD3D12Context()->GetD3D12Provider();
@@ -544,7 +544,7 @@ void D3D12CommandProcessor::SetSamplePositions(MsaaSamples sample_positions) {
   // for ROV output. There's hardly any difference between 2,6 (of 0 and 3 with
   // 4x MSAA) and 4,4 anyway.
   // https://docs.microsoft.com/en-us/windows/desktop/api/d3d12/nf-d3d12-id3d12graphicscommandlist1-setsamplepositions
-  if (FLAGS_d3d12_programmable_sample_positions && !IsROVUsedForEDRAM()) {
+  if (FLAGS_d3d12_ssaa_custom_sample_positions && !IsROVUsedForEDRAM()) {
     auto provider = GetD3D12Context()->GetD3D12Provider();
     auto tier = provider->GetProgrammableSamplePositionsTier();
     auto command_list = GetCurrentCommandList1();
