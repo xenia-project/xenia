@@ -28,6 +28,9 @@ namespace xam {
 constexpr uint32_t X_LANGUAGE_ENGLISH = 1;
 constexpr uint32_t X_LANGUAGE_JAPANESE = 2;
 
+dword_result_t XamFeatureEnabled(dword_t unk) { return 0; }
+DECLARE_XAM_EXPORT1(XamFeatureEnabled, kNone, kStub);
+
 // Empty stub schema binary.
 uint8_t schema_bin[] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
