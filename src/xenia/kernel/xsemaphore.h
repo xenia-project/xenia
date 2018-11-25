@@ -21,6 +21,7 @@ struct X_KSEMAPHORE {
   X_DISPATCH_HEADER header;
   xe::be<uint32_t> limit;
 };
+static_assert_size(X_KSEMAPHORE, 0x14);
 
 class XSemaphore : public XObject {
  public:

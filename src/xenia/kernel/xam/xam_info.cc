@@ -420,6 +420,12 @@ dword_result_t XamGetPrivateEnumStructureFromHandle(unknown_t unk1,
 }
 DECLARE_XAM_EXPORT1(XamGetPrivateEnumStructureFromHandle, kNone, kStub);
 
+dword_result_t XamQueryLiveHiveW(lpwstring_t name, lpvoid_t out_buf,
+                                 dword_t out_size, dword_t type /* guess */) {
+  return X_STATUS_INVALID_PARAMETER_1;
+}
+DECLARE_XAM_EXPORT1(XamQueryLiveHiveW, kNone, kStub);
+
 void RegisterInfoExports(xe::cpu::ExportResolver* export_resolver,
                          KernelState* kernel_state) {}
 

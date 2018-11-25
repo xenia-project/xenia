@@ -286,7 +286,8 @@ dword_result_t RtlMultiByteToUnicodeN(lpword_t destination_ptr,
 
   return 0;
 }
-DECLARE_XBOXKRNL_EXPORT2(RtlMultiByteToUnicodeN, kNone, kImplemented, kSketchy);
+DECLARE_XBOXKRNL_EXPORT3(RtlMultiByteToUnicodeN, kNone, kImplemented,
+                         kHighFrequency, kSketchy);
 
 // https://msdn.microsoft.com/en-us/library/ff553261
 dword_result_t RtlUnicodeToMultiByteN(pointer_t<uint8_t> destination_ptr,
@@ -308,7 +309,8 @@ dword_result_t RtlUnicodeToMultiByteN(pointer_t<uint8_t> destination_ptr,
 
   return 0;
 }
-DECLARE_XBOXKRNL_EXPORT2(RtlUnicodeToMultiByteN, kNone, kImplemented, kSketchy);
+DECLARE_XBOXKRNL_EXPORT3(RtlUnicodeToMultiByteN, kNone, kImplemented,
+                         kHighFrequency, kSketchy);
 
 pointer_result_t RtlImageXexHeaderField(pointer_t<xex2_header> xex_header,
                                         dword_t field_dword) {

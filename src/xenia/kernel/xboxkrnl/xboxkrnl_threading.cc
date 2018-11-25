@@ -736,7 +736,7 @@ DECLARE_XBOXKRNL_EXPORT1(NtCancelTimer, kThreading, kImplemented);
 
 uint32_t xeKeWaitForSingleObject(void* object_ptr, uint32_t wait_reason,
                                  uint32_t processor_mode, uint32_t alertable,
-                                 uint64_t* timeout) {
+                                 uint64_t* timeout_ptr) {
   auto object = XObject::GetNativeObject<XObject>(kernel_state(), object_ptr);
 
   if (!object) {
@@ -746,7 +746,7 @@ uint32_t xeKeWaitForSingleObject(void* object_ptr, uint32_t wait_reason,
   }
 
   X_STATUS result =
-      object->Wait(wait_reason, processor_mode, alertable, timeout);
+      object->Wait(wait_reason, processor_mode, alertable, timeout_ptr);
 
   return result;
 }
@@ -756,7 +756,7 @@ dword_result_t KeWaitForSingleObject(lpvoid_t object_ptr, dword_t wait_reason,
                                      lpqword_t timeout_ptr) {
   uint64_t timeout = timeout_ptr ? static_cast<uint64_t>(*timeout_ptr) : 0u;
   return xeKeWaitForSingleObject(object_ptr, wait_reason, processor_mode,
-                                 alertable, &timeout);
+                                 alertable, timeout_ptr ? &timeout : nullptr);
 }
 DECLARE_XBOXKRNL_EXPORT3(KeWaitForSingleObject, kThreading, kImplemented,
                          kBlocking, kHighFrequency);
@@ -819,7 +819,6 @@ uint32_t xeNtWaitForMultipleObjectsEx(uint32_t count, xe::be<uint32_t>* handles,
                                       uint32_t alertable,
                                       uint64_t* timeout_ptr) {
   assert_true(wait_type <= 1);
-  X_STATUS result = X_STATUS_SUCCESS;
 
   std::vector<object_ref<XObject>> objects;
   for (uint32_t n = 0; n < count; n++) {
@@ -832,11 +831,9 @@ uint32_t xeNtWaitForMultipleObjectsEx(uint32_t count, xe::be<uint32_t>* handles,
     objects.push_back(std::move(object));
   }
 
-  result =
-      XObject::WaitMultiple(count, reinterpret_cast<XObject**>(objects.data()),
-                            wait_type, 6, wait_mode, alertable, timeout_ptr);
-
-  return result;
+  return XObject::WaitMultiple(count,
+                               reinterpret_cast<XObject**>(objects.data()),
+                               wait_type, 6, wait_mode, alertable, timeout_ptr);
 }
 
 dword_result_t NtWaitForMultipleObjectsEx(dword_t count, lpdword_t handles,
@@ -845,7 +842,8 @@ dword_result_t NtWaitForMultipleObjectsEx(dword_t count, lpdword_t handles,
                                           lpqword_t timeout_ptr) {
   uint64_t timeout = timeout_ptr ? static_cast<uint64_t>(*timeout_ptr) : 0u;
   return xeNtWaitForMultipleObjectsEx(count, handles, wait_type, wait_mode,
-                                      alertable, &timeout);
+                                      alertable,
+                                      timeout_ptr ? &timeout : nullptr);
 }
 DECLARE_XBOXKRNL_EXPORT3(NtWaitForMultipleObjectsEx, kThreading, kImplemented,
                          kBlocking, kHighFrequency);
@@ -1132,6 +1130,7 @@ struct X_ERWLOCK {
   X_KSEMAPHORE reader_semaphore;       // 0x20
   uint32_t spin_lock;                  // 0x34
 };
+static_assert_size(X_ERWLOCK, 0x38);
 
 void ExInitializeReadWriteLock(pointer_t<X_ERWLOCK> lock_ptr) {
   lock_ptr->lock_count = -1;
@@ -1140,6 +1139,7 @@ void ExInitializeReadWriteLock(pointer_t<X_ERWLOCK> lock_ptr) {
   lock_ptr->readers_entry_count = 0;
   KeInitializeEvent(&lock_ptr->writer_event, 1, 0);
   KeInitializeSemaphore(&lock_ptr->reader_semaphore, 0, 0x7FFFFFFF);
+  lock_ptr->spin_lock = 0;
 }
 DECLARE_XBOXKRNL_EXPORT1(ExInitializeReadWriteLock, kThreading, kImplemented);
 
@@ -1155,8 +1155,8 @@ void ExAcquireReadWriteLockExclusive(pointer_t<X_ERWLOCK> lock_ptr) {
   lock_ptr->writers_waiting_count++;
   xeKeWaitForSingleObject(&lock_ptr->writer_event, 0, 0, 0, nullptr);
 }
-DECLARE_XBOXKRNL_EXPORT4(ExAcquireReadWriteLockExclusive, kThreading,
-                         kImplemented, kBlocking, kHighFrequency, kSketchy);
+DECLARE_XBOXKRNL_EXPORT3(ExAcquireReadWriteLockExclusive, kThreading,
+                         kImplemented, kBlocking, kSketchy);
 
 void ExReleaseReadWriteLock(pointer_t<X_ERWLOCK> lock_ptr) {
   auto old_irql = xeKeKfAcquireSpinLock(&lock_ptr->spin_lock);
