@@ -971,7 +971,7 @@ const error_lookup_table error_tables[] = {
 };
 #undef MAKE_ENTRY
 
-dword_result_t RtlNtStatusToDosError(dword_t source_status) {
+uint32_t xeRtlNtStatusToDosError(uint32_t source_status) {
   uint32_t status = source_status;
   if (!status || (status & 0x20000000)) {
     return status;
@@ -1009,6 +1009,10 @@ dword_result_t RtlNtStatusToDosError(dword_t source_status) {
 
   XELOGE("RtlNtStatusToDosError lookup NOT IMPLEMENTED");
   return 317;  // ERROR_MR_MID_NOT_FOUND
+}
+
+dword_result_t RtlNtStatusToDosError(dword_t source_status) {
+  return xeRtlNtStatusToDosError(source_status);
 }
 DECLARE_XBOXKRNL_EXPORT3(RtlNtStatusToDosError, kNone, kImportant,
                          kHighFrequency, kLogResult);

@@ -356,7 +356,7 @@ dword_result_t NetDll_WSAWaitForMultipleEvents(dword_t num_events,
   } while (result == X_STATUS_ALERTED);
 
   if (XFAILED(result)) {
-    uint32_t error = xboxkrnl::RtlNtStatusToDosError(result);
+    uint32_t error = xboxkrnl::xeRtlNtStatusToDosError(result);
     XThread::SetLastError(error);
     return ~0u;
   }
@@ -375,7 +375,7 @@ DECLARE_XAM_EXPORT1(NetDll_WSACreateEvent, kNetworking, kImplemented);
 dword_result_t NetDll_WSACloseEvent(dword_t event_handle) {
   X_STATUS result = kernel_state()->object_table()->ReleaseHandle(event_handle);
   if (XFAILED(result)) {
-    uint32_t error = xboxkrnl::RtlNtStatusToDosError(result);
+    uint32_t error = xboxkrnl::xeRtlNtStatusToDosError(result);
     XThread::SetLastError(error);
     return 0;
   }
@@ -386,7 +386,7 @@ DECLARE_XAM_EXPORT1(NetDll_WSACloseEvent, kNetworking, kImplemented);
 dword_result_t NetDll_WSAResetEvent(dword_t event_handle) {
   X_STATUS result = xboxkrnl::xeNtClearEvent(event_handle);
   if (XFAILED(result)) {
-    uint32_t error = xboxkrnl::RtlNtStatusToDosError(result);
+    uint32_t error = xboxkrnl::xeRtlNtStatusToDosError(result);
     XThread::SetLastError(error);
     return 0;
   }
@@ -397,7 +397,7 @@ DECLARE_XAM_EXPORT1(NetDll_WSAResetEvent, kNetworking, kImplemented);
 dword_result_t NetDll_WSASetEvent(dword_t event_handle) {
   X_STATUS result = xboxkrnl::xeNtSetEvent(event_handle, nullptr);
   if (XFAILED(result)) {
-    uint32_t error = xboxkrnl::RtlNtStatusToDosError(result);
+    uint32_t error = xboxkrnl::xeRtlNtStatusToDosError(result);
     XThread::SetLastError(error);
     return 0;
   }
@@ -567,7 +567,7 @@ dword_result_t NetDll_socket(dword_t caller, dword_t af, dword_t type,
   if (XFAILED(result)) {
     socket->Release();
 
-    uint32_t error = xboxkrnl::RtlNtStatusToDosError(result);
+    uint32_t error = xboxkrnl::xeRtlNtStatusToDosError(result);
     XThread::SetLastError(error);
     return -1;
   }
@@ -643,7 +643,7 @@ dword_result_t NetDll_ioctlsocket(dword_t caller, dword_t socket_handle,
 
   X_STATUS status = socket->IOControl(cmd, arg_ptr);
   if (XFAILED(status)) {
-    XThread::SetLastError(xboxkrnl::RtlNtStatusToDosError(status));
+    XThread::SetLastError(xboxkrnl::xeRtlNtStatusToDosError(status));
     return -1;
   }
 
@@ -665,7 +665,7 @@ dword_result_t NetDll_bind(dword_t caller, dword_t socket_handle,
   N_XSOCKADDR_IN native_name(name);
   X_STATUS status = socket->Bind(&native_name, namelen);
   if (XFAILED(status)) {
-    XThread::SetLastError(xboxkrnl::RtlNtStatusToDosError(status));
+    XThread::SetLastError(xboxkrnl::xeRtlNtStatusToDosError(status));
     return -1;
   }
 
@@ -686,7 +686,7 @@ dword_result_t NetDll_connect(dword_t caller, dword_t socket_handle,
   N_XSOCKADDR native_name(name);
   X_STATUS status = socket->Connect(&native_name, namelen);
   if (XFAILED(status)) {
-    XThread::SetLastError(xboxkrnl::RtlNtStatusToDosError(status));
+    XThread::SetLastError(xboxkrnl::xeRtlNtStatusToDosError(status));
     return -1;
   }
 
@@ -706,7 +706,7 @@ dword_result_t NetDll_listen(dword_t caller, dword_t socket_handle,
 
   X_STATUS status = socket->Listen(backlog);
   if (XFAILED(status)) {
-    XThread::SetLastError(xboxkrnl::RtlNtStatusToDosError(status));
+    XThread::SetLastError(xboxkrnl::xeRtlNtStatusToDosError(status));
     return -1;
   }
 
