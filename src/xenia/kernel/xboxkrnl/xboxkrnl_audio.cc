@@ -45,7 +45,8 @@ dword_result_t XAudioGetVoiceCategoryVolume(dword_t unk, lpfloat_t out_ptr) {
 
   return X_ERROR_SUCCESS;
 }
-DECLARE_XBOXKRNL_EXPORT1(XAudioGetVoiceCategoryVolume, kAudio, kStub);
+DECLARE_XBOXKRNL_EXPORT2(XAudioGetVoiceCategoryVolume, kAudio, kStub,
+                         kHighFrequency);
 
 dword_result_t XAudioEnableDucker(dword_t unk) { return X_ERROR_SUCCESS; }
 DECLARE_XBOXKRNL_EXPORT1(XAudioEnableDucker, kAudio, kStub);
