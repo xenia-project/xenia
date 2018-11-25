@@ -7,6 +7,7 @@ project("xenia-core")
   kind("StaticLib")
   language("C++")
   links({
+	"cpptoml",
     "xenia-base",
   })
   defines({
