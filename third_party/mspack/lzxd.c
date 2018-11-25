@@ -15,6 +15,11 @@
 #include <system.h>
 #include <lzx.h>
 
+extern void xenia_log(const char*, ...);
+
+#undef D
+#define D(x) do { xenia_log x; } while (0);
+
 /* Microsoft's LZX document (in cab-sdk.exe) and their implementation
  * of the com.ms.util.cab Java package do not concur.
  *
