@@ -49,3 +49,6 @@
 [submodule "third_party/capstone"]
 	path = third_party/capstone
 	url = https://github.com/xenia-project/capstone.git
+[submodule "third_party/cpptoml"]
+	path = third_party/cpptoml
+	url = https://github.com/skystrife/cpptoml
