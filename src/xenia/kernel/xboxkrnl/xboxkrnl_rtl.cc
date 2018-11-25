@@ -416,8 +416,8 @@ void RtlEnterCriticalSection(pointer_t<X_RTL_CRITICAL_SECTION> cs) {
 
   if (xe::atomic_inc(&cs->lock_count) != 0) {
     // Create a full waiter.
-    KeWaitForSingleObject(reinterpret_cast<void*>(cs.host_address()), 8, 0, 0,
-                          nullptr);
+    xeKeWaitForSingleObject(reinterpret_cast<void*>(cs.host_address()), 8, 0, 0,
+                            nullptr);
   }
 
   assert_true(cs->owning_thread == 0);
@@ -465,7 +465,7 @@ void RtlLeaveCriticalSection(pointer_t<X_RTL_CRITICAL_SECTION> cs) {
   cs->owning_thread = 0;
   if (xe::atomic_dec(&cs->lock_count) != -1) {
     // There were waiters - wake one of them.
-    KeSetEvent(reinterpret_cast<X_KEVENT*>(cs.host_address()), 1, 0);
+    xeKeSetEvent(reinterpret_cast<X_KEVENT*>(cs.host_address()), 1, 0);
   }
 }
 DECLARE_XBOXKRNL_EXPORT2(RtlLeaveCriticalSection, kNone, kImplemented,
