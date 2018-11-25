@@ -22,7 +22,7 @@
 #include "xenia/gpu/d3d12/d3d12_command_processor.h"
 #include "xenia/ui/d3d12/d3d12_util.h"
 
-DEFINE_bool(d3d12_tiled_resources, true,
+DEFINE_bool(d3d12_tiled_shared_memory, true,
             "Enable tiled resources for shared memory emulation. Disabling "
             "them greatly increases video memory usage - a 512 MB buffer is "
             "created - but allows graphics debuggers that don't support tiled "
@@ -386,7 +386,7 @@ void SharedMemory::RangeWrittenByGPU(uint32_t start, uint32_t length) {
 }
 
 bool SharedMemory::AreTiledResourcesUsed() const {
-  if (!FLAGS_d3d12_tiled_resources) {
+  if (!FLAGS_d3d12_tiled_shared_memory) {
     return false;
   }
   auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
