@@ -215,6 +215,9 @@ class PhysicalHeap : public BaseHeap {
   bool Protect(uint32_t address, uint32_t size, uint32_t protect,
                uint32_t* old_protect = nullptr) override;
 
+  void WatchWrite(uint32_t address, uint32_t size,
+                  cpu::MMIOHandler* mmio_handler);
+
  protected:
   VirtualHeap* parent_heap_;
 };
@@ -318,6 +321,27 @@ class Memory {
 
   // Cancels a write watch requested with AddPhysicalAccessWatch.
   void CancelAccessWatch(uintptr_t watch_handle);
+
+  // Registers a global callback for physical memory writes. See
+  // cpu/mmio_handler.h for more details about physical memory write watches.
+  void* RegisterPhysicalWriteWatch(cpu::PhysicalWriteWatchCallback callback,
+                                   void* callback_context);
+
+  // Unregisters a physical memory write watch previously added with
+  // RegisterPhysicalWriteWatch.
+  void UnregisterPhysicalWriteWatch(void* watch_handle);
+
+  // Enables watching of the specified memory range, snapped to system page
+  // boundaries. When something is written to a watched range (or when the
+  // protection of it changes), the registered watch callbacks are triggered for
+  // the page (or pages, for file reads and protection changes) where something
+  // has been written to. This protects physical memory only under
+  // virtual_membase_, so writing to physical_membase_ can be written to bypass
+  // the protection placed by the watches. Read-only and inaccessible pages are
+  // silently ignored, only attempts to write to read-write pages will trigger
+  // watch callbacks.
+  // AVOID CALLING WITH MUTEXES LOCKED!!!
+  void WatchPhysicalMemoryWrite(uint32_t physical_address, uint32_t length);
 
   // Allocates virtual memory from the 'system' heap.
   // System memory is kept separate from game memory but is still accessible

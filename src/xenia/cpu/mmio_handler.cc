@@ -9,6 +9,9 @@
 
 #include "xenia/cpu/mmio_handler.h"
 
+#include <algorithm>
+#include <cstring>
+
 #include "xenia/base/assert.h"
 #include "xenia/base/byte_order.h"
 #include "xenia/base/exception_handler.h"
@@ -38,6 +41,20 @@ std::unique_ptr<MMIOHandler> MMIOHandler::Install(uint8_t* virtual_membase,
 
   global_handler_ = handler.get();
   return handler;
+}
+
+MMIOHandler::MMIOHandler(uint8_t* virtual_membase, uint8_t* physical_membase,
+                         uint8_t* membase_end)
+    : virtual_membase_(virtual_membase),
+      physical_membase_(physical_membase),
+      memory_end_(membase_end) {
+  system_page_size_log2_ = xe::log2_ceil(uint32_t(xe::memory::page_size()));
+
+  uint32_t physical_page_count = (512 * 1024 * 1024) >> system_page_size_log2_;
+  physical_write_watched_pages_.resize(physical_page_count >> 4);
+  assert_true(physical_write_watched_pages_.size() != 0);
+  std::memset(physical_write_watched_pages_.data(), 0,
+              physical_write_watched_pages_.size() * sizeof(uint64_t));
 }
 
 MMIOHandler::~MMIOHandler() {
@@ -214,15 +231,154 @@ void MMIOHandler::CancelAccessWatch(uintptr_t watch_handle) {
   delete entry;
 }
 
-void MMIOHandler::InvalidateRange(uint32_t physical_address, size_t length) {
+void* MMIOHandler::RegisterPhysicalWriteWatch(
+    PhysicalWriteWatchCallback callback, void* callback_context) {
+  PhysicalWriteWatchEntry* entry = new PhysicalWriteWatchEntry;
+  entry->callback = callback;
+  entry->callback_context = callback_context;
+
+  auto lock = global_critical_region_.Acquire();
+  physical_write_watches_.push_back(entry);
+
+  return entry;
+}
+
+void MMIOHandler::UnregisterPhysicalWriteWatch(void* watch_handle) {
+  auto entry = reinterpret_cast<PhysicalWriteWatchEntry*>(watch_handle);
   auto lock = global_critical_region_.Acquire();
 
+  auto it = std::find(physical_write_watches_.begin(),
+                      physical_write_watches_.end(), entry);
+  assert_false(it == physical_write_watches_.end());
+  if (it != physical_write_watches_.end()) {
+    physical_write_watches_.erase(it);
+  }
+
+  delete entry;
+}
+
+void MMIOHandler::ProtectAndWatchPhysicalMemory(
+    uint32_t physical_address_and_heap, uint32_t length) {
+  // Bits to set in 16-bit blocks to mark that the pages are protected.
+  uint64_t block_heap_mask;
+  if (physical_address_and_heap >= 0xE0000000) {
+    block_heap_mask = 0x4444444444444444ull;
+  } else if (physical_address_and_heap >= 0xC0000000) {
+    block_heap_mask = 0x2222222222222222ull;
+  } else if (physical_address_and_heap >= 0xA0000000) {
+    block_heap_mask = 0x1111111111111111ull;
+  } else {
+    assert_always();
+    return;
+  }
+
+  uint32_t heap_relative_address = physical_address_and_heap & 0x1FFFFFFF;
+  length = std::min(length, 0x20000000u - heap_relative_address);
+  if (length == 0) {
+    return;
+  }
+
+  uint32_t page_first = heap_relative_address >> system_page_size_log2_;
+  uint32_t page_last =
+      (heap_relative_address + length - 1) >> system_page_size_log2_;
+  uint32_t block_first = page_first >> 4;
+  uint32_t block_last = page_last >> 4;
+
+  auto lock = global_critical_region_.Acquire();
+
+  // Set the bits indicating that the pages are watched and access violations
+  // there are intentional.
+  for (uint32_t i = block_first; i <= block_last; ++i) {
+    uint64_t block_set_bits = block_heap_mask;
+    if (i == block_first) {
+      block_set_bits &= ~((1ull << ((page_first & 15) * 4)) - 1);
+    }
+    if (i == block_last && (page_last & 15) != 15) {
+      block_set_bits &= (1ull << (((page_last & 15) + 1) * 4)) - 1;
+    }
+    physical_write_watched_pages_[i] |= block_set_bits;
+  }
+
+  // Protect only in one range (due to difficulties synchronizing protection
+  // levels between those ranges).
+  memory::Protect(virtual_membase_ + (physical_address_and_heap & ~0x1FFFFFFF) +
+                      (page_first << system_page_size_log2_),
+                  (page_last - page_first + 1) << system_page_size_log2_,
+                  memory::PageAccess::kReadOnly, nullptr);
+}
+
+void MMIOHandler::InvalidateRange(uint32_t physical_address_and_heap,
+                                  uint32_t length, bool unprotect) {
+  uint32_t heap_relative_address = physical_address_and_heap & 0x1FFFFFFF;
+  length = std::min(length, 0x20000000u - heap_relative_address);
+  if (length == 0) {
+    return;
+  }
+
+  auto lock = global_critical_region_.Acquire();
+
+  // Trigger the new (per-page) watches and unwatch the pages.
+  if (physical_address_and_heap >= 0xA0000000) {
+    uint32_t heap_address = physical_address_and_heap & ~0x1FFFFFFF;
+    uint64_t heap_bit;
+    if (heap_address >= 0xE0000000) {
+      heap_bit = 1 << 2;
+    } else if (heap_address >= 0xC0000000) {
+      heap_bit = 1 << 1;
+    } else {
+      heap_bit = 1 << 0;
+    }
+    uint32_t page_first = heap_relative_address >> system_page_size_log2_;
+    uint32_t page_last =
+        (heap_relative_address + length - 1) >> system_page_size_log2_;
+    uint32_t range_start = UINT32_MAX;
+    for (uint32_t i = page_first; i <= page_last; ++i) {
+      uint64_t page_heap_bit = heap_bit << ((i & 15) * 4);
+      if (physical_write_watched_pages_[i >> 4] & page_heap_bit) {
+        if (range_start == UINT32_MAX) {
+          range_start = i;
+        }
+        physical_write_watched_pages_[i >> 4] &= ~page_heap_bit;
+      } else {
+        if (range_start != UINT32_MAX) {
+          for (auto it = physical_write_watches_.begin();
+               it != physical_write_watches_.end(); ++it) {
+            auto entry = *it;
+            entry->callback(entry->callback_context, range_start, i - 1);
+          }
+          if (unprotect) {
+            memory::Protect(virtual_membase_ + heap_address +
+                                (range_start << system_page_size_log2_),
+                            (i - range_start) << system_page_size_log2_,
+                            xe::memory::PageAccess::kReadWrite, nullptr);
+          }
+          range_start = UINT32_MAX;
+        }
+      }
+    }
+    if (range_start != UINT32_MAX) {
+      for (auto it = physical_write_watches_.begin();
+           it != physical_write_watches_.end(); ++it) {
+        auto entry = *it;
+        entry->callback(entry->callback_context, range_start, page_last);
+        if (unprotect) {
+          memory::Protect(virtual_membase_ + heap_address +
+                              (range_start << system_page_size_log2_),
+                          (page_last - range_start + 1)
+                              << system_page_size_log2_,
+                          xe::memory::PageAccess::kReadWrite, nullptr);
+        }
+      }
+    }
+  }
+
+  // Trigger the legacy (per-range) watches.
   for (auto it = access_watches_.begin(); it != access_watches_.end();) {
     auto entry = *it;
-    if ((entry->address <= physical_address &&
-         entry->address + entry->length > physical_address) ||
-        (entry->address >= physical_address &&
-         entry->address < physical_address + length)) {
+    if ((entry->address <= heap_relative_address &&
+         entry->address + entry->length > heap_relative_address) ||
+        (entry->address >= heap_relative_address &&
+         entry->address < heap_relative_address + length)) {
       // This watch lies within the range. End it.
       FireAccessWatch(entry);
       it = access_watches_.erase(it);
@@ -259,10 +415,43 @@ bool MMIOHandler::IsRangeWatched(uint32_t physical_address, size_t length) {
   return false;
 }
 
-bool MMIOHandler::CheckAccessWatch(uint32_t physical_address) {
-  auto lock = global_critical_region_.Acquire();
-
+bool MMIOHandler::CheckAccessWatch(uint32_t physical_address,
+                                   uint32_t heap_address) {
   bool hit = false;
+
+  // Trigger new (per-page) access watches.
+  if (heap_address >= 0xA0000000) {
+    uint32_t page_index = physical_address >> system_page_size_log2_;
+    // Check the watch only for the virtual memory mapping it was triggered in,
+    // because as guest protection levels may be different for different
+    // mappings of the physical memory, it's difficult to synchronize protection
+    // between the mappings.
+    uint64_t heap_bit;
+    if (heap_address >= 0xE0000000) {
+      heap_bit = 1 << 2;
+    } else if (heap_address >= 0xC0000000) {
+      heap_bit = 1 << 1;
+    } else {
+      heap_bit = 1 << 0;
+    }
+    heap_bit <<= (page_index & 15) * 4;
+    if (physical_write_watched_pages_[page_index >> 4] & heap_bit) {
+      hit = true;
+      memory::Protect(virtual_membase_ + heap_address +
+                          (page_index << system_page_size_log2_),
+                      size_t(1) << system_page_size_log2_,
+                      xe::memory::PageAccess::kReadWrite, nullptr);
+      physical_write_watched_pages_[page_index >> 4] &= ~heap_bit;
+      for (auto it = physical_write_watches_.begin();
+           it != physical_write_watches_.end(); ++it) {
+        auto entry = *it;
+        entry->callback(entry->callback_context, page_index, page_index);
+      }
+    }
+  }
+
+  // Trigger legacy (per-range) access watches.
+  auto lock = global_critical_region_.Acquire();
   for (auto it = access_watches_.begin(); it != access_watches_.end();) {
     auto entry = *it;
     if (entry->address <= physical_address &&
@@ -475,14 +664,17 @@ bool MMIOHandler::ExceptionCallback(Exception* ex) {
   }
   if (!range) {
     auto fault_address = reinterpret_cast<uint8_t*>(ex->fault_address());
-    uint32_t guest_address = 0;
+    uint32_t guest_address, guest_heap_address;
     if (fault_address >= virtual_membase_ &&
         fault_address < physical_membase_) {
       // Faulting on a virtual address.
       guest_address = static_cast<uint32_t>(ex->fault_address()) & 0x1FFFFFFF;
+      guest_heap_address =
+          static_cast<uint32_t>(ex->fault_address()) & ~0x1FFFFFFF;
     } else {
       // Faulting on a physical address.
       guest_address = static_cast<uint32_t>(ex->fault_address());
+      guest_heap_address = 0;
     }
 
     // HACK: Recheck if the pages are still protected (race condition - another
@@ -500,7 +692,9 @@ bool MMIOHandler::ExceptionCallback(Exception* ex) {
 
     // Access is not found within any range, so fail and let the caller handle
     // it (likely by aborting).
-    return CheckAccessWatch(guest_address);
+    // TODO(Triang3l): Don't call for the host physical memory view when legacy
+    // watches are removed.
+    return CheckAccessWatch(guest_address, guest_heap_address);
   }
 
   auto rip = ex->pc();
