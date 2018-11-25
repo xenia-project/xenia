@@ -350,7 +350,7 @@ dword_result_t NetDll_WSAWaitForMultipleEvents(dword_t num_events,
 
   X_STATUS result = 0;
   do {
-    result = xboxkrnl::NtWaitForMultipleObjectsEx(
+    result = xboxkrnl::xeNtWaitForMultipleObjectsEx(
         num_events, events, wait_all, 1, alertable,
         timeout != -1 ? &timeout_wait : nullptr);
   } while (result == X_STATUS_ALERTED);
@@ -384,7 +384,7 @@ dword_result_t NetDll_WSACloseEvent(dword_t event_handle) {
 DECLARE_XAM_EXPORT1(NetDll_WSACloseEvent, kNetworking, kImplemented);
 
 dword_result_t NetDll_WSAResetEvent(dword_t event_handle) {
-  X_STATUS result = xboxkrnl::NtClearEvent(event_handle);
+  X_STATUS result = xboxkrnl::xeNtClearEvent(event_handle);
   if (XFAILED(result)) {
     uint32_t error = xboxkrnl::RtlNtStatusToDosError(result);
     XThread::SetLastError(error);
@@ -395,7 +395,7 @@ dword_result_t NetDll_WSAResetEvent(dword_t event_handle) {
 DECLARE_XAM_EXPORT1(NetDll_WSAResetEvent, kNetworking, kImplemented);
 
 dword_result_t NetDll_WSASetEvent(dword_t event_handle) {
-  X_STATUS result = xboxkrnl::NtSetEvent(event_handle, nullptr);
+  X_STATUS result = xboxkrnl::xeNtSetEvent(event_handle, nullptr);
   if (XFAILED(result)) {
     uint32_t error = xboxkrnl::RtlNtStatusToDosError(result);
     XThread::SetLastError(error);
