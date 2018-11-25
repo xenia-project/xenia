@@ -564,6 +564,10 @@ using xe::cpu::ExportTag;
   DECLARE_EXPORT(xboxkrnl, name, category,                             \
                  xe::cpu::ExportTag::tag1 | xe::cpu::ExportTag::tag2 | \
                      xe::cpu::ExportTag::tag3)
+#define DECLARE_XBOXKRNL_EXPORT4(name, category, tag1, tag2, tag3, tag4) \
+  DECLARE_EXPORT(xboxkrnl, name, category,                               \
+                 xe::cpu::ExportTag::tag1 | xe::cpu::ExportTag::tag2 |   \
+                     xe::cpu::ExportTag::tag3 | xe::cpu::ExportTag::tag4)
 
 }  // namespace kernel
 }  // namespace xe
