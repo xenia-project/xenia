@@ -14051,15 +14051,15 @@ void DxbcShaderTranslator::WriteShaderCode() {
       shader_object_.push_back(uint32_t(InOutRegister::kPSInClipSpaceZW));
       ++stat_.dcl_count;
     }
-    // Position input (only XY needed for ps_param_gen, but for ROV access, XYZ
-    // are needed).
+    // Position input (only XY needed for ps_param_gen, and the ROV depth code
+    // calculates the depth from clip space Z and W).
     shader_object_.push_back(
         ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_INPUT_PS_SIV) |
         ENCODE_D3D10_SB_INPUT_INTERPOLATION_MODE(
             D3D10_SB_INTERPOLATION_LINEAR_NOPERSPECTIVE) |
         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4));
-    shader_object_.push_back(EncodeVectorMaskedOperand(
-        D3D10_SB_OPERAND_TYPE_INPUT, edram_rov_used_ ? 0b0111 : 0b0011, 1));
+    shader_object_.push_back(
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_INPUT, 0b0011, 1));
     shader_object_.push_back(uint32_t(InOutRegister::kPSInPosition));
     shader_object_.push_back(ENCODE_D3D10_SB_NAME(D3D10_SB_NAME_POSITION));
     ++stat_.dcl_count;
