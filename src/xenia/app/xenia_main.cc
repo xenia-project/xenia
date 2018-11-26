@@ -15,11 +15,11 @@
 #include "xenia/base/main.h"
 #include "xenia/base/profiling.h"
 #include "xenia/base/threading.h"
+#include "xenia/config.h"
 #include "xenia/debug/ui/debug_window.h"
 #include "xenia/emulator.h"
 #include "xenia/ui/file_picker.h"
 #include "xenia/vfs/devices/host_path_device.h"
-#include "xenia/config.h"
 
 // Available audio systems:
 #include "xenia/apu/nop/nop_audio_system.h"
@@ -38,26 +38,32 @@
 #include "xenia/hid/xinput/xinput_hid.h"
 #endif  // XE_PLATFORM_WIN32
 
-DEFINE_string(apu, "any", "Audio system. Use: [any, nop, xaudio2]");
-DEFINE_string(gpu, "any", "Graphics system. Use: [any, vulkan, null]");
-DEFINE_string(hid, "any", "Input system. Use: [any, nop, winkey, xinput]");
+#include "third_party/xbyak/xbyak/xbyak_util.h"
 
-DEFINE_string(target, "", "Specifies the target .xex or .iso to execute.");
-DEFINE_bool(fullscreen, false, "Toggles fullscreen");
+CVar apu_("apu", "any", "Audio system. Use: [any, nop, xaudio2]", "General");
+CVar gpu_("gpu", "any", "Graphics system. Use: [any, vulkan, null]", "General");
+CVar hid_("hid", "any", "Input system. Use: [any, nop, winkey, xinput]",
+          "General");
 
-DEFINE_string(content_root, "", "Root path for content (save/etc) storage.");
+CVar fullscreen("fullscreen", "false", "Toggles fullscreen", "General");
 
-DEFINE_bool(mount_scratch, false, "Enable scratch mount");
-DEFINE_bool(mount_cache, false, "Enable cache mount");
+CVar content_root_("content_root", "",
+                   "Root path for content (save/etc) storage.", "General");
+
+CVar mount_scratch("mount_scratch", "false", "Enable scratch mount", "General");
+CVar mount_cache("mount_cache", "false", "Enable cache mount", "General");
+
+CmdVar target_("target", "", "Specifies the target .xex or .iso to execute.");
 
 namespace xe {
 namespace app {
 
 std::unique_ptr<apu::AudioSystem> CreateAudioSystem(cpu::Processor* processor) {
-  if (FLAGS_apu.compare("nop") == 0) {
+  auto apu = apu_.GetValue();
+  if (apu.compare("nop") == 0) {
     return apu::nop::NopAudioSystem::Create(processor);
 #if XE_PLATFORM_WIN32
-  } else if (FLAGS_apu.compare("xaudio2") == 0) {
+  } else if (apu.compare("xaudio2") == 0) {
     return apu::xaudio2::XAudio2AudioSystem::Create(processor);
 #endif  // XE_PLATFORM_WIN32
   } else {
@@ -77,10 +83,11 @@ std::unique_ptr<apu::AudioSystem> CreateAudioSystem(cpu::Processor* processor) {
 }
 
 std::unique_ptr<gpu::GraphicsSystem> CreateGraphicsSystem() {
-  if (FLAGS_gpu.compare("vulkan") == 0) {
+  auto gpu = gpu_.GetValue();
+  if (gpu.compare("vulkan") == 0) {
     return std::unique_ptr<gpu::GraphicsSystem>(
         new xe::gpu::vulkan::VulkanGraphicsSystem());
-  } else if (FLAGS_gpu.compare("null") == 0) {
+  } else if (gpu.compare("null") == 0) {
     return std::unique_ptr<gpu::GraphicsSystem>(
         new xe::gpu::null::NullGraphicsSystem());
   } else {
@@ -101,12 +108,13 @@ std::unique_ptr<gpu::GraphicsSystem> CreateGraphicsSystem() {
 std::vector<std::unique_ptr<hid::InputDriver>> CreateInputDrivers(
     ui::Window* window) {
   std::vector<std::unique_ptr<hid::InputDriver>> drivers;
-  if (FLAGS_hid.compare("nop") == 0) {
+  auto hid = hid_.GetValue();
+  if (hid.compare("nop") == 0) {
     drivers.emplace_back(xe::hid::nop::Create(window));
 #if XE_PLATFORM_WIN32
-  } else if (FLAGS_hid.compare("winkey") == 0) {
+  } else if (hid.compare("winkey") == 0) {
     drivers.emplace_back(xe::hid::winkey::Create(window));
-  } else if (FLAGS_hid.compare("xinput") == 0) {
+  } else if (hid.compare("xinput") == 0) {
     drivers.emplace_back(xe::hid::xinput::Create(window));
 #endif  // XE_PLATFORM_WIN32
   } else {
@@ -140,10 +148,9 @@ int xenia_main(const std::vector<std::wstring>& args) {
   Profiler::ThreadEnter("main");
 
   // Figure out where content should go.
-  std::wstring content_root;
-  if (!FLAGS_content_root.empty()) {
-    content_root = xe::to_wstring(FLAGS_content_root);
-  } else {
+  std::wstring content_root = xe::to_wstring(content_root_.GetValue());
+
+  if (content_root.empty()) {
     auto base_path = xe::filesystem::GetExecutableFolder();
     base_path = xe::to_absolute_path(base_path);
 
@@ -182,7 +189,7 @@ int xenia_main(const std::vector<std::wstring>& args) {
     return 1;
   }
 
-  if (FLAGS_mount_scratch) {
+  if (mount_scratch.GetBool()) {
     auto scratch_device = std::make_unique<xe::vfs::HostPathDevice>(
         "\\SCRATCH", L"scratch", false);
     if (!scratch_device->Initialize()) {
@@ -196,7 +203,7 @@ int xenia_main(const std::vector<std::wstring>& args) {
     }
   }
 
-  if (FLAGS_mount_cache) {
+  if (mount_cache.GetBool()) {
     auto cache0_device =
         std::make_unique<xe::vfs::HostPathDevice>("\\CACHE0", L"cache0", false);
     if (!cache0_device->Initialize()) {
@@ -271,20 +278,13 @@ int xenia_main(const std::vector<std::wstring>& args) {
 
   // Grab path from the flag or unnamed argument.
   std::wstring path;
-  if (!FLAGS_target.empty() || args.size() >= 2) {
-    if (!FLAGS_target.empty()) {
-      // Passed as a named argument.
-      // TODO(benvanik): find something better than gflags that supports
-      // unicode.
-      path = xe::to_wstring(FLAGS_target);
-    } else {
-      // Passed as an unnamed argument.
-      path = args[1];
-    }
+  auto target = target_.GetValue();
+  if (!target.empty()) {
+    path = xe::to_wstring(target);
   }
 
   // Toggles fullscreen
-  if (FLAGS_fullscreen) emulator_window->ToggleFullscreen();
+  if (fullscreen.GetBool()) emulator_window->ToggleFullscreen();
 
   if (!path.empty()) {
     // Normalize the path and make absolute.

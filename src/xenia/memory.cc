@@ -9,6 +9,8 @@
 
 #include "xenia/memory.h"
 
+#include "config.h"
+
 #include <gflags/gflags.h>
 
 #include <algorithm>
@@ -24,12 +26,13 @@
 // TODO(benvanik): move xbox.h out
 #include "xenia/xbox.h"
 
-DEFINE_bool(protect_zero, true, "Protect the zero page from reads and writes.");
-DEFINE_bool(protect_on_release, false,
-            "Protect released memory to prevent accesses.");
-
-DEFINE_bool(scribble_heap, false,
-            "Scribble 0xCD into all allocated heap memory.");
+CVar protect_zero("protect_zero", "true",
+                  "Protect the zero page from reads and writes.", "Memory");
+CVar protect_on_release("protect_on_release", "false",
+                        "Protect released memory to prevent accesses.",
+                        "Memory");
+CVar scribble_heap("scribble_heap", "false",
+                   "Scribble 0xCD into all allocated heap memory.", "Memory");
 
 namespace xe {
 
@@ -175,8 +178,8 @@ bool Memory::Initialize() {
   heaps_.v00000000.AllocFixed(
       0x00000000, 0x10000, 0x10000,
       kMemoryAllocationReserve | kMemoryAllocationCommit,
-      !FLAGS_protect_zero ? kMemoryProtectRead | kMemoryProtectWrite
-                          : kMemoryProtectNoAccess);
+      !protect_zero.GetBool() ? kMemoryProtectRead | kMemoryProtectWrite
+                              : kMemoryProtectNoAccess);
   heaps_.physical.AllocFixed(0x1FFF0000, 0x10000, 0x10000,
                              kMemoryAllocationReserve, kMemoryProtectNoAccess);
 
@@ -763,7 +766,7 @@ bool BaseHeap::AllocFixed(uint32_t base_address, uint32_t size,
       return false;
     }
 
-    if (FLAGS_scribble_heap && protect & kMemoryProtectWrite) {
+    if (scribble_heap.GetBool() && protect & kMemoryProtectWrite) {
       std::memset(result, 0xCD, page_count * page_size_);
     }
   }
@@ -911,7 +914,7 @@ bool BaseHeap::AllocRange(uint32_t low_address, uint32_t high_address,
       return false;
     }
 
-    if (FLAGS_scribble_heap && (protect & kMemoryProtectWrite)) {
+    if (scribble_heap.GetBool() && (protect & kMemoryProtectWrite)) {
       std::memset(result, 0xCD, page_count * page_size_);
     }
   }
@@ -999,7 +1002,7 @@ bool BaseHeap::Release(uint32_t base_address, uint32_t* out_region_size) {
     // TODO(benvanik): figure out why games are using memory after releasing it.
     // It's possible this is some virtual/physical stuff where the GPU still can
     // access it.
-    if (FLAGS_protect_on_release) {
+    if (protect_on_release.GetBool()) {
       if (!xe::memory::Protect(
               membase_ + heap_base_ + base_page_number * page_size_,
               base_page_entry.region_page_count * page_size_,
