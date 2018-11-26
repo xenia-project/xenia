@@ -62,12 +62,16 @@ class D3D12Provider : public GraphicsProvider {
     return start;
   }
 
+  // Device features.
+  uint32_t GetProgrammableSamplePositionsTier() const {
+    return programmable_sample_positions_tier_;
+  }
   bool AreRasterizerOrderedViewsSupported() const {
     return rasterizer_ordered_views_supported_;
   }
   uint32_t GetTiledResourcesTier() const { return tiled_resources_tier_; }
-  uint32_t GetProgrammableSamplePositionsTier() const {
-    return programmable_sample_positions_tier_;
+  uint32_t GetVirtualAddressBitsPerResource() const {
+    return virtual_address_bits_per_resource_;
   }
 
   // Proxies for Direct3D 12 functions since they are loaded dynamically.
@@ -122,9 +126,10 @@ class D3D12Provider : public GraphicsProvider {
   uint32_t descriptor_size_rtv_;
   uint32_t descriptor_size_dsv_;
 
+  uint32_t programmable_sample_positions_tier_;
   bool rasterizer_ordered_views_supported_;
   uint32_t tiled_resources_tier_;
-  uint32_t programmable_sample_positions_tier_;
+  uint32_t virtual_address_bits_per_resource_;
 };
 
 }  // namespace d3d12

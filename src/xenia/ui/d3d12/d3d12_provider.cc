@@ -212,11 +212,22 @@ D3D12Provider::InitializationResult D3D12Provider::Initialize() {
     programmable_sample_positions_tier_ =
         uint32_t(options2.ProgrammableSamplePositionsTier);
   }
-  XELOGD3D(
-      "Direct3D 12 device supports tiled resources tier %u, programmable "
-      "sample positions tier %u; rasterizer-ordered views %ssupported",
-      tiled_resources_tier_, programmable_sample_positions_tier_,
-      rasterizer_ordered_views_supported_ ? "" : "un");
+  virtual_address_bits_per_resource_ = 0;
+  D3D12_FEATURE_DATA_GPU_VIRTUAL_ADDRESS_SUPPORT virtual_address_support;
+  if (SUCCEEDED(device->CheckFeatureSupport(
+          D3D12_FEATURE_GPU_VIRTUAL_ADDRESS_SUPPORT, &virtual_address_support,
+          sizeof(virtual_address_support)))) {
+    virtual_address_bits_per_resource_ =
+        virtual_address_support.MaxGPUVirtualAddressBitsPerResource;
+  }
+  XELOGD3D("Direct3D 12 device features:");
+  XELOGD3D("* Max GPU virtual address bits per resource: %u",
+           virtual_address_bits_per_resource_);
+  XELOGD3D("* Programmable sample positions: tier %u",
+           programmable_sample_positions_tier_);
+  XELOGD3D("* Rasterizer-ordered views: %s",
+           rasterizer_ordered_views_supported_ ? "yes" : "no");
+  XELOGD3D("* Tiled resources: tier %u", tiled_resources_tier_);
 
   // Get the graphics analysis interface, will silently fail if PIX is not
   // attached.
