@@ -34,7 +34,7 @@ std::unique_ptr<D3D12Provider> D3D12Provider::Create(Window* main_window) {
           "Ensure that you have the latest drivers for your GPU and it "
           "supports Direct3D 12 feature level 11_0.\n"
           "\n"
-          "See http://xenia.jp/faq/ for more information and a list of "
+          "See https://xenia.jp/faq/ for more information and a list of "
           "supported GPUs.");
     }
     return nullptr;
