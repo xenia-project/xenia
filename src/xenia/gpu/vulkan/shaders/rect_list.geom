@@ -28,10 +28,15 @@ layout(location = 16) out vec2 _out_point_coord_unused;
 
 layout(triangles) in;
 layout(triangle_strip, max_vertices = 6) out;
+
+bool equalsEpsilon(vec2 left, vec2 right, float epsilon) {
+  return all(lessThanEqual(abs(left - right), vec2(epsilon)));
+}
+
 void main() {
   // Most games use a left-aligned form.
-  if (gl_in[0].gl_Position.xy == vec2(gl_in[2].gl_Position.x, gl_in[1].gl_Position.y) ||
-      gl_in[0].gl_Position.xy == vec2(gl_in[1].gl_Position.x, gl_in[2].gl_Position.y)) {
+  if (equalsEpsilon(gl_in[0].gl_Position.xy, vec2(gl_in[2].gl_Position.x, gl_in[1].gl_Position.y), 0.001) ||
+      equalsEpsilon(gl_in[0].gl_Position.xy, vec2(gl_in[1].gl_Position.x, gl_in[2].gl_Position.y), 0.001)) {
     //  0 ------ 1   0:  -1,-1
     //  |      - |   1:   1,-1
     //  |   //   |   2:  -1, 1
