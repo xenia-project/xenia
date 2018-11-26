@@ -24,6 +24,7 @@ project("xenia-vfs-dump")
   links({
     "gflags",
     "xenia-base",
+	"xenia-core",
     "xenia-vfs",
   })
   flags({

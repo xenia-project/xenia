@@ -28,6 +28,7 @@ project("xenia-hid-demo")
     "imgui",
     "volk",
     "xenia-base",
+	"xenia-core",
     "xenia-hid",
     "xenia-hid-nop",
     "xenia-ui",

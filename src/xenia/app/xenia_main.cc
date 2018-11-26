@@ -19,6 +19,7 @@
 #include "xenia/emulator.h"
 #include "xenia/ui/file_picker.h"
 #include "xenia/vfs/devices/host_path_device.h"
+#include "xenia/config.h"
 
 // Available audio systems:
 #include "xenia/apu/nop/nop_audio_system.h"

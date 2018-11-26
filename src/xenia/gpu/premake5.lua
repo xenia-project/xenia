@@ -35,6 +35,7 @@ project("xenia-gpu-shader-compiler")
     "glslang-spirv",
     "spirv-tools",
     "xenia-base",
+	"xenia-core",
     "xenia-gpu",
     "xenia-ui-spirv",
   })

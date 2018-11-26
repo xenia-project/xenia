@@ -33,6 +33,7 @@ project("xenia-ui-window-vulkan-demo")
     "imgui",
     "volk",
     "xenia-base",
+	"xenia-core",
     "xenia-ui",
     "xenia-ui-spirv",
     "xenia-ui-vulkan",
