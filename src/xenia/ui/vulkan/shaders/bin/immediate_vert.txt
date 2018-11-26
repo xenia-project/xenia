@@ -81,8 +81,7 @@
          %36 = OpAccessChain %_ptr_Output_float %_ %int_0 %uint_1
          %37 = OpLoad %float %36
          %38 = OpFNegate %float %37
-         %39 = OpAccessChain %_ptr_Output_float %_ %int_0 %uint_1
-               OpStore %39 %38
+               OpStore %36 %38
          %43 = OpLoad %v2float %in_uv
                OpStore %vtx_uv %43
          %47 = OpLoad %v4float %in_color

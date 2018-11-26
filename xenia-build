@@ -708,6 +708,7 @@ class GenSpirvCommand(Command):
             # GLSL source -> .spv binary
             shell_call([
                 glslang,
+                '-Os',
                 '-V', src_file,
                 '-o', spv_file,
                 ])
