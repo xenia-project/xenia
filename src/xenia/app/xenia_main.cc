@@ -143,8 +143,8 @@ int xenia_main(const std::vector<std::wstring>& args) {
   Xbyak::util::Cpu cpu;
   if (!cpu.has(Xbyak::util::Cpu::tAVX)) {
     xe::FatalError(
-        "Your CPU is too old to support Xenia. See the FAQ for system "
-        "requirements at https://xenia.jp");
+        "Your CPU does not support AVX, which is required by Xenia. See the "
+        "FAQ for system requirements at https://xenia.jp");
     return -1;
   }
 
