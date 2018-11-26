@@ -15,7 +15,7 @@
 #include "xenia/ui/d3d12/d3d12_context.h"
 
 DEFINE_bool(d3d12_debug, false, "Enable Direct3D 12 and DXGI debug layer.");
-DEFINE_int32(d3d12_adapter_index, -1,
+DEFINE_int32(d3d12_adapter, -1,
              "Index of the DXGI adapter to use. "
              "-1 for any physical adapter, -2 for WARP software rendering.");
 
@@ -134,11 +134,11 @@ D3D12Provider::InitializationResult D3D12Provider::Initialize() {
     if (SUCCEEDED(adapter->GetDesc1(&adapter_desc))) {
       if (SUCCEEDED(pfn_d3d12_create_device_(adapter, D3D_FEATURE_LEVEL_11_0,
                                              _uuidof(ID3D12Device), nullptr))) {
-        if (FLAGS_d3d12_adapter_index >= 0) {
-          if (adapter_index == FLAGS_d3d12_adapter_index) {
+        if (FLAGS_d3d12_adapter >= 0) {
+          if (adapter_index == FLAGS_d3d12_adapter) {
             break;
           }
-        } else if (FLAGS_d3d12_adapter_index == -2) {
+        } else if (FLAGS_d3d12_adapter == -2) {
           if (adapter_desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) {
             break;
           }
