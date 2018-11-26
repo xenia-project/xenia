@@ -14,18 +14,11 @@
                OpName %gl_FragDepth "gl_FragDepth"
                OpName %src_texture "src_texture"
                OpName %vtx_uv "vtx_uv"
-               OpName %PushConstants "PushConstants"
-               OpMemberName %PushConstants 0 "_pad"
-               OpMemberName %PushConstants 1 "swap"
-               OpName %push_constants "push_constants"
                OpName %oC "oC"
                OpDecorate %gl_FragDepth BuiltIn FragDepth
                OpDecorate %src_texture DescriptorSet 0
                OpDecorate %src_texture Binding 0
                OpDecorate %vtx_uv Location 0
-               OpMemberDecorate %PushConstants 0 Offset 32
-               OpMemberDecorate %PushConstants 1 Offset 44
-               OpDecorate %PushConstants Block
                OpDecorate %oC Location 0
        %void = OpTypeVoid
           %3 = OpTypeFunction %void
@@ -40,13 +33,6 @@
 %_ptr_Input_v2float = OpTypePointer Input %v2float
      %vtx_uv = OpVariable %_ptr_Input_v2float Input
     %v4float = OpTypeVector %float 4
-       %uint = OpTypeInt 32 0
-     %uint_0 = OpConstant %uint 0
-    %v3float = OpTypeVector %float 3
-        %int = OpTypeInt 32 1
-%PushConstants = OpTypeStruct %v3float %int
-%_ptr_PushConstant_PushConstants = OpTypePointer PushConstant %PushConstants
-%push_constants = OpVariable %_ptr_PushConstant_PushConstants PushConstant
 %_ptr_Output_v4float = OpTypePointer Output %v4float
          %oC = OpVariable %_ptr_Output_v4float Output
        %main = OpFunction %void None %3

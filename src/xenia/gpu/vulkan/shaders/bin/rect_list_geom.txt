@@ -1,7 +1,7 @@
 ; SPIR-V
 ; Version: 1.0
 ; Generator: Khronos Glslang Reference Front End; 6
-; Bound: 251
+; Bound: 253
 ; Schema: 0
                OpCapability Geometry
                OpCapability GeometryPointSize
@@ -26,8 +26,6 @@
                OpName %_ ""
                OpName %out_interpolators "out_interpolators"
                OpName %in_interpolators "in_interpolators"
-               OpName %i "i"
-               OpName %i_0 "i"
                OpName %_in_point_coord_unused "_in_point_coord_unused"
                OpName %_in_point_size_unused "_in_point_size_unused"
                OpName %_out_point_coord_unused "_out_point_coord_unused"
@@ -76,7 +74,6 @@
 %_ptr_Input__arr__arr_v4float_uint_16_uint_3 = OpTypePointer Input %_arr__arr_v4float_uint_16_uint_3
 %in_interpolators = OpVariable %_ptr_Input__arr__arr_v4float_uint_16_uint_3 Input
 %_ptr_Input__arr_v4float_uint_16 = OpTypePointer Input %_arr_v4float_uint_16
-%_ptr_Function_int = OpTypePointer Function %int
      %int_16 = OpConstant %int 16
 %_arr_v2float_uint_3 = OpTypeArray %v2float %uint_3
 %_ptr_Input__arr_v2float_uint_3 = OpTypePointer Input %_arr_v2float_uint_3
@@ -88,8 +85,6 @@
 %_out_point_coord_unused = OpVariable %_ptr_Output_v2float Output
        %main = OpFunction %void None %3
           %5 = OpLabel
-          %i = OpVariable %_ptr_Function_int Function
-        %i_0 = OpVariable %_ptr_Function_int Function
          %19 = OpAccessChain %_ptr_Input_v4float %gl_in %int_0 %int_0
          %20 = OpLoad %v4float %19
          %21 = OpVectorShuffle %v2float %20 %20 0 1
@@ -104,15 +99,12 @@
                OpSelectionMerge %37 None
                OpBranchConditional %35 %36 %37
          %36 = OpLabel
-         %38 = OpAccessChain %_ptr_Input_v4float %gl_in %int_0 %int_0
-         %39 = OpLoad %v4float %38
-         %40 = OpVectorShuffle %v2float %39 %39 0 1
          %41 = OpAccessChain %_ptr_Input_float %gl_in %int_1 %int_0 %uint_0
          %42 = OpLoad %float %41
          %43 = OpAccessChain %_ptr_Input_float %gl_in %int_2 %int_0 %uint_1
          %44 = OpLoad %float %43
          %45 = OpCompositeConstruct %v2float %42 %44
-         %46 = OpFOrdEqual %v2bool %40 %45
+         %46 = OpFOrdEqual %v2bool %21 %45
          %47 = OpAll %bool %46
                OpBranch %37
          %37 = OpLabel
@@ -120,10 +112,8 @@
                OpSelectionMerge %50 None
                OpBranchConditional %48 %49 %154
          %49 = OpLabel
-         %54 = OpAccessChain %_ptr_Input_v4float %gl_in %int_0 %int_0
-         %55 = OpLoad %v4float %54
          %57 = OpAccessChain %_ptr_Output_v4float %_ %int_0
-               OpStore %57 %55
+               OpStore %57 %20
          %58 = OpAccessChain %_ptr_Input_float %gl_in %int_0 %int_1
          %59 = OpLoad %float %58
          %61 = OpAccessChain %_ptr_Output_float %_ %int_1
@@ -134,119 +124,72 @@
                OpEmitVertex
          %72 = OpAccessChain %_ptr_Input_v4float %gl_in %int_1 %int_0
          %73 = OpLoad %v4float %72
-         %74 = OpAccessChain %_ptr_Output_v4float %_ %int_0
-               OpStore %74 %73
+               OpStore %57 %73
          %75 = OpAccessChain %_ptr_Input_float %gl_in %int_1 %int_1
          %76 = OpLoad %float %75
-         %77 = OpAccessChain %_ptr_Output_float %_ %int_1
-               OpStore %77 %76
+               OpStore %61 %76
          %78 = OpAccessChain %_ptr_Input__arr_v4float_uint_16 %in_interpolators %int_1
          %79 = OpLoad %_arr_v4float_uint_16 %78
                OpStore %out_interpolators %79
                OpEmitVertex
          %80 = OpAccessChain %_ptr_Input_v4float %gl_in %int_2 %int_0
          %81 = OpLoad %v4float %80
-         %82 = OpAccessChain %_ptr_Output_v4float %_ %int_0
-               OpStore %82 %81
+               OpStore %57 %81
          %83 = OpAccessChain %_ptr_Input_float %gl_in %int_2 %int_1
          %84 = OpLoad %float %83
-         %85 = OpAccessChain %_ptr_Output_float %_ %int_1
-               OpStore %85 %84
+               OpStore %61 %84
          %86 = OpAccessChain %_ptr_Input__arr_v4float_uint_16 %in_interpolators %int_2
          %87 = OpLoad %_arr_v4float_uint_16 %86
                OpStore %out_interpolators %87
                OpEmitVertex
                OpEndPrimitive
-         %88 = OpAccessChain %_ptr_Input_v4float %gl_in %int_2 %int_0
-         %89 = OpLoad %v4float %88
-         %90 = OpAccessChain %_ptr_Output_v4float %_ %int_0
-               OpStore %90 %89
-         %91 = OpAccessChain %_ptr_Input_float %gl_in %int_2 %int_1
-         %92 = OpLoad %float %91
-         %93 = OpAccessChain %_ptr_Output_float %_ %int_1
-               OpStore %93 %92
-         %94 = OpAccessChain %_ptr_Input__arr_v4float_uint_16 %in_interpolators %int_2
-         %95 = OpLoad %_arr_v4float_uint_16 %94
-               OpStore %out_interpolators %95
+               OpStore %57 %81
+               OpStore %61 %84
+               OpStore %out_interpolators %87
                OpEmitVertex
-         %96 = OpAccessChain %_ptr_Input_v4float %gl_in %int_1 %int_0
-         %97 = OpLoad %v4float %96
-         %98 = OpAccessChain %_ptr_Output_v4float %_ %int_0
-               OpStore %98 %97
-         %99 = OpAccessChain %_ptr_Input_float %gl_in %int_1 %int_1
-        %100 = OpLoad %float %99
-        %101 = OpAccessChain %_ptr_Output_float %_ %int_1
-               OpStore %101 %100
-        %102 = OpAccessChain %_ptr_Input__arr_v4float_uint_16 %in_interpolators %int_1
-        %103 = OpLoad %_arr_v4float_uint_16 %102
-               OpStore %out_interpolators %103
+               OpStore %57 %73
+               OpStore %61 %76
+               OpStore %out_interpolators %79
                OpEmitVertex
-        %104 = OpAccessChain %_ptr_Input_v4float %gl_in %int_0 %int_0
-        %105 = OpLoad %v4float %104
-        %106 = OpVectorShuffle %v2float %105 %105 0 1
-        %107 = OpFNegate %v2float %106
-        %108 = OpAccessChain %_ptr_Input_v4float %gl_in %int_1 %int_0
-        %109 = OpLoad %v4float %108
-        %110 = OpVectorShuffle %v2float %109 %109 0 1
+        %107 = OpFNegate %v2float %21
+        %110 = OpVectorShuffle %v2float %73 %73 0 1
         %111 = OpFAdd %v2float %107 %110
-        %112 = OpAccessChain %_ptr_Input_v4float %gl_in %int_2 %int_0
-        %113 = OpLoad %v4float %112
-        %114 = OpVectorShuffle %v2float %113 %113 0 1
+        %114 = OpVectorShuffle %v2float %81 %81 0 1
         %115 = OpFAdd %v2float %111 %114
-        %116 = OpAccessChain %_ptr_Input_v4float %gl_in %int_2 %int_0
-        %117 = OpLoad %v4float %116
-        %118 = OpVectorShuffle %v2float %117 %117 2 3
         %119 = OpCompositeExtract %float %115 0
         %120 = OpCompositeExtract %float %115 1
-        %121 = OpCompositeExtract %float %118 0
-        %122 = OpCompositeExtract %float %118 1
+        %121 = OpCompositeExtract %float %81 2
+        %122 = OpCompositeExtract %float %81 3
         %123 = OpCompositeConstruct %v4float %119 %120 %121 %122
-        %124 = OpAccessChain %_ptr_Output_v4float %_ %int_0
-               OpStore %124 %123
-        %125 = OpAccessChain %_ptr_Input_float %gl_in %int_2 %int_1
-        %126 = OpLoad %float %125
-        %127 = OpAccessChain %_ptr_Output_float %_ %int_1
-               OpStore %127 %126
-               OpStore %i %int_0
+               OpStore %57 %123
+               OpStore %61 %84
                OpBranch %130
         %130 = OpLabel
-               OpLoopMerge %132 %133 None
-               OpBranch %134
-        %134 = OpLabel
-        %135 = OpLoad %int %i
-        %137 = OpSLessThan %bool %135 %int_16
+        %252 = OpPhi %int %int_0 %49 %153 %131
+        %137 = OpSLessThan %bool %252 %int_16
+               OpLoopMerge %132 %131 None
                OpBranchConditional %137 %131 %132
         %131 = OpLabel
-        %138 = OpLoad %int %i
-        %139 = OpLoad %int %i
-        %140 = OpAccessChain %_ptr_Input_v4float %in_interpolators %int_0 %139
+        %140 = OpAccessChain %_ptr_Input_v4float %in_interpolators %int_0 %252
         %141 = OpLoad %v4float %140
         %142 = OpFNegate %v4float %141
-        %143 = OpLoad %int %i
-        %144 = OpAccessChain %_ptr_Input_v4float %in_interpolators %int_1 %143
+        %144 = OpAccessChain %_ptr_Input_v4float %in_interpolators %int_1 %252
         %145 = OpLoad %v4float %144
         %146 = OpFAdd %v4float %142 %145
-        %147 = OpLoad %int %i
-        %148 = OpAccessChain %_ptr_Input_v4float %in_interpolators %int_2 %147
+        %148 = OpAccessChain %_ptr_Input_v4float %in_interpolators %int_2 %252
         %149 = OpLoad %v4float %148
         %150 = OpFAdd %v4float %146 %149
-        %151 = OpAccessChain %_ptr_Output_v4float %out_interpolators %138
+        %151 = OpAccessChain %_ptr_Output_v4float %out_interpolators %252
                OpStore %151 %150
-               OpBranch %133
-        %133 = OpLabel
-        %152 = OpLoad %int %i
-        %153 = OpIAdd %int %152 %int_1
-               OpStore %i %153
+        %153 = OpIAdd %int %252 %int_1
                OpBranch %130
         %132 = OpLabel
                OpEmitVertex
                OpEndPrimitive
                OpBranch %50
         %154 = OpLabel
-        %155 = OpAccessChain %_ptr_Input_v4float %gl_in %int_0 %int_0
-        %156 = OpLoad %v4float %155
         %157 = OpAccessChain %_ptr_Output_v4float %_ %int_0
-               OpStore %157 %156
+               OpStore %157 %20
         %158 = OpAccessChain %_ptr_Input_float %gl_in %int_0 %int_1
         %159 = OpLoad %float %158
         %160 = OpAccessChain %_ptr_Output_float %_ %int_1
@@ -257,109 +200,64 @@
                OpEmitVertex
         %163 = OpAccessChain %_ptr_Input_v4float %gl_in %int_1 %int_0
         %164 = OpLoad %v4float %163
-        %165 = OpAccessChain %_ptr_Output_v4float %_ %int_0
-               OpStore %165 %164
+               OpStore %157 %164
         %166 = OpAccessChain %_ptr_Input_float %gl_in %int_1 %int_1
         %167 = OpLoad %float %166
-        %168 = OpAccessChain %_ptr_Output_float %_ %int_1
-               OpStore %168 %167
+               OpStore %160 %167
         %169 = OpAccessChain %_ptr_Input__arr_v4float_uint_16 %in_interpolators %int_1
         %170 = OpLoad %_arr_v4float_uint_16 %169
                OpStore %out_interpolators %170
                OpEmitVertex
         %171 = OpAccessChain %_ptr_Input_v4float %gl_in %int_2 %int_0
         %172 = OpLoad %v4float %171
-        %173 = OpAccessChain %_ptr_Output_v4float %_ %int_0
-               OpStore %173 %172
+               OpStore %157 %172
         %174 = OpAccessChain %_ptr_Input_float %gl_in %int_2 %int_1
         %175 = OpLoad %float %174
-        %176 = OpAccessChain %_ptr_Output_float %_ %int_1
-               OpStore %176 %175
+               OpStore %160 %175
         %177 = OpAccessChain %_ptr_Input__arr_v4float_uint_16 %in_interpolators %int_2
         %178 = OpLoad %_arr_v4float_uint_16 %177
                OpStore %out_interpolators %178
                OpEmitVertex
                OpEndPrimitive
-        %179 = OpAccessChain %_ptr_Input_v4float %gl_in %int_0 %int_0
-        %180 = OpLoad %v4float %179
-        %181 = OpAccessChain %_ptr_Output_v4float %_ %int_0
-               OpStore %181 %180
-        %182 = OpAccessChain %_ptr_Input_float %gl_in %int_0 %int_1
-        %183 = OpLoad %float %182
-        %184 = OpAccessChain %_ptr_Output_float %_ %int_1
-               OpStore %184 %183
-        %185 = OpAccessChain %_ptr_Input__arr_v4float_uint_16 %in_interpolators %int_0
-        %186 = OpLoad %_arr_v4float_uint_16 %185
-               OpStore %out_interpolators %186
+               OpStore %157 %20
+               OpStore %160 %159
+               OpStore %out_interpolators %162
                OpEmitVertex
-        %187 = OpAccessChain %_ptr_Input_v4float %gl_in %int_2 %int_0
-        %188 = OpLoad %v4float %187
-        %189 = OpAccessChain %_ptr_Output_v4float %_ %int_0
-               OpStore %189 %188
-        %190 = OpAccessChain %_ptr_Input_float %gl_in %int_2 %int_1
-        %191 = OpLoad %float %190
-        %192 = OpAccessChain %_ptr_Output_float %_ %int_1
-               OpStore %192 %191
-        %193 = OpAccessChain %_ptr_Input__arr_v4float_uint_16 %in_interpolators %int_2
-        %194 = OpLoad %_arr_v4float_uint_16 %193
-               OpStore %out_interpolators %194
+               OpStore %157 %172
+               OpStore %160 %175
+               OpStore %out_interpolators %178
                OpEmitVertex
-        %195 = OpAccessChain %_ptr_Input_v4float %gl_in %int_0 %int_0
-        %196 = OpLoad %v4float %195
-        %197 = OpVectorShuffle %v2float %196 %196 0 1
-        %198 = OpAccessChain %_ptr_Input_v4float %gl_in %int_1 %int_0
-        %199 = OpLoad %v4float %198
-        %200 = OpVectorShuffle %v2float %199 %199 0 1
+        %200 = OpVectorShuffle %v2float %164 %164 0 1
         %201 = OpFNegate %v2float %200
-        %202 = OpFAdd %v2float %197 %201
-        %203 = OpAccessChain %_ptr_Input_v4float %gl_in %int_2 %int_0
-        %204 = OpLoad %v4float %203
-        %205 = OpVectorShuffle %v2float %204 %204 0 1
+        %202 = OpFAdd %v2float %21 %201
+        %205 = OpVectorShuffle %v2float %172 %172 0 1
         %206 = OpFAdd %v2float %202 %205
-        %207 = OpAccessChain %_ptr_Input_v4float %gl_in %int_2 %int_0
-        %208 = OpLoad %v4float %207
-        %209 = OpVectorShuffle %v2float %208 %208 2 3
         %210 = OpCompositeExtract %float %206 0
         %211 = OpCompositeExtract %float %206 1
-        %212 = OpCompositeExtract %float %209 0
-        %213 = OpCompositeExtract %float %209 1
+        %212 = OpCompositeExtract %float %172 2
+        %213 = OpCompositeExtract %float %172 3
         %214 = OpCompositeConstruct %v4float %210 %211 %212 %213
-        %215 = OpAccessChain %_ptr_Output_v4float %_ %int_0
-               OpStore %215 %214
-        %216 = OpAccessChain %_ptr_Input_float %gl_in %int_2 %int_1
-        %217 = OpLoad %float %216
-        %218 = OpAccessChain %_ptr_Output_float %_ %int_1
-               OpStore %218 %217
-               OpStore %i_0 %int_0
+               OpStore %157 %214
+               OpStore %160 %175
                OpBranch %220
         %220 = OpLabel
-               OpLoopMerge %222 %223 None
-               OpBranch %224
-        %224 = OpLabel
-        %225 = OpLoad %int %i_0
-        %226 = OpSLessThan %bool %225 %int_16
+        %251 = OpPhi %int %int_0 %154 %242 %221
+        %226 = OpSLessThan %bool %251 %int_16
+               OpLoopMerge %222 %221 None
                OpBranchConditional %226 %221 %222
         %221 = OpLabel
-        %227 = OpLoad %int %i_0
-        %228 = OpLoad %int %i_0
-        %229 = OpAccessChain %_ptr_Input_v4float %in_interpolators %int_0 %228
+        %229 = OpAccessChain %_ptr_Input_v4float %in_interpolators %int_0 %251
         %230 = OpLoad %v4float %229
-        %231 = OpLoad %int %i_0
-        %232 = OpAccessChain %_ptr_Input_v4float %in_interpolators %int_1 %231
+        %232 = OpAccessChain %_ptr_Input_v4float %in_interpolators %int_1 %251
         %233 = OpLoad %v4float %232
         %234 = OpFNegate %v4float %233
         %235 = OpFAdd %v4float %230 %234
-        %236 = OpLoad %int %i_0
-        %237 = OpAccessChain %_ptr_Input_v4float %in_interpolators %int_2 %236
+        %237 = OpAccessChain %_ptr_Input_v4float %in_interpolators %int_2 %251
         %238 = OpLoad %v4float %237
         %239 = OpFAdd %v4float %235 %238
-        %240 = OpAccessChain %_ptr_Output_v4float %out_interpolators %227
+        %240 = OpAccessChain %_ptr_Output_v4float %out_interpolators %251
                OpStore %240 %239
-               OpBranch %223
-        %223 = OpLabel
-        %241 = OpLoad %int %i_0
-        %242 = OpIAdd %int %241 %int_1
-               OpStore %i_0 %242
+        %242 = OpIAdd %int %251 %int_1
                OpBranch %220
         %222 = OpLabel
                OpEmitVertex

@@ -9,11 +9,8 @@
                OpEntryPoint Vertex %main "main" %gl_VertexIndex %_ %vtx_uv
                OpSource GLSL 450
                OpName %main "main"
-               OpName %vfetch_pos "vfetch_pos"
                OpName %gl_VertexIndex "gl_VertexIndex"
                OpName %indexable "indexable"
-               OpName %scaled_pos "scaled_pos"
-               OpName %scaled_dst_uv "scaled_dst_uv"
                OpName %PushConstants "PushConstants"
                OpMemberName %PushConstants 0 "src_uv"
                OpMemberName %PushConstants 1 "dst_uv"
@@ -55,9 +52,7 @@
 %gl_VertexIndex = OpVariable %_ptr_Input_int Input
 %_ptr_Function__arr_v2float_uint_4 = OpTypePointer Function %_arr_v2float_uint_4
     %float_2 = OpConstant %float 2
-         %31 = OpConstantComposite %v2float %float_2 %float_2
     %v4float = OpTypeVector %float 4
-%_ptr_Function_v4float = OpTypePointer Function %v4float
 %PushConstants = OpTypeStruct %v4float %v4float
 %_ptr_PushConstant_PushConstants = OpTypePointer PushConstant %PushConstants
 %push_constants = OpVariable %_ptr_PushConstant_PushConstants PushConstant
@@ -75,44 +70,29 @@
      %vtx_uv = OpVariable %_ptr_Output_v2float Output
        %main = OpFunction %void None %3
           %5 = OpLabel
- %vfetch_pos = OpVariable %_ptr_Function_v2float Function
   %indexable = OpVariable %_ptr_Function__arr_v2float_uint_4 Function
- %scaled_pos = OpVariable %_ptr_Function_v2float Function
-%scaled_dst_uv = OpVariable %_ptr_Function_v4float Function
          %23 = OpLoad %int %gl_VertexIndex
                OpStore %indexable %19
          %26 = OpAccessChain %_ptr_Function_v2float %indexable %23
          %27 = OpLoad %v2float %26
-               OpStore %vfetch_pos %27
-         %29 = OpLoad %v2float %vfetch_pos
-         %32 = OpFMul %v2float %29 %31
-         %33 = OpFSub %v2float %32 %18
-               OpStore %scaled_pos %33
          %42 = OpAccessChain %_ptr_PushConstant_v4float %push_constants %int_1
          %43 = OpLoad %v4float %42
          %45 = OpFMul %v4float %43 %44
-               OpStore %scaled_dst_uv %45
-         %52 = OpLoad %v4float %scaled_dst_uv
-         %53 = OpVectorShuffle %v2float %52 %52 0 1
+         %53 = OpVectorShuffle %v2float %45 %45 0 1
          %54 = OpFSub %v2float %53 %18
-         %55 = OpLoad %v2float %vfetch_pos
-         %56 = OpLoad %v4float %scaled_dst_uv
-         %57 = OpVectorShuffle %v2float %56 %56 2 3
-         %58 = OpFMul %v2float %55 %57
+         %57 = OpVectorShuffle %v2float %45 %45 2 3
+         %58 = OpFMul %v2float %27 %57
          %59 = OpFAdd %v2float %54 %58
          %60 = OpCompositeExtract %float %59 0
          %61 = OpCompositeExtract %float %59 1
          %62 = OpCompositeConstruct %v4float %60 %61 %float_0 %float_1
          %64 = OpAccessChain %_ptr_Output_v4float %_ %int_0
                OpStore %64 %62
-         %67 = OpLoad %v2float %vfetch_pos
          %68 = OpAccessChain %_ptr_PushConstant_v4float %push_constants %int_0
          %69 = OpLoad %v4float %68
          %70 = OpVectorShuffle %v2float %69 %69 2 3
-         %71 = OpFMul %v2float %67 %70
-         %72 = OpAccessChain %_ptr_PushConstant_v4float %push_constants %int_0
-         %73 = OpLoad %v4float %72
-         %74 = OpVectorShuffle %v2float %73 %73 0 1
+         %71 = OpFMul %v2float %27 %70
+         %74 = OpVectorShuffle %v2float %69 %69 0 1
          %75 = OpFAdd %v2float %71 %74
                OpStore %vtx_uv %75
                OpReturn
