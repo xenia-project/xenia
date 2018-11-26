@@ -373,7 +373,7 @@ dword_result_t XamEnumerate(dword_t handle, dword_t flags, lpvoid_t buffer,
   if (actual_buffer_length < e->item_size()) {
     result = X_ERROR_INSUFFICIENT_BUFFER;
   } else if (e->current_item() >= e->item_count()) {
-    result = X_ERROR_NO_MORE_FILES;
+    result = X_ERROR_FUNCTION_FAILED;
   } else {
     auto item_buffer = buffer.as<uint8_t*>();
     auto max_items = actual_buffer_length / e->item_size();
