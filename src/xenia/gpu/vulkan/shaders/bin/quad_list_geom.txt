@@ -1,7 +1,7 @@
 ; SPIR-V
 ; Version: 1.0
 ; Generator: Khronos Glslang Reference Front End; 6
-; Bound: 75
+; Bound: 76
 ; Schema: 0
                OpCapability Geometry
                OpCapability GeometryPointSize
@@ -17,8 +17,6 @@
                OpSourceExtension "GL_ARB_separate_shader_objects"
                OpSourceExtension "GL_ARB_shading_language_420pack"
                OpName %main "main"
-               OpName %i "i"
-               OpName %input_index "input_index"
                OpName %indexable "indexable"
                OpName %gl_PerVertex "gl_PerVertex"
                OpMemberName %gl_PerVertex 0 "gl_Position"
@@ -91,44 +89,30 @@
 %_out_point_coord_unused = OpVariable %_ptr_Output_v2float Output
        %main = OpFunction %void None %3
           %5 = OpLabel
-          %i = OpVariable %_ptr_Function_int Function
-%input_index = OpVariable %_ptr_Function_int Function
   %indexable = OpVariable %_ptr_Function__arr_int_uint_4 Function
-               OpStore %i %int_0
                OpBranch %10
          %10 = OpLabel
-               OpLoopMerge %12 %13 None
-               OpBranch %14
-         %14 = OpLabel
-         %15 = OpLoad %int %i
-         %18 = OpSLessThan %bool %15 %int_4
+         %75 = OpPhi %int %int_0 %5 %65 %11
+         %18 = OpSLessThan %bool %75 %int_4
+               OpLoopMerge %12 %11 None
                OpBranchConditional %18 %11 %12
          %11 = OpLabel
-         %27 = OpLoad %int %i
                OpStore %indexable %26
-         %30 = OpAccessChain %_ptr_Function_int %indexable %27
+         %30 = OpAccessChain %_ptr_Function_int %indexable %75
          %31 = OpLoad %int %30
-               OpStore %input_index %31
-         %41 = OpLoad %int %input_index
-         %43 = OpAccessChain %_ptr_Input_v4float %gl_in %41 %int_0
+         %43 = OpAccessChain %_ptr_Input_v4float %gl_in %31 %int_0
          %44 = OpLoad %v4float %43
          %46 = OpAccessChain %_ptr_Output_v4float %_ %int_0
                OpStore %46 %44
-         %47 = OpLoad %int %input_index
-         %49 = OpAccessChain %_ptr_Input_float %gl_in %47 %int_1
+         %49 = OpAccessChain %_ptr_Input_float %gl_in %31 %int_1
          %50 = OpLoad %float %49
          %52 = OpAccessChain %_ptr_Output_float %_ %int_1
                OpStore %52 %50
-         %60 = OpLoad %int %input_index
-         %62 = OpAccessChain %_ptr_Input__arr_v4float_uint_16 %in_interpolators %60
+         %62 = OpAccessChain %_ptr_Input__arr_v4float_uint_16 %in_interpolators %31
          %63 = OpLoad %_arr_v4float_uint_16 %62
                OpStore %out_interpolators %63
                OpEmitVertex
-               OpBranch %13
-         %13 = OpLabel
-         %64 = OpLoad %int %i
-         %65 = OpIAdd %int %64 %int_1
-               OpStore %i %65
+         %65 = OpIAdd %int %75 %int_1
                OpBranch %10
          %12 = OpLabel
                OpEndPrimitive
