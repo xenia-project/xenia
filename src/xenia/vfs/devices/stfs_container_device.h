@@ -92,6 +92,13 @@ enum SvodDeviceFeatures {
   kFeatureHasEnhancedGDFLayout = 0x40,
 };
 
+enum SvodLayoutType {
+  kUnknownLayout = 0x0,
+  kEnhancedGDFLayout = 0x1,
+  kXSFLayout = 0x2,
+  kSingleFileLayout = 0x4,
+};
+
 struct SvodVolumeDescriptor {
   bool Read(const uint8_t* p);
 
@@ -104,6 +111,8 @@ struct SvodVolumeDescriptor {
   uint32_t data_block_count;
   uint32_t data_block_offset;
   // 0x5 padding bytes...
+
+  SvodLayoutType layout_type;
 };
 
 class StfsHeader {
@@ -187,19 +196,20 @@ class StfsContainerDevice : public Device {
   };
 
   const uint32_t kSTFSHashSpacing = 170;
-  const uint32_t kSVODHashSpacing = 204;
 
   const char* ReadMagic(const std::wstring& path);
   bool ResolveFromFolder(const std::wstring& path);
 
+  Error MapFiles();
   Error ReadHeaderAndVerify(const uint8_t* map_ptr);
-  Error ReadAllEntriesSVOD();
-  bool ReadEntrySVOD(uint32_t sector, uint32_t ordinal,
-                     StfsContainerEntry* parent);
 
-  Error ReadAllEntriesSTFS(const uint8_t* map_ptr);
-  size_t BlockToOffsetSTFS(uint64_t block);
+  Error ReadSVOD();
+  Error ReadEntrySVOD(uint32_t sector, uint32_t ordinal,
+                      StfsContainerEntry* parent);
   void BlockToOffsetSVOD(size_t sector, size_t* address, size_t* file_index);
+
+  Error ReadSTFS();
+  size_t BlockToOffsetSTFS(uint64_t block);
 
   BlockHash GetBlockHash(const uint8_t* map_ptr, uint32_t block_index,
                          uint32_t table_offset);
@@ -208,8 +218,8 @@ class StfsContainerDevice : public Device {
   std::map<size_t, std::unique_ptr<MappedMemory>> mmap_;
   size_t mmap_total_size_;
 
-  size_t base_address_;
-
+  size_t base_offset_;
+  size_t magic_offset_;
   std::unique_ptr<Entry> root_entry_;
   StfsPackageType package_type_;
   StfsHeader header_;
