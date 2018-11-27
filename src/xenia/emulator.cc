@@ -12,6 +12,7 @@
 #include <gflags/gflags.h>
 #include <cinttypes>
 
+#include "config.h"
 #include "xenia/apu/audio_system.h"
 #include "xenia/base/assert.h"
 #include "xenia/base/byte_stream.h"
@@ -626,6 +627,8 @@ X_STATUS Emulator::CompleteLaunch(const std::wstring& path,
   if (module->title_id()) {
     char title_id[9] = {0};
     std::snprintf(title_id, xe::countof(title_id), "%08X", module->title_id());
+    config::LoadGameConfig(xe::filesystem::GetExecutableFolder(),
+                           xe::to_wstring(title_id));
     uint32_t resource_data = 0;
     uint32_t resource_size = 0;
     if (XSUCCEEDED(
