@@ -14,47 +14,8 @@
                OpSourceExtension "GL_ARB_separate_shader_objects"
                OpSourceExtension "GL_ARB_shading_language_420pack"
                OpName %main "main"
-               OpName %consts_type "consts_type"
-               OpMemberName %consts_type 0 "float_consts"
-               OpMemberName %consts_type 1 "loop_consts"
-               OpMemberName %consts_type 2 "bool_consts"
-               OpName %consts "consts"
-               OpName %push_consts_type "push_consts_type"
-               OpMemberName %push_consts_type 0 "window_scale"
-               OpMemberName %push_consts_type 1 "vtx_fmt"
-               OpMemberName %push_consts_type 2 "point_size"
-               OpMemberName %push_consts_type 3 "alpha_test"
-               OpMemberName %push_consts_type 4 "ps_param_gen"
-               OpName %push_constants "push_constants"
-               OpName %textures1D "textures1D"
-               OpName %textures2D "textures2D"
-               OpName %textures3D "textures3D"
-               OpName %textures4D "textures4D"
                OpName %in_interpolators "in_interpolators"
                OpName %oC "oC"
-               OpDecorate %_arr_v4float_uint_512 ArrayStride 16
-               OpDecorate %_arr_uint_uint_32 ArrayStride 16
-               OpDecorate %_arr_uint_uint_8 ArrayStride 16
-               OpMemberDecorate %consts_type 0 Offset 0
-               OpMemberDecorate %consts_type 1 Offset 8192
-               OpMemberDecorate %consts_type 2 Offset 8704
-               OpDecorate %consts_type Block
-               OpDecorate %consts DescriptorSet 0
-               OpDecorate %consts Binding 1
-               OpMemberDecorate %push_consts_type 0 Offset 0
-               OpMemberDecorate %push_consts_type 1 Offset 16
-               OpMemberDecorate %push_consts_type 2 Offset 32
-               OpMemberDecorate %push_consts_type 3 Offset 48
-               OpMemberDecorate %push_consts_type 4 Offset 64
-               OpDecorate %push_consts_type Block
-               OpDecorate %textures1D DescriptorSet 1
-               OpDecorate %textures1D Binding 0
-               OpDecorate %textures2D DescriptorSet 1
-               OpDecorate %textures2D Binding 1
-               OpDecorate %textures3D DescriptorSet 1
-               OpDecorate %textures3D Binding 2
-               OpDecorate %textures4D DescriptorSet 1
-               OpDecorate %textures4D Binding 3
                OpDecorate %in_interpolators Location 0
                OpDecorate %oC Location 0
        %void = OpTypeVoid
@@ -62,38 +23,6 @@
       %float = OpTypeFloat 32
     %v4float = OpTypeVector %float 4
        %uint = OpTypeInt 32 0
-   %uint_512 = OpConstant %uint 512
-%_arr_v4float_uint_512 = OpTypeArray %v4float %uint_512
-    %uint_32 = OpConstant %uint 32
-%_arr_uint_uint_32 = OpTypeArray %uint %uint_32
-     %uint_8 = OpConstant %uint 8
-%_arr_uint_uint_8 = OpTypeArray %uint %uint_8
-%consts_type = OpTypeStruct %_arr_v4float_uint_512 %_arr_uint_uint_32 %_arr_uint_uint_8
-%_ptr_Uniform_consts_type = OpTypePointer Uniform %consts_type
-     %consts = OpVariable %_ptr_Uniform_consts_type Uniform
-%push_consts_type = OpTypeStruct %v4float %v4float %v4float %v4float %uint
-%_ptr_PushConstant_push_consts_type = OpTypePointer PushConstant %push_consts_type
-%push_constants = OpVariable %_ptr_PushConstant_push_consts_type PushConstant
-         %22 = OpTypeImage %float 1D 0 0 0 1 Unknown
-         %23 = OpTypeSampledImage %22
-%_arr_23_uint_32 = OpTypeArray %23 %uint_32
-%_ptr_UniformConstant__arr_23_uint_32 = OpTypePointer UniformConstant %_arr_23_uint_32
- %textures1D = OpVariable %_ptr_UniformConstant__arr_23_uint_32 UniformConstant
-         %27 = OpTypeImage %float 2D 0 0 0 1 Unknown
-         %28 = OpTypeSampledImage %27
-%_arr_28_uint_32 = OpTypeArray %28 %uint_32
-%_ptr_UniformConstant__arr_28_uint_32 = OpTypePointer UniformConstant %_arr_28_uint_32
- %textures2D = OpVariable %_ptr_UniformConstant__arr_28_uint_32 UniformConstant
-         %32 = OpTypeImage %float 3D 0 0 0 1 Unknown
-         %33 = OpTypeSampledImage %32
-%_arr_33_uint_32 = OpTypeArray %33 %uint_32
-%_ptr_UniformConstant__arr_33_uint_32 = OpTypePointer UniformConstant %_arr_33_uint_32
- %textures3D = OpVariable %_ptr_UniformConstant__arr_33_uint_32 UniformConstant
-         %37 = OpTypeImage %float Cube 0 0 0 1 Unknown
-         %38 = OpTypeSampledImage %37
-%_arr_38_uint_32 = OpTypeArray %38 %uint_32
-%_ptr_UniformConstant__arr_38_uint_32 = OpTypePointer UniformConstant %_arr_38_uint_32
- %textures4D = OpVariable %_ptr_UniformConstant__arr_38_uint_32 UniformConstant
     %uint_16 = OpConstant %uint 16
 %_arr_v4float_uint_16 = OpTypeArray %v4float %uint_16
 %_ptr_Input__arr_v4float_uint_16 = OpTypePointer Input %_arr_v4float_uint_16
