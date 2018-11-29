@@ -396,7 +396,7 @@ dword_result_t XamEnumerate(dword_t handle, dword_t flags, lpvoid_t buffer,
     kernel_state()->CompleteOverlappedImmediateEx(
         overlapped,
         result == X_ERROR_SUCCESS ? X_ERROR_SUCCESS : X_ERROR_FUNCTION_FAILED,
-        X_RESULT_FROM_WIN32(result),
+        X_HRESULT_FROM_WIN32(result),
         result == X_ERROR_SUCCESS ? item_count : 0);
     return X_ERROR_IO_PENDING;
   } else {
