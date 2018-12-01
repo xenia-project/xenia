@@ -10,7 +10,7 @@ permalink: /about/
 
 ## System Requirements
 
-See [here](faq/#system-requirements).
+See [here](/faq/#system-requirements).
 
 ## Overview
 
