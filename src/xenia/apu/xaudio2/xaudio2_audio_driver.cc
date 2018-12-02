@@ -110,6 +110,10 @@ bool XAudio2AudioDriver::Initialize() {
   config.LogFileline = TRUE;
   audio_->SetDebugConfiguration(&config);
 
+  // Make sure the audio is initilized
+  hr = audio_->StartEngine();
+  CoInitialize(nullptr);
+
   hr = audio_->CreateMasteringVoice(&mastering_voice_);
   if (FAILED(hr)) {
     XELOGE("CreateMasteringVoice failed with %.8X", hr);
