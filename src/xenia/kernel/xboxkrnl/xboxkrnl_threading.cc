@@ -136,6 +136,7 @@ dword_result_t ExCreateThread(lpdword_t handle_ptr, dword_t stack_size,
       if (creation_flags & 0x80) {
         *handle_ptr = thread->guest_object();
       } else {
+        thread->RetainHandle();
         *handle_ptr = thread->handle();
       }
     }
@@ -789,8 +790,6 @@ dword_result_t KeWaitForMultipleObjects(dword_t count, lpdword_t objects_ptr,
                                         lpvoid_t wait_block_array_ptr) {
   assert_true(wait_type <= 1);
 
-  X_STATUS result = X_STATUS_SUCCESS;
-
   std::vector<object_ref<XObject>> objects;
   for (uint32_t n = 0; n < count; n++) {
     auto object_ptr = kernel_memory()->TranslateVirtual(objects_ptr[n]);
@@ -804,12 +803,10 @@ dword_result_t KeWaitForMultipleObjects(dword_t count, lpdword_t objects_ptr,
   }
 
   uint64_t timeout = timeout_ptr ? static_cast<uint64_t>(*timeout_ptr) : 0u;
-  result = XObject::WaitMultiple(uint32_t(objects.size()),
-                                 reinterpret_cast<XObject**>(objects.data()),
-                                 wait_type, wait_reason, processor_mode,
-                                 alertable, timeout_ptr ? &timeout : nullptr);
-
-  return result;
+  return XObject::WaitMultiple(uint32_t(objects.size()),
+                               reinterpret_cast<XObject**>(objects.data()),
+                               wait_type, wait_reason, processor_mode,
+                               alertable, timeout_ptr ? &timeout : nullptr);
 }
 DECLARE_XBOXKRNL_EXPORT3(KeWaitForMultipleObjects, kThreading, kImplemented,
                          kBlocking, kHighFrequency);
