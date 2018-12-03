@@ -683,12 +683,90 @@ TEST_CASE("Set and Test Current Thread ID", "Thread") {
 }
 
 TEST_CASE("Set and Test Current Thread Name", "Thread") {
+  auto current_thread = Thread::GetCurrentThread();
+  REQUIRE(current_thread);
+  auto old_thread_name = current_thread->name();
+
   std::string new_thread_name = "Threading Test";
-  set_name(new_thread_name);
+  REQUIRE_NOTHROW(set_name(new_thread_name));
+
+  // Restore the old catch.hpp thread name
+  REQUIRE_NOTHROW(set_name(old_thread_name));
 }
 
 TEST_CASE("Create and Run Thread", "Thread") {
-  // TODO(bwrsandman):
+  std::unique_ptr<Thread> thread;
+  WaitResult result;
+  Thread::CreationParameters params = {};
+  auto func = [] { Sleep(20ms); };
+
+  // Create most basic case of thread
+  thread = Thread::Create(params, func);
+  REQUIRE(thread->native_handle() != nullptr);
+  REQUIRE_NOTHROW(thread->affinity_mask());
+  REQUIRE(thread->name().empty());
+  result = Wait(thread.get(), false, 50ms);
+  REQUIRE(result == WaitResult::kSuccess);
+
+  // Add thread name
+  std::string new_name = "Test thread name";
+  thread = Thread::Create(params, func);
+  auto name = thread->name();
+  INFO(name.c_str());
+  REQUIRE(name.empty());
+  thread->set_name(new_name);
+  REQUIRE(thread->name() == new_name);
+  result = Wait(thread.get(), false, 50ms);
+  REQUIRE(result == WaitResult::kSuccess);
+
+  // Use Terminate to end an infinitely looping thread
+  thread = Thread::Create(params, [] {
+    while (true) {
+      Sleep(1ms);
+    }
+  });
+  result = Wait(thread.get(), false, 50ms);
+  REQUIRE(result == WaitResult::kTimeout);
+  thread->Terminate(-1);
+  result = Wait(thread.get(), false, 50ms);
+  REQUIRE(result == WaitResult::kSuccess);
+
+  // Call Exit from inside an infinitely looping thread
+  thread = Thread::Create(params, [] {
+    while (true) {
+      Thread::Exit(-1);
+    }
+  });
+  result = Wait(thread.get(), false, 50ms);
+  REQUIRE(result == WaitResult::kSuccess);
+
+  // Call timeout wait on self
+  result = Wait(Thread::GetCurrentThread(), false, 50ms);
+  REQUIRE(result == WaitResult::kTimeout);
+
+  params.stack_size = 16 * 1024;
+  thread = Thread::Create(params, [] {
+    while (true) {
+      Thread::Exit(-1);
+    }
+  });
+  REQUIRE(thread != nullptr);
+  result = Wait(thread.get(), false, 50ms);
+  REQUIRE(result == WaitResult::kSuccess);
+
+  // TODO(bwrsandman): Test with different priorities
+  // TODO(bwrsandman): Test setting and getting thread affinity
+}
+
+TEST_CASE("Test Suspending Thread", "Thread") {
+  // TODO(bwrsandman): Test suspension and resume
+  REQUIRE(true);
+}
+
+TEST_CASE("Test Thread QueueUserCallback", "Thread") {
+  // TODO(bwrsandman): Test Exit command with QueueUserCallback
+  // TODO(bwrsandman): Test alertable wait returning kUserCallback by using IO
+  // callbacks.
   REQUIRE(true);
 }
 
