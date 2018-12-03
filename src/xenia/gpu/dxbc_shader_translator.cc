@@ -33,7 +33,9 @@ DEFINE_bool(dxbc_switch, true,
             "on may improve stability, though this heavily depends on the "
             "driver - on AMD, it's recommended to have this set to true, as "
             "Halo 3 appears to crash when if is used for flow control "
-            "(possibly the shader compiler tries to flatten them).");
+            "(possibly the shader compiler tries to flatten them). On Intel "
+            "HD Graphics, this is ignored because of a crash with the switch "
+            "instruction.");
 DEFINE_bool(dxbc_source_map, false,
             "Disassemble Xenos instructions as comments in the resulting DXBC "
             "for debugging.");
@@ -85,8 +87,9 @@ constexpr uint32_t
 constexpr uint32_t DxbcShaderTranslator::kCbufferIndexUnallocated;
 constexpr uint32_t DxbcShaderTranslator::kCfExecBoolConstantNone;
 
-DxbcShaderTranslator::DxbcShaderTranslator(bool edram_rov_used)
-    : edram_rov_used_(edram_rov_used) {
+DxbcShaderTranslator::DxbcShaderTranslator(uint32_t vendor_id,
+                                           bool edram_rov_used)
+    : vendor_id_(vendor_id), edram_rov_used_(edram_rov_used) {
   // Don't allocate again and again for the first shader.
   shader_code_.reserve(8192);
   shader_object_.reserve(16384);
@@ -517,6 +520,11 @@ void DxbcShaderTranslator::Reset() {
   sampler_bindings_.clear();
 
   std::memset(&stat_, 0, sizeof(stat_));
+}
+
+bool DxbcShaderTranslator::UseSwitchForControlFlow() const {
+  // Xenia crashes on Intel HD Graphics 4000 with switch.
+  return FLAGS_dxbc_switch && vendor_id_ != 0x8086;
 }
 
 uint32_t DxbcShaderTranslator::PushSystemTemp(bool zero) {
@@ -1208,7 +1216,7 @@ void DxbcShaderTranslator::StartTranslation() {
   ++stat_.instruction_count;
   ++stat_.dynamic_flow_control_count;
   // Switch and the first label (pc == 0).
-  if (FLAGS_dxbc_switch) {
+  if (UseSwitchForControlFlow()) {
     shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_SWITCH) |
                            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
     shader_code_.push_back(
@@ -6427,7 +6435,7 @@ void DxbcShaderTranslator::CompleteShaderCode() {
     // closing upper-level flow control blocks.
     CloseExecConditionals();
     // Close the last label and the switch.
-    if (FLAGS_dxbc_switch) {
+    if (UseSwitchForControlFlow()) {
       shader_code_.push_back(
           ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_BREAK) |
           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
@@ -7982,7 +7990,7 @@ void DxbcShaderTranslator::ProcessLabel(uint32_t cf_index) {
   // execs across labels.
   CloseExecConditionals();
 
-  if (FLAGS_dxbc_switch) {
+  if (UseSwitchForControlFlow()) {
     // Fallthrough to the label from the previous one on the next iteration if
     // no `continue` was done. Can't simply fallthrough because in DXBC, a
     // non-empty switch case must end with a break.
@@ -8067,7 +8075,7 @@ void DxbcShaderTranslator::ProcessExecInstructionEnd(
   if (instr.is_end) {
     // Break out of the main loop.
     CloseInstructionPredication();
-    if (FLAGS_dxbc_switch) {
+    if (UseSwitchForControlFlow()) {
       // Write an invalid value to pc.
       shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
                              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));

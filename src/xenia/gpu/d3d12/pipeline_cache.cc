@@ -41,7 +41,10 @@ PipelineCache::PipelineCache(D3D12CommandProcessor* command_processor,
     : command_processor_(command_processor),
       register_file_(register_file),
       edram_rov_used_(edram_rov_used) {
-  shader_translator_ = std::make_unique<DxbcShaderTranslator>(edram_rov_used_);
+  auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
+
+  shader_translator_ = std::make_unique<DxbcShaderTranslator>(
+      provider->GetAdapterVendorID(), edram_rov_used_);
 
   if (edram_rov_used_) {
     depth_only_pixel_shader_ =

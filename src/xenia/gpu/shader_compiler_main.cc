@@ -103,7 +103,7 @@ int shader_compiler_main(const std::vector<std::wstring>& args) {
         GlslShaderTranslator::Dialect::kGL45);
   } else if (FLAGS_shader_output_type == "dxbc") {
     translator =
-        std::make_unique<DxbcShaderTranslator>(FLAGS_shader_output_dxbc_rov);
+        std::make_unique<DxbcShaderTranslator>(0, FLAGS_shader_output_dxbc_rov);
   } else {
     translator = std::make_unique<UcodeShaderTranslator>();
   }

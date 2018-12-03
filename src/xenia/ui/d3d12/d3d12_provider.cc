@@ -11,6 +11,9 @@
 
 #include <gflags/gflags.h>
 
+#include <malloc.h>
+#include <cstdlib>
+
 #include "xenia/base/logging.h"
 #include "xenia/ui/d3d12/d3d12_context.h"
 
@@ -125,8 +128,7 @@ D3D12Provider::InitializationResult D3D12Provider::Initialize() {
     return InitializationResult::kDeviceInitializationFailed;
   }
 
-  // Choose the adapter and create a device with required features.
-  // TODO(Triang3l): Log adapter info (contains a wide string).
+  // Choose the adapter.
   uint32_t adapter_index = 0;
   IDXGIAdapter1* adapter = nullptr;
   while (dxgi_factory->EnumAdapters1(adapter_index, &adapter) == S_OK) {
@@ -158,6 +160,24 @@ D3D12Provider::InitializationResult D3D12Provider::Initialize() {
     dxgi_factory->Release();
     return InitializationResult::kDeviceInitializationFailed;
   }
+  DXGI_ADAPTER_DESC adapter_desc;
+  if (FAILED(adapter->GetDesc(&adapter_desc))) {
+    XELOGE("Failed to get the DXGI adapter description.");
+    adapter->Release();
+    dxgi_factory->Release();
+    return InitializationResult::kDeviceInitializationFailed;
+  }
+  adapter_vendor_id_ = adapter_desc.VendorId;
+  size_t adapter_name_length =
+      std::wcstombs(nullptr, adapter_desc.Description, 0);
+  char* adapter_name_mbcs =
+      reinterpret_cast<char*>(alloca((adapter_name_length + 1) * sizeof(char)));
+  std::wcstombs(adapter_name_mbcs, adapter_desc.Description,
+                adapter_name_length + 1);
+  XELOGD3D("DXGI adapter: %s (vendor %.4X, device %.4X)", adapter_name_mbcs,
+           adapter_desc.VendorId, adapter_desc.DeviceId);
+
+  // Create the Direct3D 12 device.
   ID3D12Device* device;
   if (FAILED(pfn_d3d12_create_device_(adapter, D3D_FEATURE_LEVEL_11_0,
                                       IID_PPV_ARGS(&device)))) {
