@@ -24,7 +24,7 @@ namespace gpu {
 // Generates shader model 5_1 byte code (for Direct3D 12).
 class DxbcShaderTranslator : public ShaderTranslator {
  public:
-  DxbcShaderTranslator(bool edram_rov_used);
+  DxbcShaderTranslator(uint32_t vendor_id, bool edram_rov_used);
   ~DxbcShaderTranslator() override;
 
   // Constant buffer bindings in space 0.
@@ -758,6 +758,9 @@ class DxbcShaderTranslator : public ShaderTranslator {
     return is_depth_only_pixel_shader_ || is_pixel_shader();
   }
 
+  // Whether to use switch-case rather than if (pc >= label) for control flow.
+  bool UseSwitchForControlFlow() const;
+
   // Allocates a new r# register for internal use and returns its index.
   uint32_t PushSystemTemp(bool zero = false);
   // Frees the last allocated internal r# registers for later reuse.
@@ -993,6 +996,9 @@ class DxbcShaderTranslator : public ShaderTranslator {
 
   // Buffer for instruction disassembly comments.
   StringBuffer instruction_disassembly_buffer_;
+
+  // Vendor ID of the GPU manufacturer, for toggling unsupported features.
+  uint32_t vendor_id_;
 
   // Whether the output merger should be emulated in pixel shaders.
   bool edram_rov_used_;

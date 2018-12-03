@@ -62,6 +62,9 @@ class D3D12Provider : public GraphicsProvider {
     return start;
   }
 
+  // Adapter info.
+  uint32_t GetAdapterVendorID() const { return adapter_vendor_id_; }
+
   // Device features.
   uint32_t GetProgrammableSamplePositionsTier() const {
     return programmable_sample_positions_tier_;
@@ -125,6 +128,8 @@ class D3D12Provider : public GraphicsProvider {
   uint32_t descriptor_size_sampler_;
   uint32_t descriptor_size_rtv_;
   uint32_t descriptor_size_dsv_;
+
+  uint32_t adapter_vendor_id_;
 
   uint32_t programmable_sample_positions_tier_;
   bool rasterizer_ordered_views_supported_;
