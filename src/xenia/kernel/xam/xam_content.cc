@@ -57,11 +57,13 @@ dword_result_t XamContentGetDeviceName(dword_t device_id,
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }
 
-  if (name_capacity < wcslen(dummy_device_info_.name) + 1) {
+  auto name = std::wstring(dummy_device_info_.name);
+  if (name_capacity < name.size() + 1) {
     return X_ERROR_INSUFFICIENT_BUFFER;
   }
 
-  xe::store_and_swap<std::wstring>(name_buffer, dummy_device_info_.name);
+  xe::store_and_swap<std::wstring>(name_buffer, name);
+  ((wchar_t*)name_buffer)[name.size()] = 0;
   return X_ERROR_SUCCESS;
 }
 DECLARE_XAM_EXPORT1(XamContentGetDeviceName, kContent, kImplemented);
