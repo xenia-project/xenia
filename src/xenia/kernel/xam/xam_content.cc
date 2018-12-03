@@ -96,6 +96,7 @@ typedef struct {
   xe::be<uint64_t> free_bytes;
   xe::be<uint16_t> name[28];
 } X_CONTENT_DEVICE_DATA;
+static_assert_size(X_CONTENT_DEVICE_DATA, 0x50);
 
 dword_result_t XamContentGetDeviceData(
     dword_t device_id, pointer_t<X_CONTENT_DEVICE_DATA> device_data) {
