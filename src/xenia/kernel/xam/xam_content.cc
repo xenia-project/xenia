@@ -104,6 +104,7 @@ dword_result_t XamContentGetDeviceData(
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }
 
+  device_data.Zero();
   const auto& device_info = dummy_device_info_;
   device_data->device_id = device_info.device_id;
   device_data->unknown = device_id & 0xFFFF;  // Fake it.
