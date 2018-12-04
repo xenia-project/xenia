@@ -10,16 +10,16 @@ permalink: /faq/
 
 ## Can I get an exe?
 
-Yes, <a href="download/">choose a download</a>.
+Yes, <a href="/download/">choose a download</a>.
 
 ## Xenia crashes when I run it!
 
-Make sure your PC meets the [system requirements](faq/#system-requirements) of Xenia.
+Make sure your PC meets the [system requirements](/faq/#system-requirements) of Xenia.
 This project is in early development phases and is not meant to be used by those
 who aren't comfortable debugging the code. Issues filed with 'it's broken' are
 generally unhelpful, and in most cases the team knows what's broken (the
 assumption is everything). If it doesn't work for you and you cannot figure out
-why, come to the [Discord](https://discord.gg/5g93S8H) for community-provided
+why, come to the [Discord](https://discord.me/xenia-emulator) for community-provided
 support.
 
 ## I have a copy of the XDK. Do you want it?
