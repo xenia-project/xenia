@@ -62,8 +62,58 @@ TEST_CASE("TlsHandle") {
 }
 
 TEST_CASE("HighResolutionTimer") {
-  // TODO(bwrsandman):
-  REQUIRE(true);
+  // The wait time is 500ms with an interval of 50ms
+  // Smaller values are not as precise and fail the test
+  const auto wait_time = 500ms;
+
+  // Time the actual sleep duration
+  {
+    const auto interval = 50ms;
+    std::atomic<uint64_t> counter;
+    auto start = std::chrono::steady_clock::now();
+    auto cb = [&counter] { ++counter; };
+    auto pTimer = HighResolutionTimer::CreateRepeating(interval, cb);
+    Sleep(wait_time);
+    pTimer.reset();
+    auto duration = std::chrono::steady_clock::now() - start;
+
+    // Should have run as many times as wait_time / timer_interval plus or
+    // minus 1 due to imprecision of Sleep
+    REQUIRE(duration.count() >= wait_time.count());
+    auto ratio = static_cast<uint64_t>(duration / interval);
+    REQUIRE(counter >= ratio - 1);
+    REQUIRE(counter <= ratio + 1);
+  }
+
+  // Test concurrent timers
+  {
+    const auto interval1 = 100ms;
+    const auto interval2 = 200ms;
+    std::atomic<uint64_t> counter1;
+    std::atomic<uint64_t> counter2;
+    auto start = std::chrono::steady_clock::now();
+    auto cb1 = [&counter1] { ++counter1; };
+    auto cb2 = [&counter2] { ++counter2; };
+    auto pTimer1 = HighResolutionTimer::CreateRepeating(interval1, cb1);
+    auto pTimer2 = HighResolutionTimer::CreateRepeating(interval2, cb2);
+    Sleep(wait_time);
+    pTimer1.reset();
+    pTimer2.reset();
+    auto duration = std::chrono::steady_clock::now() - start;
+
+    // Should have run as many times as wait_time / timer_interval plus or
+    // minus 1 due to imprecision of Sleep
+    REQUIRE(duration.count() >= wait_time.count());
+    auto ratio1 = static_cast<uint64_t>(duration / interval1);
+    auto ratio2 = static_cast<uint64_t>(duration / interval2);
+    REQUIRE(counter1 >= ratio1 - 1);
+    REQUIRE(counter1 <= ratio1 + 1);
+    REQUIRE(counter2 >= ratio2 - 1);
+    REQUIRE(counter2 <= ratio2 + 1);
+  }
+
+  // TODO(bwrsandman): Check on which thread callbacks are executed when
+  // spawned from differing threads
 }
 
 TEST_CASE("Wait on Multiple Handles", "Wait") {
