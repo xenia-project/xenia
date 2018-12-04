@@ -21,26 +21,6 @@ namespace xe {
 namespace kernel {
 namespace xam {
 
-// from https://github.com/xemio/testdev/blob/master/xkelib/xam/_xamext.h
-#pragma pack(push, 4)
-struct X_XAMACCOUNTINFO {
-  xe::be<uint32_t> reserved;
-  xe::be<uint32_t> live_flags;
-  wchar_t gamertag[0x10];
-  xe::be<uint64_t> xuid_online;  // 09....
-  xe::be<uint32_t> user_flags;
-  xe::be<uint32_t> network_id;
-  char passcode[4];
-  char online_domain[0x14];
-  char online_kerberos_realm[0x18];
-  char online_key[0x10];
-  char passport_membername[0x72];
-  char passport_password[0x20];
-  char owner_passport_membername[0x72];
-};
-static_assert_size(X_XAMACCOUNTINFO, 0x17C);
-#pragma pack(pop)
-
 struct X_PROFILEENUMRESULT {
   xe::be<uint64_t> xuid_offline;  // E0.....
   X_XAMACCOUNTINFO account;

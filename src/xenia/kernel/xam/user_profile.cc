@@ -14,11 +14,12 @@
 
 #include <gflags/gflags.h>
 
-#include "xenia/kernel/xam/user_profile.h"
 #include "xenia/base/clock.h"
 #include "xenia/base/filesystem.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/mapped_memory.h"
+#include "xenia/kernel/util/crypto_utils.h"
+#include "xenia/kernel/xam/user_profile.h"
 
 namespace xe {
 namespace kernel {
@@ -29,9 +30,83 @@ DEFINE_string(profile_directory, "Content\\Profile\\",
 
 constexpr uint32_t kDashboardID = 0xFFFE07D1;
 
+std::string X_XAMACCOUNTINFO::GetGamertagString() const {
+  return xe::to_string(std::wstring(gamertag));
+}
+
+bool UserProfile::DecryptAccountFile(const uint8_t* data,
+                                     X_XAMACCOUNTINFO* output, bool devkit) {
+  const uint8_t* key = util::GetXeKey(0x19, devkit);
+  if (!key) {
+    return false;  // this shouldn't happen...
+  }
+
+  // Generate RC4 key from data hash
+  uint8_t rc4_key[0x14];
+  util::HmacSha(key, 0x10, data, 0x10, 0, 0, 0, 0, rc4_key, 0x14);
+
+  uint8_t dec_data[sizeof(X_XAMACCOUNTINFO) + 8];
+
+  // Decrypt data
+  util::RC4(rc4_key, 0x10, data + 0x10, sizeof(dec_data), dec_data,
+            sizeof(dec_data));
+
+  // Verify decrypted data against hash
+  uint8_t data_hash[0x14];
+  util::HmacSha(key, 0x10, dec_data, sizeof(dec_data), 0, 0, 0, 0, data_hash,
+                0x14);
+
+  if (std::memcmp(data, data_hash, 0x10) == 0) {
+    // Copy account data to output
+    std::memcpy(output, dec_data + 8, sizeof(X_XAMACCOUNTINFO));
+
+    // Swap gamertag endian
+    xe::copy_and_swap<wchar_t>(output->gamertag, output->gamertag, 0x10);
+    return true;
+  }
+
+  return false;
+}
+
+void UserProfile::EncryptAccountFile(const X_XAMACCOUNTINFO* input,
+                                     uint8_t* output, bool devkit) {
+  const uint8_t* key = util::GetXeKey(0x19, devkit);
+  if (!key) {
+    return;  // this shouldn't happen...
+  }
+
+  X_XAMACCOUNTINFO* output_acct = (X_XAMACCOUNTINFO*)(output + 0x18);
+  std::memcpy(output_acct, input, sizeof(X_XAMACCOUNTINFO));
+
+  // Swap gamertag endian
+  xe::copy_and_swap<wchar_t>(output_acct->gamertag, output_acct->gamertag,
+                             0x10);
+
+  // Set confounder, should be random but meh
+  std::memset(output + 0x10, 0xFD, 8);
+
+  // Encrypted data = xam account info + 8 byte confounder
+  uint32_t enc_data_size = sizeof(X_XAMACCOUNTINFO) + 8;
+
+  // Set data hash
+  uint8_t data_hash[0x14];
+  util::HmacSha(key, 0x10, output + 0x10, enc_data_size, 0, 0, 0, 0, data_hash,
+                0x14);
+
+  std::memcpy(output, data_hash, 0x10);
+
+  // Generate RC4 key from data hash
+  uint8_t rc4_key[0x14];
+  util::HmacSha(key, 0x10, data_hash, 0x10, 0, 0, 0, 0, rc4_key, 0x14);
+
+  // Encrypt data
+  util::RC4(rc4_key, 0x10, output + 0x10, enc_data_size, output + 0x10,
+            enc_data_size);
+}
+
 UserProfile::UserProfile() : dash_gpd_(kDashboardID) {
-  xuid_ = 0xBABEBABEBABEBABE;
-  name_ = "User";
+  account_.xuid_online = 0xBABEBABEBABEBABE;
+  wcscpy_s(account_.gamertag, L"XeniaUser");
 
   // https://cs.rin.ru/forum/viewtopic.php?f=38&t=60668&hilit=gfwl+live&start=195
   // https://github.com/arkem/py360/blob/master/py360/constants.py
@@ -99,13 +174,36 @@ UserProfile::UserProfile() : dash_gpd_(kDashboardID) {
   AddSetting(std::make_unique<BinarySetting>(0x63E83FFD));
 
   // Try loading profile GPD files...
-  LoadGpdFiles();
+  LoadProfile();
 }
 
-void UserProfile::LoadGpdFiles() {
+void UserProfile::LoadProfile() {
+  auto mmap_ =
+      MappedMemory::Open(xe::to_wstring(FLAGS_profile_directory) + L"Account",
+                         MappedMemory::Mode::kRead);
+  if (mmap_) {
+    XELOGI("Loading Account file from path %sAccount",
+           FLAGS_profile_directory.c_str());
+
+    X_XAMACCOUNTINFO tmp_acct;
+    bool success = DecryptAccountFile(mmap_->data(), &tmp_acct);
+    if (!success) {
+      success = DecryptAccountFile(mmap_->data(), &tmp_acct, true);
+    }
+
+    if (!success) {
+      XELOGW("Failed to decrypt Account file data");
+    } else {
+      std::memcpy(&account_, &tmp_acct, sizeof(X_XAMACCOUNTINFO));
+      XELOGI("Loaded Account \"%s\" successfully!", name().c_str());
+    }
+
+    mmap_->Close();
+  }
+
   XELOGI("Loading profile GPDs from path %s", FLAGS_profile_directory.c_str());
 
-  auto mmap_ = MappedMemory::Open(
+  mmap_ = MappedMemory::Open(
       xe::to_wstring(FLAGS_profile_directory) + L"FFFE07D1.gpd",
       MappedMemory::Mode::kRead);
   if (!mmap_) {
