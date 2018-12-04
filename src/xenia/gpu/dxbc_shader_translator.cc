@@ -13819,7 +13819,6 @@ void DxbcShaderTranslator::WriteShaderCode() {
   // invariance (needed even in pixel shaders for oDepth invariance).
   shader_object_.push_back(
       ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_GLOBAL_FLAGS) |
-      D3D11_1_SB_GLOBAL_FLAG_SKIP_OPTIMIZATION |
       ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
 
   // Constant buffers, from most frequenly accessed to least frequently accessed
