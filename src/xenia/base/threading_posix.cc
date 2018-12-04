@@ -13,12 +13,13 @@
 #include "xenia/base/logging.h"
 
 #include <pthread.h>
+#include <signal.h>
 #include <sys/eventfd.h>
 #include <sys/syscall.h>
 #include <sys/time.h>
 #include <sys/types.h>
-#include <time.h>
 #include <unistd.h>
+#include <ctime>
 
 namespace xe {
 namespace threading {
@@ -30,6 +31,37 @@ inline timespec DurationToTimeSpec(
       std::chrono::duration_cast<std::chrono::nanoseconds>(duration);
   auto div = ldiv(nanoseconds.count(), 1000000000L);
   return timespec{div.quot, div.rem};
+}
+
+// Thread interruption is done using user-defined signals
+// This implementation uses the SIGRTMAX - SIGRTMIN to signal to a thread
+// gdb tip, for SIG = SIGRTMIN + SignalType : handle SIG nostop
+// lldb tip, for SIG = SIGRTMIN + SignalType : process handle SIG -s false
+enum class SignalType { kHighResolutionTimer, k_Count };
+
+int GetSystemSignal(SignalType num) {
+  auto result = SIGRTMIN + static_cast<int>(num);
+  assert_true(result < SIGRTMAX);
+  return result;
+}
+
+SignalType GetSystemSignalType(int num) {
+  return static_cast<SignalType>(num - SIGRTMIN);
+}
+
+thread_local std::array<bool, static_cast<size_t>(SignalType::k_Count)>
+    signal_handler_installed = {};
+
+static void signal_handler(int signal, siginfo_t* info, void* context);
+
+void install_signal_handler(SignalType type) {
+  if (signal_handler_installed[static_cast<size_t>(type)]) return;
+  struct sigaction action {};
+  action.sa_flags = SA_SIGINFO;
+  action.sa_sigaction = signal_handler;
+  sigemptyset(&action.sa_mask);
+  if (sigaction(GetSystemSignal(type), &action, nullptr) == -1)
+    signal_handler_installed[static_cast<size_t>(type)] = true;
 }
 
 // TODO(dougvj)
@@ -57,8 +89,16 @@ void SyncMemory() { __sync_synchronize(); }
 
 void Sleep(std::chrono::microseconds duration) {
   timespec rqtp = DurationToTimeSpec(duration);
-  nanosleep(&rqtp, nullptr);
-  // TODO(benvanik): spin while rmtp >0?
+  timespec rmtp = {};
+  auto p_rqtp = &rqtp;
+  auto p_rmtp = &rmtp;
+  int ret = 0;
+  do {
+    ret = nanosleep(p_rqtp, p_rmtp);
+    // Swap requested for remaining in case of signal interruption
+    // in which case, we start sleeping again for the remainder
+    std::swap(p_rqtp, p_rmtp);
+  } while (ret == -1 && errno == EINTR);
 }
 
 // TODO(dougvj) Not sure how to implement the equivalent of this on POSIX.
@@ -86,24 +126,37 @@ bool SetTlsValue(TlsHandle handle, uintptr_t value) {
   return false;
 }
 
-// TODO(dougvj)
 class PosixHighResolutionTimer : public HighResolutionTimer {
  public:
-  PosixHighResolutionTimer(std::function<void()> callback)
-      : callback_(callback) {}
-  ~PosixHighResolutionTimer() override {}
+  explicit PosixHighResolutionTimer(std::function<void()> callback)
+      : callback_(std::move(callback)), timer_(nullptr) {}
+  ~PosixHighResolutionTimer() override {
+    if (timer_) timer_delete(timer_);
+  }
 
   bool Initialize(std::chrono::milliseconds period) {
-    assert_always();
-    return false;
+    // Create timer
+    sigevent sev{};
+    sev.sigev_notify = SIGEV_SIGNAL;
+    sev.sigev_signo = GetSystemSignal(SignalType::kHighResolutionTimer);
+    sev.sigev_value.sival_ptr = (void*)&callback_;
+    if (timer_create(CLOCK_REALTIME, &sev, &timer_) == -1) return false;
+
+    // Start timer
+    itimerspec its{};
+    its.it_value = DurationToTimeSpec(period);
+    its.it_interval = its.it_value;
+    return timer_settime(timer_, 0, &its, nullptr) != -1;
   }
 
  private:
   std::function<void()> callback_;
+  timer_t timer_;
 };
 
 std::unique_ptr<HighResolutionTimer> HighResolutionTimer::CreateRepeating(
     std::chrono::milliseconds period, std::function<void()> callback) {
+  install_signal_handler(SignalType::kHighResolutionTimer);
   auto timer = std::make_unique<PosixHighResolutionTimer>(std::move(callback));
   if (!timer->Initialize(period)) {
     return nullptr;
@@ -465,6 +518,19 @@ Thread* Thread::GetCurrentThread() {
 
 void Thread::Exit(int exit_code) {
   pthread_exit(reinterpret_cast<void*>(exit_code));
+}
+
+static void signal_handler(int signal, siginfo_t* info, void* /*context*/) {
+  switch (GetSystemSignalType(signal)) {
+    case SignalType::kHighResolutionTimer: {
+      assert_not_null(info->si_value.sival_ptr);
+      auto callback =
+          *static_cast<std::function<void()>*>(info->si_value.sival_ptr);
+      callback();
+    } break;
+    default:
+      assert_always();
+  }
 }
 
 }  // namespace threading
