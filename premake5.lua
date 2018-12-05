@@ -225,6 +225,7 @@ solution("xenia")
   -- Include third party files first so they don't have to deal with gflags.
   include("third_party/capstone.lua")
   include("third_party/cpptoml.lua")
+  include("third_party/cxxopts.lua")
   include("third_party/gflags.lua")
   include("third_party/glew.lua")
   include("third_party/glslang-spirv.lua")
