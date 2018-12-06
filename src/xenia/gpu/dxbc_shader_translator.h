@@ -324,7 +324,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
       };
       float edram_poly_offset_back[2];
     };
-    uint32_t padding_9[2];
+    uint32_t edram_resolution_scale_log2;
+    uint32_t padding_9;
 
     // vec4 10
     uint32_t edram_stencil_reference;
@@ -576,10 +577,15 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kSysConst_EDRAMPolyOffsetBack_Vec = kSysConst_EDRAMPolyOffsetFront_Vec + 1,
     kSysConst_EDRAMPolyOffsetBackScale_Comp = 0,
     kSysConst_EDRAMPolyOffsetBackOffset_Comp = 1,
+    kSysConst_EDRAMResolutionScaleLog2_Index =
+        kSysConst_EDRAMPolyOffsetBack_Index + 1,
+    kSysConst_EDRAMResolutionScaleLog2_Vec = kSysConst_EDRAMPolyOffsetBack_Vec,
+    kSysConst_EDRAMResolutionScaleLog2_Comp = 2,
 
     kSysConst_EDRAMStencilReference_Index =
-        kSysConst_EDRAMPolyOffsetBack_Index + 1,
-    kSysConst_EDRAMStencilReference_Vec = kSysConst_EDRAMPolyOffsetBack_Vec + 1,
+        kSysConst_EDRAMResolutionScaleLog2_Index + 1,
+    kSysConst_EDRAMStencilReference_Vec =
+        kSysConst_EDRAMResolutionScaleLog2_Vec + 1,
     kSysConst_EDRAMStencilReference_Comp = 0,
     kSysConst_EDRAMStencilReadMask_Index =
         kSysConst_EDRAMStencilReference_Index + 1,

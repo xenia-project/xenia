@@ -164,6 +164,41 @@ bool GetPackedMipOffset(uint32_t width, uint32_t height, uint32_t depth,
   return true;
 }
 
+void GetTextureTotalSize(Dimension dimension, uint32_t width, uint32_t height,
+                         uint32_t depth, TextureFormat format, bool is_tiled,
+                         bool packed_mips, uint32_t mip_max_level,
+                         uint32_t* base_size, uint32_t* mip_size) {
+  bool is_3d = dimension == Dimension::k3D;
+  uint32_t width_blocks, height_blocks, depth_blocks;
+  if (base_size != nullptr) {
+    GetGuestMipBlocks(dimension, width, height, depth, format, 0, width_blocks,
+                      height_blocks, depth_blocks);
+    uint32_t size = GetGuestMipSliceStorageSize(
+        width_blocks, height_blocks, depth_blocks, is_tiled, format, nullptr);
+    if (!is_3d) {
+      size *= depth;
+    }
+    *base_size = size;
+  }
+  if (mip_size != nullptr) {
+    mip_max_level = std::min(
+        mip_max_level,
+        GetSmallestMipLevel(width, height, is_3d ? depth : 1, packed_mips));
+    uint32_t size = 0;
+    for (uint32_t i = 1; i <= mip_max_level; ++i) {
+      GetGuestMipBlocks(dimension, width, height, depth, format, i,
+                        width_blocks, height_blocks, depth_blocks);
+      uint32_t level_size = GetGuestMipSliceStorageSize(
+          width_blocks, height_blocks, depth_blocks, is_tiled, format, nullptr);
+      if (!is_3d) {
+        level_size *= depth;
+      }
+      size += level_size;
+    }
+    *mip_size = size;
+  }
+}
+
 int32_t GetTiledOffset2D(int32_t x, int32_t y, uint32_t width,
                          uint32_t log2_bpb) {
   // https://github.com/gildor2/UModel/blob/de8fbd3bc922427ea056b7340202dcdcc19ccff5/Unreal/UnTexture.cpp#L489

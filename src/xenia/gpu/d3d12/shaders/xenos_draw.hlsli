@@ -32,7 +32,7 @@ cbuffer xe_system_cbuffer : register(b0) {
   float2 xe_edram_poly_offset_front;
   // vec4 9
   float2 xe_edram_poly_offset_back;
-  float2 xe_system_constant_padding_9;
+  uint xe_edram_resolution_scale_log2;
   // vec4 10
   uint xe_edram_stencil_reference;
   uint xe_edram_stencil_read_mask;

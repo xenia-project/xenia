@@ -29,28 +29,28 @@ uint4 XeSNorm11To16(uint4 s11) {
 
 // https://github.com/Microsoft/DirectXTex/blob/master/DirectXTex/DirectXTexConvert.cpp
 
-uint XeFloat16To7e3(uint4 rgba_f16u32) {
-  float4 rgba_f32 = f16tof32(rgba_f16u32);
-  uint3 rgb_f32u32 = asuint(rgba_f32.xyz);
+uint XeFloat32To7e3(uint4 rgba_f32u32) {
   // Keep only positive integers and saturate to 31.875 (also dropping NaNs).
   // Was previously done with `asuint(clamp(asint(rgb_f32u32), 0, 0x41FF0000))`,
   // but FXC decides to ignore the uint->int cast, and negative numbers become
   // 0x41FF0000.
-  rgb_f32u32 =
-      min((rgb_f32u32 <= 0x7FFFFFFFu) ? rgb_f32u32 : (0u).xxx, 0x41FF0000u);
-  uint3 denormalized = ((rgb_f32u32 & 0x7FFFFFu) | 0x800000u) >>
-                       ((125u).xxx - (rgb_f32u32 >> 23u));
+  rgba_f32u32.rgb = min(
+      (rgba_f32u32.rgb <= 0x7FFFFFFFu) ? rgba_f32u32.rgb : (0u).xxx,
+      0x41FF0000u);
+  uint3 denormalized = ((rgba_f32u32.rgb & 0x7FFFFFu) | 0x800000u) >>
+                       ((125u).xxx - (rgba_f32u32.rgb >> 23u));
   uint3 rgb_f10u32 =
-      (rgb_f32u32 < 0x3E800000u) ? denormalized : (rgb_f32u32 + 0xC2000000u);
+      (rgba_f32u32.rgb < 0x3E800000u) ? denormalized
+                                      : (rgba_f32u32.rgb + 0xC2000000u);
   rgb_f10u32 =
       ((rgb_f10u32 + 0x7FFFu + ((rgb_f10u32 >> 16u) & 1u)) >> 16u) & 0x3FFu;
   // Rounding alpha to the nearest integer.
   // https://docs.microsoft.com/en-us/windows/desktop/direct3d10/d3d10-graphics-programming-guide-resources-data-conversion
   return rgb_f10u32.r | (rgb_f10u32.g << 10u) | (rgb_f10u32.b << 20u) |
-         (uint(round(saturate(rgba_f32.a) * 3.0)) << 30u);
+         (uint(round(saturate(asfloat(rgba_f32u32.a)) * 3.0)) << 30u);
 }
 
-uint4 XeFloat7e3To16(uint rgba_packed) {
+uint4 XeFloat7e3To32(uint rgba_packed) {
   uint3 rgb_f10u32 = (rgba_packed.xxx >> uint3(0u, 10u, 20u)) & 0x3FFu;
   uint3 mantissa = rgb_f10u32 & 0x7Fu;
   uint3 exponent = rgb_f10u32 >> 7u;
@@ -66,8 +66,7 @@ uint4 XeFloat7e3To16(uint rgba_packed) {
   uint3 rgb_f32u32 =
       (rgb_f10u32 != 0u) ? (((exponent + 124u) << 23u) | (mantissa << 16u))
                          : (0u).xxx;
-  return f32tof16(float4(asfloat(rgb_f32u32),
-                         float(rgba_packed >> 30u) * (1.0 / 3.0)));
+  return uint4(rgb_f32u32, asuint(float(rgba_packed >> 30u) * (1.0 / 3.0)));
 }
 
 // Based on CFloat24 from d3dref9.dll and the 6e4 code from:

@@ -43,16 +43,35 @@ class SharedMemory {
   void BeginFrame();
   void EndFrame();
 
-  typedef void (*WatchCallback)(void* context, void* data, uint64_t argument);
-  typedef void* WatchHandle;
-  // Registers a callback invoked when something is written to the specified
-  // memory range by the CPU or (if triggered explicitly - such as by a resolve)
-  // the GPU.
+  typedef void (*GlobalWatchCallback)(void* context, uint32_t address_first,
+                                      uint32_t address_last,
+                                      bool invalidated_by_gpu);
+  typedef void* GlobalWatchHandle;
+  // Registers a callback invoked when something is invalidated in the GPU
+  // memory copy by the CPU or (if triggered explicitly - such as by a resolve)
+  // by the GPU. It will be fired for writes to pages previously requested, but
+  // may also be fired regardless of whether it was used by GPU emulation - for
+  // example, if the game changes protection level of a memory range containing
+  // the watched range.
   //
-  // Generally the context is the subsystem pointer (for example, the
-  // texture cache), the data is the object (such as a texture), and the
-  // argument is additional subsystem/object-specific data (such as whether the
-  // range belongs to the base mip level or to the rest of the mips).
+  // The callback is called with the mutex locked.
+  GlobalWatchHandle RegisterGlobalWatch(GlobalWatchCallback callback,
+                                        void* callback_context);
+  void UnregisterGlobalWatch(GlobalWatchHandle handle);
+  typedef void (*WatchCallback)(void* context, void* data, uint64_t argument,
+                                bool invalidated_by_gpu);
+  typedef void* WatchHandle;
+  // Registers a callback invoked when the specified memory range is invalidated
+  // in the GPU memory copy by the CPU or (if triggered explicitly - such as by
+  // a resolve) by the GPU. It will be fired for writes to pages previously
+  // requested, but may also be fired regardless of whether it was used by GPU
+  // emulation - for example, if the game changes protection level of a memory
+  // range containing the watched range.
+  //
+  // Generally the context is the subsystem pointer (for example, the texture
+  // cache), the data is the object (such as a texture), and the argument is
+  // additional subsystem/object-specific data (such as whether the range
+  // belongs to the base mip level or to the rest of the mips).
   //
   // The callback is called with the mutex locked. Do NOT watch or unwatch
   // ranges from within it! The watch for the callback is cancelled after the
@@ -111,12 +130,11 @@ class SharedMemory {
   D3D12_GPU_VIRTUAL_ADDRESS buffer_gpu_address_ = 0;
   D3D12_RESOURCE_STATES buffer_state_ = D3D12_RESOURCE_STATE_COPY_DEST;
 
-  // D3D resource tiles are 64 KB in size.
-  static constexpr uint32_t kTileSizeLog2 = 16;
-  static constexpr uint32_t kTileSize = 1 << kTileSizeLog2;
   // Heaps are 16 MB, so not too many of them are allocated.
   static constexpr uint32_t kHeapSizeLog2 = 24;
   static constexpr uint32_t kHeapSize = 1 << kHeapSizeLog2;
+  static_assert((kHeapSize % D3D12_TILED_RESOURCE_TILE_SIZE_IN_BYTES) == 0,
+                "Heap size must be a multiple of Direct3D tile size");
   // Resident portions of the tiled buffer.
   ID3D12Heap* heaps_[kBufferSize >> kHeapSizeLog2] = {};
   // Whether creation of a heap has failed in the current frame.
@@ -146,6 +164,11 @@ class SharedMemory {
                                        uint32_t page_last);
   void MemoryWriteCallback(uint32_t page_first, uint32_t page_last);
 
+  struct GlobalWatch {
+    GlobalWatchCallback callback;
+    void* callback_context;
+  };
+  std::vector<GlobalWatch*> global_watches_;
   struct WatchNode;
   // Watched range placed by other GPU subsystems.
   struct WatchRange {
@@ -193,8 +216,10 @@ class SharedMemory {
   uint32_t watch_node_current_pool_allocated_ = 0;
   WatchRange* watch_range_first_free_ = nullptr;
   WatchNode* watch_node_first_free_ = nullptr;
-  // Triggers the watches, removing them when triggered.
-  void FireWatches(uint32_t page_first, uint32_t page_last);
+  // Triggers the watches (global and per-range), removing triggered range
+  // watches.
+  void FireWatches(uint32_t page_first, uint32_t page_last,
+                   bool invalidated_by_gpu);
   // Unlinks and frees the range and its nodes. Call this with the mutex locked.
   void UnlinkWatchRange(WatchRange* range);
 

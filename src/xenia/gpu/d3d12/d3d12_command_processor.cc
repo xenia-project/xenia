@@ -628,6 +628,19 @@ void D3D12CommandProcessor::SetExternalGraphicsPipeline(
   }
 }
 
+std::wstring D3D12CommandProcessor::GetWindowTitleText() const {
+  if (IsROVUsedForEDRAM()) {
+    // Currently scaling is only supported with ROV.
+    if (texture_cache_ != nullptr && texture_cache_->IsResolutionScale2X()) {
+      return L"Direct3D 12 - ROV 2x";
+    } else {
+      return L"Direct3D 12 - ROV";
+    }
+  } else {
+    return L"Direct3D 12 - RT";
+  }
+}
+
 bool D3D12CommandProcessor::SetupContext() {
   if (!CommandProcessor::SetupContext()) {
     XELOGE("Failed to initialize base command processor context");
@@ -671,7 +684,7 @@ bool D3D12CommandProcessor::SetupContext() {
 
   render_target_cache_ =
       std::make_unique<RenderTargetCache>(this, register_file_);
-  if (!render_target_cache_->Initialize()) {
+  if (!render_target_cache_->Initialize(texture_cache_.get())) {
     XELOGE("Failed to initialize the render target cache");
     return false;
   }
@@ -740,6 +753,10 @@ bool D3D12CommandProcessor::SetupContext() {
   swap_texture_desc.Alignment = 0;
   swap_texture_desc.Width = kSwapTextureWidth;
   swap_texture_desc.Height = kSwapTextureHeight;
+  if (texture_cache_->IsResolutionScale2X()) {
+    swap_texture_desc.Width *= 2;
+    swap_texture_desc.Height *= 2;
+  }
   swap_texture_desc.DepthOrArraySize = 1;
   swap_texture_desc.MipLevels = 1;
   swap_texture_desc.Format = ui::d3d12::D3D12Context::kSwapChainFormat;
@@ -1010,21 +1027,28 @@ void D3D12CommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
       gamma_ramp_texture_state_ = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
       SubmitBarriers();
 
+      uint32_t swap_texture_width = kSwapTextureWidth;
+      uint32_t swap_texture_height = kSwapTextureHeight;
+      if (texture_cache_->IsResolutionScale2X()) {
+        swap_texture_width *= 2;
+        swap_texture_height *= 2;
+      }
+
       // Draw the stretching rectangle.
       command_list->OMSetRenderTargets(1, &swap_texture_rtv_, TRUE, nullptr);
       D3D12_VIEWPORT viewport;
       viewport.TopLeftX = 0.0f;
       viewport.TopLeftY = 0.0f;
-      viewport.Width = float(kSwapTextureWidth);
-      viewport.Height = float(kSwapTextureHeight);
+      viewport.Width = float(swap_texture_width);
+      viewport.Height = float(swap_texture_height);
       viewport.MinDepth = 0.0f;
       viewport.MaxDepth = 0.0f;
       command_list->RSSetViewports(1, &viewport);
       D3D12_RECT scissor;
       scissor.left = 0;
       scissor.top = 0;
-      scissor.right = kSwapTextureWidth;
-      scissor.bottom = kSwapTextureHeight;
+      scissor.right = swap_texture_width;
+      scissor.bottom = swap_texture_height;
       command_list->RSSetScissorRects(1, &scissor);
       D3D12GraphicsSystem* graphics_system =
           static_cast<D3D12GraphicsSystem*>(graphics_system_);
@@ -1041,8 +1065,8 @@ void D3D12CommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
       // Don't care about graphics state because the frame is ending anyway.
       {
         std::lock_guard<std::mutex> lock(swap_state_.mutex);
-        swap_state_.width = kSwapTextureWidth;
-        swap_state_.height = kSwapTextureHeight;
+        swap_state_.width = swap_texture_width;
+        swap_state_.height = swap_texture_height;
         swap_state_.front_buffer_texture =
             reinterpret_cast<uintptr_t>(swap_texture_srv_descriptor_heap_);
       }
@@ -1484,16 +1508,21 @@ void D3D12CommandProcessor::UpdateFixedFunctionState(
   }
 
   // Supersampling replacing multisampling due to difficulties of emulating
-  // EDRAM with multisampling with RTV/DSV (with ROV, there's MSAA).
-  uint32_t ssaa_scale_x, ssaa_scale_y;
+  // EDRAM with multisampling with RTV/DSV (with ROV, there's MSAA), and also
+  // resolution scale.
+  uint32_t pixel_size_x, pixel_size_y;
   if (IsROVUsedForEDRAM()) {
-    ssaa_scale_x = 1;
-    ssaa_scale_y = 1;
+    pixel_size_x = 1;
+    pixel_size_y = 1;
   } else {
     MsaaSamples msaa_samples =
         MsaaSamples((regs[XE_GPU_REG_RB_SURFACE_INFO].u32 >> 16) & 0x3);
-    ssaa_scale_x = msaa_samples >= MsaaSamples::k4X ? 2 : 1;
-    ssaa_scale_y = msaa_samples >= MsaaSamples::k2X ? 2 : 1;
+    pixel_size_x = msaa_samples >= MsaaSamples::k4X ? 2 : 1;
+    pixel_size_y = msaa_samples >= MsaaSamples::k2X ? 2 : 1;
+  }
+  if (texture_cache_->IsResolutionScale2X()) {
+    pixel_size_x *= 2;
+    pixel_size_y *= 2;
   }
 
   // Viewport.
@@ -1534,11 +1563,11 @@ void D3D12CommandProcessor::UpdateFixedFunctionState(
   }
   D3D12_VIEWPORT viewport;
   viewport.TopLeftX =
-      (viewport_offset_x - viewport_scale_x) * float(ssaa_scale_x);
+      (viewport_offset_x - viewport_scale_x) * float(pixel_size_x);
   viewport.TopLeftY =
-      (viewport_offset_y - viewport_scale_y) * float(ssaa_scale_y);
-  viewport.Width = viewport_scale_x * 2.0f * float(ssaa_scale_x);
-  viewport.Height = viewport_scale_y * 2.0f * float(ssaa_scale_y);
+      (viewport_offset_y - viewport_scale_y) * float(pixel_size_y);
+  viewport.Width = viewport_scale_x * 2.0f * float(pixel_size_x);
+  viewport.Height = viewport_scale_y * 2.0f * float(pixel_size_y);
   viewport.MinDepth = viewport_offset_z;
   viewport.MaxDepth = viewport_offset_z + viewport_scale_z;
   if (viewport_scale_z < 0.0f) {
@@ -1575,10 +1604,10 @@ void D3D12CommandProcessor::UpdateFixedFunctionState(
     scissor.right = std::max(scissor.right + window_offset_x, LONG(0));
     scissor.bottom = std::max(scissor.bottom + window_offset_y, LONG(0));
   }
-  scissor.left *= ssaa_scale_x;
-  scissor.top *= ssaa_scale_y;
-  scissor.right *= ssaa_scale_x;
-  scissor.bottom *= ssaa_scale_y;
+  scissor.left *= pixel_size_x;
+  scissor.top *= pixel_size_y;
+  scissor.right *= pixel_size_x;
+  scissor.bottom *= pixel_size_y;
   ff_scissor_update_needed_ |= ff_scissor_.left != scissor.left;
   ff_scissor_update_needed_ |= ff_scissor_.top != scissor.top;
   ff_scissor_update_needed_ |= ff_scissor_.right != scissor.right;
@@ -2041,8 +2070,14 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
     }
   }
 
-  // Depth/stencil testing and blend constant for ROV blending.
+  // Resolution scale, depth/stencil testing and blend constant for ROV.
   if (IsROVUsedForEDRAM()) {
+    uint32_t resolution_scale_log2 =
+        texture_cache_->IsResolutionScale2X() ? 1 : 0;
+    dirty |=
+        system_constants_.edram_resolution_scale_log2 != resolution_scale_log2;
+    system_constants_.edram_resolution_scale_log2 = resolution_scale_log2;
+
     uint32_t depth_base_dwords = (rb_depth_info & 0xFFF) * 1280;
     dirty |= system_constants_.edram_depth_base_dwords != depth_base_dwords;
     system_constants_.edram_depth_base_dwords = depth_base_dwords;

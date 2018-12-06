@@ -44,30 +44,32 @@ dcl_sampler S0[0:0], mode_default, space=0
 dcl_resource_texture2d (float,float,float,float) T0[0:0], space=0
 dcl_input_ps_siv linear noperspective v0.xy, position
 dcl_output o0.xyzw
-dcl_temps 2
-ushr r0.xyzw, CB0[0][0].wxyz, l(1, 16, 16, 16)
-mov r1.xw, r0.xxxw
-mov r1.yz, CB0[0][0].wwzw
-and r1.xyzw, r1.xyzw, l(1, 1, 0x0000ffff, 0x0000ffff)
-iadd r0.xw, r1.xxxy, l(1, 0, 0, 1)
-utof r0.xyzw, r0.xyzw
-mul r0.xw, r0.xxxw, v0.xxxy
-ubfe r1.xy, l(2, 2, 0, 0), l(4, 2, 0, 0), CB0[0][0].wwww
-utof r1.xy, r1.xyxx
-mad r0.xw, r1.xxxy, l(0.500000, 0.000000, 0.000000, 0.500000), r0.xxxw
-add r0.xw, r0.xxxw, l(-0.500000, 0.000000, 0.000000, -0.500000)
-add r0.yz, r0.yyzy, l(0.000000, -0.500000, -0.500000, 0.000000)
-max r0.xw, r0.xxxw, l(0.500000, 0.000000, 0.000000, 0.500000)
-min r0.xy, r0.yzyy, r0.xwxx
+dcl_temps 3
+ubfe r0.xyz, l(1, 2, 2, 0), l(6, 4, 2, 0), CB0[0][0].wwww
+utof r0.xyz, r0.xyzx
+add r0.x, r0.x, l(0.500000)
+max r0.xw, r0.xxxx, v0.xxxy
+ushr r1.xyzw, CB0[0][0].wxyz, l(1, 16, 16, 16)
+mov r2.xw, r1.xxxw
+mov r2.yz, CB0[0][0].wwzw
+and r2.xyzw, r2.xyzw, l(1, 1, 0x0000ffff, 0x0000ffff)
+iadd r1.xw, r2.xxxy, l(1, 0, 0, 1)
+utof r1.xw, r1.xxxw
+mul r0.xw, r0.xxxw, r1.xxxw
+mad r0.xy, r0.yzyy, l(0.500000, 0.500000, 0.000000, 0.000000), r0.xwxx
+add r0.xy, r0.xyxx, l(-0.500000, -0.500000, 0.000000, 0.000000)
+utof r0.zw, r1.yyyz
+add r0.zw, r0.zzzw, l(0.000000, 0.000000, -0.500000, -0.500000)
+min r0.xy, r0.zwzz, r0.xyxx
 and r0.zw, CB0[0][0].xxxy, l(0, 0, 0x0000ffff, 0x0000ffff)
 utof r0.zw, r0.zzzw
 add r0.xy, r0.zwzz, r0.xyxx
-utof r0.zw, r1.zzzw
+utof r0.zw, r2.zzzw
 div r0.xy, r0.xyxx, r0.zwzz
 sample_l r0.xyzw, r0.xyxx, T0[0].xyzw, S0[0], l(0.000000)
-ibfe r1.x, l(6), l(6), CB0[0][0].w
+ibfe r1.x, l(6), l(7), CB0[0][0].w
 itof r1.x, r1.x
 exp r1.x, r1.x
 mul o0.xyzw, r0.xyzw, r1.xxxx
 ret 
-// Approximately 25 instruction slots used
+// Approximately 27 instruction slots used

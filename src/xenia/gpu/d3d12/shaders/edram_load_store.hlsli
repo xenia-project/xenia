@@ -5,9 +5,15 @@
 cbuffer XeEDRAMLoadStoreConstants : register(b0) {
   uint4 xe_edram_load_store_constants;
   // 0:10 - EDRAM base in tiles.
-  // 11 - whether it's a depth render target.
-  // 12: - EDRAM pitch in tiles.
-  uint xe_edram_base_depth_pitch;
+  // 11 - log2(vertical sample count), 0 for 1x AA, 1 for 2x/4x AA.
+  // 12 - log2(horizontal sample count), 0 for 1x/2x AA, 1 for 4x AA.
+  // 13 - whether 2x resolution scale is used.
+  // 14 - whether to apply the hack and duplicate the top/left
+  //      half-row/half-column to reduce the impact of half-pixel offset with
+  //      2x resolution scale.
+  // 15 - whether it's a depth render target.
+  // 16: - EDRAM pitch in tiles.
+  uint xe_edram_base_samples_2x_depth_pitch;
 };
 
 // For loading and storing render targets.
@@ -24,14 +30,12 @@ cbuffer XeEDRAMLoadStoreConstants : register(b0) {
 #define xe_edram_tile_sample_dimensions (xe_edram_load_store_constants.xy)
 #define xe_edram_tile_sample_dest_base (xe_edram_load_store_constants.z)
 // 0:13 - destination pitch.
-// 14 - log2(vertical sample count), 0 for 1x AA, 1 for 2x/4x AA.
-// 15 - log2(horizontal sample count), 0 for 1x/2x AA, 1 for 4x AA.
-// 16:17 - sample to load (16 - vertical index, 17 - horizontal index).
-// 18:20 - destination endianness.
-// 21:31 - BPP-specific info for swapping red/blue, 0 if not swapping.
+// 14:15 - sample to load (14 - vertical index, 15 - horizontal index).
+// 16:18 - destination endianness.
+// 19:31 - BPP-specific info for swapping red/blue, 0 if not swapping.
 //   For 32 bits per sample:
-//     21:25 - red/blue bit depth.
-//     26:30 - blue offset.
+//     19:23 - red/blue bit depth.
+//     24:28 - blue offset.
 //   For 64 bits per sample, it's 1 if need to swap 0:15 and 32:47.
 #define xe_edram_tile_sample_dest_info (xe_edram_load_store_constants.w)
 
@@ -49,26 +53,56 @@ ByteAddressBuffer xe_edram_load_store_source : register(t0);
 #endif
 RWByteAddressBuffer xe_edram_load_store_dest : register(u0);
 
-uint XeEDRAMOffset32bpp(uint2 tile_index, uint2 tile_sample_index) {
-  if (xe_edram_base_depth_pitch & (1u << 11u)) {
+uint2 XeEDRAMSampleCountLog2() {
+  return (xe_edram_base_samples_2x_depth_pitch >> uint2(12u, 11u)) & 1u;
+}
+
+uint XeEDRAMScaleLog2() {
+  return (xe_edram_base_samples_2x_depth_pitch >> 13u) & 1u;
+}
+
+// X - log2(horizontal sample count)
+// Y - log2(vertical sample count)
+// Z - log2(resolution scale)
+// W - whether to apply the host pixel duplication hack for 2x resolution scale
+//     resolves
+uint4 XeEDRAMSampleCountAndScaleInfo() {
+  return
+      (xe_edram_base_samples_2x_depth_pitch >> uint4(12u, 11u, 13u, 14u)) & 1u;
+}
+
+uint XeEDRAMOffset32bpp(uint2 tile_index, uint2 tile_sample_index,
+                        uint2 scaled_2x_pixel_index = uint2(0u, 0u)) {
+  if (xe_edram_base_samples_2x_depth_pitch & (1u << 15u)) {
     // Depth render targets apparently have samples 0:39 and 40:79 swapped -
     // affects loading depth to EDRAM via color aliasing in GTA IV and Halo 3.
     tile_sample_index.x += 40u * uint(tile_sample_index.x < 40u) -
                            40u * uint(tile_sample_index.x >= 40u);
   }
-  return ((xe_edram_base_depth_pitch & 2047u) +
-          tile_index.y * (xe_edram_base_depth_pitch >> 12u) + tile_index.x) *
-         5120u + tile_sample_index.y * 320u + tile_sample_index.x * 4u;
+  uint offset = ((xe_edram_base_samples_2x_depth_pitch & 2047u) +
+                 tile_index.y * (xe_edram_base_samples_2x_depth_pitch >> 16u) +
+                 tile_index.x) * 5120u + tile_sample_index.y * 320u +
+                tile_sample_index.x * 4u;
+  uint resolution_scale_log2 = XeEDRAMScaleLog2();
+  scaled_2x_pixel_index &= resolution_scale_log2;
+  return (offset << (resolution_scale_log2 * 2u)) +
+         scaled_2x_pixel_index.y * 8u + scaled_2x_pixel_index.x * 4u;
 }
 
 // Instead of individual tiles, this works on two consecutive tiles, the first
 // one containing the top 80x8 samples, and the second one containing the bottom
 // 80x8 samples.
-uint XeEDRAMOffset64bpp(uint2 tile_pair_index, uint2 tile_pair_sample_index) {
-  return ((xe_edram_base_depth_pitch & 2047u) +
-          tile_pair_index.y * (xe_edram_base_depth_pitch >> 12u) +
-          (tile_pair_index.x << 1u)) * 5120u +
-         tile_pair_sample_index.y * 640u + tile_pair_sample_index.x * 8u;
+uint XeEDRAMOffset64bpp(uint2 tile_pair_index, uint2 tile_pair_sample_index,
+                        uint2 scaled_2x_pixel_index = uint2(0u, 0u)) {
+  uint offset = ((xe_edram_base_samples_2x_depth_pitch & 2047u) +
+                 tile_pair_index.y *
+                 (xe_edram_base_samples_2x_depth_pitch >> 16u) +
+                 (tile_pair_index.x << 1u)) * 5120u +
+                tile_pair_sample_index.y * 640u + tile_pair_sample_index.x * 8u;
+  uint resolution_scale_log2 = XeEDRAMScaleLog2();
+  scaled_2x_pixel_index &= resolution_scale_log2;
+  return (offset << (resolution_scale_log2 * 2u)) +
+         scaled_2x_pixel_index.y * 16u + scaled_2x_pixel_index.x * 8u;
 }
 
 #endif  // XENIA_GPU_D3D12_SHADERS_EDRAM_LOAD_STORE_HLSLI_

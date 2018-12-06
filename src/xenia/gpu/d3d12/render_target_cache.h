@@ -217,6 +217,17 @@ class D3D12CommandProcessor;
 //   scissor), there may be cases of simultaneously bound render targets
 //   overlapping each other in the EDRAM in a way that is difficult to resolve,
 //   and stores/loads may destroy data.
+//
+// =============================================================================
+// 2x width and height scaling implementation:
+// =============================================================================
+//
+// For ease of mapping EDRAM addresses, host pixels (top-left, top-right,
+// bottom-left, bottom-right) within EACH GUEST SAMPLE are stored consecutively,
+// this means that the address of each sample with 4x resolution enabled is 4x
+// the address of it without increased resolution - and you only need to add
+// (uint(SV_Position.y) * 2u + uint(SV_Position.x)) to the dword/qword index to
+// get each of the 4 host pixels for each sample.
 class RenderTargetCache {
  public:
   // Direct3D 12 debug layer does some kaschenit-style trolling by giving errors
@@ -236,7 +247,7 @@ class RenderTargetCache {
                     RegisterFile* register_file);
   ~RenderTargetCache();
 
-  bool Initialize();
+  bool Initialize(const TextureCache* texture_cache);
   void Shutdown();
   void ClearCache();
 
@@ -303,17 +314,22 @@ class RenderTargetCache {
     const void* store_shader;
     size_t store_shader_size;
     const WCHAR* store_pipeline_name;
+
+    const void* load_2x_resolve_shader;
+    size_t load_2x_resolve_shader_size;
+    const WCHAR* load_2x_resolve_pipeline_name;
   };
 
   union RenderTargetKey {
     struct {
       // Supersampled (_ss - scaled 2x if needed) dimensions, divided by 80x16.
       // The limit is 2560x2560 without AA, 2560x5120 with 2x AA, and 5120x5120
-      // with 4x AA.
-      uint32_t width_ss_div_80 : 7;   // 7
-      uint32_t height_ss_div_16 : 9;  // 16
-      uint32_t is_depth : 1;          // 17
-      uint32_t format : 4;            // 21
+      // with 4x AA, and twice as much (up to 10240x10240) with 2x resolution
+      // scaling.
+      uint32_t width_ss_div_80 : 8;    // 8
+      uint32_t height_ss_div_16 : 10;  // 18
+      uint32_t is_depth : 1;           // 19
+      uint32_t format : 4;             // 23
     };
     uint32_t value;
 
@@ -376,9 +392,10 @@ class RenderTargetCache {
 
   union ResolveTargetKey {
     struct {
-      uint32_t width_div_32 : 9;
-      uint32_t height_div_32 : 9;
-      DXGI_FORMAT format : 14;
+      // 2560 / 32 = 80 (7 bits), * 2 for 2x resolution scale = 160 (8 bits).
+      uint32_t width_div_32 : 8;
+      uint32_t height_div_32 : 8;
+      DXGI_FORMAT format : 16;
     };
     uint32_t value;
   };
@@ -480,6 +497,10 @@ class RenderTargetCache {
   D3D12CommandProcessor* command_processor_;
   RegisterFile* register_file_;
 
+  // Whether 1 guest pixel is rendered as 2x2 host pixels (currently only
+  // supported with ROV).
+  bool resolution_scale_2x_ = false;
+
   // The EDRAM buffer allowing color and depth data to be reinterpreted.
   ID3D12Resource* edram_buffer_ = nullptr;
   D3D12_RESOURCE_STATES edram_buffer_state_;
@@ -504,14 +525,12 @@ class RenderTargetCache {
         uint32_t tile_sample_dimensions[2];
         uint32_t tile_sample_dest_base;
         // 0:13 - destination pitch.
-        // 14 - log2(vertical sample count), 0 for 1x AA, 1 for 2x/4x AA.
-        // 15 - log2(horizontal sample count), 0 for 1x/2x AA, 1 for 4x AA.
-        // 16:17 - sample to load (16 - vertical index, 17 - horizontal index).
-        // 18:20 - destination endianness.
-        // 21:31 - BPP-specific info for swapping red/blue, 0 if not swapping.
+        // 14:15 - sample to load (14 - vertical index, 15 - horizontal index).
+        // 16:18 - destination endianness.
+        // 19:31 - BPP-specific info for swapping red/blue, 0 if not swapping.
         //   For 32 bits per pixel:
-        //     21:25 - red/blue bit depth.
-        //     26:30 - blue offset.
+        //     19:23 - red/blue bit depth.
+        //     24:28 - blue offset.
         //   For 64 bits per pixel, it's 1 if need to swap 0:15 and 32:47.
         uint32_t tile_sample_dest_info;
       };
@@ -532,9 +551,15 @@ class RenderTargetCache {
       };
     };
     // 0:10 - EDRAM base in tiles.
-    // 11 - whether it's a depth render target.
-    // 12: - EDRAM pitch in tiles.
-    uint32_t base_depth_pitch;
+    // 11 - log2(vertical sample count), 0 for 1x AA, 1 for 2x/4x AA.
+    // 12 - log2(horizontal sample count), 0 for 1x/2x AA, 1 for 4x AA.
+    // 13 - whether 2x resolution scale is used.
+    // 14 - whether to apply the hack and duplicate the top/left
+    //      half-row/half-column to reduce the impact of half-pixel offset with
+    //      2x resolution scale.
+    // 15 - whether it's a depth render target.
+    // 16: - EDRAM pitch in tiles.
+    uint32_t base_samples_2x_depth_pitch;
   };
   // EDRAM pipelines.
   static const EDRAMLoadStoreModeInfo
@@ -543,6 +568,8 @@ class RenderTargetCache {
       edram_load_pipelines_[size_t(EDRAMLoadStoreMode::kCount)] = {};
   ID3D12PipelineState*
       edram_store_pipelines_[size_t(EDRAMLoadStoreMode::kCount)] = {};
+  ID3D12PipelineState*
+      edram_load_2x_resolve_pipelines_[size_t(EDRAMLoadStoreMode::kCount)] = {};
   ID3D12PipelineState* edram_tile_sample_32bpp_pipeline_ = nullptr;
   ID3D12PipelineState* edram_tile_sample_64bpp_pipeline_ = nullptr;
   ID3D12PipelineState* edram_clear_32bpp_pipeline_ = nullptr;
@@ -557,6 +584,9 @@ class RenderTargetCache {
   // entire EDRAM - a 32-bit depth/stencil one - at some resolution.
   // But we also need more than 32 MB to be able to resolve the entire EDRAM
   // into a k_32_32_32_32_FLOAT texture.
+  // TODO(Triang3l): With 2x resolution scale, render targets can take 4x more
+  // memory - won't fit in this heap size. Resolution scale support was added
+  // when placed resources already have been disabled, however.
   ID3D12Heap* heaps_[5] = {};
   static constexpr uint32_t kHeap4MBPages = 12;
 #endif
@@ -601,7 +631,10 @@ class RenderTargetCache {
     //       0 for the left samples with 4x AA.
     //       1 for 1x/2x AA or to mix samples with 4x AA.
     //       2 for the right samples with 4x AA.
-    // 6:11 - exponent bias.
+    // 6 - whether to apply the hack and duplicate the top/left
+    //     half-row/half-column to reduce the impact of half-pixel offset with
+    //     2x resolution scale.
+    // 7:12 - exponent bias.
     uint32_t resolve_info;
   };
   std::vector<ResolvePipeline> resolve_pipelines_;

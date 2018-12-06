@@ -190,10 +190,10 @@ ishl r0.x, r0.x, l(4)
 imad r0.y, vThreadID.z, CB0[0][2].y, vThreadID.y
 imad r0.x, r0.y, CB0[0][0].w, r0.x
 iadd r0.x, r0.x, CB0[0][0].z
-iadd r5.xyzw, r0.xxxx, l(0, 16, 32, 48)
-store_raw U0[0].xyzw, r5.x, r2.xyzw
-store_raw U0[0].xyzw, r5.y, r3.xyzw
-store_raw U0[0].xyzw, r5.z, r4.xyzw
-store_raw U0[0].xyzw, r5.w, r1.xyzw
+iadd r0.yzw, r0.xxxx, l(0, 16, 32, 48)
+store_raw U0[0].xyzw, r0.x, r2.xyzw
+store_raw U0[0].xyzw, r0.y, r3.xyzw
+store_raw U0[0].xyzw, r0.z, r4.xyzw
+store_raw U0[0].xyzw, r0.w, r1.xyzw
 ret 
 // Approximately 145 instruction slots used

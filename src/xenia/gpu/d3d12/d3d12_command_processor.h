@@ -13,6 +13,7 @@
 #include <atomic>
 #include <deque>
 #include <memory>
+#include <string>
 #include <unordered_map>
 
 #include "xenia/gpu/command_processor.h"
@@ -127,6 +128,9 @@ class D3D12CommandProcessor : public CommandProcessor {
                                    bool reset_viewport = true,
                                    bool reset_blend_factor = false,
                                    bool reset_stencil_ref = false);
+
+  // Returns the text to display in the GPU backend name in the window title.
+  std::wstring GetWindowTitleText() const;
 
  protected:
   bool SetupContext() override;

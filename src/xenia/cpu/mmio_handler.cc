@@ -245,13 +245,15 @@ void* MMIOHandler::RegisterPhysicalWriteWatch(
 
 void MMIOHandler::UnregisterPhysicalWriteWatch(void* watch_handle) {
   auto entry = reinterpret_cast<PhysicalWriteWatchEntry*>(watch_handle);
-  auto lock = global_critical_region_.Acquire();
 
-  auto it = std::find(physical_write_watches_.begin(),
-                      physical_write_watches_.end(), entry);
-  assert_false(it == physical_write_watches_.end());
-  if (it != physical_write_watches_.end()) {
-    physical_write_watches_.erase(it);
+  {
+    auto lock = global_critical_region_.Acquire();
+    auto it = std::find(physical_write_watches_.begin(),
+                        physical_write_watches_.end(), entry);
+    assert_false(it == physical_write_watches_.end());
+    if (it != physical_write_watches_.end()) {
+      physical_write_watches_.erase(it);
+    }
   }
 
   delete entry;

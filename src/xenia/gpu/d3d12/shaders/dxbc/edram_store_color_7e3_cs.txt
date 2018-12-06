@@ -8,7 +8,7 @@
 // {
 //
 //   uint4 xe_edram_load_store_constants;// Offset:    0 Size:    16
-//   uint xe_edram_base_depth_pitch;    // Offset:   16 Size:     4
+//   uint xe_edram_base_samples_2x_depth_pitch;// Offset:   16 Size:     4
 //
 // }
 //
@@ -96,7 +96,7 @@ round_ne r0.w, r0.w
 ftou r0.w, r0.w
 imad r0.y, r0.w, l(0x40000000), r0.z
 ishl r0.z, vThreadIDInGroup.x, l(1)
-and r1.xy, CB0[0][1].xxxx, l(2048, 2047, 0, 0)
+and r1.xy, CB0[0][1].xxxx, l(0x00008000, 2047, 0, 0)
 if_nz r1.x
   ult r0.w, vThreadIDInGroup.x, l(20)
   and r0.w, r0.w, l(40)
@@ -105,13 +105,16 @@ if_nz r1.x
   iadd r0.w, r0.w, r1.x
   iadd r0.z, r0.w, r0.z
 endif 
-ushr r0.w, CB0[0][1].x, l(12)
+ushr r0.w, CB0[0][1].x, l(16)
 imad r0.w, vThreadGroupID.y, r0.w, r1.y
 iadd r0.w, r0.w, vThreadGroupID.x
 imul null, r1.x, vThreadIDInGroup.y, l(320)
 imad r0.w, r0.w, l(5120), r1.x
 ishl r0.z, r0.z, l(2)
 iadd r0.z, r0.z, r0.w
+ubfe r0.w, l(1), l(13), CB0[0][1].x
+ishl r0.w, r0.w, l(1)
+ishl r0.z, r0.z, r0.w
 store_raw U0[0].xy, r0.z, r0.xyxx
 ret 
-// Approximately 70 instruction slots used
+// Approximately 73 instruction slots used

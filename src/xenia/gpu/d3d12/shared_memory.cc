@@ -35,8 +35,6 @@ namespace d3d12 {
 constexpr uint32_t SharedMemory::kBufferSizeLog2;
 constexpr uint32_t SharedMemory::kBufferSize;
 constexpr uint32_t SharedMemory::kAddressMask;
-constexpr uint32_t SharedMemory::kTileSizeLog2;
-constexpr uint32_t SharedMemory::kTileSize;
 constexpr uint32_t SharedMemory::kHeapSizeLog2;
 constexpr uint32_t SharedMemory::kHeapSize;
 constexpr uint32_t SharedMemory::kWatchBucketSizeLog2;
@@ -110,6 +108,8 @@ bool SharedMemory::Initialize() {
 }
 
 void SharedMemory::Shutdown() {
+  // TODO(Triang3l): Do something in case any watches are still registered.
+
   if (physical_write_watch_handle_ != nullptr) {
     memory_->UnregisterPhysicalWriteWatch(physical_write_watch_handle_);
     physical_write_watch_handle_ = nullptr;
@@ -118,17 +118,11 @@ void SharedMemory::Shutdown() {
   upload_buffer_pool_.reset();
 
   // First free the buffer to detach it from the heaps.
-  if (buffer_ != nullptr) {
-    buffer_->Release();
-    buffer_ = nullptr;
-  }
+  ui::d3d12::util::ReleaseAndNull(buffer_);
 
   if (AreTiledResourcesUsed()) {
     for (uint32_t i = 0; i < xe::countof(heaps_); ++i) {
-      if (heaps_[i] != nullptr) {
-        heaps_[i]->Release();
-        heaps_[i] = nullptr;
-      }
+      ui::d3d12::util::ReleaseAndNull(heaps_[i]);
     }
   }
 }
@@ -140,13 +134,40 @@ void SharedMemory::BeginFrame() {
 
 void SharedMemory::EndFrame() { upload_buffer_pool_->EndFrame(); }
 
+SharedMemory::GlobalWatchHandle SharedMemory::RegisterGlobalWatch(
+    GlobalWatchCallback callback, void* callback_context) {
+  GlobalWatch* watch = new GlobalWatch;
+  watch->callback = callback;
+  watch->callback_context = callback_context;
+
+  std::lock_guard<std::recursive_mutex> lock(validity_mutex_);
+  global_watches_.push_back(watch);
+
+  return reinterpret_cast<GlobalWatchHandle>(watch);
+}
+
+void SharedMemory::UnregisterGlobalWatch(GlobalWatchHandle handle) {
+  auto watch = reinterpret_cast<GlobalWatch*>(handle);
+
+  {
+    std::lock_guard<std::recursive_mutex> lock(validity_mutex_);
+    auto it = std::find(global_watches_.begin(), global_watches_.end(), watch);
+    assert_false(it == global_watches_.end());
+    if (it != global_watches_.end()) {
+      global_watches_.erase(it);
+    }
+  }
+
+  delete watch;
+}
+
 SharedMemory::WatchHandle SharedMemory::WatchMemoryRange(
     uint32_t start, uint32_t length, WatchCallback callback,
     void* callback_context, void* callback_data, uint64_t callback_argument) {
-  start &= kAddressMask;
-  if (start >= kBufferSize || length == 0) {
+  if (length == 0) {
     return nullptr;
   }
+  start &= kAddressMask;
   length = std::min(length, kBufferSize - start);
   uint32_t watch_page_first = start >> page_size_log2_;
   uint32_t watch_page_last = (start + length - 1) >> page_size_log2_;
@@ -224,7 +245,7 @@ bool SharedMemory::MakeTilesResident(uint32_t start, uint32_t length) {
     return true;
   }
   start &= kAddressMask;
-  if (start >= kBufferSize || (kBufferSize - start) < length) {
+  if ((kBufferSize - start) < length) {
     // Exceeds the physical address space.
     return false;
   }
@@ -257,16 +278,17 @@ bool SharedMemory::MakeTilesResident(uint32_t start, uint32_t length) {
       return false;
     }
     D3D12_TILED_RESOURCE_COORDINATE region_start_coordinates;
-    region_start_coordinates.X = i << (kHeapSizeLog2 - kTileSizeLog2);
+    region_start_coordinates.X =
+        (i << kHeapSizeLog2) / D3D12_TILED_RESOURCE_TILE_SIZE_IN_BYTES;
     region_start_coordinates.Y = 0;
     region_start_coordinates.Z = 0;
     region_start_coordinates.Subresource = 0;
     D3D12_TILE_REGION_SIZE region_size;
-    region_size.NumTiles = kHeapSize >> kTileSizeLog2;
+    region_size.NumTiles = kHeapSize / D3D12_TILED_RESOURCE_TILE_SIZE_IN_BYTES;
     region_size.UseBox = FALSE;
     D3D12_TILE_RANGE_FLAGS range_flags = D3D12_TILE_RANGE_FLAG_NONE;
     UINT heap_range_start_offset = 0;
-    UINT range_tile_count = kHeapSize >> kTileSizeLog2;
+    UINT range_tile_count = kHeapSize / D3D12_TILED_RESOURCE_TILE_SIZE_IN_BYTES;
     // FIXME(Triang3l): This may cause issues if the emulator is shut down
     // mid-frame and the heaps are destroyed before tile mappings are updated
     // (AwaitAllFramesCompletion won't catch this then). Defer this until the
@@ -285,7 +307,7 @@ bool SharedMemory::RequestRange(uint32_t start, uint32_t length) {
     return true;
   }
   start &= kAddressMask;
-  if (start >= kBufferSize || (kBufferSize - start) < length) {
+  if ((kBufferSize - start) < length) {
     // Exceeds the physical address space.
     return false;
   }
@@ -343,12 +365,23 @@ bool SharedMemory::RequestRange(uint32_t start, uint32_t length) {
   return true;
 }
 
-void SharedMemory::FireWatches(uint32_t page_first, uint32_t page_last) {
-  uint32_t bucket_first = page_first << page_size_log2_ >> kWatchBucketSizeLog2;
-  uint32_t bucket_last = page_last << page_size_log2_ >> kWatchBucketSizeLog2;
+void SharedMemory::FireWatches(uint32_t page_first, uint32_t page_last,
+                               bool invalidated_by_gpu) {
+  uint32_t address_first = page_first << page_size_log2_;
+  uint32_t address_last =
+      (page_last << page_size_log2_) + ((1 << page_size_log2_) - 1);
+  uint32_t bucket_first = address_first >> kWatchBucketSizeLog2;
+  uint32_t bucket_last = address_last >> kWatchBucketSizeLog2;
 
   std::lock_guard<std::recursive_mutex> lock(validity_mutex_);
 
+  // Fire global watches.
+  for (const auto global_watch : global_watches_) {
+    global_watch->callback(global_watch->callback_context, address_first,
+                           address_last, invalidated_by_gpu);
+  }
+
+  // Fire per-range watches.
   for (uint32_t i = bucket_first; i <= bucket_last; ++i) {
     WatchNode* node = watch_buckets_[i];
     while (node != nullptr) {
@@ -358,7 +391,7 @@ void SharedMemory::FireWatches(uint32_t page_first, uint32_t page_last) {
       node = node->bucket_node_next;
       if (page_first <= range->page_last && page_last >= range->page_first) {
         range->callback(range->callback_context, range->callback_data,
-                        range->callback_argument);
+                        range->callback_argument, invalidated_by_gpu);
         UnlinkWatchRange(range);
       }
     }
@@ -367,7 +400,7 @@ void SharedMemory::FireWatches(uint32_t page_first, uint32_t page_last) {
 
 void SharedMemory::RangeWrittenByGPU(uint32_t start, uint32_t length) {
   start &= kAddressMask;
-  if (length == 0 || start >= kBufferSize) {
+  if (length == 0) {
     return;
   }
   length = std::min(length, kBufferSize - start);
@@ -377,7 +410,7 @@ void SharedMemory::RangeWrittenByGPU(uint32_t start, uint32_t length) {
 
   // Trigger modification callbacks so, for instance, resolved data is loaded to
   // the texture.
-  FireWatches(page_first, page_last);
+  FireWatches(page_first, page_last, true);
 
   // Mark the range as valid (so pages are not reuploaded until modified by the
   // CPU) and watch it so the CPU can reuse it and this will be caught.
@@ -529,7 +562,7 @@ void SharedMemory::MemoryWriteCallback(uint32_t page_first,
     valid_pages_[i] &= ~invalidate_bits;
   }
 
-  FireWatches(page_first, page_last);
+  FireWatches(page_first, page_last, false);
 }
 
 void SharedMemory::TransitionBuffer(D3D12_RESOURCE_STATES new_state) {
