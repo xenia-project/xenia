@@ -5,9 +5,9 @@ RWBuffer<uint> xe_texture_tile_dest : register(u0);
 [numthreads(8, 32, 1)]
 void main(uint3 xe_thread_id : SV_DispatchThreadID) {
   // 1 thread = 4 R8G8B8A8 texels to R5G5B5A1 or R4G4B4A4.
-  uint2 texture_size = (xe_texture_tile_size >> uint2(0u, 16u)) & 0xFFFFu;
+  uint2 texture_size = XeTextureTileSizeScaled();
   uint2 texel_index = xe_thread_id.xy;
-  texel_index.x <<= 2u;
+  texel_index.x *= 4u;
   [branch] if (any(texel_index >= texture_size)) {
     return;
   }
@@ -15,7 +15,7 @@ void main(uint3 xe_thread_id : SV_DispatchThreadID) {
   uint4 texels = xe_texture_tile_source.Load4(
       xe_texture_tile_host_base + texel_index.y * xe_texture_tile_host_pitch +
       texel_index.x * 4u);
-  uint format = (xe_texture_tile_endian_format_guest_pitch >> 3u) & 63u;
+  uint format = XeTextureTileFormat();
   if (format == 3u) {
     // k_1_5_5_5.
     texels = ((texels & (31u << 3u)) >> 3u) |
@@ -29,11 +29,9 @@ void main(uint3 xe_thread_id : SV_DispatchThreadID) {
              ((texels & (15u << 20u)) >> (20u - 8u)) |
              ((texels & (15u << 28u)) >> (28u - 12u));
   }
-  texels = XeByteSwap16(texels, xe_texture_tile_endian_format_guest_pitch);
+  texels = XeByteSwap16(texels, XeTextureTileEndian());
 
-  uint4 texel_addresses = (xe_texture_tile_guest_base + XeTextureTiledOffset2D(
-      ((xe_texture_tile_offset >> uint2(0u, 16u)) & 0xFFFFu) + texel_index,
-      xe_texture_tile_endian_format_guest_pitch >> 9u, 1u)) >> 1u;
+  uint4 texel_addresses = XeTextureTileGuestAddress(texel_index, 1u) >> 1u;
   xe_texture_tile_dest[texel_addresses.x] = texels.x;
   bool3 texels_inside = uint3(1u, 2u, 3u) + texel_index.x < texture_size.x;
   [branch] if (texels_inside.x) {

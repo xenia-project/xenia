@@ -23,16 +23,14 @@ void main(uint3 xe_thread_id : SV_DispatchThreadID) {
   if (xe_texture_load_guest_format == 3u) {
     // k_1_5_5_5.
     blocks = (blocks & ((31u << 5u) | (1u << 15u))) | ((blocks & 31u) << 10u) |
-             ((blocks >> 10u) & 31u);
+             (blocks >> 10u);
   } else if (xe_texture_load_guest_format == 4u) {
     // k_5_6_5.
-    blocks = (blocks & (63u << 5u)) | ((blocks & 31u) << 11u) |
-             ((blocks >> 11u) & 31u);
+    blocks = (blocks & (63u << 5u)) | ((blocks & 31u) << 11u) | (blocks >> 11u);
   } else if (xe_texture_load_guest_format == 5u) {
     // k_6_5_5 - RRRRR GGGGG BBBBBB to GGGGG BBBBBB RRRRR (use RBGA swizzle when
     // reading).
-    blocks = ((blocks & 31u) << 11u) | ((blocks >> 5u) & 31u) |
-             ((blocks >> 10u) << 5u);
+    blocks = ((blocks & 31u) << 11u) | (blocks >> 5u);
   } else if (xe_texture_load_guest_format == 15u) {
     // k_4_4_4_4.
     blocks =

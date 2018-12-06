@@ -18,10 +18,11 @@ void main(uint3 xe_thread_id : SV_DispatchThreadID) {
   block_1 = XeByteSwap(block_1, xe_texture_load_endianness);
   block_2 = XeByteSwap(block_2, xe_texture_load_endianness);
   block_3 = XeByteSwap(block_3, xe_texture_load_endianness);
-  uint block_offset_host = XeTextureHostLinearOffset(
+  uint4 block_offsets_host;
+  block_offsets_host.x = XeTextureHostLinearOffset(
       block_index, xe_texture_load_size_blocks.y, xe_texture_load_host_pitch,
       16u) + xe_texture_load_host_base;
-  uint4 block_offsets_host = uint4(0u, 16u, 32u, 48u) + block_offset_host;
+  block_offsets_host.yzw = uint3(16u, 32u, 48u) + block_offsets_host.x;
   xe_texture_load_dest.Store4(block_offsets_host.x, block_0);
   xe_texture_load_dest.Store4(block_offsets_host.y, block_1);
   xe_texture_load_dest.Store4(block_offsets_host.z, block_2);

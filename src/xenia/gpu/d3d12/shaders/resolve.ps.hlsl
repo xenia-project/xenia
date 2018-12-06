@@ -14,7 +14,10 @@ cbuffer XeResolveConstants : register(b0) {
   //       0 for the left samples with 4x AA.
   //       1 for 1x/2x AA or to mix samples with 4x AA.
   //       2 for the right samples with 4x AA.
-  // 6:11 - exponent bias.
+  // 6 - whether to apply the hack and duplicate the top/left
+  //     half-row/half-column to reduce the impact of half-pixel offset with
+  //     2x resolution scale.
+  // 7:12 - exponent bias.
   uint xe_resolve_info;
 };
 
@@ -34,14 +37,15 @@ float4 main(float4 xe_position : SV_Position) : SV_Target {
   // texel centers, if AA is resolved, it's sampled between texels).
 
   // Go to sample coordinates and select the needed samples.
-  float2 resolve_position = xe_position.xy *
+  float2 resolve_position =
+      max(xe_position.xy, (float((xe_resolve_info >> 6u) & 1u) + 0.5).xx) *
       float2(((xe_resolve_info.xx >> uint2(1u, 0u)) & 1u) + 1u) +
       (float2((xe_resolve_info.xx >> uint2(4u, 2u)) & 3u) * 0.5 - 0.5);
 
   // Clamp, offset and normalize the position.
-  resolve_position = clamp(resolve_position, (0.5).xx,
-                           float2(xe_resolve_rect_samples >> 16u) - 0.5) +
-                     float2(xe_resolve_rect_samples & 0xFFFFu);
+  resolve_position = 
+      min(resolve_position, float2(xe_resolve_rect_samples >> 16u) - 0.5) +
+      float2(xe_resolve_rect_samples & 0xFFFFu);
   resolve_position /=
       float2((xe_resolve_source_size >> uint2(0u, 16u)) & 0xFFFFu);
 
@@ -50,7 +54,7 @@ float4 main(float4 xe_position : SV_Position) : SV_Target {
                                                resolve_position, 0.0);
 
   // Bias the exponent.
-  pixel *= exp2(float(int(xe_resolve_info << (32u - 12u)) >> 26));
+  pixel *= exp2(float(int(xe_resolve_info << (32u - 13u)) >> 26));
 
   return pixel;
 }

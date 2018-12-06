@@ -8,7 +8,7 @@
 // {
 //
 //   uint4 xe_edram_load_store_constants;// Offset:    0 Size:    16
-//   uint xe_edram_base_depth_pitch;    // Offset:   16 Size:     4
+//   uint xe_edram_base_samples_2x_depth_pitch;// Offset:   16 Size:     4
 //
 // }
 //
@@ -45,30 +45,41 @@ dcl_thread_group 40, 16, 1
 and r0.xy, CB0[0][0].xyxx, l(0x0000ffff, 0x0000ffff, 0, 0)
 ushr r0.zw, CB0[0][0].xxxy, l(0, 0, 16, 16)
 ishl r1.x, vThreadID.x, l(1)
-mov r1.y, vThreadID.y
-ult r0.xz, r1.xxyx, r0.xxzx
-or r0.x, r0.z, r0.x
-uge r0.zw, r1.xxxy, r0.yyyw
-or r0.z, r0.w, r0.z
-or r0.x, r0.z, r0.x
-if_nz r0.x
+uge r0.x, r1.x, r0.x
+ult r0.y, r1.x, r0.y
+and r0.x, r0.y, r0.x
+ult r0.y, vThreadID.y, r0.z
+uge r0.z, vThreadID.y, r0.w
+or r0.y, r0.z, r0.y
+ieq r0.z, r0.x, l(0)
+or r0.y, r0.z, r0.y
+if_nz r0.y
   ret 
 endif 
-and r0.x, CB0[0][1].x, l(2047)
-ushr r0.z, CB0[0][1].x, l(12)
-imad r0.x, vThreadGroupID.y, r0.z, r0.x
+and r0.y, CB0[0][1].x, l(2047)
+ushr r0.z, CB0[0][1].x, l(16)
+imad r0.y, vThreadGroupID.y, r0.z, r0.y
 ishl r0.z, vThreadGroupID.x, l(1)
-iadd r0.x, r0.z, r0.x
+iadd r0.y, r0.z, r0.y
 imul null, r0.z, vThreadIDInGroup.y, l(640)
-imad r0.x, r0.x, l(5120), r0.z
+imad r0.y, r0.y, l(5120), r0.z
 ishl r0.z, vThreadIDInGroup.x, l(4)
-iadd r0.x, r0.z, r0.x
-store_raw U0[0].xy, r0.x, CB0[0][0].zwzz
-imad r0.z, vThreadID.x, l(2), l(1)
-ult r0.y, r0.z, r0.y
-if_nz r0.y
-  iadd r0.y, r0.x, l(8)
-  store_raw U0[0].xy, r0.y, CB0[0][0].zwzz
+iadd r0.y, r0.z, r0.y
+ubfe r0.z, l(1), l(13), CB0[0][1].x
+ishl r0.w, r0.z, l(1)
+ishl r0.y, r0.y, r0.w
+if_nz r0.z
+  iadd r1.xyz, r0.yyyy, l(16, 32, 48, 0)
+  if_nz r0.x
+    store_raw U0[0].xyzw, r0.y, CB0[0][0].zwzw
+    store_raw U0[0].xyzw, r1.x, CB0[0][0].zwzw
+    store_raw U0[0].xyzw, r1.y, CB0[0][0].zwzw
+    store_raw U0[0].xyzw, r1.z, CB0[0][0].zwzw
+  endif 
+else 
+  if_nz r0.x
+    store_raw U0[0].xyzw, r0.y, CB0[0][0].zwzw
+  endif 
 endif 
 ret 
-// Approximately 29 instruction slots used
+// Approximately 40 instruction slots used

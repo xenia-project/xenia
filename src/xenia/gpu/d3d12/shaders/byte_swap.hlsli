@@ -19,10 +19,11 @@ XE_BYTE_SWAP_OVERLOAD(uint2)
 XE_BYTE_SWAP_OVERLOAD(uint3)
 XE_BYTE_SWAP_OVERLOAD(uint4)
 
+// Can also swap two packed 16-bit values.
 #define XE_BYTE_SWAP_16_OVERLOAD(XeByteSwapType) \
 XeByteSwapType XeByteSwap16(XeByteSwapType v, uint endian) { \
   if (((endian ^ (endian >> 1u)) & 1u) != 0u) { \
-    v = ((v & 0xFFu) << 8u) | ((v & 0xFF00u) >> 8u); \
+    v = ((v & 0x00FF00FFu) << 8u) | ((v & 0xFF00FF00u) >> 8u); \
   } \
   return v; \
 }
