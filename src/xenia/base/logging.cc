@@ -52,9 +52,15 @@ thread_local std::vector<char> log_format_buffer_(64 * 1024);
 class Logger {
  public:
   explicit Logger(const std::wstring& app_name) : running_(true) {
+	//Create timestamp suffix for filename use.
+    time_t timeraw = time(nullptr);
+    tm timestamp = *localtime(&timeraw);
+    wchar_t timebuf[80];
+    wcsftime(timebuf, sizeof(timebuf), L"_%Y-%m-%d-%H-%M-%S", &timestamp);
+
     if (FLAGS_log_file.empty()) {
       // Default to app name.
-      auto file_path = app_name + L".log";
+      auto file_path = L"logs/" + app_name + timebuf + L".log";
       xe::filesystem::CreateParentFolder(file_path);
       file_ = xe::filesystem::OpenFile(file_path, "wt");
     } else {
