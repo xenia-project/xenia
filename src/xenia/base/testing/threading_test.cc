@@ -7,6 +7,8 @@
 ******************************************************************************
 */
 
+#include <array>
+
 #include "xenia/base/threading.h"
 
 #include "third_party/catch/include/catch.hpp"
@@ -210,6 +212,69 @@ TEST_CASE("Reset Event", "Event") {
   evt->Set();
   result = Wait(evt.get(), false, 50ms);
   REQUIRE(result == WaitResult::kSuccess);
+}
+
+TEST_CASE("Wait on Multiple Events", "Event") {
+  auto events = std::array<std::unique_ptr<Event>, 4>{
+      Event::CreateAutoResetEvent(false),
+      Event::CreateAutoResetEvent(false),
+      Event::CreateAutoResetEvent(false),
+      Event::CreateManualResetEvent(false),
+  };
+
+  std::array<uint32_t, 256> order = {0};
+  std::atomic_uint index(0);
+  auto sign_in = [&order, &index](uint32_t id) {
+    auto i = index.fetch_add(1, std::memory_order::memory_order_relaxed);
+    order[i] = id;
+  };
+
+  auto threads = std::array<std::thread, 4>{
+      std::thread([&events, &sign_in] {
+        auto res = WaitAll({events[1].get(), events[3].get()}, false, 100ms);
+        if (res == WaitResult::kSuccess) {
+          sign_in(1);
+        }
+      }),
+      std::thread([&events, &sign_in] {
+        auto res = WaitAny({events[0].get(), events[2].get()}, false, 100ms);
+        if (res.first == WaitResult::kSuccess) {
+          sign_in(2);
+        }
+      }),
+      std::thread([&events, &sign_in] {
+        auto res = WaitAll({events[0].get(), events[2].get(), events[3].get()},
+                           false, 100ms);
+        if (res == WaitResult::kSuccess) {
+          sign_in(3);
+        }
+      }),
+      std::thread([&events, &sign_in] {
+        auto res = WaitAny({events[1].get(), events[3].get()}, false, 100ms);
+        if (res.first == WaitResult::kSuccess) {
+          sign_in(4);
+        }
+      }),
+  };
+
+  Sleep(10ms);
+  events[3]->Set();  // Signals thread id=4 and stays on for 1 and 3
+  Sleep(10ms);
+  events[1]->Set();  // Signals thread id=1
+  Sleep(10ms);
+  events[0]->Set();  // Signals thread id=2
+  Sleep(10ms);
+  events[2]->Set();  // Partial signals thread id=3
+  events[0]->Set();  // Signals thread id=3
+
+  for (auto& t : threads) {
+    t.join();
+  }
+
+  REQUIRE(order[0] == 4);
+  REQUIRE(order[1] == 1);
+  REQUIRE(order[2] == 2);
+  REQUIRE(order[3] == 3);
 }
 
 TEST_CASE("Wait on Semaphore", "Semaphore") {
