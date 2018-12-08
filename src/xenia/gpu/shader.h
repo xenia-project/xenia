@@ -180,6 +180,28 @@ struct InstructionOperand {
     }
     return false;
   }
+
+  // Whether absolute values of two operands are identical (useful for emulating
+  // Shader Model 3 0*anything=0 multiplication behavior).
+  bool EqualsAbsolute(const InstructionOperand& other) const {
+    if (storage_source != other.storage_source ||
+        storage_index != other.storage_index ||
+        storage_addressing_mode != other.storage_addressing_mode ||
+        component_count != other.component_count) {
+      return false;
+    }
+    for (int i = 0; i < component_count; ++i) {
+      if (components[i] != other.components[i]) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  bool operator==(const InstructionOperand& other) const {
+    return EqualsAbsolute(other) && is_negated == other.is_negated &&
+           is_absolute_value == other.is_absolute_value;
+  }
 };
 
 struct ParsedExecInstruction {
