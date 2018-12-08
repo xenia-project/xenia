@@ -12688,14 +12688,7 @@ void DxbcShaderTranslator::ProcessScalarAluInstruction(
       shader_code_.push_back(system_temp_ps_pc_p0_a0_);
       UseDxbcSourceOperand(dxbc_operands[0], kSwizzleXYZW, 0);
       shader_code_.push_back(
-          ENCODE_D3D10_SB_OPERAND_NUM_COMPONENTS(D3D10_SB_OPERAND_4_COMPONENT) |
-          ENCODE_D3D10_SB_OPERAND_4_COMPONENT_SELECTION_MODE(
-              D3D10_SB_OPERAND_4_COMPONENT_SELECT_1_MODE) |
-          ENCODE_D3D10_SB_OPERAND_4_COMPONENT_SELECT_1(0) |
-          ENCODE_D3D10_SB_OPERAND_TYPE(D3D10_SB_OPERAND_TYPE_TEMP) |
-          ENCODE_D3D10_SB_OPERAND_INDEX_DIMENSION(D3D10_SB_OPERAND_INDEX_1D) |
-          ENCODE_D3D10_SB_OPERAND_INDEX_REPRESENTATION(
-              0, D3D10_SB_OPERAND_INDEX_IMMEDIATE32) |
+          EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1) |
           ENCODE_D3D10_SB_OPERAND_EXTENDED(1));
       shader_code_.push_back(ENCODE_D3D10_SB_EXTENDED_OPERAND_MODIFIER(
           D3D10_SB_OPERAND_MODIFIER_NEG));
