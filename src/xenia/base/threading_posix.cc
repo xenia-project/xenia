@@ -290,6 +290,33 @@ class PosixCondition<Event> : public PosixConditionBase {
   const bool manual_reset_;
 };
 
+template <>
+class PosixCondition<Semaphore> : public PosixConditionBase {
+ public:
+  PosixCondition(uint32_t initial_count, uint32_t maximum_count)
+      : count_(initial_count), maximum_count_(maximum_count) {}
+
+  bool Release(uint32_t release_count, int* out_previous_count) {
+    if (maximum_count_ - count_ >= release_count) {
+      auto lock = std::unique_lock<std::mutex>(mutex_);
+      if (out_previous_count) *out_previous_count = count_;
+      count_ += release_count;
+      cond_.notify_all();
+      return true;
+    }
+    return false;
+  }
+
+ private:
+  inline bool signaled() const override { return count_ > 0; }
+  inline void post_execution() override {
+    count_--;
+    cond_.notify_all();
+  }
+  uint32_t count_;
+  const uint32_t maximum_count_;
+};
+
 // Native posix thread handle
 template <typename T>
 class PosixThreadHandle : public T {
@@ -311,6 +338,7 @@ template <typename T>
 class PosixConditionHandle : public T {
  public:
   PosixConditionHandle(bool manual_reset, bool initial_state);
+  PosixConditionHandle(uint32_t initial_count, uint32_t maximum_count);
   ~PosixConditionHandle() override = default;
 
  protected:
@@ -322,9 +350,9 @@ class PosixConditionHandle : public T {
 };
 
 template <>
-PosixConditionHandle<Semaphore>::PosixConditionHandle(bool manual_reset,
-                                                      bool initial_state)
-    : handle_() {}
+PosixConditionHandle<Semaphore>::PosixConditionHandle(uint32_t initial_count,
+                                                      uint32_t maximum_count)
+    : handle_(initial_count, maximum_count) {}
 
 template <>
 PosixConditionHandle<Mutant>::PosixConditionHandle(bool manual_reset,
@@ -394,17 +422,18 @@ std::unique_ptr<Event> Event::CreateAutoResetEvent(bool initial_state) {
   return std::make_unique<PosixEvent>(false, initial_state);
 }
 
-// TODO(dougvj)
 class PosixSemaphore : public PosixConditionHandle<Semaphore> {
  public:
   PosixSemaphore(int initial_count, int maximum_count)
-      : PosixConditionHandle(false, false) {
-    assert_always();
-  }
+      : PosixConditionHandle(static_cast<uint32_t>(initial_count),
+                             static_cast<uint32_t>(maximum_count)) {}
   ~PosixSemaphore() override = default;
   bool Release(int release_count, int* out_previous_count) override {
-    assert_always();
-    return false;
+    if (release_count < 1) {
+      return false;
+    }
+    return handle_.Release(static_cast<uint32_t>(release_count),
+                           out_previous_count);
   }
 };
 
