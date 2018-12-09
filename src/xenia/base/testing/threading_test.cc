@@ -433,8 +433,123 @@ TEST_CASE("Wait on Multiple Semaphores", "Semaphore") {
 }
 
 TEST_CASE("Wait on Mutant", "Mutant") {
-  // TODO(bwrsandman):
-  REQUIRE(true);
+  WaitResult result;
+  std::unique_ptr<Mutant> mut;
+
+  // Release on initially owned mutant
+  mut = Mutant::Create(true);
+  REQUIRE(mut->Release());
+  REQUIRE_FALSE(mut->Release());
+
+  // Release on initially not-owned mutant
+  mut = Mutant::Create(false);
+  REQUIRE_FALSE(mut->Release());
+
+  // Wait on initially owned mutant
+  mut = Mutant::Create(true);
+  result = Wait(mut.get(), false, 1ms);
+  REQUIRE(result == WaitResult::kSuccess);
+  REQUIRE(mut->Release());
+  REQUIRE(mut->Release());
+  REQUIRE_FALSE(mut->Release());
+
+  // Wait on initially not owned mutant
+  mut = Mutant::Create(false);
+  result = Wait(mut.get(), false, 1ms);
+  REQUIRE(result == WaitResult::kSuccess);
+  REQUIRE(mut->Release());
+  REQUIRE_FALSE(mut->Release());
+
+  // Multiple waits (or locks)
+  mut = Mutant::Create(false);
+  for (int i = 0; i < 10; ++i) {
+    result = Wait(mut.get(), false, 1ms);
+    REQUIRE(result == WaitResult::kSuccess);
+  }
+  for (int i = 0; i < 10; ++i) {
+    REQUIRE(mut->Release());
+  }
+  REQUIRE_FALSE(mut->Release());
+
+  // Test mutants on other threads
+  auto thread1 = std::thread([&mut] {
+    Sleep(5ms);
+    mut = Mutant::Create(true);
+    Sleep(100ms);
+    mut->Release();
+  });
+  Sleep(10ms);
+  REQUIRE_FALSE(mut->Release());
+  Sleep(10ms);
+  result = Wait(mut.get(), false, 50ms);
+  REQUIRE(result == WaitResult::kTimeout);
+  thread1.join();
+  result = Wait(mut.get(), false, 1ms);
+  REQUIRE(result == WaitResult::kSuccess);
+  REQUIRE(mut->Release());
+}
+
+TEST_CASE("Wait on Multiple Mutants", "Mutant") {
+  WaitResult all_result;
+  std::pair<WaitResult, size_t> any_result;
+  std::unique_ptr<Mutant> mut0, mut1;
+
+  // Test which should fail for WaitAll and WaitAny
+  auto thread0 = std::thread([&mut0, &mut1] {
+    mut0 = Mutant::Create(true);
+    mut1 = Mutant::Create(true);
+    Sleep(50ms);
+    mut0->Release();
+    mut1->Release();
+  });
+  Sleep(10ms);
+  all_result = WaitAll({mut0.get(), mut1.get()}, false, 10ms);
+  REQUIRE(all_result == WaitResult::kTimeout);
+  REQUIRE_FALSE(mut0->Release());
+  REQUIRE_FALSE(mut1->Release());
+  any_result = WaitAny({mut0.get(), mut1.get()}, false, 10ms);
+  REQUIRE(any_result.first == WaitResult::kTimeout);
+  REQUIRE(any_result.second == 0);
+  REQUIRE_FALSE(mut0->Release());
+  REQUIRE_FALSE(mut1->Release());
+  thread0.join();
+
+  // Test which should fail for WaitAll but not WaitAny
+  auto thread1 = std::thread([&mut0, &mut1] {
+    mut0 = Mutant::Create(true);
+    mut1 = Mutant::Create(false);
+    Sleep(50ms);
+    mut0->Release();
+  });
+  Sleep(10ms);
+  all_result = WaitAll({mut0.get(), mut1.get()}, false, 10ms);
+  REQUIRE(all_result == WaitResult::kTimeout);
+  REQUIRE_FALSE(mut0->Release());
+  REQUIRE_FALSE(mut1->Release());
+  any_result = WaitAny({mut0.get(), mut1.get()}, false, 10ms);
+  REQUIRE(any_result.first == WaitResult::kSuccess);
+  REQUIRE(any_result.second == 1);
+  REQUIRE_FALSE(mut0->Release());
+  REQUIRE(mut1->Release());
+  thread1.join();
+
+  // Test which should pass for WaitAll and WaitAny
+  auto thread2 = std::thread([&mut0, &mut1] {
+    mut0 = Mutant::Create(false);
+    mut1 = Mutant::Create(false);
+    Sleep(50ms);
+  });
+  Sleep(10ms);
+  all_result = WaitAll({mut0.get(), mut1.get()}, false, 10ms);
+  REQUIRE(all_result == WaitResult::kSuccess);
+  REQUIRE(mut0->Release());
+  REQUIRE(mut1->Release());
+  any_result = WaitAny({mut0.get(), mut1.get()}, false, 10ms);
+  REQUIRE(any_result.first == WaitResult::kSuccess);
+  REQUIRE(any_result.second == 0);
+  REQUIRE(mut0->Release());
+  REQUIRE_FALSE(mut1->Release());
+  thread2.join();
 }
 
 TEST_CASE("Create and Trigger Timer", "Timer") {
