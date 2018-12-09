@@ -317,6 +317,40 @@ class PosixCondition<Semaphore> : public PosixConditionBase {
   const uint32_t maximum_count_;
 };
 
+template <>
+class PosixCondition<Mutant> : public PosixConditionBase {
+ public:
+  explicit PosixCondition(bool initial_owner) : count_(0) {
+    if (initial_owner) {
+      count_ = 1;
+      owner_ = std::this_thread::get_id();
+    }
+  }
+  bool Release() {
+    if (owner_ == std::this_thread::get_id() && count_ > 0) {
+      auto lock = std::unique_lock<std::mutex>(mutex_);
+      --count_;
+      // Free to be acquired by another thread
+      if (count_ == 0) {
+        cond_.notify_one();
+      }
+      return true;
+    }
+    return false;
+  }
+
+ private:
+  inline bool signaled() const override {
+    return count_ == 0 || owner_ == std::this_thread::get_id();
+  }
+  inline void post_execution() override {
+    count_++;
+    owner_ = std::this_thread::get_id();
+  }
+  uint32_t count_;
+  std::thread::id owner_;
+};
+
 // Native posix thread handle
 template <typename T>
 class PosixThreadHandle : public T {
@@ -337,6 +371,7 @@ class PosixThreadHandle : public T {
 template <typename T>
 class PosixConditionHandle : public T {
  public:
+  explicit PosixConditionHandle(bool initial_owner);
   PosixConditionHandle(bool manual_reset, bool initial_state);
   PosixConditionHandle(uint32_t initial_count, uint32_t maximum_count);
   ~PosixConditionHandle() override = default;
@@ -355,9 +390,8 @@ PosixConditionHandle<Semaphore>::PosixConditionHandle(uint32_t initial_count,
     : handle_(initial_count, maximum_count) {}
 
 template <>
-PosixConditionHandle<Mutant>::PosixConditionHandle(bool manual_reset,
-                                                   bool initial_state)
-    : handle_() {}
+PosixConditionHandle<Mutant>::PosixConditionHandle(bool initial_owner)
+    : handle_(initial_owner) {}
 
 template <>
 PosixConditionHandle<Timer>::PosixConditionHandle(bool manual_reset,
@@ -442,17 +476,12 @@ std::unique_ptr<Semaphore> Semaphore::Create(int initial_count,
   return std::make_unique<PosixSemaphore>(initial_count, maximum_count);
 }
 
-// TODO(dougvj)
 class PosixMutant : public PosixConditionHandle<Mutant> {
  public:
-  PosixMutant(bool initial_owner) : PosixConditionHandle(false, false) {
-    assert_always();
-  }
-  ~PosixMutant() = default;
-  bool Release() override {
-    assert_always();
-    return false;
-  }
+  explicit PosixMutant(bool initial_owner)
+      : PosixConditionHandle(initial_owner) {}
+  ~PosixMutant() override = default;
+  bool Release() override { return handle_.Release(); }
 };
 
 std::unique_ptr<Mutant> Mutant::Create(bool initial_owner) {
