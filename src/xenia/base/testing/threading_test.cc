@@ -280,8 +280,156 @@ TEST_CASE("Wait on Multiple Events", "Event") {
 }
 
 TEST_CASE("Wait on Semaphore", "Semaphore") {
-  // TODO(bwrsandman):
-  REQUIRE(true);
+  WaitResult result;
+  std::unique_ptr<Semaphore> sem;
+  int previous_count = 0;
+
+  // Wait on semaphore with no room
+  sem = Semaphore::Create(0, 5);
+  result = Wait(sem.get(), false, 10ms);
+  REQUIRE(result == WaitResult::kTimeout);
+
+  // Add room in semaphore
+  REQUIRE(sem->Release(2, &previous_count));
+  REQUIRE(previous_count == 0);
+  REQUIRE(sem->Release(1, &previous_count));
+  REQUIRE(previous_count == 2);
+  result = Wait(sem.get(), false, 10ms);
+  REQUIRE(result == WaitResult::kSuccess);
+  REQUIRE(sem->Release(1, &previous_count));
+  REQUIRE(previous_count == 2);
+
+  // Set semaphore over maximum_count
+  sem = Semaphore::Create(5, 5);
+  previous_count = -1;
+  REQUIRE_FALSE(sem->Release(1, &previous_count));
+  REQUIRE(previous_count == -1);
+  REQUIRE_FALSE(sem->Release(10, &previous_count));
+  REQUIRE(previous_count == -1);
+  sem = Semaphore::Create(0, 5);
+  REQUIRE_FALSE(sem->Release(10, &previous_count));
+  REQUIRE(previous_count == -1);
+  REQUIRE_FALSE(sem->Release(10, &previous_count));
+  REQUIRE(previous_count == -1);
+
+  // Test invalid Release parameters
+  REQUIRE_FALSE(sem->Release(0, &previous_count));
+  REQUIRE(previous_count == -1);
+  REQUIRE_FALSE(sem->Release(-1, &previous_count));
+  REQUIRE(previous_count == -1);
+
+  // Wait on fully available semaphore
+  sem = Semaphore::Create(5, 5);
+  result = Wait(sem.get(), false, 10ms);
+  REQUIRE(result == WaitResult::kSuccess);
+  result = Wait(sem.get(), false, 10ms);
+  REQUIRE(result == WaitResult::kSuccess);
+  result = Wait(sem.get(), false, 10ms);
+  REQUIRE(result == WaitResult::kSuccess);
+  result = Wait(sem.get(), false, 10ms);
+  REQUIRE(result == WaitResult::kSuccess);
+  result = Wait(sem.get(), false, 10ms);
+  REQUIRE(result == WaitResult::kSuccess);
+  result = Wait(sem.get(), false, 10ms);
+  REQUIRE(result == WaitResult::kTimeout);
+
+  // Semaphore between threads
+  sem = Semaphore::Create(5, 5);
+  Sleep(10ms);
+  // Occupy the semaphore with 5 threads
+  auto func = [&sem] {
+    auto res = Wait(sem.get(), false, 100ms);
+    Sleep(500ms);
+    if (res == WaitResult::kSuccess) {
+      sem->Release(1, nullptr);
+    }
+  };
+  auto threads = std::array<std::thread, 5>{
+      std::thread(func), std::thread(func), std::thread(func),
+      std::thread(func), std::thread(func),
+  };
+  // Give threads time to acquire semaphore
+  Sleep(10ms);
+  // Attempt to acquire full semaphore with current (6th) thread
+  result = Wait(sem.get(), false, 20ms);
+  REQUIRE(result == WaitResult::kTimeout);
+  // Give threads time to release semaphore
+  for (auto& t : threads) {
+    t.join();
+  }
+  result = Wait(sem.get(), false, 10ms);
+  REQUIRE(result == WaitResult::kSuccess);
+  sem->Release(1, &previous_count);
+  REQUIRE(previous_count == 4);
+
+  // Test invalid construction parameters
+  // These are invalid according to documentation
+  // TODO(bwrsandman): Many of these invalid invocations succeed
+  sem = Semaphore::Create(-1, 5);
+  // REQUIRE(sem.get() == nullptr);
+  sem = Semaphore::Create(10, 5);
+  // REQUIRE(sem.get() == nullptr);
+  sem = Semaphore::Create(0, 0);
+  // REQUIRE(sem.get() == nullptr);
+  sem = Semaphore::Create(0, -1);
+  // REQUIRE(sem.get() == nullptr);
+}
+
+TEST_CASE("Wait on Multiple Semaphores", "Semaphore") {
+  WaitResult all_result;
+  std::pair<WaitResult, size_t> any_result;
+  int previous_count;
+  std::unique_ptr<Semaphore> sem0, sem1;
+
+  // Test Wait all which should fail
+  sem0 = Semaphore::Create(0, 5);
+  sem1 = Semaphore::Create(5, 5);
+  all_result = WaitAll({sem0.get(), sem1.get()}, false, 10ms);
+  REQUIRE(all_result == WaitResult::kTimeout);
+  previous_count = -1;
+  REQUIRE(sem0->Release(1, &previous_count));
+  REQUIRE(previous_count == 0);
+  previous_count = -1;
+  REQUIRE_FALSE(sem1->Release(1, &previous_count));
+  REQUIRE(previous_count == -1);
+
+  // Test Wait all again which should succeed
+  sem0 = Semaphore::Create(1, 5);
+  sem1 = Semaphore::Create(5, 5);
+  all_result = WaitAll({sem0.get(), sem1.get()}, false, 10ms);
+  REQUIRE(all_result == WaitResult::kSuccess);
+  previous_count = -1;
+  REQUIRE(sem0->Release(1, &previous_count));
+  REQUIRE(previous_count == 0);
+  previous_count = -1;
+  REQUIRE(sem1->Release(1, &previous_count));
+  REQUIRE(previous_count == 4);
+
+  // Test Wait Any which should fail
+  sem0 = Semaphore::Create(0, 5);
+  sem1 = Semaphore::Create(0, 5);
+  any_result = WaitAny({sem0.get(), sem1.get()}, false, 10ms);
+  REQUIRE(any_result.first == WaitResult::kTimeout);
+  REQUIRE(any_result.second == 0);
+  previous_count = -1;
+  REQUIRE(sem0->Release(1, &previous_count));
+  REQUIRE(previous_count == 0);
+  previous_count = -1;
+  REQUIRE(sem1->Release(1, &previous_count));
+  REQUIRE(previous_count == 0);
+
+  // Test Wait Any which should succeed
+  sem0 = Semaphore::Create(0, 5);
+  sem1 = Semaphore::Create(5, 5);
+  any_result = WaitAny({sem0.get(), sem1.get()}, false, 10ms);
+  REQUIRE(any_result.first == WaitResult::kSuccess);
+  REQUIRE(any_result.second == 1);
+  previous_count = -1;
+  REQUIRE(sem0->Release(1, &previous_count));
+  REQUIRE(previous_count == 0);
+  previous_count = -1;
+  REQUIRE(sem1->Release(1, &previous_count));
+  REQUIRE(previous_count == 4);
 }
 
 TEST_CASE("Wait on Mutant", "Mutant") {
