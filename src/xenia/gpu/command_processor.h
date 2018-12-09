@@ -68,9 +68,9 @@ struct GammaRamp {
   struct NormalEntry {
     union {
       struct {
-        uint32_t r : 10;
-        uint32_t g : 10;
         uint32_t b : 10;
+        uint32_t g : 10;
+        uint32_t r : 10;
         uint32_t : 2;
       };
       uint32_t value;

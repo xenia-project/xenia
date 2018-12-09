@@ -945,8 +945,15 @@ void D3D12CommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
   if (dirty_gamma_ramp_normal_) {
     const D3D12_PLACED_SUBRESOURCE_FOOTPRINT& gamma_ramp_footprint =
         gamma_ramp_footprints_[current_queue_frame_ * 2];
-    std::memcpy(gamma_ramp_upload_mapping_ + gamma_ramp_footprint.Offset,
-                gamma_ramp_.normal, 256 * sizeof(uint32_t));
+    volatile uint32_t* mapping = reinterpret_cast<uint32_t*>(
+        gamma_ramp_upload_mapping_ + gamma_ramp_footprint.Offset);
+    for (uint32_t i = 0; i < 256; ++i) {
+      uint32_t value = gamma_ramp_.normal[i].value;
+      // Swap red and blue (Project Sylpheed has settings allowing separate
+      // configuration).
+      mapping[i] = ((value & 1023) << 20) | (value & (1023 << 10)) |
+                   ((value >> 20) & 1023);
+    }
     PushTransitionBarrier(gamma_ramp_texture_, gamma_ramp_texture_state_,
                           D3D12_RESOURCE_STATE_COPY_DEST);
     gamma_ramp_texture_state_ = D3D12_RESOURCE_STATE_COPY_DEST;
@@ -968,6 +975,7 @@ void D3D12CommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
     volatile uint32_t* mapping = reinterpret_cast<uint32_t*>(
         gamma_ramp_upload_mapping_ + gamma_ramp_footprint.Offset);
     for (uint32_t i = 0; i < 128; ++i) {
+      // TODO(Triang3l): Find a game to test if red and blue need to be swapped.
       mapping[i] = (gamma_ramp_.pwl[i].values[0].base >> 6) |
                    (uint32_t(gamma_ramp_.pwl[i].values[1].base >> 6) << 10) |
                    (uint32_t(gamma_ramp_.pwl[i].values[2].base >> 6) << 20);
