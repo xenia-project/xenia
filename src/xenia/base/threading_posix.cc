@@ -211,6 +211,53 @@ class PosixCondition {
     }
   }
 
+  static std::pair<WaitResult, size_t> WaitMultiple(
+      std::vector<PosixCondition*> handles, bool wait_all,
+      std::chrono::milliseconds timeout) {
+    using iter_t = decltype(handles)::const_iterator;
+    bool executed;
+    auto predicate = [](auto h) { return h->signaled(); };
+
+    // Construct a condition for all or any depending on wait_all
+    auto operation = wait_all ? std::all_of<iter_t, decltype(predicate)>
+                              : std::any_of<iter_t, decltype(predicate)>;
+    auto aggregate = [&handles, operation, predicate] {
+      return operation(handles.cbegin(), handles.cend(), predicate);
+    };
+
+    std::unique_lock<std::mutex> lock(PosixCondition::mutex_);
+
+    // Check if the aggregate lambda (all or any) is already satisfied
+    if (aggregate()) {
+      executed = true;
+    } else {
+      // If the aggregate is not yet satisfied and the timeout is infinite,
+      // wait without timeout.
+      if (timeout == std::chrono::milliseconds::max()) {
+        PosixCondition::cond_.wait(lock, aggregate);
+        executed = true;
+      } else {
+        // Wait with timeout.
+        executed = PosixCondition::cond_.wait_for(lock, timeout, aggregate);
+      }
+    }
+    if (executed) {
+      auto first_signaled = std::numeric_limits<size_t>::max();
+      for (auto i = 0u; i < handles.size(); ++i) {
+        if (handles[i]->signaled()) {
+          if (first_signaled > i) {
+            first_signaled = i;
+          }
+          handles[i]->post_execution();
+          if (!wait_all) break;
+        }
+      }
+      return std::make_pair(WaitResult::kSuccess, first_signaled);
+    } else {
+      return std::make_pair<WaitResult, size_t>(WaitResult::kTimeout, 0);
+    }
+  }
+
  private:
   inline bool signaled() const { return signal_; }
   inline void post_execution() {
@@ -220,9 +267,12 @@ class PosixCondition {
   }
   bool signal_;
   const bool manual_reset_;
-  std::condition_variable cond_;
-  std::mutex mutex_;
+  static std::condition_variable cond_;
+  static std::mutex mutex_;
 };
+
+std::condition_variable PosixCondition::cond_;
+std::mutex PosixCondition::mutex_;
 
 // Native posix thread handle
 template <typename T>
@@ -270,13 +320,17 @@ WaitResult SignalAndWait(WaitHandle* wait_handle_to_signal,
   return WaitResult::kFailed;
 }
 
-// TODO(dougvj)
+// TODO(bwrsandman): Add support for is_alertable
 std::pair<WaitResult, size_t> WaitMultiple(WaitHandle* wait_handles[],
                                            size_t wait_handle_count,
                                            bool wait_all, bool is_alertable,
                                            std::chrono::milliseconds timeout) {
-  assert_always();
-  return std::pair<WaitResult, size_t>(WaitResult::kFailed, 0);
+  std::vector<PosixCondition*> handles(wait_handle_count);
+  for (int i = 0u; i < wait_handle_count; ++i) {
+    handles[i] =
+        reinterpret_cast<PosixCondition*>(wait_handles[i]->native_handle());
+  }
+  return PosixCondition::WaitMultiple(handles, wait_all, timeout);
 }
 
 class PosixEvent : public PosixConditionHandle<Event> {
