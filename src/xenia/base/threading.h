@@ -306,12 +306,12 @@ class Timer : public WaitHandle {
                             std::chrono::milliseconds period,
                             std::function<void()> opt_callback = nullptr) = 0;
   template <typename Rep, typename Period>
-  void SetRepeating(std::chrono::nanoseconds due_time,
+  bool SetRepeating(std::chrono::nanoseconds due_time,
                     std::chrono::duration<Rep, Period> period,
                     std::function<void()> opt_callback = nullptr) {
-    SetRepeating(due_time,
-                 std::chrono::duration_cast<std::chrono::milliseconds>(period),
-                 std::move(opt_callback));
+    return SetRepeating(
+        due_time, std::chrono::duration_cast<std::chrono::milliseconds>(period),
+        std::move(opt_callback));
   }
 
   // Stops the timer before it can be set to the signaled state and cancels
