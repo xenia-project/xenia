@@ -552,8 +552,112 @@ TEST_CASE("Wait on Multiple Mutants", "Mutant") {
   thread2.join();
 }
 
-TEST_CASE("Create and Trigger Timer", "Timer") {
-  // TODO(bwrsandman):
+TEST_CASE("Wait on Timer", "Timer") {
+  WaitResult result;
+  std::unique_ptr<Timer> timer;
+
+  // Test Manual Reset
+  timer = Timer::CreateManualResetTimer();
+  result = Wait(timer.get(), false, 1ms);
+  REQUIRE(result == WaitResult::kTimeout);
+  REQUIRE(timer->SetOnce(1ms));  // Signals it
+  result = Wait(timer.get(), false, 2ms);
+  REQUIRE(result == WaitResult::kSuccess);
+  result = Wait(timer.get(), false, 1ms);
+  REQUIRE(result == WaitResult::kSuccess);  // Did not reset
+
+  // Test Synchronization
+  timer = Timer::CreateSynchronizationTimer();
+  result = Wait(timer.get(), false, 1ms);
+  REQUIRE(result == WaitResult::kTimeout);
+  REQUIRE(timer->SetOnce(1ms));  // Signals it
+  result = Wait(timer.get(), false, 2ms);
+  REQUIRE(result == WaitResult::kSuccess);
+  result = Wait(timer.get(), false, 1ms);
+  REQUIRE(result == WaitResult::kTimeout);  // Did reset
+
+  // TODO(bwrsandman): This test unexpectedly fails under windows
+  // Test long due time
+  // timer = Timer::CreateSynchronizationTimer();
+  // REQUIRE(timer->SetOnce(10s));
+  // result = Wait(timer.get(), false, 10ms);  // Still signals under windows
+  // REQUIRE(result == WaitResult::kTimeout);
+
+  // Test Repeating
+  REQUIRE(timer->SetRepeating(1ms, 10ms));
+  for (int i = 0; i < 10; ++i) {
+    result = Wait(timer.get(), false, 20ms);
+    INFO(i);
+    REQUIRE(result == WaitResult::kSuccess);
+  }
+  MaybeYield();
+  Sleep(10ms);  // Skip a few events
+  for (int i = 0; i < 10; ++i) {
+    result = Wait(timer.get(), false, 20ms);
+    REQUIRE(result == WaitResult::kSuccess);
+  }
+  // Cancel it
+  timer->Cancel();
+  result = Wait(timer.get(), false, 20ms);
+  REQUIRE(result == WaitResult::kTimeout);
+  MaybeYield();
+  Sleep(10ms);  // Skip a few events
+  result = Wait(timer.get(), false, 20ms);
+  REQUIRE(result == WaitResult::kTimeout);
+  // Cancel with SetOnce
+  REQUIRE(timer->SetRepeating(1ms, 10ms));
+  for (int i = 0; i < 10; ++i) {
+    result = Wait(timer.get(), false, 20ms);
+    REQUIRE(result == WaitResult::kSuccess);
+  }
+  REQUIRE(timer->SetOnce(1ms));
+  result = Wait(timer.get(), false, 20ms);
+  REQUIRE(result == WaitResult::kSuccess);  // Signal from Set Once
+  result = Wait(timer.get(), false, 20ms);
+  REQUIRE(result == WaitResult::kTimeout);  // No more signals from repeating
+}
+
+TEST_CASE("Wait on Multiple Timers", "Timer") {
+  WaitResult all_result;
+  std::pair<WaitResult, size_t> any_result;
+
+  auto timer0 = Timer::CreateSynchronizationTimer();
+  auto timer1 = Timer::CreateManualResetTimer();
+
+  // None signaled
+  all_result = WaitAll({timer0.get(), timer1.get()}, false, 1ms);
+  REQUIRE(all_result == WaitResult::kTimeout);
+  any_result = WaitAny({timer0.get(), timer1.get()}, false, 1ms);
+  REQUIRE(any_result.first == WaitResult::kTimeout);
+  REQUIRE(any_result.second == 0);
+
+  // Some signaled
+  REQUIRE(timer1->SetOnce(1ms));
+  all_result = WaitAll({timer0.get(), timer1.get()}, false, 100ms);
+  REQUIRE(all_result == WaitResult::kTimeout);
+  any_result = WaitAny({timer0.get(), timer1.get()}, false, 100ms);
+  REQUIRE(any_result.first == WaitResult::kSuccess);
+  REQUIRE(any_result.second == 1);
+
+  // All signaled
+  REQUIRE(timer0->SetOnce(1ms));
+  all_result = WaitAll({timer0.get(), timer1.get()}, false, 100ms);
+  REQUIRE(all_result == WaitResult::kSuccess);
+  REQUIRE(timer0->SetOnce(1ms));
+  Sleep(1ms);
+  any_result = WaitAny({timer0.get(), timer1.get()}, false, 100ms);
+  REQUIRE(any_result.first == WaitResult::kSuccess);
+  REQUIRE(any_result.second == 0);
+
+  // Check that timer0 reset
+  any_result = WaitAny({timer0.get(), timer1.get()}, false, 100ms);
+  REQUIRE(any_result.first == WaitResult::kSuccess);
+  REQUIRE(any_result.second == 1);
+}
+
+TEST_CASE("Create and Trigger Timer Callbacks", "Timer") {
+  // TODO(bwrsandman): Check which thread performs callback and timing of
+  // callback
   REQUIRE(true);
 }
 
