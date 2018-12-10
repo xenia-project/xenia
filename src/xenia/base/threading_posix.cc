@@ -37,7 +37,7 @@ inline timespec DurationToTimeSpec(
 // This implementation uses the SIGRTMAX - SIGRTMIN to signal to a thread
 // gdb tip, for SIG = SIGRTMIN + SignalType : handle SIG nostop
 // lldb tip, for SIG = SIGRTMIN + SignalType : process handle SIG -s false
-enum class SignalType { kHighResolutionTimer, k_Count };
+enum class SignalType { kHighResolutionTimer, kTimer, k_Count };
 
 int GetSystemSignal(SignalType num) {
   auto result = SIGRTMIN + static_cast<int>(num);
@@ -351,6 +351,82 @@ class PosixCondition<Mutant> : public PosixConditionBase {
   std::thread::id owner_;
 };
 
+template <>
+class PosixCondition<Timer> : public PosixConditionBase {
+ public:
+  explicit PosixCondition(bool manual_reset)
+      : callback_(),
+        timer_(nullptr),
+        signal_(false),
+        manual_reset_(manual_reset) {}
+
+  virtual ~PosixCondition() { Cancel(); }
+
+  // TODO(bwrsandman): due_times of under 1ms deadlock under travis
+  bool Set(std::chrono::nanoseconds due_time, std::chrono::milliseconds period,
+           std::function<void()> opt_callback = nullptr) {
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    callback_ = std::move(opt_callback);
+    signal_ = false;
+
+    // Create timer
+    if (timer_ == nullptr) {
+      sigevent sev{};
+      sev.sigev_notify = SIGEV_SIGNAL;
+      sev.sigev_signo = GetSystemSignal(SignalType::kTimer);
+      sev.sigev_value.sival_ptr = this;
+      if (timer_create(CLOCK_REALTIME, &sev, &timer_) == -1) return false;
+    }
+
+    // Start timer
+    itimerspec its{};
+    its.it_value = DurationToTimeSpec(due_time);
+    its.it_interval = DurationToTimeSpec(period);
+    return timer_settime(timer_, 0, &its, nullptr) == 0;
+  }
+
+  void CompletionRoutine() {
+    // As the callback may reset the timer, store local.
+    std::function<void()> callback;
+    {
+      std::lock_guard<std::mutex> lock(mutex_);
+      // Store callback
+      if (callback_) callback = callback_;
+      signal_ = true;
+      if (manual_reset_) {
+        cond_.notify_all();
+      } else {
+        cond_.notify_one();
+      }
+    }
+    // Call callback
+    if (callback) callback();
+  }
+
+  bool Cancel() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    bool result = true;
+    if (timer_) {
+      result = timer_delete(timer_) == 0;
+      timer_ = nullptr;
+    }
+    return result;
+  }
+
+ private:
+  inline bool signaled() const override { return signal_; }
+  inline void post_execution() override {
+    if (!manual_reset_) {
+      signal_ = false;
+    }
+  }
+  std::function<void()> callback_;
+  timer_t timer_;
+  volatile bool signal_;
+  const bool manual_reset_;
+};
+
 // Native posix thread handle
 template <typename T>
 class PosixThreadHandle : public T {
@@ -371,7 +447,7 @@ class PosixThreadHandle : public T {
 template <typename T>
 class PosixConditionHandle : public T {
  public:
-  explicit PosixConditionHandle(bool initial_owner);
+  explicit PosixConditionHandle(bool);
   PosixConditionHandle(bool manual_reset, bool initial_state);
   PosixConditionHandle(uint32_t initial_count, uint32_t maximum_count);
   ~PosixConditionHandle() override = default;
@@ -394,9 +470,8 @@ PosixConditionHandle<Mutant>::PosixConditionHandle(bool initial_owner)
     : handle_(initial_owner) {}
 
 template <>
-PosixConditionHandle<Timer>::PosixConditionHandle(bool manual_reset,
-                                                  bool initial_state)
-    : handle_() {}
+PosixConditionHandle<Timer>::PosixConditionHandle(bool manual_reset)
+    : handle_(manual_reset) {}
 
 template <>
 PosixConditionHandle<Event>::PosixConditionHandle(bool manual_reset,
@@ -488,35 +563,30 @@ std::unique_ptr<Mutant> Mutant::Create(bool initial_owner) {
   return std::make_unique<PosixMutant>(initial_owner);
 }
 
-// TODO(dougvj)
 class PosixTimer : public PosixConditionHandle<Timer> {
  public:
-  PosixTimer(bool manual_reset) : PosixConditionHandle(manual_reset, false) {
-    assert_always();
-  }
-  ~PosixTimer() = default;
+  explicit PosixTimer(bool manual_reset) : PosixConditionHandle(manual_reset) {}
+  ~PosixTimer() override = default;
   bool SetOnce(std::chrono::nanoseconds due_time,
                std::function<void()> opt_callback) override {
-    assert_always();
-    return false;
+    return handle_.Set(due_time, std::chrono::milliseconds::zero(),
+                       std::move(opt_callback));
   }
   bool SetRepeating(std::chrono::nanoseconds due_time,
                     std::chrono::milliseconds period,
                     std::function<void()> opt_callback) override {
-    assert_always();
-    return false;
+    return handle_.Set(due_time, period, std::move(opt_callback));
   }
-  bool Cancel() override {
-    assert_always();
-    return false;
-  }
+  bool Cancel() override { return handle_.Cancel(); }
 };
 
 std::unique_ptr<Timer> Timer::CreateManualResetTimer() {
+  install_signal_handler(SignalType::kTimer);
   return std::make_unique<PosixTimer>(true);
 }
 
 std::unique_ptr<Timer> Timer::CreateSynchronizationTimer() {
+  install_signal_handler(SignalType::kTimer);
   return std::make_unique<PosixTimer>(false);
 }
 
@@ -627,6 +697,12 @@ static void signal_handler(int signal, siginfo_t* info, void* /*context*/) {
       auto callback =
           *static_cast<std::function<void()>*>(info->si_value.sival_ptr);
       callback();
+    } break;
+    case SignalType::kTimer: {
+      assert_not_null(info->si_value.sival_ptr);
+      auto pTimer =
+          static_cast<PosixCondition<Timer>*>(info->si_value.sival_ptr);
+      pTimer->CompletionRoutine();
     } break;
     default:
       assert_always();
