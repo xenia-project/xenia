@@ -168,14 +168,18 @@ D3D12Provider::InitializationResult D3D12Provider::Initialize() {
     return InitializationResult::kDeviceInitializationFailed;
   }
   adapter_vendor_id_ = adapter_desc.VendorId;
-  size_t adapter_name_length =
-      std::wcstombs(nullptr, adapter_desc.Description, 0);
-  char* adapter_name_mbcs =
-      reinterpret_cast<char*>(alloca((adapter_name_length + 1) * sizeof(char)));
-  std::wcstombs(adapter_name_mbcs, adapter_desc.Description,
-                adapter_name_length + 1);
-  XELOGD3D("DXGI adapter: %s (vendor %.4X, device %.4X)", adapter_name_mbcs,
-           adapter_desc.VendorId, adapter_desc.DeviceId);
+  int adapter_name_mb_size = WideCharToMultiByte(
+      CP_UTF8, 0, adapter_desc.Description, -1, nullptr, 0, nullptr, nullptr);
+  if (adapter_name_mb_size != 0) {
+    char* adapter_name_mb =
+        reinterpret_cast<char*>(alloca(adapter_name_mb_size));
+    if (WideCharToMultiByte(CP_UTF8, 0, adapter_desc.Description, -1,
+                            adapter_name_mb, adapter_name_mb_size, nullptr,
+                            nullptr) != 0) {
+      XELOGD3D("DXGI adapter: %s (vendor %.4X, device %.4X)", adapter_name_mb,
+               adapter_desc.VendorId, adapter_desc.DeviceId);
+    }
+  }
 
   // Create the Direct3D 12 device.
   ID3D12Device* device;
