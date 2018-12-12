@@ -46,7 +46,8 @@ class PipelineCache {
 
   // Translates shaders if needed, also making shader info up to date.
   bool EnsureShadersTranslated(D3D12Shader* vertex_shader,
-                               D3D12Shader* pixel_shader);
+                               D3D12Shader* pixel_shader,
+                               PrimitiveType primitive_type);
 
   UpdateStatus ConfigurePipeline(
       D3D12Shader* vertex_shader, D3D12Shader* pixel_shader,
@@ -61,14 +62,15 @@ class PipelineCache {
   bool SetShadowRegister(uint32_t* dest, uint32_t register_name);
   bool SetShadowRegister(float* dest, uint32_t register_name);
 
-  bool TranslateShader(D3D12Shader* shader, xenos::xe_gpu_program_cntl_t cntl);
+  bool TranslateShader(D3D12Shader* shader, xenos::xe_gpu_program_cntl_t cntl,
+                       PrimitiveType primitive_type);
 
   UpdateStatus UpdateState(
       D3D12Shader* vertex_shader, D3D12Shader* pixel_shader,
       PrimitiveType primitive_type, IndexFormat index_format,
       const RenderTargetCache::PipelineRenderTarget render_targets[5]);
 
-  // pRootSignature, VS, PS, GS, PrimitiveTopologyType.
+  // pRootSignature, VS, PS, DS, HS, GS, PrimitiveTopologyType.
   UpdateStatus UpdateShaderStages(D3D12Shader* vertex_shader,
                                   D3D12Shader* pixel_shader,
                                   PrimitiveType primitive_type);
@@ -124,8 +126,12 @@ class PipelineCache {
     D3D12Shader* vertex_shader;
     D3D12Shader* pixel_shader;
     D3D12_PRIMITIVE_TOPOLOGY_TYPE primitive_topology_type;
-    // Primitive type if it needs a geometry shader, or kNone.
-    PrimitiveType geometry_shader_primitive_type;
+    // Primitive type if it needs hull/domain shaders or a geometry shader, or
+    // kNone if should be transformed with only a vertex shader.
+    PrimitiveType hs_gs_ds_primitive_type;
+    // Tessellation mode - ignored when not using tessellation (when
+    // hs_gs_ds_primitive_type is not a patch).
+    TessellationMode tessellation_mode;
 
     UpdateShaderStagesRegisters() { Reset(); }
     void Reset() { std::memset(this, 0, sizeof(*this)); }

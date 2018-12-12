@@ -18,7 +18,7 @@ cbuffer xe_system_cbuffer : register(b0) {
   float2 xe_point_size_min_max;
   // vec4 4
   float2 xe_point_screen_to_ndc;
-  float2 xe_ssaa_inv_scale;
+  uint2 xe_sample_count_log2;
   // vec4 5
   float2 xe_alpha_test_range;
   uint xe_edram_pitch_tiles;
@@ -28,12 +28,13 @@ cbuffer xe_system_cbuffer : register(b0) {
   // vec4 7
   uint4 xe_color_output_map;
   // vec4 8
+  float2 xe_tessellation_factor_range;
   float2 xe_edram_depth_range;
-  float2 xe_edram_poly_offset_front;
   // vec4 9
+  float2 xe_edram_poly_offset_front;
   float2 xe_edram_poly_offset_back;
-  uint xe_edram_resolution_scale_log2;
   // vec4 10
+  uint xe_edram_resolution_scale_log2;
   uint xe_edram_stencil_reference;
   uint xe_edram_stencil_read_mask;
   uint xe_edram_stencil_write_mask;

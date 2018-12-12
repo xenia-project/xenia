@@ -150,9 +150,18 @@ void D3D12CommandProcessor::SubmitBarriers() {
 }
 
 ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(
-    const D3D12Shader* vertex_shader, const D3D12Shader* pixel_shader) {
+    const D3D12Shader* vertex_shader, const D3D12Shader* pixel_shader,
+    PrimitiveType primitive_type) {
   assert_true(vertex_shader->is_translated());
   assert_true(pixel_shader == nullptr || pixel_shader->is_translated());
+
+  D3D12_SHADER_VISIBILITY vertex_visibility;
+  if (primitive_type == PrimitiveType::kTrianglePatch ||
+      primitive_type == PrimitiveType::kQuadPatch) {
+    vertex_visibility = D3D12_SHADER_VISIBILITY_DOMAIN;
+  } else {
+    vertex_visibility = D3D12_SHADER_VISIBILITY_VERTEX;
+  }
 
   uint32_t texture_count_vertex, sampler_count_vertex;
   vertex_shader->GetTextureSRVs(texture_count_vertex);
@@ -175,6 +184,9 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(
   index_offset += D3D12Shader::kMaxTextureSRVIndexBits;
   index |= sampler_count_vertex << index_offset;
   index_offset += D3D12Shader::kMaxSamplerBindingIndexBits;
+  index |= uint32_t(vertex_visibility == D3D12_SHADER_VISIBILITY_DOMAIN)
+           << index_offset;
+  ++index_offset;
   assert_true(index_offset <= 32);
 
   // Try an existing root signature.
@@ -218,7 +230,7 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(
     parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
     parameter.DescriptorTable.NumDescriptorRanges = 1;
     parameter.DescriptorTable.pDescriptorRanges = &range;
-    parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
+    parameter.ShaderVisibility = vertex_visibility;
     range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
     range.NumDescriptors = 1;
     range.BaseShaderRegister =
@@ -342,7 +354,7 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(
     parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
     parameter.DescriptorTable.NumDescriptorRanges = 1;
     parameter.DescriptorTable.pDescriptorRanges = &range;
-    parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
+    parameter.ShaderVisibility = vertex_visibility;
     range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
     range.NumDescriptors = texture_count_vertex;
     range.BaseShaderRegister = 1;
@@ -358,7 +370,7 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(
     parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
     parameter.DescriptorTable.NumDescriptorRanges = 1;
     parameter.DescriptorTable.pDescriptorRanges = &range;
-    parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
+    parameter.ShaderVisibility = vertex_visibility;
     range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER;
     range.NumDescriptors = sampler_count_vertex;
     range.BaseShaderRegister = 0;
@@ -1169,7 +1181,8 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
   }
   // Translate shaders now because to get the color mask, which is needed by the
   // render target cache.
-  if (!pipeline_cache_->EnsureShadersTranslated(vertex_shader, pixel_shader)) {
+  if (!pipeline_cache_->EnsureShadersTranslated(vertex_shader, pixel_shader,
+                                                primitive_type)) {
     return false;
   }
 
@@ -1194,6 +1207,49 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
       render_target_cache_->GetCurrentPipelineRenderTargets();
 
   bool indexed = index_buffer_info != nullptr && index_buffer_info->guest_base;
+  // Per-edge tessellation requires an index buffer, but it contains per-edge
+  // tessellation factors (as floats) in it instead of control point indices.
+  bool per_edge_tessellation;
+  if (primitive_type == PrimitiveType::kTrianglePatch ||
+      primitive_type == PrimitiveType::kQuadPatch) {
+    TessellationMode tessellation_mode =
+        TessellationMode(regs[XE_GPU_REG_VGT_HOS_CNTL].u32 & 0x3);
+    per_edge_tessellation = tessellation_mode == TessellationMode::kPerEdge;
+    if (per_edge_tessellation &&
+        (!indexed || index_buffer_info->format != IndexFormat::kInt32)) {
+      return false;
+    }
+    // TODO(Triang3l): Implement all tessellation modes if games using any other
+    // than per-edge are found. The biggest question about them is what is being
+    // passed to vertex shader registers, especially if patches are drawn with
+    // an index buffer.
+    // https://www.slideshare.net/blackdevilvikas/next-generation-graphics-programming-on-xbox-360
+    // - Discrete: integer partitioning, factors VGT_HOS_MAX_TESS_LEVEL + 1. PC
+    //             tessellation gives a completely different (non-uniform) grid
+    //             for triangles though.
+    // - Continuous: fractional_even partitioning, factors
+    //               VGT_HOS_MAX_TESS_LEVEL + 1.
+    // - Per-edge: fractional_even partitioning, edge factors are float values
+    //             in the index buffer clamped to VGT_HOS_MIN_TESS_LEVEL and
+    //             VGT_HOS_MAX_TESS_LEVEL, plus one, inner factor appears to be
+    //             the minimum of the two edge factors (but without adding 1) in
+    //             each direction. This relies on memexport in games heavily for
+    //             generation of the factor buffer, in Halo 3 the buffer is not
+    //             initialized at all before the memexport pass.
+    // Per-edge partitional is likely fractional because this presentation,
+    // though only mentioning the Xbox 360, demonstrates adaptive tessellation
+    // using fractional partitioning:
+    // http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.221.4656&rep=rep1&type=pdf
+    if (tessellation_mode != TessellationMode::kPerEdge) {
+      XELOGE(
+          "Tessellation mode %u is not implemented yet, only per-edge is "
+          "partially available now - report the game to Xenia developers!",
+          uint32_t(tessellation_mode));
+      return false;
+    }
+  } else {
+    per_edge_tessellation = false;
+  }
 
   // TODO(Triang3l): Non-indexed line loops (by movc'ing zero to the vertex
   // index if it's one beyond the end).
@@ -1224,6 +1280,12 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
       break;
     case PrimitiveType::kQuadList:
       primitive_topology = D3D_PRIMITIVE_TOPOLOGY_LINELIST_ADJ;
+      break;
+    case PrimitiveType::kTrianglePatch:
+      primitive_topology = D3D_PRIMITIVE_TOPOLOGY_3_CONTROL_POINT_PATCHLIST;
+      break;
+    case PrimitiveType::kQuadPatch:
+      primitive_topology = D3D_PRIMITIVE_TOPOLOGY_4_CONTROL_POINT_PATCHLIST;
       break;
     default:
       return false;
@@ -1334,7 +1396,12 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     shared_memory_->UseForReading();
     command_list->IASetIndexBuffer(&index_buffer_view);
     SubmitBarriers();
-    command_list->DrawIndexedInstanced(index_count, 1, 0, 0, 0);
+    if (per_edge_tessellation) {
+      // Index buffer used for per-edge factors.
+      command_list->DrawInstanced(index_count, 1, 0, 0);
+    } else {
+      command_list->DrawIndexedInstanced(index_count, 1, 0, 0, 0);
+    }
   } else {
     // Check if need to draw using a conversion index buffer.
     uint32_t converted_index_count;
@@ -1822,6 +1889,19 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   }
   dirty |= system_constants_.flags != flags;
   system_constants_.flags = flags;
+
+  // Tessellation factor range, plus 1.0 according to the images in
+  // https://www.slideshare.net/blackdevilvikas/next-generation-graphics-programming-on-xbox-360
+  float tessellation_factor_min =
+      regs[XE_GPU_REG_VGT_HOS_MIN_TESS_LEVEL].f32 + 1.0f;
+  float tessellation_factor_max =
+      regs[XE_GPU_REG_VGT_HOS_MAX_TESS_LEVEL].f32 + 1.0f;
+  dirty |= system_constants_.tessellation_factor_range_min !=
+           tessellation_factor_min;
+  system_constants_.tessellation_factor_range_min = tessellation_factor_min;
+  dirty |= system_constants_.tessellation_factor_range_max !=
+           tessellation_factor_max;
+  system_constants_.tessellation_factor_range_max = tessellation_factor_max;
 
   // Vertex index offset.
   dirty |= system_constants_.vertex_base_index != vgt_indx_offset;
