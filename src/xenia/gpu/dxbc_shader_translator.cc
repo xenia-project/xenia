@@ -833,7 +833,7 @@ void DxbcShaderTranslator::StartVertexShader_LoadVertexIndex() {
   }
 }
 
-void DxbcShaderTranslator::StartVertexShader() {
+void DxbcShaderTranslator::StartVertexOrDomainShader() {
   // Zero the interpolators.
   for (uint32_t i = 0; i < kInterpolatorCount; ++i) {
     shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
@@ -870,8 +870,157 @@ void DxbcShaderTranslator::StartVertexShader() {
   ++stat_.instruction_count;
   ++stat_.mov_instruction_count;
 
-  // Write the vertex index to GPR 0.
-  StartVertexShader_LoadVertexIndex();
+  if (IsDXBCVertexShader()) {
+    // Write the vertex index to GPR 0.
+    StartVertexShader_LoadVertexIndex();
+  } else if (IsDXBCDomainShader()) {
+    uint32_t temp_register_operand_length = IndexableGPRsUsed() ? 3 : 2;
+
+    // Copy the domain location to r0.yz (for quad patches) or r0.xyz (for
+    // triangle patches), and also set the domain in STAT.
+    uint32_t domain_location_mask, domain_location_swizzle;
+    if (vertex_shader_type_ == VertexShaderType::kTriangleDomain) {
+      domain_location_mask = 0b0111;
+      // ZYX swizzle with r1.y == 0, according to the water shader in
+      // Banjo-Kazooie: Nuts & Bolts.
+      domain_location_swizzle = 0b00000110;
+      stat_.tessellator_domain = D3D11_SB_TESSELLATOR_DOMAIN_TRI;
+    } else {
+      assert_true(vertex_shader_type_ == VertexShaderType::kQuadDomain);
+      // According to the ground shader in Viva Pinata, though it's impossible
+      // (as of December 12th, 2018) to test there since it possibly requires
+      // memexport for ground control points (the memory region with them is
+      // filled with zeros).
+      domain_location_mask = 0b0110;
+      domain_location_swizzle = 0b00000100;
+      stat_.tessellator_domain = D3D11_SB_TESSELLATOR_DOMAIN_QUAD;
+    }
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(
+                               2 + temp_register_operand_length));
+    if (IndexableGPRsUsed()) {
+      shader_code_.push_back(EncodeVectorMaskedOperand(
+          D3D10_SB_OPERAND_TYPE_INDEXABLE_TEMP, domain_location_mask, 2));
+      shader_code_.push_back(0);
+    } else {
+      shader_code_.push_back(EncodeVectorMaskedOperand(
+          D3D10_SB_OPERAND_TYPE_TEMP, domain_location_mask, 1));
+    }
+    shader_code_.push_back(0);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D11_SB_OPERAND_TYPE_INPUT_DOMAIN_POINT, domain_location_swizzle, 0));
+    ++stat_.instruction_count;
+    if (IndexableGPRsUsed()) {
+      ++stat_.array_instruction_count;
+    } else {
+      ++stat_.mov_instruction_count;
+    }
+
+    assert_true(register_count() >= 2);
+
+    // Copy the primitive index to r0.x (for quad patches) or r1.x (for
+    // triangle patches) as a float.
+    // When using indexable temps, copy through a r# because x# are apparently
+    // only accessible via mov.
+    // TODO(Triang3l): Investigate what should be written for primitives (or
+    // even control points) for non-per-edge tessellation modes (they may
+    // possibly have an index buffer).
+    uint32_t primitive_id_gpr_index =
+        vertex_shader_type_ == VertexShaderType::kTriangleDomain ? 1 : 0;
+
+    if (register_count() > primitive_id_gpr_index) {
+      uint32_t primitive_id_temp =
+          IndexableGPRsUsed() ? PushSystemTemp() : primitive_id_gpr_index;
+      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_UTOF) |
+                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4));
+      shader_code_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+      shader_code_.push_back(primitive_id_temp);
+      shader_code_.push_back(
+          EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_INPUT_PRIMITIVEID, 0));
+      ++stat_.instruction_count;
+      ++stat_.conversion_instruction_count;
+      if (IndexableGPRsUsed()) {
+        shader_code_.push_back(
+            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(6));
+        shader_code_.push_back(EncodeVectorMaskedOperand(
+            D3D10_SB_OPERAND_TYPE_INDEXABLE_TEMP, 0b0001, 2));
+        shader_code_.push_back(0);
+        shader_code_.push_back(primitive_id_gpr_index);
+        shader_code_.push_back(
+            EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
+        shader_code_.push_back(primitive_id_temp);
+        ++stat_.instruction_count;
+        ++stat_.array_instruction_count;
+        // Release primitive_id_temp.
+        PopSystemTemp();
+      }
+    }
+
+    if (register_count() >= 2) {
+      // Write the swizzle of the barycentric/UV coordinates to r1.x (for quad
+      // patches) or r1.y (for triangle patches). It appears that the
+      // tessellator offloads the reordering of coordinates for edges to game
+      // shaders.
+      //
+      // In Banjo-Kazooie: Nuts & Bolts (triangle patches with per-edge
+      // factors), the shader multiplies the first control point's position by
+      // r0.z, the second CP's by r0.y, and the third CP's by r0.x. But before
+      // doing that it swizzles r0.xyz the following way depending on the value
+      // in r1.y:
+      // - ZXY for 1.0.
+      // - YZX for 2.0.
+      // - XZY for 4.0.
+      // - YXZ for 5.0.
+      // - ZYX for 6.0.
+      // Possibly, the logic here is that the value itself is the amount of
+      // rotation of the swizzle to the right, and 1 << 2 is set when the
+      // swizzle needs to be flipped before rotating.
+      //
+      // In Viva Pinata (quad patches with per-edge factors - not possible to
+      // test however as of December 12th, 2018), if we assume that r0.y is V
+      // and r0.z is U, the factors each control point value is multiplied by
+      // are the following:
+      // - (1-v)*(1-u), v*(1-u), (1-v)*u, v*u for 0.0 (base swizzle).
+      // - v*(1-u), (1-v)*(1-u), v*u, (1-v)*u for 1.0 (YXWZ).
+      // - v*u, (1-v)*u, v*(1-u), (1-v)*(1-u) for 2.0 (WZYX).
+      // - (1-v)*u, v*u, (1-v)*(1-u), v*(1-u) for 3.0 (ZWXY).
+      // According to the control point order at
+      // https://www.khronos.org/registry/OpenGL/extensions/AMD/AMD_vertex_shader_tessellator.txt
+      // the first is located at (0,0), the second at (0,1), the third at (1,0)
+      // and the fourth at (1,1). So, swizzle index 0 appears to be the correct
+      // one. But, this hasn't been tested yet.
+      //
+      // Direct3D 12 appears to be passing the coordinates in a consistent
+      // order, so we can just use ZYX for triangle patches.
+      uint32_t domain_location_swizzle_mask =
+          vertex_shader_type_ == VertexShaderType::kTriangleDomain ? 0b0010
+                                                                   : 0b0001;
+      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(
+                                 3 + temp_register_operand_length));
+      if (IndexableGPRsUsed()) {
+        shader_code_.push_back(
+            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_INDEXABLE_TEMP,
+                                      domain_location_swizzle_mask, 2));
+        shader_code_.push_back(0);
+      } else {
+        shader_code_.push_back(EncodeVectorMaskedOperand(
+            D3D10_SB_OPERAND_TYPE_TEMP, domain_location_swizzle_mask, 1));
+      }
+      shader_code_.push_back(1);
+      shader_code_.push_back(
+          EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+      shader_code_.push_back(0);
+      ++stat_.instruction_count;
+      if (IndexableGPRsUsed()) {
+        ++stat_.array_instruction_count;
+      } else {
+        ++stat_.mov_instruction_count;
+      }
+    }
+  }
 }
 
 void DxbcShaderTranslator::StartPixelShader() {
@@ -918,19 +1067,7 @@ void DxbcShaderTranslator::StartPixelShader() {
   // Copy interpolants to GPRs.
   uint32_t interpolator_count = std::min(kInterpolatorCount, register_count());
   if (IndexableGPRsUsed()) {
-    // Copy through r# to x0[#].
-    uint32_t interpolator_temp_register = PushSystemTemp();
     for (uint32_t i = 0; i < interpolator_count; ++i) {
-      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
-      shader_code_.push_back(
-          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
-      shader_code_.push_back(interpolator_temp_register);
-      shader_code_.push_back(EncodeVectorSwizzledOperand(
-          D3D10_SB_OPERAND_TYPE_INPUT, kSwizzleXYZW, 1));
-      shader_code_.push_back(uint32_t(InOutRegister::kPSInInterpolators) + i);
-      ++stat_.instruction_count;
-      ++stat_.mov_instruction_count;
       shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
                              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(6));
       shader_code_.push_back(EncodeVectorMaskedOperand(
@@ -938,14 +1075,12 @@ void DxbcShaderTranslator::StartPixelShader() {
       shader_code_.push_back(0);
       shader_code_.push_back(i);
       shader_code_.push_back(EncodeVectorSwizzledOperand(
-          D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-      shader_code_.push_back(interpolator_temp_register);
+          D3D10_SB_OPERAND_TYPE_INPUT, kSwizzleXYZW, 1));
+      shader_code_.push_back(uint32_t(InOutRegister::kPSInInterpolators) + i);
       ++stat_.instruction_count;
       ++stat_.array_instruction_count;
     }
-    PopSystemTemp();
   } else {
-    // Copy directly to r#.
     for (uint32_t i = 0; i < interpolator_count; ++i) {
       shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
                              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
@@ -1204,7 +1339,7 @@ void DxbcShaderTranslator::StartPixelShader() {
 void DxbcShaderTranslator::StartTranslation() {
   // Allocate global system temporary registers that may also be used in the
   // epilogue.
-  if (IsDXBCVertexShader()) {
+  if (IsDXBCVertexOrDomainShader()) {
     system_temp_position_ = PushSystemTemp(true);
   } else if (IsDXBCPixelShader()) {
     if (!is_depth_only_pixel_shader_) {
@@ -1237,8 +1372,8 @@ void DxbcShaderTranslator::StartTranslation() {
   }
 
   // Write stage-specific prologue.
-  if (IsDXBCVertexShader()) {
-    StartVertexShader();
+  if (IsDXBCVertexOrDomainShader()) {
+    StartVertexOrDomainShader();
   } else if (IsDXBCPixelShader()) {
     StartPixelShader();
   }
@@ -1282,7 +1417,7 @@ void DxbcShaderTranslator::StartTranslation() {
   }
 }
 
-void DxbcShaderTranslator::CompleteVertexShader() {
+void DxbcShaderTranslator::CompleteVertexOrDomainShader() {
   // Get what we need to do with the position.
   uint32_t ndc_control_temp = PushSystemTemp();
   system_constants_used_ |= 1ull << kSysConst_Flags_Index;
@@ -6735,13 +6870,13 @@ void DxbcShaderTranslator::CompleteShaderCode() {
   }
 
   // Write stage-specific epilogue.
-  if (IsDXBCVertexShader()) {
-    CompleteVertexShader();
+  if (IsDXBCVertexOrDomainShader()) {
+    CompleteVertexOrDomainShader();
   } else if (IsDXBCPixelShader()) {
     CompletePixelShader();
   }
 
-  if (IsDXBCVertexShader()) {
+  if (IsDXBCVertexOrDomainShader()) {
     // Release system_temp_position_.
     PopSystemTemp();
   } else if (IsDXBCPixelShader()) {
@@ -6795,6 +6930,8 @@ std::vector<uint8_t> DxbcShaderTranslator::CompleteTranslation() {
 
   shader_object_.clear();
 
+  uint32_t has_pcsg = IsDXBCDomainShader() ? 1 : 0;
+
   // Write the shader object header.
   shader_object_.push_back('CBXD');
   // Checksum (set later).
@@ -6804,8 +6941,8 @@ std::vector<uint8_t> DxbcShaderTranslator::CompleteTranslation() {
   shader_object_.push_back(1);
   // Size (set later).
   shader_object_.push_back(0);
-  // 5 chunks - RDEF, ISGN, OSGN, SHEX, STAT.
-  shader_object_.push_back(5);
+  // 5 or 6 chunks - RDEF, ISGN, optionally PCSG, OSGN, SHEX, STAT.
+  shader_object_.push_back(5 + has_pcsg);
   // Chunk offsets (set later).
   for (uint32_t i = 0; i < shader_object_[7]; ++i) {
     shader_object_.push_back(0);
@@ -6833,9 +6970,21 @@ std::vector<uint8_t> DxbcShaderTranslator::CompleteTranslation() {
       (uint32_t(shader_object_.size()) - chunk_position_dwords - 2) *
       sizeof(uint32_t);
 
+  // Write Patch Constant SiGnature.
+  if (has_pcsg) {
+    chunk_position_dwords = uint32_t(shader_object_.size());
+    shader_object_[10] = chunk_position_dwords * sizeof(uint32_t);
+    shader_object_.push_back('GSCP');
+    shader_object_.push_back(0);
+    WritePatchConstantSignature();
+    shader_object_[chunk_position_dwords + 1] =
+        (uint32_t(shader_object_.size()) - chunk_position_dwords - 2) *
+        sizeof(uint32_t);
+  }
+
   // Write Output SiGNature.
   chunk_position_dwords = uint32_t(shader_object_.size());
-  shader_object_[10] = chunk_position_dwords * sizeof(uint32_t);
+  shader_object_[10 + has_pcsg] = chunk_position_dwords * sizeof(uint32_t);
   shader_object_.push_back('NGSO');
   shader_object_.push_back(0);
   WriteOutputSignature();
@@ -6845,7 +6994,7 @@ std::vector<uint8_t> DxbcShaderTranslator::CompleteTranslation() {
 
   // Write SHader EXtended.
   chunk_position_dwords = uint32_t(shader_object_.size());
-  shader_object_[11] = chunk_position_dwords * sizeof(uint32_t);
+  shader_object_[11 + has_pcsg] = chunk_position_dwords * sizeof(uint32_t);
   shader_object_.push_back('XEHS');
   shader_object_.push_back(0);
   WriteShaderCode();
@@ -6855,7 +7004,7 @@ std::vector<uint8_t> DxbcShaderTranslator::CompleteTranslation() {
 
   // Write STATistics.
   chunk_position_dwords = uint32_t(shader_object_.size());
-  shader_object_[12] = chunk_position_dwords * sizeof(uint32_t);
+  shader_object_[12 + has_pcsg] = chunk_position_dwords * sizeof(uint32_t);
   shader_object_.push_back('TATS');
   shader_object_.push_back(sizeof(stat_));
   shader_object_.resize(shader_object_.size() +
@@ -13313,15 +13462,16 @@ const DxbcShaderTranslator::SystemConstantRdef DxbcShaderTranslator::
         // vec4 7
         {"xe_color_output_map", RdefTypeIndex::kUint4, 112, 16},
         // vec4 8
-        {"xe_edram_depth_range", RdefTypeIndex::kFloat2, 128, 8},
-        {"xe_edram_poly_offset_front", RdefTypeIndex::kFloat2, 136, 8},
+        {"xe_tessellation_factor_range", RdefTypeIndex::kFloat2, 128, 8},
+        {"xe_edram_depth_range", RdefTypeIndex::kFloat2, 136, 8},
         // vec4 9
-        {"xe_edram_poly_offset_back", RdefTypeIndex::kFloat2, 144, 8},
-        {"xe_edram_resolution_scale_log2", RdefTypeIndex::kUint, 152, 4},
+        {"xe_edram_poly_offset_front", RdefTypeIndex::kFloat2, 144, 8},
+        {"xe_edram_poly_offset_back", RdefTypeIndex::kFloat2, 152, 8},
         // vec4 10
-        {"xe_edram_stencil_reference", RdefTypeIndex::kUint, 160, 4},
-        {"xe_edram_stencil_read_mask", RdefTypeIndex::kUint, 164, 4},
-        {"xe_edram_stencil_write_mask", RdefTypeIndex::kUint, 168, 4},
+        {"xe_edram_resolution_scale_log2", RdefTypeIndex::kUint, 160, 4},
+        {"xe_edram_stencil_reference", RdefTypeIndex::kUint, 164, 4},
+        {"xe_edram_stencil_read_mask", RdefTypeIndex::kUint, 168, 4},
+        {"xe_edram_stencil_write_mask", RdefTypeIndex::kUint, 172, 4},
         // vec4 11
         {"xe_edram_stencil_front", RdefTypeIndex::kUint4, 176, 16},
         // vec4 12
@@ -13409,6 +13559,9 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
   if (IsDXBCVertexShader()) {
     // vs_5_1
     shader_object_.push_back(0xFFFE0501u);
+  } else if (IsDXBCDomainShader()) {
+    // ds_5_1
+    shader_object_.push_back(0x44530501u);
   } else {
     assert_true(IsDXBCPixelShader());
     // ps_5_1
@@ -13901,6 +14054,11 @@ void DxbcShaderTranslator::WriteInputSignature() {
 
     // Vertex index semantic name.
     AppendString(shader_object_, "SV_VertexID");
+  } else if (IsDXBCDomainShader()) {
+    // No inputs - tessellation factors specified in PCSG.
+    shader_object_.push_back(0);
+    // Unknown.
+    shader_object_.push_back(8);
   } else {
     assert_true(IsDXBCPixelShader());
     // Interpolators, point parameters (coordinates, size), clip space ZW,
@@ -13983,18 +14141,93 @@ void DxbcShaderTranslator::WriteInputSignature() {
       shader_object_[texcoord_name_position_dwords] = new_offset;
     }
     new_offset += AppendString(shader_object_, "TEXCOORD");
-
     uint32_t position_name_position_dwords =
         chunk_position_dwords + signature_position_dwords +
         (kInterpolatorCount + 2) * signature_size_dwords;
     shader_object_[position_name_position_dwords] = new_offset;
     new_offset += AppendString(shader_object_, "SV_Position");
-
     uint32_t front_face_name_position_dwords =
         position_name_position_dwords + signature_size_dwords;
     shader_object_[front_face_name_position_dwords] = new_offset;
     new_offset += AppendString(shader_object_, "SV_IsFrontFace");
   }
+}
+
+void DxbcShaderTranslator::WritePatchConstantSignature() {
+  assert_true(IsDXBCDomainShader());
+
+  uint32_t chunk_position_dwords = uint32_t(shader_object_.size());
+
+  const uint32_t signature_position_dwords = 2;
+  const uint32_t signature_size_dwords = 6;
+
+  // FXC refuses to compile without SV_TessFactor and SV_InsideTessFactor input,
+  // so this is required.
+  uint32_t tess_factor_count_edge, tess_factor_count_inside;
+  if (vertex_shader_type_ == VertexShaderType::kTriangleDomain) {
+    tess_factor_count_edge = 3;
+    tess_factor_count_inside = 1;
+  } else {
+    assert_true(vertex_shader_type_ == VertexShaderType::kQuadDomain);
+    tess_factor_count_edge = 4;
+    tess_factor_count_inside = 2;
+  }
+  uint32_t tess_factor_count_total =
+      tess_factor_count_edge + tess_factor_count_inside;
+  shader_object_.push_back(tess_factor_count_total);
+  // Unknown.
+  shader_object_.push_back(8);
+
+  for (uint32_t i = 0; i < tess_factor_count_total; ++i) {
+    // Reserve space for the semantic name (SV_TessFactor or
+    // SV_InsideTessFactor).
+    shader_object_.push_back(0);
+    shader_object_.push_back(
+        i < tess_factor_count_edge ? i : (i - tess_factor_count_edge));
+    if (vertex_shader_type_ == VertexShaderType::kTriangleDomain) {
+      if (i < tess_factor_count_edge) {
+        // D3D_NAME_FINAL_TRI_EDGE_TESSFACTOR.
+        shader_object_.push_back(13);
+      } else {
+        // D3D_NAME_FINAL_TRI_INSIDE_TESSFACTOR.
+        shader_object_.push_back(14);
+      }
+    } else {
+      assert_true(vertex_shader_type_ == VertexShaderType::kQuadDomain);
+      if (i < tess_factor_count_edge) {
+        // D3D_NAME_FINAL_QUAD_EDGE_TESSFACTOR.
+        shader_object_.push_back(11);
+      } else {
+        // D3D_NAME_FINAL_QUAD_INSIDE_TESSFACTOR.
+        shader_object_.push_back(12);
+      }
+    }
+    // D3D_REGISTER_COMPONENT_FLOAT32.
+    shader_object_.push_back(3);
+    // Not using any of these, and just assigning consecutive registers.
+    shader_object_.push_back(i);
+    // 1 component, none used.
+    shader_object_.push_back(1);
+  }
+
+  // Write the semantic names.
+  uint32_t new_offset =
+      (uint32_t(shader_object_.size()) - chunk_position_dwords) *
+      sizeof(uint32_t);
+  for (uint32_t i = 0; i < tess_factor_count_edge; ++i) {
+    uint32_t name_position_dwords = chunk_position_dwords +
+                                    signature_position_dwords +
+                                    i * signature_size_dwords;
+    shader_object_[name_position_dwords] = new_offset;
+  }
+  new_offset += AppendString(shader_object_, "SV_TessFactor");
+  for (uint32_t i = 0; i < tess_factor_count_inside; ++i) {
+    uint32_t name_position_dwords =
+        chunk_position_dwords + signature_position_dwords +
+        (tess_factor_count_edge + i) * signature_size_dwords;
+    shader_object_[name_position_dwords] = new_offset;
+  }
+  new_offset += AppendString(shader_object_, "SV_InsideTessFactor");
 }
 
 void DxbcShaderTranslator::WriteOutputSignature() {
@@ -14004,7 +14237,7 @@ void DxbcShaderTranslator::WriteOutputSignature() {
   const uint32_t signature_position_dwords = 2;
   const uint32_t signature_size_dwords = 6;
 
-  if (IsDXBCVertexShader()) {
+  if (IsDXBCVertexOrDomainShader()) {
     // Interpolators, point parameters (coordinates, size), clip space ZW,
     // screen position.
     shader_object_.push_back(kInterpolatorCount + 3);
@@ -14137,9 +14370,17 @@ void DxbcShaderTranslator::WriteOutputSignature() {
 void DxbcShaderTranslator::WriteShaderCode() {
   uint32_t chunk_position_dwords = uint32_t(shader_object_.size());
 
-  shader_object_.push_back(ENCODE_D3D10_SB_TOKENIZED_PROGRAM_VERSION_TOKEN(
-      IsDXBCVertexShader() ? D3D10_SB_VERTEX_SHADER : D3D10_SB_PIXEL_SHADER, 5,
-      1));
+  uint32_t shader_type;
+  if (IsDXBCVertexShader()) {
+    shader_type = D3D10_SB_VERTEX_SHADER;
+  } else if (IsDXBCDomainShader()) {
+    shader_type = D3D11_SB_DOMAIN_SHADER;
+  } else {
+    assert_true(IsDXBCPixelShader());
+    shader_type = D3D10_SB_PIXEL_SHADER;
+  }
+  shader_object_.push_back(
+      ENCODE_D3D10_SB_TOKENIZED_PROGRAM_VERSION_TOKEN(shader_type, 5, 1));
   // Reserve space for the length token.
   shader_object_.push_back(0);
 
@@ -14154,6 +14395,31 @@ void DxbcShaderTranslator::WriteShaderCode() {
   //
   // Inputs/outputs have 1D-indexed operands with a component mask and a
   // register index.
+
+  if (IsDXBCDomainShader()) {
+    // Not using control point data since Xenos only has a vertex shader acting
+    // as both vertex shader and domain shader.
+    uint32_t control_point_count;
+    D3D11_SB_TESSELLATOR_DOMAIN domain;
+    if (vertex_shader_type_ == VertexShaderType::kTriangleDomain) {
+      control_point_count = 3;
+      domain = D3D11_SB_TESSELLATOR_DOMAIN_TRI;
+    } else {
+      assert_true(vertex_shader_type_ == VertexShaderType::kQuadDomain);
+      control_point_count = 4;
+      domain = D3D11_SB_TESSELLATOR_DOMAIN_QUAD;
+    }
+    shader_object_.push_back(
+        ENCODE_D3D10_SB_OPCODE_TYPE(
+            D3D11_SB_OPCODE_DCL_INPUT_CONTROL_POINT_COUNT) |
+        ENCODE_D3D11_SB_INPUT_CONTROL_POINT_COUNT(control_point_count) |
+        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
+    stat_.c_control_points = control_point_count;
+    shader_object_.push_back(
+        ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_DCL_TESS_DOMAIN) |
+        ENCODE_D3D11_SB_TESS_DOMAIN(domain) |
+        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
+  }
 
   // Don't allow refactoring when converting to native code to maintain position
   // invariance (needed even in pixel shaders for oDepth invariance).
@@ -14312,16 +14578,40 @@ void DxbcShaderTranslator::WriteShaderCode() {
   }
 
   // Inputs and outputs.
-  if (IsDXBCVertexShader()) {
-    // Unswapped vertex index input (only X component).
-    shader_object_.push_back(
-        ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_INPUT_SGV) |
-        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4));
-    shader_object_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_INPUT, 0b0001, 1));
-    shader_object_.push_back(uint32_t(InOutRegister::kVSInVertexIndex));
-    shader_object_.push_back(ENCODE_D3D10_SB_NAME(D3D10_SB_NAME_VERTEX_ID));
-    ++stat_.dcl_count;
+  if (IsDXBCVertexOrDomainShader()) {
+    if (IsDXBCDomainShader()) {
+      // Domain location input (barycentric for triangles, UV for quads).
+      uint32_t domain_location_mask;
+      if (vertex_shader_type_ == VertexShaderType::kTriangleDomain) {
+        domain_location_mask = 0b0111;
+      } else {
+        assert_true(vertex_shader_type_ == VertexShaderType::kQuadDomain);
+        domain_location_mask = 0b0011;
+      }
+      shader_object_.push_back(
+          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_INPUT) |
+          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(2));
+      shader_object_.push_back(EncodeVectorMaskedOperand(
+          D3D11_SB_OPERAND_TYPE_INPUT_DOMAIN_POINT, domain_location_mask, 0));
+      ++stat_.dcl_count;
+      // Primitive index input.
+      shader_object_.push_back(
+          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_INPUT) |
+          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(2));
+      shader_object_.push_back(
+          EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_INPUT_PRIMITIVEID, 0));
+      ++stat_.dcl_count;
+    } else {
+      // Unswapped vertex index input (only X component).
+      shader_object_.push_back(
+          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_INPUT_SGV) |
+          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4));
+      shader_object_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_INPUT, 0b0001, 1));
+      shader_object_.push_back(uint32_t(InOutRegister::kVSInVertexIndex));
+      shader_object_.push_back(ENCODE_D3D10_SB_NAME(D3D10_SB_NAME_VERTEX_ID));
+      ++stat_.dcl_count;
+    }
     // Interpolator output.
     for (uint32_t i = 0; i < kInterpolatorCount; ++i) {
       shader_object_.push_back(

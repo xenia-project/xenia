@@ -79,7 +79,8 @@ class D3D12CommandProcessor : public CommandProcessor {
 
   // Finds or creates root signature for a pipeline.
   ID3D12RootSignature* GetRootSignature(const D3D12Shader* vertex_shader,
-                                        const D3D12Shader* pixel_shader);
+                                        const D3D12Shader* pixel_shader,
+                                        PrimitiveType primitive_type);
 
   ui::d3d12::UploadBufferPool* GetConstantBufferPool() const {
     return constant_buffer_pool_.get();

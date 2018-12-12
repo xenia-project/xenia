@@ -27,6 +27,13 @@ class DxbcShaderTranslator : public ShaderTranslator {
   DxbcShaderTranslator(uint32_t vendor_id, bool edram_rov_used);
   ~DxbcShaderTranslator() override;
 
+  enum class VertexShaderType { kVertex, kTriangleDomain, kQuadDomain };
+  // Sets the type (shader model and input layout) of the next vertex shader
+  // that will be converted.
+  void SetVertexShaderType(VertexShaderType type) {
+    vertex_shader_type_ = type;
+  }
+
   // Constant buffer bindings in space 0.
   enum class CbufferRegister {
     kSystemConstants,
@@ -303,11 +310,20 @@ class DxbcShaderTranslator : public ShaderTranslator {
     // vec4 8
     union {
       struct {
+        float tessellation_factor_range_min;
+        float tessellation_factor_range_max;
+      };
+      float tessellation_factor_range[2];
+    };
+    union {
+      struct {
         float edram_depth_range_scale;
         float edram_depth_range_offset;
       };
       float edram_depth_range[2];
     };
+
+    // vec4 9
     union {
       struct {
         float edram_poly_offset_front_scale;
@@ -315,8 +331,6 @@ class DxbcShaderTranslator : public ShaderTranslator {
       };
       float edram_poly_offset_front[2];
     };
-
-    // vec4 9
     union {
       struct {
         float edram_poly_offset_back_scale;
@@ -324,14 +338,12 @@ class DxbcShaderTranslator : public ShaderTranslator {
       };
       float edram_poly_offset_back[2];
     };
-    uint32_t edram_resolution_scale_log2;
-    uint32_t padding_9;
 
     // vec4 10
+    uint32_t edram_resolution_scale_log2;
     uint32_t edram_stencil_reference;
     uint32_t edram_stencil_read_mask;
     uint32_t edram_stencil_write_mask;
-    uint32_t padding_10;
 
     // vec4 11
     union {
@@ -563,38 +575,45 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kSysConst_ColorOutputMap_Index = kSysConst_ColorExpBias_Index + 1,
     kSysConst_ColorOutputMap_Vec = kSysConst_ColorExpBias_Vec + 1,
 
-    kSysConst_EDRAMDepthRange_Index = kSysConst_ColorOutputMap_Index + 1,
-    kSysConst_EDRAMDepthRange_Vec = kSysConst_ColorOutputMap_Vec + 1,
-    kSysConst_EDRAMDepthRangeScale_Comp = 0,
-    kSysConst_EDRAMDepthRangeOffset_Comp = 1,
-    kSysConst_EDRAMPolyOffsetFront_Index = kSysConst_EDRAMDepthRange_Index + 1,
-    kSysConst_EDRAMPolyOffsetFront_Vec = kSysConst_EDRAMDepthRange_Vec,
-    kSysConst_EDRAMPolyOffsetFrontScale_Comp = 2,
-    kSysConst_EDRAMPolyOffsetFrontOffset_Comp = 3,
+    kSysConst_TessellationFactorRange_Index =
+        kSysConst_ColorOutputMap_Index + 1,
+    kSysConst_TessellationFactorRange_Vec = kSysConst_ColorOutputMap_Vec + 1,
+    kSysConst_TessellationFactorRange_Comp = 0,
+    kSysConst_EDRAMDepthRange_Index =
+        kSysConst_TessellationFactorRange_Index + 1,
+    kSysConst_EDRAMDepthRange_Vec = kSysConst_TessellationFactorRange_Vec,
+    kSysConst_EDRAMDepthRangeScale_Comp = 2,
+    kSysConst_EDRAMDepthRangeOffset_Comp = 3,
 
+    kSysConst_EDRAMPolyOffsetFront_Index = kSysConst_EDRAMDepthRange_Index + 1,
+    kSysConst_EDRAMPolyOffsetFront_Vec = kSysConst_EDRAMDepthRange_Vec + 1,
+    kSysConst_EDRAMPolyOffsetFrontScale_Comp = 0,
+    kSysConst_EDRAMPolyOffsetFrontOffset_Comp = 1,
     kSysConst_EDRAMPolyOffsetBack_Index =
         kSysConst_EDRAMPolyOffsetFront_Index + 1,
-    kSysConst_EDRAMPolyOffsetBack_Vec = kSysConst_EDRAMPolyOffsetFront_Vec + 1,
-    kSysConst_EDRAMPolyOffsetBackScale_Comp = 0,
-    kSysConst_EDRAMPolyOffsetBackOffset_Comp = 1,
+    kSysConst_EDRAMPolyOffsetBack_Vec = kSysConst_EDRAMPolyOffsetFront_Vec,
+    kSysConst_EDRAMPolyOffsetBackScale_Comp = 2,
+    kSysConst_EDRAMPolyOffsetBackOffset_Comp = 3,
+
     kSysConst_EDRAMResolutionScaleLog2_Index =
         kSysConst_EDRAMPolyOffsetBack_Index + 1,
-    kSysConst_EDRAMResolutionScaleLog2_Vec = kSysConst_EDRAMPolyOffsetBack_Vec,
-    kSysConst_EDRAMResolutionScaleLog2_Comp = 2,
-
+    kSysConst_EDRAMResolutionScaleLog2_Vec =
+        kSysConst_EDRAMPolyOffsetBack_Vec + 1,
+    kSysConst_EDRAMResolutionScaleLog2_Comp = 0,
     kSysConst_EDRAMStencilReference_Index =
         kSysConst_EDRAMResolutionScaleLog2_Index + 1,
     kSysConst_EDRAMStencilReference_Vec =
-        kSysConst_EDRAMResolutionScaleLog2_Vec + 1,
-    kSysConst_EDRAMStencilReference_Comp = 0,
+        kSysConst_EDRAMResolutionScaleLog2_Vec,
+    kSysConst_EDRAMStencilReference_Comp = 1,
     kSysConst_EDRAMStencilReadMask_Index =
         kSysConst_EDRAMStencilReference_Index + 1,
-    kSysConst_EDRAMStencilReadMask_Vec = kSysConst_EDRAMStencilReference_Vec,
-    kSysConst_EDRAMStencilReadMask_Comp = 1,
+    kSysConst_EDRAMStencilReadMask_Vec = kSysConst_EDRAMResolutionScaleLog2_Vec,
+    kSysConst_EDRAMStencilReadMask_Comp = 2,
     kSysConst_EDRAMStencilWriteMask_Index =
         kSysConst_EDRAMStencilReadMask_Index + 1,
-    kSysConst_EDRAMStencilWriteMask_Vec = kSysConst_EDRAMStencilReference_Vec,
-    kSysConst_EDRAMStencilWriteMask_Comp = 2,
+    kSysConst_EDRAMStencilWriteMask_Vec =
+        kSysConst_EDRAMResolutionScaleLog2_Vec,
+    kSysConst_EDRAMStencilWriteMask_Comp = 3,
 
     kSysConst_EDRAMStencilFront_Index =
         kSysConst_EDRAMStencilWriteMask_Index + 1,
@@ -757,8 +776,17 @@ class DxbcShaderTranslator : public ShaderTranslator {
 
   // Use these instead of is_vertex_shader/is_pixel_shader because they don't
   // take is_depth_only_pixel_shader_ into account.
-  inline bool IsDXBCVertexShader() const {
+  inline bool IsDXBCVertexOrDomainShader() const {
     return !is_depth_only_pixel_shader_ && is_vertex_shader();
+  }
+  inline bool IsDXBCVertexShader() const {
+    return IsDXBCVertexOrDomainShader() &&
+           vertex_shader_type_ == VertexShaderType::kVertex;
+  }
+  inline bool IsDXBCDomainShader() const {
+    return IsDXBCVertexOrDomainShader() &&
+           (vertex_shader_type_ == VertexShaderType::kTriangleDomain ||
+            vertex_shader_type_ == VertexShaderType::kQuadDomain);
   }
   inline bool IsDXBCPixelShader() const {
     return is_depth_only_pixel_shader_ || is_pixel_shader();
@@ -778,11 +806,12 @@ class DxbcShaderTranslator : public ShaderTranslator {
 
   // Writing the prologue.
   void StartVertexShader_LoadVertexIndex();
-  void StartVertexShader();
+  void StartVertexOrDomainShader();
+  void StartDomainShader();
   void StartPixelShader();
 
   // Writing the epilogue.
-  void CompleteVertexShader();
+  void CompleteVertexOrDomainShader();
   // Converts four depth values to 24-bit unorm or float, depending on the flag
   // value.
   void CompletePixelShader_DepthTo24Bit(uint32_t depths_temp);
@@ -991,6 +1020,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
 
   void WriteResourceDefinitions();
   void WriteInputSignature();
+  void WritePatchConstantSignature();
   void WriteOutputSignature();
   void WriteShaderCode();
 
@@ -1009,6 +1039,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // Whether the output merger should be emulated in pixel shaders.
   bool edram_rov_used_;
 
+  VertexShaderType vertex_shader_type_ = VertexShaderType::kVertex;
   // Is currently writing the empty depth-only pixel shader, for
   // CompleteTranslation.
   bool is_depth_only_pixel_shader_;
