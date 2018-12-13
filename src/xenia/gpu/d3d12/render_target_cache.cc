@@ -1208,7 +1208,7 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
     uint32_t dest_size = texture_util::GetGuestMipSliceStorageSize(
         xe::align(dest_pitch, 32u),
         xe::align(uint32_t(rect.bottom - (rect.top & ~LONG(31))), 32u), 1, true,
-        dest_format, nullptr);
+        dest_format, nullptr, false);
     uint32_t dest_offset_x = uint32_t(rect.left) & 31;
     uint32_t dest_offset_y = uint32_t(rect.top) & 31;
     // Make sure we have the memory to write to.
