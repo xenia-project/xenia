@@ -31,12 +31,14 @@ void GetGuestMipBlocks(Dimension dimension, uint32_t width, uint32_t height,
 
 // Calculates the number of bytes required to store a single array slice within
 // a single mip level - width, height and depth must be obtained via
-// GetGuestMipBlocks.
+// GetGuestMipBlocks. align_4kb can be set to false when calculating relatively
+// to some offset in the texture rather than the top-left corner of it.
 uint32_t GetGuestMipSliceStorageSize(uint32_t width_blocks,
                                      uint32_t height_blocks,
                                      uint32_t depth_blocks, bool is_tiled,
                                      TextureFormat format,
-                                     uint32_t* row_pitch_out);
+                                     uint32_t* row_pitch_out,
+                                     bool align_4kb = true);
 
 // Gets the number of the mipmap level where the packed mips are stored.
 inline uint32_t GetPackedMipLevel(uint32_t width, uint32_t height) {

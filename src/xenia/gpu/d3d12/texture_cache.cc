@@ -1091,7 +1091,7 @@ bool TextureCache::TileResolvedTexture(
   offset_y &= 31;
   uint32_t texture_size = texture_util::GetGuestMipSliceStorageSize(
       texture_pitch, xe::align(offset_y + resolve_height, 32u), 1, true, format,
-      nullptr);
+      nullptr, false);
   if (texture_size == 0) {
     return true;
   }

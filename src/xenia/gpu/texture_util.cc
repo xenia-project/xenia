@@ -58,7 +58,7 @@ uint32_t GetGuestMipSliceStorageSize(uint32_t width_blocks,
                                      uint32_t height_blocks,
                                      uint32_t depth_blocks, bool is_tiled,
                                      TextureFormat format,
-                                     uint32_t* row_pitch_out) {
+                                     uint32_t* row_pitch_out, bool align_4kb) {
   const FormatInfo* format_info = FormatInfo::Get(format);
   uint32_t row_pitch = width_blocks * format_info->block_width *
                        format_info->block_height * format_info->bits_per_pixel /
@@ -69,7 +69,11 @@ uint32_t GetGuestMipSliceStorageSize(uint32_t width_blocks,
   if (row_pitch_out != nullptr) {
     *row_pitch_out = row_pitch;
   }
-  return xe::align(row_pitch * height_blocks * depth_blocks, 4096u);
+  uint32_t size = row_pitch * height_blocks * depth_blocks;
+  if (align_4kb) {
+    size = xe::align(size, 4096u);
+  }
+  return size;
 }
 
 bool GetPackedMipOffset(uint32_t width, uint32_t height, uint32_t depth,
