@@ -35,6 +35,10 @@ DEFINE_string(shader_input_type, "",
 DEFINE_string(shader_output, "", "Output shader file path.");
 DEFINE_string(shader_output_type, "ucode",
               "Translator to use: [ucode, glsl45, spirv, spirvtext, dxbc].");
+DEFINE_string(shader_output_domain, "",
+              "Abstract patch type in the generated tessellation evaluation "
+              "(domain) shader, or unspecified to produce a vertex shader: "
+              "[triangle, quad].");
 DEFINE_bool(shader_output_dxbc_rov, false,
             "Output ROV-based output-merger code in DXBC pixel shaders.");
 
@@ -104,6 +108,18 @@ int shader_compiler_main(const std::vector<std::wstring>& args) {
   } else if (FLAGS_shader_output_type == "dxbc") {
     translator =
         std::make_unique<DxbcShaderTranslator>(0, FLAGS_shader_output_dxbc_rov);
+    DxbcShaderTranslator::VertexShaderType dxbc_vertex_shader_type;
+    if (FLAGS_shader_output_domain == "triangle") {
+      dxbc_vertex_shader_type =
+          DxbcShaderTranslator::VertexShaderType::kTriangleDomain;
+    } else if (FLAGS_shader_output_domain == "quad") {
+      dxbc_vertex_shader_type =
+          DxbcShaderTranslator::VertexShaderType::kQuadDomain;
+    } else {
+      dxbc_vertex_shader_type = DxbcShaderTranslator::VertexShaderType::kVertex;
+    }
+    static_cast<DxbcShaderTranslator*>(translator.get())
+        ->SetVertexShaderType(dxbc_vertex_shader_type);
   } else {
     translator = std::make_unique<UcodeShaderTranslator>();
   }
