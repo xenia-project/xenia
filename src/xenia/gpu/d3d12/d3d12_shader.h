@@ -40,7 +40,7 @@ class D3D12Shader : public Shader {
       const DxbcShaderTranslator::SamplerBinding* sampler_bindings,
       uint32_t sampler_binding_count);
 
-  bool DisassembleDXBC(const ui::d3d12::D3D12Provider* provider);
+  bool DisassembleDxbc(const ui::d3d12::D3D12Provider* provider);
 
   static constexpr uint32_t kMaxTextureSRVIndexBits =
       DxbcShaderTranslator::kMaxTextureSRVIndexBits;
