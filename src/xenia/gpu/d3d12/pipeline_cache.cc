@@ -254,7 +254,7 @@ bool PipelineCache::TranslateShader(D3D12Shader* shader,
   // Disassemble the shader for dumping.
   if (FLAGS_d3d12_dxbc_disasm) {
     auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
-    if (!shader->DisassembleDXBC(provider)) {
+    if (!shader->DisassembleDxbc(provider)) {
       XELOGE("Failed to disassemble DXBC shader %.16" PRIX64,
              shader->ucode_data_hash());
     }

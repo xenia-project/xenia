@@ -60,7 +60,7 @@ void D3D12Shader::SetTexturesAndSamplers(
   }
 }
 
-bool D3D12Shader::DisassembleDXBC(const ui::d3d12::D3D12Provider* provider) {
+bool D3D12Shader::DisassembleDxbc(const ui::d3d12::D3D12Provider* provider) {
   if (!host_disassembly_.empty()) {
     return true;
   }

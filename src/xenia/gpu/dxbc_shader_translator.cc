@@ -870,10 +870,10 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
   ++stat_.instruction_count;
   ++stat_.mov_instruction_count;
 
-  if (IsDXBCVertexShader()) {
+  if (IsDxbcVertexShader()) {
     // Write the vertex index to GPR 0.
     StartVertexShader_LoadVertexIndex();
-  } else if (IsDXBCDomainShader()) {
+  } else if (IsDxbcDomainShader()) {
     uint32_t temp_register_operand_length = IndexableGPRsUsed() ? 3 : 2;
 
     // Copy the domain location to r0.yz (for quad patches) or r0.xyz (for
@@ -1339,9 +1339,9 @@ void DxbcShaderTranslator::StartPixelShader() {
 void DxbcShaderTranslator::StartTranslation() {
   // Allocate global system temporary registers that may also be used in the
   // epilogue.
-  if (IsDXBCVertexOrDomainShader()) {
+  if (IsDxbcVertexOrDomainShader()) {
     system_temp_position_ = PushSystemTemp(true);
-  } else if (IsDXBCPixelShader()) {
+  } else if (IsDxbcPixelShader()) {
     if (!is_depth_only_pixel_shader_) {
       for (uint32_t i = 0; i < 4; ++i) {
         // In the ROV path, no need to initialize the colors because original
@@ -1372,9 +1372,9 @@ void DxbcShaderTranslator::StartTranslation() {
   }
 
   // Write stage-specific prologue.
-  if (IsDXBCVertexOrDomainShader()) {
+  if (IsDxbcVertexOrDomainShader()) {
     StartVertexOrDomainShader();
-  } else if (IsDXBCPixelShader()) {
+  } else if (IsDxbcPixelShader()) {
     StartPixelShader();
   }
 
@@ -6870,16 +6870,16 @@ void DxbcShaderTranslator::CompleteShaderCode() {
   }
 
   // Write stage-specific epilogue.
-  if (IsDXBCVertexOrDomainShader()) {
+  if (IsDxbcVertexOrDomainShader()) {
     CompleteVertexOrDomainShader();
-  } else if (IsDXBCPixelShader()) {
+  } else if (IsDxbcPixelShader()) {
     CompletePixelShader();
   }
 
-  if (IsDXBCVertexOrDomainShader()) {
+  if (IsDxbcVertexOrDomainShader()) {
     // Release system_temp_position_.
     PopSystemTemp();
-  } else if (IsDXBCPixelShader()) {
+  } else if (IsDxbcPixelShader()) {
     if (edram_rov_used_) {
       // Release system_temp_depth_.
       PopSystemTemp();
@@ -6930,7 +6930,7 @@ std::vector<uint8_t> DxbcShaderTranslator::CompleteTranslation() {
 
   shader_object_.clear();
 
-  uint32_t has_pcsg = IsDXBCDomainShader() ? 1 : 0;
+  uint32_t has_pcsg = IsDxbcDomainShader() ? 1 : 0;
 
   // Write the shader object header.
   shader_object_.push_back('CBXD');
@@ -9634,7 +9634,7 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
   // Do the part involving derivative calculation unconditionally, and re-enter
   // the predicate check before writing the result.
   bool suppress_predication = false;
-  if (IsDXBCPixelShader()) {
+  if (IsDxbcPixelShader()) {
     if (instr.opcode == FetchOpcode::kGetTextureComputedLod ||
         instr.opcode == FetchOpcode::kGetTextureGradients) {
       suppress_predication = true;
@@ -9716,7 +9716,7 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
   uint32_t tfetch_pair_offset = (tfetch_index >> 1) * 3;
 
   // TODO(Triang3l): kGetTextureBorderColorFrac.
-  if (!IsDXBCPixelShader() &&
+  if (!IsDxbcPixelShader() &&
       (instr.opcode == FetchOpcode::kGetTextureComputedLod ||
        instr.opcode == FetchOpcode::kGetTextureGradients)) {
     // Quickly skip everything if tried to get anything involving derivatives
@@ -10337,7 +10337,7 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
           if (instr.opcode == FetchOpcode::kGetTextureComputedLod) {
             // The non-pixel-shader case should be handled before because it
             // just returns a constant in this case.
-            assert_true(IsDXBCPixelShader());
+            assert_true(IsDxbcPixelShader());
             replicate_result = true;
             shader_code_.push_back(
                 ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_1_SB_OPCODE_LOD) |
@@ -10442,7 +10442,7 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
             // Both sample_l and sample_b should add the LOD bias as the last
             // operand in our case.
             bool explicit_lod =
-                !instr.attributes.use_computed_lod || !IsDXBCPixelShader();
+                !instr.attributes.use_computed_lod || !IsDxbcPixelShader();
             if (explicit_lod) {
               shader_code_.push_back(
                   ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_SAMPLE_L) |
@@ -10821,7 +10821,7 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
     // Release coord_temp.
     PopSystemTemp();
   } else if (instr.opcode == FetchOpcode::kGetTextureGradients) {
-    assert_true(IsDXBCPixelShader());
+    assert_true(IsDxbcPixelShader());
     store_result = true;
     // pv.xz = ddx(coord.xy)
     shader_code_.push_back(
@@ -13549,21 +13549,21 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
     resource_count +=
         uint32_t(sampler_bindings_.size()) + 1 + uint32_t(texture_srvs_.size());
   }
-  if (IsDXBCPixelShader() && edram_rov_used_) {
+  if (IsDxbcPixelShader() && edram_rov_used_) {
     // EDRAM.
     ++resource_count;
   }
   shader_object_.push_back(resource_count);
   // Bound resource buffer offset (set later).
   shader_object_.push_back(0);
-  if (IsDXBCVertexShader()) {
+  if (IsDxbcVertexShader()) {
     // vs_5_1
     shader_object_.push_back(0xFFFE0501u);
-  } else if (IsDXBCDomainShader()) {
+  } else if (IsDxbcDomainShader()) {
     // ds_5_1
     shader_object_.push_back(0x44530501u);
   } else {
-    assert_true(IsDXBCPixelShader());
+    assert_true(IsDxbcPixelShader());
     // ps_5_1
     shader_object_.push_back(0xFFFF0501u);
   }
@@ -13875,7 +13875,7 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
     }
   }
   uint32_t edram_name_offset = new_offset;
-  if (IsDXBCPixelShader() && edram_rov_used_) {
+  if (IsDxbcPixelShader() && edram_rov_used_) {
     new_offset += AppendString(shader_object_, "xe_edram");
   }
 
@@ -13965,7 +13965,7 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
     }
   }
 
-  if (IsDXBCPixelShader() && edram_rov_used_) {
+  if (IsDxbcPixelShader() && edram_rov_used_) {
     // EDRAM uint32 buffer.
     shader_object_.push_back(edram_name_offset);
     // D3D_SIT_UAV_RWTYPED.
@@ -14032,7 +14032,7 @@ void DxbcShaderTranslator::WriteInputSignature() {
   const uint32_t signature_position_dwords = 2;
   const uint32_t signature_size_dwords = 6;
 
-  if (IsDXBCVertexShader()) {
+  if (IsDxbcVertexShader()) {
     // Only unswapped vertex index.
     shader_object_.push_back(1);
     // Unknown.
@@ -14054,13 +14054,13 @@ void DxbcShaderTranslator::WriteInputSignature() {
 
     // Vertex index semantic name.
     AppendString(shader_object_, "SV_VertexID");
-  } else if (IsDXBCDomainShader()) {
+  } else if (IsDxbcDomainShader()) {
     // No inputs - tessellation factors specified in PCSG.
     shader_object_.push_back(0);
     // Unknown.
     shader_object_.push_back(8);
   } else {
-    assert_true(IsDXBCPixelShader());
+    assert_true(IsDxbcPixelShader());
     // Interpolators, point parameters (coordinates, size), clip space ZW,
     // screen position, is front face.
     shader_object_.push_back(kInterpolatorCount + 4);
@@ -14154,7 +14154,7 @@ void DxbcShaderTranslator::WriteInputSignature() {
 }
 
 void DxbcShaderTranslator::WritePatchConstantSignature() {
-  assert_true(IsDXBCDomainShader());
+  assert_true(IsDxbcDomainShader());
 
   uint32_t chunk_position_dwords = uint32_t(shader_object_.size());
 
@@ -14237,7 +14237,7 @@ void DxbcShaderTranslator::WriteOutputSignature() {
   const uint32_t signature_position_dwords = 2;
   const uint32_t signature_size_dwords = 6;
 
-  if (IsDXBCVertexOrDomainShader()) {
+  if (IsDxbcVertexOrDomainShader()) {
     // Interpolators, point parameters (coordinates, size), clip space ZW,
     // screen position.
     shader_object_.push_back(kInterpolatorCount + 3);
@@ -14303,7 +14303,7 @@ void DxbcShaderTranslator::WriteOutputSignature() {
     shader_object_[position_name_position_dwords] = new_offset;
     new_offset += AppendString(shader_object_, "SV_Position");
   } else {
-    assert_true(IsDXBCPixelShader());
+    assert_true(IsDxbcPixelShader());
     if (edram_rov_used_) {
       // No outputs - only ROV read/write.
       shader_object_.push_back(0);
@@ -14371,12 +14371,12 @@ void DxbcShaderTranslator::WriteShaderCode() {
   uint32_t chunk_position_dwords = uint32_t(shader_object_.size());
 
   uint32_t shader_type;
-  if (IsDXBCVertexShader()) {
+  if (IsDxbcVertexShader()) {
     shader_type = D3D10_SB_VERTEX_SHADER;
-  } else if (IsDXBCDomainShader()) {
+  } else if (IsDxbcDomainShader()) {
     shader_type = D3D11_SB_DOMAIN_SHADER;
   } else {
-    assert_true(IsDXBCPixelShader());
+    assert_true(IsDxbcPixelShader());
     shader_type = D3D10_SB_PIXEL_SHADER;
   }
   shader_object_.push_back(
@@ -14396,7 +14396,7 @@ void DxbcShaderTranslator::WriteShaderCode() {
   // Inputs/outputs have 1D-indexed operands with a component mask and a
   // register index.
 
-  if (IsDXBCDomainShader()) {
+  if (IsDxbcDomainShader()) {
     // Not using control point data since Xenos only has a vertex shader acting
     // as both vertex shader and domain shader.
     uint32_t control_point_count;
@@ -14556,7 +14556,7 @@ void DxbcShaderTranslator::WriteShaderCode() {
   }
 
   // Unordered access views.
-  if (IsDXBCPixelShader() && edram_rov_used_) {
+  if (IsDxbcPixelShader() && edram_rov_used_) {
     // EDRAM uint32 rasterizer-ordered buffer (U0, at u0, space0).
     shader_object_.push_back(
         ENCODE_D3D10_SB_OPCODE_TYPE(
@@ -14578,8 +14578,8 @@ void DxbcShaderTranslator::WriteShaderCode() {
   }
 
   // Inputs and outputs.
-  if (IsDXBCVertexOrDomainShader()) {
-    if (IsDXBCDomainShader()) {
+  if (IsDxbcVertexOrDomainShader()) {
+    if (IsDxbcDomainShader()) {
       // Domain location input (barycentric for triangles, UV for quads).
       uint32_t domain_location_mask;
       if (vertex_shader_type_ == VertexShaderType::kTriangleDomain) {
@@ -14648,7 +14648,7 @@ void DxbcShaderTranslator::WriteShaderCode() {
     shader_object_.push_back(uint32_t(InOutRegister::kVSOutPosition));
     shader_object_.push_back(ENCODE_D3D10_SB_NAME(D3D10_SB_NAME_POSITION));
     ++stat_.dcl_count;
-  } else if (IsDXBCPixelShader()) {
+  } else if (IsDxbcPixelShader()) {
     // Interpolator input.
     if (!is_depth_only_pixel_shader_) {
       uint32_t interpolator_count =
@@ -14778,7 +14778,7 @@ void DxbcShaderTranslator::WriteShaderCode() {
 
   // Initialize the depth output if used, which must be initialized on every
   // execution path.
-  if (!edram_rov_used_ && IsDXBCPixelShader() && writes_depth()) {
+  if (!edram_rov_used_ && IsDxbcPixelShader() && writes_depth()) {
     shader_object_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
                              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4));
     shader_object_.push_back(

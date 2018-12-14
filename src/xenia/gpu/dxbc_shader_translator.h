@@ -776,19 +776,19 @@ class DxbcShaderTranslator : public ShaderTranslator {
 
   // Use these instead of is_vertex_shader/is_pixel_shader because they don't
   // take is_depth_only_pixel_shader_ into account.
-  inline bool IsDXBCVertexOrDomainShader() const {
+  inline bool IsDxbcVertexOrDomainShader() const {
     return !is_depth_only_pixel_shader_ && is_vertex_shader();
   }
-  inline bool IsDXBCVertexShader() const {
-    return IsDXBCVertexOrDomainShader() &&
+  inline bool IsDxbcVertexShader() const {
+    return IsDxbcVertexOrDomainShader() &&
            vertex_shader_type_ == VertexShaderType::kVertex;
   }
-  inline bool IsDXBCDomainShader() const {
-    return IsDXBCVertexOrDomainShader() &&
+  inline bool IsDxbcDomainShader() const {
+    return IsDxbcVertexOrDomainShader() &&
            (vertex_shader_type_ == VertexShaderType::kTriangleDomain ||
             vertex_shader_type_ == VertexShaderType::kQuadDomain);
   }
-  inline bool IsDXBCPixelShader() const {
+  inline bool IsDxbcPixelShader() const {
     return is_depth_only_pixel_shader_ || is_pixel_shader();
   }
 
