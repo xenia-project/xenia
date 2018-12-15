@@ -288,10 +288,16 @@ StfsContainerDevice::Error StfsContainerDevice::ReadSVOD() {
 
 StfsContainerDevice::Error StfsContainerDevice::ReadEntrySVOD(
     uint32_t block, uint32_t ordinal, StfsContainerEntry* parent) {
+  // For games with a large amount of files, the ordinal offset can overrun
+  // the current block and potentially hit a hash block.
+  size_t ordinal_offset = ordinal * 0x4;
+  size_t block_offset = ordinal_offset / 0x800;
+  size_t true_ordinal_offset = ordinal_offset % 0x800;
+
   // Calculate the file & address of the block
   size_t entry_address, entry_file;
-  BlockToOffsetSVOD(block, &entry_address, &entry_file);
-  entry_address += ordinal * 0x04;
+  BlockToOffsetSVOD(block + block_offset, &entry_address, &entry_file);
+  entry_address += true_ordinal_offset;
 
   // Read block's descriptor
   auto data = mmap_.at(entry_file)->data() + entry_address;
