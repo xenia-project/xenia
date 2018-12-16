@@ -40,8 +40,6 @@
 #include "xenia/hid/xinput/xinput_hid.h"
 #endif  // XE_PLATFORM_WIN32
 
-#include "third_party/xbyak/xbyak/xbyak_util.h"
-
 DEFINE_string(apu, "any", "Audio system. Use: [any, nop, xaudio2]");
 DEFINE_string(gpu, "any", "Graphics system. Use: [any, vulkan, null]");
 DEFINE_string(hid, "any", "Input system. Use: [any, nop, winkey, xinput]");
@@ -154,14 +152,6 @@ std::vector<std::unique_ptr<hid::InputDriver>> CreateInputDrivers(
 int xenia_main(const std::vector<std::wstring>& args) {
   Profiler::Initialize();
   Profiler::ThreadEnter("main");
-
-  Xbyak::util::Cpu cpu;
-  if (!cpu.has(Xbyak::util::Cpu::tAVX)) {
-    xe::FatalError(
-        "Your CPU does not support AVX, which is required by Xenia. See the "
-        "FAQ for system requirements at https://xenia.jp");
-    return -1;
-  }
 
   // Figure out where content should go.
   std::wstring content_root;
