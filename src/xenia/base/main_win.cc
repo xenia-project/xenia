@@ -22,6 +22,8 @@
 #include "xenia/base/platform_win.h"
 #include "xenia/base/string.h"
 
+#include "third_party/xbyak/xbyak/xbyak_util.h"
+
 #include <bcrypt.h>
 
 DEFINE_bool(win32_high_freq, true,
@@ -126,6 +128,14 @@ int Main() {
 
   // Initialize logging. Needs parsed FLAGS.
   xe::InitializeLogging(entry_info.name);
+
+  Xbyak::util::Cpu cpu;
+  if (!cpu.has(Xbyak::util::Cpu::tAVX)) {
+    xe::FatalError(
+        "Your CPU does not support AVX, which is required by Xenia. See the "
+        "FAQ for system requirements at https://xenia.jp");
+    return -1;
+  }
 
   // Print version info.
   XELOGI("Build: %s / %s on %s", XE_BUILD_BRANCH, XE_BUILD_COMMIT,
