@@ -23,11 +23,6 @@
 #include "xenia/base/math.h"
 #include "xenia/base/string.h"
 
-DEFINE_bool(dxbc_indexable_temps, true,
-            "Use indexable temporary registers in translated DXBC shaders for "
-            "relative addressing of general-purpose registers - shaders rarely "
-            "do that, but when they do, this may improve performance on AMD, "
-            "but may cause unknown issues on Nvidia.");
 DEFINE_bool(dxbc_switch, true,
             "Use switch rather than if for flow control. Turning this off or "
             "on may improve stability, though this heavily depends on the "
@@ -529,7 +524,7 @@ bool DxbcShaderTranslator::UseSwitchForControlFlow() const {
 
 uint32_t DxbcShaderTranslator::PushSystemTemp(bool zero) {
   uint32_t register_index = system_temp_count_current_;
-  if (!IndexableGPRsUsed() && !is_depth_only_pixel_shader_) {
+  if (!uses_register_dynamic_addressing() && !is_depth_only_pixel_shader_) {
     // Guest shader registers first if they're not in x0. Depth-only pixel
     // shader is a special case of the DXBC translator usage, where there are no
     // GPRs because there's no shader to translate, and a guest shader is not
@@ -564,10 +559,6 @@ void DxbcShaderTranslator::PopSystemTemp(uint32_t count) {
   system_temp_count_current_ -= std::min(count, system_temp_count_current_);
 }
 
-bool DxbcShaderTranslator::IndexableGPRsUsed() const {
-  return FLAGS_dxbc_indexable_temps && uses_register_dynamic_addressing();
-}
-
 void DxbcShaderTranslator::StartVertexShader_LoadVertexIndex() {
   // Vertex index is in an input bound to SV_VertexID, byte swapped according to
   // xe_vertex_index_endian system constant and written to GPR 0 (which is
@@ -583,7 +574,7 @@ void DxbcShaderTranslator::StartVertexShader_LoadVertexIndex() {
   // Write to GPR 0 - either directly if not using indexable registers, or via a
   // system temporary register.
   uint32_t reg;
-  if (IndexableGPRsUsed()) {
+  if (uses_register_dynamic_addressing()) {
     reg = PushSystemTemp();
   } else {
     reg = 0;
@@ -816,7 +807,7 @@ void DxbcShaderTranslator::StartVertexShader_LoadVertexIndex() {
   ++stat_.instruction_count;
   ++stat_.conversion_instruction_count;
 
-  if (IndexableGPRsUsed()) {
+  if (uses_register_dynamic_addressing()) {
     // Store to indexed GPR 0 in x0[0].
     shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
                            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(6));
@@ -874,7 +865,8 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
     // Write the vertex index to GPR 0.
     StartVertexShader_LoadVertexIndex();
   } else if (IsDxbcDomainShader()) {
-    uint32_t temp_register_operand_length = IndexableGPRsUsed() ? 3 : 2;
+    uint32_t temp_register_operand_length =
+        uses_register_dynamic_addressing() ? 3 : 2;
 
     // Copy the domain location to r0.yz (for quad patches) or r0.xyz (for
     // triangle patches), and also set the domain in STAT.
@@ -898,7 +890,7 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
     shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
                            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(
                                2 + temp_register_operand_length));
-    if (IndexableGPRsUsed()) {
+    if (uses_register_dynamic_addressing()) {
       shader_code_.push_back(EncodeVectorMaskedOperand(
           D3D10_SB_OPERAND_TYPE_INDEXABLE_TEMP, domain_location_mask, 2));
       shader_code_.push_back(0);
@@ -910,7 +902,7 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
     shader_code_.push_back(EncodeVectorSwizzledOperand(
         D3D11_SB_OPERAND_TYPE_INPUT_DOMAIN_POINT, domain_location_swizzle, 0));
     ++stat_.instruction_count;
-    if (IndexableGPRsUsed()) {
+    if (uses_register_dynamic_addressing()) {
       ++stat_.array_instruction_count;
     } else {
       ++stat_.mov_instruction_count;
@@ -929,8 +921,9 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
         vertex_shader_type_ == VertexShaderType::kTriangleDomain ? 1 : 0;
 
     if (register_count() > primitive_id_gpr_index) {
-      uint32_t primitive_id_temp =
-          IndexableGPRsUsed() ? PushSystemTemp() : primitive_id_gpr_index;
+      uint32_t primitive_id_temp = uses_register_dynamic_addressing()
+                                       ? PushSystemTemp()
+                                       : primitive_id_gpr_index;
       shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_UTOF) |
                              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4));
       shader_code_.push_back(
@@ -940,7 +933,7 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
           EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_INPUT_PRIMITIVEID, 0));
       ++stat_.instruction_count;
       ++stat_.conversion_instruction_count;
-      if (IndexableGPRsUsed()) {
+      if (uses_register_dynamic_addressing()) {
         shader_code_.push_back(
             ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(6));
@@ -1000,7 +993,7 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
       shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
                              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(
                                  3 + temp_register_operand_length));
-      if (IndexableGPRsUsed()) {
+      if (uses_register_dynamic_addressing()) {
         shader_code_.push_back(
             EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_INDEXABLE_TEMP,
                                       domain_location_swizzle_mask, 2));
@@ -1014,7 +1007,7 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
           EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
       shader_code_.push_back(0);
       ++stat_.instruction_count;
-      if (IndexableGPRsUsed()) {
+      if (uses_register_dynamic_addressing()) {
         ++stat_.array_instruction_count;
       } else {
         ++stat_.mov_instruction_count;
@@ -1066,7 +1059,7 @@ void DxbcShaderTranslator::StartPixelShader() {
 
   // Copy interpolants to GPRs.
   uint32_t interpolator_count = std::min(kInterpolatorCount, register_count());
-  if (IndexableGPRsUsed()) {
+  if (uses_register_dynamic_addressing()) {
     for (uint32_t i = 0; i < interpolator_count; ++i) {
       shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
                              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(6));
@@ -1255,7 +1248,7 @@ void DxbcShaderTranslator::StartPixelShader() {
   shader_code_.push_back(uint32_t(InOutRegister::kPSInPointParameters));
   ++stat_.instruction_count;
   ++stat_.mov_instruction_count;
-  if (IndexableGPRsUsed()) {
+  if (uses_register_dynamic_addressing()) {
     // Copy the register index to an r# so it can be used for indexable temp
     // addressing.
     shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
@@ -7134,7 +7127,7 @@ void DxbcShaderTranslator::LoadDxbcSourceOperand(
       // ***********************************************************************
       // General-purpose register
       // ***********************************************************************
-      if (IndexableGPRsUsed()) {
+      if (uses_register_dynamic_addressing()) {
         // GPRs are in x0 - need to load to the intermediate register (indexable
         // temps are only accessible via mov load/store).
         if (dxbc_operand.intermediate_register ==
@@ -7174,62 +7167,11 @@ void DxbcShaderTranslator::LoadDxbcSourceOperand(
         ++stat_.instruction_count;
         ++stat_.array_instruction_count;
       } else {
-        // GPRs are in r# - can access directly if addressed statically, load
-        // by checking every register whether it's the needed one if addressed
-        // dynamically.
-        if (operand.storage_addressing_mode ==
-            InstructionStorageAddressingMode::kStatic) {
-          dxbc_operand.type = DxbcSourceOperand::Type::kRegister;
-          dxbc_operand.index = uint32_t(operand.storage_index);
-        } else {
-          if (dxbc_operand.intermediate_register ==
-              DxbcSourceOperand::kIntermediateRegisterNone) {
-            dxbc_operand.intermediate_register = PushSystemTemp();
-          }
-          dxbc_operand.type = DxbcSourceOperand::Type::kIntermediateRegister;
-          uint32_t gpr_movc_mask_register = PushSystemTemp();
-          for (uint32_t i = 0; i < register_count(); ++i) {
-            if ((i & 3) == 0) {
-              // Compare the dynamic address to each register number to check if
-              // it's the one that's needed.
-              shader_code_.push_back(
-                  ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IEQ) |
-                  ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(10));
-              shader_code_.push_back(EncodeVectorMaskedOperand(
-                  D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
-              shader_code_.push_back(gpr_movc_mask_register);
-              shader_code_.push_back(EncodeVectorReplicatedOperand(
-                  D3D10_SB_OPERAND_TYPE_TEMP, dynamic_address_component, 1));
-              shader_code_.push_back(dynamic_address_register);
-              shader_code_.push_back(EncodeVectorSwizzledOperand(
-                  D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-              for (uint32_t j = 0; j < 4; ++j) {
-                shader_code_.push_back(i + j - uint32_t(operand.storage_index));
-              }
-              ++stat_.instruction_count;
-              ++stat_.int_instruction_count;
-            }
-            shader_code_.push_back(
-                ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
-                ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-            shader_code_.push_back(EncodeVectorMaskedOperand(
-                D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
-            shader_code_.push_back(dxbc_operand.intermediate_register);
-            shader_code_.push_back(EncodeVectorReplicatedOperand(
-                D3D10_SB_OPERAND_TYPE_TEMP, i & 3, 1));
-            shader_code_.push_back(gpr_movc_mask_register);
-            shader_code_.push_back(EncodeVectorSwizzledOperand(
-                D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-            shader_code_.push_back(i);
-            shader_code_.push_back(EncodeVectorSwizzledOperand(
-                D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-            shader_code_.push_back(dxbc_operand.intermediate_register);
-            ++stat_.instruction_count;
-            ++stat_.movc_instruction_count;
-          }
-          // Release gpr_movc_mask_register.
-          PopSystemTemp();
-        }
+        // GPRs are in r# - accessing directly.
+        assert_true(operand.storage_addressing_mode ==
+                    InstructionStorageAddressingMode::kStatic);
+        dxbc_operand.type = DxbcSourceOperand::Type::kRegister;
+        dxbc_operand.index = uint32_t(operand.storage_index);
       }
       break;
 
@@ -7769,15 +7711,6 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
     dynamic_address_component = 3;
   }
 
-  // Temporary registers for storing dynamically indexed GPRs via movc.
-  uint32_t gpr_movc_source_register = UINT32_MAX;
-  uint32_t gpr_movc_mask_register = UINT32_MAX;
-  if (result.storage_target == InstructionStorageTarget::kRegister &&
-      !is_static && !IndexableGPRsUsed()) {
-    gpr_movc_source_register = PushSystemTemp();
-    gpr_movc_mask_register = PushSystemTemp();
-  }
-
   // Store both parts of the write (i == 0 - swizzled, i == 1 - constant).
   for (uint32_t i = 0; i < 2; ++i) {
     uint32_t mask = i == 0 ? swizzle_mask : constant_mask;
@@ -7789,7 +7722,7 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
     uint32_t source_length = i != 0 ? 5 : 2;
     switch (result.storage_target) {
       case InstructionStorageTarget::kRegister:
-        if (IndexableGPRsUsed()) {
+        if (uses_register_dynamic_addressing()) {
           ++stat_.instruction_count;
           ++stat_.array_instruction_count;
           shader_code_.push_back(
@@ -7810,6 +7743,7 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
             shader_code_.push_back(dynamic_address_register);
           }
         } else {
+          assert_true(is_static);
           ++stat_.instruction_count;
           ++stat_.mov_instruction_count;
           shader_code_.push_back(
@@ -7818,8 +7752,7 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
               saturate_bit);
           shader_code_.push_back(
               EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, mask, 1));
-          shader_code_.push_back(is_static ? uint32_t(result.storage_index)
-                                           : gpr_movc_source_register);
+          shader_code_.push_back(uint32_t(result.storage_index));
         }
         break;
 
@@ -7878,50 +7811,6 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
         shader_code_.push_back((constant_values & (1 << j)) ? 0x3F800000 : 0);
       }
     }
-  }
-
-  // Store to the GPR using lots of movc instructions if not using indexable
-  // temps, but the target has a relative address.
-  if (gpr_movc_source_register != UINT32_MAX) {
-    for (uint32_t i = 0; i < register_count(); ++i) {
-      if ((i & 3) == 0) {
-        // Compare the dynamic address to each register number to check if it's
-        // the one that's needed.
-        shader_code_.push_back(
-            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IEQ) |
-            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(10));
-        shader_code_.push_back(
-            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
-        shader_code_.push_back(gpr_movc_mask_register);
-        shader_code_.push_back(EncodeVectorReplicatedOperand(
-            D3D10_SB_OPERAND_TYPE_TEMP, dynamic_address_component, 1));
-        shader_code_.push_back(dynamic_address_register);
-        shader_code_.push_back(EncodeVectorSwizzledOperand(
-            D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-        for (uint32_t j = 0; j < 4; ++j) {
-          shader_code_.push_back(i + j - uint32_t(result.storage_index));
-        }
-        ++stat_.instruction_count;
-        ++stat_.int_instruction_count;
-      }
-      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
-                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-      shader_code_.push_back(
-          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
-      shader_code_.push_back(i);
-      shader_code_.push_back(
-          EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, i & 3, 1));
-      shader_code_.push_back(gpr_movc_mask_register);
-      shader_code_.push_back(EncodeVectorSwizzledOperand(
-          D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-      shader_code_.push_back(gpr_movc_source_register);
-      shader_code_.push_back(EncodeVectorSwizzledOperand(
-          D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-      shader_code_.push_back(i);
-      ++stat_.instruction_count;
-      ++stat_.movc_instruction_count;
-    }
-    PopSystemTemp(2);
   }
 
   if (edram_rov_used_ &&
@@ -14753,7 +14642,7 @@ void DxbcShaderTranslator::WriteShaderCode() {
   // Temporary registers - guest general-purpose registers if not using dynamic
   // indexing and Xenia internal registers.
   stat_.temp_register_count = system_temp_count_max_;
-  if (!is_depth_only_pixel_shader_ && !IndexableGPRsUsed()) {
+  if (!is_depth_only_pixel_shader_ && !uses_register_dynamic_addressing()) {
     stat_.temp_register_count += register_count();
   }
   if (stat_.temp_register_count != 0) {
@@ -14764,7 +14653,7 @@ void DxbcShaderTranslator::WriteShaderCode() {
   }
 
   // General-purpose registers if using dynamic indexing (x0).
-  if (!is_depth_only_pixel_shader_ && IndexableGPRsUsed()) {
+  if (!is_depth_only_pixel_shader_ && uses_register_dynamic_addressing()) {
     shader_object_.push_back(
         ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_INDEXABLE_TEMP) |
         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4));

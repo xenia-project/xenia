@@ -800,10 +800,6 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // Frees the last allocated internal r# registers for later reuse.
   void PopSystemTemp(uint32_t count = 1);
 
-  // Whether general-purpose register values should be stored in x0 rather than
-  // r# in this shader.
-  bool IndexableGPRsUsed() const;
-
   // Writing the prologue.
   void StartVertexShader_LoadVertexIndex();
   void StartVertexOrDomainShader();
