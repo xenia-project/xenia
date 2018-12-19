@@ -527,7 +527,7 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
     // When using indexable temps, copy through a r# because x# are apparently
     // only accessible via mov.
     // TODO(Triang3l): Investigate what should be written for primitives (or
-    // even control points) for non-per-edge tessellation modes (they may
+    // even control points) for non-adaptive tessellation modes (they may
     // possibly have an index buffer).
     uint32_t primitive_id_gpr_index =
         vertex_shader_type_ == VertexShaderType::kTriangleDomain ? 1 : 0;
