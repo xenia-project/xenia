@@ -43,6 +43,16 @@ enum class PrimitiveType : uint32_t {
   k2DFillRectList = 0x14,
   k2DLineStrip = 0x15,
   k2DTriStrip = 0x16,
+  // Tessellation patches (D3DTPT) - reusing 2DCopyRectList types.
+  kLinePatch = 0x10,
+  kTrianglePatch = 0x11,
+  kQuadPatch = 0x12,
+};
+
+enum class TessellationMode : uint32_t {
+  kDiscrete = 0,
+  kContinuous = 1,
+  kAdaptive = 2,
 };
 
 enum class Dimension : uint32_t {
@@ -144,6 +154,15 @@ enum class Endian128 : uint32_t {
 enum class IndexFormat : uint32_t {
   kInt16,
   kInt32,
+};
+
+// GPUSURFACENUMBER from a game .pdb.
+enum class SurfaceNumFormat : uint32_t {
+  kUnsignedRepeat = 0,
+  kSignedRepeat = 1,
+  kUnsignedInteger = 2,
+  kSignedInteger = 3,
+  kFloat = 7,
 };
 
 enum class MsaaSamples : uint32_t {
@@ -564,6 +583,40 @@ XEPACKEDUNION(xe_gpu_fetch_group_t, {
     uint32_t type_2 : 2;
     uint32_t data_2_a : 30;
     uint32_t data_2_b : 32;
+  });
+});
+
+// GPU_MEMEXPORT_STREAM_CONSTANT from a game .pdb - float constant for memexport
+// stream configuration.
+// This is used with the floating-point ALU in shaders (written to eA using
+// mad), so the dwords have a normalized exponent when reinterpreted as floats
+// (otherwise they would be flushed to zero), but actually these are packed
+// integers. dword_1 specifically is 2^23 because
+// powf(2.0f, 23.0f) + float(i) == 0x4B000000 | i
+// so mad can pack indices as integers in the lower bits.
+XEPACKEDUNION(xe_gpu_memexport_stream_t, {
+  XEPACKEDSTRUCTANONYMOUS({
+    uint32_t base_address : 30;  // +0 dword_0 physical address >> 2
+    uint32_t const_0x1 : 2;      // +30
+
+    uint32_t const_0x4b000000;  // +0 dword_1
+
+    Endian128 endianness : 3;         // +0 dword_2
+    uint32_t unused_0 : 5;            // +3
+    ColorFormat format : 6;           // +8
+    uint32_t unused_1 : 2;            // +14
+    SurfaceNumFormat num_format : 3;  // +16
+    uint32_t red_blue_swap : 1;       // +19
+    uint32_t const_0x4b0 : 12;        // +20
+
+    uint32_t index_count : 23;  // +0 dword_3
+    uint32_t const_0x96 : 9;    // +23
+  });
+  XEPACKEDSTRUCTANONYMOUS({
+    uint32_t dword_0;
+    uint32_t dword_1;
+    uint32_t dword_2;
+    uint32_t dword_3;
   });
 });
 
