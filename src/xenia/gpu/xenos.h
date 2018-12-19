@@ -36,23 +36,23 @@ enum class PrimitiveType : uint32_t {
   kQuadList = 0x0D,
   kQuadStrip = 0x0E,
   kPolygon = 0x0F,
-  // These are from Adreno 2xx, and also exist on R600, but on Xenos, these
-  // don't exist or have different values (
-  // k2DCopyRectListV0 = 0x10,
-  // k2DCopyRectListV1 = 0x11,
-  // k2DCopyRectListV2 = 0x12,
-  // k2DCopyRectListV3 = 0x13,
-  kTrianglePatch = 0x11,
-  kQuadPatch = 0x12,
+  k2DCopyRectListV0 = 0x10,
+  k2DCopyRectListV1 = 0x11,
+  k2DCopyRectListV2 = 0x12,
+  k2DCopyRectListV3 = 0x13,
   k2DFillRectList = 0x14,
   k2DLineStrip = 0x15,
   k2DTriStrip = 0x16,
+  // Tessellation patches (D3DTPT) - reusing 2DCopyRectList types.
+  kLinePatch = 0x10,
+  kTrianglePatch = 0x11,
+  kQuadPatch = 0x12,
 };
 
 enum class TessellationMode : uint32_t {
   kDiscrete = 0,
   kContinuous = 1,
-  kPerEdge = 2,
+  kAdaptive = 2,
 };
 
 enum class Dimension : uint32_t {

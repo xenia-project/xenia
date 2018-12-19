@@ -423,7 +423,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateShaderStages(
       } else {
         update_desc_.HS.pShaderBytecode = continuous_triangle_hs;
         update_desc_.HS.BytecodeLength = sizeof(continuous_triangle_hs);
-        // TODO(Triang3l): True per-edge tessellation when memexport is added.
+        // TODO(Triang3l): True adaptive tessellation when memexport is added.
       }
       break;
     case PrimitiveType::kQuadPatch:
@@ -433,7 +433,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateShaderStages(
       } else {
         update_desc_.HS.pShaderBytecode = continuous_quad_hs;
         update_desc_.HS.BytecodeLength = sizeof(continuous_quad_hs);
-        // TODO(Triang3l): True per-edge tessellation when memexport is added.
+        // TODO(Triang3l): True adaptive tessellation when memexport is added.
       }
       break;
     default:
