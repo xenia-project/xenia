@@ -649,7 +649,7 @@ std::wstring D3D12CommandProcessor::GetWindowTitleText() const {
       return L"Direct3D 12 - ROV";
     }
   } else {
-    return L"Direct3D 12 - RT";
+    return L"Direct3D 12 - RTV/DSV";
   }
 }
 
