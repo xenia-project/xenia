@@ -11,6 +11,7 @@
 #define XENIA_GPU_SHADER_TRANSLATOR_H_
 
 #include <memory>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -64,6 +65,11 @@ class ShaderTranslator {
   // A list of all texture bindings, populated before translation occurs.
   const std::vector<Shader::TextureBinding>& texture_bindings() const {
     return texture_bindings_;
+  }
+  // All c# registers used as the addend in MAD operations to eA, populated
+  // before translation occurs.
+  const std::set<uint32_t>& memexport_stream_constants() const {
+    return memexport_stream_constants_;
   }
 
   // Current line number in the ucode disassembly.
@@ -230,6 +236,7 @@ class ShaderTranslator {
   bool uses_register_dynamic_addressing_ = false;
   bool writes_color_targets_[4] = {false, false, false, false};
   bool writes_depth_ = false;
+  std::set<uint32_t> memexport_stream_constants_;
 
   static const AluOpcodeInfo alu_vector_opcode_infos_[0x20];
   static const AluOpcodeInfo alu_scalar_opcode_infos_[0x40];

@@ -63,6 +63,7 @@ void ShaderTranslator::Reset() {
     writes_color_targets_[i] = false;
   }
   writes_depth_ = false;
+  memexport_stream_constants_.clear();
 }
 
 bool ShaderTranslator::GatherAllBindingInformation(Shader* shader) {
@@ -174,6 +175,10 @@ bool ShaderTranslator::TranslateInternal(Shader* shader) {
   for (size_t i = 0; i < xe::countof(writes_color_targets_); ++i) {
     shader->writes_color_targets_[i] = writes_color_targets_[i];
   }
+  shader->memexport_stream_constants_.clear();
+  for (uint32_t memexport_stream_constant : memexport_stream_constants_) {
+    shader->memexport_stream_constants_.push_back(memexport_stream_constant);
+  }
 
   shader->is_valid_ = true;
   shader->is_translated_ = true;
@@ -281,6 +286,18 @@ void ShaderTranslator::GatherInstructionInformation(
                 } else if (op.vector_dest() == 61) {
                   writes_depth_ = true;
                 }
+              }
+              // Store used memexport constants because CPU code needs addresses
+              // and sizes. eA is (hopefully) always written to using:
+              // mad eA, r#, const0100, c#
+              // (though there are some exceptions, shaders in Halo 3 for some
+              // reason set eA to zeros, but the swizzle of the constant is not
+              // .xyzw in this case, and they don't write to eM#).
+              if (op.vector_dest() == 32 &&
+                  op.vector_opcode() == AluVectorOpcode::kMad &&
+                  op.vector_write_mask() == 0b1111 && !op.src_is_temp(3) &&
+                  op.src_swizzle(3) == 0) {
+                memexport_stream_constants_.insert(op.src_reg(3));
               }
             } else {
               if (op.is_vector_dest_relative()) {

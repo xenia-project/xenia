@@ -31,8 +31,8 @@ enum class InstructionStorageTarget {
   kPosition,
   // Result is stored to the point size export (gl_PointSize).
   kPointSize,
-  // Result is stored as memexport destination address.
-  // [physical >> 2, ??, ??, ??]
+  // Result is stored as memexport destination address
+  // (see xenos::xe_gpu_memexport_stream_t).
   kExportAddress,
   // Result is stored to memexport destination data.
   kExportData,
@@ -583,6 +583,11 @@ class Shader {
     return constant_register_map_;
   }
 
+  // All c# registers used as the addend in MAD operations to eA.
+  const std::vector<uint32_t>& memexport_stream_constants() const {
+    return memexport_stream_constants_;
+  }
+
   // Returns true if the given color target index [0-3].
   bool writes_color_target(int i) const { return writes_color_targets_[i]; }
 
@@ -634,6 +639,7 @@ class Shader {
   std::vector<TextureBinding> texture_bindings_;
   ConstantRegisterMap constant_register_map_ = {0};
   bool writes_color_targets_[4] = {false, false, false, false};
+  std::vector<uint32_t> memexport_stream_constants_;
 
   bool is_valid_ = false;
   bool is_translated_ = false;
