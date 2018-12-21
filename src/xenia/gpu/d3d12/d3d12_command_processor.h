@@ -209,6 +209,13 @@ class D3D12CommandProcessor : public CommandProcessor {
                       const D3D12Shader* pixel_shader,
                       ID3D12RootSignature* root_signature);
 
+  // Returns dword count for one element for a memexport format, or 0 if it's
+  // not supported by the D3D12 command processor (if it's smaller that 1 dword,
+  // for instance).
+  // TODO(Triang3l): Check if any game uses memexport with formats smaller than
+  // 32 bits per element.
+  static uint32_t GetSupportedMemExportFormatSize(ColorFormat format);
+
   bool cache_clear_requested_ = false;
 
   std::unique_ptr<ui::d3d12::CommandList>
