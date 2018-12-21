@@ -134,7 +134,7 @@ bool DxbcShaderTranslator::UseSwitchForControlFlow() const {
   return FLAGS_dxbc_switch && vendor_id_ != 0x8086;
 }
 
-uint32_t DxbcShaderTranslator::PushSystemTemp(bool zero) {
+uint32_t DxbcShaderTranslator::PushSystemTemp(bool zero, uint32_t count) {
   uint32_t register_index = system_temp_count_current_;
   if (!uses_register_dynamic_addressing() && !is_depth_only_pixel_shader_) {
     // Guest shader registers first if they're not in x0. Depth-only pixel
@@ -143,24 +143,26 @@ uint32_t DxbcShaderTranslator::PushSystemTemp(bool zero) {
     // loaded.
     register_index += register_count();
   }
-  ++system_temp_count_current_;
+  system_temp_count_current_ += count;
   system_temp_count_max_ =
       std::max(system_temp_count_max_, system_temp_count_current_);
 
   if (zero) {
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(8));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
-    shader_code_.push_back(register_index);
-    shader_code_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-    shader_code_.push_back(0);
-    shader_code_.push_back(0);
-    shader_code_.push_back(0);
-    shader_code_.push_back(0);
-    ++stat_.instruction_count;
-    ++stat_.mov_instruction_count;
+    for (uint32_t i = 0; i < count; ++i) {
+      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(8));
+      shader_code_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+      shader_code_.push_back(register_index + i);
+      shader_code_.push_back(EncodeVectorSwizzledOperand(
+          D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+      shader_code_.push_back(0);
+      shader_code_.push_back(0);
+      shader_code_.push_back(0);
+      shader_code_.push_back(0);
+      ++stat_.instruction_count;
+      ++stat_.mov_instruction_count;
+    }
   }
 
   return register_index;
@@ -948,11 +950,9 @@ void DxbcShaderTranslator::StartTranslation() {
     system_temp_position_ = PushSystemTemp(true);
   } else if (IsDxbcPixelShader()) {
     if (!is_depth_only_pixel_shader_) {
-      for (uint32_t i = 0; i < 4; ++i) {
-        // In the ROV path, no need to initialize the colors because original
-        // values will be kept for the unwritten components.
-        system_temp_color_[i] = PushSystemTemp(!edram_rov_used_);
-      }
+      // In the ROV path, no need to initialize the colors because original
+      // values will be kept for the unwritten components.
+      system_temps_color_ = PushSystemTemp(!edram_rov_used_, 4);
     }
     if (edram_rov_used_) {
       if (!is_depth_only_pixel_shader_) {
@@ -1288,7 +1288,7 @@ void DxbcShaderTranslator::CompleteShaderCode() {
       }
     }
     if (!is_depth_only_pixel_shader_) {
-      // Release system_temp_color_.
+      // Release system_temps_color_.
       PopSystemTemp(4);
     }
   }
@@ -2196,8 +2196,8 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
             saturate_bit);
         shader_code_.push_back(
             EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, mask, 1));
-        shader_code_.push_back(
-            system_temp_color_[uint32_t(result.storage_index)]);
+        shader_code_.push_back(system_temps_color_ +
+                               uint32_t(result.storage_index));
         break;
 
       default:
