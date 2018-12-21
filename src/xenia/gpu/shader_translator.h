@@ -66,6 +66,15 @@ class ShaderTranslator {
   const std::vector<Shader::TextureBinding>& texture_bindings() const {
     return texture_bindings_;
   }
+
+  // Based on the number of AS_VS/PS_EXPORT_STREAM_* enum sets found in a game
+  // .pdb.
+  static constexpr uint32_t kMaxMemExports = 16;
+  // Bits indicating which eM# registers have been written to after each
+  // `alloc export`, for up to kMaxMemExports exports. This will contain zero
+  // for certain corrupt exports - that don't write to eA before writing to eM#,
+  // or if the write was done any way other than MAD with a stream constant.
+  const uint8_t* memexport_eM_written() const { return memexport_eM_written_; }
   // All c# registers used as the addend in MAD operations to eA, populated
   // before translation occurs.
   const std::set<uint32_t>& memexport_stream_constants() const {
@@ -236,6 +245,12 @@ class ShaderTranslator {
   bool uses_register_dynamic_addressing_ = false;
   bool writes_color_targets_[4] = {false, false, false, false};
   bool writes_depth_ = false;
+
+  uint32_t memexport_alloc_count_ = 0;
+  // For register allocation in implementations - what was used after each
+  // `alloc export`.
+  uint32_t memexport_eA_written_ = 0;
+  uint8_t memexport_eM_written_[kMaxMemExports] = {0};
   std::set<uint32_t> memexport_stream_constants_;
 
   static const AluOpcodeInfo alu_vector_opcode_infos_[0x20];
