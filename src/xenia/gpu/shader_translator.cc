@@ -145,6 +145,15 @@ bool ShaderTranslator::TranslateInternal(Shader* shader) {
     GatherInstructionInformation(cf_a);
     GatherInstructionInformation(cf_b);
   }
+  // Cleanup invalid/unneeded memexport allocs.
+  for (uint32_t i = 0; i < kMaxMemExports; ++i) {
+    if (!memexport_eM_written_[i]) {
+      memexport_eA_written_ &= ~(1u << i);
+    }
+  }
+  if (memexport_eA_written_ == 0) {
+    memexport_stream_constants_.clear();
+  }
 
   StartTranslation();
 

@@ -492,6 +492,22 @@ struct ParsedAluInstruction {
   // Describes each source operand.
   InstructionOperand operands[3];
 
+  // If this is a valid eA write (MAD with a stream constant), returns the index
+  // of the stream float constant, otherwise returns UINT32_MAX.
+  uint32_t GetMemExportStreamConstant() const {
+    if (result.storage_target == InstructionStorageTarget::kExportAddress &&
+        is_vector_type() && vector_opcode == ucode::AluVectorOpcode::kMad &&
+        result.has_all_writes() &&
+        operands[2].storage_source ==
+            InstructionStorageSource::kConstantFloat &&
+        operands[2].storage_addressing_mode ==
+            InstructionStorageAddressingMode::kStatic &&
+        operands[2].is_standard_swizzle()) {
+      return operands[2].storage_index;
+    }
+    return UINT32_MAX;
+  }
+
   // Disassembles the instruction into ucode assembly text.
   void Disassemble(StringBuffer* out) const;
 };
