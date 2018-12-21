@@ -799,8 +799,9 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // Whether to use switch-case rather than if (pc >= label) for control flow.
   bool UseSwitchForControlFlow() const;
 
-  // Allocates a new r# register for internal use and returns its index.
-  uint32_t PushSystemTemp(bool zero = false);
+  // Allocates new consecutive r# registers for internal use and returns the
+  // index of the first.
+  uint32_t PushSystemTemp(bool zero = false, uint32_t count = 1);
   // Frees the last allocated internal r# registers for later reuse.
   void PopSystemTemp(uint32_t count = 1);
 
@@ -1144,9 +1145,9 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // applied in the end of the shader).
   uint32_t system_temp_position_;
 
-  // Color outputs in pixel shaders (because of exponent bias, alpha test and
-  // remapping).
-  uint32_t system_temp_color_[4];
+  // 4 color outputs in pixel shaders (because of exponent bias, alpha test and
+  // remapping, and also for ROV writing).
+  uint32_t system_temps_color_;
   // Whether the color output has been written in the execution path (ROV only).
   uint32_t system_temp_color_written_;
   // Depth value (ROV only). The meaning depends on whether the shader writes to

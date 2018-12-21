@@ -899,7 +899,7 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToRTVs() {
     shader_code_.push_back(gamma_temp);
     ++stat_.instruction_count;
     ++stat_.dynamic_flow_control_count;
-    CompletePixelShader_GammaCorrect(system_temp_color_[i], true);
+    CompletePixelShader_GammaCorrect(system_temps_color_ + i, true);
     shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
                            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
     ++stat_.instruction_count;
@@ -948,7 +948,7 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToRTVs() {
       shader_code_.push_back(remap_movc_mask_temp);
       shader_code_.push_back(EncodeVectorSwizzledOperand(
           D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-      shader_code_.push_back(system_temp_color_[j]);
+      shader_code_.push_back(system_temps_color_ + j);
       shader_code_.push_back(EncodeVectorSwizzledOperand(
           D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
       shader_code_.push_back(remap_movc_target_temp);
@@ -5139,7 +5139,7 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
       shader_code_.push_back(src_color_temp);
       shader_code_.push_back(EncodeVectorSwizzledOperand(
           D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-      shader_code_.push_back(system_temp_color_[i]);
+      shader_code_.push_back(system_temps_color_ + i);
       ++stat_.instruction_count;
       ++stat_.mov_instruction_count;
 
@@ -5488,7 +5488,7 @@ void DxbcShaderTranslator::CompletePixelShader() {
   shader_code_.push_back(alpha_test_reg);
   shader_code_.push_back(
       EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 3, 1));
-  shader_code_.push_back(system_temp_color_[0]);
+  shader_code_.push_back(system_temps_color_);
   shader_code_.push_back(EncodeVectorSelectOperand(
       D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSysConst_AlphaTestRange_Comp, 3));
   shader_code_.push_back(cbuffer_index_system_constants_);
@@ -5510,7 +5510,7 @@ void DxbcShaderTranslator::CompletePixelShader() {
   shader_code_.push_back(kSysConst_AlphaTestRange_Vec);
   shader_code_.push_back(
       EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 3, 1));
-  shader_code_.push_back(system_temp_color_[0]);
+  shader_code_.push_back(system_temps_color_);
   ++stat_.instruction_count;
   ++stat_.float_instruction_count;
   // Check if both tests have passed and the alpha is in the range.
@@ -5587,10 +5587,10 @@ void DxbcShaderTranslator::CompletePixelShader() {
                            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
     shader_code_.push_back(
         EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
-    shader_code_.push_back(system_temp_color_[i]);
+    shader_code_.push_back(system_temps_color_ + i);
     shader_code_.push_back(EncodeVectorSwizzledOperand(
         D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-    shader_code_.push_back(system_temp_color_[i]);
+    shader_code_.push_back(system_temps_color_ + i);
     shader_code_.push_back(EncodeVectorReplicatedOperand(
         D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, i, 3));
     shader_code_.push_back(cbuffer_index_system_constants_);
