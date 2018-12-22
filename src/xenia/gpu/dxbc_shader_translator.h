@@ -47,6 +47,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
   };
 
   enum : uint32_t {
+    kSysFlag_SharedMemoryIsUAV_Shift,
     kSysFlag_XYDividedByW_Shift,
     kSysFlag_ZDividedByW_Shift,
     kSysFlag_WNotReciprocal_Shift,
@@ -70,6 +71,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kSysFlag_Color2Gamma_Shift,
     kSysFlag_Color3Gamma_Shift,
 
+    kSysFlag_SharedMemoryIsUAV = 1u << kSysFlag_SharedMemoryIsUAV_Shift,
     kSysFlag_XYDividedByW = 1u << kSysFlag_XYDividedByW_Shift,
     kSysFlag_ZDividedByW = 1u << kSysFlag_ZDividedByW_Shift,
     kSysFlag_WNotReciprocal = 1u << kSysFlag_WNotReciprocal_Shift,
@@ -482,6 +484,12 @@ class DxbcShaderTranslator : public ShaderTranslator {
     return sampler_bindings_.data();
   }
 
+  // Unordered access view bindings in space 0.
+  enum class UAVRegister {
+    kSharedMemory,
+    kEDRAM,
+  };
+
   // Returns the bits that need to be added to the RT flags constant - needs to
   // be done externally, not in SetColorFormatConstants, because the flags
   // contain other state.
@@ -829,6 +837,11 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // any conditions.
   void CompletePixelShader_GammaCorrect(uint32_t color_temp, bool to_gamma);
   void CompletePixelShader_WriteToRTVs();
+  inline uint32_t GetEDRAMUAVIndex() const {
+    // xe_edram is U1 when there's xe_shared_memory_uav which is U0, but when
+    // there's no xe_shared_memory_uav, it's U0.
+    return is_depth_only_pixel_shader_ ? 0 : 1;
+  }
   // Performs depth/stencil testing. After the test, coverage_out_temp will
   // contain non-zero values for samples that passed the depth/stencil test and
   // are included in SV_Coverage, and zeros for those who didn't.

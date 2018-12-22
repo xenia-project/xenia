@@ -409,6 +409,56 @@ void DxbcShaderTranslator::ProcessVertexFetchInstruction(
     ++stat_.int_instruction_count;
   }
 
+  // Select whether shared memory is an SRV or a UAV (depending on whether
+  // memexport is used in the pipeline) - check the flag.
+  system_constants_used_ |= 1ull << kSysConst_Flags_Index;
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0010, 1));
+  shader_code_.push_back(system_temp_pv_);
+  shader_code_.push_back(EncodeVectorSelectOperand(
+      D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSysConst_Flags_Comp, 3));
+  shader_code_.push_back(cbuffer_index_system_constants_);
+  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
+  shader_code_.push_back(kSysConst_Flags_Vec);
+  shader_code_.push_back(
+      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+  shader_code_.push_back(kSysFlag_SharedMemoryIsUAV);
+  ++stat_.instruction_count;
+  ++stat_.uint_instruction_count;
+
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
+                         ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(
+                             D3D10_SB_INSTRUCTION_TEST_NONZERO) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
+  shader_code_.push_back(
+      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
+  shader_code_.push_back(system_temp_pv_);
+  ++stat_.instruction_count;
+  ++stat_.dynamic_flow_control_count;
+
+  // Load the vertex data from the shared memory at U0.
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_LD_RAW) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(8));
+  shader_code_.push_back(EncodeVectorMaskedOperand(
+      D3D10_SB_OPERAND_TYPE_TEMP, (1 << load_dword_count) - 1, 1));
+  shader_code_.push_back(system_temp_pv_);
+  shader_code_.push_back(
+      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
+  shader_code_.push_back(system_temp_pv_);
+  shader_code_.push_back(EncodeVectorSwizzledOperand(
+      D3D11_SB_OPERAND_TYPE_UNORDERED_ACCESS_VIEW,
+      kSwizzleXYZW & ((1 << (load_dword_count * 2)) - 1), 2));
+  shader_code_.push_back(0);
+  shader_code_.push_back(uint32_t(UAVRegister::kSharedMemory));
+  ++stat_.instruction_count;
+  ++stat_.texture_load_instructions;
+
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ELSE) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
+  ++stat_.instruction_count;
+
   // Load the vertex data from the shared memory at T0, register t0.
   shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_LD_RAW) |
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(8));
@@ -425,6 +475,10 @@ void DxbcShaderTranslator::ProcessVertexFetchInstruction(
   shader_code_.push_back(0);
   ++stat_.instruction_count;
   ++stat_.texture_load_instructions;
+
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
+  ++stat_.instruction_count;
 
   // Byte swap the data.
   SwapVertexData(vfetch_index, (1 << load_dword_count) - 1);

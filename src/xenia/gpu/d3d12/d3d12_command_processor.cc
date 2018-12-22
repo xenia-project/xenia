@@ -288,11 +288,11 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(
   }
 
   // Shared memory and, if ROVs are used, EDRAM.
-  D3D12_DESCRIPTOR_RANGE shared_memory_and_edram_ranges[2];
+  D3D12_DESCRIPTOR_RANGE shared_memory_and_edram_ranges[3];
   {
     auto& parameter = parameters[kRootParameter_SharedMemoryAndEDRAM];
     parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-    parameter.DescriptorTable.NumDescriptorRanges = 1;
+    parameter.DescriptorTable.NumDescriptorRanges = 2;
     parameter.DescriptorTable.pDescriptorRanges =
         shared_memory_and_edram_ranges;
     parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
@@ -302,14 +302,22 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(
     shared_memory_and_edram_ranges[0].BaseShaderRegister = 0;
     shared_memory_and_edram_ranges[0].RegisterSpace = 0;
     shared_memory_and_edram_ranges[0].OffsetInDescriptorsFromTableStart = 0;
+    shared_memory_and_edram_ranges[1].RangeType =
+        D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+    shared_memory_and_edram_ranges[1].NumDescriptors = 1;
+    shared_memory_and_edram_ranges[1].BaseShaderRegister =
+        UINT(DxbcShaderTranslator::UAVRegister::kSharedMemory);
+    shared_memory_and_edram_ranges[1].RegisterSpace = 0;
+    shared_memory_and_edram_ranges[1].OffsetInDescriptorsFromTableStart = 1;
     if (IsROVUsedForEDRAM()) {
       ++parameter.DescriptorTable.NumDescriptorRanges;
-      shared_memory_and_edram_ranges[1].RangeType =
+      shared_memory_and_edram_ranges[2].RangeType =
           D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
-      shared_memory_and_edram_ranges[1].NumDescriptors = 1;
-      shared_memory_and_edram_ranges[1].BaseShaderRegister = 0;
-      shared_memory_and_edram_ranges[1].RegisterSpace = 0;
-      shared_memory_and_edram_ranges[1].OffsetInDescriptorsFromTableStart = 1;
+      shared_memory_and_edram_ranges[2].NumDescriptors = 1;
+      shared_memory_and_edram_ranges[2].BaseShaderRegister =
+          UINT(DxbcShaderTranslator::UAVRegister::kEDRAM);
+      shared_memory_and_edram_ranges[2].RegisterSpace = 0;
+      shared_memory_and_edram_ranges[2].OffsetInDescriptorsFromTableStart = 2;
     }
   }
 
@@ -1335,7 +1343,7 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
 
   // Update system constants before uploading them.
   UpdateSystemConstantValues(
-      primitive_type,
+      memexport_used, primitive_type,
       indexed ? index_buffer_info->endianness : Endian::kUnspecified,
       color_mask, pipeline_render_targets);
 
@@ -1535,7 +1543,11 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
           shared_memory_->GetGPUAddress() + index_base;
       index_buffer_view.SizeInBytes = index_buffer_size;
     }
-    shared_memory_->UseForReading();
+    if (memexport_used) {
+      shared_memory_->UseForWriting();
+    } else {
+      shared_memory_->UseForReading();
+    }
     command_list->IASetIndexBuffer(&index_buffer_view);
     SubmitBarriers();
     if (adaptive_tessellation) {
@@ -1550,7 +1562,11 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     D3D12_GPU_VIRTUAL_ADDRESS conversion_gpu_address =
         primitive_converter_->GetStaticIndexBuffer(primitive_type, index_count,
                                                    converted_index_count);
-    shared_memory_->UseForReading();
+    if (memexport_used) {
+      shared_memory_->UseForWriting();
+    } else {
+      shared_memory_->UseForReading();
+    }
     SubmitBarriers();
     if (conversion_gpu_address) {
       D3D12_INDEX_BUFFER_VIEW index_buffer_view;
@@ -1561,6 +1577,18 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
       command_list->DrawIndexedInstanced(converted_index_count, 1, 0, 0, 0);
     } else {
       command_list->DrawInstanced(index_count, 1, 0, 0);
+    }
+  }
+
+  if (memexport_used) {
+    // Commit shared memory writing.
+    PushUAVBarrier(shared_memory_->GetBuffer());
+    // Invalidate textures in memexported memory and watch for changes.
+    for (uint32_t i = 0; i < memexport_range_count; ++i) {
+      const MemExportRange& memexport_range = memexport_ranges[i];
+      shared_memory_->RangeWrittenByGPU(
+          memexport_range.base_address_dwords << 2,
+          memexport_range.size_dwords << 2);
     }
   }
 
@@ -1868,7 +1896,8 @@ void D3D12CommandProcessor::UpdateFixedFunctionState(
 }
 
 void D3D12CommandProcessor::UpdateSystemConstantValues(
-    PrimitiveType primitive_type, Endian index_endian, uint32_t color_mask,
+    bool shared_memory_is_uav, PrimitiveType primitive_type,
+    Endian index_endian, uint32_t color_mask,
     const RenderTargetCache::PipelineRenderTarget render_targets[4]) {
   auto& regs = *register_file_;
 
@@ -1966,6 +1995,12 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
 
   // Flags.
   uint32_t flags = 0;
+  // Whether shared memory is an SRV or a UAV. Because a resource can't be in a
+  // read-write (UAV) and a read-only (SRV, IBV) state at once, if any shader in
+  // the pipeline uses memexport, the shared memory buffer must be a UAV.
+  if (shared_memory_is_uav) {
+    flags |= DxbcShaderTranslator::kSysFlag_SharedMemoryIsUAV;
+  }
   // W0 division control.
   // http://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
   // 8: VTX_XY_FMT = true: the incoming XY have already been multiplied by 1/W0.
@@ -2730,9 +2765,9 @@ bool D3D12CommandProcessor::UpdateBindings(
   if (write_textures_pixel) {
     view_count_partial_update += texture_count_pixel;
   }
-  // All the constants + shared memory + textures.
+  // All the constants + shared memory SRV and UAV + textures.
   uint32_t view_count_full_update =
-      6 + texture_count_vertex + texture_count_pixel;
+      7 + texture_count_vertex + texture_count_pixel;
   if (IsROVUsedForEDRAM()) {
     // + EDRAM UAV.
     ++view_count_full_update;
@@ -2779,10 +2814,13 @@ bool D3D12CommandProcessor::UpdateBindings(
     write_textures_pixel = texture_count_pixel != 0;
     texture_bindings_written_vertex_ = false;
     texture_bindings_written_pixel_ = false;
-    // If updating fully, write the shared memory descriptor (t0) and, if
-    // needed, the EDRAM descriptor (u0).
-    shared_memory_->CreateSRV(view_cpu_handle);
+    // If updating fully, write the shared memory SRV and UAV descriptors and,
+    // if needed, the EDRAM descriptor.
     gpu_handle_shared_memory_and_edram_ = view_gpu_handle;
+    shared_memory_->CreateSRV(view_cpu_handle);
+    view_cpu_handle.ptr += descriptor_size_view;
+    view_gpu_handle.ptr += descriptor_size_view;
+    shared_memory_->CreateRawUAV(view_cpu_handle);
     view_cpu_handle.ptr += descriptor_size_view;
     view_gpu_handle.ptr += descriptor_size_view;
     if (IsROVUsedForEDRAM()) {

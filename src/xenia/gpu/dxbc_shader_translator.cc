@@ -3003,10 +3003,12 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
   // Bound resource count (samplers, SRV, UAV, CBV).
   uint32_t resource_count = cbuffer_count_;
   if (!is_depth_only_pixel_shader_) {
-    // + 1 for shared memory (vfetches can probably appear in pixel shaders too,
-    // they are handled safely there anyway).
+    // + 2 for shared memory SRV and UAV (vfetches can appear in pixel shaders
+    // too, and the UAV is needed for memexport, however, the choice between
+    // SRV and UAV is per-pipeline, not per-shader - a resource can't be in a
+    // read-only state (SRV, IBV) if it's in a read/write state such as UAV).
     resource_count +=
-        uint32_t(sampler_bindings_.size()) + 1 + uint32_t(texture_srvs_.size());
+        uint32_t(sampler_bindings_.size()) + 2 + uint32_t(texture_srvs_.size());
   }
   if (IsDxbcPixelShader() && edram_rov_used_) {
     // EDRAM.
@@ -3318,20 +3320,23 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
   new_offset = (uint32_t(shader_object_.size()) - chunk_position_dwords) *
                sizeof(uint32_t);
   uint32_t sampler_name_offset = 0;
-  uint32_t shared_memory_name_offset = 0;
+  uint32_t shared_memory_srv_name_offset = 0;
   uint32_t texture_name_offset = 0;
+  uint32_t shared_memory_uav_name_offset = 0;
   if (!is_depth_only_pixel_shader_) {
     sampler_name_offset = new_offset;
     for (uint32_t i = 0; i < uint32_t(sampler_bindings_.size()); ++i) {
       new_offset +=
           AppendString(shader_object_, sampler_bindings_[i].name.c_str());
     }
-    shared_memory_name_offset = new_offset;
-    new_offset += AppendString(shader_object_, "xe_shared_memory");
+    shared_memory_srv_name_offset = new_offset;
+    new_offset += AppendString(shader_object_, "xe_shared_memory_srv");
     texture_name_offset = new_offset;
     for (uint32_t i = 0; i < uint32_t(texture_srvs_.size()); ++i) {
       new_offset += AppendString(shader_object_, texture_srvs_[i].name.c_str());
     }
+    shared_memory_uav_name_offset = new_offset;
+    new_offset += AppendString(shader_object_, "xe_shared_memory_uav");
   }
   uint32_t edram_name_offset = new_offset;
   if (IsDxbcPixelShader() && edram_rov_used_) {
@@ -3367,8 +3372,8 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
       sampler_name_offset += GetStringLength(sampler_binding.name.c_str());
     }
 
-    // Shared memory.
-    shader_object_.push_back(shared_memory_name_offset);
+    // Shared memory (when memexport isn't used in the pipeline).
+    shader_object_.push_back(shared_memory_srv_name_offset);
     // D3D_SIT_BYTEADDRESS.
     shader_object_.push_back(7);
     // D3D_RETURN_TYPE_MIXED.
@@ -3422,6 +3427,26 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
       shader_object_.push_back(1 + i);
       texture_name_offset += GetStringLength(texture_srv.name.c_str());
     }
+
+    // Shared memory (when memexport is used in the pipeline).
+    shader_object_.push_back(shared_memory_uav_name_offset);
+    // D3D_SIT_UAV_RWBYTEADDRESS.
+    shader_object_.push_back(8);
+    // D3D_RETURN_TYPE_MIXED.
+    shader_object_.push_back(6);
+    // D3D_UAV_DIMENSION_BUFFER.
+    shader_object_.push_back(1);
+    // Multisampling not applicable.
+    shader_object_.push_back(0);
+    shader_object_.push_back(uint32_t(UAVRegister::kSharedMemory));
+    // One binding.
+    shader_object_.push_back(1);
+    // No D3D_SHADER_INPUT_FLAGS.
+    shader_object_.push_back(0);
+    // Register space 0.
+    shader_object_.push_back(0);
+    // UAV ID U0.
+    shader_object_.push_back(0);
   }
 
   if (IsDxbcPixelShader() && edram_rov_used_) {
@@ -3435,16 +3460,15 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
     shader_object_.push_back(1);
     // Not multisampled.
     shader_object_.push_back(0xFFFFFFFFu);
-    // Register u0.
-    shader_object_.push_back(0);
+    shader_object_.push_back(uint32_t(UAVRegister::kEDRAM));
     // One binding.
     shader_object_.push_back(1);
     // No D3D_SHADER_INPUT_FLAGS.
     shader_object_.push_back(0);
     // Register space 0.
     shader_object_.push_back(0);
-    // UAV ID U0.
-    shader_object_.push_back(0);
+    // UAV ID U1 or U0 depending on whether there's U0.
+    shader_object_.push_back(GetEDRAMUAVIndex());
   }
 
   // Constant buffers.
@@ -3980,7 +4004,6 @@ void DxbcShaderTranslator::WriteShaderCode() {
   shader_object_.push_back(0);
   shader_object_.push_back(0);
   shader_object_.push_back(0);
-
   // Textures.
   for (uint32_t i = 0; i < uint32_t(texture_srvs_.size()); ++i) {
     const TextureSRV& texture_srv = texture_srvs_[i];
@@ -4015,8 +4038,21 @@ void DxbcShaderTranslator::WriteShaderCode() {
   }
 
   // Unordered access views.
+  if (!is_depth_only_pixel_shader_) {
+    // Shared memory RWByteAddressBuffer.
+    shader_object_.push_back(
+        ENCODE_D3D10_SB_OPCODE_TYPE(
+            D3D11_SB_OPCODE_DCL_UNORDERED_ACCESS_VIEW_RAW) |
+        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(6));
+    shader_object_.push_back(EncodeVectorSwizzledOperand(
+        D3D11_SB_OPERAND_TYPE_UNORDERED_ACCESS_VIEW, kSwizzleXYZW, 3));
+    shader_object_.push_back(0);
+    shader_object_.push_back(uint32_t(UAVRegister::kSharedMemory));
+    shader_object_.push_back(uint32_t(UAVRegister::kSharedMemory));
+    shader_object_.push_back(0);
+  }
   if (IsDxbcPixelShader() && edram_rov_used_) {
-    // EDRAM uint32 rasterizer-ordered buffer (U0, at u0, space0).
+    // EDRAM uint32 rasterizer-ordered buffer.
     shader_object_.push_back(
         ENCODE_D3D10_SB_OPCODE_TYPE(
             D3D11_SB_OPCODE_DCL_UNORDERED_ACCESS_VIEW_TYPED) |
@@ -4025,9 +4061,9 @@ void DxbcShaderTranslator::WriteShaderCode() {
         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
     shader_object_.push_back(EncodeVectorSwizzledOperand(
         D3D11_SB_OPERAND_TYPE_UNORDERED_ACCESS_VIEW, kSwizzleXYZW, 3));
-    shader_object_.push_back(0);
-    shader_object_.push_back(0);
-    shader_object_.push_back(0);
+    shader_object_.push_back(GetEDRAMUAVIndex());
+    shader_object_.push_back(uint32_t(UAVRegister::kEDRAM));
+    shader_object_.push_back(uint32_t(UAVRegister::kEDRAM));
     shader_object_.push_back(
         ENCODE_D3D10_SB_RESOURCE_RETURN_TYPE(D3D10_SB_RETURN_TYPE_UINT, 0) |
         ENCODE_D3D10_SB_RESOURCE_RETURN_TYPE(D3D10_SB_RETURN_TYPE_UINT, 1) |
