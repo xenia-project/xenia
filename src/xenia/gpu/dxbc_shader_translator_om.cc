@@ -1498,8 +1498,8 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV_DepthStencil(
     shader_code_.push_back(edram_dword_offset_temp);
     shader_code_.push_back(EncodeVectorReplicatedOperand(
         D3D11_SB_OPERAND_TYPE_UNORDERED_ACCESS_VIEW, 0, 2));
-    shader_code_.push_back(0);
-    shader_code_.push_back(0);
+    shader_code_.push_back(GetEDRAMUAVIndex());
+    shader_code_.push_back(uint32_t(UAVRegister::kEDRAM));
     ++stat_.instruction_count;
     ++stat_.texture_load_instructions;
 
@@ -2351,8 +2351,8 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV_DepthStencil(
         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(8));
     shader_code_.push_back(EncodeVectorMaskedOperand(
         D3D11_SB_OPERAND_TYPE_UNORDERED_ACCESS_VIEW, 0b1111, 2));
-    shader_code_.push_back(0);
-    shader_code_.push_back(0);
+    shader_code_.push_back(GetEDRAMUAVIndex());
+    shader_code_.push_back(uint32_t(UAVRegister::kEDRAM));
     shader_code_.push_back(
         EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, i, 1));
     shader_code_.push_back(edram_dword_offset_temp);
@@ -5046,8 +5046,8 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
           shader_code_.push_back(edram_coord_sample_temp);
           shader_code_.push_back(EncodeVectorReplicatedOperand(
               D3D11_SB_OPERAND_TYPE_UNORDERED_ACCESS_VIEW, 0, 2));
-          shader_code_.push_back(0);
-          shader_code_.push_back(0);
+          shader_code_.push_back(GetEDRAMUAVIndex());
+          shader_code_.push_back(uint32_t(UAVRegister::kEDRAM));
           ++stat_.instruction_count;
           ++stat_.texture_load_instructions;
 
@@ -5403,8 +5403,8 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
               ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(8));
           shader_code_.push_back(EncodeVectorMaskedOperand(
               D3D11_SB_OPERAND_TYPE_UNORDERED_ACCESS_VIEW, 0b1111, 2));
-          shader_code_.push_back(0);
-          shader_code_.push_back(0);
+          shader_code_.push_back(GetEDRAMUAVIndex());
+          shader_code_.push_back(uint32_t(UAVRegister::kEDRAM));
           shader_code_.push_back(
               EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, k, 1));
           shader_code_.push_back(edram_coord_sample_temp);
