@@ -1289,7 +1289,8 @@ void DxbcShaderTranslator::ProcessVectorAluInstruction(
     }
   }
 
-  StoreResult(instr.result, system_temp_pv_, replicate_result);
+  StoreResult(instr.result, system_temp_pv_, replicate_result,
+              instr.GetMemExportStreamConstant() != UINT32_MAX);
 
   if (predicate_written) {
     cf_exec_predicate_written_ = true;

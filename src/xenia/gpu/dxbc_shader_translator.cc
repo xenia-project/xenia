@@ -126,6 +126,8 @@ void DxbcShaderTranslator::Reset() {
   texture_srvs_.clear();
   sampler_bindings_.clear();
 
+  memexport_alloc_current_count_ = 0;
+
   std::memset(&stat_, 0, sizeof(stat_));
 }
 
@@ -967,6 +969,33 @@ void DxbcShaderTranslator::StartTranslation() {
   }
 
   if (!is_depth_only_pixel_shader_) {
+    // Allocate temporary registers for memexport addresses and data.
+    std::memset(system_temps_memexport_address_, 0xFF,
+                sizeof(system_temps_memexport_address_));
+    std::memset(system_temps_memexport_data_, 0xFF,
+                sizeof(system_temps_memexport_data_));
+    system_temp_memexport_written_ = UINT32_MAX;
+    const uint8_t* memexports_written = memexport_eM_written();
+    for (uint32_t i = 0; i < kMaxMemExports; ++i) {
+      uint32_t memexport_alloc_written = memexports_written[i];
+      if (memexport_alloc_written == 0) {
+        continue;
+      }
+      // If memexport is used at all, allocate a register containing whether eM#
+      // have actually been written to.
+      if (system_temp_memexport_written_ == UINT32_MAX) {
+        system_temp_memexport_written_ = PushSystemTemp(true);
+      }
+      system_temps_memexport_address_[i] = PushSystemTemp(true);
+      uint32_t memexport_data_index;
+      while (xe::bit_scan_forward(memexport_alloc_written,
+                                  &memexport_data_index)) {
+        memexport_alloc_written &= ~(1u << memexport_data_index);
+        system_temps_memexport_data_[i][memexport_data_index] =
+            PushSystemTemp();
+      }
+    }
+
     // Allocate system temporary variables for the translated code.
     system_temp_pv_ = PushSystemTemp(true);
     system_temp_ps_pc_p0_a0_ = PushSystemTemp(true);
@@ -1266,6 +1295,26 @@ void DxbcShaderTranslator::CompleteShaderCode() {
     // - system_temp_grad_h_lod_.
     // - system_temp_grad_v_.
     PopSystemTemp(6);
+
+    // TODO(Triang3l): Do memexport.
+
+    // Release memexport temporary registers.
+    for (int i = kMaxMemExports - 1; i >= 0; --i) {
+      if (system_temps_memexport_address_[i] == UINT32_MAX) {
+        continue;
+      }
+      // Release exported data registers.
+      for (int j = 4; j >= 0; --j) {
+        if (system_temps_memexport_data_[i][j] != UINT32_MAX) {
+          PopSystemTemp();
+        }
+      }
+      // Release the address register.
+      PopSystemTemp();
+    }
+    if (system_temp_memexport_written_ != UINT32_MAX) {
+      PopSystemTemp();
+    }
   }
 
   // Write stage-specific epilogue.
@@ -2009,10 +2058,28 @@ void DxbcShaderTranslator::UnloadDxbcSourceOperand(
 }
 
 void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
-                                       uint32_t reg, bool replicate_x) {
+                                       uint32_t reg, bool replicate_x,
+                                       bool can_store_memexport_address) {
   if (result.storage_target == InstructionStorageTarget::kNone ||
       !result.has_any_writes()) {
     return;
+  }
+
+  // Validate memexport writes (Halo 3 has some weird invalid ones).
+  if (result.storage_target == InstructionStorageTarget::kExportAddress) {
+    if (!can_store_memexport_address || memexport_alloc_current_count_ == 0 ||
+        memexport_alloc_current_count_ > kMaxMemExports ||
+        system_temps_memexport_address_[memexport_alloc_current_count_ - 1] ==
+            UINT32_MAX) {
+      return;
+    }
+  } else if (result.storage_target == InstructionStorageTarget::kExportData) {
+    if (memexport_alloc_current_count_ == 0 ||
+        memexport_alloc_current_count_ > kMaxMemExports ||
+        system_temps_memexport_data_[memexport_alloc_current_count_ - 1]
+                                    [result.storage_index] == UINT32_MAX) {
+      return;
+    }
   }
 
   uint32_t saturate_bit =
@@ -2187,6 +2254,34 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
         shader_code_.push_back(system_temp_position_);
         break;
 
+      case InstructionStorageTarget::kExportAddress:
+        ++stat_.instruction_count;
+        ++stat_.mov_instruction_count;
+        shader_code_.push_back(
+            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3 + source_length) |
+            saturate_bit);
+        shader_code_.push_back(
+            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, mask, 1));
+        shader_code_.push_back(
+            system_temps_memexport_address_[memexport_alloc_current_count_ -
+                                            1]);
+        break;
+
+      case InstructionStorageTarget::kExportData:
+        ++stat_.instruction_count;
+        ++stat_.mov_instruction_count;
+        shader_code_.push_back(
+            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3 + source_length) |
+            saturate_bit);
+        shader_code_.push_back(
+            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, mask, 1));
+        shader_code_.push_back(
+            system_temps_memexport_data_[memexport_alloc_current_count_ - 1]
+                                        [uint32_t(result.storage_index)]);
+        break;
+
       case InstructionStorageTarget::kColorTarget:
         ++stat_.instruction_count;
         ++stat_.mov_instruction_count;
@@ -2217,6 +2312,25 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
         shader_code_.push_back((constant_values & (1 << j)) ? 0x3F800000 : 0);
       }
     }
+  }
+
+  if (result.storage_target == InstructionStorageTarget::kExportData) {
+    // Mark that the eM# has been written to and needs to be exported.
+    uint32_t memexport_index = memexport_alloc_current_count_ - 1;
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_OR) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+    shader_code_.push_back(EncodeVectorMaskedOperand(
+        D3D10_SB_OPERAND_TYPE_TEMP, 1 << (memexport_index >> 2), 1));
+    shader_code_.push_back(system_temp_memexport_written_);
+    shader_code_.push_back(EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP,
+                                                     memexport_index >> 2, 1));
+    shader_code_.push_back(system_temp_memexport_written_);
+    shader_code_.push_back(
+        EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+    shader_code_.push_back(
+        1u << (uint32_t(result.storage_index) + ((memexport_index & 3) << 3)));
+    ++stat_.instruction_count;
+    ++stat_.uint_instruction_count;
   }
 
   if (edram_rov_used_ &&
@@ -2860,6 +2974,19 @@ void DxbcShaderTranslator::ProcessJumpInstruction(
   CloseInstructionPredication();
 
   JumpToLabel(instr.target_address);
+}
+
+void DxbcShaderTranslator::ProcessAllocInstruction(
+    const ParsedAllocInstruction& instr) {
+  if (FLAGS_dxbc_source_map) {
+    instruction_disassembly_buffer_.Reset();
+    instr.Disassemble(&instruction_disassembly_buffer_);
+    EmitInstructionDisassembly();
+  }
+
+  if (instr.type == AllocType::kMemory) {
+    ++memexport_alloc_current_count_;
+  }
 }
 
 uint32_t DxbcShaderTranslator::AppendString(std::vector<uint32_t>& dest,
