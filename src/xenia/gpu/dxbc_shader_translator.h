@@ -521,6 +521,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
   void ProcessLoopEndInstruction(
       const ParsedLoopEndInstruction& instr) override;
   void ProcessJumpInstruction(const ParsedJumpInstruction& instr) override;
+  void ProcessAllocInstruction(const ParsedAllocInstruction& instr) override;
 
   void ProcessVertexFetchInstruction(
       const ParsedVertexFetchInstruction& instr) override;
@@ -965,8 +966,10 @@ class DxbcShaderTranslator : public ShaderTranslator {
   void UnloadDxbcSourceOperand(const DxbcSourceOperand& operand);
 
   // Writes xyzw or xxxx of the specified r# to the destination.
+  // can_store_memexport_address is for safety, to allow only proper MADs with
+  // a stream constant to write to eA.
   void StoreResult(const InstructionResult& result, uint32_t reg,
-                   bool replicate_x);
+                   bool replicate_x, bool can_store_memexport_address = false);
 
   // The nesting of `if` instructions is the following:
   // - pc checks (labels).
@@ -1149,20 +1152,6 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // translation (for the declaration).
   uint32_t system_temp_count_max_;
 
-  // Vector ALU result/scratch (since Xenos write masks can contain swizzles).
-  uint32_t system_temp_pv_;
-  // Temporary register ID for previous scalar result, program counter,
-  // predicate and absolute address register.
-  uint32_t system_temp_ps_pc_p0_a0_;
-  // Loop index stack - .x is the active loop, shifted right to .yzw on push.
-  uint32_t system_temp_aL_;
-  // Loop counter stack, .x is the active loop. Represents number of times
-  // remaining to loop.
-  uint32_t system_temp_loop_count_;
-  // Explicitly set texture gradients and LOD.
-  uint32_t system_temp_grad_h_lod_;
-  uint32_t system_temp_grad_v_;
-
   // Position in vertex shaders (because viewport and W transformations can be
   // applied in the end of the shader).
   uint32_t system_temp_position_;
@@ -1181,6 +1170,29 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // - Y - depth X derivative (for polygon offset).
   // - Z - depth Y derivative.
   uint32_t system_temp_depth_;
+
+  // Bits containing whether each eM# has been written, for up to 16 streams, or
+  // UINT32_MAX if memexport is not used. 8 bits (5 used) for each stream, with
+  // 4 `alloc export`s per component.
+  uint32_t system_temp_memexport_written_;
+  // eA in each `alloc export`, or UINT32_MAX if not used.
+  uint32_t system_temps_memexport_address_[kMaxMemExports];
+  // eM# in each `alloc export`, or UINT32_MAX if not used.
+  uint32_t system_temps_memexport_data_[kMaxMemExports][5];
+
+  // Vector ALU result/scratch (since Xenos write masks can contain swizzles).
+  uint32_t system_temp_pv_;
+  // Temporary register ID for previous scalar result, program counter,
+  // predicate and absolute address register.
+  uint32_t system_temp_ps_pc_p0_a0_;
+  // Loop index stack - .x is the active loop, shifted right to .yzw on push.
+  uint32_t system_temp_aL_;
+  // Loop counter stack, .x is the active loop. Represents number of times
+  // remaining to loop.
+  uint32_t system_temp_loop_count_;
+  // Explicitly set texture gradients and LOD.
+  uint32_t system_temp_grad_h_lod_;
+  uint32_t system_temp_grad_v_;
 
   // The bool constant number containing the condition for the currently
   // processed exec (or the last - unless a label has reset this), or
@@ -1208,6 +1220,10 @@ class DxbcShaderTranslator : public ShaderTranslator {
 
   std::vector<TextureSRV> texture_srvs_;
   std::vector<SamplerBinding> sampler_bindings_;
+
+  // Number of `alloc export`s encountered so far in the translation. The index
+  // of the current eA/eM# temp register set is this minus 1, if it's not 0.
+  uint32_t memexport_alloc_current_count_;
 
   // The STAT chunk (based on Wine d3dcompiler_parse_stat).
   struct Statistics {
