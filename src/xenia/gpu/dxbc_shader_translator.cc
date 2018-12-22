@@ -4024,7 +4024,7 @@ void DxbcShaderTranslator::WriteShaderCode() {
         D3D11_SB_RASTERIZER_ORDERED_ACCESS |
         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
     shader_object_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_RESOURCE, kSwizzleXYZW, 3));
+        D3D11_SB_OPERAND_TYPE_UNORDERED_ACCESS_VIEW, kSwizzleXYZW, 3));
     shader_object_.push_back(0);
     shader_object_.push_back(0);
     shader_object_.push_back(0);

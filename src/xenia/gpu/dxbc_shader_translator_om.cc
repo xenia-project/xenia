@@ -4208,9 +4208,7 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
       EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0100, 1));
   shader_code_.push_back(edram_coord_pixel_temp);
   shader_code_.push_back(
-      ENCODE_D3D10_SB_OPERAND_NUM_COMPONENTS(D3D10_SB_OPERAND_0_COMPONENT) |
-      ENCODE_D3D10_SB_OPERAND_TYPE(D3D10_SB_OPERAND_TYPE_NULL) |
-      ENCODE_D3D10_SB_OPERAND_INDEX_DIMENSION(D3D10_SB_OPERAND_INDEX_0D));
+      EncodeZeroComponentOperand(D3D10_SB_OPERAND_TYPE_NULL, 0));
   shader_code_.push_back(
       EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
   shader_code_.push_back(edram_coord_pixel_temp);

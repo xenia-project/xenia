@@ -727,6 +727,15 @@ class DxbcShaderTranslator : public ShaderTranslator {
 
   // Operand encoding, with 32-bit immediate indices by default. None of the
   // arguments must be shifted when calling.
+  static constexpr uint32_t EncodeZeroComponentOperand(
+      uint32_t type, uint32_t index_dimension,
+      uint32_t index_representation_0 = 0, uint32_t index_representation_1 = 0,
+      uint32_t index_representation_2 = 0) {
+    // D3D10_SB_OPERAND_0_COMPONENT.
+    return 0 | (type << 12) | (index_dimension << 20) |
+           (index_representation_0 << 22) | (index_representation_1 << 25) |
+           (index_representation_0 << 28);
+  }
   static constexpr uint32_t EncodeScalarOperand(
       uint32_t type, uint32_t index_dimension,
       uint32_t index_representation_0 = 0, uint32_t index_representation_1 = 0,
