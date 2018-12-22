@@ -2387,18 +2387,16 @@ void DxbcShaderTranslator::ProcessScalarAluInstruction(
           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4 + operand_lengths[0]));
       // sincos ps, null, src0.x for sin
       // sincos null, ps, src0.x for cos
-      const uint32_t null_operand_token =
-          ENCODE_D3D10_SB_OPERAND_NUM_COMPONENTS(D3D10_SB_OPERAND_0_COMPONENT) |
-          ENCODE_D3D10_SB_OPERAND_TYPE(D3D10_SB_OPERAND_TYPE_NULL) |
-          ENCODE_D3D10_SB_OPERAND_INDEX_DIMENSION(D3D10_SB_OPERAND_INDEX_0D);
       if (instr.scalar_opcode != AluScalarOpcode::kSin) {
-        shader_code_.push_back(null_operand_token);
+        shader_code_.push_back(
+            EncodeZeroComponentOperand(D3D10_SB_OPERAND_TYPE_NULL, 0));
       }
       shader_code_.push_back(
           EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
       shader_code_.push_back(system_temp_ps_pc_p0_a0_);
       if (instr.scalar_opcode != AluScalarOpcode::kCos) {
-        shader_code_.push_back(null_operand_token);
+        shader_code_.push_back(
+            EncodeZeroComponentOperand(D3D10_SB_OPERAND_TYPE_NULL, 0));
       }
       UseDxbcSourceOperand(dxbc_operands[0], kSwizzleXYZW, 0);
       ++stat_.instruction_count;

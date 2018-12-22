@@ -1807,8 +1807,8 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
                 D3D10_SB_OPERAND_TYPE_RESOURCE, kSwizzleXYZW, 2));
             shader_code_.push_back(srv_register_current);
             shader_code_.push_back(srv_register_current);
-            shader_code_.push_back(EncodeVectorSwizzledOperand(
-                D3D10_SB_OPERAND_TYPE_SAMPLER, kSwizzleXYZW, 2));
+            shader_code_.push_back(
+                EncodeZeroComponentOperand(D3D10_SB_OPERAND_TYPE_SAMPLER, 2));
             shader_code_.push_back(sampler_register);
             shader_code_.push_back(sampler_register);
             ++stat_.instruction_count;
@@ -1848,8 +1848,8 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
                 D3D10_SB_OPERAND_TYPE_RESOURCE, kSwizzleXYZW, 2));
             shader_code_.push_back(srv_register_current);
             shader_code_.push_back(srv_register_current);
-            shader_code_.push_back(EncodeVectorSwizzledOperand(
-                D3D10_SB_OPERAND_TYPE_SAMPLER, kSwizzleXYZW, 2));
+            shader_code_.push_back(
+                EncodeZeroComponentOperand(D3D10_SB_OPERAND_TYPE_SAMPLER, 2));
             shader_code_.push_back(sampler_register);
             shader_code_.push_back(sampler_register);
             shader_code_.push_back(EncodeVectorSelectOperand(
@@ -1874,8 +1874,8 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
                 D3D10_SB_OPERAND_TYPE_RESOURCE, kSwizzleXYZW, 2));
             shader_code_.push_back(srv_register_current);
             shader_code_.push_back(srv_register_current);
-            shader_code_.push_back(EncodeVectorSwizzledOperand(
-                D3D10_SB_OPERAND_TYPE_SAMPLER, kSwizzleXYZW, 2));
+            shader_code_.push_back(
+                EncodeZeroComponentOperand(D3D10_SB_OPERAND_TYPE_SAMPLER, 2));
             shader_code_.push_back(sampler_register);
             shader_code_.push_back(sampler_register);
             shader_code_.push_back(EncodeVectorSwizzledOperand(
@@ -1921,8 +1921,8 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
                 D3D10_SB_OPERAND_TYPE_RESOURCE, kSwizzleXYZW, 2));
             shader_code_.push_back(srv_register_current);
             shader_code_.push_back(srv_register_current);
-            shader_code_.push_back(EncodeVectorSwizzledOperand(
-                D3D10_SB_OPERAND_TYPE_SAMPLER, kSwizzleXYZW, 2));
+            shader_code_.push_back(
+                EncodeZeroComponentOperand(D3D10_SB_OPERAND_TYPE_SAMPLER, 2));
             shader_code_.push_back(sampler_register);
             shader_code_.push_back(sampler_register);
             if (explicit_lod || instr.attributes.lod_bias != 0.0f) {
