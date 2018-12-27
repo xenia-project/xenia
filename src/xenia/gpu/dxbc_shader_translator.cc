@@ -1296,7 +1296,8 @@ void DxbcShaderTranslator::CompleteShaderCode() {
     // - system_temp_grad_v_.
     PopSystemTemp(6);
 
-    // TODO(Triang3l): Do memexport.
+    // Write memexported data to the shared memory UAV.
+    ExportToMemory();
 
     // Release memexport temporary registers.
     for (int i = kMaxMemExports - 1; i >= 0; --i) {

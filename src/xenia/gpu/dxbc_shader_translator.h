@@ -830,6 +830,9 @@ class DxbcShaderTranslator : public ShaderTranslator {
   void StartPixelShader();
 
   // Writing the epilogue.
+  // ExportToMemory modifies the values of eA/eM# for simplicity, don't call
+  // multiple times.
+  void ExportToMemory();
   void CompleteVertexOrDomainShader();
   // Converts four depth values to 24-bit unorm or float, depending on the flag
   // value.
