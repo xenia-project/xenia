@@ -729,10 +729,10 @@ void DxbcShaderTranslator::CompletePixelShader_DepthTo24Bit(
   ++stat_.instruction_count;
   ++stat_.float_instruction_count;
 
-  // Round to the nearest integer. This is the correct way of rounding, rounding
-  // towards zero gives 0xFF instead of 0x100 in clear shaders in, for instance,
-  // Halo 3.
-  // https://docs.microsoft.com/en-us/windows/desktop/direct3d10/d3d10-graphics-programming-guide-resources-data-conversion
+  // Round to the nearest even integer. This seems to be the correct way:
+  // rounding towards zero gives 0xFF instead of 0x100 in clear shaders in, for
+  // instance, Halo 3, but other clear shaders in it are also broken if 0.5 is
+  // added before ftou instead of round_ne.
   shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ROUND_NE) |
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
   shader_code_.push_back(
@@ -3646,8 +3646,9 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV_PackColor(
   ++stat_.instruction_count;
   ++stat_.float_instruction_count;
 
-  // Convert to fixed-point, rounding to the nearest integer.
-  // https://docs.microsoft.com/en-us/windows/desktop/direct3d10/d3d10-graphics-programming-guide-resources-data-conversion
+  // Convert to fixed-point, rounding towards the nearest even integer.
+  // Rounding towards the nearest (adding +-0.5 before truncating) is giving
+  // incorrect results for depth, so better to use round_ne here too.
   uint32_t fixed_temp = PushSystemTemp();
   shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ROUND_NE) |
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));

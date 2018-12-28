@@ -447,8 +447,6 @@ void DxbcShaderTranslator::ExportToMemory() {
     uint32_t format_param_temp = PushSystemTemp();
 
     // Denormalize, clamp and convert to integer.
-    // TODO(Triang3l): Really clamp? It's GPUSURFACENUMBER_UREPEAT, not clamp,
-    // but need to verify since not clamping doesn't look very safe.
     // A lot of the code is similar for both signed and unsigned. Start by
     // checking the signedness.
     shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
