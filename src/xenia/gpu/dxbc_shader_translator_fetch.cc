@@ -330,18 +330,48 @@ void DxbcShaderTranslator::ProcessVertexFetchInstruction(
   UpdateInstructionPredication(instr.is_predicated, instr.predicate_condition,
                                true);
 
-  // Convert the index to an integer.
+  // Convert the index to an integer, according to
+  // http://web.archive.org/web/20100302145413/http://msdn.microsoft.com:80/en-us/library/bb313960.aspx
+  // (truncating rather than flooring to skip one operation because negatives
+  // are not valid anyway, and it's safer if -tiny value becomes 0, also doing
+  // round-to-nearest rather than round_ne so 0.5, 1.5, 2.5, 3.5 is 1, 2, 3, 4,
+  // which is more valid as an index sequence than 0, 2, 2, 4).
   DxbcSourceOperand index_operand;
   LoadDxbcSourceOperand(instr.operands[0], index_operand);
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_FTOI) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(
-                             3 + DxbcSourceOperandLength(index_operand)));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-  shader_code_.push_back(system_temp_pv_);
-  UseDxbcSourceOperand(index_operand, kSwizzleXYZW, 0);
-  ++stat_.instruction_count;
-  ++stat_.conversion_instruction_count;
+  if (instr.attributes.is_index_rounded) {
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ADD) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(
+                               5 + DxbcSourceOperandLength(index_operand)));
+    shader_code_.push_back(
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+    shader_code_.push_back(system_temp_pv_);
+    UseDxbcSourceOperand(index_operand, kSwizzleXYZW, 0);
+    shader_code_.push_back(
+        EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+    shader_code_.push_back(0x3F000000);
+    ++stat_.instruction_count;
+    ++stat_.float_instruction_count;
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_FTOU) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
+    shader_code_.push_back(
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+    shader_code_.push_back(system_temp_pv_);
+    shader_code_.push_back(
+        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
+    shader_code_.push_back(system_temp_pv_);
+    ++stat_.instruction_count;
+    ++stat_.conversion_instruction_count;
+  } else {
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_FTOU) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(
+                               3 + DxbcSourceOperandLength(index_operand)));
+    shader_code_.push_back(
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+    shader_code_.push_back(system_temp_pv_);
+    UseDxbcSourceOperand(index_operand, kSwizzleXYZW, 0);
+    ++stat_.instruction_count;
+    ++stat_.conversion_instruction_count;
+  }
   UnloadDxbcSourceOperand(index_operand);
   // TODO(Triang3l): Index clamping maybe.
 
@@ -375,7 +405,7 @@ void DxbcShaderTranslator::ProcessVertexFetchInstruction(
   ++stat_.uint_instruction_count;
 
   // Calculate the address of the vertex.
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IMAD) |
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_UMAD) |
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
   shader_code_.push_back(
       EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
@@ -390,7 +420,7 @@ void DxbcShaderTranslator::ProcessVertexFetchInstruction(
       EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
   shader_code_.push_back(system_temp_pv_);
   ++stat_.instruction_count;
-  ++stat_.int_instruction_count;
+  ++stat_.uint_instruction_count;
 
   // Add the element offset.
   if (instr.attributes.offset != 0) {

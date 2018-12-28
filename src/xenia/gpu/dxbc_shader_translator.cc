@@ -412,7 +412,7 @@ void DxbcShaderTranslator::StartVertexShader_LoadVertexIndex() {
   // Convert to float and replicate the swapped value in the destination
   // register (what should be in YZW is unknown, but just to make it a bit
   // cleaner).
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ITOF) |
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_UTOF) |
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
   shader_code_.push_back(
       EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
@@ -3026,7 +3026,7 @@ const DxbcShaderTranslator::SystemConstantRdef DxbcShaderTranslator::
         // vec4 0
         {"xe_flags", RdefTypeIndex::kUint, 0, 4},
         {"xe_vertex_index_endian", RdefTypeIndex::kUint, 4, 4},
-        {"xe_vertex_base_index", RdefTypeIndex::kUint, 8, 4},
+        {"xe_vertex_base_index", RdefTypeIndex::kInt, 8, 4},
         {"xe_pixel_pos_reg", RdefTypeIndex::kUint, 12, 4},
         // vec4 1
         {"xe_ndc_scale", RdefTypeIndex::kFloat3, 16, 12},
