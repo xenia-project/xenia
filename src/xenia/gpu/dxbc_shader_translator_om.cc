@@ -729,22 +729,28 @@ void DxbcShaderTranslator::CompletePixelShader_DepthTo24Bit(
   ++stat_.instruction_count;
   ++stat_.float_instruction_count;
 
-  // Round to the nearest integer. This is the correct way of rounding, rounding
-  // towards zero gives 0xFF instead of 0x100 in clear shaders in, for instance,
-  // Halo 3.
+  // Round to the nearest integer - add 0.5 before truncating. This is the
+  // correct way of rounding for normalized formats, rounding towards zero gives
+  // 0xFF instead of 0x100 in clear shaders in, for instance, Halo 3.
   // https://docs.microsoft.com/en-us/windows/desktop/direct3d10/d3d10-graphics-programming-guide-resources-data-conversion
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ROUND_NE) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ADD) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(10));
   shader_code_.push_back(
       EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
   shader_code_.push_back(depths_temp);
   shader_code_.push_back(
       EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
   shader_code_.push_back(depths_temp);
+  shader_code_.push_back(EncodeVectorSwizzledOperand(
+      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+  shader_code_.push_back(0x3F000000);
+  shader_code_.push_back(0x3F000000);
+  shader_code_.push_back(0x3F000000);
+  shader_code_.push_back(0x3F000000);
   ++stat_.instruction_count;
   ++stat_.float_instruction_count;
 
-  // Convert to fixed-point.
+  // Convert to unorm.
   shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_FTOU) |
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
   shader_code_.push_back(
@@ -3646,19 +3652,61 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV_PackColor(
   ++stat_.instruction_count;
   ++stat_.float_instruction_count;
 
-  // Convert to fixed-point, rounding to the nearest integer.
+  // Convert to fixed-point, rounding to the nearest integer (using snorm
+  // conversion rules because there are no true fixed-point formats with
+  // separate bits for before and after the point - k_16_16 and k_16_16_16_16
+  // are exponent-biased snorm formats).
   // https://docs.microsoft.com/en-us/windows/desktop/direct3d10/d3d10-graphics-programming-guide-resources-data-conversion
   uint32_t fixed_temp = PushSystemTemp();
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ROUND_NE) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
+  // Extract the signs.
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(10));
   shader_code_.push_back(
       EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
   shader_code_.push_back(fixed_temp);
   shader_code_.push_back(
       EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
   shader_code_.push_back(source_and_scratch_temp);
+  shader_code_.push_back(EncodeVectorSwizzledOperand(
+      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+  shader_code_.push_back(0x80000000u);
+  shader_code_.push_back(0x80000000u);
+  shader_code_.push_back(0x80000000u);
+  shader_code_.push_back(0x80000000u);
+  ++stat_.instruction_count;
+  ++stat_.uint_instruction_count;
+  // Make 0.5 or -0.5 depending on the signs of the values.
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_OR) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(10));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+  shader_code_.push_back(fixed_temp);
+  shader_code_.push_back(
+      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+  shader_code_.push_back(fixed_temp);
+  shader_code_.push_back(EncodeVectorSwizzledOperand(
+      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+  shader_code_.push_back(0x3F000000u);
+  shader_code_.push_back(0x3F000000u);
+  shader_code_.push_back(0x3F000000u);
+  shader_code_.push_back(0x3F000000u);
+  ++stat_.instruction_count;
+  ++stat_.uint_instruction_count;
+  // Add 0.5 or -0.5.
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ADD) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+  shader_code_.push_back(fixed_temp);
+  shader_code_.push_back(
+      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+  shader_code_.push_back(source_and_scratch_temp);
+  shader_code_.push_back(
+      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+  shader_code_.push_back(fixed_temp);
   ++stat_.instruction_count;
   ++stat_.float_instruction_count;
+  // Truncate.
   shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_FTOI) |
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
   shader_code_.push_back(
@@ -3669,6 +3717,7 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV_PackColor(
   shader_code_.push_back(fixed_temp);
   ++stat_.instruction_count;
   ++stat_.conversion_instruction_count;
+  // Replace the floating-point value with the fixed-point one if needed.
   shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
   shader_code_.push_back(
