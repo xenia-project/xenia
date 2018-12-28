@@ -1382,6 +1382,7 @@ void DxbcShaderTranslator::ExportToMemory() {
   // Close the memexport possibility check.
   shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
+  ++stat_.instruction_count;
 
   // Release control_temp.
   PopSystemTemp();
