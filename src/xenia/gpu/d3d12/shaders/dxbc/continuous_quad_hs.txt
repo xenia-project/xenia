@@ -9,7 +9,7 @@
 //
 //   uint xe_flags;                     // Offset:    0 Size:     4 [unused]
 //   uint xe_vertex_index_endian;       // Offset:    4 Size:     4 [unused]
-//   uint xe_vertex_base_index;         // Offset:    8 Size:     4 [unused]
+//   int xe_vertex_base_index;          // Offset:    8 Size:     4 [unused]
 //   uint xe_pixel_pos_reg;             // Offset:   12 Size:     4 [unused]
 //   float3 xe_ndc_scale;               // Offset:   16 Size:    12 [unused]
 //   float xe_pixel_half_pixel_offset;  // Offset:   28 Size:     4 [unused]

@@ -5,7 +5,7 @@ cbuffer xe_system_cbuffer : register(b0) {
   // vec4 0
   uint xe_flags;
   uint xe_vertex_index_endian;
-  uint xe_vertex_base_index;
+  int xe_vertex_base_index;
   uint xe_pixel_pos_reg;
   // vec4 1
   float3 xe_ndc_scale;
