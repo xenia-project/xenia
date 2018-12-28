@@ -26,6 +26,8 @@
 
 DEFINE_bool(d3d12_dxbc_disasm, false,
             "Disassemble DXBC shaders after generation.");
+DEFINE_bool(d3d12_tessellation_wireframe, false,
+            "Display tessellated surfaces as wireframe for debugging.");
 
 namespace xe {
 namespace gpu {
@@ -693,6 +695,11 @@ PipelineCache::UpdateStatus PipelineCache::UpdateRasterizerState(
   if (((pa_su_sc_mode_cntl >> 3) & 0x3) == 0) {
     // Fill mode is disabled.
     fill_mode_wireframe = false;
+  }
+  if (FLAGS_d3d12_tessellation_wireframe &&
+      (primitive_type == PrimitiveType::kTrianglePatch ||
+       primitive_type == PrimitiveType::kQuadPatch)) {
+    fill_mode_wireframe = true;
   }
   dirty |= regs.fill_mode_wireframe != fill_mode_wireframe;
   regs.fill_mode_wireframe = fill_mode_wireframe;
