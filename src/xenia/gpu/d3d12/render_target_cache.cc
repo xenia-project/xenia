@@ -1277,7 +1277,7 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
           break;
         case ColorRenderTargetFormat::k_2_10_10_10:
         case ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
-        case ColorRenderTargetFormat::k_2_10_10_10_AS_16_16_16_16:
+        case ColorRenderTargetFormat::k_2_10_10_10_AS_10_10_10_10:
         case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
           root_constants.tile_sample_dest_info |= (10 << 19) | (20 << 24);
           break;
@@ -1557,7 +1557,7 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
         case ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
         case ColorRenderTargetFormat::k_16_16_16_16:
         case ColorRenderTargetFormat::k_16_16_16_16_FLOAT:
-        case ColorRenderTargetFormat::k_2_10_10_10_AS_16_16_16_16:
+        case ColorRenderTargetFormat::k_2_10_10_10_AS_10_10_10_10:
         case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
           swizzle = D3D12_ENCODE_SHADER_4_COMPONENT_MAPPING(2, 1, 0, 3);
           break;
@@ -1973,7 +1973,7 @@ ColorRenderTargetFormat RenderTargetCache::GetBaseColorFormat(
   switch (format) {
     case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
       return ColorRenderTargetFormat::k_8_8_8_8;
-    case ColorRenderTargetFormat::k_2_10_10_10_AS_16_16_16_16:
+    case ColorRenderTargetFormat::k_2_10_10_10_AS_10_10_10_10:
       return ColorRenderTargetFormat::k_2_10_10_10;
     case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
       return ColorRenderTargetFormat::k_2_10_10_10_FLOAT;
@@ -1989,7 +1989,7 @@ DXGI_FORMAT RenderTargetCache::GetColorDXGIFormat(
     case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
       return DXGI_FORMAT_R8G8B8A8_UNORM;
     case ColorRenderTargetFormat::k_2_10_10_10:
-    case ColorRenderTargetFormat::k_2_10_10_10_AS_16_16_16_16:
+    case ColorRenderTargetFormat::k_2_10_10_10_AS_10_10_10_10:
       return DXGI_FORMAT_R10G10B10A2_UNORM;
     case ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
     case ColorRenderTargetFormat::k_16_16_16_16_FLOAT:

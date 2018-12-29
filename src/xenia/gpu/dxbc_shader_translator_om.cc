@@ -42,7 +42,7 @@ uint32_t DxbcShaderTranslator::GetColorFormatRTFlags(
       // Unused
       kRTFlag_FormatUnusedR | kRTFlag_FormatUnusedG | kRTFlag_FormatUnusedB |
           kRTFlag_FormatUnusedA,
-      // k_2_10_10_10_AS_16_16_16_16
+      // k_2_10_10_10_AS_10_10_10_10
       kRTFlag_FormatFixed,
       // Unused.
       kRTFlag_FormatUnusedR | kRTFlag_FormatUnusedG | kRTFlag_FormatUnusedB |
@@ -82,7 +82,7 @@ void DxbcShaderTranslator::SetColorFormatSystemConstants(
       color_store_scale = alpha_store_scale = 255.0f;
       break;
     case ColorRenderTargetFormat::k_2_10_10_10:
-    case ColorRenderTargetFormat::k_2_10_10_10_AS_16_16_16_16:
+    case ColorRenderTargetFormat::k_2_10_10_10_AS_10_10_10_10:
       constants.edram_rt_pack_width_low[rt_index] =
           10 | (10 << 8) | (10 << 16) | (2 << 24);
       constants.edram_rt_pack_offset_low[rt_index] =
