@@ -177,11 +177,10 @@ void DxbcShaderTranslator::PopSystemTemp(uint32_t count) {
 
 void DxbcShaderTranslator::StartVertexShader_LoadVertexIndex() {
   // Vertex index is in an input bound to SV_VertexID, byte swapped according to
-  // xe_vertex_index_endian system constant and written to GPR 0 (which is
-  // always present because register_count includes +1).
-  // TODO(Triang3l): Check if there's vs_param_gen.
+  // xe_vertex_index_endian_and_edge_factors system constant and written to GPR
+  // 0 (which is always present because register_count includes +1).
 
-  // xe_vertex_index_endian is:
+  // xe_vertex_index_endian_and_edge_factors & 0b11 is:
   // - 00 for no swap.
   // - 01 for 8-in-16.
   // - 10 for 8-in-32 (8-in-16 and 16-in-32).
@@ -263,9 +262,11 @@ void DxbcShaderTranslator::StartVertexShader_LoadVertexIndex() {
   ++stat_.uint_instruction_count;
 
   // Get bits indicating what swaps should be done.
-  // ubfe reg.zw, l(0, 0, 1, 1).zw, l(0, 0, 0, 1).zw, xe_vertex_index_endian.xx
+  // ubfe reg.zw, l(0, 0, 1, 1).zw, l(0, 0, 0, 1).zw,
+  //      xe_vertex_index_endian_and_edge_factors.xx
   // ABCD | BADC | 8in16/16in32? | 8in32/16in32?
-  system_constants_used_ |= 1ull << kSysConst_VertexIndexEndian_Index;
+  system_constants_used_ |= 1ull
+                            << kSysConst_VertexIndexEndianAndEdgeFactors_Index;
   shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_UBFE) |
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(17));
   shader_code_.push_back(
@@ -283,12 +284,12 @@ void DxbcShaderTranslator::StartVertexShader_LoadVertexIndex() {
   shader_code_.push_back(0);
   shader_code_.push_back(0);
   shader_code_.push_back(1);
-  shader_code_.push_back(
-      EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
-                                    kSysConst_VertexIndexEndian_Comp, 3));
+  shader_code_.push_back(EncodeVectorReplicatedOperand(
+      D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
+      kSysConst_VertexIndexEndianAndEdgeFactors_Comp, 3));
   shader_code_.push_back(uint32_t(cbuffer_index_system_constants_));
   shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-  shader_code_.push_back(kSysConst_VertexIndexEndian_Vec);
+  shader_code_.push_back(kSysConst_VertexIndexEndianAndEdgeFactors_Vec);
   ++stat_.instruction_count;
   ++stat_.uint_instruction_count;
 
@@ -3025,7 +3026,7 @@ const DxbcShaderTranslator::SystemConstantRdef DxbcShaderTranslator::
     system_constant_rdef_[DxbcShaderTranslator::kSysConst_Count] = {
         // vec4 0
         {"xe_flags", RdefTypeIndex::kUint, 0, 4},
-        {"xe_vertex_index_endian", RdefTypeIndex::kUint, 4, 4},
+        {"xe_vertex_index_endian_and_edge_factors", RdefTypeIndex::kUint, 4, 4},
         {"xe_vertex_base_index", RdefTypeIndex::kInt, 8, 4},
         {"xe_pixel_pos_reg", RdefTypeIndex::kUint, 12, 4},
         // vec4 1

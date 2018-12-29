@@ -1234,7 +1234,7 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
   // Set up primitive topology.
   bool indexed = index_buffer_info != nullptr && index_buffer_info->guest_base;
   // Adaptive tessellation requires an index buffer, but it contains per-edge
-  // tessellation factors (as floats) in it instead of control point indices.
+  // tessellation factors (as floats) instead of control point indices.
   bool adaptive_tessellation;
   if (primitive_type == PrimitiveType::kTrianglePatch ||
       primitive_type == PrimitiveType::kQuadPatch) {
@@ -1250,22 +1250,6 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     // passed to vertex shader registers, especially if patches are drawn with
     // an index buffer.
     // https://www.slideshare.net/blackdevilvikas/next-generation-graphics-programming-on-xbox-360
-    // - Discrete: integer partitioning, factors VGT_HOS_MAX_TESS_LEVEL + 1. PC
-    //             tessellation gives a completely different (non-uniform) grid
-    //             for triangles though.
-    // - Continuous: fractional_even partitioning, factors
-    //               VGT_HOS_MAX_TESS_LEVEL + 1.
-    // - Adaptive: fractional_even partitioning, edge factors are float values
-    //             in the index buffer clamped to VGT_HOS_MIN_TESS_LEVEL and
-    //             VGT_HOS_MAX_TESS_LEVEL, plus one, inner factor appears to be
-    //             the minimum of the two edge factors (but without adding 1) in
-    //             each direction. This relies on memexport in games heavily for
-    //             generation of the factor buffer, in Halo 3 the buffer is not
-    //             initialized at all before the memexport pass.
-    // Adaptive partitioning is likely fractional because this presentation,
-    // though only mentioning the Xbox 360, demonstrates adaptive tessellation
-    // using fractional partitioning:
-    // http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.221.4656&rep=rep1&type=pdf
     if (tessellation_mode != TessellationMode::kAdaptive) {
       XELOGE(
           "Tessellation mode %u is not implemented yet, only adaptive is "
@@ -1345,6 +1329,7 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
   UpdateSystemConstantValues(
       memexport_used, primitive_type,
       indexed ? index_buffer_info->endianness : Endian::kUnspecified,
+      adaptive_tessellation ? (index_buffer_info->guest_base & 0x1FFFFFFC) : 0,
       color_mask, pipeline_render_targets);
 
   // Update constant buffers, descriptors and root parameters.
@@ -1897,7 +1882,7 @@ void D3D12CommandProcessor::UpdateFixedFunctionState(
 
 void D3D12CommandProcessor::UpdateSystemConstantValues(
     bool shared_memory_is_uav, PrimitiveType primitive_type,
-    Endian index_endian, uint32_t color_mask,
+    Endian index_endian, uint32_t edge_factor_base, uint32_t color_mask,
     const RenderTargetCache::PipelineRenderTarget render_targets[4]) {
   auto& regs = *register_file_;
 
@@ -2086,9 +2071,13 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   dirty |= system_constants_.vertex_base_index != vgt_indx_offset;
   system_constants_.vertex_base_index = vgt_indx_offset;
 
-  // Index buffer endianness.
-  dirty |= system_constants_.vertex_index_endian != uint32_t(index_endian);
-  system_constants_.vertex_index_endian = uint32_t(index_endian);
+  // Index buffer endianness and adaptive tessellation factors.
+  uint32_t index_endian_and_edge_factors =
+      uint32_t(index_endian) | edge_factor_base;
+  dirty |= system_constants_.vertex_index_endian_and_edge_factors !=
+           index_endian_and_edge_factors;
+  system_constants_.vertex_index_endian_and_edge_factors =
+      index_endian_and_edge_factors;
 
   // Conversion to Direct3D 12 normalized device coordinates.
   // See viewport configuration in UpdateFixedFunctionState for explanations.

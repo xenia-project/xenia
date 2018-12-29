@@ -4,7 +4,7 @@
 cbuffer xe_system_cbuffer : register(b0) {
   // vec4 0
   uint xe_flags;
-  uint xe_vertex_index_endian;
+  uint xe_vertex_index_endian_and_edge_factors;
   int xe_vertex_base_index;
   uint xe_pixel_pos_reg;
   // vec4 1
@@ -88,5 +88,16 @@ struct XeVertex {
   float2 clip_space_zw : TEXCOORD17;
   float4 position : SV_Position;
 };
+
+#define XeSysFlag_SharedMemoryIsUAV_Shift 0u
+#define XeSysFlag_SharedMemoryIsUAV (1u << XeSysFlag_SharedMemoryIsUAV_Shift)
+
+uint XeGetTessellationFactorAddress(uint control_point_id,
+                                    uint control_points_per_patch) {
+  // TODO(Triang3l): Verify whether the index offset is applied correctly.
+  control_point_id += asuint(xe_vertex_base_index) * control_points_per_patch;
+  return (xe_vertex_index_endian_and_edge_factors & 0x1FFFFFFCu) +
+         control_point_id * 4u;
+}
 
 #endif  // XENIA_GPU_D3D12_SHADERS_XENOS_DRAW_HLSLI_

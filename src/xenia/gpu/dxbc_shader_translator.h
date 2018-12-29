@@ -46,6 +46,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kFetchConstants,
   };
 
+  // Some are referenced in xenos_draw.hlsli - check it too when updating!
   enum : uint32_t {
     kSysFlag_SharedMemoryIsUAV_Shift,
     kSysFlag_XYDividedByW_Shift,
@@ -275,7 +276,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
   struct SystemConstants {
     // vec4 0
     uint32_t flags;
-    uint32_t vertex_index_endian;
+    uint32_t vertex_index_endian_and_edge_factors;
     int32_t vertex_base_index;
     uint32_t pixel_pos_reg;
 
@@ -534,10 +535,11 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kSysConst_Flags_Index = 0,
     kSysConst_Flags_Vec = 0,
     kSysConst_Flags_Comp = 0,
-    kSysConst_VertexIndexEndian_Index = kSysConst_Flags_Index + 1,
-    kSysConst_VertexIndexEndian_Vec = kSysConst_Flags_Vec,
-    kSysConst_VertexIndexEndian_Comp = 1,
-    kSysConst_VertexBaseIndex_Index = kSysConst_VertexIndexEndian_Index + 1,
+    kSysConst_VertexIndexEndianAndEdgeFactors_Index = kSysConst_Flags_Index + 1,
+    kSysConst_VertexIndexEndianAndEdgeFactors_Vec = kSysConst_Flags_Vec,
+    kSysConst_VertexIndexEndianAndEdgeFactors_Comp = 1,
+    kSysConst_VertexBaseIndex_Index =
+        kSysConst_VertexIndexEndianAndEdgeFactors_Index + 1,
     kSysConst_VertexBaseIndex_Vec = kSysConst_Flags_Vec,
     kSysConst_VertexBaseIndex_Comp = 2,
     kSysConst_PixelPosReg_Index = kSysConst_VertexBaseIndex_Index + 1,
