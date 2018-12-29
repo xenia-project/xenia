@@ -27,9 +27,11 @@
 DEFINE_bool(d3d12_dxbc_disasm, false,
             "Disassemble DXBC shaders after generation.");
 DEFINE_bool(
-    d3d12_tessellation_adaptive, true,
+    d3d12_tessellation_adaptive, false,
     "Allow games to use adaptive tessellation - may be disabled if the game "
-    "has issues with memexport, the maximum factor will be used in this case.");
+    "has issues with memexport, the maximum factor will be used in this case. "
+    "Temporarily disabled by default since there are visible cracks currently "
+    "in Halo 3.");
 DEFINE_bool(d3d12_tessellation_wireframe, false,
             "Display tessellated surfaces as wireframe for debugging.");
 

@@ -39,7 +39,7 @@ XeHSConstantDataOutput XePatchConstant(uint xe_patch_id : SV_PrimitiveID) {
                               xe_tessellation_factor_range.y);
   // UVW are taken with ZYX swizzle (when r1.y is 0) in the vertex (domain)
   // shader. Edge 0 is with U = 0, edge 1 is with V = 0, edge 2 is with W = 0.
-  // TODO(Triang3l): Verify this order.
+  // TODO(Triang3l): Verify this order. There are still cracks.
   output.edges[0] = edge_factors.z;
   output.edges[1] = edge_factors.y;
   output.edges[2] = edge_factors.x;
