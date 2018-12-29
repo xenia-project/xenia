@@ -26,6 +26,10 @@
 
 DEFINE_bool(d3d12_dxbc_disasm, false,
             "Disassemble DXBC shaders after generation.");
+DEFINE_bool(
+    d3d12_tessellation_adaptive, true,
+    "Allow games to use adaptive tessellation - may be disabled if the game "
+    "has issues with memexport, the maximum factor will be used in this case.");
 DEFINE_bool(d3d12_tessellation_wireframe, false,
             "Display tessellated surfaces as wireframe for debugging.");
 
@@ -34,6 +38,7 @@ namespace gpu {
 namespace d3d12 {
 
 // Generated with `xb buildhlsl`.
+#include "xenia/gpu/d3d12/shaders/dxbc/adaptive_triangle_hs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/continuous_quad_hs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/continuous_triangle_hs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/discrete_quad_hs.h"
@@ -351,6 +356,10 @@ PipelineCache::UpdateStatus PipelineCache::UpdateShaderStages(
         primitive_type == PrimitiveType::kQuadPatch) {
       tessellation_mode = TessellationMode(
           register_file_->values[XE_GPU_REG_VGT_HOS_CNTL].u32 & 0x3);
+      if (!FLAGS_d3d12_tessellation_adaptive &&
+          tessellation_mode == TessellationMode::kAdaptive) {
+        tessellation_mode = TessellationMode::kContinuous;
+      }
     }
   } else {
     dirty |= regs.hs_gs_ds_primitive_type != PrimitiveType::kNone;
@@ -422,10 +431,12 @@ PipelineCache::UpdateStatus PipelineCache::UpdateShaderStages(
       if (tessellation_mode == TessellationMode::kDiscrete) {
         update_desc_.HS.pShaderBytecode = discrete_triangle_hs;
         update_desc_.HS.BytecodeLength = sizeof(discrete_triangle_hs);
+      } else if (tessellation_mode == TessellationMode::kAdaptive) {
+        update_desc_.HS.pShaderBytecode = adaptive_triangle_hs;
+        update_desc_.HS.BytecodeLength = sizeof(adaptive_triangle_hs);
       } else {
         update_desc_.HS.pShaderBytecode = continuous_triangle_hs;
         update_desc_.HS.BytecodeLength = sizeof(continuous_triangle_hs);
-        // TODO(Triang3l): True adaptive tessellation when memexport is added.
       }
       break;
     case PrimitiveType::kQuadPatch:
@@ -435,7 +446,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateShaderStages(
       } else {
         update_desc_.HS.pShaderBytecode = continuous_quad_hs;
         update_desc_.HS.BytecodeLength = sizeof(continuous_quad_hs);
-        // TODO(Triang3l): True adaptive tessellation when memexport is added.
+        // TODO(Triang3l): True adaptive tessellation when properly tested.
       }
       break;
     default:

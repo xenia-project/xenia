@@ -203,7 +203,7 @@ class D3D12CommandProcessor : public CommandProcessor {
   void UpdateFixedFunctionState(ID3D12GraphicsCommandList* command_list);
   void UpdateSystemConstantValues(
       bool shared_memory_is_uav, PrimitiveType primitive_type,
-      Endian index_endian, uint32_t color_mask,
+      Endian index_endian, uint32_t edge_factor_base, uint32_t color_mask,
       const RenderTargetCache::PipelineRenderTarget render_targets[4]);
   bool UpdateBindings(ID3D12GraphicsCommandList* command_list,
                       const D3D12Shader* vertex_shader,

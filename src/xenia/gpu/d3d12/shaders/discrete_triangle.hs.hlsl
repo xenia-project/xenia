@@ -16,13 +16,13 @@ XeHSConstantDataOutput XePatchConstant() {
   // detail.
   // https://www.slideshare.net/blackdevilvikas/next-generation-graphics-programming-on-xbox-360
 
-  // 1.0 is already added to the factor on the CPU, according to the images in
-  // the slides above.
+  // 1.0 already added to the factor on the CPU, according to the images in the
+  // slides above.
 
   // Don't calculate any variables for SV_TessFactor outside of this loop, or
   // everything will be broken - FXC will add code to make it calculated only
   // once for all 3 fork instances, but doesn't do it properly.
-  [unroll] for (i = 0; i < 3; ++i) {
+  [unroll] for (i = 0u; i < 3u; ++i) {
     output.edges[i] = xe_tessellation_factor_range.y;
   }
 
