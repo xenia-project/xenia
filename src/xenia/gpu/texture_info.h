@@ -230,8 +230,10 @@ inline TextureFormat ColorRenderTargetToTextureFormat(
     case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
       return TextureFormat::k_8_8_8_8_GAMMA_EDRAM;
     case ColorRenderTargetFormat::k_2_10_10_10:
+    case ColorRenderTargetFormat::k_2_10_10_10_AS_10_10_10_10:
       return TextureFormat::k_2_10_10_10;
     case ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
+    case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
       return TextureFormat::k_2_10_10_10_FLOAT_EDRAM;
     case ColorRenderTargetFormat::k_16_16:
       return TextureFormat::k_16_16_EDRAM;
@@ -241,10 +243,6 @@ inline TextureFormat ColorRenderTargetToTextureFormat(
       return TextureFormat::k_16_16_FLOAT;
     case ColorRenderTargetFormat::k_16_16_16_16_FLOAT:
       return TextureFormat::k_16_16_16_16_FLOAT;
-    case ColorRenderTargetFormat::k_2_10_10_10_AS_16_16_16_16:
-      return TextureFormat::k_2_10_10_10_AS_16_16_16_16;
-    case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
-      return TextureFormat::k_2_10_10_10_FLOAT_EDRAM;
     case ColorRenderTargetFormat::k_32_FLOAT:
       return TextureFormat::k_32_FLOAT;
     case ColorRenderTargetFormat::k_32_32_FLOAT:
