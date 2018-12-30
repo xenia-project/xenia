@@ -94,6 +94,7 @@ bool SharedMemory::Initialize() {
   buffer_gpu_address_ = buffer_->GetGPUVirtualAddress();
 
   std::memset(heaps_, 0, sizeof(heaps_));
+  heap_count_ = 0;
   heap_creation_failed_ = false;
 
   std::memset(valid_pages_.data(), 0, valid_pages_.size() * sizeof(uint64_t));
@@ -124,6 +125,8 @@ void SharedMemory::Shutdown() {
     for (uint32_t i = 0; i < xe::countof(heaps_); ++i) {
       ui::d3d12::util::ReleaseAndNull(heaps_[i]);
     }
+    heap_count_ = 0;
+    COUNT_profile_set("gpu/shared_memory/mb_used", 0);
   }
 }
 
@@ -277,6 +280,9 @@ bool SharedMemory::MakeTilesResident(uint32_t start, uint32_t length) {
       heap_creation_failed_ = true;
       return false;
     }
+    ++heap_count_;
+    COUNT_profile_set("gpu/shared_memory/mb_used",
+                      heap_count_ << kHeapSizeLog2 >> 20);
     D3D12_TILED_RESOURCE_COORDINATE region_start_coordinates;
     region_start_coordinates.X =
         (i << kHeapSizeLog2) / D3D12_TILED_RESOURCE_TILE_SIZE_IN_BYTES;

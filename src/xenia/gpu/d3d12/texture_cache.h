@@ -549,9 +549,9 @@ class TextureCache {
   ID3D12Resource* scaled_resolve_buffer_ = nullptr;
   D3D12_RESOURCE_STATES scaled_resolve_buffer_state_ =
       D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
-  // Not very big heaps (32 MB) because they are needed pretty sparsely. One
+  // Not very big heaps (16 MB) because they are needed pretty sparsely. One
   // scaled 1280x720x32bpp texture is slighly bigger than 14 MB.
-  static constexpr uint32_t kScaledResolveHeapSizeLog2 = 25;
+  static constexpr uint32_t kScaledResolveHeapSizeLog2 = 24;
   static constexpr uint32_t kScaledResolveHeapSize =
       1 << kScaledResolveHeapSizeLog2;
   static_assert(
@@ -560,6 +560,8 @@ class TextureCache {
   // Resident portions of the tiled buffer.
   ID3D12Heap* scaled_resolve_heaps_[kScaledResolveBufferSize >>
                                     kScaledResolveHeapSizeLog2] = {};
+  // Number of currently resident portions of the tiled buffer, for profiling.
+  uint32_t scaled_resolve_heap_count_ = 0;
   // Bit vector storing whether each 4 KB physical memory page contains scaled
   // resolve data. uint32_t rather than uint64_t because parts of it are sent to
   // shaders.

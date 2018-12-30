@@ -353,6 +353,7 @@ void RenderTargetCache::ClearCache() {
     delete resolve_target;
   }
   resolve_targets_.clear();
+  COUNT_profile_set("gpu/render_target_cache/resolve_targets", 0);
 
   for (auto render_target_pair : render_targets_) {
     RenderTarget* render_target = render_target_pair.second;
@@ -360,6 +361,7 @@ void RenderTargetCache::ClearCache() {
     delete render_target;
   }
   render_targets_.clear();
+  COUNT_profile_set("gpu/render_target_cache/render_targets", 0);
 
   while (descriptor_heaps_depth_ != nullptr) {
     auto heap = descriptor_heaps_depth_;
@@ -1938,6 +1940,8 @@ RenderTargetCache::ResolveTarget* RenderTargetCache::FindOrCreateResolveTarget(
       xe::align(copy_buffer_size, UINT64(D3D12_TEXTURE_DATA_PITCH_ALIGNMENT));
   resolve_target->copy_buffer_size = uint32_t(copy_buffer_size);
   resolve_targets_.insert(std::make_pair(key.value, resolve_target));
+  COUNT_profile_set("gpu/render_target_cache/resolve_targets",
+                    resolve_targets_.size());
 
   return resolve_target;
 }
@@ -2254,6 +2258,8 @@ RenderTargetCache::RenderTarget* RenderTargetCache::FindOrCreateRenderTarget(
                                 &copy_buffer_size);
   render_target->copy_buffer_size = uint32_t(copy_buffer_size);
   render_targets_.insert(std::make_pair(key.value, render_target));
+  COUNT_profile_set("gpu/render_target_cache/render_targets",
+                    render_targets_.size());
 #if 0
   XELOGGPU(
       "Created %ux%u %s render target with format %u at heap 4 MB pages %u:%u",

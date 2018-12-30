@@ -130,13 +130,16 @@ class SharedMemory {
   D3D12_GPU_VIRTUAL_ADDRESS buffer_gpu_address_ = 0;
   D3D12_RESOURCE_STATES buffer_state_ = D3D12_RESOURCE_STATE_COPY_DEST;
 
-  // Heaps are 16 MB, so not too many of them are allocated.
-  static constexpr uint32_t kHeapSizeLog2 = 24;
+  // Heaps are 4 MB, so not too many of them are allocated, but also not to
+  // waste too much memory for padding (with 16 MB there's too much).
+  static constexpr uint32_t kHeapSizeLog2 = 22;
   static constexpr uint32_t kHeapSize = 1 << kHeapSizeLog2;
   static_assert((kHeapSize % D3D12_TILED_RESOURCE_TILE_SIZE_IN_BYTES) == 0,
                 "Heap size must be a multiple of Direct3D tile size");
   // Resident portions of the tiled buffer.
   ID3D12Heap* heaps_[kBufferSize >> kHeapSizeLog2] = {};
+  // Number of the heaps currently resident, for profiling.
+  uint32_t heap_count_ = 0;
   // Whether creation of a heap has failed in the current frame.
   bool heap_creation_failed_ = false;
 

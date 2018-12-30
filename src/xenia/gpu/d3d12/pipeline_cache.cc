@@ -924,6 +924,7 @@ PipelineCache::Pipeline* PipelineCache::GetPipeline(uint64_t hash_key) {
   pipeline->state = state;
   pipeline->root_signature = update_desc_.pRootSignature;
   pipelines_.insert({hash_key, pipeline});
+  COUNT_profile_set("gpu/pipeline_cache/pipelines", pipelines_.size());
   return pipeline;
 }
 
