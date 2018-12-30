@@ -467,6 +467,7 @@ bool TextureCache::Initialize() {
     std::memset(scaled_resolve_pages_l2_, 0, sizeof(scaled_resolve_pages_l2_));
   }
   std::memset(scaled_resolve_heaps_, 0, sizeof(scaled_resolve_heaps_));
+  scaled_resolve_heap_count_ = 0;
 
   // Create the loading root signature.
   D3D12_ROOT_PARAMETER root_parameters[2];
@@ -590,6 +591,8 @@ void TextureCache::Shutdown() {
   for (uint32_t i = 0; i < xe::countof(scaled_resolve_heaps_); ++i) {
     ui::d3d12::util::ReleaseAndNull(scaled_resolve_heaps_[i]);
   }
+  scaled_resolve_heap_count_ = 0;
+  COUNT_profile_set("gpu/texture_cache/scaled_resolve_buffer_mb_used", 0);
 }
 
 void TextureCache::ClearCache() {
@@ -602,6 +605,7 @@ void TextureCache::ClearCache() {
     delete texture;
   }
   textures_.clear();
+  COUNT_profile_set("gpu/texture_cache/textures", 0);
 }
 
 void TextureCache::TextureFetchConstantWritten(uint32_t index) {
@@ -1221,6 +1225,10 @@ bool TextureCache::EnsureScaledResolveBufferResident(uint32_t start_unscaled,
       XELOGE("Texture cache: Failed to create a scaled resolve tile heap");
       return false;
     }
+    ++scaled_resolve_heap_count_;
+    COUNT_profile_set(
+        "gpu/texture_cache/scaled_resolve_buffer_mb_used",
+        scaled_resolve_heap_count_ << (kScaledResolveHeapSizeLog2 - 20));
     D3D12_TILED_RESOURCE_COORDINATE region_start_coordinates;
     region_start_coordinates.X = (i << kScaledResolveHeapSizeLog2) /
                                  D3D12_TILED_RESOURCE_TILE_SIZE_IN_BYTES;
@@ -1663,6 +1671,7 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
   texture->base_watch_handle = nullptr;
   texture->mip_watch_handle = nullptr;
   textures_.insert(std::make_pair(map_key, texture));
+  COUNT_profile_set("gpu/texture_cache/textures", textures_.size());
   LogTextureAction(texture, "Created");
 
   return texture;
