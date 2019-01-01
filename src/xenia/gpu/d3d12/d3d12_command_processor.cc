@@ -1310,11 +1310,10 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
   // Create the pipeline if needed and bind it.
   ID3D12PipelineState* pipeline;
   ID3D12RootSignature* root_signature;
-  auto pipeline_status = pipeline_cache_->ConfigurePipeline(
-      vertex_shader, pixel_shader, primitive_type_converted,
-      indexed ? index_buffer_info->format : IndexFormat::kInt16,
-      pipeline_render_targets, &pipeline, &root_signature);
-  if (pipeline_status == PipelineCache::UpdateStatus::kError) {
+  if (!pipeline_cache_->ConfigurePipeline(
+          vertex_shader, pixel_shader, primitive_type_converted,
+          indexed ? index_buffer_info->format : IndexFormat::kInt16,
+          pipeline_render_targets, &pipeline, &root_signature)) {
     return false;
   }
   if (current_pipeline_ != pipeline) {
