@@ -13,8 +13,6 @@
 #include <unordered_map>
 #include <vector>
 
-#include "third_party/xxhash/xxhash.h"
-
 #include "xenia/gpu/d3d12/d3d12_shader.h"
 #include "xenia/gpu/d3d12/render_target_cache.h"
 #include "xenia/gpu/dxbc_shader_translator.h"
@@ -29,12 +27,6 @@ class D3D12CommandProcessor;
 
 class PipelineCache {
  public:
-  enum class UpdateStatus {
-    kCompatible,
-    kMismatch,
-    kError,
-  };
-
   PipelineCache(D3D12CommandProcessor* command_processor,
                 RegisterFile* register_file, bool edram_rov_used);
   ~PipelineCache();
@@ -49,7 +41,7 @@ class PipelineCache {
                                D3D12Shader* pixel_shader,
                                PrimitiveType primitive_type);
 
-  UpdateStatus ConfigurePipeline(
+  bool ConfigurePipeline(
       D3D12Shader* vertex_shader, D3D12Shader* pixel_shader,
       PrimitiveType primitive_type, IndexFormat index_format,
       const RenderTargetCache::PipelineRenderTarget render_targets[5],
@@ -59,31 +51,122 @@ class PipelineCache {
   void ClearCache();
 
  private:
-  bool SetShadowRegister(uint32_t* dest, uint32_t register_name);
-  bool SetShadowRegister(float* dest, uint32_t register_name);
+  enum class PipelineStripCutIndex : uint32_t {
+    kNone,
+    kFFFF,
+    kFFFFFFFF,
+  };
+
+  enum class PipelineTessellationMode : uint32_t {
+    kNone,
+    kDiscrete,
+    kContinuous,
+    kAdaptive,
+  };
+
+  enum class PipelinePatchType : uint32_t {
+    kNone,
+    kLine,
+    kTriangle,
+    kQuad,
+  };
+
+  enum class PipelinePrimitiveTopologyType : uint32_t {
+    kPoint,
+    kLine,
+    kTriangle,
+    kPatch,
+  };
+
+  enum class PipelineGeometryShader : uint32_t {
+    kNone,
+    kPointList,
+    kRectangleList,
+    kQuadList,
+  };
+
+  enum class PipelineCullMode : uint32_t {
+    kNone,
+    kFront,
+    kBack,
+  };
+
+  enum class PipelineBlendFactor : uint32_t {
+    kZero,
+    kOne,
+    kSrcColor,
+    kInvSrcColor,
+    kSrcAlpha,
+    kInvSrcAlpha,
+    kDestColor,
+    kInvDestColor,
+    kDestAlpha,
+    kInvDestAlpha,
+    kBlendFactor,
+    kInvBlendFactor,
+    kSrcAlphaSat,
+  };
+
+  struct PipelineRenderTarget {
+    uint32_t used : 1;                         // 1
+    ColorRenderTargetFormat format : 4;        // 5
+    PipelineBlendFactor src_blend : 4;         // 9
+    PipelineBlendFactor dest_blend : 4;        // 13
+    BlendOp blend_op : 3;                      // 16
+    PipelineBlendFactor src_blend_alpha : 4;   // 20
+    PipelineBlendFactor dest_blend_alpha : 4;  // 24
+    BlendOp blend_op_alpha : 3;                // 27
+    uint32_t write_mask : 4;                   // 31
+  };
+
+  struct PipelineDescription {
+    ID3D12RootSignature* root_signature;
+    D3D12Shader* vertex_shader;
+    D3D12Shader* pixel_shader;
+
+    int32_t depth_bias;
+    float depth_bias_slope_scaled;
+
+    PipelineStripCutIndex strip_cut_index : 2;                  // 2
+    PipelineTessellationMode tessellation_mode : 2;             // 4
+    PipelinePrimitiveTopologyType primitive_topology_type : 2;  // 6
+    PipelinePatchType patch_type : 2;                           // 8
+    PipelineGeometryShader geometry_shader : 2;                 // 10
+    uint32_t fill_mode_wireframe : 1;                           // 11
+    PipelineCullMode cull_mode : 2;                             // 13
+    uint32_t front_counter_clockwise : 1;                       // 14
+    uint32_t depth_clip : 1;                                    // 15
+    uint32_t rov_msaa : 1;                                      // 16
+    DepthRenderTargetFormat depth_format : 1;                   // 17
+    uint32_t depth_func : 3;                                    // 20
+    uint32_t depth_write : 1;                                   // 21
+    uint32_t stencil_enable : 1;                                // 22
+    uint32_t stencil_read_mask : 8;                             // 30
+
+    uint32_t stencil_write_mask : 8;           // 8
+    uint32_t stencil_front_fail_op : 3;        // 11
+    uint32_t stencil_front_depth_fail_op : 3;  // 14
+    uint32_t stencil_front_pass_op : 3;        // 17
+    uint32_t stencil_front_func : 3;           // 20
+    uint32_t stencil_back_fail_op : 3;         // 23
+    uint32_t stencil_back_depth_fail_op : 3;   // 26
+    uint32_t stencil_back_pass_op : 3;         // 29
+    uint32_t stencil_back_func : 3;            // 32
+
+    PipelineRenderTarget render_targets[4];
+  };
 
   bool TranslateShader(D3D12Shader* shader, xenos::xe_gpu_program_cntl_t cntl,
                        PrimitiveType primitive_type);
 
-  UpdateStatus UpdateState(
+  bool GetCurrentStateDescription(
       D3D12Shader* vertex_shader, D3D12Shader* pixel_shader,
       PrimitiveType primitive_type, IndexFormat index_format,
-      const RenderTargetCache::PipelineRenderTarget render_targets[5]);
+      const RenderTargetCache::PipelineRenderTarget render_targets[5],
+      PipelineDescription& description_out);
 
-  // pRootSignature, VS, PS, DS, HS, GS, PrimitiveTopologyType.
-  UpdateStatus UpdateShaderStages(D3D12Shader* vertex_shader,
-                                  D3D12Shader* pixel_shader,
-                                  PrimitiveType primitive_type);
-  // BlendState, NumRenderTargets, RTVFormats.
-  UpdateStatus UpdateBlendStateAndRenderTargets(
-      D3D12Shader* pixel_shader,
-      const RenderTargetCache::PipelineRenderTarget render_targets[4]);
-  // RasterizerState.
-  UpdateStatus UpdateRasterizerState(PrimitiveType primitive_type);
-  // DepthStencilState, DSVFormat.
-  UpdateStatus UpdateDepthStencilState(DXGI_FORMAT format);
-  // IBStripCutValue.
-  UpdateStatus UpdateIBStripCutValue(IndexFormat index_format);
+  ID3D12PipelineState* CreatePipelineState(
+      const PipelineDescription& description);
 
   D3D12CommandProcessor* command_processor_;
   RegisterFile* register_file_;
@@ -100,85 +183,17 @@ class PipelineCache {
   // Xenos pixel shader provided.
   std::vector<uint8_t> depth_only_pixel_shader_;
 
-  // Hash state used to incrementally produce pipeline hashes during update.
-  // By the time the full update pass has run the hash will represent the
-  // current state in a way that can uniquely identify the produced
-  // ID3D12PipelineState.
-  XXH64_state_t hash_state_;
   struct Pipeline {
     ID3D12PipelineState* state;
-    // Root signature taken from the command processor.
-    ID3D12RootSignature* root_signature;
+    PipelineDescription description;
   };
   // All previously generated pipelines mapped by hash.
   std::unordered_map<uint64_t, Pipeline*> pipelines_;
-  Pipeline* GetPipeline(uint64_t hash_key);
 
   // Previously used pipeline. This matches our current state settings
   // and allows us to quickly(ish) reuse the pipeline if no registers have
   // changed.
   Pipeline* current_pipeline_ = nullptr;
-
-  // Description of the pipeline being created.
-  D3D12_GRAPHICS_PIPELINE_STATE_DESC update_desc_;
-
-  struct UpdateShaderStagesRegisters {
-    D3D12Shader* vertex_shader;
-    D3D12Shader* pixel_shader;
-    D3D12_PRIMITIVE_TOPOLOGY_TYPE primitive_topology_type;
-    // Primitive type if it needs hull/domain shaders or a geometry shader, or
-    // kNone if should be transformed with only a vertex shader.
-    PrimitiveType hs_gs_ds_primitive_type;
-    // Tessellation mode - ignored when not using tessellation (when
-    // hs_gs_ds_primitive_type is not a patch).
-    TessellationMode tessellation_mode;
-
-    UpdateShaderStagesRegisters() { Reset(); }
-    void Reset() { std::memset(this, 0, sizeof(*this)); }
-  } update_shader_stages_regs_;
-
-  struct UpdateBlendStateAndRenderTargetsRegisters {
-    RenderTargetCache::PipelineRenderTarget render_targets[5];
-    // RB_COLOR_MASK with unused render targets removed.
-    uint32_t color_mask;
-    // Blend control updated only for used render targets.
-    uint32_t blendcontrol[4];
-    bool colorcontrol_blend_enable;
-
-    UpdateBlendStateAndRenderTargetsRegisters() { Reset(); }
-    void Reset() { std::memset(this, 0, sizeof(*this)); }
-  } update_blend_state_and_render_targets_regs_;
-
-  struct UpdateRasterizerStateRegisters {
-    // The constant factor of the polygon offset is multiplied by a value that
-    // depends on the depth buffer format here.
-    float poly_offset;
-    float poly_offset_scale;
-    uint8_t cull_mode;
-    bool fill_mode_wireframe;
-    bool front_counter_clockwise;
-    bool depth_clamp_enable;
-    bool msaa_rov;
-
-    UpdateRasterizerStateRegisters() { Reset(); }
-    void Reset() { std::memset(this, 0, sizeof(*this)); }
-  } update_rasterizer_state_regs_;
-
-  struct UpdateDepthStencilStateRegisters {
-    DXGI_FORMAT format;
-    uint32_t rb_depthcontrol;
-    uint32_t rb_stencilrefmask;
-
-    UpdateDepthStencilStateRegisters() { Reset(); }
-    void Reset() { std::memset(this, 0, sizeof(*this)); }
-  } update_depth_stencil_state_regs_;
-
-  struct UpdateIBStripCutValueRegisters {
-    D3D12_INDEX_BUFFER_STRIP_CUT_VALUE ib_strip_cut_value;
-
-    UpdateIBStripCutValueRegisters() { Reset(); }
-    void Reset() { std::memset(this, 0, sizeof(*this)); }
-  } update_ib_strip_cut_value_regs_;
 };
 
 }  // namespace d3d12

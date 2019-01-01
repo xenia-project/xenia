@@ -17,8 +17,11 @@
 #include <cstring>
 #include <utility>
 
+#include "third_party/xxhash/xxhash.h"
+
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
+#include "xenia/base/math.h"
 #include "xenia/base/profiling.h"
 #include "xenia/base/string.h"
 #include "xenia/gpu/d3d12/d3d12_command_processor.h"
@@ -65,15 +68,6 @@ PipelineCache::PipelineCache(D3D12CommandProcessor* command_processor,
     depth_only_pixel_shader_ =
         std::move(shader_translator_->CreateDepthOnlyPixelShader());
   }
-
-  // Set pipeline state description values we never change.
-  // Zero out tessellation, stream output, blend state and formats for render
-  // targets 4+, node mask, cached PSO, flags and other things.
-  std::memset(&update_desc_, 0, sizeof(update_desc_));
-  update_desc_.BlendState.IndependentBlendEnable =
-      edram_rov_used_ ? FALSE : TRUE;
-  update_desc_.SampleMask = UINT_MAX;
-  update_desc_.SampleDesc.Count = 1;
 }
 
 PipelineCache::~PipelineCache() { Shutdown(); }
@@ -129,7 +123,7 @@ bool PipelineCache::EnsureShadersTranslated(D3D12Shader* vertex_shader,
   return true;
 }
 
-PipelineCache::UpdateStatus PipelineCache::ConfigurePipeline(
+bool PipelineCache::ConfigurePipeline(
     D3D12Shader* vertex_shader, D3D12Shader* pixel_shader,
     PrimitiveType primitive_type, IndexFormat index_format,
     const RenderTargetCache::PipelineRenderTarget render_targets[5],
@@ -142,40 +136,59 @@ PipelineCache::UpdateStatus PipelineCache::ConfigurePipeline(
   assert_not_null(pipeline_out);
   assert_not_null(root_signature_out);
 
-  Pipeline* pipeline = nullptr;
-  auto update_status = UpdateState(vertex_shader, pixel_shader, primitive_type,
-                                   index_format, render_targets);
-  switch (update_status) {
-    case UpdateStatus::kCompatible:
-      // Requested pipeline is compatible with our previous one, so use that.
-      // Note that there still may be dynamic state that needs updating.
-      pipeline = current_pipeline_;
-      break;
-    case UpdateStatus::kMismatch:
-      // Pipeline state has changed. We need to either create a new one or find
-      // an old one that matches.
-      current_pipeline_ = nullptr;
-      break;
-    case UpdateStatus::kError:
-      // Error updating state - bail out.
-      // We are in an indeterminate state, so reset things for the next attempt.
-      current_pipeline_ = nullptr;
-      return update_status;
-  }
-  if (!pipeline) {
-    // Should have a hash key produced by the UpdateState pass.
-    uint64_t hash_key = XXH64_digest(&hash_state_);
-    pipeline = GetPipeline(hash_key);
-    current_pipeline_ = pipeline;
-    if (!pipeline) {
-      // Unable to create pipeline.
-      return UpdateStatus::kError;
-    }
+  PipelineDescription description;
+  if (!GetCurrentStateDescription(vertex_shader, pixel_shader, primitive_type,
+                                  index_format, render_targets, description)) {
+    return false;
   }
 
-  *pipeline_out = pipeline->state;
-  *root_signature_out = pipeline->root_signature;
-  return update_status;
+  if (current_pipeline_ != nullptr &&
+      !std::memcmp(&current_pipeline_->description, &description,
+                   sizeof(description))) {
+    *pipeline_out = current_pipeline_->state;
+    *root_signature_out = description.root_signature;
+    return true;
+  }
+
+  // Find an existing pipeline in the cache.
+  uint64_t hash = XXH64(&description, sizeof(description), 0);
+  auto it = pipelines_.find(hash);
+  if (it != pipelines_.end()) {
+    Pipeline* found_pipeline = it->second;
+    current_pipeline_ = found_pipeline;
+    *pipeline_out = found_pipeline->state;
+    *root_signature_out = found_pipeline->description.root_signature;
+    return true;
+  }
+
+  // Create a new pipeline if not found and add it to the cache.
+  if (pixel_shader != nullptr) {
+    XELOGGPU("Creating pipeline %.16" PRIX64 ", VS %.16" PRIX64
+             ", PS %.16" PRIX64,
+             hash, vertex_shader->ucode_data_hash(),
+             pixel_shader->ucode_data_hash());
+  } else {
+    XELOGGPU("Creating pipeline %.16" PRIX64 ", VS %.16" PRIX64, hash,
+             vertex_shader->ucode_data_hash());
+  }
+  if (!EnsureShadersTranslated(vertex_shader, pixel_shader, primitive_type)) {
+    return false;
+  }
+  ID3D12PipelineState* new_state = CreatePipelineState(description);
+  if (!new_state) {
+    XELOGE("Failed to create pipeline %.16" PRIX64, hash);
+    return false;
+  }
+  Pipeline* new_pipeline = new Pipeline;
+  new_pipeline->state = new_state;
+  std::memcpy(&new_pipeline->description, &description, sizeof(description));
+  pipelines_.insert({hash, new_pipeline});
+  COUNT_profile_set("gpu/pipeline_cache/pipelines", pipelines_.size());
+
+  current_pipeline_ = new_pipeline;
+  *pipeline_out = new_state;
+  *root_signature_out = description.root_signature;
+  return true;
 }
 
 void PipelineCache::ClearCache() {
@@ -195,24 +208,6 @@ void PipelineCache::ClearCache() {
     delete it.second;
   }
   shader_map_.clear();
-}
-
-bool PipelineCache::SetShadowRegister(uint32_t* dest, uint32_t register_name) {
-  uint32_t value = register_file_->values[register_name].u32;
-  if (*dest == value) {
-    return false;
-  }
-  *dest = value;
-  return true;
-}
-
-bool PipelineCache::SetShadowRegister(float* dest, uint32_t register_name) {
-  float value = register_file_->values[register_name].f32;
-  if (*dest == value) {
-    return false;
-  }
-  *dest = value;
-  return true;
 }
 
 bool PipelineCache::TranslateShader(D3D12Shader* shader,
@@ -277,56 +272,45 @@ bool PipelineCache::TranslateShader(D3D12Shader* shader,
   return shader->is_valid();
 }
 
-PipelineCache::UpdateStatus PipelineCache::UpdateState(
+bool PipelineCache::GetCurrentStateDescription(
     D3D12Shader* vertex_shader, D3D12Shader* pixel_shader,
     PrimitiveType primitive_type, IndexFormat index_format,
-    const RenderTargetCache::PipelineRenderTarget render_targets[5]) {
-  bool mismatch = false;
+    const RenderTargetCache::PipelineRenderTarget render_targets[5],
+    PipelineDescription& description_out) {
+  auto& regs = *register_file_;
+  uint32_t pa_su_sc_mode_cntl = regs[XE_GPU_REG_PA_SU_SC_MODE_CNTL].u32;
 
-  // Reset hash so we can build it up.
-  XXH64_reset(&hash_state_, 0);
+  // Initialize all unused fields to zero for comparison/hashing.
+  std::memset(&description_out, 0, sizeof(description_out));
 
-#define CHECK_UPDATE_STATUS(status, mismatch, error_message) \
-  {                                                          \
-    if (status == UpdateStatus::kError) {                    \
-      XELOGE(error_message);                                 \
-      return status;                                         \
-    } else if (status == UpdateStatus::kMismatch) {          \
-      mismatch = true;                                       \
-    }                                                        \
+  // Root signature.
+  description_out.root_signature = command_processor_->GetRootSignature(
+      vertex_shader, pixel_shader, primitive_type);
+  if (description_out.root_signature == nullptr) {
+    return false;
   }
-  UpdateStatus status;
-  status = UpdateShaderStages(vertex_shader, pixel_shader, primitive_type);
-  CHECK_UPDATE_STATUS(status, mismatch, "Unable to update shader stages");
-  status = UpdateBlendStateAndRenderTargets(pixel_shader, render_targets);
-  CHECK_UPDATE_STATUS(status, mismatch, "Unable to update blend state");
-  status = UpdateRasterizerState(primitive_type);
-  CHECK_UPDATE_STATUS(status, mismatch, "Unable to update rasterizer state");
-  status = UpdateDepthStencilState(render_targets[4].format);
-  CHECK_UPDATE_STATUS(status, mismatch, "Unable to update depth/stencil state");
-  status = UpdateIBStripCutValue(index_format);
-  CHECK_UPDATE_STATUS(status, mismatch,
-                      "Unable to update index buffer strip cut value");
-#undef CHECK_UPDATE_STATUS
 
-  return mismatch ? UpdateStatus::kMismatch : UpdateStatus::kCompatible;
-}
+  // Shaders.
+  description_out.vertex_shader = vertex_shader;
+  description_out.pixel_shader = pixel_shader;
 
-PipelineCache::UpdateStatus PipelineCache::UpdateShaderStages(
-    D3D12Shader* vertex_shader, D3D12Shader* pixel_shader,
-    PrimitiveType primitive_type) {
-  auto& regs = update_shader_stages_regs_;
+  // Index buffer strip cut value.
+  if (pa_su_sc_mode_cntl & (1 << 21)) {
+    // Not using 0xFFFF with 32-bit indices because in index buffers it will be
+    // 0xFFFF0000 anyway due to endianness.
+    description_out.strip_cut_index = index_format == IndexFormat::kInt32
+                                          ? PipelineStripCutIndex::kFFFFFFFF
+                                          : PipelineStripCutIndex::kFFFF;
+  } else {
+    description_out.strip_cut_index = PipelineStripCutIndex::kNone;
+  }
 
-  bool dirty = current_pipeline_ == nullptr;
-  dirty |= regs.vertex_shader != vertex_shader;
-  dirty |= regs.pixel_shader != pixel_shader;
-  regs.vertex_shader = vertex_shader;
-  regs.pixel_shader = pixel_shader;
-  // This topology type is before the geometry shader stage.
-  D3D12_PRIMITIVE_TOPOLOGY_TYPE primitive_topology_type;
+  // Primitive topology type, tessellation mode and geometry shader.
+  description_out.tessellation_mode = PipelineTessellationMode::kNone;
   switch (primitive_type) {
     case PrimitiveType::kPointList:
-      primitive_topology_type = D3D12_PRIMITIVE_TOPOLOGY_TYPE_POINT;
+      description_out.primitive_topology_type =
+          PipelinePrimitiveTopologyType::kPoint;
       break;
     case PrimitiveType::kLineList:
     case PrimitiveType::kLineStrip:
@@ -334,303 +318,75 @@ PipelineCache::UpdateStatus PipelineCache::UpdateShaderStages(
     // Quads are emulated as line lists with adjacency.
     case PrimitiveType::kQuadList:
     case PrimitiveType::k2DLineStrip:
-      primitive_topology_type = D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE;
+      description_out.primitive_topology_type =
+          PipelinePrimitiveTopologyType::kLine;
       break;
     case PrimitiveType::kTrianglePatch:
     case PrimitiveType::kQuadPatch:
-      primitive_topology_type = D3D12_PRIMITIVE_TOPOLOGY_TYPE_PATCH;
+      description_out.primitive_topology_type =
+          PipelinePrimitiveTopologyType::kPatch;
+      switch (TessellationMode(regs[XE_GPU_REG_VGT_HOS_CNTL].u32 & 0x3)) {
+        case TessellationMode::kContinuous:
+          description_out.tessellation_mode =
+              PipelineTessellationMode::kContinuous;
+          break;
+        case TessellationMode::kAdaptive:
+          description_out.tessellation_mode =
+              FLAGS_d3d12_tessellation_adaptive
+                  ? PipelineTessellationMode::kAdaptive
+                  : PipelineTessellationMode::kContinuous;
+          break;
+        default:
+          description_out.tessellation_mode =
+              PipelineTessellationMode::kDiscrete;
+          break;
+      }
       break;
     default:
-      primitive_topology_type = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-  };
-  dirty |= regs.primitive_topology_type != primitive_topology_type;
-  regs.primitive_topology_type = primitive_topology_type;
-  // Zero out the tessellation mode by default for a stable hash.
-  TessellationMode tessellation_mode = TessellationMode(0);
-  if (primitive_type == PrimitiveType::kPointList ||
-      primitive_type == PrimitiveType::kRectangleList ||
-      primitive_type == PrimitiveType::kQuadList ||
-      primitive_type == PrimitiveType::kTrianglePatch ||
-      primitive_type == PrimitiveType::kQuadPatch) {
-    dirty |= regs.hs_gs_ds_primitive_type != primitive_type;
-    regs.hs_gs_ds_primitive_type = primitive_type;
-    if (primitive_type == PrimitiveType::kTrianglePatch ||
-        primitive_type == PrimitiveType::kQuadPatch) {
-      tessellation_mode = TessellationMode(
-          register_file_->values[XE_GPU_REG_VGT_HOS_CNTL].u32 & 0x3);
-      if (!FLAGS_d3d12_tessellation_adaptive &&
-          tessellation_mode == TessellationMode::kAdaptive) {
-        tessellation_mode = TessellationMode::kContinuous;
-      }
-    }
-  } else {
-    dirty |= regs.hs_gs_ds_primitive_type != PrimitiveType::kNone;
-    regs.hs_gs_ds_primitive_type = PrimitiveType::kNone;
-  }
-  dirty |= regs.tessellation_mode != tessellation_mode;
-  regs.tessellation_mode = tessellation_mode;
-  XXH64_update(&hash_state_, &regs, sizeof(regs));
-  if (!dirty) {
-    return UpdateStatus::kCompatible;
-  }
-
-  if (!EnsureShadersTranslated(vertex_shader, pixel_shader, primitive_type)) {
-    return UpdateStatus::kError;
-  }
-
-  update_desc_.pRootSignature = command_processor_->GetRootSignature(
-      vertex_shader, pixel_shader, primitive_type);
-  if (update_desc_.pRootSignature == nullptr) {
-    return UpdateStatus::kError;
-  }
-  if (primitive_type == PrimitiveType::kTrianglePatch ||
-      primitive_type == PrimitiveType::kQuadPatch) {
-    if (vertex_shader->GetDomainShaderPrimitiveType() != primitive_type) {
-      XELOGE("Tried to use vertex shader %.16" PRIX64
-             " for tessellation, but it's not a tessellation domain shader or "
-             "has the wrong domain",
-             vertex_shader->ucode_data_hash());
-      assert_always();
-      return UpdateStatus::kError;
-    }
-    if (primitive_type == PrimitiveType::kTrianglePatch) {
-      update_desc_.VS.pShaderBytecode = tessellation_triangle_vs;
-      update_desc_.VS.BytecodeLength = sizeof(tessellation_triangle_vs);
-    } else if (primitive_type == PrimitiveType::kQuadPatch) {
-      update_desc_.VS.pShaderBytecode = tessellation_quad_vs;
-      update_desc_.VS.BytecodeLength = sizeof(tessellation_quad_vs);
-    }
-    // The Xenos vertex shader works like a domain shader with tessellation.
-    update_desc_.DS.pShaderBytecode = vertex_shader->translated_binary().data();
-    update_desc_.DS.BytecodeLength = vertex_shader->translated_binary().size();
-  } else {
-    if (vertex_shader->GetDomainShaderPrimitiveType() != PrimitiveType::kNone) {
-      XELOGE("Tried to use vertex shader %.16" PRIX64
-             " without tessellation, but it's a tessellation domain shader",
-             vertex_shader->ucode_data_hash());
-      assert_always();
-      return UpdateStatus::kError;
-    }
-    update_desc_.VS.pShaderBytecode = vertex_shader->translated_binary().data();
-    update_desc_.VS.BytecodeLength = vertex_shader->translated_binary().size();
-    update_desc_.DS.pShaderBytecode = nullptr;
-    update_desc_.DS.BytecodeLength = 0;
-  }
-  if (pixel_shader != nullptr) {
-    update_desc_.PS.pShaderBytecode = pixel_shader->translated_binary().data();
-    update_desc_.PS.BytecodeLength = pixel_shader->translated_binary().size();
-  } else {
-    if (edram_rov_used_) {
-      update_desc_.PS.pShaderBytecode = depth_only_pixel_shader_.data();
-      update_desc_.PS.BytecodeLength = depth_only_pixel_shader_.size();
-    } else {
-      update_desc_.PS.pShaderBytecode = nullptr;
-      update_desc_.PS.BytecodeLength = 0;
-    }
+      description_out.primitive_topology_type =
+          PipelinePrimitiveTopologyType::kTriangle;
+      break;
   }
   switch (primitive_type) {
+    case PrimitiveType::kLinePatch:
+      description_out.patch_type = PipelinePatchType::kLine;
+      break;
     case PrimitiveType::kTrianglePatch:
-      if (tessellation_mode == TessellationMode::kDiscrete) {
-        update_desc_.HS.pShaderBytecode = discrete_triangle_hs;
-        update_desc_.HS.BytecodeLength = sizeof(discrete_triangle_hs);
-      } else if (tessellation_mode == TessellationMode::kAdaptive) {
-        update_desc_.HS.pShaderBytecode = adaptive_triangle_hs;
-        update_desc_.HS.BytecodeLength = sizeof(adaptive_triangle_hs);
-      } else {
-        update_desc_.HS.pShaderBytecode = continuous_triangle_hs;
-        update_desc_.HS.BytecodeLength = sizeof(continuous_triangle_hs);
-      }
+      description_out.patch_type = PipelinePatchType::kTriangle;
       break;
     case PrimitiveType::kQuadPatch:
-      if (tessellation_mode == TessellationMode::kDiscrete) {
-        update_desc_.HS.pShaderBytecode = discrete_quad_hs;
-        update_desc_.HS.BytecodeLength = sizeof(discrete_quad_hs);
-      } else {
-        update_desc_.HS.pShaderBytecode = continuous_quad_hs;
-        update_desc_.HS.BytecodeLength = sizeof(continuous_quad_hs);
-        // TODO(Triang3l): True adaptive tessellation when properly tested.
-      }
+      description_out.patch_type = PipelinePatchType::kQuad;
       break;
     default:
-      update_desc_.HS.pShaderBytecode = nullptr;
-      update_desc_.HS.BytecodeLength = 0;
+      description_out.patch_type = PipelinePatchType::kNone;
       break;
   }
   switch (primitive_type) {
     case PrimitiveType::kPointList:
-      update_desc_.GS.pShaderBytecode = primitive_point_list_gs;
-      update_desc_.GS.BytecodeLength = sizeof(primitive_point_list_gs);
+      description_out.geometry_shader = PipelineGeometryShader::kPointList;
       break;
     case PrimitiveType::kRectangleList:
-      update_desc_.GS.pShaderBytecode = primitive_rectangle_list_gs;
-      update_desc_.GS.BytecodeLength = sizeof(primitive_rectangle_list_gs);
+      description_out.geometry_shader = PipelineGeometryShader::kRectangleList;
       break;
     case PrimitiveType::kQuadList:
-      update_desc_.GS.pShaderBytecode = primitive_quad_list_gs;
-      update_desc_.GS.BytecodeLength = sizeof(primitive_quad_list_gs);
+      description_out.geometry_shader = PipelineGeometryShader::kQuadList;
       break;
     default:
-      // TODO(Triang3l): More geometry shaders for various primitive types.
-      update_desc_.GS.pShaderBytecode = nullptr;
-      update_desc_.GS.BytecodeLength = 0;
-  }
-  update_desc_.PrimitiveTopologyType = primitive_topology_type;
-
-  return UpdateStatus::kMismatch;
-}
-
-PipelineCache::UpdateStatus PipelineCache::UpdateBlendStateAndRenderTargets(
-    D3D12Shader* pixel_shader,
-    const RenderTargetCache::PipelineRenderTarget render_targets[4]) {
-  if (edram_rov_used_) {
-    return current_pipeline_ == nullptr ? UpdateStatus::kMismatch
-                                        : UpdateStatus::kCompatible;
+      description_out.geometry_shader = PipelineGeometryShader::kNone;
+      break;
   }
 
-  auto& regs = update_blend_state_and_render_targets_regs_;
-
-  bool dirty = current_pipeline_ == nullptr;
-  for (uint32_t i = 0; i < 4; ++i) {
-    dirty |= regs.render_targets[i].guest_render_target !=
-             render_targets[i].guest_render_target;
-    regs.render_targets[i].guest_render_target =
-        render_targets[i].guest_render_target;
-    dirty |= regs.render_targets[i].format != render_targets[i].format;
-    regs.render_targets[i].format = render_targets[i].format;
-  }
-  uint32_t color_mask = command_processor_->GetCurrentColorMask(pixel_shader);
-  dirty |= regs.color_mask != color_mask;
-  regs.color_mask = color_mask;
-  bool blend_enable =
-      color_mask != 0 &&
-      !(register_file_->values[XE_GPU_REG_RB_COLORCONTROL].u32 & 0x20);
-  dirty |= regs.colorcontrol_blend_enable != blend_enable;
-  regs.colorcontrol_blend_enable = blend_enable;
-  static const Register kBlendControlRegs[] = {
-      XE_GPU_REG_RB_BLENDCONTROL_0, XE_GPU_REG_RB_BLENDCONTROL_1,
-      XE_GPU_REG_RB_BLENDCONTROL_2, XE_GPU_REG_RB_BLENDCONTROL_3};
-  for (uint32_t i = 0; i < 4; ++i) {
-    if (blend_enable && (color_mask & (0xF << (i * 4)))) {
-      dirty |= SetShadowRegister(&regs.blendcontrol[i], kBlendControlRegs[i]);
-    } else {
-      // Zero out blend color for unused render targets and when not blending
-      // for a stable hash.
-      regs.blendcontrol[i] = 0;
-    }
-  }
-  XXH64_update(&hash_state_, &regs, sizeof(regs));
-  if (!dirty) {
-    return UpdateStatus::kCompatible;
-  }
-
-  static const D3D12_BLEND kBlendFactorMap[] = {
-      /*  0 */ D3D12_BLEND_ZERO,
-      /*  1 */ D3D12_BLEND_ONE,
-      /*  2 */ D3D12_BLEND_ZERO,  // ?
-      /*  3 */ D3D12_BLEND_ZERO,  // ?
-      /*  4 */ D3D12_BLEND_SRC_COLOR,
-      /*  5 */ D3D12_BLEND_INV_SRC_COLOR,
-      /*  6 */ D3D12_BLEND_SRC_ALPHA,
-      /*  7 */ D3D12_BLEND_INV_SRC_ALPHA,
-      /*  8 */ D3D12_BLEND_DEST_COLOR,
-      /*  9 */ D3D12_BLEND_INV_DEST_COLOR,
-      /* 10 */ D3D12_BLEND_DEST_ALPHA,
-      /* 11 */ D3D12_BLEND_INV_DEST_ALPHA,
-      /* 12 */ D3D12_BLEND_BLEND_FACTOR,      // CONSTANT_COLOR
-      /* 13 */ D3D12_BLEND_INV_BLEND_FACTOR,  // ONE_MINUS_CONSTANT_COLOR
-      /* 14 */ D3D12_BLEND_BLEND_FACTOR,      // CONSTANT_ALPHA
-      /* 15 */ D3D12_BLEND_INV_BLEND_FACTOR,  // ONE_MINUS_CONSTANT_ALPHA
-      /* 16 */ D3D12_BLEND_SRC_ALPHA_SAT,
-  };
-  // Like kBlendFactorMap, but with _COLOR modes changed to _ALPHA. Some
-  // pipelines aren't created in Prey because a color mode is used for alpha.
-  static const D3D12_BLEND kBlendFactorAlphaMap[] = {
-      /*  0 */ D3D12_BLEND_ZERO,
-      /*  1 */ D3D12_BLEND_ONE,
-      /*  2 */ D3D12_BLEND_ZERO,  // ?
-      /*  3 */ D3D12_BLEND_ZERO,  // ?
-      /*  4 */ D3D12_BLEND_SRC_ALPHA,
-      /*  5 */ D3D12_BLEND_INV_SRC_ALPHA,
-      /*  6 */ D3D12_BLEND_SRC_ALPHA,
-      /*  7 */ D3D12_BLEND_INV_SRC_ALPHA,
-      /*  8 */ D3D12_BLEND_DEST_ALPHA,
-      /*  9 */ D3D12_BLEND_INV_DEST_ALPHA,
-      /* 10 */ D3D12_BLEND_DEST_ALPHA,
-      /* 11 */ D3D12_BLEND_INV_DEST_ALPHA,
-      /* 12 */ D3D12_BLEND_BLEND_FACTOR,      // CONSTANT_COLOR
-      /* 13 */ D3D12_BLEND_INV_BLEND_FACTOR,  // ONE_MINUS_CONSTANT_COLOR
-      /* 14 */ D3D12_BLEND_BLEND_FACTOR,      // CONSTANT_ALPHA
-      /* 15 */ D3D12_BLEND_INV_BLEND_FACTOR,  // ONE_MINUS_CONSTANT_ALPHA
-      /* 16 */ D3D12_BLEND_SRC_ALPHA_SAT,
-  };
-  static const D3D12_BLEND_OP kBlendOpMap[] = {
-      /*  0 */ D3D12_BLEND_OP_ADD,
-      /*  1 */ D3D12_BLEND_OP_SUBTRACT,
-      /*  2 */ D3D12_BLEND_OP_MIN,
-      /*  3 */ D3D12_BLEND_OP_MAX,
-      /*  4 */ D3D12_BLEND_OP_REV_SUBTRACT,
-  };
-  update_desc_.NumRenderTargets = 0;
-  for (uint32_t i = 0; i < 4; ++i) {
-    auto& blend_desc = update_desc_.BlendState.RenderTarget[i];
-    uint32_t guest_render_target = render_targets[i].guest_render_target;
-    uint32_t blend_control = regs.blendcontrol[guest_render_target];
-    DXGI_FORMAT format = render_targets[i].format;
-    // Also treat 1 * src + 0 * dest as disabled blending (there are opaque
-    // surfaces drawn with blending enabled, but it's 1 * src + 0 * dest, in
-    // Call of Duty 4 - GPU performance is better when not blending.
-    if (blend_enable && (blend_control & 0x1FFF1FFF) != 0x00010001 &&
-        format != DXGI_FORMAT_UNKNOWN &&
-        (color_mask & (0xF << (guest_render_target * 4)))) {
-      blend_desc.BlendEnable = TRUE;
-      // A2XX_RB_BLEND_CONTROL_COLOR_SRCBLEND
-      blend_desc.SrcBlend = kBlendFactorMap[(blend_control & 0x0000001F) >> 0];
-      // A2XX_RB_BLEND_CONTROL_COLOR_DESTBLEND
-      blend_desc.DestBlend = kBlendFactorMap[(blend_control & 0x00001F00) >> 8];
-      // A2XX_RB_BLEND_CONTROL_COLOR_COMB_FCN
-      blend_desc.BlendOp = kBlendOpMap[(blend_control & 0x000000E0) >> 5];
-      // A2XX_RB_BLEND_CONTROL_ALPHA_SRCBLEND
-      blend_desc.SrcBlendAlpha =
-          kBlendFactorAlphaMap[(blend_control & 0x001F0000) >> 16];
-      // A2XX_RB_BLEND_CONTROL_ALPHA_DESTBLEND
-      blend_desc.DestBlendAlpha =
-          kBlendFactorAlphaMap[(blend_control & 0x1F000000) >> 24];
-      // A2XX_RB_BLEND_CONTROL_ALPHA_COMB_FCN
-      blend_desc.BlendOpAlpha = kBlendOpMap[(blend_control & 0x00E00000) >> 21];
-    } else {
-      blend_desc.BlendEnable = FALSE;
-      blend_desc.SrcBlend = D3D12_BLEND_ONE;
-      blend_desc.DestBlend = D3D12_BLEND_ZERO;
-      blend_desc.BlendOp = D3D12_BLEND_OP_ADD;
-      blend_desc.SrcBlendAlpha = D3D12_BLEND_ONE;
-      blend_desc.DestBlendAlpha = D3D12_BLEND_ZERO;
-      blend_desc.BlendOpAlpha = D3D12_BLEND_OP_ADD;
-    }
-    blend_desc.RenderTargetWriteMask =
-        (color_mask >> (guest_render_target * 4)) & 0xF;
-    update_desc_.RTVFormats[i] = format;
-    if (format != DXGI_FORMAT_UNKNOWN) {
-      update_desc_.NumRenderTargets = i + 1;
-    }
-  }
-
-  return UpdateStatus::kMismatch;
-}
-
-PipelineCache::UpdateStatus PipelineCache::UpdateRasterizerState(
-    PrimitiveType primitive_type) {
-  auto& regs = update_rasterizer_state_regs_;
-
-  bool dirty = current_pipeline_ == nullptr;
-  uint32_t pa_su_sc_mode_cntl =
-      register_file_->values[XE_GPU_REG_PA_SU_SC_MODE_CNTL].u32;
+  // Rasterizer state.
   uint32_t cull_mode = pa_su_sc_mode_cntl & 0x3;
-  if (primitive_type == PrimitiveType::kPointList ||
-      primitive_type == PrimitiveType::kRectangleList) {
-    cull_mode = 0;
+  if (cull_mode & 1) {
+    // More special, so checked first - generally back faces are culled.
+    description_out.cull_mode = PipelineCullMode::kFront;
+  } else if (cull_mode & 2) {
+    description_out.cull_mode = PipelineCullMode::kBack;
+  } else {
+    description_out.cull_mode = PipelineCullMode::kNone;
   }
-  dirty |= regs.cull_mode != cull_mode;
-  regs.cull_mode = cull_mode;
+  description_out.front_counter_clockwise = (pa_su_sc_mode_cntl & 0x4) == 0;
   // Because Direct3D 12 doesn't support per-side fill mode and depth bias, the
   // values to use depends on the current culling state.
   // If front faces are culled, use the ones for back faces.
@@ -645,7 +401,6 @@ PipelineCache::UpdateStatus PipelineCache::UpdateRasterizerState(
   // Xenos fill mode 1).
   // Here we also assume that only one side is culled - if two sides are culled,
   // the D3D12 command processor will drop such draw early.
-  bool fill_mode_wireframe = false;
   float poly_offset = 0.0f, poly_offset_scale = 0.0f;
   // With ROV, the depth bias is applied in the pixel shader because per-sample
   // depth is needed for MSAA.
@@ -653,29 +408,25 @@ PipelineCache::UpdateStatus PipelineCache::UpdateRasterizerState(
     // Front faces aren't culled.
     uint32_t fill_mode = (pa_su_sc_mode_cntl >> 5) & 0x7;
     if (fill_mode == 0 || fill_mode == 1) {
-      fill_mode_wireframe = true;
+      description_out.fill_mode_wireframe = 1;
     }
     if (!edram_rov_used_ && ((pa_su_sc_mode_cntl >> 11) & 0x1)) {
-      poly_offset =
-          register_file_->values[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_OFFSET].f32;
-      poly_offset_scale =
-          register_file_->values[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_SCALE].f32;
+      poly_offset = regs[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_OFFSET].f32;
+      poly_offset_scale = regs[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_SCALE].f32;
     }
   }
   if (!(cull_mode & 2)) {
     // Back faces aren't culled.
     uint32_t fill_mode = (pa_su_sc_mode_cntl >> 8) & 0x7;
     if (fill_mode == 0 || fill_mode == 1) {
-      fill_mode_wireframe = true;
+      description_out.fill_mode_wireframe = 1;
     }
     // Prefer front depth bias because in general, front faces are the ones
     // that are rendered (except for shadow volumes).
     if (!edram_rov_used_ && ((pa_su_sc_mode_cntl >> 12) & 0x1) &&
         poly_offset == 0.0f && poly_offset_scale == 0.0f) {
-      poly_offset =
-          register_file_->values[XE_GPU_REG_PA_SU_POLY_OFFSET_BACK_OFFSET].f32;
-      poly_offset_scale =
-          register_file_->values[XE_GPU_REG_PA_SU_POLY_OFFSET_BACK_SCALE].f32;
+      poly_offset = regs[XE_GPU_REG_PA_SU_POLY_OFFSET_BACK_OFFSET].f32;
+      poly_offset_scale = regs[XE_GPU_REG_PA_SU_POLY_OFFSET_BACK_SCALE].f32;
     }
   }
   if (!edram_rov_used_) {
@@ -699,233 +450,493 @@ PipelineCache::UpdateStatus PipelineCache::UpdateRasterizerState(
     }
     // Reversed depth is emulated in vertex shaders because MinDepth > MaxDepth
     // in viewports doesn't seem to work on Nvidia.
-    if ((register_file_->values[XE_GPU_REG_PA_CL_VTE_CNTL].u32 & (1 << 4)) &&
-        register_file_->values[XE_GPU_REG_PA_CL_VPORT_ZSCALE].f32 < 0.0f) {
+    if ((regs[XE_GPU_REG_PA_CL_VTE_CNTL].u32 & (1 << 4)) &&
+        regs[XE_GPU_REG_PA_CL_VPORT_ZSCALE].f32 < 0.0f) {
       poly_offset = -poly_offset;
       poly_offset_scale = -poly_offset_scale;
     }
+    // Using ceil here just in case a game wants the offset but passes a value
+    // that is too small - it's better to apply more offset than to make depth
+    // fighting worse or to disable the offset completely (Direct3D 12 takes an
+    // integer value).
+    description_out.depth_bias = int32_t(std::ceil(std::abs(poly_offset))) *
+                                 (poly_offset < 0.0f ? -1 : 1);
+    description_out.depth_bias_slope_scaled =
+        poly_offset_scale * (1.0f / 16.0f);
   }
-  if (((pa_su_sc_mode_cntl >> 3) & 0x3) == 0) {
+  if ((pa_su_sc_mode_cntl & (0x3 << 3)) == 0) {
     // Fill mode is disabled.
-    fill_mode_wireframe = false;
+    description_out.fill_mode_wireframe = 0;
   }
   if (FLAGS_d3d12_tessellation_wireframe &&
-      (primitive_type == PrimitiveType::kTrianglePatch ||
-       primitive_type == PrimitiveType::kQuadPatch)) {
-    fill_mode_wireframe = true;
+      description_out.tessellation_mode != PipelineTessellationMode::kNone) {
+    description_out.fill_mode_wireframe = 1;
   }
-  dirty |= regs.fill_mode_wireframe != fill_mode_wireframe;
-  regs.fill_mode_wireframe = fill_mode_wireframe;
-  dirty |= regs.poly_offset != poly_offset;
-  regs.poly_offset = poly_offset;
-  dirty |= regs.poly_offset_scale != poly_offset_scale;
-  regs.poly_offset_scale = poly_offset_scale;
-  bool front_counter_clockwise = !(pa_su_sc_mode_cntl & 0x4);
-  dirty |= regs.front_counter_clockwise != front_counter_clockwise;
-  regs.front_counter_clockwise = front_counter_clockwise;
-  uint32_t pa_cl_clip_cntl =
-      register_file_->values[XE_GPU_REG_PA_CL_CLIP_CNTL].u32;
   // CLIP_DISABLE
-  bool depth_clamp_enable = !!(pa_cl_clip_cntl & (1 << 16));
+  description_out.depth_clip =
+      (regs[XE_GPU_REG_PA_CL_CLIP_CNTL].u32 & (1 << 16)) == 0;
   // TODO(DrChat): This seem to differ. Need to examine this.
   // https://github.com/decaf-emu/decaf-emu/blob/c017a9ff8128852fb9a5da19466778a171cea6e1/src/libdecaf/src/gpu/latte_registers_pa.h#L11
   // ZCLIP_NEAR_DISABLE
-  // bool depth_clamp_enable = !(pa_cl_clip_cntl & (1 << 26));
+  // description_out.depth_clip = (PA_CL_CLIP_CNTL & (1 << 26)) == 0;
   // RASTERIZER_DISABLE
-  // Disable rendering in command processor if regs.pa_cl_clip_cntl & (1 << 22)?
-  dirty |= regs.depth_clamp_enable != depth_clamp_enable;
-  regs.depth_clamp_enable = depth_clamp_enable;
-  bool msaa_rov = false;
+  // Disable rendering in command processor if PA_CL_CLIP_CNTL & (1 << 22)?
   if (edram_rov_used_) {
-    if ((register_file_->values[XE_GPU_REG_RB_SURFACE_INFO].u32 >> 16) & 0x3) {
-      msaa_rov = true;
-    }
-    dirty |= regs.msaa_rov != msaa_rov;
-    regs.msaa_rov = msaa_rov;
-  }
-  XXH64_update(&hash_state_, &regs, sizeof(regs));
-  if (!dirty) {
-    return UpdateStatus::kCompatible;
+    description_out.rov_msaa =
+        ((regs[XE_GPU_REG_RB_SURFACE_INFO].u32 >> 16) & 0x3) != 0;
   }
 
-  update_desc_.RasterizerState.FillMode =
-      fill_mode_wireframe ? D3D12_FILL_MODE_WIREFRAME : D3D12_FILL_MODE_SOLID;
-  if (cull_mode & 1) {
-    update_desc_.RasterizerState.CullMode = D3D12_CULL_MODE_FRONT;
-  } else if (cull_mode & 2) {
-    update_desc_.RasterizerState.CullMode = D3D12_CULL_MODE_BACK;
-  } else {
-    update_desc_.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+  if (!edram_rov_used_) {
+    // Depth/stencil. No stencil, always passing depth test and no depth writing
+    // means depth disabled.
+    if (render_targets[4].format != DXGI_FORMAT_UNKNOWN) {
+      uint32_t rb_depthcontrol = regs[XE_GPU_REG_RB_DEPTHCONTROL].u32;
+      if (rb_depthcontrol & 0x2) {
+        description_out.depth_func = (rb_depthcontrol >> 4) & 0x7;
+        description_out.depth_write = (rb_depthcontrol & 0x4) != 0;
+      } else {
+        description_out.depth_func = 0b111;
+      }
+      if (rb_depthcontrol & 0x1) {
+        description_out.stencil_enable = 1;
+        uint32_t rb_stencilrefmask = regs[XE_GPU_REG_RB_STENCILREFMASK].u32;
+        description_out.stencil_read_mask = (rb_stencilrefmask >> 8) & 0xFF;
+        description_out.stencil_write_mask = (rb_stencilrefmask >> 16) & 0xFF;
+        description_out.stencil_front_fail_op = (rb_depthcontrol >> 11) & 0x7;
+        description_out.stencil_front_depth_fail_op =
+            (rb_depthcontrol >> 17) & 0x7;
+        description_out.stencil_front_pass_op = (rb_depthcontrol >> 14) & 0x7;
+        description_out.stencil_front_func = (rb_depthcontrol >> 8) & 0x7;
+        if (rb_depthcontrol & 0x80) {
+          description_out.stencil_back_fail_op = (rb_depthcontrol >> 23) & 0x7;
+          description_out.stencil_back_depth_fail_op =
+              (rb_depthcontrol >> 29) & 0x7;
+          description_out.stencil_back_pass_op = (rb_depthcontrol >> 26) & 0x7;
+          description_out.stencil_back_func = (rb_depthcontrol >> 20) & 0x7;
+        } else {
+          description_out.stencil_back_fail_op =
+              description_out.stencil_front_fail_op;
+          description_out.stencil_back_depth_fail_op =
+              description_out.stencil_front_depth_fail_op;
+          description_out.stencil_back_pass_op =
+              description_out.stencil_front_pass_op;
+          description_out.stencil_back_func =
+              description_out.stencil_front_func;
+        }
+      }
+      // If not binding the DSV, ignore the format in the hash.
+      if (description_out.depth_func != 0b111 || description_out.depth_write ||
+          description_out.stencil_enable) {
+        description_out.depth_format = DepthRenderTargetFormat(
+            (regs[XE_GPU_REG_RB_DEPTH_INFO].u32 >> 16) & 1);
+      }
+    } else {
+      description_out.depth_func = 0b111;
+    }
+
+    // Render targets and blending state. 32 because of 0x1F mask, for safety
+    // (all unknown to zero).
+    uint32_t color_mask = command_processor_->GetCurrentColorMask(pixel_shader);
+    static const PipelineBlendFactor kBlendFactorMap[32] = {
+        /*  0 */ PipelineBlendFactor::kZero,
+        /*  1 */ PipelineBlendFactor::kOne,
+        /*  2 */ PipelineBlendFactor::kZero,  // ?
+        /*  3 */ PipelineBlendFactor::kZero,  // ?
+        /*  4 */ PipelineBlendFactor::kSrcColor,
+        /*  5 */ PipelineBlendFactor::kInvSrcColor,
+        /*  6 */ PipelineBlendFactor::kSrcAlpha,
+        /*  7 */ PipelineBlendFactor::kInvSrcAlpha,
+        /*  8 */ PipelineBlendFactor::kDestColor,
+        /*  9 */ PipelineBlendFactor::kInvDestColor,
+        /* 10 */ PipelineBlendFactor::kDestAlpha,
+        /* 11 */ PipelineBlendFactor::kInvDestAlpha,
+        // CONSTANT_COLOR
+        /* 12 */ PipelineBlendFactor::kBlendFactor,
+        // ONE_MINUS_CONSTANT_COLOR
+        /* 13 */ PipelineBlendFactor::kInvBlendFactor,
+        // CONSTANT_ALPHA
+        /* 14 */ PipelineBlendFactor::kBlendFactor,
+        // ONE_MINUS_CONSTANT_ALPHA
+        /* 15 */ PipelineBlendFactor::kInvBlendFactor,
+        /* 16 */ PipelineBlendFactor::kSrcAlphaSat,
+    };
+    // Like kBlendFactorMap, but with color modes changed to alpha. Some
+    // pipelines aren't created in Prey because a color mode is used for alpha.
+    static const PipelineBlendFactor kBlendFactorAlphaMap[32] = {
+        /*  0 */ PipelineBlendFactor::kZero,
+        /*  1 */ PipelineBlendFactor::kOne,
+        /*  2 */ PipelineBlendFactor::kZero,  // ?
+        /*  3 */ PipelineBlendFactor::kZero,  // ?
+        /*  4 */ PipelineBlendFactor::kSrcAlpha,
+        /*  5 */ PipelineBlendFactor::kInvSrcAlpha,
+        /*  6 */ PipelineBlendFactor::kSrcAlpha,
+        /*  7 */ PipelineBlendFactor::kInvSrcAlpha,
+        /*  8 */ PipelineBlendFactor::kDestAlpha,
+        /*  9 */ PipelineBlendFactor::kInvDestAlpha,
+        /* 10 */ PipelineBlendFactor::kDestAlpha,
+        /* 11 */ PipelineBlendFactor::kInvDestAlpha,
+        /* 12 */ PipelineBlendFactor::kBlendFactor,
+        // ONE_MINUS_CONSTANT_COLOR
+        /* 13 */ PipelineBlendFactor::kInvBlendFactor,
+        // CONSTANT_ALPHA
+        /* 14 */ PipelineBlendFactor::kBlendFactor,
+        // ONE_MINUS_CONSTANT_ALPHA
+        /* 15 */ PipelineBlendFactor::kInvBlendFactor,
+        /* 16 */ PipelineBlendFactor::kSrcAlphaSat,
+    };
+    for (uint32_t i = 0; i < 4; ++i) {
+      if (render_targets[i].format == DXGI_FORMAT_UNKNOWN) {
+        break;
+      }
+      uint32_t guest_rt_index = render_targets[i].guest_render_target;
+      uint32_t color_info, blendcontrol;
+      switch (guest_rt_index) {
+        case 1:
+          color_info = regs[XE_GPU_REG_RB_COLOR1_INFO].u32;
+          blendcontrol = regs[XE_GPU_REG_RB_BLENDCONTROL_1].u32;
+          break;
+        case 2:
+          color_info = regs[XE_GPU_REG_RB_COLOR2_INFO].u32;
+          blendcontrol = regs[XE_GPU_REG_RB_BLENDCONTROL_2].u32;
+          break;
+        case 3:
+          color_info = regs[XE_GPU_REG_RB_COLOR3_INFO].u32;
+          blendcontrol = regs[XE_GPU_REG_RB_BLENDCONTROL_3].u32;
+          break;
+        default:
+          color_info = regs[XE_GPU_REG_RB_COLOR_INFO].u32;
+          blendcontrol = regs[XE_GPU_REG_RB_BLENDCONTROL_0].u32;
+          break;
+      }
+      PipelineRenderTarget& rt = description_out.render_targets[i];
+      rt.used = 1;
+      rt.format = RenderTargetCache::GetBaseColorFormat(
+          ColorRenderTargetFormat((color_info >> 16) & 0xF));
+      rt.write_mask = (color_mask >> (guest_rt_index * 4)) & 0xF;
+      if (rt.write_mask) {
+        rt.src_blend = kBlendFactorMap[blendcontrol & 0x1F];
+        rt.dest_blend = kBlendFactorMap[(blendcontrol >> 8) & 0x1F];
+        rt.blend_op = BlendOp((blendcontrol >> 5) & 0x7);
+        rt.src_blend_alpha = kBlendFactorAlphaMap[(blendcontrol >> 16) & 0x1F];
+        rt.dest_blend_alpha = kBlendFactorAlphaMap[(blendcontrol >> 24) & 0x1F];
+        rt.blend_op_alpha = BlendOp((blendcontrol >> 21) & 0x7);
+      } else {
+        rt.src_blend = PipelineBlendFactor::kOne;
+        rt.dest_blend = PipelineBlendFactor::kZero;
+        rt.blend_op = BlendOp::kAdd;
+        rt.src_blend_alpha = PipelineBlendFactor::kOne;
+        rt.dest_blend_alpha = PipelineBlendFactor::kZero;
+        rt.blend_op_alpha = BlendOp::kAdd;
+      }
+    }
   }
-  update_desc_.RasterizerState.FrontCounterClockwise =
-      front_counter_clockwise ? TRUE : FALSE;
-  // Using ceil here just in case a game wants the offset but passes a value
-  // that is too small - it's better to apply more offset than to make depth
-  // fighting worse or to disable the offset completely (Direct3D 12 takes an
-  // integer value).
-  update_desc_.RasterizerState.DepthBias =
-      int32_t(std::ceil(std::abs(poly_offset))) * (poly_offset < 0.0f ? -1 : 1);
-  update_desc_.RasterizerState.DepthBiasClamp = 0.0f;
-  update_desc_.RasterizerState.SlopeScaledDepthBias =
-      poly_offset_scale * (1.0f / 16.0f);
-  update_desc_.RasterizerState.DepthClipEnable =
-      !depth_clamp_enable ? TRUE : FALSE;
+
+  return true;
+}
+
+ID3D12PipelineState* PipelineCache::CreatePipelineState(
+    const PipelineDescription& description) {
+  D3D12_GRAPHICS_PIPELINE_STATE_DESC state_desc;
+  std::memset(&state_desc, 0, sizeof(state_desc));
+
+  // Root signature.
+  state_desc.pRootSignature = description.root_signature;
+
+  // Index buffer strip cut value.
+  switch (description.strip_cut_index) {
+    case PipelineStripCutIndex::kFFFF:
+      state_desc.IBStripCutValue = D3D12_INDEX_BUFFER_STRIP_CUT_VALUE_0xFFFF;
+      break;
+    case PipelineStripCutIndex::kFFFFFFFF:
+      state_desc.IBStripCutValue =
+          D3D12_INDEX_BUFFER_STRIP_CUT_VALUE_0xFFFFFFFF;
+      break;
+    default:
+      state_desc.IBStripCutValue = D3D12_INDEX_BUFFER_STRIP_CUT_VALUE_DISABLED;
+      break;
+  }
+
+  // Vertex or hull/domain shaders.
+  if (description.tessellation_mode != PipelineTessellationMode::kNone) {
+    switch (description.patch_type) {
+      case PipelinePatchType::kTriangle:
+        if (description.vertex_shader->GetDomainShaderPrimitiveType() !=
+            PrimitiveType::kTrianglePatch) {
+          XELOGE(
+              "Tried to use vertex shader %.16" PRIX64
+              " for triangle patch "
+              "tessellation, but it's not a tessellation domain shader or has "
+              "the wrong domain",
+              description.vertex_shader->ucode_data_hash());
+          assert_always();
+          return nullptr;
+        }
+        if (description.tessellation_mode ==
+            PipelineTessellationMode::kDiscrete) {
+          state_desc.HS.pShaderBytecode = discrete_triangle_hs;
+          state_desc.HS.BytecodeLength = sizeof(discrete_triangle_hs);
+        } else if (description.tessellation_mode ==
+                   PipelineTessellationMode::kAdaptive) {
+          state_desc.HS.pShaderBytecode = adaptive_triangle_hs;
+          state_desc.HS.BytecodeLength = sizeof(adaptive_triangle_hs);
+        } else {
+          state_desc.HS.pShaderBytecode = continuous_triangle_hs;
+          state_desc.HS.BytecodeLength = sizeof(continuous_triangle_hs);
+        }
+        state_desc.VS.pShaderBytecode = tessellation_triangle_vs;
+        state_desc.VS.BytecodeLength = sizeof(tessellation_triangle_vs);
+        break;
+      case PipelinePatchType::kQuad:
+        if (description.vertex_shader->GetDomainShaderPrimitiveType() !=
+            PrimitiveType::kQuadPatch) {
+          XELOGE(
+              "Tried to use vertex shader %.16" PRIX64
+              " for quad patch "
+              "tessellation, but it's not a tessellation domain shader or has "
+              "the wrong domain",
+              description.vertex_shader->ucode_data_hash());
+          assert_always();
+          return nullptr;
+        }
+        if (description.tessellation_mode ==
+            PipelineTessellationMode::kDiscrete) {
+          state_desc.HS.pShaderBytecode = discrete_quad_hs;
+          state_desc.HS.BytecodeLength = sizeof(discrete_quad_hs);
+        } else {
+          state_desc.HS.pShaderBytecode = continuous_quad_hs;
+          state_desc.HS.BytecodeLength = sizeof(continuous_quad_hs);
+          // TODO(Triang3l): True adaptive tessellation when properly tested.
+        }
+        state_desc.VS.pShaderBytecode = tessellation_quad_vs;
+        state_desc.VS.BytecodeLength = sizeof(tessellation_quad_vs);
+        break;
+      default:
+        assert_unhandled_case(description.patch_type);
+        return nullptr;
+    }
+    // The Xenos vertex shader works like a domain shader with tessellation.
+    state_desc.DS.pShaderBytecode =
+        description.vertex_shader->translated_binary().data();
+    state_desc.DS.BytecodeLength =
+        description.vertex_shader->translated_binary().size();
+  } else {
+    if (description.vertex_shader->GetDomainShaderPrimitiveType() !=
+        PrimitiveType::kNone) {
+      XELOGE("Tried to use vertex shader %.16" PRIX64
+             " without tessellation, but it's a tessellation domain shader",
+             description.vertex_shader->ucode_data_hash());
+      assert_always();
+      return nullptr;
+    }
+    state_desc.VS.pShaderBytecode =
+        description.vertex_shader->translated_binary().data();
+    state_desc.VS.BytecodeLength =
+        description.vertex_shader->translated_binary().size();
+  }
+
+  // Pre-GS primitive topology type.
+  switch (description.primitive_topology_type) {
+    case PipelinePrimitiveTopologyType::kPoint:
+      state_desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_POINT;
+      break;
+    case PipelinePrimitiveTopologyType::kLine:
+      state_desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE;
+      break;
+    case PipelinePrimitiveTopologyType::kTriangle:
+      state_desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+      break;
+    case PipelinePrimitiveTopologyType::kPatch:
+      state_desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_PATCH;
+      break;
+    default:
+      assert_unhandled_case(description.primitive_topology_type);
+      return nullptr;
+  }
+
+  // Geometry shader.
+  switch (description.geometry_shader) {
+    case PipelineGeometryShader::kPointList:
+      state_desc.GS.pShaderBytecode = primitive_point_list_gs;
+      state_desc.GS.BytecodeLength = sizeof(primitive_point_list_gs);
+      break;
+    case PipelineGeometryShader::kRectangleList:
+      state_desc.GS.pShaderBytecode = primitive_rectangle_list_gs;
+      state_desc.GS.BytecodeLength = sizeof(primitive_rectangle_list_gs);
+      break;
+    case PipelineGeometryShader::kQuadList:
+      state_desc.GS.pShaderBytecode = primitive_quad_list_gs;
+      state_desc.GS.BytecodeLength = sizeof(primitive_quad_list_gs);
+      break;
+    default:
+      break;
+  }
+
+  // Pixel shader.
+  if (description.pixel_shader != nullptr) {
+    state_desc.PS.pShaderBytecode =
+        description.pixel_shader->translated_binary().data();
+    state_desc.PS.BytecodeLength =
+        description.pixel_shader->translated_binary().size();
+  } else if (edram_rov_used_) {
+    state_desc.PS.pShaderBytecode = depth_only_pixel_shader_.data();
+    state_desc.PS.BytecodeLength = depth_only_pixel_shader_.size();
+  }
+
+  // Rasterizer state.
+  state_desc.SampleMask = UINT_MAX;
+  state_desc.RasterizerState.FillMode = description.fill_mode_wireframe
+                                            ? D3D12_FILL_MODE_WIREFRAME
+                                            : D3D12_FILL_MODE_SOLID;
+  switch (description.cull_mode) {
+    case PipelineCullMode::kFront:
+      state_desc.RasterizerState.CullMode = D3D12_CULL_MODE_FRONT;
+      break;
+    case PipelineCullMode::kBack:
+      state_desc.RasterizerState.CullMode = D3D12_CULL_MODE_BACK;
+      break;
+    default:
+      state_desc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+      break;
+  }
+  state_desc.RasterizerState.FrontCounterClockwise =
+      description.front_counter_clockwise ? TRUE : FALSE;
+  state_desc.RasterizerState.DepthBias = description.depth_bias;
+  state_desc.RasterizerState.DepthBiasClamp = 0.0f;
+  state_desc.RasterizerState.SlopeScaledDepthBias =
+      description.depth_bias_slope_scaled;
+  state_desc.RasterizerState.DepthClipEnable =
+      description.depth_clip ? TRUE : FALSE;
   if (edram_rov_used_) {
     // Only 1, 4, 8 and (not on all GPUs) 16 are allowed, using sample 0 as 0
     // and 3 as 1 for 2x instead (not exactly the same sample positions, but
     // still top-left and bottom-right - however, this can be adjusted with
     // programmable sample positions).
-    update_desc_.RasterizerState.ForcedSampleCount = msaa_rov ? 4 : 1;
-  } else {
-    update_desc_.RasterizerState.ForcedSampleCount = 0;
+    state_desc.RasterizerState.ForcedSampleCount = description.rov_msaa ? 4 : 1;
   }
 
-  return UpdateStatus::kMismatch;
-}
+  // Sample description.
+  state_desc.SampleDesc.Count = 1;
 
-PipelineCache::UpdateStatus PipelineCache::UpdateDepthStencilState(
-    DXGI_FORMAT format) {
-  if (edram_rov_used_) {
-    return current_pipeline_ == nullptr ? UpdateStatus::kMismatch
-                                        : UpdateStatus::kCompatible;
+  if (!edram_rov_used_) {
+    // Depth/stencil.
+    if (description.depth_func != 0b111 || description.depth_write) {
+      state_desc.DepthStencilState.DepthEnable = TRUE;
+      state_desc.DepthStencilState.DepthWriteMask =
+          description.depth_write ? D3D12_DEPTH_WRITE_MASK_ALL
+                                  : D3D12_DEPTH_WRITE_MASK_ZERO;
+      // Comparison functions are the same in Direct3D 12 but plus one (minus
+      // one, bit 0 for less, bit 1 for equal, bit 2 for greater).
+      state_desc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC(
+          uint32_t(D3D12_COMPARISON_FUNC_NEVER) + description.depth_func);
+    }
+    if (description.stencil_enable) {
+      state_desc.DepthStencilState.StencilEnable = TRUE;
+      state_desc.DepthStencilState.StencilReadMask =
+          description.stencil_read_mask;
+      state_desc.DepthStencilState.StencilWriteMask =
+          description.stencil_write_mask;
+      // Stencil operations are the same in Direct3D 12 too but plus one.
+      state_desc.DepthStencilState.FrontFace.StencilFailOp = D3D12_STENCIL_OP(
+          uint32_t(D3D12_STENCIL_OP_KEEP) + description.stencil_front_fail_op);
+      state_desc.DepthStencilState.FrontFace.StencilDepthFailOp =
+          D3D12_STENCIL_OP(uint32_t(D3D12_STENCIL_OP_KEEP) +
+                           description.stencil_front_depth_fail_op);
+      state_desc.DepthStencilState.FrontFace.StencilPassOp = D3D12_STENCIL_OP(
+          uint32_t(D3D12_STENCIL_OP_KEEP) + description.stencil_front_pass_op);
+      state_desc.DepthStencilState.FrontFace.StencilFunc =
+          D3D12_COMPARISON_FUNC(uint32_t(D3D12_COMPARISON_FUNC_NEVER) +
+                                description.stencil_front_func);
+      state_desc.DepthStencilState.BackFace.StencilFailOp = D3D12_STENCIL_OP(
+          uint32_t(D3D12_STENCIL_OP_KEEP) + description.stencil_back_fail_op);
+      state_desc.DepthStencilState.BackFace.StencilDepthFailOp =
+          D3D12_STENCIL_OP(uint32_t(D3D12_STENCIL_OP_KEEP) +
+                           description.stencil_back_depth_fail_op);
+      state_desc.DepthStencilState.BackFace.StencilPassOp = D3D12_STENCIL_OP(
+          uint32_t(D3D12_STENCIL_OP_KEEP) + description.stencil_back_pass_op);
+      state_desc.DepthStencilState.BackFace.StencilFunc =
+          D3D12_COMPARISON_FUNC(uint32_t(D3D12_COMPARISON_FUNC_NEVER) +
+                                description.stencil_back_func);
+    }
+    if (state_desc.DepthStencilState.DepthEnable ||
+        state_desc.DepthStencilState.StencilEnable) {
+      state_desc.DSVFormat =
+          RenderTargetCache::GetDepthDXGIFormat(description.depth_format);
+    }
+    // TODO(Triang3l): EARLY_Z_ENABLE (needs to be enabled in shaders, but alpha
+    // test is dynamic - should be enabled anyway if there's no alpha test,
+    // discarding and depth output).
+
+    // Render targets and blending.
+    state_desc.BlendState.IndependentBlendEnable = TRUE;
+    static const D3D12_BLEND kBlendFactorMap[] = {
+        D3D12_BLEND_ZERO,          D3D12_BLEND_ONE,
+        D3D12_BLEND_SRC_COLOR,     D3D12_BLEND_INV_SRC_COLOR,
+        D3D12_BLEND_SRC_ALPHA,     D3D12_BLEND_INV_SRC_ALPHA,
+        D3D12_BLEND_DEST_COLOR,    D3D12_BLEND_INV_DEST_COLOR,
+        D3D12_BLEND_DEST_ALPHA,    D3D12_BLEND_INV_DEST_ALPHA,
+        D3D12_BLEND_BLEND_FACTOR,  D3D12_BLEND_INV_BLEND_FACTOR,
+        D3D12_BLEND_SRC_ALPHA_SAT,
+    };
+    static const D3D12_BLEND_OP kBlendOpMap[] = {
+        D3D12_BLEND_OP_ADD, D3D12_BLEND_OP_SUBTRACT,     D3D12_BLEND_OP_MIN,
+        D3D12_BLEND_OP_MAX, D3D12_BLEND_OP_REV_SUBTRACT,
+    };
+    for (uint32_t i = 0; i < 4; ++i) {
+      const PipelineRenderTarget& rt = description.render_targets[i];
+      if (!rt.used) {
+        break;
+      }
+      ++state_desc.NumRenderTargets;
+      state_desc.RTVFormats[i] =
+          RenderTargetCache::GetColorDXGIFormat(rt.format);
+      if (state_desc.RTVFormats[i] == DXGI_FORMAT_UNKNOWN) {
+        assert_always();
+        return nullptr;
+      }
+      D3D12_RENDER_TARGET_BLEND_DESC& blend_desc =
+          state_desc.BlendState.RenderTarget[i];
+      // Treat 1 * src + 0 * dest as disabled blending (there are opaque
+      // surfaces drawn with blending enabled, but it's 1 * src + 0 * dest, in
+      // Call of Duty 4 - GPU performance is better when not blending.
+      if (rt.src_blend != PipelineBlendFactor::kOne ||
+          rt.dest_blend != PipelineBlendFactor::kZero ||
+          rt.blend_op != BlendOp::kAdd ||
+          rt.src_blend_alpha != PipelineBlendFactor::kOne ||
+          rt.dest_blend_alpha != PipelineBlendFactor::kZero ||
+          rt.blend_op_alpha != BlendOp::kAdd) {
+        blend_desc.BlendEnable = TRUE;
+        blend_desc.SrcBlend = kBlendFactorMap[uint32_t(rt.src_blend)];
+        blend_desc.DestBlend = kBlendFactorMap[uint32_t(rt.dest_blend)];
+        blend_desc.BlendOp = kBlendOpMap[uint32_t(rt.blend_op)];
+        blend_desc.SrcBlendAlpha =
+            kBlendFactorMap[uint32_t(rt.src_blend_alpha)];
+        blend_desc.DestBlendAlpha =
+            kBlendFactorMap[uint32_t(rt.dest_blend_alpha)];
+        blend_desc.BlendOpAlpha = kBlendOpMap[uint32_t(rt.blend_op_alpha)];
+      }
+      blend_desc.RenderTargetWriteMask = rt.write_mask;
+    }
   }
 
-  auto& regs = update_depth_stencil_state_regs_;
-
-  bool dirty = current_pipeline_ == nullptr;
-  dirty |= regs.format != format;
-  regs.format = format;
-  dirty |= SetShadowRegister(&regs.rb_depthcontrol, XE_GPU_REG_RB_DEPTHCONTROL);
-  dirty |=
-      SetShadowRegister(&regs.rb_stencilrefmask, XE_GPU_REG_RB_STENCILREFMASK);
-  XXH64_update(&hash_state_, &regs, sizeof(regs));
-  if (!dirty) {
-    return UpdateStatus::kCompatible;
-  }
-
-  bool dsv_bound = format != DXGI_FORMAT_UNKNOWN;
-  update_desc_.DepthStencilState.DepthEnable =
-      (dsv_bound && (regs.rb_depthcontrol & 0x2)) ? TRUE : FALSE;
-  update_desc_.DepthStencilState.DepthWriteMask =
-      (dsv_bound && (regs.rb_depthcontrol & 0x4)) ? D3D12_DEPTH_WRITE_MASK_ALL
-                                                  : D3D12_DEPTH_WRITE_MASK_ZERO;
-  // Comparison functions are the same in Direct3D 12 but plus one (minus one,
-  // bit 0 for less, bit 1 for equal, bit 2 for greater).
-  update_desc_.DepthStencilState.DepthFunc =
-      D3D12_COMPARISON_FUNC(((regs.rb_depthcontrol >> 4) & 0x7) + 1);
-  update_desc_.DepthStencilState.StencilEnable =
-      (dsv_bound && (regs.rb_depthcontrol & 0x1)) ? TRUE : FALSE;
-  update_desc_.DepthStencilState.StencilReadMask =
-      (regs.rb_stencilrefmask >> 8) & 0xFF;
-  update_desc_.DepthStencilState.StencilWriteMask =
-      (regs.rb_stencilrefmask >> 16) & 0xFF;
-  // Stencil operations are the same in Direct3D 12 too but plus one.
-  update_desc_.DepthStencilState.FrontFace.StencilFailOp =
-      D3D12_STENCIL_OP(((regs.rb_depthcontrol >> 11) & 0x7) + 1);
-  update_desc_.DepthStencilState.FrontFace.StencilDepthFailOp =
-      D3D12_STENCIL_OP(((regs.rb_depthcontrol >> 17) & 0x7) + 1);
-  update_desc_.DepthStencilState.FrontFace.StencilPassOp =
-      D3D12_STENCIL_OP(((regs.rb_depthcontrol >> 14) & 0x7) + 1);
-  update_desc_.DepthStencilState.FrontFace.StencilFunc =
-      D3D12_COMPARISON_FUNC(((regs.rb_depthcontrol >> 8) & 0x7) + 1);
-  // BACKFACE_ENABLE.
-  if (regs.rb_depthcontrol & 0x80) {
-    update_desc_.DepthStencilState.BackFace.StencilFailOp =
-        D3D12_STENCIL_OP(((regs.rb_depthcontrol >> 23) & 0x7) + 1);
-    update_desc_.DepthStencilState.BackFace.StencilDepthFailOp =
-        D3D12_STENCIL_OP(((regs.rb_depthcontrol >> 29) & 0x7) + 1);
-    update_desc_.DepthStencilState.BackFace.StencilPassOp =
-        D3D12_STENCIL_OP(((regs.rb_depthcontrol >> 26) & 0x7) + 1);
-    update_desc_.DepthStencilState.BackFace.StencilFunc =
-        D3D12_COMPARISON_FUNC(((regs.rb_depthcontrol >> 20) & 0x7) + 1);
-  } else {
-    // Back state is identical to front state.
-    update_desc_.DepthStencilState.BackFace =
-        update_desc_.DepthStencilState.FrontFace;
-  }
-  // TODO(Triang3l): EARLY_Z_ENABLE (needs to be enabled in shaders, but alpha
-  // test is dynamic - should be enabled anyway if there's no alpha test,
-  // discarding and depth output).
-
-  update_desc_.DSVFormat = format;
-
-  return UpdateStatus::kMismatch;
-}
-
-PipelineCache::UpdateStatus PipelineCache::UpdateIBStripCutValue(
-    IndexFormat index_format) {
-  auto& regs = update_ib_strip_cut_value_regs_;
-
-  bool dirty = current_pipeline_ == nullptr;
-  D3D12_INDEX_BUFFER_STRIP_CUT_VALUE ib_strip_cut_value =
-      D3D12_INDEX_BUFFER_STRIP_CUT_VALUE_DISABLED;
-  if (register_file_->values[XE_GPU_REG_PA_SU_SC_MODE_CNTL].u32 & (1 << 21)) {
-    ib_strip_cut_value = index_format == IndexFormat::kInt32
-                             ? D3D12_INDEX_BUFFER_STRIP_CUT_VALUE_0xFFFFFFFF
-                             : D3D12_INDEX_BUFFER_STRIP_CUT_VALUE_0xFFFF;
-  }
-  dirty |= regs.ib_strip_cut_value != ib_strip_cut_value;
-  regs.ib_strip_cut_value = ib_strip_cut_value;
-  if (!dirty) {
-    return UpdateStatus::kCompatible;
-  }
-
-  update_desc_.IBStripCutValue = ib_strip_cut_value;
-
-  // TODO(Triang3l): Geometry shaders for non-0xFFFF values if they are used.
-
-  return UpdateStatus::kMismatch;
-}
-
-PipelineCache::Pipeline* PipelineCache::GetPipeline(uint64_t hash_key) {
-  // Lookup the pipeline in the cache.
-  auto it = pipelines_.find(hash_key);
-  if (it != pipelines_.end()) {
-    // Found existing pipeline.
-    return it->second;
-  }
-
-  // TODO(Triang3l): Cache create pipelines using CachedPSO.
-
-  if (update_shader_stages_regs_.pixel_shader != nullptr) {
-    XELOGGPU(
-        "Creating pipeline %.16" PRIX64 ", VS %.16" PRIX64 ", PS %.16" PRIX64,
-        hash_key, update_shader_stages_regs_.vertex_shader->ucode_data_hash(),
-        update_shader_stages_regs_.pixel_shader->ucode_data_hash());
-  } else {
-    XELOGGPU("Creating pipeline %.16" PRIX64 ", VS %.16" PRIX64, hash_key,
-             update_shader_stages_regs_.vertex_shader->ucode_data_hash());
-  }
-
+  // Create the pipeline.
   auto device =
       command_processor_->GetD3D12Context()->GetD3D12Provider()->GetDevice();
   ID3D12PipelineState* state;
-  if (FAILED(device->CreateGraphicsPipelineState(&update_desc_,
+  if (FAILED(device->CreateGraphicsPipelineState(&state_desc,
                                                  IID_PPV_ARGS(&state)))) {
-    XELOGE("Failed to create graphics pipeline state");
     return nullptr;
   }
-
   std::wstring name;
-  if (update_shader_stages_regs_.pixel_shader != nullptr) {
-    name = xe::format_string(
-        L"VS %.16I64X, PS %.16I64X, PL %.16I64X",
-        update_shader_stages_regs_.vertex_shader->ucode_data_hash(),
-        update_shader_stages_regs_.pixel_shader->ucode_data_hash(), hash_key);
+  if (description.pixel_shader != nullptr) {
+    name = xe::format_string(L"VS %.16I64X, PS %.16I64X",
+                             description.vertex_shader->ucode_data_hash(),
+                             description.pixel_shader->ucode_data_hash());
   } else {
-    name = xe::format_string(
-        L"VS %.16I64X, PL %.16I64X",
-        update_shader_stages_regs_.vertex_shader->ucode_data_hash(), hash_key);
+    name = xe::format_string(L"VS %.16I64X",
+                             description.vertex_shader->ucode_data_hash());
   }
   state->SetName(name.c_str());
-
-  // Add to cache with the hash key for reuse.
-  Pipeline* pipeline = new Pipeline;
-  pipeline->state = state;
-  pipeline->root_signature = update_desc_.pRootSignature;
-  pipelines_.insert({hash_key, pipeline});
-  COUNT_profile_set("gpu/pipeline_cache/pipelines", pipelines_.size());
-  return pipeline;
+  return state;
 }
 
 }  // namespace d3d12
