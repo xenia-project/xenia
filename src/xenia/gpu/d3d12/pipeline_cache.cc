@@ -152,13 +152,16 @@ bool PipelineCache::ConfigurePipeline(
 
   // Find an existing pipeline in the cache.
   uint64_t hash = XXH64(&description, sizeof(description), 0);
-  auto it = pipelines_.find(hash);
-  if (it != pipelines_.end()) {
-    Pipeline* found_pipeline = it->second;
-    current_pipeline_ = found_pipeline;
-    *pipeline_out = found_pipeline->state;
-    *root_signature_out = found_pipeline->description.root_signature;
-    return true;
+  auto found_range = pipelines_.equal_range(hash);
+  for (auto iter = found_range.first; iter != found_range.second; ++iter) {
+    Pipeline* found_pipeline = iter->second;
+    if (!std::memcmp(&found_pipeline->description, &description,
+                     sizeof(description))) {
+      current_pipeline_ = found_pipeline;
+      *pipeline_out = found_pipeline->state;
+      *root_signature_out = found_pipeline->description.root_signature;
+      return true;
+    }
   }
 
   // Create a new pipeline if not found and add it to the cache.
@@ -182,7 +185,7 @@ bool PipelineCache::ConfigurePipeline(
   Pipeline* new_pipeline = new Pipeline;
   new_pipeline->state = new_state;
   std::memcpy(&new_pipeline->description, &description, sizeof(description));
-  pipelines_.insert({hash, new_pipeline});
+  pipelines_.insert(std::make_pair(hash, new_pipeline));
   COUNT_profile_set("gpu/pipeline_cache/pipelines", pipelines_.size());
 
   current_pipeline_ = new_pipeline;

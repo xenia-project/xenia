@@ -187,8 +187,8 @@ class PipelineCache {
     ID3D12PipelineState* state;
     PipelineDescription description;
   };
-  // All previously generated pipelines mapped by hash.
-  std::unordered_map<uint64_t, Pipeline*> pipelines_;
+  // All previously generated pipelines identified by hash and the description.
+  std::unordered_multimap<uint64_t, Pipeline*> pipelines_;
 
   // Previously used pipeline. This matches our current state settings
   // and allows us to quickly(ish) reuse the pipeline if no registers have
