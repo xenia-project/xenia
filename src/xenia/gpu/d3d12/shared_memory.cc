@@ -319,10 +319,7 @@ bool SharedMemory::RequestRange(uint32_t start, uint32_t length) {
   }
   uint32_t last = start + length - 1;
 
-  auto command_list = command_processor_->GetCurrentCommandList();
-  if (command_list == nullptr) {
-    return false;
-  }
+  auto command_list = command_processor_->GetDeferredCommandList();
 
 #if FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
@@ -360,7 +357,7 @@ bool SharedMemory::RequestRange(uint32_t start, uint32_t length) {
           upload_buffer_mapping,
           memory_->TranslatePhysical(upload_range_start << page_size_log2_),
           upload_buffer_size);
-      command_list->CopyBufferRegion(
+      command_list->D3DCopyBufferRegion(
           buffer_, upload_range_start << page_size_log2_, upload_buffer,
           upload_buffer_offset, upload_buffer_size);
       upload_range_start += upload_buffer_pages;

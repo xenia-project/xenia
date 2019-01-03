@@ -13,6 +13,7 @@
 #include <memory>
 
 #include "xenia/gpu/command_processor.h"
+#include "xenia/gpu/d3d12/deferred_command_list.h"
 #include "xenia/gpu/graphics_system.h"
 #include "xenia/ui/d3d12/d3d12_context.h"
 
@@ -42,6 +43,10 @@ class D3D12GraphicsSystem : public GraphicsSystem {
       D3D12_GPU_DESCRIPTOR_HANDLE handle,
       D3D12_GPU_DESCRIPTOR_HANDLE* gamma_ramp_handle, float gamma_ramp_inv_size,
       ID3D12GraphicsCommandList* command_list);
+  void StretchTextureToFrontBuffer(
+      D3D12_GPU_DESCRIPTOR_HANDLE handle,
+      D3D12_GPU_DESCRIPTOR_HANDLE* gamma_ramp_handle, float gamma_ramp_inv_size,
+      DeferredCommandList& command_list);
 
  private:
   std::unique_ptr<CommandProcessor> CreateCommandProcessor() override;

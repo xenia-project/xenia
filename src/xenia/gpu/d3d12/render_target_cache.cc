@@ -466,10 +466,7 @@ bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
   // - New render target is added, but doesn't overlap unsaved data from other
   //   currently or previously used render targets, and it doesn't require a
   //   bigger size.
-  auto command_list = command_processor_->GetCurrentCommandList();
-  if (command_list == nullptr) {
-    return false;
-  }
+  auto command_list = command_processor_->GetDeferredCommandList();
   auto& regs = *register_file_;
 
 #if FINE_GRAINED_DRAW_SCOPES
@@ -856,7 +853,8 @@ bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
       current_pipeline_render_targets_[4].format = DXGI_FORMAT_UNKNOWN;
     }
     command_processor_->SubmitBarriers();
-    command_list->OMSetRenderTargets(rtv_count, rtv_handles, FALSE, dsv_handle);
+    command_list->D3DOMSetRenderTargets(rtv_count, rtv_handles, FALSE,
+                                        dsv_handle);
   }
 
   // Update the dirty regions.
@@ -1054,10 +1052,7 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
     return false;
   }
 
-  auto command_list = command_processor_->GetCurrentCommandList();
-  if (command_list == nullptr) {
-    return false;
-  }
+  auto command_list = command_processor_->GetDeferredCommandList();
 
   // Get the destination region and clamp the source region to it.
   uint32_t rb_copy_dest_pitch = regs[XE_GPU_REG_RB_COPY_DEST_PITCH].u32;
@@ -1251,7 +1246,7 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
     command_processor_->SubmitBarriers();
 
     // Dispatch the computation.
-    command_list->SetComputeRootSignature(edram_load_store_root_signature_);
+    command_list->D3DSetComputeRootSignature(edram_load_store_root_signature_);
     EDRAMLoadStoreRootConstants root_constants;
     // Only 5 bits - assuming pre-offset address.
     assert_true(dest_offset_x <= 31 && dest_offset_y <= 31);
@@ -1301,9 +1296,9 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
         root_constants.base_samples_2x_depth_pitch |= 1 << 12;
       }
     }
-    command_list->SetComputeRoot32BitConstants(
+    command_list->D3DSetComputeRoot32BitConstants(
         0, sizeof(root_constants) / sizeof(uint32_t), &root_constants, 0);
-    command_list->SetComputeRootDescriptorTable(1, descriptor_gpu_start);
+    command_list->D3DSetComputeRootDescriptorTable(1, descriptor_gpu_start);
     command_processor_->SetComputePipeline(
         src_64bpp ? edram_tile_sample_64bpp_pipeline_
                   : edram_tile_sample_32bpp_pipeline_);
@@ -1319,7 +1314,7 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
     // is 80x16 destination pixels after applying the resolution scale.
     group_count_x <<= resolution_scale_log2;
     group_count_y <<= resolution_scale_log2;
-    command_list->Dispatch(group_count_x, group_count_y, 1);
+    command_list->D3DDispatch(group_count_x, group_count_y, 1);
 
     // Commit the write.
     command_processor_->PushUAVBarrier(
@@ -1407,7 +1402,7 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
     TransitionEDRAMBuffer(D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
     command_processor_->SubmitBarriers();
 
-    command_list->SetComputeRootSignature(edram_load_store_root_signature_);
+    command_list->D3DSetComputeRootSignature(edram_load_store_root_signature_);
 
     EDRAMLoadStoreRootConstants load_root_constants;
     load_root_constants.rt_color_depth_offset = uint32_t(footprint.Offset);
@@ -1422,7 +1417,7 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
         load_root_constants.base_samples_2x_depth_pitch |= 1 << 12;
       }
     }
-    command_list->SetComputeRoot32BitConstants(
+    command_list->D3DSetComputeRoot32BitConstants(
         0, sizeof(load_root_constants) / sizeof(uint32_t), &load_root_constants,
         0);
 
@@ -1431,14 +1426,14 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
     ui::d3d12::util::CreateRawBufferUAV(
         device, provider->OffsetViewDescriptor(descriptor_cpu_start, 1),
         copy_buffer, render_target->copy_buffer_size);
-    command_list->SetComputeRootDescriptorTable(1, descriptor_gpu_start);
+    command_list->D3DSetComputeRootDescriptorTable(1, descriptor_gpu_start);
 
     EDRAMLoadStoreMode mode = GetLoadStoreMode(false, src_format);
     command_processor_->SetComputePipeline(
         resolution_scale_2x_ ? edram_load_2x_resolve_pipelines_[size_t(mode)]
                              : edram_load_pipelines_[size_t(mode)]);
     // 1 group per 80x16 samples, with both 1x and 2x resolution scales.
-    command_list->Dispatch(row_width_ss_div_80, rows, 1);
+    command_list->D3DDispatch(row_width_ss_div_80, rows, 1);
     command_processor_->PushUAVBarrier(copy_buffer);
 
     // Go to the next descriptor set.
@@ -1468,8 +1463,7 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
     location_dest.pResource = render_target->resource;
     location_dest.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
     location_dest.SubresourceIndex = 0;
-    command_list->CopyTextureRegion(&location_dest, 0, 0, 0, &location_source,
-                                    nullptr);
+    command_list->CopyTexture(location_dest, location_source);
 
     // Do the resolve. Render targets unbound already, safe to call
     // OMSetRenderTargets.
@@ -1486,7 +1480,7 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
         D3D12_RESOURCE_STATE_RENDER_TARGET);
     resolve_target->state = D3D12_RESOURCE_STATE_RENDER_TARGET;
 
-    command_list->SetGraphicsRootSignature(resolve_root_signature_);
+    command_list->D3DSetGraphicsRootSignature(resolve_root_signature_);
 
     ResolveRootConstants resolve_root_constants;
     uint32_t samples_x_log2 = msaa_samples >= MsaaSamples::k4X ? 1 : 0;
@@ -1542,7 +1536,7 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
           break;
       }
     }
-    command_list->SetGraphicsRoot32BitConstants(
+    command_list->D3DSetGraphicsRoot32BitConstants(
         0, sizeof(resolve_root_constants) / sizeof(uint32_t),
         &resolve_root_constants, 0);
 
@@ -1583,13 +1577,13 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
     rt_srv_desc.Texture2D.ResourceMinLODClamp = 0.0f;
     device->CreateShaderResourceView(render_target->resource, &rt_srv_desc,
                                      descriptor_cpu_start);
-    command_list->SetGraphicsRootDescriptorTable(1, descriptor_gpu_start);
+    command_list->D3DSetGraphicsRootDescriptorTable(1, descriptor_gpu_start);
 
     command_processor_->SubmitBarriers();
     command_processor_->SetSamplePositions(MsaaSamples::k1X);
     command_processor_->SetExternalGraphicsPipeline(resolve_pipeline);
-    command_list->OMSetRenderTargets(1, &resolve_target->rtv_handle, TRUE,
-                                     nullptr);
+    command_list->D3DOMSetRenderTargets(1, &resolve_target->rtv_handle, TRUE,
+                                        nullptr);
     D3D12_VIEWPORT viewport;
     viewport.TopLeftX = 0.0f;
     viewport.TopLeftY = 0.0f;
@@ -1597,19 +1591,20 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
     viewport.Height = float(copy_height << resolution_scale_log2);
     viewport.MinDepth = 0.0f;
     viewport.MaxDepth = 1.0f;
-    command_list->RSSetViewports(1, &viewport);
+    command_list->RSSetViewport(viewport);
     D3D12_RECT scissor;
     scissor.left = 0;
     scissor.top = 0;
     scissor.right = copy_width << resolution_scale_log2;
     scissor.bottom = copy_height << resolution_scale_log2;
-    command_list->RSSetScissorRects(1, &scissor);
-    command_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-    command_list->DrawInstanced(3, 1, 0, 0);
+    command_list->RSSetScissorRect(scissor);
+    command_list->D3DIASetPrimitiveTopology(
+        D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    command_list->D3DDrawInstanced(3, 1, 0, 0);
     if (command_processor_->IsROVUsedForEDRAM()) {
       // Clean up - the ROV path doesn't need render targets bound and has
       // non-zero ForcedSampleCount.
-      command_list->OMSetRenderTargets(0, nullptr, FALSE, nullptr);
+      command_list->D3DOMSetRenderTargets(0, nullptr, FALSE, nullptr);
     }
 
     // Copy the resolve target to the buffer.
@@ -1628,8 +1623,7 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
     location_dest.pResource = copy_buffer;
     location_dest.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
     location_dest.PlacedFootprint = resolve_target->footprint;
-    command_list->CopyTextureRegion(&location_dest, 0, 0, 0, &location_source,
-                                    nullptr);
+    command_list->CopyTexture(location_dest, location_source);
 
     // Tile the resolved texture. The texture cache expects the buffer to be a
     // non-pixel-shader SRV.
@@ -1681,10 +1675,7 @@ bool RenderTargetCache::ResolveClear(uint32_t edram_base,
   uint32_t samples_y_log2 = msaa_samples >= MsaaSamples::k2X ? 1 : 0;
 
   // Get everything needed for clearing.
-  auto command_list = command_processor_->GetCurrentCommandList();
-  if (command_list == nullptr) {
-    return false;
-  }
+  auto command_list = command_processor_->GetDeferredCommandList();
   auto device =
       command_processor_->GetD3D12Context()->GetD3D12Provider()->GetDevice();
   D3D12_CPU_DESCRIPTOR_HANDLE descriptor_cpu_start;
@@ -1738,14 +1729,14 @@ bool RenderTargetCache::ResolveClear(uint32_t edram_base,
     root_constants.clear_color_high = regs[reg].u32;
     command_processor_->SetComputePipeline(edram_clear_32bpp_pipeline_);
   }
-  command_list->SetComputeRootSignature(edram_clear_root_signature_);
-  command_list->SetComputeRoot32BitConstants(
+  command_list->D3DSetComputeRootSignature(edram_clear_root_signature_);
+  command_list->D3DSetComputeRoot32BitConstants(
       0, sizeof(root_constants) / sizeof(uint32_t), &root_constants, 0);
   ui::d3d12::util::CreateRawBufferUAV(device, descriptor_cpu_start,
                                       edram_buffer_, GetEDRAMBufferSize());
-  command_list->SetComputeRootDescriptorTable(1, descriptor_gpu_start);
+  command_list->D3DSetComputeRootDescriptorTable(1, descriptor_gpu_start);
   // 1 group per 80x16 samples. Resolution scale handled in the shader itself.
-  command_list->Dispatch(row_width_ss_div_80, rows, 1);
+  command_list->D3DDispatch(row_width_ss_div_80, rows, 1);
   command_processor_->PushUAVBarrier(edram_buffer_);
 
   return true;
@@ -2350,10 +2341,7 @@ RenderTargetCache::EDRAMLoadStoreMode RenderTargetCache::GetLoadStoreMode(
 }
 
 void RenderTargetCache::StoreRenderTargetsToEDRAM() {
-  auto command_list = command_processor_->GetCurrentCommandList();
-  if (command_list == nullptr) {
-    return;
-  }
+  auto command_list = command_processor_->GetDeferredCommandList();
 
   // Extract only the render targets that need to be stored, transition them to
   // copy sources and calculate copy buffer size.
@@ -2406,13 +2394,13 @@ void RenderTargetCache::StoreRenderTargetsToEDRAM() {
   // Set up the bindings.
   auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
   auto device = provider->GetDevice();
-  command_list->SetComputeRootSignature(edram_load_store_root_signature_);
+  command_list->D3DSetComputeRootSignature(edram_load_store_root_signature_);
   ui::d3d12::util::CreateRawBufferSRV(device, descriptor_cpu_start, copy_buffer,
                                       copy_buffer_size);
   ui::d3d12::util::CreateRawBufferUAV(
       device, provider->OffsetViewDescriptor(descriptor_cpu_start, 1),
       edram_buffer_, GetEDRAMBufferSize());
-  command_list->SetComputeRootDescriptorTable(1, descriptor_gpu_start);
+  command_list->D3DSetComputeRootDescriptorTable(1, descriptor_gpu_start);
 
   // Sort the bindings in ascending order of EDRAM base so data in the render
   // targets placed farther in EDRAM isn't lost in case of overlap.
@@ -2461,8 +2449,7 @@ void RenderTargetCache::StoreRenderTargetsToEDRAM() {
     location_dest.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
     location_dest.PlacedFootprint = render_target->footprints[0];
     // TODO(Triang3l): Box for color render targets.
-    command_list->CopyTextureRegion(&location_dest, 0, 0, 0, &location_source,
-                                    nullptr);
+    command_list->CopyTexture(location_dest, location_source);
     EDRAMLoadStoreRootConstants root_constants;
     uint32_t rt_pitch_tiles = surface_pitch_tiles;
     if (!render_target->key.is_depth &&
@@ -2481,8 +2468,7 @@ void RenderTargetCache::StoreRenderTargetsToEDRAM() {
       root_constants.base_samples_2x_depth_pitch |= 1 << 15;
       location_source.SubresourceIndex = 1;
       location_dest.PlacedFootprint = render_target->footprints[1];
-      command_list->CopyTextureRegion(&location_dest, 0, 0, 0, &location_source,
-                                      nullptr);
+      command_list->CopyTexture(location_dest, location_source);
       root_constants.rt_stencil_offset =
           uint32_t(location_dest.PlacedFootprint.Offset);
       root_constants.rt_stencil_pitch =
@@ -2497,14 +2483,14 @@ void RenderTargetCache::StoreRenderTargetsToEDRAM() {
     command_processor_->SubmitBarriers();
 
     // Store the data.
-    command_list->SetComputeRoot32BitConstants(
+    command_list->D3DSetComputeRoot32BitConstants(
         0, sizeof(root_constants) / sizeof(uint32_t), &root_constants, 0);
     EDRAMLoadStoreMode mode = GetLoadStoreMode(render_target->key.is_depth,
                                                render_target->key.format);
     command_processor_->SetComputePipeline(
         edram_store_pipelines_[size_t(mode)]);
     // 1 group per 80x16 samples.
-    command_list->Dispatch(surface_pitch_tiles, binding.edram_dirty_rows, 1);
+    command_list->D3DDispatch(surface_pitch_tiles, binding.edram_dirty_rows, 1);
 
     // Commit the UAV write.
     command_processor_->PushUAVBarrier(edram_buffer_);
@@ -2521,10 +2507,7 @@ void RenderTargetCache::LoadRenderTargetsFromEDRAM(
     return;
   }
 
-  auto command_list = command_processor_->GetCurrentCommandList();
-  if (command_list == nullptr) {
-    return;
-  }
+  auto command_list = command_processor_->GetDeferredCommandList();
 
   // Allocate descriptors for the buffers.
   D3D12_CPU_DESCRIPTOR_HANDLE descriptor_cpu_start;
@@ -2562,13 +2545,13 @@ void RenderTargetCache::LoadRenderTargetsFromEDRAM(
   // Set up the bindings.
   auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
   auto device = provider->GetDevice();
-  command_list->SetComputeRootSignature(edram_load_store_root_signature_);
+  command_list->D3DSetComputeRootSignature(edram_load_store_root_signature_);
   ui::d3d12::util::CreateRawBufferSRV(device, descriptor_cpu_start,
                                       edram_buffer_, GetEDRAMBufferSize());
   ui::d3d12::util::CreateRawBufferUAV(
       device, provider->OffsetViewDescriptor(descriptor_cpu_start, 1),
       copy_buffer, copy_buffer_size);
-  command_list->SetComputeRootDescriptorTable(1, descriptor_gpu_start);
+  command_list->D3DSetComputeRootDescriptorTable(1, descriptor_gpu_start);
 
   // Load each render target.
   for (uint32_t i = 0; i < render_target_count; ++i) {
@@ -2615,13 +2598,14 @@ void RenderTargetCache::LoadRenderTargetsFromEDRAM(
       root_constants.rt_stencil_pitch =
           render_target->footprints[1].Footprint.RowPitch;
     }
-    command_list->SetComputeRoot32BitConstants(
+    command_list->D3DSetComputeRoot32BitConstants(
         0, sizeof(root_constants) / sizeof(uint32_t), &root_constants, 0);
     EDRAMLoadStoreMode mode = GetLoadStoreMode(render_target->key.is_depth,
                                                render_target->key.format);
     command_processor_->SetComputePipeline(edram_load_pipelines_[size_t(mode)]);
     // 1 group per 80x16 samples.
-    command_list->Dispatch(render_target->key.width_ss_div_80, edram_rows, 1);
+    command_list->D3DDispatch(render_target->key.width_ss_div_80, edram_rows,
+                              1);
 
     // Commit the UAV write and transition the copy buffer to copy source now.
     command_processor_->PushUAVBarrier(copy_buffer);
@@ -2638,13 +2622,11 @@ void RenderTargetCache::LoadRenderTargetsFromEDRAM(
     location_dest.pResource = render_target->resource;
     location_dest.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
     location_dest.SubresourceIndex = 0;
-    command_list->CopyTextureRegion(&location_dest, 0, 0, 0, &location_source,
-                                    nullptr);
+    command_list->CopyTexture(location_dest, location_source);
     if (render_target->key.is_depth) {
       location_source.PlacedFootprint = render_target->footprints[1];
       location_dest.SubresourceIndex = 1;
-      command_list->CopyTextureRegion(&location_dest, 0, 0, 0, &location_source,
-                                      nullptr);
+      command_list->CopyTexture(location_dest, location_source);
     }
   }
 

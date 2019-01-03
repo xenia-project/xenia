@@ -18,6 +18,7 @@
 
 #include "xenia/gpu/command_processor.h"
 #include "xenia/gpu/d3d12/d3d12_graphics_system.h"
+#include "xenia/gpu/d3d12/deferred_command_list.h"
 #include "xenia/gpu/d3d12/pipeline_cache.h"
 #include "xenia/gpu/d3d12/primitive_converter.h"
 #include "xenia/gpu/d3d12/render_target_cache.h"
@@ -49,9 +50,10 @@ class D3D12CommandProcessor : public CommandProcessor {
     return static_cast<xe::ui::d3d12::D3D12Context*>(context_.get());
   }
 
-  // Returns the drawing command list for the currently open frame.
-  ID3D12GraphicsCommandList* GetCurrentCommandList() const;
-  ID3D12GraphicsCommandList1* GetCurrentCommandList1() const;
+  // Returns the deferred drawing command list for the currently open frame.
+  DeferredCommandList* GetDeferredCommandList() {
+    return deferred_command_list_.get();
+  }
 
   // Should a rasterizer-ordered UAV of the EDRAM buffer with format conversion
   // and blending performed in pixel shaders be used instead of host render
@@ -200,13 +202,12 @@ class D3D12CommandProcessor : public CommandProcessor {
   // Returns true if an open frame was ended.
   bool EndFrame();
 
-  void UpdateFixedFunctionState(ID3D12GraphicsCommandList* command_list);
+  void UpdateFixedFunctionState();
   void UpdateSystemConstantValues(
       bool shared_memory_is_uav, PrimitiveType primitive_type,
       Endian index_endian, uint32_t edge_factor_base, uint32_t color_mask,
       const RenderTargetCache::PipelineRenderTarget render_targets[4]);
-  bool UpdateBindings(ID3D12GraphicsCommandList* command_list,
-                      const D3D12Shader* vertex_shader,
+  bool UpdateBindings(const D3D12Shader* vertex_shader,
                       const D3D12Shader* pixel_shader,
                       ID3D12RootSignature* root_signature);
 
@@ -221,6 +222,7 @@ class D3D12CommandProcessor : public CommandProcessor {
 
   std::unique_ptr<ui::d3d12::CommandList>
       command_lists_[ui::d3d12::D3D12Context::kQueuedFrames] = {};
+  std::unique_ptr<DeferredCommandList> deferred_command_list_ = nullptr;
 
   std::unique_ptr<SharedMemory> shared_memory_ = nullptr;
 

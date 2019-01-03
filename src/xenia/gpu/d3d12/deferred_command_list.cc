@@ -66,6 +66,13 @@ void DeferredCommandList::Execute(ID3D12GraphicsCommandList* command_list,
             args.start_index_location, args.base_vertex_location,
             args.start_instance_location);
       } break;
+      case Command::kD3DDrawInstanced: {
+        auto& args =
+            *reinterpret_cast<const D3DDrawInstancedArguments*>(stream);
+        command_list->DrawInstanced(
+            args.vertex_count_per_instance, args.instance_count,
+            args.start_vertex_location, args.start_instance_location);
+      } break;
       case Command::kD3DIASetIndexBuffer: {
         auto view = reinterpret_cast<const D3D12_INDEX_BUFFER_VIEW*>(stream);
         command_list->IASetIndexBuffer(
@@ -188,7 +195,6 @@ void DeferredCommandList::Execute(ID3D12GraphicsCommandList* command_list,
     stream += header[1];
     stream_remaining -= header[1];
   }
-  Reset();
 }
 
 void* DeferredCommandList::WriteCommand(Command command,

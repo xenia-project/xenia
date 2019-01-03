@@ -66,24 +66,6 @@ void D3D12CommandProcessor::RequestFrameTrace(const std::wstring& root_path) {
   CommandProcessor::RequestFrameTrace(root_path);
 }
 
-ID3D12GraphicsCommandList* D3D12CommandProcessor::GetCurrentCommandList()
-    const {
-  assert_true(current_queue_frame_ != UINT_MAX);
-  if (current_queue_frame_ == UINT_MAX) {
-    return nullptr;
-  }
-  return command_lists_[current_queue_frame_]->GetCommandList();
-}
-
-ID3D12GraphicsCommandList1* D3D12CommandProcessor::GetCurrentCommandList1()
-    const {
-  assert_true(current_queue_frame_ != UINT_MAX);
-  if (current_queue_frame_ == UINT_MAX) {
-    return nullptr;
-  }
-  return command_lists_[current_queue_frame_]->GetCommandList1();
-}
-
 bool D3D12CommandProcessor::IsROVUsedForEDRAM() const {
   if (!FLAGS_d3d12_edram_rov) {
     return false;
@@ -144,7 +126,7 @@ void D3D12CommandProcessor::PushUAVBarrier(ID3D12Resource* resource) {
 void D3D12CommandProcessor::SubmitBarriers() {
   UINT barrier_count = UINT(barriers_.size());
   if (barrier_count != 0) {
-    GetCurrentCommandList()->ResourceBarrier(barrier_count, barriers_.data());
+    deferred_command_list_->D3DResourceBarrier(barrier_count, barriers_.data());
     barriers_.clear();
   }
 }
@@ -451,15 +433,9 @@ uint64_t D3D12CommandProcessor::RequestViewDescriptors(
   }
   ID3D12DescriptorHeap* heap = view_heap_pool_->GetLastRequestHeap();
   if (current_view_heap_ != heap) {
-    // Bind the new descriptor heaps if needed.
     current_view_heap_ = heap;
-    ID3D12DescriptorHeap* heaps[2];
-    uint32_t heap_count = 0;
-    heaps[heap_count++] = heap;
-    if (current_sampler_heap_ != nullptr) {
-      heaps[heap_count++] = current_sampler_heap_;
-    }
-    GetCurrentCommandList()->SetDescriptorHeaps(heap_count, heaps);
+    deferred_command_list_->SetDescriptorHeaps(current_view_heap_,
+                                               current_sampler_heap_);
   }
   auto provider = GetD3D12Context()->GetD3D12Provider();
   cpu_handle_out = provider->OffsetViewDescriptor(
@@ -483,15 +459,9 @@ uint64_t D3D12CommandProcessor::RequestSamplerDescriptors(
   }
   ID3D12DescriptorHeap* heap = sampler_heap_pool_->GetLastRequestHeap();
   if (current_sampler_heap_ != heap) {
-    // Bind the new descriptor heaps if needed.
     current_sampler_heap_ = heap;
-    ID3D12DescriptorHeap* heaps[2];
-    uint32_t heap_count = 0;
-    heaps[heap_count++] = heap;
-    if (current_view_heap_ != nullptr) {
-      heaps[heap_count++] = current_view_heap_;
-    }
-    GetCurrentCommandList()->SetDescriptorHeaps(heap_count, heaps);
+    deferred_command_list_->SetDescriptorHeaps(current_view_heap_,
+                                               current_sampler_heap_);
   }
   uint32_t descriptor_offset =
       descriptor_index *
@@ -567,8 +537,8 @@ void D3D12CommandProcessor::SetSamplePositions(MsaaSamples sample_positions) {
   if (FLAGS_d3d12_ssaa_custom_sample_positions && !IsROVUsedForEDRAM()) {
     auto provider = GetD3D12Context()->GetD3D12Provider();
     auto tier = provider->GetProgrammableSamplePositionsTier();
-    auto command_list = GetCurrentCommandList1();
-    if (tier >= 2 && command_list != nullptr) {
+    if (tier >= 2 &&
+        command_lists_[current_queue_frame_]->GetCommandList1() != nullptr) {
       // Depth buffer transitions are affected by sample positions.
       SubmitBarriers();
       // Standard sample positions in Direct3D 10.1, but adjusted to take the
@@ -606,9 +576,10 @@ void D3D12CommandProcessor::SetSamplePositions(MsaaSamples sample_positions) {
           d3d_sample_positions[3].X = 4;
           d3d_sample_positions[3].Y = 4 - 4;
         }
-        command_list->SetSamplePositions(1, 4, d3d_sample_positions);
+        deferred_command_list_->D3DSetSamplePositions(1, 4,
+                                                      d3d_sample_positions);
       } else {
-        command_list->SetSamplePositions(0, 0, nullptr);
+        deferred_command_list_->D3DSetSamplePositions(0, 0, nullptr);
       }
     }
   }
@@ -617,7 +588,7 @@ void D3D12CommandProcessor::SetSamplePositions(MsaaSamples sample_positions) {
 
 void D3D12CommandProcessor::SetComputePipeline(ID3D12PipelineState* pipeline) {
   if (current_pipeline_ != pipeline) {
-    GetCurrentCommandList()->SetPipelineState(pipeline);
+    deferred_command_list_->D3DSetPipelineState(pipeline);
     current_pipeline_ = pipeline;
   }
 }
@@ -630,7 +601,7 @@ void D3D12CommandProcessor::SetExternalGraphicsPipeline(
     ID3D12PipelineState* pipeline, bool reset_viewport, bool reset_blend_factor,
     bool reset_stencil_ref) {
   if (current_pipeline_ != pipeline) {
-    GetCurrentCommandList()->SetPipelineState(pipeline);
+    deferred_command_list_->D3DSetPipelineState(pipeline);
     current_pipeline_ = pipeline;
   }
   current_graphics_root_signature_ = nullptr;
@@ -680,6 +651,7 @@ bool D3D12CommandProcessor::SetupContext() {
       return false;
     }
   }
+  deferred_command_list_ = std::make_unique<DeferredCommandList>(this);
 
   constant_buffer_pool_ =
       std::make_unique<ui::d3d12::UploadBufferPool>(context, 1024 * 1024);
@@ -902,6 +874,7 @@ void D3D12CommandProcessor::ShutdownContext() {
 
   shared_memory_.reset();
 
+  deferred_command_list_.reset();
   for (uint32_t i = 0; i < ui::d3d12::D3D12Context::kQueuedFrames; ++i) {
     command_lists_[i].reset();
   }
@@ -959,7 +932,6 @@ void D3D12CommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
 
   auto provider = GetD3D12Context()->GetD3D12Provider();
   auto device = provider->GetDevice();
-  auto command_list = GetCurrentCommandList();
 
   // Upload the new gamma ramps.
   if (dirty_gamma_ramp_normal_) {
@@ -985,8 +957,7 @@ void D3D12CommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
     location_dest.pResource = gamma_ramp_texture_;
     location_dest.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
     location_dest.SubresourceIndex = 0;
-    command_list->CopyTextureRegion(&location_dest, 0, 0, 0, &location_source,
-                                    nullptr);
+    deferred_command_list_->CopyTexture(location_dest, location_source);
     dirty_gamma_ramp_normal_ = false;
   }
   if (dirty_gamma_ramp_pwl_) {
@@ -1011,8 +982,7 @@ void D3D12CommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
     location_dest.pResource = gamma_ramp_texture_;
     location_dest.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
     location_dest.SubresourceIndex = 1;
-    command_list->CopyTextureRegion(&location_dest, 0, 0, 0, &location_source,
-                                    nullptr);
+    deferred_command_list_->CopyTexture(location_dest, location_source);
     dirty_gamma_ramp_pwl_ = false;
   }
 
@@ -1063,7 +1033,8 @@ void D3D12CommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
       }
 
       // Draw the stretching rectangle.
-      command_list->OMSetRenderTargets(1, &swap_texture_rtv_, TRUE, nullptr);
+      deferred_command_list_->D3DOMSetRenderTargets(1, &swap_texture_rtv_, TRUE,
+                                                    nullptr);
       D3D12_VIEWPORT viewport;
       viewport.TopLeftX = 0.0f;
       viewport.TopLeftY = 0.0f;
@@ -1071,20 +1042,21 @@ void D3D12CommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
       viewport.Height = float(swap_texture_height);
       viewport.MinDepth = 0.0f;
       viewport.MaxDepth = 0.0f;
-      command_list->RSSetViewports(1, &viewport);
+      deferred_command_list_->RSSetViewport(viewport);
       D3D12_RECT scissor;
       scissor.left = 0;
       scissor.top = 0;
       scissor.right = swap_texture_width;
       scissor.bottom = swap_texture_height;
-      command_list->RSSetScissorRects(1, &scissor);
+      deferred_command_list_->RSSetScissorRect(scissor);
       D3D12GraphicsSystem* graphics_system =
           static_cast<D3D12GraphicsSystem*>(graphics_system_);
       D3D12_GPU_DESCRIPTOR_HANDLE gamma_ramp_gpu_handle =
           provider->OffsetViewDescriptor(descriptor_gpu_start, 1);
       graphics_system->StretchTextureToFrontBuffer(
           descriptor_gpu_start, &gamma_ramp_gpu_handle,
-          use_pwl_gamma_ramp ? (1.0f / 128.0f) : (1.0f / 256.0f), command_list);
+          use_pwl_gamma_ramp ? (1.0f / 128.0f) : (1.0f / 256.0f),
+          *deferred_command_list_);
       // Ending the current frame's command list anyway, so no need to unbind
       // the render targets when using ROV.
 
@@ -1219,7 +1191,6 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
   }
 
   bool new_frame = BeginFrame();
-  auto command_list = GetCurrentCommandList();
 
   // Set up the render targets - this may bind pipelines.
   if (!render_target_cache_->UpdateRenderTargets(pixel_shader)) {
@@ -1299,7 +1270,7 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
   }
   if (primitive_topology_ != primitive_topology) {
     primitive_topology_ = primitive_topology;
-    command_list->IASetPrimitiveTopology(primitive_topology);
+    deferred_command_list_->D3DIASetPrimitiveTopology(primitive_topology);
   }
 
   // Update the textures - this may bind pipelines.
@@ -1317,12 +1288,12 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     return false;
   }
   if (current_pipeline_ != pipeline) {
-    GetCurrentCommandList()->SetPipelineState(pipeline);
+    deferred_command_list_->D3DSetPipelineState(pipeline);
     current_pipeline_ = pipeline;
   }
 
   // Update viewport, scissor, blend factor and stencil reference.
-  UpdateFixedFunctionState(command_list);
+  UpdateFixedFunctionState();
 
   // Update system constants before uploading them.
   UpdateSystemConstantValues(
@@ -1332,8 +1303,7 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
       color_mask, pipeline_render_targets);
 
   // Update constant buffers, descriptors and root parameters.
-  if (!UpdateBindings(command_list, vertex_shader, pixel_shader,
-                      root_signature)) {
+  if (!UpdateBindings(vertex_shader, pixel_shader, root_signature)) {
     return false;
   }
 
@@ -1532,13 +1502,13 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     } else {
       shared_memory_->UseForReading();
     }
-    command_list->IASetIndexBuffer(&index_buffer_view);
+    deferred_command_list_->D3DIASetIndexBuffer(&index_buffer_view);
     SubmitBarriers();
     if (adaptive_tessellation) {
       // Index buffer used for per-edge factors.
-      command_list->DrawInstanced(index_count, 1, 0, 0);
+      deferred_command_list_->D3DDrawInstanced(index_count, 1, 0, 0);
     } else {
-      command_list->DrawIndexedInstanced(index_count, 1, 0, 0, 0);
+      deferred_command_list_->D3DDrawIndexedInstanced(index_count, 1, 0, 0, 0);
     }
   } else {
     // Check if need to draw using a conversion index buffer.
@@ -1557,10 +1527,11 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
       index_buffer_view.BufferLocation = conversion_gpu_address;
       index_buffer_view.SizeInBytes = converted_index_count * sizeof(uint16_t);
       index_buffer_view.Format = DXGI_FORMAT_R16_UINT;
-      command_list->IASetIndexBuffer(&index_buffer_view);
-      command_list->DrawIndexedInstanced(converted_index_count, 1, 0, 0, 0);
+      deferred_command_list_->D3DIASetIndexBuffer(&index_buffer_view);
+      deferred_command_list_->D3DDrawIndexedInstanced(converted_index_count, 1,
+                                                      0, 0, 0);
     } else {
-      command_list->DrawInstanced(index_count, 1, 0, 0);
+      deferred_command_list_->D3DDrawInstanced(index_count, 1, 0, 0);
     }
   }
 
@@ -1659,7 +1630,7 @@ bool D3D12CommandProcessor::BeginFrame() {
       graphics_analysis->BeginCapture();
     }
   }
-  command_lists_[current_queue_frame_]->BeginRecording();
+  deferred_command_list_->Reset();
 
   constant_buffer_pool_->BeginFrame();
   view_heap_pool_->BeginFrame();
@@ -1694,7 +1665,13 @@ bool D3D12CommandProcessor::EndFrame() {
   // Submit barriers now because resources the queued barriers are for may be
   // destroyed between frames.
   SubmitBarriers();
-  command_lists_[current_queue_frame_]->Execute();
+
+  // Submit the command list.
+  auto current_command_list = command_lists_[current_queue_frame_].get();
+  current_command_list->BeginRecording();
+  deferred_command_list_->Execute(current_command_list->GetCommandList(),
+                                  current_command_list->GetCommandList1());
+  current_command_list->Execute();
 
   if (pix_capturing_) {
     IDXGraphicsAnalysis* graphics_analysis =
@@ -1716,8 +1693,7 @@ bool D3D12CommandProcessor::EndFrame() {
   return true;
 }
 
-void D3D12CommandProcessor::UpdateFixedFunctionState(
-    ID3D12GraphicsCommandList* command_list) {
+void D3D12CommandProcessor::UpdateFixedFunctionState() {
   auto& regs = *register_file_;
 
 #if FINE_GRAINED_DRAW_SCOPES
@@ -1814,7 +1790,7 @@ void D3D12CommandProcessor::UpdateFixedFunctionState(
   ff_viewport_update_needed_ |= ff_viewport_.MaxDepth != viewport.MaxDepth;
   if (ff_viewport_update_needed_) {
     ff_viewport_ = viewport;
-    command_list->RSSetViewports(1, &viewport);
+    deferred_command_list_->RSSetViewport(viewport);
     ff_viewport_update_needed_ = false;
   }
 
@@ -1845,7 +1821,7 @@ void D3D12CommandProcessor::UpdateFixedFunctionState(
   ff_scissor_update_needed_ |= ff_scissor_.bottom != scissor.bottom;
   if (ff_scissor_update_needed_) {
     ff_scissor_ = scissor;
-    command_list->RSSetScissorRects(1, &scissor);
+    deferred_command_list_->RSSetScissorRect(scissor);
     ff_scissor_update_needed_ = false;
   }
 
@@ -1864,7 +1840,7 @@ void D3D12CommandProcessor::UpdateFixedFunctionState(
       ff_blend_factor_[1] = regs[XE_GPU_REG_RB_BLEND_GREEN].f32;
       ff_blend_factor_[2] = regs[XE_GPU_REG_RB_BLEND_BLUE].f32;
       ff_blend_factor_[3] = regs[XE_GPU_REG_RB_BLEND_ALPHA].f32;
-      command_list->OMSetBlendFactor(ff_blend_factor_);
+      deferred_command_list_->D3DOMSetBlendFactor(ff_blend_factor_);
       ff_blend_factor_update_needed_ = false;
     }
 
@@ -1873,7 +1849,7 @@ void D3D12CommandProcessor::UpdateFixedFunctionState(
     ff_stencil_ref_update_needed_ |= ff_stencil_ref_ != stencil_ref;
     if (ff_stencil_ref_update_needed_) {
       ff_stencil_ref_ = stencil_ref;
-      command_list->OMSetStencilRef(stencil_ref);
+      deferred_command_list_->D3DOMSetStencilRef(stencil_ref);
       ff_stencil_ref_update_needed_ = false;
     }
   }
@@ -2493,8 +2469,8 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
 }
 
 bool D3D12CommandProcessor::UpdateBindings(
-    ID3D12GraphicsCommandList* command_list, const D3D12Shader* vertex_shader,
-    const D3D12Shader* pixel_shader, ID3D12RootSignature* root_signature) {
+    const D3D12Shader* vertex_shader, const D3D12Shader* pixel_shader,
+    ID3D12RootSignature* root_signature) {
   auto provider = GetD3D12Context()->GetD3D12Provider();
   auto device = provider->GetDevice();
   auto& regs = *register_file_;
@@ -2510,7 +2486,7 @@ bool D3D12CommandProcessor::UpdateBindings(
                                  current_graphics_root_extras_);
     // We don't know which root parameters are up to date anymore.
     current_graphics_root_up_to_date_ = 0;
-    command_list->SetGraphicsRootSignature(root_signature);
+    deferred_command_list_->D3DSetGraphicsRootSignature(root_signature);
   }
 
   XXH64_state_t hash_state;
@@ -2953,13 +2929,13 @@ bool D3D12CommandProcessor::UpdateBindings(
   // Update the root parameters.
   if (!(current_graphics_root_up_to_date_ &
         (1u << kRootParameter_FetchConstants))) {
-    command_list->SetGraphicsRootDescriptorTable(kRootParameter_FetchConstants,
-                                                 gpu_handle_fetch_constants_);
+    deferred_command_list_->D3DSetGraphicsRootDescriptorTable(
+        kRootParameter_FetchConstants, gpu_handle_fetch_constants_);
     current_graphics_root_up_to_date_ |= 1u << kRootParameter_FetchConstants;
   }
   if (!(current_graphics_root_up_to_date_ &
         (1u << kRootParameter_FloatConstantsVertex))) {
-    command_list->SetGraphicsRootDescriptorTable(
+    deferred_command_list_->D3DSetGraphicsRootDescriptorTable(
         kRootParameter_FloatConstantsVertex,
         gpu_handle_float_constants_vertex_);
     current_graphics_root_up_to_date_ |= 1u
@@ -2967,26 +2943,26 @@ bool D3D12CommandProcessor::UpdateBindings(
   }
   if (!(current_graphics_root_up_to_date_ &
         (1u << kRootParameter_FloatConstantsPixel))) {
-    command_list->SetGraphicsRootDescriptorTable(
+    deferred_command_list_->D3DSetGraphicsRootDescriptorTable(
         kRootParameter_FloatConstantsPixel, gpu_handle_float_constants_pixel_);
     current_graphics_root_up_to_date_ |= 1u
                                          << kRootParameter_FloatConstantsPixel;
   }
   if (!(current_graphics_root_up_to_date_ &
         (1u << kRootParameter_SystemConstants))) {
-    command_list->SetGraphicsRootDescriptorTable(kRootParameter_SystemConstants,
-                                                 gpu_handle_system_constants_);
+    deferred_command_list_->D3DSetGraphicsRootDescriptorTable(
+        kRootParameter_SystemConstants, gpu_handle_system_constants_);
     current_graphics_root_up_to_date_ |= 1u << kRootParameter_SystemConstants;
   }
   if (!(current_graphics_root_up_to_date_ &
         (1u << kRootParameter_BoolLoopConstants))) {
-    command_list->SetGraphicsRootDescriptorTable(
+    deferred_command_list_->D3DSetGraphicsRootDescriptorTable(
         kRootParameter_BoolLoopConstants, gpu_handle_bool_loop_constants_);
     current_graphics_root_up_to_date_ |= 1u << kRootParameter_BoolLoopConstants;
   }
   if (!(current_graphics_root_up_to_date_ &
         (1u << kRootParameter_SharedMemoryAndEDRAM))) {
-    command_list->SetGraphicsRootDescriptorTable(
+    deferred_command_list_->D3DSetGraphicsRootDescriptorTable(
         kRootParameter_SharedMemoryAndEDRAM,
         gpu_handle_shared_memory_and_edram_);
     current_graphics_root_up_to_date_ |= 1u
@@ -2996,29 +2972,29 @@ bool D3D12CommandProcessor::UpdateBindings(
   extra_index = current_graphics_root_extras_.textures_pixel;
   if (extra_index != RootExtraParameterIndices::kUnavailable &&
       !(current_graphics_root_up_to_date_ & (1u << extra_index))) {
-    command_list->SetGraphicsRootDescriptorTable(extra_index,
-                                                 gpu_handle_textures_pixel_);
+    deferred_command_list_->D3DSetGraphicsRootDescriptorTable(
+        extra_index, gpu_handle_textures_pixel_);
     current_graphics_root_up_to_date_ |= 1u << extra_index;
   }
   extra_index = current_graphics_root_extras_.samplers_pixel;
   if (extra_index != RootExtraParameterIndices::kUnavailable &&
       !(current_graphics_root_up_to_date_ & (1u << extra_index))) {
-    command_list->SetGraphicsRootDescriptorTable(extra_index,
-                                                 gpu_handle_samplers_pixel_);
+    deferred_command_list_->D3DSetGraphicsRootDescriptorTable(
+        extra_index, gpu_handle_samplers_pixel_);
     current_graphics_root_up_to_date_ |= 1u << extra_index;
   }
   extra_index = current_graphics_root_extras_.textures_vertex;
   if (extra_index != RootExtraParameterIndices::kUnavailable &&
       !(current_graphics_root_up_to_date_ & (1u << extra_index))) {
-    command_list->SetGraphicsRootDescriptorTable(extra_index,
-                                                 gpu_handle_textures_vertex_);
+    deferred_command_list_->D3DSetGraphicsRootDescriptorTable(
+        extra_index, gpu_handle_textures_vertex_);
     current_graphics_root_up_to_date_ |= 1u << extra_index;
   }
   extra_index = current_graphics_root_extras_.samplers_vertex;
   if (extra_index != RootExtraParameterIndices::kUnavailable &&
       !(current_graphics_root_up_to_date_ & (1u << extra_index))) {
-    command_list->SetGraphicsRootDescriptorTable(extra_index,
-                                                 gpu_handle_samplers_vertex_);
+    deferred_command_list_->D3DSetGraphicsRootDescriptorTable(
+        extra_index, gpu_handle_samplers_vertex_);
     current_graphics_root_up_to_date_ |= 1u << extra_index;
   }
 

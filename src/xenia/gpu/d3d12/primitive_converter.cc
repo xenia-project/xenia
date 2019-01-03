@@ -127,7 +127,7 @@ void PrimitiveConverter::BeginFrame() {
     auto context = command_processor_->GetD3D12Context();
     if (static_ib_upload_frame_ == UINT64_MAX) {
       // Not uploaded yet - upload.
-      command_processor_->GetCurrentCommandList()->CopyResource(
+      command_processor_->GetDeferredCommandList()->D3DCopyResource(
           static_ib_, static_ib_upload_);
       command_processor_->PushTransitionBarrier(
           static_ib_, D3D12_RESOURCE_STATE_COPY_DEST,
