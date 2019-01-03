@@ -31,6 +31,7 @@ void DeferredCommandList::Execute(ID3D12GraphicsCommandList* command_list,
                                   ID3D12GraphicsCommandList1* command_list_1) {
   const uint8_t* stream = command_stream_.data();
   size_t stream_remaining = command_stream_.size();
+  ID3D12PipelineState* current_pipeline_state = nullptr;
   while (stream_remaining != 0) {
     const uint32_t* header = reinterpret_cast<const uint32_t*>(stream);
     const size_t header_size = xe::align(2 * sizeof(uint32_t), kAlignment);
@@ -53,25 +54,32 @@ void DeferredCommandList::Execute(ID3D12GraphicsCommandList* command_list,
         command_list->CopyTextureRegion(&args.dst, 0, 0, 0, &args.src, nullptr);
       } break;
       case Command::kD3DDispatch: {
-        auto& args = *reinterpret_cast<const D3DDispatchArguments*>(stream);
-        command_list->Dispatch(args.thread_group_count_x,
-                               args.thread_group_count_y,
-                               args.thread_group_count_z);
+        if (current_pipeline_state != nullptr) {
+          auto& args = *reinterpret_cast<const D3DDispatchArguments*>(stream);
+          command_list->Dispatch(args.thread_group_count_x,
+                                 args.thread_group_count_y,
+                                 args.thread_group_count_z);
+        }
       } break;
       case Command::kD3DDrawIndexedInstanced: {
-        auto& args =
-            *reinterpret_cast<const D3DDrawIndexedInstancedArguments*>(stream);
-        command_list->DrawIndexedInstanced(
-            args.index_count_per_instance, args.instance_count,
-            args.start_index_location, args.base_vertex_location,
-            args.start_instance_location);
+        if (current_pipeline_state != nullptr) {
+          auto& args =
+              *reinterpret_cast<const D3DDrawIndexedInstancedArguments*>(
+                  stream);
+          command_list->DrawIndexedInstanced(
+              args.index_count_per_instance, args.instance_count,
+              args.start_index_location, args.base_vertex_location,
+              args.start_instance_location);
+        }
       } break;
       case Command::kD3DDrawInstanced: {
-        auto& args =
-            *reinterpret_cast<const D3DDrawInstancedArguments*>(stream);
-        command_list->DrawInstanced(
-            args.vertex_count_per_instance, args.instance_count,
-            args.start_vertex_location, args.start_instance_location);
+        if (current_pipeline_state != nullptr) {
+          auto& args =
+              *reinterpret_cast<const D3DDrawInstancedArguments*>(stream);
+          command_list->DrawInstanced(
+              args.vertex_count_per_instance, args.instance_count,
+              args.start_vertex_location, args.start_instance_location);
+        }
       } break;
       case Command::kD3DIASetIndexBuffer: {
         auto view = reinterpret_cast<const D3D12_INDEX_BUFFER_VIEW*>(stream);
@@ -176,8 +184,14 @@ void DeferredCommandList::Execute(ID3D12GraphicsCommandList* command_list,
                                          descriptor_heaps);
       } break;
       case Command::kD3DSetPipelineState: {
-        command_list->SetPipelineState(
-            *reinterpret_cast<ID3D12PipelineState* const*>(stream));
+        current_pipeline_state =
+            *reinterpret_cast<ID3D12PipelineState* const*>(stream);
+        command_list->SetPipelineState(current_pipeline_state);
+      } break;
+      case Command::kSetPipelineStateHandle: {
+        current_pipeline_state = command_processor_->GetPipelineStateByHandle(
+            *reinterpret_cast<void* const*>(stream));
+        command_list->SetPipelineState(current_pipeline_state);
       } break;
       case Command::kD3DSetSamplePositions: {
         if (command_list_1 != nullptr) {

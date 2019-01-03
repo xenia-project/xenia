@@ -587,9 +587,10 @@ void D3D12CommandProcessor::SetSamplePositions(MsaaSamples sample_positions) {
 }
 
 void D3D12CommandProcessor::SetComputePipeline(ID3D12PipelineState* pipeline) {
-  if (current_pipeline_ != pipeline) {
+  if (current_external_pipeline_ != pipeline) {
     deferred_command_list_->D3DSetPipelineState(pipeline);
-    current_pipeline_ = pipeline;
+    current_external_pipeline_ = pipeline;
+    current_cached_pipeline_ = nullptr;
   }
 }
 
@@ -600,9 +601,10 @@ void D3D12CommandProcessor::UnbindRenderTargets() {
 void D3D12CommandProcessor::SetExternalGraphicsPipeline(
     ID3D12PipelineState* pipeline, bool reset_viewport, bool reset_blend_factor,
     bool reset_stencil_ref) {
-  if (current_pipeline_ != pipeline) {
+  if (current_external_pipeline_ != pipeline) {
     deferred_command_list_->D3DSetPipelineState(pipeline);
-    current_pipeline_ = pipeline;
+    current_external_pipeline_ = pipeline;
+    current_cached_pipeline_ = nullptr;
   }
   current_graphics_root_signature_ = nullptr;
   current_graphics_root_up_to_date_ = 0;
@@ -683,6 +685,10 @@ bool D3D12CommandProcessor::SetupContext() {
 
   pipeline_cache_ = std::make_unique<PipelineCache>(this, register_file_,
                                                     IsROVUsedForEDRAM());
+  if (!pipeline_cache_->Initialize()) {
+    XELOGE("Failed to initialize the graphics pipeline state cache");
+    return false;
+  }
 
   primitive_converter_ =
       std::make_unique<PrimitiveConverter>(this, register_file_, memory_);
@@ -1279,17 +1285,19 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
       pixel_shader != nullptr ? pixel_shader->GetUsedTextureMask() : 0);
 
   // Create the pipeline if needed and bind it.
-  ID3D12PipelineState* pipeline;
+  void* pipeline_handle;
   ID3D12RootSignature* root_signature;
   if (!pipeline_cache_->ConfigurePipeline(
           vertex_shader, pixel_shader, primitive_type_converted,
           indexed ? index_buffer_info->format : IndexFormat::kInt16,
-          pipeline_render_targets, &pipeline, &root_signature)) {
+          pipeline_render_targets, &pipeline_handle, &root_signature)) {
     return false;
   }
-  if (current_pipeline_ != pipeline) {
-    deferred_command_list_->D3DSetPipelineState(pipeline);
-    current_pipeline_ = pipeline;
+  if (current_cached_pipeline_ != pipeline_handle) {
+    deferred_command_list_->SetPipelineStateHandle(
+        reinterpret_cast<void*>(pipeline_handle));
+    current_cached_pipeline_ = pipeline_handle;
+    current_external_pipeline_ = nullptr;
   }
 
   // Update viewport, scissor, blend factor and stencil reference.
@@ -1600,7 +1608,8 @@ bool D3D12CommandProcessor::BeginFrame() {
   current_sample_positions_ = MsaaSamples::k1X;
 
   // Reset bindings, particularly because the buffers backing them are recycled.
-  current_pipeline_ = nullptr;
+  current_cached_pipeline_ = nullptr;
+  current_external_pipeline_ = nullptr;
   current_graphics_root_signature_ = nullptr;
   current_graphics_root_up_to_date_ = 0;
   current_view_heap_ = nullptr;
@@ -1655,6 +1664,8 @@ bool D3D12CommandProcessor::EndFrame() {
   assert_false(scratch_buffer_used_);
 
   primitive_converter_->EndFrame();
+
+  pipeline_cache_->EndFrame();
 
   render_target_cache_->EndFrame();
 

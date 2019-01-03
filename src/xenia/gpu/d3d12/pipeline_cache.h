@@ -10,9 +10,15 @@
 #ifndef XENIA_GPU_D3D12_PIPELINE_CACHE_H_
 #define XENIA_GPU_D3D12_PIPELINE_CACHE_H_
 
+#include <condition_variable>
+#include <deque>
+#include <memory>
+#include <mutex>
+#include <thread>
 #include <unordered_map>
 #include <vector>
 
+#include "xenia/base/threading.h"
 #include "xenia/gpu/d3d12/d3d12_shader.h"
 #include "xenia/gpu/d3d12/render_target_cache.h"
 #include "xenia/gpu/dxbc_shader_translator.h"
@@ -31,7 +37,11 @@ class PipelineCache {
                 RegisterFile* register_file, bool edram_rov_used);
   ~PipelineCache();
 
+  bool Initialize();
   void Shutdown();
+  void ClearCache();
+
+  void EndFrame();
 
   D3D12Shader* LoadShader(ShaderType shader_type, uint32_t guest_address,
                           const uint32_t* host_address, uint32_t dword_count);
@@ -45,10 +55,13 @@ class PipelineCache {
       D3D12Shader* vertex_shader, D3D12Shader* pixel_shader,
       PrimitiveType primitive_type, IndexFormat index_format,
       const RenderTargetCache::PipelineRenderTarget render_targets[5],
-      ID3D12PipelineState** pipeline_out,
-      ID3D12RootSignature** root_signature_out);
+      void** pipeline_handle_out, ID3D12RootSignature** root_signature_out);
 
-  void ClearCache();
+  // Returns a pipeline with deferred creation by its handle. May return nullptr
+  // if failed to create the pipeline.
+  inline ID3D12PipelineState* GetPipelineStateByHandle(void* handle) const {
+    return reinterpret_cast<const Pipeline*>(handle)->state;
+  }
 
  private:
   enum class PipelineStripCutIndex : uint32_t {
@@ -184,6 +197,7 @@ class PipelineCache {
   std::vector<uint8_t> depth_only_pixel_shader_;
 
   struct Pipeline {
+    // nullptr if creation has failed.
     ID3D12PipelineState* state;
     PipelineDescription description;
   };
@@ -194,6 +208,29 @@ class PipelineCache {
   // and allows us to quickly(ish) reuse the pipeline if no registers have
   // changed.
   Pipeline* current_pipeline_ = nullptr;
+
+  // Pipeline creation threads.
+  void CreationThread();
+  std::mutex creation_request_lock_;
+  std::condition_variable creation_request_cond_;
+  // Protected with creation_request_lock_, notify_one creation_request_cond_
+  // when set.
+  std::deque<Pipeline*> creation_queue_;
+  // Number of threads that are currently creating a pipeline - incremented when
+  // a pipeline is dequeued (the completion event can't be triggered before this
+  // is zero). Protected with creation_request_lock_.
+  uint32_t creation_threads_busy_ = 0;
+  // Manual-reset event set when the last queued pipeline is created and there
+  // are no more pipelines to create. This is triggered by the thread creating
+  // the last pipeline.
+  std::unique_ptr<xe::threading::Event> creation_completion_event_;
+  // Whether setting the event on completion is queued. Protected with
+  // creation_request_lock_, notify_one creation_request_cond_ when set.
+  bool creation_completion_set_event_ = false;
+  // Whether to shut down the creation threads as soon as possible. Protected
+  // with creation_request_lock_, notify_all creation_request_cond_ when set.
+  bool creation_threads_shutdown_ = false;
+  std::vector<std::unique_ptr<xe::threading::Thread>> creation_threads_;
 };
 
 }  // namespace d3d12
