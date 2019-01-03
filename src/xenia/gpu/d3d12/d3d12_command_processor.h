@@ -114,6 +114,12 @@ class D3D12CommandProcessor : public CommandProcessor {
   // render targets or copying to depth render targets.
   void SetSamplePositions(MsaaSamples sample_positions);
 
+  // Returns a pipeline with deferred creation by its handle. May return nullptr
+  // if failed to create the pipeline.
+  inline ID3D12PipelineState* GetPipelineStateByHandle(void* handle) const {
+    return pipeline_cache_->GetPipelineStateByHandle(handle);
+  }
+
   // Sets the current pipeline state to a compute pipeline. This is for cache
   // invalidation primarily. A frame must be open.
   void SetComputePipeline(ID3D12PipelineState* pipeline);
@@ -292,8 +298,13 @@ class D3D12CommandProcessor : public CommandProcessor {
   // Current SSAA sample positions (to be updated by the render target cache).
   MsaaSamples current_sample_positions_;
 
-  // Currently bound graphics or compute pipeline.
-  ID3D12PipelineState* current_pipeline_;
+  // Currently bound pipeline, either a graphics pipeline from the pipeline
+  // cache (with potentially deferred creation - current_external_pipeline_ is
+  // nullptr in this case) or a non-Xenos graphics or compute pipeline
+  // (current_cached_pipeline_ is nullptr in this case).
+  void* current_cached_pipeline_;
+  ID3D12PipelineState* current_external_pipeline_;
+
   // Currently bound graphics root signature.
   ID3D12RootSignature* current_graphics_root_signature_;
   // Extra parameters which may or may not be present.

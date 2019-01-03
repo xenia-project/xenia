@@ -280,6 +280,12 @@ class DeferredCommandList {
     arg = pipeline_state;
   }
 
+  inline void SetPipelineStateHandle(void* pipeline_state_handle) {
+    auto& arg = *reinterpret_cast<void**>(
+        WriteCommand(Command::kSetPipelineStateHandle, sizeof(void*)));
+    arg = pipeline_state_handle;
+  }
+
   inline void D3DSetSamplePositions(
       UINT num_samples_per_pixel, UINT num_pixels,
       const D3D12_SAMPLE_POSITION* sample_positions) {
@@ -321,6 +327,7 @@ class DeferredCommandList {
     kD3DSetGraphicsRootSignature,
     kSetDescriptorHeaps,
     kD3DSetPipelineState,
+    kSetPipelineStateHandle,
     kD3DSetSamplePositions,
   };
 
@@ -368,7 +375,7 @@ class DeferredCommandList {
     bool rts_single_handle_to_descriptor_range;
     bool depth_stencil;
     D3D12_CPU_DESCRIPTOR_HANDLE
-        render_target_descriptors[D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT];
+    render_target_descriptors[D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT];
     D3D12_CPU_DESCRIPTOR_HANDLE depth_stencil_descriptor;
   };
 
