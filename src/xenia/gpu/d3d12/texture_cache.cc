@@ -644,10 +644,6 @@ void TextureCache::EndFrame() {
 
 void TextureCache::RequestTextures(uint32_t used_vertex_texture_mask,
                                    uint32_t used_pixel_texture_mask) {
-  auto command_list = command_processor_->GetCurrentCommandList();
-  if (command_list == nullptr) {
-    return;
-  }
   auto& regs = *register_file_;
 
 #if FINE_GRAINED_DRAW_SCOPES
@@ -1061,10 +1057,7 @@ bool TextureCache::TileResolvedTexture(
   const ResolveTileModeInfo& resolve_tile_mode_info =
       resolve_tile_mode_info_[uint32_t(resolve_tile_mode)];
 
-  auto command_list = command_processor_->GetCurrentCommandList();
-  if (command_list == nullptr) {
-    return false;
-  }
+  auto command_list = command_processor_->GetDeferredCommandList();
   auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
   auto device = provider->GetDevice();
   uint32_t resolution_scale_log2 = IsResolutionScale2X() ? 1 : 0;
@@ -1122,7 +1115,7 @@ bool TextureCache::TileResolvedTexture(
     shared_memory_->UseForWriting();
   }
   command_processor_->SubmitBarriers();
-  command_list->SetComputeRootSignature(resolve_tile_root_signature_);
+  command_list->D3DSetComputeRootSignature(resolve_tile_root_signature_);
   ResolveTileConstants resolve_tile_constants;
   resolve_tile_constants.info = uint32_t(endian) | (uint32_t(format) << 3) |
                                 (resolution_scale_log2 << 9) |
@@ -1170,17 +1163,17 @@ bool TextureCache::TileResolvedTexture(
       shared_memory_->CreateRawUAV(descriptor_cpu_uav);
     }
   }
-  command_list->SetComputeRootDescriptorTable(1, descriptor_gpu_start);
-  command_list->SetComputeRoot32BitConstants(
+  command_list->D3DSetComputeRootDescriptorTable(1, descriptor_gpu_start);
+  command_list->D3DSetComputeRoot32BitConstants(
       0, sizeof(resolve_tile_constants) / sizeof(uint32_t),
       &resolve_tile_constants, 0);
   command_processor_->SetComputePipeline(
       resolve_tile_pipelines_[uint32_t(resolve_tile_mode)]);
   // Each group processes 32x32 texels after resolution scaling has been
   // applied.
-  command_list->Dispatch(((resolve_width << resolution_scale_log2) + 31) >> 5,
-                         ((resolve_height << resolution_scale_log2) + 31) >> 5,
-                         1);
+  command_list->D3DDispatch(
+      ((resolve_width << resolution_scale_log2) + 31) >> 5,
+      ((resolve_height << resolution_scale_log2) + 31) >> 5, 1);
 
   // Commit the write.
   command_processor_->PushUAVBarrier(resolution_scale_log2
@@ -1687,10 +1680,7 @@ bool TextureCache::LoadTextureData(Texture* texture) {
     return true;
   }
 
-  auto command_list = command_processor_->GetCurrentCommandList();
-  if (command_list == nullptr) {
-    return false;
-  }
+  auto command_list = command_processor_->GetDeferredCommandList();
   auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
   auto device = provider->GetDevice();
 
@@ -1818,10 +1808,10 @@ bool TextureCache::LoadTextureData(Texture* texture) {
         copy_buffer, uint32_t(host_slice_size));
   }
   command_processor_->SetComputePipeline(pipeline);
-  command_list->SetComputeRootSignature(load_root_signature_);
+  command_list->D3DSetComputeRootSignature(load_root_signature_);
   if (!separate_base_and_mips_descriptors) {
     // Will be bound later.
-    command_list->SetComputeRootDescriptorTable(1, descriptor_gpu_start);
+    command_list->D3DSetComputeRootDescriptorTable(1, descriptor_gpu_start);
   }
 
   // Submit commands.
@@ -1896,12 +1886,13 @@ bool TextureCache::LoadTextureData(Texture* texture) {
         return false;
       }
       std::memcpy(cbuffer_mapping, &load_constants, sizeof(load_constants));
-      command_list->SetComputeRootConstantBufferView(0, cbuffer_gpu_address);
+      command_list->D3DSetComputeRootConstantBufferView(0, cbuffer_gpu_address);
       if (separate_base_and_mips_descriptors) {
         if (j == 0) {
-          command_list->SetComputeRootDescriptorTable(1, descriptor_gpu_start);
+          command_list->D3DSetComputeRootDescriptorTable(1,
+                                                         descriptor_gpu_start);
         } else if (j == 1) {
-          command_list->SetComputeRootDescriptorTable(
+          command_list->D3DSetComputeRootDescriptorTable(
               1, provider->OffsetViewDescriptor(descriptor_gpu_start, 2));
         }
       }
@@ -1916,8 +1907,8 @@ bool TextureCache::LoadTextureData(Texture* texture) {
       }
       group_count_x = (group_count_x + 31) >> 5;
       group_count_y = (group_count_y + 31) >> 5;
-      command_list->Dispatch(group_count_x, group_count_y,
-                             load_constants.size_blocks[2]);
+      command_list->D3DDispatch(group_count_x, group_count_y,
+                                load_constants.size_blocks[2]);
     }
     command_processor_->PushUAVBarrier(copy_buffer);
     command_processor_->PushTransitionBarrier(copy_buffer, copy_buffer_state,
@@ -1933,8 +1924,7 @@ bool TextureCache::LoadTextureData(Texture* texture) {
       location_dest.pResource = texture->resource;
       location_dest.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
       location_dest.SubresourceIndex = slice_first_subresource + j;
-      command_list->CopyTextureRegion(&location_dest, 0, 0, 0, &location_source,
-                                      nullptr);
+      command_list->CopyTexture(location_dest, location_source);
     }
   }
 

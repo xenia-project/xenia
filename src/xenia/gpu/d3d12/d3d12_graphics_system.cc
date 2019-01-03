@@ -210,6 +210,25 @@ void D3D12GraphicsSystem::StretchTextureToFrontBuffer(
   command_list->DrawInstanced(3, 1, 0, 0);
 }
 
+void D3D12GraphicsSystem::StretchTextureToFrontBuffer(
+    D3D12_GPU_DESCRIPTOR_HANDLE handle,
+    D3D12_GPU_DESCRIPTOR_HANDLE* gamma_ramp_handle, float gamma_ramp_inv_size,
+    DeferredCommandList& command_list) {
+  if (gamma_ramp_handle != nullptr) {
+    command_list.D3DSetPipelineState(stretch_gamma_pipeline_);
+    command_list.D3DSetGraphicsRootSignature(stretch_gamma_root_signature_);
+    command_list.D3DSetGraphicsRootDescriptorTable(1, *gamma_ramp_handle);
+    command_list.D3DSetGraphicsRoot32BitConstants(2, 1, &gamma_ramp_inv_size,
+                                                  0);
+  } else {
+    command_list.D3DSetPipelineState(stretch_pipeline_);
+    command_list.D3DSetGraphicsRootSignature(stretch_root_signature_);
+  }
+  command_list.D3DSetGraphicsRootDescriptorTable(0, handle);
+  command_list.D3DIASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+  command_list.D3DDrawInstanced(3, 1, 0, 0);
+}
+
 std::unique_ptr<CommandProcessor>
 D3D12GraphicsSystem::CreateCommandProcessor() {
   return std::unique_ptr<CommandProcessor>(
