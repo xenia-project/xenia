@@ -29,6 +29,12 @@
 
 DEFINE_bool(d3d12_dxbc_disasm, false,
             "Disassemble DXBC shaders after generation.");
+DEFINE_int32(
+    d3d12_pipeline_creation_threads, -1,
+    "Number of threads used for graphics pipeline state creation. -1 to "
+    "calculate automatically (75% of logical CPU cores), 1-16 to specify the "
+    "number of threads explicitly, 0 to disable multithreaded pipeline state "
+    "creation.");
 DEFINE_bool(
     d3d12_tessellation_adaptive, false,
     "Allow games to use adaptive tessellation - may be disabled if the game "
@@ -68,24 +74,33 @@ PipelineCache::PipelineCache(D3D12CommandProcessor* command_processor,
     depth_only_pixel_shader_ =
         std::move(shader_translator_->CreateDepthOnlyPixelShader());
   }
-
-  creation_completion_event_ =
-      xe::threading::Event::CreateManualResetEvent(true);
 }
 
 PipelineCache::~PipelineCache() { Shutdown(); }
 
 bool PipelineCache::Initialize() {
-  creation_threads_busy_ = 0;
-  creation_completion_set_event_ = false;
-  creation_threads_shutdown_ = false;
-  // TODO(Triang3l): Change the thread count to something non-fixed (3 is just
-  // for testing).
-  for (uint32_t i = 0; i < 3; ++i) {
-    std::unique_ptr<xe::threading::Thread> creation_thread =
-        xe::threading::Thread::Create({}, [this]() { CreationThread(); });
-    creation_thread->set_name("D3D12 Pipelines");
-    creation_threads_.push_back(std::move(creation_thread));
+  if (FLAGS_d3d12_pipeline_creation_threads != 0) {
+    creation_threads_busy_ = 0;
+    creation_completion_event_ =
+        xe::threading::Event::CreateManualResetEvent(true);
+    creation_completion_set_event_ = false;
+    creation_threads_shutdown_ = false;
+    uint32_t creation_thread_count;
+    if (FLAGS_d3d12_pipeline_creation_threads < 0) {
+      creation_thread_count = std::max(
+          xe::threading::logical_processor_count() * 3 / 4, uint32_t(1));
+    } else {
+      creation_thread_count = uint32_t(FLAGS_d3d12_pipeline_creation_threads);
+    }
+    creation_thread_count = std::min(creation_thread_count, uint32_t(16));
+    // TODO(Triang3l): Change the thread count to something non-fixed (3 is just
+    // for testing).
+    for (uint32_t i = 0; i < 3; ++i) {
+      std::unique_ptr<xe::threading::Thread> creation_thread =
+          xe::threading::Thread::Create({}, [this]() { CreationThread(); });
+      creation_thread->set_name("D3D12 Pipelines");
+      creation_threads_.push_back(std::move(creation_thread));
+    }
   }
   return true;
 }
@@ -94,28 +109,33 @@ void PipelineCache::Shutdown() {
   ClearCache();
 
   // Shut down all threads.
-  {
-    std::lock_guard<std::mutex> lock(creation_request_lock_);
-    creation_threads_shutdown_ = true;
+  if (!creation_threads_.empty()) {
+    {
+      std::lock_guard<std::mutex> lock(creation_request_lock_);
+      creation_threads_shutdown_ = true;
+    }
+    creation_request_cond_.notify_all();
+    for (size_t i = 0; i < creation_threads_.size(); ++i) {
+      xe::threading::Wait(creation_threads_[i].get(), false);
+    }
+    creation_threads_.clear();
+    creation_completion_event_.reset();
   }
-  creation_request_cond_.notify_all();
-  for (size_t i = 0; i < creation_threads_.size(); ++i) {
-    xe::threading::Wait(creation_threads_[i].get(), false);
-  }
-  creation_threads_.clear();
 }
 
 void PipelineCache::ClearCache() {
   // Remove references to the current pipeline.
   current_pipeline_ = nullptr;
 
-  // Empty the pipeline creation queue.
-  {
-    std::lock_guard<std::mutex> lock(creation_request_lock_);
-    creation_queue_.clear();
-    creation_completion_set_event_ = true;
+  if (!creation_threads_.empty()) {
+    // Empty the pipeline creation queue.
+    {
+      std::lock_guard<std::mutex> lock(creation_request_lock_);
+      creation_queue_.clear();
+      creation_completion_set_event_ = true;
+    }
+    creation_request_cond_.notify_one();
   }
-  creation_request_cond_.notify_one();
 
   // Destroy all pipelines.
   for (auto it : pipelines_) {
@@ -133,18 +153,20 @@ void PipelineCache::ClearCache() {
 }
 
 void PipelineCache::EndFrame() {
-  // Await creation of all queued pipelines.
-  bool await_event = false;
-  {
-    std::lock_guard<std::mutex> lock(creation_request_lock_);
-    if (!creation_queue_.empty() || creation_threads_busy_ != 0) {
-      creation_completion_event_->Reset();
-      creation_completion_set_event_ = true;
-      await_event = true;
+  if (!creation_threads_.empty()) {
+    // Await creation of all queued pipelines.
+    bool await_event = false;
+    {
+      std::lock_guard<std::mutex> lock(creation_request_lock_);
+      if (!creation_queue_.empty() || creation_threads_busy_ != 0) {
+        creation_completion_event_->Reset();
+        creation_completion_set_event_ = true;
+        await_event = true;
+      }
     }
-  }
-  if (await_event) {
-    xe::threading::Wait(creation_completion_event_.get(), false);
+    if (await_event) {
+      xe::threading::Wait(creation_completion_event_.get(), false);
+    }
   }
 }
 
@@ -237,7 +259,6 @@ bool PipelineCache::ConfigurePipeline(
     }
   }
 
-#if 1
   if (!EnsureShadersTranslated(vertex_shader, pixel_shader, primitive_type)) {
     return false;
   }
@@ -248,37 +269,16 @@ bool PipelineCache::ConfigurePipeline(
   pipelines_.insert(std::make_pair(hash, new_pipeline));
   COUNT_profile_set("gpu/pipeline_cache/pipelines", pipelines_.size());
 
-  // Submit the pipeline for creation to any available thread.
-  {
-    std::lock_guard<std::mutex> lock(creation_request_lock_);
-    creation_queue_.push_back(new_pipeline);
-  }
-  creation_request_cond_.notify_one();
-#else
-  // Create a new pipeline if not found and add it to the cache.
-  if (pixel_shader != nullptr) {
-    XELOGGPU("Creating pipeline %.16" PRIX64 ", VS %.16" PRIX64
-             ", PS %.16" PRIX64,
-             hash, vertex_shader->ucode_data_hash(),
-             pixel_shader->ucode_data_hash());
+  if (!creation_threads_.empty()) {
+    // Submit the pipeline for creation to any available thread.
+    {
+      std::lock_guard<std::mutex> lock(creation_request_lock_);
+      creation_queue_.push_back(new_pipeline);
+    }
+    creation_request_cond_.notify_one();
   } else {
-    XELOGGPU("Creating pipeline %.16" PRIX64 ", VS %.16" PRIX64, hash,
-             vertex_shader->ucode_data_hash());
+    new_pipeline->state = CreatePipelineState(description);
   }
-  if (!EnsureShadersTranslated(vertex_shader, pixel_shader, primitive_type)) {
-    return false;
-  }
-  ID3D12PipelineState* new_state = CreatePipelineState(description);
-  if (!new_state) {
-    XELOGE("Failed to create pipeline %.16" PRIX64, hash);
-    return false;
-  }
-  Pipeline* new_pipeline = new Pipeline;
-  new_pipeline->state = new_state;
-  std::memcpy(&new_pipeline->description, &description, sizeof(description));
-  pipelines_.insert(std::make_pair(hash, new_pipeline));
-  COUNT_profile_set("gpu/pipeline_cache/pipelines", pipelines_.size());
-#endif
 
   current_pipeline_ = new_pipeline;
   *pipeline_handle_out = new_pipeline;
@@ -304,7 +304,7 @@ bool PipelineCache::TranslateShader(D3D12Shader* shader,
   // Perform translation.
   // If this fails the shader will be marked as invalid and ignored later.
   if (!shader_translator_->Translate(shader, cntl)) {
-    XELOGE("Shader %.16" PRIX64 "translation failed; marking as ignored",
+    XELOGE("Shader %.16" PRIX64 " translation failed; marking as ignored",
            shader->ucode_data_hash());
     return false;
   }
@@ -712,6 +712,16 @@ bool PipelineCache::GetCurrentStateDescription(
 
 ID3D12PipelineState* PipelineCache::CreatePipelineState(
     const PipelineDescription& description) {
+  if (description.pixel_shader != nullptr) {
+    XELOGE("Creating graphics pipeline state with VS %.16" PRIX64
+           ", PS %.16" PRIX64,
+           description.vertex_shader->ucode_data_hash(),
+           description.pixel_shader->ucode_data_hash());
+  } else {
+    XELOGE("Creating graphics pipeline state with VS %.16" PRIX64,
+           description.vertex_shader->ucode_data_hash());
+  }
+
   D3D12_GRAPHICS_PIPELINE_STATE_DESC state_desc;
   std::memset(&state_desc, 0, sizeof(state_desc));
 
@@ -733,6 +743,12 @@ ID3D12PipelineState* PipelineCache::CreatePipelineState(
   }
 
   // Vertex or hull/domain shaders.
+  if (!description.vertex_shader->is_translated()) {
+    XELOGE("Vertex shader %.16" PRIX64 " not translated",
+           description.vertex_shader->ucode_data_hash());
+    assert_always();
+    return nullptr;
+  }
   if (description.tessellation_mode != PipelineTessellationMode::kNone) {
     switch (description.patch_type) {
       case PipelinePatchType::kTriangle:
@@ -740,9 +756,8 @@ ID3D12PipelineState* PipelineCache::CreatePipelineState(
             PrimitiveType::kTrianglePatch) {
           XELOGE(
               "Tried to use vertex shader %.16" PRIX64
-              " for triangle patch "
-              "tessellation, but it's not a tessellation domain shader or has "
-              "the wrong domain",
+              " for triangle patch tessellation, but it's not a tessellation "
+              "domain shader or has the wrong domain",
               description.vertex_shader->ucode_data_hash());
           assert_always();
           return nullptr;
@@ -765,12 +780,10 @@ ID3D12PipelineState* PipelineCache::CreatePipelineState(
       case PipelinePatchType::kQuad:
         if (description.vertex_shader->GetDomainShaderPrimitiveType() !=
             PrimitiveType::kQuadPatch) {
-          XELOGE(
-              "Tried to use vertex shader %.16" PRIX64
-              " for quad patch "
-              "tessellation, but it's not a tessellation domain shader or has "
-              "the wrong domain",
-              description.vertex_shader->ucode_data_hash());
+          XELOGE("Tried to use vertex shader %.16" PRIX64
+                 " for quad patch tessellation, but it's not a tessellation "
+                 "domain shader or has the wrong domain",
+                 description.vertex_shader->ucode_data_hash());
           assert_always();
           return nullptr;
         }
@@ -849,6 +862,12 @@ ID3D12PipelineState* PipelineCache::CreatePipelineState(
 
   // Pixel shader.
   if (description.pixel_shader != nullptr) {
+    if (!description.pixel_shader->is_translated()) {
+      XELOGE("Pixel shader %.16" PRIX64 " not translated",
+             description.pixel_shader->ucode_data_hash());
+      assert_always();
+      return nullptr;
+    }
     state_desc.PS.pShaderBytecode =
         description.pixel_shader->translated_binary().data();
     state_desc.PS.BytecodeLength =
@@ -1000,6 +1019,15 @@ ID3D12PipelineState* PipelineCache::CreatePipelineState(
   ID3D12PipelineState* state;
   if (FAILED(device->CreateGraphicsPipelineState(&state_desc,
                                                  IID_PPV_ARGS(&state)))) {
+    if (description.pixel_shader != nullptr) {
+      XELOGE("Failed to create graphics pipeline state with VS %.16" PRIX64
+             ", PS %.16" PRIX64,
+             description.vertex_shader->ucode_data_hash(),
+             description.pixel_shader->ucode_data_hash());
+    } else {
+      XELOGE("Failed to create graphics pipeline state with VS %.16" PRIX64,
+             description.vertex_shader->ucode_data_hash());
+    }
     return nullptr;
   }
   std::wstring name;
