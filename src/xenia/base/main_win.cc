@@ -97,10 +97,6 @@ int Main() {
     return 1;
   }
 
-  google::SetUsageMessage(std::string("usage: ") +
-                          xe::to_string(entry_info.usage));
-  google::SetVersionString("1.0");
-
   // Convert all args to narrow, as gflags doesn't support wchar.
   int argca = argc;
   char** argva = reinterpret_cast<char**>(alloca(sizeof(char*) * argca));
@@ -154,7 +150,6 @@ int Main() {
   int result = entry_info.entry_point(args);
 
   xe::ShutdownLogging();
-  google::ShutDownCommandLineFlags();
   LocalFree(argv);
   return result;
 }
