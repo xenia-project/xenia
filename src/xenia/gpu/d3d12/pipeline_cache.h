@@ -223,7 +223,7 @@ class PipelineCache {
   // Manual-reset event set when the last queued pipeline is created and there
   // are no more pipelines to create. This is triggered by the thread creating
   // the last pipeline.
-  std::unique_ptr<xe::threading::Event> creation_completion_event_;
+  std::unique_ptr<xe::threading::Event> creation_completion_event_ = nullptr;
   // Whether setting the event on completion is queued. Protected with
   // creation_request_lock_, notify_one creation_request_cond_ when set.
   bool creation_completion_set_event_ = false;
