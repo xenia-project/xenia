@@ -4107,63 +4107,65 @@ void DxbcShaderTranslator::WriteShaderCode() {
     shader_object_.push_back(0);
   }
 
-  // Samplers.
-  for (uint32_t i = 0; i < uint32_t(sampler_bindings_.size()); ++i) {
-    const SamplerBinding& sampler_binding = sampler_bindings_[i];
+  if (!is_depth_only_pixel_shader_) {
+    // Samplers.
+    for (uint32_t i = 0; i < uint32_t(sampler_bindings_.size()); ++i) {
+      const SamplerBinding& sampler_binding = sampler_bindings_[i];
+      shader_object_.push_back(
+          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_SAMPLER) |
+          ENCODE_D3D10_SB_SAMPLER_MODE(D3D10_SB_SAMPLER_MODE_DEFAULT) |
+          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(6));
+      shader_object_.push_back(EncodeVectorSwizzledOperand(
+          D3D10_SB_OPERAND_TYPE_SAMPLER, kSwizzleXYZW, 3));
+      shader_object_.push_back(i);
+      shader_object_.push_back(i);
+      shader_object_.push_back(i);
+      shader_object_.push_back(0);
+    }
+
+    // Shader resources.
+    // Shared memory ByteAddressBuffer (T0, at t0, space0).
     shader_object_.push_back(
-        ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_SAMPLER) |
-        ENCODE_D3D10_SB_SAMPLER_MODE(D3D10_SB_SAMPLER_MODE_DEFAULT) |
+        ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_DCL_RESOURCE_RAW) |
         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(6));
     shader_object_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_SAMPLER, kSwizzleXYZW, 3));
-    shader_object_.push_back(i);
-    shader_object_.push_back(i);
-    shader_object_.push_back(i);
-    shader_object_.push_back(0);
-  }
-
-  // Shader resources.
-  // Shared memory ByteAddressBuffer (T0, at t0, space0).
-  shader_object_.push_back(
-      ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_DCL_RESOURCE_RAW) |
-      ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(6));
-  shader_object_.push_back(EncodeVectorSwizzledOperand(
-      D3D10_SB_OPERAND_TYPE_RESOURCE, kSwizzleXYZW, 3));
-  shader_object_.push_back(0);
-  shader_object_.push_back(0);
-  shader_object_.push_back(0);
-  shader_object_.push_back(0);
-  // Textures.
-  for (uint32_t i = 0; i < uint32_t(texture_srvs_.size()); ++i) {
-    const TextureSRV& texture_srv = texture_srvs_[i];
-    D3D10_SB_RESOURCE_DIMENSION texture_srv_dimension;
-    switch (texture_srv.dimension) {
-      case TextureDimension::k3D:
-        texture_srv_dimension = D3D10_SB_RESOURCE_DIMENSION_TEXTURE3D;
-        break;
-      case TextureDimension::kCube:
-        texture_srv_dimension = D3D10_SB_RESOURCE_DIMENSION_TEXTURECUBE;
-        break;
-      default:
-        texture_srv_dimension = D3D10_SB_RESOURCE_DIMENSION_TEXTURE2DARRAY;
-    }
-    shader_object_.push_back(
-        ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_RESOURCE) |
-        ENCODE_D3D10_SB_RESOURCE_DIMENSION(texture_srv_dimension) |
-        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-    shader_object_.push_back(EncodeVectorSwizzledOperand(
         D3D10_SB_OPERAND_TYPE_RESOURCE, kSwizzleXYZW, 3));
-    // T0 is shared memory.
-    shader_object_.push_back(1 + i);
-    // t0 is shared memory.
-    shader_object_.push_back(1 + i);
-    shader_object_.push_back(1 + i);
-    shader_object_.push_back(
-        ENCODE_D3D10_SB_RESOURCE_RETURN_TYPE(D3D10_SB_RETURN_TYPE_FLOAT, 0) |
-        ENCODE_D3D10_SB_RESOURCE_RETURN_TYPE(D3D10_SB_RETURN_TYPE_FLOAT, 1) |
-        ENCODE_D3D10_SB_RESOURCE_RETURN_TYPE(D3D10_SB_RETURN_TYPE_FLOAT, 2) |
-        ENCODE_D3D10_SB_RESOURCE_RETURN_TYPE(D3D10_SB_RETURN_TYPE_FLOAT, 3));
     shader_object_.push_back(0);
+    shader_object_.push_back(0);
+    shader_object_.push_back(0);
+    shader_object_.push_back(0);
+    // Textures.
+    for (uint32_t i = 0; i < uint32_t(texture_srvs_.size()); ++i) {
+      const TextureSRV& texture_srv = texture_srvs_[i];
+      D3D10_SB_RESOURCE_DIMENSION texture_srv_dimension;
+      switch (texture_srv.dimension) {
+        case TextureDimension::k3D:
+          texture_srv_dimension = D3D10_SB_RESOURCE_DIMENSION_TEXTURE3D;
+          break;
+        case TextureDimension::kCube:
+          texture_srv_dimension = D3D10_SB_RESOURCE_DIMENSION_TEXTURECUBE;
+          break;
+        default:
+          texture_srv_dimension = D3D10_SB_RESOURCE_DIMENSION_TEXTURE2DARRAY;
+      }
+      shader_object_.push_back(
+          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_RESOURCE) |
+          ENCODE_D3D10_SB_RESOURCE_DIMENSION(texture_srv_dimension) |
+          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+      shader_object_.push_back(EncodeVectorSwizzledOperand(
+          D3D10_SB_OPERAND_TYPE_RESOURCE, kSwizzleXYZW, 3));
+      // T0 is shared memory.
+      shader_object_.push_back(1 + i);
+      // t0 is shared memory.
+      shader_object_.push_back(1 + i);
+      shader_object_.push_back(1 + i);
+      shader_object_.push_back(
+          ENCODE_D3D10_SB_RESOURCE_RETURN_TYPE(D3D10_SB_RETURN_TYPE_FLOAT, 0) |
+          ENCODE_D3D10_SB_RESOURCE_RETURN_TYPE(D3D10_SB_RETURN_TYPE_FLOAT, 1) |
+          ENCODE_D3D10_SB_RESOURCE_RETURN_TYPE(D3D10_SB_RETURN_TYPE_FLOAT, 2) |
+          ENCODE_D3D10_SB_RESOURCE_RETURN_TYPE(D3D10_SB_RETURN_TYPE_FLOAT, 3));
+      shader_object_.push_back(0);
+    }
   }
 
   // Unordered access views.
