@@ -38,7 +38,7 @@ uint XeFloat32To7e3(uint4 rgba_f32u32) {
       (rgba_f32u32.rgb <= 0x7FFFFFFFu) ? rgba_f32u32.rgb : (0u).xxx,
       0x41FF0000u);
   uint3 denormalized = ((rgba_f32u32.rgb & 0x7FFFFFu) | 0x800000u) >>
-                       ((125u).xxx - (rgba_f32u32.rgb >> 23u));
+                       min((125u).xxx - (rgba_f32u32.rgb >> 23u), 24u);
   uint3 rgb_f10u32 =
       (rgba_f32u32.rgb < 0x3E800000u) ? denormalized
                                       : (rgba_f32u32.rgb + 0xC2000000u);
@@ -78,8 +78,8 @@ uint4 XeFloat32To20e4(uint4 f32u32) {
   // Keep only positive (high bit set means negative for both float and int) and
   // saturate to the maximum representable value near 2 (also dropping NaNs).
   f32u32 = min((f32u32 <= 0x7FFFFFFFu) ? f32u32 : (0u).xxxx, 0x3FFFFFF8u);
-  uint4 denormalized =
-      ((f32u32 & 0x7FFFFFu) | 0x800000u) >> ((113u).xxxx - (f32u32 >> 23u));
+  uint4 denormalized = ((f32u32 & 0x7FFFFFu) | 0x800000u) >>
+                       min((113u).xxxx - (f32u32 >> 23u), 24u);
   uint4 f24u32 = (f32u32 < 0x38800000u) ? denormalized : (f32u32 + 0xC8000000u);
   return ((f24u32 + 3u + ((f24u32 >> 3u) & 1u)) >> 3u) & 0xFFFFFFu;
 }
