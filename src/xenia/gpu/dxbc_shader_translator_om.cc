@@ -2392,21 +2392,23 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV_DepthStencil(
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
   ++stat_.instruction_count;
 
-  // Update the coverage according to the depth/stencil test result (0 or
-  // 0xFFFFFFFF) after writing the new depth/stencil if stencil is enabled.
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
-  shader_code_.push_back(coverage_out_temp);
-  shader_code_.push_back(
-      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-  shader_code_.push_back(coverage_out_temp);
-  shader_code_.push_back(
-      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-  shader_code_.push_back(depth_test_results_temp);
-  ++stat_.instruction_count;
-  ++stat_.uint_instruction_count;
+  if (!is_depth_only_pixel_shader_) {
+    // Update the coverage according to the depth/stencil test result (0 or
+    // 0xFFFFFFFF) after writing the new depth/stencil if stencil is enabled.
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+    shader_code_.push_back(
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+    shader_code_.push_back(coverage_out_temp);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+    shader_code_.push_back(coverage_out_temp);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+    shader_code_.push_back(depth_test_results_temp);
+    ++stat_.instruction_count;
+    ++stat_.uint_instruction_count;
+  }
 
   // Release depth_new_values_temp (if allocated), depth_values_temp,
   // stencil_values_temp and depth_test_results_temp.
