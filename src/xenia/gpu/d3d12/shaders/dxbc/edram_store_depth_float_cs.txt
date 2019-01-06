@@ -54,6 +54,7 @@ umin r2.xyzw, r2.xyzw, l(0x3ffffff8, 0x3ffffff8, 0x3ffffff8, 0x3ffffff8)
 bfi r3.xyzw, l(23, 23, 23, 23), l(0, 0, 0, 0), r2.xyzw, l(0x00800000, 0x00800000, 0x00800000, 0x00800000)
 ushr r4.xyzw, r2.xyzw, l(23, 23, 23, 23)
 iadd r4.xyzw, -r4.xyzw, l(113, 113, 113, 113)
+umin r4.xyzw, r4.xyzw, l(24, 24, 24, 24)
 ushr r3.xyzw, r3.xyzw, r4.xyzw
 ult r4.xyzw, r2.xyzw, l(0x38800000, 0x38800000, 0x38800000, 0x38800000)
 iadd r2.xyzw, r2.xyzw, l(0xc8000000, 0xc8000000, 0xc8000000, 0xc8000000)
@@ -88,4 +89,4 @@ store_raw U0[0].xyzw, r2.x, r0.xyzw
 iadd r0.x, r2.x, l(0x00a00000)
 store_raw U0[0].xyzw, r0.x, r1.xyzw
 ret 
-// Approximately 44 instruction slots used
+// Approximately 45 instruction slots used
