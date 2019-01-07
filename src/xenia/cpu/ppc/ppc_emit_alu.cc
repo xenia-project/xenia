@@ -1077,8 +1077,8 @@ int InstrEmit_srdx(PPCHIRBuilder& f, const InstrData& i) {
   // else
   //   m <- i64.0
   // RA <- r & m
-  // TODO(benvanik): if >3F, zero out the result.
-  Value* sh = f.Truncate(f.LoadGPR(i.X.RB), INT8_TYPE);
+  Value* sh =
+      f.And(f.Truncate(f.LoadGPR(i.X.RB), INT8_TYPE), f.LoadConstantInt8(0x7F));
   Value* v = f.Select(f.IsTrue(f.And(sh, f.LoadConstantInt8(0x40))),
                       f.LoadZeroInt64(), f.Shr(f.LoadGPR(i.X.RT), sh));
   f.StoreGPR(i.X.RA, v);
@@ -1096,8 +1096,8 @@ int InstrEmit_srwx(PPCHIRBuilder& f, const InstrData& i) {
   // else
   //   m <- i64.0
   // RA <- r & m
-  // TODO(benvanik): if >1F, zero out the result.
-  Value* sh = f.Truncate(f.LoadGPR(i.X.RB), INT8_TYPE);
+  Value* sh =
+      f.And(f.Truncate(f.LoadGPR(i.X.RB), INT8_TYPE), f.LoadConstantInt8(0x3F));
   Value* v =
       f.Select(f.IsTrue(f.And(sh, f.LoadConstantInt8(0x20))), f.LoadZeroInt32(),
                f.Shr(f.Truncate(f.LoadGPR(i.X.RT), INT32_TYPE), sh));
