@@ -713,13 +713,13 @@ bool PipelineCache::GetCurrentStateDescription(
 ID3D12PipelineState* PipelineCache::CreatePipelineState(
     const PipelineDescription& description) {
   if (description.pixel_shader != nullptr) {
-    XELOGE("Creating graphics pipeline state with VS %.16" PRIX64
-           ", PS %.16" PRIX64,
-           description.vertex_shader->ucode_data_hash(),
-           description.pixel_shader->ucode_data_hash());
+    XELOGGPU("Creating graphics pipeline state with VS %.16" PRIX64
+             ", PS %.16" PRIX64,
+             description.vertex_shader->ucode_data_hash(),
+             description.pixel_shader->ucode_data_hash());
   } else {
-    XELOGE("Creating graphics pipeline state with VS %.16" PRIX64,
-           description.vertex_shader->ucode_data_hash());
+    XELOGGPU("Creating graphics pipeline state with VS %.16" PRIX64,
+             description.vertex_shader->ucode_data_hash());
   }
 
   D3D12_GRAPHICS_PIPELINE_STATE_DESC state_desc;
