@@ -453,7 +453,13 @@ bool PipelineCache::GetCurrentStateDescription(
   }
 
   // Rasterizer state.
-  uint32_t cull_mode = pa_su_sc_mode_cntl & 0x3;
+  uint32_t cull_mode;
+  if (primitive_type == PrimitiveType::kPointList ||
+      primitive_type == PrimitiveType::kRectangleList) {
+    cull_mode = 0;
+  } else {
+    cull_mode = pa_su_sc_mode_cntl & 0x3;
+  }
   if (cull_mode & 1) {
     // More special, so checked first - generally back faces are culled.
     description_out.cull_mode = PipelineCullMode::kFront;
