@@ -1456,16 +1456,8 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     render_target_cache_->UseEDRAMAsUAV();
   }
 
-  // TODO(Triang3l): Copy the index buffer to a scratch buffer if using
-  // memexport with an index buffer, because a resource can't be an index buffer
-  // (read-only) and a UAV (read/write) at once.
-
   // Actually draw.
   if (indexed) {
-    if (memexport_used) {
-      // TODO(Triang3l): Index buffer copying for memexport.
-      return false;
-    }
     uint32_t index_size = index_buffer_info->format == IndexFormat::kInt32
                               ? sizeof(uint32_t)
                               : sizeof(uint16_t);
@@ -1489,6 +1481,7 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
         PrimitiveConverter::ConversionResult::kPrimitiveEmpty) {
       return true;
     }
+    ID3D12Resource* scratch_index_buffer = nullptr;
     if (conversion_result == PrimitiveConverter::ConversionResult::kConverted) {
       index_buffer_view.SizeInBytes = converted_index_count * index_size;
       index_count = converted_index_count;
@@ -1501,8 +1494,29 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
             index_base, index_buffer_size);
         return false;
       }
-      index_buffer_view.BufferLocation =
-          shared_memory_->GetGPUAddress() + index_base;
+      if (memexport_used && !adaptive_tessellation) {
+        // If the shared memory is a UAV, it can't be used as an index buffer
+        // (UAV is a read/write state, index buffer is a read-only state). Need
+        // to copy the indices to a buffer in the index buffer state.
+        scratch_index_buffer = RequestScratchGPUBuffer(
+            index_buffer_size, D3D12_RESOURCE_STATE_COPY_DEST);
+        if (scratch_index_buffer == nullptr) {
+          return false;
+        }
+        shared_memory_->UseAsCopySource();
+        SubmitBarriers();
+        deferred_command_list_->D3DCopyBufferRegion(
+            scratch_index_buffer, 0, shared_memory_->GetBuffer(), index_base,
+            index_buffer_size);
+        PushTransitionBarrier(scratch_index_buffer,
+                              D3D12_RESOURCE_STATE_COPY_DEST,
+                              D3D12_RESOURCE_STATE_INDEX_BUFFER);
+        index_buffer_view.BufferLocation =
+            scratch_index_buffer->GetGPUVirtualAddress();
+      } else {
+        index_buffer_view.BufferLocation =
+            shared_memory_->GetGPUAddress() + index_base;
+      }
       index_buffer_view.SizeInBytes = index_buffer_size;
     }
     if (memexport_used) {
@@ -1510,13 +1524,17 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     } else {
       shared_memory_->UseForReading();
     }
-    deferred_command_list_->D3DIASetIndexBuffer(&index_buffer_view);
     SubmitBarriers();
     if (adaptive_tessellation) {
       // Index buffer used for per-edge factors.
       deferred_command_list_->D3DDrawInstanced(index_count, 1, 0, 0);
     } else {
+      deferred_command_list_->D3DIASetIndexBuffer(&index_buffer_view);
       deferred_command_list_->D3DDrawIndexedInstanced(index_count, 1, 0, 0, 0);
+    }
+    if (scratch_index_buffer != nullptr) {
+      ReleaseScratchGPUBuffer(scratch_index_buffer,
+                              D3D12_RESOURCE_STATE_INDEX_BUFFER);
     }
   } else {
     // Check if need to draw using a conversion index buffer.
