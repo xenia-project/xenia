@@ -104,9 +104,20 @@ class SharedMemory {
   void RangeWrittenByGPU(uint32_t start, uint32_t length);
 
   // Makes the buffer usable for vertices, indices and texture untiling.
-  void UseForReading();
+  inline void UseForReading() {
+    // Vertex fetch is also allowed in pixel shaders.
+    TransitionBuffer(D3D12_RESOURCE_STATE_INDEX_BUFFER |
+                     D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE |
+                     D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+  }
   // Makes the buffer usable for texture tiling after a resolve.
-  void UseForWriting();
+  inline void UseForWriting() {
+    TransitionBuffer(D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+  }
+  // Makes the buffer usable as a source for copy commands.
+  inline void UseAsCopySource() {
+    TransitionBuffer(D3D12_RESOURCE_STATE_COPY_SOURCE);
+  }
 
   void CreateSRV(D3D12_CPU_DESCRIPTOR_HANDLE handle);
   void CreateRawUAV(D3D12_CPU_DESCRIPTOR_HANDLE handle);

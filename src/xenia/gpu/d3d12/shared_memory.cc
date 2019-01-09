@@ -573,17 +573,6 @@ void SharedMemory::TransitionBuffer(D3D12_RESOURCE_STATES new_state) {
   buffer_state_ = new_state;
 }
 
-void SharedMemory::UseForReading() {
-  // Vertex fetch also seems to be allowed in pixel shaders.
-  TransitionBuffer(D3D12_RESOURCE_STATE_INDEX_BUFFER |
-                   D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE |
-                   D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-}
-
-void SharedMemory::UseForWriting() {
-  TransitionBuffer(D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-}
-
 void SharedMemory::CreateSRV(D3D12_CPU_DESCRIPTOR_HANDLE handle) {
   ui::d3d12::util::CreateRawBufferSRV(
       command_processor_->GetD3D12Context()->GetD3D12Provider()->GetDevice(),
