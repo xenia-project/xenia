@@ -58,6 +58,9 @@ class ShaderTranslator {
   bool writes_color_target(int i) const { return writes_color_targets_[i]; }
   // True if the current shader overrides the pixel depth.
   bool writes_depth() const { return writes_depth_; }
+  // True if the pixel shader can potentially have early depth/stencil testing
+  // enabled, provided alpha testing is disabled.
+  bool early_z_allowed() const { return early_z_allowed_; }
   // A list of all vertex bindings, populated before translation occurs.
   const std::vector<Shader::VertexBinding>& vertex_bindings() const {
     return vertex_bindings_;
@@ -160,6 +163,7 @@ class ShaderTranslator {
     const char* name;
     size_t argument_count;
     int src_swizzle_component_count;
+    bool disable_early_z;
   };
 
   bool TranslateInternal(Shader* shader);
@@ -245,6 +249,7 @@ class ShaderTranslator {
   bool uses_register_dynamic_addressing_ = false;
   bool writes_color_targets_[4] = {false, false, false, false};
   bool writes_depth_ = false;
+  bool early_z_allowed_ = true;
 
   uint32_t memexport_alloc_count_ = 0;
   // For register allocation in implementations - what was used after each

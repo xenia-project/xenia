@@ -40,6 +40,17 @@ class D3D12Shader : public Shader {
       const DxbcShaderTranslator::SamplerBinding* sampler_bindings,
       uint32_t sampler_binding_count);
 
+  void SetForcedEarlyZShaderObject(const std::vector<uint8_t>& shader_object) {
+    forced_early_z_shader_ = shader_object;
+  }
+  // Returns the shader with forced early depth/stencil set with
+  // SetForcedEarlyZShader after translation. If there's none (for example,
+  // if the shader discards pixels or writes to the depth buffer), an empty
+  // vector is returned.
+  const std::vector<uint8_t>& GetForcedEarlyZShaderObject() const {
+    return forced_early_z_shader_;
+  }
+
   bool DisassembleDxbc(const ui::d3d12::D3D12Provider* provider);
 
   static constexpr uint32_t kMaxTextureSRVIndexBits =
@@ -78,9 +89,12 @@ class D3D12Shader : public Shader {
 
  private:
   PrimitiveType domain_shader_primitive_type_ = PrimitiveType::kNone;
+
   std::vector<TextureSRV> texture_srvs_;
   uint32_t used_texture_mask_ = 0;
   std::vector<SamplerBinding> sampler_bindings_;
+
+  std::vector<uint8_t> forced_early_z_shader_;
 };
 
 }  // namespace d3d12

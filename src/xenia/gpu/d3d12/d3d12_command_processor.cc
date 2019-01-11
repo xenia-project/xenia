@@ -2199,8 +2199,8 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
 
   // Alpha test.
   int32_t alpha_test;
-  if (rb_colorcontrol & 0x8) {
-    uint32_t alpha_test_function = rb_colorcontrol & 0x7;
+  uint32_t alpha_test_function = rb_colorcontrol & 0x7;
+  if ((rb_colorcontrol & 0x8) && alpha_test_function != 0x7) {
     // 0: Never - fail in [-inf, +inf].
     // 1: Less - fail in [ref, +inf].
     // 2: Equal - pass in [ref, ref].
