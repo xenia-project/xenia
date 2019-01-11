@@ -89,6 +89,55 @@ DxbcShaderTranslator::DxbcShaderTranslator(uint32_t vendor_id,
 }
 DxbcShaderTranslator::~DxbcShaderTranslator() = default;
 
+std::vector<uint8_t> DxbcShaderTranslator::ForceEarlyDepthStencil(
+    const uint8_t* shader) {
+  const uint32_t* old_shader = reinterpret_cast<const uint32_t*>(shader);
+
+  // To return something anyway even if patching fails.
+  std::vector<uint8_t> new_shader;
+  uint32_t shader_size_bytes = old_shader[6];
+  new_shader.resize(shader_size_bytes);
+  std::memcpy(new_shader.data(), shader, shader_size_bytes);
+
+  // Find the SHEX chunk.
+  uint32_t chunk_count = old_shader[7];
+  for (uint32_t i = 0; i < chunk_count; ++i) {
+    uint32_t chunk_offset_bytes = old_shader[8 + i];
+    const uint32_t* chunk = old_shader + chunk_offset_bytes / sizeof(uint32_t);
+    if (chunk[0] != 'XEHS') {
+      continue;
+    }
+    // Find dcl_globalFlags and patch it.
+    uint32_t code_size_dwords = chunk[3];
+    chunk += 4;
+    for (uint32_t j = 0; j < code_size_dwords;) {
+      uint32_t opcode_token = chunk[j];
+      uint32_t opcode = DECODE_D3D10_SB_OPCODE_TYPE(opcode_token);
+      if (opcode == D3D10_SB_OPCODE_DCL_GLOBAL_FLAGS) {
+        opcode_token |= D3D11_SB_GLOBAL_FLAG_FORCE_EARLY_DEPTH_STENCIL;
+        std::memcpy(new_shader.data() +
+                        (chunk_offset_bytes + (4 + j) * sizeof(uint32_t)),
+                    &opcode_token, sizeof(uint32_t));
+        // Recalculate the checksum since the shader was modified.
+        CalculateDXBCChecksum(
+            reinterpret_cast<unsigned char*>(new_shader.data()),
+            shader_size_bytes,
+            reinterpret_cast<unsigned int*>(new_shader.data() +
+                                            sizeof(uint32_t)));
+        break;
+      }
+      if (opcode == D3D10_SB_OPCODE_CUSTOMDATA) {
+        j += chunk[j + 1];
+      } else {
+        j += DECODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(opcode_token);
+      }
+    }
+    break;
+  }
+
+  return std::move(new_shader);
+}
+
 std::vector<uint8_t> DxbcShaderTranslator::CreateDepthOnlyPixelShader() {
   Reset();
   is_depth_only_pixel_shader_ = true;
@@ -4034,7 +4083,8 @@ void DxbcShaderTranslator::WriteShaderCode() {
   }
 
   // Don't allow refactoring when converting to native code to maintain position
-  // invariance (needed even in pixel shaders for oDepth invariance).
+  // invariance (needed even in pixel shaders for oDepth invariance). Also this
+  // dcl will be modified by ForceEarlyDepthStencil.
   shader_object_.push_back(
       ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_GLOBAL_FLAGS) |
       ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));

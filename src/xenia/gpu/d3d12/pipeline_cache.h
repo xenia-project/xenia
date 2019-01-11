@@ -155,6 +155,7 @@ class PipelineCache {
     uint32_t depth_write : 1;                                   // 21
     uint32_t stencil_enable : 1;                                // 22
     uint32_t stencil_read_mask : 8;                             // 30
+    uint32_t force_early_z : 1;                                 // 31
 
     uint32_t stencil_write_mask : 8;           // 8
     uint32_t stencil_front_fail_op : 3;        // 11

@@ -491,6 +491,10 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kEDRAM,
   };
 
+  // Creates a copy of the shader with early depth/stencil testing forced,
+  // overriding that alpha testing is used in the shader.
+  static std::vector<uint8_t> ForceEarlyDepthStencil(const uint8_t* shader);
+
   // Returns the bits that need to be added to the RT flags constant - needs to
   // be done externally, not in SetColorFormatConstants, because the flags
   // contain other state.
