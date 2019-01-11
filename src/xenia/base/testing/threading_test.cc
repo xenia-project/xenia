@@ -759,8 +759,29 @@ TEST_CASE("Create and Run Thread", "Thread") {
 }
 
 TEST_CASE("Test Suspending Thread", "Thread") {
-  // TODO(bwrsandman): Test suspension and resume
-  REQUIRE(true);
+  std::unique_ptr<Thread> thread;
+  WaitResult result;
+  Thread::CreationParameters params = {};
+  auto func = [] { Sleep(20ms); };
+
+  // Create initially suspended
+  params.create_suspended = true;
+  thread = threading::Thread::Create(params, func);
+  result = threading::Wait(thread.get(), false, 50ms);
+  REQUIRE(result == threading::WaitResult::kTimeout);
+  thread->Resume();
+  result = threading::Wait(thread.get(), false, 50ms);
+  REQUIRE(result == threading::WaitResult::kSuccess);
+  params.create_suspended = false;
+
+  // Create and then suspend
+  thread = threading::Thread::Create(params, func);
+  thread->Suspend();
+  result = threading::Wait(thread.get(), false, 50ms);
+  REQUIRE(result == threading::WaitResult::kTimeout);
+  thread->Resume();
+  result = threading::Wait(thread.get(), false, 50ms);
+  REQUIRE(result == threading::WaitResult::kSuccess);
 }
 
 TEST_CASE("Test Thread QueueUserCallback", "Thread") {
