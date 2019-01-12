@@ -15,8 +15,8 @@
 #include <memory>
 #include <mutex>
 
-#include "xenia/base/string.h"
 #include "xenia/base/math.h"
+#include "xenia/base/string.h"
 
 namespace xe {
 
@@ -154,7 +154,7 @@ class PosixChunkedMappedMemoryWriter : public ChunkedMappedMemoryWriter {
     }
   }
 
-private:
+ private:
   class Chunk {
    public:
     explicit Chunk(size_t capacity)
@@ -174,7 +174,6 @@ private:
     }
 
     bool Open(const std::wstring& path, bool low_address_space) {
-
       file_handle_ = fopen(xe::to_string(path).c_str(), "r+b");
 
       if (!file_handle_) {
@@ -195,9 +194,9 @@ private:
         flags |= MAP_32BIT;
       }
 
-      data_ = reinterpret_cast<uint8_t*>(
-          mmap(0, capacity_, PROT_READ | PROT_WRITE, flags,
-               fileno(file_handle_), 0));
+      data_ =
+          reinterpret_cast<uint8_t*>(mmap(0, capacity_, PROT_READ | PROT_WRITE,
+                                          flags, fileno(file_handle_), 0));
 
       if (data_ == MAP_FAILED) {
         data_ = nullptr; /* for checks later on */
@@ -233,13 +232,11 @@ private:
 
   std::mutex mutex_;
   std::vector<std::unique_ptr<Chunk>> chunks_;
-
 };
 
 std::unique_ptr<ChunkedMappedMemoryWriter> ChunkedMappedMemoryWriter::Open(
     const std::wstring& path, size_t chunk_size, bool low_address_space) {
-  size_t aligned_chunk_size =
-      xe::round_up(chunk_size, sysconf(_SC_PAGE_SIZE));
+  size_t aligned_chunk_size = xe::round_up(chunk_size, sysconf(_SC_PAGE_SIZE));
   return std::make_unique<PosixChunkedMappedMemoryWriter>(
       path, aligned_chunk_size, low_address_space);
 
