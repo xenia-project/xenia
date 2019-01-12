@@ -13,6 +13,7 @@
 #include <unistd.h>
 #include <cstdio>
 #include <memory>
+#include <mutex>
 
 #include "xenia/base/string.h"
 
@@ -102,12 +103,137 @@ std::unique_ptr<MappedMemory> MappedMemory::Open(const std::wstring& path,
 
   mm->data_ =
       mmap(0, length, prot, MAP_SHARED, fileno(mm->file_handle), offset);
-  if (!mm->data_) {
+  if (mm->data_ == MAP_FAILED) {
     return nullptr;
   }
 
   return std::move(mm);
 }
+
+class PosixChunkedMappedMemoryWriter : public ChunkedMappedMemoryWriter {
+ public:
+  PosixChunkedMappedMemoryWriter(const std::wstring& path, size_t chunk_size,
+                                 bool low_address_space)
+      : ChunkedMappedMemoryWriter(path, chunk_size, low_address_space) {}
+
+  ~PosixChunkedMappedMemoryWriter() override {
+    std::lock_guard<std::mutex> lock(mutex_);
+    chunks_.clear();
+  }
+
+  uint8_t* Allocate(size_t length) override {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (!chunks_.empty()) {
+      uint8_t* result = chunks_.back()->Allocate(length);
+      if (result != nullptr) {
+        return result;
+      }
+    }
+    auto chunk = std::make_unique<Chunk>(chunk_size_);
+    auto chunk_path = path_ + L"." + std::to_wstring(chunks_.size());
+    if (!chunk->Open(chunk_path, low_address_space_)) {
+      return nullptr;
+    }
+    uint8_t* result = chunk->Allocate(length);
+    chunks_.push_back(std::move(chunk));
+    return result;
+  }
+
+  void Flush() override {
+    std::lock_guard<std::mutex> lock(mutex_);
+    for (auto& chunk : chunks_) {
+      chunk->Flush();
+    }
+  }
+
+  void FlushNew() override {
+    std::lock_guard<std::mutex> lock(mutex_);
+    for (auto& chunk : chunks_) {
+      chunk->FlushNew();
+    }
+  }
+
+private:
+  class Chunk {
+   public:
+    explicit Chunk(size_t capacity)
+        : file_handle_(0),
+          data_(nullptr),
+          offset_(0),
+          capacity_(capacity),
+          last_flush_offset_(0) {}
+
+    ~Chunk() {
+      if (data_) {
+        munmap(data_, capacity_);
+      }
+      if (file_handle_) {
+        fclose(file_handle_);
+      }
+    }
+
+    bool Open(const std::wstring& path, bool low_address_space) {
+
+      file_handle_ = fopen(xe::to_string(path).c_str(), "r+b");
+
+      if (!file_handle_) {
+        return false;
+      }
+
+      /* Equivalent of CREATE_ALWAYS */
+      if (ftruncate(fileno(file_handle_), 0)) {
+        return false;
+      }
+
+      /* TODO: might be necessary to mandatory-lock write ops on file_handle */
+
+      int flags = MAP_SHARED;
+      // If specified, ensure the allocation occurs in the lower 32-bit address
+      // space.
+      if (low_address_space) {
+        flags |= MAP_32BIT;
+      }
+
+      data_ = reinterpret_cast<uint8_t*>(
+          mmap(0, capacity_, PROT_READ | PROT_WRITE, flags,
+               fileno(file_handle_), 0));
+
+      if (data_ == MAP_FAILED) {
+        data_ = nullptr; /* for checks later on */
+        return false;
+      }
+
+      return true;
+    }
+
+    uint8_t* Allocate(size_t length) {
+      if (capacity_ - offset_ < length) {
+        return nullptr;
+      }
+      uint8_t* result = data_ + offset_;
+      offset_ += length;
+      return result;
+    }
+
+    void Flush() { msync(data_, offset_, MS_ASYNC); }
+
+    void FlushNew() {
+      msync(data_ + last_flush_offset_, offset_ - last_flush_offset_, MS_ASYNC);
+      last_flush_offset_ = offset_;
+    }
+
+   private:
+    FILE* file_handle_;
+    uint8_t* data_;
+    size_t offset_;
+    size_t capacity_;
+    size_t last_flush_offset_;
+  };
+
+  std::mutex mutex_;
+  std::vector<std::unique_ptr<Chunk>> chunks_;
+
+};
 
 std::unique_ptr<ChunkedMappedMemoryWriter> ChunkedMappedMemoryWriter::Open(
     const std::wstring& path, size_t chunk_size, bool low_address_space) {
