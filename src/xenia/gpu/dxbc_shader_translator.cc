@@ -1942,12 +1942,15 @@ uint32_t DxbcShaderTranslator::DxbcSourceOperandLength(
       // totally invalid operand replaced by a literal.
       return 5;
   }
-  // Apply both the operand negation and the usage negation (for subtraction)
-  // and absolute from both sources.
-  if (operand.is_negated) {
-    negate = !negate;
+  // Apply overrides (for instance, for subtraction). Xenos operand modifiers
+  // are ignored when forcing absolute value (though negated absolute can still
+  // be forced in this case).
+  if (!absolute) {
+    if (operand.is_negated) {
+      negate = !negate;
+    }
+    absolute |= operand.is_absolute_value;
   }
-  absolute |= operand.is_absolute_value;
   // Modifier extension - neg/abs or non-uniform binding index.
   if (negate || absolute) {
     ++length;
@@ -1981,12 +1984,15 @@ void DxbcShaderTranslator::UseDxbcSourceOperand(
                       (swizzle << D3D10_SB_OPERAND_4_COMPONENT_SWIZZLE_SHIFT);
   }
 
-  // Apply both the operand negation and the usage negation (for subtraction)
-  // and absolute value from both sources.
-  if (operand.is_negated) {
-    negate = !negate;
+  // Apply overrides (for instance, for subtraction). Xenos operand modifiers
+  // are ignored when forcing absolute value (though negated absolute can still
+  // be forced in this case).
+  if (!absolute) {
+    if (operand.is_negated) {
+      negate = !negate;
+    }
+    absolute |= operand.is_absolute_value;
   }
-  absolute |= operand.is_absolute_value;
   // Build OperandToken1 for modifiers (negate, absolute, minimum precision,
   // non-uniform binding index) - if it has any, it will be non-zero.
   // NOTE: AMD GPUs or drivers do NOT support non-uniform constant buffer
