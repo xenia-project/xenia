@@ -62,12 +62,12 @@ void main(uint3 xe_thread_id : SV_DispatchThreadID) {
   // Unpack the endpoints as:
   // 0x00g000r0 0x00g100r1 0x00g200r2 0x00g300r3
   // 0x00G000R0 0x00G100R1 0x00G200R2 0x00G300R3
-  // so they can be multiplied by their weights allowing overflow.
+  // so they can be multiplied by their weights allowing overflow
+  // (R is in the higher bits, according to how this format is used in Halo 3).
   uint4 end_packed = uint4(blocks_01.xz, blocks_23.xz);
   uint4 end_low_rr00gg00 =
-      (end_packed & 0xFFu) | ((end_packed & 0xFF00u) << 8u);
-  uint4 end_high_rr00gg00 =
-      ((end_packed & 0xFF0000u) >> 16u) | ((end_packed & 0xFF000000u) >> 8u);
+      ((end_packed & 0xFF00u) >> 8u) | ((end_packed & 0xFFu) << 16u);
+  uint4 end_high_rr00gg00 = (end_packed >> 24u) | (end_packed & 0xFF0000u);
 
   // Sort the color indices so they can be used as weights for the second
   // endpoint.

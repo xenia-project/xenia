@@ -49,10 +49,11 @@ void CopySwapBlock(Endian endian, void* output, const void* input,
 void ConvertTexelCTX1ToR8G8(Endian endian, void* output, const void* input,
                             size_t length) {
   // https://fileadmin.cs.lth.se/cs/Personal/Michael_Doggett/talks/unc-xenos-doggett.pdf
+  // (R is in the higher bits, according to how this format is used in Halo 3).
   union {
     uint8_t data[8];
     struct {
-      uint8_t r0, g0, r1, g1;
+      uint8_t g0, r0, g1, r1;
       uint32_t xx;
     };
   } block;

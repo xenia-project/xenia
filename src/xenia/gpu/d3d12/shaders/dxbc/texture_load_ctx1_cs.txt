@@ -178,12 +178,12 @@ else
   mov r1.zw, r3.xxxz
   mov r2.zw, r3.yyyw
 endif 
-ishl r3.xyzw, r1.xyzw, l(8, 8, 8, 8)
-and r3.xyzw, r3.xyzw, l(0x00ff0000, 0x00ff0000, 0x00ff0000, 0x00ff0000)
-bfi r3.xyzw, l(8, 8, 8, 8), l(0, 0, 0, 0), r1.xyzw, r3.xyzw
-ubfe r4.xyzw, l(8, 8, 8, 8), l(16, 16, 16, 16), r1.xyzw
-ushr r1.xyzw, r1.xyzw, l(8, 8, 8, 8)
-bfi r1.xyzw, l(16, 16, 16, 16), l(0, 0, 0, 0), r4.xyzw, r1.xyzw
+ubfe r3.xyzw, l(8, 8, 8, 8), l(8, 8, 8, 8), r1.xyzw
+bfi r4.xyzw, l(8, 8, 8, 8), l(16, 16, 16, 16), r1.xyzw, l(0, 0, 0, 0)
+iadd r3.xyzw, r3.xyzw, r4.xyzw
+ushr r4.xyzw, r1.xyzw, l(24, 24, 24, 24)
+and r1.xyzw, r1.xyzw, l(0x00ff0000, 0x00ff0000, 0x00ff0000, 0x00ff0000)
+iadd r1.xyzw, r1.xyzw, r4.xyzw
 ishl r4.xyzw, r2.xyzw, l(1, 1, 1, 1)
 and r4.xyzw, r4.xyzw, l(0xaaaaaaaa, 0xaaaaaaaa, 0xaaaaaaaa, 0xaaaaaaaa)
 ushr r2.xyzw, r2.xyzw, l(1, 1, 1, 1)
