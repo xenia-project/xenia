@@ -16,6 +16,7 @@
 #include <mutex>
 
 #include "xenia/base/string.h"
+#include "xenia/base/math.h"
 
 namespace xe {
 
@@ -237,7 +238,11 @@ private:
 
 std::unique_ptr<ChunkedMappedMemoryWriter> ChunkedMappedMemoryWriter::Open(
     const std::wstring& path, size_t chunk_size, bool low_address_space) {
-  // TODO(DrChat)
+  size_t aligned_chunk_size =
+      xe::round_up(chunk_size, sysconf(_SC_PAGE_SIZE));
+  return std::make_unique<PosixChunkedMappedMemoryWriter>(
+      path, aligned_chunk_size, low_address_space);
+
   return nullptr;
 }
 
