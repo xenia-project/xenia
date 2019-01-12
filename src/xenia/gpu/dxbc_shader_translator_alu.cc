@@ -1494,13 +1494,16 @@ void DxbcShaderTranslator::ProcessScalarAluInstruction(
       shader_code_.push_back(
           ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MIN) |
           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(
-              5 + DxbcSourceOperandLength(dxbc_operands[0], false, true)));
+              6 + DxbcSourceOperandLength(dxbc_operands[0], false, true)));
       shader_code_.push_back(
           EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
       shader_code_.push_back(is_subnormal_temp);
       UseDxbcSourceOperand(dxbc_operands[0], kSwizzleXYZW, 0, false, true);
       shader_code_.push_back(
-          EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
+          EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1) |
+          ENCODE_D3D10_SB_OPERAND_EXTENDED(1));
+      shader_code_.push_back(ENCODE_D3D10_SB_EXTENDED_OPERAND_MODIFIER(
+          D3D10_SB_OPERAND_MODIFIER_ABS));
       shader_code_.push_back(system_temp_ps_pc_p0_a0_);
       ++stat_.instruction_count;
       ++stat_.float_instruction_count;
