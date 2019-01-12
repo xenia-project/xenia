@@ -10,6 +10,7 @@
 #include "xenia/base/mapped_memory.h"
 
 #include <sys/mman.h>
+#include <unistd.h>
 #include <cstdio>
 #include <memory>
 
@@ -31,7 +32,40 @@ class PosixMappedMemory : public MappedMemory {
     }
   }
 
+  void Close(uint64_t truncate_size) override {
+    if (data_) {
+      munmap(data_, size_);
+      data_ = nullptr;
+    }
+
+    if (file_handle) {
+      if (truncate_size) {
+        ftruncate(fileno(file_handle), truncate_size);
+      }
+      fclose(file_handle);
+      file_handle = nullptr;
+    }
+  }
+
+  void Flush() override { msync(data(), size(), MS_ASYNC); };
+  bool Remap(size_t offset, size_t length) override {
+    munmap(data_, size_);
+    data_ = nullptr;
+
+    if (!length) {
+      fseeko(file_handle, 0, SEEK_END);
+      length = ftello(file_handle);
+      fseeko(file_handle, 0, SEEK_SET);
+    }
+
+    data_ = mmap(0, length, prot, MAP_SHARED, fileno(file_handle), offset);
+    size_ = length;
+
+    return data_;
+  }
+
   FILE* file_handle;
+  int prot;
 };
 
 std::unique_ptr<MappedMemory> MappedMemory::Open(const std::wstring& path,
@@ -52,23 +86,22 @@ std::unique_ptr<MappedMemory> MappedMemory::Open(const std::wstring& path,
 
   auto mm =
       std::unique_ptr<PosixMappedMemory>(new PosixMappedMemory(path, mode));
+  mm->prot = prot;
 
   mm->file_handle = fopen(xe::to_string(path).c_str(), mode_str);
   if (!mm->file_handle) {
     return nullptr;
   }
 
-  size_t map_length;
-  map_length = length;
   if (!length) {
     fseeko(mm->file_handle, 0, SEEK_END);
-    map_length = ftello(mm->file_handle);
+    length = ftello(mm->file_handle);
     fseeko(mm->file_handle, 0, SEEK_SET);
   }
-  mm->size_ = map_length;
+  mm->size_ = length;
 
   mm->data_ =
-      mmap(0, map_length, prot, MAP_SHARED, fileno(mm->file_handle), offset);
+      mmap(0, length, prot, MAP_SHARED, fileno(mm->file_handle), offset);
   if (!mm->data_) {
     return nullptr;
   }
