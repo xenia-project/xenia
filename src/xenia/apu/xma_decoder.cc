@@ -20,6 +20,7 @@
 #include "xenia/cpu/processor.h"
 #include "xenia/cpu/thread_state.h"
 #include "xenia/kernel/xthread.h"
+#include "xenia/config.h"
 
 extern "C" {
 #include "third_party/libav/libavutil/log.h"
@@ -49,7 +50,7 @@ extern "C" {
 // do this, it's likely they are either passing the context to XAudio or
 // using the XMA* functions.
 
-DEFINE_bool(libav_verbose, false, "Verbose libav output (debug and above)");
+CVar(libav_verbose, false, "Verbose libav output (debug and above)", "Audio");
 
 namespace xe {
 namespace apu {
@@ -60,7 +61,7 @@ XmaDecoder::XmaDecoder(cpu::Processor* processor)
 XmaDecoder::~XmaDecoder() = default;
 
 void av_log_callback(void* avcl, int level, const char* fmt, va_list va) {
-  if (!FLAGS_libav_verbose && level > AV_LOG_WARNING) {
+  if (!var_libav_verbose.GetBool() && level > AV_LOG_WARNING) {
     return;
   }
 

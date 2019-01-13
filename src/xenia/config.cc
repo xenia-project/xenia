@@ -12,16 +12,16 @@ namespace config {
 cxxopts::Options options("xenia", "Xbox 360 Emulator");
 std::wstring config_name = L"xenia.cfg";
 std::wstring config_path;
-std::map<std::string, CmdVar*>* CmdVars;
-std::map<std::string, CVar*>* CVars;
+std::map<std::string, CommandVar*>* CmdVars;
+std::map<std::string, ConfigVar*>* ConfigVars;
 char** data;
-void AddCVar(CVar* cv) {
-  if (!CVars) CVars = new std::map<std::string, CVar*>();
-  CVars->insert(std::pair<std::string, CVar*>(cv->GetName(), cv));
+void AddConfigVar(ConfigVar* cv) {
+  if (!ConfigVars) ConfigVars = new std::map<std::string, ConfigVar*>();
+  ConfigVars->insert(std::pair<std::string, ConfigVar*>(cv->GetName(), cv));
 }
-void AddCmdVar(CmdVar* cv) {
-  if (!CmdVars) CmdVars = new std::map<std::string, CmdVar*>();
-  CmdVars->insert(std::pair<std::string, CmdVar*>(cv->GetName(), cv));
+void AddCommandVar(CommandVar* cv) {
+  if (!CmdVars) CmdVars = new std::map<std::string, CommandVar*>();
+  CmdVars->insert(std::pair<std::string, CommandVar*>(cv->GetName(), cv));
 }
 
 void PrintHelpAndExit() {
@@ -29,9 +29,14 @@ void PrintHelpAndExit() {
   exit(0);
 }
 
+ConfigVar GetConfigVar(const char* name) {
+  auto it = ConfigVars->find(name);
+  return *it->second;
+}
+
 void ParseLaunchArguments(int argc, char** argv) {
   for (auto& it : *CmdVars) {
-    auto cmdVar = static_cast<CmdVar*>(it.second);
+    auto cmdVar = static_cast<CommandVar*>(it.second);
     options.add_options()(cmdVar->GetName(), cmdVar->GetDescription(),
                           cxxopts::value<std::string>());
   }
@@ -43,7 +48,7 @@ void ParseLaunchArguments(int argc, char** argv) {
       PrintHelpAndExit();
     }
     for (auto& it : *CmdVars) {
-      auto cmdVar = static_cast<CmdVar*>(it.second);
+      auto cmdVar = static_cast<CommandVar*>(it.second);
       if (result.count(cmdVar->GetName())) {
         auto value = result[cmdVar->GetName()].as<std::string>();
         cmdVar->SetCommandLineValue(value);
@@ -56,8 +61,8 @@ void ParseLaunchArguments(int argc, char** argv) {
 
 void ReadConfig(const std::wstring& file_path) {
   const auto config = cpptoml::parse_file(xe::to_string(file_path));
-  for (auto& it : *CVars) {
-    auto configVar = static_cast<CVar*>(it.second);
+  for (auto& it : *ConfigVars) {
+    auto configVar = static_cast<ConfigVar*>(it.second);
     auto configKey = configVar->GetCategory() + "." + configVar->GetName();
     if (config->contains_qualified(configKey)) {
       configVar->SetConfigValue(
@@ -68,8 +73,8 @@ void ReadConfig(const std::wstring& file_path) {
 
 void ReadGameConfig(std::wstring file_path) {
   const auto config = cpptoml::parse_file(xe::to_string(file_path));
-  for (auto& it : *CVars) {
-    auto configVar = static_cast<CVar*>(it.second);
+  for (auto& it : *ConfigVars) {
+    auto configVar = static_cast<ConfigVar*>(it.second);
     auto configKey = configVar->GetName();
     // game config variables don't have to be in a category
     if (config->contains(configVar->GetName())) {
@@ -79,7 +84,7 @@ void ReadGameConfig(std::wstring file_path) {
   }
 }
 
-bool sortCvar(CVar* a, CVar* b) {
+bool sortCvar(ConfigVar* a, ConfigVar* b) {
   if (a->GetCategory() < b->GetCategory()) return true;
   if (a->GetName() < b->GetName()) return true;
   return false;
@@ -88,8 +93,8 @@ bool sortCvar(CVar* a, CVar* b) {
 void SaveConfig() {
   const auto file_path = xe::to_string(config_path);
 
-  std::vector<CVar*> vars;
-  for (const auto& s : *CVars) vars.push_back(s.second);
+  std::vector<ConfigVar*> vars;
+  for (const auto& s : *ConfigVars) vars.push_back(s.second);
   std::sort(vars.begin(), vars.end(), sortCvar);
   // we use our own write logic because cpptoml doesn't
   // allow us to specify comments :(
@@ -132,38 +137,41 @@ void LoadGameConfig(const std::wstring& config_folder,
 
 }  // namespace config
 
-CmdVar::CmdVar(const char* name, const char* defaultValue,
+CommandVar::CommandVar(const char* name, const char* defaultValue,
                const char* description)
     : name_(name), defaultValue_(defaultValue), description_(description) {
-  config::AddCmdVar(this);
+  config::AddCommandVar(this);
 }
-CVar::CVar(const char* name, const char* defaultValue, const char* description,
+ConfigVar::ConfigVar(const char* name, const char* defaultValue,
+                const char* description,
            const char* category)
-    : CmdVar(name, defaultValue, description), category_(category) {
-  config::AddCVar(this);
+    : CommandVar(name, defaultValue, description), category_(category) {
+  config::AddConfigVar(this);
 }
-std::string CmdVar::GetValue() {
+std::string CommandVar::GetValue() {
   if (!this->commandLineValue_.empty()) return this->commandLineValue_;
   return defaultValue_;
 }
-std::string CVar::GetValue() {
+std::string ConfigVar::GetValue() {
   if (!this->commandLineValue_.empty()) return this->commandLineValue_;
   if (!this->gameConfigValue_.empty()) return this->gameConfigValue_;
   if (!this->configValue_.empty()) return this->configValue_;
   return defaultValue_;
 }
-std::string CVar::GetConfigValue() {
+std::string ConfigVar::GetConfigValue() {
   if (!this->configValue_.empty()) return this->configValue_;
   return defaultValue_;
 }
-void CmdVar::SetCommandLineValue(const std::string val) {
+void CommandVar::SetCommandLineValue(const std::string val) {
   this->commandLineValue_ = val;
 }
-void CVar::SetConfigValue(const std::string val) { this->configValue_ = val; }
-void CVar::SetGameConfigValue(const std::string val) {
+void ConfigVar::SetConfigValue(const std::string val) {
+  this->configValue_ = val;
+}
+void ConfigVar::SetGameConfigValue(const std::string val) {
   this->gameConfigValue_ = val;
 }
-bool CmdVar::GetBool() {
+bool CommandVar::GetBool() {
   if (!_conversionDone) {
     _valAsBool = GetValue()[0] == '1';
     _conversionDone = true;
@@ -171,14 +179,14 @@ bool CmdVar::GetBool() {
   return _valAsBool;
 }
 
-float CmdVar::GetFloat() {
+float CommandVar::GetFloat() {
   if (!_conversionDone) {
     _valAsFloat = std::stof(GetValue());
     _conversionDone = true;
   }
   return _valAsFloat;
 }
-int CmdVar::GetInt() {
+int CommandVar::GetInt() {
   if (!_conversionDone) {
     _valAsInt = std::stoi(GetValue());
     _conversionDone = true;

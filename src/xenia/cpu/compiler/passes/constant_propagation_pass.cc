@@ -16,8 +16,9 @@
 #include "xenia/base/profiling.h"
 #include "xenia/cpu/function.h"
 #include "xenia/cpu/processor.h"
+#include "xenia/config.h"
 
-DEFINE_bool(inline_mmio_access, true, "Inline constant MMIO loads and stores.");
+CVar(inline_mmio_access, true, "Inline constant MMIO loads and stores.", "CPU");
 
 namespace xe {
 namespace cpu {
@@ -221,7 +222,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
 
             auto mmio_range =
                 processor_->memory()->LookupVirtualMappedRange(address);
-            if (FLAGS_inline_mmio_access && mmio_range) {
+            if (var_inline_mmio_access.GetBool() && mmio_range) {
               i->Replace(&OPCODE_LOAD_MMIO_info, 0);
               i->src1.offset = reinterpret_cast<uint64_t>(mmio_range);
               i->src2.offset = address;
@@ -273,7 +274,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
           break;
         case OPCODE_STORE:
         case OPCODE_STORE_OFFSET:
-          if (FLAGS_inline_mmio_access && i->src1.value->IsConstant()) {
+          if (var_inline_mmio_access.GetBool() && i->src1.value->IsConstant()) {
             auto address = i->src1.value->constant.i32;
             if (i->opcode->num == OPCODE_STORE_OFFSET) {
               address += i->src2.value->constant.i32;

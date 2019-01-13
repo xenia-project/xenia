@@ -32,6 +32,7 @@
 #include "xenia/base/assert.h"
 #include "xenia/base/profiling.h"
 #include "xenia/ui/window.h"
+#include "xenia/config.h"
 
 #if XE_OPTION_PROFILING
 #include "third_party/microprofile/microprofileui.h"
@@ -42,7 +43,7 @@
 #include "xenia/ui/microprofile_drawer.h"
 #endif  // XE_OPTION_PROFILING_UI
 
-DEFINE_bool(show_profiler, false, "Show profiling UI by default.");
+CVar(show_profiler, false, "Show profiling UI by default.", "Other");
 
 namespace xe {
 
@@ -77,7 +78,7 @@ void Profiler::Initialize() {
   g_MicroProfileUI.bShowSpikes = true;
   g_MicroProfileUI.nOpacityBackground = 0x40u << 24;
   g_MicroProfileUI.nOpacityForeground = 0xc0u << 24;
-  if (FLAGS_show_profiler) {
+  if (var_show_profiler.GetBool()) {
     MicroProfileSetDisplayMode(1);
   }
 #else

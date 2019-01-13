@@ -3,9 +3,10 @@
 #include <cpptoml/include/cpptoml.h>
 #include <string>
 
-class CmdVar {
+class CommandVar {
  public:
-  CmdVar(const char* name, const char* defaultValue, const char* description);
+  CommandVar(const char* name, const char* defaultValue,
+             const char* description);
   std::string GetValue();
   std::string GetName() { return name_; };
   std::string GetDescription() { return description_; };
@@ -25,10 +26,10 @@ class CmdVar {
   int _valAsInt;
 };
 
-class CVar : public CmdVar {
+class ConfigVar : public CommandVar {
  public:
-  CVar(const char* name, const char* defaultValue, const char* description,
-       const char* category);
+  ConfigVar(const char* name, const char* defaultValue, const char* description,
+            const char* category);
   std::string GetValue();
   std::string GetConfigValue();
   std::string GetCategory() { return category_; };
@@ -42,11 +43,25 @@ class CVar : public CmdVar {
 };
 
 namespace config {
-
+ConfigVar GetConfigVar(const char* name);
 void ParseLaunchArguments(int argc, char** argv);
 void SetupConfig(const std::wstring& content_path);
 void LoadGameConfig(const std::wstring& config_folder,
                     const std::wstring& title_id);
 }  // namespace config
-
+#define LoadCVar(name) ConfigVar var_##name = config::GetConfigVar(#name);
+#define CVar(name, defaultValue, description, category) \
+  ConfigVar var_##name = ConfigVar(#name, #defaultValue, description, category);
+#define CmdVar(name, defaultValue, description) \
+  CommandVar var_##name = CommandVar(#name, #defaultValue, description);
+#define CVar2(name, defaultValue, description, category) \
+  namespace cv {                                               \
+    static const ConfigVar var_##name =                                        ConfigVar(#name, #defaultValue, description, category);                           \
+  }                                                                       \
+  using cv::var_##name
+#define LoadCVar2(name)        \
+  namespace cv {               \
+  extern ConfigVar var_##name; \
+  }                            \
+  using cv::var_##name
 #endif  // XENIA_CONFIG_H_

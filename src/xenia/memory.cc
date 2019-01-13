@@ -26,13 +26,11 @@
 // TODO(benvanik): move xbox.h out
 #include "xenia/xbox.h"
 
-CVar protect_zero("protect_zero", "true",
-                  "Protect the zero page from reads and writes.", "Memory");
-CVar protect_on_release("protect_on_release", "false",
+CVar(protect_zero, true, "Protect the zero page from reads and writes.", "Memory")
+CVar(protect_on_release, false,
                         "Protect released memory to prevent accesses.",
-                        "Memory");
-CVar scribble_heap("scribble_heap", "false",
-                   "Scribble 0xCD into all allocated heap memory.", "Memory");
+                        "Memory")
+CVar(scribble_heap, false,                   "Scribble 0xCD into all allocated heap memory.", "Memory")
 
 namespace xe {
 
@@ -178,7 +176,7 @@ bool Memory::Initialize() {
   heaps_.v00000000.AllocFixed(
       0x00000000, 0x10000, 0x10000,
       kMemoryAllocationReserve | kMemoryAllocationCommit,
-      !protect_zero.GetBool() ? kMemoryProtectRead | kMemoryProtectWrite
+      !var_protect_zero.GetBool() ? kMemoryProtectRead | kMemoryProtectWrite
                               : kMemoryProtectNoAccess);
   heaps_.physical.AllocFixed(0x1FFF0000, 0x10000, 0x10000,
                              kMemoryAllocationReserve, kMemoryProtectNoAccess);
@@ -766,7 +764,7 @@ bool BaseHeap::AllocFixed(uint32_t base_address, uint32_t size,
       return false;
     }
 
-    if (scribble_heap.GetBool() && protect & kMemoryProtectWrite) {
+    if (var_scribble_heap.GetBool() && protect & kMemoryProtectWrite) {
       std::memset(result, 0xCD, page_count * page_size_);
     }
   }
@@ -914,7 +912,7 @@ bool BaseHeap::AllocRange(uint32_t low_address, uint32_t high_address,
       return false;
     }
 
-    if (scribble_heap.GetBool() && (protect & kMemoryProtectWrite)) {
+    if (var_scribble_heap.GetBool() && (protect & kMemoryProtectWrite)) {
       std::memset(result, 0xCD, page_count * page_size_);
     }
   }
@@ -1002,7 +1000,7 @@ bool BaseHeap::Release(uint32_t base_address, uint32_t* out_region_size) {
     // TODO(benvanik): figure out why games are using memory after releasing it.
     // It's possible this is some virtual/physical stuff where the GPU still can
     // access it.
-    if (protect_on_release.GetBool()) {
+    if (var_protect_on_release.GetBool()) {
       if (!xe::memory::Protect(
               membase_ + heap_base_ + base_page_number * page_size_,
               base_page_entry.region_page_count * page_size_,

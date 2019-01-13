@@ -40,26 +40,24 @@
 
 #include "third_party/xbyak/xbyak/xbyak_util.h"
 
-CVar apu_("apu", "any", "Audio system. Use: [any, nop, xaudio2]", "General");
-CVar gpu_("gpu", "any", "Graphics system. Use: [any, vulkan, null]", "General");
-CVar hid_("hid", "any", "Input system. Use: [any, nop, winkey, xinput]",
-          "General");
+CVar(apu, "any", "Audio system. Use: [any, nop, xaudio2]", "General");
+CVar(gpu, "any", "Graphics system. Use: [any, vulkan, null]", "General");
+CVar(hid, "any", "Input system. Use: [any, nop, winkey, xinput]",          "General");
 
-CVar fullscreen("fullscreen", "false", "Toggles fullscreen", "General");
+CVar(fullscreen, false, "Toggles fullscreen", "General");
 
-CVar content_root_("content_root", "",
-                   "Root path for content (save/etc) storage.", "General");
+CVar(content_root, "", "Root path for content (save/etc) storage.", "General");
 
-CVar mount_scratch("mount_scratch", "false", "Enable scratch mount", "General");
-CVar mount_cache("mount_cache", "false", "Enable cache mount", "General");
+CVar(mount_scratch, "false", "Enable scratch mount", "General");
+CVar(mount_cache, "false", "Enable cache mount", "General");
 
-CmdVar target_("target", "", "Specifies the target .xex or .iso to execute.");
+CmdVar(target, "", "Specifies the target .xex or .iso to execute.");
 
 namespace xe {
 namespace app {
 
 std::unique_ptr<apu::AudioSystem> CreateAudioSystem(cpu::Processor* processor) {
-  auto apu = apu_.GetValue();
+  auto apu = var_apu.GetValue();
   if (apu.compare("nop") == 0) {
     return apu::nop::NopAudioSystem::Create(processor);
 #if XE_PLATFORM_WIN32
@@ -83,7 +81,7 @@ std::unique_ptr<apu::AudioSystem> CreateAudioSystem(cpu::Processor* processor) {
 }
 
 std::unique_ptr<gpu::GraphicsSystem> CreateGraphicsSystem() {
-  auto gpu = gpu_.GetValue();
+  auto gpu = var_gpu.GetValue();
   if (gpu.compare("vulkan") == 0) {
     return std::unique_ptr<gpu::GraphicsSystem>(
         new xe::gpu::vulkan::VulkanGraphicsSystem());
@@ -108,7 +106,7 @@ std::unique_ptr<gpu::GraphicsSystem> CreateGraphicsSystem() {
 std::vector<std::unique_ptr<hid::InputDriver>> CreateInputDrivers(
     ui::Window* window) {
   std::vector<std::unique_ptr<hid::InputDriver>> drivers;
-  auto hid = hid_.GetValue();
+  auto hid = var_hid.GetValue();
   if (hid.compare("nop") == 0) {
     drivers.emplace_back(xe::hid::nop::Create(window));
 #if XE_PLATFORM_WIN32
@@ -148,7 +146,7 @@ int xenia_main(const std::vector<std::wstring>& args) {
   Profiler::ThreadEnter("main");
 
   // Figure out where content should go.
-  std::wstring content_root = xe::to_wstring(content_root_.GetValue());
+  std::wstring content_root = xe::to_wstring(var_content_root.GetValue());
 
   if (content_root.empty()) {
     auto base_path = xe::filesystem::GetExecutableFolder();
@@ -189,7 +187,7 @@ int xenia_main(const std::vector<std::wstring>& args) {
     return 1;
   }
 
-  if (mount_scratch.GetBool()) {
+  if (var_mount_scratch.GetBool()) {
     auto scratch_device = std::make_unique<xe::vfs::HostPathDevice>(
         "\\SCRATCH", L"scratch", false);
     if (!scratch_device->Initialize()) {
@@ -203,7 +201,7 @@ int xenia_main(const std::vector<std::wstring>& args) {
     }
   }
 
-  if (mount_cache.GetBool()) {
+  if (var_mount_cache.GetBool()) {
     auto cache0_device =
         std::make_unique<xe::vfs::HostPathDevice>("\\CACHE0", L"cache0", false);
     if (!cache0_device->Initialize()) {
@@ -278,13 +276,13 @@ int xenia_main(const std::vector<std::wstring>& args) {
 
   // Grab path from the flag or unnamed argument.
   std::wstring path;
-  auto target = target_.GetValue();
+  auto target = var_target.GetValue();
   if (!target.empty()) {
     path = xe::to_wstring(target);
   }
 
   // Toggles fullscreen
-  if (fullscreen.GetBool()) emulator_window->ToggleFullscreen();
+  if (var_fullscreen.GetBool()) emulator_window->ToggleFullscreen();
 
   if (!path.empty()) {
     // Normalize the path and make absolute.

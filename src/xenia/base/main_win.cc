@@ -28,8 +28,7 @@
 #include <bcrypt.h>
 #include "xenia/config.h"
 
-CVar win32_high_freq("win32_high_freq", "true",
-                     "Audio system. Use: [any, nop, xaudio2]", "General");
+CVar(win32_high_freq, true,                     "Audio system. Use: [any, nop, xaudio2]", "General");
 namespace xe {
 
 bool has_console_attached_ = true;
@@ -142,7 +141,7 @@ int Main() {
          XE_BUILD_DATE);
 
   // Request high performance timing.
-  if (win32_high_freq.GetBool()) {
+  if (var_win32_high_freq.GetBool()) {
     RequestHighPerformance();
   }
 

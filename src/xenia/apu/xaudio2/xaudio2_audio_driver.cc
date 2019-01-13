@@ -14,9 +14,11 @@
 
 #include <xaudio2.h>  // NOLINT(build/include_order)
 
-#include "xenia/apu/apu_flags.h"
 #include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
+#include "xenia/config.h"
+
+LoadCVar(mute);
 
 namespace xe {
 namespace apu {
@@ -151,7 +153,7 @@ bool XAudio2AudioDriver::Initialize() {
     return false;
   }
 
-  if (FLAGS_mute) {
+  if (var_mute.GetBool()) {
     pcm_voice_->SetVolume(0.0f);
   }
 
