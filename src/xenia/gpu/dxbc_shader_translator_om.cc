@@ -5504,116 +5504,172 @@ void DxbcShaderTranslator::CompletePixelShader() {
     return;
   }
 
-  // Alpha test.
-  // Check if alpha test is enabled (if the constant is not 0).
-  system_constants_used_ |= (1ull << kSysConst_AlphaTest_Index) |
-                            (1ull << kSysConst_AlphaTestRange_Index);
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
-                         ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(
-                             D3D10_SB_INSTRUCTION_TEST_NONZERO) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
-  shader_code_.push_back(EncodeVectorSelectOperand(
-      D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSysConst_AlphaTest_Comp, 3));
-  shader_code_.push_back(cbuffer_index_system_constants_);
-  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-  shader_code_.push_back(kSysConst_AlphaTest_Vec);
-  ++stat_.instruction_count;
-  ++stat_.dynamic_flow_control_count;
-  // Allocate a register for the test result.
-  uint32_t alpha_test_reg = PushSystemTemp();
-  // Check the alpha against the lower bound (inclusively).
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_GE) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-  shader_code_.push_back(alpha_test_reg);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 3, 1));
-  shader_code_.push_back(system_temps_color_);
-  shader_code_.push_back(EncodeVectorSelectOperand(
-      D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSysConst_AlphaTestRange_Comp, 3));
-  shader_code_.push_back(cbuffer_index_system_constants_);
-  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-  shader_code_.push_back(kSysConst_AlphaTestRange_Vec);
-  ++stat_.instruction_count;
-  ++stat_.float_instruction_count;
-  // Check the alpha against the upper bound (inclusively).
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_GE) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0010, 1));
-  shader_code_.push_back(alpha_test_reg);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
-                                kSysConst_AlphaTestRange_Comp + 1, 3));
-  shader_code_.push_back(cbuffer_index_system_constants_);
-  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-  shader_code_.push_back(kSysConst_AlphaTestRange_Vec);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 3, 1));
-  shader_code_.push_back(system_temps_color_);
-  ++stat_.instruction_count;
-  ++stat_.float_instruction_count;
-  // Check if both tests have passed and the alpha is in the range.
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-  shader_code_.push_back(alpha_test_reg);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-  shader_code_.push_back(alpha_test_reg);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
-  shader_code_.push_back(alpha_test_reg);
-  ++stat_.instruction_count;
-  ++stat_.uint_instruction_count;
-  // xe_alpha_test of 1 means alpha test passes in the range, -1 means it fails.
-  // Compare xe_alpha_test to 0 and see what action should be performed.
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ILT) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0010, 1));
-  shader_code_.push_back(alpha_test_reg);
-  shader_code_.push_back(
-      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  shader_code_.push_back(0);
-  shader_code_.push_back(EncodeVectorSelectOperand(
-      D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSysConst_AlphaTest_Comp, 3));
-  shader_code_.push_back(cbuffer_index_system_constants_);
-  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-  shader_code_.push_back(kSysConst_AlphaTest_Vec);
-  ++stat_.instruction_count;
-  ++stat_.int_instruction_count;
-  // Flip the test result if alpha being in the range means passing.
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_XOR) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-  shader_code_.push_back(alpha_test_reg);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-  shader_code_.push_back(alpha_test_reg);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
-  shader_code_.push_back(alpha_test_reg);
-  ++stat_.instruction_count;
-  ++stat_.uint_instruction_count;
-  // Discard the texel if failed the test.
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DISCARD) |
-                         ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(
-                             D3D10_SB_INSTRUCTION_TEST_NONZERO) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-  shader_code_.push_back(alpha_test_reg);
-  ++stat_.instruction_count;
-  // Release alpha_test_reg.
-  PopSystemTemp();
-  // Close the alpha test conditional.
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
-  ++stat_.instruction_count;
+  if (writes_color_target(0)) {
+    // Alpha test.
+    uint32_t alpha_test_temp = PushSystemTemp();
+    // Extract the comparison mask to check if the test needs to be done at all.
+    // Don't care about flow control being somewhat dynamic - early Z is forced
+    // using a special version of the shader anyway.
+    system_constants_used_ |= 1ull << kSysConst_Flags_Index;
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_UBFE) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(11));
+    shader_code_.push_back(
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1000, 1));
+    shader_code_.push_back(alpha_test_temp);
+    shader_code_.push_back(
+        EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+    shader_code_.push_back(3);
+    shader_code_.push_back(
+        EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+    shader_code_.push_back(kSysFlag_AlphaPassIfLess_Shift);
+    shader_code_.push_back(EncodeVectorSelectOperand(
+        D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSysConst_Flags_Comp, 3));
+    shader_code_.push_back(cbuffer_index_system_constants_);
+    shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
+    shader_code_.push_back(kSysConst_Flags_Vec);
+    ++stat_.instruction_count;
+    ++stat_.uint_instruction_count;
+    // Compare the mask to ALWAYS to check if the test shouldn't be done (will
+    // pass even for NaNs, though the expected behavior in this case hasn't been
+    // checked, but let's assume this means "always", not "less, equal or
+    // greater".
+    // TODO(Triang3l): Check how alpha test works with NaN on Direct3D 9.
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_INE) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+    shader_code_.push_back(
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+    shader_code_.push_back(alpha_test_temp);
+    shader_code_.push_back(
+        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 3, 1));
+    shader_code_.push_back(alpha_test_temp);
+    shader_code_.push_back(
+        EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+    shader_code_.push_back(0b111);
+    ++stat_.instruction_count;
+    ++stat_.int_instruction_count;
+    // Don't do the test if the mode is "always".
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
+                           ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(
+                               D3D10_SB_INSTRUCTION_TEST_NONZERO) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
+    shader_code_.push_back(
+        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
+    shader_code_.push_back(alpha_test_temp);
+    ++stat_.instruction_count;
+    ++stat_.dynamic_flow_control_count;
+    // Do the test.
+    system_constants_used_ |= 1ull << kSysConst_AlphaTestReference_Index;
+    for (uint32_t i = 0; i < 3; ++i) {
+      // Get the result of the operation: less, equal or greater.
+      shader_code_.push_back(
+          ENCODE_D3D10_SB_OPCODE_TYPE(i == 1 ? D3D10_SB_OPCODE_EQ
+                                             : D3D10_SB_OPCODE_LT) |
+          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
+      shader_code_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1 << i, 1));
+      shader_code_.push_back(alpha_test_temp);
+      if (i != 0) {
+        // For 1, reference == alpha. For 2, alpha > reference, but with lt,
+        // reference < alpha.
+        shader_code_.push_back(
+            EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
+                                      kSysConst_AlphaTestReference_Comp, 3));
+        shader_code_.push_back(cbuffer_index_system_constants_);
+        shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
+        shader_code_.push_back(kSysConst_AlphaTestReference_Vec);
+      }
+      shader_code_.push_back(
+          EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 3, 1));
+      shader_code_.push_back(system_temps_color_);
+      if (i == 0) {
+        // Alpha < reference.
+        shader_code_.push_back(
+            EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
+                                      kSysConst_AlphaTestReference_Comp, 3));
+        shader_code_.push_back(cbuffer_index_system_constants_);
+        shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
+        shader_code_.push_back(kSysConst_AlphaTestReference_Vec);
+      }
+      ++stat_.instruction_count;
+      ++stat_.float_instruction_count;
+    }
+    // Extract the comparison value per-bit.
+    uint32_t alpha_test_comparison_temp = PushSystemTemp();
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_IBFE) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(15));
+    shader_code_.push_back(
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0111, 1));
+    shader_code_.push_back(alpha_test_comparison_temp);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+    shader_code_.push_back(1);
+    shader_code_.push_back(1);
+    shader_code_.push_back(1);
+    shader_code_.push_back(0);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+    shader_code_.push_back(0);
+    shader_code_.push_back(1);
+    shader_code_.push_back(2);
+    shader_code_.push_back(0);
+    shader_code_.push_back(
+        EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 3, 1));
+    shader_code_.push_back(alpha_test_temp);
+    ++stat_.instruction_count;
+    ++stat_.int_instruction_count;
+    // Mask the results.
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+    shader_code_.push_back(
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0111, 1));
+    shader_code_.push_back(alpha_test_temp);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+    shader_code_.push_back(alpha_test_temp);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+    shader_code_.push_back(alpha_test_comparison_temp);
+    ++stat_.instruction_count;
+    ++stat_.uint_instruction_count;
+    // Release alpha_test_comparison_temp.
+    PopSystemTemp();
+    // Merge test results.
+    for (uint32_t i = 0; i < 2; ++i) {
+      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_OR) |
+                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+      shader_code_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+      shader_code_.push_back(alpha_test_temp);
+      shader_code_.push_back(
+          EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
+      shader_code_.push_back(alpha_test_temp);
+      shader_code_.push_back(
+          EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1 + i, 1));
+      shader_code_.push_back(alpha_test_temp);
+      ++stat_.instruction_count;
+      ++stat_.uint_instruction_count;
+    }
+    // Discard the pixel if has failed the text.
+    shader_code_.push_back(
+        ENCODE_D3D10_SB_OPCODE_TYPE(edram_rov_used_ ? D3D10_SB_OPCODE_RETC
+                                                    : D3D10_SB_OPCODE_DISCARD) |
+        ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(
+            D3D10_SB_INSTRUCTION_TEST_ZERO) |
+        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
+    shader_code_.push_back(
+        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
+    shader_code_.push_back(alpha_test_temp);
+    ++stat_.instruction_count;
+    if (edram_rov_used_) {
+      ++stat_.dynamic_flow_control_count;
+    }
+    // Close the "not always" check.
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
+    ++stat_.instruction_count;
+    // Release alpha_test_temp.
+    PopSystemTemp();
+  }
 
   // Apply color exponent bias (the constant contains 2.0^bias).
   // Not sure if this should be done before alpha testing or after, but this is
@@ -5622,8 +5678,11 @@ void DxbcShaderTranslator::CompletePixelShader() {
   // output-merger in the pipeline).
   // TODO(Triang3l): Verify whether the order of alpha testing and exponent bias
   // is correct.
-  system_constants_used_ |= 1ull << kSysConst_ColorExpBias_Index;
   for (uint32_t i = 0; i < 4; ++i) {
+    if (!writes_color_target(i)) {
+      continue;
+    }
+    system_constants_used_ |= 1ull << kSysConst_ColorExpBias_Index;
     shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MUL) |
                            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
     shader_code_.push_back(

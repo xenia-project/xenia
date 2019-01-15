@@ -12,7 +12,7 @@ cbuffer xe_system_cbuffer : register(b0) {
   float xe_pixel_half_pixel_offset;
   // vec4 2
   float3 xe_ndc_offset;
-  int xe_alpha_test;
+  float xe_alpha_test_reference;
   // vec4 3
   float2 xe_point_size;
   float2 xe_point_size_min_max;
@@ -20,7 +20,6 @@ cbuffer xe_system_cbuffer : register(b0) {
   float2 xe_point_screen_to_ndc;
   uint2 xe_sample_count_log2;
   // vec4 5
-  float2 xe_alpha_test_range;
   uint xe_edram_pitch_tiles;
   uint xe_edram_depth_base_dwords;
   // vec4 6

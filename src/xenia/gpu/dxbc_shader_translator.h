@@ -53,6 +53,9 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kSysFlag_ZDividedByW_Shift,
     kSysFlag_WNotReciprocal_Shift,
     kSysFlag_ReverseZ_Shift,
+    kSysFlag_AlphaPassIfLess_Shift,
+    kSysFlag_AlphaPassIfEqual_Shift,
+    kSysFlag_AlphaPassIfGreater_Shift,
     kSysFlag_DepthStencil_Shift,
     kSysFlag_DepthFloat24_Shift,
     // Depth/stencil testing not done if DepthStencilRead is disabled, but
@@ -77,6 +80,9 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kSysFlag_ZDividedByW = 1u << kSysFlag_ZDividedByW_Shift,
     kSysFlag_WNotReciprocal = 1u << kSysFlag_WNotReciprocal_Shift,
     kSysFlag_ReverseZ = 1u << kSysFlag_ReverseZ_Shift,
+    kSysFlag_AlphaPassIfLess = 1u << kSysFlag_AlphaPassIfLess_Shift,
+    kSysFlag_AlphaPassIfEqual = 1u << kSysFlag_AlphaPassIfEqual_Shift,
+    kSysFlag_AlphaPassIfGreater = 1u << kSysFlag_AlphaPassIfGreater_Shift,
     kSysFlag_DepthStencil = 1u << kSysFlag_DepthStencil_Shift,
     kSysFlag_DepthFloat24 = 1u << kSysFlag_DepthFloat24_Shift,
     kSysFlag_DepthPassIfLess = 1u << kSysFlag_DepthPassIfLess_Shift,
@@ -286,8 +292,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
 
     // vec4 2
     float ndc_offset[3];
-    // 0 - disabled, 1 - passes if in range, -1 - fails if in range.
-    int32_t alpha_test;
+    float alpha_test_reference;
 
     // vec4 3
     float point_size[2];
@@ -303,10 +308,9 @@ class DxbcShaderTranslator : public ShaderTranslator {
     uint32_t sample_count_log2[2];
 
     // vec4 5
-    // The range is floats as uints so it's easier to pass infinity.
-    uint32_t alpha_test_range[2];
     uint32_t edram_pitch_tiles;
     uint32_t edram_depth_base_dwords;
+    uint32_t padding_5[2];
 
     // vec4 6
     float color_exp_bias[4];
@@ -551,21 +555,21 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kSysConst_PixelPosReg_Comp = 3,
 
     kSysConst_NDCScale_Index = kSysConst_PixelPosReg_Index + 1,
-    kSysConst_NDCScale_Vec = kSysConst_Flags_Vec + 1,
+    kSysConst_NDCScale_Vec = kSysConst_PixelPosReg_Vec + 1,
     kSysConst_NDCScale_Comp = 0,
     kSysConst_PixelHalfPixelOffset_Index = kSysConst_NDCScale_Index + 1,
     kSysConst_PixelHalfPixelOffset_Vec = kSysConst_NDCScale_Vec,
     kSysConst_PixelHalfPixelOffset_Comp = 3,
 
     kSysConst_NDCOffset_Index = kSysConst_PixelHalfPixelOffset_Index + 1,
-    kSysConst_NDCOffset_Vec = kSysConst_NDCScale_Vec + 1,
+    kSysConst_NDCOffset_Vec = kSysConst_PixelHalfPixelOffset_Vec + 1,
     kSysConst_NDCOffset_Comp = 0,
-    kSysConst_AlphaTest_Index = kSysConst_NDCOffset_Index + 1,
-    kSysConst_AlphaTest_Vec = kSysConst_NDCOffset_Vec,
-    kSysConst_AlphaTest_Comp = 3,
+    kSysConst_AlphaTestReference_Index = kSysConst_NDCOffset_Index + 1,
+    kSysConst_AlphaTestReference_Vec = kSysConst_NDCOffset_Vec,
+    kSysConst_AlphaTestReference_Comp = 3,
 
-    kSysConst_PointSize_Index = kSysConst_AlphaTest_Index + 1,
-    kSysConst_PointSize_Vec = kSysConst_NDCOffset_Vec + 1,
+    kSysConst_PointSize_Index = kSysConst_AlphaTestReference_Index + 1,
+    kSysConst_PointSize_Vec = kSysConst_AlphaTestReference_Vec + 1,
     kSysConst_PointSize_Comp = 0,
     kSysConst_PointSizeMinMax_Index = kSysConst_PointSize_Index + 1,
     kSysConst_PointSizeMinMax_Vec = kSysConst_PointSize_Vec,
@@ -578,15 +582,12 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kSysConst_SampleCountLog2_Vec = kSysConst_PointScreenToNDC_Vec,
     kSysConst_SampleCountLog2_Comp = 2,
 
-    kSysConst_AlphaTestRange_Index = kSysConst_SampleCountLog2_Index + 1,
-    kSysConst_AlphaTestRange_Vec = kSysConst_SampleCountLog2_Vec + 1,
-    kSysConst_AlphaTestRange_Comp = 0,
-    kSysConst_EDRAMPitchTiles_Index = kSysConst_AlphaTestRange_Index + 1,
-    kSysConst_EDRAMPitchTiles_Vec = kSysConst_AlphaTestRange_Vec,
-    kSysConst_EDRAMPitchTiles_Comp = 2,
+    kSysConst_EDRAMPitchTiles_Index = kSysConst_SampleCountLog2_Index + 1,
+    kSysConst_EDRAMPitchTiles_Vec = kSysConst_SampleCountLog2_Vec + 1,
+    kSysConst_EDRAMPitchTiles_Comp = 0,
     kSysConst_EDRAMDepthBaseDwords_Index = kSysConst_EDRAMPitchTiles_Index + 1,
-    kSysConst_EDRAMDepthBaseDwords_Vec = kSysConst_AlphaTestRange_Vec,
-    kSysConst_EDRAMDepthBaseDwords_Comp = 3,
+    kSysConst_EDRAMDepthBaseDwords_Vec = kSysConst_EDRAMPitchTiles_Vec,
+    kSysConst_EDRAMDepthBaseDwords_Comp = 1,
 
     kSysConst_ColorExpBias_Index = kSysConst_EDRAMDepthBaseDwords_Index + 1,
     kSysConst_ColorExpBias_Vec = kSysConst_EDRAMDepthBaseDwords_Vec + 1,
