@@ -177,7 +177,7 @@ PrimitiveConverter::ConversionResult PrimitiveConverter::ConvertPrimitives(
   uint32_t reset_index_host = index_32bit ? 0xFFFFFFFFu : 0xFFFFu;
 
   // Degenerate line loops are just lines.
-  if (source_type == PrimitiveType::kLineLoop && index_count == 2) {
+  if (source_type == PrimitiveType::kLineLoop && index_count <= 2) {
     source_type = PrimitiveType::kLineStrip;
   }
 
