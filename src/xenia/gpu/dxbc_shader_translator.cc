@@ -3089,7 +3089,7 @@ const DxbcShaderTranslator::SystemConstantRdef DxbcShaderTranslator::
         {"xe_pixel_half_pixel_offset", RdefTypeIndex::kFloat, 28, 4},
         // vec4 2
         {"xe_ndc_offset", RdefTypeIndex::kFloat3, 32, 12},
-        {"xe_alpha_test", RdefTypeIndex::kInt, 44, 4},
+        {"xe_alpha_test_reference", RdefTypeIndex::kFloat, 44, 4},
         // vec4 3
         {"xe_point_size", RdefTypeIndex::kFloat2, 48, 8},
         {"xe_point_size_min_max", RdefTypeIndex::kFloat2, 56, 8},
@@ -3097,9 +3097,8 @@ const DxbcShaderTranslator::SystemConstantRdef DxbcShaderTranslator::
         {"xe_point_screen_to_ndc", RdefTypeIndex::kFloat2, 64, 8},
         {"xe_sample_count_log2", RdefTypeIndex::kUint2, 72, 8},
         // vec4 5
-        {"xe_alpha_test_range", RdefTypeIndex::kFloat2, 80, 8},
-        {"xe_edram_pitch_tiles", RdefTypeIndex::kUint, 88, 4},
-        {"xe_edram_depth_base_dwords", RdefTypeIndex::kUint, 92, 4},
+        {"xe_edram_pitch_tiles", RdefTypeIndex::kUint, 80, 4},
+        {"xe_edram_depth_base_dwords", RdefTypeIndex::kUint, 84, 4},
         // vec4 6
         {"xe_color_exp_bias", RdefTypeIndex::kFloat4, 96, 16},
         // vec4 7
