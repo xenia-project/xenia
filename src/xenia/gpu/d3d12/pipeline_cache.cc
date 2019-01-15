@@ -93,9 +93,7 @@ bool PipelineCache::Initialize() {
       creation_thread_count = uint32_t(FLAGS_d3d12_pipeline_creation_threads);
     }
     creation_thread_count = std::min(creation_thread_count, uint32_t(16));
-    // TODO(Triang3l): Change the thread count to something non-fixed (3 is just
-    // for testing).
-    for (uint32_t i = 0; i < 3; ++i) {
+    for (uint32_t i = 0; i < creation_thread_count; ++i) {
       std::unique_ptr<xe::threading::Thread> creation_thread =
           xe::threading::Thread::Create({}, [this]() { CreationThread(); });
       creation_thread->set_name("D3D12 Pipelines");
