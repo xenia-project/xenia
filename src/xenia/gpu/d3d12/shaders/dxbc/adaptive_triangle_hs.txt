@@ -12,19 +12,20 @@
 // {
 //
 //   uint xe_flags;                     // Offset:    0 Size:     4
-//   uint xe_vertex_index_endian_and_edge_factors;// Offset:    4 Size:     4
-//   int xe_vertex_base_index;          // Offset:    8 Size:     4
-//   uint xe_pixel_pos_reg;             // Offset:   12 Size:     4 [unused]
+//   uint xe_line_loop_closing_index;   // Offset:    4 Size:     4 [unused]
+//   uint xe_vertex_index_endian_and_edge_factors;// Offset:    8 Size:     4
+//   int xe_vertex_base_index;          // Offset:   12 Size:     4
 //   float3 xe_ndc_scale;               // Offset:   16 Size:    12 [unused]
-//   float xe_pixel_half_pixel_offset;  // Offset:   28 Size:     4 [unused]
+//   uint xe_pixel_pos_reg;             // Offset:   28 Size:     4 [unused]
 //   float3 xe_ndc_offset;              // Offset:   32 Size:    12 [unused]
-//   float xe_alpha_test_reference;     // Offset:   44 Size:     4 [unused]
+//   float xe_pixel_half_pixel_offset;  // Offset:   44 Size:     4 [unused]
 //   float2 xe_point_size;              // Offset:   48 Size:     8 [unused]
 //   float2 xe_point_size_min_max;      // Offset:   56 Size:     8 [unused]
 //   float2 xe_point_screen_to_ndc;     // Offset:   64 Size:     8 [unused]
 //   uint2 xe_sample_count_log2;        // Offset:   72 Size:     8 [unused]
-//   uint xe_edram_pitch_tiles;         // Offset:   80 Size:     4 [unused]
-//   uint xe_edram_depth_base_dwords;   // Offset:   84 Size:     4 [unused]
+//   float xe_alpha_test_reference;     // Offset:   80 Size:     4 [unused]
+//   uint xe_edram_pitch_tiles;         // Offset:   84 Size:     4 [unused]
+//   uint xe_edram_depth_base_dwords;   // Offset:   88 Size:     4 [unused]
 //   float4 xe_color_exp_bias;          // Offset:   96 Size:    16 [unused]
 //   uint4 xe_color_output_map;         // Offset:  112 Size:    16 [unused]
 //   float2 xe_tessellation_factor_range;// Offset:  128 Size:     8
@@ -116,9 +117,9 @@ dcl_output_siv o0.x, finalTriUeq0EdgeTessFactor
 dcl_output_siv o1.x, finalTriVeq0EdgeTessFactor
 dcl_output_siv o2.x, finalTriWeq0EdgeTessFactor
 dcl_temps 3
-imul null, r0.x, CB0[0][0].z, l(3)
+imul null, r0.x, CB0[0][0].w, l(3)
 imad r0.x, vPrim, l(3), r0.x
-and r0.yzw, CB0[0][0].yyxy, l(0, 0x1ffffffc, 1, 2)
+and r0.yzw, CB0[0][0].zzxz, l(0, 0x1ffffffc, 1, 2)
 ishl r0.x, r0.x, l(2)
 iadd r0.x, r0.x, r0.y
 if_nz r0.z
@@ -126,8 +127,8 @@ if_nz r0.z
 else 
   ld_raw r1.xyz, r0.x, T0[0].xyzx
 endif 
-ushr r0.x, CB0[0][0].y, l(1)
-xor r0.x, r0.x, CB0[0][0].y
+ushr r0.x, CB0[0][0].z, l(1)
+xor r0.x, r0.x, CB0[0][0].z
 and r0.x, r0.x, l(1)
 if_nz r0.x
   ishl r0.xyz, r1.xyzx, l(8, 8, 8, 0)

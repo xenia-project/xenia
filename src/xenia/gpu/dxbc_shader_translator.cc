@@ -244,6 +244,40 @@ void DxbcShaderTranslator::StartVertexShader_LoadVertexIndex() {
     reg = 0;
   }
 
+  // Check if the closing vertex of a non-indexed line loop is being processed.
+  system_constants_used_ |= 1ull << kSysConst_LineLoopClosingIndex_Index;
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_INE) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+  shader_code_.push_back(reg);
+  shader_code_.push_back(
+      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_INPUT, 0, 1));
+  shader_code_.push_back(uint32_t(InOutRegister::kVSInVertexIndex));
+  shader_code_.push_back(
+      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
+                                kSysConst_LineLoopClosingIndex_Comp, 3));
+  shader_code_.push_back(cbuffer_index_system_constants_);
+  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
+  shader_code_.push_back(kSysConst_LineLoopClosingIndex_Vec);
+  ++stat_.instruction_count;
+  ++stat_.int_instruction_count;
+  // Zero the index if processing the closing vertex of a line loop, or do
+  // nothing (replace 0 with 0) if not needed.
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+  shader_code_.push_back(reg);
+  shader_code_.push_back(
+      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_INPUT, 0, 1));
+  shader_code_.push_back(uint32_t(InOutRegister::kVSInVertexIndex));
+  shader_code_.push_back(
+      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
+  shader_code_.push_back(reg);
+  ++stat_.instruction_count;
+  ++stat_.uint_instruction_count;
+
   // 8-in-16: Create target for A and C insertion in Y and sources in X and Z.
   // ushr reg.xyz, input, l(0, 8, 16, 0)
   // ABCD | BCD0 | CD00 | unused
@@ -253,8 +287,8 @@ void DxbcShaderTranslator::StartVertexShader_LoadVertexIndex() {
       EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0111, 1));
   shader_code_.push_back(reg);
   shader_code_.push_back(
-      EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_INPUT, 0, 1));
-  shader_code_.push_back(uint32_t(InOutRegister::kVSInVertexIndex));
+      EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
+  shader_code_.push_back(reg);
   shader_code_.push_back(EncodeVectorSwizzledOperand(
       D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
   shader_code_.push_back(0);
@@ -3081,15 +3115,15 @@ const DxbcShaderTranslator::SystemConstantRdef DxbcShaderTranslator::
     system_constant_rdef_[DxbcShaderTranslator::kSysConst_Count] = {
         // vec4 0
         {"xe_flags", RdefTypeIndex::kUint, 0, 4},
-        {"xe_vertex_index_endian_and_edge_factors", RdefTypeIndex::kUint, 4, 4},
-        {"xe_vertex_base_index", RdefTypeIndex::kInt, 8, 4},
-        {"xe_pixel_pos_reg", RdefTypeIndex::kUint, 12, 4},
+        {"xe_line_loop_closing_index", RdefTypeIndex::kUint, 4, 4},
+        {"xe_vertex_index_endian_and_edge_factors", RdefTypeIndex::kUint, 8, 4},
+        {"xe_vertex_base_index", RdefTypeIndex::kInt, 12, 4},
         // vec4 1
         {"xe_ndc_scale", RdefTypeIndex::kFloat3, 16, 12},
-        {"xe_pixel_half_pixel_offset", RdefTypeIndex::kFloat, 28, 4},
+        {"xe_pixel_pos_reg", RdefTypeIndex::kUint, 28, 4},
         // vec4 2
         {"xe_ndc_offset", RdefTypeIndex::kFloat3, 32, 12},
-        {"xe_alpha_test_reference", RdefTypeIndex::kFloat, 44, 4},
+        {"xe_pixel_half_pixel_offset", RdefTypeIndex::kFloat, 44, 4},
         // vec4 3
         {"xe_point_size", RdefTypeIndex::kFloat2, 48, 8},
         {"xe_point_size_min_max", RdefTypeIndex::kFloat2, 56, 8},
@@ -3097,8 +3131,9 @@ const DxbcShaderTranslator::SystemConstantRdef DxbcShaderTranslator::
         {"xe_point_screen_to_ndc", RdefTypeIndex::kFloat2, 64, 8},
         {"xe_sample_count_log2", RdefTypeIndex::kUint2, 72, 8},
         // vec4 5
-        {"xe_edram_pitch_tiles", RdefTypeIndex::kUint, 80, 4},
-        {"xe_edram_depth_base_dwords", RdefTypeIndex::kUint, 84, 4},
+        {"xe_alpha_test_reference", RdefTypeIndex::kFloat, 80, 4},
+        {"xe_edram_pitch_tiles", RdefTypeIndex::kUint, 84, 4},
+        {"xe_edram_depth_base_dwords", RdefTypeIndex::kUint, 88, 4},
         // vec4 6
         {"xe_color_exp_bias", RdefTypeIndex::kFloat4, 96, 16},
         // vec4 7

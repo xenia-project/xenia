@@ -4,15 +4,15 @@
 cbuffer xe_system_cbuffer : register(b0) {
   // vec4 0
   uint xe_flags;
+  uint xe_line_loop_closing_index;
   uint xe_vertex_index_endian_and_edge_factors;
   int xe_vertex_base_index;
-  uint xe_pixel_pos_reg;
   // vec4 1
   float3 xe_ndc_scale;
-  float xe_pixel_half_pixel_offset;
+  uint xe_pixel_pos_reg;
   // vec4 2
   float3 xe_ndc_offset;
-  float xe_alpha_test_reference;
+  float xe_pixel_half_pixel_offset;
   // vec4 3
   float2 xe_point_size;
   float2 xe_point_size_min_max;
@@ -20,6 +20,7 @@ cbuffer xe_system_cbuffer : register(b0) {
   float2 xe_point_screen_to_ndc;
   uint2 xe_sample_count_log2;
   // vec4 5
+  float xe_alpha_test_reference;
   uint xe_edram_pitch_tiles;
   uint xe_edram_depth_base_dwords;
   // vec4 6
