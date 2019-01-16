@@ -348,6 +348,11 @@ class TextureCache {
     // Row pitches on each mip level (for linear layout mainly).
     uint32_t pitches[14];
 
+    // SRV descriptor from the cache, for the first swizzle the texture was used
+    // with (which is usually determined by the format, such as RGBA or BGRA).
+    D3D12_CPU_DESCRIPTOR_HANDLE cached_srv_descriptor;
+    uint32_t cached_srv_descriptor_swizzle;
+
     // Watch handles for the memory ranges (protected by the shared memory watch
     // mutex).
     SharedMemory::WatchHandle base_watch_handle;
@@ -358,6 +363,13 @@ class TextureCache {
     // Whether the recent mip data has been loaded from the memory (protected by
     // the shared memory watch mutex).
     bool mips_in_sync;
+  };
+
+  struct SRVDescriptorCachePage {
+    static constexpr uint32_t kHeapSize = 65536;
+    ID3D12DescriptorHeap* heap;
+    D3D12_CPU_DESCRIPTOR_HANDLE cpu_start;
+    uint32_t current_usage;
   };
 
   struct LoadConstants {
@@ -522,6 +534,20 @@ class TextureCache {
       resolve_tile_pipelines_[size_t(ResolveTileMode::kCount)] = {};
 
   std::unordered_multimap<uint64_t, Texture*> textures_;
+
+  std::vector<SRVDescriptorCachePage> srv_descriptor_cache_;
+
+  enum class NullSRVDescriptorIndex {
+    k2DArray,
+    k3D,
+    kCube,
+
+    kCount,
+  };
+  // Contains null SRV descriptors of dimensions from NullSRVDescriptorIndex.
+  // For copying, not shader-visible.
+  ID3D12DescriptorHeap* null_srv_descriptor_heap_ = nullptr;
+  D3D12_CPU_DESCRIPTOR_HANDLE null_srv_descriptor_heap_cpu_start_;
 
   TextureBinding texture_bindings_[32] = {};
   // Bit vector with bits reset on fetch constant writes to avoid getting
