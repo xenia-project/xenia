@@ -71,6 +71,21 @@ VulkanInstance::VulkanInstance() {
 
   DeclareRequiredExtension(VK_EXT_DEBUG_MARKER_EXTENSION_NAME,
                            Version::Make(0, 0, 0), true);
+  DeclareRequiredExtension(VK_KHR_SURFACE_EXTENSION_NAME,
+                           Version::Make(0, 0, 0), true);
+#if XE_PLATFORM_WIN32
+  DeclareRequiredExtension(VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
+                           Version::Make(0, 0, 0), true);
+#elif XE_PLATFORM_LINUX
+#ifdef GDK_WINDOWING_X11
+  DeclareRequiredExtension(VK_KHR_XCB_SURFACE_EXTENSION_NAME,
+                           Version::Make(0, 0, 0), true);
+#else
+#error No Vulkan surface extension for the GDK backend defined yet.
+#endif
+#else
+#error No Vulkan surface extension for the platform defined yet.
+#endif
 }
 
 VulkanInstance::~VulkanInstance() { DestroyInstance(); }
