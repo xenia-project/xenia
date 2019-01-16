@@ -71,6 +71,7 @@ namespace d3d12 {
 #include "xenia/gpu/d3d12/shaders/dxbc/texture_tile_r10g11b11_rgba16_cs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/texture_tile_r11g11b10_rgba16_cs.h"
 
+constexpr uint32_t TextureCache::SRVDescriptorCachePage::kHeapSize;
 constexpr uint32_t TextureCache::LoadConstants::kGuestPitchTiled;
 constexpr uint32_t TextureCache::kScaledResolveBufferSizeLog2;
 constexpr uint32_t TextureCache::kScaledResolveBufferSize;
@@ -556,6 +557,61 @@ bool TextureCache::Initialize() {
     }
   }
 
+  // Create a heap with null SRV descriptors, since it's faster to copy a
+  // descriptor than to create an SRV, and null descriptors are used a lot (for
+  // the signed version when only unsigned is used, for instance).
+  D3D12_DESCRIPTOR_HEAP_DESC null_srv_descriptor_heap_desc;
+  null_srv_descriptor_heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+  null_srv_descriptor_heap_desc.NumDescriptors =
+      uint32_t(NullSRVDescriptorIndex::kCount);
+  null_srv_descriptor_heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+  null_srv_descriptor_heap_desc.NodeMask = 0;
+  if (FAILED(device->CreateDescriptorHeap(
+          &null_srv_descriptor_heap_desc,
+          IID_PPV_ARGS(&null_srv_descriptor_heap_)))) {
+    XELOGE("Failed to create the descriptor heap for null SRVs");
+    Shutdown();
+    return false;
+  }
+  null_srv_descriptor_heap_cpu_start_ =
+      null_srv_descriptor_heap_->GetCPUDescriptorHandleForHeapStart();
+  D3D12_SHADER_RESOURCE_VIEW_DESC null_srv_desc;
+  null_srv_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+  null_srv_desc.Shader4ComponentMapping =
+      D3D12_ENCODE_SHADER_4_COMPONENT_MAPPING(
+          D3D12_SHADER_COMPONENT_MAPPING_FORCE_VALUE_0,
+          D3D12_SHADER_COMPONENT_MAPPING_FORCE_VALUE_0,
+          D3D12_SHADER_COMPONENT_MAPPING_FORCE_VALUE_0,
+          D3D12_SHADER_COMPONENT_MAPPING_FORCE_VALUE_0);
+  null_srv_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2DARRAY;
+  null_srv_desc.Texture2DArray.MostDetailedMip = 0;
+  null_srv_desc.Texture2DArray.MipLevels = 1;
+  null_srv_desc.Texture2DArray.FirstArraySlice = 0;
+  null_srv_desc.Texture2DArray.ArraySize = 1;
+  null_srv_desc.Texture2DArray.PlaneSlice = 0;
+  null_srv_desc.Texture2DArray.ResourceMinLODClamp = 0.0f;
+  device->CreateShaderResourceView(
+      nullptr, &null_srv_desc,
+      provider->OffsetViewDescriptor(
+          null_srv_descriptor_heap_cpu_start_,
+          uint32_t(NullSRVDescriptorIndex::k2DArray)));
+  null_srv_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE3D;
+  null_srv_desc.Texture3D.MostDetailedMip = 0;
+  null_srv_desc.Texture3D.MipLevels = 1;
+  null_srv_desc.Texture3D.ResourceMinLODClamp = 0.0f;
+  device->CreateShaderResourceView(
+      nullptr, &null_srv_desc,
+      provider->OffsetViewDescriptor(null_srv_descriptor_heap_cpu_start_,
+                                     uint32_t(NullSRVDescriptorIndex::k3D)));
+  null_srv_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;
+  null_srv_desc.TextureCube.MostDetailedMip = 0;
+  null_srv_desc.TextureCube.MipLevels = 1;
+  null_srv_desc.TextureCube.ResourceMinLODClamp = 0.0f;
+  device->CreateShaderResourceView(
+      nullptr, &null_srv_desc,
+      provider->OffsetViewDescriptor(null_srv_descriptor_heap_cpu_start_,
+                                     uint32_t(NullSRVDescriptorIndex::kCube)));
+
   if (IsResolutionScale2X()) {
     scaled_resolve_global_watch_handle_ = shared_memory_->RegisterGlobalWatch(
         ScaledResolveGlobalWatchCallbackThunk, this);
@@ -571,6 +627,8 @@ void TextureCache::Shutdown() {
     shared_memory_->UnregisterGlobalWatch(scaled_resolve_global_watch_handle_);
     scaled_resolve_global_watch_handle_ = nullptr;
   }
+
+  ui::d3d12::util::ReleaseAndNull(null_srv_descriptor_heap_);
 
   for (uint32_t i = 0; i < uint32_t(ResolveTileMode::kCount); ++i) {
     ui::d3d12::util::ReleaseAndNull(resolve_tile_pipelines_[i]);
@@ -606,6 +664,12 @@ void TextureCache::ClearCache() {
   }
   textures_.clear();
   COUNT_profile_set("gpu/texture_cache/textures", 0);
+
+  // Clear texture descriptor cache.
+  for (auto& page : srv_descriptor_cache_) {
+    page.heap->Release();
+  }
+  srv_descriptor_cache_.clear();
 }
 
 void TextureCache::TextureFetchConstantWritten(uint32_t index) {
@@ -791,13 +855,13 @@ void TextureCache::WriteTextureSRV(const D3D12Shader::TextureSRV& texture_srv,
   desc.Format = DXGI_FORMAT_UNKNOWN;
   Dimension binding_dimension;
   uint32_t mip_max_level, array_size;
+  Texture* texture = nullptr;
   ID3D12Resource* resource = nullptr;
 
   const TextureBinding& binding = texture_bindings_[texture_srv.fetch_constant];
   if (!binding.key.IsInvalid()) {
     TextureFormat format = binding.key.format;
 
-    const Texture* texture;
     if (IsSignedVersionSeparate(format) && texture_srv.is_signed) {
       texture = binding.texture_signed;
     } else {
@@ -851,6 +915,7 @@ void TextureCache::WriteTextureSRV(const D3D12Shader::TextureSRV& texture_srv,
     desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
     resource = nullptr;
   }
+  NullSRVDescriptorIndex null_descriptor_index;
   switch (texture_srv.dimension) {
     case TextureDimension::k3D:
       desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE3D;
@@ -862,6 +927,7 @@ void TextureCache::WriteTextureSRV(const D3D12Shader::TextureSRV& texture_srv,
         // though it has different dimensions.
         resource = nullptr;
       }
+      null_descriptor_index = NullSRVDescriptorIndex::k3D;
       break;
     case TextureDimension::kCube:
       desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;
@@ -871,6 +937,7 @@ void TextureCache::WriteTextureSRV(const D3D12Shader::TextureSRV& texture_srv,
       if (binding_dimension != Dimension::kCube) {
         resource = nullptr;
       }
+      null_descriptor_index = NullSRVDescriptorIndex::kCube;
       break;
     default:
       desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2DARRAY;
@@ -884,11 +951,71 @@ void TextureCache::WriteTextureSRV(const D3D12Shader::TextureSRV& texture_srv,
           binding_dimension == Dimension::kCube) {
         resource = nullptr;
       }
+      null_descriptor_index = NullSRVDescriptorIndex::k2DArray;
       break;
   }
-  auto device =
-      command_processor_->GetD3D12Context()->GetD3D12Provider()->GetDevice();
-  device->CreateShaderResourceView(resource, &desc, handle);
+
+  auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
+  auto device = provider->GetDevice();
+  if (resource == nullptr) {
+    // Copy a pre-made null descriptor since it's faster than to create an SRV.
+    device->CopyDescriptorsSimple(
+        1, handle,
+        provider->OffsetViewDescriptor(null_srv_descriptor_heap_cpu_start_,
+                                       uint32_t(null_descriptor_index)),
+        D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+    return;
+  }
+  // Take the descriptor from the cache if it's cached, or create a new one in
+  // the cache, or directly if this texture was already used with a different
+  // swizzle. Profiling results say that CreateShaderResourceView takes the
+  // longest time of draw call processing, and it's very noticeable in many
+  // games.
+  D3D12_CPU_DESCRIPTOR_HANDLE cached_handle = {};
+  assert_not_null(texture);
+  if (texture->cached_srv_descriptor.ptr) {
+    // Use an existing cached descriptor if it has the needed swizzle.
+    if (binding.swizzle == texture->cached_srv_descriptor_swizzle) {
+      cached_handle = texture->cached_srv_descriptor;
+    }
+  } else {
+    // Try to create a new cached descriptor if it doesn't exist yet.
+    if (srv_descriptor_cache_.empty() ||
+        srv_descriptor_cache_.back().current_usage >=
+            SRVDescriptorCachePage::kHeapSize) {
+      D3D12_DESCRIPTOR_HEAP_DESC new_heap_desc;
+      new_heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+      new_heap_desc.NumDescriptors = SRVDescriptorCachePage::kHeapSize;
+      new_heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+      new_heap_desc.NodeMask = 0;
+      ID3D12DescriptorHeap* new_heap;
+      if (SUCCEEDED(device->CreateDescriptorHeap(&new_heap_desc,
+                                                 IID_PPV_ARGS(&new_heap)))) {
+        SRVDescriptorCachePage new_page;
+        new_page.heap = new_heap;
+        new_page.cpu_start = new_heap->GetCPUDescriptorHandleForHeapStart();
+        new_page.current_usage = 1;
+        cached_handle = new_page.cpu_start;
+        srv_descriptor_cache_.push_back(new_page);
+      }
+    } else {
+      SRVDescriptorCachePage& page = srv_descriptor_cache_.back();
+      cached_handle =
+          provider->OffsetViewDescriptor(page.cpu_start, page.current_usage);
+      ++page.current_usage;
+    }
+    if (cached_handle.ptr) {
+      device->CreateShaderResourceView(resource, &desc, cached_handle);
+      texture->cached_srv_descriptor = cached_handle;
+      texture->cached_srv_descriptor_swizzle = binding.swizzle;
+    }
+  }
+  if (cached_handle.ptr) {
+    device->CopyDescriptorsSimple(1, handle, cached_handle,
+                                  D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+  } else {
+    device->CreateShaderResourceView(resource, &desc, handle);
+  }
 }
 
 TextureCache::SamplerParameters TextureCache::GetSamplerParameters(
@@ -1663,6 +1790,8 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
   }
   texture->base_watch_handle = nullptr;
   texture->mip_watch_handle = nullptr;
+  texture->cached_srv_descriptor.ptr = 0;
+  texture->cached_srv_descriptor_swizzle = 0b100100100100;
   textures_.insert(std::make_pair(map_key, texture));
   COUNT_profile_set("gpu/texture_cache/textures", textures_.size());
   LogTextureAction(texture, "Created");
