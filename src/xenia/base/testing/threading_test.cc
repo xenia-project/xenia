@@ -200,8 +200,30 @@ TEST_CASE("HighResolutionTimer") {
 }
 
 TEST_CASE("Wait on Multiple Handles", "Wait") {
-  // TODO(bwrsandman):
-  REQUIRE(true);
+  auto mutant = Mutant::Create(true);
+  auto semaphore = Semaphore::Create(10, 10);
+  auto event_ = Event::CreateManualResetEvent(false);
+  auto thread = Thread::Create({}, [&mutant, &semaphore, &event_] {
+    event_->Set();
+    Wait(mutant.get(), false, 25ms);
+    semaphore->Release(1, nullptr);
+    Wait(mutant.get(), false, 25ms);
+    mutant->Release();
+  });
+
+  std::vector<WaitHandle*> handles = {
+      mutant.get(),
+      semaphore.get(),
+      event_.get(),
+      thread.get(),
+  };
+
+  auto any_result = WaitAny(handles, false, 100ms);
+  REQUIRE(any_result.first == WaitResult::kSuccess);
+  REQUIRE(any_result.second == 0);
+
+  auto all_result = WaitAll(handles, false, 100ms);
+  REQUIRE(all_result == WaitResult::kSuccess);
 }
 
 TEST_CASE("Signal and Wait") {
