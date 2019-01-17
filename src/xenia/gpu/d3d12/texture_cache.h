@@ -368,7 +368,7 @@ class TextureCache {
   struct SRVDescriptorCachePage {
     static constexpr uint32_t kHeapSize = 65536;
     ID3D12DescriptorHeap* heap;
-    D3D12_CPU_DESCRIPTOR_HANDLE cpu_start;
+    D3D12_CPU_DESCRIPTOR_HANDLE heap_start;
     uint32_t current_usage;
   };
 
@@ -547,7 +547,7 @@ class TextureCache {
   // Contains null SRV descriptors of dimensions from NullSRVDescriptorIndex.
   // For copying, not shader-visible.
   ID3D12DescriptorHeap* null_srv_descriptor_heap_ = nullptr;
-  D3D12_CPU_DESCRIPTOR_HANDLE null_srv_descriptor_heap_cpu_start_;
+  D3D12_CPU_DESCRIPTOR_HANDLE null_srv_descriptor_heap_start_;
 
   TextureBinding texture_bindings_[32] = {};
   // Bit vector with bits reset on fetch constant writes to avoid getting

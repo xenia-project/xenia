@@ -2803,14 +2803,14 @@ bool D3D12CommandProcessor::UpdateBindings(
     // If updating fully, write the shared memory SRV and UAV descriptors and,
     // if needed, the EDRAM descriptor.
     gpu_handle_shared_memory_and_edram_ = view_gpu_handle;
-    shared_memory_->CreateSRV(view_cpu_handle);
+    shared_memory_->WriteRawSRVDescriptor(view_cpu_handle);
     view_cpu_handle.ptr += descriptor_size_view;
     view_gpu_handle.ptr += descriptor_size_view;
-    shared_memory_->CreateRawUAV(view_cpu_handle);
+    shared_memory_->WriteRawUAVDescriptor(view_cpu_handle);
     view_cpu_handle.ptr += descriptor_size_view;
     view_gpu_handle.ptr += descriptor_size_view;
     if (IsROVUsedForEDRAM()) {
-      render_target_cache_->CreateEDRAMUint32UAV(view_cpu_handle);
+      render_target_cache_->WriteEDRAMUint32UAVDescriptor(view_cpu_handle);
       view_cpu_handle.ptr += descriptor_size_view;
       view_gpu_handle.ptr += descriptor_size_view;
     }

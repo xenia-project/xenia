@@ -119,8 +119,8 @@ class SharedMemory {
     TransitionBuffer(D3D12_RESOURCE_STATE_COPY_SOURCE);
   }
 
-  void CreateSRV(D3D12_CPU_DESCRIPTOR_HANDLE handle);
-  void CreateRawUAV(D3D12_CPU_DESCRIPTOR_HANDLE handle);
+  void WriteRawSRVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle);
+  void WriteRawUAVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle);
 
  private:
   bool AreTiledResourcesUsed() const;
@@ -158,6 +158,17 @@ class SharedMemory {
   uint32_t page_size_log2_;
   // Total physical page count.
   uint32_t page_count_;
+
+  // Non-shader-visible buffer descriptor heap for faster binding (via copying
+  // rather than creation).
+  enum class BufferDescriptorIndex : uint32_t {
+    kRawSRV,
+    kRawUAV,
+
+    kCount,
+  };
+  ID3D12DescriptorHeap* buffer_descriptor_heap_ = nullptr;
+  D3D12_CPU_DESCRIPTOR_HANDLE buffer_descriptor_heap_start_;
 
   // Handle of the physical memory write callback.
   void* physical_write_watch_handle_ = nullptr;

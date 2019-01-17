@@ -97,6 +97,33 @@ bool SharedMemory::Initialize() {
   heap_count_ = 0;
   heap_creation_failed_ = false;
 
+  D3D12_DESCRIPTOR_HEAP_DESC buffer_descriptor_heap_desc;
+  buffer_descriptor_heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+  buffer_descriptor_heap_desc.NumDescriptors =
+      uint32_t(BufferDescriptorIndex::kCount);
+  buffer_descriptor_heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+  buffer_descriptor_heap_desc.NodeMask = 0;
+  if (FAILED(device->CreateDescriptorHeap(
+          &buffer_descriptor_heap_desc,
+          IID_PPV_ARGS(&buffer_descriptor_heap_)))) {
+    XELOGE(
+        "Failed to create the descriptor heap for shared memory buffer views");
+    Shutdown();
+    return false;
+  }
+  buffer_descriptor_heap_start_ =
+      buffer_descriptor_heap_->GetCPUDescriptorHandleForHeapStart();
+  ui::d3d12::util::CreateRawBufferSRV(
+      device,
+      provider->OffsetViewDescriptor(buffer_descriptor_heap_start_,
+                                     uint32_t(BufferDescriptorIndex::kRawSRV)),
+      buffer_, kBufferSize);
+  ui::d3d12::util::CreateRawBufferUAV(
+      device,
+      provider->OffsetViewDescriptor(buffer_descriptor_heap_start_,
+                                     uint32_t(BufferDescriptorIndex::kRawUAV)),
+      buffer_, kBufferSize);
+
   std::memset(valid_pages_.data(), 0, valid_pages_.size() * sizeof(uint64_t));
 
   upload_buffer_pool_ =
@@ -117,6 +144,8 @@ void SharedMemory::Shutdown() {
   }
 
   upload_buffer_pool_.reset();
+
+  ui::d3d12::util::ReleaseAndNull(buffer_descriptor_heap_);
 
   // First free the buffer to detach it from the heaps.
   ui::d3d12::util::ReleaseAndNull(buffer_);
@@ -573,16 +602,24 @@ void SharedMemory::TransitionBuffer(D3D12_RESOURCE_STATES new_state) {
   buffer_state_ = new_state;
 }
 
-void SharedMemory::CreateSRV(D3D12_CPU_DESCRIPTOR_HANDLE handle) {
-  ui::d3d12::util::CreateRawBufferSRV(
-      command_processor_->GetD3D12Context()->GetD3D12Provider()->GetDevice(),
-      handle, buffer_, kBufferSize);
+void SharedMemory::WriteRawSRVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle) {
+  auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
+  auto device = provider->GetDevice();
+  device->CopyDescriptorsSimple(
+      1, handle,
+      provider->OffsetViewDescriptor(buffer_descriptor_heap_start_,
+                                     uint32_t(BufferDescriptorIndex::kRawSRV)),
+      D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 }
 
-void SharedMemory::CreateRawUAV(D3D12_CPU_DESCRIPTOR_HANDLE handle) {
-  ui::d3d12::util::CreateRawBufferUAV(
-      command_processor_->GetD3D12Context()->GetD3D12Provider()->GetDevice(),
-      handle, buffer_, kBufferSize);
+void SharedMemory::WriteRawUAVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle) {
+  auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
+  auto device = provider->GetDevice();
+  device->CopyDescriptorsSimple(
+      1, handle,
+      provider->OffsetViewDescriptor(buffer_descriptor_heap_start_,
+                                     uint32_t(BufferDescriptorIndex::kRawUAV)),
+      D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 }
 
 }  // namespace d3d12
