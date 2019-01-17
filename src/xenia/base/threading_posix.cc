@@ -179,6 +179,8 @@ std::unique_ptr<HighResolutionTimer> HighResolutionTimer::CreateRepeating(
 
 class PosixConditionBase {
  public:
+  virtual bool Signal() = 0;
+
   WaitResult Wait(std::chrono::milliseconds timeout) {
     bool executed;
     auto predicate = [this] { return this->signaled(); };
@@ -275,7 +277,7 @@ class PosixCondition<Event> : public PosixConditionBase {
       : signal_(initial_state), manual_reset_(manual_reset) {}
   virtual ~PosixCondition() = default;
 
-  void Signal() {
+  bool Signal() override {
     auto lock = std::unique_lock<std::mutex>(mutex_);
     signal_ = true;
     if (manual_reset_) {
@@ -285,6 +287,7 @@ class PosixCondition<Event> : public PosixConditionBase {
       // See issue #1678 for possible fix and discussion
       cond_.notify_one();
     }
+    return true;
   }
 
   void Reset() {
@@ -308,6 +311,8 @@ class PosixCondition<Semaphore> : public PosixConditionBase {
  public:
   PosixCondition(uint32_t initial_count, uint32_t maximum_count)
       : count_(initial_count), maximum_count_(maximum_count) {}
+
+  bool Signal() override { return Release(1, nullptr); }
 
   bool Release(uint32_t release_count, int* out_previous_count) {
     if (maximum_count_ - count_ >= release_count) {
@@ -339,6 +344,9 @@ class PosixCondition<Mutant> : public PosixConditionBase {
       owner_ = std::this_thread::get_id();
     }
   }
+
+  bool Signal() override { return Release(); }
+
   bool Release() {
     if (owner_ == std::this_thread::get_id() && count_ > 0) {
       auto lock = std::unique_lock<std::mutex>(mutex_);
@@ -374,6 +382,11 @@ class PosixCondition<Timer> : public PosixConditionBase {
         manual_reset_(manual_reset) {}
 
   virtual ~PosixCondition() { Cancel(); }
+
+  bool Signal() override {
+    CompletionRoutine();
+    return true;
+  }
 
   // TODO(bwrsandman): due_times of under 1ms deadlock under travis
   bool Set(std::chrono::nanoseconds due_time, std::chrono::milliseconds period,
@@ -507,6 +520,8 @@ class PosixCondition<Thread> : public PosixConditionBase {
       }
     }
   }
+
+  bool Signal() override { return true; }
 
   std::string name() const {
     WaitStarted();
@@ -717,13 +732,16 @@ WaitResult Wait(WaitHandle* wait_handle, bool is_alertable,
   return result;
 }
 
-// TODO(dougvj)
 WaitResult SignalAndWait(WaitHandle* wait_handle_to_signal,
                          WaitHandle* wait_handle_to_wait_on, bool is_alertable,
                          std::chrono::milliseconds timeout) {
-  assert_always();
-  if (is_alertable) alertable_state_ = true;
   auto result = WaitResult::kFailed;
+  auto handle_to_signal = reinterpret_cast<PosixConditionBase*>(
+      wait_handle_to_signal->native_handle());
+  auto handle_to_wait_on = reinterpret_cast<PosixConditionBase*>(
+      wait_handle_to_wait_on->native_handle());
+  if (is_alertable) alertable_state_ = true;
+  if (handle_to_signal->Signal()) result = handle_to_wait_on->Wait(timeout);
   if (is_alertable) alertable_state_ = false;
   return result;
 }

@@ -227,8 +227,19 @@ TEST_CASE("Wait on Multiple Handles", "Wait") {
 }
 
 TEST_CASE("Signal and Wait") {
-  // TODO(bwrsandman): Test semaphore, mutex and event
-  REQUIRE(true);
+  WaitResult result;
+  auto mutant = Mutant::Create(true);
+  auto event_ = Event::CreateAutoResetEvent(false);
+  auto thread = Thread::Create({}, [&mutant, &event_] {
+    Wait(mutant.get(), false);
+    event_->Set();
+  });
+  result = Wait(event_.get(), false, 50ms);
+  REQUIRE(result == WaitResult::kTimeout);
+  result = SignalAndWait(mutant.get(), event_.get(), false, 50ms);
+  REQUIRE(result == WaitResult::kSuccess);
+  result = Wait(thread.get(), false, 50ms);
+  REQUIRE(result == WaitResult::kSuccess);
 }
 
 TEST_CASE("Wait on Event", "Event") {
