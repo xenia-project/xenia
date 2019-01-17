@@ -573,7 +573,7 @@ bool TextureCache::Initialize() {
     Shutdown();
     return false;
   }
-  null_srv_descriptor_heap_cpu_start_ =
+  null_srv_descriptor_heap_start_ =
       null_srv_descriptor_heap_->GetCPUDescriptorHandleForHeapStart();
   D3D12_SHADER_RESOURCE_VIEW_DESC null_srv_desc;
   null_srv_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -593,7 +593,7 @@ bool TextureCache::Initialize() {
   device->CreateShaderResourceView(
       nullptr, &null_srv_desc,
       provider->OffsetViewDescriptor(
-          null_srv_descriptor_heap_cpu_start_,
+          null_srv_descriptor_heap_start_,
           uint32_t(NullSRVDescriptorIndex::k2DArray)));
   null_srv_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE3D;
   null_srv_desc.Texture3D.MostDetailedMip = 0;
@@ -601,7 +601,7 @@ bool TextureCache::Initialize() {
   null_srv_desc.Texture3D.ResourceMinLODClamp = 0.0f;
   device->CreateShaderResourceView(
       nullptr, &null_srv_desc,
-      provider->OffsetViewDescriptor(null_srv_descriptor_heap_cpu_start_,
+      provider->OffsetViewDescriptor(null_srv_descriptor_heap_start_,
                                      uint32_t(NullSRVDescriptorIndex::k3D)));
   null_srv_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;
   null_srv_desc.TextureCube.MostDetailedMip = 0;
@@ -609,7 +609,7 @@ bool TextureCache::Initialize() {
   null_srv_desc.TextureCube.ResourceMinLODClamp = 0.0f;
   device->CreateShaderResourceView(
       nullptr, &null_srv_desc,
-      provider->OffsetViewDescriptor(null_srv_descriptor_heap_cpu_start_,
+      provider->OffsetViewDescriptor(null_srv_descriptor_heap_start_,
                                      uint32_t(NullSRVDescriptorIndex::kCube)));
 
   if (IsResolutionScale2X()) {
@@ -961,7 +961,7 @@ void TextureCache::WriteTextureSRV(const D3D12Shader::TextureSRV& texture_srv,
     // Copy a pre-made null descriptor since it's faster than to create an SRV.
     device->CopyDescriptorsSimple(
         1, handle,
-        provider->OffsetViewDescriptor(null_srv_descriptor_heap_cpu_start_,
+        provider->OffsetViewDescriptor(null_srv_descriptor_heap_start_,
                                        uint32_t(null_descriptor_index)),
         D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
     return;
@@ -993,15 +993,15 @@ void TextureCache::WriteTextureSRV(const D3D12Shader::TextureSRV& texture_srv,
                                                  IID_PPV_ARGS(&new_heap)))) {
         SRVDescriptorCachePage new_page;
         new_page.heap = new_heap;
-        new_page.cpu_start = new_heap->GetCPUDescriptorHandleForHeapStart();
+        new_page.heap_start = new_heap->GetCPUDescriptorHandleForHeapStart();
         new_page.current_usage = 1;
-        cached_handle = new_page.cpu_start;
+        cached_handle = new_page.heap_start;
         srv_descriptor_cache_.push_back(new_page);
       }
     } else {
       SRVDescriptorCachePage& page = srv_descriptor_cache_.back();
       cached_handle =
-          provider->OffsetViewDescriptor(page.cpu_start, page.current_usage);
+          provider->OffsetViewDescriptor(page.heap_start, page.current_usage);
       ++page.current_usage;
     }
     if (cached_handle.ptr) {
@@ -1287,7 +1287,7 @@ bool TextureCache::TileResolvedTexture(
           ((texture_base + texture_size - 1) >> 12) - (texture_base >> 12) + 1);
     } else {
       resolve_tile_constants.guest_base = texture_base;
-      shared_memory_->CreateRawUAV(descriptor_cpu_uav);
+      shared_memory_->WriteRawUAVDescriptor(descriptor_cpu_uav);
     }
   }
   command_list->D3DSetComputeRootDescriptorTable(1, descriptor_gpu_start);
@@ -1928,7 +1928,7 @@ bool TextureCache::LoadTextureData(Texture* texture) {
     }
   } else {
     shared_memory_->UseForReading();
-    shared_memory_->CreateSRV(descriptor_cpu_start);
+    shared_memory_->WriteRawSRVDescriptor(descriptor_cpu_start);
   }
   // Create two destination descriptors since the table has both.
   for (uint32_t i = 1; i < descriptor_count; i += 2) {

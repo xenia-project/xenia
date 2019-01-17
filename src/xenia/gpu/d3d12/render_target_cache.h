@@ -272,7 +272,7 @@ class RenderTargetCache {
   void UnbindRenderTargets();
   // Transitions the EDRAM buffer to a UAV - for use with ROV rendering.
   void UseEDRAMAsUAV();
-  void CreateEDRAMUint32UAV(D3D12_CPU_DESCRIPTOR_HANDLE handle);
+  void WriteEDRAMUint32UAVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle);
   void EndFrame();
 
   // Totally necessary to rely on the base format - Too Human switches between
@@ -419,6 +419,9 @@ class RenderTargetCache {
 
   void TransitionEDRAMBuffer(D3D12_RESOURCE_STATES new_state);
 
+  void WriteEDRAMRawSRVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle);
+  void WriteEDRAMRawUAVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle);
+
   void ClearBindings();
 
 #if 0
@@ -505,6 +508,20 @@ class RenderTargetCache {
   ID3D12Resource* edram_buffer_ = nullptr;
   D3D12_RESOURCE_STATES edram_buffer_state_;
   bool edram_buffer_cleared_;
+
+  // Non-shader-visible descriptor heap containing pre-created SRV and UAV
+  // descriptors of the EDRAM buffer, for faster binding (via copying rather
+  // than creation).
+  enum class EDRAMBufferDescriptorIndex : uint32_t {
+    kRawSRV,
+    kRawUAV,
+    // For ROV access primarily.
+    kUint32UAV,
+
+    kCount,
+  };
+  ID3D12DescriptorHeap* edram_buffer_descriptor_heap_ = nullptr;
+  D3D12_CPU_DESCRIPTOR_HANDLE edram_buffer_descriptor_heap_start_;
 
   // EDRAM root signatures.
   ID3D12RootSignature* edram_load_store_root_signature_ = nullptr;
