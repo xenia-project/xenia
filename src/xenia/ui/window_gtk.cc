@@ -9,6 +9,8 @@
 
 #include <string>
 
+#include <X11/Xlib-xcb.h>
+
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/platform_linux.h"
@@ -81,6 +83,10 @@ void GTKWindow::Create() {
                    NULL);
   g_signal_connect(G_OBJECT(window_), "event", G_CALLBACK(gtk_event_handler_),
                    reinterpret_cast<gpointer>(this));
+
+  GdkDisplay* gdk_display = gtk_widget_get_display(window_);
+  assert(GDK_IS_X11_DISPLAY(gdk_display));
+  connection_ = XGetXCBConnection(gdk_x11_display_get_xdisplay(gdk_display));
 }
 
 bool GTKWindow::OnCreate() {
