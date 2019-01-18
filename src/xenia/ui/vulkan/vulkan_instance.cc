@@ -336,7 +336,7 @@ bool VulkanInstance::CreateInstance() {
       return false;
   }
 
-  // Load Vulkan entrypoints and extensions.
+  // Load Vulkan entry points and extensions.
   volkLoadInstance(handle);
 
   // Enable debug validation, if needed.
