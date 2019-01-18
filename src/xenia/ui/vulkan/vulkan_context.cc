@@ -52,7 +52,6 @@ VulkanContext::~VulkanContext() {
 
 bool VulkanContext::Initialize() {
   auto provider = static_cast<VulkanProvider*>(provider_);
-  auto device = provider->device();
 
   if (target_window_) {
     // Create swap chain used to present to the window.
