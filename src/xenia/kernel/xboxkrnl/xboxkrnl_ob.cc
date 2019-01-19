@@ -109,6 +109,11 @@ dword_result_t ObReferenceObjectByHandle(dword_t handle,
           } break;
         }
       } break;
+      case 0xD00EBEEF: {  // ExEventObjectType
+        assert(object->type() == XObject::kTypeEvent);
+        native_ptr = object->guest_object();
+        assert_not_zero(native_ptr);
+      } break;
       case 0xD017BEEF: {  // ExSemaphoreObjectType
         assert(object->type() == XObject::kTypeSemaphore);
         native_ptr = object->guest_object();
