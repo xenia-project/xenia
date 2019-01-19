@@ -106,7 +106,7 @@ X_STATUS D3D12GraphicsSystem::Setup(cpu::Processor* processor,
   stretch_root_gamma_ramp_range.NumDescriptors = 1;
   stretch_root_gamma_ramp_range.BaseShaderRegister = 1;
   stretch_root_gamma_ramp_range.RegisterSpace = 0;
-  stretch_root_texture_range.OffsetInDescriptorsFromTableStart = 0;
+  stretch_root_gamma_ramp_range.OffsetInDescriptorsFromTableStart = 0;
   stretch_root_parameters[1].DescriptorTable.pDescriptorRanges =
       &stretch_root_gamma_ramp_range;
   stretch_root_parameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
