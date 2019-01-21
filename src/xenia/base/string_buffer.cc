@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -71,13 +71,15 @@ void StringBuffer::Append(const std::string_view value) {
 }
 
 void StringBuffer::AppendVarargs(const char* format, va_list args) {
-  int result = vsnprintf(nullptr, 0, format, args);
-  if (result <= 0) {
-    return;
-  }
-  auto length = static_cast<size_t>(result);
+  va_list size_args;
+  va_copy(size_args, args);  // arg is indeterminate after the return so copy it
+  int length = vsnprintf(nullptr, 0, format, size_args);
+  assert_true(length >= 0);
+  va_end(size_args);
   Grow(length + 1);
-  vsnprintf(buffer_ + buffer_offset_, buffer_capacity_, format, args);
+  int result = vsnprintf(buffer_ + buffer_offset_,
+                         buffer_capacity_ - buffer_offset_, format, args);
+  assert_true(result == length);
   buffer_offset_ += length;
   buffer_[buffer_offset_] = 0;
 }
