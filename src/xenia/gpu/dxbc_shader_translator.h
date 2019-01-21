@@ -56,6 +56,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kSysFlag_AlphaPassIfLess_Shift,
     kSysFlag_AlphaPassIfEqual_Shift,
     kSysFlag_AlphaPassIfGreater_Shift,
+    kSysFlag_AlphaToCoverage_Shift,
     kSysFlag_DepthStencil_Shift,
     kSysFlag_DepthFloat24_Shift,
     // Depth/stencil testing not done if DepthStencilRead is disabled, but
@@ -83,6 +84,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kSysFlag_AlphaPassIfLess = 1u << kSysFlag_AlphaPassIfLess_Shift,
     kSysFlag_AlphaPassIfEqual = 1u << kSysFlag_AlphaPassIfEqual_Shift,
     kSysFlag_AlphaPassIfGreater = 1u << kSysFlag_AlphaPassIfGreater_Shift,
+    kSysFlag_AlphaToCoverage = 1u << kSysFlag_AlphaToCoverage_Shift,
     kSysFlag_DepthStencil = 1u << kSysFlag_DepthStencil_Shift,
     kSysFlag_DepthFloat24 = 1u << kSysFlag_DepthFloat24_Shift,
     kSysFlag_DepthPassIfLess = 1u << kSysFlag_DepthPassIfLess_Shift,
@@ -849,6 +851,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // Converts four depth values to 24-bit unorm or float, depending on the flag
   // value.
   void CompletePixelShader_DepthTo24Bit(uint32_t depths_temp);
+  // Applies the exponent bias from the constant to colors.
+  void CompletePixelShader_ApplyColorExpBias();
   // This just converts the color output value from/to gamma space, not checking
   // any conditions.
   void CompletePixelShader_GammaCorrect(uint32_t color_temp, bool to_gamma);
@@ -858,15 +862,23 @@ class DxbcShaderTranslator : public ShaderTranslator {
     // there's no xe_shared_memory_uav, it's U0.
     return is_depth_only_pixel_shader_ ? 0 : 1;
   }
-  // Performs depth/stencil testing. After the test, coverage_out_temp will
-  // contain non-zero values for samples that passed the depth/stencil test and
-  // are included in SV_Coverage, and zeros for those who didn't.
+  // Extracts the coverage from SV_Coverage and performs alpha to coverage if
+  // necessary. Does not perform any depth/stencil testing. For covered samples,
+  // writes a non-zero component, for non-covered, writes 0. Discards the pixel
+  // if no coverage.
+  void CompletePixelShader_WriteToROV_GetCoverage(uint32_t coverage_out_temp);
+  // Performs depth/stencil testing. coverage_in_out_temp should contain the
+  // coverage mask obtained from CompletePixelShader_WriteToROV_GetCoverage to
+  // indicate which samples need to be depth/stencil-tested, and after the
+  // execution contains which covered samples have passed the depth/stencil test
+  // (non-zero components where covered, zero where not covered or failed the
+  // test).
   //
   // edram_dword_offset_temp.x must contain the address of the first
   // depth/stencil sample - .yzw will be overwritten by this function with the
   // addresses for the other samples if depth/stencil is enabled.
   void CompletePixelShader_WriteToROV_DepthStencil(
-      uint32_t edram_dword_offset_temp, uint32_t coverage_out_temp);
+      uint32_t edram_dword_offset_temp, uint32_t coverage_in_out_temp);
   // Extracts widths and offsets of the components in the lower or the upper
   // dword of a pixel from the format constants, for use as ibfe and bfi
   // operands later.
