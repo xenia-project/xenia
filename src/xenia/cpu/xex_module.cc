@@ -779,7 +779,7 @@ int XexModule::ReadPEHeaders() {
   const uint8_t* p = memory()->TranslateVirtual(base_address_);
 
   // Verify DOS signature (MZ).
-  const IMAGE_DOS_HEADER* doshdr = (const IMAGE_DOS_HEADER*)p;
+  auto doshdr = reinterpret_cast<const IMAGE_DOS_HEADER*>(p);
   if (doshdr->e_magic != IMAGE_DOS_SIGNATURE) {
     XELOGE("PE signature mismatch; likely bad decryption/decompression");
     return 1;
@@ -789,7 +789,7 @@ int XexModule::ReadPEHeaders() {
   p += doshdr->e_lfanew;
 
   // Verify NT signature (PE\0\0).
-  const IMAGE_NT_HEADERS32* nthdr = (const IMAGE_NT_HEADERS32*)(p);
+  auto nthdr = reinterpret_cast<const IMAGE_NT_HEADERS32*>(p);
   if (nthdr->Signature != IMAGE_NT_SIGNATURE) {
     return 1;
   }
