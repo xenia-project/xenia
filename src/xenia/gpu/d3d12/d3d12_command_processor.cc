@@ -2028,6 +2028,10 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
              DxbcShaderTranslator::kSysFlag_AlphaPassIfEqual |
              DxbcShaderTranslator::kSysFlag_AlphaPassIfGreater;
   }
+  // Alpha to coverage.
+  if (rb_colorcontrol & 0x10) {
+    flags |= DxbcShaderTranslator::kSysFlag_AlphaToCoverage;
+  }
   // Gamma writing.
   if (((regs[XE_GPU_REG_RB_COLOR_INFO].u32 >> 16) & 0xF) ==
       uint32_t(ColorRenderTargetFormat::k_8_8_8_8_GAMMA)) {
