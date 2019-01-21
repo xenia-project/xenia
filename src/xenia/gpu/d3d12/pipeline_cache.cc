@@ -625,13 +625,15 @@ bool PipelineCache::GetCurrentStateDescription(
       description_out.depth_func = 0b111;
     }
 
-    // Forced early Z if the shader allows that and alpha testing is disabled.
+    // Forced early Z if the shader allows that and alpha testing and alpha to
+    // coverage are disabled.
     // TODO(Triang3l): For memexporting shaders, possibly choose this according
     // to the early Z toggle in RB_DEPTHCONTROL (the correct behavior is still
     // unknown).
     if (pixel_shader != nullptr &&
         pixel_shader->GetForcedEarlyZShaderObject().size() != 0 &&
-        (!(rb_colorcontrol & 0x8) || (rb_colorcontrol & 0x7) == 0x7)) {
+        (!(rb_colorcontrol & 0x8) || (rb_colorcontrol & 0x7) == 0x7) &&
+        !(rb_colorcontrol & 0x10)) {
       description_out.force_early_z = 1;
     }
 

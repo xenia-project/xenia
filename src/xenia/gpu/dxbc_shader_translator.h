@@ -856,6 +856,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // This just converts the color output value from/to gamma space, not checking
   // any conditions.
   void CompletePixelShader_GammaCorrect(uint32_t color_temp, bool to_gamma);
+  // Discards the SSAA sample if it fails alpha to coverage.
+  void CompletePixelShader_WriteToRTVs_AlphaToCoverage();
   void CompletePixelShader_WriteToRTVs();
   inline uint32_t GetEDRAMUAVIndex() const {
     // xe_edram is U1 when there's xe_shared_memory_uav which is U0, but when
