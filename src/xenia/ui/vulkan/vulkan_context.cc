@@ -74,7 +74,7 @@ bool VulkanContext::Initialize() {
 #elif XE_PLATFORM_LINUX
 #ifdef GDK_WINDOWING_X11
     GtkWidget* window_handle =
-        static_cast<GtkWidget*>(target_window_->native_handle());
+        dynamic_cast<GTKWindow*>(target_window_)->native_window_handle();
     xcb_window_t window =
         gdk_x11_window_get_xid(gtk_widget_get_window(window_handle));
     VkXcbSurfaceCreateInfoKHR create_info;

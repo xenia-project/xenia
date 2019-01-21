@@ -34,7 +34,8 @@ class GTKWindow : public Window {
   NativePlatformHandle native_platform_handle() const override {
     return connection_;
   }
-  NativeWindowHandle native_handle() const override { return drawing_area_; }
+  NativeWindowHandle native_handle() const override { return window_; }
+  GtkWidget* native_window_handle() const { return drawing_area_; }
 
   void EnableMainMenu() override {}
   void DisableMainMenu() override {}
