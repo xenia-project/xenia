@@ -642,7 +642,7 @@ static const vec128_t xmm_consts[] = {
     /* XMMUnpackFLOAT16_2     */
     vec128i(0x0D0C0F0Eu, 0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu),
     /* XMMPackFLOAT16_4       */
-    vec128i(0xFFFFFFFFu, 0xFFFFFFFFu, 0x05040706u, 0x01000302u),
+    vec128i(0xFFFFFFFFu, 0xFFFFFFFFu, 0x01000302u, 0x05040706u),
     /* XMMUnpackFLOAT16_4     */
     vec128i(0x09080B0Au, 0x0D0C0F0Eu, 0xFFFFFFFFu, 0xFFFFFFFFu),
     /* XMMPackSHORT_Min       */ vec128i(0x403F8001u),
