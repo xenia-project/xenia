@@ -1902,14 +1902,15 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
     std::memset(b, 0, sizeof(b));
 
     for (int i = 0; i < 4; i++) {
-      b[7 - i] = half_float::detail::float2half<std::round_toward_zero>(a[i]);
+      b[7 - (i ^ 2)] =
+          half_float::detail::float2half<std::round_toward_zero>(a[i]);
     }
 
     return _mm_load_si128(reinterpret_cast<__m128i*>(b));
   }
   static void EmitFLOAT16_4(X64Emitter& e, const EmitArgType& i) {
     assert_true(i.src2.value->IsConstantZero());
-    // dest = [(src1.x | src1.y), (src1.z | src1.w), 0, 0]
+    // dest = [(src1.z | src1.w), (src1.x | src1.y), 0, 0]
 
     Xmm src;
     if (e.IsFeatureEnabled(kX64EmitF16C)) {
@@ -1921,7 +1922,7 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
       }
       // 0|0|0|0|W|Z|Y|X
       e.vcvtps2ph(i.dest, src, 0b00000011);
-      // Shuffle to X|Y|Z|W|0|0|0|0
+      // Shuffle to Z|W|X|Y|0|0|0|0
       e.vpshufb(i.dest, i.dest, e.GetXmmConstPtr(XMMPackFLOAT16_4));
     } else {
       if (i.src1.is_constant) {
