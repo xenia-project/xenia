@@ -1216,6 +1216,7 @@ void ParseAluInstructionOperandSpecial(const AluInstruction& op,
   out_op->storage_source = storage_source;
   if (storage_source == InstructionStorageSource::kRegister) {
     out_op->storage_index = reg & 0x7F;
+    out_op->storage_addressing_mode = InstructionStorageAddressingMode::kStatic;
   } else {
     out_op->storage_index = reg;
     if ((const_slot == 0 && op.is_const_0_addressed()) ||
