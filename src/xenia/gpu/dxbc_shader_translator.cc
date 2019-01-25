@@ -3020,7 +3020,7 @@ void DxbcShaderTranslator::ProcessLoopEndInstruction(
   shader_code_.push_back(system_temp_aL_);
   shader_code_.push_back(
       EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-  shader_code_.push_back(system_temp_loop_count_);
+  shader_code_.push_back(system_temp_aL_);
   shader_code_.push_back(
       EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
   shader_code_.push_back(aL_add_temp);
