@@ -32,6 +32,8 @@ class D3D12CommandProcessor;
 // - Line loops (only indexed ones - non-indexed are better handled in vertex
 //   shaders, otherwise a whole index buffer would have to be created for every
 //   vertex count value).
+// - Quad lists (for debugging since geometry shaders break PIX - as an
+//   alternative to the geometry shader).
 class PrimitiveConverter {
  public:
   PrimitiveConverter(D3D12CommandProcessor* command_processor,
@@ -111,8 +113,12 @@ class PrimitiveConverter {
   static constexpr uint32_t kStaticIBTriangleFanOffset = 0;
   static constexpr uint32_t kStaticIBTriangleFanCount =
       (kMaxNonIndexedVertices - 2) * 3;
-  static constexpr uint32_t kStaticIBTotalCount =
+  static constexpr uint32_t kStaticIBQuadOffset =
       kStaticIBTriangleFanOffset + kStaticIBTriangleFanCount;
+  static constexpr uint32_t kStaticIBQuadCount =
+      (kMaxNonIndexedVertices >> 2) * 6;
+  static constexpr uint32_t kStaticIBTotalCount =
+      kStaticIBQuadOffset + kStaticIBQuadCount;
 
   // Not identifying the index buffer uniquely - reset index must also be
   // checked if reset is enabled.
@@ -123,7 +129,7 @@ class PrimitiveConverter {
       PrimitiveType source_type : 6;  // 38
       IndexFormat format : 1;         // 39
       uint32_t count : 16;            // 55
-      uint32_t reset : 1;             // 56;
+      uint32_t reset : 1;             // 56
     };
 
     // Clearing the unused bits.

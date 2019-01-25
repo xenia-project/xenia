@@ -9,6 +9,8 @@
 
 #include "xenia/gpu/d3d12/primitive_converter.h"
 
+#include <gflags/gflags.h>
+
 #include <algorithm>
 
 #include "xenia/base/assert.h"
@@ -20,6 +22,12 @@
 #include "xenia/gpu/d3d12/d3d12_command_processor.h"
 #include "xenia/ui/d3d12/d3d12_util.h"
 
+DEFINE_bool(d3d12_convert_quads_to_triangles, false,
+            "Convert quad lists to triangle lists on the CPU instead of using "
+            "a geometry shader. Not recommended for playing, for debugging "
+            "primarily (because PIX fails to display vertices when a geometry "
+            "shader is used).");
+
 namespace xe {
 namespace gpu {
 namespace d3d12 {
@@ -27,6 +35,8 @@ namespace d3d12 {
 constexpr uint32_t PrimitiveConverter::kMaxNonIndexedVertices;
 constexpr uint32_t PrimitiveConverter::kStaticIBTriangleFanOffset;
 constexpr uint32_t PrimitiveConverter::kStaticIBTriangleFanCount;
+constexpr uint32_t PrimitiveConverter::kStaticIBQuadOffset;
+constexpr uint32_t PrimitiveConverter::kStaticIBQuadCount;
 constexpr uint32_t PrimitiveConverter::kStaticIBTotalCount;
 
 PrimitiveConverter::PrimitiveConverter(D3D12CommandProcessor* command_processor,
@@ -81,12 +91,22 @@ bool PrimitiveConverter::Initialize() {
   // Triangle fans as triangle lists.
   // https://docs.microsoft.com/en-us/windows/desktop/direct3d9/triangle-fans
   // Ordered as (v1, v2, v0), (v2, v3, v0).
-  uint16_t* static_ib_data_triangle_fan =
+  uint16_t* static_ib_data_pointer =
       &static_ib_data[kStaticIBTriangleFanOffset];
   for (uint32_t i = 2; i < kMaxNonIndexedVertices; ++i) {
-    *(static_ib_data_triangle_fan++) = i - 1;
-    *(static_ib_data_triangle_fan++) = i;
-    *(static_ib_data_triangle_fan++) = 0;
+    *(static_ib_data_pointer++) = i - 1;
+    *(static_ib_data_pointer++) = i;
+    *(static_ib_data_pointer++) = 0;
+  }
+  static_ib_data_pointer = &static_ib_data[kStaticIBQuadOffset];
+  for (uint32_t i = 0; i < (kMaxNonIndexedVertices >> 2); ++i) {
+    uint32_t quad_index = i << 2;
+    *(static_ib_data_pointer++) = quad_index;
+    *(static_ib_data_pointer++) = quad_index + 1;
+    *(static_ib_data_pointer++) = quad_index + 2;
+    *(static_ib_data_pointer++) = quad_index;
+    *(static_ib_data_pointer++) = quad_index + 2;
+    *(static_ib_data_pointer++) = quad_index + 3;
   }
   static_ib_upload_->Unmap(0, nullptr);
   // Not uploaded yet.
@@ -155,6 +175,11 @@ PrimitiveType PrimitiveConverter::GetReplacementPrimitiveType(
       return PrimitiveType::kTriangleList;
     case PrimitiveType::kLineLoop:
       return PrimitiveType::kLineStrip;
+    case PrimitiveType::kQuadList:
+      if (FLAGS_d3d12_convert_quads_to_triangles) {
+        return PrimitiveType::kTriangleList;
+      }
+      break;
     default:
       break;
   }
@@ -187,6 +212,10 @@ PrimitiveConverter::ConversionResult PrimitiveConverter::ConvertPrimitives(
     if (!reset || reset_index == reset_index_host) {
       return ConversionResult::kConversionNotNeeded;
     }
+  } else if (source_type == PrimitiveType::kQuadList) {
+    if (!FLAGS_d3d12_convert_quads_to_triangles) {
+      return ConversionResult::kConversionNotNeeded;
+    }
   } else if (source_type != PrimitiveType::kTriangleFan &&
              source_type != PrimitiveType::kLineLoop) {
     return ConversionResult::kConversionNotNeeded;
@@ -201,6 +230,8 @@ PrimitiveConverter::ConversionResult PrimitiveConverter::ConvertPrimitives(
   if (source_type == PrimitiveType::kLineStrip ||
       source_type == PrimitiveType::kLineLoop) {
     index_count_min = 2;
+  } else if (source_type == PrimitiveType::kQuadList) {
+    index_count_min = 4;
   } else {
     index_count_min = 3;
   }
@@ -404,6 +435,9 @@ PrimitiveConverter::ConversionResult PrimitiveConverter::ConvertPrimitives(
     } else {
       converted_index_count = index_count + 1;
     }
+  } else if (source_type == PrimitiveType::kQuadList) {
+    conversion_needed = true;
+    converted_index_count = (index_count >> 2) * 6;
   }
   converted_indices.converted_index_count = converted_index_count;
 
@@ -598,6 +632,31 @@ PrimitiveConverter::ConversionResult PrimitiveConverter::ConvertPrimitives(
         }
       }
     }
+  } else if (source_type == PrimitiveType::kQuadList) {
+    uint32_t quad_count = index_count >> 4;
+    if (index_format == IndexFormat::kInt32) {
+      uint32_t* target_32 = reinterpret_cast<uint32_t*>(target);
+      for (uint32_t i = 0; i < quad_count; ++i) {
+        uint32_t quad_index = i << 2;
+        *(target_32++) = source_32[quad_index];
+        *(target_32++) = source_32[quad_index + 1];
+        *(target_32++) = source_32[quad_index + 2];
+        *(target_32++) = source_32[quad_index];
+        *(target_32++) = source_32[quad_index + 2];
+        *(target_32++) = source_32[quad_index + 3];
+      }
+    } else {
+      uint16_t* target_16 = reinterpret_cast<uint16_t*>(target);
+      for (uint32_t i = 0; i < quad_count; ++i) {
+        uint32_t quad_index = i << 2;
+        *(target_16++) = source_16[quad_index];
+        *(target_16++) = source_16[quad_index + 1];
+        *(target_16++) = source_16[quad_index + 2];
+        *(target_16++) = source_16[quad_index];
+        *(target_16++) = source_16[quad_index + 2];
+        *(target_16++) = source_16[quad_index + 3];
+      }
+    }
   }
 
   // Cache and return the indices.
@@ -662,7 +721,7 @@ void PrimitiveConverter::MemoryWriteCallbackThunk(void* context_ptr,
 D3D12_GPU_VIRTUAL_ADDRESS PrimitiveConverter::GetStaticIndexBuffer(
     PrimitiveType source_type, uint32_t index_count,
     uint32_t& index_count_out) const {
-  if (index_count >= kMaxNonIndexedVertices) {
+  if (index_count > kMaxNonIndexedVertices) {
     assert_always();
     return D3D12_GPU_VIRTUAL_ADDRESS(0);
   }
@@ -670,6 +729,11 @@ D3D12_GPU_VIRTUAL_ADDRESS PrimitiveConverter::GetStaticIndexBuffer(
     index_count_out = (std::max(index_count, uint32_t(2)) - 2) * 3;
     return static_ib_gpu_address_ +
            kStaticIBTriangleFanOffset * sizeof(uint16_t);
+  }
+  if (source_type == PrimitiveType::kQuadList &&
+      FLAGS_d3d12_convert_quads_to_triangles) {
+    index_count_out = (index_count >> 2) * 6;
+    return static_ib_gpu_address_ + kStaticIBQuadOffset * sizeof(uint16_t);
   }
   return D3D12_GPU_VIRTUAL_ADDRESS(0);
 }
