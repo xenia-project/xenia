@@ -32,6 +32,12 @@ DEFINE_bool(d3d12_edram_rov, true,
 // disable half-pixel offset by setting this to false.
 DEFINE_bool(d3d12_half_pixel_offset, true,
             "Enable half-pixel vertex and VPOS offset.");
+DEFINE_bool(d3d12_memexport_readback, false,
+            "Read data written by memory export in shaders on the CPU. This "
+            "may be needed in some games (but many only access exported data "
+            "on the GPU, and this flag isn't needed to handle such behavior), "
+            "but causes mid-frame synchronization, so it has a huge "
+            "performance impact.");
 DEFINE_bool(d3d12_ssaa_custom_sample_positions, false,
             "Enable custom SSAA sample positions for the RTV/DSV rendering "
             "path where available instead of centers (experimental, not very "
@@ -827,6 +833,9 @@ void D3D12CommandProcessor::ShutdownContext() {
   auto context = GetD3D12Context();
   context->AwaitAllFramesCompletion();
 
+  ui::d3d12::util::ReleaseAndNull(readback_buffer_);
+  readback_buffer_size_ = 0;
+
   ui::d3d12::util::ReleaseAndNull(scratch_buffer_);
   scratch_buffer_size_ = 0;
 
@@ -1121,7 +1130,8 @@ Shader* D3D12CommandProcessor::LoadShader(ShaderType shader_type,
 bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
                                       uint32_t index_count,
                                       IndexBufferInfo* index_buffer_info) {
-  auto device = GetD3D12Context()->GetD3D12Provider()->GetDevice();
+  auto context = GetD3D12Context();
+  auto device = context->GetD3D12Provider()->GetDevice();
   auto& regs = *register_file_;
 
 #if FINE_GRAINED_DRAW_SCOPES
@@ -1578,9 +1588,52 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
           memexport_range.base_address_dwords << 2,
           memexport_range.size_dwords << 2);
     }
+    if (FLAGS_d3d12_memexport_readback) {
+      // Read the exported data on the CPU.
+      uint32_t memexport_total_size = 0;
+      for (uint32_t i = 0; i < memexport_range_count; ++i) {
+        memexport_total_size += memexport_ranges[i].size_dwords << 2;
+      }
+      if (memexport_total_size != 0) {
+        ID3D12Resource* readback_buffer =
+            RequestReadbackBuffer(memexport_total_size);
+        if (readback_buffer != nullptr) {
+          shared_memory_->UseAsCopySource();
+          SubmitBarriers();
+          ID3D12Resource* shared_memory_buffer = shared_memory_->GetBuffer();
+          uint32_t readback_buffer_offset = 0;
+          for (uint32_t i = 0; i < memexport_range_count; ++i) {
+            const MemExportRange& memexport_range = memexport_ranges[i];
+            uint32_t memexport_range_size = memexport_range.size_dwords << 2;
+            deferred_command_list_->D3DCopyBufferRegion(
+                readback_buffer, readback_buffer_offset, shared_memory_buffer,
+                memexport_range.base_address_dwords << 2, memexport_range_size);
+            readback_buffer_offset += memexport_range_size;
+          }
+          EndFrame();
+          context->AwaitAllFramesCompletion();
+          D3D12_RANGE readback_range;
+          readback_range.Begin = 0;
+          readback_range.End = memexport_total_size;
+          void* readback_mapping;
+          if (SUCCEEDED(readback_buffer->Map(0, &readback_range,
+                                             &readback_mapping))) {
+            const uint32_t* readback_dwords =
+                reinterpret_cast<const uint32_t*>(readback_mapping);
+            for (uint32_t i = 0; i < memexport_range_count; ++i) {
+              const MemExportRange& memexport_range = memexport_ranges[i];
+              std::memcpy(memory_->TranslatePhysical(
+                              memexport_range.base_address_dwords << 2),
+                          readback_dwords, memexport_range.size_dwords << 2);
+              readback_dwords += memexport_range.size_dwords;
+            }
+            D3D12_RANGE readback_write_range = {};
+            readback_buffer->Unmap(0, &readback_write_range);
+          }
+        }
+      }
+    }
   }
-
-  // TODO(Triang3l): Read back memexported data if the respective gflag is set.
 
   return true;
 }
@@ -3055,6 +3108,33 @@ uint32_t D3D12CommandProcessor::GetSupportedMemExportFormatSize(
       break;
   }
   return 0;
+}
+
+ID3D12Resource* D3D12CommandProcessor::RequestReadbackBuffer(uint32_t size) {
+  if (size == 0) {
+    return nullptr;
+  }
+  size = xe::align(size, kReadbackBufferSizeIncrement);
+  if (size > readback_buffer_size_) {
+    auto context = GetD3D12Context();
+    auto device = context->GetD3D12Provider()->GetDevice();
+    D3D12_RESOURCE_DESC buffer_desc;
+    ui::d3d12::util::FillBufferResourceDesc(buffer_desc, size,
+                                            D3D12_RESOURCE_FLAG_NONE);
+    ID3D12Resource* buffer;
+    if (FAILED(device->CreateCommittedResource(
+            &ui::d3d12::util::kHeapPropertiesReadback, D3D12_HEAP_FLAG_NONE,
+            &buffer_desc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr,
+            IID_PPV_ARGS(&buffer)))) {
+      XELOGE("Failed to create a %u MB readback buffer", size >> 20);
+      return nullptr;
+    }
+    if (readback_buffer_ != nullptr) {
+      readback_buffer_->Release();
+    }
+    readback_buffer_ = buffer;
+  }
+  return readback_buffer_;
 }
 
 }  // namespace d3d12

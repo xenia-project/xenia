@@ -225,6 +225,10 @@ class D3D12CommandProcessor : public CommandProcessor {
   // 32 bits per element.
   static uint32_t GetSupportedMemExportFormatSize(ColorFormat format);
 
+  // Returns a buffer for reading GPU data back to the CPU. Assuming
+  // synchronizing immediately after use. Always in COPY_DEST state.
+  ID3D12Resource* RequestReadbackBuffer(uint32_t size);
+
   bool cache_clear_requested_ = false;
 
   std::unique_ptr<ui::d3d12::CommandList>
@@ -280,6 +284,10 @@ class D3D12CommandProcessor : public CommandProcessor {
   uint32_t scratch_buffer_size_ = 0;
   D3D12_RESOURCE_STATES scratch_buffer_state_;
   bool scratch_buffer_used_ = false;
+
+  static constexpr uint32_t kReadbackBufferSizeIncrement = 16 * 1024 * 1024;
+  ID3D12Resource* readback_buffer_ = nullptr;
+  uint32_t readback_buffer_size_ = 0;
 
   uint32_t current_queue_frame_ = UINT32_MAX;
 

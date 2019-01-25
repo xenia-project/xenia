@@ -19,6 +19,7 @@ namespace util {
 
 extern const D3D12_HEAP_PROPERTIES kHeapPropertiesDefault;
 extern const D3D12_HEAP_PROPERTIES kHeapPropertiesUpload;
+extern const D3D12_HEAP_PROPERTIES kHeapPropertiesReadback;
 
 template <typename T>
 inline bool ReleaseAndNull(T& object) {
