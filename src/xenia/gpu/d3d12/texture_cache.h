@@ -261,6 +261,14 @@ class TextureCache {
     // texture of this format.
     DXGI_FORMAT dxgi_format_resolve_tile;
     ResolveTileMode resolve_tile_mode;
+
+    // Whether the red component must be replicated in the SRV swizzle, for
+    // single-component formats. At least for DXT3A/DXT5A, this is according to
+    // http://fileadmin.cs.lth.se/cs/Personal/Michael_Doggett/talks/unc-xenos-doggett.pdf
+    // k_8 is also used with RGBA swizzle, but assumes replicated components, in
+    // Halo 3 sprites, thus it appears that all single-component formats should
+    // have RRRR swizzle.
+    bool replicate_component;
   };
 
   union TextureKey {
