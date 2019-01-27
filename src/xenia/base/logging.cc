@@ -93,7 +93,7 @@ class Logger {
 
     write_thread_ =
         xe::threading::Thread::Create({}, [this]() { WriteThread(); });
-    write_thread_->set_name("xe::FileLogSink Writer");
+    write_thread_->set_name("Logging Writer");
   }
 
   ~Logger() {
