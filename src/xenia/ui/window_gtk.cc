@@ -138,8 +138,6 @@ void GTKWindow::OnDestroy() { super::OnDestroy(); }
 void GTKWindow::OnClose() {
   if (!closing_ && window_) {
     closing_ = true;
-    gtk_widget_destroy(window_);
-    window_ = nullptr;
   }
   super::OnClose();
 }
@@ -213,19 +211,23 @@ void GTKWindow::set_focus(bool value) {
 }
 
 void GTKWindow::Resize(int32_t width, int32_t height) {
-  width_ = width;
-  height_ = height;
+  if (is_fullscreen()) {
+    // Cannot resize while in fullscreen.
+    return;
+  }
   gtk_window_resize(GTK_WINDOW(window_), width, height);
+  super::Resize(width, height);
 }
 
 void GTKWindow::Resize(int32_t left, int32_t top, int32_t right,
                        int32_t bottom) {
-  int32_t width = right - left;
-  int32_t height = bottom - top;
-  width_ = width;
-  height_ = height;
+  if (is_fullscreen()) {
+    // Cannot resize while in fullscreen.
+    return;
+  }
   gtk_window_move(GTK_WINDOW(window_), left, top);
-  gtk_window_resize(GTK_WINDOW(window_), width, height);
+  gtk_window_resize(GTK_WINDOW(window_), right - left, bottom - top);
+  super::Resize(left, top, right, bottom);
 }
 
 void GTKWindow::OnResize(UIEvent* e) { super::OnResize(e); }
@@ -240,8 +242,9 @@ void GTKWindow::Close() {
     return;
   }
   closing_ = true;
-  Close();
   OnClose();
+  gtk_widget_destroy(window_);
+  window_ = nullptr;
 }
 
 void GTKWindow::OnMainMenuChange() {
