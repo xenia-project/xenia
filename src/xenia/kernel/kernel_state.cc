@@ -245,7 +245,7 @@ object_ref<XThread> KernelState::LaunchModule(object_ref<UserModule> module) {
                   module->entry_point(), 0, X_CREATE_SUSPENDED, true, true));
 
   // We know this is the 'main thread'.
-  thread->set_name(fmt::format("Main XThread{:08X}", thread->handle()));
+  thread->set_name("Main XThread");
 
   X_STATUS result = thread->Create();
   if (XFAILED(result)) {
@@ -340,7 +340,7 @@ void KernelState::SetExecutableModule(object_ref<UserModule> module) {
           }
           return 0;
         }));
-    dispatch_thread_->set_name("Kernel Dispatch Thread");
+    dispatch_thread_->set_name("Kernel Dispatch");
     dispatch_thread_->Create();
   }
 }
