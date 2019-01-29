@@ -1373,15 +1373,16 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
     // It's probably applicable to tfetchCube too, we're going to assume it's
     // used for them the same way as for stacked textures.
     // http://web.archive.org/web/20090511231340/http://msdn.microsoft.com:80/en-us/library/bb313959.aspx
-    // Subtracting 1/1024 - quarter of one fixed-point unit of subpixel
-    // precision (not to touch rounding when the GPU is converting to
-    // fixed-point) - to resolve the ambiguity when the texture coordinate is
-    // directly between two pixels, which hurts nearest-neighbor sampling (fixes
-    // the XBLA logo being blocky in Banjo-Kazooie and the outlines around
-    // things and overall blockiness in Halo 3). The sign was checked in Halo 3,
-    // with plus there are outlines when MSAA is enabled, and also outline
-    // around the weapon when it's drawn over a shadow.
-    float offset_x = instr.attributes.offset_x - (1.0f / 1024.0f);
+    // Adding 1/1024 - quarter of one fixed-point unit of subpixel precision
+    // (not to touch rounding when the GPU is converting to fixed-point) - to
+    // resolve the ambiguity when the texture coordinate is directly between two
+    // pixels, which hurts nearest-neighbor sampling (fixes the XBLA logo being
+    // blocky in Banjo-Kazooie and the outlines around things and overall
+    // blockiness in Halo 3).
+    // TODO(Triang3l): Investigate the sign of this epsilon, because in Halo 3
+    // positive causes thin outlines with MSAA (with ROV), and negative causes
+    // thick outlines with SSAA there.
+    float offset_x = instr.attributes.offset_x + (1.0f / 1024.0f);
     if (instr.opcode == FetchOpcode::kGetTextureWeights) {
       // Needed for correct shadow filtering (at least in Halo 3).
       offset_x += 0.5f;
@@ -1390,7 +1391,7 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
     if (instr.dimension == TextureDimension::k2D ||
         instr.dimension == TextureDimension::k3D ||
         instr.dimension == TextureDimension::kCube) {
-      offset_y = instr.attributes.offset_y - (1.0f / 1024.0f);
+      offset_y = instr.attributes.offset_y + (1.0f / 1024.0f);
       if (instr.opcode == FetchOpcode::kGetTextureWeights) {
         offset_y += 0.5f;
       }
@@ -1403,7 +1404,7 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
         offset_z = instr.attributes.offset_z;
         if (instr.dimension == TextureDimension::k3D) {
           // Z is the face index for cubemaps, so don't apply the epsilon to it.
-          offset_z -= 1.0f / 1024.0f;
+          offset_z += 1.0f / 1024.0f;
           if (instr.opcode == FetchOpcode::kGetTextureWeights) {
             offset_z += 0.5f;
           }
