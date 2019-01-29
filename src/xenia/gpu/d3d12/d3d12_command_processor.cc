@@ -2319,9 +2319,10 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
       // -32...32 range and expect shaders to give -32...32 values, but they're
       // emulated using normalized RG16/RGBA16 when not using the ROV, so the
       // value returned from the shader needs to be divided by 32 (blending will
-      // be incorrect in this case, but there's no other way without using ROV).
+      // be incorrect in this case, but there's no other way without using ROV,
+      // though there's an option to limit the range to -1...1).
       // http://www.students.science.uu.nl/~3220516/advancedgraphics/papers/inferred_lighting.pdf
-      if (!IsROVUsedForEDRAM()) {
+      if (!IsROVUsedForEDRAM() && FLAGS_d3d12_16bit_rtv_full_range) {
         color_exp_bias -= 5;
       }
     }
