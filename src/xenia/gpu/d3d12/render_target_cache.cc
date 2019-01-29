@@ -25,6 +25,9 @@
 #include "xenia/gpu/texture_util.h"
 #include "xenia/ui/d3d12/d3d12_util.h"
 
+DEFINE_bool(d3d12_16bit_rtv_full_range, true,
+            "Use full -32...32 range for RG16 and RGBA16 render targets "
+            "(at the expense of blending correctness) without ROV.");
 DEFINE_bool(d3d12_resolution_scale_resolve_edge_clamp, true,
             "When using resolution scale, apply the hack that duplicates the "
             "right/lower subpixel in the left and top sides of render target "
@@ -1171,7 +1174,10 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
       // sampling the host render target gives 1/32 of what is actually stored
       // there on the guest side.
       // http://www.students.science.uu.nl/~3220516/advancedgraphics/papers/inferred_lighting.pdf
-      dest_exp_bias += 5;
+      if (command_processor_->IsROVUsedForEDRAM() ||
+          FLAGS_d3d12_16bit_rtv_full_range) {
+        dest_exp_bias += 5;
+      }
     }
   }
   bool dest_swap = !is_depth && ((dest_info >> 24) & 0x1);

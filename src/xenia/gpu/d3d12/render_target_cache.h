@@ -10,6 +10,8 @@
 #ifndef XENIA_GPU_D3D12_RENDER_TARGET_CACHE_H_
 #define XENIA_GPU_D3D12_RENDER_TARGET_CACHE_H_
 
+#include <gflags/gflags.h>
+
 #include <unordered_map>
 
 #include "xenia/gpu/d3d12/d3d12_shader.h"
@@ -19,6 +21,8 @@
 #include "xenia/gpu/xenos.h"
 #include "xenia/memory.h"
 #include "xenia/ui/d3d12/d3d12_api.h"
+
+DECLARE_bool(d3d12_16bit_rtv_full_range);
 
 namespace xe {
 namespace gpu {
