@@ -6,6 +6,11 @@
 # A Xenia issue would be e.g. "Kernel export NtDoSomething does nothing"
 # For specific games, visit https://github.com/xenia-project/game-compatibility/issues
 #
+# DO NOT PROVIDE ANY INFORMATION FROM THE MICROSOFT XDK!
+# All information in xenia has been derived from reverse engineering legally-owned
+# games, hardware, and tools made public by Microsoft.
+# **Posting any information directly from an XDK will result in a project ban.**
+#
 # Try to create a very concise title that's straight to the point
 -->
 
