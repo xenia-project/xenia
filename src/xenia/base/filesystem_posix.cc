@@ -19,10 +19,11 @@
 #include <libgen.h>
 #include <pwd.h>
 #include <stdio.h>
-#include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <cstdlib>
+#include <cstring>
 #include <iostream>
 
 namespace xe {
@@ -217,11 +218,17 @@ std::vector<FileInfo> ListFiles(const std::filesystem::path& path) {
   }
 
   while (auto ent = readdir(dir)) {
+    if (std::strcmp(ent->d_name, ".") == 0 ||
+        std::strcmp(ent->d_name, "..") == 0) {
+      continue;
+    }
+
     FileInfo info;
 
     info.name = ent->d_name;
     struct stat st;
-    stat((path / info.name).c_str(), &st);
+    auto ret = stat((path / info.name).c_str(), &st);
+    assert_zero(ret);
     info.create_timestamp = convertUnixtimeToWinFiletime(st.st_ctime);
     info.access_timestamp = convertUnixtimeToWinFiletime(st.st_atime);
     info.write_timestamp = convertUnixtimeToWinFiletime(st.st_mtime);
@@ -230,7 +237,7 @@ std::vector<FileInfo> ListFiles(const std::filesystem::path& path) {
       info.total_size = 0;
     } else {
       info.type = FileInfo::Type::kFile;
-      info.total_size = st.st_size;
+      info.total_size = static_cast<size_t>(st.st_size);
     }
     result.push_back(info);
   }
