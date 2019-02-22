@@ -17,7 +17,7 @@ video drivers for your card.
 
 Ensure Python is in your PATH.
 
-I recommend using [Cmder](http://cmder.net/) for git and command
+I recommend using [Cmder](https://cmder.net/) for git and command
 line usage.
 
 #### Debugging
