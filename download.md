@@ -25,6 +25,4 @@ permalink: /download/
 
 Linux builds coming eventually...
 
-[System Requirements](/faq/#system-requirements): Windows 8 or later, Vulkan compatible GPU (<a href="http://vulkan.gpuinfo.org/" target="_blank">list</a>), Intel Sandy Bridge or Haswell (AVX).
-
-If Xenia tells you your machine is not supported, it is not supported. Don't ask how to bypass the checks.
+[System Requirements](/faq/#system-requirements)
