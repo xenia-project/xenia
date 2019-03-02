@@ -360,11 +360,11 @@ void CommandProcessor::MakeCoherent() {
   }
 
   const char* action = "N/A";
-  if (0x03000000 == (status_host & 0x03000000)) {
+  if ((status_host & 0x03000000) == 0x03000000) {
     action = "VC | TC";
-  } else if (0x02000000 == (status_host & 0x02000000)) {
+  } else if (status_host & 0x02000000) {
     action = "TC";
-  } else if (0x01000000 == (status_host & 0x01000000)) {
+  } else if (status_host & 0x01000000) {
     action = "VC";
   }
 
