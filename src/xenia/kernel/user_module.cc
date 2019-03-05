@@ -108,9 +108,9 @@ X_STATUS UserModule::LoadFromFile(std::string path) {
   if (!FLAGS_xex_apply_patches) {
     return LoadXexContinue();
   }
-  
+
   auto module_path = fs_entry->path();
-  
+
   auto content_manager = kernel_state()->content_manager();
 
   if (!file_system->IsSymbolicLink("update:")) {
