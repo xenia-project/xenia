@@ -58,7 +58,7 @@ void XeCryptShaInit(pointer_t<XECRYPT_SHA_STATE> sha_state) {
   sha_state->state[3] = 0x10325476;
   sha_state->state[4] = 0xC3D2E1F0;
 }
-DECLARE_XBOXKRNL_EXPORT(XeCryptShaInit, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(XeCryptShaInit, kNone, kImplemented);
 
 void XeCryptShaUpdate(pointer_t<XECRYPT_SHA_STATE> sha_state, lpvoid_t input,
                       dword_t input_size) {
@@ -69,7 +69,7 @@ void XeCryptShaUpdate(pointer_t<XECRYPT_SHA_STATE> sha_state, lpvoid_t input,
 
   StoreSha1(&sha, sha_state);
 }
-DECLARE_XBOXKRNL_EXPORT(XeCryptShaUpdate, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(XeCryptShaUpdate, kNone, kImplemented);
 
 void XeCryptShaFinal(pointer_t<XECRYPT_SHA_STATE> sha_state,
                      pointer_t<xe::be<uint32_t>> out, dword_t out_size) {
@@ -82,7 +82,7 @@ void XeCryptShaFinal(pointer_t<XECRYPT_SHA_STATE> sha_state,
   std::memcpy(out, digest, std::min((uint32_t)out_size, 0x14u));
   std::memcpy(sha_state->state, digest, 0x14);
 }
-DECLARE_XBOXKRNL_EXPORT(XeCryptShaFinal, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(XeCryptShaFinal, kNone, kImplemented);
 
 void XeCryptSha(lpvoid_t input_1, dword_t input_1_size, lpvoid_t input_2,
                 dword_t input_2_size, lpvoid_t input_3, dword_t input_3_size,
@@ -103,7 +103,7 @@ void XeCryptSha(lpvoid_t input_1, dword_t input_1_size, lpvoid_t input_2,
   sha.finalize(digest);
   std::memcpy(output, digest, std::min((uint32_t)output_size, 0x14u));
 }
-DECLARE_XBOXKRNL_EXPORT(XeCryptSha, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(XeCryptSha, kNone, kImplemented);
 
 // TODO: Size of this struct hasn't been confirmed yet.
 typedef struct {
@@ -124,7 +124,7 @@ void XeCryptSha256Init(pointer_t<XECRYPT_SHA256_STATE> sha_state) {
   sha_state->state[6] = 0x1f83d9ab;
   sha_state->state[7] = 0x5be0cd19;
 }
-DECLARE_XBOXKRNL_EXPORT(XeCryptSha256Init, ExportTag::kStub);
+DECLARE_XBOXKRNL_EXPORT1(XeCryptSha256Init, kNone, kImplemented);
 
 void XeCryptSha256Update(pointer_t<XECRYPT_SHA256_STATE> sha_state,
                          lpvoid_t input, dword_t input_size) {
@@ -139,7 +139,7 @@ void XeCryptSha256Update(pointer_t<XECRYPT_SHA256_STATE> sha_state,
   std::memcpy(sha_state->buffer, sha.getBuffer(), 64);
   sha_state->count = uint32_t(sha.getTotalSize());
 }
-DECLARE_XBOXKRNL_EXPORT(XeCryptSha256Update, ExportTag::kStub);
+DECLARE_XBOXKRNL_EXPORT1(XeCryptSha256Update, kNone, kImplemented);
 
 void XeCryptSha256Final(pointer_t<XECRYPT_SHA256_STATE> sha_state,
                         pointer_t<xe::be<uint32_t>> out, dword_t out_size) {
@@ -154,33 +154,33 @@ void XeCryptSha256Final(pointer_t<XECRYPT_SHA256_STATE> sha_state,
   std::memcpy(out, hash, std::min(uint32_t(out_size), 32u));
   std::memcpy(sha_state->buffer, hash, 32);
 }
-DECLARE_XBOXKRNL_EXPORT(XeCryptSha256Final, ExportTag::kStub);
+DECLARE_XBOXKRNL_EXPORT1(XeCryptSha256Final, kNone, kImplemented);
 
 // Byteswap?
 dword_result_t XeCryptBnQw_SwapDwQwLeBe(lpqword_t qw_inp, lpqword_t qw_out,
                                         dword_t size) {
   return 0;
 }
-DECLARE_XBOXKRNL_EXPORT(XeCryptBnQw_SwapDwQwLeBe, ExportTag::kStub);
+DECLARE_XBOXKRNL_EXPORT1(XeCryptBnQw_SwapDwQwLeBe, kNone, kStub);
 
 dword_result_t XeCryptBnQwNeRsaPubCrypt(lpqword_t qw_a, lpqword_t qw_b,
                                         lpvoid_t rsa) {
   // 0 indicates failure (but not a BOOL return value)
   return 1;
 }
-DECLARE_XBOXKRNL_EXPORT(XeCryptBnQwNeRsaPubCrypt, ExportTag::kStub);
+DECLARE_XBOXKRNL_EXPORT1(XeCryptBnQwNeRsaPubCrypt, kNone, kStub);
 
 dword_result_t XeCryptBnDwLePkcs1Verify(lpvoid_t hash, lpvoid_t sig,
                                         dword_t size) {
   // BOOL return value
   return 1;
 }
-DECLARE_XBOXKRNL_EXPORT(XeCryptBnDwLePkcs1Verify, ExportTag::kStub);
+DECLARE_XBOXKRNL_EXPORT1(XeCryptBnDwLePkcs1Verify, kNone, kStub);
 
 void XeCryptRandom(lpvoid_t buf, dword_t buf_size) {
   std::memset(buf, 0xFD, buf_size);
 }
-DECLARE_XBOXKRNL_EXPORT(XeCryptRandom, ExportTag::kStub);
+DECLARE_XBOXKRNL_EXPORT1(XeCryptRandom, kNone, kStub);
 
 struct XECRYPT_DES_STATE {
   uint32_t keytab[16][2];
@@ -190,7 +190,7 @@ struct XECRYPT_DES_STATE {
 void XeCryptDesParity(lpvoid_t inp, dword_t inp_size, lpvoid_t out_ptr) {
   DES::set_parity(inp, inp_size, out_ptr);
 }
-DECLARE_XBOXKRNL_EXPORT(XeCryptDesParity, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(XeCryptDesParity, kNone, kImplemented);
 
 struct XECRYPT_DES3_STATE {
   XECRYPT_DES_STATE des_state[3];
@@ -205,7 +205,7 @@ void XeCryptDes3Key(pointer_t<XECRYPT_DES3_STATE> state_ptr, lpqword_t key) {
     std::memcpy(state_ptr->des_state[i].keytab, des[i].get_sub_key(), 128);
   }
 }
-DECLARE_XBOXKRNL_EXPORT(XeCryptDes3Key, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(XeCryptDes3Key, kNone, kImplemented);
 
 void XeCryptDes3Ecb(pointer_t<XECRYPT_DES3_STATE> state_ptr, lpqword_t inp,
                     lpqword_t out, dword_t encrypt) {
@@ -219,7 +219,7 @@ void XeCryptDes3Ecb(pointer_t<XECRYPT_DES3_STATE> state_ptr, lpqword_t inp,
     *out = des3.decrypt(*inp);
   }
 }
-DECLARE_XBOXKRNL_EXPORT(XeCryptDes3Ecb, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(XeCryptDes3Ecb, kNone, kImplemented);
 
 void XeCryptDes3Cbc(pointer_t<XECRYPT_DES3_STATE> state_ptr, lpqword_t inp,
                     dword_t inp_size, lpqword_t out, lpqword_t feed,
@@ -245,7 +245,7 @@ void XeCryptDes3Cbc(pointer_t<XECRYPT_DES3_STATE> state_ptr, lpqword_t inp,
 
   *feed = last_block;
 }
-DECLARE_XBOXKRNL_EXPORT(XeCryptDes3Cbc, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(XeCryptDes3Cbc, kNone, kImplemented);
 
 void XeCryptHmacSha(lpvoid_t key, dword_t key_size_in, lpvoid_t inp_1,
                     dword_t inp_1_size, lpvoid_t inp_2, dword_t inp_2_size,
@@ -302,7 +302,7 @@ void XeCryptHmacSha(lpvoid_t key, dword_t key_size_in, lpvoid_t inp_1,
 
   std::memcpy(out, digest, std::min((uint32_t)out_size, 0x14u));
 }
-DECLARE_XBOXKRNL_EXPORT(XeCryptHmacSha, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(XeCryptHmacSha, kNone, kImplemented);
 
 // Keys
 // TODO: Array of keys we need
@@ -330,7 +330,7 @@ dword_result_t XeKeysHmacSha(dword_t key_num, lpvoid_t inp_1,
 
   return X_STATUS_UNSUCCESSFUL;
 }
-DECLARE_XBOXKRNL_EXPORT(XeKeysHmacSha, ExportTag::kStub);
+DECLARE_XBOXKRNL_EXPORT1(XeKeysHmacSha, kNone, kImplemented);
 
 void RegisterCryptExports(xe::cpu::ExportResolver* export_resolver,
                           KernelState* kernel_state) {}

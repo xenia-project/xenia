@@ -44,7 +44,7 @@ dword_result_t ObOpenObjectByName(lpunknown_t obj_attributes_ptr,
 
   return result;
 }
-DECLARE_XBOXKRNL_EXPORT(ObOpenObjectByName, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(ObOpenObjectByName, kNone, kImplemented);
 
 dword_result_t ObOpenObjectByPointer(lpvoid_t object_ptr,
                                      lpdword_t out_handle_ptr) {
@@ -58,7 +58,7 @@ dword_result_t ObOpenObjectByPointer(lpvoid_t object_ptr,
   *out_handle_ptr = object->handle();
   return X_STATUS_SUCCESS;
 }
-DECLARE_XBOXKRNL_EXPORT(ObOpenObjectByPointer, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(ObOpenObjectByPointer, kNone, kImplemented);
 
 dword_result_t ObLookupThreadByThreadId(dword_t thread_id,
                                         lpdword_t out_object_ptr) {
@@ -72,7 +72,7 @@ dword_result_t ObLookupThreadByThreadId(dword_t thread_id,
   *out_object_ptr = thread->guest_object();
   return X_STATUS_SUCCESS;
 }
-DECLARE_XBOXKRNL_EXPORT(ObLookupThreadByThreadId, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(ObLookupThreadByThreadId, kNone, kImplemented);
 
 dword_result_t ObReferenceObjectByHandle(dword_t handle,
                                          dword_t object_type_ptr,
@@ -109,6 +109,11 @@ dword_result_t ObReferenceObjectByHandle(dword_t handle,
           } break;
         }
       } break;
+      case 0xD00EBEEF: {  // ExEventObjectType
+        assert(object->type() == XObject::kTypeEvent);
+        native_ptr = object->guest_object();
+        assert_not_zero(native_ptr);
+      } break;
       case 0xD017BEEF: {  // ExSemaphoreObjectType
         assert(object->type() == XObject::kTypeSemaphore);
         native_ptr = object->guest_object();
@@ -137,7 +142,7 @@ dword_result_t ObReferenceObjectByHandle(dword_t handle,
 
   return result;
 }
-DECLARE_XBOXKRNL_EXPORT(ObReferenceObjectByHandle, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(ObReferenceObjectByHandle, kNone, kImplemented);
 
 dword_result_t ObDereferenceObject(dword_t native_ptr) {
   // Check if a dummy value from ObReferenceObjectByHandle.
@@ -153,7 +158,7 @@ dword_result_t ObDereferenceObject(dword_t native_ptr) {
 
   return 0;
 }
-DECLARE_XBOXKRNL_EXPORT(ObDereferenceObject, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(ObDereferenceObject, kNone, kImplemented);
 
 dword_result_t ObCreateSymbolicLink(pointer_t<X_ANSI_STRING> path,
                                     pointer_t<X_ANSI_STRING> target) {
@@ -174,7 +179,7 @@ dword_result_t ObCreateSymbolicLink(pointer_t<X_ANSI_STRING> path,
 
   return X_STATUS_SUCCESS;
 }
-DECLARE_XBOXKRNL_EXPORT(ObCreateSymbolicLink, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(ObCreateSymbolicLink, kNone, kImplemented);
 
 dword_result_t ObDeleteSymbolicLink(pointer_t<X_ANSI_STRING> path) {
   auto path_str = path->to_string(kernel_memory()->virtual_membase());
@@ -184,7 +189,7 @@ dword_result_t ObDeleteSymbolicLink(pointer_t<X_ANSI_STRING> path) {
 
   return X_STATUS_SUCCESS;
 }
-DECLARE_XBOXKRNL_EXPORT(ObDeleteSymbolicLink, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(ObDeleteSymbolicLink, kNone, kImplemented);
 
 dword_result_t NtDuplicateObject(dword_t handle, lpdword_t new_handle_ptr,
                                  dword_t options) {
@@ -209,12 +214,12 @@ dword_result_t NtDuplicateObject(dword_t handle, lpdword_t new_handle_ptr,
 
   return result;
 }
-DECLARE_XBOXKRNL_EXPORT(NtDuplicateObject, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(NtDuplicateObject, kNone, kImplemented);
 
 dword_result_t NtClose(dword_t handle) {
   return kernel_state()->object_table()->ReleaseHandle(handle);
 }
-DECLARE_XBOXKRNL_EXPORT(NtClose, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(NtClose, kNone, kImplemented);
 
 void RegisterObExports(xe::cpu::ExportResolver* export_resolver,
                        KernelState* kernel_state) {}

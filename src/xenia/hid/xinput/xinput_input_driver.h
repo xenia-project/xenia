@@ -31,6 +31,12 @@ class XInputInputDriver : public InputDriver {
                         X_INPUT_KEYSTROKE* out_keystroke) override;
 
  protected:
+  void* module_;
+  void* XInputGetCapabilities_;
+  void* XInputGetState_;
+  void* XInputGetKeystroke_;
+  void* XInputSetState_;
+  void* XInputEnable_;
 };
 
 }  // namespace xinput

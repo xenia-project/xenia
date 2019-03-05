@@ -25,12 +25,12 @@ dword_result_t HidReadKeys(dword_t unk1, unknown_t unk2, unknown_t unk3) {
    * Other errors appear to be ignored?
    *
    * unk1 is 0
-   * unk2 is a pointer to &unk3[2], possibly a 6-byte vuffer
+   * unk2 is a pointer to &unk3[2], possibly a 6-byte buffer
    * unk3 is a pointer to a 20-byte buffer
    */
   return 0xC000009D;
 }
-DECLARE_XBOXKRNL_EXPORT(HidReadKeys, ExportTag::kStub);
+DECLARE_XBOXKRNL_EXPORT1(HidReadKeys, kInput, kStub);
 
 void RegisterHidExports(xe::cpu::ExportResolver* export_resolver,
                         KernelState* kernel_state) {}

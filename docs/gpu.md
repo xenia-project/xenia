@@ -31,7 +31,7 @@ waiting for a fixed 60hz timer.
 
 ### Vulkan
 
-See the top of [src/xenia/gpu/vulkan/vulkan_gpu_flags.cc](../src/xenia/vulkan/vulkan_gpu_flags.cc).
+See the top of [src/xenia/gpu/vulkan/vulkan_gpu_flags.cc](../src/xenia/gpu/vulkan/vulkan_gpu_flags.cc).
 
 `vulkan_dump_disasm=true` "Dump shader disassembly. NVIDIA only supported."
 
@@ -121,6 +121,6 @@ PM4 commands documented at [src/xenia/gpu/xenos.h](../src/xenia/gpu/xenos.h#L521
 
 ### Shaders
 
-* [LLVM R600 Tables](http://llvm.org/viewvc/llvm-project/llvm/trunk/lib/Target/AMDGPU/R600Instructions.td)
+* [LLVM R600 Tables](https://llvm.org/viewvc/llvm-project/llvm/trunk/lib/Target/AMDGPU/R600Instructions.td)
 ** The opcode formats don't match, but the name->psuedo code is correct.
 * [xemit](https://github.com/gligli/libxemit/blob/master/xemitops.c)

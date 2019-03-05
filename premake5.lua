@@ -128,16 +128,17 @@ filter({"platforms:Linux", "toolset:gcc"})
   end
 
 filter({"platforms:Linux", "language:C++", "toolset:clang"})
-  buildoptions({
-    "-std=c++14",
-    "-stdlib=libstdc++",
-  })
   links({
     "c++",
     "c++abi"
   })
   disablewarnings({
     "deprecated-register"
+  })
+filter({"platforms:Linux", "language:C++", "toolset:clang", "files:*.cc or *.cpp"})
+  buildoptions({
+    "-std=c++14",
+    "-stdlib=libstdc++",
   })
 
 filter("platforms:Windows")
@@ -228,6 +229,7 @@ solution("xenia")
   include("third_party/glslang-spirv.lua")
   include("third_party/imgui.lua")
   include("third_party/libav.lua")
+  include("third_party/mspack.lua")
   include("third_party/snappy.lua")
   include("third_party/spirv-tools.lua")
   include("third_party/volk.lua")

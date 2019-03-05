@@ -53,10 +53,16 @@ PPCTranslator::PPCTranslator(PPCFrontend* frontend) : frontend_(frontend) {
   if (validate) compiler_->AddPass(std::make_unique<passes::ValidationPass>());
   compiler_->AddPass(std::make_unique<passes::ContextPromotionPass>());
   if (validate) compiler_->AddPass(std::make_unique<passes::ValidationPass>());
-  compiler_->AddPass(std::make_unique<passes::SimplificationPass>());
-  if (validate) compiler_->AddPass(std::make_unique<passes::ValidationPass>());
-  compiler_->AddPass(std::make_unique<passes::ConstantPropagationPass>());
-  if (validate) compiler_->AddPass(std::make_unique<passes::ValidationPass>());
+
+  // Grouped simplification + constant propagation.
+  // Loops until no changes are made.
+  auto sap = std::make_unique<passes::ConditionalGroupPass>();
+  sap->AddPass(std::make_unique<passes::SimplificationPass>());
+  if (validate) sap->AddPass(std::make_unique<passes::ValidationPass>());
+  sap->AddPass(std::make_unique<passes::ConstantPropagationPass>());
+  if (validate) sap->AddPass(std::make_unique<passes::ValidationPass>());
+  compiler_->AddPass(std::move(sap));
+
   if (backend->machine_info()->supports_extended_load_store) {
     // Backend supports the advanced LOAD/STORE instructions.
     // These will save us a lot of HIR opcodes.

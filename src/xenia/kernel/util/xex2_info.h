@@ -474,10 +474,12 @@ struct xex2_opt_execution_info {
 static_assert_size(xex2_opt_execution_info, 0x18);
 
 struct xex2_opt_import_libraries {
-  xe::be<uint32_t> section_size;       // 0x0
-  xe::be<uint32_t> string_table_size;  // 0x4
-  xe::be<uint32_t> library_count;      // 0x8
-  char string_table[1];                // 0xC string_table_size bytes
+  xe::be<uint32_t> size;  // 0x0
+  struct {
+    xe::be<uint32_t> size;   // 0x4
+    xe::be<uint32_t> count;  // 0x8
+    char data[1];            // 0xC string_table_size bytes
+  } string_table;
 };
 
 struct xex2_import_library {
@@ -514,8 +516,8 @@ struct xex2_header {
 struct xex2_page_descriptor {
   union {
     struct {
-      uint32_t info : 4;
-      uint32_t size : 28;
+      xex2_section_type info : 4;
+      uint32_t page_count : 28;
     };
     xe::be<uint32_t> value;  // 0x0
   };

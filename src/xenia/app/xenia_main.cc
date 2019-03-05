@@ -44,6 +44,8 @@ DEFINE_string(hid, "any", "Input system. Use: [any, nop, winkey, xinput]");
 DEFINE_string(target, "", "Specifies the target .xex or .iso to execute.");
 DEFINE_bool(fullscreen, false, "Toggles fullscreen");
 
+DEFINE_string(content_root, "", "Root path for content (save/etc) storage.");
+
 DEFINE_bool(mount_scratch, false, "Enable scratch mount");
 DEFINE_bool(mount_cache, false, "Enable cache mount");
 
@@ -117,10 +119,17 @@ std::vector<std::unique_ptr<hid::InputDriver>> CreateInputDrivers(
       drivers.emplace_back(std::move(winkey_driver));
     }
 #endif  // XE_PLATFORM_WIN32
-    if (drivers.empty()) {
-      // Fallback to nop if none created.
-      drivers.emplace_back(xe::hid::nop::Create(window));
+  }
+  for (auto it = drivers.begin(); it != drivers.end();) {
+    if (XFAILED((*it)->Setup())) {
+      it = drivers.erase(it);
+    } else {
+      ++it;
     }
+  }
+  if (drivers.empty()) {
+    // Fallback to nop if none created.
+    drivers.emplace_back(xe::hid::nop::Create(window));
   }
   return drivers;
 }
@@ -129,8 +138,35 @@ int xenia_main(const std::vector<std::wstring>& args) {
   Profiler::Initialize();
   Profiler::ThreadEnter("main");
 
+  // Figure out where content should go.
+  std::wstring content_root;
+  if (!FLAGS_content_root.empty()) {
+    content_root = xe::to_wstring(FLAGS_content_root);
+  } else {
+    auto base_path = xe::filesystem::GetExecutableFolder();
+    base_path = xe::to_absolute_path(base_path);
+
+    auto portable_path = xe::join_paths(base_path, L"portable.txt");
+    if (xe::filesystem::PathExists(portable_path)) {
+      content_root = xe::join_paths(base_path, L"content");
+    } else {
+      content_root = xe::filesystem::GetUserFolder();
+#if defined(XE_PLATFORM_WIN32)
+      content_root = xe::join_paths(content_root, L"Xenia");
+#elif defined(XE_PLATFORM_LINUX)
+      content_root = xe::join_paths(content_root, L".xenia");
+#else
+#warning Unhandled platform for content root.
+      content_root = xe::join_paths(content_root, L"Xenia");
+#endif
+      content_root = xe::join_paths(content_root, L"content");
+    }
+  }
+  content_root = xe::to_absolute_path(content_root);
+  XELOGI("Content root: %S", content_root.c_str());
+
   // Create the emulator but don't initialize so we can setup the window.
-  auto emulator = std::make_unique<Emulator>(L"");
+  auto emulator = std::make_unique<Emulator>(L"", content_root);
 
   // Main emulator display window.
   auto emulator_window = EmulatorWindow::Create(emulator.get());

@@ -31,8 +31,6 @@
 
 DEFINE_bool(headless, false,
             "Don't display any UI, using defaults for prompts as needed.");
-DEFINE_string(content_root, "content",
-              "Root path for content (save/etc) storage.");
 
 namespace xe {
 namespace kernel {
@@ -57,7 +55,7 @@ KernelState::KernelState(Emulator* emulator)
   app_manager_ = std::make_unique<xam::AppManager>();
   user_profile_ = std::make_unique<xam::UserProfile>();
 
-  auto content_root = xe::to_wstring(FLAGS_content_root);
+  auto content_root = emulator_->content_root();
   content_root = xe::to_absolute_path(content_root);
   content_manager_ = std::make_unique<xam::ContentManager>(this, content_root);
 
@@ -581,7 +579,7 @@ void KernelState::RegisterNotifyListener(NotifyListener* listener) {
 
   // Games seem to expect a few notifications on startup, only for the first
   // listener.
-  // http://cs.rin.ru/forum/viewtopic.php?f=38&t=60668&hilit=resident+evil+5&start=375
+  // https://cs.rin.ru/forum/viewtopic.php?f=38&t=60668&hilit=resident+evil+5&start=375
   if (!has_notified_startup_ && listener->mask() & 0x00000001) {
     has_notified_startup_ = true;
     // XN_SYS_UI (on, off)

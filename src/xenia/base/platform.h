@@ -19,7 +19,9 @@
 // NOTE: ordering matters here as sometimes multiple flags are defined on
 // certain platforms.
 //
-// Great resource on predefined macros: http://predef.sourceforge.net/preos.html
+// Great resource on predefined macros:
+// https://sourceforge.net/p/predef/wiki/OperatingSystems/
+// Original link: https://predef.sourceforge.net/preos.html
 
 #if defined(__APPLE__)
 #include <TargetConditionals.h>

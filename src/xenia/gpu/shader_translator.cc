@@ -40,7 +40,7 @@ using namespace ucode;
 // https://github.com/freedreno/freedreno/blob/master/util/disasm-a2xx.c
 //
 // Lots of naming comes from the disassembly spit out by the XNA GS compiler
-// and dumps of d3dcompiler and games: http://pastebin.com/i4kAv7bB
+// and dumps of d3dcompiler and games: https://pastebin.com/i4kAv7bB
 
 ShaderTranslator::ShaderTranslator() = default;
 
@@ -1074,7 +1074,7 @@ void ParseAluInstructionOperand(const AluInstruction& op, int i,
   out_op->component_count = swizzle_component_count;
   uint32_t swizzle = op.src_swizzle(i);
   if (swizzle_component_count == 1) {
-    uint32_t a = swizzle & 0x3;
+    uint32_t a = ((swizzle >> 6) + 3) & 0x3;
     out_op->components[0] = GetSwizzleFromComponentIndex(a);
   } else if (swizzle_component_count == 2) {
     uint32_t a = ((swizzle >> 6) + 3) & 0x3;
@@ -1100,6 +1100,7 @@ void ParseAluInstructionOperandSpecial(const AluInstruction& op,
   out_op->storage_source = storage_source;
   if (storage_source == InstructionStorageSource::kRegister) {
     out_op->storage_index = reg & 0x7F;
+    out_op->storage_addressing_mode = InstructionStorageAddressingMode::kStatic;
   } else {
     out_op->storage_index = reg;
     if ((const_slot == 0 && op.is_const_0_addressed()) ||

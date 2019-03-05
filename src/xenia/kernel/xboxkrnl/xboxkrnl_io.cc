@@ -24,7 +24,7 @@ namespace xe {
 namespace kernel {
 namespace xboxkrnl {
 
-// http://msdn.microsoft.com/en-us/library/windows/hardware/ff540287.aspx
+// https://msdn.microsoft.com/en-us/library/windows/hardware/ff540287.aspx
 struct X_FILE_FS_VOLUME_INFORMATION {
   // FILE_FS_VOLUME_INFORMATION
   xe::be<uint64_t> creation_time;
@@ -45,7 +45,7 @@ struct X_FILE_FS_SIZE_INFORMATION {
 };
 static_assert_size(X_FILE_FS_SIZE_INFORMATION, 24);
 
-// http://msdn.microsoft.com/en-us/library/windows/hardware/ff540251(v=vs.85).aspx
+// https://msdn.microsoft.com/en-us/library/windows/hardware/ff540251(v=vs.85).aspx
 struct X_FILE_FS_ATTRIBUTE_INFORMATION {
   // FILE_FS_ATTRIBUTE_INFORMATION
   xe::be<uint32_t> attributes;
@@ -56,7 +56,7 @@ struct X_FILE_FS_ATTRIBUTE_INFORMATION {
 static_assert_size(X_FILE_FS_ATTRIBUTE_INFORMATION, 16);
 
 struct CreateOptions {
-  // http://processhacker.sourceforge.net/doc/ntioapi_8h.html
+  // https://processhacker.sourceforge.io/doc/ntioapi_8h.html
   static const uint32_t FILE_DIRECTORY_FILE = 0x00000001;
   // Optimization - files access will be sequential, not random.
   static const uint32_t FILE_SEQUENTIAL_ONLY = 0x00000004;
@@ -133,7 +133,7 @@ dword_result_t NtCreateFile(lpdword_t handle_out, dword_t desired_access,
 
   return result;
 }
-DECLARE_XBOXKRNL_EXPORT(NtCreateFile, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(NtCreateFile, kFileSystem, kImplemented);
 
 dword_result_t NtOpenFile(lpdword_t handle_out, dword_t desired_access,
                           pointer_t<X_OBJECT_ATTRIBUTES> object_attributes,
@@ -144,7 +144,7 @@ dword_result_t NtOpenFile(lpdword_t handle_out, dword_t desired_access,
                       static_cast<uint32_t>(xe::vfs::FileDisposition::kOpen),
                       open_options);
 }
-DECLARE_XBOXKRNL_EXPORT(NtOpenFile, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(NtOpenFile, kFileSystem, kImplemented);
 
 dword_result_t NtReadFile(dword_t file_handle, dword_t event_handle,
                           lpvoid_t apc_routine_ptr, lpvoid_t apc_context,
@@ -235,8 +235,7 @@ dword_result_t NtReadFile(dword_t file_handle, dword_t event_handle,
 
   return result;
 }
-DECLARE_XBOXKRNL_EXPORT(NtReadFile,
-                        ExportTag::kImplemented | ExportTag::kHighFrequency);
+DECLARE_XBOXKRNL_EXPORT2(NtReadFile, kFileSystem, kImplemented, kHighFrequency);
 
 dword_result_t NtWriteFile(dword_t file_handle, dword_t event_handle,
                            function_t apc_routine, lpvoid_t apc_context,
@@ -311,7 +310,7 @@ dword_result_t NtWriteFile(dword_t file_handle, dword_t event_handle,
 
   return result;
 }
-DECLARE_XBOXKRNL_EXPORT(NtWriteFile, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(NtWriteFile, kFileSystem, kImplemented);
 
 dword_result_t NtCreateIoCompletion(lpdword_t out_handle,
                                     dword_t desired_access,
@@ -324,7 +323,7 @@ dword_result_t NtCreateIoCompletion(lpdword_t out_handle,
 
   return X_STATUS_SUCCESS;
 }
-DECLARE_XBOXKRNL_EXPORT(NtCreateIoCompletion, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(NtCreateIoCompletion, kFileSystem, kImplemented);
 
 // Dequeues a packet from the completion port.
 dword_result_t NtRemoveIoCompletion(
@@ -359,7 +358,7 @@ dword_result_t NtRemoveIoCompletion(
 
   return status;
 }
-DECLARE_XBOXKRNL_EXPORT(NtRemoveIoCompletion, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(NtRemoveIoCompletion, kFileSystem, kImplemented);
 
 dword_result_t NtSetInformationFile(
     dword_t file_handle, pointer_t<X_IO_STATUS_BLOCK> io_status_block,
@@ -434,8 +433,8 @@ dword_result_t NtSetInformationFile(
 
   return result;
 }
-DECLARE_XBOXKRNL_EXPORT(NtSetInformationFile,
-                        ExportTag::kImplemented | ExportTag::kHighFrequency);
+DECLARE_XBOXKRNL_EXPORT2(NtSetInformationFile, kFileSystem, kImplemented,
+                         kHighFrequency);
 
 struct X_IO_STATUS_BLOCK {
   union {
@@ -550,8 +549,7 @@ dword_result_t NtQueryInformationFile(
 
   return result;
 }
-DECLARE_XBOXKRNL_EXPORT(NtQueryInformationFile,
-                        ExportTag::kImplemented | ExportTag::kFileSystem);
+DECLARE_XBOXKRNL_EXPORT1(NtQueryInformationFile, kFileSystem, kImplemented);
 
 dword_result_t NtQueryFullAttributesFile(
     pointer_t<X_OBJECT_ATTRIBUTES> obj_attribs,
@@ -587,7 +585,7 @@ dword_result_t NtQueryFullAttributesFile(
 
   return X_STATUS_NO_SUCH_FILE;
 }
-DECLARE_XBOXKRNL_EXPORT(NtQueryFullAttributesFile, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(NtQueryFullAttributesFile, kFileSystem, kImplemented);
 
 dword_result_t NtQueryVolumeInformationFile(
     dword_t file_handle, pointer_t<X_IO_STATUS_BLOCK> io_status_block_ptr,
@@ -662,7 +660,8 @@ dword_result_t NtQueryVolumeInformationFile(
 
   return result;
 }
-DECLARE_XBOXKRNL_EXPORT(NtQueryVolumeInformationFile, ExportTag::kStub);
+DECLARE_XBOXKRNL_EXPORT1(NtQueryVolumeInformationFile, kFileSystem,
+                         kImplemented);
 
 dword_result_t NtQueryDirectoryFile(
     dword_t file_handle, dword_t event_handle, function_t apc_routine,
@@ -702,7 +701,7 @@ dword_result_t NtQueryDirectoryFile(
 
   return result;
 }
-DECLARE_XBOXKRNL_EXPORT(NtQueryDirectoryFile, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(NtQueryDirectoryFile, kFileSystem, kImplemented);
 
 dword_result_t NtFlushBuffersFile(
     dword_t file_handle, pointer_t<X_IO_STATUS_BLOCK> io_status_block_ptr) {
@@ -715,17 +714,17 @@ dword_result_t NtFlushBuffersFile(
 
   return result;
 }
-DECLARE_XBOXKRNL_EXPORT(NtFlushBuffersFile, ExportTag::kStub);
+DECLARE_XBOXKRNL_EXPORT1(NtFlushBuffersFile, kFileSystem, kStub);
 
 dword_result_t FscGetCacheElementCount(dword_t r3) { return 0; }
-DECLARE_XBOXKRNL_EXPORT(FscGetCacheElementCount, ExportTag::kStub);
+DECLARE_XBOXKRNL_EXPORT1(FscGetCacheElementCount, kFileSystem, kStub);
 
 dword_result_t FscSetCacheElementCount(dword_t unk_0, dword_t unk_1) {
   // unk_0 = 0
   // unk_1 looks like a count? in what units? 256 is a common value
   return X_STATUS_SUCCESS;
 }
-DECLARE_XBOXKRNL_EXPORT(FscSetCacheElementCount, ExportTag::kStub);
+DECLARE_XBOXKRNL_EXPORT1(FscSetCacheElementCount, kFileSystem, kStub);
 
 void RegisterIoExports(xe::cpu::ExportResolver* export_resolver,
                        KernelState* kernel_state) {}

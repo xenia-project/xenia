@@ -26,8 +26,8 @@ X_STATUS xeExGetXConfigSetting(uint16_t category, uint16_t setting,
   uint32_t value = 0;
 
   // TODO(benvanik): have real structs here that just get copied from.
-  // http://free60.org/XConfig
-  // http://freestyledash.googlecode.com/svn/trunk/Freestyle/Tools/Generic/ExConfig.h
+  // https://free60project.github.io/wiki/XConfig.html
+  // https://github.com/oukiar/freestyledash/blob/master/Freestyle/Tools/Generic/ExConfig.h
   switch (category) {
     case 0x0002:
       // XCONFIG_SECURED_CATEGORY
@@ -113,8 +113,7 @@ dword_result_t ExGetXConfigSetting(word_t category, word_t setting,
 
   return result;
 }
-DECLARE_XBOXKRNL_EXPORT(ExGetXConfigSetting,
-                        ExportTag::kImplemented | ExportTag::kModules);
+DECLARE_XBOXKRNL_EXPORT1(ExGetXConfigSetting, kModules, kImplemented);
 
 dword_result_t XexCheckExecutablePrivilege(dword_t privilege) {
   // BOOL
@@ -134,8 +133,7 @@ dword_result_t XexCheckExecutablePrivilege(dword_t privilege) {
 
   return (flags & mask) > 0;
 }
-DECLARE_XBOXKRNL_EXPORT(XexCheckExecutablePrivilege,
-                        ExportTag::kImplemented | ExportTag::kModules);
+DECLARE_XBOXKRNL_EXPORT1(XexCheckExecutablePrivilege, kModules, kImplemented);
 
 dword_result_t XexGetModuleHandle(lpstring_t module_name,
                                   lpdword_t hmodule_ptr) {
@@ -157,8 +155,7 @@ dword_result_t XexGetModuleHandle(lpstring_t module_name,
 
   return X_ERROR_SUCCESS;
 }
-DECLARE_XBOXKRNL_EXPORT(XexGetModuleHandle,
-                        ExportTag::kImplemented | ExportTag::kModules);
+DECLARE_XBOXKRNL_EXPORT1(XexGetModuleHandle, kModules, kImplemented);
 
 dword_result_t XexGetModuleSection(lpvoid_t hmodule, lpstring_t name,
                                    lpdword_t data_ptr, lpdword_t size_ptr) {
@@ -179,8 +176,7 @@ dword_result_t XexGetModuleSection(lpvoid_t hmodule, lpstring_t name,
 
   return result;
 }
-DECLARE_XBOXKRNL_EXPORT(XexGetModuleSection,
-                        ExportTag::kImplemented | ExportTag::kModules);
+DECLARE_XBOXKRNL_EXPORT1(XexGetModuleSection, kModules, kImplemented);
 
 dword_result_t XexLoadImage(lpstring_t module_name, dword_t module_flags,
                             dword_t min_version, lpdword_t hmodule_ptr) {
@@ -213,8 +209,7 @@ dword_result_t XexLoadImage(lpstring_t module_name, dword_t module_flags,
 
   return result;
 }
-DECLARE_XBOXKRNL_EXPORT(XexLoadImage,
-                        ExportTag::kImplemented | ExportTag::kModules);
+DECLARE_XBOXKRNL_EXPORT1(XexLoadImage, kModules, kImplemented);
 
 dword_result_t XexUnloadImage(lpvoid_t hmodule) {
   auto module = XModule::GetFromHModule(kernel_state(), hmodule);
@@ -234,8 +229,7 @@ dword_result_t XexUnloadImage(lpvoid_t hmodule) {
 
   return X_STATUS_SUCCESS;
 }
-DECLARE_XBOXKRNL_EXPORT(XexUnloadImage,
-                        ExportTag::kImplemented | ExportTag::kModules);
+DECLARE_XBOXKRNL_EXPORT1(XexUnloadImage, kModules, kImplemented);
 
 dword_result_t XexGetProcedureAddress(lpvoid_t hmodule, dword_t ordinal,
                                       lpdword_t out_function_ptr) {
@@ -273,7 +267,7 @@ dword_result_t XexGetProcedureAddress(lpvoid_t hmodule, dword_t ordinal,
 
   return result;
 }
-DECLARE_XBOXKRNL_EXPORT(XexGetProcedureAddress, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(XexGetProcedureAddress, kModules, kImplemented);
 
 void ExRegisterTitleTerminateNotification(
     pointer_t<X_EX_TITLE_TERMINATE_REGISTRATION> reg, dword_t create) {
@@ -286,8 +280,8 @@ void ExRegisterTitleTerminateNotification(
     kernel_state()->RemoveTitleTerminateNotification(reg->notification_routine);
   }
 }
-DECLARE_XBOXKRNL_EXPORT(ExRegisterTitleTerminateNotification,
-                        ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(ExRegisterTitleTerminateNotification, kModules,
+                         kImplemented);
 
 void RegisterModuleExports(xe::cpu::ExportResolver* export_resolver,
                            KernelState* kernel_state) {}

@@ -304,7 +304,7 @@ def get_clang_format_binary():
         if has_bin(binary):
             return binary
     print('ERROR: clang-format is not on PATH')
-    print('LLVM is available from http://llvm.org/releases/download.html')
+    print('LLVM is available from https://llvm.org/releases/download.html')
     print('At least version 3.8 is required.')
     print('See docs/style_guide.md for instructions on how to get it.')
     sys.exit(1)
@@ -708,6 +708,7 @@ class GenSpirvCommand(Command):
             # GLSL source -> .spv binary
             shell_call([
                 glslang,
+                '-Os',
                 '-V', src_file,
                 '-o', spv_file,
                 ])

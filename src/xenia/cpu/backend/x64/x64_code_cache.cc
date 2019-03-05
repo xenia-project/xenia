@@ -174,22 +174,25 @@ void* X64CodeCache::PlaceGuestCode(uint32_t guest_address, void* machine_code,
     // If we are going above the high water mark of committed memory, commit
     // some more. It's ok if multiple threads do this, as redundant commits
     // aren't harmful.
-    size_t old_commit_mark = generated_code_commit_mark_;
-    if (high_mark > old_commit_mark) {
-      size_t new_commit_mark = old_commit_mark + 16 * 1024 * 1024;
+    size_t old_commit_mark, new_commit_mark;
+    do {
+      old_commit_mark = generated_code_commit_mark_;
+      if (high_mark <= old_commit_mark) break;
+
+      new_commit_mark = old_commit_mark + 16 * 1024 * 1024;
       xe::memory::AllocFixed(generated_code_base_, new_commit_mark,
                              xe::memory::AllocationType::kCommit,
                              xe::memory::PageAccess::kExecuteReadWrite);
-      generated_code_commit_mark_.compare_exchange_strong(old_commit_mark,
-                                                          new_commit_mark);
-    }
+    } while (generated_code_commit_mark_.compare_exchange_weak(
+        old_commit_mark, new_commit_mark));
 
     // Copy code.
     std::memcpy(code_address, machine_code, code_size);
 
     // Fill unused slots with 0xCC
-    std::memset(code_address + code_size, 0xCC,
-                xe::round_up(code_size, 16) - code_size);
+    std::memset(
+        code_address + code_size, 0xCC,
+        xe::round_up(code_size + unwind_reservation.data_size, 16) - code_size);
 
     // Notify subclasses of placed code.
     PlaceCode(guest_address, machine_code, code_size, stack_size, code_address,
@@ -247,15 +250,17 @@ uint32_t X64CodeCache::PlaceData(const void* data, size_t length) {
   // If we are going above the high water mark of committed memory, commit some
   // more. It's ok if multiple threads do this, as redundant commits aren't
   // harmful.
-  size_t old_commit_mark = generated_code_commit_mark_;
-  if (high_mark > old_commit_mark) {
-    size_t new_commit_mark = old_commit_mark + 16 * 1024 * 1024;
+  size_t old_commit_mark, new_commit_mark;
+  do {
+    old_commit_mark = generated_code_commit_mark_;
+    if (high_mark <= old_commit_mark) break;
+
+    new_commit_mark = old_commit_mark + 16 * 1024 * 1024;
     xe::memory::AllocFixed(generated_code_base_, new_commit_mark,
                            xe::memory::AllocationType::kCommit,
                            xe::memory::PageAccess::kExecuteReadWrite);
-    generated_code_commit_mark_.compare_exchange_strong(old_commit_mark,
-                                                        new_commit_mark);
-  }
+  } while (generated_code_commit_mark_.compare_exchange_weak(old_commit_mark,
+                                                             new_commit_mark));
 
   // Copy code.
   std::memcpy(data_address, data, length);

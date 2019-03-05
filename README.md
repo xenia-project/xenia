@@ -2,11 +2,14 @@ Xenia - Xbox 360 Emulator Research Project
 ==========================================
 
 Xenia is an experimental emulator for the Xbox 360. For more information see the
-[main xenia website](http://xenia.jp/).
+[main xenia website](https://xenia.jp/).
+
+**Interested in supporting the core contributors?
+[Xenia Project on Patreon](https://www.patreon.com/xenia_project).**
 
 Come chat with us about **emulator-related topics** on [Discord](https://discord.gg/Q9mxZf9).
-For developer chat join `#dev` but stay on topic. Lurking is fine.
-Please check the [frequently asked questions](http://xenia.jp/faq/) page before
+For developer chat join `#dev` but stay on topic. Lurking is not only fine, but encouraged!
+Please check the [frequently asked questions](https://xenia.jp/faq/) page before
 asking questions. We've got jobs/lives/etc, so don't expect instant answers.
 
 Discussing illegal activities will get you banned. No warnings.
@@ -35,7 +38,7 @@ legally purchased devices and games and information made public on the internet
 
 Windows 8.1+ with Python 3.4 and [Visual Studio 2017](https://www.visualstudio.com/downloads/) and the Windows SDKs installed:
 
-    > git clone https://github.com/benvanik/xenia.git
+    > git clone https://github.com/xenia-project/xenia.git
     > cd xenia
     > xb setup
 
@@ -76,16 +79,16 @@ For general rules and guidelines please see [CONTRIBUTING.md](.github/CONTRIBUTI
 Fixes and optimizations are always welcome (please!), but in addition to
 that there are some major work areas still untouched:
 
-* Help work through missing functionality/bugs in game [compat](https://github.com/benvanik/xenia/issues?labels=compat)
-* Add input drivers for [PS4 controllers](https://github.com/benvanik/xenia/issues/60) (or anything else)
-* Skilled with Linux? A strong contributor is needed to [help with porting](https://github.com/benvanik/xenia/labels/cross%20platform)
+* Help work through missing functionality/bugs in game [compat](https://github.com/xenia-project/xenia/issues?labels=compat)
+* Add input drivers for [PS4 controllers](https://github.com/xenia-project/xenia/issues/60) (or anything else)
+* Skilled with Linux? A strong contributor is needed to [help with porting](https://github.com/xenia-project/xenia/labels/cross%20platform)
 
-See more projects [good for contributors](https://github.com/benvanik/xenia/labels/good%20first%20issue). It's a good idea to ask on Discord/the bugs before beginning work
+See more projects [good for contributors](https://github.com/xenia-project/xenia/labels/good%20first%20issue). It's a good idea to ask on Discord/the bugs before beginning work
 on something.
 
 ## FAQ
 
-For more see the main [frequently asked questions](http://xenia.jp/faq/) page.
+For more see the main [frequently asked questions](https://xenia.jp/faq/) page.
 
 ### Can I get an exe?
 

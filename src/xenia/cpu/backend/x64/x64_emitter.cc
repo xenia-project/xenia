@@ -56,12 +56,13 @@ static const size_t kStashOffset = 32;
 // static const size_t kStashOffsetHigh = 32 + 32;
 
 const uint32_t X64Emitter::gpr_reg_map_[X64Emitter::GPR_COUNT] = {
-    Xbyak::Operand::RBX, Xbyak::Operand::R12, Xbyak::Operand::R13,
-    Xbyak::Operand::R14, Xbyak::Operand::R15,
+    Xbyak::Operand::RBX, Xbyak::Operand::R10, Xbyak::Operand::R11,
+    Xbyak::Operand::R12, Xbyak::Operand::R13, Xbyak::Operand::R14,
+    Xbyak::Operand::R15,
 };
 
 const uint32_t X64Emitter::xmm_reg_map_[X64Emitter::XMM_COUNT] = {
-    6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+    4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
 };
 
 X64Emitter::X64Emitter(X64Backend* backend, XbyakAllocator* allocator)
@@ -81,8 +82,8 @@ X64Emitter::X64Emitter(X64Backend* backend, XbyakAllocator* allocator)
 
   if (!cpu_.has(Xbyak::util::Cpu::tAVX)) {
     xe::FatalError(
-        "Your CPU is too old to support Xenia. See the FAQ for system "
-        "requirements at http://xenia.jp");
+        "Your CPU does not support AVX, which is required by Xenia. See the "
+        "FAQ for system requirements at https://xenia.jp");
     return;
   }
 }
@@ -148,11 +149,13 @@ bool X64Emitter::Emit(HIRBuilder* builder, size_t* out_stack_size) {
   for (auto it = locals.begin(); it != locals.end(); ++it) {
     auto slot = *it;
     size_t type_size = GetTypeSize(slot->type);
+
     // Align to natural size.
     stack_offset = xe::align(stack_offset, type_size);
     slot->set_constant((uint32_t)stack_offset);
     stack_offset += type_size;
   }
+
   // Ensure 16b alignment.
   stack_offset -= StackLayout::GUEST_STACK_SIZE;
   stack_offset = xe::align(stack_offset, static_cast<size_t>(16));
@@ -160,7 +163,7 @@ bool X64Emitter::Emit(HIRBuilder* builder, size_t* out_stack_size) {
   // Function prolog.
   // Must be 16b aligned.
   // Windows is very strict about the form of this and the epilog:
-  // http://msdn.microsoft.com/en-us/library/tawsa7cb.aspx
+  // https://docs.microsoft.com/en-us/cpp/build/prolog-and-epilog?view=vs-2017
   // IMPORTANT: any changes to the prolog must be kept in sync with
   //     X64CodeCache, which dynamically generates exception information.
   //     Adding or changing anything here must be matched!
@@ -168,6 +171,7 @@ bool X64Emitter::Emit(HIRBuilder* builder, size_t* out_stack_size) {
   assert_true((stack_size + 8) % 16 == 0);
   *out_stack_size = stack_size;
   stack_size_ = stack_size;
+
   sub(rsp, (uint32_t)stack_size);
   mov(qword[rsp + StackLayout::GUEST_CTX_HOME], GetContextReg());
   mov(qword[rsp + StackLayout::GUEST_RET_ADDR], rcx);
@@ -221,6 +225,8 @@ bool X64Emitter::Emit(HIRBuilder* builder, size_t* out_stack_size) {
       const Instr* new_tail = instr;
       if (!SelectSequence(this, instr, &new_tail)) {
         // No sequence found!
+        // NOTE: If you encounter this after adding a new instruction, do a full
+        // rebuild!
         assert_always();
         XELOGE("Unable to process HIR opcode %s", instr->opcode->name);
         break;
@@ -340,13 +346,14 @@ void X64Emitter::UnimplementedInstr(const hir::Instr* i) {
 
 // This is used by the X64ThunkEmitter's ResolveFunctionThunk.
 extern "C" uint64_t ResolveFunction(void* raw_context,
-                                    uint32_t target_address) {
+                                    uint64_t target_address) {
   auto thread_state = *reinterpret_cast<ThreadState**>(raw_context);
 
   // TODO(benvanik): required?
   assert_not_zero(target_address);
 
-  auto fn = thread_state->processor()->ResolveFunction(target_address);
+  auto fn =
+      thread_state->processor()->ResolveFunction((uint32_t)target_address);
   assert_not_null(fn);
   auto x64_fn = static_cast<X64Function*>(fn);
   uint64_t addr = reinterpret_cast<uint64_t>(x64_fn->machine_code());
@@ -373,10 +380,7 @@ void X64Emitter::Call(const hir::Instr* instr, GuestFunction* function) {
     // Old-style resolve.
     // Not too important because indirection table is almost always available.
     // TODO: Overwrite the call-site with a straight call.
-    mov(rax, reinterpret_cast<uint64_t>(ResolveFunction));
-    mov(rcx, GetContextReg());
-    mov(rdx, function->address());
-    call(rax);
+    CallNative(&ResolveFunction, function->address());
   }
 
   // Actually jump/call to rax.
@@ -457,16 +461,15 @@ void X64Emitter::CallExtern(const hir::Instr* instr, const Function* function) {
     auto builtin_function = static_cast<const BuiltinFunction*>(function);
     if (builtin_function->handler()) {
       undefined = false;
-      // rcx = context
-      // rdx = target host function
-      // r8  = arg0
-      // r9  = arg1
-      mov(rcx, GetContextReg());
-      mov(rdx, reinterpret_cast<uint64_t>(builtin_function->handler()));
-      mov(r8, reinterpret_cast<uint64_t>(builtin_function->arg0()));
-      mov(r9, reinterpret_cast<uint64_t>(builtin_function->arg1()));
+      // rcx = target function
+      // rdx = arg0
+      // r8  = arg1
+      // r9  = arg2
       auto thunk = backend()->guest_to_host_thunk();
       mov(rax, reinterpret_cast<uint64_t>(thunk));
+      mov(rcx, reinterpret_cast<uint64_t>(builtin_function->handler()));
+      mov(rdx, reinterpret_cast<uint64_t>(builtin_function->arg0()));
+      mov(r8, reinterpret_cast<uint64_t>(builtin_function->arg1()));
       call(rax);
       // rax = host return
     }
@@ -474,13 +477,15 @@ void X64Emitter::CallExtern(const hir::Instr* instr, const Function* function) {
     auto extern_function = static_cast<const GuestFunction*>(function);
     if (extern_function->extern_handler()) {
       undefined = false;
-      // rcx = context
-      // rdx = target host function
-      mov(rcx, GetContextReg());
-      mov(rdx, reinterpret_cast<uint64_t>(extern_function->extern_handler()));
-      mov(r8, qword[GetContextReg() + offsetof(ppc::PPCContext, kernel_state)]);
+      // rcx = target function
+      // rdx = arg0
+      // r8  = arg1
+      // r9  = arg2
       auto thunk = backend()->guest_to_host_thunk();
       mov(rax, reinterpret_cast<uint64_t>(thunk));
+      mov(rcx, reinterpret_cast<uint64_t>(extern_function->extern_handler()));
+      mov(rdx,
+          qword[GetContextReg() + offsetof(ppc::PPCContext, kernel_state)]);
       call(rax);
       // rax = host return
     }
@@ -490,42 +495,30 @@ void X64Emitter::CallExtern(const hir::Instr* instr, const Function* function) {
   }
 }
 
-void X64Emitter::CallNative(void* fn) {
-  mov(rax, reinterpret_cast<uint64_t>(fn));
-  mov(rcx, GetContextReg());
-  call(rax);
-}
+void X64Emitter::CallNative(void* fn) { CallNativeSafe(fn); }
 
 void X64Emitter::CallNative(uint64_t (*fn)(void* raw_context)) {
-  mov(rax, reinterpret_cast<uint64_t>(fn));
-  mov(rcx, GetContextReg());
-  call(rax);
+  CallNativeSafe(reinterpret_cast<void*>(fn));
 }
 
 void X64Emitter::CallNative(uint64_t (*fn)(void* raw_context, uint64_t arg0)) {
-  mov(rax, reinterpret_cast<uint64_t>(fn));
-  mov(rcx, GetContextReg());
-  call(rax);
+  CallNativeSafe(reinterpret_cast<void*>(fn));
 }
 
 void X64Emitter::CallNative(uint64_t (*fn)(void* raw_context, uint64_t arg0),
                             uint64_t arg0) {
-  mov(rax, reinterpret_cast<uint64_t>(fn));
-  mov(rcx, GetContextReg());
-  mov(rdx, arg0);
-  call(rax);
+  mov(GetNativeParam(0), arg0);
+  CallNativeSafe(reinterpret_cast<void*>(fn));
 }
 
 void X64Emitter::CallNativeSafe(void* fn) {
-  // rcx = context
-  // rdx = target function
-  // r8  = arg0
-  // r9  = arg1
-  // r10 = arg2
+  // rcx = target function
+  // rdx = arg0
+  // r8  = arg1
+  // r9  = arg2
   auto thunk = backend()->guest_to_host_thunk();
   mov(rax, reinterpret_cast<uint64_t>(thunk));
-  mov(rcx, GetContextReg());
-  mov(rdx, reinterpret_cast<uint64_t>(fn));
+  mov(rcx, reinterpret_cast<uint64_t>(fn));
   call(rax);
   // rax = host return
 }
@@ -533,6 +526,18 @@ void X64Emitter::CallNativeSafe(void* fn) {
 void X64Emitter::SetReturnAddress(uint64_t value) {
   mov(rax, value);
   mov(qword[rsp + StackLayout::GUEST_CALL_RET_ADDR], rax);
+}
+
+Xbyak::Reg64 X64Emitter::GetNativeParam(uint32_t param) {
+  if (param == 0)
+    return rdx;
+  else if (param == 1)
+    return r8;
+  else if (param == 2)
+    return r9;
+
+  assert_always();
+  return r9;
 }
 
 // Important: If you change these, you must update the thunks in x64_backend.cc!
@@ -637,7 +642,7 @@ static const vec128_t xmm_consts[] = {
     /* XMMUnpackFLOAT16_2     */
     vec128i(0x0D0C0F0Eu, 0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu),
     /* XMMPackFLOAT16_4       */
-    vec128i(0xFFFFFFFFu, 0xFFFFFFFFu, 0x05040706u, 0x01000302u),
+    vec128i(0xFFFFFFFFu, 0xFFFFFFFFu, 0x01000302u, 0x05040706u),
     /* XMMUnpackFLOAT16_4     */
     vec128i(0x09080B0Au, 0x0D0C0F0Eu, 0xFFFFFFFFu, 0xFFFFFFFFu),
     /* XMMPackSHORT_Min       */ vec128i(0x403F8001u),
@@ -738,7 +743,7 @@ Xbyak::Address X64Emitter::GetXmmConstPtr(XmmConst id) {
 }
 
 void X64Emitter::LoadConstantXmm(Xbyak::Xmm dest, const vec128_t& v) {
-  // http://www.agner.org/optimize/optimizing_assembly.pdf
+  // https://www.agner.org/optimize/optimizing_assembly.pdf
   // 13.4 Generating constants
   if (!v.low && !v.high) {
     // 0000...

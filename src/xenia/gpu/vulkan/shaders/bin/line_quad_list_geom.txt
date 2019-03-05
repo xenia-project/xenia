@@ -95,51 +95,37 @@
                OpEmitVertex
          %40 = OpAccessChain %_ptr_Input_v4float %gl_in %int_1 %int_0
          %41 = OpLoad %v4float %40
-         %42 = OpAccessChain %_ptr_Output_v4float %_ %int_0
-               OpStore %42 %41
+               OpStore %23 %41
          %43 = OpAccessChain %_ptr_Input_float %gl_in %int_1 %int_1
          %44 = OpLoad %float %43
-         %45 = OpAccessChain %_ptr_Output_float %_ %int_1
-               OpStore %45 %44
+               OpStore %29 %44
          %46 = OpAccessChain %_ptr_Input__arr_v4float_uint_16 %in_interpolators %int_1
          %47 = OpLoad %_arr_v4float_uint_16 %46
                OpStore %out_interpolators %47
                OpEmitVertex
          %49 = OpAccessChain %_ptr_Input_v4float %gl_in %int_2 %int_0
          %50 = OpLoad %v4float %49
-         %51 = OpAccessChain %_ptr_Output_v4float %_ %int_0
-               OpStore %51 %50
+               OpStore %23 %50
          %52 = OpAccessChain %_ptr_Input_float %gl_in %int_2 %int_1
          %53 = OpLoad %float %52
-         %54 = OpAccessChain %_ptr_Output_float %_ %int_1
-               OpStore %54 %53
+               OpStore %29 %53
          %55 = OpAccessChain %_ptr_Input__arr_v4float_uint_16 %in_interpolators %int_2
          %56 = OpLoad %_arr_v4float_uint_16 %55
                OpStore %out_interpolators %56
                OpEmitVertex
          %58 = OpAccessChain %_ptr_Input_v4float %gl_in %int_3 %int_0
          %59 = OpLoad %v4float %58
-         %60 = OpAccessChain %_ptr_Output_v4float %_ %int_0
-               OpStore %60 %59
+               OpStore %23 %59
          %61 = OpAccessChain %_ptr_Input_float %gl_in %int_3 %int_1
          %62 = OpLoad %float %61
-         %63 = OpAccessChain %_ptr_Output_float %_ %int_1
-               OpStore %63 %62
+               OpStore %29 %62
          %64 = OpAccessChain %_ptr_Input__arr_v4float_uint_16 %in_interpolators %int_3
          %65 = OpLoad %_arr_v4float_uint_16 %64
                OpStore %out_interpolators %65
                OpEmitVertex
-         %66 = OpAccessChain %_ptr_Input_v4float %gl_in %int_0 %int_0
-         %67 = OpLoad %v4float %66
-         %68 = OpAccessChain %_ptr_Output_v4float %_ %int_0
-               OpStore %68 %67
-         %69 = OpAccessChain %_ptr_Input_float %gl_in %int_0 %int_1
-         %70 = OpLoad %float %69
-         %71 = OpAccessChain %_ptr_Output_float %_ %int_1
-               OpStore %71 %70
-         %72 = OpAccessChain %_ptr_Input__arr_v4float_uint_16 %in_interpolators %int_0
-         %73 = OpLoad %_arr_v4float_uint_16 %72
-               OpStore %out_interpolators %73
+               OpStore %23 %21
+               OpStore %29 %27
+               OpStore %out_interpolators %39
                OpEmitVertex
                OpEndPrimitive
                OpReturn

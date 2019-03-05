@@ -23,8 +23,7 @@ dword_result_t XAudioGetSpeakerConfig(lpdword_t config_ptr) {
   *config_ptr = 0x00010001;
   return X_ERROR_SUCCESS;
 }
-DECLARE_XBOXKRNL_EXPORT(XAudioGetSpeakerConfig,
-                        ExportTag::kImplemented | ExportTag::kAudio);
+DECLARE_XBOXKRNL_EXPORT1(XAudioGetSpeakerConfig, kAudio, kImplemented);
 
 dword_result_t XAudioGetVoiceCategoryVolumeChangeMask(lpunknown_t driver_ptr,
                                                       lpdword_t out_ptr) {
@@ -37,9 +36,8 @@ dword_result_t XAudioGetVoiceCategoryVolumeChangeMask(lpunknown_t driver_ptr,
   *out_ptr = 0;
   return X_ERROR_SUCCESS;
 }
-DECLARE_XBOXKRNL_EXPORT(XAudioGetVoiceCategoryVolumeChangeMask,
-                        ExportTag::kStub | ExportTag::kAudio |
-                            ExportTag::kHighFrequency);
+DECLARE_XBOXKRNL_EXPORT2(XAudioGetVoiceCategoryVolumeChangeMask, kAudio, kStub,
+                         kHighFrequency);
 
 dword_result_t XAudioGetVoiceCategoryVolume(dword_t unk, lpfloat_t out_ptr) {
   // Expects a floating point single. Volume %?
@@ -47,12 +45,11 @@ dword_result_t XAudioGetVoiceCategoryVolume(dword_t unk, lpfloat_t out_ptr) {
 
   return X_ERROR_SUCCESS;
 }
-DECLARE_XBOXKRNL_EXPORT(XAudioGetVoiceCategoryVolume,
-                        ExportTag::kStub | ExportTag::kAudio);
+DECLARE_XBOXKRNL_EXPORT2(XAudioGetVoiceCategoryVolume, kAudio, kStub,
+                         kHighFrequency);
 
 dword_result_t XAudioEnableDucker(dword_t unk) { return X_ERROR_SUCCESS; }
-DECLARE_XBOXKRNL_EXPORT(XAudioEnableDucker,
-                        ExportTag::kStub | ExportTag::kAudio);
+DECLARE_XBOXKRNL_EXPORT1(XAudioEnableDucker, kAudio, kStub);
 
 dword_result_t XAudioRegisterRenderDriverClient(lpdword_t callback_ptr,
                                                 lpdword_t driver_ptr) {
@@ -71,8 +68,8 @@ dword_result_t XAudioRegisterRenderDriverClient(lpdword_t callback_ptr,
   *driver_ptr = 0x41550000 | (static_cast<uint32_t>(index) & 0x0000FFFF);
   return X_ERROR_SUCCESS;
 }
-DECLARE_XBOXKRNL_EXPORT(XAudioRegisterRenderDriverClient,
-                        ExportTag::kImplemented | ExportTag::kAudio);
+DECLARE_XBOXKRNL_EXPORT1(XAudioRegisterRenderDriverClient, kAudio,
+                         kImplemented);
 
 dword_result_t XAudioUnregisterRenderDriverClient(lpunknown_t driver_ptr) {
   assert_true((driver_ptr.guest_address() & 0xFFFF0000) == 0x41550000);
@@ -81,8 +78,8 @@ dword_result_t XAudioUnregisterRenderDriverClient(lpunknown_t driver_ptr) {
   audio_system->UnregisterClient(driver_ptr.guest_address() & 0x0000FFFF);
   return X_ERROR_SUCCESS;
 }
-DECLARE_XBOXKRNL_EXPORT(XAudioUnregisterRenderDriverClient,
-                        ExportTag::kImplemented | ExportTag::kAudio);
+DECLARE_XBOXKRNL_EXPORT1(XAudioUnregisterRenderDriverClient, kAudio,
+                         kImplemented);
 
 dword_result_t XAudioSubmitRenderDriverFrame(lpunknown_t driver_ptr,
                                              lpunknown_t samples_ptr) {
@@ -94,9 +91,8 @@ dword_result_t XAudioSubmitRenderDriverFrame(lpunknown_t driver_ptr,
 
   return X_ERROR_SUCCESS;
 }
-DECLARE_XBOXKRNL_EXPORT(XAudioSubmitRenderDriverFrame,
-                        ExportTag::kImplemented | ExportTag::kAudio |
-                            ExportTag::kHighFrequency);
+DECLARE_XBOXKRNL_EXPORT2(XAudioSubmitRenderDriverFrame, kAudio, kImplemented,
+                         kHighFrequency);
 
 void RegisterAudioExports(xe::cpu::ExportResolver* export_resolver,
                           KernelState* kernel_state) {

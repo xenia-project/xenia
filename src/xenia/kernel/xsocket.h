@@ -82,7 +82,7 @@ class XSocket : public XObject {
     IPPROTO_UDP = 17,
 
     // LIVE Voice and Data Protocol
-    // http://blog.csdn.net/baozi3026/article/details/4277227
+    // https://blog.csdn.net/baozi3026/article/details/4277227
     // Format: [cbGameData][GameData(encrypted)][VoiceData(unencrypted)]
     IPPROTO_VDP = 254,
   };
