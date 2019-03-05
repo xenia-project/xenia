@@ -683,6 +683,8 @@ void TextureCache::ClearCache() {
   }
   textures_.clear();
   COUNT_profile_set("gpu/texture_cache/textures", 0);
+  textures_total_size_ = 0;
+  COUNT_profile_set("gpu/texture_cache/total_size_kb", 0);
 
   // Clear texture descriptor cache.
   for (auto& page : srv_descriptor_cache_) {
@@ -1748,6 +1750,8 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
   Texture* texture = new Texture;
   texture->key = key;
   texture->resource = resource;
+  texture->resource_size =
+      device->GetResourceAllocationInfo(0, 1, &desc).SizeInBytes;
   texture->state = state;
   texture->mip_offsets[0] = 0;
   uint32_t width_blocks, height_blocks, depth_blocks;
@@ -1812,6 +1816,9 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
   texture->cached_srv_descriptor_swizzle = 0b100100100100;
   textures_.insert(std::make_pair(map_key, texture));
   COUNT_profile_set("gpu/texture_cache/textures", textures_.size());
+  textures_total_size_ += texture->resource_size;
+  COUNT_profile_set("gpu/texture_cache/total_size_kb",
+                    uint32_t(textures_total_size_ >> 10));
   LogTextureAction(texture, "Created");
 
   return texture;

@@ -341,6 +341,7 @@ class TextureCache {
   struct Texture {
     TextureKey key;
     ID3D12Resource* resource;
+    uint64_t resource_size;
     D3D12_RESOURCE_STATES state;
 
     // Byte size of the top guest mip level.
@@ -542,6 +543,7 @@ class TextureCache {
       resolve_tile_pipelines_[size_t(ResolveTileMode::kCount)] = {};
 
   std::unordered_multimap<uint64_t, Texture*> textures_;
+  uint64_t textures_total_size_ = 0;
 
   std::vector<SRVDescriptorCachePage> srv_descriptor_cache_;
 
