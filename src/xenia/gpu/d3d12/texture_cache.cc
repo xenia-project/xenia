@@ -199,18 +199,18 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      DXGI_FORMAT_R16_SNORM, LoadMode::kUnknown, DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown, DXGI_FORMAT_R16_UNORM, ResolveTileMode::k16bpp, true},
     // k_16_16
-    // TODO(Triang3l): Check if this is the correct way of specifying a signed
-    // resolve destination format.
+    // The resolve format being unorm is correct (with snorm distortion effects
+    // in Halo 3 cause stretching of one corner of the screen).
     {DXGI_FORMAT_R16G16_TYPELESS, DXGI_FORMAT_R16G16_UNORM, LoadMode::k32bpb,
      DXGI_FORMAT_R16G16_SNORM, LoadMode::kUnknown, DXGI_FORMAT_UNKNOWN,
-     LoadMode::kUnknown, DXGI_FORMAT_R16G16_SNORM, ResolveTileMode::k32bpp,
+     LoadMode::kUnknown, DXGI_FORMAT_R16G16_UNORM, ResolveTileMode::k32bpp,
      false},
     // k_16_16_16_16
-    // TODO(Triang3l): Check if this is the correct way of specifying a signed
-    // resolve destination format.
+    // The resolve format being unorm is correct (with snorm distortion effects
+    // in Halo 3 cause stretching of one corner of the screen).
     {DXGI_FORMAT_R16G16B16A16_TYPELESS, DXGI_FORMAT_R16G16B16A16_UNORM,
      LoadMode::k64bpb, DXGI_FORMAT_R16G16B16A16_SNORM, LoadMode::kUnknown,
-     DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, DXGI_FORMAT_R16G16B16A16_SNORM,
+     DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, DXGI_FORMAT_R16G16B16A16_UNORM,
      ResolveTileMode::k64bpp, false},
     // k_16_EXPAND
     {DXGI_FORMAT_R16_FLOAT, DXGI_FORMAT_R16_FLOAT, LoadMode::k16bpb,
