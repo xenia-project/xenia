@@ -1128,24 +1128,22 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
         DepthRenderTargetToTextureFormat(DepthRenderTargetFormat(src_format));
     src_64bpp = false;
   } else {
-    // Texture formats k_16_16_EDRAM and k_16_16_16_16_EDRAM are not the same as
-    // k_16_16 and k_16_16_16_16, but they are emulated with the same DXGI
-    // formats as k_16_16 and k_16_16_16_16 on the host, so they are treated as
-    // a special case of such formats.
+    // Force k_16_16 and k_16_16_16_16 RTs to be always resolved via drawing,
+    // because resolving to a k_16_16 or a k_16_16_16_16 texture should result
+    // in unsigned texture data, unlike the render target which is signed.
     if (ColorRenderTargetFormat(src_format) ==
         ColorRenderTargetFormat::k_16_16) {
-      src_texture_format = TextureFormat::k_16_16;
+      src_texture_format = TextureFormat::k_16_16_EDRAM;
     } else if (ColorRenderTargetFormat(src_format) ==
                ColorRenderTargetFormat::k_16_16_16_16) {
-      src_texture_format = TextureFormat::k_16_16_16_16;
+      src_texture_format = TextureFormat::k_16_16_16_16_EDRAM;
     } else {
-      src_texture_format =
-          ColorRenderTargetToTextureFormat(ColorRenderTargetFormat(src_format));
+      src_texture_format = GetBaseFormat(ColorRenderTargetToTextureFormat(
+          ColorRenderTargetFormat(src_format)));
     }
     src_64bpp = IsColorFormat64bpp(ColorRenderTargetFormat(src_format));
   }
   assert_true(src_texture_format != TextureFormat::kUnknown);
-  src_texture_format = GetBaseFormat(src_texture_format);
   // The destination format is specified as k_8_8_8_8 when resolving depth,
   // apparently there's no format conversion.
   TextureFormat dest_format =
