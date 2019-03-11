@@ -26,9 +26,8 @@
 #else
 #include <codecvt>
 #endif
-#elif defined( \
-    _MSC_VER)  // since the windows 10 sdk is required, this shouldn't be an
-// issue
+// since the windows 10 sdk is required, this shouldn't be an issue
+#elif defined(_MSC_VER)
 #include <codecvt>
 #endif
 
