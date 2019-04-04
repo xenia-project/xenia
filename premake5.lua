@@ -68,6 +68,11 @@ filter({"configurations:Debug", "platforms:Windows"})
     "/NODEFAULTLIB:MSVCRTD",
   })
 
+filter({"configurations:Debug", "platforms:Linux"})
+  buildoptions({
+    "-g",
+  })
+
 filter("configurations:Release")
   runtime("Release")
   defines({
