@@ -23,7 +23,7 @@ class Clock {
   // Host time, in FILETIME format.
   static uint64_t QueryHostSystemTime();
   // Queries the milliseconds since the host began.
-  static uint32_t QueryHostUptimeMillis();
+  static uint64_t QueryHostUptimeMillis();
 
   // Guest time scalar.
   static double guest_time_scalar();
