@@ -16,6 +16,7 @@
 #include <cstring>
 
 #include "xenia/base/assert.h"
+#include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/profiling.h"
@@ -27,6 +28,19 @@
 DEFINE_int32(d3d12_resolution_scale, 1,
              "Scale of rendering width and height (currently only 1 and 2 "
              "are available).");
+DEFINE_int32(d3d12_texture_cache_limit_soft, 384,
+             "Maximum host texture memory usage (in megabytes) above which old "
+             "textures will be destroyed (lifetime configured with "
+             "d3d12_texture_cache_limit_soft_lifetime). If using 2x resolution "
+             "scale, 1.25x of this is used.");
+DEFINE_int32(d3d12_texture_cache_limit_soft_lifetime, 30,
+             "Seconds a texture should be unused to be considered old enough "
+             "to be deleted if texture memory usage exceeds "
+             "d3d12_texture_cache_limit_soft.");
+DEFINE_int32(d3d12_texture_cache_limit_hard, 768,
+             "Maximum host texture memory usage (in megabytes) above which "
+             "textures will be destroyed as soon as possible. If using 2x "
+             "resolution scale, 1.25x of this is used.");
 
 namespace xe {
 namespace gpu {
@@ -636,6 +650,8 @@ bool TextureCache::Initialize() {
         ScaledResolveGlobalWatchCallbackThunk, this);
   }
 
+  texture_current_usage_time_ = xe::Clock::QueryHostUptimeMillis();
+
   return true;
 }
 
@@ -676,17 +692,19 @@ void TextureCache::ClearCache() {
   // Destroy all the textures.
   for (auto texture_pair : textures_) {
     Texture* texture = texture_pair.second;
-    if (texture->resource != nullptr) {
-      texture->resource->Release();
-    }
+    shared_memory_->UnwatchMemoryRange(texture->base_watch_handle);
+    shared_memory_->UnwatchMemoryRange(texture->mip_watch_handle);
+    texture->resource->Release();
     delete texture;
   }
   textures_.clear();
   COUNT_profile_set("gpu/texture_cache/textures", 0);
   textures_total_size_ = 0;
-  COUNT_profile_set("gpu/texture_cache/total_size_kb", 0);
+  COUNT_profile_set("gpu/texture_cache/total_size_mb", 0);
+  texture_used_first_ = texture_used_last_ = nullptr;
 
   // Clear texture descriptor cache.
+  srv_descriptor_cache_free_.clear();
   for (auto& page : srv_descriptor_cache_) {
     page.heap->Release();
   }
@@ -705,6 +723,68 @@ void TextureCache::BeginFrame() {
 
   std::memset(unsupported_format_features_used_, 0,
               sizeof(unsupported_format_features_used_));
+
+  texture_current_usage_time_ = xe::Clock::QueryHostUptimeMillis();
+
+  // If memory usage is too high, destroy unused textures.
+  uint64_t last_completed_frame =
+      command_processor_->GetD3D12Context()->GetLastCompletedFrame();
+  uint32_t limit_soft_mb = FLAGS_d3d12_texture_cache_limit_soft;
+  uint32_t limit_hard_mb = FLAGS_d3d12_texture_cache_limit_hard;
+  if (IsResolutionScale2X()) {
+    limit_soft_mb += limit_soft_mb >> 2;
+    limit_hard_mb += limit_hard_mb >> 2;
+  }
+  uint32_t limit_soft_lifetime =
+      std::max(FLAGS_d3d12_texture_cache_limit_soft_lifetime, 0) * 1000;
+  bool destroyed_any = false;
+  while (texture_used_first_ != nullptr) {
+    uint64_t total_size_mb = textures_total_size_ >> 20;
+    bool limit_hard_exceeded = total_size_mb >= limit_hard_mb;
+    if (total_size_mb < limit_soft_mb && !limit_hard_exceeded) {
+      break;
+    }
+    Texture* texture = texture_used_first_;
+    if (texture->last_usage_frame > last_completed_frame) {
+      break;
+    }
+    if (!limit_hard_exceeded &&
+        (texture->last_usage_time + limit_soft_lifetime) >
+            texture_current_usage_time_) {
+      break;
+    }
+    destroyed_any = true;
+    // Remove the texture from the map.
+    auto found_range = textures_.equal_range(texture->key.GetMapKey());
+    for (auto iter = found_range.first; iter != found_range.second; ++iter) {
+      if (iter->second == texture) {
+        textures_.erase(iter);
+        break;
+      }
+    }
+    // Unlink the texture.
+    texture_used_first_ = texture->used_next;
+    if (texture_used_first_ != nullptr) {
+      texture_used_first_->used_previous = nullptr;
+    } else {
+      texture_used_last_ = nullptr;
+    }
+    // Exclude the texture from the memory usage counter.
+    textures_total_size_ -= texture->resource_size;
+    // Destroy the texture.
+    if (texture->cached_srv_descriptor.ptr) {
+      srv_descriptor_cache_free_.push_back(texture->cached_srv_descriptor);
+    }
+    shared_memory_->UnwatchMemoryRange(texture->base_watch_handle);
+    shared_memory_->UnwatchMemoryRange(texture->mip_watch_handle);
+    texture->resource->Release();
+    delete texture;
+  }
+  if (destroyed_any) {
+    COUNT_profile_set("gpu/texture_cache/textures", textures_.size());
+    COUNT_profile_set("gpu/texture_cache/total_size_mb",
+                      uint32_t(textures_total_size_ >> 20));
+  }
 }
 
 void TextureCache::EndFrame() {
@@ -832,11 +912,14 @@ void TextureCache::RequestTextures(uint32_t used_vertex_texture_mask,
 
     TextureBinding& binding = texture_bindings_[index];
     if (binding.texture != nullptr) {
+      // Will be referenced by the command list, so mark as used.
+      MarkTextureUsed(binding.texture);
       command_processor_->PushTransitionBarrier(binding.texture->resource,
                                                 binding.texture->state, state);
       binding.texture->state = state;
     }
     if (binding.texture_signed != nullptr) {
+      MarkTextureUsed(binding.texture_signed);
       command_processor_->PushTransitionBarrier(
           binding.texture_signed->resource, binding.texture_signed->state,
           state);
@@ -987,6 +1070,7 @@ void TextureCache::WriteTextureSRV(const D3D12Shader::TextureSRV& texture_srv,
         D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
     return;
   }
+  MarkTextureUsed(texture);
   // Take the descriptor from the cache if it's cached, or create a new one in
   // the cache, or directly if this texture was already used with a different
   // swizzle. Profiling results say that CreateShaderResourceView takes the
@@ -1001,9 +1085,12 @@ void TextureCache::WriteTextureSRV(const D3D12Shader::TextureSRV& texture_srv,
     }
   } else {
     // Try to create a new cached descriptor if it doesn't exist yet.
-    if (srv_descriptor_cache_.empty() ||
-        srv_descriptor_cache_.back().current_usage >=
-            SRVDescriptorCachePage::kHeapSize) {
+    if (!srv_descriptor_cache_free_.empty()) {
+      cached_handle = srv_descriptor_cache_free_.back();
+      srv_descriptor_cache_free_.pop_back();
+    } else if (srv_descriptor_cache_.empty() ||
+               srv_descriptor_cache_.back().current_usage >=
+                   SRVDescriptorCachePage::kHeapSize) {
       D3D12_DESCRIPTOR_HEAP_DESC new_heap_desc;
       new_heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
       new_heap_desc.NumDescriptors = SRVDescriptorCachePage::kHeapSize;
@@ -1456,6 +1543,7 @@ bool TextureCache::RequestSwapTexture(D3D12_CPU_DESCRIPTOR_HANDLE handle,
   if (texture == nullptr || !LoadTextureData(texture)) {
     return false;
   }
+  MarkTextureUsed(texture);
   command_processor_->PushTransitionBarrier(
       texture->resource, texture->state,
       D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
@@ -1734,8 +1822,8 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
   // Untiling through a buffer instead of using unordered access because copying
   // is not done that often.
   desc.Flags = D3D12_RESOURCE_FLAG_NONE;
-  auto device =
-      command_processor_->GetD3D12Context()->GetD3D12Provider()->GetDevice();
+  auto context = command_processor_->GetD3D12Context();
+  auto device = context->GetD3D12Provider()->GetDevice();
   // Assuming untiling will be the next operation.
   D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_COPY_DEST;
   ID3D12Resource* resource;
@@ -1753,6 +1841,16 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
   texture->resource_size =
       device->GetResourceAllocationInfo(0, 1, &desc).SizeInBytes;
   texture->state = state;
+  texture->last_usage_frame = context->GetCurrentFrame();
+  texture->last_usage_time = texture_current_usage_time_;
+  texture->used_previous = texture_used_last_;
+  texture->used_next = nullptr;
+  if (texture_used_last_ != nullptr) {
+    texture_used_last_->used_next = texture;
+  } else {
+    texture_used_first_ = texture;
+  }
+  texture_used_last_ = texture;
   texture->mip_offsets[0] = 0;
   uint32_t width_blocks, height_blocks, depth_blocks;
   uint32_t array_size = key.dimension != Dimension::k3D ? key.depth : 1;
@@ -1817,8 +1915,8 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
   textures_.insert(std::make_pair(map_key, texture));
   COUNT_profile_set("gpu/texture_cache/textures", textures_.size());
   textures_total_size_ += texture->resource_size;
-  COUNT_profile_set("gpu/texture_cache/total_size_kb",
-                    uint32_t(textures_total_size_ >> 10));
+  COUNT_profile_set("gpu/texture_cache/total_size_mb",
+                    uint32_t(textures_total_size_ >> 20));
   LogTextureAction(texture, "Created");
 
   return texture;
@@ -1880,6 +1978,9 @@ bool TextureCache::LoadTextureData(Texture* texture) {
       return false;
     }
   }
+
+  // Update LRU caching because the texture will be used by the command list.
+  MarkTextureUsed(texture);
 
   // Get the guest layout.
   bool is_3d = texture->key.dimension == Dimension::k3D;
@@ -2105,6 +2206,32 @@ bool TextureCache::LoadTextureData(Texture* texture) {
 
   LogTextureAction(texture, "Loaded");
   return true;
+}
+
+void TextureCache::MarkTextureUsed(Texture* texture) {
+  uint64_t current_frame =
+      command_processor_->GetD3D12Context()->GetCurrentFrame();
+  // This is called very frequently, don't relink unless needed for caching.
+  if (texture->last_usage_frame != current_frame) {
+    texture->last_usage_frame = current_frame;
+    texture->last_usage_time = texture_current_usage_time_;
+    if (texture->used_next == nullptr) {
+      // Simplify the code a bit - already in the end of the list.
+      return;
+    }
+    if (texture->used_previous != nullptr) {
+      texture->used_previous->used_next = texture->used_next;
+    } else {
+      texture_used_first_ = texture->used_next;
+    }
+    texture->used_next->used_previous = texture->used_previous;
+    texture->used_previous = texture_used_last_;
+    texture->used_next = nullptr;
+    if (texture_used_last_ != nullptr) {
+      texture_used_last_->used_next = texture;
+    }
+    texture_used_last_ = texture;
+  }
 }
 
 void TextureCache::WatchCallbackThunk(void* context, void* data,

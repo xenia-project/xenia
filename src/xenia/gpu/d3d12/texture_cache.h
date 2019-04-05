@@ -344,6 +344,11 @@ class TextureCache {
     uint64_t resource_size;
     D3D12_RESOURCE_STATES state;
 
+    uint64_t last_usage_frame;
+    uint64_t last_usage_time;
+    Texture* used_previous;
+    Texture* used_next;
+
     // Byte size of the top guest mip level.
     uint32_t base_size;
     // Byte size of mips between 1 and key.mip_max_level, containing all array
@@ -501,6 +506,12 @@ class TextureCache {
   // allocates descriptors and copies!
   bool LoadTextureData(Texture* texture);
 
+  // For LRU caching - updates the last usage frame and moves the texture to
+  // the end of the usage queue. Must be called any time the texture is
+  // referenced by any command list to make sure it's not destroyed while still
+  // in use.
+  void MarkTextureUsed(Texture* texture);
+
   // Shared memory callback for texture data invalidation.
   static void WatchCallbackThunk(void* context, void* data, uint64_t argument,
                                  bool invalidated_by_gpu);
@@ -544,8 +555,13 @@ class TextureCache {
 
   std::unordered_multimap<uint64_t, Texture*> textures_;
   uint64_t textures_total_size_ = 0;
+  Texture* texture_used_first_ = nullptr;
+  Texture* texture_used_last_ = nullptr;
+  uint64_t texture_current_usage_time_;
 
   std::vector<SRVDescriptorCachePage> srv_descriptor_cache_;
+  // Cached descriptors used by deleted textures, for reuse.
+  std::vector<D3D12_CPU_DESCRIPTOR_HANDLE> srv_descriptor_cache_free_;
 
   enum class NullSRVDescriptorIndex {
     k2DArray,
