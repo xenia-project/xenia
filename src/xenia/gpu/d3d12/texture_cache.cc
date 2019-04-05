@@ -685,7 +685,7 @@ void TextureCache::Shutdown() {
     ui::d3d12::util::ReleaseAndNull(scaled_resolve_heaps_[i]);
   }
   scaled_resolve_heap_count_ = 0;
-  COUNT_profile_set("gpu/texture_cache/scaled_resolve_buffer_mb_used", 0);
+  COUNT_profile_set("gpu/texture_cache/scaled_resolve_buffer_used_mb", 0);
 }
 
 void TextureCache::ClearCache() {
@@ -1455,7 +1455,7 @@ bool TextureCache::EnsureScaledResolveBufferResident(uint32_t start_unscaled,
     }
     ++scaled_resolve_heap_count_;
     COUNT_profile_set(
-        "gpu/texture_cache/scaled_resolve_buffer_mb_used",
+        "gpu/texture_cache/scaled_resolve_buffer_used_mb",
         scaled_resolve_heap_count_ << (kScaledResolveHeapSizeLog2 - 20));
     D3D12_TILED_RESOURCE_COORDINATE region_start_coordinates;
     region_start_coordinates.X = (i << kScaledResolveHeapSizeLog2) /
