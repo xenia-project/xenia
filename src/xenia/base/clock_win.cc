@@ -36,8 +36,8 @@ uint64_t Clock::QueryHostSystemTime() {
   return (uint64_t(t.dwHighDateTime) << 32) | t.dwLowDateTime;
 }
 
-uint32_t Clock::QueryHostUptimeMillis() {
-  return uint32_t(QueryHostTickCount() / (host_tick_frequency() / 1000));
+uint64_t Clock::QueryHostUptimeMillis() {
+  return QueryHostTickCount() / (host_tick_frequency() / 1000);
 }
 
 }  // namespace xe
