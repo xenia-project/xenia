@@ -155,7 +155,7 @@ void SharedMemory::Shutdown() {
       ui::d3d12::util::ReleaseAndNull(heaps_[i]);
     }
     heap_count_ = 0;
-    COUNT_profile_set("gpu/shared_memory/mb_used", 0);
+    COUNT_profile_set("gpu/shared_memory/used_mb", 0);
   }
 }
 
@@ -310,7 +310,7 @@ bool SharedMemory::MakeTilesResident(uint32_t start, uint32_t length) {
       return false;
     }
     ++heap_count_;
-    COUNT_profile_set("gpu/shared_memory/mb_used",
+    COUNT_profile_set("gpu/shared_memory/used_mb",
                       heap_count_ << kHeapSizeLog2 >> 20);
     D3D12_TILED_RESOURCE_COORDINATE region_start_coordinates;
     region_start_coordinates.X =
