@@ -929,8 +929,8 @@ void DxbcShaderTranslator::StartPixelShader() {
         EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0011, 1));
     shader_code_.push_back(param_gen_value_temp);
     shader_code_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_INPUT, kSwizzleXYZW, 1));
-    shader_code_.push_back(uint32_t(InOutRegister::kPSInPosition));
+        D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+    shader_code_.push_back(param_gen_value_temp);
     shader_code_.push_back(
         EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
     shader_code_.push_back(param_gen_value_temp);
