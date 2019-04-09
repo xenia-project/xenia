@@ -438,9 +438,7 @@ void RenderTargetCache::ClearCache() {
 #endif
 }
 
-void RenderTargetCache::BeginFrame() {
-  ClearBindings();
-}
+void RenderTargetCache::BeginFrame() { ClearBindings(); }
 
 bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
   if (command_processor_->IsROVUsedForEDRAM()) {
