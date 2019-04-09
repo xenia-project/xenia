@@ -511,7 +511,6 @@ class RenderTargetCache {
   // The EDRAM buffer allowing color and depth data to be reinterpreted.
   ID3D12Resource* edram_buffer_ = nullptr;
   D3D12_RESOURCE_STATES edram_buffer_state_;
-  bool edram_buffer_cleared_;
 
   // Non-shader-visible descriptor heap containing pre-created SRV and UAV
   // descriptors of the EDRAM buffer, for faster binding (via copying rather
