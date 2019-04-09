@@ -380,7 +380,12 @@ void VdSwap(lpvoid_t buffer_ptr,  // ptr into primary ringbuffer
   buffer_ptr.Zero(64 * 4);
 
   // virtual -> physical
-  fetch.base_address &= 0x1FFFF;
+  // Doom 3: BFG Edition uses front buffers from the 0xE0000000 range with 4 KB
+  // offset, so & 0x1FFFF is not enough for this.
+  fetch.base_address = kernel_memory()
+                           ->LookupHeap(fetch.base_address << 12)
+                           ->GetPhysicalAddress(fetch.base_address << 12) >>
+                       12;
 
   uint32_t offset = 0;
   auto dwords = buffer_ptr.as_array<uint32_t>();
@@ -397,7 +402,9 @@ void VdSwap(lpvoid_t buffer_ptr,  // ptr into primary ringbuffer
 
   dwords[offset++] = xenos::MakePacketType3(xenos::PM4_XE_SWAP, 4);
   dwords[offset++] = 'SWAP';
-  dwords[offset++] = (*frontbuffer_ptr) & 0x1FFFFFFF;
+  dwords[offset++] = kernel_memory()
+                         ->LookupHeap(*frontbuffer_ptr)
+                         ->GetPhysicalAddress(*frontbuffer_ptr);
 
   dwords[offset++] = *width;
   dwords[offset++] = *height;
