@@ -113,12 +113,16 @@ bool RenderTargetCache::Initialize(const TextureCache* texture_cache) {
   auto device = provider->GetDevice();
 
   // Create the buffer for reinterpreting EDRAM contents.
+  // No need to clear it in the first frame, memory is zeroed out when allocated
+  // on Windows.
   D3D12_RESOURCE_DESC edram_buffer_desc;
   ui::d3d12::util::FillBufferResourceDesc(
       edram_buffer_desc, GetEDRAMBufferSize(),
       D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
-  // The first operation will be a clear.
-  edram_buffer_state_ = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+  // The first operation will likely be drawing with ROV or a load without ROV.
+  edram_buffer_state_ = command_processor_->IsROVUsedForEDRAM()
+                            ? D3D12_RESOURCE_STATE_UNORDERED_ACCESS
+                            : D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
   if (FAILED(device->CreateCommittedResource(
           &ui::d3d12::util::kHeapPropertiesDefault, D3D12_HEAP_FLAG_NONE,
           &edram_buffer_desc, edram_buffer_state_, nullptr,
@@ -127,7 +131,6 @@ bool RenderTargetCache::Initialize(const TextureCache* texture_cache) {
     Shutdown();
     return false;
   }
-  edram_buffer_cleared_ = false;
 
   // Create non-shader-visible descriptors of the EDRAM buffer for copying.
   D3D12_DESCRIPTOR_HEAP_DESC edram_buffer_descriptor_heap_desc;
@@ -437,9 +440,6 @@ void RenderTargetCache::ClearCache() {
 
 void RenderTargetCache::BeginFrame() {
   ClearBindings();
-
-  // TODO(Triang3l): Clear the EDRAM buffer if this is the first frame for a
-  // stable D24F==D32F comparison.
 }
 
 bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
