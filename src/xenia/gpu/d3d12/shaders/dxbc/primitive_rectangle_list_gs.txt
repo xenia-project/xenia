@@ -73,7 +73,7 @@ dcl_input v[3][15].xyzw
 dcl_input v[3][16].xyz
 dcl_input v[3][17].xy
 dcl_input_siv v[3][18].xyzw, position
-dcl_temps 18
+dcl_temps 20
 dcl_inputprimitive triangle 
 dcl_stream m0
 dcl_outputtopology trianglestrip 
@@ -158,12 +158,16 @@ mov o17.xy, v[2][17].xyxx
 mov o18.xyzw, v[2][18].xyzw
 emit_stream m0
 cut_stream m0
-mov r0.xw, v[2][18].xxxy
-mov r0.yz, v[1][18].yyxy
-eq r0.xyzw, r0.xyzw, v[0][18].xyxy
-and r0.xy, r0.ywyy, r0.xzxx
-or r0.x, r0.y, r0.x
-if_nz r0.x
+add r0.xyz, -v[0][18].xyzx, v[1][18].xyzx
+add r1.xyz, -v[0][18].xyzx, v[2][18].xyzx
+add r2.xyz, -v[1][18].xyzx, v[2][18].xyzx
+dp3 r0.x, r0.xyzx, r0.xyzx
+dp3 r0.y, r1.xyzx, r1.xyzx
+dp3 r0.z, r2.xyzx, r2.xyzx
+lt r0.w, r0.x, r0.z
+lt r1.x, r0.y, r0.z
+and r0.w, r0.w, r1.x
+if_nz r0.w
   mov o0.xyzw, v[2][0].xyzw
   mov o1.xyzw, v[2][1].xyzw
   mov o2.xyzw, v[2][2].xyzw
@@ -204,142 +208,175 @@ if_nz r0.x
   mov o17.xy, v[1][17].xyxx
   mov o18.xyzw, v[1][18].xyzw
   emit_stream m0
-  add r0.xyzw, -v[0][0].xyzw, v[1][0].xyzw
-  add r0.xyzw, r0.xyzw, v[2][0].xyzw
-  add r1.xyzw, -v[0][1].xyzw, v[1][1].xyzw
-  add r1.xyzw, r1.xyzw, v[2][1].xyzw
-  add r2.xyzw, -v[0][2].xyzw, v[1][2].xyzw
-  add r2.xyzw, r2.xyzw, v[2][2].xyzw
-  add r3.xyzw, -v[0][3].xyzw, v[1][3].xyzw
-  add r3.xyzw, r3.xyzw, v[2][3].xyzw
-  add r4.xyzw, -v[0][4].xyzw, v[1][4].xyzw
-  add r4.xyzw, r4.xyzw, v[2][4].xyzw
-  add r5.xyzw, -v[0][5].xyzw, v[1][5].xyzw
-  add r5.xyzw, r5.xyzw, v[2][5].xyzw
-  add r6.xyzw, -v[0][6].xyzw, v[1][6].xyzw
-  add r6.xyzw, r6.xyzw, v[2][6].xyzw
-  add r7.xyzw, -v[0][7].xyzw, v[1][7].xyzw
-  add r7.xyzw, r7.xyzw, v[2][7].xyzw
-  add r8.xyzw, -v[0][8].xyzw, v[1][8].xyzw
-  add r8.xyzw, r8.xyzw, v[2][8].xyzw
-  add r9.xyzw, -v[0][9].xyzw, v[1][9].xyzw
-  add r9.xyzw, r9.xyzw, v[2][9].xyzw
-  add r10.xyzw, -v[0][10].xyzw, v[1][10].xyzw
-  add r10.xyzw, r10.xyzw, v[2][10].xyzw
-  add r11.xyzw, -v[0][11].xyzw, v[1][11].xyzw
-  add r11.xyzw, r11.xyzw, v[2][11].xyzw
-  add r12.xyzw, -v[0][12].xyzw, v[1][12].xyzw
-  add r12.xyzw, r12.xyzw, v[2][12].xyzw
-  add r13.xyzw, -v[0][13].xyzw, v[1][13].xyzw
-  add r13.xyzw, r13.xyzw, v[2][13].xyzw
-  add r14.xyzw, -v[0][14].xyzw, v[1][14].xyzw
-  add r14.xyzw, r14.xyzw, v[2][14].xyzw
-  add r15.xyzw, -v[0][15].xyzw, v[1][15].xyzw
-  add r15.xyzw, r15.xyzw, v[2][15].xyzw
-  add r16.xy, v[0][16].xyxx, v[1][16].xyxx
-  add r16.xy, r16.xyxx, -v[2][16].xyxx
-  add r16.zw, -v[0][18].xxxy, v[1][18].xxxy
-  add r16.zw, r16.zzzw, v[2][18].xxxy
+  mov r0.xyz, l(1.000000,1.000000,-1.000000,0)
 else 
-  mov o0.xyzw, v[0][0].xyzw
-  mov o1.xyzw, v[0][1].xyzw
-  mov o2.xyzw, v[0][2].xyzw
-  mov o3.xyzw, v[0][3].xyzw
-  mov o4.xyzw, v[0][4].xyzw
-  mov o5.xyzw, v[0][5].xyzw
-  mov o6.xyzw, v[0][6].xyzw
-  mov o7.xyzw, v[0][7].xyzw
-  mov o8.xyzw, v[0][8].xyzw
-  mov o9.xyzw, v[0][9].xyzw
-  mov o10.xyzw, v[0][10].xyzw
-  mov o11.xyzw, v[0][11].xyzw
-  mov o12.xyzw, v[0][12].xyzw
-  mov o13.xyzw, v[0][13].xyzw
-  mov o14.xyzw, v[0][14].xyzw
-  mov o15.xyzw, v[0][15].xyzw
-  mov o16.xyz, v[0][16].xyzx
-  mov o17.xy, v[0][17].xyxx
-  mov o18.xyzw, v[0][18].xyzw
-  emit_stream m0
-  mov o0.xyzw, v[2][0].xyzw
-  mov o1.xyzw, v[2][1].xyzw
-  mov o2.xyzw, v[2][2].xyzw
-  mov o3.xyzw, v[2][3].xyzw
-  mov o4.xyzw, v[2][4].xyzw
-  mov o5.xyzw, v[2][5].xyzw
-  mov o6.xyzw, v[2][6].xyzw
-  mov o7.xyzw, v[2][7].xyzw
-  mov o8.xyzw, v[2][8].xyzw
-  mov o9.xyzw, v[2][9].xyzw
-  mov o10.xyzw, v[2][10].xyzw
-  mov o11.xyzw, v[2][11].xyzw
-  mov o12.xyzw, v[2][12].xyzw
-  mov o13.xyzw, v[2][13].xyzw
-  mov o14.xyzw, v[2][14].xyzw
-  mov o15.xyzw, v[2][15].xyzw
-  mov o16.xyz, v[2][16].xyzx
-  mov o17.xy, v[2][17].xyxx
-  mov o18.xyzw, v[2][18].xyzw
-  emit_stream m0
-  add r17.xyzw, -v[1][0].xyzw, v[0][0].xyzw
-  add r0.xyzw, r17.xyzw, v[2][0].xyzw
-  add r17.xyzw, -v[1][1].xyzw, v[0][1].xyzw
-  add r1.xyzw, r17.xyzw, v[2][1].xyzw
-  add r17.xyzw, -v[1][2].xyzw, v[0][2].xyzw
-  add r2.xyzw, r17.xyzw, v[2][2].xyzw
-  add r17.xyzw, -v[1][3].xyzw, v[0][3].xyzw
-  add r3.xyzw, r17.xyzw, v[2][3].xyzw
-  add r17.xyzw, -v[1][4].xyzw, v[0][4].xyzw
-  add r4.xyzw, r17.xyzw, v[2][4].xyzw
-  add r17.xyzw, -v[1][5].xyzw, v[0][5].xyzw
-  add r5.xyzw, r17.xyzw, v[2][5].xyzw
-  add r17.xyzw, -v[1][6].xyzw, v[0][6].xyzw
-  add r6.xyzw, r17.xyzw, v[2][6].xyzw
-  add r17.xyzw, -v[1][7].xyzw, v[0][7].xyzw
-  add r7.xyzw, r17.xyzw, v[2][7].xyzw
-  add r17.xyzw, -v[1][8].xyzw, v[0][8].xyzw
-  add r8.xyzw, r17.xyzw, v[2][8].xyzw
-  add r17.xyzw, -v[1][9].xyzw, v[0][9].xyzw
-  add r9.xyzw, r17.xyzw, v[2][9].xyzw
-  add r17.xyzw, -v[1][10].xyzw, v[0][10].xyzw
-  add r10.xyzw, r17.xyzw, v[2][10].xyzw
-  add r17.xyzw, -v[1][11].xyzw, v[0][11].xyzw
-  add r11.xyzw, r17.xyzw, v[2][11].xyzw
-  add r17.xyzw, -v[1][12].xyzw, v[0][12].xyzw
-  add r12.xyzw, r17.xyzw, v[2][12].xyzw
-  add r17.xyzw, -v[1][13].xyzw, v[0][13].xyzw
-  add r13.xyzw, r17.xyzw, v[2][13].xyzw
-  add r17.xyzw, -v[1][14].xyzw, v[0][14].xyzw
-  add r14.xyzw, r17.xyzw, v[2][14].xyzw
-  add r17.xyzw, -v[1][15].xyzw, v[0][15].xyzw
-  add r15.xyzw, r17.xyzw, v[2][15].xyzw
-  add r17.xy, v[1][16].xyxx, v[0][16].xyxx
-  add r16.xy, r17.xyxx, -v[2][16].xyxx
-  add r17.xy, -v[1][18].xyxx, v[0][18].xyxx
-  add r16.zw, r17.xxxy, v[2][18].xxxy
+  lt r0.x, r0.x, r0.y
+  lt r0.y, r0.z, r0.y
+  and r0.x, r0.y, r0.x
+  if_nz r0.x
+    mov o0.xyzw, v[0][0].xyzw
+    mov o1.xyzw, v[0][1].xyzw
+    mov o2.xyzw, v[0][2].xyzw
+    mov o3.xyzw, v[0][3].xyzw
+    mov o4.xyzw, v[0][4].xyzw
+    mov o5.xyzw, v[0][5].xyzw
+    mov o6.xyzw, v[0][6].xyzw
+    mov o7.xyzw, v[0][7].xyzw
+    mov o8.xyzw, v[0][8].xyzw
+    mov o9.xyzw, v[0][9].xyzw
+    mov o10.xyzw, v[0][10].xyzw
+    mov o11.xyzw, v[0][11].xyzw
+    mov o12.xyzw, v[0][12].xyzw
+    mov o13.xyzw, v[0][13].xyzw
+    mov o14.xyzw, v[0][14].xyzw
+    mov o15.xyzw, v[0][15].xyzw
+    mov o16.xyz, v[0][16].xyzx
+    mov o17.xy, v[0][17].xyxx
+    mov o18.xyzw, v[0][18].xyzw
+    emit_stream m0
+    mov o0.xyzw, v[2][0].xyzw
+    mov o1.xyzw, v[2][1].xyzw
+    mov o2.xyzw, v[2][2].xyzw
+    mov o3.xyzw, v[2][3].xyzw
+    mov o4.xyzw, v[2][4].xyzw
+    mov o5.xyzw, v[2][5].xyzw
+    mov o6.xyzw, v[2][6].xyzw
+    mov o7.xyzw, v[2][7].xyzw
+    mov o8.xyzw, v[2][8].xyzw
+    mov o9.xyzw, v[2][9].xyzw
+    mov o10.xyzw, v[2][10].xyzw
+    mov o11.xyzw, v[2][11].xyzw
+    mov o12.xyzw, v[2][12].xyzw
+    mov o13.xyzw, v[2][13].xyzw
+    mov o14.xyzw, v[2][14].xyzw
+    mov o15.xyzw, v[2][15].xyzw
+    mov o16.xyz, v[2][16].xyzx
+    mov o17.xy, v[2][17].xyxx
+    mov o18.xyzw, v[2][18].xyzw
+    emit_stream m0
+    mov r0.xy, l(-1.000000,1.000000,0,0)
+  else 
+    mov o0.xyzw, v[1][0].xyzw
+    mov o1.xyzw, v[1][1].xyzw
+    mov o2.xyzw, v[1][2].xyzw
+    mov o3.xyzw, v[1][3].xyzw
+    mov o4.xyzw, v[1][4].xyzw
+    mov o5.xyzw, v[1][5].xyzw
+    mov o6.xyzw, v[1][6].xyzw
+    mov o7.xyzw, v[1][7].xyzw
+    mov o8.xyzw, v[1][8].xyzw
+    mov o9.xyzw, v[1][9].xyzw
+    mov o10.xyzw, v[1][10].xyzw
+    mov o11.xyzw, v[1][11].xyzw
+    mov o12.xyzw, v[1][12].xyzw
+    mov o13.xyzw, v[1][13].xyzw
+    mov o14.xyzw, v[1][14].xyzw
+    mov o15.xyzw, v[1][15].xyzw
+    mov o16.xyz, v[1][16].xyzx
+    mov o17.xy, v[1][17].xyxx
+    mov o18.xyzw, v[1][18].xyzw
+    emit_stream m0
+    mov o0.xyzw, v[0][0].xyzw
+    mov o1.xyzw, v[0][1].xyzw
+    mov o2.xyzw, v[0][2].xyzw
+    mov o3.xyzw, v[0][3].xyzw
+    mov o4.xyzw, v[0][4].xyzw
+    mov o5.xyzw, v[0][5].xyzw
+    mov o6.xyzw, v[0][6].xyzw
+    mov o7.xyzw, v[0][7].xyzw
+    mov o8.xyzw, v[0][8].xyzw
+    mov o9.xyzw, v[0][9].xyzw
+    mov o10.xyzw, v[0][10].xyzw
+    mov o11.xyzw, v[0][11].xyzw
+    mov o12.xyzw, v[0][12].xyzw
+    mov o13.xyzw, v[0][13].xyzw
+    mov o14.xyzw, v[0][14].xyzw
+    mov o15.xyzw, v[0][15].xyzw
+    mov o16.xyz, v[0][16].xyzx
+    mov o17.xy, v[0][17].xyxx
+    mov o18.xyzw, v[0][18].xyzw
+    emit_stream m0
+    mov r0.xy, l(1.000000,-1.000000,0,0)
+  endif 
+  mov r0.z, l(1.000000)
 endif 
-mov o0.xyzw, r0.xyzw
-mov o1.xyzw, r1.xyzw
-mov o2.xyzw, r2.xyzw
-mov o3.xyzw, r3.xyzw
-mov o4.xyzw, r4.xyzw
-mov o5.xyzw, r5.xyzw
-mov o6.xyzw, r6.xyzw
-mov o7.xyzw, r7.xyzw
-mov o8.xyzw, r8.xyzw
-mov o9.xyzw, r9.xyzw
-mov o10.xyzw, r10.xyzw
-mov o11.xyzw, r11.xyzw
-mov o12.xyzw, r12.xyzw
-mov o13.xyzw, r13.xyzw
-mov o14.xyzw, r14.xyzw
-mov o15.xyzw, r15.xyzw
-mov o16.xy, r16.xyxx
-mov o16.z, v[2][16].z
-mov o17.xy, v[2][17].xyxx
-mov o18.xy, r16.zwzz
-mov o18.zw, v[2][18].zzzw
+mul r1.xyzw, r0.xxxx, v[1][0].xyzw
+mad r1.xyzw, r0.zzzz, v[0][0].xyzw, r1.xyzw
+mad r1.xyzw, r0.yyyy, v[2][0].xyzw, r1.xyzw
+mul r2.xyzw, r0.xxxx, v[1][1].xyzw
+mad r2.xyzw, r0.zzzz, v[0][1].xyzw, r2.xyzw
+mad r2.xyzw, r0.yyyy, v[2][1].xyzw, r2.xyzw
+mul r3.xyzw, r0.xxxx, v[1][2].xyzw
+mad r3.xyzw, r0.zzzz, v[0][2].xyzw, r3.xyzw
+mad r3.xyzw, r0.yyyy, v[2][2].xyzw, r3.xyzw
+mul r4.xyzw, r0.xxxx, v[1][3].xyzw
+mad r4.xyzw, r0.zzzz, v[0][3].xyzw, r4.xyzw
+mad r4.xyzw, r0.yyyy, v[2][3].xyzw, r4.xyzw
+mul r5.xyzw, r0.xxxx, v[1][4].xyzw
+mad r5.xyzw, r0.zzzz, v[0][4].xyzw, r5.xyzw
+mad r5.xyzw, r0.yyyy, v[2][4].xyzw, r5.xyzw
+mul r6.xyzw, r0.xxxx, v[1][5].xyzw
+mad r6.xyzw, r0.zzzz, v[0][5].xyzw, r6.xyzw
+mad r6.xyzw, r0.yyyy, v[2][5].xyzw, r6.xyzw
+mul r7.xyzw, r0.xxxx, v[1][6].xyzw
+mad r7.xyzw, r0.zzzz, v[0][6].xyzw, r7.xyzw
+mad r7.xyzw, r0.yyyy, v[2][6].xyzw, r7.xyzw
+mul r8.xyzw, r0.xxxx, v[1][7].xyzw
+mad r8.xyzw, r0.zzzz, v[0][7].xyzw, r8.xyzw
+mad r8.xyzw, r0.yyyy, v[2][7].xyzw, r8.xyzw
+mul r9.xyzw, r0.xxxx, v[1][8].xyzw
+mad r9.xyzw, r0.zzzz, v[0][8].xyzw, r9.xyzw
+mad r9.xyzw, r0.yyyy, v[2][8].xyzw, r9.xyzw
+mul r10.xyzw, r0.xxxx, v[1][9].xyzw
+mad r10.xyzw, r0.zzzz, v[0][9].xyzw, r10.xyzw
+mad r10.xyzw, r0.yyyy, v[2][9].xyzw, r10.xyzw
+mul r11.xyzw, r0.xxxx, v[1][10].xyzw
+mad r11.xyzw, r0.zzzz, v[0][10].xyzw, r11.xyzw
+mad r11.xyzw, r0.yyyy, v[2][10].xyzw, r11.xyzw
+mul r12.xyzw, r0.xxxx, v[1][11].xyzw
+mad r12.xyzw, r0.zzzz, v[0][11].xyzw, r12.xyzw
+mad r12.xyzw, r0.yyyy, v[2][11].xyzw, r12.xyzw
+mul r13.xyzw, r0.xxxx, v[1][12].xyzw
+mad r13.xyzw, r0.zzzz, v[0][12].xyzw, r13.xyzw
+mad r13.xyzw, r0.yyyy, v[2][12].xyzw, r13.xyzw
+mul r14.xyzw, r0.xxxx, v[1][13].xyzw
+mad r14.xyzw, r0.zzzz, v[0][13].xyzw, r14.xyzw
+mad r14.xyzw, r0.yyyy, v[2][13].xyzw, r14.xyzw
+mul r15.xyzw, r0.xxxx, v[1][14].xyzw
+mad r15.xyzw, r0.zzzz, v[0][14].xyzw, r15.xyzw
+mad r15.xyzw, r0.yyyy, v[2][14].xyzw, r15.xyzw
+mul r16.xyzw, r0.xxxx, v[1][15].xyzw
+mad r16.xyzw, r0.zzzz, v[0][15].xyzw, r16.xyzw
+mad r16.xyzw, r0.yyyy, v[2][15].xyzw, r16.xyzw
+mul r17.xyz, r0.xxxx, v[1][16].xyzx
+mad r17.xyz, r0.zzzz, v[0][16].xyzx, r17.xyzx
+mad r17.xyz, r0.yyyy, v[2][16].xyzx, r17.xyzx
+mul r18.xy, r0.xxxx, v[1][17].xyxx
+mad r18.xy, r0.zzzz, v[0][17].xyxx, r18.xyxx
+mad r18.xy, r0.yyyy, v[2][17].xyxx, r18.xyxx
+mul r19.xyzw, r0.xxxx, v[1][18].xyzw
+mad r19.xyzw, r0.zzzz, v[0][18].xyzw, r19.xyzw
+mad r0.xyzw, r0.yyyy, v[2][18].xyzw, r19.xyzw
+mov o0.xyzw, r1.xyzw
+mov o1.xyzw, r2.xyzw
+mov o2.xyzw, r3.xyzw
+mov o3.xyzw, r4.xyzw
+mov o4.xyzw, r5.xyzw
+mov o5.xyzw, r6.xyzw
+mov o6.xyzw, r7.xyzw
+mov o7.xyzw, r8.xyzw
+mov o8.xyzw, r9.xyzw
+mov o9.xyzw, r10.xyzw
+mov o10.xyzw, r11.xyzw
+mov o11.xyzw, r12.xyzw
+mov o12.xyzw, r13.xyzw
+mov o13.xyzw, r14.xyzw
+mov o14.xyzw, r15.xyzw
+mov o15.xyzw, r16.xyzw
+mov o16.xyz, r17.xyzx
+mov o17.xy, r18.xyxx
+mov o18.xyzw, r0.xyzw
 emit_stream m0
 cut_stream m0
 ret 
-// Approximately 245 instruction slots used
+// Approximately 282 instruction slots used
