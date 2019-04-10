@@ -998,8 +998,24 @@ bool RenderTargetCache::Resolve(SharedMemory* shared_memory,
         vertex_offset;
   }
   // Xenos only supports rectangle copies (luckily).
+  //
   // The rectangle is for both the source and the destination, according to how
   // it's used in Tales of Vesperia.
+  //
+  // Direct3D 9 gives the rectangle in source render target coordinates (for
+  // example, in Halo 3 the sniper rifle scope has a (128,64)->(448,256)
+  // rectangle). It doesn't adjust the EDRAM base pointer, otherwise (taking
+  // into account that 4x MSAA is used for the scope) it would have been
+  // (8,0)->(328,192), but it's not. However, it adjusts the destination texture
+  // address so (0,0) relative to the destination address is (0,0) relative to
+  // the render target. When copying, we need to adjust the pointer to the first
+  // 32x32 tile that will actually be modified, by adding the value of
+  // XGAddress2DTiledOffset called for left/top & ~31. The pitch and height in
+  // RB_COPY_DEST_PITCH are actually specified for the region starting from the
+  // first modified 32x32 tile - it does not include the padding! (In the Halo 3
+  // sniper rifle scope example, the pitch and height are specified as 320x192,
+  // which is the size of the rectangle.)
+  //
   // Window scissor must also be applied - in the jigsaw puzzle in Banjo-Tooie,
   // there are 1280x720 resolve rectangles, but only the scissored 1280x256
   // needs to be copied, otherwise it overflows even beyond the EDRAM, and the
@@ -1101,22 +1117,6 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
 
   auto command_list = command_processor_->GetDeferredCommandList();
 
-  // Get the destination region and clamp the source region to it.
-  uint32_t rb_copy_dest_pitch = regs[XE_GPU_REG_RB_COPY_DEST_PITCH].u32;
-  uint32_t dest_pitch = rb_copy_dest_pitch & 0x3FFF;
-  uint32_t dest_height = (rb_copy_dest_pitch >> 16) & 0x3FFF;
-  if (dest_pitch == 0 || dest_height == 0) {
-    // Nothing to copy.
-    return true;
-  }
-  D3D12_RECT copy_rect = rect;
-  copy_rect.right = std::min(copy_rect.right, LONG(dest_pitch));
-  copy_rect.bottom = std::min(copy_rect.bottom, LONG(dest_height));
-  if (copy_rect.left >= copy_rect.right || copy_rect.top >= copy_rect.bottom) {
-    // Nothing to copy.
-    return true;
-  }
-
   // Get format info.
   uint32_t dest_info = regs[XE_GPU_REG_RB_COPY_DEST_INFO].u32;
   TextureFormat src_texture_format;
@@ -1142,11 +1142,58 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
     src_64bpp = IsColorFormat64bpp(ColorRenderTargetFormat(src_format));
   }
   assert_true(src_texture_format != TextureFormat::kUnknown);
-  // The destination format is specified as k_8_8_8_8 when resolving depth,
-  // apparently there's no format conversion.
+  // The destination format is specified as k_8_8_8_8 when resolving depth, but
+  // no format conversion is done for depth, so ignore it.
   TextureFormat dest_format =
       is_depth ? src_texture_format
                : GetBaseFormat(TextureFormat((dest_info >> 7) & 0x3F));
+  const FormatInfo* dest_format_info = FormatInfo::Get(dest_format);
+
+  // Get the destination region and clamp the source region to it.
+  uint32_t rb_copy_dest_pitch = regs[XE_GPU_REG_RB_COPY_DEST_PITCH].u32;
+  uint32_t dest_pitch = rb_copy_dest_pitch & 0x3FFF;
+  uint32_t dest_height = (rb_copy_dest_pitch >> 16) & 0x3FFF;
+  if (dest_pitch == 0 || dest_height == 0) {
+    // Nothing to copy.
+    return true;
+  }
+  D3D12_RECT copy_rect;
+  copy_rect.left = rect.left;
+  copy_rect.top = rect.top;
+  copy_rect.right =
+      std::min(rect.right, (rect.left & ~LONG(31)) + LONG(dest_pitch));
+  copy_rect.bottom =
+      std::min(rect.bottom, (rect.top & ~LONG(31)) + LONG(dest_height));
+  if (copy_rect.left >= copy_rect.right || copy_rect.top >= copy_rect.bottom) {
+    // Nothing to copy.
+    return true;
+  }
+  // Validate and clamp the source region, skip parts that don't need to be
+  // copied and calculate the number of threads needed for copying/loading.
+  // copy_rect will be modified and will become only the source rectangle, for
+  // the destination region, use the original rect from the arguments.
+  uint32_t surface_pitch_tiles, row_width_ss_div_80, rows;
+  if (!GetEDRAMLayout(surface_pitch, msaa_samples, src_64bpp, edram_base,
+                      copy_rect, surface_pitch_tiles, row_width_ss_div_80,
+                      rows)) {
+    // Nothing to copy.
+    return true;
+  }
+
+  // Get the destination location and adjust it to the first 32x32 tile modified
+  // by the resolve (the pitch and the height are relative to that tile, not to
+  // 0,0 of the resolve rectangle).
+  uint32_t dest_address =
+      (regs[XE_GPU_REG_RB_COPY_DEST_BASE].u32 & 0x1FFFFFFF) +
+      texture_util::GetTiledOffset2D(
+          int(rect.left & ~LONG(31)), int(rect.top & ~LONG(31)), dest_pitch,
+          xe::log2_floor(dest_format_info->bits_per_pixel >> 3));
+  if (dest_address & 0x3) {
+    assert_always();
+    // Not 4-aligning may break UAV access significantly, let's hope games don't
+    // resolve to 8bpp or 16bpp textures at very odd locations.
+    return false;
+  }
 
   // See what samples we need and what we should do with them.
   xenos::CopySampleSelect sample_select =
@@ -1178,35 +1225,11 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
   }
   bool dest_swap = !is_depth && ((dest_info >> 24) & 0x1);
 
-  // Get the destination location.
-  uint32_t dest_address = regs[XE_GPU_REG_RB_COPY_DEST_BASE].u32 & 0x1FFFFFFF;
-  if (dest_address & 0x3) {
-    assert_always();
-    // Not 4-aligning may break UAV access significantly, let's hope games don't
-    // resolve to 8bpp or 16bpp textures at very odd locations.
-    return false;
-  }
-  // Currently not caring about copy_dest_array because it's untested, and
-  // Direct3D 9 would likely offset to the correct slice.
-
   XELOGGPU(
       "Resolve: Copying samples %u to 0x%.8X (%ux%u), destination format %s, "
       "exponent bias %d, red and blue %sswapped",
       uint32_t(sample_select), dest_address, dest_pitch, dest_height,
-      FormatInfo::Get(dest_format)->name, dest_exp_bias,
-      dest_swap ? "" : "not ");
-
-  // Validate and clamp the source region, skip parts that don't need to be
-  // copied and calculate the number of threads needed for copying/loading.
-  // copy_rect will be modified and will become only the source rectangle, for
-  // the destination offset, use the original rect from the arguments.
-  uint32_t surface_pitch_tiles, row_width_ss_div_80, rows;
-  if (!GetEDRAMLayout(surface_pitch, msaa_samples, src_64bpp, edram_base,
-                      copy_rect, surface_pitch_tiles, row_width_ss_div_80,
-                      rows)) {
-    // Nothing to copy.
-    return true;
-  }
+      dest_format_info->name, dest_exp_bias, dest_swap ? "" : "not ");
 
   // There are 2 paths for resolving in this function - they don't necessarily
   // have to map directly to kRaw and kConvert CopyCommands.
@@ -1241,22 +1264,19 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
     // *************************************************************************
     XELOGGPU("Resolve: Copying using a compute shader");
 
-    // Calculate the address and the size of the region that specifically
-    // is being resolved. Can't just use the texture height for size calculation
-    // because it's sometimes bigger than needed (in Red Dead Redemption, an UI
-    // texture used for the letterbox bars alpha is located within a 1280x720
-    // resolve target, but only 1280x208 is being resolved, and with scaled
-    // resolution the UI texture gets ignored).
-    dest_address += texture_util::GetTiledOffset2D(
-        int(rect.left & ~LONG(31)), int(rect.top & ~LONG(31)), dest_pitch,
-        src_64bpp ? 3 : 2);
+    // Calculate the size of the region that specifically is being resolved.
+    // Can't just use the texture height for size calculation because it's
+    // sometimes bigger than needed (in Red Dead Redemption, an UI texture used
+    // for the letterbox bars alpha is located within a 1280x720 resolve target,
+    // but only 1280x208 is being resolved, and with scaled resolution the UI
+    // texture gets ignored).
     uint32_t dest_size = texture_util::GetGuestMipSliceStorageSize(
         xe::align(dest_pitch, 32u),
-        xe::align(uint32_t(rect.bottom - (rect.top & ~LONG(31))), 32u), 1, true,
-        dest_format, nullptr, false);
-    uint32_t dest_offset_x = uint32_t(rect.left) & 31;
-    uint32_t dest_offset_y = uint32_t(rect.top) & 31;
-    // Make sure we have the memory to write to.
+        xe::align(uint32_t((rect.top & 31) + copy_rect.bottom - copy_rect.top),
+                  32u),
+        1, true, dest_format, nullptr, false);
+    // Make sure we have the memory to write to. dest_address already adjusted
+    // to the first modified 32x32 tile.
     if (resolution_scale_2x_) {
       if (!texture_cache->EnsureScaledResolveBufferResident(dest_address,
                                                             dest_size)) {
@@ -1295,14 +1315,14 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
     // Dispatch the computation.
     command_list->D3DSetComputeRootSignature(edram_load_store_root_signature_);
     EDRAMLoadStoreRootConstants root_constants;
-    // Only 5 bits - assuming pre-offset address.
-    assert_true(dest_offset_x <= 31 && dest_offset_y <= 31);
+    // Address is adjusted to the first modified tile, so using & 31 as the
+    // destination offset.
     root_constants.tile_sample_dimensions[0] =
-        uint32_t(copy_rect.right - copy_rect.left) | (dest_offset_x << 12) |
-        (uint32_t(copy_rect.left) << 17);
+        uint32_t(copy_rect.right - copy_rect.left) |
+        ((uint32_t(rect.left) & 31) << 12) | (uint32_t(copy_rect.left) << 17);
     root_constants.tile_sample_dimensions[1] =
-        uint32_t(copy_rect.bottom - copy_rect.top) | (dest_offset_y << 12) |
-        (uint32_t(copy_rect.top) << 17);
+        uint32_t(copy_rect.bottom - copy_rect.top) |
+        ((uint32_t(rect.top) & 31) << 12) | (uint32_t(copy_rect.top) << 17);
     root_constants.tile_sample_dest_base = dest_address;
     if (resolution_scale_2x_) {
       // Can't address more than 512 MB directly on Nvidia - binding only a part
@@ -1678,10 +1698,12 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
         copy_buffer, copy_buffer_state,
         D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
     copy_buffer_state = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
+    // dest_address already adjusted, so offsets are & 31.
     texture_cache->TileResolvedTexture(
-        dest_format, dest_address, dest_pitch, uint32_t(rect.left),
-        uint32_t(rect.top), copy_width, copy_height, dest_endian, copy_buffer,
-        resolve_target->copy_buffer_size, resolve_target->footprint);
+        dest_format, dest_address, dest_pitch, uint32_t(rect.left) & 31,
+        uint32_t(rect.top) & 31, copy_width, copy_height, dest_endian,
+        copy_buffer, resolve_target->copy_buffer_size,
+        resolve_target->footprint);
 
     // Done with the copy buffer.
 
