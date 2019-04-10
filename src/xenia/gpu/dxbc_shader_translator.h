@@ -52,6 +52,12 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kSysFlag_XYDividedByW_Shift,
     kSysFlag_ZDividedByW_Shift,
     kSysFlag_WNotReciprocal_Shift,
+    kSysFlag_UserClipPlane0_Shift,
+    kSysFlag_UserClipPlane1_Shift,
+    kSysFlag_UserClipPlane2_Shift,
+    kSysFlag_UserClipPlane3_Shift,
+    kSysFlag_UserClipPlane4_Shift,
+    kSysFlag_UserClipPlane5_Shift,
     kSysFlag_ReverseZ_Shift,
     kSysFlag_AlphaPassIfLess_Shift,
     kSysFlag_AlphaPassIfEqual_Shift,
@@ -80,6 +86,12 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kSysFlag_XYDividedByW = 1u << kSysFlag_XYDividedByW_Shift,
     kSysFlag_ZDividedByW = 1u << kSysFlag_ZDividedByW_Shift,
     kSysFlag_WNotReciprocal = 1u << kSysFlag_WNotReciprocal_Shift,
+    kSysFlag_UserClipPlane0 = 1u << kSysFlag_UserClipPlane0_Shift,
+    kSysFlag_UserClipPlane1 = 1u << kSysFlag_UserClipPlane1_Shift,
+    kSysFlag_UserClipPlane2 = 1u << kSysFlag_UserClipPlane2_Shift,
+    kSysFlag_UserClipPlane3 = 1u << kSysFlag_UserClipPlane3_Shift,
+    kSysFlag_UserClipPlane4 = 1u << kSysFlag_UserClipPlane4_Shift,
+    kSysFlag_UserClipPlane5 = 1u << kSysFlag_UserClipPlane5_Shift,
     kSysFlag_ReverseZ = 1u << kSysFlag_ReverseZ_Shift,
     kSysFlag_AlphaPassIfLess = 1u << kSysFlag_AlphaPassIfLess_Shift,
     kSysFlag_AlphaPassIfEqual = 1u << kSysFlag_AlphaPassIfEqual_Shift,
@@ -282,25 +294,22 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // - system_constant_rdef_.
   // - d3d12/shaders/xenos_draw.hlsli (for geometry shaders).
   struct SystemConstants {
-    // vec4 0
     uint32_t flags;
     uint32_t line_loop_closing_index;
     uint32_t vertex_index_endian_and_edge_factors;
     int32_t vertex_base_index;
 
-    // vec4 1
+    float user_clip_planes[6][4];
+
     float ndc_scale[3];
     uint32_t pixel_pos_reg;
 
-    // vec4 2
     float ndc_offset[3];
     float pixel_half_pixel_offset;
 
-    // vec4 3
     float point_size[2];
     float point_size_min_max[2];
 
-    // vec3 4
     // Inverse scale of the host viewport (but not supersampled), with signs
     // pre-applied.
     float point_screen_to_ndc[2];
@@ -309,19 +318,15 @@ class DxbcShaderTranslator : public ShaderTranslator {
     // EDRAM address calculation.
     uint32_t sample_count_log2[2];
 
-    // vec4 5
     float alpha_test_reference;
     uint32_t edram_pitch_tiles;
     uint32_t edram_depth_base_dwords;
     uint32_t padding_5;
 
-    // vec4 6
     float color_exp_bias[4];
 
-    // vec4 7
     uint32_t color_output_map[4];
 
-    // vec4 8
     union {
       struct {
         float tessellation_factor_range_min;
@@ -337,7 +342,6 @@ class DxbcShaderTranslator : public ShaderTranslator {
       float edram_depth_range[2];
     };
 
-    // vec4 9
     union {
       struct {
         float edram_poly_offset_front_scale;
@@ -353,13 +357,11 @@ class DxbcShaderTranslator : public ShaderTranslator {
       float edram_poly_offset_back[2];
     };
 
-    // vec4 10
     uint32_t edram_resolution_scale_log2;
     uint32_t edram_stencil_reference;
     uint32_t edram_stencil_read_mask;
     uint32_t edram_stencil_write_mask;
 
-    // vec4 11
     union {
       struct {
         // kStencilOp, separated into sub-operations - not the Xenos enum.
@@ -371,7 +373,6 @@ class DxbcShaderTranslator : public ShaderTranslator {
       uint32_t edram_stencil_front[4];
     };
 
-    // vec4 12
     union {
       struct {
         // kStencilOp, separated into sub-operations - not the Xenos enum.
@@ -383,66 +384,53 @@ class DxbcShaderTranslator : public ShaderTranslator {
       uint32_t edram_stencil_back[4];
     };
 
-    // vec4 13
     uint32_t edram_base_dwords[4];
 
-    // vec4 14
     // Binding and format info flags.
     uint32_t edram_rt_flags[4];
 
-    // vec4 15
     // Format info - widths of components in the lower 32 bits (for ibfe/bfi),
     // packed as 8:8:8:8 for each render target.
     uint32_t edram_rt_pack_width_low[4];
 
-    // vec4 16
     // Format info - offsets of components in the lower 32 bits (for ibfe/bfi),
     // packed as 8:8:8:8 for each render target.
     uint32_t edram_rt_pack_offset_low[4];
 
-    // vec4 17
     // Format info - widths of components in the upper 32 bits (for ibfe/bfi),
     // packed as 8:8:8:8 for each render target.
     uint32_t edram_rt_pack_width_high[4];
 
-    // vec4 18
     // Format info - offsets of components in the upper 32 bits (for ibfe/bfi),
     // packed as 8:8:8:8 for each render target.
     uint32_t edram_rt_pack_offset_high[4];
 
-    // vec4 19:20
     // Format info - mask of color and alpha after unpacking, but before float
     // conversion. Primarily to differentiate between signed and unsigned
     // formats because ibfe is used for both since k_16_16 and k_16_16_16_16 are
     // signed.
     uint32_t edram_load_mask_rt01_rt23[2][4];
 
-    // vec4 21:22
     // Format info - scale to apply to the color and the alpha of each render
     // target after unpacking and converting.
     float edram_load_scale_rt01_rt23[2][4];
 
-    // vec4 23:24
     // Render target blending options.
     uint32_t edram_blend_rt01_rt23[2][4];
 
-    // vec4 25
     // The constant blend factor for the respective modes.
     float edram_blend_constant[4];
 
-    // vec4 26:27
     // Format info - minimum color and alpha values (as float, before
     // conversion) writable to the each render target. Integer so it's easier to
     // write infinity.
     uint32_t edram_store_min_rt01_rt23[2][4];
 
-    // vec4 28:29
     // Format info - maximum color and alpha values (as float, before
     // conversion) writable to the each render target. Integer so it's easier to
     // write infinity.
     uint32_t edram_store_max_rt01_rt23[2][4];
 
-    // vec4 30:31
     // Format info - scale to apply to the color and the alpha of each render
     // target before converting and packing.
     float edram_store_scale_rt01_rt23[2][4];
@@ -558,8 +546,11 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kSysConst_VertexBaseIndex_Vec = kSysConst_Flags_Vec,
     kSysConst_VertexBaseIndex_Comp = 3,
 
-    kSysConst_NDCScale_Index = kSysConst_VertexBaseIndex_Index + 1,
-    kSysConst_NDCScale_Vec = kSysConst_VertexBaseIndex_Vec + 1,
+    kSysConst_UserClipPlanes_Index = kSysConst_VertexBaseIndex_Index + 1,
+    kSysConst_UserClipPlanes_Vec = kSysConst_VertexBaseIndex_Vec + 1,
+
+    kSysConst_NDCScale_Index = kSysConst_UserClipPlanes_Index + 1,
+    kSysConst_NDCScale_Vec = kSysConst_UserClipPlanes_Vec + 6,
     kSysConst_NDCScale_Comp = 0,
     kSysConst_PixelPosReg_Index = kSysConst_NDCScale_Index + 1,
     kSysConst_PixelPosReg_Vec = kSysConst_NDCScale_Vec,
@@ -720,6 +711,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
 
     kSysConst_Count = kSysConst_EDRAMStoreScaleRT23_Index + 1
   };
+  static_assert(kSysConst_Count <= 64,
+                "Too many system constants, can't use uint64_t for usage bits");
 
   static constexpr uint32_t kInterpolatorCount = 16;
   static constexpr uint32_t kPointParametersTexCoord = kInterpolatorCount;
@@ -734,6 +727,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kVSOutPointParameters = kVSOutInterpolators + kInterpolatorCount,
     kVSOutClipSpaceZW,
     kVSOutPosition,
+    kVSOutClipDistance0123,
+    kVSOutClipDistance45,
 
     kPSInInterpolators = 0,
     kPSInPointParameters = kPSInInterpolators + kInterpolatorCount,
@@ -1109,6 +1104,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kUint,
     kUint2,
     kUint4,
+    // User clip planes.
+    kFloat4Array6,
     // Float constants - size written dynamically.
     kFloat4ConstantArray,
     // Bool constants.
@@ -1157,8 +1154,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
   struct SystemConstantRdef {
     const char* name;
     RdefTypeIndex type;
-    uint32_t offset;
     uint32_t size;
+    uint32_t padding_after;
   };
   static const SystemConstantRdef system_constant_rdef_[kSysConst_Count];
   // Mask of system constants (1 << kSysConst_#_Index) used in the shader, so

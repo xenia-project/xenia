@@ -26,6 +26,8 @@
 // TEXCOORD                16   xyz        16     NONE   float   xyz 
 // TEXCOORD                17   xy         17     NONE   float   xy  
 // SV_Position              0   xyzw       18      POS   float   xyzw
+// SV_ClipDistance          0   xyzw       19  CLIPDST   float   xyzw
+// SV_ClipDistance          1   xy         20  CLIPDST   float   xy  
 //
 //
 // Output signature:
@@ -51,6 +53,8 @@
 // TEXCOORD                16   xyz        16     NONE   float   xyz 
 // TEXCOORD                17   xy         17     NONE   float   xy  
 // SV_Position              0   xyzw       18      POS   float   xyzw
+// SV_ClipDistance          0   xyzw       19  CLIPDST   float   xyzw
+// SV_ClipDistance          1   xy         20  CLIPDST   float   xy  
 //
 gs_5_1
 dcl_globalFlags refactoringAllowed
@@ -73,7 +77,9 @@ dcl_input v[3][15].xyzw
 dcl_input v[3][16].xyz
 dcl_input v[3][17].xy
 dcl_input_siv v[3][18].xyzw, position
-dcl_temps 20
+dcl_input v[3][19].xyzw
+dcl_input v[3][20].xy
+dcl_temps 21
 dcl_inputprimitive triangle 
 dcl_stream m0
 dcl_outputtopology trianglestrip 
@@ -96,6 +102,8 @@ dcl_output o15.xyzw
 dcl_output o16.xyz
 dcl_output o17.xy
 dcl_output_siv o18.xyzw, position
+dcl_output_siv o19.xyzw, clip_distance
+dcl_output_siv o20.xy, clip_distance
 dcl_maxout 6
 mov o0.xyzw, v[0][0].xyzw
 mov o1.xyzw, v[0][1].xyzw
@@ -116,6 +124,8 @@ mov o15.xyzw, v[0][15].xyzw
 mov o16.xyz, v[0][16].xyzx
 mov o17.xy, v[0][17].xyxx
 mov o18.xyzw, v[0][18].xyzw
+mov o19.xyzw, v[0][19].xyzw
+mov o20.xy, v[0][20].xyxx
 emit_stream m0
 mov o0.xyzw, v[1][0].xyzw
 mov o1.xyzw, v[1][1].xyzw
@@ -136,6 +146,8 @@ mov o15.xyzw, v[1][15].xyzw
 mov o16.xyz, v[1][16].xyzx
 mov o17.xy, v[1][17].xyxx
 mov o18.xyzw, v[1][18].xyzw
+mov o19.xyzw, v[1][19].xyzw
+mov o20.xy, v[1][20].xyxx
 emit_stream m0
 mov o0.xyzw, v[2][0].xyzw
 mov o1.xyzw, v[2][1].xyzw
@@ -156,6 +168,8 @@ mov o15.xyzw, v[2][15].xyzw
 mov o16.xyz, v[2][16].xyzx
 mov o17.xy, v[2][17].xyxx
 mov o18.xyzw, v[2][18].xyzw
+mov o19.xyzw, v[2][19].xyzw
+mov o20.xy, v[2][20].xyxx
 emit_stream m0
 cut_stream m0
 add r0.xyz, -v[0][18].xyzx, v[1][18].xyzx
@@ -187,6 +201,8 @@ if_nz r0.w
   mov o16.xyz, v[2][16].xyzx
   mov o17.xy, v[2][17].xyxx
   mov o18.xyzw, v[2][18].xyzw
+  mov o19.xyzw, v[2][19].xyzw
+  mov o20.xy, v[2][20].xyxx
   emit_stream m0
   mov o0.xyzw, v[1][0].xyzw
   mov o1.xyzw, v[1][1].xyzw
@@ -207,6 +223,8 @@ if_nz r0.w
   mov o16.xyz, v[1][16].xyzx
   mov o17.xy, v[1][17].xyxx
   mov o18.xyzw, v[1][18].xyzw
+  mov o19.xyzw, v[1][19].xyzw
+  mov o20.xy, v[1][20].xyxx
   emit_stream m0
   mov r0.xyz, l(1.000000,1.000000,-1.000000,0)
 else 
@@ -233,6 +251,8 @@ else
     mov o16.xyz, v[0][16].xyzx
     mov o17.xy, v[0][17].xyxx
     mov o18.xyzw, v[0][18].xyzw
+    mov o19.xyzw, v[0][19].xyzw
+    mov o20.xy, v[0][20].xyxx
     emit_stream m0
     mov o0.xyzw, v[2][0].xyzw
     mov o1.xyzw, v[2][1].xyzw
@@ -253,6 +273,8 @@ else
     mov o16.xyz, v[2][16].xyzx
     mov o17.xy, v[2][17].xyxx
     mov o18.xyzw, v[2][18].xyzw
+    mov o19.xyzw, v[2][19].xyzw
+    mov o20.xy, v[2][20].xyxx
     emit_stream m0
     mov r0.xy, l(-1.000000,1.000000,0,0)
   else 
@@ -275,6 +297,8 @@ else
     mov o16.xyz, v[1][16].xyzx
     mov o17.xy, v[1][17].xyxx
     mov o18.xyzw, v[1][18].xyzw
+    mov o19.xyzw, v[1][19].xyzw
+    mov o20.xy, v[1][20].xyxx
     emit_stream m0
     mov o0.xyzw, v[0][0].xyzw
     mov o1.xyzw, v[0][1].xyzw
@@ -295,6 +319,8 @@ else
     mov o16.xyz, v[0][16].xyzx
     mov o17.xy, v[0][17].xyxx
     mov o18.xyzw, v[0][18].xyzw
+    mov o19.xyzw, v[0][19].xyzw
+    mov o20.xy, v[0][20].xyxx
     emit_stream m0
     mov r0.xy, l(1.000000,-1.000000,0,0)
   endif 
@@ -356,7 +382,13 @@ mad r18.xy, r0.zzzz, v[0][17].xyxx, r18.xyxx
 mad r18.xy, r0.yyyy, v[2][17].xyxx, r18.xyxx
 mul r19.xyzw, r0.xxxx, v[1][18].xyzw
 mad r19.xyzw, r0.zzzz, v[0][18].xyzw, r19.xyzw
-mad r0.xyzw, r0.yyyy, v[2][18].xyzw, r19.xyzw
+mad r19.xyzw, r0.yyyy, v[2][18].xyzw, r19.xyzw
+mul r20.xyzw, r0.xxxx, v[1][19].xyzw
+mad r20.xyzw, r0.zzzz, v[0][19].xyzw, r20.xyzw
+mad r20.xyzw, r0.yyyy, v[2][19].xyzw, r20.xyzw
+mul r0.xw, r0.xxxx, v[1][20].xxxy
+mad r0.xz, r0.zzzz, v[0][20].xxyx, r0.xxwx
+mad r0.xy, r0.yyyy, v[2][20].xyxx, r0.xzxx
 mov o0.xyzw, r1.xyzw
 mov o1.xyzw, r2.xyzw
 mov o2.xyzw, r3.xyzw
@@ -375,8 +407,10 @@ mov o14.xyzw, r15.xyzw
 mov o15.xyzw, r16.xyzw
 mov o16.xyz, r17.xyzx
 mov o17.xy, r18.xyxx
-mov o18.xyzw, r0.xyzw
+mov o18.xyzw, r19.xyzw
+mov o19.xyzw, r20.xyzw
+mov o20.xy, r0.xyxx
 emit_stream m0
 cut_stream m0
 ret 
-// Approximately 282 instruction slots used
+// Approximately 308 instruction slots used

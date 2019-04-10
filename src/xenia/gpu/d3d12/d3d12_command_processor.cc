@@ -1955,21 +1955,21 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   SCOPE_profile_cpu_f("gpu");
 #endif  // FINE_GRAINED_DRAW_SCOPES
 
-  int32_t vgt_indx_offset = int32_t(regs[XE_GPU_REG_VGT_INDX_OFFSET].u32);
+  uint32_t pa_cl_clip_cntl = regs[XE_GPU_REG_PA_CL_CLIP_CNTL].u32;
   uint32_t pa_cl_vte_cntl = regs[XE_GPU_REG_PA_CL_VTE_CNTL].u32;
+  uint32_t pa_su_point_minmax = regs[XE_GPU_REG_PA_SU_POINT_MINMAX].u32;
+  uint32_t pa_su_point_size = regs[XE_GPU_REG_PA_SU_POINT_SIZE].u32;
+  uint32_t pa_su_sc_mode_cntl = regs[XE_GPU_REG_PA_SU_SC_MODE_CNTL].u32;
+  uint32_t pa_su_vtx_cntl = regs[XE_GPU_REG_PA_SU_VTX_CNTL].u32;
+  float rb_alpha_ref = regs[XE_GPU_REG_RB_ALPHA_REF].f32;
+  uint32_t rb_colorcontrol = regs[XE_GPU_REG_RB_COLORCONTROL].u32;
+  uint32_t rb_depth_info = regs[XE_GPU_REG_RB_DEPTH_INFO].u32;
   uint32_t rb_depthcontrol = regs[XE_GPU_REG_RB_DEPTHCONTROL].u32;
   uint32_t rb_stencilrefmask = regs[XE_GPU_REG_RB_STENCILREFMASK].u32;
-  uint32_t rb_depth_info = regs[XE_GPU_REG_RB_DEPTH_INFO].u32;
-  uint32_t pa_cl_clip_cntl = regs[XE_GPU_REG_PA_CL_CLIP_CNTL].u32;
-  uint32_t pa_su_vtx_cntl = regs[XE_GPU_REG_PA_SU_VTX_CNTL].u32;
-  uint32_t pa_su_point_size = regs[XE_GPU_REG_PA_SU_POINT_SIZE].u32;
-  uint32_t pa_su_point_minmax = regs[XE_GPU_REG_PA_SU_POINT_MINMAX].u32;
-  uint32_t sq_program_cntl = regs[XE_GPU_REG_SQ_PROGRAM_CNTL].u32;
-  uint32_t sq_context_misc = regs[XE_GPU_REG_SQ_CONTEXT_MISC].u32;
   uint32_t rb_surface_info = regs[XE_GPU_REG_RB_SURFACE_INFO].u32;
-  uint32_t rb_colorcontrol = regs[XE_GPU_REG_RB_COLORCONTROL].u32;
-  float rb_alpha_ref = regs[XE_GPU_REG_RB_ALPHA_REF].f32;
-  uint32_t pa_su_sc_mode_cntl = regs[XE_GPU_REG_PA_SU_SC_MODE_CNTL].u32;
+  uint32_t sq_context_misc = regs[XE_GPU_REG_SQ_CONTEXT_MISC].u32;
+  uint32_t sq_program_cntl = regs[XE_GPU_REG_SQ_PROGRAM_CNTL].u32;
+  int32_t vgt_indx_offset = int32_t(regs[XE_GPU_REG_VGT_INDX_OFFSET].u32);
 
   // Get the color info register values for each render target, and also put
   // some safety measures for the ROV path - disable fully aliased render
@@ -2068,6 +2068,11 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   if (pa_cl_vte_cntl & (1 << 10)) {
     flags |= DxbcShaderTranslator::kSysFlag_WNotReciprocal;
   }
+  // User clip planes (UCP_ENA_#), when not CLIP_DISABLE.
+  if (!(pa_cl_clip_cntl & (1 << 16))) {
+    flags |= (pa_cl_clip_cntl & 0b111111)
+             << DxbcShaderTranslator::kSysFlag_UserClipPlane0_Shift;
+  }
   // Reversed depth.
   if (viewport_scale_z < 0.0f) {
     flags |= DxbcShaderTranslator::kSysFlag_ReverseZ;
@@ -2161,6 +2166,22 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
            index_endian_and_edge_factors;
   system_constants_.vertex_index_endian_and_edge_factors =
       index_endian_and_edge_factors;
+
+  // User clip planes (UCP_ENA_#), when not CLIP_DISABLE.
+  if (!(pa_cl_clip_cntl & (1 << 16))) {
+    for (uint32_t i = 0; i < 6; ++i) {
+      if (!(pa_cl_clip_cntl & (1 << i))) {
+        continue;
+      }
+      const float* ucp = &regs[XE_GPU_REG_PA_CL_UCP_0_X + i * 4].f32;
+      if (std::memcmp(system_constants_.user_clip_planes[i], ucp,
+                      4 * sizeof(float))) {
+        dirty = true;
+        std::memcpy(system_constants_.user_clip_planes[i], ucp,
+                    4 * sizeof(float));
+      }
+    }
+  }
 
   // Conversion to Direct3D 12 normalized device coordinates.
   // See viewport configuration in UpdateFixedFunctionState for explanations.

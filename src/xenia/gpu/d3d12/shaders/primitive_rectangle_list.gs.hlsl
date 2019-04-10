@@ -71,6 +71,12 @@ void main(triangle XeVertex xe_in[3],
   xe_out.position = v3_signs.x * xe_in[0].position +
                     v3_signs.y * xe_in[1].position +
                     v3_signs.z * xe_in[2].position;
+  xe_out.clip_distance_0123 = v3_signs.x * xe_in[0].clip_distance_0123 +
+                              v3_signs.y * xe_in[1].clip_distance_0123 +
+                              v3_signs.z * xe_in[2].clip_distance_0123;
+  xe_out.clip_distance_45 = v3_signs.x * xe_in[0].clip_distance_45 +
+                            v3_signs.y * xe_in[1].clip_distance_45 +
+                            v3_signs.z * xe_in[2].clip_distance_45;
   xe_stream.Append(xe_out);
   xe_stream.RestartStrip();
 }
