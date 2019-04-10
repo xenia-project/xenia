@@ -26,6 +26,8 @@
 // TEXCOORD                16   xyz        16     NONE   float   xyz 
 // TEXCOORD                17   xy         17     NONE   float   xy  
 // SV_Position              0   xyzw       18      POS   float   xyzw
+// SV_ClipDistance          0   xyzw       19  CLIPDST   float   xyzw
+// SV_ClipDistance          1   xy         20  CLIPDST   float   xy  
 //
 //
 // Output signature:
@@ -51,6 +53,8 @@
 // TEXCOORD                16   xyz        16     NONE   float   xyz 
 // TEXCOORD                17   xy         17     NONE   float   xy  
 // SV_Position              0   xyzw       18      POS   float   xyzw
+// SV_ClipDistance          0   xyzw       19  CLIPDST   float   xyzw
+// SV_ClipDistance          1   xy         20  CLIPDST   float   xy  
 //
 gs_5_1
 dcl_globalFlags refactoringAllowed
@@ -73,6 +77,8 @@ dcl_input v[4][15].xyzw
 dcl_input v[4][16].xyz
 dcl_input v[4][17].xy
 dcl_input_siv v[4][18].xyzw, position
+dcl_input v[4][19].xyzw
+dcl_input v[4][20].xy
 dcl_inputprimitive lineadj 
 dcl_stream m0
 dcl_outputtopology trianglestrip 
@@ -95,6 +101,8 @@ dcl_output o15.xyzw
 dcl_output o16.xyz
 dcl_output o17.xy
 dcl_output_siv o18.xyzw, position
+dcl_output_siv o19.xyzw, clip_distance
+dcl_output_siv o20.xy, clip_distance
 dcl_maxout 4
 mov o0.xyzw, v[0][0].xyzw
 mov o1.xyzw, v[0][1].xyzw
@@ -115,6 +123,8 @@ mov o15.xyzw, v[0][15].xyzw
 mov o16.xyz, v[0][16].xyzx
 mov o17.xy, v[0][17].xyxx
 mov o18.xyzw, v[0][18].xyzw
+mov o19.xyzw, v[0][19].xyzw
+mov o20.xy, v[0][20].xyxx
 emit_stream m0
 mov o0.xyzw, v[1][0].xyzw
 mov o1.xyzw, v[1][1].xyzw
@@ -135,6 +145,8 @@ mov o15.xyzw, v[1][15].xyzw
 mov o16.xyz, v[1][16].xyzx
 mov o17.xy, v[1][17].xyxx
 mov o18.xyzw, v[1][18].xyzw
+mov o19.xyzw, v[1][19].xyzw
+mov o20.xy, v[1][20].xyxx
 emit_stream m0
 mov o0.xyzw, v[3][0].xyzw
 mov o1.xyzw, v[3][1].xyzw
@@ -155,6 +167,8 @@ mov o15.xyzw, v[3][15].xyzw
 mov o16.xyz, v[3][16].xyzx
 mov o17.xy, v[3][17].xyxx
 mov o18.xyzw, v[3][18].xyzw
+mov o19.xyzw, v[3][19].xyzw
+mov o20.xy, v[3][20].xyxx
 emit_stream m0
 mov o0.xyzw, v[2][0].xyzw
 mov o1.xyzw, v[2][1].xyzw
@@ -175,7 +189,9 @@ mov o15.xyzw, v[2][15].xyzw
 mov o16.xyz, v[2][16].xyzx
 mov o17.xy, v[2][17].xyxx
 mov o18.xyzw, v[2][18].xyzw
+mov o19.xyzw, v[2][19].xyzw
+mov o20.xy, v[2][20].xyxx
 emit_stream m0
 cut_stream m0
 ret 
-// Approximately 82 instruction slots used
+// Approximately 90 instruction slots used

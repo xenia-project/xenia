@@ -1228,6 +1228,79 @@ void DxbcShaderTranslator::CompleteVertexOrDomainShader() {
   // Release w_format_temp.
   PopSystemTemp();
 
+  // Clip against user clip planes.
+  // Not possible to handle UCP_CULL_ONLY_ENA with the same shader though, since
+  // there can be only 8 SV_ClipDistance + SV_CullDistance values at most, but
+  // 12 would be needed.
+  uint32_t ucp_dot_temp = PushSystemTemp();
+  uint32_t ucp_enabled_temp = PushSystemTemp();
+  system_constants_used_ |= (1ull << kSysConst_UserClipPlanes_Index) |
+                            (1ull << kSysConst_Flags_Index);
+  for (uint32_t i = 0; i < 2; ++i) {
+    uint32_t ucp_count = i ? 2 : 4;
+    uint32_t ucp_mask = (1 << ucp_count) - 1;
+    for (uint32_t j = 0; j < ucp_count; ++j) {
+      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DP4) |
+                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
+      shader_code_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1 << j, 1));
+      shader_code_.push_back(ucp_dot_temp);
+      shader_code_.push_back(EncodeVectorSwizzledOperand(
+          D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+      shader_code_.push_back(system_temp_position_);
+      shader_code_.push_back(EncodeVectorSwizzledOperand(
+          D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSwizzleXYZW, 3));
+      shader_code_.push_back(cbuffer_index_system_constants_);
+      shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
+      shader_code_.push_back(kSysConst_UserClipPlanes_Vec + i * 4 + j);
+      ++stat_.instruction_count;
+      ++stat_.float_instruction_count;
+    }
+    // Using movc rather than zeroing the planes in the constants because dp4
+    // would handle Infinity and NaN in an unexpected way.
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(12));
+    shader_code_.push_back(
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, ucp_mask, 1));
+    shader_code_.push_back(ucp_enabled_temp);
+    shader_code_.push_back(EncodeVectorReplicatedOperand(
+        D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSysConst_Flags_Comp, 3));
+    shader_code_.push_back(cbuffer_index_system_constants_);
+    shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
+    shader_code_.push_back(kSysConst_Flags_Vec);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+    for (uint32_t j = 0; j < ucp_count; ++j) {
+      shader_code_.push_back(kSysFlag_UserClipPlane0 << (i * 4 + j));
+    }
+    for (uint32_t j = ucp_count; j < 4; ++j) {
+      shader_code_.push_back(0);
+    }
+    ++stat_.instruction_count;
+    ++stat_.uint_instruction_count;
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(12));
+    shader_code_.push_back(
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_OUTPUT, ucp_mask, 1));
+    shader_code_.push_back(uint32_t(InOutRegister::kVSOutClipDistance0123) + i);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+    shader_code_.push_back(ucp_enabled_temp);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+    shader_code_.push_back(ucp_dot_temp);
+    shader_code_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
+    shader_code_.push_back(0);
+    shader_code_.push_back(0);
+    shader_code_.push_back(0);
+    shader_code_.push_back(0);
+    ++stat_.instruction_count;
+    ++stat_.movc_instruction_count;
+  }
+  // Release ucp_dot_temp and ucp_enabled_temp.
+  PopSystemTemp(2);
+
   // Apply scale for drawing without a viewport, and also remap from OpenGL
   // Z clip space to Direct3D if needed.
   system_constants_used_ |= 1ull << kSysConst_NDCScale_Index;
@@ -3104,6 +3177,7 @@ const DxbcShaderTranslator::RdefType DxbcShaderTranslator::rdef_types_[size_t(
     {"uint", 0, 19, 1, 1, 0, 0, RdefTypeIndex::kUnknown, nullptr},
     {"uint2", 1, 19, 1, 2, 0, 0, RdefTypeIndex::kUnknown, nullptr},
     {"uint4", 1, 19, 1, 4, 0, 0, RdefTypeIndex::kUnknown, nullptr},
+    {nullptr, 1, 3, 1, 4, 6, 0, RdefTypeIndex::kFloat4, nullptr},
     // Float constants - size written dynamically.
     {nullptr, 1, 3, 1, 4, 0, 0, RdefTypeIndex::kFloat4, nullptr},
     {nullptr, 1, 19, 1, 4, 8, 0, RdefTypeIndex::kUint4, nullptr},
@@ -3113,84 +3187,85 @@ const DxbcShaderTranslator::RdefType DxbcShaderTranslator::rdef_types_[size_t(
 
 const DxbcShaderTranslator::SystemConstantRdef DxbcShaderTranslator::
     system_constant_rdef_[DxbcShaderTranslator::kSysConst_Count] = {
-        // vec4 0
-        {"xe_flags", RdefTypeIndex::kUint, 0, 4},
-        {"xe_line_loop_closing_index", RdefTypeIndex::kUint, 4, 4},
-        {"xe_vertex_index_endian_and_edge_factors", RdefTypeIndex::kUint, 8, 4},
-        {"xe_vertex_base_index", RdefTypeIndex::kInt, 12, 4},
-        // vec4 1
-        {"xe_ndc_scale", RdefTypeIndex::kFloat3, 16, 12},
-        {"xe_pixel_pos_reg", RdefTypeIndex::kUint, 28, 4},
-        // vec4 2
-        {"xe_ndc_offset", RdefTypeIndex::kFloat3, 32, 12},
-        {"xe_pixel_half_pixel_offset", RdefTypeIndex::kFloat, 44, 4},
-        // vec4 3
-        {"xe_point_size", RdefTypeIndex::kFloat2, 48, 8},
-        {"xe_point_size_min_max", RdefTypeIndex::kFloat2, 56, 8},
-        // vec4 4
-        {"xe_point_screen_to_ndc", RdefTypeIndex::kFloat2, 64, 8},
-        {"xe_sample_count_log2", RdefTypeIndex::kUint2, 72, 8},
-        // vec4 5
-        {"xe_alpha_test_reference", RdefTypeIndex::kFloat, 80, 4},
-        {"xe_edram_pitch_tiles", RdefTypeIndex::kUint, 84, 4},
-        {"xe_edram_depth_base_dwords", RdefTypeIndex::kUint, 88, 4},
-        // vec4 6
-        {"xe_color_exp_bias", RdefTypeIndex::kFloat4, 96, 16},
-        // vec4 7
-        {"xe_color_output_map", RdefTypeIndex::kUint4, 112, 16},
-        // vec4 8
-        {"xe_tessellation_factor_range", RdefTypeIndex::kFloat2, 128, 8},
-        {"xe_edram_depth_range", RdefTypeIndex::kFloat2, 136, 8},
-        // vec4 9
-        {"xe_edram_poly_offset_front", RdefTypeIndex::kFloat2, 144, 8},
-        {"xe_edram_poly_offset_back", RdefTypeIndex::kFloat2, 152, 8},
-        // vec4 10
-        {"xe_edram_resolution_scale_log2", RdefTypeIndex::kUint, 160, 4},
-        {"xe_edram_stencil_reference", RdefTypeIndex::kUint, 164, 4},
-        {"xe_edram_stencil_read_mask", RdefTypeIndex::kUint, 168, 4},
-        {"xe_edram_stencil_write_mask", RdefTypeIndex::kUint, 172, 4},
-        // vec4 11
-        {"xe_edram_stencil_front", RdefTypeIndex::kUint4, 176, 16},
-        // vec4 12
-        {"xe_edram_stencil_back", RdefTypeIndex::kUint4, 192, 16},
-        // vec4 13
-        {"xe_edram_base_dwords", RdefTypeIndex::kUint4, 208, 16},
-        // vec4 14
-        {"xe_edram_rt_flags", RdefTypeIndex::kUint4, 224, 16},
-        // vec4 15
-        {"xe_edram_rt_pack_width_low", RdefTypeIndex::kUint4, 240, 16},
-        // vec4 16
-        {"xe_edram_rt_pack_offset_low", RdefTypeIndex::kUint4, 256, 16},
-        // vec4 17
-        {"xe_edram_rt_pack_width_high", RdefTypeIndex::kUint4, 272, 16},
-        // vec4 18
-        {"xe_edram_rt_pack_offset_high", RdefTypeIndex::kUint4, 288, 16},
-        // vec4 19
-        {"xe_edram_load_mask_low_rt01", RdefTypeIndex::kUint4, 304, 16},
-        // vec4 20
-        {"xe_edram_load_mask_low_rt23", RdefTypeIndex::kUint4, 320, 16},
-        // vec4 21
-        {"xe_edram_load_scale_rt01", RdefTypeIndex::kFloat4, 336, 16},
-        // vec4 22
-        {"xe_edram_load_scale_rt23", RdefTypeIndex::kFloat4, 352, 16},
-        // vec4 23
-        {"xe_edram_blend_rt01", RdefTypeIndex::kUint4, 368, 16},
-        // vec4 24
-        {"xe_edram_blend_rt23", RdefTypeIndex::kUint4, 384, 16},
-        // vec4 25
-        {"xe_edram_blend_constant", RdefTypeIndex::kFloat4, 400, 16},
-        // vec4 26
-        {"xe_edram_store_min_rt01", RdefTypeIndex::kFloat4, 416, 16},
-        // vec4 27
-        {"xe_edram_store_min_rt23", RdefTypeIndex::kFloat4, 432, 16},
-        // vec4 28
-        {"xe_edram_store_max_rt01", RdefTypeIndex::kFloat4, 448, 16},
-        // vec4 29
-        {"xe_edram_store_max_rt23", RdefTypeIndex::kFloat4, 464, 16},
-        // vec4 30
-        {"xe_edram_store_scale_rt01", RdefTypeIndex::kFloat4, 480, 16},
-        // vec4 31
-        {"xe_edram_store_scale_rt23", RdefTypeIndex::kFloat4, 496, 16},
+        {"xe_flags", RdefTypeIndex::kUint, 4},
+        {"xe_line_loop_closing_index", RdefTypeIndex::kUint, 4},
+        {"xe_vertex_index_endian_and_edge_factors", RdefTypeIndex::kUint, 4},
+        {"xe_vertex_base_index", RdefTypeIndex::kInt, 4},
+
+        {"xe_user_clip_planes", RdefTypeIndex::kFloat4Array6, 96},
+
+        {"xe_ndc_scale", RdefTypeIndex::kFloat3, 12},
+        {"xe_pixel_pos_reg", RdefTypeIndex::kUint, 4},
+
+        {"xe_ndc_offset", RdefTypeIndex::kFloat3, 12},
+        {"xe_pixel_half_pixel_offset", RdefTypeIndex::kFloat, 4},
+
+        {"xe_point_size", RdefTypeIndex::kFloat2, 8},
+        {"xe_point_size_min_max", RdefTypeIndex::kFloat2, 8},
+
+        {"xe_point_screen_to_ndc", RdefTypeIndex::kFloat2, 8},
+        {"xe_sample_count_log2", RdefTypeIndex::kUint2, 8},
+
+        {"xe_alpha_test_reference", RdefTypeIndex::kFloat, 4},
+        {"xe_edram_pitch_tiles", RdefTypeIndex::kUint, 4},
+        {"xe_edram_depth_base_dwords", RdefTypeIndex::kUint, 4, 4},
+
+        {"xe_color_exp_bias", RdefTypeIndex::kFloat4, 16},
+
+        {"xe_color_output_map", RdefTypeIndex::kUint4, 16},
+
+        {"xe_tessellation_factor_range", RdefTypeIndex::kFloat2, 8},
+        {"xe_edram_depth_range", RdefTypeIndex::kFloat2, 8},
+
+        {"xe_edram_poly_offset_front", RdefTypeIndex::kFloat2, 8},
+        {"xe_edram_poly_offset_back", RdefTypeIndex::kFloat2, 8},
+
+        {"xe_edram_resolution_scale_log2", RdefTypeIndex::kUint, 4},
+        {"xe_edram_stencil_reference", RdefTypeIndex::kUint, 4},
+        {"xe_edram_stencil_read_mask", RdefTypeIndex::kUint, 4},
+        {"xe_edram_stencil_write_mask", RdefTypeIndex::kUint, 4},
+
+        {"xe_edram_stencil_front", RdefTypeIndex::kUint4, 16},
+
+        {"xe_edram_stencil_back", RdefTypeIndex::kUint4, 16},
+
+        {"xe_edram_base_dwords", RdefTypeIndex::kUint4, 16},
+
+        {"xe_edram_rt_flags", RdefTypeIndex::kUint4, 16},
+
+        {"xe_edram_rt_pack_width_low", RdefTypeIndex::kUint4, 16},
+
+        {"xe_edram_rt_pack_offset_low", RdefTypeIndex::kUint4, 16},
+
+        {"xe_edram_rt_pack_width_high", RdefTypeIndex::kUint4, 16},
+
+        {"xe_edram_rt_pack_offset_high", RdefTypeIndex::kUint4, 16},
+
+        {"xe_edram_load_mask_low_rt01", RdefTypeIndex::kUint4, 16},
+
+        {"xe_edram_load_mask_low_rt23", RdefTypeIndex::kUint4, 16},
+
+        {"xe_edram_load_scale_rt01", RdefTypeIndex::kFloat4, 16},
+
+        {"xe_edram_load_scale_rt23", RdefTypeIndex::kFloat4, 16},
+
+        {"xe_edram_blend_rt01", RdefTypeIndex::kUint4, 16},
+
+        {"xe_edram_blend_rt23", RdefTypeIndex::kUint4, 16},
+
+        {"xe_edram_blend_constant", RdefTypeIndex::kFloat4, 16},
+
+        {"xe_edram_store_min_rt01", RdefTypeIndex::kFloat4, 16},
+
+        {"xe_edram_store_min_rt23", RdefTypeIndex::kFloat4, 16},
+
+        {"xe_edram_store_max_rt01", RdefTypeIndex::kFloat4, 16},
+
+        {"xe_edram_store_max_rt23", RdefTypeIndex::kFloat4, 16},
+
+        {"xe_edram_store_scale_rt01", RdefTypeIndex::kFloat4, 16},
+
+        {"xe_edram_store_scale_rt23", RdefTypeIndex::kFloat4, 16},
 };
 
 void DxbcShaderTranslator::WriteResourceDefinitions() {
@@ -3378,10 +3453,11 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
   // System constants.
   uint32_t constant_offset_system = new_offset;
   if (cbuffer_index_system_constants_ != kCbufferIndexUnallocated) {
+    uint32_t system_cbuffer_constant_offset = 0;
     for (uint32_t i = 0; i < kSysConst_Count; ++i) {
       const SystemConstantRdef& constant = system_constant_rdef_[i];
       shader_object_.push_back(constant_name_offsets_system[i]);
-      shader_object_.push_back(constant.offset);
+      shader_object_.push_back(system_cbuffer_constant_offset);
       shader_object_.push_back(constant.size);
       // Flag 0x2 is D3D_SVF_USED.
       shader_object_.push_back((system_constants_used_ & (1ull << i)) ? 0x2
@@ -3395,6 +3471,7 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
       shader_object_.push_back(0);
       shader_object_.push_back(0xFFFFFFFFu);
       shader_object_.push_back(0);
+      system_cbuffer_constant_offset += constant.size + constant.padding_after;
       new_offset += constant_size;
     }
   }
@@ -3835,21 +3912,18 @@ void DxbcShaderTranslator::WriteInputSignature() {
     // Write the semantic names.
     new_offset = (uint32_t(shader_object_.size()) - chunk_position_dwords) *
                  sizeof(uint32_t);
+    uint32_t name_position_dwords =
+        chunk_position_dwords + signature_position_dwords;
     for (uint32_t i = 0; i < kInterpolatorCount + 2; ++i) {
-      uint32_t texcoord_name_position_dwords = chunk_position_dwords +
-                                               signature_position_dwords +
-                                               i * signature_size_dwords;
-      shader_object_[texcoord_name_position_dwords] = new_offset;
+      shader_object_[name_position_dwords] = new_offset;
+      name_position_dwords += signature_size_dwords;
     }
     new_offset += AppendString(shader_object_, "TEXCOORD");
-    uint32_t position_name_position_dwords =
-        chunk_position_dwords + signature_position_dwords +
-        (kInterpolatorCount + 2) * signature_size_dwords;
-    shader_object_[position_name_position_dwords] = new_offset;
+    shader_object_[name_position_dwords] = new_offset;
+    name_position_dwords += signature_size_dwords;
     new_offset += AppendString(shader_object_, "SV_Position");
-    uint32_t front_face_name_position_dwords =
-        position_name_position_dwords + signature_size_dwords;
-    shader_object_[front_face_name_position_dwords] = new_offset;
+    shader_object_[name_position_dwords] = new_offset;
+    name_position_dwords += signature_size_dwords;
     new_offset += AppendString(shader_object_, "SV_IsFrontFace");
   }
 }
@@ -3915,18 +3989,16 @@ void DxbcShaderTranslator::WritePatchConstantSignature() {
   uint32_t new_offset =
       (uint32_t(shader_object_.size()) - chunk_position_dwords) *
       sizeof(uint32_t);
+  uint32_t name_position_dwords =
+      chunk_position_dwords + signature_position_dwords;
   for (uint32_t i = 0; i < tess_factor_count_edge; ++i) {
-    uint32_t name_position_dwords = chunk_position_dwords +
-                                    signature_position_dwords +
-                                    i * signature_size_dwords;
     shader_object_[name_position_dwords] = new_offset;
+    name_position_dwords += signature_size_dwords;
   }
   new_offset += AppendString(shader_object_, "SV_TessFactor");
   for (uint32_t i = 0; i < tess_factor_count_inside; ++i) {
-    uint32_t name_position_dwords =
-        chunk_position_dwords + signature_position_dwords +
-        (tess_factor_count_edge + i) * signature_size_dwords;
     shader_object_[name_position_dwords] = new_offset;
+    name_position_dwords += signature_size_dwords;
   }
   new_offset += AppendString(shader_object_, "SV_InsideTessFactor");
 }
@@ -3940,8 +4012,8 @@ void DxbcShaderTranslator::WriteOutputSignature() {
 
   if (IsDxbcVertexOrDomainShader()) {
     // Interpolators, point parameters (coordinates, size), clip space ZW,
-    // screen position.
-    shader_object_.push_back(kInterpolatorCount + 3);
+    // screen position, 6 clip distances in 2 vectors.
+    shader_object_.push_back(kInterpolatorCount + 5);
     // Unknown.
     shader_object_.push_back(8);
 
@@ -3988,21 +4060,36 @@ void DxbcShaderTranslator::WriteOutputSignature() {
     shader_object_.push_back(uint32_t(InOutRegister::kVSOutPosition));
     shader_object_.push_back(0b1111);
 
+    // Clip distances.
+    for (uint32_t i = 0; i < 2; ++i) {
+      shader_object_.push_back(0);
+      shader_object_.push_back(i);
+      // D3D_NAME_CLIP_DISTANCE.
+      shader_object_.push_back(2);
+      shader_object_.push_back(3);
+      shader_object_.push_back(uint32_t(InOutRegister::kVSOutClipDistance0123) +
+                               i);
+      shader_object_.push_back(i ? (0b0011 | (0b1100 << 8)) : 0b1111);
+    }
+
     // Write the semantic names.
     new_offset = (uint32_t(shader_object_.size()) - chunk_position_dwords) *
                  sizeof(uint32_t);
+    uint32_t name_position_dwords =
+        chunk_position_dwords + signature_position_dwords;
     for (uint32_t i = 0; i < kInterpolatorCount + 2; ++i) {
-      uint32_t texcoord_name_position_dwords = chunk_position_dwords +
-                                               signature_position_dwords +
-                                               i * signature_size_dwords;
-      shader_object_[texcoord_name_position_dwords] = new_offset;
+      shader_object_[name_position_dwords] = new_offset;
+      name_position_dwords += signature_size_dwords;
     }
     new_offset += AppendString(shader_object_, "TEXCOORD");
-    uint32_t position_name_position_dwords =
-        chunk_position_dwords + signature_position_dwords +
-        (kInterpolatorCount + 2) * signature_size_dwords;
-    shader_object_[position_name_position_dwords] = new_offset;
+    shader_object_[name_position_dwords] = new_offset;
+    name_position_dwords += signature_size_dwords;
     new_offset += AppendString(shader_object_, "SV_Position");
+    for (uint32_t i = 0; i < 2; ++i) {
+      shader_object_[name_position_dwords] = new_offset;
+      name_position_dwords += signature_size_dwords;
+    }
+    new_offset += AppendString(shader_object_, "SV_ClipDistance");
   } else {
     assert_true(IsDxbcPixelShader());
     if (edram_rov_used_) {
@@ -4048,20 +4135,18 @@ void DxbcShaderTranslator::WriteOutputSignature() {
       // Write the semantic names.
       new_offset = (uint32_t(shader_object_.size()) - chunk_position_dwords) *
                    sizeof(uint32_t);
+      uint32_t name_position_dwords =
+          chunk_position_dwords + signature_position_dwords;
       if (!is_depth_only_pixel_shader_) {
         for (uint32_t i = 0; i < 4; ++i) {
-          uint32_t color_name_position_dwords = chunk_position_dwords +
-                                                signature_position_dwords +
-                                                i * signature_size_dwords;
-          shader_object_[color_name_position_dwords] = new_offset;
+          shader_object_[name_position_dwords] = new_offset;
+          name_position_dwords += signature_size_dwords;
         }
       }
       new_offset += AppendString(shader_object_, "SV_Target");
       if (writes_depth()) {
-        uint32_t depth_name_position_dwords = chunk_position_dwords +
-                                              signature_position_dwords +
-                                              4 * signature_size_dwords;
-        shader_object_[depth_name_position_dwords] = new_offset;
+        shader_object_[name_position_dwords] = new_offset;
+        name_position_dwords += signature_size_dwords;
         new_offset += AppendString(shader_object_, "SV_Depth");
       }
     }
@@ -4364,6 +4449,19 @@ void DxbcShaderTranslator::WriteShaderCode() {
     shader_object_.push_back(uint32_t(InOutRegister::kVSOutPosition));
     shader_object_.push_back(ENCODE_D3D10_SB_NAME(D3D10_SB_NAME_POSITION));
     ++stat_.dcl_count;
+    // Clip distance outputs.
+    for (uint32_t i = 0; i < 2; ++i) {
+      shader_object_.push_back(
+          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_OUTPUT_SIV) |
+          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4));
+      shader_object_.push_back(EncodeVectorMaskedOperand(
+          D3D10_SB_OPERAND_TYPE_OUTPUT, i ? 0b0011 : 0b1111, 1));
+      shader_object_.push_back(uint32_t(InOutRegister::kVSOutClipDistance0123) +
+                               i);
+      shader_object_.push_back(
+          ENCODE_D3D10_SB_NAME(D3D10_SB_NAME_CLIP_DISTANCE));
+      ++stat_.dcl_count;
+    }
   } else if (IsDxbcPixelShader()) {
     // Interpolator input.
     if (!is_depth_only_pixel_shader_) {
