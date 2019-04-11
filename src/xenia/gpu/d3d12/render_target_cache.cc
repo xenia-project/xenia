@@ -232,15 +232,18 @@ bool RenderTargetCache::Initialize(const TextureCache* texture_cache) {
   }
 
   // Create the pipelines.
+  bool rov_used = command_processor_->IsROVUsedForEDRAM();
   // Load and store.
   for (uint32_t i = 0; i < uint32_t(EDRAMLoadStoreMode::kCount); ++i) {
     const EDRAMLoadStoreModeInfo& mode_info = edram_load_store_mode_info_[i];
     edram_load_pipelines_[i] = ui::d3d12::util::CreateComputePipeline(
         device, mode_info.load_shader, mode_info.load_shader_size,
         edram_load_store_root_signature_);
-    edram_store_pipelines_[i] = ui::d3d12::util::CreateComputePipeline(
-        device, mode_info.store_shader, mode_info.store_shader_size,
-        edram_load_store_root_signature_);
+    if (!rov_used) {
+      edram_store_pipelines_[i] = ui::d3d12::util::CreateComputePipeline(
+          device, mode_info.store_shader, mode_info.store_shader_size,
+          edram_load_store_root_signature_);
+    }
     // Load shader for resolution-scaled resolves (host pixels within samples to
     // samples within host pixels) doesn't always exist for each mode - depth is
     // not resolved using drawing, for example.
@@ -254,7 +257,7 @@ bool RenderTargetCache::Initialize(const TextureCache* texture_cache) {
               edram_load_store_root_signature_);
     }
     if (edram_load_pipelines_[i] == nullptr ||
-        edram_store_pipelines_[i] == nullptr ||
+        (!rov_used && edram_store_pipelines_[i] == nullptr) ||
         (load_2x_resolve_pipeline_used &&
          edram_load_2x_resolve_pipelines_[i] == nullptr)) {
       XELOGE("Failed to create the EDRAM load/store pipelines for mode %u", i);
@@ -262,7 +265,9 @@ bool RenderTargetCache::Initialize(const TextureCache* texture_cache) {
       return false;
     }
     edram_load_pipelines_[i]->SetName(mode_info.load_pipeline_name);
-    edram_store_pipelines_[i]->SetName(mode_info.store_pipeline_name);
+    if (edram_store_pipelines_[i] != nullptr) {
+      edram_store_pipelines_[i]->SetName(mode_info.store_pipeline_name);
+    }
     if (edram_load_2x_resolve_pipelines_[i] != nullptr) {
       edram_load_pipelines_[i]->SetName(
           mode_info.load_2x_resolve_pipeline_name);
@@ -2429,6 +2434,10 @@ RenderTargetCache::EDRAMLoadStoreMode RenderTargetCache::GetLoadStoreMode(
 }
 
 void RenderTargetCache::StoreRenderTargetsToEDRAM() {
+  if (command_processor_->IsROVUsedForEDRAM()) {
+    return;
+  }
+
   auto command_list = command_processor_->GetDeferredCommandList();
 
   // Extract only the render targets that need to be stored, transition them to
