@@ -586,6 +586,7 @@ class RenderTargetCache {
       edram_load_store_mode_info_[size_t(EDRAMLoadStoreMode::kCount)];
   ID3D12PipelineState*
       edram_load_pipelines_[size_t(EDRAMLoadStoreMode::kCount)] = {};
+  // Store pipelines are not created with ROV.
   ID3D12PipelineState*
       edram_store_pipelines_[size_t(EDRAMLoadStoreMode::kCount)] = {};
   ID3D12PipelineState*
