@@ -1988,6 +1988,7 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV_DepthStencil(
   PopSystemTemp();
 
   // Load the previous depth/stencil values.
+  // The `if`s are REQUIRED - interlocking is done per-sample, not per-pixel!
   uint32_t depth_values_temp = PushSystemTemp();
   for (uint32_t i = 0; i < 4; ++i) {
     shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
@@ -2848,6 +2849,7 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV_DepthStencil(
   ++stat_.uint_instruction_count;
 
   // Write new depth/stencil for the covered samples.
+  // The `if`s are REQUIRED - interlocking is done per-sample, not per-pixel!
   for (uint32_t i = 0; i < 4; ++i) {
     shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
                            ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(
@@ -5564,6 +5566,8 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
         }
 
         // Sample loop.
+        // The `if`s are REQUIRED - interlocking is done per-sample, not
+        // per-pixel!
         for (uint32_t k = 0; k < 4; ++k) {
           shader_code_.push_back(
               ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
@@ -5927,6 +5931,8 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
         }
 
         // Sample loop.
+        // The `if`s are REQUIRED - interlocking is done per-sample,
+        // not per-pixel!
         for (uint32_t k = 0; k < 4; ++k) {
           shader_code_.push_back(
               ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |

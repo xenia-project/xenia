@@ -1469,10 +1469,6 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     }
   }
 
-  if (IsROVUsedForEDRAM()) {
-    render_target_cache_->UseEDRAMAsUAV();
-  }
-
   // Actually draw.
   if (indexed) {
     uint32_t index_size = index_buffer_info->format == IndexFormat::kInt32
