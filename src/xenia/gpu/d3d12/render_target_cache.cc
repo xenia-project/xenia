@@ -672,6 +672,7 @@ bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
       const RenderTargetBinding& binding = current_bindings_[i];
       if (binding.is_bound) {
         if (binding.edram_base != edram_bases[i]) {
+          full_update = true;
           break;
         }
         if (rov_used) {
