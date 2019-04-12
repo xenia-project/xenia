@@ -570,8 +570,8 @@ bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
   }
   uint32_t rb_depthcontrol = regs[XE_GPU_REG_RB_DEPTHCONTROL].u32;
   uint32_t rb_depth_info = regs[XE_GPU_REG_RB_DEPTH_INFO].u32;
-  // 0x1 = stencil test, 0x2 = depth test.
-  enabled[4] = (rb_depthcontrol & (0x1 | 0x2)) != 0;
+  // 0x1 = stencil test, 0x2 = depth test, 0x4 = depth writing.
+  enabled[4] = (rb_depthcontrol & (0x1 | 0x2 | 0x4)) != 0;
   edram_bases[4] = std::min(rb_depth_info & 0xFFF, 2048u);
   formats[4] = (rb_depth_info >> 16) & 0x1;
   formats_are_64bpp[4] = false;
@@ -672,6 +672,7 @@ bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
       const RenderTargetBinding& binding = current_bindings_[i];
       if (binding.is_bound) {
         if (binding.edram_base != edram_bases[i]) {
+          full_update = true;
           break;
         }
         if (rov_used) {

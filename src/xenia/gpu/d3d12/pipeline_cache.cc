@@ -584,10 +584,10 @@ bool PipelineCache::GetCurrentStateDescription(
       uint32_t rb_depthcontrol = regs[XE_GPU_REG_RB_DEPTHCONTROL].u32;
       if (rb_depthcontrol & 0x2) {
         description_out.depth_func = (rb_depthcontrol >> 4) & 0x7;
-        description_out.depth_write = (rb_depthcontrol & 0x4) != 0;
       } else {
         description_out.depth_func = 0b111;
       }
+      description_out.depth_write = (rb_depthcontrol & 0x4) != 0;
       if (rb_depthcontrol & 0x1) {
         description_out.stencil_enable = 1;
         uint32_t rb_stencilrefmask = regs[XE_GPU_REG_RB_STENCILREFMASK].u32;
