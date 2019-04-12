@@ -274,8 +274,6 @@ class RenderTargetCache {
   // the command processor takes over framebuffer bindings to draw something
   // special.
   void UnbindRenderTargets();
-  // Transitions the EDRAM buffer to a UAV - for use with ROV rendering.
-  void UseEDRAMAsUAV();
   void WriteEDRAMUint32UAVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle);
   void EndFrame();
 
@@ -422,6 +420,7 @@ class RenderTargetCache {
   uint32_t GetEDRAMBufferSize() const;
 
   void TransitionEDRAMBuffer(D3D12_RESOURCE_STATES new_state);
+  void CommitEDRAMBufferUAVWrites(bool force);
 
   void WriteEDRAMRawSRVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle);
   void WriteEDRAMRawUAVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle);
@@ -511,6 +510,9 @@ class RenderTargetCache {
   // The EDRAM buffer allowing color and depth data to be reinterpreted.
   ID3D12Resource* edram_buffer_ = nullptr;
   D3D12_RESOURCE_STATES edram_buffer_state_;
+  // Whether there have been any outstanding UAV writes and a UAV barrier is
+  // needed before accessing the EDRAM buffer in an unordered way again.
+  bool edram_buffer_modified_ = false;
 
   // Non-shader-visible descriptor heap containing pre-created SRV and UAV
   // descriptors of the EDRAM buffer, for faster binding (via copying rather
@@ -629,6 +631,7 @@ class RenderTargetCache {
 
   uint32_t current_surface_pitch_ = 0;
   MsaaSamples current_msaa_samples_ = MsaaSamples::k1X;
+  // current_edram_max_rows_ is for RTV/DSV only (render target texture size).
   uint32_t current_edram_max_rows_ = 0;
   RenderTargetBinding current_bindings_[5] = {};
 
