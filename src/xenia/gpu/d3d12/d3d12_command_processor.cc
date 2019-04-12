@@ -1199,7 +1199,8 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
   uint32_t color_mask = GetCurrentColorMask(pixel_shader);
   uint32_t rb_depthcontrol = regs[XE_GPU_REG_RB_DEPTHCONTROL].u32;
   uint32_t rb_stencilrefmask = regs[XE_GPU_REG_RB_STENCILREFMASK].u32;
-  if (!memexport_used && !color_mask && !(rb_depthcontrol & 0x4) &&
+  if (!memexport_used && !color_mask &&
+      ((rb_depthcontrol & (0x2 | 0x4)) != (0x2 | 0x4)) &&
       (!(rb_depthcontrol & 0x1) || !(rb_stencilrefmask & (0xFF << 16)))) {
     // Not writing to color, depth or stencil, so doesn't draw.
     return true;
@@ -2017,12 +2018,12 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   // Disable depth and stencil if it aliases a color render target (for
   // instance, during the XBLA logo in Banjo-Kazooie, though depth writing is
   // already disabled there).
-  if (IsROVUsedForEDRAM() && (rb_depthcontrol & (0x1 | 0x2 | 0x4))) {
+  if (IsROVUsedForEDRAM() && (rb_depthcontrol & (0x1 | 0x2))) {
     uint32_t edram_base_depth = rb_depth_info & 0xFFF;
     for (uint32_t i = 0; i < 4; ++i) {
       if ((color_mask & (0xF << (i * 4))) &&
           edram_base_depth == (color_infos[i] & 0xFFF)) {
-        rb_depthcontrol &= ~(uint32_t(0x1 | 0x2 | 0x4));
+        rb_depthcontrol &= ~(uint32_t(0x1 | 0x2));
         break;
       }
     }
@@ -2099,30 +2100,30 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
       uint32_t(ColorRenderTargetFormat::k_8_8_8_8_GAMMA)) {
     flags |= DxbcShaderTranslator::kSysFlag_Color3Gamma;
   }
-  if (IsROVUsedForEDRAM()) {
-    uint32_t depth_comparison;
-    if (rb_depthcontrol & 0x2) {
-      depth_comparison = (rb_depthcontrol >> 4) & 0x7;
-    } else {
-      depth_comparison = 0b111;
+  if (IsROVUsedForEDRAM() && (rb_depthcontrol & (0x1 | 0x2))) {
+    flags |= DxbcShaderTranslator::kSysFlag_DepthStencil;
+    if (DepthRenderTargetFormat((rb_depth_info >> 16) & 0x1) ==
+        DepthRenderTargetFormat::kD24FS8) {
+      flags |= DxbcShaderTranslator::kSysFlag_DepthFloat24;
     }
-    if (depth_comparison != 0b111 || (rb_depthcontrol & (0x1 | 0x4))) {
-      flags |= DxbcShaderTranslator::kSysFlag_DepthStencil;
-      flags |= depth_comparison
+    if (rb_depthcontrol & 0x2) {
+      flags |= ((rb_depthcontrol >> 4) & 0x7)
                << DxbcShaderTranslator::kSysFlag_DepthPassIfLess_Shift;
-      if (DepthRenderTargetFormat((rb_depth_info >> 16) & 0x1) ==
-          DepthRenderTargetFormat::kD24FS8) {
-        flags |= DxbcShaderTranslator::kSysFlag_DepthFloat24;
-      }
       if (rb_depthcontrol & 0x4) {
         flags |= DxbcShaderTranslator::kSysFlag_DepthWriteMask |
                  DxbcShaderTranslator::kSysFlag_DepthStencilWrite;
       }
-      if (rb_depthcontrol & 0x1) {
-        flags |= DxbcShaderTranslator::kSysFlag_StencilTest;
-        if (rb_stencilrefmask & (0xFF << 16)) {
-          flags |= DxbcShaderTranslator::kSysFlag_DepthStencilWrite;
-        }
+    } else {
+      // In case stencil is used without depth testing - always pass, and
+      // don't modify the stored depth.
+      flags |= DxbcShaderTranslator::kSysFlag_DepthPassIfLess |
+               DxbcShaderTranslator::kSysFlag_DepthPassIfEqual |
+               DxbcShaderTranslator::kSysFlag_DepthPassIfGreater;
+    }
+    if (rb_depthcontrol & 0x1) {
+      flags |= DxbcShaderTranslator::kSysFlag_StencilTest;
+      if (rb_stencilrefmask & (0xFF << 16)) {
+        flags |= DxbcShaderTranslator::kSysFlag_DepthStencilWrite;
       }
     }
   }
