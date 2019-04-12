@@ -543,6 +543,8 @@ bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
   uint32_t rb_surface_info = regs[XE_GPU_REG_RB_SURFACE_INFO].u32;
   uint32_t surface_pitch = std::min(rb_surface_info & 0x3FFF, 2560u);
   if (surface_pitch == 0) {
+    // TODO(Triang3l): Do something if a memexport-only draw has 0 surface
+    // pitch (never seen in any game so far, not sure if even legal).
     return false;
   }
   MsaaSamples msaa_samples = MsaaSamples((rb_surface_info >> 16) & 0x3);
@@ -606,9 +608,17 @@ bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
                                 (2048 - edram_bases[i]) / edram_row_tiles[i]);
     }
   }
-  if (edram_max_rows == 0 || edram_max_rows == UINT32_MAX) {
-    // Some render target is totally in the end of EDRAM, or nothing is drawn.
-    return false;
+  if (edram_max_rows == UINT32_MAX) {
+    // No render targets needed - likely a memexport-only draw, just keep using
+    // the current state (or 0 if nothing bound yet, but nothing will be bound
+    // anyway so it won't matter).
+    edram_max_rows = current_edram_max_rows_;
+  } else {
+    if (edram_max_rows == 0) {
+      // Some render target is totally in the end of EDRAM - can't create
+      // textures with 0 height.
+      return false;
+    }
   }
   // Don't create render targets larger than x2560.
   edram_max_rows = std::min(edram_max_rows, 160u * msaa_samples_y);
