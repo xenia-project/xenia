@@ -1210,10 +1210,7 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
 
   // Set up the render targets - this may bind pipelines.
   if (!render_target_cache_->UpdateRenderTargets(pixel_shader)) {
-    // Doesn't actually draw.
-    // TODO(Triang3l): Do something so memexport still works in this case maybe?
-    // Not distingushing between no operation and a true failure.
-    return true;
+    return false;
   }
   const RenderTargetCache::PipelineRenderTarget* pipeline_render_targets =
       render_target_cache_->GetCurrentPipelineRenderTargets();
