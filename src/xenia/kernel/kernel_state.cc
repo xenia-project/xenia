@@ -229,7 +229,9 @@ object_ref<XModule> KernelState::GetModule(const char* name, bool user_only) {
       return retain_object(user_module.get());
     }
   }
-  return nullptr;
+
+  // Module not found, try loading it
+  return LoadUserModule(name);
 }
 
 object_ref<XThread> KernelState::LaunchModule(object_ref<UserModule> module) {
@@ -277,9 +279,6 @@ object_ref<UserModule> KernelState::GetExecutableModule() {
 }
 
 void KernelState::SetExecutableModule(object_ref<UserModule> module) {
-  if (module.get() == executable_module_.get()) {
-    return;
-  }
   executable_module_ = std::move(module);
   if (!executable_module_) {
     return;
@@ -381,8 +380,23 @@ object_ref<UserModule> KernelState::LoadUserModule(const char* raw_name,
 
     // Module wasn't loaded, so load it.
     module = object_ref<UserModule>(new UserModule(this));
+    if (!executable_module_) {
+      // If there isn't already an executable_module then this must be the one
+      // Set it before loading so that extra modules loaded during this
+      // module load (import libs..) can access it
+
+      // (we don't use SetExecutableModule because that sets up a lot of other
+      // things, we can call that after the load via LaunchModule instead)
+
+      executable_module_ = module;
+    }
+
     X_STATUS status = module->LoadFromFile(path);
     if (XFAILED(status)) {
+      if (executable_module_.get() == module.get()) {
+        executable_module_.reset();
+      }
+
       object_table()->RemoveHandle(module->handle());
       return nullptr;
     }
