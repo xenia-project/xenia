@@ -144,6 +144,21 @@ dword_result_t ObReferenceObjectByHandle(dword_t handle,
 }
 DECLARE_XBOXKRNL_EXPORT1(ObReferenceObjectByHandle, kNone, kImplemented);
 
+dword_result_t ObReferenceObjectByName(lpstring_t name, dword_t attributes,
+                                       dword_t object_type_ptr,
+                                       lpvoid_t parse_context,
+                                       lpdword_t out_object_ptr) {
+  X_HANDLE handle = X_INVALID_HANDLE_VALUE;
+  X_STATUS result =
+      kernel_state()->object_table()->GetObjectByName(name.value(), &handle);
+  if (XSUCCEEDED(result)) {
+    return ObReferenceObjectByHandle(handle, object_type_ptr, out_object_ptr);
+  }
+
+  return result;
+}
+DECLARE_XBOXKRNL_EXPORT1(ObReferenceObjectByName, kNone, kImplemented);
+
 dword_result_t ObDereferenceObject(dword_t native_ptr) {
   // Check if a dummy value from ObReferenceObjectByHandle.
   if (native_ptr == 0xDEADF00D) {
