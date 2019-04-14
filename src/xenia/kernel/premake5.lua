@@ -7,6 +7,7 @@ project("xenia-kernel")
   kind("StaticLib")
   language("C++")
   links({
+    "aes_128",
     "xenia-apu",
     "xenia-base",
     "xenia-cpu",
