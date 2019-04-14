@@ -120,9 +120,11 @@ dword_result_t ExCreateThread(lpdword_t handle_ptr, dword_t stack_size,
       std::max((uint32_t)0x4000, ((actual_stack_size + 0xFFF) & 0xFFFFF000));
 
   auto thread = object_ref<XThread>(
-      new XThread(kernel_state(), actual_stack_size, xapi_thread_startup,
-                  start_address.guest_address(), start_context.guest_address(),
-                  creation_flags, true));
+      new XThread(kernel_state(), actual_stack_size,
+                  xapi_thread_startup ? XThread::StartupType::XapiThreadStartup
+                                      : XThread::StartupType::Normal,
+                  xapi_thread_startup, start_address.guest_address(),
+                  start_context.guest_address(), creation_flags, true));
 
   X_STATUS result = thread->Create();
   if (XFAILED(result)) {
