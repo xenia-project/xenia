@@ -9,6 +9,7 @@
 
 #include "xenia/base/logging.h"
 #include "xenia/kernel/kernel_state.h"
+#include "xenia/kernel/util/aes.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_private.h"
 #include "xenia/xbox.h"
@@ -331,6 +332,39 @@ dword_result_t XeKeysHmacSha(dword_t key_num, lpvoid_t inp_1,
   return X_STATUS_UNSUCCESSFUL;
 }
 DECLARE_XBOXKRNL_EXPORT1(XeKeysHmacSha, kNone, kImplemented);
+
+void XeCryptAesKey(pointer_t<AES_ctx> aes_context, lpvoid_t key) {
+  // AES_ctx isn't the actual AES struct being passed here
+  // but since AES_ctx is smaller (192b vs 352b) it should be fine
+  AES_init_ctx(aes_context, key);
+}
+DECLARE_XBOXKRNL_EXPORT1(XeCryptAesKey, kNone, kImplemented);
+
+void XeCryptAesEcb(pointer_t<AES_ctx> aes_context, lpvoid_t input,
+                   lpvoid_t output, dword_t encFlag) {
+  memcpy(output.as<void*>(), input.as<void*>(),
+         128 * 8);  // input/output are 128 bits/16 bytes
+  if (encFlag) {
+    AES_ECB_encrypt(aes_context, output.as<uint8_t*>());
+  } else {
+    AES_ECB_decrypt(aes_context, output.as<uint8_t*>());
+  }
+}
+DECLARE_XBOXKRNL_EXPORT1(XeCryptAesEcb, kNone, kImplemented);
+
+void XeCryptAesCbc(pointer_t<AES_ctx> aes_context, lpvoid_t input, dword_t size,
+                   lpvoid_t output, lpvoid_t ivec, dword_t encFlag) {
+  memcpy(output.as<void*>(), input.as<void*>(), size);
+  if (ivec) {
+    AES_ctx_set_iv(aes_context, ivec.as<uint8_t*>());
+  }
+  if (encFlag) {
+    AES_CBC_encrypt_buffer(aes_context, output.as<uint8_t*>(), size);
+  } else {
+    AES_CBC_decrypt_buffer(aes_context, output.as<uint8_t*>(), size);
+  }
+}
+DECLARE_XBOXKRNL_EXPORT1(XeCryptAesCbc, kNone, kImplemented);
 
 void RegisterCryptExports(xe::cpu::ExportResolver* export_resolver,
                           KernelState* kernel_state) {}
