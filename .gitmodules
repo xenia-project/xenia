@@ -40,3 +40,6 @@
 [submodule "third_party/volk"]
 	path = third_party/volk
 	url = https://github.com/zeux/volk.git
+[submodule "third_party/aes_128"]
+	path = third_party/aes_128
+	url = https://github.com/openluopworld/aes_128.git
