@@ -52,3 +52,6 @@
 [submodule "third_party/cpptoml"]
 	path = third_party/cpptoml
 	url = https://github.com/skystrife/cpptoml
+[submodule "third_party/cxxopts"]
+	path = third_party/cxxopts
+	url = https://github.com/jarro2783/cxxopts
