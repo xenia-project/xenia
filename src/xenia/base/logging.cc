@@ -9,8 +9,6 @@
 
 #include "xenia/base/logging.h"
 
-#include <gflags/gflags.h>
-
 #include <atomic>
 #include <cinttypes>
 #include <cstdarg>
@@ -19,6 +17,7 @@
 #include <vector>
 
 #include "xenia/base/atomic.h"
+#include "xenia/base/cvar.h"
 #include "xenia/base/debugging.h"
 #include "xenia/base/filesystem.h"
 #include "xenia/base/main.h"
@@ -26,6 +25,7 @@
 #include "xenia/base/memory.h"
 #include "xenia/base/ring_buffer.h"
 #include "xenia/base/threading.h"
+//#include "xenia/base/cvar.h"
 
 // For MessageBox:
 // TODO(benvanik): generic API? logging_win.cc?
@@ -35,12 +35,15 @@
 
 DEFINE_string(
     log_file, "",
-    "Logs are written to the given file (specify stdout for command line)");
-DEFINE_bool(log_debugprint, false, "Dump the log to DebugPrint.");
-DEFINE_bool(flush_log, true, "Flush log file after each log line batch.");
+    "Logs are written to the given file (specify stdout for command line)",
+    "Logging");
+DEFINE_bool(log_debugprint, false, "Dump the log to DebugPrint.", "Logging");
+DEFINE_bool(flush_log, true, "Flush log file after each log line batch.",
+            "Logging");
 DEFINE_int32(
     log_level, 2,
-    "Maximum level to be logged. (0=error, 1=warning, 2=info, 3=debug)");
+    "Maximum level to be logged. (0=error, 1=warning, 2=info, 3=debug)",
+    "Logging");
 
 namespace xe {
 
@@ -52,16 +55,16 @@ thread_local std::vector<char> log_format_buffer_(64 * 1024);
 class Logger {
  public:
   explicit Logger(const std::wstring& app_name) : running_(true) {
-    if (FLAGS_log_file.empty()) {
+    if (cvars::log_file.empty()) {
       // Default to app name.
       auto file_path = app_name + L".log";
       xe::filesystem::CreateParentFolder(file_path);
       file_ = xe::filesystem::OpenFile(file_path, "wt");
     } else {
-      if (FLAGS_log_file == "stdout") {
+      if (cvars::log_file == "stdout") {
         file_ = stdout;
       } else {
-        auto file_path = xe::to_wstring(FLAGS_log_file.c_str());
+        auto file_path = xe::to_wstring(cvars::log_file);
         xe::filesystem::CreateParentFolder(file_path);
         file_ = xe::filesystem::OpenFile(file_path, "wt");
       }
@@ -81,7 +84,7 @@ class Logger {
 
   void AppendLine(uint32_t thread_id, LogLevel level, const char prefix_char,
                   const char* buffer, size_t buffer_length) {
-    if (static_cast<int32_t>(level) > FLAGS_log_level) {
+    if (static_cast<int32_t>(level) > cvars::log_level) {
       // Discard this line.
       return;
     }
@@ -148,7 +151,7 @@ class Logger {
       fwrite(buf, 1, size, file_);
     }
 
-    if (FLAGS_log_debugprint) {
+    if (cvars::log_debugprint) {
       debugging::DebugPrint("%.*s", size, buf);
     }
   }
@@ -214,7 +217,7 @@ class Logger {
         read_head_ = rb.read_offset();
       }
       if (did_write) {
-        if (FLAGS_flush_log) {
+        if (cvars::flush_log) {
           fflush(file_);
         }
 

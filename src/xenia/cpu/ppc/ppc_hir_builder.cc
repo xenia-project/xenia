@@ -182,25 +182,25 @@ bool PPCHIRBuilder::Emit(GuestFunction* function, uint32_t flags) {
 }
 
 void PPCHIRBuilder::MaybeBreakOnInstruction(uint32_t address) {
-  if (address != FLAGS_break_on_instruction) {
+  if (address != cvars::break_on_instruction) {
     return;
   }
 
   Comment("--break-on-instruction target");
 
-  if (FLAGS_break_condition_gpr < 0) {
+  if (cvars::break_condition_gpr < 0) {
     DebugBreak();
     return;
   }
 
-  auto left = LoadGPR(FLAGS_break_condition_gpr);
-  auto right = LoadConstantUint64(FLAGS_break_condition_value);
-  if (FLAGS_break_condition_truncate) {
+  auto left = LoadGPR(cvars::break_condition_gpr);
+  auto right = LoadConstantUint64(cvars::break_condition_value);
+  if (cvars::break_condition_truncate) {
     left = Truncate(left, INT32_TYPE);
     right = Truncate(right, INT32_TYPE);
   }
 
-  auto op = FLAGS_break_condition_op.c_str();
+  auto op = cvars::break_condition_op.c_str();
   // TODO(rick): table?
   if (strcasecmp(op, "eq") == 0) {
     TrapTrue(CompareEQ(left, right));

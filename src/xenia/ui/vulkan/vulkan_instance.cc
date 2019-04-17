@@ -9,8 +9,6 @@
 
 #include "xenia/ui/vulkan/vulkan_instance.h"
 
-#include <gflags/gflags.h>
-
 #include <cinttypes>
 #include <mutex>
 #include <string>
@@ -38,7 +36,7 @@ namespace ui {
 namespace vulkan {
 
 VulkanInstance::VulkanInstance() {
-  if (FLAGS_vulkan_validation) {
+  if (cvars::vulkan_validation) {
     DeclareRequiredLayer("VK_LAYER_LUNARG_standard_validation",
                          Version::Make(0, 0, 0), true);
     // DeclareRequiredLayer("VK_LAYER_GOOGLE_unique_objects", Version::Make(0,

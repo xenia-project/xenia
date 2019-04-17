@@ -9,8 +9,6 @@
 
 #include "xenia/kernel/xthread.h"
 
-#include <gflags/gflags.h>
-
 #include <cstring>
 
 #ifdef XE_PLATFORM_WIN32
@@ -33,9 +31,9 @@
 #include "xenia/kernel/xmutant.h"
 
 DEFINE_bool(ignore_thread_priorities, true,
-            "Ignores game-specified thread priorities.");
+            "Ignores game-specified thread priorities.", "Kernel");
 DEFINE_bool(ignore_thread_affinities, true,
-            "Ignores game-specified thread affinities.");
+            "Ignores game-specified thread affinities.", "Kernel");
 
 namespace xe {
 namespace kernel {
@@ -416,7 +414,7 @@ X_STATUS XThread::Create() {
     return X_STATUS_NO_MEMORY;
   }
 
-  if (!FLAGS_ignore_thread_affinities) {
+  if (!cvars::ignore_thread_affinities) {
     thread_->set_affinity_mask(proc_mask);
   }
 
@@ -698,7 +696,7 @@ void XThread::SetPriority(int32_t increment) {
   } else {
     target_priority = xe::threading::ThreadPriority::kNormal;
   }
-  if (!FLAGS_ignore_thread_priorities) {
+  if (!cvars::ignore_thread_priorities) {
     thread_->set_priority(target_priority);
   }
 }
@@ -719,7 +717,7 @@ void XThread::SetAffinity(uint32_t affinity) {
   }
   SetActiveCpu(GetFakeCpuNumber(affinity));
   affinity_ = affinity;
-  if (!FLAGS_ignore_thread_affinities) {
+  if (!cvars::ignore_thread_affinities) {
     thread_->set_affinity_mask(affinity);
   }
 }

@@ -9,8 +9,6 @@
 
 #include "xenia/gpu/trace_dump.h"
 
-#include <gflags/gflags.h>
-
 #include "third_party/stb/stb_image_write.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/profiling.h"
@@ -28,8 +26,9 @@
 #undef _CRT_NONSTDC_NO_DEPRECATE
 #include "third_party/stb/stb_image_write.h"
 
-DEFINE_string(target_trace_file, "", "Specifies the trace file to load.");
-DEFINE_string(trace_dump_path, "", "Output path for dumped files.");
+DEFINE_string(target_trace_file, "", "Specifies the trace file to load.",
+              "GPU");
+DEFINE_string(trace_dump_path, "", "Output path for dumped files.", "GPU");
 
 namespace xe {
 namespace gpu {
@@ -44,11 +43,11 @@ int TraceDump::Main(const std::vector<std::wstring>& args) {
   // Grab path from the flag or unnamed argument.
   std::wstring path;
   std::wstring output_path;
-  if (!FLAGS_target_trace_file.empty()) {
+  if (!cvars::target_trace_file.empty()) {
     // Passed as a named argument.
     // TODO(benvanik): find something better than gflags that supports
     // unicode.
-    path = xe::to_wstring(FLAGS_target_trace_file);
+    path = xe::to_wstring(cvars::target_trace_file);
   } else if (args.size() >= 2) {
     // Passed as an unnamed argument.
     path = args[1];
@@ -79,7 +78,7 @@ int TraceDump::Main(const std::vector<std::wstring>& args) {
   // Root file name for outputs.
   if (output_path.empty()) {
     base_output_path_ =
-        xe::fix_path_separators(xe::to_wstring(FLAGS_trace_dump_path));
+        xe::fix_path_separators(xe::to_wstring(cvars::trace_dump_path));
 
     std::wstring output_name =
         xe::find_name_from_path(xe::fix_path_separators(path));

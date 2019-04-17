@@ -9,8 +9,6 @@
 
 #include "xenia/ui/vulkan/vulkan_provider.h"
 
-#include <gflags/gflags.h>
-
 #include <algorithm>
 
 #include "xenia/base/logging.h"
@@ -19,7 +17,8 @@
 #include "xenia/ui/vulkan/vulkan_instance.h"
 #include "xenia/ui/vulkan/vulkan_util.h"
 
-DEFINE_uint64(vulkan_device_index, 0, "Index of the physical device to use.");
+DEFINE_uint64(vulkan_device_index, 0, "Index of the physical device to use.",
+              "Vulkan");
 
 namespace xe {
 namespace ui {
@@ -73,7 +72,7 @@ bool VulkanProvider::Initialize() {
     return false;
   }
   size_t device_index =
-      std::min(available_devices.size(), FLAGS_vulkan_device_index);
+      std::min(available_devices.size(), cvars::vulkan_device_index);
   auto& device_info = available_devices[device_index];
 
   // Create the device.

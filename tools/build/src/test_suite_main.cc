@@ -7,8 +7,6 @@
  ******************************************************************************
  */
 
-#include <gflags/gflags.h>
-
 #include <cstdlib>
 #include <cstring>
 #include <locale>
@@ -17,6 +15,7 @@
 
 #define CATCH_CONFIG_RUNNER
 #include "third_party/catch/include/catch.hpp"
+#include "xenia/base/cvar.h"
 
 namespace xe {
 
@@ -24,16 +23,11 @@ bool has_console_attached() { return true; }
 
 // Used in console mode apps; automatically picked based on subsystem.
 int Main(int argc, char* argv[]) {
-  google::SetUsageMessage(std::string("usage: ..."));
-  google::SetVersionString("1.0");
-
-  // Parse flags; this may delete some of them.
-  google::ParseCommandLineFlags(&argc, &argv, true);
+  cvar::ParseLaunchArguments(argc, argv);
 
   // Run Catch.
   int result = Catch::Session().run(argc, argv);
 
-  google::ShutDownCommandLineFlags();
   return result;
 }
 
