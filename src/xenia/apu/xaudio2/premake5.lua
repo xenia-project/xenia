@@ -12,7 +12,4 @@ project("xenia-apu-xaudio2")
   })
   defines({
   })
-  includedirs({
-    project_root.."/third_party/gflags/src",
-  })
   local_platform_files()

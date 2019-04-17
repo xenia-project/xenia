@@ -89,7 +89,6 @@ int Main() {
   auto entry_info = xe::GetEntryInfo();
 
   // Convert command line to an argv-like format so we can share code/use
-  // gflags.
   auto command_line = GetCommandLineW();
   int argc;
   wchar_t** argv = CommandLineToArgvW(command_line, &argc);
@@ -97,7 +96,7 @@ int Main() {
     return 1;
   }
 
-  // Convert all args to narrow, as gflags doesn't support wchar.
+  // Convert all args to narrow, as cxxopts doesn't support wchar.
   int argca = argc;
   char** argva = reinterpret_cast<char**>(alloca(sizeof(char*) * argca));
   for (int n = 0; n < argca; n++) {

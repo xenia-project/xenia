@@ -25,7 +25,6 @@ local function combined_test_suite(test_suite_name, project_root, base_path, con
       project_root.."/"..build_bin,
     }))
     links(merge_arrays(config["links"], {
-      "gflags",
     }))
     files({
       project_root.."/"..build_tools_src.."/test_suite_main.cc",
@@ -50,7 +49,6 @@ local function split_test_suite(test_suite_name, project_root, base_path, config
         project_root.."/"..build_bin,
       }))
       links(merge_arrays(config["links"], {
-        "gflags",
       }))
       files({
         project_root.."/"..build_tools_src.."/test_suite_main.cc",

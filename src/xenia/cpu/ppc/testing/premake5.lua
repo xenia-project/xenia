@@ -11,7 +11,6 @@ project("xenia-cpu-ppc-tests")
     "xenia-cpu-backend-x64",
     "xenia-cpu",
     "xenia-base",
-    "gflags",
     "capstone", -- cpu-backend-x64
     "mspack",
   })
@@ -22,15 +21,11 @@ project("xenia-cpu-ppc-tests")
   files({
     "*.s",
   })
-  includedirs({
-    project_root.."/third_party/gflags/src",
-  })
   filter("files:*.s")
     flags({"ExcludeFromBuild"})
   filter("platforms:Windows")
     debugdir(project_root)
     debugargs({
-      "--flagfile=scratch/flags.txt",
       "2>&1",
       "1>scratch/stdout-testing.txt",
     })
@@ -46,7 +41,6 @@ project("xenia-cpu-ppc-nativetests")
   language("C++")
   links({
     "xenia-base",
-    "gflags",
   })
   files({
     "ppc_testing_native_main.cc",
@@ -59,9 +53,6 @@ project("xenia-cpu-ppc-nativetests")
   filter("files:instr_*.s", "files:seq_*.s")
     flags({"ExcludeFromBuild"})
   filter({})
-  includedirs({
-    project_root.."/third_party/gflags/src",
-  })
   buildoptions({
     "-Wa,-mregnames",  -- Tell GAS to accept register names.
   })
