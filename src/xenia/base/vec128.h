@@ -266,8 +266,8 @@ static inline vec128_t vec128b(uint8_t x0, uint8_t x1, uint8_t x2, uint8_t x3,
 
 inline std::string to_string(const vec128_t& value) {
   char buffer[128];
-  std::snprintf(buffer, sizeof(buffer), "(%g, %g, %g, %g)", value.x, value.y,
-                value.z, value.w);
+  snprintf(buffer, sizeof(buffer), "(%g, %g, %g, %g)", value.x, value.y,
+           value.z, value.w);
   return std::string(buffer);
 }
 
