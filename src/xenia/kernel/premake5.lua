@@ -16,9 +16,6 @@ project("xenia-kernel")
   })
   defines({
   })
-  includedirs({
-    project_root.."/third_party/gflags/src",
-  })
   recursive_platform_files()
   files({
     "debug_visualizers.natvis",
