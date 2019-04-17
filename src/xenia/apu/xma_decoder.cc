@@ -9,9 +9,8 @@
 
 #include "xenia/apu/xma_decoder.h"
 
-#include <gflags/gflags.h>
-
 #include "xenia/apu/xma_context.h"
+#include "xenia/base/cvar.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/profiling.h"
@@ -49,7 +48,8 @@ extern "C" {
 // do this, it's likely they are either passing the context to XAudio or
 // using the XMA* functions.
 
-DEFINE_bool(libav_verbose, false, "Verbose libav output (debug and above)");
+DEFINE_bool(libav_verbose, false, "Verbose libav output (debug and above)",
+            "Audio");
 
 namespace xe {
 namespace apu {
@@ -60,7 +60,7 @@ XmaDecoder::XmaDecoder(cpu::Processor* processor)
 XmaDecoder::~XmaDecoder() = default;
 
 void av_log_callback(void* avcl, int level, const char* fmt, va_list va) {
-  if (!FLAGS_libav_verbose && level > AV_LOG_WARNING) {
+  if (!cvars::libav_verbose && level > AV_LOG_WARNING) {
     return;
   }
 

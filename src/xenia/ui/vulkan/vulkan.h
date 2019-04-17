@@ -10,8 +10,6 @@
 #ifndef XENIA_UI_VULKAN_VULKAN_H_
 #define XENIA_UI_VULKAN_VULKAN_H_
 
-#include <gflags/gflags.h>
-
 #include "xenia/base/platform.h"
 
 #if XE_PLATFORM_WIN32
@@ -25,6 +23,7 @@
 // We use a loader with its own function prototypes.
 #include "third_party/volk/volk.h"
 #include "third_party/vulkan/vulkan.h"
+#include "xenia/base/cvar.h"
 
 #define XELOGVK XELOGI
 

@@ -7,13 +7,12 @@
  ******************************************************************************
  */
 
-#include <gflags/gflags.h>
-
+#include "xenia/base/cvar.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/gpu/texture_info.h"
 
-DEFINE_bool(texture_dump, false, "Dump textures to DDS");
+DEFINE_bool(texture_dump, false, "Dump textures to DDS", "GPU");
 
 namespace xe {
 namespace gpu {

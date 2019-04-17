@@ -20,7 +20,7 @@
 #include "xenia/kernel/xfile.h"
 #include "xenia/kernel/xthread.h"
 
-DEFINE_bool(xex_apply_patches, true, "Apply XEX patches.");
+DEFINE_bool(xex_apply_patches, true, "Apply XEX patches.", "Kernel");
 
 namespace xe {
 namespace kernel {
@@ -102,7 +102,7 @@ X_STATUS UserModule::LoadFromFile(std::string path) {
     return result;
   }
 
-  if (FLAGS_xex_apply_patches) {
+  if (cvars::xex_apply_patches) {
     // Search for xexp patch file
     auto patch_entry = kernel_state()->file_system()->ResolvePath(path_ + "p");
 

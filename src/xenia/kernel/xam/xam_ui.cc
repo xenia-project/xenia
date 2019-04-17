@@ -10,6 +10,7 @@
 #include "third_party/imgui/imgui.h"
 #include "xenia/base/logging.h"
 #include "xenia/emulator.h"
+#include "xenia/kernel/kernel_flags.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xam/xam_private.h"
@@ -111,7 +112,7 @@ dword_result_t XamShowMessageBoxUI(dword_t user_index, lpwstring_t title_ptr,
   }
 
   uint32_t chosen_button;
-  if (FLAGS_headless) {
+  if (cvars::headless) {
     // Auto-pick the focused button.
     chosen_button = active_button;
   } else {
@@ -231,7 +232,7 @@ dword_result_t XamShowKeyboardUI(dword_t user_index, dword_t flags,
     return X_ERROR_INVALID_PARAMETER;
   }
 
-  if (FLAGS_headless) {
+  if (cvars::headless) {
     // Redirect default_text back into the buffer.
     std::memset(buffer, 0, buffer_length * 2);
     if (default_text) {
@@ -309,7 +310,7 @@ dword_result_t XamShowDeviceSelectorUI(dword_t user_index, dword_t content_type,
 DECLARE_XAM_EXPORT1(XamShowDeviceSelectorUI, kUI, kImplemented);
 
 void XamShowDirtyDiscErrorUI(dword_t user_index) {
-  if (FLAGS_headless) {
+  if (cvars::headless) {
     assert_always();
     exit(1);
     return;

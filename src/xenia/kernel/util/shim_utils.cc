@@ -9,9 +9,6 @@
 
 #include "xenia/kernel/util/shim_utils.h"
 
-DEFINE_bool(log_high_frequency_kernel_calls, false,
-            "Log kernel calls with the kHighFrequency tag.");
-
 namespace xe {
 namespace kernel {
 namespace shim {
