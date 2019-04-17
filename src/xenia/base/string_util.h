@@ -85,7 +85,15 @@ inline std::string to_string(const __m128& value) {
 #endif
 
 template <typename T>
-inline T from_string(const char* value, bool force_hex = false);
+inline T from_string(const char* value, bool force_hex = false) {
+  // Missing implementation for converting type T to string
+  throw;
+}
+
+template <>
+inline bool from_string<bool>(const char* value, bool force_hex) {
+  return std::strcmp(value, "true") == 0 || value[0] == '1';
+}
 
 template <>
 inline int32_t from_string<int32_t>(const char* value, bool force_hex) {
