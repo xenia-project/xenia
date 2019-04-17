@@ -51,6 +51,7 @@ class EmulatorWindow {
   void CpuTimeScalarSetHalf();
   void CpuTimeScalarSetDouble();
   void CpuBreakIntoDebugger();
+  void CpuBreakIntoHostDebugger();
   void GpuTraceFrame();
   void GpuClearCaches();
   void ShowHelpWebsite();
