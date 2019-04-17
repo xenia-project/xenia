@@ -66,6 +66,7 @@ namespace d3d12 {
 #include "xenia/gpu/d3d12/shaders/dxbc/texture_load_dxt1_rgba8_cs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/texture_load_dxt3_rgba8_cs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/texture_load_dxt3a_cs.h"
+#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_dxt3aas1111_cs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/texture_load_dxt5_rgba8_cs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/texture_load_dxt5a_r8_cs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/texture_load_r10g11b11_rgba16_2x_cs.h"
@@ -380,9 +381,10 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown, DXGI_FORMAT_UNKNOWN, ResolveTileMode::kUnknown, false},
     // k_DXT3A_AS_1_1_1_1
-    {DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown,
+    {DXGI_FORMAT_B4G4R4A4_UNORM, DXGI_FORMAT_B4G4R4A4_UNORM,
+     LoadMode::kDXT3AAs1111, DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown,
      DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, DXGI_FORMAT_UNKNOWN,
-     LoadMode::kUnknown, DXGI_FORMAT_UNKNOWN, ResolveTileMode::kUnknown, false},
+     ResolveTileMode::kUnknown, false},
     // k_8_8_8_8_GAMMA_EDRAM
     // Not usable as a texture.
     {DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown,
@@ -431,6 +433,8 @@ const TextureCache::LoadModeInfo TextureCache::load_mode_info_[] = {
      0},
     {texture_load_dxn_rg8_cs, sizeof(texture_load_dxn_rg8_cs), nullptr, 0},
     {texture_load_dxt3a_cs, sizeof(texture_load_dxt3a_cs), nullptr, 0},
+    {texture_load_dxt3aas1111_cs, sizeof(texture_load_dxt3aas1111_cs), nullptr,
+     0},
     {texture_load_dxt5a_r8_cs, sizeof(texture_load_dxt5a_r8_cs), nullptr, 0},
     {texture_load_ctx1_cs, sizeof(texture_load_ctx1_cs), nullptr, 0},
     {texture_load_depth_unorm_cs, sizeof(texture_load_depth_unorm_cs),
