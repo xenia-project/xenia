@@ -176,6 +176,7 @@ class TextureCache {
     kDXT5ToRGBA8,
     kDXNToRG8,
     kDXT3A,
+    kDXT3AAs1111,
     kDXT5AToR8,
     kCTX1,
     kDepthUnorm,
