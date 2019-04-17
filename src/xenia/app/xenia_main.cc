@@ -14,6 +14,7 @@
 #include "xenia/base/main.h"
 #include "xenia/base/profiling.h"
 #include "xenia/base/threading.h"
+#include "xenia/config.h"
 #include "xenia/debug/ui/debug_window.h"
 #include "xenia/emulator.h"
 #include "xenia/ui/file_picker.h"
@@ -146,6 +147,7 @@ int xenia_main(const std::vector<std::wstring>& args) {
 
   // Figure out where content should go.
   std::wstring content_root = xe::to_wstring(cvars::content_root);
+  std::wstring config_folder;
 
   if (content_root.empty()) {
     auto base_path = xe::filesystem::GetExecutableFolder();
@@ -154,6 +156,7 @@ int xenia_main(const std::vector<std::wstring>& args) {
     auto portable_path = xe::join_paths(base_path, L"portable.txt");
     if (xe::filesystem::PathExists(portable_path)) {
       content_root = xe::join_paths(base_path, L"content");
+      config_folder = base_path;
     } else {
       content_root = xe::filesystem::GetUserFolder();
 #if defined(XE_PLATFORM_WIN32)
@@ -164,11 +167,14 @@ int xenia_main(const std::vector<std::wstring>& args) {
 #warning Unhandled platform for content root.
       content_root = xe::join_paths(content_root, L"Xenia");
 #endif
+      config_folder = content_root;
       content_root = xe::join_paths(content_root, L"content");
     }
   }
   content_root = xe::to_absolute_path(content_root);
+
   XELOGI("Content root: %S", content_root.c_str());
+  config::SetupConfig(config_folder);
 
   // Create the emulator but don't initialize so we can setup the window.
   auto emulator = std::make_unique<Emulator>(L"", content_root);
