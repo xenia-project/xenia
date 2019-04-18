@@ -37,9 +37,6 @@ project("xenia-ui-window-vulkan-demo")
     "xenia-ui-spirv",
     "xenia-ui-vulkan",
   })
-  flags({
-    "WinMain",  -- Use WinMain instead of main.
-  })
   defines({
   })
   includedirs({
