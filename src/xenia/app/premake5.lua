@@ -86,7 +86,5 @@ project("xenia-app")
       debugdir(project_root)
       debugargs({
         "--flagfile=scratch/flags.txt",
-        "2>&1",
-        "1>scratch/stdout.txt",
       })
     end
