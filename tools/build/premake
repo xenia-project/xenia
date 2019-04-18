@@ -69,9 +69,8 @@ def build_premake():
     elif sys.platform == 'win32':
       # Grab Visual Studio version and execute shell to set up environment.
       vs_version = import_vs_environment()
-      if vs_version != 2015:
-        print('ERROR: Visual Studio 2015 not found!')
-        print('Ensure you have the VS140COMNTOOLS environment variable!')
+      if vs_version is None:
+        print('ERROR: Visual Studio not found!')
         sys.exit(1)
         return
 
@@ -143,17 +142,30 @@ def import_vs_environment():
     A version such as 2015 or None if no VS is found.
   """
   version = 0
+
+  candidate_path = subprocess.check_output('../../third_party/vswhere/vswhere.exe -all -version "[15,)" -latest -format value -property installationPath', shell=False, universal_newlines=True)
+  candidate_path = candidate_path.strip()
+
   tools_path = ''
-  if 'VS140COMNTOOLS' in os.environ:
+  if candidate_path:
+    tools_path = os.path.join(candidate_path, 'vc\\auxiliary\\build\\vcvarsall.bat')
+    if os.path.isfile(tools_path) and os.access(tools_path, os.X_OK):
+      version = subprocess.check_output('third_party/vswhere/vswhere.exe -version "[15,)" -latest -format value -property catalog_productLineVersion', shell=False, universal_newlines=True)
+      version = version.strip()
+      if version:
+        version = int(version)
+      else:
+        version = 2017
+  if version == 0 and 'VS140COMNTOOLS' in os.environ:
     version = 2015
     tools_path = os.environ['VS140COMNTOOLS']
+    tools_path = os.path.join(tools_path, '..\\..\\vc\\vcvarsall.bat')
   if version == 0:
     return None
-  tools_path = os.path.join(tools_path, '..\\..\\vc\\vcvarsall.bat')
 
-  args = [tools_path, '&&', 'set']
+  args = [tools_path, 'x64', '&&', 'set']
   popen = subprocess.Popen(
-      args, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+      args, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
   variables, _ = popen.communicate()
   envvars_to_save = (
       'devenvdir',
