@@ -150,7 +150,7 @@ def import_vs_environment():
   if candidate_path:
     tools_path = os.path.join(candidate_path, 'vc\\auxiliary\\build\\vcvarsall.bat')
     if os.path.isfile(tools_path) and os.access(tools_path, os.X_OK):
-      version = subprocess.check_output('third_party/vswhere/vswhere.exe -version "[15,)" -latest -format value -property catalog_productLineVersion', shell=False, universal_newlines=True)
+      version = subprocess.check_output('../../third_party/vswhere/vswhere.exe -version "[15,)" -latest -format value -property catalog_productLineVersion', shell=False, universal_newlines=True)
       version = version.strip()
       if version:
         version = int(version)
