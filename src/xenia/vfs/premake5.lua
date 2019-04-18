@@ -26,9 +26,6 @@ project("xenia-vfs-dump")
     "xenia-base",
     "xenia-vfs",
   })
-  flags({
-    -- "WinMain",  -- Use WinMain instead of main.
-  })
   defines({})
   includedirs({
     project_root.."/third_party/gflags/src",
