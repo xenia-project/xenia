@@ -227,7 +227,7 @@ solution("xenia")
     platforms({"Windows"})
     -- Minimum version to support ID3D12GraphicsCommandList1 (for
     -- SetSamplePositions).
-    systemversion("10.0.15063.0")
+    systemversion("10.0")
   end
   configurations({"Checked", "Debug", "Release"})
 
