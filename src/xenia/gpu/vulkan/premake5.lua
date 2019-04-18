@@ -32,6 +32,7 @@ project("xenia-gpu-vulkan-trace-viewer")
   kind("WindowedApp")
   language("C++")
   links({
+    "aes_128",
     "capstone",
     "gflags",
     "glslang-spirv",
@@ -102,6 +103,7 @@ project("xenia-gpu-vulkan-trace-dump")
   kind("ConsoleApp")
   language("C++")
   links({
+    "aes_128",
     "capstone",
     "gflags",
     "glslang-spirv",
