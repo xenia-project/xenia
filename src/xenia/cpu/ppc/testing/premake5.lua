@@ -18,6 +18,7 @@ project("xenia-cpu-ppc-tests")
   files({
     "ppc_testing_main.cc",
     "../../../base/main_"..platform_suffix..".cc",
+    "../../../base/main_entrypoint_"..platform_suffix..".cc",
   })
   files({
     "*.s",
@@ -25,8 +26,11 @@ project("xenia-cpu-ppc-tests")
   includedirs({
     project_root.."/third_party/gflags/src",
   })
+
   filter("files:*.s")
     flags({"ExcludeFromBuild"})
+  filter("files:../../../base/main_entrypoint_"..platform_suffix..".cc")
+    vectorextensions("IA32")  -- Disable AVX so our AVX check/error can happen.
   filter("platforms:Windows")
     debugdir(project_root)
     debugargs({
@@ -51,14 +55,12 @@ project("xenia-cpu-ppc-nativetests")
   files({
     "ppc_testing_native_main.cc",
     "../../../base/main_"..platform_suffix..".cc",
+    "../../../base/main_entrypoint_"..platform_suffix..".cc",
   })
   files({
     "instr_*.s",
     "seq_*.s",
   })
-  filter("files:instr_*.s", "files:seq_*.s")
-    flags({"ExcludeFromBuild"})
-  filter({})
   includedirs({
     project_root.."/third_party/gflags/src",
   })
@@ -69,5 +71,10 @@ project("xenia-cpu-ppc-nativetests")
   files({
     "ppc_testing_native_thunks.s",
   })
+
+  filter("files:instr_*.s", "files:seq_*.s")
+    flags({"ExcludeFromBuild"})
+  filter("files:../../../base/main_entrypoint_"..platform_suffix..".cc")
+    vectorextensions("IA32")  -- Disable AVX so our AVX check/error can happen.
 
 end
