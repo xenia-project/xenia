@@ -68,7 +68,11 @@ project("xenia-gpu-vulkan-trace-viewer")
   files({
     "vulkan_trace_viewer_main.cc",
     "../../base/main_"..platform_suffix..".cc",
+    "../../base/main_entrypoint_"..platform_suffix..".cc",
   })
+
+  filter("files:../../base/main_entrypoint_"..platform_suffix..".cc")
+    vectorextensions("IA32")  -- Disable AVX so our AVX check/error can happen.
 
   filter("platforms:Linux")
     links({
@@ -139,7 +143,11 @@ project("xenia-gpu-vulkan-trace-dump")
   files({
     "vulkan_trace_dump_main.cc",
     "../../base/main_"..platform_suffix..".cc",
+    "../../base/main_entrypoint_"..platform_suffix..".cc",
   })
+
+  filter("files:../../base/main_entrypoint_"..platform_suffix..".cc")
+    vectorextensions("IA32")  -- Disable AVX so our AVX check/error can happen.
 
   filter("platforms:Linux")
     links({
