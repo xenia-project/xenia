@@ -100,7 +100,12 @@ def import_vs_environment():
     if candidate_path:
         tools_path = os.path.join(candidate_path, 'vc\\auxiliary\\build\\vcvarsall.bat')
         if os.path.isfile(tools_path) and os.access(tools_path, os.X_OK):
-            version = 2017
+            version = subprocess.check_output('third_party/vswhere/vswhere.exe -version "[15,)" -latest -format value -property catalog_productLineVersion', shell=False, universal_newlines=True)
+            version = version.strip()
+            if version:
+                version = int(version)
+            else:
+                version = 2017
     if version == 0 and 'VS140COMNTOOLS' in os.environ:
         version = 2015
         tools_path = os.environ['VS140COMNTOOLS']
@@ -317,16 +322,19 @@ def run_premake(target_os, action, cc=None):
       target_os: target --os to pass to premake.
       action: action to preform.
     """
-    ret = subprocess.call([
+    args = [
         sys.executable,
         os.path.join('tools', 'build', 'premake'),
         '--file=premake5.lua',
         '--os=%s' % target_os,
-        '--cc=%s' % ('clang' if not cc else cc),
         '--test-suite-mode=combined',
         '--verbose',
         action,
-        ], shell=False)
+    ]
+    if cc:
+        args.insert(4, '--cc=%s' % cc)
+
+    ret = subprocess.call(args, shell=False)
 
     if ret == 0:
         generate_version_h()
