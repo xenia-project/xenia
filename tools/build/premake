@@ -8,6 +8,7 @@
 __author__ = 'ben.vanik@gmail.com (Ben Vanik)'
 
 
+import json
 import os
 import subprocess
 import sys
@@ -172,7 +173,7 @@ def import_vs_environment():
 
 def import_subprocess_environment(args):
   popen = subprocess.Popen(
-    args, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
+      args, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
   variables, _ = popen.communicate()
   envvars_to_save = (
       'devenvdir',
