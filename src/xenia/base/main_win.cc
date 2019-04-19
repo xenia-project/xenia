@@ -124,18 +124,11 @@ int Main() {
 
   // Setup COM on the main thread.
   // NOTE: this may fail if COM has already been initialized - that's OK.
+#pragma warning(suppress : 6031)
   CoInitializeEx(nullptr, COINIT_MULTITHREADED);
 
   // Initialize logging. Needs parsed FLAGS.
   xe::InitializeLogging(entry_info.name);
-
-  Xbyak::util::Cpu cpu;
-  if (!cpu.has(Xbyak::util::Cpu::tAVX)) {
-    xe::FatalError(
-        "Your CPU does not support AVX, which is required by Xenia. See the "
-        "FAQ for system requirements at https://xenia.jp");
-    return -1;
-  }
 
   // Print version info.
   XELOGI("Build: %s / %s on %s", XE_BUILD_BRANCH, XE_BUILD_COMMIT,
@@ -156,34 +149,3 @@ int Main() {
 }
 
 }  // namespace xe
-
-// Used in console mode apps; automatically picked based on subsystem.
-int main(int argc_ignored, char** argv_ignored) { return xe::Main(); }
-
-// Used in windowed apps; automatically picked based on subsystem.
-int WINAPI wWinMain(HINSTANCE, HINSTANCE, LPWSTR command_line, int) {
-  // Attach a console so we can write output to stdout. If the user hasn't
-  // redirected output themselves it'll pop up a window.
-  xe::AttachConsole();
-
-  // Run normal entry point.
-  return xe::Main();
-}
-
-#if defined _M_IX86
-#pragma comment( \
-    linker,      \
-    "/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='x86' publicKeyToken='6595b64144ccf1df' language='*'\"")  // NOLINT(whitespace/line_length)
-#elif defined _M_IA64
-#pragma comment( \
-    linker,      \
-    "/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='ia64' publicKeyToken='6595b64144ccf1df' language='*'\"")  // NOLINT(whitespace/line_length)
-#elif defined _M_X64
-#pragma comment( \
-    linker,      \
-    "/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='amd64' publicKeyToken='6595b64144ccf1df' language='*'\"")  // NOLINT(whitespace/line_length)
-#else
-#pragma comment( \
-    linker,      \
-    "/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")  // NOLINT(whitespace/line_length)
-#endif

@@ -51,18 +51,20 @@ project("xenia-app")
   files({
     "xenia_main.cc",
     "../base/main_"..platform_suffix..".cc",
+    "../base/main_entrypoint_"..platform_suffix..".cc",
   })
 
-  filter("files:xenia_main.cc or ../base/main_"..platform_suffix..".cc")
-    vectorextensions("IA32")  -- Disable AVX for main_win.cc so our AVX check/error can happen.
+  resincludedirs({
+    project_root,
+  })
 
   filter("platforms:Windows")
     files({
       "main_resources.rc",
     })
-  resincludedirs({
-    project_root,
-  })
+
+  filter("files:../base/main_entrypoint_"..platform_suffix..".cc")
+    vectorextensions("IA32")  -- Disable AVX so our AVX check/error can happen.
 
   filter("platforms:Linux")
     links({
@@ -89,7 +91,5 @@ project("xenia-app")
       debugdir(project_root)
       debugargs({
         "--flagfile=scratch/flags.txt",
-        "2>&1",
-        "1>scratch/stdout.txt",
       })
     end
