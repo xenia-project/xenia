@@ -19,26 +19,3 @@ namespace xe {
 bool has_console_attached() { return true; }
 
 }  // namespace xe
-
-extern "C" int main(int argc, char** argv) {
-  auto entry_info = xe::GetEntryInfo();
-
-  google::SetUsageMessage(std::string("usage: ") +
-                          xe::to_string(entry_info.usage));
-  google::SetVersionString("1.0");
-  google::ParseCommandLineFlags(&argc, &argv, true);
-
-  std::vector<std::wstring> args;
-  for (int n = 0; n < argc; n++) {
-    args.push_back(xe::to_wstring(argv[n]));
-  }
-
-  // Initialize logging. Needs parsed FLAGS.
-  xe::InitializeLogging(entry_info.name);
-
-  // Call app-provided entry point.
-  int result = entry_info.entry_point(args);
-
-  google::ShutDownCommandLineFlags();
-  return result;
-}
