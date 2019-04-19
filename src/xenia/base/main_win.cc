@@ -124,6 +124,7 @@ int Main() {
 
   // Setup COM on the main thread.
   // NOTE: this may fail if COM has already been initialized - that's OK.
+#pragma warning(suppress : 6031)
   CoInitializeEx(nullptr, COINIT_MULTITHREADED);
 
   // Initialize logging. Needs parsed FLAGS.

@@ -13,6 +13,10 @@
 
 #include <cstring>
 
+#ifdef XE_PLATFORM_WIN32
+#include <objbase.h>
+#endif
+
 #include "xenia/base/byte_stream.h"
 #include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
@@ -373,6 +377,20 @@ X_STATUS XThread::Create() {
 
     // Set name immediately, if we have one.
     thread_->set_name(thread_name_);
+
+#ifdef XE_PLATFORM_WIN32
+    // Setup COM on this thread.
+    //
+    // https://devblogs.microsoft.com/oldnewthing/?p=4613
+    //
+    // "If any thread in the process calls CoInitialize[Ex] with the
+    // COINIT_MULTITHREADED flag, then that not only initializes the current
+    // thread as a member of the multi-threaded apartment, but it also says,
+    // "Any thread which has never called CoInitialize[Ex] is also part of the
+    // multi-threaded apartment."
+#pragma warning(suppress : 6031)
+    CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+#endif
 
     // Profiler needs to know about the thread.
     xe::Profiler::ThreadEnter(thread_name_.c_str());
