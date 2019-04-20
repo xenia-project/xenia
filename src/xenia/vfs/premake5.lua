@@ -34,11 +34,8 @@ project("xenia-vfs-dump")
   files({
     "vfs_dump.cc",
     project_root.."/src/xenia/base/main_"..platform_suffix..".cc",
-    project_root.."/src/xenia/base/main_entrypoint_"..platform_suffix..".cc",
   })
   resincludedirs({
     project_root,
   })
 
-  filter("files:"..project_root.."/src/xenia/base/main_entrypoint_"..platform_suffix..".cc")
-    vectorextensions("IA32")  -- Disable AVX so our AVX check/error can happen.

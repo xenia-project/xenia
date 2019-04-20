@@ -48,11 +48,7 @@ project("xenia-gpu-shader-compiler")
   files({
     "shader_compiler_main.cc",
     "../base/main_"..platform_suffix..".cc",
-    "../base/main_entrypoint_"..platform_suffix..".cc",
   })
-
-  filter("files:../base/main_entrypoint_"..platform_suffix..".cc")
-    vectorextensions("IA32")  -- Disable AVX so our AVX check/error can happen.
 
   filter("platforms:Windows")
     -- Only create the .user file if it doesn't already exist.

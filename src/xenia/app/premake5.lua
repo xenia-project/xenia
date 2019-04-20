@@ -51,7 +51,7 @@ project("xenia-app")
   files({
     "xenia_main.cc",
     "../base/main_"..platform_suffix..".cc",
-    "../base/main_entrypoint_"..platform_suffix..".cc",
+    "../base/main_init_"..platform_suffix..".cc",
   })
 
   resincludedirs({
@@ -63,8 +63,8 @@ project("xenia-app")
       "main_resources.rc",
     })
 
-  filter("files:../base/main_entrypoint_"..platform_suffix..".cc")
-    vectorextensions("IA32")  -- Disable AVX so our AVX check/error can happen.
+  filter("files:../base/main_init_"..platform_suffix..".cc")
+    vectorextensions("IA32")  -- Disable AVX for main_init_win.cc so our AVX check doesn't use AVX instructions.
 
   filter("platforms:Linux")
     links({
