@@ -1124,28 +1124,19 @@ const ShaderTranslator::AluOpcodeInfo
 };
 
 void ShaderTranslator::TranslateAluInstruction(const AluInstruction& op) {
-  if (!op.has_vector_op() && !op.has_scalar_op()) {
-    ParsedAluInstruction instr;
-    instr.type = ParsedAluInstruction::Type::kNop;
-    instr.Disassemble(&ucode_disasm_buffer_);
-    ProcessAluInstruction(instr);
-    return;
-  }
-
   ParsedAluInstruction instr;
-  if (op.has_vector_op()) {
-    const auto& opcode_info =
-        alu_vector_opcode_infos_[static_cast<int>(op.vector_opcode())];
-    ParseAluVectorInstruction(op, opcode_info, instr);
-    ProcessAluInstruction(instr);
-  }
 
-  if (op.has_scalar_op()) {
-    const auto& opcode_info =
-        alu_scalar_opcode_infos_[static_cast<int>(op.scalar_opcode())];
-    ParseAluScalarInstruction(op, opcode_info, instr);
-    ProcessAluInstruction(instr);
-  }
+  instr.dword_index = 0;
+
+  instr.is_predicated = op.is_predicated();
+  instr.predicate_condition = op.predicate_condition();
+
+  ParseAluVectorOperation(op, instr);
+  ParseAluScalarOperation(op, instr);
+
+  instr.Disassemble(&ucode_disasm_buffer_);
+
+  ProcessAluInstruction(instr);
 }
 
 void ParseAluInstructionOperand(const AluInstruction& op, int i,
@@ -1238,62 +1229,64 @@ void ParseAluInstructionOperandSpecial(const AluInstruction& op,
   out_op->components[0] = GetSwizzleFromComponentIndex(a);
 }
 
-void ShaderTranslator::ParseAluVectorInstruction(
-    const AluInstruction& op, const AluOpcodeInfo& opcode_info,
-    ParsedAluInstruction& i) {
-  i.dword_index = 0;
-  i.type = ParsedAluInstruction::Type::kVector;
+void ShaderTranslator::ParseAluVectorOperation(const AluInstruction& op,
+                                               ParsedAluInstruction& i) {
+  i.has_vector_op = op.has_vector_op();
+  if (!i.has_vector_op) {
+    return;
+  }
   i.vector_opcode = op.vector_opcode();
-  i.opcode_name = opcode_info.name;
-  i.is_paired = op.has_scalar_op();
-  i.is_predicated = op.is_predicated();
-  i.predicate_condition = op.predicate_condition();
+  const auto& opcode_info =
+      alu_vector_opcode_infos_[static_cast<int>(op.vector_opcode())];
+  i.vector_opcode_name = opcode_info.name;
 
-  i.result.is_export = op.is_export();
-  i.result.is_clamped = op.vector_clamp();
-  i.result.storage_target = InstructionStorageTarget::kRegister;
-  i.result.storage_index = 0;
+  i.vector_result.is_export = op.is_export();
+  i.vector_result.is_clamped = op.vector_clamp();
+  i.vector_result.storage_target = InstructionStorageTarget::kRegister;
+  i.vector_result.storage_index = 0;
   uint32_t dest_num = op.vector_dest();
   if (!op.is_export()) {
     assert_true(dest_num < 32);
-    i.result.storage_target = InstructionStorageTarget::kRegister;
-    i.result.storage_index = dest_num;
-    i.result.storage_addressing_mode =
+    i.vector_result.storage_target = InstructionStorageTarget::kRegister;
+    i.vector_result.storage_index = dest_num;
+    i.vector_result.storage_addressing_mode =
         op.is_vector_dest_relative()
             ? InstructionStorageAddressingMode::kAddressRelative
             : InstructionStorageAddressingMode::kStatic;
   } else if (is_vertex_shader()) {
     switch (dest_num) {
       case 32:
-        i.result.storage_target = InstructionStorageTarget::kExportAddress;
+        i.vector_result.storage_target =
+            InstructionStorageTarget::kExportAddress;
         break;
       case 33:
       case 34:
       case 35:
       case 36:
       case 37:
-        i.result.storage_index = dest_num - 33;
-        i.result.storage_target = InstructionStorageTarget::kExportData;
+        i.vector_result.storage_index = dest_num - 33;
+        i.vector_result.storage_target = InstructionStorageTarget::kExportData;
         break;
       case 62:
-        i.result.storage_target = InstructionStorageTarget::kPosition;
+        i.vector_result.storage_target = InstructionStorageTarget::kPosition;
         break;
       case 63:
-        i.result.storage_target = InstructionStorageTarget::kPointSize;
+        i.vector_result.storage_target = InstructionStorageTarget::kPointSize;
         break;
       default:
         if (dest_num < 16) {
-          i.result.storage_target = InstructionStorageTarget::kInterpolant;
-          i.result.storage_index = dest_num;
+          i.vector_result.storage_target =
+              InstructionStorageTarget::kInterpolant;
+          i.vector_result.storage_index = dest_num;
         } else {
           // Unimplemented.
           // assert_always();
           XELOGE(
-              "ShaderTranslator::ParseAluVectorInstruction: Unsupported write "
-              "to export %d",
+              "ShaderTranslator::ParseAluVectorOperation: Unsupported write to "
+              "export %d",
               dest_num);
-          i.result.storage_target = InstructionStorageTarget::kNone;
-          i.result.storage_index = 0;
+          i.vector_result.storage_target = InstructionStorageTarget::kNone;
+          i.vector_result.storage_index = 0;
         }
         break;
     }
@@ -1301,42 +1294,43 @@ void ShaderTranslator::ParseAluVectorInstruction(
     switch (dest_num) {
       case 0:
       case 63:  // ? masked?
-        i.result.storage_target = InstructionStorageTarget::kColorTarget;
-        i.result.storage_index = 0;
+        i.vector_result.storage_target = InstructionStorageTarget::kColorTarget;
+        i.vector_result.storage_index = 0;
         break;
       case 1:
-        i.result.storage_target = InstructionStorageTarget::kColorTarget;
-        i.result.storage_index = 1;
+        i.vector_result.storage_target = InstructionStorageTarget::kColorTarget;
+        i.vector_result.storage_index = 1;
         break;
       case 2:
-        i.result.storage_target = InstructionStorageTarget::kColorTarget;
-        i.result.storage_index = 2;
+        i.vector_result.storage_target = InstructionStorageTarget::kColorTarget;
+        i.vector_result.storage_index = 2;
         break;
       case 3:
-        i.result.storage_target = InstructionStorageTarget::kColorTarget;
-        i.result.storage_index = 3;
+        i.vector_result.storage_target = InstructionStorageTarget::kColorTarget;
+        i.vector_result.storage_index = 3;
         break;
       case 32:
-        i.result.storage_target = InstructionStorageTarget::kExportAddress;
+        i.vector_result.storage_target =
+            InstructionStorageTarget::kExportAddress;
         break;
       case 33:
       case 34:
       case 35:
       case 36:
       case 37:
-        i.result.storage_index = dest_num - 33;
-        i.result.storage_target = InstructionStorageTarget::kExportData;
+        i.vector_result.storage_index = dest_num - 33;
+        i.vector_result.storage_target = InstructionStorageTarget::kExportData;
         break;
       case 61:
-        i.result.storage_target = InstructionStorageTarget::kDepth;
+        i.vector_result.storage_target = InstructionStorageTarget::kDepth;
         break;
       default:
         XELOGE(
-            "ShaderTranslator::ParseAluVectorInstruction: Unsupported write "
-            "to export %d",
+            "ShaderTranslator::ParseAluVectorOperation: Unsupported write to "
+            "export %d",
             dest_num);
-        i.result.storage_target = InstructionStorageTarget::kNone;
-        i.result.storage_index = 0;
+        i.vector_result.storage_target = InstructionStorageTarget::kNone;
+        i.vector_result.storage_index = 0;
     }
   }
   if (op.is_export()) {
@@ -1344,22 +1338,22 @@ void ShaderTranslator::ParseAluVectorInstruction(
     uint32_t const_1_mask = op.scalar_write_mask();
     if (!write_mask) {
       for (int j = 0; j < 4; ++j) {
-        i.result.write_mask[j] = false;
+        i.vector_result.write_mask[j] = false;
       }
     } else {
       for (int j = 0; j < 4; ++j, write_mask >>= 1, const_1_mask >>= 1) {
-        i.result.write_mask[j] = true;
+        i.vector_result.write_mask[j] = true;
         if (write_mask & 0x1) {
           if (const_1_mask & 0x1) {
-            i.result.components[j] = SwizzleSource::k1;
+            i.vector_result.components[j] = SwizzleSource::k1;
           } else {
-            i.result.components[j] = GetSwizzleFromComponentIndex(j);
+            i.vector_result.components[j] = GetSwizzleFromComponentIndex(j);
           }
         } else {
           if (op.is_scalar_dest_relative()) {
-            i.result.components[j] = SwizzleSource::k0;
+            i.vector_result.components[j] = SwizzleSource::k0;
           } else {
-            i.result.write_mask[j] = false;
+            i.vector_result.write_mask[j] = false;
           }
         }
       }
@@ -1367,45 +1361,44 @@ void ShaderTranslator::ParseAluVectorInstruction(
   } else {
     uint32_t write_mask = op.vector_write_mask();
     for (int j = 0; j < 4; ++j, write_mask >>= 1) {
-      i.result.write_mask[j] = (write_mask & 0x1) == 0x1;
-      i.result.components[j] = GetSwizzleFromComponentIndex(j);
+      i.vector_result.write_mask[j] = (write_mask & 0x1) == 0x1;
+      i.vector_result.components[j] = GetSwizzleFromComponentIndex(j);
     }
   }
 
-  i.operand_count = opcode_info.argument_count;
-  for (int j = 0; j < i.operand_count; ++j) {
-    ParseAluInstructionOperand(
-        op, j + 1, opcode_info.src_swizzle_component_count, &i.operands[j]);
+  i.vector_operand_count = opcode_info.argument_count;
+  for (int j = 0; j < i.vector_operand_count; ++j) {
+    ParseAluInstructionOperand(op, j + 1,
+                               opcode_info.src_swizzle_component_count,
+                               &i.vector_operands[j]);
 
     // Track constant float register loads.
-    if (i.operands[j].storage_source ==
+    if (i.vector_operands[j].storage_source ==
         InstructionStorageSource::kConstantFloat) {
-      if (i.operands[j].storage_addressing_mode !=
+      if (i.vector_operands[j].storage_addressing_mode !=
           InstructionStorageAddressingMode::kStatic) {
         // Dynamic addressing makes all constants required.
         std::memset(constant_register_map_.float_bitmap, 0xFF,
                     sizeof(constant_register_map_.float_bitmap));
       } else {
-        auto register_index = i.operands[j].storage_index;
+        auto register_index = i.vector_operands[j].storage_index;
         constant_register_map_.float_bitmap[register_index / 64] |=
             1ull << (register_index % 64);
       }
     }
   }
-
-  i.Disassemble(&ucode_disasm_buffer_);
 }
 
-void ShaderTranslator::ParseAluScalarInstruction(
-    const AluInstruction& op, const AluOpcodeInfo& opcode_info,
-    ParsedAluInstruction& i) {
-  i.dword_index = 0;
-  i.type = ParsedAluInstruction::Type::kScalar;
+void ShaderTranslator::ParseAluScalarOperation(const AluInstruction& op,
+                                               ParsedAluInstruction& i) {
+  i.has_scalar_op = op.has_scalar_op();
+  if (!i.has_scalar_op) {
+    return;
+  }
   i.scalar_opcode = op.scalar_opcode();
-  i.opcode_name = opcode_info.name;
-  i.is_paired = op.has_vector_op();
-  i.is_predicated = op.is_predicated();
-  i.predicate_condition = op.predicate_condition();
+  const auto& opcode_info =
+      alu_scalar_opcode_infos_[static_cast<int>(op.scalar_opcode())];
+  i.scalar_opcode_name = opcode_info.name;
 
   uint32_t dest_num;
   uint32_t write_mask;
@@ -1416,50 +1409,52 @@ void ShaderTranslator::ParseAluScalarInstruction(
     dest_num = op.scalar_dest();
     write_mask = op.scalar_write_mask();
   }
-  i.result.is_export = op.is_export();
-  i.result.is_clamped = op.scalar_clamp();
-  i.result.storage_target = InstructionStorageTarget::kRegister;
-  i.result.storage_index = 0;
+  i.scalar_result.is_export = op.is_export();
+  i.scalar_result.is_clamped = op.scalar_clamp();
+  i.scalar_result.storage_target = InstructionStorageTarget::kRegister;
+  i.scalar_result.storage_index = 0;
   if (!op.is_export()) {
     assert_true(dest_num < 32);
-    i.result.storage_target = InstructionStorageTarget::kRegister;
-    i.result.storage_index = dest_num;
-    i.result.storage_addressing_mode =
+    i.scalar_result.storage_target = InstructionStorageTarget::kRegister;
+    i.scalar_result.storage_index = dest_num;
+    i.scalar_result.storage_addressing_mode =
         op.is_scalar_dest_relative()
             ? InstructionStorageAddressingMode::kAddressRelative
             : InstructionStorageAddressingMode::kStatic;
   } else if (is_vertex_shader()) {
     switch (dest_num) {
       case 32:
-        i.result.storage_target = InstructionStorageTarget::kExportAddress;
+        i.scalar_result.storage_target =
+            InstructionStorageTarget::kExportAddress;
         break;
       case 33:
       case 34:
       case 35:
       case 36:
       case 37:
-        i.result.storage_index = dest_num - 33;
-        i.result.storage_target = InstructionStorageTarget::kExportData;
+        i.scalar_result.storage_index = dest_num - 33;
+        i.scalar_result.storage_target = InstructionStorageTarget::kExportData;
         break;
       case 62:
-        i.result.storage_target = InstructionStorageTarget::kPosition;
+        i.scalar_result.storage_target = InstructionStorageTarget::kPosition;
         break;
       case 63:
-        i.result.storage_target = InstructionStorageTarget::kPointSize;
+        i.scalar_result.storage_target = InstructionStorageTarget::kPointSize;
         break;
       default:
         if (dest_num < 16) {
-          i.result.storage_target = InstructionStorageTarget::kInterpolant;
-          i.result.storage_index = dest_num;
+          i.scalar_result.storage_target =
+              InstructionStorageTarget::kInterpolant;
+          i.scalar_result.storage_index = dest_num;
         } else {
           // Unimplemented.
           // assert_always();
           XELOGE(
-              "ShaderTranslator::ParseAluScalarInstruction: Unsupported write "
-              "to export %d",
+              "ShaderTranslator::ParseAluScalarOperation: Unsupported write to "
+              "export %d",
               dest_num);
-          i.result.storage_target = InstructionStorageTarget::kNone;
-          i.result.storage_index = 0;
+          i.scalar_result.storage_target = InstructionStorageTarget::kNone;
+          i.scalar_result.storage_index = 0;
         }
         break;
     }
@@ -1467,46 +1462,47 @@ void ShaderTranslator::ParseAluScalarInstruction(
     switch (dest_num) {
       case 0:
       case 63:  // ? masked?
-        i.result.storage_target = InstructionStorageTarget::kColorTarget;
-        i.result.storage_index = 0;
+        i.scalar_result.storage_target = InstructionStorageTarget::kColorTarget;
+        i.scalar_result.storage_index = 0;
         break;
       case 1:
-        i.result.storage_target = InstructionStorageTarget::kColorTarget;
-        i.result.storage_index = 1;
+        i.scalar_result.storage_target = InstructionStorageTarget::kColorTarget;
+        i.scalar_result.storage_index = 1;
         break;
       case 2:
-        i.result.storage_target = InstructionStorageTarget::kColorTarget;
-        i.result.storage_index = 2;
+        i.scalar_result.storage_target = InstructionStorageTarget::kColorTarget;
+        i.scalar_result.storage_index = 2;
         break;
       case 3:
-        i.result.storage_target = InstructionStorageTarget::kColorTarget;
-        i.result.storage_index = 3;
+        i.scalar_result.storage_target = InstructionStorageTarget::kColorTarget;
+        i.scalar_result.storage_index = 3;
         break;
       case 32:
-        i.result.storage_target = InstructionStorageTarget::kExportAddress;
+        i.scalar_result.storage_target =
+            InstructionStorageTarget::kExportAddress;
         break;
       case 33:
       case 34:
       case 35:
       case 36:
       case 37:
-        i.result.storage_index = dest_num - 33;
-        i.result.storage_target = InstructionStorageTarget::kExportData;
+        i.scalar_result.storage_index = dest_num - 33;
+        i.scalar_result.storage_target = InstructionStorageTarget::kExportData;
         break;
       case 61:
-        i.result.storage_target = InstructionStorageTarget::kDepth;
+        i.scalar_result.storage_target = InstructionStorageTarget::kDepth;
         break;
     }
   }
   for (int j = 0; j < 4; ++j, write_mask >>= 1) {
-    i.result.write_mask[j] = (write_mask & 0x1) == 0x1;
-    i.result.components[j] = GetSwizzleFromComponentIndex(j);
+    i.scalar_result.write_mask[j] = (write_mask & 0x1) == 0x1;
+    i.scalar_result.components[j] = GetSwizzleFromComponentIndex(j);
   }
 
-  i.operand_count = opcode_info.argument_count;
+  i.scalar_operand_count = opcode_info.argument_count;
   if (opcode_info.argument_count == 1) {
     ParseAluInstructionOperand(op, 3, opcode_info.src_swizzle_component_count,
-                               &i.operands[0]);
+                               &i.scalar_operands[0]);
   } else {
     uint32_t src3_swizzle = op.src_swizzle(3);
     uint32_t swiz_a = ((src3_swizzle >> 6) + 3) & 0x3;
@@ -1518,19 +1514,19 @@ void ShaderTranslator::ParseAluScalarInstruction(
 
     ParseAluInstructionOperandSpecial(
         op, InstructionStorageSource::kConstantFloat, op.src_reg(3),
-        op.src_negate(3), 0, swiz_a, &i.operands[0]);
+        op.src_negate(3), 0, swiz_a, &i.scalar_operands[0]);
 
     ParseAluInstructionOperandSpecial(op, InstructionStorageSource::kRegister,
                                       reg2, op.src_negate(3), const_slot,
-                                      swiz_b, &i.operands[1]);
+                                      swiz_b, &i.scalar_operands[1]);
   }
 
   // Track constant float register loads - in either case, a float constant may
   // be used in operand 0.
-  if (i.operands[0].storage_source ==
+  if (i.scalar_operands[0].storage_source ==
       InstructionStorageSource::kConstantFloat) {
-    auto register_index = i.operands[0].storage_index;
-    if (i.operands[0].storage_addressing_mode !=
+    auto register_index = i.scalar_operands[0].storage_index;
+    if (i.scalar_operands[0].storage_addressing_mode !=
         InstructionStorageAddressingMode::kStatic) {
       // Dynamic addressing makes all constants required.
       std::memset(constant_register_map_.float_bitmap, 0xFF,
@@ -1540,8 +1536,6 @@ void ShaderTranslator::ParseAluScalarInstruction(
           1ull << (register_index % 64);
     }
   }
-
-  i.Disassemble(&ucode_disasm_buffer_);
 }
 
 }  // namespace gpu

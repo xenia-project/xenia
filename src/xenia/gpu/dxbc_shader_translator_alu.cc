@@ -17,29 +17,22 @@ namespace xe {
 namespace gpu {
 using namespace ucode;
 
-void DxbcShaderTranslator::ProcessVectorAluInstruction(
-    const ParsedAluInstruction& instr) {
-  if (FLAGS_dxbc_source_map) {
-    instruction_disassembly_buffer_.Reset();
-    instr.Disassemble(&instruction_disassembly_buffer_);
-    // Will be emitted by UpdateInstructionPredication.
-  }
-  UpdateInstructionPredication(instr.is_predicated, instr.predicate_condition,
-                               true);
-  // Whether the instruction has changed the predicate and it needs to be
-  // checked again later.
-  bool predicate_written = false;
+bool DxbcShaderTranslator::ProcessVectorAluOperation(
+    const ParsedAluInstruction& instr, bool& replicate_result_x,
+    bool& predicate_written) {
+  replicate_result_x = false;
+  predicate_written = false;
 
-  // Whether the result is only in X and all components should be remapped to X
-  // while storing.
-  bool replicate_result = false;
+  if (!instr.has_vector_op) {
+    return false;
+  }
 
   // A small shortcut, operands of cube are the same, but swizzled.
   uint32_t operand_count;
   if (instr.vector_opcode == AluVectorOpcode::kCube) {
     operand_count = 1;
   } else {
-    operand_count = uint32_t(instr.operand_count);
+    operand_count = uint32_t(instr.vector_operand_count);
   }
   DxbcSourceOperand dxbc_operands[3];
   // Whether the operand is the same as any previous operand, and thus is loaded
@@ -47,9 +40,9 @@ void DxbcShaderTranslator::ProcessVectorAluInstruction(
   bool operands_duplicate[3] = {};
   uint32_t operand_length_sums[3];
   for (uint32_t i = 0; i < operand_count; ++i) {
-    const InstructionOperand& operand = instr.operands[i];
+    const InstructionOperand& operand = instr.vector_operands[i];
     for (uint32_t j = 0; j < i; ++j) {
-      if (operand == instr.operands[j]) {
+      if (operand == instr.vector_operands[j]) {
         operands_duplicate[i] = true;
         dxbc_operands[i] = dxbc_operands[j];
         break;
@@ -98,6 +91,7 @@ void DxbcShaderTranslator::ProcessVectorAluInstruction(
       D3D10_SB_OPCODE_MAX,
   };
 
+  bool translated = true;
   switch (instr.vector_opcode) {
     case AluVectorOpcode::kAdd:
       shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ADD) |
@@ -123,7 +117,7 @@ void DxbcShaderTranslator::ProcessVectorAluInstruction(
       UseDxbcSourceOperand(dxbc_operands[1]);
       ++stat_.instruction_count;
       ++stat_.float_instruction_count;
-      if (!instr.operands[0].EqualsAbsolute(instr.operands[1])) {
+      if (!instr.vector_operands[0].EqualsAbsolute(instr.vector_operands[1])) {
         // Reproduce Shader Model 3 multiplication behavior (0 * anything = 0),
         // flushing denormals (must be done using eq - doing bitwise comparison
         // doesn't flush denormals).
@@ -287,7 +281,7 @@ void DxbcShaderTranslator::ProcessVectorAluInstruction(
       UseDxbcSourceOperand(dxbc_operands[2]);
       ++stat_.instruction_count;
       ++stat_.float_instruction_count;
-      if (!instr.operands[0].EqualsAbsolute(instr.operands[1])) {
+      if (!instr.vector_operands[0].EqualsAbsolute(instr.vector_operands[1])) {
         // Reproduce Shader Model 3 multiplication behavior (0 * anything = 0).
         // If any operand is zero or denormalized, just leave the addition part.
         uint32_t is_subnormal_temp = PushSystemTemp();
@@ -394,7 +388,7 @@ void DxbcShaderTranslator::ProcessVectorAluInstruction(
     case AluVectorOpcode::kDp4:
     case AluVectorOpcode::kDp3:
     case AluVectorOpcode::kDp2Add: {
-      if (instr.operands[0].EqualsAbsolute(instr.operands[1])) {
+      if (instr.vector_operands[0].EqualsAbsolute(instr.vector_operands[1])) {
         // The operands are the same when calculating vector length, no need to
         // emulate 0 * anything = 0 in this case.
         shader_code_.push_back(
@@ -858,7 +852,7 @@ void DxbcShaderTranslator::ProcessVectorAluInstruction(
     } break;
 
     case AluVectorOpcode::kMax4:
-      replicate_result = true;
+      replicate_result_x = true;
       // pv.xy = max(src0.xy, src0.zw)
       shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MAX) |
                              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(
@@ -891,7 +885,7 @@ void DxbcShaderTranslator::ProcessVectorAluInstruction(
     case AluVectorOpcode::kSetpGtPush:
     case AluVectorOpcode::kSetpGePush:
       predicate_written = true;
-      replicate_result = true;
+      replicate_result_x = true;
       // pv.xy = (src0.x == 0.0, src0.w == 0.0)
       shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_EQ) |
                              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(
@@ -997,7 +991,7 @@ void DxbcShaderTranslator::ProcessVectorAluInstruction(
     case AluVectorOpcode::kKillGt:
     case AluVectorOpcode::kKillGe:
     case AluVectorOpcode::kKillNe:
-      replicate_result = true;
+      replicate_result_x = true;
       // pv = src0 op src1
       shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(
                                  kCoreOpcodes[uint32_t(instr.vector_opcode)]) |
@@ -1094,7 +1088,7 @@ void DxbcShaderTranslator::ProcessVectorAluInstruction(
       UseDxbcSourceOperand(dxbc_operands[1], kSwizzleXYZW, 1);
       ++stat_.instruction_count;
       ++stat_.float_instruction_count;
-      if (!instr.operands[0].EqualsAbsolute(instr.operands[1])) {
+      if (!instr.vector_operands[0].EqualsAbsolute(instr.vector_operands[1])) {
         // Reproduce Shader Model 3 multiplication behavior (0 * anything = 0).
         // This is an attenuation calculation function, so infinity is probably
         // not very unlikely.
@@ -1277,8 +1271,8 @@ void DxbcShaderTranslator::ProcessVectorAluInstruction(
       break;
 
     default:
-      assert_always();
-      // Unknown instruction - don't modify pv.
+      assert_unhandled_case(instr.vector_opcode);
+      translated = false;
       break;
   }
 
@@ -1289,37 +1283,26 @@ void DxbcShaderTranslator::ProcessVectorAluInstruction(
     }
   }
 
-  StoreResult(instr.result, system_temp_pv_, replicate_result,
-              instr.GetMemExportStreamConstant() != UINT32_MAX);
-
-  if (predicate_written) {
-    cf_exec_predicate_written_ = true;
-    CloseInstructionPredication();
-  }
+  return translated;
 }
 
-void DxbcShaderTranslator::ProcessScalarAluInstruction(
-    const ParsedAluInstruction& instr) {
-  if (FLAGS_dxbc_source_map) {
-    instruction_disassembly_buffer_.Reset();
-    instr.Disassemble(&instruction_disassembly_buffer_);
-    // Will be emitted by UpdateInstructionPredication.
+bool DxbcShaderTranslator::ProcessScalarAluOperation(
+    const ParsedAluInstruction& instr, bool& predicate_written) {
+  predicate_written = false;
+
+  if (!instr.has_scalar_op) {
+    return false;
   }
-  UpdateInstructionPredication(instr.is_predicated, instr.predicate_condition,
-                               true);
-  // Whether the instruction has changed the predicate and it needs to be
-  // checked again later.
-  bool predicate_written = false;
 
   DxbcSourceOperand dxbc_operands[3];
   // Whether the operand is the same as any previous operand, and thus is loaded
   // only once.
   bool operands_duplicate[3] = {};
   uint32_t operand_lengths[3];
-  for (uint32_t i = 0; i < uint32_t(instr.operand_count); ++i) {
-    const InstructionOperand& operand = instr.operands[i];
+  for (uint32_t i = 0; i < uint32_t(instr.scalar_operand_count); ++i) {
+    const InstructionOperand& operand = instr.scalar_operands[i];
     for (uint32_t j = 0; j < i; ++j) {
-      if (operand == instr.operands[j]) {
+      if (operand == instr.scalar_operands[j]) {
         operands_duplicate[i] = true;
         dxbc_operands[i] = dxbc_operands[j];
         break;
@@ -1385,6 +1368,7 @@ void DxbcShaderTranslator::ProcessScalarAluInstruction(
       D3D10_SB_OPCODE_SINCOS,
   };
 
+  bool translated = true;
   switch (instr.scalar_opcode) {
     case AluScalarOpcode::kAdds:
     case AluScalarOpcode::kSubs: {
@@ -1431,7 +1415,8 @@ void DxbcShaderTranslator::ProcessScalarAluInstruction(
       UseDxbcSourceOperand(dxbc_operands[0], kSwizzleXYZW, 1);
       ++stat_.instruction_count;
       ++stat_.float_instruction_count;
-      if (instr.operands[0].components[0] != instr.operands[0].components[1]) {
+      if (instr.scalar_operands[0].components[0] !=
+          instr.scalar_operands[0].components[1]) {
         // Reproduce Shader Model 3 multiplication behavior (0 * anything = 0).
         uint32_t is_subnormal_temp = PushSystemTemp();
         // Get the non-NaN multiplicand closer to zero to check if any of them
@@ -1679,7 +1664,8 @@ void DxbcShaderTranslator::ProcessScalarAluInstruction(
     case AluScalarOpcode::kMaxs:
     case AluScalarOpcode::kMins: {
       // max is commonly used as mov.
-      if (instr.operands[0].components[0] == instr.operands[0].components[1]) {
+      if (instr.scalar_operands[0].components[0] ==
+          instr.scalar_operands[0].components[1]) {
         shader_code_.push_back(
             ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3 +
@@ -1990,7 +1976,8 @@ void DxbcShaderTranslator::ProcessScalarAluInstruction(
       ++stat_.instruction_count;
       ++stat_.conversion_instruction_count;
       // The `ps = max(src0.x, src0.y)` part.
-      if (instr.operands[0].components[0] == instr.operands[0].components[1]) {
+      if (instr.scalar_operands[0].components[0] ==
+          instr.scalar_operands[0].components[1]) {
         shader_code_.push_back(
             ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3 +
@@ -2308,7 +2295,7 @@ void DxbcShaderTranslator::ProcessScalarAluInstruction(
       UseDxbcSourceOperand(dxbc_operands[1], kSwizzleXYZW, 0);
       ++stat_.instruction_count;
       ++stat_.float_instruction_count;
-      if (!instr.operands[0].EqualsAbsolute(instr.operands[1])) {
+      if (!instr.scalar_operands[0].EqualsAbsolute(instr.scalar_operands[1])) {
         // Reproduce Shader Model 3 multiplication behavior (0 * anything = 0).
         uint32_t is_subnormal_temp = PushSystemTemp();
         // Get the non-NaN multiplicand closer to zero to check if any of them
@@ -2407,36 +2394,60 @@ void DxbcShaderTranslator::ProcessScalarAluInstruction(
       ++stat_.float_instruction_count;
     } break;
 
+    case AluScalarOpcode::kRetainPrev:
+      // No changes, but translated successfully (just write the old ps).
+      break;
+
     default:
-      // May be retain_prev, in this case the current ps should be written, or
-      // something invalid that's better to ignore.
-      assert_true(instr.scalar_opcode == AluScalarOpcode::kRetainPrev);
+      assert_unhandled_case(instr.scalar_opcode);
+      translated = false;
       break;
   }
 
-  for (uint32_t i = 0; i < uint32_t(instr.operand_count); ++i) {
-    UnloadDxbcSourceOperand(dxbc_operands[instr.operand_count - 1 - i]);
+  for (uint32_t i = 0; i < uint32_t(instr.scalar_operand_count); ++i) {
+    UnloadDxbcSourceOperand(dxbc_operands[instr.scalar_operand_count - 1 - i]);
   }
 
-  StoreResult(instr.result, system_temp_ps_pc_p0_a0_, true);
-
-  if (predicate_written) {
-    cf_exec_predicate_written_ = true;
-    CloseInstructionPredication();
-  }
+  return translated;
 }
 
 void DxbcShaderTranslator::ProcessAluInstruction(
     const ParsedAluInstruction& instr) {
-  switch (instr.type) {
-    case ParsedAluInstruction::Type::kNop:
-      break;
-    case ParsedAluInstruction::Type::kVector:
-      ProcessVectorAluInstruction(instr);
-      break;
-    case ParsedAluInstruction::Type::kScalar:
-      ProcessScalarAluInstruction(instr);
-      break;
+  if (instr.is_nop()) {
+    return;
+  }
+
+  if (FLAGS_dxbc_source_map) {
+    instruction_disassembly_buffer_.Reset();
+    instr.Disassemble(&instruction_disassembly_buffer_);
+    // Will be emitted by UpdateInstructionPredication.
+  }
+  UpdateInstructionPredication(instr.is_predicated, instr.predicate_condition,
+                               true);
+
+  // Whether the instruction has changed the predicate and it needs to be
+  // checked again later.
+  bool predicate_written_vector = false;
+  // Whether the result is only in X and all components should be remapped to X
+  // while storing.
+  bool replicate_vector_x = false;
+  bool store_vector = ProcessVectorAluOperation(instr, replicate_vector_x,
+                                                predicate_written_vector);
+  bool predicate_written_scalar = false;
+  bool store_scalar =
+      ProcessScalarAluOperation(instr, predicate_written_scalar);
+
+  if (store_vector) {
+    StoreResult(instr.vector_result, system_temp_pv_, replicate_vector_x,
+                instr.GetMemExportStreamConstant() != UINT32_MAX);
+  }
+  if (store_scalar) {
+    StoreResult(instr.scalar_result, system_temp_ps_pc_p0_a0_, true);
+  }
+
+  if (predicate_written_vector || predicate_written_scalar) {
+    cf_exec_predicate_written_ = true;
+    CloseInstructionPredication();
   }
 }
 

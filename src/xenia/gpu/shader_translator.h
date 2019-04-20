@@ -208,12 +208,10 @@ class ShaderTranslator {
                                     ParsedTextureFetchInstruction* out_instr);
 
   void TranslateAluInstruction(const ucode::AluInstruction& op);
-  void ParseAluVectorInstruction(const ucode::AluInstruction& op,
-                                 const AluOpcodeInfo& opcode_info,
-                                 ParsedAluInstruction& instr);
-  void ParseAluScalarInstruction(const ucode::AluInstruction& op,
-                                 const AluOpcodeInfo& opcode_info,
-                                 ParsedAluInstruction& instr);
+  void ParseAluVectorOperation(const ucode::AluInstruction& op,
+                               ParsedAluInstruction& instr);
+  void ParseAluScalarOperation(const ucode::AluInstruction& op,
+                               ParsedAluInstruction& instr);
 
   // Input shader metadata and microcode.
   ShaderType shader_type_;

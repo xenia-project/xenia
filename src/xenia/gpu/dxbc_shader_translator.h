@@ -1057,8 +1057,11 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // cubemap coordinate.
   void ArrayCoordToCubeDirection(uint32_t reg);
 
-  void ProcessVectorAluInstruction(const ParsedAluInstruction& instr);
-  void ProcessScalarAluInstruction(const ParsedAluInstruction& instr);
+  bool ProcessVectorAluOperation(const ParsedAluInstruction& instr,
+                                 bool& replicate_result_x,
+                                 bool& predicate_written);
+  bool ProcessScalarAluOperation(const ParsedAluInstruction& instr,
+                                 bool& predicate_written);
 
   // Appends a string to a DWORD stream, returns the DWORD-aligned length.
   static uint32_t AppendString(std::vector<uint32_t>& dest, const char* source);
@@ -1206,7 +1209,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // eM# in each `alloc export`, or UINT32_MAX if not used.
   uint32_t system_temps_memexport_data_[kMaxMemExports][5];
 
-  // Vector ALU result/scratch (since Xenos write masks can contain swizzles).
+  // Vector ALU result or fetch scratch (since Xenos write masks can contain
+  // swizzles).
   uint32_t system_temp_pv_;
   // Temporary register ID for previous scalar result, program counter,
   // predicate and absolute address register.
