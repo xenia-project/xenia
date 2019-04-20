@@ -454,29 +454,44 @@ void ParsedAluInstruction::Disassemble(StringBuffer* out) const {
     out->Append("         nop\n");
     return;
   }
-  if (is_scalar_type() && is_paired) {
-    out->Append("              + ");
-  } else {
+  if (has_vector_op) {
     out->Append("   ");
+    if (is_predicated) {
+      out->Append(predicate_condition ? " (p0) " : "(!p0) ");
+    } else {
+      out->Append("      ");
+    }
+    out->Append(vector_opcode_name);
+    if (vector_result.is_clamped) {
+      out->Append("_sat");
+    }
+    out->Append(' ');
+    DisassembleResultOperand(vector_result, out);
+    for (int i = 0; i < vector_operand_count; ++i) {
+      out->Append(", ");
+      DisassembleSourceOperand(vector_operands[i], out);
+    }
+    out->Append('\n');
   }
-  if (is_predicated) {
-    out->Append(predicate_condition ? " (p0) " : "(!p0) ");
-  } else {
-    out->Append("      ");
+  if (has_scalar_op) {
+    out->Append(has_vector_op ? "              + " : "   ");
+    if (is_predicated) {
+      out->Append(predicate_condition ? " (p0) " : "(!p0) ");
+    } else {
+      out->Append("      ");
+    }
+    out->Append(scalar_opcode_name);
+    if (scalar_result.is_clamped) {
+      out->Append("_sat");
+    }
+    out->Append(' ');
+    DisassembleResultOperand(scalar_result, out);
+    for (int i = 0; i < scalar_operand_count; ++i) {
+      out->Append(", ");
+      DisassembleSourceOperand(scalar_operands[i], out);
+    }
+    out->Append('\n');
   }
-  out->Append(opcode_name);
-  if (result.is_clamped) {
-    out->Append("_sat");
-  }
-  out->Append(' ');
-
-  DisassembleResultOperand(result, out);
-
-  for (int i = 0; i < operand_count; ++i) {
-    out->Append(", ");
-    DisassembleSourceOperand(operands[i], out);
-  }
-  out->Append('\n');
 }
 
 }  // namespace gpu
