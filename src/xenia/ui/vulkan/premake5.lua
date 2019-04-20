@@ -47,14 +47,10 @@ project("xenia-ui-window-vulkan-demo")
     "../window_demo.cc",
     "vulkan_window_demo.cc",
     project_root.."/src/xenia/base/main_"..platform_suffix..".cc",
-    project_root.."/src/xenia/base/main_entrypoint_"..platform_suffix..".cc",
   })
   resincludedirs({
     project_root,
   })
-
-  filter("files:"..project_root.."/src/xenia/base/main_entrypoint_"..platform_suffix..".cc")
-    vectorextensions("IA32")  -- Disable AVX so our AVX check/error can happen.
 
   filter("platforms:Linux")
     links({
