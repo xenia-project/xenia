@@ -43,14 +43,10 @@ project("xenia-hid-demo")
   files({
     "hid_demo.cc",
     "../base/main_"..platform_suffix..".cc",
-    "../base/main_entrypoint_"..platform_suffix..".cc",
   })
   resincludedirs({
     project_root,
   })
-
-  filter("files:../base/main_entrypoint_"..platform_suffix..".cc")
-    vectorextensions("IA32")  -- Disable AVX so our AVX check/error can happen.
 
   filter("platforms:Linux")
     links({
