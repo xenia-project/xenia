@@ -82,7 +82,7 @@ is wide open greenfield fun.
 Fixes and optimizations are always welcome (please!), but in addition to
 that there are some major work areas still untouched:
 
-* Help work through missing functionality/bugs in game [compat](https://github.com/xenia-project/xenia/issues?labels=compat)
+* Help work through [missing functionality/bugs in games](https://github.com/xenia-project/xenia/labels/compat)
 * Add input drivers for [PS4 controllers](https://github.com/xenia-project/xenia/issues/60) (or anything else)
 * Skilled with Linux? A strong contributor is needed to [help with porting](https://github.com/xenia-project/xenia/labels/cross%20platform)
 
