@@ -41,7 +41,7 @@ legally purchased devices and games and information made public on the internet
 
 ## Quickstart
 
-Windows 8.1+ with Python 3.4 and [Visual Studio 2017](https://www.visualstudio.com/downloads/) and the Windows SDKs installed:
+With Windows 8+, Python 3.4+, and [Visual Studio 2017 or 2019](https://www.visualstudio.com/downloads/) and the Windows SDKs installed:
 
     > git clone https://github.com/xenia-project/xenia.git
     > cd xenia
