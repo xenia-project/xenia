@@ -1678,6 +1678,9 @@ EMITTER_OPCODE_TABLE(OPCODE_MUL_HI, MUL_HI_I8, MUL_HI_I16, MUL_HI_I32,
 struct DIV_I8 : Sequence<DIV_I8, I<OPCODE_DIV, I8Op, I8Op, I8Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     Xbyak::Label skip;
+    Xbyak::Label normalDiv;
+    constexpr int8_t minusOne{-1};
+    constexpr int8_t minInt8{INT8_MIN};
     e.inLocalLabel();
 
     if (i.src2.is_constant) {
@@ -1688,12 +1691,19 @@ struct DIV_I8 : Sequence<DIV_I8, I<OPCODE_DIV, I8Op, I8Op, I8Op>> {
         e.div(e.cl);
       } else {
         e.movsx(e.ax, i.src1);
+        e.cmp(e.al, minInt8);
+        e.jne(normalDiv);
+        e.cmp(e.cl, minusOne);
+        e.jne(normalDiv);
+        e.xor_(e.ax, e.ax);
+        e.jmp(skip);
+        e.L(normalDiv);
         e.idiv(e.cl);
       }
     } else {
       // Skip if src2 is zero.
       e.test(i.src2, i.src2);
-      e.jz(skip, CodeGenerator::T_SHORT);
+      e.jz(skip);
 
       if (i.instr->flags & ARITHMETIC_UNSIGNED) {
         if (i.src1.is_constant) {
@@ -1708,6 +1718,13 @@ struct DIV_I8 : Sequence<DIV_I8, I<OPCODE_DIV, I8Op, I8Op, I8Op>> {
         } else {
           e.movsx(e.ax, i.src1);
         }
+        e.cmp(e.al, minInt8);
+        e.jne(normalDiv);
+        e.cmp(i.src2, minusOne);
+        e.jne(normalDiv);
+        e.xor_(e.ax, e.ax);
+        e.jmp(skip);
+        e.L(normalDiv);
         e.idiv(i.src2);
       }
     }
@@ -1720,6 +1737,9 @@ struct DIV_I8 : Sequence<DIV_I8, I<OPCODE_DIV, I8Op, I8Op, I8Op>> {
 struct DIV_I16 : Sequence<DIV_I16, I<OPCODE_DIV, I16Op, I16Op, I16Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     Xbyak::Label skip;
+    Xbyak::Label normalDiv;
+    constexpr int16_t minusOne{-1};
+    constexpr int16_t minInt16{INT16_MIN};
     e.inLocalLabel();
 
     if (i.src2.is_constant) {
@@ -1732,13 +1752,20 @@ struct DIV_I16 : Sequence<DIV_I16, I<OPCODE_DIV, I16Op, I16Op, I16Op>> {
         e.div(e.cx);
       } else {
         e.mov(e.ax, i.src1);
+        e.cmp(e.ax, minInt16);
+        e.jne(normalDiv);
+        e.cmp(e.cx, minusOne);
+        e.jne(normalDiv);
+        e.xor_(e.ax, e.ax);
+        e.jmp(skip);
+        e.L(normalDiv);
         e.cwd();  // dx:ax = sign-extend ax
         e.idiv(e.cx);
       }
     } else {
       // Skip if src2 is zero.
       e.test(i.src2, i.src2);
-      e.jz(skip, CodeGenerator::T_SHORT);
+      e.jz(skip);
 
       if (i.instr->flags & ARITHMETIC_UNSIGNED) {
         if (i.src1.is_constant) {
@@ -1755,6 +1782,13 @@ struct DIV_I16 : Sequence<DIV_I16, I<OPCODE_DIV, I16Op, I16Op, I16Op>> {
         } else {
           e.mov(e.ax, i.src1);
         }
+        e.cmp(e.ax, minInt16);
+        e.jne(normalDiv);
+        e.cmp(i.src2, minusOne);
+        e.jne(normalDiv);
+        e.xor_(e.ax, e.ax);
+        e.jmp(skip);
+        e.L(normalDiv);
         e.cwd();  // dx:ax = sign-extend ax
         e.idiv(i.src2);
       }
@@ -1768,6 +1802,9 @@ struct DIV_I16 : Sequence<DIV_I16, I<OPCODE_DIV, I16Op, I16Op, I16Op>> {
 struct DIV_I32 : Sequence<DIV_I32, I<OPCODE_DIV, I32Op, I32Op, I32Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     Xbyak::Label skip;
+    Xbyak::Label normalDiv;
+    constexpr int32_t minusOne{-1};
+    constexpr int32_t minInt32{INT32_MIN};
     e.inLocalLabel();
 
     if (i.src2.is_constant) {
@@ -1780,13 +1817,20 @@ struct DIV_I32 : Sequence<DIV_I32, I<OPCODE_DIV, I32Op, I32Op, I32Op>> {
         e.div(e.ecx);
       } else {
         e.mov(e.eax, i.src1);
+        e.cmp(e.eax, minInt32);
+        e.jne(normalDiv);
+        e.cmp(e.ecx, minusOne);
+        e.jne(normalDiv);
+        e.xor_(e.eax, e.eax);
+        e.jmp(skip);
+        e.L(normalDiv);
         e.cdq();  // edx:eax = sign-extend eax
         e.idiv(e.ecx);
       }
     } else {
       // Skip if src2 is zero.
       e.test(i.src2, i.src2);
-      e.jz(skip, CodeGenerator::T_SHORT);
+      e.jz(skip);
 
       if (i.instr->flags & ARITHMETIC_UNSIGNED) {
         if (i.src1.is_constant) {
@@ -1803,6 +1847,13 @@ struct DIV_I32 : Sequence<DIV_I32, I<OPCODE_DIV, I32Op, I32Op, I32Op>> {
         } else {
           e.mov(e.eax, i.src1);
         }
+        e.cmp(e.eax, minInt32);
+        e.jne(normalDiv);
+        e.cmp(i.src2, minusOne);
+        e.jne(normalDiv);
+        e.xor_(e.eax, e.eax);
+        e.jmp(skip);
+        e.L(normalDiv);
         e.cdq();  // edx:eax = sign-extend eax
         e.idiv(i.src2);
       }
@@ -1816,6 +1867,9 @@ struct DIV_I32 : Sequence<DIV_I32, I<OPCODE_DIV, I32Op, I32Op, I32Op>> {
 struct DIV_I64 : Sequence<DIV_I64, I<OPCODE_DIV, I64Op, I64Op, I64Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     Xbyak::Label skip;
+    Xbyak::Label normalDiv;
+    constexpr int32_t minusOne{-1};
+    constexpr int64_t minInt64{INT64_MIN};
     e.inLocalLabel();
 
     if (i.src2.is_constant) {
@@ -1827,14 +1881,22 @@ struct DIV_I64 : Sequence<DIV_I64, I<OPCODE_DIV, I64Op, I64Op, I64Op>> {
         e.xor_(e.rdx, e.rdx);
         e.div(e.rcx);
       } else {
+        e.mov(e.rdx, minInt64);
+        e.cmp(e.rax, e.rdx);
+        e.jne(normalDiv);
         e.mov(e.rax, i.src1);
+        e.cmp(e.rcx, minusOne);
+        e.jne(normalDiv);
+        e.xor_(e.rax, e.rax);
+        e.jmp(skip);
+        e.L(normalDiv);
         e.cqo();  // rdx:rax = sign-extend rax
         e.idiv(e.rcx);
       }
     } else {
       // Skip if src2 is zero.
       e.test(i.src2, i.src2);
-      e.jz(skip, CodeGenerator::T_SHORT);
+      e.jz(skip);
 
       if (i.instr->flags & ARITHMETIC_UNSIGNED) {
         if (i.src1.is_constant) {
@@ -1851,6 +1913,14 @@ struct DIV_I64 : Sequence<DIV_I64, I<OPCODE_DIV, I64Op, I64Op, I64Op>> {
         } else {
           e.mov(e.rax, i.src1);
         }
+        e.mov(e.rdx, minInt64);
+        e.cmp(e.rax, e.rdx);
+        e.jne(normalDiv);
+        e.cmp(i.src2, minusOne);
+        e.jne(normalDiv);
+        e.xor_(e.rax, e.rax);
+        e.jmp(skip);
+        e.L(normalDiv);
         e.cqo();  // rdx:rax = sign-extend rax
         e.idiv(i.src2);
       }
