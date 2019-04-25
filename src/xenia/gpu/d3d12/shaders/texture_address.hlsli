@@ -23,22 +23,32 @@ uint4 XeTextureTiledOffset2D(uint2 p, uint storage_width, uint bpb_log2) {
          (offset & 0x3Fu);  // Lower 6 bits (offset bits [5-0]).
 }
 
-// Reverse-engineered from an executable.
-// The base/micro/macro names were chosen pretty much at random and don't have
-// the same meaning as in TiledOffset2D.
+// Reverse-engineered from XGRAPHICS::TileVolume in an executable.
 uint4 XeTextureTiledOffset3D(uint3 p, uint2 storage_width_height,
                              uint bpb_log2) {
+  storage_width_height = (storage_width_height + 31u) & ~31u;
   uint4 x4 = uint4(0u, 1u, 2u, 3u) + p.xxxx;
-  uint base = ((p.z >> 2u) * (storage_width_height.y >> 4u) + (p.y >> 4u)) *
-              (storage_width_height.x >> 5u);
-  uint4 micro = (((p.z >> 2u) + (p.y >> 3u)) & 1u).xxxx;
-  micro += (((micro << 1u) + (x4 >> 3u)) & 3u) << 1u;
-  uint4 macro = (((x4 & 7u) + ((p.y & 6u) << 2u)) << (bpb_log2 + 6u)) >> 6u;
-  macro = (((((((x4 >> 5u) + base) << (bpb_log2 + 6u)) & 0xFFFFFFFu) << 1u) +
-            (macro & ~15u)) << 1u) + (macro & 15u) +
-            ((p.z & 3u) << (bpb_log2 + 6u)) + ((p.y & 1u) << 4u);
-  return ((((((((macro >> 6u) & 7u) + ((micro & 1u) << 3u)) << 3u) +
-             (micro & ~1u)) << 2u) + (macro & ~511u)) << 3u) + (macro & 63u);
+  uint macro_outer =
+      ((p.y >> 4u) + (p.z >> 2u) * (storage_width_height.y >> 4u)) *
+      (storage_width_height.x >> 5u);
+  uint4 macro =
+      ((((x4 >> 5u) + macro_outer) << (bpb_log2 + 6u)) & 0xFFFFFFFu) << 1u;
+  uint4 micro = (((x4 & 7u) + ((p.y & 6u) << 2u)) << (bpb_log2 + 6u)) >> 6u;
+  uint offset_outer = ((p.y >> 3u) + (p.z >> 2u)) & 1u;
+  uint4 offset1 =
+      offset_outer + ((((x4 >> 3u) + (offset_outer << 1u)) & 3u) << 1u);
+  uint4 offset2 =
+      ((macro + (micro & ~15u)) << 1u) + (micro & 15u) +
+      ((p.z & 3u) << (bpb_log2 + 6u)) + ((p.y & 1u) << 4u);
+  uint4 address = (offset1 & 1u) << 3u;
+  address += uint4(int4(offset2) >> 6) & 7u;
+  address <<= 3u;
+  address += offset1 & ~1u;
+  address <<= 2u;
+  address += offset2 & ~511u;
+  address <<= 3u;
+  address += offset2 & 63u;
+  return address;
 }
 
 uint XeTextureGuestLinearOffset(uint3 p, uint height, uint pitch, uint bpb) {

@@ -132,8 +132,9 @@ class TextureCache {
   }
   // The source buffer must be in the non-pixel-shader SRV state.
   bool TileResolvedTexture(TextureFormat format, uint32_t texture_base,
-                           uint32_t texture_pitch, uint32_t offset_x,
-                           uint32_t offset_y, uint32_t resolve_width,
+                           uint32_t texture_pitch, uint32_t texture_height,
+                           bool is_3d, uint32_t offset_x, uint32_t offset_y,
+                           uint32_t offset_z, uint32_t resolve_width,
                            uint32_t resolve_height, Endian128 endian,
                            ID3D12Resource* buffer, uint32_t buffer_size,
                            const D3D12_PLACED_SUBRESOURCE_FOOTPRINT& footprint);
@@ -423,10 +424,14 @@ class TextureCache {
     uint32_t guest_base;
     // 0:2 - endianness (up to Xin128).
     // 3:8 - guest format (primarily for 16-bit textures).
-    // 10:31 - actual guest texture width.
+    // 10:18 - align(guest texture pitch, 32) / 32.
+    // 19:27 - align(guest texture height, 32) / 32 for 3D, 0 for 2D.
     uint32_t info;
-    // Origin of the written data in the destination texture. X in the lower 16
-    // bits, Y in the upper.
+    // Origin of the written data in the destination texture (for anything
+    // bigger, adjust the base address with 32x32x8 granularity).
+    // 0:4 - X & 31.
+    // 5:9 - Y & 31.
+    // 10:12 - Z & 7.
     uint32_t offset;
     // Size to copy, texels with index bigger than this won't be written.
     // Width in the lower 16 bits, height in the upper.

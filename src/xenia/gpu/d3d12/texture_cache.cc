@@ -1284,9 +1284,10 @@ void TextureCache::MarkRangeAsResolved(uint32_t start_unscaled,
 
 bool TextureCache::TileResolvedTexture(
     TextureFormat format, uint32_t texture_base, uint32_t texture_pitch,
-    uint32_t offset_x, uint32_t offset_y, uint32_t resolve_width,
-    uint32_t resolve_height, Endian128 endian, ID3D12Resource* buffer,
-    uint32_t buffer_size, const D3D12_PLACED_SUBRESOURCE_FOOTPRINT& footprint) {
+    uint32_t texture_height, bool is_3d, uint32_t offset_x, uint32_t offset_y,
+    uint32_t offset_z, uint32_t resolve_width, uint32_t resolve_height,
+    Endian128 endian, ID3D12Resource* buffer, uint32_t buffer_size,
+    const D3D12_PLACED_SUBRESOURCE_FOOTPRINT& footprint) {
   ResolveTileMode resolve_tile_mode =
       host_formats_[uint32_t(format)].resolve_tile_mode;
   if (resolve_tile_mode == ResolveTileMode::kUnknown) {
@@ -1311,32 +1312,61 @@ bool TextureCache::TileResolvedTexture(
     texture_base &= ~((1u << resolve_tile_mode_info.uav_texel_size_log2) - 1);
   }
 
-  assert_false(texture_pitch & 31);
   texture_pitch = xe::align(texture_pitch, 32u);
+  texture_height = xe::align(texture_height, 32u);
 
   // Calculate the address and the size of the region that specifically
   // is being resolved. Can't just use the texture height for size calculation
   // because it's sometimes bigger than needed (in Red Dead Redemption, an UI
   // texture used for the letterbox bars alpha is located within a 1280x720
   // resolve target, but only 1280x208 is being resolved, and with scaled
-  // resolution the UI texture gets ignored).
-  texture_base += texture_util::GetTiledOffset2D(
-      offset_x & ~31u, offset_y & ~31u, texture_pitch,
-      xe::log2_floor(FormatInfo::Get(format)->bits_per_pixel >> 3));
+  // resolution the UI texture gets ignored). This doesn't apply to 3D resolves,
+  // however, because their tiling is more complex - some excess data will even
+  // be marked as resolved for them if resolving not to (0,0).
+  uint32_t bpb_log2 =
+      xe::log2_floor(FormatInfo::Get(format)->bits_per_pixel >> 3);
+  if (is_3d) {
+    texture_base += texture_util::GetTiledOffset3D(
+        offset_x & ~31u, offset_y & ~31u, offset_z & ~7u, texture_pitch,
+        texture_height, bpb_log2);
+    offset_z &= 7;
+  } else {
+    texture_base += texture_util::GetTiledOffset2D(
+        offset_x & ~31u, offset_y & ~31u, texture_pitch, bpb_log2);
+    offset_z = 0;
+  }
   offset_x &= 31;
   offset_y &= 31;
-  uint32_t texture_size = texture_util::GetGuestMipSliceStorageSize(
-      texture_pitch, xe::align(offset_y + resolve_height, 32u), 1, true, format,
-      nullptr, false);
+  uint32_t texture_size;
+  uint32_t texture_modified_start = texture_base;
+  uint32_t texture_modified_length;
+  if (is_3d) {
+    // Depth granularity is 4 (though TiledAddress chaining is possible with 8
+    // granularity).
+    texture_size = texture_util::GetGuestMipSliceStorageSize(
+        texture_pitch, texture_height, 4, true, format, nullptr, false);
+    if (offset_z >= 4) {
+      texture_modified_start += texture_size;
+    }
+    texture_modified_length = texture_size;
+    texture_size *= 2;
+  } else {
+    texture_size = texture_util::GetGuestMipSliceStorageSize(
+        texture_pitch, xe::align(offset_y + resolve_height, 32u), 1, true,
+        format, nullptr, false);
+    texture_modified_length = texture_size;
+  }
   if (texture_size == 0) {
     return true;
   }
   if (resolution_scale_log2) {
-    if (!EnsureScaledResolveBufferResident(texture_base, texture_size)) {
+    if (!EnsureScaledResolveBufferResident(texture_modified_start,
+                                           texture_modified_length)) {
       return false;
     }
   } else {
-    if (!shared_memory_->MakeTilesResident(texture_base, texture_size)) {
+    if (!shared_memory_->MakeTilesResident(texture_modified_start,
+                                           texture_modified_length)) {
       return false;
     }
   }
@@ -1358,8 +1388,9 @@ bool TextureCache::TileResolvedTexture(
   ResolveTileConstants resolve_tile_constants;
   resolve_tile_constants.info = uint32_t(endian) | (uint32_t(format) << 3) |
                                 (resolution_scale_log2 << 9) |
-                                (texture_pitch << 10);
-  resolve_tile_constants.offset = offset_x | (offset_y << 16);
+                                ((texture_pitch >> 5) << 10) |
+                                (is_3d ? ((texture_height >> 5) << 19) : 0);
+  resolve_tile_constants.offset = offset_x | (offset_y << 5) | (offset_z << 10);
   resolve_tile_constants.size = resolve_width | (resolve_height << 16);
   resolve_tile_constants.host_base = uint32_t(footprint.Offset);
   resolve_tile_constants.host_pitch = uint32_t(footprint.Footprint.RowPitch);
@@ -1420,7 +1451,7 @@ bool TextureCache::TileResolvedTexture(
                                          : shared_memory_->GetBuffer());
 
   // Invalidate textures and mark the range as scaled if needed.
-  MarkRangeAsResolved(texture_base, texture_size);
+  MarkRangeAsResolved(texture_modified_start, texture_modified_length);
 
   return true;
 }

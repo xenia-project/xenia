@@ -26,17 +26,16 @@ cbuffer XeEDRAMLoadStoreConstants : register(b0) {
 // 0:11 - resolve area width/height in pixels.
 // 12:16 - offset in the destination texture (only up to 31 - assuming 32*n is
 //         pre-applied to the base pointer).
-// 17: - left/top of the copied region (relative to EDRAM base).
+// 17:19 - Z in destination 3D texture (in .x).
+// 20:31 - left/top of the copied region (relative to EDRAM base).
 #define xe_edram_tile_sample_dimensions (xe_edram_load_store_constants.xy)
 #define xe_edram_tile_sample_dest_base (xe_edram_load_store_constants.z)
-// 0:13 - destination pitch.
-// 14:15 - sample to load (14 - vertical index, 15 - horizontal index).
-// 16:18 - destination endianness.
-// 19:31 - BPP-specific info for swapping red/blue, 0 if not swapping.
-//   For 32 bits per sample:
-//     19:23 - red/blue bit depth.
-//     24:28 - blue offset.
-//   For 64 bits per sample, it's 1 if need to swap 0:15 and 32:47.
+// 0:8 - align(destination pitch, 32) / 32.
+// 9:17 - align(destination height, 32) / 32 for 3D, 0 for 2D.
+// 18:19 - sample to load (18 - vertical index, 19 - horizontal index).
+// 20:22 - destination endianness.
+// 23 - whether to swap red and blue.
+// 24:27 - source format (for red/blue swapping).
 #define xe_edram_tile_sample_dest_info (xe_edram_load_store_constants.w)
 
 // For clearing.

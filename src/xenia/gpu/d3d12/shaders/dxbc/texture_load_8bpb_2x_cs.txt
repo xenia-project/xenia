@@ -63,21 +63,23 @@ iadd r0.xyz, r0.xyzx, CB0[0][4].xyzx
 ieq r0.w, CB0[0][0].y, l(-1)
 if_nz r0.w
   if_nz CB0[0][1].w
-    iadd r1.xyzw, r0.xxxx, l(0, 1, 2, 3)
-    ushr r2.xyz, r0.zyyz, l(2, 4, 3, 0)
-    ushr r3.xy, CB0[0][3].yxyy, l(4, 5, 0, 0)
-    imad r0.w, r2.x, r3.x, r2.y
-    iadd r2.x, r2.z, r2.x
-    bfi r2.y, l(1), l(1), r2.x, l(0)
-    ushr r4.xyzw, r1.xyzw, l(3, 3, 3, 3)
-    iadd r4.xyzw, r2.yyyy, r4.xyzw
-    bfi r4.xyzw, l(2, 2, 2, 2), l(1, 1, 1, 1), r4.xyzw, l(0, 0, 0, 0)
-    bfi r2.xyzw, l(1, 1, 1, 1), l(0, 0, 0, 0), r2.xxxx, r4.xyzw
-    ishl r3.x, r0.y, l(2)
-    and r3.x, r3.x, l(24)
-    bfi r4.xyzw, l(3, 3, 3, 3), l(0, 0, 0, 0), r1.xyzw, r3.xxxx
-    ushr r1.xyzw, r1.xyzw, l(5, 5, 5, 5)
-    imad r1.xyzw, r0.wwww, r3.yyyy, r1.xyzw
+    iadd r1.xy, CB0[0][3].yxyy, l(31, 31, 0, 0)
+    iadd r2.xyzw, r0.xxxx, l(0, 1, 2, 3)
+    ushr r3.xyz, r0.yzyy, l(4, 2, 3, 0)
+    ushr r1.xy, r1.xyxx, l(4, 5, 0, 0)
+    and r0.w, r1.x, l(0x0ffffffe)
+    imad r0.w, r3.y, r0.w, r3.x
+    ushr r4.xyzw, r2.xyzw, l(5, 5, 5, 5)
+    imad r1.xyzw, r0.wwww, r1.yyyy, r4.xyzw
+    ishl r0.w, r0.y, l(2)
+    and r0.w, r0.w, l(24)
+    bfi r4.xyzw, l(3, 3, 3, 3), l(0, 0, 0, 0), r2.xyzw, r0.wwww
+    iadd r0.w, r3.y, r3.z
+    ushr r2.xyzw, r2.xyzw, l(3, 3, 3, 3)
+    bfi r3.x, l(1), l(1), r0.w, l(0)
+    iadd r2.xyzw, r2.xyzw, r3.xxxx
+    bfi r2.xyzw, l(2, 2, 2, 2), l(1, 1, 1, 1), r2.xyzw, l(0, 0, 0, 0)
+    bfi r2.xyzw, l(1, 1, 1, 1), l(0, 0, 0, 0), r0.wwww, r2.xyzw
     and r3.xyzw, r4.xyzw, l(16, 16, 16, 16)
     bfi r5.xyzw, l(22, 22, 22, 22), l(8, 8, 8, 8), r1.xyzw, l(0, 0, 0, 0)
     imad r5.xyzw, r3.xyzw, l(2, 2, 2, 2), r5.xyzw
@@ -155,4 +157,4 @@ ushr r1.xy, r1.xyxx, l(16, 16, 0, 0)
 bfi r0.xy, l(16, 16, 0, 0), l(0, 0, 0, 0), r1.xyxx, r0.xyxx
 store_raw U0[0].xy, r0.z, r0.xyxx
 ret 
-// Approximately 104 instruction slots used
+// Approximately 106 instruction slots used
