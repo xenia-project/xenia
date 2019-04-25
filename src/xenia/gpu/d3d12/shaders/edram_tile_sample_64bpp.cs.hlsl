@@ -15,7 +15,7 @@ void main(uint3 xe_group_id : SV_GroupID,
   // coordinates in the thread are inside the rectangle's X bounds.
   uint2 dispatch_pixel_index_unscaled =
       (xe_thread_id.xy >> sample_count_and_scale_info.z) * uint2(4u, 1u);
-  uint2 source_rect_unscaled_tl = xe_edram_tile_sample_dimensions >> 17u;
+  uint2 source_rect_unscaled_tl = xe_edram_tile_sample_dimensions >> 20u;
   uint2 source_rect_unscaled_br =
       source_rect_unscaled_tl + (xe_edram_tile_sample_dimensions & 0xFFFu);
   uint4 dispatch_pixel_x_coords_unscaled =
@@ -65,7 +65,7 @@ void main(uint3 xe_group_id : SV_GroupID,
          (sample_count_and_scale_info.xy + uint2(2u, 0u)));
   }
   edram_tile_sample_index +=
-      (xe_edram_tile_sample_dest_info.xx >> uint2(15u, 14u)) & 1u;
+      (xe_edram_tile_sample_dest_info.xx >> uint2(19u, 18u)) & 1u;
   // Force use the lower host texel for the topmost guest texel row to reduce
   // the impact of half-pixel offset.
   uint2 edram_texel_sub_index = texel_sub_index_scaled;
@@ -113,29 +113,42 @@ void main(uint3 xe_group_id : SV_GroupID,
     }
   }
 
-  if ((xe_edram_tile_sample_dest_info >> 19u) != 0u) {
+  if ((xe_edram_tile_sample_dest_info & (1u << 23u)) != 0u) {
     // Swap red and blue - all 64bpp formats where this is possible are
     // 16:16:16:16.
-    pixels_01 = (pixels_01 & 0xFFFF0000u) | (pixels_01.yxwz & 0xFFFFu);
-    pixels_23 = (pixels_23 & 0xFFFF0000u) | (pixels_23.yxwz & 0xFFFFu);
+    uint format = (xe_edram_tile_sample_dest_info >> 24u) & 15u;
+    if (format == 5u || format == 7u) {
+      pixels_01 = (pixels_01 & 0xFFFF0000u) | (pixels_01.yxwz & 0xFFFFu);
+      pixels_23 = (pixels_23 & 0xFFFF0000u) | (pixels_23.yxwz & 0xFFFFu);
+    }
   }
 
   // Tile the pixels to the shared memory or to the scaled resolve memory.
-  uint endian = xe_edram_tile_sample_dest_info >> 16u;
+  uint endian = xe_edram_tile_sample_dest_info >> 20u;
   pixels_01 = XeByteSwap64(pixels_01, endian);
   pixels_23 = XeByteSwap64(pixels_23, endian);
-  uint2 texel_offset_unscaled =
+  uint3 texel_offset_unscaled;
+  texel_offset_unscaled.xy =
       ((xe_edram_tile_sample_dimensions >> 12u) & 31u) +
       dispatch_pixel_index_unscaled - source_rect_unscaled_tl;
+  texel_offset_unscaled.z = (xe_edram_tile_sample_dimensions.x >> 17u) & 7u;
   // If texel_offset_unscaled.x is negative (if the rectangle is not
   // 4-pixel-aligned, for example), the result will be ignored anyway due to
   // x_in_rect.
-  uint4 texel_addresses =
-      (xe_edram_tile_sample_dest_base + XeTextureTiledOffset2D(
-          texel_offset_unscaled, xe_edram_tile_sample_dest_info & 16383u, 3u))
-      << (sample_count_and_scale_info.z * 2u);
-  texel_addresses +=
-      texel_sub_index_scaled.x * 8u + texel_sub_index_scaled.y * 16u;
+  uint2 texel_pitch =
+      ((xe_edram_tile_sample_dest_info >> uint2(0u, 9u)) & 511u) << 5u;
+  uint4 texel_addresses;
+  if (texel_pitch.y != 0u) {
+    texel_addresses =
+        XeTextureTiledOffset3D(texel_offset_unscaled, texel_pitch, 3u);
+  } else {
+    texel_addresses =
+        XeTextureTiledOffset2D(texel_offset_unscaled.xy, texel_pitch.x, 3u);
+  }
+  texel_addresses =
+      ((xe_edram_tile_sample_dest_base + texel_addresses)
+       << (sample_count_and_scale_info.z * 2u)
+      ) + texel_sub_index_scaled.x * 8u + texel_sub_index_scaled.y * 16u;
   [branch] if (x_in_rect.x) {
     xe_edram_load_store_dest.Store2(texel_addresses.x, pixels_01.xy);
   }

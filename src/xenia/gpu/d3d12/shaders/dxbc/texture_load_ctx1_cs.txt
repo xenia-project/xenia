@@ -63,39 +63,41 @@ iadd r1.xyz, r0.xyzx, CB0[0][4].xyzx
 ieq r0.z, CB0[0][0].y, l(-1)
 if_nz r0.z
   if_nz CB0[0][1].w
+    iadd r0.zw, CB0[0][3].yyyx, l(0, 0, 31, 31)
     iadd r2.xyzw, r1.xxxx, l(0, 1, 2, 3)
-    ushr r3.xyz, r1.zyyz, l(2, 4, 3, 0)
-    ushr r0.zw, CB0[0][3].yyyx, l(0, 0, 4, 5)
-    imad r0.z, r3.x, r0.z, r3.y
-    iadd r1.w, r3.z, r3.x
-    bfi r3.x, l(1), l(1), r1.w, l(0)
-    ushr r4.xyzw, r2.xyzw, l(3, 3, 3, 3)
-    iadd r3.xyzw, r3.xxxx, r4.xyzw
-    bfi r3.xyzw, l(2, 2, 2, 2), l(1, 1, 1, 1), r3.xyzw, l(0, 0, 0, 0)
-    bfi r3.xyzw, l(1, 1, 1, 1), l(0, 0, 0, 0), r1.wwww, r3.xyzw
-    ishl r1.w, r1.y, l(11)
-    and r1.w, r1.w, l(0x00003000)
-    bfi r4.xyzw, l(3, 3, 3, 3), l(9, 9, 9, 9), r2.xyzw, r1.wwww
-    ushr r4.xyzw, r4.xyzw, l(6, 6, 6, 6)
-    ushr r2.xyzw, r2.xyzw, l(5, 5, 5, 5)
-    imad r2.xyzw, r0.zzzz, r0.wwww, r2.xyzw
-    and r5.xyzw, r4.xyzw, l(240, 240, 240, 240)
-    bfi r6.xyzw, l(19, 19, 19, 19), l(11, 11, 11, 11), r2.xyzw, l(0, 0, 0, 0)
-    imad r6.xyzw, r5.xyzw, l(2, 2, 2, 2), r6.xyzw
-    bfi r6.xyzw, l(4, 4, 4, 4), l(0, 0, 0, 0), r4.xyzw, r6.xyzw
+    ushr r3.xyz, r1.yzyy, l(4, 2, 3, 0)
+    ushr r0.zw, r0.zzzw, l(0, 0, 4, 5)
+    and r0.z, r0.z, l(0x0ffffffe)
+    imad r0.z, r3.y, r0.z, r3.x
+    ushr r4.xyzw, r2.xyzw, l(5, 5, 5, 5)
+    imad r4.xyzw, r0.zzzz, r0.wwww, r4.xyzw
+    ishl r0.z, r1.y, l(11)
+    and r0.z, r0.z, l(0x00003000)
+    bfi r5.xyzw, l(3, 3, 3, 3), l(9, 9, 9, 9), r2.xyzw, r0.zzzz
+    ushr r5.xyzw, r5.xyzw, l(6, 6, 6, 6)
+    iadd r0.z, r3.y, r3.z
+    ushr r2.xyzw, r2.xyzw, l(3, 3, 3, 3)
+    bfi r0.w, l(1), l(1), r0.z, l(0)
+    iadd r2.xyzw, r0.wwww, r2.xyzw
+    bfi r2.xyzw, l(2, 2, 2, 2), l(1, 1, 1, 1), r2.xyzw, l(0, 0, 0, 0)
+    bfi r2.xyzw, l(1, 1, 1, 1), l(0, 0, 0, 0), r0.zzzz, r2.xyzw
+    and r3.xyzw, r5.xyzw, l(240, 240, 240, 240)
+    bfi r6.xyzw, l(19, 19, 19, 19), l(11, 11, 11, 11), r4.xyzw, l(0, 0, 0, 0)
+    imad r6.xyzw, r3.xyzw, l(2, 2, 2, 2), r6.xyzw
+    bfi r6.xyzw, l(4, 4, 4, 4), l(0, 0, 0, 0), r5.xyzw, r6.xyzw
     bfi r6.xyzw, l(2, 2, 2, 2), l(9, 9, 9, 9), r1.zzzz, r6.xyzw
     bfi r7.xyzw, l(1, 1, 1, 1), l(4, 4, 4, 4), r1.yyyy, r6.xyzw
     ubfe r6.xyzw, l(3, 3, 3, 3), l(6, 6, 6, 6), r6.xyzw
-    and r8.xyzw, r3.xyzw, l(6, 6, 6, 6)
-    bfi r3.xyzw, l(1, 1, 1, 1), l(8, 8, 8, 8), r3.xyzw, l(0, 0, 0, 0)
-    imad r3.xyzw, r6.xyzw, l(32, 32, 32, 32), r3.xyzw
-    imad r3.xyzw, r8.xyzw, l(4, 4, 4, 4), r3.xyzw
-    bfi r2.xyzw, l(19, 19, 19, 19), l(14, 14, 14, 14), r2.xyzw, l(0, 0, 0, 0)
-    imad r2.xyzw, r5.xyzw, l(16, 16, 16, 16), r2.xyzw
-    bfi r2.xyzw, l(4, 4, 4, 4), l(3, 3, 3, 3), r4.xyzw, r2.xyzw
-    bfi r2.xyzw, l(2, 2, 2, 2), l(12, 12, 12, 12), r1.zzzz, r2.xyzw
-    bfi r2.xyzw, l(1, 1, 1, 1), l(7, 7, 7, 7), r1.yyyy, r2.xyzw
-    bfi r2.xyzw, l(9, 9, 9, 9), l(3, 3, 3, 3), r3.xyzw, r2.xyzw
+    and r8.xyzw, r2.xyzw, l(6, 6, 6, 6)
+    bfi r2.xyzw, l(1, 1, 1, 1), l(8, 8, 8, 8), r2.xyzw, l(0, 0, 0, 0)
+    imad r2.xyzw, r6.xyzw, l(32, 32, 32, 32), r2.xyzw
+    imad r2.xyzw, r8.xyzw, l(4, 4, 4, 4), r2.xyzw
+    bfi r4.xyzw, l(19, 19, 19, 19), l(14, 14, 14, 14), r4.xyzw, l(0, 0, 0, 0)
+    imad r3.xyzw, r3.xyzw, l(16, 16, 16, 16), r4.xyzw
+    bfi r3.xyzw, l(4, 4, 4, 4), l(3, 3, 3, 3), r5.xyzw, r3.xyzw
+    bfi r3.xyzw, l(2, 2, 2, 2), l(12, 12, 12, 12), r1.zzzz, r3.xyzw
+    bfi r3.xyzw, l(1, 1, 1, 1), l(7, 7, 7, 7), r1.yyyy, r3.xyzw
+    bfi r2.xyzw, l(9, 9, 9, 9), l(3, 3, 3, 3), r2.xyzw, r3.xyzw
     bfi r2.xyzw, l(6, 6, 6, 6), l(0, 0, 0, 0), r7.xyzw, r2.xyzw
   else 
     iadd r3.xyzw, r1.xxxx, l(0, 1, 2, 3)
@@ -269,4 +271,4 @@ loop
   iadd r4.y, r4.y, l(1)
 endloop 
 ret 
-// Approximately 218 instruction slots used
+// Approximately 220 instruction slots used

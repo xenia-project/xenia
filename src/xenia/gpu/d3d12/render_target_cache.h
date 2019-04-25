@@ -543,17 +543,16 @@ class RenderTargetCache {
         // 0:11 - resolve area width/height in pixels.
         // 12:16 - offset in the destination texture (only up to 31 - assuming
         //         32*n is pre-applied to the base pointer).
-        // 17: - left/top of the copied region (relative to EDRAM base).
+        // 17:19 - Z in destination 3D texture (in [0]).
+        // 20:31 - left/top of the copied region (relative to EDRAM base).
         uint32_t tile_sample_dimensions[2];
         uint32_t tile_sample_dest_base;
-        // 0:13 - destination pitch.
-        // 14:15 - sample to load (14 - vertical index, 15 - horizontal index).
-        // 16:18 - destination endianness.
-        // 19:31 - BPP-specific info for swapping red/blue, 0 if not swapping.
-        //   For 32 bits per pixel:
-        //     19:23 - red/blue bit depth.
-        //     24:28 - blue offset.
-        //   For 64 bits per pixel, it's 1 if need to swap 0:15 and 32:47.
+        // 0:8 - align(destination pitch, 32) / 32.
+        // 9:17 - align(destination height, 32) / 32 for 3D, 0 for 2D.
+        // 18:19 - sample to load (18 - vertical index, 19 - horizontal index).
+        // 20:22 - destination endianness.
+        // 23:26 - source format (for red/blue swapping).
+        // 27 - whether to swap red and blue.
         uint32_t tile_sample_dest_info;
       };
       struct {

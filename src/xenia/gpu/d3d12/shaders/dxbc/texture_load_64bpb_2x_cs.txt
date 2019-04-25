@@ -57,55 +57,57 @@ or r0.x, r0.z, r0.x
 if_nz r0.x
   ret 
 endif 
-iadd r0.xyzw, vThreadID.zyyx, CB0[0][4].zyyx
+iadd r0.xyzw, vThreadID.yzxy, CB0[0][4].yzxy
 ieq r1.x, CB0[0][0].y, l(-1)
 if_nz r1.x
   if_nz CB0[0][1].w
-    ushr r1.xyzw, r0.xyzw, l(2, 4, 3, 3)
-    ushr r2.xy, CB0[0][3].yxyy, l(4, 5, 0, 0)
-    imad r0.y, r1.x, r2.x, r1.y
-    iadd r1.x, r1.z, r1.x
-    bfi r1.y, l(1), l(1), r1.x, l(0)
-    iadd r1.y, r1.w, r1.y
-    bfi r1.y, l(2), l(1), r1.y, l(0)
-    bfi r1.x, l(1), l(0), r1.x, r1.y
-    ishl r1.y, r0.z, l(11)
-    and r1.y, r1.y, l(0x00003000)
-    bfi r1.y, l(3), l(9), r0.w, r1.y
-    ushr r1.y, r1.y, l(6)
-    ushr r1.z, r0.w, l(5)
-    imad r0.y, r0.y, r2.y, r1.z
-    and r1.z, r1.y, l(240)
-    bfi r2.xy, l(19, 19, 0, 0), l(11, 14, 0, 0), r0.yyyy, l(0, 0, 0, 0)
+    iadd r1.xy, CB0[0][3].yxyy, l(31, 31, 0, 0)
+    ushr r2.xyzw, r0.xyzw, l(4, 2, 5, 3)
+    ushr r1.xy, r1.xyxx, l(4, 5, 0, 0)
+    and r0.x, r1.x, l(0x0ffffffe)
+    imad r0.x, r2.y, r0.x, r2.x
+    imad r0.x, r0.x, r1.y, r2.z
+    ishl r1.x, r0.w, l(11)
+    and r1.x, r1.x, l(0x00003000)
+    bfi r1.x, l(3), l(9), r0.z, r1.x
+    ushr r1.x, r1.x, l(6)
+    iadd r1.y, r2.y, r2.w
+    ushr r1.z, r0.z, l(3)
+    bfi r1.w, l(1), l(1), r1.y, l(0)
+    iadd r1.z, r1.w, r1.z
+    bfi r1.z, l(2), l(1), r1.z, l(0)
+    bfi r1.y, l(1), l(0), r1.y, r1.z
+    and r1.z, r1.x, l(240)
+    bfi r2.xy, l(19, 19, 0, 0), l(11, 14, 0, 0), r0.xxxx, l(0, 0, 0, 0)
     imad r1.zw, r1.zzzz, l(0, 0, 2, 16), r2.xxxy
-    bfi r1.yz, l(0, 4, 4, 0), l(0, 0, 3, 0), r1.yyyy, r1.zzwz
-    bfi r1.yz, l(0, 2, 2, 0), l(0, 9, 12, 0), r0.xxxx, r1.yyzy
-    ubfe r0.y, l(3), l(6), r1.y
-    and r1.w, r1.x, l(6)
-    bfi r1.x, l(1), l(8), r1.x, l(0)
-    imad r0.y, r0.y, l(32), r1.x
-    imad r0.y, r1.w, l(4), r0.y
-    bfi r1.xy, l(1, 1, 0, 0), l(4, 7, 0, 0), r0.zzzz, r1.yzyy
-    bfi r0.y, l(9), l(3), r0.y, r1.y
-    bfi r0.y, l(6), l(0), r1.x, r0.y
+    bfi r1.xz, l(4, 0, 4, 0), l(0, 0, 3, 0), r1.xxxx, r1.zzwz
+    bfi r1.xz, l(2, 0, 2, 0), l(9, 0, 12, 0), r0.yyyy, r1.xxzx
+    ubfe r0.x, l(3), l(6), r1.x
+    and r1.w, r1.y, l(6)
+    bfi r1.y, l(1), l(8), r1.y, l(0)
+    imad r0.x, r0.x, l(32), r1.y
+    imad r0.x, r1.w, l(4), r0.x
+    bfi r1.xy, l(1, 1, 0, 0), l(4, 7, 0, 0), r0.wwww, r1.xzxx
+    bfi r0.x, l(9), l(3), r0.x, r1.y
+    bfi r0.x, l(6), l(0), r1.x, r0.x
   else 
-    ushr r1.xyzw, r0.wzwz, l(5, 5, 3, 2)
+    ushr r1.xyzw, r0.zwzw, l(5, 5, 3, 2)
     iadd r2.x, CB0[0][3].x, l(31)
     ushr r2.x, r2.x, l(5)
     imad r1.x, r1.y, r2.x, r1.x
-    ishl r2.xy, r0.zzzz, l(5, 7, 0, 0)
+    ishl r2.xy, r0.wwww, l(5, 7, 0, 0)
     and r2.xy, r2.xyxx, l(448, 2048, 0, 0)
-    bfi r1.y, l(3), l(3), r0.w, r2.x
+    bfi r1.y, l(3), l(3), r0.z, r2.x
     ishl r2.x, r2.x, l(1)
-    bfi r2.x, l(3), l(4), r0.w, r2.x
+    bfi r2.x, l(3), l(4), r0.z, r2.x
     and r2.x, r2.x, l(992)
     bfi r2.z, l(22), l(10), r1.x, r2.x
     bfi r2.z, l(4), l(0), r1.y, r2.z
-    bfi r2.z, l(1), l(4), r0.z, r2.z
+    bfi r2.z, l(1), l(4), r0.w, r2.z
     ishl r2.xw, r2.xxxx, l(3, 0, 0, 2)
     bfi r2.xw, l(22, 0, 0, 22), l(13, 0, 0, 12), r1.xxxx, r2.xxxw
     bfi r1.xy, l(4, 4, 0, 0), l(3, 2, 0, 0), r1.yyyy, r2.xwxx
-    bfi r1.xy, l(1, 1, 0, 0), l(7, 6, 0, 0), r0.zzzz, r1.xyxx
+    bfi r1.xy, l(1, 1, 0, 0), l(7, 6, 0, 0), r0.wwww, r1.xyxx
     bfi r1.x, l(12), l(0), r2.y, r1.x
     and r1.y, r1.y, l(1792)
     iadd r1.x, r1.x, r1.y
@@ -113,16 +115,16 @@ if_nz r1.x
     iadd r1.y, r1.y, r1.z
     bfi r1.y, l(2), l(6), r1.y, l(0)
     iadd r1.x, r1.x, r1.y
-    bfi r0.y, l(6), l(0), r2.z, r1.x
+    bfi r0.x, l(6), l(0), r2.z, r1.x
   endif 
 else 
-  ishl r0.w, r0.w, l(3)
+  ishl r0.z, r0.z, l(3)
   iadd r1.x, CB0[0][2].y, l(31)
   and r1.x, r1.x, l(-32)
-  imad r0.x, r0.x, r1.x, r0.z
-  imad r0.y, r0.x, CB0[0][0].y, r0.w
+  imad r0.y, r0.y, r1.x, r0.w
+  imad r0.x, r0.y, CB0[0][0].y, r0.z
 endif 
-iadd r0.x, r0.y, CB0[0][0].x
+iadd r0.x, r0.x, CB0[0][0].x
 ishl r0.x, r0.x, l(2)
 ld_raw r1.xyzw, r0.x, T0[0].xyzw
 iadd r0.x, r0.x, l(16)
@@ -163,4 +165,4 @@ store_raw U0[0].xyzw, r2.x, r1.xyzw
 iadd r1.x, r2.x, CB0[0][0].w
 store_raw U0[0].xyzw, r1.x, r0.xyzw
 ret 
-// Approximately 112 instruction slots used
+// Approximately 114 instruction slots used

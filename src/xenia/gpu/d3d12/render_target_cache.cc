@@ -1186,7 +1186,7 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
   auto command_list = command_processor_->GetDeferredCommandList();
 
   // Get format info.
-  uint32_t dest_info = regs[XE_GPU_REG_RB_COPY_DEST_INFO].u32;
+  uint32_t rb_copy_dest_info = regs[XE_GPU_REG_RB_COPY_DEST_INFO].u32;
   TextureFormat src_texture_format;
   bool src_64bpp;
   if (is_depth) {
@@ -1214,7 +1214,7 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
   // no format conversion is done for depth, so ignore it.
   TextureFormat dest_format =
       is_depth ? src_texture_format
-               : GetBaseFormat(TextureFormat((dest_info >> 7) & 0x3F));
+               : GetBaseFormat(TextureFormat((rb_copy_dest_info >> 7) & 0x3F));
   const FormatInfo* dest_format_info = FormatInfo::Get(dest_format);
 
   // Get the destination region and clamp the source region to it.
@@ -1251,17 +1251,26 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
   // Get the destination location and adjust it to the first 32x32 tile modified
   // by the resolve (the pitch and the height are relative to that tile, not to
   // 0,0 of the resolve rectangle).
-  uint32_t dest_address =
-      (regs[XE_GPU_REG_RB_COPY_DEST_BASE].u32 & 0x1FFFFFFF) +
-      texture_util::GetTiledOffset2D(
-          int(rect.left & ~LONG(31)), int(rect.top & ~LONG(31)), dest_pitch,
-          xe::log2_floor(dest_format_info->bits_per_pixel >> 3));
+  uint32_t dest_address = regs[XE_GPU_REG_RB_COPY_DEST_BASE].u32 & 0x1FFFFFFF;
+  // An example of a 3D resolve destination is the color grading LUT (used
+  // starting from the developer/publisher intro) in Dead Space 3.
+  bool dest_3d = (rb_copy_dest_info & (1 << 3)) != 0;
+  if (dest_3d) {
+    dest_address += texture_util::GetTiledOffset3D(
+        int(rect.left & ~LONG(31)), int(rect.top & ~LONG(31)), 0, dest_pitch,
+        dest_height, xe::log2_floor(dest_format_info->bits_per_pixel >> 3));
+  } else {
+    dest_address += texture_util::GetTiledOffset2D(
+        int(rect.left & ~LONG(31)), int(rect.top & ~LONG(31)), dest_pitch,
+        xe::log2_floor(dest_format_info->bits_per_pixel >> 3));
+  }
   if (dest_address & 0x3) {
     assert_always();
     // Not 4-aligning may break UAV access significantly, let's hope games don't
     // resolve to 8bpp or 16bpp textures at very odd locations.
     return false;
   }
+  uint32_t dest_z = dest_3d ? ((rb_copy_dest_info >> 4) & 0x7) : 0;
 
   // See what samples we need and what we should do with them.
   xenos::CopySampleSelect sample_select =
@@ -1270,12 +1279,12 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
     assert_always();
     return false;
   }
-  Endian128 dest_endian = Endian128(dest_info & 0x7);
+  Endian128 dest_endian = Endian128(rb_copy_dest_info & 0x7);
   int32_t dest_exp_bias;
   if (is_depth) {
     dest_exp_bias = 0;
   } else {
-    dest_exp_bias = int32_t((dest_info >> 16) << 26) >> 26;
+    dest_exp_bias = int32_t((rb_copy_dest_info >> 16) << 26) >> 26;
     if (ColorRenderTargetFormat(src_format) ==
             ColorRenderTargetFormat::k_16_16 ||
         ColorRenderTargetFormat(src_format) ==
@@ -1291,13 +1300,14 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
       }
     }
   }
-  bool dest_swap = !is_depth && ((dest_info >> 24) & 0x1);
+  bool dest_swap = !is_depth && ((rb_copy_dest_info >> 24) & 0x1);
 
   XELOGGPU(
-      "Resolve: Copying samples %u to 0x%.8X (%ux%u), destination format %s, "
-      "exponent bias %d, red and blue %sswapped",
+      "Resolve: Copying samples %u to 0x%.8X (%ux%u, %cD), destination Z %u, "
+      "destination format %s, exponent bias %d, red and blue %sswapped",
       uint32_t(sample_select), dest_address, dest_pitch, dest_height,
-      dest_format_info->name, dest_exp_bias, dest_swap ? "" : "not ");
+      dest_3d ? '3' : '2', dest_z, dest_format_info->name, dest_exp_bias,
+      dest_swap ? "" : "not ");
 
   // There are 2 paths for resolving in this function - they don't necessarily
   // have to map directly to kRaw and kConvert CopyCommands.
@@ -1337,21 +1347,42 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
     // sometimes bigger than needed (in Red Dead Redemption, an UI texture used
     // for the letterbox bars alpha is located within a 1280x720 resolve target,
     // but only 1280x208 is being resolved, and with scaled resolution the UI
-    // texture gets ignored).
-    uint32_t dest_size = texture_util::GetGuestMipSliceStorageSize(
-        xe::align(dest_pitch, 32u),
-        xe::align(uint32_t((rect.top & 31) + copy_rect.bottom - copy_rect.top),
-                  32u),
-        1, true, dest_format, nullptr, false);
-    // Make sure we have the memory to write to. dest_address already adjusted
-    // to the first modified 32x32 tile.
+    // texture gets ignored). This doesn't apply to 3D resolves, however,
+    // because their tiling is more complex - some excess data will even be
+    // marked as resolved for them if resolving not to (0,0).
+    uint32_t dest_size;
+    uint32_t dest_modified_start = dest_address;
+    uint32_t dest_modified_length;
+    if (dest_3d) {
+      // Depth granularity is 4 (though TiledAddress chaining is possible with 8
+      // granularity).
+      dest_size = texture_util::GetGuestMipSliceStorageSize(
+          xe::align(dest_pitch, 32u), xe::align(dest_height, 32u), 4, true,
+          dest_format, nullptr, false);
+      if (dest_z >= 4) {
+        dest_modified_start += dest_size;
+      }
+      dest_modified_length = dest_size;
+      dest_size *= 2;
+    } else {
+      dest_size = texture_util::GetGuestMipSliceStorageSize(
+          xe::align(dest_pitch, 32u),
+          xe::align(
+              uint32_t((rect.top & 31) + copy_rect.bottom - copy_rect.top),
+              32u),
+          1, true, dest_format, nullptr, false);
+      dest_modified_length = dest_size;
+    }
+    // Make sure we have the memory to write to. dest_address (and thus
+    // dest_range_start) already adjusted to the first modified 32x32 tile.
     if (resolution_scale_2x_) {
-      if (!texture_cache->EnsureScaledResolveBufferResident(dest_address,
-                                                            dest_size)) {
+      if (!texture_cache->EnsureScaledResolveBufferResident(
+              dest_modified_start, dest_modified_length)) {
         return false;
       }
     } else {
-      if (!shared_memory->MakeTilesResident(dest_address, dest_size)) {
+      if (!shared_memory->MakeTilesResident(dest_modified_start,
+                                            dest_modified_length)) {
         return false;
       }
     }
@@ -1387,10 +1418,11 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
     // destination offset.
     root_constants.tile_sample_dimensions[0] =
         uint32_t(copy_rect.right - copy_rect.left) |
-        ((uint32_t(rect.left) & 31) << 12) | (uint32_t(copy_rect.left) << 17);
+        ((uint32_t(rect.left) & 31) << 12) | (dest_z << 17) |
+        (uint32_t(copy_rect.left) << 20);
     root_constants.tile_sample_dimensions[1] =
         uint32_t(copy_rect.bottom - copy_rect.top) |
-        ((uint32_t(rect.top) & 31) << 12) | (uint32_t(copy_rect.top) << 17);
+        ((uint32_t(rect.top) & 31) << 12) | (uint32_t(copy_rect.top) << 20);
     root_constants.tile_sample_dest_base = dest_address;
     if (resolution_scale_2x_) {
       // Can't address more than 512 MB directly on Nvidia - binding only a part
@@ -1398,28 +1430,12 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
       root_constants.tile_sample_dest_base -= dest_address & ~0xFFFu;
     }
     assert_true(dest_pitch <= 8192);
-    root_constants.tile_sample_dest_info = dest_pitch |
-                                           (uint32_t(sample_select) << 14) |
-                                           (uint32_t(dest_endian) << 16);
+    root_constants.tile_sample_dest_info =
+        ((dest_pitch + 31) >> 5) |
+        (dest_3d ? (((dest_height + 31) >> 5) << 9) : 0) |
+        (uint32_t(sample_select) << 18) | (uint32_t(dest_endian) << 20);
     if (dest_swap) {
-      switch (ColorRenderTargetFormat(src_format)) {
-        case ColorRenderTargetFormat::k_8_8_8_8:
-        case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
-          root_constants.tile_sample_dest_info |= (8 << 19) | (16 << 24);
-          break;
-        case ColorRenderTargetFormat::k_2_10_10_10:
-        case ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
-        case ColorRenderTargetFormat::k_2_10_10_10_AS_10_10_10_10:
-        case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
-          root_constants.tile_sample_dest_info |= (10 << 19) | (20 << 24);
-          break;
-        case ColorRenderTargetFormat::k_16_16_16_16:
-        case ColorRenderTargetFormat::k_16_16_16_16_FLOAT:
-          root_constants.tile_sample_dest_info |= 1 << 19;
-          break;
-        default:
-          break;
-      }
+      root_constants.tile_sample_dest_info |= (1 << 23) | (src_format << 24);
     }
     root_constants.base_samples_2x_depth_pitch =
         edram_base | (resolution_scale_log2 << 13) |
@@ -1457,7 +1473,8 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
                              : shared_memory->GetBuffer());
 
     // Invalidate textures and mark the range as scaled if needed.
-    texture_cache->MarkRangeAsResolved(dest_address, dest_size);
+    texture_cache->MarkRangeAsResolved(dest_modified_start,
+                                       dest_modified_length);
   } else {
     // *************************************************************************
     // Conversion and AA resolving
@@ -1768,9 +1785,9 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
     copy_buffer_state = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
     // dest_address already adjusted, so offsets are & 31.
     texture_cache->TileResolvedTexture(
-        dest_format, dest_address, dest_pitch, uint32_t(rect.left) & 31,
-        uint32_t(rect.top) & 31, copy_width, copy_height, dest_endian,
-        copy_buffer, resolve_target->copy_buffer_size,
+        dest_format, dest_address, dest_pitch, dest_height, dest_3d,
+        uint32_t(rect.left) & 31, uint32_t(rect.top) & 31, dest_z, copy_width,
+        copy_height, dest_endian, copy_buffer, resolve_target->copy_buffer_size,
         resolve_target->footprint);
 
     // Done with the copy buffer.

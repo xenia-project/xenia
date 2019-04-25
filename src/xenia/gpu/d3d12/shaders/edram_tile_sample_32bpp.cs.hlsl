@@ -15,7 +15,7 @@ void main(uint3 xe_group_id : SV_GroupID,
   // coordinates in the thread are inside the rectangle's X bounds.
   uint2 dispatch_pixel_index_unscaled =
       (xe_thread_id.xy >> sample_count_and_scale_info.z) * uint2(4u, 1u);
-  uint2 source_rect_unscaled_tl = xe_edram_tile_sample_dimensions >> 17u;
+  uint2 source_rect_unscaled_tl = xe_edram_tile_sample_dimensions >> 20u;
   uint2 source_rect_unscaled_br =
       source_rect_unscaled_tl + (xe_edram_tile_sample_dimensions & 0xFFFu);
   uint4 dispatch_pixel_x_coords_unscaled =
@@ -64,7 +64,7 @@ void main(uint3 xe_group_id : SV_GroupID,
          (sample_count_and_scale_info.xy + uint2(2u, 0u)));
   }
   edram_tile_sample_index +=
-      (xe_edram_tile_sample_dest_info.xx >> uint2(15u, 14u)) & 1u;
+      (xe_edram_tile_sample_dest_info.xx >> uint2(19u, 18u)) & 1u;
   // Force use the lower host texel for the topmost guest texel row to reduce
   // the impact of half-pixel offset.
   uint2 edram_texel_sub_index = texel_sub_index_scaled;
@@ -110,31 +110,41 @@ void main(uint3 xe_group_id : SV_GroupID,
   }
 
   // Swap blue and red if needed.
-  uint red_blue_swap = xe_edram_tile_sample_dest_info >> 19u;
-  if (red_blue_swap != 0u) {
-    uint red_mask = (1u << (red_blue_swap & 31u)) - 1u;
-    // No need to be ready for a long shift Barney, it's just 16 or 20.
-    uint blue_shift = red_blue_swap >> 5u;
-    uint blue_mask = red_mask << blue_shift;
-    pixels = (pixels & ~(red_mask | blue_mask)) |
-             ((pixels & red_mask) << blue_shift) |
-             ((pixels >> blue_shift) & red_mask);
+  if ((xe_edram_tile_sample_dest_info & (1u << 23u)) != 0u) {
+    uint format = (xe_edram_tile_sample_dest_info >> 24u) & 15u;
+    if (format == 0u || format == 1u) {
+      pixels = (pixels & 0xFF00FF00u) | ((pixels & 255u) << 16u) |
+               ((pixels >> 16u) & 255u);
+    } else if (format == 2u || format == 3u || format == 10u || format == 12u) {
+      pixels = (pixels & 0xC00FFC00) | ((pixels & 1023u) << 20u) |
+               ((pixels >> 20u) & 1023u);
+    }
   }
 
   // Tile the pixels to the shared memory or to the scaled resolve memory.
-  pixels = XeByteSwap(pixels, xe_edram_tile_sample_dest_info >> 16u);
-  uint2 texel_offset_unscaled =
+  pixels = XeByteSwap(pixels, xe_edram_tile_sample_dest_info >> 20u);
+  uint3 texel_offset_unscaled;
+  texel_offset_unscaled.xy =
       ((xe_edram_tile_sample_dimensions >> 12u) & 31u) +
       dispatch_pixel_index_unscaled - source_rect_unscaled_tl;
+  texel_offset_unscaled.z = (xe_edram_tile_sample_dimensions.x >> 17u) & 7u;
   // If texel_offset_unscaled.x is negative (if the rectangle is not
   // 4-pixel-aligned, for example), the result will be ignored anyway due to
   // x_in_rect.
-  uint4 texel_addresses =
-      (xe_edram_tile_sample_dest_base + XeTextureTiledOffset2D(
-          texel_offset_unscaled, xe_edram_tile_sample_dest_info & 16383u, 2u))
-      << (sample_count_and_scale_info.z * 2u);
-  texel_addresses +=
-      texel_sub_index_scaled.x * 4u + texel_sub_index_scaled.y * 8u;
+  uint2 texel_pitch =
+      ((xe_edram_tile_sample_dest_info >> uint2(0u, 9u)) & 511u) << 5u;
+  uint4 texel_addresses;
+  if (texel_pitch.y != 0u) {
+    texel_addresses =
+        XeTextureTiledOffset3D(texel_offset_unscaled, texel_pitch, 2u);
+  } else {
+    texel_addresses =
+        XeTextureTiledOffset2D(texel_offset_unscaled.xy, texel_pitch.x, 2u);
+  }
+  texel_addresses =
+      ((texel_addresses + xe_edram_tile_sample_dest_base)
+       << (sample_count_and_scale_info.z * 2u)
+      ) + texel_sub_index_scaled.x * 4u + texel_sub_index_scaled.y * 8u;
   [branch] if (x_in_rect.x) {
     xe_edram_load_store_dest.Store(texel_addresses.x, pixels.x);
   }
