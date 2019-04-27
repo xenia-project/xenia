@@ -99,8 +99,8 @@ void GTKWindow::OnClose() {
   super::OnClose();
 }
 
-bool GTKWindow::set_title(const std::wstring& title) {
-  if (!super::set_title(title)) {
+bool GTKWindow::set_title(const std::wstring& title, bool set_base_title) {
+  if (!super::set_title(title, set_base_title)) {
     return false;
   }
   gtk_window_set_title(GTK_WINDOW(window_), (gchar*)title.c_str());

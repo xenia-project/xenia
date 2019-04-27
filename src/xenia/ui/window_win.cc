@@ -193,8 +193,8 @@ void Win32Window::DisableMainMenu() {
   }
 }
 
-bool Win32Window::set_title(const std::wstring& title) {
-  if (!super::set_title(title)) {
+bool Win32Window::set_title(const std::wstring& title, bool set_base_title) {
+  if (!super::set_title(title, set_base_title)) {
     return false;
   }
   SetWindowText(hwnd_, title.c_str());

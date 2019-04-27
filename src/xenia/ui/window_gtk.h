@@ -35,7 +35,8 @@ class GTKWindow : public Window {
   void EnableMainMenu() override {}
   void DisableMainMenu() override {}
 
-  bool set_title(const std::wstring& title) override;
+  bool set_title(const std::wstring& title,
+                 bool set_base_title = true) override;
 
   bool SetIcon(const void* buffer, size_t size) override;
 

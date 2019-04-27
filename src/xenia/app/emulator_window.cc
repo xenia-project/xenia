@@ -91,6 +91,13 @@ bool EmulatorWindow::Initialize() {
   window_->on_key_down.AddListener([this](KeyEvent* e) {
     bool handled = true;
     switch (e->key_code()) {
+      case 0x48: {  // h
+        if (e->is_shift_pressed()) {
+          window_->FPSTextScale();
+        } else {
+          window_->ToggleFPS();
+        }
+      } break;
       case 0x4F: {  // o
         if (e->is_ctrl_pressed()) {
           FileOpen();
