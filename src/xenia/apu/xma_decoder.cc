@@ -69,23 +69,23 @@ void av_log_callback(void* avcl, int level, const char* fmt, va_list va) {
   switch (level) {
     case AV_LOG_ERROR:
       level_char = '!';
-      log_level = xe::LogLevel::LOG_LEVEL_ERROR;
+      log_level = xe::LogLevel::Error;
       break;
     case AV_LOG_WARNING:
       level_char = 'w';
-      log_level = xe::LogLevel::LOG_LEVEL_WARNING;
+      log_level = xe::LogLevel::Warning;
       break;
     case AV_LOG_INFO:
       level_char = 'i';
-      log_level = xe::LogLevel::LOG_LEVEL_INFO;
+      log_level = xe::LogLevel::Info;
       break;
     case AV_LOG_VERBOSE:
       level_char = 'v';
-      log_level = xe::LogLevel::LOG_LEVEL_DEBUG;
+      log_level = xe::LogLevel::Debug;
       break;
     case AV_LOG_DEBUG:
       level_char = 'd';
-      log_level = xe::LogLevel::LOG_LEVEL_DEBUG;
+      log_level = xe::LogLevel::Debug;
       break;
   }
 
