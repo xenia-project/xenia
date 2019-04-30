@@ -315,7 +315,7 @@ void LogLine(LogLevel log_level, const char prefix_char,
 void FatalError(const char* fmt, ...) {
   va_list args;
   va_start(args, fmt);
-  LogLineVarargs(LogLevel::LOG_LEVEL_ERROR, 'X', fmt, args);
+  LogLineVarargs(LogLevel::Error, 'X', fmt, args);
   va_end(args);
 
 #if XE_PLATFORM_WIN32
