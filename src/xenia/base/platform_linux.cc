@@ -8,6 +8,7 @@
  */
 
 #include "xenia/base/platform_linux.h"
+#include "xenia/base/string.h"
 #include <stdlib.h>
 #include <string>
 
