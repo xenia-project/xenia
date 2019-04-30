@@ -176,7 +176,7 @@ bool EmulatorWindow::Initialize() {
   auto file_menu = MenuItem::Create(MenuItem::Type::kPopup, L"&File");
   {
     file_menu->AddChild(
-        MenuItem::Create(MenuItem::Type::kString, L"&Open", L"Ctrl+O",
+        MenuItem::Create(MenuItem::Type::kString, L"&Open...", L"Ctrl+O",
                          std::bind(&EmulatorWindow::FileOpen, this)));
     file_menu->AddChild(
         MenuItem::Create(MenuItem::Type::kString, L"Close",
