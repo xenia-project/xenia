@@ -103,7 +103,7 @@ const size_t kMaxPath = 1024;  // PATH_MAX
 #endif  // XE_PLATFORM_WIN32
 
 // Launches a web browser to the given URL.
-void LaunchBrowser(const char* url);
+void LaunchBrowser(const wchar_t* url);
 
 }  // namespace xe
 
