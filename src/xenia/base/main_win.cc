@@ -139,8 +139,8 @@ int Main() {
   }
 
   // Print version info.
-  XELOGI("Build: %s / %s on %s", XE_BUILD_BRANCH, XE_BUILD_COMMIT,
-         XE_BUILD_DATE);
+  xe::LogLineFormat(LogLevel::Error, 'i', "Build: %s / %s on %s",
+                    XE_BUILD_BRANCH, XE_BUILD_COMMIT, XE_BUILD_DATE);
 
   // Request high performance timing.
   if (FLAGS_win32_high_freq) {

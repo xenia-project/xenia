@@ -620,6 +620,7 @@ X_STATUS Emulator::CompleteLaunch(const std::wstring& path,
   module->GetOptHeader(XEX_HEADER_EXECUTION_INFO, &info);
   if (info) {
     title_id_ = info->title_id;
+    xe::LogLineFormat(xe::LogLevel::Error, 'i', "Title ID : %.8X\n", title_id_);
   }
 
   // Try and load the resource database (xex only).
