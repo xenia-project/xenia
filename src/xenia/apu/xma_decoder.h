@@ -15,6 +15,7 @@
 #include <queue>
 
 #include "xenia/apu/xma_context.h"
+#include "xenia/apu/xma_register_file.h"
 #include "xenia/base/bit_map.h"
 #include "xenia/kernel/xthread.h"
 #include "xenia/xbox.h"
@@ -35,7 +36,9 @@ class XmaDecoder {
   X_STATUS Setup(kernel::KernelState* kernel_state);
   void Shutdown();
 
-  uint32_t context_array_ptr() const { return registers_.context_array_ptr; }
+  uint32_t context_array_ptr() const {
+    return register_file_.values[XE_XMA_REG_CONTEXT_ARRAY_ADDRESS].u32;
+  }
 
   uint32_t AllocateContext();
   void ReleaseContext(uint32_t guest_ptr);
@@ -75,26 +78,7 @@ class XmaDecoder {
   xe::threading::Fence pause_fence_;   // Signaled when worker paused.
   xe::threading::Fence resume_fence_;  // Signaled when resume requested.
 
-  // Stored little endian, accessed through 0x7FEA....
-  union {
-    struct {
-      union {
-        struct {
-          uint8_t ignored0[0x1800];
-          // 1800h; points to guest-space physical block of 320 contexts.
-          uint32_t context_array_ptr;
-        };
-        struct {
-          uint8_t ignored1[0x1818];
-          // 1818h; current context ID.
-          uint32_t current_context;
-          // 181Ch; next context ID to process.
-          uint32_t next_context;
-        };
-      };
-    } registers_;
-    uint32_t register_file_[0xFFFF / 4];
-  };
+  XmaRegisterFile register_file_;
 
   static const uint32_t kContextCount = 320;
   XmaContext contexts_[kContextCount];

@@ -69,23 +69,23 @@ void av_log_callback(void* avcl, int level, const char* fmt, va_list va) {
   switch (level) {
     case AV_LOG_ERROR:
       level_char = '!';
-      log_level = xe::LogLevel::LOG_LEVEL_ERROR;
+      log_level = xe::LogLevel::Error;
       break;
     case AV_LOG_WARNING:
       level_char = 'w';
-      log_level = xe::LogLevel::LOG_LEVEL_WARNING;
+      log_level = xe::LogLevel::Warning;
       break;
     case AV_LOG_INFO:
       level_char = 'i';
-      log_level = xe::LogLevel::LOG_LEVEL_INFO;
+      log_level = xe::LogLevel::Info;
       break;
     case AV_LOG_VERBOSE:
       level_char = 'v';
-      log_level = xe::LogLevel::LOG_LEVEL_DEBUG;
+      log_level = xe::LogLevel::Debug;
       break;
     case AV_LOG_DEBUG:
       level_char = 'd';
-      log_level = xe::LogLevel::LOG_LEVEL_DEBUG;
+      log_level = xe::LogLevel::Debug;
       break;
   }
 
@@ -109,18 +109,18 @@ X_STATUS XmaDecoder::Setup(kernel::KernelState* kernel_state) {
       sizeof(XMA_CONTEXT_DATA) * kContextCount, 256, kSystemHeapPhysical);
   context_data_last_ptr_ =
       context_data_first_ptr_ + (sizeof(XMA_CONTEXT_DATA) * kContextCount - 1);
-  registers_.context_array_ptr = context_data_first_ptr_;
+  register_file_[XE_XMA_REG_CONTEXT_ARRAY_ADDRESS].u32 =
+      context_data_first_ptr_;
 
   // Setup XMA contexts.
   for (int i = 0; i < kContextCount; ++i) {
-    uint32_t guest_ptr =
-        registers_.context_array_ptr + i * sizeof(XMA_CONTEXT_DATA);
+    uint32_t guest_ptr = context_data_first_ptr_ + i * sizeof(XMA_CONTEXT_DATA);
     XmaContext& context = contexts_[i];
     if (context.Setup(i, memory(), guest_ptr)) {
       assert_always();
     }
   }
-  registers_.next_context = 1;
+  register_file_[XE_XMA_REG_NEXT_CONTEXT_INDEX].u32 = 1;
   context_bitmap_.Resize(kContextCount);
 
   worker_running_ = true;
@@ -185,11 +185,16 @@ void XmaDecoder::Shutdown() {
   xe::threading::Wait(worker_thread_->thread(), false);
   worker_thread_.reset();
 
-  memory()->SystemHeapFree(registers_.context_array_ptr);
+  if (context_data_first_ptr_) {
+    memory()->SystemHeapFree(context_data_first_ptr_);
+  }
+
+  context_data_first_ptr_ = 0;
+  context_data_last_ptr_ = 0;
 }
 
 int XmaDecoder::GetContextId(uint32_t guest_ptr) {
-  static_assert(sizeof(XMA_CONTEXT_DATA) == 64, "FIXME");
+  static_assert_size(XMA_CONTEXT_DATA, 64);
   if (guest_ptr < context_data_first_ptr_ ||
       guest_ptr > context_data_last_ptr_) {
     return -1;
@@ -229,51 +234,70 @@ bool XmaDecoder::BlockOnContext(uint32_t guest_ptr, bool poll) {
   return context.Block(poll);
 }
 
-// free60 may be useful here, however it looks like it's using a different
-// piece of hardware:
-// https://github.com/Free60Project/libxenon/blob/master/libxenon/drivers/xenon_sound/sound.c
-
 uint32_t XmaDecoder::ReadRegister(uint32_t addr) {
-  uint32_t r = addr & 0xFFFF;
-  // 1800h is read on startup and stored -- context? buffers?
-  // 1818h is read during a lock?
+  uint32_t r = (addr & 0xFFFF) / 4;
 
-  assert_true(r % 4 == 0);
-  uint32_t value = register_file_[r / 4];
-
-  // 1818 is rotating context processing # set to hardware ID of context being
-  // processed.
-  // If bit 200h is set, the locking code will possibly collide on hardware IDs
-  // and error out, so we should never set it (I think?).
-  if (r == 0x1818) {
-    // To prevent games from seeing a stuck XMA context, return a rotating
-    // number
-    registers_.current_context = registers_.next_context;
-    registers_.next_context = (registers_.next_context + 1) % kContextCount;
+  switch (r) {
+    default: {
+      if (!register_file_.GetRegisterInfo(r)) {
+        XELOGE("XMA: Read from unknown register (%.4X)", r);
+      }
+    }
+#pragma warning(suppress : 4065)
   }
 
-  value = xe::byte_swap(value);
-  return value;
+  assert_true(r < XmaRegisterFile::kRegisterCount);
+
+  // 0606h (1818h) is rotating context processing # set to hardware ID of
+  // context being processed.
+  // If bit 200h is set, the locking code will possibly collide on hardware IDs
+  // and error out, so we should never set it (I think?).
+  if (r == XE_XMA_REG_CURRENT_CONTEXT_INDEX) {
+    // To prevent games from seeing a stuck XMA context, return a rotating
+    // number
+    uint32_t next_context_index =
+        register_file_[XE_XMA_REG_NEXT_CONTEXT_INDEX].u32;
+    register_file_[XE_XMA_REG_CURRENT_CONTEXT_INDEX].u32 = next_context_index;
+    register_file_[XE_XMA_REG_NEXT_CONTEXT_INDEX].u32 =
+        (next_context_index + 1) % kContextCount;
+  }
+
+  return xe::byte_swap(register_file_.values[r].u32);
 }
 
 void XmaDecoder::WriteRegister(uint32_t addr, uint32_t value) {
   SCOPE_profile_cpu_f("apu");
 
-  uint32_t r = addr & 0xFFFF;
+  uint32_t r = (addr & 0xFFFF) / 4;
   value = xe::byte_swap(value);
-  // 1804h is written to with 0x02000000 and 0x03000000 around a lock operation
 
-  assert_true(r % 4 == 0);
-  register_file_[r / 4] = uint32_t(value);
+  if ((r >= XE_XMA_REG_CONTEXT_KICK_0 && r <= XE_XMA_REG_CONTEXT_KICK_9) ||
+      (r >= XE_XMA_REG_CONTEXT_LOCK_0 && r <= XE_XMA_REG_CONTEXT_LOCK_9) ||
+      (r >= XE_XMA_REG_CONTEXT_CLEAR_0 && r <= XE_XMA_REG_CONTEXT_CLEAR_9)) {
+  } else {
+    switch (r) {
+      default: {
+        XELOGE("XMA: Write to unhandled register (%.4X): %.8X", r, value);
+        break;
+      }
+#pragma warning(suppress : 4065)
+    }
+  }
 
-  if (r >= 0x1940 && r <= 0x1940 + 9 * 4) {
+  // 0601h (1804h) is written to with 0x02000000 and 0x03000000 around a lock
+  // operation
+
+  assert_true(r < XmaRegisterFile::kRegisterCount);
+  register_file_.values[r].u32 = value;
+
+  if (r >= XE_XMA_REG_CONTEXT_KICK_0 && r <= XE_XMA_REG_CONTEXT_KICK_9) {
     // Context kick command.
     // This will kick off the given hardware contexts.
     // Basically, this kicks the SPU and says "hey, decode that audio!"
     // XMAEnableContext
 
     // The context ID is a bit in the range of the entire context array.
-    uint32_t base_context_id = (r - 0x1940) / 4 * 32;
+    uint32_t base_context_id = (r - XE_XMA_REG_CONTEXT_KICK_0) * 32;
     for (int i = 0; value && i < 32; ++i, value >>= 1) {
       if (value & 1) {
         uint32_t context_id = base_context_id + i;
@@ -284,11 +308,11 @@ void XmaDecoder::WriteRegister(uint32_t addr, uint32_t value) {
 
     // Signal the decoder thread to start processing.
     work_event_->Set();
-  } else if (r >= 0x1A40 && r <= 0x1A40 + 9 * 4) {
+  } else if (r >= XE_XMA_REG_CONTEXT_LOCK_0 && r <= XE_XMA_REG_CONTEXT_LOCK_9) {
     // Context lock command.
     // This requests a lock by flagging the context.
     // XMADisableContext
-    uint32_t base_context_id = (r - 0x1A40) / 4 * 32;
+    uint32_t base_context_id = (r - XE_XMA_REG_CONTEXT_LOCK_0) * 32;
     for (int i = 0; value && i < 32; ++i, value >>= 1) {
       if (value & 1) {
         uint32_t context_id = base_context_id + i;
@@ -299,10 +323,11 @@ void XmaDecoder::WriteRegister(uint32_t addr, uint32_t value) {
 
     // Signal the decoder thread to start processing.
     work_event_->Set();
-  } else if (r >= 0x1A80 && r <= 0x1A80 + 9 * 4) {
+  } else if (r >= XE_XMA_REG_CONTEXT_CLEAR_0 &&
+             r <= XE_XMA_REG_CONTEXT_CLEAR_9) {
     // Context clear command.
     // This will reset the given hardware contexts.
-    uint32_t base_context_id = (r - 0x1A80) / 4 * 32;
+    uint32_t base_context_id = (r - XE_XMA_REG_CONTEXT_CLEAR_0) * 32;
     for (int i = 0; value && i < 32; ++i, value >>= 1) {
       if (value & 1) {
         uint32_t context_id = base_context_id + i;

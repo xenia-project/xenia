@@ -41,7 +41,7 @@ legally purchased devices and games and information made public on the internet
 
 ## Quickstart
 
-Windows 8.1+ with Python 3.4 and [Visual Studio 2017](https://www.visualstudio.com/downloads/) and the Windows SDKs installed:
+With Windows 8+, Python 3.4+, and [Visual Studio 2017 or 2019](https://www.visualstudio.com/downloads/) and the Windows SDKs installed:
 
     > git clone https://github.com/xenia-project/xenia.git
     > cd xenia
@@ -82,7 +82,7 @@ is wide open greenfield fun.
 Fixes and optimizations are always welcome (please!), but in addition to
 that there are some major work areas still untouched:
 
-* Help work through missing functionality/bugs in game [compat](https://github.com/xenia-project/xenia/issues?labels=compat)
+* Help work through [missing functionality/bugs in games](https://github.com/xenia-project/xenia/labels/compat)
 * Add input drivers for [PS4 controllers](https://github.com/xenia-project/xenia/issues/60) (or anything else)
 * Skilled with Linux? A strong contributor is needed to [help with porting](https://github.com/xenia-project/xenia/labels/cross%20platform)
 
