@@ -1,6 +1,6 @@
 <p align="center">
     <a href="https://github.com/xenia-project/xenia/tree/master/assets/icon">
-        <img height="370px" src="https://raw.githubusercontent.com/xenia-project/xenia/master/assets/icon/1024.png" />
+        <img height="120px" src="https://raw.githubusercontent.com/xenia-project/xenia/master/assets/icon/128.png" />
     </a>
 </p>
 
