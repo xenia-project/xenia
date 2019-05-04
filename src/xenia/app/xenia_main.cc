@@ -154,7 +154,7 @@ int xenia_main(const std::vector<std::wstring>& args) {
 #if defined(XE_PLATFORM_WIN32)
       content_root = xe::join_paths(content_root, L"Xenia");
 #elif defined(XE_PLATFORM_LINUX)
-      content_root = xe::join_paths(content_root, L".xenia");
+      content_root = xe::join_paths(content_root, L"Xenia");
 #else
 #warning Unhandled platform for content root.
       content_root = xe::join_paths(content_root, L"Xenia");
