@@ -9,12 +9,27 @@
 
 #include "xenia/base/string.h"
 
-// TODO(benvanik): when GCC finally gets codecvt, use that.
-#if XE_PLATFORM_LINUX
+// codecvt existence check
+#ifdef __clang__
+// using clang
+#if (__clang_major__ < 4)  // 3.3 has it but I think we need at least 4 anyway
+// insufficient clang version
 #define NO_CODECVT 1
 #else
 #include <codecvt>
-#endif  // XE_PLATFORM_LINUX
+#endif
+#elif defined(__GNUC__) || defined(__GNUG__)
+// using gcc
+#if (__GNUC__ < 5)
+// insufficient clang version
+#define NO_CODECVT 1
+#else
+#include <codecvt>
+#endif
+// since the windows 10 sdk is required, this shouldn't be an issue
+#elif defined(_MSC_VER)
+#include <codecvt>
+#endif
 
 #include <cctype>
 #include <cstring>
