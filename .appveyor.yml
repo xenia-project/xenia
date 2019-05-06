@@ -18,6 +18,7 @@ skip_tags: true
 skip_commits:
   files:
     - docs/*
+    - .github/*
     - LICENSE
     - README.md
     - .travis.yml
