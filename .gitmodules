@@ -18,7 +18,7 @@
 	url = https://github.com/xenia-project/SPIRV-Tools.git
 [submodule "third_party/catch"]
 	path = third_party/catch
-	url = https://github.com/philsquared/Catch.git
+	url = https://github.com/catchorg/Catch2.git
 [submodule "third_party/gflags"]
 	path = third_party/gflags
 	url = https://github.com/benvanik/gflags.git
@@ -40,3 +40,6 @@
 [submodule "third_party/volk"]
 	path = third_party/volk
 	url = https://github.com/zeux/volk.git
+[submodule "third_party/aes_128"]
+	path = third_party/aes_128
+	url = https://github.com/openluopworld/aes_128.git

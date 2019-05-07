@@ -34,7 +34,6 @@ X_STATUS StfsContainerFile::ReadSync(void* buffer, size_t buffer_length,
   }
 
   size_t src_offset = 0;
-  uint8_t* src = entry_->mmap()->data();
   uint8_t* p = reinterpret_cast<uint8_t*>(buffer);
   size_t remaining_length =
       std::min(buffer_length, entry_->size() - byte_offset);
@@ -47,6 +46,8 @@ X_STATUS StfsContainerFile::ReadSync(void* buffer, size_t buffer_length,
       src_offset += record.length;
       continue;
     }
+
+    uint8_t* src = entry_->mmap()->at(record.file)->data();
 
     size_t read_offset =
         (byte_offset > src_offset) ? byte_offset - src_offset : 0;

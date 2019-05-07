@@ -7,7 +7,7 @@ objdir(build_obj)
 
 -- Define an ARCH variable
 -- Only use this to enable architecture-specific functionality.
-if os.is("linux") then
+if os.istarget("linux") then
   ARCH = os.outputof("uname -p")
 else
   ARCH = "unknown"
@@ -66,6 +66,11 @@ filter("configurations:Debug")
 filter({"configurations:Debug", "platforms:Windows"})
   linkoptions({
     "/NODEFAULTLIB:MSVCRTD",
+  })
+
+filter({"configurations:Debug", "platforms:Linux"})
+  buildoptions({
+    "-g",
   })
 
 filter("configurations:Release")
@@ -215,14 +220,15 @@ solution("xenia")
   uuid("931ef4b0-6170-4f7a-aaf2-0fece7632747")
   startproject("xenia-app")
   architecture("x86_64")
-  if os.is("linux") then
+  if os.istarget("linux") then
     platforms({"Linux"})
-  elseif os.is("windows") then
+  elseif os.istarget("windows") then
     platforms({"Windows"})
   end
   configurations({"Checked", "Debug", "Release"})
 
   -- Include third party files first so they don't have to deal with gflags.
+  include("third_party/aes_128.lua")
   include("third_party/capstone.lua")
   include("third_party/gflags.lua")
   include("third_party/glew.lua")
@@ -255,7 +261,7 @@ solution("xenia")
   include("src/xenia/ui/vulkan")
   include("src/xenia/vfs")
 
-  if os.is("windows") then
+  if os.istarget("windows") then
     include("src/xenia/apu/xaudio2")
     include("src/xenia/hid/winkey")
     include("src/xenia/hid/xinput")

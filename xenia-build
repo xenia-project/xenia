@@ -9,6 +9,7 @@ Run with --help or no arguments for possible commands.
 from __future__ import print_function
 
 import argparse
+import json
 import os
 import re
 import shutil
@@ -89,26 +90,42 @@ def import_vs_environment():
     interesting environment variables into os.environ.
 
     Returns:
-      A version such as 2015 or None if no VS is found.
+      A version such as 2015 or None if no installation is found.
     """
     version = 0
+    install_path = None
+    env_tool_args = None
 
-    candidate_path = subprocess.check_output('third_party/vswhere/vswhere.exe -version "[15,)" -latest -format value -property installationPath', shell=False, universal_newlines=True)
-    candidate_path = candidate_path.strip()
+    vswhere = subprocess.check_output('third_party/vswhere/vswhere.exe -version "[15,)" -latest -format json', shell=False, universal_newlines=True)
+    if vswhere:
+        vswhere = json.loads(vswhere)
+    if vswhere and len(vswhere) > 0:
+        version = int(vswhere[0].get("catalog", {}).get("productLineVersion", 2017))
+        install_path = vswhere[0].get("installationPath", None)
 
-    tools_path = ''
-    if candidate_path:
-        tools_path = os.path.join(candidate_path, 'vc\\auxiliary\\build\\vcvarsall.bat')
-        if os.path.isfile(tools_path) and os.access(tools_path, os.X_OK):
-            version = 2017
-    if version == 0 and 'VS140COMNTOOLS' in os.environ:
-        version = 2015
-        tools_path = os.environ['VS140COMNTOOLS']
-        tools_path = os.path.join(tools_path, '..\\..\\vc\\vcvarsall.bat')
+    if version < 2017:
+        if 'VS140COMNTOOLS' in os.environ:
+            version = 2015
+            vcvars_path = os.environ['VS140COMNTOOLS']
+            vcvars_path = os.path.join(tools_path, '..\\..\\vc\\vcvarsall.bat')
+            env_tool_args = [vcvars_path, 'x64', '&&', 'set']
+    else:
+        vcvars_path = os.path.join(install_path, 'VC\\Auxiliary\\Build\\vcvarsall.bat')
+        if os.path.isfile(vcvars_path) and os.access(vcvars_path, os.X_OK):
+            env_tool_args = [vcvars_path, 'x64', '&&', 'set']
+        else:
+            vsdevcmd_path = os.path.join(install_path, 'Common7\\Tools\\VsDevCmd.bat')
+            env_tool_args = [vsdevcmd_path, '-arch=amd64', '-host_arch=amd64']
+
     if version == 0:
         return None
 
-    args = [tools_path, 'x64', '&&', 'set']
+    import_subprocess_environment(env_tool_args)
+    os.environ['VSVERSION'] = str(version)
+    return version
+
+
+def import_subprocess_environment(args):
     popen = subprocess.Popen(
         args, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
     variables, _ = popen.communicate()
@@ -132,10 +149,6 @@ def import_vs_environment():
                     setting = os.path.dirname(sys.executable) + os.pathsep + setting
                 os.environ[var.upper()] = setting
                 break
-
-    os.environ['VSVERSION'] = str(version)
-    return version
-
 
 def has_bin(binary):
     """Checks whether the given binary is present.
@@ -317,16 +330,19 @@ def run_premake(target_os, action, cc=None):
       target_os: target --os to pass to premake.
       action: action to preform.
     """
-    ret = subprocess.call([
+    args = [
         sys.executable,
         os.path.join('tools', 'build', 'premake'),
         '--file=premake5.lua',
         '--os=%s' % target_os,
-        '--cc=%s' % ('clang' if not cc else cc),
         '--test-suite-mode=combined',
         '--verbose',
         action,
-        ], shell=False)
+    ]
+    if cc:
+        args.insert(4, '--cc=%s' % cc)
+
+    ret = subprocess.call(args, shell=False)
 
     if ret == 0:
         generate_version_h()

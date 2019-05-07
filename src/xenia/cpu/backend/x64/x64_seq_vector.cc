@@ -1843,9 +1843,11 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
       src = i.src1;
     }
     // Saturate to [3,3....] so that only values between 3...[00] and 3...[FF]
-    // are valid.
-    e.vminps(i.dest, src, e.GetXmmConstPtr(XMMPackD3DCOLORSat));
-    e.vmaxps(i.dest, i.dest, e.GetXmmConstPtr(XMM3333));
+    // are valid - max before min to pack NaN as zero (Red Dead Redemption is
+    // heavily affected by the order - packs 0xFFFFFFFF in matrix code to get 0
+    // constant).
+    e.vmaxps(i.dest, src, e.GetXmmConstPtr(XMM3333));
+    e.vminps(i.dest, i.dest, e.GetXmmConstPtr(XMMPackD3DCOLORSat));
     // Extract bytes.
     // RGBA (XYZW) -> ARGB (WXYZ)
     // w = ((src1.uw & 0xFF) << 24) | ((src1.ux & 0xFF) << 16) |
@@ -1900,14 +1902,15 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
     std::memset(b, 0, sizeof(b));
 
     for (int i = 0; i < 4; i++) {
-      b[7 - i] = half_float::detail::float2half<std::round_toward_zero>(a[i]);
+      b[7 - (i ^ 2)] =
+          half_float::detail::float2half<std::round_toward_zero>(a[i]);
     }
 
     return _mm_load_si128(reinterpret_cast<__m128i*>(b));
   }
   static void EmitFLOAT16_4(X64Emitter& e, const EmitArgType& i) {
     assert_true(i.src2.value->IsConstantZero());
-    // dest = [(src1.x | src1.y), (src1.z | src1.w), 0, 0]
+    // dest = [(src1.z | src1.w), (src1.x | src1.y), 0, 0]
 
     Xmm src;
     if (e.IsFeatureEnabled(kX64EmitF16C)) {
@@ -1919,7 +1922,7 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
       }
       // 0|0|0|0|W|Z|Y|X
       e.vcvtps2ph(i.dest, src, 0b00000011);
-      // Shuffle to X|Y|Z|W|0|0|0|0
+      // Shuffle to Z|W|X|Y|0|0|0|0
       e.vpshufb(i.dest, i.dest, e.GetXmmConstPtr(XMMPackFLOAT16_4));
     } else {
       if (i.src1.is_constant) {

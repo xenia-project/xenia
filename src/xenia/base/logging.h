@@ -19,11 +19,17 @@ namespace xe {
 
 #define XE_OPTION_ENABLE_LOGGING 1
 
+// Log level is a general indication of the importance of a given log line.
+//
+// While log levels are named, they are a rough correlation of what the log line
+// may be related to. These names should not be taken as fact as what a given
+// log line from any log level actually is.
 enum class LogLevel {
-  LOG_LEVEL_ERROR,
-  LOG_LEVEL_WARNING,
-  LOG_LEVEL_INFO,
-  LOG_LEVEL_DEBUG,
+  Error = 0,
+  Warning,
+  Info,
+  Debug,
+  Trace,
 };
 
 // Initializes the logging system and any outputs requested.
@@ -56,25 +62,21 @@ void FatalError(const std::string& str);
   } while (false)
 #endif  // ENABLE_LOGGING
 
-#define XELOGE(fmt, ...) \
-  XELOGCORE(xe::LogLevel::LOG_LEVEL_ERROR, '!', fmt, ##__VA_ARGS__)
+#define XELOGE(fmt, ...) XELOGCORE(xe::LogLevel::Error, '!', fmt, ##__VA_ARGS__)
 #define XELOGW(fmt, ...) \
-  XELOGCORE(xe::LogLevel::LOG_LEVEL_WARNING, 'w', fmt, ##__VA_ARGS__)
-#define XELOGI(fmt, ...) \
-  XELOGCORE(xe::LogLevel::LOG_LEVEL_INFO, 'i', fmt, ##__VA_ARGS__)
-#define XELOGD(fmt, ...) \
-  XELOGCORE(xe::LogLevel::LOG_LEVEL_DEBUG, 'd', fmt, ##__VA_ARGS__)
+  XELOGCORE(xe::LogLevel::Warning, 'w', fmt, ##__VA_ARGS__)
+#define XELOGI(fmt, ...) XELOGCORE(xe::LogLevel::Info, 'i', fmt, ##__VA_ARGS__)
+#define XELOGD(fmt, ...) XELOGCORE(xe::LogLevel::Debug, 'd', fmt, ##__VA_ARGS__)
 
 #define XELOGCPU(fmt, ...) \
-  XELOGCORE(xe::LogLevel::LOG_LEVEL_INFO, 'C', fmt, ##__VA_ARGS__)
+  XELOGCORE(xe::LogLevel::Info, 'C', fmt, ##__VA_ARGS__)
 #define XELOGAPU(fmt, ...) \
-  XELOGCORE(xe::LogLevel::LOG_LEVEL_INFO, 'A', fmt, ##__VA_ARGS__)
+  XELOGCORE(xe::LogLevel::Info, 'A', fmt, ##__VA_ARGS__)
 #define XELOGGPU(fmt, ...) \
-  XELOGCORE(xe::LogLevel::LOG_LEVEL_INFO, 'G', fmt, ##__VA_ARGS__)
+  XELOGCORE(xe::LogLevel::Info, 'G', fmt, ##__VA_ARGS__)
 #define XELOGKERNEL(fmt, ...) \
-  XELOGCORE(xe::LogLevel::LOG_LEVEL_INFO, 'K', fmt, ##__VA_ARGS__)
-#define XELOGFS(fmt, ...) \
-  XELOGCORE(xe::LogLevel::LOG_LEVEL_INFO, 'F', fmt, ##__VA_ARGS__)
+  XELOGCORE(xe::LogLevel::Info, 'K', fmt, ##__VA_ARGS__)
+#define XELOGFS(fmt, ...) XELOGCORE(xe::LogLevel::Info, 'F', fmt, ##__VA_ARGS__)
 
 }  // namespace xe
 

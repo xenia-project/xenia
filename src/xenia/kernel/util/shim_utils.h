@@ -451,10 +451,10 @@ void PrintKernelCall(cpu::Export* export_entry, const Tuple& params) {
   AppendKernelCallParams(string_buffer, export_entry, params);
   string_buffer.Append(')');
   if (export_entry->tags & xe::cpu::ExportTag::kImportant) {
-    xe::LogLine(xe::LogLevel::LOG_LEVEL_INFO, 'i', string_buffer.GetString(),
+    xe::LogLine(xe::LogLevel::Info, 'i', string_buffer.GetString(),
                 string_buffer.length());
   } else {
-    xe::LogLine(xe::LogLevel::LOG_LEVEL_DEBUG, 'd', string_buffer.GetString(),
+    xe::LogLine(xe::LogLevel::Debug, 'd', string_buffer.GetString(),
                 string_buffer.length());
   }
 }

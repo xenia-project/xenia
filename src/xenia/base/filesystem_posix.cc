@@ -12,29 +12,58 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/string.h"
 
+#include <assert.h>
 #include <dirent.h>
 #include <fcntl.h>
 #include <ftw.h>
+#include <libgen.h>
+#include <pwd.h>
+#include <stdio.h>
+#include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <iostream>
 
 namespace xe {
 namespace filesystem {
 
 std::wstring GetExecutablePath() {
-  assert_always();  // IMPLEMENT ME.
-  return std::wstring();
+  char buff[FILENAME_MAX] = "";
+  readlink("/proc/self/exe", buff, FILENAME_MAX);
+  std::string s(buff);
+  return to_wstring(s);
 }
 
 std::wstring GetExecutableFolder() {
-  assert_always();  // IMPLEMENT ME.
-  return std::wstring();
+  auto path = GetExecutablePath();
+  return xe::find_base_path(path);
 }
 
 std::wstring GetUserFolder() {
-  assert_always();  // IMPLEMENT ME.
-  return std::wstring();
+  // get preferred data home
+  char* dataHome = std::getenv("XDG_DATA_HOME");
+
+  // if XDG_DATA_HOME not set, fallback to HOME directory
+  if (dataHome == NULL) {
+    dataHome = std::getenv("HOME");
+  } else {
+    std::string home(dataHome);
+    return to_wstring(home);
+  }
+
+  // if HOME not set, fall back to this
+  if (dataHome == NULL) {
+    struct passwd pw1;
+    struct passwd* pw;
+    char buf[4096];  // could potentionally lower this
+    getpwuid_r(getuid(), &pw1, buf, sizeof(buf), &pw);
+    assert(&pw1 == pw);  // sanity check
+    dataHome = pw->pw_dir;
+  }
+
+  std::string home(dataHome);
+  return to_wstring(home + "/.local/share");
 }
 
 bool PathExists(const std::wstring& path) {

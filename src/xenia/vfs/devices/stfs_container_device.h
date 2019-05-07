@@ -10,6 +10,7 @@
 #ifndef XENIA_VFS_DEVICES_STFS_CONTAINER_DEVICE_H_
 #define XENIA_VFS_DEVICES_STFS_CONTAINER_DEVICE_H_
 
+#include <map>
 #include <memory>
 #include <string>
 
@@ -91,6 +92,13 @@ enum SvodDeviceFeatures {
   kFeatureHasEnhancedGDFLayout = 0x40,
 };
 
+enum SvodLayoutType {
+  kUnknownLayout = 0x0,
+  kEnhancedGDFLayout = 0x1,
+  kXSFLayout = 0x2,
+  kSingleFileLayout = 0x4,
+};
+
 struct SvodVolumeDescriptor {
   bool Read(const uint8_t* p);
 
@@ -103,6 +111,8 @@ struct SvodVolumeDescriptor {
   uint32_t data_block_count;
   uint32_t data_block_offset;
   // 0x5 padding bytes...
+
+  SvodLayoutType layout_type;
 };
 
 class StfsHeader {
@@ -143,6 +153,14 @@ class StfsHeader {
   uint32_t title_thumbnail_image_size;
   uint8_t thumbnail_image[0x4000];
   uint8_t title_thumbnail_image[0x4000];
+
+  // Metadata v2 Fields
+  uint8_t series_id[0x10];
+  uint8_t season_id[0x10];
+  int16_t season_number;
+  int16_t episode_number;
+  wchar_t additonal_display_names[0x300 / 2];
+  wchar_t additional_display_descriptions[0x300 / 2];
 };
 
 class StfsContainerDevice : public Device {
@@ -156,7 +174,7 @@ class StfsContainerDevice : public Device {
   Entry* ResolvePath(std::string path) override;
 
   uint32_t total_allocation_units() const override {
-    return uint32_t(mmap_->size() / sectors_per_allocation_unit() /
+    return uint32_t(mmap_total_size_ / sectors_per_allocation_unit() /
                     bytes_per_sector());
   }
   uint32_t available_allocation_units() const override { return 0; }
@@ -178,23 +196,30 @@ class StfsContainerDevice : public Device {
   };
 
   const uint32_t kSTFSHashSpacing = 170;
-  const uint32_t kSVODHashSpacing = 204;
 
+  const char* ReadMagic(const std::wstring& path);
+  bool ResolveFromFolder(const std::wstring& path);
+
+  Error MapFiles();
   Error ReadHeaderAndVerify(const uint8_t* map_ptr);
-  Error ReadAllEntriesEGDF(const uint8_t* map_ptr);
-  bool ReadEntryEGDF(const uint8_t* buffer, uint16_t entry_ordinal,
-                     StfsContainerEntry* parent);
 
-  Error ReadAllEntriesSTFS(const uint8_t* map_ptr);
+  Error ReadSVOD();
+  Error ReadEntrySVOD(uint32_t sector, uint32_t ordinal,
+                      StfsContainerEntry* parent);
+  void BlockToOffsetSVOD(size_t sector, size_t* address, size_t* file_index);
+
+  Error ReadSTFS();
   size_t BlockToOffsetSTFS(uint64_t block);
-  size_t BlockToOffsetEGDF(uint64_t block);
 
   BlockHash GetBlockHash(const uint8_t* map_ptr, uint32_t block_index,
                          uint32_t table_offset);
 
   std::wstring local_path_;
-  std::unique_ptr<MappedMemory> mmap_;
+  std::map<size_t, std::unique_ptr<MappedMemory>> mmap_;
+  size_t mmap_total_size_;
 
+  size_t base_offset_;
+  size_t magic_offset_;
   std::unique_ptr<Entry> root_entry_;
   StfsPackageType package_type_;
   StfsHeader header_;

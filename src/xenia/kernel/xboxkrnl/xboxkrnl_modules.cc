@@ -23,7 +23,7 @@ X_STATUS xeExGetXConfigSetting(uint16_t category, uint16_t setting,
                                void* buffer, uint16_t buffer_size,
                                uint16_t* required_size) {
   uint16_t setting_size = 0;
-  uint32_t value = 0;
+  alignas(uint32_t) uint8_t value[4];
 
   // TODO(benvanik): have real structs here that just get copied from.
   // https://free60project.github.io/wiki/XConfig.html
@@ -34,7 +34,7 @@ X_STATUS xeExGetXConfigSetting(uint16_t category, uint16_t setting,
       switch (setting) {
         case 0x0002:  // XCONFIG_SECURED_AV_REGION
           setting_size = 4;
-          value = 0x00001000;  // USA/Canada
+          xe::store_and_swap<uint32_t>(value, 0x00001000);  // USA/Canada
           break;
         default:
           assert_unhandled_case(setting);
@@ -53,25 +53,26 @@ X_STATUS xeExGetXConfigSetting(uint16_t category, uint16_t setting,
         case 0x0007:  // XCONFIG_USER_TIME_ZONE_DLT_BIAS
           setting_size = 4;
           // TODO(benvanik): get this value.
-          value = 0;
+          xe::store_and_swap<uint32_t>(value, 0);
           break;
         case 0x0009:  // XCONFIG_USER_LANGUAGE
           setting_size = 4;
-          value = 0x00000001;  // English
+          xe::store_and_swap<uint32_t>(value, 0x00000001);  // English
           break;
         case 0x000A:  // XCONFIG_USER_VIDEO_FLAGS
           setting_size = 4;
-          value = 0x00040000;
+          xe::store_and_swap<uint32_t>(value, 0x00040000);
           break;
         case 0x000C:  // XCONFIG_USER_RETAIL_FLAGS
           setting_size = 4;
           // TODO(benvanik): get this value.
-          value = 0;
+          xe::store_and_swap<uint32_t>(value, 0);
           break;
         case 0x000E:  // XCONFIG_USER_COUNTRY
-          setting_size = 4;
+          // Halo: Reach sub_82804888 - min 0x5, max 0x6E.
+          setting_size = 1;
           // TODO(benvanik): get this value.
-          value = 0;
+          value[0] = 5;
           break;
         default:
           assert_unhandled_case(setting);
@@ -83,15 +84,15 @@ X_STATUS xeExGetXConfigSetting(uint16_t category, uint16_t setting,
       return X_STATUS_INVALID_PARAMETER_1;
   }
 
-  if (buffer_size < setting_size) {
-    return X_STATUS_BUFFER_TOO_SMALL;
-  }
-  if (!buffer && buffer_size) {
-    return X_STATUS_INVALID_PARAMETER_3;
-  }
-
   if (buffer) {
-    xe::store_and_swap<uint32_t>(buffer, value);
+    if (buffer_size < setting_size) {
+      return X_STATUS_BUFFER_TOO_SMALL;
+    }
+    std::memcpy(buffer, value, setting_size);
+  } else {
+    if (buffer_size) {
+      return X_STATUS_INVALID_PARAMETER_3;
+    }
   }
   if (required_size) {
     *required_size = setting_size;
