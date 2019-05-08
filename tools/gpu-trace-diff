@@ -44,7 +44,7 @@ def main():
                                    description='Run and diff GPU traces.')
   parser.add_argument(
       '-x', '--executable',
-      default='build/bin/Windows/Debug/xenia-gpu-gl4-trace-dump.exe')
+      default='build/bin/Windows/Debug/xenia-gpu-vulkan-trace-dump.exe')
   parser.add_argument('-t', '--trace_file', action='append')
   parser.add_argument('-p', '--trace_path')
   parser.add_argument('-o', '--output_path', default='')
