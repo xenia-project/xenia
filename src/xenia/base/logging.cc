@@ -328,7 +328,7 @@ void FatalError(const char* fmt, ...) {
                 MB_OK | MB_ICONERROR | MB_APPLMODAL | MB_SETFOREGROUND);
   }
 #endif  // WIN32
-
+  ShutdownLogging();
   exit(1);
 }
 
