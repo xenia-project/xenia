@@ -12,7 +12,7 @@ Xenia is an experimental emulator for the Xbox 360. For more information, see th
 **Interested in supporting the core contributors?** Visit
 [Xenia Project on Patreon](https://www.patreon.com/xenia_project).
 
-Come chat with us about **emulator-related topics** on [Discord](https://discord.me/xenia-emulator).
+Come chat with us about **emulator-related topics** on [Discord](https://discord.gg/Q9mxZf9).
 For developer chat join `#dev` but stay on topic. Lurking is not only fine, but encouraged!
 Please check the [frequently asked questions](https://xenia.jp/faq/) page before
 asking questions. We've got jobs/lives/etc, so don't expect instant answers.
@@ -83,7 +83,7 @@ Fixes and optimizations are always welcome (please!), but in addition to
 that there are some major work areas still untouched:
 
 * Help work through [missing functionality/bugs in games](https://github.com/xenia-project/xenia/issues?labels=compat)
-* Add input drivers for [PS4/DS4 controllers](https://github.com/xenia-project/xenia/issues/60) (or anything else)
+* Add input drivers for [DualShock4 (PS4) controllers](https://github.com/xenia-project/xenia/issues/60) (or anything else)
 * Skilled with Linux? A strong contributor is needed to [help with porting](https://github.com/xenia-project/xenia/labels/cross%20platform)
 
 See more projects [good for contributors](https://github.com/xenia-project/xenia/labels/good%20first%20issue). It's a good idea to ask on Discord and check the issues page before beginning work on
