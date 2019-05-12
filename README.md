@@ -95,4 +95,6 @@ For more see the main [frequently asked questions](https://xenia.jp/faq/) page.
 
 ### Can I get an exe?
 
+[d3d12 (D3D12)](https://ci.appveyor.com/api/projects/benvanik/xenia/artifacts/xenia-d3d12.zip?branch=d3d12&job=Configuration%3A%20Release&pr=false)
+
 [Master (Vulkan)](https://ci.appveyor.com/api/projects/benvanik/xenia/artifacts/xenia-master.zip?branch=master&job=Configuration%3A%20Release&pr=false)
