@@ -1048,7 +1048,7 @@ class GpuTestCommand(BaseBuildCommand):
 
         # The test executables that will be built and run.
         test_targets = args['target'] or [
-            'xenia-gpu-gl4-trace-dump',
+            'xenia-gpu-vulkan-trace-dump',
             ]
         args['target'] = test_targets
 

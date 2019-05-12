@@ -1,5 +1,7 @@
 <!--
-# IF YOU HAVE A QUESTION THAT ISN'T A BUG REPORT, GO TO https://reddit.com/r/xenia
+# THIS IS NOT A SUPPORT FORUM! For support go here:
+# Xenia Discord (#help) - https://discord.me/xenia-emulator
+# /r/xenia (questions thread) - https://www.reddit.com/r/xenia/
 #
 # DO NOT CREATE ISSUES ABOUT SPECIFIC GAMES IN THIS REPOSITORY!
 # a game specific issue would be e.g. "Game X crashes after you hit a character a certain way"
