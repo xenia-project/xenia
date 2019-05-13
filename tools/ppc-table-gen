@@ -17,6 +17,9 @@ import sys
 from xml.etree.ElementTree import ElementTree, Element, SubElement, tostring, dump
 
 
+custom_disasm = ['bcx']
+
+
 self_path = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -286,18 +289,12 @@ def generate_disasm(insns):
   w0('#include "xenia/base/assert.h"')
   w0('#include "xenia/cpu/ppc/ppc_decode_data.h"')
   w0('#include "xenia/cpu/ppc/ppc_opcode.h"')
+  w0('#include "xenia/cpu/ppc/ppc_opcode_disasm.h"')
   w0('#include "xenia/cpu/ppc/ppc_opcode_info.h"')
   w0('')
   w0('namespace xe {')
   w0('namespace cpu {')
   w0('namespace ppc {')
-  w0('')
-  w0('constexpr size_t kNamePad = 11;')
-  w0('const uint8_t kSpaces[kNamePad] = {0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20};')
-  w0('void PadStringBuffer(StringBuffer* str, size_t base, size_t pad) {')
-  w1('size_t added_len = str->length() - base;')
-  w1('if (added_len < pad) str->AppendBytes(kSpaces, kNamePad - added_len);')
-  w0('}')
   w0('')
 
   for i in insns:
@@ -319,7 +316,7 @@ def generate_disasm(insns):
   # TODO(benvanik): support alts:
   # <disasm cond="![RA]">li [RD], [SIMM]</disasm>
   for i in insns:
-    if not i.disasm_str:
+    if not i.disasm_str or literal_mnem(i.mnem) in custom_disasm:
       continue
     w0('void PrintDisasm_%s(const PPCDecodeData& d, StringBuffer* str) {' % (literal_mnem(i.mnem)))
     w1('// ' + i.disasm_str)
@@ -519,11 +516,11 @@ if __name__ == '__main__':
   with open(os.path.join(ppc_src_path, 'ppc_opcode.h'), 'w') as f:
     f.write(generate_opcodes(insns))
   insns = parse_insns(os.path.join(self_path, 'ppc-instructions.xml'))
-  with open(os.path.join(ppc_src_path, 'ppc_opcode_table.cc'), 'w') as f:
+  with open(os.path.join(ppc_src_path, 'ppc_opcode_table_gen.cc'), 'w') as f:
     f.write(generate_table(insns))
   insns = parse_insns(os.path.join(self_path, 'ppc-instructions.xml'))
-  with open(os.path.join(ppc_src_path, 'ppc_opcode_disasm.cc'), 'w') as f:
+  with open(os.path.join(ppc_src_path, 'ppc_opcode_disasm_gen.cc'), 'w') as f:
     f.write(generate_disasm(insns))
   insns = parse_insns(os.path.join(self_path, 'ppc-instructions.xml'))
-  with open(os.path.join(ppc_src_path, 'ppc_opcode_lookup.cc'), 'w') as f:
+  with open(os.path.join(ppc_src_path, 'ppc_opcode_lookup_gen.cc'), 'w') as f:
     f.write(generate_lookup(insns))
