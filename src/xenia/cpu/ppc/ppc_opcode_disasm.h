@@ -30,4 +30,4 @@ void PrintDisasm_bcx(const PPCDecodeData& d, StringBuffer* str);
 }  // namespace cpu
 }  // namespace xe
 
-#endif  // XENIA_CPU_PPC_PPC_OPCODE_INFO_H_
+#endif  // XENIA_CPU_PPC_PPC_OPCODE_DISASM_H_
