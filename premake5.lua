@@ -79,7 +79,9 @@ filter("configurations:Release")
     "NDEBUG",
     "_NO_DEBUG_HEAP=1",
   })
-  optimize("On")
+  optimize("speed")
+  inlining("Auto")
+  floatingpoint("Fast")
   flags({
     "LinkTimeOptimization",
   })
@@ -88,6 +90,9 @@ filter({"configurations:Release", "platforms:Windows"})
   linkoptions({
     "/NODEFAULTLIB:MSVCRTD",
   })
+  buildoptions({
+    "/GT", -- enable fiber-safe optimizations
+   })
 
 filter("platforms:Linux")
   system("linux")
