@@ -15,8 +15,8 @@
 #include <cinttypes>
 #include <utility>
 
-#include "third_party/capstone/include/capstone.h"
-#include "third_party/capstone/include/x86.h"
+#include "third_party/capstone/include/capstone/capstone.h"
+#include "third_party/capstone/include/capstone/x86.h"
 #include "third_party/imgui/imgui.h"
 #include "third_party/imgui/imgui_internal.h"
 #include "third_party/yaml-cpp/include/yaml-cpp/yaml.h"
