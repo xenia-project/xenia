@@ -530,7 +530,7 @@ void TraceViewer::DrawCommandListUI() {
   }
   ImGui::PopID();
   if (did_seek && target_command == -1) {
-    ImGui::SetScrollPosHere();
+    ImGui::SetScrollHere();
   }
 
   auto id = RecursiveDrawCommandBufferUI(frame, frame->command_tree.get());
@@ -1325,7 +1325,7 @@ void TraceViewer::DrawStateUI() {
       ImGui::BulletText("Blend Color: (%.2f,%.2f,%.2f,%.2f)", blend_color.x,
                         blend_color.y, blend_color.z, blend_color.w);
       ImGui::SameLine();
-      ImGui::ColorButton(blend_color, true);
+      ImGui::ColorButton("", blend_color);
 
       uint32_t rb_color_mask = regs[XE_GPU_REG_RB_COLOR_MASK].u32;
       uint32_t color_info[4] = {

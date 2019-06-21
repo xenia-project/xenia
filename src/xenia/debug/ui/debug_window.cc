@@ -1019,7 +1019,7 @@ void DebugWindow::DrawThreadsPane() {
     }
     ImGui::PushID(thread_info);
     if (is_current_thread) {
-      ImGui::SetNextTreeNodeOpened(true, ImGuiSetCond_Always);
+      ImGui::SetNextTreeNodeOpen(true, ImGuiSetCond_Always);
     }
     const char* state_label = "?";
     if (thread->can_debugger_suspend()) {
@@ -1039,8 +1039,9 @@ void DebugWindow::DrawThreadsPane() {
                   thread->is_guest_thread() ? "guest" : "host", state_label,
                   thread->thread_id(), thread->handle(),
                   thread->name().c_str());
-    if (ImGui::CollapsingHeader(thread_label, nullptr, true,
-                                is_current_thread)) {
+    if (ImGui::CollapsingHeader(
+            thread_label,
+            is_current_thread ? ImGuiTreeNodeFlags_DefaultOpen : 0)) {
       //   |     (log button) detail of kernel call categories
       // log button toggles only logging that thread
       ImGui::BulletText("Call Stack");

@@ -19,6 +19,7 @@
 struct ImDrawData;
 struct ImFontAtlas;
 struct ImGuiIO;
+struct ImGuiContext;
 
 namespace xe {
 namespace ui {
@@ -56,7 +57,7 @@ class ImGuiDrawer : public WindowListener {
   Window* window_ = nullptr;
   GraphicsContext* graphics_context_ = nullptr;
 
-  std::vector<uint8_t> internal_state_;
+  ImGuiContext* imgui_context_;
   std::unique_ptr<ImFontAtlas> font_atlas_;
   std::unique_ptr<ImmediateTexture> font_texture_;
 };

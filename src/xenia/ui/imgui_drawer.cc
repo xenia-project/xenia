@@ -34,11 +34,11 @@ ImGuiDrawer::ImGuiDrawer(xe::ui::Window* window)
 }
 
 ImGuiDrawer::~ImGuiDrawer() {
-  auto previous_state = ImGui::GetInternalState();
-  ImGui::SetInternalState(internal_state_.data());
-  ImGui::Shutdown();
-  if (previous_state != internal_state_.data()) {
-    ImGui::SetInternalState(previous_state);
+  auto previous_context = ImGui::GetCurrentContext();
+  ImGui::SetCurrentContext(imgui_context_);
+  ImGui::DestroyContext(imgui_context_);
+  if (previous_context != imgui_context_) {
+    ImGui::SetCurrentContext(previous_context);
   }
 
   current_drawer_ = nullptr;
@@ -47,8 +47,8 @@ ImGuiDrawer::~ImGuiDrawer() {
 void ImGuiDrawer::Initialize() {
   // Setup ImGui internal state.
   // This will give us state we can swap to the ImGui globals when in use.
-  internal_state_.resize(ImGui::GetInternalStateSize());
-  ImGui::SetInternalState(internal_state_.data(), true);
+  imgui_context_ = ImGui::CreateContext();
+  ImGui::SetCurrentContext(imgui_context_);
   current_drawer_ = this;
 
   auto& io = ImGui::GetIO();
@@ -66,7 +66,6 @@ void ImGuiDrawer::Initialize() {
 
   auto& style = ImGui::GetStyle();
   style.ScrollbarRounding = 0;
-  style.WindowFillAlphaDefault = 1.0f;
   style.WindowRounding = 0;
   style.Colors[ImGuiCol_Text] = ImVec4(0.89f, 0.90f, 0.90f, 1.00f);
   style.Colors[ImGuiCol_TextDisabled] = ImVec4(0.60f, 0.60f, 0.60f, 1.00f);
@@ -87,7 +86,6 @@ void ImGuiDrawer::Initialize() {
       ImVec4(0.00f, 1.00f, 0.15f, 0.62f);
   style.Colors[ImGuiCol_ScrollbarGrabActive] =
       ImVec4(0.00f, 0.91f, 0.09f, 0.40f);
-  style.Colors[ImGuiCol_ComboBg] = ImVec4(0.20f, 0.20f, 0.20f, 0.99f);
   style.Colors[ImGuiCol_CheckMark] = ImVec4(0.74f, 0.90f, 0.72f, 0.50f);
   style.Colors[ImGuiCol_SliderGrab] = ImVec4(1.00f, 1.00f, 1.00f, 0.30f);
   style.Colors[ImGuiCol_SliderGrabActive] = ImVec4(0.34f, 0.75f, 0.11f, 1.00f);
@@ -103,17 +101,13 @@ void ImGuiDrawer::Initialize() {
   style.Colors[ImGuiCol_ResizeGrip] = ImVec4(1.00f, 1.00f, 1.00f, 0.30f);
   style.Colors[ImGuiCol_ResizeGripHovered] = ImVec4(1.00f, 1.00f, 1.00f, 0.60f);
   style.Colors[ImGuiCol_ResizeGripActive] = ImVec4(1.00f, 1.00f, 1.00f, 0.90f);
-  style.Colors[ImGuiCol_CloseButton] = ImVec4(0.00f, 0.72f, 0.00f, 0.96f);
-  style.Colors[ImGuiCol_CloseButtonHovered] =
-      ImVec4(0.38f, 1.00f, 0.42f, 0.60f);
-  style.Colors[ImGuiCol_CloseButtonActive] = ImVec4(0.56f, 1.00f, 0.64f, 1.00f);
   style.Colors[ImGuiCol_PlotLines] = ImVec4(1.00f, 1.00f, 1.00f, 1.00f);
   style.Colors[ImGuiCol_PlotLinesHovered] = ImVec4(0.90f, 0.70f, 0.00f, 1.00f);
   style.Colors[ImGuiCol_PlotHistogram] = ImVec4(0.90f, 0.70f, 0.00f, 1.00f);
   style.Colors[ImGuiCol_PlotHistogramHovered] =
       ImVec4(1.00f, 0.60f, 0.00f, 1.00f);
   style.Colors[ImGuiCol_TextSelectedBg] = ImVec4(0.00f, 1.00f, 0.00f, 0.21f);
-  style.Colors[ImGuiCol_TooltipBg] = ImVec4(0.05f, 0.05f, 0.10f, 0.90f);
+  style.Colors[ImGuiCol_PopupBg] = ImVec4(0.05f, 0.05f, 0.10f, 0.90f);
   style.Colors[ImGuiCol_ModalWindowDarkening] =
       ImVec4(0.20f, 0.20f, 0.20f, 0.35f);
 
@@ -231,7 +225,7 @@ void ImGuiDrawer::RenderDrawLists(ImDrawData* data) {
 
 ImGuiIO& ImGuiDrawer::GetIO() {
   current_drawer_ = this;
-  ImGui::SetInternalState(internal_state_.data());
+  ImGui::SetCurrentContext(imgui_context_);
   return ImGui::GetIO();
 }
 

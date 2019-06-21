@@ -17,10 +17,11 @@ project("imgui")
     "imgui/imgui.h",
     "imgui/imgui_draw.cpp",
     "imgui/imgui_demo.cpp",
+    "imgui/imgui_widgets.cpp",
     "imgui/imgui_internal.h",
-    "imgui/stb_rect_pack.h",
-    "imgui/stb_textedit.h",
-    "imgui/stb_truetype.h",
+    "imgui/imstb_rectpack.h",
+    "imgui/imstb_textedit.h",
+    "imgui/imstb_truetype.h",
   })
 
   filter("platforms:Windows")
