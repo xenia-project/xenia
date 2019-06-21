@@ -48,7 +48,7 @@ def main():
         if vs_version is None:
             print('ERROR: Visual Studio not found!')
             print('Please refer to the building guide:')
-            print('https://github.com/benvanik/xenia/blob/master/docs/building.md')
+            print('https://github.com/xenia-project/xenia/blob/master/docs/building.md')
             sys.exit(1)
 
     # Setup main argument parser and common arguments.
