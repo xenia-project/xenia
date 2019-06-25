@@ -48,7 +48,7 @@ def main():
         if vs_version is None:
             print('ERROR: Visual Studio not found!')
             print('Please refer to the building guide:')
-            print('https://github.com/benvanik/xenia/blob/master/docs/building.md')
+            print('https://github.com/xenia-project/xenia/blob/master/docs/building.md')
             sys.exit(1)
 
     # Setup main argument parser and common arguments.
@@ -96,7 +96,7 @@ def import_vs_environment():
     install_path = None
     env_tool_args = None
 
-    vswhere = subprocess.check_output('third_party/vswhere/vswhere.exe -version "[15,)" -latest -format json -utf8', shell=False, universal_newlines=True)
+    vswhere = subprocess.check_output('third_party/vswhere/vswhere.exe -version "[15,)" -latest -prerelease -format json -utf8', shell=False, universal_newlines=True)
     if vswhere:
         vswhere = json.loads(vswhere)
     if vswhere and len(vswhere) > 0:
