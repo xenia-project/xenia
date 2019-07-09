@@ -26,6 +26,14 @@
 #include "xenia/ui/imgui_dialog.h"
 #include "xenia/ui/imgui_drawer.h"
 
+// UTF-8 to wide (vice versa) convertion and file R/W; By: NA
+#include <codecvt>
+#include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <locale>
+#include <string>
+
 namespace xe {
 namespace app {
 
@@ -174,10 +182,71 @@ bool EmulatorWindow::Initialize() {
   // FIXME: This code is really messy.
   auto main_menu = MenuItem::Create(MenuItem::Type::kNormal);
   auto file_menu = MenuItem::Create(MenuItem::Type::kPopup, L"&File");
+  // Recent Sub tap
+  auto recent_list = MenuItem::Create(MenuItem::Type::kPopup, L"&Open Recent");
+  //******Add Recent PATHS to menu***************************************
+  std::string LINES[10];
+  std::ifstream RECENT_FILE("recent.txt");
+  int i = 0;
+  // Conver from UTF-8 to whatever tf
+  std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
+  if (RECENT_FILE.is_open()) {
+    while ((i < 10) && getline(RECENT_FILE, LINES[i])) {
+      GLOBAL_RECENT_PATHS[i] = converter.from_bytes(LINES[i]);
+      i++;
+    }
+    RECENT_FILE.close();
+  }
+
+  // Added most recently opened files to menu
+  if (LINES[0] != "" && LINES[0] != "\n")
+    recent_list->AddChild(
+        MenuItem::Create(MenuItem::Type::kString, GLOBAL_RECENT_PATHS[0],
+                         std::bind(&EmulatorWindow::RecentList0, this)));
+  if (LINES[1] != "" && LINES[1] != "\n")
+    recent_list->AddChild(
+        MenuItem::Create(MenuItem::Type::kString, GLOBAL_RECENT_PATHS[1],
+                         std::bind(&EmulatorWindow::RecentList1, this)));
+  if (LINES[2] != "" && LINES[2] != "\n")
+    recent_list->AddChild(
+        MenuItem::Create(MenuItem::Type::kString, GLOBAL_RECENT_PATHS[2],
+                         std::bind(&EmulatorWindow::RecentList2, this)));
+  if (LINES[3] != "" && LINES[3] != "\n")
+    recent_list->AddChild(
+        MenuItem::Create(MenuItem::Type::kString, GLOBAL_RECENT_PATHS[3],
+                         std::bind(&EmulatorWindow::RecentList3, this)));
+  if (LINES[4] != "" && LINES[4] != "\n")
+    recent_list->AddChild(
+        MenuItem::Create(MenuItem::Type::kString, GLOBAL_RECENT_PATHS[4],
+                         std::bind(&EmulatorWindow::RecentList4, this)));
+  if (LINES[5] != "" && LINES[5] != "\n")
+    recent_list->AddChild(
+        MenuItem::Create(MenuItem::Type::kString, GLOBAL_RECENT_PATHS[5],
+                         std::bind(&EmulatorWindow::RecentList5, this)));
+  if (LINES[6] != "" && LINES[6] != "\n")
+    recent_list->AddChild(
+        MenuItem::Create(MenuItem::Type::kString, GLOBAL_RECENT_PATHS[6],
+                         std::bind(&EmulatorWindow::RecentList6, this)));
+  if (LINES[7] != "" && LINES[7] != "\n")
+    recent_list->AddChild(
+        MenuItem::Create(MenuItem::Type::kString, GLOBAL_RECENT_PATHS[7],
+                         std::bind(&EmulatorWindow::RecentList7, this)));
+  if (LINES[8] != "" && LINES[8] != "\n")
+    recent_list->AddChild(
+        MenuItem::Create(MenuItem::Type::kString, GLOBAL_RECENT_PATHS[8],
+                         std::bind(&EmulatorWindow::RecentList8, this)));
+  if (LINES[9] != "" && LINES[9] != "\n")
+    recent_list->AddChild(
+        MenuItem::Create(MenuItem::Type::kString, GLOBAL_RECENT_PATHS[9],
+                         std::bind(&EmulatorWindow::RecentList9, this)));
+//****************************************************************************
   {
     file_menu->AddChild(
         MenuItem::Create(MenuItem::Type::kString, L"&Open...", L"Ctrl+O",
                          std::bind(&EmulatorWindow::FileOpen, this)));
+    // Add Recent List Tab ti file tab
+    file_menu->AddChild(std::move(recent_list));
+
     file_menu->AddChild(
         MenuItem::Create(MenuItem::Type::kString, L"Close",
                          std::bind(&EmulatorWindow::FileClose, this)));
@@ -297,6 +366,49 @@ void EmulatorWindow::FileDrop(wchar_t* filename) {
   }
 }
 
+// Add recent storage
+void EmulatorWindow::RecentListUpdater(std::wstring PATH) {
+  //*******Save abs_path to recent as UTF-8******************************
+  // https://en.cppreference.com/w/cpp/locale/wstring_convert/to_bytes
+  std::wstring_convert<std::codecvt_utf8<wchar_t>> conv1;
+  std::string U8_PATH = conv1.to_bytes(PATH);
+
+  // Write to 'recent.txt' file
+  std::string LINES[10];
+  int i = 0;
+  int PATH_POSS = 0;
+  bool PATH_IS_IN = false;
+  // Open file "recent.txt" to read values
+  std::ifstream RECENT_FILE("recent.txt");
+  if (RECENT_FILE.is_open()) {
+    // Loop until end of document or 10 lines are read, which ever comes first
+    while (getline(RECENT_FILE, LINES[i]) && (i < 9)) {
+      if (U8_PATH.compare(LINES[i]) == 0) {
+        PATH_IS_IN = true;
+        PATH_POSS = i;
+      }
+      i++;
+    }
+    RECENT_FILE.close();
+  }
+  // Move lines
+  if (!PATH_IS_IN) {
+    PATH_POSS = 9;
+  }
+  for (i = PATH_POSS; i > 0; i--) {
+    LINES[i] = LINES[i - 1];
+  }
+  // Add all lines to file
+  LINES[0] = U8_PATH;
+  std::ofstream RECENT_FILE2("recent.txt");
+  for (i = 0; i < 10; i++) {
+    if (LINES[i] != "" && LINES[i] != "\n") {
+      RECENT_FILE2 << LINES[i] << std::endl;
+    }
+  }
+  RECENT_FILE.close();
+  //*****************************************************
+}
 void EmulatorWindow::FileOpen() {
   std::wstring path;
 
@@ -323,6 +435,8 @@ void EmulatorWindow::FileOpen() {
     // Normalize the path and make absolute.
     std::wstring abs_path = xe::to_absolute_path(path);
 
+	EmulatorWindow::RecentListUpdater(abs_path);
+
     auto result = emulator_->LaunchPath(abs_path);
     if (XFAILED(result)) {
       // TODO: Display a message box.
@@ -330,6 +444,30 @@ void EmulatorWindow::FileOpen() {
     }
   }
 }
+
+// Add recently opened
+void EmulatorWindow::RecentList(int index) {
+  if (!GLOBAL_RECENT_PATHS[index].empty()) {
+ 
+    EmulatorWindow::RecentListUpdater(GLOBAL_RECENT_PATHS[index]);
+
+    auto result = emulator_->LaunchPath(GLOBAL_RECENT_PATHS[index]);
+    if (XFAILED(result)) {
+      // TODO: Display a message box.
+      XELOGE("Failed to launch target: %.8X", result);
+    }
+  }
+}
+void EmulatorWindow::RecentList0() { EmulatorWindow::RecentList(0); }
+void EmulatorWindow::RecentList1() { EmulatorWindow::RecentList(1); }
+void EmulatorWindow::RecentList2() { EmulatorWindow::RecentList(2); }
+void EmulatorWindow::RecentList3() { EmulatorWindow::RecentList(3); }
+void EmulatorWindow::RecentList4() { EmulatorWindow::RecentList(4); }
+void EmulatorWindow::RecentList5() { EmulatorWindow::RecentList(5); }
+void EmulatorWindow::RecentList6() { EmulatorWindow::RecentList(6); }
+void EmulatorWindow::RecentList7() { EmulatorWindow::RecentList(7); }
+void EmulatorWindow::RecentList8() { EmulatorWindow::RecentList(8); }
+void EmulatorWindow::RecentList9() { EmulatorWindow::RecentList(9); }
 
 void EmulatorWindow::FileClose() {
   if (emulator_->is_title_open()) {
