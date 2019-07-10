@@ -31,14 +31,28 @@ navigation:
   - pages:
     - title: Home
       path: index.html
-    - path: about.md
-    - path: faq.md
+    - title: About
+      url: https://github.com/xenia-project/xenia/wiki/about
+      icon: info
+    - title: Quickstart
+      url: https://github.com/xenia-project/xenia/wiki/Quickstart
+      icon: assignment
+    - title: FAQ
+      url: https://github.com/xenia-project/xenia/wiki/faq
+      icon: help
     - path: download.md
-    - path: roadmap.md
-    - path: compatibility.html
+    - title: Roadmap
+      url: https://github.com/xenia-project/xenia/wiki/roadmap
+      icon: event
+    - title: Compatibility
+      url: https://github.com/xenia-project/game-compatibility/issues
+      icon: insert_chart
     - path: gallery.html
   - title: Community
     pages:
+    - title: Discord
+      url: https://discord.gg/Q9mxZf9
+      icon: message
     - title: /r/xenia
       url: https://www.reddit.com/r/xenia
       icon: forum
@@ -50,8 +64,8 @@ navigation:
 #      icon: people
   - title: Development
     pages:
-    - title: Quickstart
-      url: https://github.com/xenia-project/xenia#quickstart
+    - title: Building
+      url: https://github.com/xenia-project/xenia/blob/master/docs/building.md
       icon: build
     - title: Source Code
       url: https://github.com/xenia-project/xenia
@@ -64,7 +78,7 @@ navigation:
 #      icon: settings_system_daydream
 
 artifacts:
-  - title: Windows 8+ x64
+  - title: Windows 7+ x64
     icon: windows
     branches:
     - name: master
