@@ -43,7 +43,7 @@ X64CodeCache::~X64CodeCache() {
   if (mapping_) {
     xe::memory::UnmapFileView(mapping_, generated_code_base_,
                               kGeneratedCodeSize);
-    xe::memory::CloseFileMappingHandle(mapping_);
+    xe::memory::CloseFileMappingHandle(mapping_, file_name_);
     mapping_ = nullptr;
   }
 }
