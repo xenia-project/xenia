@@ -15,6 +15,7 @@
 #include <string>
 #include <vector>
 
+#include "xenia/base/math.h"
 #include "xenia/base/string_buffer.h"
 #include "xenia/gpu/shader.h"
 #include "xenia/gpu/ucode.h"
@@ -56,11 +57,20 @@ class ShaderTranslator {
   }
   // True if the current shader writes to a color target on any execution path.
   bool writes_color_target(int i) const { return writes_color_targets_[i]; }
+  bool writes_any_color_target() const {
+    for (size_t i = 0; i < xe::countof(writes_color_targets_); ++i) {
+      if (writes_color_targets_[i]) {
+        return true;
+      }
+    }
+    return false;
+  }
   // True if the current shader overrides the pixel depth.
   bool writes_depth() const { return writes_depth_; }
-  // True if the pixel shader can potentially have early depth/stencil testing
-  // enabled, provided alpha testing is disabled.
-  bool early_z_allowed() const { return early_z_allowed_; }
+  // True if Xenia can automatically enable early depth/stencil for the pixel
+  // shader when RB_DEPTHCONTROL EARLY_Z_ENABLE is not set, provided alpha
+  // testing and alpha to coverage are disabled.
+  bool implicit_early_z_allowed() const { return implicit_early_z_allowed_; }
   // A list of all vertex bindings, populated before translation occurs.
   const std::vector<Shader::VertexBinding>& vertex_bindings() const {
     return vertex_bindings_;
@@ -163,7 +173,7 @@ class ShaderTranslator {
     const char* name;
     size_t argument_count;
     int src_swizzle_component_count;
-    bool disable_early_z;
+    bool disable_implicit_early_z;
   };
 
   bool TranslateInternal(Shader* shader);
@@ -247,7 +257,7 @@ class ShaderTranslator {
   bool uses_register_dynamic_addressing_ = false;
   bool writes_color_targets_[4] = {false, false, false, false};
   bool writes_depth_ = false;
-  bool early_z_allowed_ = true;
+  bool implicit_early_z_allowed_ = true;
 
   uint32_t memexport_alloc_count_ = 0;
   // For register allocation in implementations - what was used after each

@@ -1052,15 +1052,19 @@ bool DxbcShaderTranslator::ProcessVectorAluOperation(
       ++stat_.instruction_count;
       ++stat_.uint_instruction_count;
       // Discard.
-      shader_code_.push_back(
-          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DISCARD) |
-          ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(
-              D3D10_SB_INSTRUCTION_TEST_NONZERO) |
-          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
+      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(
+                                 edram_rov_used_ ? D3D10_SB_OPCODE_RETC
+                                                 : D3D10_SB_OPCODE_DISCARD) |
+                             ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(
+                                 D3D10_SB_INSTRUCTION_TEST_NONZERO) |
+                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
       shader_code_.push_back(
           EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
       shader_code_.push_back(system_temp_pv_);
       ++stat_.instruction_count;
+      if (edram_rov_used_) {
+        ++stat_.dynamic_flow_control_count;
+      }
       break;
 
     case AluVectorOpcode::kDst: {
@@ -2272,15 +2276,19 @@ bool DxbcShaderTranslator::ProcessScalarAluOperation(
       ++stat_.instruction_count;
       ++stat_.uint_instruction_count;
       // Discard.
-      shader_code_.push_back(
-          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DISCARD) |
-          ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(
-              D3D10_SB_INSTRUCTION_TEST_NONZERO) |
-          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
+      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(
+                                 edram_rov_used_ ? D3D10_SB_OPCODE_RETC
+                                                 : D3D10_SB_OPCODE_DISCARD) |
+                             ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(
+                                 D3D10_SB_INSTRUCTION_TEST_NONZERO) |
+                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
       shader_code_.push_back(
           EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
       shader_code_.push_back(system_temp_ps_pc_p0_a0_);
       ++stat_.instruction_count;
+      if (edram_rov_used_) {
+        ++stat_.dynamic_flow_control_count;
+      }
       break;
 
     case AluScalarOpcode::kMulsc0:

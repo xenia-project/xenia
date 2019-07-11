@@ -34,7 +34,8 @@ class D3D12CommandProcessor;
 class PipelineCache {
  public:
   PipelineCache(D3D12CommandProcessor* command_processor,
-                RegisterFile* register_file, bool edram_rov_used);
+                RegisterFile* register_file, bool edram_rov_used,
+                uint32_t resolution_scale);
   ~PipelineCache();
 
   bool Initialize();
@@ -53,7 +54,7 @@ class PipelineCache {
 
   bool ConfigurePipeline(
       D3D12Shader* vertex_shader, D3D12Shader* pixel_shader,
-      PrimitiveType primitive_type, IndexFormat index_format,
+      PrimitiveType primitive_type, IndexFormat index_format, bool early_z,
       const RenderTargetCache::PipelineRenderTarget render_targets[5],
       void** pipeline_handle_out, ID3D12RootSignature** root_signature_out);
 
@@ -175,7 +176,7 @@ class PipelineCache {
 
   bool GetCurrentStateDescription(
       D3D12Shader* vertex_shader, D3D12Shader* pixel_shader,
-      PrimitiveType primitive_type, IndexFormat index_format,
+      PrimitiveType primitive_type, IndexFormat index_format, bool early_z,
       const RenderTargetCache::PipelineRenderTarget render_targets[5],
       PipelineDescription& description_out);
 
@@ -187,6 +188,7 @@ class PipelineCache {
 
   // Whether the output merger is emulated in pixel shaders.
   bool edram_rov_used_;
+  uint32_t resolution_scale_;
 
   // Reusable shader translator.
   std::unique_ptr<DxbcShaderTranslator> shader_translator_ = nullptr;

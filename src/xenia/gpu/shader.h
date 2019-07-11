@@ -618,9 +618,13 @@ class Shader {
   // Returns true if the given color target index [0-3].
   bool writes_color_target(int i) const { return writes_color_targets_[i]; }
 
-  // Returns true if the pixel shader can potentially have early depth/stencil
-  // testing enabled, provided alpha testing is disabled.
-  bool early_z_allowed() const { return early_z_allowed_; }
+  // True if the shader overrides the pixel depth.
+  bool writes_depth() const { return writes_depth_; }
+
+  // True if Xenia can automatically enable early depth/stencil for the pixel
+  // shader when RB_DEPTHCONTROL EARLY_Z_ENABLE is not set, provided alpha
+  // testing and alpha to coverage are disabled.
+  bool implicit_early_z_allowed() const { return implicit_early_z_allowed_; }
 
   // True if the shader was translated and prepared without error.
   bool is_valid() const { return is_valid_; }
@@ -670,7 +674,8 @@ class Shader {
   std::vector<TextureBinding> texture_bindings_;
   ConstantRegisterMap constant_register_map_ = {0};
   bool writes_color_targets_[4] = {false, false, false, false};
-  bool early_z_allowed_ = true;
+  bool writes_depth_ = false;
+  bool implicit_early_z_allowed_ = true;
   std::vector<uint32_t> memexport_stream_constants_;
 
   bool is_valid_ = false;

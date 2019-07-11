@@ -63,24 +63,31 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kSysFlag_AlphaPassIfEqual_Shift,
     kSysFlag_AlphaPassIfGreater_Shift,
     kSysFlag_AlphaToCoverage_Shift,
-    kSysFlag_DepthStencil_Shift,
-    kSysFlag_DepthFloat24_Shift,
-    // Depth/stencil testing not done if DepthStencilRead is disabled, but
-    // writing may still be done.
-    kSysFlag_DepthPassIfLess_Shift,
-    kSysFlag_DepthPassIfEqual_Shift,
-    kSysFlag_DepthPassIfGreater_Shift,
-    // 1 to write new depth to the depth buffer, 0 to keep the old one if the
-    // depth test passes.
-    kSysFlag_DepthWriteMask_Shift,
-    kSysFlag_StencilTest_Shift,
-    // This doesn't include depth/stencil masks - only reflects the fact that
-    // the new value must be written.
-    kSysFlag_DepthStencilWrite_Shift,
     kSysFlag_Color0Gamma_Shift,
     kSysFlag_Color1Gamma_Shift,
     kSysFlag_Color2Gamma_Shift,
     kSysFlag_Color3Gamma_Shift,
+
+    kSysFlag_ROVDepthStencil_Shift,
+    kSysFlag_ROVDepthFloat24_Shift,
+    kSysFlag_ROVDepthPassIfLess_Shift,
+    kSysFlag_ROVDepthPassIfEqual_Shift,
+    kSysFlag_ROVDepthPassIfGreater_Shift,
+    // 1 to write new depth to the depth buffer, 0 to keep the old one if the
+    // depth test passes.
+    kSysFlag_ROVDepthWrite_Shift,
+    kSysFlag_ROVStencilTest_Shift,
+    // If the depth/stencil test has failed, but resulted in a stencil value
+    // that is different than the one currently in the depth buffer, write it
+    // anyway and don't run the shader (to check if the sample may be discarded
+    // some way). This, however, also results in depth/stencil testing done
+    // entirely early even when it passes to prevent writing in divergent places
+    // in the shader. When the shader can kill, this must be set only for
+    // RB_DEPTHCONTROL EARLY_Z_ENABLE, not for alpha test/alpha to coverage
+    // disabled.
+    kSysFlag_ROVDepthStencilEarlyWrite_Shift,
+
+    kSysFlag_Count,
 
     kSysFlag_SharedMemoryIsUAV = 1u << kSysFlag_SharedMemoryIsUAV_Shift,
     kSysFlag_XYDividedByW = 1u << kSysFlag_XYDividedByW_Shift,
@@ -97,19 +104,21 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kSysFlag_AlphaPassIfEqual = 1u << kSysFlag_AlphaPassIfEqual_Shift,
     kSysFlag_AlphaPassIfGreater = 1u << kSysFlag_AlphaPassIfGreater_Shift,
     kSysFlag_AlphaToCoverage = 1u << kSysFlag_AlphaToCoverage_Shift,
-    kSysFlag_DepthStencil = 1u << kSysFlag_DepthStencil_Shift,
-    kSysFlag_DepthFloat24 = 1u << kSysFlag_DepthFloat24_Shift,
-    kSysFlag_DepthPassIfLess = 1u << kSysFlag_DepthPassIfLess_Shift,
-    kSysFlag_DepthPassIfEqual = 1u << kSysFlag_DepthPassIfEqual_Shift,
-    kSysFlag_DepthPassIfGreater = 1u << kSysFlag_DepthPassIfGreater_Shift,
-    kSysFlag_DepthWriteMask = 1u << kSysFlag_DepthWriteMask_Shift,
-    kSysFlag_StencilTest = 1u << kSysFlag_StencilTest_Shift,
-    kSysFlag_DepthStencilWrite = 1u << kSysFlag_DepthStencilWrite_Shift,
     kSysFlag_Color0Gamma = 1u << kSysFlag_Color0Gamma_Shift,
     kSysFlag_Color1Gamma = 1u << kSysFlag_Color1Gamma_Shift,
     kSysFlag_Color2Gamma = 1u << kSysFlag_Color2Gamma_Shift,
     kSysFlag_Color3Gamma = 1u << kSysFlag_Color3Gamma_Shift,
+    kSysFlag_ROVDepthStencil = 1u << kSysFlag_ROVDepthStencil_Shift,
+    kSysFlag_ROVDepthFloat24 = 1u << kSysFlag_ROVDepthFloat24_Shift,
+    kSysFlag_ROVDepthPassIfLess = 1u << kSysFlag_ROVDepthPassIfLess_Shift,
+    kSysFlag_ROVDepthPassIfEqual = 1u << kSysFlag_ROVDepthPassIfEqual_Shift,
+    kSysFlag_ROVDepthPassIfGreater = 1u << kSysFlag_ROVDepthPassIfGreater_Shift,
+    kSysFlag_ROVDepthWrite = 1u << kSysFlag_ROVDepthWrite_Shift,
+    kSysFlag_ROVStencilTest = 1u << kSysFlag_ROVStencilTest_Shift,
+    kSysFlag_ROVDepthStencilEarlyWrite =
+        1u << kSysFlag_ROVDepthStencilEarlyWrite_Shift,
   };
+  static_assert(kSysFlag_Count <= 32, "Too many flags in the system constants");
 
   enum : uint32_t {
     kStencilOp_Flag_CurrentMask_Shift,
@@ -142,151 +151,17 @@ class DxbcShaderTranslator : public ShaderTranslator {
         kStencilOp_Flag_CurrentMask | kStencilOp_Flag_Decrement,
   };
 
+  // Appended to the format in the format constant.
   enum : uint32_t {
-    // Whether the render target needs to be merged with another (if the write
-    // mask is not 1111, or 11 for 16_16, or 1 for 32_FLOAT, or blending is
-    // enabled and it's not no-op).
-    kRTFlag_WriteR_Shift,
-    kRTFlag_WriteG_Shift,
-    kRTFlag_WriteB_Shift,
-    kRTFlag_WriteA_Shift,
-    kRTFlag_Blend_Shift,
-    // Whether the component does not exist in the render target format.
-    kRTFlag_FormatUnusedR_Shift,
-    kRTFlag_FormatUnusedG_Shift,
-    kRTFlag_FormatUnusedB_Shift,
-    kRTFlag_FormatUnusedA_Shift,
-    // Whether the format is fixed-point and needs to be converted to integer
-    // (k_8_8_8_8, k_2_10_10_10, k_16_16, k_16_16_16_16).
-    kRTFlag_FormatFixed_Shift,
-    // Whether the format is k_2_10_10_10_FLOAT and 7e3 conversion is needed.
-    kRTFlag_FormatFloat10_Shift,
-    // Whether the format is k_16_16_FLOAT or k_16_16_16_16_FLOAT and
-    // f16tof32/f32tof16 is needed.
-    kRTFlag_FormatFloat16_Shift,
+    // Starting from bit 4 because the format itself needs 4 bits.
+    kRTFormatFlag_64bpp_Shift = 4,
+    // Requires clamping of blending sources and factors.
+    kRTFormatFlag_FixedPointColor_Shift,
+    kRTFormatFlag_FixedPointAlpha_Shift,
 
-    kRTFlag_WriteR = 1u << kRTFlag_WriteR_Shift,
-    kRTFlag_WriteG = 1u << kRTFlag_WriteG_Shift,
-    kRTFlag_WriteB = 1u << kRTFlag_WriteB_Shift,
-    kRTFlag_WriteA = 1u << kRTFlag_WriteA_Shift,
-    kRTFlag_Blend = 1u << kRTFlag_Blend_Shift,
-    kRTFlag_FormatUnusedR = 1u << kRTFlag_FormatUnusedR_Shift,
-    kRTFlag_FormatUnusedG = 1u << kRTFlag_FormatUnusedG_Shift,
-    kRTFlag_FormatUnusedB = 1u << kRTFlag_FormatUnusedB_Shift,
-    kRTFlag_FormatUnusedA = 1u << kRTFlag_FormatUnusedA_Shift,
-    kRTFlag_FormatFixed = 1u << kRTFlag_FormatFixed_Shift,
-    kRTFlag_FormatFloat10 = 1u << kRTFlag_FormatFloat10_Shift,
-    kRTFlag_FormatFloat16 = 1u << kRTFlag_FormatFloat16_Shift,
-  };
-
-  enum : uint32_t {
-    // X/Z of the blend constant for the render target.
-
-    // For ONE_MINUS modes, enable both One and the needed factor with _Neg.
-    kBlendX_Src_One_Shift = 0,
-    kBlendX_Src_One = 1u << kBlendX_Src_One_Shift,
-    kBlendX_Src_SrcColor_Shift = 1,
-    kBlendX_Src_SrcColor_Pos = 1u << kBlendX_Src_SrcColor_Shift,
-    kBlendX_Src_SrcColor_Neg = 3u << kBlendX_Src_SrcColor_Shift,
-    kBlendX_Src_SrcAlpha_Shift = 3,
-    kBlendX_Src_SrcAlpha_Pos = 1u << kBlendX_Src_SrcAlpha_Shift,
-    kBlendX_Src_SrcAlpha_Neg = 3u << kBlendX_Src_SrcAlpha_Shift,
-    kBlendX_Src_DestColor_Shift = 5,
-    kBlendX_Src_DestColor_Pos = 1u << kBlendX_Src_DestColor_Shift,
-    kBlendX_Src_DestColor_Neg = 3u << kBlendX_Src_DestColor_Shift,
-    kBlendX_Src_DestAlpha_Shift = 7,
-    kBlendX_Src_DestAlpha_Pos = 1u << kBlendX_Src_DestAlpha_Shift,
-    kBlendX_Src_DestAlpha_Neg = 3u << kBlendX_Src_DestAlpha_Shift,
-    kBlendX_Src_SrcAlphaSaturate_Shift = 9,
-    kBlendX_Src_SrcAlphaSaturate = 1u << kBlendX_Src_SrcAlphaSaturate_Shift,
-
-    kBlendX_SrcAlpha_One_Shift = 10,
-    kBlendX_SrcAlpha_One = 1u << kBlendX_SrcAlpha_One_Shift,
-    kBlendX_SrcAlpha_SrcAlpha_Shift = 11,
-    kBlendX_SrcAlpha_SrcAlpha_Pos = 1u << kBlendX_SrcAlpha_SrcAlpha_Shift,
-    kBlendX_SrcAlpha_SrcAlpha_Neg = 3u << kBlendX_SrcAlpha_SrcAlpha_Shift,
-    kBlendX_SrcAlpha_DestAlpha_Shift = 13,
-    kBlendX_SrcAlpha_DestAlpha_Pos = 1u << kBlendX_SrcAlpha_DestAlpha_Shift,
-    kBlendX_SrcAlpha_DestAlpha_Neg = 3u << kBlendX_SrcAlpha_DestAlpha_Shift,
-
-    // For ONE_MINUS modes, enable both One and the needed factor with _Neg.
-    kBlendX_Dest_One_Shift = 15,
-    kBlendX_Dest_One = 1u << kBlendX_Dest_One_Shift,
-    kBlendX_Dest_SrcColor_Shift = 16,
-    kBlendX_Dest_SrcColor_Pos = 1u << kBlendX_Dest_SrcColor_Shift,
-    kBlendX_Dest_SrcColor_Neg = 3u << kBlendX_Dest_SrcColor_Shift,
-    kBlendX_Dest_SrcAlpha_Shift = 18,
-    kBlendX_Dest_SrcAlpha_Pos = 1u << kBlendX_Dest_SrcAlpha_Shift,
-    kBlendX_Dest_SrcAlpha_Neg = 3u << kBlendX_Dest_SrcAlpha_Shift,
-    kBlendX_Dest_DestColor_Shift = 20,
-    kBlendX_Dest_DestColor_Pos = 1u << kBlendX_Dest_DestColor_Shift,
-    kBlendX_Dest_DestColor_Neg = 3u << kBlendX_Dest_DestColor_Shift,
-    kBlendX_Dest_DestAlpha_Shift = 22,
-    kBlendX_Dest_DestAlpha_Pos = 1u << kBlendX_Dest_DestAlpha_Shift,
-    kBlendX_Dest_DestAlpha_Neg = 3u << kBlendX_Dest_DestAlpha_Shift,
-    kBlendX_Dest_SrcAlphaSaturate_Shift = 24,
-    kBlendX_Dest_SrcAlphaSaturate = 1u << kBlendX_Dest_SrcAlphaSaturate_Shift,
-
-    kBlendX_DestAlpha_One_Shift = 25,
-    kBlendX_DestAlpha_One = 1u << kBlendX_DestAlpha_One_Shift,
-    kBlendX_DestAlpha_SrcAlpha_Shift = 26,
-    kBlendX_DestAlpha_SrcAlpha_Pos = 1u << kBlendX_DestAlpha_SrcAlpha_Shift,
-    kBlendX_DestAlpha_SrcAlpha_Neg = 3u << kBlendX_DestAlpha_SrcAlpha_Shift,
-    kBlendX_DestAlpha_DestAlpha_Shift = 28,
-    kBlendX_DestAlpha_DestAlpha_Pos = 1u << kBlendX_DestAlpha_DestAlpha_Shift,
-    kBlendX_DestAlpha_DestAlpha_Neg = 3u << kBlendX_DestAlpha_DestAlpha_Shift,
-
-    // Y/W of the blend constant for the render target.
-
-    kBlendY_Src_ConstantColor_Shift = 0,
-    kBlendY_Src_ConstantColor_Pos = 1u << kBlendY_Src_ConstantColor_Shift,
-    kBlendY_Src_ConstantColor_Neg = 3u << kBlendY_Src_ConstantColor_Shift,
-    kBlendY_Src_ConstantAlpha_Shift = 2,
-    kBlendY_Src_ConstantAlpha_Pos = 1u << kBlendY_Src_ConstantAlpha_Shift,
-    kBlendY_Src_ConstantAlpha_Neg = 3u << kBlendY_Src_ConstantAlpha_Shift,
-
-    kBlendY_SrcAlpha_ConstantAlpha_Shift = 4,
-    kBlendY_SrcAlpha_ConstantAlpha_Pos =
-        1u << kBlendY_SrcAlpha_ConstantAlpha_Shift,
-    kBlendY_SrcAlpha_ConstantAlpha_Neg =
-        3u << kBlendY_SrcAlpha_ConstantAlpha_Shift,
-
-    kBlendY_Dest_ConstantColor_Shift = 6,
-    kBlendY_Dest_ConstantColor_Pos = 1u << kBlendY_Dest_ConstantColor_Shift,
-    kBlendY_Dest_ConstantColor_Neg = 3u << kBlendY_Dest_ConstantColor_Shift,
-    kBlendY_Dest_ConstantAlpha_Shift = 8,
-    kBlendY_Dest_ConstantAlpha_Pos = 1u << kBlendY_Dest_ConstantAlpha_Shift,
-    kBlendY_Dest_ConstantAlpha_Neg = 3u << kBlendY_Dest_ConstantAlpha_Shift,
-
-    kBlendY_DestAlpha_ConstantAlpha_Shift = 10,
-    kBlendY_DestAlpha_ConstantAlpha_Pos =
-        1u << kBlendY_DestAlpha_ConstantAlpha_Shift,
-    kBlendY_DestAlpha_ConstantAlpha_Neg =
-        3u << kBlendY_DestAlpha_ConstantAlpha_Shift,
-
-    // For addition/subtraction/inverse subtraction, but must be positive for
-    // min/max.
-    kBlendY_Src_OpSign_Shift = 12,
-    kBlendY_Src_OpSign_Pos = 1u << kBlendY_Src_OpSign_Shift,
-    kBlendY_Src_OpSign_Neg = 3u << kBlendY_Src_OpSign_Shift,
-    kBlendY_SrcAlpha_OpSign_Shift = 14,
-    kBlendY_SrcAlpha_OpSign_Pos = 1u << kBlendY_SrcAlpha_OpSign_Shift,
-    kBlendY_SrcAlpha_OpSign_Neg = 3u << kBlendY_SrcAlpha_OpSign_Shift,
-    kBlendY_Dest_OpSign_Shift = 16,
-    kBlendY_Dest_OpSign_Pos = 1u << kBlendY_Dest_OpSign_Shift,
-    kBlendY_Dest_OpSign_Neg = 3u << kBlendY_Dest_OpSign_Shift,
-    kBlendY_DestAlpha_OpSign_Shift = 18,
-    kBlendY_DestAlpha_OpSign_Pos = 1u << kBlendY_DestAlpha_OpSign_Shift,
-    kBlendY_DestAlpha_OpSign_Neg = 3u << kBlendY_DestAlpha_OpSign_Shift,
-
-    kBlendY_Color_OpMin_Shift = 20,
-    kBlendY_Color_OpMin = 1u << kBlendY_Color_OpMin_Shift,
-    kBlendY_Color_OpMax_Shift = 21,
-    kBlendY_Color_OpMax = 1u << kBlendY_Color_OpMax_Shift,
-    kBlendY_Alpha_OpMin_Shift = 22,
-    kBlendY_Alpha_OpMin = 1u << kBlendY_Alpha_OpMin_Shift,
-    kBlendY_Alpha_OpMax_Shift = 23,
-    kBlendY_Alpha_OpMax = 1u << kBlendY_Alpha_OpMax_Shift,
+    kRTFormatFlag_64bpp = 1u << kRTFormatFlag_64bpp_Shift,
+    kRTFormatFlag_FixedPointColor = 1u << kRTFormatFlag_FixedPointColor_Shift,
+    kRTFormatFlag_FixedPointAlpha = 1u << kRTFormatFlag_FixedPointAlpha_Shift,
   };
 
   // IF SYSTEM CONSTANTS ARE CHANGED OR ADDED, THE FOLLOWING MUST BE UPDATED:
@@ -357,7 +232,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
       float edram_poly_offset_back[2];
     };
 
-    uint32_t edram_resolution_scale_log2;
+    uint32_t edram_resolution_square_scale;
     uint32_t edram_stencil_reference;
     uint32_t edram_stencil_read_mask;
     uint32_t edram_stencil_write_mask;
@@ -384,56 +259,29 @@ class DxbcShaderTranslator : public ShaderTranslator {
       uint32_t edram_stencil_back[4];
     };
 
-    uint32_t edram_base_dwords[4];
+    uint32_t edram_rt_base_dwords_scaled[4];
 
-    // Binding and format info flags.
-    uint32_t edram_rt_flags[4];
+    // RT format combined with kRTFormatFlags.
+    uint32_t edram_rt_format_flags[4];
 
-    // Format info - widths of components in the lower 32 bits (for ibfe/bfi),
-    // packed as 8:8:8:8 for each render target.
-    uint32_t edram_rt_pack_width_low[4];
+    // Format info - values to clamp the color to before blending or storing.
+    // Low color, low alpha, high color, high alpha.
+    float edram_rt_clamp[4][4];
 
-    // Format info - offsets of components in the lower 32 bits (for ibfe/bfi),
-    // packed as 8:8:8:8 for each render target.
-    uint32_t edram_rt_pack_offset_low[4];
+    // Format info - mask to apply to the old packed RT data, and to apply as
+    // inverted to the new packed data, before storing (more or less the inverse
+    // of the write mask packed like render target channels). This can be used
+    // to bypass unpacking if blending is not used. If 0 and not blending,
+    // reading the old data from the EDRAM buffer is not required.
+    uint32_t edram_rt_keep_mask[4][2];
 
-    // Format info - widths of components in the upper 32 bits (for ibfe/bfi),
-    // packed as 8:8:8:8 for each render target.
-    uint32_t edram_rt_pack_width_high[4];
-
-    // Format info - offsets of components in the upper 32 bits (for ibfe/bfi),
-    // packed as 8:8:8:8 for each render target.
-    uint32_t edram_rt_pack_offset_high[4];
-
-    // Format info - mask of color and alpha after unpacking, but before float
-    // conversion. Primarily to differentiate between signed and unsigned
-    // formats because ibfe is used for both since k_16_16 and k_16_16_16_16 are
-    // signed.
-    uint32_t edram_load_mask_rt01_rt23[2][4];
-
-    // Format info - scale to apply to the color and the alpha of each render
-    // target after unpacking and converting.
-    float edram_load_scale_rt01_rt23[2][4];
-
-    // Render target blending options.
-    uint32_t edram_blend_rt01_rt23[2][4];
+    // Render target blending options - RB_BLENDCONTROL, with only the relevant
+    // options (factors and operations - AND 0x1FFF1FFF). If 0x00010001
+    // (1 * src + 0 * dst), blending is disabled for the render target.
+    uint32_t edram_rt_blend_factors_ops[4];
 
     // The constant blend factor for the respective modes.
     float edram_blend_constant[4];
-
-    // Format info - minimum color and alpha values (as float, before
-    // conversion) writable to the each render target. Integer so it's easier to
-    // write infinity.
-    uint32_t edram_store_min_rt01_rt23[2][4];
-
-    // Format info - maximum color and alpha values (as float, before
-    // conversion) writable to the each render target. Integer so it's easier to
-    // write infinity.
-    uint32_t edram_store_max_rt01_rt23[2][4];
-
-    // Format info - scale to apply to the color and the alpha of each render
-    // target before converting and packing.
-    float edram_store_scale_rt01_rt23[2][4];
   };
 
   // 192 textures at most because there are 32 fetch constants, and textures can
@@ -490,16 +338,38 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // overriding that alpha testing is used in the shader.
   static std::vector<uint8_t> ForceEarlyDepthStencil(const uint8_t* shader);
 
+  // Returns the format with internal flags for passing via the
+  // edram_rt_format_flags system constant.
+  static constexpr uint32_t ROV_AddColorFormatFlags(
+      ColorRenderTargetFormat format) {
+    uint32_t format_flags = uint32_t(format);
+    if (format == ColorRenderTargetFormat::k_16_16_16_16 ||
+        format == ColorRenderTargetFormat::k_16_16_16_16_FLOAT ||
+        format == ColorRenderTargetFormat::k_32_32_FLOAT) {
+      format_flags |= kRTFormatFlag_64bpp;
+    }
+    if (format == ColorRenderTargetFormat::k_8_8_8_8 ||
+        format == ColorRenderTargetFormat::k_8_8_8_8_GAMMA ||
+        format == ColorRenderTargetFormat::k_2_10_10_10 ||
+        format == ColorRenderTargetFormat::k_16_16 ||
+        format == ColorRenderTargetFormat::k_16_16_16_16 ||
+        format == ColorRenderTargetFormat::k_2_10_10_10_AS_10_10_10_10) {
+      format_flags |=
+          kRTFormatFlag_FixedPointColor | kRTFormatFlag_FixedPointAlpha;
+    } else if (format == ColorRenderTargetFormat::k_2_10_10_10_FLOAT ||
+               format ==
+                   ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16) {
+      format_flags |= kRTFormatFlag_FixedPointAlpha;
+    }
+    return format_flags;
+  }
   // Returns the bits that need to be added to the RT flags constant - needs to
   // be done externally, not in SetColorFormatConstants, because the flags
   // contain other state.
-  static uint32_t GetColorFormatRTFlags(ColorRenderTargetFormat format);
-  static void SetColorFormatSystemConstants(SystemConstants& constants,
-                                            uint32_t rt_index,
-                                            ColorRenderTargetFormat format);
-  // Returns whether blending should be done at all (not 1 * src + 0 * dest).
-  static bool GetBlendConstants(uint32_t blend_control, uint32_t& blend_x_out,
-                                uint32_t& blend_y_out);
+  static void ROV_GetColorFormatSystemConstants(
+      ColorRenderTargetFormat format, uint32_t write_mask, float& clamp_rgb_low,
+      float& clamp_alpha_low, float& clamp_rgb_high, float& clamp_alpha_high,
+      uint32_t& keep_mask_low, uint32_t& keep_mask_high);
 
   // Creates a special pixel shader without color outputs - this resets the
   // state of the translator.
@@ -547,6 +417,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kSysConst_VertexBaseIndex_Comp = 3,
 
     kSysConst_UserClipPlanes_Index = kSysConst_VertexBaseIndex_Index + 1,
+    // 6 vectors.
     kSysConst_UserClipPlanes_Vec = kSysConst_VertexBaseIndex_Vec + 1,
 
     kSysConst_NDCScale_Index = kSysConst_UserClipPlanes_Index + 1,
@@ -613,24 +484,25 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kSysConst_EDRAMPolyOffsetBackScale_Comp = 2,
     kSysConst_EDRAMPolyOffsetBackOffset_Comp = 3,
 
-    kSysConst_EDRAMResolutionScaleLog2_Index =
+    kSysConst_EDRAMResolutionSquareScale_Index =
         kSysConst_EDRAMPolyOffsetBack_Index + 1,
-    kSysConst_EDRAMResolutionScaleLog2_Vec =
+    kSysConst_EDRAMResolutionSquareScale_Vec =
         kSysConst_EDRAMPolyOffsetBack_Vec + 1,
-    kSysConst_EDRAMResolutionScaleLog2_Comp = 0,
+    kSysConst_EDRAMResolutionSquareScale_Comp = 0,
     kSysConst_EDRAMStencilReference_Index =
-        kSysConst_EDRAMResolutionScaleLog2_Index + 1,
+        kSysConst_EDRAMResolutionSquareScale_Index + 1,
     kSysConst_EDRAMStencilReference_Vec =
-        kSysConst_EDRAMResolutionScaleLog2_Vec,
+        kSysConst_EDRAMResolutionSquareScale_Vec,
     kSysConst_EDRAMStencilReference_Comp = 1,
     kSysConst_EDRAMStencilReadMask_Index =
         kSysConst_EDRAMStencilReference_Index + 1,
-    kSysConst_EDRAMStencilReadMask_Vec = kSysConst_EDRAMResolutionScaleLog2_Vec,
+    kSysConst_EDRAMStencilReadMask_Vec =
+        kSysConst_EDRAMResolutionSquareScale_Vec,
     kSysConst_EDRAMStencilReadMask_Comp = 2,
     kSysConst_EDRAMStencilWriteMask_Index =
         kSysConst_EDRAMStencilReadMask_Index + 1,
     kSysConst_EDRAMStencilWriteMask_Vec =
-        kSysConst_EDRAMResolutionScaleLog2_Vec,
+        kSysConst_EDRAMResolutionSquareScale_Vec,
     kSysConst_EDRAMStencilWriteMask_Comp = 3,
 
     kSysConst_EDRAMStencilFront_Index =
@@ -646,70 +518,32 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kSysConst_EDRAMStencilSide_Pass_Comp = 2,
     kSysConst_EDRAMStencilSide_Comparison_Comp = 3,
 
-    kSysConst_EDRAMBaseDwords_Index = kSysConst_EDRAMStencilBack_Index + 1,
-    kSysConst_EDRAMBaseDwords_Vec = kSysConst_EDRAMStencilBack_Vec + 1,
+    kSysConst_EDRAMRTBaseDwordsScaled_Index =
+        kSysConst_EDRAMStencilBack_Index + 1,
+    kSysConst_EDRAMRTBaseDwordsScaled_Vec = kSysConst_EDRAMStencilBack_Vec + 1,
 
-    kSysConst_EDRAMRTFlags_Index = kSysConst_EDRAMBaseDwords_Index + 1,
-    kSysConst_EDRAMRTFlags_Vec = kSysConst_EDRAMBaseDwords_Vec + 1,
+    kSysConst_EDRAMRTFormatFlags_Index =
+        kSysConst_EDRAMRTBaseDwordsScaled_Index + 1,
+    kSysConst_EDRAMRTFormatFlags_Vec =
+        kSysConst_EDRAMRTBaseDwordsScaled_Vec + 1,
 
-    kSysConst_EDRAMRTPackWidthLow_Index = kSysConst_EDRAMRTFlags_Index + 1,
-    kSysConst_EDRAMRTPackWidthLow_Vec = kSysConst_EDRAMRTFlags_Vec + 1,
+    kSysConst_EDRAMRTClamp_Index = kSysConst_EDRAMRTFormatFlags_Index + 1,
+    // 4 vectors.
+    kSysConst_EDRAMRTClamp_Vec = kSysConst_EDRAMRTFormatFlags_Vec + 1,
 
-    kSysConst_EDRAMRTPackOffsetLow_Index =
-        kSysConst_EDRAMRTPackWidthLow_Index + 1,
-    kSysConst_EDRAMRTPackOffsetLow_Vec = kSysConst_EDRAMRTPackWidthLow_Vec + 1,
+    kSysConst_EDRAMRTKeepMask_Index = kSysConst_EDRAMRTClamp_Index + 1,
+    // 2 vectors (render targets 01 and 23).
+    kSysConst_EDRAMRTKeepMask_Vec = kSysConst_EDRAMRTClamp_Vec + 4,
 
-    kSysConst_EDRAMRTPackWidthHigh_Index =
-        kSysConst_EDRAMRTPackOffsetLow_Index + 1,
-    kSysConst_EDRAMRTPackWidthHigh_Vec = kSysConst_EDRAMRTPackOffsetLow_Vec + 1,
+    kSysConst_EDRAMRTBlendFactorsOps_Index =
+        kSysConst_EDRAMRTKeepMask_Index + 1,
+    kSysConst_EDRAMRTBlendFactorsOps_Vec = kSysConst_EDRAMRTKeepMask_Vec + 2,
 
-    kSysConst_EDRAMRTPackOffsetHigh_Index =
-        kSysConst_EDRAMRTPackWidthHigh_Index + 1,
-    kSysConst_EDRAMRTPackOffsetHigh_Vec =
-        kSysConst_EDRAMRTPackWidthHigh_Vec + 1,
+    kSysConst_EDRAMBlendConstant_Index =
+        kSysConst_EDRAMRTBlendFactorsOps_Index + 1,
+    kSysConst_EDRAMBlendConstant_Vec = kSysConst_EDRAMRTBlendFactorsOps_Vec + 1,
 
-    kSysConst_EDRAMLoadMaskRT01_Index =
-        kSysConst_EDRAMRTPackOffsetHigh_Index + 1,
-    kSysConst_EDRAMLoadMaskRT01_Vec = kSysConst_EDRAMRTPackOffsetHigh_Vec + 1,
-
-    kSysConst_EDRAMLoadMaskRT23_Index = kSysConst_EDRAMLoadMaskRT01_Index + 1,
-    kSysConst_EDRAMLoadMaskRT23_Vec = kSysConst_EDRAMLoadMaskRT01_Vec + 1,
-
-    kSysConst_EDRAMLoadScaleRT01_Index = kSysConst_EDRAMLoadMaskRT23_Index + 1,
-    kSysConst_EDRAMLoadScaleRT01_Vec = kSysConst_EDRAMLoadMaskRT23_Vec + 1,
-
-    kSysConst_EDRAMLoadScaleRT23_Index = kSysConst_EDRAMLoadScaleRT01_Index + 1,
-    kSysConst_EDRAMLoadScaleRT23_Vec = kSysConst_EDRAMLoadScaleRT01_Vec + 1,
-
-    kSysConst_EDRAMBlendRT01_Index = kSysConst_EDRAMLoadScaleRT23_Index + 1,
-    kSysConst_EDRAMBlendRT01_Vec = kSysConst_EDRAMLoadScaleRT23_Vec + 1,
-
-    kSysConst_EDRAMBlendRT23_Index = kSysConst_EDRAMBlendRT01_Index + 1,
-    kSysConst_EDRAMBlendRT23_Vec = kSysConst_EDRAMBlendRT01_Vec + 1,
-
-    kSysConst_EDRAMBlendConstant_Index = kSysConst_EDRAMBlendRT23_Index + 1,
-    kSysConst_EDRAMBlendConstant_Vec = kSysConst_EDRAMBlendRT23_Vec + 1,
-
-    kSysConst_EDRAMStoreMinRT01_Index = kSysConst_EDRAMBlendConstant_Index + 1,
-    kSysConst_EDRAMStoreMinRT01_Vec = kSysConst_EDRAMBlendConstant_Vec + 1,
-
-    kSysConst_EDRAMStoreMinRT23_Index = kSysConst_EDRAMStoreMinRT01_Index + 1,
-    kSysConst_EDRAMStoreMinRT23_Vec = kSysConst_EDRAMStoreMinRT01_Vec + 1,
-
-    kSysConst_EDRAMStoreMaxRT01_Index = kSysConst_EDRAMStoreMinRT23_Index + 1,
-    kSysConst_EDRAMStoreMaxRT01_Vec = kSysConst_EDRAMStoreMinRT23_Vec + 1,
-
-    kSysConst_EDRAMStoreMaxRT23_Index = kSysConst_EDRAMStoreMaxRT01_Index + 1,
-    kSysConst_EDRAMStoreMaxRT23_Vec = kSysConst_EDRAMStoreMaxRT01_Vec + 1,
-
-    kSysConst_EDRAMStoreScaleRT01_Index = kSysConst_EDRAMStoreMaxRT23_Index + 1,
-    kSysConst_EDRAMStoreScaleRT01_Vec = kSysConst_EDRAMStoreMaxRT23_Vec + 1,
-
-    kSysConst_EDRAMStoreScaleRT23_Index =
-        kSysConst_EDRAMStoreScaleRT01_Index + 1,
-    kSysConst_EDRAMStoreScaleRT23_Vec = kSysConst_EDRAMStoreScaleRT01_Vec + 1,
-
-    kSysConst_Count = kSysConst_EDRAMStoreScaleRT23_Index + 1
+    kSysConst_Count = kSysConst_EDRAMBlendConstant_Index + 1
   };
   static_assert(kSysConst_Count <= 64,
                 "Too many system constants, can't use uint64_t for usage bits");
@@ -828,14 +662,69 @@ class DxbcShaderTranslator : public ShaderTranslator {
 
   // Allocates new consecutive r# registers for internal use and returns the
   // index of the first.
-  uint32_t PushSystemTemp(bool zero = false, uint32_t count = 1);
+  uint32_t PushSystemTemp(uint32_t zero_mask = 0, uint32_t count = 1);
   // Frees the last allocated internal r# registers for later reuse.
   void PopSystemTemp(uint32_t count = 1);
+
+  // Converts one scalar to or from PWL gamma, using 1 temporary scalar.
+  // The target may be the same as any of the source, the piece temporary or the
+  // accumulator, but not two or three of these.
+  // The piece and the accumulator can't be the same as source or as each other.
+  void ConvertPWLGamma(bool to_gamma, int32_t source_temp,
+                       uint32_t source_temp_component, uint32_t target_temp,
+                       uint32_t target_temp_component, uint32_t piece_temp,
+                       uint32_t piece_temp_component, uint32_t accumulator_temp,
+                       uint32_t accumulator_temp_component);
+
+  inline uint32_t ROV_GetEDRAMUAVIndex() const {
+    // xe_edram is U1 when there's xe_shared_memory_uav which is U0, but when
+    // there's no xe_shared_memory_uav, it's U0.
+    return is_depth_only_pixel_shader_ ? 0 : 1;
+  }
+  // Whether it's possible and worth skipping running the translated shader for
+  // 2x2 quads.
+  bool ROV_IsDepthStencilEarly() const {
+    return !is_depth_only_pixel_shader_ && !writes_depth();
+  }
+  // Does all the depth/stencil-related things, including or not including
+  // writing based on whether it's late, or on whether it's safe to do it early.
+  // Updates system_temp_rov_params_ result and coverage if allowed and safe,
+  // updates system_temp_rov_depth_stencil_, and if early and the coverage is
+  // empty for all pixels in the 2x2 quad and safe to return early (stencil is
+  // unchanged or known that it's safe not to await kills/alphatest/AtoC),
+  // returns from the shader.
+  void ROV_DepthStencilTest();
+  // Unpacks a 32bpp or a 64bpp color in packed_temp.packed_temp_components to
+  // color_temp, using 2 temporary VGPRs.
+  void ROV_UnpackColor(uint32_t rt_index, uint32_t packed_temp,
+                       uint32_t packed_temp_components, uint32_t color_temp,
+                       uint32_t temp1, uint32_t temp1_component, uint32_t temp2,
+                       uint32_t temp2_component);
+  // Packs a float32x4 color value to 32bpp or a 64bpp in color_temp to
+  // packed_temp.packed_temp_components, using 2 temporary VGPR. color_temp and
+  // packed_temp may be the same if packed_temp_components is 0.
+  void ROV_PackPreClampedColor(uint32_t rt_index, uint32_t color_temp,
+                               uint32_t packed_temp,
+                               uint32_t packed_temp_components, uint32_t temp1,
+                               uint32_t temp1_component, uint32_t temp2,
+                               uint32_t temp2_component);
+  // Emits a sequence of `case` labels for color blend factors, generating the
+  // factor from src_temp.rgb and dst_temp.rgb to factor_temp.rgb. factor_temp
+  // can be the same as src_temp or dst_temp.
+  void ROV_HandleColorBlendFactorCases(uint32_t src_temp, uint32_t dst_temp,
+                                       uint32_t factor_temp);
+  // Emits a sequence of `case` labels for alpha blend factors, generating the
+  // factor from src_temp.a and dst_temp.a to factor_temp.factor_component.
+  // factor_temp can be the same as src_temp or dst_temp.
+  void ROV_HandleAlphaBlendFactorCases(uint32_t src_temp, uint32_t dst_temp,
+                                       uint32_t factor_temp,
+                                       uint32_t factor_component);
 
   // Writing the prologue.
   void StartVertexShader_LoadVertexIndex();
   void StartVertexOrDomainShader();
   void StartDomainShader();
+  void StartPixelShader_LoadROVParameters();
   void StartPixelShader();
 
   // Writing the epilogue.
@@ -843,93 +732,69 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // multiple times.
   void ExportToMemory();
   void CompleteVertexOrDomainShader();
-  // Converts four depth values to 24-bit unorm or float, depending on the flag
-  // value.
-  void CompletePixelShader_DepthTo24Bit(uint32_t depths_temp);
-  // Applies the exponent bias from the constant to colors.
-  void CompletePixelShader_ApplyColorExpBias();
-  // This just converts the color output value from/to gamma space, not checking
-  // any conditions.
-  void CompletePixelShader_GammaCorrect(uint32_t color_temp, bool to_gamma);
+  // Applies the exponent bias from the constant to one color output.
+  void CompletePixelShader_ApplyColorExpBias(uint32_t rt_index);
   // Discards the SSAA sample if it fails alpha to coverage.
   void CompletePixelShader_WriteToRTVs_AlphaToCoverage();
   void CompletePixelShader_WriteToRTVs();
-  inline uint32_t GetEDRAMUAVIndex() const {
-    // xe_edram is U1 when there's xe_shared_memory_uav which is U0, but when
-    // there's no xe_shared_memory_uav, it's U0.
-    return is_depth_only_pixel_shader_ ? 0 : 1;
-  }
-  // Extracts the coverage from SV_Coverage and performs alpha to coverage if
-  // necessary. Does not perform any depth/stencil testing. For covered samples,
-  // writes a non-zero component, for non-covered, writes 0. Discards the pixel
-  // if no coverage.
-  void CompletePixelShader_WriteToROV_GetCoverage(uint32_t coverage_out_temp);
-  // Performs depth/stencil testing. coverage_in_out_temp should contain the
-  // coverage mask obtained from CompletePixelShader_WriteToROV_GetCoverage to
-  // indicate which samples need to be depth/stencil-tested, and after the
-  // execution contains which covered samples have passed the depth/stencil test
-  // (non-zero components where covered, zero where not covered or failed the
-  // test).
-  //
-  // edram_dword_offset_temp.x must contain the address of the first
-  // depth/stencil sample - .yzw will be overwritten by this function with the
-  // addresses for the other samples if depth/stencil is enabled.
-  void CompletePixelShader_WriteToROV_DepthStencil(
-      uint32_t edram_dword_offset_temp, uint32_t coverage_in_out_temp);
-  // Extracts widths and offsets of the components in the lower or the upper
-  // dword of a pixel from the format constants, for use as ibfe and bfi
-  // operands later.
-  void CompletePixelShader_WriteToROV_ExtractPackLayout(uint32_t rt_index,
-                                                        bool high,
-                                                        uint32_t width_temp,
-                                                        uint32_t offset_temp);
-  // Components of rt_format_flags_temp.
-  enum : uint32_t {
-    kROVRTFormatFlagTemp_ColorFixed,
-    kROVRTFormatFlagTemp_AlphaFixed,
-    kROVRTFormatFlagTemp_Float10,
-    kROVRTFormatFlagTemp_Float16,
-
-    kROVRTFormatFlagTemp_Fixed_Swizzle =
-        kROVRTFormatFlagTemp_ColorFixed * 0b00010101 +
-        kROVRTFormatFlagTemp_AlphaFixed * 0b01000000,
-  };
-  void CompletePixelShader_WriteToROV_UnpackColor(
-      uint32_t data_low_temp, uint32_t data_high_temp, uint32_t data_component,
-      uint32_t rt_index, uint32_t rt_format_flags_temp, uint32_t target_temp);
-  // Clamps the color to the range representable by the render target's format.
-  // Will also remove NaN since min and max return the non-NaN value.
-  // color_in_temp and color_out_temp may be the same.
-  void CompletePixelShader_WriteToROV_ClampColor(uint32_t rt_index,
-                                                 uint32_t color_in_temp,
-                                                 uint32_t color_out_temp);
-  // Extracts 0.0 or plus/minus 1.0 from a blend constant. For example, it can
-  // be used to extract one scale for color and alpha into XY, and another scale
-  // for color and alpha into ZW. constant_swizzle is a bit mask indicating
-  // which part of the blend constant for the render target to extract the scale
-  // from, 0b00000000 for X/Z only, 0b01010101 for Y/W only, 0b00000001 for X/Z
-  // in the first component, Y/W in the rest (XY changed to ZW automatically
-  // according to the render target index - don't set the higher bit).
-  void CompletePixelShader_WriteToROV_ExtractBlendScales(
-      uint32_t rt_index, uint32_t constant_swizzle, bool is_signed,
-      uint32_t shift_x, uint32_t shift_y, uint32_t shift_z, uint32_t shift_w,
-      uint32_t target_temp, uint32_t write_mask = 0b1111);
-  void CompletePixelShader_WriteToROV_ApplyZeroBlendScale(
-      uint32_t scale_temp, uint32_t scale_swizzle, uint32_t factor_in_temp,
-      uint32_t factor_swizzle, uint32_t factor_out_temp,
-      uint32_t write_mask = 0b1111);
-  void CompletePixelShader_WriteToROV_Blend(uint32_t rt_index,
-                                            uint32_t rt_format_flags_temp,
-                                            uint32_t src_color_and_output_temp,
-                                            uint32_t dest_color_temp);
-  // Assumes the incoming color is already clamped to the range representable by
-  // the RT format.
-  void CompletePixelShader_WriteToROV_PackColor(
-      uint32_t data_low_temp, uint32_t data_high_temp, uint32_t data_component,
-      uint32_t rt_index, uint32_t rt_format_flags_temp,
-      uint32_t source_and_scratch_temp);
+  // Returns if coverage in system_temp_rov_params_.x is empty.
+  void CompletePixelShader_ROV_CheckAnyCovered(
+      bool check_deferred_stencil_write, uint32_t temp,
+      uint32_t temp_component);
+  // Masks the sample away from system_temp_rov_params_.x if it's not covered.
+  void CompletePixelShader_ROV_AlphaToCoverageSample(uint32_t sample_index,
+                                                     float threshold,
+                                                     uint32_t temp,
+                                                     uint32_t temp_component);
+  // Performs alpha to coverage if necessary, updating the low (coverage) bits
+  // of system_temp_.
+  void CompletePixelShader_ROV_AlphaToCoverage();
   void CompletePixelShader_WriteToROV();
   void CompletePixelShader();
+
+  // Writes a function that converts depth to 24 bits, putting it in 0:23, not
+  // creating space for stencil (ROV only).
+  // Input:
+  // - system_temps_subroutine_[0].x - Z/W + polygon offset at sample.
+  // Output:
+  // - system_temps_subroutine_[0].x - 24-bit depth.
+  // Local temps:
+  // - system_temps_subroutine_[0].y.
+  void CompleteShaderCode_ROV_DepthTo24BitSubroutine();
+  // Writes a function that does early (or both early and late, when not
+  // separating) depth/stencil testing for one sample (ROV only).
+  // Input:
+  // - system_temps_subroutine_[0].x - depth converted to 24 bits in bits 0:23.
+  // - system_temp_rov_params_.y - depth sample EDRAM address.
+  // Output:
+  // - system_temps_subroutine_[0].x - resulting packed depth/stencil.
+  // - system_temps_subroutine_[0].y - test result, bit 0 if test FAILED (so
+  //   coverage can be updated with XOR), and if depth/stencil is early, also
+  //   bit 4 if the pixel shader still needs to be done to check for
+  //   kills/alphatest/AtoC before writing the new stencil.
+  // Local temps:
+  // - system_temps_subroutine_[0].zw.
+  // - system_temps_subroutine_[1].xy.
+  void CompleteShaderCode_ROV_DepthStencilSampleSubroutine();
+  // Writes a function that does loading, blending, write masking and storing
+  // for one color sample of the specified render target.
+  // Input:
+  // - system_temps_subroutine_[0].xy:
+  //   - If not blending, packed source color (will be masked by the function).
+  //   - If blending, used as a temporary.
+  // - system_temp_rov_params_.zw - color sample 32bpp and 64bpp EDRAM
+  //   addresses.
+  // - system_temps_color_[rt_index]:
+  //   - If blending (blend control is 0x00010001), source color clamped to the
+  //     render target's representable range if it's fixed-point, unclamped
+  //     source color if it's floating-point, not modified.
+  //   - If not blending, ignored.
+  // Local temps:
+  // - system_temps_subroutine_[0].zw.
+  // - system_temps_subroutine_[1].xyzw.
+  // - system_temps_subroutine_[2].xyz.
+  // - system_temps_subroutine_[3].xyz.
+  void CompleteShaderCode_ROV_ColorSampleSubroutine(uint32_t rt_index);
   void CompleteShaderCode();
 
   // Writes the original instruction disassembly in the output DXBC if enabled,
@@ -1107,10 +972,14 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kUint,
     kUint2,
     kUint4,
+    // Render target clamping ranges.
+    kFloat4Array4,
     // User clip planes.
     kFloat4Array6,
     // Float constants - size written dynamically.
     kFloat4ConstantArray,
+    // Render target keep masks.
+    kUint4Array2,
     // Bool constants.
     kUint4Array8,
     // Loop constants.
@@ -1175,30 +1044,59 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // indices are written).
   std::vector<uint32_t> float_constant_index_offsets_;
 
+  // Subroutine labels. D3D10_SB_OPCODE_LABEL is not counted as an instruction
+  // in STAT.
+  uint32_t label_rov_depth_to_24bit_;
+  uint32_t label_rov_depth_stencil_sample_;
+  uint32_t label_rov_color_sample_[4];
+
   // Number of currently allocated Xenia internal r# registers.
   uint32_t system_temp_count_current_;
   // Total maximum number of temporary registers ever used during this
   // translation (for the declaration).
   uint32_t system_temp_count_max_;
 
+  // Registers for the needed count of non-main-subroutine-local variables.
+  // This includes arguments.
+  uint32_t system_temps_subroutine_;
+  // Number of registers allocated for subroutines other than main.
+  uint32_t system_temps_subroutine_count_;
+
   // Position in vertex shaders (because viewport and W transformations can be
   // applied in the end of the shader).
   uint32_t system_temp_position_;
-
-  // 4 color outputs in pixel shaders (because of exponent bias, alpha test and
-  // remapping, and also for ROV writing).
-  uint32_t system_temps_color_;
-  // Whether the color output has been written in the execution path (ROV only).
-  uint32_t system_temp_color_written_;
-  // Depth value (ROV only). The meaning depends on whether the shader writes to
-  // depth.
-  // If depth is written to:
-  // - X - the value that was written to oDepth.
-  // If not:
-  // - X - clip space Z / clip space W from the respective pixel shader input.
-  // - Y - depth X derivative (for polygon offset).
-  // - Z - depth Y derivative.
-  uint32_t system_temp_depth_;
+  // ROV only - 4 persistent VGPRs when writing to color targets, 2 VGPRs when
+  // not:
+  // X - Bit masks:
+  // 0:3 - Per-sample coverage at the current stage of the shader's execution.
+  //       Affected by things like SV_Coverage, early or late depth/stencil
+  //       (always resets bits for failing, no matter if need to defer writing),
+  //       alpha to coverage.
+  // 4:7 - Depth write deferred mask - when early depth/stencil resulted in a
+  //       different value for the sample (like different stencil if the test
+  //       failed), but can't write it before running the shader because it's
+  //       not known if the sample will be discarded by the shader, alphatest or
+  //       AtoC.
+  // Early depth/stencil rejection of the pixel is possible when both 0:3 and
+  // 4:7 are zero.
+  // 8:11 - Whether color buffers have been written to, if not written on the
+  //        taken execution path, don't export according to Direct3D 9 register
+  //        documentation (some games rely on this behavior).
+  // Y - Absolute resolution-scaled EDRAM offset for depth/stencil, in dwords.
+  // Z - Base-relative resolution-scaled EDRAM offset for 32bpp color data, in
+  //     dwords.
+  // W - Base-relative resolution-scaled EDRAM offset for 64bpp color data, in
+  //     dwords.
+  uint32_t system_temp_rov_params_;
+  // ROV only - new depth/stencil data. 4 VGPRs.
+  // When not writing to oDepth: New per-sample depth/stencil values, generated
+  // during early depth/stencil test (actual writing checks coverage bits).
+  // When writing to oDepth: X also used to hold the depth written by the
+  // shader, later used as a temporary during depth/stencil testing.
+  uint32_t system_temp_rov_depth_stencil_;
+  // Up to 4 color outputs in pixel shaders (because of exponent bias, alpha
+  // test and remapping, and also for ROV writing).
+  uint32_t system_temps_color_[4];
 
   // Bits containing whether each eM# has been written, for up to 16 streams, or
   // UINT32_MAX if memexport is not used. 8 bits (5 used) for each stream, with

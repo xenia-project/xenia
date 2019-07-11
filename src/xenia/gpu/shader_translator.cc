@@ -65,7 +65,7 @@ void ShaderTranslator::Reset() {
     writes_color_targets_[i] = false;
   }
   writes_depth_ = false;
-  early_z_allowed_ = true;
+  implicit_early_z_allowed_ = true;
   memexport_alloc_count_ = 0;
   memexport_eA_written_ = 0;
   std::memset(&memexport_eM_written_, 0, sizeof(memexport_eM_written_));
@@ -155,6 +155,12 @@ bool ShaderTranslator::TranslateInternal(Shader* shader) {
   if (memexport_eA_written_ == 0) {
     memexport_stream_constants_.clear();
   }
+  if (!memexport_stream_constants_.empty()) {
+    // TODO(Triang3l): Investigate what happens to memexport when the pixel
+    // fails the depth/stencil test, but in Direct3D 11 UAV writes disable early
+    // depth/stencil.
+    implicit_early_z_allowed_ = false;
+  }
 
   StartTranslation();
 
@@ -190,7 +196,8 @@ bool ShaderTranslator::TranslateInternal(Shader* shader) {
   for (size_t i = 0; i < xe::countof(writes_color_targets_); ++i) {
     shader->writes_color_targets_[i] = writes_color_targets_[i];
   }
-  shader->early_z_allowed_ = early_z_allowed_;
+  shader->writes_depth_ = writes_depth_;
+  shader->implicit_early_z_allowed_ = implicit_early_z_allowed_;
   shader->memexport_stream_constants_.clear();
   for (uint32_t memexport_stream_constant : memexport_stream_constants_) {
     shader->memexport_stream_constants_.push_back(memexport_stream_constant);
@@ -290,7 +297,7 @@ void ShaderTranslator::GatherInstructionInformation(
           if (op.has_vector_op()) {
             const auto& opcode_info =
                 alu_vector_opcode_infos_[static_cast<int>(op.vector_opcode())];
-            early_z_allowed_ &= !opcode_info.disable_early_z;
+            implicit_early_z_allowed_ &= !opcode_info.disable_implicit_early_z;
             for (size_t i = 0; i < opcode_info.argument_count; ++i) {
               if (op.src_is_temp(i + 1) && (op.src_reg(i + 1) & 0x40)) {
                 uses_register_dynamic_addressing_ = true;
@@ -302,7 +309,7 @@ void ShaderTranslator::GatherInstructionInformation(
                   writes_color_targets_[op.vector_dest()] = true;
                 } else if (op.vector_dest() == 61) {
                   writes_depth_ = true;
-                  early_z_allowed_ = false;
+                  implicit_early_z_allowed_ = false;
                 }
               }
               if (memexport_alloc_count_ > 0 &&
@@ -339,7 +346,7 @@ void ShaderTranslator::GatherInstructionInformation(
           if (op.has_scalar_op()) {
             const auto& opcode_info =
                 alu_scalar_opcode_infos_[static_cast<int>(op.scalar_opcode())];
-            early_z_allowed_ &= !opcode_info.disable_early_z;
+            implicit_early_z_allowed_ &= !opcode_info.disable_implicit_early_z;
             if (opcode_info.argument_count == 1 && op.src_is_temp(3) &&
                 (op.src_reg(3) & 0x40)) {
               uses_register_dynamic_addressing_ = true;
@@ -350,7 +357,7 @@ void ShaderTranslator::GatherInstructionInformation(
                   writes_color_targets_[op.scalar_dest()] = true;
                 } else if (op.scalar_dest() == 61) {
                   writes_depth_ = true;
-                  early_z_allowed_ = false;
+                  implicit_early_z_allowed_ = false;
                 }
               }
               if (memexport_alloc_count_ > 0 &&
