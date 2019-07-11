@@ -186,12 +186,16 @@ void DeferredCommandList::Execute(ID3D12GraphicsCommandList* command_list,
       case Command::kD3DSetPipelineState: {
         current_pipeline_state =
             *reinterpret_cast<ID3D12PipelineState* const*>(stream);
-        command_list->SetPipelineState(current_pipeline_state);
+        if (current_pipeline_state) {
+          command_list->SetPipelineState(current_pipeline_state);
+        }
       } break;
       case Command::kSetPipelineStateHandle: {
         current_pipeline_state = command_processor_->GetPipelineStateByHandle(
             *reinterpret_cast<void* const*>(stream));
-        command_list->SetPipelineState(current_pipeline_state);
+        if (current_pipeline_state) {
+          command_list->SetPipelineState(current_pipeline_state);
+        }
       } break;
       case Command::kD3DSetSamplePositions: {
         if (command_list_1 != nullptr) {

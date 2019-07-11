@@ -35,7 +35,7 @@ cbuffer xe_system_cbuffer : register(b0) {
   float2 xe_edram_poly_offset_front;
   float2 xe_edram_poly_offset_back;
 
-  uint xe_edram_resolution_scale_log2;
+  uint xe_edram_resolution_square_scale;
   uint xe_edram_stencil_reference;
   uint xe_edram_stencil_read_mask;
   uint xe_edram_stencil_write_mask;
@@ -44,43 +44,17 @@ cbuffer xe_system_cbuffer : register(b0) {
 
   uint4 xe_edram_stencil_back;
 
-  uint4 xe_edram_base_dwords;
+  uint4 xe_edram_rt_base_dwords_scaled;
 
-  uint4 xe_edram_rt_flags;
+  uint4 xe_edram_rt_format_flags;
 
-  uint4 xe_edram_rt_pack_width_low;
+  float4 xe_edram_rt_clamp[4];
 
-  uint4 xe_edram_rt_pack_offset_low;
+  uint4 xe_edram_rt_keep_mask[2];
 
-  uint4 xe_edram_rt_pack_width_high;
-
-  uint4 xe_edram_rt_pack_offset_high;
-
-  uint4 xe_edram_load_mask_rt01;
-
-  uint4 xe_edram_load_mask_rt23;
-
-  float4 xe_edram_load_scale_rt01;
-
-  float4 xe_edram_load_scale_rt23;
-
-  uint4 xe_edram_blend_rt01;
-
-  uint4 xe_edram_blend_rt23;
+  uint4 xe_edram_rt_blend_factors_ops;
 
   float4 xe_edram_blend_constant;
-
-  float4 xe_edram_store_min_rt01;
-
-  float4 xe_edram_store_min_rt23;
-
-  float4 xe_edram_store_max_rt01;
-
-  float4 xe_edram_store_max_rt23;
-
-  float4 xe_edram_store_scale_rt01;
-
-  float4 xe_edram_store_scale_rt23;
 };
 
 struct XeVertex {

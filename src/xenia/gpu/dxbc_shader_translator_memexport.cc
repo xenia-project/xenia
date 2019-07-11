@@ -78,22 +78,46 @@ void DxbcShaderTranslator::ExportToMemory() {
   if (IsDxbcPixelShader()) {
     // Disable memexport in pixel shaders with supersampling since VPOS is
     // ambiguous.
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(11));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-    shader_code_.push_back(control_temp);
     if (edram_rov_used_) {
       system_constants_used_ |= 1ull
-                                << kSysConst_EDRAMResolutionScaleLog2_Index;
+                                << kSysConst_EDRAMResolutionSquareScale_Index;
+      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_UGE) |
+                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
+      shader_code_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0010, 1));
+      shader_code_.push_back(control_temp);
       shader_code_.push_back(EncodeVectorSelectOperand(
           D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
-          kSysConst_EDRAMResolutionScaleLog2_Comp, 3));
+          kSysConst_EDRAMResolutionSquareScale_Comp, 3));
+      shader_code_.push_back(
+          EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+      shader_code_.push_back(1);
       shader_code_.push_back(cbuffer_index_system_constants_);
       shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-      shader_code_.push_back(kSysConst_EDRAMResolutionScaleLog2_Vec);
+      shader_code_.push_back(kSysConst_EDRAMResolutionSquareScale_Vec);
+      ++stat_.instruction_count;
+      ++stat_.uint_instruction_count;
+
+      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
+                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+      shader_code_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+      shader_code_.push_back(control_temp);
+      shader_code_.push_back(
+          EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
+      shader_code_.push_back(control_temp);
+      shader_code_.push_back(
+          EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
+      shader_code_.push_back(control_temp);
+      ++stat_.instruction_count;
+      ++stat_.uint_instruction_count;
     } else {
       system_constants_used_ |= 1ull << kSysConst_SampleCountLog2_Index;
+      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
+                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(11));
+      shader_code_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+      shader_code_.push_back(control_temp);
       // Enough to check just Y because it's scaled for both 2x and 4x.
       shader_code_.push_back(
           EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
@@ -101,15 +125,15 @@ void DxbcShaderTranslator::ExportToMemory() {
       shader_code_.push_back(cbuffer_index_system_constants_);
       shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
       shader_code_.push_back(kSysConst_SampleCountLog2_Vec);
+      shader_code_.push_back(
+          EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+      shader_code_.push_back(0);
+      shader_code_.push_back(
+          EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
+      shader_code_.push_back(control_temp);
+      ++stat_.instruction_count;
+      ++stat_.movc_instruction_count;
     }
-    shader_code_.push_back(
-        EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-    shader_code_.push_back(0);
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-    shader_code_.push_back(control_temp);
-    ++stat_.instruction_count;
-    ++stat_.movc_instruction_count;
   }
 
   // Check if memexport can be done.
@@ -1238,7 +1262,7 @@ void DxbcShaderTranslator::ExportToMemory() {
 
     // Extract the mask of eM register actually written to on the execution
     // path.
-    uint32_t eM_written_temps = PushSystemTemp(false, eM_count > 4 ? 2 : 1);
+    uint32_t eM_written_temps = PushSystemTemp(0, eM_count > 4 ? 2 : 1);
     shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
                            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(10));
     shader_code_.push_back(EncodeVectorMaskedOperand(

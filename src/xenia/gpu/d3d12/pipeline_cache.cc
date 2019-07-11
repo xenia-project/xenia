@@ -61,10 +61,12 @@ namespace d3d12 {
 #include "xenia/gpu/d3d12/shaders/dxbc/tessellation_triangle_vs.h"
 
 PipelineCache::PipelineCache(D3D12CommandProcessor* command_processor,
-                             RegisterFile* register_file, bool edram_rov_used)
+                             RegisterFile* register_file, bool edram_rov_used,
+                             uint32_t resolution_scale)
     : command_processor_(command_processor),
       register_file_(register_file),
-      edram_rov_used_(edram_rov_used) {
+      edram_rov_used_(edram_rov_used),
+      resolution_scale_(resolution_scale) {
   auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
 
   shader_translator_ = std::make_unique<DxbcShaderTranslator>(
@@ -219,7 +221,7 @@ bool PipelineCache::EnsureShadersTranslated(D3D12Shader* vertex_shader,
 
 bool PipelineCache::ConfigurePipeline(
     D3D12Shader* vertex_shader, D3D12Shader* pixel_shader,
-    PrimitiveType primitive_type, IndexFormat index_format,
+    PrimitiveType primitive_type, IndexFormat index_format, bool early_z,
     const RenderTargetCache::PipelineRenderTarget render_targets[5],
     void** pipeline_handle_out, ID3D12RootSignature** root_signature_out) {
 #if FINE_GRAINED_DRAW_SCOPES
@@ -231,7 +233,8 @@ bool PipelineCache::ConfigurePipeline(
 
   PipelineDescription description;
   if (!GetCurrentStateDescription(vertex_shader, pixel_shader, primitive_type,
-                                  index_format, render_targets, description)) {
+                                  index_format, early_z, render_targets,
+                                  description)) {
     return false;
   }
 
@@ -329,10 +332,11 @@ bool PipelineCache::TranslateShader(D3D12Shader* shader,
              shader->ucode_disassembly().c_str());
   }
 
-  // If may be useful, create a version of the shader with early depth/stencil
-  // forced.
+  // Create a version of the shader with early depth/stencil forced by Xenia
+  // itself when it's safe to do so or when EARLY_Z_ENABLE is set in
+  // RB_DEPTHCONTROL.
   if (shader->type() == ShaderType::kPixel && !edram_rov_used_ &&
-      shader->early_z_allowed()) {
+      !shader->writes_depth()) {
     shader->SetForcedEarlyZShaderObject(
         std::move(DxbcShaderTranslator::ForceEarlyDepthStencil(
             shader->translated_binary().data())));
@@ -357,7 +361,7 @@ bool PipelineCache::TranslateShader(D3D12Shader* shader,
 
 bool PipelineCache::GetCurrentStateDescription(
     D3D12Shader* vertex_shader, D3D12Shader* pixel_shader,
-    PrimitiveType primitive_type, IndexFormat index_format,
+    PrimitiveType primitive_type, IndexFormat index_format, bool early_z,
     const RenderTargetCache::PipelineRenderTarget render_targets[5],
     PipelineDescription& description_out) {
   auto& regs = *register_file_;
@@ -537,19 +541,13 @@ bool PipelineCache::GetCurrentStateDescription(
     } else {
       poly_offset *= float(1 << 23);
     }
-    // Reversed depth is emulated in vertex shaders because MinDepth > MaxDepth
-    // in viewports doesn't seem to work on Nvidia.
-    if ((regs[XE_GPU_REG_PA_CL_VTE_CNTL].u32 & (1 << 4)) &&
-        regs[XE_GPU_REG_PA_CL_VPORT_ZSCALE].f32 < 0.0f) {
-      poly_offset = -poly_offset;
-      poly_offset_scale = -poly_offset_scale;
-    }
     // Using ceil here just in case a game wants the offset but passes a value
     // that is too small - it's better to apply more offset than to make depth
     // fighting worse or to disable the offset completely (Direct3D 12 takes an
     // integer value).
     description_out.depth_bias = int32_t(std::ceil(std::abs(poly_offset))) *
                                  (poly_offset < 0.0f ? -1 : 1);
+    // "slope computed in subpixels (1/12 or 1/16)" - R5xx Acceleration.
     description_out.depth_bias_slope_scaled =
         poly_offset_scale * (1.0f / 16.0f);
   }
@@ -624,16 +622,7 @@ bool PipelineCache::GetCurrentStateDescription(
     } else {
       description_out.depth_func = 0b111;
     }
-
-    // Forced early Z if the shader allows that and alpha testing and alpha to
-    // coverage are disabled.
-    // TODO(Triang3l): For memexporting shaders, possibly choose this according
-    // to the early Z toggle in RB_DEPTHCONTROL (the correct behavior is still
-    // unknown).
-    if (pixel_shader != nullptr &&
-        pixel_shader->GetForcedEarlyZShaderObject().size() != 0 &&
-        (!(rb_colorcontrol & 0x8) || (rb_colorcontrol & 0x7) == 0x7) &&
-        !(rb_colorcontrol & 0x10)) {
+    if (early_z) {
       description_out.force_early_z = 1;
     }
 
@@ -932,7 +921,7 @@ ID3D12PipelineState* PipelineCache::CreatePipelineState(
   state_desc.RasterizerState.DepthBias = description.depth_bias;
   state_desc.RasterizerState.DepthBiasClamp = 0.0f;
   state_desc.RasterizerState.SlopeScaledDepthBias =
-      description.depth_bias_slope_scaled;
+      description.depth_bias_slope_scaled * float(resolution_scale_);
   state_desc.RasterizerState.DepthClipEnable =
       description.depth_clip ? TRUE : FALSE;
   if (edram_rov_used_) {
