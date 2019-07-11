@@ -153,7 +153,10 @@ FileMappingHandle CreateFileMappingHandle(const std::filesystem::path& path,
                             static_cast<DWORD>(length), full_path.c_str());
 }
 
-void CloseFileMappingHandle(FileMappingHandle handle) { CloseHandle(handle); }
+void CloseFileMappingHandle(FileMappingHandle handle,
+                            const std::filesystem::path& path) {
+  CloseHandle(handle);
+}
 
 void* MapFileView(FileMappingHandle handle, void* base_address, size_t length,
                   PageAccess access, size_t file_offset) {

@@ -422,7 +422,7 @@ TEST_CASE("create_and_close_file_mapping", "Virtual Memory Mapping") {
   auto memory = xe::memory::CreateFileMappingHandle(
       path, 0x100, xe::memory::PageAccess::kReadWrite, true);
   REQUIRE(memory);
-  xe::memory::CloseFileMappingHandle(memory);
+  xe::memory::CloseFileMappingHandle(memory, path);
 }
 
 TEST_CASE("map_view", "Virtual Memory Mapping") {
@@ -439,7 +439,7 @@ TEST_CASE("map_view", "Virtual Memory Mapping") {
   REQUIRE(reinterpret_cast<uintptr_t>(view) == address);
 
   xe::memory::UnmapFileView(memory, reinterpret_cast<void*>(address), length);
-  xe::memory::CloseFileMappingHandle(memory);
+  xe::memory::CloseFileMappingHandle(memory, path);
 }
 
 TEST_CASE("read_write_view", "Virtual Memory Mapping") {
@@ -466,7 +466,7 @@ TEST_CASE("read_write_view", "Virtual Memory Mapping") {
   }
 
   xe::memory::UnmapFileView(memory, reinterpret_cast<void*>(address), length);
-  xe::memory::CloseFileMappingHandle(memory);
+  xe::memory::CloseFileMappingHandle(memory, path);
 }
 
 }  // namespace test
