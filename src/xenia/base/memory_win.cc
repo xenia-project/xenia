@@ -147,9 +147,10 @@ FileMappingHandle CreateFileMappingHandle(const std::filesystem::path& path,
                                           bool commit) {
   DWORD protect =
       ToWin32ProtectFlags(access) | (commit ? SEC_COMMIT : SEC_RESERVE);
+  auto full_path = "Local" / path;
   return CreateFileMappingW(INVALID_HANDLE_VALUE, NULL, protect,
                             static_cast<DWORD>(length >> 32),
-                            static_cast<DWORD>(length), path.c_str());
+                            static_cast<DWORD>(length), full_path.c_str());
 }
 
 void CloseFileMappingHandle(FileMappingHandle handle) { CloseHandle(handle); }
