@@ -1308,7 +1308,7 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
   } else if (!pixel_shader->writes_depth()) {
     if (rb_depthcontrol & 0x8) {
       early_z = true;
-    } else {
+    } else if (pixel_shader->implicit_early_z_allowed()) {
       early_z = (!(rb_colorcontrol & 0x8) || (rb_colorcontrol & 0x7) == 0x7) &&
                 !(rb_colorcontrol & 0x10);
     }
