@@ -115,7 +115,7 @@ Memory::~Memory() {
   // Unmap all views and close mapping.
   if (mapping_) {
     UnmapViews();
-    xe::memory::CloseFileMappingHandle(mapping_);
+    xe::memory::CloseFileMappingHandle(mapping_, file_name_);
     mapping_base_ = nullptr;
     mapping_ = nullptr;
   }
