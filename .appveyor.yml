@@ -12,6 +12,7 @@ skip_commits:
     - .github/*
     - LICENSE
     - README.md
+    - .azure-pipelines.yml
     - .travis.yml
 
 skip_branch_with_pr: true
