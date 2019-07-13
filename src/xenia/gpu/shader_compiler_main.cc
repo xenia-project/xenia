@@ -115,11 +115,11 @@ int shader_compiler_main(const std::vector<std::wstring>& args) {
   PrimitiveType patch_primitive_type = PrimitiveType::kNone;
   if (shader_type == ShaderType::kVertex) {
     if (FLAGS_shader_output_patch == "line") {
-      patch_primitive_type == PrimitiveType::kLinePatch;
+      patch_primitive_type = PrimitiveType::kLinePatch;
     } else if (FLAGS_shader_output_patch == "triangle") {
-      patch_primitive_type == PrimitiveType::kTrianglePatch;
+      patch_primitive_type = PrimitiveType::kTrianglePatch;
     } else if (FLAGS_shader_output_patch == "quad") {
-      patch_primitive_type == PrimitiveType::kQuadPatch;
+      patch_primitive_type = PrimitiveType::kQuadPatch;
     }
   }
 
