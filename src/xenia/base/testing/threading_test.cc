@@ -849,6 +849,41 @@ TEST_CASE("Test Suspending Thread", "Thread") {
   thread->Resume();
   result = threading::Wait(thread.get(), false, 50ms);
   REQUIRE(result == threading::WaitResult::kSuccess);
+
+  // Test recursive suspend
+  thread = threading::Thread::Create(params, func);
+  thread->Suspend();
+  thread->Suspend();
+  result = threading::Wait(thread.get(), false, 50ms);
+  REQUIRE(result == threading::WaitResult::kTimeout);
+  thread->Resume();
+  result = threading::Wait(thread.get(), false, 50ms);
+  REQUIRE(result == threading::WaitResult::kTimeout);
+  thread->Resume();
+  result = threading::Wait(thread.get(), false, 50ms);
+  REQUIRE(result == threading::WaitResult::kSuccess);
+
+  // Test suspend count
+  uint32_t suspend_count = 0;
+  thread = threading::Thread::Create(params, func);
+  thread->Suspend(&suspend_count);
+  REQUIRE(suspend_count == 0);
+  thread->Suspend(&suspend_count);
+  REQUIRE(suspend_count == 1);
+  thread->Suspend(&suspend_count);
+  REQUIRE(suspend_count == 2);
+  thread->Resume(&suspend_count);
+  REQUIRE(suspend_count == 3);
+  thread->Resume(&suspend_count);
+  REQUIRE(suspend_count == 2);
+  thread->Resume(&suspend_count);
+  REQUIRE(suspend_count == 1);
+  thread->Suspend(&suspend_count);
+  REQUIRE(suspend_count == 0);
+  thread->Resume(&suspend_count);
+  REQUIRE(suspend_count == 1);
+  result = threading::Wait(thread.get(), false, 50ms);
+  REQUIRE(result == threading::WaitResult::kSuccess);
 }
 
 TEST_CASE("Test Thread QueueUserCallback", "Thread") {

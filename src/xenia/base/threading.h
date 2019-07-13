@@ -389,7 +389,7 @@ class Thread : public WaitHandle {
 
   // Decrements a thread's suspend count. When the suspend count is decremented
   // to zero, the execution of the thread is resumed.
-  virtual bool Resume(uint32_t* out_new_suspend_count = nullptr) = 0;
+  virtual bool Resume(uint32_t* out_previous_suspend_count = nullptr) = 0;
 
   // Suspends the specified thread.
   virtual bool Suspend(uint32_t* out_previous_suspend_count = nullptr) = 0;
