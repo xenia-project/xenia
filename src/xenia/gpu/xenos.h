@@ -43,11 +43,32 @@ enum class PrimitiveType : uint32_t {
   k2DFillRectList = 0x14,
   k2DLineStrip = 0x15,
   k2DTriStrip = 0x16,
-  // Tessellation patches (D3DTPT) - reusing 2DCopyRectList types.
+  // Tessellation patches (D3DTPT) when VGT_OUTPUT_PATH_CNTL & 3 is
+  // VGT_OUTPATH_TESS_EN (1).
   kLinePatch = 0x10,
   kTrianglePatch = 0x11,
   kQuadPatch = 0x12,
 };
+
+inline bool IsPrimitiveTwoFaced(PrimitiveType type, bool tessellated) {
+  if (tessellated) {
+    return type == PrimitiveType::kTrianglePatch ||
+           type == PrimitiveType::kQuadPatch;
+  }
+  switch (type) {
+    case PrimitiveType::kTriangleList:
+    case PrimitiveType::kTriangleFan:
+    case PrimitiveType::kTriangleStrip:
+    case PrimitiveType::kTriangleWithWFlags:
+    case PrimitiveType::kQuadList:
+    case PrimitiveType::kQuadStrip:
+    case PrimitiveType::kPolygon:
+      return true;
+    default:
+      break;
+  }
+  return false;
+}
 
 enum class TessellationMode : uint32_t {
   kDiscrete = 0,
