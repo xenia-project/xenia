@@ -761,14 +761,15 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
     // Copy the domain location to r0.yz (for quad patches) or r0.xyz (for
     // triangle patches), and also set the domain in STAT.
     uint32_t domain_location_mask, domain_location_swizzle;
-    if (vertex_shader_type_ == VertexShaderType::kTriangleDomain) {
+    if (patch_primitive_type() == PrimitiveType::kTrianglePatch) {
       domain_location_mask = 0b0111;
       // ZYX swizzle with r1.y == 0, according to the water shader in
       // Banjo-Kazooie: Nuts & Bolts.
       domain_location_swizzle = 0b00000110;
       stat_.tessellator_domain = D3D11_SB_TESSELLATOR_DOMAIN_TRI;
     } else {
-      assert_true(vertex_shader_type_ == VertexShaderType::kQuadDomain);
+      // TODO(Triang3l): Support line patches.
+      assert_true(patch_primitive_type() == PrimitiveType::kQuadPatch);
       // According to the ground shader in Viva Pinata, though it's impossible
       // (as of December 12th, 2018) to test there since it possibly requires
       // memexport for ground control points (the memory region with them is
@@ -807,8 +808,9 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
     // TODO(Triang3l): Investigate what should be written for primitives (or
     // even control points) for non-adaptive tessellation modes (they may
     // possibly have an index buffer).
+    // TODO(Triang3l): Support line patches.
     uint32_t primitive_id_gpr_index =
-        vertex_shader_type_ == VertexShaderType::kTriangleDomain ? 1 : 0;
+        patch_primitive_type() == PrimitiveType::kTrianglePatch ? 1 : 0;
 
     if (register_count() > primitive_id_gpr_index) {
       uint32_t primitive_id_temp = uses_register_dynamic_addressing()
@@ -877,9 +879,11 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
       //
       // Direct3D 12 appears to be passing the coordinates in a consistent
       // order, so we can just use ZYX for triangle patches.
+      //
+      // TODO(Triang3l): Support line patches.
       uint32_t domain_location_swizzle_mask =
-          vertex_shader_type_ == VertexShaderType::kTriangleDomain ? 0b0010
-                                                                   : 0b0001;
+          patch_primitive_type() == PrimitiveType::kTrianglePatch ? 0b0010
+                                                                  : 0b0001;
       shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
                              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(
                                  3 + temp_register_operand_length));
@@ -4152,11 +4156,12 @@ void DxbcShaderTranslator::WritePatchConstantSignature() {
   // FXC refuses to compile without SV_TessFactor and SV_InsideTessFactor input,
   // so this is required.
   uint32_t tess_factor_count_edge, tess_factor_count_inside;
-  if (vertex_shader_type_ == VertexShaderType::kTriangleDomain) {
+  if (patch_primitive_type() == PrimitiveType::kTrianglePatch) {
     tess_factor_count_edge = 3;
     tess_factor_count_inside = 1;
   } else {
-    assert_true(vertex_shader_type_ == VertexShaderType::kQuadDomain);
+    // TODO(Triang3l): Support line patches.
+    assert_true(patch_primitive_type() == PrimitiveType::kQuadPatch);
     tess_factor_count_edge = 4;
     tess_factor_count_inside = 2;
   }
@@ -4172,7 +4177,7 @@ void DxbcShaderTranslator::WritePatchConstantSignature() {
     shader_object_.push_back(0);
     shader_object_.push_back(
         i < tess_factor_count_edge ? i : (i - tess_factor_count_edge));
-    if (vertex_shader_type_ == VertexShaderType::kTriangleDomain) {
+    if (patch_primitive_type() == PrimitiveType::kTrianglePatch) {
       if (i < tess_factor_count_edge) {
         // D3D_NAME_FINAL_TRI_EDGE_TESSFACTOR.
         shader_object_.push_back(13);
@@ -4181,7 +4186,8 @@ void DxbcShaderTranslator::WritePatchConstantSignature() {
         shader_object_.push_back(14);
       }
     } else {
-      assert_true(vertex_shader_type_ == VertexShaderType::kQuadDomain);
+      // TODO(Triang3l): Support line patches.
+      assert_true(patch_primitive_type() == PrimitiveType::kQuadPatch);
       if (i < tess_factor_count_edge) {
         // D3D_NAME_FINAL_QUAD_EDGE_TESSFACTOR.
         shader_object_.push_back(11);
@@ -4401,11 +4407,12 @@ void DxbcShaderTranslator::WriteShaderCode() {
     // as both vertex shader and domain shader.
     uint32_t control_point_count;
     D3D11_SB_TESSELLATOR_DOMAIN domain;
-    if (vertex_shader_type_ == VertexShaderType::kTriangleDomain) {
+    if (patch_primitive_type() == PrimitiveType::kTrianglePatch) {
       control_point_count = 3;
       domain = D3D11_SB_TESSELLATOR_DOMAIN_TRI;
     } else {
-      assert_true(vertex_shader_type_ == VertexShaderType::kQuadDomain);
+      // TODO(Triang3l): Support line patches.
+      assert_true(patch_primitive_type() == PrimitiveType::kQuadPatch);
       control_point_count = 4;
       domain = D3D11_SB_TESSELLATOR_DOMAIN_QUAD;
     }
@@ -4597,10 +4604,11 @@ void DxbcShaderTranslator::WriteShaderCode() {
     if (IsDxbcDomainShader()) {
       // Domain location input (barycentric for triangles, UV for quads).
       uint32_t domain_location_mask;
-      if (vertex_shader_type_ == VertexShaderType::kTriangleDomain) {
+      if (patch_primitive_type() == PrimitiveType::kTrianglePatch) {
         domain_location_mask = 0b0111;
       } else {
-        assert_true(vertex_shader_type_ == VertexShaderType::kQuadDomain);
+        // TODO(Triang3l): Support line patches.
+        assert_true(patch_primitive_type() == PrimitiveType::kQuadPatch);
         domain_location_mask = 0b0011;
       }
       shader_object_.push_back(

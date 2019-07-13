@@ -587,6 +587,10 @@ class Shader {
   // Whether the shader is identified as a vertex or pixel shader.
   ShaderType type() const { return shader_type_; }
 
+  // Tessellation patch primitive type for a vertex shader translated into a
+  // domain shader, or PrimitiveType::kNone for a normal vertex shader.
+  PrimitiveType patch_primitive_type() const { return patch_primitive_type_; }
+
   // Microcode dwords in host endianness.
   const std::vector<uint32_t>& ucode_data() const { return ucode_data_; }
   uint64_t ucode_data_hash() const { return ucode_data_hash_; }
@@ -667,6 +671,7 @@ class Shader {
   friend class ShaderTranslator;
 
   ShaderType shader_type_;
+  PrimitiveType patch_primitive_type_ = PrimitiveType::kNone;
   std::vector<uint32_t> ucode_data_;
   uint64_t ucode_data_hash_;
 
