@@ -31,13 +31,6 @@ class DxbcShaderTranslator : public ShaderTranslator {
   DxbcShaderTranslator(uint32_t vendor_id, bool edram_rov_used);
   ~DxbcShaderTranslator() override;
 
-  enum class VertexShaderType { kVertex, kTriangleDomain, kQuadDomain };
-  // Sets the type (shader model and input layout) of the next vertex shader
-  // that will be converted.
-  void SetVertexShaderType(VertexShaderType type) {
-    vertex_shader_type_ = type;
-  }
-
   // Constant buffer bindings in space 0.
   enum class CbufferRegister {
     kSystemConstants,
@@ -646,12 +639,11 @@ class DxbcShaderTranslator : public ShaderTranslator {
   }
   inline bool IsDxbcVertexShader() const {
     return IsDxbcVertexOrDomainShader() &&
-           vertex_shader_type_ == VertexShaderType::kVertex;
+           patch_primitive_type() == PrimitiveType::kNone;
   }
   inline bool IsDxbcDomainShader() const {
     return IsDxbcVertexOrDomainShader() &&
-           (vertex_shader_type_ == VertexShaderType::kTriangleDomain ||
-            vertex_shader_type_ == VertexShaderType::kQuadDomain);
+           patch_primitive_type() != PrimitiveType::kNone;
   }
   inline bool IsDxbcPixelShader() const {
     return is_depth_only_pixel_shader_ || is_pixel_shader();
@@ -957,7 +949,6 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // Whether the output merger should be emulated in pixel shaders.
   bool edram_rov_used_;
 
-  VertexShaderType vertex_shader_type_ = VertexShaderType::kVertex;
   // Is currently writing the empty depth-only pixel shader, for
   // CompleteTranslation.
   bool is_depth_only_pixel_shader_;

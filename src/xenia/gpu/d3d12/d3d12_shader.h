@@ -25,15 +25,6 @@ class D3D12Shader : public Shader {
   D3D12Shader(ShaderType shader_type, uint64_t data_hash,
               const uint32_t* dword_ptr, uint32_t dword_count);
 
-  // For checking if it's a domain shader rather than a vertex shader when used
-  // (since when a shader is used for the first time, it's translated either
-  // into a vertex shader or a domain shader, depending on the primitive type).
-  PrimitiveType GetDomainShaderPrimitiveType() const {
-    return domain_shader_primitive_type_;
-  }
-  void SetDomainShaderPrimitiveType(PrimitiveType primitive_type) {
-    domain_shader_primitive_type_ = primitive_type;
-  }
   void SetTexturesAndSamplers(
       const DxbcShaderTranslator::TextureSRV* texture_srvs,
       uint32_t texture_srv_count,
@@ -88,8 +79,6 @@ class D3D12Shader : public Shader {
   }
 
  private:
-  PrimitiveType domain_shader_primitive_type_ = PrimitiveType::kNone;
-
   std::vector<TextureSRV> texture_srvs_;
   uint32_t used_texture_mask_ = 0;
   std::vector<SamplerBinding> sampler_bindings_;

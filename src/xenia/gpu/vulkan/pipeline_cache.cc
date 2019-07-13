@@ -367,7 +367,7 @@ bool PipelineCache::TranslateShader(VulkanShader* shader,
                                     xenos::xe_gpu_program_cntl_t cntl) {
   // Perform translation.
   // If this fails the shader will be marked as invalid and ignored later.
-  if (!shader_translator_->Translate(shader, cntl)) {
+  if (!shader_translator_->Translate(shader, PrimitiveType::kNone, cntl)) {
     XELOGE("Shader translation failed; marking shader as ignored");
     return false;
   }

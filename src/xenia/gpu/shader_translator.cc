@@ -107,22 +107,25 @@ bool ShaderTranslator::GatherAllBindingInformation(Shader* shader) {
   return true;
 }
 
-bool ShaderTranslator::Translate(Shader* shader,
+bool ShaderTranslator::Translate(Shader* shader, PrimitiveType patch_type,
                                  xenos::xe_gpu_program_cntl_t cntl) {
   Reset();
   register_count_ = shader->type() == ShaderType::kVertex ? cntl.vs_regs + 1
                                                           : cntl.ps_regs + 1;
 
-  return TranslateInternal(shader);
+  return TranslateInternal(shader, patch_type);
 }
 
-bool ShaderTranslator::Translate(Shader* shader) {
+bool ShaderTranslator::Translate(Shader* shader, PrimitiveType patch_type) {
   Reset();
-  return TranslateInternal(shader);
+  return TranslateInternal(shader, patch_type);
 }
 
-bool ShaderTranslator::TranslateInternal(Shader* shader) {
+bool ShaderTranslator::TranslateInternal(Shader* shader,
+                                         PrimitiveType patch_type) {
   shader_type_ = shader->type();
+  patch_primitive_type_ =
+      shader_type_ == ShaderType::kVertex ? patch_type : PrimitiveType::kNone;
   ucode_dwords_ = shader->ucode_dwords();
   ucode_dword_count_ = shader->ucode_dword_count();
 
@@ -190,6 +193,7 @@ bool ShaderTranslator::TranslateInternal(Shader* shader) {
   shader->errors_ = std::move(errors_);
   shader->translated_binary_ = CompleteTranslation();
   shader->ucode_disassembly_ = ucode_disasm_buffer_.to_string();
+  shader->patch_primitive_type_ = patch_primitive_type_;
   shader->vertex_bindings_ = std::move(vertex_bindings_);
   shader->texture_bindings_ = std::move(texture_bindings_);
   shader->constant_register_map_ = std::move(constant_register_map_);

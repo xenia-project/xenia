@@ -82,7 +82,7 @@ class D3D12CommandProcessor : public CommandProcessor {
   // Finds or creates root signature for a pipeline.
   ID3D12RootSignature* GetRootSignature(const D3D12Shader* vertex_shader,
                                         const D3D12Shader* pixel_shader,
-                                        PrimitiveType primitive_type);
+                                        bool tessellated);
 
   ui::d3d12::UploadBufferPool* GetConstantBufferPool() const {
     return constant_buffer_pool_.get();
@@ -210,7 +210,7 @@ class D3D12CommandProcessor : public CommandProcessor {
 
   void UpdateFixedFunctionState();
   void UpdateSystemConstantValues(
-      bool shared_memory_is_uav, PrimitiveType primitive_type,
+      bool shared_memory_is_uav, bool primitive_two_faced,
       uint32_t line_loop_closing_index, Endian index_endian,
       uint32_t edge_factor_base, bool early_z, uint32_t color_mask,
       const RenderTargetCache::PipelineRenderTarget render_targets[4]);

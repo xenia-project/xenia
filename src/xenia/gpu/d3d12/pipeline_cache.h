@@ -49,11 +49,11 @@ class PipelineCache {
 
   // Translates shaders if needed, also making shader info up to date.
   bool EnsureShadersTranslated(D3D12Shader* vertex_shader,
-                               D3D12Shader* pixel_shader,
+                               D3D12Shader* pixel_shader, bool tessellated,
                                PrimitiveType primitive_type);
 
   bool ConfigurePipeline(
-      D3D12Shader* vertex_shader, D3D12Shader* pixel_shader,
+      D3D12Shader* vertex_shader, D3D12Shader* pixel_shader, bool tessellated,
       PrimitiveType primitive_type, IndexFormat index_format, bool early_z,
       const RenderTargetCache::PipelineRenderTarget render_targets[5],
       void** pipeline_handle_out, ID3D12RootSignature** root_signature_out);
@@ -172,10 +172,10 @@ class PipelineCache {
   };
 
   bool TranslateShader(D3D12Shader* shader, xenos::xe_gpu_program_cntl_t cntl,
-                       PrimitiveType primitive_type);
+                       bool tessellated, PrimitiveType primitive_type);
 
   bool GetCurrentStateDescription(
-      D3D12Shader* vertex_shader, D3D12Shader* pixel_shader,
+      D3D12Shader* vertex_shader, D3D12Shader* pixel_shader, bool tessellated,
       PrimitiveType primitive_type, IndexFormat index_format, bool early_z,
       const RenderTargetCache::PipelineRenderTarget render_targets[5],
       PipelineDescription& description_out);
