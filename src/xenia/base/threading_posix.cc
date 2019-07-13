@@ -473,7 +473,8 @@ class PosixCondition<Thread> : public PosixConditionBase {
       : thread_(0),
         signaled_(false),
         exit_code_(0),
-        state_(State::kUninitialized) {}
+        state_(State::kUninitialized),
+        suspend_count_(0) {}
   bool Initialize(Thread::CreationParameters params,
                   ThreadStartData* start_data) {
     start_data->create_suspended = params.create_suspended;
@@ -608,21 +609,33 @@ class PosixCondition<Thread> : public PosixConditionBase {
     user_callback_();
   }
 
-  bool Resume(uint32_t* out_new_suspend_count = nullptr) {
-    // TODO(bwrsandman): implement suspend_count
-    assert_null(out_new_suspend_count);
+  bool Resume(uint32_t* out_previous_suspend_count = nullptr) {
+    if (out_previous_suspend_count) {
+      *out_previous_suspend_count = 0;
+    }
     WaitStarted();
     std::unique_lock<std::mutex> lock(state_mutex_);
     if (state_ != State::kSuspended) return false;
-    state_ = State::kRunning;
+    if (out_previous_suspend_count) {
+      *out_previous_suspend_count = suspend_count_;
+    }
+    --suspend_count_;
     state_signal_.notify_all();
     return true;
   }
 
   bool Suspend(uint32_t* out_previous_suspend_count = nullptr) {
-    // TODO(bwrsandman): implement suspend_count
-    assert_null(out_previous_suspend_count);
+    if (out_previous_suspend_count) {
+      *out_previous_suspend_count = 0;
+    }
     WaitStarted();
+    {
+      if (out_previous_suspend_count) {
+        *out_previous_suspend_count = suspend_count_;
+      }
+      state_ = State::kSuspended;
+      ++suspend_count_;
+    }
     int result =
         pthread_kill(thread_, GetSystemSignal(SignalType::kThreadSuspend));
     return result == 0;
@@ -656,8 +669,8 @@ class PosixCondition<Thread> : public PosixConditionBase {
   /// Set state to suspended and wait until it reset by another thread
   void WaitSuspended() {
     std::unique_lock<std::mutex> lock(state_mutex_);
-    state_ = State::kSuspended;
-    state_signal_.wait(lock, [this] { return state_ != State::kSuspended; });
+    state_signal_.wait(lock, [this] { return suspend_count_ == 0; });
+    state_ = State::kRunning;
   }
 
  private:
@@ -673,6 +686,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
   bool signaled_;
   int exit_code_;
   volatile State state_;
+  volatile uint32_t suspend_count_;
   mutable std::mutex state_mutex_;
   mutable std::mutex callback_mutex_;
   mutable std::condition_variable state_signal_;
@@ -883,8 +897,8 @@ class PosixThread : public PosixConditionHandle<Thread> {
     handle_.QueueUserCallback(std::move(callback));
   }
 
-  bool Resume(uint32_t* out_new_suspend_count) override {
-    return handle_.Resume(out_new_suspend_count);
+  bool Resume(uint32_t* out_previous_suspend_count) override {
+    return handle_.Resume(out_previous_suspend_count);
   }
 
   bool Suspend(uint32_t* out_previous_suspend_count) override {
@@ -923,8 +937,9 @@ void* PosixCondition<Thread>::ThreadStartRoutine(void* parameter) {
 
   if (create_suspended) {
     std::unique_lock<std::mutex> lock(thread->handle_.state_mutex_);
+    thread->handle_.suspend_count_ = 1;
     thread->handle_.state_signal_.wait(
-        lock, [thread] { return thread->handle_.state_ != State::kSuspended; });
+        lock, [thread] { return thread->handle_.suspend_count_ == 0; });
   }
 
   start_routine();
