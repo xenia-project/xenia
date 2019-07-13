@@ -505,8 +505,13 @@ void X64Emitter::CallExtern(const hir::Instr* instr, const Function* function) {
       auto thunk = backend()->guest_to_host_thunk();
       mov(rax, reinterpret_cast<uint64_t>(thunk));
       mov(rcx, reinterpret_cast<uint64_t>(builtin_function->handler()));
+#if XE_PLATFORM_LINUX
+      mov(rbx, reinterpret_cast<uint64_t>(builtin_function->arg0()));
+      mov(rdx, reinterpret_cast<uint64_t>(builtin_function->arg1()));
+#else
       mov(rdx, reinterpret_cast<uint64_t>(builtin_function->arg0()));
       mov(r8, reinterpret_cast<uint64_t>(builtin_function->arg1()));
+#endif
       call(rax);
       // rax = host return
     }
