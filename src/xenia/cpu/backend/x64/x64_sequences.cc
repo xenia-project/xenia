@@ -1883,6 +1883,7 @@ struct DIV_I16 : Sequence<DIV_I16, I<OPCODE_DIV, I16Op, I16Op, I16Op>> {
         e.idiv(i.src2);
       }
     }
+
     e.L(skip);
     e.outLocalLabel();
     e.mov(i.dest, e.ax);
@@ -1947,6 +1948,7 @@ struct DIV_I32 : Sequence<DIV_I32, I<OPCODE_DIV, I32Op, I32Op, I32Op>> {
         e.idiv(i.src2);
       }
     }
+
     e.L(skip);
     e.outLocalLabel();
     e.mov(i.dest, e.eax);
