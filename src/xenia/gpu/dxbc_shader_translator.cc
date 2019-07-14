@@ -3450,8 +3450,9 @@ const DxbcShaderTranslator::SystemConstantRdef DxbcShaderTranslator::
         {"xe_sample_count_log2", RdefTypeIndex::kUint2, 8},
 
         {"xe_alpha_test_reference", RdefTypeIndex::kFloat, 4},
+        {"xe_edram_resolution_square_scale", RdefTypeIndex::kUint, 4},
         {"xe_edram_pitch_tiles", RdefTypeIndex::kUint, 4},
-        {"xe_edram_depth_base_dwords", RdefTypeIndex::kUint, 4, 4},
+        {"xe_edram_depth_base_dwords", RdefTypeIndex::kUint, 4},
 
         {"xe_color_exp_bias", RdefTypeIndex::kFloat4, 16},
 
@@ -3463,14 +3464,7 @@ const DxbcShaderTranslator::SystemConstantRdef DxbcShaderTranslator::
         {"xe_edram_poly_offset_front", RdefTypeIndex::kFloat2, 8},
         {"xe_edram_poly_offset_back", RdefTypeIndex::kFloat2, 8},
 
-        {"xe_edram_resolution_square_scale", RdefTypeIndex::kUint, 4},
-        {"xe_edram_stencil_reference", RdefTypeIndex::kUint, 4},
-        {"xe_edram_stencil_read_mask", RdefTypeIndex::kUint, 4},
-        {"xe_edram_stencil_write_mask", RdefTypeIndex::kUint, 4},
-
-        {"xe_edram_stencil_front", RdefTypeIndex::kUint4, 16},
-
-        {"xe_edram_stencil_back", RdefTypeIndex::kUint4, 16},
+        {"xe_edram_stencil", RdefTypeIndex::kUint4Array2, 32},
 
         {"xe_edram_rt_base_dwords_scaled", RdefTypeIndex::kUint4, 16},
 

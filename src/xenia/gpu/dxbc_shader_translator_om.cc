@@ -5458,58 +5458,77 @@ void DxbcShaderTranslator::
   ++stat_.instruction_count;
   ++stat_.dynamic_flow_control_count;
 
-  // Copy the read-masked stencil reference to SGPR [0].w.
-  // VGPR [0].x = new depth/stencil
-  // VGPR [0].y = depth test failure
-  // VGPR [0].z = old depth/stencil
-  // SGPR [0].w = read-masked stencil reference
-  // TODO(Triang3l): Front/back face.
-  system_constants_used_ |= (1ull << kSysConst_EDRAMStencilReference_Index) |
-                            (1ull << kSysConst_EDRAMStencilReadMask_Index);
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(11));
+  // Check the current face to get the reference and apply the read mask.
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
+                         ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(
+                             D3D10_SB_INSTRUCTION_TEST_NONZERO) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
   shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1000, 1));
-  shader_code_.push_back(system_temps_subroutine_);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
-                                kSysConst_EDRAMStencilReference_Comp, 3));
-  shader_code_.push_back(cbuffer_index_system_constants_);
-  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-  shader_code_.push_back(kSysConst_EDRAMStencilReference_Vec);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
-                                kSysConst_EDRAMStencilReadMask_Comp, 3));
-  shader_code_.push_back(cbuffer_index_system_constants_);
-  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-  shader_code_.push_back(kSysConst_EDRAMStencilReadMask_Vec);
+      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_INPUT, 0, 1));
+  shader_code_.push_back(uint32_t(InOutRegister::kPSInFrontFace));
   ++stat_.instruction_count;
-  ++stat_.uint_instruction_count;
+  ++stat_.dynamic_flow_control_count;
 
-  // Read-mask the old stencil value to VGPR [1].x.
-  // VGPR [0].x = new depth/stencil
-  // VGPR [0].y = depth test failure
-  // VGPR [0].z = old depth/stencil
-  // SGPR [0].w = read-masked stencil reference
-  // VGPR [1].x = read-masked old stencil
-  // TODO(Triang3l): Front/back face.
-  system_constants_used_ |= 1ull << kSysConst_EDRAMStencilReadMask_Index;
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-  shader_code_.push_back(system_temps_subroutine_ + 1);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
-  shader_code_.push_back(system_temps_subroutine_);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
-                                kSysConst_EDRAMStencilReadMask_Comp, 3));
-  shader_code_.push_back(cbuffer_index_system_constants_);
-  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-  shader_code_.push_back(kSysConst_EDRAMStencilReadMask_Vec);
-  ++stat_.instruction_count;
-  ++stat_.uint_instruction_count;
+  system_constants_used_ |= 1ull << kSysConst_EDRAMStencil_Index;
+  for (uint32_t i = 0; i < 2; ++i) {
+    uint32_t stencil_vec =
+        i ? kSysConst_EDRAMStencil_Back_Vec : kSysConst_EDRAMStencil_Front_Vec;
+
+    // Copy the read-masked stencil reference to VGPR [0].w.
+    // VGPR [0].x = new depth/stencil
+    // VGPR [0].y = depth test failure
+    // VGPR [0].z = old depth/stencil
+    // VGPR [0].w = read-masked stencil reference
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(11));
+    shader_code_.push_back(
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1000, 1));
+    shader_code_.push_back(system_temps_subroutine_);
+    shader_code_.push_back(
+        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
+                                  kSysConst_EDRAMStencil_Reference_Comp, 3));
+    shader_code_.push_back(cbuffer_index_system_constants_);
+    shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
+    shader_code_.push_back(stencil_vec);
+    shader_code_.push_back(
+        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
+                                  kSysConst_EDRAMStencil_ReadMask_Comp, 3));
+    shader_code_.push_back(cbuffer_index_system_constants_);
+    shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
+    shader_code_.push_back(stencil_vec);
+    ++stat_.instruction_count;
+    ++stat_.uint_instruction_count;
+
+    // Read-mask the old stencil value to VGPR [1].x.
+    // VGPR [0].x = new depth/stencil
+    // VGPR [0].y = depth test failure
+    // VGPR [0].z = old depth/stencil
+    // VGPR [0].w = read-masked stencil reference
+    // VGPR [1].x = read-masked old stencil
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
+    shader_code_.push_back(
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+    shader_code_.push_back(system_temps_subroutine_ + 1);
+    shader_code_.push_back(
+        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
+    shader_code_.push_back(system_temps_subroutine_);
+    shader_code_.push_back(
+        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
+                                  kSysConst_EDRAMStencil_ReadMask_Comp, 3));
+    shader_code_.push_back(cbuffer_index_system_constants_);
+    shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
+    shader_code_.push_back(stencil_vec);
+    ++stat_.instruction_count;
+    ++stat_.uint_instruction_count;
+
+    // Go to the back face or close the face check.
+    shader_code_.push_back(
+        ENCODE_D3D10_SB_OPCODE_TYPE(i ? D3D10_SB_OPCODE_ENDIF
+                                      : D3D10_SB_OPCODE_ELSE) |
+        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
+    ++stat_.instruction_count;
+  }
 
   // Get the difference between the new and the old stencil, > 0 - greater,
   // == 0 - equal, < 0 - less, to VGPR [0].w.
@@ -5600,14 +5619,14 @@ void DxbcShaderTranslator::
   ++stat_.instruction_count;
   ++stat_.movc_instruction_count;
 
-  // Get the stencil function bits to SGPR [1].x.
+  // Get the comparison function and the operations for the current face to
+  // VGPR [1].x.
   // VGPR [0].x = new depth/stencil
   // VGPR [0].y = depth test failure
   // VGPR [0].z = old depth/stencil
   // VGPR [0].w = stencil function passed bits
-  // SGPR [1].x = stencil function
-  system_constants_used_ |= (1ull << kSysConst_EDRAMStencilFront_Index) |
-                            (1ull << kSysConst_EDRAMStencilBack_Index);
+  // VGPR [1].x = stencil function and operations
+  system_constants_used_ |= 1ull << kSysConst_EDRAMStencil_Index;
   shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(13));
   shader_code_.push_back(
@@ -5618,24 +5637,27 @@ void DxbcShaderTranslator::
   shader_code_.push_back(uint32_t(InOutRegister::kPSInFrontFace));
   shader_code_.push_back(
       EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
-                                kSysConst_EDRAMStencilSide_Comparison_Comp, 3));
+                                kSysConst_EDRAMStencil_FuncOps_Comp, 3));
   shader_code_.push_back(cbuffer_index_system_constants_);
   shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-  shader_code_.push_back(kSysConst_EDRAMStencilFront_Vec);
+  shader_code_.push_back(kSysConst_EDRAMStencil_Front_Vec);
   shader_code_.push_back(
       EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
-                                kSysConst_EDRAMStencilSide_Comparison_Comp, 3));
+                                kSysConst_EDRAMStencil_FuncOps_Comp, 3));
   shader_code_.push_back(cbuffer_index_system_constants_);
   shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-  shader_code_.push_back(kSysConst_EDRAMStencilBack_Vec);
+  shader_code_.push_back(kSysConst_EDRAMStencil_Back_Vec);
   ++stat_.instruction_count;
   ++stat_.movc_instruction_count;
 
-  // Mask the resulting bits with the ones that should pass to VGPR [0].w.
+  // Mask the resulting bits with the ones that should pass to VGPR [0].w (the
+  // comparison function is in the low 3 bits of the constant, and only ANDing
+  // 3-bit values with it, so safe not to UBFE the function).
   // VGPR [0].x = new depth/stencil
   // VGPR [0].y = depth test failure
   // VGPR [0].z = old depth/stencil
-  // VGPR [0].w = masked stencil function passed bits
+  // VGPR [0].w = stencil test result
+  // VGPR [1].x = stencil function and operations
   shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
   shader_code_.push_back(
@@ -5650,101 +5672,38 @@ void DxbcShaderTranslator::
   ++stat_.instruction_count;
   ++stat_.uint_instruction_count;
 
-  // Choosing the stencil operation and combining the depth and the stencil test
-  // results, depending on the facing of the primitive.
-
-  // Select the face.
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
-                         ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(
-                             D3D10_SB_INSTRUCTION_TEST_NONZERO) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
+  // Choose the stencil pass operation depending on whether depth test has
+  // failed.
+  // VGPR [0].x = new depth/stencil
+  // VGPR [0].y = depth test failure
+  // VGPR [0].z = old depth/stencil
+  // VGPR [0].w = stencil test result
+  // VGPR [1].x = stencil function and operations
+  // VGPR [1].y = pass or depth fail operation shift
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
   shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_INPUT, 0, 1));
-  shader_code_.push_back(uint32_t(InOutRegister::kPSInFrontFace));
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0010, 1));
+  shader_code_.push_back(system_temps_subroutine_ + 1);
+  shader_code_.push_back(
+      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
+  shader_code_.push_back(system_temps_subroutine_);
+  shader_code_.push_back(
+      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+  shader_code_.push_back(9);
+  shader_code_.push_back(
+      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+  shader_code_.push_back(6);
   ++stat_.instruction_count;
-  ++stat_.dynamic_flow_control_count;
-
-  system_constants_used_ |= (1ull << kSysConst_EDRAMStencilFront_Index) |
-                            (1ull << kSysConst_EDRAMStencilBack_Index);
-  for (uint32_t i = 0; i < 2; ++i) {
-    uint32_t stencil_op_vec;
-    if (i) {
-      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ELSE) |
-                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
-      ++stat_.instruction_count;
-      stencil_op_vec = kSysConst_EDRAMStencilBack_Vec;
-    } else {
-      stencil_op_vec = kSysConst_EDRAMStencilFront_Vec;
-    }
-
-    // Choose the stencil pass operation depending on whether depth test has
-    // failed to VGPR [1].x.
-    // VGPR [0].x = new depth/stencil
-    // VGPR [0].y = depth test failure
-    // VGPR [0].z = old depth/stencil
-    // VGPR [0].w = stencil test result
-    // VGPR [1].x = pass or depth fail operation
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(13));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-    shader_code_.push_back(system_temps_subroutine_ + 1);
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
-    shader_code_.push_back(system_temps_subroutine_);
-    shader_code_.push_back(EncodeVectorSelectOperand(
-        D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
-        kSysConst_EDRAMStencilSide_DepthFail_Comp, 3));
-    shader_code_.push_back(cbuffer_index_system_constants_);
-    shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-    shader_code_.push_back(stencil_op_vec);
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
-                                  kSysConst_EDRAMStencilSide_Pass_Comp, 3));
-    shader_code_.push_back(cbuffer_index_system_constants_);
-    shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-    shader_code_.push_back(stencil_op_vec);
-    ++stat_.instruction_count;
-    ++stat_.movc_instruction_count;
-
-    // Choose the final operation to VGPR [1].x according to whether stencil
-    // test has passed.
-    // VGPR [0].x = new depth/stencil
-    // VGPR [0].y = depth test failure
-    // VGPR [0].z = old depth/stencil
-    // VGPR [0].w = stencil test result
-    // VGPR [1].x = stencil operation
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(11));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-    shader_code_.push_back(system_temps_subroutine_ + 1);
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 3, 1));
-    shader_code_.push_back(system_temps_subroutine_);
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-    shader_code_.push_back(system_temps_subroutine_ + 1);
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
-                                  kSysConst_EDRAMStencilSide_Fail_Comp, 3));
-    shader_code_.push_back(cbuffer_index_system_constants_);
-    shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-    shader_code_.push_back(stencil_op_vec);
-    ++stat_.instruction_count;
-    ++stat_.movc_instruction_count;
-  }
-
-  // Close the facing check.
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
-  ++stat_.instruction_count;
+  ++stat_.movc_instruction_count;
 
   // Merge the depth/stencil test results to VGPR [0].y.
   // VGPR [0].x = new depth/stencil
   // VGPR [0].y = depth/stencil test failure
   // VGPR [0].z = old depth/stencil
-  // VGPR [1].x = stencil operation
+  // VGPR [0].w = stencil test result
+  // VGPR [1].x = stencil function and operations
+  // VGPR [1].y = pass or depth fail operation shift
   shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
   shader_code_.push_back(
@@ -5762,101 +5721,15 @@ void DxbcShaderTranslator::
   ++stat_.instruction_count;
   ++stat_.movc_instruction_count;
 
-  // Extract the "keep" mask to VGPR [0].w.
+  // Choose the final operation to according to whether the stencil test has
+  // passed.
   // VGPR [0].x = new depth/stencil
   // VGPR [0].y = depth/stencil test failure
   // VGPR [0].z = old depth/stencil
-  // VGPR [0].w = stencil keep mask
-  // VGPR [1].x = stencil operation
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_IBFE) |
+  // VGPR [0].w = stencil operation shift
+  // VGPR [1].x = stencil function and operations
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1000, 1));
-  shader_code_.push_back(system_temps_subroutine_);
-  shader_code_.push_back(
-      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  shader_code_.push_back(1);
-  shader_code_.push_back(
-      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  shader_code_.push_back(kStencilOp_Flag_CurrentMask_Shift);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-  shader_code_.push_back(system_temps_subroutine_ + 1);
-  ++stat_.instruction_count;
-  ++stat_.int_instruction_count;
-
-  // Mask the 8 stencil bits to know if saturation is required after adding.
-  // VGPR [0].x = new depth/stencil
-  // VGPR [0].y = depth/stencil test failure
-  // VGPR [0].z = old depth/stencil
-  // VGPR [0].w = stencil keep mask
-  // VGPR [1].x = stencil operation
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_USHR) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1000, 1));
-  shader_code_.push_back(system_temps_subroutine_);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 3, 1));
-  shader_code_.push_back(system_temps_subroutine_);
-  shader_code_.push_back(
-      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  shader_code_.push_back(24);
-  ++stat_.instruction_count;
-  ++stat_.uint_instruction_count;
-
-  // Mask the old stencil with the keep mask to VGPR [0].w.
-  // VGPR [0].x = new depth/stencil
-  // VGPR [0].y = depth/stencil test failure
-  // VGPR [0].z = old depth/stencil
-  // VGPR [0].w = new stencil accumulator
-  // VGPR [1].x = stencil operation
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1000, 1));
-  shader_code_.push_back(system_temps_subroutine_);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
-  shader_code_.push_back(system_temps_subroutine_);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 3, 1));
-  shader_code_.push_back(system_temps_subroutine_);
-  ++stat_.instruction_count;
-  ++stat_.uint_instruction_count;
-
-  // Extract the value to add to VGPR [1].y.
-  // VGPR [0].x = new depth/stencil
-  // VGPR [0].y = depth/stencil test failure
-  // VGPR [0].z = old depth/stencil
-  // VGPR [0].w = new stencil accumulator
-  // VGPR [1].x = stencil operation
-  // VGPR [1].y = number to add to the old stencil
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_IBFE) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0010, 1));
-  shader_code_.push_back(system_temps_subroutine_ + 1);
-  shader_code_.push_back(
-      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  shader_code_.push_back(2);
-  shader_code_.push_back(
-      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  shader_code_.push_back(kStencilOp_Flag_Add_Shift);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-  shader_code_.push_back(system_temps_subroutine_ + 1);
-  ++stat_.instruction_count;
-  ++stat_.int_instruction_count;
-
-  // Add the number to stencil.
-  // VGPR [0].x = new depth/stencil
-  // VGPR [0].y = depth/stencil test failure
-  // VGPR [0].z = old depth/stencil
-  // VGPR [0].w = new stencil accumulator
-  // VGPR [1].x = stencil operation
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IADD) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
   shader_code_.push_back(
       EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1000, 1));
   shader_code_.push_back(system_temps_subroutine_);
@@ -5866,51 +5739,152 @@ void DxbcShaderTranslator::
   shader_code_.push_back(
       EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
   shader_code_.push_back(system_temps_subroutine_ + 1);
+  shader_code_.push_back(
+      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+  shader_code_.push_back(3);
   ++stat_.instruction_count;
-  ++stat_.int_instruction_count;
+  ++stat_.movc_instruction_count;
 
-  // Extract the saturation flag to VGPR [1].y.
+  // Extract the needed stencil operation to VGPR [0].w.
   // VGPR [0].x = new depth/stencil
   // VGPR [0].y = depth/stencil test failure
   // VGPR [0].z = old depth/stencil
-  // VGPR [0].w = new stencil accumulator
-  // VGPR [1].x = stencil operation
-  // VGPR [1].y = saturate flag
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+  // VGPR [0].w = stencil operation
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_UBFE) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
   shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0010, 1));
-  shader_code_.push_back(system_temps_subroutine_ + 1);
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1000, 1));
+  shader_code_.push_back(system_temps_subroutine_);
+  shader_code_.push_back(
+      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+  shader_code_.push_back(3);
+  shader_code_.push_back(
+      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 3, 1));
+  shader_code_.push_back(system_temps_subroutine_);
   shader_code_.push_back(
       EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
   shader_code_.push_back(system_temps_subroutine_ + 1);
-  shader_code_.push_back(
-      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  shader_code_.push_back(kStencilOp_Flag_Saturate);
   ++stat_.instruction_count;
   ++stat_.uint_instruction_count;
 
-  // Check if need to saturate.
+  // Open the stencil operation switch for writing the new stencil (not caring
+  // about bits 8:31) to VGPR [0].w.
   // VGPR [0].x = new depth/stencil
   // VGPR [0].y = depth/stencil test failure
   // VGPR [0].z = old depth/stencil
-  // VGPR [0].w = new stencil accumulator
-  // VGPR [1].x = stencil operation
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
-                         ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(
-                             D3D10_SB_INSTRUCTION_TEST_NONZERO) |
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_SWITCH) |
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
   shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
-  shader_code_.push_back(system_temps_subroutine_ + 1);
+      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 3, 1));
+  shader_code_.push_back(system_temps_subroutine_);
   ++stat_.instruction_count;
   ++stat_.dynamic_flow_control_count;
 
-  // Saturate.
+  // Zero (1).
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_CASE) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
+  shader_code_.push_back(
+      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+  shader_code_.push_back(1);
+  ++stat_.instruction_count;
+  ++stat_.static_flow_control_count;
+
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1000, 1));
+  shader_code_.push_back(system_temps_subroutine_);
+  shader_code_.push_back(
+      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+  shader_code_.push_back(0);
+  ++stat_.instruction_count;
+  ++stat_.mov_instruction_count;
+
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_BREAK) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
+  ++stat_.instruction_count;
+
+  // Replace (2).
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_CASE) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
+  shader_code_.push_back(
+      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+  shader_code_.push_back(2);
+  ++stat_.instruction_count;
+  ++stat_.static_flow_control_count;
+
+  system_constants_used_ |= 1ull << kSysConst_EDRAMStencil_Index;
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(13));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1000, 1));
+  shader_code_.push_back(system_temps_subroutine_);
+  shader_code_.push_back(
+      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_INPUT, 0, 1));
+  shader_code_.push_back(uint32_t(InOutRegister::kPSInFrontFace));
+  shader_code_.push_back(
+      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
+                                kSysConst_EDRAMStencil_Reference_Comp, 3));
+  shader_code_.push_back(cbuffer_index_system_constants_);
+  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
+  shader_code_.push_back(kSysConst_EDRAMStencil_Front_Vec);
+  shader_code_.push_back(
+      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
+                                kSysConst_EDRAMStencil_Reference_Comp, 3));
+  shader_code_.push_back(cbuffer_index_system_constants_);
+  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
+  shader_code_.push_back(kSysConst_EDRAMStencil_Back_Vec);
+  ++stat_.instruction_count;
+  ++stat_.movc_instruction_count;
+
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_BREAK) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
+  ++stat_.instruction_count;
+
+  // Increment/decrement and saturate (3/4).
   for (uint32_t i = 0; i < 2; ++i) {
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_CASE) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
     shader_code_.push_back(
-        ENCODE_D3D10_SB_OPCODE_TYPE(i ? D3D10_SB_OPCODE_IMIN
-                                      : D3D10_SB_OPCODE_IMAX) |
+        EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+    shader_code_.push_back(3 + i);
+    ++stat_.instruction_count;
+    ++stat_.static_flow_control_count;
+
+    // Clear the upper bits for saturation.
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+    shader_code_.push_back(
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1000, 1));
+    shader_code_.push_back(system_temps_subroutine_);
+    shader_code_.push_back(
+        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
+    shader_code_.push_back(system_temps_subroutine_);
+    shader_code_.push_back(
+        EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+    shader_code_.push_back(0xFF);
+    ++stat_.instruction_count;
+    ++stat_.uint_instruction_count;
+
+    // Increment/decrement.
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IADD) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+    shader_code_.push_back(
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1000, 1));
+    shader_code_.push_back(system_temps_subroutine_);
+    shader_code_.push_back(
+        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 3, 1));
+    shader_code_.push_back(system_temps_subroutine_);
+    shader_code_.push_back(
+        EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+    shader_code_.push_back(i ? uint32_t(-1) : 1);
+    ++stat_.instruction_count;
+    ++stat_.int_instruction_count;
+
+    // Saturate.
+    shader_code_.push_back(
+        ENCODE_D3D10_SB_OPCODE_TYPE(i ? D3D10_SB_OPCODE_IMAX
+                                      : D3D10_SB_OPCODE_IMIN) |
         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
     shader_code_.push_back(
         EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1000, 1));
@@ -5920,116 +5894,138 @@ void DxbcShaderTranslator::
     shader_code_.push_back(system_temps_subroutine_);
     shader_code_.push_back(
         EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-    shader_code_.push_back(i ? 0xFF : 0);
+    shader_code_.push_back(i ? 0 : 0xFF);
     ++stat_.instruction_count;
     ++stat_.int_instruction_count;
+
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_BREAK) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
+    ++stat_.instruction_count;
   }
 
-  // Close the saturation check.
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
-  ++stat_.instruction_count;
-
-  // Extract the inversion mask to VGPR [1].y.
-  // VGPR [0].x = new depth/stencil
-  // VGPR [0].y = depth/stencil test failure
-  // VGPR [0].z = old depth/stencil
-  // VGPR [0].w = new stencil accumulator
-  // VGPR [1].x = stencil operation
-  // VGPR [1].y = stencil inversion mask
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_IBFE) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0010, 1));
-  shader_code_.push_back(system_temps_subroutine_ + 1);
+  // Invert (5).
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_CASE) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
   shader_code_.push_back(
       EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  shader_code_.push_back(1);
-  shader_code_.push_back(
-      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  shader_code_.push_back(kStencilOp_Flag_Invert_Shift);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-  shader_code_.push_back(system_temps_subroutine_ + 1);
+  shader_code_.push_back(5);
   ++stat_.instruction_count;
-  ++stat_.int_instruction_count;
+  ++stat_.static_flow_control_count;
 
-  // Invert stencil if needed.
-  // VGPR [0].x = new depth/stencil
-  // VGPR [0].y = depth/stencil test failure
-  // VGPR [0].z = old depth/stencil
-  // VGPR [0].w = new stencil accumulator
-  // VGPR [1].x = stencil operation
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_XOR) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_NOT) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
   shader_code_.push_back(
       EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1000, 1));
   shader_code_.push_back(system_temps_subroutine_);
   shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 3, 1));
+      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
   shader_code_.push_back(system_temps_subroutine_);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
-  shader_code_.push_back(system_temps_subroutine_ + 1);
   ++stat_.instruction_count;
   ++stat_.uint_instruction_count;
 
-  // Extract if need to replace the stencil with the reference to VGPR [1].x.
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_BREAK) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
+  ++stat_.instruction_count;
+
+  // Increment/decrement and wrap (6/7).
+  for (uint32_t i = 0; i < 2; ++i) {
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_CASE) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
+    shader_code_.push_back(
+        EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+    shader_code_.push_back(6 + i);
+    ++stat_.instruction_count;
+    ++stat_.static_flow_control_count;
+
+    // Increment/decrement.
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IADD) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+    shader_code_.push_back(
+        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1000, 1));
+    shader_code_.push_back(system_temps_subroutine_);
+    shader_code_.push_back(
+        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
+    shader_code_.push_back(system_temps_subroutine_);
+    shader_code_.push_back(
+        EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+    shader_code_.push_back(i ? uint32_t(-1) : 1);
+    ++stat_.instruction_count;
+    ++stat_.int_instruction_count;
+
+    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_BREAK) |
+                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
+    ++stat_.instruction_count;
+  }
+
+  // Keep (0).
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DEFAULT) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
+  ++stat_.instruction_count;
+  ++stat_.static_flow_control_count;
+
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
+  shader_code_.push_back(
+      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1000, 1));
+  shader_code_.push_back(system_temps_subroutine_);
+  shader_code_.push_back(
+      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
+  shader_code_.push_back(system_temps_subroutine_);
+  ++stat_.instruction_count;
+  ++stat_.mov_instruction_count;
+
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_BREAK) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
+  ++stat_.instruction_count;
+
+  // Close the new stencil switch.
   // VGPR [0].x = new depth/stencil
   // VGPR [0].y = depth/stencil test failure
   // VGPR [0].z = old depth/stencil
-  // VGPR [0].w = new stencil accumulator
-  // VGPR [1].x = replace flag
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+  // VGPR [0].w = unmasked new stencil
+  shader_code_.push_back(
+      ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDSWITCH) |
+      ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
+  ++stat_.instruction_count;
+
+  // Select the stencil write mask for the face to VGPR [1].x.
+  // VGPR [0].x = new depth/stencil
+  // VGPR [0].y = depth/stencil test failure
+  // VGPR [0].z = old depth/stencil
+  // VGPR [0].w = unmasked new stencil
+  // VGPR [1].x = stencil write mask
+  system_constants_used_ |= 1ull << kSysConst_EDRAMStencil_Index;
+  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(13));
   shader_code_.push_back(
       EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
   shader_code_.push_back(system_temps_subroutine_ + 1);
   shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-  shader_code_.push_back(system_temps_subroutine_ + 1);
-  shader_code_.push_back(
-      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  shader_code_.push_back(kStencilOp_Flag_NewMask);
-  ++stat_.instruction_count;
-  ++stat_.uint_instruction_count;
-
-  // Replace the new stencil with the reference if needed.
-  // TODO(Triang3l): Two sides.
-  // VGPR [0].x = new depth/stencil
-  // VGPR [0].y = depth/stencil test failure
-  // VGPR [0].z = old depth/stencil
-  // VGPR [0].w = new stencil accumulator
-  system_constants_used_ |= 1ull << kSysConst_EDRAMStencilReference_Index;
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(11));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1000, 1));
-  shader_code_.push_back(system_temps_subroutine_);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-  shader_code_.push_back(system_temps_subroutine_ + 1);
+      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_INPUT, 0, 1));
+  shader_code_.push_back(uint32_t(InOutRegister::kPSInFrontFace));
   shader_code_.push_back(
       EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
-                                kSysConst_EDRAMStencilReference_Comp, 3));
+                                kSysConst_EDRAMStencil_WriteMask_Comp, 3));
   shader_code_.push_back(cbuffer_index_system_constants_);
   shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-  shader_code_.push_back(kSysConst_EDRAMStencilReference_Vec);
+  shader_code_.push_back(kSysConst_EDRAMStencil_Front_Vec);
   shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 3, 1));
-  shader_code_.push_back(system_temps_subroutine_);
+      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
+                                kSysConst_EDRAMStencil_WriteMask_Comp, 3));
+  shader_code_.push_back(cbuffer_index_system_constants_);
+  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
+  shader_code_.push_back(kSysConst_EDRAMStencil_Back_Vec);
   ++stat_.instruction_count;
   ++stat_.movc_instruction_count;
 
   // Apply the write mask to the new stencil, also dropping the upper 24 bits.
-  // TODO(Triang3l): Two sides.
   // VGPR [0].x = new depth/stencil
   // VGPR [0].y = depth/stencil test failure
   // VGPR [0].z = old depth/stencil
-  // VGPR [0].w = masked new stencil accumulator
-  system_constants_used_ |= 1ull << kSysConst_EDRAMStencilWriteMask_Index;
+  // VGPR [0].w = masked new stencil
+  // VGPR [1].x = stencil write mask
   shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
   shader_code_.push_back(
       EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1000, 1));
   shader_code_.push_back(system_temps_subroutine_);
@@ -6037,34 +6033,26 @@ void DxbcShaderTranslator::
       EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 3, 1));
   shader_code_.push_back(system_temps_subroutine_);
   shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
-                                kSysConst_EDRAMStencilWriteMask_Comp, 3));
-  shader_code_.push_back(cbuffer_index_system_constants_);
-  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-  shader_code_.push_back(kSysConst_EDRAMStencilWriteMask_Vec);
+      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
+  shader_code_.push_back(system_temps_subroutine_ + 1);
   ++stat_.instruction_count;
   ++stat_.uint_instruction_count;
 
   // Invert the write mask for keeping the old stencil and the depth bits to
-  // SGPR [1].x.
-  // TODO(Triang3l): Two sides.
+  // VGPR [1].x.
   // VGPR [0].x = new depth/stencil
   // VGPR [0].y = depth/stencil test failure
   // VGPR [0].z = old depth/stencil
-  // VGPR [0].w = masked new stencil accumulator
-  // SGPR [1].x = inverse of the write mask
-  system_constants_used_ |= 1ull << kSysConst_EDRAMStencilWriteMask_Index;
+  // VGPR [0].w = masked new stencil
+  // VGPR [1].x = inverted stencil write mask
   shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_NOT) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
   shader_code_.push_back(
       EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
   shader_code_.push_back(system_temps_subroutine_ + 1);
   shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
-                                kSysConst_EDRAMStencilWriteMask_Comp, 3));
-  shader_code_.push_back(cbuffer_index_system_constants_);
-  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-  shader_code_.push_back(kSysConst_EDRAMStencilWriteMask_Vec);
+      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
+  shader_code_.push_back(system_temps_subroutine_ + 1);
   ++stat_.instruction_count;
   ++stat_.uint_instruction_count;
 
@@ -6072,7 +6060,7 @@ void DxbcShaderTranslator::
   // VGPR [0].x = masked new depth/stencil
   // VGPR [0].y = depth/stencil test failure
   // VGPR [0].z = old depth/stencil
-  // VGPR [0].w = masked new stencil accumulator
+  // VGPR [0].w = masked new stencil
   shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
   shader_code_.push_back(

@@ -22,6 +22,7 @@ cbuffer xe_system_cbuffer : register(b0) {
   uint2 xe_sample_count_log2;
 
   float xe_alpha_test_reference;
+  uint xe_edram_resolution_square_scale;
   uint xe_edram_pitch_tiles;
   uint xe_edram_depth_base_dwords;
 
@@ -35,14 +36,7 @@ cbuffer xe_system_cbuffer : register(b0) {
   float2 xe_edram_poly_offset_front;
   float2 xe_edram_poly_offset_back;
 
-  uint xe_edram_resolution_square_scale;
-  uint xe_edram_stencil_reference;
-  uint xe_edram_stencil_read_mask;
-  uint xe_edram_stencil_write_mask;
-
-  uint4 xe_edram_stencil_front;
-
-  uint4 xe_edram_stencil_back;
+  uint4 xe_edram_stencil[2];
 
   uint4 xe_edram_rt_base_dwords_scaled;
 

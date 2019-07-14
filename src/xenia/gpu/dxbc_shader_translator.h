@@ -113,37 +113,6 @@ class DxbcShaderTranslator : public ShaderTranslator {
   };
   static_assert(kSysFlag_Count <= 32, "Too many flags in the system constants");
 
-  enum : uint32_t {
-    kStencilOp_Flag_CurrentMask_Shift,
-    // 0, 1 or 3 expanded to 0 or 1 or 0xFF - the value to add.
-    kStencilOp_Flag_Add_Shift,
-    kStencilOp_Flag_Saturate_Shift = kStencilOp_Flag_Add_Shift + 2,
-    kStencilOp_Flag_Invert_Shift,
-    kStencilOp_Flag_NewMask_Shift,
-
-    kStencilOp_Flag_CurrentMask = 1u << kStencilOp_Flag_CurrentMask_Shift,
-    kStencilOp_Flag_Increment = 1u << kStencilOp_Flag_Add_Shift,
-    kStencilOp_Flag_Decrement = 3u << kStencilOp_Flag_Add_Shift,
-    kStencilOp_Flag_Saturate = 1u << kStencilOp_Flag_Saturate_Shift,
-    kStencilOp_Flag_Invert = 1u << kStencilOp_Flag_Invert_Shift,
-    kStencilOp_Flag_NewMask = 1u << kStencilOp_Flag_NewMask_Shift,
-
-    kStencilOp_Keep = kStencilOp_Flag_CurrentMask,
-    kStencilOp_Zero = 0,
-    kStencilOp_Replace = kStencilOp_Flag_NewMask,
-    kStencilOp_IncrementSaturate = kStencilOp_Flag_CurrentMask |
-                                   kStencilOp_Flag_Increment |
-                                   kStencilOp_Flag_Saturate,
-    kStencilOp_DecrementSaturate = kStencilOp_Flag_CurrentMask |
-                                   kStencilOp_Flag_Decrement |
-                                   kStencilOp_Flag_Saturate,
-    kStencilOp_Invert = kStencilOp_Flag_CurrentMask | kStencilOp_Flag_Invert,
-    kStencilOp_Increment =
-        kStencilOp_Flag_CurrentMask | kStencilOp_Flag_Increment,
-    kStencilOp_Decrement =
-        kStencilOp_Flag_CurrentMask | kStencilOp_Flag_Decrement,
-  };
-
   // Appended to the format in the format constant.
   enum : uint32_t {
     // Starting from bit 4 because the format itself needs 4 bits.
@@ -187,9 +156,9 @@ class DxbcShaderTranslator : public ShaderTranslator {
     uint32_t sample_count_log2[2];
 
     float alpha_test_reference;
+    uint32_t edram_resolution_square_scale;
     uint32_t edram_pitch_tiles;
     uint32_t edram_depth_base_dwords;
-    uint32_t padding_5;
 
     float color_exp_bias[4];
 
@@ -225,31 +194,30 @@ class DxbcShaderTranslator : public ShaderTranslator {
       float edram_poly_offset_back[2];
     };
 
-    uint32_t edram_resolution_square_scale;
-    uint32_t edram_stencil_reference;
-    uint32_t edram_stencil_read_mask;
-    uint32_t edram_stencil_write_mask;
+    // In stencil function/operations (they match the layout of the
+    // function/operations in RB_DEPTHCONTROL):
+    // 0:2 - comparison function (bit 0 - less, bit 1 - equal, bit 2 - greater).
+    // 3:5 - fail operation.
+    // 6:8 - pass operation.
+    // 9:11 - depth fail operation.
 
     union {
       struct {
-        // kStencilOp, separated into sub-operations - not the Xenos enum.
-        uint32_t edram_stencil_front_fail;
-        uint32_t edram_stencil_front_depth_fail;
-        uint32_t edram_stencil_front_pass;
-        uint32_t edram_stencil_front_comparison;
-      };
-      uint32_t edram_stencil_front[4];
-    };
+        uint32_t edram_stencil_front_reference;
+        uint32_t edram_stencil_front_read_mask;
+        uint32_t edram_stencil_front_write_mask;
+        uint32_t edram_stencil_front_func_ops;
 
-    union {
-      struct {
-        // kStencilOp, separated into sub-operations - not the Xenos enum.
-        uint32_t edram_stencil_back_fail;
-        uint32_t edram_stencil_back_depth_fail;
-        uint32_t edram_stencil_back_pass;
-        uint32_t edram_stencil_back_comparison;
+        uint32_t edram_stencil_back_reference;
+        uint32_t edram_stencil_back_read_mask;
+        uint32_t edram_stencil_back_write_mask;
+        uint32_t edram_stencil_back_func_ops;
       };
-      uint32_t edram_stencil_back[4];
+      struct {
+        uint32_t edram_stencil_front[4];
+        uint32_t edram_stencil_back[4];
+      };
+      uint32_t edram_stencil[2][4];
     };
 
     uint32_t edram_rt_base_dwords_scaled[4];
@@ -444,12 +412,17 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kSysConst_AlphaTestReference_Index = kSysConst_SampleCountLog2_Index + 1,
     kSysConst_AlphaTestReference_Vec = kSysConst_SampleCountLog2_Vec + 1,
     kSysConst_AlphaTestReference_Comp = 0,
-    kSysConst_EDRAMPitchTiles_Index = kSysConst_AlphaTestReference_Index + 1,
+    kSysConst_EDRAMResolutionSquareScale_Index =
+        kSysConst_AlphaTestReference_Index + 1,
+    kSysConst_EDRAMResolutionSquareScale_Vec = kSysConst_AlphaTestReference_Vec,
+    kSysConst_EDRAMResolutionSquareScale_Comp = 1,
+    kSysConst_EDRAMPitchTiles_Index =
+        kSysConst_EDRAMResolutionSquareScale_Index + 1,
     kSysConst_EDRAMPitchTiles_Vec = kSysConst_AlphaTestReference_Vec,
-    kSysConst_EDRAMPitchTiles_Comp = 1,
+    kSysConst_EDRAMPitchTiles_Comp = 2,
     kSysConst_EDRAMDepthBaseDwords_Index = kSysConst_EDRAMPitchTiles_Index + 1,
     kSysConst_EDRAMDepthBaseDwords_Vec = kSysConst_AlphaTestReference_Vec,
-    kSysConst_EDRAMDepthBaseDwords_Comp = 2,
+    kSysConst_EDRAMDepthBaseDwords_Comp = 3,
 
     kSysConst_ColorExpBias_Index = kSysConst_EDRAMDepthBaseDwords_Index + 1,
     kSysConst_ColorExpBias_Vec = kSysConst_EDRAMDepthBaseDwords_Vec + 1,
@@ -477,43 +450,18 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kSysConst_EDRAMPolyOffsetBackScale_Comp = 2,
     kSysConst_EDRAMPolyOffsetBackOffset_Comp = 3,
 
-    kSysConst_EDRAMResolutionSquareScale_Index =
-        kSysConst_EDRAMPolyOffsetBack_Index + 1,
-    kSysConst_EDRAMResolutionSquareScale_Vec =
-        kSysConst_EDRAMPolyOffsetBack_Vec + 1,
-    kSysConst_EDRAMResolutionSquareScale_Comp = 0,
-    kSysConst_EDRAMStencilReference_Index =
-        kSysConst_EDRAMResolutionSquareScale_Index + 1,
-    kSysConst_EDRAMStencilReference_Vec =
-        kSysConst_EDRAMResolutionSquareScale_Vec,
-    kSysConst_EDRAMStencilReference_Comp = 1,
-    kSysConst_EDRAMStencilReadMask_Index =
-        kSysConst_EDRAMStencilReference_Index + 1,
-    kSysConst_EDRAMStencilReadMask_Vec =
-        kSysConst_EDRAMResolutionSquareScale_Vec,
-    kSysConst_EDRAMStencilReadMask_Comp = 2,
-    kSysConst_EDRAMStencilWriteMask_Index =
-        kSysConst_EDRAMStencilReadMask_Index + 1,
-    kSysConst_EDRAMStencilWriteMask_Vec =
-        kSysConst_EDRAMResolutionSquareScale_Vec,
-    kSysConst_EDRAMStencilWriteMask_Comp = 3,
+    kSysConst_EDRAMStencil_Index = kSysConst_EDRAMPolyOffsetBack_Index + 1,
+    // 2 vectors.
+    kSysConst_EDRAMStencil_Vec = kSysConst_EDRAMPolyOffsetFront_Vec + 1,
+    kSysConst_EDRAMStencil_Front_Vec = kSysConst_EDRAMStencil_Vec,
+    kSysConst_EDRAMStencil_Back_Vec,
+    kSysConst_EDRAMStencil_Reference_Comp = 0,
+    kSysConst_EDRAMStencil_ReadMask_Comp,
+    kSysConst_EDRAMStencil_WriteMask_Comp,
+    kSysConst_EDRAMStencil_FuncOps_Comp,
 
-    kSysConst_EDRAMStencilFront_Index =
-        kSysConst_EDRAMStencilWriteMask_Index + 1,
-    kSysConst_EDRAMStencilFront_Vec = kSysConst_EDRAMStencilWriteMask_Vec + 1,
-
-    kSysConst_EDRAMStencilBack_Index = kSysConst_EDRAMStencilFront_Index + 1,
-    kSysConst_EDRAMStencilBack_Vec = kSysConst_EDRAMStencilFront_Vec + 1,
-
-    // Components of stencil front and back.
-    kSysConst_EDRAMStencilSide_Fail_Comp = 0,
-    kSysConst_EDRAMStencilSide_DepthFail_Comp = 1,
-    kSysConst_EDRAMStencilSide_Pass_Comp = 2,
-    kSysConst_EDRAMStencilSide_Comparison_Comp = 3,
-
-    kSysConst_EDRAMRTBaseDwordsScaled_Index =
-        kSysConst_EDRAMStencilBack_Index + 1,
-    kSysConst_EDRAMRTBaseDwordsScaled_Vec = kSysConst_EDRAMStencilBack_Vec + 1,
+    kSysConst_EDRAMRTBaseDwordsScaled_Index = kSysConst_EDRAMStencil_Index + 1,
+    kSysConst_EDRAMRTBaseDwordsScaled_Vec = kSysConst_EDRAMStencil_Vec + 2,
 
     kSysConst_EDRAMRTFormatFlags_Index =
         kSysConst_EDRAMRTBaseDwordsScaled_Index + 1,
@@ -969,7 +917,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kFloat4Array6,
     // Float constants - size written dynamically.
     kFloat4ConstantArray,
-    // Render target keep masks.
+    // Front/back stencil, render target keep masks.
     kUint4Array2,
     // Bool constants.
     kUint4Array8,
