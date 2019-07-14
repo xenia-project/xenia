@@ -1111,22 +1111,40 @@ void EmitAddXX(X64Emitter& e, const ARGS& i) {
 }
 struct ADD_I8 : Sequence<ADD_I8, I<OPCODE_ADD, I8Op, I8Op, I8Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    EmitAddXX<ADD_I8, Reg8>(e, i);
+    if (i.src2.is_constant && i.dest.reg() == i.src1.reg() &&
+        i.src2.value->constant.u8 == 1) {
+      e.inc(i.dest.reg());
+    } else
+      EmitAddXX<ADD_I8, Reg8>(e, i);
   }
 };
 struct ADD_I16 : Sequence<ADD_I16, I<OPCODE_ADD, I16Op, I16Op, I16Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    EmitAddXX<ADD_I16, Reg16>(e, i);
+    if (i.src2.is_constant && i.dest.reg() == i.src1.reg() &&
+        i.src2.value->constant.u16 == 1) {
+      e.inc(i.dest.reg());
+
+    } else
+      EmitAddXX<ADD_I16, Reg16>(e, i);
   }
 };
 struct ADD_I32 : Sequence<ADD_I32, I<OPCODE_ADD, I32Op, I32Op, I32Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    EmitAddXX<ADD_I32, Reg32>(e, i);
+    if (i.src2.is_constant && i.dest.reg() == i.src1.reg() &&
+        i.src2.value->constant.u32 == 1) {
+      e.inc(i.dest.reg());
+
+    } else
+      EmitAddXX<ADD_I32, Reg32>(e, i);
   }
 };
 struct ADD_I64 : Sequence<ADD_I64, I<OPCODE_ADD, I64Op, I64Op, I64Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    EmitAddXX<ADD_I64, Reg64>(e, i);
+    if (i.src2.is_constant && i.dest.reg() == i.src1.reg() &&
+        i.src2.value->constant.u64 == 1) {
+      e.inc(i.dest.reg());
+    } else
+      EmitAddXX<ADD_I64, Reg64>(e, i);
   }
 };
 struct ADD_F32 : Sequence<ADD_F32, I<OPCODE_ADD, F32Op, F32Op, F32Op>> {
@@ -1233,22 +1251,41 @@ void EmitSubXX(X64Emitter& e, const ARGS& i) {
 }
 struct SUB_I8 : Sequence<SUB_I8, I<OPCODE_SUB, I8Op, I8Op, I8Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    EmitSubXX<SUB_I8, Reg8>(e, i);
+    if (i.src2.is_constant && i.dest.reg() == i.src1.reg() &&
+        i.src2.value->constant.u8 == 1) {
+      e.dec(i.dest.reg());
+    } else
+      EmitSubXX<SUB_I8, Reg8>(e, i);
   }
 };
 struct SUB_I16 : Sequence<SUB_I16, I<OPCODE_SUB, I16Op, I16Op, I16Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    EmitSubXX<SUB_I16, Reg16>(e, i);
+    if (i.src2.is_constant && i.dest.reg() == i.src1.reg() &&
+        i.src2.value->constant.u16 == 1) {
+      e.dec(i.dest.reg());
+
+    } else
+      EmitSubXX<SUB_I16, Reg16>(e, i);
   }
 };
 struct SUB_I32 : Sequence<SUB_I32, I<OPCODE_SUB, I32Op, I32Op, I32Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    EmitSubXX<SUB_I32, Reg32>(e, i);
+    if (i.src2.is_constant && i.dest.reg() == i.src1.reg() &&
+        i.src2.value->constant.u32 == 1) {
+      e.dec(i.dest.reg());
+
+    } else
+      EmitSubXX<SUB_I32, Reg32>(e, i);
   }
 };
 struct SUB_I64 : Sequence<SUB_I64, I<OPCODE_SUB, I64Op, I64Op, I64Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    EmitSubXX<SUB_I64, Reg64>(e, i);
+    if (i.src2.is_constant && i.dest.reg() == i.src1.reg() &&
+        i.src2.value->constant.u64 == 1) {
+      e.dec(i.dest.reg());
+
+    } else
+      EmitSubXX<SUB_I64, Reg64>(e, i);
   }
 };
 struct SUB_F32 : Sequence<SUB_F32, I<OPCODE_SUB, F32Op, F32Op, F32Op>> {
@@ -1370,6 +1407,20 @@ struct MUL_I16 : Sequence<MUL_I16, I<OPCODE_MUL, I16Op, I16Op, I16Op>> {
 };
 struct MUL_I32 : Sequence<MUL_I32, I<OPCODE_MUL, I32Op, I32Op, I32Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
+    if (i.src2.is_constant) {
+      if (i.src2.value->constant.u32 == 3) {
+        e.lea(i.dest, e.ptr[i.src1.reg() * 2 + i.src1.reg()]);
+        return;
+      }
+      if (i.src2.value->constant.u32 == 5) {
+        e.lea(i.dest, e.ptr[i.src1.reg() * 4 + i.src1.reg()]);
+        return;
+      }
+      if (i.src2.value->constant.u32 == 9) {
+        e.lea(i.dest, e.ptr[i.src1.reg() * 8 + i.src1.reg()]);
+        return;
+      }
+    }
     if (e.IsFeatureEnabled(kX64EmitBMI2)) {
       // mulx: $1:$2 = EDX * $3
 
@@ -1412,6 +1463,23 @@ struct MUL_I32 : Sequence<MUL_I32, I<OPCODE_MUL, I32Op, I32Op, I32Op>> {
 };
 struct MUL_I64 : Sequence<MUL_I64, I<OPCODE_MUL, I64Op, I64Op, I64Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
+    if (i.src2.is_constant) {
+      if (i.src2.value->constant.u64 == 3) {
+        e.lea(i.dest, e.ptr[i.src1.reg() * 2 + i.src1.reg()]);
+        // exit(0);
+        return;
+      }
+      if (i.src2.value->constant.u64 == 5) {
+        e.lea(i.dest, e.ptr[i.src1.reg() * 4 + i.src1.reg()]);
+        // exit(0);
+        return;
+      }
+      if (i.src2.value->constant.u64 == 9) {
+        e.lea(i.dest, e.ptr[i.src1.reg() * 8 + i.src1.reg()]);
+        // exit(0);
+        return;
+      }
+    }
     if (e.IsFeatureEnabled(kX64EmitBMI2)) {
       // mulx: $1:$2 = RDX * $3
 
@@ -1669,7 +1737,62 @@ struct MUL_HI_I64
 };
 EMITTER_OPCODE_TABLE(OPCODE_MUL_HI, MUL_HI_I8, MUL_HI_I16, MUL_HI_I32,
                      MUL_HI_I64);
+/*  from Hackers Delight - by Henry S. Warren Jr. Calculate magic number for
+ * unsigned division */
+template <typename T>
+auto magicu(T d) {
+  constexpr unsigned NBITS = sizeof(T) * CHAR_BIT;
+  constexpr unsigned NBITS_M1 = NBITS - 1;
+  constexpr T SIGNBIT = T(1) << NBITS_M1;
 
+  constexpr T POSMASK = ~SIGNBIT;
+
+  struct mu {
+    T M;    // Magic number,
+    int a;  // "add" indicator,
+    int s;
+  };  // and shift amount.
+
+  // Must have 1 <= d <= 2**32-1.
+  int p, gt = 0;
+  T nc, delta, q1, r1, q2, r2;
+  struct mu magu;
+
+  magu.a = 0;  // Initialize "add" indicator.
+  nc = -1 - ((T) - (std::make_signed_t<T>)d) % d;  // Unsigned arithmetic here.
+  p = NBITS_M1;                                    // Init. p.
+  q1 = SIGNBIT / nc;                               // Init. q1 = 2**p/nc.
+  r1 = SIGNBIT - q1 * nc;                          // Init. r1 = rem(2**p, nc).
+  q2 = POSMASK / d;                                // Init. q2 = (2**p - 1)/d.
+  r2 = POSMASK - q2 * d;  // Init. r2 = rem(2**p - 1, d).
+  do {
+    p = p + 1;
+    if (q1 >= SIGNBIT) gt = 1;  // Means q1 > delta.
+    if (r1 >= nc - r1) {
+      q1 = 2 * q1 + 1;  // Update q1.
+      r1 = 2 * r1 - nc;
+    }  // Update r1.
+    else {
+      q1 = 2 * q1;
+      r1 = 2 * r1;
+    }
+    if (r2 + 1 >= d - r2) {
+      if (q2 >= POSMASK) magu.a = 1;
+      q2 = 2 * q2 + 1;  // Update q2.
+      r2 = 2 * r2 + 1 - d;
+    }  // Update r2.
+    else {
+      if (q2 >= SIGNBIT) magu.a = 1;
+      q2 = 2 * q2;
+      r2 = 2 * r2 + 1;
+    }
+    delta = d - 1 - r2;
+  } while (gt == 0 && (q1 < delta || (q1 == delta && r1 == 0)));
+
+  magu.M = q2 + 1;     // Magic number
+  magu.s = p - NBITS;  // and shift amount to return
+  return magu;         // (magu.a was set above).
+}
 // ============================================================================
 // OPCODE_DIV
 // ============================================================================
@@ -1774,10 +1897,28 @@ struct DIV_I32 : Sequence<DIV_I32, I<OPCODE_DIV, I32Op, I32Op, I32Op>> {
       assert_true(!i.src1.is_constant);
       e.mov(e.ecx, i.src2.constant());
       if (i.instr->flags & ARITHMETIC_UNSIGNED) {
-        e.mov(e.eax, i.src1);
-        // Zero upper bits.
-        e.xor_(e.edx, e.edx);
-        e.div(e.ecx);
+        auto magicgu_val = magicu<unsigned>(i.src2.value->constant.u32);
+
+        if (!magicgu_val.a) {
+          e.mov(i.dest, i.src1);
+          if (e.IsFeatureEnabled(kX64EmitAVX2)) {
+            e.mov(e.edx, magicgu_val.M);
+            e.mulx(i.dest, i.dest, i.dest);
+          } else {
+            e.mov(e.eax, magicgu_val.M);
+            e.mul(i.dest);
+            e.mov(i.dest, e.edx);
+          }
+          if (magicgu_val.s != 0) e.shr(i.dest, magicgu_val.s);
+
+          return;
+        } else {
+          e.mov(e.eax, i.src1);
+          // Zero upper bits.
+          e.xor_(e.edx, e.edx);
+          e.div(e.ecx);
+        }
+
       } else {
         e.mov(e.eax, i.src1);
         e.cdq();  // edx:eax = sign-extend eax
@@ -1822,6 +1963,22 @@ struct DIV_I64 : Sequence<DIV_I64, I<OPCODE_DIV, I64Op, I64Op, I64Op>> {
       assert_true(!i.src1.is_constant);
       e.mov(e.rcx, i.src2.constant());
       if (i.instr->flags & ARITHMETIC_UNSIGNED) {
+        auto magicgu_val = magicu<uint64_t>(i.src2.value->constant.u32);
+
+        if (!magicgu_val.a) {
+          if (e.IsFeatureEnabled(kX64EmitAVX2)) {
+            e.mov(e.rdx, magicgu_val.M);
+            e.mov(i.dest, i.src1);
+            e.mulx(i.dest, i.dest, i.dest);
+          } else {
+            e.mov(e.rax, magicgu_val.M);
+            e.mul(i.src1);
+            e.mov(i.dest, e.rdx);
+          }
+          e.shr(i.dest, magicgu_val.s);
+          return;
+        }
+        e.mov(e.rcx, i.src2.constant());
         e.mov(e.rax, i.src1);
         // Zero upper bits.
         e.xor_(e.rdx, e.rdx);

@@ -708,6 +708,29 @@ struct VECTOR_SHL_V128
 
   static void EmitInt8(X64Emitter& e, const EmitArgType& i) {
     // TODO(benvanik): native version (with shift magic).
+
+    if (i.src2.is_constant) {
+      unsigned char n = i.src2.constant().u8[0];
+      bool all = true;
+      for (unsigned j = 1; j < 16; ++j) {
+        if (i.src2.constant().u8[j] != n) {
+          all = false;
+
+          break;
+        }
+      }
+      if (all) {
+        vec128_t bleh;
+
+        uint8_t mask = ~(uint8_t)(((uint16_t)0x100) >> n);
+
+        for (unsigned i = 0; i < 16; ++i) bleh.u8[i] = mask;
+        e.LoadConstantXmm(e.xmm0, bleh);
+        e.vpand(e.xmm0, e.xmm0, i.src1);
+        e.vpsllw(i.dest, e.xmm0, n);
+        return;
+      }
+    }
     if (i.src2.is_constant) {
       e.LoadConstantXmm(e.xmm0, i.src2.constant());
       e.lea(e.GetNativeParam(1), e.StashXmm(1, e.xmm0));
@@ -716,6 +739,7 @@ struct VECTOR_SHL_V128
     }
     e.lea(e.GetNativeParam(0), e.StashXmm(0, i.src1));
     e.CallNativeSafe(reinterpret_cast<void*>(EmulateVectorShl<uint8_t>));
+
     e.vmovaps(i.dest, e.xmm0);
   }
 
