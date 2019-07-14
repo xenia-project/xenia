@@ -1194,20 +1194,9 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
   bool memexport_used = memexport_used_vertex || memexport_used_pixel;
 
   bool primitive_two_faced = IsPrimitiveTwoFaced(tessellated, primitive_type);
-
   if (!memexport_used_vertex && primitive_two_faced &&
       (regs[XE_GPU_REG_PA_SU_SC_MODE_CNTL].u32 & 0x3) == 0x3) {
-    // Both sides are culled.
-    return true;
-  }
-
-  uint32_t color_mask = GetCurrentColorMask(pixel_shader);
-  uint32_t rb_depthcontrol = regs[XE_GPU_REG_RB_DEPTHCONTROL].u32;
-  uint32_t rb_stencilrefmask = regs[XE_GPU_REG_RB_STENCILREFMASK].u32;
-  if (!memexport_used && !color_mask &&
-      ((rb_depthcontrol & (0x2 | 0x4)) != (0x2 | 0x4)) &&
-      (!(rb_depthcontrol & 0x1) || !(rb_stencilrefmask & (0xFF << 16)))) {
-    // Not writing to color, depth or stencil, so doesn't draw.
+    // Both sides are culled - can't be expressed in the pipeline state.
     return true;
   }
 
@@ -1314,6 +1303,7 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
 
   // Check if early depth/stencil can be enabled explicitly by RB_DEPTHCONTROL
   // or implicitly when alpha test and alpha to coverage are disabled.
+  uint32_t rb_depthcontrol = regs[XE_GPU_REG_RB_DEPTHCONTROL].u32;
   uint32_t rb_colorcontrol = regs[XE_GPU_REG_RB_COLORCONTROL].u32;
   bool early_z = false;
   if (pixel_shader == nullptr) {
@@ -1344,14 +1334,14 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
   }
 
   // Update viewport, scissor, blend factor and stencil reference.
-  UpdateFixedFunctionState();
+  UpdateFixedFunctionState(primitive_two_faced);
 
   // Update system constants before uploading them.
   UpdateSystemConstantValues(
       memexport_used, primitive_two_faced, line_loop_closing_index,
       indexed ? index_buffer_info->endianness : Endian::kUnspecified,
       adaptive_tessellation ? (index_buffer_info->guest_base & 0x1FFFFFFC) : 0,
-      early_z, color_mask, pipeline_render_targets);
+      early_z, GetCurrentColorMask(pixel_shader), pipeline_render_targets);
 
   // Update constant buffers, descriptors and root parameters.
   if (!UpdateBindings(vertex_shader, pixel_shader, root_signature)) {
@@ -1810,7 +1800,7 @@ bool D3D12CommandProcessor::EndFrame() {
   return true;
 }
 
-void D3D12CommandProcessor::UpdateFixedFunctionState() {
+void D3D12CommandProcessor::UpdateFixedFunctionState(bool primitive_two_faced) {
   auto& regs = *register_file_;
 
 #if FINE_GRAINED_DRAW_SCOPES
@@ -1961,8 +1951,15 @@ void D3D12CommandProcessor::UpdateFixedFunctionState() {
       ff_blend_factor_update_needed_ = false;
     }
 
-    // Stencil reference value.
-    uint32_t stencil_ref = regs[XE_GPU_REG_RB_STENCILREFMASK].u32 & 0xFF;
+    // Stencil reference value. Per-face reference not supported by Direct3D 12,
+    // choose the back face one only if drawing only back faces.
+    uint32_t stencil_ref;
+    if (primitive_two_faced && (regs[XE_GPU_REG_RB_DEPTHCONTROL].u32 & 0x80) &&
+        (regs[XE_GPU_REG_PA_SU_SC_MODE_CNTL].u32 & 0x3) == 1) {
+      stencil_ref = regs[XE_GPU_REG_RB_STENCILREFMASK_BF].u32 & 0xFF;
+    } else {
+      stencil_ref = regs[XE_GPU_REG_RB_STENCILREFMASK].u32 & 0xFF;
+    }
     ff_stencil_ref_update_needed_ |= ff_stencil_ref_ != stencil_ref;
     if (ff_stencil_ref_update_needed_) {
       ff_stencil_ref_ = stencil_ref;
@@ -1994,6 +1991,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   uint32_t rb_depth_info = regs[XE_GPU_REG_RB_DEPTH_INFO].u32;
   uint32_t rb_depthcontrol = regs[XE_GPU_REG_RB_DEPTHCONTROL].u32;
   uint32_t rb_stencilrefmask = regs[XE_GPU_REG_RB_STENCILREFMASK].u32;
+  uint32_t rb_stencilrefmask_bf = regs[XE_GPU_REG_RB_STENCILREFMASK_BF].u32;
   uint32_t rb_surface_info = regs[XE_GPU_REG_RB_SURFACE_INFO].u32;
   uint32_t sq_context_misc = regs[XE_GPU_REG_SQ_CONTEXT_MISC].u32;
   uint32_t sq_program_cntl = regs[XE_GPU_REG_SQ_PROGRAM_CNTL].u32;
@@ -2500,56 +2498,35 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
       uint32_t stencil_value;
 
       stencil_value = rb_stencilrefmask & 0xFF;
-      dirty |= system_constants_.edram_stencil_reference != stencil_value;
-      system_constants_.edram_stencil_reference = stencil_value;
+      dirty |= system_constants_.edram_stencil_front_reference != stencil_value;
+      system_constants_.edram_stencil_front_reference = stencil_value;
       stencil_value = (rb_stencilrefmask >> 8) & 0xFF;
-      dirty |= system_constants_.edram_stencil_read_mask != stencil_value;
-      system_constants_.edram_stencil_read_mask = stencil_value;
+      dirty |= system_constants_.edram_stencil_front_read_mask != stencil_value;
+      system_constants_.edram_stencil_front_read_mask = stencil_value;
       stencil_value = (rb_stencilrefmask >> 16) & 0xFF;
-      dirty |= system_constants_.edram_stencil_write_mask != stencil_value;
-      system_constants_.edram_stencil_write_mask = stencil_value;
-
-      static const uint32_t kStencilOpMap[] = {
-          DxbcShaderTranslator::kStencilOp_Keep,
-          DxbcShaderTranslator::kStencilOp_Zero,
-          DxbcShaderTranslator::kStencilOp_Replace,
-          DxbcShaderTranslator::kStencilOp_IncrementSaturate,
-          DxbcShaderTranslator::kStencilOp_DecrementSaturate,
-          DxbcShaderTranslator::kStencilOp_Invert,
-          DxbcShaderTranslator::kStencilOp_Increment,
-          DxbcShaderTranslator::kStencilOp_Decrement,
-      };
-
-      stencil_value = kStencilOpMap[(rb_depthcontrol >> 11) & 0x7];
-      dirty |= system_constants_.edram_stencil_front_fail != stencil_value;
-      system_constants_.edram_stencil_front_fail = stencil_value;
-      stencil_value = kStencilOpMap[(rb_depthcontrol >> 17) & 0x7];
       dirty |=
-          system_constants_.edram_stencil_front_depth_fail != stencil_value;
-      system_constants_.edram_stencil_front_depth_fail = stencil_value;
-      stencil_value = kStencilOpMap[(rb_depthcontrol >> 14) & 0x7];
-      dirty |= system_constants_.edram_stencil_front_pass != stencil_value;
-      system_constants_.edram_stencil_front_pass = stencil_value;
-      stencil_value = (rb_depthcontrol >> 8) & 0x7;
-      dirty |=
-          system_constants_.edram_stencil_front_comparison != stencil_value;
-      system_constants_.edram_stencil_front_comparison = stencil_value;
+          system_constants_.edram_stencil_front_write_mask != stencil_value;
+      system_constants_.edram_stencil_front_write_mask = stencil_value;
+      stencil_value = (rb_depthcontrol >> 8) & ((1 << 12) - 1);
+      dirty |= system_constants_.edram_stencil_front_func_ops != stencil_value;
+      system_constants_.edram_stencil_front_func_ops = stencil_value;
 
       if (primitive_two_faced && (rb_depthcontrol & 0x80)) {
-        stencil_value = kStencilOpMap[(rb_depthcontrol >> 23) & 0x7];
-        dirty |= system_constants_.edram_stencil_back_fail != stencil_value;
-        system_constants_.edram_stencil_back_fail = stencil_value;
-        stencil_value = kStencilOpMap[(rb_depthcontrol >> 29) & 0x7];
+        stencil_value = rb_stencilrefmask_bf & 0xFF;
         dirty |=
-            system_constants_.edram_stencil_back_depth_fail != stencil_value;
-        system_constants_.edram_stencil_back_depth_fail = stencil_value;
-        stencil_value = kStencilOpMap[(rb_depthcontrol >> 26) & 0x7];
-        dirty |= system_constants_.edram_stencil_back_pass != stencil_value;
-        system_constants_.edram_stencil_back_pass = stencil_value;
-        stencil_value = (rb_depthcontrol >> 20) & 0x7;
+            system_constants_.edram_stencil_back_reference != stencil_value;
+        system_constants_.edram_stencil_back_reference = stencil_value;
+        stencil_value = (rb_stencilrefmask_bf >> 8) & 0xFF;
         dirty |=
-            system_constants_.edram_stencil_back_comparison != stencil_value;
-        system_constants_.edram_stencil_back_comparison = stencil_value;
+            system_constants_.edram_stencil_back_read_mask != stencil_value;
+        system_constants_.edram_stencil_back_read_mask = stencil_value;
+        stencil_value = (rb_stencilrefmask_bf >> 16) & 0xFF;
+        dirty |=
+            system_constants_.edram_stencil_back_write_mask != stencil_value;
+        system_constants_.edram_stencil_back_write_mask = stencil_value;
+        stencil_value = (rb_depthcontrol >> 20) & ((1 << 12) - 1);
+        dirty |= system_constants_.edram_stencil_back_func_ops != stencil_value;
+        system_constants_.edram_stencil_back_func_ops = stencil_value;
       } else {
         dirty |= std::memcmp(system_constants_.edram_stencil_back,
                              system_constants_.edram_stencil_front,

@@ -469,9 +469,9 @@ bool PipelineCache::GetCurrentStateDescription(
   // Xenos fill mode 1).
   // Here we also assume that only one side is culled - if two sides are culled,
   // the D3D12 command processor will drop such draw early.
+  uint32_t cull_mode = primitive_two_faced ? (pa_su_sc_mode_cntl & 0x3) : 0;
   float poly_offset = 0.0f, poly_offset_scale = 0.0f;
   if (primitive_two_faced) {
-    uint32_t cull_mode = pa_su_sc_mode_cntl & 0x3;
     description_out.front_counter_clockwise = (pa_su_sc_mode_cntl & 0x4) == 0;
     if (cull_mode == 1) {
       description_out.cull_mode = PipelineCullMode::kFront;
@@ -583,15 +583,24 @@ bool PipelineCache::GetCurrentStateDescription(
       }
       if (rb_depthcontrol & 0x1) {
         description_out.stencil_enable = 1;
-        uint32_t rb_stencilrefmask = regs[XE_GPU_REG_RB_STENCILREFMASK].u32;
-        description_out.stencil_read_mask = (rb_stencilrefmask >> 8) & 0xFF;
-        description_out.stencil_write_mask = (rb_stencilrefmask >> 16) & 0xFF;
+        bool stencil_backface_enable =
+            primitive_two_faced && (rb_depthcontrol & 0x80);
+        uint32_t stencil_masks;
+        // Per-face masks not supported by Direct3D 12, choose the back face
+        // ones only if drawing only back faces.
+        if (stencil_backface_enable && cull_mode == 1) {
+          stencil_masks = regs[XE_GPU_REG_RB_STENCILREFMASK_BF].u32;
+        } else {
+          stencil_masks = regs[XE_GPU_REG_RB_STENCILREFMASK].u32;
+        }
+        description_out.stencil_read_mask = (stencil_masks >> 8) & 0xFF;
+        description_out.stencil_write_mask = (stencil_masks >> 16) & 0xFF;
         description_out.stencil_front_fail_op = (rb_depthcontrol >> 11) & 0x7;
         description_out.stencil_front_depth_fail_op =
             (rb_depthcontrol >> 17) & 0x7;
         description_out.stencil_front_pass_op = (rb_depthcontrol >> 14) & 0x7;
         description_out.stencil_front_func = (rb_depthcontrol >> 8) & 0x7;
-        if (primitive_two_faced && (rb_depthcontrol & 0x80)) {
+        if (stencil_backface_enable) {
           description_out.stencil_back_fail_op = (rb_depthcontrol >> 23) & 0x7;
           description_out.stencil_back_depth_fail_op =
               (rb_depthcontrol >> 29) & 0x7;

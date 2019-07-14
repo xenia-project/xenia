@@ -208,7 +208,7 @@ class D3D12CommandProcessor : public CommandProcessor {
   // Returns true if an open frame was ended.
   bool EndFrame();
 
-  void UpdateFixedFunctionState();
+  void UpdateFixedFunctionState(bool primitive_two_faced);
   void UpdateSystemConstantValues(
       bool shared_memory_is_uav, bool primitive_two_faced,
       uint32_t line_loop_closing_index, Endian index_endian,
