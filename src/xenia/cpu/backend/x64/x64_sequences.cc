@@ -1958,7 +1958,7 @@ struct DIV_I64 : Sequence<DIV_I64, I<OPCODE_DIV, I64Op, I64Op, I64Op>> {
     if (i.src2.is_constant) {
       assert_true(!i.src1.is_constant);
       if (i.instr->flags & ARITHMETIC_UNSIGNED) {
-        auto div_shift_info = magicu<uint64_t>(i.src2.value->constant.u32);
+        auto div_shift_info = magicu<uint64_t>(i.src2.value->constant.u64);
 		//disabled addflag for now
         if (!div_shift_info.a) {
           if (e.IsFeatureEnabled(kX64EmitAVX2)) {
