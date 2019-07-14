@@ -1886,7 +1886,6 @@ struct DIV_I16 : Sequence<DIV_I16, I<OPCODE_DIV, I16Op, I16Op, I16Op>> {
         e.idiv(i.src2);
       }
     }
-
     e.L(skip);
     e.outLocalLabel();
     e.mov(i.dest, e.ax);
@@ -1902,7 +1901,6 @@ struct DIV_I32 : Sequence<DIV_I32, I<OPCODE_DIV, I32Op, I32Op, I32Op>> {
       e.mov(e.ecx, i.src2.constant());
       if (i.instr->flags & ARITHMETIC_UNSIGNED) {
         auto div_shift_info = magicu<unsigned>(i.src2.value->constant.u32);
-        // todo: handle the add flag.
         e.mov(i.dest, i.src1);
         if (e.IsFeatureEnabled(kX64EmitAVX2)) {
           e.mov(e.edx, div_shift_info.M);
@@ -1912,14 +1910,12 @@ struct DIV_I32 : Sequence<DIV_I32, I<OPCODE_DIV, I32Op, I32Op, I32Op>> {
           e.mul(i.dest);
           e.mov(i.dest, e.edx);
         }
-
         if (div_shift_info.a) {
           // pg 228, hackers delight, 2nd edition. add initial input to product,
           // result may carry we need to handle this carry, treat result as 33
           // bits with carry as bit 33
           e.add(i.dest, i.src1);
           e.rcr(i.dest, 1);
-    
         }
         if (div_shift_info.s != 0) {
           e.shr(i.dest, div_shift_info.s);
@@ -1954,7 +1950,6 @@ struct DIV_I32 : Sequence<DIV_I32, I<OPCODE_DIV, I32Op, I32Op, I32Op>> {
         e.idiv(i.src2);
       }
     }
-
     e.L(skip);
     e.outLocalLabel();
     e.mov(i.dest, e.eax);
@@ -1970,16 +1965,14 @@ struct DIV_I64 : Sequence<DIV_I64, I<OPCODE_DIV, I64Op, I64Op, I64Op>> {
       e.mov(e.rcx, i.src2.constant());
       if (i.instr->flags & ARITHMETIC_UNSIGNED) {
         auto div_shift_info = magicu<uint64_t>(i.src2.value->constant.u32);
-        // todo: handle addflag
-
         if (e.IsFeatureEnabled(kX64EmitAVX2)) {
-        e.mov(e.rdx, div_shift_info.M);
-        e.mov(i.dest, i.src1);
-        e.mulx(i.dest, i.dest, i.dest);
+          e.mov(e.rdx, div_shift_info.M);
+          e.mov(i.dest, i.src1);
+          e.mulx(i.dest, i.dest, i.dest);
         } else {
-        e.mov(e.rax, div_shift_info.M);
-        e.mul(i.src1);
-        e.mov(i.dest, e.rdx);
+          e.mov(e.rax, div_shift_info.M);
+          e.mul(i.src1);
+          e.mov(i.dest, e.rdx);
         }
         if (div_shift_info.a) {
           // pg 228, hackers delight, 2nd edition. add initial input to product,
@@ -1987,13 +1980,11 @@ struct DIV_I64 : Sequence<DIV_I64, I<OPCODE_DIV, I64Op, I64Op, I64Op>> {
           // bits with carry as bit 65
           e.add(i.dest, i.src1);
           e.rcr(i.dest, 1);
-		}
+        }
         if (div_shift_info.s) {
           e.shr(i.dest, div_shift_info.s);
         }
         return;
-
-
       } else {
         e.mov(e.rax, i.src1);
         e.cqo();  // rdx:rax = sign-extend rax
