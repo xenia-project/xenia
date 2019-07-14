@@ -1882,30 +1882,40 @@ struct DIV_I32 : Sequence<DIV_I32, I<OPCODE_DIV, I32Op, I32Op, I32Op>> {
 
     if (i.src2.is_constant) {
       assert_true(!i.src1.is_constant);
-      e.mov(e.ecx, i.src2.constant());
+      
       if (i.instr->flags & ARITHMETIC_UNSIGNED) {
         auto div_shift_info = magicu<unsigned>(i.src2.value->constant.u32);
-        e.mov(i.dest, i.src1);
-        if (e.IsFeatureEnabled(kX64EmitAVX2)) {
-          e.mov(e.edx, div_shift_info.M);
-          e.mulx(i.dest, i.dest, i.dest);
+		//disabling addflag for now. the code for handling it is incorrect
+        if (!div_shift_info.a) {
+          e.mov(i.dest, i.src1);
+          if (e.IsFeatureEnabled(kX64EmitAVX2)) {
+            e.mov(e.edx, div_shift_info.M);
+            e.mulx(i.dest, i.dest, i.dest);
+          } else {
+            e.mov(e.eax, div_shift_info.M);
+            e.mul(i.dest);
+            e.mov(i.dest, e.edx);
+          }
+          if (div_shift_info.a) {
+            // pg 228, hackers delight, 2nd edition. add initial input to
+            // product, result may carry we need to handle this carry, treat
+            // result as 33 bits with carry as bit 33
+            e.add(i.dest, i.src1);
+            e.rcr(i.dest, 1);
+          }
+          if (div_shift_info.s != 0) {
+            e.shr(i.dest, div_shift_info.s);
+          }
+          return;
         } else {
-          e.mov(e.eax, div_shift_info.M);
-          e.mul(i.dest);
-          e.mov(i.dest, e.edx);
-        }
-        if (div_shift_info.a) {
-          // pg 228, hackers delight, 2nd edition. add initial input to product,
-          // result may carry we need to handle this carry, treat result as 33
-          // bits with carry as bit 33
-          e.add(i.dest, i.src1);
-          e.rcr(i.dest, 1);
-        }
-        if (div_shift_info.s != 0) {
-          e.shr(i.dest, div_shift_info.s);
-        }
-        return;
+          e.mov(e.ecx, i.src2.constant());
+          e.mov(e.eax, i.src1);
+          // Zero upper bits.
+          e.xor_(e.edx, e.edx);
+          e.div(e.ecx);
+		}
       } else {
+        e.mov(e.ecx, i.src2.constant());
         e.mov(e.eax, i.src1);
         e.cdq();  // edx:eax = sign-extend eax
         e.idiv(e.ecx);
@@ -1947,30 +1957,39 @@ struct DIV_I64 : Sequence<DIV_I64, I<OPCODE_DIV, I64Op, I64Op, I64Op>> {
 
     if (i.src2.is_constant) {
       assert_true(!i.src1.is_constant);
-      e.mov(e.rcx, i.src2.constant());
       if (i.instr->flags & ARITHMETIC_UNSIGNED) {
         auto div_shift_info = magicu<uint64_t>(i.src2.value->constant.u32);
-        if (e.IsFeatureEnabled(kX64EmitAVX2)) {
-          e.mov(e.rdx, div_shift_info.M);
-          e.mov(i.dest, i.src1);
-          e.mulx(i.dest, i.dest, i.dest);
+		//disabled addflag for now
+        if (!div_shift_info.a) {
+          if (e.IsFeatureEnabled(kX64EmitAVX2)) {
+            e.mov(e.rdx, div_shift_info.M);
+            e.mov(i.dest, i.src1);
+            e.mulx(i.dest, i.dest, i.dest);
+          } else {
+            e.mov(e.rax, div_shift_info.M);
+            e.mul(i.src1);
+            e.mov(i.dest, e.rdx);
+          }
+          if (div_shift_info.a) {
+            // pg 228, hackers delight, 2nd edition. add initial input to
+            // product, result may carry we need to handle this carry, treat
+            // result as 65 bits with carry as bit 65
+            e.add(i.dest, i.src1);
+            e.rcr(i.dest, 1);
+          }
+          if (div_shift_info.s) {
+            e.shr(i.dest, div_shift_info.s);
+          }
+          return;
         } else {
-          e.mov(e.rax, div_shift_info.M);
-          e.mul(i.src1);
-          e.mov(i.dest, e.rdx);
-        }
-        if (div_shift_info.a) {
-          // pg 228, hackers delight, 2nd edition. add initial input to product,
-          // result may carry we need to handle this carry, treat result as 65
-          // bits with carry as bit 65
-          e.add(i.dest, i.src1);
-          e.rcr(i.dest, 1);
-        }
-        if (div_shift_info.s) {
-          e.shr(i.dest, div_shift_info.s);
-        }
-        return;
+          e.mov(e.rcx, i.src2.constant());
+          e.mov(e.rax, i.src1);
+          // Zero upper bits.
+          e.xor_(e.rdx, e.rdx);
+          e.div(e.rcx);
+		}
       } else {
+        e.mov(e.rcx, i.src2.constant());
         e.mov(e.rax, i.src1);
         e.cqo();  // rdx:rax = sign-extend rax
         e.idiv(e.rcx);
