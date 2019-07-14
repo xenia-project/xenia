@@ -1470,17 +1470,14 @@ struct MUL_I64 : Sequence<MUL_I64, I<OPCODE_MUL, I64Op, I64Op, I64Op>> {
     if (i.src2.is_constant) {
       if (i.src2.value->constant.u64 == 3) {
         e.lea(i.dest, e.ptr[i.src1.reg() * 2 + i.src1.reg()]);
-        // exit(0);
         return;
       }
       if (i.src2.value->constant.u64 == 5) {
         e.lea(i.dest, e.ptr[i.src1.reg() * 4 + i.src1.reg()]);
-        // exit(0);
         return;
       }
       if (i.src2.value->constant.u64 == 9) {
         e.lea(i.dest, e.ptr[i.src1.reg() * 8 + i.src1.reg()]);
-        // exit(0);
         return;
       }
     }
