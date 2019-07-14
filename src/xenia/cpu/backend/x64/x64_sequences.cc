@@ -1412,16 +1412,9 @@ struct MUL_I16 : Sequence<MUL_I16, I<OPCODE_MUL, I16Op, I16Op, I16Op>> {
 struct MUL_I32 : Sequence<MUL_I32, I<OPCODE_MUL, I32Op, I32Op, I32Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     if (i.src2.is_constant) {
-      if (i.src2.value->constant.u32 == 3) {
-        e.lea(i.dest, e.ptr[i.src1.reg() * 2 + i.src1.reg()]);
-        return;
-      }
-      if (i.src2.value->constant.u32 == 5) {
-        e.lea(i.dest, e.ptr[i.src1.reg() * 4 + i.src1.reg()]);
-        return;
-      }
-      if (i.src2.value->constant.u32 == 9) {
-        e.lea(i.dest, e.ptr[i.src1.reg() * 8 + i.src1.reg()]);
+      uint32_t multiplier = i.src2.value->constant.u32;
+      if (multiplier == 3 || multiplier == 5 || multiplier == 9) {
+        e.lea(i.dest, e.ptr[i.src1.reg() * (multiplier - 1) + i.src1.reg()]);
         return;
       }
     }
@@ -1468,16 +1461,9 @@ struct MUL_I32 : Sequence<MUL_I32, I<OPCODE_MUL, I32Op, I32Op, I32Op>> {
 struct MUL_I64 : Sequence<MUL_I64, I<OPCODE_MUL, I64Op, I64Op, I64Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     if (i.src2.is_constant) {
-      if (i.src2.value->constant.u64 == 3) {
-        e.lea(i.dest, e.ptr[i.src1.reg() * 2 + i.src1.reg()]);
-        return;
-      }
-      if (i.src2.value->constant.u64 == 5) {
-        e.lea(i.dest, e.ptr[i.src1.reg() * 4 + i.src1.reg()]);
-        return;
-      }
-      if (i.src2.value->constant.u64 == 9) {
-        e.lea(i.dest, e.ptr[i.src1.reg() * 8 + i.src1.reg()]);
+      uint64_t multiplier = i.src2.value->constant.u64;
+      if (multiplier == 3 || multiplier == 5 || multiplier == 9) {
+        e.lea(i.dest, e.ptr[i.src1.reg() * ((int)multiplier - 1) + i.src1.reg()]);
         return;
       }
     }
