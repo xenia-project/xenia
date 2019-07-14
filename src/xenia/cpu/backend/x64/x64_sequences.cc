@@ -1114,8 +1114,9 @@ struct ADD_I8 : Sequence<ADD_I8, I<OPCODE_ADD, I8Op, I8Op, I8Op>> {
     if (i.src2.is_constant && i.dest.reg() == i.src1.reg() &&
         i.src2.value->constant.u8 == 1) {
       e.inc(i.dest.reg());
-    } else
+    } else {
       EmitAddXX<ADD_I8, Reg8>(e, i);
+    }
   }
 };
 struct ADD_I16 : Sequence<ADD_I16, I<OPCODE_ADD, I16Op, I16Op, I16Op>> {
@@ -1123,9 +1124,9 @@ struct ADD_I16 : Sequence<ADD_I16, I<OPCODE_ADD, I16Op, I16Op, I16Op>> {
     if (i.src2.is_constant && i.dest.reg() == i.src1.reg() &&
         i.src2.value->constant.u16 == 1) {
       e.inc(i.dest.reg());
-
-    } else
+    } else {
       EmitAddXX<ADD_I16, Reg16>(e, i);
+    }
   }
 };
 struct ADD_I32 : Sequence<ADD_I32, I<OPCODE_ADD, I32Op, I32Op, I32Op>> {
@@ -1134,8 +1135,9 @@ struct ADD_I32 : Sequence<ADD_I32, I<OPCODE_ADD, I32Op, I32Op, I32Op>> {
         i.src2.value->constant.u32 == 1) {
       e.inc(i.dest.reg());
 
-    } else
+    } else {
       EmitAddXX<ADD_I32, Reg32>(e, i);
+    }
   }
 };
 struct ADD_I64 : Sequence<ADD_I64, I<OPCODE_ADD, I64Op, I64Op, I64Op>> {
@@ -1143,8 +1145,9 @@ struct ADD_I64 : Sequence<ADD_I64, I<OPCODE_ADD, I64Op, I64Op, I64Op>> {
     if (i.src2.is_constant && i.dest.reg() == i.src1.reg() &&
         i.src2.value->constant.u64 == 1) {
       e.inc(i.dest.reg());
-    } else
+    } else {
       EmitAddXX<ADD_I64, Reg64>(e, i);
+    }
   }
 };
 struct ADD_F32 : Sequence<ADD_F32, I<OPCODE_ADD, F32Op, F32Op, F32Op>> {
@@ -1254,8 +1257,9 @@ struct SUB_I8 : Sequence<SUB_I8, I<OPCODE_SUB, I8Op, I8Op, I8Op>> {
     if (i.src2.is_constant && i.dest.reg() == i.src1.reg() &&
         i.src2.value->constant.u8 == 1) {
       e.dec(i.dest.reg());
-    } else
+    } else {
       EmitSubXX<SUB_I8, Reg8>(e, i);
+    }
   }
 };
 struct SUB_I16 : Sequence<SUB_I16, I<OPCODE_SUB, I16Op, I16Op, I16Op>> {
@@ -1263,9 +1267,9 @@ struct SUB_I16 : Sequence<SUB_I16, I<OPCODE_SUB, I16Op, I16Op, I16Op>> {
     if (i.src2.is_constant && i.dest.reg() == i.src1.reg() &&
         i.src2.value->constant.u16 == 1) {
       e.dec(i.dest.reg());
-
-    } else
+    } else {
       EmitSubXX<SUB_I16, Reg16>(e, i);
+    }
   }
 };
 struct SUB_I32 : Sequence<SUB_I32, I<OPCODE_SUB, I32Op, I32Op, I32Op>> {
@@ -1273,9 +1277,9 @@ struct SUB_I32 : Sequence<SUB_I32, I<OPCODE_SUB, I32Op, I32Op, I32Op>> {
     if (i.src2.is_constant && i.dest.reg() == i.src1.reg() &&
         i.src2.value->constant.u32 == 1) {
       e.dec(i.dest.reg());
-
-    } else
+    } else {
       EmitSubXX<SUB_I32, Reg32>(e, i);
+    }
   }
 };
 struct SUB_I64 : Sequence<SUB_I64, I<OPCODE_SUB, I64Op, I64Op, I64Op>> {
@@ -1283,9 +1287,9 @@ struct SUB_I64 : Sequence<SUB_I64, I<OPCODE_SUB, I64Op, I64Op, I64Op>> {
     if (i.src2.is_constant && i.dest.reg() == i.src1.reg() &&
         i.src2.value->constant.u64 == 1) {
       e.dec(i.dest.reg());
-
-    } else
+    } else {
       EmitSubXX<SUB_I64, Reg64>(e, i);
+    }
   }
 };
 struct SUB_F32 : Sequence<SUB_F32, I<OPCODE_SUB, F32Op, F32Op, F32Op>> {
@@ -1897,19 +1901,21 @@ struct DIV_I32 : Sequence<DIV_I32, I<OPCODE_DIV, I32Op, I32Op, I32Op>> {
       assert_true(!i.src1.is_constant);
       e.mov(e.ecx, i.src2.constant());
       if (i.instr->flags & ARITHMETIC_UNSIGNED) {
-        auto magicgu_val = magicu<unsigned>(i.src2.value->constant.u32);
-
-        if (!magicgu_val.a) {
+        auto div_shift_info = magicu<unsigned>(i.src2.value->constant.u32);
+		//todo: handle the add flag. 
+        if (!div_shift_info.a) {
           e.mov(i.dest, i.src1);
           if (e.IsFeatureEnabled(kX64EmitAVX2)) {
-            e.mov(e.edx, magicgu_val.M);
+            e.mov(e.edx, div_shift_info.M);
             e.mulx(i.dest, i.dest, i.dest);
           } else {
-            e.mov(e.eax, magicgu_val.M);
+            e.mov(e.eax, div_shift_info.M);
             e.mul(i.dest);
             e.mov(i.dest, e.edx);
           }
-          if (magicgu_val.s != 0) e.shr(i.dest, magicgu_val.s);
+          if (div_shift_info.s != 0) {
+            e.shr(i.dest, div_shift_info.s);
+          }
 
           return;
         } else {
@@ -1963,19 +1969,19 @@ struct DIV_I64 : Sequence<DIV_I64, I<OPCODE_DIV, I64Op, I64Op, I64Op>> {
       assert_true(!i.src1.is_constant);
       e.mov(e.rcx, i.src2.constant());
       if (i.instr->flags & ARITHMETIC_UNSIGNED) {
-        auto magicgu_val = magicu<uint64_t>(i.src2.value->constant.u32);
-
-        if (!magicgu_val.a) {
+        auto div_shift_info = magicu<uint64_t>(i.src2.value->constant.u32);
+		//todo: handle addflag
+        if (!div_shift_info.a) {
           if (e.IsFeatureEnabled(kX64EmitAVX2)) {
-            e.mov(e.rdx, magicgu_val.M);
+            e.mov(e.rdx, div_shift_info.M);
             e.mov(i.dest, i.src1);
             e.mulx(i.dest, i.dest, i.dest);
           } else {
-            e.mov(e.rax, magicgu_val.M);
+            e.mov(e.rax, div_shift_info.M);
             e.mul(i.src1);
             e.mov(i.dest, e.rdx);
           }
-          e.shr(i.dest, magicgu_val.s);
+          e.shr(i.dest, div_shift_info.s);
           return;
         }
         e.mov(e.rcx, i.src2.constant());

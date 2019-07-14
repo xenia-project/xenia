@@ -715,17 +715,20 @@ struct VECTOR_SHL_V128
       for (unsigned j = 1; j < 16; ++j) {
         if (i.src2.constant().u8[j] != n) {
           all = false;
-
           break;
         }
       }
       if (all) {
-        vec128_t bleh;
+        // we build a mask to eliminate the bits that will be shifted out of the
+        // bytes so that they do not enter the adjacent bytes
+        vec128_t shiftout_mask; 
 
         uint8_t mask = ~(uint8_t)(((uint16_t)0x100) >> n);
 
-        for (unsigned i = 0; i < 16; ++i) bleh.u8[i] = mask;
-        e.LoadConstantXmm(e.xmm0, bleh);
+        for (unsigned i = 0; i < 16; ++i) {
+          shiftout_mask.u8[i] = mask;
+        }
+        e.LoadConstantXmm(e.xmm0, shiftout_mask);
         e.vpand(e.xmm0, e.xmm0, i.src1);
         e.vpsllw(i.dest, e.xmm0, n);
         return;
