@@ -708,7 +708,6 @@ struct VECTOR_SHL_V128
 
   static void EmitInt8(X64Emitter& e, const EmitArgType& i) {
     // TODO(benvanik): native version (with shift magic).
-
     if (i.src2.is_constant) {
       unsigned char n = i.src2.constant().u8[0];
       bool all = true;
@@ -721,10 +720,8 @@ struct VECTOR_SHL_V128
       if (all) {
         // we build a mask to eliminate the bits that will be shifted out of the
         // bytes so that they do not enter the adjacent bytes
-        vec128_t shiftout_mask; 
-
         uint8_t mask = ~(uint8_t)(((uint16_t)0x100) >> n);
-
+        vec128_t shiftout_mask;
         for (unsigned i = 0; i < 16; ++i) {
           shiftout_mask.u8[i] = mask;
         }
@@ -742,7 +739,6 @@ struct VECTOR_SHL_V128
     }
     e.lea(e.GetNativeParam(0), e.StashXmm(0, i.src1));
     e.CallNativeSafe(reinterpret_cast<void*>(EmulateVectorShl<uint8_t>));
-
     e.vmovaps(i.dest, e.xmm0);
   }
 
