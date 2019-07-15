@@ -62,6 +62,9 @@ script:
   # Build and run base tests.
   - if [[ $BUILD == true ]]; then ./xenia-build build --config=$CONFIG --target=xenia-base-tests; fi
   - if [[ $BUILD == true ]]; then ./build/bin/Linux/$CONFIG/xenia-base-tests; fi
+  # Build and run cpu tests.
+  - if [[ $BUILD == true ]]; then ./xenia-build build --config=$CONFIG --target=xenia-cpu-tests; fi
+  - if [[ $BUILD == true ]]; then ./build/bin/Linux/$CONFIG/xenia-cpu-tests; fi
   # Build and run ppc tests.
   - if [[ $BUILD == true ]]; then ./xenia-build gentests; fi
   - if [[ $BUILD == true ]]; then ./xenia-build build --config=$CONFIG --target=xenia-cpu-ppc-tests; fi

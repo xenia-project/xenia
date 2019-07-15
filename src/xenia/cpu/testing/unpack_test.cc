@@ -55,7 +55,7 @@ TEST_CASE("UNPACK_FLOAT16_2", "[instr]") {
            [](PPCContext* ctx) {
              auto result = ctx->v[3];
              REQUIRE(result ==
-                     vec128i(0x47FFE000, 0xC7FFE000, 0x00000000, 0x3F800000));
+                     vec128i(0x7FFFE000, 0xFFFFE000, 0x00000000, 0x3F800000));
            });
   test.Run([](PPCContext* ctx) { ctx->v[4] = vec128i(0, 0, 0, 0x55556666); },
            [](PPCContext* ctx) {

@@ -51,7 +51,7 @@ TEST_CASE("PACK_FLOAT16_2", "[instr]") {
       },
       [](PPCContext* ctx) {
         auto result = ctx->v[3];
-        REQUIRE(result == vec128i(0, 0, 0, 0x7FFFFFFF));
+        REQUIRE(result == vec128i(0, 0, 0, 0x7BFFFBFF));
       });
   test.Run(
       [](PPCContext* ctx) {
@@ -80,7 +80,7 @@ TEST_CASE("PACK_FLOAT16_4", "[instr]") {
       [](PPCContext* ctx) {
         auto result = ctx->v[3];
         REQUIRE(result ==
-                vec128i(0x00000000, 0x00000000, 0x64D26D8C, 0x48824491));
+                vec128i(0x00000000, 0x00000000, 0x64D26D8B, 0x48814491));
       });
 }
 
@@ -92,7 +92,8 @@ TEST_CASE("PACK_SHORT_2", "[instr]") {
   test.Run([](PPCContext* ctx) { ctx->v[4] = vec128i(0); },
            [](PPCContext* ctx) {
              auto result = ctx->v[3];
-             REQUIRE(result == vec128i(0));
+             REQUIRE(result ==
+                     vec128i(0x00000000, 0x00000000, 0x00000000, 0x80018001));
            });
   test.Run(
       [](PPCContext* ctx) {

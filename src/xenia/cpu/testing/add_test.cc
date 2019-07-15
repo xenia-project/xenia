@@ -265,7 +265,7 @@ TEST_CASE("ADD_I64", "[instr]") {
       },
       [](PPCContext* ctx) {
         auto result = ctx->r[3];
-        REQUIRE(result == -15);
+        REQUIRE(result == static_cast<uint64_t>(-15));
       });
   test.Run(
       [](PPCContext* ctx) {
