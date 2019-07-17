@@ -110,9 +110,11 @@ int lzx_decompress(const void* lzx_data, size_t lzx_len, void* dest,
   if (lzxd) {
     if (window_data) {
       // zero the window and then copy window_data to the end of it
-      std::memset(lzxd->window, 0, window_data_len);
-      std::memcpy(lzxd->window + (window_size - window_data_len), window_data,
-                  window_data_len);
+      auto padding_len = window_size - window_data_len;
+      std::memset(&lzxd->window[0], 0, padding_len);
+      std::memcpy(&lzxd->window[padding_len], window_data, window_data_len);
+      // TODO(gibbed): should this be set regardless if source window data is
+      // available or not?
       lzxd->ref_data_size = window_size;
     }
 
