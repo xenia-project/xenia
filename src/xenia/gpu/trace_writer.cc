@@ -32,7 +32,9 @@ bool TraceWriter::Open(const std::wstring& path, uint32_t title_id) {
 
   auto canonical_path = xe::to_absolute_path(path);
   auto base_path = xe::find_base_path(canonical_path);
-  xe::filesystem::CreateFolder(base_path);
+  if (!base_path.empty()) {
+    xe::filesystem::CreateFolder(base_path);
+  }
 
   file_ = xe::filesystem::OpenFile(canonical_path, "wb");
   if (!file_) {
