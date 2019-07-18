@@ -1,12 +1,8 @@
 # Make Travis use docker (for faster builds, in theory).
-# TODO(benvanik): re-enable when clang-3.8 is whitelisted.
-# https://github.com/travis-ci/apt-package-whitelist/issues/474
-#sudo: false
 
 language: cpp
 os:
   - linux
-  # - osx
 
 sudo: required
 dist: xenial
@@ -14,10 +10,10 @@ addons:
   apt:
     sources:
       - ubuntu-toolchain-r-test
-      - llvm-toolchain-xenial-6.0
+      - llvm-toolchain-xenial-7
     packages:
-      - clang-6.0
-      - llvm-6.0-dev
+      - clang-7
+      - llvm-7-dev
       - g++-8
       - python3
       - libc++-dev
@@ -32,37 +28,37 @@ addons:
 
 matrix:
   include:
-    - env: C_COMPILER=clang-6.0 CXX_COMPILER=clang++-6.0 LINT=true
+    - env: C_COMPILER=clang-7 CXX_COMPILER=clang++-7 LINT=true
       sudo: false
-    - env: C_COMPILER=clang-6.0 CXX_COMPILER=clang++-6.0 BUILD=true CONFIG=Debug
-    - env: C_COMPILER=clang-6.0 CXX_COMPILER=clang++-6.0 BUILD=true CONFIG=Release
+    - env: C_COMPILER=clang-7 CXX_COMPILER=clang++-7 BUILD=true CONFIG=Debug
+    - env: C_COMPILER=clang-7 CXX_COMPILER=clang++-7 BUILD=true CONFIG=Release
 
 git:
   # We handle submodules ourselves in xenia-build setup.
   submodules: false
 
 before_script:
-  - export LIBVULKAN_VERSION=1.0.61.1
+  - export LIBVULKAN_VERSION=1.1.70
   - export CXX=$CXX_COMPILER
   - export CC=$C_COMPILER
   # Dump useful info.
   - $CXX --version
   - python3 --version
-  # Add Vulkan dependencies
-  - travis_retry wget http://mirrors.kernel.org/ubuntu/pool/universe/v/vulkan/libvulkan1_$LIBVULKAN_VERSION+dfsg1-1ubuntu1~16.04.1_amd64.deb
-  - travis_retry wget http://mirrors.kernel.org/ubuntu/pool/universe/v/vulkan/libvulkan-dev_$LIBVULKAN_VERSION+dfsg1-1ubuntu1~16.04.1_amd64.deb
-  - if [[ $BUILD == true ]]; then sudo dpkg -i libvulkan1_$LIBVULKAN_VERSION+dfsg1-1ubuntu1~16.04.1_amd64.deb libvulkan-dev_$LIBVULKAN_VERSION+dfsg1-1ubuntu1~16.04.1_amd64.deb; fi
+  # Add Vulkan dependencies.
+  - travis_retry wget http://mirrors.kernel.org/ubuntu/pool/universe/v/vulkan/libvulkan1_$LIBVULKAN_VERSION+dfsg1-1_amd64.deb
+  - travis_retry wget http://mirrors.kernel.org/ubuntu/pool/universe/v/vulkan/libvulkan-dev_$LIBVULKAN_VERSION+dfsg1-1_amd64.deb
+  - if [[ $BUILD == true ]]; then sudo dpkg -i libvulkan1_$LIBVULKAN_VERSION+dfsg1-1_amd64.deb libvulkan-dev_$LIBVULKAN_VERSION+dfsg1-1_amd64.deb; fi
   # Prepare environment (pull dependencies, build tools).
   - travis_retry ./xenia-build setup
 
 script:
   # Run linter.
   - if [[ $LINT == true ]]; then ./xenia-build lint --all; fi
-  
-  # Build and run base tests
+
+  # Build and run base tests.
   - if [[ $BUILD == true ]]; then ./xenia-build build --config=$CONFIG --target=xenia-base-tests; fi
   - if [[ $BUILD == true ]]; then ./build/bin/Linux/$CONFIG/xenia-base-tests; fi
-  # Build and run ppc tests
+  # Build and run ppc tests.
   - if [[ $BUILD == true ]]; then ./xenia-build build --config=$CONFIG --target=xenia-cpu-ppc-tests; fi
   # - if [[ $BUILD == true ]]; then ./build/bin/Linux/$CONFIG/xenia-cpu-ppc-tests --log_file=stdout; fi
 
@@ -72,4 +68,3 @@ script:
   #- ./xenia-build test --config=debug --no-build -- --enable_haswell_instructions=false
   # All tests (with haswell support).
   #- ./xenia-build test --config=debug --no-build -- --enable_haswell_instructions=true
-
