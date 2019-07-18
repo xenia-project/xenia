@@ -96,9 +96,12 @@ void mspack_memory_sys_destroy(struct mspack_system* sys) { free(sys); }
 int lzx_decompress(const void* lzx_data, size_t lzx_len, void* dest,
                    size_t dest_len, uint32_t window_size, void* window_data,
                    size_t window_data_len) {
-  uint32_t window_bits = xe::bit_count(window_size);
-
   int result_code = 1;
+
+  uint32_t window_bits;
+  if (!xe::bit_scan_forward(window_size, &window_bits)) {
+    return result_code;
+  }
 
   mspack_system* sys = mspack_memory_sys_create();
   mspack_memory_file* lzxsrc =
