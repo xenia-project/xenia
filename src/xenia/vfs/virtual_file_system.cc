@@ -289,7 +289,7 @@ X_STATUS VirtualFileSystem::OpenFile(const std::string& path,
   if (!entry) {
     // Create if needed (either new or as a replacement).
     entry = CreatePath(
-        path, !directory ? kFileAttributeNormal : kFileAttributeDirectory);
+        path, !is_directory ? kFileAttributeNormal : kFileAttributeDirectory);
     if (!entry) {
       return X_STATUS_ACCESS_DENIED;
     }
