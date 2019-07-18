@@ -109,7 +109,9 @@ dword_result_t NtCreateFile(lpdword_t handle_out, dword_t desired_access,
   vfs::FileAction file_action;
   X_STATUS result = kernel_state()->file_system()->OpenFile(
       target_path, vfs::FileDisposition((uint32_t)creation_disposition),
-      desired_access, &vfs_file, &file_action);
+      desired_access,
+      (create_options & CreateOptions::FILE_DIRECTORY_FILE) != 0, &vfs_file,
+      &file_action);
   object_ref<XFile> file = nullptr;
 
   X_HANDLE handle = X_INVALID_HANDLE_VALUE;
