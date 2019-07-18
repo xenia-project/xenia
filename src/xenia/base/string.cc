@@ -262,7 +262,7 @@ std::wstring find_name_from_path(const std::wstring& path, wchar_t sep) {
 std::string find_base_path(const std::string& path, char sep) {
   auto last_slash = path.find_last_of(sep);
   if (last_slash == std::string::npos) {
-    return path;
+    return "";
   } else if (last_slash == path.length() - 1) {
     auto prev_slash = path.find_last_of(sep, last_slash - 1);
     if (prev_slash == std::string::npos) {
@@ -278,7 +278,7 @@ std::string find_base_path(const std::string& path, char sep) {
 std::wstring find_base_path(const std::wstring& path, wchar_t sep) {
   auto last_slash = path.find_last_of(sep);
   if (last_slash == std::wstring::npos) {
-    return path;
+    return L"";
   } else if (last_slash == path.length() - 1) {
     auto prev_slash = path.find_last_of(sep, last_slash - 1);
     if (prev_slash == std::wstring::npos) {
