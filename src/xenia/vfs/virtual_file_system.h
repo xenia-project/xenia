@@ -43,7 +43,7 @@ class VirtualFileSystem {
 
   X_STATUS OpenFile(const std::string& path,
                     FileDisposition creation_disposition,
-                    uint32_t desired_access, File** out_file,
+                    uint32_t desired_access, bool is_directory, File** out_file,
                     FileAction* out_action);
 
  private:
