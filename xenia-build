@@ -1280,7 +1280,7 @@ class TidyCommand(Command):
         super(TidyCommand, self).__init__(
             subparsers,
             name='tidy',
-            help_short='Runs the clang-tiday checker on all code.',
+            help_short='Runs the clang-tidy checker on all code.',
             *args, **kwargs)
         self.parser.add_argument(
             '--fix', action='store_true',
