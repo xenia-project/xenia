@@ -183,7 +183,7 @@ X_STATUS VirtualFileSystem::OpenFile(const std::string& path,
                                      FileDisposition creation_disposition,
                                      uint32_t desired_access, bool is_directory,
                                      File** out_file, FileAction* out_action) {
-  // TODO(gibbed): should 'is_directory' remaina s a bool or should it be
+  // TODO(gibbed): should 'is_directory' remain as a bool or should it be
   // flipped to a generic FileAttributeFlags?
 
   // Cleanup access.
