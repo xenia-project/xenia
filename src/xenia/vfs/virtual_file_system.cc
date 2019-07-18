@@ -181,8 +181,11 @@ bool VirtualFileSystem::DeletePath(const std::string& path) {
 
 X_STATUS VirtualFileSystem::OpenFile(const std::string& path,
                                      FileDisposition creation_disposition,
-                                     uint32_t desired_access, File** out_file,
-                                     FileAction* out_action) {
+                                     uint32_t desired_access, bool is_directory,
+                                     File** out_file, FileAction* out_action) {
+  // TODO(gibbed): should 'is_directory' remaina s a bool or should it be
+  // flipped to a generic FileAttributeFlags?
+
   // Cleanup access.
   if (desired_access & FileAccess::kGenericRead) {
     desired_access |= FileAccess::kFileReadData;
@@ -285,7 +288,8 @@ X_STATUS VirtualFileSystem::OpenFile(const std::string& path,
   }
   if (!entry) {
     // Create if needed (either new or as a replacement).
-    entry = CreatePath(path, kFileAttributeNormal);
+    entry = CreatePath(
+        path, !directory ? kFileAttributeNormal : kFileAttributeDirectory);
     if (!entry) {
       return X_STATUS_ACCESS_DENIED;
     }
