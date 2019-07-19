@@ -1351,7 +1351,7 @@ void Value::VectorSub(Value* other, TypeName type, bool is_unsigned,
             result &= -int8_t(result <= src1);
           } else {
             uint8_t overflowed = (src1 >> 7) + INT8_MAX;
-            if (int8_t((overflowed ^ src2) & (overflowed ^ result)) >= 0) {
+            if (int8_t((overflowed ^ src2) & (overflowed ^ result)) < 0) {
               result = overflowed;
             }
           }
@@ -1379,7 +1379,7 @@ void Value::VectorSub(Value* other, TypeName type, bool is_unsigned,
             result &= -int16_t(result <= src1);
           } else {
             uint16_t overflowed = (src1 >> 15) + INT16_MAX;
-            if (int16_t((overflowed ^ src2) & (overflowed ^ result)) >= 0) {
+            if (int16_t((overflowed ^ src2) & (overflowed ^ result)) < 0) {
               result = overflowed;
             }
           }
@@ -1407,7 +1407,7 @@ void Value::VectorSub(Value* other, TypeName type, bool is_unsigned,
             result &= -int32_t(result <= src1);
           } else {
             uint32_t overflowed = (src1 >> 31) + INT32_MAX;
-            if (int32_t((overflowed ^ src2) & (overflowed ^ result)) >= 0) {
+            if (int32_t((overflowed ^ src2) & (overflowed ^ result)) < 0) {
               result = overflowed;
             }
           }
@@ -1435,7 +1435,7 @@ void Value::VectorSub(Value* other, TypeName type, bool is_unsigned,
             result &= -int64_t(result <= src1);
           } else {
             uint64_t overflowed = (src1 >> 63) + INT64_MAX;
-            if (int64_t((overflowed ^ src2) & (overflowed ^ result)) >= 0) {
+            if (int64_t((overflowed ^ src2) & (overflowed ^ result)) < 0) {
               result = overflowed;
             }
           }
