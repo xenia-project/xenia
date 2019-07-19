@@ -1202,20 +1202,14 @@ void Value::VectorAdd(Value* other, TypeName type, bool is_unsigned,
       break;
     case INT8_TYPE:
       if (saturate) {
-        // http://locklessinc.com/articles/sat_arithmetic/
         for (int i = 0; i < 16; i++) {
-          uint8_t src1 = constant.v128.u8[i];
-          uint8_t src2 = other->constant.v128.u8[i];
-          uint8_t result = src1 + src2;
           if (is_unsigned) {
-            result |= -int8_t(result < src1);
+            constant.v128.u8[i] =
+                xe::sat_add(constant.v128.u8[i], other->constant.v128.u8[i]);
           } else {
-            uint8_t overflowed = (src1 >> 7) + INT8_MAX;
-            if (int8_t((overflowed ^ src2) | ~(src2 ^ result)) >= 0) {
-              result = overflowed;
-            }
+            constant.v128.i8[i] =
+                xe::sat_add(constant.v128.i8[i], other->constant.v128.i8[i]);
           }
-          constant.v128.u8[i] = result;
         }
         // TODO(Triang3l): Trace DID_SATURATE.
       } else {
@@ -1230,20 +1224,14 @@ void Value::VectorAdd(Value* other, TypeName type, bool is_unsigned,
       break;
     case INT16_TYPE:
       if (saturate) {
-        // http://locklessinc.com/articles/sat_arithmetic/
         for (int i = 0; i < 8; i++) {
-          uint16_t src1 = constant.v128.u16[i];
-          uint16_t src2 = other->constant.v128.u16[i];
-          uint16_t result = src1 + src2;
           if (is_unsigned) {
-            result |= -int16_t(result < src1);
+            constant.v128.u16[i] =
+                xe::sat_add(constant.v128.u16[i], other->constant.v128.u16[i]);
           } else {
-            uint16_t overflowed = (src1 >> 15) + INT16_MAX;
-            if (int16_t((overflowed ^ src2) | ~(src2 ^ result)) >= 0) {
-              result = overflowed;
-            }
+            constant.v128.i16[i] =
+                xe::sat_add(constant.v128.i16[i], other->constant.v128.i16[i]);
           }
-          constant.v128.u16[i] = result;
         }
         // TODO(Triang3l): Trace DID_SATURATE.
       } else {
@@ -1258,20 +1246,14 @@ void Value::VectorAdd(Value* other, TypeName type, bool is_unsigned,
       break;
     case INT32_TYPE:
       if (saturate) {
-        // http://locklessinc.com/articles/sat_arithmetic/
         for (int i = 0; i < 4; i++) {
-          uint32_t src1 = constant.v128.u32[i];
-          uint32_t src2 = other->constant.v128.u32[i];
-          uint32_t result = src1 + src2;
           if (is_unsigned) {
-            result |= -int32_t(result < src1);
+            constant.v128.u32[i] =
+                xe::sat_add(constant.v128.u32[i], other->constant.v128.u32[i]);
           } else {
-            uint32_t overflowed = (src1 >> 31) + INT32_MAX;
-            if (int32_t((overflowed ^ src2) | ~(src2 ^ result)) >= 0) {
-              result = overflowed;
-            }
+            constant.v128.i32[i] =
+                xe::sat_add(constant.v128.i32[i], other->constant.v128.i32[i]);
           }
-          constant.v128.u32[i] = result;
         }
         // TODO(Triang3l): Trace DID_SATURATE.
       } else {
@@ -1286,20 +1268,14 @@ void Value::VectorAdd(Value* other, TypeName type, bool is_unsigned,
       break;
     case INT64_TYPE:
       if (saturate) {
-        // http://locklessinc.com/articles/sat_arithmetic/
         for (int i = 0; i < 2; i++) {
-          uint64_t src1 = constant.v128.u64[i];
-          uint64_t src2 = other->constant.v128.u64[i];
-          uint64_t result = src1 + src2;
           if (is_unsigned) {
-            result |= -int64_t(result < src1);
+            constant.v128.u64[i] =
+                xe::sat_add(constant.v128.u64[i], other->constant.v128.u64[i]);
           } else {
-            uint64_t overflowed = (src1 >> 63) + INT64_MAX;
-            if (int64_t((overflowed ^ src2) | ~(src2 ^ result)) >= 0) {
-              result = overflowed;
-            }
+            constant.v128.i64[i] =
+                xe::sat_add(constant.v128.i64[i], other->constant.v128.i64[i]);
           }
-          constant.v128.u64[i] = result;
         }
         // TODO(Triang3l): Trace DID_SATURATE.
       } else {
@@ -1342,20 +1318,14 @@ void Value::VectorSub(Value* other, TypeName type, bool is_unsigned,
       break;
     case INT8_TYPE:
       if (saturate) {
-        // http://locklessinc.com/articles/sat_arithmetic/
         for (int i = 0; i < 16; i++) {
-          uint8_t src1 = constant.v128.u8[i];
-          uint8_t src2 = other->constant.v128.u8[i];
-          uint8_t result = src1 - src2;
           if (is_unsigned) {
-            result &= -int8_t(result <= src1);
+            constant.v128.u8[i] =
+                xe::sat_sub(constant.v128.u8[i], other->constant.v128.u8[i]);
           } else {
-            uint8_t overflowed = (src1 >> 7) + INT8_MAX;
-            if (int8_t((overflowed ^ src2) & (overflowed ^ result)) < 0) {
-              result = overflowed;
-            }
+            constant.v128.i8[i] =
+                xe::sat_sub(constant.v128.i8[i], other->constant.v128.i8[i]);
           }
-          constant.v128.u8[i] = result;
         }
         // TODO(Triang3l): Trace DID_SATURATE.
       } else {
@@ -1370,20 +1340,14 @@ void Value::VectorSub(Value* other, TypeName type, bool is_unsigned,
       break;
     case INT16_TYPE:
       if (saturate) {
-        // http://locklessinc.com/articles/sat_arithmetic/
         for (int i = 0; i < 8; i++) {
-          uint16_t src1 = constant.v128.u16[i];
-          uint16_t src2 = other->constant.v128.u16[i];
-          uint16_t result = src1 - src2;
           if (is_unsigned) {
-            result &= -int16_t(result <= src1);
+            constant.v128.u16[i] =
+                xe::sat_sub(constant.v128.u16[i], other->constant.v128.u16[i]);
           } else {
-            uint16_t overflowed = (src1 >> 15) + INT16_MAX;
-            if (int16_t((overflowed ^ src2) & (overflowed ^ result)) < 0) {
-              result = overflowed;
-            }
+            constant.v128.i16[i] =
+                xe::sat_sub(constant.v128.i16[i], other->constant.v128.i16[i]);
           }
-          constant.v128.u16[i] = result;
         }
         // TODO(Triang3l): Trace DID_SATURATE.
       } else {
@@ -1398,20 +1362,14 @@ void Value::VectorSub(Value* other, TypeName type, bool is_unsigned,
       break;
     case INT32_TYPE:
       if (saturate) {
-        // http://locklessinc.com/articles/sat_arithmetic/
         for (int i = 0; i < 4; i++) {
-          uint32_t src1 = constant.v128.u32[i];
-          uint32_t src2 = other->constant.v128.u32[i];
-          uint32_t result = src1 - src2;
           if (is_unsigned) {
-            result &= -int32_t(result <= src1);
+            constant.v128.u32[i] =
+                xe::sat_sub(constant.v128.u32[i], other->constant.v128.u32[i]);
           } else {
-            uint32_t overflowed = (src1 >> 31) + INT32_MAX;
-            if (int32_t((overflowed ^ src2) & (overflowed ^ result)) < 0) {
-              result = overflowed;
-            }
+            constant.v128.i32[i] =
+                xe::sat_sub(constant.v128.i32[i], other->constant.v128.i32[i]);
           }
-          constant.v128.u32[i] = result;
         }
         // TODO(Triang3l): Trace DID_SATURATE.
       } else {
@@ -1426,20 +1384,14 @@ void Value::VectorSub(Value* other, TypeName type, bool is_unsigned,
       break;
     case INT64_TYPE:
       if (saturate) {
-        // http://locklessinc.com/articles/sat_arithmetic/
         for (int i = 0; i < 2; i++) {
-          uint64_t src1 = constant.v128.u64[i];
-          uint64_t src2 = other->constant.v128.u64[i];
-          uint64_t result = src1 - src2;
           if (is_unsigned) {
-            result &= -int64_t(result <= src1);
+            constant.v128.u64[i] =
+                xe::sat_sub(constant.v128.u64[i], other->constant.v128.u64[i]);
           } else {
-            uint64_t overflowed = (src1 >> 63) + INT64_MAX;
-            if (int64_t((overflowed ^ src2) & (overflowed ^ result)) < 0) {
-              result = overflowed;
-            }
+            constant.v128.i64[i] =
+                xe::sat_sub(constant.v128.i64[i], other->constant.v128.i64[i]);
           }
-          constant.v128.u64[i] = result;
         }
         // TODO(Triang3l): Trace DID_SATURATE.
       } else {
