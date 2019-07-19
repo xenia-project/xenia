@@ -107,6 +107,8 @@ filter("platforms:Linux")
     "lz4",
     "pthread",
     "rt",
+    "unwind",
+    "iberty",
   })
   linkoptions({
     ({os.outputof("pkg-config --libs gtk+-3.0")})[1],
