@@ -666,7 +666,19 @@ static const vec128_t xmm_consts[] = {
     vec128i(0x3FFu, 0x3FFu << 10, 0x3FFu << 20, 0x3u << 30),
     /* XMMPackUINT_2101010_Shift */ vec128i(0, 10, 20, 30),
     /* XMMUnpackUINT_2101010_Overflow */ vec128i(0x403FFE00u),
-    /* XMMUnpackOverflowNaN   */ vec128i(0x7FC00000u),
+    /* XMMPackULONG_4202020_MinUnpacked */
+    vec128i(0x40380001u, 0x40380001u, 0x40380001u, 0x40400000u),
+    /* XMMPackULONG_4202020_MaxUnpacked */
+    vec128i(0x4047FFFFu, 0x4047FFFFu, 0x4047FFFFu, 0x4040000Fu),
+    /* XMMPackULONG_4202020_MaskUnpacked */
+    vec128i(0xFFFFFu, 0xFFFFFu, 0xFFFFFu, 0xFu),
+    /* XMMPackULONG_4202020_PermuteXZ */
+    vec128i(0xFFFFFFFFu, 0xFFFFFFFFu, 0x0A0908FFu, 0xFF020100u),
+    /* XMMPackULONG_4202020_PermuteYW */
+    vec128i(0xFFFFFFFFu, 0xFFFFFFFFu, 0x0CFFFF06u, 0x0504FFFFu),
+    /* XMMUnpackULONG_4202020_Permute */
+    vec128i(0xFF0E0D0Cu, 0xFF0B0A09u, 0xFF080F0Eu, 0xFFFFFF0Bu),
+    /* XMMUnpackULONG_4202020_Overflow */ vec128i(0x40380000u),
     /* XMMOneOver255          */ vec128f(1.0f / 255.0f),
     /* XMMMaskEvenPI16        */
     vec128i(0x0000FFFFu, 0x0000FFFFu, 0x0000FFFFu, 0x0000FFFFu),
@@ -696,6 +708,7 @@ static const vec128_t xmm_consts[] = {
     /* XMMIntMax              */ vec128i(INT_MAX),
     /* XMMIntMaxPD            */ vec128d(INT_MAX),
     /* XMMPosIntMinPS         */ vec128f((float)0x80000000u),
+    /* XMMQNaN                */ vec128i(0x7FC00000u),
 };
 
 // First location to try and place constants.

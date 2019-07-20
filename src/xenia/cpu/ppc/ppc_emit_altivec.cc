@@ -2052,17 +2052,21 @@ int InstrEmit_vpkd3d128(PPCHIRBuilder& f, const InstrData& i) {
     case 1:  // VPACK_NORMSHORT2
       v = f.Pack(v, PACK_TYPE_SHORT_2);
       break;
-    case 2:  // VPACK_... 2_10_10_10 w_z_y_x
+    case 2:  // VPACK_NORMPACKED32 2_10_10_10 w_z_y_x
       v = f.Pack(v, PACK_TYPE_UINT_2101010);
       break;
-    case 3:  // VPACK_... 2 FLOAT16s DXGI_FORMAT_R16G16_FLOAT
+    case 3:  // VPACK_FLOAT16_2 DXGI_FORMAT_R16G16_FLOAT
       v = f.Pack(v, PACK_TYPE_FLOAT16_2);
       break;
     case 4:  // VPACK_NORMSHORT4
       v = f.Pack(v, PACK_TYPE_SHORT_4);
       break;
-    case 5:  // VPACK_... 4 FLOAT16s DXGI_FORMAT_R16G16B16A16_FLOAT
+    case 5:  // VPACK_FLOAT16_4 DXGI_FORMAT_R16G16B16A16_FLOAT
       v = f.Pack(v, PACK_TYPE_FLOAT16_4);
+      break;
+    case 6:  // VPACK_NORMPACKED64 4_20_20_20 w_z_y_x
+      // Used in 2K games like NBA 2K9, pretty rarely in general.
+      v = f.Pack(v, PACK_TYPE_ULONG_4202020);
       break;
     default:
       assert_unhandled_case(type);
@@ -2156,17 +2160,20 @@ int InstrEmit_vupkd3d128(PPCHIRBuilder& f, const InstrData& i) {
     case 1:  // VPACK_NORMSHORT2
       v = f.Unpack(v, PACK_TYPE_SHORT_2);
       break;
-    case 2:  // VPACK_... 2_10_10_10 w_z_y_x
+    case 2:  // VPACK_NORMPACKED32 2_10_10_10 w_z_y_x
       v = f.Unpack(v, PACK_TYPE_UINT_2101010);
       break;
-    case 3:  // VPACK_... 2 FLOAT16s DXGI_FORMAT_R16G16_FLOAT
+    case 3:  // VPACK_FLOAT16_2 DXGI_FORMAT_R16G16_FLOAT
       v = f.Unpack(v, PACK_TYPE_FLOAT16_2);
       break;
     case 4:  // VPACK_NORMSHORT4
       v = f.Unpack(v, PACK_TYPE_SHORT_4);
       break;
-    case 5:  // VPACK_... 4 FLOAT16s DXGI_FORMAT_R16G16B16A16_FLOAT
+    case 5:  // VPACK_FLOAT16_4 DXGI_FORMAT_R16G16B16A16_FLOAT
       v = f.Unpack(v, PACK_TYPE_FLOAT16_4);
+      break;
+    case 6:  // VPACK_NORMPACKED64 4_20_20_20 w_z_y_x
+      v = f.Unpack(v, PACK_TYPE_ULONG_4202020);
       break;
     default:
       assert_unhandled_case(type);

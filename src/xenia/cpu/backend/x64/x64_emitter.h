@@ -85,7 +85,13 @@ enum XmmConst {
   XMMPackUINT_2101010_MaskPacked,
   XMMPackUINT_2101010_Shift,
   XMMUnpackUINT_2101010_Overflow,
-  XMMUnpackOverflowNaN,
+  XMMPackULONG_4202020_MinUnpacked,
+  XMMPackULONG_4202020_MaxUnpacked,
+  XMMPackULONG_4202020_MaskUnpacked,
+  XMMPackULONG_4202020_PermuteXZ,
+  XMMPackULONG_4202020_PermuteYW,
+  XMMUnpackULONG_4202020_Permute,
+  XMMUnpackULONG_4202020_Overflow,
   XMMOneOver255,
   XMMMaskEvenPI16,
   XMMShiftMaskEvenPI16,
@@ -105,6 +111,7 @@ enum XmmConst {
   XMMIntMax,
   XMMIntMaxPD,
   XMMPosIntMinPS,
+  XMMQNaN,
 };
 
 // Unfortunately due to the design of xbyak we have to pass this to the ctor.
