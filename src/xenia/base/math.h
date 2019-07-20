@@ -303,13 +303,14 @@ int64_t m128_i64(const __m128& v) {
 uint16_t float_to_half(float value);
 float half_to_float(uint16_t value);
 
-// http://locklessinc.com/articles/sat_arithmetic/
+// https://locklessinc.com/articles/sat_arithmetic/
 template <typename T>
 inline T sat_add(T a, T b) {
-  using TU = std::make_unsigned<T>::type;
+  using TU = typename std::make_unsigned<T>::type;
   TU result = TU(a) + TU(b);
   if (std::is_unsigned<T>::value) {
-    result |= TU(-static_cast<std::make_signed<T>::type>(result < TU(a)));
+    result |=
+        TU(-static_cast<typename std::make_signed<T>::type>(result < TU(a)));
   } else {
     TU overflowed =
         (TU(a) >> (sizeof(T) * 8 - 1)) + std::numeric_limits<T>::max();
@@ -321,10 +322,11 @@ inline T sat_add(T a, T b) {
 }
 template <typename T>
 inline T sat_sub(T a, T b) {
-  using TU = std::make_unsigned<T>::type;
+  using TU = typename std::make_unsigned<T>::type;
   TU result = TU(a) - TU(b);
   if (std::is_unsigned<T>::value) {
-    result &= TU(-static_cast<std::make_signed<T>::type>(result <= TU(a)));
+    result &=
+        TU(-static_cast<typename std::make_signed<T>::type>(result <= TU(a)));
   } else {
     TU overflowed =
         (TU(a) >> (sizeof(T) * 8 - 1)) + std::numeric_limits<T>::max();
