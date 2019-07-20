@@ -1822,6 +1822,9 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
       case PACK_TYPE_UINT_2101010:
         EmitUINT_2101010(e, i);
         break;
+      case PACK_TYPE_ULONG_4202020:
+        EmitULONG_4202020(e, i);
+        break;
       case PACK_TYPE_8_IN_16:
         Emit8_IN_16(e, i, i.instr->flags);
         break;
@@ -2000,6 +2003,32 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
     e.vshufps(e.xmm0, i.dest, i.dest, _MM_SHUFFLE(2, 3, 0, 1));
     e.vorps(i.dest, e.xmm0);
     e.vshufps(e.xmm0, i.dest, i.dest, _MM_SHUFFLE(1, 0, 3, 2));
+    e.vorps(i.dest, e.xmm0);
+  }
+  static void EmitULONG_4202020(X64Emitter& e, const EmitArgType& i) {
+    // XYZ are 20 bits, signed and saturated.
+    // W is 4 bits, unsigned and saturated.
+    Xmm src;
+    if (i.src1.is_constant) {
+      src = i.dest;
+      e.LoadConstantXmm(src, i.src1.constant());
+    } else {
+      src = i.src1;
+    }
+    // Saturate.
+    e.vmaxps(i.dest, src, e.GetXmmConstPtr(XMMPackULONG_4202020_MinUnpacked));
+    e.vminps(i.dest, i.dest,
+             e.GetXmmConstPtr(XMMPackULONG_4202020_MaxUnpacked));
+    // Remove the unneeded bits of the floats (so excess nibbles will also be
+    // cleared).
+    e.vpand(i.dest, e.GetXmmConstPtr(XMMPackULONG_4202020_MaskUnpacked));
+    // Store Y and W shifted left by 4 so vpshufb can be used with them.
+    e.vpslld(e.xmm0, i.dest, 4);
+    // Place XZ where they're supposed to be.
+    e.vpshufb(i.dest, i.dest, e.GetXmmConstPtr(XMMPackULONG_4202020_PermuteXZ));
+    // Place YW.
+    e.vpshufb(e.xmm0, e.xmm0, e.GetXmmConstPtr(XMMPackULONG_4202020_PermuteYW));
+    // Merge XZ and YW.
     e.vorps(i.dest, e.xmm0);
   }
   static __m128i EmulatePack8_IN_16_UN_UN_SAT(void*, __m128i src1,
@@ -2214,6 +2243,9 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
       case PACK_TYPE_UINT_2101010:
         EmitUINT_2101010(e, i);
         break;
+      case PACK_TYPE_ULONG_4202020:
+        EmitULONG_4202020(e, i);
+        break;
       case PACK_TYPE_8_IN_16:
         Emit8_IN_16(e, i, i.instr->flags);
         break;
@@ -2367,7 +2399,7 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
     e.vpaddd(i.dest, e.GetXmmConstPtr(XMM3301));
     // Return quiet NaNs in case of negative overflow.
     e.vcmpeqps(e.xmm0, i.dest, e.GetXmmConstPtr(XMMUnpackSHORT_Overflow));
-    e.vblendvps(i.dest, i.dest, e.GetXmmConstPtr(XMMUnpackOverflowNaN), e.xmm0);
+    e.vblendvps(i.dest, i.dest, e.GetXmmConstPtr(XMMQNaN), e.xmm0);
   }
   static void EmitSHORT_4(X64Emitter& e, const EmitArgType& i) {
     // (VD.x) = 3.0 + (VB.x>>16)*2^-22
@@ -2396,7 +2428,7 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
     e.vpaddd(i.dest, e.GetXmmConstPtr(XMM3333));
     // Return quiet NaNs in case of negative overflow.
     e.vcmpeqps(e.xmm0, i.dest, e.GetXmmConstPtr(XMMUnpackSHORT_Overflow));
-    e.vblendvps(i.dest, i.dest, e.GetXmmConstPtr(XMMUnpackOverflowNaN), e.xmm0);
+    e.vblendvps(i.dest, i.dest, e.GetXmmConstPtr(XMMQNaN), e.xmm0);
   }
   static void EmitUINT_2101010(X64Emitter& e, const EmitArgType& i) {
     Xmm src;
@@ -2437,9 +2469,40 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
     // Return quiet NaNs in case of negative overflow.
     e.vcmpeqps(e.xmm0, i.dest,
                e.GetXmmConstPtr(XMMUnpackUINT_2101010_Overflow));
-    e.vblendvps(i.dest, i.dest, e.GetXmmConstPtr(XMMUnpackOverflowNaN), e.xmm0);
+    e.vblendvps(i.dest, i.dest, e.GetXmmConstPtr(XMMQNaN), e.xmm0);
     // To convert XYZ to -1 to 1, games multiply by 0x46004020 & sub 0x46C06030.
     // For W to 0 to 1, they multiply by and subtract 0x4A2AAAAB.
+  }
+  static void EmitULONG_4202020(X64Emitter& e, const EmitArgType& i) {
+    Xmm src;
+    if (i.src1.is_constant) {
+      if (i.src1.value->IsConstantZero()) {
+        e.vmovdqa(i.dest, e.GetXmmConstPtr(XMM3331));
+        return;
+      }
+      src = i.dest;
+      e.LoadConstantXmm(src, i.src1.constant());
+    } else {
+      src = i.src1;
+    }
+    // Extract pairs of nibbles to XZYW. XZ will have excess 4 upper bits, YW
+    // will have excess 4 lower bits.
+    e.vpshufb(i.dest, src, e.GetXmmConstPtr(XMMUnpackULONG_4202020_Permute));
+    // Drop the excess nibble of YW.
+    e.vpsrld(e.xmm0, i.dest, 4);
+    // Merge XZ and YW now both starting at offset 0.
+    e.vshufps(i.dest, i.dest, e.xmm0, _MM_SHUFFLE(3, 2, 1, 0));
+    // Reorder as XYZW.
+    e.vshufps(i.dest, i.dest, _MM_SHUFFLE(3, 1, 2, 0));
+    // Drop the excess upper nibble in XZ and sign-extend XYZ.
+    e.vpslld(i.dest, 12);
+    e.vpsrad(i.dest, 12);
+    // Add 3,3,3,1.
+    e.vpaddd(i.dest, e.GetXmmConstPtr(XMM3331));
+    // Return quiet NaNs in case of negative overflow.
+    e.vcmpeqps(e.xmm0, i.dest,
+               e.GetXmmConstPtr(XMMUnpackULONG_4202020_Overflow));
+    e.vblendvps(i.dest, i.dest, e.GetXmmConstPtr(XMMQNaN), e.xmm0);
   }
   static void Emit8_IN_16(X64Emitter& e, const EmitArgType& i, uint32_t flags) {
     assert_false(IsPackOutSaturate(flags));

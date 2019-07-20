@@ -81,10 +81,11 @@ enum PackType : uint16_t {
   PACK_TYPE_FLOAT16_4 = 3,
   PACK_TYPE_SHORT_2 = 4,
   PACK_TYPE_UINT_2101010 = 5,
+  PACK_TYPE_ULONG_4202020 = 6,
 
   // Types which use the bitmasks below for configuration:
-  PACK_TYPE_8_IN_16 = 6,
-  PACK_TYPE_16_IN_32 = 7,
+  PACK_TYPE_8_IN_16 = 7,
+  PACK_TYPE_16_IN_32 = 8,
 
   PACK_TYPE_MODE = 0x000F,  // just to get the mode
                             // Unpack to low or high parts.
