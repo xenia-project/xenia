@@ -1453,26 +1453,50 @@ void Value::VectorAverage(Value* other, TypeName type, bool is_unsigned,
   assert_true(this->type == VEC128_TYPE && other->type == VEC128_TYPE);
   switch (type) {
     case INT8_TYPE: {
-        alignas(16) int8_t result[16];
-        __m128i src1 =
-            _mm_load_si128(reinterpret_cast<const __m128i*>(constant.v128.i8));
-        __m128i src2 = _mm_load_si128(
-            reinterpret_cast<const __m128i*>(other->constant.v128.i8));
-        __m128i dest = _mm_avg_epu8(src1, src2);
-        _mm_store_si128(reinterpret_cast<__m128i*>(result), dest);
-        std::memcpy(constant.v128.i8, result, sizeof(result));
+      for (int i = 0; i < 16; i++) {
+        if (is_unsigned) {
+          constant.v128.u8[i] =
+              uint8_t((uint16_t(constant.v128.u8[i]) +
+                       uint16_t(other->constant.v128.u8[i]) + 1) >>
+                      1);
+        } else {
+          constant.v128.i8[i] =
+              int8_t((int16_t(constant.v128.i8[i]) +
+                      int16_t(other->constant.v128.i8[i]) + 1) >>
+                     1);
+        }
+      }
     } break;
     case INT16_TYPE: {
-        alignas(16) int16_t result[8];
-        __m128i src1 =
-            _mm_load_si128(reinterpret_cast<const __m128i*>(constant.v128.i16));
-        __m128i src2 = _mm_load_si128(
-            reinterpret_cast<const __m128i*>(other->constant.v128.i16));
-        __m128i dest = _mm_avg_epu16(src1, src2);
-        _mm_store_si128(reinterpret_cast<__m128i*>(result), dest);
-        std::memcpy(constant.v128.i16, result, sizeof(result));
+      for (int i = 0; i < 8; i++) {
+        if (is_unsigned) {
+          constant.v128.u16[i] =
+              uint16_t((uint32_t(constant.v128.u16[i]) +
+                        uint32_t(other->constant.v128.u16[i]) + 1) >>
+                       1);
+        } else {
+          constant.v128.i16[i] =
+              int16_t((int32_t(constant.v128.i16[i]) +
+                       int32_t(other->constant.v128.i16[i]) + 1) >>
+                      1);
+        }
+      }
     } break;
-    // There is no _mm_avg_epu32. if there is a game that uses INT32_TYPE then it should be implemented?
+    case INT32_TYPE: {
+      for (int i = 0; i < 4; i++) {
+        if (is_unsigned) {
+          constant.v128.u32[i] =
+              uint32_t((uint64_t(constant.v128.u32[i]) +
+                        uint64_t(other->constant.v128.u32[i]) + 1) >>
+                       1);
+        } else {
+          constant.v128.i32[i] =
+              int32_t((int64_t(constant.v128.i32[i]) +
+                       int64_t(other->constant.v128.i32[i]) + 1) >>
+                      1);
+        }
+      }
+    } break;
     default:
       assert_unhandled_case(type);
       break;
