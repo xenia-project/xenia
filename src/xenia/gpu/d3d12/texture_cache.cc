@@ -146,11 +146,16 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::kUnknown, DXGI_FORMAT_R8G8_UNORM, ResolveTileMode::k16bpp,
      false},
     // k_Cr_Y1_Cb_Y0_REP
-    {DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown,
+    {DXGI_FORMAT_G8R8_G8B8_UNORM, DXGI_FORMAT_G8R8_G8B8_UNORM, LoadMode::k32bpb,
      DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown, DXGI_FORMAT_UNKNOWN, ResolveTileMode::kUnknown, false},
     // k_Y1_Cr_Y0_Cb_REP
-    {DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown,
+    // Used for videos in NBA 2K9. Red and blue must be flipped.
+    // TODO(Triang3l): D3DFMT_G8R8_G8B8 is DXGI_FORMAT_R8G8_B8G8_UNORM * 255.0f,
+    // watch out for num_format int, division in shaders, etc., in NBA 2K9 it
+    // works as is. Also need to decompress if the size is uneven, but should be
+    // a very rare case.
+    {DXGI_FORMAT_R8G8_B8G8_UNORM, DXGI_FORMAT_R8G8_B8G8_UNORM, LoadMode::k32bpb,
      DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown, DXGI_FORMAT_UNKNOWN, ResolveTileMode::kUnknown, false},
     // k_16_16_EDRAM
@@ -1727,12 +1732,14 @@ void TextureCache::BindingInfoFromFetchConstant(
 
   if (swizzle_out != nullptr) {
     uint32_t swizzle = fetch.swizzle;
-    const uint32_t swizzle_constant_mask = 4 | (4 << 3) | (4 << 6) | (4 << 9);
-    uint32_t swizzle_constant = swizzle & swizzle_constant_mask;
-    uint32_t swizzle_not_constant = swizzle_constant ^ swizzle_constant_mask;
+    // 0b000 or 0b111 mask for 0 or 1 swizzles.
+    uint32_t swizzle_constant = swizzle & 0b100100100100;
+    swizzle_constant |= (swizzle_constant >> 1) | (swizzle_constant >> 2);
+    // 0b000 or 0b111 mask for RGBA swizzles.
+    uint32_t swizzle_not_constant = swizzle_constant ^ 0b111111111111;
     // Get rid of 6 and 7 values (to prevent device losses if the game has
     // something broken) the quick and dirty way - by changing them to 4 and 5.
-    swizzle &= ~(swizzle_constant >> 1);
+    swizzle &= 0b101101101101 | swizzle_not_constant;
     // Remap the swizzle according to the texture format. k_1_5_5_5, k_5_6_5 and
     // k_4_4_4_4 already have red and blue swapped in the load shader for
     // simplicity.
@@ -1740,16 +1747,20 @@ void TextureCache::BindingInfoFromFetchConstant(
       // Green bits of the texture used for blue, and blue bits used for green.
       // Swap 001 and 010 (XOR 011 if either 001 or 010).
       uint32_t swizzle_green_or_blue =
-          ((swizzle & 0b001001001001) ^ ((swizzle >> 1) & 0b001001001001)) &
-          swizzle_not_constant;
-      swizzle ^= swizzle_green_or_blue | (swizzle_green_or_blue << 1);
+          (swizzle & 0b001001001001) ^ ((swizzle >> 1) & 0b001001001001);
+      swizzle ^= (swizzle_green_or_blue | (swizzle_green_or_blue << 1)) &
+                 swizzle_not_constant;
+    } else if (format == TextureFormat::k_Cr_Y1_Cb_Y0_REP ||
+               format == TextureFormat::k_Y1_Cr_Y0_Cb_REP) {
+      // Swap red and blue.
+      swizzle ^= ((~swizzle & 0b001001001001) << 1) & swizzle_not_constant;
     } else if (host_formats_[uint32_t(format)].replicate_component) {
       // Replicate the only component of single-component textures, which are
       // emulated with red formats (including DXT3A, which uses R8 rather than
       // DXT3 because the resulting size is the same, but there's no 4x4
       // alignment requirement). If not 0.0 or 1.0 (if the high bit isn't set),
       // make 0 (red).
-      swizzle &= ~((swizzle_not_constant >> 1) | (swizzle_not_constant >> 2));
+      swizzle &= swizzle_constant;
     }
     *swizzle_out = swizzle;
   }
