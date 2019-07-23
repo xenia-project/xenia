@@ -129,6 +129,28 @@ std::vector<XCONTENT_DATA> ContentManager::ListContent(uint32_t device_id,
     content_data.content_type = content_type;
     content_data.display_name = file_info.name;
     content_data.file_name = xe::to_string(file_info.name);
+
+    if (file_info.type != xe::filesystem::FileInfo::Type::kDirectory) {
+      // Not a directory so must be a package, verify size to make sure
+      if (file_info.total_size <= vfs::StfsHeader::kHeaderLength) {
+        continue;  // Invalid package (maybe .headers file)
+      }
+
+      auto map = MappedMemory::Open(file_info.path + file_info.name,
+                                    MappedMemory::Mode::kRead, 0,
+                                    vfs::StfsHeader::kHeaderLength);
+      if (map) {
+        vfs::StfsHeader header;
+        header.Read(map->data());
+
+        content_data.content_type = static_cast<uint32_t>(header.content_type);
+        content_data.display_name = header.display_names;
+        // TODO: select localized display name
+        // some games may expect different ones depending on language setting.
+        map->Close();
+      }
+    }
+
     result.emplace_back(std::move(content_data));
   }
 

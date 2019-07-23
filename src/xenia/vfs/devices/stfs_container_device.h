@@ -117,6 +117,8 @@ struct SvodVolumeDescriptor {
 
 class StfsHeader {
  public:
+  static const uint32_t kHeaderLength = 0xA000;
+
   bool Read(const uint8_t* p);
 
   uint8_t license_entries[0x100];
