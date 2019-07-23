@@ -42,7 +42,7 @@ class ContentPackage {
  public:
   ContentPackage(KernelState* kernel_state, const XCONTENT_DATA& data,
                  std::wstring package_path);
-  ~ContentPackage();
+  virtual ~ContentPackage();
 
   virtual bool Mount(std::string root_name) = 0;
   virtual X_RESULT GetThumbnail(std::vector<uint8_t>* buffer) = 0;
