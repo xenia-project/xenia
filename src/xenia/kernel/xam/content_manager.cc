@@ -268,7 +268,17 @@ X_RESULT ContentManager::DeleteContent(const XCONTENT_DATA& data) {
     return X_ERROR_FILE_NOT_FOUND;
   }
 
-  return package->Delete();
+  auto result = package->Delete();
+  if (XSUCCEEDED(result)) {
+    auto it = std::find(open_packages_.begin(), open_packages_.end(), package);
+    if (it != open_packages_.end()) {
+      open_packages_.erase(it);
+    }
+
+    delete package;
+  }
+
+  return result;
 }
 
 std::wstring ContentManager::ResolveGameUserContentPath() {

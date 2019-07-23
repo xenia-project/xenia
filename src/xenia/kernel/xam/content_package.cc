@@ -164,7 +164,7 @@ bool StfsContentPackage::Mount(std::string root_name) {
       return false;
     }
 
-    device_ = device.release();
+    header_ = device->header();
     device_inited_ = true;
   }
 
@@ -172,12 +172,11 @@ bool StfsContentPackage::Mount(std::string root_name) {
 }
 
 X_RESULT StfsContentPackage::GetThumbnail(std::vector<uint8_t>* buffer) {
-  if (!device_ || !device_inited_) {
+  if (!device_inited_) {
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }
-  auto& header = device_->header();
-  buffer->resize(header.thumbnail_image_size);
-  memcpy(buffer->data(), header.thumbnail_image, header.thumbnail_image_size);
+  buffer->resize(header_.thumbnail_image_size);
+  memcpy(buffer->data(), header_.thumbnail_image, header_.thumbnail_image_size);
   return X_ERROR_SUCCESS;
 }
 
@@ -190,8 +189,8 @@ X_RESULT StfsContentPackage::Delete() {
   Unmount();
 
   if (xe::filesystem::PathExists(package_path_)) {
-    xe::filesystem::DeleteFile(package_path_);
-    return X_ERROR_SUCCESS;
+    return xe::filesystem::DeleteFile(package_path_) ? X_ERROR_SUCCESS
+                                                     : X_ERROR_FUNCTION_FAILED;
   }
   return X_ERROR_FILE_NOT_FOUND;
 }

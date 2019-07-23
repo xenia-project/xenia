@@ -17,20 +17,8 @@
 
 #include "xenia/base/memory.h"
 #include "xenia/base/mutex.h"
+#include "xenia/vfs/devices/stfs_container_device.h"
 #include "xenia/xbox.h"
-
-namespace xe {
-namespace vfs {
-class Device;
-class StfsContainerDevice;
-}  // namespace vfs
-}  // namespace xe
-
-namespace xe {
-namespace kernel {
-class KernelState;
-}  // namespace kernel
-}  // namespace xe
 
 namespace xe {
 namespace kernel {
@@ -81,7 +69,7 @@ class StfsContentPackage : public ContentPackage {
   X_RESULT Delete();
 
  private:
-  vfs::StfsContainerDevice* device_ = nullptr;
+  vfs::StfsHeader header_;
 };
 
 class FolderContentPackage : public ContentPackage {
