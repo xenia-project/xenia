@@ -183,6 +183,8 @@ class StfsContainerDevice : public Device {
   uint32_t sectors_per_allocation_unit() const override { return 1; }
   uint32_t bytes_per_sector() const override { return 4 * 1024; }
 
+  StfsHeader& header() { return header_; }
+
  private:
   enum class Error {
     kSuccess = 0,

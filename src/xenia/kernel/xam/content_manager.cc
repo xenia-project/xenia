@@ -14,6 +14,7 @@
 #include "xenia/base/filesystem.h"
 #include "xenia/base/string.h"
 #include "xenia/kernel/kernel_state.h"
+#include "xenia/kernel/xam/content_package.h"
 #include "xenia/kernel/xobject.h"
 #include "xenia/vfs/devices/host_path_device.h"
 #include "xenia/vfs/devices/stfs_container_device.h"
@@ -22,43 +23,9 @@ namespace xe {
 namespace kernel {
 namespace xam {
 
-static const wchar_t* kThumbnailFileName = L"__thumbnail.png";
+constexpr const wchar_t* const ContentManager::kStfsHeadersExtension;
 
 static const wchar_t* kGameUserContentDirName = L"profile";
-
-static int content_device_id_ = 0;
-
-ContentPackage::ContentPackage(KernelState* kernel_state, std::string root_name,
-                               const XCONTENT_DATA& data,
-                               std::wstring package_path)
-    : kernel_state_(kernel_state), root_name_(std::move(root_name)) {
-  device_path_ = std::string("\\Device\\Content\\") +
-                 std::to_string(++content_device_id_) + "\\";
-
-  auto fs = kernel_state_->file_system();
-
-  std::unique_ptr<vfs::Device> device;
-  // If this isn't a folder try mounting as STFS package
-  // Otherwise mount as a local host path
-  if (!filesystem::IsFolder(package_path) &&
-      filesystem::PathExists(package_path)) {
-    device =
-        std::make_unique<vfs::StfsContainerDevice>(device_path_, package_path);
-  } else {
-    device = std::make_unique<vfs::HostPathDevice>(device_path_, package_path,
-                                                   false);
-  }
-
-  device->Initialize();
-  fs->RegisterDevice(std::move(device));
-  fs->RegisterSymbolicLink(root_name_ + ":", device_path_);
-}
-
-ContentPackage::~ContentPackage() {
-  auto fs = kernel_state_->file_system();
-  fs->UnregisterSymbolicLink(root_name_ + ":");
-  fs->UnregisterDevice(device_path_);
-}
 
 ContentManager::ContentManager(KernelState* kernel_state,
                                std::wstring root_path)
@@ -106,18 +73,15 @@ std::wstring ContentManager::ResolvePackagePath(const XCONTENT_DATA& data) {
   auto package_root = ResolvePackageRoot(data.content_type);
   auto package_path =
       xe::join_paths(package_root, xe::to_wstring(data.file_name));
-  // Add slash to end of path if this is a folder
-  // (or package doesn't exist, meaning we're creating a new folder)
-  if (xe::filesystem::IsFolder(package_path) ||
-      !xe::filesystem::PathExists(package_path)) {
-    package_path += xe::kPathSeparator;
-  }
   return package_path;
 }
 
 std::vector<XCONTENT_DATA> ContentManager::ListContent(uint32_t device_id,
                                                        uint32_t content_type) {
   std::vector<XCONTENT_DATA> result;
+
+  // StfsHeader is a huge class - alloc on heap instead of stack
+  vfs::StfsHeader* header = new vfs::StfsHeader();
 
   // Search path:
   // content_root/title_id/type_name/*
@@ -132,7 +96,7 @@ std::vector<XCONTENT_DATA> ContentManager::ListContent(uint32_t device_id,
 
     auto headers_path = file_info.path + file_info.name;
     if (file_info.type == xe::filesystem::FileInfo::Type::kDirectory) {
-      headers_path = headers_path + L".headers";
+      headers_path = headers_path + ContentManager::kStfsHeadersExtension;
     }
 
     if (xe::filesystem::PathExists(headers_path)) {
@@ -141,20 +105,20 @@ std::vector<XCONTENT_DATA> ContentManager::ListContent(uint32_t device_id,
       if (file_info.type != xe::filesystem::FileInfo::Type::kDirectory) {
         // Not a directory so must be a package, verify size to make sure
         if (file_info.total_size <= vfs::StfsHeader::kHeaderLength) {
-          continue;  // Invalid package (maybe .headers file)
+          continue;  // Invalid package (maybe .headers.bin)
         }
       }
 
       auto map = MappedMemory::Open(headers_path, MappedMemory::Mode::kRead, 0,
                                     vfs::StfsHeader::kHeaderLength);
       if (map) {
-        vfs::StfsHeader header;
-        header.Read(map->data());
-
-        content_data.content_type = static_cast<uint32_t>(header.content_type);
-        content_data.display_name = header.display_names;
-        // TODO: select localized display name
-        // some games may expect different ones depending on language setting.
+        if (header->Read(map->data())) {
+          content_data.content_type =
+              static_cast<uint32_t>(header->content_type);
+          content_data.display_name = header->display_names;
+          // TODO: select localized display name
+          // some games may expect different ones depending on language setting.
+        }
         map->Close();
       }
     }
@@ -162,11 +126,12 @@ std::vector<XCONTENT_DATA> ContentManager::ListContent(uint32_t device_id,
     result.emplace_back(std::move(content_data));
   }
 
+  delete header;
+
   return result;
 }
 
-std::unique_ptr<ContentPackage> ContentManager::ResolvePackage(
-    std::string root_name, const XCONTENT_DATA& data) {
+ContentPackage* ContentManager::ResolvePackage(const XCONTENT_DATA& data) {
   auto package_path = ResolvePackagePath(data);
   if (!xe::filesystem::PathExists(package_path)) {
     return nullptr;
@@ -174,9 +139,25 @@ std::unique_ptr<ContentPackage> ContentManager::ResolvePackage(
 
   auto global_lock = global_critical_region_.Acquire();
 
-  auto package = std::make_unique<ContentPackage>(kernel_state_, root_name,
-                                                  data, package_path);
-  return package;
+  for (auto package : open_packages_) {
+    if (package->package_path() == package_path) {
+      return package;
+    }
+  }
+
+  std::unique_ptr<ContentPackage> package;
+
+  // Open as FolderContentPackage if the package is a folder or doesn't exist
+  if (xe::filesystem::IsFolder(package_path) ||
+      !xe::filesystem::PathExists(package_path)) {
+    package = std::make_unique<FolderContentPackage>(kernel_state_, data,
+                                                     package_path);
+  } else {
+    package =
+        std::make_unique<StfsContentPackage>(kernel_state_, data, package_path);
+  }
+
+  return package.release();
 }
 
 bool ContentManager::ContentExists(const XCONTENT_DATA& data) {
@@ -188,25 +169,32 @@ X_RESULT ContentManager::CreateContent(std::string root_name,
                                        const XCONTENT_DATA& data) {
   auto global_lock = global_critical_region_.Acquire();
 
-  if (open_packages_.count(root_name)) {
-    // Already content open with this root name.
-    return X_ERROR_ALREADY_EXISTS;
-  }
-
   auto package_path = ResolvePackagePath(data);
   if (xe::filesystem::PathExists(package_path)) {
     // Exists, must not!
     return X_ERROR_ALREADY_EXISTS;
   }
 
+  for (auto package : open_packages_) {
+    if (package->package_path() == package_path) {
+      return X_ERROR_ALREADY_EXISTS;
+    }
+  }
+
   if (!xe::filesystem::CreateFolder(package_path)) {
     return X_ERROR_ACCESS_DENIED;
   }
 
-  auto package = ResolvePackage(root_name, data);
-  assert_not_null(package);
+  auto package = ResolvePackage(data);
+  if (!package) {
+    return X_ERROR_FUNCTION_FAILED;  // Failed to create directory?
+  }
 
-  open_packages_.insert({root_name, package.release()});
+  if (!package->Mount(root_name)) {
+    return X_ERROR_DEVICE_NOT_CONNECTED;
+  }
+
+  open_packages_.push_back(package);
 
   return X_ERROR_SUCCESS;
 }
@@ -215,22 +203,16 @@ X_RESULT ContentManager::OpenContent(std::string root_name,
                                      const XCONTENT_DATA& data) {
   auto global_lock = global_critical_region_.Acquire();
 
-  if (open_packages_.count(root_name)) {
-    // Already content open with this root name.
-    return X_ERROR_ALREADY_EXISTS;
-  }
-
-  auto package_path = ResolvePackagePath(data);
-  if (!xe::filesystem::PathExists(package_path)) {
-    // Does not exist, must be created.
+  auto package = ResolvePackage(data);
+  if (!package) {
     return X_ERROR_FILE_NOT_FOUND;
   }
 
-  // Open package.
-  auto package = ResolvePackage(root_name, data);
-  assert_not_null(package);
+  if (!package->Mount(root_name)) {
+    return X_ERROR_DEVICE_NOT_CONNECTED;
+  }
 
-  open_packages_.insert({root_name, package.release()});
+  open_packages_.push_back(package);
 
   return X_ERROR_SUCCESS;
 }
@@ -238,67 +220,55 @@ X_RESULT ContentManager::OpenContent(std::string root_name,
 X_RESULT ContentManager::CloseContent(std::string root_name) {
   auto global_lock = global_critical_region_.Acquire();
 
-  auto it = open_packages_.find(root_name);
-  if (it == open_packages_.end()) {
-    return X_ERROR_FILE_NOT_FOUND;
+  for (auto it = open_packages_.begin(); it != open_packages_.end(); ++it) {
+    auto& root_names = (*it)->root_names();
+    auto root = std::find(root_names.begin(), root_names.end(), root_name);
+    if (root != root_names.end()) {
+      if ((*it)->Unmount(root_name)) {
+        delete *it;
+        open_packages_.erase(it);
+      }
+
+      return X_ERROR_SUCCESS;
+    }
   }
 
-  auto package = it->second;
-  open_packages_.erase(it);
-  delete package;
-
-  return X_ERROR_SUCCESS;
+  return X_ERROR_FILE_NOT_FOUND;
 }
 
 X_RESULT ContentManager::GetContentThumbnail(const XCONTENT_DATA& data,
                                              std::vector<uint8_t>* buffer) {
   auto global_lock = global_critical_region_.Acquire();
-  auto package_path = ResolvePackagePath(data);
-  auto thumb_path = xe::join_paths(package_path, kThumbnailFileName);
-  if (xe::filesystem::PathExists(thumb_path)) {
-    auto file = xe::filesystem::OpenFile(thumb_path, "rb");
-    fseek(file, 0, SEEK_END);
-    size_t file_len = ftell(file);
-    fseek(file, 0, SEEK_SET);
-    buffer->resize(file_len);
-    fread(const_cast<uint8_t*>(buffer->data()), 1, buffer->size(), file);
-    fclose(file);
-    return X_ERROR_SUCCESS;
-  } else {
+
+  auto package = ResolvePackage(data);
+  if (!package) {
     return X_ERROR_FILE_NOT_FOUND;
   }
+
+  return package->GetThumbnail(buffer);
 }
 
 X_RESULT ContentManager::SetContentThumbnail(const XCONTENT_DATA& data,
                                              std::vector<uint8_t> buffer) {
   auto global_lock = global_critical_region_.Acquire();
-  auto package_path = ResolvePackagePath(data);
-  xe::filesystem::CreateFolder(package_path);
-  if (xe::filesystem::PathExists(package_path)) {
-    auto thumb_path = xe::join_paths(package_path, kThumbnailFileName);
-    auto file = xe::filesystem::OpenFile(thumb_path, "wb");
-    fwrite(buffer.data(), 1, buffer.size(), file);
-    fclose(file);
-    return X_ERROR_SUCCESS;
-  } else {
+
+  auto package = ResolvePackage(data);
+  if (!package) {
     return X_ERROR_FILE_NOT_FOUND;
   }
+
+  return package->SetThumbnail(buffer);
 }
 
 X_RESULT ContentManager::DeleteContent(const XCONTENT_DATA& data) {
   auto global_lock = global_critical_region_.Acquire();
 
-  auto package_path = ResolvePackagePath(data);
-  if (xe::filesystem::PathExists(package_path)) {
-    if (xe::filesystem::IsFolder(package_path)) {
-      xe::filesystem::DeleteFolder(package_path);
-    } else {
-      xe::filesystem::DeleteFile(package_path);
-    }
-    return X_ERROR_SUCCESS;
-  } else {
+  auto package = ResolvePackage(data);
+  if (!package) {
     return X_ERROR_FILE_NOT_FOUND;
   }
+
+  return package->Delete();
 }
 
 std::wstring ContentManager::ResolveGameUserContentPath() {
