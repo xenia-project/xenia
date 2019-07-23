@@ -52,8 +52,7 @@ dword_result_t XamProfileCreateEnumerator(dword_t device_id,
   *handle_out = e->handle();
   return X_ERROR_SUCCESS;
 }
-DECLARE_XAM_EXPORT(XamProfileCreateEnumerator,
-                   ExportTag::kUserProfiles | ExportTag::kImplemented);
+DECLARE_XAM_EXPORT1(XamProfileCreateEnumerator, kUserProfiles, kImplemented);
 
 dword_result_t XamProfileEnumerate(dword_t handle, dword_t flags,
                                    lpvoid_t buffer,
@@ -97,8 +96,7 @@ dword_result_t XamProfileEnumerate(dword_t handle, dword_t flags,
     return X_ERROR_INVALID_PARAMETER;
   }
 }
-DECLARE_XAM_EXPORT(XamProfileEnumerate,
-                   ExportTag::kUserProfiles | ExportTag::kImplemented);
+DECLARE_XAM_EXPORT1(XamProfileEnumerate, kUserProfiles, kImplemented);
 
 X_HRESULT_result_t XamUserGetXUID(dword_t user_index, dword_t unk,
                                   lpqword_t xuid_ptr) {
