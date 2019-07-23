@@ -130,14 +130,22 @@ std::vector<XCONTENT_DATA> ContentManager::ListContent(uint32_t device_id,
     content_data.display_name = file_info.name;
     content_data.file_name = xe::to_string(file_info.name);
 
-    if (file_info.type != xe::filesystem::FileInfo::Type::kDirectory) {
-      // Not a directory so must be a package, verify size to make sure
-      if (file_info.total_size <= vfs::StfsHeader::kHeaderLength) {
-        continue;  // Invalid package (maybe .headers file)
+    auto headers_path = file_info.path + file_info.name;
+    if (file_info.type == xe::filesystem::FileInfo::Type::kDirectory) {
+      headers_path = headers_path + L".headers";
+    }
+
+    if (xe::filesystem::PathExists(headers_path)) {
+      // File is either package or directory that has .headers file
+
+      if (file_info.type != xe::filesystem::FileInfo::Type::kDirectory) {
+        // Not a directory so must be a package, verify size to make sure
+        if (file_info.total_size <= vfs::StfsHeader::kHeaderLength) {
+          continue;  // Invalid package (maybe .headers file)
+        }
       }
 
-      auto map = MappedMemory::Open(file_info.path + file_info.name,
-                                    MappedMemory::Mode::kRead, 0,
+      auto map = MappedMemory::Open(headers_path, MappedMemory::Mode::kRead, 0,
                                     vfs::StfsHeader::kHeaderLength);
       if (map) {
         vfs::StfsHeader header;
