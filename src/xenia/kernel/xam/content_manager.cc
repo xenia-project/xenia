@@ -16,6 +16,7 @@
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/xobject.h"
 #include "xenia/vfs/devices/host_path_device.h"
+#include "xenia/vfs/devices/stfs_container_device.h"
 
 namespace xe {
 namespace kernel {
@@ -35,8 +36,19 @@ ContentPackage::ContentPackage(KernelState* kernel_state, std::string root_name,
                  std::to_string(++content_device_id_) + "\\";
 
   auto fs = kernel_state_->file_system();
-  auto device =
-      std::make_unique<vfs::HostPathDevice>(device_path_, package_path, false);
+
+  std::unique_ptr<vfs::Device> device;
+  // If this isn't a folder try mounting as STFS package
+  // Otherwise mount as a local host path
+  if (!filesystem::IsFolder(package_path) &&
+      filesystem::PathExists(package_path)) {
+    device =
+        std::make_unique<vfs::StfsContainerDevice>(device_path_, package_path);
+  } else {
+    device = std::make_unique<vfs::HostPathDevice>(device_path_, package_path,
+                                                   false);
+  }
+
   device->Initialize();
   fs->RegisterDevice(std::move(device));
   fs->RegisterSymbolicLink(root_name_ + ":", device_path_);
@@ -94,7 +106,12 @@ std::wstring ContentManager::ResolvePackagePath(const XCONTENT_DATA& data) {
   auto package_root = ResolvePackageRoot(data.content_type);
   auto package_path =
       xe::join_paths(package_root, xe::to_wstring(data.file_name));
-  package_path += xe::kPathSeparator;
+  // Add slash to end of path if this is a folder
+  // (or package doesn't exist, meaning we're creating a new folder)
+  if (xe::filesystem::IsFolder(package_path) ||
+      !xe::filesystem::PathExists(package_path)) {
+    package_path += xe::kPathSeparator;
+  }
   return package_path;
 }
 
@@ -107,10 +124,6 @@ std::vector<XCONTENT_DATA> ContentManager::ListContent(uint32_t device_id,
   auto package_root = ResolvePackageRoot(content_type);
   auto file_infos = xe::filesystem::ListFiles(package_root);
   for (const auto& file_info : file_infos) {
-    if (file_info.type != xe::filesystem::FileInfo::Type::kDirectory) {
-      // Directories only.
-      continue;
-    }
     XCONTENT_DATA content_data;
     content_data.device_id = device_id;
     content_data.content_type = content_type;
@@ -247,7 +260,11 @@ X_RESULT ContentManager::DeleteContent(const XCONTENT_DATA& data) {
 
   auto package_path = ResolvePackagePath(data);
   if (xe::filesystem::PathExists(package_path)) {
-    xe::filesystem::DeleteFolder(package_path);
+    if (xe::filesystem::IsFolder(package_path)) {
+      xe::filesystem::DeleteFolder(package_path);
+    } else {
+      xe::filesystem::DeleteFile(package_path);
+    }
     return X_ERROR_SUCCESS;
   } else {
     return X_ERROR_FILE_NOT_FOUND;
