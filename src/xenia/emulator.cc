@@ -50,7 +50,24 @@ namespace xe {
 
 Emulator::Emulator(const std::wstring& command_line,
                    const std::wstring& content_root)
-    : command_line_(command_line), content_root_(content_root) {}
+    : on_launch(),
+      on_exit(),
+      command_line_(command_line),
+      content_root_(content_root),
+      game_title_(),
+      display_window_(nullptr),
+      memory_(),
+      audio_system_(),
+      graphics_system_(),
+      input_system_(),
+      export_resolver_(),
+      file_system_(),
+      kernel_state_(),
+      main_thread_(nullptr),
+      title_id_(0),
+      paused_(false),
+      restoring_(false),
+      restore_fence_() {}
 
 Emulator::~Emulator() {
   // Note that we delete things in the reverse order they were initialized.
