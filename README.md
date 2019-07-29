@@ -41,7 +41,14 @@ legally purchased devices and games and information made public on the internet
 
 ## Quickstart
 
-With Windows 8+, Python 3.4+, and [Visual Studio 2017 or 2019](https://www.visualstudio.com/downloads/) and the Windows SDKs installed:
+Build system management is mostly similar between platforms: use `xenia-build` script on GNU/Linux and `xb` script on Windows.
+
+When fetching updates use `xb pull` or `./xenia-build pull` to automatically fetch
+everything and run premake for project files/etc.
+
+### Windows
+
+Requirements include: Windows 8+, Python 3.4+, and [Visual Studio 2017 or 2019](https://www.visualstudio.com/downloads/) and the Windows SDKs installed:
 
     > git clone https://github.com/xenia-project/xenia.git
     > cd xenia
@@ -62,8 +69,22 @@ With Windows 8+, Python 3.4+, and [Visual Studio 2017 or 2019](https://www.visua
     # Format code to the style guide:
     > xb format
 
-When fetching updates use `xb pull` to automatically fetch everything and
-run premake for project files/etc.
+### GNU/Linux
+
+Requirements include: Python 3.4+ and GCC.
+
+    $ git clone https://github.com/xenia-project/xenia.git
+    $ cd xenia
+    $ ./xenia-build setup
+
+    # Pull latest changes, rebase, and update submodules and premake:
+    $ ./xenia-build pull
+
+    # Build on command line:
+    $ ./xenia-build build
+
+    # Format code to the style guide:
+    $ ./xenia-build format
 
 ## Building
 
