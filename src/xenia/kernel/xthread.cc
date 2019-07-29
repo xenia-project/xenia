@@ -49,13 +49,13 @@ using xe::cpu::ppc::PPCOpcode;
 uint32_t next_xthread_id_ = 0;
 
 XThread::XThread(KernelState* kernel_state)
-    : XObject(kernel_state, kTypeThread), guest_thread_(true) {}
+    : XObject(kernel_state, kType), guest_thread_(true) {}
 
 XThread::XThread(KernelState* kernel_state, uint32_t stack_size,
                  uint32_t xapi_thread_startup, uint32_t start_address,
                  uint32_t start_context, uint32_t creation_flags,
                  bool guest_thread, bool main_thread)
-    : XObject(kernel_state, kTypeThread),
+    : XObject(kernel_state, kType),
       thread_id_(++next_xthread_id_),
       guest_thread_(guest_thread),
       main_thread_(main_thread),
