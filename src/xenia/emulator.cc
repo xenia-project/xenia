@@ -63,7 +63,7 @@ Emulator::Emulator(const std::wstring& command_line,
       export_resolver_(),
       file_system_(),
       kernel_state_(),
-      main_thread_(nullptr),
+      main_thread_(),
       title_id_(0),
       paused_(false),
       restoring_(false),
@@ -472,7 +472,7 @@ bool Emulator::RestoreFromFile(const std::wstring& path) {
       kernel_state_->object_table()->GetObjectsByType<kernel::XThread>();
   for (auto thread : threads) {
     if (thread->main_thread()) {
-      main_thread_ = thread->thread();
+      main_thread_ = thread;
       break;
     }
   }
@@ -574,7 +574,7 @@ bool Emulator::ExceptionCallback(Exception* ex) {
 
 void Emulator::WaitUntilExit() {
   while (true) {
-    xe::threading::Wait(main_thread_, false);
+    xe::threading::Wait(main_thread_->thread(), false);
 
     if (restoring_) {
       restore_fence_.Wait();
@@ -659,12 +659,12 @@ X_STATUS Emulator::CompleteLaunch(const std::wstring& path,
     }
   }
 
-  auto main_xthread = kernel_state_->LaunchModule(module);
-  if (!main_xthread) {
+  auto main_thread = kernel_state_->LaunchModule(module);
+  if (!main_thread) {
     return X_STATUS_UNSUCCESSFUL;
   }
 
-  main_thread_ = main_xthread->thread();
+  main_thread_ = main_thread;
   on_launch();
 
   return X_STATUS_SUCCESS;

@@ -175,7 +175,7 @@ class Emulator {
   std::unique_ptr<vfs::VirtualFileSystem> file_system_;
 
   std::unique_ptr<kernel::KernelState> kernel_state_;
-  threading::Thread* main_thread_;
+  kernel::object_ref<kernel::XThread> main_thread_;
   uint32_t title_id_;  // Currently running title ID
 
   bool paused_;
