@@ -9,9 +9,9 @@
 
 #include "xenia/base/logging.h"
 #include "xenia/kernel/kernel_state.h"
-#include "xenia/kernel/notify_listener.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xam/xam_private.h"
+#include "xenia/kernel/xnotifylistener.h"
 #include "xenia/xbox.h"
 
 namespace xe {
@@ -23,7 +23,7 @@ dword_result_t XamNotifyCreateListenerInternal(qword_t mask, dword_t unk,
   // r4=1 may indicate user process?
 
   auto listener =
-      object_ref<NotifyListener>(new NotifyListener(kernel_state()));
+      object_ref<XNotifyListener>(new XNotifyListener(kernel_state()));
   listener->Initialize(mask);
 
   // Handle ref is incremented, so return that.
@@ -48,7 +48,7 @@ dword_result_t XNotifyGetNext(dword_t handle, dword_t match_id,
 
   // Grab listener.
   auto listener =
-      kernel_state()->object_table()->LookupObject<NotifyListener>(handle);
+      kernel_state()->object_table()->LookupObject<XNotifyListener>(handle);
   if (!listener) {
     return 0;
   }
