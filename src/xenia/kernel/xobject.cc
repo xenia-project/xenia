@@ -22,6 +22,7 @@
 #include "xenia/kernel/xmutant.h"
 #include "xenia/kernel/xnotifylistener.h"
 #include "xenia/kernel/xsemaphore.h"
+#include "xenia/kernel/xsymboliclink.h"
 #include "xenia/kernel/xthread.h"
 
 namespace xe {
@@ -146,6 +147,8 @@ object_ref<XObject> XObject::Restore(KernelState* kernel_state, Type type,
       break;
     case kTypeSocket:
       break;
+    case kTypeSymbolicLink:
+      return XSymbolicLink::Restore(kernel_state, stream);
     case kTypeThread:
       return XThread::Restore(kernel_state, stream);
     case kTypeTimer:
