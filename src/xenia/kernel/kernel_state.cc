@@ -19,13 +19,13 @@
 #include "xenia/base/string.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/emulator.h"
-#include "xenia/kernel/notify_listener.h"
 #include "xenia/kernel/user_module.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xam/xam_module.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_module.h"
 #include "xenia/kernel/xevent.h"
 #include "xenia/kernel/xmodule.h"
+#include "xenia/kernel/xnotifylistener.h"
 #include "xenia/kernel/xobject.h"
 #include "xenia/kernel/xthread.h"
 
@@ -573,7 +573,7 @@ object_ref<XThread> KernelState::GetThreadByID(uint32_t thread_id) {
   return retain_object(thread);
 }
 
-void KernelState::RegisterNotifyListener(NotifyListener* listener) {
+void KernelState::RegisterNotifyListener(XNotifyListener* listener) {
   auto global_lock = global_critical_region_.Acquire();
   notify_listeners_.push_back(retain_object(listener));
 
@@ -597,7 +597,7 @@ void KernelState::RegisterNotifyListener(NotifyListener* listener) {
   }
 }
 
-void KernelState::UnregisterNotifyListener(NotifyListener* listener) {
+void KernelState::UnregisterNotifyListener(XNotifyListener* listener) {
   auto global_lock = global_critical_region_.Acquire();
   for (auto it = notify_listeners_.begin(); it != notify_listeners_.end();
        ++it) {

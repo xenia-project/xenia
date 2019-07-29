@@ -14,13 +14,13 @@
 #include "xenia/base/byte_stream.h"
 #include "xenia/base/clock.h"
 #include "xenia/kernel/kernel_state.h"
-#include "xenia/kernel/notify_listener.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_private.h"
 #include "xenia/kernel/xenumerator.h"
 #include "xenia/kernel/xevent.h"
 #include "xenia/kernel/xfile.h"
 #include "xenia/kernel/xmodule.h"
 #include "xenia/kernel/xmutant.h"
+#include "xenia/kernel/xnotifylistener.h"
 #include "xenia/kernel/xsemaphore.h"
 #include "xenia/kernel/xthread.h"
 
@@ -139,7 +139,7 @@ object_ref<XObject> XObject::Restore(KernelState* kernel_state, Type type,
     case kTypeMutant:
       return XMutant::Restore(kernel_state, stream);
     case kTypeNotifyListener:
-      return NotifyListener::Restore(kernel_state, stream);
+      return XNotifyListener::Restore(kernel_state, stream);
     case kTypeSemaphore:
       return XSemaphore::Restore(kernel_state, stream);
     case kTypeSession:
