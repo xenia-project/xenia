@@ -201,10 +201,13 @@ X_STATUS Emulator::Setup(
     }
   }
 
+#define LOAD_KERNEL_MODULE(t) \
+  static_cast<void>(kernel_state_->LoadKernelModule<kernel::t>())
   // HLE kernel modules.
-  kernel_state_->LoadKernelModule<kernel::xboxkrnl::XboxkrnlModule>();
-  kernel_state_->LoadKernelModule<kernel::xam::XamModule>();
-  kernel_state_->LoadKernelModule<kernel::xbdm::XbdmModule>();
+  LOAD_KERNEL_MODULE(xboxkrnl::XboxkrnlModule);
+  LOAD_KERNEL_MODULE(xam::XamModule);
+  LOAD_KERNEL_MODULE(xbdm::XbdmModule);
+#undef LOAD_KERNEL_MODULE
 
   // Initialize emulator fallback exception handling last.
   ExceptionHandler::Install(Emulator::ExceptionCallbackThunk, this);
