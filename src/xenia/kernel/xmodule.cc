@@ -19,7 +19,7 @@ namespace xe {
 namespace kernel {
 
 XModule::XModule(KernelState* kernel_state, ModuleType module_type)
-    : XObject(kernel_state, kTypeModule),
+    : XObject(kernel_state, kType),
       module_type_(module_type),
       processor_module_(nullptr),
       hmodule_ptr_(0) {
