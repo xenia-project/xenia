@@ -121,6 +121,7 @@ class XObject {
     kTypeSemaphore,
     kTypeSession,
     kTypeSocket,
+    kTypeSymbolicLink,
     kTypeThread,
     kTypeTimer,
   };
