@@ -29,7 +29,7 @@ class DiscImageDevice : public Device {
 
   bool Initialize() override;
   void Dump(StringBuffer* string_buffer) override;
-  Entry* ResolvePath(std::string path) override;
+  Entry* ResolvePath(const std::string& path) override;
 
   uint32_t total_allocation_units() const override {
     return uint32_t(mmap_->size() / sectors_per_allocation_unit() /
