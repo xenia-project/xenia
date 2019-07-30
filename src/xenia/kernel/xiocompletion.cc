@@ -13,7 +13,7 @@ namespace xe {
 namespace kernel {
 
 XIOCompletion::XIOCompletion(KernelState* kernel_state)
-    : XObject(kernel_state, kTypeIOCompletion) {
+    : XObject(kernel_state, kType) {
   notification_semaphore_ = threading::Semaphore::Create(0, kMaxNotifications);
 }
 

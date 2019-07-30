@@ -543,6 +543,12 @@ dword_result_t ExAllocatePoolTypeWithTag(dword_t size, dword_t tag,
 }
 DECLARE_XBOXKRNL_EXPORT1(ExAllocatePoolTypeWithTag, kMemory, kImplemented);
 
+dword_result_t ExAllocatePool(dword_t size) {
+  const uint32_t none = 0x656E6F4E;  // 'None'
+  return ExAllocatePoolTypeWithTag(size, none, 0);
+}
+DECLARE_XBOXKRNL_EXPORT1(ExAllocatePool, kMemory, kImplemented);
+
 void ExFreePool(lpvoid_t base_address) {
   kernel_state()->memory()->SystemHeapFree(base_address);
 }

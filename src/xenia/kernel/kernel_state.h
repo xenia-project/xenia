@@ -48,7 +48,7 @@ class Dispatcher;
 class XHostThread;
 class KernelModule;
 class XModule;
-class NotifyListener;
+class XNotifyListener;
 class XThread;
 class UserModule;
 
@@ -158,8 +158,8 @@ class KernelState {
   void OnThreadExit(XThread* thread);
   object_ref<XThread> GetThreadByID(uint32_t thread_id);
 
-  void RegisterNotifyListener(NotifyListener* listener);
-  void UnregisterNotifyListener(NotifyListener* listener);
+  void RegisterNotifyListener(XNotifyListener* listener);
+  void UnregisterNotifyListener(XNotifyListener* listener);
   void BroadcastNotification(XNotificationID id, uint32_t data);
 
   util::NativeList* dpc_list() { return &dpc_list_; }
@@ -196,7 +196,7 @@ class KernelState {
   // Must be guarded by the global critical region.
   util::ObjectTable object_table_;
   std::unordered_map<uint32_t, XThread*> threads_by_id_;
-  std::vector<object_ref<NotifyListener>> notify_listeners_;
+  std::vector<object_ref<XNotifyListener>> notify_listeners_;
   bool has_notified_startup_ = false;
 
   uint32_t process_type_ = X_PROCTYPE_USER;

@@ -33,7 +33,7 @@ class VirtualFileSystem {
 
   bool RegisterSymbolicLink(const std::string& path, const std::string& target);
   bool UnregisterSymbolicLink(const std::string& path);
-  bool IsSymbolicLink(const std::string& path);
+  bool FindSymbolicLink(const std::string& path, std::string& target);
 
   Entry* ResolvePath(const std::string& path);
   Entry* ResolveBasePath(const std::string& path);
@@ -50,6 +50,8 @@ class VirtualFileSystem {
   xe::global_critical_region global_critical_region_;
   std::vector<std::unique_ptr<Device>> devices_;
   std::unordered_map<std::string, std::string> symlinks_;
+
+  bool ResolveSymbolicLink(const std::string& path, std::string& result);
 };
 
 }  // namespace vfs

@@ -14,7 +14,7 @@ namespace kernel {
 
 XEnumerator::XEnumerator(KernelState* kernel_state, size_t items_per_enumerate,
                          size_t item_size)
-    : XObject(kernel_state, kTypeEnumerator),
+    : XObject(kernel_state, kType),
       items_per_enumerate_(items_per_enumerate),
       item_size_(item_size) {}
 
