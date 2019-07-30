@@ -388,6 +388,11 @@ class Memory {
   // protection placed by the watches.
   void WatchPhysicalMemoryWrite(uint32_t physical_address, uint32_t length);
 
+  // Forces triggering of watch callbacks for a virtual address range if pages
+  // are watched there and unwatching them. Returns whether any page was
+  // watched.
+  bool TriggerWatches(uint32_t virtual_address, uint32_t length, bool is_write);
+
   // Allocates virtual memory from the 'system' heap.
   // System memory is kept separate from game memory but is still accessible
   // using normal guest virtual addresses. Kernel structures and other internal
