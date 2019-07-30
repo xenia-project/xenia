@@ -96,6 +96,10 @@ Memory::~Memory() {
   // requests.
   mmio_handler_.reset();
 
+  for (auto physical_write_watch : physical_write_watches_) {
+    delete physical_write_watch;
+  }
+
   heaps_.v00000000.Dispose();
   heaps_.v40000000.Dispose();
   heaps_.v80000000.Dispose();
@@ -152,24 +156,27 @@ bool Memory::Initialize() {
   physical_membase_ = mapping_base_ + 0x100000000ull;
 
   // Prepare virtual heaps.
-  heaps_.v00000000.Initialize(virtual_membase_, 0x00000000, 0x40000000, 4096);
-  heaps_.v40000000.Initialize(virtual_membase_, 0x40000000,
+  heaps_.v00000000.Initialize(this, virtual_membase_, 0x00000000, 0x40000000,
+                              4096);
+  heaps_.v40000000.Initialize(this, virtual_membase_, 0x40000000,
                               0x40000000 - 0x01000000, 64 * 1024);
-  heaps_.v80000000.Initialize(virtual_membase_, 0x80000000, 0x10000000,
+  heaps_.v80000000.Initialize(this, virtual_membase_, 0x80000000, 0x10000000,
                               64 * 1024);
-  heaps_.v90000000.Initialize(virtual_membase_, 0x90000000, 0x10000000, 4096);
+  heaps_.v90000000.Initialize(this, virtual_membase_, 0x90000000, 0x10000000,
+                              4096);
 
   // Prepare physical heaps.
-  heaps_.physical.Initialize(physical_membase_, 0x00000000, 0x20000000, 4096);
+  heaps_.physical.Initialize(this, physical_membase_, 0x00000000, 0x20000000,
+                             4096);
   // HACK: should be 64k, but with us overlaying A and E it needs to be 4.
-  /*heaps_.vA0000000.Initialize(virtual_membase_, 0xA0000000, 0x20000000,
+  /*heaps_.vA0000000.Initialize(this, virtual_membase_, 0xA0000000, 0x20000000,
                               64 * 1024, &heaps_.physical);*/
-  heaps_.vA0000000.Initialize(virtual_membase_, 0xA0000000, 0x20000000,
+  heaps_.vA0000000.Initialize(this, virtual_membase_, 0xA0000000, 0x20000000,
                               4 * 1024, &heaps_.physical);
-  heaps_.vC0000000.Initialize(virtual_membase_, 0xC0000000, 0x20000000,
+  heaps_.vC0000000.Initialize(this, virtual_membase_, 0xC0000000, 0x20000000,
                               16 * 1024 * 1024, &heaps_.physical);
-  heaps_.vE0000000.Initialize(virtual_membase_, 0xE0000000, 0x1FD00000, 4096,
-                              &heaps_.physical);
+  heaps_.vE0000000.Initialize(this, virtual_membase_, 0xE0000000, 0x1FD00000,
+                              4096, &heaps_.physical);
 
   // Protect the first and last 64kb of memory.
   heaps_.v00000000.AllocFixed(
@@ -189,7 +196,8 @@ bool Memory::Initialize() {
 
   // Add handlers for MMIO.
   mmio_handler_ = cpu::MMIOHandler::Install(virtual_membase_, physical_membase_,
-                                            physical_membase_ + 0x1FFFFFFF);
+                                            physical_membase_ + 0x1FFFFFFF,
+                                            AccessViolationCallbackThunk, this);
   if (!mmio_handler_) {
     XELOGE("Unable to install MMIO handlers");
     assert_always();
@@ -397,6 +405,46 @@ cpu::MMIORange* Memory::LookupVirtualMappedRange(uint32_t virtual_address) {
   return mmio_handler_->LookupRange(virtual_address);
 }
 
+bool Memory::AccessViolationCallback(size_t host_address, bool is_write) {
+  if (!is_write) {
+    // TODO(Triang3l): Handle GPU readback.
+    return false;
+  }
+
+  // Access via physical_membase_ is special, when need to bypass everything,
+  // so only watching virtual memory regions.
+  if (host_address < reinterpret_cast<size_t>(virtual_membase_) ||
+      host_address >= reinterpret_cast<size_t>(physical_membase_)) {
+    return false;
+  }
+
+  uint32_t virtual_address =
+      uint32_t(reinterpret_cast<uint8_t*>(host_address) - virtual_membase_);
+  // Revert the adjustment made by CPU emulation.
+  if (virtual_address >= 0xE0000000) {
+    if (virtual_address < 0xE0001000) {
+      return false;
+    }
+    virtual_address -= 0x1000;
+  }
+
+  BaseHeap* heap = LookupHeap(virtual_address);
+  if (heap == &heaps_.vA0000000 || heap == &heaps_.vC0000000 ||
+      heap == &heaps_.vE0000000) {
+    return static_cast<PhysicalHeap*>(heap)->TriggerWatches(
+        virtual_address / system_page_size_ * system_page_size_,
+        system_page_size_, is_write);
+  }
+
+  return false;
+}
+
+bool Memory::AccessViolationCallbackThunk(void* context, size_t host_address,
+                                          bool is_write) {
+  return reinterpret_cast<Memory*>(context)->AccessViolationCallback(
+      host_address, is_write);
+}
+
 uintptr_t Memory::AddPhysicalAccessWatch(uint32_t physical_address,
                                          uint32_t length,
                                          cpu::MMIOHandler::WatchType type,
@@ -412,21 +460,38 @@ void Memory::CancelAccessWatch(uintptr_t watch_handle) {
   mmio_handler_->CancelAccessWatch(watch_handle);
 }
 
-void* Memory::RegisterPhysicalWriteWatch(
-    cpu::PhysicalWriteWatchCallback callback, void* callback_context) {
-  return mmio_handler_->RegisterPhysicalWriteWatch(callback, callback_context);
+void* Memory::RegisterPhysicalWriteWatch(PhysicalWriteWatchCallback callback,
+                                         void* callback_context) {
+  PhysicalWriteWatchEntry* entry = new PhysicalWriteWatchEntry;
+  entry->callback = callback;
+  entry->callback_context = callback_context;
+
+  auto lock = global_critical_region_.Acquire();
+  physical_write_watches_.push_back(entry);
+
+  return entry;
 }
 
 void Memory::UnregisterPhysicalWriteWatch(void* watch_handle) {
-  mmio_handler_->UnregisterPhysicalWriteWatch(watch_handle);
+  auto entry = reinterpret_cast<PhysicalWriteWatchEntry*>(watch_handle);
+  {
+    auto lock = global_critical_region_.Acquire();
+    auto it = std::find(physical_write_watches_.begin(),
+                        physical_write_watches_.end(), entry);
+    assert_false(it == physical_write_watches_.end());
+    if (it != physical_write_watches_.end()) {
+      physical_write_watches_.erase(it);
+    }
+  }
+  delete entry;
 }
 
 void Memory::WatchPhysicalMemoryWrite(uint32_t physical_address,
                                       uint32_t length) {
   // Watch independently in all three mappings.
-  heaps_.vA0000000.WatchWrite(physical_address, length, mmio_handler_.get());
-  heaps_.vC0000000.WatchWrite(physical_address, length, mmio_handler_.get());
-  heaps_.vE0000000.WatchWrite(physical_address, length, mmio_handler_.get());
+  heaps_.vA0000000.WatchPhysicalWrite(physical_address, length);
+  heaps_.vC0000000.WatchPhysicalWrite(physical_address, length);
+  heaps_.vE0000000.WatchPhysicalWrite(physical_address, length);
 }
 
 uint32_t Memory::SystemHeapAlloc(uint32_t size, uint32_t alignment,
@@ -536,8 +601,9 @@ BaseHeap::BaseHeap()
 
 BaseHeap::~BaseHeap() = default;
 
-void BaseHeap::Initialize(uint8_t* membase, uint32_t heap_base,
+void BaseHeap::Initialize(Memory* memory, uint8_t* membase, uint32_t heap_base,
                           uint32_t heap_size, uint32_t page_size) {
+  memory_ = memory;
   membase_ = membase;
   heap_base_ = heap_base;
   heap_size_ = heap_size - 1;
@@ -710,6 +776,7 @@ bool BaseHeap::Restore(ByteStream* stream) {
 void BaseHeap::Reset() {
   // TODO(DrChat): protect pages.
   std::memset(page_table_.data(), 0, sizeof(PageEntry) * page_table_.size());
+  // TODO(Triang3l): Unwatch pages.
 }
 
 bool BaseHeap::Alloc(uint32_t size, uint32_t alignment,
@@ -1207,20 +1274,32 @@ VirtualHeap::VirtualHeap() = default;
 
 VirtualHeap::~VirtualHeap() = default;
 
-void VirtualHeap::Initialize(uint8_t* membase, uint32_t heap_base,
-                             uint32_t heap_size, uint32_t page_size) {
-  BaseHeap::Initialize(membase, heap_base, heap_size, page_size);
+void VirtualHeap::Initialize(Memory* memory, uint8_t* membase,
+                             uint32_t heap_base, uint32_t heap_size,
+                             uint32_t page_size) {
+  BaseHeap::Initialize(memory, membase, heap_base, heap_size, page_size);
 }
 
 PhysicalHeap::PhysicalHeap() : parent_heap_(nullptr) {}
 
 PhysicalHeap::~PhysicalHeap() = default;
 
-void PhysicalHeap::Initialize(uint8_t* membase, uint32_t heap_base,
-                              uint32_t heap_size, uint32_t page_size,
-                              VirtualHeap* parent_heap) {
-  BaseHeap::Initialize(membase, heap_base, heap_size, page_size);
+void PhysicalHeap::Initialize(Memory* memory, uint8_t* membase,
+                              uint32_t heap_base, uint32_t heap_size,
+                              uint32_t page_size, VirtualHeap* parent_heap) {
+  BaseHeap::Initialize(memory, membase, heap_base, heap_size, page_size);
   parent_heap_ = parent_heap;
+  system_page_size_ = uint32_t(xe::memory::page_size());
+
+  // Include the 0xE0000000 mapping offset because these bits are for host OS
+  // pages.
+  system_page_count_ =
+      (heap_size_ /* already - 1 */ + (heap_base >= 0xE0000000 ? 0x1000 : 0) +
+       system_page_size_) /
+      system_page_size_;
+  system_pages_watched_write_.resize((system_page_count_ + 63) / 64);
+  std::memset(system_pages_watched_write_.data(), 0,
+              system_pages_watched_write_.size() * sizeof(uint64_t));
 }
 
 bool PhysicalHeap::Alloc(uint32_t size, uint32_t alignment,
@@ -1362,8 +1441,11 @@ bool PhysicalHeap::Release(uint32_t base_address, uint32_t* out_region_size) {
   uint32_t parent_base_address = GetPhysicalAddress(base_address);
   uint32_t region_size = 0;
   if (QuerySize(base_address, &region_size)) {
-    cpu::MMIOHandler::global_handler()->InvalidateRange(
-        base_address, region_size, !FLAGS_protect_on_release);
+    // TODO(Triang3l): Remove InvalidateRange when legacy (old Vulkan renderer)
+    // watches are removed.
+    cpu::MMIOHandler::global_handler()->InvalidateRange(base_address,
+                                                        region_size);
+    TriggerWatches(base_address, region_size, true, !FLAGS_protect_on_release);
   }
 
   if (!parent_heap_->Release(parent_base_address, out_region_size)) {
@@ -1378,7 +1460,10 @@ bool PhysicalHeap::Protect(uint32_t address, uint32_t size, uint32_t protect,
                            uint32_t* old_protect) {
   auto global_lock = global_critical_region_.Acquire();
 
-  cpu::MMIOHandler::global_handler()->InvalidateRange(address, size, false);
+  // TODO(Triang3l): Remove InvalidateRange when legacy (old Vulkan renderer)
+  // watches are removed.
+  cpu::MMIOHandler::global_handler()->InvalidateRange(address, size);
+  TriggerWatches(address, size, true, false);
 
   if (!parent_heap_->Protect(GetPhysicalAddress(address), size, protect,
                              old_protect)) {
@@ -1389,47 +1474,219 @@ bool PhysicalHeap::Protect(uint32_t address, uint32_t size, uint32_t protect,
   return BaseHeap::Protect(address, size, protect);
 }
 
-void PhysicalHeap::WatchWrite(uint32_t address, uint32_t size,
-                              cpu::MMIOHandler* mmio_handler) {
-  address &= 0x1FFFFFFF;
-  if (address >= heap_size_) {
-    // E0000000 is not exactly 512 MB long.
+void PhysicalHeap::WatchPhysicalWrite(uint32_t physical_address,
+                                      uint32_t length) {
+  uint32_t physical_address_offset = GetPhysicalAddress(heap_base_);
+  if (physical_address < physical_address_offset) {
+    if (physical_address_offset - physical_address >= length) {
+      return;
+    }
+    length -= physical_address_offset - physical_address;
+    physical_address = physical_address_offset;
+  }
+  uint32_t heap_relative_address = physical_address - physical_address_offset;
+  if (heap_relative_address >= heap_size_ + 1) {
     return;
   }
-  size = std::min(size, heap_size_ - address);
-  if (size == 0) {
+  length = std::min(length, heap_size_ + 1 - heap_relative_address);
+  if (length == 0) {
     return;
   }
 
-  uint32_t system_page_size = uint32_t(xe::memory::page_size());
-  uint32_t system_page_first = address / system_page_size;
-  uint32_t system_page_last = (address + size - 1) / system_page_size;
+  // Include the 0xE0000000 mapping offset because watches are placed on OS
+  // pages.
+  uint32_t system_address_offset = heap_base_ >= 0xE0000000 ? 0x1000 : 0;
+  uint32_t system_page_first =
+      (heap_relative_address + system_address_offset) / system_page_size_;
+  uint32_t system_page_last =
+      (heap_relative_address + length - 1 + system_address_offset) /
+      system_page_size_;
+  system_page_last = std::min(system_page_last, system_page_count_ - 1);
+  assert_true(system_page_first <= system_page_last);
+  uint32_t block_index_first = system_page_first >> 6;
+  uint32_t block_index_last = system_page_last >> 6;
 
   auto global_lock = global_critical_region_.Acquire();
 
-  // Watch all writable pages of the system page size within the requested
-  // range.
-  uint32_t range_start = UINT32_MAX;
+  // Protect the pages.
+  uint8_t* protect_base = membase_ + heap_base_;
+  uint32_t protect_system_page_first = UINT32_MAX;
   for (uint32_t i = system_page_first; i <= system_page_last; ++i) {
-    if (page_table_[i * system_page_size / page_size_].current_protect &
-        kMemoryProtectWrite) {
-      if (range_start == UINT32_MAX) {
-        range_start = i;
+    // Check if need to allow writing to this page.
+    bool protect_page =
+        (system_pages_watched_write_[i >> 6] & (uint64_t(1) << (i & 63))) == 0;
+    if (protect_page) {
+      uint32_t page_number =
+          xe::sat_sub(i * system_page_size_, system_address_offset) /
+          page_size_;
+      if (ToPageAccess(page_table_[page_number].current_protect) !=
+          xe::memory::PageAccess::kReadWrite) {
+        protect_page = false;
+      }
+    }
+    if (protect_page) {
+      if (protect_system_page_first == UINT32_MAX) {
+        protect_system_page_first = i;
       }
     } else {
-      if (range_start != UINT32_MAX) {
-        mmio_handler->ProtectAndWatchPhysicalMemory(
-            heap_base_ + range_start * system_page_size,
-            (i - range_start) * system_page_size);
-        range_start = UINT32_MAX;
+      if (protect_system_page_first != UINT32_MAX) {
+        xe::memory::Protect(
+            protect_base + protect_system_page_first * system_page_size_,
+            (i - protect_system_page_first) * system_page_size_,
+            xe::memory::PageAccess::kReadOnly);
+        protect_system_page_first = UINT32_MAX;
       }
     }
   }
-  if (range_start != UINT32_MAX) {
-    mmio_handler->ProtectAndWatchPhysicalMemory(
-        heap_base_ + range_start * system_page_size,
-        (system_page_last - range_start + 1) * system_page_size);
+  if (protect_system_page_first != UINT32_MAX) {
+    xe::memory::Protect(
+        protect_base + protect_system_page_first * system_page_size_,
+        (system_page_last + 1 - protect_system_page_first) * system_page_size_,
+        xe::memory::PageAccess::kReadOnly);
   }
+
+  // Register the pages as watched.
+  for (uint32_t i = block_index_first; i <= block_index_last; ++i) {
+    uint64_t mask = UINT64_MAX;
+    if (i == block_index_first) {
+      mask &= ~((uint64_t(1) << (system_page_first & 63)) - 1);
+    }
+    if (i == block_index_last && (system_page_last & 63) != 63) {
+      mask &= (uint64_t(1) << ((system_page_last & 63) + 1)) - 1;
+    }
+    system_pages_watched_write_[i] |= mask;
+  }
+}
+
+bool PhysicalHeap::TriggerWatches(uint32_t virtual_address, uint32_t length,
+                                  bool is_write, bool unprotect) {
+  // TODO(Triang3l): Support read watches.
+  assert_true(is_write);
+  if (!is_write) {
+    return false;
+  }
+
+  if (virtual_address < heap_base_) {
+    if (heap_base_ - virtual_address >= length) {
+      return false;
+    }
+    length -= heap_base_ - virtual_address;
+    virtual_address = heap_base_;
+  }
+  uint32_t heap_relative_address = virtual_address - heap_base_;
+  if (heap_relative_address >= heap_size_ + 1) {
+    return false;
+  }
+  length = std::min(length, heap_size_ + 1 - heap_relative_address);
+  if (length == 0) {
+    return false;
+  }
+
+  // Include the 0xE0000000 mapping offset because watches are placed on OS
+  // pages.
+  uint32_t system_address_offset = heap_base_ >= 0xE0000000 ? 0x1000 : 0;
+  uint32_t system_page_first =
+      (heap_relative_address + system_address_offset) / system_page_size_;
+  uint32_t system_page_last =
+      (heap_relative_address + length - 1 + system_address_offset) /
+      system_page_size_;
+  system_page_last = std::min(system_page_last, system_page_count_ - 1);
+  assert_true(system_page_first <= system_page_last);
+  uint32_t block_index_first = system_page_first >> 6;
+  uint32_t block_index_last = system_page_last >> 6;
+
+  auto global_lock = global_critical_region_.Acquire();
+
+  // Check if watching any page, whether need to call the callback at all.
+  bool any_watched = false;
+  for (uint32_t i = block_index_first; i <= block_index_last; ++i) {
+    uint64_t block = system_pages_watched_write_[i];
+    if (i == block_index_first) {
+      block &= ~((uint64_t(1) << (system_page_first & 63)) - 1);
+    }
+    if (i == block_index_last && (system_page_last & 63) != 63) {
+      block &= (uint64_t(1) << ((system_page_last & 63) + 1)) - 1;
+    }
+    if (block) {
+      any_watched = true;
+      break;
+    }
+  }
+  if (!any_watched) {
+    return false;
+  }
+
+  // Trigger callbacks.
+  // TODO(Triang3l): Accumulate the range that is safe to unwatch from the
+  // callbacks.
+  uint32_t physical_address_offset = GetPhysicalAddress(heap_base_);
+  uint32_t physical_address_start =
+      xe::sat_sub(system_page_first * system_page_size_,
+                  system_address_offset) +
+      physical_address_offset;
+  uint32_t physical_length = std::min(
+      xe::sat_sub(system_page_last * system_page_size_ + system_page_size_,
+                  system_address_offset) +
+          physical_address_offset - physical_address_start,
+      heap_size_ + 1 - (physical_address_start - physical_address_offset));
+  for (auto physical_write_watch : memory_->physical_write_watches_) {
+    physical_write_watch->callback(physical_write_watch->callback_context,
+                                   physical_address_start, physical_length);
+  }
+
+  // Unprotect ranges that need unprotection.
+  if (unprotect) {
+    uint8_t* protect_base = membase_ + heap_base_;
+    uint32_t unprotect_system_page_first = UINT32_MAX;
+    for (uint32_t i = system_page_first; i <= system_page_last; ++i) {
+      // Check if need to allow writing to this page.
+      bool unprotect_page = (system_pages_watched_write_[i >> 6] &
+                             (uint64_t(1) << (i & 63))) != 0;
+      if (unprotect_page) {
+        uint32_t page_number =
+            xe::sat_sub(i * system_page_size_, system_address_offset) /
+            page_size_;
+        if (ToPageAccess(page_table_[page_number].current_protect) !=
+            xe::memory::PageAccess::kReadWrite) {
+          unprotect_page = false;
+        }
+      }
+      if (unprotect_page) {
+        if (unprotect_system_page_first == UINT32_MAX) {
+          unprotect_system_page_first = i;
+        }
+      } else {
+        if (unprotect_system_page_first != UINT32_MAX) {
+          xe::memory::Protect(
+              protect_base + unprotect_system_page_first * system_page_size_,
+              (i - unprotect_system_page_first) * system_page_size_,
+              xe::memory::PageAccess::kReadWrite);
+          unprotect_system_page_first = UINT32_MAX;
+        }
+      }
+    }
+    if (unprotect_system_page_first != UINT32_MAX) {
+      xe::memory::Protect(
+          protect_base + unprotect_system_page_first * system_page_size_,
+          (system_page_last + 1 - unprotect_system_page_first) *
+              system_page_size_,
+          xe::memory::PageAccess::kReadWrite);
+    }
+  }
+
+  // Mark pages as not write-watched.
+  for (uint32_t i = block_index_first; i <= block_index_last; ++i) {
+    uint64_t mask = 0;
+    if (i == block_index_first) {
+      mask |= (uint64_t(1) << (system_page_first & 63)) - 1;
+    }
+    if (i == block_index_last && (system_page_last & 63) != 63) {
+      mask |= ~((uint64_t(1) << ((system_page_last & 63) + 1)) - 1);
+    }
+    system_pages_watched_write_[i] &= mask;
+  }
+
+  return true;
 }
 
 }  // namespace xe

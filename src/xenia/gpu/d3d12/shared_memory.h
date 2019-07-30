@@ -14,6 +14,7 @@
 #include <mutex>
 #include <vector>
 
+#include "xenia/base/mutex.h"
 #include "xenia/memory.h"
 #include "xenia/ui/d3d12/d3d12_api.h"
 #include "xenia/ui/d3d12/pools.h"
@@ -73,7 +74,7 @@ class SharedMemory {
   // additional subsystem/object-specific data (such as whether the range
   // belongs to the base mip level or to the rest of the mips).
   //
-  // The callback is called with the mutex locked. Do NOT watch or unwatch
+  // Called with the global critical region locked. Do NOT watch or unwatch
   // ranges from within it! The watch for the callback is cancelled after the
   // callback - the handle becomes invalid.
   WatchHandle WatchMemoryRange(uint32_t start, uint32_t length,
@@ -83,8 +84,9 @@ class SharedMemory {
   void UnwatchMemoryRange(WatchHandle handle);
   // Locks the mutex that gets locked when watch callbacks are invoked - must be
   // done when checking variables that may be changed by a watch callback.
-  inline void LockWatchMutex() { validity_mutex_.lock(); }
-  inline void UnlockWatchMutex() { validity_mutex_.unlock(); }
+  inline std::unique_lock<std::recursive_mutex> LockWatchMutex() {
+    return global_critical_region_.Acquire();
+  }
 
   // Ensures the buffer tiles backing the range are resident, but doesn't upload
   // anything.
@@ -125,8 +127,7 @@ class SharedMemory {
  private:
   bool AreTiledResourcesUsed() const;
 
-  // Mark the memory range as updated and protect it. The validity mutex must
-  // NOT be held when calling!!!
+  // Mark the memory range as updated and protect it.
   void MakeRangeValid(uint32_t valid_page_first, uint32_t valid_page_count);
 
   D3D12CommandProcessor* command_processor_;
@@ -175,19 +176,20 @@ class SharedMemory {
 
   // Mutex between the exception handler and the command processor, to be locked
   // when checking or updating validity of pages/ranges.
-  std::recursive_mutex validity_mutex_;
+  xe::global_critical_region global_critical_region_;
 
   // ***************************************************************************
-  // Things below should be protected by validity_mutex_.
+  // Things below should be protected by global_critical_region.
   // ***************************************************************************
 
   // Bit vector containing whether physical memory system pages are up to date.
   std::vector<uint64_t> valid_pages_;
 
   // Memory access callback.
-  static void MemoryWriteCallbackThunk(void* context_ptr, uint32_t page_first,
-                                       uint32_t page_last);
-  void MemoryWriteCallback(uint32_t page_first, uint32_t page_last);
+  static void MemoryWriteCallbackThunk(void* context_ptr,
+                                       uint32_t physical_address_start,
+                                       uint32_t length);
+  void MemoryWriteCallback(uint32_t physical_address_start, uint32_t length);
 
   struct GlobalWatch {
     GlobalWatchCallback callback;
@@ -249,7 +251,7 @@ class SharedMemory {
   void UnlinkWatchRange(WatchRange* range);
 
   // ***************************************************************************
-  // Things above should be protected by validity_mutex_.
+  // Things above should be protected by global_critical_region.
   // ***************************************************************************
 
   // First page and length in pages.
