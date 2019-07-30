@@ -16,6 +16,7 @@
 #include "xenia/kernel/xevent.h"
 #include "xenia/kernel/xfile.h"
 #include "xenia/kernel/xiocompletion.h"
+#include "xenia/kernel/xsymboliclink.h"
 #include "xenia/kernel/xthread.h"
 #include "xenia/vfs/device.h"
 #include "xenia/xbox.h"
@@ -716,6 +717,64 @@ dword_result_t NtFlushBuffersFile(
   return result;
 }
 DECLARE_XBOXKRNL_EXPORT1(NtFlushBuffersFile, kFileSystem, kStub);
+
+// https://docs.microsoft.com/en-us/windows/win32/devnotes/ntopensymboliclinkobject
+dword_result_t NtOpenSymbolicLinkObject(
+    lpdword_t handle_out, pointer_t<X_OBJECT_ATTRIBUTES> object_attrs) {
+  if (!object_attrs) {
+    return X_STATUS_INVALID_PARAMETER;
+  }
+  assert_not_null(handle_out);
+
+  assert_true(object_attrs->attributes == 64);  // case insensitive
+
+  auto object_name =
+      kernel_memory()->TranslateVirtual<X_ANSI_STRING*>(object_attrs->name_ptr);
+
+  std::string target_path =
+      object_name->to_string(kernel_memory()->virtual_membase());
+  if (object_attrs->root_directory != 0) {
+    assert_always();
+  }
+
+  auto pos = target_path.find("\\??\\");
+  if (pos != target_path.npos && pos == 0) {
+    target_path = target_path.substr(4);  // Strip the full qualifier
+  }
+
+  std::string link_path;
+  if (!kernel_state()->file_system()->FindSymbolicLink(target_path,
+                                                       link_path)) {
+    return X_STATUS_NO_SUCH_FILE;
+  }
+
+  object_ref<XSymbolicLink> symlink(new XSymbolicLink(kernel_state()));
+  symlink->Initialize(target_path, link_path);
+
+  *handle_out = symlink->handle();
+
+  return X_STATUS_SUCCESS;
+}
+DECLARE_XBOXKRNL_EXPORT1(NtOpenSymbolicLinkObject, kFileSystem, kImplemented);
+
+// https://docs.microsoft.com/en-us/windows/win32/devnotes/ntquerysymboliclinkobject
+dword_result_t NtQuerySymbolicLinkObject(dword_t handle,
+                                         pointer_t<X_ANSI_STRING> target) {
+  auto symlink =
+      kernel_state()->object_table()->LookupObject<XSymbolicLink>(handle);
+  if (!symlink) {
+    return X_STATUS_NO_SUCH_FILE;
+  }
+  auto length = std::min(static_cast<size_t>(target->maximum_length),
+                         symlink->target().size());
+  if (length > 0) {
+    auto target_buf = kernel_memory()->TranslateVirtual(target->pointer);
+    std::memcpy(target_buf, symlink->target().c_str(), length);
+  }
+  target->length = static_cast<uint16_t>(length);
+  return X_STATUS_SUCCESS;
+}
+DECLARE_XBOXKRNL_EXPORT1(NtQuerySymbolicLinkObject, kFileSystem, kImplemented);
 
 dword_result_t FscGetCacheElementCount(dword_t r3) { return 0; }
 DECLARE_XBOXKRNL_EXPORT1(FscGetCacheElementCount, kFileSystem, kStub);

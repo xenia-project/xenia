@@ -7,7 +7,7 @@
  ******************************************************************************
  */
 
-#include "xenia/kernel/notify_listener.h"
+#include "xenia/kernel/xnotifylistener.h"
 
 #include "xenia/base/byte_stream.h"
 #include "xenia/kernel/kernel_state.h"
@@ -15,12 +15,12 @@
 namespace xe {
 namespace kernel {
 
-NotifyListener::NotifyListener(KernelState* kernel_state)
-    : XObject(kernel_state, kTypeNotifyListener) {}
+XNotifyListener::XNotifyListener(KernelState* kernel_state)
+    : XObject(kernel_state, kType) {}
 
-NotifyListener::~NotifyListener() {}
+XNotifyListener::~XNotifyListener() {}
 
-void NotifyListener::Initialize(uint64_t mask) {
+void XNotifyListener::Initialize(uint64_t mask) {
   assert_false(wait_handle_);
 
   wait_handle_ = xe::threading::Event::CreateManualResetEvent(false);
@@ -29,7 +29,7 @@ void NotifyListener::Initialize(uint64_t mask) {
   kernel_state_->RegisterNotifyListener(this);
 }
 
-void NotifyListener::EnqueueNotification(XNotificationID id, uint32_t data) {
+void XNotifyListener::EnqueueNotification(XNotificationID id, uint32_t data) {
   // Ignore if the notification doesn't match our mask.
   if ((mask_ & uint64_t(1ULL << (id >> 25))) == 0) {
     return;
@@ -47,8 +47,8 @@ void NotifyListener::EnqueueNotification(XNotificationID id, uint32_t data) {
   wait_handle_->Set();
 }
 
-bool NotifyListener::DequeueNotification(XNotificationID* out_id,
-                                         uint32_t* out_data) {
+bool XNotifyListener::DequeueNotification(XNotificationID* out_id,
+                                          uint32_t* out_data) {
   auto global_lock = global_critical_region_.Acquire();
   bool dequeued = false;
   if (notification_count_) {
@@ -65,8 +65,8 @@ bool NotifyListener::DequeueNotification(XNotificationID* out_id,
   return dequeued;
 }
 
-bool NotifyListener::DequeueNotification(XNotificationID id,
-                                         uint32_t* out_data) {
+bool XNotifyListener::DequeueNotification(XNotificationID id,
+                                          uint32_t* out_data) {
   auto global_lock = global_critical_region_.Acquire();
   bool dequeued = false;
   if (notification_count_) {
@@ -84,7 +84,7 @@ bool NotifyListener::DequeueNotification(XNotificationID id,
   return dequeued;
 }
 
-bool NotifyListener::Save(ByteStream* stream) {
+bool XNotifyListener::Save(ByteStream* stream) {
   SaveObject(stream);
 
   stream->Write(mask_);
@@ -99,9 +99,9 @@ bool NotifyListener::Save(ByteStream* stream) {
   return true;
 }
 
-object_ref<NotifyListener> NotifyListener::Restore(KernelState* kernel_state,
-                                                   ByteStream* stream) {
-  auto notify = new NotifyListener(nullptr);
+object_ref<XNotifyListener> XNotifyListener::Restore(KernelState* kernel_state,
+                                                     ByteStream* stream) {
+  auto notify = new XNotifyListener(nullptr);
   notify->kernel_state_ = kernel_state;
 
   notify->RestoreObject(stream);
@@ -115,7 +115,7 @@ object_ref<NotifyListener> NotifyListener::Restore(KernelState* kernel_state,
     notify->notifications_.insert(pair);
   }
 
-  return object_ref<NotifyListener>(notify);
+  return object_ref<XNotifyListener>(notify);
 }
 
 }  // namespace kernel

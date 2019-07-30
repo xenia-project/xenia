@@ -17,7 +17,7 @@
 namespace xe {
 namespace kernel {
 
-XTimer::XTimer(KernelState* kernel_state) : XObject(kernel_state, kTypeTimer) {}
+XTimer::XTimer(KernelState* kernel_state) : XObject(kernel_state, kType) {}
 
 XTimer::~XTimer() = default;
 

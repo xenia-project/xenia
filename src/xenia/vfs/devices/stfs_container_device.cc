@@ -149,7 +149,7 @@ void StfsContainerDevice::Dump(StringBuffer* string_buffer) {
   root_entry_->Dump(string_buffer, 0);
 }
 
-Entry* StfsContainerDevice::ResolvePath(std::string path) {
+Entry* StfsContainerDevice::ResolvePath(const std::string& path) {
   // The filesystem will have stripped our prefix off already, so the path will
   // be in the form:
   // some\PATH.foo

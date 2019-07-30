@@ -312,6 +312,30 @@ dword_result_t RtlUnicodeToMultiByteN(pointer_t<uint8_t> destination_ptr,
 DECLARE_XBOXKRNL_EXPORT3(RtlUnicodeToMultiByteN, kNone, kImplemented,
                          kHighFrequency, kSketchy);
 
+// https://undocumented.ntinternals.net/UserMode/Undocumented%20Functions/Executable%20Images/RtlImageNtHeader.html
+pointer_result_t RtlImageNtHeader(lpvoid_t module) {
+  if (!module) {
+    return 0;
+  }
+
+  // Little-endian! no swapping!
+
+  auto dos_header = module.as<const uint8_t*>();
+  auto dos_magic = *reinterpret_cast<const uint16_t*>(&dos_header[0x00]);
+  if (dos_magic != 0x5A4D) {  // 'MZ'
+    return 0;
+  }
+  auto dos_lfanew = *reinterpret_cast<const int32_t*>(&dos_header[0x3C]);
+
+  auto nt_header = &dos_header[dos_lfanew];
+  auto nt_magic = *reinterpret_cast<const uint32_t*>(&nt_header[0x00]);
+  if (nt_magic != 0x4550) {  // 'PE'
+    return 0;
+  }
+  return static_cast<uint32_t>(nt_header - kernel_memory()->virtual_membase());
+}
+DECLARE_XBOXKRNL_EXPORT1(RtlImageNtHeader, kNone, kImplemented);
+
 pointer_result_t RtlImageXexHeaderField(pointer_t<xex2_header> xex_header,
                                         dword_t field_dword) {
   uint32_t field_value = 0;

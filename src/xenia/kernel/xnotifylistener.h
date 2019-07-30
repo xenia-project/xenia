@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_NOTIFY_LISTENER_H_
-#define XENIA_KERNEL_NOTIFY_LISTENER_H_
+#ifndef XENIA_KERNEL_XNOTIFYLISTENER_H_
+#define XENIA_KERNEL_XNOTIFYLISTENER_H_
 
 #include <memory>
 #include <unordered_map>
@@ -21,12 +21,12 @@
 namespace xe {
 namespace kernel {
 
-class NotifyListener : public XObject {
+class XNotifyListener : public XObject {
  public:
   static const Type kType = kTypeNotifyListener;
 
-  explicit NotifyListener(KernelState* kernel_state);
-  ~NotifyListener() override;
+  explicit XNotifyListener(KernelState* kernel_state);
+  ~XNotifyListener() override;
 
   uint64_t mask() const { return mask_; }
 
@@ -37,8 +37,8 @@ class NotifyListener : public XObject {
   bool DequeueNotification(XNotificationID id, uint32_t* out_data);
 
   bool Save(ByteStream* stream) override;
-  static object_ref<NotifyListener> Restore(KernelState* kernel_state,
-                                            ByteStream* stream);
+  static object_ref<XNotifyListener> Restore(KernelState* kernel_state,
+                                             ByteStream* stream);
 
  protected:
   xe::threading::WaitHandle* GetWaitHandle() override {
@@ -56,4 +56,4 @@ class NotifyListener : public XObject {
 }  // namespace kernel
 }  // namespace xe
 
-#endif  // XENIA_KERNEL_NOTIFY_LISTENER_H_
+#endif  // XENIA_KERNEL_XNOTIFYLISTENER_H_

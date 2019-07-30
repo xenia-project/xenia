@@ -66,13 +66,38 @@ bool VirtualFileSystem::UnregisterSymbolicLink(const std::string& path) {
   return true;
 }
 
-bool VirtualFileSystem::IsSymbolicLink(const std::string& path) {
-  auto global_lock = global_critical_region_.Acquire();
-  auto it = symlinks_.find(path);
-  if (it == symlinks_.end()) {
+bool VirtualFileSystem::FindSymbolicLink(const std::string& path,
+                                         std::string& target) {
+  auto it =
+      std::find_if(symlinks_.cbegin(), symlinks_.cend(), [&](const auto& s) {
+        return xe::find_first_of_case(path, s.first) == 0;
+      });
+  if (it == symlinks_.cend()) {
     return false;
   }
+  target = (*it).second;
   return true;
+}
+
+bool VirtualFileSystem::ResolveSymbolicLink(const std::string& path,
+                                            std::string& result) {
+  result = path;
+  bool was_resolved = false;
+  while (true) {
+    auto it =
+        std::find_if(symlinks_.cbegin(), symlinks_.cend(), [&](const auto& s) {
+          return xe::find_first_of_case(result, s.first) == 0;
+        });
+    if (it == symlinks_.cend()) {
+      break;
+    }
+    // Found symlink!
+    auto target_path = (*it).second;
+    auto relative_path = result.substr((*it).first.size());
+    result = target_path + relative_path;
+    was_resolved = true;
+  }
+  return was_resolved;
 }
 
 Entry* VirtualFileSystem::ResolvePath(const std::string& path) {
@@ -82,54 +107,24 @@ Entry* VirtualFileSystem::ResolvePath(const std::string& path) {
   std::string normalized_path(xe::filesystem::CanonicalizePath(path));
 
   // Resolve symlinks.
-  std::string device_path;
-  std::string relative_path;
-  for (int i = 0; i < 2; i++) {
-    for (const auto& it : symlinks_) {
-      if (xe::find_first_of_case(normalized_path, it.first) == 0) {
-        // Found symlink!
-        device_path = it.second;
-        if (relative_path.empty()) {
-          relative_path = normalized_path.substr(it.first.size());
-        }
-
-        // Bit of a cheaty move here, but allows double symlinks to be resolved.
-        normalized_path = device_path;
-        break;
-      }
-    }
-
-    // Break as soon as we've completely resolved the symlinks to a device.
-    if (!IsSymbolicLink(device_path)) {
-      break;
-    }
+  std::string resolved_path;
+  if (ResolveSymbolicLink(normalized_path, resolved_path)) {
+    normalized_path = resolved_path;
   }
 
-  if (device_path.empty()) {
-    // Symlink wasn't passed in - Check if we've received a raw device name.
-    for (auto& device : devices_) {
-      if (xe::find_first_of_case(normalized_path, device->mount_path()) == 0) {
-        device_path = device->mount_path();
-        relative_path = normalized_path.substr(device_path.size());
-      }
-    }
-  }
-
-  if (device_path.empty()) {
-    XELOGE("ResolvePath(%s) failed - no root found", path.c_str());
+  // Find the device.
+  auto it =
+      std::find_if(devices_.cbegin(), devices_.cend(), [&](const auto& d) {
+        return xe::find_first_of_case(normalized_path, d->mount_path()) == 0;
+      });
+  if (it == devices_.cend()) {
+    XELOGE("ResolvePath(%s) failed - device not found", path.c_str());
     return nullptr;
   }
 
-  // Scan all devices.
-  for (auto& device : devices_) {
-    if (strcasecmp(device_path.c_str(), device->mount_path().c_str()) == 0) {
-      return device->ResolvePath(relative_path);
-    }
-  }
-
-  XELOGE("ResolvePath(%s) failed - device not found (%s)", path.c_str(),
-         device_path.c_str());
-  return nullptr;
+  const auto& device = *it;
+  auto relative_path = normalized_path.substr(device->mount_path().size());
+  return device->ResolvePath(relative_path);
 }
 
 Entry* VirtualFileSystem::ResolveBasePath(const std::string& path) {

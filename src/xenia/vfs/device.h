@@ -31,7 +31,7 @@ class Device {
   virtual bool is_read_only() const { return true; }
 
   virtual void Dump(StringBuffer* string_buffer) = 0;
-  virtual Entry* ResolvePath(std::string path) = 0;
+  virtual Entry* ResolvePath(const std::string& path) = 0;
 
   virtual uint32_t total_allocation_units() const = 0;
   virtual uint32_t available_allocation_units() const = 0;
