@@ -128,7 +128,8 @@ class SharedMemory {
   bool AreTiledResourcesUsed() const;
 
   // Mark the memory range as updated and protect it.
-  void MakeRangeValid(uint32_t valid_page_first, uint32_t valid_page_count);
+  void MakeRangeValid(uint32_t valid_page_first, uint32_t valid_page_count,
+                      bool written_by_gpu);
 
   D3D12CommandProcessor* command_processor_;
 
@@ -182,14 +183,17 @@ class SharedMemory {
   // Things below should be protected by global_critical_region.
   // ***************************************************************************
 
-  // Bit vector containing whether physical memory system pages are up to date.
-  std::vector<uint64_t> valid_pages_;
+  // Bit vector containing:
+  // - Even block indices - whether physical memory system pages are up to date.
+  // - Odd block indices - whether phyical memory system pages contain data
+  //   written by the GPU not synchronized with the CPU (subset of valid pages).
+  std::vector<uint64_t> valid_and_gpu_written_pages_;
 
   // Memory access callback.
-  static void MemoryWriteCallbackThunk(void* context_ptr,
-                                       uint32_t physical_address_start,
-                                       uint32_t length);
-  void MemoryWriteCallback(uint32_t physical_address_start, uint32_t length);
+  static std::pair<uint32_t, uint32_t> MemoryWriteCallbackThunk(
+      void* context_ptr, uint32_t physical_address_start, uint32_t length);
+  std::pair<uint32_t, uint32_t> MemoryWriteCallback(
+      uint32_t physical_address_start, uint32_t length);
 
   struct GlobalWatch {
     GlobalWatchCallback callback;

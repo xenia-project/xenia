@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "xenia/base/memory.h"
@@ -222,7 +223,7 @@ class PhysicalHeap : public BaseHeap {
   void WatchPhysicalWrite(uint32_t physical_address, uint32_t length);
   // Returns true if any page in the range was watched.
   bool TriggerWatches(uint32_t virtual_address, uint32_t length, bool is_write,
-                      bool unprotect = true);
+                      bool unwatch_exact_range, bool unprotect = true);
 
  protected:
   VirtualHeap* parent_heap_;
@@ -333,9 +334,11 @@ class Memory {
   // Cancels a write watch requested with AddPhysicalAccessWatch.
   void CancelAccessWatch(uintptr_t watch_handle);
 
-  typedef void (*PhysicalWriteWatchCallback)(void* context_ptr,
-                                             uint32_t physical_address_start,
-                                             uint32_t length);
+  // Returns start and length of the smallest physical memory region surrounding
+  // the watched region that can be safely unwatched, if it doesn't matter,
+  // return (0, UINT32_MAX).
+  typedef std::pair<uint32_t, uint32_t> (*PhysicalWriteWatchCallback)(
+      void* context_ptr, uint32_t physical_address_start, uint32_t length);
 
   // Physical memory write watching, allowing subsystems to invalidate cached
   // data that depends on memory contents.
@@ -366,12 +369,6 @@ class Memory {
   // same pages, and watches must not be placed on read-only or totally
   // inaccessible pages, there are significant difficulties with synchronizing
   // all the three ranges, but it's generally not needed.
-  //
-  // TODO(Triang3l): Allow the callbacks to unwatch regions larger than one page
-  // (for instance, 64 KB) so there are less access violations. All callbacks
-  // must agree to unwatch larger ranges because in some cases (like regions
-  // near the locations that render targets have been resolved to) it is
-  // necessary to invalidate only a single page and none more.
   void* RegisterPhysicalWriteWatch(PhysicalWriteWatchCallback callback,
                                    void* callback_context);
 
@@ -391,7 +388,8 @@ class Memory {
   // Forces triggering of watch callbacks for a virtual address range if pages
   // are watched there and unwatching them. Returns whether any page was
   // watched.
-  bool TriggerWatches(uint32_t virtual_address, uint32_t length, bool is_write);
+  bool TriggerWatches(uint32_t virtual_address, uint32_t length, bool is_write,
+                      bool unwatch_exact_range, bool unprotect = true);
 
   // Allocates virtual memory from the 'system' heap.
   // System memory is kept separate from game memory but is still accessible

@@ -173,7 +173,7 @@ dword_result_t NtReadFile(dword_t file_handle, dword_t event_handle,
       // TODO(rick): better checking of physical address
       if (buffer.guest_address() >= 0xA0000000) {
         kernel_memory()->TriggerWatches(buffer.guest_address(), buffer_length,
-                                        true);
+                                        true, true);
       }
 
       // Synchronous.

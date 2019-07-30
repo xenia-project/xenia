@@ -433,7 +433,7 @@ bool Memory::AccessViolationCallback(size_t host_address, bool is_write) {
       heap == &heaps_.vE0000000) {
     return static_cast<PhysicalHeap*>(heap)->TriggerWatches(
         virtual_address / system_page_size_ * system_page_size_,
-        system_page_size_, is_write);
+        system_page_size_, is_write, false);
   }
 
   return false;
@@ -461,7 +461,8 @@ void Memory::CancelAccessWatch(uintptr_t watch_handle) {
 }
 
 bool Memory::TriggerWatches(uint32_t virtual_address, uint32_t length,
-                            bool is_write) {
+                            bool is_write, bool unwatch_exact_range,
+                            bool unprotect) {
   BaseHeap* heap = LookupHeap(virtual_address);
   if (heap == &heaps_.vA0000000 || heap == &heaps_.vC0000000 ||
       heap == &heaps_.vE0000000) {
@@ -469,8 +470,8 @@ bool Memory::TriggerWatches(uint32_t virtual_address, uint32_t length,
     // watches are removed.
     cpu::MMIOHandler::global_handler()->InvalidateRange(virtual_address,
                                                         length);
-    return static_cast<PhysicalHeap*>(heap)->TriggerWatches(virtual_address,
-                                                            length, is_write);
+    return static_cast<PhysicalHeap*>(heap)->TriggerWatches(
+        virtual_address, length, is_write, unwatch_exact_range, unprotect);
   }
   return false;
 }
@@ -1460,7 +1461,8 @@ bool PhysicalHeap::Release(uint32_t base_address, uint32_t* out_region_size) {
     // watches are removed.
     cpu::MMIOHandler::global_handler()->InvalidateRange(base_address,
                                                         region_size);
-    TriggerWatches(base_address, region_size, true, !FLAGS_protect_on_release);
+    TriggerWatches(base_address, region_size, true, true,
+                   !FLAGS_protect_on_release);
   }
 
   if (!parent_heap_->Release(parent_base_address, out_region_size)) {
@@ -1478,7 +1480,7 @@ bool PhysicalHeap::Protect(uint32_t address, uint32_t size, uint32_t protect,
   // TODO(Triang3l): Remove InvalidateRange when legacy (old Vulkan renderer)
   // watches are removed.
   cpu::MMIOHandler::global_handler()->InvalidateRange(address, size);
-  TriggerWatches(address, size, true, false);
+  TriggerWatches(address, size, true, true, false);
 
   if (!parent_heap_->Protect(GetPhysicalAddress(address), size, protect,
                              old_protect)) {
@@ -1574,7 +1576,8 @@ void PhysicalHeap::WatchPhysicalWrite(uint32_t physical_address,
 }
 
 bool PhysicalHeap::TriggerWatches(uint32_t virtual_address, uint32_t length,
-                                  bool is_write, bool unprotect) {
+                                  bool is_write, bool unwatch_exact_range,
+                                  bool unprotect) {
   // TODO(Triang3l): Support read watches.
   assert_true(is_write);
   if (!is_write) {
@@ -1632,8 +1635,11 @@ bool PhysicalHeap::TriggerWatches(uint32_t virtual_address, uint32_t length,
   }
 
   // Trigger callbacks.
-  // TODO(Triang3l): Accumulate the range that is safe to unwatch from the
-  // callbacks.
+  if (!unprotect) {
+    // If not doing anything with protection, no point in unwatching excess
+    // pages.
+    unwatch_exact_range = true;
+  }
   uint32_t physical_address_offset = GetPhysicalAddress(heap_base_);
   uint32_t physical_address_start =
       xe::sat_sub(system_page_first * system_page_size_,
@@ -1644,9 +1650,48 @@ bool PhysicalHeap::TriggerWatches(uint32_t virtual_address, uint32_t length,
                   system_address_offset) +
           physical_address_offset - physical_address_start,
       heap_size_ + 1 - (physical_address_start - physical_address_offset));
+  uint32_t unwatch_first = 0;
+  uint32_t unwatch_last = UINT32_MAX;
   for (auto physical_write_watch : memory_->physical_write_watches_) {
-    physical_write_watch->callback(physical_write_watch->callback_context,
-                                   physical_address_start, physical_length);
+    std::pair<uint32_t, uint32_t> callback_unwatch_range =
+        physical_write_watch->callback(physical_write_watch->callback_context,
+                                       physical_address_start, physical_length);
+    if (!unwatch_exact_range) {
+      unwatch_first = std::max(unwatch_first, callback_unwatch_range.first);
+      unwatch_last = std::min(
+          unwatch_last,
+          xe::sat_add(
+              callback_unwatch_range.first,
+              std::max(callback_unwatch_range.second, uint32_t(1)) - 1));
+    }
+  }
+  if (!unwatch_exact_range) {
+    // Always unwatch at least the requested pages.
+    unwatch_first = std::min(unwatch_first, physical_address_start);
+    unwatch_last =
+        std::max(unwatch_last, physical_address_start + physical_length - 1);
+    // Don't unprotect too much if not caring much about the region (limit to
+    // 4 MB - somewhat random, but max 1024 iterations of the page loop).
+    const uint32_t kMaxUnwatchExcess = 4 * 1024 * 1024;
+    unwatch_first = std::max(unwatch_first,
+                             physical_address_start & ~(kMaxUnwatchExcess - 1));
+    unwatch_last =
+        std::min(unwatch_last, (physical_address_start + physical_length - 1) |
+                                   (kMaxUnwatchExcess - 1));
+    // Convert to heap-relative addresses.
+    unwatch_first = xe::sat_sub(unwatch_first, physical_address_offset);
+    unwatch_last = xe::sat_sub(unwatch_last, physical_address_offset);
+    // Clamp to the heap upper bound.
+    unwatch_first = std::min(unwatch_first, heap_size_);
+    unwatch_last = std::min(unwatch_last, heap_size_);
+    // Convert to system pages and update the range.
+    unwatch_first += system_address_offset;
+    unwatch_last += system_address_offset;
+    assert_true(unwatch_first <= unwatch_last);
+    system_page_first = unwatch_first / system_page_size_;
+    system_page_last = unwatch_last / system_page_size_;
+    block_index_first = system_page_first >> 6;
+    block_index_last = system_page_last >> 6;
   }
 
   // Unprotect ranges that need unprotection.
