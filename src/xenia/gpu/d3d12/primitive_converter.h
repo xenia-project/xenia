@@ -89,9 +89,10 @@ class PrimitiveConverter {
                         D3D12_GPU_VIRTUAL_ADDRESS& gpu_address_out);
 
   // Callback for invalidating buffers mid-frame.
-  void MemoryWriteCallback(uint32_t page_first, uint32_t page_last);
-  static void MemoryWriteCallbackThunk(void* context_ptr, uint32_t page_first,
-                                       uint32_t page_last);
+  void MemoryWriteCallback(uint32_t physical_address_start, uint32_t length);
+  static void MemoryWriteCallbackThunk(void* context_ptr,
+                                       uint32_t physical_address_start,
+                                       uint32_t length);
 
   D3D12CommandProcessor* command_processor_;
   RegisterFile* register_file_;

@@ -172,7 +172,7 @@ SharedMemory::GlobalWatchHandle SharedMemory::RegisterGlobalWatch(
   watch->callback = callback;
   watch->callback_context = callback_context;
 
-  std::lock_guard<std::recursive_mutex> lock(validity_mutex_);
+  auto global_lock = global_critical_region_.Acquire();
   global_watches_.push_back(watch);
 
   return reinterpret_cast<GlobalWatchHandle>(watch);
@@ -182,7 +182,7 @@ void SharedMemory::UnregisterGlobalWatch(GlobalWatchHandle handle) {
   auto watch = reinterpret_cast<GlobalWatch*>(handle);
 
   {
-    std::lock_guard<std::recursive_mutex> lock(validity_mutex_);
+    auto global_lock = global_critical_region_.Acquire();
     auto it = std::find(global_watches_.begin(), global_watches_.end(), watch);
     assert_false(it == global_watches_.end());
     if (it != global_watches_.end()) {
@@ -208,7 +208,7 @@ SharedMemory::WatchHandle SharedMemory::WatchMemoryRange(
   uint32_t bucket_last =
       watch_page_last << page_size_log2_ >> kWatchBucketSizeLog2;
 
-  std::lock_guard<std::recursive_mutex> lock(validity_mutex_);
+  auto global_lock = global_critical_region_.Acquire();
 
   // Allocate the range.
   WatchRange* range = watch_range_first_free_;
@@ -267,7 +267,7 @@ void SharedMemory::UnwatchMemoryRange(WatchHandle handle) {
     // Could be a zero length range.
     return;
   }
-  std::lock_guard<std::recursive_mutex> lock(validity_mutex_);
+  auto global_lock = global_critical_region_.Acquire();
   UnlinkWatchRange(reinterpret_cast<WatchRange*>(handle));
 }
 
@@ -405,7 +405,7 @@ void SharedMemory::FireWatches(uint32_t page_first, uint32_t page_last,
   uint32_t bucket_first = address_first >> kWatchBucketSizeLog2;
   uint32_t bucket_last = address_last >> kWatchBucketSizeLog2;
 
-  std::lock_guard<std::recursive_mutex> lock(validity_mutex_);
+  auto global_lock = global_critical_region_.Acquire();
 
   // Fire global watches.
   for (const auto global_watch : global_watches_) {
@@ -472,7 +472,7 @@ void SharedMemory::MakeRangeValid(uint32_t valid_page_first,
   uint32_t valid_block_last = valid_page_last >> 6;
 
   {
-    std::lock_guard<std::recursive_mutex> lock(validity_mutex_);
+    auto global_lock = global_critical_region_.Acquire();
 
     for (uint32_t i = valid_block_first; i <= valid_block_last; ++i) {
       uint64_t valid_bits = UINT64_MAX;
@@ -523,7 +523,7 @@ void SharedMemory::GetRangesToUpload(uint32_t request_page_first,
   uint32_t request_block_first = request_page_first >> 6;
   uint32_t request_block_last = request_page_last >> 6;
 
-  std::lock_guard<std::recursive_mutex> lock(validity_mutex_);
+  auto global_lock = global_critical_region_.Acquire();
 
   uint32_t range_start = UINT32_MAX;
   for (uint32_t i = request_block_first; i <= request_block_last; ++i) {
@@ -570,18 +570,23 @@ void SharedMemory::GetRangesToUpload(uint32_t request_page_first,
 }
 
 void SharedMemory::MemoryWriteCallbackThunk(void* context_ptr,
-                                            uint32_t page_first,
-                                            uint32_t page_last) {
+                                            uint32_t physical_address_start,
+                                            uint32_t length) {
   reinterpret_cast<SharedMemory*>(context_ptr)
-      ->MemoryWriteCallback(page_first, page_last);
+      ->MemoryWriteCallback(physical_address_start, length);
 }
 
-void SharedMemory::MemoryWriteCallback(uint32_t page_first,
-                                       uint32_t page_last) {
+void SharedMemory::MemoryWriteCallback(uint32_t physical_address_start,
+                                       uint32_t length) {
+  if (length == 0) {
+    return;
+  }
+  uint32_t page_first = physical_address_start >> page_size_log2_;
+  uint32_t page_last = (physical_address_start + length - 1) >> page_size_log2_;
   uint32_t block_first = page_first >> 6;
   uint32_t block_last = page_last >> 6;
 
-  std::lock_guard<std::recursive_mutex> lock(validity_mutex_);
+  auto global_lock = global_critical_region_.Acquire();
 
   for (uint32_t i = block_first; i <= block_last; ++i) {
     uint64_t invalidate_bits = UINT64_MAX;

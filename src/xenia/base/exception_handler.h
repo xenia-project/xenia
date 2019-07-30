@@ -26,11 +26,19 @@ class Exception {
     kIllegalInstruction,
   };
 
+  enum class AccessViolationOperation {
+    kUnknown,
+    kRead,
+    kWrite,
+  };
+
   void InitializeAccessViolation(X64Context* thread_context,
-                                 uint64_t fault_address) {
+                                 uint64_t fault_address,
+                                 AccessViolationOperation operation) {
     code_ = Code::kAccessViolation;
     thread_context_ = thread_context;
     fault_address_ = fault_address;
+    access_violation_operation_ = operation;
   }
   void InitializeIllegalInstruction(X64Context* thread_context) {
     code_ = Code::kIllegalInstruction;
@@ -62,10 +70,17 @@ class Exception {
   // In case of AV, address that was read from/written to.
   uint64_t fault_address() const { return fault_address_; }
 
+  // In case of AV, what kind of operation caused it.
+  AccessViolationOperation access_violation_operation() const {
+    return access_violation_operation_;
+  }
+
  private:
   Code code_ = Code::kInvalidException;
   X64Context* thread_context_ = nullptr;
   uint64_t fault_address_ = 0;
+  AccessViolationOperation access_violation_operation_ =
+      AccessViolationOperation::kUnknown;
 };
 
 class ExceptionHandler {

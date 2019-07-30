@@ -1267,7 +1267,7 @@ void TextureCache::MarkRangeAsResolved(uint32_t start_unscaled,
     uint32_t page_last = (start_unscaled + length_unscaled - 1) >> 12;
     uint32_t block_first = page_first >> 5;
     uint32_t block_last = page_last >> 5;
-    shared_memory_->LockWatchMutex();
+    auto watch_lock = shared_memory_->LockWatchMutex();
     for (uint32_t i = block_first; i <= block_last; ++i) {
       uint32_t add_bits = UINT32_MAX;
       if (i == block_first) {
@@ -1279,7 +1279,6 @@ void TextureCache::MarkRangeAsResolved(uint32_t start_unscaled,
       scaled_resolve_pages_[i] |= add_bits;
       scaled_resolve_pages_l2_[i >> 6] |= 1ull << (i & 63);
     }
-    shared_memory_->UnlockWatchMutex();
   }
 
   // Invalidate textures. Toggling individual textures between scaled and
@@ -1970,10 +1969,12 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
 
 bool TextureCache::LoadTextureData(Texture* texture) {
   // See what we need to upload.
-  shared_memory_->LockWatchMutex();
-  bool base_in_sync = texture->base_in_sync;
-  bool mips_in_sync = texture->mips_in_sync;
-  shared_memory_->UnlockWatchMutex();
+  bool base_in_sync, mips_in_sync;
+  {
+    auto watch_lock = shared_memory_->LockWatchMutex();
+    base_in_sync = texture->base_in_sync;
+    mips_in_sync = texture->mips_in_sync;
+  }
   if (base_in_sync && mips_in_sync) {
     return true;
   }
@@ -2235,20 +2236,21 @@ bool TextureCache::LoadTextureData(Texture* texture) {
   // resolves as well to detect when the CPU wants to reuse the memory for a
   // regular texture or a vertex buffer, and thus the scaled resolve version is
   // not up to date anymore.
-  shared_memory_->LockWatchMutex();
-  texture->base_in_sync = true;
-  texture->mips_in_sync = true;
-  if (!base_in_sync) {
-    texture->base_watch_handle = shared_memory_->WatchMemoryRange(
-        texture->key.base_page << 12, texture->base_size, WatchCallbackThunk,
-        this, texture, 0);
+  {
+    auto watch_lock = shared_memory_->LockWatchMutex();
+    texture->base_in_sync = true;
+    texture->mips_in_sync = true;
+    if (!base_in_sync) {
+      texture->base_watch_handle = shared_memory_->WatchMemoryRange(
+          texture->key.base_page << 12, texture->base_size, WatchCallbackThunk,
+          this, texture, 0);
+    }
+    if (!mips_in_sync) {
+      texture->mip_watch_handle = shared_memory_->WatchMemoryRange(
+          texture->key.mip_page << 12, texture->mip_size, WatchCallbackThunk,
+          this, texture, 1);
+    }
   }
-  if (!mips_in_sync) {
-    texture->mip_watch_handle = shared_memory_->WatchMemoryRange(
-        texture->key.mip_page << 12, texture->mip_size, WatchCallbackThunk,
-        this, texture, 1);
-  }
-  shared_memory_->UnlockWatchMutex();
 
   LogTextureAction(texture, "Loaded");
   return true;
@@ -2325,7 +2327,7 @@ bool TextureCache::IsRangeScaledResolved(uint32_t start_unscaled,
   uint32_t block_last = page_last >> 5;
   uint32_t l2_block_first = block_first >> 6;
   uint32_t l2_block_last = block_last >> 6;
-  shared_memory_->LockWatchMutex();
+  auto watch_lock = shared_memory_->LockWatchMutex();
   for (uint32_t i = l2_block_first; i <= l2_block_last; ++i) {
     uint64_t l2_block = scaled_resolve_pages_l2_[i];
     if (i == l2_block_first) {
@@ -2346,12 +2348,10 @@ bool TextureCache::IsRangeScaledResolved(uint32_t start_unscaled,
         check_bits &= (1u << ((page_last & 31) + 1)) - 1;
       }
       if (scaled_resolve_pages_[block_index] & check_bits) {
-        shared_memory_->UnlockWatchMutex();
         return true;
       }
     }
   }
-  shared_memory_->UnlockWatchMutex();
   return false;
 }
 

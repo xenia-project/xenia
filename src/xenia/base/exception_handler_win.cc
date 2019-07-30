@@ -51,10 +51,26 @@ LONG CALLBACK ExceptionHandlerCallback(PEXCEPTION_POINTERS ex_info) {
     case STATUS_ILLEGAL_INSTRUCTION:
       ex.InitializeIllegalInstruction(&thread_context);
       break;
-    case STATUS_ACCESS_VIOLATION:
+    case STATUS_ACCESS_VIOLATION: {
+      Exception::AccessViolationOperation access_violation_operation;
+      switch (ex_info->ExceptionRecord->ExceptionInformation[0]) {
+        case 0:
+          access_violation_operation =
+              Exception::AccessViolationOperation::kRead;
+          break;
+        case 1:
+          access_violation_operation =
+              Exception::AccessViolationOperation::kWrite;
+          break;
+        default:
+          access_violation_operation =
+              Exception::AccessViolationOperation::kUnknown;
+          break;
+      }
       ex.InitializeAccessViolation(
-          &thread_context, ex_info->ExceptionRecord->ExceptionInformation[1]);
-      break;
+          &thread_context, ex_info->ExceptionRecord->ExceptionInformation[1],
+          access_violation_operation);
+    } break;
     default:
       // Unknown/unhandled type.
       return EXCEPTION_CONTINUE_SEARCH;
