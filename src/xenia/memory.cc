@@ -460,6 +460,21 @@ void Memory::CancelAccessWatch(uintptr_t watch_handle) {
   mmio_handler_->CancelAccessWatch(watch_handle);
 }
 
+bool Memory::TriggerWatches(uint32_t virtual_address, uint32_t length,
+                            bool is_write) {
+  BaseHeap* heap = LookupHeap(virtual_address);
+  if (heap == &heaps_.vA0000000 || heap == &heaps_.vC0000000 ||
+      heap == &heaps_.vE0000000) {
+    // TODO(Triang3l): Remove InvalidateRange when legacy (old Vulkan renderer)
+    // watches are removed.
+    cpu::MMIOHandler::global_handler()->InvalidateRange(virtual_address,
+                                                        length);
+    return static_cast<PhysicalHeap*>(heap)->TriggerWatches(virtual_address,
+                                                            length, is_write);
+  }
+  return false;
+}
+
 void* Memory::RegisterPhysicalWriteWatch(PhysicalWriteWatchCallback callback,
                                          void* callback_context) {
   PhysicalWriteWatchEntry* entry = new PhysicalWriteWatchEntry;
