@@ -699,8 +699,8 @@ void* PrimitiveConverter::AllocateIndices(
   return mapping + simd_offset;
 }
 
-void PrimitiveConverter::MemoryWriteCallback(uint32_t physical_address_start,
-                                             uint32_t length) {
+std::pair<uint32_t, uint32_t> PrimitiveConverter::MemoryWriteCallback(
+    uint32_t physical_address_start, uint32_t length) {
   // 1 bit = (512 / 64) MB = 8 MB. Invalidate a region of this size.
   uint32_t bit_index_first = physical_address_start >> 23;
   uint32_t bit_index_last = (physical_address_start + length - 1) >> 23;
@@ -709,11 +709,12 @@ void PrimitiveConverter::MemoryWriteCallback(uint32_t physical_address_start,
     bits &= (1ull << (bit_index_last + 1)) - 1;
   }
   memory_regions_invalidated_ |= bits;
+  return std::make_pair<uint32_t, uint32_t>(0, UINT32_MAX);
 }
 
-void PrimitiveConverter::MemoryWriteCallbackThunk(
+std::pair<uint32_t, uint32_t> PrimitiveConverter::MemoryWriteCallbackThunk(
     void* context_ptr, uint32_t physical_address_start, uint32_t length) {
-  reinterpret_cast<PrimitiveConverter*>(context_ptr)
+  return reinterpret_cast<PrimitiveConverter*>(context_ptr)
       ->MemoryWriteCallback(physical_address_start, length);
 }
 

@@ -50,7 +50,8 @@ SharedMemory::SharedMemory(D3D12CommandProcessor* command_processor,
   uint32_t page_bitmap_length = page_count_ >> 6;
   assert_true(page_bitmap_length != 0);
 
-  valid_pages_.resize(page_bitmap_length);
+  // Two interleaved bit arrays.
+  valid_and_gpu_written_pages_.resize(page_bitmap_length << 1);
 }
 
 SharedMemory::~SharedMemory() { Shutdown(); }
@@ -124,7 +125,8 @@ bool SharedMemory::Initialize() {
                                      uint32_t(BufferDescriptorIndex::kRawUAV)),
       buffer_, kBufferSize);
 
-  std::memset(valid_pages_.data(), 0, valid_pages_.size() * sizeof(uint64_t));
+  std::memset(valid_and_gpu_written_pages_.data(), 0,
+              valid_and_gpu_written_pages_.size() * sizeof(uint64_t));
 
   upload_buffer_pool_ =
       std::make_unique<ui::d3d12::UploadBufferPool>(context, 4 * 1024 * 1024);
@@ -381,7 +383,7 @@ bool SharedMemory::RequestRange(uint32_t start, uint32_t length) {
       }
       uint32_t upload_buffer_pages = upload_buffer_size >> page_size_log2_;
       // No mutex holding here!
-      MakeRangeValid(upload_range_start, upload_buffer_pages);
+      MakeRangeValid(upload_range_start, upload_buffer_pages, false);
       std::memcpy(
           upload_buffer_mapping,
           memory_->TranslatePhysical(upload_range_start << page_size_log2_),
@@ -447,7 +449,7 @@ void SharedMemory::RangeWrittenByGPU(uint32_t start, uint32_t length) {
   // Mark the range as valid (so pages are not reuploaded until modified by the
   // CPU) and watch it so the CPU can reuse it and this will be caught.
   // No mutex holding here!
-  MakeRangeValid(page_first, page_last - page_first + 1);
+  MakeRangeValid(page_first, page_last - page_first + 1, true);
 }
 
 bool SharedMemory::AreTiledResourcesUsed() const {
@@ -462,7 +464,8 @@ bool SharedMemory::AreTiledResourcesUsed() const {
 }
 
 void SharedMemory::MakeRangeValid(uint32_t valid_page_first,
-                                  uint32_t valid_page_count) {
+                                  uint32_t valid_page_count,
+                                  bool written_by_gpu) {
   if (valid_page_first >= page_count_ || valid_page_count == 0) {
     return;
   }
@@ -482,7 +485,12 @@ void SharedMemory::MakeRangeValid(uint32_t valid_page_first,
       if (i == valid_block_last && (valid_page_last & 63) != 63) {
         valid_bits &= (1ull << ((valid_page_last & 63) + 1)) - 1;
       }
-      valid_pages_[i] |= valid_bits;
+      valid_and_gpu_written_pages_[i << 1] |= valid_bits;
+      if (written_by_gpu) {
+        valid_and_gpu_written_pages_[(i << 1) + 1] |= valid_bits;
+      } else {
+        valid_and_gpu_written_pages_[(i << 1) + 1] &= ~valid_bits;
+      }
     }
   }
 
@@ -527,7 +535,7 @@ void SharedMemory::GetRangesToUpload(uint32_t request_page_first,
 
   uint32_t range_start = UINT32_MAX;
   for (uint32_t i = request_block_first; i <= request_block_last; ++i) {
-    uint64_t block_valid = valid_pages_[i];
+    uint64_t block_valid = valid_and_gpu_written_pages_[i << 1];
     // Consider pages in the block outside the requested range valid.
     if (i == request_block_first) {
       block_valid |= (1ull << (request_page_first & 63)) - 1;
@@ -569,24 +577,43 @@ void SharedMemory::GetRangesToUpload(uint32_t request_page_first,
   }
 }
 
-void SharedMemory::MemoryWriteCallbackThunk(void* context_ptr,
-                                            uint32_t physical_address_start,
-                                            uint32_t length) {
-  reinterpret_cast<SharedMemory*>(context_ptr)
+std::pair<uint32_t, uint32_t> SharedMemory::MemoryWriteCallbackThunk(
+    void* context_ptr, uint32_t physical_address_start, uint32_t length) {
+  return reinterpret_cast<SharedMemory*>(context_ptr)
       ->MemoryWriteCallback(physical_address_start, length);
 }
 
-void SharedMemory::MemoryWriteCallback(uint32_t physical_address_start,
-                                       uint32_t length) {
-  if (length == 0) {
-    return;
-  }
+std::pair<uint32_t, uint32_t> SharedMemory::MemoryWriteCallback(
+    uint32_t physical_address_start, uint32_t length) {
   uint32_t page_first = physical_address_start >> page_size_log2_;
   uint32_t page_last = (physical_address_start + length - 1) >> page_size_log2_;
+  assert_true(page_first < page_count_ && page_last < page_count_);
   uint32_t block_first = page_first >> 6;
   uint32_t block_last = page_last >> 6;
 
   auto global_lock = global_critical_region_.Acquire();
+
+  // Check if a somewhat wider range (up to 256 KB with 4 KB pages) can be
+  // invalidated - if no GPU-written data nearby that was not intended to be
+  // invalidated since it's not in sync with CPU memory and can't be reuploaded.
+  // It's a lot cheaper to upload some excess data than to catch access
+  // violations - with 4 KB callbacks, the original Doom runs at 4 FPS on
+  // Intel Core i7-3770, with 64 KB the CPU game code takes 3 ms to run per
+  // frame, but with 256 KB it's 0.7 ms.
+  if (page_first & 63) {
+    uint64_t gpu_written_start =
+        valid_and_gpu_written_pages_[(block_first << 1) + 1];
+    gpu_written_start &= (1ull << (page_first & 63)) - 1;
+    page_first =
+        (page_first & ~uint32_t(63)) + (64 - xe::lzcnt(gpu_written_start));
+  }
+  if ((page_last & 63) != 63) {
+    uint64_t gpu_written_end =
+        valid_and_gpu_written_pages_[(block_last << 1) + 1];
+    gpu_written_end &= ~((1ull << ((page_last & 63) + 1)) - 1);
+    page_last = (page_last & ~uint32_t(63)) +
+                (std::max(xe::tzcnt(gpu_written_end), uint8_t(1)) - 1);
+  }
 
   for (uint32_t i = block_first; i <= block_last; ++i) {
     uint64_t invalidate_bits = UINT64_MAX;
@@ -596,10 +623,15 @@ void SharedMemory::MemoryWriteCallback(uint32_t physical_address_start,
     if (i == block_last && (page_last & 63) != 63) {
       invalidate_bits &= (1ull << ((page_last & 63) + 1)) - 1;
     }
-    valid_pages_[i] &= ~invalidate_bits;
+    valid_and_gpu_written_pages_[i << 1] &= ~invalidate_bits;
+    valid_and_gpu_written_pages_[(i << 1) + 1] &= ~invalidate_bits;
   }
 
   FireWatches(page_first, page_last, false);
+
+  return std::make_pair<uint32_t, uint32_t>(page_first << page_size_log2_,
+                                            (page_last - page_first + 1)
+                                                << page_size_log2_);
 }
 
 void SharedMemory::TransitionBuffer(D3D12_RESOURCE_STATES new_state) {
