@@ -128,28 +128,28 @@ inline uint8_t tzcnt(uint8_t v) {
   unsigned long index;
   unsigned long mask = v;
   unsigned char is_nonzero = _BitScanForward(&index, mask);
-  return static_cast<uint8_t>(is_nonzero ? int8_t(index) ^ 0x7 : 8);
+  return static_cast<uint8_t>(is_nonzero ? int8_t(index) : 8);
 }
 
 inline uint8_t tzcnt(uint16_t v) {
   unsigned long index;
   unsigned long mask = v;
   unsigned char is_nonzero = _BitScanForward(&index, mask);
-  return static_cast<uint8_t>(is_nonzero ? int8_t(index) ^ 0xF : 16);
+  return static_cast<uint8_t>(is_nonzero ? int8_t(index) : 16);
 }
 
 inline uint8_t tzcnt(uint32_t v) {
   unsigned long index;
   unsigned long mask = v;
   unsigned char is_nonzero = _BitScanForward(&index, mask);
-  return static_cast<uint8_t>(is_nonzero ? int8_t(index) ^ 0x1F : 32);
+  return static_cast<uint8_t>(is_nonzero ? int8_t(index) : 32);
 }
 
 inline uint8_t tzcnt(uint64_t v) {
   unsigned long index;
   unsigned long long mask = v;
   unsigned char is_nonzero = _BitScanForward64(&index, mask);
-  return static_cast<uint8_t>(is_nonzero ? int8_t(index) ^ 0x3F : 64);
+  return static_cast<uint8_t>(is_nonzero ? int8_t(index) : 64);
 }
 
 #else  // XE_PLATFORM_WIN32
