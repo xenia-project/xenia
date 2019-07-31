@@ -1520,28 +1520,29 @@ void PhysicalHeap::WatchPhysicalWrite(uint32_t physical_address,
       system_page_size_;
   system_page_last = std::min(system_page_last, system_page_count_ - 1);
   assert_true(system_page_first <= system_page_last);
-  uint32_t block_index_first = system_page_first >> 6;
-  uint32_t block_index_last = system_page_last >> 6;
 
   auto global_lock = global_critical_region_.Acquire();
 
-  // Protect the pages.
+  // Protect the pages and mark them as watched. Don't mark non-writable pages
+  // as watched, so true access violations can still occur there.
   uint8_t* protect_base = membase_ + heap_base_;
   uint32_t protect_system_page_first = UINT32_MAX;
   for (uint32_t i = system_page_first; i <= system_page_last; ++i) {
+    uint64_t page_bit = uint64_t(1) << (i & 63);
     // Check if need to allow writing to this page.
-    bool protect_page =
-        (system_pages_watched_write_[i >> 6] & (uint64_t(1) << (i & 63))) == 0;
-    if (protect_page) {
+    bool add_page_to_watch =
+        (system_pages_watched_write_[i >> 6] & page_bit) == 0;
+    if (add_page_to_watch) {
       uint32_t page_number =
           xe::sat_sub(i * system_page_size_, system_address_offset) /
           page_size_;
       if (ToPageAccess(page_table_[page_number].current_protect) !=
           xe::memory::PageAccess::kReadWrite) {
-        protect_page = false;
+        add_page_to_watch = false;
       }
     }
-    if (protect_page) {
+    if (add_page_to_watch) {
+      system_pages_watched_write_[i >> 6] |= page_bit;
       if (protect_system_page_first == UINT32_MAX) {
         protect_system_page_first = i;
       }
@@ -1560,18 +1561,6 @@ void PhysicalHeap::WatchPhysicalWrite(uint32_t physical_address,
         protect_base + protect_system_page_first * system_page_size_,
         (system_page_last + 1 - protect_system_page_first) * system_page_size_,
         xe::memory::PageAccess::kReadOnly);
-  }
-
-  // Register the pages as watched.
-  for (uint32_t i = block_index_first; i <= block_index_last; ++i) {
-    uint64_t mask = UINT64_MAX;
-    if (i == block_index_first) {
-      mask &= ~((uint64_t(1) << (system_page_first & 63)) - 1);
-    }
-    if (i == block_index_last && (system_page_last & 63) != 63) {
-      mask &= (uint64_t(1) << ((system_page_last & 63) + 1)) - 1;
-    }
-    system_pages_watched_write_[i] |= mask;
   }
 }
 
