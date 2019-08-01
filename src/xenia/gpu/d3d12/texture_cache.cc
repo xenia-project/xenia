@@ -1291,7 +1291,15 @@ bool TextureCache::TileResolvedTexture(
     uint32_t texture_height, bool is_3d, uint32_t offset_x, uint32_t offset_y,
     uint32_t offset_z, uint32_t resolve_width, uint32_t resolve_height,
     Endian128 endian, ID3D12Resource* buffer, uint32_t buffer_size,
-    const D3D12_PLACED_SUBRESOURCE_FOOTPRINT& footprint) {
+    const D3D12_PLACED_SUBRESOURCE_FOOTPRINT& footprint,
+    uint32_t* written_address_out, uint32_t* written_length_out) {
+  if (written_address_out) {
+    *written_address_out = 0;
+  }
+  if (written_length_out) {
+    *written_length_out = 0;
+  }
+
   ResolveTileMode resolve_tile_mode =
       host_formats_[uint32_t(format)].resolve_tile_mode;
   if (resolve_tile_mode == ResolveTileMode::kUnknown) {
@@ -1456,6 +1464,12 @@ bool TextureCache::TileResolvedTexture(
 
   // Invalidate textures and mark the range as scaled if needed.
   MarkRangeAsResolved(texture_modified_start, texture_modified_length);
+  if (written_address_out) {
+    *written_address_out = texture_modified_start;
+  }
+  if (written_length_out) {
+    *written_length_out = texture_modified_length;
+  }
 
   return true;
 }

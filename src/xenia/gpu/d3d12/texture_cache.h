@@ -137,7 +137,9 @@ class TextureCache {
                            uint32_t offset_z, uint32_t resolve_width,
                            uint32_t resolve_height, Endian128 endian,
                            ID3D12Resource* buffer, uint32_t buffer_size,
-                           const D3D12_PLACED_SUBRESOURCE_FOOTPRINT& footprint);
+                           const D3D12_PLACED_SUBRESOURCE_FOOTPRINT& footprint,
+                           uint32_t* written_address_out,
+                           uint32_t* written_length_out);
 
   inline bool IsResolutionScale2X() const {
     return scaled_resolve_buffer_ != nullptr;

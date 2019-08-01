@@ -32,12 +32,17 @@ DEFINE_bool(d3d12_edram_rov, true,
 // disable half-pixel offset by setting this to false.
 DEFINE_bool(d3d12_half_pixel_offset, true,
             "Enable half-pixel vertex and VPOS offset.");
-DEFINE_bool(d3d12_memexport_readback, false,
+DEFINE_bool(d3d12_readback_memexport, false,
             "Read data written by memory export in shaders on the CPU. This "
             "may be needed in some games (but many only access exported data "
             "on the GPU, and this flag isn't needed to handle such behavior), "
             "but causes mid-frame synchronization, so it has a huge "
             "performance impact.");
+DEFINE_bool(d3d12_readback_resolve, false,
+            "Read render-to-texture results on the CPU. This may be needed in "
+            "some games, for instance, for screenshots in saved games, but "
+            "causes mid-frame synchronization, so it has a huge performance "
+            "impact.");
 DEFINE_bool(d3d12_ssaa_custom_sample_positions, false,
             "Enable custom SSAA sample positions for the RTV/DSV rendering "
             "path where available instead of centers (experimental, not very "
@@ -1606,7 +1611,7 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
           memexport_range.base_address_dwords << 2,
           memexport_range.size_dwords << 2);
     }
-    if (FLAGS_d3d12_memexport_readback) {
+    if (FLAGS_d3d12_readback_memexport) {
       // Read the exported data on the CPU.
       uint32_t memexport_total_size = 0;
       for (uint32_t i = 0; i < memexport_range_count; ++i) {
@@ -1661,8 +1666,39 @@ bool D3D12CommandProcessor::IssueCopy() {
   SCOPE_profile_cpu_f("gpu");
 #endif  // FINE_GRAINED_DRAW_SCOPES
   BeginFrame();
-  return render_target_cache_->Resolve(shared_memory_.get(),
-                                       texture_cache_.get(), memory_);
+  uint32_t written_address, written_length;
+  if (!render_target_cache_->Resolve(shared_memory_.get(), texture_cache_.get(),
+                                     memory_, written_address,
+                                     written_length)) {
+    return false;
+  }
+  if (FLAGS_d3d12_readback_resolve && !texture_cache_->IsResolutionScale2X() &&
+      written_length) {
+    // Read the resolved data on the CPU.
+    ID3D12Resource* readback_buffer = RequestReadbackBuffer(written_length);
+    if (readback_buffer != nullptr) {
+      shared_memory_->UseAsCopySource();
+      SubmitBarriers();
+      ID3D12Resource* shared_memory_buffer = shared_memory_->GetBuffer();
+      deferred_command_list_->D3DCopyBufferRegion(
+          readback_buffer, 0, shared_memory_buffer, written_address,
+          written_length);
+      EndFrame();
+      GetD3D12Context()->AwaitAllFramesCompletion();
+      D3D12_RANGE readback_range;
+      readback_range.Begin = 0;
+      readback_range.End = written_length;
+      void* readback_mapping;
+      if (SUCCEEDED(
+              readback_buffer->Map(0, &readback_range, &readback_mapping))) {
+        std::memcpy(memory_->TranslatePhysical(written_address),
+                    readback_mapping, written_length);
+        D3D12_RANGE readback_write_range = {};
+        readback_buffer->Unmap(0, &readback_write_range);
+      }
+    }
+  }
+  return true;
 }
 
 bool D3D12CommandProcessor::BeginFrame() {

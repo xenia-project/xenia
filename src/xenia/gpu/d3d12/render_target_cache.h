@@ -269,7 +269,8 @@ class RenderTargetCache {
   // register values, and also clears the EDRAM buffer if needed. Must be in a
   // frame for calling.
   bool Resolve(SharedMemory* shared_memory, TextureCache* texture_cache,
-               Memory* memory);
+               Memory* memory, uint32_t& written_address_out,
+               uint32_t& written_length_out);
   // Flushes the render targets to EDRAM and unbinds them, for instance, when
   // the command processor takes over framebuffer bindings to draw something
   // special.
@@ -481,7 +482,8 @@ class RenderTargetCache {
   bool ResolveCopy(SharedMemory* shared_memory, TextureCache* texture_cache,
                    uint32_t edram_base, uint32_t surface_pitch,
                    MsaaSamples msaa_samples, bool is_depth, uint32_t src_format,
-                   const D3D12_RECT& rect);
+                   const D3D12_RECT& rect, uint32_t& written_address_out,
+                   uint32_t& written_length_out);
   // Performs the clearing part of a resolve.
   bool ResolveClear(uint32_t edram_base, uint32_t surface_pitch,
                     MsaaSamples msaa_samples, bool is_depth, uint32_t format,

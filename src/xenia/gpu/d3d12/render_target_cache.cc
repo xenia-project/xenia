@@ -988,7 +988,11 @@ bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
 }
 
 bool RenderTargetCache::Resolve(SharedMemory* shared_memory,
-                                TextureCache* texture_cache, Memory* memory) {
+                                TextureCache* texture_cache, Memory* memory,
+                                uint32_t& written_address_out,
+                                uint32_t& written_length_out) {
+  written_address_out = written_length_out = 0;
+
   if (!command_processor_->IsROVUsedForEDRAM()) {
     // Save the currently bound render targets to the EDRAM buffer that will be
     // used as the resolve source and clear bindings to allow render target
@@ -1152,9 +1156,10 @@ bool RenderTargetCache::Resolve(SharedMemory* shared_memory,
   // GetEDRAMLayout in ResolveCopy and ResolveClear will perform the needed
   // clamping to the source render target size.
 
-  bool result = ResolveCopy(shared_memory, texture_cache, surface_edram_base,
-                            surface_pitch, msaa_samples, surface_is_depth,
-                            surface_format, rect);
+  bool result =
+      ResolveCopy(shared_memory, texture_cache, surface_edram_base,
+                  surface_pitch, msaa_samples, surface_is_depth, surface_format,
+                  rect, written_address_out, written_length_out);
   // Clear the color RT if needed.
   if (!surface_is_depth) {
     result &= ResolveClear(surface_edram_base, surface_pitch, msaa_samples,
@@ -1170,8 +1175,11 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
                                     TextureCache* texture_cache,
                                     uint32_t edram_base, uint32_t surface_pitch,
                                     MsaaSamples msaa_samples, bool is_depth,
-                                    uint32_t src_format,
-                                    const D3D12_RECT& rect) {
+                                    uint32_t src_format, const D3D12_RECT& rect,
+                                    uint32_t& written_address_out,
+                                    uint32_t& written_length_out) {
+  written_address_out = written_length_out = 0;
+
   auto& regs = *register_file_;
 
   uint32_t rb_copy_control = regs[XE_GPU_REG_RB_COPY_CONTROL].u32;
@@ -1475,6 +1483,8 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
     // Invalidate textures and mark the range as scaled if needed.
     texture_cache->MarkRangeAsResolved(dest_modified_start,
                                        dest_modified_length);
+    written_address_out = dest_modified_start;
+    written_length_out = dest_modified_length;
   } else {
     // *************************************************************************
     // Conversion and AA resolving
@@ -1788,7 +1798,7 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
         dest_format, dest_address, dest_pitch, dest_height, dest_3d,
         uint32_t(rect.left) & 31, uint32_t(rect.top) & 31, dest_z, copy_width,
         copy_height, dest_endian, copy_buffer, resolve_target->copy_buffer_size,
-        resolve_target->footprint);
+        resolve_target->footprint, &written_address_out, &written_length_out);
 
     // Done with the copy buffer.
 
