@@ -7,6 +7,7 @@
 ******************************************************************************
 */
 
+#include "xenia/base/string.h"
 #include "discord_presence.h"
 #include "third_party/discord-rpc/include/discord_rpc.h"
 
@@ -27,7 +28,6 @@ void DiscordPresence::InitializeDiscord() {
   handlers.joinGame = &HandleDiscordJoinGame;
   handlers.joinRequest = &HandleDiscordJoinRequest;
   handlers.spectateGame = &HandleDiscordSpectateGame;
-
   Discord_Initialize("441627211611766784", &handlers, 0, "");
 }
 
@@ -38,22 +38,18 @@ void DiscordPresence::NotPlaying() {
   discordPresence.details = "Standby";
   discordPresence.largeImageKey = "default";
   discordPresence.instance = 1;
-
   Discord_UpdatePresence(&discordPresence);
 }
 
 void DiscordPresence::PlayingTitle(std::wstring game_title) {
+  auto discord_game_title = xe::to_string(game_title);
   DiscordRichPresence discordPresence;
   memset(&discordPresence, 0, sizeof(discordPresence));
   discordPresence.state = "In Game";
-  char mb_game_title[128];  // buffer to hold game title (max 128 bytes)
-  std::wcstombs(mb_game_title, game_title.c_str(),
-                128);  // convert game_title from wstring to wchar* to char*
-  discordPresence.details = mb_game_title;
+  discordPresence.details = discord_game_title.c_str();
   discordPresence.smallImageKey = "default";
   discordPresence.largeImageKey = "defaultgame";
   discordPresence.instance = 1;
-
   Discord_UpdatePresence(&discordPresence);
 }
 
