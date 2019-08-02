@@ -48,5 +48,4 @@
 	url = https://github.com/openluopworld/aes_128.git
 [submodule "third_party/capstone"]
 	path = third_party/capstone
-	url = https://github.com/aquynh/capstone.git
-	branch = master
+	url = https://github.com/xenia-project/capstone.git
