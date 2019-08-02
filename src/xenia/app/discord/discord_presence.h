@@ -7,11 +7,10 @@
 ******************************************************************************
 */
 
-#include <string.h>
-#include <string>
-
 #ifndef XENIA_DISCORD_DISCORD_PRESENCE_H_
 #define XENIA_DISCORD_DISCORD_PRESENCE_H_
+
+#include <string>
 
 namespace xe {
 namespace discord {
