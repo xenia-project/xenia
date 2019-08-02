@@ -7,9 +7,9 @@
 ******************************************************************************
 */
 
-#include "xenia/base/string.h"
 #include "discord_presence.h"
 #include "third_party/discord-rpc/include/discord_rpc.h"
+#include "xenia/base/string.h"
 
 namespace xe {
 namespace discord {
