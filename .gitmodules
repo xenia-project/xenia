@@ -7,9 +7,6 @@
 [submodule "third_party/binutils-ppc-cygwin"]
 	path = third_party/binutils-ppc-cygwin
 	url = https://github.com/benvanik/binutils-ppc-cygwin
-[submodule "third_party/capstone"]
-	path = third_party/capstone
-	url = https://github.com/xenia-project/capstone.git
 [submodule "third_party/libav"]
 	path = third_party/libav
 	url = https://github.com/xenia-project/libav.git
@@ -49,3 +46,7 @@
 [submodule "third_party/aes_128"]
 	path = third_party/aes_128
 	url = https://github.com/openluopworld/aes_128.git
+[submodule "third_party/capstone"]
+	path = third_party/capstone
+	url = https://github.com/aquynh/capstone.git
+	branch = master
