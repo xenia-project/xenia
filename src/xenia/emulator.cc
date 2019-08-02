@@ -48,8 +48,26 @@ DEFINE_double(time_scalar, 1.0,
 
 namespace xe {
 
-Emulator::Emulator(const std::wstring& command_line)
-    : command_line_(command_line) {}
+Emulator::Emulator(const std::wstring& command_line,
+                   const std::wstring& content_root)
+    : on_launch(),
+      on_exit(),
+      command_line_(command_line),
+      content_root_(content_root),
+      game_title_(),
+      display_window_(nullptr),
+      memory_(),
+      audio_system_(),
+      graphics_system_(),
+      input_system_(),
+      export_resolver_(),
+      file_system_(),
+      kernel_state_(),
+      main_thread_(),
+      title_id_(0),
+      paused_(false),
+      restoring_(false),
+      restore_fence_() {}
 
 Emulator::~Emulator() {
   // Note that we delete things in the reverse order they were initialized.
@@ -183,10 +201,13 @@ X_STATUS Emulator::Setup(
     }
   }
 
+#define LOAD_KERNEL_MODULE(t) \
+  static_cast<void>(kernel_state_->LoadKernelModule<kernel::t>())
   // HLE kernel modules.
-  kernel_state_->LoadKernelModule<kernel::xboxkrnl::XboxkrnlModule>();
-  kernel_state_->LoadKernelModule<kernel::xam::XamModule>();
-  kernel_state_->LoadKernelModule<kernel::xbdm::XbdmModule>();
+  LOAD_KERNEL_MODULE(xboxkrnl::XboxkrnlModule);
+  LOAD_KERNEL_MODULE(xam::XamModule);
+  LOAD_KERNEL_MODULE(xbdm::XbdmModule);
+#undef LOAD_KERNEL_MODULE
 
   // Initialize emulator fallback exception handling last.
   ExceptionHandler::Install(Emulator::ExceptionCallbackThunk, this);
@@ -224,8 +245,11 @@ X_STATUS Emulator::LaunchPath(std::wstring path) {
   if (last_dot == std::wstring::npos) {
     // Likely an STFS container.
     return LaunchStfsContainer(path);
-  } else if (path.substr(last_dot) == L".xex" ||
-             path.substr(last_dot) == L".elf") {
+  };
+  auto extension = path.substr(last_dot);
+  std::transform(extension.begin(), extension.end(), extension.begin(),
+                 tolower);
+  if (extension == L".xex" || extension == L".elf" || extension == L".exe") {
     // Treat as a naked xex file.
     return LaunchXexFile(path);
   } else {
@@ -451,7 +475,7 @@ bool Emulator::RestoreFromFile(const std::wstring& path) {
       kernel_state_->object_table()->GetObjectsByType<kernel::XThread>();
   for (auto thread : threads) {
     if (thread->main_thread()) {
-      main_thread_ = thread->thread();
+      main_thread_ = thread;
       break;
     }
   }
@@ -553,7 +577,7 @@ bool Emulator::ExceptionCallback(Exception* ex) {
 
 void Emulator::WaitUntilExit() {
   while (true) {
-    xe::threading::Wait(main_thread_, false);
+    xe::threading::Wait(main_thread_->thread(), false);
 
     if (restoring_) {
       restore_fence_.Wait();
@@ -638,12 +662,12 @@ X_STATUS Emulator::CompleteLaunch(const std::wstring& path,
     }
   }
 
-  auto main_xthread = kernel_state_->LaunchModule(module);
-  if (!main_xthread) {
+  auto main_thread = kernel_state_->LaunchModule(module);
+  if (!main_thread) {
     return X_STATUS_UNSUCCESSFUL;
   }
 
-  main_thread_ = main_xthread->thread();
+  main_thread_ = main_thread;
   on_launch();
 
   return X_STATUS_SUCCESS;

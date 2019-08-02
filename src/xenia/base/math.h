@@ -14,6 +14,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <limits>
 #include <type_traits>
 #include "xenia/base/platform.h"
 
@@ -127,28 +128,28 @@ inline uint8_t tzcnt(uint8_t v) {
   unsigned long index;
   unsigned long mask = v;
   unsigned char is_nonzero = _BitScanForward(&index, mask);
-  return static_cast<uint8_t>(is_nonzero ? int8_t(index) ^ 0x7 : 8);
+  return static_cast<uint8_t>(is_nonzero ? int8_t(index) : 8);
 }
 
 inline uint8_t tzcnt(uint16_t v) {
   unsigned long index;
   unsigned long mask = v;
   unsigned char is_nonzero = _BitScanForward(&index, mask);
-  return static_cast<uint8_t>(is_nonzero ? int8_t(index) ^ 0xF : 16);
+  return static_cast<uint8_t>(is_nonzero ? int8_t(index) : 16);
 }
 
 inline uint8_t tzcnt(uint32_t v) {
   unsigned long index;
   unsigned long mask = v;
   unsigned char is_nonzero = _BitScanForward(&index, mask);
-  return static_cast<uint8_t>(is_nonzero ? int8_t(index) ^ 0x1F : 32);
+  return static_cast<uint8_t>(is_nonzero ? int8_t(index) : 32);
 }
 
 inline uint8_t tzcnt(uint64_t v) {
   unsigned long index;
   unsigned long long mask = v;
   unsigned char is_nonzero = _BitScanForward64(&index, mask);
-  return static_cast<uint8_t>(is_nonzero ? int8_t(index) ^ 0x3F : 64);
+  return static_cast<uint8_t>(is_nonzero ? int8_t(index) : 64);
 }
 
 #else  // XE_PLATFORM_WIN32
@@ -301,6 +302,40 @@ int64_t m128_i64(const __m128& v) {
 
 uint16_t float_to_half(float value);
 float half_to_float(uint16_t value);
+
+// https://locklessinc.com/articles/sat_arithmetic/
+template <typename T>
+inline T sat_add(T a, T b) {
+  using TU = typename std::make_unsigned<T>::type;
+  TU result = TU(a) + TU(b);
+  if (std::is_unsigned<T>::value) {
+    result |=
+        TU(-static_cast<typename std::make_signed<T>::type>(result < TU(a)));
+  } else {
+    TU overflowed =
+        (TU(a) >> (sizeof(T) * 8 - 1)) + std::numeric_limits<T>::max();
+    if (T((overflowed ^ TU(b)) | ~(TU(b) ^ result)) >= 0) {
+      result = overflowed;
+    }
+  }
+  return T(result);
+}
+template <typename T>
+inline T sat_sub(T a, T b) {
+  using TU = typename std::make_unsigned<T>::type;
+  TU result = TU(a) - TU(b);
+  if (std::is_unsigned<T>::value) {
+    result &=
+        TU(-static_cast<typename std::make_signed<T>::type>(result <= TU(a)));
+  } else {
+    TU overflowed =
+        (TU(a) >> (sizeof(T) * 8 - 1)) + std::numeric_limits<T>::max();
+    if (T((overflowed ^ TU(b)) & (overflowed ^ result)) < 0) {
+      result = overflowed;
+    }
+  }
+  return T(result);
+}
 
 }  // namespace xe
 

@@ -228,6 +228,7 @@ class PipelineCache {
     uint32_t pa_sc_screen_scissor_tl;
     uint32_t pa_sc_screen_scissor_br;
     uint32_t pa_sc_viz_query;
+    uint32_t pa_su_poly_offset_enable;
     uint32_t multi_prim_ib_reset_index;
 
     UpdateRasterizationStateRegisters() { Reset(); }
@@ -275,6 +276,9 @@ class PipelineCache {
 
     uint32_t rb_surface_info;
     uint32_t pa_su_sc_vtx_cntl;
+    // Bias is in Vulkan units because depth format may potentially effect it.
+    float pa_su_poly_offset_scale;
+    float pa_su_poly_offset_offset;
     uint32_t pa_cl_vte_cntl;
     float pa_cl_vport_xoffset;
     float pa_cl_vport_yoffset;

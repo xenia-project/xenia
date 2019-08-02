@@ -70,7 +70,7 @@ struct X_INPUT_CAPABILITIES {
 static_assert_size(X_INPUT_CAPABILITIES,
                    sizeof(X_INPUT_GAMEPAD) + sizeof(X_INPUT_VIBRATION) + 4);
 
-// http://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinput_keystroke(v=vs.85).aspx
+// https://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinput_keystroke(v=vs.85).aspx
 struct X_INPUT_KEYSTROKE {
   be<uint16_t> virtual_key;
   be<uint16_t> unicode;

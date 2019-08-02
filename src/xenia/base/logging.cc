@@ -156,9 +156,12 @@ class Logger {
   void WriteThread() {
     RingBuffer rb(buffer_, kBufferSize);
     uint32_t idle_loops = 0;
-    while (running_) {
+    while (true) {
       bool did_write = false;
       rb.set_write_offset(write_tail_);
+      if (!running_ && rb.empty()) {
+        break;
+      }
       while (!rb.empty()) {
         did_write = true;
 
@@ -312,7 +315,7 @@ void LogLine(LogLevel log_level, const char prefix_char,
 void FatalError(const char* fmt, ...) {
   va_list args;
   va_start(args, fmt);
-  LogLineVarargs(LogLevel::LOG_LEVEL_ERROR, 'X', fmt, args);
+  LogLineVarargs(LogLevel::Error, 'X', fmt, args);
   va_end(args);
 
 #if XE_PLATFORM_WIN32
@@ -325,7 +328,7 @@ void FatalError(const char* fmt, ...) {
                 MB_OK | MB_ICONERROR | MB_APPLMODAL | MB_SETFOREGROUND);
   }
 #endif  // WIN32
-
+  ShutdownLogging();
   exit(1);
 }
 

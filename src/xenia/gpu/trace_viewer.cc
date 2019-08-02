@@ -122,7 +122,7 @@ bool TraceViewer::Setup() {
   window_->Resize(1920, 1200);
 
   // Create the emulator but don't initialize so we can setup the window.
-  emulator_ = std::make_unique<Emulator>(L"");
+  emulator_ = std::make_unique<Emulator>(L"", L"");
   X_STATUS result =
       emulator_->Setup(window_.get(), nullptr,
                        [this]() { return CreateGraphicsSystem(); }, nullptr);
@@ -686,7 +686,7 @@ void TraceViewer::DrawTextureInfo(
   }
   ImGui::NextColumn();
   ImGui::Text("Fetch Slot: %u", texture_binding.fetch_constant);
-  ImGui::Text("Guest Address: %.8X", texture_info.guest_address);
+  ImGui::Text("Guest Address: %.8X", texture_info.memory.base_address);
   ImGui::Text("Format: %s", texture_info.format_info()->name);
   switch (texture_info.dimension) {
     case Dimension::k1D:
@@ -990,9 +990,9 @@ static const char* kColorFormatNames[] = {
     /* 7  */ "k_16_16_16_16_FLOAT",
     /* 8  */ "unknown(8)",
     /* 9  */ "unknown(9)",
-    /* 10 */ "k_2_10_10_10_unknown",
+    /* 10 */ "k_2_10_10_10_AS_10_10_10_10",
     /* 11 */ "unknown(11)",
-    /* 12 */ "k_2_10_10_10_FLOAT_unknown",
+    /* 12 */ "k_2_10_10_10_FLOAT_AS_16_16_16_16",
     /* 13 */ "unknown(13)",
     /* 14 */ "k_32_FLOAT",
     /* 15 */ "k_32_32_FLOAT",

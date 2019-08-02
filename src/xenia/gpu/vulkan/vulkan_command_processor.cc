@@ -822,6 +822,10 @@ bool VulkanCommandProcessor::PopulateVertexBuffers(
   assert_true(vertex_bindings.size() <= 32);
   auto descriptor_set = buffer_cache_->PrepareVertexSet(
       setup_buffer, current_batch_fence_, vertex_bindings);
+  if (!descriptor_set) {
+    XELOGW("Failed to prepare vertex set!");
+    return false;
+  }
 
   vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                           pipeline_cache_->pipeline_layout(), 2, 1,
@@ -843,6 +847,7 @@ bool VulkanCommandProcessor::PopulateSamplers(VkCommandBuffer command_buffer,
       pixel_shader ? pixel_shader->texture_bindings() : dummy_bindings);
   if (!descriptor_set) {
     // Unable to bind set.
+    XELOGW("Failed to prepare texture set!");
     return false;
   }
 
@@ -911,7 +916,7 @@ bool VulkanCommandProcessor::IssueCopy() {
   assert_true(copy_regs->copy_mask == 0);
 
   // RB_SURFACE_INFO
-  // http://fossies.org/dox/MesaLib-10.3.5/fd2__gmem_8c_source.html
+  // https://fossies.org/dox/MesaLib-10.3.5/fd2__gmem_8c_source.html
   uint32_t surface_info = regs[XE_GPU_REG_RB_SURFACE_INFO].u32;
   uint32_t surface_pitch = surface_info & 0x3FFF;
   auto surface_msaa = static_cast<MsaaSamples>((surface_info >> 16) & 0x3);
@@ -1023,13 +1028,14 @@ bool VulkanCommandProcessor::IssueCopy() {
 
   // Demand a resolve texture from the texture cache.
   TextureInfo texture_info;
-  TextureInfo::PrepareResolve(copy_dest_base, copy_dest_format, resolve_endian,
-                              copy_dest_pitch, dest_logical_width,
-                              std::max(1u, dest_logical_height), &texture_info);
+  TextureInfo::PrepareResolve(
+      copy_dest_base, copy_dest_format, resolve_endian, copy_dest_pitch,
+      dest_logical_width, std::max(1u, dest_logical_height), 1, &texture_info);
 
   auto texture = texture_cache_->DemandResolveTexture(texture_info);
   if (!texture) {
     // Out of memory.
+    XELOGD("Failed to demand resolve texture!");
     return false;
   }
 
@@ -1042,7 +1048,7 @@ bool VulkanCommandProcessor::IssueCopy() {
   texture->in_flight_fence = current_batch_fence_;
 
   // For debugging purposes only (trace viewer)
-  last_copy_base_ = texture->texture_info.guest_address;
+  last_copy_base_ = texture->texture_info.memory.base_address;
 
   if (!frame_open_) {
     BeginFrame();
@@ -1137,6 +1143,7 @@ bool VulkanCommandProcessor::IssueCopy() {
       auto view = render_cache_->FindTileView(
           edram_base, surface_pitch, surface_msaa, is_color_source, src_format);
       if (!view) {
+        XELOGGPU("Failed to find tile view!");
         break;
       }
 

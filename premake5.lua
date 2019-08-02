@@ -7,7 +7,7 @@ objdir(build_obj)
 
 -- Define an ARCH variable
 -- Only use this to enable architecture-specific functionality.
-if os.is("linux") then
+if os.istarget("linux") then
   ARCH = os.outputof("uname -p")
 else
   ARCH = "unknown"
@@ -68,13 +68,20 @@ filter({"configurations:Debug", "platforms:Windows"})
     "/NODEFAULTLIB:MSVCRTD",
   })
 
+filter({"configurations:Debug", "platforms:Linux"})
+  buildoptions({
+    "-g",
+  })
+
 filter("configurations:Release")
   runtime("Release")
   defines({
     "NDEBUG",
     "_NO_DEBUG_HEAP=1",
   })
-  optimize("On")
+  optimize("speed")
+  inlining("Auto")
+  floatingpoint("Fast")
   flags({
     "LinkTimeOptimization",
   })
@@ -83,6 +90,9 @@ filter({"configurations:Release", "platforms:Windows"})
   linkoptions({
     "/NODEFAULTLIB:MSVCRTD",
   })
+  buildoptions({
+    "/GT", -- enable fiber-safe optimizations
+   })
 
 filter("platforms:Linux")
   system("linux")
@@ -111,6 +121,9 @@ filter({"platforms:Linux", "language:C++", "toolset:gcc"})
   })
   links({
   })
+  disablewarnings({
+    "unused-result"
+  })
 
 filter({"platforms:Linux", "toolset:gcc"})
   if ARCH == "ppc64" then
@@ -125,16 +138,17 @@ filter({"platforms:Linux", "toolset:gcc"})
   end
 
 filter({"platforms:Linux", "language:C++", "toolset:clang"})
-  buildoptions({
-    "-std=c++14",
-    "-stdlib=libstdc++",
-  })
   links({
     "c++",
     "c++abi"
   })
   disablewarnings({
     "deprecated-register"
+  })
+filter({"platforms:Linux", "language:C++", "toolset:clang", "files:*.cc or *.cpp"})
+  buildoptions({
+    "-std=c++14",
+    "-stdlib=libstdc++",
   })
 
 filter("platforms:Windows")
@@ -170,7 +184,6 @@ filter("platforms:Windows")
     "wsock32",
     "ws2_32",
     "xinput",
-    "xaudio2",
     "glu32",
     "opengl32",
     "comctl32",
@@ -197,9 +210,6 @@ if not os.isdir("scratch") then
   flags_file:write("#--flush_stdout=false\n")
   flags_file:write("\n")
   flags_file:write("#--vsync=false\n")
-  flags_file:write("#--gl_debug\n")
-  flags_file:write("#--gl_debug_output\n")
-  flags_file:write("#--gl_debug_output_synchronous\n")
   flags_file:write("#--trace_gpu_prefix=scratch/gpu/gpu_trace_\n")
   flags_file:write("#--trace_gpu_stream\n")
   flags_file:write("#--disable_framebuffer_readback\n")
@@ -211,14 +221,15 @@ solution("xenia")
   uuid("931ef4b0-6170-4f7a-aaf2-0fece7632747")
   startproject("xenia-app")
   architecture("x86_64")
-  if os.is("linux") then
+  if os.istarget("linux") then
     platforms({"Linux"})
-  elseif os.is("windows") then
+  elseif os.istarget("windows") then
     platforms({"Windows"})
   end
   configurations({"Checked", "Debug", "Release"})
 
   -- Include third party files first so they don't have to deal with gflags.
+  include("third_party/aes_128.lua")
   include("third_party/capstone.lua")
   include("third_party/discord-rpc.lua")
   include("third_party/gflags.lua")
@@ -226,6 +237,7 @@ solution("xenia")
   include("third_party/glslang-spirv.lua")
   include("third_party/imgui.lua")
   include("third_party/libav.lua")
+  include("third_party/mspack.lua")
   include("third_party/snappy.lua")
   include("third_party/spirv-tools.lua")
   include("third_party/volk.lua")
@@ -252,7 +264,7 @@ solution("xenia")
   include("src/xenia/ui/vulkan")
   include("src/xenia/vfs")
 
-  if os.is("windows") then
+  if os.istarget("windows") then
     include("src/xenia/apu/xaudio2")
     include("src/xenia/hid/winkey")
     include("src/xenia/hid/xinput")

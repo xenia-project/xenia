@@ -31,7 +31,7 @@ Value* CalculateEA_0(PPCHIRBuilder& f, uint32_t ra, uint32_t rb);
 // Most of this file comes from:
 // http://biallas.net/doc/vmx128/vmx128.txt
 // https://github.com/kakaroto/ps3ida/blob/master/plugins/PPCAltivec/src/main.cpp
-// http://sannybuilder.com/forums/viewtopic.php?id=190
+// https://sannybuilder.com/forums/viewtopic.php?id=190
 
 #define OP(x) ((((uint32_t)(x)) & 0x3f) << 26)
 #define VX128(op, xop) (OP(op) | (((uint32_t)(xop)) & 0x3d0))
@@ -2052,23 +2052,27 @@ int InstrEmit_vpkd3d128(PPCHIRBuilder& f, const InstrData& i) {
     case 1:  // VPACK_NORMSHORT2
       v = f.Pack(v, PACK_TYPE_SHORT_2);
       break;
-    case 2:  // VPACK_... 2_10_10_10 w_z_y_x
+    case 2:  // VPACK_NORMPACKED32 2_10_10_10 w_z_y_x
       v = f.Pack(v, PACK_TYPE_UINT_2101010);
       break;
-    case 3:  // VPACK_... 2 FLOAT16s DXGI_FORMAT_R16G16_FLOAT
+    case 3:  // VPACK_FLOAT16_2 DXGI_FORMAT_R16G16_FLOAT
       v = f.Pack(v, PACK_TYPE_FLOAT16_2);
       break;
     case 4:  // VPACK_NORMSHORT4
       v = f.Pack(v, PACK_TYPE_SHORT_4);
       break;
-    case 5:  // VPACK_... 4 FLOAT16s DXGI_FORMAT_R16G16B16A16_FLOAT
+    case 5:  // VPACK_FLOAT16_4 DXGI_FORMAT_R16G16B16A16_FLOAT
       v = f.Pack(v, PACK_TYPE_FLOAT16_4);
+      break;
+    case 6:  // VPACK_NORMPACKED64 4_20_20_20 w_z_y_x
+      // Used in 2K games like NBA 2K9, pretty rarely in general.
+      v = f.Pack(v, PACK_TYPE_ULONG_4202020);
       break;
     default:
       assert_unhandled_case(type);
       return 1;
   }
-  // http://hlssmod.net/he_code/public/pixelwriter.h
+  // https://hlssmod.net/he_code/public/pixelwriter.h
   // control = prev:0123 | new:4567
   uint32_t control = kIdentityPermuteMask;  // original
   switch (pack) {
@@ -2141,7 +2145,8 @@ int InstrEmit_vpkd3d128(PPCHIRBuilder& f, const InstrData& i) {
 
 int InstrEmit_vupkd3d128(PPCHIRBuilder& f, const InstrData& i) {
   // Can't find many docs on this. Best reference is
-  // http://worldcraft.googlecode.com/svn/trunk/src/qylib/math/xmmatrix.inl,
+  // https://code.google.com/archive/p/worldcraft/source/default/source?page=4
+  // (qylib/math/xmmatrix.inl)
   // which shows how it's used in some cases. Since it's all intrinsics,
   // finding it in code is pretty easy.
   const uint32_t vd = i.VX128_3.VD128l | (i.VX128_3.VD128h << 5);
@@ -2155,17 +2160,20 @@ int InstrEmit_vupkd3d128(PPCHIRBuilder& f, const InstrData& i) {
     case 1:  // VPACK_NORMSHORT2
       v = f.Unpack(v, PACK_TYPE_SHORT_2);
       break;
-    case 2:  // VPACK_... 2_10_10_10 w_z_y_x
+    case 2:  // VPACK_NORMPACKED32 2_10_10_10 w_z_y_x
       v = f.Unpack(v, PACK_TYPE_UINT_2101010);
       break;
-    case 3:  // VPACK_... 2 FLOAT16s DXGI_FORMAT_R16G16_FLOAT
+    case 3:  // VPACK_FLOAT16_2 DXGI_FORMAT_R16G16_FLOAT
       v = f.Unpack(v, PACK_TYPE_FLOAT16_2);
       break;
     case 4:  // VPACK_NORMSHORT4
       v = f.Unpack(v, PACK_TYPE_SHORT_4);
       break;
-    case 5:  // VPACK_... 4 FLOAT16s DXGI_FORMAT_R16G16B16A16_FLOAT
+    case 5:  // VPACK_FLOAT16_4 DXGI_FORMAT_R16G16B16A16_FLOAT
       v = f.Unpack(v, PACK_TYPE_FLOAT16_4);
+      break;
+    case 6:  // VPACK_NORMPACKED64 4_20_20_20 w_z_y_x
+      v = f.Unpack(v, PACK_TYPE_ULONG_4202020);
       break;
     default:
       assert_unhandled_case(type);

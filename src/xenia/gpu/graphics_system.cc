@@ -26,8 +26,8 @@ namespace gpu {
 // Nvidia Optimus/AMD PowerXpress support.
 // These exports force the process to trigger the discrete GPU in multi-GPU
 // systems.
-// http://developer.download.nvidia.com/devzone/devcenter/gamegraphics/files/OptimusRenderingPolicies.pdf
-// http://stackoverflow.com/questions/17458803/amd-equivalent-to-nvoptimusenablement
+// https://developer.download.nvidia.com/devzone/devcenter/gamegraphics/files/OptimusRenderingPolicies.pdf
+// https://stackoverflow.com/questions/17458803/amd-equivalent-to-nvoptimusenablement
 #if XE_PLATFORM_WIN32
 extern "C" {
 __declspec(dllexport) uint32_t NvOptimusEnablement = 0x00000001;
@@ -68,10 +68,14 @@ X_STATUS GraphicsSystem::Setup(cpu::Processor* processor,
 
     if (!processor_context) {
       xe::FatalError(
-          "Unable to initialize graphics context. Xenia requires OpenGL 4.5 or "
-          "Vulkan support. Ensure you have the latest drivers for your GPU and "
-          "that it supports OpenGL or Vulkan. See http://xenia.jp/faq/ for "
-          "more information.");
+          "Unable to initialize graphics context. Xenia requires Vulkan "
+          "support.\n"
+          "\n"
+          "Ensure you have the latest drivers for your GPU and "
+          "that it supports Vulkan.\n"
+          "\n"
+          "See https://xenia.jp/faq/ for more information and a list of "
+          "supported GPUs.");
       return X_STATUS_UNSUCCESSFUL;
     }
   }

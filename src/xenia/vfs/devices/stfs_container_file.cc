@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <cmath>
 
+#include "xenia/base/math.h"
 #include "xenia/vfs/devices/stfs_container_entry.h"
 
 namespace xe {
@@ -32,29 +33,36 @@ X_STATUS StfsContainerFile::ReadSync(void* buffer, size_t buffer_length,
     return X_STATUS_END_OF_FILE;
   }
 
-  // Each block is 4096.
-  // Blocks may not be sequential, so we need to read by blocks and handle the
-  // offsets.
-  size_t real_length = std::min(buffer_length, entry_->size() - byte_offset);
-  size_t start_block = byte_offset / 4096;
-  size_t end_block =
-      std::min(entry_->block_list().size(),
-               (size_t)ceil((byte_offset + real_length) / 4096.0));
-  uint8_t* dest_ptr = reinterpret_cast<uint8_t*>(buffer);
-  size_t remaining_length = real_length;
-  for (size_t n = start_block; n < end_block; n++) {
-    auto& record = entry_->block_list()[n];
-    size_t offset = record.offset;
-    size_t read_length = std::min(remaining_length, record.length);
-    if (n == start_block) {
-      offset += byte_offset % 4096;
-      read_length = std::min(read_length, record.length - (byte_offset % 4096));
+  size_t src_offset = 0;
+  uint8_t* p = reinterpret_cast<uint8_t*>(buffer);
+  size_t remaining_length =
+      std::min(buffer_length, entry_->size() - byte_offset);
+  *out_bytes_read = remaining_length;
+
+  for (size_t i = 0; i < entry_->block_list().size(); i++) {
+    auto& record = entry_->block_list()[i];
+    if (src_offset + record.length <= byte_offset) {
+      // Doesn't begin in this region. Skip it.
+      src_offset += record.length;
+      continue;
     }
-    memcpy(dest_ptr, entry_->mmap()->data() + offset, read_length);
-    dest_ptr += read_length;
+
+    uint8_t* src = entry_->mmap()->at(record.file)->data();
+
+    size_t read_offset =
+        (byte_offset > src_offset) ? byte_offset - src_offset : 0;
+    size_t read_length =
+        std::min(record.length - read_offset, remaining_length);
+    std::memcpy(p, src + record.offset + read_offset, read_length);
+
+    p += read_length;
+    src_offset += record.length;
     remaining_length -= read_length;
+    if (remaining_length == 0) {
+      break;
+    }
   }
-  *out_bytes_read = real_length;
+
   return X_STATUS_SUCCESS;
 }
 

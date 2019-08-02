@@ -32,12 +32,14 @@ project("xenia-gpu-vulkan-trace-viewer")
   kind("WindowedApp")
   language("C++")
   links({
+    "aes_128",
     "capstone",
     "gflags",
     "glslang-spirv",
     "imgui",
     "libavcodec",
     "libavutil",
+    "mspack",
     "snappy",
     "spirv-tools",
     "volk",
@@ -57,9 +59,6 @@ project("xenia-gpu-vulkan-trace-viewer")
     "xenia-ui-vulkan",
     "xenia-vfs",
     "xxhash",
-  })
-  flags({
-    "WinMain",  -- Use WinMain instead of main.
   })
   defines({
   })
@@ -104,12 +103,14 @@ project("xenia-gpu-vulkan-trace-dump")
   kind("ConsoleApp")
   language("C++")
   links({
+    "aes_128",
     "capstone",
     "gflags",
     "glslang-spirv",
     "imgui",
     "libavcodec",
     "libavutil",
+    "mspack",
     "snappy",
     "spirv-tools",
     "volk",

@@ -55,34 +55,41 @@ X_RESULT XmpApp::XMPCreateTitlePlaylist(uint32_t songs_ptr, uint32_t song_count,
   playlist->handle = ++next_playlist_handle_;
   playlist->name = std::move(playlist_name);
   playlist->flags = flags;
-  for (uint32_t i = 0; i < song_count; ++i) {
-    auto song = std::make_unique<Song>();
-    song->handle = ++next_song_handle_;
-    uint8_t* song_base = memory_->TranslateVirtual(songs_ptr + (i * 36));
-    song->file_path = xe::load_and_swap<std::wstring>(
-        memory_->TranslateVirtual(xe::load_and_swap<uint32_t>(song_base + 0)));
-    song->name = xe::load_and_swap<std::wstring>(
-        memory_->TranslateVirtual(xe::load_and_swap<uint32_t>(song_base + 4)));
-    song->artist = xe::load_and_swap<std::wstring>(
-        memory_->TranslateVirtual(xe::load_and_swap<uint32_t>(song_base + 8)));
-    song->album = xe::load_and_swap<std::wstring>(
-        memory_->TranslateVirtual(xe::load_and_swap<uint32_t>(song_base + 12)));
-    song->album_artist = xe::load_and_swap<std::wstring>(
-        memory_->TranslateVirtual(xe::load_and_swap<uint32_t>(song_base + 16)));
-    song->genre = xe::load_and_swap<std::wstring>(
-        memory_->TranslateVirtual(xe::load_and_swap<uint32_t>(song_base + 20)));
-    song->track_number = xe::load_and_swap<uint32_t>(song_base + 24);
-    song->duration_ms = xe::load_and_swap<uint32_t>(song_base + 28);
-    song->format =
-        static_cast<Song::Format>(xe::load_and_swap<uint32_t>(song_base + 32));
-    if (out_song_handles) {
-      xe::store_and_swap<uint32_t>(
-          memory_->TranslateVirtual(out_song_handles + (i * 4)), song->handle);
+  if (songs_ptr) {
+    for (uint32_t i = 0; i < song_count; ++i) {
+      auto song = std::make_unique<Song>();
+      song->handle = ++next_song_handle_;
+      uint8_t* song_base = memory_->TranslateVirtual(songs_ptr + (i * 36));
+      song->file_path =
+          xe::load_and_swap<std::wstring>(memory_->TranslateVirtual(
+              xe::load_and_swap<uint32_t>(song_base + 0)));
+      song->name = xe::load_and_swap<std::wstring>(memory_->TranslateVirtual(
+          xe::load_and_swap<uint32_t>(song_base + 4)));
+      song->artist = xe::load_and_swap<std::wstring>(memory_->TranslateVirtual(
+          xe::load_and_swap<uint32_t>(song_base + 8)));
+      song->album = xe::load_and_swap<std::wstring>(memory_->TranslateVirtual(
+          xe::load_and_swap<uint32_t>(song_base + 12)));
+      song->album_artist =
+          xe::load_and_swap<std::wstring>(memory_->TranslateVirtual(
+              xe::load_and_swap<uint32_t>(song_base + 16)));
+      song->genre = xe::load_and_swap<std::wstring>(memory_->TranslateVirtual(
+          xe::load_and_swap<uint32_t>(song_base + 20)));
+      song->track_number = xe::load_and_swap<uint32_t>(song_base + 24);
+      song->duration_ms = xe::load_and_swap<uint32_t>(song_base + 28);
+      song->format = static_cast<Song::Format>(
+          xe::load_and_swap<uint32_t>(song_base + 32));
+      if (out_song_handles) {
+        xe::store_and_swap<uint32_t>(
+            memory_->TranslateVirtual(out_song_handles + (i * 4)),
+            song->handle);
+      }
+      playlist->songs.emplace_back(std::move(song));
     }
-    playlist->songs.emplace_back(std::move(song));
   }
-  xe::store_and_swap<uint32_t>(memory_->TranslateVirtual(out_playlist_handle),
-                               playlist->handle);
+  if (out_playlist_handle) {
+    xe::store_and_swap<uint32_t>(memory_->TranslateVirtual(out_playlist_handle),
+                                 playlist->handle);
+  }
 
   auto global_lock = global_critical_region_.Acquire();
   playlists_.insert({playlist->handle, playlist.get()});
@@ -404,12 +411,19 @@ X_RESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       assert_true(xmp_client == 0x00000002);
       XELOGD("XMPGetPlaybackBehavior(%.8X, %.8X, %.8X)", playback_mode_ptr,
              repeat_mode_ptr, unk3_ptr);
-      xe::store_and_swap<uint32_t>(memory_->TranslateVirtual(playback_mode_ptr),
-                                   static_cast<uint32_t>(playback_mode_));
-      xe::store_and_swap<uint32_t>(memory_->TranslateVirtual(repeat_mode_ptr),
-                                   static_cast<uint32_t>(repeat_mode_));
-      xe::store_and_swap<uint32_t>(memory_->TranslateVirtual(unk3_ptr),
-                                   unknown_flags_);
+      if (playback_mode_ptr) {
+        xe::store_and_swap<uint32_t>(
+            memory_->TranslateVirtual(playback_mode_ptr),
+            static_cast<uint32_t>(playback_mode_));
+      }
+      if (repeat_mode_ptr) {
+        xe::store_and_swap<uint32_t>(memory_->TranslateVirtual(repeat_mode_ptr),
+                                     static_cast<uint32_t>(repeat_mode_));
+      }
+      if (unk3_ptr) {
+        xe::store_and_swap<uint32_t>(memory_->TranslateVirtual(unk3_ptr),
+                                     unknown_flags_);
+      }
       return X_ERROR_SUCCESS;
     }
     case 0x0007002E: {

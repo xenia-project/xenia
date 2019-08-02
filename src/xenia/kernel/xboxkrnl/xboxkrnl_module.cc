@@ -27,6 +27,8 @@
 #include "xenia/kernel/xboxkrnl/xboxkrnl_private.h"
 #include "xenia/kernel/xthread.h"
 
+DEFINE_string(cl, "", "Specify additional command-line provided to guest.");
+
 DEFINE_bool(kernel_debug_monitor, false, "Enable debug monitor.");
 DEFINE_bool(kernel_cert_monitor, false, "Enable cert monitor.");
 DEFINE_bool(kernel_pix, false, "Enable PIX.");
@@ -84,6 +86,7 @@ XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state)
   RegisterDebugExports(export_resolver_, kernel_state_);
   RegisterErrorExports(export_resolver_, kernel_state_);
   RegisterHalExports(export_resolver_, kernel_state_);
+  RegisterHidExports(export_resolver_, kernel_state_);
   RegisterIoExports(export_resolver_, kernel_state_);
   RegisterMemoryExports(export_resolver_, kernel_state_);
   RegisterMiscExports(export_resolver_, kernel_state_);
@@ -156,6 +159,14 @@ XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state)
   xe::store_and_swap<uint8_t>(lpXboxHardwareInfo + 4, 0x06);  // cpu count
   // Remaining 11b are zeroes?
 
+  // ExConsoleGameRegion, probably same values as keyvault region uses?
+  // Just return all 0xFF, should satisfy anything that checks it
+  uint32_t pExConsoleGameRegion = memory_->SystemHeapAlloc(4);
+  auto lpExConsoleGameRegion = memory_->TranslateVirtual(pExConsoleGameRegion);
+  export_resolver_->SetVariableMapping(
+      "xboxkrnl.exe", ordinals::ExConsoleGameRegion, pExConsoleGameRegion);
+  xe::store<uint32_t>(lpExConsoleGameRegion, 0xFFFFFFFF);
+
   // XexExecutableModuleHandle (?**)
   // Games try to dereference this to get a pointer to some module struct.
   // So far it seems like it's just in loader code, and only used to look up
@@ -174,13 +185,20 @@ XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state)
   // The name of the xex. Not sure this is ever really used on real devices.
   // Perhaps it's how swap disc/etc data is sent?
   // Always set to "default.xex" (with quotes) for now.
-  uint32_t pExLoadedCommandLine = memory_->SystemHeapAlloc(1024);
+  // TODO(gibbed): set this to the actual module name.
+  std::string command_line("\"default.xex\"");
+  if (FLAGS_cl.length()) {
+    command_line += " " + FLAGS_cl;
+  }
+  uint32_t command_line_length =
+      xe::align(static_cast<uint32_t>(command_line.length()) + 1, 1024u);
+  uint32_t pExLoadedCommandLine = memory_->SystemHeapAlloc(command_line_length);
   auto lpExLoadedCommandLine = memory_->TranslateVirtual(pExLoadedCommandLine);
   export_resolver_->SetVariableMapping(
       "xboxkrnl.exe", ordinals::ExLoadedCommandLine, pExLoadedCommandLine);
-  char command_line[] = "\"default.xex\"";
-  std::memcpy(lpExLoadedCommandLine, command_line,
-              xe::countof(command_line) + 1);
+  std::memset(lpExLoadedCommandLine, 0, command_line_length);
+  std::memcpy(lpExLoadedCommandLine, command_line.c_str(),
+              command_line.length());
 
   // XboxKrnlVersion (8b)
   // Kernel version, looks like 2b.2b.2b.2b.

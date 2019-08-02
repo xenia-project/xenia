@@ -19,7 +19,8 @@
 namespace xe {
 namespace gpu {
 
-// a2xx_sq_surfaceformat
+// a2xx_sq_surfaceformat +
+// https://github.com/indirivacua/RAGE-Console-Texture-Editor/blob/master/Console.Xbox360.Graphics.pas
 enum class TextureFormat : uint32_t {
   k_1_REVERSE = 0,
   k_1 = 1,
@@ -32,9 +33,9 @@ enum class TextureFormat : uint32_t {
   k_8_A = 8,
   k_8_B = 9,
   k_8_8 = 10,
-  k_Cr_Y1_Cb_Y0 = 11,
-  k_Y1_Cr_Y0_Cb = 12,
-  k_Shadow = 13,
+  k_Cr_Y1_Cb_Y0_REP = 11,
+  k_Y1_Cr_Y0_Cb_REP = 12,
+  k_16_16_EDRAM = 13,
   k_8_8_8_8_A = 14,
   k_4_4_4_4 = 15,
   k_10_11_11 = 16,
@@ -42,7 +43,7 @@ enum class TextureFormat : uint32_t {
   k_DXT1 = 18,
   k_DXT2_3 = 19,
   k_DXT4_5 = 20,
-  k_DXV = 21,
+  k_16_16_16_16_EDRAM = 21,
   k_24_8 = 22,
   k_24_8_FLOAT = 23,
   k_16 = 24,
@@ -83,7 +84,8 @@ enum class TextureFormat : uint32_t {
   k_DXT5A = 59,
   k_CTX1 = 60,
   k_DXT3A_AS_1_1_1_1 = 61,
-  k_2_10_10_10_FLOAT = 62,
+  k_8_8_8_8_GAMMA_EDRAM = 62,
+  k_2_10_10_10_FLOAT_EDRAM = 63,
 
   kUnknown = 0xFFFFFFFFu,
 };
@@ -111,6 +113,8 @@ inline TextureFormat GetBaseFormat(TextureFormat texture_format) {
       return TextureFormat::k_10_11_11;
     case TextureFormat::k_11_11_10_AS_16_16_16_16:
       return TextureFormat::k_11_11_10;
+    case TextureFormat::k_8_8_8_8_GAMMA_EDRAM:
+      return TextureFormat::k_8_8_8_8;
     default:
       break;
   }
@@ -171,8 +175,8 @@ inline bool IsSRGBCapable(TextureFormat format) {
     case TextureFormat::k_6_5_5:
     case TextureFormat::k_8_8_8_8:
     case TextureFormat::k_8_8:
-    case TextureFormat::k_Cr_Y1_Cb_Y0:
-    case TextureFormat::k_Y1_Cr_Y0_Cb:
+    case TextureFormat::k_Cr_Y1_Cb_Y0_REP:
+    case TextureFormat::k_Y1_Cr_Y0_Cb_REP:
     case TextureFormat::k_4_4_4_4:
     case TextureFormat::k_DXT1:
     case TextureFormat::k_DXT2_3:
@@ -224,23 +228,21 @@ inline TextureFormat ColorRenderTargetToTextureFormat(
     case ColorRenderTargetFormat::k_8_8_8_8:
       return TextureFormat::k_8_8_8_8;
     case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
-      return TextureFormat::k_8_8_8_8;
+      return TextureFormat::k_8_8_8_8_GAMMA_EDRAM;
     case ColorRenderTargetFormat::k_2_10_10_10:
+    case ColorRenderTargetFormat::k_2_10_10_10_AS_10_10_10_10:
       return TextureFormat::k_2_10_10_10;
     case ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
-      return TextureFormat::k_2_10_10_10_FLOAT;
+    case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
+      return TextureFormat::k_2_10_10_10_FLOAT_EDRAM;
     case ColorRenderTargetFormat::k_16_16:
-      return TextureFormat::k_16_16;
+      return TextureFormat::k_16_16_EDRAM;
     case ColorRenderTargetFormat::k_16_16_16_16:
-      return TextureFormat::k_16_16_16_16;
+      return TextureFormat::k_16_16_16_16_EDRAM;
     case ColorRenderTargetFormat::k_16_16_FLOAT:
       return TextureFormat::k_16_16_FLOAT;
     case ColorRenderTargetFormat::k_16_16_16_16_FLOAT:
       return TextureFormat::k_16_16_16_16_FLOAT;
-    case ColorRenderTargetFormat::k_2_10_10_10_AS_16_16_16_16:
-      return TextureFormat::k_2_10_10_10_AS_16_16_16_16;
-    case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
-      return TextureFormat::k_2_10_10_10_FLOAT;
     case ColorRenderTargetFormat::k_32_FLOAT:
       return TextureFormat::k_32_FLOAT;
     case ColorRenderTargetFormat::k_32_32_FLOAT:
@@ -290,21 +292,32 @@ struct FormatInfo {
 
 struct TextureInfo;
 
-struct TextureMemoryUsage {
-  uint32_t pitch;         // texel pitch
-  uint32_t height;        // texel height
-  uint32_t block_pitch;   // # of horizontal pitch blocks
-  uint32_t block_height;  // # of vertical blocks
+struct TextureExtent {
+  uint32_t pitch;          // texel pitch
+  uint32_t height;         // texel height
+  uint32_t block_width;    // # of horizontal visible blocks
+  uint32_t block_height;   // # of vertical visible blocks
+  uint32_t block_pitch_h;  // # of horizontal pitch blocks
+  uint32_t block_pitch_v;  // # of vertical pitch blocks
   uint32_t depth;
 
-  uint32_t blocks() const { return block_pitch * block_height * depth; }
+  uint32_t all_blocks() const { return block_pitch_h * block_pitch_v * depth; }
+  uint32_t visible_blocks() const {
+    return block_pitch_h * block_height * depth;
+  }
 
-  static TextureMemoryUsage Calculate(const FormatInfo* format_info,
-                                      uint32_t pitch, uint32_t height,
-                                      uint32_t depth, bool is_tiled,
-                                      bool is_guest);
-  static TextureMemoryUsage Calculate(const TextureInfo* texture_info,
-                                      bool is_guest);
+  static TextureExtent Calculate(const FormatInfo* format_info, uint32_t pitch,
+                                 uint32_t height, uint32_t depth, bool is_tiled,
+                                 bool is_guest);
+  static TextureExtent Calculate(const TextureInfo* texture_info,
+                                 bool is_guest);
+};
+
+struct TextureMemoryInfo {
+  uint32_t base_address;
+  uint32_t base_size;
+  uint32_t mip_address;
+  uint32_t mip_size;
 };
 
 struct TextureInfo {
@@ -316,14 +329,14 @@ struct TextureInfo {
   uint32_t height;  // height in pixels
   uint32_t depth;   // depth in layers
   uint32_t pitch;   // pitch in blocks
-  uint32_t mip_levels;
+  uint32_t mip_min_level;
+  uint32_t mip_max_level;
+  bool is_stacked;
   bool is_tiled;
   bool has_packed_mips;
 
-  TextureMemoryUsage memory_usage;
-
-  uint32_t guest_address;
-  uint32_t mip_address;
+  TextureMemoryInfo memory;
+  TextureExtent extent;
 
   const FormatInfo* format_info() const {
     return FormatInfo::Get(static_cast<uint32_t>(format));
@@ -333,27 +346,25 @@ struct TextureInfo {
     return format_info()->type == FormatType::kCompressed;
   }
 
+  uint32_t mip_levels() const { return 1 + (mip_max_level - mip_min_level); }
+
   static bool Prepare(const xenos::xe_gpu_texture_fetch_t& fetch,
                       TextureInfo* out_info);
 
   static bool PrepareResolve(uint32_t physical_address,
                              TextureFormat texture_format, Endian endian,
                              uint32_t pitch, uint32_t width, uint32_t height,
-                             TextureInfo* out_info);
+                             uint32_t depth, TextureInfo* out_info);
 
   uint32_t GetMaxMipLevels() const;
 
-  const TextureMemoryUsage GetMipMemoryUsage(uint32_t mip, bool is_guest) const;
+  const TextureExtent GetMipExtent(uint32_t mip, bool is_guest) const;
 
   void GetMipSize(uint32_t mip, uint32_t* width, uint32_t* height) const;
 
   // Get the memory location of a mip. offset_x and offset_y are in blocks.
   uint32_t GetMipLocation(uint32_t mip, uint32_t* offset_x, uint32_t* offset_y,
                           bool is_guest) const;
-
-  uint32_t GetMipByteSize(uint32_t mip, bool is_guest) const;
-
-  uint32_t GetByteSize(bool is_guest) const;
 
   static bool GetPackedTileOffset(uint32_t width, uint32_t height,
                                   const FormatInfo* format_info,
@@ -367,6 +378,9 @@ struct TextureInfo {
   bool operator==(const TextureInfo& other) const {
     return std::memcmp(this, &other, sizeof(TextureInfo)) == 0;
   }
+
+ private:
+  void SetupMemoryInfo(uint32_t base_address, uint32_t mip_address);
 };
 
 }  // namespace gpu

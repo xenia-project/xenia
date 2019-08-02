@@ -55,6 +55,7 @@ enum XmmConst {
   XMMNormalizeX16Y16,
   XMM0001,
   XMM3301,
+  XMM3331,
   XMM3333,
   XMMSignMaskPS,
   XMMSignMaskPD,
@@ -77,6 +78,20 @@ enum XmmConst {
   XMMPackSHORT_4,
   XMMUnpackSHORT_2,
   XMMUnpackSHORT_4,
+  XMMUnpackSHORT_Overflow,
+  XMMPackUINT_2101010_MinUnpacked,
+  XMMPackUINT_2101010_MaxUnpacked,
+  XMMPackUINT_2101010_MaskUnpacked,
+  XMMPackUINT_2101010_MaskPacked,
+  XMMPackUINT_2101010_Shift,
+  XMMUnpackUINT_2101010_Overflow,
+  XMMPackULONG_4202020_MinUnpacked,
+  XMMPackULONG_4202020_MaxUnpacked,
+  XMMPackULONG_4202020_MaskUnpacked,
+  XMMPackULONG_4202020_PermuteXZ,
+  XMMPackULONG_4202020_PermuteYW,
+  XMMUnpackULONG_4202020_Permute,
+  XMMUnpackULONG_4202020_Overflow,
   XMMOneOver255,
   XMMMaskEvenPI16,
   XMMShiftMaskEvenPI16,
@@ -96,6 +111,7 @@ enum XmmConst {
   XMMIntMax,
   XMMIntMaxPD,
   XMMPosIntMinPS,
+  XMMQNaN,
 };
 
 // Unfortunately due to the design of xbyak we have to pass this to the ctor.
@@ -130,13 +146,13 @@ class X64Emitter : public Xbyak::CodeGenerator {
             std::vector<SourceMapEntry>* out_source_map);
 
  public:
-  // Reserved:  rsp
+  // Reserved:  rsp, rsi, rdi
   // Scratch:   rax/rcx/rdx
   //            xmm0-2
-  // Available: rbx, r12-r15 (save to get r8-r11, rbp, rsi, rdi?)
-  //            xmm6-xmm15 (save to get xmm3-xmm5)
-  static const int GPR_COUNT = 5;
-  static const int XMM_COUNT = 10;
+  // Available: rbx, r10-r15
+  //            xmm4-xmm15 (save to get xmm3)
+  static const int GPR_COUNT = 7;
+  static const int XMM_COUNT = 12;
 
   static void SetupReg(const hir::Value* v, Xbyak::Reg8& r) {
     auto idx = gpr_reg_map_[v->reg.index];
@@ -177,6 +193,8 @@ class X64Emitter : public Xbyak::CodeGenerator {
                   uint64_t arg0);
   void CallNativeSafe(void* fn);
   void SetReturnAddress(uint64_t value);
+
+  Xbyak::Reg64 GetNativeParam(uint32_t param);
 
   Xbyak::Reg64 GetContextReg();
   Xbyak::Reg64 GetMembaseReg();

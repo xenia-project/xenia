@@ -31,15 +31,14 @@ constexpr uint32_t XINPUT_FLAG_ANY_USER = 1 << 30;
 void XamResetInactivity() {
   // Do we need to do anything?
 }
-DECLARE_XAM_EXPORT(XamResetInactivity, ExportTag::kInput | ExportTag::kStub);
+DECLARE_XAM_EXPORT1(XamResetInactivity, kInput, kStub);
 
 dword_result_t XamEnableInactivityProcessing(dword_t unk, dword_t enable) {
   return X_ERROR_SUCCESS;
 }
-DECLARE_XAM_EXPORT(XamEnableInactivityProcessing,
-                   ExportTag::kInput | ExportTag::kStub);
+DECLARE_XAM_EXPORT1(XamEnableInactivityProcessing, kInput, kStub);
 
-// http://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinputgetcapabilities(v=vs.85).aspx
+// https://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinputgetcapabilities(v=vs.85).aspx
 dword_result_t XamInputGetCapabilities(dword_t user_index, dword_t flags,
                                        pointer_t<X_INPUT_CAPABILITIES> caps) {
   if (!caps) {
@@ -60,8 +59,7 @@ dword_result_t XamInputGetCapabilities(dword_t user_index, dword_t flags,
   auto input_system = kernel_state()->emulator()->input_system();
   return input_system->GetCapabilities(actual_user_index, flags, caps);
 }
-DECLARE_XAM_EXPORT(XamInputGetCapabilities,
-                   ExportTag::kInput | ExportTag::kSketchy);
+DECLARE_XAM_EXPORT1(XamInputGetCapabilities, kInput, kSketchy);
 
 dword_result_t XamInputGetCapabilitiesEx(dword_t unk, dword_t user_index,
                                          dword_t flags,
@@ -84,10 +82,9 @@ dword_result_t XamInputGetCapabilitiesEx(dword_t unk, dword_t user_index,
   auto input_system = kernel_state()->emulator()->input_system();
   return input_system->GetCapabilities(actual_user_index, flags, caps);
 }
-DECLARE_XAM_EXPORT(XamInputGetCapabilitiesEx,
-                   ExportTag::kInput | ExportTag::kSketchy);
+DECLARE_XAM_EXPORT1(XamInputGetCapabilitiesEx, kInput, kSketchy);
 
-// http://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinputgetstate(v=vs.85).aspx
+// https://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinputgetstate(v=vs.85).aspx
 dword_result_t XamInputGetState(dword_t user_index, dword_t flags,
                                 pointer_t<X_INPUT_STATE> input_state) {
   // Games call this with a NULL state ptr, probably as a query.
@@ -106,10 +103,9 @@ dword_result_t XamInputGetState(dword_t user_index, dword_t flags,
   auto input_system = kernel_state()->emulator()->input_system();
   return input_system->GetState(user_index, input_state);
 }
-DECLARE_XAM_EXPORT(XamInputGetState,
-                   ExportTag::kInput | ExportTag::kImplemented);
+DECLARE_XAM_EXPORT1(XamInputGetState, kInput, kImplemented);
 
-// http://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinputsetstate(v=vs.85).aspx
+// https://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinputsetstate(v=vs.85).aspx
 dword_result_t XamInputSetState(dword_t user_index, dword_t unk,
                                 pointer_t<X_INPUT_VIBRATION> vibration) {
   if (!vibration) {
@@ -125,13 +121,12 @@ dword_result_t XamInputSetState(dword_t user_index, dword_t unk,
   auto input_system = kernel_state()->emulator()->input_system();
   return input_system->SetState(user_index, vibration);
 }
-DECLARE_XAM_EXPORT(XamInputSetState,
-                   ExportTag::kInput | ExportTag::kImplemented);
+DECLARE_XAM_EXPORT1(XamInputSetState, kInput, kImplemented);
 
-// http://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinputgetkeystroke(v=vs.85).aspx
+// https://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinputgetkeystroke(v=vs.85).aspx
 dword_result_t XamInputGetKeystroke(dword_t user_index, dword_t flags,
                                     pointer_t<X_INPUT_KEYSTROKE> keystroke) {
-  // http://ffplay360.googlecode.com/svn/Test/Common/AtgXime.cpp
+  // https://github.com/CodeAsm/ffplay360/blob/master/Common/AtgXime.cpp
   // user index = index or XUSER_INDEX_ANY
   // flags = XINPUT_FLAG_GAMEPAD (| _ANYUSER | _ANYDEVICE)
 
@@ -153,8 +148,7 @@ dword_result_t XamInputGetKeystroke(dword_t user_index, dword_t flags,
   auto input_system = kernel_state()->emulator()->input_system();
   return input_system->GetKeystroke(user_index, flags, keystroke);
 }
-DECLARE_XAM_EXPORT(XamInputGetKeystroke,
-                   ExportTag::kInput | ExportTag::kImplemented);
+DECLARE_XAM_EXPORT1(XamInputGetKeystroke, kInput, kImplemented);
 
 // Same as non-ex, just takes a pointer to user index.
 dword_result_t XamInputGetKeystrokeEx(lpdword_t user_index_ptr, dword_t flags,
@@ -181,8 +175,7 @@ dword_result_t XamInputGetKeystrokeEx(lpdword_t user_index_ptr, dword_t flags,
   }
   return result;
 }
-DECLARE_XAM_EXPORT(XamInputGetKeystrokeEx,
-                   ExportTag::kInput | ExportTag::kImplemented);
+DECLARE_XAM_EXPORT1(XamInputGetKeystrokeEx, kInput, kImplemented);
 
 X_HRESULT_result_t XamUserGetDeviceContext(dword_t user_index, dword_t unk,
                                            lpdword_t out_ptr) {
@@ -196,8 +189,7 @@ X_HRESULT_result_t XamUserGetDeviceContext(dword_t user_index, dword_t unk,
     return X_E_DEVICE_NOT_CONNECTED;
   }
 }
-DECLARE_XAM_EXPORT(XamUserGetDeviceContext,
-                   ExportTag::kInput | ExportTag::kStub);
+DECLARE_XAM_EXPORT1(XamUserGetDeviceContext, kInput, kStub);
 
 void RegisterInputExports(xe::cpu::ExportResolver* export_resolver,
                           KernelState* kernel_state) {}

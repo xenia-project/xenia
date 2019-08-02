@@ -17,7 +17,9 @@
 namespace xe {
 
 // These functions are modeled off of the Apple OSAtomic routines
-// http://developer.apple.com/library/mac/#documentation/DriversKernelHardware/Reference/libkern_ref/OSAtomic_h/
+// https://developer.apple.com/documentation/kernel/osatomic_h (?)
+// Original link (dead):
+// https://developer.apple.com/library/mac/#documentation/DriversKernelHardware/Reference/libkern_ref/OSAtomic_h/
 
 #if XE_PLATFORM_MAC
 

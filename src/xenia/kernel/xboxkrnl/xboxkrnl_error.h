@@ -17,7 +17,7 @@ namespace xe {
 namespace kernel {
 namespace xboxkrnl {
 
-dword_result_t RtlNtStatusToDosError(dword_t source_status);
+uint32_t xeRtlNtStatusToDosError(uint32_t source_status);
 
 }  // namespace xboxkrnl
 }  // namespace kernel

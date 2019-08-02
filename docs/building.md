@@ -9,15 +9,14 @@ video drivers for your card.
 ### Windows
 
 * Windows 8 or later
-* Visual Studio 2017 
-* Windows Universal CRT SDK
+* [Visual Studio 2017 or Visual Studio 2019](https://www.visualstudio.com/downloads/)
 * [Python 3.4+](https://www.python.org/downloads/)
-* You will also need the [Windows 8.1 SDK](http://msdn.microsoft.com/en-us/windows/desktop/bg162891) 
+* You may also need the [Windows 8.1 SDK](https://msdn.microsoft.com/en-us/windows/desktop/bg162891)
   * (for VS2017 just click the Windows 8.1 SDK option in the Individual Components section in the Visual Studio Installer)
 
 Ensure Python is in your PATH.
 
-I recommend using [Cmder](http://cmder.net/) for git and command
+I recommend using [Cmder](https://cmder.net/) for git and command
 line usage.
 
 #### Debugging
@@ -41,7 +40,7 @@ Linux support is extremely experimental and presently incomplete.
 The build script uses LLVM/Clang 3.8. GCC should also work, but is not easily
 swappable right now.
 
-[CodeLite](http://codelite.org) is the IDE of choice and `xb premake` will spit
+[CodeLite](https://codelite.org) is the IDE of choice and `xb premake` will spit
 out files for that. Make also works via `xb build`.
 
 To get the latest Clang on an ubuntu system:

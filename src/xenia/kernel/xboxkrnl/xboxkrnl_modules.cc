@@ -12,7 +12,6 @@
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/user_module.h"
 #include "xenia/kernel/util/shim_utils.h"
-#include "xenia/kernel/util/xex2.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_private.h"
 #include "xenia/xbox.h"
 
@@ -24,18 +23,18 @@ X_STATUS xeExGetXConfigSetting(uint16_t category, uint16_t setting,
                                void* buffer, uint16_t buffer_size,
                                uint16_t* required_size) {
   uint16_t setting_size = 0;
-  uint32_t value = 0;
+  alignas(uint32_t) uint8_t value[4];
 
   // TODO(benvanik): have real structs here that just get copied from.
-  // http://free60.org/XConfig
-  // http://freestyledash.googlecode.com/svn/trunk/Freestyle/Tools/Generic/ExConfig.h
+  // https://free60project.github.io/wiki/XConfig.html
+  // https://github.com/oukiar/freestyledash/blob/master/Freestyle/Tools/Generic/ExConfig.h
   switch (category) {
     case 0x0002:
       // XCONFIG_SECURED_CATEGORY
       switch (setting) {
         case 0x0002:  // XCONFIG_SECURED_AV_REGION
           setting_size = 4;
-          value = 0x00001000;  // USA/Canada
+          xe::store_and_swap<uint32_t>(value, 0x00001000);  // USA/Canada
           break;
         default:
           assert_unhandled_case(setting);
@@ -54,25 +53,26 @@ X_STATUS xeExGetXConfigSetting(uint16_t category, uint16_t setting,
         case 0x0007:  // XCONFIG_USER_TIME_ZONE_DLT_BIAS
           setting_size = 4;
           // TODO(benvanik): get this value.
-          value = 0;
+          xe::store_and_swap<uint32_t>(value, 0);
           break;
         case 0x0009:  // XCONFIG_USER_LANGUAGE
           setting_size = 4;
-          value = 0x00000001;  // English
+          xe::store_and_swap<uint32_t>(value, 0x00000001);  // English
           break;
         case 0x000A:  // XCONFIG_USER_VIDEO_FLAGS
           setting_size = 4;
-          value = 0x00040000;
+          xe::store_and_swap<uint32_t>(value, 0x00040000);
           break;
         case 0x000C:  // XCONFIG_USER_RETAIL_FLAGS
           setting_size = 4;
           // TODO(benvanik): get this value.
-          value = 0;
+          xe::store_and_swap<uint32_t>(value, 0);
           break;
         case 0x000E:  // XCONFIG_USER_COUNTRY
-          setting_size = 4;
+          // Halo: Reach sub_82804888 - min 0x5, max 0x6E.
+          setting_size = 1;
           // TODO(benvanik): get this value.
-          value = 0;
+          value[0] = 5;
           break;
         default:
           assert_unhandled_case(setting);
@@ -84,15 +84,15 @@ X_STATUS xeExGetXConfigSetting(uint16_t category, uint16_t setting,
       return X_STATUS_INVALID_PARAMETER_1;
   }
 
-  if (buffer_size < setting_size) {
-    return X_STATUS_BUFFER_TOO_SMALL;
-  }
-  if (!buffer && buffer_size) {
-    return X_STATUS_INVALID_PARAMETER_3;
-  }
-
   if (buffer) {
-    xe::store_and_swap<uint32_t>(buffer, value);
+    if (buffer_size < setting_size) {
+      return X_STATUS_BUFFER_TOO_SMALL;
+    }
+    std::memcpy(buffer, value, setting_size);
+  } else {
+    if (buffer_size) {
+      return X_STATUS_INVALID_PARAMETER_3;
+    }
   }
   if (required_size) {
     *required_size = setting_size;
@@ -114,8 +114,7 @@ dword_result_t ExGetXConfigSetting(word_t category, word_t setting,
 
   return result;
 }
-DECLARE_XBOXKRNL_EXPORT(ExGetXConfigSetting,
-                        ExportTag::kImplemented | ExportTag::kModules);
+DECLARE_XBOXKRNL_EXPORT1(ExGetXConfigSetting, kModules, kImplemented);
 
 dword_result_t XexCheckExecutablePrivilege(dword_t privilege) {
   // BOOL
@@ -135,8 +134,7 @@ dword_result_t XexCheckExecutablePrivilege(dword_t privilege) {
 
   return (flags & mask) > 0;
 }
-DECLARE_XBOXKRNL_EXPORT(XexCheckExecutablePrivilege,
-                        ExportTag::kImplemented | ExportTag::kModules);
+DECLARE_XBOXKRNL_EXPORT1(XexCheckExecutablePrivilege, kModules, kImplemented);
 
 dword_result_t XexGetModuleHandle(lpstring_t module_name,
                                   lpdword_t hmodule_ptr) {
@@ -158,8 +156,7 @@ dword_result_t XexGetModuleHandle(lpstring_t module_name,
 
   return X_ERROR_SUCCESS;
 }
-DECLARE_XBOXKRNL_EXPORT(XexGetModuleHandle,
-                        ExportTag::kImplemented | ExportTag::kModules);
+DECLARE_XBOXKRNL_EXPORT1(XexGetModuleHandle, kModules, kImplemented);
 
 dword_result_t XexGetModuleSection(lpvoid_t hmodule, lpstring_t name,
                                    lpdword_t data_ptr, lpdword_t size_ptr) {
@@ -180,8 +177,7 @@ dword_result_t XexGetModuleSection(lpvoid_t hmodule, lpstring_t name,
 
   return result;
 }
-DECLARE_XBOXKRNL_EXPORT(XexGetModuleSection,
-                        ExportTag::kImplemented | ExportTag::kModules);
+DECLARE_XBOXKRNL_EXPORT1(XexGetModuleSection, kModules, kImplemented);
 
 dword_result_t XexLoadImage(lpstring_t module_name, dword_t module_flags,
                             dword_t min_version, lpdword_t hmodule_ptr) {
@@ -214,8 +210,7 @@ dword_result_t XexLoadImage(lpstring_t module_name, dword_t module_flags,
 
   return result;
 }
-DECLARE_XBOXKRNL_EXPORT(XexLoadImage,
-                        ExportTag::kImplemented | ExportTag::kModules);
+DECLARE_XBOXKRNL_EXPORT1(XexLoadImage, kModules, kImplemented);
 
 dword_result_t XexUnloadImage(lpvoid_t hmodule) {
   auto module = XModule::GetFromHModule(kernel_state(), hmodule);
@@ -235,8 +230,7 @@ dword_result_t XexUnloadImage(lpvoid_t hmodule) {
 
   return X_STATUS_SUCCESS;
 }
-DECLARE_XBOXKRNL_EXPORT(XexUnloadImage,
-                        ExportTag::kImplemented | ExportTag::kModules);
+DECLARE_XBOXKRNL_EXPORT1(XexUnloadImage, kModules, kImplemented);
 
 dword_result_t XexGetProcedureAddress(lpvoid_t hmodule, dword_t ordinal,
                                       lpdword_t out_function_ptr) {
@@ -274,7 +268,7 @@ dword_result_t XexGetProcedureAddress(lpvoid_t hmodule, dword_t ordinal,
 
   return result;
 }
-DECLARE_XBOXKRNL_EXPORT(XexGetProcedureAddress, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(XexGetProcedureAddress, kModules, kImplemented);
 
 void ExRegisterTitleTerminateNotification(
     pointer_t<X_EX_TITLE_TERMINATE_REGISTRATION> reg, dword_t create) {
@@ -287,8 +281,8 @@ void ExRegisterTitleTerminateNotification(
     kernel_state()->RemoveTitleTerminateNotification(reg->notification_routine);
   }
 }
-DECLARE_XBOXKRNL_EXPORT(ExRegisterTitleTerminateNotification,
-                        ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(ExRegisterTitleTerminateNotification, kModules,
+                         kImplemented);
 
 void RegisterModuleExports(xe::cpu::ExportResolver* export_resolver,
                            KernelState* kernel_state) {}

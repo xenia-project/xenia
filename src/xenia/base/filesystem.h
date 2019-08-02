@@ -20,6 +20,15 @@
 namespace xe {
 namespace filesystem {
 
+// Get executable path.
+std::wstring GetExecutablePath();
+
+// Get executable folder.
+std::wstring GetExecutableFolder();
+
+// Get user folder.
+std::wstring GetUserFolder();
+
 // Canonicalizes a path, removing ..'s.
 std::string CanonicalizePath(const std::string& original_path);
 
@@ -107,6 +116,7 @@ struct FileInfo {
   };
   Type type;
   std::wstring name;
+  std::wstring path;
   size_t total_size;
   uint64_t create_timestamp;
   uint64_t access_timestamp;

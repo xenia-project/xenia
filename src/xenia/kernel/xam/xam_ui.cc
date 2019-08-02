@@ -23,11 +23,8 @@ namespace xam {
 
 std::atomic<int> xam_dialogs_shown_ = {0};
 
-SHIM_CALL XamIsUIActive_shim(PPCContext* ppc_context,
-                             KernelState* kernel_state) {
-  XELOGD("XamIsUIActive()");
-  SHIM_SET_RETURN_32(xam_dialogs_shown_ > 0 ? 1 : 0);
-}
+dword_result_t XamIsUIActive() { return xam_dialogs_shown_ > 0 ? 1 : 0; }
+DECLARE_XAM_EXPORT2(XamIsUIActive, kUI, kImplemented, kHighFrequency);
 
 class MessageBoxDialog : public xe::ui::ImGuiDialog {
  public:
@@ -86,31 +83,26 @@ class MessageBoxDialog : public xe::ui::ImGuiDialog {
   uint32_t* out_chosen_button_ = nullptr;
 };
 
-// http://www.se7ensins.com/forums/threads/working-xshowmessageboxui.844116/?jdfwkey=sb0vm
-SHIM_CALL XamShowMessageBoxUI_shim(PPCContext* ppc_context,
-                                   KernelState* kernel_state) {
-  uint32_t user_index = SHIM_GET_ARG_32(0);
-  uint32_t title_ptr = SHIM_GET_ARG_32(1);
-  uint32_t text_ptr = SHIM_GET_ARG_32(2);
-  uint32_t button_count = SHIM_GET_ARG_32(3);
-  uint32_t button_ptrs = SHIM_GET_ARG_32(4);
-  uint32_t active_button = SHIM_GET_ARG_32(5);
-  uint32_t flags = SHIM_GET_ARG_32(6);
-  uint32_t result_ptr = SHIM_GET_ARG_32(7);
-  uint32_t overlapped_ptr = SHIM_GET_ARG_32(8);
-
+// https://www.se7ensins.com/forums/threads/working-xshowmessageboxui.844116/
+dword_result_t XamShowMessageBoxUI(dword_t user_index, lpwstring_t title_ptr,
+                                   lpwstring_t text_ptr, dword_t button_count,
+                                   lpdword_t button_ptrs, dword_t active_button,
+                                   dword_t flags, lpdword_t result_ptr,
+                                   pointer_t<XAM_OVERLAPPED> overlapped) {
   std::wstring title;
   if (title_ptr) {
-    title = xe::load_and_swap<std::wstring>(SHIM_MEM_ADDR(title_ptr));
+    title = title_ptr.value();
   } else {
     title = L"";  // TODO(gibbed): default title based on flags?
   }
-  auto text = xe::load_and_swap<std::wstring>(SHIM_MEM_ADDR(text_ptr));
+  auto text = text_ptr.value();
+
   std::vector<std::wstring> buttons;
   std::wstring all_buttons;
   for (uint32_t j = 0; j < button_count; ++j) {
-    uint32_t button_ptr = SHIM_MEM_32(button_ptrs + j * 4);
-    auto button = xe::load_and_swap<std::wstring>(SHIM_MEM_ADDR(button_ptr));
+    uint32_t button_ptr = button_ptrs[j];
+    auto button = xe::load_and_swap<std::wstring>(
+        kernel_state()->memory()->TranslateVirtual(button_ptr));
     all_buttons.append(button);
     if (j + 1 < button_count) {
       all_buttons.append(L" | ");
@@ -118,19 +110,12 @@ SHIM_CALL XamShowMessageBoxUI_shim(PPCContext* ppc_context,
     buttons.push_back(button);
   }
 
-  XELOGD(
-      "XamShowMessageBoxUI(%d, %.8X(%S), %.8X(%S), %d, %.8X(%S), %d, %X, %.8X, "
-      "%.8X)",
-      user_index, title_ptr, title.c_str(), text_ptr, text.c_str(),
-      button_count, button_ptrs, all_buttons.c_str(), active_button, flags,
-      result_ptr, overlapped_ptr);
-
   uint32_t chosen_button;
   if (FLAGS_headless) {
     // Auto-pick the focused button.
     chosen_button = active_button;
   } else {
-    auto display_window = kernel_state->emulator()->display_window();
+    auto display_window = kernel_state()->emulator()->display_window();
     xe::threading::Fence fence;
     display_window->loop()->PostSynchronous([&]() {
       // TODO(benvanik): setup icon states.
@@ -156,11 +141,16 @@ SHIM_CALL XamShowMessageBoxUI_shim(PPCContext* ppc_context,
     fence.Wait();
     --xam_dialogs_shown_;
   }
-  SHIM_SET_MEM_32(result_ptr, chosen_button);
+  *result_ptr = chosen_button;
 
-  kernel_state->CompleteOverlappedImmediate(overlapped_ptr, X_ERROR_SUCCESS);
-  SHIM_SET_RETURN_32(X_ERROR_IO_PENDING);
+  if (overlapped) {
+    kernel_state()->CompleteOverlappedImmediate(overlapped, X_ERROR_SUCCESS);
+    return X_ERROR_IO_PENDING;
+  } else {
+    return X_ERROR_SUCCESS;
+  }
 }
+DECLARE_XAM_EXPORT1(XamShowMessageBoxUI, kUI, kImplemented);
 
 class KeyboardInputDialog : public xe::ui::ImGuiDialog {
  public:
@@ -231,7 +221,7 @@ class KeyboardInputDialog : public xe::ui::ImGuiDialog {
   size_t max_length_ = 0;
 };
 
-// http://www.se7ensins.com/forums/threads/release-how-to-use-xshowkeyboardui-release.906568/
+// https://www.se7ensins.com/forums/threads/release-how-to-use-xshowkeyboardui-release.906568/
 dword_result_t XamShowKeyboardUI(dword_t user_index, dword_t flags,
                                  lpwstring_t default_text, lpwstring_t title,
                                  lpwstring_t description, lpwstring_t buffer,
@@ -285,7 +275,7 @@ dword_result_t XamShowKeyboardUI(dword_t user_index, dword_t flags,
     return X_ERROR_SUCCESS;
   }
 }
-DECLARE_XAM_EXPORT(XamShowKeyboardUI, ExportTag::kImplemented);
+DECLARE_XAM_EXPORT1(XamShowKeyboardUI, kUI, kImplemented);
 
 dword_result_t XamShowDeviceSelectorUI(dword_t user_index, dword_t content_type,
                                        dword_t content_flags,
@@ -316,21 +306,16 @@ dword_result_t XamShowDeviceSelectorUI(dword_t user_index, dword_t content_type,
     return X_ERROR_SUCCESS;
   }
 }
-DECLARE_XAM_EXPORT(XamShowDeviceSelectorUI, ExportTag::kImplemented);
+DECLARE_XAM_EXPORT1(XamShowDeviceSelectorUI, kUI, kImplemented);
 
-SHIM_CALL XamShowDirtyDiscErrorUI_shim(PPCContext* ppc_context,
-                                       KernelState* kernel_state) {
-  uint32_t user_index = SHIM_GET_ARG_32(0);
-
-  XELOGD("XamShowDirtyDiscErrorUI(%d)", user_index);
-
+void XamShowDirtyDiscErrorUI(dword_t user_index) {
   if (FLAGS_headless) {
     assert_always();
     exit(1);
     return;
   }
 
-  auto display_window = kernel_state->emulator()->display_window();
+  auto display_window = kernel_state()->emulator()->display_window();
   xe::threading::Fence fence;
   display_window->loop()->PostSynchronous([&]() {
     xe::ui::ImGuiDialog::ShowMessageBox(
@@ -347,13 +332,10 @@ SHIM_CALL XamShowDirtyDiscErrorUI_shim(PPCContext* ppc_context,
   // TODO(benvanik): cleaner exit.
   exit(1);
 }
+DECLARE_XAM_EXPORT1(XamShowDirtyDiscErrorUI, kUI, kImplemented);
 
 void RegisterUIExports(xe::cpu::ExportResolver* export_resolver,
-                       KernelState* kernel_state) {
-  SHIM_SET_MAPPING("xam.xex", XamIsUIActive, state);
-  SHIM_SET_MAPPING("xam.xex", XamShowMessageBoxUI, state);
-  SHIM_SET_MAPPING("xam.xex", XamShowDirtyDiscErrorUI, state);
-}
+                       KernelState* kernel_state) {}
 
 }  // namespace xam
 }  // namespace kernel

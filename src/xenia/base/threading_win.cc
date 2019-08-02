@@ -29,7 +29,7 @@ uint32_t current_thread_system_id() {
   return static_cast<uint32_t>(GetCurrentThreadId());
 }
 
-// http://msdn.microsoft.com/en-us/library/xcb2z8hs.aspx
+// https://msdn.microsoft.com/en-us/library/xcb2z8hs.aspx
 #pragma pack(push, 8)
 struct THREADNAME_INFO {
   DWORD dwType;      // Must be 0x1000.

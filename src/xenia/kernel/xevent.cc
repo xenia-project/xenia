@@ -15,7 +15,7 @@
 namespace xe {
 namespace kernel {
 
-XEvent::XEvent(KernelState* kernel_state) : XObject(kernel_state, kTypeEvent) {}
+XEvent::XEvent(KernelState* kernel_state) : XObject(kernel_state, kType) {}
 
 XEvent::~XEvent() = default;
 

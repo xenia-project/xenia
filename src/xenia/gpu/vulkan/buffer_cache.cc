@@ -507,6 +507,10 @@ std::pair<VkBuffer, VkDeviceSize> BufferCache::UploadVertexBuffer(
   offset = AllocateTransientData(upload_size, fence);
   if (offset == VK_WHOLE_SIZE) {
     // OOM.
+    XELOGW(
+        "Failed to allocate transient data for vertex buffer! Wanted to "
+        "allocate %u bytes.",
+        upload_size);
     return {nullptr, VK_WHOLE_SIZE};
   }
 
@@ -655,6 +659,7 @@ VkDescriptorSet BufferCache::PrepareVertexSet(
                            static_cast<Endian>(fetch->endian), fence);
     if (buffer_ref.second == VK_WHOLE_SIZE) {
       // Failed to upload buffer.
+      XELOGW("Failed to upload vertex buffer!");
       return nullptr;
     }
 
@@ -759,7 +764,12 @@ void BufferCache::Flush(VkCommandBuffer command_buffer) {
   vkFlushMappedMemoryRanges(*device_, 1, &dirty_range);
 }
 
-void BufferCache::InvalidateCache() { transient_cache_.clear(); }
+void BufferCache::InvalidateCache() {
+  // Called by VulkanCommandProcessor::MakeCoherent()
+  // Discard everything?
+  transient_cache_.clear();
+}
+
 void BufferCache::ClearCache() { transient_cache_.clear(); }
 
 void BufferCache::Scavenge() {

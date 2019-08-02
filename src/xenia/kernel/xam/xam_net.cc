@@ -170,8 +170,7 @@ dword_result_t NetDll_XNetStartup(dword_t caller,
 
   return 0;
 }
-DECLARE_XAM_EXPORT(NetDll_XNetStartup,
-                   ExportTag::kNetworking | ExportTag::kImplemented);
+DECLARE_XAM_EXPORT1(NetDll_XNetStartup, kNetworking, kImplemented);
 
 dword_result_t NetDll_XNetCleanup(dword_t caller, lpvoid_t params) {
   auto xam = kernel_state()->GetKernelModule<XamModule>("xam.xex");
@@ -183,8 +182,7 @@ dword_result_t NetDll_XNetCleanup(dword_t caller, lpvoid_t params) {
 
   return 0;
 }
-DECLARE_XAM_EXPORT(NetDll_XNetCleanup,
-                   ExportTag::kNetworking | ExportTag::kImplemented);
+DECLARE_XAM_EXPORT1(NetDll_XNetCleanup, kNetworking, kImplemented);
 
 dword_result_t NetDll_XNetGetOpt(dword_t one, dword_t option_id,
                                  lpvoid_t buffer_ptr, lpdword_t buffer_size) {
@@ -202,7 +200,7 @@ dword_result_t NetDll_XNetGetOpt(dword_t one, dword_t option_id,
       return 0x2726;  // WSAEINVAL
   }
 }
-DECLARE_XAM_EXPORT(NetDll_XNetGetOpt, ExportTag::kNetworking);
+DECLARE_XAM_EXPORT1(NetDll_XNetGetOpt, kNetworking, kSketchy);
 
 dword_result_t NetDll_XNetRandom(dword_t caller, lpvoid_t buffer_ptr,
                                  dword_t length) {
@@ -212,8 +210,7 @@ dword_result_t NetDll_XNetRandom(dword_t caller, lpvoid_t buffer_ptr,
 
   return 0;
 }
-DECLARE_XAM_EXPORT(NetDll_XNetRandom,
-                   ExportTag::kNetworking | ExportTag::kStub);
+DECLARE_XAM_EXPORT1(NetDll_XNetRandom, kNetworking, kStub);
 
 dword_result_t NetDll_WSAStartup(dword_t caller, word_t version,
                                  pointer_t<X_WSADATA> data_ptr) {
@@ -263,19 +260,16 @@ dword_result_t NetDll_WSAStartup(dword_t caller, word_t version,
 
   return ret;
 }
-DECLARE_XAM_EXPORT(NetDll_WSAStartup,
-                   ExportTag::kNetworking | ExportTag::kImplemented);
+DECLARE_XAM_EXPORT1(NetDll_WSAStartup, kNetworking, kImplemented);
 
 dword_result_t NetDll_WSACleanup(dword_t caller) {
   // This does nothing. Xenia needs WSA running.
   return 0;
 }
-DECLARE_XAM_EXPORT(NetDll_WSACleanup,
-                   ExportTag::kNetworking | ExportTag::kImplemented);
+DECLARE_XAM_EXPORT1(NetDll_WSACleanup, kNetworking, kImplemented);
 
 dword_result_t NetDll_WSAGetLastError() { return XThread::GetLastError(); }
-DECLARE_XAM_EXPORT(NetDll_WSAGetLastError,
-                   ExportTag::kNetworking | ExportTag::kImplemented);
+DECLARE_XAM_EXPORT1(NetDll_WSAGetLastError, kNetworking, kImplemented);
 
 dword_result_t NetDll_WSARecvFrom(dword_t caller, dword_t socket,
                                   pointer_t<XWSABUF> buffers_ptr,
@@ -295,7 +289,7 @@ dword_result_t NetDll_WSARecvFrom(dword_t caller, dword_t socket,
 
   return 0;
 }
-DECLARE_XAM_EXPORT(NetDll_WSARecvFrom, ExportTag::kNetworking);
+DECLARE_XAM_EXPORT1(NetDll_WSARecvFrom, kNetworking, kStub);
 
 // If the socket is a VDP socket, buffer 0 is the game data length, and buffer 1
 // is the unencrypted game data.
@@ -340,8 +334,7 @@ dword_result_t NetDll_WSASendTo(dword_t caller, dword_t socket_handle,
 
   return 0;
 }
-DECLARE_XAM_EXPORT(NetDll_WSASendTo,
-                   ExportTag::kNetworking | ExportTag::kImplemented);
+DECLARE_XAM_EXPORT1(NetDll_WSASendTo, kNetworking, kImplemented);
 
 dword_result_t NetDll_WSAWaitForMultipleEvents(dword_t num_events,
                                                lpdword_t events,
@@ -357,65 +350,60 @@ dword_result_t NetDll_WSAWaitForMultipleEvents(dword_t num_events,
 
   X_STATUS result = 0;
   do {
-    result = xboxkrnl::NtWaitForMultipleObjectsEx(
+    result = xboxkrnl::xeNtWaitForMultipleObjectsEx(
         num_events, events, wait_all, 1, alertable,
         timeout != -1 ? &timeout_wait : nullptr);
   } while (result == X_STATUS_ALERTED);
 
   if (XFAILED(result)) {
-    uint32_t error = xboxkrnl::RtlNtStatusToDosError(result);
+    uint32_t error = xboxkrnl::xeRtlNtStatusToDosError(result);
     XThread::SetLastError(error);
     return ~0u;
   }
   return 0;
 }
-DECLARE_XAM_EXPORT(NetDll_WSAWaitForMultipleEvents, ExportTag::kNetworking |
-                                                        ExportTag::kThreading |
-                                                        ExportTag::kBlocking);
+DECLARE_XAM_EXPORT2(NetDll_WSAWaitForMultipleEvents, kNetworking, kImplemented,
+                    kBlocking);
 
 dword_result_t NetDll_WSACreateEvent() {
   XEvent* ev = new XEvent(kernel_state());
   ev->Initialize(true, false);
   return ev->handle();
 }
-DECLARE_XAM_EXPORT(NetDll_WSACreateEvent,
-                   ExportTag::kNetworking | ExportTag::kThreading);
+DECLARE_XAM_EXPORT1(NetDll_WSACreateEvent, kNetworking, kImplemented);
 
 dword_result_t NetDll_WSACloseEvent(dword_t event_handle) {
   X_STATUS result = kernel_state()->object_table()->ReleaseHandle(event_handle);
   if (XFAILED(result)) {
-    uint32_t error = xboxkrnl::RtlNtStatusToDosError(result);
+    uint32_t error = xboxkrnl::xeRtlNtStatusToDosError(result);
     XThread::SetLastError(error);
     return 0;
   }
   return 1;
 }
-DECLARE_XAM_EXPORT(NetDll_WSACloseEvent,
-                   ExportTag::kNetworking | ExportTag::kThreading);
+DECLARE_XAM_EXPORT1(NetDll_WSACloseEvent, kNetworking, kImplemented);
 
 dword_result_t NetDll_WSAResetEvent(dword_t event_handle) {
-  X_STATUS result = xboxkrnl::NtClearEvent(event_handle);
+  X_STATUS result = xboxkrnl::xeNtClearEvent(event_handle);
   if (XFAILED(result)) {
-    uint32_t error = xboxkrnl::RtlNtStatusToDosError(result);
+    uint32_t error = xboxkrnl::xeRtlNtStatusToDosError(result);
     XThread::SetLastError(error);
     return 0;
   }
   return 1;
 }
-DECLARE_XAM_EXPORT(NetDll_WSAResetEvent,
-                   ExportTag::kNetworking | ExportTag::kThreading);
+DECLARE_XAM_EXPORT1(NetDll_WSAResetEvent, kNetworking, kImplemented);
 
 dword_result_t NetDll_WSASetEvent(dword_t event_handle) {
-  X_STATUS result = xboxkrnl::NtSetEvent(event_handle, nullptr);
+  X_STATUS result = xboxkrnl::xeNtSetEvent(event_handle, nullptr);
   if (XFAILED(result)) {
-    uint32_t error = xboxkrnl::RtlNtStatusToDosError(result);
+    uint32_t error = xboxkrnl::xeRtlNtStatusToDosError(result);
     XThread::SetLastError(error);
     return 0;
   }
   return 1;
 }
-DECLARE_XAM_EXPORT(NetDll_WSASetEvent,
-                   ExportTag::kNetworking | ExportTag::kThreading);
+DECLARE_XAM_EXPORT1(NetDll_WSASetEvent, kNetworking, kImplemented);
 
 struct XnAddrStatus {
   // Address acquisition is not yet complete
@@ -452,8 +440,7 @@ dword_result_t NetDll_XNetGetTitleXnAddr(dword_t caller,
 
   return XnAddrStatus::XNET_GET_XNADDR_STATIC;
 }
-DECLARE_XAM_EXPORT(NetDll_XNetGetTitleXnAddr,
-                   ExportTag::kNetworking | ExportTag::kStub);
+DECLARE_XAM_EXPORT1(NetDll_XNetGetTitleXnAddr, kNetworking, kStub);
 
 dword_result_t NetDll_XNetGetDebugXnAddr(dword_t caller,
                                          pointer_t<XNADDR> addr_ptr) {
@@ -462,8 +449,7 @@ dword_result_t NetDll_XNetGetDebugXnAddr(dword_t caller,
   // XNET_GET_XNADDR_NONE causes caller to gracefully return.
   return XnAddrStatus::XNET_GET_XNADDR_NONE;
 }
-DECLARE_XAM_EXPORT(NetDll_XNetGetDebugXnAddr,
-                   ExportTag::kNetworking | ExportTag::kStub);
+DECLARE_XAM_EXPORT1(NetDll_XNetGetDebugXnAddr, kNetworking, kStub);
 
 dword_result_t NetDll_XNetXnAddrToMachineId(dword_t caller,
                                             pointer_t<XNADDR> addr_ptr,
@@ -471,15 +457,13 @@ dword_result_t NetDll_XNetXnAddrToMachineId(dword_t caller,
   // Tell the caller we're not signed in to live (non-zero ret)
   return 1;
 }
-DECLARE_XAM_EXPORT(NetDll_XNetXnAddrToMachineId,
-                   ExportTag::kNetworking | ExportTag::kStub);
+DECLARE_XAM_EXPORT1(NetDll_XNetXnAddrToMachineId, kNetworking, kStub);
 
 void NetDll_XNetInAddrToString(dword_t caller, dword_t in_addr,
                                lpstring_t string_out, dword_t string_size) {
   strncpy(string_out, "666.666.666.666", string_size);
 }
-DECLARE_XAM_EXPORT(NetDll_XNetInAddrToString,
-                   ExportTag::kNetworking | ExportTag::kStub);
+DECLARE_XAM_EXPORT1(NetDll_XNetInAddrToString, kNetworking, kStub);
 
 // This converts a XNet address to an IN_ADDR. The IN_ADDR is used for
 // subsequent socket calls (like a handle to a XNet address)
@@ -488,8 +472,7 @@ dword_result_t NetDll_XNetXnAddrToInAddr(dword_t caller,
                                          lpvoid_t xid, lpvoid_t in_addr) {
   return 1;
 }
-DECLARE_XAM_EXPORT(NetDll_XNetXnAddrToInAddr,
-                   ExportTag::kNetworking | ExportTag::kStub);
+DECLARE_XAM_EXPORT1(NetDll_XNetXnAddrToInAddr, kNetworking, kStub);
 
 // Does the reverse of the above.
 // FIXME: Arguments may not be correct.
@@ -498,16 +481,14 @@ dword_result_t NetDll_XNetInAddrToXnAddr(dword_t caller, lpvoid_t in_addr,
                                          lpvoid_t xid) {
   return 1;
 }
-DECLARE_XAM_EXPORT(NetDll_XNetInAddrToXnAddr,
-                   ExportTag::kNetworking | ExportTag::kStub);
+DECLARE_XAM_EXPORT1(NetDll_XNetInAddrToXnAddr, kNetworking, kStub);
 
-// http://www.google.com/patents/WO2008112448A1?cl=en
+// https://www.google.com/patents/WO2008112448A1?cl=en
 // Reserves a port for use by system link
 dword_result_t NetDll_XNetSetSystemLinkPort(dword_t caller, dword_t port) {
   return 1;
 }
-DECLARE_XAM_EXPORT(NetDll_XNetSetSystemLinkPort,
-                   ExportTag::kNetworking | ExportTag::kStub);
+DECLARE_XAM_EXPORT1(NetDll_XNetSetSystemLinkPort, kNetworking, kStub);
 
 // https://github.com/ILOVEPIE/Cxbx-Reloaded/blob/master/src/CxbxKrnl/EmuXOnline.h#L39
 struct XEthernetStatus {
@@ -519,8 +500,7 @@ struct XEthernetStatus {
 };
 
 dword_result_t NetDll_XNetGetEthernetLinkStatus(dword_t caller) { return 0; }
-DECLARE_XAM_EXPORT(NetDll_XNetGetEthernetLinkStatus,
-                   ExportTag::kStub | ExportTag::kNetworking);
+DECLARE_XAM_EXPORT1(NetDll_XNetGetEthernetLinkStatus, kNetworking, kStub);
 
 dword_result_t NetDll_XNetDnsLookup(dword_t caller, lpstring_t host,
                                     dword_t event_handle, lpdword_t pdns) {
@@ -539,8 +519,7 @@ dword_result_t NetDll_XNetDnsLookup(dword_t caller, lpstring_t host,
   }
   return 0;
 }
-DECLARE_XAM_EXPORT(NetDll_XNetDnsLookup,
-                   ExportTag::kStub | ExportTag::kNetworking);
+DECLARE_XAM_EXPORT1(NetDll_XNetDnsLookup, kNetworking, kStub);
 
 dword_result_t NetDll_XNetDnsRelease(dword_t caller, pointer_t<XNDNS> dns) {
   if (!dns) {
@@ -549,8 +528,7 @@ dword_result_t NetDll_XNetDnsRelease(dword_t caller, pointer_t<XNDNS> dns) {
   kernel_memory()->SystemHeapFree(dns.guest_address());
   return 0;
 }
-DECLARE_XAM_EXPORT(NetDll_XNetDnsRelease,
-                   ExportTag::kStub | ExportTag::kNetworking);
+DECLARE_XAM_EXPORT1(NetDll_XNetDnsRelease, kNetworking, kStub);
 
 SHIM_CALL NetDll_XNetQosServiceLookup_shim(PPCContext* ppc_context,
                                            KernelState* kernel_state) {
@@ -571,15 +549,13 @@ dword_result_t NetDll_XNetQosListen(dword_t caller, lpvoid_t id, lpvoid_t data,
                                     dword_t flags) {
   return X_ERROR_FUNCTION_FAILED;
 }
-DECLARE_XAM_EXPORT(NetDll_XNetQosListen,
-                   ExportTag::kStub | ExportTag::kNetworking);
+DECLARE_XAM_EXPORT1(NetDll_XNetQosListen, kNetworking, kStub);
 
 dword_result_t NetDll_inet_addr(lpstring_t addr_ptr) {
   uint32_t addr = inet_addr(addr_ptr);
   return xe::byte_swap(addr);
 }
-DECLARE_XAM_EXPORT(NetDll_inet_addr,
-                   ExportTag::kImplemented | ExportTag::kNetworking);
+DECLARE_XAM_EXPORT1(NetDll_inet_addr, kNetworking, kImplemented);
 
 dword_result_t NetDll_socket(dword_t caller, dword_t af, dword_t type,
                              dword_t protocol) {
@@ -591,15 +567,14 @@ dword_result_t NetDll_socket(dword_t caller, dword_t af, dword_t type,
   if (XFAILED(result)) {
     socket->Release();
 
-    uint32_t error = xboxkrnl::RtlNtStatusToDosError(result);
+    uint32_t error = xboxkrnl::xeRtlNtStatusToDosError(result);
     XThread::SetLastError(error);
     return -1;
   }
 
   return socket->handle();
 }
-DECLARE_XAM_EXPORT(NetDll_socket,
-                   ExportTag::kImplemented | ExportTag::kNetworking);
+DECLARE_XAM_EXPORT1(NetDll_socket, kNetworking, kImplemented);
 
 dword_result_t NetDll_closesocket(dword_t caller, dword_t socket_handle) {
   auto socket =
@@ -616,8 +591,7 @@ dword_result_t NetDll_closesocket(dword_t caller, dword_t socket_handle) {
   socket->ReleaseHandle();
   return 0;
 }
-DECLARE_XAM_EXPORT(NetDll_closesocket,
-                   ExportTag::kImplemented | ExportTag::kNetworking);
+DECLARE_XAM_EXPORT1(NetDll_closesocket, kNetworking, kImplemented);
 
 int_result_t NetDll_shutdown(dword_t caller, dword_t socket_handle, int_t how) {
   auto socket =
@@ -639,8 +613,7 @@ int_result_t NetDll_shutdown(dword_t caller, dword_t socket_handle, int_t how) {
   }
   return ret;
 }
-DECLARE_XAM_EXPORT(NetDll_shutdown,
-                   ExportTag::kImplemented | ExportTag::kNetworking);
+DECLARE_XAM_EXPORT1(NetDll_shutdown, kNetworking, kImplemented);
 
 dword_result_t NetDll_setsockopt(dword_t caller, dword_t socket_handle,
                                  dword_t level, dword_t optname,
@@ -656,8 +629,7 @@ dword_result_t NetDll_setsockopt(dword_t caller, dword_t socket_handle,
   X_STATUS status = socket->SetOption(level, optname, optval_ptr, optlen);
   return XSUCCEEDED(status) ? 0 : -1;
 }
-DECLARE_XAM_EXPORT(NetDll_setsockopt,
-                   ExportTag::kImplemented | ExportTag::kNetworking);
+DECLARE_XAM_EXPORT1(NetDll_setsockopt, kNetworking, kImplemented);
 
 dword_result_t NetDll_ioctlsocket(dword_t caller, dword_t socket_handle,
                                   dword_t cmd, lpvoid_t arg_ptr) {
@@ -671,15 +643,14 @@ dword_result_t NetDll_ioctlsocket(dword_t caller, dword_t socket_handle,
 
   X_STATUS status = socket->IOControl(cmd, arg_ptr);
   if (XFAILED(status)) {
-    XThread::SetLastError(xboxkrnl::RtlNtStatusToDosError(status));
+    XThread::SetLastError(xboxkrnl::xeRtlNtStatusToDosError(status));
     return -1;
   }
 
   // TODO
   return 0;
 }
-DECLARE_XAM_EXPORT(NetDll_ioctlsocket,
-                   ExportTag::kImplemented | ExportTag::kNetworking);
+DECLARE_XAM_EXPORT1(NetDll_ioctlsocket, kNetworking, kImplemented);
 
 dword_result_t NetDll_bind(dword_t caller, dword_t socket_handle,
                            pointer_t<XSOCKADDR_IN> name, dword_t namelen) {
@@ -694,14 +665,13 @@ dword_result_t NetDll_bind(dword_t caller, dword_t socket_handle,
   N_XSOCKADDR_IN native_name(name);
   X_STATUS status = socket->Bind(&native_name, namelen);
   if (XFAILED(status)) {
-    XThread::SetLastError(xboxkrnl::RtlNtStatusToDosError(status));
+    XThread::SetLastError(xboxkrnl::xeRtlNtStatusToDosError(status));
     return -1;
   }
 
   return 0;
 }
-DECLARE_XAM_EXPORT(NetDll_bind,
-                   ExportTag::kImplemented | ExportTag::kNetworking);
+DECLARE_XAM_EXPORT1(NetDll_bind, kNetworking, kImplemented);
 
 dword_result_t NetDll_connect(dword_t caller, dword_t socket_handle,
                               pointer_t<XSOCKADDR> name, dword_t namelen) {
@@ -716,14 +686,13 @@ dword_result_t NetDll_connect(dword_t caller, dword_t socket_handle,
   N_XSOCKADDR native_name(name);
   X_STATUS status = socket->Connect(&native_name, namelen);
   if (XFAILED(status)) {
-    XThread::SetLastError(xboxkrnl::RtlNtStatusToDosError(status));
+    XThread::SetLastError(xboxkrnl::xeRtlNtStatusToDosError(status));
     return -1;
   }
 
   return 0;
 }
-DECLARE_XAM_EXPORT(NetDll_connect,
-                   ExportTag::kImplemented | ExportTag::kNetworking);
+DECLARE_XAM_EXPORT1(NetDll_connect, kNetworking, kImplemented);
 
 dword_result_t NetDll_listen(dword_t caller, dword_t socket_handle,
                              int_t backlog) {
@@ -737,14 +706,13 @@ dword_result_t NetDll_listen(dword_t caller, dword_t socket_handle,
 
   X_STATUS status = socket->Listen(backlog);
   if (XFAILED(status)) {
-    XThread::SetLastError(xboxkrnl::RtlNtStatusToDosError(status));
+    XThread::SetLastError(xboxkrnl::xeRtlNtStatusToDosError(status));
     return -1;
   }
 
   return 0;
 }
-DECLARE_XAM_EXPORT(NetDll_listen,
-                   ExportTag::kImplemented | ExportTag::kNetworking);
+DECLARE_XAM_EXPORT1(NetDll_listen, kNetworking, kImplemented);
 
 dword_result_t NetDll_accept(dword_t caller, dword_t socket_handle,
                              pointer_t<XSOCKADDR> addr_ptr,
@@ -776,8 +744,7 @@ dword_result_t NetDll_accept(dword_t caller, dword_t socket_handle,
     return -1;
   }
 }
-DECLARE_XAM_EXPORT(NetDll_accept,
-                   ExportTag::kImplemented | ExportTag::kNetworking);
+DECLARE_XAM_EXPORT1(NetDll_accept, kNetworking, kImplemented);
 
 struct x_fd_set {
   xe::be<uint32_t> fd_count;
@@ -884,8 +851,7 @@ int_result_t NetDll_select(int_t caller, int_t nfds,
   // TODO(gibbed): modify ret to be what's actually copied to the guest fd_sets?
   return ret;
 }
-DECLARE_XAM_EXPORT(NetDll_select,
-                   ExportTag::kNetworking | ExportTag::kImplemented);
+DECLARE_XAM_EXPORT1(NetDll_select, kNetworking, kImplemented);
 
 dword_result_t NetDll_recv(dword_t caller, dword_t socket_handle,
                            lpvoid_t buf_ptr, dword_t buf_len, dword_t flags) {
@@ -899,8 +865,7 @@ dword_result_t NetDll_recv(dword_t caller, dword_t socket_handle,
 
   return socket->Recv(buf_ptr, buf_len, flags);
 }
-DECLARE_XAM_EXPORT(NetDll_recv,
-                   ExportTag::kNetworking | ExportTag::kImplemented);
+DECLARE_XAM_EXPORT1(NetDll_recv, kNetworking, kImplemented);
 
 dword_result_t NetDll_recvfrom(dword_t caller, dword_t socket_handle,
                                lpvoid_t buf_ptr, dword_t buf_len, dword_t flags,
@@ -944,8 +909,7 @@ dword_result_t NetDll_recvfrom(dword_t caller, dword_t socket_handle,
 
   return ret;
 }
-DECLARE_XAM_EXPORT(NetDll_recvfrom,
-                   ExportTag::kNetworking | ExportTag::kImplemented);
+DECLARE_XAM_EXPORT1(NetDll_recvfrom, kNetworking, kImplemented);
 
 dword_result_t NetDll_send(dword_t caller, dword_t socket_handle,
                            lpvoid_t buf_ptr, dword_t buf_len, dword_t flags) {
@@ -959,8 +923,7 @@ dword_result_t NetDll_send(dword_t caller, dword_t socket_handle,
 
   return socket->Send(buf_ptr, buf_len, flags);
 }
-DECLARE_XAM_EXPORT(NetDll_send,
-                   ExportTag::kNetworking | ExportTag::kImplemented);
+DECLARE_XAM_EXPORT1(NetDll_send, kNetworking, kImplemented);
 
 dword_result_t NetDll_sendto(dword_t caller, dword_t socket_handle,
                              lpvoid_t buf_ptr, dword_t buf_len, dword_t flags,
@@ -976,8 +939,7 @@ dword_result_t NetDll_sendto(dword_t caller, dword_t socket_handle,
   N_XSOCKADDR_IN native_to(to_ptr);
   return socket->SendTo(buf_ptr, buf_len, flags, &native_to, to_len);
 }
-DECLARE_XAM_EXPORT(NetDll_sendto,
-                   ExportTag::kNetworking | ExportTag::kImplemented);
+DECLARE_XAM_EXPORT1(NetDll_sendto, kNetworking, kImplemented);
 
 void RegisterNetExports(xe::cpu::ExportResolver* export_resolver,
                         KernelState* kernel_state) {

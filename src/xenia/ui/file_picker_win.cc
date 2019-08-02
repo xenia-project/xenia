@@ -34,12 +34,13 @@ class CDialogEventHandler : public IFileDialogEvents,
  public:
   // IUnknown methods
   IFACEMETHODIMP QueryInterface(REFIID riid, void** ppv) {
+    // dwOffset may be a DWORD or an int depending on compiler/SDK version.
     static const QITAB qit[] = {
         {&__uuidof(IFileDialogEvents),
-         static_cast<int>(
+         static_cast<decltype(qit[0].dwOffset)>(
              OFFSETOFCLASS(IFileDialogEvents, CDialogEventHandler))},
         {&__uuidof(IFileDialogControlEvents),
-         static_cast<int>(
+         static_cast<decltype(qit[1].dwOffset)>(
              OFFSETOFCLASS(IFileDialogControlEvents, CDialogEventHandler))},
         {0},
     };

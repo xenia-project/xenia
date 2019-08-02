@@ -13,6 +13,7 @@ project("xenia-cpu-ppc-tests")
     "xenia-base",
     "gflags",
     "capstone", -- cpu-backend-x64
+    "mspack",
   })
   files({
     "ppc_testing_main.cc",

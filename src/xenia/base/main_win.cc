@@ -22,6 +22,8 @@
 #include "xenia/base/platform_win.h"
 #include "xenia/base/string.h"
 
+#include "third_party/xbyak/xbyak/xbyak_util.h"
+
 #include <bcrypt.h>
 
 DEFINE_bool(win32_high_freq, true,
@@ -85,11 +87,6 @@ static void RequestHighPerformance() {
 int Main() {
   auto entry_info = xe::GetEntryInfo();
 
-  // Request high performance timing.
-  if (FLAGS_win32_high_freq) {
-    RequestHighPerformance();
-  }
-
   // Convert command line to an argv-like format so we can share code/use
   // gflags.
   auto command_line = GetCommandLineW();
@@ -127,14 +124,28 @@ int Main() {
 
   // Setup COM on the main thread.
   // NOTE: this may fail if COM has already been initialized - that's OK.
+#pragma warning(suppress : 6031)
   CoInitializeEx(nullptr, COINIT_MULTITHREADED);
 
   // Initialize logging. Needs parsed FLAGS.
   xe::InitializeLogging(entry_info.name);
 
+  Xbyak::util::Cpu cpu;
+  if (!cpu.has(Xbyak::util::Cpu::tAVX)) {
+    xe::FatalError(
+        "Your CPU does not support AVX, which is required by Xenia. See the "
+        "FAQ for system requirements at https://xenia.jp");
+    return -1;
+  }
+
   // Print version info.
   XELOGI("Build: %s / %s on %s", XE_BUILD_BRANCH, XE_BUILD_COMMIT,
          XE_BUILD_DATE);
+
+  // Request high performance timing.
+  if (FLAGS_win32_high_freq) {
+    RequestHighPerformance();
+  }
 
   // Call app-provided entry point.
   int result = entry_info.entry_point(args);

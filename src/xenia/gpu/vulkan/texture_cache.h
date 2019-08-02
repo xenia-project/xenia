@@ -156,8 +156,7 @@ class TextureCache {
   static const FormatInfo* GetFormatInfo(TextureFormat format);
   static texture_conversion::CopyBlockCallback GetFormatCopyBlock(
       TextureFormat format);
-  static TextureMemoryUsage GetMipMemoryUsage(const TextureInfo& src,
-                                              uint32_t mip);
+  static TextureExtent GetMipExtent(const TextureInfo& src, uint32_t mip);
   static uint32_t ComputeMipStorage(const FormatInfo* format_info,
                                     uint32_t width, uint32_t height,
                                     uint32_t depth, uint32_t mip);

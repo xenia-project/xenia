@@ -47,11 +47,15 @@ namespace xe {
 // This is responsible for initializing and managing all the various subsystems.
 class Emulator {
  public:
-  explicit Emulator(const std::wstring& command_line);
+  explicit Emulator(const std::wstring& command_line,
+                    const std::wstring& content_root);
   ~Emulator();
 
   // Full command line used when launching the process.
   const std::wstring& command_line() const { return command_line_; }
+
+  // Folder content is stored in.
+  const std::wstring& content_root() const { return content_root_; }
 
   // Title of the game in the default language.
   const std::wstring& game_title() const { return game_title_; }
@@ -154,6 +158,8 @@ class Emulator {
                           const std::string& module_path);
 
   std::wstring command_line_;
+  std::wstring content_root_;
+
   std::wstring game_title_;
 
   ui::Window* display_window_;
@@ -169,11 +175,11 @@ class Emulator {
   std::unique_ptr<vfs::VirtualFileSystem> file_system_;
 
   std::unique_ptr<kernel::KernelState> kernel_state_;
-  threading::Thread* main_thread_ = nullptr;
-  uint32_t title_id_ = 0;  // Currently running title ID
+  kernel::object_ref<kernel::XThread> main_thread_;
+  uint32_t title_id_;  // Currently running title ID
 
-  bool paused_ = false;
-  bool restoring_ = false;
+  bool paused_;
+  bool restoring_;
   threading::Fence restore_fence_;  // Fired on restore finish.
 };
 

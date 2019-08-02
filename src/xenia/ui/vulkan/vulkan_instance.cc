@@ -300,6 +300,19 @@ VkBool32 VKAPI_PTR DebugMessageCallback(VkDebugReportFlagsEXT flags,
                                         int32_t messageCode,
                                         const char* pLayerPrefix,
                                         const char* pMessage, void* pUserData) {
+  if (strcmp(pLayerPrefix, "Validation") == 0) {
+    const char* blacklist[] = {
+        "bound but it was never updated. You may want to either update it or "
+        "not bind it.",
+        "is being used in draw but has not been updated.",
+    };
+    for (uint32_t i = 0; i < xe::countof(blacklist); ++i) {
+      if (strstr(pMessage, blacklist[i]) != nullptr) {
+        return false;
+      }
+    }
+  }
+
   auto instance = reinterpret_cast<VulkanInstance*>(pUserData);
   const char* message_type = "UNKNOWN";
   if (flags & VK_DEBUG_REPORT_ERROR_BIT_EXT) {
@@ -313,6 +326,7 @@ VkBool32 VKAPI_PTR DebugMessageCallback(VkDebugReportFlagsEXT flags,
   } else if (flags & VK_DEBUG_REPORT_DEBUG_BIT_EXT) {
     message_type = "DEBUG";
   }
+
   XELOGVK("[%s/%s:%d] %s", pLayerPrefix, message_type, messageCode, pMessage);
   return false;
 }

@@ -58,13 +58,13 @@ think about tabs and wrapping and such.
 
 To use the `xb format` auto-formatter, you need to have a `clang-format` on your
 PATH. If you're on Windows you can do this by installing an LLVM binary package
-from [the LLVM downloads page](http://llvm.org/releases/download.html). If you
+from [the LLVM downloads page](https://llvm.org/releases/download.html). If you
 install it to the default location the `xb format` command will find it
 automatically even if you don't choose to put all of LLVM onto your PATH.
 
 #### Visual Studio
 
-Grab the official [experimental Visual Studio plugin](http://llvm.org/builds/).
+Grab the official [experimental Visual Studio plugin](https://llvm.org/builds/).
 To switch to the Google style go Tools -> Options -> LLVM/Clang -> ClangFormat
 and set Style to Google. Then use ctrl-r/ctrl-f to trigger the formatting.
 Unfortunately it only does the cursor by default, so you'll have to select the
@@ -74,7 +74,7 @@ If you have a better option, let me know!
 
 #### Xcode
 
-Install [Alcatraz](http://alcatraz.io/) to get the [ClangFormat](https://github.com/travisjeffery/ClangFormat-Xcode)
+Install [Alcatraz](https://github.com/alcatraz/Alcatraz) to get the [ClangFormat](https://github.com/travisjeffery/ClangFormat-Xcode)
 package. Set it to use the Google style and format on save. Never think about
 tabs or linefeeds or whatever again.
 

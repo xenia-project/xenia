@@ -31,6 +31,7 @@ class XAudio2AudioDriver : public AudioDriver {
   void Shutdown();
 
  private:
+  void* xaudio2_module_ = nullptr;
   IXAudio2* audio_ = nullptr;
   IXAudio2MasteringVoice* mastering_voice_ = nullptr;
   IXAudio2SourceVoice* pcm_voice_ = nullptr;

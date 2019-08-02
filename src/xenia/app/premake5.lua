@@ -8,6 +8,7 @@ project("xenia-app")
   targetname("xenia")
   language("C++")
   links({
+    "aes_128",
     "capstone",
     "discord-rpc",
     "gflags",
@@ -16,6 +17,7 @@ project("xenia-app")
     "imgui",
     "libavcodec",
     "libavutil",
+    "mspack",
     "snappy",
     "spirv-tools",
     "volk",
@@ -39,10 +41,9 @@ project("xenia-app")
     "xenia-vfs",
     "xxhash",
   })
-  flags({
-    "WinMain",  -- Use WinMain instead of main.
-  })
   defines({
+    "XBYAK_NO_OP_NAMES",
+    "XBYAK_ENABLE_OMITTED_OPERAND",
   })
   includedirs({
     project_root.."/third_party/gflags/src",
@@ -51,14 +52,20 @@ project("xenia-app")
   files({
     "xenia_main.cc",
     "../base/main_"..platform_suffix..".cc",
+    "../base/main_init_"..platform_suffix..".cc",
   })
+
+  resincludedirs({
+    project_root,
+  })
+
   filter("platforms:Windows")
     files({
       "main_resources.rc",
     })
-  resincludedirs({
-    project_root,
-  })
+
+  filter("files:../base/main_init_"..platform_suffix..".cc")
+    vectorextensions("IA32")  -- Disable AVX for main_init_win.cc so our AVX check doesn't use AVX instructions.
 
   filter("platforms:Linux")
     links({
@@ -83,7 +90,5 @@ project("xenia-app")
       debugdir(project_root)
       debugargs({
         "--flagfile=scratch/flags.txt",
-        "2>&1",
-        "1>scratch/stdout.txt",
       })
     end

@@ -35,6 +35,12 @@ X_RESULT XLiveBaseApp::DispatchMessageSync(uint32_t message,
       xe::store_and_swap<uint32_t>(buffer + 0, 1);  // ?
       return X_ERROR_SUCCESS;
     }
+    case 0x00058006: {
+      assert_true(!buffer_length || buffer_length == 4);
+      XELOGD("XLiveBaseGetNatType(%.8X)", buffer_ptr);
+      xe::store_and_swap<uint32_t>(buffer + 0, 1);  // XONLINE_NAT_OPEN
+      return X_ERROR_SUCCESS;
+    }
     case 0x00058020: {
       // 0x00058004 is called right before this.
       // We should create a XamEnumerate-able empty list here, but I'm not
