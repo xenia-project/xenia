@@ -14,8 +14,10 @@
 #include "xenia/base/filesystem.h"
 #include "xenia/base/string.h"
 #include "xenia/kernel/kernel_state.h"
+#include "xenia/kernel/user_module.h"
 #include "xenia/kernel/xobject.h"
 #include "xenia/vfs/devices/host_path_device.h"
+#include "xenia/vfs/devices/stfs_container_device.h"
 
 namespace xe {
 namespace kernel {
@@ -35,8 +37,20 @@ ContentPackage::ContentPackage(KernelState* kernel_state, std::string root_name,
                  std::to_string(++content_device_id_) + "\\";
 
   auto fs = kernel_state_->file_system();
-  auto device =
-      std::make_unique<vfs::HostPathDevice>(device_path_, package_path, false);
+
+  std::unique_ptr<vfs::Device> device;
+
+  // If this isn't a folder try mounting as STFS package
+  // Otherwise mount as a local host path
+  if (filesystem::PathExists(package_path) &&
+      !filesystem::IsFolder(package_path)) {
+    device =
+        std::make_unique<vfs::StfsContainerDevice>(device_path_, package_path);
+  } else {
+    device = std::make_unique<vfs::HostPathDevice>(device_path_, package_path,
+                                                   false);
+  }
+
   device->Initialize();
   fs->RegisterDevice(std::move(device));
   fs->RegisterSymbolicLink(root_name_ + ":", device_path_);
@@ -54,37 +68,27 @@ ContentManager::ContentManager(KernelState* kernel_state,
 
 ContentManager::~ContentManager() = default;
 
-std::wstring ContentManager::ResolvePackageRoot(uint32_t content_type) {
-  wchar_t title_id[9] = L"00000000";
-  std::swprintf(title_id, 9, L"%.8X", kernel_state_->title_id());
-
-  std::wstring type_name;
-  switch (content_type) {
-    case 1:
-      // Save games.
-      type_name = L"00000001";
-      break;
-    case 2:
-      // DLC from the marketplace.
-      type_name = L"00000002";
-      break;
-    case 3:
-      // Publisher content?
-      type_name = L"00000003";
-      break;
-    case 0x000D0000:
-      // ???
-      type_name = L"000D0000";
-      break;
-    default:
-      assert_unhandled_case(data.content_type);
-      return nullptr;
+uint32_t ContentManager::title_id() {
+  if (title_id_override_) {
+    return title_id_override_;
   }
+  if (!kernel_state_->GetExecutableModule()) {
+    return -1;
+  }
+  return kernel_state_->title_id();
+}
+
+std::wstring ContentManager::ResolvePackageRoot(uint32_t content_type) {
+  wchar_t title_id_str[9] = L"00000000";
+  std::swprintf(title_id_str, 9, L"%.8X", title_id());
+
+  wchar_t content_type_str[9] = L"00000000";
+  std::swprintf(content_type_str, 9, L"%.8X", content_type);
 
   // Package root path:
   // content_root/title_id/type_name/
-  auto package_root =
-      xe::join_paths(root_path_, xe::join_paths(title_id, type_name));
+  auto package_root = xe::join_paths(
+      root_path_, xe::join_paths(title_id_str, content_type_str));
   return package_root + xe::kWPathSeparator;
 }
 
@@ -94,7 +98,13 @@ std::wstring ContentManager::ResolvePackagePath(const XCONTENT_DATA& data) {
   auto package_root = ResolvePackageRoot(data.content_type);
   auto package_path =
       xe::join_paths(package_root, xe::to_wstring(data.file_name));
-  package_path += xe::kPathSeparator;
+
+  // Add slash to end of path if this is a folder
+  // (or package doesn't exist, meaning we're creating a new folder)
+  if (!xe::filesystem::PathExists(package_path) ||
+      xe::filesystem::IsFolder(package_path)) {
+    package_path += xe::kPathSeparator;
+  }
   return package_path;
 }
 
@@ -107,10 +117,6 @@ std::vector<XCONTENT_DATA> ContentManager::ListContent(uint32_t device_id,
   auto package_root = ResolvePackageRoot(content_type);
   auto file_infos = xe::filesystem::ListFiles(package_root);
   for (const auto& file_info : file_infos) {
-    if (file_info.type != xe::filesystem::FileInfo::Type::kDirectory) {
-      // Directories only.
-      continue;
-    }
     XCONTENT_DATA content_data;
     content_data.device_id = device_id;
     content_data.content_type = content_type;
@@ -247,7 +253,11 @@ X_RESULT ContentManager::DeleteContent(const XCONTENT_DATA& data) {
 
   auto package_path = ResolvePackagePath(data);
   if (xe::filesystem::PathExists(package_path)) {
-    xe::filesystem::DeleteFolder(package_path);
+    if (xe::filesystem::IsFolder(package_path)) {
+      xe::filesystem::DeleteFolder(package_path);
+    } else {
+      // TODO: delete STFS package?
+    }
     return X_ERROR_SUCCESS;
   } else {
     return X_ERROR_FILE_NOT_FOUND;
