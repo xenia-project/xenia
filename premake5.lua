@@ -167,6 +167,7 @@ filter("platforms:Windows")
   flags({
     "NoMinimalRebuild", -- Required for /MP above.
   })
+
   symbols("On")
   defines({
     "_CRT_NONSTDC_NO_DEPRECATE",
