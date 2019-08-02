@@ -21,8 +21,7 @@ void HandleDiscordJoinRequest(const DiscordUser* request) {}
 void HandleDiscordSpectateGame(const char* spectateSecret) {}
 
 void DiscordPresence::InitializeDiscord() {
-  DiscordEventHandlers handlers;
-  memset(&handlers, 0, sizeof(handlers));
+  DiscordEventHandlers handlers = {};
   handlers.ready = &HandleDiscordReady;
   handlers.errored = &HandleDiscordError;
   handlers.joinGame = &HandleDiscordJoinGame;
@@ -32,8 +31,7 @@ void DiscordPresence::InitializeDiscord() {
 }
 
 void DiscordPresence::NotPlaying() {
-  DiscordRichPresence discordPresence;
-  memset(&discordPresence, 0, sizeof(discordPresence));
+  DiscordRichPresence discordPresence = {};
   discordPresence.state = "Idle";
   discordPresence.details = "Standby";
   discordPresence.largeImageKey = "default";
@@ -43,8 +41,7 @@ void DiscordPresence::NotPlaying() {
 
 void DiscordPresence::PlayingTitle(std::wstring game_title) {
   auto discord_game_title = xe::to_string(game_title);
-  DiscordRichPresence discordPresence;
-  memset(&discordPresence, 0, sizeof(discordPresence));
+  DiscordRichPresence discordPresence = {};
   discordPresence.state = "In Game";
   discordPresence.details = discord_game_title.c_str();
   discordPresence.smallImageKey = "default";
