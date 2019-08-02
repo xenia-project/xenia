@@ -10,6 +10,7 @@ project("xenia-app")
   links({
     "aes_128",
     "capstone",
+    "discord-rpc",
     "gflags",
     "glew",
     "glslang-spirv",
@@ -20,6 +21,7 @@ project("xenia-app")
     "snappy",
     "spirv-tools",
     "volk",
+    "xenia-app-discord",
     "xenia-apu",
     "xenia-apu-nop",
     "xenia-base",
