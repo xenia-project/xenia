@@ -30,7 +30,6 @@ project("capstone")
     "capstone/MCInstrDesc.h",
     "capstone/MCRegisterInfo.c",
     "capstone/MCRegisterInfo.h",
-    "capstone/myinttypes.h",
     "capstone/SStream.c",
     "capstone/SStream.h",
     "capstone/utils.c",
