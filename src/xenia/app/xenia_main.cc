@@ -7,6 +7,7 @@
  ******************************************************************************
  */
 
+#include "xenia/app/discord/discord_presence.h"
 #include "xenia/app/emulator_window.h"
 #include "xenia/base/cvar.h"
 #include "xenia/base/debugging.h"
@@ -55,6 +56,8 @@ DEFINE_bool(mount_cache, false, "Enable cache mount", "General");
 
 CmdVar(target, "", "Specifies the target .xex or .iso to execute.");
 DECLARE_bool(debug);
+
+DEFINE_bool(discord, true, "Enable Discord rich presence", "General");
 
 namespace xe {
 namespace app {
@@ -144,6 +147,11 @@ std::vector<std::unique_ptr<hid::InputDriver>> CreateInputDrivers(
 int xenia_main(const std::vector<std::wstring>& args) {
   Profiler::Initialize();
   Profiler::ThreadEnter("main");
+
+  if (cvars::discord) {
+    discord::DiscordPresence::Initialize();
+    discord::DiscordPresence::NotPlaying();
+  }
 
   // Figure out where content should go.
   std::wstring content_root = xe::to_wstring(cvars::content_root);
@@ -256,9 +264,19 @@ int xenia_main(const std::vector<std::wstring>& args) {
   }
 
   auto evt = xe::threading::Event::CreateAutoResetEvent(false);
-  emulator->on_launch.AddListener([&]() {
+  emulator->on_launch.AddListener([&](auto title_id, const auto& game_title) {
+    if (cvars::discord) {
+      discord::DiscordPresence::PlayingTitle(
+          game_title.empty() ? L"Unknown Title" : game_title);
+    }
     emulator_window->UpdateTitle();
     evt->Set();
+  });
+
+  emulator->on_terminate.AddListener([&]() {
+    if (cvars::discord) {
+      discord::DiscordPresence::NotPlaying();
+    }
   });
 
   emulator_window->window()->on_closing.AddListener([&](ui::UIEvent* e) {
@@ -270,6 +288,10 @@ int xenia_main(const std::vector<std::wstring>& args) {
   emulator_window->loop()->on_quit.AddListener([&](ui::UIEvent* e) {
     exiting = true;
     evt->Set();
+
+    if (cvars::discord) {
+      discord::DiscordPresence::Shutdown();
+    }
 
     // TODO(DrChat): Remove this code and do a proper exit.
     XELOGI("Cheap-skate exit!");
@@ -317,6 +339,10 @@ int xenia_main(const std::vector<std::wstring>& args) {
 
   debug_window.reset();
   emulator.reset();
+
+  if (cvars::discord) {
+    discord::DiscordPresence::Shutdown();
+  }
 
   Profiler::Dump();
   Profiler::Shutdown();

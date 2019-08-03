@@ -20,7 +20,7 @@ void HandleDiscordJoinGame(const char* joinSecret) {}
 void HandleDiscordJoinRequest(const DiscordUser* request) {}
 void HandleDiscordSpectateGame(const char* spectateSecret) {}
 
-void DiscordPresence::InitializeDiscord() {
+void DiscordPresence::Initialize() {
   DiscordEventHandlers handlers = {};
   handlers.ready = &HandleDiscordReady;
   handlers.errored = &HandleDiscordError;
@@ -39,7 +39,7 @@ void DiscordPresence::NotPlaying() {
   Discord_UpdatePresence(&discordPresence);
 }
 
-void DiscordPresence::PlayingTitle(std::wstring game_title) {
+void DiscordPresence::PlayingTitle(const std::wstring& game_title) {
   auto discord_game_title = xe::to_string(game_title);
   DiscordRichPresence discordPresence = {};
   discordPresence.state = "In Game";
@@ -50,7 +50,7 @@ void DiscordPresence::PlayingTitle(std::wstring game_title) {
   Discord_UpdatePresence(&discordPresence);
 }
 
-void DiscordPresence::ShutdownDiscord() { Discord_Shutdown(); }
+void DiscordPresence::Shutdown() { Discord_Shutdown(); }
 
 }  // namespace discord
 }  // namespace xe
