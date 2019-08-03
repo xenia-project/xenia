@@ -629,6 +629,11 @@ std::string Emulator::FindLaunchModule() {
 
 X_STATUS Emulator::CompleteLaunch(const std::wstring& path,
                                   const std::string& module_path) {
+  // Reset state.
+  title_id_ = 0;
+  game_title_ = L"";
+  display_window_->SetIcon(nullptr, 0);
+
   // Allow xam to request module loads.
   auto xam = kernel_state()->GetKernelModule<kernel::xam::XamModule>("xam.xex");
 
