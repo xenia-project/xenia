@@ -10,9 +10,12 @@
 #ifndef XENIA_GPU_VULKAN_TEXTURE_CACHE_H_
 #define XENIA_GPU_VULKAN_TEXTURE_CACHE_H_
 
+#include <algorithm>
+#include <list>
 #include <unordered_map>
 #include <unordered_set>
 
+#include "xenia/base/mutex.h"
 #include "xenia/gpu/register_file.h"
 #include "xenia/gpu/sampler_info.h"
 #include "xenia/gpu/shader.h"
@@ -50,7 +53,7 @@ class TextureCache {
     VkFramebuffer framebuffer;  // Blit target frame buffer.
     VkImageUsageFlags usage_flags;
 
-    uintptr_t access_watch_handle;
+    bool is_watched;
     bool pending_invalidation;
 
     // Pointer to the latest usage fence.
@@ -131,14 +134,24 @@ class TextureCache {
     VkSampler sampler;
   };
 
+  struct WatchedTexture {
+    Texture* texture;
+    bool is_mip;
+  };
+
   // Allocates a new texture and memory to back it on the GPU.
   Texture* AllocateTexture(const TextureInfo& texture_info,
                            VkFormatFeatureFlags required_flags =
                                VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT);
   bool FreeTexture(Texture* texture);
 
-  static void WatchCallback(void* context_ptr, void* data_ptr,
-                            uint32_t address);
+  void WatchTexture(Texture* texture);
+  void TextureTouched(Texture* texture);
+  std::pair<uint32_t, uint32_t> MemoryWriteCallback(
+      uint32_t physical_address_start, uint32_t length, bool exact_range);
+  static std::pair<uint32_t, uint32_t> MemoryWriteCallbackThunk(
+      void* context_ptr, uint32_t physical_address_start, uint32_t length,
+      bool exact_range);
 
   // Demands a texture. If command_buffer is null and the texture hasn't been
   // uploaded to graphics memory already, we will return null and bail.
@@ -207,7 +220,10 @@ class TextureCache {
   std::unordered_map<uint64_t, Sampler*> samplers_;
   std::list<Texture*> pending_delete_textures_;
 
-  std::mutex invalidated_textures_mutex_;
+  void* physical_write_watch_handle_ = nullptr;
+
+  xe::global_critical_region global_critical_region_;
+  std::list<WatchedTexture> watched_textures_;
   std::unordered_set<Texture*>* invalidated_textures_;
   std::unordered_set<Texture*> invalidated_textures_sets_[2];
 

@@ -632,9 +632,8 @@ std::pair<uint32_t, uint32_t> SharedMemory::MemoryWriteCallback(
 
   FireWatches(page_first, page_last, false);
 
-  return std::make_pair<uint32_t, uint32_t>(page_first << page_size_log2_,
-                                            (page_last - page_first + 1)
-                                                << page_size_log2_);
+  return std::make_pair(page_first << page_size_log2_,
+                        (page_last - page_first + 1) << page_size_log2_);
 }
 
 void SharedMemory::TransitionBuffer(D3D12_RESOURCE_STATES new_state) {

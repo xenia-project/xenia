@@ -10,6 +10,8 @@
 #include "xenia/gpu/vulkan/texture_cache.h"
 #include "xenia/gpu/vulkan/texture_config.h"
 
+#include <algorithm>
+
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/memory.h"
@@ -147,10 +149,19 @@ VkResult TextureCache::Initialize() {
   invalidated_textures_ = &invalidated_textures_sets_[0];
 
   device_queue_ = device_->AcquireQueue(device_->queue_family_index());
+
+  physical_write_watch_handle_ =
+      memory_->RegisterPhysicalWriteWatch(MemoryWriteCallbackThunk, this);
+
   return VK_SUCCESS;
 }
 
 void TextureCache::Shutdown() {
+  if (physical_write_watch_handle_ != nullptr) {
+    memory_->UnregisterPhysicalWriteWatch(physical_write_watch_handle_);
+    physical_write_watch_handle_ = nullptr;
+  }
+
   if (device_queue_) {
     device_->ReleaseQueue(device_queue_, device_->queue_family_index());
   }
@@ -290,7 +301,7 @@ TextureCache::Texture* TextureCache::AllocateTexture(
   texture->alloc_info = vma_info;
   texture->framebuffer = nullptr;
   texture->usage_flags = image_info.usage;
-  texture->access_watch_handle = 0;
+  texture->is_watched = false;
   texture->texture_info = texture_info;
   return texture;
 }
@@ -313,9 +324,19 @@ bool TextureCache::FreeTexture(Texture* texture) {
     it = texture->views.erase(it);
   }
 
-  if (texture->access_watch_handle) {
-    memory_->CancelAccessWatch(texture->access_watch_handle);
-    texture->access_watch_handle = 0;
+  {
+    global_critical_region_.Acquire();
+    if (texture->is_watched) {
+      for (auto it = watched_textures_.begin();
+           it != watched_textures_.end();) {
+        if (it->texture == texture) {
+          watched_textures_.erase(it);
+          break;
+        }
+        ++it;
+      }
+      texture->is_watched = false;
+    }
   }
 
   vmaDestroyImage(mem_allocator_, texture->image, texture->alloc);
@@ -323,25 +344,134 @@ bool TextureCache::FreeTexture(Texture* texture) {
   return true;
 }
 
-void TextureCache::WatchCallback(void* context_ptr, void* data_ptr,
-                                 uint32_t address) {
-  auto self = reinterpret_cast<TextureCache*>(context_ptr);
-  auto touched_texture = reinterpret_cast<Texture*>(data_ptr);
-  if (!touched_texture || !touched_texture->access_watch_handle ||
-      touched_texture->pending_invalidation) {
-    return;
+void TextureCache::WatchTexture(Texture* texture) {
+  uint32_t address, size;
+
+  {
+    global_critical_region_.Acquire();
+
+    assert_false(texture->is_watched);
+
+    WatchedTexture watched_texture;
+    if (texture->texture_info.memory.base_address &&
+        texture->texture_info.memory.base_size) {
+      watched_texture.is_mip = false;
+      address = texture->texture_info.memory.base_address;
+      size = texture->texture_info.memory.base_size;
+    } else if (texture->texture_info.memory.mip_address &&
+               texture->texture_info.memory.mip_size) {
+      watched_texture.is_mip = true;
+      address = texture->texture_info.memory.mip_address;
+      size = texture->texture_info.memory.mip_size;
+    } else {
+      return;
+    }
+    watched_texture.texture = texture;
+
+    // Fire any access watches that overlap this region.
+    for (auto it = watched_textures_.begin(); it != watched_textures_.end();) {
+      // Case 1: 2222222|222|11111111
+      // Case 2: 1111111|222|22222222
+      // Case 3: 1111111|222|11111111 (fragmentation)
+      // Case 4: 2222222|222|22222222 (complete overlap)
+      Texture* other_texture = it->texture;
+      uint32_t other_address, other_size;
+      if (it->is_mip) {
+        other_address = other_texture->texture_info.memory.mip_address;
+        other_size = other_texture->texture_info.memory.mip_size;
+      } else {
+        other_address = other_texture->texture_info.memory.base_address;
+        other_size = other_texture->texture_info.memory.base_size;
+      }
+
+      bool hit = false;
+      if (address <= other_address && address + size > other_address) {
+        hit = true;
+      } else if (other_address <= address &&
+                 other_address + other_size > address) {
+        hit = true;
+      } else if (other_address <= address &&
+                 other_address + other_size > address + size) {
+        hit = true;
+      } else if (other_address >= address &&
+                 other_address + other_size < address + size) {
+        hit = true;
+      }
+
+      if (hit) {
+        TextureTouched(other_texture);
+        it = watched_textures_.erase(it);
+        continue;
+      }
+
+      ++it;
+    }
+
+    watched_textures_.push_back(watched_texture);
   }
 
-  assert_not_zero(touched_texture->access_watch_handle);
-  // Clear watch handle first so we don't redundantly
-  // remove.
-  touched_texture->access_watch_handle = 0;
-  touched_texture->pending_invalidation = true;
+  memory_->WatchPhysicalMemoryWrite(address, size);
+}
 
-  // Add to pending list so Scavenge will clean it up.
-  self->invalidated_textures_mutex_.lock();
-  self->invalidated_textures_->insert(touched_texture);
-  self->invalidated_textures_mutex_.unlock();
+void TextureCache::TextureTouched(Texture* texture) {
+  if (texture->pending_invalidation) {
+    return;
+  }
+  {
+    auto global_lock = global_critical_region_.Acquire();
+    assert_true(texture->is_watched);
+    texture->is_watched = false;
+    // Add to pending list so Scavenge will clean it up.
+    invalidated_textures_->insert(texture);
+  }
+  texture->pending_invalidation = true;
+}
+
+std::pair<uint32_t, uint32_t> TextureCache::MemoryWriteCallback(
+    uint32_t physical_address_start, uint32_t length, bool exact_range) {
+  global_critical_region_.Acquire();
+  if (watched_textures_.empty()) {
+    return std::make_pair<uint32_t, uint32_t>(0, UINT32_MAX);
+  }
+  // Get the texture within the range, or otherwise get the gap between two
+  // adjacent textures that can be safely unwatched.
+  uint32_t written_range_end = physical_address_start + length;
+  uint32_t previous_end = 0, next_start = UINT32_MAX;
+  for (auto it = watched_textures_.begin(); it != watched_textures_.end();) {
+    Texture* texture = it->texture;
+    uint32_t texture_address, texture_size;
+    if (it->is_mip) {
+      texture_address = texture->texture_info.memory.mip_address;
+      texture_size = texture->texture_info.memory.mip_size;
+    } else {
+      texture_address = texture->texture_info.memory.base_address;
+      texture_size = texture->texture_info.memory.base_size;
+    }
+    if (texture_address >= written_range_end) {
+      // Completely after the written range.
+      next_start = std::min(next_start, texture_address);
+    } else {
+      uint32_t texture_end = texture_address + texture_size;
+      if (texture_end <= physical_address_start) {
+        // Completely before the written range.
+        previous_end = std::max(previous_end, texture_end);
+      } else {
+        // Hit.
+        TextureTouched(texture);
+        it = watched_textures_.erase(it);
+        return std::make_pair(texture_address, texture_size);
+      }
+    }
+    ++it;
+  }
+  return std::make_pair(previous_end, next_start - previous_end);
+}
+
+std::pair<uint32_t, uint32_t> TextureCache::MemoryWriteCallbackThunk(
+    void* context_ptr, uint32_t physical_address_start, uint32_t length,
+    bool exact_range) {
+  return reinterpret_cast<TextureCache*>(context_ptr)
+      ->MemoryWriteCallback(physical_address_start, length, exact_range);
 }
 
 TextureCache::Texture* TextureCache::DemandResolveTexture(
@@ -396,15 +526,7 @@ TextureCache::Texture* TextureCache::DemandResolveTexture(
           get_dimension_name(texture_info.dimension)));
 
   // Setup an access watch. If this texture is touched, it is destroyed.
-  if (texture_info.memory.base_address && texture_info.memory.base_size) {
-    texture->access_watch_handle = memory_->AddPhysicalAccessWatch(
-        texture_info.memory.base_address, texture_info.memory.base_size,
-        cpu::MMIOHandler::kWatchWrite, &WatchCallback, this, texture);
-  } else if (texture_info.memory.mip_address && texture_info.memory.mip_size) {
-    texture->access_watch_handle = memory_->AddPhysicalAccessWatch(
-        texture_info.memory.mip_address, texture_info.memory.mip_size,
-        cpu::MMIOHandler::kWatchWrite, &WatchCallback, this, texture);
-  }
+  WatchTexture(texture);
 
   textures_[texture_hash] = texture;
   COUNT_profile_set("gpu/texture_cache/textures", textures_.size());
@@ -491,15 +613,7 @@ TextureCache::Texture* TextureCache::Demand(const TextureInfo& texture_info,
 
   // Okay. Put a writewatch on it to tell us if it's been modified from the
   // guest.
-  if (texture_info.memory.base_address && texture_info.memory.base_size) {
-    texture->access_watch_handle = memory_->AddPhysicalAccessWatch(
-        texture_info.memory.base_address, texture_info.memory.base_size,
-        cpu::MMIOHandler::kWatchWrite, &WatchCallback, this, texture);
-  } else if (texture_info.memory.mip_address && texture_info.memory.mip_size) {
-    texture->access_watch_handle = memory_->AddPhysicalAccessWatch(
-        texture_info.memory.mip_address, texture_info.memory.mip_size,
-        cpu::MMIOHandler::kWatchWrite, &WatchCallback, this, texture);
-  }
+  WatchTexture(texture);
 
   return texture;
 }
@@ -1442,15 +1556,17 @@ bool TextureCache::SetupTextureBinding(VkCommandBuffer command_buffer,
 }
 
 void TextureCache::RemoveInvalidatedTextures() {
-  // Clean up any invalidated textures.
-  invalidated_textures_mutex_.lock();
   std::unordered_set<Texture*>& invalidated_textures = *invalidated_textures_;
-  if (invalidated_textures_ == &invalidated_textures_sets_[0]) {
-    invalidated_textures_ = &invalidated_textures_sets_[1];
-  } else {
-    invalidated_textures_ = &invalidated_textures_sets_[0];
+
+  // Clean up any invalidated textures.
+  {
+    auto global_lock = global_critical_region_.Acquire();
+    if (invalidated_textures_ == &invalidated_textures_sets_[0]) {
+      invalidated_textures_ = &invalidated_textures_sets_[1];
+    } else {
+      invalidated_textures_ = &invalidated_textures_sets_[0];
+    }
   }
-  invalidated_textures_mutex_.unlock();
 
   // Append all invalidated textures to a deletion queue. They will be deleted
   // when all command buffers using them have finished executing.
