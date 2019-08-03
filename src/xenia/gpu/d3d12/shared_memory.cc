@@ -578,13 +578,14 @@ void SharedMemory::GetRangesToUpload(uint32_t request_page_first,
 }
 
 std::pair<uint32_t, uint32_t> SharedMemory::MemoryWriteCallbackThunk(
-    void* context_ptr, uint32_t physical_address_start, uint32_t length) {
+    void* context_ptr, uint32_t physical_address_start, uint32_t length,
+    bool exact_range) {
   return reinterpret_cast<SharedMemory*>(context_ptr)
-      ->MemoryWriteCallback(physical_address_start, length);
+      ->MemoryWriteCallback(physical_address_start, length, exact_range);
 }
 
 std::pair<uint32_t, uint32_t> SharedMemory::MemoryWriteCallback(
-    uint32_t physical_address_start, uint32_t length) {
+    uint32_t physical_address_start, uint32_t length, bool exact_range) {
   uint32_t page_first = physical_address_start >> page_size_log2_;
   uint32_t page_last = (physical_address_start + length - 1) >> page_size_log2_;
   assert_true(page_first < page_count_ && page_last < page_count_);
@@ -593,26 +594,28 @@ std::pair<uint32_t, uint32_t> SharedMemory::MemoryWriteCallback(
 
   auto global_lock = global_critical_region_.Acquire();
 
-  // Check if a somewhat wider range (up to 256 KB with 4 KB pages) can be
-  // invalidated - if no GPU-written data nearby that was not intended to be
-  // invalidated since it's not in sync with CPU memory and can't be reuploaded.
-  // It's a lot cheaper to upload some excess data than to catch access
-  // violations - with 4 KB callbacks, the original Doom runs at 4 FPS on
-  // Intel Core i7-3770, with 64 KB the CPU game code takes 3 ms to run per
-  // frame, but with 256 KB it's 0.7 ms.
-  if (page_first & 63) {
-    uint64_t gpu_written_start =
-        valid_and_gpu_written_pages_[(block_first << 1) + 1];
-    gpu_written_start &= (1ull << (page_first & 63)) - 1;
-    page_first =
-        (page_first & ~uint32_t(63)) + (64 - xe::lzcnt(gpu_written_start));
-  }
-  if ((page_last & 63) != 63) {
-    uint64_t gpu_written_end =
-        valid_and_gpu_written_pages_[(block_last << 1) + 1];
-    gpu_written_end &= ~((1ull << ((page_last & 63) + 1)) - 1);
-    page_last = (page_last & ~uint32_t(63)) +
-                (std::max(xe::tzcnt(gpu_written_end), uint8_t(1)) - 1);
+  if (!exact_range) {
+    // Check if a somewhat wider range (up to 256 KB with 4 KB pages) can be
+    // invalidated - if no GPU-written data nearby that was not intended to be
+    // invalidated since it's not in sync with CPU memory and can't be
+    // reuploaded. It's a lot cheaper to upload some excess data than to catch
+    // access violations - with 4 KB callbacks, the original Doom runs at 4 FPS
+    // on Intel Core i7-3770, with 64 KB the CPU game code takes 3 ms to run per
+    // frame, but with 256 KB it's 0.7 ms.
+    if (page_first & 63) {
+      uint64_t gpu_written_start =
+          valid_and_gpu_written_pages_[(block_first << 1) + 1];
+      gpu_written_start &= (1ull << (page_first & 63)) - 1;
+      page_first =
+          (page_first & ~uint32_t(63)) + (64 - xe::lzcnt(gpu_written_start));
+    }
+    if ((page_last & 63) != 63) {
+      uint64_t gpu_written_end =
+          valid_and_gpu_written_pages_[(block_last << 1) + 1];
+      gpu_written_end &= ~((1ull << ((page_last & 63) + 1)) - 1);
+      page_last = (page_last & ~uint32_t(63)) +
+                  (std::max(xe::tzcnt(gpu_written_end), uint8_t(1)) - 1);
+    }
   }
 
   for (uint32_t i = block_first; i <= block_last; ++i) {
