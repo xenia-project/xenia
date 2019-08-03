@@ -26,7 +26,7 @@ class D3D12GraphicsSystem : public GraphicsSystem {
   D3D12GraphicsSystem();
   ~D3D12GraphicsSystem() override;
 
-  static bool IsD3D12APIAvailable();
+  static bool IsAvailable();
 
   std::wstring name() const override;
 

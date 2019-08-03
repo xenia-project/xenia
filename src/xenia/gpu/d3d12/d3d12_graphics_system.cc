@@ -27,7 +27,7 @@ D3D12GraphicsSystem::D3D12GraphicsSystem() {}
 
 D3D12GraphicsSystem::~D3D12GraphicsSystem() {}
 
-bool D3D12GraphicsSystem::IsD3D12APIAvailable() {
+bool D3D12GraphicsSystem::IsAvailable() {
   return xe::ui::d3d12::D3D12Provider::IsD3D12APIAvailable();
 }
 

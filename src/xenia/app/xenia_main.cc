@@ -65,6 +65,43 @@ DEFINE_bool(discord, true, "Enable Discord rich presence", "General");
 namespace xe {
 namespace app {
 
+template <class T>
+struct Factory {
+  std::string name;
+  std::function<bool()> is_available;
+  std::function<std::unique_ptr<T>()> instantiate;
+
+  template <class DT>
+  static Factory Define(const std::string& name) {
+    return {name, DT::IsAvailable,
+            []() { return std::unique_ptr<DT>(new DT); }};
+  }
+
+  static std::unique_ptr<T> Create(const std::string& name,
+                                   const std::vector<Factory>& factories) {
+    if (!name.empty() && name != "any") {
+      auto it = std::find_if(
+          factories.begin(), factories.end(),
+          [&name](const auto& f) { return name.compare(f.name) == 0; });
+      if (it != factories.end() && (*it).is_available()) {
+        return (*it).instantiate();
+      }
+      return nullptr;
+    } else {
+      // Create best available.
+      std::unique_ptr<T> best;
+      for (const auto& factory : factories) {
+        if (!factory.is_available()) continue;
+        best = factory.instantiate();
+        if (!best) continue;
+        return best;
+      }
+      // Nothing!
+      return nullptr;
+    }
+  }
+};
+
 std::unique_ptr<apu::AudioSystem> CreateAudioSystem(cpu::Processor* processor) {
   if (cvars::apu.compare("nop") == 0) {
     return apu::nop::NopAudioSystem::Create(processor);
@@ -89,39 +126,18 @@ std::unique_ptr<apu::AudioSystem> CreateAudioSystem(cpu::Processor* processor) {
 }
 
 std::unique_ptr<gpu::GraphicsSystem> CreateGraphicsSystem() {
-  if (cvars::gpu.compare("vulkan") == 0) {
-    return std::unique_ptr<gpu::GraphicsSystem>(
-        new xe::gpu::vulkan::VulkanGraphicsSystem());
+  using NullGS = gpu::null::NullGraphicsSystem;
+  using D3D12GS = gpu::d3d12::D3D12GraphicsSystem;
+  using VulkanGS = gpu::vulkan::VulkanGraphicsSystem;
+  using Factory = Factory<gpu::GraphicsSystem>;
+  std::vector<Factory> factories = {
 #if XE_PLATFORM_WIN32
-  } else if (cvars::gpu.compare("d3d12") == 0) {
-    return std::unique_ptr<gpu::GraphicsSystem>(
-        new xe::gpu::d3d12::D3D12GraphicsSystem());
+    Factory::Define<D3D12GS>("d3d12"),
 #endif  // XE_PLATFORM_WIN32
-  } else if (cvars::gpu.compare("null") == 0) {
-    return std::unique_ptr<gpu::GraphicsSystem>(
-        new xe::gpu::null::NullGraphicsSystem());
-  } else {
-    // Create best available.
-    std::unique_ptr<gpu::GraphicsSystem> best;
-
-#if XE_PLATFORM_WIN32
-    if (xe::gpu::d3d12::D3D12GraphicsSystem::IsD3D12APIAvailable()) {
-      best = std::unique_ptr<gpu::GraphicsSystem>(
-          new xe::gpu::d3d12::D3D12GraphicsSystem());
-      if (best) {
-        return best;
-      }
-    }
-#endif  // XE_PLATFORM_WIN32
-    best = std::unique_ptr<gpu::GraphicsSystem>(
-        new xe::gpu::vulkan::VulkanGraphicsSystem());
-    if (best) {
-      return best;
-    }
-
-    // Nothing!
-    return nullptr;
-  }
+    Factory::Define<VulkanGS>("vulkan"),
+    Factory::Define<NullGS>("null"),
+  };
+  return Factory::Create(cvars::gpu, factories);
 }
 
 std::vector<std::unique_ptr<hid::InputDriver>> CreateInputDrivers(
