@@ -712,7 +712,14 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
             result = true;
           }
           break;
-        // TODO(benvanik): ROTATE_LEFT
+        case OPCODE_ROTATE_LEFT:
+          if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
+            v->set_from(i->src1.value);
+            v->RotateLeft(i->src2.value);
+            i->Remove();
+            result = true;
+          }
+          break;
         case OPCODE_BYTE_SWAP:
           if (i->src1.value->IsConstant()) {
             v->set_from(i->src1.value);

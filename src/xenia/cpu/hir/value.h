@@ -519,6 +519,7 @@ class Value {
   void Shl(Value* other);
   void Shr(Value* other);
   void Sha(Value* other);
+  void RotateLeft(Value* other);
   void Extract(Value* vec, Value* index);
   void Select(Value* other, Value* ctrl);
   void Splat(Value* other);
