@@ -53,6 +53,7 @@ namespace xe {
 Emulator::Emulator(const std::wstring& command_line,
                    const std::wstring& content_root)
     : on_launch(),
+      on_terminate(),
       on_exit(),
       command_line_(command_line),
       content_root_(content_root),
@@ -233,6 +234,7 @@ X_STATUS Emulator::TerminateTitle() {
   kernel_state_->TerminateTitle();
   title_id_ = 0;
   game_title_ = L"";
+  on_terminate();
   return X_STATUS_SUCCESS;
 }
 
@@ -671,7 +673,7 @@ X_STATUS Emulator::CompleteLaunch(const std::wstring& path,
   }
 
   main_thread_ = main_thread;
-  on_launch();
+  on_launch(title_id_, game_title_);
 
   return X_STATUS_SUCCESS;
 }
