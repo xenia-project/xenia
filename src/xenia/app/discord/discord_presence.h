@@ -17,10 +17,10 @@ namespace discord {
 
 class DiscordPresence {
  public:
-  static void InitializeDiscord();
+  static void Initialize();
   static void NotPlaying();
-  static void PlayingTitle(std::wstring game_title);
-  static void ShutdownDiscord();
+  static void PlayingTitle(const std::wstring& game_title);
+  static void Shutdown();
 };
 
 }  // namespace discord

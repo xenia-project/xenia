@@ -13,7 +13,6 @@
 #include "build/version.h"
 
 #include "third_party/imgui/imgui.h"
-#include "xenia/app/discord/discord_presence.h"
 #include "xenia/base/clock.h"
 #include "xenia/base/cvar.h"
 #include "xenia/base/debugging.h"
@@ -29,7 +28,6 @@
 #include "xenia/ui/imgui_drawer.h"
 
 DECLARE_bool(debug);
-DEFINE_bool(discord, false, "Enable Discord rich presence", "General");
 
 namespace xe {
 namespace app {
@@ -83,11 +81,6 @@ bool EmulatorWindow::Initialize() {
   if (!window_->Initialize()) {
     XELOGE("Failed to initialize platform window");
     return false;
-  }
-
-  if (cvars::discord) {
-    discord::DiscordPresence::InitializeDiscord();
-    discord::DiscordPresence::NotPlaying();
   }
 
   UpdateTitle();
@@ -344,9 +337,6 @@ void EmulatorWindow::FileOpen() {
 void EmulatorWindow::FileClose() {
   if (emulator_->is_title_open()) {
     emulator_->TerminateTitle();
-    if (cvars::discord) {
-      discord::DiscordPresence::NotPlaying();
-    }
   }
 }
 
@@ -444,9 +434,6 @@ void EmulatorWindow::UpdateTitle() {
     auto game_title = emulator()->game_title();
     title += xe::format_string(L" | [%.8X] %s", emulator()->title_id(),
                                game_title.c_str());
-    if (cvars::discord) {
-      discord::DiscordPresence::PlayingTitle(game_title);
-    }
   }
 
   auto graphics_system = emulator()->graphics_system();
