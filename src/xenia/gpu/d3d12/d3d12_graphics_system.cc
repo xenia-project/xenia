@@ -27,6 +27,10 @@ D3D12GraphicsSystem::D3D12GraphicsSystem() {}
 
 D3D12GraphicsSystem::~D3D12GraphicsSystem() {}
 
+bool D3D12GraphicsSystem::IsD3D12APIAvailable() {
+  return xe::ui::d3d12::D3D12Provider::IsD3D12APIAvailable();
+}
+
 std::wstring D3D12GraphicsSystem::name() const {
   auto d3d12_command_processor =
       static_cast<D3D12CommandProcessor*>(command_processor());

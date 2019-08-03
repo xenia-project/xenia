@@ -27,6 +27,15 @@ namespace xe {
 namespace ui {
 namespace d3d12 {
 
+bool D3D12Provider::IsD3D12APIAvailable() {
+  HMODULE library_d3d12 = LoadLibrary(L"D3D12.dll");
+  if (!library_d3d12) {
+    return false;
+  }
+  FreeLibrary(library_d3d12);
+  return true;
+}
+
 std::unique_ptr<D3D12Provider> D3D12Provider::Create(Window* main_window) {
   std::unique_ptr<D3D12Provider> provider(new D3D12Provider(main_window));
   InitializationResult result = provider->Initialize();
@@ -81,6 +90,7 @@ D3D12Provider::InitializationResult D3D12Provider::Initialize() {
   library_d3dcompiler_ = LoadLibrary(L"D3DCompiler_47.dll");
   if (library_dxgi_ == nullptr || library_d3d12_ == nullptr ||
       library_d3dcompiler_ == nullptr) {
+    XELOGE("Failed to load dxgi.dll, D3D12.dll and D3DCompiler_47.dll.");
     return InitializationResult::kLibraryLoadFailed;
   }
   bool libraries_loaded = true;

@@ -23,6 +23,8 @@ class D3D12Provider : public GraphicsProvider {
  public:
   ~D3D12Provider() override;
 
+  static bool IsD3D12APIAvailable();
+
   static std::unique_ptr<D3D12Provider> Create(Window* main_window);
 
   std::unique_ptr<GraphicsContext> CreateContext(
