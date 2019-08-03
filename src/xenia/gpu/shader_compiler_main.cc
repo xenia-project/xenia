@@ -23,7 +23,6 @@
 #include "xenia/gpu/spirv_shader_translator.h"
 #include "xenia/ui/spirv/spirv_disassembler.h"
 
-<<<<<<< HEAD
 // For D3DDisassemble:
 #if XE_PLATFORM_WIN32
 #include "xenia/ui/d3d12/d3d12_api.h"
