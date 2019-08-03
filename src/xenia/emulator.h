@@ -145,7 +145,8 @@ class Emulator {
   void WaitUntilExit();
 
  public:
-  xe::Delegate<> on_launch;
+  xe::Delegate<uint32_t, const std::wstring&> on_launch;
+  xe::Delegate<> on_terminate;
   xe::Delegate<> on_exit;
 
  private:

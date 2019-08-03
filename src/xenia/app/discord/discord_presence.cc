@@ -20,7 +20,7 @@ void HandleDiscordJoinGame(const char* joinSecret) {}
 void HandleDiscordJoinRequest(const DiscordUser* request) {}
 void HandleDiscordSpectateGame(const char* spectateSecret) {}
 
-void DiscordPresence::InitializeDiscord() {
+void DiscordPresence::Initialize() {
   DiscordEventHandlers handlers = {};
   handlers.ready = &HandleDiscordReady;
   handlers.errored = &HandleDiscordError;
@@ -34,23 +34,25 @@ void DiscordPresence::NotPlaying() {
   DiscordRichPresence discordPresence = {};
   discordPresence.state = "Idle";
   discordPresence.details = "Standby";
-  discordPresence.largeImageKey = "default";
+  discordPresence.largeImageKey = "app";
   discordPresence.instance = 1;
   Discord_UpdatePresence(&discordPresence);
 }
 
-void DiscordPresence::PlayingTitle(std::wstring game_title) {
+void DiscordPresence::PlayingTitle(const std::wstring& game_title) {
   auto discord_game_title = xe::to_string(game_title);
   DiscordRichPresence discordPresence = {};
   discordPresence.state = "In Game";
   discordPresence.details = discord_game_title.c_str();
-  discordPresence.smallImageKey = "default";
-  discordPresence.largeImageKey = "defaultgame";
+  // TODO(gibbed): we don't have state icons yet.
+  // discordPresence.smallImageKey = "app";
+  // discordPresence.largeImageKey = "state_ingame";
+  discordPresence.largeImageKey = "app";
   discordPresence.instance = 1;
   Discord_UpdatePresence(&discordPresence);
 }
 
-void DiscordPresence::ShutdownDiscord() { Discord_Shutdown(); }
+void DiscordPresence::Shutdown() { Discord_Shutdown(); }
 
 }  // namespace discord
 }  // namespace xe
