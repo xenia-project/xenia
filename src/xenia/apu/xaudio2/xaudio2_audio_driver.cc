@@ -151,7 +151,7 @@ bool XAudio2AudioDriver::Initialize() {
     return false;
   }
 
-  if (FLAGS_mute) {
+  if (cvars::mute) {
     pcm_voice_->SetVolume(0.0f);
   }
 

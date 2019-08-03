@@ -9,8 +9,6 @@
 
 #include "xenia/kernel/xboxkrnl/xboxkrnl_video.h"
 
-#include <gflags/gflags.h>
-
 #include "xenia/base/logging.h"
 #include "xenia/emulator.h"
 #include "xenia/gpu/graphics_system.h"
@@ -24,9 +22,11 @@
 
 DEFINE_int32(kernel_display_gamma_type, 1,
              "Display gamma type: 0 - linear, 1 - sRGB, 2 - TV (BT.709), "
-             "3 - power specified via kernel_display_gamma_power.");
+             "3 - power specified via kernel_display_gamma_power.",
+             "Kernel");
 DEFINE_double(kernel_display_gamma_power, 2.22222233,
-              "Display gamma to use with kernel_display_gamma_type 3.");
+              "Display gamma to use with kernel_display_gamma_type 3.",
+              "Kernel");
 
 namespace xe {
 namespace kernel {
@@ -51,8 +51,8 @@ void VdGetCurrentDisplayGamma(lpdword_t type_ptr, lpfloat_t power_ptr) {
   // 3 - use the power written to *power_ptr.
   // Anything else - linear.
   // Used in D3D SetGammaRamp/SetPWLGamma to adjust the ramp for the display.
-  *type_ptr = uint32_t(FLAGS_kernel_display_gamma_type);
-  *power_ptr = float(FLAGS_kernel_display_gamma_power);
+  *type_ptr = uint32_t(cvars::kernel_display_gamma_type);
+  *power_ptr = float(cvars::kernel_display_gamma_power);
 }
 DECLARE_XBOXKRNL_EXPORT1(VdGetCurrentDisplayGamma, kVideo, kStub);
 

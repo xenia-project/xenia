@@ -728,12 +728,12 @@ int InstrEmit_mtmsr(PPCHIRBuilder& f, const InstrData& i) {
         f.ZeroExtend(f.ZeroExtend(f.LoadGPR(i.X.RT), INT64_TYPE), INT64_TYPE));
     if (i.X.RT == 13) {
       // iff storing from r13 we are taking a lock (disable interrupts).
-      if (!FLAGS_disable_global_lock) {
+      if (!cvars::disable_global_lock) {
         f.CallExtern(f.builtins()->enter_global_lock);
       }
     } else {
       // Otherwise we are restoring interrupts (probably).
-      if (!FLAGS_disable_global_lock) {
+      if (!cvars::disable_global_lock) {
         f.CallExtern(f.builtins()->leave_global_lock);
       }
     }
@@ -753,12 +753,12 @@ int InstrEmit_mtmsrd(PPCHIRBuilder& f, const InstrData& i) {
                    f.ZeroExtend(f.LoadGPR(i.X.RT), INT64_TYPE));
     if (i.X.RT == 13) {
       // iff storing from r13 we are taking a lock (disable interrupts).
-      if (!FLAGS_disable_global_lock) {
+      if (!cvars::disable_global_lock) {
         f.CallExtern(f.builtins()->enter_global_lock);
       }
     } else {
       // Otherwise we are restoring interrupts (probably).
-      if (!FLAGS_disable_global_lock) {
+      if (!cvars::disable_global_lock) {
         f.CallExtern(f.builtins()->leave_global_lock);
       }
     }

@@ -9,8 +9,6 @@
 
 #include "xenia/cpu/backend/x64/x64_emitter.h"
 
-#include <gflags/gflags.h>
-
 #include <stddef.h>
 #include <climits>
 #include <cstring>
@@ -36,11 +34,12 @@
 #include "xenia/cpu/thread_state.h"
 
 DEFINE_bool(enable_debugprint_log, false,
-            "Log debugprint traps to the active debugger");
+            "Log debugprint traps to the active debugger", "CPU");
 DEFINE_bool(ignore_undefined_externs, true,
-            "Don't exit when an undefined extern is called.");
+            "Don't exit when an undefined extern is called.", "CPU");
 DEFINE_bool(emit_source_annotations, false,
-            "Add extra movs and nops to make disassembly easier to read.");
+            "Add extra movs and nops to make disassembly easier to read.",
+            "CPU");
 
 namespace xe {
 namespace cpu {
@@ -71,7 +70,7 @@ X64Emitter::X64Emitter(X64Backend* backend, XbyakAllocator* allocator)
       backend_(backend),
       code_cache_(backend->code_cache()),
       allocator_(allocator) {
-  if (FLAGS_enable_haswell_instructions) {
+  if (cvars::enable_haswell_instructions) {
     feature_flags_ |= cpu_.has(Xbyak::util::Cpu::tAVX2) ? kX64EmitAVX2 : 0;
     feature_flags_ |= cpu_.has(Xbyak::util::Cpu::tFMA) ? kX64EmitFMA : 0;
     feature_flags_ |= cpu_.has(Xbyak::util::Cpu::tLZCNT) ? kX64EmitLZCNT : 0;
@@ -245,7 +244,7 @@ bool X64Emitter::Emit(HIRBuilder* builder, size_t* out_stack_size) {
   add(rsp, (uint32_t)stack_size);
   ret();
 
-  if (FLAGS_emit_source_annotations) {
+  if (cvars::emit_source_annotations) {
     nop();
     nop();
     nop();
@@ -262,7 +261,7 @@ void X64Emitter::MarkSourceOffset(const Instr* i) {
   entry->hir_offset = uint32_t(i->block->ordinal << 16) | i->ordinal;
   entry->code_offset = static_cast<uint32_t>(getSize());
 
-  if (FLAGS_emit_source_annotations) {
+  if (cvars::emit_source_annotations) {
     nop();
     nop();
     mov(eax, entry->guest_address);
@@ -299,7 +298,7 @@ uint64_t TrapDebugPrint(void* raw_context, uint64_t address) {
   // TODO(benvanik): truncate to length?
   XELOGD("(DebugPrint) %s", str);
 
-  if (FLAGS_enable_debugprint_log) {
+  if (cvars::enable_debugprint_log) {
     debugging::DebugPrint("(DebugPrint) %s", str);
   }
 
@@ -309,7 +308,7 @@ uint64_t TrapDebugPrint(void* raw_context, uint64_t address) {
 uint64_t TrapDebugBreak(void* raw_context, uint64_t address) {
   auto thread_state = *reinterpret_cast<ThreadState**>(raw_context);
   XELOGE("tw/td forced trap hit! This should be a crash!");
-  if (FLAGS_break_on_debugbreak) {
+  if (cvars::break_on_debugbreak) {
     xe::debugging::Break();
   }
   return 0;
@@ -446,7 +445,7 @@ void X64Emitter::CallIndirect(const hir::Instr* instr,
 
 uint64_t UndefinedCallExtern(void* raw_context, uint64_t function_ptr) {
   auto function = reinterpret_cast<Function*>(function_ptr);
-  if (!FLAGS_ignore_undefined_externs) {
+  if (!cvars::ignore_undefined_externs) {
     xe::FatalError("undefined extern call to %.8X %s", function->address(),
                    function->name().c_str());
   } else {

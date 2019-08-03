@@ -10,6 +10,4 @@
 #ifndef XENIA_APU_NOP_NOP_APU_FLAGS_H_
 #define XENIA_APU_NOP_NOP_APU_FLAGS_H_
 
-#include <gflags/gflags.h>
-
 #endif  // XENIA_APU_NOP_NOP_APU_FLAGS_H_

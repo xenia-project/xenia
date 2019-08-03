@@ -9,8 +9,6 @@
 
 #include "xenia/cpu/stack_walker.h"
 
-#include <gflags/gflags.h>
-
 #include <mutex>
 
 #include "xenia/base/logging.h"
@@ -20,7 +18,7 @@
 #include "xenia/cpu/processor.h"
 
 DEFINE_bool(debug_symbol_loader, false,
-            "Enable dbghelp debug logging and validation.");
+            "Enable dbghelp debug logging and validation.", "CPU");
 
 // Must be included after platform_win.h:
 #pragma warning(push)
@@ -98,7 +96,7 @@ bool InitializeStackWalker() {
 
   // Initialize the symbol lookup services.
   DWORD options = sym_get_options_();
-  if (FLAGS_debug_symbol_loader) {
+  if (cvars::debug_symbol_loader) {
     options |= SYMOPT_DEBUG;
   }
   options |= SYMOPT_DEFERRED_LOADS;

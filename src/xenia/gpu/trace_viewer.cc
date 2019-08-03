@@ -9,8 +9,6 @@
 
 #include "xenia/gpu/trace_viewer.h"
 
-#include <gflags/gflags.h>
-
 #include <cinttypes>
 
 #include "third_party/half/include/half.hpp"
@@ -32,7 +30,8 @@
 #include "xenia/ui/window.h"
 #include "xenia/xbox.h"
 
-DEFINE_string(target_trace_file, "", "Specifies the trace file to load.");
+DEFINE_string(target_trace_file, "", "Specifies the trace file to load.",
+              "GPU");
 
 namespace xe {
 namespace gpu {
@@ -53,11 +52,11 @@ TraceViewer::~TraceViewer() = default;
 int TraceViewer::Main(const std::vector<std::wstring>& args) {
   // Grab path from the flag or unnamed argument.
   std::wstring path;
-  if (!FLAGS_target_trace_file.empty()) {
+  if (!cvars::target_trace_file.empty()) {
     // Passed as a named argument.
     // TODO(benvanik): find something better than gflags that supports
     // unicode.
-    path = xe::to_wstring(FLAGS_target_trace_file);
+    path = xe::to_wstring(cvars::target_trace_file);
   } else if (args.size() >= 2) {
     // Passed as an unnamed argument.
     path = args[1];
