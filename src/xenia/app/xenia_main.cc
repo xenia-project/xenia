@@ -44,7 +44,7 @@
 #include "third_party/xbyak/xbyak/xbyak_util.h"
 
 DEFINE_string(apu, "any", "Audio system. Use: [any, nop, xaudio2]", "General");
-DEFINE_string(gpu, "any", "Graphics system. Use: [any, vulkan, null]",
+DEFINE_string(gpu, "any", "Graphics system. Use: [any, d3d12, vulkan, null]",
               "General");
 DEFINE_string(hid, "any", "Input system. Use: [any, nop, winkey, xinput]",
               "General");
