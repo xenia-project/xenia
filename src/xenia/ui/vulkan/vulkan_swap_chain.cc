@@ -9,12 +9,11 @@
 
 #include "xenia/ui/vulkan/vulkan_swap_chain.h"
 
-#include <gflags/gflags.h>
-
 #include <mutex>
 #include <string>
 
 #include "xenia/base/assert.h"
+#include "xenia/base/cvar.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/ui/vulkan/vulkan.h"
@@ -23,7 +22,7 @@
 #include "xenia/ui/vulkan/vulkan_util.h"
 
 DEFINE_bool(vulkan_random_clear_color, false,
-            "Randomizes framebuffer clear color.");
+            "Randomizes framebuffer clear color.", "Vulkan");
 
 namespace xe {
 namespace ui {
@@ -583,7 +582,7 @@ VkResult VulkanSwapChain::Begin() {
   clear_color.float32[1] = 238 / 255.0f;
   clear_color.float32[2] = 238 / 255.0f;
   clear_color.float32[3] = 1.0f;
-  if (FLAGS_vulkan_random_clear_color) {
+  if (cvars::vulkan_random_clear_color) {
     clear_color.float32[0] =
         rand() / static_cast<float>(RAND_MAX);  // NOLINT(runtime/threadsafe_fn)
     clear_color.float32[1] = 1.0f;

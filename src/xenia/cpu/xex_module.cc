@@ -1008,8 +1008,8 @@ bool XexModule::LoadContinue() {
   }
 
   // Load a specified module map and diff.
-  if (FLAGS_load_module_map.size()) {
-    if (!ReadMap(FLAGS_load_module_map.c_str())) {
+  if (cvars::load_module_map.size()) {
+    if (!ReadMap(cvars::load_module_map.c_str())) {
       return false;
     }
   }

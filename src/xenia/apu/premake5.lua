@@ -14,7 +14,6 @@ project("xenia-apu")
   defines({
   })
   includedirs({
-    project_root.."/third_party/gflags/src",
     project_root.."/third_party/libav/",
   })
   local_platform_files()

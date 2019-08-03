@@ -20,7 +20,6 @@ project("xenia-gpu")
   })
   includedirs({
     project_root.."/third_party/spirv-tools/external/include",
-    project_root.."/third_party/gflags/src",
   })
   local_platform_files()
   -- local_platform_files("spirv")
@@ -33,7 +32,6 @@ project("xenia-gpu-shader-compiler")
   language("C++")
   links({
     "dxbc",
-    "gflags",
     "glslang-spirv",
     "spirv-tools",
     "xenia-base",
@@ -41,9 +39,6 @@ project("xenia-gpu-shader-compiler")
     "xenia-ui-spirv",
   })
   defines({
-  })
-  includedirs({
-    project_root.."/third_party/gflags/src",
   })
   files({
     "shader_compiler_main.cc",
@@ -56,7 +51,6 @@ project("xenia-gpu-shader-compiler")
     if not os.isfile(user_file) then
       debugdir(project_root)
       debugargs({
-        "--flagfile=scratch/flags.txt",
         "2>&1",
         "1>scratch/stdout-shader-compiler.txt",
       })

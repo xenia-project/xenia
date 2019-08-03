@@ -7,7 +7,6 @@
  ******************************************************************************
  */
 
-#include <gflags/gflags.h>
 #include "api_scanner_loader.h"
 
 namespace xe {
@@ -20,8 +19,8 @@ int api_scanner_main(std::vector<std::wstring>& args) {
 
   if (args.size() == 2 || !FLAGS_target.empty()) {
     apiscanner_loader loader_;
-    std::wstring target(FLAGS_target.empty() ? args[1]
-                                             : xe::to_wstring(FLAGS_target));
+    std::wstring target(cvars::target.empty() ? args[1]
+                                              : xe::to_wstring(cvars::target));
 
     std::wstring target_abs = xe::to_absolute_path(target);
 

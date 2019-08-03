@@ -12,7 +12,6 @@ project("xenia-app")
     "capstone",
     "dxbc",
     "discord-rpc",
-    "gflags",
     "glew",
     "glslang-spirv",
     "imgui",
@@ -45,9 +44,6 @@ project("xenia-app")
   defines({
     "XBYAK_NO_OP_NAMES",
     "XBYAK_ENABLE_OMITTED_OPERAND",
-  })
-  includedirs({
-    project_root.."/third_party/gflags/src",
   })
   local_platform_files()
   files({
@@ -92,6 +88,5 @@ project("xenia-app")
     if not os.isfile(user_file) then
       debugdir(project_root)
       debugargs({
-        "--flagfile=scratch/flags.txt",
       })
     end

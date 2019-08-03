@@ -9,8 +9,7 @@
 
 #ifndef XENIA_CPU_CPU_FLAGS_H_
 #define XENIA_CPU_CPU_FLAGS_H_
-
-#include <gflags/gflags.h>
+#include "xenia/base/cvar.h"
 
 DECLARE_string(cpu);
 

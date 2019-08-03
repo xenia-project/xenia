@@ -347,7 +347,7 @@ VkPipeline PipelineCache::GetPipeline(const RenderState* render_state,
   }
 
   // Dump shader disassembly.
-  if (FLAGS_vulkan_dump_disasm) {
+  if (cvars::vulkan_dump_disasm) {
     if (device_->HasEnabledExtension(VK_AMD_SHADER_INFO_EXTENSION_NAME)) {
       DumpShaderDisasmAMD(pipeline);
     } else if (device_->device_info().properties.vendorID == 0x10DE) {
@@ -387,8 +387,8 @@ bool PipelineCache::TranslateShader(VulkanShader* shader,
   }
 
   // Dump shader files if desired.
-  if (!FLAGS_dump_shaders.empty()) {
-    shader->Dump(FLAGS_dump_shaders, "vk");
+  if (!cvars::dump_shaders.empty()) {
+    shader->Dump(cvars::dump_shaders, "vk");
   }
 
   return shader->is_valid();
@@ -1396,7 +1396,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateMultisampleState() {
   // PA_SU_SC_MODE_CNTL MSAA_ENABLE (0x10000)
   // If set, all samples will be sampled at set locations. Otherwise, they're
   // all sampled from the pixel center.
-  if (FLAGS_vulkan_native_msaa) {
+  if (cvars::vulkan_native_msaa) {
     auto msaa_num_samples =
         static_cast<MsaaSamples>((regs.rb_surface_info >> 16) & 0x3);
     switch (msaa_num_samples) {

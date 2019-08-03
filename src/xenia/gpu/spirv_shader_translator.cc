@@ -9,19 +9,20 @@
 
 #include "xenia/gpu/spirv_shader_translator.h"
 
-#include <gflags/gflags.h>
-
 #include <algorithm>
 #include <cfloat>
 #include <cstddef>
 #include <cstring>
 #include <vector>
 
+#include "xenia/base/cvar.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 
-DEFINE_bool(spv_validate, false, "Validate SPIR-V shaders after generation");
-DEFINE_bool(spv_disasm, false, "Disassemble SPIR-V shaders after generation");
+DEFINE_bool(spv_validate, false, "Validate SPIR-V shaders after generation",
+            "GPU");
+DEFINE_bool(spv_disasm, false, "Disassemble SPIR-V shaders after generation",
+            "GPU");
 
 namespace xe {
 namespace gpu {
@@ -666,7 +667,7 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
 
 void SpirvShaderTranslator::PostTranslation(Shader* shader) {
   // Validation.
-  if (FLAGS_spv_validate) {
+  if (cvars::spv_validate) {
     auto validation = validator_.Validate(
         reinterpret_cast<const uint32_t*>(shader->translated_binary().data()),
         shader->translated_binary().size() / sizeof(uint32_t));
@@ -676,7 +677,7 @@ void SpirvShaderTranslator::PostTranslation(Shader* shader) {
     }
   }
 
-  if (FLAGS_spv_disasm) {
+  if (cvars::spv_disasm) {
     // TODO(benvanik): only if needed? could be slowish.
     auto disasm = disassembler_.Disassemble(
         reinterpret_cast<const uint32_t*>(shader->translated_binary().data()),

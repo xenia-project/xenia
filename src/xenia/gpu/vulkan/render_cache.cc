@@ -194,7 +194,7 @@ VkResult CachedTileView::Initialize(VkCommandBuffer command_buffer) {
   image_info.extent.depth = 1;
   image_info.mipLevels = 1;
   image_info.arrayLayers = 1;
-  if (FLAGS_vulkan_native_msaa) {
+  if (cvars::vulkan_native_msaa) {
     auto msaa_samples = static_cast<MsaaSamples>(key.msaa_samples);
     switch (msaa_samples) {
       case MsaaSamples::k1X:
@@ -422,7 +422,7 @@ CachedRenderPass::~CachedRenderPass() {
 
 VkResult CachedRenderPass::Initialize() {
   VkSampleCountFlagBits sample_count;
-  if (FLAGS_vulkan_native_msaa) {
+  if (cvars::vulkan_native_msaa) {
     switch (config.surface_msaa) {
       case MsaaSamples::k1X:
         sample_count = VK_SAMPLE_COUNT_1_BIT;
@@ -534,7 +534,7 @@ VkResult CachedRenderPass::Initialize() {
 bool CachedRenderPass::IsCompatible(
     const RenderConfiguration& desired_config) const {
   if (config.surface_msaa != desired_config.surface_msaa &&
-      FLAGS_vulkan_native_msaa) {
+      cvars::vulkan_native_msaa) {
     return false;
   }
 

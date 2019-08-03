@@ -9,12 +9,11 @@
 
 #include "xenia/cpu/processor.h"
 
-#include <gflags/gflags.h>
-
 #include "xenia/base/assert.h"
 #include "xenia/base/atomic.h"
 #include "xenia/base/byte_order.h"
 #include "xenia/base/byte_stream.h"
+#include "xenia/base/cvar.h"
 #include "xenia/base/debugging.h"
 #include "xenia/base/exception_handler.h"
 #include "xenia/base/logging.h"
@@ -42,9 +41,11 @@
 #endif
 
 DEFINE_bool(debug, DEFAULT_DEBUG_FLAG,
-            "Allow debugging and retain debug information.");
-DEFINE_string(trace_function_data_path, "", "File to write trace data to.");
-DEFINE_bool(break_on_start, false, "Break into the debugger on startup.");
+            "Allow debugging and retain debug information.", "General");
+DEFINE_string(trace_function_data_path, "", "File to write trace data to.",
+              "CPU");
+DEFINE_bool(break_on_start, false, "Break into the debugger on startup.",
+            "CPU");
 
 namespace xe {
 namespace kernel {
@@ -132,14 +133,14 @@ bool Processor::Setup(std::unique_ptr<backend::Backend> backend) {
   stack_walker_ = StackWalker::Create(backend_->code_cache());
   if (!stack_walker_) {
     // TODO(benvanik): disable features.
-    if (FLAGS_debug) {
+    if (cvars::debug) {
       XELOGW("Disabling --debug due to lack of stack walker");
-      FLAGS_debug = false;
+      cvars::debug = false;
     }
   }
 
   // Open the trace data path, if requested.
-  functions_trace_path_ = xe::to_wstring(FLAGS_trace_function_data_path);
+  functions_trace_path_ = xe::to_wstring(cvars::trace_function_data_path);
   if (!functions_trace_path_.empty()) {
     functions_trace_file_ = ChunkedMappedMemoryWriter::Open(
         functions_trace_path_, 32 * 1024 * 1024, true);
@@ -149,7 +150,7 @@ bool Processor::Setup(std::unique_ptr<backend::Backend> backend) {
 }
 
 void Processor::PreLaunch() {
-  if (FLAGS_break_on_start) {
+  if (cvars::break_on_start) {
     // Start paused.
     XELOGI("Breaking into debugger because of --break_on_start...");
     execution_state_ = ExecutionState::kRunning;
@@ -629,9 +630,9 @@ bool Processor::OnThreadBreakpointHit(Exception* ex) {
     SuspendAllBreakpoints();
   }
 
-  // Update all thread states with their latest values, using the context we got
-  // from the exception instead of a sampled value (as it would just show the
-  // exception handler).
+  // Update all thread states with their latest values, using the context we
+  // got from the exception instead of a sampled value (as it would just show
+  // the exception handler).
   UpdateThreadExecutionStates(thread_info->thread_id, ex->thread_context());
 
   // Walk the captured thread stack and look for breakpoints at any address in

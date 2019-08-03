@@ -10,10 +10,9 @@
 #ifndef XENIA_CPU_BACKEND_X64_X64_BACKEND_H_
 #define XENIA_CPU_BACKEND_X64_X64_BACKEND_H_
 
-#include <gflags/gflags.h>
-
 #include <memory>
 
+#include "xenia/base/cvar.h"
 #include "xenia/cpu/backend/backend.h"
 
 DECLARE_bool(enable_haswell_instructions);

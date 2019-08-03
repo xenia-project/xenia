@@ -9,7 +9,6 @@
 
 #include "xenia/gpu/d3d12/texture_cache.h"
 
-#include <gflags/gflags.h>
 #include "third_party/xxhash/xxhash.h"
 
 #include <algorithm>
@@ -17,6 +16,7 @@
 
 #include "xenia/base/assert.h"
 #include "xenia/base/clock.h"
+#include "xenia/base/cvar.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/profiling.h"
@@ -27,20 +27,24 @@
 
 DEFINE_int32(d3d12_resolution_scale, 1,
              "Scale of rendering width and height (currently only 1 and 2 "
-             "are available).");
+             "are available).",
+             "D3D12");
 DEFINE_int32(d3d12_texture_cache_limit_soft, 384,
              "Maximum host texture memory usage (in megabytes) above which old "
              "textures will be destroyed (lifetime configured with "
              "d3d12_texture_cache_limit_soft_lifetime). If using 2x resolution "
-             "scale, 1.25x of this is used.");
+             "scale, 1.25x of this is used.",
+             "D3D12");
 DEFINE_int32(d3d12_texture_cache_limit_soft_lifetime, 30,
              "Seconds a texture should be unused to be considered old enough "
              "to be deleted if texture memory usage exceeds "
-             "d3d12_texture_cache_limit_soft.");
+             "d3d12_texture_cache_limit_soft.",
+             "D3D12");
 DEFINE_int32(d3d12_texture_cache_limit_hard, 768,
              "Maximum host texture memory usage (in megabytes) above which "
              "textures will be destroyed as soon as possible. If using 2x "
-             "resolution scale, 1.25x of this is used.");
+             "resolution scale, 1.25x of this is used.",
+             "D3D12");
 
 namespace xe {
 namespace gpu {
@@ -484,7 +488,7 @@ bool TextureCache::Initialize() {
   // Try to create the tiled buffer 2x resolution scaling.
   // Not currently supported with the RTV/DSV output path for various reasons.
   // As of November 27th, 2018, PIX doesn't support tiled buffers.
-  if (FLAGS_d3d12_resolution_scale >= 2 &&
+  if (cvars::d3d12_resolution_scale >= 2 &&
       command_processor_->IsROVUsedForEDRAM() &&
       provider->GetTiledResourcesTier() >= 1 &&
       provider->GetGraphicsAnalysis() == nullptr &&
@@ -738,14 +742,14 @@ void TextureCache::BeginFrame() {
   // If memory usage is too high, destroy unused textures.
   uint64_t last_completed_frame =
       command_processor_->GetD3D12Context()->GetLastCompletedFrame();
-  uint32_t limit_soft_mb = FLAGS_d3d12_texture_cache_limit_soft;
-  uint32_t limit_hard_mb = FLAGS_d3d12_texture_cache_limit_hard;
+  uint32_t limit_soft_mb = cvars::d3d12_texture_cache_limit_soft;
+  uint32_t limit_hard_mb = cvars::d3d12_texture_cache_limit_hard;
   if (IsResolutionScale2X()) {
     limit_soft_mb += limit_soft_mb >> 2;
     limit_hard_mb += limit_hard_mb >> 2;
   }
   uint32_t limit_soft_lifetime =
-      std::max(FLAGS_d3d12_texture_cache_limit_soft_lifetime, 0) * 1000;
+      std::max(cvars::d3d12_texture_cache_limit_soft_lifetime, 0) * 1000;
   bool destroyed_any = false;
   while (texture_used_first_ != nullptr) {
     uint64_t total_size_mb = textures_total_size_ >> 20;

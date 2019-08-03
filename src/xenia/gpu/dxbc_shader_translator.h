@@ -10,12 +10,11 @@
 #ifndef XENIA_GPU_DXBC_SHADER_TRANSLATOR_H_
 #define XENIA_GPU_DXBC_SHADER_TRANSLATOR_H_
 
-#include <gflags/gflags.h>
-
 #include <cstring>
 #include <string>
 #include <vector>
 
+#include "xenia/base/cvar.h"
 #include "xenia/base/math.h"
 #include "xenia/base/string_buffer.h"
 #include "xenia/gpu/shader_translator.h"

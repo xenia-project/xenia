@@ -598,7 +598,7 @@ class BaseBuildCommand(Command):
             '--no_premake', action='store_true',
             help='Skips running premake before building.')
         self.parser.add_argument(
-            '-j', default=0, type=int, help='Number of parallel threads')
+            '-j', default=4, type=int, help='Number of parallel threads')
 
     def execute(self, args, pass_args, cwd):
         if not args['no_premake']:

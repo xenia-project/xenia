@@ -9,19 +9,17 @@
 
 #include "xenia/ui/d3d12/d3d12_context.h"
 
-#include <gflags/gflags.h>
-
 #include <cstdlib>
 
+#include "xenia/base/cvar.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
-#include "xenia/gpu/gpu_flags.h"
 #include "xenia/ui/d3d12/d3d12_immediate_drawer.h"
 #include "xenia/ui/d3d12/d3d12_provider.h"
 #include "xenia/ui/window.h"
 
 DEFINE_bool(d3d12_random_clear_color, false,
-            "Randomize presentation back buffer clear color.");
+            "Randomize presentation back buffer clear color.", "D3D12");
 
 namespace xe {
 namespace ui {
@@ -267,7 +265,7 @@ void D3D12Context::BeginSwap() {
     graphics_command_list->OMSetRenderTargets(1, &back_buffer_rtv, TRUE,
                                               nullptr);
     float clear_color[4];
-    if (FLAGS_d3d12_random_clear_color) {
+    if (cvars::d3d12_random_clear_color) {
       clear_color[0] =
           rand() / float(RAND_MAX);  // NOLINT(runtime/threadsafe_fn)
       clear_color[1] = 1.0f;
@@ -303,7 +301,7 @@ void D3D12Context::EndSwap() {
     graphics_command_list->ResourceBarrier(1, &barrier);
     command_list->Execute();
     // Present and check if the context was lost.
-    HRESULT result = swap_chain_->Present(FLAGS_vsync ? 1 : 0, 0);
+    HRESULT result = swap_chain_->Present(0, 0);
     if (result == DXGI_ERROR_DEVICE_RESET ||
         result == DXGI_ERROR_DEVICE_REMOVED) {
       context_lost_ = true;

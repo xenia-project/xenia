@@ -9,8 +9,6 @@
 
 #include "xenia/debug/ui/debug_window.h"
 
-#include <gflags/gflags.h>
-
 #include <algorithm>
 #include <cinttypes>
 #include <utility>
@@ -35,7 +33,7 @@
 #include "xenia/ui/graphics_provider.h"
 #include "xenia/ui/imgui_drawer.h"
 
-DEFINE_bool(imgui_debug, false, "Show ImGui debugging tools.");
+DEFINE_bool(imgui_debug, false, "Show ImGui debugging tools.", "Other");
 
 namespace xe {
 namespace debug {
@@ -238,7 +236,7 @@ void DebugWindow::DrawFrame() {
   ImGui::End();
   ImGui::PopStyleVar();
 
-  if (FLAGS_imgui_debug) {
+  if (cvars::imgui_debug) {
     ImGui::ShowTestWindow();
     ImGui::ShowMetricsWindow();
   }

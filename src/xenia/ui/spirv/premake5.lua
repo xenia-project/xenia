@@ -14,7 +14,6 @@ project("xenia-ui-spirv")
   defines({
   })
   includedirs({
-    project_root.."/third_party/gflags/src",
     project_root.."/third_party/spirv-tools/external/include",
   })
   local_platform_files()

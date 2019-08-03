@@ -9,8 +9,6 @@
 
 #include "xenia/kernel/xboxkrnl/xboxkrnl_module.h"
 
-#include <gflags/gflags.h>
-
 #include <vector>
 
 #include "xenia/base/clock.h"

@@ -9,13 +9,12 @@
 
 #include "xenia/memory.h"
 
-#include <gflags/gflags.h>
-
 #include <algorithm>
 #include <cstring>
 
 #include "xenia/base/byte_stream.h"
 #include "xenia/base/clock.h"
+#include "xenia/base/cvar.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/threading.h"
@@ -24,15 +23,14 @@
 // TODO(benvanik): move xbox.h out
 #include "xenia/xbox.h"
 
-DEFINE_bool(protect_zero, true, "Protect the zero page from reads and writes.");
+DEFINE_bool(protect_zero, true, "Protect the zero page from reads and writes.",
+            "Memory");
 DEFINE_bool(protect_on_release, false,
-            "Protect released memory to prevent accesses.");
-
+            "Protect released memory to prevent accesses.", "Memory");
 DEFINE_bool(scribble_heap, false,
-            "Scribble 0xCD into all allocated heap memory.");
+            "Scribble 0xCD into all allocated heap memory.", "Memory");
 
 namespace xe {
-
 uint32_t get_page_count(uint32_t value, uint32_t page_size) {
   return xe::round_up(value, page_size) / page_size;
 }
@@ -54,10 +52,10 @@ uint32_t get_page_count(uint32_t value, uint32_t page_size) {
  *
  * We create our own heap of committed memory that lives at
  * memory_HEAP_LOW to memory_HEAP_HIGH - all normal user allocations
- * come from there. Since the Xbox has no paging, we know that the size of this
- * heap will never need to be larger than ~512MB (realistically, smaller than
- * that). We place it far away from the XEX data and keep the memory around it
- * uncommitted so that we have some warning if things go astray.
+ * come from there. Since the Xbox has no paging, we know that the size of
+ * this heap will never need to be larger than ~512MB (realistically, smaller
+ * than that). We place it far away from the XEX data and keep the memory
+ * around it uncommitted so that we have some warning if things go astray.
  *
  * For XEX/GPU/etc data we allow placement allocations (base_address != 0) and
  * commit the requested memory as needed. This bypasses the standard heap, but
@@ -182,8 +180,8 @@ bool Memory::Initialize() {
   heaps_.v00000000.AllocFixed(
       0x00000000, 0x10000, 0x10000,
       kMemoryAllocationReserve | kMemoryAllocationCommit,
-      !FLAGS_protect_zero ? kMemoryProtectRead | kMemoryProtectWrite
-                          : kMemoryProtectNoAccess);
+      !cvars::protect_zero ? kMemoryProtectRead | kMemoryProtectWrite
+                           : kMemoryProtectNoAccess);
   heaps_.physical.AllocFixed(0x1FFF0000, 0x10000, 0x10000,
                              kMemoryAllocationReserve, kMemoryProtectNoAccess);
 
@@ -863,7 +861,7 @@ bool BaseHeap::AllocFixed(uint32_t base_address, uint32_t size,
       return false;
     }
 
-    if (FLAGS_scribble_heap && protect & kMemoryProtectWrite) {
+    if (cvars::scribble_heap && protect & kMemoryProtectWrite) {
       std::memset(result, 0xCD, page_count * page_size_);
     }
   }
@@ -1011,7 +1009,7 @@ bool BaseHeap::AllocRange(uint32_t low_address, uint32_t high_address,
       return false;
     }
 
-    if (FLAGS_scribble_heap && (protect & kMemoryProtectWrite)) {
+    if (cvars::scribble_heap && (protect & kMemoryProtectWrite)) {
       std::memset(result, 0xCD, page_count * page_size_);
     }
   }
@@ -1096,10 +1094,10 @@ bool BaseHeap::Release(uint32_t base_address, uint32_t* out_region_size) {
                xe::memory::page_size() ==
            0 &&
        ((base_page_number * page_size_) % xe::memory::page_size() == 0))) {
-    // TODO(benvanik): figure out why games are using memory after releasing it.
-    // It's possible this is some virtual/physical stuff where the GPU still can
-    // access it.
-    if (FLAGS_protect_on_release) {
+    // TODO(benvanik): figure out why games are using memory after releasing
+    // it. It's possible this is some virtual/physical stuff where the GPU
+    // still can access it.
+    if (cvars::protect_on_release) {
       if (!xe::memory::Protect(
               membase_ + heap_base_ + base_page_number * page_size_,
               base_page_entry.region_page_count * page_size_,
@@ -1323,7 +1321,8 @@ bool PhysicalHeap::Alloc(uint32_t size, uint32_t alignment,
                          bool top_down, uint32_t* out_address) {
   *out_address = 0;
 
-  // Default top-down. Since parent heap is bottom-up this prevents collisions.
+  // Default top-down. Since parent heap is bottom-up this prevents
+  // collisions.
   top_down = true;
 
   // Adjust alignment size our page size differs from the parent.
@@ -1462,7 +1461,7 @@ bool PhysicalHeap::Release(uint32_t base_address, uint32_t* out_region_size) {
     cpu::MMIOHandler::global_handler()->InvalidateRange(base_address,
                                                         region_size);
     TriggerWatches(base_address, region_size, true, true,
-                   !FLAGS_protect_on_release);
+                   !cvars::protect_on_release);
   }
 
   if (!parent_heap_->Release(parent_base_address, out_region_size)) {

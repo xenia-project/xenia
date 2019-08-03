@@ -2,19 +2,15 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2016 Ben Vanik. All rights reserved.                             *
+ * Copyright 2013 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
 
-#ifndef XENIA_GPU_VULKAN_VULKAN_GPU_FLAGS_H_
-#define XENIA_GPU_VULKAN_VULKAN_GPU_FLAGS_H_
+#include "xenia/kernel/kernel_flags.h"
 
-#define FINE_GRAINED_DRAW_SCOPES 1
-#include "xenia/base/cvar.h"
-
-DECLARE_bool(vulkan_renderdoc_capture_all);
-DECLARE_bool(vulkan_native_msaa);
-DECLARE_bool(vulkan_dump_disasm);
-
-#endif  // XENIA_GPU_VULKAN_VULKAN_GPU_FLAGS_H_
+DEFINE_bool(headless, false,
+            "Don't display any UI, using defaults for prompts as needed.",
+            "Other");
+DEFINE_bool(log_high_frequency_kernel_calls, false,
+            "Log kernel calls with the kHighFrequency tag.", "Kernel");

@@ -14,8 +14,6 @@
 #include "xenia/cpu/ppc/ppc_frontend.h"
 #include "xenia/cpu/raw_module.h"
 
-#include <gflags/gflags.h>
-
 namespace xe {
 namespace cpu {
 namespace sandbox {
