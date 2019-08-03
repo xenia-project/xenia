@@ -65,64 +65,93 @@ DEFINE_bool(discord, true, "Enable Discord rich presence", "General");
 namespace xe {
 namespace app {
 
-template <class T>
-struct Factory {
-  std::string name;
-  std::function<bool()> is_available;
-  std::function<std::unique_ptr<T>()> instantiate;
+template <typename T, typename... Args>
+class Factory {
+ private:
+  struct Creator {
+    std::string name;
+    std::function<bool()> is_available;
+    std::function<std::unique_ptr<T>(Args...)> instantiate;
+  };
 
-  template <class DT>
-  static Factory Define(const std::string& name) {
-    return {name, DT::IsAvailable,
-            []() { return std::unique_ptr<DT>(new DT); }};
+  std::vector<Creator> creators_;
+
+ public:
+  void Add(const std::string& name, std::function<bool()> is_available,
+           std::function<std::unique_ptr<T>(Args...)> instantiate) {
+    creators_.push_back({name, is_available, instantiate});
   }
 
-  static std::unique_ptr<T> Create(const std::string& name,
-                                   const std::vector<Factory>& factories) {
+  void Add(const std::string& name,
+           std::function<std::unique_ptr<T>(Args...)> instantiate) {
+    Add(name, []() { return true; }, instantiate);
+  }
+
+  template <typename DT>
+  void Add(const std::string& name) {
+    Add(name, DT::IsAvailable, [](Args... args) {
+      return std::unique_ptr<DT>(new DT(std::forward<Args>(args)...));
+    });
+  }
+
+  std::unique_ptr<T> Create(const std::string& name, Args... args) {
     if (!name.empty() && name != "any") {
       auto it = std::find_if(
-          factories.begin(), factories.end(),
+          creators_.cbegin(), creators_.cend(),
           [&name](const auto& f) { return name.compare(f.name) == 0; });
-      if (it != factories.end() && (*it).is_available()) {
-        return (*it).instantiate();
+      if (it != creators_.cend() && (*it).is_available()) {
+        return (*it).instantiate(std::forward<Args>(args)...);
       }
       return nullptr;
     } else {
-      // Create best available.
-      std::unique_ptr<T> best;
-      for (const auto& factory : factories) {
-        if (!factory.is_available()) continue;
-        best = factory.instantiate();
-        if (!best) continue;
-        return best;
+      for (const auto& creator : creators_) {
+        if (!creator.is_available()) continue;
+        auto instance = creator.instantiate(std::forward<Args>(args)...);
+        if (!instance) continue;
+        return instance;
       }
-      // Nothing!
       return nullptr;
     }
+  }
+
+  std::vector<std::unique_ptr<T>> CreateAll(const std::string& name,
+                                            Args... args) {
+    std::vector<std::unique_ptr<T>> instances;
+    if (!name.empty() && name != "any") {
+      auto it = std::find_if(
+          creators_.cbegin(), creators_.cend(),
+          [&name](const auto& f) { return name.compare(f.name) == 0; });
+      if (it != creators_.cend() && (*it).is_available()) {
+        auto instance = (*it).instantiate(std::forward<Args>(args)...);
+        if (instance) {
+          instances.push_back(std::move(instance));
+        }
+      }
+    } else {
+      for (const auto& creator : creators_) {
+        if (!creator.is_available()) continue;
+        auto instance = creator.instantiate(std::forward<Args>(args)...);
+        if (instance) {
+          instances.push_back(std::move(instance));
+        }
+      }
+    }
+    return instances;
   }
 };
 
 std::unique_ptr<apu::AudioSystem> CreateAudioSystem(cpu::Processor* processor) {
-  if (cvars::apu.compare("nop") == 0) {
-    return apu::nop::NopAudioSystem::Create(processor);
-#if XE_PLATFORM_WIN32
-  } else if (cvars::apu.compare("xaudio2") == 0) {
-    return apu::xaudio2::XAudio2AudioSystem::Create(processor);
-#endif  // XE_PLATFORM_WIN32
-  } else {
-    // Create best available.
-    std::unique_ptr<apu::AudioSystem> best;
+  using NopAS = apu::nop::NopAudioSystem;
+  using XAudio2AS = apu::xaudio2::XAudio2AudioSystem;
+  using Factory = Factory<apu::AudioSystem, cpu::Processor*>;
 
+  Factory factory;
 #if XE_PLATFORM_WIN32
-    best = apu::xaudio2::XAudio2AudioSystem::Create(processor);
-    if (best) {
-      return best;
-    }
+  factory.Add<XAudio2AS>("xaudio2");
 #endif  // XE_PLATFORM_WIN32
+  factory.Add<NopAS>("nop");
 
-    // Fallback to nop.
-    return apu::nop::NopAudioSystem::Create(processor);
-  }
+  return factory.Create(cvars::apu, processor);
 }
 
 std::unique_ptr<gpu::GraphicsSystem> CreateGraphicsSystem() {
@@ -130,39 +159,31 @@ std::unique_ptr<gpu::GraphicsSystem> CreateGraphicsSystem() {
   using D3D12GS = gpu::d3d12::D3D12GraphicsSystem;
   using VulkanGS = gpu::vulkan::VulkanGraphicsSystem;
   using Factory = Factory<gpu::GraphicsSystem>;
-  std::vector<Factory> factories = {
+
+  Factory factory;
 #if XE_PLATFORM_WIN32
-    Factory::Define<D3D12GS>("d3d12"),
+  factory.Add<D3D12GS>("d3d12");
 #endif  // XE_PLATFORM_WIN32
-    Factory::Define<VulkanGS>("vulkan"),
-    Factory::Define<NullGS>("null"),
-  };
-  return Factory::Create(cvars::gpu, factories);
+  factory.Add<VulkanGS>("vulkan");
+  factory.Add<NullGS>("null");
+
+  return factory.Create(cvars::gpu);
 }
 
 std::vector<std::unique_ptr<hid::InputDriver>> CreateInputDrivers(
     ui::Window* window) {
-  std::vector<std::unique_ptr<hid::InputDriver>> drivers;
-  if (cvars::hid.compare("nop") == 0) {
-    drivers.emplace_back(xe::hid::nop::Create(window));
+  using Factory = Factory<hid::InputDriver, ui::Window*>;
+
+  Factory factory;
 #if XE_PLATFORM_WIN32
-  } else if (cvars::hid.compare("winkey") == 0) {
-    drivers.emplace_back(xe::hid::winkey::Create(window));
-  } else if (cvars::hid.compare("xinput") == 0) {
-    drivers.emplace_back(xe::hid::xinput::Create(window));
+  factory.Add("winkey", xe::hid::winkey::Create);
+  factory.Add("xinput", xe::hid::xinput::Create);
 #endif  // XE_PLATFORM_WIN32
-  } else {
-#if XE_PLATFORM_WIN32
-    auto xinput_driver = xe::hid::xinput::Create(window);
-    if (xinput_driver) {
-      drivers.emplace_back(std::move(xinput_driver));
-    }
-    auto winkey_driver = xe::hid::winkey::Create(window);
-    if (winkey_driver) {
-      drivers.emplace_back(std::move(winkey_driver));
-    }
-#endif  // XE_PLATFORM_WIN32
-  }
+  factory.Add("nop", xe::hid::nop::Create);
+
+  auto drivers = factory.CreateAll(cvars::hid, window);
+
+  // Remove drivers that fail to setup.
   for (auto it = drivers.begin(); it != drivers.end();) {
     if (XFAILED((*it)->Setup())) {
       it = drivers.erase(it);
@@ -170,10 +191,12 @@ std::vector<std::unique_ptr<hid::InputDriver>> CreateInputDrivers(
       ++it;
     }
   }
+
   if (drivers.empty()) {
     // Fallback to nop if none created.
     drivers.emplace_back(xe::hid::nop::Create(window));
   }
+
   return drivers;
 }
 
