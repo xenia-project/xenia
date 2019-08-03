@@ -700,7 +700,7 @@ void* PrimitiveConverter::AllocateIndices(
 }
 
 std::pair<uint32_t, uint32_t> PrimitiveConverter::MemoryWriteCallback(
-    uint32_t physical_address_start, uint32_t length) {
+    uint32_t physical_address_start, uint32_t length, bool exact_range) {
   // 1 bit = (512 / 64) MB = 8 MB. Invalidate a region of this size.
   uint32_t bit_index_first = physical_address_start >> 23;
   uint32_t bit_index_last = (physical_address_start + length - 1) >> 23;
@@ -713,9 +713,10 @@ std::pair<uint32_t, uint32_t> PrimitiveConverter::MemoryWriteCallback(
 }
 
 std::pair<uint32_t, uint32_t> PrimitiveConverter::MemoryWriteCallbackThunk(
-    void* context_ptr, uint32_t physical_address_start, uint32_t length) {
+    void* context_ptr, uint32_t physical_address_start, uint32_t length,
+    bool exact_range) {
   return reinterpret_cast<PrimitiveConverter*>(context_ptr)
-      ->MemoryWriteCallback(physical_address_start, length);
+      ->MemoryWriteCallback(physical_address_start, length, exact_range);
 }
 
 D3D12_GPU_VIRTUAL_ADDRESS PrimitiveConverter::GetStaticIndexBuffer(

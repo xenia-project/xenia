@@ -191,9 +191,10 @@ class SharedMemory {
 
   // Memory access callback.
   static std::pair<uint32_t, uint32_t> MemoryWriteCallbackThunk(
-      void* context_ptr, uint32_t physical_address_start, uint32_t length);
+      void* context_ptr, uint32_t physical_address_start, uint32_t length,
+      bool exact_range);
   std::pair<uint32_t, uint32_t> MemoryWriteCallback(
-      uint32_t physical_address_start, uint32_t length);
+      uint32_t physical_address_start, uint32_t length, bool exact_range);
 
   struct GlobalWatch {
     GlobalWatchCallback callback;

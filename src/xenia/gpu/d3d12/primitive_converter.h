@@ -90,9 +90,10 @@ class PrimitiveConverter {
 
   // Callback for invalidating buffers mid-frame.
   std::pair<uint32_t, uint32_t> MemoryWriteCallback(
-      uint32_t physical_address_start, uint32_t length);
+      uint32_t physical_address_start, uint32_t length, bool exact_range);
   static std::pair<uint32_t, uint32_t> MemoryWriteCallbackThunk(
-      void* context_ptr, uint32_t physical_address_start, uint32_t length);
+      void* context_ptr, uint32_t physical_address_start, uint32_t length,
+      bool exact_range);
 
   D3D12CommandProcessor* command_processor_;
   RegisterFile* register_file_;

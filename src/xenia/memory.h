@@ -338,7 +338,8 @@ class Memory {
   // the watched region that can be safely unwatched, if it doesn't matter,
   // return (0, UINT32_MAX).
   typedef std::pair<uint32_t, uint32_t> (*PhysicalWriteWatchCallback)(
-      void* context_ptr, uint32_t physical_address_start, uint32_t length);
+      void* context_ptr, uint32_t physical_address_start, uint32_t length,
+      bool exact_range);
 
   // Physical memory write watching, allowing subsystems to invalidate cached
   // data that depends on memory contents.

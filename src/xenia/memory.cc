@@ -1643,7 +1643,8 @@ bool PhysicalHeap::TriggerWatches(uint32_t virtual_address, uint32_t length,
   for (auto physical_write_watch : memory_->physical_write_watches_) {
     std::pair<uint32_t, uint32_t> callback_unwatch_range =
         physical_write_watch->callback(physical_write_watch->callback_context,
-                                       physical_address_start, physical_length);
+                                       physical_address_start, physical_length,
+                                       unwatch_exact_range);
     if (!unwatch_exact_range) {
       unwatch_first = std::max(unwatch_first, callback_unwatch_range.first);
       unwatch_last = std::min(
