@@ -141,40 +141,27 @@ class Factory {
 };
 
 std::unique_ptr<apu::AudioSystem> CreateAudioSystem(cpu::Processor* processor) {
-  using NopAS = apu::nop::NopAudioSystem;
-  using XAudio2AS = apu::xaudio2::XAudio2AudioSystem;
-  using Factory = Factory<apu::AudioSystem, cpu::Processor*>;
-
-  Factory factory;
+  Factory<apu::AudioSystem, cpu::Processor*> factory;
 #if XE_PLATFORM_WIN32
-  factory.Add<XAudio2AS>("xaudio2");
+  factory.Add<apu::xaudio2::XAudio2AudioSystem>("xaudio2");
 #endif  // XE_PLATFORM_WIN32
-  factory.Add<NopAS>("nop");
-
+  factory.Add<apu::nop::NopAudioSystem>("nop");
   return factory.Create(cvars::apu, processor);
 }
 
 std::unique_ptr<gpu::GraphicsSystem> CreateGraphicsSystem() {
-  using NullGS = gpu::null::NullGraphicsSystem;
-  using D3D12GS = gpu::d3d12::D3D12GraphicsSystem;
-  using VulkanGS = gpu::vulkan::VulkanGraphicsSystem;
-  using Factory = Factory<gpu::GraphicsSystem>;
-
-  Factory factory;
+  Factory<gpu::GraphicsSystem> factory;
 #if XE_PLATFORM_WIN32
-  factory.Add<D3D12GS>("d3d12");
+  factory.Add<gpu::d3d12::D3D12GraphicsSystem>("d3d12");
 #endif  // XE_PLATFORM_WIN32
-  factory.Add<VulkanGS>("vulkan");
-  factory.Add<NullGS>("null");
-
+  factory.Add<gpu::vulkan::VulkanGraphicsSystem>("vulkan");
+  factory.Add<gpu::null::NullGraphicsSystem>("null");
   return factory.Create(cvars::gpu);
 }
 
 std::vector<std::unique_ptr<hid::InputDriver>> CreateInputDrivers(
     ui::Window* window) {
-  using Factory = Factory<hid::InputDriver, ui::Window*>;
-
-  Factory factory;
+  Factory<hid::InputDriver, ui::Window*> factory;
 #if XE_PLATFORM_WIN32
   factory.Add("winkey", xe::hid::winkey::Create);
   factory.Add("xinput", xe::hid::xinput::Create);
