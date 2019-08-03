@@ -12,7 +12,6 @@ project("xenia-cpu")
   })
   includedirs({
     project_root.."/third_party/llvm/include",
-    project_root.."/third_party/gflags/src",
   })
   local_platform_files()
   local_platform_files("backend")

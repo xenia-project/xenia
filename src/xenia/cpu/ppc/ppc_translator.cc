@@ -9,8 +9,6 @@
 
 #include "xenia/cpu/ppc/ppc_translator.h"
 
-#include <gflags/gflags.h>
-
 #include "xenia/base/assert.h"
 #include "xenia/base/byte_order.h"
 #include "xenia/base/memory.h"
@@ -41,7 +39,7 @@ PPCTranslator::PPCTranslator(PPCFrontend* frontend) : frontend_(frontend) {
   assembler_ = backend->CreateAssembler();
   assembler_->Initialize();
 
-  bool validate = FLAGS_validate_hir;
+  bool validate = cvars::validate_hir;
 
   // Merge blocks early. This will let us use more context in other passes.
   // The CFG is required for simplification and dirtied by it.
@@ -108,19 +106,19 @@ bool PPCTranslator::Translate(GuestFunction* function,
   xe::make_reset_scope(&string_buffer_);
 
   // NOTE: we only want to do this when required, as it's expensive to build.
-  if (FLAGS_disassemble_functions) {
+  if (cvars::disassemble_functions) {
     debug_info_flags |= DebugInfoFlags::kDebugInfoAllDisasm;
   }
-  if (FLAGS_trace_functions) {
+  if (cvars::trace_functions) {
     debug_info_flags |= DebugInfoFlags::kDebugInfoTraceFunctions;
   }
-  if (FLAGS_trace_function_coverage) {
+  if (cvars::trace_function_coverage) {
     debug_info_flags |= DebugInfoFlags::kDebugInfoTraceFunctionCoverage;
   }
-  if (FLAGS_trace_function_references) {
+  if (cvars::trace_function_references) {
     debug_info_flags |= DebugInfoFlags::kDebugInfoTraceFunctionReferences;
   }
-  if (FLAGS_trace_function_data) {
+  if (cvars::trace_function_data) {
     debug_info_flags |= DebugInfoFlags::kDebugInfoTraceFunctionData;
   }
   std::unique_ptr<FunctionDebugInfo> debug_info;

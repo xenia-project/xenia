@@ -9,8 +9,6 @@
 
 #include "xenia/kernel/xboxkrnl/xboxkrnl_module.h"
 
-#include <gflags/gflags.h>
-
 #include <vector>
 
 #include "xenia/base/clock.h"
@@ -47,7 +45,7 @@ void KeDebugMonitorCallback(cpu::ppc::PPCContext* ppc_context,
 
   XELOGI("KeDebugMonitorCallback(%u, %08x)", static_cast<uint32_t>(id), arg);
 
-  if (!FLAGS_kernel_pix) {
+  if (!cvars::kernel_pix) {
     SHIM_SET_RETURN_32(-1);
     return;
   }

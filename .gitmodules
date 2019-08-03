@@ -16,9 +16,6 @@
 [submodule "third_party/catch"]
 	path = third_party/catch
 	url = https://github.com/catchorg/Catch2.git
-[submodule "third_party/gflags"]
-	path = third_party/gflags
-	url = https://github.com/benvanik/gflags.git
 [submodule "third_party/premake-core"]
 	path = third_party/premake-core
 	url = https://github.com/xenia-project/premake-core.git
@@ -49,3 +46,9 @@
 [submodule "third_party/capstone"]
 	path = third_party/capstone
 	url = https://github.com/xenia-project/capstone.git
+[submodule "third_party/cpptoml"]
+	path = third_party/cpptoml
+	url = https://github.com/skystrife/cpptoml
+[submodule "third_party/cxxopts"]
+	path = third_party/cxxopts
+	url = https://github.com/jarro2783/cxxopts

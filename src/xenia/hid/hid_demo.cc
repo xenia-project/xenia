@@ -7,12 +7,11 @@
  ******************************************************************************
  */
 
-#include <gflags/gflags.h>
-
 #include <cstring>
 
 #include "third_party/imgui/imgui.h"
 #include "xenia/base/clock.h"
+#include "xenia/base/cvar.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/main.h"
 #include "xenia/base/threading.h"
@@ -28,7 +27,8 @@
 #include "xenia/hid/xinput/xinput_hid.h"
 #endif  // XE_PLATFORM_WIN32
 
-DEFINE_string(hid, "any", "Input system. Use: [any, nop, winkey, xinput]");
+DEFINE_string(hid, "any", "Input system. Use: [any, nop, winkey, xinput]",
+              "General");
 
 namespace xe {
 namespace hid {
@@ -38,12 +38,12 @@ std::unique_ptr<xe::hid::InputSystem> input_system_;
 std::vector<std::unique_ptr<hid::InputDriver>> CreateInputDrivers(
     ui::Window* window) {
   std::vector<std::unique_ptr<hid::InputDriver>> drivers;
-  if (FLAGS_hid.compare("nop") == 0) {
+  if (cvars::hid.compare("nop") == 0) {
     drivers.emplace_back(xe::hid::nop::Create(window));
 #if XE_PLATFORM_WIN32
-  } else if (FLAGS_hid.compare("winkey") == 0) {
+  } else if (cvars::hid.compare("winkey") == 0) {
     drivers.emplace_back(xe::hid::winkey::Create(window));
-  } else if (FLAGS_hid.compare("xinput") == 0) {
+  } else if (cvars::hid.compare("xinput") == 0) {
     drivers.emplace_back(xe::hid::xinput::Create(window));
 #endif  // XE_PLATFORM_WIN32
   } else {

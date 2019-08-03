@@ -9,8 +9,6 @@
 
 #include "xenia/cpu/compiler/passes/conditional_group_pass.h"
 
-#include <gflags/gflags.h>
-
 #include "xenia/base/profiling.h"
 #include "xenia/cpu/compiler/compiler.h"
 #include "xenia/cpu/ppc/ppc_context.h"

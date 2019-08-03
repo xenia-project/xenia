@@ -9,8 +9,6 @@
 
 #include "xenia/ui/vulkan/vulkan_device.h"
 
-#include <gflags/gflags.h>
-
 #include <cinttypes>
 #include <climits>
 #include <mutex>
@@ -33,7 +31,7 @@ namespace ui {
 namespace vulkan {
 
 VulkanDevice::VulkanDevice(VulkanInstance* instance) : instance_(instance) {
-  if (FLAGS_vulkan_validation) {
+  if (cvars::vulkan_validation) {
     DeclareRequiredLayer("VK_LAYER_LUNARG_standard_validation",
                          Version::Make(0, 0, 0), true);
     // DeclareRequiredLayer("VK_LAYER_GOOGLE_unique_objects", Version::Make(0,
@@ -150,7 +148,7 @@ bool VulkanDevice::Initialize(DeviceInfo device_info) {
   }
 
   // Some tools *cough* renderdoc *cough* can't handle multiple queues.
-  if (FLAGS_vulkan_primary_queue_only) {
+  if (cvars::vulkan_primary_queue_only) {
     queue_count = 1;
   }
 

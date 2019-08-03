@@ -9,8 +9,10 @@
 
 #include "xenia/ui/vulkan/vulkan.h"
 
-DEFINE_bool(vulkan_validation, false, "Enable Vulkan validation layers.");
+DEFINE_bool(vulkan_validation, false, "Enable Vulkan validation layers.",
+            "Vulkan");
 
 DEFINE_bool(vulkan_primary_queue_only, false,
             "Force the use of the primary queue, ignoring any additional that "
-            "may be present.");
+            "may be present.",
+            "Vulkan");
