@@ -21,6 +21,8 @@ class XAudio2AudioSystem : public AudioSystem {
   explicit XAudio2AudioSystem(cpu::Processor* processor);
   ~XAudio2AudioSystem() override;
 
+  static bool IsAvailable() { return true; }
+
   static std::unique_ptr<AudioSystem> Create(cpu::Processor* processor);
 
   X_RESULT CreateDriver(size_t index, xe::threading::Semaphore* semaphore,
