@@ -10,8 +10,6 @@
 #ifndef XENIA_KERNEL_KERNEL_STATE_H_
 #define XENIA_KERNEL_KERNEL_STATE_H_
 
-#include <gflags/gflags.h>
-
 #include <atomic>
 #include <condition_variable>
 #include <functional>
@@ -20,6 +18,7 @@
 #include <vector>
 
 #include "xenia/base/bit_map.h"
+#include "xenia/base/cvar.h"
 #include "xenia/base/mutex.h"
 #include "xenia/cpu/export_resolver.h"
 #include "xenia/kernel/util/native_list.h"
@@ -38,8 +37,6 @@ namespace cpu {
 class Processor;
 }  // namespace cpu
 }  // namespace xe
-
-DECLARE_bool(headless);
 
 namespace xe {
 namespace kernel {

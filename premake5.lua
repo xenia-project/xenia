@@ -193,30 +193,9 @@ filter("platforms:Windows")
     "dxguid",
   })
 
--- Create scratch/ path and dummy flags file if needed.
+-- Create scratch/ path
 if not os.isdir("scratch") then
   os.mkdir("scratch")
-  local flags_file = io.open("scratch/flags.txt", "w")
-  flags_file:write("# Put flags, one on each line.\n")
-  flags_file:write("# Launch executables with --flags_file=scratch/flags.txt\n")
-  flags_file:write("\n")
-  flags_file:write("--cpu=x64\n")
-  flags_file:write("#--enable_haswell_instructions=false\n")
-  flags_file:write("\n")
-  flags_file:write("--debug\n")
-  flags_file:write("#--protect_zero=false\n")
-  flags_file:write("\n")
-  flags_file:write("#--mute\n")
-  flags_file:write("\n")
-  flags_file:write("--fast_stdout\n")
-  flags_file:write("#--flush_stdout=false\n")
-  flags_file:write("\n")
-  flags_file:write("#--vsync=false\n")
-  flags_file:write("#--trace_gpu_prefix=scratch/gpu/gpu_trace_\n")
-  flags_file:write("#--trace_gpu_stream\n")
-  flags_file:write("#--disable_framebuffer_readback\n")
-  flags_file:write("\n")
-  flags_file:close()
 end
 
 solution("xenia")
@@ -237,12 +216,12 @@ solution("xenia")
   end
   configurations({"Checked", "Debug", "Release"})
 
-  -- Include third party files first so they don't have to deal with gflags.
   include("third_party/aes_128.lua")
   include("third_party/capstone.lua")
   include("third_party/dxbc.lua")
   include("third_party/discord-rpc.lua")
-  include("third_party/gflags.lua")
+  include("third_party/cxxopts.lua")
+  include("third_party/cpptoml.lua")
   include("third_party/glew.lua")
   include("third_party/glslang-spirv.lua")
   include("third_party/imgui.lua")

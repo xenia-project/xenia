@@ -9,8 +9,6 @@
 
 #include "xenia/gpu/dxbc_shader_translator.h"
 
-#include <gflags/gflags.h>
-
 #include <algorithm>
 #include <cstring>
 #include <memory>
@@ -19,6 +17,7 @@
 #include "third_party/dxbc/d3d12TokenizedProgramFormat.hpp"
 
 #include "xenia/base/assert.h"
+#include "xenia/base/cvar.h"
 
 DEFINE_bool(dxbc_switch, true,
             "Use switch rather than if for flow control. Turning this off or "
@@ -27,10 +26,12 @@ DEFINE_bool(dxbc_switch, true,
             "Halo 3 appears to crash when if is used for flow control "
             "(possibly the shader compiler tries to flatten them). On Intel "
             "HD Graphics, this is ignored because of a crash with the switch "
-            "instruction.");
+            "instruction.",
+            "D3D12");
 DEFINE_bool(dxbc_source_map, false,
             "Disassemble Xenos instructions as comments in the resulting DXBC "
-            "for debugging.");
+            "for debugging.",
+            "D3D12");
 
 namespace xe {
 namespace gpu {
@@ -182,7 +183,7 @@ void DxbcShaderTranslator::Reset() {
 
 bool DxbcShaderTranslator::UseSwitchForControlFlow() const {
   // Xenia crashes on Intel HD Graphics 4000 with switch.
-  return FLAGS_dxbc_switch && vendor_id_ != 0x8086;
+  return cvars::dxbc_switch && vendor_id_ != 0x8086;
 }
 
 uint32_t DxbcShaderTranslator::PushSystemTemp(uint32_t zero_mask,
@@ -1861,7 +1862,7 @@ std::vector<uint8_t> DxbcShaderTranslator::CompleteTranslation() {
 }
 
 void DxbcShaderTranslator::EmitInstructionDisassembly() {
-  if (!FLAGS_dxbc_source_map) {
+  if (!cvars::dxbc_source_map) {
     return;
   }
 
@@ -3019,7 +3020,7 @@ void DxbcShaderTranslator::ProcessLabel(uint32_t cf_index) {
 
 void DxbcShaderTranslator::ProcessExecInstructionBegin(
     const ParsedExecInstruction& instr) {
-  if (FLAGS_dxbc_source_map) {
+  if (cvars::dxbc_source_map) {
     instruction_disassembly_buffer_.Reset();
     instr.Disassemble(&instruction_disassembly_buffer_);
     // Will be emitted by UpdateExecConditionals.
@@ -3070,7 +3071,7 @@ void DxbcShaderTranslator::ProcessLoopStartInstruction(
   // Loop control is outside execs - actually close the last exec.
   CloseExecConditionals();
 
-  if (FLAGS_dxbc_source_map) {
+  if (cvars::dxbc_source_map) {
     instruction_disassembly_buffer_.Reset();
     instr.Disassemble(&instruction_disassembly_buffer_);
     EmitInstructionDisassembly();
@@ -3182,7 +3183,7 @@ void DxbcShaderTranslator::ProcessLoopEndInstruction(
   // Loop control is outside execs - actually close the last exec.
   CloseExecConditionals();
 
-  if (FLAGS_dxbc_source_map) {
+  if (cvars::dxbc_source_map) {
     instruction_disassembly_buffer_.Reset();
     instr.Disassemble(&instruction_disassembly_buffer_);
     EmitInstructionDisassembly();
@@ -3340,7 +3341,7 @@ void DxbcShaderTranslator::ProcessLoopEndInstruction(
 
 void DxbcShaderTranslator::ProcessJumpInstruction(
     const ParsedJumpInstruction& instr) {
-  if (FLAGS_dxbc_source_map) {
+  if (cvars::dxbc_source_map) {
     instruction_disassembly_buffer_.Reset();
     instr.Disassemble(&instruction_disassembly_buffer_);
     // Will be emitted by UpdateExecConditionals.
@@ -3369,7 +3370,7 @@ void DxbcShaderTranslator::ProcessJumpInstruction(
 
 void DxbcShaderTranslator::ProcessAllocInstruction(
     const ParsedAllocInstruction& instr) {
-  if (FLAGS_dxbc_source_map) {
+  if (cvars::dxbc_source_map) {
     instruction_disassembly_buffer_.Reset();
     instr.Disassemble(&instruction_disassembly_buffer_);
     EmitInstructionDisassembly();

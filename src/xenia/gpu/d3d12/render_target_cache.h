@@ -10,10 +10,9 @@
 #ifndef XENIA_GPU_D3D12_RENDER_TARGET_CACHE_H_
 #define XENIA_GPU_D3D12_RENDER_TARGET_CACHE_H_
 
-#include <gflags/gflags.h>
-
 #include <unordered_map>
 
+#include "xenia/base/cvar.h"
 #include "xenia/gpu/d3d12/d3d12_shader.h"
 #include "xenia/gpu/d3d12/shared_memory.h"
 #include "xenia/gpu/d3d12/texture_cache.h"

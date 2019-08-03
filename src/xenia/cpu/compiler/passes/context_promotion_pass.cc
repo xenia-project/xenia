@@ -9,8 +9,8 @@
 
 #include "xenia/cpu/compiler/passes/context_promotion_pass.h"
 
-#include <gflags/gflags.h>
-
+#include "xenia/apu/apu_flags.h"
+#include "xenia/base/cvar.h"
 #include "xenia/base/profiling.h"
 #include "xenia/cpu/compiler/compiler.h"
 #include "xenia/cpu/ppc/ppc_context.h"
@@ -19,7 +19,7 @@
 DECLARE_bool(debug);
 
 DEFINE_bool(store_all_context_values, false,
-            "Don't strip dead context stores to aid in debugging.");
+            "Don't strip dead context stores to aid in debugging.", "CPU");
 
 namespace xe {
 namespace cpu {
@@ -77,7 +77,7 @@ bool ContextPromotionPass::Run(HIRBuilder* builder) {
   // Remove all dead stores.
   // This will break debugging as we can't recover this information when
   // trying to extract stack traces/register values, so we don't do that.
-  if (!FLAGS_debug && !FLAGS_store_all_context_values) {
+  if (!cvars::debug && !cvars::store_all_context_values) {
     block = builder->first_block();
     while (block) {
       RemoveDeadStoresBlock(block);

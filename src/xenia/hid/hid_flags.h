@@ -10,6 +10,4 @@
 #ifndef XENIA_HID_HID_FLAGS_H_
 #define XENIA_HID_HID_FLAGS_H_
 
-#include <gflags/gflags.h>
-
 #endif  // XENIA_HID_HID_FLAGS_H_

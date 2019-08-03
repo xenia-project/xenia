@@ -1040,7 +1040,7 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
     unpack_offset += ComputeMipStorage(src, mip);
   }
 
-  if (FLAGS_texture_dump) {
+  if (cvars::texture_dump) {
     TextureDump(src, unpack_buffer, unpack_length);
   }
 

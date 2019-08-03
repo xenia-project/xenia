@@ -7,18 +7,17 @@
  ******************************************************************************
  */
 
-#include "xenia/gpu/d3d12/d3d12_command_processor.h"
-
-#include <gflags/gflags.h>
 #include "third_party/xxhash/xxhash.h"
 
 #include <algorithm>
 #include <cstring>
 
 #include "xenia/base/assert.h"
+#include "xenia/base/cvar.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/profiling.h"
+#include "xenia/gpu/d3d12/d3d12_command_processor.h"
 #include "xenia/gpu/d3d12/d3d12_graphics_system.h"
 #include "xenia/gpu/d3d12/d3d12_shader.h"
 #include "xenia/gpu/xenos.h"
@@ -26,27 +25,31 @@
 
 DEFINE_bool(d3d12_edram_rov, true,
             "Use rasterizer-ordered views for render target emulation where "
-            "available.");
+            "available.",
+            "D3D12");
 // Some games (such as Banjo-Kazooie) are not aware of the half-pixel offset and
 // may be blurry or have texture sampling artifacts, in this case the user may
 // disable half-pixel offset by setting this to false.
 DEFINE_bool(d3d12_half_pixel_offset, true,
-            "Enable half-pixel vertex and VPOS offset.");
+            "Enable half-pixel vertex and VPOS offset.", "D3D12");
 DEFINE_bool(d3d12_readback_memexport, false,
             "Read data written by memory export in shaders on the CPU. This "
             "may be needed in some games (but many only access exported data "
             "on the GPU, and this flag isn't needed to handle such behavior), "
             "but causes mid-frame synchronization, so it has a huge "
-            "performance impact.");
+            "performance impact.",
+            "D3D12");
 DEFINE_bool(d3d12_readback_resolve, false,
             "Read render-to-texture results on the CPU. This may be needed in "
             "some games, for instance, for screenshots in saved games, but "
             "causes mid-frame synchronization, so it has a huge performance "
-            "impact.");
+            "impact.",
+            "D3D12");
 DEFINE_bool(d3d12_ssaa_custom_sample_positions, false,
             "Enable custom SSAA sample positions for the RTV/DSV rendering "
             "path where available instead of centers (experimental, not very "
-            "high-quality).");
+            "high-quality).",
+            "D3D12");
 
 namespace xe {
 namespace gpu {
@@ -78,7 +81,7 @@ void D3D12CommandProcessor::RequestFrameTrace(const std::wstring& root_path) {
 }
 
 bool D3D12CommandProcessor::IsROVUsedForEDRAM() const {
-  if (!FLAGS_d3d12_edram_rov) {
+  if (!cvars::d3d12_edram_rov) {
     return false;
   }
   auto provider = GetD3D12Context()->GetD3D12Provider();
@@ -540,7 +543,7 @@ void D3D12CommandProcessor::SetSamplePositions(MsaaSamples sample_positions) {
   // for ROV output. There's hardly any difference between 2,6 (of 0 and 3 with
   // 4x MSAA) and 4,4 anyway.
   // https://docs.microsoft.com/en-us/windows/desktop/api/d3d12/nf-d3d12-id3d12graphicscommandlist1-setsamplepositions
-  if (FLAGS_d3d12_ssaa_custom_sample_positions && !IsROVUsedForEDRAM()) {
+  if (cvars::d3d12_ssaa_custom_sample_positions && !IsROVUsedForEDRAM()) {
     auto provider = GetD3D12Context()->GetD3D12Provider();
     auto tier = provider->GetProgrammableSamplePositionsTier();
     if (tier >= 2 &&
@@ -1611,7 +1614,7 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
           memexport_range.base_address_dwords << 2,
           memexport_range.size_dwords << 2);
     }
-    if (FLAGS_d3d12_readback_memexport) {
+    if (cvars::d3d12_readback_memexport) {
       // Read the exported data on the CPU.
       uint32_t memexport_total_size = 0;
       for (uint32_t i = 0; i < memexport_range_count; ++i) {
@@ -1672,7 +1675,7 @@ bool D3D12CommandProcessor::IssueCopy() {
                                      written_length)) {
     return false;
   }
-  if (FLAGS_d3d12_readback_resolve && !texture_cache_->IsResolutionScale2X() &&
+  if (cvars::d3d12_readback_resolve && !texture_cache_->IsResolutionScale2X() &&
       written_length) {
     // Read the resolved data on the CPU.
     ID3D12Resource* readback_buffer = RequestReadbackBuffer(written_length);
@@ -2274,7 +2277,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   // TODO(Triang3l): Check if ps_param_gen should give center positions in
   // OpenGL mode on the Xbox 360.
   float pixel_half_pixel_offset = 0.5f;
-  if (FLAGS_d3d12_half_pixel_offset && !(pa_su_vtx_cntl & (1 << 0))) {
+  if (cvars::d3d12_half_pixel_offset && !(pa_su_vtx_cntl & (1 << 0))) {
     // Signs are hopefully correct here, tested in GTA IV on both clearing
     // (without a viewport) and drawing things near the edges of the screen.
     if (pa_cl_vte_cntl & (1 << 0)) {
@@ -2406,7 +2409,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
       // be incorrect in this case, but there's no other way without using ROV,
       // though there's an option to limit the range to -1...1).
       // http://www.students.science.uu.nl/~3220516/advancedgraphics/papers/inferred_lighting.pdf
-      if (!IsROVUsedForEDRAM() && FLAGS_d3d12_16bit_rtv_full_range) {
+      if (!IsROVUsedForEDRAM() && cvars::d3d12_16bit_rtv_full_range) {
         color_exp_bias -= 5;
       }
     }

@@ -356,7 +356,7 @@ void VulkanCommandProcessor::BeginFrame() {
   // The capture will end when these commands are submitted to the queue.
   static uint32_t frame = 0;
   if (device_->is_renderdoc_attached() && !capturing_ &&
-      (FLAGS_vulkan_renderdoc_capture_all || trace_requested_)) {
+      (cvars::vulkan_renderdoc_capture_all || trace_requested_)) {
     if (queue_mutex_) {
       queue_mutex_->lock();
     }

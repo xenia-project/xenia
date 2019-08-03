@@ -9,11 +9,10 @@
 
 #include "xenia/gpu/d3d12/primitive_converter.h"
 
-#include <gflags/gflags.h>
-
 #include <algorithm>
 
 #include "xenia/base/assert.h"
+#include "xenia/base/cvar.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/memory.h"
@@ -26,7 +25,8 @@ DEFINE_bool(d3d12_convert_quads_to_triangles, false,
             "Convert quad lists to triangle lists on the CPU instead of using "
             "a geometry shader. Not recommended for playing, for debugging "
             "primarily (because PIX fails to display vertices when a geometry "
-            "shader is used).");
+            "shader is used).",
+            "D3D12");
 
 namespace xe {
 namespace gpu {
@@ -176,7 +176,7 @@ PrimitiveType PrimitiveConverter::GetReplacementPrimitiveType(
     case PrimitiveType::kLineLoop:
       return PrimitiveType::kLineStrip;
     case PrimitiveType::kQuadList:
-      if (FLAGS_d3d12_convert_quads_to_triangles) {
+      if (cvars::d3d12_convert_quads_to_triangles) {
         return PrimitiveType::kTriangleList;
       }
       break;
@@ -213,7 +213,7 @@ PrimitiveConverter::ConversionResult PrimitiveConverter::ConvertPrimitives(
       return ConversionResult::kConversionNotNeeded;
     }
   } else if (source_type == PrimitiveType::kQuadList) {
-    if (!FLAGS_d3d12_convert_quads_to_triangles) {
+    if (!cvars::d3d12_convert_quads_to_triangles) {
       return ConversionResult::kConversionNotNeeded;
     }
   } else if (source_type != PrimitiveType::kTriangleFan &&
@@ -731,7 +731,7 @@ D3D12_GPU_VIRTUAL_ADDRESS PrimitiveConverter::GetStaticIndexBuffer(
            kStaticIBTriangleFanOffset * sizeof(uint16_t);
   }
   if (source_type == PrimitiveType::kQuadList &&
-      FLAGS_d3d12_convert_quads_to_triangles) {
+      cvars::d3d12_convert_quads_to_triangles) {
     index_count_out = (index_count >> 2) * 6;
     return static_ib_gpu_address_ + kStaticIBQuadOffset * sizeof(uint16_t);
   }

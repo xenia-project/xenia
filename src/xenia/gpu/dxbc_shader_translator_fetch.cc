@@ -322,7 +322,7 @@ void DxbcShaderTranslator::ProcessVertexFetchInstruction(
   }
   uint32_t result_write_mask = (1 << result_component_count) - 1;
 
-  if (FLAGS_dxbc_source_map) {
+  if (cvars::dxbc_source_map) {
     instruction_disassembly_buffer_.Reset();
     instr.Disassemble(&instruction_disassembly_buffer_);
     // Will be emitted by UpdateInstructionPredication.
@@ -1162,7 +1162,7 @@ void DxbcShaderTranslator::ArrayCoordToCubeDirection(uint32_t reg) {
 
 void DxbcShaderTranslator::ProcessTextureFetchInstruction(
     const ParsedTextureFetchInstruction& instr) {
-  if (FLAGS_dxbc_source_map) {
+  if (cvars::dxbc_source_map) {
     instruction_disassembly_buffer_.Reset();
     instr.Disassemble(&instruction_disassembly_buffer_);
     // Will be emitted later explicitly or by UpdateInstructionPredication.

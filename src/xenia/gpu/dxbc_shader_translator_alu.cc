@@ -2425,7 +2425,7 @@ void DxbcShaderTranslator::ProcessAluInstruction(
     return;
   }
 
-  if (FLAGS_dxbc_source_map) {
+  if (cvars::dxbc_source_map) {
     instruction_disassembly_buffer_.Reset();
     instr.Disassemble(&instruction_disassembly_buffer_);
     // Will be emitted by UpdateInstructionPredication.

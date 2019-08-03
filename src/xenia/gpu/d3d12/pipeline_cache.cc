@@ -9,8 +9,6 @@
 
 #include "xenia/gpu/d3d12/pipeline_cache.h"
 
-#include <gflags/gflags.h>
-
 #include <algorithm>
 #include <cinttypes>
 #include <cmath>
@@ -20,6 +18,7 @@
 #include "third_party/xxhash/xxhash.h"
 
 #include "xenia/base/assert.h"
+#include "xenia/base/cvar.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/profiling.h"
@@ -28,21 +27,24 @@
 #include "xenia/gpu/gpu_flags.h"
 
 DEFINE_bool(d3d12_dxbc_disasm, false,
-            "Disassemble DXBC shaders after generation.");
+            "Disassemble DXBC shaders after generation.", "D3D12");
 DEFINE_int32(
     d3d12_pipeline_creation_threads, -1,
     "Number of threads used for graphics pipeline state creation. -1 to "
     "calculate automatically (75% of logical CPU cores), 1-16 to specify the "
     "number of threads explicitly, 0 to disable multithreaded pipeline state "
-    "creation.");
+    "creation.",
+    "D3D12");
 DEFINE_bool(
     d3d12_tessellation_adaptive, false,
     "Allow games to use adaptive tessellation - may be disabled if the game "
     "has issues with memexport, the maximum factor will be used in this case. "
     "Temporarily disabled by default since there are visible cracks currently "
-    "in Halo 3.");
+    "in Halo 3.",
+    "D3D12");
 DEFINE_bool(d3d12_tessellation_wireframe, false,
-            "Display tessellated surfaces as wireframe for debugging.");
+            "Display tessellated surfaces as wireframe for debugging.",
+            "D3D12");
 
 namespace xe {
 namespace gpu {
@@ -81,18 +83,18 @@ PipelineCache::PipelineCache(D3D12CommandProcessor* command_processor,
 PipelineCache::~PipelineCache() { Shutdown(); }
 
 bool PipelineCache::Initialize() {
-  if (FLAGS_d3d12_pipeline_creation_threads != 0) {
+  if (cvars::d3d12_pipeline_creation_threads != 0) {
     creation_threads_busy_ = 0;
     creation_completion_event_ =
         xe::threading::Event::CreateManualResetEvent(true);
     creation_completion_set_event_ = false;
     creation_threads_shutdown_ = false;
     uint32_t creation_thread_count;
-    if (FLAGS_d3d12_pipeline_creation_threads < 0) {
+    if (cvars::d3d12_pipeline_creation_threads < 0) {
       creation_thread_count = std::max(
           xe::threading::logical_processor_count() * 3 / 4, uint32_t(1));
     } else {
-      creation_thread_count = uint32_t(FLAGS_d3d12_pipeline_creation_threads);
+      creation_thread_count = uint32_t(cvars::d3d12_pipeline_creation_threads);
     }
     creation_thread_count = std::min(creation_thread_count, uint32_t(16));
     for (uint32_t i = 0; i < creation_thread_count; ++i) {
@@ -331,7 +333,7 @@ bool PipelineCache::TranslateShader(D3D12Shader* shader,
   }
 
   // Disassemble the shader for dumping.
-  if (FLAGS_d3d12_dxbc_disasm) {
+  if (cvars::d3d12_dxbc_disasm) {
     auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
     if (!shader->DisassembleDxbc(provider)) {
       XELOGE("Failed to disassemble DXBC shader %.16" PRIX64,
@@ -340,8 +342,8 @@ bool PipelineCache::TranslateShader(D3D12Shader* shader,
   }
 
   // Dump shader files if desired.
-  if (!FLAGS_dump_shaders.empty()) {
-    shader->Dump(FLAGS_dump_shaders, "d3d12");
+  if (!cvars::dump_shaders.empty()) {
+    shader->Dump(cvars::dump_shaders, "d3d12");
   }
 
   return shader->is_valid();
@@ -390,7 +392,7 @@ bool PipelineCache::GetCurrentStateDescription(
         break;
       case TessellationMode::kAdaptive:
         description_out.tessellation_mode =
-            FLAGS_d3d12_tessellation_adaptive
+            cvars::d3d12_tessellation_adaptive
                 ? PipelineTessellationMode::kAdaptive
                 : PipelineTessellationMode::kContinuous;
         break;
@@ -549,7 +551,7 @@ bool PipelineCache::GetCurrentStateDescription(
     description_out.depth_bias_slope_scaled =
         poly_offset_scale * (1.0f / 16.0f);
   }
-  if (FLAGS_d3d12_tessellation_wireframe && tessellated &&
+  if (cvars::d3d12_tessellation_wireframe && tessellated &&
       (primitive_type == PrimitiveType::kTrianglePatch ||
        primitive_type == PrimitiveType::kQuadPatch)) {
     description_out.fill_mode_wireframe = 1;

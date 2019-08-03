@@ -24,13 +24,13 @@ namespace string_util {
 
 inline std::string to_hex_string(uint32_t value) {
   char buffer[21];
-  std::snprintf(buffer, sizeof(buffer), "%08" PRIX32, value);
+  snprintf(buffer, sizeof(buffer), "%08" PRIX32, value);
   return std::string(buffer);
 }
 
 inline std::string to_hex_string(uint64_t value) {
   char buffer[21];
-  std::snprintf(buffer, sizeof(buffer), "%016" PRIX64, value);
+  snprintf(buffer, sizeof(buffer), "%016" PRIX64, value);
   return std::string(buffer);
 }
 
@@ -54,8 +54,8 @@ inline std::string to_hex_string(double value) {
 
 inline std::string to_hex_string(const vec128_t& value) {
   char buffer[128];
-  std::snprintf(buffer, sizeof(buffer), "[%.8X, %.8X, %.8X, %.8X]",
-                value.u32[0], value.u32[1], value.u32[2], value.u32[3]);
+  snprintf(buffer, sizeof(buffer), "[%.8X, %.8X, %.8X, %.8X]", value.u32[0],
+           value.u32[1], value.u32[2], value.u32[3]);
   return std::string(buffer);
 }
 
@@ -66,7 +66,7 @@ inline std::string to_hex_string(const __m128& value) {
   char buffer[128];
   float f[4];
   _mm_storeu_ps(f, value);
-  std::snprintf(
+  snprintf(
       buffer, sizeof(buffer), "[%.8X, %.8X, %.8X, %.8X]",
       *reinterpret_cast<uint32_t*>(&f[0]), *reinterpret_cast<uint32_t*>(&f[1]),
       *reinterpret_cast<uint32_t*>(&f[2]), *reinterpret_cast<uint32_t*>(&f[3]));
@@ -77,15 +77,22 @@ inline std::string to_string(const __m128& value) {
   char buffer[128];
   float f[4];
   _mm_storeu_ps(f, value);
-  std::snprintf(buffer, sizeof(buffer), "(%F, %F, %F, %F)", f[0], f[1], f[2],
-                f[3]);
+  snprintf(buffer, sizeof(buffer), "(%F, %F, %F, %F)", f[0], f[1], f[2], f[3]);
   return std::string(buffer);
 }
 
 #endif
 
 template <typename T>
-inline T from_string(const char* value, bool force_hex = false);
+inline T from_string(const char* value, bool force_hex = false) {
+  // Missing implementation for converting type T to string
+  throw;
+}
+
+template <>
+inline bool from_string<bool>(const char* value, bool force_hex) {
+  return std::strcmp(value, "true") == 0 || value[0] == '1';
+}
 
 template <>
 inline int32_t from_string<int32_t>(const char* value, bool force_hex) {

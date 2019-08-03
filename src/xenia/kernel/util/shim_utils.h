@@ -10,8 +10,6 @@
 #ifndef XENIA_KERNEL_UTIL_SHIM_UTILS_H_
 #define XENIA_KERNEL_UTIL_SHIM_UTILS_H_
 
-#include <gflags/gflags.h>
-
 #include <cstring>
 #include <string>
 
@@ -21,9 +19,8 @@
 #include "xenia/base/string_buffer.h"
 #include "xenia/cpu/export_resolver.h"
 #include "xenia/cpu/ppc/ppc_context.h"
+#include "xenia/kernel/kernel_flags.h"
 #include "xenia/kernel/kernel_state.h"
-
-DECLARE_bool(log_high_frequency_kernel_calls);
 
 namespace xe {
 namespace kernel {
@@ -482,7 +479,7 @@ xe::cpu::Export* RegisterExport(R (*fn)(Ps&...), const char* name,
       auto params = std::make_tuple<Ps...>(Ps(init)...);
       if (export_entry->tags & xe::cpu::ExportTag::kLog &&
           (!(export_entry->tags & xe::cpu::ExportTag::kHighFrequency) ||
-           FLAGS_log_high_frequency_kernel_calls)) {
+           cvars::log_high_frequency_kernel_calls)) {
         PrintKernelCall(export_entry, params);
       }
       auto result =
@@ -516,7 +513,7 @@ xe::cpu::Export* RegisterExport(void (*fn)(Ps&...), const char* name,
       auto params = std::make_tuple<Ps...>(Ps(init)...);
       if (export_entry->tags & xe::cpu::ExportTag::kLog &&
           (!(export_entry->tags & xe::cpu::ExportTag::kHighFrequency) ||
-           FLAGS_log_high_frequency_kernel_calls)) {
+           cvars::log_high_frequency_kernel_calls)) {
         PrintKernelCall(export_entry, params);
       }
       KernelTrampoline(FN, std::forward<std::tuple<Ps...>>(params),

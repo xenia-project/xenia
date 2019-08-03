@@ -9,6 +9,7 @@
 
 #include "xenia/base/logging.h"
 #include "xenia/emulator.h"
+#include "xenia/kernel/kernel_flags.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xam/xam_private.h"
@@ -43,7 +44,7 @@ dword_result_t XamShowNuiTroubleshooterUI(unknown_t unk1, unknown_t unk2,
   // unk1 is 0xFF - possibly user index?
   // unk2, unk3 appear to always be zero.
 
-  if (FLAGS_headless) {
+  if (cvars::headless) {
     return 0;
   }
 

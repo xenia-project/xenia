@@ -9,13 +9,12 @@
 
 #include "xenia/gpu/d3d12/render_target_cache.h"
 
-#include <gflags/gflags.h>
-
 #include <algorithm>
 #include <cmath>
 #include <cstring>
 
 #include "xenia/base/assert.h"
+#include "xenia/base/cvar.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/memory.h"
@@ -27,12 +26,14 @@
 
 DEFINE_bool(d3d12_16bit_rtv_full_range, true,
             "Use full -32...32 range for RG16 and RGBA16 render targets "
-            "(at the expense of blending correctness) without ROV.");
+            "(at the expense of blending correctness) without ROV.",
+            "D3D12");
 DEFINE_bool(d3d12_resolution_scale_resolve_edge_clamp, true,
             "When using resolution scale, apply the hack that duplicates the "
             "right/lower subpixel in the left and top sides of render target "
             "resolve areas to eliminate the gap caused by half-pixel offset "
-            "(this is necessary for certain games like GTA IV to work).");
+            "(this is necessary for certain games like GTA IV to work).",
+            "D3D12");
 DECLARE_bool(d3d12_half_pixel_offset);
 
 namespace xe {
@@ -1303,7 +1304,7 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
       // there on the guest side.
       // http://www.students.science.uu.nl/~3220516/advancedgraphics/papers/inferred_lighting.pdf
       if (command_processor_->IsROVUsedForEDRAM() ||
-          FLAGS_d3d12_16bit_rtv_full_range) {
+          cvars::d3d12_16bit_rtv_full_range) {
         dest_exp_bias += 5;
       }
     }
@@ -1340,8 +1341,9 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
   // sides of the screen caused by half-pixel offset becoming whole pixel offset
   // with scaled rendering resolution.
   bool resolution_scale_edge_clamp =
-      resolution_scale_2x_ && FLAGS_d3d12_resolution_scale_resolve_edge_clamp &&
-      FLAGS_d3d12_half_pixel_offset &&
+      resolution_scale_2x_ &&
+      cvars::d3d12_resolution_scale_resolve_edge_clamp &&
+      cvars::d3d12_half_pixel_offset &&
       !(regs[XE_GPU_REG_PA_SU_VTX_CNTL].u32 & 0x1);
   if (sample_select <= xenos::CopySampleSelect::k3 &&
       src_texture_format == dest_format && dest_exp_bias == 0) {
