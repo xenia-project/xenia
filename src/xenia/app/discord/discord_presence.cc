@@ -34,7 +34,7 @@ void DiscordPresence::NotPlaying() {
   DiscordRichPresence discordPresence = {};
   discordPresence.state = "Idle";
   discordPresence.details = "Standby";
-  discordPresence.largeImageKey = "default";
+  discordPresence.largeImageKey = "app";
   discordPresence.instance = 1;
   Discord_UpdatePresence(&discordPresence);
 }
@@ -44,8 +44,10 @@ void DiscordPresence::PlayingTitle(const std::wstring& game_title) {
   DiscordRichPresence discordPresence = {};
   discordPresence.state = "In Game";
   discordPresence.details = discord_game_title.c_str();
-  discordPresence.smallImageKey = "default";
-  discordPresence.largeImageKey = "defaultgame";
+  // TODO(gibbed): we don't have state icons yet.
+  // discordPresence.smallImageKey = "app";
+  // discordPresence.largeImageKey = "state_ingame";
+  discordPresence.largeImageKey = "app";
   discordPresence.instance = 1;
   Discord_UpdatePresence(&discordPresence);
 }
