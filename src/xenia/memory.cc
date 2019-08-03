@@ -443,31 +443,12 @@ bool Memory::AccessViolationCallbackThunk(void* context, size_t host_address,
       host_address, is_write);
 }
 
-uintptr_t Memory::AddPhysicalAccessWatch(uint32_t physical_address,
-                                         uint32_t length,
-                                         cpu::MMIOHandler::WatchType type,
-                                         cpu::AccessWatchCallback callback,
-                                         void* callback_context,
-                                         void* callback_data) {
-  return mmio_handler_->AddPhysicalAccessWatch(physical_address, length, type,
-                                               callback, callback_context,
-                                               callback_data);
-}
-
-void Memory::CancelAccessWatch(uintptr_t watch_handle) {
-  mmio_handler_->CancelAccessWatch(watch_handle);
-}
-
 bool Memory::TriggerWatches(uint32_t virtual_address, uint32_t length,
                             bool is_write, bool unwatch_exact_range,
                             bool unprotect) {
   BaseHeap* heap = LookupHeap(virtual_address);
   if (heap == &heaps_.vA0000000 || heap == &heaps_.vC0000000 ||
       heap == &heaps_.vE0000000) {
-    // TODO(Triang3l): Remove InvalidateRange when legacy (old Vulkan renderer)
-    // watches are removed.
-    cpu::MMIOHandler::global_handler()->InvalidateRange(virtual_address,
-                                                        length);
     return static_cast<PhysicalHeap*>(heap)->TriggerWatches(
         virtual_address, length, is_write, unwatch_exact_range, unprotect);
   }
@@ -1456,10 +1437,6 @@ bool PhysicalHeap::Release(uint32_t base_address, uint32_t* out_region_size) {
   uint32_t parent_base_address = GetPhysicalAddress(base_address);
   uint32_t region_size = 0;
   if (QuerySize(base_address, &region_size)) {
-    // TODO(Triang3l): Remove InvalidateRange when legacy (old Vulkan renderer)
-    // watches are removed.
-    cpu::MMIOHandler::global_handler()->InvalidateRange(base_address,
-                                                        region_size);
     TriggerWatches(base_address, region_size, true, true,
                    !cvars::protect_on_release);
   }
@@ -1476,9 +1453,6 @@ bool PhysicalHeap::Protect(uint32_t address, uint32_t size, uint32_t protect,
                            uint32_t* old_protect) {
   auto global_lock = global_critical_region_.Acquire();
 
-  // TODO(Triang3l): Remove InvalidateRange when legacy (old Vulkan renderer)
-  // watches are removed.
-  cpu::MMIOHandler::global_handler()->InvalidateRange(address, size);
   TriggerWatches(address, size, true, true, false);
 
   if (!parent_heap_->Protect(GetPhysicalAddress(address), size, protect,

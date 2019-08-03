@@ -319,21 +319,6 @@ class Memory {
   // Gets the defined MMIO range for the given virtual address, if any.
   cpu::MMIORange* LookupVirtualMappedRange(uint32_t virtual_address);
 
-  // Adds a write watch for the given physical address range that will trigger
-  // the specified callback whenever any bytes are written in that range.
-  // The returned handle can be used with CancelWriteWatch to remove the watch
-  // if it is no longer required.
-  //
-  // This has a significant performance penalty for writes in in the range or
-  // nearby (sharing 64KiB pages).
-  uintptr_t AddPhysicalAccessWatch(uint32_t physical_address, uint32_t length,
-                                   cpu::MMIOHandler::WatchType type,
-                                   cpu::AccessWatchCallback callback,
-                                   void* callback_context, void* callback_data);
-
-  // Cancels a write watch requested with AddPhysicalAccessWatch.
-  void CancelAccessWatch(uintptr_t watch_handle);
-
   // Returns start and length of the smallest physical memory region surrounding
   // the watched region that can be safely unwatched, if it doesn't matter,
   // return (0, UINT32_MAX).
