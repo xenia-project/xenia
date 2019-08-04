@@ -12,9 +12,9 @@ std::wstring config_folder;
 std::wstring config_path;
 
 bool sortCvar(cvar::IConfigVar* a, cvar::IConfigVar* b) {
-  if (a->GetCategory() < b->GetCategory()) return true;
-  if (a->GetCategory() > b->GetCategory()) return false;
-  if (a->GetName() < b->GetName()) return true;
+  if (a->category() < b->category()) return true;
+  if (a->category() > b->category()) return false;
+  if (a->name() < b->name()) return true;
   return false;
 }
 
@@ -32,7 +32,7 @@ void ReadConfig(const std::wstring& file_path) {
   const auto config = ParseConfig(xe::to_string(file_path));
   for (auto& it : *cvar::ConfigVars) {
     auto configVar = static_cast<cvar::IConfigVar*>(it.second);
-    auto configKey = configVar->GetCategory() + "." + configVar->GetName();
+    auto configKey = configVar->category() + "." + configVar->name();
     if (config->contains_qualified(configKey)) {
       configVar->LoadConfigValue(config->get_qualified(configKey));
     }
@@ -44,7 +44,7 @@ void ReadGameConfig(std::wstring file_path) {
   const auto config = ParseConfig(xe::to_string(file_path));
   for (auto& it : *cvar::ConfigVars) {
     auto configVar = static_cast<cvar::IConfigVar*>(it.second);
-    auto configKey = configVar->GetCategory() + "." + configVar->GetName();
+    auto configKey = configVar->category() + "." + configVar->name();
     if (config->contains_qualified(configKey)) {
       configVar->LoadGameConfigValue(config->get_qualified(configKey));
     }
@@ -61,21 +61,20 @@ void SaveConfig() {
   std::ostringstream output;
   std::string lastCategory;
   for (auto configVar : vars) {
-    if (configVar->GetIsTransient()) {
+    if (configVar->is_transient()) {
       continue;
     }
-    if (lastCategory != configVar->GetCategory()) {
+    if (lastCategory != configVar->category()) {
       if (!lastCategory.empty()) {
         output << std::endl;
       }
-      lastCategory = configVar->GetCategory();
+      lastCategory = configVar->category();
       output << xe::format_string("[%s]\n", lastCategory.c_str());
     }
     output << std::left << std::setw(40) << std::setfill(' ')
-           << xe::format_string("%s = %s", configVar->GetName().c_str(),
-                                configVar->GetConfigValue().c_str());
-    output << xe::format_string("\t# %s\n",
-                                configVar->GetDescription().c_str());
+           << xe::format_string("%s = %s", configVar->name().c_str(),
+                                configVar->config_value().c_str());
+    output << xe::format_string("\t# %s\n", configVar->description().c_str());
   }
 
   if (xe::filesystem::PathExists(config_path)) {
