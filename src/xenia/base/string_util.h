@@ -22,17 +22,37 @@
 namespace xe {
 namespace string_util {
 
-extern inline std::string to_hex_string(uint32_t value);
-extern inline std::string to_hex_string(uint64_t value);
-extern inline std::string to_hex_string(float value);
-extern inline std::string to_hex_string(double value);
-extern inline std::string to_hex_string(const vec128_t& value);
+// TODO(gibbed): Figure out why clang doesn't line forward declarations of
+// inline functions.
+
+std::string to_hex_string(uint32_t value);
+std::string to_hex_string(uint64_t value);
+
+inline std::string to_hex_string(float value) {
+  union {
+    uint32_t ui;
+    float flt;
+  } v;
+  v.flt = value;
+  return to_hex_string(v.ui);
+}
+
+inline std::string to_hex_string(double value) {
+  union {
+    uint64_t ui;
+    double dbl;
+  } v;
+  v.dbl = value;
+  return to_hex_string(v.ui);
+}
+
+std::string to_hex_string(const vec128_t& value);
 
 #if XE_ARCH_AMD64
 
 // TODO(DrChat): This should not exist. Force the caller to use vec128.
-extern inline std::string to_hex_string(const __m128& value);
-extern inline std::string to_string(const __m128& value);
+std::string to_hex_string(const __m128& value);
+std::string to_string(const __m128& value);
 
 #endif
 
