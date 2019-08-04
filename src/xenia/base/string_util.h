@@ -22,17 +22,8 @@
 namespace xe {
 namespace string_util {
 
-inline std::string to_hex_string(uint32_t value) {
-  char buffer[21];
-  snprintf(buffer, sizeof(buffer), "%08" PRIX32, value);
-  return std::string(buffer);
-}
-
-inline std::string to_hex_string(uint64_t value) {
-  char buffer[21];
-  snprintf(buffer, sizeof(buffer), "%016" PRIX64, value);
-  return std::string(buffer);
-}
+extern inline std::string to_hex_string(uint32_t value);
+extern inline std::string to_hex_string(uint64_t value);
 
 inline std::string to_hex_string(float value) {
   union {
@@ -52,34 +43,13 @@ inline std::string to_hex_string(double value) {
   return to_hex_string(v.ui);
 }
 
-inline std::string to_hex_string(const vec128_t& value) {
-  char buffer[128];
-  snprintf(buffer, sizeof(buffer), "[%.8X, %.8X, %.8X, %.8X]", value.u32[0],
-           value.u32[1], value.u32[2], value.u32[3]);
-  return std::string(buffer);
-}
+extern inline std::string to_hex_string(const vec128_t& value);
 
 #if XE_ARCH_AMD64
 
 // TODO(DrChat): This should not exist. Force the caller to use vec128.
-inline std::string to_hex_string(const __m128& value) {
-  char buffer[128];
-  float f[4];
-  _mm_storeu_ps(f, value);
-  snprintf(
-      buffer, sizeof(buffer), "[%.8X, %.8X, %.8X, %.8X]",
-      *reinterpret_cast<uint32_t*>(&f[0]), *reinterpret_cast<uint32_t*>(&f[1]),
-      *reinterpret_cast<uint32_t*>(&f[2]), *reinterpret_cast<uint32_t*>(&f[3]));
-  return std::string(buffer);
-}
-
-inline std::string to_string(const __m128& value) {
-  char buffer[128];
-  float f[4];
-  _mm_storeu_ps(f, value);
-  snprintf(buffer, sizeof(buffer), "(%F, %F, %F, %F)", f[0], f[1], f[2], f[3]);
-  return std::string(buffer);
-}
+extern inline std::string to_hex_string(const __m128& value);
+extern inline std::string to_string(const __m128& value);
 
 #endif
 
