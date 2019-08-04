@@ -420,13 +420,18 @@ bool Memory::AccessViolationCallback(size_t host_address, bool is_write) {
 
   uint32_t virtual_address =
       uint32_t(reinterpret_cast<uint8_t*>(host_address) - virtual_membase_);
-  // Revert the adjustment made by CPU emulation.
-  if (virtual_address >= 0xE0000000 &&
-      system_allocation_granularity_ > 0x1000) {
-    if (virtual_address < 0xE0001000) {
+  // If the 4 KB page offset in 0xE0000000 cannot be applied via memory mapping,
+  // it will be added by CPU load/store implementations, so the host virtual
+  // addresses (relative to virtual_membase_) where access violations occur do
+  // not match guest virtual addresses. Revert what CPU memory accesses are
+  // doing.
+  // TODO(Triang3l): Move this to a host->guest address conversion function.
+  if (virtual_address >= 0xE0000000) {
+    uint32_t host_address_offset = heaps_.vE0000000.host_address_offset();
+    if (virtual_address < 0xE0000000 + host_address_offset) {
       return false;
     }
-    virtual_address -= 0x1000;
+    virtual_address -= host_address_offset;
   }
 
   BaseHeap* heap = LookupHeap(virtual_address);
@@ -603,12 +608,14 @@ BaseHeap::BaseHeap()
 BaseHeap::~BaseHeap() = default;
 
 void BaseHeap::Initialize(Memory* memory, uint8_t* membase, uint32_t heap_base,
-                          uint32_t heap_size, uint32_t page_size) {
+                          uint32_t heap_size, uint32_t page_size,
+                          uint32_t host_address_offset) {
   memory_ = memory;
   membase_ = membase;
   heap_base_ = heap_base;
   heap_size_ = heap_size - 1;
   page_size_ = page_size;
+  host_address_offset_ = host_address_offset;
   page_table_.resize(heap_size / page_size);
 }
 
@@ -630,10 +637,12 @@ void BaseHeap::DumpMap() {
   XELOGE("------------------------------------------------------------------");
   XELOGE("Heap: %.8X-%.8X", heap_base_, heap_base_ + heap_size_);
   XELOGE("------------------------------------------------------------------");
-  XELOGE("   Heap Base: %.8X", heap_base_);
-  XELOGE("   Heap Size: %d (%.8X)", heap_size_, heap_size_);
-  XELOGE("   Page Size: %d (%.8X)", page_size_, page_size_);
-  XELOGE("  Page Count: %lld", page_table_.size());
+  XELOGE("            Heap Base: %.8X", heap_base_);
+  XELOGE("            Heap Size: %d (%.8X)", heap_size_, heap_size_);
+  XELOGE("            Page Size: %d (%.8X)", page_size_, page_size_);
+  XELOGE("           Page Count: %lld", page_table_.size());
+  XELOGE("  Host Address Offset: %d (%.8X)", host_address_offset_,
+         host_address_offset_);
   bool is_empty_span = false;
   uint32_t empty_span_start = 0;
   for (uint32_t i = 0; i < uint32_t(page_table_.size()); ++i) {
@@ -1288,26 +1297,22 @@ PhysicalHeap::~PhysicalHeap() = default;
 void PhysicalHeap::Initialize(Memory* memory, uint8_t* membase,
                               uint32_t heap_base, uint32_t heap_size,
                               uint32_t page_size, VirtualHeap* parent_heap) {
-  BaseHeap::Initialize(memory, membase, heap_base, heap_size, page_size);
+  uint32_t host_address_offset;
+  if (heap_base_ >= 0xE0000000 &&
+      xe::memory::allocation_granularity() > 0x1000) {
+    host_address_offset = 0x1000;
+  } else {
+    host_address_offset = 0;
+  }
+
+  BaseHeap::Initialize(memory, membase, heap_base, heap_size, page_size,
+                       host_address_offset);
   parent_heap_ = parent_heap;
   system_page_size_ = uint32_t(xe::memory::page_size());
 
-  // If the 4 KB page offset in 0xE0000000 cannot be applied via memory mapping,
-  // it will be added by CPU load/store implementations, so the host virtual
-  // addresses (relative to virtual_membase_) where access violations will occur
-  // will not match guest virtual addresses.
-  if (heap_base_ >= 0xE0000000 &&
-      xe::memory::allocation_granularity() > 0x1000) {
-    system_address_offset_ = 0x1000;
-  } else {
-    system_address_offset_ = 0;
-  }
-
-  // Include the 0xE0000000 mapping offset because these bits are for host OS
-  // pages.
-  system_page_count_ = (heap_size_ /* already - 1 */ + system_address_offset_ +
-                        system_page_size_) /
-                       system_page_size_;
+  system_page_count_ =
+      (heap_size_ /* already - 1 */ + host_address_offset + system_page_size_) /
+      system_page_size_;
   system_pages_watched_write_.resize((system_page_count_ + 63) / 64);
   std::memset(system_pages_watched_write_.data(), 0,
               system_pages_watched_write_.size() * sizeof(uint64_t));
@@ -1499,12 +1504,10 @@ void PhysicalHeap::WatchPhysicalWrite(uint32_t physical_address,
     return;
   }
 
-  // Include the 0xE0000000 mapping offset because watches are placed on OS
-  // pages.
   uint32_t system_page_first =
-      (heap_relative_address + system_address_offset_) / system_page_size_;
+      (heap_relative_address + host_address_offset()) / system_page_size_;
   uint32_t system_page_last =
-      (heap_relative_address + length - 1 + system_address_offset_) /
+      (heap_relative_address + length - 1 + host_address_offset()) /
       system_page_size_;
   system_page_last = std::min(system_page_last, system_page_count_ - 1);
   assert_true(system_page_first <= system_page_last);
@@ -1522,7 +1525,7 @@ void PhysicalHeap::WatchPhysicalWrite(uint32_t physical_address,
         (system_pages_watched_write_[i >> 6] & page_bit) == 0;
     if (add_page_to_watch) {
       uint32_t page_number =
-          xe::sat_sub(i * system_page_size_, system_address_offset_) /
+          xe::sat_sub(i * system_page_size_, host_address_offset()) /
           page_size_;
       if (ToPageAccess(page_table_[page_number].current_protect) !=
           xe::memory::PageAccess::kReadWrite) {
@@ -1577,12 +1580,10 @@ bool PhysicalHeap::TriggerWatches(uint32_t virtual_address, uint32_t length,
     return false;
   }
 
-  // Include the 0xE0000000 mapping offset because watches are placed on OS
-  // pages.
   uint32_t system_page_first =
-      (heap_relative_address + system_address_offset_) / system_page_size_;
+      (heap_relative_address + host_address_offset()) / system_page_size_;
   uint32_t system_page_last =
-      (heap_relative_address + length - 1 + system_address_offset_) /
+      (heap_relative_address + length - 1 + host_address_offset()) /
       system_page_size_;
   system_page_last = std::min(system_page_last, system_page_count_ - 1);
   assert_true(system_page_first <= system_page_last);
@@ -1619,11 +1620,11 @@ bool PhysicalHeap::TriggerWatches(uint32_t virtual_address, uint32_t length,
   uint32_t physical_address_offset = GetPhysicalAddress(heap_base_);
   uint32_t physical_address_start =
       xe::sat_sub(system_page_first * system_page_size_,
-                  system_address_offset_) +
+                  host_address_offset()) +
       physical_address_offset;
   uint32_t physical_length = std::min(
       xe::sat_sub(system_page_last * system_page_size_ + system_page_size_,
-                  system_address_offset_) +
+                  host_address_offset()) +
           physical_address_offset - physical_address_start,
       heap_size_ + 1 - (physical_address_start - physical_address_offset));
   uint32_t unwatch_first = 0;
@@ -1662,8 +1663,8 @@ bool PhysicalHeap::TriggerWatches(uint32_t virtual_address, uint32_t length,
     unwatch_first = std::min(unwatch_first, heap_size_);
     unwatch_last = std::min(unwatch_last, heap_size_);
     // Convert to system pages and update the range.
-    unwatch_first += system_address_offset_;
-    unwatch_last += system_address_offset_;
+    unwatch_first += host_address_offset();
+    unwatch_last += host_address_offset();
     assert_true(unwatch_first <= unwatch_last);
     system_page_first = unwatch_first / system_page_size_;
     system_page_last = unwatch_last / system_page_size_;
@@ -1681,7 +1682,7 @@ bool PhysicalHeap::TriggerWatches(uint32_t virtual_address, uint32_t length,
                              (uint64_t(1) << (i & 63))) != 0;
       if (unprotect_page) {
         uint32_t page_number =
-            xe::sat_sub(i * system_page_size_, system_address_offset_) /
+            xe::sat_sub(i * system_page_size_, host_address_offset()) /
             page_size_;
         if (ToPageAccess(page_table_[page_number].current_protect) !=
             xe::memory::PageAccess::kReadWrite) {
