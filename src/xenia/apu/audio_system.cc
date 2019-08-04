@@ -158,8 +158,10 @@ void AudioSystem::Initialize() {}
 void AudioSystem::Shutdown() {
   worker_running_ = false;
   shutdown_event_->Set();
-  worker_thread_->Wait(0, 0, 0, nullptr);
-  worker_thread_.reset();
+  if (worker_thread_) {
+    worker_thread_->Wait(0, 0, 0, nullptr);
+    worker_thread_.reset();
+  }
 }
 
 X_STATUS AudioSystem::RegisterClient(uint32_t callback, uint32_t callback_arg,
