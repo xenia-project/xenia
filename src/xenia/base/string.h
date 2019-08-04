@@ -40,6 +40,13 @@ inline std::wstring format_string(const wchar_t* format, ...) {
   return result;
 }
 
+// Splits the given string on any delimiters and returns all parts.
+std::vector<std::string> split_string(const std::string& path,
+                                      const std::string& delimiters);
+
+std::vector<std::wstring> split_string(const std::wstring& path,
+                                       const std::wstring& delimiters);
+
 // find_first_of string, case insensitive.
 std::string::size_type find_first_of_case(const std::string& target,
                                           const std::string& search);

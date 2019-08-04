@@ -103,6 +103,40 @@ std::wstring format_string(const wchar_t* format, va_list args) {
   }
 }
 
+std::vector<std::string> split_string(const std::string& path,
+                                      const std::string& delimiters) {
+  std::vector<std::string> parts;
+  size_t n = 0;
+  size_t last = 0;
+  while ((n = path.find_first_of(delimiters, last)) != path.npos) {
+    if (last != n) {
+      parts.push_back(path.substr(last, n - last));
+    }
+    last = n + 1;
+  }
+  if (last != path.size()) {
+    parts.push_back(path.substr(last));
+  }
+  return parts;
+}
+
+std::vector<std::wstring> split_string(const std::wstring& path,
+                                       const std::wstring& delimiters) {
+  std::vector<std::wstring> parts;
+  size_t n = 0;
+  size_t last = 0;
+  while ((n = path.find_first_of(delimiters, last)) != path.npos) {
+    if (last != n) {
+      parts.push_back(path.substr(last, n - last));
+    }
+    last = n + 1;
+  }
+  if (last != path.size()) {
+    parts.push_back(path.substr(last));
+  }
+  return parts;
+}
+
 std::string::size_type find_first_of_case(const std::string& target,
                                           const std::string& search) {
   const char* str = target.c_str();
@@ -132,19 +166,7 @@ std::wstring to_absolute_path(const std::wstring& path) {
 }
 
 std::vector<std::string> split_path(const std::string& path) {
-  std::vector<std::string> parts;
-  size_t n = 0;
-  size_t last = 0;
-  while ((n = path.find_first_of("\\/", last)) != path.npos) {
-    if (last != n) {
-      parts.push_back(path.substr(last, n - last));
-    }
-    last = n + 1;
-  }
-  if (last != path.size()) {
-    parts.push_back(path.substr(last));
-  }
-  return parts;
+  return split_string(path, "\\/");
 }
 
 std::string join_paths(const std::string& left, const std::string& right,
