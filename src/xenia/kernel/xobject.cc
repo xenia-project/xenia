@@ -67,7 +67,7 @@ Emulator* XObject::emulator() const { return kernel_state_->emulator_; }
 KernelState* XObject::kernel_state() const { return kernel_state_; }
 Memory* XObject::memory() const { return kernel_state_->memory(); }
 
-XObject::Type XObject::type() { return type_; }
+XObject::Type XObject::type() const { return type_; }
 
 void XObject::RetainHandle() {
   kernel_state_->object_table()->RetainHandle(handles_[0]);
