@@ -82,6 +82,8 @@ void CrashDump() {
 
 Memory::Memory() {
   system_page_size_ = uint32_t(xe::memory::page_size());
+  system_allocation_granularity_ =
+      uint32_t(xe::memory::allocation_granularity());
   assert_zero(active_memory_);
   active_memory_ = this;
 }
@@ -419,7 +421,8 @@ bool Memory::AccessViolationCallback(size_t host_address, bool is_write) {
   uint32_t virtual_address =
       uint32_t(reinterpret_cast<uint8_t*>(host_address) - virtual_membase_);
   // Revert the adjustment made by CPU emulation.
-  if (virtual_address >= 0xE0000000) {
+  if (virtual_address >= 0xE0000000 &&
+      system_allocation_granularity_ > 0x1000) {
     if (virtual_address < 0xE0001000) {
       return false;
     }
@@ -517,9 +520,12 @@ void Memory::DumpMap() {
   XELOGE("==================================================================");
   XELOGE("Memory Dump");
   XELOGE("==================================================================");
-  XELOGE("  System Page Size: %d (%.8X)", system_page_size_, system_page_size_);
-  XELOGE("   Virtual Membase: %.16llX", virtual_membase_);
-  XELOGE("  Physical Membase: %.16llX", physical_membase_);
+  XELOGE("               System Page Size: %d (%.8X)", system_page_size_,
+         system_page_size_);
+  XELOGE("  System Allocation Granularity: %d (%.8X)",
+         system_allocation_granularity_, system_allocation_granularity_);
+  XELOGE("                Virtual Membase: %.16llX", virtual_membase_);
+  XELOGE("               Physical Membase: %.16llX", physical_membase_);
   XELOGE("");
   XELOGE("------------------------------------------------------------------");
   XELOGE("Virtual Heaps");
@@ -1286,12 +1292,22 @@ void PhysicalHeap::Initialize(Memory* memory, uint8_t* membase,
   parent_heap_ = parent_heap;
   system_page_size_ = uint32_t(xe::memory::page_size());
 
+  // If the 4 KB page offset in 0xE0000000 cannot be applied via memory mapping,
+  // it will be added by CPU load/store implementations, so the host virtual
+  // addresses (relative to virtual_membase_) where access violations will occur
+  // will not match guest virtual addresses.
+  if (heap_base_ >= 0xE0000000 &&
+      xe::memory::allocation_granularity() > 0x1000) {
+    system_address_offset_ = 0x1000;
+  } else {
+    system_address_offset_ = 0;
+  }
+
   // Include the 0xE0000000 mapping offset because these bits are for host OS
   // pages.
-  system_page_count_ =
-      (heap_size_ /* already - 1 */ + (heap_base >= 0xE0000000 ? 0x1000 : 0) +
-       system_page_size_) /
-      system_page_size_;
+  system_page_count_ = (heap_size_ /* already - 1 */ + system_address_offset_ +
+                        system_page_size_) /
+                       system_page_size_;
   system_pages_watched_write_.resize((system_page_count_ + 63) / 64);
   std::memset(system_pages_watched_write_.data(), 0,
               system_pages_watched_write_.size() * sizeof(uint64_t));
@@ -1485,11 +1501,10 @@ void PhysicalHeap::WatchPhysicalWrite(uint32_t physical_address,
 
   // Include the 0xE0000000 mapping offset because watches are placed on OS
   // pages.
-  uint32_t system_address_offset = heap_base_ >= 0xE0000000 ? 0x1000 : 0;
   uint32_t system_page_first =
-      (heap_relative_address + system_address_offset) / system_page_size_;
+      (heap_relative_address + system_address_offset_) / system_page_size_;
   uint32_t system_page_last =
-      (heap_relative_address + length - 1 + system_address_offset) /
+      (heap_relative_address + length - 1 + system_address_offset_) /
       system_page_size_;
   system_page_last = std::min(system_page_last, system_page_count_ - 1);
   assert_true(system_page_first <= system_page_last);
@@ -1507,7 +1522,7 @@ void PhysicalHeap::WatchPhysicalWrite(uint32_t physical_address,
         (system_pages_watched_write_[i >> 6] & page_bit) == 0;
     if (add_page_to_watch) {
       uint32_t page_number =
-          xe::sat_sub(i * system_page_size_, system_address_offset) /
+          xe::sat_sub(i * system_page_size_, system_address_offset_) /
           page_size_;
       if (ToPageAccess(page_table_[page_number].current_protect) !=
           xe::memory::PageAccess::kReadWrite) {
@@ -1564,11 +1579,10 @@ bool PhysicalHeap::TriggerWatches(uint32_t virtual_address, uint32_t length,
 
   // Include the 0xE0000000 mapping offset because watches are placed on OS
   // pages.
-  uint32_t system_address_offset = heap_base_ >= 0xE0000000 ? 0x1000 : 0;
   uint32_t system_page_first =
-      (heap_relative_address + system_address_offset) / system_page_size_;
+      (heap_relative_address + system_address_offset_) / system_page_size_;
   uint32_t system_page_last =
-      (heap_relative_address + length - 1 + system_address_offset) /
+      (heap_relative_address + length - 1 + system_address_offset_) /
       system_page_size_;
   system_page_last = std::min(system_page_last, system_page_count_ - 1);
   assert_true(system_page_first <= system_page_last);
@@ -1605,11 +1619,11 @@ bool PhysicalHeap::TriggerWatches(uint32_t virtual_address, uint32_t length,
   uint32_t physical_address_offset = GetPhysicalAddress(heap_base_);
   uint32_t physical_address_start =
       xe::sat_sub(system_page_first * system_page_size_,
-                  system_address_offset) +
+                  system_address_offset_) +
       physical_address_offset;
   uint32_t physical_length = std::min(
       xe::sat_sub(system_page_last * system_page_size_ + system_page_size_,
-                  system_address_offset) +
+                  system_address_offset_) +
           physical_address_offset - physical_address_start,
       heap_size_ + 1 - (physical_address_start - physical_address_offset));
   uint32_t unwatch_first = 0;
@@ -1648,8 +1662,8 @@ bool PhysicalHeap::TriggerWatches(uint32_t virtual_address, uint32_t length,
     unwatch_first = std::min(unwatch_first, heap_size_);
     unwatch_last = std::min(unwatch_last, heap_size_);
     // Convert to system pages and update the range.
-    unwatch_first += system_address_offset;
-    unwatch_last += system_address_offset;
+    unwatch_first += system_address_offset_;
+    unwatch_last += system_address_offset_;
     assert_true(unwatch_first <= unwatch_last);
     system_page_first = unwatch_first / system_page_size_;
     system_page_last = unwatch_last / system_page_size_;
@@ -1667,7 +1681,7 @@ bool PhysicalHeap::TriggerWatches(uint32_t virtual_address, uint32_t length,
                              (uint64_t(1) << (i & 63))) != 0;
       if (unprotect_page) {
         uint32_t page_number =
-            xe::sat_sub(i * system_page_size_, system_address_offset) /
+            xe::sat_sub(i * system_page_size_, system_address_offset_) /
             page_size_;
         if (ToPageAccess(page_table_[page_number].current_protect) !=
             xe::memory::PageAccess::kReadWrite) {
