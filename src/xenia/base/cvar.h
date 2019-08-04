@@ -87,7 +87,8 @@ void CommandVar<T>::AddToLaunchOptions(cxxopts::Options* options) {
 }
 template <class T>
 void ConfigVar<T>::AddToLaunchOptions(cxxopts::Options* options) {
-  options->add_options(category_)(name_, description_, cxxopts::value<T>());
+  options->add_options(category_)(this->name_, this->description_,
+                                  cxxopts::value<T>());
 }
 template <class T>
 void CommandVar<T>::LoadFromLaunchOptions(cxxopts::ParseResult* result) {
@@ -125,10 +126,12 @@ void CommandVar<T>::UpdateValue() {
 }
 template <class T>
 void ConfigVar<T>::UpdateValue() {
-  if (commandline_value_) return SetValue(*commandline_value_);
-  if (game_config_value_) return SetValue(*game_config_value_);
-  if (config_value_) return SetValue(*config_value_);
-  return SetValue(default_value_);
+  if (this->commandline_value_) {
+    return this->SetValue(*this->commandline_value_);
+  }
+  if (game_config_value_) return this->SetValue(*game_config_value_);
+  if (config_value_) return this->SetValue(*config_value_);
+  return this->SetValue(this->default_value_);
 }
 template <class T>
 T CommandVar<T>::Convert(std::string val) {
@@ -167,8 +170,8 @@ bool ConfigVar<T>::is_transient() const {
 }
 template <class T>
 std::string ConfigVar<T>::config_value() const {
-  if (config_value_) return ToString(*config_value_);
-  return ToString(default_value_);
+  if (config_value_) return this->ToString(*config_value_);
+  return this->ToString(this->default_value_);
 }
 template <class T>
 void CommandVar<T>::SetCommandLineValue(const T val) {
