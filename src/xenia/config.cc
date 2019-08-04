@@ -5,17 +5,19 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/string.h"
 
-namespace cpptoml {
-inline std::shared_ptr<table> parse_file(const std::wstring& filename) {
+std::shared_ptr<cpptoml::table> ParseFile(const std::wstring& filename) {
+#if XE_PLATFORM_WIN32
   std::ifstream file(filename);
+#else
+  std::ifstream file(xe::to_string(filename));
+#endif
   if (!file.is_open()) {
-    throw parse_exception(xe::to_string(filename) +
-                          " could not be opened for parsing");
+    throw cpptoml::parse_exception(xe::to_string(filename) +
+                                   " could not be opened for parsing");
   }
-  parser p(file);
+  cpptoml::parser p(file);
   return p.parse();
 }
-}  // namespace cpptoml
 
 CmdVar(config, "", "Specifies the target config to load.");
 namespace config {
@@ -32,7 +34,7 @@ bool sortCvar(cvar::IConfigVar* a, cvar::IConfigVar* b) {
 
 std::shared_ptr<cpptoml::table> ParseConfig(const std::wstring& config_path) {
   try {
-    return cpptoml::parse_file(config_path);
+    return ParseFile(config_path);
   } catch (cpptoml::parse_exception e) {
     xe::FatalError(L"Failed to parse config file '%s':\n\n%s",
                    config_path.c_str(), xe::to_wstring(e.what()).c_str());
