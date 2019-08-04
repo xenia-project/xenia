@@ -95,12 +95,13 @@ void SaveConfig() {
       auto lines = xe::split_string(value, "\n");
       auto first_it = lines.cbegin();
       output << xe::format_string("%s = %s\n", config_var->name().c_str(),
-                                  *first_it);
+                                  (*first_it).c_str());
       auto last_it = std::prev(lines.cend());
       for (auto it = std::next(first_it); it != last_it; ++it) {
-        output << *it << "\n";
+        output << (*it).c_str() << "\n";
       }
-      output << std::left << std::setw(40) << std::setfill(' ') << *last_it;
+      output << std::left << std::setw(40) << std::setfill(' ')
+             << (*last_it).c_str();
     }
     output << xe::format_string("\t# %s\n", config_var->description().c_str());
   }
