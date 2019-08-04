@@ -90,7 +90,7 @@ class Factory {
   template <typename DT>
   void Add(const std::string& name) {
     Add(name, DT::IsAvailable, [](Args... args) {
-      return std::unique_ptr<DT>(new DT(std::forward<Args>(args)...));
+      return std::make_unique<DT>(std::forward<Args>(args)...);
     });
   }
 
