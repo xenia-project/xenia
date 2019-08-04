@@ -98,6 +98,10 @@ class BaseHeap {
   // Size of each page within the heap range in bytes.
   uint32_t page_size() const { return page_size_; }
 
+  // Offset added to the virtual addresses to convert them to host addresses
+  // (not including membase).
+  uint32_t host_address_offset() const { return host_address_offset_; }
+
   // Disposes and decommits all memory and clears the page table.
   virtual void Dispose();
 
@@ -167,13 +171,15 @@ class BaseHeap {
   BaseHeap();
 
   void Initialize(Memory* memory, uint8_t* membase, uint32_t heap_base,
-                  uint32_t heap_size, uint32_t page_size);
+                  uint32_t heap_size, uint32_t page_size,
+                  uint32_t host_address_offset = 0);
 
   Memory* memory_;
   uint8_t* membase_;
   uint32_t heap_base_;
   uint32_t heap_size_;
   uint32_t page_size_;
+  uint32_t host_address_offset_;
   xe::global_critical_region global_critical_region_;
   std::vector<PageEntry> page_table_;
 };
@@ -229,7 +235,6 @@ class PhysicalHeap : public BaseHeap {
   VirtualHeap* parent_heap_;
 
   uint32_t system_page_size_;
-  uint32_t system_address_offset_;
   uint32_t system_page_count_;
   // Protected by global_critical_region.
   std::vector<uint64_t> system_pages_watched_write_;
