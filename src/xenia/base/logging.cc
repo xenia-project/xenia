@@ -338,8 +338,8 @@ void FatalError(const char* fmt, ...) {
 void FatalError(const wchar_t* fmt, ...) {
   va_list args;
   va_start(args, fmt);
-  _vsnwprintf((wchar_t*)log_format_buffer_.data(),
-              log_format_buffer_.capacity() >> 1, fmt, args);
+  vswprintf((wchar_t*)log_format_buffer_.data(),
+            log_format_buffer_.capacity() >> 1, fmt, args);
   va_end(args);
 
   LogLine(LogLevel::Error, 'X',
