@@ -36,14 +36,7 @@ void XNotifyListener::EnqueueNotification(XNotificationID id, uint32_t data) {
   }
 
   auto global_lock = global_critical_region_.Acquire();
-  if (notifications_.count(id)) {
-    // Already exists. Overwrite.
-    notifications_[id] = data;
-  } else {
-    // New.
-    notification_count_++;
-    notifications_.insert({id, data});
-  }
+  notifications_.push_back(std::pair<XNotificationID, uint32_t>(id, data));
   wait_handle_->Set();
 }
 
@@ -51,14 +44,13 @@ bool XNotifyListener::DequeueNotification(XNotificationID* out_id,
                                           uint32_t* out_data) {
   auto global_lock = global_critical_region_.Acquire();
   bool dequeued = false;
-  if (notification_count_) {
+  if (notifications_.size()) {
     dequeued = true;
     auto it = notifications_.begin();
     *out_id = it->first;
     *out_data = it->second;
     notifications_.erase(it);
-    notification_count_--;
-    if (!notification_count_) {
+    if (!notifications_.size()) {
       wait_handle_->Reset();
     }
   }
@@ -69,17 +61,22 @@ bool XNotifyListener::DequeueNotification(XNotificationID id,
                                           uint32_t* out_data) {
   auto global_lock = global_critical_region_.Acquire();
   bool dequeued = false;
-  if (notification_count_) {
-    auto it = notifications_.find(id);
-    if (it != notifications_.end()) {
-      dequeued = true;
-      *out_data = it->second;
-      notifications_.erase(it);
-      notification_count_--;
-      if (!notification_count_) {
-        wait_handle_->Reset();
-      }
+  if (!notifications_.size()) {
+    return dequeued;
+  }
+
+  for (auto it = notifications_.begin(); it != notifications_.end(); ++it) {
+    if (it->first != id) {
+      continue;
     }
+
+    dequeued = true;
+    *out_data = it->second;
+    notifications_.erase(it);
+    if (!notifications_.size()) {
+      wait_handle_->Reset();
+    }
+    break;
   }
   return dequeued;
 }
@@ -88,8 +85,8 @@ bool XNotifyListener::Save(ByteStream* stream) {
   SaveObject(stream);
 
   stream->Write(mask_);
-  stream->Write(notification_count_);
-  if (notification_count_) {
+  stream->Write(notifications_.size());
+  if (notifications_.size()) {
     for (auto pair : notifications_) {
       stream->Write<uint32_t>(pair.first);
       stream->Write<uint32_t>(pair.second);
@@ -107,12 +104,12 @@ object_ref<XNotifyListener> XNotifyListener::Restore(KernelState* kernel_state,
   notify->RestoreObject(stream);
   notify->Initialize(stream->Read<uint64_t>());
 
-  notify->notification_count_ = stream->Read<size_t>();
-  for (size_t i = 0; i < notify->notification_count_; i++) {
+  auto notification_count_ = stream->Read<size_t>();
+  for (size_t i = 0; i < notification_count_; i++) {
     std::pair<XNotificationID, uint32_t> pair;
     pair.first = stream->Read<uint32_t>();
     pair.second = stream->Read<uint32_t>();
-    notify->notifications_.insert(pair);
+    notify->notifications_.push_back(pair);
   }
 
   return object_ref<XNotifyListener>(notify);
