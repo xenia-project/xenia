@@ -95,11 +95,22 @@ std::string EscapeBasicString(const std::string& str) {
 }
 
 std::string EscapeMultilineBasicString(const std::string& str) {
-  const std::string three_escaped_quotes("\\\"\\\"\\\"");
   std::string result;
-  char lc = '\0';
   int quote_run = 0;
   for (char c : str) {
+    if (quote_run > 0) {
+      if (c == '"') {
+        ++quote_run;
+        continue;
+      }
+      for (int i = 0; i < quote_run; ++i) {
+        if ((i % 3) == 2) {
+          result += "\\";
+        }
+        result += '"';
+      }
+      quote_run = 0;
+    }
     if (c == '\b') {
       result += "\\b";
     } else if (c == '\t' || c == '\n') {
@@ -110,15 +121,7 @@ std::string EscapeMultilineBasicString(const std::string& str) {
       // Silently drop \r.
       // result += c;
     } else if (c == '"') {
-      result += '"';
-      if (lc == '"') {
-        ++quote_run;
-        if (quote_run >= 3) {
-          result.resize(result.size() - 3);
-          result += three_escaped_quotes;
-          quote_run = 0;
-        }
-      }
+      quote_run = 1;
     } else if (c == '\\') {
       result += "\\\\";
     } else if (static_cast<uint32_t>(c) < 0x20 ||
@@ -138,7 +141,12 @@ std::string EscapeMultilineBasicString(const std::string& str) {
     } else {
       result += c;
     }
-    lc = c;
+  }
+  for (int i = 0; i < quote_run; ++i) {
+    if ((i % 3) == 2) {
+      result += "\\";
+    }
+    result += '"';
   }
   return result;
 }
