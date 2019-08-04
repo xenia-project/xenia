@@ -56,6 +56,7 @@ std::wstring to_absolute_path(const std::wstring& path);
 
 // Splits the given path on any valid path separator and returns all parts.
 std::vector<std::string> split_path(const std::string& path);
+std::vector<std::wstring> split_path(const std::wstring& path);
 
 // Joins two path segments with the given separator.
 std::string join_paths(const std::string& left, const std::string& right,

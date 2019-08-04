@@ -169,6 +169,10 @@ std::vector<std::string> split_path(const std::string& path) {
   return split_string(path, "\\/");
 }
 
+std::vector<std::wstring> split_path(const std::wstring& path) {
+  return split_string(path, L"\\/");
+}
+
 std::string join_paths(const std::string& left, const std::string& right,
                        char sep) {
   if (!left.size()) {
