@@ -48,8 +48,7 @@ class XNotifyListener : public XObject {
  private:
   std::unique_ptr<xe::threading::Event> wait_handle_;
   xe::global_critical_region global_critical_region_;
-  std::unordered_map<XNotificationID, uint32_t> notifications_;
-  size_t notification_count_ = 0;
+  std::vector<std::pair<XNotificationID, uint32_t>> notifications_;
   uint64_t mask_ = 0;
 };
 
