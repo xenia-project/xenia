@@ -61,6 +61,9 @@ void SaveConfig() {
   std::ostringstream output;
   std::string lastCategory;
   for (auto configVar : vars) {
+    if (configVar->GetIsTransient()) {
+      continue;
+    }
     if (lastCategory != configVar->GetCategory()) {
       if (!lastCategory.empty()) {
         output << std::endl;

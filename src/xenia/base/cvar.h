@@ -20,6 +20,7 @@ class ICommandVar {
 class IConfigVar : virtual public ICommandVar {
  public:
   virtual std::string GetCategory() = 0;
+  virtual bool GetIsTransient() = 0;
   virtual std::string GetConfigValue() = 0;
   virtual void LoadConfigValue(std::shared_ptr<cpptoml::base> result) = 0;
   virtual void LoadGameConfigValue(std::shared_ptr<cpptoml::base> result) = 0;
@@ -53,9 +54,10 @@ template <class T>
 class ConfigVar : public CommandVar<T>, virtual public IConfigVar {
  public:
   ConfigVar<T>(const char* name, T* defaultValue, const char* description,
-               const char* category);
+               const char* category, bool is_transient);
   std::string GetConfigValue() override;
   std::string GetCategory() override;
+  bool GetIsTransient() override;
   void AddToLaunchOptions(cxxopts::Options* options) override;
   void LoadConfigValue(std::shared_ptr<cpptoml::base> result) override;
   void LoadGameConfigValue(std::shared_ptr<cpptoml::base> result) override;
@@ -64,6 +66,7 @@ class ConfigVar : public CommandVar<T>, virtual public IConfigVar {
 
  private:
   std::string category_;
+  bool is_transient_;
   std::unique_ptr<T> configValue_ = nullptr;
   std::unique_ptr<T> gameConfigValue_ = nullptr;
   void UpdateValue() override;
@@ -110,8 +113,11 @@ CommandVar<T>::CommandVar(const char* name, T* defaultValue,
 
 template <class T>
 ConfigVar<T>::ConfigVar(const char* name, T* defaultValue,
-                        const char* description, const char* category)
-    : CommandVar<T>(name, defaultValue, description), category_(category) {}
+                        const char* description, const char* category,
+                        bool is_transient)
+    : CommandVar<T>(name, defaultValue, description),
+      category_(category),
+      is_transient_(is_transient) {}
 
 template <class T>
 void CommandVar<T>::UpdateValue() {
@@ -157,6 +163,10 @@ std::string ConfigVar<T>::GetCategory() {
   return category_;
 }
 template <class T>
+bool ConfigVar<T>::GetIsTransient() {
+  return is_transient_;
+}
+template <class T>
 std::string ConfigVar<T>::GetConfigValue() {
   if (this->configValue_) return this->ToString(*this->configValue_);
   return this->ToString(this->defaultValue_);
@@ -192,9 +202,9 @@ void ParseLaunchArguments(int argc, char** argv);
 
 template <typename T>
 T* define_configvar(const char* name, T* defaultValue, const char* description,
-                    const char* category) {
+                    const char* category, bool is_transient) {
   IConfigVar* cfgVar =
-      new ConfigVar<T>(name, defaultValue, description, category);
+      new ConfigVar<T>(name, defaultValue, description, category, is_transient);
   AddConfigVar(cfgVar);
   return defaultValue;
 }
@@ -206,27 +216,31 @@ T* define_cmdvar(const char* name, T* defaultValue, const char* description) {
   return defaultValue;
 }
 #define DEFINE_double(name, defaultValue, description, category) \
-  DEFINE_CVar(name, defaultValue, description, category, double)
+  DEFINE_CVar(name, defaultValue, description, category, false, double)
 
 #define DEFINE_int32(name, defaultValue, description, category) \
-  DEFINE_CVar(name, defaultValue, description, category, int32_t)
+  DEFINE_CVar(name, defaultValue, description, category, false, int32_t)
 
 #define DEFINE_uint64(name, defaultValue, description, category) \
-  DEFINE_CVar(name, defaultValue, description, category, uint64_t)
+  DEFINE_CVar(name, defaultValue, description, category, false, uint64_t)
 
 #define DEFINE_string(name, defaultValue, description, category) \
-  DEFINE_CVar(name, defaultValue, description, category, std::string)
+  DEFINE_CVar(name, defaultValue, description, category, false, std::string)
+
+#define DEFINE_transient_string(name, defaultValue, description, category) \
+  DEFINE_CVar(name, defaultValue, description, category, true, std::string)
 
 #define DEFINE_bool(name, defaultValue, description, category) \
-  DEFINE_CVar(name, defaultValue, description, category, bool)
+  DEFINE_CVar(name, defaultValue, description, category, false, bool)
 
-#define DEFINE_CVar(name, defaultValue, description, category, type)      \
-  namespace cvars {                                                       \
-  type name = defaultValue;                                               \
-  }                                                                       \
-  namespace cv {                                                          \
-  static auto cv_##name =                                                 \
-      cvar::define_configvar(#name, &cvars::name, description, category); \
+#define DEFINE_CVar(name, defaultValue, description, category, is_transient, \
+                    type)                                                    \
+  namespace cvars {                                                          \
+  type name = defaultValue;                                                  \
+  }                                                                          \
+  namespace cv {                                                             \
+  static auto cv_##name = cvar::define_configvar(                            \
+      #name, &cvars::name, description, category, is_transient);             \
   }
 
 // CmdVars can only be strings for now, we don't need any others
