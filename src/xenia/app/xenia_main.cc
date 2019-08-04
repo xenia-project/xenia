@@ -124,7 +124,7 @@ class Factory {
       if (it != creators_.cend() && (*it).is_available()) {
         auto instance = (*it).instantiate(std::forward<Args>(args)...);
         if (instance) {
-          instances.push_back(std::move(instance));
+          instances.emplace_back(std::move(instance));
         }
       }
     } else {
@@ -132,7 +132,7 @@ class Factory {
         if (!creator.is_available()) continue;
         auto instance = creator.instantiate(std::forward<Args>(args)...);
         if (instance) {
-          instances.push_back(std::move(instance));
+          instances.emplace_back(std::move(instance));
         }
       }
     }
@@ -161,29 +161,25 @@ std::unique_ptr<gpu::GraphicsSystem> CreateGraphicsSystem() {
 
 std::vector<std::unique_ptr<hid::InputDriver>> CreateInputDrivers(
     ui::Window* window) {
-  Factory<hid::InputDriver, ui::Window*> factory;
+  std::vector<std::unique_ptr<hid::InputDriver>> drivers;
+  if (cvars::hid.compare("nop") == 0) {
+    drivers.emplace_back(xe::hid::nop::Create(window));
+  } else {
+    Factory<hid::InputDriver, ui::Window*> factory;
 #if XE_PLATFORM_WIN32
-  factory.Add("winkey", xe::hid::winkey::Create);
-  factory.Add("xinput", xe::hid::xinput::Create);
+    factory.Add("winkey", xe::hid::winkey::Create);
+    factory.Add("xinput", xe::hid::xinput::Create);
 #endif  // XE_PLATFORM_WIN32
-  factory.Add("nop", xe::hid::nop::Create);
-
-  auto drivers = factory.CreateAll(cvars::hid, window);
-
-  // Remove drivers that fail to setup.
-  for (auto it = drivers.begin(); it != drivers.end();) {
-    if (XFAILED((*it)->Setup())) {
-      it = drivers.erase(it);
-    } else {
-      ++it;
+    for (auto& driver : factory.CreateAll(cvars::hid, window)) {
+      if (XSUCCEEDED(driver->Setup())) {
+        drivers.emplace_back(std::move(driver));
+      }
+    }
+    if (drivers.empty()) {
+      // Fallback to nop if none created.
+      drivers.emplace_back(xe::hid::nop::Create(window));
     }
   }
-
-  if (drivers.empty()) {
-    // Fallback to nop if none created.
-    drivers.emplace_back(xe::hid::nop::Create(window));
-  }
-
   return drivers;
 }
 
