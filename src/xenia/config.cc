@@ -117,7 +117,11 @@ void SaveConfig() {
   // save the config file
   xe::filesystem::CreateParentFolder(config_path);
   std::ofstream file;
+#if XE_PLATFORM_WIN32
   file.open(config_path, std::ios::out | std::ios::trunc);
+#else
+  file.open(xe::to_string(config_path), std::ios::out | std::ios::trunc);
+#endif
   file << output.str();
   file.close();
 }
