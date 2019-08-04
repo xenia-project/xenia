@@ -21,8 +21,9 @@ bool sortCvar(cvar::IConfigVar* a, cvar::IConfigVar* b) {
 std::shared_ptr<cpptoml::table> ParseConfig(std::string config_path) {
   try {
     return cpptoml::parse_file(config_path);
-  } catch (cpptoml::parse_exception) {
-    xe::FatalError("Failed to parse config file: %s", config_path.c_str());
+  } catch (cpptoml::parse_exception e) {
+    xe::FatalError("Failed to parse config file '%s':\n\n%s",
+                   config_path.c_str(), e.what());
     return nullptr;
   }
 }
