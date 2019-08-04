@@ -33,6 +33,24 @@ inline std::string to_hex_string(uint64_t value) {
   return std::string(buffer);
 }
 
+inline std::string to_hex_string(float value) {
+  union {
+    uint32_t ui;
+    float flt;
+  } v;
+  v.flt = value;
+  return to_hex_string(v.ui);
+}
+
+inline std::string to_hex_string(double value) {
+  union {
+    uint64_t ui;
+    double dbl;
+  } v;
+  v.dbl = value;
+  return to_hex_string(v.ui);
+}
+
 inline std::string to_hex_string(const vec128_t& value) {
   char buffer[128];
   std::snprintf(buffer, sizeof(buffer), "[%.8X, %.8X, %.8X, %.8X]",
