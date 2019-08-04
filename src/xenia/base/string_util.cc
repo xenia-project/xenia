@@ -58,7 +58,8 @@ inline std::string to_string(const __m128& value) {
   char buffer[128];
   float f[4];
   _mm_storeu_ps(f, value);
-  std::snprintf(buffer, sizeof(buffer), "(%F, %F, %F, %F)", f[0], f[1], f[2], f[3]);
+  std::snprintf(buffer, sizeof(buffer), "(%F, %F, %F, %F)", f[0], f[1], f[2],
+                f[3]);
   return std::string(buffer);
 }
 
