@@ -6,7 +6,7 @@
 	url = https://github.com/ocornut/imgui.git
 [submodule "third_party/binutils-ppc-cygwin"]
 	path = third_party/binutils-ppc-cygwin
-	url = https://github.com/benvanik/binutils-ppc-cygwin
+	url = https://github.com/benvanik/binutils-ppc-cygwin.git
 [submodule "third_party/libav"]
 	path = third_party/libav
 	url = https://github.com/xenia-project/libav.git
@@ -30,13 +30,13 @@
 	url = https://github.com/jbeder/yaml-cpp.git
 [submodule "third_party/spirv-headers"]
 	path = third_party/spirv-headers
-	url = https://github.com/KhronosGroup/SPIRV-Headers
+	url = https://github.com/KhronosGroup/SPIRV-Headers.git
 [submodule "third_party/volk"]
 	path = third_party/volk
 	url = https://github.com/zeux/volk.git
 [submodule "third_party/discord-rpc"]
 	path = third_party/discord-rpc
-	url = https://github.com/discordapp/discord-rpc
+	url = https://github.com/discordapp/discord-rpc.git
 [submodule "third_party/rapidjson"]
 	path = third_party/rapidjson
 	url = https://github.com/Tencent/rapidjson.git
@@ -48,7 +48,7 @@
 	url = https://github.com/xenia-project/capstone.git
 [submodule "third_party/cpptoml"]
 	path = third_party/cpptoml
-	url = https://github.com/skystrife/cpptoml
+	url = https://github.com/skystrife/cpptoml.git
 [submodule "third_party/cxxopts"]
 	path = third_party/cxxopts
-	url = https://github.com/jarro2783/cxxopts
+	url = https://github.com/jarro2783/cxxopts.git
