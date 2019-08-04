@@ -57,7 +57,9 @@ DEFINE_string(content_root, "", "Root path for content (save/etc) storage.",
 DEFINE_bool(mount_scratch, false, "Enable scratch mount", "Storage");
 DEFINE_bool(mount_cache, false, "Enable cache mount", "Storage");
 
-CmdVar(target, "", "Specifies the target .xex or .iso to execute.");
+DEFINE_transient_string(target, "",
+                        "Specifies the target .xex or .iso to execute.",
+                        "General");
 DECLARE_bool(debug);
 
 DEFINE_bool(discord, true, "Enable Discord rich presence", "General");
