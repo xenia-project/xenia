@@ -7,8 +7,6 @@
  ******************************************************************************
  */
 
-#include <gflags/gflags.h>
-
 #include "xenia/base/filesystem.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/main.h"
@@ -26,9 +24,9 @@
 #endif  // XE_COMPILER_MSVC
 
 DEFINE_string(test_path, "src/xenia/cpu/ppc/testing/",
-              "Directory scanned for test files.");
+              "Directory scanned for test files.", "Other");
 DEFINE_string(test_bin_path, "src/xenia/cpu/ppc/testing/bin/",
-              "Directory with binary outputs of the test files.");
+              "Directory with binary outputs of the test files.", "Other");
 
 namespace xe {
 namespace cpu {
@@ -54,8 +52,8 @@ class TestSuite {
     name = src_file_path.substr(src_file_path.find_last_of(xe::kPathSeparator) +
                                 1);
     name = ReplaceExtension(name, L"");
-    map_file_path = xe::to_wstring(FLAGS_test_bin_path) + name + L".map";
-    bin_file_path = xe::to_wstring(FLAGS_test_bin_path) + name + L".bin";
+    map_file_path = xe::to_wstring(cvars::test_bin_path) + name + L".map";
+    bin_file_path = xe::to_wstring(cvars::test_bin_path) + name + L".bin";
   }
 
   bool Load() {
@@ -192,11 +190,11 @@ class TestRunner {
     std::unique_ptr<xe::cpu::backend::Backend> backend;
     if (!backend) {
 #if defined(XENIA_HAS_X64_BACKEND) && XENIA_HAS_X64_BACKEND
-      if (FLAGS_cpu == "x64") {
+      if (cvars::cpu == "x64") {
         backend.reset(new xe::cpu::backend::x64::X64Backend());
       }
 #endif  // XENIA_HAS_X64_BACKEND
-      if (FLAGS_cpu == "any") {
+      if (cvars::cpu == "any") {
 #if defined(XENIA_HAS_X64_BACKEND) && XENIA_HAS_X64_BACKEND
         if (!backend) {
           backend.reset(new xe::cpu::backend::x64::X64Backend());
@@ -408,7 +406,7 @@ bool RunTests(const std::wstring& test_name) {
   int passed_count = 0;
 
   auto test_path_root =
-      xe::fix_path_separators(xe::to_wstring(FLAGS_test_path));
+      xe::fix_path_separators(xe::to_wstring(cvars::test_path));
   std::vector<std::wstring> test_files;
   if (!DiscoverTests(test_path_root, test_files)) {
     return false;

@@ -7,8 +7,6 @@
  ******************************************************************************
  */
 
-#include <gflags/gflags.h>
-
 #include <string>
 
 // NOTE: this must be included before microprofile as macro expansion needs
@@ -30,6 +28,7 @@
 #include "third_party/microprofile/microprofile.h"
 
 #include "xenia/base/assert.h"
+#include "xenia/base/cvar.h"
 #include "xenia/base/profiling.h"
 #include "xenia/ui/window.h"
 
@@ -42,7 +41,7 @@
 #include "xenia/ui/microprofile_drawer.h"
 #endif  // XE_OPTION_PROFILING_UI
 
-DEFINE_bool(show_profiler, false, "Show profiling UI by default.");
+DEFINE_bool(show_profiler, false, "Show profiling UI by default.", "UI");
 
 namespace xe {
 
@@ -77,7 +76,7 @@ void Profiler::Initialize() {
   g_MicroProfileUI.bShowSpikes = true;
   g_MicroProfileUI.nOpacityBackground = 0x40u << 24;
   g_MicroProfileUI.nOpacityForeground = 0xc0u << 24;
-  if (FLAGS_show_profiler) {
+  if (cvars::show_profiler) {
     MicroProfileSetDisplayMode(1);
   }
 #else
@@ -114,7 +113,7 @@ void Profiler::ThreadEnter(const char* name) {
 void Profiler::ThreadExit() { MicroProfileOnThreadExit(); }
 
 bool Profiler::OnKeyDown(int key_code) {
-  // http://msdn.microsoft.com/en-us/library/windows/desktop/dd375731(v=vs.85).aspx
+  // https://msdn.microsoft.com/en-us/library/windows/desktop/dd375731(v=vs.85).aspx
   switch (key_code) {
     case VK_OEM_3:  // `
       MicroProfileTogglePause();

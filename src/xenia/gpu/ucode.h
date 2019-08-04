@@ -17,7 +17,7 @@
 #include "xenia/gpu/xenos.h"
 
 // Closest AMD doc:
-// http://developer.amd.com/wordpress/media/2012/10/R600_Instruction_Set_Architecture.pdf
+// https://developer.amd.com/wordpress/media/2012/10/R600_Instruction_Set_Architecture.pdf
 // Microcode format differs, but most fields/enums are the same.
 
 // This code comes from the freedreno project:
@@ -640,6 +640,10 @@ struct TextureFetchInstruction {
   SampleLocation sample_location() const {
     return static_cast<SampleLocation>(data_.sample_location);
   }
+  float lod_bias() const {
+    // http://web.archive.org/web/20090514012026/http://msdn.microsoft.com:80/en-us/library/bb313957.aspx
+    return ((static_cast<int>(data_.lod_bias) << 25) >> 25) / 16.0f;
+  }
   float offset_x() const {
     return ((static_cast<int>(data_.offset_x) << 27) >> 27) / 2.0f;
   }
@@ -697,7 +701,7 @@ static_assert_size(TextureFetchInstruction, 12);
 // R600 docs that have a near 1:1 with the instructions available in the xenos
 // GPU. Some of the behavior has been experimentally verified. Some has been
 // guessed.
-// Docs: http://www.x.org/docs/AMD/old/r600isa.pdf
+// Docs: https://www.x.org/docs/AMD/old/r600isa.pdf
 //
 // Conventions:
 // - All temporary registers are vec4s.
@@ -1009,17 +1013,17 @@ enum class AluScalarOpcode {
   //     dest.xyzw = sqrt(src0.a);
   kSqrt = 40,
 
-  // mulsc dest, src0.a, src0.b
+  // mulsc dest, src0.a, src1.a
   kMulsc0 = 42,
-  // mulsc dest, src0.a, src0.b
+  // mulsc dest, src0.a, src1.a
   kMulsc1 = 43,
-  // addsc dest, src0.a, src0.b
+  // addsc dest, src0.a, src1.a
   kAddsc0 = 44,
-  // addsc dest, src0.a, src0.b
+  // addsc dest, src0.a, src1.a
   kAddsc1 = 45,
-  // subsc dest, src0.a, src0.b
+  // subsc dest, src0.a, src1.a
   kSubsc0 = 46,
-  // subsc dest, src0.a, src0.b
+  // subsc dest, src0.a, src1.a
   kSubsc1 = 47,
 
   // Scalar Sin
@@ -1321,6 +1325,27 @@ enum class AluVectorOpcode {
   kMaxA = 29,
 };
 
+// Whether the vector instruction has side effects such as discarding a pixel or
+// setting the predicate and can't be ignored even if it doesn't write to
+// anywhere.
+inline bool AluVectorOpcodeHasSideEffects(AluVectorOpcode vector_opcode) {
+  switch (vector_opcode) {
+    case AluVectorOpcode::kSetpEqPush:
+    case AluVectorOpcode::kSetpNePush:
+    case AluVectorOpcode::kSetpGtPush:
+    case AluVectorOpcode::kSetpGePush:
+    case AluVectorOpcode::kKillEq:
+    case AluVectorOpcode::kKillGt:
+    case AluVectorOpcode::kKillGe:
+    case AluVectorOpcode::kKillNe:
+    case AluVectorOpcode::kMaxA:
+      return true;
+    default:
+      break;
+  }
+  return false;
+}
+
 struct AluInstruction {
   // Whether data is being exported (or written to local registers).
   bool is_export() const { return data_.export_data == 1; }
@@ -1336,7 +1361,10 @@ struct AluInstruction {
   bool is_const_1_addressed() const { return data_.const_1_rel_abs == 1; }
   bool is_address_relative() const { return data_.address_absolute == 1; }
 
-  bool has_vector_op() const { return vector_write_mask() || is_export(); }
+  bool has_vector_op() const {
+    return vector_write_mask() || is_export() ||
+           AluVectorOpcodeHasSideEffects(vector_opcode());
+  }
   AluVectorOpcode vector_opcode() const {
     return static_cast<AluVectorOpcode>(data_.vector_opc);
   }

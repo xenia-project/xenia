@@ -11,9 +11,6 @@ project("xenia-vfs")
   })
   defines({
   })
-  includedirs({
-    project_root.."/third_party/gflags/src",
-  })
   recursive_platform_files()
   removefiles({"vfs_dump.cc"})
 
@@ -22,17 +19,10 @@ project("xenia-vfs-dump")
   kind("ConsoleApp")
   language("C++")
   links({
-    "gflags",
     "xenia-base",
     "xenia-vfs",
   })
-  flags({
-    -- "WinMain",  -- Use WinMain instead of main.
-  })
   defines({})
-  includedirs({
-    project_root.."/third_party/gflags/src",
-  })
 
   files({
     "vfs_dump.cc",

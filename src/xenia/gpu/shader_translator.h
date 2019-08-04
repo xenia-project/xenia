@@ -11,9 +11,11 @@
 #define XENIA_GPU_SHADER_TRANSLATOR_H_
 
 #include <memory>
+#include <set>
 #include <string>
 #include <vector>
 
+#include "xenia/base/math.h"
 #include "xenia/base/string_buffer.h"
 #include "xenia/gpu/shader.h"
 #include "xenia/gpu/ucode.h"
@@ -30,8 +32,9 @@ class ShaderTranslator {
   // DEPRECATED(benvanik): remove this when shader cache is removed.
   bool GatherAllBindingInformation(Shader* shader);
 
-  bool Translate(Shader* shader, xenos::xe_gpu_program_cntl_t cntl);
-  bool Translate(Shader* shader);
+  bool Translate(Shader* shader, PrimitiveType patch_type,
+                 xenos::xe_gpu_program_cntl_t cntl);
+  bool Translate(Shader* shader, PrimitiveType patch_type);
 
  protected:
   ShaderTranslator();
@@ -43,8 +46,35 @@ class ShaderTranslator {
   uint32_t register_count() const { return register_count_; }
   // True if the current shader is a vertex shader.
   bool is_vertex_shader() const { return shader_type_ == ShaderType::kVertex; }
+  // Tessellation patch primitive type for a vertex shader translated into a
+  // domain shader, or PrimitiveType::kNone for a normal vertex shader.
+  PrimitiveType patch_primitive_type() const { return patch_primitive_type_; }
   // True if the current shader is a pixel shader.
   bool is_pixel_shader() const { return shader_type_ == ShaderType::kPixel; }
+  const Shader::ConstantRegisterMap& constant_register_map() const {
+    return constant_register_map_;
+  }
+  // True if the current shader addresses general-purpose registers with dynamic
+  // indices.
+  bool uses_register_dynamic_addressing() const {
+    return uses_register_dynamic_addressing_;
+  }
+  // True if the current shader writes to a color target on any execution path.
+  bool writes_color_target(int i) const { return writes_color_targets_[i]; }
+  bool writes_any_color_target() const {
+    for (size_t i = 0; i < xe::countof(writes_color_targets_); ++i) {
+      if (writes_color_targets_[i]) {
+        return true;
+      }
+    }
+    return false;
+  }
+  // True if the current shader overrides the pixel depth.
+  bool writes_depth() const { return writes_depth_; }
+  // True if Xenia can automatically enable early depth/stencil for the pixel
+  // shader when RB_DEPTHCONTROL EARLY_Z_ENABLE is not set, provided alpha
+  // testing and alpha to coverage are disabled.
+  bool implicit_early_z_allowed() const { return implicit_early_z_allowed_; }
   // A list of all vertex bindings, populated before translation occurs.
   const std::vector<Shader::VertexBinding>& vertex_bindings() const {
     return vertex_bindings_;
@@ -52,6 +82,20 @@ class ShaderTranslator {
   // A list of all texture bindings, populated before translation occurs.
   const std::vector<Shader::TextureBinding>& texture_bindings() const {
     return texture_bindings_;
+  }
+
+  // Based on the number of AS_VS/PS_EXPORT_STREAM_* enum sets found in a game
+  // .pdb.
+  static constexpr uint32_t kMaxMemExports = 16;
+  // Bits indicating which eM# registers have been written to after each
+  // `alloc export`, for up to kMaxMemExports exports. This will contain zero
+  // for certain corrupt exports - that don't write to eA before writing to eM#,
+  // or if the write was done any way other than MAD with a stream constant.
+  const uint8_t* memexport_eM_written() const { return memexport_eM_written_; }
+  // All c# registers used as the addend in MAD operations to eA, populated
+  // before translation occurs.
+  const std::set<uint32_t>& memexport_stream_constants() const {
+    return memexport_stream_constants_;
   }
 
   // Current line number in the ucode disassembly.
@@ -133,9 +177,10 @@ class ShaderTranslator {
     const char* name;
     size_t argument_count;
     int src_swizzle_component_count;
+    bool disable_implicit_early_z;
   };
 
-  bool TranslateInternal(Shader* shader);
+  bool TranslateInternal(Shader* shader, PrimitiveType patch_type);
 
   void MarkUcodeInstruction(uint32_t dword_offset);
   void AppendUcodeDisasm(char c);
@@ -143,10 +188,9 @@ class ShaderTranslator {
   void AppendUcodeDisasmFormat(const char* format, ...);
 
   bool TranslateBlocks();
-  void GatherBindingInformation(const ucode::ControlFlowInstruction& cf);
-  void GatherVertexBindingInformation(const ucode::VertexFetchInstruction& op);
-  void GatherTextureBindingInformation(
-      const ucode::TextureFetchInstruction& op);
+  void GatherInstructionInformation(const ucode::ControlFlowInstruction& cf);
+  void GatherVertexFetchInformation(const ucode::VertexFetchInstruction& op);
+  void GatherTextureFetchInformation(const ucode::TextureFetchInstruction& op);
   void TranslateControlFlowInstruction(const ucode::ControlFlowInstruction& cf);
   void TranslateControlFlowNop(const ucode::ControlFlowInstruction& cf);
   void TranslateControlFlowExec(const ucode::ControlFlowExecInstruction& cf);
@@ -178,15 +222,14 @@ class ShaderTranslator {
                                     ParsedTextureFetchInstruction* out_instr);
 
   void TranslateAluInstruction(const ucode::AluInstruction& op);
-  void ParseAluVectorInstruction(const ucode::AluInstruction& op,
-                                 const AluOpcodeInfo& opcode_info,
-                                 ParsedAluInstruction& instr);
-  void ParseAluScalarInstruction(const ucode::AluInstruction& op,
-                                 const AluOpcodeInfo& opcode_info,
-                                 ParsedAluInstruction& instr);
+  void ParseAluVectorOperation(const ucode::AluInstruction& op,
+                               ParsedAluInstruction& instr);
+  void ParseAluScalarOperation(const ucode::AluInstruction& op,
+                               ParsedAluInstruction& instr);
 
   // Input shader metadata and microcode.
   ShaderType shader_type_;
+  PrimitiveType patch_primitive_type_;
   const uint32_t* ucode_dwords_;
   size_t ucode_dword_count_;
   xenos::xe_gpu_program_cntl_t program_cntl_;
@@ -216,7 +259,17 @@ class ShaderTranslator {
   uint32_t unique_texture_bindings_ = 0;
 
   Shader::ConstantRegisterMap constant_register_map_ = {0};
+  bool uses_register_dynamic_addressing_ = false;
   bool writes_color_targets_[4] = {false, false, false, false};
+  bool writes_depth_ = false;
+  bool implicit_early_z_allowed_ = true;
+
+  uint32_t memexport_alloc_count_ = 0;
+  // For register allocation in implementations - what was used after each
+  // `alloc export`.
+  uint32_t memexport_eA_written_ = 0;
+  uint8_t memexport_eM_written_[kMaxMemExports] = {0};
+  std::set<uint32_t> memexport_stream_constants_;
 
   static const AluOpcodeInfo alu_vector_opcode_infos_[0x20];
   static const AluOpcodeInfo alu_scalar_opcode_infos_[0x40];

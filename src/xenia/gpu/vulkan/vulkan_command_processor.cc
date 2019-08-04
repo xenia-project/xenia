@@ -356,7 +356,7 @@ void VulkanCommandProcessor::BeginFrame() {
   // The capture will end when these commands are submitted to the queue.
   static uint32_t frame = 0;
   if (device_->is_renderdoc_attached() && !capturing_ &&
-      (FLAGS_vulkan_renderdoc_capture_all || trace_requested_)) {
+      (cvars::vulkan_renderdoc_capture_all || trace_requested_)) {
     if (queue_mutex_) {
       queue_mutex_->lock();
     }
@@ -916,7 +916,7 @@ bool VulkanCommandProcessor::IssueCopy() {
   assert_true(copy_regs->copy_mask == 0);
 
   // RB_SURFACE_INFO
-  // http://fossies.org/dox/MesaLib-10.3.5/fd2__gmem_8c_source.html
+  // https://fossies.org/dox/MesaLib-10.3.5/fd2__gmem_8c_source.html
   uint32_t surface_info = regs[XE_GPU_REG_RB_SURFACE_INFO].u32;
   uint32_t surface_pitch = surface_info & 0x3FFF;
   auto surface_msaa = static_cast<MsaaSamples>((surface_info >> 16) & 0x3);

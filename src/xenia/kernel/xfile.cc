@@ -8,6 +8,7 @@
  */
 
 #include "xenia/kernel/xfile.h"
+#include "xenia/vfs/virtual_file_system.h"
 
 #include "xenia/base/byte_stream.h"
 #include "xenia/base/logging.h"
@@ -19,13 +20,11 @@ namespace xe {
 namespace kernel {
 
 XFile::XFile(KernelState* kernel_state, vfs::File* file, bool synchronous)
-    : XObject(kernel_state, kTypeFile),
-      file_(file),
-      is_synchronous_(synchronous) {
+    : XObject(kernel_state, kType), file_(file), is_synchronous_(synchronous) {
   async_event_ = threading::Event::CreateAutoResetEvent(false);
 }
 
-XFile::XFile() : XObject(kTypeFile) {
+XFile::XFile() : XObject(kType) {
   async_event_ = threading::Event::CreateAutoResetEvent(false);
 }
 
@@ -178,6 +177,8 @@ bool XFile::Save(ByteStream* stream) {
   stream->Write(file_->entry()->absolute_path());
   stream->Write<uint64_t>(position_);
   stream->Write(file_access());
+  stream->Write<bool>(
+      (file_->entry()->attributes() & vfs::kFileAttributeDirectory) != 0);
   stream->Write<bool>(is_synchronous_);
 
   return true;
@@ -195,6 +196,7 @@ object_ref<XFile> XFile::Restore(KernelState* kernel_state,
   auto abs_path = stream->Read<std::string>();
   uint64_t position = stream->Read<uint64_t>();
   auto access = stream->Read<uint32_t>();
+  auto is_directory = stream->Read<bool>();
   auto is_synchronous = stream->Read<bool>();
 
   XELOGD("XFile %.8X (%s)", file->handle(), abs_path.c_str());
@@ -202,7 +204,8 @@ object_ref<XFile> XFile::Restore(KernelState* kernel_state,
   vfs::File* vfs_file = nullptr;
   vfs::FileAction action;
   auto res = kernel_state->file_system()->OpenFile(
-      abs_path, vfs::FileDisposition::kOpen, access, &vfs_file, &action);
+      abs_path, vfs::FileDisposition::kOpen, access, is_directory, &vfs_file,
+      &action);
   if (XFAILED(res)) {
     XELOGE("Failed to open XFile: error %.8X", res);
     return object_ref<XFile>(file);

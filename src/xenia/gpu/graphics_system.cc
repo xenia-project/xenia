@@ -26,8 +26,8 @@ namespace gpu {
 // Nvidia Optimus/AMD PowerXpress support.
 // These exports force the process to trigger the discrete GPU in multi-GPU
 // systems.
-// http://developer.download.nvidia.com/devzone/devcenter/gamegraphics/files/OptimusRenderingPolicies.pdf
-// http://stackoverflow.com/questions/17458803/amd-equivalent-to-nvoptimusenablement
+// https://developer.download.nvidia.com/devzone/devcenter/gamegraphics/files/OptimusRenderingPolicies.pdf
+// https://stackoverflow.com/questions/17458803/amd-equivalent-to-nvoptimusenablement
 #if XE_PLATFORM_WIN32
 extern "C" {
 __declspec(dllexport) uint32_t NvOptimusEnablement = 0x00000001;
@@ -74,7 +74,7 @@ X_STATUS GraphicsSystem::Setup(cpu::Processor* processor,
           "Ensure you have the latest drivers for your GPU and "
           "that it supports Vulkan.\n"
           "\n"
-          "See http://xenia.jp/faq/ for more information and a list of "
+          "See https://xenia.jp/faq/ for more information and a list of "
           "supported GPUs.");
       return X_STATUS_UNSUCCESSFUL;
     }
@@ -113,7 +113,7 @@ X_STATUS GraphicsSystem::Setup(cpu::Processor* processor,
   vsync_worker_running_ = true;
   vsync_worker_thread_ = kernel::object_ref<kernel::XHostThread>(
       new kernel::XHostThread(kernel_state_, 128 * 1024, 0, [this]() {
-        uint64_t vsync_duration = FLAGS_vsync ? 16 : 1;
+        uint64_t vsync_duration = cvars::vsync ? 16 : 1;
         uint64_t last_frame_time = Clock::QueryGuestTickCount();
         while (vsync_worker_running_) {
           uint64_t current_time = Clock::QueryGuestTickCount();
@@ -132,7 +132,7 @@ X_STATUS GraphicsSystem::Setup(cpu::Processor* processor,
   vsync_worker_thread_->set_name("GraphicsSystem Vsync");
   vsync_worker_thread_->Create();
 
-  if (FLAGS_trace_gpu_stream) {
+  if (cvars::trace_gpu_stream) {
     BeginTracing();
   }
 
@@ -270,11 +270,12 @@ void GraphicsSystem::ClearCaches() {
 }
 
 void GraphicsSystem::RequestFrameTrace() {
-  command_processor_->RequestFrameTrace(xe::to_wstring(FLAGS_trace_gpu_prefix));
+  command_processor_->RequestFrameTrace(
+      xe::to_wstring(cvars::trace_gpu_prefix));
 }
 
 void GraphicsSystem::BeginTracing() {
-  command_processor_->BeginTracing(xe::to_wstring(FLAGS_trace_gpu_prefix));
+  command_processor_->BeginTracing(xe::to_wstring(cvars::trace_gpu_prefix));
 }
 
 void GraphicsSystem::EndTracing() { command_processor_->EndTracing(); }

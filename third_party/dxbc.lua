@@ -1,0 +1,18 @@
+group("third_party")
+project("dxbc")
+  uuid("c96688ca-51ca-406e-aeef-068734a67abe")
+  kind("StaticLib")
+  language("C++")
+  links({
+  })
+  defines({
+    "_LIB",
+  })
+  includedirs({
+    "dxbc",
+  })
+  files({
+    "dxbc/d3d12TokenizedProgramFormat.hpp",
+    "dxbc/DXBCChecksum.cpp",
+    "dxbc/DXBCChecksum.h",
+  })

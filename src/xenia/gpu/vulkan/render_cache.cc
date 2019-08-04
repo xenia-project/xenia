@@ -32,7 +32,7 @@ ColorRenderTargetFormat GetBaseRTFormat(ColorRenderTargetFormat format) {
   switch (format) {
     case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
       return ColorRenderTargetFormat::k_8_8_8_8;
-    case ColorRenderTargetFormat::k_2_10_10_10_AS_16_16_16_16:
+    case ColorRenderTargetFormat::k_2_10_10_10_AS_10_10_10_10:
       return ColorRenderTargetFormat::k_2_10_10_10;
     case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
       return ColorRenderTargetFormat::k_2_10_10_10_FLOAT;
@@ -47,7 +47,7 @@ VkFormat ColorRenderTargetFormatToVkFormat(ColorRenderTargetFormat format) {
     case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
       return VK_FORMAT_R8G8B8A8_UNORM;
     case ColorRenderTargetFormat::k_2_10_10_10:
-    case ColorRenderTargetFormat::k_2_10_10_10_AS_16_16_16_16:
+    case ColorRenderTargetFormat::k_2_10_10_10_AS_10_10_10_10:
       return VK_FORMAT_A2R10G10B10_UNORM_PACK32;
     case ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
     case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
@@ -194,7 +194,7 @@ VkResult CachedTileView::Initialize(VkCommandBuffer command_buffer) {
   image_info.extent.depth = 1;
   image_info.mipLevels = 1;
   image_info.arrayLayers = 1;
-  if (FLAGS_vulkan_native_msaa) {
+  if (cvars::vulkan_native_msaa) {
     auto msaa_samples = static_cast<MsaaSamples>(key.msaa_samples);
     switch (msaa_samples) {
       case MsaaSamples::k1X:
@@ -422,7 +422,7 @@ CachedRenderPass::~CachedRenderPass() {
 
 VkResult CachedRenderPass::Initialize() {
   VkSampleCountFlagBits sample_count;
-  if (FLAGS_vulkan_native_msaa) {
+  if (cvars::vulkan_native_msaa) {
     switch (config.surface_msaa) {
       case MsaaSamples::k1X:
         sample_count = VK_SAMPLE_COUNT_1_BIT;
@@ -534,7 +534,7 @@ VkResult CachedRenderPass::Initialize() {
 bool CachedRenderPass::IsCompatible(
     const RenderConfiguration& desired_config) const {
   if (config.surface_msaa != desired_config.surface_msaa &&
-      FLAGS_vulkan_native_msaa) {
+      cvars::vulkan_native_msaa) {
     return false;
   }
 
@@ -786,7 +786,7 @@ bool RenderCache::ParseConfiguration(RenderConfiguration* config) {
   config->mode_control = regs.rb_modecontrol.edram_mode;
 
   // RB_SURFACE_INFO
-  // http://fossies.org/dox/MesaLib-10.3.5/fd2__gmem_8c_source.html
+  // https://fossies.org/dox/MesaLib-10.3.5/fd2__gmem_8c_source.html
   config->surface_pitch_px = regs.rb_surface_info.surface_pitch;
   config->surface_msaa = regs.rb_surface_info.msaa_samples;
 

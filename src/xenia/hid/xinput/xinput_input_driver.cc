@@ -21,26 +21,64 @@ namespace hid {
 namespace xinput {
 
 XInputInputDriver::XInputInputDriver(xe::ui::Window* window)
-    : InputDriver(window) {
-#if (_WIN32_WINNT >= _WIN32_WINNT_WIN8 && _WIN32_WINNT < _WIN32_WINNT_WIN10)
-  // TODO(gibbed): Is this necessary?
-  XInputEnable(TRUE);
-#endif
-}
+    : InputDriver(window),
+      module_(nullptr),
+      XInputGetCapabilities_(nullptr),
+      XInputGetState_(nullptr),
+      XInputGetKeystroke_(nullptr),
+      XInputSetState_(nullptr),
+      XInputEnable_(nullptr) {}
 
 XInputInputDriver::~XInputInputDriver() {
-#if (_WIN32_WINNT >= _WIN32_WINNT_WIN8 && _WIN32_WINNT < _WIN32_WINNT_WIN10)
-  // TODO(gibbed): Is this necessary?
-  XInputEnable(FALSE);
-#endif
+  if (module_) {
+    FreeLibrary((HMODULE)module_);
+    module_ = nullptr;
+    XInputGetCapabilities_ = nullptr;
+    XInputGetState_ = nullptr;
+    XInputGetKeystroke_ = nullptr;
+    XInputSetState_ = nullptr;
+    XInputEnable_ = nullptr;
+  }
 }
 
-X_STATUS XInputInputDriver::Setup() { return X_STATUS_SUCCESS; }
+X_STATUS XInputInputDriver::Setup() {
+  HMODULE module = LoadLibraryW(L"xinput1_4.dll");
+  if (!module) {
+    module = LoadLibraryW(L"xinput1_3.dll");
+  }
+  if (!module) {
+    return X_STATUS_DLL_NOT_FOUND;
+  }
+
+  // Required.
+  auto xigc = GetProcAddress(module, "XInputGetCapabilities");
+  auto xigs = GetProcAddress(module, "XInputGetState");
+  auto xigk = GetProcAddress(module, "XInputGetKeystroke");
+  auto xiss = GetProcAddress(module, "XInputSetState");
+
+  // Not required.
+  auto xie = GetProcAddress(module, "XInputEnable");
+
+  // Only fail when we don't have the bare essentials;
+  if (!xigc || !xigs || !xigk || !xiss) {
+    FreeLibrary(module);
+    return X_STATUS_PROCEDURE_NOT_FOUND;
+  }
+
+  module_ = module;
+  XInputGetCapabilities_ = xigc;
+  XInputGetState_ = xigs;
+  XInputGetKeystroke_ = xigk;
+  XInputSetState_ = xiss;
+  XInputEnable_ = xie;
+  return X_STATUS_SUCCESS;
+}
 
 X_RESULT XInputInputDriver::GetCapabilities(uint32_t user_index, uint32_t flags,
                                             X_INPUT_CAPABILITIES* out_caps) {
   XINPUT_CAPABILITIES native_caps;
-  DWORD result = XInputGetCapabilities(user_index, flags, &native_caps);
+  auto xigc = (decltype(&XInputGetCapabilities))XInputGetCapabilities_;
+  DWORD result = xigc(user_index, flags, &native_caps);
   if (result) {
     return result;
   }
@@ -65,7 +103,8 @@ X_RESULT XInputInputDriver::GetCapabilities(uint32_t user_index, uint32_t flags,
 X_RESULT XInputInputDriver::GetState(uint32_t user_index,
                                      X_INPUT_STATE* out_state) {
   XINPUT_STATE native_state;
-  DWORD result = XInputGetState(user_index, &native_state);
+  auto xigs = (decltype(&XInputGetState))XInputGetState_;
+  DWORD result = xigs(user_index, &native_state);
   if (result) {
     return result;
   }
@@ -87,7 +126,8 @@ X_RESULT XInputInputDriver::SetState(uint32_t user_index,
   XINPUT_VIBRATION native_vibration;
   native_vibration.wLeftMotorSpeed = vibration->left_motor_speed;
   native_vibration.wRightMotorSpeed = vibration->right_motor_speed;
-  DWORD result = XInputSetState(user_index, &native_vibration);
+  auto xiss = (decltype(&XInputSetState))XInputSetState_;
+  DWORD result = xiss(user_index, &native_vibration);
   return result;
 }
 
@@ -99,18 +139,20 @@ X_RESULT XInputInputDriver::GetKeystroke(uint32_t user_index, uint32_t flags,
 
   // XInputGetKeystroke on Windows has a bug where it will return
   // ERROR_SUCCESS (0) even if the device is not connected:
-  // http://stackoverflow.com/questions/23669238/xinputgetkeystroke-returning-error-success-while-controller-is-unplugged
+  // https://stackoverflow.com/questions/23669238/xinputgetkeystroke-returning-error-success-while-controller-is-unplugged
   //
   // So we first check if the device is connected via XInputGetCapabilities, so
   // we are not passing back an uninitialized X_INPUT_KEYSTROKE structure:
   XINPUT_CAPABILITIES caps;
-  result = XInputGetCapabilities(user_index, 0, &caps);
+  auto xigc = (decltype(&XInputGetCapabilities))XInputGetCapabilities_;
+  result = xigc(user_index, 0, &caps);
   if (result) {
     return result;
   }
 
   XINPUT_KEYSTROKE native_keystroke;
-  result = XInputGetKeystroke(user_index, 0, &native_keystroke);
+  auto xigk = (decltype(&XInputGetKeystroke))XInputGetKeystroke_;
+  result = xigk(user_index, 0, &native_keystroke);
   if (result) {
     return result;
   }

@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "xenia/base/memory.h"
@@ -24,6 +25,8 @@ class ByteStream;
 }  // namespace xe
 
 namespace xe {
+
+class Memory;
 
 enum SystemHeapFlag : uint32_t {
   kSystemHeapVirtual = 1 << 0,
@@ -163,9 +166,10 @@ class BaseHeap {
  protected:
   BaseHeap();
 
-  void Initialize(uint8_t* membase, uint32_t heap_base, uint32_t heap_size,
-                  uint32_t page_size);
+  void Initialize(Memory* memory, uint8_t* membase, uint32_t heap_base,
+                  uint32_t heap_size, uint32_t page_size);
 
+  Memory* memory_;
   uint8_t* membase_;
   uint32_t heap_base_;
   uint32_t heap_size_;
@@ -181,8 +185,8 @@ class VirtualHeap : public BaseHeap {
   ~VirtualHeap() override;
 
   // Initializes the heap properties and allocates the page table.
-  void Initialize(uint8_t* membase, uint32_t heap_base, uint32_t heap_size,
-                  uint32_t page_size);
+  void Initialize(Memory* memory, uint8_t* membase, uint32_t heap_base,
+                  uint32_t heap_size, uint32_t page_size);
 };
 
 // A heap for ranges of memory that are mapped to physical ranges.
@@ -198,8 +202,9 @@ class PhysicalHeap : public BaseHeap {
   ~PhysicalHeap() override;
 
   // Initializes the heap properties and allocates the page table.
-  void Initialize(uint8_t* membase, uint32_t heap_base, uint32_t heap_size,
-                  uint32_t page_size, VirtualHeap* parent_heap);
+  void Initialize(Memory* memory, uint8_t* membase, uint32_t heap_base,
+                  uint32_t heap_size, uint32_t page_size,
+                  VirtualHeap* parent_heap);
 
   bool Alloc(uint32_t size, uint32_t alignment, uint32_t allocation_type,
              uint32_t protect, bool top_down, uint32_t* out_address) override;
@@ -215,8 +220,18 @@ class PhysicalHeap : public BaseHeap {
   bool Protect(uint32_t address, uint32_t size, uint32_t protect,
                uint32_t* old_protect = nullptr) override;
 
+  void WatchPhysicalWrite(uint32_t physical_address, uint32_t length);
+  // Returns true if any page in the range was watched.
+  bool TriggerWatches(uint32_t virtual_address, uint32_t length, bool is_write,
+                      bool unwatch_exact_range, bool unprotect = true);
+
  protected:
   VirtualHeap* parent_heap_;
+
+  uint32_t system_page_size_;
+  uint32_t system_page_count_;
+  // Protected by global_critical_region.
+  std::vector<uint64_t> system_pages_watched_write_;
 };
 
 // Models the entire guest memory system on the console.
@@ -304,20 +319,63 @@ class Memory {
   // Gets the defined MMIO range for the given virtual address, if any.
   cpu::MMIORange* LookupVirtualMappedRange(uint32_t virtual_address);
 
-  // Adds a write watch for the given physical address range that will trigger
-  // the specified callback whenever any bytes are written in that range.
-  // The returned handle can be used with CancelWriteWatch to remove the watch
-  // if it is no longer required.
-  //
-  // This has a significant performance penalty for writes in in the range or
-  // nearby (sharing 64KiB pages).
-  uintptr_t AddPhysicalAccessWatch(uint32_t physical_address, uint32_t length,
-                                   cpu::MMIOHandler::WatchType type,
-                                   cpu::AccessWatchCallback callback,
-                                   void* callback_context, void* callback_data);
+  // Returns start and length of the smallest physical memory region surrounding
+  // the watched region that can be safely unwatched, if it doesn't matter,
+  // return (0, UINT32_MAX).
+  typedef std::pair<uint32_t, uint32_t> (*PhysicalWriteWatchCallback)(
+      void* context_ptr, uint32_t physical_address_start, uint32_t length,
+      bool exact_range);
 
-  // Cancels a write watch requested with AddPhysicalAccessWatch.
-  void CancelAccessWatch(uintptr_t watch_handle);
+  // Physical memory write watching, allowing subsystems to invalidate cached
+  // data that depends on memory contents.
+  //
+  // Placing a watch simply marks the pages (of the system page size) as
+  // watched, individual watched ranges (or which specific subscribers are
+  // watching specific pages) are not stored. Because of this, callbacks may be
+  // triggered multiple times for a single range, and for any watched page every
+  // registered callbacks is triggered. This is a very simple one-shot method
+  // for use primarily for cache invalidation - there may be spurious firing,
+  // for example, if the game only changes the protection level without writing
+  // anything.
+  //
+  // A range of pages can be watched at any time, but pages are only unwatched
+  // when watches are triggered (since multiple subscribers can depend on the
+  // same memory, and one subscriber shouldn't interfere with another).
+  //
+  // Callbacks can be triggered for one page (if the guest just stores words) or
+  // for multiple pages (for file reading, protection level changes).
+  //
+  // Only guest physical memory mappings are watched - the host-only mapping is
+  // not protected so it can be used to bypass the write protection (for file
+  // reads, for example - in this case, watches are triggered manually).
+  //
+  // Note that when a watch is triggered, the watched page is unprotected only
+  // in the heap where the address is located. Since different virtual memory
+  // mappings of physical memory can have different protection levels for the
+  // same pages, and watches must not be placed on read-only or totally
+  // inaccessible pages, there are significant difficulties with synchronizing
+  // all the three ranges, but it's generally not needed.
+  void* RegisterPhysicalWriteWatch(PhysicalWriteWatchCallback callback,
+                                   void* callback_context);
+
+  // Unregisters a physical memory write watch previously added with
+  // RegisterPhysicalWriteWatch.
+  void UnregisterPhysicalWriteWatch(void* watch_handle);
+
+  // Enables watching of the specified memory range, snapped to system page
+  // boundaries. When something is written to a watched range (or when the
+  // protection of it changes), the registered watch callbacks are triggered for
+  // the page (or pages, for file reads and protection changes) where something
+  // has been written to. This protects physical memory only under
+  // virtual_membase_, so writing to physical_membase_ can be done to bypass the
+  // protection placed by the watches.
+  void WatchPhysicalMemoryWrite(uint32_t physical_address, uint32_t length);
+
+  // Forces triggering of watch callbacks for a virtual address range if pages
+  // are watched there and unwatching them. Returns whether any page was
+  // watched.
+  bool TriggerWatches(uint32_t virtual_address, uint32_t length, bool is_write,
+                      bool unwatch_exact_range, bool unprotect = true);
 
   // Allocates virtual memory from the 'system' heap.
   // System memory is kept separate from game memory but is still accessible
@@ -347,6 +405,10 @@ class Memory {
  private:
   int MapViews(uint8_t* mapping_base);
   void UnmapViews();
+
+  bool AccessViolationCallback(size_t host_address, bool is_write);
+  static bool AccessViolationCallbackThunk(void* context, size_t host_address,
+                                           bool is_write);
 
  private:
   std::wstring file_name_;
@@ -386,6 +448,14 @@ class Memory {
   } heaps_;
 
   friend class BaseHeap;
+
+  friend class PhysicalHeap;
+  struct PhysicalWriteWatchEntry {
+    PhysicalWriteWatchCallback callback;
+    void* callback_context;
+  };
+  xe::global_critical_region global_critical_region_;
+  std::vector<PhysicalWriteWatchEntry*> physical_write_watches_;
 };
 
 }  // namespace xe

@@ -11,7 +11,4 @@ project("xenia-core")
   })
   defines({
   })
-  includedirs({
-    project_root.."/third_party/gflags/src",
-  })
   files({"*.h", "*.cc"})

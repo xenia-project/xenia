@@ -403,7 +403,7 @@ void FatalVulkanError(std::string error) {
       "Ensure you have the latest drivers for your GPU and that it supports "
       "Vulkan.\n"
       "\n"
-      "See http://xenia.jp/faq/ for more information and a list of supported "
+      "See https://xenia.jp/faq/ for more information and a list of supported "
       "GPUs.");
 }
 

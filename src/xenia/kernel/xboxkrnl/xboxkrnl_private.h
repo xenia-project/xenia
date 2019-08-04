@@ -33,6 +33,8 @@ void RegisterErrorExports(xe::cpu::ExportResolver* export_resolver,
                           KernelState* kernel_state);
 void RegisterHalExports(xe::cpu::ExportResolver* export_resolver,
                         KernelState* kernel_state);
+void RegisterHidExports(xe::cpu::ExportResolver* export_resolver,
+                        KernelState* kernel_state);
 void RegisterIoExports(xe::cpu::ExportResolver* export_resolver,
                        KernelState* kernel_state);
 void RegisterMemoryExports(xe::cpu::ExportResolver* export_resolver,

@@ -1,7 +1,7 @@
 ; SPIR-V
 ; Version: 1.0
 ; Generator: Khronos Glslang Reference Front End; 6
-; Bound: 56
+; Bound: 51
 ; Schema: 0
                OpCapability Shader
                OpCapability Sampled1D
@@ -17,10 +17,7 @@
                OpMemberName %PushConstants 0 "restrict_texture_samples"
                OpName %push_constants "push_constants"
                OpName %vtx_uv "vtx_uv"
-               OpName %tex_color "tex_color"
                OpName %texture_sampler "texture_sampler"
-               OpName %tex1D "tex1D"
-               OpName %tex2D "tex2D"
                OpDecorate %out_color Location 0
                OpDecorate %vtx_color Location 1
                OpMemberDecorate %PushConstants 0 Offset 64
@@ -28,10 +25,6 @@
                OpDecorate %vtx_uv Location 0
                OpDecorate %texture_sampler DescriptorSet 0
                OpDecorate %texture_sampler Binding 0
-               OpDecorate %tex1D DescriptorSet 0
-               OpDecorate %tex1D Binding 1
-               OpDecorate %tex2D DescriptorSet 0
-               OpDecorate %tex2D Binding 1
        %void = OpTypeVoid
           %3 = OpTypeFunction %void
       %float = OpTypeFloat 32
@@ -54,19 +47,12 @@
      %uint_0 = OpConstant %uint 0
 %_ptr_Input_float = OpTypePointer Input %float
     %float_1 = OpConstant %float 1
-%_ptr_Function_v4float = OpTypePointer Function %v4float
          %41 = OpTypeImage %float 2D 0 0 0 1 Unknown
          %42 = OpTypeSampledImage %41
 %_ptr_UniformConstant_42 = OpTypePointer UniformConstant %42
 %texture_sampler = OpVariable %_ptr_UniformConstant_42 UniformConstant
-         %51 = OpTypeImage %float 1D 0 0 0 1 Unknown
-         %52 = OpTypeSampledImage %51
-%_ptr_UniformConstant_52 = OpTypePointer UniformConstant %52
-      %tex1D = OpVariable %_ptr_UniformConstant_52 UniformConstant
-      %tex2D = OpVariable %_ptr_UniformConstant_42 UniformConstant
        %main = OpFunction %void None %3
           %5 = OpLabel
-  %tex_color = OpVariable %_ptr_Function_v4float Function
          %12 = OpLoad %v4float %vtx_color
                OpStore %out_color %12
          %20 = OpAccessChain %_ptr_PushConstant_int %push_constants %int_0
@@ -88,10 +74,8 @@
          %45 = OpLoad %42 %texture_sampler
          %46 = OpLoad %v2float %vtx_uv
          %47 = OpImageSampleImplicitLod %v4float %45 %46
-               OpStore %tex_color %47
-         %48 = OpLoad %v4float %tex_color
          %49 = OpLoad %v4float %out_color
-         %50 = OpFMul %v4float %49 %48
+         %50 = OpFMul %v4float %49 %47
                OpStore %out_color %50
                OpBranch %38
          %38 = OpLabel

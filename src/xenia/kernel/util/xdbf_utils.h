@@ -19,8 +19,8 @@ namespace xe {
 namespace kernel {
 namespace util {
 
-// http://freestyledash.googlecode.com/svn/trunk/Freestyle/Tools/XEX/SPA.h
-// http://freestyledash.googlecode.com/svn/trunk/Freestyle/Tools/XEX/SPA.cpp
+// https://github.com/oukiar/freestyledash/blob/master/Freestyle/Tools/XEX/SPA.h
+// https://github.com/oukiar/freestyledash/blob/master/Freestyle/Tools/XEX/SPA.cpp
 
 enum class XdbfSection : uint16_t {
   kMetadata = 0x0001,
@@ -49,7 +49,7 @@ struct XdbfBlock {
 };
 
 // Wraps an XBDF (XboxDataBaseFormat) in-memory database.
-// http://www.free60.org/wiki/XDBF
+// https://free60project.github.io/wiki/XDBF.html
 class XdbfWrapper {
  public:
   XdbfWrapper(const uint8_t* data, size_t data_size);

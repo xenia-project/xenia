@@ -14,7 +14,6 @@ project("xenia-ui-vulkan")
   defines({
   })
   includedirs({
-    project_root.."/third_party/gflags/src",
     project_root.."/third_party/vulkan/",
   })
   local_platform_files()
@@ -29,7 +28,6 @@ project("xenia-ui-window-vulkan-demo")
   kind("WindowedApp")
   language("C++")
   links({
-    "gflags",
     "imgui",
     "volk",
     "xenia-base",
@@ -37,13 +35,9 @@ project("xenia-ui-window-vulkan-demo")
     "xenia-ui-spirv",
     "xenia-ui-vulkan",
   })
-  flags({
-    "WinMain",  -- Use WinMain instead of main.
-  })
   defines({
   })
   includedirs({
-    project_root.."/third_party/gflags/src",
     project_root.."/third_party/vulkan/",
   })
   files({

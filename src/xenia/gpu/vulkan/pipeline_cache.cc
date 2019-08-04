@@ -347,7 +347,7 @@ VkPipeline PipelineCache::GetPipeline(const RenderState* render_state,
   }
 
   // Dump shader disassembly.
-  if (FLAGS_vulkan_dump_disasm) {
+  if (cvars::vulkan_dump_disasm) {
     if (device_->HasEnabledExtension(VK_AMD_SHADER_INFO_EXTENSION_NAME)) {
       DumpShaderDisasmAMD(pipeline);
     } else if (device_->device_info().properties.vendorID == 0x10DE) {
@@ -367,7 +367,7 @@ bool PipelineCache::TranslateShader(VulkanShader* shader,
                                     xenos::xe_gpu_program_cntl_t cntl) {
   // Perform translation.
   // If this fails the shader will be marked as invalid and ignored later.
-  if (!shader_translator_->Translate(shader, cntl)) {
+  if (!shader_translator_->Translate(shader, PrimitiveType::kNone, cntl)) {
     XELOGE("Shader translation failed; marking shader as ignored");
     return false;
   }
@@ -387,8 +387,8 @@ bool PipelineCache::TranslateShader(VulkanShader* shader,
   }
 
   // Dump shader files if desired.
-  if (!FLAGS_dump_shaders.empty()) {
-    shader->Dump(FLAGS_dump_shaders, "vk");
+  if (!cvars::dump_shaders.empty()) {
+    shader->Dump(cvars::dump_shaders, "vk");
   }
 
   return shader->is_valid();
@@ -555,11 +555,9 @@ VkShaderModule PipelineCache::GetGeometryShader(PrimitiveType primitive_type,
       // TODO(benvanik): quad strip geometry shader.
       assert_always("Quad strips not implemented");
       return nullptr;
-    case PrimitiveType::k2DCopyRectListV0:
-    case PrimitiveType::k2DCopyRectListV1:
-    case PrimitiveType::k2DCopyRectListV2:
-    case PrimitiveType::k2DCopyRectListV3:
-      // TODO(DrChat): Research this.
+    case PrimitiveType::kTrianglePatch:
+    case PrimitiveType::kQuadPatch:
+      assert_always("Tessellation is not implemented");
       return nullptr;
     default:
       assert_unhandled_case(primitive_type);
@@ -660,7 +658,7 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
   }
 
   // Whether each of the viewport settings are enabled.
-  // http://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
+  // https://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
   bool vport_xscale_enable = (regs.pa_cl_vte_cntl & (1 << 0)) > 0;
   bool vport_xoffset_enable = (regs.pa_cl_vte_cntl & (1 << 1)) > 0;
   bool vport_yscale_enable = (regs.pa_cl_vte_cntl & (1 << 2)) > 0;
@@ -865,7 +863,7 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
       push_constants.window_scale[3] = (-1280.f / window_height_scalar) + 0.5f;
     }
 
-    // http://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
+    // https://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
     // VTX_XY_FMT = true: the incoming XY have already been multiplied by 1/W0.
     //            = false: multiply the X, Y coordinates by 1/W0.
     // VTX_Z_FMT = true: the incoming Z has already been multiplied by 1/W0.
@@ -1398,7 +1396,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateMultisampleState() {
   // PA_SU_SC_MODE_CNTL MSAA_ENABLE (0x10000)
   // If set, all samples will be sampled at set locations. Otherwise, they're
   // all sampled from the pixel center.
-  if (FLAGS_vulkan_native_msaa) {
+  if (cvars::vulkan_native_msaa) {
     auto msaa_num_samples =
         static_cast<MsaaSamples>((regs.rb_surface_info >> 16) & 0x3);
     switch (msaa_num_samples) {

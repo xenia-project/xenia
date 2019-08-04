@@ -7,6 +7,7 @@ project("xenia-kernel")
   kind("StaticLib")
   language("C++")
   links({
+    "aes_128",
     "xenia-apu",
     "xenia-base",
     "xenia-cpu",
@@ -14,9 +15,6 @@ project("xenia-kernel")
     "xenia-vfs",
   })
   defines({
-  })
-  includedirs({
-    project_root.."/third_party/gflags/src",
   })
   recursive_platform_files()
   files({

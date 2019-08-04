@@ -9,19 +9,20 @@
 
 #include "xenia/gpu/spirv_shader_translator.h"
 
-#include <gflags/gflags.h>
-
 #include <algorithm>
 #include <cfloat>
 #include <cstddef>
 #include <cstring>
 #include <vector>
 
+#include "xenia/base/cvar.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 
-DEFINE_bool(spv_validate, false, "Validate SPIR-V shaders after generation");
-DEFINE_bool(spv_disasm, false, "Disassemble SPIR-V shaders after generation");
+DEFINE_bool(spv_validate, false, "Validate SPIR-V shaders after generation",
+            "GPU");
+DEFINE_bool(spv_disasm, false, "Disassemble SPIR-V shaders after generation",
+            "GPU");
 
 namespace xe {
 namespace gpu {
@@ -491,7 +492,7 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
     b.addExecutionMode(mainFn, spv::ExecutionModeOriginUpperLeft);
 
     // If we write a new depth value, we must declare this mode!
-    if (writes_depth_) {
+    if (writes_depth()) {
       b.addExecutionMode(mainFn, spv::ExecutionModeDepthReplacing);
     }
 
@@ -648,7 +649,6 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
 
   // Cleanup builder.
   cf_blocks_.clear();
-  writes_depth_ = false;
   loop_head_block_ = nullptr;
   loop_body_block_ = nullptr;
   loop_cont_block_ = nullptr;
@@ -667,7 +667,7 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
 
 void SpirvShaderTranslator::PostTranslation(Shader* shader) {
   // Validation.
-  if (FLAGS_spv_validate) {
+  if (cvars::spv_validate) {
     auto validation = validator_.Validate(
         reinterpret_cast<const uint32_t*>(shader->translated_binary().data()),
         shader->translated_binary().size() / sizeof(uint32_t));
@@ -677,7 +677,7 @@ void SpirvShaderTranslator::PostTranslation(Shader* shader) {
     }
   }
 
-  if (FLAGS_spv_disasm) {
+  if (cvars::spv_disasm) {
     // TODO(benvanik): only if needed? could be slowish.
     auto disasm = disassembler_.Disassemble(
         reinterpret_cast<const uint32_t*>(shader->translated_binary().data()),
@@ -2001,17 +2001,60 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
 
 void SpirvShaderTranslator::ProcessAluInstruction(
     const ParsedAluInstruction& instr) {
+  if (instr.is_nop()) {
+    return;
+  }
+
   auto& b = *builder_;
-  switch (instr.type) {
-    case ParsedAluInstruction::Type::kNop:
-      b.createNoResultOp(spv::Op::OpNop);
-      break;
-    case ParsedAluInstruction::Type::kVector:
-      ProcessVectorAluInstruction(instr);
-      break;
-    case ParsedAluInstruction::Type::kScalar:
-      ProcessScalarAluInstruction(instr);
-      break;
+
+  // Close the open predicated block if this instr isn't predicated or the
+  // conditions do not match.
+  if (open_predicated_block_ &&
+      (!instr.is_predicated ||
+       instr.predicate_condition != predicated_block_cond_)) {
+    b.createBranch(predicated_block_end_);
+    b.setBuildPoint(predicated_block_end_);
+    open_predicated_block_ = false;
+    predicated_block_cond_ = false;
+    predicated_block_end_ = nullptr;
+  }
+
+  if (!open_predicated_block_ && instr.is_predicated) {
+    Id pred_cond =
+        b.createBinOp(spv::Op::OpLogicalEqual, bool_type_, b.createLoad(p0_),
+                      b.makeBoolConstant(instr.predicate_condition));
+    auto block = &b.makeNewBlock();
+    open_predicated_block_ = true;
+    predicated_block_cond_ = instr.predicate_condition;
+    predicated_block_end_ = &b.makeNewBlock();
+
+    b.createSelectionMerge(predicated_block_end_,
+                           spv::SelectionControlMaskNone);
+    b.createConditionalBranch(pred_cond, block, predicated_block_end_);
+    b.setBuildPoint(block);
+  }
+
+  bool close_predicated_block_vector = false;
+  bool store_vector =
+      ProcessVectorAluOperation(instr, close_predicated_block_vector);
+  bool close_predicated_block_scalar = false;
+  bool store_scalar =
+      ProcessScalarAluOperation(instr, close_predicated_block_scalar);
+
+  if (store_vector) {
+    StoreToResult(b.createLoad(pv_), instr.vector_result);
+  }
+  if (store_scalar) {
+    StoreToResult(b.createLoad(ps_), instr.scalar_result);
+  }
+
+  if ((close_predicated_block_vector || close_predicated_block_scalar) &&
+      open_predicated_block_) {
+    b.createBranch(predicated_block_end_);
+    b.setBuildPoint(predicated_block_end_);
+    open_predicated_block_ = false;
+    predicated_block_cond_ = false;
+    predicated_block_end_ = nullptr;
   }
 }
 
@@ -2203,45 +2246,23 @@ spv::Function* SpirvShaderTranslator::CreateCubeFunction() {
   return function;
 }
 
-void SpirvShaderTranslator::ProcessVectorAluInstruction(
-    const ParsedAluInstruction& instr) {
+bool SpirvShaderTranslator::ProcessVectorAluOperation(
+    const ParsedAluInstruction& instr, bool& close_predicated_block) {
+  close_predicated_block = false;
+
+  if (!instr.has_vector_op) {
+    return false;
+  }
+
   auto& b = *builder_;
-
-  // Close the open predicated block if this instr isn't predicated or the
-  // conditions do not match.
-  if (open_predicated_block_ &&
-      (!instr.is_predicated ||
-       instr.predicate_condition != predicated_block_cond_)) {
-    b.createBranch(predicated_block_end_);
-    b.setBuildPoint(predicated_block_end_);
-    open_predicated_block_ = false;
-    predicated_block_cond_ = false;
-    predicated_block_end_ = nullptr;
-  }
-
-  if (!open_predicated_block_ && instr.is_predicated) {
-    Id pred_cond =
-        b.createBinOp(spv::Op::OpLogicalEqual, bool_type_, b.createLoad(p0_),
-                      b.makeBoolConstant(instr.predicate_condition));
-    auto block = &b.makeNewBlock();
-    open_predicated_block_ = true;
-    predicated_block_cond_ = instr.predicate_condition;
-    predicated_block_end_ = &b.makeNewBlock();
-
-    b.createSelectionMerge(predicated_block_end_,
-                           spv::SelectionControlMaskNone);
-    b.createConditionalBranch(pred_cond, block, predicated_block_end_);
-    b.setBuildPoint(block);
-  }
 
   // TODO: If we have identical operands, reuse previous one.
   Id sources[3] = {0};
   Id dest = vec4_float_zero_;
-  for (size_t i = 0; i < instr.operand_count; i++) {
-    sources[i] = LoadFromOperand(instr.operands[i]);
+  for (size_t i = 0; i < instr.vector_operand_count; i++) {
+    sources[i] = LoadFromOperand(instr.vector_operands[i]);
   }
 
-  bool close_predicated_block = false;
   switch (instr.vector_opcode) {
     case AluVectorOpcode::kAdd: {
       dest = b.createBinOp(spv::Op::OpFAdd, vec4_float_type_, sources[0],
@@ -2604,58 +2625,30 @@ void SpirvShaderTranslator::ProcessVectorAluInstruction(
   assert_true(b.getTypeId(dest) == vec4_float_type_);
   if (dest) {
     b.createStore(dest, pv_);
-    StoreToResult(dest, instr.result);
+    return true;
   }
-
-  if (close_predicated_block && open_predicated_block_) {
-    b.createBranch(predicated_block_end_);
-    b.setBuildPoint(predicated_block_end_);
-    open_predicated_block_ = false;
-    predicated_block_cond_ = false;
-    predicated_block_end_ = nullptr;
-  }
+  return false;
 }
 
-void SpirvShaderTranslator::ProcessScalarAluInstruction(
-    const ParsedAluInstruction& instr) {
+bool SpirvShaderTranslator::ProcessScalarAluOperation(
+    const ParsedAluInstruction& instr, bool& close_predicated_block) {
+  close_predicated_block = false;
+
+  if (!instr.has_scalar_op) {
+    return false;
+  }
+
   auto& b = *builder_;
-
-  // Close the open predicated block if this instr isn't predicated or the
-  // conditions do not match.
-  if (open_predicated_block_ &&
-      (!instr.is_predicated ||
-       instr.predicate_condition != predicated_block_cond_)) {
-    b.createBranch(predicated_block_end_);
-    b.setBuildPoint(predicated_block_end_);
-    open_predicated_block_ = false;
-    predicated_block_cond_ = false;
-    predicated_block_end_ = nullptr;
-  }
-
-  if (!open_predicated_block_ && instr.is_predicated) {
-    Id pred_cond =
-        b.createBinOp(spv::Op::OpLogicalEqual, bool_type_, b.createLoad(p0_),
-                      b.makeBoolConstant(instr.predicate_condition));
-    auto block = &b.makeNewBlock();
-    open_predicated_block_ = true;
-    predicated_block_cond_ = instr.predicate_condition;
-    predicated_block_end_ = &b.makeNewBlock();
-
-    b.createSelectionMerge(predicated_block_end_,
-                           spv::SelectionControlMaskNone);
-    b.createConditionalBranch(pred_cond, block, predicated_block_end_);
-    b.setBuildPoint(block);
-  }
 
   // TODO: If we have identical operands, reuse previous one.
   Id sources[3] = {0};
   Id dest = b.makeFloatConstant(0);
-  for (size_t i = 0, x = 0; i < instr.operand_count; i++) {
-    auto src = LoadFromOperand(instr.operands[i]);
+  for (size_t i = 0, x = 0; i < instr.scalar_operand_count; i++) {
+    auto src = LoadFromOperand(instr.scalar_operands[i]);
 
     // Pull components out of the vector operands and use them as sources.
-    if (instr.operands[i].component_count > 1) {
-      for (int j = 0; j < instr.operands[i].component_count; j++) {
+    if (instr.scalar_operands[i].component_count > 1) {
+      for (int j = 0; j < instr.scalar_operands[i].component_count; j++) {
         sources[x++] = b.createCompositeExtract(src, float_type_, j);
       }
     } else {
@@ -2663,7 +2656,6 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
     }
   }
 
-  bool close_predicated_block = false;
   switch (instr.scalar_opcode) {
     case AluScalarOpcode::kAdds:
     case AluScalarOpcode::kAddsc0:
@@ -3074,16 +3066,9 @@ void SpirvShaderTranslator::ProcessScalarAluInstruction(
   assert_true(b.getTypeId(dest) == float_type_);
   if (dest) {
     b.createStore(dest, ps_);
-    StoreToResult(dest, instr.result);
+    return true;
   }
-
-  if (close_predicated_block && open_predicated_block_) {
-    b.createBranch(predicated_block_end_);
-    b.setBuildPoint(predicated_block_end_);
-    open_predicated_block_ = false;
-    predicated_block_cond_ = false;
-    predicated_block_end_ = nullptr;
-  }
+  return false;
 }
 
 Id SpirvShaderTranslator::CreateGlslStd450InstructionCall(
@@ -3339,7 +3324,6 @@ void SpirvShaderTranslator::StoreToResult(Id source_value_id,
       storage_type = float_type_;
       storage_offsets.push_back(0);
       storage_array = false;
-      writes_depth_ = true;
       break;
     case InstructionStorageTarget::kNone:
       assert_always();

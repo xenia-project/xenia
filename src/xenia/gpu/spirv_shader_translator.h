@@ -88,8 +88,10 @@ class SpirvShaderTranslator : public ShaderTranslator {
  private:
   spv::Function* CreateCubeFunction();
 
-  void ProcessVectorAluInstruction(const ParsedAluInstruction& instr);
-  void ProcessScalarAluInstruction(const ParsedAluInstruction& instr);
+  bool ProcessVectorAluOperation(const ParsedAluInstruction& instr,
+                                 bool& close_predicate_block);
+  bool ProcessScalarAluOperation(const ParsedAluInstruction& instr,
+                                 bool& close_predicate_block);
 
   spv::Id BitfieldExtract(spv::Id result_type, spv::Id base, bool is_signed,
                           uint32_t offset, uint32_t count);
@@ -163,8 +165,6 @@ class SpirvShaderTranslator : public ShaderTranslator {
   std::unordered_map<uint32_t, uint32_t> tex_binding_map_;
   spv::Id vtx_ = 0;  // Vertex buffer array (32 runtime arrays)
   std::unordered_map<uint32_t, uint32_t> vtx_binding_map_;
-
-  bool writes_depth_ = false;
 
   // SPIR-V IDs that are part of the in/out interface.
   std::vector<spv::Id> interface_ids_;

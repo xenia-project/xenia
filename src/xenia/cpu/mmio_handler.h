@@ -10,7 +10,6 @@
 #ifndef XENIA_CPU_MMIO_HANDLER_H_
 #define XENIA_CPU_MMIO_HANDLER_H_
 
-#include <list>
 #include <memory>
 #include <vector>
 
@@ -45,15 +44,16 @@ class MMIOHandler {
  public:
   virtual ~MMIOHandler();
 
-  enum WatchType {
-    kWatchInvalid = 0,
-    kWatchWrite = 1,
-    kWatchReadWrite = 2,
-  };
+  typedef bool (*AccessViolationCallback)(void* context, size_t host_address,
+                                          bool is_write);
 
-  static std::unique_ptr<MMIOHandler> Install(uint8_t* virtual_membase,
-                                              uint8_t* physical_membase,
-                                              uint8_t* membase_end);
+  // access_violation_callback is called in global_critical_region, so if
+  // multiple threads trigger an access violation in the same page, the callback
+  // will be called only once.
+  static std::unique_ptr<MMIOHandler> Install(
+      uint8_t* virtual_membase, uint8_t* physical_membase, uint8_t* membase_end,
+      AccessViolationCallback access_violation_callback,
+      void* access_violation_callback_context);
   static MMIOHandler* global_handler() { return global_handler_; }
 
   bool RegisterRange(uint32_t virtual_address, uint32_t mask, uint32_t size,
@@ -64,44 +64,14 @@ class MMIOHandler {
   bool CheckLoad(uint32_t virtual_address, uint32_t* out_value);
   bool CheckStore(uint32_t virtual_address, uint32_t value);
 
-  // Memory watches: These are one-shot alarms that fire a callback (in the
-  // context of the thread that caused the callback) when a memory range is
-  // either written to or read from, depending on the watch type. These fire as
-  // soon as a read/write happens, and only fire once.
-  // These watches may be spuriously fired if memory is accessed nearby.
-  uintptr_t AddPhysicalAccessWatch(uint32_t guest_address, size_t length,
-                                   WatchType type, AccessWatchCallback callback,
-                                   void* callback_context, void* callback_data);
-  void CancelAccessWatch(uintptr_t watch_handle);
-
-  // Fires and clears any access watches that overlap this range.
-  void InvalidateRange(uint32_t physical_address, size_t length);
-
-  // Returns true if /all/ of this range is watched.
-  bool IsRangeWatched(uint32_t physical_address, size_t length);
-
  protected:
-  struct AccessWatchEntry {
-    uint32_t address;
-    uint32_t length;
-    WatchType type;
-    AccessWatchCallback callback;
-    void* callback_context;
-    void* callback_data;
-  };
-
   MMIOHandler(uint8_t* virtual_membase, uint8_t* physical_membase,
-              uint8_t* membase_end)
-      : virtual_membase_(virtual_membase),
-        physical_membase_(physical_membase),
-        memory_end_(membase_end) {}
+              uint8_t* membase_end,
+              AccessViolationCallback access_violation_callback,
+              void* access_violation_callback_context);
 
   static bool ExceptionCallbackThunk(Exception* ex, void* data);
   bool ExceptionCallback(Exception* ex);
-
-  void FireAccessWatch(AccessWatchEntry* entry);
-  void ClearAccessWatch(AccessWatchEntry* entry);
-  bool CheckAccessWatch(uint32_t guest_address);
 
   uint8_t* virtual_membase_;
   uint8_t* physical_membase_;
@@ -109,11 +79,12 @@ class MMIOHandler {
 
   std::vector<MMIORange> mapped_ranges_;
 
-  xe::global_critical_region global_critical_region_;
-  // TODO(benvanik): data structure magic.
-  std::list<AccessWatchEntry*> access_watches_;
+  AccessViolationCallback access_violation_callback_;
+  void* access_violation_callback_context_;
 
   static MMIOHandler* global_handler_;
+
+  xe::global_critical_region global_critical_region_;
 };
 
 }  // namespace cpu

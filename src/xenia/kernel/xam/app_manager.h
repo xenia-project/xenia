@@ -35,6 +35,8 @@ class App {
   virtual X_RESULT DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
                                        uint32_t buffer_length) = 0;
 
+  virtual ~App() = default;
+
  protected:
   App(KernelState* kernel_state, uint32_t app_id);
 

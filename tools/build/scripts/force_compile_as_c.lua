@@ -21,7 +21,11 @@ if premake.override then
   -- for msvc
   premake.override(premake.vstudio.vc2010, "additionalCompileOptions", function(base, cfg, condition)
     if cfg.abspath and table.contains(forced_c_files, cfg.abspath) then
-      _p(3,'<CompileAs %s>CompileAsC</CompileAs>', condition)
+      if condition == nil or condition == '' then
+        _p(3,'<CompileAs>CompileAsC</CompileAs>')
+      else
+        _p(3,'<CompileAs Condition="\'$(Configuration)|$(Platform)\'==\'%s\'">CompileAsC</CompileAs>', condition)
+      end
     end
     return base(cfg, condition)
   end)

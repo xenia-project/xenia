@@ -10,8 +10,6 @@
 #ifndef XENIA_KERNEL_UTIL_SHIM_UTILS_H_
 #define XENIA_KERNEL_UTIL_SHIM_UTILS_H_
 
-#include <gflags/gflags.h>
-
 #include <cstring>
 #include <string>
 
@@ -21,9 +19,8 @@
 #include "xenia/base/string_buffer.h"
 #include "xenia/cpu/export_resolver.h"
 #include "xenia/cpu/ppc/ppc_context.h"
+#include "xenia/kernel/kernel_flags.h"
 #include "xenia/kernel/kernel_state.h"
-
-DECLARE_bool(log_high_frequency_kernel_calls);
 
 namespace xe {
 namespace kernel {
@@ -451,10 +448,10 @@ void PrintKernelCall(cpu::Export* export_entry, const Tuple& params) {
   AppendKernelCallParams(string_buffer, export_entry, params);
   string_buffer.Append(')');
   if (export_entry->tags & xe::cpu::ExportTag::kImportant) {
-    xe::LogLine(xe::LogLevel::LOG_LEVEL_INFO, 'i', string_buffer.GetString(),
+    xe::LogLine(xe::LogLevel::Info, 'i', string_buffer.GetString(),
                 string_buffer.length());
   } else {
-    xe::LogLine(xe::LogLevel::LOG_LEVEL_DEBUG, 'd', string_buffer.GetString(),
+    xe::LogLine(xe::LogLevel::Debug, 'd', string_buffer.GetString(),
                 string_buffer.length());
   }
 }
@@ -482,7 +479,7 @@ xe::cpu::Export* RegisterExport(R (*fn)(Ps&...), const char* name,
       auto params = std::make_tuple<Ps...>(Ps(init)...);
       if (export_entry->tags & xe::cpu::ExportTag::kLog &&
           (!(export_entry->tags & xe::cpu::ExportTag::kHighFrequency) ||
-           FLAGS_log_high_frequency_kernel_calls)) {
+           cvars::log_high_frequency_kernel_calls)) {
         PrintKernelCall(export_entry, params);
       }
       auto result =
@@ -516,7 +513,7 @@ xe::cpu::Export* RegisterExport(void (*fn)(Ps&...), const char* name,
       auto params = std::make_tuple<Ps...>(Ps(init)...);
       if (export_entry->tags & xe::cpu::ExportTag::kLog &&
           (!(export_entry->tags & xe::cpu::ExportTag::kHighFrequency) ||
-           FLAGS_log_high_frequency_kernel_calls)) {
+           cvars::log_high_frequency_kernel_calls)) {
         PrintKernelCall(export_entry, params);
       }
       KernelTrampoline(FN, std::forward<std::tuple<Ps...>>(params),
@@ -531,15 +528,43 @@ xe::cpu::Export* RegisterExport(void (*fn)(Ps&...), const char* name,
 
 using xe::cpu::ExportTag;
 
-#define DECLARE_EXPORT(module_name, name, tags)                            \
+#define DECLARE_EXPORT(module_name, name, category, tags)                  \
   const auto EXPORT_##module_name##_##name = RegisterExport_##module_name( \
       xe::kernel::shim::RegisterExport<                                    \
           xe::kernel::shim::KernelModuleId::module_name, ordinals::name>(  \
-          &name, #name, tags));
+          &name, #name,                                                    \
+          tags | (static_cast<xe::cpu::ExportTag::type>(                   \
+                      xe::cpu::ExportCategory::category)                   \
+                  << xe::cpu::ExportTag::CategoryShift)));
 
-#define DECLARE_XAM_EXPORT(name, tags) DECLARE_EXPORT(xam, name, tags)
-#define DECLARE_XBDM_EXPORT(name, tags) DECLARE_EXPORT(xbdm, name, tags)
-#define DECLARE_XBOXKRNL_EXPORT(name, tags) DECLARE_EXPORT(xboxkrnl, name, tags)
+#define DECLARE_XAM_EXPORT_(name, category, tags) \
+  DECLARE_EXPORT(xam, name, category, tags)
+#define DECLARE_XAM_EXPORT1(name, category, tag) \
+  DECLARE_EXPORT(xam, name, category, xe::cpu::ExportTag::tag)
+#define DECLARE_XAM_EXPORT2(name, category, tag1, tag2) \
+  DECLARE_EXPORT(xam, name, category,                   \
+                 xe::cpu::ExportTag::tag1 | xe::cpu::ExportTag::tag2)
+
+#define DECLARE_XBDM_EXPORT_(name, category, tags) \
+  DECLARE_EXPORT(xbdm, name, category, tags)
+#define DECLARE_XBDM_EXPORT1(name, category, tag) \
+  DECLARE_EXPORT(xbdm, name, category, xe::cpu::ExportTag::tag)
+
+#define DECLARE_XBOXKRNL_EXPORT_(name, category, tags) \
+  DECLARE_EXPORT(xboxkrnl, name, category, tags)
+#define DECLARE_XBOXKRNL_EXPORT1(name, category, tag) \
+  DECLARE_EXPORT(xboxkrnl, name, category, xe::cpu::ExportTag::tag)
+#define DECLARE_XBOXKRNL_EXPORT2(name, category, tag1, tag2) \
+  DECLARE_EXPORT(xboxkrnl, name, category,                   \
+                 xe::cpu::ExportTag::tag1 | xe::cpu::ExportTag::tag2)
+#define DECLARE_XBOXKRNL_EXPORT3(name, category, tag1, tag2, tag3)     \
+  DECLARE_EXPORT(xboxkrnl, name, category,                             \
+                 xe::cpu::ExportTag::tag1 | xe::cpu::ExportTag::tag2 | \
+                     xe::cpu::ExportTag::tag3)
+#define DECLARE_XBOXKRNL_EXPORT4(name, category, tag1, tag2, tag3, tag4) \
+  DECLARE_EXPORT(xboxkrnl, name, category,                               \
+                 xe::cpu::ExportTag::tag1 | xe::cpu::ExportTag::tag2 |   \
+                     xe::cpu::ExportTag::tag3 | xe::cpu::ExportTag::tag4)
 
 }  // namespace kernel
 }  // namespace xe

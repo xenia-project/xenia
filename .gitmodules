@@ -6,10 +6,7 @@
 	url = https://github.com/ocornut/imgui.git
 [submodule "third_party/binutils-ppc-cygwin"]
 	path = third_party/binutils-ppc-cygwin
-	url = https://github.com/benvanik/binutils-ppc-cygwin
-[submodule "third_party/capstone"]
-	path = third_party/capstone
-	url = https://github.com/xenia-project/capstone.git
+	url = https://github.com/benvanik/binutils-ppc-cygwin.git
 [submodule "third_party/libav"]
 	path = third_party/libav
 	url = https://github.com/xenia-project/libav.git
@@ -18,10 +15,7 @@
 	url = https://github.com/xenia-project/SPIRV-Tools.git
 [submodule "third_party/catch"]
 	path = third_party/catch
-	url = https://github.com/philsquared/Catch.git
-[submodule "third_party/gflags"]
-	path = third_party/gflags
-	url = https://github.com/benvanik/gflags.git
+	url = https://github.com/catchorg/Catch2.git
 [submodule "third_party/premake-core"]
 	path = third_party/premake-core
 	url = https://github.com/xenia-project/premake-core.git
@@ -36,7 +30,25 @@
 	url = https://github.com/jbeder/yaml-cpp.git
 [submodule "third_party/spirv-headers"]
 	path = third_party/spirv-headers
-	url = https://github.com/KhronosGroup/SPIRV-Headers
+	url = https://github.com/KhronosGroup/SPIRV-Headers.git
 [submodule "third_party/volk"]
 	path = third_party/volk
 	url = https://github.com/zeux/volk.git
+[submodule "third_party/discord-rpc"]
+	path = third_party/discord-rpc
+	url = https://github.com/discordapp/discord-rpc.git
+[submodule "third_party/rapidjson"]
+	path = third_party/rapidjson
+	url = https://github.com/Tencent/rapidjson.git
+[submodule "third_party/aes_128"]
+	path = third_party/aes_128
+	url = https://github.com/openluopworld/aes_128.git
+[submodule "third_party/capstone"]
+	path = third_party/capstone
+	url = https://github.com/xenia-project/capstone.git
+[submodule "third_party/cpptoml"]
+	path = third_party/cpptoml
+	url = https://github.com/skystrife/cpptoml.git
+[submodule "third_party/cxxopts"]
+	path = third_party/cxxopts
+	url = https://github.com/jarro2783/cxxopts.git

@@ -68,9 +68,9 @@ struct GammaRamp {
   struct NormalEntry {
     union {
       struct {
-        uint32_t r : 10;
-        uint32_t g : 10;
         uint32_t b : 10;
+        uint32_t g : 10;
+        uint32_t r : 10;
         uint32_t : 2;
       };
       uint32_t value;
@@ -99,7 +99,7 @@ struct GammaRamp {
   };
 
   NormalEntry normal[256];
-  PWLEntry pwl[256];
+  PWLEntry pwl[128];
 };
 
 class CommandProcessor {
@@ -286,7 +286,8 @@ class CommandProcessor {
 
   GammaRamp gamma_ramp_ = {};
   int gamma_ramp_rw_subindex_ = 0;
-  bool dirty_gamma_ramp_ = true;
+  bool dirty_gamma_ramp_normal_ = true;
+  bool dirty_gamma_ramp_pwl_ = true;
 };
 
 }  // namespace gpu

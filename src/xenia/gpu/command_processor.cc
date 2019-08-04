@@ -49,6 +49,24 @@ bool CommandProcessor::Initialize(
     std::unique_ptr<xe::ui::GraphicsContext> context) {
   context_ = std::move(context);
 
+  // Initialize the gamma ramps to their default (linear) values - taken from
+  // what games set when starting.
+  for (uint32_t i = 0; i < 256; ++i) {
+    uint32_t value = i * 1023 / 255;
+    gamma_ramp_.normal[i].value = value | (value << 10) | (value << 20);
+  }
+  for (uint32_t i = 0; i < 128; ++i) {
+    uint32_t value = (i * 65535 / 127) & ~63;
+    if (i < 127) {
+      value |= 0x200 << 16;
+    }
+    for (uint32_t j = 0; j < 3; ++j) {
+      gamma_ramp_.pwl[i].values[j].value = value;
+    }
+  }
+  dirty_gamma_ramp_normal_ = true;
+  dirty_gamma_ramp_pwl_ = true;
+
   worker_running_ = true;
   worker_thread_ = kernel::object_ref<kernel::XHostThread>(
       new kernel::XHostThread(kernel_state_, 128 * 1024, 0, [this]() {
@@ -301,25 +319,23 @@ void CommandProcessor::UpdateGammaRampValue(GammaRampType type,
   assert_true(mask_lo == 0 || mask_lo == 7);
   assert_true(mask_hi == 0);
 
-  auto subindex = gamma_ramp_rw_subindex_;
-
   if (mask_lo) {
     switch (type) {
       case GammaRampType::kNormal:
         assert_true(regs->values[XE_GPU_REG_DC_LUT_RW_MODE].u32 == 0);
         gamma_ramp_.normal[index].value = value;
+        dirty_gamma_ramp_normal_ = true;
         break;
       case GammaRampType::kPWL:
         assert_true(regs->values[XE_GPU_REG_DC_LUT_RW_MODE].u32 == 1);
-        gamma_ramp_.pwl[index].values[subindex].value = value;
+        gamma_ramp_.pwl[index].values[gamma_ramp_rw_subindex_].value = value;
+        gamma_ramp_rw_subindex_ = (gamma_ramp_rw_subindex_ + 1) % 3;
+        dirty_gamma_ramp_pwl_ = true;
         break;
       default:
         assert_unhandled_case(type);
     }
   }
-
-  gamma_ramp_rw_subindex_ = (subindex + 1) % 3;
-  dirty_gamma_ramp_ = true;
 }
 
 void CommandProcessor::MakeCoherent() {
@@ -331,8 +347,8 @@ void CommandProcessor::MakeCoherent() {
   // some way to check for dest coherency (what all the COHER_DEST_BASE_*
   // registers are for).
   // Best docs I've found on this are here:
-  // http://amd-dev.wpengine.netdna-cdn.com/wordpress/media/2013/10/R6xx_R7xx_3D.pdf
-  // http://cgit.freedesktop.org/xorg/driver/xf86-video-radeonhd/tree/src/r6xx_accel.c?id=3f8b6eccd9dba116cc4801e7f80ce21a879c67d2#n454
+  // https://web.archive.org/web/20160711162346/https://amd-dev.wpengine.netdna-cdn.com/wordpress/media/2013/10/R6xx_R7xx_3D.pdf
+  // https://cgit.freedesktop.org/xorg/driver/xf86-video-radeonhd/tree/src/r6xx_accel.c?id=3f8b6eccd9dba116cc4801e7f80ce21a879c67d2#n454
 
   RegisterFile* regs = register_file_;
   auto status_host = regs->values[XE_GPU_REG_COHER_STATUS_HOST].u32;
@@ -344,7 +360,7 @@ void CommandProcessor::MakeCoherent() {
   }
 
   const char* action = "N/A";
-  if (status_host & 0x03000000) {
+  if ((status_host & 0x03000000) == 0x03000000) {
     action = "VC | TC";
   } else if (status_host & 0x02000000) {
     action = "TC";
@@ -377,7 +393,7 @@ void CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
   // This prevents the display from pulling the backbuffer out from under us.
   // If we skip a lot then we may need to buffer more, but as the display
   // thread should be fairly idle that shouldn't happen.
-  if (!FLAGS_vsync) {
+  if (!cvars::vsync) {
     std::lock_guard<std::mutex> lock(swap_state_.mutex);
     if (swap_state_.pending) {
       swap_state_.pending = false;
@@ -879,7 +895,7 @@ bool CommandProcessor::ExecutePacketType3_WAIT_REG_MEM(RingBuffer* reader,
       // Wait.
       if (wait >= 0x100) {
         PrepareForWait();
-        if (!FLAGS_vsync) {
+        if (!cvars::vsync) {
           // User wants it fast and dangerous.
           xe::threading::MaybeYield();
         } else {
@@ -1376,7 +1392,7 @@ bool CommandProcessor::ExecutePacketType3_VIZ_QUERY(RingBuffer* reader,
                                                     uint32_t packet,
                                                     uint32_t count) {
   // begin/end initiator for viz query extent processing
-  // http://www.google.com/patents/US20050195186
+  // https://www.google.com/patents/US20050195186
   assert_true(count == 1);
 
   uint32_t dword0 = reader->ReadAndSwap<uint32_t>();

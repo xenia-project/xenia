@@ -9,13 +9,14 @@
 
 #include "xenia/emulator.h"
 
-#include <gflags/gflags.h>
 #include <cinttypes>
 
+#include "config.h"
 #include "xenia/apu/audio_system.h"
 #include "xenia/base/assert.h"
 #include "xenia/base/byte_stream.h"
 #include "xenia/base/clock.h"
+#include "xenia/base/cvar.h"
 #include "xenia/base/debugging.h"
 #include "xenia/base/exception_handler.h"
 #include "xenia/base/logging.h"
@@ -44,12 +45,32 @@
 #include "xenia/vfs/virtual_file_system.h"
 
 DEFINE_double(time_scalar, 1.0,
-              "Scalar used to speed or slow time (1x, 2x, 1/2x, etc).");
+              "Scalar used to speed or slow time (1x, 2x, 1/2x, etc).",
+              "General");
 
 namespace xe {
 
-Emulator::Emulator(const std::wstring& command_line)
-    : command_line_(command_line) {}
+Emulator::Emulator(const std::wstring& command_line,
+                   const std::wstring& content_root)
+    : on_launch(),
+      on_terminate(),
+      on_exit(),
+      command_line_(command_line),
+      content_root_(content_root),
+      game_title_(),
+      display_window_(nullptr),
+      memory_(),
+      audio_system_(),
+      graphics_system_(),
+      input_system_(),
+      export_resolver_(),
+      file_system_(),
+      kernel_state_(),
+      main_thread_(),
+      title_id_(0),
+      paused_(false),
+      restoring_(false),
+      restore_fence_() {}
 
 Emulator::~Emulator() {
   // Note that we delete things in the reverse order they were initialized.
@@ -94,7 +115,7 @@ X_STATUS Emulator::Setup(
   // We could reset this with save state data/constant value to help replays.
   Clock::set_guest_system_time_base(Clock::QueryHostSystemTime());
   // This can be adjusted dynamically, as well.
-  Clock::set_guest_time_scalar(FLAGS_time_scalar);
+  Clock::set_guest_time_scalar(cvars::time_scalar);
 
   // Before we can set thread affinity we must enable the process to use all
   // logical processors.
@@ -112,11 +133,11 @@ X_STATUS Emulator::Setup(
   std::unique_ptr<xe::cpu::backend::Backend> backend;
   if (!backend) {
 #if defined(XENIA_HAS_X64_BACKEND) && XENIA_HAS_X64_BACKEND
-    if (FLAGS_cpu == "x64") {
+    if (cvars::cpu == "x64") {
       backend.reset(new xe::cpu::backend::x64::X64Backend());
     }
 #endif  // XENIA_HAS_X64_BACKEND
-    if (FLAGS_cpu == "any") {
+    if (cvars::cpu == "any") {
 #if defined(XENIA_HAS_X64_BACKEND) && XENIA_HAS_X64_BACKEND
       if (!backend) {
         backend.reset(new xe::cpu::backend::x64::X64Backend());
@@ -183,10 +204,13 @@ X_STATUS Emulator::Setup(
     }
   }
 
+#define LOAD_KERNEL_MODULE(t) \
+  static_cast<void>(kernel_state_->LoadKernelModule<kernel::t>())
   // HLE kernel modules.
-  kernel_state_->LoadKernelModule<kernel::xboxkrnl::XboxkrnlModule>();
-  kernel_state_->LoadKernelModule<kernel::xam::XamModule>();
-  kernel_state_->LoadKernelModule<kernel::xbdm::XbdmModule>();
+  LOAD_KERNEL_MODULE(xboxkrnl::XboxkrnlModule);
+  LOAD_KERNEL_MODULE(xam::XamModule);
+  LOAD_KERNEL_MODULE(xbdm::XbdmModule);
+#undef LOAD_KERNEL_MODULE
 
   // Initialize emulator fallback exception handling last.
   ExceptionHandler::Install(Emulator::ExceptionCallbackThunk, this);
@@ -210,6 +234,7 @@ X_STATUS Emulator::TerminateTitle() {
   kernel_state_->TerminateTitle();
   title_id_ = 0;
   game_title_ = L"";
+  on_terminate();
   return X_STATUS_SUCCESS;
 }
 
@@ -462,7 +487,7 @@ bool Emulator::RestoreFromFile(const std::wstring& path) {
       kernel_state_->object_table()->GetObjectsByType<kernel::XThread>();
   for (auto thread : threads) {
     if (thread->main_thread()) {
-      main_thread_ = thread->thread();
+      main_thread_ = thread;
       break;
     }
   }
@@ -564,7 +589,9 @@ bool Emulator::ExceptionCallback(Exception* ex) {
 
 void Emulator::WaitUntilExit() {
   while (true) {
-    xe::threading::Wait(main_thread_, false);
+    if (main_thread_) {
+      xe::threading::Wait(main_thread_->thread(), false);
+    }
 
     if (restoring_) {
       restore_fence_.Wait();
@@ -612,6 +639,11 @@ std::string Emulator::FindLaunchModule() {
 
 X_STATUS Emulator::CompleteLaunch(const std::wstring& path,
                                   const std::string& module_path) {
+  // Reset state.
+  title_id_ = 0;
+  game_title_ = L"";
+  display_window_->SetIcon(nullptr, 0);
+
   // Allow xam to request module loads.
   auto xam = kernel_state()->GetKernelModule<kernel::xam::XamModule>("xam.xex");
 
@@ -633,6 +665,7 @@ X_STATUS Emulator::CompleteLaunch(const std::wstring& path,
   if (module->title_id()) {
     char title_id[9] = {0};
     std::snprintf(title_id, xe::countof(title_id), "%08X", module->title_id());
+    config::LoadGameConfig(xe::to_wstring(title_id));
     uint32_t resource_data = 0;
     uint32_t resource_size = 0;
     if (XSUCCEEDED(
@@ -649,13 +682,13 @@ X_STATUS Emulator::CompleteLaunch(const std::wstring& path,
     }
   }
 
-  auto main_xthread = kernel_state_->LaunchModule(module);
-  if (!main_xthread) {
+  auto main_thread = kernel_state_->LaunchModule(module);
+  if (!main_thread) {
     return X_STATUS_UNSUCCESSFUL;
   }
 
-  main_thread_ = main_xthread->thread();
-  on_launch();
+  main_thread_ = main_thread;
+  on_launch(title_id_, game_title_);
 
   return X_STATUS_SUCCESS;
 }

@@ -13,7 +13,4 @@ project("xenia-hid-winkey")
   })
   defines({
   })
-  includedirs({
-    project_root.."/third_party/gflags/src",
-  })
   local_platform_files()

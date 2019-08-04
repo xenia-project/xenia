@@ -9,14 +9,12 @@
 
 #include "xenia/debug/ui/debug_window.h"
 
-#include <gflags/gflags.h>
-
 #include <algorithm>
 #include <cinttypes>
 #include <utility>
 
-#include "third_party/capstone/include/capstone.h"
-#include "third_party/capstone/include/x86.h"
+#include "third_party/capstone/include/capstone/capstone.h"
+#include "third_party/capstone/include/capstone/x86.h"
 #include "third_party/imgui/imgui.h"
 #include "third_party/imgui/imgui_internal.h"
 #include "third_party/yaml-cpp/include/yaml-cpp/yaml.h"
@@ -35,7 +33,7 @@
 #include "xenia/ui/graphics_provider.h"
 #include "xenia/ui/imgui_drawer.h"
 
-DEFINE_bool(imgui_debug, false, "Show ImGui debugging tools.");
+DEFINE_bool(imgui_debug, false, "Show ImGui debugging tools.", "UI");
 
 namespace xe {
 namespace debug {
@@ -238,7 +236,7 @@ void DebugWindow::DrawFrame() {
   ImGui::End();
   ImGui::PopStyleVar();
 
-  if (FLAGS_imgui_debug) {
+  if (cvars::imgui_debug) {
     ImGui::ShowTestWindow();
     ImGui::ShowMetricsWindow();
   }

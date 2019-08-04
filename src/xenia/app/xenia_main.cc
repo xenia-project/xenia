@@ -7,14 +7,15 @@
  ******************************************************************************
  */
 
-#include <gflags/gflags.h>
-
+#include "xenia/app/discord/discord_presence.h"
 #include "xenia/app/emulator_window.h"
+#include "xenia/base/cvar.h"
 #include "xenia/base/debugging.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/main.h"
 #include "xenia/base/profiling.h"
 #include "xenia/base/threading.h"
+#include "xenia/config.h"
 #include "xenia/debug/ui/debug_window.h"
 #include "xenia/emulator.h"
 #include "xenia/ui/file_picker.h"
@@ -29,6 +30,9 @@
 // Available graphics systems:
 #include "xenia/gpu/null/null_graphics_system.h"
 #include "xenia/gpu/vulkan/vulkan_graphics_system.h"
+#if XE_PLATFORM_WIN32
+#include "xenia/gpu/d3d12/d3d12_graphics_system.h"
+#endif  // XE_PLATFORM_WIN32
 
 // Available input drivers:
 #include "xenia/hid/nop/nop_hid.h"
@@ -37,86 +41,143 @@
 #include "xenia/hid/xinput/xinput_hid.h"
 #endif  // XE_PLATFORM_WIN32
 
-DEFINE_string(apu, "any", "Audio system. Use: [any, nop, xaudio2]");
-DEFINE_string(gpu, "any", "Graphics system. Use: [any, vulkan, null]");
-DEFINE_string(hid, "any", "Input system. Use: [any, nop, winkey, xinput]");
+#include "third_party/xbyak/xbyak/xbyak_util.h"
 
-DEFINE_string(target, "", "Specifies the target .xex or .iso to execute.");
-DEFINE_bool(fullscreen, false, "Toggles fullscreen");
+DEFINE_string(apu, "any", "Audio system. Use: [any, nop, xaudio2]", "APU");
+DEFINE_string(gpu, "any", "Graphics system. Use: [any, d3d12, vulkan, null]",
+              "GPU");
+DEFINE_string(hid, "any", "Input system. Use: [any, nop, winkey, xinput]",
+              "HID");
 
-DEFINE_bool(mount_scratch, false, "Enable scratch mount");
-DEFINE_bool(mount_cache, false, "Enable cache mount");
+DEFINE_bool(fullscreen, false, "Toggles fullscreen", "GPU");
+
+DEFINE_string(content_root, "", "Root path for content (save/etc) storage.",
+              "Storage");
+
+DEFINE_bool(mount_scratch, false, "Enable scratch mount", "Storage");
+DEFINE_bool(mount_cache, false, "Enable cache mount", "Storage");
+
+DEFINE_transient_string(target, "",
+                        "Specifies the target .xex or .iso to execute.",
+                        "General");
+DECLARE_bool(debug);
+
+DEFINE_bool(discord, true, "Enable Discord rich presence", "General");
 
 namespace xe {
 namespace app {
 
-std::unique_ptr<apu::AudioSystem> CreateAudioSystem(cpu::Processor* processor) {
-  if (FLAGS_apu.compare("nop") == 0) {
-    return apu::nop::NopAudioSystem::Create(processor);
-#if XE_PLATFORM_WIN32
-  } else if (FLAGS_apu.compare("xaudio2") == 0) {
-    return apu::xaudio2::XAudio2AudioSystem::Create(processor);
-#endif  // XE_PLATFORM_WIN32
-  } else {
-    // Create best available.
-    std::unique_ptr<apu::AudioSystem> best;
+template <typename T, typename... Args>
+class Factory {
+ private:
+  struct Creator {
+    std::string name;
+    std::function<bool()> is_available;
+    std::function<std::unique_ptr<T>(Args...)> instantiate;
+  };
 
-#if XE_PLATFORM_WIN32
-    best = apu::xaudio2::XAudio2AudioSystem::Create(processor);
-    if (best) {
-      return best;
-    }
-#endif  // XE_PLATFORM_WIN32
+  std::vector<Creator> creators_;
 
-    // Fallback to nop.
-    return apu::nop::NopAudioSystem::Create(processor);
+ public:
+  void Add(const std::string& name, std::function<bool()> is_available,
+           std::function<std::unique_ptr<T>(Args...)> instantiate) {
+    creators_.push_back({name, is_available, instantiate});
   }
+
+  void Add(const std::string& name,
+           std::function<std::unique_ptr<T>(Args...)> instantiate) {
+    Add(name, []() { return true; }, instantiate);
+  }
+
+  template <typename DT>
+  void Add(const std::string& name) {
+    Add(name, DT::IsAvailable, [](Args... args) {
+      return std::make_unique<DT>(std::forward<Args>(args)...);
+    });
+  }
+
+  std::unique_ptr<T> Create(const std::string& name, Args... args) {
+    if (!name.empty() && name != "any") {
+      auto it = std::find_if(
+          creators_.cbegin(), creators_.cend(),
+          [&name](const auto& f) { return name.compare(f.name) == 0; });
+      if (it != creators_.cend() && (*it).is_available()) {
+        return (*it).instantiate(std::forward<Args>(args)...);
+      }
+      return nullptr;
+    } else {
+      for (const auto& creator : creators_) {
+        if (!creator.is_available()) continue;
+        auto instance = creator.instantiate(std::forward<Args>(args)...);
+        if (!instance) continue;
+        return instance;
+      }
+      return nullptr;
+    }
+  }
+
+  std::vector<std::unique_ptr<T>> CreateAll(const std::string& name,
+                                            Args... args) {
+    std::vector<std::unique_ptr<T>> instances;
+    if (!name.empty() && name != "any") {
+      auto it = std::find_if(
+          creators_.cbegin(), creators_.cend(),
+          [&name](const auto& f) { return name.compare(f.name) == 0; });
+      if (it != creators_.cend() && (*it).is_available()) {
+        auto instance = (*it).instantiate(std::forward<Args>(args)...);
+        if (instance) {
+          instances.emplace_back(std::move(instance));
+        }
+      }
+    } else {
+      for (const auto& creator : creators_) {
+        if (!creator.is_available()) continue;
+        auto instance = creator.instantiate(std::forward<Args>(args)...);
+        if (instance) {
+          instances.emplace_back(std::move(instance));
+        }
+      }
+    }
+    return instances;
+  }
+};
+
+std::unique_ptr<apu::AudioSystem> CreateAudioSystem(cpu::Processor* processor) {
+  Factory<apu::AudioSystem, cpu::Processor*> factory;
+#if XE_PLATFORM_WIN32
+  factory.Add<apu::xaudio2::XAudio2AudioSystem>("xaudio2");
+#endif  // XE_PLATFORM_WIN32
+  factory.Add<apu::nop::NopAudioSystem>("nop");
+  return factory.Create(cvars::apu, processor);
 }
 
 std::unique_ptr<gpu::GraphicsSystem> CreateGraphicsSystem() {
-  if (FLAGS_gpu.compare("vulkan") == 0) {
-    return std::unique_ptr<gpu::GraphicsSystem>(
-        new xe::gpu::vulkan::VulkanGraphicsSystem());
-  } else if (FLAGS_gpu.compare("null") == 0) {
-    return std::unique_ptr<gpu::GraphicsSystem>(
-        new xe::gpu::null::NullGraphicsSystem());
-  } else {
-    // Create best available.
-    std::unique_ptr<gpu::GraphicsSystem> best;
-
-    best = std::unique_ptr<gpu::GraphicsSystem>(
-        new xe::gpu::vulkan::VulkanGraphicsSystem());
-    if (best) {
-      return best;
-    }
-
-    // Nothing!
-    return nullptr;
-  }
+  Factory<gpu::GraphicsSystem> factory;
+#if XE_PLATFORM_WIN32
+  factory.Add<gpu::d3d12::D3D12GraphicsSystem>("d3d12");
+#endif  // XE_PLATFORM_WIN32
+  factory.Add<gpu::vulkan::VulkanGraphicsSystem>("vulkan");
+  factory.Add<gpu::null::NullGraphicsSystem>("null");
+  return factory.Create(cvars::gpu);
 }
 
 std::vector<std::unique_ptr<hid::InputDriver>> CreateInputDrivers(
     ui::Window* window) {
   std::vector<std::unique_ptr<hid::InputDriver>> drivers;
-  if (FLAGS_hid.compare("nop") == 0) {
+  if (cvars::hid.compare("nop") == 0) {
     drivers.emplace_back(xe::hid::nop::Create(window));
-#if XE_PLATFORM_WIN32
-  } else if (FLAGS_hid.compare("winkey") == 0) {
-    drivers.emplace_back(xe::hid::winkey::Create(window));
-  } else if (FLAGS_hid.compare("xinput") == 0) {
-    drivers.emplace_back(xe::hid::xinput::Create(window));
-#endif  // XE_PLATFORM_WIN32
   } else {
+    Factory<hid::InputDriver, ui::Window*> factory;
 #if XE_PLATFORM_WIN32
-    auto xinput_driver = xe::hid::xinput::Create(window);
-    if (xinput_driver) {
-      drivers.emplace_back(std::move(xinput_driver));
-    }
-    auto winkey_driver = xe::hid::winkey::Create(window);
-    if (winkey_driver) {
-      drivers.emplace_back(std::move(winkey_driver));
-    }
+    factory.Add("xinput", xe::hid::xinput::Create);
+    // WinKey input driver should always be the last input driver added!
+    factory.Add("winkey", xe::hid::winkey::Create);
 #endif  // XE_PLATFORM_WIN32
+    for (auto& driver : factory.CreateAll(cvars::hid, window)) {
+      if (XSUCCEEDED(driver->Setup())) {
+        drivers.emplace_back(std::move(driver));
+      }
+    }
     if (drivers.empty()) {
       // Fallback to nop if none created.
       drivers.emplace_back(xe::hid::nop::Create(window));
@@ -129,8 +190,44 @@ int xenia_main(const std::vector<std::wstring>& args) {
   Profiler::Initialize();
   Profiler::ThreadEnter("main");
 
+  if (cvars::discord) {
+    discord::DiscordPresence::Initialize();
+    discord::DiscordPresence::NotPlaying();
+  }
+
+  // Figure out where content should go.
+  std::wstring content_root = xe::to_wstring(cvars::content_root);
+  std::wstring config_folder;
+
+  if (content_root.empty()) {
+    auto base_path = xe::filesystem::GetExecutableFolder();
+    base_path = xe::to_absolute_path(base_path);
+
+    auto portable_path = xe::join_paths(base_path, L"portable.txt");
+    if (xe::filesystem::PathExists(portable_path)) {
+      content_root = xe::join_paths(base_path, L"content");
+      config_folder = base_path;
+    } else {
+      content_root = xe::filesystem::GetUserFolder();
+#if defined(XE_PLATFORM_WIN32)
+      content_root = xe::join_paths(content_root, L"Xenia");
+#elif defined(XE_PLATFORM_LINUX)
+      content_root = xe::join_paths(content_root, L"Xenia");
+#else
+#warning Unhandled platform for content root.
+      content_root = xe::join_paths(content_root, L"Xenia");
+#endif
+      config_folder = content_root;
+      content_root = xe::join_paths(content_root, L"content");
+    }
+  }
+  content_root = xe::to_absolute_path(content_root);
+
+  XELOGI("Content root: %S", content_root.c_str());
+  config::SetupConfig(config_folder);
+
   // Create the emulator but don't initialize so we can setup the window.
-  auto emulator = std::make_unique<Emulator>(L"");
+  auto emulator = std::make_unique<Emulator>(L"", content_root);
 
   // Main emulator display window.
   auto emulator_window = EmulatorWindow::Create(emulator.get());
@@ -145,7 +242,7 @@ int xenia_main(const std::vector<std::wstring>& args) {
     return 1;
   }
 
-  if (FLAGS_mount_scratch) {
+  if (cvars::mount_scratch) {
     auto scratch_device = std::make_unique<xe::vfs::HostPathDevice>(
         "\\SCRATCH", L"scratch", false);
     if (!scratch_device->Initialize()) {
@@ -159,7 +256,7 @@ int xenia_main(const std::vector<std::wstring>& args) {
     }
   }
 
-  if (FLAGS_mount_cache) {
+  if (cvars::mount_cache) {
     auto cache0_device =
         std::make_unique<xe::vfs::HostPathDevice>("\\CACHE0", L"cache0", false);
     if (!cache0_device->Initialize()) {
@@ -188,7 +285,7 @@ int xenia_main(const std::vector<std::wstring>& args) {
   // Set a debug handler.
   // This will respond to debugging requests so we can open the debug UI.
   std::unique_ptr<xe::debug::ui::DebugWindow> debug_window;
-  if (FLAGS_debug) {
+  if (cvars::debug) {
     emulator->processor()->set_debug_listener_request_handler(
         [&](xe::cpu::Processor* processor) {
           if (debug_window) {
@@ -209,9 +306,19 @@ int xenia_main(const std::vector<std::wstring>& args) {
   }
 
   auto evt = xe::threading::Event::CreateAutoResetEvent(false);
-  emulator->on_launch.AddListener([&]() {
+  emulator->on_launch.AddListener([&](auto title_id, const auto& game_title) {
+    if (cvars::discord) {
+      discord::DiscordPresence::PlayingTitle(
+          game_title.empty() ? L"Unknown Title" : game_title);
+    }
     emulator_window->UpdateTitle();
     evt->Set();
+  });
+
+  emulator->on_terminate.AddListener([&]() {
+    if (cvars::discord) {
+      discord::DiscordPresence::NotPlaying();
+    }
   });
 
   emulator_window->window()->on_closing.AddListener([&](ui::UIEvent* e) {
@@ -224,6 +331,10 @@ int xenia_main(const std::vector<std::wstring>& args) {
     exiting = true;
     evt->Set();
 
+    if (cvars::discord) {
+      discord::DiscordPresence::Shutdown();
+    }
+
     // TODO(DrChat): Remove this code and do a proper exit.
     XELOGI("Cheap-skate exit!");
     exit(0);
@@ -234,20 +345,12 @@ int xenia_main(const std::vector<std::wstring>& args) {
 
   // Grab path from the flag or unnamed argument.
   std::wstring path;
-  if (!FLAGS_target.empty() || args.size() >= 2) {
-    if (!FLAGS_target.empty()) {
-      // Passed as a named argument.
-      // TODO(benvanik): find something better than gflags that supports
-      // unicode.
-      path = xe::to_wstring(FLAGS_target);
-    } else {
-      // Passed as an unnamed argument.
-      path = args[1];
-    }
+  if (!cvars::target.empty()) {
+    path = xe::to_wstring(cvars::target);
   }
 
   // Toggles fullscreen
-  if (FLAGS_fullscreen) emulator_window->ToggleFullscreen();
+  if (cvars::fullscreen) emulator_window->ToggleFullscreen();
 
   if (!path.empty()) {
     // Normalize the path and make absolute.
@@ -278,6 +381,10 @@ int xenia_main(const std::vector<std::wstring>& args) {
 
   debug_window.reset();
   emulator.reset();
+
+  if (cvars::discord) {
+    discord::DiscordPresence::Shutdown();
+  }
 
   Profiler::Dump();
   Profiler::Shutdown();

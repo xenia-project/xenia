@@ -8,16 +8,20 @@ project("xenia-app")
   targetname("xenia")
   language("C++")
   links({
+    "aes_128",
     "capstone",
-    "gflags",
+    "dxbc",
+    "discord-rpc",
     "glew",
     "glslang-spirv",
     "imgui",
     "libavcodec",
     "libavutil",
+    "mspack",
     "snappy",
     "spirv-tools",
     "volk",
+    "xenia-app-discord",
     "xenia-apu",
     "xenia-apu-nop",
     "xenia-base",
@@ -37,26 +41,28 @@ project("xenia-app")
     "xenia-vfs",
     "xxhash",
   })
-  flags({
-    "WinMain",  -- Use WinMain instead of main.
-  })
   defines({
-  })
-  includedirs({
-    project_root.."/third_party/gflags/src",
+    "XBYAK_NO_OP_NAMES",
+    "XBYAK_ENABLE_OMITTED_OPERAND",
   })
   local_platform_files()
   files({
     "xenia_main.cc",
     "../base/main_"..platform_suffix..".cc",
+    "../base/main_init_"..platform_suffix..".cc",
   })
+
+  resincludedirs({
+    project_root,
+  })
+
   filter("platforms:Windows")
     files({
       "main_resources.rc",
     })
-  resincludedirs({
-    project_root,
-  })
+
+  filter("files:../base/main_init_"..platform_suffix..".cc")
+    vectorextensions("IA32")  -- Disable AVX for main_init_win.cc so our AVX check doesn't use AVX instructions.
 
   filter("platforms:Linux")
     links({
@@ -70,8 +76,10 @@ project("xenia-app")
   filter("platforms:Windows")
     links({
       "xenia-apu-xaudio2",
+      "xenia-gpu-d3d12",
       "xenia-hid-winkey",
       "xenia-hid-xinput",
+      "xenia-ui-d3d12",
     })
 
   filter("platforms:Windows")
@@ -80,8 +88,5 @@ project("xenia-app")
     if not os.isfile(user_file) then
       debugdir(project_root)
       debugargs({
-        "--flagfile=scratch/flags.txt",
-        "2>&1",
-        "1>scratch/stdout.txt",
       })
     end

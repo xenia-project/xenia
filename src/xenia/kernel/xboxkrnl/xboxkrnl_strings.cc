@@ -15,7 +15,6 @@
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/user_module.h"
 #include "xenia/kernel/util/shim_utils.h"
-#include "xenia/kernel/util/xex2.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_private.h"
 #include "xenia/kernel/xthread.h"
 #include "xenia/xbox.h"
@@ -925,7 +924,7 @@ SHIM_CALL _snwprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
   StackArgList args(ppc_context, 3);
   WideStringFormatData data(format);
 
-  int32_t count = format_core(ppc_context, data, args, false);
+  int32_t count = format_core(ppc_context, data, args, true);
   if (count < 0) {
     if (buffer_count > 0) {
       buffer[0] = '\0';  // write a null, just to be safe
@@ -1006,6 +1005,46 @@ SHIM_CALL _vsnprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
   } else {
     // Overflowed buffer. We still return the count we would have written.
     std::memcpy(buffer, data.str().c_str(), buffer_count);
+  }
+  SHIM_SET_RETURN_32(count);
+}
+
+// https://msdn.microsoft.com/en-us/library/1kt27hek.aspx
+SHIM_CALL _vsnwprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
+  uint32_t buffer_ptr = SHIM_GET_ARG_32(0);
+  int32_t buffer_count = SHIM_GET_ARG_32(1);
+  uint32_t format_ptr = SHIM_GET_ARG_32(2);
+  uint32_t arg_ptr = SHIM_GET_ARG_32(3);
+
+  XELOGD("_vsnwprintf(%08X, %i, %08X, %08X)", buffer_ptr, buffer_count,
+         format_ptr, arg_ptr);
+
+  if (buffer_ptr == 0 || buffer_count <= 0 || format_ptr == 0) {
+    SHIM_SET_RETURN_32(-1);
+    return;
+  }
+
+  auto buffer = (uint16_t*)SHIM_MEM_ADDR(buffer_ptr);
+  auto format = (const uint16_t*)SHIM_MEM_ADDR(format_ptr);
+
+  ArrayArgList args(ppc_context, arg_ptr);
+  WideStringFormatData data(format);
+
+  int32_t count = format_core(ppc_context, data, args, true);
+  if (count < 0) {
+    // Error.
+    if (buffer_count > 0) {
+      buffer[0] = '\0';  // write a null, just to be safe
+    }
+  } else if (count <= buffer_count) {
+    // Fit within the buffer.
+    xe::copy_and_swap(buffer, (uint16_t*)data.wstr().c_str(), count);
+    if (count < buffer_count) {
+      buffer[count] = '\0';
+    }
+  } else {
+    // Overflowed buffer. We still return the count we would have written.
+    xe::copy_and_swap(buffer, (uint16_t*)data.wstr().c_str(), buffer_count);
   }
   SHIM_SET_RETURN_32(count);
 }
@@ -1101,6 +1140,7 @@ void RegisterStringExports(xe::cpu::ExportResolver* export_resolver,
   SHIM_SET_MAPPING("xboxkrnl.exe", vsprintf, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", _vscwprintf, state);
   SHIM_SET_MAPPING("xboxkrnl.exe", vswprintf, state);
+  SHIM_SET_MAPPING("xboxkrnl.exe", _vsnwprintf, state);
 }
 
 }  // namespace xboxkrnl

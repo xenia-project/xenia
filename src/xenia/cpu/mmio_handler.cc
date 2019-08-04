@@ -9,11 +9,13 @@
 
 #include "xenia/cpu/mmio_handler.h"
 
+#include <algorithm>
+#include <cstring>
+
 #include "xenia/base/assert.h"
 #include "xenia/base/byte_order.h"
 #include "xenia/base/exception_handler.h"
 #include "xenia/base/logging.h"
-#include "xenia/base/math.h"
 #include "xenia/base/memory.h"
 
 namespace xe {
@@ -21,17 +23,19 @@ namespace cpu {
 
 MMIOHandler* MMIOHandler::global_handler_ = nullptr;
 
-std::unique_ptr<MMIOHandler> MMIOHandler::Install(uint8_t* virtual_membase,
-                                                  uint8_t* physical_membase,
-                                                  uint8_t* membase_end) {
+std::unique_ptr<MMIOHandler> MMIOHandler::Install(
+    uint8_t* virtual_membase, uint8_t* physical_membase, uint8_t* membase_end,
+    AccessViolationCallback access_violation_callback,
+    void* access_violation_callback_context) {
   // There can be only one handler at a time.
   assert_null(global_handler_);
   if (global_handler_) {
     return nullptr;
   }
 
-  auto handler = std::unique_ptr<MMIOHandler>(
-      new MMIOHandler(virtual_membase, physical_membase, membase_end));
+  auto handler = std::unique_ptr<MMIOHandler>(new MMIOHandler(
+      virtual_membase, physical_membase, membase_end, access_violation_callback,
+      access_violation_callback_context));
 
   // Install the exception handler directed at the MMIOHandler.
   ExceptionHandler::Install(ExceptionCallbackThunk, handler.get());
@@ -39,6 +43,16 @@ std::unique_ptr<MMIOHandler> MMIOHandler::Install(uint8_t* virtual_membase,
   global_handler_ = handler.get();
   return handler;
 }
+
+MMIOHandler::MMIOHandler(uint8_t* virtual_membase, uint8_t* physical_membase,
+                         uint8_t* membase_end,
+                         AccessViolationCallback access_violation_callback,
+                         void* access_violation_callback_context)
+    : virtual_membase_(virtual_membase),
+      physical_membase_(physical_membase),
+      memory_end_(membase_end),
+      access_violation_callback_(access_violation_callback),
+      access_violation_callback_context_(access_violation_callback_context) {}
 
 MMIOHandler::~MMIOHandler() {
   ExceptionHandler::Uninstall(ExceptionCallbackThunk, this);
@@ -92,200 +106,6 @@ bool MMIOHandler::CheckStore(uint32_t virtual_address, uint32_t value) {
   return false;
 }
 
-uintptr_t MMIOHandler::AddPhysicalAccessWatch(uint32_t guest_address,
-                                              size_t length, WatchType type,
-                                              AccessWatchCallback callback,
-                                              void* callback_context,
-                                              void* callback_data) {
-  uint32_t base_address = guest_address & 0x1FFFFFFF;
-
-  // Can only protect sizes matching system page size.
-  // This means we need to round up, which will cause spurious access
-  // violations and invalidations.
-  // TODO(benvanik): only invalidate if actually within the region?
-  length = xe::round_up(length + (base_address % xe::memory::page_size()),
-                        xe::memory::page_size());
-  base_address = base_address - (base_address % xe::memory::page_size());
-
-  auto lock = global_critical_region_.Acquire();
-
-  // Fire any access watches that overlap this region.
-  for (auto it = access_watches_.begin(); it != access_watches_.end();) {
-    // Case 1: 2222222|222|11111111
-    // Case 2: 1111111|222|22222222
-    // Case 3: 1111111|222|11111111 (fragmentation)
-    // Case 4: 2222222|222|22222222 (complete overlap)
-    bool hit = false;
-    auto entry = *it;
-
-    if (base_address <= (*it)->address &&
-        base_address + length > (*it)->address) {
-      hit = true;
-    } else if ((*it)->address <= base_address &&
-               (*it)->address + (*it)->length > base_address) {
-      hit = true;
-    } else if ((*it)->address <= base_address &&
-               (*it)->address + (*it)->length > base_address + length) {
-      hit = true;
-    } else if ((*it)->address >= base_address &&
-               (*it)->address + (*it)->length < base_address + length) {
-      hit = true;
-    }
-
-    if (hit) {
-      FireAccessWatch(*it);
-      it = access_watches_.erase(it);
-      delete entry;
-      continue;
-    }
-
-    ++it;
-  }
-
-  // Add to table. The slot reservation may evict a previous watch, which
-  // could include our target, so we do it first.
-  auto entry = new AccessWatchEntry();
-  entry->address = base_address;
-  entry->length = uint32_t(length);
-  entry->type = type;
-  entry->callback = callback;
-  entry->callback_context = callback_context;
-  entry->callback_data = callback_data;
-  access_watches_.push_back(entry);
-
-  auto page_access = memory::PageAccess::kNoAccess;
-  switch (type) {
-    case kWatchWrite:
-      page_access = memory::PageAccess::kReadOnly;
-      break;
-    case kWatchReadWrite:
-      page_access = memory::PageAccess::kNoAccess;
-      break;
-    default:
-      assert_unhandled_case(type);
-      break;
-  }
-
-  // Protect the range under all address spaces
-  memory::Protect(physical_membase_ + entry->address, entry->length,
-                  page_access, nullptr);
-  memory::Protect(virtual_membase_ + 0xA0000000 + entry->address, entry->length,
-                  page_access, nullptr);
-  memory::Protect(virtual_membase_ + 0xC0000000 + entry->address, entry->length,
-                  page_access, nullptr);
-  memory::Protect(virtual_membase_ + 0xE0000000 + entry->address, entry->length,
-                  page_access, nullptr);
-
-  return reinterpret_cast<uintptr_t>(entry);
-}
-
-void MMIOHandler::FireAccessWatch(AccessWatchEntry* entry) {
-  ClearAccessWatch(entry);
-  entry->callback(entry->callback_context, entry->callback_data,
-                  entry->address);
-}
-
-void MMIOHandler::ClearAccessWatch(AccessWatchEntry* entry) {
-  memory::Protect(physical_membase_ + entry->address, entry->length,
-                  xe::memory::PageAccess::kReadWrite, nullptr);
-  memory::Protect(virtual_membase_ + 0xA0000000 + entry->address, entry->length,
-                  xe::memory::PageAccess::kReadWrite, nullptr);
-  memory::Protect(virtual_membase_ + 0xC0000000 + entry->address, entry->length,
-                  xe::memory::PageAccess::kReadWrite, nullptr);
-  memory::Protect(virtual_membase_ + 0xE0000000 + entry->address, entry->length,
-                  xe::memory::PageAccess::kReadWrite, nullptr);
-}
-
-void MMIOHandler::CancelAccessWatch(uintptr_t watch_handle) {
-  auto entry = reinterpret_cast<AccessWatchEntry*>(watch_handle);
-  auto lock = global_critical_region_.Acquire();
-
-  // Allow access to the range again.
-  ClearAccessWatch(entry);
-
-  // Remove from table.
-  auto it = std::find(access_watches_.begin(), access_watches_.end(), entry);
-  assert_false(it == access_watches_.end());
-
-  if (it != access_watches_.end()) {
-    access_watches_.erase(it);
-  }
-
-  delete entry;
-}
-
-void MMIOHandler::InvalidateRange(uint32_t physical_address, size_t length) {
-  auto lock = global_critical_region_.Acquire();
-
-  for (auto it = access_watches_.begin(); it != access_watches_.end();) {
-    auto entry = *it;
-    if ((entry->address <= physical_address &&
-         entry->address + entry->length > physical_address) ||
-        (entry->address >= physical_address &&
-         entry->address < physical_address + length)) {
-      // This watch lies within the range. End it.
-      FireAccessWatch(entry);
-      it = access_watches_.erase(it);
-      delete entry;
-      continue;
-    }
-
-    ++it;
-  }
-}
-
-bool MMIOHandler::IsRangeWatched(uint32_t physical_address, size_t length) {
-  auto lock = global_critical_region_.Acquire();
-
-  for (auto it = access_watches_.begin(); it != access_watches_.end(); ++it) {
-    auto entry = *it;
-    if ((entry->address <= physical_address &&
-         entry->address + entry->length > physical_address + length)) {
-      // This range lies entirely within this watch.
-      return true;
-    }
-
-    // TODO(DrChat): Check if the range is partially covered, and subtract the
-    // covered portion if it is.
-    if ((entry->address <= physical_address &&
-         entry->address + entry->length > physical_address)) {
-      // The beginning of range lies partially within this watch.
-    } else if ((entry->address < physical_address + length &&
-                entry->address + entry->length > physical_address + length)) {
-      // The ending of this range lies partially within this watch.
-    }
-  }
-
-  return false;
-}
-
-bool MMIOHandler::CheckAccessWatch(uint32_t physical_address) {
-  auto lock = global_critical_region_.Acquire();
-
-  bool hit = false;
-  for (auto it = access_watches_.begin(); it != access_watches_.end();) {
-    auto entry = *it;
-    if (entry->address <= physical_address &&
-        entry->address + entry->length > physical_address) {
-      // Hit! Remove the watch.
-      hit = true;
-      FireAccessWatch(entry);
-      it = access_watches_.erase(it);
-      delete entry;
-      continue;
-    }
-    ++it;
-  }
-
-  if (!hit) {
-    // Rethrow access violation - range was not being watched.
-    return false;
-  }
-
-  // Range was watched, so lets eat this access violation.
-  return true;
-}
-
 struct DecodedMov {
   size_t length;
   // Inidicates this is a load (or conversely a store).
@@ -316,7 +136,7 @@ bool TryDecodeMov(const uint8_t* p, DecodedMov* mov) {
   }
   if (p[i] == 0x0F && p[i + 1] == 0x38 && p[i + 2] == 0xF1) {
     // MOVBE m32, r32 (store)
-    // http://www.tptp.cc/mirrors/siyobik.info/instruction/MOVBE.html
+    // https://web.archive.org/web/20170629091435/https://www.tptp.cc/mirrors/siyobik.info/instruction/MOVBE.html
     // 44 0f 38 f1 a4 02 00     movbe  DWORD PTR [rdx+rax*1+0x0],r12d
     // 42 0f 38 f1 8c 22 00     movbe  DWORD PTR [rdx+r12*1+0x0],ecx
     // 0f 38 f1 8c 02 00 00     movbe  DWORD PTR [rdx + rax * 1 + 0x0], ecx
@@ -325,7 +145,7 @@ bool TryDecodeMov(const uint8_t* p, DecodedMov* mov) {
     i += 3;
   } else if (p[i] == 0x0F && p[i + 1] == 0x38 && p[i + 2] == 0xF0) {
     // MOVBE r32, m32 (load)
-    // http://www.tptp.cc/mirrors/siyobik.info/instruction/MOVBE.html
+    // https://web.archive.org/web/20170629091435/https://www.tptp.cc/mirrors/siyobik.info/instruction/MOVBE.html
     // 44 0f 38 f0 a4 02 00     movbe  r12d,DWORD PTR [rdx+rax*1+0x0]
     // 42 0f 38 f0 8c 22 00     movbe  ecx,DWORD PTR [rdx+r12*1+0x0]
     // 46 0f 38 f0 a4 22 00     movbe  r12d,DWORD PTR [rdx+r12*1+0x0]
@@ -336,7 +156,7 @@ bool TryDecodeMov(const uint8_t* p, DecodedMov* mov) {
     i += 3;
   } else if (p[i] == 0x89) {
     // MOV m32, r32 (store)
-    // http://www.tptp.cc/mirrors/siyobik.info/instruction/MOV.html
+    // https://web.archive.org/web/20170629072136/https://www.tptp.cc/mirrors/siyobik.info/instruction/MOV.html
     // 44 89 24 02              mov  DWORD PTR[rdx + rax * 1], r12d
     // 42 89 0c 22              mov  DWORD PTR[rdx + r12 * 1], ecx
     // 89 0c 02                 mov  DWORD PTR[rdx + rax * 1], ecx
@@ -345,7 +165,7 @@ bool TryDecodeMov(const uint8_t* p, DecodedMov* mov) {
     ++i;
   } else if (p[i] == 0x8B) {
     // MOV r32, m32 (load)
-    // http://www.tptp.cc/mirrors/siyobik.info/instruction/MOV.html
+    // https://web.archive.org/web/20170629072136/https://www.tptp.cc/mirrors/siyobik.info/instruction/MOV.html
     // 44 8b 24 02              mov  r12d, DWORD PTR[rdx + rax * 1]
     // 42 8b 0c 22              mov  ecx, DWORD PTR[rdx + r12 * 1]
     // 46 8b 24 22              mov  r12d, DWORD PTR[rdx + r12 * 1]
@@ -355,7 +175,7 @@ bool TryDecodeMov(const uint8_t* p, DecodedMov* mov) {
     ++i;
   } else if (p[i] == 0xC7) {
     // MOV m32, simm32
-    // http://www.asmpedia.org/index.php?title=MOV
+    // https://web.archive.org/web/20161017042413/https://www.asmpedia.org/index.php?title=MOV
     // C7 04 02 02 00 00 00     mov  dword ptr [rdx+rax],2
     mov->is_load = false;
     mov->byte_swap = false;
@@ -475,18 +295,21 @@ bool MMIOHandler::ExceptionCallback(Exception* ex) {
   }
   if (!range) {
     auto fault_address = reinterpret_cast<uint8_t*>(ex->fault_address());
-    uint32_t guest_address = 0;
+    uint32_t guest_address, guest_heap_address;
     if (fault_address >= virtual_membase_ &&
         fault_address < physical_membase_) {
       // Faulting on a virtual address.
       guest_address = static_cast<uint32_t>(ex->fault_address()) & 0x1FFFFFFF;
+      guest_heap_address =
+          static_cast<uint32_t>(ex->fault_address()) & ~0x1FFFFFFF;
     } else {
       // Faulting on a physical address.
       guest_address = static_cast<uint32_t>(ex->fault_address());
+      guest_heap_address = 0;
     }
 
-    // HACK: Recheck if the pages are still protected (race condition - another
-    // thread clears the writewatch we just hit)
+    // Recheck if the pages are still protected (race condition - another thread
+    // clears the writewatch we just hit).
     // Do this under the lock so we don't introduce another race condition.
     auto lock = global_critical_region_.Acquire();
     memory::PageAccess cur_access;
@@ -498,9 +321,22 @@ bool MMIOHandler::ExceptionCallback(Exception* ex) {
       return true;
     }
 
-    // Access is not found within any range, so fail and let the caller handle
-    // it (likely by aborting).
-    return CheckAccessWatch(guest_address);
+    // The address is not found within any range, so either a write watch or an
+    // actual access violation.
+    if (access_violation_callback_) {
+      switch (ex->access_violation_operation()) {
+        case Exception::AccessViolationOperation::kRead:
+          return access_violation_callback_(access_violation_callback_context_,
+                                            size_t(ex->fault_address()), false);
+        case Exception::AccessViolationOperation::kWrite:
+          return access_violation_callback_(access_violation_callback_context_,
+                                            size_t(ex->fault_address()), true);
+        default:
+          // Data Execution Prevention or something else uninteresting.
+          break;
+      }
+    }
+    return false;
   }
 
   auto rip = ex->pc();

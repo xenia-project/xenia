@@ -8,6 +8,7 @@
 __author__ = 'ben.vanik@gmail.com (Ben Vanik)'
 
 
+import json
 import os
 import subprocess
 import sys
@@ -69,9 +70,8 @@ def build_premake():
     elif sys.platform == 'win32':
       # Grab Visual Studio version and execute shell to set up environment.
       vs_version = import_vs_environment()
-      if vs_version != 2015:
-        print('ERROR: Visual Studio 2015 not found!')
-        print('Ensure you have the VS140COMNTOOLS environment variable!')
+      if vs_version is None:
+        print('ERROR: Visual Studio not found!')
         sys.exit(1)
         return
 
@@ -140,20 +140,40 @@ def import_vs_environment():
   interesting environment variables into os.environ.
 
   Returns:
-    A version such as 2015 or None if no VS is found.
+  A version such as 2015 or None if no installation is found.
   """
   version = 0
-  tools_path = ''
-  if 'VS140COMNTOOLS' in os.environ:
-    version = 2015
-    tools_path = os.environ['VS140COMNTOOLS']
+  install_path = None
+  env_tool_args = None
+
+  vswhere = subprocess.check_output('third_party/vswhere/vswhere.exe -version "[15,)" -latest -format json', shell=False, universal_newlines=True)
+  if vswhere:
+    vswhere = json.loads(vswhere)
+  if vswhere and len(vswhere) > 0:
+    version = int(vswhere[0].get("catalog", {}).get("productLineVersion", 2017))
+    install_path = vswhere[0].get("installationPath", None)
+
+  if version < 2017:
+    if 'VS140COMNTOOLS' in os.environ:
+      version = 2015
+      vcvars_path = os.environ['VS140COMNTOOLS']
+      vcvars_path = os.path.join(tools_path, '..\\..\\vc\\vcvarsall.bat')
+      env_tool_args = [vcvars_path, 'x64', '&&', 'set']
+  else:
+    vsdevcmd_path = os.path.join(install_path, 'Common7\\Tools\\VsDevCmd.bat')
+    env_tool_args = [vsdevcmd_path, '-arch=amd64', '-host_arch=amd64']
+
   if version == 0:
     return None
-  tools_path = os.path.join(tools_path, '..\\..\\vc\\vcvarsall.bat')
 
-  args = [tools_path, '&&', 'set']
+  import_subprocess_environment(env_tool_args)
+  os.environ['VSVERSION'] = str(version)
+  return version
+
+
+def import_subprocess_environment(args):
   popen = subprocess.Popen(
-      args, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+      args, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
   variables, _ = popen.communicate()
   envvars_to_save = (
       'devenvdir',
@@ -175,9 +195,6 @@ def import_vs_environment():
           setting = os.path.dirname(sys.executable) + os.pathsep + setting
         os.environ[var.upper()] = setting
         break
-
-  os.environ['VSVERSION'] = str(version)
-  return version
 
 def git_submodule_update():
   """Runs a full recursive git submodule init and update.

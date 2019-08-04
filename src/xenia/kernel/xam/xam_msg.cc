@@ -23,22 +23,22 @@ dword_result_t XMsgInProcessCall(dword_t app, dword_t message, dword_t arg1,
   auto result = kernel_state()->app_manager()->DispatchMessageSync(app, message,
                                                                    arg1, arg2);
   if (result == X_ERROR_NOT_FOUND) {
-    XELOGE("XMsgInProcessCall: app %.8X undefined", app);
+    XELOGE("XMsgInProcessCall: app %.8X undefined", (uint32_t)app);
   }
   return result;
 }
-DECLARE_XAM_EXPORT(XMsgInProcessCall, ExportTag::kImplemented);
+DECLARE_XAM_EXPORT1(XMsgInProcessCall, kNone, kImplemented);
 
 dword_result_t XMsgSystemProcessCall(dword_t app, dword_t message,
                                      dword_t buffer, dword_t buffer_length) {
   auto result = kernel_state()->app_manager()->DispatchMessageAsync(
       app, message, buffer, buffer_length);
   if (result == X_ERROR_NOT_FOUND) {
-    XELOGE("XMsgSystemProcessCall: app %.8X undefined", app);
+    XELOGE("XMsgSystemProcessCall: app %.8X undefined", (uint32_t)app);
   }
   return result;
 }
-DECLARE_XAM_EXPORT(XMsgSystemProcessCall, ExportTag::kImplemented);
+DECLARE_XAM_EXPORT1(XMsgSystemProcessCall, kNone, kImplemented);
 
 dword_result_t XMsgStartIORequest(dword_t app, dword_t message,
                                   pointer_t<XAM_OVERLAPPED> overlapped_ptr,
@@ -46,7 +46,7 @@ dword_result_t XMsgStartIORequest(dword_t app, dword_t message,
   auto result = kernel_state()->app_manager()->DispatchMessageAsync(
       app, message, buffer, buffer_length);
   if (result == X_ERROR_NOT_FOUND) {
-    XELOGE("XMsgStartIORequest: app %.8X undefined", app);
+    XELOGE("XMsgStartIORequest: app %.8X undefined", (uint32_t)app);
   }
   if (overlapped_ptr) {
     kernel_state()->CompleteOverlappedImmediate(overlapped_ptr, result);
@@ -54,7 +54,7 @@ dword_result_t XMsgStartIORequest(dword_t app, dword_t message,
   }
   return result;
 }
-DECLARE_XAM_EXPORT(XMsgStartIORequest, ExportTag::kImplemented);
+DECLARE_XAM_EXPORT1(XMsgStartIORequest, kNone, kImplemented);
 
 dword_result_t XMsgStartIORequestEx(dword_t app, dword_t message,
                                     pointer_t<XAM_OVERLAPPED> overlapped_ptr,
@@ -63,7 +63,7 @@ dword_result_t XMsgStartIORequestEx(dword_t app, dword_t message,
   auto result = kernel_state()->app_manager()->DispatchMessageAsync(
       app, message, buffer, buffer_length);
   if (result == X_ERROR_NOT_FOUND) {
-    XELOGE("XMsgStartIORequestEx: app %.8X undefined", app);
+    XELOGE("XMsgStartIORequestEx: app %.8X undefined", (uint32_t)app);
   }
   if (overlapped_ptr) {
     kernel_state()->CompleteOverlappedImmediate(overlapped_ptr, result);
@@ -71,7 +71,7 @@ dword_result_t XMsgStartIORequestEx(dword_t app, dword_t message,
   }
   return result;
 }
-DECLARE_XAM_EXPORT(XMsgStartIORequestEx, ExportTag::kImplemented);
+DECLARE_XAM_EXPORT1(XMsgStartIORequestEx, kNone, kImplemented);
 
 dword_result_t XMsgCancelIORequest(pointer_t<XAM_OVERLAPPED> overlapped_ptr,
                                    dword_t wait) {
@@ -86,7 +86,7 @@ dword_result_t XMsgCancelIORequest(pointer_t<XAM_OVERLAPPED> overlapped_ptr,
 
   return 0;
 }
-DECLARE_XAM_EXPORT(XMsgCancelIORequest, ExportTag::kImplemented);
+DECLARE_XAM_EXPORT1(XMsgCancelIORequest, kNone, kImplemented);
 
 void RegisterMsgExports(xe::cpu::ExportResolver* export_resolver,
                         KernelState* kernel_state) {}

@@ -36,6 +36,15 @@ enum class PrimitiveType : uint32_t {
   kQuadList = 0x0D,
   kQuadStrip = 0x0E,
   kPolygon = 0x0F,
+
+  // Starting with this primitive mode, registers like VGT_OUTPUT_PATH_CNTL have
+  // effect (deduced from R6xx/R7xx registers, and Halo 3 also doesn't reset
+  // VGT_OUTPUT_PATH_CNTL after the first draw with tessellation).
+  // TODO(Triang3l): Find out if VGT_DRAW_INITIATOR (0x21FC on Adreno 2xx, but
+  // not seen being used in games) specifies the major mode (or if it's set
+  // somewhere else).
+  kExplicitMajorModeForceStart = 0x10,
+
   k2DCopyRectListV0 = 0x10,
   k2DCopyRectListV1 = 0x11,
   k2DCopyRectListV2 = 0x12,
@@ -43,6 +52,38 @@ enum class PrimitiveType : uint32_t {
   k2DFillRectList = 0x14,
   k2DLineStrip = 0x15,
   k2DTriStrip = 0x16,
+
+  // Tessellation patches (D3DTPT) when VGT_OUTPUT_PATH_CNTL & 3 is
+  // VGT_OUTPATH_TESS_EN (1).
+  kLinePatch = 0x10,
+  kTrianglePatch = 0x11,
+  kQuadPatch = 0x12,
+};
+
+inline bool IsPrimitiveTwoFaced(bool tessellated, PrimitiveType type) {
+  if (tessellated) {
+    return type == PrimitiveType::kTrianglePatch ||
+           type == PrimitiveType::kQuadPatch;
+  }
+  switch (type) {
+    case PrimitiveType::kTriangleList:
+    case PrimitiveType::kTriangleFan:
+    case PrimitiveType::kTriangleStrip:
+    case PrimitiveType::kTriangleWithWFlags:
+    case PrimitiveType::kQuadList:
+    case PrimitiveType::kQuadStrip:
+    case PrimitiveType::kPolygon:
+      return true;
+    default:
+      break;
+  }
+  return false;
+}
+
+enum class TessellationMode : uint32_t {
+  kDiscrete = 0,
+  kContinuous = 1,
+  kAdaptive = 2,
 };
 
 enum class Dimension : uint32_t {
@@ -68,7 +109,7 @@ enum class TextureSign : uint32_t {
   kUnsigned = 0,
   // Two's complement texture data.
   kSigned = 1,
-  // 2*color-1 - http://xboxforums.create.msdn.com/forums/t/107374.aspx
+  // 2*color-1 - https://xboxforums.create.msdn.com/forums/t/107374.aspx
   kUnsignedBiased = 2,
   // Linearized when sampled.
   kGamma = 3,
@@ -146,6 +187,16 @@ enum class IndexFormat : uint32_t {
   kInt32,
 };
 
+// GPUSURFACENUMBER from a game .pdb. "Repeat" means repeating fraction, it's
+// what ATI calls normalized.
+enum class SurfaceNumFormat : uint32_t {
+  kUnsignedRepeat = 0,
+  kSignedRepeat = 1,
+  kUnsignedInteger = 2,
+  kSignedInteger = 3,
+  kFloat = 7,
+};
+
 enum class MsaaSamples : uint32_t {
   k1X = 0,
   k2X = 1,
@@ -153,15 +204,22 @@ enum class MsaaSamples : uint32_t {
 };
 
 enum class ColorRenderTargetFormat : uint32_t {
-  k_8_8_8_8 = 0,        // D3DFMT_A8R8G8B8 (or ABGR?)
-  k_8_8_8_8_GAMMA = 1,  // D3DFMT_A8R8G8B8 with gamma correction
+  // D3DFMT_A8R8G8B8 (or ABGR?).
+  k_8_8_8_8 = 0,
+  // D3DFMT_A8R8G8B8 with gamma correction.
+  k_8_8_8_8_GAMMA = 1,
   k_2_10_10_10 = 2,
+  // 7e3 [0, 32) RGB, unorm alpha.
+  // http://fileadmin.cs.lth.se/cs/Personal/Michael_Doggett/talks/eg05-xenos-doggett.pdf
   k_2_10_10_10_FLOAT = 3,
+  // Fixed point -32...32.
+  // http://www.students.science.uu.nl/~3220516/advancedgraphics/papers/inferred_lighting.pdf
   k_16_16 = 4,
+  // Fixed point -32...32.
   k_16_16_16_16 = 5,
   k_16_16_FLOAT = 6,
   k_16_16_16_16_FLOAT = 7,
-  k_2_10_10_10_AS_16_16_16_16 = 10,
+  k_2_10_10_10_AS_10_10_10_10 = 10,
   k_2_10_10_10_FLOAT_AS_16_16_16_16 = 12,
   k_32_FLOAT = 14,
   k_32_32_FLOAT = 15,
@@ -169,10 +227,11 @@ enum class ColorRenderTargetFormat : uint32_t {
 
 enum class DepthRenderTargetFormat : uint32_t {
   kD24S8 = 0,
+  // 20e4 [0, 2).
   kD24FS8 = 1,
 };
 
-// Subset of a2xx_sq_surfaceformat.
+// Subset of a2xx_sq_surfaceformat - formats that RTs can be resolved to.
 enum class ColorFormat : uint32_t {
   k_8 = 2,
   k_1_5_5_5 = 3,
@@ -196,9 +255,10 @@ enum class ColorFormat : uint32_t {
   k_32_FLOAT = 36,
   k_32_32_FLOAT = 37,
   k_32_32_32_32_FLOAT = 38,
+  k_8_8_8_8_AS_16_16_16_16 = 50,
   k_2_10_10_10_AS_16_16_16_16 = 54,
-  k_8_8_8_8_GAMMA = 62,
-  k_2_10_10_10_FLOAT = 63,
+  k_10_11_11_AS_16_16_16_16 = 55,
+  k_11_11_10_AS_16_16_16_16 = 56,
 };
 
 enum class VertexFormat : uint32_t {
@@ -274,6 +334,38 @@ inline int GetVertexFormatSizeInWords(VertexFormat format) {
   }
 }
 
+// adreno_rb_blend_factor
+enum class BlendFactor : uint32_t {
+  kZero = 0,
+  kOne = 1,
+  kSrcColor = 4,
+  kOneMinusSrcColor = 5,
+  kSrcAlpha = 6,
+  kOneMinusSrcAlpha = 7,
+  kDstColor = 8,
+  kOneMinusDstColor = 9,
+  kDstAlpha = 10,
+  kOneMinusDstAlpha = 11,
+  kConstantColor = 12,
+  kOneMinusConstantColor = 13,
+  kConstantAlpha = 14,
+  kOneMinusConstantAlpha = 15,
+  kSrcAlphaSaturate = 16,
+  // SRC1 likely not used on the Xbox 360 - only available in Direct3D 9Ex.
+  kSrc1Color = 20,
+  kOneMinusSrc1Color = 21,
+  kSrc1Alpha = 22,
+  kOneMinusSrc1Alpha = 23,
+};
+
+enum class BlendOp : uint32_t {
+  kAdd = 0,
+  kSubtract = 1,
+  kMin = 2,
+  kMax = 3,
+  kRevSubtract = 4,
+};
+
 namespace xenos {
 
 typedef enum {
@@ -295,6 +387,17 @@ enum class CopyCommand : uint32_t {
   kConvert = 1,
   kConstantOne = 2,
   kNull = 3,  // ?
+};
+
+// a2xx_rb_copy_sample_select
+enum class CopySampleSelect : uint32_t {
+  k0,
+  k1,
+  k2,
+  k3,
+  k01,
+  k23,
+  k0123,
 };
 
 #define XE_GPU_MAKE_SWIZZLE(x, y, z, w)                        \
@@ -512,6 +615,40 @@ XEPACKEDUNION(xe_gpu_fetch_group_t, {
     uint32_t type_2 : 2;
     uint32_t data_2_a : 30;
     uint32_t data_2_b : 32;
+  });
+});
+
+// GPU_MEMEXPORT_STREAM_CONSTANT from a game .pdb - float constant for memexport
+// stream configuration.
+// This is used with the floating-point ALU in shaders (written to eA using
+// mad), so the dwords have a normalized exponent when reinterpreted as floats
+// (otherwise they would be flushed to zero), but actually these are packed
+// integers. dword_1 specifically is 2^23 because
+// powf(2.0f, 23.0f) + float(i) == 0x4B000000 | i
+// so mad can pack indices as integers in the lower bits.
+XEPACKEDUNION(xe_gpu_memexport_stream_t, {
+  XEPACKEDSTRUCTANONYMOUS({
+    uint32_t base_address : 30;  // +0 dword_0 physical address >> 2
+    uint32_t const_0x1 : 2;      // +30
+
+    uint32_t const_0x4b000000;  // +0 dword_1
+
+    Endian128 endianness : 3;         // +0 dword_2
+    uint32_t unused_0 : 5;            // +3
+    ColorFormat format : 6;           // +8
+    uint32_t unused_1 : 2;            // +14
+    SurfaceNumFormat num_format : 3;  // +16
+    uint32_t red_blue_swap : 1;       // +19
+    uint32_t const_0x4b0 : 12;        // +20
+
+    uint32_t index_count : 23;  // +0 dword_3
+    uint32_t const_0x96 : 9;    // +23
+  });
+  XEPACKEDSTRUCTANONYMOUS({
+    uint32_t dword_0;
+    uint32_t dword_1;
+    uint32_t dword_2;
+    uint32_t dword_3;
   });
 });
 

@@ -69,6 +69,8 @@ template <typename T>
 inline T byte_swap(T value) {
   if (sizeof(T) == 4) {
     return static_cast<T>(byte_swap(static_cast<uint32_t>(value)));
+  } else if (sizeof(T) == 2) {
+    return static_cast<T>(byte_swap(static_cast<uint16_t>(value)));
   } else {
     assert_always("not handled");
   }

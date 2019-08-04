@@ -62,7 +62,7 @@ bool DeallocFixed(void* base_address, size_t length,
 // Sets the access rights for the given block of memory and returns the previous
 // access rights. Both base_address and length will be adjusted to page_size().
 bool Protect(void* base_address, size_t length, PageAccess access,
-             PageAccess* out_old_access);
+             PageAccess* out_old_access = nullptr);
 
 // Queries a region of pages to get the access rights. This will modify the
 // length parameter to the length of pages with the same consecutive access

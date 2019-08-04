@@ -14,14 +14,15 @@
 #include "xenia/base/byte_stream.h"
 #include "xenia/base/clock.h"
 #include "xenia/kernel/kernel_state.h"
-#include "xenia/kernel/notify_listener.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_private.h"
 #include "xenia/kernel/xenumerator.h"
 #include "xenia/kernel/xevent.h"
 #include "xenia/kernel/xfile.h"
 #include "xenia/kernel/xmodule.h"
 #include "xenia/kernel/xmutant.h"
+#include "xenia/kernel/xnotifylistener.h"
 #include "xenia/kernel/xsemaphore.h"
+#include "xenia/kernel/xsymboliclink.h"
 #include "xenia/kernel/xthread.h"
 
 namespace xe {
@@ -66,7 +67,7 @@ Emulator* XObject::emulator() const { return kernel_state_->emulator_; }
 KernelState* XObject::kernel_state() const { return kernel_state_; }
 Memory* XObject::memory() const { return kernel_state_->memory(); }
 
-XObject::Type XObject::type() { return type_; }
+XObject::Type XObject::type() const { return type_; }
 
 void XObject::RetainHandle() {
   kernel_state_->object_table()->RetainHandle(handles_[0]);
@@ -139,13 +140,15 @@ object_ref<XObject> XObject::Restore(KernelState* kernel_state, Type type,
     case kTypeMutant:
       return XMutant::Restore(kernel_state, stream);
     case kTypeNotifyListener:
-      return NotifyListener::Restore(kernel_state, stream);
+      return XNotifyListener::Restore(kernel_state, stream);
     case kTypeSemaphore:
       return XSemaphore::Restore(kernel_state, stream);
     case kTypeSession:
       break;
     case kTypeSocket:
       break;
+    case kTypeSymbolicLink:
+      return XSymbolicLink::Restore(kernel_state, stream);
     case kTypeThread:
       return XThread::Restore(kernel_state, stream);
     case kTypeTimer:
@@ -385,7 +388,7 @@ object_ref<XObject> XObject::GetNativeObject(KernelState* kernel_state,
     return object;
   } else {
     // First use, create new.
-    // http://www.nirsoft.net/kernel_struct/vista/KOBJECTS.html
+    // https://www.nirsoft.net/kernel_struct/vista/KOBJECTS.html
     XObject* object = nullptr;
     switch (as_type) {
       case 0:  // EventNotificationObject
