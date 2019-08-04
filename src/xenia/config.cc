@@ -5,6 +5,18 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/string.h"
 
+namespace cpptoml {
+inline std::shared_ptr<table> parse_file(const std::wstring& filename) {
+  std::ifstream file(filename);
+  if (!file.is_open()) {
+    throw parse_exception(xe::to_string(filename) +
+                          " could not be opened for parsing");
+  }
+  parser p(file);
+  return p.parse();
+}
+}  // namespace cpptoml
+
 CmdVar(config, "", "Specifies the target config to load.");
 namespace config {
 std::wstring config_name = L"xenia.config.toml";
@@ -18,18 +30,18 @@ bool sortCvar(cvar::IConfigVar* a, cvar::IConfigVar* b) {
   return false;
 }
 
-std::shared_ptr<cpptoml::table> ParseConfig(std::string config_path) {
+std::shared_ptr<cpptoml::table> ParseConfig(const std::wstring& config_path) {
   try {
     return cpptoml::parse_file(config_path);
   } catch (cpptoml::parse_exception e) {
-    xe::FatalError("Failed to parse config file '%s':\n\n%s",
-                   config_path.c_str(), e.what());
+    xe::FatalError(L"Failed to parse config file '%s':\n\n%s",
+                   config_path.c_str(), xe::to_wstring(e.what()).c_str());
     return nullptr;
   }
 }
 
 void ReadConfig(const std::wstring& file_path) {
-  const auto config = ParseConfig(xe::to_string(file_path));
+  const auto config = ParseConfig(file_path);
   for (auto& it : *cvar::ConfigVars) {
     auto configVar = static_cast<cvar::IConfigVar*>(it.second);
     auto configKey = configVar->category() + "." + configVar->name();
@@ -41,7 +53,7 @@ void ReadConfig(const std::wstring& file_path) {
 }
 
 void ReadGameConfig(std::wstring file_path) {
-  const auto config = ParseConfig(xe::to_string(file_path));
+  const auto config = ParseConfig(file_path);
   for (auto& it : *cvar::ConfigVars) {
     auto configVar = static_cast<cvar::IConfigVar*>(it.second);
     auto configKey = configVar->category() + "." + configVar->name();
@@ -89,7 +101,7 @@ void SaveConfig() {
   // save the config file
   xe::filesystem::CreateParentFolder(config_path);
   std::ofstream file;
-  file.open(xe::to_string(config_path), std::ios::out | std::ios::trunc);
+  file.open(config_path, std::ios::out | std::ios::trunc);
   file << output.str();
   file.close();
 }
