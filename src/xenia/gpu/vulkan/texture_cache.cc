@@ -408,6 +408,7 @@ void TextureCache::WatchTexture(Texture* texture) {
     }
 
     watched_textures_.push_back(watched_texture);
+    texture->is_watched = true;
   }
 
   memory_->WatchPhysicalMemoryWrite(address, size);
