@@ -37,7 +37,7 @@ DEFINE_string(
     log_file, "",
     "Logs are written to the given file (specify stdout for command line)",
     "Logging");
-DEFINE_bool(log_debugprint, false, "Dump the log to DebugPrint.", "Logging");
+DEFINE_bool(log_to_debugprint, false, "Dump the log to DebugPrint.", "Logging");
 DEFINE_bool(flush_log, true, "Flush log file after each log line batch.",
             "Logging");
 DEFINE_int32(
@@ -151,7 +151,7 @@ class Logger {
       fwrite(buf, 1, size, file_);
     }
 
-    if (cvars::log_debugprint) {
+    if (cvars::log_to_debugprint) {
       debugging::DebugPrint("%.*s", size, buf);
     }
   }
