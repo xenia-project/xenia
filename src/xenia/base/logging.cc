@@ -335,6 +335,27 @@ void FatalError(const char* fmt, ...) {
   exit(1);
 }
 
+void FatalError(const wchar_t* fmt, ...) {
+  va_list args;
+  va_start(args, fmt);
+  _vsnwprintf((wchar_t*)log_format_buffer_.data(),
+              log_format_buffer_.capacity() >> 1, fmt, args);
+  va_end(args);
+
+  LogLine(LogLevel::Error, 'X',
+          xe::to_string((wchar_t*)log_format_buffer_.data()));
+
+#if XE_PLATFORM_WIN32
+  if (!xe::has_console_attached()) {
+    MessageBoxW(NULL, (wchar_t*)log_format_buffer_.data(), L"Xenia Error",
+                MB_OK | MB_ICONERROR | MB_APPLMODAL | MB_SETFOREGROUND);
+  }
+#endif  // WIN32
+  ShutdownLogging();
+  exit(1);
+}
+
 void FatalError(const std::string& str) { FatalError(str.c_str()); }
+void FatalError(const std::wstring& str) { FatalError(str.c_str()); }
 
 }  // namespace xe
