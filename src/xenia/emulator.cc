@@ -581,7 +581,9 @@ bool Emulator::ExceptionCallback(Exception* ex) {
 
 void Emulator::WaitUntilExit() {
   while (true) {
-    xe::threading::Wait(main_thread_->thread(), false);
+    if (main_thread_) {
+      xe::threading::Wait(main_thread_->thread(), false);
+    }
 
     if (restoring_) {
       restore_fence_.Wait();
