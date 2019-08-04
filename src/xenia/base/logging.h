@@ -50,8 +50,10 @@ void LogLine(LogLevel log_level, const char prefix_char,
 
 // Logs a fatal error with printf-style formatting and aborts the program.
 void FatalError(const char* fmt, ...);
+void FatalError(const wchar_t* fmt, ...);
 // Logs a fatal error and aborts the program.
 void FatalError(const std::string& str);
+void FatalError(const std::wstring& str);
 
 #if XE_OPTION_ENABLE_LOGGING
 #define XELOGCORE(level, prefix, fmt, ...) \
