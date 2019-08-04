@@ -16,7 +16,7 @@
 
 namespace xe {
 
-inline std::string to_string(const vec128_t& value) {
+std::string to_string(const vec128_t& value) {
   char buffer[128];
   std::snprintf(buffer, sizeof(buffer), "(%g, %g, %g, %g)", value.x, value.y,
                 value.z, value.w);
