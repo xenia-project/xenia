@@ -922,6 +922,17 @@ void KeAcquireSpinLockAtRaisedIrql(lpdword_t lock_ptr) {
 DECLARE_XBOXKRNL_EXPORT3(KeAcquireSpinLockAtRaisedIrql, kThreading,
                          kImplemented, kBlocking, kHighFrequency);
 
+dword_t KeTryToAcquireSpinLockAtRaisedIrql(lpdword_t lock_ptr) {
+  // Lock.
+  auto lock = reinterpret_cast<uint32_t*>(lock_ptr.host_address());
+  if (!xe::atomic_cas(0, 1, lock)) {
+    return 0;
+  }
+  return 1;
+}
+DECLARE_XBOXKRNL_EXPORT4(KeTryToAcquireSpinLockAtRaisedIrql, kThreading,
+                         kImplemented, kBlocking, kHighFrequency, kSketchy);
+
 void KeReleaseSpinLockFromRaisedIrql(lpdword_t lock_ptr) {
   // Unlock.
   auto lock = reinterpret_cast<uint32_t*>(lock_ptr.host_address());
