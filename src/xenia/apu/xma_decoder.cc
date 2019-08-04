@@ -49,7 +49,7 @@ extern "C" {
 // using the XMA* functions.
 
 DEFINE_bool(libav_verbose, false, "Verbose libav output (debug and above)",
-            "Audio");
+            "APU");
 
 namespace xe {
 namespace apu {

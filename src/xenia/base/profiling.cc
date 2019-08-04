@@ -41,7 +41,7 @@
 #include "xenia/ui/microprofile_drawer.h"
 #endif  // XE_OPTION_PROFILING_UI
 
-DEFINE_bool(show_profiler, false, "Show profiling UI by default.", "Other");
+DEFINE_bool(show_profiler, false, "Show profiling UI by default.", "UI");
 
 namespace xe {
 

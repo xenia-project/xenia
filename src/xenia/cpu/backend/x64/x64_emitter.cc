@@ -33,7 +33,7 @@
 #include "xenia/cpu/symbol.h"
 #include "xenia/cpu/thread_state.h"
 
-DEFINE_bool(enable_debugprint_log, false,
+DEFINE_bool(debugprint_trap_log, false,
             "Log debugprint traps to the active debugger", "CPU");
 DEFINE_bool(ignore_undefined_externs, true,
             "Don't exit when an undefined extern is called.", "CPU");
@@ -70,7 +70,7 @@ X64Emitter::X64Emitter(X64Backend* backend, XbyakAllocator* allocator)
       backend_(backend),
       code_cache_(backend->code_cache()),
       allocator_(allocator) {
-  if (cvars::enable_haswell_instructions) {
+  if (cvars::use_haswell_instructions) {
     feature_flags_ |= cpu_.has(Xbyak::util::Cpu::tAVX2) ? kX64EmitAVX2 : 0;
     feature_flags_ |= cpu_.has(Xbyak::util::Cpu::tFMA) ? kX64EmitFMA : 0;
     feature_flags_ |= cpu_.has(Xbyak::util::Cpu::tLZCNT) ? kX64EmitLZCNT : 0;
@@ -298,7 +298,7 @@ uint64_t TrapDebugPrint(void* raw_context, uint64_t address) {
   // TODO(benvanik): truncate to length?
   XELOGD("(DebugPrint) %s", str);
 
-  if (cvars::enable_debugprint_log) {
+  if (cvars::debugprint_trap_log) {
     debugging::DebugPrint("(DebugPrint) %s", str);
   }
 

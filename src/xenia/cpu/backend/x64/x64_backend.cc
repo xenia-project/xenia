@@ -27,8 +27,8 @@
 #include "xenia/cpu/stack_walker.h"
 
 DEFINE_bool(
-    enable_haswell_instructions, true,
-    "Uses the AVX2/FMA/etc instructions on Haswell processors, if available.",
+    use_haswell_instructions, true,
+    "Uses the AVX2/FMA/etc instructions on Haswell processors when available.",
     "CPU");
 
 namespace xe {
@@ -84,7 +84,7 @@ bool X64Backend::Initialize(Processor* processor) {
   }
 
   // Need movbe to do advanced LOAD/STORE tricks.
-  if (cvars::enable_haswell_instructions) {
+  if (cvars::use_haswell_instructions) {
     machine_info_.supports_extended_load_store =
         cpu.has(Xbyak::util::Cpu::tMOVBE);
   } else {

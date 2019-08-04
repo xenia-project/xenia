@@ -43,19 +43,19 @@
 
 #include "third_party/xbyak/xbyak/xbyak_util.h"
 
-DEFINE_string(apu, "any", "Audio system. Use: [any, nop, xaudio2]", "General");
+DEFINE_string(apu, "any", "Audio system. Use: [any, nop, xaudio2]", "APU");
 DEFINE_string(gpu, "any", "Graphics system. Use: [any, d3d12, vulkan, null]",
-              "General");
+              "GPU");
 DEFINE_string(hid, "any", "Input system. Use: [any, nop, winkey, xinput]",
-              "General");
+              "HID");
 
-DEFINE_bool(fullscreen, false, "Toggles fullscreen", "General");
+DEFINE_bool(fullscreen, false, "Toggles fullscreen", "GPU");
 
 DEFINE_string(content_root, "", "Root path for content (save/etc) storage.",
-              "General");
+              "Storage");
 
-DEFINE_bool(mount_scratch, false, "Enable scratch mount", "General");
-DEFINE_bool(mount_cache, false, "Enable cache mount", "General");
+DEFINE_bool(mount_scratch, false, "Enable scratch mount", "Storage");
+DEFINE_bool(mount_cache, false, "Enable cache mount", "Storage");
 
 CmdVar(target, "", "Specifies the target .xex or .iso to execute.");
 DECLARE_bool(debug);

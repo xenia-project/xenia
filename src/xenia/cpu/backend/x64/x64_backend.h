@@ -15,7 +15,7 @@
 #include "xenia/base/cvar.h"
 #include "xenia/cpu/backend/backend.h"
 
-DECLARE_bool(enable_haswell_instructions);
+DECLARE_bool(use_haswell_instructions);
 
 namespace xe {
 class Exception;

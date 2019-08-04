@@ -33,7 +33,7 @@
 #include "xenia/ui/graphics_provider.h"
 #include "xenia/ui/imgui_drawer.h"
 
-DEFINE_bool(imgui_debug, false, "Show ImGui debugging tools.", "Other");
+DEFINE_bool(imgui_debug, false, "Show ImGui debugging tools.", "UI");
 
 namespace xe {
 namespace debug {
