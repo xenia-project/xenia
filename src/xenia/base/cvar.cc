@@ -1,6 +1,7 @@
 #include "cvar.h"
 
 namespace cvar {
+
 cxxopts::Options options("xenia", "Xbox 360 Emulator");
 std::map<std::string, ICommandVar*>* CmdVars;
 std::map<std::string, IConfigVar*>* ConfigVars;
@@ -52,5 +53,122 @@ void ParseLaunchArguments(int argc, char** argv) {
     PrintHelpAndExit();
   }
 }
+
+namespace toml {
+
+std::string EscapeBasicString(const std::string& str) {
+  std::string result;
+  for (auto c : str) {
+    if (c == '\b') {
+      result += "\\b";
+    } else if (c == '\t') {
+      result += "\\t";
+    } else if (c == '\n') {
+      result += "\\n";
+    } else if (c == '\f') {
+      result += "\\f";
+    } else if (c == '\r') {
+      result += "\\r";
+    } else if (c == '"') {
+      result += "\\\"";
+    } else if (c == '\\') {
+      result += "\\\\";
+    } else if (static_cast<uint32_t>(c) < 0x20 ||
+               static_cast<uint32_t>(c) == 0x7F) {
+      auto v = static_cast<uint32_t>(c);
+      int w;
+      if (v <= 0xFFFF) {
+        result += "\\u";
+        w = 4;
+      } else {
+        result += "\\U";
+        w = 8;
+      }
+      std::stringstream ss;
+      ss << std::hex << std::setw(w) << std::setfill('0') << v;
+      result += ss.str();
+    } else {
+      result += c;
+    }
+  }
+  return result;
+}
+
+std::string EscapeMultilineBasicString(const std::string& str) {
+  const std::string three_escaped_quotes("\\\"\\\"\\\"");
+  std::string result;
+  char lc = '\0';
+  int quote_run = 0;
+  for (char c : str) {
+    if (c == '\b') {
+      result += "\\b";
+    } else if (c == '\t' || c == '\n') {
+      result += c;
+    } else if (c == '\f') {
+      result += "\\f";
+    } else if (c == '\r') {
+      // Silently drop \r.
+      // result += c;
+    } else if (c == '"') {
+      result += '"';
+      if (lc == '"') {
+        ++quote_run;
+        if (quote_run >= 3) {
+          result.resize(result.size() - 3);
+          result += three_escaped_quotes;
+          quote_run = 0;
+        }
+      }
+    } else if (c == '\\') {
+      result += "\\\\";
+    } else if (static_cast<uint32_t>(c) < 0x20 ||
+               static_cast<uint32_t>(c) == 0x7F) {
+      auto v = static_cast<uint32_t>(c);
+      int w;
+      if (v <= 0xFFFF) {
+        result += "\\u";
+        w = 4;
+      } else {
+        result += "\\U";
+        w = 8;
+      }
+      std::stringstream ss;
+      ss << std::hex << std::setw(w) << std::setfill('0') << v;
+      result += ss.str();
+    } else {
+      result += c;
+    }
+    lc = c;
+  }
+  return result;
+}
+
+std::string EscapeString(const std::string& val) {
+  const char multiline_chars[] = "\r\n";
+  const char escape_chars[] =
+      "\0\b\v\f"
+      "\x01\x02\x03\x04\x05\x06\x07\x0E\x0F"
+      "\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1A\x1B\x1C\x1D\x1E\x1F"
+      "'"
+      "\x7F";
+  if (val.find_first_of("\r\n") == std::string::npos) {
+    // single line
+    if (val.find_first_of(multiline_chars) == std::string::npos) {
+      return "'" + val + "'";
+    } else {
+      return "\"" + toml::EscapeBasicString(val) + "\"";
+    }
+  } else {
+    // multi line
+    if (val.find_first_of(escape_chars) == std::string::npos &&
+        val.find("'''") == std::string::npos) {
+      return "'''\n" + val + "'''";
+    } else {
+      return "\"\"\"\n" + toml::EscapeMultilineBasicString(val) + "\"\"\"";
+    }
+  }
+}
+
+}  // namespace toml
 
 }  // namespace cvar
