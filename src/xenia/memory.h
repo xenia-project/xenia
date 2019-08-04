@@ -229,6 +229,7 @@ class PhysicalHeap : public BaseHeap {
   VirtualHeap* parent_heap_;
 
   uint32_t system_page_size_;
+  uint32_t system_address_offset_;
   uint32_t system_page_count_;
   // Protected by global_critical_region.
   std::vector<uint64_t> system_pages_watched_write_;
@@ -413,6 +414,7 @@ class Memory {
  private:
   std::wstring file_name_;
   uint32_t system_page_size_ = 0;
+  uint32_t system_allocation_granularity_ = 0;
   uint8_t* virtual_membase_ = nullptr;
   uint8_t* physical_membase_ = nullptr;
 
