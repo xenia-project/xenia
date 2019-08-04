@@ -37,13 +37,13 @@ void ParseLaunchArguments(int argc, char** argv) {
     }
     for (auto& it : *CmdVars) {
       auto cmdVar = static_cast<ICommandVar*>(it.second);
-      if (result.count(cmdVar->GetName())) {
+      if (result.count(cmdVar->name())) {
         cmdVar->LoadFromLaunchOptions(&result);
       }
     }
     for (auto& it : *ConfigVars) {
       auto configVar = static_cast<IConfigVar*>(it.second);
-      if (result.count(configVar->GetName())) {
+      if (result.count(configVar->name())) {
         configVar->LoadFromLaunchOptions(&result);
       }
     }
