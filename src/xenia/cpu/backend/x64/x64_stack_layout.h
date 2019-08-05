@@ -53,51 +53,72 @@ class StackLayout {
    *  +------------------+
    *  | r15              | rsp + 104
    *  +------------------+
-   *  | xmm6/0           | rsp + 112
+   *  | ymm6/0           | rsp + 112
+   *  |                  |
+   *  |                  |
    *  |                  |
    *  +------------------+
-   *  | xmm7/1           | rsp + 128
+   *  | ymm7/1           | rsp + 144
+   *  |                  |
+   *  |                  |
    *  |                  |
    *  +------------------+
-   *  | xmm8/2           | rsp + 144
+   *  | ymm8/2           | rsp + 176
+   *  |                  |
+   *  |                  |
    *  |                  |
    *  +------------------+
-   *  | xmm9/3           | rsp + 160
+   *  | ymm9/3           | rsp + 208
+   *  |                  |
+   *  |                  |
    *  |                  |
    *  +------------------+
-   *  | xmm10/4          | rsp + 176
+   *  | ymm10/4          | rsp + 240
+   *  |                  |
+   *  |                  |
    *  |                  |
    *  +------------------+
-   *  | xmm11/5          | rsp + 192
+   *  | ymm11/5          | rsp + 272
+   *  |                  |
+   *  |                  |
    *  |                  |
    *  +------------------+
-   *  | xmm12            | rsp + 208
+   *  | ymm12            | rsp + 304
+   *  |                  |
+   *  |                  |
    *  |                  |
    *  +------------------+
-   *  | xmm13            | rsp + 224
+   *  | ymm13            | rsp + 336
+   *  |                  |
+   *  |                  |
    *  |                  |
    *  +------------------+
-   *  | xmm14            | rsp + 240
+   *  | ymm14            | rsp + 368
+   *  |                  |
+   *  |                  |
    *  |                  |
    *  +------------------+
-   *  | xmm15            | rsp + 256
+   *  | ymm15            | rsp + 400
+   *  |                  |
+   *  |                  |
    *  |                  |
    *  +------------------+
-   *  | scratch, 8b      | rsp + 272
-   *  |                  |
+   *  | scratch, 8b      | rsp + 432
    *  +------------------+
-   *  | (return address) | rsp + 280
+   *  | (return address) | rsp + 440
    *  +------------------+
-   *  | (rcx home)       | rsp + 288
+   *  | (rcx home)       | rsp + 448
    *  +------------------+
-   *  | (rdx home)       | rsp + 296
+   *  | (rdx home)       | rsp + 456
    *  +------------------+
    */
   XEPACKEDSTRUCT(Thunk, {
     uint64_t arg_temp[3];
     uint8_t scratch[16];
     uint64_t r[10];
-    vec128_t xmm[10];
+    // The compiler may emit AVX instructions using 256-bit registers, or they
+    // may be used in translated instruction implementations.
+    uint8_t ymm[10][32];
     uint64_t dummy;
   });
   static_assert(sizeof(Thunk) % 16 == 0,
