@@ -7,15 +7,15 @@
 <h1 align="center">Xenia - Xbox 360 Emulator</h1>
 
 Xenia is an experimental emulator for the Xbox 360. For more information, see the
-[main xenia website](https://xenia.jp/).
+[main Xenia wiki](https://github.com/xenia-project/xenia/wiki).
 
 **Interested in supporting the core contributors?** Visit
 [Xenia Project on Patreon](https://www.patreon.com/xenia_project).
 
 Come chat with us about **emulator-related topics** on [Discord](https://discord.gg/Q9mxZf9).
 For developer chat join `#dev` but stay on topic. Lurking is not only fine, but encouraged!
-Please check the [frequently asked questions](https://xenia.jp/faq/) page before
-asking questions. We've got jobs/lives/etc, so don't expect instant answers.
+Please check the [FAQ](https://github.com/xenia-project/xenia/wiki/FAQ) page before asking questions.
+We've got jobs/lives/etc, so don't expect instant answers.
 
 Discussing illegal activities will get you banned.
 
@@ -41,29 +41,7 @@ legally purchased devices and games and information made public on the internet
 
 ## Quickstart
 
-With Windows 8+, Python 3.4+, and [Visual Studio 2017 or 2019](https://www.visualstudio.com/downloads/) and the Windows SDKs installed:
-
-    > git clone https://github.com/xenia-project/xenia.git
-    > cd xenia
-    > xb setup
-
-    # Pull latest changes, rebase, and update submodules and premake:
-    > xb pull
-
-    # Build on command line:
-    > xb build
-
-    # Run premake and open Visual Studio (run the 'xenia-app' project):
-    > xb devenv
-
-    # Run premake to update the sln/vcproj's:
-    > xb premake
-
-    # Format code to the style guide:
-    > xb format
-
-When fetching updates use `xb pull` to automatically fetch everything and
-run premake for project files/etc.
+See the [Quickstart](https://github.com/xenia-project/xenia/wiki/Quickstart) page.
 
 ## Building
 
@@ -91,8 +69,4 @@ something.
 
 ## FAQ
 
-For more see the main [frequently asked questions](https://xenia.jp/faq/) page.
-
-### Can I get an exe?
-
-[Latest master revision at AppVeyor](https://ci.appveyor.com/api/projects/benvanik/xenia/artifacts/xenia-master.zip?branch=master&job=Configuration%3A%20Release&pr=false)
+See the [frequently asked questions](https://github.com/xenia-project/xenia/wiki/FAQ) page.
