@@ -159,9 +159,9 @@ std::string EscapeString(const std::string& val) {
       "\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1A\x1B\x1C\x1D\x1E\x1F"
       "'"
       "\x7F";
-  if (val.find_first_of("\r\n") == std::string::npos) {
+  if (val.find_first_of(multiline_chars) == std::string::npos) {
     // single line
-    if (val.find_first_of(multiline_chars) == std::string::npos) {
+    if (val.find_first_of(escape_chars) == std::string::npos) {
       return "'" + val + "'";
     } else {
       return "\"" + toml::EscapeBasicString(val) + "\"";
