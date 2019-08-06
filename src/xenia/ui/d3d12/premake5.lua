@@ -10,11 +10,6 @@ project("xenia-ui-d3d12")
     "xenia-base",
     "xenia-ui",
   })
-  defines({
-  })
-  includedirs({
-    project_root.."/third_party/gflags/src",
-  })
   local_platform_files()
   files({
     "shaders/bin/*.h",
