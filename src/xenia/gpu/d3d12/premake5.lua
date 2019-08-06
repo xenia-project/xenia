@@ -13,11 +13,6 @@ project("xenia-gpu-d3d12")
     "xenia-ui-d3d12",
     "xxhash",
   })
-  defines({
-  })
-  includedirs({
-    project_root.."/third_party/gflags/src",
-  })
   local_platform_files()
   files({
     "shaders/bin/*.h",
