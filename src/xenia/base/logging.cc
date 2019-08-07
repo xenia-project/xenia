@@ -9,7 +9,6 @@
 
 #include "xenia/base/logging.h"
 
-#include <atomic>
 #include <cinttypes>
 #include <cstdarg>
 #include <cstdlib>
@@ -25,6 +24,7 @@
 #include "xenia/base/memory.h"
 #include "xenia/base/ring_buffer.h"
 #include "xenia/base/threading.h"
+
 //#include "xenia/base/cvar.h"
 
 // For MessageBox:
@@ -52,200 +52,175 @@ class Logger;
 Logger* logger_ = nullptr;
 thread_local std::vector<char> log_format_buffer_(64 * 1024);
 
-class Logger {
- public:
-  explicit Logger(const std::wstring& app_name) : running_(true) {
-    if (cvars::log_file.empty()) {
-      // Default to app name.
-      auto file_path = app_name + L".log";
-      xe::filesystem::CreateParentFolder(file_path);
-      file_ = xe::filesystem::OpenFile(file_path, "wt");
-    } else {
-      if (cvars::log_file == "stdout") {
-        file_ = stdout;
-      } else {
-        auto file_path = xe::to_wstring(cvars::log_file);
-        xe::filesystem::CreateParentFolder(file_path);
-        file_ = xe::filesystem::OpenFile(file_path, "wt");
-      }
-    }
+FileTransport::FileTransport(LogLevel log_level, const std::wstring& file_path)
+    : LogTransport(log_level), running_(true) {
+  xe::filesystem::CreateParentFolder(file_path);
+  file_ = xe::filesystem::OpenFile(file_path, "wt");
 
-    write_thread_ =
-        xe::threading::Thread::Create({}, [this]() { WriteThread(); });
-    write_thread_->set_name("xe::FileLogSink Writer");
+  write_thread_ =
+      xe::threading::Thread::Create({}, [this]() { WriteThread(); });
+  write_thread_->set_name("xe::FileLogSink Writer");
+}
+
+FileTransport::~FileTransport() {
+  running_ = false;
+  xe::threading::Wait(write_thread_.get(), true);
+  fflush(file_);
+  fclose(file_);
+}
+
+void FileTransport::LogLine(uint32_t thread_id, LogLevel level,
+                            const char prefix_char, const char* buffer,
+                            size_t buffer_size) {
+  if (static_cast<int32_t>(level) > static_cast<int32_t>(log_level())) {
+    // Discard this line.
+    return;
   }
 
-  ~Logger() {
-    running_ = false;
-    xe::threading::Wait(write_thread_.get(), true);
-    fflush(file_);
-    fclose(file_);
-  }
+  Logger::LogLine line;
+  line.buffer_length = buffer_size;
+  line.thread_id = thread_id;
+  line.prefix_char = prefix_char;
 
-  void AppendLine(uint32_t thread_id, LogLevel level, const char prefix_char,
-                  const char* buffer, size_t buffer_length) {
-    if (static_cast<int32_t>(level) > cvars::log_level) {
-      // Discard this line.
-      return;
-    }
+  // First, run a check and see if we can increment write
+  // head without any problems. If so, cmpxchg it to reserve some space in the
+  // ring. If someone beats us, loop around.
+  //
+  // Once we have a reservation, write our data and then increment the write
+  // tail.
+  size_t size = sizeof(Logger::LogLine) + buffer_size;
+  while (true) {
+    // Attempt to make a reservation.
+    size_t write_head = write_head_;
+    size_t read_head = read_head_;
 
-    LogLine line;
-    line.buffer_length = buffer_length;
-    line.thread_id = thread_id;
-    line.prefix_char = prefix_char;
-
-    // First, run a check and see if we can increment write
-    // head without any problems. If so, cmpxchg it to reserve some space in the
-    // ring. If someone beats us, loop around.
-    //
-    // Once we have a reservation, write our data and then increment the write
-    // tail.
-    size_t size = sizeof(LogLine) + buffer_length;
-    while (true) {
-      // Attempt to make a reservation.
-      size_t write_head = write_head_;
-      size_t read_head = read_head_;
-
-      RingBuffer rb(buffer_, kBufferSize);
-      rb.set_write_offset(write_head);
-      rb.set_read_offset(read_head);
-      if (rb.write_count() < size) {
-        xe::threading::MaybeYield();
-        continue;
-      }
-
-      // We have enough size to make a reservation!
-      rb.AdvanceWrite(size);
-      if (xe::atomic_cas(write_head, rb.write_offset(), &write_head_)) {
-        // Reservation made. Write out logline.
-        rb.set_write_offset(write_head);
-        rb.Write(&line, sizeof(LogLine));
-        rb.Write(buffer, buffer_length);
-
-        while (!xe::atomic_cas(write_head, rb.write_offset(), &write_tail_)) {
-          // Done writing. End the reservation.
-          xe::threading::MaybeYield();
-        }
-
-        break;
-      } else {
-        // Someone beat us to the chase. Loop around.
-        continue;
-      }
-    }
-  }
-
- private:
-  static const size_t kBufferSize = 8 * 1024 * 1024;
-
-  struct LogLine {
-    size_t buffer_length;
-    uint32_t thread_id;
-    uint16_t _pad_0;  // (2b) padding
-    uint8_t _pad_1;   // (1b) padding
-    char prefix_char;
-  };
-
-  void Write(const char* buf, size_t size) {
-    if (file_) {
-      fwrite(buf, 1, size, file_);
-    }
-
-    if (cvars::log_to_debugprint) {
-      debugging::DebugPrint("%.*s", size, buf);
-    }
-  }
-
-  void WriteThread() {
     RingBuffer rb(buffer_, kBufferSize);
-    uint32_t idle_loops = 0;
-    while (true) {
-      bool did_write = false;
-      rb.set_write_offset(write_tail_);
-      if (!running_ && rb.empty()) {
-        break;
+    rb.set_write_offset(write_head);
+    rb.set_read_offset(read_head);
+    if (rb.write_count() < size) {
+      xe::threading::MaybeYield();
+      continue;
+    }
+
+    // We have enough size to make a reservation!
+    rb.AdvanceWrite(size);
+    if (xe::atomic_cas(write_head, rb.write_offset(), &write_head_)) {
+      // Reservation made. Write out logline.
+      rb.set_write_offset(write_head);
+      rb.Write(&line, sizeof(Logger::LogLine));
+      rb.Write(buffer, buffer_size);
+
+      while (!xe::atomic_cas(write_head, rb.write_offset(), &write_tail_)) {
+        // Done writing. End the reservation.
+        xe::threading::MaybeYield();
       }
-      while (!rb.empty()) {
-        did_write = true;
 
-        // Read line header and write out the line prefix.
-        LogLine line;
-        rb.Read(&line, sizeof(line));
-        char prefix[] = {
-            line.prefix_char,
-            '>',
-            ' ',
-            '0',  // Thread ID gets placed here (8 chars).
-            '0',
-            '0',
-            '0',
-            '0',
-            '0',
-            '0',
-            '0',
-            ' ',
-            0,
-        };
-        std::snprintf(prefix + 3, sizeof(prefix) - 3, "%08" PRIX32 " ",
-                      line.thread_id);
-        Write(prefix, sizeof(prefix) - 1);
-        if (line.buffer_length) {
-          // Get access to the line data - which may be split in the ring buffer
-          // - and write it out in parts.
-          auto line_range = rb.BeginRead(line.buffer_length);
-          Write(reinterpret_cast<const char*>(line_range.first),
-                line_range.first_length);
-          if (line_range.second_length) {
-            Write(reinterpret_cast<const char*>(line_range.second),
-                  line_range.second_length);
-          }
-          // Always ensure there is a newline.
-          char last_char = line_range.second
-                               ? line_range.second[line_range.second_length - 1]
-                               : line_range.first[line_range.first_length - 1];
-          if (last_char != '\n') {
-            const char suffix[1] = {'\n'};
-            Write(suffix, 1);
-          }
-          rb.EndRead(std::move(line_range));
-        } else {
-          const char suffix[1] = {'\n'};
-          Write(suffix, 1);
-        }
-
-        rb.set_write_offset(write_tail_);
-        read_head_ = rb.read_offset();
-      }
-      if (did_write) {
-        if (cvars::flush_log) {
-          fflush(file_);
-        }
-
-        idle_loops = 0;
-      } else {
-        if (idle_loops > 1000) {
-          // Introduce a waiting period.
-          xe::threading::Sleep(std::chrono::milliseconds(50));
-        }
-
-        idle_loops++;
-      }
+      break;
+    } else {
+      // Someone beat us to the chase. Loop around.
+      continue;
     }
   }
+}
 
-  volatile size_t write_tail_ = 0;
-  size_t write_head_ = 0;
-  size_t read_head_ = 0;
-  uint8_t buffer_[kBufferSize];
-  FILE* file_ = nullptr;
+void FileTransport::WriteThread() {
+  RingBuffer rb(buffer_, kBufferSize);
+  uint32_t idle_loops = 0;
+  while (true) {
+    bool did_write = false;
+    rb.set_write_offset(write_tail_);
+    if (!running_ && rb.empty()) {
+      break;
+    }
+    while (!rb.empty()) {
+      did_write = true;
 
-  std::atomic<bool> running_;
-  std::unique_ptr<xe::threading::Thread> write_thread_;
-};
+      // Read line header and write out the line prefix.
+      Logger::LogLine line;
+      rb.Read(&line, sizeof(line));
+      char prefix[] = {
+          line.prefix_char,
+          '>',
+          ' ',
+          '0',  // Thread ID gets placed here (8 chars).
+          '0',
+          '0',
+          '0',
+          '0',
+          '0',
+          '0',
+          '0',
+          ' ',
+          0,
+      };
+      std::snprintf(prefix + 3, sizeof(prefix) - 3, "%08" PRIX32 " ",
+                    line.thread_id);
+      WriteBuffer(prefix, sizeof(prefix) - 1);
+      if (line.buffer_length) {
+        // Get access to the line data - which may be split in the ring buffer
+        // - and write it out in parts.
+        auto line_range = rb.BeginRead(line.buffer_length);
+        WriteBuffer(reinterpret_cast<const char*>(line_range.first),
+                    line_range.first_length);
+        if (line_range.second_length) {
+          WriteBuffer(reinterpret_cast<const char*>(line_range.second),
+                      line_range.second_length);
+        }
+        // Always ensure there is a newline.
+        char last_char = line_range.second
+                             ? line_range.second[line_range.second_length - 1]
+                             : line_range.first[line_range.first_length - 1];
+        if (last_char != '\n') {
+          const char suffix[1] = {'\n'};
+          WriteBuffer(suffix, 1);
+        }
+        rb.EndRead(std::move(line_range));
+      } else {
+        const char suffix[1] = {'\n'};
+        WriteBuffer(suffix, 1);
+      }
+
+      rb.set_write_offset(write_tail_);
+      read_head_ = rb.read_offset();
+    }
+    if (did_write) {
+      if (cvars::flush_log) {
+        fflush(file_);
+      }
+
+      idle_loops = 0;
+    } else {
+      if (idle_loops > 1000) {
+        // Introduce a waiting period.
+        xe::threading::Sleep(std::chrono::milliseconds(50));
+      }
+
+      idle_loops++;
+    }
+  }
+}
+
+void FileTransport::WriteBuffer(const char* buf, size_t buffer_size) {
+  if (file_) {
+    fwrite(buf, 1, buffer_size, file_);
+  }
+
+  if (cvars::log_to_debugprint) {
+    debugging::DebugPrint("%.*s", buffer_size, buf);
+  }
+}
 
 void InitializeLogging(const std::wstring& app_name) {
   auto mem = memory::AlignedAlloc<Logger>(0x10);
   logger_ = new (mem) Logger(app_name);
+
+  std::wstring log_file = xe::to_wstring(cvars::log_file);
+  if (log_file.empty()) {
+    log_file = app_name + L".log";
+  }
+
+  logger_->AddLogTransport(std::make_unique<FileTransport>(
+      static_cast<LogLevel>(cvars::log_level), log_file));
 }
 
 void ShutdownLogging() {

@@ -10,12 +10,18 @@
 #ifndef XENIA_BASE_LOGGING_H_
 #define XENIA_BASE_LOGGING_H_
 
+#include <atomic>
 #include <cstdint>
+#include <memory>
 #include <string>
 
 #include "xenia/base/string.h"
 
 namespace xe {
+
+namespace threading {
+class Thread;
+}
 
 #define XE_OPTION_ENABLE_LOGGING 1
 
@@ -30,6 +36,77 @@ enum class LogLevel {
   Info,
   Debug,
   Trace,
+};
+
+// A Transport is a class which processes received logs
+class LogTransport {
+ public:
+  explicit LogTransport(LogLevel log_level) : log_level_(log_level) {}
+  virtual ~LogTransport() = default;
+
+  virtual void LogLine(uint32_t thread_id, LogLevel level,
+                       const char prefix_char, const char* buffer,
+                       size_t buffer_length) = 0;
+
+  LogLevel log_level() const { return log_level_; }
+
+ private:
+  LogLevel log_level_;
+};
+
+class FileTransport : public LogTransport {
+ public:
+  explicit FileTransport(LogLevel log_level, const std::wstring& file_path);
+  ~FileTransport();
+
+  virtual void LogLine(uint32_t thread_id, LogLevel level,
+                       const char prefix_char, const char* buffer,
+                       size_t buffer_size) override;
+
+ private:
+  void WriteThread();
+  void WriteBuffer(const char* buf, size_t buffer_size);
+
+  static const size_t kBufferSize = 8 * 1024 * 1024;
+
+  volatile size_t write_tail_ = 0;
+  size_t write_head_ = 0;
+  size_t read_head_ = 0;
+  uint8_t buffer_[kBufferSize];
+  FILE* file_ = nullptr;
+
+  std::atomic<bool> running_;
+  std::unique_ptr<xe::threading::Thread> write_thread_;
+};
+
+class Logger {
+ public:
+  struct LogLine {
+    size_t buffer_length;
+    uint32_t thread_id;
+    uint16_t _pad_0;  // (2b) padding
+    uint8_t _pad_1;   // (1b) padding
+    char prefix_char;
+  };
+
+  explicit Logger(const std::wstring& app_name) : app_name_(app_name) {}
+
+  void AppendLine(uint32_t thread_id, LogLevel level, const char prefix_char,
+                  const char* buffer, size_t buffer_length) {
+    for (const auto& transport : transports_) {
+      transport->LogLine(thread_id, level, prefix_char, buffer, buffer_length);
+    }
+  }
+
+  void AddLogTransport(std::unique_ptr<LogTransport> transport) {
+    transports_.emplace_back(std::move(transport));
+  }
+
+  const std::wstring& app_name() const { return app_name_; }
+
+ private:
+  std::wstring app_name_;
+  std::vector<std::unique_ptr<LogTransport>> transports_;
 };
 
 // Initializes the logging system and any outputs requested.
