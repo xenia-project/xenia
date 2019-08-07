@@ -156,10 +156,12 @@ void XThread::set_name(const std::string& name) {
 }
 
 uint8_t next_cpu = 0;
+uint8_t fakedhwthreads[6] = {0,2,4,1,3,5};
 uint8_t GetFakeCpuNumber(uint8_t proc_mask) {
   if (!proc_mask) {
-    next_cpu = (next_cpu + 1) % 6;
-    return next_cpu;  // is this reasonable?
+	next_cpu++;
+	if (next_cpu == 6) next_cpu = 0;
+	return fakedhwthreads[next_cpu];
   }
   assert_false(proc_mask & 0xC0);
 
@@ -359,6 +361,9 @@ X_STATUS XThread::Create() {
 
   pcr->current_cpu = GetFakeCpuNumber(proc_mask);  // Current CPU(?)
   pcr->dpc_active = 0;                             // DPC active bool?
+
+  XELOGI("XThread%08X (%X) fakeCPU (%X)", handle(), thread_id_,
+	     fakedhwthreads[next_cpu]);
 
   // Initialize the KTHREAD object.
   InitializeGuestObject();
