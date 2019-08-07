@@ -97,13 +97,7 @@ class D3D12Provider : public GraphicsProvider {
  private:
   explicit D3D12Provider(Window* main_window);
 
-  enum InitializationResult : uint32_t {
-    kSucceeded,
-    kDeviceInitializationFailed,
-    kLibraryLoadFailed,
-  };
-
-  InitializationResult Initialize();
+  bool Initialize();
 
   HMODULE library_dxgi_ = nullptr;
   HMODULE library_d3d12_ = nullptr;

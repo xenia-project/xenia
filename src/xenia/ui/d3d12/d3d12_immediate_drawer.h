@@ -43,7 +43,7 @@ class D3D12ImmediateDrawer : public ImmediateDrawer {
   void BeginDrawBatch(const ImmediateDrawBatch& batch) override;
   void Draw(const ImmediateDraw& draw) override;
   void EndDrawBatch() override;
-  void End();
+  void End() override;
 
  private:
   D3D12Context* context_ = nullptr;

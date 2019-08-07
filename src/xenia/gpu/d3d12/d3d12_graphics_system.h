@@ -50,11 +50,12 @@ class D3D12GraphicsSystem : public GraphicsSystem {
       D3D12_GPU_DESCRIPTOR_HANDLE* gamma_ramp_handle, float gamma_ramp_inv_size,
       DeferredCommandList& command_list);
 
- private:
+ protected:
   std::unique_ptr<CommandProcessor> CreateCommandProcessor() override;
 
   void Swap(xe::ui::UIEvent* e) override;
 
+ private:
   ui::d3d12::D3D12Context* display_context_ = nullptr;
 
   ID3D12RootSignature* stretch_root_signature_ = nullptr;

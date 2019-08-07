@@ -38,18 +38,15 @@ bool D3D12Provider::IsD3D12APIAvailable() {
 
 std::unique_ptr<D3D12Provider> D3D12Provider::Create(Window* main_window) {
   std::unique_ptr<D3D12Provider> provider(new D3D12Provider(main_window));
-  InitializationResult result = provider->Initialize();
-  if (result != InitializationResult::kSucceeded) {
-    if (result != InitializationResult::kLibraryLoadFailed) {
-      xe::FatalError(
-          "Unable to initialize Direct3D 12 graphics subsystem.\n"
-          "\n"
-          "Ensure that you have the latest drivers for your GPU and it "
-          "supports Direct3D 12 feature level 11_0.\n"
-          "\n"
-          "See https://xenia.jp/faq/ for more information and a list of "
-          "supported GPUs.");
-    }
+  if (!provider->Initialize()) {
+    xe::FatalError(
+        "Unable to initialize Direct3D 12 graphics subsystem.\n"
+        "\n"
+        "Ensure that you have the latest drivers for your GPU and it supports "
+        "Direct3D 12 feature level 11_0.\n"
+        "\n"
+        "See https://xenia.jp/faq/ for more information and a list of "
+        "supported GPUs.");
     return nullptr;
   }
   return provider;
@@ -83,7 +80,7 @@ D3D12Provider::~D3D12Provider() {
   }
 }
 
-D3D12Provider::InitializationResult D3D12Provider::Initialize() {
+bool D3D12Provider::Initialize() {
   // Load the libraries.
   library_dxgi_ = LoadLibrary(L"dxgi.dll");
   library_d3d12_ = LoadLibrary(L"D3D12.dll");
@@ -91,7 +88,7 @@ D3D12Provider::InitializationResult D3D12Provider::Initialize() {
   if (library_dxgi_ == nullptr || library_d3d12_ == nullptr ||
       library_d3dcompiler_ == nullptr) {
     XELOGE("Failed to load dxgi.dll, D3D12.dll and D3DCompiler_47.dll.");
-    return InitializationResult::kLibraryLoadFailed;
+    return false;
   }
   bool libraries_loaded = true;
   libraries_loaded &=
@@ -114,7 +111,7 @@ D3D12Provider::InitializationResult D3D12Provider::Initialize() {
   libraries_loaded &= (pfn_d3d_disassemble_ = pD3DDisassemble(GetProcAddress(
                            library_d3dcompiler_, "D3DDisassemble"))) != nullptr;
   if (!libraries_loaded) {
-    return InitializationResult::kLibraryLoadFailed;
+    return false;
   }
 
   // Enable the debug layer.
@@ -136,7 +133,7 @@ D3D12Provider::InitializationResult D3D12Provider::Initialize() {
   if (FAILED(pfn_create_dxgi_factory2_(debug ? DXGI_CREATE_FACTORY_DEBUG : 0,
                                        IID_PPV_ARGS(&dxgi_factory)))) {
     XELOGE("Failed to create a DXGI factory");
-    return InitializationResult::kDeviceInitializationFailed;
+    return false;
   }
 
   // Choose the adapter.
@@ -169,14 +166,14 @@ D3D12Provider::InitializationResult D3D12Provider::Initialize() {
   if (adapter == nullptr) {
     XELOGE("Failed to get an adapter supporting Direct3D feature level 11_0.");
     dxgi_factory->Release();
-    return InitializationResult::kDeviceInitializationFailed;
+    return false;
   }
   DXGI_ADAPTER_DESC adapter_desc;
   if (FAILED(adapter->GetDesc(&adapter_desc))) {
     XELOGE("Failed to get the DXGI adapter description.");
     adapter->Release();
     dxgi_factory->Release();
-    return InitializationResult::kDeviceInitializationFailed;
+    return false;
   }
   adapter_vendor_id_ = adapter_desc.VendorId;
   int adapter_name_mb_size = WideCharToMultiByte(
@@ -199,7 +196,7 @@ D3D12Provider::InitializationResult D3D12Provider::Initialize() {
     XELOGE("Failed to create a Direct3D 12 feature level 11_0 device.");
     adapter->Release();
     dxgi_factory->Release();
-    return InitializationResult::kDeviceInitializationFailed;
+    return false;
   }
   adapter->Release();
 
@@ -268,7 +265,7 @@ D3D12Provider::InitializationResult D3D12Provider::Initialize() {
   // attached.
   pfn_dxgi_get_debug_interface1_(0, IID_PPV_ARGS(&graphics_analysis_));
 
-  return InitializationResult::kSucceeded;
+  return true;
 }
 
 std::unique_ptr<GraphicsContext> D3D12Provider::CreateContext(
