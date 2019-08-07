@@ -309,24 +309,12 @@ void D3D12ImmediateDrawer::Shutdown() {
   texture_descriptor_pool_.reset();
   vertex_buffer_pool_.reset();
 
-  if (sampler_heap_ != nullptr) {
-    sampler_heap_->Release();
-    sampler_heap_ = nullptr;
-  }
+  util::ReleaseAndNull(sampler_heap_);
 
-  if (pipeline_line_ != nullptr) {
-    pipeline_line_->Release();
-    pipeline_line_ = nullptr;
-  }
-  if (pipeline_triangle_ != nullptr) {
-    pipeline_triangle_->Release();
-    pipeline_triangle_ = nullptr;
-  }
+  util::ReleaseAndNull(pipeline_line_);
+  util::ReleaseAndNull(pipeline_triangle_);
 
-  if (root_signature_ != nullptr) {
-    root_signature_->Release();
-    root_signature_ = nullptr;
-  }
+  util::ReleaseAndNull(root_signature_);
 }
 
 std::unique_ptr<ImmediateTexture> D3D12ImmediateDrawer::CreateTexture(

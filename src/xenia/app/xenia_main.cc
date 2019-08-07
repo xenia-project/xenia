@@ -29,6 +29,7 @@
 
 // Available graphics systems:
 #include "xenia/gpu/null/null_graphics_system.h"
+#include "xenia/gpu/vk/vulkan_graphics_system.h"
 #include "xenia/gpu/vulkan/vulkan_graphics_system.h"
 #if XE_PLATFORM_WIN32
 #include "xenia/gpu/d3d12/d3d12_graphics_system.h"
@@ -44,8 +45,8 @@
 #include "third_party/xbyak/xbyak/xbyak_util.h"
 
 DEFINE_string(apu, "any", "Audio system. Use: [any, nop, xaudio2]", "APU");
-DEFINE_string(gpu, "any", "Graphics system. Use: [any, d3d12, vulkan, null]",
-              "GPU");
+DEFINE_string(gpu, "any",
+              "Graphics system. Use: [any, d3d12, vulkan, vk, null]", "GPU");
 DEFINE_string(hid, "any", "Input system. Use: [any, nop, winkey, xinput]",
               "HID");
 
@@ -156,7 +157,12 @@ std::unique_ptr<gpu::GraphicsSystem> CreateGraphicsSystem() {
 #if XE_PLATFORM_WIN32
   factory.Add<gpu::d3d12::D3D12GraphicsSystem>("d3d12");
 #endif  // XE_PLATFORM_WIN32
+  // Abandoned Vulkan graphics system.
   factory.Add<gpu::vulkan::VulkanGraphicsSystem>("vulkan");
+  // New Vulkan graphics system.
+  // TODO(Triang3l): Move this higher when it's more ready, then drop the old
+  // Vulkan graphics system.
+  factory.Add<gpu::vk::VulkanGraphicsSystem>("vk");
   factory.Add<gpu::null::NullGraphicsSystem>("null");
   return factory.Create(cvars::gpu);
 }
