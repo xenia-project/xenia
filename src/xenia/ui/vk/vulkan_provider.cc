@@ -59,7 +59,7 @@ VulkanProvider::~VulkanProvider() {
 
 bool VulkanProvider::Initialize() {
   if (volkInitialize() != VK_SUCCESS) {
-    XELOGE("Failed to initialize the Vulkan loader volk.");
+    XELOGE("Failed to initialize the Vulkan loader volk");
     return false;
   }
 
@@ -101,7 +101,7 @@ bool VulkanProvider::Initialize() {
   instance_create_info.ppEnabledExtensionNames = instance_extensions;
   if (vkCreateInstance(&instance_create_info, nullptr, &instance_) !=
       VK_SUCCESS) {
-    XELOGE("Failed to create a Vulkan instance.");
+    XELOGE("Failed to create a Vulkan instance");
     return false;
   }
   volkLoadInstance(instance_);
@@ -112,13 +112,13 @@ bool VulkanProvider::Initialize() {
   uint32_t physical_device_count;
   if (vkEnumeratePhysicalDevices(instance_, &physical_device_count, nullptr) !=
       VK_SUCCESS) {
-    XELOGE("Failed to get Vulkan physical device count.");
+    XELOGE("Failed to get Vulkan physical device count");
     return false;
   }
   physical_devices.resize(physical_device_count);
   if (vkEnumeratePhysicalDevices(instance_, &physical_device_count,
                                  physical_devices.data()) != VK_SUCCESS) {
-    XELOGE("Failed to get Vulkan physical devices.");
+    XELOGE("Failed to get Vulkan physical devices");
     return false;
   }
   physical_devices.resize(physical_device_count);
@@ -215,7 +215,7 @@ bool VulkanProvider::Initialize() {
     break;
   }
   if (physical_device_ == VK_NULL_HANDLE) {
-    XELOGE("Failed to get a supported Vulkan physical device.");
+    XELOGE("Failed to get a supported Vulkan physical device");
     return false;
   }
   // TODO(Triang3l): Check if VK_EXT_fragment_shader_interlock and
@@ -254,9 +254,10 @@ bool VulkanProvider::Initialize() {
   device_create_info.pEnabledFeatures = nullptr;
   if (vkCreateDevice(physical_device_, &device_create_info, nullptr,
                      &device_) != VK_SUCCESS) {
-    XELOGE("Failed to create a Vulkan device.");
+    XELOGE("Failed to create a Vulkan device");
     return false;
   }
+  volkLoadDevice(device_);
   vkGetDeviceQueue(device_, queue_family, 0, &graphics_queue_);
 
   return true;
