@@ -39,6 +39,20 @@ class VulkanContext : public GraphicsContext {
 
   std::unique_ptr<RawImage> Capture() override;
 
+  VulkanProvider* GetVulkanProvider() const {
+    return static_cast<VulkanProvider*>(provider_);
+  }
+
+  // The count of copies of transient objects (like command buffers, dynamic
+  // descriptor pools) that must be kept when rendering with this context.
+  static constexpr uint32_t kQueuedFrames = 3;
+  // The current absolute frame number.
+  uint64_t GetCurrentFrame() { return current_frame_; }
+  // The last completed frame - it's fine to destroy objects used in it.
+  uint64_t GetLastCompletedFrame() { return last_completed_frame_; }
+  uint32_t GetCurrentQueueFrame() { return current_queue_frame_; }
+  void AwaitAllFramesCompletion();
+
  private:
   friend class VulkanProvider;
 
@@ -51,6 +65,11 @@ class VulkanContext : public GraphicsContext {
   bool initialized_fully_ = false;
 
   bool context_lost_ = false;
+
+  uint64_t current_frame_ = 1;
+  uint64_t last_completed_frame_ = 0;
+  uint32_t current_queue_frame_ = 1;
+  VkFence fences_[kQueuedFrames] = {};
 
   std::unique_ptr<VulkanImmediateDrawer> immediate_drawer_ = nullptr;
 };

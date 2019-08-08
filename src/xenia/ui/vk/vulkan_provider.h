@@ -34,6 +34,12 @@ class VulkanProvider : public GraphicsProvider {
       Window* target_window) override;
   std::unique_ptr<GraphicsContext> CreateOffscreenContext() override;
 
+  const VkPhysicalDeviceFeatures& GetPhysicalDeviceFeatures() const {
+    return physical_device_features_;
+  }
+  VkDevice GetDevice() const { return device_; }
+  VkQueue GetGraphicsQueue() const { return graphics_queue_; }
+
  private:
   explicit VulkanProvider(Window* main_window);
 

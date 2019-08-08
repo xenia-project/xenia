@@ -27,6 +27,17 @@ inline bool DestroyAndNullHandle(F* destroy_function, T& handle) {
   return false;
 }
 
+template <typename F, typename T>
+inline bool DestroyAndNullHandle(F* destroy_function, VkDevice device,
+                                 T& handle) {
+  if (handle != VK_NULL_HANDLE) {
+    destroy_function(device, handle, nullptr);
+    handle = VK_NULL_HANDLE;
+    return true;
+  }
+  return false;
+}
+
 }  // namespace util
 }  // namespace vk
 }  // namespace ui
