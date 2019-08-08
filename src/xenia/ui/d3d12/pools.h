@@ -10,12 +10,15 @@
 #ifndef XENIA_UI_D3D12_POOLS_H_
 #define XENIA_UI_D3D12_POOLS_H_
 
+#include <cstdint>
+
 #include "xenia/ui/d3d12/d3d12_api.h"
-#include "xenia/ui/d3d12/d3d12_context.h"
 
 namespace xe {
 namespace ui {
 namespace d3d12 {
+
+class D3D12Context;
 
 class UploadBufferPool {
  public:

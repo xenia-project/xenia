@@ -16,13 +16,14 @@
 
 #include "xenia/ui/d3d12/command_list.h"
 #include "xenia/ui/d3d12/d3d12_api.h"
-#include "xenia/ui/d3d12/d3d12_context.h"
 #include "xenia/ui/d3d12/pools.h"
 #include "xenia/ui/immediate_drawer.h"
 
 namespace xe {
 namespace ui {
 namespace d3d12 {
+
+class D3D12Context;
 
 class D3D12ImmediateDrawer : public ImmediateDrawer {
  public:

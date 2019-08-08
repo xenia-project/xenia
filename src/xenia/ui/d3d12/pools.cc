@@ -13,6 +13,7 @@
 
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
+#include "xenia/ui/d3d12/d3d12_context.h"
 #include "xenia/ui/d3d12/d3d12_util.h"
 
 namespace xe {

@@ -13,6 +13,7 @@
 
 #include "xenia/base/cvar.h"
 #include "xenia/base/logging.h"
+#include "xenia/base/platform.h"
 #include "xenia/ui/vk/vulkan_context.h"
 #include "xenia/ui/vk/vulkan_util.h"
 
