@@ -9,6 +9,8 @@
 
 #include "xenia/ui/vk/vulkan_immediate_drawer.h"
 
+#include "xenia/ui/vk/vulkan_context.h"
+
 namespace xe {
 namespace ui {
 namespace vk {

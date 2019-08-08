@@ -13,6 +13,7 @@
 #include <memory>
 
 #include "xenia/ui/graphics_context.h"
+#include "xenia/ui/vk/vulkan_immediate_drawer.h"
 #include "xenia/ui/vk/vulkan_provider.h"
 
 #define FINE_GRAINED_DRAW_SCOPES 1
@@ -20,8 +21,6 @@
 namespace xe {
 namespace ui {
 namespace vk {
-
-class VulkanImmediateDrawer;
 
 class VulkanContext : public GraphicsContext {
  public:

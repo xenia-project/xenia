@@ -13,11 +13,12 @@
 #include <memory>
 
 #include "xenia/ui/immediate_drawer.h"
-#include "xenia/ui/vk/vulkan_context.h"
 
 namespace xe {
 namespace ui {
 namespace vk {
+
+class VulkanContext;
 
 class VulkanImmediateDrawer : public ImmediateDrawer {
  public:
