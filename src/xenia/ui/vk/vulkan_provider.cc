@@ -9,6 +9,7 @@
 
 #include "xenia/ui/vk/vulkan_provider.h"
 
+#include <cstring>
 #include <vector>
 
 #include "xenia/base/cvar.h"
@@ -130,16 +131,47 @@ bool VulkanProvider::Initialize() {
     physical_device_index = 0;
     physical_device_index_end = physical_device_count;
   }
-  VkPhysicalDeviceFeatures physical_device_features;
+  VkPhysicalDeviceProperties physical_device_properties;
+  std::vector<VkExtensionProperties> physical_device_extensions;
   std::vector<VkQueueFamilyProperties> queue_families;
   uint32_t queue_family = UINT32_MAX;
   bool sparse_residency_buffer = false;
   for (; physical_device_index < physical_device_index_end;
        ++physical_device_index) {
     VkPhysicalDevice physical_device = physical_devices[physical_device_index];
-    vkGetPhysicalDeviceFeatures(physical_device, &physical_device_features);
-    sparse_residency_buffer = physical_device_features.sparseBinding &&
-                              physical_device_features.sparseResidencyBuffer;
+    vkGetPhysicalDeviceProperties(physical_device, &physical_device_properties);
+    if (physical_device_properties.apiVersion < api_version) {
+      continue;
+    }
+    vkGetPhysicalDeviceFeatures(physical_device, &physical_device_features_);
+    if (!physical_device_features_.geometryShader) {
+      continue;
+    }
+    uint32_t physical_device_extension_count;
+    if (vkEnumerateDeviceExtensionProperties(physical_device, nullptr,
+                                             &physical_device_extension_count,
+                                             nullptr) != VK_SUCCESS) {
+      continue;
+    }
+    physical_device_extensions.resize(physical_device_extension_count);
+    if (vkEnumerateDeviceExtensionProperties(
+            physical_device, nullptr, &physical_device_extension_count,
+            physical_device_extensions.data()) != VK_SUCCESS) {
+      continue;
+    }
+    bool supports_swapchain = false;
+    for (uint32_t i = 0; i < physical_device_extension_count; ++i) {
+      const char* extension_name = physical_device_extensions[i].extensionName;
+      if (!std::strcmp(extension_name, "VK_KHR_swapchain")) {
+        supports_swapchain = true;
+        break;
+      }
+    }
+    if (!supports_swapchain) {
+      continue;
+    }
+    sparse_residency_buffer = physical_device_features_.sparseBinding &&
+                              physical_device_features_.sparseResidencyBuffer;
     // Get a queue supporting graphics, compute and transfer, and if available,
     // also sparse memory management.
     queue_family = UINT32_MAX;
@@ -186,23 +218,46 @@ bool VulkanProvider::Initialize() {
     XELOGE("Failed to get a supported Vulkan physical device.");
     return false;
   }
-  supports_sparse_residency_buffer_ = sparse_residency_buffer;
-  supports_texture_compression_bc_ =
-      physical_device_features.textureCompressionBC != VK_FALSE;
   // TODO(Triang3l): Check if VK_EXT_fragment_shader_interlock and
   // fragmentShaderSampleInterlock are supported.
 
   // Log physical device properties.
-  VkPhysicalDeviceProperties physical_device_properties;
-  vkGetPhysicalDeviceProperties(physical_device_, &physical_device_properties);
   XELOGVK("Vulkan physical device: %s (vendor %.4X, device %.4X)",
           physical_device_properties.deviceName,
           physical_device_properties.vendorID,
           physical_device_properties.deviceID);
-  XELOGVK("* Sparse buffer residency: %s",
-          supports_sparse_residency_buffer_ ? "yes" : "no");
-  XELOGVK("* BC texture compression: %s",
-          supports_texture_compression_bc_ ? "yes" : "no");
+
+  // Create a logical device and a queue.
+  float queue_priority = 1.0f;
+  VkDeviceQueueCreateInfo queue_create_info;
+  queue_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+  queue_create_info.pNext = nullptr;
+  queue_create_info.flags = 0;
+  queue_create_info.queueFamilyIndex = queue_family;
+  queue_create_info.queueCount = 1;
+  queue_create_info.pQueuePriorities = &queue_priority;
+  const char* const device_extensions[] = {
+      "VK_KHR_swapchain",
+  };
+  // TODO(Triang3l): Add VK_EXT_fragment_shader_interlock if supported.
+  VkDeviceCreateInfo device_create_info;
+  device_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+  device_create_info.pNext = nullptr;
+  device_create_info.flags = 0;
+  device_create_info.queueCreateInfoCount = 1;
+  device_create_info.pQueueCreateInfos = &queue_create_info;
+  device_create_info.enabledLayerCount = 0;
+  device_create_info.ppEnabledLayerNames = nullptr;
+  device_create_info.enabledExtensionCount =
+      uint32_t(xe::countof(device_extensions));
+  device_create_info.ppEnabledExtensionNames = device_extensions;
+  device_create_info.pEnabledFeatures = nullptr;
+  if (vkCreateDevice(physical_device_, &device_create_info, nullptr,
+                     &device_) != VK_SUCCESS) {
+    XELOGE("Failed to create a Vulkan device.");
+    return false;
+  }
+  vkGetDeviceQueue(device_, queue_family, 0, &graphics_queue_);
 
   return true;
 }

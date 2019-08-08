@@ -41,8 +41,7 @@ class VulkanProvider : public GraphicsProvider {
 
   VkInstance instance_ = VK_NULL_HANDLE;
   VkPhysicalDevice physical_device_ = VK_NULL_HANDLE;
-  bool supports_sparse_residency_buffer_ = false;
-  bool supports_texture_compression_bc_ = false;
+  VkPhysicalDeviceFeatures physical_device_features_;
   VkDevice device_ = VK_NULL_HANDLE;
   VkQueue graphics_queue_ = VK_NULL_HANDLE;
 };
