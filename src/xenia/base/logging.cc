@@ -72,11 +72,6 @@ FileTransport::~FileTransport() {
 void FileTransport::LogLine(uint32_t thread_id, LogLevel level,
                             const char prefix_char, const char* buffer,
                             size_t buffer_size) {
-  if (static_cast<int32_t>(level) > static_cast<int32_t>(log_level())) {
-    // Discard this line.
-    return;
-  }
-
   Logger::LogLine line;
   line.buffer_length = buffer_size;
   line.thread_id = thread_id;
@@ -208,6 +203,20 @@ void FileTransport::WriteBuffer(const char* buf, size_t buffer_size) {
   if (cvars::log_to_debugprint) {
     debugging::DebugPrint("%.*s", buffer_size, buf);
   }
+}
+
+void Logger::AppendLine(uint32_t thread_id, LogLevel level,
+                        const char prefix_char, const char* buffer,
+                        size_t buffer_length) {
+  for (const auto& transport : transports_) {
+    if (static_cast<int>(level) >= static_cast<int>(transport->log_level())) {
+      transport->LogLine(thread_id, level, prefix_char, buffer, buffer_length);
+    }
+  }
+}
+
+void Logger::AddLogTransport(std::unique_ptr<LogTransport> transport) {
+  transports_.emplace_back(std::move(transport));
 }
 
 void InitializeLogging(const std::wstring& app_name) {

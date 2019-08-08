@@ -56,7 +56,7 @@ class LogTransport {
 
 class FileTransport : public LogTransport {
  public:
-  explicit FileTransport(LogLevel log_level, const std::wstring& file_path);
+  FileTransport(LogLevel log_level, const std::wstring& file_path);
   ~FileTransport();
 
   virtual void LogLine(uint32_t thread_id, LogLevel level,
@@ -92,15 +92,9 @@ class Logger {
   explicit Logger(const std::wstring& app_name) : app_name_(app_name) {}
 
   void AppendLine(uint32_t thread_id, LogLevel level, const char prefix_char,
-                  const char* buffer, size_t buffer_length) {
-    for (const auto& transport : transports_) {
-      transport->LogLine(thread_id, level, prefix_char, buffer, buffer_length);
-    }
-  }
+                  const char* buffer, size_t buffer_length);
 
-  void AddLogTransport(std::unique_ptr<LogTransport> transport) {
-    transports_.emplace_back(std::move(transport));
-  }
+  void AddLogTransport(std::unique_ptr<LogTransport> transport);
 
   const std::wstring& app_name() const { return app_name_; }
 
