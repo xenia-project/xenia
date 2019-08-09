@@ -16,13 +16,8 @@
 #include "xenia/base/platform.h"
 #include "xenia/ui/graphics_provider.h"
 
-#ifndef VK_NO_PROTOTYPES
-#define VK_NO_PROTOTYPES
-#endif
-#include "third_party/vulkan/vulkan.h"
-#if XE_PLATFORM_WIN32
-#include "third_party/vulkan/vulkan_win32.h"
-#include "xenia/base/platform_win.h"
+#if XE_PLATFORM_WIN32 && !defined(VK_USE_PLATFORM_WIN32_KHR)
+#define VK_USE_PLATFORM_WIN32_KHR 1
 #endif
 #include "third_party/volk/volk.h"
 
@@ -44,6 +39,8 @@ class VulkanProvider : public GraphicsProvider {
       Window* target_window) override;
   std::unique_ptr<GraphicsContext> CreateOffscreenContext() override;
 
+  VkInstance GetInstance() const { return instance_; }
+  VkPhysicalDevice GetPhysicalDevice() const { return physical_device_; }
   const VkPhysicalDeviceFeatures& GetPhysicalDeviceFeatures() const {
     return physical_device_features_;
   }

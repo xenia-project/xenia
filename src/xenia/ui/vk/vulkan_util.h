@@ -27,11 +27,10 @@ inline bool DestroyAndNullHandle(F* destroy_function, T& handle) {
   return false;
 }
 
-template <typename F, typename T>
-inline bool DestroyAndNullHandle(F* destroy_function, VkDevice device,
-                                 T& handle) {
+template <typename F, typename P, typename T>
+inline bool DestroyAndNullHandle(F* destroy_function, P parent, T& handle) {
   if (handle != VK_NULL_HANDLE) {
-    destroy_function(device, handle, nullptr);
+    destroy_function(parent, handle, nullptr);
     handle = VK_NULL_HANDLE;
     return true;
   }
