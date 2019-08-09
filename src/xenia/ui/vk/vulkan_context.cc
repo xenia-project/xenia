@@ -10,8 +10,10 @@
 #include "xenia/ui/vk/vulkan_context.h"
 
 #include "xenia/base/logging.h"
+#include "xenia/base/platform.h"
 #include "xenia/ui/vk/vulkan_immediate_drawer.h"
 #include "xenia/ui/vk/vulkan_util.h"
+#include "xenia/ui/window.h"
 
 namespace xe {
 namespace ui {
@@ -23,7 +25,9 @@ VulkanContext::VulkanContext(VulkanProvider* provider, Window* target_window)
 VulkanContext::~VulkanContext() { Shutdown(); }
 
 bool VulkanContext::Initialize() {
-  auto device = GetVulkanProvider()->GetDevice();
+  auto provider = GetVulkanProvider();
+  auto instance = provider->GetInstance();
+  auto device = provider->GetDevice();
 
   context_lost_ = false;
 
@@ -49,6 +53,43 @@ bool VulkanContext::Initialize() {
   }
 
   if (target_window_) {
+    // Create the surface.
+    VkResult surface_create_result;
+#if XE_PLATFORM_WIN32
+    VkWin32SurfaceCreateInfoKHR surface_create_info;
+    surface_create_info.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
+    surface_create_info.pNext = nullptr;
+    surface_create_info.flags = 0;
+    surface_create_info.hinstance =
+        static_cast<HINSTANCE>(target_window_->native_platform_handle());
+    surface_create_info.hwnd =
+        static_cast<HWND>(target_window_->native_handle());
+    surface_create_result = vkCreateWin32SurfaceKHR(
+        instance, &surface_create_info, nullptr, &surface_);
+#else
+#error No Vulkan surface creation for the platform implemented yet.
+#endif
+    if (surface_create_result != VK_SUCCESS) {
+      XELOGE("Failed to create a Vulkan surface");
+      Shutdown();
+      return false;
+    }
+
+    // Check if the graphics queue can present to the surface.
+    // FIXME(Triang3l): Separate present queue not supported - would require
+    // deferring VkDevice creation because vkCreateDevice needs all used queues.
+    VkBool32 surface_supported = VK_FALSE;
+    vkGetPhysicalDeviceSurfaceSupportKHR(provider->GetPhysicalDevice(),
+                                         provider->GetGraphicsQueueFamily(),
+                                         surface_, &surface_supported);
+    if (!surface_supported) {
+      XELOGE(
+          "Surface not supported by the graphics queue of the Vulkan physical "
+          "device");
+      Shutdown();
+      return false;
+    }
+
     // Initialize the immediate mode drawer if not offscreen.
     immediate_drawer_ = std::make_unique<VulkanImmediateDrawer>(this);
     if (!immediate_drawer_->Initialize()) {
@@ -61,7 +102,9 @@ bool VulkanContext::Initialize() {
 }
 
 void VulkanContext::Shutdown() {
-  auto device = GetVulkanProvider()->GetDevice();
+  auto provider = GetVulkanProvider();
+  auto instance = provider->GetInstance();
+  auto device = provider->GetDevice();
 
   if (initialized_fully_ && !context_lost_) {
     AwaitAllFramesCompletion();
@@ -70,6 +113,8 @@ void VulkanContext::Shutdown() {
   initialized_fully_ = false;
 
   immediate_drawer_.reset();
+
+  util::DestroyAndNullHandle(vkDestroySurfaceKHR, instance, surface_);
 
   for (uint32_t i = 0; i < kQueuedFrames; ++i) {
     util::DestroyAndNullHandle(vkDestroyFence, device, fences_[i]);

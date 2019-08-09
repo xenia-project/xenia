@@ -71,6 +71,8 @@ class VulkanContext : public GraphicsContext {
   uint32_t current_queue_frame_ = 1;
   VkFence fences_[kQueuedFrames] = {};
 
+  VkSurfaceKHR surface_ = VK_NULL_HANDLE;
+
   std::unique_ptr<VulkanImmediateDrawer> immediate_drawer_ = nullptr;
 };
 
