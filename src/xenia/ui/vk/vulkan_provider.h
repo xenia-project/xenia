@@ -10,13 +10,23 @@
 #ifndef XENIA_UI_VK_VULKAN_PROVIDER_H_
 #define XENIA_UI_VK_VULKAN_PROVIDER_H_
 
+#include <cstdint>
 #include <memory>
 
+#include "xenia/base/platform.h"
+#include "xenia/ui/graphics_provider.h"
+
+#ifndef VK_NO_PROTOTYPES
+#define VK_NO_PROTOTYPES
+#endif
+#include "third_party/vulkan/vulkan.h"
+#if XE_PLATFORM_WIN32
+#include "third_party/vulkan/vulkan_win32.h"
+#include "xenia/base/platform_win.h"
+#endif
 #include "third_party/volk/volk.h"
 
 #define XELOGVK XELOGI
-
-#include "xenia/ui/graphics_provider.h"
 
 namespace xe {
 namespace ui {
@@ -38,6 +48,7 @@ class VulkanProvider : public GraphicsProvider {
     return physical_device_features_;
   }
   VkDevice GetDevice() const { return device_; }
+  uint32_t GetGraphicsQueueFamily() const { return graphics_queue_family_; }
   VkQueue GetGraphicsQueue() const { return graphics_queue_; }
 
  private:
@@ -49,6 +60,7 @@ class VulkanProvider : public GraphicsProvider {
   VkPhysicalDevice physical_device_ = VK_NULL_HANDLE;
   VkPhysicalDeviceFeatures physical_device_features_;
   VkDevice device_ = VK_NULL_HANDLE;
+  uint32_t graphics_queue_family_ = UINT32_MAX;
   VkQueue graphics_queue_ = VK_NULL_HANDLE;
 };
 

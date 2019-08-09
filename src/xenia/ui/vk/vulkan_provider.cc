@@ -134,7 +134,6 @@ bool VulkanProvider::Initialize() {
   VkPhysicalDeviceProperties physical_device_properties;
   std::vector<VkExtensionProperties> physical_device_extensions;
   std::vector<VkQueueFamilyProperties> queue_families;
-  uint32_t queue_family = UINT32_MAX;
   bool sparse_residency_buffer = false;
   for (; physical_device_index < physical_device_index_end;
        ++physical_device_index) {
@@ -172,9 +171,9 @@ bool VulkanProvider::Initialize() {
     }
     sparse_residency_buffer = physical_device_features_.sparseBinding &&
                               physical_device_features_.sparseResidencyBuffer;
-    // Get a queue supporting graphics, compute and transfer, and if available,
-    // also sparse memory management.
-    queue_family = UINT32_MAX;
+    // Get a queue supporting graphics and compute, and if available, also
+    // sparse memory management.
+    graphics_queue_family_ = UINT32_MAX;
     uint32_t queue_family_count;
     vkGetPhysicalDeviceQueueFamilyProperties(physical_device,
                                              &queue_family_count, nullptr);
@@ -182,7 +181,7 @@ bool VulkanProvider::Initialize() {
     vkGetPhysicalDeviceQueueFamilyProperties(
         physical_device, &queue_family_count, queue_families.data());
     const uint32_t queue_flags_required =
-        VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT | VK_QUEUE_TRANSFER_BIT;
+        VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT;
     for (uint32_t i = 0; i < queue_family_count; ++i) {
       const VkQueueFamilyProperties& queue_family_properties =
           queue_families[i];
@@ -196,7 +195,7 @@ bool VulkanProvider::Initialize() {
           queue_flags_required) {
         continue;
       }
-      queue_family = i;
+      graphics_queue_family_ = i;
       if (!sparse_residency_buffer ||
           (queue_family_properties.queueFlags & VK_QUEUE_SPARSE_BINDING_BIT)) {
         // Found a fully compatible queue family, stop searching for a family
@@ -204,10 +203,10 @@ bool VulkanProvider::Initialize() {
         break;
       }
     }
-    if (queue_family == UINT32_MAX) {
+    if (graphics_queue_family_ == UINT32_MAX) {
       continue;
     }
-    if (!(queue_families[queue_family].queueFlags &
+    if (!(queue_families[graphics_queue_family_].queueFlags &
           VK_QUEUE_SPARSE_BINDING_BIT)) {
       sparse_residency_buffer = false;
     }
@@ -233,7 +232,7 @@ bool VulkanProvider::Initialize() {
   queue_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
   queue_create_info.pNext = nullptr;
   queue_create_info.flags = 0;
-  queue_create_info.queueFamilyIndex = queue_family;
+  queue_create_info.queueFamilyIndex = graphics_queue_family_;
   queue_create_info.queueCount = 1;
   queue_create_info.pQueuePriorities = &queue_priority;
   const char* const device_extensions[] = {
@@ -258,7 +257,7 @@ bool VulkanProvider::Initialize() {
     return false;
   }
   volkLoadDevice(device_);
-  vkGetDeviceQueue(device_, queue_family, 0, &graphics_queue_);
+  vkGetDeviceQueue(device_, graphics_queue_family_, 0, &graphics_queue_);
 
   return true;
 }
