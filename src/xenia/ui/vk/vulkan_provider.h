@@ -16,8 +16,15 @@
 #include "xenia/base/platform.h"
 #include "xenia/ui/graphics_provider.h"
 
-#if XE_PLATFORM_WIN32 && !defined(VK_USE_PLATFORM_WIN32_KHR)
+#if XE_PLATFORM_WIN32
+#ifndef VK_USE_PLATFORM_WIN32_KHR
 #define VK_USE_PLATFORM_WIN32_KHR 1
+#endif
+#elif XE_PLATFORM_LINUX
+#include "xenia/ui/window_gtk.h"
+#if defined(GDK_WINDOWING_X11) && !defined(VK_USE_PLATFORM_XCB_KHR)
+#define VK_USE_PLATFORM_XCB_KHR 1
+#endif
 #endif
 #include "third_party/volk/volk.h"
 
