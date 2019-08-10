@@ -108,20 +108,19 @@ bool VulkanProvider::Initialize() {
 
   // Get a supported physical device.
   physical_device_ = nullptr;
-  std::vector<VkPhysicalDevice> physical_devices;
   uint32_t physical_device_count;
   if (vkEnumeratePhysicalDevices(instance_, &physical_device_count, nullptr) !=
       VK_SUCCESS) {
     XELOGE("Failed to get Vulkan physical device count");
     return false;
   }
+  std::vector<VkPhysicalDevice> physical_devices;
   physical_devices.resize(physical_device_count);
   if (vkEnumeratePhysicalDevices(instance_, &physical_device_count,
                                  physical_devices.data()) != VK_SUCCESS) {
     XELOGE("Failed to get Vulkan physical devices");
     return false;
   }
-  physical_devices.resize(physical_device_count);
   uint32_t physical_device_index, physical_device_index_end;
   if (cvars::vk_device >= 0) {
     physical_device_index = uint32_t(cvars::vk_device);

@@ -72,6 +72,12 @@ class VulkanContext : public GraphicsContext {
   VkFence fences_[kQueuedFrames] = {};
 
   VkSurfaceKHR surface_ = VK_NULL_HANDLE;
+  uint32_t surface_min_image_count_ = 3;
+  VkSurfaceFormatKHR surface_format_ = {VK_FORMAT_R8G8B8A8_UNORM,
+                                        VK_COLOR_SPACE_SRGB_NONLINEAR_KHR};
+  VkPresentModeKHR surface_present_mode_ = VK_PRESENT_MODE_FIFO_KHR;
+  VkCompositeAlphaFlagBitsKHR surface_composite_alpha_ =
+      VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
 
   std::unique_ptr<VulkanImmediateDrawer> immediate_drawer_ = nullptr;
 };

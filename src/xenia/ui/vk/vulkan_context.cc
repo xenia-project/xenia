@@ -9,7 +9,10 @@
 
 #include "xenia/ui/vk/vulkan_context.h"
 
+#include <vector>
+
 #include "xenia/base/logging.h"
+#include "xenia/base/math.h"
 #include "xenia/base/platform.h"
 #include "xenia/ui/vk/vulkan_immediate_drawer.h"
 #include "xenia/ui/vk/vulkan_util.h"
@@ -27,6 +30,7 @@ VulkanContext::~VulkanContext() { Shutdown(); }
 bool VulkanContext::Initialize() {
   auto provider = GetVulkanProvider();
   auto instance = provider->GetInstance();
+  auto physical_device = provider->GetPhysicalDevice();
   auto device = provider->GetDevice();
 
   context_lost_ = false;
@@ -94,7 +98,7 @@ bool VulkanContext::Initialize() {
     // FIXME(Triang3l): Separate present queue not supported - would require
     // deferring VkDevice creation because vkCreateDevice needs all used queues.
     VkBool32 surface_supported = VK_FALSE;
-    vkGetPhysicalDeviceSurfaceSupportKHR(provider->GetPhysicalDevice(),
+    vkGetPhysicalDeviceSurfaceSupportKHR(physical_device,
                                          provider->GetGraphicsQueueFamily(),
                                          surface_, &surface_supported);
     if (!surface_supported) {
@@ -103,6 +107,89 @@ bool VulkanContext::Initialize() {
           "device");
       Shutdown();
       return false;
+    }
+
+    // Choose the number of swapchain images and the alpha compositing mode.
+    VkSurfaceCapabilitiesKHR surface_capabilities;
+    if (vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
+            physical_device, surface_, &surface_capabilities) != VK_SUCCESS) {
+      XELOGE("Failed to get Vulkan surface capabilities");
+      Shutdown();
+      return false;
+    }
+    surface_min_image_count_ =
+        std::max(uint32_t(3), surface_capabilities.minImageCount);
+    if (surface_capabilities.maxImageCount) {
+      surface_min_image_count_ = std::min(surface_min_image_count_,
+                                          surface_capabilities.maxImageCount);
+    }
+    if (surface_capabilities.supportedCompositeAlpha &
+        VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR) {
+      surface_composite_alpha_ = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+    } else if (surface_capabilities.supportedCompositeAlpha &
+               VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR) {
+      surface_composite_alpha_ = VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR;
+    } else {
+      surface_composite_alpha_ = VkCompositeAlphaFlagBitsKHR(
+          uint32_t(1) << xe::tzcnt(
+              surface_capabilities.supportedCompositeAlpha));
+    }
+
+    // Get the preferred surface format.
+    uint32_t surface_format_count;
+    if (vkGetPhysicalDeviceSurfaceFormatsKHR(physical_device, surface_,
+                                             &surface_format_count,
+                                             nullptr) != VK_SUCCESS) {
+      XELOGE("Failed to get Vulkan surface format count");
+      Shutdown();
+      return false;
+    }
+    std::vector<VkSurfaceFormatKHR> surface_formats;
+    surface_formats.resize(surface_format_count);
+    if (vkGetPhysicalDeviceSurfaceFormatsKHR(
+            physical_device, surface_, &surface_format_count,
+            surface_formats.data()) != VK_SUCCESS ||
+        !surface_format_count) {
+      XELOGE("Failed to get Vulkan surface formats");
+      Shutdown();
+      return false;
+    }
+    // Prefer RGB8.
+    for (uint32_t i = 0; i < surface_format_count; ++i) {
+      surface_format_ = surface_formats[i];
+      if (surface_format_.format == VK_FORMAT_UNDEFINED) {
+        surface_format_.format = VK_FORMAT_R8G8B8A8_UNORM;
+        break;
+      }
+      if (surface_format_.format == VK_FORMAT_R8G8B8A8_UNORM ||
+          surface_format_.format == VK_FORMAT_B8G8R8A8_UNORM) {
+        break;
+      }
+    }
+
+    // Prefer non-vsyncing presentation modes (better without tearing), or fall
+    // back to FIFO.
+    surface_present_mode_ = VK_PRESENT_MODE_FIFO_KHR;
+    uint32_t present_mode_count;
+    if (vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device, surface_,
+                                                  &present_mode_count,
+                                                  nullptr) == VK_SUCCESS) {
+      std::vector<VkPresentModeKHR> present_modes;
+      present_modes.resize(present_mode_count);
+      if (vkGetPhysicalDeviceSurfacePresentModesKHR(
+              physical_device, surface_, &present_mode_count,
+              present_modes.data()) == VK_SUCCESS) {
+        for (uint32_t i = 0; i < present_mode_count; ++i) {
+          VkPresentModeKHR present_mode = present_modes[i];
+          if (present_mode == VK_PRESENT_MODE_MAILBOX_KHR ||
+              present_mode == VK_PRESENT_MODE_IMMEDIATE_KHR) {
+            surface_present_mode_ = present_mode;
+            if (present_mode == VK_PRESENT_MODE_MAILBOX_KHR) {
+              break;
+            }
+          }
+        }
+      }
     }
 
     // Initialize the immediate mode drawer if not offscreen.
