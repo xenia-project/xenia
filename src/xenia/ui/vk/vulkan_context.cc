@@ -66,6 +66,21 @@ bool VulkanContext::Initialize() {
         static_cast<HWND>(target_window_->native_handle());
     surface_create_result = vkCreateWin32SurfaceKHR(
         instance, &surface_create_info, nullptr, &surface_);
+#elif XE_PLATFORM_LINUX
+#ifdef GDK_WINDOWING_X11
+    VkXcbSurfaceCreateInfoKHR surface_create_info;
+    surface_create_info.sType = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR;
+    surface_create_info.pNext = nullptr;
+    surface_create_info.flags = 0;
+    surface_create_info.connection = static_cast<xcb_connection_t*>(
+        target_window_->native_platform_handle());
+    surface_create_info.window = gdk_x11_window_get_xid(gtk_widget_get_window(
+        static_cast<GtkWidget*>(target_window_->native_handle())));
+    surface_create_result = vkCreateXcbSurfaceKHR(
+        instance, &surface_create_info, nullptr, &surface_);
+#else
+#error No Vulkan surface creation for the GDK backend implemented yet.
+#endif
 #else
 #error No Vulkan surface creation for the platform implemented yet.
 #endif
