@@ -11,6 +11,7 @@
 #define XENIA_UI_VK_VULKAN_CONTEXT_H_
 
 #include <memory>
+#include <vector>
 
 #include "xenia/ui/graphics_context.h"
 #include "xenia/ui/vk/vulkan_immediate_drawer.h"
@@ -62,6 +63,8 @@ class VulkanContext : public GraphicsContext {
   bool Initialize();
   void Shutdown();
 
+  void DestroySwapchainImages();
+
   bool initialized_fully_ = false;
 
   bool context_lost_ = false;
@@ -88,6 +91,12 @@ class VulkanContext : public GraphicsContext {
 
   VkSwapchainKHR swapchain_ = VK_NULL_HANDLE;
   VkExtent2D swapchain_extent_ = {};
+  struct SwapchainImage {
+    VkImage image;
+    VkImageView image_view;
+    VkFramebuffer framebuffer;
+  };
+  std::vector<SwapchainImage> swapchain_images_;
   uint32_t swapchain_acquired_image_index_ = 0;
 };
 
