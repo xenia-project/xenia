@@ -215,6 +215,8 @@ bool VulkanContext::Initialize() {
       return false;
     }
 
+    // TODO(Triang3l): Presentation render pass.
+
     // Initialize the immediate mode drawer if not offscreen.
     immediate_drawer_ = std::make_unique<VulkanImmediateDrawer>(this);
     if (!immediate_drawer_->Initialize()) {
@@ -240,6 +242,7 @@ void VulkanContext::Shutdown() {
   initialized_fully_ = false;
 
   if (target_window_) {
+    DestroySwapchainImages();
     util::DestroyAndNullHandle(vkDestroySwapchainKHR, device, swapchain_);
 
     immediate_drawer_.reset();
@@ -255,6 +258,16 @@ void VulkanContext::Shutdown() {
   for (uint32_t i = 0; i < kQueuedFrames; ++i) {
     util::DestroyAndNullHandle(vkDestroyFence, device, fences_[i]);
   }
+}
+
+void VulkanContext::DestroySwapchainImages() {
+  auto device = GetVulkanProvider()->GetDevice();
+  for (auto& image : swapchain_images_) {
+    // TODO(Triang3l): Destroy the framebuffer.
+    // vkDestroyFramebuffer(device, image.framebuffer, nullptr);
+    vkDestroyImageView(device, image.image_view, nullptr);
+  }
+  swapchain_images_.clear();
 }
 
 ImmediateDrawer* VulkanContext::immediate_drawer() {
@@ -281,6 +294,7 @@ void VulkanContext::BeginSwap() {
   // submissions).
   if (vkWaitForFences(device, 1, &fences_[current_queue_frame_], VK_TRUE,
                       UINT64_MAX) != VK_SUCCESS) {
+    XELOGE("Failed to wait for the Vulkan fence the next frame");
     context_lost_ = true;
     return;
   }
@@ -321,6 +335,7 @@ void VulkanContext::BeginSwap() {
         // either the swapchain needs to be recreated in the next frame, or the
         // semaphore must be awaited right now (since suboptimal is a successful
         // result). Assume all other errors are fatal.
+        XELOGE("Failed to acquire a Vulkan swapchain image");
         context_lost_ = true;
         return;
       }
@@ -332,7 +347,7 @@ void VulkanContext::BeginSwap() {
           return;
         }
       }
-      // TODO(Triang3l): Destroy the old pass, framebuffer and image views.
+      DestroySwapchainImages();
       // Destroying the old swapchain after creating the new one because
       // swapchain creation needs the old one.
       VkSwapchainKHR swapchain;
@@ -357,6 +372,8 @@ void VulkanContext::BeginSwap() {
       swapchain_create_info.oldSwapchain = swapchain_;
       if (vkCreateSwapchainKHR(device, &swapchain_create_info, nullptr,
                                &swapchain) != VK_SUCCESS) {
+        XELOGE("Failed to create a %ux%u Vulkan swap chain",
+               target_window_extent.width, target_window_extent.height);
         context_lost_ = true;
         return;
       }
@@ -366,16 +383,62 @@ void VulkanContext::BeginSwap() {
       swapchain_ = swapchain;
       swapchain_extent_ = target_window_extent;
       surface_transform_ = current_transform;
-      // TODO(Triang3l): Get images, create the framebuffer and the passes.
+      uint32_t swapchain_image_count;
+      if (vkGetSwapchainImagesKHR(device, swapchain_, &swapchain_image_count,
+                                  nullptr) != VK_SUCCESS) {
+        XELOGE("Failed to get Vulkan swapchain image count");
+        context_lost_ = true;
+        return;
+      }
+      std::vector<VkImage> swapchain_images;
+      swapchain_images.resize(swapchain_image_count);
+      if (vkGetSwapchainImagesKHR(device, swapchain_, &swapchain_image_count,
+                                  swapchain_images.data()) != VK_SUCCESS) {
+        XELOGE("Failed to get Vulkan swapchain images");
+        context_lost_ = true;
+        return;
+      }
+      swapchain_images_.reserve(swapchain_image_count);
+      for (uint32_t i = 0; i < swapchain_image_count; ++i) {
+        SwapchainImage swapchain_image;
+        swapchain_image.image = swapchain_images[i];
+        VkImageViewCreateInfo image_view_create_info;
+        image_view_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        image_view_create_info.pNext = nullptr;
+        image_view_create_info.flags = 0;
+        image_view_create_info.image = swapchain_image.image;
+        image_view_create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        image_view_create_info.format = surface_format_.format;
+        image_view_create_info.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+        image_view_create_info.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+        image_view_create_info.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+        image_view_create_info.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+        image_view_create_info.subresourceRange.aspectMask =
+            VK_IMAGE_ASPECT_COLOR_BIT;
+        image_view_create_info.subresourceRange.baseMipLevel = 0;
+        image_view_create_info.subresourceRange.levelCount = 1;
+        image_view_create_info.subresourceRange.baseArrayLayer = 0;
+        image_view_create_info.subresourceRange.layerCount = 1;
+        if (vkCreateImageView(device, &image_view_create_info, nullptr,
+                              &swapchain_image.image_view) != VK_SUCCESS) {
+          XELOGE("Failed to create a Vulkan swapchain image view");
+          context_lost_ = true;
+          return;
+        }
+        // TODO(Triang3l): Create the VkFramebuffer.
+        // Add now so it's complete if DestroySwapchainImages is called.
+        swapchain_images_.push_back(swapchain_image);
+      }
       VkResult acquire_result = vkAcquireNextImageKHR(
           device, swapchain_, UINT64_MAX, semaphore_present_complete_,
           VK_NULL_HANDLE, &swapchain_acquired_image_index_);
       if (acquire_result != VK_SUCCESS && acquire_result != VK_SUBOPTIMAL_KHR) {
+        XELOGE("Failed to acquire a Vulkan swapchain image");
         context_lost_ = true;
         return;
       }
     }
-    // TODO(Triang3l): Insert a barrier and clear.
+    // TODO(Triang3l): Begin the pass.
   }
 }
 
@@ -388,8 +451,8 @@ void VulkanContext::EndSwap() {
   auto queue = provider->GetGraphicsQueue();
 
   if (target_window_ != nullptr) {
+    // TODO(Triang3l): End the pass.
     // Present.
-    // TODO(Triang3l): Insert a barrier.
     VkSubmitInfo submit_info;
     submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submit_info.pNext = nullptr;
@@ -401,6 +464,7 @@ void VulkanContext::EndSwap() {
     submit_info.signalSemaphoreCount = 1;
     submit_info.pSignalSemaphores = &semaphore_draw_complete_;
     if (vkQueueSubmit(queue, 1, &submit_info, VK_NULL_HANDLE) != VK_SUCCESS) {
+      XELOGE("Failed to submit the presentation command buffer");
       context_lost_ = true;
       return;
     }
@@ -419,6 +483,7 @@ void VulkanContext::EndSwap() {
       // VK_ERROR_OUT_OF_DATE_KHR will be handled in the next BeginSwap. In case
       // of it, the semaphore will be unsignaled anyway:
       // https://github.com/KhronosGroup/Vulkan-Docs/issues/572
+      XELOGE("Failed to present the image");
       context_lost_ = true;
       return;
     }
@@ -429,6 +494,7 @@ void VulkanContext::EndSwap() {
   vkResetFences(provider->GetDevice(), 1, &fence);
   if (vkQueueSubmit(queue, 0, nullptr, fences_[current_queue_frame_]) !=
       VK_SUCCESS) {
+    XELOGE("Failed to signal a Vulkan frame fence");
     context_lost_ = true;
     return;
   }
@@ -456,6 +522,7 @@ void VulkanContext::AwaitAllFramesCompletion() {
   }
   if (vkWaitForFences(device, 1, &fences_[await_frame], VK_TRUE, UINT64_MAX) !=
       VK_SUCCESS) {
+    XELOGE("Failed to wait for the Vulkan fence the last frame");
     context_lost_ = true;
     return;
   }
