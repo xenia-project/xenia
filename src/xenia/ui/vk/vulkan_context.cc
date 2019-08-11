@@ -9,14 +9,19 @@
 
 #include "xenia/ui/vk/vulkan_context.h"
 
+#include <cstdlib>
 #include <vector>
 
+#include "xenia/base/cvar.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/platform.h"
 #include "xenia/ui/vk/vulkan_immediate_drawer.h"
 #include "xenia/ui/vk/vulkan_util.h"
 #include "xenia/ui/window.h"
+
+DEFINE_bool(vk_random_clear_color, false,
+            "Randomize presentation framebuffer clear color.", "Vulkan");
 
 namespace xe {
 namespace ui {
@@ -32,6 +37,7 @@ bool VulkanContext::Initialize() {
   auto instance = provider->GetInstance();
   auto physical_device = provider->GetPhysicalDevice();
   auto device = provider->GetDevice();
+  auto graphics_queue_family = provider->GetGraphicsQueueFamily();
 
   context_lost_ = false;
 
@@ -98,8 +104,7 @@ bool VulkanContext::Initialize() {
     // FIXME(Triang3l): Separate present queue not supported - would require
     // deferring VkDevice creation because vkCreateDevice needs all used queues.
     VkBool32 surface_supported = VK_FALSE;
-    vkGetPhysicalDeviceSurfaceSupportKHR(physical_device,
-                                         provider->GetGraphicsQueueFamily(),
+    vkGetPhysicalDeviceSurfaceSupportKHR(physical_device, graphics_queue_family,
                                          surface_, &surface_supported);
     if (!surface_supported) {
       XELOGE(
@@ -156,14 +161,17 @@ bool VulkanContext::Initialize() {
       return false;
     }
     // Prefer RGB8.
+    surface_format_ = surface_formats[0];
     for (uint32_t i = 0; i < surface_format_count; ++i) {
-      surface_format_ = surface_formats[i];
-      if (surface_format_.format == VK_FORMAT_UNDEFINED) {
+      const VkSurfaceFormatKHR& surface_format = surface_formats[i];
+      if (surface_format.format == VK_FORMAT_UNDEFINED) {
         surface_format_.format = VK_FORMAT_R8G8B8A8_UNORM;
+        surface_format_.colorSpace = surface_format.colorSpace;
         break;
       }
-      if (surface_format_.format == VK_FORMAT_R8G8B8A8_UNORM ||
-          surface_format_.format == VK_FORMAT_B8G8R8A8_UNORM) {
+      if (surface_format.format == VK_FORMAT_R8G8B8A8_UNORM ||
+          surface_format.format == VK_FORMAT_B8G8R8A8_UNORM) {
+        surface_format_ = surface_format;
         break;
       }
     }
@@ -215,7 +223,93 @@ bool VulkanContext::Initialize() {
       return false;
     }
 
-    // TODO(Triang3l): Presentation render pass.
+    // Create the render pass for drawing to the presentation image.
+    VkAttachmentDescription render_pass_attachment;
+    render_pass_attachment.flags = 0;
+    render_pass_attachment.format = surface_format_.format;
+    render_pass_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    render_pass_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    render_pass_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    render_pass_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    render_pass_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    render_pass_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    render_pass_attachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    VkAttachmentReference render_pass_attachment_reference;
+    render_pass_attachment_reference.attachment = 0;
+    render_pass_attachment_reference.layout =
+        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    VkSubpassDescription render_pass_subpass = {};
+    render_pass_subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    render_pass_subpass.colorAttachmentCount = 1;
+    render_pass_subpass.pColorAttachments = &render_pass_attachment_reference;
+    VkSubpassDependency render_pass_dependencies[2];
+    render_pass_dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
+    render_pass_dependencies[0].dstSubpass = 0;
+    render_pass_dependencies[0].srcStageMask =
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    render_pass_dependencies[0].dstStageMask =
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    render_pass_dependencies[0].srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+    render_pass_dependencies[0].dstAccessMask =
+        VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    render_pass_dependencies[0].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+    render_pass_dependencies[1].srcSubpass = 0;
+    render_pass_dependencies[1].dstSubpass = VK_SUBPASS_EXTERNAL;
+    render_pass_dependencies[1].srcStageMask =
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    render_pass_dependencies[1].dstStageMask =
+        VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+    render_pass_dependencies[1].srcAccessMask =
+        VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    render_pass_dependencies[1].dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+    render_pass_dependencies[1].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+    VkRenderPassCreateInfo render_pass_create_info;
+    render_pass_create_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+    render_pass_create_info.pNext = nullptr;
+    render_pass_create_info.flags = 0;
+    render_pass_create_info.attachmentCount = 1;
+    render_pass_create_info.pAttachments = &render_pass_attachment;
+    render_pass_create_info.subpassCount = 1;
+    render_pass_create_info.pSubpasses = &render_pass_subpass;
+    render_pass_create_info.dependencyCount =
+        uint32_t(xe::countof(render_pass_dependencies));
+    render_pass_create_info.pDependencies = render_pass_dependencies;
+    if (vkCreateRenderPass(device, &render_pass_create_info, nullptr,
+                           &present_render_pass_) != VK_SUCCESS) {
+      XELOGE("Failed to create the presentation Vulkan render pass");
+      Shutdown();
+      return false;
+    }
+
+    // Create the command buffers for drawing to the presentation image.
+    VkCommandPoolCreateInfo command_pool_create_info;
+    command_pool_create_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    command_pool_create_info.pNext = nullptr;
+    command_pool_create_info.flags =
+        VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+    command_pool_create_info.queueFamilyIndex = graphics_queue_family;
+    if (vkCreateCommandPool(device, &command_pool_create_info, nullptr,
+                            &present_command_pool_) != VK_SUCCESS) {
+      XELOGE("Failed to create the presentation Vulkan command pool");
+      Shutdown();
+      return false;
+    }
+    VkCommandBufferAllocateInfo command_buffer_allocate_info;
+    command_buffer_allocate_info.sType =
+        VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    command_buffer_allocate_info.pNext = nullptr;
+    command_buffer_allocate_info.commandPool = present_command_pool_;
+    command_buffer_allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    command_buffer_allocate_info.commandBufferCount =
+        uint32_t(xe::countof(present_command_buffers_));
+    if (vkAllocateCommandBuffers(device, &command_buffer_allocate_info,
+                                 present_command_buffers_) != VK_SUCCESS) {
+      XELOGE("Failed to create the presentation Vulkan command buffers");
+      Shutdown();
+      return false;
+    }
 
     // Initialize the immediate mode drawer if not offscreen.
     immediate_drawer_ = std::make_unique<VulkanImmediateDrawer>(this);
@@ -247,6 +341,11 @@ void VulkanContext::Shutdown() {
 
     immediate_drawer_.reset();
 
+    util::DestroyAndNullHandle(vkDestroyCommandPool, device,
+                               present_command_pool_);
+    util::DestroyAndNullHandle(vkDestroyRenderPass, device,
+                               present_render_pass_);
+
     util::DestroyAndNullHandle(vkDestroySemaphore, device,
                                semaphore_draw_complete_);
     util::DestroyAndNullHandle(vkDestroySemaphore, device,
@@ -263,8 +362,7 @@ void VulkanContext::Shutdown() {
 void VulkanContext::DestroySwapchainImages() {
   auto device = GetVulkanProvider()->GetDevice();
   for (auto& image : swapchain_images_) {
-    // TODO(Triang3l): Destroy the framebuffer.
-    // vkDestroyFramebuffer(device, image.framebuffer, nullptr);
+    vkDestroyFramebuffer(device, image.framebuffer, nullptr);
     vkDestroyImageView(device, image.image_view, nullptr);
   }
   swapchain_images_.clear();
@@ -399,33 +497,49 @@ void VulkanContext::BeginSwap() {
         return;
       }
       swapchain_images_.reserve(swapchain_image_count);
+      VkImageViewCreateInfo image_view_create_info;
+      image_view_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+      image_view_create_info.pNext = nullptr;
+      image_view_create_info.flags = 0;
+      image_view_create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+      image_view_create_info.format = surface_format_.format;
+      image_view_create_info.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+      image_view_create_info.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+      image_view_create_info.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+      image_view_create_info.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+      image_view_create_info.subresourceRange.aspectMask =
+          VK_IMAGE_ASPECT_COLOR_BIT;
+      image_view_create_info.subresourceRange.baseMipLevel = 0;
+      image_view_create_info.subresourceRange.levelCount = 1;
+      image_view_create_info.subresourceRange.baseArrayLayer = 0;
+      image_view_create_info.subresourceRange.layerCount = 1;
+      VkFramebufferCreateInfo framebuffer_create_info;
+      framebuffer_create_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+      framebuffer_create_info.pNext = nullptr;
+      framebuffer_create_info.flags = 0;
+      framebuffer_create_info.renderPass = present_render_pass_;
+      framebuffer_create_info.attachmentCount = 1;
+      framebuffer_create_info.width = swapchain_extent_.width;
+      framebuffer_create_info.height = swapchain_extent_.height;
+      framebuffer_create_info.layers = 1;
       for (uint32_t i = 0; i < swapchain_image_count; ++i) {
         SwapchainImage swapchain_image;
         swapchain_image.image = swapchain_images[i];
-        VkImageViewCreateInfo image_view_create_info;
-        image_view_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        image_view_create_info.pNext = nullptr;
-        image_view_create_info.flags = 0;
         image_view_create_info.image = swapchain_image.image;
-        image_view_create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-        image_view_create_info.format = surface_format_.format;
-        image_view_create_info.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-        image_view_create_info.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-        image_view_create_info.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-        image_view_create_info.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-        image_view_create_info.subresourceRange.aspectMask =
-            VK_IMAGE_ASPECT_COLOR_BIT;
-        image_view_create_info.subresourceRange.baseMipLevel = 0;
-        image_view_create_info.subresourceRange.levelCount = 1;
-        image_view_create_info.subresourceRange.baseArrayLayer = 0;
-        image_view_create_info.subresourceRange.layerCount = 1;
         if (vkCreateImageView(device, &image_view_create_info, nullptr,
                               &swapchain_image.image_view) != VK_SUCCESS) {
           XELOGE("Failed to create a Vulkan swapchain image view");
           context_lost_ = true;
           return;
         }
-        // TODO(Triang3l): Create the VkFramebuffer.
+        framebuffer_create_info.pAttachments = &swapchain_image.image_view;
+        if (vkCreateFramebuffer(device, &framebuffer_create_info, nullptr,
+                                &swapchain_image.framebuffer) != VK_SUCCESS) {
+          XELOGE("Failed to create a Vulkan swapchain framebuffer");
+          vkDestroyImageView(device, swapchain_image.image_view, nullptr);
+          context_lost_ = true;
+          return;
+        }
         // Add now so it's complete if DestroySwapchainImages is called.
         swapchain_images_.push_back(swapchain_image);
       }
@@ -438,7 +552,43 @@ void VulkanContext::BeginSwap() {
         return;
       }
     }
-    // TODO(Triang3l): Begin the pass.
+
+    // Begin drawing to the present image.
+    VkCommandBuffer command_buffer = GetPresentCommandBuffer();
+    VkCommandBufferBeginInfo command_buffer_begin_info;
+    command_buffer_begin_info.sType =
+        VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    command_buffer_begin_info.pNext = nullptr;
+    command_buffer_begin_info.flags =
+        VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    command_buffer_begin_info.pInheritanceInfo = nullptr;
+    vkBeginCommandBuffer(command_buffer, &command_buffer_begin_info);
+    // TODO(Triang3l): Handle vkBeginCommandBuffer failure.
+    VkClearValue clear_value;
+    if (cvars::vk_random_clear_color) {
+      clear_value.color.float32[0] =
+          rand() / float(RAND_MAX);  // NOLINT(runtime/threadsafe_fn)
+      clear_value.color.float32[1] = 1.0f;
+      clear_value.color.float32[2] = 0.0f;
+    } else {
+      clear_value.color.float32[0] = 238.0f / 255.0f;
+      clear_value.color.float32[1] = 238.0f / 255.0f;
+      clear_value.color.float32[2] = 238.0f / 255.0f;
+    }
+    clear_value.color.float32[3] = 1.0f;
+    VkRenderPassBeginInfo render_pass_begin_info;
+    render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    render_pass_begin_info.pNext = nullptr;
+    render_pass_begin_info.renderPass = present_render_pass_;
+    render_pass_begin_info.framebuffer =
+        swapchain_images_[swapchain_acquired_image_index_].framebuffer;
+    render_pass_begin_info.renderArea.offset.x = 0;
+    render_pass_begin_info.renderArea.offset.y = 0;
+    render_pass_begin_info.renderArea.extent = swapchain_extent_;
+    render_pass_begin_info.clearValueCount = 1;
+    render_pass_begin_info.pClearValues = &clear_value;
+    vkCmdBeginRenderPass(command_buffer, &render_pass_begin_info,
+                         VK_SUBPASS_CONTENTS_INLINE);
   }
 }
 
@@ -451,16 +601,18 @@ void VulkanContext::EndSwap() {
   auto queue = provider->GetGraphicsQueue();
 
   if (target_window_ != nullptr) {
-    // TODO(Triang3l): End the pass.
     // Present.
+    VkCommandBuffer command_buffer = GetPresentCommandBuffer();
+    vkCmdEndRenderPass(command_buffer);
+    vkEndCommandBuffer(command_buffer);
     VkSubmitInfo submit_info;
     submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submit_info.pNext = nullptr;
     submit_info.waitSemaphoreCount = 0;
     submit_info.pWaitSemaphores = nullptr;
     submit_info.pWaitDstStageMask = nullptr;
-    submit_info.commandBufferCount = 0;
-    submit_info.pCommandBuffers = nullptr;
+    submit_info.commandBufferCount = 1;
+    submit_info.pCommandBuffers = &command_buffer;
     submit_info.signalSemaphoreCount = 1;
     submit_info.pSignalSemaphores = &semaphore_draw_complete_;
     if (vkQueueSubmit(queue, 1, &submit_info, VK_NULL_HANDLE) != VK_SUCCESS) {

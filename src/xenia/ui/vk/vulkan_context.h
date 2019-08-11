@@ -54,6 +54,12 @@ class VulkanContext : public GraphicsContext {
   uint32_t GetCurrentQueueFrame() { return current_queue_frame_; }
   void AwaitAllFramesCompletion();
 
+  const VkSurfaceFormatKHR& GetSurfaceFormat() const { return surface_format_; }
+
+  VkCommandBuffer GetPresentCommandBuffer() const {
+    return present_command_buffers_[current_queue_frame_];
+  }
+
  private:
   friend class VulkanProvider;
 
@@ -86,6 +92,10 @@ class VulkanContext : public GraphicsContext {
 
   VkSemaphore semaphore_present_complete_ = VK_NULL_HANDLE;
   VkSemaphore semaphore_draw_complete_ = VK_NULL_HANDLE;
+
+  VkRenderPass present_render_pass_ = VK_NULL_HANDLE;
+  VkCommandPool present_command_pool_ = VK_NULL_HANDLE;
+  VkCommandBuffer present_command_buffers_[kQueuedFrames] = {};
 
   std::unique_ptr<VulkanImmediateDrawer> immediate_drawer_ = nullptr;
 
