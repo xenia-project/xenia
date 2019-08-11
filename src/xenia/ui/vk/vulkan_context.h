@@ -75,11 +75,20 @@ class VulkanContext : public GraphicsContext {
   uint32_t surface_min_image_count_ = 3;
   VkSurfaceFormatKHR surface_format_ = {VK_FORMAT_R8G8B8A8_UNORM,
                                         VK_COLOR_SPACE_SRGB_NONLINEAR_KHR};
-  VkPresentModeKHR surface_present_mode_ = VK_PRESENT_MODE_FIFO_KHR;
+  VkSurfaceTransformFlagBitsKHR surface_transform_ =
+      VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
   VkCompositeAlphaFlagBitsKHR surface_composite_alpha_ =
       VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+  VkPresentModeKHR surface_present_mode_ = VK_PRESENT_MODE_FIFO_KHR;
+
+  VkSemaphore semaphore_present_complete_ = VK_NULL_HANDLE;
+  VkSemaphore semaphore_draw_complete_ = VK_NULL_HANDLE;
 
   std::unique_ptr<VulkanImmediateDrawer> immediate_drawer_ = nullptr;
+
+  VkSwapchainKHR swapchain_ = VK_NULL_HANDLE;
+  VkExtent2D swapchain_extent_ = {};
+  uint32_t swapchain_acquired_image_index_ = 0;
 };
 
 }  // namespace vk
