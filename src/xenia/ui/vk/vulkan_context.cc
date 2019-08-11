@@ -123,6 +123,7 @@ bool VulkanContext::Initialize() {
       surface_min_image_count_ = std::min(surface_min_image_count_,
                                           surface_capabilities.maxImageCount);
     }
+    surface_transform_ = surface_capabilities.currentTransform;
     if (surface_capabilities.supportedCompositeAlpha &
         VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR) {
       surface_composite_alpha_ = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
@@ -192,12 +193,36 @@ bool VulkanContext::Initialize() {
       }
     }
 
+    // Create presentation semaphores.
+    VkSemaphoreCreateInfo semaphore_create_info;
+    semaphore_create_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+    semaphore_create_info.pNext = nullptr;
+    semaphore_create_info.flags = 0;
+    if (vkCreateSemaphore(device, &semaphore_create_info, nullptr,
+                          &semaphore_present_complete_) != VK_SUCCESS) {
+      XELOGE(
+          "Failed to create a Vulkan semaphone for awaiting swapchain image "
+          "acquisition");
+      Shutdown();
+      return false;
+    }
+    if (vkCreateSemaphore(device, &semaphore_create_info, nullptr,
+                          &semaphore_draw_complete_) != VK_SUCCESS) {
+      XELOGE(
+          "Failed to create a Vulkan semaphone for awaiting drawing before "
+          "presentation");
+      Shutdown();
+      return false;
+    }
+
     // Initialize the immediate mode drawer if not offscreen.
     immediate_drawer_ = std::make_unique<VulkanImmediateDrawer>(this);
     if (!immediate_drawer_->Initialize()) {
       Shutdown();
       return false;
     }
+
+    swapchain_ = VK_NULL_HANDLE;
   }
 
   return true;
@@ -214,9 +239,18 @@ void VulkanContext::Shutdown() {
 
   initialized_fully_ = false;
 
-  immediate_drawer_.reset();
+  if (target_window_) {
+    util::DestroyAndNullHandle(vkDestroySwapchainKHR, device, swapchain_);
 
-  util::DestroyAndNullHandle(vkDestroySurfaceKHR, instance, surface_);
+    immediate_drawer_.reset();
+
+    util::DestroyAndNullHandle(vkDestroySemaphore, device,
+                               semaphore_draw_complete_);
+    util::DestroyAndNullHandle(vkDestroySemaphore, device,
+                               semaphore_present_complete_);
+
+    util::DestroyAndNullHandle(vkDestroySurfaceKHR, instance, surface_);
+  }
 
   for (uint32_t i = 0; i < kQueuedFrames; ++i) {
     util::DestroyAndNullHandle(vkDestroyFence, device, fences_[i]);
@@ -238,7 +272,8 @@ void VulkanContext::BeginSwap() {
     return;
   }
 
-  auto device = GetVulkanProvider()->GetDevice();
+  auto provider = GetVulkanProvider();
+  auto device = provider->GetDevice();
 
   // Await the availability of transient objects for the new frame.
   // The frame number is incremented in EndSwap so it can be treated the same
@@ -253,6 +288,95 @@ void VulkanContext::BeginSwap() {
   if (last_completed_frame_ + kQueuedFrames < current_frame_) {
     last_completed_frame_ = current_frame_ - kQueuedFrames;
   }
+
+  if (target_window_) {
+    VkExtent2D target_window_extent = {
+        uint32_t(target_window_->scaled_width()),
+        uint32_t(target_window_->scaled_height())};
+    // On certain platforms (like Windows), swapchain size must match the window
+    // size.
+    VkSurfaceTransformFlagBitsKHR current_transform = surface_transform_;
+    VkSurfaceCapabilitiesKHR surface_capabilities;
+    if (vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
+            provider->GetPhysicalDevice(), surface_, &surface_capabilities) ==
+        VK_SUCCESS) {
+      current_transform = surface_capabilities.currentTransform;
+    }
+    bool create_swapchain =
+        swapchain_ == VK_NULL_HANDLE ||
+        swapchain_extent_.width != target_window_extent.width ||
+        swapchain_extent_.height != target_window_extent.height ||
+        surface_transform_ != current_transform;
+    if (!create_swapchain) {
+      // Try to acquire the image for the existing swapchain or check if out of
+      // date.
+      VkResult acquire_result = vkAcquireNextImageKHR(
+          device, swapchain_, UINT64_MAX, semaphore_present_complete_,
+          VK_NULL_HANDLE, &swapchain_acquired_image_index_);
+      if (acquire_result == VK_ERROR_OUT_OF_DATE_KHR) {
+        create_swapchain = true;
+      } else if (acquire_result != VK_SUCCESS &&
+                 acquire_result != VK_SUBOPTIMAL_KHR) {
+        // Checking for resizing externally. For proper suboptimal handling,
+        // either the swapchain needs to be recreated in the next frame, or the
+        // semaphore must be awaited right now (since suboptimal is a successful
+        // result). Assume all other errors are fatal.
+        context_lost_ = true;
+        return;
+      }
+    }
+    if (create_swapchain) {
+      if (swapchain_ != VK_NULL_HANDLE) {
+        AwaitAllFramesCompletion();
+        if (context_lost_) {
+          return;
+        }
+      }
+      // TODO(Triang3l): Destroy the old pass, framebuffer and image views.
+      // Destroying the old swapchain after creating the new one because
+      // swapchain creation needs the old one.
+      VkSwapchainKHR swapchain;
+      VkSwapchainCreateInfoKHR swapchain_create_info;
+      swapchain_create_info.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+      swapchain_create_info.pNext = nullptr;
+      swapchain_create_info.flags = 0;
+      swapchain_create_info.surface = surface_;
+      swapchain_create_info.minImageCount = surface_min_image_count_;
+      swapchain_create_info.imageFormat = surface_format_.format;
+      swapchain_create_info.imageColorSpace = surface_format_.colorSpace;
+      swapchain_create_info.imageExtent = target_window_extent;
+      swapchain_create_info.imageArrayLayers = 1;
+      swapchain_create_info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+      swapchain_create_info.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+      swapchain_create_info.queueFamilyIndexCount = 0;
+      swapchain_create_info.pQueueFamilyIndices = nullptr;
+      swapchain_create_info.preTransform = current_transform;
+      swapchain_create_info.compositeAlpha = surface_composite_alpha_;
+      swapchain_create_info.presentMode = surface_present_mode_;
+      swapchain_create_info.clipped = VK_TRUE;
+      swapchain_create_info.oldSwapchain = swapchain_;
+      if (vkCreateSwapchainKHR(device, &swapchain_create_info, nullptr,
+                               &swapchain) != VK_SUCCESS) {
+        context_lost_ = true;
+        return;
+      }
+      if (swapchain_ != VK_NULL_HANDLE) {
+        vkDestroySwapchainKHR(device, swapchain_, nullptr);
+      }
+      swapchain_ = swapchain;
+      swapchain_extent_ = target_window_extent;
+      surface_transform_ = current_transform;
+      // TODO(Triang3l): Get images, create the framebuffer and the passes.
+      VkResult acquire_result = vkAcquireNextImageKHR(
+          device, swapchain_, UINT64_MAX, semaphore_present_complete_,
+          VK_NULL_HANDLE, &swapchain_acquired_image_index_);
+      if (acquire_result != VK_SUCCESS && acquire_result != VK_SUBOPTIMAL_KHR) {
+        context_lost_ = true;
+        return;
+      }
+    }
+    // TODO(Triang3l): Insert a barrier and clear.
+  }
 }
 
 void VulkanContext::EndSwap() {
@@ -260,8 +384,49 @@ void VulkanContext::EndSwap() {
     return;
   }
 
+  auto provider = GetVulkanProvider();
+  auto queue = provider->GetGraphicsQueue();
+
+  if (target_window_ != nullptr) {
+    // Present.
+    // TODO(Triang3l): Insert a barrier.
+    VkSubmitInfo submit_info;
+    submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submit_info.pNext = nullptr;
+    submit_info.waitSemaphoreCount = 0;
+    submit_info.pWaitSemaphores = nullptr;
+    submit_info.pWaitDstStageMask = nullptr;
+    submit_info.commandBufferCount = 0;
+    submit_info.pCommandBuffers = nullptr;
+    submit_info.signalSemaphoreCount = 1;
+    submit_info.pSignalSemaphores = &semaphore_draw_complete_;
+    if (vkQueueSubmit(queue, 1, &submit_info, VK_NULL_HANDLE) != VK_SUCCESS) {
+      context_lost_ = true;
+      return;
+    }
+    VkPresentInfoKHR present_info;
+    present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+    present_info.pNext = nullptr;
+    present_info.waitSemaphoreCount = 1;
+    present_info.pWaitSemaphores = &semaphore_draw_complete_;
+    present_info.swapchainCount = 1;
+    present_info.pSwapchains = &swapchain_;
+    present_info.pImageIndices = &swapchain_acquired_image_index_;
+    present_info.pResults = nullptr;
+    VkResult present_result = vkQueuePresentKHR(queue, &present_info);
+    if (present_result != VK_SUCCESS && present_result != VK_SUBOPTIMAL_KHR &&
+        present_result != VK_ERROR_OUT_OF_DATE_KHR) {
+      // VK_ERROR_OUT_OF_DATE_KHR will be handled in the next BeginSwap. In case
+      // of it, the semaphore will be unsignaled anyway:
+      // https://github.com/KhronosGroup/Vulkan-Docs/issues/572
+      context_lost_ = true;
+      return;
+    }
+  }
+
   // Go to the next transient object frame.
-  auto queue = GetVulkanProvider()->GetGraphicsQueue();
+  VkFence fence = fences_[current_queue_frame_];
+  vkResetFences(provider->GetDevice(), 1, &fence);
   if (vkQueueSubmit(queue, 0, nullptr, fences_[current_queue_frame_]) !=
       VK_SUCCESS) {
     context_lost_ = true;
@@ -275,7 +440,7 @@ void VulkanContext::EndSwap() {
 }
 
 std::unique_ptr<RawImage> VulkanContext::Capture() {
-  // TODO(Triang3l): Read back swap chain front buffer.
+  // TODO(Triang3l): Read back swapchain front buffer.
   return nullptr;
 }
 
