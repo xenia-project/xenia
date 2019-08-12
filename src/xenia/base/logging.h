@@ -89,7 +89,7 @@ void FatalError(const std::wstring& str);
   XELOGCORE(xe::LogLevel::Info, 'C', fmt, ##__VA_ARGS__)
 #define XELOGAPU(fmt, ...) \
   XELOGCORE(xe::LogLevel::Info, 'A', fmt, ##__VA_ARGS__)
-#define XELOGGPU(fmt, ...) \
+//#define XELOGGPU(fmt, ...) \
   XELOGCORE(xe::LogLevel::Info, 'G', fmt, ##__VA_ARGS__)
 #define XELOGKERNEL(fmt, ...) \
   XELOGCORE(xe::LogLevel::Info, 'K', fmt, ##__VA_ARGS__)

@@ -380,7 +380,7 @@ bool PipelineCache::TranslateShader(VulkanShader* shader,
   }
 
   if (shader->is_valid()) {
-    XELOGGPU("Generated %s shader (%db) - hash %.16" PRIX64 ":\n%s\n",
+    XELOG_GPU_I("[Vulkan] Generated %s shader (%db) - hash %.16" PRIX64 ":\n%s\n",
              shader->type() == ShaderType::kVertex ? "vertex" : "pixel",
              shader->ucode_dword_count() * 4, shader->ucode_data_hash(),
              shader->ucode_disassembly().c_str());

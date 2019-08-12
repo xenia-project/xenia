@@ -148,11 +148,12 @@ class Logger {
     }
 
 	// New logging features.
-	// If the category has logging set to false, discard.
-    if (cvars::exclude_cpu_from_log) {
+	// Check the category of the logged message and return if that
+	// category is turned off within the config.
+    if (cvars::exclude_cpu_from_log && category == LogCategory::CPU) {
       return;
     }
-    if (cvars::exclude_gpu_from_log) {
+    if (cvars::exclude_gpu_from_log && category == LogCategory::GPU) {
       return;
 	}
 

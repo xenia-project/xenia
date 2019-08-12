@@ -1066,8 +1066,8 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
 
   size_t unpack_length = ComputeTextureStorage(src);
 
-  XELOGGPU(
-      "Uploading texture @ 0x%.8X/0x%.8X (%ux%ux%u, format: %s, dim: %s, "
+  XELOG_GPU_I(
+      "[Vulkan] Uploading texture @ 0x%.8X/0x%.8X (%ux%ux%u, format: %s, dim: %s, "
       "levels: %u (%u-%u), stacked: %s, pitch: %u, tiled: %s, packed mips: %s, "
       "unpack length: 0x%.8X)",
       src.memory.base_address, src.memory.mip_address, src.width + 1,
@@ -1077,7 +1077,7 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
       src.is_tiled ? "yes" : "no", src.has_packed_mips ? "yes" : "no",
       unpack_length);
 
-  XELOGGPU("Extent: %ux%ux%u  %u,%u,%u", src.extent.pitch, src.extent.height,
+  XELOG_GPU_I("[Vulkan] Extent: %ux%ux%u  %u,%u,%u", src.extent.pitch, src.extent.height,
            src.extent.depth, src.extent.block_pitch_h, src.extent.block_height,
            src.extent.block_pitch_v);
 
@@ -1500,7 +1500,7 @@ bool TextureCache::SetupTextureBinding(VkCommandBuffer command_buffer,
   // Disabled?
   // TODO(benvanik): reset sampler.
   if (fetch.type != 0x2) {
-    XELOGGPU("Fetch type is not 2!");
+    XELOG_GPU_I("[Vulkan] Fetch type is not 2!");
     return false;
   }
 

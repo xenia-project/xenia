@@ -1114,7 +1114,8 @@ bool VulkanCommandProcessor::IssueCopy() {
                                         : static_cast<uint32_t>(depth_format);
   VkFilter filter = is_color_source ? VK_FILTER_LINEAR : VK_FILTER_NEAREST;
 
-  XELOGGPU("Resolve RT %.8X %.8X(%d) -> 0x%.8X (%dx%d, format: %s)", edram_base,
+  XELOG_GPU_I("[Vulkan] Resolve RT %.8X %.8X(%d) -> 0x%.8X (%dx%d, format: %s)",
+              edram_base,
            surface_pitch, surface_pitch, copy_dest_base, copy_dest_pitch,
            copy_dest_height, texture_info.format_info()->name);
   switch (copy_command) {
@@ -1143,7 +1144,7 @@ bool VulkanCommandProcessor::IssueCopy() {
       auto view = render_cache_->FindTileView(
           edram_base, surface_pitch, surface_msaa, is_color_source, src_format);
       if (!view) {
-        XELOGGPU("Failed to find tile view!");
+        XELOG_GPU_I("[Vulkan] Failed to find tile view!");
         break;
       }
 
