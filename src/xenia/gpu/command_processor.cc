@@ -137,7 +137,7 @@ void CommandProcessor::ClearCaches() {}
 void CommandProcessor::WorkerThreadMain() {
   context_->MakeCurrent();
   if (!SetupContext()) {
-    xe::FatalError("Unable to setup command processor internal state");
+    xe::FatalError("[GPU] Unable to setup command processor internal state");
     return;
   }
 
@@ -370,7 +370,7 @@ void CommandProcessor::MakeCoherent() {
   }
 
   // TODO(benvanik): notify resource cache of base->size and type.
-  XELOG_GPU_E("Make %.8X -> %.8X (%db) coherent, action = %s", base_host,
+  XELOG_GPU_I("[GPU] Make %.8X -> %.8X (%db) coherent, action = %s", base_host,
          base_host + size_host, size_host, action);
 
   // Mark coherent.
@@ -801,7 +801,7 @@ bool CommandProcessor::ExecutePacketType3_XE_SWAP(RingBuffer* reader,
                                                   uint32_t count) {
   SCOPE_profile_cpu_f("gpu");
 
-  XELOG_GPU_I("XE_SWAP");
+  XELOG_GPU_I("[GPU] XE_SWAP");
 
   Profiler::Flip();
 
