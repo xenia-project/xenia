@@ -85,7 +85,7 @@ void TextureDump(const TextureInfo& src, void* buffer, size_t length) {
       assert_unhandled_case(src.format);
       std::memset(&dds_header.pixel_format, 0xCD,
                   sizeof(dds_header.pixel_format));
-      XELOGW("Skipping %s for texture dump.", src.format_info()->name);
+      XELOG_GPU_W("[GPU] Skipping %s for texture dump.", src.format_info()->name);
       return;
     }
   }

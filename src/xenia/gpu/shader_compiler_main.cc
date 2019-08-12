@@ -56,7 +56,7 @@ int shader_compiler_main(const std::vector<std::wstring>& args) {
     } else if (cvars::shader_input_type == "ps") {
       shader_type = ShaderType::kPixel;
     } else {
-      XELOGE("Invalid --shader_input_type; must be 'vs' or 'ps'.");
+      XELOG_GPU_E("[SHADER_COMPILER] Invalid --shader_input_type; must be 'vs' or 'ps'.");
       return 1;
     }
   } else {
@@ -72,8 +72,8 @@ int shader_compiler_main(const std::vector<std::wstring>& args) {
       }
     }
     if (!valid_type) {
-      XELOGE(
-          "File type not recognized (use .vs, .ps or "
+      XELOG_GPU_E(
+          "[SHADER_COMPILER] File type not recognized (use .vs, .ps or "
           "--shader_input_type=vs|ps).");
       return 1;
     }
@@ -81,7 +81,7 @@ int shader_compiler_main(const std::vector<std::wstring>& args) {
 
   auto input_file = fopen(cvars::shader_input.c_str(), "rb");
   if (!input_file) {
-    XELOGE("Unable to open input file: %s", cvars::shader_input.c_str());
+    XELOG_GPU_E("[SHADER_COMPILER] Unable to open input file: %s", cvars::shader_input.c_str());
     return 1;
   }
   fseek(input_file, 0, SEEK_END);
@@ -91,7 +91,8 @@ int shader_compiler_main(const std::vector<std::wstring>& args) {
   fread(ucode_dwords.data(), 4, ucode_dwords.size(), input_file);
   fclose(input_file);
 
-  XELOGI("Opened %s as a %s shader, %" PRId64 " words (%" PRId64 " bytes).",
+  XELOG_GPU_I("[SHADER_COMPILER] Opened %s as a %s shader, %" PRId64 " words (%" PRId64
+              " bytes).",
          cvars::shader_input.c_str(),
          shader_type == ShaderType::kVertex ? "vertex" : "pixel",
          ucode_dwords.size(), ucode_dwords.size() * 4);

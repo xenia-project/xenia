@@ -2874,7 +2874,7 @@ bool D3D12CommandProcessor::UpdateBindings(
       draw_view_full_update_, view_count_partial_update, view_count_full_update,
       view_cpu_handle, view_gpu_handle);
   if (view_full_update_index == 0) {
-    XELOGE("Failed to allocate view descriptors!");
+    XELOG_GPU_E("[D3D12] Failed to allocate view descriptors!");
     return false;
   }
   uint32_t sampler_count_partial_update = 0;
@@ -2894,7 +2894,7 @@ bool D3D12CommandProcessor::UpdateBindings(
         sampler_count_vertex + sampler_count_pixel, sampler_cpu_handle,
         sampler_gpu_handle);
     if (sampler_full_update_index == 0) {
-      XELOGE("Failed to allocate sampler descriptors!");
+      XELOG_GPU_E("[D3D12] Failed to allocate sampler descriptors!");
       return false;
     }
   }

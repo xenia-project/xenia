@@ -672,7 +672,7 @@ void SpirvShaderTranslator::PostTranslation(Shader* shader) {
         reinterpret_cast<const uint32_t*>(shader->translated_binary().data()),
         shader->translated_binary().size() / sizeof(uint32_t));
     if (validation->has_error()) {
-      XELOGE("SPIR-V Shader Validation failed! Error: %s",
+      XELOG_GPU_E("[GPU] SPIR-V Shader Validation failed! Error: %s",
              validation->error_string());
     }
   }
@@ -683,7 +683,7 @@ void SpirvShaderTranslator::PostTranslation(Shader* shader) {
         reinterpret_cast<const uint32_t*>(shader->translated_binary().data()),
         shader->translated_binary().size() / 4);
     if (disasm->has_error()) {
-      XELOGE("Failed to disassemble SPIRV - invalid?");
+      XELOG_GPU_E("[GPU] Failed to disassemble SPIRV - invalid?");
     } else {
       set_host_disassembly(shader, disasm->to_string());
     }

@@ -1292,8 +1292,8 @@ void ShaderTranslator::ParseAluVectorOperation(const AluInstruction& op,
         } else {
           // Unimplemented.
           // assert_always();
-          XELOGE(
-              "ShaderTranslator::ParseAluVectorOperation: Unsupported write to "
+          XELOG_GPU_E(
+              "[GPU] ShaderTranslator::ParseAluVectorOperation: Unsupported write to "
               "export %d",
               dest_num);
           i.vector_result.storage_target = InstructionStorageTarget::kNone;
@@ -1336,8 +1336,8 @@ void ShaderTranslator::ParseAluVectorOperation(const AluInstruction& op,
         i.vector_result.storage_target = InstructionStorageTarget::kDepth;
         break;
       default:
-        XELOGE(
-            "ShaderTranslator::ParseAluVectorOperation: Unsupported write to "
+        XELOG_GPU_E(
+            "[GPU] ShaderTranslator::ParseAluVectorOperation: Unsupported write to "
             "export %d",
             dest_num);
         i.vector_result.storage_target = InstructionStorageTarget::kNone;
@@ -1460,8 +1460,8 @@ void ShaderTranslator::ParseAluScalarOperation(const AluInstruction& op,
         } else {
           // Unimplemented.
           // assert_always();
-          XELOGE(
-              "ShaderTranslator::ParseAluScalarOperation: Unsupported write to "
+          XELOG_GPU_E(
+              "[GPU] ShaderTranslator::ParseAluScalarOperation: Unsupported write to "
               "export %d",
               dest_num);
           i.scalar_result.storage_target = InstructionStorageTarget::kNone;

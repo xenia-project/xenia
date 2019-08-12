@@ -84,7 +84,7 @@ X_STATUS GraphicsSystem::Setup(cpu::Processor* processor,
   // incoming ringbuffer packets.
   command_processor_ = CreateCommandProcessor();
   if (!command_processor_->Initialize(std::move(processor_context))) {
-    XELOGE("Unable to initialize command processor");
+    XELOG_GPU_E("[GPU] Unable to initialize command processor");
     return X_STATUS_UNSUCCESSFUL;
   }
 
@@ -154,7 +154,7 @@ void GraphicsSystem::Shutdown() {
 
 void GraphicsSystem::Reset() {
   // TODO(DrChat): Reset the system.
-  XELOGI("Context lost; Reset invoked");
+  XELOG_GPU_I("[GPU] Context lost; Reset invoked");
   Shutdown();
 
   xe::FatalError("Graphics device lost (probably due to an internal error)");
@@ -188,7 +188,7 @@ uint32_t GraphicsSystem::ReadRegister(uint32_t addr) {
       return 0x050002D0;
     default:
       if (!register_file_.GetRegisterInfo(r)) {
-        XELOGE("GPU: Read from unknown register (%.4X)", r);
+        XELOG_GPU_E("[GPU] Read from unknown register (%.4X)", r);
       }
   }
 
@@ -206,7 +206,7 @@ void GraphicsSystem::WriteRegister(uint32_t addr, uint32_t value) {
     case 0x1844:  // AVIVO_D1GRPH_PRIMARY_SURFACE_ADDRESS
       break;
     default:
-      XELOGW("Unknown GPU register %.4X write: %.8X", r, value);
+      XELOG_GPU_W("[GPU] Unknown GPU register %.4X write: %.8X", r, value);
       break;
   }
 
@@ -227,7 +227,7 @@ void GraphicsSystem::SetInterruptCallback(uint32_t callback,
                                           uint32_t user_data) {
   interrupt_callback_ = callback;
   interrupt_callback_data_ = user_data;
-  XELOGGPU("SetInterruptCallback(%.4X, %.4X)", callback, user_data);
+  XELOG_GPU_I("[GPU] SetInterruptCallback(%.4X, %.4X)", callback, user_data);
 }
 
 void GraphicsSystem::DispatchInterruptCallback(uint32_t source, uint32_t cpu) {
@@ -244,7 +244,7 @@ void GraphicsSystem::DispatchInterruptCallback(uint32_t source, uint32_t cpu) {
   }
   thread->SetActiveCpu(cpu);
 
-  // XELOGGPU("Dispatching GPU interrupt at %.8X w/ mode %d on cpu %d",
+  // XELOG_GPU_I("[GPU] Dispatching GPU interrupt at %.8X w/ mode %d on cpu %d",
   //          interrupt_callback_, source, cpu);
 
   uint64_t args[] = {source, interrupt_callback_data_};

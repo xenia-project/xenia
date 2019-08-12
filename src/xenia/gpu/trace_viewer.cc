@@ -114,7 +114,7 @@ bool TraceViewer::Setup() {
   });
   window_->on_closed.AddListener([&](xe::ui::UIEvent* e) {
     loop_->Quit();
-    XELOGI("User-initiated death!");
+    XELOG_GPU_I("[GPU] User-initiated death!");
     exit(1);
   });
   loop_->on_quit.AddListener([&](xe::ui::UIEvent* e) { window_.reset(); });
@@ -126,7 +126,7 @@ bool TraceViewer::Setup() {
       emulator_->Setup(window_.get(), nullptr,
                        [this]() { return CreateGraphicsSystem(); }, nullptr);
   if (XFAILED(result)) {
-    XELOGE("Failed to setup emulator: %.8X", result);
+    XELOG_GPU_E("[GPU] Failed to setup emulator: %.8X", result);
     return false;
   }
   memory_ = emulator_->memory();
@@ -159,7 +159,7 @@ bool TraceViewer::Load(std::wstring trace_file_path) {
   window_->set_title(std::wstring(L"Xenia GPU Trace Viewer: ") + file_name);
 
   if (!player_->Open(trace_file_path)) {
-    XELOGE("Could not load trace file");
+    XELOG_GPU_E("[GPU] Could not load trace file");
     return false;
   }
 

@@ -37,21 +37,22 @@ bool TraceReader::Open(const std::wstring& path) {
   // Verify version.
   auto header = reinterpret_cast<const TraceHeader*>(trace_data_);
   if (header->version != kTraceFormatVersion) {
-    XELOGE("Trace format version mismatch, code has %u, file has %u",
+    XELOG_GPU_E("[GPU] Trace format version mismatch, code has %u, file has %u",
            kTraceFormatVersion, header->version);
     if (header->version < kTraceFormatVersion) {
-      XELOGE("You need to regenerate your trace for the latest version");
+      XELOG_GPU_E("[GPU] You need to regenerate your trace for the latest version");
     }
     return false;
   }
 
   auto path_str = xe::to_string(path);
-  XELOGI("Mapped %" PRId64 "b trace from %s", trace_size_, path_str.c_str());
-  XELOGI("   Version: %u", header->version);
+  XELOG_GPU_I("[GPU] Mapped %" PRId64 "b trace from %s", trace_size_,
+              path_str.c_str());
+  XELOG_GPU_I("[GPU]   Version: %u", header->version);
   auto commit_str = std::string(header->build_commit_sha,
                                 xe::countof(header->build_commit_sha));
-  XELOGI("    Commit: %s", commit_str.c_str());
-  XELOGI("  Title ID: %u", header->title_id);
+  XELOG_GPU_I("[GPU]    Commit: %s", commit_str.c_str());
+  XELOG_GPU_I("[GPU]  Title ID: %u", header->title_id);
 
   ParseTrace();
 
