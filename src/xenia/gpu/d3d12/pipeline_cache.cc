@@ -212,13 +212,13 @@ bool PipelineCache::EnsureShadersTranslated(D3D12Shader* vertex_shader,
   if (!vertex_shader->is_translated() &&
       !TranslateShader(vertex_shader, sq_program_cntl, tessellated,
                        primitive_type)) {
-    XELOGE("Failed to translate the vertex shader!");
+    XELOG_GPU_E("[D3D12] Failed to translate the vertex shader!");
     return false;
   }
   if (pixel_shader != nullptr && !pixel_shader->is_translated() &&
       !TranslateShader(pixel_shader, sq_program_cntl, tessellated,
                        primitive_type)) {
-    XELOGE("Failed to translate the pixel shader!");
+    XELOG_GPU_E("[D3D12] Failed to translate the pixel shader!");
     return false;
   }
   return true;
@@ -301,7 +301,7 @@ bool PipelineCache::TranslateShader(D3D12Shader* shader,
   // If this fails the shader will be marked as invalid and ignored later.
   if (!shader_translator_->Translate(
           shader, tessellated ? primitive_type : PrimitiveType::kNone, cntl)) {
-    XELOGE("Shader %.16" PRIX64 " translation failed; marking as ignored",
+    XELOG_GPU_E("[D3D12] Shader %.16" PRIX64 " translation failed; marking as ignored",
            shader->ucode_data_hash());
     return false;
   }
@@ -316,7 +316,7 @@ bool PipelineCache::TranslateShader(D3D12Shader* shader,
                                  sampler_bindings, sampler_binding_count);
 
   if (shader->is_valid()) {
-    XELOGGPU("Generated %s shader (%db) - hash %.16" PRIX64 ":\n%s\n",
+    XELOG_GPU_E("[D3D12] Generated %s shader (%db) - hash %.16" PRIX64 ":\n%s\n",
              shader->type() == ShaderType::kVertex ? "vertex" : "pixel",
              shader->ucode_dword_count() * 4, shader->ucode_data_hash(),
              shader->ucode_disassembly().c_str());
@@ -336,7 +336,7 @@ bool PipelineCache::TranslateShader(D3D12Shader* shader,
   if (cvars::d3d12_dxbc_disasm) {
     auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
     if (!shader->DisassembleDxbc(provider)) {
-      XELOGE("Failed to disassemble DXBC shader %.16" PRIX64,
+      XELOG_GPU_E("[D3D12] Failed to disassemble DXBC shader %.16" PRIX64,
              shader->ucode_data_hash());
     }
   }
@@ -735,12 +735,12 @@ bool PipelineCache::GetCurrentStateDescription(
 ID3D12PipelineState* PipelineCache::CreatePipelineState(
     const PipelineDescription& description) {
   if (description.pixel_shader != nullptr) {
-    XELOGGPU("Creating graphics pipeline state with VS %.16" PRIX64
+    XELOG_GPU_E("[D3D12] Creating graphics pipeline state with VS %.16" PRIX64
              ", PS %.16" PRIX64,
              description.vertex_shader->ucode_data_hash(),
              description.pixel_shader->ucode_data_hash());
   } else {
-    XELOGGPU("Creating graphics pipeline state with VS %.16" PRIX64,
+    XELOG_GPU_E("[D3D12] Creating graphics pipeline state with VS %.16" PRIX64,
              description.vertex_shader->ucode_data_hash());
   }
 
@@ -766,7 +766,7 @@ ID3D12PipelineState* PipelineCache::CreatePipelineState(
 
   // Vertex or hull/domain shaders.
   if (!description.vertex_shader->is_translated()) {
-    XELOGE("Vertex shader %.16" PRIX64 " not translated",
+    XELOG_GPU_E("[D3D12] Vertex shader %.16" PRIX64 " not translated",
            description.vertex_shader->ucode_data_hash());
     assert_always();
     return nullptr;
@@ -776,8 +776,8 @@ ID3D12PipelineState* PipelineCache::CreatePipelineState(
       case PipelinePatchType::kTriangle:
         if (description.vertex_shader->patch_primitive_type() !=
             PrimitiveType::kTrianglePatch) {
-          XELOGE(
-              "Tried to use vertex shader %.16" PRIX64
+          XELOG_GPU_E(
+              "[D3D12] Tried to use vertex shader %.16" PRIX64
               " for triangle patch tessellation, but it's not a tessellation "
               "domain shader or has the wrong domain",
               description.vertex_shader->ucode_data_hash());
@@ -802,7 +802,8 @@ ID3D12PipelineState* PipelineCache::CreatePipelineState(
       case PipelinePatchType::kQuad:
         if (description.vertex_shader->patch_primitive_type() !=
             PrimitiveType::kQuadPatch) {
-          XELOGE("Tried to use vertex shader %.16" PRIX64
+          XELOG_GPU_E(
+              "[D3D12] Tried to use vertex shader %.16" PRIX64
                  " for quad patch tessellation, but it's not a tessellation "
                  "domain shader or has the wrong domain",
                  description.vertex_shader->ucode_data_hash());
@@ -833,7 +834,8 @@ ID3D12PipelineState* PipelineCache::CreatePipelineState(
   } else {
     if (description.vertex_shader->patch_primitive_type() !=
         PrimitiveType::kNone) {
-      XELOGE("Tried to use vertex shader %.16" PRIX64
+      XELOG_GPU_E(
+          "[D3D12] Tried to use vertex shader %.16" PRIX64
              " without tessellation, but it's a tessellation domain shader",
              description.vertex_shader->ucode_data_hash());
       assert_always();
@@ -885,7 +887,7 @@ ID3D12PipelineState* PipelineCache::CreatePipelineState(
   // Pixel shader.
   if (description.pixel_shader != nullptr) {
     if (!description.pixel_shader->is_translated()) {
-      XELOGE("Pixel shader %.16" PRIX64 " not translated",
+      XELOG_GPU_E("[D3D12] Pixel shader %.16" PRIX64 " not translated",
              description.pixel_shader->ucode_data_hash());
       assert_always();
       return nullptr;
@@ -1049,12 +1051,13 @@ ID3D12PipelineState* PipelineCache::CreatePipelineState(
   if (FAILED(device->CreateGraphicsPipelineState(&state_desc,
                                                  IID_PPV_ARGS(&state)))) {
     if (description.pixel_shader != nullptr) {
-      XELOGE("Failed to create graphics pipeline state with VS %.16" PRIX64
+      XELOG_GPU_E("[D3D12] Failed to create graphics pipeline state with VS %.16" PRIX64
              ", PS %.16" PRIX64,
              description.vertex_shader->ucode_data_hash(),
              description.pixel_shader->ucode_data_hash());
     } else {
-      XELOGE("Failed to create graphics pipeline state with VS %.16" PRIX64,
+      XELOG_GPU_E(
+          "[D3D12] Failed to create graphics pipeline state with VS %.16" PRIX64,
              description.vertex_shader->ucode_data_hash());
     }
     return nullptr;

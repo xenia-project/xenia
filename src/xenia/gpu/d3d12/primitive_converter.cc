@@ -69,8 +69,8 @@ bool PrimitiveConverter::Initialize() {
           &ui::d3d12::util::kHeapPropertiesUpload, D3D12_HEAP_FLAG_NONE,
           &static_ib_desc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
           IID_PPV_ARGS(&static_ib_upload_)))) {
-    XELOGE(
-        "Failed to create the upload buffer for the primitive conversion "
+    XELOG_GPU_E(
+        "[D3D12] Failed to create the upload buffer for the primitive conversion "
         "static index buffer");
     Shutdown();
     return false;
@@ -81,8 +81,8 @@ bool PrimitiveConverter::Initialize() {
   void* static_ib_mapping;
   if (FAILED(static_ib_upload_->Map(0, &static_ib_read_range,
                                     &static_ib_mapping))) {
-    XELOGE(
-        "Failed to map the upload buffer for the primitive conversion "
+    XELOG_GPU_E(
+        "[D3D12] Failed to map the upload buffer for the primitive conversion "
         "static index buffer");
     Shutdown();
     return false;
@@ -115,7 +115,8 @@ bool PrimitiveConverter::Initialize() {
           &ui::d3d12::util::kHeapPropertiesDefault, D3D12_HEAP_FLAG_NONE,
           &static_ib_desc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr,
           IID_PPV_ARGS(&static_ib_)))) {
-    XELOGE("Failed to create the primitive conversion static index buffer");
+    XELOG_GPU_E(
+        "[D3D12] Failed to create the primitive conversion static index buffer");
     Shutdown();
     return false;
   }
@@ -691,7 +692,8 @@ void* PrimitiveConverter::AllocateIndices(
   uint8_t* mapping =
       buffer_pool_->RequestFull(size, nullptr, nullptr, &gpu_address);
   if (mapping == nullptr) {
-    XELOGE("Failed to allocate space for %u converted %u-bit vertex indices",
+    XELOG_GPU_E(
+        "[D3D12] Failed to allocate space for %u converted %u-bit vertex indices",
            count, format == IndexFormat::kInt32 ? 32 : 16);
     return nullptr;
   }

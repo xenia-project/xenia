@@ -381,8 +381,8 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(
   ID3D12RootSignature* root_signature = ui::d3d12::util::CreateRootSignature(
       GetD3D12Context()->GetD3D12Provider(), desc);
   if (root_signature == nullptr) {
-    XELOGE(
-        "Failed to create a root signature with %u pixel textures, %u pixel "
+    XELOG_GPU_E(
+        "[D3D12] Failed to create a root signature with %u pixel textures, %u pixel "
         "samplers, %u vertex textures and %u vertex samplers",
         texture_count_pixel, sampler_count_pixel, texture_count_vertex,
         sampler_count_vertex);
@@ -508,7 +508,7 @@ ID3D12Resource* D3D12CommandProcessor::RequestScratchGPUBuffer(
   if (FAILED(device->CreateCommittedResource(
           &ui::d3d12::util::kHeapPropertiesDefault, D3D12_HEAP_FLAG_NONE,
           &buffer_desc, state, nullptr, IID_PPV_ARGS(&buffer)))) {
-    XELOGE("Failed to create a %u MB scratch GPU buffer", size >> 20);
+    XELOG_GPU_E("[D3D12] Failed to create a %u MB scratch GPU buffer", size >> 20);
     return nullptr;
   }
   if (scratch_buffer_ != nullptr) {
@@ -645,7 +645,7 @@ std::wstring D3D12CommandProcessor::GetWindowTitleText() const {
 
 bool D3D12CommandProcessor::SetupContext() {
   if (!CommandProcessor::SetupContext()) {
-    XELOGE("Failed to initialize base command processor context");
+    XELOG_GPU_E("[D3D12] Failed to initialize base command processor context");
     return false;
   }
 
@@ -658,7 +658,7 @@ bool D3D12CommandProcessor::SetupContext() {
     command_lists_[i] = ui::d3d12::CommandList::Create(
         device, direct_queue, D3D12_COMMAND_LIST_TYPE_DIRECT);
     if (command_lists_[i] == nullptr) {
-      XELOGE("Failed to create the command lists");
+      XELOG_GPU_E("[D3D12] Failed to create the command lists");
       return false;
     }
   }
@@ -674,21 +674,21 @@ bool D3D12CommandProcessor::SetupContext() {
 
   shared_memory_ = std::make_unique<SharedMemory>(this, memory_);
   if (!shared_memory_->Initialize()) {
-    XELOGE("Failed to initialize shared memory");
+    XELOG_GPU_E("[D3D12] Failed to initialize shared memory");
     return false;
   }
 
   texture_cache_ = std::make_unique<TextureCache>(this, register_file_,
                                                   shared_memory_.get());
   if (!texture_cache_->Initialize()) {
-    XELOGE("Failed to initialize the texture cache");
+    XELOG_GPU_E("[D3D12] Failed to initialize the texture cache");
     return false;
   }
 
   render_target_cache_ =
       std::make_unique<RenderTargetCache>(this, register_file_);
   if (!render_target_cache_->Initialize(texture_cache_.get())) {
-    XELOGE("Failed to initialize the render target cache");
+    XELOG_GPU_E("[D3D12] Failed to initialize the render target cache");
     return false;
   }
 
@@ -696,14 +696,16 @@ bool D3D12CommandProcessor::SetupContext() {
       this, register_file_, IsROVUsedForEDRAM(),
       texture_cache_->IsResolutionScale2X() ? 2 : 1);
   if (!pipeline_cache_->Initialize()) {
-    XELOGE("Failed to initialize the graphics pipeline state cache");
+    XELOG_GPU_E(
+        "[D3D12] Failed to initialize the graphics pipeline state cache");
     return false;
   }
 
   primitive_converter_ =
       std::make_unique<PrimitiveConverter>(this, register_file_, memory_);
   if (!primitive_converter_->Initialize()) {
-    XELOGE("Failed to initialize the geometric primitive converter");
+    XELOG_GPU_E(
+        "[D3D12] Failed to initialize the geometric primitive converter");
     return false;
   }
 
@@ -731,7 +733,7 @@ bool D3D12CommandProcessor::SetupContext() {
           &ui::d3d12::util::kHeapPropertiesDefault, D3D12_HEAP_FLAG_NONE,
           &gamma_ramp_desc, gamma_ramp_texture_state_, nullptr,
           IID_PPV_ARGS(&gamma_ramp_texture_)))) {
-    XELOGE("Failed to create the gamma ramp texture");
+    XELOG_GPU_E("[D3D12] Failed to create the gamma ramp texture");
     return false;
   }
   // Get the layout for the upload buffer.
@@ -747,12 +749,12 @@ bool D3D12CommandProcessor::SetupContext() {
           &ui::d3d12::util::kHeapPropertiesUpload, D3D12_HEAP_FLAG_NONE,
           &gamma_ramp_desc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
           IID_PPV_ARGS(&gamma_ramp_upload_)))) {
-    XELOGE("Failed to create the gamma ramp upload buffer");
+    XELOG_GPU_E("[D3D12] Failed to create the gamma ramp upload buffer");
     return false;
   }
   if (FAILED(gamma_ramp_upload_->Map(
           0, nullptr, reinterpret_cast<void**>(&gamma_ramp_upload_mapping_)))) {
-    XELOGE("Failed to map the gamma ramp upload buffer");
+    XELOG_GPU_E("[D3D12] Failed to map the gamma ramp upload buffer");
     return false;
   }
 
@@ -777,7 +779,7 @@ bool D3D12CommandProcessor::SetupContext() {
           &ui::d3d12::util::kHeapPropertiesDefault, D3D12_HEAP_FLAG_NONE,
           &swap_texture_desc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
           nullptr, IID_PPV_ARGS(&swap_texture_)))) {
-    XELOGE("Failed to create the command processor front buffer");
+    XELOGE("[D3D12] Failed to create the command processor front buffer");
     return false;
   }
   D3D12_DESCRIPTOR_HEAP_DESC swap_descriptor_heap_desc;
@@ -788,7 +790,8 @@ bool D3D12CommandProcessor::SetupContext() {
   if (FAILED(device->CreateDescriptorHeap(
           &swap_descriptor_heap_desc,
           IID_PPV_ARGS(&swap_texture_rtv_descriptor_heap_)))) {
-    XELOGE("Failed to create the command processor front buffer RTV heap");
+    XELOG_GPU_E(
+        "[D3D12] Failed to create the command processor front buffer RTV heap");
     return false;
   }
   swap_texture_rtv_ =
@@ -805,7 +808,8 @@ bool D3D12CommandProcessor::SetupContext() {
   if (FAILED(device->CreateDescriptorHeap(
           &swap_descriptor_heap_desc,
           IID_PPV_ARGS(&swap_texture_srv_descriptor_heap_)))) {
-    XELOGE("Failed to create the command processor front buffer SRV heap");
+    XELOG_GPU_E(
+        "[D3D12] Failed to create the command processor front buffer SRV heap");
     return false;
   }
   D3D12_SHADER_RESOURCE_VIEW_DESC swap_srv_desc;
@@ -1236,8 +1240,8 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     // an index buffer.
     // https://www.slideshare.net/blackdevilvikas/next-generation-graphics-programming-on-xbox-360
     if (tessellation_mode != TessellationMode::kAdaptive) {
-      XELOGE(
-          "Tessellation mode %u is not implemented yet, only adaptive is "
+      XELOG_GPU_E(
+          "[D3D12] Tessellation mode %u is not implemented yet, only adaptive is "
           "partially available now - report the game to Xenia developers!",
           uint32_t(tessellation_mode));
       return false;
@@ -1369,7 +1373,7 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     uint32_t vfetch_constant_index =
         XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + vfetch_index * 2;
     if ((regs[vfetch_constant_index].u32 & 0x3) != 3) {
-      XELOGW("Vertex fetch type is not 3 (fetch constant %u is %.8X %.8X)!",
+      XELOG_GPU_W("[D3D12] Vertex fetch type is not 3 (fetch constant %u is %.8X %.8X)!",
              vfetch_index, regs[vfetch_constant_index].u32,
              regs[vfetch_constant_index + 1].u32);
       return false;
@@ -1377,11 +1381,9 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     if (!shared_memory_->RequestRange(
             regs[vfetch_constant_index].u32 & 0x1FFFFFFC,
             regs[vfetch_constant_index + 1].u32 & 0x3FFFFFC)) {
-      XELOGE(
-          "Failed to request vertex buffer at 0x%.8X (size %u) in the shared "
-          "memory",
+      XELOG_GPU_E("[D3D12] Failed to request vertex buffer at 0x%.8X (size %u) in the shared memory",
           regs[vfetch_constant_index].u32 & 0x1FFFFFFC,
-          regs[vfetch_constant_index + 1].u32 & 0x3FFFFFC);
+          regs[vfetch_constant_index + 1].u32 & 0x3FFFFFC);;
       return false;
     }
     vertex_buffers_resident[vfetch_index >> 6] |= 1ull << (vfetch_index & 63);
@@ -1409,8 +1411,8 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
       uint32_t memexport_format_size =
           GetSupportedMemExportFormatSize(memexport_stream->format);
       if (memexport_format_size == 0) {
-        XELOGE(
-            "Unsupported memexport format %s",
+        XELOG_GPU_E(
+            "[D3D12] Unsupported memexport format %s",
             FormatInfo::Get(TextureFormat(uint32_t(memexport_stream->format)))
                 ->name);
         return false;
@@ -1453,8 +1455,8 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
       uint32_t memexport_format_size =
           GetSupportedMemExportFormatSize(memexport_stream->format);
       if (memexport_format_size == 0) {
-        XELOGE(
-            "Unsupported memexport format %s",
+        XELOG_GPU_W(
+            "[D3D12] Unsupported memexport format %s",
             FormatInfo::Get(TextureFormat(uint32_t(memexport_stream->format)))
                 ->name);
         return false;
@@ -1484,8 +1486,8 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     const MemExportRange& memexport_range = memexport_ranges[i];
     if (!shared_memory_->RequestRange(memexport_range.base_address_dwords << 2,
                                       memexport_range.size_dwords << 2)) {
-      XELOGE(
-          "Failed to request memexport stream at 0x%.8X (size %u) in the "
+      XELOG_GPU_E(
+          "[D3D12] Failed to request memexport stream at 0x%.8X (size %u) in the "
           "shared memory",
           memexport_range.base_address_dwords << 2,
           memexport_range.size_dwords << 2);
@@ -1530,8 +1532,8 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     } else {
       uint32_t index_buffer_size = index_buffer_info->count * index_size;
       if (!shared_memory_->RequestRange(index_base, index_buffer_size)) {
-        XELOGE(
-            "Failed to request index buffer at 0x%.8X (size %u) in the shared "
+        XELOG_GPU_E(
+            "[D3D12] Failed to request index buffer at 0x%.8X (size %u) in the shared "
             "memory",
             index_base, index_buffer_size);
         return false;
@@ -3176,7 +3178,7 @@ ID3D12Resource* D3D12CommandProcessor::RequestReadbackBuffer(uint32_t size) {
             &ui::d3d12::util::kHeapPropertiesReadback, D3D12_HEAP_FLAG_NONE,
             &buffer_desc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr,
             IID_PPV_ARGS(&buffer)))) {
-      XELOGE("Failed to create a %u MB readback buffer", size >> 20);
+      XELOG_GPU_E("[D3D12] Failed to create a %u MB readback buffer", size >> 20);
       return nullptr;
     }
     if (readback_buffer_ != nullptr) {

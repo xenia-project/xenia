@@ -45,6 +45,11 @@ DEFINE_int32(
     "Maximum level to be logged. (0=error, 1=warning, 2=info, 3=debug)",
     "Logging");
 
+DEFINE_bool(exclude_cpu_from_log, false,
+            "Excludes CPU messages from being logged.", "Logging");
+DEFINE_bool(exclude_gpu_from_log, false, "Excludes GPU messages from being logged.", "Logging");
+
+
 namespace xe {
 
 class Logger;
@@ -88,6 +93,68 @@ class Logger {
       // Discard this line.
       return;
     }
+
+    LogLine line;
+    line.buffer_length = buffer_length;
+    line.thread_id = thread_id;
+    line.prefix_char = prefix_char;
+
+    // First, run a check and see if we can increment write
+    // head without any problems. If so, cmpxchg it to reserve some space in the
+    // ring. If someone beats us, loop around.
+    //
+    // Once we have a reservation, write our data and then increment the write
+    // tail.
+    size_t size = sizeof(LogLine) + buffer_length;
+    while (true) {
+      // Attempt to make a reservation.
+      size_t write_head = write_head_;
+      size_t read_head = read_head_;
+
+      RingBuffer rb(buffer_, kBufferSize);
+      rb.set_write_offset(write_head);
+      rb.set_read_offset(read_head);
+      if (rb.write_count() < size) {
+        xe::threading::MaybeYield();
+        continue;
+      }
+
+      // We have enough size to make a reservation!
+      rb.AdvanceWrite(size);
+      if (xe::atomic_cas(write_head, rb.write_offset(), &write_head_)) {
+        // Reservation made. Write out logline.
+        rb.set_write_offset(write_head);
+        rb.Write(&line, sizeof(LogLine));
+        rb.Write(buffer, buffer_length);
+
+        while (!xe::atomic_cas(write_head, rb.write_offset(), &write_tail_)) {
+          // Done writing. End the reservation.
+          xe::threading::MaybeYield();
+        }
+
+        break;
+      } else {
+        // Someone beat us to the chase. Loop around.
+        continue;
+      }
+    }
+  }
+
+  void AppendLine2(uint32_t thread_id, LogLevel level, LogCategory category, const char prefix_char,
+                  const char* buffer, size_t buffer_length) {
+    if (static_cast<int32_t>(level) > cvars::log_level) {
+      // Discard this line.
+      return;
+    }
+
+	// New logging features.
+	// If the category has logging set to false, discard.
+    if (cvars::exclude_cpu_from_log) {
+      return;
+    }
+    if (cvars::exclude_gpu_from_log) {
+      return;
+	}
 
     LogLine line;
     line.buffer_length = buffer_length;
@@ -272,6 +339,26 @@ void LogLineFormat(LogLevel log_level, const char prefix_char, const char* fmt,
                         prefix_char, log_format_buffer_.data(), chars_written);
   } else if (chars_written >= 0) {
     logger_->AppendLine(xe::threading::current_thread_id(), log_level,
+                        prefix_char, fmt, std::strlen(fmt));
+  }
+}
+
+void LogLineFormat2(LogLevel log_level, LogCategory log_category, const char prefix_char, const char* fmt,
+                   ...) {
+  if (!logger_) {
+    return;
+  }
+
+  va_list args;
+  va_start(args, fmt);
+  int chars_written = std::vsnprintf(log_format_buffer_.data(),
+                                     log_format_buffer_.capacity(), fmt, args);
+  va_end(args);
+  if (chars_written >= 0 && chars_written < log_format_buffer_.capacity()) {
+    logger_->AppendLine2(xe::threading::current_thread_id(), log_level, log_category,
+                        prefix_char, log_format_buffer_.data(), chars_written);
+  } else if (chars_written >= 0) {
+    logger_->AppendLine2(xe::threading::current_thread_id(), log_level, log_category,
                         prefix_char, fmt, std::strlen(fmt));
   }
 }

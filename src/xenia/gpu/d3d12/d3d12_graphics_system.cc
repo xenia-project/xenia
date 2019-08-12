@@ -98,7 +98,8 @@ X_STATUS D3D12GraphicsSystem::Setup(cpu::Processor* processor,
   stretch_root_signature_ =
       ui::d3d12::util::CreateRootSignature(d3d12_provider, stretch_root_desc);
   if (stretch_root_signature_ == nullptr) {
-    XELOGE("Failed to create the front buffer stretch root signature");
+    XELOG_GPU_E(
+        "[D3D12] Failed to create the front buffer stretch root signature");
     return X_STATUS_UNSUCCESSFUL;
   }
   // Gamma.
@@ -125,8 +126,8 @@ X_STATUS D3D12GraphicsSystem::Setup(cpu::Processor* processor,
   stretch_gamma_root_signature_ =
       ui::d3d12::util::CreateRootSignature(d3d12_provider, stretch_root_desc);
   if (stretch_gamma_root_signature_ == nullptr) {
-    XELOGE(
-        "Failed to create the gamma-correcting front buffer stretch root "
+    XELOG_GPU_E(
+        "[D3D12] Failed to create the gamma-correcting front buffer stretch root "
         "signature");
     stretch_root_signature_->Release();
     stretch_root_signature_ = nullptr;
@@ -154,7 +155,7 @@ X_STATUS D3D12GraphicsSystem::Setup(cpu::Processor* processor,
   stretch_pipeline_desc.SampleDesc.Count = 1;
   if (FAILED(device->CreateGraphicsPipelineState(
           &stretch_pipeline_desc, IID_PPV_ARGS(&stretch_pipeline_)))) {
-    XELOGE("Failed to create the front buffer stretch pipeline state");
+    XELOG_GPU_E("[D3D12] Failed to create the front buffer stretch pipeline state");
     stretch_gamma_root_signature_->Release();
     stretch_gamma_root_signature_ = nullptr;
     stretch_root_signature_->Release();
@@ -166,8 +167,8 @@ X_STATUS D3D12GraphicsSystem::Setup(cpu::Processor* processor,
   stretch_pipeline_desc.PS.BytecodeLength = sizeof(stretch_gamma_ps);
   if (FAILED(device->CreateGraphicsPipelineState(
           &stretch_pipeline_desc, IID_PPV_ARGS(&stretch_gamma_pipeline_)))) {
-    XELOGE(
-        "Failed to create the gamma-correcting front buffer stretch "
+    XELOG_GPU_E(
+        "[D3D12] Failed to create the gamma-correcting front buffer stretch "
         "pipeline state");
     stretch_pipeline_->Release();
     stretch_pipeline_ = nullptr;

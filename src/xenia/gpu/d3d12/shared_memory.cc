@@ -68,26 +68,26 @@ bool SharedMemory::Initialize() {
   if (AreTiledResourcesUsed()) {
     if (FAILED(device->CreateReservedResource(
             &buffer_desc, buffer_state_, nullptr, IID_PPV_ARGS(&buffer_)))) {
-      XELOGE("Shared memory: Failed to create the 512 MB tiled buffer");
+      XELOG_GPU_E("[D3D12] Shared memory: Failed to create the 512 MB tiled buffer");
       Shutdown();
       return false;
     }
   } else {
-    XELOGGPU(
-        "Direct3D 12 tiled resources are not used for shared memory "
+    XELOG_GPU_I(
+        "[D3D12] Direct3D 12 tiled resources are not used for shared memory "
         "emulation - video memory usage may increase significantly "
         "because a full 512 MB buffer will be created!");
     if (provider->GetGraphicsAnalysis() != nullptr) {
       // As of October 8th, 2018, PIX doesn't support tiled buffers.
       // FIXME(Triang3l): Re-enable tiled resources with PIX once fixed.
-      XELOGGPU(
-          "This is caused by PIX being attached, which doesn't support tiled "
+      XELOG_GPU_I(
+          "[D3D12] This is caused by PIX being attached, which doesn't support tiled "
           "resources yet.");
     }
     if (FAILED(device->CreateCommittedResource(
             &ui::d3d12::util::kHeapPropertiesDefault, D3D12_HEAP_FLAG_NONE,
             &buffer_desc, buffer_state_, nullptr, IID_PPV_ARGS(&buffer_)))) {
-      XELOGE("Shared memory: Failed to create the 512 MB buffer");
+      XELOG_GPU_E("[D3D12] Shared memory: Failed to create the 512 MB buffer");
       Shutdown();
       return false;
     }
@@ -107,8 +107,8 @@ bool SharedMemory::Initialize() {
   if (FAILED(device->CreateDescriptorHeap(
           &buffer_descriptor_heap_desc,
           IID_PPV_ARGS(&buffer_descriptor_heap_)))) {
-    XELOGE(
-        "Failed to create the descriptor heap for shared memory buffer views");
+    XELOG_GPU_E(
+        "[D3D12] Failed to create the descriptor heap for shared memory buffer views");
     Shutdown();
     return false;
   }
@@ -307,7 +307,7 @@ bool SharedMemory::MakeTilesResident(uint32_t start, uint32_t length) {
     heap_desc.Properties.Type = D3D12_HEAP_TYPE_DEFAULT;
     heap_desc.Flags = D3D12_HEAP_FLAG_ALLOW_ONLY_BUFFERS;
     if (FAILED(device->CreateHeap(&heap_desc, IID_PPV_ARGS(&heaps_[i])))) {
-      XELOGE("Shared memory: Failed to create a tile heap");
+      XELOG_GPU_E("[D3D12] Shared memory: Failed to create a tile heap");
       heap_creation_failed_ = true;
       return false;
     }
@@ -378,7 +378,7 @@ bool SharedMemory::RequestRange(uint32_t start, uint32_t length) {
           upload_range_length << page_size_log2_, &upload_buffer,
           &upload_buffer_offset, &upload_buffer_size, nullptr);
       if (upload_buffer_mapping == nullptr) {
-        XELOGE("Shared memory: Failed to get an upload buffer");
+        XELOG_GPU_E("[D3D12] Shared memory: Failed to get an upload buffer");
         return false;
       }
       uint32_t upload_buffer_pages = upload_buffer_size >> page_size_log2_;

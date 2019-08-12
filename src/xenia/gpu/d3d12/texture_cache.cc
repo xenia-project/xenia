@@ -502,8 +502,8 @@ bool TextureCache::Initialize() {
     if (FAILED(device->CreateReservedResource(
             &scaled_resolve_buffer_desc, scaled_resolve_buffer_state_, nullptr,
             IID_PPV_ARGS(&scaled_resolve_buffer_)))) {
-      XELOGE(
-          "Texture cache: Failed to create the 2 GB tiled buffer for 2x "
+      XELOG_GPU_E(
+          "[D3D12] Texture cache: Failed to create the 2 GB tiled buffer for 2x "
           "resolution scale - switching to 1x");
     }
     const uint32_t scaled_resolve_page_dword_count =
@@ -548,7 +548,7 @@ bool TextureCache::Initialize() {
   load_root_signature_ =
       ui::d3d12::util::CreateRootSignature(provider, root_signature_desc);
   if (load_root_signature_ == nullptr) {
-    XELOGE("Failed to create the texture loading root signature");
+    XELOG_GPU_E("[D3D12] Failed to create the texture loading root signature");
     Shutdown();
     return false;
   }
@@ -562,7 +562,7 @@ bool TextureCache::Initialize() {
   resolve_tile_root_signature_ =
       ui::d3d12::util::CreateRootSignature(provider, root_signature_desc);
   if (resolve_tile_root_signature_ == nullptr) {
-    XELOGE("Failed to create the texture tiling root signature");
+    XELOG_GPU_E("[D3D12] Failed to create the texture tiling root signature");
     Shutdown();
     return false;
   }
@@ -573,7 +573,8 @@ bool TextureCache::Initialize() {
     load_pipelines_[i] = ui::d3d12::util::CreateComputePipeline(
         device, mode_info.shader, mode_info.shader_size, load_root_signature_);
     if (load_pipelines_[i] == nullptr) {
-      XELOGE("Failed to create the texture loading pipeline for mode %u", i);
+      XELOG_GPU_E("[D3D12] Failed to create the texture loading pipeline for mode %u",
+                  i);
       Shutdown();
       return false;
     }
@@ -582,8 +583,8 @@ bool TextureCache::Initialize() {
           device, mode_info.shader_2x, mode_info.shader_2x_size,
           load_root_signature_);
       if (load_pipelines_2x_[i] == nullptr) {
-        XELOGE(
-            "Failed to create the 2x-scaled texture loading pipeline for mode "
+        XELOG_GPU_E(
+            "[D3D12] Failed to create the 2x-scaled texture loading pipeline for mode "
             "%u",
             i);
         Shutdown();
@@ -597,7 +598,8 @@ bool TextureCache::Initialize() {
         device, mode_info.shader, mode_info.shader_size,
         resolve_tile_root_signature_);
     if (resolve_tile_pipelines_[i] == nullptr) {
-      XELOGE("Failed to create the texture tiling pipeline for mode %u", i);
+      XELOG_GPU_E("[D3D12] Failed to create the texture tiling pipeline for mode %u",
+                  i);
       Shutdown();
       return false;
     }
@@ -615,7 +617,7 @@ bool TextureCache::Initialize() {
   if (FAILED(device->CreateDescriptorHeap(
           &null_srv_descriptor_heap_desc,
           IID_PPV_ARGS(&null_srv_descriptor_heap_)))) {
-    XELOGE("Failed to create the descriptor heap for null SRVs");
+    XELOG_GPU_E("[D3D12] Failed to create the descriptor heap for null SRVs");
     Shutdown();
     return false;
   }
@@ -809,10 +811,11 @@ void TextureCache::EndFrame() {
       continue;
     }
     if (!unsupported_header_written) {
-      XELOGE("Unsupported texture formats used in the frame:");
+      XELOG_GPU_E("[D3D12] Unsupported texture formats used in the frame:");
       unsupported_header_written = true;
     }
-    XELOGE("* %s%s%s%s", FormatInfo::Get(TextureFormat(i))->name,
+    XELOG_GPU_E(
+        "[D3D12] * %s%s%s%s", FormatInfo::Get(TextureFormat(i))->name,
            unsupported_features & kUnsupportedResourceBit ? " resource" : "",
            unsupported_features & kUnsupportedUnormBit ? " unorm" : "",
            unsupported_features & kUnsupportedSnormBit ? " snorm" : "");
@@ -1507,7 +1510,7 @@ bool TextureCache::EnsureScaledResolveBufferResident(uint32_t start_unscaled,
     heap_desc.Flags = D3D12_HEAP_FLAG_ALLOW_ONLY_BUFFERS;
     if (FAILED(device->CreateHeap(&heap_desc,
                                   IID_PPV_ARGS(&scaled_resolve_heaps_[i])))) {
-      XELOGE("Texture cache: Failed to create a scaled resolve tile heap");
+      XELOG_GPU_E("[D3D12] Texture cache: Failed to create a scaled resolve tile heap");
       return false;
     }
     ++scaled_resolve_heap_count_;
@@ -1663,8 +1666,8 @@ void TextureCache::BindingInfoFromFetchConstant(
   }
 
   if (fetch.type != 2) {
-    XELOGW(
-        "Texture fetch type is not 2 - ignoring (fetch constant is %.8X %.8X "
+    XELOG_GPU_W(
+        "[D3D12] Texture fetch type is not 2 - ignoring (fetch constant is %.8X %.8X "
         "%.8X %.8X %.8X %.8X)!",
         fetch.dword_0, fetch.dword_1, fetch.dword_2, fetch.dword_3,
         fetch.dword_4, fetch.dword_5);
@@ -1678,16 +1681,16 @@ void TextureCache::BindingInfoFromFetchConstant(
     case Dimension::k1D:
       if (fetch.tiled || fetch.stacked || fetch.packed_mips) {
         assert_always();
-        XELOGGPU(
-            "1D texture has unsupported properties - ignoring! "
+        XELOG_GPU_I(
+            "[D3D12] 1D texture has unsupported properties - ignoring! "
             "Report the game to Xenia developers");
         return;
       }
       width = fetch.size_1d.width + 1;
       if (width > 8192) {
         assert_always();
-        XELOGGPU(
-            "1D texture is too wide (%u) - ignoring! "
+        XELOG_GPU_I(
+            "[D3D12] 1D texture is too wide (%u) - ignoring! "
             "Report the game to Xenia developers",
             width);
       }
@@ -1797,8 +1800,8 @@ void TextureCache::BindingInfoFromFetchConstant(
 }
 
 void TextureCache::LogTextureKeyAction(TextureKey key, const char* action) {
-  XELOGGPU(
-      "%s %s %s%ux%ux%u %s %s texture with %u %spacked mip level%s, "
+  XELOG_GPU_I(
+      "[D3D12] %s %s %s%ux%ux%u %s %s texture with %u %spacked mip level%s, "
       "base at 0x%.8X, mips at 0x%.8X",
       action, key.tiled ? "tiled" : "linear",
       key.scaled_resolve ? "2x-scaled " : "", key.width, key.height, key.depth,
@@ -1810,8 +1813,8 @@ void TextureCache::LogTextureKeyAction(TextureKey key, const char* action) {
 
 void TextureCache::LogTextureAction(const Texture* texture,
                                     const char* action) {
-  XELOGGPU(
-      "%s %s %s%ux%ux%u %s %s texture with %u %spacked mip level%s, "
+  XELOG_GPU_I(
+      "[D3D12] %s %s %s%ux%ux%u %s %s texture with %u %spacked mip level%s, "
       "base at 0x%.8X (size %u), mips at 0x%.8X (size %u)",
       action, texture->key.tiled ? "tiled" : "linear",
       texture->key.scaled_resolve ? "2x-scaled " : "", texture->key.width,
