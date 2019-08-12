@@ -294,27 +294,14 @@ bool MMIOHandler::ExceptionCallback(Exception* ex) {
     }
   }
   if (!range) {
-    auto fault_address = reinterpret_cast<uint8_t*>(ex->fault_address());
-    uint32_t guest_address, guest_heap_address;
-    if (fault_address >= virtual_membase_ &&
-        fault_address < physical_membase_) {
-      // Faulting on a virtual address.
-      guest_address = static_cast<uint32_t>(ex->fault_address()) & 0x1FFFFFFF;
-      guest_heap_address =
-          static_cast<uint32_t>(ex->fault_address()) & ~0x1FFFFFFF;
-    } else {
-      // Faulting on a physical address.
-      guest_address = static_cast<uint32_t>(ex->fault_address());
-      guest_heap_address = 0;
-    }
-
     // Recheck if the pages are still protected (race condition - another thread
     // clears the writewatch we just hit).
     // Do this under the lock so we don't introduce another race condition.
     auto lock = global_critical_region_.Acquire();
     memory::PageAccess cur_access;
     size_t page_length = memory::page_size();
-    memory::QueryProtect((void*)fault_address, page_length, cur_access);
+    memory::QueryProtect(reinterpret_cast<void*>(ex->fault_address()),
+                         page_length, cur_access);
     if (cur_access != memory::PageAccess::kReadOnly &&
         cur_access != memory::PageAccess::kNoAccess) {
       // Another thread has cleared this write watch. Abort.
