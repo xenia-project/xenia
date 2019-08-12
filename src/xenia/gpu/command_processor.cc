@@ -90,11 +90,11 @@ void CommandProcessor::Shutdown() {
 
 void CommandProcessor::RequestFrameTrace(const std::wstring& root_path) {
   if (trace_state_ == TraceState::kStreaming) {
-    XELOGE("Streaming trace; cannot also trace frame.");
+    XELOG_GPU_E("Streaming trace; cannot also trace frame.");
     return;
   }
   if (trace_state_ == TraceState::kSingleFrame) {
-    XELOGE("Frame trace already pending; ignoring.");
+    XELOG_GPU_E("Frame trace already pending; ignoring.");
     return;
   }
   trace_state_ = TraceState::kSingleFrame;
@@ -103,11 +103,11 @@ void CommandProcessor::RequestFrameTrace(const std::wstring& root_path) {
 
 void CommandProcessor::BeginTracing(const std::wstring& root_path) {
   if (trace_state_ == TraceState::kStreaming) {
-    XELOGE("Streaming already active; ignoring request.");
+    XELOG_GPU_E("Streaming already active; ignoring request.");
     return;
   }
   if (trace_state_ == TraceState::kSingleFrame) {
-    XELOGE("Frame trace pending; ignoring streaming request.");
+    XELOG_GPU_E("Frame trace pending; ignoring streaming request.");
     return;
   }
   // Streaming starts on the next primary buffer execute.
@@ -277,13 +277,14 @@ void CommandProcessor::UpdateWritePointer(uint32_t value) {
 void CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
   RegisterFile* regs = register_file_;
   if (index >= RegisterFile::kRegisterCount) {
-    XELOGW("CommandProcessor::WriteRegister index out of bounds: %d", index);
+    XELOG_GPU_W("CommandProcessor::WriteRegister index out of bounds: %d",
+                index);
     return;
   }
 
   regs->values[index].u32 = value;
   if (!regs->GetRegisterInfo(index)) {
-    XELOGW("GPU: Write to unknown register (%.4X = %.8X)", index, value);
+    XELOG_GPU_W("GPU: Write to unknown register (%.4X = %.8X)", index, value);
   }
 
   // If this is a COHER register, set the dirty flag.
@@ -369,7 +370,7 @@ void CommandProcessor::MakeCoherent() {
   }
 
   // TODO(benvanik): notify resource cache of base->size and type.
-  XELOGD("Make %.8X -> %.8X (%db) coherent, action = %s", base_host,
+  XELOG_GPU_E("Make %.8X -> %.8X (%db) coherent, action = %s", base_host,
          base_host + size_host, size_host, action);
 
   // Mark coherent.
@@ -398,7 +399,7 @@ void CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
     if (swap_state_.pending) {
       swap_state_.pending = false;
       // TODO(benvanik): frame skip counter.
-      XELOGW("Skipped frame!");
+      XELOG_GPU_W("Skipped frame!");
     }
   } else {
     // Spin until no more pending swap.
@@ -457,7 +458,7 @@ uint32_t CommandProcessor::ExecutePrimaryBuffer(uint32_t read_index,
   do {
     if (!ExecutePacket(&reader)) {
       // This probably should be fatal - but we're going to continue anyways.
-      XELOGE("**** PRIMARY RINGBUFFER: Failed to execute packet.");
+      XELOG_GPU_E("**** PRIMARY RINGBUFFER: Failed to execute packet.");
       assert_always();
       break;
     }
@@ -479,7 +480,7 @@ void CommandProcessor::ExecuteIndirectBuffer(uint32_t ptr, uint32_t count) {
   do {
     if (!ExecutePacket(&reader)) {
       // Return up a level if we encounter a bad packet.
-      XELOGE("**** INDIRECT RINGBUFFER: Failed to execute packet.");
+      XELOG_GPU_E("**** INDIRECT RINGBUFFER: Failed to execute packet.");
       assert_always();
       break;
     }
@@ -494,7 +495,7 @@ void CommandProcessor::ExecutePacket(uint32_t ptr, uint32_t count) {
   reader.set_write_offset(count * sizeof(uint32_t));
   do {
     if (!ExecutePacket(&reader)) {
-      XELOGE("**** ExecutePacket: Failed to execute packet.");
+      XELOG_GPU_E("**** ExecutePacket: Failed to execute packet.");
       assert_always();
       break;
     }
@@ -532,7 +533,8 @@ bool CommandProcessor::ExecutePacketType0(RingBuffer* reader, uint32_t packet) {
 
   uint32_t count = ((packet >> 16) & 0x3FFF) + 1;
   if (reader->read_count() < count * sizeof(uint32_t)) {
-    XELOGE("ExecutePacketType0 overflow (read count %.8X, packet count %.8X)",
+    XELOG_GPU_E(
+        "ExecutePacketType0 overflow (read count %.8X, packet count %.8X)",
            reader->read_count(), count * sizeof(uint32_t));
     return false;
   }
@@ -580,7 +582,8 @@ bool CommandProcessor::ExecutePacketType3(RingBuffer* reader, uint32_t packet) {
   auto data_start_offset = reader->read_offset();
 
   if (reader->read_count() < count * sizeof(uint32_t)) {
-    XELOGE("ExecutePacketType3 overflow (read count %.8X, packet count %.8X)",
+    XELOG_GPU_E(
+        "ExecutePacketType3 overflow (read count %.8X, packet count %.8X)",
            reader->read_count(), count * sizeof(uint32_t));
     return false;
   }
@@ -719,14 +722,14 @@ bool CommandProcessor::ExecutePacketType3(RingBuffer* reader, uint32_t packet) {
     case PM4_CONTEXT_UPDATE: {
       assert_true(count == 1);
       uint64_t value = reader->ReadAndSwap<uint32_t>();
-      XELOGGPU("GPU context update = %.8X", value);
+      XELOG_GPU_I("GPU context update = %.8X", value);
       assert_true(value == 0);
       result = true;
       break;
     }
 
     default:
-      XELOGGPU("Unimplemented GPU OPCODE: 0x%.2X\t\tCOUNT: %d\n", opcode,
+      XELOG_GPU_W("Unimplemented GPU OPCODE: 0x%.2X\t\tCOUNT: %d\n", opcode,
                count);
       assert_always();
       reader->AdvanceRead(count * sizeof(uint32_t));
@@ -798,7 +801,7 @@ bool CommandProcessor::ExecutePacketType3_XE_SWAP(RingBuffer* reader,
                                                   uint32_t count) {
   SCOPE_profile_cpu_f("gpu");
 
-  XELOGI("XE_SWAP");
+  XELOG_GPU_I("XE_SWAP");
 
   Profiler::Flip();
 
@@ -1184,7 +1187,7 @@ bool CommandProcessor::ExecutePacketType3_DRAW_INDX(RingBuffer* reader,
   bool success = IssueDraw(prim_type, index_count,
                            is_indexed ? &index_buffer_info : nullptr);
   if (!success) {
-    XELOGE("PM4_DRAW_INDX(%d, %d, %d): Failed in backend", index_count,
+    XELOG_GPU_E("PM4_DRAW_INDX(%d, %d, %d): Failed in backend", index_count,
            prim_type, src_sel);
   }
 
@@ -1208,7 +1211,7 @@ bool CommandProcessor::ExecutePacketType3_DRAW_INDX_2(RingBuffer* reader,
 
   bool success = IssueDraw(prim_type, index_count, nullptr);
   if (!success) {
-    XELOGE("PM4_DRAW_INDX_IMM(%d, %d): Failed in backend", index_count,
+    XELOG_GPU_E("PM4_DRAW_INDX_IMM(%d, %d): Failed in backend", index_count,
            prim_type);
   }
 
@@ -1402,11 +1405,11 @@ bool CommandProcessor::ExecutePacketType3_VIZ_QUERY(RingBuffer* reader,
   if (!end) {
     // begin a new viz query @ id
     WriteRegister(XE_GPU_REG_VGT_EVENT_INITIATOR, VIZQUERY_START);
-    XELOGGPU("Begin viz query ID %.2X", id);
+    XELOG_GPU_I("Begin viz query ID %.2X", id);
   } else {
     // end the viz query
     WriteRegister(XE_GPU_REG_VGT_EVENT_INITIATOR, VIZQUERY_END);
-    XELOGGPU("End viz query ID %.2X", id);
+    XELOG_GPU_I("End viz query ID %.2X", id);
   }
 
   return true;
