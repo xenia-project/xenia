@@ -87,14 +87,14 @@ void FatalError(const std::wstring& str);
 #define XELOGI(fmt, ...) XELOGCORE(xe::LogLevel::Info, 'i', fmt, ##__VA_ARGS__)
 #define XELOGD(fmt, ...) XELOGCORE(xe::LogLevel::Debug, 'd', fmt, ##__VA_ARGS__)
 
-#define XELOGCPU(fmt, ...) \
-  XELOGCORE(xe::LogLevel::Info, 'C', fmt, ##__VA_ARGS__)
-#define XELOGAPU(fmt, ...) \
-  XELOGCORE(xe::LogLevel::Info, 'A', fmt, ##__VA_ARGS__)
+//#define XELOGCPU(fmt, ...) \
+  // XELOGCORE(xe::LogLevel::Info, 'C', fmt, ##__VA_ARGS__)
+//#define XELOGAPU(fmt, ...) \
+  // XELOGCORE(xe::LogLevel::Info, 'A', fmt, ##__VA_ARGS__)
 //#define XELOGGPU(fmt, ...) \
   // XELOGCORE(xe::LogLevel::Info, 'G', fmt, ##__VA_ARGS__)
-#define XELOGKERNEL(fmt, ...) \
-  XELOGCORE(xe::LogLevel::Info, 'K', fmt, ##__VA_ARGS__)
+//#define XELOGKERNEL(fmt, ...) \
+  // XELOGCORE(xe::LogLevel::Info, 'K', fmt, ##__VA_ARGS__)
 #define XELOGFS(fmt, ...) XELOGCORE(xe::LogLevel::Info, 'F', fmt, ##__VA_ARGS__)
 
 // -- BEGIN NEW LOGGING FUNCTIONS --

@@ -495,7 +495,7 @@ X_STATUS XThread::Terminate(int exit_code) {
 }
 
 void XThread::Execute() {
-  XELOGKERNEL("XThread::Execute thid %d (handle=%.8X, '%s', native=%.8X)",
+  XELOG_KERNEL_W("[KERNEL] XThread::Execute thid %d (handle=%.8X, '%s', native=%.8X)",
               thread_id_, handle(), thread_name_.c_str(), thread_->system_id());
 
   // Let the kernel know we are starting.
@@ -1054,8 +1054,8 @@ XHostThread::XHostThread(KernelState* kernel_state, uint32_t stack_size,
 }
 
 void XHostThread::Execute() {
-  XELOGKERNEL(
-      "XThread::Execute thid %d (handle=%.8X, '%s', native=%.8X, <host>)",
+  XELOG_KERNEL_W(
+      "[KERNEL] XThread::Execute thid %d (handle=%.8X, '%s', native=%.8X, <host>)",
       thread_id_, handle(), thread_name_.c_str(), thread_->system_id());
 
   // Let the kernel know we are starting.

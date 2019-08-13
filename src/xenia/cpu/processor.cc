@@ -323,7 +323,7 @@ bool Processor::Execute(ThreadState* thread_state, uint32_t address) {
   auto function = ResolveFunction(address);
   if (!function) {
     // Symbol not found in any module.
-    XELOGCPU("Execute(%.8X): failed to find function", address);
+    XELOG_CPU_E("[CPU] Execute(%.8X): failed to find function", address);
     return false;
   }
 
@@ -354,7 +354,7 @@ bool Processor::ExecuteRaw(ThreadState* thread_state, uint32_t address) {
   auto function = ResolveFunction(address);
   if (!function) {
     // Symbol not found in any module.
-    XELOGCPU("Execute(%.8X): failed to find function", address);
+    XELOG_CPU_E("[CPU] Execute(%.8X): failed to find function", address);
     return false;
   }
 

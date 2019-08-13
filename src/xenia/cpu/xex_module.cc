@@ -1136,7 +1136,7 @@ bool XexModule::SetupLibraryImports(const char* name,
           } else {
             // Not implemented - write with a dummy value.
             *record_slot = 0xD000BEEF | (kernel_export->ordinal & 0xFFF) << 16;
-            XELOGCPU("WARNING: imported a variable with no value: %s",
+            XELOG_CPU_W("[CPU] WARNING: imported a variable with no value: %s",
                      kernel_export->name);
           }
         }
