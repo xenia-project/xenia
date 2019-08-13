@@ -286,7 +286,12 @@ class Memory {
   // Note that the contents at the specified host address are big-endian.
   template <typename T = uint8_t*>
   inline T TranslateVirtual(uint32_t guest_address) const {
-    return reinterpret_cast<T>(virtual_membase_ + guest_address);
+    uint8_t* host_address = virtual_membase_ + guest_address;
+    const auto heap = LookupHeap(guest_address);
+    if (heap) {
+      host_address += heap->host_address_offset();
+    }
+    return reinterpret_cast<T>(host_address);
   }
 
   // Base address of physical memory in the host address space.
@@ -399,7 +404,12 @@ class Memory {
   void SystemHeapFree(uint32_t address);
 
   // Gets the heap for the address space containing the given address.
-  BaseHeap* LookupHeap(uint32_t address);
+  const BaseHeap* LookupHeap(uint32_t address) const;
+
+  inline BaseHeap* LookupHeap(uint32_t address) {
+    return const_cast<BaseHeap*>(
+        const_cast<const Memory*>(this)->LookupHeap(address));
+  }
 
   // Gets the heap with the given properties.
   BaseHeap* LookupHeapByType(bool physical, uint32_t page_size);

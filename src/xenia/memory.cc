@@ -306,7 +306,7 @@ void Memory::Reset() {
   heaps_.physical.Reset();
 }
 
-BaseHeap* Memory::LookupHeap(uint32_t address) {
+const BaseHeap* Memory::LookupHeap(uint32_t address) const {
   if (address < 0x40000000) {
     return &heaps_.v00000000;
   } else if (address < 0x7F000000) {
