@@ -450,10 +450,9 @@ void PrintKernelCall(cpu::Export* export_entry, const Tuple& params) {
 
   // We can log our Kernel calls here.
   if (export_entry->tags & xe::cpu::ExportTag::kImportant) {
-    // VdSwap (tag->1074659345) has been singled out because it bulks out the log.
-	// TODO: remove/replace this code with better logging.
+    // (TranzRail) VdSwap (tag->1074659345) has been singled out because it bulks out the log.
     if (export_entry->tags == 1074659345) {
-      XELOG_GPU_I("[KERNEL] %s", string_buffer.GetString());
+      XELOG_GPU_I("[KERNEL] Shim: %s", string_buffer.GetString());
     } else {
       xe::LogLine(xe::LogLevel::Info, 'i', string_buffer.GetString(),
                   string_buffer.length());

@@ -46,8 +46,15 @@ DEFINE_int32(
     "Logging");
 
 DEFINE_bool(exclude_cpu_from_log, false,
-            "Excludes CPU messages from being logged.", "Logging");
-DEFINE_bool(exclude_gpu_from_log, false, "Excludes GPU messages from being logged.", "Logging");
+            "Excludes 'CPU' messages from being logged.", "Logging");
+DEFINE_bool(exclude_gpu_from_log, false, "Excludes 'GPU' messages from being logged.", "Logging");
+DEFINE_bool(exclude_apu_from_log, false, "Excludes 'APU' messages from being logged.", "Logging");
+DEFINE_bool(exclude_kernel_from_log, false, "Excludes 'Kernel' messages from being logged.", "Logging");
+DEFINE_bool(exclude_hid_from_log, false, "Excludes 'HI'D messages from being logged.", "Logging");
+DEFINE_bool(exclude_vfs_from_log, false, "Excludes 'VFS' messages from being logged.", "Logging");
+DEFINE_bool(exclude_ui_from_log, false, "Excludes 'UI' messages from being logged.", "Logging");
+// The last log category for which these definitions relate is ALWAYS_LOG,
+// therefore we don't define a flag here for that.
 
 
 namespace xe {

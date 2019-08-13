@@ -33,12 +33,14 @@ enum class LogLevel {
 };
 
 enum class LogCategory {
-	CPU,
+	CPU = 0,
 	GPU,
-	HID,
+	APU,
 	KERNEL,
+	HID,
+	VFS,
 	UI,
-	VFS
+	ALWAYS_LOG
 };
 
 // Initializes the logging system and any outputs requested.
@@ -96,12 +98,91 @@ void FatalError(const std::wstring& str);
 #define XELOGFS(fmt, ...) XELOGCORE(xe::LogLevel::Info, 'F', fmt, ##__VA_ARGS__)
 
 // new logging functions
+// [CPU]
+#define XELOG_CPU_E(fmt, ...) \
+  XELOGCORE2(xe::LogLevel::Error, xe::LogCategory::CPU, '!', fmt, ##__VA_ARGS__)
+#define XELOG_CPU_W(fmt, ...) \
+  XELOGCORE2(xe::LogLevel::Warning, xe::LogCategory::CPU, 'w', fmt, ##__VA_ARGS__)
+#define XELOG_GPU_I(fmt, ...) \
+  XELOGCORE2(xe::LogLevel::Info, xe::LogCategory::CPU, 'i', fmt, ##__VA_ARGS__)
+#define XELOG_GPU_D(fmt, ...) \
+  XELOGCORE2(xe::LogLevel::Debug, xe::LogCategory::CPU, 'd', fmt, ##__VA_ARGS__)
+// [GPU]
 #define XELOG_GPU_E(fmt, ...) \
   XELOGCORE2(xe::LogLevel::Error, xe::LogCategory::GPU, '!', fmt, ##__VA_ARGS__)
 #define XELOG_GPU_W(fmt, ...) \
-  XELOGCORE2(xe::LogLevel::Warning, xe::LogCategory::GPU, '!', fmt, ##__VA_ARGS__)
+  XELOGCORE2(xe::LogLevel::Warning, xe::LogCategory::GPU, 'w', fmt, ##__VA_ARGS__)
 #define XELOG_GPU_I(fmt, ...) \
   XELOGCORE2(xe::LogLevel::Info, xe::LogCategory::GPU, 'i', fmt, ##__VA_ARGS__)
+#define XELOG_GPU_D(fmt, ...) \
+  XELOGCORE2(xe::LogLevel::Debug, xe::LogCategory::GPU, 'd', fmt, ##__VA_ARGS__)
+// [APU]
+#define XELOG_APU_E(fmt, ...) \
+  XELOGCORE2(xe::LogLevel::Error, xe::LogCategory::APU, '!', fmt, ##__VA_ARGS__)
+#define XELOG_APU_W(fmt, ...) \
+  XELOGCORE2(xe::LogLevel::Warning, xe::LogCategory::APU, 'w', fmt, ##__VA_ARGS__)
+#define XELOG_APU_I(fmt, ...) \
+  XELOGCORE2(xe::LogLevel::Info, xe::LogCategory::APU, 'i', fmt, ##__VA_ARGS__)
+#define XELOG_APU_D(fmt, ...) \
+  XELOGCORE2(xe::LogLevel::Debug, xe::LogCategory::APU, 'd', fmt, ##__VA_ARGS__)
+// [KERNEL]
+#define XELOG_KERNEL_E(fmt, ...) \
+  XELOGCORE2(xe::LogLevel::Error, xe::LogCategory::KERNEL, '!', fmt, ##__VA_ARGS__)
+#define XELOG_KERNEL_W(fmt, ...)                                       \
+  XELOGCORE2(xe::LogLevel::Warning, xe::LogCategory::KERNEL, 'w', fmt, \
+             ##__VA_ARGS__)
+#define XELOG_KERNEL_I(fmt, ...) \
+  XELOGCORE2(xe::LogLevel::Info, xe::LogCategory::KERNEL, 'i', fmt, ##__VA_ARGS__)
+#define XELOG_KERNEL_D(fmt, ...) \
+  XELOGCORE2(xe::LogLevel::Debug, xe::LogCategory::KERNEL, 'd', fmt, ##__VA_ARGS__)
+// [HID]
+#define XELOG_HID_E(fmt, ...)                                     \
+  XELOGCORE2(xe::LogLevel::Error, xe::LogCategory::KERNEL, '!', fmt, \
+             ##__VA_ARGS__)
+#define XELOG_HID_W(fmt, ...)                                       \
+  XELOGCORE2(xe::LogLevel::Warning, xe::LogCategory::KERNEL, 'w', fmt, \
+             ##__VA_ARGS__)
+#define XELOG_HID_I(fmt, ...)                                    \
+  XELOGCORE2(xe::LogLevel::Info, xe::LogCategory::KERNEL, 'i', fmt, \
+             ##__VA_ARGS__)
+#define XELOG_HID_D(fmt, ...)                                     \
+  XELOGCORE2(xe::LogLevel::Debug, xe::LogCategory::KERNEL, 'd', fmt, \
+             ##__VA_ARGS__)
+// [VFS]
+#define XELOG_VFS_E(fmt, ...)                                        \
+  XELOGCORE2(xe::LogLevel::Error, xe::LogCategory::VFS, '!', fmt, \
+             ##__VA_ARGS__)
+#define XELOG_VFS_W(fmt, ...)                                          \
+  XELOGCORE2(xe::LogLevel::Warning, xe::LogCategory::VFS, 'w', fmt, \
+             ##__VA_ARGS__)
+#define XELOG_VFS_I(fmt, ...)                                       \
+  XELOGCORE2(xe::LogLevel::Info, xe::LogCategory::VFS, 'i', fmt, \
+             ##__VA_ARGS__)
+#define XELOG_VFS_D(fmt, ...)                                        \
+  XELOGCORE2(xe::LogLevel::Debug, xe::LogCategory::VFS, 'd', fmt, \
+             ##__VA_ARGS__)
+// [UI]
+#define XELOG_UI_E(fmt, ...) \
+  XELOGCORE2(xe::LogLevel::Error, xe::LogCategory::UI, '!', fmt, ##__VA_ARGS__)
+#define XELOG_UI_W(fmt, ...)                                       \
+  XELOGCORE2(xe::LogLevel::Warning, xe::LogCategory::UI, 'w', fmt, \
+             ##__VA_ARGS__)
+#define XELOG_UI_I(fmt, ...) \
+  XELOGCORE2(xe::LogLevel::Info, xe::LogCategory::UI, 'i', fmt, ##__VA_ARGS__)
+#define XELOG_UI_D(fmt, ...) \
+  XELOGCORE2(xe::LogLevel::Debug, xe::LogCategory::UI, 'd', fmt, ##__VA_ARGS__)
+// [ALWAYS_LOG]
+#define XELOG_ALWAYS_LOG_E(fmt, ...) \
+  XELOGCORE2(xe::LogLevel::Error, xe::LogCategory::ALWAYS_LOG, '!', fmt, \
+             ##__VA_ARGS__)
+#define XELOG_ALWAYS_LOG_W(fmt, ...)                                       \
+  XELOGCORE2(xe::LogLevel::Warning, xe::LogCategory::ALWAYS_LOG, 'w', fmt, \
+             ##__VA_ARGS__)
+#define XELOG_ALWAYS_LOG_I(fmt, ...) \
+  XELOGCORE2(xe::LogLevel::Info, xe::LogCategory::ALWAYS_LOG, 'i', fmt, \
+             ##__VA_ARGS__)
+#define XELOG_ALWAYS_LOG_D(fmt, ...) \
+  XELOGCORE2(xe::LogLevel::Debug, xe::LogCategory::ALWAYS_LOG, 'd', fmt, ##__VA_ARGS__)
 
 }  // namespace xe
 
