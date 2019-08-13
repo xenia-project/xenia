@@ -81,7 +81,7 @@ class UserModule : public XModule {
 
   // Get optional header that can safely be returned to guest code.
   X_STATUS GetOptHeader(xex2_header_keys key, uint32_t* out_header_guest_ptr);
-  static X_STATUS GetOptHeader(uint8_t* membase, const xex2_header* header,
+  static X_STATUS GetOptHeader(const Memory* memory, const xex2_header* header,
                                xex2_header_keys key,
                                uint32_t* out_header_guest_ptr);
 

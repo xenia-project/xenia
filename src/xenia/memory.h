@@ -95,6 +95,13 @@ class BaseHeap {
  public:
   virtual ~BaseHeap();
 
+  // Offset of the heap in relative to membase, without host_address_offset
+  // adjustment.
+  uint32_t heap_base() const { return heap_base_; }
+
+  // Length of the heap range.
+  uint32_t heap_size() const { return heap_size_; }
+
   // Size of each page within the heap range in bytes.
   uint32_t page_size() const { return page_size_; }
 
@@ -277,10 +284,7 @@ class Memory {
   // Translates a guest virtual address to a host address that can be accessed
   // as a normal pointer.
   // Note that the contents at the specified host address are big-endian.
-  inline uint8_t* TranslateVirtual(uint32_t guest_address) const {
-    return virtual_membase_ + guest_address;
-  }
-  template <typename T>
+  template <typename T = uint8_t*>
   inline T TranslateVirtual(uint32_t guest_address) const {
     return reinterpret_cast<T>(virtual_membase_ + guest_address);
   }
@@ -292,14 +296,15 @@ class Memory {
   // Translates a guest physical address to a host address that can be accessed
   // as a normal pointer.
   // Note that the contents at the specified host address are big-endian.
-  inline uint8_t* TranslatePhysical(uint32_t guest_address) const {
-    return physical_membase_ + (guest_address & 0x1FFFFFFF);
-  }
-  template <typename T>
+  template <typename T = uint8_t*>
   inline T TranslatePhysical(uint32_t guest_address) const {
     return reinterpret_cast<T>(physical_membase_ +
                                (guest_address & 0x1FFFFFFF));
   }
+
+  // Translates a host address to a guest virtual address.
+  // Note that the contents at the returned host address are big-endian.
+  uint32_t HostToGuestVirtual(const void* host_address) const;
 
   // Zeros out a range of memory at the given guest address.
   void Zero(uint32_t address, uint32_t size);
@@ -412,11 +417,13 @@ class Memory {
   int MapViews(uint8_t* mapping_base);
   void UnmapViews();
 
-  bool AccessViolationCallback(size_t host_address, bool is_write);
-  static bool AccessViolationCallbackThunk(void* context, size_t host_address,
+  static uint32_t HostToGuestVirtualThunk(const void* context,
+                                          const void* host_address);
+
+  bool AccessViolationCallback(void* host_address, bool is_write);
+  static bool AccessViolationCallbackThunk(void* context, void* host_address,
                                            bool is_write);
 
- private:
   std::wstring file_name_;
   uint32_t system_page_size_ = 0;
   uint32_t system_allocation_granularity_ = 0;

@@ -341,8 +341,8 @@ pointer_result_t RtlImageXexHeaderField(pointer_t<xex2_header> xex_header,
   uint32_t field_value = 0;
   uint32_t field = field_dword;  // VS acts weird going from dword_t -> enum
 
-  UserModule::GetOptHeader(kernel_memory()->virtual_membase(), xex_header,
-                           xex2_header_keys(field), &field_value);
+  UserModule::GetOptHeader(kernel_memory(), xex_header, xex2_header_keys(field),
+                           &field_value);
 
   return field_value;
 }

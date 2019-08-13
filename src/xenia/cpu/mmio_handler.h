@@ -27,8 +27,6 @@ typedef uint32_t (*MMIOReadCallback)(void* ppc_context, void* callback_context,
                                      uint32_t addr);
 typedef void (*MMIOWriteCallback)(void* ppc_context, void* callback_context,
                                   uint32_t addr, uint32_t value);
-typedef void (*AccessWatchCallback)(void* context_ptr, void* data_ptr,
-                                    uint32_t address);
 
 struct MMIORange {
   uint32_t address;
@@ -44,7 +42,9 @@ class MMIOHandler {
  public:
   virtual ~MMIOHandler();
 
-  typedef bool (*AccessViolationCallback)(void* context, size_t host_address,
+  typedef uint32_t (*HostToGuestVirtual)(const void* context,
+                                         const void* host_address);
+  typedef bool (*AccessViolationCallback)(void* context, void* host_address,
                                           bool is_write);
 
   // access_violation_callback is called in global_critical_region, so if
@@ -52,6 +52,8 @@ class MMIOHandler {
   // will be called only once.
   static std::unique_ptr<MMIOHandler> Install(
       uint8_t* virtual_membase, uint8_t* physical_membase, uint8_t* membase_end,
+      HostToGuestVirtual host_to_guest_virtual,
+      const void* host_to_guest_virtual_context,
       AccessViolationCallback access_violation_callback,
       void* access_violation_callback_context);
   static MMIOHandler* global_handler() { return global_handler_; }
@@ -66,7 +68,8 @@ class MMIOHandler {
 
  protected:
   MMIOHandler(uint8_t* virtual_membase, uint8_t* physical_membase,
-              uint8_t* membase_end,
+              uint8_t* membase_end, HostToGuestVirtual host_to_guest_virtual,
+              const void* host_to_guest_virtual_context,
               AccessViolationCallback access_violation_callback,
               void* access_violation_callback_context);
 
@@ -78,6 +81,9 @@ class MMIOHandler {
   uint8_t* memory_end_;
 
   std::vector<MMIORange> mapped_ranges_;
+
+  HostToGuestVirtual host_to_guest_virtual_;
+  const void* host_to_guest_virtual_context_;
 
   AccessViolationCallback access_violation_callback_;
   void* access_violation_callback_context_;

@@ -195,9 +195,9 @@ bool Memory::Initialize() {
       kMemoryProtectRead | kMemoryProtectWrite);
 
   // Add handlers for MMIO.
-  mmio_handler_ = cpu::MMIOHandler::Install(virtual_membase_, physical_membase_,
-                                            physical_membase_ + 0x1FFFFFFF,
-                                            AccessViolationCallbackThunk, this);
+  mmio_handler_ = cpu::MMIOHandler::Install(
+      virtual_membase_, physical_membase_, physical_membase_ + 0x1FFFFFFF,
+      HostToGuestVirtualThunk, this, AccessViolationCallbackThunk, this);
   if (!mmio_handler_) {
     XELOGE("Unable to install MMIO handlers");
     assert_always();
@@ -349,6 +349,26 @@ BaseHeap* Memory::LookupHeapByType(bool physical, uint32_t page_size) {
 
 VirtualHeap* Memory::GetPhysicalHeap() { return &heaps_.physical; }
 
+uint32_t Memory::HostToGuestVirtual(const void* host_address) const {
+  size_t virtual_address = reinterpret_cast<size_t>(host_address) -
+                           reinterpret_cast<size_t>(virtual_membase_);
+  uint32_t vE0000000_host_offset = heaps_.vE0000000.host_address_offset();
+  size_t vE0000000_host_base =
+      size_t(heaps_.vE0000000.heap_base()) + vE0000000_host_offset;
+  if (virtual_address >= vE0000000_host_base &&
+      virtual_address <=
+          (vE0000000_host_base + heaps_.vE0000000.heap_size() - 1)) {
+    virtual_address -= vE0000000_host_offset;
+  }
+  return uint32_t(virtual_address);
+}
+
+uint32_t Memory::HostToGuestVirtualThunk(const void* context,
+                                         const void* host_address) {
+  return reinterpret_cast<const Memory*>(context)->HostToGuestVirtual(
+      host_address);
+}
+
 void Memory::Zero(uint32_t address, uint32_t size) {
   std::memset(TranslateVirtual(address), 0, size);
 }
@@ -405,7 +425,7 @@ cpu::MMIORange* Memory::LookupVirtualMappedRange(uint32_t virtual_address) {
   return mmio_handler_->LookupRange(virtual_address);
 }
 
-bool Memory::AccessViolationCallback(size_t host_address, bool is_write) {
+bool Memory::AccessViolationCallback(void* host_address, bool is_write) {
   if (!is_write) {
     // TODO(Triang3l): Handle GPU readback.
     return false;
@@ -413,8 +433,10 @@ bool Memory::AccessViolationCallback(size_t host_address, bool is_write) {
 
   // Access via physical_membase_ is special, when need to bypass everything,
   // so only watching virtual memory regions.
-  if (host_address < reinterpret_cast<size_t>(virtual_membase_) ||
-      host_address >= reinterpret_cast<size_t>(physical_membase_)) {
+  if (reinterpret_cast<size_t>(host_address) <
+          reinterpret_cast<size_t>(virtual_membase_) ||
+      reinterpret_cast<size_t>(host_address) >=
+          reinterpret_cast<size_t>(physical_membase_)) {
     return false;
   }
 
@@ -445,7 +467,7 @@ bool Memory::AccessViolationCallback(size_t host_address, bool is_write) {
   return false;
 }
 
-bool Memory::AccessViolationCallbackThunk(void* context, size_t host_address,
+bool Memory::AccessViolationCallbackThunk(void* context, void* host_address,
                                           bool is_write) {
   return reinterpret_cast<Memory*>(context)->AccessViolationCallback(
       host_address, is_write);
