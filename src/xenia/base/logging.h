@@ -97,7 +97,7 @@ void FatalError(const std::wstring& str);
   XELOGCORE(xe::LogLevel::Info, 'K', fmt, ##__VA_ARGS__)
 #define XELOGFS(fmt, ...) XELOGCORE(xe::LogLevel::Info, 'F', fmt, ##__VA_ARGS__)
 
-// new logging functions
+// -- BEGIN NEW LOGGING FUNCTIONS --
 // [CPU]
 #define XELOG_CPU_E(fmt, ...) \
   XELOGCORE2(xe::LogLevel::Error, xe::LogCategory::CPU, '!', fmt, ##__VA_ARGS__)
@@ -183,6 +183,7 @@ void FatalError(const std::wstring& str);
              ##__VA_ARGS__)
 #define XELOG_ALWAYS_LOG_D(fmt, ...) \
   XELOGCORE2(xe::LogLevel::Debug, xe::LogCategory::ALWAYS_LOG, 'd', fmt, ##__VA_ARGS__)
+// -- END NEW LOGGING FUNCTIONS --
 
 }  // namespace xe
 

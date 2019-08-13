@@ -252,7 +252,7 @@ bool AudioSystem::Save(ByteStream* stream) {
 
 bool AudioSystem::Restore(ByteStream* stream) {
   if (stream->Read<uint32_t>() != 'XAUD') {
-    XELOGE("AudioSystem::Restore - Invalid magic value!");
+    XELOG_APU_E("[APU] AudioSystem::Restore - Invalid magic value!");
     return false;
   }
 
@@ -281,8 +281,8 @@ bool AudioSystem::Restore(ByteStream* stream) {
     AudioDriver* driver = nullptr;
     auto status = CreateDriver(id, client_semaphore, &driver);
     if (XFAILED(status)) {
-      XELOGE(
-          "AudioSystem::Restore - Call to CreateDriver failed with status %.8X",
+      XELOG_APU_E(
+          "[APU] AudioSystem::Restore - Call to CreateDriver failed with status %.8X",
           status);
       return false;
     }

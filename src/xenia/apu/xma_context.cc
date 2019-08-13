@@ -119,7 +119,7 @@ void XmaContext::Enable() {
   auto context_ptr = memory()->TranslateVirtual(guest_ptr());
   XMA_CONTEXT_DATA data(context_ptr);
 
-  XELOGAPU("XmaContext: kicking context %d (buffer %d %d/%d bits)", id(),
+  XELOG_APU_W("[APU] XmaContext: kicking context %d (buffer %d %d/%d bits)", id(),
            data.current_buffer, data.input_buffer_read_offset,
            (data.current_buffer == 0 ? data.input_buffer_0_packet_count
                                      : data.input_buffer_1_packet_count) *
@@ -143,7 +143,7 @@ bool XmaContext::Block(bool poll) {
 
 void XmaContext::Clear() {
   std::lock_guard<std::mutex> lock(lock_);
-  XELOGAPU("XmaContext: reset context %d", id());
+  XELOG_APU_W("[APU] XmaContext: reset context %d", id());
 
   auto context_ptr = memory()->TranslateVirtual(guest_ptr());
   XMA_CONTEXT_DATA data(context_ptr);
@@ -160,7 +160,7 @@ void XmaContext::Clear() {
 
 void XmaContext::Disable() {
   std::lock_guard<std::mutex> lock(lock_);
-  XELOGAPU("XmaContext: disabling context %d", id());
+  XELOG_APU_W("[APU] XmaContext: disabling context %d", id());
   set_is_enabled(false);
 }
 
@@ -323,7 +323,7 @@ void XmaContext::DecodePackets(XMA_CONTEXT_DATA* data) {
                      : nullptr;
   uint8_t* current_input_buffer = data->current_buffer ? in1 : in0;
 
-  XELOGAPU("Processing context %d (offset %d, buffer %d, ptr %.8X)", id(),
+  XELOG_APU_W("[APU] Processing context %d (offset %d, buffer %d, ptr %.8X)", id(),
            data->input_buffer_read_offset, data->current_buffer,
            current_input_buffer);
 
@@ -392,7 +392,7 @@ void XmaContext::DecodePackets(XMA_CONTEXT_DATA* data) {
 
     if (!ValidFrameOffset(current_input_buffer, current_input_size,
                           data->input_buffer_read_offset)) {
-      XELOGAPU("XmaContext %d: Invalid read offset %d!", id(),
+      XELOG_APU_W("[APU] XmaContext %d: Invalid read offset %d!", id(),
                data->input_buffer_read_offset);
       if (data->current_buffer == 0) {
         data->current_buffer = 1;
@@ -441,7 +441,7 @@ void XmaContext::DecodePackets(XMA_CONTEXT_DATA* data) {
       }
 
       if (partial_frame_saved_) {
-        XELOGAPU("XmaContext %d: saved a partial frame", id());
+        XELOG_APU_W("[APU] XmaContext %d: saved a partial frame", id());
 
         if (data->current_buffer == 0) {
           data->input_buffer_0_valid = 0;
@@ -485,7 +485,7 @@ void XmaContext::DecodePackets(XMA_CONTEXT_DATA* data) {
     bool partial = false;
     size_t bit_offset = data->input_buffer_read_offset;
     if (partial_frame_saved_) {
-      XELOGAPU("XmaContext %d: processing saved partial frame", id());
+      XELOG_APU_W("[APU] XmaContext %d: processing saved partial frame", id());
       packet_->data = partial_frame_buffer_.data();
       packet_->size = (int)partial_frame_buffer_.size();
 
@@ -558,7 +558,7 @@ void XmaContext::DecodePackets(XMA_CONTEXT_DATA* data) {
       }
     } else if (len < 0) {
       // Did not get frame
-      XELOGAPU("libav failed to decode a frame!");
+      XELOG_APU_E("[APU] libav failed to decode a frame!");
       if (frame_size && frame_size != 0x7FFF) {
         data->input_buffer_read_offset += frame_size;
       } else {
@@ -637,7 +637,7 @@ int XmaContext::PrepareDecoder(uint8_t* block, size_t size, int sample_rate,
         channels == 2 ? AV_CH_LAYOUT_STEREO : AV_CH_LAYOUT_MONO;
 
     if (avcodec_open2(context_, codec_, NULL) < 0) {
-      XELOGE("XmaContext: Failed to reopen libav context");
+      XELOG_APU_E("[APU] XmaContext: Failed to reopen libav context");
       return 1;
     }
   }

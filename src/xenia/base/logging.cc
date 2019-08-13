@@ -53,9 +53,6 @@ DEFINE_bool(exclude_kernel_from_log, false, "Excludes 'Kernel' messages from bei
 DEFINE_bool(exclude_hid_from_log, false, "Excludes 'HI'D messages from being logged.", "Logging");
 DEFINE_bool(exclude_vfs_from_log, false, "Excludes 'VFS' messages from being logged.", "Logging");
 DEFINE_bool(exclude_ui_from_log, false, "Excludes 'UI' messages from being logged.", "Logging");
-// The last log category for which these definitions relate is ALWAYS_LOG,
-// therefore we don't define a flag here for that.
-
 
 namespace xe {
 
@@ -154,15 +151,31 @@ class Logger {
       return;
     }
 
-	// New logging features.
-	// Check the category of the logged message and return if that
-	// category is turned off within the config.
+	// NEW LOGGING FUNCTIONS
+	// Check if the message being logged should be excluded based on user-config.
     if (cvars::exclude_cpu_from_log && category == LogCategory::CPU) {
       return;
     }
     if (cvars::exclude_gpu_from_log && category == LogCategory::GPU) {
       return;
 	}
+    if (cvars::exclude_apu_from_log && category == LogCategory::APU) {
+      return;
+    }
+    if (cvars::exclude_kernel_from_log && category == LogCategory::KERNEL) {
+      return;
+    }
+    if (cvars::exclude_hid_from_log && category == LogCategory::HID) {
+      return;
+    }
+    if (cvars::exclude_vfs_from_log && category == LogCategory::VFS) {
+      return;
+    }
+    if (cvars::exclude_ui_from_log && category == LogCategory::UI) {
+      return;
+    }
+    // We don't check for the log category 'ALWAYS_LOG' here as we
+	// always want to log whatever called it.
 
     LogLine line;
     line.buffer_length = buffer_length;

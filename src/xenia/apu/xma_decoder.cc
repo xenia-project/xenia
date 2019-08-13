@@ -245,7 +245,7 @@ uint32_t XmaDecoder::ReadRegister(uint32_t addr) {
   switch (r) {
     default: {
       if (!register_file_.GetRegisterInfo(r)) {
-        XELOGE("XMA: Read from unknown register (%.4X)", r);
+        XELOG_APU_E("[APU] XMA: Read from unknown register (%.4X)", r);
       }
     }
 #pragma warning(suppress : 4065)
@@ -282,7 +282,7 @@ void XmaDecoder::WriteRegister(uint32_t addr, uint32_t value) {
   } else {
     switch (r) {
       default: {
-        XELOGE("XMA: Write to unhandled register (%.4X): %.8X", r, value);
+        XELOG_APU_E("[APU] XMA: Write to unhandled register (%.4X): %.8X", r, value);
         break;
       }
 #pragma warning(suppress : 4065)
