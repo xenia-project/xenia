@@ -102,7 +102,7 @@ X_RESULT XmpApp::XMPDeleteTitlePlaylist(uint32_t playlist_handle) {
   auto global_lock = global_critical_region_.Acquire();
   auto it = playlists_.find(playlist_handle);
   if (it == playlists_.end()) {
-    XELOGE("Playlist %.8X not found", playlist_handle);
+    XELOG_KERNEL_E("[KERNEL] Playlist %.8X not found", playlist_handle);
     return X_ERROR_NOT_FOUND;
   }
   auto playlist = it->second;
@@ -122,7 +122,7 @@ X_RESULT XmpApp::XMPPlayTitlePlaylist(uint32_t playlist_handle,
     auto global_lock = global_critical_region_.Acquire();
     auto it = playlists_.find(playlist_handle);
     if (it == playlists_.end()) {
-      XELOGE("Playlist %.8X not found", playlist_handle);
+      XELOG_KERNEL_E("[KERNEL] Playlist %.8X not found", playlist_handle);
       return X_ERROR_NOT_FOUND;
     }
     playlist = it->second;
@@ -130,12 +130,12 @@ X_RESULT XmpApp::XMPPlayTitlePlaylist(uint32_t playlist_handle,
 
   if (disabled_) {
     // Ignored because we aren't enabled?
-    XELOGW("Ignoring XMPPlayTitlePlaylist because disabled");
+    XELOG_KERNEL_W("[KERNEL] Ignoring XMPPlayTitlePlaylist because disabled");
     return X_ERROR_SUCCESS;
   }
 
   // Start playlist?
-  XELOGW("Playlist playback not supported");
+  XELOG_KERNEL_W("[KERNEL] Playlist playback not supported");
   active_playlist_ = playlist;
   active_song_index_ = 0;
   state_ = State::kPlaying;
@@ -331,7 +331,7 @@ X_RESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       auto info = memory_->TranslateVirtual(info_ptr);
       assert_true(xmp_client == 0x00000002);
       assert_zero(unk_ptr);
-      XELOGE("XMPGetInfo?(%.8X, %.8X)", unk_ptr, info_ptr);
+      XELOG_KERNEL_E("[KERNEL] XMPGetInfo?(%.8X, %.8X)", unk_ptr, info_ptr);
       if (!active_playlist_) {
         return X_STATUS_UNSUCCESSFUL;
       }
@@ -446,7 +446,8 @@ X_RESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       return X_STATUS_UNSUCCESSFUL;
     }
   }
-  XELOGE("Unimplemented XMP message app=%.8X, msg=%.8X, arg1=%.8X, arg2=%.8X",
+  XELOG_KERNEL_E(
+      "[KERNEL] Unimplemented XMP message app=%.8X, msg=%.8X, arg1=%.8X, arg2=%.8X",
          app_id(), message, buffer_ptr, buffer_length);
   return X_STATUS_UNSUCCESSFUL;
 }

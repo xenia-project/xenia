@@ -1007,7 +1007,7 @@ uint32_t xeRtlNtStatusToDosError(uint32_t source_status) {
     return status & 0xFFFF;
   }
 
-  XELOGE("RtlNtStatusToDosError lookup NOT IMPLEMENTED");
+  XELOG_KERNEL_E("[KERNEL] RtlNtStatusToDosError lookup NOT IMPLEMENTED");
   return 317;  // ERROR_MR_MID_NOT_FOUND
 }
 

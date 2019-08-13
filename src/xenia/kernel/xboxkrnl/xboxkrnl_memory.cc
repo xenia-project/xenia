@@ -119,7 +119,7 @@ dword_result_t NtAllocateVirtualMemory(lpdword_t base_addr_ptr,
     allocation_type |= kMemoryAllocationCommit;
   }
   if (alloc_type & X_MEM_RESET) {
-    XELOGE("X_MEM_RESET not implemented");
+    XELOG_KERNEL_E("[KERNEL] X_MEM_RESET not implemented");
     assert_always();
   }
   uint32_t protect = FromXdkProtectFlags(protect_bits);
@@ -301,7 +301,7 @@ dword_result_t MmAllocatePhysicalMemoryEx(dword_t flags, dword_t region_size,
 
   // Check protection bits.
   if (!(protect_bits & (X_PAGE_READONLY | X_PAGE_READWRITE))) {
-    XELOGE("MmAllocatePhysicalMemoryEx: bad protection bits");
+    XELOG_KERNEL_E("[KERNEL] MmAllocatePhysicalMemoryEx: bad protection bits");
     return 0;
   }
 

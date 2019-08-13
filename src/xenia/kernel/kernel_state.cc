@@ -249,7 +249,7 @@ object_ref<XThread> KernelState::LaunchModule(object_ref<UserModule> module) {
 
   X_STATUS result = thread->Create();
   if (XFAILED(result)) {
-    XELOGE("Could not create launch thread: %.8X", result);
+    XELOG_KERNEL_E("[KERNEL] Could not create launch thread: %.8X", result);
     return nullptr;
   }
 

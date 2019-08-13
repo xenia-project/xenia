@@ -161,7 +161,8 @@ dword_result_t XamUserReadProfileSettings(
       }
     } else {
       any_missing = true;
-      XELOGE("XamUserReadProfileSettings requested unimplemented setting %.8X",
+      XELOG_KERNEL_E(
+          "[KERNEL] XamUserReadProfileSettings requested unimplemented setting %.8X",
              setting_id);
     }
   }
@@ -316,7 +317,8 @@ dword_result_t XamUserWriteProfileSettings(
       case UserProfile::Setting::Type::DATETIME:
       default:
 
-        XELOGE("XamUserWriteProfileSettings: Unimplemented data type %d",
+        XELOG_KERNEL_E(
+            "[KERNEL] XamUserWriteProfileSettings: Unimplemented data type %d",
                settingType);
         break;
     };

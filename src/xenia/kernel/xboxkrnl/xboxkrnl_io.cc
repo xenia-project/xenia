@@ -498,8 +498,8 @@ dword_result_t NtQueryInformationFile(
       }
       case XFileXctdCompressionInformation: {
         assert_true(length == 4);
-        XELOGE(
-            "NtQueryInformationFile(XFileXctdCompressionInformation) "
+        XELOG_KERNEL_E(
+            "[KERNEL] NtQueryInformationFile(XFileXctdCompressionInformation) "
             "unimplemented");
         // This is wrong and puts files into wrong states for games that use
         // XctdDecompression.
@@ -529,7 +529,8 @@ dword_result_t NtQueryInformationFile(
       case XFileSectorInformation:
         // TODO(benvanik): return sector this file's on.
         assert_true(length == 4);
-        XELOGE("NtQueryInformationFile(XFileSectorInformation) unimplemented");
+        XELOG_KERNEL_E(
+            "[KERNEL] NtQueryInformationFile(XFileSectorInformation) unimplemented");
         result = X_STATUS_UNSUCCESSFUL;
         info = 0;
         break;

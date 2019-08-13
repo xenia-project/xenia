@@ -127,7 +127,7 @@ dword_result_t ExCreateThread(lpdword_t handle_ptr, dword_t stack_size,
   X_STATUS result = thread->Create();
   if (XFAILED(result)) {
     // Failed!
-    XELOGE("Thread creation failed: %.8X", result);
+    XELOG_KERNEL_E("[KERNEL] Thread creation failed: %.8X", result);
     return result;
   }
 

@@ -207,7 +207,7 @@ object_ref<XFile> XFile::Restore(KernelState* kernel_state,
       abs_path, vfs::FileDisposition::kOpen, access, is_directory, &vfs_file,
       &action);
   if (XFAILED(res)) {
-    XELOGE("Failed to open XFile: error %.8X", res);
+    XELOG_KERNEL_E("[KERNEL] Failed to open XFile: error %.8X", res);
     return object_ref<XFile>(file);
   }
 

@@ -56,8 +56,8 @@ X_RESULT XLiveBaseApp::DispatchMessageSync(uint32_t message,
       return X_STATUS_UNSUCCESSFUL;
     }
   }
-  XELOGE(
-      "Unimplemented XLIVEBASE message app=%.8X, msg=%.8X, arg1=%.8X, "
+  XELOG_KERNEL_E(
+      "[KERNEL] Unimplemented XLIVEBASE message app=%.8X, msg=%.8X, arg1=%.8X, "
       "arg2=%.8X",
       app_id(), message, buffer_ptr, buffer_length);
   return X_STATUS_UNSUCCESSFUL;

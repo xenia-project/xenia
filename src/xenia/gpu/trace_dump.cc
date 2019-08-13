@@ -58,20 +58,20 @@ int TraceDump::Main(const std::vector<std::wstring>& args) {
   }
 
   if (path.empty()) {
-    XELOGE("No trace file specified");
+    XELOG_GPU_E("[GPU] No trace file specified");
     return 5;
   }
 
   // Normalize the path and make absolute.
   auto abs_path = xe::to_absolute_path(path);
-  XELOGI("Loading trace file %ls...", abs_path.c_str());
+  XELOG_GPU_I("[GPU] Loading trace file %ls...", abs_path.c_str());
 
   if (!Setup()) {
-    XELOGE("Unable to setup trace dump tool");
+    XELOG_GPU_E("[GPU] Unable to setup trace dump tool");
     return 4;
   }
   if (!Load(std::move(abs_path))) {
-    XELOGE("Unable to load trace file; not found?");
+    XELOG_GPU_E("[GPU] Unable to load trace file; not found?");
     return 5;
   }
 
@@ -106,7 +106,7 @@ bool TraceDump::Setup() {
   X_STATUS result = emulator_->Setup(
       nullptr, nullptr, [this]() { return CreateGraphicsSystem(); }, nullptr);
   if (XFAILED(result)) {
-    XELOGE("Failed to setup emulator: %.8X", result);
+    XELOG_GPU_E("[GPU] Failed to setup emulator: %.8X", result);
     return false;
   }
   graphics_system_ = emulator_->graphics_system();
@@ -118,7 +118,7 @@ bool TraceDump::Load(std::wstring trace_file_path) {
   trace_file_path_ = std::move(trace_file_path);
 
   if (!player_->Open(trace_file_path_)) {
-    XELOGE("Could not load trace file");
+    XELOG_GPU_E("[GPU] Could not load trace file");
     return false;
   }
 

@@ -81,9 +81,12 @@ void FatalError(const std::wstring& str);
   } while (false)
 #endif  // ENABLE_LOGGING
 
+// -- BEGIN EXISTING (OLD) LOGGING FUNCTIONS --
+// These functions have been kept for older modules that have yet to be converted over
+// to the new functions. They are also used where a new logging function doesn't exist
+// (e.g. generic logging).
 #define XELOGE(fmt, ...) XELOGCORE(xe::LogLevel::Error, '!', fmt, ##__VA_ARGS__)
-#define XELOGW(fmt, ...) \
-  XELOGCORE(xe::LogLevel::Warning, 'w', fmt, ##__VA_ARGS__)
+#define XELOGW(fmt, ...) XELOGCORE(xe::LogLevel::Warning, 'w', fmt, ##__VA_ARGS__)
 #define XELOGI(fmt, ...) XELOGCORE(xe::LogLevel::Info, 'i', fmt, ##__VA_ARGS__)
 #define XELOGD(fmt, ...) XELOGCORE(xe::LogLevel::Debug, 'd', fmt, ##__VA_ARGS__)
 

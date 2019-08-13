@@ -55,7 +55,7 @@ X_STATUS UserModule::LoadFromFile(std::string path) {
   // TODO(benvanik): make this code shared?
   auto fs_entry = kernel_state()->file_system()->ResolvePath(path);
   if (!fs_entry) {
-    XELOGE("File not found: %s", path.c_str());
+    XELOG_KERNEL_E("[KERNEL] File not found: %s", path.c_str());
     return X_STATUS_NO_SUCH_FILE;
   }
 
@@ -116,10 +116,10 @@ X_STATUS UserModule::LoadFromFile(std::string path) {
       if (!result) {
         result = patch_module->xex_module()->ApplyPatch(xex_module());
         if (result) {
-          XELOGE("Failed to apply XEX patch, code: %d", result);
+          XELOG_KERNEL_E("[KERNEL] Failed to apply XEX patch, code: %d", result);
         }
       } else {
-        XELOGE("Failed to load XEX patch, code: %d", result);
+        XELOG_KERNEL_E("[KERNEL] Failed to load XEX patch, code: %d", result);
       }
 
       if (result) {
@@ -142,10 +142,10 @@ X_STATUS UserModule::LoadFromMemory(const void* addr, const size_t length) {
   } else {
     auto magic16 = xe::load_and_swap<uint16_t>(addr);
     if (magic16 == 0x4D5A) {
-      XELOGE("XNA executables are not yet implemented");
+      XELOG_KERNEL_E("[KERNEL] XNA executables are not yet implemented");
       return X_STATUS_NOT_IMPLEMENTED;
     } else {
-      XELOGE("Unknown module magic: %.8X", magic);
+      XELOG_KERNEL_E("[KERNEL] Unknown module magic: %.8X", magic);
       return X_STATUS_NOT_IMPLEMENTED;
     }
   }

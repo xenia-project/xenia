@@ -99,7 +99,7 @@ XThread::~XThread() {
 
   if (thread_) {
     // TODO(benvanik): platform kill
-    XELOGE("Thread disposed without exiting");
+    XELOG_KERNEL_E("[KERNEL] Thread disposed without exiting");
   }
 }
 
@@ -410,7 +410,7 @@ X_STATUS XThread::Create() {
 
   if (!thread_) {
     // TODO(benvanik): translate error?
-    XELOGE("CreateThread failed");
+    XELOG_KERNEL_E("[KERNEL] CreateThread failed");
     return X_STATUS_NO_MEMORY;
   }
 
@@ -864,7 +864,8 @@ bool XThread::Save(ByteStream* stream) {
   if (running_) {
     pc = emulator()->processor()->StepToGuestSafePoint(thread_id_);
     if (!pc) {
-      XELOGE("XThread %.8X failed to save: could not step to a safe point!",
+      XELOG_KERNEL_E(
+          "[KERNEL] XThread %.8X failed to save: could not step to a safe point!",
              handle());
       assert_always();
       return false;
@@ -936,7 +937,7 @@ object_ref<XThread> XThread::Restore(KernelState* kernel_state,
   }
 
   if (stream->Read<uint32_t>() != 'THRD') {
-    XELOGE("Could not restore XThread - invalid magic!");
+    XELOG_KERNEL_E("[KERNEL] Could not restore XThread - invalid magic!");
     return nullptr;
   }
 

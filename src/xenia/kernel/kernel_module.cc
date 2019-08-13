@@ -63,7 +63,7 @@ uint32_t KernelModule::GenerateTrampoline(
   assert_true(guest_trampoline_next_ * 8 < guest_trampoline_size_);
   if (guest_trampoline_next_ * 8 >= guest_trampoline_size_) {
     assert_always();  // If you hit this, increase kTrampolineSize
-    XELOGE("KernelModule::GenerateTrampoline trampoline exhausted");
+    XELOG_KERNEL_E("[KERNEL] KernelModule::GenerateTrampoline trampoline exhausted");
     return 0;
   }
 
@@ -145,7 +145,7 @@ uint32_t KernelModule::GetProcAddressByOrdinal(uint16_t ordinal) {
 
 uint32_t KernelModule::GetProcAddressByName(const char* name) {
   // TODO: Does this even work for kernel modules?
-  XELOGE("KernelModule::GetProcAddressByName not implemented");
+  XELOG_KERNEL_E("[KERNEL] KernelModule::GetProcAddressByName not implemented");
   return 0;
 }
 

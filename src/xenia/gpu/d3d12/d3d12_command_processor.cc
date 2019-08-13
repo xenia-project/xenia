@@ -779,7 +779,7 @@ bool D3D12CommandProcessor::SetupContext() {
           &ui::d3d12::util::kHeapPropertiesDefault, D3D12_HEAP_FLAG_NONE,
           &swap_texture_desc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
           nullptr, IID_PPV_ARGS(&swap_texture_)))) {
-    XELOGE("[D3D12] Failed to create the command processor front buffer");
+    XELOG_GPU_E("[D3D12] Failed to create the command processor front buffer");
     return false;
   }
   D3D12_DESCRIPTOR_HEAP_DESC swap_descriptor_heap_desc;

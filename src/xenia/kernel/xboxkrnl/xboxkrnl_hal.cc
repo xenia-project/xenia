@@ -26,7 +26,7 @@ void HalReturnToFirmware(dword_t routine) {
 
   // TODO(benvank): diediedie much more gracefully
   // Not sure how to blast back up the stack in LLVM without exceptions, though.
-  XELOGE("Game requested shutdown via HalReturnToFirmware");
+  XELOG_KERNEL_E("[KERNEL] Game requested shutdown via HalReturnToFirmware");
   exit(0);
 }
 DECLARE_XBOXKRNL_EXPORT2(HalReturnToFirmware, kNone, kStub, kImportant);
