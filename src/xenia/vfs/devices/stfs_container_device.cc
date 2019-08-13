@@ -154,7 +154,7 @@ Entry* StfsContainerDevice::ResolvePath(const std::string& path) {
   // be in the form:
   // some\PATH.foo
 
-  XELOGFS("StfsContainerDevice::ResolvePath(%s)", path.c_str());
+  XELOG_VFS_I("[VFS] StfsContainerDevice::ResolvePath(%s)", path.c_str());
 
   // Walk the path, one separator at a time.
   auto entry = root_entry_.get();

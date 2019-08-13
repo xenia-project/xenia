@@ -127,7 +127,7 @@ uint32_t XexModule::GetProcAddress(uint16_t ordinal) const {
 
     ordinal -= export_table->base;
     if (ordinal > export_table->count) {
-      XELOGE("GetProcAddress(%.3X): ordinal out of bounds", ordinal);
+      XELOG_CPU_E("[CPU] GetProcAddress(%.3X): ordinal out of bounds", ordinal);
       return 0;
     }
 
@@ -222,20 +222,20 @@ int XexModule::ApplyPatch(XexModule* module) {
 
   uint32_t size = module->xex_header()->header_size;
   if (patch_header->delta_headers_source_offset > size) {
-    XELOGE("XEX header patch source is outside base XEX header area");
+    XELOG_CPU_E("[CPU] XEX header patch source is outside base XEX header area");
     return 2;
   }
 
   uint32_t header_size_available =
       size - patch_header->delta_headers_source_offset;
   if (patch_header->delta_headers_source_size > header_size_available) {
-    XELOGE("XEX header patch source is too large");
+    XELOG_CPU_E("[CPU] XEX header patch source is too large");
     return 3;
   }
 
   if (patch_header->delta_headers_target_offset >
       patch_header->size_of_target_headers) {
-    XELOGE("XEX header patch target is outside base XEX header area");
+    XELOG_CPU_E("[CPU] XEX header patch target is outside base XEX header area");
     return 4;
   }
 
@@ -289,7 +289,8 @@ int XexModule::ApplyPatch(XexModule* module) {
       &patch_header->info, headerpatch_size,
       file_format_header->compression_info.normal.window_size, header_ptr);
   if (result_code) {
-    XELOGE("XEX header patch application failed, error code %d", result_code);
+    XELOG_CPU_E("[CPU] XEX header patch application failed, error code %d",
+                result_code);
     return result_code;
   }
 
@@ -314,7 +315,7 @@ int XexModule::ApplyPatch(XexModule* module) {
                 xe::kMemoryProtectRead | xe::kMemoryProtectWrite);
 
     if (!alloc_result) {
-      XELOGE("Unable to allocate XEX memory at %.8X-%.8X.", addr_new_mem,
+      XELOG_CPU_E("[CPU] Unable to allocate XEX memory at %.8X-%.8X.", addr_new_mem,
              size_delta);
       assert_always();
       return 6;
@@ -344,7 +345,7 @@ int XexModule::ApplyPatch(XexModule* module) {
                      test_delta_key, 0x10);
 
   if (memcmp(test_delta_key, orig_session_key, 0x10) != 0) {
-    XELOGE("XEX patch image key doesn't match original XEX!");
+    XELOG_CPU_E("[CPU] XEX patch image key doesn't match original XEX!");
     return 7;
   }
 
@@ -406,7 +407,7 @@ int XexModule::ApplyPatch(XexModule* module) {
 
     if (memcmp(digest, cur_block->block_hash, 0x14) != 0) {
       result_code = 9;
-      XELOGE("XEX patch block hash doesn't match hash inside block info!");
+      XELOG_CPU_E("[CPU] XEX patch block hash doesn't match hash inside block info!");
       break;
     }
 
@@ -439,7 +440,8 @@ int XexModule::ApplyPatch(XexModule* module) {
                              ->Decommit(addr_free_mem, size_delta);
 
       if (!free_result) {
-        XELOGE("Unable to decommit XEX memory at %.8X-%.8X.", addr_free_mem,
+        XELOG_CPU_E("[CPU] Unable to decommit XEX memory at %.8X-%.8X.",
+                    addr_free_mem,
                size_delta);
         assert_always();
       }
@@ -453,13 +455,13 @@ int XexModule::ApplyPatch(XexModule* module) {
     target_ver.value =
         xe::byte_swap<uint32_t>(patch_header->target_version.value);
 
-    XELOGI(
-        "XEX patch applied successfully: base version: %d.%d.%d.%d, new "
+    XELOG_CPU_I(
+        "[CPU] XEX patch applied successfully: base version: %d.%d.%d.%d, new "
         "version: %d.%d.%d.%d",
         source_ver.major, source_ver.minor, source_ver.build, source_ver.qfe,
         target_ver.major, target_ver.minor, target_ver.build, target_ver.qfe);
   } else {
-    XELOGE("XEX patch application failed, error code %d", result_code);
+    XELOG_CPU_E("[CPU] XEX patch application failed, error code %d", result_code);
   }
 
   if (free_input) {
@@ -535,7 +537,7 @@ int XexModule::ReadImageUncompressed(const void* xex_addr, size_t xex_length) {
               xe::kMemoryAllocationReserve | xe::kMemoryAllocationCommit,
               xe::kMemoryProtectRead | xe::kMemoryProtectWrite);
   if (!alloc_result) {
-    XELOGE("Unable to allocate XEX memory at %.8X-%.8X.", base_address_,
+    XELOG_CPU_E("[CPU] Unable to allocate XEX memory at %.8X-%.8X.", base_address_,
            uncompressed_size);
     return 2;
   }
@@ -602,7 +604,7 @@ int XexModule::ReadImageBasicCompressed(const void* xex_addr,
       xe::kMemoryAllocationReserve | xe::kMemoryAllocationCommit,
       xe::kMemoryProtectRead | xe::kMemoryProtectWrite);
   if (!alloc_result) {
-    XELOGE("Unable to allocate XEX memory at %.8X-%.8X.", base_address_,
+    XELOG_CPU_E("[CPU] Unable to allocate XEX memory at %.8X-%.8X.", base_address_,
            uncompressed_size);
     return 1;
   }
@@ -760,7 +762,7 @@ int XexModule::ReadImageCompressed(const void* xex_addr, size_t xex_length) {
           compress_buffer, d - compress_buffer, buffer, uncompressed_size,
           compression_info->normal.window_size, nullptr, 0);
     } else {
-      XELOGE("Unable to allocate XEX memory at %.8X-%.8X.", base_address_,
+      XELOG_CPU_E("[CPU] Unable to allocate XEX memory at %.8X-%.8X.", base_address_,
              uncompressed_size);
       result_code = 3;
     }
@@ -781,7 +783,7 @@ int XexModule::ReadPEHeaders() {
   // Verify DOS signature (MZ).
   const IMAGE_DOS_HEADER* doshdr = (const IMAGE_DOS_HEADER*)p;
   if (doshdr->e_magic != IMAGE_DOS_SIGNATURE) {
-    XELOGE("PE signature mismatch; likely bad decryption/decompression");
+    XELOG_CPU_E("[CPU] PE signature mismatch; likely bad decryption/decompression");
     return 1;
   }
 
@@ -900,12 +902,13 @@ bool XexModule::Load(const std::string& name, const std::string& path,
   // We'll try using both XEX2 keys to see if any give a valid PE
   int result_code = ReadImage(xex_addr, xex_length, false);
   if (result_code) {
-    XELOGW("XEX load failed with code %d, trying with devkit encryption key...",
+    XELOG_CPU_W(
+        "[CPU] XEX load failed with code %d, trying with devkit encryption key...",
            result_code);
 
     result_code = ReadImage(xex_addr, xex_length, true);
     if (result_code) {
-      XELOGE("XEX load failed with code %d, tried both encryption keys",
+      XELOG_CPU_E("[CPU] XEX load failed with code %d, tried both encryption keys",
              result_code);
       return false;
     }
@@ -927,7 +930,7 @@ bool XexModule::LoadContinue() {
   finished_load_ = true;
 
   if (ReadPEHeaders()) {
-    XELOGE("Failed to load XEX PE headers!");
+    XELOG_CPU_E("[CPU] Failed to load XEX PE headers!");
     return false;
   }
 

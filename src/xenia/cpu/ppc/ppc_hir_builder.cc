@@ -144,7 +144,7 @@ bool PPCHIRBuilder::Emit(GuestFunction* function, uint32_t flags) {
     instr_offset_list_[offset] = first_instr;
 
     if (opcode == PPCOpcode::kInvalid) {
-      XELOGE("Invalid instruction %.8llX %.8X", address, code);
+      XELOG_CPU_E("[CPU] Invalid instruction %.8llX %.8X", address, code);
       Comment("INVALID!");
       // TraceInvalidInstruction(i);
       continue;
@@ -167,7 +167,7 @@ bool PPCHIRBuilder::Emit(GuestFunction* function, uint32_t flags) {
     i.opcode_info = &opcode_info;
     if (!opcode_info.emit || opcode_info.emit(*this, i)) {
       auto& disasm_info = GetOpcodeDisasmInfo(opcode);
-      XELOGE("Unimplemented instr %.8llX %.8X %s", address, code,
+      XELOG_CPU_E("[CPU] Unimplemented instr %.8llX %.8X %s", address, code,
              disasm_info.name);
       Comment("UNIMPLEMENTED!");
       DebugBreak();

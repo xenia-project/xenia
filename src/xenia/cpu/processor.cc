@@ -439,7 +439,7 @@ bool Processor::Save(ByteStream* stream) {
 
 bool Processor::Restore(ByteStream* stream) {
   if (stream->Read<uint32_t>() != 'PROC') {
-    XELOGE("Processor::Restore - Invalid magic value!");
+    XELOG_CPU_E("[CPU] Processor::Restore - Invalid magic value!");
     return false;
   }
 
@@ -602,7 +602,7 @@ void Processor::DemandDebugListener() {
     return;
   }
   if (!debug_listener_handler_) {
-    XELOGE("Debugger demanded a listener but no handler was registered.");
+    XELOG_CPU_E("[CPU] Debugger demanded a listener but no handler was registered.");
     xe::debugging::Break();
     return;
   }
@@ -973,7 +973,8 @@ bool Processor::StepToGuestAddress(uint32_t thread_id, uint32_t pc) {
   if (functions.empty()) {
     // Function hasn't been generated yet. Generate it.
     if (!ResolveFunction(pc)) {
-      XELOGE("Processor::StepToAddress(%.8X) - Function could not be resolved",
+      XELOG_CPU_E(
+          "[CPU] Processor::StepToAddress(%.8X) - Function could not be resolved",
              pc);
       return false;
     }

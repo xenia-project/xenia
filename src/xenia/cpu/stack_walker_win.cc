@@ -70,7 +70,7 @@ bool InitializeStackWalker() {
   // NOTE: we never free it. That's fine.
   HMODULE module = LoadLibrary(TEXT("dbghelp.dll"));
   if (!module) {
-    XELOGE("Unable to load dbghelp.dll - not found on path or invalid");
+    XELOG_CPU_E("[CPU] Unable to load dbghelp.dll - not found on path or invalid");
     return false;
   }
   sym_get_options_ = reinterpret_cast<LPSYMGETOPTIONS>(
@@ -90,7 +90,7 @@ bool InitializeStackWalker() {
   if (!sym_get_options_ || !sym_set_options_ || !sym_initialize_ ||
       !stack_walk_64_ || !sym_function_table_access_64_ ||
       !sym_get_module_base_64_ || !sym_get_sym_from_addr_64_) {
-    XELOGE("Unable to get one or more symbols from dbghelp.dll");
+    XELOG_CPU_E("[CPU] Unable to get one or more symbols from dbghelp.dll");
     return false;
   }
 
@@ -104,7 +104,7 @@ bool InitializeStackWalker() {
   options |= SYMOPT_FAIL_CRITICAL_ERRORS;
   sym_set_options_(options);
   if (!sym_initialize_(GetCurrentProcess(), nullptr, TRUE)) {
-    XELOGE("Unable to initialize symbol services - already in use?");
+    XELOG_CPU_E("[CPU] Unable to initialize symbol services - already in use?");
     return false;
   }
 
@@ -166,7 +166,7 @@ class Win32StackWalker : public StackWalker {
       // This gets the state of the thread exactly where it was when suspended.
       thread_context.ContextFlags = CONTEXT_FULL;
       if (!GetThreadContext(thread_handle, &thread_context)) {
-        XELOGE("Unable to read thread context for stack walk");
+        XELOG_CPU_E("[CPU] Unable to read thread context for stack walk");
         return 0;
       }
     } else {
@@ -309,7 +309,8 @@ std::unique_ptr<StackWalker> StackWalker::Create(
     backend::CodeCache* code_cache) {
   auto stack_walker = std::make_unique<Win32StackWalker>(code_cache);
   if (!stack_walker->Initialize()) {
-    XELOGE("Unable to initialize stack walker: debug/save states disabled");
+    XELOG_CPU_E(
+        "[CPU] Unable to initialize stack walker: debug/save states disabled");
     return nullptr;
   }
   return std::unique_ptr<StackWalker>(stack_walker.release());

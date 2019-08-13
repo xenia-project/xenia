@@ -53,8 +53,8 @@ bool X64CodeCache::Initialize() {
       xe::memory::AllocationType::kReserve,
       xe::memory::PageAccess::kReadWrite));
   if (!indirection_table_base_) {
-    XELOGE("Unable to allocate code cache indirection table");
-    XELOGE(
+    XELOG_CPU_E("[CPU] Unable to allocate code cache indirection table");
+    XELOG_CPU_E(
         "This is likely because the %.8X-%.8X range is in use by some other "
         "system DLL",
         kIndirectionTableBase, kIndirectionTableBase + kIndirectionTableSize);
@@ -67,7 +67,7 @@ bool X64CodeCache::Initialize() {
       file_name_, kGeneratedCodeSize, xe::memory::PageAccess::kExecuteReadWrite,
       false);
   if (!mapping_) {
-    XELOGE("Unable to create code cache mmap");
+    XELOG_CPU_E("[CPU] Unable to create code cache mmap");
     return false;
   }
 
@@ -76,8 +76,8 @@ bool X64CodeCache::Initialize() {
       mapping_, reinterpret_cast<void*>(kGeneratedCodeBase), kGeneratedCodeSize,
       xe::memory::PageAccess::kExecuteReadWrite, 0));
   if (!generated_code_base_) {
-    XELOGE("Unable to allocate code cache generated code storage");
-    XELOGE(
+    XELOG_CPU_E("[CPU] Unable to allocate code cache generated code storage");
+    XELOG_CPU_E(
         "This is likely because the %.8X-%.8X range is in use by some other "
         "system DLL",
         kGeneratedCodeBase, kGeneratedCodeBase + kGeneratedCodeSize);

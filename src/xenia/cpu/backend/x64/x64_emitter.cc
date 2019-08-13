@@ -227,7 +227,7 @@ bool X64Emitter::Emit(HIRBuilder* builder, size_t* out_stack_size) {
         // NOTE: If you encounter this after adding a new instruction, do a full
         // rebuild!
         assert_always();
-        XELOGE("Unable to process HIR opcode %s", instr->opcode->name);
+        XELOG_CPU_E("[CPU] Unable to process HIR opcode %s", instr->opcode->name);
         break;
       }
       instr = new_tail;
@@ -307,7 +307,7 @@ uint64_t TrapDebugPrint(void* raw_context, uint64_t address) {
 
 uint64_t TrapDebugBreak(void* raw_context, uint64_t address) {
   auto thread_state = *reinterpret_cast<ThreadState**>(raw_context);
-  XELOGE("tw/td forced trap hit! This should be a crash!");
+  XELOG_CPU_E("[CPU] tw/td forced trap hit! This should be a crash!");
   if (cvars::break_on_debugbreak) {
     xe::debugging::Break();
   }
@@ -449,7 +449,7 @@ uint64_t UndefinedCallExtern(void* raw_context, uint64_t function_ptr) {
     xe::FatalError("undefined extern call to %.8X %s", function->address(),
                    function->name().c_str());
   } else {
-    XELOGE("undefined extern call to %.8X %s", function->address(),
+    XELOG_CPU_E("[CPU] undefined extern call to %.8X %s", function->address(),
            function->name().c_str());
   }
   return 0;

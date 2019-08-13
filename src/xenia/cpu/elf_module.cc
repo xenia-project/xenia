@@ -75,14 +75,14 @@ bool ElfModule::Load(const std::string& name, const std::string& path,
 
   if (hdr->e_type != 2 /* ET_EXEC */) {
     // Not executable (shared objects not supported yet)
-    XELOGE("ELF: Could not load ELF because it isn't executable!");
+    XELOG_CPU_E("[CPU] ELF: Could not load ELF because it isn't executable!");
     return false;
   }
 
   if (hdr->e_machine != 20 /* EM_PPC */) {
     // Not a PPC ELF!
-    XELOGE(
-        "ELF: Could not load ELF because target machine is not PPC! (target: "
+    XELOG_CPU_E(
+        "[CPU] ELF: Could not load ELF because target machine is not PPC! (target: "
         "%d)",
         uint32_t(hdr->e_machine));
     return false;
@@ -90,12 +90,12 @@ bool ElfModule::Load(const std::string& name, const std::string& path,
 
   // Parse LOAD program headers and load into memory.
   if (!hdr->e_phoff) {
-    XELOGE("ELF: File doesn't have a program header!");
+    XELOG_CPU_E("[CPU] ELF: File doesn't have a program header!");
     return false;
   }
 
   if (!hdr->e_entry) {
-    XELOGE("ELF: Executable has no entry point!");
+    XELOG_CPU_E("[CPU] ELF: Executable has no entry point!");
     return false;
   }
 
@@ -114,7 +114,8 @@ bool ElfModule::Load(const std::string& name, const std::string& path,
       // Allocate and copy into memory.
       // Base address @ 0x80000000
       if (phdr[i].p_vaddr < 0x80000000 || phdr[i].p_vaddr > 0x9FFFFFFF) {
-        XELOGE("ELF: Could not allocate memory for section @ address 0x%.8X",
+        XELOG_CPU_E(
+            "[CPU] ELF: Could not allocate memory for section @ address 0x%.8X",
                uint32_t(phdr[i].p_vaddr));
         return false;
       }
@@ -129,7 +130,7 @@ bool ElfModule::Load(const std::string& name, const std::string& path,
                    virtual_addr, virtual_size, phdr[i].p_align,
                    xe::kMemoryAllocationReserve | xe::kMemoryAllocationCommit,
                    xe::kMemoryProtectRead | xe::kMemoryProtectWrite)) {
-        XELOGE("ELF: Could not allocate memory!");
+        XELOG_CPU_E("[CPU] ELF: Could not allocate memory!");
       }
 
       auto p = memory()->TranslateVirtual(phdr[i].p_vaddr);

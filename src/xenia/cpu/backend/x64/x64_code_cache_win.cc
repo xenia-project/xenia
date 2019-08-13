@@ -180,7 +180,7 @@ bool Win32X64CodeCache::Initialize() {
                             reinterpret_cast<ULONG_PTR>(generated_code_base_),
                             reinterpret_cast<ULONG_PTR>(generated_code_base_ +
                                                         kGeneratedCodeSize))) {
-      XELOGE("Unable to create unwind function table");
+      XELOG_CPU_E("[CPU] Unable to create unwind function table");
       return false;
     }
   } else {
@@ -195,7 +195,7 @@ bool Win32X64CodeCache::Initialize() {
                   code_cache->LookupUnwindInfo(control_pc));
             },
             this, nullptr)) {
-      XELOGE("Unable to install function table callback");
+      XELOG_CPU_E("[CPU] Unable to install function table callback");
       return false;
     }
   }
