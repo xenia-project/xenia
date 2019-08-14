@@ -14,6 +14,7 @@
 #include "xenia/base/byte_stream.h"
 #include "xenia/base/clock.h"
 #include "xenia/kernel/kernel_state.h"
+#include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_private.h"
 #include "xenia/kernel/xenumerator.h"
 #include "xenia/kernel/xevent.h"
@@ -166,8 +167,9 @@ void XObject::SetAttributes(uint32_t obj_attributes_ptr) {
     return;
   }
 
-  auto name = X_ANSI_STRING::to_string_indirect(memory()->virtual_membase(),
-                                                obj_attributes_ptr + 4);
+  auto name = util::TranslateAnsiStringAddress(
+      memory(), xe::load_and_swap<uint32_t>(
+                    memory()->TranslateVirtual(obj_attributes_ptr + 4)));
   if (!name.empty()) {
     name_ = std::move(name);
     kernel_state_->object_table()->AddNameMapping(name_, handles_[0]);

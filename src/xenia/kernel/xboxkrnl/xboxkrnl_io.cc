@@ -91,7 +91,7 @@ dword_result_t NtCreateFile(lpdword_t handle_out, dword_t desired_access,
 
   // Compute path, possibly attrs relative.
   std::string target_path =
-      object_name->to_string(kernel_memory()->virtual_membase());
+      util::TranslateAnsiString(kernel_memory(), object_name);
   if (object_attrs->root_directory != 0xFFFFFFFD &&  // ObDosDevices
       object_attrs->root_directory != 0) {
     auto root_file = kernel_state()->object_table()->LookupObject<XFile>(
@@ -571,7 +571,7 @@ dword_result_t NtQueryFullAttributesFile(
 
   // Resolve the file using the virtual file system.
   auto entry = kernel_state()->file_system()->ResolvePath(
-      object_name->to_string(kernel_memory()->virtual_membase()));
+      util::TranslateAnsiString(kernel_memory(), object_name));
   if (entry) {
     // Found.
     file_info->creation_time = entry->create_timestamp();
@@ -678,8 +678,7 @@ dword_result_t NtQueryDirectoryFile(
   uint32_t info = 0;
 
   auto file = kernel_state()->object_table()->LookupObject<XFile>(file_handle);
-  auto name =
-      file_name ? file_name->to_string(kernel_memory()->virtual_membase()) : "";
+  auto name = util::TranslateAnsiString(kernel_memory(), file_name);
   if (file) {
     X_FILE_DIRECTORY_INFORMATION dir_info = {0};
     result = file->QueryDirectory(file_info_ptr, length,
@@ -732,7 +731,7 @@ dword_result_t NtOpenSymbolicLinkObject(
       kernel_memory()->TranslateVirtual<X_ANSI_STRING*>(object_attrs->name_ptr);
 
   std::string target_path =
-      object_name->to_string(kernel_memory()->virtual_membase());
+      util::TranslateAnsiString(kernel_memory(), object_name);
   if (object_attrs->root_directory != 0) {
     assert_always();
   }
