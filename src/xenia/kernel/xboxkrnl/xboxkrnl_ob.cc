@@ -166,7 +166,7 @@ dword_result_t ObDereferenceObject(dword_t native_ptr) {
   }
 
   auto object = XObject::GetNativeObject<XObject>(
-      kernel_state(), kernel_memory()->virtual_membase() + native_ptr);
+      kernel_state(), kernel_memory()->TranslateVirtual(native_ptr));
   if (object) {
     object->Release();
   }

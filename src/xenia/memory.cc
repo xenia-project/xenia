@@ -430,7 +430,6 @@ bool Memory::AccessViolationCallback(void* host_address, bool is_write) {
     // TODO(Triang3l): Handle GPU readback.
     return false;
   }
-
   // Access via physical_membase_ is special, when need to bypass everything,
   // so only watching virtual memory regions.
   if (reinterpret_cast<size_t>(host_address) <
@@ -439,29 +438,14 @@ bool Memory::AccessViolationCallback(void* host_address, bool is_write) {
           reinterpret_cast<size_t>(physical_membase_)) {
     return false;
   }
-
-  uint32_t virtual_address =
-      uint32_t(reinterpret_cast<uint8_t*>(host_address) - virtual_membase_);
-  // If the 4 KB page offset in 0xE0000000 cannot be applied via memory mapping,
-  // it will be added by CPU load/store implementations, so the host virtual
-  // addresses (relative to virtual_membase_) where access violations occur do
-  // not match guest virtual addresses. Revert what CPU memory accesses are
-  // doing.
-  // TODO(Triang3l): Move this to a host->guest address conversion function.
-  if (virtual_address >= 0xE0000000) {
-    uint32_t host_address_offset = heaps_.vE0000000.host_address_offset();
-    if (virtual_address < 0xE0000000 + host_address_offset) {
-      return false;
-    }
-    virtual_address -= host_address_offset;
-  }
-
+  uint32_t virtual_address = HostToGuestVirtual(host_address);
   BaseHeap* heap = LookupHeap(virtual_address);
   if (heap == &heaps_.vA0000000 || heap == &heaps_.vC0000000 ||
       heap == &heaps_.vE0000000) {
-    return static_cast<PhysicalHeap*>(heap)->TriggerWatches(
-        virtual_address / system_page_size_ * system_page_size_,
-        system_page_size_, is_write, false);
+    // Will be rounded to physical page boundaries internally, so just pass 1 as
+    // the length - guranteed not to cross page boundaries also.
+    return static_cast<PhysicalHeap*>(heap)->TriggerWatches(virtual_address, 1,
+                                                            is_write, false);
   }
 
   return false;

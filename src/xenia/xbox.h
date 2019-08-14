@@ -344,17 +344,10 @@ struct X_VIDEO_MODE {
 };
 static_assert_size(X_VIDEO_MODE, 48);
 
+// https://docs.microsoft.com/en-us/windows/win32/api/ntdef/ns-ntdef-list_entry
 struct X_LIST_ENTRY {
   be<uint32_t> flink_ptr;  // next entry / head
   be<uint32_t> blink_ptr;  // previous entry / head
-
-  // Assumes X_LIST_ENTRY is within guest memory!
-  void initialize(uint8_t* virtual_membase) {
-    flink_ptr = static_cast<uint32_t>(reinterpret_cast<uint8_t*>(this) -
-                                      virtual_membase);
-    blink_ptr = static_cast<uint32_t>(reinterpret_cast<uint8_t*>(this) -
-                                      virtual_membase);
-  }
 };
 static_assert_size(X_LIST_ENTRY, 8);
 

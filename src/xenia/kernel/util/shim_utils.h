@@ -33,8 +33,8 @@ using PPCContext = xe::cpu::ppc::PPCContext;
       library_name, ordinals::export_name,                     \
       (xe::cpu::xe_kernel_export_shim_fn)export_name##_shim);
 
-#define SHIM_MEM_BASE ppc_context->virtual_membase
-#define SHIM_MEM_ADDR(a) (a ? (ppc_context->virtual_membase + a) : nullptr)
+#define SHIM_MEM_ADDR(a) \
+  ((a) ? ppc_context->kernel_state->memory()->TranslateVirtual(a) : nullptr)
 
 #define SHIM_MEM_8(a) xe::load_and_swap<uint8_t>(SHIM_MEM_ADDR(a))
 #define SHIM_MEM_16(a) xe::load_and_swap<uint16_t>(SHIM_MEM_ADDR(a))
