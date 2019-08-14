@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <cstring>
 
+#include "xenia/base/memory.h"
 #include "xenia/cpu/backend/x64/x64_op.h"
 #include "xenia/cpu/backend/x64/x64_tracers.h"
 
@@ -39,13 +40,28 @@ RegExp ComputeMemoryAddressOffset(X64Emitter& e, const T& guest,
     if (address < 0x80000000) {
       return e.GetMembaseReg() + address;
     } else {
-      e.mov(e.eax, address);
+      if (address >= 0xE0000000 &&
+          xe::memory::allocation_granularity() > 0x1000) {
+        e.mov(e.eax, address + 0x1000);
+      } else {
+        e.mov(e.eax, address);
+      }
       return e.GetMembaseReg() + e.rax;
     }
   } else {
-    // Clear the top 32 bits, as they are likely garbage.
-    // TODO(benvanik): find a way to avoid doing this.
-    e.mov(e.eax, guest.reg().cvt32());
+    if (xe::memory::allocation_granularity() > 0x1000) {
+      // Emulate the 4 KB physical address offset in 0xE0000000+ when can't do
+      // it via memory mapping.
+      e.cmp(guest.reg().cvt32(), 0xE0000000 - offset_const);
+      e.setae(e.al);
+      e.movzx(e.eax, e.al);
+      e.shl(e.eax, 12);
+      e.add(e.eax, guest.reg().cvt32());
+    } else {
+      // Clear the top 32 bits, as they are likely garbage.
+      // TODO(benvanik): find a way to avoid doing this.
+      e.mov(e.eax, guest.reg().cvt32());
+    }
     return e.GetMembaseReg() + e.rax + offset_const;
   }
 }
@@ -61,13 +77,28 @@ RegExp ComputeMemoryAddress(X64Emitter& e, const T& guest) {
     if (address < 0x80000000) {
       return e.GetMembaseReg() + address;
     } else {
-      e.mov(e.eax, address);
+      if (address >= 0xE0000000 &&
+          xe::memory::allocation_granularity() > 0x1000) {
+        e.mov(e.eax, address + 0x1000);
+      } else {
+        e.mov(e.eax, address);
+      }
       return e.GetMembaseReg() + e.rax;
     }
   } else {
-    // Clear the top 32 bits, as they are likely garbage.
-    // TODO(benvanik): find a way to avoid doing this.
-    e.mov(e.eax, guest.reg().cvt32());
+    if (xe::memory::allocation_granularity() > 0x1000) {
+      // Emulate the 4 KB physical address offset in 0xE0000000+ when can't do
+      // it via memory mapping.
+      e.cmp(guest.reg().cvt32(), 0xE0000000);
+      e.setae(e.al);
+      e.movzx(e.eax, e.al);
+      e.shl(e.eax, 12);
+      e.add(e.eax, guest.reg().cvt32());
+    } else {
+      // Clear the top 32 bits, as they are likely garbage.
+      // TODO(benvanik): find a way to avoid doing this.
+      e.mov(e.eax, guest.reg().cvt32());
+    }
     return e.GetMembaseReg() + e.rax;
   }
 }
@@ -142,7 +173,17 @@ struct ATOMIC_COMPARE_EXCHANGE_I32
                I<OPCODE_ATOMIC_COMPARE_EXCHANGE, I8Op, I64Op, I32Op, I32Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     e.mov(e.eax, i.src2);
-    e.mov(e.ecx, i.src1.reg().cvt32());
+    if (xe::memory::allocation_granularity() > 0x1000) {
+      // Emulate the 4 KB physical address offset in 0xE0000000+ when can't do
+      // it via memory mapping.
+      e.cmp(i.src1.reg().cvt32(), 0xE0000000);
+      e.setae(e.cl);
+      e.movzx(e.ecx, e.cl);
+      e.shl(e.ecx, 12);
+      e.add(e.ecx, i.src1.reg().cvt32());
+    } else {
+      e.mov(e.ecx, i.src1.reg().cvt32());
+    }
     e.lock();
     e.cmpxchg(e.dword[e.GetMembaseReg() + e.rcx], i.src3);
     e.sete(i.dest);
@@ -153,7 +194,17 @@ struct ATOMIC_COMPARE_EXCHANGE_I64
                I<OPCODE_ATOMIC_COMPARE_EXCHANGE, I8Op, I64Op, I64Op, I64Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     e.mov(e.rax, i.src2);
-    e.mov(e.ecx, i.src1.reg().cvt32());
+    if (xe::memory::allocation_granularity() > 0x1000) {
+      // Emulate the 4 KB physical address offset in 0xE0000000+ when can't do
+      // it via memory mapping.
+      e.cmp(i.src1.reg().cvt32(), 0xE0000000);
+      e.setae(e.cl);
+      e.movzx(e.ecx, e.cl);
+      e.shl(e.ecx, 12);
+      e.add(e.ecx, i.src1.reg().cvt32());
+    } else {
+      e.mov(e.ecx, i.src1.reg().cvt32());
+    }
     e.lock();
     e.cmpxchg(e.qword[e.GetMembaseReg() + e.rcx], i.src3);
     e.sete(i.dest);
