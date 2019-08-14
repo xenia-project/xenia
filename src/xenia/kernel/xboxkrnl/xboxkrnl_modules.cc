@@ -243,8 +243,8 @@ dword_result_t XexGetProcedureAddress(lpvoid_t hmodule, dword_t ordinal,
   assert_not_zero(ordinal);
 
   bool is_string_name = (ordinal & 0xFFFF0000) != 0;
-  auto string_name = reinterpret_cast<const char*>(
-      kernel_memory()->virtual_membase() + ordinal);
+  auto string_name =
+      reinterpret_cast<const char*>(kernel_memory()->TranslateVirtual(ordinal));
 
   X_STATUS result = X_STATUS_INVALID_HANDLE;
 
