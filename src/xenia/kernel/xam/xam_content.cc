@@ -19,7 +19,7 @@ DEFINE_int32(license_mask, 0,
              "0 - disable all licenses / "
              "1 - enable the first license - usually the full version license "
              "in Xbox Live Arcade games / "
-             "-1 or 0xFFFFFFFF - enable all possible licenses.", 
+             "-1 or 0xFFFFFFFF - enable all possible licenses.",
              "Content");
 
 namespace xe {
