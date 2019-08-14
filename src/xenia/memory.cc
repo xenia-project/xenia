@@ -168,11 +168,8 @@ bool Memory::Initialize() {
   // Prepare physical heaps.
   heaps_.physical.Initialize(this, physical_membase_, 0x00000000, 0x20000000,
                              4096);
-  // HACK: should be 64k, but with us overlaying A and E it needs to be 4.
-  /*heaps_.vA0000000.Initialize(this, virtual_membase_, 0xA0000000, 0x20000000,
-                              64 * 1024, &heaps_.physical);*/
   heaps_.vA0000000.Initialize(this, virtual_membase_, 0xA0000000, 0x20000000,
-                              4 * 1024, &heaps_.physical);
+                              64 * 1024, &heaps_.physical);
   heaps_.vC0000000.Initialize(this, virtual_membase_, 0xC0000000, 0x20000000,
                               16 * 1024 * 1024, &heaps_.physical);
   heaps_.vE0000000.Initialize(this, virtual_membase_, 0xE0000000, 0x1FD00000,
@@ -263,7 +260,7 @@ static const struct {
     {
         0xE0000000,
         0xFFFFFFFF,
-        0x0000000100000000ull,
+        0x0000000100001000ull,
     },
     //          - physical raw
     {
@@ -274,11 +271,15 @@ static const struct {
 };
 int Memory::MapViews(uint8_t* mapping_base) {
   assert_true(xe::countof(map_info) == xe::countof(views_.all_views));
+  // 0xE0000000 4 KB offset is emulated via host_address_offset and on the CPU
+  // side if system allocation granularity is bigger than 4 KB.
+  uint64_t granularity_mask = ~uint64_t(system_allocation_granularity_ - 1);
   for (size_t n = 0; n < xe::countof(map_info); n++) {
     views_.all_views[n] = reinterpret_cast<uint8_t*>(xe::memory::MapFileView(
         mapping_, mapping_base + map_info[n].virtual_address_start,
         map_info[n].virtual_address_end - map_info[n].virtual_address_start + 1,
-        xe::memory::PageAccess::kReadWrite, map_info[n].target_address));
+        xe::memory::PageAccess::kReadWrite,
+        map_info[n].target_address & granularity_mask));
     if (!views_.all_views[n]) {
       // Failed, so bail and try again.
       UnmapViews();
@@ -331,8 +332,7 @@ const BaseHeap* Memory::LookupHeap(uint32_t address) const {
 BaseHeap* Memory::LookupHeapByType(bool physical, uint32_t page_size) {
   if (physical) {
     if (page_size <= 4096) {
-      // HACK: should be vE0000000
-      return &heaps_.vA0000000;
+      return &heaps_.vE0000000;
     } else if (page_size <= 64 * 1024) {
       return &heaps_.vA0000000;
     } else {
