@@ -168,8 +168,9 @@ bool Memory::Initialize() {
   // Prepare physical heaps.
   heaps_.physical.Initialize(this, physical_membase_, 0x00000000, 0x20000000,
                              4096);
+  // HACK: should be 64k, but with us overlaying A and E it needs to be 4.
   heaps_.vA0000000.Initialize(this, virtual_membase_, 0xA0000000, 0x20000000,
-                              64 * 1024, &heaps_.physical);
+                              4 * 1024, &heaps_.physical);
   heaps_.vC0000000.Initialize(this, virtual_membase_, 0xC0000000, 0x20000000,
                               16 * 1024 * 1024, &heaps_.physical);
   heaps_.vE0000000.Initialize(this, virtual_membase_, 0xE0000000, 0x1FD00000,
@@ -332,7 +333,8 @@ const BaseHeap* Memory::LookupHeap(uint32_t address) const {
 BaseHeap* Memory::LookupHeapByType(bool physical, uint32_t page_size) {
   if (physical) {
     if (page_size <= 4096) {
-      return &heaps_.vE0000000;
+      // HACK: should be vE0000000
+      return &heaps_.vA0000000;
     } else if (page_size <= 64 * 1024) {
       return &heaps_.vA0000000;
     } else {
