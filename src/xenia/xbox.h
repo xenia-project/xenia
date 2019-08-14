@@ -260,46 +260,10 @@ struct X_ANSI_STRING {
   xe::be<uint16_t> maximum_length;
   xe::be<uint32_t> pointer;
 
-  static X_ANSI_STRING* Translate(uint8_t* membase, uint32_t guest_address) {
-    if (!guest_address) {
-      return nullptr;
-    }
-    return reinterpret_cast<X_ANSI_STRING*>(membase + guest_address);
-  }
-
-  static X_ANSI_STRING* TranslateIndirect(uint8_t* membase,
-                                          uint32_t guest_address_ptr) {
-    if (!guest_address_ptr) {
-      return nullptr;
-    }
-    uint32_t guest_address =
-        xe::load_and_swap<uint32_t>(membase + guest_address_ptr);
-    return Translate(membase, guest_address);
-  }
-
-  static std::string to_string(uint8_t* membase, uint32_t guest_address) {
-    auto str = Translate(membase, guest_address);
-    return str ? str->to_string(membase) : "";
-  }
-
-  static std::string to_string_indirect(uint8_t* membase,
-                                        uint32_t guest_address_ptr) {
-    auto str = TranslateIndirect(membase, guest_address_ptr);
-    return str ? str->to_string(membase) : "";
-  }
-
   void reset() {
     length = 0;
     maximum_length = 0;
     pointer = 0;
-  }
-
-  std::string to_string(uint8_t* membase) const {
-    if (!length) {
-      return "";
-    }
-    return std::string(reinterpret_cast<const char*>(membase + pointer),
-                       length);
   }
 };
 static_assert_size(X_ANSI_STRING, 8);
@@ -313,15 +277,6 @@ struct X_UNICODE_STRING {
     length = 0;
     maximum_length = 0;
     pointer = 0;
-  }
-
-  std::wstring to_string(uint8_t* membase) const {
-    if (!length) {
-      return L"";
-    }
-
-    return std::wstring(reinterpret_cast<const wchar_t*>(membase + pointer),
-                        length);
   }
 };
 static_assert_size(X_UNICODE_STRING, 8);

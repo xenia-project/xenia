@@ -31,9 +31,10 @@ dword_result_t ObOpenObjectByName(lpunknown_t obj_attributes_ptr,
   // r5 = 0
   // r6 = out_ptr (handle?)
 
-  auto name =
-      X_ANSI_STRING::to_string_indirect(kernel_memory()->virtual_membase(),
-                                        obj_attributes_ptr.guest_address() + 4);
+  auto name = util::TranslateAnsiStringAddress(
+      kernel_memory(),
+      xe::load_and_swap<uint32_t>(kernel_memory()->TranslateVirtual(
+          obj_attributes_ptr.guest_address() + 4)));
 
   X_HANDLE handle = X_INVALID_HANDLE_VALUE;
   X_STATUS result =
@@ -177,8 +178,8 @@ DECLARE_XBOXKRNL_EXPORT1(ObDereferenceObject, kNone, kImplemented);
 
 dword_result_t ObCreateSymbolicLink(pointer_t<X_ANSI_STRING> path,
                                     pointer_t<X_ANSI_STRING> target) {
-  auto path_str = path->to_string(kernel_memory()->virtual_membase());
-  auto target_str = target->to_string(kernel_memory()->virtual_membase());
+  auto path_str = util::TranslateAnsiString(kernel_memory(), path);
+  auto target_str = util::TranslateAnsiString(kernel_memory(), target);
   path_str = filesystem::CanonicalizePath(path_str);
   target_str = filesystem::CanonicalizePath(target_str);
 
@@ -197,7 +198,7 @@ dword_result_t ObCreateSymbolicLink(pointer_t<X_ANSI_STRING> path,
 DECLARE_XBOXKRNL_EXPORT1(ObCreateSymbolicLink, kNone, kImplemented);
 
 dword_result_t ObDeleteSymbolicLink(pointer_t<X_ANSI_STRING> path) {
-  auto path_str = path->to_string(kernel_memory()->virtual_membase());
+  auto path_str = util::TranslateAnsiString(kernel_memory(), path);
   if (!kernel_state()->file_system()->UnregisterSymbolicLink(path_str)) {
     return X_STATUS_UNSUCCESSFUL;
   }

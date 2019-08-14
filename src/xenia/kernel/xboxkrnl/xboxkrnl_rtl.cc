@@ -230,7 +230,7 @@ dword_result_t RtlUnicodeStringToAnsiString(
   // _In_     BOOLEAN AllocateDestinationString
 
   std::wstring unicode_str =
-      source_ptr->to_string(kernel_memory()->virtual_membase());
+      util::TranslateUnicodeString(kernel_memory(), source_ptr);
   std::string ansi_str = xe::to_string(unicode_str);
   if (ansi_str.size() > 0xFFFF - 1) {
     return X_STATUS_INVALID_PARAMETER_2;

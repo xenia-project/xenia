@@ -74,8 +74,10 @@ object_ref<T> LookupNamedObject(KernelState* kernel_state,
   if (!obj_attributes_ptr) {
     return nullptr;
   }
-  auto name = X_ANSI_STRING::to_string_indirect(
-      kernel_state->memory()->virtual_membase(), obj_attributes_ptr + 4);
+  auto name = util::TranslateAnsiStringAddress(
+      kernel_state->memory(),
+      xe::load_and_swap<uint32_t>(
+          kernel_state->memory()->TranslateVirtual(obj_attributes_ptr + 4)));
   if (!name.empty()) {
     X_HANDLE handle = X_INVALID_HANDLE_VALUE;
     X_RESULT result =
