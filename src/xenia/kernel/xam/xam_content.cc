@@ -14,6 +14,14 @@
 #include "xenia/kernel/xenumerator.h"
 #include "xenia/xbox.h"
 
+DEFINE_int32(license_mask, 0,
+             "Set license mask for activated content: "
+             "0 - disable all licenses / "
+             "1 - enable the first license - usually the full version license "
+             "in Xbox Live Arcade games / "
+             "-1 or 0xFFFFFFFF - enable all possible licenses.", 
+             "Content");
+
 namespace xe {
 namespace kernel {
 namespace xam {
@@ -49,7 +57,7 @@ dword_result_t XamContentGetLicenseMask(lpdword_t mask_ptr,
   // Each bit in the mask represents a granted license. Available licenses
   // seems to vary from game to game, but most appear to use bit 0 to indicate
   // if the game is purchased or not.
-  *mask_ptr = 0;
+  *mask_ptr = static_cast<uint32_t>(cvars::license_mask);
 
   if (overlapped_ptr) {
     kernel_state()->CompleteOverlappedImmediate(overlapped_ptr,
