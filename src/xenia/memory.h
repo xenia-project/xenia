@@ -109,6 +109,12 @@ class BaseHeap {
   // (not including membase).
   uint32_t host_address_offset() const { return host_address_offset_; }
 
+  template <typename T = uint8_t*>
+  inline T TranslateRelative(size_t relative_address) const {
+    return reinterpret_cast<T>(membase_ + heap_base_ + host_address_offset_ +
+                               relative_address);
+  }
+
   // Disposes and decommits all memory and clears the page table.
   virtual void Dispose();
 

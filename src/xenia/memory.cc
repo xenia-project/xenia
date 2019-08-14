@@ -401,7 +401,7 @@ uint32_t Memory::SearchAligned(uint32_t start, uint32_t end,
         matched++;
       }
       if (matched == value_count) {
-        return uint32_t(reinterpret_cast<const uint8_t*>(p) - virtual_membase_);
+        return HostToGuestVirtual(p);
       }
     }
     p++;
@@ -633,8 +633,8 @@ void BaseHeap::Dispose() {
        ++page_number) {
     auto& page_entry = page_table_[page_number];
     if (page_entry.state) {
-      xe::memory::DeallocFixed(membase_ + heap_base_ + page_number * page_size_,
-                               0, xe::memory::DeallocationType::kRelease);
+      xe::memory::DeallocFixed(TranslateRelative(page_number * page_size_), 0,
+                               xe::memory::DeallocationType::kRelease);
       page_number += page_entry.region_page_count;
     }
   }
@@ -732,7 +732,7 @@ bool BaseHeap::Save(ByteStream* stream) {
 
     // TODO(DrChat): write compressed with snappy.
     if (page.state & kMemoryAllocationCommit) {
-      void* addr = membase_ + heap_base_ + i * page_size_;
+      void* addr = TranslateRelative(i * page_size_);
 
       memory::PageAccess old_access;
       memory::Protect(addr, page_size_, memory::PageAccess::kReadWrite,
@@ -769,7 +769,7 @@ bool BaseHeap::Restore(ByteStream* stream) {
     // Commit the memory if it isn't already. We do not need to reserve any
     // memory, as the mapping has already taken care of that.
     if (page.state & kMemoryAllocationCommit) {
-      xe::memory::AllocFixed(membase_ + heap_base_ + i * page_size_, page_size_,
+      xe::memory::AllocFixed(TranslateRelative(i * page_size_), page_size_,
                              memory::AllocationType::kCommit,
                              memory::PageAccess::kReadWrite);
     }
@@ -778,7 +778,7 @@ bool BaseHeap::Restore(ByteStream* stream) {
     // protection back to its previous state.
     // TODO(DrChat): read compressed with snappy.
     if (page.state & kMemoryAllocationCommit) {
-      void* addr = membase_ + heap_base_ + i * page_size_;
+      void* addr = TranslateRelative(i * page_size_);
       xe::memory::Protect(addr, page_size_, memory::PageAccess::kReadWrite,
                           nullptr);
 
@@ -858,7 +858,7 @@ bool BaseHeap::AllocFixed(uint32_t base_address, uint32_t size,
                           ? xe::memory::AllocationType::kCommit
                           : xe::memory::AllocationType::kReserve;
     void* result = xe::memory::AllocFixed(
-        membase_ + heap_base_ + start_page_number * page_size_,
+        TranslateRelative(start_page_number * page_size_),
         page_count * page_size_, alloc_type, ToPageAccess(protect));
     if (!result) {
       XELOGE("BaseHeap::AllocFixed failed to alloc range from host");
@@ -1006,7 +1006,7 @@ bool BaseHeap::AllocRange(uint32_t low_address, uint32_t high_address,
                           ? xe::memory::AllocationType::kCommit
                           : xe::memory::AllocationType::kReserve;
     void* result = xe::memory::AllocFixed(
-        membase_ + heap_base_ + start_page_number * page_size_,
+        TranslateRelative(start_page_number * page_size_),
         page_count * page_size_, alloc_type, ToPageAccess(protect));
     if (!result) {
       XELOGE("BaseHeap::Alloc failed to alloc range from host");
@@ -1047,7 +1047,7 @@ bool BaseHeap::Decommit(uint32_t address, uint32_t size) {
   // TODO(benvanik): find a way to actually decommit memory;
   //     mapped memory cannot be decommitted.
   /*BOOL result =
-      VirtualFree(membase_ + heap_base_ + start_page_number * page_size_,
+      VirtualFree(TranslateRelative(start_page_number * page_size_),
                   page_count * page_size_, MEM_DECOMMIT);
   if (!result) {
     PLOGW("BaseHeap::Decommit failed due to host VirtualFree failure");
@@ -1087,7 +1087,7 @@ bool BaseHeap::Release(uint32_t base_address, uint32_t* out_region_size) {
   // Release from host not needed as mapping reserves the range for us.
   // TODO(benvanik): protect with NOACCESS?
   /*BOOL result = VirtualFree(
-      membase_ + heap_base_ + base_page_number * page_size_, 0, MEM_RELEASE);
+      TranslateRelative(base_page_number * page_size_), 0, MEM_RELEASE);
   if (!result) {
     PLOGE("BaseHeap::Release failed due to host VirtualFree failure");
     return false;
@@ -1102,10 +1102,9 @@ bool BaseHeap::Release(uint32_t base_address, uint32_t* out_region_size) {
     // it. It's possible this is some virtual/physical stuff where the GPU
     // still can access it.
     if (cvars::protect_on_release) {
-      if (!xe::memory::Protect(
-              membase_ + heap_base_ + base_page_number * page_size_,
-              base_page_entry.region_page_count * page_size_,
-              xe::memory::PageAccess::kNoAccess, nullptr)) {
+      if (!xe::memory::Protect(TranslateRelative(base_page_number * page_size_),
+                               base_page_entry.region_page_count * page_size_,
+                               xe::memory::PageAccess::kNoAccess, nullptr)) {
         XELOGW("BaseHeap::Release failed due to host VirtualProtect failure");
       }
     }
@@ -1157,10 +1156,9 @@ bool BaseHeap::Protect(uint32_t address, uint32_t size, uint32_t protect,
       (((page_count * page_size_) % xe::memory::page_size() == 0) &&
        ((start_page_number * page_size_) % xe::memory::page_size() == 0))) {
     memory::PageAccess old_protect_access;
-    if (!xe::memory::Protect(
-            membase_ + heap_base_ + start_page_number * page_size_,
-            page_count * page_size_, ToPageAccess(protect),
-            old_protect ? &old_protect_access : nullptr)) {
+    if (!xe::memory::Protect(TranslateRelative(start_page_number * page_size_),
+                             page_count * page_size_, ToPageAccess(protect),
+                             old_protect ? &old_protect_access : nullptr)) {
       XELOGE("BaseHeap::Protect failed due to host VirtualProtect failure");
       return false;
     }
@@ -1524,7 +1522,7 @@ void PhysicalHeap::WatchPhysicalWrite(uint32_t physical_address,
 
   // Protect the pages and mark them as watched. Don't mark non-writable pages
   // as watched, so true access violations can still occur there.
-  uint8_t* protect_base = membase_ + heap_base_;
+  uint8_t* protect_base = TranslateRelative(0);
   uint32_t protect_system_page_first = UINT32_MAX;
   for (uint32_t i = system_page_first; i <= system_page_last; ++i) {
     uint64_t page_bit = uint64_t(1) << (i & 63);
@@ -1682,7 +1680,7 @@ bool PhysicalHeap::TriggerWatches(uint32_t virtual_address, uint32_t length,
 
   // Unprotect ranges that need unprotection.
   if (unprotect) {
-    uint8_t* protect_base = membase_ + heap_base_;
+    uint8_t* protect_base = TranslateRelative(0);
     uint32_t unprotect_system_page_first = UINT32_MAX;
     for (uint32_t i = system_page_first; i <= system_page_last; ++i) {
       // Check if need to allow writing to this page.
