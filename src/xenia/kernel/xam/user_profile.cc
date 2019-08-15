@@ -15,6 +15,8 @@
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/util/shim_utils.h"
 
+DEFINE_string(profile_name, "User", "Gamertag", "General");
+
 namespace xe {
 namespace kernel {
 namespace xam {
@@ -25,7 +27,7 @@ UserProfile::UserProfile() {
   // the game.
   // "You do not have permissions to perform this operation."
   xuid_ = 0xB13EBABEBABEBABE;
-  name_ = "User";
+  name_ = (cvars::profile_name);
 
   // https://cs.rin.ru/forum/viewtopic.php?f=38&t=60668&hilit=gfwl+live&start=195
   // https://github.com/arkem/py360/blob/master/py360/constants.py
