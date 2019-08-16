@@ -13,13 +13,15 @@
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xam/user_profile.h"
 
+DEFINE_string(profile_name, "XeniaUser", "Gamertag", "General");
+
 namespace xe {
 namespace kernel {
 namespace xam {
 
 UserProfile::UserProfile() {
   xuid_ = 0xE000BABEBABEBABE;
-  name_ = "XeniaUser";
+  name_ = (cvars::profile_name);
 
   // https://cs.rin.ru/forum/viewtopic.php?f=38&t=60668&hilit=gfwl+live&start=195
   // https://github.com/arkem/py360/blob/master/py360/constants.py
