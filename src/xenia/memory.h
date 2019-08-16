@@ -31,6 +31,7 @@ class Memory;
 enum SystemHeapFlag : uint32_t {
   kSystemHeapVirtual = 1 << 0,
   kSystemHeapPhysical = 1 << 1,
+  kSystemHeapLargePages = 1 << 2,
 
   kSystemHeapDefault = kSystemHeapVirtual,
 };

@@ -105,8 +105,11 @@ X_STATUS XmaDecoder::Setup(kernel::KernelState* kernel_state) {
       reinterpret_cast<cpu::MMIOWriteCallback>(MMIOWriteRegisterThunk));
 
   // Setup XMA context data.
-  context_data_first_ptr_ = memory()->SystemHeapAlloc(
-      sizeof(XMA_CONTEXT_DATA) * kContextCount, 256, kSystemHeapPhysical);
+  // TODO(Triang3l): Find out what address is used on a real console and why it
+  // doesn't work when allocated in 4 KB pages.
+  context_data_first_ptr_ =
+      memory()->SystemHeapAlloc(sizeof(XMA_CONTEXT_DATA) * kContextCount, 256,
+                                kSystemHeapPhysical | kSystemHeapLargePages);
   context_data_last_ptr_ =
       context_data_first_ptr_ + (sizeof(XMA_CONTEXT_DATA) * kContextCount - 1);
   register_file_[XE_XMA_REG_CONTEXT_ARRAY_ADDRESS].u32 =
