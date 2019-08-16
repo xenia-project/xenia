@@ -93,10 +93,11 @@ physical pages are usually allocated by MmAllocatePhysicalMemoryEx.
 Virtual pages mapped to physical memory are also mapped to the physical membase,
 i.e. virtual 0xA0000000 == physical 0x00000000
 
-Unfortunately, the 0xE0000000-0xFFFFFFFF range is unused in Xenia because
-it maps to physical memory with a single page offset, which is impossible
-to do under the Win32 API. We can't fake this either, as this offset is 
-built into games - see the following sequence:
+The 0xE0000000-0xFFFFFFFF range is mapped to physical memory with a single 4 KB
+page offset. On Windows, memory mappings must be aligned to 64 KB, so the offset
+has to be added when guest addresses are converted to host addresses in the
+translated CPU code. This can't be faked other ways because calculations
+involving the offset are built into games - see the following sequence:
 
 ```
 srwi      r9, r10, 20       # r9 = r10 >> 20
