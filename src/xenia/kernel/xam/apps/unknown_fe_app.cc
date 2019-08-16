@@ -41,6 +41,18 @@ X_RESULT UnknownFEApp::DispatchMessageSync(uint32_t message,
              (uint32_t)data->unk_48);
       return X_ERROR_SUCCESS;
     }
+    case 0x00022005: {
+      struct message_data {
+        xe::be<uint32_t> unk_00;  // ? output_ptr ?
+        xe::be<uint32_t> unk_04;  // ? value/jump to? ?
+      }* data = reinterpret_cast<message_data*>(buffer);
+      assert_true(buffer_length == sizeof(message_data));
+      auto unk = memory_->TranslateVirtual<xe::be<uint32_t>*>(data->unk_00);
+      auto adr = *unk;
+      XELOGD("UnknownFEApp(0x00022005)(%.8X, %.8X)", (uint32_t)data->unk_00,
+             (uint32_t)data->unk_04);
+      return X_ERROR_SUCCESS;
+    }
   }
   XELOGE(
       "Unimplemented 0xFE message app=%.8X, msg=%.8X, arg1=%.8X, "
