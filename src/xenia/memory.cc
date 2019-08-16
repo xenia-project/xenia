@@ -1513,7 +1513,7 @@ void PhysicalHeap::WatchPhysicalWrite(uint32_t physical_address,
 
   // Protect the pages and mark them as watched. Don't mark non-writable pages
   // as watched, so true access violations can still occur there.
-  uint8_t* protect_base = TranslateRelative(0);
+  uint8_t* protect_base = membase_ + heap_base_;
   uint32_t protect_system_page_first = UINT32_MAX;
   for (uint32_t i = system_page_first; i <= system_page_last; ++i) {
     uint64_t page_bit = uint64_t(1) << (i & 63);
@@ -1671,7 +1671,7 @@ bool PhysicalHeap::TriggerWatches(uint32_t virtual_address, uint32_t length,
 
   // Unprotect ranges that need unprotection.
   if (unprotect) {
-    uint8_t* protect_base = TranslateRelative(0);
+    uint8_t* protect_base = membase_ + heap_base_;
     uint32_t unprotect_system_page_first = UINT32_MAX;
     for (uint32_t i = system_page_first; i <= system_page_last; ++i) {
       // Check if need to allow writing to this page.
