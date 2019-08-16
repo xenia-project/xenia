@@ -507,9 +507,7 @@ uint32_t Memory::SystemHeapAlloc(uint32_t size, uint32_t alignment,
                                  uint32_t system_heap_flags) {
   // TODO(benvanik): lightweight pool.
   bool is_physical = !!(system_heap_flags & kSystemHeapPhysical);
-  auto heap = LookupHeapByType(
-      is_physical,
-      (system_heap_flags & kSystemHeapLargePages) ? (64 * 1024) : 4096);
+  auto heap = LookupHeapByType(is_physical, 4096);
   uint32_t address;
   if (!heap->Alloc(size, alignment,
                    kMemoryAllocationReserve | kMemoryAllocationCommit,
