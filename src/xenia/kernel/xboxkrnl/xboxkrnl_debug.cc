@@ -139,7 +139,7 @@ void KeBugCheckEx(dword_t code, dword_t param1, dword_t param2, dword_t param3,
   XELOGD("*** STOP: 0x%.8X (0x%.8X, 0x%.8X, 0x%.8X, 0x%.8X)", code, param1,
          param2, param3, param4);
   fflush(stdout);
-  xe::debugging::Break();
+  //xe::debugging::Break();
   assert_always();
 }
 DECLARE_XBOXKRNL_EXPORT2(KeBugCheckEx, kDebug, kStub, kImportant);
