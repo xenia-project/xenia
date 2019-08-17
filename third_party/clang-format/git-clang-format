@@ -522,7 +522,7 @@ def apply_changes(old_tree, new_tree, force=False, patch_mode=False):
 
 
 def run(*args, **kwargs):
-  stdin = kwargs.pop('stdin', '')
+  stdin = kwargs.pop('stdin', to_bytes(''))
   verbose = kwargs.pop('verbose', True)
   strip = kwargs.pop('strip', True)
   for name in kwargs:
