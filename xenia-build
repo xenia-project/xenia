@@ -110,12 +110,12 @@ def import_vs_environment():
             vcvars_path = os.path.join(tools_path, '..\\..\\vc\\vcvarsall.bat')
             env_tool_args = [vcvars_path, 'x64', '&&', 'set']
     else:
-        vcvars_path = os.path.join(install_path, 'VC\\Auxiliary\\Build\\vcvarsall.bat')
-        if os.path.isfile(vcvars_path) and os.access(vcvars_path, os.X_OK):
-            env_tool_args = [vcvars_path, 'x64', '&&', 'set']
-        else:
-            vsdevcmd_path = os.path.join(install_path, 'Common7\\Tools\\VsDevCmd.bat')
+        vsdevcmd_path = os.path.join(install_path, 'Common7\\Tools\\VsDevCmd.bat')
+        if os.path.isfile(vsdevcmd_path) and os.access(vsdevcmd_path, os.X_OK):
             env_tool_args = [vsdevcmd_path, '-arch=amd64', '-host_arch=amd64', '&&', 'set']
+        else:
+            vcvars_path = os.path.join(install_path, 'VC\\Auxiliary\\Build\\vcvarsall.bat')
+            env_tool_args = [vcvars_path, 'x64', '&&', 'set']
 
     if version == 0:
         return None
