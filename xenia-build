@@ -115,7 +115,7 @@ def import_vs_environment():
             env_tool_args = [vcvars_path, 'x64', '&&', 'set']
         else:
             vsdevcmd_path = os.path.join(install_path, 'Common7\\Tools\\VsDevCmd.bat')
-            env_tool_args = [vsdevcmd_path, '-arch=amd64', '-host_arch=amd64']
+            env_tool_args = [vsdevcmd_path, '-arch=amd64', '-host_arch=amd64', '&&', 'set']
 
     if version == 0:
         return None
