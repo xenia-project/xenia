@@ -12,7 +12,7 @@ IF %_RESULT% NEQ 0 (
   ECHO.
   ECHO Python 3.4+ must be installed and on PATH:
   ECHO https://www.python.org/
-  GOTO :exit_error
+  GOTO :eof
 )
 
 
@@ -29,44 +29,61 @@ REM Utilities
 REM ============================================================================
 
 :check_python
-SETLOCAL
-SET FOUND_PYTHON_EXE=""
-1>NUL 2>NUL CMD /c where python3
-IF NOT ERRORLEVEL 1 (
-  SET FOUND_PYTHON_EXE=python3
+SETLOCAL ENABLEDELAYEDEXPANSION
+
+SET FOUND_PATH=""
+
+SET CANDIDATE_PATHS[0]=C:\python37\python.exe
+SET CANDIDATE_PATHS[1]=C:\python36\python.exe
+SET CANDIDATE_PATHS[2]=C:\python35\python.exe
+SET CANDIDATE_PATHS[3]=C:\python34\python.exe
+SET OUTPUT_INDEX=4
+
+FOR /F "usebackq" %%l IN (`where python3`) DO (
+  SET CANDIDATE_PATHS[!OUTPUT_INDEX!]=%%l
+  SET /A OUTPUT_INDEX+=1
 )
-IF %FOUND_PYTHON_EXE% EQU "" (
-  IF EXIST c:\\python34\\python.exe SET FOUND_PYTHON_EXE=C:\\python34\\python.exe
+FOR /F "usebackq" %%l IN (`where python`) DO (
+  SET CANDIDATE_PATHS[!OUTPUT_INDEX!]=%%l
+  SET /A OUTPUT_INDEX+=1
 )
-IF %FOUND_PYTHON_EXE% EQU "" (
-  IF EXIST c:\\python35\\python.exe SET FOUND_PYTHON_EXE=C:\\python35\\python.exe
+
+SET CANDIDATE_INDEX=0
+:check_candidate_loop
+IF NOT DEFINED CANDIDATE_PATHS[%CANDIDATE_INDEX%] (
+  GOTO :found_python
 )
-IF %FOUND_PYTHON_EXE% EQU "" (
-  IF EXIST c:\\python36\\python.exe SET FOUND_PYTHON_EXE=C:\\python36\\python.exe
+CALL SET CANDIDATE_PATH=%%CANDIDATE_PATHS[%CANDIDATE_INDEX%]%%
+CALL :get_size %CANDIDATE_PATH%
+IF %_SIZE% NEQ 0 (
+  SET FOUND_PATH=%CANDIDATE_PATH%
+  GOTO :found_python
 )
-IF %FOUND_PYTHON_EXE% EQU "" (
-  IF EXIST c:\\python37\\python.exe SET FOUND_PYTHON_EXE=C:\\python37\\python.exe
-)
-IF %FOUND_PYTHON_EXE% EQU "" (
-  1>NUL 2>NUL CMD /c where python
-  IF NOT ERRORLEVEL 1 (
-    SET FOUND_PYTHON_EXE=python
-  )
-)
-IF %FOUND_PYTHON_EXE% EQU "" (
+SET /A CANDIDATE_INDEX+=1
+GOTO :check_candidate_loop
+
+:found_python
+IF %FOUND_PATH%=="" (
   ECHO ERROR: no Python executable found on PATH.
   ECHO Make sure you can run 'python' or 'python3' in a Command Prompt.
   ENDLOCAL & SET _RESULT=1
   GOTO :eof
 )
-CMD /C %FOUND_PYTHON_EXE% -c "import sys; sys.exit(1 if not sys.version_info[:2] >= (3, 4) else 0)"
+
+CMD /C %FOUND_PATH% -c "import sys; sys.exit(1 if not sys.version_info[:2] >= (3, 4) else 0)"
 IF %ERRORLEVEL% NEQ 0 (
   ECHO ERROR: Python version mismatch - not 3.4+
+  ECHO Found Python executable was '%FOUND_PATH%'.
   ENDLOCAL & SET _RESULT=1
   GOTO :eof
 )
+
 ENDLOCAL & (
   SET _RESULT=0
-  SET PYTHON_EXE=%FOUND_PYTHON_EXE%
+  SET PYTHON_EXE=%FOUND_PATH%
 )
 GOTO :eof
+
+:get_size
+SET _SIZE=%~z1
+goto :eof
