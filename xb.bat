@@ -45,6 +45,9 @@ IF %FOUND_PYTHON_EXE% EQU "" (
   IF EXIST c:\\python36\\python.exe SET FOUND_PYTHON_EXE=C:\\python36\\python.exe
 )
 IF %FOUND_PYTHON_EXE% EQU "" (
+  IF EXIST c:\\python37\\python.exe SET FOUND_PYTHON_EXE=C:\\python37\\python.exe
+)
+IF %FOUND_PYTHON_EXE% EQU "" (
   1>NUL 2>NUL CMD /c where python
   IF NOT ERRORLEVEL 1 (
     SET FOUND_PYTHON_EXE=python
