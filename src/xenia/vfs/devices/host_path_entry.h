@@ -38,6 +38,7 @@ class HostPathEntry : public Entry {
   std::unique_ptr<MappedMemory> OpenMapped(MappedMemory::Mode mode,
                                            size_t offset,
                                            size_t length) override;
+  void update() override;
 
  private:
   friend class HostPathDevice;

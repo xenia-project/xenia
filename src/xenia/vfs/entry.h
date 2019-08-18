@@ -120,6 +120,7 @@ class Entry {
                                                    size_t length = 0) {
     return nullptr;
   }
+  virtual void update() { return; }
 
  protected:
   Entry(Device* device, Entry* parent, const std::string& path);
