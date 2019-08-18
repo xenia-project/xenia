@@ -402,6 +402,9 @@ dword_result_t NtSetInformationFile(
         assert_true(length == 8);
         auto eof = xe::load_and_swap<uint64_t>(file_info);
         result = file->SetLength(eof);
+
+        // Update the files vfs::Entry information
+        file->entry()->update();
         break;
       }
       case XFileCompletionInformation: {
@@ -484,6 +487,11 @@ dword_result_t NtQueryInformationFile(
         //   ULONG         Unknown;
         // };
         assert_true(length == 56);
+
+        // Make sure we're working with up-to-date information, just in case the
+        // file size has changed via something other than NtSetInfoFile
+        // (eg. seems NtWriteFile might extend the file in some cases)
+        file->entry()->update();
 
         auto file_info = file_info_ptr.as<X_FILE_NETWORK_OPEN_INFORMATION*>();
         file_info->creation_time = file->entry()->create_timestamp();
