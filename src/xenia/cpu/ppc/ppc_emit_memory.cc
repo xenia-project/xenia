@@ -1074,36 +1074,34 @@ int InstrEmit_stfsx(PPCHIRBuilder& f, const InstrData& i) {
 }
 
 // Cache management (A-27)
+// dcbf, dcbst, dcbt, dcbtst work with 128-byte cache lines, not 32-byte cache
+// blocks, on the Xenon:
+// https://github.com/ValveSoftware/source-sdk-2013/blob/master/mp/src/mathlib/sseconst.cpp#L321
+// https://randomascii.wordpress.com/2018/01/07/finding-a-cpu-design-bug-in-the-xbox-360/
 
 int InstrEmit_dcbf(PPCHIRBuilder& f, const InstrData& i) {
-  // No-op for now.
-  // TODO(benvanik): use prefetch
-  // XEINSTRNOTIMPLEMENTED();
-  f.Nop();
+  Value* ea = CalculateEA_0(f, i.X.RA, i.X.RB);
+  f.CacheControl(ea, 128,
+                 CacheControlType::CACHE_CONTOROL_TYPE_DATA_STORE_AND_FLUSH);
   return 0;
 }
 
 int InstrEmit_dcbst(PPCHIRBuilder& f, const InstrData& i) {
-  // No-op for now.
-  // TODO(benvanik): use prefetch
-  // XEINSTRNOTIMPLEMENTED();
-  f.Nop();
+  Value* ea = CalculateEA_0(f, i.X.RA, i.X.RB);
+  f.CacheControl(ea, 128, CacheControlType::CACHE_CONTOROL_TYPE_DATA_STORE);
   return 0;
 }
 
 int InstrEmit_dcbt(PPCHIRBuilder& f, const InstrData& i) {
-  // No-op for now.
-  // TODO(benvanik): use prefetch
-  // XEINSTRNOTIMPLEMENTED();
-  f.Nop();
+  Value* ea = CalculateEA_0(f, i.X.RA, i.X.RB);
+  f.CacheControl(ea, 128, CacheControlType::CACHE_CONTOROL_TYPE_DATA_TOUCH);
   return 0;
 }
 
 int InstrEmit_dcbtst(PPCHIRBuilder& f, const InstrData& i) {
-  // No-op for now.
-  // TODO(benvanik): use prefetch
-  // XEINSTRNOTIMPLEMENTED();
-  f.Nop();
+  Value* ea = CalculateEA_0(f, i.X.RA, i.X.RB);
+  f.CacheControl(ea, 128,
+                 CacheControlType::CACHE_CONTOROL_TYPE_DATA_TOUCH_FOR_STORE);
   return 0;
 }
 

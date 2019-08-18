@@ -157,7 +157,8 @@ class HIRBuilder {
   Value* Load(Value* address, TypeName type, uint32_t load_flags = 0);
   void Store(Value* address, Value* value, uint32_t store_flags = 0);
   void Memset(Value* address, Value* value, Value* length);
-  void Prefetch(Value* address, size_t length, uint32_t prefetch_flags = 0);
+  void CacheControl(Value* address, size_t cache_line_size,
+                    CacheControlType type);
   void MemoryBarrier();
 
   void SetRoundingMode(Value* value);
