@@ -509,6 +509,40 @@ dword_result_t XeKeysHmacSha(dword_t key_num, lpvoid_t inp_1,
 }
 DECLARE_XBOXKRNL_EXPORT1(XeKeysHmacSha, kNone, kImplemented);
 
+static const uint8_t xe_key_obfuscation_key[16] = {
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+
+dword_result_t XeKeysAesCbcUsingKey(lpvoid_t obscured_key, lpvoid_t inp_ptr,
+                                    dword_t inp_size, lpvoid_t out_ptr,
+                                    lpvoid_t feed_ptr, dword_t encrypt) {
+  uint8_t key[16];
+
+  // Deobscure key
+  XECRYPT_AES_STATE aes;
+  XeCryptAesKey(&aes, (uint8_t*)xe_key_obfuscation_key);
+  XeCryptAesEcb(&aes, obscured_key, key, 0);
+
+  // Run CBC using deobscured key
+  XeCryptAesKey(&aes, key);
+  XeCryptAesCbc(&aes, inp_ptr, inp_size, out_ptr, feed_ptr, encrypt);
+
+  return X_STATUS_SUCCESS;
+}
+DECLARE_XBOXKRNL_EXPORT1(XeKeysAesCbcUsingKey, kNone, kImplemented);
+
+dword_result_t XeKeysObscureKey(lpvoid_t input, lpvoid_t output) {
+  // Based on HvxKeysObscureKey
+  // Seems to encrypt input with per-console KEY_OBFUSCATION_KEY (key 0x18)
+
+  XECRYPT_AES_STATE aes;
+  XeCryptAesKey(&aes, (uint8_t*)xe_key_obfuscation_key);
+  XeCryptAesEcb(&aes, input, output, 1);
+
+  return X_STATUS_SUCCESS;
+}
+DECLARE_XBOXKRNL_EXPORT1(XeKeysObscureKey, kNone, kImplemented);
+
 void RegisterCryptExports(xe::cpu::ExportResolver* export_resolver,
                           KernelState* kernel_state) {}
 
