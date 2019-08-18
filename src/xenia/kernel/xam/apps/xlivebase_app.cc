@@ -55,6 +55,14 @@ X_RESULT XLiveBaseApp::DispatchMessageSync(uint32_t message,
              buffer_length);
       return X_STATUS_UNSUCCESSFUL;
     }
+    case 0x00058046: {
+      // Required to be successful for Forza 4 to detect signed-in profile
+      // Doesn't seem to set anything in the given buffer, probably only takes
+      // input
+      XELOGD("XLiveBaseUnk58046(%.8X, %.8X) unimplemented", buffer_ptr,
+             buffer_length);
+      return X_ERROR_SUCCESS;
+    }
   }
   XELOGE(
       "Unimplemented XLIVEBASE message app=%.8X, msg=%.8X, arg1=%.8X, "
