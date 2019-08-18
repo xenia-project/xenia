@@ -1037,15 +1037,87 @@ EMITTER_OPCODE_TABLE(OPCODE_STORE, STORE_I8, STORE_I16, STORE_I32, STORE_I64,
                      STORE_F32, STORE_F64, STORE_V128);
 
 // ============================================================================
-// OPCODE_PREFETCH
+// OPCODE_CACHE_CONTROL
 // ============================================================================
-struct PREFETCH
-    : Sequence<PREFETCH, I<OPCODE_PREFETCH, VoidOp, I64Op, OffsetOp>> {
+struct CACHE_CONTROL
+    : Sequence<CACHE_CONTROL,
+               I<OPCODE_CACHE_CONTROL, VoidOp, I64Op, OffsetOp>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    // TODO(benvanik): prefetch addr -> length.
+    bool is_clflush = false, is_prefetch = false;
+    switch (CacheControlType(i.instr->flags)) {
+      case CacheControlType::CACHE_CONTOROL_TYPE_DATA_TOUCH:
+      case CacheControlType::CACHE_CONTOROL_TYPE_DATA_TOUCH_FOR_STORE:
+        is_prefetch = true;
+        break;
+      case CacheControlType::CACHE_CONTOROL_TYPE_DATA_STORE:
+      case CacheControlType::CACHE_CONTOROL_TYPE_DATA_STORE_AND_FLUSH:
+        is_clflush = true;
+        break;
+      default:
+        assert_unhandled_case(CacheControlType(i.instr->flags));
+        return;
+    }
+    size_t cache_line_size = i.src2.value;
+
+    RegExp addr;
+    uint32_t address_constant;
+    if (i.src1.is_constant) {
+      // TODO(benvanik): figure out how to do this without a temp.
+      // Since the constant is often 0x8... if we tried to use that as a
+      // displacement it would be sign extended and mess things up.
+      address_constant = static_cast<uint32_t>(i.src1.constant());
+      if (address_constant < 0x80000000) {
+        addr = e.GetMembaseReg() + address_constant;
+      } else {
+        if (address_constant >= 0xE0000000 &&
+            xe::memory::allocation_granularity() > 0x1000) {
+          e.mov(e.eax, address_constant + 0x1000);
+        } else {
+          e.mov(e.eax, address_constant);
+        }
+        addr = e.GetMembaseReg() + e.rax;
+      }
+    } else {
+      if (xe::memory::allocation_granularity() > 0x1000) {
+        // Emulate the 4 KB physical address offset in 0xE0000000+ when can't do
+        // it via memory mapping.
+        e.cmp(i.src1.reg().cvt32(), 0xE0000000);
+        e.setae(e.al);
+        e.movzx(e.eax, e.al);
+        e.shl(e.eax, 12);
+        e.add(e.eax, i.src1.reg().cvt32());
+      } else {
+        // Clear the top 32 bits, as they are likely garbage.
+        // TODO(benvanik): find a way to avoid doing this.
+        e.mov(e.eax, i.src1.reg().cvt32());
+      }
+      addr = e.GetMembaseReg() + e.rax;
+    }
+    if (is_clflush) {
+      e.clflush(e.ptr[addr]);
+    }
+    if (is_prefetch) {
+      e.prefetcht0(e.ptr[addr]);
+    }
+
+    if (cache_line_size >= 128) {
+      // Prefetch the other 64 bytes of the 128-byte cache line.
+      if (i.src1.is_constant && address_constant < 0x80000000) {
+        addr = e.GetMembaseReg() + (address_constant ^ 64);
+      } else {
+        e.xor_(e.eax, 64);
+      }
+      if (is_clflush) {
+        e.clflush(e.ptr[addr]);
+      }
+      if (is_prefetch) {
+        e.prefetcht0(e.ptr[addr]);
+      }
+      assert_true(cache_line_size == 128);
+    }
   }
 };
-EMITTER_OPCODE_TABLE(OPCODE_PREFETCH, PREFETCH);
+EMITTER_OPCODE_TABLE(OPCODE_CACHE_CONTROL, CACHE_CONTROL);
 
 // ============================================================================
 // OPCODE_MEMORY_BARRIER
