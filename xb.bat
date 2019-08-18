@@ -39,11 +39,11 @@ SET CANDIDATE_PATHS[2]=C:\python35\python.exe
 SET CANDIDATE_PATHS[3]=C:\python34\python.exe
 SET OUTPUT_INDEX=4
 
-FOR /F "usebackq" %%l IN (`where python3`) DO (
+FOR /F "usebackq" %%l IN (`2^>NUL where python3`) DO (
   SET CANDIDATE_PATHS[!OUTPUT_INDEX!]=%%l
   SET /A OUTPUT_INDEX+=1
 )
-FOR /F "usebackq" %%l IN (`where python`) DO (
+FOR /F "usebackq" %%l IN (`2^>NUL where python`) DO (
   SET CANDIDATE_PATHS[!OUTPUT_INDEX!]=%%l
   SET /A OUTPUT_INDEX+=1
 )
