@@ -20,7 +20,7 @@ REM ============================================================================
 REM Trampoline into xenia-build
 REM ============================================================================
 
-%PYTHON_EXE% xenia-build %*
+"%PYTHON_EXE%" xenia-build %*
 EXIT /b %ERRORLEVEL%
 
 
@@ -54,6 +54,10 @@ IF NOT DEFINED CANDIDATE_PATHS[%CANDIDATE_INDEX%] (
   GOTO :found_python
 )
 CALL SET CANDIDATE_PATH=%%CANDIDATE_PATHS[%CANDIDATE_INDEX%]%%
+IF NOT EXIST %CANDIDATE_PATH% (
+  SET /A CANDIDATE_INDEX+=1
+  GOTO :check_candidate_loop
+)
 CALL :get_size %CANDIDATE_PATH%
 IF %_SIZE% NEQ 0 (
   SET FOUND_PATH=%CANDIDATE_PATH%
