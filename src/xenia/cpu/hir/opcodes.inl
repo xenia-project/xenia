@@ -262,8 +262,8 @@ DEFINE_OPCODE(
     OPCODE_FLAG_MEMORY)
 
 DEFINE_OPCODE(
-    OPCODE_PREFETCH,
-    "prefetch",
+    OPCODE_CACHE_CONTROL,
+    "cache_control",
     OPCODE_SIG_X_V_O,
     OPCODE_FLAG_MEMORY)
 

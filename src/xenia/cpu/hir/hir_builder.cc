@@ -1277,12 +1277,12 @@ void HIRBuilder::Memset(Value* address, Value* value, Value* length) {
   i->set_src3(length);
 }
 
-void HIRBuilder::Prefetch(Value* address, size_t length,
-                          uint32_t prefetch_flags) {
+void HIRBuilder::CacheControl(Value* address, size_t cache_line_size,
+                              CacheControlType type) {
   ASSERT_ADDRESS_TYPE(address);
-  Instr* i = AppendInstr(OPCODE_PREFETCH_info, prefetch_flags);
+  Instr* i = AppendInstr(OPCODE_CACHE_CONTROL_info, uint32_t(type));
   i->set_src1(address);
-  i->src2.offset = length;
+  i->src2.offset = cache_line_size;
   i->src3.value = NULL;
 }
 
