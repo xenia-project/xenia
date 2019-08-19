@@ -12,6 +12,7 @@
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xam/xam_private.h"
 #include "xenia/kernel/xevent.h"
+#include "xenia/kernel/xthread.h"
 #include "xenia/xbox.h"
 
 namespace xe {
@@ -47,10 +48,14 @@ dword_result_t XMsgStartIORequest(dword_t app, dword_t message,
       app, message, buffer, buffer_length);
   if (result == X_ERROR_NOT_FOUND) {
     XELOGE("XMsgStartIORequest: app %.8X undefined", (uint32_t)app);
+    XThread::SetLastError(X_ERROR_NOT_FOUND);
   }
   if (overlapped_ptr) {
     kernel_state()->CompleteOverlappedImmediate(overlapped_ptr, result);
     result = X_ERROR_IO_PENDING;
+  }
+  if (result == X_ERROR_SUCCESS || X_ERROR_IO_PENDING) {
+    XThread::SetLastError(0);
   }
   return result;
 }
