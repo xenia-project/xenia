@@ -86,7 +86,11 @@ class ContentManager {
   X_RESULT DeleteContent(const XCONTENT_DATA& data);
   std::wstring ResolveGameUserContentPath();
 
+  void SetTitleIdOverride(uint32_t title_id) { title_id_override_ = title_id; }
+
  private:
+  uint32_t title_id();
+
   std::wstring ResolvePackageRoot(uint32_t content_type);
   std::wstring ResolvePackagePath(const XCONTENT_DATA& data);
 
@@ -96,6 +100,9 @@ class ContentManager {
   // TODO(benvanik): remove use of global lock, it's bad here!
   xe::global_critical_region global_critical_region_;
   std::unordered_map<std::string, ContentPackage*> open_packages_;
+
+  uint32_t title_id_override_ =
+      0;  // can be used for games/apps that request content for other IDs
 };
 
 }  // namespace xam
