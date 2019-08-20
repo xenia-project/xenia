@@ -66,6 +66,15 @@ bool VirtualFileSystem::UnregisterSymbolicLink(const std::string& path) {
   return true;
 }
 
+bool VirtualFileSystem::IsSymbolicLink(const std::string& path) {
+  auto global_lock = global_critical_region_.Acquire();
+  auto it = symlinks_.find(path);
+  if (it == symlinks_.end()) {
+    return false;
+  }
+  return true;
+}
+
 bool VirtualFileSystem::FindSymbolicLink(const std::string& path,
                                          std::string& target) {
   auto it =
