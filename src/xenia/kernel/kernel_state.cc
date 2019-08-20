@@ -224,7 +224,9 @@ object_ref<XModule> KernelState::GetModule(const char* name, bool user_only) {
       return retain_object(user_module.get());
     }
   }
-  return nullptr;
+
+  // Module not found, try loading it
+  return LoadUserModule(name);
 }
 
 object_ref<XThread> KernelState::LaunchModule(object_ref<UserModule> module) {
@@ -232,29 +234,43 @@ object_ref<XThread> KernelState::LaunchModule(object_ref<UserModule> module) {
     return nullptr;
   }
 
-  SetExecutableModule(module);
-  XELOGI("KernelState: Launching module...");
+  XELOGI("KernelState: Launching module %s...", module->path().c_str());
 
   // Create a thread to run in.
   // We start suspended so we can run the debugger prep.
-  auto thread = object_ref<XThread>(
-      new XThread(kernel_state(), module->stack_size(), 0,
-                  module->entry_point(), 0, X_CREATE_SUSPENDED, true, true));
+  xe::kernel::object_ref<XThread> thread = nullptr;
 
-  // We know this is the 'main thread'.
+  if (!module->is_dll_module()) {
+    // Not a DLL module, run entrypoint as normal
+    thread = object_ref<XThread>(new XThread(
+        kernel_state(), module->stack_size(), XThread::StartupType::Normal, 0,
+        module->entry_point(), 0, X_CREATE_SUSPENDED, true, true));
+  } else {
+    // Run entrypoint as DllMain, using module handle as start context
+    thread = object_ref<XThread>(
+        new XThread(kernel_state(), module->stack_size(),
+                    XThread::StartupType::DllMain, 0, module->entry_point(),
+                    module->handle(), X_CREATE_SUSPENDED, true, true));
+  }
+
+  // We know this is the 'main thread', or '<dllname> thread'
   char thread_name[32];
-  std::snprintf(thread_name, xe::countof(thread_name), "Main XThread%08X",
+  std::snprintf(thread_name, xe::countof(thread_name), "%s XThread%08X",
+                module->is_dll_module() ? module->name().c_str() : "Main",
                 thread->handle());
   thread->set_name(thread_name);
 
   X_STATUS result = thread->Create();
   if (XFAILED(result)) {
-    XELOGE("Could not create launch thread: %.8X", result);
+    XELOGE("Could not create launch thread for %s: %.8X",
+           module->path().c_str(), result);
     return nullptr;
   }
 
   // Waits for a debugger client, if desired.
-  emulator()->processor()->PreLaunch();
+  if (!module->is_dll_module()) {
+    emulator()->processor()->PreLaunch();
+  }
 
   // Resume the thread now.
   // If the debugger has requested a suspend this will just decrement the
@@ -272,9 +288,6 @@ object_ref<UserModule> KernelState::GetExecutableModule() {
 }
 
 void KernelState::SetExecutableModule(object_ref<UserModule> module) {
-  if (module.get() == executable_module_.get()) {
-    return;
-  }
   executable_module_ = std::move(module);
   if (!executable_module_) {
     return;
@@ -392,16 +405,7 @@ object_ref<UserModule> KernelState::LoadUserModule(const char* raw_name,
   module->Dump();
 
   if (module->is_dll_module() && module->entry_point() && call_entry) {
-    // Call DllMain(DLL_PROCESS_ATTACH):
-    // https://msdn.microsoft.com/en-us/library/windows/desktop/ms682583%28v=vs.85%29.aspx
-    uint64_t args[] = {
-        module->handle(),
-        1,  // DLL_PROCESS_ATTACH
-        0,  // 0 because always dynamic
-    };
-    auto thread_state = XThread::GetCurrentThread()->thread_state();
-    processor()->Execute(thread_state, module->entry_point(), args,
-                         xe::countof(args));
+    LaunchModule(module);
   }
 
   return module;
