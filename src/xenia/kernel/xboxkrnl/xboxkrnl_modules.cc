@@ -19,6 +19,9 @@ DEFINE_int32(game_language, 1,
              "The language for the game to run in. 1=EN / 2=JP / 3=DE / 4=FR / "
              "5=ES / 6=IT / 7=KR / 8=CN",
              "General");
+             
+DEFINE_bool(xconfig_initial_setup, false,
+            "Enable the dashboard initial setup/OOBE", "Kernel");
 
 namespace xe {
 namespace kernel {
@@ -37,7 +40,10 @@ X_STATUS xeExGetXConfigSetting(uint16_t category, uint16_t setting,
     case 0x0002:
       // XCONFIG_SECURED_CATEGORY
       switch (setting) {
-        case 0x0002:  // XCONFIG_SECURED_AV_REGION
+        case 0x0001:                // XCONFIG_SECURED_MAC_ADDRESS (6 bytes)
+          return X_STATUS_SUCCESS;  // Just return, easier than setting up code
+                                    // for different size configs
+        case 0x0002:                // XCONFIG_SECURED_AV_REGION
           setting_size = 4;
           xe::store_and_swap<uint32_t>(value, 0x00001000);  // USA/Canada
           break;
@@ -71,13 +77,26 @@ X_STATUS xeExGetXConfigSetting(uint16_t category, uint16_t setting,
         case 0x000C:  // XCONFIG_USER_RETAIL_FLAGS
           setting_size = 4;
           // TODO(benvanik): get this value.
-          xe::store_and_swap<uint32_t>(value, 0);
+          
+          // 0x40 = dashboard initial setup complete
+          xe::store_and_swap<uint32_t>(value,
+                                       cvars::xconfig_initial_setup ? 0 : 0x40);
           break;
         case 0x000E:  // XCONFIG_USER_COUNTRY
           // Halo: Reach sub_82804888 - min 0x5, max 0x6E.
           setting_size = 1;
           // TODO(benvanik): get this value.
           value[0] = 5;
+          break;
+        case 0x000F:  // XCONFIG_USER_PC_FLAGS (parental control?)
+          setting_size = 1;
+          value[0] = 0;
+          break;
+        case 0x0010:  // XCONFIG_USER_SMB_CONFIG (0x100 byte string)
+                      // Just set the start of the buffer to 0 so that callers
+                      // don't error from an un-inited buffer
+          setting_size = 4;
+          xe::store_and_swap<uint32_t>(value, 0);
           break;
         default:
           assert_unhandled_case(setting);
