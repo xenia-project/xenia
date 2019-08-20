@@ -843,6 +843,29 @@ void Value::Sha(Value* other) {
   }
 }
 
+void Value::RotateLeft(Value* other) {
+  assert_true(other->type == INT8_TYPE);
+  auto rotation = other->constant.u8;
+
+  switch (type) {
+    case INT8_TYPE:
+      constant.u8 = rotate_left<uint8_t>(constant.u8, rotation);
+      break;
+    case INT16_TYPE:
+      constant.u16 = rotate_left<uint16_t>(constant.u16, rotation);
+      break;
+    case INT32_TYPE:
+      constant.u32 = rotate_left<uint32_t>(constant.u32, rotation);
+      break;
+    case INT64_TYPE:
+      constant.u64 = rotate_left<uint64_t>(constant.u64, rotation);
+      break;
+    default:
+      assert_unhandled_case(type);
+      break;
+  }
+}
+
 void Value::Extract(Value* vec, Value* index) {
   assert_true(vec->type == VEC128_TYPE);
   switch (type) {

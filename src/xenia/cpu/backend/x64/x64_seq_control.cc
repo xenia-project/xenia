@@ -20,7 +20,59 @@ namespace backend {
 namespace x64 {
 
 volatile int anchor_control = 0;
-
+template <typename T>
+static void EmitFusedBranch(X64Emitter& e, const T& i) {
+  bool valid = i.instr->prev && i.instr->prev->dest == i.src1.value;
+  auto opcode = valid ? i.instr->prev->opcode->num : -1;
+  if (valid) {
+    auto name = i.src2.value->name;
+    switch (opcode) {
+      case OPCODE_IS_TRUE:
+        e.jnz(name, e.T_NEAR);
+        break;
+      case OPCODE_IS_FALSE:
+        e.jz(name, e.T_NEAR);
+        break;
+      case OPCODE_COMPARE_EQ:
+        e.je(name, e.T_NEAR);
+        break;
+      case OPCODE_COMPARE_NE:
+        e.jne(name, e.T_NEAR);
+        break;
+      case OPCODE_COMPARE_SLT:
+        e.jl(name, e.T_NEAR);
+        break;
+      case OPCODE_COMPARE_SLE:
+        e.jle(name, e.T_NEAR);
+        break;
+      case OPCODE_COMPARE_SGT:
+        e.jg(name, e.T_NEAR);
+        break;
+      case OPCODE_COMPARE_SGE:
+        e.jge(name, e.T_NEAR);
+        break;
+      case OPCODE_COMPARE_ULT:
+        e.jb(name, e.T_NEAR);
+        break;
+      case OPCODE_COMPARE_ULE:
+        e.jbe(name, e.T_NEAR);
+        break;
+      case OPCODE_COMPARE_UGT:
+        e.ja(name, e.T_NEAR);
+        break;
+      case OPCODE_COMPARE_UGE:
+        e.jae(name, e.T_NEAR);
+        break;
+      default:
+        e.test(i.src1, i.src1);
+        e.jnz(name, e.T_NEAR);
+        break;
+    }
+  } else {
+    e.test(i.src1, i.src1);
+    e.jnz(i.src2.value->name, e.T_NEAR);
+  }
+}
 // ============================================================================
 // OPCODE_DEBUG_BREAK
 // ============================================================================
@@ -450,43 +502,57 @@ EMITTER_OPCODE_TABLE(OPCODE_BRANCH, BRANCH);
 struct BRANCH_TRUE_I8
     : Sequence<BRANCH_TRUE_I8, I<OPCODE_BRANCH_TRUE, VoidOp, I8Op, LabelOp>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.test(i.src1, i.src1);
-    e.jnz(i.src2.value->name, e.T_NEAR);
+    EmitFusedBranch(e, i);
   }
 };
 struct BRANCH_TRUE_I16
     : Sequence<BRANCH_TRUE_I16, I<OPCODE_BRANCH_TRUE, VoidOp, I16Op, LabelOp>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.test(i.src1, i.src1);
-    e.jnz(i.src2.value->name, e.T_NEAR);
+    EmitFusedBranch(e, i);
   }
 };
 struct BRANCH_TRUE_I32
     : Sequence<BRANCH_TRUE_I32, I<OPCODE_BRANCH_TRUE, VoidOp, I32Op, LabelOp>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.test(i.src1, i.src1);
-    e.jnz(i.src2.value->name, e.T_NEAR);
+    EmitFusedBranch(e, i);
   }
 };
 struct BRANCH_TRUE_I64
     : Sequence<BRANCH_TRUE_I64, I<OPCODE_BRANCH_TRUE, VoidOp, I64Op, LabelOp>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.test(i.src1, i.src1);
-    e.jnz(i.src2.value->name, e.T_NEAR);
+    EmitFusedBranch(e, i);
   }
 };
 struct BRANCH_TRUE_F32
     : Sequence<BRANCH_TRUE_F32, I<OPCODE_BRANCH_TRUE, VoidOp, F32Op, LabelOp>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.vptest(i.src1, i.src1);
-    e.jnz(i.src2.value->name, e.T_NEAR);
+    if (i.instr->prev && i.instr->prev->opcode == &OPCODE_IS_TRUE_info &&
+        i.instr->prev->dest == i.src1.value) {
+      e.jnz(i.src2.value->name, e.T_NEAR);
+    } else if (i.instr->prev &&
+               i.instr->prev->opcode == &OPCODE_IS_FALSE_info &&
+               i.instr->prev->dest == i.src1.value) {
+      e.jz(i.src2.value->name, e.T_NEAR);
+    } else {
+      e.vptest(i.src1, i.src1);
+      e.jnz(i.src2.value->name, e.T_NEAR);
+    }
   }
 };
 struct BRANCH_TRUE_F64
     : Sequence<BRANCH_TRUE_F64, I<OPCODE_BRANCH_TRUE, VoidOp, F64Op, LabelOp>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.vptest(i.src1, i.src1);
-    e.jnz(i.src2.value->name, e.T_NEAR);
+    if (i.instr->prev && i.instr->prev->opcode == &OPCODE_IS_TRUE_info &&
+        i.instr->prev->dest == i.src1.value) {
+      e.jnz(i.src2.value->name, e.T_NEAR);
+    } else if (i.instr->prev &&
+               i.instr->prev->opcode == &OPCODE_IS_FALSE_info &&
+               i.instr->prev->dest == i.src1.value) {
+      e.jz(i.src2.value->name, e.T_NEAR);
+    } else {
+      e.vptest(i.src1, i.src1);
+      e.jnz(i.src2.value->name, e.T_NEAR);
+    }
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_BRANCH_TRUE, BRANCH_TRUE_I8, BRANCH_TRUE_I16,

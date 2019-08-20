@@ -1,5 +1,5 @@
 project_root = "../../.."
-include(project_root.."/build_tools")
+include(project_root.."/tools/build")
 
 group("src")
 project("xenia-net-proxy")
@@ -9,12 +9,8 @@ project("xenia-net-proxy")
   links({
     project_root.."/third_party/winpcap/Lib/x64/Packet",
 	project_root.."/third_party/winpcap/Lib/x64/wpcap",
-	"gflags",
     "xenia-base",
     "xxhash",
-  })
-  flags({
-    "WinMain",  -- Use WinMain instead of main.
   })
   defines({
     "HAVE_REMOTE=1"
@@ -22,7 +18,6 @@ project("xenia-net-proxy")
   includedirs({
     project_root.."/third_party/elemental-forms/src",
 	project_root.."/third_party/winpcap/Include",
-    project_root.."/build_tools/third_party/gflags/src",
   })
   files({
     "net_proxy_main.cc",
@@ -33,7 +28,6 @@ project("xenia-net-proxy")
   filter("platforms:Windows")
   debugdir(project_root)
   debugargs({
-    "--flagfile=scratch/flags.txt",
     "2>&1",
     "1>scratch/stdout-net-proxy.txt",
   })
