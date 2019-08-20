@@ -18,8 +18,8 @@ namespace kernel {
 namespace xam {
 
 UserProfile::UserProfile() {
-  xuid_ = 0xBABEBABEBABEBABE;
-  name_ = "User";
+  xuid_ = 0xE000BABEBABEBABE;
+  name_ = "XeniaUser";
 
   // https://cs.rin.ru/forum/viewtopic.php?f=38&t=60668&hilit=gfwl+live&start=195
   // https://github.com/arkem/py360/blob/master/py360/constants.py
