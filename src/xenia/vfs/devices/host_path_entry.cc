@@ -104,5 +104,17 @@ bool HostPathEntry::DeleteEntryInternal(Entry* entry) {
   }
 }
 
+void HostPathEntry::update() {
+  xe::filesystem::FileInfo file_info;
+  if (!xe::filesystem::GetInfo(local_path_, &file_info)) {
+    return;
+  }
+  if (file_info.type == xe::filesystem::FileInfo::Type::kFile) {
+    size_ = file_info.total_size;
+    allocation_size_ =
+        xe::round_up(file_info.total_size, device()->bytes_per_sector());
+  }
+}
+
 }  // namespace vfs
 }  // namespace xe
