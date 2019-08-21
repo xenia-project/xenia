@@ -57,5 +57,4 @@ project("xenia-ui-window-vulkan-demo")
       "xcb",
       "X11-xcb",
       "GL",
-      "vulkan",
     })
