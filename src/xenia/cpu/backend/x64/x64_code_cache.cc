@@ -125,15 +125,14 @@ void X64CodeCache::CommitExecutableRange(uint32_t guest_low,
 }
 
 void* X64CodeCache::PlaceHostCode(uint32_t guest_address, void* machine_code,
-                                  size_t code_size, size_t stack_size) {
+                                  const EmitFunctionInfo& func_info) {
   // Same for now. We may use different pools or whatnot later on, like when
   // we only want to place guest code in a serialized cache on disk.
-  return PlaceGuestCode(guest_address, machine_code, code_size, stack_size,
-                        nullptr);
+  return PlaceGuestCode(guest_address, machine_code, func_info, nullptr);
 }
 
 void* X64CodeCache::PlaceGuestCode(uint32_t guest_address, void* machine_code,
-                                   size_t code_size, size_t stack_size,
+                                   const EmitFunctionInfo& func_info,
                                    GuestFunction* function_info) {
   // Hold a lock while we bump the pointers up. This is important as the
   // unwind table requires entries AND code to be sorted in order.
@@ -149,7 +148,7 @@ void* X64CodeCache::PlaceGuestCode(uint32_t guest_address, void* machine_code,
     // Reserve code.
     // Always move the code to land on 16b alignment.
     code_address = generated_code_base_ + generated_code_offset_;
-    generated_code_offset_ += xe::round_up(code_size, 16);
+    generated_code_offset_ += xe::round_up(func_info.code_size.total, 16);
 
     // Reserve unwind info.
     // We go on the high size of the unwind info as we don't know how big we
@@ -187,15 +186,17 @@ void* X64CodeCache::PlaceGuestCode(uint32_t guest_address, void* machine_code,
         old_commit_mark, new_commit_mark));
 
     // Copy code.
-    std::memcpy(code_address, machine_code, code_size);
+    std::memcpy(code_address, machine_code, func_info.code_size.total);
 
     // Fill unused slots with 0xCC
     std::memset(
-        code_address + code_size, 0xCC,
-        xe::round_up(code_size + unwind_reservation.data_size, 16) - code_size);
+        code_address + func_info.code_size.total, 0xCC,
+        xe::round_up(func_info.code_size.total + unwind_reservation.data_size,
+                     16) -
+            func_info.code_size.total);
 
     // Notify subclasses of placed code.
-    PlaceCode(guest_address, machine_code, code_size, stack_size, code_address,
+    PlaceCode(guest_address, machine_code, func_info, code_address,
               unwind_reservation);
   }
 
