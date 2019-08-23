@@ -39,6 +39,8 @@ namespace x64 {
 class X64Backend;
 class X64CodeCache;
 
+struct EmitFunctionInfo;
+
 enum RegisterFlags {
   REG_DEST = (1 << 0),
   REG_ABCD = (1 << 1),
@@ -222,8 +224,9 @@ class X64Emitter : public Xbyak::CodeGenerator {
   size_t stack_size() const { return stack_size_; }
 
  protected:
-  void* Emplace(size_t stack_size, GuestFunction* function = nullptr);
-  bool Emit(hir::HIRBuilder* builder, size_t* out_stack_size);
+  void* Emplace(const EmitFunctionInfo& func_info,
+                GuestFunction* function = nullptr);
+  bool Emit(hir::HIRBuilder* builder, EmitFunctionInfo& func_info);
   void EmitGetCurrentThreadId();
   void EmitTraceUserCallReturn();
 
