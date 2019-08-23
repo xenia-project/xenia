@@ -163,12 +163,19 @@ bool Win32X64CodeCache::Initialize() {
   unwind_table_.resize(kMaximumFunctionCount);
 
   // Check if this version of Windows supports growable function tables.
-  add_growable_table_ = (FnRtlAddGrowableFunctionTable)GetProcAddress(
-      GetModuleHandleW(L"ntdll.dll"), "RtlAddGrowableFunctionTable");
-  delete_growable_table_ = (FnRtlDeleteGrowableFunctionTable)GetProcAddress(
-      GetModuleHandleW(L"ntdll.dll"), "RtlDeleteGrowableFunctionTable");
-  grow_table_ = (FnRtlGrowFunctionTable)GetProcAddress(
-      GetModuleHandleW(L"ntdll.dll"), "RtlGrowFunctionTable");
+  auto ntdll_handle = GetModuleHandleW(L"ntdll.dll");
+  if (!ntdll_handle) {
+    add_growable_table_ = nullptr;
+    delete_growable_table_ = nullptr;
+    grow_table_ = nullptr;
+  } else {
+    add_growable_table_ = (FnRtlAddGrowableFunctionTable)GetProcAddress(
+        ntdll_handle, "RtlAddGrowableFunctionTable");
+    delete_growable_table_ = (FnRtlDeleteGrowableFunctionTable)GetProcAddress(
+        ntdll_handle, "RtlDeleteGrowableFunctionTable");
+    grow_table_ = (FnRtlGrowFunctionTable)GetProcAddress(
+        ntdll_handle, "RtlGrowFunctionTable");
+  }
   supports_growable_table_ =
       add_growable_table_ && delete_growable_table_ && grow_table_;
 
