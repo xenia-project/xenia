@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2019 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -33,6 +33,7 @@ struct EmitFunctionInfo {
     size_t tail;
     size_t total;
   } code_size;
+  size_t prolog_stack_alloc_offset;  // offset of instruction after stack alloc
   size_t stack_size;
 };
 
