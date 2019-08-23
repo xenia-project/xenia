@@ -79,6 +79,8 @@ DECLARE_XBOXKRNL_EXPORT2(XMAReleaseContext, kAudio, kImplemented,
 
 void StoreXmaContextIndexedRegister(KernelState* kernel_state,
                                     uint32_t base_reg, uint32_t context_ptr) {
+  context_ptr =
+      kernel_memory()->LookupHeap(context_ptr)->GetPhysicalAddress(context_ptr);
   auto xma_decoder = kernel_state->emulator()->audio_system()->xma_decoder();
   uint32_t hw_index = (context_ptr - xma_decoder->context_array_ptr()) /
                       sizeof(XMA_CONTEXT_DATA);
@@ -118,14 +120,20 @@ dword_result_t XMAInitializeContext(lpvoid_t context_ptr,
 
   XMA_CONTEXT_DATA context(context_ptr);
 
-  context.input_buffer_0_ptr = context_init->input_buffer_0_ptr;
+  context.input_buffer_0_ptr = kernel_memory()
+      ->LookupHeap(context_init->input_buffer_0_ptr)
+      ->GetPhysicalAddress(context_init->input_buffer_0_ptr);
   context.input_buffer_0_packet_count =
       context_init->input_buffer_0_packet_count;
-  context.input_buffer_1_ptr = context_init->input_buffer_1_ptr;
+  context.input_buffer_1_ptr = kernel_memory()
+      ->LookupHeap(context_init->input_buffer_1_ptr)
+      ->GetPhysicalAddress(context_init->input_buffer_1_ptr);
   context.input_buffer_1_packet_count =
       context_init->input_buffer_1_packet_count;
   context.input_buffer_read_offset = context_init->input_buffer_read_offset;
-  context.output_buffer_ptr = context_init->output_buffer_ptr;
+  context.output_buffer_ptr = kernel_memory()
+      ->LookupHeap(context_init->output_buffer_ptr)
+      ->GetPhysicalAddress(context_init->output_buffer_ptr);
   context.output_buffer_block_count = context_init->output_buffer_block_count;
 
   // context.work_buffer = context_init->work_buffer;  // ?
@@ -186,7 +194,9 @@ dword_result_t XMASetInputBuffer0(lpvoid_t context_ptr, lpvoid_t buffer,
                                   dword_t packet_count) {
   XMA_CONTEXT_DATA context(context_ptr);
 
-  context.input_buffer_0_ptr = buffer.guest_address();
+  context.input_buffer_0_ptr = kernel_memory()
+      ->LookupHeap(buffer.guest_address())
+      ->GetPhysicalAddress(buffer.guest_address());
   context.input_buffer_0_packet_count = packet_count;
 
   context.Store(context_ptr);
@@ -217,7 +227,9 @@ dword_result_t XMASetInputBuffer1(lpvoid_t context_ptr, lpvoid_t buffer,
                                   dword_t packet_count) {
   XMA_CONTEXT_DATA context(context_ptr);
 
-  context.input_buffer_1_ptr = buffer.guest_address();
+  context.input_buffer_1_ptr = kernel_memory()
+      ->LookupHeap(buffer.guest_address())
+      ->GetPhysicalAddress(buffer.guest_address());
   context.input_buffer_1_packet_count = packet_count;
 
   context.Store(context_ptr);
