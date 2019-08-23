@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2015 Ben Vanik. All rights reserved.                             *
+ * Copyright 2019 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -248,6 +248,10 @@ void Win32X64CodeCache::InitializeUnwindEntry(
 
   assert_true(func_info.code_size.prolog < 256);  // needs to fit into a uint8_t
   auto prolog_size = static_cast<uint8_t>(func_info.code_size.prolog);
+  assert_true(func_info.prolog_stack_alloc_offset <
+              256);  // needs to fit into a uint8_t
+  auto prolog_stack_alloc_offset =
+      static_cast<uint8_t>(func_info.prolog_stack_alloc_offset);
 
   if (!func_info.stack_size) {
     // https://docs.microsoft.com/en-us/cpp/build/exception-handling-x64#struct-unwind_info
@@ -268,8 +272,7 @@ void Win32X64CodeCache::InitializeUnwindEntry(
 
     // https://docs.microsoft.com/en-us/cpp/build/exception-handling-x64#struct-unwind_code
     unwind_code = &unwind_info->UnwindCode[unwind_info->CountOfCodes++];
-    unwind_code->CodeOffset =
-        14;  // end of instruction + 1 == offset of next instruction
+    unwind_code->CodeOffset = prolog_stack_alloc_offset;
     unwind_code->UnwindOp = UWOP_ALLOC_SMALL;
     unwind_code->OpInfo = func_info.stack_size / 8 - 1;
   } else {
@@ -285,8 +288,7 @@ void Win32X64CodeCache::InitializeUnwindEntry(
 
     // https://docs.microsoft.com/en-us/cpp/build/exception-handling-x64#struct-unwind_code
     unwind_code = &unwind_info->UnwindCode[unwind_info->CountOfCodes++];
-    unwind_code->CodeOffset =
-        7;  // end of instruction + 1 == offset of next instruction
+    unwind_code->CodeOffset = prolog_stack_alloc_offset;
     unwind_code->UnwindOp = UWOP_ALLOC_LARGE;
     unwind_code->OpInfo = 0;  // One slot for size
 

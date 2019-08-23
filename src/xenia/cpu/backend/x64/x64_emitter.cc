@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2019 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -163,6 +163,7 @@ bool X64Emitter::Emit(HIRBuilder* builder, EmitFunctionInfo& func_info) {
 
   struct _code_offsets {
     size_t prolog;
+    size_t prolog_stack_alloc;
     size_t body;
     size_t epilog;
     size_t tail;
@@ -183,6 +184,9 @@ bool X64Emitter::Emit(HIRBuilder* builder, EmitFunctionInfo& func_info) {
   stack_size_ = stack_size;
 
   sub(rsp, (uint32_t)stack_size);
+
+  code_offsets.prolog_stack_alloc = getSize();
+
   mov(qword[rsp + StackLayout::GUEST_CTX_HOME], GetContextReg());
   mov(qword[rsp + StackLayout::GUEST_RET_ADDR], rcx);
   mov(qword[rsp + StackLayout::GUEST_CALL_RET_ADDR], 0);
@@ -275,6 +279,8 @@ bool X64Emitter::Emit(HIRBuilder* builder, EmitFunctionInfo& func_info) {
   func_info.code_size.body = code_offsets.epilog - code_offsets.body;
   func_info.code_size.epilog = code_offsets.tail - code_offsets.epilog;
   func_info.code_size.tail = getSize() - code_offsets.tail;
+  func_info.prolog_stack_alloc_offset =
+      code_offsets.prolog_stack_alloc - code_offsets.prolog;
 
   return true;
 }
