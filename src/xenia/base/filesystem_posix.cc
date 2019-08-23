@@ -12,7 +12,6 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/string.h"
 
-#include <assert.h>
 #include <dirent.h>
 #include <fcntl.h>
 #include <ftw.h>
@@ -66,12 +65,12 @@ std::filesystem::path GetUserFolder() {
   home = std::getenv("HOME");
 
   // if HOME not set, fall back to this
-  if (home == NULL) {
+  if (home == nullptr) {
     struct passwd pw1;
     struct passwd* pw;
-    char buf[4096];  // could potentionally lower this
+    char buf[4096];  // could potentially lower this
     getpwuid_r(getuid(), &pw1, buf, sizeof(buf), &pw);
-    assert(&pw1 == pw);  // sanity check
+    assert_true(&pw1 == pw);  // sanity check
     home = pw->pw_dir;
   }
 
