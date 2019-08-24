@@ -141,16 +141,16 @@ class PosixFileHandle : public FileHandle {
             size_t* out_bytes_read) override {
     ssize_t out = pread(handle_, buffer, buffer_length, file_offset);
     *out_bytes_read = out;
-    return out >= 0 ? true : false;
+    return out >= 0;
   }
   bool Write(size_t file_offset, const void* buffer, size_t buffer_length,
              size_t* out_bytes_written) override {
     ssize_t out = pwrite(handle_, buffer, buffer_length, file_offset);
     *out_bytes_written = out;
-    return out >= 0 ? true : false;
+    return out >= 0;
   }
   bool SetLength(size_t length) override {
-    return ftruncate(handle_, length) >= 0 ? true : false;
+    return ftruncate(handle_, length) >= 0;
   }
   void Flush() override { fsync(handle_); }
 
