@@ -96,10 +96,18 @@ dword_result_t NtAllocateVirtualMemory(lpdword_t base_addr_ptr,
     XELOGW("Game setting EXECUTE bit on allocation");
   }
 
-  // Adjust size.
-  uint32_t page_size = 4096;
-  if (alloc_type & X_MEM_LARGE_PAGES) {
-    page_size = 64 * 1024;
+  uint32_t page_size;
+
+  if (*base_addr_ptr != 0) {
+    // TODO(gibbed): ignore specified page size when base address is specified.
+    auto heap = kernel_memory()->LookupHeap(*base_addr_ptr);
+    page_size = heap->page_size();
+  } else {
+    // Adjust size.
+    page_size = 4096;
+    if (alloc_type & X_MEM_LARGE_PAGES) {
+      page_size = 64 * 1024;
+    }
   }
 
   // Round the base address down to the nearest page boundary.
