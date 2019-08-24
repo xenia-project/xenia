@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2014 Ben Vanik. All rights reserved.                             *
+ * Copyright 2019 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -27,6 +27,7 @@ DEFINE_string(test_path, "src/xenia/cpu/ppc/testing/",
               "Directory scanned for test files.", "Other");
 DEFINE_string(test_bin_path, "src/xenia/cpu/ppc/testing/bin/",
               "Directory with binary outputs of the test files.", "Other");
+DEFINE_transient_string(test_name, "", "Specifies test name.", "General");
 
 namespace xe {
 namespace cpu {
@@ -472,5 +473,5 @@ int main(const std::vector<std::wstring>& args) {
 }  // namespace cpu
 }  // namespace xe
 
-DEFINE_ENTRY_POINT(L"xenia-cpu-ppc-test", L"xenia-cpu-ppc-test [test name]",
-                   xe::cpu::test::main);
+DEFINE_ENTRY_POINT(L"xenia-cpu-ppc-test", xe::cpu::test::main, "[test name]",
+                   "test_name");

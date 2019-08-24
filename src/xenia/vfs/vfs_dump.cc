@@ -21,9 +21,15 @@
 namespace xe {
 namespace vfs {
 
+DEFINE_transient_string(source, "", "Specifies the file to dump from.",
+                        "General");
+
+DEFINE_transient_string(dump_path, "",
+                        "Specifies the directory to dump files to.", "General");
+
 int vfs_dump_main(const std::vector<std::wstring>& args) {
   if (args.size() <= 2) {
-    XELOGE("Usage: %s [source] [dump_path]", args[0].c_str());
+    XELOGE("Usage: %S [source] [dump_path]", args[0].c_str());
     return 1;
   }
 
@@ -107,5 +113,5 @@ int vfs_dump_main(const std::vector<std::wstring>& args) {
 }  // namespace vfs
 }  // namespace xe
 
-DEFINE_ENTRY_POINT(L"xenia-vfs-dump", L"xenia-vfs-dump",
-                   xe::vfs::vfs_dump_main);
+DEFINE_ENTRY_POINT(L"xenia-vfs-dump", xe::vfs::vfs_dump_main,
+                   "[source] [dump_path]", "source", "dump_path");

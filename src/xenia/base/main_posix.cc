@@ -22,7 +22,8 @@ bool has_console_attached() { return true; }
 extern "C" int main(int argc, char** argv) {
   auto entry_info = xe::GetEntryInfo();
 
-  cvar::ParseLaunchArguments(argc, argv);
+  cvar::ParseLaunchArguments(argc, argv, entry_info.positional_usage,
+                             entry_info.positional_options);
 
   std::vector<std::wstring> args;
   for (int n = 0; n < argc; n++) {

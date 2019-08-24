@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2015 Ben Vanik. All rights reserved.                             *
+ * Copyright 2019 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -179,6 +179,5 @@ int shader_compiler_main(const std::vector<std::wstring>& args) {
 }  // namespace gpu
 }  // namespace xe
 
-DEFINE_ENTRY_POINT(L"xenia-gpu-shader-compiler",
-                   L"xenia-gpu-shader-compiler shader.bin",
-                   xe::gpu::shader_compiler_main);
+DEFINE_ENTRY_POINT(L"xenia-gpu-shader-compiler", xe::gpu::shader_compiler_main,
+                   "shader.bin", "shader_input");
