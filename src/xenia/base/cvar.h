@@ -1,10 +1,23 @@
+/**
+ ******************************************************************************
+ * Xenia : Xbox 360 Emulator Research Project                                 *
+ ******************************************************************************
+ * Copyright 2019 Ben Vanik. All rights reserved.                             *
+ * Released under the BSD license - see LICENSE in the root for more details. *
+ ******************************************************************************
+ */
+
 #ifndef XENIA_CVAR_H_
 #define XENIA_CVAR_H_
+
 #include <map>
 #include <string>
+#include <vector>
+
 #include "cpptoml/include/cpptoml.h"
 #include "cxxopts/include/cxxopts.hpp"
 #include "xenia/base/string_util.h"
+
 namespace cvar {
 
 namespace toml {
@@ -204,7 +217,9 @@ inline void AddCommandVar(ICommandVar* cv) {
   if (!CmdVars) CmdVars = new std::map<std::string, ICommandVar*>();
   CmdVars->insert(std::pair<std::string, ICommandVar*>(cv->name(), cv));
 }
-void ParseLaunchArguments(int argc, char** argv);
+void ParseLaunchArguments(int argc, char** argv,
+                          const std::string& positional_help,
+                          const std::vector<std::string>& positional_options);
 
 template <typename T>
 T* define_configvar(const char* name, T* default_value, const char* description,
@@ -221,14 +236,15 @@ T* define_cmdvar(const char* name, T* default_value, const char* description) {
   AddCommandVar(cmdVar);
   return default_value;
 }
-#define DEFINE_double(name, default_value, description, category) \
-  DEFINE_CVar(name, default_value, description, category, false, double)
 
 #define DEFINE_int32(name, default_value, description, category) \
   DEFINE_CVar(name, default_value, description, category, false, int32_t)
 
 #define DEFINE_uint64(name, default_value, description, category) \
   DEFINE_CVar(name, default_value, description, category, false, uint64_t)
+
+#define DEFINE_double(name, default_value, description, category) \
+  DEFINE_CVar(name, default_value, description, category, false, double)
 
 #define DEFINE_string(name, default_value, description, category) \
   DEFINE_CVar(name, default_value, description, category, false, std::string)
@@ -275,4 +291,5 @@ T* define_cmdvar(const char* name, T* default_value, const char* description) {
   }
 
 }  // namespace cvar
+
 #endif  // XENIA_CVAR_H_
