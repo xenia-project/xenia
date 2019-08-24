@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2019 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -401,4 +401,5 @@ int xenia_main(const std::vector<std::wstring>& args) {
 }  // namespace app
 }  // namespace xe
 
-DEFINE_ENTRY_POINT(L"xenia", L"xenia some.xex", xe::app::xenia_main);
+DEFINE_ENTRY_POINT(L"xenia", xe::app::xenia_main, "[Path to .iso/.xex]",
+                   "target");

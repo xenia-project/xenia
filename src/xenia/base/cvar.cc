@@ -1,3 +1,12 @@
+/**
+ ******************************************************************************
+ * Xenia : Xbox 360 Emulator Research Project                                 *
+ ******************************************************************************
+ * Copyright 2019 Ben Vanik. All rights reserved.                             *
+ * Released under the BSD license - see LICENSE in the root for more details. *
+ ******************************************************************************
+ */
+
 #include "cvar.h"
 
 namespace cvar {
@@ -13,7 +22,9 @@ void PrintHelpAndExit() {
   exit(0);
 }
 
-void ParseLaunchArguments(int argc, char** argv) {
+void ParseLaunchArguments(int argc, char** argv,
+                          const std::string& positional_help,
+                          const std::vector<std::string>& positional_options) {
   options.add_options()("help", "Prints help and exit.");
   if (!CmdVars) CmdVars = new std::map<std::string, ICommandVar*>();
   if (!ConfigVars) ConfigVars = new std::map<std::string, IConfigVar*>();
@@ -29,8 +40,8 @@ void ParseLaunchArguments(int argc, char** argv) {
     configVar->AddToLaunchOptions(&options);
   }
   try {
-    options.positional_help("[Path to .iso/.xex]");
-    options.parse_positional({"target"});
+    options.positional_help(positional_help);
+    options.parse_positional(positional_options);
 
     auto result = options.parse(argc, argv);
     if (result.count("help")) {

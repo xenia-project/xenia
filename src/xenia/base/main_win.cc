@@ -105,7 +105,8 @@ int Main() {
     std::wcstombs(argva[n], argv[n], len + 1);
   }
 
-  cvar::ParseLaunchArguments(argca, argva);
+  cvar::ParseLaunchArguments(argca, argva, entry_info.positional_usage,
+                             entry_info.positional_options);
 
   // Widen all remaining flags and convert to usable strings.
   std::vector<std::wstring> args;
