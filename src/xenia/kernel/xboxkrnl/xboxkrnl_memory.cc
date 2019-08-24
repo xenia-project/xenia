@@ -502,13 +502,11 @@ dword_result_t MmGetPhysicalAddress(dword_t base_address) {
   //   _In_  PVOID BaseAddress
   // );
   // base_address = result of MmAllocatePhysicalMemory.
-  assert_true(base_address >= 0xA0000000);
-
-  uint32_t physical_address = base_address & 0x1FFFFFFF;
-  if (base_address >= 0xE0000000) {
-    physical_address += 0x1000;
+  uint32_t physical_address = kernel_memory()->GetPhysicalAddress(base_address);
+  assert_true(physical_address != UINT32_MAX);
+  if (physical_address == UINT32_MAX) {
+    physical_address = 0;
   }
-
   return physical_address;
 }
 DECLARE_XBOXKRNL_EXPORT1(MmGetPhysicalAddress, kMemory, kImplemented);

@@ -369,6 +369,14 @@ uint32_t Memory::HostToGuestVirtualThunk(const void* context,
       host_address);
 }
 
+uint32_t Memory::GetPhysicalAddress(uint32_t address) const {
+  const BaseHeap* heap = LookupHeap(address);
+  if (!heap || !heap->IsGuestPhysicalHeap()) {
+    return UINT32_MAX;
+  }
+  return static_cast<const PhysicalHeap*>(heap)->GetPhysicalAddress(address);
+}
+
 void Memory::Zero(uint32_t address, uint32_t size) {
   std::memset(TranslateVirtual(address), 0, size);
 }
@@ -440,8 +448,7 @@ bool Memory::AccessViolationCallback(void* host_address, bool is_write) {
   }
   uint32_t virtual_address = HostToGuestVirtual(host_address);
   BaseHeap* heap = LookupHeap(virtual_address);
-  if (heap == &heaps_.vA0000000 || heap == &heaps_.vC0000000 ||
-      heap == &heaps_.vE0000000) {
+  if (heap->IsGuestPhysicalHeap()) {
     // Will be rounded to physical page boundaries internally, so just pass 1 as
     // the length - guranteed not to cross page boundaries also.
     return static_cast<PhysicalHeap*>(heap)->TriggerWatches(virtual_address, 1,
@@ -461,8 +468,7 @@ bool Memory::TriggerWatches(uint32_t virtual_address, uint32_t length,
                             bool is_write, bool unwatch_exact_range,
                             bool unprotect) {
   BaseHeap* heap = LookupHeap(virtual_address);
-  if (heap == &heaps_.vA0000000 || heap == &heaps_.vC0000000 ||
-      heap == &heaps_.vE0000000) {
+  if (heap->IsGuestPhysicalHeap()) {
     return static_cast<PhysicalHeap*>(heap)->TriggerWatches(
         virtual_address, length, is_write, unwatch_exact_range, unprotect);
   }
@@ -1274,16 +1280,6 @@ bool BaseHeap::QueryProtect(uint32_t address, uint32_t* out_protect) {
   return true;
 }
 
-uint32_t BaseHeap::GetPhysicalAddress(uint32_t address) {
-  // Only valid for memory in this range - will be bogus if the origin was
-  // outside of it.
-  uint32_t physical_address = address & 0x1FFFFFFF;
-  if (address >= 0xE0000000) {
-    physical_address += 0x1000;
-  }
-  return physical_address;
-}
-
 VirtualHeap::VirtualHeap() = default;
 
 VirtualHeap::~VirtualHeap() = default;
@@ -1722,6 +1718,16 @@ bool PhysicalHeap::TriggerWatches(uint32_t virtual_address, uint32_t length,
   }
 
   return true;
+}
+
+uint32_t PhysicalHeap::GetPhysicalAddress(uint32_t address) const {
+  assert_true(address >= heap_base_);
+  address -= heap_base_;
+  assert_true(address <= heap_size_);
+  if (heap_base_ >= 0xE0000000) {
+    address += 0x1000;
+  }
+  return address;
 }
 
 }  // namespace xe

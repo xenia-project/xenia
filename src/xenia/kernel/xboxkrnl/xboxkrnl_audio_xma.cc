@@ -11,6 +11,7 @@
 
 #include "xenia/apu/audio_system.h"
 #include "xenia/apu/xma_decoder.h"
+#include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
 #include "xenia/emulator.h"
 #include "xenia/kernel/kernel_state.h"
@@ -184,9 +185,19 @@ DECLARE_XBOXKRNL_EXPORT2(XMASetInputBufferReadOffset, kAudio, kImplemented,
 
 dword_result_t XMASetInputBuffer0(lpvoid_t context_ptr, lpvoid_t buffer,
                                   dword_t packet_count) {
+  uint32_t buffer_physical_address =
+      kernel_memory()->GetPhysicalAddress(buffer.guest_address());
+  assert_true(buffer_physical_address != UINT32_MAX);
+  if (buffer_physical_address == UINT32_MAX) {
+    // Xenia-specific safety check.
+    XELOGE("XMASetInputBuffer0: Invalid buffer virtual address %.8X",
+           buffer.guest_address());
+    return X_E_FALSE;
+  }
+
   XMA_CONTEXT_DATA context(context_ptr);
 
-  context.input_buffer_0_ptr = buffer.guest_address();
+  context.input_buffer_0_ptr = buffer_physical_address;
   context.input_buffer_0_packet_count = packet_count;
 
   context.Store(context_ptr);
@@ -215,9 +226,19 @@ DECLARE_XBOXKRNL_EXPORT2(XMASetInputBuffer0Valid, kAudio, kImplemented,
 
 dword_result_t XMASetInputBuffer1(lpvoid_t context_ptr, lpvoid_t buffer,
                                   dword_t packet_count) {
+  uint32_t buffer_physical_address =
+      kernel_memory()->GetPhysicalAddress(buffer.guest_address());
+  assert_true(buffer_physical_address != UINT32_MAX);
+  if (buffer_physical_address == UINT32_MAX) {
+    // Xenia-specific safety check.
+    XELOGE("XMASetInputBuffer1: Invalid buffer virtual address %.8X",
+           buffer.guest_address());
+    return X_E_FALSE;
+  }
+
   XMA_CONTEXT_DATA context(context_ptr);
 
-  context.input_buffer_1_ptr = buffer.guest_address();
+  context.input_buffer_1_ptr = buffer_physical_address;
   context.input_buffer_1_packet_count = packet_count;
 
   context.Store(context_ptr);
