@@ -7,3 +7,10 @@ test_suite("xenia-base-tests", project_root, ".", {
     "xenia-base",
   },
 })
+  files({
+    "res/*",
+  })
+  filter("files:res/*")
+    flags({"ExcludeFromBuild"})
+  filter("platforms:Windows")
+    debugdir(project_root)

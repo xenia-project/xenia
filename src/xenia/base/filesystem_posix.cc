@@ -9,21 +9,18 @@
 
 #include "xenia/base/assert.h"
 #include "xenia/base/filesystem.h"
-#include "xenia/base/logging.h"
 #include "xenia/base/string.h"
 
 #include <dirent.h>
 #include <fcntl.h>
 #include <ftw.h>
-#include <libgen.h>
 #include <pwd.h>
-#include <stdio.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <iostream>
 
 namespace xe {
 
@@ -112,13 +109,14 @@ static int removeCallback(const char* fpath, const struct stat* sb,
   return rv;
 }
 
-static uint64_t convertUnixtimeToWinFiletime(time_t unixtime) {
-  // Linux uses number of seconds since 1/1/1970, and Windows uses
+static uint64_t convertUnixtimeToWinFiletime(const timespec& unixtime) {
+  // Linux uses number of nanoseconds since 1/1/1970, and Windows uses
   // number of nanoseconds since 1/1/1601
-  // so we convert linux time to nanoseconds and then add the number of
-  // nanoseconds from 1601 to 1970
+  // so we add the number of nanoseconds from 1601 to 1970
+  // and return in the format of 10ns intervals
   // see https://msdn.microsoft.com/en-us/library/ms724228
-  uint64_t filetime = filetime = (unixtime * 10000000) + 116444736000000000;
+  uint64_t filetime = (unixtime.tv_sec * 10000000) + unixtime.tv_nsec / 100 +
+                      116444736000000000;
   return filetime;
 }
 
@@ -197,12 +195,17 @@ bool GetInfo(const std::filesystem::path& path, FileInfo* out_info) {
   if (stat(path.c_str(), &st) == 0) {
     if (S_ISDIR(st.st_mode)) {
       out_info->type = FileInfo::Type::kDirectory;
+      // On Linux st.st_size can have non-zero size (generally 4096) so make 0
+      out_info->total_size = 0;
     } else {
       out_info->type = FileInfo::Type::kFile;
+      out_info->total_size = st.st_size;
     }
-    out_info->create_timestamp = convertUnixtimeToWinFiletime(st.st_ctime);
-    out_info->access_timestamp = convertUnixtimeToWinFiletime(st.st_atime);
-    out_info->write_timestamp = convertUnixtimeToWinFiletime(st.st_mtime);
+    out_info->path = path.parent_path();
+    out_info->name = path.filename();
+    out_info->create_timestamp = convertUnixtimeToWinFiletime(st.st_ctim);
+    out_info->access_timestamp = convertUnixtimeToWinFiletime(st.st_atim);
+    out_info->write_timestamp = convertUnixtimeToWinFiletime(st.st_mtim);
     return true;
   }
   return false;
@@ -228,9 +231,9 @@ std::vector<FileInfo> ListFiles(const std::filesystem::path& path) {
     struct stat st;
     auto ret = stat((path / info.name).c_str(), &st);
     assert_zero(ret);
-    info.create_timestamp = convertUnixtimeToWinFiletime(st.st_ctime);
-    info.access_timestamp = convertUnixtimeToWinFiletime(st.st_atime);
-    info.write_timestamp = convertUnixtimeToWinFiletime(st.st_mtime);
+    info.create_timestamp = convertUnixtimeToWinFiletime(st.st_ctim);
+    info.access_timestamp = convertUnixtimeToWinFiletime(st.st_atim);
+    info.write_timestamp = convertUnixtimeToWinFiletime(st.st_mtim);
     if (ent->d_type == DT_DIR) {
       info.type = FileInfo::Type::kDirectory;
       info.total_size = 0;
