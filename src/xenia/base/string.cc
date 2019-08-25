@@ -155,9 +155,13 @@ std::string::size_type find_first_of_case(const std::string& target,
 
 std::wstring to_absolute_path(const std::wstring& path) {
 #if XE_PLATFORM_WIN32
-  wchar_t buffer[kMaxPath];
-  _wfullpath(buffer, path.c_str(), sizeof(buffer) / sizeof(wchar_t));
-  return buffer;
+  std::wstring result;
+  wchar_t* buffer = _wfullpath(nullptr, path.c_str(), 0);
+  if (buffer != nullptr) {
+    result.assign(buffer);
+    free(buffer);
+  }
+  return result;
 #else
   char buffer[kMaxPath];
   realpath(xe::to_string(path).c_str(), buffer);
