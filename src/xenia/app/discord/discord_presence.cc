@@ -8,6 +8,7 @@
 */
 
 #include "discord_presence.h"
+#include <ctime>
 #include "third_party/discord-rpc/include/discord_rpc.h"
 #include "xenia/base/string.h"
 
@@ -35,6 +36,8 @@ void DiscordPresence::NotPlaying() {
   discordPresence.state = "Idle";
   discordPresence.details = "Standby";
   discordPresence.largeImageKey = "app";
+  discordPresence.largeImageText = "Xenia - Experimental Xbox 360 Emulator";
+  discordPresence.startTimestamp = time(0);
   discordPresence.instance = 1;
   Discord_UpdatePresence(&discordPresence);
 }
@@ -48,6 +51,8 @@ void DiscordPresence::PlayingTitle(const std::string_view game_title) {
   // discordPresence.smallImageKey = "app";
   // discordPresence.largeImageKey = "state_ingame";
   discordPresence.largeImageKey = "app";
+  discordPresence.largeImageText = "Xenia - Experimental Xbox 360 Emulator";
+  discordPresence.startTimestamp = time(0);
   discordPresence.instance = 1;
   Discord_UpdatePresence(&discordPresence);
 }
