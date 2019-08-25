@@ -21,16 +21,10 @@
 #include "xenia/cpu/function.h"
 
 // Function pointer definitions
-typedef DWORD(NTAPI* FnRtlAddGrowableFunctionTable)(
-    _Out_ PVOID* DynamicTable,
-    _In_reads_(MaximumEntryCount) PRUNTIME_FUNCTION FunctionTable,
-    _In_ DWORD EntryCount, _In_ DWORD MaximumEntryCount,
-    _In_ ULONG_PTR RangeBase, _In_ ULONG_PTR RangeEnd);
-
-typedef VOID(NTAPI* FnRtlGrowFunctionTable)(_Inout_ PVOID DynamicTable,
-                                            _In_ DWORD NewEntryCount);
-
-typedef VOID(NTAPI* FnRtlDeleteGrowableFunctionTable)(_In_ PVOID DynamicTable);
+using FnRtlAddGrowableFunctionTable = decltype(&RtlAddGrowableFunctionTable);
+using FnRtlGrowFunctionTable = decltype(&RtlGrowFunctionTable);
+using FnRtlDeleteGrowableFunctionTable =
+    decltype(&RtlDeleteGrowableFunctionTable);
 
 namespace xe {
 namespace cpu {
