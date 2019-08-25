@@ -186,6 +186,7 @@ bool X64Emitter::Emit(HIRBuilder* builder, EmitFunctionInfo& func_info) {
   sub(rsp, (uint32_t)stack_size);
 
   code_offsets.prolog_stack_alloc = getSize();
+  code_offsets.body = getSize();
 
   mov(qword[rsp + StackLayout::GUEST_CTX_HOME], GetContextReg());
   mov(qword[rsp + StackLayout::GUEST_RET_ADDR], rcx);
@@ -223,8 +224,6 @@ bool X64Emitter::Emit(HIRBuilder* builder, EmitFunctionInfo& func_info) {
   mov(GetMembaseReg(),
       qword[GetContextReg() + offsetof(ppc::PPCContext, virtual_membase)]);
 
-  code_offsets.body = getSize();
-
   // Body.
   auto block = builder->first_block();
   while (block) {
@@ -253,13 +252,14 @@ bool X64Emitter::Emit(HIRBuilder* builder, EmitFunctionInfo& func_info) {
     block = block->next;
   }
 
-  code_offsets.epilog = getSize();
-
   // Function epilog.
   L(epilog_label);
   epilog_label_ = nullptr;
   EmitTraceUserCallReturn();
   mov(GetContextReg(), qword[rsp + StackLayout::GUEST_CTX_HOME]);
+
+  code_offsets.epilog = getSize();
+
   add(rsp, (uint32_t)stack_size);
   ret();
 
