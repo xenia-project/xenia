@@ -212,12 +212,11 @@ bool Win32X64CodeCache::Initialize() {
 
 Win32X64CodeCache::UnwindReservation
 Win32X64CodeCache::RequestUnwindReservation(uint8_t* entry_address) {
+  assert_false(unwind_table_count_ >= kMaximumFunctionCount);
   UnwindReservation unwind_reservation;
   unwind_reservation.data_size = xe::round_up(kUnwindInfoSize, 16);
-  unwind_reservation.table_slot = ++unwind_table_count_;
+  unwind_reservation.table_slot = unwind_table_count_++;
   unwind_reservation.entry_address = entry_address;
-  assert_false(unwind_table_count_ >= kMaximumFunctionCount);
-
   return unwind_reservation;
 }
 
@@ -274,7 +273,7 @@ void Win32X64CodeCache::InitializeUnwindEntry(
     unwind_code = &unwind_info->UnwindCode[unwind_info->CountOfCodes++];
     unwind_code->CodeOffset = prolog_stack_alloc_offset;
     unwind_code->UnwindOp = UWOP_ALLOC_SMALL;
-    unwind_code->OpInfo = func_info.stack_size / 8 - 1;
+    unwind_code->OpInfo = (func_info.stack_size / 8) - 1;
   } else {
     // TODO(benvanik): take as parameters?
 
@@ -314,7 +313,7 @@ void Win32X64CodeCache::InitializeUnwindEntry(
 
 void* Win32X64CodeCache::LookupUnwindInfo(uint64_t host_pc) {
   return std::bsearch(
-      &host_pc, unwind_table_.data(), unwind_table_count_ + 1,
+      &host_pc, unwind_table_.data(), unwind_table_count_,
       sizeof(RUNTIME_FUNCTION),
       [](const void* key_ptr, const void* element_ptr) {
         auto key =
