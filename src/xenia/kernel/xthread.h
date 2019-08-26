@@ -107,11 +107,8 @@ class XThread : public XObject, public cpu::Thread {
  public:
   static const Type kType = kTypeThread;
 
-  enum StartupType { Normal, XapiThreadStartup, DllMain };
-
   struct CreationParams {
     uint32_t stack_size;
-    StartupType startup_type;
     uint32_t xapi_thread_startup;
     uint32_t start_address;
     uint32_t start_context;
@@ -120,9 +117,9 @@ class XThread : public XObject, public cpu::Thread {
 
   XThread(KernelState* kernel_state);
   XThread(KernelState* kernel_state, uint32_t stack_size,
-          StartupType startup_type, uint32_t xapi_thread_startup,
-          uint32_t start_address, uint32_t start_context,
-          uint32_t creation_flags, bool guest_thread, bool main_thread = false);
+          uint32_t xapi_thread_startup, uint32_t start_address,
+          uint32_t start_context, uint32_t creation_flags, bool guest_thread,
+          bool main_thread = false);
   ~XThread() override;
 
   static bool IsInThread(XThread* other);
