@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2015 Ben Vanik. All rights reserved.                             *
+ * Copyright 2019 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -21,16 +21,10 @@
 #include "xenia/cpu/function.h"
 
 // Function pointer definitions
-typedef DWORD(NTAPI* FnRtlAddGrowableFunctionTable)(
-    _Out_ PVOID* DynamicTable,
-    _In_reads_(MaximumEntryCount) PRUNTIME_FUNCTION FunctionTable,
-    _In_ DWORD EntryCount, _In_ DWORD MaximumEntryCount,
-    _In_ ULONG_PTR RangeBase, _In_ ULONG_PTR RangeEnd);
-
-typedef VOID(NTAPI* FnRtlGrowFunctionTable)(_Inout_ PVOID DynamicTable,
-                                            _In_ DWORD NewEntryCount);
-
-typedef VOID(NTAPI* FnRtlDeleteGrowableFunctionTable)(_In_ PVOID DynamicTable);
+using FnRtlAddGrowableFunctionTable = decltype(&RtlAddGrowableFunctionTable);
+using FnRtlGrowFunctionTable = decltype(&RtlGrowFunctionTable);
+using FnRtlDeleteGrowableFunctionTable =
+    decltype(&RtlDeleteGrowableFunctionTable);
 
 namespace xe {
 namespace cpu {
@@ -112,13 +106,13 @@ class Win32X64CodeCache : public X64CodeCache {
 
  private:
   UnwindReservation RequestUnwindReservation(uint8_t* entry_address) override;
-  void PlaceCode(uint32_t guest_address, void* machine_code, size_t code_size,
-                 size_t stack_size, void* code_address,
+  void PlaceCode(uint32_t guest_address, void* machine_code,
+                 const EmitFunctionInfo& func_info, void* code_address,
                  UnwindReservation unwind_reservation) override;
 
   void InitializeUnwindEntry(uint8_t* unwind_entry_address,
                              size_t unwind_table_slot, void* code_address,
-                             size_t code_size, size_t stack_size);
+                             const EmitFunctionInfo& func_info);
 
   // Growable function table system handle.
   void* unwind_table_handle_ = nullptr;
@@ -163,12 +157,19 @@ bool Win32X64CodeCache::Initialize() {
   unwind_table_.resize(kMaximumFunctionCount);
 
   // Check if this version of Windows supports growable function tables.
-  add_growable_table_ = (FnRtlAddGrowableFunctionTable)GetProcAddress(
-      GetModuleHandleW(L"ntdll.dll"), "RtlAddGrowableFunctionTable");
-  delete_growable_table_ = (FnRtlDeleteGrowableFunctionTable)GetProcAddress(
-      GetModuleHandleW(L"ntdll.dll"), "RtlDeleteGrowableFunctionTable");
-  grow_table_ = (FnRtlGrowFunctionTable)GetProcAddress(
-      GetModuleHandleW(L"ntdll.dll"), "RtlGrowFunctionTable");
+  auto ntdll_handle = GetModuleHandleW(L"ntdll.dll");
+  if (!ntdll_handle) {
+    add_growable_table_ = nullptr;
+    delete_growable_table_ = nullptr;
+    grow_table_ = nullptr;
+  } else {
+    add_growable_table_ = (FnRtlAddGrowableFunctionTable)GetProcAddress(
+        ntdll_handle, "RtlAddGrowableFunctionTable");
+    delete_growable_table_ = (FnRtlDeleteGrowableFunctionTable)GetProcAddress(
+        ntdll_handle, "RtlDeleteGrowableFunctionTable");
+    grow_table_ = (FnRtlGrowFunctionTable)GetProcAddress(
+        ntdll_handle, "RtlGrowFunctionTable");
+  }
   supports_growable_table_ =
       add_growable_table_ && delete_growable_table_ && grow_table_;
 
@@ -205,23 +206,21 @@ bool Win32X64CodeCache::Initialize() {
 
 Win32X64CodeCache::UnwindReservation
 Win32X64CodeCache::RequestUnwindReservation(uint8_t* entry_address) {
+  assert_false(unwind_table_count_ >= kMaximumFunctionCount);
   UnwindReservation unwind_reservation;
   unwind_reservation.data_size = xe::round_up(kUnwindInfoSize, 16);
-  unwind_reservation.table_slot = ++unwind_table_count_;
+  unwind_reservation.table_slot = unwind_table_count_++;
   unwind_reservation.entry_address = entry_address;
-  assert_false(unwind_table_count_ >= kMaximumFunctionCount);
-
   return unwind_reservation;
 }
 
 void Win32X64CodeCache::PlaceCode(uint32_t guest_address, void* machine_code,
-                                  size_t code_size, size_t stack_size,
+                                  const EmitFunctionInfo& func_info,
                                   void* code_address,
                                   UnwindReservation unwind_reservation) {
   // Add unwind info.
   InitializeUnwindEntry(unwind_reservation.entry_address,
-                        unwind_reservation.table_slot, code_address, code_size,
-                        stack_size);
+                        unwind_reservation.table_slot, code_address, func_info);
 
   if (supports_growable_table_) {
     // Notify that the unwind table has grown.
@@ -230,29 +229,33 @@ void Win32X64CodeCache::PlaceCode(uint32_t guest_address, void* machine_code,
   }
 
   // This isn't needed on x64 (probably), but is convention.
-  FlushInstructionCache(GetCurrentProcess(), code_address, code_size);
+  FlushInstructionCache(GetCurrentProcess(), code_address,
+                        func_info.code_size.total);
 }
 
-void Win32X64CodeCache::InitializeUnwindEntry(uint8_t* unwind_entry_address,
-                                              size_t unwind_table_slot,
-                                              void* code_address,
-                                              size_t code_size,
-                                              size_t stack_size) {
+void Win32X64CodeCache::InitializeUnwindEntry(
+    uint8_t* unwind_entry_address, size_t unwind_table_slot, void* code_address,
+    const EmitFunctionInfo& func_info) {
   auto unwind_info = reinterpret_cast<UNWIND_INFO*>(unwind_entry_address);
   UNWIND_CODE* unwind_code = nullptr;
 
-  if (!stack_size) {
-    // https://msdn.microsoft.com/en-us/library/ddssxxy8.aspx
+  assert_true(func_info.code_size.prolog < 256);  // needs to fit into a uint8_t
+  auto prolog_size = static_cast<uint8_t>(func_info.code_size.prolog);
+  assert_true(func_info.prolog_stack_alloc_offset <
+              256);  // needs to fit into a uint8_t
+  auto prolog_stack_alloc_offset =
+      static_cast<uint8_t>(func_info.prolog_stack_alloc_offset);
+
+  if (!func_info.stack_size) {
+    // https://docs.microsoft.com/en-us/cpp/build/exception-handling-x64#struct-unwind_info
     unwind_info->Version = 1;
     unwind_info->Flags = 0;
-    unwind_info->SizeOfProlog = 0;
+    unwind_info->SizeOfProlog = prolog_size;
     unwind_info->CountOfCodes = 0;
     unwind_info->FrameRegister = 0;
     unwind_info->FrameOffset = 0;
-  } else if (stack_size <= 128) {
-    uint8_t prolog_size = 4;
-
-    // https://msdn.microsoft.com/en-us/library/ddssxxy8.aspx
+  } else if (func_info.stack_size <= 128) {
+    // https://docs.microsoft.com/en-us/cpp/build/exception-handling-x64#struct-unwind_info
     unwind_info->Version = 1;
     unwind_info->Flags = 0;
     unwind_info->SizeOfProlog = prolog_size;
@@ -260,17 +263,15 @@ void Win32X64CodeCache::InitializeUnwindEntry(uint8_t* unwind_entry_address,
     unwind_info->FrameRegister = 0;
     unwind_info->FrameOffset = 0;
 
-    // https://msdn.microsoft.com/en-us/library/ck9asaa9.aspx
+    // https://docs.microsoft.com/en-us/cpp/build/exception-handling-x64#struct-unwind_code
     unwind_code = &unwind_info->UnwindCode[unwind_info->CountOfCodes++];
-    unwind_code->CodeOffset =
-        14;  // end of instruction + 1 == offset of next instruction
+    unwind_code->CodeOffset = prolog_stack_alloc_offset;
     unwind_code->UnwindOp = UWOP_ALLOC_SMALL;
-    unwind_code->OpInfo = stack_size / 8 - 1;
+    unwind_code->OpInfo = (func_info.stack_size / 8) - 1;
   } else {
     // TODO(benvanik): take as parameters?
-    uint8_t prolog_size = 7;
 
-    // https://msdn.microsoft.com/en-us/library/ddssxxy8.aspx
+    // https://docs.microsoft.com/en-us/cpp/build/exception-handling-x64#struct-unwind_info
     unwind_info->Version = 1;
     unwind_info->Flags = 0;
     unwind_info->SizeOfProlog = prolog_size;
@@ -278,16 +279,15 @@ void Win32X64CodeCache::InitializeUnwindEntry(uint8_t* unwind_entry_address,
     unwind_info->FrameRegister = 0;
     unwind_info->FrameOffset = 0;
 
-    // https://msdn.microsoft.com/en-us/library/ck9asaa9.aspx
+    // https://docs.microsoft.com/en-us/cpp/build/exception-handling-x64#struct-unwind_code
     unwind_code = &unwind_info->UnwindCode[unwind_info->CountOfCodes++];
-    unwind_code->CodeOffset =
-        7;  // end of instruction + 1 == offset of next instruction
+    unwind_code->CodeOffset = prolog_stack_alloc_offset;
     unwind_code->UnwindOp = UWOP_ALLOC_LARGE;
     unwind_code->OpInfo = 0;  // One slot for size
 
-    assert_true((stack_size / 8) < 65536u);
+    assert_true((func_info.stack_size / 8) < 65536u);
     unwind_code = &unwind_info->UnwindCode[unwind_info->CountOfCodes++];
-    unwind_code->FrameOffset = (USHORT)(stack_size) / 8;
+    unwind_code->FrameOffset = (USHORT)(func_info.stack_size) / 8;
   }
 
   if (unwind_info->CountOfCodes % 1) {
@@ -300,13 +300,14 @@ void Win32X64CodeCache::InitializeUnwindEntry(uint8_t* unwind_entry_address,
   auto& fn_entry = unwind_table_[unwind_table_slot];
   fn_entry.BeginAddress =
       (DWORD)(reinterpret_cast<uint8_t*>(code_address) - generated_code_base_);
-  fn_entry.EndAddress = (DWORD)(fn_entry.BeginAddress + code_size);
+  fn_entry.EndAddress =
+      (DWORD)(fn_entry.BeginAddress + func_info.code_size.total);
   fn_entry.UnwindData = (DWORD)(unwind_entry_address - generated_code_base_);
 }
 
 void* Win32X64CodeCache::LookupUnwindInfo(uint64_t host_pc) {
   return std::bsearch(
-      &host_pc, unwind_table_.data(), unwind_table_count_ + 1,
+      &host_pc, unwind_table_.data(), unwind_table_count_,
       sizeof(RUNTIME_FUNCTION),
       [](const void* key_ptr, const void* element_ptr) {
         auto key =

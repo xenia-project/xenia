@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2019 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -125,21 +125,21 @@ void X64CodeCache::CommitExecutableRange(uint32_t guest_low,
 }
 
 void* X64CodeCache::PlaceHostCode(uint32_t guest_address, void* machine_code,
-                                  size_t code_size, size_t stack_size) {
+                                  const EmitFunctionInfo& func_info) {
   // Same for now. We may use different pools or whatnot later on, like when
   // we only want to place guest code in a serialized cache on disk.
-  return PlaceGuestCode(guest_address, machine_code, code_size, stack_size,
-                        nullptr);
+  return PlaceGuestCode(guest_address, machine_code, func_info, nullptr);
 }
 
 void* X64CodeCache::PlaceGuestCode(uint32_t guest_address, void* machine_code,
-                                   size_t code_size, size_t stack_size,
+                                   const EmitFunctionInfo& func_info,
                                    GuestFunction* function_info) {
   // Hold a lock while we bump the pointers up. This is important as the
   // unwind table requires entries AND code to be sorted in order.
   size_t low_mark;
   size_t high_mark;
-  uint8_t* code_address = nullptr;
+  size_t code_offset;
+  uint8_t* code_address;
   UnwindReservation unwind_reservation;
   {
     auto global_lock = global_critical_region_.Acquire();
@@ -148,15 +148,16 @@ void* X64CodeCache::PlaceGuestCode(uint32_t guest_address, void* machine_code,
 
     // Reserve code.
     // Always move the code to land on 16b alignment.
-    code_address = generated_code_base_ + generated_code_offset_;
-    generated_code_offset_ += xe::round_up(code_size, 16);
+    code_offset = generated_code_offset_;
+    code_address = generated_code_base_ + code_offset;
+    generated_code_offset_ += xe::round_up(func_info.code_size.total, 16);
 
     // Reserve unwind info.
     // We go on the high size of the unwind info as we don't know how big we
     // need it, and a few extra bytes of padding isn't the worst thing.
     unwind_reservation =
         RequestUnwindReservation(generated_code_base_ + generated_code_offset_);
-    generated_code_offset_ += unwind_reservation.data_size;
+    generated_code_offset_ += xe::round_up(unwind_reservation.data_size, 16);
 
     high_mark = generated_code_offset_;
 
@@ -187,15 +188,14 @@ void* X64CodeCache::PlaceGuestCode(uint32_t guest_address, void* machine_code,
         old_commit_mark, new_commit_mark));
 
     // Copy code.
-    std::memcpy(code_address, machine_code, code_size);
+    std::memcpy(code_address, machine_code, func_info.code_size.total);
 
     // Fill unused slots with 0xCC
-    std::memset(
-        code_address + code_size, 0xCC,
-        xe::round_up(code_size + unwind_reservation.data_size, 16) - code_size);
+    std::memset(code_address + func_info.code_size.total, 0xCC,
+                generated_code_offset_ - code_offset);
 
     // Notify subclasses of placed code.
-    PlaceCode(guest_address, machine_code, code_size, stack_size, code_address,
+    PlaceCode(guest_address, machine_code, func_info, code_address,
               unwind_reservation);
   }
 

@@ -171,9 +171,8 @@ class BaseHeap {
   // address.
   bool QueryProtect(uint32_t address, uint32_t* out_protect);
 
-  // Gets the physical address of a virtual address.
-  // This is only valid if the page is backed by a physical allocation.
-  uint32_t GetPhysicalAddress(uint32_t address);
+  // Whether the heap is a guest virtual memory mapping of the physical memory.
+  virtual bool IsGuestPhysicalHeap() const { return false; }
 
   bool Save(ByteStream* stream);
   bool Restore(ByteStream* stream);
@@ -243,6 +242,9 @@ class PhysicalHeap : public BaseHeap {
   // Returns true if any page in the range was watched.
   bool TriggerWatches(uint32_t virtual_address, uint32_t length, bool is_write,
                       bool unwatch_exact_range, bool unprotect = true);
+
+  bool IsGuestPhysicalHeap() const override { return true; }
+  uint32_t GetPhysicalAddress(uint32_t address) const;
 
  protected:
   VirtualHeap* parent_heap_;
@@ -316,6 +318,10 @@ class Memory {
   // Translates a host address to a guest virtual address.
   // Note that the contents at the returned host address are big-endian.
   uint32_t HostToGuestVirtual(const void* host_address) const;
+
+  // Returns the guest physical address for the guest virtual address, or
+  // UINT32_MAX if it can't be obtained.
+  uint32_t GetPhysicalAddress(uint32_t address) const;
 
   // Zeros out a range of memory at the given guest address.
   void Zero(uint32_t address, uint32_t size);

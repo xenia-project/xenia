@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2019 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -102,14 +102,14 @@ bool X64Emitter::Emit(GuestFunction* function, HIRBuilder* builder,
   source_map_arena_.Reset();
 
   // Fill the generator with code.
-  size_t stack_size = 0;
-  if (!Emit(builder, &stack_size)) {
+  EmitFunctionInfo func_info = {};
+  if (!Emit(builder, func_info)) {
     return false;
   }
 
   // Copy the final code to the cache and relocate it.
   *out_code_size = getSize();
-  *out_code_address = Emplace(stack_size, function);
+  *out_code_address = Emplace(func_info, function);
 
   // Stash source map.
   source_map_arena_.CloneContents(out_source_map);
@@ -117,18 +117,20 @@ bool X64Emitter::Emit(GuestFunction* function, HIRBuilder* builder,
   return true;
 }
 
-void* X64Emitter::Emplace(size_t stack_size, GuestFunction* function) {
+void* X64Emitter::Emplace(const EmitFunctionInfo& func_info,
+                          GuestFunction* function) {
   // To avoid changing xbyak, we do a switcharoo here.
   // top_ points to the Xbyak buffer, and since we are in AutoGrow mode
   // it has pending relocations. We copy the top_ to our buffer, swap the
   // pointer, relocate, then return the original scratch pointer for use.
   uint8_t* old_address = top_;
   void* new_address;
+  assert_true(func_info.code_size.total == size_);
   if (function) {
-    new_address = code_cache_->PlaceGuestCode(function->address(), top_, size_,
-                                              stack_size, function);
+    new_address = code_cache_->PlaceGuestCode(function->address(), top_,
+                                              func_info, function);
   } else {
-    new_address = code_cache_->PlaceHostCode(0, top_, size_, stack_size);
+    new_address = code_cache_->PlaceHostCode(0, top_, func_info);
   }
   top_ = reinterpret_cast<uint8_t*>(new_address);
   ready();
@@ -137,7 +139,7 @@ void* X64Emitter::Emplace(size_t stack_size, GuestFunction* function) {
   return new_address;
 }
 
-bool X64Emitter::Emit(HIRBuilder* builder, size_t* out_stack_size) {
+bool X64Emitter::Emit(HIRBuilder* builder, EmitFunctionInfo& func_info) {
   Xbyak::Label epilog_label;
   epilog_label_ = &epilog_label;
 
@@ -159,6 +161,16 @@ bool X64Emitter::Emit(HIRBuilder* builder, size_t* out_stack_size) {
   stack_offset -= StackLayout::GUEST_STACK_SIZE;
   stack_offset = xe::align(stack_offset, static_cast<size_t>(16));
 
+  struct _code_offsets {
+    size_t prolog;
+    size_t prolog_stack_alloc;
+    size_t body;
+    size_t epilog;
+    size_t tail;
+  } code_offsets = {};
+
+  code_offsets.prolog = getSize();
+
   // Function prolog.
   // Must be 16b aligned.
   // Windows is very strict about the form of this and the epilog:
@@ -168,10 +180,14 @@ bool X64Emitter::Emit(HIRBuilder* builder, size_t* out_stack_size) {
   //     Adding or changing anything here must be matched!
   const size_t stack_size = StackLayout::GUEST_STACK_SIZE + stack_offset;
   assert_true((stack_size + 8) % 16 == 0);
-  *out_stack_size = stack_size;
+  func_info.stack_size = stack_size;
   stack_size_ = stack_size;
 
   sub(rsp, (uint32_t)stack_size);
+
+  code_offsets.prolog_stack_alloc = getSize();
+  code_offsets.body = getSize();
+
   mov(qword[rsp + StackLayout::GUEST_CTX_HOME], GetContextReg());
   mov(qword[rsp + StackLayout::GUEST_RET_ADDR], rcx);
   mov(qword[rsp + StackLayout::GUEST_CALL_RET_ADDR], 0);
@@ -241,8 +257,13 @@ bool X64Emitter::Emit(HIRBuilder* builder, size_t* out_stack_size) {
   epilog_label_ = nullptr;
   EmitTraceUserCallReturn();
   mov(GetContextReg(), qword[rsp + StackLayout::GUEST_CTX_HOME]);
+
+  code_offsets.epilog = getSize();
+
   add(rsp, (uint32_t)stack_size);
   ret();
+
+  code_offsets.tail = getSize();
 
   if (cvars::emit_source_annotations) {
     nop();
@@ -251,6 +272,15 @@ bool X64Emitter::Emit(HIRBuilder* builder, size_t* out_stack_size) {
     nop();
     nop();
   }
+
+  assert_zero(code_offsets.prolog);
+  func_info.code_size.total = getSize();
+  func_info.code_size.prolog = code_offsets.body - code_offsets.prolog;
+  func_info.code_size.body = code_offsets.epilog - code_offsets.body;
+  func_info.code_size.epilog = code_offsets.tail - code_offsets.epilog;
+  func_info.code_size.tail = getSize() - code_offsets.tail;
+  func_info.prolog_stack_alloc_offset =
+      code_offsets.prolog_stack_alloc - code_offsets.prolog;
 
   return true;
 }

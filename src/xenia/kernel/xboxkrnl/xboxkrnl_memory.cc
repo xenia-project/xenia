@@ -330,9 +330,20 @@ dword_result_t MmAllocatePhysicalMemoryEx(dword_t flags, dword_t region_size,
   uint32_t allocation_type = kMemoryAllocationReserve | kMemoryAllocationCommit;
   uint32_t protect = FromXdkProtectFlags(protect_bits);
   bool top_down = true;
-  auto heap = kernel_memory()->LookupHeapByType(true, page_size);
+  auto heap = static_cast<PhysicalHeap*>(
+      kernel_memory()->LookupHeapByType(true, page_size));
+  // min_addr_range/max_addr_range are bounds in physical memory, not virtual.
+  uint32_t heap_base = heap->heap_base();
+  uint32_t heap_physical_address_offset = heap->GetPhysicalAddress(heap_base);
+  uint32_t heap_min_addr =
+      xe::sat_sub(min_addr_range.value(), heap_physical_address_offset);
+  uint32_t heap_max_addr =
+      xe::sat_sub(max_addr_range.value(), heap_physical_address_offset);
+  uint32_t heap_size = heap->heap_size();
+  heap_min_addr = heap_base + std::min(heap_min_addr, heap_size);
+  heap_max_addr = heap_base + std::min(heap_max_addr, heap_size);
   uint32_t base_address;
-  if (!heap->AllocRange(min_addr_range, max_addr_range, adjusted_size,
+  if (!heap->AllocRange(heap_min_addr, heap_max_addr, adjusted_size,
                         adjusted_alignment, allocation_type, protect, top_down,
                         &base_address)) {
     // Failed - assume no memory available.
@@ -502,13 +513,11 @@ dword_result_t MmGetPhysicalAddress(dword_t base_address) {
   //   _In_  PVOID BaseAddress
   // );
   // base_address = result of MmAllocatePhysicalMemory.
-  assert_true(base_address >= 0xA0000000);
-
-  uint32_t physical_address = base_address & 0x1FFFFFFF;
-  if (base_address >= 0xE0000000) {
-    physical_address += 0x1000;
+  uint32_t physical_address = kernel_memory()->GetPhysicalAddress(base_address);
+  assert_true(physical_address != UINT32_MAX);
+  if (physical_address == UINT32_MAX) {
+    physical_address = 0;
   }
-
   return physical_address;
 }
 DECLARE_XBOXKRNL_EXPORT1(MmGetPhysicalAddress, kMemory, kImplemented);

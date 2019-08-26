@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2019 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -407,12 +407,26 @@ HostToGuestThunk X64ThunkEmitter::EmitHostToGuestThunk() {
   // rdx = arg0 (context)
   // r8 = arg1 (guest return address)
 
+  struct _code_offsets {
+    size_t prolog;
+    size_t prolog_stack_alloc;
+    size_t body;
+    size_t epilog;
+    size_t tail;
+  } code_offsets = {};
+
   const size_t stack_size = StackLayout::THUNK_STACK_SIZE;
+
+  code_offsets.prolog = getSize();
+
   // rsp + 0 = return address
   mov(qword[rsp + 8 * 3], r8);
   mov(qword[rsp + 8 * 2], rdx);
   mov(qword[rsp + 8 * 1], rcx);
   sub(rsp, stack_size);
+
+  code_offsets.prolog_stack_alloc = getSize();
+  code_offsets.body = getSize();
 
   // Save nonvolatile registers.
   EmitSaveNonvolatileRegs();
@@ -424,13 +438,28 @@ HostToGuestThunk X64ThunkEmitter::EmitHostToGuestThunk() {
 
   EmitLoadNonvolatileRegs();
 
+  code_offsets.epilog = getSize();
+
   add(rsp, stack_size);
   mov(rcx, qword[rsp + 8 * 1]);
   mov(rdx, qword[rsp + 8 * 2]);
   mov(r8, qword[rsp + 8 * 3]);
   ret();
 
-  void* fn = Emplace(stack_size);
+  code_offsets.tail = getSize();
+
+  assert_zero(code_offsets.prolog);
+  EmitFunctionInfo func_info = {};
+  func_info.code_size.total = getSize();
+  func_info.code_size.prolog = code_offsets.body - code_offsets.prolog;
+  func_info.code_size.body = code_offsets.epilog - code_offsets.body;
+  func_info.code_size.epilog = code_offsets.tail - code_offsets.epilog;
+  func_info.code_size.tail = getSize() - code_offsets.tail;
+  func_info.prolog_stack_alloc_offset =
+      code_offsets.prolog_stack_alloc - code_offsets.prolog;
+  func_info.stack_size = stack_size;
+
+  void* fn = Emplace(func_info);
   return (HostToGuestThunk)fn;
 }
 
@@ -440,9 +469,23 @@ GuestToHostThunk X64ThunkEmitter::EmitGuestToHostThunk() {
   // r8  = arg1
   // r9  = arg2
 
+  struct _code_offsets {
+    size_t prolog;
+    size_t prolog_stack_alloc;
+    size_t body;
+    size_t epilog;
+    size_t tail;
+  } code_offsets = {};
+
   const size_t stack_size = StackLayout::THUNK_STACK_SIZE;
+
+  code_offsets.prolog = getSize();
+
   // rsp + 0 = return address
   sub(rsp, stack_size);
+
+  code_offsets.prolog_stack_alloc = getSize();
+  code_offsets.body = getSize();
 
   // Save off volatile registers.
   EmitSaveVolatileRegs();
@@ -453,10 +496,25 @@ GuestToHostThunk X64ThunkEmitter::EmitGuestToHostThunk() {
 
   EmitLoadVolatileRegs();
 
+  code_offsets.epilog = getSize();
+
   add(rsp, stack_size);
   ret();
 
-  void* fn = Emplace(stack_size);
+  code_offsets.tail = getSize();
+
+  assert_zero(code_offsets.prolog);
+  EmitFunctionInfo func_info = {};
+  func_info.code_size.total = getSize();
+  func_info.code_size.prolog = code_offsets.body - code_offsets.prolog;
+  func_info.code_size.body = code_offsets.epilog - code_offsets.body;
+  func_info.code_size.epilog = code_offsets.tail - code_offsets.epilog;
+  func_info.code_size.tail = getSize() - code_offsets.tail;
+  func_info.prolog_stack_alloc_offset =
+      code_offsets.prolog_stack_alloc - code_offsets.prolog;
+  func_info.stack_size = stack_size;
+
+  void* fn = Emplace(func_info);
   return (GuestToHostThunk)fn;
 }
 
@@ -466,10 +524,24 @@ extern "C" uint64_t ResolveFunction(void* raw_context, uint32_t target_address);
 ResolveFunctionThunk X64ThunkEmitter::EmitResolveFunctionThunk() {
   // ebx = target PPC address
   // rcx = context
+
+  struct _code_offsets {
+    size_t prolog;
+    size_t prolog_stack_alloc;
+    size_t body;
+    size_t epilog;
+    size_t tail;
+  } code_offsets = {};
+
   const size_t stack_size = StackLayout::THUNK_STACK_SIZE;
+
+  code_offsets.prolog = getSize();
 
   // rsp + 0 = return address
   sub(rsp, stack_size);
+
+  code_offsets.prolog_stack_alloc = getSize();
+  code_offsets.body = getSize();
 
   // Save volatile registers
   EmitSaveVolatileRegs();
@@ -481,10 +553,25 @@ ResolveFunctionThunk X64ThunkEmitter::EmitResolveFunctionThunk() {
 
   EmitLoadVolatileRegs();
 
+  code_offsets.epilog = getSize();
+
   add(rsp, stack_size);
   jmp(rax);
 
-  void* fn = Emplace(stack_size);
+  code_offsets.tail = getSize();
+
+  assert_zero(code_offsets.prolog);
+  EmitFunctionInfo func_info = {};
+  func_info.code_size.total = getSize();
+  func_info.code_size.prolog = code_offsets.body - code_offsets.prolog;
+  func_info.code_size.body = code_offsets.epilog - code_offsets.body;
+  func_info.code_size.epilog = code_offsets.tail - code_offsets.epilog;
+  func_info.code_size.tail = getSize() - code_offsets.tail;
+  func_info.prolog_stack_alloc_offset =
+      code_offsets.prolog_stack_alloc - code_offsets.prolog;
+  func_info.stack_size = stack_size;
+
+  void* fn = Emplace(func_info);
   return (ResolveFunctionThunk)fn;
 }
 

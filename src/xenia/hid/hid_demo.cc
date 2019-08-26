@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2017 Ben Vanik. All rights reserved.                             *
+ * Copyright 2019 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -215,5 +215,4 @@ void DrawInputStatus() {
 }  // namespace hid
 }  // namespace xe
 
-DEFINE_ENTRY_POINT(L"xenia-hid-demo", L"xenia-hid-demo",
-                   xe::hid::hid_demo_main);
+DEFINE_ENTRY_POINT(L"xenia-hid-demo", xe::hid::hid_demo_main, "");
