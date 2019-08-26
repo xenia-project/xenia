@@ -48,12 +48,22 @@ class VulkanProvider : public GraphicsProvider {
 
   VkInstance GetInstance() const { return instance_; }
   VkPhysicalDevice GetPhysicalDevice() const { return physical_device_; }
+  const VkPhysicalDeviceProperties& GetPhysicalDeviceProperties() const {
+    return physical_device_properties_;
+  }
   const VkPhysicalDeviceFeatures& GetPhysicalDeviceFeatures() const {
     return physical_device_features_;
+  }
+  const VkPhysicalDeviceMemoryProperties& GetPhysicalDeviceMemoryProperties()
+      const {
+    return physical_device_memory_properties_;
   }
   VkDevice GetDevice() const { return device_; }
   uint32_t GetGraphicsQueueFamily() const { return graphics_queue_family_; }
   VkQueue GetGraphicsQueue() const { return graphics_queue_; }
+
+  uint32_t FindMemoryType(uint32_t memory_type_bits_requirement,
+                          VkMemoryPropertyFlags required_properties) const;
 
  private:
   explicit VulkanProvider(Window* main_window);
@@ -62,7 +72,9 @@ class VulkanProvider : public GraphicsProvider {
 
   VkInstance instance_ = VK_NULL_HANDLE;
   VkPhysicalDevice physical_device_ = VK_NULL_HANDLE;
+  VkPhysicalDeviceProperties physical_device_properties_;
   VkPhysicalDeviceFeatures physical_device_features_;
+  VkPhysicalDeviceMemoryProperties physical_device_memory_properties_;
   VkDevice device_ = VK_NULL_HANDLE;
   uint32_t graphics_queue_family_ = UINT32_MAX;
   VkQueue graphics_queue_ = VK_NULL_HANDLE;
