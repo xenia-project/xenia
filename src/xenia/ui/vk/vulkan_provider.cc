@@ -14,6 +14,7 @@
 
 #include "xenia/base/cvar.h"
 #include "xenia/base/logging.h"
+#include "xenia/base/math.h"
 #include "xenia/base/platform.h"
 #include "xenia/ui/vk/vulkan_context.h"
 #include "xenia/ui/vk/vulkan_util.h"
@@ -55,6 +56,22 @@ VulkanProvider::~VulkanProvider() {
   if (instance_ != VK_NULL_HANDLE) {
     vkDestroyInstance(instance_, nullptr);
   }
+}
+
+uint32_t VulkanProvider::FindMemoryType(
+    uint32_t memory_type_bits_requirement,
+    VkMemoryPropertyFlags required_properties) const {
+  uint32_t memory_index;
+  while (xe::bit_scan_forward(memory_type_bits_requirement, &memory_index)) {
+    memory_type_bits_requirement &= ~(uint32_t(1) << memory_index);
+    VkMemoryPropertyFlags properties =
+        physical_device_memory_properties_.memoryTypes[memory_index]
+            .propertyFlags;
+    if ((properties & required_properties) == required_properties) {
+      return memory_index;
+    }
+  }
+  return UINT32_MAX;
 }
 
 bool VulkanProvider::Initialize() {
@@ -130,15 +147,15 @@ bool VulkanProvider::Initialize() {
     physical_device_index = 0;
     physical_device_index_end = physical_device_count;
   }
-  VkPhysicalDeviceProperties physical_device_properties;
   std::vector<VkExtensionProperties> physical_device_extensions;
   std::vector<VkQueueFamilyProperties> queue_families;
   bool sparse_residency_buffer = false;
   for (; physical_device_index < physical_device_index_end;
        ++physical_device_index) {
     VkPhysicalDevice physical_device = physical_devices[physical_device_index];
-    vkGetPhysicalDeviceProperties(physical_device, &physical_device_properties);
-    if (physical_device_properties.apiVersion < api_version) {
+    vkGetPhysicalDeviceProperties(physical_device,
+                                  &physical_device_properties_);
+    if (physical_device_properties_.apiVersion < api_version) {
       continue;
     }
     vkGetPhysicalDeviceFeatures(physical_device, &physical_device_features_);
@@ -219,11 +236,15 @@ bool VulkanProvider::Initialize() {
   // TODO(Triang3l): Check if VK_EXT_fragment_shader_interlock and
   // fragmentShaderSampleInterlock are supported.
 
+  // Get the needed info about the physical device.
+  vkGetPhysicalDeviceMemoryProperties(physical_device_,
+                                      &physical_device_memory_properties_);
+
   // Log physical device properties.
   XELOGVK("Vulkan physical device: %s (vendor %.4X, device %.4X)",
-          physical_device_properties.deviceName,
-          physical_device_properties.vendorID,
-          physical_device_properties.deviceID);
+          physical_device_properties_.deviceName,
+          physical_device_properties_.vendorID,
+          physical_device_properties_.deviceID);
 
   // Create a logical device and a queue.
   float queue_priority = 1.0f;

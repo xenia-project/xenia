@@ -56,6 +56,7 @@ class VulkanContext : public GraphicsContext {
 
   const VkSurfaceFormatKHR& GetSurfaceFormat() const { return surface_format_; }
 
+  VkRenderPass GetPresentRenderPass() const { return present_render_pass_; }
   VkCommandBuffer GetPresentCommandBuffer() const {
     return present_command_buffers_[current_queue_frame_];
   }

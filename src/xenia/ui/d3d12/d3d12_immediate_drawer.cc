@@ -203,13 +203,14 @@ bool D3D12ImmediateDrawer::Initialize() {
   D3D12_INPUT_ELEMENT_DESC pipeline_input_elements[3] = {};
   pipeline_input_elements[0].SemanticName = "POSITION";
   pipeline_input_elements[0].Format = DXGI_FORMAT_R32G32_FLOAT;
-  pipeline_input_elements[0].AlignedByteOffset = 0;
+  pipeline_input_elements[0].AlignedByteOffset = offsetof(ImmediateVertex, x);
   pipeline_input_elements[1].SemanticName = "TEXCOORD";
   pipeline_input_elements[1].Format = DXGI_FORMAT_R32G32_FLOAT;
-  pipeline_input_elements[1].AlignedByteOffset = 8;
+  pipeline_input_elements[1].AlignedByteOffset = offsetof(ImmediateVertex, u);
   pipeline_input_elements[2].SemanticName = "COLOR";
   pipeline_input_elements[2].Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-  pipeline_input_elements[2].AlignedByteOffset = 16;
+  pipeline_input_elements[2].AlignedByteOffset =
+      offsetof(ImmediateVertex, color);
   pipeline_desc.InputLayout.pInputElementDescs = pipeline_input_elements;
   pipeline_desc.InputLayout.NumElements =
       UINT(xe::countof(pipeline_input_elements));
@@ -475,11 +476,15 @@ void D3D12ImmediateDrawer::Begin(int render_target_width,
   current_command_list_->RSSetViewports(1, &viewport);
 
   current_command_list_->SetGraphicsRootSignature(root_signature_);
-  float viewport_inv_scale[2];
-  viewport_inv_scale[0] = 1.0f / viewport.Width;
-  viewport_inv_scale[1] = 1.0f / viewport.Height;
+  float viewport_inv_size[2];
+  viewport_inv_size[0] = 1.0f / viewport.Width;
+  viewport_inv_size[1] = 1.0f / viewport.Height;
   current_command_list_->SetGraphicsRoot32BitConstants(
-      UINT(RootParameter::kViewportInvSize), 2, viewport_inv_scale, 0);
+      UINT(RootParameter::kViewportInvSize), 2, viewport_inv_size, 0);
+
+  current_primitive_topology_ = D3D_PRIMITIVE_TOPOLOGY_UNDEFINED;
+  current_texture_ = nullptr;
+  current_sampler_index_ = SamplerIndex::kInvalid;
 }
 
 void D3D12ImmediateDrawer::BeginDrawBatch(const ImmediateDrawBatch& batch) {
@@ -514,8 +519,8 @@ void D3D12ImmediateDrawer::BeginDrawBatch(const ImmediateDrawBatch& batch) {
     index_buffer_view.SizeInBytes = batch.index_count * sizeof(uint16_t);
     index_buffer_view.Format = DXGI_FORMAT_R16_UINT;
     void* index_buffer_mapping = vertex_buffer_pool_->RequestFull(
-        index_buffer_view.SizeInBytes, nullptr, nullptr,
-        &index_buffer_view.BufferLocation);
+        xe::align(index_buffer_view.SizeInBytes, UINT(sizeof(uint32_t))),
+        nullptr, nullptr, &index_buffer_view.BufferLocation);
     if (index_buffer_mapping == nullptr) {
       XELOGE("Failed to get a buffer for %u indices in the immediate drawer",
              batch.index_count);
@@ -527,9 +532,6 @@ void D3D12ImmediateDrawer::BeginDrawBatch(const ImmediateDrawBatch& batch) {
   }
 
   batch_open_ = true;
-  current_primitive_topology_ = D3D_PRIMITIVE_TOPOLOGY_UNDEFINED;
-  current_texture_ = nullptr;
-  current_sampler_index_ = SamplerIndex::kInvalid;
 }
 
 void D3D12ImmediateDrawer::Draw(const ImmediateDraw& draw) {
