@@ -1,0 +1,63 @@
+trigger:
+  branches:
+    include:
+    - '*'
+    exclude:
+    - gh-pages
+  paths:
+    exclude:
+    - docs/*
+    - .github/*
+    - LICENSE
+    - README.md
+    - .appveyor.yml
+    - .travis.yml
+pr:
+  branches:
+    include:
+    - '*'
+    exclude:
+    - gh-pages
+  paths:
+    exclude:
+    - docs/*
+    - .github/*
+    - LICENSE
+    - README.md
+    - .appveyor.yml
+    - .travis.yml
+
+jobs:
+- job:
+  pool:
+    vmImage: windows-latest
+  strategy:
+    matrix:
+      Release:
+        configuration: Release
+      Checked:
+        configuration: Checked
+  steps:
+  - script: |
+      git config --global core.autocrlf input
+      xb setup
+    displayName: 'Setup'
+
+  - script: xb build --config=$(Configuration) --target=src\xenia-app --target=tests\xenia-cpu-ppc-tests --target=src\xenia-vfs-dump
+    displayName: 'Build $(Configuration)'
+
+  - script: |
+      xb gentests
+      xb test --config=$(Configuration) --no_build
+      copy xenia-cpu-ppc-test.log $(Build.ArtifactStagingDirectory)
+    displayName: 'Tests'
+
+  - script: |
+      cd build\bin\Windows\$(Configuration)
+      7z a $(Build.ArtifactStagingDirectory)\xenia-$(Build.SourceBranchName).zip ..\..\..\..\LICENSE xenia.exe xenia.pdb
+      7z a $(Build.ArtifactStagingDirectory)\xenia-vfs-dump-$(Build.SourceBranchName).zip ..\..\..\..\LICENSE xenia-vfs-dump.exe xenia-vfs-dump.pdb
+    displayName: 'Create archives'
+
+  - publish: $(Build.ArtifactStagingDirectory)
+    artifact: $(configuration)
+    displayName: Publish artifacts
