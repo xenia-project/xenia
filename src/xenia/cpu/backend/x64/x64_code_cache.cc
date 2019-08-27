@@ -138,7 +138,6 @@ void* X64CodeCache::PlaceGuestCode(uint32_t guest_address, void* machine_code,
   // unwind table requires entries AND code to be sorted in order.
   size_t low_mark;
   size_t high_mark;
-  size_t code_offset;
   uint8_t* code_address;
   UnwindReservation unwind_reservation;
   {
@@ -148,9 +147,10 @@ void* X64CodeCache::PlaceGuestCode(uint32_t guest_address, void* machine_code,
 
     // Reserve code.
     // Always move the code to land on 16b alignment.
-    code_offset = generated_code_offset_;
-    code_address = generated_code_base_ + code_offset;
+    code_address = generated_code_base_ + generated_code_offset_;
     generated_code_offset_ += xe::round_up(func_info.code_size.total, 16);
+
+    auto tail_address = generated_code_base_ + generated_code_offset_;
 
     // Reserve unwind info.
     // We go on the high size of the unwind info as we don't know how big we
@@ -158,6 +158,8 @@ void* X64CodeCache::PlaceGuestCode(uint32_t guest_address, void* machine_code,
     unwind_reservation =
         RequestUnwindReservation(generated_code_base_ + generated_code_offset_);
     generated_code_offset_ += xe::round_up(unwind_reservation.data_size, 16);
+
+    auto end_address = generated_code_base_ + generated_code_offset_;
 
     high_mark = generated_code_offset_;
 
@@ -191,8 +193,8 @@ void* X64CodeCache::PlaceGuestCode(uint32_t guest_address, void* machine_code,
     std::memcpy(code_address, machine_code, func_info.code_size.total);
 
     // Fill unused slots with 0xCC
-    std::memset(code_address + func_info.code_size.total, 0xCC,
-                generated_code_offset_ - code_offset);
+    std::memset(tail_address, 0xCC,
+                static_cast<size_t>(end_address - tail_address));
 
     // Notify subclasses of placed code.
     PlaceCode(guest_address, machine_code, func_info, code_address,

@@ -9,8 +9,9 @@ struct XePixelShaderInput {
 
 float4 main(XePixelShaderInput input) : SV_Target {
   float4 output = input.color;
-  if (!xe_restrict_texture_samples || input.texcoord.x <= 1.0) {
-    output *= xe_immediate_texture.Sample(xe_immediate_sampler, input.texcoord);
+  if (!xe_restrict_texture_samples || input.texcoord.x <= 1.0f) {
+    output *= xe_immediate_texture.SampleLevel(xe_immediate_sampler,
+                                               input.texcoord, 0.0f);
   }
   return output;
 }

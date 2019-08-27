@@ -13,6 +13,7 @@
 #include <memory>
 
 #include "xenia/ui/immediate_drawer.h"
+#include "xenia/ui/vk/transient_objects.h"
 
 namespace xe {
 namespace ui {
@@ -43,6 +44,27 @@ class VulkanImmediateDrawer : public ImmediateDrawer {
 
  private:
   VulkanContext* context_ = nullptr;
+
+  struct PushConstants {
+    struct {
+      float viewport_inv_size[2];
+    } vertex;
+    struct {
+      uint32_t restrict_texture_samples;
+    } fragment;
+  };
+  VkPipelineLayout pipeline_layout_ = VK_NULL_HANDLE;
+
+  VkPipeline pipeline_triangle_ = VK_NULL_HANDLE;
+  VkPipeline pipeline_line_ = VK_NULL_HANDLE;
+
+  std::unique_ptr<UploadBufferChain> vertex_buffer_chain_ = nullptr;
+
+  VkCommandBuffer current_command_buffer_ = VK_NULL_HANDLE;
+  VkExtent2D current_render_target_extent_;
+  bool batch_open_ = false;
+  bool batch_has_index_buffer_;
+  VkPipeline current_pipeline_ = VK_NULL_HANDLE;
 };
 
 }  // namespace vk

@@ -321,6 +321,7 @@ bool VulkanContext::Initialize() {
     swapchain_ = VK_NULL_HANDLE;
   }
 
+  initialized_fully_ = true;
   return true;
 }
 
@@ -608,9 +609,11 @@ void VulkanContext::EndSwap() {
     VkSubmitInfo submit_info;
     submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submit_info.pNext = nullptr;
-    submit_info.waitSemaphoreCount = 0;
-    submit_info.pWaitSemaphores = nullptr;
-    submit_info.pWaitDstStageMask = nullptr;
+    submit_info.waitSemaphoreCount = 1;
+    submit_info.pWaitSemaphores = &semaphore_present_complete_;
+    VkPipelineStageFlags present_complete_wait_dst_stage_mask =
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    submit_info.pWaitDstStageMask = &present_complete_wait_dst_stage_mask;
     submit_info.commandBufferCount = 1;
     submit_info.pCommandBuffers = &command_buffer;
     submit_info.signalSemaphoreCount = 1;

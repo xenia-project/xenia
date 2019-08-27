@@ -1,0 +1,86 @@
+; SPIR-V
+; Version: 1.0
+; Generator: Khronos Glslang Reference Front End; 6
+; Bound: 47
+; Schema: 0
+               OpCapability Shader
+          %1 = OpExtInstImport "GLSL.std.450"
+               OpMemoryModel Logical GLSL450
+               OpEntryPoint Vertex %main "main" %_ %xe_in_position %xe_out_texcoord %xe_in_texcoord %xe_out_color %xe_in_color
+               OpSource GLSL 450
+               OpName %main "main"
+               OpName %gl_PerVertex "gl_PerVertex"
+               OpMemberName %gl_PerVertex 0 "gl_Position"
+               OpMemberName %gl_PerVertex 1 "gl_PointSize"
+               OpMemberName %gl_PerVertex 2 "gl_ClipDistance"
+               OpMemberName %gl_PerVertex 3 "gl_CullDistance"
+               OpName %_ ""
+               OpName %xe_in_position "xe_in_position"
+               OpName %XePushConstants "XePushConstants"
+               OpMemberName %XePushConstants 0 "viewport_inv_size"
+               OpName %xe_push_constants "xe_push_constants"
+               OpName %xe_out_texcoord "xe_out_texcoord"
+               OpName %xe_in_texcoord "xe_in_texcoord"
+               OpName %xe_out_color "xe_out_color"
+               OpName %xe_in_color "xe_in_color"
+               OpMemberDecorate %gl_PerVertex 0 BuiltIn Position
+               OpMemberDecorate %gl_PerVertex 1 BuiltIn PointSize
+               OpMemberDecorate %gl_PerVertex 2 BuiltIn ClipDistance
+               OpMemberDecorate %gl_PerVertex 3 BuiltIn CullDistance
+               OpDecorate %gl_PerVertex Block
+               OpDecorate %xe_in_position Location 0
+               OpMemberDecorate %XePushConstants 0 Offset 0
+               OpDecorate %XePushConstants Block
+               OpDecorate %xe_out_texcoord Location 0
+               OpDecorate %xe_in_texcoord Location 1
+               OpDecorate %xe_out_color Location 1
+               OpDecorate %xe_in_color Location 2
+       %void = OpTypeVoid
+          %3 = OpTypeFunction %void
+      %float = OpTypeFloat 32
+    %v4float = OpTypeVector %float 4
+       %uint = OpTypeInt 32 0
+     %uint_1 = OpConstant %uint 1
+%_arr_float_uint_1 = OpTypeArray %float %uint_1
+%gl_PerVertex = OpTypeStruct %v4float %float %_arr_float_uint_1 %_arr_float_uint_1
+%_ptr_Output_gl_PerVertex = OpTypePointer Output %gl_PerVertex
+          %_ = OpVariable %_ptr_Output_gl_PerVertex Output
+        %int = OpTypeInt 32 1
+      %int_0 = OpConstant %int 0
+    %v2float = OpTypeVector %float 2
+%_ptr_Input_v2float = OpTypePointer Input %v2float
+%xe_in_position = OpVariable %_ptr_Input_v2float Input
+%XePushConstants = OpTypeStruct %v2float
+%_ptr_PushConstant_XePushConstants = OpTypePointer PushConstant %XePushConstants
+%xe_push_constants = OpVariable %_ptr_PushConstant_XePushConstants PushConstant
+%_ptr_PushConstant_v2float = OpTypePointer PushConstant %v2float
+    %float_2 = OpConstant %float 2
+    %float_1 = OpConstant %float 1
+    %float_0 = OpConstant %float 0
+%_ptr_Output_v4float = OpTypePointer Output %v4float
+%_ptr_Output_v2float = OpTypePointer Output %v2float
+%xe_out_texcoord = OpVariable %_ptr_Output_v2float Output
+%xe_in_texcoord = OpVariable %_ptr_Input_v2float Input
+%xe_out_color = OpVariable %_ptr_Output_v4float Output
+%_ptr_Input_v4float = OpTypePointer Input %v4float
+%xe_in_color = OpVariable %_ptr_Input_v4float Input
+         %46 = OpConstantComposite %v2float %float_1 %float_1
+       %main = OpFunction %void None %3
+          %5 = OpLabel
+         %19 = OpLoad %v2float %xe_in_position
+         %24 = OpAccessChain %_ptr_PushConstant_v2float %xe_push_constants %int_0
+         %25 = OpLoad %v2float %24
+         %26 = OpFMul %v2float %19 %25
+         %28 = OpVectorTimesScalar %v2float %26 %float_2
+         %31 = OpFSub %v2float %28 %46
+         %33 = OpCompositeExtract %float %31 0
+         %34 = OpCompositeExtract %float %31 1
+         %35 = OpCompositeConstruct %v4float %33 %34 %float_0 %float_1
+         %37 = OpAccessChain %_ptr_Output_v4float %_ %int_0
+               OpStore %37 %35
+         %41 = OpLoad %v2float %xe_in_texcoord
+               OpStore %xe_out_texcoord %41
+         %45 = OpLoad %v4float %xe_in_color
+               OpStore %xe_out_color %45
+               OpReturn
+               OpFunctionEnd
