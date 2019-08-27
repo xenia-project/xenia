@@ -8,11 +8,13 @@
  */
 
 #include "xenia/cpu/ppc/ppc_emit-private.h"
-
+#include "xenia/base/cvar.h"
 #include <stddef.h>
 #include "xenia/base/assert.h"
 #include "xenia/cpu/ppc/ppc_context.h"
 #include "xenia/cpu/ppc/ppc_hir_builder.h"
+
+DEFINE_bool(UE_HACK, true, "Hack for Unreal Engine 3 titles to run", "CPU");
 
 namespace xe {
 namespace cpu {
@@ -1080,9 +1082,15 @@ int InstrEmit_stfsx(PPCHIRBuilder& f, const InstrData& i) {
 // https://randomascii.wordpress.com/2018/01/07/finding-a-cpu-design-bug-in-the-xbox-360/
 
 int InstrEmit_dcbf(PPCHIRBuilder& f, const InstrData& i) {
-  Value* ea = CalculateEA_0(f, i.X.RA, i.X.RB);
-  f.CacheControl(ea, 128,
-                 CacheControlType::CACHE_CONTOROL_TYPE_DATA_STORE_AND_FLUSH);
+  //UE Hack
+  if ((i.X.RB == 11) && (cvars::UE_HACK) && (f.CompareEQ(f.LoadGPR(i.X.RB), f.LoadConstantUint16(0xFEED)))) {
+    Value* val = f.Sub(f.LoadGPR(i.X.RB), f.LoadConstantUint64(0x0004));
+    f.StoreGPR(i.X.RB, val);
+  } else {
+    Value* ea = CalculateEA_0(f, i.X.RA, i.X.RB);
+    f.CacheControl(ea, 128,
+                   CacheControlType::CACHE_CONTOROL_TYPE_DATA_STORE_AND_FLUSH);
+  }
   return 0;
 }
 
