@@ -123,9 +123,6 @@ dword_result_t XMAInitializeContext(lpvoid_t context_ptr,
 
   XMA_CONTEXT_DATA context(context_ptr);
 
-  // input_buffer_0_ptr, input_buffer_1_ptr and output_buffer_ptr are physical
-  // already and good enough for us, checked in sk8er boi simulators skate. and
-  // Tony Hawk's American Wasteland. Can be 0 also (in THAW).
   context.input_buffer_0_ptr = context_init->input_buffer_0_ptr;
   context.input_buffer_0_packet_count =
       context_init->input_buffer_0_packet_count;
