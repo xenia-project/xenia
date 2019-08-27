@@ -170,7 +170,7 @@ bool PPCHIRBuilder::Emit(GuestFunction* function, uint32_t flags) {
       XELOGE("Unimplemented instr %.8llX %.8X %s", address, code,
              disasm_info.name);
       Comment("UNIMPLEMENTED!");
-      DebugBreak();
+      // DebugBreak();
     }
   }
 
@@ -189,7 +189,7 @@ void PPCHIRBuilder::MaybeBreakOnInstruction(uint32_t address) {
   Comment("--break-on-instruction target");
 
   if (cvars::break_condition_gpr < 0) {
-    DebugBreak();
+    // DebugBreak();
     return;
   }
 
