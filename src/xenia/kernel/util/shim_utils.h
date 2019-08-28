@@ -103,12 +103,22 @@ inline std::string TranslateAnsiStringAddress(const Memory* memory,
 
 inline std::wstring TranslateUnicodeString(
     const Memory* memory, const X_UNICODE_STRING* unicode_string) {
-  if (!unicode_string || !unicode_string->length) {
+  if (!unicode_string) {
     return L"";
   }
-  return std::wstring(
-      memory->TranslateVirtual<const wchar_t*>(unicode_string->pointer),
-      unicode_string->length);
+  uint16_t length = unicode_string->length;
+  if (!length) {
+    return L"";
+  }
+  const xe::be<uint16_t>* guest_string =
+      memory->TranslateVirtual<const xe::be<uint16_t>*>(
+          unicode_string->pointer);
+  std::wstring translated_string;
+  translated_string.reserve(length);
+  for (uint16_t i = 0; i < length; ++i) {
+    translated_string += wchar_t(uint16_t(guest_string[i]));
+  }
+  return translated_string;
 }
 }  // namespace util
 
