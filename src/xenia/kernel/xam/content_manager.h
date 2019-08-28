@@ -30,6 +30,8 @@ namespace xe {
 namespace kernel {
 namespace xam {
 
+class ContentPackage;
+
 struct XCONTENT_DATA {
   static const size_t kSize = 4 + 4 + 128 * 2 + 42 + 2;  // = 306 + 2b padding
   uint32_t device_id;
