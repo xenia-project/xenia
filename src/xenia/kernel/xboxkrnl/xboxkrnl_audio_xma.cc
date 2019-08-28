@@ -80,9 +80,13 @@ DECLARE_XBOXKRNL_EXPORT2(XMAReleaseContext, kAudio, kImplemented,
 
 void StoreXmaContextIndexedRegister(KernelState* kernel_state,
                                     uint32_t base_reg, uint32_t context_ptr) {
+  uint32_t context_physical_address =
+      kernel_memory()->GetPhysicalAddress(context_ptr);
+  assert_true(context_physical_address != UINT32_MAX);
   auto xma_decoder = kernel_state->emulator()->audio_system()->xma_decoder();
-  uint32_t hw_index = (context_ptr - xma_decoder->context_array_ptr()) /
-                      sizeof(XMA_CONTEXT_DATA);
+  uint32_t hw_index =
+      (context_physical_address - xma_decoder->context_array_ptr()) /
+      sizeof(XMA_CONTEXT_DATA);
   uint32_t reg_num = base_reg + (hw_index >> 5) * 4;
   uint32_t reg_value = 1 << (hw_index & 0x1F);
   xma_decoder->WriteRegister(reg_num, xe::byte_swap(reg_value));
