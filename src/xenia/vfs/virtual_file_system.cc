@@ -25,6 +25,26 @@ VirtualFileSystem::~VirtualFileSystem() {
   devices_.clear();
   symlinks_.clear();
 }
+Entry* VirtualFileSystem::ResolveDevice(const std::string& devicepath) {
+  auto global_lock = global_critical_region_.Acquire();
+
+  // Resolve relative paths
+  std::string normalized_path(xe::filesystem::CanonicalizePath(devicepath));
+
+  // Find the device.
+  auto it =
+      std::find_if(devices_.cbegin(), devices_.cend(), [&](const auto& d) {
+        return xe::find_first_of_case(normalized_path, d->mount_path()) == 0;
+      });
+  if (it == devices_.cend()) {
+    XELOGE("ResolveDevice(%s) device not initialized", devicepath.c_str());
+    return nullptr;
+  }
+
+  const auto& device = *it;
+  auto relative_path = normalized_path.substr(device->mount_path().size());
+  return device->ResolvePath(relative_path);
+}
 
 bool VirtualFileSystem::RegisterDevice(std::unique_ptr<Device> device) {
   auto global_lock = global_critical_region_.Acquire();

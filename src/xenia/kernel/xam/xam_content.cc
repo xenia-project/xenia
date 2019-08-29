@@ -7,11 +7,20 @@
  ******************************************************************************
  */
 
+#include "xenia/app/emulator_window.h"
 #include "xenia/base/logging.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/util/shim_utils.h"
+#include "xenia/kernel/xam/xam_module.h"
 #include "xenia/kernel/xam/xam_private.h"
+#include "xenia/kernel/xboxkrnl/xboxkrnl_module.h"
+#include "xenia/kernel/xboxkrnl/xboxkrnl_threading.h"
 #include "xenia/kernel/xenumerator.h"
+#include "xenia/kernel/xevent.h"
+#include "xenia/kernel/xthread.h"
+#include "xenia/vfs/devices/disc_image_device.h"
+#include "xenia/vfs/devices/host_path_device.h"
+#include "xenia/vfs/devices/stfs_container_device.h"
 #include "xenia/xbox.h"
 
 DEFINE_int32(license_mask, 0,
@@ -473,6 +482,74 @@ dword_result_t XamContentDelete(dword_t user_index, lpvoid_t content_data_ptr,
   }
 }
 DECLARE_XAM_EXPORT1(XamContentDelete, kContent, kImplemented);
+
+// Based on Discswap Prototype from Wildenhaus
+// https://github.com/Wildenhaus/xenia/commit/04d2e3951c13fbe4f9574005122d757a2f6e373c
+dword_result_t XamSwapDisc(dword_t disc_number,
+                           pointer_t<kernel::X_KEVENT> completion_handle,
+                           lpstring_t error_message) {
+  auto filesystem = kernel_state()->file_system();
+  auto mount_path = "\\Device\\LauncherData";
+
+  if (filesystem->ResolveDevice(mount_path) != NULL) {
+    filesystem->UnregisterDevice(mount_path);
+  }
+
+  // error_message not correct type/ptr
+  XELOGI("XamSwapDisc requests disc %d.", disc_number);
+  std::wstring local_path = app::EmulatorWindow::SwapNext();
+  XELOGI("SwapNext returned path %S.", local_path.c_str());
+
+  auto last_slash = local_path.find_last_of(xe::kPathSeparator);
+  auto last_dot = local_path.find_last_of('.');
+
+  if (last_dot < last_slash) {
+    last_dot = std::wstring::npos;
+  }
+  if (last_dot == std::wstring::npos) {
+    // Likely an STFS container.
+    auto dev =
+        std::make_unique<vfs::StfsContainerDevice>(mount_path, local_path);
+    dev->Initialize();
+    filesystem->RegisterDevice(std::move(dev));
+  };
+  auto extension = local_path.substr(last_dot);
+  std::transform(extension.begin(), extension.end(), extension.begin(),
+                 tolower);
+  if (extension == L".xex" || extension == L".elf" || extension == L".exe") {
+    // Treat as a naked xex file.
+    auto parent_path = xe::find_base_path(local_path);
+    auto dev =
+        std::make_unique<vfs::HostPathDevice>(mount_path, parent_path, true);
+    dev->Initialize();
+    filesystem->RegisterDevice(std::move(dev));
+  } else {
+    // Assume a disc image.
+    auto dev = std::make_unique<vfs::DiscImageDevice>(mount_path, local_path);
+    dev->Initialize();
+    filesystem->RegisterDevice(std::move(dev));
+  }
+
+  // Register the new device to d: and game:
+  filesystem->UnregisterSymbolicLink("d:");
+  filesystem->UnregisterSymbolicLink("game:");
+  filesystem->RegisterSymbolicLink("d:", mount_path);
+  filesystem->RegisterSymbolicLink("game:", mount_path);
+
+  // Resolve the pending disc swap event
+  auto kevent = xboxkrnl::xeKeSetEvent(completion_handle, 1, 0);
+
+  // Release the completion handle
+  auto object = XObject::GetNativeObject<XObject>(
+      kernel_state(),
+      kernel_memory()->virtual_membase() + (dword_t)completion_handle);
+  if (object) {
+    object->Release();
+  }
+
+  return 0;
+}
+DECLARE_XAM_EXPORT1(XamSwapDisc, kContent, kSketchy);
 
 void RegisterContentExports(xe::cpu::ExportResolver* export_resolver,
                             KernelState* kernel_state) {}

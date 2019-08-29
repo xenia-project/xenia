@@ -40,6 +40,8 @@ using xe::ui::UIEvent;
 
 const std::wstring kBaseTitle = L"xenia";
 
+ui::NativeWindowHandle window_handle;
+
 EmulatorWindow::EmulatorWindow(Emulator* emulator)
     : emulator_(emulator),
       loop_(ui::Loop::Create()),
@@ -316,6 +318,7 @@ void EmulatorWindow::FileOpen() {
       {L"All Files (*.*)", L"*.*"},
   });
   if (file_picker->Show(window_->native_handle())) {
+    window_handle = window_->native_handle();
     auto selected_files = file_picker->selected_files();
     if (!selected_files.empty()) {
       path = selected_files[0];
@@ -332,6 +335,30 @@ void EmulatorWindow::FileOpen() {
       XELOGE("Failed to launch target: %.8X", result);
     }
   }
+}
+
+std::wstring EmulatorWindow::SwapNext() {
+  std::wstring path = L"";
+
+  auto file_picker = xe::ui::FilePicker::Create();
+  file_picker->set_mode(ui::FilePicker::Mode::kOpen);
+  file_picker->set_type(ui::FilePicker::Type::kFile);
+  file_picker->set_multi_selection(false);
+  file_picker->set_title(L"Select Content Package");
+  file_picker->set_extensions({
+      {L"Supported Files", L"*.iso;*.xex;*.xcp;*.*"},
+      {L"Disc Image (*.iso)", L"*.iso"},
+      {L"Xbox Executable (*.xex)", L"*.xex"},
+      //  { L"Content Package (*.xcp)", L"*.xcp" },
+      {L"All Files (*.*)", L"*.*"},
+  });
+  if (file_picker->Show(window_handle)) {
+    auto selected_files = file_picker->selected_files();
+    if (!selected_files.empty()) {
+      path = selected_files[0];
+    }
+  }
+  return path;
 }
 
 void EmulatorWindow::FileClose() {
