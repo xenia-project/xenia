@@ -291,9 +291,8 @@ bool EmulatorWindow::Initialize() {
   return true;
 }
 
-void EmulatorWindow::FileDrop(wchar_t* filename) {
-  std::wstring path = filename;
-  auto result = emulator_->LaunchPath(path);
+void EmulatorWindow::FileDrop(const wchar_t* filename) {
+  auto result = emulator_->LaunchPath(filename);
   if (XFAILED(result)) {
     // TODO: Display a message box.
     XELOGE("Failed to launch target: %.8X", result);

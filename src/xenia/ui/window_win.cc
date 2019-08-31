@@ -492,16 +492,19 @@ LRESULT Win32Window::WndProc(HWND hWnd, UINT message, WPARAM wParam,
 
   switch (message) {
     case WM_DROPFILES: {
-      TCHAR lpszFile[MAX_PATH] = {0};
-      UINT uFiles = 0;
-      HDROP hDrop = (HDROP)wParam;
-      // Get number of files dropped
-      uFiles = DragQueryFile(hDrop, -1, NULL, NULL);
+      HDROP hDrop = reinterpret_cast<HDROP>(wParam);
+      std::wstring path;
 
-      // Only getting first file dropped (other files ignored)
-      if (DragQueryFile(hDrop, 0, lpszFile, MAX_PATH)) {
-        auto e = FileDropEvent(this, lpszFile);
-        OnFileDrop(&e);
+      // Get required buffer size
+      UINT buf_size = DragQueryFileW(hDrop, 0, nullptr, 0);
+      if (buf_size > 0) {
+        path.resize(buf_size + 1);  // Give space for a null terminator
+
+        // Only getting first file dropped (other files ignored)
+        if (DragQueryFileW(hDrop, 0, &path[0], buf_size + 1)) {
+          auto e = FileDropEvent(this, path.c_str());
+          OnFileDrop(&e);
+        }
       }
 
       DragFinish(hDrop);
