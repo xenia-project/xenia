@@ -31,12 +31,14 @@ std::wstring GetExecutableFolder() {
 }
 
 std::wstring GetUserFolder() {
-  wchar_t path[MAX_PATH];
-  if (!SUCCEEDED(SHGetFolderPathW(nullptr, CSIDL_MYDOCUMENTS, nullptr,
-                                  SHGFP_TYPE_CURRENT, path))) {
-    return std::wstring();
+  std::wstring result;
+  PWSTR path;
+  if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_Documents, KF_FLAG_DEFAULT,
+                                     nullptr, &path))) {
+    result.assign(path);
+    CoTaskMemFree(path);
   }
-  return std::wstring(path);
+  return result;
 }
 
 bool PathExists(const std::wstring& path) {
