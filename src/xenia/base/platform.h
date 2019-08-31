@@ -95,7 +95,6 @@ namespace xe {
 #if XE_PLATFORM_WIN32
 const char kPathSeparator = '\\';
 const wchar_t kWPathSeparator = L'\\';
-const size_t kMaxPath = 260;  // _MAX_PATH
 #else
 const char kPathSeparator = '/';
 const wchar_t kWPathSeparator = L'/';
