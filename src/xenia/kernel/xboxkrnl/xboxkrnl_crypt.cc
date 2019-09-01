@@ -88,20 +88,16 @@ static_assert_size(XECRYPT_SHA_STATE, 0x58);
 
 void InitSha1(sha1::SHA1* sha, const XECRYPT_SHA_STATE* state) {
   uint32_t digest[5];
-  for (int i = 0; i < 5; i++) {
-    digest[i] = state->state[i];
-  }
+  std::copy(std::begin(state->state), std::end(state->state), digest);
 
   sha->init(digest, state->buffer, state->count);
 }
 
-void StoreSha1(sha1::SHA1* sha, XECRYPT_SHA_STATE* state) {
-  for (int i = 0; i < 5; i++) {
-    state->state[i] = sha->getDigest()[i];
-  }
+void StoreSha1(const sha1::SHA1* sha, XECRYPT_SHA_STATE* state) {
+  std::copy_n(sha->getDigest(), xe::countof(state->state), state->state);
 
   state->count = static_cast<uint32_t>(sha->getByteCount());
-  std::memcpy(state->buffer, sha->getBlock(), sha->getBlockByteIndex());
+  std::copy_n(sha->getBlock(), sha->getBlockByteIndex(), state->buffer);
 }
 
 void XeCryptShaInit(pointer_t<XECRYPT_SHA_STATE> sha_state) {
@@ -127,15 +123,16 @@ void XeCryptShaUpdate(pointer_t<XECRYPT_SHA_STATE> sha_state, lpvoid_t input,
 DECLARE_XBOXKRNL_EXPORT1(XeCryptShaUpdate, kNone, kImplemented);
 
 void XeCryptShaFinal(pointer_t<XECRYPT_SHA_STATE> sha_state,
-                     pointer_t<xe::be<uint32_t>> out, dword_t out_size) {
+                     pointer_t<uint8_t> out, dword_t out_size) {
   sha1::SHA1 sha;
   InitSha1(&sha, sha_state);
 
   uint8_t digest[0x14];
   sha.finalize(digest);
 
-  std::memcpy(out, digest, std::min((uint32_t)out_size, 0x14u));
-  std::memcpy(sha_state->state, digest, 0x14);
+  std::copy_n(digest, std::min<size_t>(xe::countof(digest), out_size),
+              static_cast<uint8_t*>(out));
+  std::copy_n(sha.getDigest(), xe::countof(sha_state->state), sha_state->state);
 }
 DECLARE_XBOXKRNL_EXPORT1(XeCryptShaFinal, kNone, kImplemented);
 
@@ -156,7 +153,8 @@ void XeCryptSha(lpvoid_t input_1, dword_t input_1_size, lpvoid_t input_2,
 
   uint8_t digest[0x14];
   sha.finalize(digest);
-  std::memcpy(output, digest, std::min((uint32_t)output_size, 0x14u));
+  std::copy_n(digest, std::min<size_t>(xe::countof(digest), output_size),
+              output.as<uint8_t*>());
 }
 DECLARE_XBOXKRNL_EXPORT1(XeCryptSha, kNone, kImplemented);
 
@@ -184,30 +182,37 @@ DECLARE_XBOXKRNL_EXPORT1(XeCryptSha256Init, kNone, kImplemented);
 void XeCryptSha256Update(pointer_t<XECRYPT_SHA256_STATE> sha_state,
                          lpvoid_t input, dword_t input_size) {
   sha256::SHA256 sha;
-  std::memcpy(sha.getHashValues(), sha_state->state, 8 * 4);
-  std::memcpy(sha.getBuffer(), sha_state->buffer, 64);
+  std::copy(std::begin(sha_state->state), std::end(sha_state->state),
+            sha.getHashValues());
+  std::copy(std::begin(sha_state->buffer), std::end(sha_state->buffer),
+            sha.getBuffer());
   sha.setTotalSize(sha_state->count);
 
   sha.add(input, input_size);
 
-  std::memcpy(sha_state->state, sha.getHashValues(), 8 * 4);
-  std::memcpy(sha_state->buffer, sha.getBuffer(), 64);
-  sha_state->count = uint32_t(sha.getTotalSize());
+  std::copy_n(sha.getHashValues(), xe::countof(sha_state->state),
+              sha_state->state);
+  std::copy_n(sha.getBuffer(), xe::countof(sha_state->buffer),
+              sha_state->buffer);
+  sha_state->count = static_cast<uint32_t>(sha.getTotalSize());
 }
 DECLARE_XBOXKRNL_EXPORT1(XeCryptSha256Update, kNone, kImplemented);
 
 void XeCryptSha256Final(pointer_t<XECRYPT_SHA256_STATE> sha_state,
-                        pointer_t<xe::be<uint32_t>> out, dword_t out_size) {
+                        pointer_t<uint8_t> out, dword_t out_size) {
   sha256::SHA256 sha;
-  std::memcpy(sha.getHashValues(), sha_state->state, 8 * 4);
-  std::memcpy(sha.getBuffer(), sha_state->buffer, 64);
+  std::copy(std::begin(sha_state->state), std::end(sha_state->state),
+            sha.getHashValues());
+  std::copy(std::begin(sha_state->buffer), std::end(sha_state->buffer),
+            sha.getBuffer());
   sha.setTotalSize(sha_state->count);
 
-  uint32_t hash[8];
-  sha.getHash(reinterpret_cast<uint8_t*>(hash));
+  uint8_t hash[32];
+  sha.getHash(hash);
 
-  std::memcpy(out, hash, std::min(uint32_t(out_size), 32u));
-  std::memcpy(sha_state->buffer, hash, 32);
+  std::copy_n(hash, std::min<size_t>(xe::countof(hash), out_size),
+              static_cast<uint8_t*>(out));
+  std::copy(std::begin(hash), std::end(hash), sha_state->buffer);
 }
 DECLARE_XBOXKRNL_EXPORT1(XeCryptSha256Final, kNone, kImplemented);
 
