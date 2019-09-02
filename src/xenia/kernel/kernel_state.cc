@@ -367,8 +367,7 @@ object_ref<UserModule> KernelState::LoadUserModule(const char* raw_name,
     // See if we've already loaded it
     for (auto& existing_module : user_modules_) {
       if (existing_module->path() == path) {
-        existing_module->Retain();
-        return retain_object(existing_module.get());
+        return existing_module;
       }
     }
 
@@ -378,14 +377,13 @@ object_ref<UserModule> KernelState::LoadUserModule(const char* raw_name,
     module = object_ref<UserModule>(new UserModule(this));
     X_STATUS status = module->LoadFromFile(path);
     if (XFAILED(status)) {
-      object_table()->RemoveHandle(module->handle());
+      object_table()->ReleaseHandle(module->handle());
       return nullptr;
     }
 
     global_lock.lock();
 
-    // Retain when putting into the listing.
-    module->Retain();
+    // Putting into the listing automatically retains.
     user_modules_.push_back(module);
   }
 
