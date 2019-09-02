@@ -129,7 +129,8 @@ dword_result_t XexUnloadImage(lpvoid_t hmodule) {
     if (--ldr_data->load_count == 0) {
       // No more references, free it.
       module->Release();
-      kernel_state()->object_table()->RemoveHandle(module->handle());
+      kernel_state()->UnloadUserModule(object_ref<UserModule>(
+          reinterpret_cast<UserModule*>(module.release())));
     }
   }
 
