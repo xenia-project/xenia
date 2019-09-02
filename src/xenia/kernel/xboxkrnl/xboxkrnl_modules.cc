@@ -96,8 +96,10 @@ dword_result_t XexLoadImage(lpstring_t module_name, dword_t module_flags,
     // Not found; attempt to load as a user module.
     auto user_module = kernel_state()->LoadUserModule(module_name);
     if (user_module) {
-      user_module->Retain();
-      hmodule = user_module->hmodule_ptr();
+      // Give up object ownership, this reference will be released by the last
+      // XexUnloadImage call
+      auto user_module_raw = user_module.release();
+      hmodule = user_module_raw->hmodule_ptr();
       result = X_STATUS_SUCCESS;
     }
   }
