@@ -423,6 +423,16 @@ void ParsedTextureFetchInstruction::Disassemble(StringBuffer* out) const {
         ", AnisoFilter=%s",
         kAnisoFilterNames[static_cast<int>(attributes.aniso_filter)]);
   }
+  if (attributes.vol_mag_filter != TextureFilter::kUseFetchConst) {
+    out->AppendFormat(
+        ", VolMagFilter=%s",
+        kTextureFilterNames[static_cast<int>(attributes.vol_mag_filter)]);
+  }
+  if (attributes.vol_min_filter != TextureFilter::kUseFetchConst) {
+    out->AppendFormat(
+        ", VolMinFilter=%s",
+        kTextureFilterNames[static_cast<int>(attributes.vol_min_filter)]);
+  }
   if (!attributes.use_computed_lod) {
     out->Append(", UseComputedLOD=false");
   }

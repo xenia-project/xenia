@@ -634,6 +634,14 @@ struct TextureFetchInstruction {
   AnisoFilter aniso_filter() const {
     return static_cast<AnisoFilter>(data_.aniso_filter);
   }
+  bool has_vol_mag_filter() const { return data_.vol_mag_filter != 0x3; }
+  TextureFilter vol_mag_filter() const {
+    return static_cast<TextureFilter>(data_.vol_mag_filter);
+  }
+  bool has_vol_min_filter() const { return data_.vol_min_filter != 0x3; }
+  TextureFilter vol_min_filter() const {
+    return static_cast<TextureFilter>(data_.vol_min_filter);
+  }
   bool use_computed_lod() const { return data_.use_comp_lod == 1; }
   bool use_register_lod() const { return data_.use_reg_lod == 1; }
   bool use_register_gradients() const { return data_.use_reg_gradients == 1; }
