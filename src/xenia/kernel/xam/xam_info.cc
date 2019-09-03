@@ -426,6 +426,25 @@ dword_result_t XamQueryLiveHiveW(lpwstring_t name, lpvoid_t out_buf,
 }
 DECLARE_XAM_EXPORT1(XamQueryLiveHiveW, kNone, kStub);
 
+dword_result_t XamGetLocaleEx(unknown_t unk1, unknown_t unk2) {
+  if (unk1 == 0x6F && unk2 == 0x2B) {
+    // This seems to be locale you can select from the dashboard,
+    // same as obtained from XamGetLocale
+    // and according to Forza Horizon 2 it has 0x2C possible values
+    return 0;
+  }
+
+  XELOGE("XamGetLocaleEx(unk1=%.8X, unk2=%.8X)", unk1, unk2);
+  return X_ERROR_INVALID_PARAMETER;
+}
+DECLARE_XAM_EXPORT1(XamGetLocaleEx, kNone, kStub);
+
+dword_result_t XamGetLocale() {
+  // That's how xam.xex implements XamGetLocale
+  return XamGetLocaleEx(0x6F, 0x2B);
+}
+DECLARE_XAM_EXPORT1(XamGetLocale, kNone, kImplemented);
+
 void RegisterInfoExports(xe::cpu::ExportResolver* export_resolver,
                          KernelState* kernel_state) {}
 
