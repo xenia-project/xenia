@@ -156,10 +156,12 @@ void XThread::set_name(const std::string& name) {
 }
 
 uint8_t next_cpu = 0;
+uint8_t fakedhwthreads[6] = {0, 2, 4, 1, 3, 5};
 uint8_t GetFakeCpuNumber(uint8_t proc_mask) {
   if (!proc_mask) {
-    next_cpu = (next_cpu + 1) % 6;
-    return next_cpu;  // is this reasonable?
+    next_cpu++;
+    if (next_cpu == 6) next_cpu = 0;
+    return fakedhwthreads[next_cpu];
   }
   assert_false(proc_mask & 0xC0);
 
@@ -339,8 +341,8 @@ X_STATUS XThread::Create() {
   // This is thread safe.
   thread_state_ = new cpu::ThreadState(kernel_state()->processor(), thread_id_,
                                        stack_base_, pcr_address_);
-  XELOGI("XThread%08X (%X) Stack: %.8X-%.8X", handle(), thread_id_,
-         stack_limit_, stack_base_);
+  XELOGI("XThread%08X (%X) Stack: %.8X-%.8X FakeHWThread: (%X)", handle(),
+         thread_id_, stack_limit_, stack_base_, fakedhwthreads[next_cpu]);
 
   // Exports use this to get the kernel.
   thread_state_->context()->kernel_state = kernel_state_;
