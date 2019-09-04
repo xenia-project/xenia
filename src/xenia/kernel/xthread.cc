@@ -156,7 +156,7 @@ void XThread::set_name(const std::string& name) {
 }
 
 uint8_t next_cpu = 0;
-uint8_t fakedhwthreads[6] = {0, 2, 4, 1, 3, 5};
+uint8_t fakedhwthreads[6] = {1, 2, 5, 1, 2, 5};
 uint8_t GetFakeCpuNumber(uint8_t proc_mask) {
   if (!proc_mask) {
     next_cpu++;
