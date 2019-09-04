@@ -23,7 +23,7 @@ Discussing illegal activities will get you banned.
 
 Buildbot | Status
 -------- | ------
-[Windows](https://ci.appveyor.com/project/benvanik/xenia/branch/master) | [![Build status](https://ci.appveyor.com/api/projects/status/ftqiy86kdfawyx3a/branch/master?svg=true)](https://ci.appveyor.com/project/benvanik/xenia/branch/master)
+[Windows](https://ci.appveyor.com/project/benvanik/xenia/branch/master) | [![AppVeyor Build status](https://ci.appveyor.com/api/projects/status/ftqiy86kdfawyx3a/branch/master?svg=true)](https://ci.appveyor.com/project/benvanik/xenia/branch/master) [![Actions status](https://github.com/xenia-project/xenia/workflows/main/badge.svg)](https://github.com/xenia-project/xenia/actions)
 [Linux](https://travis-ci.org/xenia-project/xenia) | [![Build status](https://travis-ci.org/xenia-project/xenia.svg?branch=master)](https://travis-ci.org/xenia-project/xenia)
 
 Quite a few real games run. Quite a few don't.

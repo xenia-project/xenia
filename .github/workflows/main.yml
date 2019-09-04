@@ -1,0 +1,59 @@
+name: main
+
+on:
+  push:
+    branches-ignore:
+      - 'gh-pages'
+    paths-ignore:
+      - '.github/CONTRIBUTING.md'
+      - '.github/FUNDING.md'
+      - '.github/ISSUE_TEMPLATE.md'
+      - 'docs/**'
+      - '.appveyor.yml'
+      - '.travis.yml'
+      - 'LICENSE'
+      - 'README.md'
+  pull_request:
+    branches-ignore:
+      - 'gh-pages'
+    paths-ignore:
+      - '.github/CONTRIBUTING.md'
+      - '.github/FUNDING.md'
+      - '.github/ISSUE_TEMPLATE.md'
+      - 'docs/**'
+      - '.appveyor.yml'
+      - '.travis.yml'
+      - 'LICENSE'
+      - 'README.md'
+
+jobs:
+  build:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        configuration: [Release, Checked, Debug]
+        platform: [Windows]
+    steps:
+    - uses: actions/checkout@master
+
+    - name: Setup
+      run: .\xb setup
+
+    - name: Build
+      run: .\xb build --config=${{matrix.configuration}} --target=src\xenia-app --target=tests\xenia-cpu-ppc-tests --target=src\xenia-vfs-dump
+
+    - name: Tests
+      run: |
+          .\xb gentests
+          .\xb test --config=${{matrix.configuration}} --no_build
+
+    - name: Prepare artifacts
+      run: |
+          robocopy build\bin\${{matrix.platform}}\${{matrix.configuration}} artifacts xenia.exe xenia.pdb xenia-vfs-dump.exe xenia-vfs-dump.pdb
+          robocopy . artifacts LICENSE xenia-cpu-ppc-test.log
+          $LastExitCode = 0
+
+    - uses: actions/upload-artifact@master
+      with:
+        name: xenia-${{matrix.configuration}}
+        path: artifacts
