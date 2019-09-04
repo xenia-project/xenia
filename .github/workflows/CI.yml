@@ -1,0 +1,115 @@
+name: CI
+
+on:
+  push:
+    branches-ignore: gh-pages
+    paths-ignore:
+      - '.github/*'
+      - '.github/ISSUE_TEMPLATE/**'
+      - 'docs/**'
+      - '*.md'
+      - '*.yml'
+      - 'LICENSE'
+  pull_request:
+    branches-ignore: gh-pages
+    paths-ignore:
+      - '.github/*'
+      - '.github/ISSUE_TEMPLATE/**'
+      - 'docs/**'
+      - '*.md'
+      - '*.yml'
+      - 'LICENSE'
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    env:
+      POWERSHELL_TELEMETRY_OPTOUT: 1
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration: [Release, Checked, Debug]
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+    - name: Setup
+      run: .\xb setup
+    - name: Build
+      run: .\xb build --config=${{ matrix.configuration }} --target=src\xenia-app --target=tests\xenia-base-tests --target=tests\xenia-cpu-ppc-tests --target=src\xenia-vfs-dump
+    - name: Tests
+      run: |
+        .\xb gentests
+        .\xb test --config=${{ matrix.configuration }} --no_build
+    - name: Prepare artifacts
+      run: |
+        robocopy . build\bin\${{ runner.os }}\${{ matrix.configuration }}                                                                LICENSE /r:0 /w:0
+        robocopy   build\bin\${{ runner.os }}\${{ matrix.configuration }} artifacts\xenia          xenia.exe          xenia.pdb          LICENSE /r:0 /w:0
+        robocopy   build\bin\${{ runner.os }}\${{ matrix.configuration }} artifacts\xenia-vfs-dump xenia-vfs-dump.exe xenia-vfs-dump.pdb LICENSE /r:0 /w:0
+        If ($LastExitCode -le 7) { echo "LastExitCode = $LastExitCode";$LastExitCode = 0 }
+    - name: Upload xenia-cpu-ppc-test log
+      uses: actions/upload-artifact@v2
+      with:
+        name: xenia-cpu-ppc-test log_${{ matrix.configuration }}
+        path: xenia-cpu-ppc-test.log
+    - name: Upload xenia-vfs-dump artifacts
+      uses: actions/upload-artifact@v2
+      with:
+        name: xenia-vfs-dump_${{ matrix.configuration }}
+        path: artifacts\xenia-vfs-dump
+    - name: Upload xenia artifacts
+      uses: actions/upload-artifact@v2
+      with:
+        name: xenia_${{ matrix.configuration }}
+        path: artifacts\xenia
+
+  build-linux:
+    runs-on: ubuntu-18.04
+    env:
+      LIBVULKAN_VERSION: 1.1.70
+      CC: clang-9
+      CXX: clang++-9
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration: [Release, Checked, Debug]
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+    - name: Setup
+      run: |
+        wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+        sudo add-apt-repository "deb https://apt.llvm.org/bionic/ llvm-toolchain-bionic-9 main"
+        sudo apt-get update
+        sudo apt-get install -y clang-9 llvm-9-dev g++-8 python3 libc++-dev libc++abi-dev libgtk-3-dev libpthread-stubs0-dev libsdl2-dev libx11-dev liblz4-dev
+        $CXX --version
+        python3 --version
+        wget https://mirrors.kernel.org/ubuntu/pool/universe/v/vulkan/libvulkan1_$LIBVULKAN_VERSION+dfsg1-1_amd64.deb
+        wget https://mirrors.kernel.org/ubuntu/pool/universe/v/vulkan/libvulkan-dev_$LIBVULKAN_VERSION+dfsg1-1_amd64.deb
+        sudo dpkg -i libvulkan1_$LIBVULKAN_VERSION+dfsg1-1_amd64.deb libvulkan-dev_$LIBVULKAN_VERSION+dfsg1-1_amd64.deb
+        ./xenia-build setup
+    - name: Build
+      run: |
+        ./xenia-build build -j$(nproc) --config=${{ matrix.configuration }} --target=xenia-base-tests
+        ./build/bin/Linux/${{ matrix.configuration }}/xenia-base-tests
+        ./xenia-build build -j$(nproc) --config=${{ matrix.configuration }} --target=xenia-cpu-ppc-tests
+        ./xenia-build build -j$(nproc) --config=${{ matrix.configuration }}
+
+  lint:
+    runs-on: ubuntu-18.04
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+    - name: Setup
+      run: |
+        wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+        sudo add-apt-repository "deb https://apt.llvm.org/bionic/ llvm-toolchain-bionic-9 main"
+        sudo apt-get update
+        sudo apt-get install -y clang-format-9
+        clang-format-9 --version
+        clang-format-9 -style=file -dump-config
+        ./xenia-build setup
+    - name: Lint
+      run: ./xenia-build lint --all
