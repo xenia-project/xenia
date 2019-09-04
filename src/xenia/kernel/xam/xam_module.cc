@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2019 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -28,6 +28,7 @@ XamModule::XamModule(Emulator* emulator, KernelState* kernel_state)
   RegisterContentExports(export_resolver_, kernel_state_);
   RegisterInfoExports(export_resolver_, kernel_state_);
   RegisterInputExports(export_resolver_, kernel_state_);
+  RegisterLocaleExports(export_resolver_, kernel_state_);
   RegisterMsgExports(export_resolver_, kernel_state_);
   RegisterNetExports(export_resolver_, kernel_state_);
   RegisterNotifyExports(export_resolver_, kernel_state_);
