@@ -15,6 +15,7 @@
 #include "xenia/base/assert.h"
 #include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
+#include "xenia/base/profiling.h"
 #include "xenia/ui/imgui_drawer.h"
 
 namespace xe {
@@ -180,6 +181,32 @@ void Window::OnPaint(UIEvent* e) {
         (static_cast<double>(now_ns - fps_update_time_ns_) / 10000000.0));
     fps_update_time_ns_ = now_ns;
     fps_frame_count_ = 0;
+#if XE_OPTION_PROFILING
+    // This means FPS counter will not work with profiling disabled (e.g. on
+    // Linux)
+    float fToMs =
+        MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu());
+    uint64_t nFlipTicks = 0;
+    {
+      std::lock_guard<std::recursive_mutex> lock(MicroProfileGetMutex());
+      MicroProfile& S = *MicroProfileGet();
+      nFlipTicks = S.nFlipTicks;
+    }
+    float fMs = fToMs * nFlipTicks;
+
+    if (fMs != 0.0f) {
+      game_fps_ = static_cast<uint32_t>(1000.0f / fMs);
+    }
+#endif
+
+    title_fps_text_ = base_title_;
+    title_fps_text_ += L" | ";
+    title_fps_text_ += std::to_wstring(game_fps_);
+    title_fps_text_ += L" FPS";
+    set_title(title_fps_text_, false);
+
+    osd_fps_text_ = std::to_string(game_fps_);
+    osd_fps_text_ += " FPS";
   }
 
   GraphicsContextLock context_lock(context_.get());
@@ -208,6 +235,20 @@ void Window::OnPaint(UIEvent* e) {
   ForEachListener([e](auto listener) { listener->OnPaint(e); });
   on_paint(e);
 
+  if (display_fps_) {
+    ImGui::Begin("FPS", (bool*)0, {0.0f, 0.0f}, 0.0f,
+                 ImGuiWindowFlags_::ImGuiWindowFlags_NoTitleBar |
+                     ImGuiWindowFlags_::ImGuiWindowFlags_NoResize |
+                     ImGuiWindowFlags_::ImGuiWindowFlags_NoMove |
+                     ImGuiWindowFlags_::ImGuiWindowFlags_NoScrollbar |
+                     ImGuiWindowFlags_::ImGuiWindowFlags_NoSavedSettings |
+                     ImGuiWindowFlags_::ImGuiWindowFlags_NoInputs);
+    ImGui::SetWindowFontScale(fps_font_scale_);
+    ImGui::Text("%s", osd_fps_text_.c_str());
+    ImGui::SetWindowSize({0.0f, 0.0f});  // Resize to fit content
+    ImGui::End();
+  }
+  
   // Flush ImGui buffers before we swap.
   ImGui::Render();
 
