@@ -440,6 +440,8 @@ struct ParsedTextureFetchInstruction {
     TextureFilter min_filter = TextureFilter::kUseFetchConst;
     TextureFilter mip_filter = TextureFilter::kUseFetchConst;
     AnisoFilter aniso_filter = AnisoFilter::kUseFetchConst;
+    TextureFilter vol_mag_filter = TextureFilter::kUseFetchConst;
+    TextureFilter vol_min_filter = TextureFilter::kUseFetchConst;
     bool use_computed_lod = true;
     bool use_register_lod = false;
     bool use_register_gradients = false;

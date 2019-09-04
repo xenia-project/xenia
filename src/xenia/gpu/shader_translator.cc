@@ -1035,6 +1035,8 @@ void ShaderTranslator::ParseTextureFetchInstruction(
     i.attributes.min_filter = op.min_filter();
     i.attributes.mip_filter = op.mip_filter();
     i.attributes.aniso_filter = op.aniso_filter();
+    i.attributes.vol_mag_filter = op.vol_mag_filter();
+    i.attributes.vol_min_filter = op.vol_min_filter();
     i.attributes.use_computed_lod = op.use_computed_lod();
     i.attributes.use_register_lod = op.use_register_lod();
     i.attributes.use_register_gradients = op.use_register_gradients();

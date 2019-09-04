@@ -1384,8 +1384,9 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
     // thick outlines with SSAA there.
     float offset_x = instr.attributes.offset_x + (1.0f / 1024.0f);
     if (instr.opcode == FetchOpcode::kGetTextureWeights) {
-      // Needed for correct shadow filtering (at least in Halo 3).
-      offset_x += 0.5f;
+      // Bilinear filtering (for shadows, for instance, in Halo 3), 0.5 -
+      // exactly the pixel.
+      offset_x -= 0.5f;
     }
     float offset_y = 0.0f, offset_z = 0.0f;
     if (instr.dimension == TextureDimension::k2D ||
@@ -1393,7 +1394,7 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
         instr.dimension == TextureDimension::kCube) {
       offset_y = instr.attributes.offset_y + (1.0f / 1024.0f);
       if (instr.opcode == FetchOpcode::kGetTextureWeights) {
-        offset_y += 0.5f;
+        offset_y -= 0.5f;
       }
       // Don't care about the Z offset for cubemaps when getting weights because
       // zero Z will be returned anyway (the face index doesn't participate in
@@ -1406,11 +1407,33 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
           // Z is the face index for cubemaps, so don't apply the epsilon to it.
           offset_z += 1.0f / 1024.0f;
           if (instr.opcode == FetchOpcode::kGetTextureWeights) {
-            offset_z += 0.5f;
+            offset_z -= 0.5f;
           }
         }
       }
     }
+
+    // Gather info about filtering across array layers.
+    // Use the magnification filter when no derivatives:
+    // https://stackoverflow.com/questions/40328956/difference-between-sample-and-samplelevel-wrt-texture-filtering
+    bool vol_min_filter_applicable =
+        instr.opcode == FetchOpcode::kTextureFetch &&
+        (instr.attributes.use_register_gradients ||
+         (instr.attributes.use_computed_lod && IsDxbcPixelShader()));
+    bool has_vol_mag_filter =
+        instr.attributes.vol_mag_filter != TextureFilter::kUseFetchConst;
+    bool has_vol_min_filter =
+        vol_min_filter_applicable
+            ? instr.attributes.vol_min_filter != TextureFilter::kUseFetchConst
+            : has_vol_mag_filter;
+    bool vol_mag_filter_linear =
+        instr.attributes.vol_mag_filter == TextureFilter::kLinear;
+    bool vol_min_filter_linear =
+        vol_min_filter_applicable
+            ? instr.attributes.vol_min_filter == TextureFilter::kLinear
+            : vol_mag_filter_linear;
+    bool vol_mag_filter_point = has_vol_mag_filter && !vol_mag_filter_linear;
+    bool vol_min_filter_point = has_vol_min_filter && !vol_min_filter_linear;
 
     // Get the texture size if needed, apply offset and switch between
     // normalized and unnormalized coordinates if needed. The offset is
@@ -1424,6 +1447,14 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
     // unlikely to be used on purpose.
     // http://web.archive.org/web/20090514012026/http://msdn.microsoft.com:80/en-us/library/bb313957.aspx
     uint32_t size_and_is_3d_temp = UINT32_MAX;
+    // For stacked textures, if point sampling is not forced in the instruction:
+    // X - whether linear filtering should be done across layers (for color
+    //     grading LUTs in Unreal Engine 3 games and Burnout Revenge), unless
+    //     the filter is known from the instruction for all cases.
+    // Y - lerp factor between the two layers, unless only point sampling can be
+    //     used.
+    uint32_t vol_filter_temp = UINT32_MAX;
+    bool vol_filter_temp_linear_test = D3D10_SB_INSTRUCTION_TEST_NONZERO;
     // With 1/1024 this will always be true anyway, but let's keep the shorter
     // path without the offset in case some day this hack won't be used anymore
     // somehow.
@@ -1432,8 +1463,22 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
         instr.attributes.unnormalized_coordinates ||
         instr.dimension == TextureDimension::k3D) {
       size_and_is_3d_temp = PushSystemTemp();
+      if (instr.opcode == FetchOpcode::kTextureFetch &&
+          instr.dimension == TextureDimension::k3D) {
+        uint32_t vol_filter_temp_components = 0b0000;
+        if (!has_vol_mag_filter || !has_vol_min_filter ||
+            vol_mag_filter_linear != vol_min_filter_linear) {
+          vol_filter_temp_components |= 0b0011;
+        } else if (vol_mag_filter_linear || vol_min_filter_linear) {
+          vol_filter_temp_components |= 0b0010;
+        }
+        // Initialize to 0 to break register dependency.
+        if (vol_filter_temp_components != 0) {
+          vol_filter_temp = PushSystemTemp(vol_filter_temp_components);
+        }
+      }
 
-      // Will use fetch constants for the size.
+      // Will use fetch constants for the size and for stacked texture filter.
       if (cbuffer_index_fetch_constants_ == kCbufferIndexUnallocated) {
         cbuffer_index_fetch_constants_ = cbuffer_count_++;
       }
@@ -1720,8 +1765,13 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
           ++stat_.instruction_count;
           ++stat_.dynamic_flow_control_count;
 
+          // Layers on the Xenos are indexed like texels, with 0.5 being exactly
+          // layer 0, but in D3D10+ 0.0 is exactly layer 0. Halo 3 uses i + 0.5
+          // offset for lightmap index, for instance.
+          float offset_layer = offset_z - 0.5f;
+
           if (instr.attributes.unnormalized_coordinates) {
-            if (offset_z != 0.f) {
+            if (offset_layer != 0.0f) {
               // Add the offset to the array layer.
               shader_code_.push_back(
                   ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ADD) |
@@ -1735,13 +1785,13 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
               shader_code_.push_back(
                   EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
               shader_code_.push_back(
-                  *reinterpret_cast<const uint32_t*>(&offset_z));
+                  *reinterpret_cast<const uint32_t*>(&offset_layer));
               ++stat_.instruction_count;
               ++stat_.float_instruction_count;
             }
           } else {
             // Unnormalize the array layer and apply the offset.
-            if (offset_z != 0.0f) {
+            if (offset_layer != 0.0f) {
               shader_code_.push_back(
                   ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MAD) |
                   ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
@@ -1759,34 +1809,337 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
             shader_code_.push_back(
                 EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
             shader_code_.push_back(size_and_is_3d_temp);
-            if (offset_z != 0.0f) {
+            if (offset_layer != 0.0f) {
               shader_code_.push_back(
                   EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
               shader_code_.push_back(
-                  *reinterpret_cast<const uint32_t*>(&offset_z));
+                  *reinterpret_cast<const uint32_t*>(&offset_layer));
             }
             ++stat_.instruction_count;
             ++stat_.float_instruction_count;
           }
 
-          // Truncate the array layer index. Halo 3 uses integer.5 coordinates,
-          // with Direct3D 10+ round-to-nearest-even rule + epsilon wrong layers
-          // are fetched.
-          // TODO(Triang3l): Investigate the correct rounding.
-          // TODO(Triang3l): Support vol_mag_filter and vol_min_filter for 2D
-          // arrays and maybe even 3D textures (color gradint LUT in Burnout
-          // Revenge).
-          shader_code_.push_back(
-              ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ROUND_Z) |
-              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
-          shader_code_.push_back(
-              EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0100, 1));
-          shader_code_.push_back(coord_temp);
-          shader_code_.push_back(
-              EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
-          shader_code_.push_back(coord_temp);
-          ++stat_.instruction_count;
-          ++stat_.float_instruction_count;
+          if (vol_filter_temp != UINT32_MAX) {
+            if (vol_min_filter_applicable) {
+              if (!has_vol_mag_filter || !has_vol_min_filter ||
+                  vol_mag_filter_linear != vol_min_filter_linear) {
+                // Check if magnifying (derivative <= 1, according to OpenGL
+                // rules) or minifying (> 1) the texture across Z. Get the
+                // maximum of absolutes of the two derivatives of the array
+                // layer, either explicit or implicit.
+                if (instr.attributes.use_register_gradients) {
+                  shader_code_.push_back(
+                      ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MAX) |
+                      ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
+                  shader_code_.push_back(EncodeVectorMaskedOperand(
+                      D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+                  shader_code_.push_back(vol_filter_temp);
+                  shader_code_.push_back(EncodeVectorSelectOperand(
+                                             D3D10_SB_OPERAND_TYPE_TEMP, 2, 1) |
+                                         ENCODE_D3D10_SB_OPERAND_EXTENDED(1));
+                  shader_code_.push_back(
+                      ENCODE_D3D10_SB_EXTENDED_OPERAND_MODIFIER(
+                          D3D10_SB_OPERAND_MODIFIER_ABS));
+                  shader_code_.push_back(system_temp_grad_h_lod_);
+                  shader_code_.push_back(EncodeVectorSelectOperand(
+                                             D3D10_SB_OPERAND_TYPE_TEMP, 2, 1) |
+                                         ENCODE_D3D10_SB_OPERAND_EXTENDED(1));
+                  shader_code_.push_back(
+                      ENCODE_D3D10_SB_EXTENDED_OPERAND_MODIFIER(
+                          D3D10_SB_OPERAND_MODIFIER_ABS));
+                  shader_code_.push_back(system_temp_grad_v_);
+                  ++stat_.instruction_count;
+                  ++stat_.float_instruction_count;
+                } else {
+                  for (uint32_t i = 0; i < 2; ++i) {
+                    shader_code_.push_back(
+                        ENCODE_D3D10_SB_OPCODE_TYPE(
+                            i ? D3D11_SB_OPCODE_DERIV_RTY_COARSE
+                              : D3D11_SB_OPCODE_DERIV_RTX_COARSE) |
+                        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
+                    shader_code_.push_back(EncodeVectorMaskedOperand(
+                        D3D10_SB_OPERAND_TYPE_TEMP, 1 << i, 1));
+                    shader_code_.push_back(vol_filter_temp);
+                    shader_code_.push_back(EncodeVectorSelectOperand(
+                        D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
+                    shader_code_.push_back(coord_temp);
+                    ++stat_.instruction_count;
+                    ++stat_.float_instruction_count;
+                  }
+
+                  shader_code_.push_back(
+                      ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MAX) |
+                      ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
+                  shader_code_.push_back(EncodeVectorMaskedOperand(
+                      D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+                  shader_code_.push_back(vol_filter_temp);
+                  shader_code_.push_back(EncodeVectorSelectOperand(
+                                             D3D10_SB_OPERAND_TYPE_TEMP, 0, 1) |
+                                         ENCODE_D3D10_SB_OPERAND_EXTENDED(1));
+                  shader_code_.push_back(
+                      ENCODE_D3D10_SB_EXTENDED_OPERAND_MODIFIER(
+                          D3D10_SB_OPERAND_MODIFIER_ABS));
+                  shader_code_.push_back(vol_filter_temp);
+                  shader_code_.push_back(EncodeVectorSelectOperand(
+                                             D3D10_SB_OPERAND_TYPE_TEMP, 1, 1) |
+                                         ENCODE_D3D10_SB_OPERAND_EXTENDED(1));
+                  shader_code_.push_back(
+                      ENCODE_D3D10_SB_EXTENDED_OPERAND_MODIFIER(
+                          D3D10_SB_OPERAND_MODIFIER_ABS));
+                  shader_code_.push_back(vol_filter_temp);
+                  ++stat_.instruction_count;
+                  ++stat_.float_instruction_count;
+                }
+
+                // Check if minifying.
+                shader_code_.push_back(
+                    ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_LT) |
+                    ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+                shader_code_.push_back(EncodeVectorMaskedOperand(
+                    D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+                shader_code_.push_back(vol_filter_temp);
+                shader_code_.push_back(
+                    EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+                shader_code_.push_back(0x3F800000);
+                shader_code_.push_back(EncodeVectorSelectOperand(
+                    D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
+                shader_code_.push_back(vol_filter_temp);
+                ++stat_.instruction_count;
+                ++stat_.float_instruction_count;
+
+                if (has_vol_mag_filter || has_vol_min_filter) {
+                  if (has_vol_mag_filter && has_vol_min_filter) {
+                    // Both from the instruction.
+                    assert_true(vol_mag_filter_linear != vol_min_filter_linear);
+                    if (vol_mag_filter_linear) {
+                      // Either linear when minifying (non-zero) or linear when
+                      // magnifying (zero).
+                      vol_filter_temp_linear_test =
+                          D3D10_SB_INSTRUCTION_TEST_ZERO;
+                    }
+                  } else {
+                    // Check if need to use the filter from the fetch constant.
+                    // Has mag filter - need the fetch constant filter when
+                    // minifying (non-zero minification test result).
+                    // Has min filter - need it when magnifying (zero).
+                    shader_code_.push_back(
+                        ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
+                        ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(
+                            has_vol_mag_filter
+                                ? D3D10_SB_INSTRUCTION_TEST_NONZERO
+                                : D3D10_SB_INSTRUCTION_TEST_ZERO) |
+                        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
+                    shader_code_.push_back(EncodeVectorSelectOperand(
+                        D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
+                    shader_code_.push_back(vol_filter_temp);
+                    ++stat_.instruction_count;
+                    ++stat_.dynamic_flow_control_count;
+
+                    // Take the filter from the dword 4 of the fetch constant
+                    // ([1].x or [2].z) if it's not in the instruction.
+                    // Has mag filter - this will be executed for minification
+                    // (bit 1).
+                    // Has min filter - for magnification (bit 0).
+                    shader_code_.push_back(
+                        ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
+                        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
+                    shader_code_.push_back(EncodeVectorMaskedOperand(
+                        D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+                    shader_code_.push_back(vol_filter_temp);
+                    shader_code_.push_back(EncodeVectorSelectOperand(
+                        D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
+                        2 * (tfetch_index & 1), 3));
+                    shader_code_.push_back(cbuffer_index_fetch_constants_);
+                    shader_code_.push_back(
+                        uint32_t(CbufferRegister::kFetchConstants));
+                    shader_code_.push_back(tfetch_pair_offset + 1 +
+                                           (tfetch_index & 1));
+                    shader_code_.push_back(EncodeScalarOperand(
+                        D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+                    shader_code_.push_back(has_vol_mag_filter ? (1 << 1)
+                                                              : (1 << 0));
+                    ++stat_.instruction_count;
+                    ++stat_.uint_instruction_count;
+
+                    // If not using the filter from the fetch constant, set the
+                    // value from the instruction.
+                    // Need to change this for:
+                    // - Magnifying (zero set) and linear (non-zero needed) vol
+                    //   mag filter.
+                    // - Minifying (non-zero set) and point (zero needed) vol
+                    //   min filter.
+                    // Already the expected zero or non-zero value for:
+                    // - Magnifying (zero set) and point (zero needed) vol mag
+                    //   filter.
+                    // - Minifying (non-zero set) and linear (non-zero needed)
+                    //   vol min filter.
+                    if (vol_mag_filter_linear || vol_min_filter_point) {
+                      shader_code_.push_back(
+                          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ELSE) |
+                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
+                      ++stat_.instruction_count;
+
+                      shader_code_.push_back(
+                          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
+                      shader_code_.push_back(EncodeVectorMaskedOperand(
+                          D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+                      shader_code_.push_back(vol_filter_temp);
+                      shader_code_.push_back(EncodeScalarOperand(
+                          D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+                      shader_code_.push_back(uint32_t(has_vol_mag_filter));
+                      ++stat_.instruction_count;
+                      ++stat_.mov_instruction_count;
+                    }
+
+                    // Close the fetch constant filter check.
+                    shader_code_.push_back(
+                        ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
+                        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
+                    ++stat_.instruction_count;
+                  }
+                } else {
+                  // Mask the bit offset (1 for vol_min_filter, 0 for
+                  // vol_mag_filter) in the fetch constant.
+                  shader_code_.push_back(
+                      ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
+                      ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+                  shader_code_.push_back(EncodeVectorMaskedOperand(
+                      D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+                  shader_code_.push_back(vol_filter_temp);
+                  shader_code_.push_back(EncodeVectorSelectOperand(
+                      D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
+                  shader_code_.push_back(vol_filter_temp);
+                  shader_code_.push_back(EncodeScalarOperand(
+                      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+                  shader_code_.push_back(1);
+                  ++stat_.instruction_count;
+                  ++stat_.uint_instruction_count;
+
+                  // Extract the filter from dword 4 of the fetch constant
+                  // ([1].x or [2].z).
+                  shader_code_.push_back(
+                      ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_UBFE) |
+                      ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(11));
+                  shader_code_.push_back(EncodeVectorMaskedOperand(
+                      D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+                  shader_code_.push_back(vol_filter_temp);
+                  shader_code_.push_back(EncodeScalarOperand(
+                      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+                  shader_code_.push_back(1);
+                  shader_code_.push_back(EncodeVectorSelectOperand(
+                      D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
+                  shader_code_.push_back(vol_filter_temp);
+                  shader_code_.push_back(EncodeVectorSelectOperand(
+                      D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
+                      2 * (tfetch_index & 1), 3));
+                  shader_code_.push_back(cbuffer_index_fetch_constants_);
+                  shader_code_.push_back(
+                      uint32_t(CbufferRegister::kFetchConstants));
+                  shader_code_.push_back(tfetch_pair_offset + 1 +
+                                         (tfetch_index & 1));
+                  ++stat_.instruction_count;
+                  ++stat_.uint_instruction_count;
+                }
+              }
+            } else {
+              if (!has_vol_mag_filter) {
+                // Extract the magnification filter when there are no
+                // derivatives from bit 0 of dword 4 of the fetch constant
+                // ([1].x or [2].z).
+                shader_code_.push_back(
+                    ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
+                    ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
+                shader_code_.push_back(EncodeVectorMaskedOperand(
+                    D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+                shader_code_.push_back(vol_filter_temp);
+                shader_code_.push_back(EncodeVectorSelectOperand(
+                    D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
+                    2 * (tfetch_index & 1), 3));
+                shader_code_.push_back(cbuffer_index_fetch_constants_);
+                shader_code_.push_back(
+                    uint32_t(CbufferRegister::kFetchConstants));
+                shader_code_.push_back(tfetch_pair_offset + 1 +
+                                       (tfetch_index & 1));
+                shader_code_.push_back(
+                    EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+                shader_code_.push_back(1);
+                ++stat_.instruction_count;
+                ++stat_.uint_instruction_count;
+              }
+            }
+          }
+
+          if (!vol_mag_filter_point || !vol_min_filter_point) {
+            if (!vol_mag_filter_linear || !vol_min_filter_linear) {
+              // Check if using linear filtering between array layers.
+              shader_code_.push_back(
+                  ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
+                  ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(
+                      vol_filter_temp_linear_test) |
+                  ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
+              shader_code_.push_back(
+                  EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
+              shader_code_.push_back(vol_filter_temp);
+              ++stat_.instruction_count;
+              ++stat_.dynamic_flow_control_count;
+            }
+
+            // Floor the layer index to get the linear interpolation factor.
+            shader_code_.push_back(
+                ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ROUND_NI) |
+                ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
+            shader_code_.push_back(EncodeVectorMaskedOperand(
+                D3D10_SB_OPERAND_TYPE_TEMP, 0b0010, 1));
+            shader_code_.push_back(vol_filter_temp);
+            shader_code_.push_back(
+                EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
+            shader_code_.push_back(coord_temp);
+            ++stat_.instruction_count;
+            ++stat_.float_instruction_count;
+
+            // Get the fraction of the layer index, with i + 0.5 right between
+            // layers, as the linear interpolation factor between layers Z and
+            // Z + 1.
+            shader_code_.push_back(
+                ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ADD) |
+                ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(8));
+            shader_code_.push_back(EncodeVectorMaskedOperand(
+                D3D10_SB_OPERAND_TYPE_TEMP, 0b0010, 1));
+            shader_code_.push_back(vol_filter_temp);
+            shader_code_.push_back(
+                EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
+            shader_code_.push_back(coord_temp);
+            shader_code_.push_back(
+                EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1) |
+                ENCODE_D3D10_SB_OPERAND_EXTENDED(1));
+            shader_code_.push_back(ENCODE_D3D10_SB_EXTENDED_OPERAND_MODIFIER(
+                D3D10_SB_OPERAND_MODIFIER_NEG));
+            shader_code_.push_back(vol_filter_temp);
+            ++stat_.instruction_count;
+            ++stat_.float_instruction_count;
+
+            // Floor the layer index again for sampling.
+            shader_code_.push_back(
+                ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ROUND_NI) |
+                ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
+            shader_code_.push_back(EncodeVectorMaskedOperand(
+                D3D10_SB_OPERAND_TYPE_TEMP, 0b0100, 1));
+            shader_code_.push_back(coord_temp);
+            shader_code_.push_back(
+                EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
+            shader_code_.push_back(coord_temp);
+            ++stat_.instruction_count;
+            ++stat_.float_instruction_count;
+
+            if (!vol_mag_filter_linear || !vol_min_filter_linear) {
+              // Close the linear filtering check.
+              shader_code_.push_back(
+                  ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
+                  ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
+              ++stat_.instruction_count;
+            }
+          }
 
           if (instr.attributes.unnormalized_coordinates || offset_z != 0.0f) {
             // Handle 3D texture coordinates - may need to normalize and/or add
@@ -1907,10 +2260,16 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
         ++stat_.float_instruction_count;
       }
 
-      // Allocate the register for the value from the signed texture.
+      // Allocate the register for the value from the signed texture, and also
+      // for the second array layer and lerping the layers.
       uint32_t signed_value_temp = instr.opcode == FetchOpcode::kTextureFetch
                                        ? PushSystemTemp()
                                        : UINT32_MAX;
+      uint32_t vol_filter_lerp_temp = UINT32_MAX;
+      if (vol_filter_temp != UINT32_MAX &&
+          (!vol_mag_filter_point || !vol_min_filter_point)) {
+        vol_filter_lerp_temp = PushSystemTemp();
+      }
 
       // tfetch1D/2D/Cube just fetch directly. tfetch3D needs to fetch either
       // the 3D texture or the 2D stacked texture, so two sample instructions
@@ -1936,159 +2295,265 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
               ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
           ++stat_.instruction_count;
         }
-        // Sample both unsigned and signed.
-        for (uint32_t j = 0; j < 2; ++j) {
+        if (instr.opcode == FetchOpcode::kGetTextureComputedLod) {
+          // The non-pixel-shader case should be handled before because it
+          // just returns a constant in this case.
+          assert_true(IsDxbcPixelShader());
           uint32_t srv_register_current =
-              i ? srv_registers_stacked[j] : srv_registers[j];
-          uint32_t target_temp_current =
-              j ? signed_value_temp : system_temp_pv_;
-          if (instr.opcode == FetchOpcode::kGetTextureComputedLod) {
-            // The non-pixel-shader case should be handled before because it
-            // just returns a constant in this case.
-            assert_true(IsDxbcPixelShader());
-            replicate_result = true;
+              i ? srv_registers_stacked[0] : srv_registers[0];
+          replicate_result = true;
+          shader_code_.push_back(
+              ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_1_SB_OPCODE_LOD) |
+              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(11));
+          shader_code_.push_back(
+              EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+          shader_code_.push_back(system_temp_pv_);
+          shader_code_.push_back(EncodeVectorSwizzledOperand(
+              D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+          shader_code_.push_back(coord_temp);
+          shader_code_.push_back(EncodeVectorSwizzledOperand(
+              D3D10_SB_OPERAND_TYPE_RESOURCE, kSwizzleXYZW, 2));
+          shader_code_.push_back(srv_register_current);
+          shader_code_.push_back(srv_register_current);
+          shader_code_.push_back(
+              EncodeZeroComponentOperand(D3D10_SB_OPERAND_TYPE_SAMPLER, 2));
+          shader_code_.push_back(sampler_register);
+          shader_code_.push_back(sampler_register);
+          ++stat_.instruction_count;
+          ++stat_.lod_instructions;
+          // Apply the LOD bias if used.
+          if (instr.attributes.lod_bias != 0.0f) {
             shader_code_.push_back(
-                ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_1_SB_OPCODE_LOD) |
-                ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(11));
+                ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ADD) |
+                ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
             shader_code_.push_back(EncodeVectorMaskedOperand(
                 D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-            shader_code_.push_back(target_temp_current);
-            shader_code_.push_back(EncodeVectorSwizzledOperand(
-                D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-            shader_code_.push_back(coord_temp);
-            shader_code_.push_back(EncodeVectorSwizzledOperand(
-                D3D10_SB_OPERAND_TYPE_RESOURCE, kSwizzleXYZW, 2));
-            shader_code_.push_back(srv_register_current);
-            shader_code_.push_back(srv_register_current);
+            shader_code_.push_back(system_temp_pv_);
             shader_code_.push_back(
-                EncodeZeroComponentOperand(D3D10_SB_OPERAND_TYPE_SAMPLER, 2));
-            shader_code_.push_back(sampler_register);
-            shader_code_.push_back(sampler_register);
+                EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
+            shader_code_.push_back(system_temp_pv_);
+            shader_code_.push_back(
+                EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+            shader_code_.push_back(
+                *reinterpret_cast<const uint32_t*>(&instr.attributes.lod_bias));
             ++stat_.instruction_count;
-            ++stat_.lod_instructions;
-            // Apply the LOD bias if used.
-            if (instr.attributes.lod_bias != 0.0f) {
-              shader_code_.push_back(
-                  ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ADD) |
-                  ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-              shader_code_.push_back(EncodeVectorMaskedOperand(
-                  D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-              shader_code_.push_back(target_temp_current);
-              shader_code_.push_back(
-                  EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-              shader_code_.push_back(target_temp_current);
-              shader_code_.push_back(
-                  EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-              shader_code_.push_back(*reinterpret_cast<const uint32_t*>(
-                  &instr.attributes.lod_bias));
-              ++stat_.instruction_count;
-              ++stat_.float_instruction_count;
-            }
-            // In this case, only the unsigned variant is accessed because data
-            // doesn't matter.
-            break;
-          } else if (instr.attributes.use_register_lod) {
-            shader_code_.push_back(
-                ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_SAMPLE_L) |
-                ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(13));
-            shader_code_.push_back(EncodeVectorMaskedOperand(
-                D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
-            shader_code_.push_back(target_temp_current);
-            shader_code_.push_back(EncodeVectorSwizzledOperand(
-                D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-            shader_code_.push_back(coord_temp);
-            shader_code_.push_back(EncodeVectorSwizzledOperand(
-                D3D10_SB_OPERAND_TYPE_RESOURCE, kSwizzleXYZW, 2));
-            shader_code_.push_back(srv_register_current);
-            shader_code_.push_back(srv_register_current);
-            shader_code_.push_back(
-                EncodeZeroComponentOperand(D3D10_SB_OPERAND_TYPE_SAMPLER, 2));
-            shader_code_.push_back(sampler_register);
-            shader_code_.push_back(sampler_register);
-            shader_code_.push_back(EncodeVectorSelectOperand(
-                D3D10_SB_OPERAND_TYPE_TEMP, lod_temp_component, 1));
-            shader_code_.push_back(lod_temp);
-            ++stat_.instruction_count;
-            ++stat_.texture_normal_instructions;
-          } else if (instr.attributes.use_register_gradients) {
-            // TODO(Triang3l): Apply the LOD bias somehow for register gradients
-            // (possibly will require moving the bias to the sampler, which may
-            // be not very good considering the sampler count is very limited).
-            shader_code_.push_back(
-                ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_SAMPLE_D) |
-                ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(15));
-            shader_code_.push_back(EncodeVectorMaskedOperand(
-                D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
-            shader_code_.push_back(target_temp_current);
-            shader_code_.push_back(EncodeVectorSwizzledOperand(
-                D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-            shader_code_.push_back(coord_temp);
-            shader_code_.push_back(EncodeVectorSwizzledOperand(
-                D3D10_SB_OPERAND_TYPE_RESOURCE, kSwizzleXYZW, 2));
-            shader_code_.push_back(srv_register_current);
-            shader_code_.push_back(srv_register_current);
-            shader_code_.push_back(
-                EncodeZeroComponentOperand(D3D10_SB_OPERAND_TYPE_SAMPLER, 2));
-            shader_code_.push_back(sampler_register);
-            shader_code_.push_back(sampler_register);
-            shader_code_.push_back(EncodeVectorSwizzledOperand(
-                D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-            shader_code_.push_back(system_temp_grad_h_lod_);
-            shader_code_.push_back(EncodeVectorSwizzledOperand(
-                D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-            shader_code_.push_back(system_temp_grad_v_);
-            ++stat_.instruction_count;
-            ++stat_.texture_gradient_instructions;
-          } else {
-            // 3 different DXBC opcodes handled here:
-            // - sample_l, when not using a computed LOD or not in a pixel
-            //   shader, in this case, LOD (0 + bias) is sampled.
-            // - sample, when sampling in a pixel shader (thus with derivatives)
-            //   with a computed LOD.
-            // - sample_b, when sampling in a pixel shader with a biased
-            //   computed LOD.
-            // Both sample_l and sample_b should add the LOD bias as the last
-            // operand in our case.
-            bool explicit_lod =
-                !instr.attributes.use_computed_lod || !IsDxbcPixelShader();
-            if (explicit_lod) {
-              shader_code_.push_back(
-                  ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_SAMPLE_L) |
-                  ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(13));
-            } else if (instr.attributes.lod_bias != 0.0f) {
-              shader_code_.push_back(
-                  ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_SAMPLE_B) |
-                  ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(13));
-            } else {
-              shader_code_.push_back(
-                  ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_SAMPLE) |
-                  ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(11));
-            }
-            shader_code_.push_back(EncodeVectorMaskedOperand(
-                D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
-            shader_code_.push_back(target_temp_current);
-            shader_code_.push_back(EncodeVectorSwizzledOperand(
-                D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-            shader_code_.push_back(coord_temp);
-            shader_code_.push_back(EncodeVectorSwizzledOperand(
-                D3D10_SB_OPERAND_TYPE_RESOURCE, kSwizzleXYZW, 2));
-            shader_code_.push_back(srv_register_current);
-            shader_code_.push_back(srv_register_current);
-            shader_code_.push_back(
-                EncodeZeroComponentOperand(D3D10_SB_OPERAND_TYPE_SAMPLER, 2));
-            shader_code_.push_back(sampler_register);
-            shader_code_.push_back(sampler_register);
-            if (explicit_lod || instr.attributes.lod_bias != 0.0f) {
-              shader_code_.push_back(
-                  EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-              shader_code_.push_back(*reinterpret_cast<const uint32_t*>(
-                  &instr.attributes.lod_bias));
-            }
-            ++stat_.instruction_count;
-            if (!explicit_lod && instr.attributes.lod_bias != 0.0f) {
-              ++stat_.texture_bias_instructions;
-            } else {
-              ++stat_.texture_normal_instructions;
+            ++stat_.float_instruction_count;
+          }
+        } else {
+          // Sample both unsigned and signed, and for stacked textures, two
+          // samples if filtering is needed.
+          for (uint32_t j = 0; j < 2; ++j) {
+            uint32_t srv_register_current =
+                i ? srv_registers_stacked[j] : srv_registers[j];
+            uint32_t target_temp_sign = j ? signed_value_temp : system_temp_pv_;
+            for (uint32_t k = 0;
+                 k < (vol_filter_lerp_temp != UINT32_MAX ? 2u : 1u); ++k) {
+              uint32_t target_temp_current =
+                  k ? vol_filter_lerp_temp : target_temp_sign;
+              if (k) {
+                if (!vol_mag_filter_linear || !vol_min_filter_linear) {
+                  // Check if array layer filtering is enabled and need one more
+                  // sample.
+                  shader_code_.push_back(
+                      ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
+                      ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(
+                          vol_filter_temp_linear_test) |
+                      ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
+                  shader_code_.push_back(EncodeVectorSelectOperand(
+                      D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
+                  shader_code_.push_back(vol_filter_temp);
+                  ++stat_.instruction_count;
+                  ++stat_.dynamic_flow_control_count;
+                }
+
+                // Go to the next array texture sample.
+                shader_code_.push_back(
+                    ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ADD) |
+                    ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+                shader_code_.push_back(EncodeVectorMaskedOperand(
+                    D3D10_SB_OPERAND_TYPE_TEMP, 0b0100, 1));
+                shader_code_.push_back(coord_temp);
+                shader_code_.push_back(EncodeVectorSelectOperand(
+                    D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
+                shader_code_.push_back(coord_temp);
+                shader_code_.push_back(
+                    EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+                shader_code_.push_back(0x3F800000);
+                ++stat_.instruction_count;
+                ++stat_.float_instruction_count;
+              }
+              if (instr.attributes.use_register_lod) {
+                shader_code_.push_back(
+                    ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_SAMPLE_L) |
+                    ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(13));
+                shader_code_.push_back(EncodeVectorMaskedOperand(
+                    D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+                shader_code_.push_back(target_temp_current);
+                shader_code_.push_back(EncodeVectorSwizzledOperand(
+                    D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+                shader_code_.push_back(coord_temp);
+                shader_code_.push_back(EncodeVectorSwizzledOperand(
+                    D3D10_SB_OPERAND_TYPE_RESOURCE, kSwizzleXYZW, 2));
+                shader_code_.push_back(srv_register_current);
+                shader_code_.push_back(srv_register_current);
+                shader_code_.push_back(EncodeZeroComponentOperand(
+                    D3D10_SB_OPERAND_TYPE_SAMPLER, 2));
+                shader_code_.push_back(sampler_register);
+                shader_code_.push_back(sampler_register);
+                shader_code_.push_back(EncodeVectorSelectOperand(
+                    D3D10_SB_OPERAND_TYPE_TEMP, lod_temp_component, 1));
+                shader_code_.push_back(lod_temp);
+                ++stat_.instruction_count;
+                ++stat_.texture_normal_instructions;
+              } else if (instr.attributes.use_register_gradients) {
+                // TODO(Triang3l): Apply the LOD bias somehow for register
+                // gradients (possibly will require moving the bias to the
+                // sampler, which may be not very good considering the sampler
+                // count is very limited).
+                shader_code_.push_back(
+                    ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_SAMPLE_D) |
+                    ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(15));
+                shader_code_.push_back(EncodeVectorMaskedOperand(
+                    D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+                shader_code_.push_back(target_temp_current);
+                shader_code_.push_back(EncodeVectorSwizzledOperand(
+                    D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+                shader_code_.push_back(coord_temp);
+                shader_code_.push_back(EncodeVectorSwizzledOperand(
+                    D3D10_SB_OPERAND_TYPE_RESOURCE, kSwizzleXYZW, 2));
+                shader_code_.push_back(srv_register_current);
+                shader_code_.push_back(srv_register_current);
+                shader_code_.push_back(EncodeZeroComponentOperand(
+                    D3D10_SB_OPERAND_TYPE_SAMPLER, 2));
+                shader_code_.push_back(sampler_register);
+                shader_code_.push_back(sampler_register);
+                shader_code_.push_back(EncodeVectorSwizzledOperand(
+                    D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+                shader_code_.push_back(system_temp_grad_h_lod_);
+                shader_code_.push_back(EncodeVectorSwizzledOperand(
+                    D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+                shader_code_.push_back(system_temp_grad_v_);
+                ++stat_.instruction_count;
+                ++stat_.texture_gradient_instructions;
+              } else {
+                // 3 different DXBC opcodes handled here:
+                // - sample_l, when not using a computed LOD or not in a pixel
+                //   shader, in this case, LOD (0 + bias) is sampled.
+                // - sample, when sampling in a pixel shader (thus with
+                //   derivatives) with a computed LOD.
+                // - sample_b, when sampling in a pixel shader with a biased
+                //   computed LOD.
+                // Both sample_l and sample_b should add the LOD bias as the
+                // last operand in our case.
+                bool explicit_lod =
+                    !instr.attributes.use_computed_lod || !IsDxbcPixelShader();
+                if (explicit_lod) {
+                  shader_code_.push_back(
+                      ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_SAMPLE_L) |
+                      ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(13));
+                } else if (instr.attributes.lod_bias != 0.0f) {
+                  shader_code_.push_back(
+                      ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_SAMPLE_B) |
+                      ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(13));
+                } else {
+                  shader_code_.push_back(
+                      ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_SAMPLE) |
+                      ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(11));
+                }
+                shader_code_.push_back(EncodeVectorMaskedOperand(
+                    D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+                shader_code_.push_back(target_temp_current);
+                shader_code_.push_back(EncodeVectorSwizzledOperand(
+                    D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+                shader_code_.push_back(coord_temp);
+                shader_code_.push_back(EncodeVectorSwizzledOperand(
+                    D3D10_SB_OPERAND_TYPE_RESOURCE, kSwizzleXYZW, 2));
+                shader_code_.push_back(srv_register_current);
+                shader_code_.push_back(srv_register_current);
+                shader_code_.push_back(EncodeZeroComponentOperand(
+                    D3D10_SB_OPERAND_TYPE_SAMPLER, 2));
+                shader_code_.push_back(sampler_register);
+                shader_code_.push_back(sampler_register);
+                if (explicit_lod || instr.attributes.lod_bias != 0.0f) {
+                  shader_code_.push_back(EncodeScalarOperand(
+                      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+                  shader_code_.push_back(*reinterpret_cast<const uint32_t*>(
+                      &instr.attributes.lod_bias));
+                }
+                ++stat_.instruction_count;
+                if (!explicit_lod && instr.attributes.lod_bias != 0.0f) {
+                  ++stat_.texture_bias_instructions;
+                } else {
+                  ++stat_.texture_normal_instructions;
+                }
+              }
+              if (k) {
+                // b - a
+                shader_code_.push_back(
+                    ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ADD) |
+                    ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(8));
+                shader_code_.push_back(EncodeVectorMaskedOperand(
+                    D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+                shader_code_.push_back(target_temp_current);
+                shader_code_.push_back(EncodeVectorSwizzledOperand(
+                    D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+                shader_code_.push_back(target_temp_current);
+                shader_code_.push_back(
+                    EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP,
+                                                kSwizzleXYZW, 1) |
+                    ENCODE_D3D10_SB_OPERAND_EXTENDED(1));
+                shader_code_.push_back(
+                    ENCODE_D3D10_SB_EXTENDED_OPERAND_MODIFIER(
+                        D3D10_SB_OPERAND_MODIFIER_NEG));
+                shader_code_.push_back(target_temp_sign);
+                ++stat_.instruction_count;
+                ++stat_.float_instruction_count;
+
+                // a + (b - a) * factor
+                shader_code_.push_back(
+                    ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MAD) |
+                    ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
+                shader_code_.push_back(EncodeVectorMaskedOperand(
+                    D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
+                shader_code_.push_back(target_temp_sign);
+                shader_code_.push_back(EncodeVectorSwizzledOperand(
+                    D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+                shader_code_.push_back(target_temp_current);
+                shader_code_.push_back(EncodeVectorReplicatedOperand(
+                    D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
+                shader_code_.push_back(vol_filter_temp);
+                shader_code_.push_back(EncodeVectorSwizzledOperand(
+                    D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
+                shader_code_.push_back(target_temp_sign);
+                ++stat_.instruction_count;
+                ++stat_.float_instruction_count;
+
+                if (!j) {
+                  // Go back to the first layer to sample the signed texture.
+                  shader_code_.push_back(
+                      ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ADD) |
+                      ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+                  shader_code_.push_back(EncodeVectorMaskedOperand(
+                      D3D10_SB_OPERAND_TYPE_TEMP, 0b0100, 1));
+                  shader_code_.push_back(coord_temp);
+                  shader_code_.push_back(EncodeVectorSelectOperand(
+                      D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
+                  shader_code_.push_back(coord_temp);
+                  shader_code_.push_back(EncodeScalarOperand(
+                      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+                  shader_code_.push_back(0xBF800000u);
+                  ++stat_.instruction_count;
+                  ++stat_.float_instruction_count;
+                }
+
+                if (!vol_mag_filter_linear || !vol_min_filter_linear) {
+                  // Close the array layer filtering check.
+                  shader_code_.push_back(
+                      ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
+                      ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
+                  ++stat_.instruction_count;
+                }
+              }
             }
           }
         }
@@ -2343,6 +2808,9 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
         PopSystemTemp();
       }
 
+      if (vol_filter_lerp_temp != UINT32_MAX) {
+        PopSystemTemp();
+      }
       if (signed_value_temp != UINT32_MAX) {
         PopSystemTemp();
       }
@@ -2351,6 +2819,9 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
       }
     }
 
+    if (vol_filter_temp != UINT32_MAX) {
+      PopSystemTemp();
+    }
     if (size_and_is_3d_temp != UINT32_MAX) {
       PopSystemTemp();
     }

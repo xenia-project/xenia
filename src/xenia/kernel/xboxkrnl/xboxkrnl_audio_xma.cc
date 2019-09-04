@@ -119,18 +119,58 @@ static_assert_size(XMA_CONTEXT_INIT, 56);
 
 dword_result_t XMAInitializeContext(lpvoid_t context_ptr,
                                     pointer_t<XMA_CONTEXT_INIT> context_init) {
+  // Input buffers may be null (buffer 1 in Tony Hawk's American Wasteland).
+  // Convert to host endianness.
+  uint32_t input_buffer_0_guest_ptr = context_init->input_buffer_0_ptr;
+  uint32_t input_buffer_0_physical_address = 0;
+  if (input_buffer_0_guest_ptr) {
+    input_buffer_0_physical_address =
+        kernel_memory()->GetPhysicalAddress(input_buffer_0_guest_ptr);
+    // Xenia-specific safety check.
+    assert_true(input_buffer_0_physical_address != UINT32_MAX);
+    if (input_buffer_0_physical_address == UINT32_MAX) {
+      XELOGE(
+          "XMAInitializeContext: Invalid input buffer 0 virtual address %.8X",
+          input_buffer_0_guest_ptr);
+      return X_E_FALSE;
+    }
+  }
+  uint32_t input_buffer_1_guest_ptr = context_init->input_buffer_1_ptr;
+  uint32_t input_buffer_1_physical_address = 0;
+  if (input_buffer_1_guest_ptr) {
+    input_buffer_1_physical_address =
+        kernel_memory()->GetPhysicalAddress(input_buffer_1_guest_ptr);
+    assert_true(input_buffer_1_physical_address != UINT32_MAX);
+    if (input_buffer_1_physical_address == UINT32_MAX) {
+      XELOGE(
+          "XMAInitializeContext: Invalid input buffer 1 virtual address %.8X",
+          input_buffer_1_guest_ptr);
+      return X_E_FALSE;
+    }
+  }
+  uint32_t output_buffer_guest_ptr = context_init->output_buffer_ptr;
+  assert_not_zero(output_buffer_guest_ptr);
+  uint32_t output_buffer_physical_address =
+      kernel_memory()->GetPhysicalAddress(output_buffer_guest_ptr);
+  assert_true(output_buffer_physical_address != UINT32_MAX);
+  if (output_buffer_physical_address == UINT32_MAX) {
+    XELOGE("XMAInitializeContext: Invalid output buffer virtual address %.8X",
+           output_buffer_guest_ptr);
+    return X_E_FALSE;
+  }
+
   std::memset(context_ptr, 0, sizeof(XMA_CONTEXT_DATA));
 
   XMA_CONTEXT_DATA context(context_ptr);
 
-  context.input_buffer_0_ptr = context_init->input_buffer_0_ptr;
+  context.input_buffer_0_ptr = input_buffer_0_physical_address;
   context.input_buffer_0_packet_count =
       context_init->input_buffer_0_packet_count;
-  context.input_buffer_1_ptr = context_init->input_buffer_1_ptr;
+  context.input_buffer_1_ptr = input_buffer_1_physical_address;
   context.input_buffer_1_packet_count =
       context_init->input_buffer_1_packet_count;
   context.input_buffer_read_offset = context_init->input_buffer_read_offset;
-  context.output_buffer_ptr = context_init->output_buffer_ptr;
+  context.output_buffer_ptr = output_buffer_physical_address;
   context.output_buffer_block_count = context_init->output_buffer_block_count;
 
   // context.work_buffer = context_init->work_buffer;  // ?
