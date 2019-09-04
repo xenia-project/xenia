@@ -31,7 +31,7 @@ platform: Windows
 
 configuration:
   - Release
-  - Checked
+#  - Checked
 
 build_script:
   - cmd: xb build --config=%CONFIGURATION% --target=src\xenia-app --target=tests\xenia-cpu-ppc-tests --target=src\xenia-vfs-dump
