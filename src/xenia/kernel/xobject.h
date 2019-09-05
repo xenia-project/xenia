@@ -134,7 +134,7 @@ class XObject {
   KernelState* kernel_state() const;
   Memory* memory() const;
 
-  Type type() const;
+  Type type();
 
   // Returns the primary handle of this object.
   X_HANDLE handle() const { return handles_[0]; }

@@ -28,9 +28,6 @@ constexpr const wchar_t* const ContentManager::kStfsHeadersExtension;
 
 static const wchar_t* kGameUserContentDirName = L"profile";
 
-static int content_device_id_ = 0;
-
-
 ContentManager::ContentManager(KernelState* kernel_state,
                                std::wstring root_path)
     : kernel_state_(kernel_state), root_path_(std::move(root_path)) {}
@@ -53,6 +50,30 @@ std::wstring ContentManager::ResolvePackageRoot(uint32_t content_type) {
 
   wchar_t content_type_str[9] = L"00000000";
   std::swprintf(content_type_str, 9, L"%.8X", content_type);
+
+    std::wstring type_name;
+    switch (content_type) {
+      case 1:
+        // Save games.
+        type_name = L"00000001";
+        break;
+      case 2:
+        // DLC from the marketplace.
+        type_name = L"00000002";
+        break;
+      case 3:
+        // Publisher content?
+        type_name = L"00000003";
+        break;
+      case 0x000D0000:
+        // ???
+        type_name = L"000D0000";
+        break;
+      default:
+		type_name = L"00000000";
+        //assert_unhandled_case(data.content_type);
+        //return nullptr;
+    }
 
   // Package root path:
   // content_root/title_id/type_name/

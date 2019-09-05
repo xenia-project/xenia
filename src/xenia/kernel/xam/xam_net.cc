@@ -461,7 +461,7 @@ DECLARE_XAM_EXPORT1(NetDll_XNetXnAddrToMachineId, kNetworking, kStub);
 
 void NetDll_XNetInAddrToString(dword_t caller, dword_t in_addr,
                                lpstring_t string_out, dword_t string_size) {
-  strncpy(string_out, "666.666.666.666", string_size);
+  strncpy(string_out, "127.0.0.1", string_size);
 }
 DECLARE_XAM_EXPORT1(NetDll_XNetInAddrToString, kNetworking, kStub);
 

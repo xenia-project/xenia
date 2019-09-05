@@ -14,7 +14,9 @@
 #include "xenia/cpu/ppc/ppc_context.h"
 #include "xenia/cpu/ppc/ppc_hir_builder.h"
 
-DEFINE_bool(UE_HACK, true, "Hack for Unreal Engine 3 titles to run", "CPU");
+DEFINE_bool(UE_Workaround, true,
+            "Workaround for Unreal Engine 3 titles to run, try disabling if other games have problems",
+			"CPU");
 
 namespace xe {
 namespace cpu {
@@ -1083,7 +1085,7 @@ int InstrEmit_stfsx(PPCHIRBuilder& f, const InstrData& i) {
 
 int InstrEmit_dcbf(PPCHIRBuilder& f, const InstrData& i) {
   //UE Hack
-  if ((i.X.RB == 11) && (cvars::UE_HACK) && (f.CompareEQ(f.LoadGPR(i.X.RB), f.LoadConstantUint16(0xFEED)))) {
+  if ((i.X.RB == 11) && (cvars::UE_Workaround) && (f.CompareEQ(f.LoadGPR(i.X.RB), f.LoadConstantUint16(0xFEED)))) {
     Value* val = f.Sub(f.LoadGPR(i.X.RB), f.LoadConstantUint64(0x0004));
     f.StoreGPR(i.X.RB, val);
   } else {

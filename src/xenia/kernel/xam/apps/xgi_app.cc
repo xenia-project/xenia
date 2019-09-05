@@ -110,7 +110,7 @@ X_RESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
     }
     case 0x000B0011: {
       // TODO(PermaNull): reverse buffer contents.
-      //TEST
+      // TEST
       XELOGD("XGISessionDelete");
       return X_STATUS_SUCCESS;
     }
@@ -128,12 +128,12 @@ X_RESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       return X_STATUS_SUCCESS;
     }
     case 0x000B0014: {
-      //TEST Gets Jetpac XBLA in game
+      // TEST Gets Jetpac XBLA in game
       XELOGD("XGI_unknown");
       return X_STATUS_SUCCESS;
     }
     case 0x000B0015: {
-      //TEST Gets Jetpac XBLA in game
+      // TEST Gets Jetpac XBLA in game
       XELOGD("XGI_unknown");
       return X_STATUS_SUCCESS;
     }

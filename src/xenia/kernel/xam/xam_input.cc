@@ -182,7 +182,7 @@ X_HRESULT_result_t XamUserGetDeviceContext(dword_t user_index, dword_t unk,
   // Games check the result - usually with some masking.
   // If this function fails they assume zero, so let's fail AND
   // set zero just to be safe.
-  *out_ptr = 0;
+  //*out_ptr = 0;
   if (!user_index || (user_index & 0xFF) == 0xFF) {
     return X_E_SUCCESS;
   } else {

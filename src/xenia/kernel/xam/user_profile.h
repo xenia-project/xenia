@@ -313,7 +313,7 @@ class UserProfile {
 
   uint64_t xuid() const { return account_.xuid_online; }
   std::string name() const { return account_.GetGamertagString(); }
-  uint32_t signin_state() const { return 1; }
+  // uint32_t signin_state() const { return 1; }
 
   void AddSetting(std::unique_ptr<Setting> setting);
   Setting* GetSetting(uint32_t setting_id);

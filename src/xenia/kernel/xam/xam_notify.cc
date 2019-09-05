@@ -18,7 +18,10 @@ namespace xe {
 namespace kernel {
 namespace xam {
 
-dword_result_t XamNotifyCreateListenerInternal(qword_t mask) {
+dword_result_t XamNotifyCreateListenerInternal(qword_t mask, dword_t unk,
+                                               dword_t one) {
+  // r4=1 may indicate user process?
+
   auto listener =
       object_ref<XNotifyListener>(new XNotifyListener(kernel_state()));
   listener->Initialize(mask);
@@ -28,10 +31,11 @@ dword_result_t XamNotifyCreateListenerInternal(qword_t mask) {
 
   return handle;
 }
-DECLARE_XAM_EXPORT1(XamNotifyCreateListenerInternal, kNone, kImplemented);
+DECLARE_XAM_EXPORT2(XamNotifyCreateListenerInternal, kNone, kImplemented,
+                    kSketchy);
 
-dword_result_t XamNotifyCreateListener(qword_t mask) {
-  return XamNotifyCreateListenerInternal(mask);
+dword_result_t XamNotifyCreateListener(qword_t mask, dword_t one) {
+  return XamNotifyCreateListenerInternal(mask, 0, one);
 }
 DECLARE_XAM_EXPORT1(XamNotifyCreateListener, kNone, kImplemented);
 
@@ -56,6 +60,9 @@ dword_result_t XNotifyGetNext(dword_t handle, dword_t match_id,
     // Asking for a specific notification
     id = match_id;
     dequeued = listener->DequeueNotification(match_id, &param);
+    // TODO(Gliniak): Requires research. There is no such match_id!
+    if (!dequeued && !param)
+      dequeued = listener->DequeueNotification(&id, &param);
   } else {
     // Just get next.
     dequeued = listener->DequeueNotification(&id, &param);
@@ -71,7 +78,7 @@ dword_result_t XNotifyGetNext(dword_t handle, dword_t match_id,
 
   return dequeued ? 1 : 0;
 }
-DECLARE_XAM_EXPORT1(XNotifyGetNext, kNone, kImplemented);
+DECLARE_XAM_EXPORT2(XNotifyGetNext, kNone, kImplemented, kHighFrequency);
 
 dword_result_t XNotifyDelayUI(dword_t delay_ms) {
   // Ignored.

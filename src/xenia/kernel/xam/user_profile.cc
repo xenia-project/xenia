@@ -11,9 +11,7 @@
 
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/util/shim_utils.h"
-
-#include <gflags/gflags.h>
-
+#include "xenia/base/cvar.h"
 #include "xenia/base/clock.h"
 #include "xenia/base/filesystem.h"
 #include "xenia/base/logging.h"
@@ -21,14 +19,12 @@
 #include "xenia/kernel/util/crypto_utils.h"
 #include "xenia/kernel/xam/user_profile.h"
 
-DEFINE_string(profile_name, "XeniaUser", "Gamertag", "General");
-
 namespace xe {
 namespace kernel {
 namespace xam {
 
 DEFINE_string(profile_directory, "Content\\Profile\\",
-              "The directory to store profile data inside");
+              "The directory to store profile data inside", "Kernel");
 
 constexpr uint32_t kDashboardID = 0xFFFE07D1;
 
@@ -108,7 +104,7 @@ void UserProfile::EncryptAccountFile(const X_XAMACCOUNTINFO* input,
 
 UserProfile::UserProfile() : dash_gpd_(kDashboardID) {
   account_.xuid_online = 0xE000BABEBABEBABE;
-  wcscpy_s(account_.gamertag, cvars::profile_name);
+  wcscpy_s(account_.gamertag, L"XeniaUser");
 
   // https://cs.rin.ru/forum/viewtopic.php?f=38&t=60668&hilit=gfwl+live&start=195
   // https://github.com/arkem/py360/blob/master/py360/constants.py
@@ -181,11 +177,11 @@ UserProfile::UserProfile() : dash_gpd_(kDashboardID) {
 
 void UserProfile::LoadProfile() {
   auto mmap_ =
-      MappedMemory::Open(xe::to_wstring(FLAGS_profile_directory) + L"Account",
+      MappedMemory::Open(xe::to_wstring(cvars::profile_directory) + L"Account",
                          MappedMemory::Mode::kRead);
   if (mmap_) {
-    XELOGI("Loading Account file from path %sAccount",
-           FLAGS_profile_directory.c_str());
+    XELOGI("Loading Account file from path %SAccount",
+           xe::to_wstring(cvars::profile_directory).c_str());
 
     X_XAMACCOUNTINFO tmp_acct;
     bool success = DecryptAccountFile(mmap_->data(), &tmp_acct);
@@ -203,10 +199,10 @@ void UserProfile::LoadProfile() {
     mmap_->Close();
   }
 
-  XELOGI("Loading profile GPDs from path %s", FLAGS_profile_directory.c_str());
+  XELOGI("Loading profile GPDs from path %S", xe::to_wstring(cvars::profile_directory).c_str());
 
   mmap_ = MappedMemory::Open(
-      xe::to_wstring(FLAGS_profile_directory) + L"FFFE07D1.gpd",
+      xe::to_wstring(cvars::profile_directory) + L"FFFE07D1.gpd",
       MappedMemory::Mode::kRead);
   if (!mmap_) {
     XELOGW(
@@ -223,7 +219,7 @@ void UserProfile::LoadProfile() {
   for (auto title : titles) {
     wchar_t fname[256];
     _swprintf(fname, L"%X.gpd", title.title_id);
-    mmap_ = MappedMemory::Open(xe::to_wstring(FLAGS_profile_directory) + fname,
+    mmap_ = MappedMemory::Open(xe::to_wstring(cvars::profile_directory) + fname,
                                MappedMemory::Mode::kRead);
     if (!mmap_) {
       XELOGE("Failed to open GPD for title %X (%s)!", title.title_id,
@@ -451,16 +447,16 @@ bool UserProfile::UpdateGpd(uint32_t title_id, xdbf::GpdFile& gpd_data) {
     return false;
   }
 
-  if (!filesystem::PathExists(xe::to_wstring(FLAGS_profile_directory))) {
-    filesystem::CreateFolder(xe::to_wstring(FLAGS_profile_directory));
+  if (!filesystem::PathExists(xe::to_wstring(cvars::profile_directory))) {
+    filesystem::CreateFolder(xe::to_wstring(cvars::profile_directory));
   }
 
   wchar_t fname[256];
   _swprintf(fname, L"%X.gpd", title_id);
 
-  filesystem::CreateFile(xe::to_wstring(FLAGS_profile_directory) + fname);
+  filesystem::CreateFile(xe::to_wstring(cvars::profile_directory) + fname);
   auto mmap_ =
-      MappedMemory::Open(xe::to_wstring(FLAGS_profile_directory) + fname,
+      MappedMemory::Open(xe::to_wstring(cvars::profile_directory) + fname,
                          MappedMemory::Mode::kReadWrite, 0, gpd_length);
   if (!mmap_) {
     XELOGE("Failed to open %X.gpd for writing!", title_id);

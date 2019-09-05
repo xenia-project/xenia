@@ -137,6 +137,9 @@ dword_result_t ExCreateThread(lpdword_t handle_ptr, dword_t stack_size,
     if (handle_ptr) {
       if (creation_flags & 0x80) {
         *handle_ptr = thread->guest_object();
+      } else if (!*handle_ptr && (creation_flags == X_CREATE_SUSPENDED)) {
+        // TODO(Gliniak): Temporary solution, requires more research // && !stack_size 
+        *handle_ptr = thread->handle();
       } else {
         thread->RetainHandle();
         *handle_ptr = thread->handle();

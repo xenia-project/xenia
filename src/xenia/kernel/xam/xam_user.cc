@@ -16,6 +16,11 @@
 #include "xenia/kernel/xenumerator.h"
 #include "xenia/kernel/xthread.h"
 #include "xenia/xbox.h"
+#include "xenia/base/cvar.h"
+
+
+DEFINE_bool(signin_state, true,
+            "User signed in", "Kernel");
 
 namespace xe {
 namespace kernel {
@@ -121,7 +126,7 @@ dword_result_t XamUserGetSigninState(dword_t user_index) {
 
   if (user_index == 0 || (user_index & 0xFF) == 0xFF) {
     const auto& user_profile = kernel_state()->user_profile();
-    return user_profile->signin_state();
+	return ((cvars::signin_state) ? 1 : 0);
   } else {
     return 0;
   }
@@ -152,7 +157,7 @@ X_HRESULT_result_t XamUserGetSigninInfo(dword_t user_index, dword_t flags,
 
   const auto& user_profile = kernel_state()->user_profile();
   info->xuid = user_profile->xuid();
-  info->signin_state = user_profile->signin_state();
+  info->signin_state = ((cvars::signin_state) ? 1 : 0);
   std::strncpy(info->name, user_profile->name().data(), 15);
   return X_E_SUCCESS;
 }
@@ -502,7 +507,7 @@ dword_result_t XamUserAreUsersFriends(dword_t user_index, dword_t unk1,
   X_RESULT result = X_ERROR_SUCCESS;
 
   const auto& user_profile = kernel_state()->user_profile();
-  if (user_profile->signin_state() == 0) {
+  if (((cvars::signin_state) ? 1 : 0) == 0) {
     result = X_ERROR_NOT_LOGGED_ON;
   } else {
     // No friends!

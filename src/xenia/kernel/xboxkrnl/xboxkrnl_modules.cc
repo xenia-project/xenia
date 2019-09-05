@@ -14,14 +14,15 @@
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_private.h"
 #include "xenia/xbox.h"
+#include "xenia/base/cvar.h"
+
+DEFINE_bool(xconfig_initial_setup, false,
+            "Enable the dashboard initial setup/OOBE", "Kernel");
 
 DEFINE_int32(game_language, 1,
              "The language for the game to run in. 1=EN / 2=JP / 3=DE / 4=FR / "
              "5=ES / 6=IT / 7=KR / 8=CN",
              "General");
-             
-DEFINE_bool(xconfig_initial_setup, false,
-            "Enable the dashboard initial setup/OOBE", "Kernel");
 
 namespace xe {
 namespace kernel {
@@ -90,7 +91,7 @@ X_STATUS xeExGetXConfigSetting(uint16_t category, uint16_t setting,
           break;
         case 0x000F:  // XCONFIG_USER_PC_FLAGS (parental control?)
           setting_size = 1;
-          value[0] = 0;
+          xe::store_and_swap<uint32_t>(value, 0);
           break;
         case 0x0010:  // XCONFIG_USER_SMB_CONFIG (0x100 byte string)
                       // Just set the start of the buffer to 0 so that callers

@@ -85,7 +85,6 @@ bool VirtualFileSystem::UnregisterSymbolicLink(const std::string& path) {
   symlinks_.erase(it);
   return true;
 }
-
 bool VirtualFileSystem::IsSymbolicLink(const std::string& path) {
   auto global_lock = global_critical_region_.Acquire();
   auto it = symlinks_.find(path);
