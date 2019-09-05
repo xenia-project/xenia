@@ -17,15 +17,12 @@
 #include "xenia/kernel/xthread.h"
 #include "xenia/xbox.h"
 
+DECLARE_int32(user_country);
+
 // TODO(gibbed): put these forward decls in a header somewhere.
 
 namespace xe {
 namespace kernel {
-namespace xboxkrnl {
-X_STATUS xeExGetXConfigSetting(uint16_t category, uint16_t setting,
-                               void* buffer, uint16_t buffer_size,
-                               uint16_t* required_size);
-}  // namespace xboxkrnl
 namespace xam {
 uint32_t xeXGetGameRegion();
 }  // namespace xam
@@ -204,16 +201,17 @@ uint8_t xeXamGetLocaleFromCountry(uint8_t id) {
 // Helpers.
 
 uint8_t xeXamGetLocaleEx(uint8_t max_country_id, uint8_t max_locale_id) {
-  uint8_t country_id;
-  if (XSUCCEEDED(xboxkrnl::xeExGetXConfigSetting(
-          3, 14, &country_id, sizeof(country_id), nullptr))) {
-    if (country_id <= max_country_id) {
-      uint8_t locale_id = xeXamGetLocaleFromCountry(country_id);
-      if (locale_id <= max_locale_id) {
-        return locale_id;
-      }
+  // TODO(gibbed): rework when XConfig is cleanly implemented.
+  uint8_t country_id = static_cast<uint8_t>(cvars::user_country);
+  /*if (XSUCCEEDED(xboxkrnl::xeExGetXConfigSetting(
+          3, 14, &country_id, sizeof(country_id), nullptr))) {*/
+  if (country_id <= max_country_id) {
+    uint8_t locale_id = xeXamGetLocaleFromCountry(country_id);
+    if (locale_id <= max_locale_id) {
+      return locale_id;
     }
   }
+  /*}*/
 
   // couldn't find locale, fallback from game region.
   auto game_region = xeXGetGameRegion();
