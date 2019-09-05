@@ -46,6 +46,8 @@ class EmulatorWindow {
 
   void FileDrop(wchar_t* filename);
   void FileOpen();
+  void RecentListUpdater(std::wstring path);
+  void RecentList(int index);
   void FileClose();
   void ShowContentDirectory();
   void CheckHideCursor();
@@ -62,6 +64,7 @@ class EmulatorWindow {
   std::unique_ptr<ui::Loop> loop_;
   std::unique_ptr<ui::Window> window_;
   std::wstring base_title_;
+  std::wstring global_recent_paths_[10];
   uint64_t cursor_hide_time_ = 0;
 };
 
