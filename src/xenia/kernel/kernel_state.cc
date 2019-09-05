@@ -367,8 +367,7 @@ object_ref<UserModule> KernelState::LoadUserModule(const char* raw_name,
     // See if we've already loaded it
     for (auto& existing_module : user_modules_) {
       if (existing_module->path() == path) {
-        existing_module->Retain();
-        return retain_object(existing_module.get());
+        return existing_module;
       }
     }
 
@@ -384,8 +383,7 @@ object_ref<UserModule> KernelState::LoadUserModule(const char* raw_name,
 
     global_lock.lock();
 
-    // Retain when putting into the listing.
-    module->Retain();
+    // Putting into the listing automatically retains.
     user_modules_.push_back(module);
   }
 
@@ -405,6 +403,40 @@ object_ref<UserModule> KernelState::LoadUserModule(const char* raw_name,
   }
 
   return module;
+}
+
+void KernelState::UnloadUserModule(const object_ref<UserModule>& module,
+                                   bool call_entry) {
+  auto global_lock = global_critical_region_.Acquire();
+
+  if (module->is_dll_module() && module->entry_point() && call_entry) {
+    // Call DllMain(DLL_PROCESS_DETACH):
+    // https://msdn.microsoft.com/en-us/library/windows/desktop/ms682583%28v=vs.85%29.aspx
+    uint64_t args[] = {
+        module->handle(),
+        0,  // DLL_PROCESS_DETACH
+        0,  // 0 for now, assume XexUnloadImage is like FreeLibrary
+    };
+    auto thread_state = XThread::GetCurrentThread()->thread_state();
+    processor()->Execute(thread_state, module->entry_point(), args,
+                         xe::countof(args));
+  }
+
+  auto iter = std::find_if(
+      user_modules_.begin(), user_modules_.end(),
+      [&module](const auto& e) { return e->path() == module->path(); });
+  assert_true(iter != user_modules_.end());  // Unloading an unregistered module
+                                             // is probably really bad
+  user_modules_.erase(iter);
+
+  // Ensure this module was not somehow registered twice
+  assert_true(std::find_if(user_modules_.begin(), user_modules_.end(),
+                           [&module](const auto& e) {
+                             return e->path() == module->path();
+                           }) == user_modules_.end());
+
+  global_lock.unlock();
+  object_table()->RemoveHandle(module->handle());
 }
 
 void KernelState::TerminateTitle() {

@@ -131,6 +131,8 @@ class KernelState {
   void SetExecutableModule(object_ref<UserModule> module);
   object_ref<UserModule> LoadUserModule(const char* name,
                                         bool call_entry = true);
+  void UnloadUserModule(const object_ref<UserModule>& module,
+                        bool call_entry = true);
 
   object_ref<KernelModule> GetKernelModule(const char* name);
   template <typename T>
