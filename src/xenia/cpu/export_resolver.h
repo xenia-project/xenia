@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2019 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -27,6 +27,7 @@ enum class ExportCategory : uint8_t {
   kDebug,
   kFileSystem,
   kInput,
+  kLocale,
   kMemory,
   kMisc,
   kModules,
