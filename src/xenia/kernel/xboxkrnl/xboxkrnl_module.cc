@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2019 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -96,6 +96,7 @@ XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state)
   RegisterThreadingExports(export_resolver_, kernel_state_);
   RegisterUsbcamExports(export_resolver_, kernel_state_);
   RegisterVideoExports(export_resolver_, kernel_state_);
+  RegisterXConfigExports(export_resolver_, kernel_state_);
 
   // KeDebugMonitorData (?*)
   // Set to a valid value when a remote debugger is attached.
