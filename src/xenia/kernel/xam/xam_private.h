@@ -21,32 +21,23 @@ namespace xam {
 xe::cpu::Export* RegisterExport_xam(xe::cpu::Export* export_entry);
 
 // Registration functions, one per file.
-void RegisterAvatarExports(xe::cpu::ExportResolver* export_resolver,
-                           KernelState* kernel_state);
-void RegisterContentExports(xe::cpu::ExportResolver* export_resolver,
-                            KernelState* kernel_state);
-void RegisterInfoExports(xe::cpu::ExportResolver* export_resolver,
-                         KernelState* kernel_state);
-void RegisterInputExports(xe::cpu::ExportResolver* export_resolver,
-                          KernelState* kernel_state);
-void RegisterLocaleExports(xe::cpu::ExportResolver* export_resolver,
-                           KernelState* kernel_state);
-void RegisterMsgExports(xe::cpu::ExportResolver* export_resolver,
-                        KernelState* kernel_state);
-void RegisterNetExports(xe::cpu::ExportResolver* export_resolver,
-                        KernelState* kernel_state);
-void RegisterNotifyExports(xe::cpu::ExportResolver* export_resolver,
-                           KernelState* kernel_state);
-void RegisterNuiExports(xe::cpu::ExportResolver* export_resolver,
-                        KernelState* kernel_state);
-void RegisterUIExports(xe::cpu::ExportResolver* export_resolver,
-                       KernelState* kernel_state);
-void RegisterUserExports(xe::cpu::ExportResolver* export_resolver,
-                         KernelState* kernel_state);
-void RegisterVideoExports(xe::cpu::ExportResolver* export_resolver,
-                          KernelState* kernel_state);
-void RegisterVoiceExports(xe::cpu::ExportResolver* export_resolver,
-                          KernelState* kernel_state);
+#define DECLARE_REGISTER_EXPORTS(n)                                   \
+  void Register##n##Exports(xe::cpu::ExportResolver* export_resolver, \
+                            KernelState* kernel_state)
+DECLARE_REGISTER_EXPORTS(Avatar);
+DECLARE_REGISTER_EXPORTS(Content);
+DECLARE_REGISTER_EXPORTS(Info);
+DECLARE_REGISTER_EXPORTS(Input);
+DECLARE_REGISTER_EXPORTS(Locale);
+DECLARE_REGISTER_EXPORTS(Msg);
+DECLARE_REGISTER_EXPORTS(Net);
+DECLARE_REGISTER_EXPORTS(Notify);
+DECLARE_REGISTER_EXPORTS(Nui);
+DECLARE_REGISTER_EXPORTS(UI);
+DECLARE_REGISTER_EXPORTS(User);
+DECLARE_REGISTER_EXPORTS(Video);
+DECLARE_REGISTER_EXPORTS(Voice);
+#undef DECLARE_REGISTER_EXPORTS
 
 }  // namespace xam
 }  // namespace kernel
