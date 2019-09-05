@@ -9,6 +9,7 @@
 
 #include "xenia/base/logging.h"
 #include "xenia/kernel/kernel_state.h"
+#include "xenia/kernel/util/crypto_utils.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_private.h"
 #include "xenia/xbox.h"
@@ -433,75 +434,17 @@ void XeCryptHmacSha(lpvoid_t key, dword_t key_size_in, lpvoid_t inp_1,
                     dword_t inp_1_size, lpvoid_t inp_2, dword_t inp_2_size,
                     lpvoid_t inp_3, dword_t inp_3_size, lpvoid_t out,
                     dword_t out_size) {
-  uint32_t key_size = key_size_in;
-  sha1::SHA1 sha;
-  uint8_t kpad_i[0x40];
-  uint8_t kpad_o[0x40];
-  uint8_t tmp_key[0x40];
-  std::memset(kpad_i, 0x36, 0x40);
-  std::memset(kpad_o, 0x5C, 0x40);
-
-  // Setup HMAC key
-  // If > block size, use its hash
-  if (key_size > 0x40) {
-    sha1::SHA1 sha_key;
-    sha_key.processBytes(key, key_size);
-    sha_key.finalize((uint8_t*)tmp_key);
-
-    key_size = 0x14u;
-  } else {
-    std::memcpy(tmp_key, key, key_size);
-  }
-
-  for (uint32_t i = 0; i < key_size; i++) {
-    kpad_i[i] = tmp_key[i] ^ 0x36;
-    kpad_o[i] = tmp_key[i] ^ 0x5C;
-  }
-
-  // Inner
-  sha.processBytes(kpad_i, 0x40);
-
-  if (inp_1_size) {
-    sha.processBytes(inp_1, inp_1_size);
-  }
-
-  if (inp_2_size) {
-    sha.processBytes(inp_2, inp_2_size);
-  }
-
-  if (inp_3_size) {
-    sha.processBytes(inp_3, inp_3_size);
-  }
-
-  uint8_t digest[0x14];
-  sha.finalize(digest);
-  sha.reset();
-
-  // Outer
-  sha.processBytes(kpad_o, 0x40);
-  sha.processBytes(digest, 0x14);
-  sha.finalize(digest);
-
-  std::memcpy(out, digest, std::min((uint32_t)out_size, 0x14u));
+  util::HmacSha(key, key_size_in, inp_1, inp_1_size, inp_2, inp_2_size, inp_3,
+                inp_3_size, out, out_size);
 }
 DECLARE_XBOXKRNL_EXPORT1(XeCryptHmacSha, kNone, kImplemented);
-
-// Keys
-// TODO: Array of keys we need
-
-// Retail key 0x19
-static const uint8_t key19[] = {0xE1, 0xBC, 0x15, 0x9C, 0x73, 0xB1, 0xEA, 0xE9,
-                                0xAB, 0x31, 0x70, 0xF3, 0xAD, 0x47, 0xEB, 0xF3};
 
 dword_result_t XeKeysHmacSha(dword_t key_num, lpvoid_t inp_1,
                              dword_t inp_1_size, lpvoid_t inp_2,
                              dword_t inp_2_size, lpvoid_t inp_3,
                              dword_t inp_3_size, lpvoid_t out,
                              dword_t out_size) {
-  const uint8_t* key = nullptr;
-  if (key_num == 0x19) {
-    key = key19;
-  }
+  const uint8_t* key = util::GetXeKey(key_num);
 
   if (key) {
     XeCryptHmacSha((void*)key, 0x10, inp_1, inp_1_size, inp_2, inp_2_size,

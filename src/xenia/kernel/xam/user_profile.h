@@ -15,11 +15,117 @@
 #include <unordered_map>
 #include <vector>
 
+#include "xenia/kernel/xam/xdbf/xdbf.h"
 #include "xenia/xbox.h"
 
 namespace xe {
 namespace kernel {
 namespace xam {
+
+// from https://github.com/xemio/testdev/blob/master/xkelib/xam/_xamext.h
+#pragma pack(push, 4)
+struct X_XAMACCOUNTINFO {
+  enum AccountReservedFlags {
+    kPasswordProtected = 0x10000000,
+    kLiveEnabled = 0x20000000,
+    kRecovering = 0x40000000,
+    kVersionMask = 0x000000FF
+  };
+
+  enum AccountUserFlags {
+    kPaymentInstrumentCreditCard = 1,
+
+    kCountryMask = 0xFF00,
+    kSubscriptionTierMask = 0xF00000,
+    kLanguageMask = 0x3E000000,
+
+    kParentalControlEnabled = 0x1000000,
+  };
+
+  enum AccountSubscriptionTier {
+    kSubscriptionTierSilver = 3,
+    kSubscriptionTierGold = 6,
+    kSubscriptionTierFamilyGold = 9
+  };
+
+  // already exists inside xdbf.h??
+  enum AccountLanguage {
+    kNoLanguage,
+    kEnglish,
+    kJapanese,
+    kGerman,
+    kFrench,
+    kSpanish,
+    kItalian,
+    kKorean,
+    kTChinese,
+    kPortuguese,
+    kSChinese,
+    kPolish,
+    kRussian,
+    kNorwegian = 15
+  };
+
+  enum AccountLiveFlags { kAcctRequiresManagement = 1 };
+
+  xe::be<uint32_t> reserved_flags;
+  xe::be<uint32_t> live_flags;
+  wchar_t gamertag[0x10];
+  xe::be<uint64_t> xuid_online;  // 09....
+  xe::be<uint32_t> cached_user_flags;
+  xe::be<uint32_t> network_id;
+  char passcode[4];
+  char online_domain[0x14];
+  char online_kerberos_realm[0x18];
+  char online_key[0x10];
+  char passport_membername[0x72];
+  char passport_password[0x20];
+  char owner_passport_membername[0x72];
+
+  bool IsPasscodeEnabled() {
+    return (bool)(reserved_flags & AccountReservedFlags::kPasswordProtected);
+  }
+
+  bool IsLiveEnabled() {
+    return (bool)(reserved_flags & AccountReservedFlags::kLiveEnabled);
+  }
+
+  bool IsRecovering() {
+    return (bool)(reserved_flags & AccountReservedFlags::kRecovering);
+  }
+
+  bool IsPaymentInstrumentCreditCard() {
+    return (bool)(cached_user_flags &
+                  AccountUserFlags::kPaymentInstrumentCreditCard);
+  }
+
+  bool IsParentalControlled() {
+    return (bool)(cached_user_flags &
+                  AccountUserFlags::kParentalControlEnabled);
+  }
+
+  bool IsXUIDOffline() { return ((xuid_online >> 60) & 0xF) == 0xE; }
+  bool IsXUIDOnline() { return ((xuid_online >> 48) & 0xFFFF) == 0x9; }
+  bool IsXUIDValid() { return IsXUIDOffline() != IsXUIDOnline(); }
+  bool IsTeamXUID() {
+    return (xuid_online & 0xFF00000000000140) == 0xFE00000000000100;
+  }
+
+  uint32_t GetCountry() { return (cached_user_flags & kCountryMask) >> 8; }
+
+  AccountSubscriptionTier GetSubscriptionTier() {
+    return (AccountSubscriptionTier)(
+        (cached_user_flags & kSubscriptionTierMask) >> 20);
+  }
+
+  AccountLanguage GetLanguage() {
+    return (AccountLanguage)((cached_user_flags & kLanguageMask) >> 25);
+  }
+
+  std::string GetGamertagString() const;
+};
+static_assert_size(X_XAMACCOUNTINFO, 0x17C);
+#pragma pack(pop)
 
 class UserProfile {
  public:
@@ -197,23 +303,44 @@ class UserProfile {
     }
   };
 
+  static bool DecryptAccountFile(const uint8_t* data, X_XAMACCOUNTINFO* output,
+                                 bool devkit = false);
+
+  static void EncryptAccountFile(const X_XAMACCOUNTINFO* input, uint8_t* output,
+                                 bool devkit = false);
+
   UserProfile();
 
-  uint64_t xuid() const { return xuid_; }
-  std::string name() const { return name_; }
+  uint64_t xuid() const { return account_.xuid_online; }
+  std::string name() const { return account_.GetGamertagString(); }
   uint32_t signin_state() const { return 1; }
 
   void AddSetting(std::unique_ptr<Setting> setting);
   Setting* GetSetting(uint32_t setting_id);
 
+  xdbf::GpdFile* SetTitleSpaData(const xdbf::SpaFile& spa_data);
+  xdbf::GpdFile* GetTitleGpd(uint32_t title_id = -1);
+
+  void GetTitles(std::vector<xdbf::GpdFile*>& titles);
+
+  bool UpdateTitleGpd(uint32_t title_id = -1);
+  bool UpdateAllGpds();
+
  private:
-  uint64_t xuid_;
-  std::string name_;
+  void LoadProfile();
+  bool UpdateGpd(uint32_t title_id, xdbf::GpdFile& gpd_data);
+
+  X_XAMACCOUNTINFO account_;
   std::vector<std::unique_ptr<Setting>> setting_list_;
   std::unordered_map<uint32_t, Setting*> settings_;
 
   void LoadSetting(UserProfile::Setting*);
   void SaveSetting(UserProfile::Setting*);
+
+  std::unordered_map<uint32_t, xdbf::GpdFile> title_gpds_;
+  xdbf::GpdFile dash_gpd_;
+  xdbf::GpdFile* curr_gpd_ = nullptr;
+  uint32_t curr_title_id_ = -1;
 };
 
 }  // namespace xam

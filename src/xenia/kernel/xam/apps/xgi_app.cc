@@ -17,6 +17,11 @@ namespace kernel {
 namespace xam {
 namespace apps {
 
+struct X_XUSER_ACHIEVEMENT {
+  xe::be<uint32_t> user_idx;
+  xe::be<uint32_t> achievement_id;
+};
+
 XgiApp::XgiApp(KernelState* kernel_state) : App(kernel_state, 0xFB) {}
 
 // http://mb.mirage.org/bugzilla/xliveless/main.c
@@ -55,6 +60,32 @@ X_RESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       uint32_t achievements_ptr = xe::load_and_swap<uint32_t>(buffer + 4);
       XELOGD("XGIUserWriteAchievements(%.8X, %.8X)", achievement_count,
              achievements_ptr);
+
+      auto* game_gpd = kernel_state_->user_profile()->GetTitleGpd();
+      if (!game_gpd) {
+        XELOGE("XGIUserWriteAchievements failed, no game GPD set?");
+        return X_ERROR_SUCCESS;
+      }
+
+      bool modified = false;
+      auto* achievement =
+          (X_XUSER_ACHIEVEMENT*)memory_->TranslateVirtual(achievements_ptr);
+      xdbf::Achievement ach;
+      for (uint32_t i = 0; i < achievement_count; i++, achievement++) {
+        if (game_gpd->GetAchievement(achievement->achievement_id, &ach)) {
+          if (!ach.IsUnlocked()) {
+            XELOGI("Achievement Unlocked! %ws (%d gamerscore) - %ws",
+                   ach.label.c_str(), ach.gamerscore, ach.description.c_str());
+            ach.Unlock(false);
+            game_gpd->UpdateAchievement(ach);
+            modified = true;
+          }
+        }
+      }
+      if (modified) {
+        kernel_state_->user_profile()->UpdateTitleGpd();
+      }
+
       return X_ERROR_SUCCESS;
     }
     case 0x000B0010: {
