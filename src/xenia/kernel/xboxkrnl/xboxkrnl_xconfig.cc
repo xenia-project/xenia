@@ -15,10 +15,29 @@
 #include "xenia/kernel/xboxkrnl/xboxkrnl_private.h"
 #include "xenia/xbox.h"
 
-DEFINE_int32(game_language, 1,
-             "The language for the game to run in. 1=EN / 2=JP / 3=DE / 4=FR / "
-             "5=ES / 6=IT / 7=KR / 8=CN",
-             "General");
+DEFINE_int32(user_language, 1,
+             "User language ID. "
+             "1=en / 2=ja / 3=de / 4=fr / 5=es / 6=it / 7=ko / 8=zh / 9=pt / "
+             "11=pl / 12=ru / 13=sv / 14=tr / 15=nb / 16=nl / 17=zh",
+             "XConfig");
+
+// TODO(gibbed): The description is very long. Newline support?
+DEFINE_int32(
+    user_country, 103,
+    "User country ID. "
+    "1=AE / 2=AL / 3=AM / 4=AR / 5=AT / 6=AU / 7=AZ / 8=BE / 9=BG / 10=BH / "
+    "11=BN / 12=BO / 13=BR / 14=BY / 15=BZ / 16=CA / 18=CH / 19=CL / 20=CN / "
+    "21=CO / 22=CR / 23=CZ / 24=DE / 25=DK / 26=DO / 27=DZ / 28=EC / 29=EE / "
+    "30=EG / 31=ES / 32=FI / 33=FO / 34=FR / 35=GB / 36=GE / 37=GR / 38=GT / "
+    "39=HK / 40=HN / 41=HR / 42=HU / 43=ID / 44=IE / 45=IL / 46=IN / 47=IQ / "
+    "48=IR / 49=IS / 50=IT / 51=JM / 52=JO / 53=JP / 54=KE / 55=KG / 56=KR / "
+    "57=KW / 58=KZ / 59=LB / 60=LI / 61=LT / 62=LU / 63=LV / 64=LY / 65=MA / "
+    "66=MC / 67=MK / 68=MN / 69=MO / 70=MV / 71=MX / 72=MY / 73=NI / 74=NL / "
+    "75=NO / 76=NZ / 77=OM / 78=PA / 79=PE / 80=PH / 81=PK / 82=PL / 83=PR / "
+    "84=PT / 85=PY / 86=QA / 87=RO / 88=RU / 89=SA / 90=SE / 91=SG / 92=SI / "
+    "93=SK / 95=SV / 96=SY / 97=TH / 98=TN / 99=TR / 100=TT / 101=TW / "
+    "102=UA / 103=US / 104=UY / 105=UZ / 106=VE / 107=VN / 108=YE / 109=ZA",
+    "XConfig");
 
 namespace xe {
 namespace kernel {
@@ -62,7 +81,7 @@ X_STATUS xeExGetXConfigSetting(uint16_t category, uint16_t setting,
           break;
         case 0x0009:  // XCONFIG_USER_LANGUAGE
           setting_size = 4;
-          xe::store_and_swap<uint32_t>(value, cvars::game_language);  // English
+          xe::store_and_swap<uint32_t>(value, cvars::user_language);
           break;
         case 0x000A:  // XCONFIG_USER_VIDEO_FLAGS
           setting_size = 4;
@@ -74,10 +93,8 @@ X_STATUS xeExGetXConfigSetting(uint16_t category, uint16_t setting,
           xe::store_and_swap<uint32_t>(value, 0);
           break;
         case 0x000E:  // XCONFIG_USER_COUNTRY
-          // Halo: Reach sub_82804888 - min 0x5, max 0x6E.
           setting_size = 1;
-          // TODO(benvanik): get this value.
-          value[0] = 5;
+          value[0] = static_cast<uint8_t>(cvars::user_country);
           break;
         default:
           assert_unhandled_case(setting);
@@ -99,6 +116,7 @@ X_STATUS xeExGetXConfigSetting(uint16_t category, uint16_t setting,
       return X_STATUS_INVALID_PARAMETER_3;
     }
   }
+
   if (required_size) {
     *required_size = setting_size;
   }
