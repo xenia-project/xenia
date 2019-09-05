@@ -27,6 +27,7 @@ class VirtualFileSystem {
  public:
   VirtualFileSystem();
   ~VirtualFileSystem();
+  Entry* ResolveDevice(const std::string& path);
 
   bool RegisterDevice(std::unique_ptr<Device> device);
   bool UnregisterDevice(const std::string& path);

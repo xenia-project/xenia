@@ -37,6 +37,7 @@ class EmulatorWindow {
 
   void UpdateTitle();
   void ToggleFullscreen();
+  static std::wstring SwapNext();
 
  private:
   explicit EmulatorWindow(Emulator* emulator);
