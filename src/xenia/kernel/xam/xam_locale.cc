@@ -17,15 +17,12 @@
 #include "xenia/kernel/xthread.h"
 #include "xenia/xbox.h"
 
+DECLARE_int32(user_country);
+
 // TODO(gibbed): put these forward decls in a header somewhere.
 
 namespace xe {
 namespace kernel {
-namespace xboxkrnl {
-X_STATUS xeExGetXConfigSetting(uint16_t category, uint16_t setting,
-                               void* buffer, uint16_t buffer_size,
-                               uint16_t* required_size);
-}  // namespace xboxkrnl
 namespace xam {
 uint32_t xeXGetGameRegion();
 }  // namespace xam
@@ -75,7 +72,8 @@ const wchar_t* xeXamGetOnlineCountryString(uint8_t id) {
       L"PG", L"PN",   L"RE", L"RW", L"WS",   L"SM", L"ST",   L"SN",   L"RS",
       L"SC", L"SL",   L"SB", L"SO", L"LK",   L"SH", L"KN",   L"LC",   L"PM",
       L"VC", L"SR",   L"SZ", L"TJ", L"TZ",   L"TL", L"TG",   L"TK",   L"TO",
-      L"TM", L"TC",   L"TV", L"UG",
+      L"TM", L"TC",   L"TV", L"UG", L"VU",   L"VA", nullptr, L"VG",   L"WF",
+      L"EH", L"ZM",   L"ZZ",
   };
 #pragma warning(suppress : 6385)
   return id < xe::countof(table) ? table[id] : nullptr;
@@ -94,6 +92,7 @@ const wchar_t* xeXamGetCountryString(uint8_t id) {
       L"PH", L"PK", L"PL", L"PR", L"PT",   L"PY", L"QA", L"RO",   L"RU", L"SA",
       L"SE", L"SG", L"SI", L"SK", nullptr, L"SV", L"SY", L"TH",   L"TN", L"TR",
       L"TT", L"TW", L"UA", L"US", L"UY",   L"UZ", L"VE", L"VN",   L"YE", L"ZA",
+      L"ZW", L"ZZ",
   };
 #pragma warning(suppress : 6385)
   return id < xe::countof(table) ? table[id] : nullptr;
@@ -102,7 +101,7 @@ const wchar_t* xeXamGetCountryString(uint8_t id) {
 const wchar_t* xeXamGetLanguageString(uint8_t id) {
   static const wchar_t* const table[] = {
       L"zz", L"en",   L"ja", L"de", L"fr", L"es", L"it", L"ko", L"zh",
-      L"pt", nullptr, L"pl", L"ru", L"sv", L"tr", L"nb", L"nl",
+      L"pt", nullptr, L"pl", L"ru", L"sv", L"tr", L"nb", L"nl", L"zh",
   };
 #pragma warning(suppress : 6385)
   return id < xe::countof(table) ? table[id] : nullptr;
@@ -122,9 +121,19 @@ const wchar_t* xeXamGetLocaleString(uint8_t id) {
 
 uint8_t xeXamGetLocaleFromOnlineCountry(uint8_t id) {
   static uint8_t const table[] = {
-      0, 43, 0,  0,  40, 2,  1, 0,  3, 0,  0,  0, 0,  4, 0,
-      0, 5,  0,  33, 6,  7,  8, 0,  9, 13, 10, 0, 0,  0, 0,
-      0, 31, 11, 0,  12, 35, 0, 14, 0, 15, 0,  0, 16,
+      0,  43, 0, 0, 40, 2,  1,  0,  3,  0, 0, 0, 0,  4,  0,  0,  5,  0,  33,
+      6,  7,  8, 0, 9,  13, 10, 0,  0,  0, 0, 0, 31, 11, 0,  12, 35, 0,  14,
+      0,  15, 0, 0, 16, 0,  18, 42, 17, 0, 0, 0, 19, 0,  0,  20, 0,  0,  21,
+      0,  0,  0, 0, 0,  0,  0,  0,  0,  0, 0, 0, 0,  0,  22, 0,  0,  23, 25,
+      24, 0,  0, 0, 0,  0,  26, 0,  27, 0, 0, 0, 37, 41, 32, 28, 0,  29, 0,
+      0,  0,  0, 0, 39, 0,  34, 0,  36, 0, 0, 0, 0,  0,  30, 0,  0,  0,  0,
+      0,  0,  0, 0, 0,  0,  0,  0,  0,  0, 0, 0, 0,  0,  0,  0,  0,  0,  0,
+      0,  0,  0, 0, 0,  0,  0,  0,  0,  0, 0, 0, 0,  0,  0,  0,  0,  0,  0,
+      0,  0,  0, 0, 0,  0,  0,  0,  0,  0, 0, 0, 0,  0,  0,  0,  0,  0,  0,
+      0,  0,  0, 0, 0,  0,  0,  0,  0,  0, 0, 0, 0,  0,  0,  0,  0,  0,  0,
+      0,  0,  0, 0, 0,  0,  0,  0,  0,  0, 0, 0, 0,  0,  0,  0,  0,  0,  0,
+      0,  0,  0, 0, 0,  0,  0,  0,  0,  0, 0, 0, 0,  0,  0,  0,  0,  0,  0,
+      0,  0,  0, 0, 0,  0,  0,  0,  38,
   };
 #pragma warning(suppress : 6385)
   return id < xe::countof(table) ? table[id] : 0;
@@ -132,9 +141,9 @@ uint8_t xeXamGetLocaleFromOnlineCountry(uint8_t id) {
 
 uint8_t xeXamGetLanguageFromOnlineLanguage(uint8_t id) {
   static uint8_t const table[] = {
-      0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 17, 11, 12, 1, 1, 15, 16, 13, 1, 1,
-      1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,  1,  1,  1, 1, 1,  14, 1,  1, 1,
-      1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,  1,  1,  1, 1, 1,  1,  1,  1, 1,
+      0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 17, 11, 12, 1, 1, 15, 16, 13, 1, 1, 1,
+      1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,  1,  1,  1, 1, 14, 1,  1,  1, 1, 1,
+      1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,  1,  1,  1, 1, 1,  1,  1,  1,
   };
 #pragma warning(suppress : 6385)
   return id < xe::countof(table) ? table[id] : 0;
@@ -156,13 +165,21 @@ const wchar_t* xeXamGetOnlineLanguageString(uint8_t id) {
 
 uint8_t xeXamGetCountryFromOnlineCountry(uint8_t id) {
   static uint8_t const table[] = {
-      0,  1,  2,  3,  4,   5,   6,   7,   8,   9,   10,  11,  12,  13, 14, 15,
-      16, 0,  18, 19, 20,  21,  22,  23,  24,  25,  26,  27,  28,  29, 30, 31,
-      32, 33, 34, 35, 36,  37,  38,  39,  40,  41,  42,  43,  44,  45, 46, 47,
-      48, 49, 50, 51, 52,  53,  54,  55,  56,  57,  58,  59,  60,  61, 62, 63,
-      64, 65, 66, 67, 68,  69,  70,  71,  72,  73,  74,  75,  76,  77, 78, 79,
-      80, 81, 82, 83, 84,  85,  86,  87,  88,  89,  90,  91,  92,  93, 0,  95,
-      96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108,
+      0,  1,  2,  3,  4,   5,   6,   7,   8,   9,   10,  11,  12,  13,  14,  15,
+      16, 0,  18, 19, 20,  21,  22,  23,  24,  25,  26,  27,  28,  29,  30,  31,
+      32, 33, 34, 35, 36,  37,  38,  39,  40,  41,  42,  43,  44,  45,  46,  47,
+      48, 49, 50, 51, 52,  53,  54,  55,  56,  57,  58,  59,  60,  61,  62,  63,
+      64, 65, 66, 67, 68,  69,  70,  71,  72,  73,  74,  75,  76,  77,  78,  79,
+      80, 81, 82, 83, 84,  85,  86,  87,  88,  89,  90,  91,  92,  93,  0,   95,
+      96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 0,
+      0,  0,  0,  0,  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+      0,  0,  0,  0,  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+      0,  0,  0,  0,  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+      0,  0,  0,  0,  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+      0,  0,  0,  0,  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+      0,  0,  0,  0,  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+      0,  0,  0,  0,  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+      0,  0,  0,  0,  0,   0,   0,   0,   0,   0,   0,   0,   111,
   };
 #pragma warning(suppress : 6385)
   return id < xe::countof(table) ? table[id] : 0;
@@ -170,9 +187,12 @@ uint8_t xeXamGetCountryFromOnlineCountry(uint8_t id) {
 
 uint8_t xeXamGetLocaleFromCountry(uint8_t id) {
   static uint8_t const table[] = {
-      0, 43, 0,  0,  40, 2,  1, 0,  3, 0,  0,  0, 0,  4, 0,
-      0, 5,  0,  33, 6,  7,  8, 0,  9, 13, 10, 0, 0,  0, 0,
-      0, 31, 11, 0,  12, 35, 0, 14, 0, 15, 0,  0, 16,
+      0,  43, 0, 0, 40, 2,  1,  0,  3,  0, 0, 0, 0,  4,  0,  0,  5,  0,  33,
+      6,  7,  8, 0, 9,  13, 10, 0,  0,  0, 0, 0, 31, 11, 0,  12, 35, 0,  14,
+      0,  15, 0, 0, 16, 0,  18, 42, 17, 0, 0, 0, 19, 0,  0,  20, 0,  0,  21,
+      0,  0,  0, 0, 0,  0,  0,  0,  0,  0, 0, 0, 0,  0,  22, 0,  0,  23, 25,
+      24, 0,  0, 0, 0,  0,  26, 0,  27, 0, 0, 0, 37, 41, 32, 28, 0,  29, 0,
+      0,  0,  0, 0, 39, 0,  34, 0,  36, 0, 0, 0, 0,  0,  30, 0,  38,
   };
 #pragma warning(suppress : 6385)
   return id < xe::countof(table) ? table[id] : 0;
@@ -181,16 +201,17 @@ uint8_t xeXamGetLocaleFromCountry(uint8_t id) {
 // Helpers.
 
 uint8_t xeXamGetLocaleEx(uint8_t max_country_id, uint8_t max_locale_id) {
-  uint8_t country_id;
-  if (XSUCCEEDED(xboxkrnl::xeExGetXConfigSetting(
-          3, 14, &country_id, sizeof(country_id), nullptr))) {
-    if (country_id <= max_country_id) {
-      uint8_t locale_id = xeXamGetLocaleFromCountry(country_id);
-      if (locale_id <= max_locale_id) {
-        return locale_id;
-      }
+  // TODO(gibbed): rework when XConfig is cleanly implemented.
+  uint8_t country_id = static_cast<uint8_t>(cvars::user_country);
+  /*if (XSUCCEEDED(xboxkrnl::xeExGetXConfigSetting(
+          3, 14, &country_id, sizeof(country_id), nullptr))) {*/
+  if (country_id <= max_country_id) {
+    uint8_t locale_id = xeXamGetLocaleFromCountry(country_id);
+    if (locale_id <= max_locale_id) {
+      return locale_id;
     }
   }
+  /*}*/
 
   // couldn't find locale, fallback from game region.
   auto game_region = xeXGetGameRegion();
