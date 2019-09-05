@@ -18,10 +18,7 @@ namespace xe {
 namespace kernel {
 namespace xam {
 
-dword_result_t XamNotifyCreateListenerInternal(qword_t mask, dword_t unk,
-                                               dword_t one) {
-  // r4=1 may indicate user process?
-
+dword_result_t XamNotifyCreateListenerInternal(qword_t mask) {
   auto listener =
       object_ref<XNotifyListener>(new XNotifyListener(kernel_state()));
   listener->Initialize(mask);
@@ -31,11 +28,10 @@ dword_result_t XamNotifyCreateListenerInternal(qword_t mask, dword_t unk,
 
   return handle;
 }
-DECLARE_XAM_EXPORT2(XamNotifyCreateListenerInternal, kNone, kImplemented,
-                    kSketchy);
+DECLARE_XAM_EXPORT1(XamNotifyCreateListenerInternal, kNone, kImplemented);
 
-dword_result_t XamNotifyCreateListener(qword_t mask, dword_t one) {
-  return XamNotifyCreateListenerInternal(mask, 0, one);
+dword_result_t XamNotifyCreateListener(qword_t mask) {
+  return XamNotifyCreateListenerInternal(mask);
 }
 DECLARE_XAM_EXPORT1(XamNotifyCreateListener, kNone, kImplemented);
 
@@ -75,7 +71,7 @@ dword_result_t XNotifyGetNext(dword_t handle, dword_t match_id,
 
   return dequeued ? 1 : 0;
 }
-DECLARE_XAM_EXPORT2(XNotifyGetNext, kNone, kImplemented, kHighFrequency);
+DECLARE_XAM_EXPORT1(XNotifyGetNext, kNone, kImplemented);
 
 dword_result_t XNotifyDelayUI(dword_t delay_ms) {
   // Ignored.

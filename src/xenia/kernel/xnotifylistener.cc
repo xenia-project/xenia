@@ -31,7 +31,8 @@ void XNotifyListener::Initialize(uint64_t mask) {
 
 void XNotifyListener::EnqueueNotification(XNotificationID id, uint32_t data) {
   // Ignore if the notification doesn't match our mask.
-  if ((mask_ & uint64_t(1ULL << (id >> 25))) == 0) {
+  // TODO(Gliniak): (confirm) mask 0x01 means accept all
+  if ((mask_ & ((id >> 25) & 0x3F)) == 0 && mask_ != 0x01) {
     return;
   }
 
