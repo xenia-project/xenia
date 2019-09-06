@@ -53,7 +53,7 @@ filter("configurations:Checked")
   runtime("Debug")
 filter({"configurations:Checked", "platforms:Windows"})
   buildoptions({
-    "/RTCsu",   -- Full Run-Time Checks.
+    "/RTCsu /MP",   -- Full Run-Time Checks.
   })
 
 filter("configurations:Debug")
@@ -67,7 +67,10 @@ filter({"configurations:Debug", "platforms:Windows"})
   linkoptions({
     "/NODEFAULTLIB:MSVCRTD",
   })
-
+  buildoptions({
+    "/MP",
+  })
+  
 filter({"configurations:Debug", "platforms:Linux"})
   buildoptions({
     "-g",
@@ -91,7 +94,7 @@ filter({"configurations:Release", "platforms:Windows"})
     "/NODEFAULTLIB:MSVCRTD",
   })
   buildoptions({
-    "/GT", -- enable fiber-safe optimizations
+    "/arch:AVX /GT /MD /MP /O2 /Ot", -- allthethings
    })
 
 filter("platforms:Linux")
