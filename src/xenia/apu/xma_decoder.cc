@@ -246,29 +246,34 @@ bool XmaDecoder::BlockOnContext(uint32_t guest_ptr, bool poll) {
 uint32_t XmaDecoder::ReadRegister(uint32_t addr) {
   uint32_t r = (addr & 0xFFFF) / 4;
 
-  switch (r) {
-    default: {
-      if (!register_file_.GetRegisterInfo(r)) {
-        XELOGE("XMA: Read from unknown register ({:04X})", r);
-      }
-    }
-#pragma warning(suppress : 4065)
-  }
-
   assert_true(r < XmaRegisterFile::kRegisterCount);
 
-  // 0606h (1818h) is rotating context processing # set to hardware ID of
-  // context being processed.
-  // If bit 200h is set, the locking code will possibly collide on hardware IDs
-  // and error out, so we should never set it (I think?).
-  if (r == XE_XMA_REG_CURRENT_CONTEXT_INDEX) {
-    // To prevent games from seeing a stuck XMA context, return a rotating
-    // number
-    uint32_t next_context_index =
-        register_file_[XE_XMA_REG_NEXT_CONTEXT_INDEX].u32;
-    register_file_[XE_XMA_REG_CURRENT_CONTEXT_INDEX].u32 = next_context_index;
-    register_file_[XE_XMA_REG_NEXT_CONTEXT_INDEX].u32 =
-        (next_context_index + 1) % kContextCount;
+  switch (r) {
+    case XE_XMA_REG_CURRENT_CONTEXT_INDEX: {
+      // 0606h (1818h) is rotating context processing # set to hardware ID of
+      // context being processed.
+      // If bit 200h is set, the locking code will possibly collide on hardware
+      // IDs and error out, so we should never set it (I think?).
+      uint32_t& current_context_index =
+          register_file_[XE_XMA_REG_CURRENT_CONTEXT_INDEX].u32;
+      uint32_t& next_context_index =
+          register_file_[XE_XMA_REG_NEXT_CONTEXT_INDEX].u32;
+      // To prevent games from seeing a stuck XMA context, return a rotating
+      // number.
+      current_context_index = next_context_index;
+      next_context_index = (next_context_index + 1) % kContextCount;
+      break;
+    }
+    default: {
+      const auto register_info = register_file_.GetRegisterInfo(r);
+      if (register_info) {
+        XELOGE("XMA: Read from unhandled register ({:04X}, {})", r,
+               register_info->name);
+      } else {
+        XELOGE("XMA: Read from unknown register ({:04X})", r);
+      }
+      break;
+    }
   }
 
   return xe::byte_swap(register_file_.values[r].u32);
@@ -279,22 +284,6 @@ void XmaDecoder::WriteRegister(uint32_t addr, uint32_t value) {
 
   uint32_t r = (addr & 0xFFFF) / 4;
   value = xe::byte_swap(value);
-
-  if ((r >= XE_XMA_REG_CONTEXT_KICK_0 && r <= XE_XMA_REG_CONTEXT_KICK_9) ||
-      (r >= XE_XMA_REG_CONTEXT_LOCK_0 && r <= XE_XMA_REG_CONTEXT_LOCK_9) ||
-      (r >= XE_XMA_REG_CONTEXT_CLEAR_0 && r <= XE_XMA_REG_CONTEXT_CLEAR_9)) {
-  } else {
-    switch (r) {
-      default: {
-        XELOGE("XMA: Write to unhandled register ({:04X}): {:08X}", r, value);
-        break;
-      }
-#pragma warning(suppress : 4065)
-    }
-  }
-
-  // 0601h (1804h) is written to with 0x02000000 and 0x03000000 around a lock
-  // operation
 
   assert_true(r < XmaRegisterFile::kRegisterCount);
   register_file_.values[r].u32 = value;
@@ -310,11 +299,10 @@ void XmaDecoder::WriteRegister(uint32_t addr, uint32_t value) {
     for (int i = 0; value && i < 32; ++i, value >>= 1) {
       if (value & 1) {
         uint32_t context_id = base_context_id + i;
-        XmaContext& context = contexts_[context_id];
+        auto& context = contexts_[context_id];
         context.Enable();
       }
     }
-
     // Signal the decoder thread to start processing.
     work_event_->Set();
   } else if (r >= XE_XMA_REG_CONTEXT_LOCK_0 && r <= XE_XMA_REG_CONTEXT_LOCK_9) {
@@ -325,11 +313,10 @@ void XmaDecoder::WriteRegister(uint32_t addr, uint32_t value) {
     for (int i = 0; value && i < 32; ++i, value >>= 1) {
       if (value & 1) {
         uint32_t context_id = base_context_id + i;
-        XmaContext& context = contexts_[context_id];
+        auto& context = contexts_[context_id];
         context.Disable();
       }
     }
-
     // Signal the decoder thread to start processing.
     work_event_->Set();
   } else if (r >= XE_XMA_REG_CONTEXT_CLEAR_0 &&
@@ -343,6 +330,22 @@ void XmaDecoder::WriteRegister(uint32_t addr, uint32_t value) {
         XmaContext& context = contexts_[context_id];
         context.Clear();
       }
+    }
+  } else {
+    // 0601h (1804h) is written to with 0x02000000 and 0x03000000 around a lock
+    // operation
+    switch (r) {
+      default: {
+        const auto register_info = register_file_.GetRegisterInfo(r);
+        if (register_info) {
+          XELOGE("XMA: Write to unhandled register ({:04X}, {}): {:08X}", r,
+                 register_info->name, value);
+        } else {
+          XELOGE("XMA: Write to unknown register ({:04X}): {:08X}", r, value);
+        }
+        break;
+      }
+#pragma warning(suppress : 4065)
     }
   }
 }
