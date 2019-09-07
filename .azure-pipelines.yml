@@ -37,6 +37,8 @@ jobs:
         configuration: Release
       Checked:
         configuration: Checked
+      Debug:
+        configuration: Debug
   steps:
   - script: |
       git config --global core.autocrlf input
