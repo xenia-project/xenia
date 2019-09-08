@@ -196,11 +196,6 @@ int xenia_main(const std::vector<std::wstring>& args) {
   Profiler::Initialize();
   Profiler::ThreadEnter("main");
 
-  if (cvars::discord) {
-    discord::DiscordPresence::Initialize();
-    discord::DiscordPresence::NotPlaying();
-  }
-
   // Figure out where content should go.
   std::wstring content_root = xe::to_wstring(cvars::content_root);
   std::wstring config_folder;
@@ -231,6 +226,11 @@ int xenia_main(const std::vector<std::wstring>& args) {
 
   XELOGI("Content root: %S", content_root.c_str());
   config::SetupConfig(config_folder);
+
+  if (cvars::discord) {
+    discord::DiscordPresence::Initialize();
+    discord::DiscordPresence::NotPlaying();
+  }
 
   // Create the emulator but don't initialize so we can setup the window.
   auto emulator = std::make_unique<Emulator>(L"", content_root);
