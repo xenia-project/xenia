@@ -292,7 +292,7 @@ void XamLoaderLaunchTitle(lpstring_t raw_name, dword_t flags) {
   loader_data.launch_flags = flags;
   XELOGI(
     "XamLoaderLaunchTitle launching: (%S) with flags (%d)",
-    std::string(raw_name), flags);
+    std::string(raw_name).c_str(), flags);
   // Translate the launch path to a full path.
   if (raw_name && raw_name.value() == "") {
     loader_data.launch_path = "game:\\default.xex";

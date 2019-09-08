@@ -31,7 +31,7 @@ struct X_PROFILEENUMRESULT {
   X_XAMACCOUNTINFO account;
   xe::be<uint32_t> device_id;
 };
-static_assert_size(X_PROFILEENUMRESULT, 0x188);
+// static_assert_size(X_PROFILEENUMRESULT, 0x188);
 
 dword_result_t XamProfileCreateEnumerator(dword_t device_id,
                                           lpdword_t handle_out) {
@@ -572,7 +572,7 @@ dword_result_t XamUserCreateAchievementEnumerator(dword_t title_id,
   static uint32_t placeholder = 0;
 
   if (!placeholder) {
-    wchar_t* placeholder_val = L"<placeholder>";
+    const wchar_t* placeholder_val = L"<placeholder>";
 
     placeholder = kernel_memory()->SystemHeapAlloc(
         ((uint32_t)wcslen(placeholder_val) + 1) * 2);

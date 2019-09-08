@@ -124,7 +124,7 @@ struct X_XAMACCOUNTINFO {
 
   std::string GetGamertagString() const;
 };
-static_assert_size(X_XAMACCOUNTINFO, 0x17C);
+// static_assert_size(X_XAMACCOUNTINFO, 0x17C);
 #pragma pack(pop)
 
 class UserProfile {

@@ -23,7 +23,7 @@ project("xenia-gpu-vulkan")
   })
 
 -- TODO(benvanik): kill this and move to the debugger UI.
-group("src")
+--[[ group("src")
 project("xenia-gpu-vulkan-trace-viewer")
   uuid("86a1dddc-a26a-4885-8c55-cf745225d93e")
   kind("WindowedApp")
@@ -148,3 +148,4 @@ project("xenia-gpu-vulkan-trace-dump")
         "1>scratch/stdout-trace-dump.txt",
       })
     end
+--]]

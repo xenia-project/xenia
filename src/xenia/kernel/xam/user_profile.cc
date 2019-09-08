@@ -104,7 +104,7 @@ void UserProfile::EncryptAccountFile(const X_XAMACCOUNTINFO* input,
 
 UserProfile::UserProfile() : dash_gpd_(kDashboardID) {
   account_.xuid_online = 0xE000BABEBABEBABE;
-  wcscpy_s(account_.gamertag, L"XeniaUser");
+  wcscpy(account_.gamertag, L"XeniaUser");
 
   // https://cs.rin.ru/forum/viewtopic.php?f=38&t=60668&hilit=gfwl+live&start=195
   // https://github.com/arkem/py360/blob/master/py360/constants.py
@@ -218,7 +218,7 @@ void UserProfile::LoadProfile() {
 
   for (auto title : titles) {
     wchar_t fname[256];
-    _swprintf(fname, L"%X.gpd", title.title_id);
+    swprintf(fname, 256, L"%X.gpd", title.title_id);
     mmap_ = MappedMemory::Open(xe::to_wstring(cvars::profile_directory) + fname,
                                MappedMemory::Mode::kRead);
     if (!mmap_) {
@@ -452,7 +452,7 @@ bool UserProfile::UpdateGpd(uint32_t title_id, xdbf::GpdFile& gpd_data) {
   }
 
   wchar_t fname[256];
-  _swprintf(fname, L"%X.gpd", title_id);
+  swprintf(fname, 256, L"%X.gpd", title_id);
 
   filesystem::CreateFile(xe::to_wstring(cvars::profile_directory) + fname);
   auto mmap_ =
