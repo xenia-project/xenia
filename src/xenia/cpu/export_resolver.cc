@@ -63,7 +63,7 @@ Export* ExportResolver::GetExportByOrdinal(const char* module_name,
   for (const auto& table : tables_) {
     if (std::strncmp(module_name, table.module_name(),
                      std::strlen(table.module_name())) == 0) {
-      if (ordinal > table.exports_by_ordinal().size()) {
+      if (ordinal >= table.exports_by_ordinal().size()) {
         return nullptr;
       }
       return table.exports_by_ordinal().at(ordinal);
