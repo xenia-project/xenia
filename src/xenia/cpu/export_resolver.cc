@@ -58,7 +58,7 @@ Export* ExportResolver::GetExportByOrdinal(const std::string_view module_name,
                                            uint16_t ordinal) {
   for (const auto& table : tables_) {
     if (xe::utf8::starts_with_case(module_name, table.module_name())) {
-      if (ordinal > table.exports_by_ordinal().size()) {
+      if (ordinal >= table.exports_by_ordinal().size()) {
         return nullptr;
       }
       return table.exports_by_ordinal().at(ordinal);
