@@ -126,7 +126,7 @@ uint32_t XexModule::GetProcAddress(uint16_t ordinal) const {
         xex_security_info()->export_table);
 
     ordinal -= export_table->base;
-    if (ordinal > export_table->count) {
+    if (ordinal >= export_table->count) {
       XELOGE("GetProcAddress(%.3X): ordinal out of bounds", ordinal);
       return 0;
     }

@@ -106,12 +106,12 @@ uint32_t KernelModule::GetProcAddressByOrdinal(uint16_t ordinal) {
   } else {
     if (export_entry->function_data.trampoline ||
         export_entry->function_data.shim) {
-      global_critical_region_.Acquire();
+      auto global_lock = global_critical_region_.Acquire();
 
       // See if the function has been generated already.
-      if (guest_trampoline_map_.find(ordinal) != guest_trampoline_map_.end()) {
-        auto entry = guest_trampoline_map_.find(ordinal);
-        return entry->second;
+      auto item = guest_trampoline_map_.find(ordinal);
+      if (item != guest_trampoline_map_.end()) {
+        return item->second;
       }
 
       cpu::GuestFunction::ExternHandler handler = nullptr;
@@ -130,7 +130,7 @@ uint32_t KernelModule::GetProcAddressByOrdinal(uint16_t ordinal) {
              export_entry->name, guest_addr);
 
       // Register the function in our map.
-      guest_trampoline_map_[ordinal] = guest_addr;
+      guest_trampoline_map_.emplace(ordinal, guest_addr);
       return guest_addr;
     } else {
       // Not implemented.
