@@ -1,6 +1,6 @@
 version: 1.0.{build}-{branch}
 
-clone_depth: 50
+clone_depth: 1
 
 matrix:
   fast_finish: true
