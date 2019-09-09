@@ -14,9 +14,12 @@
 #include "third_party/imgui/imgui.h"
 #include "xenia/base/assert.h"
 #include "xenia/base/clock.h"
+#include "xenia/base/cvar.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/profiling.h"
 #include "xenia/ui/imgui_drawer.h"
+
+DEFINE_bool(fps_titlebar, true, "Show FPS in titlebar", "General");
 
 namespace xe {
 namespace ui {
@@ -200,9 +203,11 @@ void Window::OnPaint(UIEvent* e) {
 #endif
 
     title_fps_text_ = base_title_;
-    title_fps_text_ += L" | ";
-    title_fps_text_ += std::to_wstring(game_fps_);
-    title_fps_text_ += L" FPS";
+    if (cvars::fps_titlebar) {
+      title_fps_text_ += L" | ";
+      title_fps_text_ += std::to_wstring(game_fps_);
+      title_fps_text_ += L" FPS";
+    }
     set_title(title_fps_text_, false);
 
     osd_fps_text_ = std::to_string(game_fps_);
