@@ -86,8 +86,19 @@ dword_result_t XamUserGetName(dword_t user_index, lpstring_t buffer,
   if (user_index) {
     return X_ERROR_NO_SUCH_USER;
   }
+
+  if (!buffer_len) {
+    return X_ERROR_SUCCESS;
+  }
+
   const auto& user_profile = kernel_state()->user_profile();
-  std::strncpy(buffer, user_profile->name().data(), buffer_len);
+  const auto& user_name = user_profile->name();
+
+  // Real XAM will only copy a maximum of 15 characters out.
+  size_t copy_length = std::min(
+      {size_t(15), user_name.size(), static_cast<size_t>(buffer_len) - 1});
+  std::memcpy(buffer, user_name.data(), copy_length);
+  buffer[copy_length] = '\0';
   return X_ERROR_SUCCESS;
 }
 DECLARE_XAM_EXPORT1(XamUserGetName, kUserProfiles, kImplemented);
