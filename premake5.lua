@@ -37,7 +37,7 @@ end
 characterset("Unicode")
 flags({
   --"ExtraWarnings",        -- Sets the compiler's maximum warning level.
-  "FatalWarnings",        -- Treat warnings as errors.
+  --"FatalWarnings",        -- Treat warnings as errors.
 })
 
 filter("kind:StaticLib")
