@@ -30,13 +30,13 @@ pr:
 jobs:
 - job:
   pool:
-    vmImage: vs2017-win2016
+    vmImage: windows-latest
   strategy:
     matrix:
       Release:
         configuration: Release
-#      Checked:
-#        configuration: Checked
+      Checked:
+        configuration: Checked
   steps:
   - script: |
       git config --global core.autocrlf input
