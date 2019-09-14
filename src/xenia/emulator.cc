@@ -47,6 +47,12 @@
 DEFINE_double(time_scalar, 1.0,
               "Scalar used to speed or slow time (1x, 2x, 1/2x, etc).",
               "General");
+DEFINE_string(
+    launch_module, "",
+    "Executable to launch from the .iso or the package instead of default.xex "
+    "or the module specified by the game. Leave blank to launch the default "
+    "module.",
+    "General");
 
 namespace xe {
 
@@ -598,6 +604,11 @@ void Emulator::WaitUntilExit() {
 
 std::string Emulator::FindLaunchModule() {
   std::string path("game:\\");
+
+  if (!cvars::launch_module.empty()) {
+    return path + cvars::launch_module;
+  }
+
   std::string default_module("default.xex");
 
   auto gameinfo_entry(file_system_->ResolvePath(path + "GameInfo.bin"));
