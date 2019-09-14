@@ -10,6 +10,8 @@
 #include "xenia/emulator.h"
 
 #include <cinttypes>
+#include <locale>
+#include <string>
 
 #include "config.h"
 #include "xenia/apu/audio_system.h"
@@ -47,6 +49,15 @@
 DEFINE_double(time_scalar, 1.0,
               "Scalar used to speed or slow time (1x, 2x, 1/2x, etc).",
               "General");
+DEFINE_string(HDD0_root, "", "Path to folder for HDD1.",
+              "Storage");
+DEFINE_string(HDD1_root, "",
+	"Path to folder for HDD1(can be identical to HDD0).", "Storage");
+DEFINE_string(NAND_root, "", "Path to folder for NAND FS.",
+              "Storage");
+DEFINE_string(DVD_drive, "", "Path to your optical drive.",
+              "Storage");
+
 
 namespace xe {
 
@@ -238,9 +249,59 @@ X_STATUS Emulator::TerminateTitle() {
   return X_STATUS_SUCCESS;
 }
 
+X_STATUS Emulator::SetupVFSDevice(std::wstring devicepath, std::wstring localpath,
+	                        std::wstring symlink) {
+  
+  std::string device_path = xe::to_string(devicepath);
+  std::string sym_link = xe::to_string(symlink);
+  
+  if (file_system_->ResolveDevice(device_path) != NULL) {
+    file_system_->UnregisterDevice(device_path);
+  }
+  
+  // Register the local directory in the virtual filesystem.
+  auto device0 = std::make_unique<vfs::HostPathDevice>(
+      device_path, localpath, false);
+  if (!device0->Initialize()) {
+    XELOGE("Unable to scan host path");
+    return X_STATUS_NO_SUCH_FILE;
+  }
+  if (!file_system_->RegisterDevice(std::move(device0))) {
+    XELOGE("Unable to register host path");
+    return X_STATUS_NO_SUCH_FILE;
+  } else {
+    XELOGE(" Device registered %S, %S", devicepath, localpath);
+  }
+  if (!symlink.empty()) {
+    file_system_->RegisterSymbolicLink(sym_link, device_path);
+  return X_STATUS_SUCCESS;
+  }
+  return X_STATUS_UNSUCCESSFUL;
+}
+
+void Emulator::SetupVFSDevices()
+{
+  std::wstring devicelist[4][3] = {
+  { L"\\Device\\Harddisk0\\Partition0", xe::to_wstring(cvars::HDD0_root), L"hdd0:" },
+  { L"\\Device\\Harddisk0\\Partition1", xe::to_wstring(cvars::HDD1_root), L"hdd1:" },
+  { L"\\SystemRoot", xe::to_wstring(cvars::NAND_root), L"flash:" },
+  { L"\\Device\\Cdrom0", xe::to_wstring(cvars::DVD_drive), L"dvd:" }
+  };
+  for (int i = 0; i < (sizeof(*devicelist) / sizeof(**devicelist) + 1); ++i) {
+    if (!devicelist[i][1].empty()) {
+      if (SetupVFSDevice(devicelist[i][0],devicelist[i][1],
+           devicelist[i][2]) == X_STATUS_SUCCESS) {
+        XELOGE(" Device %.2X symlinked as %S", i, devicelist[i][2]);
+      }
+    }
+  }
+}
 X_STATUS Emulator::LaunchPath(std::wstring path) {
-  // Launch based on file type.
-  // This is a silly guess based on file extension.
+  // Launch chosen file based on file extension.
+  // Setup devices here too for drives that need registered
+  // or unregistered in the case of a second launch.
+
+  SetupVFSDevices();
   auto last_slash = path.find_last_of(xe::kPathSeparator);
   auto last_dot = path.find_last_of('.');
   if (last_dot < last_slash) {
@@ -251,8 +312,8 @@ X_STATUS Emulator::LaunchPath(std::wstring path) {
     return LaunchStfsContainer(path);
   };
   auto extension = path.substr(last_dot);
-  std::transform(extension.begin(), extension.end(), extension.begin(),
-                 tolower);
+  std::transform(extension.begin(), extension.end(),
+	  extension.begin(), tolower);
   if (extension == L".xex" || extension == L".elf" || extension == L".exe") {
     // Treat as a naked xex file.
     return LaunchXexFile(path);
@@ -270,7 +331,11 @@ X_STATUS Emulator::LaunchXexFile(std::wstring path) {
   // and then get that symlinked to game:\, so
   // -> game:\foo.xex
 
-  auto mount_path = "\\Device\\Harddisk0\\Partition0";
+  std::string mount_path = "\\Device\\Harddisk0\\";
+
+  if (file_system_->ResolveDevice(mount_path) != NULL) {
+    file_system_->UnregisterDevice(mount_path);
+  }
 
   // Register the local directory in the virtual filesystem.
   auto parent_path = xe::find_base_path(path);
@@ -281,7 +346,7 @@ X_STATUS Emulator::LaunchXexFile(std::wstring path) {
     return X_STATUS_NO_SUCH_FILE;
   }
   if (!file_system_->RegisterDevice(std::move(device))) {
-    XELOGE("Unable to register host path");
+    XELOGE("Unable to register host path as %s", path.c_str());
     return X_STATUS_NO_SUCH_FILE;
   }
 
@@ -298,7 +363,11 @@ X_STATUS Emulator::LaunchXexFile(std::wstring path) {
 }
 
 X_STATUS Emulator::LaunchDiscImage(std::wstring path) {
-  auto mount_path = "\\Device\\Cdrom0";
+  auto mount_path = "\\Device\\LauncherData";
+
+  if (file_system_->ResolveDevice(mount_path) != NULL) {
+    file_system_->UnregisterDevice(mount_path);
+  }
 
   // Register the disc image in the virtual filesystem.
   auto device = std::make_unique<vfs::DiscImageDevice>(mount_path, path);
@@ -321,7 +390,11 @@ X_STATUS Emulator::LaunchDiscImage(std::wstring path) {
 }
 
 X_STATUS Emulator::LaunchStfsContainer(std::wstring path) {
-  auto mount_path = "\\Device\\Cdrom0";
+  auto mount_path = "\\Device\\LauncherData";
+
+  if (file_system_->ResolveDevice(mount_path) != NULL) {
+    file_system_->UnregisterDevice(mount_path);
+  }
 
   // Register the container in the virtual filesystem.
   auto device = std::make_unique<vfs::StfsContainerDevice>(mount_path, path);

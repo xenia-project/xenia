@@ -116,6 +116,12 @@ class Emulator {
   // Terminates the currently running title.
   X_STATUS TerminateTitle();
 
+  // takes array of emulated device paths, local paths, and symlinked drives
+  // handles initializing emulated devices
+  X_STATUS SetupVFSDevice(std::wstring devicepath, std::wstring localpath,
+                       std::wstring symlink);
+
+  void SetupVFSDevices();
   // Launches a game from the given file path.
   // This will attempt to infer the type of the given file (such as an iso, etc)
   // using heuristics.
