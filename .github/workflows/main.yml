@@ -1,0 +1,34 @@
+name: main
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        configuration: [Release]
+        platform: [Windows]
+    steps:
+    - uses: actions/checkout@master
+
+    - name: Setup
+      run: xb setup
+
+    - name: Build
+      run: xb build --config=${{matrix.configuration}} --target=src\xenia-app --target=tests\xenia-cpu-ppc-tests --target=src\xenia-vfs-dump
+
+    - name: After build
+      run: |
+          7z a artifacts\xenia-%appveyor_repo_branch%.zip LICENSE %GITHUB_WORKSPACE%\build\bin\${{matrix.platform}}\${{matrix.configuration}}\xenia.exe %GITHUB_WORKSPACE%\build\bin\${{matrix.platform}}\${{matrix.configuration}}\xenia.pdb
+          7z a artifacts\xenia-vfs-dump-%appveyor_repo_branch%.zip LICENSE %GITHUB_WORKSPACE%\build\bin\${{matrix.platform}}\${{matrix.configuration}}\xenia-vfs-dump.exe %GITHUB_WORKSPACE%\build\bin\${{matrix.platform}}\${{matrix.configuration}}\xenia-vfs-dump.pdb
+
+    - name: Tests
+      run: |
+          xb gentests
+          xb.bat test --config=${{matrix.configuration}} --no_build
+
+    - uses: actions/upload-artifact@master
+      with:
+        name: xenia-${{matrix.configuration}}
+        path: artifacts
