@@ -858,13 +858,57 @@ int InstrEmit_xoris(PPCHIRBuilder& f, const InstrData& i) {
 // Integer rotate (A-6)
 
 int InstrEmit_rldclx(PPCHIRBuilder& f, const InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // n <- rB[58:63]
+  // r <- ROTL[64](rS, n)
+  // b <- mb[5] || mb[0:4]
+  // m <- MASK(b, 63)
+  // rA <- r & m
+  Value* sh =
+    f.And(f.Truncate(f.LoadGPR(i.X.RB), INT8_TYPE), f.LoadConstantInt8(0x7F));
+
+  uint32_t mb = (i.MD.MB5 << 5) | i.MD.MB;
+  uint64_t m = XEMASK(mb, 63);
+  Value* v = f.LoadGPR(i.MD.RT);
+
+  if (sh) {
+    v = f.RotateLeft(v, sh);
+  }
+  if (m != 0xFFFFFFFFFFFFFFFF) {
+    v = f.And(v, f.LoadConstantUint64(m));
+  }
+
+  f.StoreGPR(i.MD.RA, v);
+  if (i.MD.Rc) {
+    f.UpdateCR(0, v);
+  }
+  return 0;
 }
 
 int InstrEmit_rldcrx(PPCHIRBuilder& f, const InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // n <- rB[58:63]
+  // r <- ROTL[64](rS, n)
+  // b <- mb[5] || mb[0:4]
+  // m <- MASK(0, b)
+  // rA <- r & m
+  Value* sh =
+    f.And(f.Truncate(f.LoadGPR(i.X.RB), INT8_TYPE), f.LoadConstantInt8(0x7F));
+
+  uint32_t mb = (i.MD.MB5 << 5) | i.MD.MB;
+  uint64_t m = XEMASK(0, mb);
+  Value* v = f.LoadGPR(i.MD.RT);
+
+  if (sh) {
+    v = f.RotateLeft(v, sh);
+  }
+  if (m != 0xFFFFFFFFFFFFFFFF) {
+    v = f.And(v, f.LoadConstantUint64(m));
+  }
+
+  f.StoreGPR(i.MD.RA, v);
+  if (i.MD.Rc) {
+    f.UpdateCR(0, v);
+  }
+  return 0;
 }
 
 int InstrEmit_rldicx(PPCHIRBuilder& f, const InstrData& i) {
