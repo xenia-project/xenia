@@ -37,6 +37,7 @@ SET "CANDIDATE_PATHS[0]=C:\python37\python.exe"
 SET "CANDIDATE_PATHS[1]=C:\python36\python.exe"
 SET "CANDIDATE_PATHS[2]=C:\python35\python.exe"
 SET "CANDIDATE_PATHS[3]=C:\python34\python.exe"
+SET "CANDIDATE_PATHS[4]=%userprofile%\AppData\Local\Microsoft\WindowsApps\python.exe
 SET OUTPUT_INDEX=4
 
 FOR /F "usebackq delims=" %%L IN (`2^>NUL where python3`) DO (
