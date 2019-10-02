@@ -72,7 +72,7 @@ xb genspirv
 
 #### Debugging
 
-VS behaves oddly with the debug paths. Open the xenia project properties
+VS behaves oddly with the debug paths. Open the 'xenia-app' project properties
 and set the 'Command' to `$(SolutionDir)$(TargetPath)` and the
 'Working Directory' to `$(SolutionDir)..\..`. You can specify flags and
 the file to run in the 'Command Arguments' field (or use `--flagfile=flags.txt`).
