@@ -25,6 +25,14 @@ std::shared_ptr<cpptoml::table> ParseFile(
     throw cpptoml::parse_exception(xe::path_to_utf8(filename) +
                                    " could not be opened for parsing");
   }
+  // since cpptoml can't parse files with a UTF-8 BOM we need to skip them
+  char bom[3];
+  file.read(bom, sizeof(bom));
+  if (file.fail() || bom[0] != '\xEF' || bom[1] != '\xBB' || bom[2] != '\xBF') {
+    file.clear();
+    file.seekg(0);
+  }
+
   cpptoml::parser p(file);
   return p.parse();
 }
