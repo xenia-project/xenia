@@ -46,10 +46,17 @@ DEFINE_uint32(
     "Config");
 
 namespace config {
-std::string config_name = "xenia.config.toml";
+std::string config_name = "xenia-canary.config.toml";
 std::filesystem::path config_folder;
 std::filesystem::path config_path;
 std::string game_config_suffix = ".config.toml";
+
+bool sortCvar(cvar::IConfigVar* a, cvar::IConfigVar* b) {
+  if (a->category() < b->category()) return true;
+  if (a->category() > b->category()) return false;
+  if (a->name() < b->name()) return true;
+  return false;
+}
 
 std::shared_ptr<cpptoml::table> ParseConfig(
     const std::filesystem::path& config_path) {
