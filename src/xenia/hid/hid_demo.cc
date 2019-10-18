@@ -42,18 +42,24 @@ std::vector<std::unique_ptr<hid::InputDriver>> CreateInputDrivers(
     drivers.emplace_back(xe::hid::nop::Create(window));
 #if XE_PLATFORM_WIN32
   } else if (cvars::hid.compare("winkey") == 0) {
-    drivers.emplace_back(xe::hid::winkey::Create(window));
+    auto driver = xe::hid::winkey::Create(window);
+    if (XSUCCEEDED(driver->Setup())) {
+      drivers.emplace_back(std::move(driver));
+    }
   } else if (cvars::hid.compare("xinput") == 0) {
-    drivers.emplace_back(xe::hid::xinput::Create(window));
+    auto driver = xe::hid::xinput::Create(window);
+    if (XSUCCEEDED(driver->Setup())) {
+      drivers.emplace_back(std::move(driver));
+    }
 #endif  // XE_PLATFORM_WIN32
   } else {
 #if XE_PLATFORM_WIN32
     auto xinput_driver = xe::hid::xinput::Create(window);
-    if (xinput_driver) {
+    if (xinput_driver && XSUCCEEDED(xinput_driver->Setup())) {
       drivers.emplace_back(std::move(xinput_driver));
     }
     auto winkey_driver = xe::hid::winkey::Create(window);
-    if (winkey_driver) {
+    if (winkey_driver && XSUCCEEDED(winkey_driver->Setup())) {
       drivers.emplace_back(std::move(winkey_driver));
     }
 #endif  // XE_PLATFORM_WIN32
