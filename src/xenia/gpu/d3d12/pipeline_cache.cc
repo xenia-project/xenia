@@ -207,8 +207,17 @@ bool PipelineCache::EnsureShadersTranslated(D3D12Shader* vertex_shader,
   assert_true(regs[XE_GPU_REG_SQ_PS_CONST].u32 == 0x000FF100 ||
               regs[XE_GPU_REG_SQ_PS_CONST].u32 == 0x00000000);
 
-  xenos::xe_gpu_program_cntl_t sq_program_cntl;
-  sq_program_cntl.dword_0 = regs[XE_GPU_REG_SQ_PROGRAM_CNTL].u32;
+  auto sq_program_cntl = regs.Get<reg::SQ_PROGRAM_CNTL>();
+
+  // Normal vertex shaders only, for now.
+  assert_true(sq_program_cntl.vs_export_mode ==
+                  xenos::VertexShaderExportMode::kPosition1Vector ||
+              sq_program_cntl.vs_export_mode ==
+                  xenos::VertexShaderExportMode::kPosition2VectorsSprite ||
+              sq_program_cntl.vs_export_mode ==
+                  xenos::VertexShaderExportMode::kMultipass);
+  assert_false(sq_program_cntl.gen_index_vtx);
+
   if (!vertex_shader->is_translated() &&
       !TranslateShader(vertex_shader, sq_program_cntl, tessellated,
                        primitive_type)) {
@@ -294,8 +303,7 @@ bool PipelineCache::ConfigurePipeline(
 }
 
 bool PipelineCache::TranslateShader(D3D12Shader* shader,
-                                    xenos::xe_gpu_program_cntl_t cntl,
-                                    bool tessellated,
+                                    reg::SQ_PROGRAM_CNTL cntl, bool tessellated,
                                     PrimitiveType primitive_type) {
   // Perform translation.
   // If this fails the shader will be marked as invalid and ignored later.
@@ -385,12 +393,12 @@ bool PipelineCache::GetCurrentStateDescription(
 
   // Primitive topology type, tessellation mode and geometry shader.
   if (tessellated) {
-    switch (TessellationMode(regs[XE_GPU_REG_VGT_HOS_CNTL].u32 & 0x3)) {
-      case TessellationMode::kContinuous:
+    switch (regs.Get<reg::VGT_HOS_CNTL>().tess_mode) {
+      case xenos::TessellationMode::kContinuous:
         description_out.tessellation_mode =
             PipelineTessellationMode::kContinuous;
         break;
-      case TessellationMode::kAdaptive:
+      case xenos::TessellationMode::kAdaptive:
         description_out.tessellation_mode =
             cvars::d3d12_tessellation_adaptive
                 ? PipelineTessellationMode::kAdaptive
@@ -559,20 +567,10 @@ bool PipelineCache::GetCurrentStateDescription(
   // CLIP_DISABLE
   description_out.depth_clip =
       (regs[XE_GPU_REG_PA_CL_CLIP_CNTL].u32 & (1 << 16)) == 0;
-  // TODO(DrChat): This seem to differ. Need to examine this.
-  // https://github.com/decaf-emu/decaf-emu/blob/c017a9ff8128852fb9a5da19466778a171cea6e1/src/libdecaf/src/gpu/latte_registers_pa.h#L11
-  // ZCLIP_NEAR_DISABLE
-  // description_out.depth_clip = (PA_CL_CLIP_CNTL & (1 << 26)) == 0;
-  // RASTERIZER_DISABLE
-  // Disable rendering in command processor if PA_CL_CLIP_CNTL & (1 << 22)?
   if (edram_rov_used_) {
     description_out.rov_msaa =
         ((regs[XE_GPU_REG_RB_SURFACE_INFO].u32 >> 16) & 0x3) != 0;
-  }
-
-  if (!edram_rov_used_) {
-    uint32_t rb_colorcontrol = regs[XE_GPU_REG_RB_COLORCONTROL].u32;
-
+  } else {
     // Depth/stencil. No stencil, always passing depth test and no depth writing
     // means depth disabled.
     if (render_targets[4].format != DXGI_FORMAT_UNKNOWN) {
@@ -711,7 +709,7 @@ bool PipelineCache::GetCurrentStateDescription(
       rt.format = RenderTargetCache::GetBaseColorFormat(
           ColorRenderTargetFormat((color_info >> 16) & 0xF));
       rt.write_mask = (color_mask >> (guest_rt_index * 4)) & 0xF;
-      if (!(rb_colorcontrol & 0x20) && rt.write_mask) {
+      if (rt.write_mask) {
         rt.src_blend = kBlendFactorMap[blendcontrol & 0x1F];
         rt.dest_blend = kBlendFactorMap[(blendcontrol >> 8) & 0x1F];
         rt.blend_op = BlendOp((blendcontrol >> 5) & 0x7);

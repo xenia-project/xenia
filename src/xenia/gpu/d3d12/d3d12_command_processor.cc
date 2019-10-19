@@ -1142,8 +1142,7 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
   SCOPE_profile_cpu_f("gpu");
 #endif  // FINE_GRAINED_DRAW_SCOPES
 
-  auto enable_mode = static_cast<xenos::ModeControl>(
-      regs[XE_GPU_REG_RB_MODECONTROL].u32 & 0x7);
+  xenos::ModeControl enable_mode = regs.Get<reg::RB_MODECONTROL>().edram_mode;
   if (enable_mode == xenos::ModeControl::kIgnore) {
     // Ignored.
     return true;
@@ -1153,7 +1152,7 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     return IssueCopy();
   }
 
-  if ((regs[XE_GPU_REG_RB_SURFACE_INFO].u32 & 0x3FFF) == 0) {
+  if (regs.Get<reg::RB_SURFACE_INFO>().surface_pitch == 0) {
     // Doesn't actually draw.
     // TODO(Triang3l): Do something so memexport still works in this case maybe?
     // Unlikely that zero would even really be legal though.
@@ -1164,7 +1163,8 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
   bool tessellated;
   if (uint32_t(primitive_type) >=
       uint32_t(PrimitiveType::kExplicitMajorModeForceStart)) {
-    tessellated = (regs[XE_GPU_REG_VGT_OUTPUT_PATH_CNTL].u32 & 0x3) == 0x1;
+    tessellated = regs.Get<reg::VGT_OUTPUT_PATH_CNTL>().path_select ==
+                  xenos::VGTOutputPath::kTessellationEnable;
   } else {
     tessellated = false;
   }
@@ -1202,8 +1202,9 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
   bool memexport_used = memexport_used_vertex || memexport_used_pixel;
 
   bool primitive_two_faced = IsPrimitiveTwoFaced(tessellated, primitive_type);
+  auto pa_su_sc_mode_cntl = regs.Get<reg::PA_SU_SC_MODE_CNTL>();
   if (!memexport_used_vertex && primitive_two_faced &&
-      (regs[XE_GPU_REG_PA_SU_SC_MODE_CNTL].u32 & 0x3) == 0x3) {
+      pa_su_sc_mode_cntl.cull_front && pa_su_sc_mode_cntl.cull_back) {
     // Both sides are culled - can't be expressed in the pipeline state.
     return true;
   }
@@ -1223,9 +1224,10 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
   // tessellation factors (as floats) instead of control point indices.
   bool adaptive_tessellation;
   if (tessellated) {
-    TessellationMode tessellation_mode =
-        TessellationMode(regs[XE_GPU_REG_VGT_HOS_CNTL].u32 & 0x3);
-    adaptive_tessellation = tessellation_mode == TessellationMode::kAdaptive;
+    xenos::TessellationMode tessellation_mode =
+        regs.Get<reg::VGT_HOS_CNTL>().tess_mode;
+    adaptive_tessellation =
+        tessellation_mode == xenos::TessellationMode::kAdaptive;
     if (adaptive_tessellation &&
         (!indexed || index_buffer_info->format != IndexFormat::kInt32)) {
       return false;
@@ -1235,7 +1237,7 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     // passed to vertex shader registers, especially if patches are drawn with
     // an index buffer.
     // https://www.slideshare.net/blackdevilvikas/next-generation-graphics-programming-on-xbox-360
-    if (tessellation_mode != TessellationMode::kAdaptive) {
+    if (tessellation_mode != xenos::TessellationMode::kAdaptive) {
       XELOGE(
           "Tessellation mode %u is not implemented yet, only adaptive is "
           "partially available now - report the game to Xenia developers!",
@@ -1309,20 +1311,16 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
       vertex_shader->GetUsedTextureMask(),
       pixel_shader != nullptr ? pixel_shader->GetUsedTextureMask() : 0);
 
-  // Check if early depth/stencil can be enabled explicitly by RB_DEPTHCONTROL
-  // or implicitly when alpha test and alpha to coverage are disabled.
-  uint32_t rb_depthcontrol = regs[XE_GPU_REG_RB_DEPTHCONTROL].u32;
-  uint32_t rb_colorcontrol = regs[XE_GPU_REG_RB_COLORCONTROL].u32;
-  bool early_z = false;
-  if (pixel_shader == nullptr) {
+  // Check if early depth/stencil can be enabled.
+  bool early_z;
+  if (pixel_shader) {
+    auto rb_colorcontrol = regs.Get<reg::RB_COLORCONTROL>();
+    early_z = pixel_shader->implicit_early_z_allowed() &&
+              (!rb_colorcontrol.alpha_test_enable ||
+               rb_colorcontrol.alpha_func == CompareFunction::kAlways) &&
+              !rb_colorcontrol.alpha_to_mask_enable;
+  } else {
     early_z = true;
-  } else if (!pixel_shader->writes_depth()) {
-    if (rb_depthcontrol & 0x8) {
-      early_z = true;
-    } else if (pixel_shader->implicit_early_z_allowed()) {
-      early_z = (!(rb_colorcontrol & 0x8) || (rb_colorcontrol & 0x7) == 0x7) &&
-                !(rb_colorcontrol & 0x10);
-    }
   }
 
   // Create the pipeline if needed and bind it.
@@ -1366,22 +1364,19 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
         (1ull << (vfetch_index & 63))) {
       continue;
     }
-    uint32_t vfetch_constant_index =
-        XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + vfetch_index * 2;
-    if ((regs[vfetch_constant_index].u32 & 0x3) != 3) {
+    const auto& vfetch_constant = regs.Get<xenos::xe_gpu_vertex_fetch_t>(
+        XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + vfetch_index * 2);
+    if (vfetch_constant.type != 3) {
       XELOGW("Vertex fetch type is not 3 (fetch constant %u is %.8X %.8X)!",
-             vfetch_index, regs[vfetch_constant_index].u32,
-             regs[vfetch_constant_index + 1].u32);
+             vfetch_index, vfetch_constant.dword_0, vfetch_constant.dword_1);
       return false;
     }
-    if (!shared_memory_->RequestRange(
-            regs[vfetch_constant_index].u32 & 0x1FFFFFFC,
-            regs[vfetch_constant_index + 1].u32 & 0x3FFFFFC)) {
+    if (!shared_memory_->RequestRange(vfetch_constant.address << 2,
+                                      vfetch_constant.size << 2)) {
       XELOGE(
           "Failed to request vertex buffer at 0x%.8X (size %u) in the shared "
           "memory",
-          regs[vfetch_constant_index].u32 & 0x1FFFFFFC,
-          regs[vfetch_constant_index + 1].u32 & 0x3FFFFFC);
+          vfetch_constant.address << 2, vfetch_constant.size << 2);
       return false;
     }
     vertex_buffers_resident[vfetch_index >> 6] |= 1ull << (vfetch_index & 63);
@@ -1400,31 +1395,29 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     const std::vector<uint32_t>& memexport_stream_constants_vertex =
         vertex_shader->memexport_stream_constants();
     for (uint32_t constant_index : memexport_stream_constants_vertex) {
-      const xenos::xe_gpu_memexport_stream_t* memexport_stream =
-          reinterpret_cast<const xenos::xe_gpu_memexport_stream_t*>(
-              &regs[XE_GPU_REG_SHADER_CONSTANT_000_X + constant_index * 4]);
-      if (memexport_stream->index_count == 0) {
+      const auto& memexport_stream = regs.Get<xenos::xe_gpu_memexport_stream_t>(
+          XE_GPU_REG_SHADER_CONSTANT_000_X + constant_index * 4);
+      if (memexport_stream.index_count == 0) {
         continue;
       }
       uint32_t memexport_format_size =
-          GetSupportedMemExportFormatSize(memexport_stream->format);
+          GetSupportedMemExportFormatSize(memexport_stream.format);
       if (memexport_format_size == 0) {
-        XELOGE(
-            "Unsupported memexport format %s",
-            FormatInfo::Get(TextureFormat(uint32_t(memexport_stream->format)))
-                ->name);
+        XELOGE("Unsupported memexport format %s",
+               FormatInfo::Get(TextureFormat(uint32_t(memexport_stream.format)))
+                   ->name);
         return false;
       }
-      uint32_t memexport_base_address = memexport_stream->base_address;
       uint32_t memexport_size_dwords =
-          memexport_stream->index_count * memexport_format_size;
+          memexport_stream.index_count * memexport_format_size;
       // Try to reduce the number of shared memory operations when writing
       // different elements into the same buffer through different exports
       // (happens in Halo 3).
       bool memexport_range_reused = false;
       for (uint32_t i = 0; i < memexport_range_count; ++i) {
         MemExportRange& memexport_range = memexport_ranges[i];
-        if (memexport_range.base_address_dwords == memexport_base_address) {
+        if (memexport_range.base_address_dwords ==
+            memexport_stream.base_address) {
           memexport_range.size_dwords =
               std::max(memexport_range.size_dwords, memexport_size_dwords);
           memexport_range_reused = true;
@@ -1435,7 +1428,7 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
       if (!memexport_range_reused) {
         MemExportRange& memexport_range =
             memexport_ranges[memexport_range_count++];
-        memexport_range.base_address_dwords = memexport_base_address;
+        memexport_range.base_address_dwords = memexport_stream.base_address;
         memexport_range.size_dwords = memexport_size_dwords;
       }
     }
@@ -1444,28 +1437,26 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     const std::vector<uint32_t>& memexport_stream_constants_pixel =
         pixel_shader->memexport_stream_constants();
     for (uint32_t constant_index : memexport_stream_constants_pixel) {
-      const xenos::xe_gpu_memexport_stream_t* memexport_stream =
-          reinterpret_cast<const xenos::xe_gpu_memexport_stream_t*>(
-              &regs[XE_GPU_REG_SHADER_CONSTANT_256_X + constant_index * 4]);
-      if (memexport_stream->index_count == 0) {
+      const auto& memexport_stream = regs.Get<xenos::xe_gpu_memexport_stream_t>(
+          XE_GPU_REG_SHADER_CONSTANT_256_X + constant_index * 4);
+      if (memexport_stream.index_count == 0) {
         continue;
       }
       uint32_t memexport_format_size =
-          GetSupportedMemExportFormatSize(memexport_stream->format);
+          GetSupportedMemExportFormatSize(memexport_stream.format);
       if (memexport_format_size == 0) {
-        XELOGE(
-            "Unsupported memexport format %s",
-            FormatInfo::Get(TextureFormat(uint32_t(memexport_stream->format)))
-                ->name);
+        XELOGE("Unsupported memexport format %s",
+               FormatInfo::Get(TextureFormat(uint32_t(memexport_stream.format)))
+                   ->name);
         return false;
       }
-      uint32_t memexport_base_address = memexport_stream->base_address;
       uint32_t memexport_size_dwords =
-          memexport_stream->index_count * memexport_format_size;
+          memexport_stream.index_count * memexport_format_size;
       bool memexport_range_reused = false;
       for (uint32_t i = 0; i < memexport_range_count; ++i) {
         MemExportRange& memexport_range = memexport_ranges[i];
-        if (memexport_range.base_address_dwords == memexport_base_address) {
+        if (memexport_range.base_address_dwords ==
+            memexport_stream.base_address) {
           memexport_range.size_dwords =
               std::max(memexport_range.size_dwords, memexport_size_dwords);
           memexport_range_reused = true;
@@ -1475,7 +1466,7 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
       if (!memexport_range_reused) {
         MemExportRange& memexport_range =
             memexport_ranges[memexport_range_count++];
-        memexport_range.base_address_dwords = memexport_base_address;
+        memexport_range.base_address_dwords = memexport_stream.base_address;
         memexport_range.size_dwords = memexport_size_dwords;
       }
     }
@@ -1850,15 +1841,7 @@ void D3D12CommandProcessor::UpdateFixedFunctionState(bool primitive_two_faced) {
   // http://ftp.tku.edu.tw/NetBSD/NetBSD-current/xsrc/external/mit/xf86-video-ati/dist/src/r600_reg_auto_r6xx.h
   // See r200UpdateWindow:
   // https://github.com/freedreno/mesa/blob/master/src/mesa/drivers/dri/r200/r200_state.c
-  uint32_t pa_sc_window_offset = regs[XE_GPU_REG_PA_SC_WINDOW_OFFSET].u32;
-  int16_t window_offset_x = pa_sc_window_offset & 0x7FFF;
-  int16_t window_offset_y = (pa_sc_window_offset >> 16) & 0x7FFF;
-  if (window_offset_x & 0x4000) {
-    window_offset_x |= 0x8000;
-  }
-  if (window_offset_y & 0x4000) {
-    window_offset_y |= 0x8000;
-  }
+  auto pa_sc_window_offset = regs.Get<reg::PA_SC_WINDOW_OFFSET>();
 
   // Supersampling replacing multisampling due to difficulties of emulating
   // EDRAM with multisampling with RTV/DSV (with ROV, there's MSAA), and also
@@ -1868,8 +1851,7 @@ void D3D12CommandProcessor::UpdateFixedFunctionState(bool primitive_two_faced) {
     pixel_size_x = 1;
     pixel_size_y = 1;
   } else {
-    MsaaSamples msaa_samples =
-        MsaaSamples((regs[XE_GPU_REG_RB_SURFACE_INFO].u32 >> 16) & 0x3);
+    MsaaSamples msaa_samples = regs.Get<reg::RB_SURFACE_INFO>().msaa_samples;
     pixel_size_x = msaa_samples >= MsaaSamples::k4X ? 2 : 1;
     pixel_size_y = msaa_samples >= MsaaSamples::k2X ? 2 : 1;
   }
@@ -1889,30 +1871,30 @@ void D3D12CommandProcessor::UpdateFixedFunctionState(bool primitive_two_faced) {
   // box. If it's not, the position is in screen space. Since we can only use
   // the NDC in PC APIs, we use a viewport of the largest possible size, and
   // divide the position by it in translated shaders.
-  uint32_t pa_cl_vte_cntl = regs[XE_GPU_REG_PA_CL_VTE_CNTL].u32;
+  auto pa_cl_vte_cntl = regs.Get<reg::PA_CL_VTE_CNTL>();
   float viewport_scale_x =
-      (pa_cl_vte_cntl & (1 << 0))
+      pa_cl_vte_cntl.vport_x_scale_ena
           ? std::abs(regs[XE_GPU_REG_PA_CL_VPORT_XSCALE].f32)
           : 1280.0f;
   float viewport_scale_y =
-      (pa_cl_vte_cntl & (1 << 2))
+      pa_cl_vte_cntl.vport_y_scale_ena
           ? std::abs(regs[XE_GPU_REG_PA_CL_VPORT_YSCALE].f32)
           : 1280.0f;
-  float viewport_scale_z = (pa_cl_vte_cntl & (1 << 4))
+  float viewport_scale_z = pa_cl_vte_cntl.vport_z_scale_ena
                                ? regs[XE_GPU_REG_PA_CL_VPORT_ZSCALE].f32
                                : 1.0f;
-  float viewport_offset_x = (pa_cl_vte_cntl & (1 << 1))
+  float viewport_offset_x = pa_cl_vte_cntl.vport_x_offset_ena
                                 ? regs[XE_GPU_REG_PA_CL_VPORT_XOFFSET].f32
                                 : std::abs(viewport_scale_x);
-  float viewport_offset_y = (pa_cl_vte_cntl & (1 << 3))
+  float viewport_offset_y = pa_cl_vte_cntl.vport_y_offset_ena
                                 ? regs[XE_GPU_REG_PA_CL_VPORT_YOFFSET].f32
                                 : std::abs(viewport_scale_y);
-  float viewport_offset_z = (pa_cl_vte_cntl & (1 << 5))
+  float viewport_offset_z = pa_cl_vte_cntl.vport_z_offset_ena
                                 ? regs[XE_GPU_REG_PA_CL_VPORT_ZOFFSET].f32
                                 : 0.0f;
-  if (regs[XE_GPU_REG_PA_SU_SC_MODE_CNTL].u32 & (1 << 16)) {
-    viewport_offset_x += float(window_offset_x);
-    viewport_offset_y += float(window_offset_y);
+  if (regs.Get<reg::PA_SU_SC_MODE_CNTL>().vtx_window_offset_enable) {
+    viewport_offset_x += float(pa_sc_window_offset.window_x_offset);
+    viewport_offset_y += float(pa_sc_window_offset.window_y_offset);
   }
   D3D12_VIEWPORT viewport;
   viewport.TopLeftX =
@@ -1941,21 +1923,22 @@ void D3D12CommandProcessor::UpdateFixedFunctionState(bool primitive_two_faced) {
   }
 
   // Scissor.
-  uint32_t pa_sc_window_scissor_tl =
-      regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL].u32;
-  uint32_t pa_sc_window_scissor_br =
-      regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_BR].u32;
+  auto pa_sc_window_scissor_tl = regs.Get<reg::PA_SC_WINDOW_SCISSOR_TL>();
+  auto pa_sc_window_scissor_br = regs.Get<reg::PA_SC_WINDOW_SCISSOR_BR>();
   D3D12_RECT scissor;
-  scissor.left = pa_sc_window_scissor_tl & 0x7FFF;
-  scissor.top = (pa_sc_window_scissor_tl >> 16) & 0x7FFF;
-  scissor.right = pa_sc_window_scissor_br & 0x7FFF;
-  scissor.bottom = (pa_sc_window_scissor_br >> 16) & 0x7FFF;
-  if (!(pa_sc_window_scissor_tl & (1u << 31))) {
-    // !WINDOW_OFFSET_DISABLE.
-    scissor.left = std::max(scissor.left + window_offset_x, LONG(0));
-    scissor.top = std::max(scissor.top + window_offset_y, LONG(0));
-    scissor.right = std::max(scissor.right + window_offset_x, LONG(0));
-    scissor.bottom = std::max(scissor.bottom + window_offset_y, LONG(0));
+  scissor.left = pa_sc_window_scissor_tl.tl_x;
+  scissor.top = pa_sc_window_scissor_tl.tl_y;
+  scissor.right = pa_sc_window_scissor_br.br_x;
+  scissor.bottom = pa_sc_window_scissor_br.br_y;
+  if (!pa_sc_window_scissor_tl.window_offset_disable) {
+    scissor.left =
+        std::max(scissor.left + pa_sc_window_offset.window_x_offset, LONG(0));
+    scissor.top =
+        std::max(scissor.top + pa_sc_window_offset.window_y_offset, LONG(0));
+    scissor.right =
+        std::max(scissor.right + pa_sc_window_offset.window_x_offset, LONG(0));
+    scissor.bottom =
+        std::max(scissor.bottom + pa_sc_window_offset.window_y_offset, LONG(0));
   }
   scissor.left *= pixel_size_x;
   scissor.top *= pixel_size_y;
@@ -1992,13 +1975,17 @@ void D3D12CommandProcessor::UpdateFixedFunctionState(bool primitive_two_faced) {
 
     // Stencil reference value. Per-face reference not supported by Direct3D 12,
     // choose the back face one only if drawing only back faces.
-    uint32_t stencil_ref;
-    if (primitive_two_faced && (regs[XE_GPU_REG_RB_DEPTHCONTROL].u32 & 0x80) &&
-        (regs[XE_GPU_REG_PA_SU_SC_MODE_CNTL].u32 & 0x3) == 1) {
-      stencil_ref = regs[XE_GPU_REG_RB_STENCILREFMASK_BF].u32 & 0xFF;
+    uint32_t stencil_ref_mask_reg;
+    auto pa_su_sc_mode_cntl = regs.Get<reg::PA_SU_SC_MODE_CNTL>();
+    if (primitive_two_faced &&
+        regs.Get<reg::RB_DEPTHCONTROL>().backface_enable &&
+        pa_su_sc_mode_cntl.cull_front && !pa_su_sc_mode_cntl.cull_back) {
+      stencil_ref_mask_reg = XE_GPU_REG_RB_STENCILREFMASK_BF;
     } else {
-      stencil_ref = regs[XE_GPU_REG_RB_STENCILREFMASK].u32 & 0xFF;
+      stencil_ref_mask_reg = XE_GPU_REG_RB_STENCILREFMASK;
     }
+    uint32_t stencil_ref =
+        regs.Get<reg::RB_STENCILREFMASK>(stencil_ref_mask_reg).stencilref;
     ff_stencil_ref_update_needed_ |= ff_stencil_ref_ != stencil_ref;
     if (ff_stencil_ref_update_needed_) {
       ff_stencil_ref_ = stencil_ref;
@@ -2019,64 +2006,55 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   SCOPE_profile_cpu_f("gpu");
 #endif  // FINE_GRAINED_DRAW_SCOPES
 
-  uint32_t pa_cl_clip_cntl = regs[XE_GPU_REG_PA_CL_CLIP_CNTL].u32;
-  uint32_t pa_cl_vte_cntl = regs[XE_GPU_REG_PA_CL_VTE_CNTL].u32;
-  uint32_t pa_su_point_minmax = regs[XE_GPU_REG_PA_SU_POINT_MINMAX].u32;
-  uint32_t pa_su_point_size = regs[XE_GPU_REG_PA_SU_POINT_SIZE].u32;
-  uint32_t pa_su_sc_mode_cntl = regs[XE_GPU_REG_PA_SU_SC_MODE_CNTL].u32;
-  uint32_t pa_su_vtx_cntl = regs[XE_GPU_REG_PA_SU_VTX_CNTL].u32;
+  auto pa_cl_clip_cntl = regs.Get<reg::PA_CL_CLIP_CNTL>();
+  auto pa_cl_vte_cntl = regs.Get<reg::PA_CL_VTE_CNTL>();
+  auto pa_su_point_minmax = regs.Get<reg::PA_SU_POINT_MINMAX>();
+  auto pa_su_point_size = regs.Get<reg::PA_SU_POINT_SIZE>();
+  auto pa_su_sc_mode_cntl = regs.Get<reg::PA_SU_SC_MODE_CNTL>();
+  auto pa_su_vtx_cntl = regs.Get<reg::PA_SU_VTX_CNTL>();
   float rb_alpha_ref = regs[XE_GPU_REG_RB_ALPHA_REF].f32;
-  uint32_t rb_colorcontrol = regs[XE_GPU_REG_RB_COLORCONTROL].u32;
-  uint32_t rb_depth_info = regs[XE_GPU_REG_RB_DEPTH_INFO].u32;
-  uint32_t rb_depthcontrol = regs[XE_GPU_REG_RB_DEPTHCONTROL].u32;
-  uint32_t rb_stencilrefmask = regs[XE_GPU_REG_RB_STENCILREFMASK].u32;
-  uint32_t rb_stencilrefmask_bf = regs[XE_GPU_REG_RB_STENCILREFMASK_BF].u32;
-  uint32_t rb_surface_info = regs[XE_GPU_REG_RB_SURFACE_INFO].u32;
-  uint32_t sq_context_misc = regs[XE_GPU_REG_SQ_CONTEXT_MISC].u32;
-  uint32_t sq_program_cntl = regs[XE_GPU_REG_SQ_PROGRAM_CNTL].u32;
+  auto rb_colorcontrol = regs.Get<reg::RB_COLORCONTROL>();
+  auto rb_depth_info = regs.Get<reg::RB_DEPTH_INFO>();
+  auto rb_depthcontrol = regs.Get<reg::RB_DEPTHCONTROL>();
+  auto rb_stencilrefmask = regs.Get<reg::RB_STENCILREFMASK>();
+  auto rb_stencilrefmask_bf =
+      regs.Get<reg::RB_STENCILREFMASK>(XE_GPU_REG_RB_STENCILREFMASK_BF);
+  auto rb_surface_info = regs.Get<reg::RB_SURFACE_INFO>();
+  auto sq_context_misc = regs.Get<reg::SQ_CONTEXT_MISC>();
+  auto sq_program_cntl = regs.Get<reg::SQ_PROGRAM_CNTL>();
   int32_t vgt_indx_offset = int32_t(regs[XE_GPU_REG_VGT_INDX_OFFSET].u32);
 
   // Get the color info register values for each render target, and also put
   // some safety measures for the ROV path - disable fully aliased render
   // targets. Also, for ROV, exclude components that don't exist in the format
   // from the write mask.
-  uint32_t color_infos[4];
-  ColorRenderTargetFormat color_formats[4];
+  reg::RB_COLOR_INFO color_infos[4];
   float rt_clamp[4][4];
   uint32_t rt_keep_masks[4][2];
   for (uint32_t i = 0; i < 4; ++i) {
-    uint32_t color_info;
-    switch (i) {
-      case 1:
-        color_info = regs[XE_GPU_REG_RB_COLOR1_INFO].u32;
-        break;
-      case 2:
-        color_info = regs[XE_GPU_REG_RB_COLOR2_INFO].u32;
-        break;
-      case 3:
-        color_info = regs[XE_GPU_REG_RB_COLOR3_INFO].u32;
-        break;
-      default:
-        color_info = regs[XE_GPU_REG_RB_COLOR_INFO].u32;
-    }
+    static const uint32_t kColorInfoRegs[] = {
+        XE_GPU_REG_RB_COLOR_INFO,
+        XE_GPU_REG_RB_COLOR1_INFO,
+        XE_GPU_REG_RB_COLOR2_INFO,
+        XE_GPU_REG_RB_COLOR3_INFO,
+    };
+    auto color_info = regs.Get<reg::RB_COLOR_INFO>(kColorInfoRegs[i]);
     color_infos[i] = color_info;
-    color_formats[i] = ColorRenderTargetFormat((color_info >> 16) & 0xF);
 
     if (IsROVUsedForEDRAM()) {
       // Get the mask for keeping previous color's components unmodified,
       // or two UINT32_MAX if no colors actually existing in the RT are written.
       DxbcShaderTranslator::ROV_GetColorFormatSystemConstants(
-          color_formats[i], (color_mask >> (i * 4)) & 0b1111, rt_clamp[i][0],
-          rt_clamp[i][1], rt_clamp[i][2], rt_clamp[i][3], rt_keep_masks[i][0],
-          rt_keep_masks[i][1]);
+          color_info.color_format, (color_mask >> (i * 4)) & 0b1111,
+          rt_clamp[i][0], rt_clamp[i][1], rt_clamp[i][2], rt_clamp[i][3],
+          rt_keep_masks[i][0], rt_keep_masks[i][1]);
 
       // Disable the render target if it has the same EDRAM base as another one
       // (with a smaller index - assume it's more important).
       if (rt_keep_masks[i][0] == UINT32_MAX &&
           rt_keep_masks[i][1] == UINT32_MAX) {
-        uint32_t edram_base = color_info & 0xFFF;
         for (uint32_t j = 0; j < i; ++j) {
-          if (edram_base == (color_infos[j] & 0xFFF) &&
+          if (color_info.color_base == color_infos[j].color_base &&
               (rt_keep_masks[j][0] != UINT32_MAX ||
                rt_keep_masks[j][1] != UINT32_MAX)) {
             rt_keep_masks[i][0] = UINT32_MAX;
@@ -2091,20 +2069,21 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   // Disable depth and stencil if it aliases a color render target (for
   // instance, during the XBLA logo in Banjo-Kazooie, though depth writing is
   // already disabled there).
-  if (IsROVUsedForEDRAM() && (rb_depthcontrol & (0x1 | 0x2))) {
-    uint32_t edram_base_depth = rb_depth_info & 0xFFF;
+  bool depth_stencil_enabled =
+      rb_depthcontrol.stencil_enable || rb_depthcontrol.z_enable;
+  if (IsROVUsedForEDRAM() && depth_stencil_enabled) {
     for (uint32_t i = 0; i < 4; ++i) {
-      if (edram_base_depth == (color_infos[i] & 0xFFF) &&
+      if (rb_depth_info.depth_base == color_infos[i].color_base &&
           (rt_keep_masks[i][0] != UINT32_MAX ||
            rt_keep_masks[i][1] != UINT32_MAX)) {
-        rb_depthcontrol &= ~(uint32_t(0x1 | 0x2));
+        depth_stencil_enabled = false;
         break;
       }
     }
   }
 
   // Get viewport Z scale - needed for flags and ROV output.
-  float viewport_scale_z = (pa_cl_vte_cntl & (1 << 4))
+  float viewport_scale_z = pa_cl_vte_cntl.vport_z_scale_ena
                                ? regs[XE_GPU_REG_PA_CL_VPORT_ZSCALE].f32
                                : 1.0f;
 
@@ -2126,18 +2105,18 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   //              = false: multiply the Z coordinate by 1/W0.
   // 10: VTX_W0_FMT = true: the incoming W0 is not 1/W0. Perform the reciprocal
   //                        to get 1/W0.
-  if (pa_cl_vte_cntl & (1 << 8)) {
+  if (pa_cl_vte_cntl.vtx_xy_fmt) {
     flags |= DxbcShaderTranslator::kSysFlag_XYDividedByW;
   }
-  if (pa_cl_vte_cntl & (1 << 9)) {
+  if (pa_cl_vte_cntl.vtx_z_fmt) {
     flags |= DxbcShaderTranslator::kSysFlag_ZDividedByW;
   }
-  if (pa_cl_vte_cntl & (1 << 10)) {
+  if (pa_cl_vte_cntl.vtx_w0_fmt) {
     flags |= DxbcShaderTranslator::kSysFlag_WNotReciprocal;
   }
   // User clip planes (UCP_ENA_#), when not CLIP_DISABLE.
-  if (!(pa_cl_clip_cntl & (1 << 16))) {
-    flags |= (pa_cl_clip_cntl & 0b111111)
+  if (!pa_cl_clip_cntl.clip_disable) {
+    flags |= (pa_cl_clip_cntl.value & 0b111111)
              << DxbcShaderTranslator::kSysFlag_UserClipPlane0_Shift;
   }
   // Reversed depth.
@@ -2145,8 +2124,8 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
     flags |= DxbcShaderTranslator::kSysFlag_ReverseZ;
   }
   // Alpha test.
-  if (rb_colorcontrol & 0x8) {
-    flags |= (rb_colorcontrol & 0x7)
+  if (rb_colorcontrol.alpha_test_enable) {
+    flags |= uint32_t(rb_colorcontrol.alpha_func.value())
              << DxbcShaderTranslator::kSysFlag_AlphaPassIfLess_Shift;
   } else {
     flags |= DxbcShaderTranslator::kSysFlag_AlphaPassIfLess |
@@ -2154,25 +2133,25 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
              DxbcShaderTranslator::kSysFlag_AlphaPassIfGreater;
   }
   // Alpha to coverage.
-  if (rb_colorcontrol & 0x10) {
+  if (rb_colorcontrol.alpha_to_mask_enable) {
     flags |= DxbcShaderTranslator::kSysFlag_AlphaToCoverage;
   }
   // Gamma writing.
   for (uint32_t i = 0; i < 4; ++i) {
-    if (color_formats[i] == ColorRenderTargetFormat::k_8_8_8_8_GAMMA) {
+    if (color_infos[i].color_format ==
+        ColorRenderTargetFormat::k_8_8_8_8_GAMMA) {
       flags |= DxbcShaderTranslator::kSysFlag_Color0Gamma << i;
     }
   }
-  if (IsROVUsedForEDRAM() && (rb_depthcontrol & (0x1 | 0x2))) {
+  if (IsROVUsedForEDRAM() && depth_stencil_enabled) {
     flags |= DxbcShaderTranslator::kSysFlag_ROVDepthStencil;
-    if (DepthRenderTargetFormat((rb_depth_info >> 16) & 0x1) ==
-        DepthRenderTargetFormat::kD24FS8) {
+    if (rb_depth_info.depth_format == DepthRenderTargetFormat::kD24FS8) {
       flags |= DxbcShaderTranslator::kSysFlag_ROVDepthFloat24;
     }
-    if (rb_depthcontrol & 0x2) {
-      flags |= ((rb_depthcontrol >> 4) & 0x7)
+    if (rb_depthcontrol.z_enable) {
+      flags |= uint32_t(rb_depthcontrol.zfunc.value())
                << DxbcShaderTranslator::kSysFlag_ROVDepthPassIfLess_Shift;
-      if (rb_depthcontrol & 0x4) {
+      if (rb_depthcontrol.z_write_enable) {
         flags |= DxbcShaderTranslator::kSysFlag_ROVDepthWrite;
       }
     } else {
@@ -2182,7 +2161,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
                DxbcShaderTranslator::kSysFlag_ROVDepthPassIfEqual |
                DxbcShaderTranslator::kSysFlag_ROVDepthPassIfGreater;
     }
-    if (rb_depthcontrol & 0x1) {
+    if (rb_depthcontrol.stencil_enable) {
       flags |= DxbcShaderTranslator::kSysFlag_ROVStencilTest;
     }
     if (early_z) {
@@ -2223,9 +2202,9 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
       index_endian_and_edge_factors;
 
   // User clip planes (UCP_ENA_#), when not CLIP_DISABLE.
-  if (!(pa_cl_clip_cntl & (1 << 16))) {
+  if (!pa_cl_clip_cntl.clip_disable) {
     for (uint32_t i = 0; i < 6; ++i) {
-      if (!(pa_cl_clip_cntl & (1 << i))) {
+      if (!(pa_cl_clip_cntl.value & (1 << i))) {
         continue;
       }
       const float* ucp = &regs[XE_GPU_REG_PA_CL_UCP_0_X + i * 4].f32;
@@ -2249,45 +2228,49 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   // different register (and if there's such register at all).
   float viewport_scale_x = regs[XE_GPU_REG_PA_CL_VPORT_XSCALE].f32;
   float viewport_scale_y = regs[XE_GPU_REG_PA_CL_VPORT_YSCALE].f32;
+  // When VPORT_Z_SCALE_ENA is disabled, Z/W is directly what is expected to be
+  // written to the depth buffer, and for some reason DX_CLIP_SPACE_DEF isn't
+  // set in this case in draws in games.
   bool gl_clip_space_def =
-      !(pa_cl_clip_cntl & (1 << 19)) && (pa_cl_vte_cntl & (1 << 4));
+      !pa_cl_clip_cntl.dx_clip_space_def && pa_cl_vte_cntl.vport_z_scale_ena;
   float ndc_scale_x, ndc_scale_y, ndc_scale_z;
-  if (primitive_two_faced && (pa_su_sc_mode_cntl & 0x3) == 0x3) {
+  if (primitive_two_faced && pa_su_sc_mode_cntl.cull_front &&
+      pa_su_sc_mode_cntl.cull_back) {
     // Kill all primitives if both faces are culled, but the vertex shader still
     // needs to do memexport (not NaN because of comparison for setting the
     // dirty flag).
     ndc_scale_x = ndc_scale_y = ndc_scale_z = 0;
   } else {
-    if (pa_cl_vte_cntl & (1 << 0)) {
+    if (pa_cl_vte_cntl.vport_x_scale_ena) {
       ndc_scale_x = viewport_scale_x >= 0.0f ? 1.0f : -1.0f;
     } else {
       ndc_scale_x = 1.0f / 1280.0f;
     }
-    if (pa_cl_vte_cntl & (1 << 2)) {
+    if (pa_cl_vte_cntl.vport_y_scale_ena) {
       ndc_scale_y = viewport_scale_y >= 0.0f ? -1.0f : 1.0f;
     } else {
       ndc_scale_y = -1.0f / 1280.0f;
     }
     ndc_scale_z = gl_clip_space_def ? 0.5f : 1.0f;
   }
-  float ndc_offset_x = (pa_cl_vte_cntl & (1 << 1)) ? 0.0f : -1.0f;
-  float ndc_offset_y = (pa_cl_vte_cntl & (1 << 3)) ? 0.0f : 1.0f;
+  float ndc_offset_x = pa_cl_vte_cntl.vport_x_offset_ena ? 0.0f : -1.0f;
+  float ndc_offset_y = pa_cl_vte_cntl.vport_y_offset_ena ? 0.0f : 1.0f;
   float ndc_offset_z = gl_clip_space_def ? 0.5f : 0.0f;
   // Like in OpenGL - VPOS giving pixel centers.
   // TODO(Triang3l): Check if ps_param_gen should give center positions in
   // OpenGL mode on the Xbox 360.
   float pixel_half_pixel_offset = 0.5f;
-  if (cvars::d3d12_half_pixel_offset && !(pa_su_vtx_cntl & (1 << 0))) {
+  if (cvars::d3d12_half_pixel_offset && !pa_su_vtx_cntl.pix_center) {
     // Signs are hopefully correct here, tested in GTA IV on both clearing
     // (without a viewport) and drawing things near the edges of the screen.
-    if (pa_cl_vte_cntl & (1 << 0)) {
+    if (pa_cl_vte_cntl.vport_x_scale_ena) {
       if (viewport_scale_x != 0.0f) {
         ndc_offset_x += 0.5f / viewport_scale_x;
       }
     } else {
       ndc_offset_x += 1.0f / 2560.0f;
     }
-    if (pa_cl_vte_cntl & (1 << 2)) {
+    if (pa_cl_vte_cntl.vport_y_scale_ena) {
       if (viewport_scale_y != 0.0f) {
         ndc_offset_y += 0.5f / viewport_scale_y;
       }
@@ -2313,10 +2296,10 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   system_constants_.pixel_half_pixel_offset = pixel_half_pixel_offset;
 
   // Point size.
-  float point_size_x = float(pa_su_point_size >> 16) * 0.125f;
-  float point_size_y = float(pa_su_point_size & 0xFFFF) * 0.125f;
-  float point_size_min = float(pa_su_point_minmax & 0xFFFF) * 0.125f;
-  float point_size_max = float(pa_su_point_minmax >> 16) * 0.125f;
+  float point_size_x = float(pa_su_point_size.width) * 0.125f;
+  float point_size_y = float(pa_su_point_size.height) * 0.125f;
+  float point_size_min = float(pa_su_point_minmax.min_size) * 0.125f;
+  float point_size_max = float(pa_su_point_minmax.max_size) * 0.125f;
   dirty |= system_constants_.point_size[0] != point_size_x;
   dirty |= system_constants_.point_size[1] != point_size_y;
   dirty |= system_constants_.point_size_min_max[0] != point_size_min;
@@ -2326,13 +2309,13 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   system_constants_.point_size_min_max[0] = point_size_min;
   system_constants_.point_size_min_max[1] = point_size_max;
   float point_screen_to_ndc_x, point_screen_to_ndc_y;
-  if (pa_cl_vte_cntl & (1 << 0)) {
+  if (pa_cl_vte_cntl.vport_x_scale_ena) {
     point_screen_to_ndc_x =
         (viewport_scale_x != 0.0f) ? (0.5f / viewport_scale_x) : 0.0f;
   } else {
     point_screen_to_ndc_x = 1.0f / 2560.0f;
   }
-  if (pa_cl_vte_cntl & (1 << 2)) {
+  if (pa_cl_vte_cntl.vport_y_scale_ena) {
     point_screen_to_ndc_y =
         (viewport_scale_y != 0.0f) ? (-0.5f / viewport_scale_y) : 0.0f;
   } else {
@@ -2345,15 +2328,16 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
 
   // Pixel position register.
   uint32_t pixel_pos_reg =
-      (sq_program_cntl & (1 << 18)) ? (sq_context_misc >> 8) & 0xFF : UINT_MAX;
+      sq_program_cntl.param_gen ? sq_context_misc.param_gen_pos : UINT_MAX;
   dirty |= system_constants_.pixel_pos_reg != pixel_pos_reg;
   system_constants_.pixel_pos_reg = pixel_pos_reg;
 
   // Log2 of sample count, for scaling VPOS with SSAA (without ROV) and for
   // EDRAM address calculation with MSAA (with ROV).
-  MsaaSamples msaa_samples = MsaaSamples((rb_surface_info >> 16) & 0x3);
-  uint32_t sample_count_log2_x = msaa_samples >= MsaaSamples::k4X ? 1 : 0;
-  uint32_t sample_count_log2_y = msaa_samples >= MsaaSamples::k2X ? 1 : 0;
+  uint32_t sample_count_log2_x =
+      rb_surface_info.msaa_samples >= MsaaSamples::k4X ? 1 : 0;
+  uint32_t sample_count_log2_y =
+      rb_surface_info.msaa_samples >= MsaaSamples::k2X ? 1 : 0;
   dirty |= system_constants_.sample_count_log2[0] != sample_count_log2_x;
   dirty |= system_constants_.sample_count_log2[1] != sample_count_log2_y;
   system_constants_.sample_count_log2[0] = sample_count_log2_x;
@@ -2365,43 +2349,22 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
 
   // EDRAM pitch for ROV writing.
   if (IsROVUsedForEDRAM()) {
-    uint32_t edram_pitch_tiles = ((std::min(rb_surface_info & 0x3FFFu, 2560u) *
-                                   (msaa_samples >= MsaaSamples::k4X ? 2 : 1)) +
-                                  79) /
-                                 80;
+    uint32_t edram_pitch_tiles =
+        ((std::min(rb_surface_info.surface_pitch.value(), 2560u) *
+          (rb_surface_info.msaa_samples >= MsaaSamples::k4X ? 2 : 1)) +
+         79) /
+        80;
     dirty |= system_constants_.edram_pitch_tiles != edram_pitch_tiles;
     system_constants_.edram_pitch_tiles = edram_pitch_tiles;
   }
 
   // Color exponent bias and output index mapping or ROV render target writing.
-  bool colorcontrol_blend_enable = (rb_colorcontrol & 0x20) == 0;
   for (uint32_t i = 0; i < 4; ++i) {
-    uint32_t color_info = color_infos[i];
-    uint32_t blend_factors_ops;
-    if (colorcontrol_blend_enable) {
-      switch (i) {
-        case 1:
-          blend_factors_ops = regs[XE_GPU_REG_RB_BLENDCONTROL_1].u32;
-          break;
-        case 2:
-          blend_factors_ops = regs[XE_GPU_REG_RB_BLENDCONTROL_2].u32;
-          break;
-        case 3:
-          blend_factors_ops = regs[XE_GPU_REG_RB_BLENDCONTROL_3].u32;
-          break;
-        default:
-          blend_factors_ops = regs[XE_GPU_REG_RB_BLENDCONTROL_0].u32;
-          break;
-      }
-      blend_factors_ops &= 0x1FFF1FFF;
-    } else {
-      blend_factors_ops = 0x00010001;
-    }
+    reg::RB_COLOR_INFO color_info = color_infos[i];
     // Exponent bias is in bits 20:25 of RB_COLOR_INFO.
-    int32_t color_exp_bias = int32_t(color_info << 6) >> 26;
-    ColorRenderTargetFormat color_format = color_formats[i];
-    if (color_format == ColorRenderTargetFormat::k_16_16 ||
-        color_format == ColorRenderTargetFormat::k_16_16_16_16) {
+    int32_t color_exp_bias = color_info.color_exp_bias;
+    if (color_info.color_format == ColorRenderTargetFormat::k_16_16 ||
+        color_info.color_format == ColorRenderTargetFormat::k_16_16_16_16) {
       // On the Xbox 360, k_16_16_EDRAM and k_16_16_16_16_EDRAM internally have
       // -32...32 range and expect shaders to give -32...32 values, but they're
       // emulated using normalized RG16/RGBA16 when not using the ROV, so the
@@ -2427,7 +2390,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
       system_constants_.edram_rt_keep_mask[i][1] = rt_keep_masks[i][1];
       if (rt_keep_masks[i][0] != UINT32_MAX ||
           rt_keep_masks[i][1] != UINT32_MAX) {
-        uint32_t rt_base_dwords_scaled = (color_info & 0xFFF) * 1280;
+        uint32_t rt_base_dwords_scaled = color_info.color_base * 1280;
         if (texture_cache_->IsResolutionScale2X()) {
           rt_base_dwords_scaled <<= 2;
         }
@@ -2435,8 +2398,8 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
                  rt_base_dwords_scaled;
         system_constants_.edram_rt_base_dwords_scaled[i] =
             rt_base_dwords_scaled;
-        uint32_t format_flags =
-            DxbcShaderTranslator::ROV_AddColorFormatFlags(color_format);
+        uint32_t format_flags = DxbcShaderTranslator::ROV_AddColorFormatFlags(
+            color_info.color_format);
         dirty |= system_constants_.edram_rt_format_flags[i] != format_flags;
         system_constants_.edram_rt_format_flags[i] = format_flags;
         // Can't do float comparisons here because NaNs would result in always
@@ -2445,6 +2408,14 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
                              4 * sizeof(float)) != 0;
         std::memcpy(system_constants_.edram_rt_clamp[i], rt_clamp[i],
                     4 * sizeof(float));
+        static const uint32_t kBlendControlRegs[] = {
+            XE_GPU_REG_RB_BLENDCONTROL_0,
+            XE_GPU_REG_RB_BLENDCONTROL_1,
+            XE_GPU_REG_RB_BLENDCONTROL_2,
+            XE_GPU_REG_RB_BLENDCONTROL_3,
+        };
+        uint32_t blend_factors_ops =
+            regs[kBlendControlRegs[i]].u32 & 0x1FFF1FFF;
         dirty |= system_constants_.edram_rt_blend_factors_ops[i] !=
                  blend_factors_ops;
         system_constants_.edram_rt_blend_factors_ops[i] = blend_factors_ops;
@@ -2465,7 +2436,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
              resolution_square_scale;
     system_constants_.edram_resolution_square_scale = resolution_square_scale;
 
-    uint32_t depth_base_dwords = (rb_depth_info & 0xFFF) * 1280;
+    uint32_t depth_base_dwords = rb_depth_info.depth_base * 1280;
     dirty |= system_constants_.edram_depth_base_dwords != depth_base_dwords;
     system_constants_.edram_depth_base_dwords = depth_base_dwords;
 
@@ -2474,7 +2445,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
     float depth_range_scale = std::abs(viewport_scale_z);
     dirty |= system_constants_.edram_depth_range_scale != depth_range_scale;
     system_constants_.edram_depth_range_scale = depth_range_scale;
-    float depth_range_offset = (pa_cl_vte_cntl & (1 << 5))
+    float depth_range_offset = pa_cl_vte_cntl.vport_z_offset_ena
                                    ? regs[XE_GPU_REG_PA_CL_VPORT_ZOFFSET].f32
                                    : 0.0f;
     if (viewport_scale_z < 0.0f) {
@@ -2490,20 +2461,20 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
     float poly_offset_front_scale = 0.0f, poly_offset_front_offset = 0.0f;
     float poly_offset_back_scale = 0.0f, poly_offset_back_offset = 0.0f;
     if (primitive_two_faced) {
-      if (pa_su_sc_mode_cntl & (1 << 11)) {
+      if (pa_su_sc_mode_cntl.poly_offset_front_enable) {
         poly_offset_front_scale =
             regs[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_SCALE].f32;
         poly_offset_front_offset =
             regs[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_OFFSET].f32;
       }
-      if (pa_su_sc_mode_cntl & (1 << 12)) {
+      if (pa_su_sc_mode_cntl.poly_offset_back_enable) {
         poly_offset_back_scale =
             regs[XE_GPU_REG_PA_SU_POLY_OFFSET_BACK_SCALE].f32;
         poly_offset_back_offset =
             regs[XE_GPU_REG_PA_SU_POLY_OFFSET_BACK_OFFSET].f32;
       }
     } else {
-      if (pa_su_sc_mode_cntl & (1 << 13)) {
+      if (pa_su_sc_mode_cntl.poly_offset_para_enable) {
         poly_offset_front_scale =
             regs[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_SCALE].f32;
         poly_offset_front_offset =
@@ -2533,39 +2504,43 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
              poly_offset_back_offset;
     system_constants_.edram_poly_offset_back_offset = poly_offset_back_offset;
 
-    if (rb_depthcontrol & 0x1) {
-      uint32_t stencil_value;
-
-      stencil_value = rb_stencilrefmask & 0xFF;
-      dirty |= system_constants_.edram_stencil_front_reference != stencil_value;
-      system_constants_.edram_stencil_front_reference = stencil_value;
-      stencil_value = (rb_stencilrefmask >> 8) & 0xFF;
-      dirty |= system_constants_.edram_stencil_front_read_mask != stencil_value;
-      system_constants_.edram_stencil_front_read_mask = stencil_value;
-      stencil_value = (rb_stencilrefmask >> 16) & 0xFF;
+    if (depth_stencil_enabled && rb_depthcontrol.stencil_enable) {
+      dirty |= system_constants_.edram_stencil_front_reference !=
+               rb_stencilrefmask.stencilref;
+      system_constants_.edram_stencil_front_reference =
+          rb_stencilrefmask.stencilref;
+      dirty |= system_constants_.edram_stencil_front_read_mask !=
+               rb_stencilrefmask.stencilmask;
+      system_constants_.edram_stencil_front_read_mask =
+          rb_stencilrefmask.stencilmask;
+      dirty |= system_constants_.edram_stencil_front_write_mask !=
+               rb_stencilrefmask.stencilwritemask;
+      system_constants_.edram_stencil_front_write_mask =
+          rb_stencilrefmask.stencilwritemask;
+      uint32_t stencil_func_ops =
+          (rb_depthcontrol.value >> 8) & ((1 << 12) - 1);
       dirty |=
-          system_constants_.edram_stencil_front_write_mask != stencil_value;
-      system_constants_.edram_stencil_front_write_mask = stencil_value;
-      stencil_value = (rb_depthcontrol >> 8) & ((1 << 12) - 1);
-      dirty |= system_constants_.edram_stencil_front_func_ops != stencil_value;
-      system_constants_.edram_stencil_front_func_ops = stencil_value;
+          system_constants_.edram_stencil_front_func_ops != stencil_func_ops;
+      system_constants_.edram_stencil_front_func_ops = stencil_func_ops;
 
-      if (primitive_two_faced && (rb_depthcontrol & 0x80)) {
-        stencil_value = rb_stencilrefmask_bf & 0xFF;
-        dirty |=
-            system_constants_.edram_stencil_back_reference != stencil_value;
-        system_constants_.edram_stencil_back_reference = stencil_value;
-        stencil_value = (rb_stencilrefmask_bf >> 8) & 0xFF;
-        dirty |=
-            system_constants_.edram_stencil_back_read_mask != stencil_value;
-        system_constants_.edram_stencil_back_read_mask = stencil_value;
-        stencil_value = (rb_stencilrefmask_bf >> 16) & 0xFF;
-        dirty |=
-            system_constants_.edram_stencil_back_write_mask != stencil_value;
-        system_constants_.edram_stencil_back_write_mask = stencil_value;
-        stencil_value = (rb_depthcontrol >> 20) & ((1 << 12) - 1);
-        dirty |= system_constants_.edram_stencil_back_func_ops != stencil_value;
-        system_constants_.edram_stencil_back_func_ops = stencil_value;
+      if (primitive_two_faced && rb_depthcontrol.backface_enable) {
+        dirty |= system_constants_.edram_stencil_back_reference !=
+                 rb_stencilrefmask_bf.stencilref;
+        system_constants_.edram_stencil_back_reference =
+            rb_stencilrefmask_bf.stencilref;
+        dirty |= system_constants_.edram_stencil_back_read_mask !=
+                 rb_stencilrefmask_bf.stencilmask;
+        system_constants_.edram_stencil_back_read_mask =
+            rb_stencilrefmask_bf.stencilmask;
+        dirty |= system_constants_.edram_stencil_back_write_mask !=
+                 rb_stencilrefmask_bf.stencilwritemask;
+        system_constants_.edram_stencil_back_write_mask =
+            rb_stencilrefmask_bf.stencilwritemask;
+        uint32_t stencil_func_ops_bf =
+            (rb_depthcontrol.value >> 8) & ((1 << 12) - 1);
+        dirty |= system_constants_.edram_stencil_back_func_ops !=
+                 stencil_func_ops_bf;
+        system_constants_.edram_stencil_back_func_ops = stencil_func_ops_bf;
       } else {
         dirty |= std::memcmp(system_constants_.edram_stencil_back,
                              system_constants_.edram_stencil_front,

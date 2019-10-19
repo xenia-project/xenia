@@ -138,7 +138,6 @@ class SharedMemory {
   // The 512 MB tiled buffer.
   static constexpr uint32_t kBufferSizeLog2 = 29;
   static constexpr uint32_t kBufferSize = 1 << kBufferSizeLog2;
-  static constexpr uint32_t kAddressMask = kBufferSize - 1;
   ID3D12Resource* buffer_ = nullptr;
   D3D12_GPU_VIRTUAL_ADDRESS buffer_gpu_address_ = 0;
   D3D12_RESOURCE_STATES buffer_state_ = D3D12_RESOURCE_STATE_COPY_DEST;

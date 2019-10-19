@@ -13,14 +13,10 @@
 #include <cstdint>
 #include <cstdlib>
 
+#include "xenia/gpu/registers.h"
+
 namespace xe {
 namespace gpu {
-
-enum Register {
-#define XE_GPU_REGISTER(index, type, name) XE_GPU_REG_##name = index,
-#include "xenia/gpu/register_table.inc"
-#undef XE_GPU_REGISTER
-};
 
 struct RegisterInfo {
   enum class Type {
@@ -44,8 +40,20 @@ class RegisterFile {
   };
   RegisterValue values[kRegisterCount];
 
-  RegisterValue& operator[](int reg) { return values[reg]; }
+  RegisterValue& operator[](uint32_t reg) { return values[reg]; }
   RegisterValue& operator[](Register reg) { return values[reg]; }
+  template <typename T>
+  T& Get(uint32_t reg) {
+    return *reinterpret_cast<T*>(&values[reg]);
+  }
+  template <typename T>
+  T& Get(Register reg) {
+    return *reinterpret_cast<T*>(&values[reg]);
+  }
+  template <typename T>
+  T& Get() {
+    return *reinterpret_cast<T*>(&values[T::register_index]);
+  }
 };
 
 }  // namespace gpu

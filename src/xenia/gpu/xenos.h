@@ -80,12 +80,6 @@ inline bool IsPrimitiveTwoFaced(bool tessellated, PrimitiveType type) {
   return false;
 }
 
-enum class TessellationMode : uint32_t {
-  kDiscrete = 0,
-  kContinuous = 1,
-  kAdaptive = 2,
-};
-
 enum class Dimension : uint32_t {
   k1D = 0,
   k2D = 1,
@@ -334,6 +328,28 @@ inline int GetVertexFormatSizeInWords(VertexFormat format) {
   }
 }
 
+enum class CompareFunction : uint32_t {
+  kNever = 0b000,
+  kLess = 0b001,
+  kEqual = 0b010,
+  kLessEqual = 0b011,
+  kGreater = 0b100,
+  kNotEqual = 0b101,
+  kGreaterEqual = 0b110,
+  kAlways = 0b111,
+};
+
+enum class StencilOp : uint32_t {
+  kKeep = 0,
+  kZero = 1,
+  kReplace = 2,
+  kIncrementClamp = 3,
+  kDecrementClamp = 4,
+  kInvert = 5,
+  kIncrementWrap = 6,
+  kDecrementWrap = 7,
+};
+
 // adreno_rb_blend_factor
 enum class BlendFactor : uint32_t {
   kZero = 0,
@@ -374,6 +390,35 @@ typedef enum {
 
   XE_GPU_INVALIDATE_MASK_ALL = 0x7FFF,
 } XE_GPU_INVALIDATE_MASK;
+
+// a2xx_sq_ps_vtx_mode
+enum class VertexShaderExportMode : uint32_t {
+  kPosition1Vector = 0,
+  kPosition2VectorsSprite = 2,
+  kPosition2VectorsEdge = 3,
+  kPosition2VectorsKill = 4,
+  kPosition2VectorsSpriteKill = 5,
+  kPosition2VectorsEdgeKill = 6,
+  kMultipass = 7,
+};
+
+enum class SampleControl : uint32_t {
+  kCentroidsOnly = 0,
+  kCentersOnly = 1,
+  kCentroidsAndCenters = 2,
+};
+
+enum class VGTOutputPath : uint32_t {
+  kVertexReuse = 0,
+  kTessellationEnable = 1,
+  kPassthru = 2,
+};
+
+enum class TessellationMode : uint32_t {
+  kDiscrete = 0,
+  kContinuous = 1,
+  kAdaptive = 2,
+};
 
 enum class ModeControl : uint32_t {
   kIgnore = 0,
@@ -470,26 +515,6 @@ inline float GpuSwap(float value, Endian endianness) {
 inline uint32_t GpuToCpu(uint32_t p) { return p; }
 
 inline uint32_t CpuToGpu(uint32_t p) { return p & 0x1FFFFFFF; }
-
-// XE_GPU_REG_SQ_PROGRAM_CNTL
-typedef union {
-  XEPACKEDSTRUCTANONYMOUS({
-    uint32_t vs_regs : 6;
-    uint32_t unk_0 : 2;
-    uint32_t ps_regs : 6;
-    uint32_t unk_1 : 2;
-    uint32_t vs_resource : 1;
-    uint32_t ps_resource : 1;
-    uint32_t param_gen : 1;
-    uint32_t gen_index_pix : 1;
-    uint32_t vs_export_count : 4;
-    uint32_t vs_export_mode : 3;
-    uint32_t ps_export_depth : 1;
-    uint32_t ps_export_count : 3;
-    uint32_t gen_index_vtx : 1;
-  });
-  XEPACKEDSTRUCTANONYMOUS({ uint32_t dword_0; });
-} xe_gpu_program_cntl_t;
 
 // XE_GPU_REG_SHADER_CONSTANT_FETCH_*
 XEPACKEDUNION(xe_gpu_vertex_fetch_t, {
