@@ -17,6 +17,7 @@
 
 #include "xenia/base/math.h"
 #include "xenia/base/string_buffer.h"
+#include "xenia/gpu/registers.h"
 #include "xenia/gpu/shader.h"
 #include "xenia/gpu/ucode.h"
 #include "xenia/gpu/xenos.h"
@@ -33,7 +34,7 @@ class ShaderTranslator {
   bool GatherAllBindingInformation(Shader* shader);
 
   bool Translate(Shader* shader, PrimitiveType patch_type,
-                 xenos::xe_gpu_program_cntl_t cntl);
+                 reg::SQ_PROGRAM_CNTL cntl);
   bool Translate(Shader* shader, PrimitiveType patch_type);
 
  protected:
@@ -232,7 +233,7 @@ class ShaderTranslator {
   PrimitiveType patch_primitive_type_;
   const uint32_t* ucode_dwords_;
   size_t ucode_dword_count_;
-  xenos::xe_gpu_program_cntl_t program_cntl_;
+  reg::SQ_PROGRAM_CNTL program_cntl_;
   uint32_t register_count_;
 
   // Accumulated translation errors.

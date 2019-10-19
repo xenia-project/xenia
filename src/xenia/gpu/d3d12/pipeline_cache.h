@@ -171,7 +171,7 @@ class PipelineCache {
     PipelineRenderTarget render_targets[4];
   };
 
-  bool TranslateShader(D3D12Shader* shader, xenos::xe_gpu_program_cntl_t cntl,
+  bool TranslateShader(D3D12Shader* shader, reg::SQ_PROGRAM_CNTL cntl,
                        bool tessellated, PrimitiveType primitive_type);
 
   bool GetCurrentStateDescription(

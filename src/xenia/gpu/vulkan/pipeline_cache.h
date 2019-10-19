@@ -79,7 +79,7 @@ class PipelineCache {
   // state.
   VkPipeline GetPipeline(const RenderState* render_state, uint64_t hash_key);
 
-  bool TranslateShader(VulkanShader* shader, xenos::xe_gpu_program_cntl_t cntl);
+  bool TranslateShader(VulkanShader* shader, reg::SQ_PROGRAM_CNTL cntl);
 
   void DumpShaderDisasmAMD(VkPipeline pipeline);
   void DumpShaderDisasmNV(const VkGraphicsPipelineCreateInfo& info);
@@ -170,7 +170,7 @@ class PipelineCache {
   struct UpdateShaderStagesRegisters {
     PrimitiveType primitive_type;
     uint32_t pa_su_sc_mode_cntl;
-    uint32_t sq_program_cntl;
+    reg::SQ_PROGRAM_CNTL sq_program_cntl;
     VulkanShader* vertex_shader;
     VulkanShader* pixel_shader;
 
@@ -256,7 +256,6 @@ class PipelineCache {
   VkPipelineDepthStencilStateCreateInfo update_depth_stencil_state_info_;
 
   struct UpdateColorBlendStateRegisters {
-    uint32_t rb_colorcontrol;
     uint32_t rb_color_mask;
     uint32_t rb_blendcontrol[4];
     uint32_t rb_modecontrol;
@@ -290,7 +289,7 @@ class PipelineCache {
     float rb_blend_rgba[4];
     uint32_t rb_stencilrefmask;
 
-    uint32_t sq_program_cntl;
+    reg::SQ_PROGRAM_CNTL sq_program_cntl;
     uint32_t sq_context_misc;
     uint32_t rb_colorcontrol;
     uint32_t rb_color_info;

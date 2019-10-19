@@ -503,6 +503,9 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kVSOutPosition,
     kVSOutClipDistance0123,
     kVSOutClipDistance45,
+    // TODO(Triang3l): Use SV_CullDistance instead for
+    // PA_CL_CLIP_CNTL::UCP_CULL_ONLY_ENA, but can't have more than 8 clip and
+    // cull distances in total.
 
     kPSInInterpolators = 0,
     kPSInPointParameters = kPSInInterpolators + kInterpolatorCount,

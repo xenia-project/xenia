@@ -20,7 +20,6 @@
 #include "xenia/base/ring_buffer.h"
 #include "xenia/gpu/gpu_flags.h"
 #include "xenia/gpu/graphics_system.h"
-#include "xenia/gpu/registers.h"
 #include "xenia/gpu/sampler_info.h"
 #include "xenia/gpu/texture_info.h"
 #include "xenia/gpu/xenos.h"

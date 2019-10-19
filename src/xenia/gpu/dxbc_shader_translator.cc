@@ -416,9 +416,13 @@ void DxbcShaderTranslator::ConvertPWLGamma(
 }
 
 void DxbcShaderTranslator::StartVertexShader_LoadVertexIndex() {
+  if (register_count() < 1) {
+    return;
+  }
+
   // Vertex index is in an input bound to SV_VertexID, byte swapped according to
-  // xe_vertex_index_endian_and_edge_factors system constant and written to GPR
-  // 0 (which is always present because register_count includes +1).
+  // xe_vertex_index_endian_and_edge_factors system constant and written to
+  // GPR 0.
 
   // xe_vertex_index_endian_and_edge_factors & 0b11 is:
   // - 00 for no swap.
@@ -756,156 +760,160 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
     // Write the vertex index to GPR 0.
     StartVertexShader_LoadVertexIndex();
   } else if (IsDxbcDomainShader()) {
-    uint32_t temp_register_operand_length =
-        uses_register_dynamic_addressing() ? 3 : 2;
-
-    // Copy the domain location to r0.yz (for quad patches) or r0.xyz (for
-    // triangle patches), and also set the domain in STAT.
-    uint32_t domain_location_mask, domain_location_swizzle;
-    if (patch_primitive_type() == PrimitiveType::kTrianglePatch) {
-      domain_location_mask = 0b0111;
-      // ZYX swizzle with r1.y == 0, according to the water shader in
-      // Banjo-Kazooie: Nuts & Bolts.
-      domain_location_swizzle = 0b00000110;
-      stat_.tessellator_domain = D3D11_SB_TESSELLATOR_DOMAIN_TRI;
-    } else {
-      // TODO(Triang3l): Support line patches.
-      assert_true(patch_primitive_type() == PrimitiveType::kQuadPatch);
-      // According to the ground shader in Viva Pinata, though it's impossible
-      // (as of December 12th, 2018) to test there since it possibly requires
-      // memexport for ground control points (the memory region with them is
-      // filled with zeros).
-      domain_location_mask = 0b0110;
-      domain_location_swizzle = 0b00000100;
-      stat_.tessellator_domain = D3D11_SB_TESSELLATOR_DOMAIN_QUAD;
-    }
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(
-                               2 + temp_register_operand_length));
-    if (uses_register_dynamic_addressing()) {
-      shader_code_.push_back(EncodeVectorMaskedOperand(
-          D3D10_SB_OPERAND_TYPE_INDEXABLE_TEMP, domain_location_mask, 2));
-      shader_code_.push_back(0);
-    } else {
-      shader_code_.push_back(EncodeVectorMaskedOperand(
-          D3D10_SB_OPERAND_TYPE_TEMP, domain_location_mask, 1));
-    }
-    shader_code_.push_back(0);
-    shader_code_.push_back(EncodeVectorSwizzledOperand(
-        D3D11_SB_OPERAND_TYPE_INPUT_DOMAIN_POINT, domain_location_swizzle, 0));
-    ++stat_.instruction_count;
-    if (uses_register_dynamic_addressing()) {
-      ++stat_.array_instruction_count;
-    } else {
-      ++stat_.mov_instruction_count;
-    }
-
     assert_true(register_count() >= 2);
+    if (register_count() != 0) {
+      uint32_t temp_register_operand_length =
+          uses_register_dynamic_addressing() ? 3 : 2;
 
-    // Copy the primitive index to r0.x (for quad patches) or r1.x (for
-    // triangle patches) as a float.
-    // When using indexable temps, copy through a r# because x# are apparently
-    // only accessible via mov.
-    // TODO(Triang3l): Investigate what should be written for primitives (or
-    // even control points) for non-adaptive tessellation modes (they may
-    // possibly have an index buffer).
-    // TODO(Triang3l): Support line patches.
-    uint32_t primitive_id_gpr_index =
-        patch_primitive_type() == PrimitiveType::kTrianglePatch ? 1 : 0;
-
-    if (register_count() > primitive_id_gpr_index) {
-      uint32_t primitive_id_temp = uses_register_dynamic_addressing()
-                                       ? PushSystemTemp()
-                                       : primitive_id_gpr_index;
-      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_UTOF) |
-                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4));
-      shader_code_.push_back(
-          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-      shader_code_.push_back(primitive_id_temp);
-      shader_code_.push_back(
-          EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_INPUT_PRIMITIVEID, 0));
-      ++stat_.instruction_count;
-      ++stat_.conversion_instruction_count;
-      if (uses_register_dynamic_addressing()) {
-        shader_code_.push_back(
-            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(6));
-        shader_code_.push_back(EncodeVectorMaskedOperand(
-            D3D10_SB_OPERAND_TYPE_INDEXABLE_TEMP, 0b0001, 2));
-        shader_code_.push_back(0);
-        shader_code_.push_back(primitive_id_gpr_index);
-        shader_code_.push_back(
-            EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-        shader_code_.push_back(primitive_id_temp);
-        ++stat_.instruction_count;
-        ++stat_.array_instruction_count;
-        // Release primitive_id_temp.
-        PopSystemTemp();
+      // Copy the domain location to r0.yz (for quad patches) or r0.xyz (for
+      // triangle patches), and also set the domain in STAT.
+      uint32_t domain_location_mask, domain_location_swizzle;
+      if (patch_primitive_type() == PrimitiveType::kTrianglePatch) {
+        domain_location_mask = 0b0111;
+        // ZYX swizzle with r1.y == 0, according to the water shader in
+        // Banjo-Kazooie: Nuts & Bolts.
+        domain_location_swizzle = 0b00000110;
+        stat_.tessellator_domain = D3D11_SB_TESSELLATOR_DOMAIN_TRI;
+      } else {
+        // TODO(Triang3l): Support line patches.
+        assert_true(patch_primitive_type() == PrimitiveType::kQuadPatch);
+        // According to the ground shader in Viva Pinata, though it's impossible
+        // (as of December 12th, 2018) to test there since it possibly requires
+        // memexport for ground control points (the memory region with them is
+        // filled with zeros).
+        domain_location_mask = 0b0110;
+        domain_location_swizzle = 0b00000100;
+        stat_.tessellator_domain = D3D11_SB_TESSELLATOR_DOMAIN_QUAD;
       }
-    }
-
-    if (register_count() >= 2) {
-      // Write the swizzle of the barycentric/UV coordinates to r1.x (for quad
-      // patches) or r1.y (for triangle patches). It appears that the
-      // tessellator offloads the reordering of coordinates for edges to game
-      // shaders.
-      //
-      // In Banjo-Kazooie: Nuts & Bolts (triangle patches with per-edge
-      // factors), the shader multiplies the first control point's position by
-      // r0.z, the second CP's by r0.y, and the third CP's by r0.x. But before
-      // doing that it swizzles r0.xyz the following way depending on the value
-      // in r1.y:
-      // - ZXY for 1.0.
-      // - YZX for 2.0.
-      // - XZY for 4.0.
-      // - YXZ for 5.0.
-      // - ZYX for 6.0.
-      // Possibly, the logic here is that the value itself is the amount of
-      // rotation of the swizzle to the right, and 1 << 2 is set when the
-      // swizzle needs to be flipped before rotating.
-      //
-      // In Viva Pinata (quad patches with per-edge factors - not possible to
-      // test however as of December 12th, 2018), if we assume that r0.y is V
-      // and r0.z is U, the factors each control point value is multiplied by
-      // are the following:
-      // - (1-v)*(1-u), v*(1-u), (1-v)*u, v*u for 0.0 (base swizzle).
-      // - v*(1-u), (1-v)*(1-u), v*u, (1-v)*u for 1.0 (YXWZ).
-      // - v*u, (1-v)*u, v*(1-u), (1-v)*(1-u) for 2.0 (WZYX).
-      // - (1-v)*u, v*u, (1-v)*(1-u), v*(1-u) for 3.0 (ZWXY).
-      // According to the control point order at
-      // https://www.khronos.org/registry/OpenGL/extensions/AMD/AMD_vertex_shader_tessellator.txt
-      // the first is located at (0,0), the second at (0,1), the third at (1,0)
-      // and the fourth at (1,1). So, swizzle index 0 appears to be the correct
-      // one. But, this hasn't been tested yet.
-      //
-      // Direct3D 12 appears to be passing the coordinates in a consistent
-      // order, so we can just use ZYX for triangle patches.
-      //
-      // TODO(Triang3l): Support line patches.
-      uint32_t domain_location_swizzle_mask =
-          patch_primitive_type() == PrimitiveType::kTrianglePatch ? 0b0010
-                                                                  : 0b0001;
       shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
                              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(
-                                 3 + temp_register_operand_length));
+                                 2 + temp_register_operand_length));
       if (uses_register_dynamic_addressing()) {
-        shader_code_.push_back(
-            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_INDEXABLE_TEMP,
-                                      domain_location_swizzle_mask, 2));
+        shader_code_.push_back(EncodeVectorMaskedOperand(
+            D3D10_SB_OPERAND_TYPE_INDEXABLE_TEMP, domain_location_mask, 2));
         shader_code_.push_back(0);
       } else {
         shader_code_.push_back(EncodeVectorMaskedOperand(
-            D3D10_SB_OPERAND_TYPE_TEMP, domain_location_swizzle_mask, 1));
+            D3D10_SB_OPERAND_TYPE_TEMP, domain_location_mask, 1));
       }
-      shader_code_.push_back(1);
-      shader_code_.push_back(
-          EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
       shader_code_.push_back(0);
+      shader_code_.push_back(
+          EncodeVectorSwizzledOperand(D3D11_SB_OPERAND_TYPE_INPUT_DOMAIN_POINT,
+                                      domain_location_swizzle, 0));
       ++stat_.instruction_count;
       if (uses_register_dynamic_addressing()) {
         ++stat_.array_instruction_count;
       } else {
         ++stat_.mov_instruction_count;
+      }
+
+      // Copy the primitive index to r0.x (for quad patches) or r1.x (for
+      // triangle patches) as a float.
+      // When using indexable temps, copy through a r# because x# are apparently
+      // only accessible via mov.
+      // TODO(Triang3l): Investigate what should be written for primitives (or
+      // even control points) for non-adaptive tessellation modes (they may
+      // possibly have an index buffer).
+      // TODO(Triang3l): Support line patches.
+      uint32_t primitive_id_gpr_index =
+          patch_primitive_type() == PrimitiveType::kTrianglePatch ? 1 : 0;
+
+      if (register_count() > primitive_id_gpr_index) {
+        uint32_t primitive_id_temp = uses_register_dynamic_addressing()
+                                         ? PushSystemTemp()
+                                         : primitive_id_gpr_index;
+        shader_code_.push_back(
+            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_UTOF) |
+            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4));
+        shader_code_.push_back(
+            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
+        shader_code_.push_back(primitive_id_temp);
+        shader_code_.push_back(
+            EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_INPUT_PRIMITIVEID, 0));
+        ++stat_.instruction_count;
+        ++stat_.conversion_instruction_count;
+        if (uses_register_dynamic_addressing()) {
+          shader_code_.push_back(
+              ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(6));
+          shader_code_.push_back(EncodeVectorMaskedOperand(
+              D3D10_SB_OPERAND_TYPE_INDEXABLE_TEMP, 0b0001, 2));
+          shader_code_.push_back(0);
+          shader_code_.push_back(primitive_id_gpr_index);
+          shader_code_.push_back(
+              EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
+          shader_code_.push_back(primitive_id_temp);
+          ++stat_.instruction_count;
+          ++stat_.array_instruction_count;
+          // Release primitive_id_temp.
+          PopSystemTemp();
+        }
+      }
+
+      if (register_count() >= 2) {
+        // Write the swizzle of the barycentric/UV coordinates to r1.x (for quad
+        // patches) or r1.y (for triangle patches). It appears that the
+        // tessellator offloads the reordering of coordinates for edges to game
+        // shaders.
+        //
+        // In Banjo-Kazooie: Nuts & Bolts (triangle patches with per-edge
+        // factors), the shader multiplies the first control point's position by
+        // r0.z, the second CP's by r0.y, and the third CP's by r0.x. But before
+        // doing that it swizzles r0.xyz the following way depending on the
+        // value in r1.y:
+        // - ZXY for 1.0.
+        // - YZX for 2.0.
+        // - XZY for 4.0.
+        // - YXZ for 5.0.
+        // - ZYX for 6.0.
+        // Possibly, the logic here is that the value itself is the amount of
+        // rotation of the swizzle to the right, and 1 << 2 is set when the
+        // swizzle needs to be flipped before rotating.
+        //
+        // In Viva Pinata (quad patches with per-edge factors - not possible to
+        // test however as of December 12th, 2018), if we assume that r0.y is V
+        // and r0.z is U, the factors each control point value is multiplied by
+        // are the following:
+        // - (1-v)*(1-u), v*(1-u), (1-v)*u, v*u for 0.0 (base swizzle).
+        // - v*(1-u), (1-v)*(1-u), v*u, (1-v)*u for 1.0 (YXWZ).
+        // - v*u, (1-v)*u, v*(1-u), (1-v)*(1-u) for 2.0 (WZYX).
+        // - (1-v)*u, v*u, (1-v)*(1-u), v*(1-u) for 3.0 (ZWXY).
+        // According to the control point order at
+        // https://www.khronos.org/registry/OpenGL/extensions/AMD/AMD_vertex_shader_tessellator.txt
+        // the first is located at (0,0), the second at (0,1), the third at
+        // (1,0) and the fourth at (1,1). So, swizzle index 0 appears to be the
+        // correct one. But, this hasn't been tested yet.
+        //
+        // Direct3D 12 appears to be passing the coordinates in a consistent
+        // order, so we can just use ZYX for triangle patches.
+        //
+        // TODO(Triang3l): Support line patches.
+        uint32_t domain_location_swizzle_mask =
+            patch_primitive_type() == PrimitiveType::kTrianglePatch ? 0b0010
+                                                                    : 0b0001;
+        shader_code_.push_back(
+            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
+            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(
+                3 + temp_register_operand_length));
+        if (uses_register_dynamic_addressing()) {
+          shader_code_.push_back(
+              EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_INDEXABLE_TEMP,
+                                        domain_location_swizzle_mask, 2));
+          shader_code_.push_back(0);
+        } else {
+          shader_code_.push_back(EncodeVectorMaskedOperand(
+              D3D10_SB_OPERAND_TYPE_TEMP, domain_location_swizzle_mask, 1));
+        }
+        shader_code_.push_back(1);
+        shader_code_.push_back(
+            EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
+        shader_code_.push_back(0);
+        ++stat_.instruction_count;
+        if (uses_register_dynamic_addressing()) {
+          ++stat_.array_instruction_count;
+        } else {
+          ++stat_.mov_instruction_count;
+        }
       }
     }
   }
@@ -4796,6 +4804,7 @@ void DxbcShaderTranslator::WriteShaderCode() {
 
   // General-purpose registers if using dynamic indexing (x0).
   if (!is_depth_only_pixel_shader_ && uses_register_dynamic_addressing()) {
+    assert_true(register_count() != 0);
     shader_object_.push_back(
         ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_INDEXABLE_TEMP) |
         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4));

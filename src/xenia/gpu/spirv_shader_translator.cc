@@ -93,6 +93,7 @@ void SpirvShaderTranslator::StartTranslation() {
       b.makeFunctionEntry(spv::NoPrecision, b.makeVoidType(), "translated_main",
                           {}, {}, &function_block);
 
+  assert_not_zero(register_count());
   registers_type_ = b.makeArrayType(vec4_float_type_,
                                     b.makeUintConstant(register_count()), 0);
   registers_ptr_ = b.createVariable(spv::StorageClass::StorageClassFunction,

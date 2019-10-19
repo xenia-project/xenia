@@ -34,7 +34,6 @@ namespace d3d12 {
 
 constexpr uint32_t SharedMemory::kBufferSizeLog2;
 constexpr uint32_t SharedMemory::kBufferSize;
-constexpr uint32_t SharedMemory::kAddressMask;
 constexpr uint32_t SharedMemory::kHeapSizeLog2;
 constexpr uint32_t SharedMemory::kHeapSize;
 constexpr uint32_t SharedMemory::kWatchBucketSizeLog2;
@@ -198,10 +197,9 @@ void SharedMemory::UnregisterGlobalWatch(GlobalWatchHandle handle) {
 SharedMemory::WatchHandle SharedMemory::WatchMemoryRange(
     uint32_t start, uint32_t length, WatchCallback callback,
     void* callback_context, void* callback_data, uint64_t callback_argument) {
-  if (length == 0) {
+  if (length == 0 || start >= kBufferSize) {
     return nullptr;
   }
-  start &= kAddressMask;
   length = std::min(length, kBufferSize - start);
   uint32_t watch_page_first = start >> page_size_log2_;
   uint32_t watch_page_last = (start + length - 1) >> page_size_log2_;
@@ -278,9 +276,7 @@ bool SharedMemory::MakeTilesResident(uint32_t start, uint32_t length) {
     // Some texture is empty, for example - safe to draw in this case.
     return true;
   }
-  start &= kAddressMask;
-  if ((kBufferSize - start) < length) {
-    // Exceeds the physical address space.
+  if (start > kBufferSize || (kBufferSize - start) < length) {
     return false;
   }
 
@@ -343,9 +339,7 @@ bool SharedMemory::RequestRange(uint32_t start, uint32_t length) {
     // Some texture is empty, for example - safe to draw in this case.
     return true;
   }
-  start &= kAddressMask;
-  if ((kBufferSize - start) < length) {
-    // Exceeds the physical address space.
+  if (start > kBufferSize || (kBufferSize - start) < length) {
     return false;
   }
   uint32_t last = start + length - 1;
@@ -433,8 +427,7 @@ void SharedMemory::FireWatches(uint32_t page_first, uint32_t page_last,
 }
 
 void SharedMemory::RangeWrittenByGPU(uint32_t start, uint32_t length) {
-  start &= kAddressMask;
-  if (length == 0) {
+  if (length == 0 || start >= kBufferSize) {
     return;
   }
   length = std::min(length, kBufferSize - start);

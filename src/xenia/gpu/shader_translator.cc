@@ -108,10 +108,12 @@ bool ShaderTranslator::GatherAllBindingInformation(Shader* shader) {
 }
 
 bool ShaderTranslator::Translate(Shader* shader, PrimitiveType patch_type,
-                                 xenos::xe_gpu_program_cntl_t cntl) {
+                                 reg::SQ_PROGRAM_CNTL cntl) {
   Reset();
-  register_count_ = shader->type() == ShaderType::kVertex ? cntl.vs_regs + 1
-                                                          : cntl.ps_regs + 1;
+  uint32_t cntl_num_reg = shader->type() == ShaderType::kVertex
+                              ? cntl.vs_num_reg.value()
+                              : cntl.ps_num_reg.value();
+  register_count_ = (cntl_num_reg & 0x80) ? 0 : (cntl_num_reg + 1);
 
   return TranslateInternal(shader, patch_type);
 }
