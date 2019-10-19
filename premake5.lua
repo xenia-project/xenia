@@ -90,9 +90,6 @@ filter({"configurations:Release", "platforms:Windows"})
   linkoptions({
     "/NODEFAULTLIB:MSVCRTD",
   })
-  buildoptions({
-    "/GT", -- enable fiber-safe optimizations
-   })
 
 filter("platforms:Linux")
   system("linux")
@@ -185,8 +182,6 @@ filter("platforms:Windows")
     "wsock32",
     "ws2_32",
     "xinput",
-    "glu32",
-    "opengl32",
     "comctl32",
     "shcore",
     "shlwapi",
