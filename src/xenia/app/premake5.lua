@@ -34,6 +34,7 @@ project("xenia-app")
     "xenia-gpu-vulkan",
     "xenia-hid",
     "xenia-hid-nop",
+    "xenia-hid-sdl",
     "xenia-kernel",
     "xenia-ui",
     "xenia-ui-spirv",

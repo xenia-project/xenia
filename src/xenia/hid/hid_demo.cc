@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2019 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -22,12 +22,13 @@
 
 // Available input drivers:
 #include "xenia/hid/nop/nop_hid.h"
+#include "xenia/hid/sdl/sdl_hid.h"
 #if XE_PLATFORM_WIN32
 #include "xenia/hid/winkey/winkey_hid.h"
 #include "xenia/hid/xinput/xinput_hid.h"
 #endif  // XE_PLATFORM_WIN32
 
-DEFINE_string(hid, "any", "Input system. Use: [any, nop, winkey, xinput]",
+DEFINE_string(hid, "any", "Input system. Use: [any, nop, sdl, winkey, xinput]",
               "General");
 
 namespace xe {
@@ -40,6 +41,11 @@ std::vector<std::unique_ptr<hid::InputDriver>> CreateInputDrivers(
   std::vector<std::unique_ptr<hid::InputDriver>> drivers;
   if (cvars::hid.compare("nop") == 0) {
     drivers.emplace_back(xe::hid::nop::Create(window));
+  } else if (cvars::hid.compare("sdl") == 0) {
+    auto driver = xe::hid::sdl::Create(window);
+    if (XSUCCEEDED(driver->Setup())) {
+      drivers.emplace_back(std::move(driver));
+    }
 #if XE_PLATFORM_WIN32
   } else if (cvars::hid.compare("winkey") == 0) {
     auto driver = xe::hid::winkey::Create(window);
@@ -53,6 +59,10 @@ std::vector<std::unique_ptr<hid::InputDriver>> CreateInputDrivers(
     }
 #endif  // XE_PLATFORM_WIN32
   } else {
+    auto sdl_driver = xe::hid::sdl::Create(window);
+    if (sdl_driver && XSUCCEEDED(sdl_driver->Setup())) {
+      drivers.emplace_back(std::move(sdl_driver));
+    }
 #if XE_PLATFORM_WIN32
     auto xinput_driver = xe::hid::xinput::Create(window);
     if (xinput_driver && XSUCCEEDED(xinput_driver->Setup())) {
