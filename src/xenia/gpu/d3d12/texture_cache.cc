@@ -848,15 +848,13 @@ void TextureCache::RequestTextures(uint32_t used_vertex_texture_mask,
       continue;
     }
     TextureBinding& binding = texture_bindings_[index];
-    uint32_t r = XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + index * 6;
-    auto group =
-        reinterpret_cast<const xenos::xe_gpu_fetch_group_t*>(&regs.values[r]);
+    const auto& fetch = regs.Get<xenos::xe_gpu_texture_fetch_t>(
+        XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + index * 6);
     TextureKey old_key = binding.key;
     bool old_has_unsigned = binding.has_unsigned;
     bool old_has_signed = binding.has_signed;
-    BindingInfoFromFetchConstant(group->texture_fetch, binding.key,
-                                 &binding.swizzle, &binding.has_unsigned,
-                                 &binding.has_signed);
+    BindingInfoFromFetchConstant(fetch, binding.key, &binding.swizzle,
+                                 &binding.has_unsigned, &binding.has_signed);
     texture_keys_in_sync_ |= index_bit;
     if (binding.key.IsInvalid()) {
       binding.texture = nullptr;
@@ -1142,18 +1140,15 @@ void TextureCache::WriteTextureSRV(const D3D12Shader::TextureSRV& texture_srv,
 TextureCache::SamplerParameters TextureCache::GetSamplerParameters(
     const D3D12Shader::SamplerBinding& binding) const {
   auto& regs = *register_file_;
-  uint32_t r =
-      XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + binding.fetch_constant * 6;
-  auto group =
-      reinterpret_cast<const xenos::xe_gpu_fetch_group_t*>(&regs.values[r]);
-  auto& fetch = group->texture_fetch;
+  const auto& fetch = regs.Get<xenos::xe_gpu_texture_fetch_t>(
+      XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + binding.fetch_constant * 6);
 
   SamplerParameters parameters;
 
-  parameters.clamp_x = ClampMode(fetch.clamp_x);
-  parameters.clamp_y = ClampMode(fetch.clamp_y);
-  parameters.clamp_z = ClampMode(fetch.clamp_z);
-  parameters.border_color = BorderColor(fetch.border_color);
+  parameters.clamp_x = fetch.clamp_x;
+  parameters.clamp_y = fetch.clamp_y;
+  parameters.clamp_z = fetch.clamp_z;
+  parameters.border_color = fetch.border_color;
 
   uint32_t mip_min_level = fetch.mip_min_level;
   uint32_t mip_max_level = fetch.mip_max_level;
@@ -1171,7 +1166,7 @@ TextureCache::SamplerParameters TextureCache::GetSamplerParameters(
   parameters.lod_bias = fetch.lod_bias;
 
   AnisoFilter aniso_filter = binding.aniso_filter == AnisoFilter::kUseFetchConst
-                                 ? AnisoFilter(fetch.aniso_filter)
+                                 ? fetch.aniso_filter
                                  : binding.aniso_filter;
   aniso_filter = std::min(aniso_filter, AnisoFilter::kMax_16_1);
   parameters.aniso_filter = aniso_filter;
@@ -1182,17 +1177,17 @@ TextureCache::SamplerParameters TextureCache::GetSamplerParameters(
   } else {
     TextureFilter mag_filter =
         binding.mag_filter == TextureFilter::kUseFetchConst
-            ? TextureFilter(fetch.mag_filter)
+            ? fetch.mag_filter
             : binding.mag_filter;
     parameters.mag_linear = mag_filter == TextureFilter::kLinear;
     TextureFilter min_filter =
         binding.min_filter == TextureFilter::kUseFetchConst
-            ? TextureFilter(fetch.min_filter)
+            ? fetch.min_filter
             : binding.min_filter;
     parameters.min_linear = min_filter == TextureFilter::kLinear;
     TextureFilter mip_filter =
         binding.mip_filter == TextureFilter::kUseFetchConst
-            ? TextureFilter(fetch.mip_filter)
+            ? fetch.mip_filter
             : binding.mip_filter;
     parameters.mip_linear = mip_filter == TextureFilter::kLinear;
     // TODO(Triang3l): Investigate mip_filter TextureFilter::kBaseMap.
@@ -1586,13 +1581,12 @@ void TextureCache::CreateScaledResolveBufferRawUAV(
 
 bool TextureCache::RequestSwapTexture(D3D12_CPU_DESCRIPTOR_HANDLE handle,
                                       TextureFormat& format_out) {
-  auto group = reinterpret_cast<const xenos::xe_gpu_fetch_group_t*>(
-      &register_file_->values[XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0]);
-  auto& fetch = group->texture_fetch;
+  auto& regs = *register_file_;
+  const auto& fetch = regs.Get<xenos::xe_gpu_texture_fetch_t>(
+      XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0);
   TextureKey key;
   uint32_t swizzle;
-  BindingInfoFromFetchConstant(group->texture_fetch, key, &swizzle, nullptr,
-                               nullptr);
+  BindingInfoFromFetchConstant(fetch, key, &swizzle, nullptr, nullptr);
   if (key.base_page == 0 || key.dimension != Dimension::k2D) {
     return false;
   }
@@ -1733,7 +1727,7 @@ void TextureCache::BindingInfoFromFetchConstant(
     return;
   }
 
-  TextureFormat format = GetBaseFormat(TextureFormat(fetch.format));
+  TextureFormat format = GetBaseFormat(fetch.format);
 
   key_out.base_page = base_page;
   key_out.mip_page = mip_page;
@@ -1745,7 +1739,7 @@ void TextureCache::BindingInfoFromFetchConstant(
   key_out.tiled = fetch.tiled;
   key_out.packed_mips = fetch.packed_mips;
   key_out.format = format;
-  key_out.endianness = Endian(fetch.endianness);
+  key_out.endianness = fetch.endianness;
 
   if (swizzle_out != nullptr) {
     uint32_t swizzle = fetch.swizzle;
@@ -1783,16 +1777,16 @@ void TextureCache::BindingInfoFromFetchConstant(
   }
 
   if (has_unsigned_out != nullptr) {
-    *has_unsigned_out = TextureSign(fetch.sign_x) != TextureSign::kSigned ||
-                        TextureSign(fetch.sign_y) != TextureSign::kSigned ||
-                        TextureSign(fetch.sign_z) != TextureSign::kSigned ||
-                        TextureSign(fetch.sign_w) != TextureSign::kSigned;
+    *has_unsigned_out = fetch.sign_x != TextureSign::kSigned ||
+                        fetch.sign_y != TextureSign::kSigned ||
+                        fetch.sign_z != TextureSign::kSigned ||
+                        fetch.sign_w != TextureSign::kSigned;
   }
   if (has_signed_out != nullptr) {
-    *has_signed_out = TextureSign(fetch.sign_x) == TextureSign::kSigned ||
-                      TextureSign(fetch.sign_y) == TextureSign::kSigned ||
-                      TextureSign(fetch.sign_z) == TextureSign::kSigned ||
-                      TextureSign(fetch.sign_w) == TextureSign::kSigned;
+    *has_signed_out = fetch.sign_x == TextureSign::kSigned ||
+                      fetch.sign_y == TextureSign::kSigned ||
+                      fetch.sign_z == TextureSign::kSigned ||
+                      fetch.sign_w == TextureSign::kSigned;
   }
 }
 

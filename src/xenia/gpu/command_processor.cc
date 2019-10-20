@@ -350,20 +350,20 @@ void CommandProcessor::MakeCoherent() {
   // https://cgit.freedesktop.org/xorg/driver/xf86-video-radeonhd/tree/src/r6xx_accel.c?id=3f8b6eccd9dba116cc4801e7f80ce21a879c67d2#n454
 
   RegisterFile* regs = register_file_;
-  auto status_host = regs->values[XE_GPU_REG_COHER_STATUS_HOST].u32;
+  auto& status_host = regs->Get<reg::COHER_STATUS_HOST>();
   auto base_host = regs->values[XE_GPU_REG_COHER_BASE_HOST].u32;
   auto size_host = regs->values[XE_GPU_REG_COHER_SIZE_HOST].u32;
 
-  if (!(status_host & 0x80000000ul)) {
+  if (!status_host.status) {
     return;
   }
 
   const char* action = "N/A";
-  if ((status_host & 0x03000000) == 0x03000000) {
+  if (status_host.vc_action_ena && status_host.tc_action_ena) {
     action = "VC | TC";
-  } else if (status_host & 0x02000000) {
+  } else if (status_host.tc_action_ena) {
     action = "TC";
-  } else if (status_host & 0x01000000) {
+  } else if (status_host.vc_action_ena) {
     action = "VC";
   }
 
@@ -372,8 +372,7 @@ void CommandProcessor::MakeCoherent() {
          base_host + size_host, size_host, action);
 
   // Mark coherent.
-  status_host &= ~0x80000000ul;
-  regs->values[XE_GPU_REG_COHER_STATUS_HOST].u32 = status_host;
+  status_host.status = 0;
 }
 
 void CommandProcessor::PrepareForWait() { trace_writer_.Flush(); }

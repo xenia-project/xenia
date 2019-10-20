@@ -363,7 +363,7 @@ bool PipelineCache::GetCurrentStateDescription(
     const RenderTargetCache::PipelineRenderTarget render_targets[5],
     PipelineDescription& description_out) {
   auto& regs = *register_file_;
-  uint32_t pa_su_sc_mode_cntl = regs[XE_GPU_REG_PA_SU_SC_MODE_CNTL].u32;
+  auto pa_su_sc_mode_cntl = regs.Get<reg::PA_SU_SC_MODE_CNTL>();
   bool primitive_two_faced = IsPrimitiveTwoFaced(tessellated, primitive_type);
 
   // Initialize all unused fields to zero for comparison/hashing.
@@ -381,7 +381,7 @@ bool PipelineCache::GetCurrentStateDescription(
   description_out.pixel_shader = pixel_shader;
 
   // Index buffer strip cut value.
-  if (pa_su_sc_mode_cntl & (1 << 21)) {
+  if (pa_su_sc_mode_cntl.multi_prim_ib_ena) {
     // Not using 0xFFFF with 32-bit indices because in index buffers it will be
     // 0xFFFF0000 anyway due to endianness.
     description_out.strip_cut_index = index_format == IndexFormat::kInt32
@@ -479,53 +479,60 @@ bool PipelineCache::GetCurrentStateDescription(
   // Xenos fill mode 1).
   // Here we also assume that only one side is culled - if two sides are culled,
   // the D3D12 command processor will drop such draw early.
-  uint32_t cull_mode = primitive_two_faced ? (pa_su_sc_mode_cntl & 0x3) : 0;
+  bool cull_front, cull_back;
+  if (primitive_two_faced) {
+    cull_front = pa_su_sc_mode_cntl.cull_front != 0;
+    cull_back = pa_su_sc_mode_cntl.cull_back != 0;
+  } else {
+    cull_front = false;
+    cull_back = false;
+  }
   float poly_offset = 0.0f, poly_offset_scale = 0.0f;
   if (primitive_two_faced) {
-    description_out.front_counter_clockwise = (pa_su_sc_mode_cntl & 0x4) == 0;
-    if (cull_mode == 1) {
+    description_out.front_counter_clockwise = pa_su_sc_mode_cntl.face == 0;
+    if (cull_front) {
       description_out.cull_mode = PipelineCullMode::kFront;
-    } else if (cull_mode == 2) {
+    } else if (cull_back) {
       description_out.cull_mode = PipelineCullMode::kBack;
     } else {
       description_out.cull_mode = PipelineCullMode::kNone;
     }
     // With ROV, the depth bias is applied in the pixel shader because
     // per-sample depth is needed for MSAA.
-    if (cull_mode != 1) {
+    if (!cull_front) {
       // Front faces aren't culled.
-      uint32_t fill_mode = (pa_su_sc_mode_cntl >> 5) & 0x7;
-      if (fill_mode == 0 || fill_mode == 1) {
+      // Direct3D 12, unfortunately, doesn't support point fill mode.
+      if (pa_su_sc_mode_cntl.polymode_front_ptype !=
+          xenos::PolygonType::kTriangles) {
         description_out.fill_mode_wireframe = 1;
       }
-      if (!edram_rov_used_ && (pa_su_sc_mode_cntl & (1 << 11))) {
+      if (!edram_rov_used_ && pa_su_sc_mode_cntl.poly_offset_front_enable) {
         poly_offset = regs[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_OFFSET].f32;
         poly_offset_scale = regs[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_SCALE].f32;
       }
     }
-    if (cull_mode != 2) {
+    if (!cull_back) {
       // Back faces aren't culled.
-      uint32_t fill_mode = (pa_su_sc_mode_cntl >> 8) & 0x7;
-      if (fill_mode == 0 || fill_mode == 1) {
+      if (pa_su_sc_mode_cntl.polymode_back_ptype !=
+          xenos::PolygonType::kTriangles) {
         description_out.fill_mode_wireframe = 1;
       }
       // Prefer front depth bias because in general, front faces are the ones
       // that are rendered (except for shadow volumes).
-      if (!edram_rov_used_ && (pa_su_sc_mode_cntl & (1 << 12)) &&
+      if (!edram_rov_used_ && pa_su_sc_mode_cntl.poly_offset_back_enable &&
           poly_offset == 0.0f && poly_offset_scale == 0.0f) {
         poly_offset = regs[XE_GPU_REG_PA_SU_POLY_OFFSET_BACK_OFFSET].f32;
         poly_offset_scale = regs[XE_GPU_REG_PA_SU_POLY_OFFSET_BACK_SCALE].f32;
       }
     }
-    if (((pa_su_sc_mode_cntl >> 3) & 0x3) == 0) {
-      // Fill mode is disabled.
+    if (pa_su_sc_mode_cntl.poly_mode == xenos::PolygonModeEnable::kDisabled) {
       description_out.fill_mode_wireframe = 0;
     }
   } else {
     // Filled front faces only.
     // Use front depth bias if POLY_OFFSET_PARA_ENABLED
     // (POLY_OFFSET_FRONT_ENABLED is for two-sided primitives).
-    if (!edram_rov_used_ && (pa_su_sc_mode_cntl & (1 << 13))) {
+    if (!edram_rov_used_ && pa_su_sc_mode_cntl.poly_offset_para_enable) {
       poly_offset = regs[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_OFFSET].f32;
       poly_offset_scale = regs[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_SCALE].f32;
     }
@@ -543,8 +550,8 @@ bool PipelineCache::GetCurrentStateDescription(
     // of Duty 4 (vehicledamage map explosion decals) and Red Dead Redemption
     // (shadows - 2^17 is not enough, 2^18 hasn't been tested, but 2^19
     // eliminates the acne).
-    if (((register_file_->values[XE_GPU_REG_RB_DEPTH_INFO].u32 >> 16) & 0x1) ==
-        uint32_t(DepthRenderTargetFormat::kD24FS8)) {
+    if (regs.Get<reg::RB_DEPTH_INFO>().depth_format ==
+        DepthRenderTargetFormat::kD24FS8) {
       poly_offset *= float(1 << 19);
     } else {
       poly_offset *= float(1 << 23);
@@ -564,48 +571,49 @@ bool PipelineCache::GetCurrentStateDescription(
        primitive_type == PrimitiveType::kQuadPatch)) {
     description_out.fill_mode_wireframe = 1;
   }
-  // CLIP_DISABLE
-  description_out.depth_clip =
-      (regs[XE_GPU_REG_PA_CL_CLIP_CNTL].u32 & (1 << 16)) == 0;
+  description_out.depth_clip = !regs.Get<reg::PA_CL_CLIP_CNTL>().clip_disable;
   if (edram_rov_used_) {
     description_out.rov_msaa =
-        ((regs[XE_GPU_REG_RB_SURFACE_INFO].u32 >> 16) & 0x3) != 0;
+        regs.Get<reg::RB_SURFACE_INFO>().msaa_samples != MsaaSamples::k1X;
   } else {
     // Depth/stencil. No stencil, always passing depth test and no depth writing
     // means depth disabled.
     if (render_targets[4].format != DXGI_FORMAT_UNKNOWN) {
-      uint32_t rb_depthcontrol = regs[XE_GPU_REG_RB_DEPTHCONTROL].u32;
-      if (rb_depthcontrol & 0x2) {
-        description_out.depth_func = (rb_depthcontrol >> 4) & 0x7;
-        description_out.depth_write = (rb_depthcontrol & 0x4) != 0;
+      auto rb_depthcontrol = regs.Get<reg::RB_DEPTHCONTROL>();
+      if (rb_depthcontrol.z_enable) {
+        description_out.depth_func = rb_depthcontrol.zfunc;
+        description_out.depth_write = rb_depthcontrol.z_write_enable;
       } else {
-        description_out.depth_func = 0b111;
+        description_out.depth_func = CompareFunction::kAlways;
       }
-      if (rb_depthcontrol & 0x1) {
+      if (rb_depthcontrol.stencil_enable) {
         description_out.stencil_enable = 1;
         bool stencil_backface_enable =
-            primitive_two_faced && (rb_depthcontrol & 0x80);
-        uint32_t stencil_masks;
+            primitive_two_faced && rb_depthcontrol.backface_enable;
         // Per-face masks not supported by Direct3D 12, choose the back face
         // ones only if drawing only back faces.
-        if (stencil_backface_enable && cull_mode == 1) {
-          stencil_masks = regs[XE_GPU_REG_RB_STENCILREFMASK_BF].u32;
+        Register stencil_ref_mask_reg;
+        if (stencil_backface_enable && cull_front) {
+          stencil_ref_mask_reg = XE_GPU_REG_RB_STENCILREFMASK_BF;
         } else {
-          stencil_masks = regs[XE_GPU_REG_RB_STENCILREFMASK].u32;
+          stencil_ref_mask_reg = XE_GPU_REG_RB_STENCILREFMASK;
         }
-        description_out.stencil_read_mask = (stencil_masks >> 8) & 0xFF;
-        description_out.stencil_write_mask = (stencil_masks >> 16) & 0xFF;
-        description_out.stencil_front_fail_op = (rb_depthcontrol >> 11) & 0x7;
+        auto stencil_ref_mask =
+            regs.Get<reg::RB_STENCILREFMASK>(stencil_ref_mask_reg);
+        description_out.stencil_read_mask = stencil_ref_mask.stencilmask;
+        description_out.stencil_write_mask = stencil_ref_mask.stencilwritemask;
+        description_out.stencil_front_fail_op = rb_depthcontrol.stencilfail;
         description_out.stencil_front_depth_fail_op =
-            (rb_depthcontrol >> 17) & 0x7;
-        description_out.stencil_front_pass_op = (rb_depthcontrol >> 14) & 0x7;
-        description_out.stencil_front_func = (rb_depthcontrol >> 8) & 0x7;
+            rb_depthcontrol.stencilzfail;
+        description_out.stencil_front_pass_op = rb_depthcontrol.stencilzpass;
+        description_out.stencil_front_func = rb_depthcontrol.stencilfunc;
         if (stencil_backface_enable) {
-          description_out.stencil_back_fail_op = (rb_depthcontrol >> 23) & 0x7;
+          description_out.stencil_back_fail_op = rb_depthcontrol.stencilfail_bf;
           description_out.stencil_back_depth_fail_op =
-              (rb_depthcontrol >> 29) & 0x7;
-          description_out.stencil_back_pass_op = (rb_depthcontrol >> 26) & 0x7;
-          description_out.stencil_back_func = (rb_depthcontrol >> 20) & 0x7;
+              rb_depthcontrol.stencilzfail_bf;
+          description_out.stencil_back_pass_op =
+              rb_depthcontrol.stencilzpass_bf;
+          description_out.stencil_back_func = rb_depthcontrol.stencilfunc_bf;
         } else {
           description_out.stencil_back_fail_op =
               description_out.stencil_front_fail_op;
@@ -618,13 +626,13 @@ bool PipelineCache::GetCurrentStateDescription(
         }
       }
       // If not binding the DSV, ignore the format in the hash.
-      if (description_out.depth_func != 0b111 || description_out.depth_write ||
-          description_out.stencil_enable) {
-        description_out.depth_format = DepthRenderTargetFormat(
-            (regs[XE_GPU_REG_RB_DEPTH_INFO].u32 >> 16) & 1);
+      if (description_out.depth_func != CompareFunction::kAlways ||
+          description_out.depth_write || description_out.stencil_enable) {
+        description_out.depth_format =
+            regs.Get<reg::RB_DEPTH_INFO>().depth_format;
       }
     } else {
-      description_out.depth_func = 0b111;
+      description_out.depth_func = CompareFunction::kAlways;
     }
     if (early_z) {
       description_out.force_early_z = 1;
@@ -684,38 +692,25 @@ bool PipelineCache::GetCurrentStateDescription(
       if (render_targets[i].format == DXGI_FORMAT_UNKNOWN) {
         break;
       }
-      uint32_t guest_rt_index = render_targets[i].guest_render_target;
-      uint32_t color_info, blendcontrol;
-      switch (guest_rt_index) {
-        case 1:
-          color_info = regs[XE_GPU_REG_RB_COLOR1_INFO].u32;
-          blendcontrol = regs[XE_GPU_REG_RB_BLENDCONTROL_1].u32;
-          break;
-        case 2:
-          color_info = regs[XE_GPU_REG_RB_COLOR2_INFO].u32;
-          blendcontrol = regs[XE_GPU_REG_RB_BLENDCONTROL_2].u32;
-          break;
-        case 3:
-          color_info = regs[XE_GPU_REG_RB_COLOR3_INFO].u32;
-          blendcontrol = regs[XE_GPU_REG_RB_BLENDCONTROL_3].u32;
-          break;
-        default:
-          color_info = regs[XE_GPU_REG_RB_COLOR_INFO].u32;
-          blendcontrol = regs[XE_GPU_REG_RB_BLENDCONTROL_0].u32;
-          break;
-      }
       PipelineRenderTarget& rt = description_out.render_targets[i];
       rt.used = 1;
-      rt.format = RenderTargetCache::GetBaseColorFormat(
-          ColorRenderTargetFormat((color_info >> 16) & 0xF));
+      uint32_t guest_rt_index = render_targets[i].guest_render_target;
+      auto color_info = regs.Get<reg::RB_COLOR_INFO>(
+          reg::RB_COLOR_INFO::rt_register_indices[guest_rt_index]);
+      rt.format =
+          RenderTargetCache::GetBaseColorFormat(color_info.color_format);
       rt.write_mask = (color_mask >> (guest_rt_index * 4)) & 0xF;
       if (rt.write_mask) {
-        rt.src_blend = kBlendFactorMap[blendcontrol & 0x1F];
-        rt.dest_blend = kBlendFactorMap[(blendcontrol >> 8) & 0x1F];
-        rt.blend_op = BlendOp((blendcontrol >> 5) & 0x7);
-        rt.src_blend_alpha = kBlendFactorAlphaMap[(blendcontrol >> 16) & 0x1F];
-        rt.dest_blend_alpha = kBlendFactorAlphaMap[(blendcontrol >> 24) & 0x1F];
-        rt.blend_op_alpha = BlendOp((blendcontrol >> 21) & 0x7);
+        auto blendcontrol = regs.Get<reg::RB_BLENDCONTROL>(
+            reg::RB_BLENDCONTROL::rt_register_indices[guest_rt_index]);
+        rt.src_blend = kBlendFactorMap[uint32_t(blendcontrol.color_srcblend)];
+        rt.dest_blend = kBlendFactorMap[uint32_t(blendcontrol.color_destblend)];
+        rt.blend_op = blendcontrol.color_comb_fcn;
+        rt.src_blend_alpha =
+            kBlendFactorAlphaMap[uint32_t(blendcontrol.alpha_srcblend)];
+        rt.dest_blend_alpha =
+            kBlendFactorAlphaMap[uint32_t(blendcontrol.alpha_destblend)];
+        rt.blend_op_alpha = blendcontrol.alpha_comb_fcn;
       } else {
         rt.src_blend = PipelineBlendFactor::kOne;
         rt.dest_blend = PipelineBlendFactor::kZero;
@@ -941,15 +936,17 @@ ID3D12PipelineState* PipelineCache::CreatePipelineState(
 
   if (!edram_rov_used_) {
     // Depth/stencil.
-    if (description.depth_func != 0b111 || description.depth_write) {
+    if (description.depth_func != CompareFunction::kAlways ||
+        description.depth_write) {
       state_desc.DepthStencilState.DepthEnable = TRUE;
       state_desc.DepthStencilState.DepthWriteMask =
           description.depth_write ? D3D12_DEPTH_WRITE_MASK_ALL
                                   : D3D12_DEPTH_WRITE_MASK_ZERO;
       // Comparison functions are the same in Direct3D 12 but plus one (minus
       // one, bit 0 for less, bit 1 for equal, bit 2 for greater).
-      state_desc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC(
-          uint32_t(D3D12_COMPARISON_FUNC_NEVER) + description.depth_func);
+      state_desc.DepthStencilState.DepthFunc =
+          D3D12_COMPARISON_FUNC(uint32_t(D3D12_COMPARISON_FUNC_NEVER) +
+                                uint32_t(description.depth_func));
     }
     if (description.stencil_enable) {
       state_desc.DepthStencilState.StencilEnable = TRUE;
@@ -958,26 +955,30 @@ ID3D12PipelineState* PipelineCache::CreatePipelineState(
       state_desc.DepthStencilState.StencilWriteMask =
           description.stencil_write_mask;
       // Stencil operations are the same in Direct3D 12 too but plus one.
-      state_desc.DepthStencilState.FrontFace.StencilFailOp = D3D12_STENCIL_OP(
-          uint32_t(D3D12_STENCIL_OP_KEEP) + description.stencil_front_fail_op);
+      state_desc.DepthStencilState.FrontFace.StencilFailOp =
+          D3D12_STENCIL_OP(uint32_t(D3D12_STENCIL_OP_KEEP) +
+                           uint32_t(description.stencil_front_fail_op));
       state_desc.DepthStencilState.FrontFace.StencilDepthFailOp =
           D3D12_STENCIL_OP(uint32_t(D3D12_STENCIL_OP_KEEP) +
-                           description.stencil_front_depth_fail_op);
-      state_desc.DepthStencilState.FrontFace.StencilPassOp = D3D12_STENCIL_OP(
-          uint32_t(D3D12_STENCIL_OP_KEEP) + description.stencil_front_pass_op);
+                           uint32_t(description.stencil_front_depth_fail_op));
+      state_desc.DepthStencilState.FrontFace.StencilPassOp =
+          D3D12_STENCIL_OP(uint32_t(D3D12_STENCIL_OP_KEEP) +
+                           uint32_t(description.stencil_front_pass_op));
       state_desc.DepthStencilState.FrontFace.StencilFunc =
           D3D12_COMPARISON_FUNC(uint32_t(D3D12_COMPARISON_FUNC_NEVER) +
-                                description.stencil_front_func);
-      state_desc.DepthStencilState.BackFace.StencilFailOp = D3D12_STENCIL_OP(
-          uint32_t(D3D12_STENCIL_OP_KEEP) + description.stencil_back_fail_op);
+                                uint32_t(description.stencil_front_func));
+      state_desc.DepthStencilState.BackFace.StencilFailOp =
+          D3D12_STENCIL_OP(uint32_t(D3D12_STENCIL_OP_KEEP) +
+                           uint32_t(description.stencil_back_fail_op));
       state_desc.DepthStencilState.BackFace.StencilDepthFailOp =
           D3D12_STENCIL_OP(uint32_t(D3D12_STENCIL_OP_KEEP) +
-                           description.stencil_back_depth_fail_op);
-      state_desc.DepthStencilState.BackFace.StencilPassOp = D3D12_STENCIL_OP(
-          uint32_t(D3D12_STENCIL_OP_KEEP) + description.stencil_back_pass_op);
+                           uint32_t(description.stencil_back_depth_fail_op));
+      state_desc.DepthStencilState.BackFace.StencilPassOp =
+          D3D12_STENCIL_OP(uint32_t(D3D12_STENCIL_OP_KEEP) +
+                           uint32_t(description.stencil_back_pass_op));
       state_desc.DepthStencilState.BackFace.StencilFunc =
           D3D12_COMPARISON_FUNC(uint32_t(D3D12_COMPARISON_FUNC_NEVER) +
-                                description.stencil_back_func);
+                                uint32_t(description.stencil_back_func));
     }
     if (state_desc.DepthStencilState.DepthEnable ||
         state_desc.DepthStencilState.StencilEnable) {

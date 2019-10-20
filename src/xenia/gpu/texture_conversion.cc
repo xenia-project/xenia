@@ -40,7 +40,7 @@ void CopySwapBlock(Endian endian, void* output, const void* input,
       xe::copy_and_swap_16_in_32_unaligned(output, input, length);
       break;
     default:
-    case Endian::kUnspecified:
+    case Endian::kNone:
       std::memcpy(output, input, length);
       break;
   }

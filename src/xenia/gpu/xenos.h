@@ -161,14 +161,14 @@ enum class SampleLocation : uint32_t {
 };
 
 enum class Endian : uint32_t {
-  kUnspecified = 0,
+  kNone = 0,
   k8in16 = 1,
   k8in32 = 2,
   k16in32 = 3,
 };
 
 enum class Endian128 : uint32_t {
-  kUnspecified = 0,
+  kNone = 0,
   k8in16 = 1,
   k8in32 = 2,
   k16in32 = 3,
@@ -223,6 +223,77 @@ enum class DepthRenderTargetFormat : uint32_t {
   kD24S8 = 0,
   // 20e4 [0, 2).
   kD24FS8 = 1,
+};
+
+// a2xx_sq_surfaceformat +
+// https://github.com/indirivacua/RAGE-Console-Texture-Editor/blob/master/Console.Xbox360.Graphics.pas
+enum class TextureFormat : uint32_t {
+  k_1_REVERSE = 0,
+  k_1 = 1,
+  k_8 = 2,
+  k_1_5_5_5 = 3,
+  k_5_6_5 = 4,
+  k_6_5_5 = 5,
+  k_8_8_8_8 = 6,
+  k_2_10_10_10 = 7,
+  k_8_A = 8,
+  k_8_B = 9,
+  k_8_8 = 10,
+  k_Cr_Y1_Cb_Y0_REP = 11,
+  k_Y1_Cr_Y0_Cb_REP = 12,
+  k_16_16_EDRAM = 13,
+  k_8_8_8_8_A = 14,
+  k_4_4_4_4 = 15,
+  k_10_11_11 = 16,
+  k_11_11_10 = 17,
+  k_DXT1 = 18,
+  k_DXT2_3 = 19,
+  k_DXT4_5 = 20,
+  k_16_16_16_16_EDRAM = 21,
+  k_24_8 = 22,
+  k_24_8_FLOAT = 23,
+  k_16 = 24,
+  k_16_16 = 25,
+  k_16_16_16_16 = 26,
+  k_16_EXPAND = 27,
+  k_16_16_EXPAND = 28,
+  k_16_16_16_16_EXPAND = 29,
+  k_16_FLOAT = 30,
+  k_16_16_FLOAT = 31,
+  k_16_16_16_16_FLOAT = 32,
+  k_32 = 33,
+  k_32_32 = 34,
+  k_32_32_32_32 = 35,
+  k_32_FLOAT = 36,
+  k_32_32_FLOAT = 37,
+  k_32_32_32_32_FLOAT = 38,
+  k_32_AS_8 = 39,
+  k_32_AS_8_8 = 40,
+  k_16_MPEG = 41,
+  k_16_16_MPEG = 42,
+  k_8_INTERLACED = 43,
+  k_32_AS_8_INTERLACED = 44,
+  k_32_AS_8_8_INTERLACED = 45,
+  k_16_INTERLACED = 46,
+  k_16_MPEG_INTERLACED = 47,
+  k_16_16_MPEG_INTERLACED = 48,
+  k_DXN = 49,
+  k_8_8_8_8_AS_16_16_16_16 = 50,
+  k_DXT1_AS_16_16_16_16 = 51,
+  k_DXT2_3_AS_16_16_16_16 = 52,
+  k_DXT4_5_AS_16_16_16_16 = 53,
+  k_2_10_10_10_AS_16_16_16_16 = 54,
+  k_10_11_11_AS_16_16_16_16 = 55,
+  k_11_11_10_AS_16_16_16_16 = 56,
+  k_32_32_32_FLOAT = 57,
+  k_DXT3A = 58,
+  k_DXT5A = 59,
+  k_CTX1 = 60,
+  k_DXT3A_AS_1_1_1_1 = 61,
+  k_8_8_8_8_GAMMA_EDRAM = 62,
+  k_2_10_10_10_FLOAT_EDRAM = 63,
+
+  kUnknown = 0xFFFFFFFFu,
 };
 
 // Subset of a2xx_sq_surfaceformat - formats that RTs can be resolved to.
@@ -367,11 +438,7 @@ enum class BlendFactor : uint32_t {
   kConstantAlpha = 14,
   kOneMinusConstantAlpha = 15,
   kSrcAlphaSaturate = 16,
-  // SRC1 likely not used on the Xbox 360 - only available in Direct3D 9Ex.
-  kSrc1Color = 20,
-  kOneMinusSrc1Color = 21,
-  kSrc1Alpha = 22,
-  kOneMinusSrc1Alpha = 23,
+  // SRC1 added on Adreno.
 };
 
 enum class BlendOp : uint32_t {
@@ -390,6 +457,17 @@ typedef enum {
 
   XE_GPU_INVALIDATE_MASK_ALL = 0x7FFF,
 } XE_GPU_INVALIDATE_MASK;
+
+// instr_arbitrary_filter_t
+enum class ArbitraryFilter : uint32_t {
+  k2x4Sym = 0,
+  k2x4Asym = 1,
+  k4x2Sym = 2,
+  k4x2Asym = 3,
+  k4x4Sym = 4,
+  k4x4Asym = 5,
+  kUseFetchConst = 7,
+};
 
 // a2xx_sq_ps_vtx_mode
 enum class VertexShaderExportMode : uint32_t {
@@ -418,6 +496,17 @@ enum class TessellationMode : uint32_t {
   kDiscrete = 0,
   kContinuous = 1,
   kAdaptive = 2,
+};
+
+enum class PolygonModeEnable : uint32_t {
+  kDisabled = 0,  // Render triangles.
+  kDualMode = 1,  // Send 2 sets of 3 polygons with the specified polygon type.
+};
+
+enum class PolygonType : uint32_t {
+  kPoints = 0,
+  kLines = 1,
+  kTriangles = 2,
 };
 
 enum class ModeControl : uint32_t {
@@ -471,7 +560,7 @@ typedef enum {
 
 inline uint16_t GpuSwap(uint16_t value, Endian endianness) {
   switch (endianness) {
-    case Endian::kUnspecified:
+    case Endian::kNone:
       // No swap.
       return value;
     case Endian::k8in16:
@@ -486,7 +575,7 @@ inline uint16_t GpuSwap(uint16_t value, Endian endianness) {
 inline uint32_t GpuSwap(uint32_t value, Endian endianness) {
   switch (endianness) {
     default:
-    case Endian::kUnspecified:
+    case Endian::kNone:
       // No swap.
       return value;
     case Endian::k8in16:
@@ -520,11 +609,11 @@ inline uint32_t CpuToGpu(uint32_t p) { return p & 0x1FFFFFFF; }
 XEPACKEDUNION(xe_gpu_vertex_fetch_t, {
   XEPACKEDSTRUCTANONYMOUS({
     uint32_t type : 2;      // +0
-    uint32_t address : 30;  // +2
+    uint32_t address : 30;  // +2 address in dwords
 
-    uint32_t endian : 2;  // +0
-    uint32_t size : 24;   // +2 size in words
-    uint32_t unk1 : 6;    // +26
+    Endian endian : 2;   // +0
+    uint32_t size : 24;  // +2 size in words
+    uint32_t unk1 : 6;   // +26
   });
   XEPACKEDSTRUCTANONYMOUS({
     uint32_t dword_0;
@@ -535,34 +624,36 @@ XEPACKEDUNION(xe_gpu_vertex_fetch_t, {
 // XE_GPU_REG_SHADER_CONSTANT_FETCH_*
 XEPACKEDUNION(xe_gpu_texture_fetch_t, {
   XEPACKEDSTRUCTANONYMOUS({
-    uint32_t type : 2;      // +0 dword_0
-    uint32_t sign_x : 2;    // +2
-    uint32_t sign_y : 2;    // +4
-    uint32_t sign_z : 2;    // +6
-    uint32_t sign_w : 2;    // +8
-    uint32_t clamp_x : 3;   // +10
-    uint32_t clamp_y : 3;   // +13
-    uint32_t clamp_z : 3;   // +16
-    uint32_t unused_0 : 3;  // +19
-    uint32_t pitch : 9;     // +22 byte_pitch >> 5
-    uint32_t tiled : 1;     // +31
+    uint32_t type : 2;                // +0 dword_0
+    TextureSign sign_x : 2;           // +2
+    TextureSign sign_y : 2;           // +4
+    TextureSign sign_z : 2;           // +6
+    TextureSign sign_w : 2;           // +8
+    ClampMode clamp_x : 3;            // +10
+    ClampMode clamp_y : 3;            // +13
+    ClampMode clamp_z : 3;            // +16
+    uint32_t signed_rf_mode_all : 1;  // +19
+    // TODO(Triang3l): 1 or 2 dim_tbd bits?
+    uint32_t unk_0 : 2;  // +20
+    uint32_t pitch : 9;  // +22 byte_pitch >> 5
+    uint32_t tiled : 1;  // +31
 
-    uint32_t format : 6;         // +0 dword_1
-    uint32_t endianness : 2;     // +6
-    uint32_t request_size : 2;   // +8
-    uint32_t stacked : 1;        // +10
-    uint32_t clamp_policy : 1;   // +11 d3d/opengl
-    uint32_t base_address : 20;  // +12
+    TextureFormat format : 6;           // +0 dword_1
+    Endian endianness : 2;              // +6
+    uint32_t request_size : 2;          // +8
+    uint32_t stacked : 1;               // +10
+    uint32_t nearest_clamp_policy : 1;  // +11 d3d/opengl
+    uint32_t base_address : 20;         // +12 base address >> 12
 
     union {  // dword_2
       struct {
         uint32_t width : 24;
-        uint32_t unused : 8;
+        uint32_t : 8;
       } size_1d;
       struct {
         uint32_t width : 13;
         uint32_t height : 13;
-        uint32_t unused : 6;
+        uint32_t : 6;
       } size_2d;
       struct {
         uint32_t width : 13;
@@ -576,15 +667,16 @@ XEPACKEDUNION(xe_gpu_texture_fetch_t, {
       } size_3d;
     };
 
-    uint32_t num_format : 1;    // +0 dword_3 frac/int
-    uint32_t swizzle : 12;      // +1 xyzw, 3b each (XE_GPU_SWIZZLE)
-    int32_t exp_adjust : 6;     // +13
-    uint32_t mag_filter : 2;    // +19
-    uint32_t min_filter : 2;    // +21
-    uint32_t mip_filter : 2;    // +23
-    uint32_t aniso_filter : 3;  // +25
-    uint32_t unused_3 : 3;      // +28
-    uint32_t border_size : 1;   // +31
+    uint32_t num_format : 1;  // +0 dword_3 frac/int
+    // xyzw, 3b each (XE_GPU_SWIZZLE)
+    uint32_t swizzle : 12;                        // +1
+    int32_t exp_adjust : 6;                       // +13
+    TextureFilter mag_filter : 2;                 // +19
+    TextureFilter min_filter : 2;                 // +21
+    TextureFilter mip_filter : 2;                 // +23
+    AnisoFilter aniso_filter : 3;                 // +25
+    xenos::ArbitraryFilter arbitrary_filter : 3;  // +28
+    uint32_t border_size : 1;                     // +31
 
     uint32_t vol_mag_filter : 1;    // +0 dword_4
     uint32_t vol_min_filter : 1;    // +1
@@ -596,13 +688,13 @@ XEPACKEDUNION(xe_gpu_texture_fetch_t, {
     int32_t grad_exp_adjust_h : 5;  // +22
     int32_t grad_exp_adjust_v : 5;  // +27
 
-    uint32_t border_color : 2;   // +0 dword_5
-    uint32_t force_bcw_max : 1;  // +2
-    uint32_t tri_clamp : 2;      // +3
-    int32_t aniso_bias : 4;      // +5
-    uint32_t dimension : 2;      // +9
-    uint32_t packed_mips : 1;    // +11
-    uint32_t mip_address : 20;   // +12
+    BorderColor border_color : 2;    // +0 dword_5
+    uint32_t force_bc_w_to_max : 1;  // +2
+    uint32_t tri_clamp : 2;          // +3
+    int32_t aniso_bias : 4;          // +5
+    uint32_t dimension : 2;          // +9
+    uint32_t packed_mips : 1;        // +11
+    uint32_t mip_address : 20;       // +12 mip address >> 12
   });
   XEPACKEDSTRUCTANONYMOUS({
     uint32_t dword_0;
