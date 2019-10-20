@@ -815,13 +815,13 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
   push_constants_dirty |=
       SetShadowRegister(&regs.rb_colorcontrol, XE_GPU_REG_RB_COLORCONTROL);
   push_constants_dirty |=
-      SetShadowRegister(&regs.rb_color_info, XE_GPU_REG_RB_COLOR_INFO);
+      SetShadowRegister(&regs.rb_color_info.value, XE_GPU_REG_RB_COLOR_INFO);
   push_constants_dirty |=
-      SetShadowRegister(&regs.rb_color1_info, XE_GPU_REG_RB_COLOR1_INFO);
+      SetShadowRegister(&regs.rb_color1_info.value, XE_GPU_REG_RB_COLOR1_INFO);
   push_constants_dirty |=
-      SetShadowRegister(&regs.rb_color2_info, XE_GPU_REG_RB_COLOR2_INFO);
+      SetShadowRegister(&regs.rb_color2_info.value, XE_GPU_REG_RB_COLOR2_INFO);
   push_constants_dirty |=
-      SetShadowRegister(&regs.rb_color3_info, XE_GPU_REG_RB_COLOR3_INFO);
+      SetShadowRegister(&regs.rb_color3_info.value, XE_GPU_REG_RB_COLOR3_INFO);
   push_constants_dirty |=
       SetShadowRegister(&regs.rb_alpha_ref, XE_GPU_REG_RB_ALPHA_REF);
   push_constants_dirty |=
@@ -1503,13 +1503,13 @@ PipelineCache::UpdateStatus PipelineCache::UpdateColorBlendState() {
   bool dirty = false;
   dirty |= SetShadowRegister(&regs.rb_color_mask, XE_GPU_REG_RB_COLOR_MASK);
   dirty |=
-      SetShadowRegister(&regs.rb_blendcontrol[0], XE_GPU_REG_RB_BLENDCONTROL_0);
+      SetShadowRegister(&regs.rb_blendcontrol[0], XE_GPU_REG_RB_BLENDCONTROL0);
   dirty |=
-      SetShadowRegister(&regs.rb_blendcontrol[1], XE_GPU_REG_RB_BLENDCONTROL_1);
+      SetShadowRegister(&regs.rb_blendcontrol[1], XE_GPU_REG_RB_BLENDCONTROL1);
   dirty |=
-      SetShadowRegister(&regs.rb_blendcontrol[2], XE_GPU_REG_RB_BLENDCONTROL_2);
+      SetShadowRegister(&regs.rb_blendcontrol[2], XE_GPU_REG_RB_BLENDCONTROL2);
   dirty |=
-      SetShadowRegister(&regs.rb_blendcontrol[3], XE_GPU_REG_RB_BLENDCONTROL_3);
+      SetShadowRegister(&regs.rb_blendcontrol[3], XE_GPU_REG_RB_BLENDCONTROL3);
   dirty |= SetShadowRegister(&regs.rb_modecontrol, XE_GPU_REG_RB_MODECONTROL);
   XXH64_update(&hash_state_, &regs, sizeof(regs));
   if (!dirty) {

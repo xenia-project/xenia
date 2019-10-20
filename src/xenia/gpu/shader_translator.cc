@@ -110,9 +110,8 @@ bool ShaderTranslator::GatherAllBindingInformation(Shader* shader) {
 bool ShaderTranslator::Translate(Shader* shader, PrimitiveType patch_type,
                                  reg::SQ_PROGRAM_CNTL cntl) {
   Reset();
-  uint32_t cntl_num_reg = shader->type() == ShaderType::kVertex
-                              ? cntl.vs_num_reg.value()
-                              : cntl.ps_num_reg.value();
+  uint32_t cntl_num_reg =
+      shader->type() == ShaderType::kVertex ? cntl.vs_num_reg : cntl.ps_num_reg;
   register_count_ = (cntl_num_reg & 0x80) ? 0 : (cntl_num_reg + 1);
 
   return TranslateInternal(shader, patch_type);

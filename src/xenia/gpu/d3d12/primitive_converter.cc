@@ -192,7 +192,7 @@ PrimitiveConverter::ConversionResult PrimitiveConverter::ConvertPrimitives(
     D3D12_GPU_VIRTUAL_ADDRESS& gpu_address_out, uint32_t& index_count_out) {
   bool index_32bit = index_format == IndexFormat::kInt32;
   auto& regs = *register_file_;
-  bool reset = (regs[XE_GPU_REG_PA_SU_SC_MODE_CNTL].u32 & (1 << 21)) != 0;
+  bool reset = regs.Get<reg::PA_SU_SC_MODE_CNTL>().multi_prim_ib_ena;
   // Swap the reset index because we will be comparing unswapped values to it.
   uint32_t reset_index = xenos::GpuSwap(
       regs[XE_GPU_REG_VGT_MULTI_PRIM_IB_RESET_INDX].u32, index_endianness);

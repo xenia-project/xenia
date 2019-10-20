@@ -292,10 +292,10 @@ class PipelineCache {
     reg::SQ_PROGRAM_CNTL sq_program_cntl;
     uint32_t sq_context_misc;
     uint32_t rb_colorcontrol;
-    uint32_t rb_color_info;
-    uint32_t rb_color1_info;
-    uint32_t rb_color2_info;
-    uint32_t rb_color3_info;
+    reg::RB_COLOR_INFO rb_color_info;
+    reg::RB_COLOR_INFO rb_color1_info;
+    reg::RB_COLOR_INFO rb_color2_info;
+    reg::RB_COLOR_INFO rb_color3_info;
     float rb_alpha_ref;
     uint32_t pa_su_point_size;
 

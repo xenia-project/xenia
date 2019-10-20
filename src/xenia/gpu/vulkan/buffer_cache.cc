@@ -654,9 +654,8 @@ VkDescriptorSet BufferCache::PrepareVertexSet(
     // trace_writer_.WriteMemoryRead(physical_address, source_length);
 
     // Upload (or get a cached copy of) the buffer.
-    auto buffer_ref =
-        UploadVertexBuffer(command_buffer, physical_address, source_length,
-                           static_cast<Endian>(fetch->endian), fence);
+    auto buffer_ref = UploadVertexBuffer(command_buffer, physical_address,
+                                         source_length, fetch->endian, fence);
     if (buffer_ref.second == VK_WHOLE_SIZE) {
       // Failed to upload buffer.
       XELOGW("Failed to upload vertex buffer!");

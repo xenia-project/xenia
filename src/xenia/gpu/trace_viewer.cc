@@ -824,7 +824,7 @@ void TraceViewer::DrawVertexFetcher(Shader* shader,
 #define LOADEL(type, wo)                                                   \
   GpuSwap(xe::load<type>(vstart +                                          \
                          (attrib.fetch_instr.attributes.offset + wo) * 4), \
-          Endian(fetch->endian))
+          fetch->endian)
       switch (attrib.fetch_instr.attributes.data_format) {
         case VertexFormat::k_32:
           ImGui::Text("%.8X", LOADEL(uint32_t, 0));
@@ -1334,10 +1334,10 @@ void TraceViewer::DrawStateUI() {
           regs[XE_GPU_REG_RB_COLOR3_INFO].u32,
       };
       uint32_t rb_blendcontrol[4] = {
-          regs[XE_GPU_REG_RB_BLENDCONTROL_0].u32,
-          regs[XE_GPU_REG_RB_BLENDCONTROL_1].u32,
-          regs[XE_GPU_REG_RB_BLENDCONTROL_2].u32,
-          regs[XE_GPU_REG_RB_BLENDCONTROL_3].u32,
+          regs[XE_GPU_REG_RB_BLENDCONTROL0].u32,
+          regs[XE_GPU_REG_RB_BLENDCONTROL1].u32,
+          regs[XE_GPU_REG_RB_BLENDCONTROL2].u32,
+          regs[XE_GPU_REG_RB_BLENDCONTROL3].u32,
       };
       ImGui::Columns(2);
       for (int i = 0; i < xe::countof(color_info); ++i) {
@@ -1713,7 +1713,7 @@ void TraceViewer::DrawStateUI() {
             fetch = &group->vertex_fetch_2;
             break;
         }
-        assert_true(fetch->endian == 2);
+        assert_true(fetch->endian == Endian::k8in32);
         char tree_root_id[32];
         sprintf(tree_root_id, "#vertices_root_%d",
                 vertex_binding.fetch_constant);

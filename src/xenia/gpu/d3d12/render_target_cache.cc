@@ -541,16 +541,17 @@ bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
 
   bool rov_used = command_processor_->IsROVUsedForEDRAM();
 
-  uint32_t rb_surface_info = regs[XE_GPU_REG_RB_SURFACE_INFO].u32;
-  uint32_t surface_pitch = std::min(rb_surface_info & 0x3FFF, 2560u);
+  auto rb_surface_info = regs.Get<reg::RB_SURFACE_INFO>();
+  uint32_t surface_pitch = std::min(rb_surface_info.surface_pitch, 2560u);
   if (surface_pitch == 0) {
     // TODO(Triang3l): Do something if a memexport-only draw has 0 surface
     // pitch (never seen in any game so far, not sure if even legal).
     return false;
   }
-  MsaaSamples msaa_samples = MsaaSamples((rb_surface_info >> 16) & 0x3);
-  uint32_t msaa_samples_x = msaa_samples >= MsaaSamples::k4X ? 2 : 1;
-  uint32_t msaa_samples_y = msaa_samples >= MsaaSamples::k2X ? 2 : 1;
+  uint32_t msaa_samples_x =
+      rb_surface_info.msaa_samples >= MsaaSamples::k4X ? 2 : 1;
+  uint32_t msaa_samples_y =
+      rb_surface_info.msaa_samples >= MsaaSamples::k2X ? 2 : 1;
 
   // Extract color/depth info in an unified way.
   bool enabled[5];
@@ -558,26 +559,27 @@ bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
   uint32_t formats[5];
   bool formats_are_64bpp[5];
   uint32_t color_mask = command_processor_->GetCurrentColorMask(pixel_shader);
-  uint32_t rb_color_info[4] = {
-      regs[XE_GPU_REG_RB_COLOR_INFO].u32, regs[XE_GPU_REG_RB_COLOR1_INFO].u32,
-      regs[XE_GPU_REG_RB_COLOR2_INFO].u32, regs[XE_GPU_REG_RB_COLOR3_INFO].u32};
   for (uint32_t i = 0; i < 4; ++i) {
     enabled[i] = (color_mask & (0xF << (i * 4))) != 0;
-    edram_bases[i] = std::min(rb_color_info[i] & 0xFFF, 2048u);
-    formats[i] = uint32_t(GetBaseColorFormat(
-        ColorRenderTargetFormat((rb_color_info[i] >> 16) & 0xF)));
+    auto color_info = regs.Get<reg::RB_COLOR_INFO>(
+        reg::RB_COLOR_INFO::rt_register_indices[i]);
+    edram_bases[i] = std::min(color_info.color_base, 2048u);
+    formats[i] = uint32_t(GetBaseColorFormat(color_info.color_format));
     formats_are_64bpp[i] =
         IsColorFormat64bpp(ColorRenderTargetFormat(formats[i]));
   }
-  uint32_t rb_depthcontrol = regs[XE_GPU_REG_RB_DEPTHCONTROL].u32;
-  uint32_t rb_depth_info = regs[XE_GPU_REG_RB_DEPTH_INFO].u32;
+  auto rb_depthcontrol = regs.Get<reg::RB_DEPTHCONTROL>();
+  auto rb_depth_info = regs.Get<reg::RB_DEPTH_INFO>();
   // 0x1 = stencil test, 0x2 = depth test.
-  enabled[4] = (rb_depthcontrol & (0x1 | 0x2)) != 0;
-  edram_bases[4] = std::min(rb_depth_info & 0xFFF, 2048u);
-  formats[4] = (rb_depth_info >> 16) & 0x1;
+  enabled[4] = rb_depthcontrol.stencil_enable || rb_depthcontrol.z_enable;
+  edram_bases[4] = std::min(rb_depth_info.depth_base, 2048u);
+  formats[4] = uint32_t(rb_depth_info.depth_format);
   formats_are_64bpp[4] = false;
   // Don't mark depth regions as dirty if not writing the depth.
-  bool depth_readonly = (rb_depthcontrol & (0x1 | 0x4)) == 0;
+  // TODO(Triang3l): Make a common function for checking if stencil writing is
+  // really done?
+  bool depth_readonly =
+      !rb_depthcontrol.stencil_enable && !rb_depthcontrol.z_write_enable;
 
   bool full_update = false;
 
@@ -590,7 +592,7 @@ bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
   // in the beginning of the frame or after resolves by setting the current
   // pitch to 0.
   if (current_surface_pitch_ != surface_pitch ||
-      current_msaa_samples_ != msaa_samples) {
+      current_msaa_samples_ != rb_surface_info.msaa_samples) {
     full_update = true;
   }
 
@@ -632,26 +634,22 @@ bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
 
   // Get EDRAM usage of the current draw so dirty regions can be calculated.
   // See D3D12CommandProcessor::UpdateFixedFunctionState for more info.
-  int16_t window_offset_y =
-      (regs[XE_GPU_REG_PA_SC_WINDOW_OFFSET].u32 >> 16) & 0x7FFF;
-  if (window_offset_y & 0x4000) {
-    window_offset_y |= 0x8000;
-  }
-  uint32_t pa_cl_vte_cntl = regs[XE_GPU_REG_PA_CL_VTE_CNTL].u32;
-  float viewport_scale_y = (pa_cl_vte_cntl & (1 << 2))
+  int32_t window_offset_y =
+      regs.Get<reg::PA_SC_WINDOW_OFFSET>().window_y_offset;
+  auto pa_cl_vte_cntl = regs.Get<reg::PA_CL_VTE_CNTL>();
+  float viewport_scale_y = pa_cl_vte_cntl.vport_y_scale_ena
                                ? regs[XE_GPU_REG_PA_CL_VPORT_YSCALE].f32
                                : 1280.0f;
-  float viewport_offset_y = (pa_cl_vte_cntl & (1 << 3))
+  float viewport_offset_y = pa_cl_vte_cntl.vport_y_offset_ena
                                 ? regs[XE_GPU_REG_PA_CL_VPORT_YOFFSET].f32
                                 : std::abs(viewport_scale_y);
-  if (regs[XE_GPU_REG_PA_SU_SC_MODE_CNTL].u32 & (1 << 16)) {
+  if (regs.Get<reg::PA_SU_SC_MODE_CNTL>().vtx_window_offset_enable) {
     viewport_offset_y += float(window_offset_y);
   }
   uint32_t viewport_bottom = uint32_t(std::max(
       0.0f, std::ceil(viewport_offset_y + std::abs(viewport_scale_y))));
-  uint32_t scissor_bottom =
-      (regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_BR].u32 >> 16) & 0x7FFF;
-  if (!(regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL].u32 & (1u << 31))) {
+  uint32_t scissor_bottom = regs.Get<reg::PA_SC_WINDOW_SCISSOR_BR>().br_y;
+  if (!regs.Get<reg::PA_SC_WINDOW_SCISSOR_TL>().window_offset_disable) {
     scissor_bottom = std::max(int32_t(scissor_bottom) + window_offset_y, 0);
   }
   uint32_t dirty_bottom =
@@ -769,7 +767,7 @@ bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
 
       ClearBindings();
       current_surface_pitch_ = surface_pitch;
-      current_msaa_samples_ = msaa_samples;
+      current_msaa_samples_ = rb_surface_info.msaa_samples;
       if (!rov_used) {
         current_edram_max_rows_ = edram_max_rows;
       }
@@ -801,8 +799,8 @@ bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
 #endif
     }
     XELOGGPU("RT Cache: %s update - pitch %u, samples %u, RTs to attach %u",
-             full_update ? "Full" : "Partial", surface_pitch, msaa_samples,
-             render_targets_to_attach);
+             full_update ? "Full" : "Partial", surface_pitch,
+             rb_surface_info.msaa_samples, render_targets_to_attach);
 
 #if 0
     auto device =
@@ -891,7 +889,7 @@ bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
     if (!rov_used) {
       // Sample positions when loading depth must match sample positions when
       // drawing.
-      command_processor_->SetSamplePositions(msaa_samples);
+      command_processor_->SetSamplePositions(rb_surface_info.msaa_samples);
 
       // Load the contents of the new render targets from the EDRAM buffer (will
       // change the state of the render targets to copy destination).
@@ -1007,18 +1005,14 @@ bool RenderTargetCache::Resolve(SharedMemory* shared_memory,
   auto& regs = *register_file_;
 
   // Get the render target properties.
-  uint32_t rb_surface_info = regs[XE_GPU_REG_RB_SURFACE_INFO].u32;
-  uint32_t surface_pitch = std::min(rb_surface_info & 0x3FFF, 2560u);
+  auto rb_surface_info = regs.Get<reg::RB_SURFACE_INFO>();
+  uint32_t surface_pitch = std::min(rb_surface_info.surface_pitch, 2560u);
   if (surface_pitch == 0) {
     return true;
   }
-  MsaaSamples msaa_samples = MsaaSamples((rb_surface_info >> 16) & 0x3);
-  uint32_t rb_copy_control = regs[XE_GPU_REG_RB_COPY_CONTROL].u32;
   // Depth info is always needed because color resolve may also clear depth.
-  uint32_t rb_depth_info = regs[XE_GPU_REG_RB_DEPTH_INFO].u32;
-  uint32_t depth_edram_base = rb_depth_info & 0xFFF;
-  uint32_t depth_format = (rb_depth_info >> 16) & 0x1;
-  uint32_t surface_index = rb_copy_control & 0x7;
+  auto rb_depth_info = regs.Get<reg::RB_DEPTH_INFO>();
+  uint32_t surface_index = regs.Get<reg::RB_COPY_CONTROL>().copy_src_select;
   if (surface_index > 4) {
     assert_always();
     return false;
@@ -1027,43 +1021,28 @@ bool RenderTargetCache::Resolve(SharedMemory* shared_memory,
   uint32_t surface_edram_base;
   uint32_t surface_format;
   if (surface_is_depth) {
-    surface_edram_base = depth_edram_base;
-    surface_format = depth_format;
+    surface_edram_base = rb_depth_info.depth_base;
+    surface_format = uint32_t(rb_depth_info.depth_format);
   } else {
-    uint32_t rb_color_info;
-    switch (surface_index) {
-      case 1:
-        rb_color_info = regs[XE_GPU_REG_RB_COLOR1_INFO].u32;
-        break;
-      case 2:
-        rb_color_info = regs[XE_GPU_REG_RB_COLOR2_INFO].u32;
-        break;
-      case 3:
-        rb_color_info = regs[XE_GPU_REG_RB_COLOR3_INFO].u32;
-        break;
-      default:
-        rb_color_info = regs[XE_GPU_REG_RB_COLOR_INFO].u32;
-        break;
-    }
-    surface_edram_base = rb_color_info & 0xFFF;
-    surface_format = uint32_t(GetBaseColorFormat(
-        ColorRenderTargetFormat((rb_color_info >> 16) & 0xF)));
+    auto color_info = regs.Get<reg::RB_COLOR_INFO>(
+        reg::RB_COLOR_INFO::rt_register_indices[surface_index]);
+    surface_edram_base = color_info.color_base;
+    surface_format = uint32_t(GetBaseColorFormat(color_info.color_format));
   }
 
   // Get the resolve region since both copying and clearing need it.
   // HACK: Vertices to use are always in vf0.
-  auto fetch_group = reinterpret_cast<const xenos::xe_gpu_fetch_group_t*>(
-      &regs.values[XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0]);
-  const auto& fetch = fetch_group->vertex_fetch_0;
+  const auto& fetch = regs.Get<xenos::xe_gpu_vertex_fetch_t>(
+      XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0);
   assert_true(fetch.type == 3);
-  assert_true(fetch.endian == 2);
+  assert_true(fetch.endian == Endian::k8in32);
   assert_true(fetch.size == 6);
   const uint8_t* src_vertex_address =
       memory->TranslatePhysical(fetch.address << 2);
   float vertices[6];
   // Most vertices have a negative half pixel offset applied, which we reverse.
   float vertex_offset =
-      (regs[XE_GPU_REG_PA_SU_VTX_CNTL].u32 & 0x1) ? 0.0f : 0.5f;
+      regs.Get<reg::PA_SU_VTX_CNTL>().pix_center ? 0.0f : 0.5f;
   for (uint32_t i = 0; i < 6; ++i) {
     vertices[i] =
         xenos::GpuSwap(xe::load<float>(src_vertex_address + i * sizeof(float)),
@@ -1097,39 +1076,34 @@ bool RenderTargetCache::Resolve(SharedMemory* shared_memory,
   // vertices (-640,0)->(640,720), however, the destination texture pointer is
   // adjusted properly to the right half of the texture, and the source render
   // target has a pitch of 800).
+  auto pa_sc_window_offset = regs.Get<reg::PA_SC_WINDOW_OFFSET>();
   D3D12_RECT rect;
   rect.left = LONG(std::min(std::min(vertices[0], vertices[2]), vertices[4]));
   rect.right = LONG(std::max(std::max(vertices[0], vertices[2]), vertices[4]));
   rect.top = LONG(std::min(std::min(vertices[1], vertices[3]), vertices[5]));
   rect.bottom = LONG(std::max(std::max(vertices[1], vertices[3]), vertices[5]));
+  if (regs.Get<reg::PA_SU_SC_MODE_CNTL>().vtx_window_offset_enable) {
+    rect.left += pa_sc_window_offset.window_x_offset;
+    rect.right += pa_sc_window_offset.window_x_offset;
+    rect.top += pa_sc_window_offset.window_y_offset;
+    rect.bottom += pa_sc_window_offset.window_y_offset;
+  }
   D3D12_RECT scissor;
-  uint32_t window_scissor_tl = regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL].u32;
-  uint32_t window_scissor_br = regs[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_BR].u32;
-  scissor.left = LONG(window_scissor_tl & 0x7FFF);
-  scissor.right = LONG(window_scissor_br & 0x7FFF);
-  scissor.top = LONG((window_scissor_tl >> 16) & 0x7FFF);
-  scissor.bottom = LONG((window_scissor_br >> 16) & 0x7FFF);
-  if (regs[XE_GPU_REG_PA_SU_SC_MODE_CNTL].u32 & (1 << 16)) {
-    uint32_t pa_sc_window_offset = regs[XE_GPU_REG_PA_SC_WINDOW_OFFSET].u32;
-    int16_t window_offset_x = pa_sc_window_offset & 0x7FFF;
-    int16_t window_offset_y = (pa_sc_window_offset >> 16) & 0x7FFF;
-    if (window_offset_x & 0x4000) {
-      window_offset_x |= 0x8000;
-    }
-    if (window_offset_y & 0x4000) {
-      window_offset_y |= 0x8000;
-    }
-    rect.left += window_offset_x;
-    rect.right += window_offset_x;
-    rect.top += window_offset_y;
-    rect.bottom += window_offset_y;
-    if (!(window_scissor_tl & (1u << 31))) {
-      scissor.left = std::max(LONG(scissor.left + window_offset_x), LONG(0));
-      scissor.right = std::max(LONG(scissor.right + window_offset_x), LONG(0));
-      scissor.top = std::max(LONG(scissor.top + window_offset_y), LONG(0));
-      scissor.bottom =
-          std::max(LONG(scissor.bottom + window_offset_y), LONG(0));
-    }
+  auto pa_sc_window_scissor_tl = regs.Get<reg::PA_SC_WINDOW_SCISSOR_TL>();
+  auto pa_sc_window_scissor_br = regs.Get<reg::PA_SC_WINDOW_SCISSOR_BR>();
+  scissor.left = pa_sc_window_scissor_tl.tl_x;
+  scissor.right = pa_sc_window_scissor_br.br_x;
+  scissor.top = pa_sc_window_scissor_tl.tl_y;
+  scissor.bottom = pa_sc_window_scissor_br.br_y;
+  if (!pa_sc_window_scissor_tl.window_offset_disable) {
+    scissor.left = std::max(
+        LONG(scissor.left + pa_sc_window_offset.window_x_offset), LONG(0));
+    scissor.right = std::max(
+        LONG(scissor.right + pa_sc_window_offset.window_x_offset), LONG(0));
+    scissor.top = std::max(
+        LONG(scissor.top + pa_sc_window_offset.window_y_offset), LONG(0));
+    scissor.bottom = std::max(
+        LONG(scissor.bottom + pa_sc_window_offset.window_y_offset), LONG(0));
   }
   rect.left = std::max(rect.left, scissor.left);
   rect.right = std::min(rect.right, scissor.right);
@@ -1140,9 +1114,9 @@ bool RenderTargetCache::Resolve(SharedMemory* shared_memory,
       "Resolve: (%d,%d)->(%d,%d) of RT %u (pitch %u, %u sample%s, format %u) "
       "at %u",
       rect.left, rect.top, rect.right, rect.bottom, surface_index,
-      surface_pitch, 1 << uint32_t(msaa_samples),
-      msaa_samples != MsaaSamples::k1X ? "s" : "", surface_format,
-      surface_edram_base);
+      surface_pitch, 1 << uint32_t(rb_surface_info.msaa_samples),
+      rb_surface_info.msaa_samples != MsaaSamples::k1X ? "s" : "",
+      surface_format, surface_edram_base);
 
   if (rect.left >= rect.right || rect.top >= rect.bottom) {
     // Nothing to copy.
@@ -1157,18 +1131,20 @@ bool RenderTargetCache::Resolve(SharedMemory* shared_memory,
   // GetEDRAMLayout in ResolveCopy and ResolveClear will perform the needed
   // clamping to the source render target size.
 
-  bool result =
-      ResolveCopy(shared_memory, texture_cache, surface_edram_base,
-                  surface_pitch, msaa_samples, surface_is_depth, surface_format,
-                  rect, written_address_out, written_length_out);
+  bool result = ResolveCopy(shared_memory, texture_cache, surface_edram_base,
+                            surface_pitch, rb_surface_info.msaa_samples,
+                            surface_is_depth, surface_format, rect,
+                            written_address_out, written_length_out);
   // Clear the color RT if needed.
   if (!surface_is_depth) {
-    result &= ResolveClear(surface_edram_base, surface_pitch, msaa_samples,
-                           false, surface_format, rect);
+    result &=
+        ResolveClear(surface_edram_base, surface_pitch,
+                     rb_surface_info.msaa_samples, false, surface_format, rect);
   }
   // Clear the depth RT if needed (may be cleared alongside color).
-  result &= ResolveClear(depth_edram_base, surface_pitch, msaa_samples, true,
-                         depth_format, rect);
+  result &= ResolveClear(rb_depth_info.depth_base, surface_pitch,
+                         rb_surface_info.msaa_samples, true,
+                         uint32_t(rb_depth_info.depth_format), rect);
   return result;
 }
 
@@ -1183,19 +1159,18 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
 
   auto& regs = *register_file_;
 
-  uint32_t rb_copy_control = regs[XE_GPU_REG_RB_COPY_CONTROL].u32;
-  xenos::CopyCommand copy_command =
-      xenos::CopyCommand((rb_copy_control >> 20) & 0x3);
-  if (copy_command != xenos::CopyCommand::kRaw &&
-      copy_command != xenos::CopyCommand::kConvert) {
+  auto rb_copy_control = regs.Get<reg::RB_COPY_CONTROL>();
+  if (rb_copy_control.copy_command != xenos::CopyCommand::kRaw &&
+      rb_copy_control.copy_command != xenos::CopyCommand::kConvert) {
     // TODO(Triang3l): Handle kConstantOne and kNull.
+    assert_always();
     return false;
   }
 
   auto command_list = command_processor_->GetDeferredCommandList();
 
   // Get format info.
-  uint32_t rb_copy_dest_info = regs[XE_GPU_REG_RB_COPY_DEST_INFO].u32;
+  auto rb_copy_dest_info = regs.Get<reg::RB_COPY_DEST_INFO>();
   TextureFormat src_texture_format;
   bool src_64bpp;
   if (is_depth) {
@@ -1222,14 +1197,15 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
   // The destination format is specified as k_8_8_8_8 when resolving depth, but
   // no format conversion is done for depth, so ignore it.
   TextureFormat dest_format =
-      is_depth ? src_texture_format
-               : GetBaseFormat(TextureFormat((rb_copy_dest_info >> 7) & 0x3F));
+      is_depth
+          ? src_texture_format
+          : GetBaseFormat(TextureFormat(rb_copy_dest_info.copy_dest_format));
   const FormatInfo* dest_format_info = FormatInfo::Get(dest_format);
 
   // Get the destination region and clamp the source region to it.
-  uint32_t rb_copy_dest_pitch = regs[XE_GPU_REG_RB_COPY_DEST_PITCH].u32;
-  uint32_t dest_pitch = rb_copy_dest_pitch & 0x3FFF;
-  uint32_t dest_height = (rb_copy_dest_pitch >> 16) & 0x3FFF;
+  auto rb_copy_dest_pitch = regs.Get<reg::RB_COPY_DEST_PITCH>();
+  uint32_t dest_pitch = rb_copy_dest_pitch.copy_dest_pitch;
+  uint32_t dest_height = rb_copy_dest_pitch.copy_dest_height;
   if (dest_pitch == 0 || dest_height == 0) {
     // Nothing to copy.
     return true;
@@ -1263,8 +1239,7 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
   uint32_t dest_address = regs[XE_GPU_REG_RB_COPY_DEST_BASE].u32 & 0x1FFFFFFF;
   // An example of a 3D resolve destination is the color grading LUT (used
   // starting from the developer/publisher intro) in Dead Space 3.
-  bool dest_3d = (rb_copy_dest_info & (1 << 3)) != 0;
-  if (dest_3d) {
+  if (rb_copy_dest_info.copy_dest_array) {
     dest_address += texture_util::GetTiledOffset3D(
         int(rect.left & ~LONG(31)), int(rect.top & ~LONG(31)), 0, dest_pitch,
         dest_height, xe::log2_floor(dest_format_info->bits_per_pixel >> 3));
@@ -1279,21 +1254,20 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
     // resolve to 8bpp or 16bpp textures at very odd locations.
     return false;
   }
-  uint32_t dest_z = dest_3d ? ((rb_copy_dest_info >> 4) & 0x7) : 0;
+  uint32_t dest_z =
+      rb_copy_dest_info.copy_dest_array ? rb_copy_dest_info.copy_dest_slice : 0;
 
   // See what samples we need and what we should do with them.
-  xenos::CopySampleSelect sample_select =
-      xenos::CopySampleSelect((rb_copy_control >> 4) & 0x7);
+  xenos::CopySampleSelect sample_select = rb_copy_control.copy_sample_select;
   if (is_depth && sample_select > xenos::CopySampleSelect::k3) {
     assert_always();
     return false;
   }
-  Endian128 dest_endian = Endian128(rb_copy_dest_info & 0x7);
   int32_t dest_exp_bias;
   if (is_depth) {
     dest_exp_bias = 0;
   } else {
-    dest_exp_bias = int32_t((rb_copy_dest_info >> 16) << 26) >> 26;
+    dest_exp_bias = rb_copy_dest_info.copy_dest_exp_bias;
     if (ColorRenderTargetFormat(src_format) ==
             ColorRenderTargetFormat::k_16_16 ||
         ColorRenderTargetFormat(src_format) ==
@@ -1309,14 +1283,14 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
       }
     }
   }
-  bool dest_swap = !is_depth && ((rb_copy_dest_info >> 24) & 0x1);
+  bool dest_swap = !is_depth && rb_copy_dest_info.copy_dest_swap;
 
   XELOGGPU(
       "Resolve: Copying samples %u to 0x%.8X (%ux%u, %cD), destination Z %u, "
       "destination format %s, exponent bias %d, red and blue %sswapped",
       uint32_t(sample_select), dest_address, dest_pitch, dest_height,
-      dest_3d ? '3' : '2', dest_z, dest_format_info->name, dest_exp_bias,
-      dest_swap ? "" : "not ");
+      rb_copy_dest_info.copy_dest_array ? '3' : '2', dest_z,
+      dest_format_info->name, dest_exp_bias, dest_swap ? "" : "not ");
 
   // There are 2 paths for resolving in this function - they don't necessarily
   // have to map directly to kRaw and kConvert CopyCommands.
@@ -1344,7 +1318,7 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
       resolution_scale_2x_ &&
       cvars::d3d12_resolution_scale_resolve_edge_clamp &&
       cvars::d3d12_half_pixel_offset &&
-      !(regs[XE_GPU_REG_PA_SU_VTX_CNTL].u32 & 0x1);
+      !regs.Get<reg::PA_SU_VTX_CNTL>().pix_center;
   if (sample_select <= xenos::CopySampleSelect::k3 &&
       src_texture_format == dest_format && dest_exp_bias == 0) {
     // *************************************************************************
@@ -1363,7 +1337,7 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
     uint32_t dest_size;
     uint32_t dest_modified_start = dest_address;
     uint32_t dest_modified_length;
-    if (dest_3d) {
+    if (rb_copy_dest_info.copy_dest_array) {
       // Depth granularity is 4 (though TiledAddress chaining is possible with 8
       // granularity).
       dest_size = texture_util::GetGuestMipSliceStorageSize(
@@ -1442,8 +1416,10 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
     assert_true(dest_pitch <= 8192);
     root_constants.tile_sample_dest_info =
         ((dest_pitch + 31) >> 5) |
-        (dest_3d ? (((dest_height + 31) >> 5) << 9) : 0) |
-        (uint32_t(sample_select) << 18) | (uint32_t(dest_endian) << 20);
+        (rb_copy_dest_info.copy_dest_array ? (((dest_height + 31) >> 5) << 9)
+                                           : 0) |
+        (uint32_t(sample_select) << 18) |
+        (uint32_t(rb_copy_dest_info.copy_dest_endian) << 20);
     if (dest_swap) {
       root_constants.tile_sample_dest_info |= (1 << 23) | (src_format << 24);
     }
@@ -1797,10 +1773,12 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
     copy_buffer_state = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
     // dest_address already adjusted, so offsets are & 31.
     texture_cache->TileResolvedTexture(
-        dest_format, dest_address, dest_pitch, dest_height, dest_3d,
-        uint32_t(rect.left) & 31, uint32_t(rect.top) & 31, dest_z, copy_width,
-        copy_height, dest_endian, copy_buffer, resolve_target->copy_buffer_size,
-        resolve_target->footprint, &written_address_out, &written_length_out);
+        dest_format, dest_address, dest_pitch, dest_height,
+        rb_copy_dest_info.copy_dest_array != 0, uint32_t(rect.left) & 31,
+        uint32_t(rect.top) & 31, dest_z, copy_width, copy_height,
+        rb_copy_dest_info.copy_dest_endian, copy_buffer,
+        resolve_target->copy_buffer_size, resolve_target->footprint,
+        &written_address_out, &written_length_out);
 
     // Done with the copy buffer.
 
@@ -1817,9 +1795,15 @@ bool RenderTargetCache::ResolveClear(uint32_t edram_base,
   auto& regs = *register_file_;
 
   // Check if clearing is enabled.
-  uint32_t rb_copy_control = regs[XE_GPU_REG_RB_COPY_CONTROL].u32;
-  if (!(rb_copy_control & (is_depth ? (1 << 9) : (1 << 8)))) {
-    return true;
+  auto rb_copy_control = regs.Get<reg::RB_COPY_CONTROL>();
+  if (is_depth) {
+    if (!rb_copy_control.depth_clear_enable) {
+      return true;
+    }
+  } else {
+    if (!rb_copy_control.color_clear_enable) {
+      return true;
+    }
   }
 
   XELOGGPU("Resolve: Clearing the %s render target",
@@ -1886,7 +1870,7 @@ bool RenderTargetCache::ResolveClear(uint32_t edram_base,
   } else if (is_64bpp) {
     // TODO(Triang3l): Check which 32-bit portion is in which register.
     root_constants.clear_color_high = regs[XE_GPU_REG_RB_COLOR_CLEAR].u32;
-    root_constants.clear_color_low = regs[XE_GPU_REG_RB_COLOR_CLEAR_LOW].u32;
+    root_constants.clear_color_low = regs[XE_GPU_REG_RB_COLOR_CLEAR_LO].u32;
     command_processor_->SetComputePipeline(edram_clear_64bpp_pipeline_);
   } else {
     Register reg =

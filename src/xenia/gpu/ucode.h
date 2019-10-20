@@ -146,12 +146,8 @@ enum class AllocType : uint32_t {
 
 // Instruction data for ControlFlowOpcode::kExec and kExecEnd.
 struct ControlFlowExecInstruction {
-  ControlFlowOpcode opcode() const {
-    return static_cast<ControlFlowOpcode>(opcode_);
-  }
-  AddressingMode addressing_mode() const {
-    return static_cast<AddressingMode>(address_mode_);
-  }
+  ControlFlowOpcode opcode() const { return opcode_; }
+  AddressingMode addressing_mode() const { return address_mode_; }
   // Address of the instructions to execute.
   uint32_t address() const { return address_; }
   // Number of instructions being executed.
@@ -176,19 +172,15 @@ struct ControlFlowExecInstruction {
   uint32_t : 7;
   uint32_t clean_ : 1;
   uint32_t : 1;
-  uint32_t address_mode_ : 1;
-  uint32_t opcode_ : 4;
+  AddressingMode address_mode_ : 1;
+  ControlFlowOpcode opcode_ : 4;
 };
 static_assert_size(ControlFlowExecInstruction, 8);
 
 // Instruction data for ControlFlowOpcode::kCondExec and kCondExecEnd.
 struct ControlFlowCondExecInstruction {
-  ControlFlowOpcode opcode() const {
-    return static_cast<ControlFlowOpcode>(opcode_);
-  }
-  AddressingMode addressing_mode() const {
-    return static_cast<AddressingMode>(address_mode_);
-  }
+  ControlFlowOpcode opcode() const { return opcode_; }
+  AddressingMode addressing_mode() const { return address_mode_; }
   // Address of the instructions to execute.
   uint32_t address() const { return address_; }
   // Number of instructions being executed.
@@ -214,20 +206,16 @@ struct ControlFlowCondExecInstruction {
   uint32_t vc_lo_ : 2;
   uint32_t bool_address_ : 8;
   uint32_t condition_ : 1;
-  uint32_t address_mode_ : 1;
-  uint32_t opcode_ : 4;
+  AddressingMode address_mode_ : 1;
+  ControlFlowOpcode opcode_ : 4;
 };
 static_assert_size(ControlFlowCondExecInstruction, 8);
 
 // Instruction data for ControlFlowOpcode::kCondExecPred, kCondExecPredEnd,
 // kCondExecPredClean, kCondExecPredCleanEnd.
 struct ControlFlowCondExecPredInstruction {
-  ControlFlowOpcode opcode() const {
-    return static_cast<ControlFlowOpcode>(opcode_);
-  }
-  AddressingMode addressing_mode() const {
-    return static_cast<AddressingMode>(address_mode_);
-  }
+  ControlFlowOpcode opcode() const { return opcode_; }
+  AddressingMode addressing_mode() const { return address_mode_; }
   // Address of the instructions to execute.
   uint32_t address() const { return address_; }
   // Number of instructions being executed.
@@ -254,19 +242,15 @@ struct ControlFlowCondExecPredInstruction {
   uint32_t : 7;
   uint32_t clean_ : 1;
   uint32_t condition_ : 1;
-  uint32_t address_mode_ : 1;
-  uint32_t opcode_ : 4;
+  AddressingMode address_mode_ : 1;
+  ControlFlowOpcode opcode_ : 4;
 };
 static_assert_size(ControlFlowCondExecPredInstruction, 8);
 
 // Instruction data for ControlFlowOpcode::kLoopStart.
 struct ControlFlowLoopStartInstruction {
-  ControlFlowOpcode opcode() const {
-    return static_cast<ControlFlowOpcode>(opcode_);
-  }
-  AddressingMode addressing_mode() const {
-    return static_cast<AddressingMode>(address_mode_);
-  }
+  ControlFlowOpcode opcode() const { return opcode_; }
+  AddressingMode addressing_mode() const { return address_mode_; }
   // Target address to jump to when skipping the loop.
   uint32_t address() const { return address_; }
   // Whether to reuse the current aL instead of reset it to loop start.
@@ -285,19 +269,15 @@ struct ControlFlowLoopStartInstruction {
 
   // Word 1: (16 bits)
   uint32_t : 11;
-  uint32_t address_mode_ : 1;
-  uint32_t opcode_ : 4;
+  AddressingMode address_mode_ : 1;
+  ControlFlowOpcode opcode_ : 4;
 };
 static_assert_size(ControlFlowLoopStartInstruction, 8);
 
 // Instruction data for ControlFlowOpcode::kLoopEnd.
 struct ControlFlowLoopEndInstruction {
-  ControlFlowOpcode opcode() const {
-    return static_cast<ControlFlowOpcode>(opcode_);
-  }
-  AddressingMode addressing_mode() const {
-    return static_cast<AddressingMode>(address_mode_);
-  }
+  ControlFlowOpcode opcode() const { return opcode_; }
+  AddressingMode addressing_mode() const { return address_mode_; }
   // Target address of the start of the loop body.
   uint32_t address() const { return address_; }
   // Integer constant register that holds the loop parameters.
@@ -319,19 +299,15 @@ struct ControlFlowLoopEndInstruction {
   // Word 1: (16 bits)
   uint32_t : 10;
   uint32_t condition_ : 1;
-  uint32_t address_mode_ : 1;
-  uint32_t opcode_ : 4;
+  AddressingMode address_mode_ : 1;
+  ControlFlowOpcode opcode_ : 4;
 };
 static_assert_size(ControlFlowLoopEndInstruction, 8);
 
 // Instruction data for ControlFlowOpcode::kCondCall.
 struct ControlFlowCondCallInstruction {
-  ControlFlowOpcode opcode() const {
-    return static_cast<ControlFlowOpcode>(opcode_);
-  }
-  AddressingMode addressing_mode() const {
-    return static_cast<AddressingMode>(address_mode_);
-  }
+  ControlFlowOpcode opcode() const { return opcode_; }
+  AddressingMode addressing_mode() const { return address_mode_; }
   // Target address.
   uint32_t address() const { return address_; }
   // Unconditional call - ignores condition/predication.
@@ -354,19 +330,15 @@ struct ControlFlowCondCallInstruction {
   uint32_t : 2;
   uint32_t bool_address_ : 8;
   uint32_t condition_ : 1;
-  uint32_t address_mode_ : 1;
-  uint32_t opcode_ : 4;
+  AddressingMode address_mode_ : 1;
+  ControlFlowOpcode opcode_ : 4;
 };
 static_assert_size(ControlFlowCondCallInstruction, 8);
 
 // Instruction data for ControlFlowOpcode::kReturn.
 struct ControlFlowReturnInstruction {
-  ControlFlowOpcode opcode() const {
-    return static_cast<ControlFlowOpcode>(opcode_);
-  }
-  AddressingMode addressing_mode() const {
-    return static_cast<AddressingMode>(address_mode_);
-  }
+  ControlFlowOpcode opcode() const { return opcode_; }
+  AddressingMode addressing_mode() const { return address_mode_; }
 
  private:
   // Word 0: (32 bits)
@@ -381,12 +353,8 @@ static_assert_size(ControlFlowReturnInstruction, 8);
 
 // Instruction data for ControlFlowOpcode::kCondJmp.
 struct ControlFlowCondJmpInstruction {
-  ControlFlowOpcode opcode() const {
-    return static_cast<ControlFlowOpcode>(opcode_);
-  }
-  AddressingMode addressing_mode() const {
-    return static_cast<AddressingMode>(address_mode_);
-  }
+  ControlFlowOpcode opcode() const { return opcode_; }
+  AddressingMode addressing_mode() const { return address_mode_; }
   // Target address.
   uint32_t address() const { return address_; }
   // Unconditional jump - ignores condition/predication.
@@ -410,20 +378,18 @@ struct ControlFlowCondJmpInstruction {
   uint32_t direction_ : 1;
   uint32_t bool_address_ : 8;
   uint32_t condition_ : 1;
-  uint32_t address_mode_ : 1;
-  uint32_t opcode_ : 4;
+  AddressingMode address_mode_ : 1;
+  ControlFlowOpcode opcode_ : 4;
 };
 static_assert_size(ControlFlowCondJmpInstruction, 8);
 
 // Instruction data for ControlFlowOpcode::kAlloc.
 struct ControlFlowAllocInstruction {
-  ControlFlowOpcode opcode() const {
-    return static_cast<ControlFlowOpcode>(opcode_);
-  }
+  ControlFlowOpcode opcode() const { return opcode_; }
   // The total number of the given type allocated by this instruction.
   uint32_t size() const { return size_; }
   // Unconditional jump - ignores condition/predication.
-  AllocType alloc_type() const { return static_cast<AllocType>(alloc_type_); }
+  AllocType alloc_type() const { return alloc_type_; }
 
  private:
   // Word 0: (32 bits)
@@ -433,16 +399,14 @@ struct ControlFlowAllocInstruction {
   // Word 1: (16 bits)
   uint32_t : 8;
   uint32_t is_unserialized_ : 1;
-  uint32_t alloc_type_ : 2;
+  AllocType alloc_type_ : 2;
   uint32_t : 1;
-  uint32_t opcode_ : 4;
+  ControlFlowOpcode opcode_ : 4;
 };
 static_assert_size(ControlFlowAllocInstruction, 8);
 
 XEPACKEDUNION(ControlFlowInstruction, {
-  ControlFlowOpcode opcode() const {
-    return static_cast<ControlFlowOpcode>(opcode_value);
-  }
+  ControlFlowOpcode opcode() const { return opcode_value; }
 
   ControlFlowExecInstruction exec;                    // kExec*
   ControlFlowCondExecInstruction cond_exec;           // kCondExec*
@@ -457,7 +421,7 @@ XEPACKEDUNION(ControlFlowInstruction, {
   XEPACKEDSTRUCTANONYMOUS({
     uint32_t unused_0 : 32;
     uint32_t unused_1 : 12;
-    uint32_t opcode_value : 4;
+    ControlFlowOpcode opcode_value : 4;
   });
   XEPACKEDSTRUCTANONYMOUS({
     uint32_t dword_0;
@@ -478,7 +442,7 @@ inline void UnpackControlFlowInstructions(const uint32_t* dwords,
   out_b->dword_1 = dword_2 >> 16;
 }
 
-enum class FetchOpcode {
+enum class FetchOpcode : uint32_t {
   kVertexFetch = 0,
   kTextureFetch = 1,
   kGetTextureBorderColorFrac = 16,
@@ -492,9 +456,7 @@ enum class FetchOpcode {
 };
 
 struct VertexFetchInstruction {
-  FetchOpcode opcode() const {
-    return static_cast<FetchOpcode>(data_.opcode_value);
-  }
+  FetchOpcode opcode() const { return data_.opcode_value; }
 
   // Whether the jump is predicated (or conditional).
   bool is_predicated() const { return data_.is_predicated; }
@@ -538,13 +500,9 @@ struct VertexFetchInstruction {
   uint32_t prefetch_count() const { return data_.prefetch_count; }
   bool is_mini_fetch() const { return data_.is_mini_fetch == 1; }
 
-  VertexFormat data_format() const {
-    return static_cast<VertexFormat>(data_.format);
-  }
+  VertexFormat data_format() const { return data_.format; }
   // [-32, 31]
-  int exp_adjust() const {
-    return ((static_cast<int>(data_.exp_adjust) << 26) >> 26);
-  }
+  int exp_adjust() const { return data_.exp_adjust; }
   bool is_signed() const { return data_.fomat_comp_all == 1; }
   bool is_normalized() const { return data_.num_format_all == 0; }
   bool is_index_rounded() const { return data_.is_index_rounded == 1; }
@@ -562,7 +520,7 @@ struct VertexFetchInstruction {
  private:
   XEPACKEDSTRUCT(Data, {
     XEPACKEDSTRUCTANONYMOUS({
-      uint32_t opcode_value : 5;
+      FetchOpcode opcode_value : 5;
       uint32_t src_reg : 6;
       uint32_t src_reg_am : 1;
       uint32_t dst_reg : 6;
@@ -579,9 +537,9 @@ struct VertexFetchInstruction {
       uint32_t num_format_all : 1;
       uint32_t signed_rf_mode_all : 1;
       uint32_t is_index_rounded : 1;
-      uint32_t format : 6;
+      VertexFormat format : 6;
       uint32_t reserved2 : 2;
-      uint32_t exp_adjust : 6;
+      int32_t exp_adjust : 6;
       uint32_t is_mini_fetch : 1;
       uint32_t is_predicated : 1;
     });
@@ -595,9 +553,7 @@ struct VertexFetchInstruction {
 };
 
 struct TextureFetchInstruction {
-  FetchOpcode opcode() const {
-    return static_cast<FetchOpcode>(data_.opcode_value);
-  }
+  FetchOpcode opcode() const { return data_.opcode_value; }
 
   // Whether the jump is predicated (or conditional).
   bool is_predicated() const { return data_.is_predicated; }
@@ -613,59 +569,49 @@ struct TextureFetchInstruction {
   uint32_t src_swizzle() const { return data_.src_swiz; }
   bool is_src_relative() const { return data_.src_reg_am; }
 
-  TextureDimension dimension() const {
-    return static_cast<TextureDimension>(data_.dimension);
-  }
+  TextureDimension dimension() const { return data_.dimension; }
   bool fetch_valid_only() const { return data_.fetch_valid_only == 1; }
   bool unnormalized_coordinates() const { return data_.tx_coord_denorm == 1; }
-  bool has_mag_filter() const { return data_.mag_filter != 0x3; }
-  TextureFilter mag_filter() const {
-    return static_cast<TextureFilter>(data_.mag_filter);
+  bool has_mag_filter() const {
+    return data_.mag_filter != TextureFilter::kUseFetchConst;
   }
-  bool has_min_filter() const { return data_.min_filter != 0x3; }
-  TextureFilter min_filter() const {
-    return static_cast<TextureFilter>(data_.min_filter);
+  TextureFilter mag_filter() const { return data_.mag_filter; }
+  bool has_min_filter() const {
+    return data_.min_filter != TextureFilter::kUseFetchConst;
   }
-  bool has_mip_filter() const { return data_.mip_filter != 0x3; }
-  TextureFilter mip_filter() const {
-    return static_cast<TextureFilter>(data_.mip_filter);
+  TextureFilter min_filter() const { return data_.min_filter; }
+  bool has_mip_filter() const {
+    return data_.mip_filter != TextureFilter::kUseFetchConst;
   }
-  bool has_aniso_filter() const { return data_.aniso_filter != 0x7; }
-  AnisoFilter aniso_filter() const {
-    return static_cast<AnisoFilter>(data_.aniso_filter);
+  TextureFilter mip_filter() const { return data_.mip_filter; }
+  bool has_aniso_filter() const {
+    return data_.aniso_filter != AnisoFilter::kUseFetchConst;
   }
-  bool has_vol_mag_filter() const { return data_.vol_mag_filter != 0x3; }
-  TextureFilter vol_mag_filter() const {
-    return static_cast<TextureFilter>(data_.vol_mag_filter);
+  AnisoFilter aniso_filter() const { return data_.aniso_filter; }
+  bool has_vol_mag_filter() const {
+    return data_.vol_mag_filter != TextureFilter::kUseFetchConst;
   }
-  bool has_vol_min_filter() const { return data_.vol_min_filter != 0x3; }
-  TextureFilter vol_min_filter() const {
-    return static_cast<TextureFilter>(data_.vol_min_filter);
+  TextureFilter vol_mag_filter() const { return data_.vol_mag_filter; }
+  bool has_vol_min_filter() const {
+    return data_.vol_min_filter != TextureFilter::kUseFetchConst;
   }
+  TextureFilter vol_min_filter() const { return data_.vol_min_filter; }
   bool use_computed_lod() const { return data_.use_comp_lod == 1; }
   bool use_register_lod() const { return data_.use_reg_lod == 1; }
   bool use_register_gradients() const { return data_.use_reg_gradients == 1; }
-  SampleLocation sample_location() const {
-    return static_cast<SampleLocation>(data_.sample_location);
-  }
+  SampleLocation sample_location() const { return data_.sample_location; }
   float lod_bias() const {
     // http://web.archive.org/web/20090514012026/http://msdn.microsoft.com:80/en-us/library/bb313957.aspx
-    return ((static_cast<int>(data_.lod_bias) << 25) >> 25) / 16.0f;
+    return data_.lod_bias * (1.0f / 16.0f);
   }
-  float offset_x() const {
-    return ((static_cast<int>(data_.offset_x) << 27) >> 27) / 2.0f;
-  }
-  float offset_y() const {
-    return ((static_cast<int>(data_.offset_y) << 27) >> 27) / 2.0f;
-  }
-  float offset_z() const {
-    return ((static_cast<int>(data_.offset_z) << 27) >> 27) / 2.0f;
-  }
+  float offset_x() const { return data_.offset_x * 0.5f; }
+  float offset_y() const { return data_.offset_y * 0.5f; }
+  float offset_z() const { return data_.offset_z * 0.5f; }
 
  private:
   XEPACKEDSTRUCT(Data, {
     XEPACKEDSTRUCTANONYMOUS({
-      uint32_t opcode_value : 5;
+      FetchOpcode opcode_value : 5;
       uint32_t src_reg : 6;
       uint32_t src_reg_am : 1;
       uint32_t dst_reg : 6;
@@ -676,14 +622,14 @@ struct TextureFetchInstruction {
       uint32_t src_swiz : 6;  // xyz
     });
     XEPACKEDSTRUCTANONYMOUS({
-      uint32_t dst_swiz : 12;         // xyzw
-      uint32_t mag_filter : 2;        // instr_tex_filter_t
-      uint32_t min_filter : 2;        // instr_tex_filter_t
-      uint32_t mip_filter : 2;        // instr_tex_filter_t
-      uint32_t aniso_filter : 3;      // instr_aniso_filter_t
-      uint32_t arbitrary_filter : 3;  // instr_arbitrary_filter_t
-      uint32_t vol_mag_filter : 2;    // instr_tex_filter_t
-      uint32_t vol_min_filter : 2;    // instr_tex_filter_t
+      uint32_t dst_swiz : 12;  // xyzw
+      TextureFilter mag_filter : 2;
+      TextureFilter min_filter : 2;
+      TextureFilter mip_filter : 2;
+      AnisoFilter aniso_filter : 3;
+      xenos::ArbitraryFilter arbitrary_filter : 3;
+      TextureFilter vol_mag_filter : 2;
+      TextureFilter vol_min_filter : 2;
       uint32_t use_comp_lod : 1;
       uint32_t use_reg_lod : 1;
       uint32_t unk : 1;
@@ -691,13 +637,13 @@ struct TextureFetchInstruction {
     });
     XEPACKEDSTRUCTANONYMOUS({
       uint32_t use_reg_gradients : 1;
-      uint32_t sample_location : 1;
-      uint32_t lod_bias : 7;
+      SampleLocation sample_location : 1;
+      int32_t lod_bias : 7;
       uint32_t unused : 5;
-      uint32_t dimension : 2;
-      uint32_t offset_x : 5;
-      uint32_t offset_y : 5;
-      uint32_t offset_z : 5;
+      TextureDimension dimension : 2;
+      int32_t offset_x : 5;
+      int32_t offset_y : 5;
+      int32_t offset_z : 5;
       uint32_t pred_condition : 1;
     });
   });
@@ -722,7 +668,7 @@ static_assert_size(TextureFetchInstruction, 12);
 //   when write masks are disabled or the instruction that would write them
 //   fails its predication check.
 
-enum class AluScalarOpcode {
+enum class AluScalarOpcode : uint32_t {
   // Floating-Point Add
   // adds dest, src0.ab
   //     dest.xyzw = src0.a + src0.b;
@@ -1049,7 +995,7 @@ enum class AluScalarOpcode {
   kRetainPrev = 50,
 };
 
-enum class AluVectorOpcode {
+enum class AluVectorOpcode : uint32_t {
   // Per-Component Floating-Point Add
   // add dest, src0, src1
   //     dest.x = src0.x + src1.x;
@@ -1373,9 +1319,7 @@ struct AluInstruction {
     return vector_write_mask() || is_export() ||
            AluVectorOpcodeHasSideEffects(vector_opcode());
   }
-  AluVectorOpcode vector_opcode() const {
-    return static_cast<AluVectorOpcode>(data_.vector_opc);
-  }
+  AluVectorOpcode vector_opcode() const { return data_.vector_opc; }
   uint32_t vector_write_mask() const { return data_.vector_write_mask; }
   uint32_t vector_dest() const { return data_.vector_dest; }
   bool is_vector_dest_relative() const { return data_.vector_dest_rel == 1; }
@@ -1385,9 +1329,7 @@ struct AluInstruction {
     return scalar_opcode() != AluScalarOpcode::kRetainPrev ||
            (!is_export() && scalar_write_mask() != 0);
   }
-  AluScalarOpcode scalar_opcode() const {
-    return static_cast<AluScalarOpcode>(data_.scalar_opc);
-  }
+  AluScalarOpcode scalar_opcode() const { return data_.scalar_opc; }
   uint32_t scalar_write_mask() const { return data_.scalar_write_mask; }
   uint32_t scalar_dest() const { return data_.scalar_dest; }
   bool is_scalar_dest_relative() const { return data_.scalar_dest_rel == 1; }
@@ -1459,7 +1401,7 @@ struct AluInstruction {
       uint32_t scalar_write_mask : 4;
       uint32_t vector_clamp : 1;
       uint32_t scalar_clamp : 1;
-      uint32_t scalar_opc : 6;  // instr_scalar_opc_t
+      AluScalarOpcode scalar_opc : 6;
     });
     XEPACKEDSTRUCTANONYMOUS({
       uint32_t src3_swiz : 8;
@@ -1478,7 +1420,7 @@ struct AluInstruction {
       uint32_t src3_reg : 8;
       uint32_t src2_reg : 8;
       uint32_t src1_reg : 8;
-      uint32_t vector_opc : 5;  // instr_vector_opc_t
+      AluVectorOpcode vector_opc : 5;
       uint32_t src3_sel : 1;
       uint32_t src2_sel : 1;
       uint32_t src1_sel : 1;

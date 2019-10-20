@@ -151,7 +151,7 @@ class CommandProcessor {
  protected:
   struct IndexBufferInfo {
     IndexFormat format = IndexFormat::kInt16;
-    Endian endianness = Endian::kUnspecified;
+    Endian endianness = Endian::kNone;
     uint32_t count = 0;
     uint32_t guest_base = 0;
     size_t length = 0;

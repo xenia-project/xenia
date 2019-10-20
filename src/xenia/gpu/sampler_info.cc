@@ -24,25 +24,25 @@ bool SamplerInfo::Prepare(const xenos::xe_gpu_texture_fetch_t& fetch,
 
   out_info->min_filter =
       fetch_instr.attributes.min_filter == TextureFilter::kUseFetchConst
-          ? static_cast<TextureFilter>(fetch.min_filter)
+          ? fetch.min_filter
           : fetch_instr.attributes.min_filter;
   out_info->mag_filter =
       fetch_instr.attributes.mag_filter == TextureFilter::kUseFetchConst
-          ? static_cast<TextureFilter>(fetch.mag_filter)
+          ? fetch.mag_filter
           : fetch_instr.attributes.mag_filter;
   out_info->mip_filter =
       fetch_instr.attributes.mip_filter == TextureFilter::kUseFetchConst
-          ? static_cast<TextureFilter>(fetch.mip_filter)
+          ? fetch.mip_filter
           : fetch_instr.attributes.mip_filter;
-  out_info->clamp_u = static_cast<ClampMode>(fetch.clamp_x);
-  out_info->clamp_v = static_cast<ClampMode>(fetch.clamp_y);
-  out_info->clamp_w = static_cast<ClampMode>(fetch.clamp_z);
+  out_info->clamp_u = fetch.clamp_x;
+  out_info->clamp_v = fetch.clamp_y;
+  out_info->clamp_w = fetch.clamp_z;
   out_info->aniso_filter =
       fetch_instr.attributes.aniso_filter == AnisoFilter::kUseFetchConst
-          ? static_cast<AnisoFilter>(fetch.aniso_filter)
+          ? fetch.aniso_filter
           : fetch_instr.attributes.aniso_filter;
 
-  out_info->border_color = static_cast<BorderColor>(fetch.border_color);
+  out_info->border_color = fetch.border_color;
   out_info->lod_bias = (fetch.lod_bias) / 32.f;
   out_info->mip_min_level = fetch.mip_min_level;
   out_info->mip_max_level = fetch.mip_max_level;

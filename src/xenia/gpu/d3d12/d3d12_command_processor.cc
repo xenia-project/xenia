@@ -1345,7 +1345,7 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
   // Update system constants before uploading them.
   UpdateSystemConstantValues(
       memexport_used, primitive_two_faced, line_loop_closing_index,
-      indexed ? index_buffer_info->endianness : Endian::kUnspecified,
+      indexed ? index_buffer_info->endianness : Endian::kNone,
       adaptive_tessellation ? (index_buffer_info->guest_base & 0x1FFFFFFC) : 0,
       early_z, GetCurrentColorMask(pixel_shader), pipeline_render_targets);
 
@@ -1975,7 +1975,7 @@ void D3D12CommandProcessor::UpdateFixedFunctionState(bool primitive_two_faced) {
 
     // Stencil reference value. Per-face reference not supported by Direct3D 12,
     // choose the back face one only if drawing only back faces.
-    uint32_t stencil_ref_mask_reg;
+    Register stencil_ref_mask_reg;
     auto pa_su_sc_mode_cntl = regs.Get<reg::PA_SU_SC_MODE_CNTL>();
     if (primitive_two_faced &&
         regs.Get<reg::RB_DEPTHCONTROL>().backface_enable &&
@@ -2032,13 +2032,8 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   float rt_clamp[4][4];
   uint32_t rt_keep_masks[4][2];
   for (uint32_t i = 0; i < 4; ++i) {
-    static const uint32_t kColorInfoRegs[] = {
-        XE_GPU_REG_RB_COLOR_INFO,
-        XE_GPU_REG_RB_COLOR1_INFO,
-        XE_GPU_REG_RB_COLOR2_INFO,
-        XE_GPU_REG_RB_COLOR3_INFO,
-    };
-    auto color_info = regs.Get<reg::RB_COLOR_INFO>(kColorInfoRegs[i]);
+    auto color_info = regs.Get<reg::RB_COLOR_INFO>(
+        reg::RB_COLOR_INFO::rt_register_indices[i]);
     color_infos[i] = color_info;
 
     if (IsROVUsedForEDRAM()) {
@@ -2125,7 +2120,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   }
   // Alpha test.
   if (rb_colorcontrol.alpha_test_enable) {
-    flags |= uint32_t(rb_colorcontrol.alpha_func.value())
+    flags |= uint32_t(rb_colorcontrol.alpha_func)
              << DxbcShaderTranslator::kSysFlag_AlphaPassIfLess_Shift;
   } else {
     flags |= DxbcShaderTranslator::kSysFlag_AlphaPassIfLess |
@@ -2149,7 +2144,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
       flags |= DxbcShaderTranslator::kSysFlag_ROVDepthFloat24;
     }
     if (rb_depthcontrol.z_enable) {
-      flags |= uint32_t(rb_depthcontrol.zfunc.value())
+      flags |= uint32_t(rb_depthcontrol.zfunc)
                << DxbcShaderTranslator::kSysFlag_ROVDepthPassIfLess_Shift;
       if (rb_depthcontrol.z_write_enable) {
         flags |= DxbcShaderTranslator::kSysFlag_ROVDepthWrite;
@@ -2350,7 +2345,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   // EDRAM pitch for ROV writing.
   if (IsROVUsedForEDRAM()) {
     uint32_t edram_pitch_tiles =
-        ((std::min(rb_surface_info.surface_pitch.value(), 2560u) *
+        ((std::min(rb_surface_info.surface_pitch, 2560u) *
           (rb_surface_info.msaa_samples >= MsaaSamples::k4X ? 2 : 1)) +
          79) /
         80;
@@ -2408,14 +2403,8 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
                              4 * sizeof(float)) != 0;
         std::memcpy(system_constants_.edram_rt_clamp[i], rt_clamp[i],
                     4 * sizeof(float));
-        static const uint32_t kBlendControlRegs[] = {
-            XE_GPU_REG_RB_BLENDCONTROL_0,
-            XE_GPU_REG_RB_BLENDCONTROL_1,
-            XE_GPU_REG_RB_BLENDCONTROL_2,
-            XE_GPU_REG_RB_BLENDCONTROL_3,
-        };
         uint32_t blend_factors_ops =
-            regs[kBlendControlRegs[i]].u32 & 0x1FFF1FFF;
+            regs[reg::RB_BLENDCONTROL::rt_register_indices[i]].u32 & 0x1FFF1FFF;
         dirty |= system_constants_.edram_rt_blend_factors_ops[i] !=
                  blend_factors_ops;
         system_constants_.edram_rt_blend_factors_ops[i] = blend_factors_ops;
@@ -2537,7 +2526,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
         system_constants_.edram_stencil_back_write_mask =
             rb_stencilrefmask_bf.stencilwritemask;
         uint32_t stencil_func_ops_bf =
-            (rb_depthcontrol.value >> 8) & ((1 << 12) - 1);
+            (rb_depthcontrol.value >> 20) & ((1 << 12) - 1);
         dirty |= system_constants_.edram_stencil_back_func_ops !=
                  stencil_func_ops_bf;
         system_constants_.edram_stencil_back_func_ops = stencil_func_ops_bf;

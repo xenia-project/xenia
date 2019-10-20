@@ -33,8 +33,8 @@ bool TextureInfo::Prepare(const xe_gpu_texture_fetch_t& fetch,
 
   auto& info = *out_info;
 
-  info.format = static_cast<TextureFormat>(fetch.format);
-  info.endianness = static_cast<Endian>(fetch.endianness);
+  info.format = fetch.format;
+  info.endianness = fetch.endianness;
 
   info.dimension = static_cast<Dimension>(fetch.dimension);
   info.width = info.height = info.depth = 0;
