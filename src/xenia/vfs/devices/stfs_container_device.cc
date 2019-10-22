@@ -62,14 +62,13 @@ StfsContainerDevice::~StfsContainerDevice() = default;
 bool StfsContainerDevice::Initialize() {
   // Resolve a valid STFS file if a directory is given.
   if (filesystem::IsFolder(local_path_) && !ResolveFromFolder(local_path_)) {
-    XELOGE("Could not resolve an STFS container given path %s",
-           xe::to_string(local_path_).c_str());
+    XELOGE("Could not resolve an STFS container given path %ls",
+           local_path_.c_str());
     return false;
   }
 
   if (!filesystem::PathExists(local_path_)) {
-    XELOGE("Path to STFS container does not exist: %s",
-           xe::to_string(local_path_).c_str());
+    XELOGE("Path to STFS container does not exist: %ls", local_path_.c_str());
     return false;
   }
 
@@ -94,10 +93,15 @@ bool StfsContainerDevice::Initialize() {
 
 StfsContainerDevice::Error StfsContainerDevice::MapFiles() {
   // Map the file containing the STFS Header and read it.
-  XELOGI("Mapping STFS Header File: %s", xe::to_string(local_path_).c_str());
+  XELOGI("Mapping STFS Header file: %ls", local_path_.c_str());
   auto header_map = MappedMemory::Open(local_path_, MappedMemory::Mode::kRead);
+  if (!header_map) {
+    XELOGE("Error mapping STFS Header file.");
+    return Error::kErrorReadError;
+  }
 
-  auto header_result = ReadHeaderAndVerify(header_map->data());
+  auto header_result =
+      ReadHeaderAndVerify(header_map->data(), header_map->size());
   if (header_result != Error::kSuccess) {
     XELOGE("Error reading STFS Header: %d", header_result);
     return header_result;
@@ -116,7 +120,7 @@ StfsContainerDevice::Error StfsContainerDevice::MapFiles() {
   // the files in the .data folder and can discard the header.
   auto data_fragment_path = local_path_ + L".data";
   if (!filesystem::PathExists(data_fragment_path)) {
-    XELOGE("STFS container is multi-file, but path %s does not exist.",
+    XELOGE("STFS container is multi-file, but path %ls does not exist.",
            xe::to_string(data_fragment_path).c_str());
     return Error::kErrorFileMismatch;
   }
@@ -138,6 +142,11 @@ StfsContainerDevice::Error StfsContainerDevice::MapFiles() {
     auto file = fragment_files.at(i);
     auto path = xe::join_paths(file.path, file.name);
     auto data = MappedMemory::Open(path, MappedMemory::Mode::kRead);
+    if (!data) {
+      XELOGI("Failed to map SVOD file %ls.", path.c_str());
+      mmap_.clear();
+      return Error::kErrorReadError;
+    }
     mmap_.emplace(std::make_pair(i, std::move(data)));
   }
   XELOGI("SVOD successfully mapped %d files.", fragment_files.size());
@@ -170,18 +179,40 @@ Entry* StfsContainerDevice::ResolvePath(const std::string& path) {
   return entry;
 }
 
-StfsContainerDevice::Error StfsContainerDevice::ReadHeaderAndVerify(
-    const uint8_t* map_ptr) {
-  // Check signature.
-  if (memcmp(map_ptr, "LIVE", 4) == 0) {
-    package_type_ = StfsPackageType::kLive;
-  } else if (memcmp(map_ptr, "PIRS", 4) == 0) {
-    package_type_ = StfsPackageType::kPirs;
-  } else if (memcmp(map_ptr, "CON ", 4) == 0) {
-    package_type_ = StfsPackageType::kCon;
-  } else {
-    // Unexpected format.
+StfsContainerDevice::Error StfsContainerDevice::ReadPackageType(
+    const uint8_t* map_ptr, size_t map_size,
+    StfsPackageType* package_type_out) {
+  if (map_size < 4) {
     return Error::kErrorFileMismatch;
+  }
+  if (memcmp(map_ptr, "LIVE", 4) == 0) {
+    if (package_type_out) {
+      *package_type_out = StfsPackageType::kLive;
+    }
+    return Error::kSuccess;
+  }
+  if (memcmp(map_ptr, "PIRS", 4) == 0) {
+    if (package_type_out) {
+      *package_type_out = StfsPackageType::kPirs;
+    }
+    return Error::kSuccess;
+  }
+  if (memcmp(map_ptr, "CON ", 4) == 0) {
+    if (package_type_out) {
+      *package_type_out = StfsPackageType::kCon;
+    }
+    return Error::kSuccess;
+  }
+  // Unexpected format.
+  return Error::kErrorFileMismatch;
+}
+
+StfsContainerDevice::Error StfsContainerDevice::ReadHeaderAndVerify(
+    const uint8_t* map_ptr, size_t map_size) {
+  // Check signature.
+  auto type_result = ReadPackageType(map_ptr, map_size, &package_type_);
+  if (type_result != Error::kSuccess) {
+    return type_result;
   }
 
   // Read header.
@@ -708,13 +739,6 @@ bool StfsHeader::Read(const uint8_t* p) {
   return true;
 }
 
-const char* StfsContainerDevice::ReadMagic(const std::wstring& path) {
-  auto map = MappedMemory::Open(path, MappedMemory::Mode::kRead, 0, 4);
-  auto magic_data = xe::load<uint32_t>(map->data());
-  auto magic_bytes = static_cast<char*>(static_cast<void*>(&magic_data));
-  return std::move(magic_bytes);
-}
-
 bool StfsContainerDevice::ResolveFromFolder(const std::wstring& path) {
   // Scan through folders until a file with magic is found
   std::queue<filesystem::FileInfo> queue;
@@ -736,12 +760,11 @@ bool StfsContainerDevice::ResolveFromFolder(const std::wstring& path) {
     } else {
       // Try to read the file's magic
       auto path = xe::join_paths(current_file.path, current_file.name);
-      auto magic = ReadMagic(path);
-
-      if (memcmp(magic, "LIVE", 4) == 0 || memcmp(magic, "PIRS", 4) == 0 ||
-          memcmp(magic, "CON ", 4) == 0) {
+      auto map = MappedMemory::Open(path, MappedMemory::Mode::kRead, 0, 4);
+      if (map && ReadPackageType(map->data(), map->size(), nullptr) ==
+                     Error::kSuccess) {
         local_path_ = xe::join_paths(current_file.path, current_file.name);
-        XELOGI("STFS Package found: %s", xe::to_string(local_path_).c_str());
+        XELOGI("STFS Package found: %ls", local_path_.c_str());
         return true;
       }
     }

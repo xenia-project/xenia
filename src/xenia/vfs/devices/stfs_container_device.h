@@ -197,11 +197,12 @@ class StfsContainerDevice : public Device {
 
   const uint32_t kSTFSHashSpacing = 170;
 
-  const char* ReadMagic(const std::wstring& path);
   bool ResolveFromFolder(const std::wstring& path);
 
   Error MapFiles();
-  Error ReadHeaderAndVerify(const uint8_t* map_ptr);
+  static Error ReadPackageType(const uint8_t* map_ptr, size_t map_size,
+                               StfsPackageType* package_type_out);
+  Error ReadHeaderAndVerify(const uint8_t* map_ptr, size_t map_size);
 
   Error ReadSVOD();
   Error ReadEntrySVOD(uint32_t sector, uint32_t ordinal,
