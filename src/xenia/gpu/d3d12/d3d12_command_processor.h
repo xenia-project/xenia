@@ -158,6 +158,9 @@ class D3D12CommandProcessor : public CommandProcessor {
                  IndexBufferInfo* index_buffer_info) override;
   bool IssueCopy() override;
 
+  void InitializeTrace() override;
+  void FinalizeTrace() override;
+
  private:
   enum RootParameter : UINT {
     // These are always present.

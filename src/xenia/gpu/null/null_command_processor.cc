@@ -45,6 +45,10 @@ bool NullCommandProcessor::IssueDraw(PrimitiveType prim_type,
 
 bool NullCommandProcessor::IssueCopy() { return true; }
 
+void NullCommandProcessor::InitializeTrace() {}
+
+void NullCommandProcessor::FinalizeTrace() {}
+
 }  // namespace null
 }  // namespace gpu
 }  // namespace xe

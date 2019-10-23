@@ -94,6 +94,9 @@ class VulkanCommandProcessor : public CommandProcessor {
                         VulkanShader* pixel_shader);
   bool IssueCopy() override;
 
+  void InitializeTrace() override;
+  void FinalizeTrace() override;
+
   xe::ui::vulkan::VulkanDevice* device_ = nullptr;
 
   // front buffer / back buffer memory

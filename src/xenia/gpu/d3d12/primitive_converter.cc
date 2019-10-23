@@ -41,10 +41,12 @@ constexpr uint32_t PrimitiveConverter::kStaticIBTotalCount;
 
 PrimitiveConverter::PrimitiveConverter(D3D12CommandProcessor* command_processor,
                                        RegisterFile* register_file,
-                                       Memory* memory)
+                                       Memory* memory,
+                                       TraceWriter* trace_writer)
     : command_processor_(command_processor),
       register_file_(register_file),
-      memory_(memory) {
+      memory_(memory),
+      trace_writer_(trace_writer) {
   system_page_size_ = uint32_t(memory::page_size());
 }
 
@@ -248,6 +250,7 @@ PrimitiveConverter::ConversionResult PrimitiveConverter::ConvertPrimitives(
 
   address &= index_32bit ? 0x1FFFFFFC : 0x1FFFFFFE;
   uint32_t index_size = index_32bit ? sizeof(uint32_t) : sizeof(uint16_t);
+  uint32_t index_buffer_size = index_size * index_count;
   uint32_t address_last = address + index_size * (index_count - 1);
 
   // Create the cache entry, currently only for the key.
@@ -305,6 +308,7 @@ PrimitiveConverter::ConversionResult PrimitiveConverter::ConvertPrimitives(
   if (source_type == PrimitiveType::kTriangleFan) {
     // Triangle fans are not supported by Direct3D 12 at all.
     conversion_needed = true;
+    trace_writer_->WriteMemoryRead(address, index_buffer_size);
     if (reset) {
       uint32_t current_fan_index_count = 0;
       for (uint32_t i = 0; i < index_count; ++i) {
@@ -327,6 +331,7 @@ PrimitiveConverter::ConversionResult PrimitiveConverter::ConvertPrimitives(
     // Check if the restart index is used at all in this buffer because reading
     // vertices from a default heap is faster than from an upload heap.
     conversion_needed = false;
+    trace_writer_->WriteMemoryRead(address, index_buffer_size);
 #if XE_ARCH_AMD64
     // Will use SIMD to copy 16-byte blocks using _mm_or_si128.
     simd = true;
@@ -412,6 +417,7 @@ PrimitiveConverter::ConversionResult PrimitiveConverter::ConvertPrimitives(
 #endif  // XE_ARCH_AMD64
   } else if (source_type == PrimitiveType::kLineLoop) {
     conversion_needed = true;
+    trace_writer_->WriteMemoryRead(address, index_buffer_size);
     if (reset) {
       reset_actually_used = false;
       uint32_t current_strip_index_count = 0;
@@ -437,6 +443,7 @@ PrimitiveConverter::ConversionResult PrimitiveConverter::ConvertPrimitives(
     }
   } else if (source_type == PrimitiveType::kQuadList) {
     conversion_needed = true;
+    trace_writer_->WriteMemoryRead(address, index_buffer_size);
     converted_index_count = (index_count >> 2) * 6;
   }
   converted_indices.converted_index_count = converted_index_count;
@@ -737,6 +744,12 @@ D3D12_GPU_VIRTUAL_ADDRESS PrimitiveConverter::GetStaticIndexBuffer(
     return static_ib_gpu_address_ + kStaticIBQuadOffset * sizeof(uint16_t);
   }
   return D3D12_GPU_VIRTUAL_ADDRESS(0);
+}
+
+void PrimitiveConverter::InitializeTrace() {
+  // WriteMemoryRead must not be skipped.
+  converted_indices_cache_.clear();
+  memory_regions_used_ = 0;
 }
 
 }  // namespace d3d12

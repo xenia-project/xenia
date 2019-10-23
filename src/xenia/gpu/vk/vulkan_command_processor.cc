@@ -41,6 +41,10 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
 
 bool VulkanCommandProcessor::IssueCopy() { return true; }
 
+void VulkanCommandProcessor::InitializeTrace() {}
+
+void VulkanCommandProcessor::FinalizeTrace() {}
+
 }  // namespace vk
 }  // namespace gpu
 }  // namespace xe

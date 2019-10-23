@@ -21,11 +21,11 @@ TracePlayer::TracePlayer(xe::ui::Loop* loop, GraphicsSystem* graphics_system)
       graphics_system_(graphics_system),
       current_frame_index_(0),
       current_command_index_(-1) {
-  // Need to allocate all of physical memory so that we can write to it
-  // during playback.
-  graphics_system_->memory()
-      ->LookupHeapByType(true, 4096)
-      ->AllocFixed(0, 0x1FFFFFFF, 4096,
+  // Need to allocate all of physical memory so that we can write to it during
+  // playback. The 64 KB page heap is larger, covers the entire physical memory,
+  // so it is used instead of the 4 KB page one.
+  auto heap = graphics_system_->memory()->LookupHeapByType(true, 64 * 1024);
+  heap->AllocFixed(heap->heap_base(), heap->heap_size(), heap->page_size(),
                    kMemoryAllocationReserve | kMemoryAllocationCommit,
                    kMemoryProtectRead | kMemoryProtectWrite);
 
@@ -167,19 +167,13 @@ void TracePlayer::PlayTraceOnThread(const uint8_t* trace_data,
         }
         break;
       }
-      case TraceCommandType::kMemoryRead: {
+      case TraceCommandType::kMemoryRead:
+      case TraceCommandType::kMemoryWrite: {
         auto cmd = reinterpret_cast<const MemoryCommand*>(trace_ptr);
         trace_ptr += sizeof(*cmd);
         DecompressMemory(cmd->encoding_format, trace_ptr, cmd->encoded_length,
                          memory->TranslatePhysical(cmd->base_ptr),
                          cmd->decoded_length);
-        trace_ptr += cmd->encoded_length;
-        break;
-      }
-      case TraceCommandType::kMemoryWrite: {
-        auto cmd = reinterpret_cast<const MemoryCommand*>(trace_ptr);
-        trace_ptr += sizeof(*cmd);
-        // ?
         trace_ptr += cmd->encoded_length;
         break;
       }

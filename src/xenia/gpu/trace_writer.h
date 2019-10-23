@@ -39,12 +39,13 @@ class TraceWriter {
   void WriteMemoryRead(uint32_t base_ptr, size_t length);
   void WriteMemoryReadCached(uint32_t base_ptr, size_t length);
   void WriteMemoryReadCachedNop(uint32_t base_ptr, size_t length);
-  void WriteMemoryWrite(uint32_t base_ptr, size_t length);
+  void WriteMemoryWrite(uint32_t base_ptr, size_t length,
+                        const void* host_ptr = nullptr);
   void WriteEvent(EventCommand::Type event_type);
 
  private:
   void WriteMemoryCommand(TraceCommandType type, uint32_t base_ptr,
-                          size_t length);
+                          size_t length, const void* host_ptr = nullptr);
 
   std::set<uint64_t> cached_memory_reads_;
   uint8_t* membase_;

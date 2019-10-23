@@ -119,6 +119,8 @@ void CommandProcessor::EndTracing() {
     return;
   }
   assert_true(trace_state_ == TraceState::kStreaming);
+  FinalizeTrace();
+  trace_state_ = TraceState::kDisabled;
   trace_writer_.Close();
 }
 
@@ -437,6 +439,7 @@ uint32_t CommandProcessor::ExecutePrimaryBuffer(uint32_t read_index,
     auto file_name = xe::format_string(L"%8X_stream.xtr", title_id);
     auto path = trace_stream_path_ + file_name;
     trace_writer_.Open(path, title_id);
+    InitializeTrace();
   }
 
   // Adjust pointer base.
@@ -738,6 +741,7 @@ bool CommandProcessor::ExecutePacketType3(RingBuffer* reader, uint32_t packet) {
       trace_writer_.WriteEvent(EventCommand::Type::kSwap);
       trace_writer_.Flush();
       if (trace_state_ == TraceState::kSingleFrame) {
+        FinalizeTrace();
         trace_state_ = TraceState::kDisabled;
         trace_writer_.Close();
       }
@@ -747,6 +751,7 @@ bool CommandProcessor::ExecutePacketType3(RingBuffer* reader, uint32_t packet) {
       auto file_name = xe::format_string(L"%8X_%u.xtr", title_id, counter_ - 1);
       auto path = trace_frame_path_ + file_name;
       trace_writer_.Open(path, title_id);
+      InitializeTrace();
     }
   }
 

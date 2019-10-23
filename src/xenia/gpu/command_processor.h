@@ -237,6 +237,9 @@ class CommandProcessor {
                          IndexBufferInfo* index_buffer_info) = 0;
   virtual bool IssueCopy() = 0;
 
+  virtual void InitializeTrace() = 0;
+  virtual void FinalizeTrace() = 0;
+
   Memory* memory_ = nullptr;
   kernel::KernelState* kernel_state_ = nullptr;
   GraphicsSystem* graphics_system_ = nullptr;

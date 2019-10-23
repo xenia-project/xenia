@@ -168,11 +168,13 @@ void TraceWriter::WriteMemoryReadCachedNop(uint32_t base_ptr, size_t length) {
   }
 }
 
-void TraceWriter::WriteMemoryWrite(uint32_t base_ptr, size_t length) {
+void TraceWriter::WriteMemoryWrite(uint32_t base_ptr, size_t length,
+                                   const void* host_ptr) {
   if (!file_) {
     return;
   }
-  WriteMemoryCommand(TraceCommandType::kMemoryWrite, base_ptr, length);
+  WriteMemoryCommand(TraceCommandType::kMemoryWrite, base_ptr, length,
+                     host_ptr);
 }
 
 class SnappySink : public snappy::Sink {
@@ -188,12 +190,16 @@ class SnappySink : public snappy::Sink {
 };
 
 void TraceWriter::WriteMemoryCommand(TraceCommandType type, uint32_t base_ptr,
-                                     size_t length) {
+                                     size_t length, const void* host_ptr) {
   MemoryCommand cmd;
   cmd.type = type;
   cmd.base_ptr = base_ptr;
   cmd.encoding_format = MemoryEncodingFormat::kNone;
   cmd.encoded_length = cmd.decoded_length = static_cast<uint32_t>(length);
+
+  if (!host_ptr) {
+    host_ptr = membase_ + cmd.base_ptr;
+  }
 
   bool compress = compress_output_ && length > compression_threshold_;
   if (compress) {
@@ -204,8 +210,7 @@ void TraceWriter::WriteMemoryCommand(TraceCommandType type, uint32_t base_ptr,
 
     // Stream the content right to the buffer.
     snappy::ByteArraySource snappy_source(
-        reinterpret_cast<const char*>(membase_ + cmd.base_ptr),
-        cmd.decoded_length);
+        reinterpret_cast<const char*>(host_ptr), cmd.decoded_length);
     SnappySink snappy_sink(file_);
     cmd.encoded_length =
         static_cast<uint32_t>(snappy::Compress(&snappy_source, &snappy_sink));
@@ -219,7 +224,7 @@ void TraceWriter::WriteMemoryCommand(TraceCommandType type, uint32_t base_ptr,
     // Uncompressed - write buffer directly to the file.
     cmd.encoding_format = MemoryEncodingFormat::kNone;
     fwrite(&cmd, 1, sizeof(cmd), file_);
-    fwrite(membase_ + cmd.base_ptr, 1, cmd.decoded_length, file_);
+    fwrite(host_ptr, 1, cmd.decoded_length, file_);
   }
 }
 
