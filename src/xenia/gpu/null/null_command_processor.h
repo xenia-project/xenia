@@ -39,6 +39,9 @@ class NullCommandProcessor : public CommandProcessor {
   bool IssueDraw(PrimitiveType prim_type, uint32_t index_count,
                  IndexBufferInfo* index_buffer_info) override;
   bool IssueCopy() override;
+
+  void InitializeTrace() override;
+  void FinalizeTrace() override;
 };
 
 }  // namespace null

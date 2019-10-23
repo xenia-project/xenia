@@ -15,6 +15,7 @@
 #include <unordered_map>
 
 #include "xenia/gpu/register_file.h"
+#include "xenia/gpu/trace_writer.h"
 #include "xenia/gpu/xenos.h"
 #include "xenia/memory.h"
 #include "xenia/ui/d3d12/d3d12_context.h"
@@ -37,7 +38,8 @@ class D3D12CommandProcessor;
 class PrimitiveConverter {
  public:
   PrimitiveConverter(D3D12CommandProcessor* command_processor,
-                     RegisterFile* register_file, Memory* memory);
+                     RegisterFile* register_file, Memory* memory,
+                     TraceWriter* trace_writer);
   ~PrimitiveConverter();
 
   bool Initialize();
@@ -80,6 +82,8 @@ class PrimitiveConverter {
       PrimitiveType source_type, uint32_t index_count,
       uint32_t& index_count_out) const;
 
+  void InitializeTrace();
+
  private:
   // simd_offset is source address & 15 - if SIMD is used, the source and the
   // target must have the same alignment within one register. 0 is optimal when
@@ -98,6 +102,7 @@ class PrimitiveConverter {
   D3D12CommandProcessor* command_processor_;
   RegisterFile* register_file_;
   Memory* memory_;
+  TraceWriter* trace_writer_;
 
   std::unique_ptr<ui::d3d12::UploadBufferPool> buffer_pool_ = nullptr;
 

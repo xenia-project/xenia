@@ -672,7 +672,8 @@ bool D3D12CommandProcessor::SetupContext() {
   sampler_heap_pool_ = std::make_unique<ui::d3d12::DescriptorHeapPool>(
       context, D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, 2048);
 
-  shared_memory_ = std::make_unique<SharedMemory>(this, memory_);
+  shared_memory_ =
+      std::make_unique<SharedMemory>(this, memory_, &trace_writer_);
   if (!shared_memory_->Initialize()) {
     XELOGE("Failed to initialize shared memory");
     return false;
@@ -700,8 +701,8 @@ bool D3D12CommandProcessor::SetupContext() {
     return false;
   }
 
-  primitive_converter_ =
-      std::make_unique<PrimitiveConverter>(this, register_file_, memory_);
+  primitive_converter_ = std::make_unique<PrimitiveConverter>(
+      this, register_file_, memory_, &trace_writer_);
   if (!primitive_converter_->Initialize()) {
     XELOGE("Failed to initialize the geometric primitive converter");
     return false;
@@ -1654,6 +1655,19 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
 
   return true;
 }
+
+void D3D12CommandProcessor::InitializeTrace() {
+  BeginFrame();
+  bool anySubmitted = false;
+  anySubmitted |= shared_memory_->InitializeTraceSubmitDownloads();
+  if (anySubmitted) {
+    EndFrame();
+    GetD3D12Context()->AwaitAllFramesCompletion();
+    shared_memory_->InitializeTraceCompleteDownloads();
+  }
+}
+
+void D3D12CommandProcessor::FinalizeTrace() {}
 
 bool D3D12CommandProcessor::IssueCopy() {
 #if FINE_GRAINED_DRAW_SCOPES
