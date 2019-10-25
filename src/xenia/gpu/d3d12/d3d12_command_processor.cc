@@ -743,7 +743,7 @@ bool D3D12CommandProcessor::SetupContext() {
   }
 
   render_target_cache_ =
-      std::make_unique<RenderTargetCache>(this, register_file_);
+      std::make_unique<RenderTargetCache>(this, register_file_, &trace_writer_);
   if (!render_target_cache_->Initialize(texture_cache_.get())) {
     XELOGE("Failed to initialize the render target cache");
     return false;

@@ -99,8 +99,11 @@ const RenderTargetCache::EDRAMLoadStoreModeInfo
 };
 
 RenderTargetCache::RenderTargetCache(D3D12CommandProcessor* command_processor,
-                                     RegisterFile* register_file)
-    : command_processor_(command_processor), register_file_(register_file) {}
+                                     RegisterFile* register_file,
+                                     TraceWriter* trace_writer)
+    : command_processor_(command_processor),
+      register_file_(register_file),
+      trace_writer_(trace_writer) {}
 
 RenderTargetCache::~RenderTargetCache() { Shutdown(); }
 
@@ -1037,6 +1040,7 @@ bool RenderTargetCache::Resolve(SharedMemory* shared_memory,
   assert_true(fetch.type == 3);
   assert_true(fetch.endian == Endian::k8in32);
   assert_true(fetch.size == 6);
+  trace_writer_->WriteMemoryRead(fetch.address << 2, fetch.size << 2);
   const uint8_t* src_vertex_address =
       memory->TranslatePhysical(fetch.address << 2);
   float vertices[6];
