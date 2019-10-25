@@ -136,11 +136,12 @@ void TraceWriter::WritePacketEnd() {
   fwrite(&cmd, 1, sizeof(cmd), file_);
 }
 
-void TraceWriter::WriteMemoryRead(uint32_t base_ptr, size_t length) {
+void TraceWriter::WriteMemoryRead(uint32_t base_ptr, size_t length,
+                                  const void* host_ptr) {
   if (!file_) {
     return;
   }
-  WriteMemoryCommand(TraceCommandType::kMemoryRead, base_ptr, length);
+  WriteMemoryCommand(TraceCommandType::kMemoryRead, base_ptr, length, host_ptr);
 }
 
 void TraceWriter::WriteMemoryReadCached(uint32_t base_ptr, size_t length) {

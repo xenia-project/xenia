@@ -36,7 +36,8 @@ class TraceWriter {
   void WriteIndirectBufferEnd();
   void WritePacketStart(uint32_t base_ptr, uint32_t count);
   void WritePacketEnd();
-  void WriteMemoryRead(uint32_t base_ptr, size_t length);
+  void WriteMemoryRead(uint32_t base_ptr, size_t length,
+                       const void* host_ptr = nullptr);
   void WriteMemoryReadCached(uint32_t base_ptr, size_t length);
   void WriteMemoryReadCachedNop(uint32_t base_ptr, size_t length);
   void WriteMemoryWrite(uint32_t base_ptr, size_t length,

@@ -494,8 +494,10 @@ void SharedMemory::MakeRangeValid(uint32_t valid_page_first,
     }
   }
 
-  memory_->WatchPhysicalMemoryWrite(valid_page_first << page_size_log2_,
-                                    valid_page_count << page_size_log2_);
+  if (physical_write_watch_handle_) {
+    memory_->WatchPhysicalMemoryWrite(valid_page_first << page_size_log2_,
+                                      valid_page_count << page_size_log2_);
+  }
 }
 
 void SharedMemory::UnlinkWatchRange(WatchRange* range) {
@@ -791,7 +793,7 @@ void SharedMemory::InitializeTraceCompleteDownloads() {
           trace_gpu_written_buffer_->Map(0, nullptr, &download_mapping))) {
     uint32_t gpu_written_buffer_offset = 0;
     for (auto gpu_written_submit_range : trace_gpu_written_ranges_) {
-      trace_writer_->WriteMemoryWrite(
+      trace_writer_->WriteMemoryRead(
           gpu_written_submit_range.first, gpu_written_submit_range.second,
           reinterpret_cast<const uint8_t*>(download_mapping) +
               gpu_written_buffer_offset);

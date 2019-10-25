@@ -80,6 +80,12 @@ void D3D12CommandProcessor::RequestFrameTrace(const std::wstring& root_path) {
   CommandProcessor::RequestFrameTrace(root_path);
 }
 
+void D3D12CommandProcessor::TracePlaybackWroteMemory(uint32_t base_ptr,
+                                                     uint32_t length) {
+  shared_memory_->MemoryWriteCallback(base_ptr, length, true);
+  primitive_converter_->MemoryWriteCallback(base_ptr, length, true);
+}
+
 bool D3D12CommandProcessor::IsROVUsedForEDRAM() const {
   if (!cvars::d3d12_edram_rov) {
     return false;
@@ -643,6 +649,56 @@ std::wstring D3D12CommandProcessor::GetWindowTitleText() const {
   }
 }
 
+std::unique_ptr<xe::ui::RawImage> D3D12CommandProcessor::Capture() {
+  ID3D12Resource* readback_buffer =
+      RequestReadbackBuffer(uint32_t(swap_texture_copy_size_));
+  if (!readback_buffer) {
+    return nullptr;
+  }
+  BeginFrame();
+  PushTransitionBarrier(swap_texture_,
+                        D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+                        D3D12_RESOURCE_STATE_COPY_SOURCE);
+  SubmitBarriers();
+  D3D12_TEXTURE_COPY_LOCATION location_source, location_dest;
+  location_source.pResource = swap_texture_;
+  location_source.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+  location_source.SubresourceIndex = 0;
+  location_dest.pResource = readback_buffer;
+  location_dest.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+  location_dest.PlacedFootprint = swap_texture_copy_footprint_;
+  deferred_command_list_->CopyTexture(location_dest, location_source);
+  PushTransitionBarrier(swap_texture_, D3D12_RESOURCE_STATE_COPY_SOURCE,
+                        D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+  EndFrame();
+  GetD3D12Context()->AwaitAllFramesCompletion();
+  D3D12_RANGE readback_range;
+  readback_range.Begin = swap_texture_copy_footprint_.Offset;
+  readback_range.End = swap_texture_copy_size_;
+  void* readback_mapping;
+  if (FAILED(readback_buffer->Map(0, &readback_range, &readback_mapping))) {
+    return nullptr;
+  }
+  std::unique_ptr<xe::ui::RawImage> raw_image(new xe::ui::RawImage());
+  auto swap_texture_size = GetSwapTextureSize();
+  raw_image->width = swap_texture_size.first;
+  raw_image->height = swap_texture_size.second;
+  raw_image->stride = swap_texture_size.first * 4;
+  raw_image->data.resize(raw_image->stride * swap_texture_size.second);
+  const uint8_t* readback_source_data =
+      reinterpret_cast<const uint8_t*>(readback_mapping) +
+      swap_texture_copy_footprint_.Offset;
+  for (uint32_t i = 0; i < swap_texture_size.second; ++i) {
+    std::memcpy(raw_image->data.data() + i * raw_image->stride,
+                readback_source_data +
+                    i * swap_texture_copy_footprint_.Footprint.RowPitch,
+                raw_image->stride);
+  }
+  D3D12_RANGE readback_written_range = {};
+  gamma_ramp_upload_->Unmap(0, &readback_written_range);
+  return raw_image;
+}
+
 bool D3D12CommandProcessor::SetupContext() {
   if (!CommandProcessor::SetupContext()) {
     XELOGE("Failed to initialize base command processor context");
@@ -760,12 +816,9 @@ bool D3D12CommandProcessor::SetupContext() {
   D3D12_RESOURCE_DESC swap_texture_desc;
   swap_texture_desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
   swap_texture_desc.Alignment = 0;
-  swap_texture_desc.Width = kSwapTextureWidth;
-  swap_texture_desc.Height = kSwapTextureHeight;
-  if (texture_cache_->IsResolutionScale2X()) {
-    swap_texture_desc.Width *= 2;
-    swap_texture_desc.Height *= 2;
-  }
+  auto swap_texture_size = GetSwapTextureSize();
+  swap_texture_desc.Width = swap_texture_size.first;
+  swap_texture_desc.Height = swap_texture_size.second;
   swap_texture_desc.DepthOrArraySize = 1;
   swap_texture_desc.MipLevels = 1;
   swap_texture_desc.Format = ui::d3d12::D3D12Context::kSwapChainFormat;
@@ -781,6 +834,9 @@ bool D3D12CommandProcessor::SetupContext() {
     XELOGE("Failed to create the command processor front buffer");
     return false;
   }
+  device->GetCopyableFootprints(&swap_texture_desc, 0, 1, 0,
+                                &swap_texture_copy_footprint_, nullptr, nullptr,
+                                &swap_texture_copy_size_);
   D3D12_DESCRIPTOR_HEAP_DESC swap_descriptor_heap_desc;
   swap_descriptor_heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
   swap_descriptor_heap_desc.NumDescriptors = 1;
@@ -1045,12 +1101,7 @@ void D3D12CommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
       gamma_ramp_texture_state_ = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
       SubmitBarriers();
 
-      uint32_t swap_texture_width = kSwapTextureWidth;
-      uint32_t swap_texture_height = kSwapTextureHeight;
-      if (texture_cache_->IsResolutionScale2X()) {
-        swap_texture_width *= 2;
-        swap_texture_height *= 2;
-      }
+      auto swap_texture_size = GetSwapTextureSize();
 
       // Draw the stretching rectangle.
       deferred_command_list_->D3DOMSetRenderTargets(1, &swap_texture_rtv_, TRUE,
@@ -1058,16 +1109,16 @@ void D3D12CommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
       D3D12_VIEWPORT viewport;
       viewport.TopLeftX = 0.0f;
       viewport.TopLeftY = 0.0f;
-      viewport.Width = float(swap_texture_width);
-      viewport.Height = float(swap_texture_height);
+      viewport.Width = float(swap_texture_size.first);
+      viewport.Height = float(swap_texture_size.second);
       viewport.MinDepth = 0.0f;
       viewport.MaxDepth = 0.0f;
       deferred_command_list_->RSSetViewport(viewport);
       D3D12_RECT scissor;
       scissor.left = 0;
       scissor.top = 0;
-      scissor.right = swap_texture_width;
-      scissor.bottom = swap_texture_height;
+      scissor.right = swap_texture_size.first;
+      scissor.bottom = swap_texture_size.second;
       deferred_command_list_->RSSetScissorRect(scissor);
       D3D12GraphicsSystem* graphics_system =
           static_cast<D3D12GraphicsSystem*>(graphics_system_);
@@ -1085,8 +1136,8 @@ void D3D12CommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
       // Don't care about graphics state because the frame is ending anyway.
       {
         std::lock_guard<std::mutex> lock(swap_state_.mutex);
-        swap_state_.width = swap_texture_width;
-        swap_state_.height = swap_texture_height;
+        swap_state_.width = swap_texture_size.first;
+        swap_state_.height = swap_texture_size.second;
         swap_state_.front_buffer_texture =
             reinterpret_cast<uintptr_t>(swap_texture_srv_descriptor_heap_);
       }

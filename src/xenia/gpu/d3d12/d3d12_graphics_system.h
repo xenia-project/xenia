@@ -34,6 +34,8 @@ class D3D12GraphicsSystem : public GraphicsSystem {
                  ui::Window* target_window) override;
   void Shutdown() override;
 
+  std::unique_ptr<xe::ui::RawImage> Capture() override;
+
   void AwaitFrontBufferUnused();
 
   // Draws a texture covering the entire viewport to the render target currently

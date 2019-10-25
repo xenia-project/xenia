@@ -15,6 +15,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <utility>
 
 #include "xenia/gpu/command_processor.h"
 #include "xenia/gpu/d3d12/d3d12_graphics_system.h"
@@ -44,6 +45,8 @@ class D3D12CommandProcessor : public CommandProcessor {
   void ClearCaches() override;
 
   void RequestFrameTrace(const std::wstring& root_path) override;
+
+  void TracePlaybackWroteMemory(uint32_t base_ptr, uint32_t length) override;
 
   // Needed by everything that owns transient objects.
   xe::ui::d3d12::D3D12Context* GetD3D12Context() const {
@@ -140,6 +143,8 @@ class D3D12CommandProcessor : public CommandProcessor {
 
   // Returns the text to display in the GPU backend name in the window title.
   std::wstring GetWindowTitleText() const;
+
+  std::unique_ptr<xe::ui::RawImage> Capture();
 
  protected:
   bool SetupContext() override;
@@ -268,7 +273,15 @@ class D3D12CommandProcessor : public CommandProcessor {
 
   static constexpr uint32_t kSwapTextureWidth = 1280;
   static constexpr uint32_t kSwapTextureHeight = 720;
+  inline std::pair<uint32_t, uint32_t> GetSwapTextureSize() const {
+    if (texture_cache_->IsResolutionScale2X()) {
+      return std::make_pair(kSwapTextureWidth * 2, kSwapTextureHeight * 2);
+    }
+    return std::make_pair(kSwapTextureWidth, kSwapTextureHeight);
+  }
   ID3D12Resource* swap_texture_ = nullptr;
+  D3D12_PLACED_SUBRESOURCE_FOOTPRINT swap_texture_copy_footprint_;
+  UINT64 swap_texture_copy_size_;
   ID3D12DescriptorHeap* swap_texture_rtv_descriptor_heap_ = nullptr;
   D3D12_CPU_DESCRIPTOR_HANDLE swap_texture_rtv_;
   ID3D12DescriptorHeap* swap_texture_srv_descriptor_heap_ = nullptr;
