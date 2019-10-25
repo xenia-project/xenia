@@ -126,10 +126,12 @@ bool TraceDump::Load(std::wstring trace_file_path) {
 }
 
 int TraceDump::Run() {
+  BeginHostCapture();
   player_->SeekFrame(0);
   player_->SeekCommand(
       static_cast<int>(player_->current_frame()->commands.size() - 1));
   player_->WaitOnPlayback();
+  EndHostCapture();
 
   // Capture.
   int result = 0;
