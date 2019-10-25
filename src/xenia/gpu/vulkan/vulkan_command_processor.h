@@ -50,7 +50,8 @@ class VulkanCommandProcessor : public CommandProcessor {
                          kernel::KernelState* kernel_state);
   ~VulkanCommandProcessor() override;
 
-  virtual void RequestFrameTrace(const std::wstring& root_path) override;
+  void RequestFrameTrace(const std::wstring& root_path) override;
+  void TracePlaybackWroteMemory(uint32_t base_ptr, uint32_t length) override;
   void ClearCaches() override;
 
   RenderCache* render_cache() { return render_cache_.get(); }

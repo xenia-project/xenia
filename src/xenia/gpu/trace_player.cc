@@ -167,13 +167,22 @@ void TracePlayer::PlayTraceOnThread(const uint8_t* trace_data,
         }
         break;
       }
-      case TraceCommandType::kMemoryRead:
-      case TraceCommandType::kMemoryWrite: {
+      case TraceCommandType::kMemoryRead: {
         auto cmd = reinterpret_cast<const MemoryCommand*>(trace_ptr);
         trace_ptr += sizeof(*cmd);
         DecompressMemory(cmd->encoding_format, trace_ptr, cmd->encoded_length,
                          memory->TranslatePhysical(cmd->base_ptr),
                          cmd->decoded_length);
+        trace_ptr += cmd->encoded_length;
+        command_processor->TracePlaybackWroteMemory(cmd->base_ptr,
+                                                    cmd->decoded_length);
+        break;
+      }
+      case TraceCommandType::kMemoryWrite: {
+        auto cmd = reinterpret_cast<const MemoryCommand*>(trace_ptr);
+        trace_ptr += sizeof(*cmd);
+        // ?
+        // Assuming the command processor will do the same write.
         trace_ptr += cmd->encoded_length;
         break;
       }

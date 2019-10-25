@@ -190,6 +190,15 @@ void D3D12GraphicsSystem::Shutdown() {
   GraphicsSystem::Shutdown();
 }
 
+std::unique_ptr<xe::ui::RawImage> D3D12GraphicsSystem::Capture() {
+  auto d3d12_command_processor =
+      static_cast<D3D12CommandProcessor*>(command_processor());
+  if (!d3d12_command_processor) {
+    return nullptr;
+  }
+  return d3d12_command_processor->Capture();
+}
+
 void D3D12GraphicsSystem::AwaitFrontBufferUnused() {
   if (display_context_ != nullptr) {
     display_context_->AwaitAllFramesCompletion();

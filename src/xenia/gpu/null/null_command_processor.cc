@@ -18,6 +18,9 @@ NullCommandProcessor::NullCommandProcessor(NullGraphicsSystem* graphics_system,
     : CommandProcessor(graphics_system, kernel_state) {}
 NullCommandProcessor::~NullCommandProcessor() = default;
 
+void NullCommandProcessor::TracePlaybackWroteMemory(uint32_t base_ptr,
+                                                    uint32_t length) {}
+
 bool NullCommandProcessor::SetupContext() {
   return CommandProcessor::SetupContext();
 }

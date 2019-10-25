@@ -25,6 +25,8 @@ class NullCommandProcessor : public CommandProcessor {
                        kernel::KernelState* kernel_state);
   ~NullCommandProcessor();
 
+  void TracePlaybackWroteMemory(uint32_t base_ptr, uint32_t length) override;
+
  private:
   bool SetupContext() override;
   void ShutdownContext() override;

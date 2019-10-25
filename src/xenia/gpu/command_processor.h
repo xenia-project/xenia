@@ -134,6 +134,8 @@ class CommandProcessor {
   virtual void BeginTracing(const std::wstring& root_path);
   virtual void EndTracing();
 
+  virtual void TracePlaybackWroteMemory(uint32_t base_ptr, uint32_t length) = 0;
+
   void InitializeRingBuffer(uint32_t ptr, uint32_t page_count);
   void EnableReadPointerWriteBack(uint32_t ptr, uint32_t block_size);
 

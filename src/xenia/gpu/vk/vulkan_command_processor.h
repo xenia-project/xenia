@@ -24,6 +24,8 @@ class VulkanCommandProcessor : public CommandProcessor {
                                   kernel::KernelState* kernel_state);
   ~VulkanCommandProcessor();
 
+  void TracePlaybackWroteMemory(uint32_t base_ptr, uint32_t length) override;
+
  protected:
   bool SetupContext() override;
   void ShutdownContext() override;

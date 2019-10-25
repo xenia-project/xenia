@@ -102,6 +102,13 @@ class SharedMemory {
   // usable.
   bool RequestRange(uint32_t start, uint32_t length);
 
+  // Marks the range and, if not exact_range, potentially its surroundings
+  // (to up to the first GPU-written page, as an access violation exception
+  // count optimization) as modified by the CPU, also invalidating GPU-written
+  // pages directly in the range.
+  std::pair<uint32_t, uint32_t> MemoryWriteCallback(
+      uint32_t physical_address_start, uint32_t length, bool exact_range);
+
   // Marks the range as containing GPU-generated data (such as resolves),
   // triggering modification callbacks, making it valid (so pages are not
   // copied from the main memory until they're modified by the CPU) and
@@ -195,12 +202,9 @@ class SharedMemory {
   //   written by the GPU not synchronized with the CPU (subset of valid pages).
   std::vector<uint64_t> valid_and_gpu_written_pages_;
 
-  // Memory access callback.
   static std::pair<uint32_t, uint32_t> MemoryWriteCallbackThunk(
       void* context_ptr, uint32_t physical_address_start, uint32_t length,
       bool exact_range);
-  std::pair<uint32_t, uint32_t> MemoryWriteCallback(
-      uint32_t physical_address_start, uint32_t length, bool exact_range);
 
   struct GlobalWatch {
     GlobalWatchCallback callback;

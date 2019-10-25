@@ -82,6 +82,10 @@ class PrimitiveConverter {
       PrimitiveType source_type, uint32_t index_count,
       uint32_t& index_count_out) const;
 
+  // Callback for invalidating buffers mid-frame.
+  std::pair<uint32_t, uint32_t> MemoryWriteCallback(
+      uint32_t physical_address_start, uint32_t length, bool exact_range);
+
   void InitializeTrace();
 
  private:
@@ -92,9 +96,6 @@ class PrimitiveConverter {
                         uint32_t simd_offset,
                         D3D12_GPU_VIRTUAL_ADDRESS& gpu_address_out);
 
-  // Callback for invalidating buffers mid-frame.
-  std::pair<uint32_t, uint32_t> MemoryWriteCallback(
-      uint32_t physical_address_start, uint32_t length, bool exact_range);
   static std::pair<uint32_t, uint32_t> MemoryWriteCallbackThunk(
       void* context_ptr, uint32_t physical_address_start, uint32_t length,
       bool exact_range);
