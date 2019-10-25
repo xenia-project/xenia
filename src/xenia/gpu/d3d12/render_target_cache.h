@@ -17,6 +17,7 @@
 #include "xenia/gpu/d3d12/shared_memory.h"
 #include "xenia/gpu/d3d12/texture_cache.h"
 #include "xenia/gpu/register_file.h"
+#include "xenia/gpu/trace_writer.h"
 #include "xenia/gpu/xenos.h"
 #include "xenia/memory.h"
 #include "xenia/ui/d3d12/d3d12_api.h"
@@ -247,7 +248,7 @@ class RenderTargetCache {
   };
 
   RenderTargetCache(D3D12CommandProcessor* command_processor,
-                    RegisterFile* register_file);
+                    RegisterFile* register_file, TraceWriter* trace_writer);
   ~RenderTargetCache();
 
   bool Initialize(const TextureCache* texture_cache);
@@ -503,6 +504,7 @@ class RenderTargetCache {
 
   D3D12CommandProcessor* command_processor_;
   RegisterFile* register_file_;
+  TraceWriter* trace_writer_;
 
   // Whether 1 guest pixel is rendered as 2x2 host pixels (currently only
   // supported with ROV).
