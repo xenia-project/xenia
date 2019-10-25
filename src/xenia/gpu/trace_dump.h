@@ -43,6 +43,9 @@ class TraceDump {
 
   virtual std::unique_ptr<gpu::GraphicsSystem> CreateGraphicsSystem() = 0;
 
+  virtual void BeginHostCapture() = 0;
+  virtual void EndHostCapture() = 0;
+
   std::unique_ptr<Emulator> emulator_;
   GraphicsSystem* graphics_system_ = nullptr;
   std::unique_ptr<TracePlayer> player_;

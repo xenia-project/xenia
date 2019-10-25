@@ -12,6 +12,8 @@
 #include "xenia/gpu/trace_dump.h"
 #include "xenia/gpu/vulkan/vulkan_command_processor.h"
 #include "xenia/gpu/vulkan/vulkan_graphics_system.h"
+#include "xenia/ui/vulkan/vulkan_device.h"
+#include "xenia/ui/vulkan/vulkan_provider.h"
 
 namespace xe {
 namespace gpu {
@@ -23,6 +25,24 @@ class VulkanTraceDump : public TraceDump {
  public:
   std::unique_ptr<gpu::GraphicsSystem> CreateGraphicsSystem() override {
     return std::unique_ptr<gpu::GraphicsSystem>(new VulkanGraphicsSystem());
+  }
+
+  void BeginHostCapture() override {
+    auto device = static_cast<const ui::vulkan::VulkanProvider*>(
+                      graphics_system_->provider())
+                      ->device();
+    if (device->is_renderdoc_attached()) {
+      device->BeginRenderDocFrameCapture();
+    }
+  }
+
+  void EndHostCapture() override {
+    auto device = static_cast<const ui::vulkan::VulkanProvider*>(
+                      graphics_system_->provider())
+                      ->device();
+    if (device->is_renderdoc_attached()) {
+      device->EndRenderDocFrameCapture();
+    }
   }
 };
 
