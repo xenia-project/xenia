@@ -28,7 +28,7 @@ void DiscordPresence::Initialize() {
   handlers.joinGame = &HandleDiscordJoinGame;
   handlers.joinRequest = &HandleDiscordJoinRequest;
   handlers.spectateGame = &HandleDiscordSpectateGame;
-  Discord_Initialize("606840046649081857", &handlers, 0, "");
+  Discord_Initialize("616128086999695367", &handlers, 0, "");
 }
 
 void DiscordPresence::NotPlaying() {
@@ -36,7 +36,7 @@ void DiscordPresence::NotPlaying() {
   discordPresence.state = "Idle";
   discordPresence.details = "Standby";
   discordPresence.largeImageKey = "app";
-  discordPresence.largeImageText = "Xenia - Experimental Xbox 360 Emulator";
+  discordPresence.largeImageText = "Xenia Canary - Experimental Testing branch";
   discordPresence.startTimestamp = time(0);
   discordPresence.instance = 1;
   Discord_UpdatePresence(&discordPresence);
@@ -51,7 +51,7 @@ void DiscordPresence::PlayingTitle(const std::string_view game_title) {
   // discordPresence.smallImageKey = "app";
   // discordPresence.largeImageKey = "state_ingame";
   discordPresence.largeImageKey = "app";
-  discordPresence.largeImageText = "Xenia - Experimental Xbox 360 Emulator";
+  discordPresence.largeImageText = "Xenia Canary - Experimental Testing branch";
   discordPresence.startTimestamp = time(0);
   discordPresence.instance = 1;
   Discord_UpdatePresence(&discordPresence);
