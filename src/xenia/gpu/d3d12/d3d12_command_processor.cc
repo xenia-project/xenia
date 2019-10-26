@@ -1001,6 +1001,10 @@ void D3D12CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
 void D3D12CommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
                                         uint32_t frontbuffer_width,
                                         uint32_t frontbuffer_height) {
+  // FIXME(Triang3l): frontbuffer_ptr is currently unreliable, in the trace
+  // player it's set to 0, but it's not needed anyway since the fetch constant
+  // contains the address.
+
   SCOPE_profile_cpu_f("gpu");
 
   // In case the swap command is the only one in the frame.
