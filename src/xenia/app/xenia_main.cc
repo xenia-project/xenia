@@ -23,6 +23,7 @@
 
 // Available audio systems:
 #include "xenia/apu/nop/nop_audio_system.h"
+#include "xenia/apu/sdl/sdl_audio_system.h"
 #if XE_PLATFORM_WIN32
 #include "xenia/apu/xaudio2/xaudio2_audio_system.h"
 #endif  // XE_PLATFORM_WIN32
@@ -45,7 +46,7 @@
 
 #include "third_party/xbyak/xbyak/xbyak_util.h"
 
-DEFINE_string(apu, "any", "Audio system. Use: [any, nop, xaudio2]", "APU");
+DEFINE_string(apu, "any", "Audio system. Use: [any, nop, sdl, xaudio2]", "APU");
 DEFINE_string(gpu, "any",
               "Graphics system. Use: [any, d3d12, vulkan, vk, null]", "GPU");
 DEFINE_string(hid, "any", "Input system. Use: [any, nop, sdl, winkey, xinput]",
@@ -149,6 +150,7 @@ std::unique_ptr<apu::AudioSystem> CreateAudioSystem(cpu::Processor* processor) {
 #if XE_PLATFORM_WIN32
   factory.Add<apu::xaudio2::XAudio2AudioSystem>("xaudio2");
 #endif  // XE_PLATFORM_WIN32
+  factory.Add<apu::sdl::SDLAudioSystem>("sdl");
   factory.Add<apu::nop::NopAudioSystem>("nop");
   return factory.Create(cvars::apu, processor);
 }
