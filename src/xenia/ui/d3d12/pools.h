@@ -18,64 +18,57 @@ namespace xe {
 namespace ui {
 namespace d3d12 {
 
-class D3D12Context;
-
 class UploadBufferPool {
  public:
-  UploadBufferPool(D3D12Context* context, uint32_t page_size);
+  UploadBufferPool(ID3D12Device* device, uint32_t page_size);
   ~UploadBufferPool();
 
-  void BeginFrame();
-  void EndFrame();
+  void Reclaim(uint64_t completed_fence_value);
   void ClearCache();
 
   // Request to write data in a single piece, creating a new page if the current
   // one doesn't have enough free space.
-  uint8_t* RequestFull(uint32_t size, ID3D12Resource** buffer_out,
-                       uint32_t* offset_out,
-                       D3D12_GPU_VIRTUAL_ADDRESS* gpu_address_out);
+  uint8_t* Request(uint64_t usage_fence_value, uint32_t size,
+                   ID3D12Resource** buffer_out, uint32_t* offset_out,
+                   D3D12_GPU_VIRTUAL_ADDRESS* gpu_address_out);
   // Request to write data in multiple parts, filling the buffer entirely.
-  uint8_t* RequestPartial(uint32_t size, ID3D12Resource** buffer_out,
-                          uint32_t* offset_out, uint32_t* size_out,
+  uint8_t* RequestPartial(uint64_t usage_fence_value, uint32_t size,
+                          ID3D12Resource** buffer_out, uint32_t* offset_out,
+                          uint32_t* size_out,
                           D3D12_GPU_VIRTUAL_ADDRESS* gpu_address_out);
 
  private:
-  D3D12Context* context_;
+  ID3D12Device* device_;
   uint32_t page_size_;
 
-  void EndPage();
-  bool BeginNextPage();
-
-  struct UploadBuffer {
+  struct Page {
     ID3D12Resource* buffer;
-    UploadBuffer* next;
-    uint64_t frame_sent;
+    D3D12_GPU_VIRTUAL_ADDRESS gpu_address;
+    void* mapping;
+    uint64_t last_usage_fence_value;
+    Page* next;
   };
 
-  // A list of unsent buffers, with the first one being the current.
-  UploadBuffer* unsent_ = nullptr;
-  // A list of sent buffers, moved to unsent in the beginning of a frame.
-  UploadBuffer* sent_first_ = nullptr;
-  UploadBuffer* sent_last_ = nullptr;
-
-  uint32_t current_size_ = 0;
-  uint8_t* current_mapping_ = nullptr;
-  // Not updated until actually requested.
-  D3D12_GPU_VIRTUAL_ADDRESS current_gpu_address_ = 0;
-
-  // Reset in the beginning of a frame - don't try and fail to create a new page
-  // if failed to create one in the current frame.
-  bool page_creation_failed_ = false;
+  // A list of buffers with free space, with the first buffer being the one
+  // currently being filled.
+  Page* writable_first_ = nullptr;
+  Page* writable_last_ = nullptr;
+  // A list of full buffers that can be reclaimed when the GPU doesn't use them
+  // anymore.
+  Page* submitted_first_ = nullptr;
+  Page* submitted_last_ = nullptr;
+  uint32_t current_page_used_ = 0;
 };
 
 class DescriptorHeapPool {
  public:
-  DescriptorHeapPool(D3D12Context* context, D3D12_DESCRIPTOR_HEAP_TYPE type,
+  static constexpr uint64_t kHeapIndexInvalid = UINT64_MAX;
+
+  DescriptorHeapPool(ID3D12Device* device, D3D12_DESCRIPTOR_HEAP_TYPE type,
                      uint32_t page_size);
   ~DescriptorHeapPool();
 
-  void BeginFrame();
-  void EndFrame();
+  void Reclaim(uint64_t completed_fence_value);
   void ClearCache();
 
   // Because all descriptors for a single draw call must be in the same heap,
@@ -88,64 +81,64 @@ class DescriptorHeapPool {
   //
   // If something uses this pool to do partial updates, it must let this
   // function determine whether a partial update is possible. For this purpose,
-  // this function returns a full update number - and it must be called with its
+  // this function returns the heap reset index - and it must be called with its
   // previous return value for the set of descriptors it's updating.
   //
-  // If this function returns a value that is the same as previous_full_update,
-  // a partial update needs to be done - and space for count_for_partial_update
-  // is allocated.
+  // If this function returns a value that is the same as previous_heap_index, a
+  // partial update needs to be done - and space for count_for_partial_update is
+  // allocated.
   //
   // If it's different, all descriptors must be written again - and space for
   // count_for_full_update is allocated.
   //
-  // If 0 is returned, there was an error.
+  // If kHeapIndexInvalid is returned, there was an error.
   //
   // This MUST be called even if there's nothing to write in a partial update
   // (with count_for_partial_update being 0), because a full update may still be
   // required.
-  uint64_t Request(uint64_t previous_full_update,
+  uint64_t Request(uint64_t usage_fence_value, uint64_t previous_heap_index,
                    uint32_t count_for_partial_update,
                    uint32_t count_for_full_update, uint32_t& index_out);
 
   // The current heap, for binding and actually writing - may be called only
   // after a successful request because before a request, the heap may not exist
   // yet.
-  ID3D12DescriptorHeap* GetLastRequestHeap() const { return unsent_->heap; }
+  ID3D12DescriptorHeap* GetLastRequestHeap() const {
+    return writable_first_->heap;
+  }
   D3D12_CPU_DESCRIPTOR_HANDLE GetLastRequestHeapCPUStart() const {
-    return current_heap_cpu_start_;
+    return writable_first_->cpu_start;
   }
   D3D12_GPU_DESCRIPTOR_HANDLE GetLastRequestHeapGPUStart() const {
-    return current_heap_gpu_start_;
+    return writable_first_->gpu_start;
   }
 
  private:
-  D3D12Context* context_;
+  ID3D12Device* device_;
   D3D12_DESCRIPTOR_HEAP_TYPE type_;
   uint32_t page_size_;
 
-  void EndPage();
-  bool BeginNextPage();
-
-  struct DescriptorHeap {
+  struct Page {
     ID3D12DescriptorHeap* heap;
-    DescriptorHeap* next;
-    uint64_t frame_sent;
+    D3D12_CPU_DESCRIPTOR_HANDLE cpu_start;
+    D3D12_GPU_DESCRIPTOR_HANDLE gpu_start;
+    uint64_t last_usage_fence_value;
+    Page* next;
   };
 
-  // A list of unsent heaps, with the first one being the current.
-  DescriptorHeap* unsent_ = nullptr;
-  // A list of sent heaps, moved to unsent in the beginning of a frame.
-  DescriptorHeap* sent_first_ = nullptr;
-  DescriptorHeap* sent_last_ = nullptr;
-
-  uint64_t current_page_ = 0;
-  D3D12_CPU_DESCRIPTOR_HANDLE current_heap_cpu_start_ = {};
-  D3D12_GPU_DESCRIPTOR_HANDLE current_heap_gpu_start_ = {};
-  uint32_t current_size_ = 0;
-
-  // Reset in the beginning of a frame - don't try and fail to create a new page
-  // if failed to create one in the current frame.
-  bool page_creation_failed_ = false;
+  // A list of heap with free space, with the first buffer being the one
+  // currently being filled.
+  Page* writable_first_ = nullptr;
+  Page* writable_last_ = nullptr;
+  // A list of full heaps that can be reclaimed when the GPU doesn't use them
+  // anymore.
+  Page* submitted_first_ = nullptr;
+  Page* submitted_last_ = nullptr;
+  // Monotonically increased when a new request is going to a different
+  // ID3D12DescriptorHeap than the one that may be bound currently. See Request
+  // for more information.
+  uint64_t current_heap_index_ = 0;
+  uint32_t current_page_used_ = 0;
 };
 
 }  // namespace d3d12

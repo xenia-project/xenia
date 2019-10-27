@@ -24,6 +24,7 @@
 #include "xenia/gpu/texture_info.h"
 #include "xenia/gpu/texture_util.h"
 #include "xenia/ui/d3d12/d3d12_util.h"
+#include "xenia/ui/d3d12/pools.h"
 
 DEFINE_int32(d3d12_resolution_scale, 1,
              "Scale of rendering width and height (currently only 1 and 2 "
@@ -1813,8 +1814,10 @@ bool TextureCache::TileResolvedTexture(
   // Tile the texture.
   D3D12_CPU_DESCRIPTOR_HANDLE descriptor_cpu_start;
   D3D12_GPU_DESCRIPTOR_HANDLE descriptor_gpu_start;
-  if (command_processor_->RequestViewDescriptors(0, 2, 2, descriptor_cpu_start,
-                                                 descriptor_gpu_start) == 0) {
+  if (command_processor_->RequestViewDescriptors(
+          ui::d3d12::DescriptorHeapPool::kHeapIndexInvalid, 2, 2,
+          descriptor_cpu_start, descriptor_gpu_start) ==
+      ui::d3d12::DescriptorHeapPool::kHeapIndexInvalid) {
     return false;
   }
   if (resolution_scale_log2) {
@@ -2403,7 +2406,8 @@ bool TextureCache::LoadTextureData(Texture* texture) {
   }
 
   auto command_list = command_processor_->GetDeferredCommandList();
-  auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
+  auto context = command_processor_->GetD3D12Context();
+  auto provider = context->GetD3D12Provider();
   auto device = provider->GetDevice();
 
   // Get the pipeline.
@@ -2496,8 +2500,9 @@ bool TextureCache::LoadTextureData(Texture* texture) {
   D3D12_CPU_DESCRIPTOR_HANDLE descriptor_cpu_start;
   D3D12_GPU_DESCRIPTOR_HANDLE descriptor_gpu_start;
   if (command_processor_->RequestViewDescriptors(
-          0, descriptor_count, descriptor_count, descriptor_cpu_start,
-          descriptor_gpu_start) == 0) {
+          ui::d3d12::DescriptorHeapPool::kHeapIndexInvalid, descriptor_count,
+          descriptor_count, descriptor_cpu_start, descriptor_gpu_start) ==
+      ui::d3d12::DescriptorHeapPool::kHeapIndexInvalid) {
     command_processor_->ReleaseScratchGPUBuffer(copy_buffer, copy_buffer_state);
     return false;
   }
@@ -2602,7 +2607,8 @@ bool TextureCache::LoadTextureData(Texture* texture) {
                                          load_constants.guest_mip_offset[2]);
       }
       D3D12_GPU_VIRTUAL_ADDRESS cbuffer_gpu_address;
-      uint8_t* cbuffer_mapping = cbuffer_pool->RequestFull(
+      uint8_t* cbuffer_mapping = cbuffer_pool->Request(
+          context->GetCurrentFrame(),
           xe::align(uint32_t(sizeof(load_constants)), 256u), nullptr, nullptr,
           &cbuffer_gpu_address);
       if (cbuffer_mapping == nullptr) {

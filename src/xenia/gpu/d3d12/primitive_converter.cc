@@ -53,14 +53,14 @@ PrimitiveConverter::PrimitiveConverter(D3D12CommandProcessor* command_processor,
 PrimitiveConverter::~PrimitiveConverter() { Shutdown(); }
 
 bool PrimitiveConverter::Initialize() {
-  auto context = command_processor_->GetD3D12Context();
-  auto device = context->GetD3D12Provider()->GetDevice();
+  auto device =
+      command_processor_->GetD3D12Context()->GetD3D12Provider()->GetDevice();
 
   // There can be at most 65535 indices in a Xenos draw call, but they can be up
   // to 4 bytes large, and conversion can add more indices (almost triple the
   // count for triangle strips, for instance).
   buffer_pool_ =
-      std::make_unique<ui::d3d12::UploadBufferPool>(context, 4 * 1024 * 1024);
+      std::make_unique<ui::d3d12::UploadBufferPool>(device, 4 * 1024 * 1024);
 
   // Create the static index buffer for non-indexed drawing.
   D3D12_RESOURCE_DESC static_ib_desc;
@@ -162,13 +162,12 @@ void PrimitiveConverter::BeginFrame() {
     }
   }
 
-  buffer_pool_->BeginFrame();
+  buffer_pool_->Reclaim(
+      command_processor_->GetD3D12Context()->GetLastCompletedFrame());
 
   converted_indices_cache_.clear();
   memory_regions_used_ = 0;
 }
-
-void PrimitiveConverter::EndFrame() { buffer_pool_->EndFrame(); }
 
 PrimitiveType PrimitiveConverter::GetReplacementPrimitiveType(
     PrimitiveType type) {
@@ -695,8 +694,9 @@ void* PrimitiveConverter::AllocateIndices(
     size += 16;
   }
   D3D12_GPU_VIRTUAL_ADDRESS gpu_address;
-  uint8_t* mapping =
-      buffer_pool_->RequestFull(size, nullptr, nullptr, &gpu_address);
+  uint8_t* mapping = buffer_pool_->Request(
+      command_processor_->GetD3D12Context()->GetCurrentFrame(), size, nullptr,
+      nullptr, &gpu_address);
   if (mapping == nullptr) {
     XELOGE("Failed to allocate space for %u converted %u-bit vertex indices",
            count, format == IndexFormat::kInt32 ? 32 : 16);

@@ -45,7 +45,6 @@ class SharedMemory {
   }
 
   void BeginFrame();
-  void EndFrame();
 
   typedef void (*GlobalWatchCallback)(void* context, uint32_t address_first,
                                       uint32_t address_last,

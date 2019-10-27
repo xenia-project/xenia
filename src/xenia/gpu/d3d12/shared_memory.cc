@@ -59,8 +59,7 @@ SharedMemory::SharedMemory(D3D12CommandProcessor* command_processor,
 SharedMemory::~SharedMemory() { Shutdown(); }
 
 bool SharedMemory::Initialize() {
-  auto context = command_processor_->GetD3D12Context();
-  auto provider = context->GetD3D12Provider();
+  auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
   auto device = provider->GetDevice();
 
   D3D12_RESOURCE_DESC buffer_desc;
@@ -131,7 +130,7 @@ bool SharedMemory::Initialize() {
               valid_and_gpu_written_pages_.size() * sizeof(uint64_t));
 
   upload_buffer_pool_ =
-      std::make_unique<ui::d3d12::UploadBufferPool>(context, 4 * 1024 * 1024);
+      std::make_unique<ui::d3d12::UploadBufferPool>(device, 4 * 1024 * 1024);
 
   physical_write_watch_handle_ =
       memory_->RegisterPhysicalWriteWatch(MemoryWriteCallbackThunk, this);
@@ -168,11 +167,10 @@ void SharedMemory::Shutdown() {
 }
 
 void SharedMemory::BeginFrame() {
-  upload_buffer_pool_->BeginFrame();
+  upload_buffer_pool_->Reclaim(
+      command_processor_->GetD3D12Context()->GetLastCompletedFrame());
   heap_creation_failed_ = false;
 }
-
-void SharedMemory::EndFrame() { upload_buffer_pool_->EndFrame(); }
 
 SharedMemory::GlobalWatchHandle SharedMemory::RegisterGlobalWatch(
     GlobalWatchCallback callback, void* callback_context) {
@@ -378,6 +376,7 @@ bool SharedMemory::RequestRange(uint32_t start, uint32_t length) {
       ID3D12Resource* upload_buffer;
       uint32_t upload_buffer_offset, upload_buffer_size;
       uint8_t* upload_buffer_mapping = upload_buffer_pool_->RequestPartial(
+          command_processor_->GetD3D12Context()->GetCurrentFrame(),
           upload_range_length << page_size_log2_, &upload_buffer,
           &upload_buffer_offset, &upload_buffer_size, nullptr);
       if (upload_buffer_mapping == nullptr) {
