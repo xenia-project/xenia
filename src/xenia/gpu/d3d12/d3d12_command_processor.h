@@ -92,13 +92,13 @@ class D3D12CommandProcessor : public CommandProcessor {
   }
   // Request and automatically rebind descriptors on the draw command list.
   // Refer to DescriptorHeapPool::Request for partial/full update explanation.
-  uint64_t RequestViewDescriptors(uint64_t previous_full_update,
+  uint64_t RequestViewDescriptors(uint64_t previous_heap_index,
                                   uint32_t count_for_partial_update,
                                   uint32_t count_for_full_update,
                                   D3D12_CPU_DESCRIPTOR_HANDLE& cpu_handle_out,
                                   D3D12_GPU_DESCRIPTOR_HANDLE& gpu_handle_out);
   uint64_t RequestSamplerDescriptors(
-      uint64_t previous_full_update, uint32_t count_for_partial_update,
+      uint64_t previous_heap_index, uint32_t count_for_partial_update,
       uint32_t count_for_full_update,
       D3D12_CPU_DESCRIPTOR_HANDLE& cpu_handle_out,
       D3D12_GPU_DESCRIPTOR_HANDLE& gpu_handle_out);
@@ -362,8 +362,8 @@ class D3D12CommandProcessor : public CommandProcessor {
   ConstantBufferBinding cbuffer_bindings_fetch_;
 
   // Pages with the descriptors currently used for handling Xenos draw calls.
-  uint64_t draw_view_full_update_;
-  uint64_t draw_sampler_full_update_;
+  uint64_t draw_view_heap_index_;
+  uint64_t draw_sampler_heap_index_;
 
   // Whether the last used texture bindings have been written to the current
   // view descriptor heap.

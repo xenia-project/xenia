@@ -23,6 +23,7 @@
 #include "xenia/gpu/texture_info.h"
 #include "xenia/gpu/texture_util.h"
 #include "xenia/ui/d3d12/d3d12_util.h"
+#include "xenia/ui/d3d12/pools.h"
 
 DEFINE_bool(d3d12_16bit_rtv_full_range, true,
             "Use full -32...32 range for RG16 and RGBA16 render targets "
@@ -1379,7 +1380,9 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
     D3D12_CPU_DESCRIPTOR_HANDLE descriptor_cpu_start;
     D3D12_GPU_DESCRIPTOR_HANDLE descriptor_gpu_start;
     if (command_processor_->RequestViewDescriptors(
-            0, 2, 2, descriptor_cpu_start, descriptor_gpu_start) == 0) {
+            ui::d3d12::DescriptorHeapPool::kHeapIndexInvalid, 2, 2,
+            descriptor_cpu_start, descriptor_gpu_start) ==
+        ui::d3d12::DescriptorHeapPool::kHeapIndexInvalid) {
       return false;
     }
     TransitionEDRAMBuffer(D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
@@ -1527,7 +1530,9 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
     D3D12_CPU_DESCRIPTOR_HANDLE descriptor_cpu_start;
     D3D12_GPU_DESCRIPTOR_HANDLE descriptor_gpu_start;
     if (command_processor_->RequestViewDescriptors(
-            0, 3, 3, descriptor_cpu_start, descriptor_gpu_start) == 0) {
+            ui::d3d12::DescriptorHeapPool::kHeapIndexInvalid, 3, 3,
+            descriptor_cpu_start, descriptor_gpu_start) ==
+        ui::d3d12::DescriptorHeapPool::kHeapIndexInvalid) {
       return false;
     }
     // Buffer for copying.
@@ -1833,8 +1838,10 @@ bool RenderTargetCache::ResolveClear(uint32_t edram_base,
       command_processor_->GetD3D12Context()->GetD3D12Provider()->GetDevice();
   D3D12_CPU_DESCRIPTOR_HANDLE descriptor_cpu_start;
   D3D12_GPU_DESCRIPTOR_HANDLE descriptor_gpu_start;
-  if (command_processor_->RequestViewDescriptors(0, 1, 1, descriptor_cpu_start,
-                                                 descriptor_gpu_start) == 0) {
+  if (command_processor_->RequestViewDescriptors(
+          ui::d3d12::DescriptorHeapPool::kHeapIndexInvalid, 1, 1,
+          descriptor_cpu_start, descriptor_gpu_start) ==
+      ui::d3d12::DescriptorHeapPool::kHeapIndexInvalid) {
     return false;
   }
 
@@ -2549,8 +2556,10 @@ void RenderTargetCache::StoreRenderTargetsToEDRAM() {
   // Allocate descriptors for the buffers.
   D3D12_CPU_DESCRIPTOR_HANDLE descriptor_cpu_start;
   D3D12_GPU_DESCRIPTOR_HANDLE descriptor_gpu_start;
-  if (command_processor_->RequestViewDescriptors(0, 2, 2, descriptor_cpu_start,
-                                                 descriptor_gpu_start) == 0) {
+  if (command_processor_->RequestViewDescriptors(
+          ui::d3d12::DescriptorHeapPool::kHeapIndexInvalid, 2, 2,
+          descriptor_cpu_start, descriptor_gpu_start) ==
+      ui::d3d12::DescriptorHeapPool::kHeapIndexInvalid) {
     return;
   }
 
@@ -2694,8 +2703,10 @@ void RenderTargetCache::LoadRenderTargetsFromEDRAM(
   // Allocate descriptors for the buffers.
   D3D12_CPU_DESCRIPTOR_HANDLE descriptor_cpu_start;
   D3D12_GPU_DESCRIPTOR_HANDLE descriptor_gpu_start;
-  if (command_processor_->RequestViewDescriptors(0, 2, 2, descriptor_cpu_start,
-                                                 descriptor_gpu_start) == 0) {
+  if (command_processor_->RequestViewDescriptors(
+          ui::d3d12::DescriptorHeapPool::kHeapIndexInvalid, 2, 2,
+          descriptor_cpu_start, descriptor_gpu_start) ==
+      ui::d3d12::DescriptorHeapPool::kHeapIndexInvalid) {
     return;
   }
 

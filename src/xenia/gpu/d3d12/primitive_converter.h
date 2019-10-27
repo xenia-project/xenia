@@ -47,7 +47,6 @@ class PrimitiveConverter {
   void ClearCache();
 
   void BeginFrame();
-  void EndFrame();
 
   // Returns the primitive type that the original type will be converted to.
   static PrimitiveType GetReplacementPrimitiveType(PrimitiveType type);

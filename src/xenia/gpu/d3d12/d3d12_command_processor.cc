@@ -435,16 +435,16 @@ uint32_t D3D12CommandProcessor::GetRootExtraParameterIndices(
 }
 
 uint64_t D3D12CommandProcessor::RequestViewDescriptors(
-    uint64_t previous_full_update, uint32_t count_for_partial_update,
+    uint64_t previous_heap_index, uint32_t count_for_partial_update,
     uint32_t count_for_full_update, D3D12_CPU_DESCRIPTOR_HANDLE& cpu_handle_out,
     D3D12_GPU_DESCRIPTOR_HANDLE& gpu_handle_out) {
   uint32_t descriptor_index;
-  uint64_t current_full_update =
-      view_heap_pool_->Request(previous_full_update, count_for_partial_update,
-                               count_for_full_update, descriptor_index);
-  if (current_full_update == 0) {
+  uint64_t current_heap_index = view_heap_pool_->Request(
+      GetD3D12Context()->GetCurrentFrame(), previous_heap_index,
+      count_for_partial_update, count_for_full_update, descriptor_index);
+  if (current_heap_index == ui::d3d12::DescriptorHeapPool::kHeapIndexInvalid) {
     // There was an error.
-    return 0;
+    return ui::d3d12::DescriptorHeapPool::kHeapIndexInvalid;
   }
   ID3D12DescriptorHeap* heap = view_heap_pool_->GetLastRequestHeap();
   if (current_view_heap_ != heap) {
@@ -457,20 +457,20 @@ uint64_t D3D12CommandProcessor::RequestViewDescriptors(
       view_heap_pool_->GetLastRequestHeapCPUStart(), descriptor_index);
   gpu_handle_out = provider->OffsetViewDescriptor(
       view_heap_pool_->GetLastRequestHeapGPUStart(), descriptor_index);
-  return current_full_update;
+  return current_heap_index;
 }
 
 uint64_t D3D12CommandProcessor::RequestSamplerDescriptors(
-    uint64_t previous_full_update, uint32_t count_for_partial_update,
+    uint64_t previous_heap_index, uint32_t count_for_partial_update,
     uint32_t count_for_full_update, D3D12_CPU_DESCRIPTOR_HANDLE& cpu_handle_out,
     D3D12_GPU_DESCRIPTOR_HANDLE& gpu_handle_out) {
   uint32_t descriptor_index;
-  uint64_t current_full_update = sampler_heap_pool_->Request(
-      previous_full_update, count_for_partial_update, count_for_full_update,
-      descriptor_index);
-  if (current_full_update == 0) {
+  uint64_t current_heap_index = sampler_heap_pool_->Request(
+      GetD3D12Context()->GetCurrentFrame(), previous_heap_index,
+      count_for_partial_update, count_for_full_update, descriptor_index);
+  if (current_heap_index == ui::d3d12::DescriptorHeapPool::kHeapIndexInvalid) {
     // There was an error.
-    return 0;
+    return ui::d3d12::DescriptorHeapPool::kHeapIndexInvalid;
   }
   ID3D12DescriptorHeap* heap = sampler_heap_pool_->GetLastRequestHeap();
   if (current_sampler_heap_ != heap) {
@@ -485,7 +485,7 @@ uint64_t D3D12CommandProcessor::RequestSamplerDescriptors(
       sampler_heap_pool_->GetLastRequestHeapCPUStart().ptr + descriptor_offset;
   gpu_handle_out.ptr =
       sampler_heap_pool_->GetLastRequestHeapGPUStart().ptr + descriptor_offset;
-  return current_full_update;
+  return current_heap_index;
 }
 
 ID3D12Resource* D3D12CommandProcessor::RequestScratchGPUBuffer(
@@ -705,8 +705,7 @@ bool D3D12CommandProcessor::SetupContext() {
     return false;
   }
 
-  auto context = GetD3D12Context();
-  auto provider = context->GetD3D12Provider();
+  auto provider = GetD3D12Context()->GetD3D12Provider();
   auto device = provider->GetDevice();
   auto direct_queue = provider->GetDirectQueue();
 
@@ -721,12 +720,12 @@ bool D3D12CommandProcessor::SetupContext() {
   deferred_command_list_ = std::make_unique<DeferredCommandList>(this);
 
   constant_buffer_pool_ =
-      std::make_unique<ui::d3d12::UploadBufferPool>(context, 1024 * 1024);
+      std::make_unique<ui::d3d12::UploadBufferPool>(device, 1024 * 1024);
   view_heap_pool_ = std::make_unique<ui::d3d12::DescriptorHeapPool>(
-      context, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 32768);
+      device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 32768);
   // Can't create a shader-visible heap with more than 2048 samplers.
   sampler_heap_pool_ = std::make_unique<ui::d3d12::DescriptorHeapPool>(
-      context, D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, 2048);
+      device, D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, 2048);
 
   shared_memory_ =
       std::make_unique<SharedMemory>(this, memory_, &trace_writer_);
@@ -1068,8 +1067,10 @@ void D3D12CommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
 
   D3D12_CPU_DESCRIPTOR_HANDLE descriptor_cpu_start;
   D3D12_GPU_DESCRIPTOR_HANDLE descriptor_gpu_start;
-  if (RequestViewDescriptors(0, 2, 2, descriptor_cpu_start,
-                             descriptor_gpu_start) != 0) {
+  if (RequestViewDescriptors(ui::d3d12::DescriptorHeapPool::kHeapIndexInvalid,
+                             2, 2, descriptor_cpu_start,
+                             descriptor_gpu_start) !=
+      ui::d3d12::DescriptorHeapPool::kHeapIndexInvalid) {
     TextureFormat frontbuffer_format;
     if (texture_cache_->RequestSwapTexture(descriptor_cpu_start,
                                            frontbuffer_format)) {
@@ -1818,8 +1819,8 @@ bool D3D12CommandProcessor::BeginFrame() {
   cbuffer_bindings_float_pixel_.up_to_date = false;
   cbuffer_bindings_bool_loop_.up_to_date = false;
   cbuffer_bindings_fetch_.up_to_date = false;
-  draw_view_full_update_ = 0;
-  draw_sampler_full_update_ = 0;
+  draw_view_heap_index_ = ui::d3d12::DescriptorHeapPool::kHeapIndexInvalid;
+  draw_sampler_heap_index_ = ui::d3d12::DescriptorHeapPool::kHeapIndexInvalid;
   texture_bindings_written_vertex_ = false;
   texture_bindings_written_pixel_ = false;
   samplers_written_vertex_ = false;
@@ -1836,9 +1837,9 @@ bool D3D12CommandProcessor::BeginFrame() {
   }
   deferred_command_list_->Reset();
 
-  constant_buffer_pool_->BeginFrame();
-  view_heap_pool_->BeginFrame();
-  sampler_heap_pool_->BeginFrame();
+  constant_buffer_pool_->Reclaim(last_completed_frame);
+  view_heap_pool_->Reclaim(last_completed_frame);
+  sampler_heap_pool_->Reclaim(last_completed_frame);
 
   shared_memory_->BeginFrame();
 
@@ -1858,15 +1859,11 @@ bool D3D12CommandProcessor::EndFrame() {
 
   assert_false(scratch_buffer_used_);
 
-  primitive_converter_->EndFrame();
-
   pipeline_cache_->EndFrame();
 
   render_target_cache_->EndFrame();
 
   texture_cache_->EndFrame();
-
-  shared_memory_->EndFrame();
 
   // Submit barriers now because resources the queued barriers are for may be
   // destroyed between frames.
@@ -1887,10 +1884,6 @@ bool D3D12CommandProcessor::EndFrame() {
     }
     pix_capturing_ = false;
   }
-
-  sampler_heap_pool_->EndFrame();
-  view_heap_pool_->EndFrame();
-  constant_buffer_pool_->EndFrame();
 
   auto context = GetD3D12Context();
   context->EndSwap();
@@ -2633,8 +2626,10 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
 bool D3D12CommandProcessor::UpdateBindings(
     const D3D12Shader* vertex_shader, const D3D12Shader* pixel_shader,
     ID3D12RootSignature* root_signature) {
-  auto provider = GetD3D12Context()->GetD3D12Provider();
+  auto context = GetD3D12Context();
+  auto provider = context->GetD3D12Provider();
   auto device = provider->GetDevice();
+  auto current_frame = context->GetCurrentFrame();
   auto& regs = *register_file_;
 
 #if FINE_GRAINED_DRAW_SCOPES
@@ -2769,9 +2764,9 @@ bool D3D12CommandProcessor::UpdateBindings(
 
   // Update constant buffers.
   if (!cbuffer_bindings_system_.up_to_date) {
-    uint8_t* system_constants = constant_buffer_pool_->RequestFull(
-        xe::align(uint32_t(sizeof(system_constants_)), 256u), nullptr, nullptr,
-        &cbuffer_bindings_system_.buffer_address);
+    uint8_t* system_constants = constant_buffer_pool_->Request(
+        current_frame, xe::align(uint32_t(sizeof(system_constants_)), 256u),
+        nullptr, nullptr, &cbuffer_bindings_system_.buffer_address);
     if (system_constants == nullptr) {
       return false;
     }
@@ -2781,8 +2776,8 @@ bool D3D12CommandProcessor::UpdateBindings(
     write_system_constant_view = true;
   }
   if (!cbuffer_bindings_float_vertex_.up_to_date) {
-    uint8_t* float_constants = constant_buffer_pool_->RequestFull(
-        float_constant_size_vertex, nullptr, nullptr,
+    uint8_t* float_constants = constant_buffer_pool_->Request(
+        current_frame, float_constant_size_vertex, nullptr, nullptr,
         &cbuffer_bindings_float_vertex_.buffer_address);
     if (float_constants == nullptr) {
       return false;
@@ -2806,8 +2801,8 @@ bool D3D12CommandProcessor::UpdateBindings(
     write_float_constant_view_vertex = true;
   }
   if (!cbuffer_bindings_float_pixel_.up_to_date) {
-    uint8_t* float_constants = constant_buffer_pool_->RequestFull(
-        float_constant_size_pixel, nullptr, nullptr,
+    uint8_t* float_constants = constant_buffer_pool_->Request(
+        current_frame, float_constant_size_pixel, nullptr, nullptr,
         &cbuffer_bindings_float_pixel_.buffer_address);
     if (float_constants == nullptr) {
       return false;
@@ -2836,8 +2831,8 @@ bool D3D12CommandProcessor::UpdateBindings(
   }
   if (!cbuffer_bindings_bool_loop_.up_to_date) {
     uint32_t* bool_loop_constants =
-        reinterpret_cast<uint32_t*>(constant_buffer_pool_->RequestFull(
-            768, nullptr, nullptr,
+        reinterpret_cast<uint32_t*>(constant_buffer_pool_->Request(
+            current_frame, 768, nullptr, nullptr,
             &cbuffer_bindings_bool_loop_.buffer_address));
     if (bool_loop_constants == nullptr) {
       return false;
@@ -2856,8 +2851,9 @@ bool D3D12CommandProcessor::UpdateBindings(
     write_bool_loop_constant_view = true;
   }
   if (!cbuffer_bindings_fetch_.up_to_date) {
-    uint8_t* fetch_constants = constant_buffer_pool_->RequestFull(
-        768, nullptr, nullptr, &cbuffer_bindings_fetch_.buffer_address);
+    uint8_t* fetch_constants =
+        constant_buffer_pool_->Request(current_frame, 768, nullptr, nullptr,
+                                       &cbuffer_bindings_fetch_.buffer_address);
     if (fetch_constants == nullptr) {
       return false;
     }
@@ -2901,10 +2897,10 @@ bool D3D12CommandProcessor::UpdateBindings(
   D3D12_CPU_DESCRIPTOR_HANDLE view_cpu_handle;
   D3D12_GPU_DESCRIPTOR_HANDLE view_gpu_handle;
   uint32_t descriptor_size_view = provider->GetViewDescriptorSize();
-  uint64_t view_full_update_index = RequestViewDescriptors(
-      draw_view_full_update_, view_count_partial_update, view_count_full_update,
+  uint64_t view_heap_index = RequestViewDescriptors(
+      draw_view_heap_index_, view_count_partial_update, view_count_full_update,
       view_cpu_handle, view_gpu_handle);
-  if (view_full_update_index == 0) {
+  if (view_heap_index == ui::d3d12::DescriptorHeapPool::kHeapIndexInvalid) {
     XELOGE("Failed to allocate view descriptors!");
     return false;
   }
@@ -2918,18 +2914,20 @@ bool D3D12CommandProcessor::UpdateBindings(
   D3D12_CPU_DESCRIPTOR_HANDLE sampler_cpu_handle = {};
   D3D12_GPU_DESCRIPTOR_HANDLE sampler_gpu_handle = {};
   uint32_t descriptor_size_sampler = provider->GetSamplerDescriptorSize();
-  uint64_t sampler_full_update_index = 0;
+  uint64_t sampler_heap_index =
+      ui::d3d12::DescriptorHeapPool::kHeapIndexInvalid;
   if (sampler_count_vertex != 0 || sampler_count_pixel != 0) {
-    sampler_full_update_index = RequestSamplerDescriptors(
-        draw_sampler_full_update_, sampler_count_partial_update,
+    sampler_heap_index = RequestSamplerDescriptors(
+        draw_sampler_heap_index_, sampler_count_partial_update,
         sampler_count_vertex + sampler_count_pixel, sampler_cpu_handle,
         sampler_gpu_handle);
-    if (sampler_full_update_index == 0) {
+    if (sampler_heap_index ==
+        ui::d3d12::DescriptorHeapPool::kHeapIndexInvalid) {
       XELOGE("Failed to allocate sampler descriptors!");
       return false;
     }
   }
-  if (draw_view_full_update_ != view_full_update_index) {
+  if (draw_view_heap_index_ != view_heap_index) {
     // Need to update all view descriptors.
     write_system_constant_view = true;
     write_fetch_constant_view = true;
@@ -2957,7 +2955,8 @@ bool D3D12CommandProcessor::UpdateBindings(
     current_graphics_root_up_to_date_ &=
         ~(1u << kRootParameter_SharedMemoryAndEDRAM);
   }
-  if (draw_sampler_full_update_ != sampler_full_update_index) {
+  if (sampler_heap_index != ui::d3d12::DescriptorHeapPool::kHeapIndexInvalid &&
+      draw_sampler_heap_index_ != sampler_heap_index) {
     write_samplers_vertex = sampler_count_vertex != 0;
     write_samplers_pixel = sampler_count_pixel != 0;
     samplers_written_vertex_ = false;
@@ -3085,8 +3084,10 @@ bool D3D12CommandProcessor::UpdateBindings(
   }
 
   // Wrote new descriptors on the current page.
-  draw_view_full_update_ = view_full_update_index;
-  draw_sampler_full_update_ = sampler_full_update_index;
+  draw_view_heap_index_ = view_heap_index;
+  if (sampler_heap_index != ui::d3d12::DescriptorHeapPool::kHeapIndexInvalid) {
+    draw_sampler_heap_index_ = sampler_heap_index;
+  }
 
   // Update the root parameters.
   if (!(current_graphics_root_up_to_date_ &
