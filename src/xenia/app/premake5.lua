@@ -23,6 +23,7 @@ project("xenia-app")
     "xenia-app-discord",
     "xenia-apu",
     "xenia-apu-nop",
+    "xenia-apu-sdl",
     "xenia-base",
     "xenia-core",
     "xenia-cpu",
