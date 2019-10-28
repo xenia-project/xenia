@@ -216,10 +216,18 @@ class D3D12CommandProcessor : public CommandProcessor {
       const D3D12Shader* vertex_shader, const D3D12Shader* pixel_shader,
       RootExtraParameterIndices& indices_out);
 
-  // Returns true if a new frame was started.
-  bool BeginFrame();
-  // Returns true if an open frame was ended.
-  bool EndFrame();
+  // BeginSubmission and EndSubmission may be called at any time. If there's an
+  // open non-frame submission, BeginSubmission(true) will promote it to a
+  // frame. EndSubmission(true) will close the frame no matter whether the
+  // submission has already been closed.
+
+  // If is_guest_command is true, a new full frame - with full cleanup of
+  // resources and, if needed, starting capturing - is opened if pending (as
+  // opposed to simply resuming after mid-frame synchronization).
+  void BeginSubmission(bool is_guest_command);
+  // If is_swap is true, a full frame is closed - with, if needed, cache
+  // clearing and stopping capturing.
+  void EndSubmission(bool is_swap);
   void AwaitAllSubmissionsCompletion();
 
   void UpdateFixedFunctionState(bool primitive_two_faced);
@@ -315,6 +323,7 @@ class D3D12CommandProcessor : public CommandProcessor {
   uint32_t readback_buffer_size_ = 0;
 
   bool submission_open_ = false;
+  bool submission_frame_open_ = false;
 
   std::atomic<bool> pix_capture_requested_ = false;
   bool pix_capturing_;

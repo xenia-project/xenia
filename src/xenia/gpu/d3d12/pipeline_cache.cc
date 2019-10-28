@@ -154,7 +154,7 @@ void PipelineCache::ClearCache() {
   shader_map_.clear();
 }
 
-void PipelineCache::EndFrame() {
+void PipelineCache::EndSubmission() {
   if (!creation_threads_.empty()) {
     // Await creation of all queued pipelines.
     bool await_event = false;

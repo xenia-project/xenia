@@ -46,6 +46,7 @@ class PrimitiveConverter {
   void Shutdown();
   void ClearCache();
 
+  void BeginSubmission();
   void BeginFrame();
 
   // Returns the primitive type that the original type will be converted to.
