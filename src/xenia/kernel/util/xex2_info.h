@@ -544,6 +544,23 @@ struct xex2_security_info {
   xex2_page_descriptor page_descriptors[1];  // 0x184
 };
 
+struct xex1_security_info {
+  xe::be<uint32_t> header_size;
+  xe::be<uint32_t> image_size;
+  char rsa_signature[0x100];
+  char image_digest[0x14];
+  char import_table_digest[0x14];
+  xe::be<uint32_t> load_address;
+  char aes_key[0x10];
+  char xgd2_media_id[0x10];
+  xe::be<uint32_t> region;
+  xe::be<uint32_t> image_flags;
+  xe::be<uint32_t> export_table;
+  xe::be<uint32_t> allowed_media_types;
+  xe::be<uint32_t> page_descriptor_count;
+  xex2_page_descriptor page_descriptors[1];
+};
+
 struct xex2_export_table {
   xe::be<uint32_t> magic[3];         // 0x0
   xe::be<uint32_t> modulenumber[2];  // 0xC

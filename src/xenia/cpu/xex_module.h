@@ -43,6 +43,21 @@ class XexModule : public xe::cpu::Module {
     xe_xex2_version_t min_version;
     std::vector<ImportLibraryFn> imports;
   };
+  struct SecurityInfoContext {
+    const char* rsa_signature;
+    const char* aes_key;
+    uint32_t image_size;
+    uint32_t image_flags;
+    uint32_t export_table;
+    uint32_t load_address;
+    uint32_t page_descriptor_count;
+    const xex2_page_descriptor* page_descriptors;
+  };
+  enum XexFormat {
+    kFormatUnknown,
+    kFormatXex1,
+    kFormatXex2,
+  };
 
   XexModule(Processor* processor, kernel::KernelState* kernel_state);
   virtual ~XexModule();
@@ -51,8 +66,8 @@ class XexModule : public xe::cpu::Module {
   const xex2_header* xex_header() const {
     return reinterpret_cast<const xex2_header*>(xex_header_mem_.data());
   }
-  const xex2_security_info* xex_security_info() const {
-    return GetSecurityInfo(xex_header());
+  const SecurityInfoContext* xex_security_info() const {
+    return &security_info_;
   }
 
   uint32_t image_size() const {
@@ -112,7 +127,7 @@ class XexModule : public xe::cpu::Module {
     return GetOptHeader(key, reinterpret_cast<void**>(out_ptr));
   }
 
-  static const xex2_security_info* GetSecurityInfo(const xex2_header* header);
+  static const void* GetSecurityInfo(const xex2_header* header);
 
   const PESection* GetPESection(const char* name);
 
@@ -186,6 +201,9 @@ class XexModule : public xe::cpu::Module {
   uint32_t base_address_ = 0;
   uint32_t low_address_ = 0;
   uint32_t high_address_ = 0;
+
+  XexFormat xex_format_ = kFormatUnknown;
+  SecurityInfoContext security_info_ = {};
 };
 
 }  // namespace cpu
