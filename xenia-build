@@ -589,6 +589,9 @@ class BaseBuildCommand(Command):
             '--config', choices=['checked', 'debug', 'release'], default='debug',
             type=str.lower, help='Chooses the build configuration.')
         self.parser.add_argument(
+            '--cpu_arch', choices=['avx', 'avx2', 'avx512'], default='avx',
+            type=str.lower, help='Chooses the CPU architecture.)
+        self.parser.add_argument(
             '--target', action='append', default=[],
             help='Builds only the given target(s).')
         self.parser.add_argument(
@@ -628,6 +631,7 @@ class BaseBuildCommand(Command):
                 '/m',
                 '/v:m',
                 '/p:Configuration=' + args['config'],
+                '/p:VCBuildAdditionalOptions=/arch:' + args['cpu_arch'],
                 ] + ([targets] if targets is not None else []) + pass_args, shell=False)
         elif sys.platform == 'darwin':
             # TODO(benvanik): other platforms.
