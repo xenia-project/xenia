@@ -135,7 +135,7 @@ X_STATUS UserModule::LoadFromMemory(const void* addr, const size_t length) {
   auto processor = kernel_state()->processor();
 
   auto magic = xe::load_and_swap<uint32_t>(addr);
-  if (magic == 'XEX2') {
+  if (magic == 'XEX2' || magic == 'XEX1') {
     module_format_ = kModuleFormatXex;
   } else if (magic == 0x7F454C46 /* 0x7F 'ELF' */) {
     module_format_ = kModuleFormatElf;
