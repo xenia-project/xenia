@@ -87,7 +87,7 @@ class D3D12ImmediateDrawer : public ImmediateDrawer {
 
   struct SubmittedTextureUpload {
     ID3D12Resource* buffer;
-    uint64_t frame;
+    uint64_t fence_value;
   };
   std::deque<SubmittedTextureUpload> texture_uploads_submitted_;
 

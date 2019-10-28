@@ -55,6 +55,7 @@ namespace xe {
 namespace gpu {
 namespace d3d12 {
 
+constexpr uint32_t D3D12CommandProcessor::kQueuedFrames;
 constexpr uint32_t
     D3D12CommandProcessor::RootExtraParameterIndices::kUnavailable;
 constexpr uint32_t D3D12CommandProcessor::kSwapTextureWidth;
@@ -440,8 +441,8 @@ uint64_t D3D12CommandProcessor::RequestViewDescriptors(
     D3D12_GPU_DESCRIPTOR_HANDLE& gpu_handle_out) {
   uint32_t descriptor_index;
   uint64_t current_heap_index = view_heap_pool_->Request(
-      GetD3D12Context()->GetCurrentFrame(), previous_heap_index,
-      count_for_partial_update, count_for_full_update, descriptor_index);
+      fence_current_value_, previous_heap_index, count_for_partial_update,
+      count_for_full_update, descriptor_index);
   if (current_heap_index == ui::d3d12::DescriptorHeapPool::kHeapIndexInvalid) {
     // There was an error.
     return ui::d3d12::DescriptorHeapPool::kHeapIndexInvalid;
@@ -466,8 +467,8 @@ uint64_t D3D12CommandProcessor::RequestSamplerDescriptors(
     D3D12_GPU_DESCRIPTOR_HANDLE& gpu_handle_out) {
   uint32_t descriptor_index;
   uint64_t current_heap_index = sampler_heap_pool_->Request(
-      GetD3D12Context()->GetCurrentFrame(), previous_heap_index,
-      count_for_partial_update, count_for_full_update, descriptor_index);
+      fence_current_value_, previous_heap_index, count_for_partial_update,
+      count_for_full_update, descriptor_index);
   if (current_heap_index == ui::d3d12::DescriptorHeapPool::kHeapIndexInvalid) {
     // There was an error.
     return ui::d3d12::DescriptorHeapPool::kHeapIndexInvalid;
@@ -490,9 +491,9 @@ uint64_t D3D12CommandProcessor::RequestSamplerDescriptors(
 
 ID3D12Resource* D3D12CommandProcessor::RequestScratchGPUBuffer(
     uint32_t size, D3D12_RESOURCE_STATES state) {
-  assert_true(current_queue_frame_ != UINT_MAX);
+  assert_true(submission_open_);
   assert_false(scratch_buffer_used_);
-  if (current_queue_frame_ == UINT_MAX || scratch_buffer_used_ || size == 0) {
+  if (!submission_open_ || scratch_buffer_used_ || size == 0) {
     return nullptr;
   }
 
@@ -505,8 +506,7 @@ ID3D12Resource* D3D12CommandProcessor::RequestScratchGPUBuffer(
 
   size = xe::align(size, kScratchBufferSizeIncrement);
 
-  auto context = GetD3D12Context();
-  auto device = context->GetD3D12Provider()->GetDevice();
+  auto device = GetD3D12Context()->GetD3D12Provider()->GetDevice();
   D3D12_RESOURCE_DESC buffer_desc;
   ui::d3d12::util::FillBufferResourceDesc(
       buffer_desc, size, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
@@ -520,7 +520,7 @@ ID3D12Resource* D3D12CommandProcessor::RequestScratchGPUBuffer(
   if (scratch_buffer_ != nullptr) {
     BufferForDeletion buffer_for_deletion;
     buffer_for_deletion.buffer = scratch_buffer_;
-    buffer_for_deletion.last_usage_frame = GetD3D12Context()->GetCurrentFrame();
+    buffer_for_deletion.last_usage_fence_value = fence_current_value_;
     buffers_for_deletion_.push_back(buffer_for_deletion);
   }
   scratch_buffer_ = buffer;
@@ -532,7 +532,7 @@ ID3D12Resource* D3D12CommandProcessor::RequestScratchGPUBuffer(
 
 void D3D12CommandProcessor::ReleaseScratchGPUBuffer(
     ID3D12Resource* buffer, D3D12_RESOURCE_STATES new_state) {
-  assert_true(current_queue_frame_ != UINT_MAX);
+  assert_true(submission_open_);
   assert_true(scratch_buffer_used_);
   scratch_buffer_used_ = false;
   if (buffer == scratch_buffer_) {
@@ -552,8 +552,10 @@ void D3D12CommandProcessor::SetSamplePositions(MsaaSamples sample_positions) {
   if (cvars::d3d12_ssaa_custom_sample_positions && !IsROVUsedForEDRAM()) {
     auto provider = GetD3D12Context()->GetD3D12Provider();
     auto tier = provider->GetProgrammableSamplePositionsTier();
+    uint32_t command_list_index =
+        uint32_t((fence_current_value_ + (kQueuedFrames - 1)) % kQueuedFrames);
     if (tier >= 2 &&
-        command_lists_[current_queue_frame_]->GetCommandList1() != nullptr) {
+        command_lists_[command_list_index]->GetCommandList1() != nullptr) {
       // Depth buffer transitions are affected by sample positions.
       SubmitBarriers();
       // Standard sample positions in Direct3D 10.1, but adjusted to take the
@@ -671,7 +673,7 @@ std::unique_ptr<xe::ui::RawImage> D3D12CommandProcessor::Capture() {
   PushTransitionBarrier(swap_texture_, D3D12_RESOURCE_STATE_COPY_SOURCE,
                         D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
   EndFrame();
-  GetD3D12Context()->AwaitAllFramesCompletion();
+  AwaitAllSubmissionsCompletion();
   D3D12_RANGE readback_range;
   readback_range.Begin = swap_texture_copy_footprint_.Offset;
   readback_range.End = swap_texture_copy_size_;
@@ -709,7 +711,20 @@ bool D3D12CommandProcessor::SetupContext() {
   auto device = provider->GetDevice();
   auto direct_queue = provider->GetDirectQueue();
 
-  for (uint32_t i = 0; i < ui::d3d12::D3D12Context::kQueuedFrames; ++i) {
+  if (FAILED(device->CreateFence(0, D3D12_FENCE_FLAG_NONE,
+                                 IID_PPV_ARGS(&fence_)))) {
+    XELOGE("Failed to create the fence");
+    return false;
+  }
+  fence_completion_event_ = CreateEvent(nullptr, false, false, nullptr);
+  if (fence_completion_event_ == nullptr) {
+    XELOGE("Failed to create the fence completion event");
+    return false;
+  }
+  fence_current_value_ = 1;
+  fence_completed_value_ = 0;
+
+  for (uint32_t i = 0; i < kQueuedFrames; ++i) {
     command_lists_[i] = ui::d3d12::CommandList::Create(
         device, direct_queue, D3D12_COMMAND_LIST_TYPE_DIRECT);
     if (command_lists_[i] == nullptr) {
@@ -791,11 +806,11 @@ bool D3D12CommandProcessor::SetupContext() {
     return false;
   }
   // Get the layout for the upload buffer.
-  gamma_ramp_desc.DepthOrArraySize = ui::d3d12::D3D12Context::kQueuedFrames;
+  gamma_ramp_desc.DepthOrArraySize = kQueuedFrames;
   UINT64 gamma_ramp_upload_size;
-  device->GetCopyableFootprints(
-      &gamma_ramp_desc, 0, ui::d3d12::D3D12Context::kQueuedFrames * 2, 0,
-      gamma_ramp_footprints_, nullptr, nullptr, &gamma_ramp_upload_size);
+  device->GetCopyableFootprints(&gamma_ramp_desc, 0, kQueuedFrames * 2, 0,
+                                gamma_ramp_footprints_, nullptr, nullptr,
+                                &gamma_ramp_upload_size);
   // Create the upload buffer for the gamma ramp.
   ui::d3d12::util::FillBufferResourceDesc(
       gamma_ramp_desc, gamma_ramp_upload_size, D3D12_RESOURCE_FLAG_NONE);
@@ -890,8 +905,7 @@ bool D3D12CommandProcessor::SetupContext() {
 }
 
 void D3D12CommandProcessor::ShutdownContext() {
-  auto context = GetD3D12Context();
-  context->AwaitAllFramesCompletion();
+  AwaitAllSubmissionsCompletion();
 
   ui::d3d12::util::ReleaseAndNull(readback_buffer_);
   readback_buffer_size_ = 0;
@@ -910,8 +924,8 @@ void D3D12CommandProcessor::ShutdownContext() {
       swap_state_.pending = false;
       swap_state_.front_buffer_texture = 0;
     }
-    auto graphics_system = static_cast<D3D12GraphicsSystem*>(graphics_system_);
-    graphics_system->AwaitFrontBufferUnused();
+    // TODO(Triang3l): Ensure this is synchronized. The display context may not
+    // exist at this point, so awaiting its fence doesn't always work.
     swap_texture_srv_descriptor_heap_->Release();
     swap_texture_srv_descriptor_heap_ = nullptr;
   }
@@ -950,9 +964,18 @@ void D3D12CommandProcessor::ShutdownContext() {
   shared_memory_.reset();
 
   deferred_command_list_.reset();
-  for (uint32_t i = 0; i < ui::d3d12::D3D12Context::kQueuedFrames; ++i) {
+  for (uint32_t i = 0; i < kQueuedFrames; ++i) {
     command_lists_[i].reset();
   }
+
+  // First release the fence since it may reference the event.
+  ui::d3d12::util::ReleaseAndNull(fence_);
+  if (fence_completion_event_) {
+    CloseHandle(fence_completion_event_);
+    fence_completion_event_ = nullptr;
+  }
+  fence_current_value_ = 1;
+  fence_completed_value_ = 0;
 
   CommandProcessor::ShutdownContext();
 }
@@ -962,7 +985,7 @@ void D3D12CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
 
   if (index >= XE_GPU_REG_SHADER_CONSTANT_000_X &&
       index <= XE_GPU_REG_SHADER_CONSTANT_511_W) {
-    if (current_queue_frame_ != UINT32_MAX) {
+    if (submission_open_) {
       uint32_t float_constant_index =
           (index - XE_GPU_REG_SHADER_CONSTANT_000_X) >> 2;
       if (float_constant_index >= 256) {
@@ -1013,9 +1036,11 @@ void D3D12CommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
   auto device = provider->GetDevice();
 
   // Upload the new gamma ramps.
+  uint32_t command_list_index =
+      uint32_t((fence_current_value_ + (kQueuedFrames - 1)) % kQueuedFrames);
   if (dirty_gamma_ramp_normal_) {
     const D3D12_PLACED_SUBRESOURCE_FOOTPRINT& gamma_ramp_footprint =
-        gamma_ramp_footprints_[current_queue_frame_ * 2];
+        gamma_ramp_footprints_[command_list_index * 2];
     volatile uint32_t* mapping = reinterpret_cast<uint32_t*>(
         gamma_ramp_upload_mapping_ + gamma_ramp_footprint.Offset);
     for (uint32_t i = 0; i < 256; ++i) {
@@ -1041,7 +1066,7 @@ void D3D12CommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
   }
   if (dirty_gamma_ramp_pwl_) {
     const D3D12_PLACED_SUBRESOURCE_FOOTPRINT& gamma_ramp_footprint =
-        gamma_ramp_footprints_[current_queue_frame_ * 2 + 1];
+        gamma_ramp_footprints_[command_list_index * 2 + 1];
     volatile uint32_t* mapping = reinterpret_cast<uint32_t*>(
         gamma_ramp_upload_mapping_ + gamma_ramp_footprint.Offset);
     for (uint32_t i = 0; i < 128; ++i) {
@@ -1153,7 +1178,7 @@ void D3D12CommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
 
   if (cache_clear_requested_) {
     cache_clear_requested_ = false;
-    GetD3D12Context()->AwaitAllFramesCompletion();
+    AwaitAllSubmissionsCompletion();
 
     ui::d3d12::util::ReleaseAndNull(scratch_buffer_);
     scratch_buffer_size_ = 0;
@@ -1191,8 +1216,7 @@ Shader* D3D12CommandProcessor::LoadShader(ShaderType shader_type,
 bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
                                       uint32_t index_count,
                                       IndexBufferInfo* index_buffer_info) {
-  auto context = GetD3D12Context();
-  auto device = context->GetD3D12Provider()->GetDevice();
+  auto device = GetD3D12Context()->GetD3D12Provider()->GetDevice();
   auto& regs = *register_file_;
 
 #if FINE_GRAINED_DRAW_SCOPES
@@ -1685,7 +1709,7 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
             readback_buffer_offset += memexport_range_size;
           }
           EndFrame();
-          context->AwaitAllFramesCompletion();
+          AwaitAllSubmissionsCompletion();
           D3D12_RANGE readback_range;
           readback_range.Begin = 0;
           readback_range.End = memexport_total_size;
@@ -1718,7 +1742,7 @@ void D3D12CommandProcessor::InitializeTrace() {
   anySubmitted |= shared_memory_->InitializeTraceSubmitDownloads();
   if (anySubmitted) {
     EndFrame();
-    GetD3D12Context()->AwaitAllFramesCompletion();
+    AwaitAllSubmissionsCompletion();
     shared_memory_->InitializeTraceCompleteDownloads();
   }
 }
@@ -1748,7 +1772,7 @@ bool D3D12CommandProcessor::IssueCopy() {
           readback_buffer, 0, shared_memory_buffer, written_address,
           written_length);
       EndFrame();
-      GetD3D12Context()->AwaitAllFramesCompletion();
+      AwaitAllSubmissionsCompletion();
       D3D12_RANGE readback_range;
       readback_range.Begin = 0;
       readback_range.End = written_length;
@@ -1766,7 +1790,7 @@ bool D3D12CommandProcessor::IssueCopy() {
 }
 
 bool D3D12CommandProcessor::BeginFrame() {
-  if (current_queue_frame_ != UINT32_MAX) {
+  if (submission_open_) {
     return false;
   }
 
@@ -1774,17 +1798,23 @@ bool D3D12CommandProcessor::BeginFrame() {
   SCOPE_profile_cpu_f("gpu");
 #endif  // FINE_GRAINED_DRAW_SCOPES
 
-  auto context = GetD3D12Context();
-  auto provider = context->GetD3D12Provider();
-  context->BeginSwap();
-  current_queue_frame_ = context->GetCurrentQueueFrame();
+  submission_open_ = true;
+
+  // Wait for a swap command list to become free.
+  // Command list 0 is used when fence_current_value_ is 1, 4, 7...
+  fence_completed_value_ = fence_->GetCompletedValue();
+  if (fence_completed_value_ + kQueuedFrames < fence_current_value_) {
+    fence_->SetEventOnCompletion(fence_current_value_ - kQueuedFrames,
+                                 fence_completion_event_);
+    WaitForSingleObject(fence_completion_event_, INFINITE);
+    fence_completed_value_ = fence_->GetCompletedValue();
+  }
 
   // Remove outdated temporary buffers.
-  uint64_t last_completed_frame = context->GetLastCompletedFrame();
   auto erase_buffers_end = buffers_for_deletion_.begin();
   while (erase_buffers_end != buffers_for_deletion_.end()) {
-    uint64_t upload_frame = erase_buffers_end->last_usage_frame;
-    if (upload_frame > last_completed_frame) {
+    uint64_t upload_fence_value = erase_buffers_end->last_usage_fence_value;
+    if (upload_fence_value > fence_completed_value_) {
       ++erase_buffers_end;
       break;
     }
@@ -1830,16 +1860,17 @@ bool D3D12CommandProcessor::BeginFrame() {
   pix_capturing_ =
       pix_capture_requested_.exchange(false, std::memory_order_relaxed);
   if (pix_capturing_) {
-    IDXGraphicsAnalysis* graphics_analysis = provider->GetGraphicsAnalysis();
+    IDXGraphicsAnalysis* graphics_analysis =
+        GetD3D12Context()->GetD3D12Provider()->GetGraphicsAnalysis();
     if (graphics_analysis != nullptr) {
       graphics_analysis->BeginCapture();
     }
   }
   deferred_command_list_->Reset();
 
-  constant_buffer_pool_->Reclaim(last_completed_frame);
-  view_heap_pool_->Reclaim(last_completed_frame);
-  sampler_heap_pool_->Reclaim(last_completed_frame);
+  constant_buffer_pool_->Reclaim(fence_completed_value_);
+  view_heap_pool_->Reclaim(fence_completed_value_);
+  sampler_heap_pool_->Reclaim(fence_completed_value_);
 
   shared_memory_->BeginFrame();
 
@@ -1853,9 +1884,11 @@ bool D3D12CommandProcessor::BeginFrame() {
 }
 
 bool D3D12CommandProcessor::EndFrame() {
-  if (current_queue_frame_ == UINT32_MAX) {
+  if (!submission_open_) {
     return false;
   }
+
+  auto provider = GetD3D12Context()->GetD3D12Provider();
 
   assert_false(scratch_buffer_used_);
 
@@ -1870,26 +1903,38 @@ bool D3D12CommandProcessor::EndFrame() {
   SubmitBarriers();
 
   // Submit the command list.
-  auto current_command_list = command_lists_[current_queue_frame_].get();
+  uint32_t command_list_index =
+      uint32_t((fence_current_value_ + (kQueuedFrames - 1)) % kQueuedFrames);
+  auto current_command_list = command_lists_[command_list_index].get();
   current_command_list->BeginRecording();
   deferred_command_list_->Execute(current_command_list->GetCommandList(),
                                   current_command_list->GetCommandList1());
   current_command_list->Execute();
 
   if (pix_capturing_) {
-    IDXGraphicsAnalysis* graphics_analysis =
-        GetD3D12Context()->GetD3D12Provider()->GetGraphicsAnalysis();
+    IDXGraphicsAnalysis* graphics_analysis = provider->GetGraphicsAnalysis();
     if (graphics_analysis != nullptr) {
       graphics_analysis->EndCapture();
     }
     pix_capturing_ = false;
   }
 
-  auto context = GetD3D12Context();
-  context->EndSwap();
-  current_queue_frame_ = UINT32_MAX;
+  provider->GetDirectQueue()->Signal(fence_, fence_current_value_++);
+  submission_open_ = false;
 
   return true;
+}
+
+void D3D12CommandProcessor::AwaitAllSubmissionsCompletion() {
+  // May be called if shutting down without everything set up.
+  if ((fence_completed_value_ + 1) >= fence_current_value_ || !fence_ ||
+      GetD3D12Context()->WasLost()) {
+    return;
+  }
+  fence_->SetEventOnCompletion(fence_current_value_ - 1,
+                               fence_completion_event_);
+  WaitForSingleObject(fence_completion_event_, INFINITE);
+  fence_completed_value_ = fence_current_value_ - 1;
 }
 
 void D3D12CommandProcessor::UpdateFixedFunctionState(bool primitive_two_faced) {
@@ -2626,10 +2671,8 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
 bool D3D12CommandProcessor::UpdateBindings(
     const D3D12Shader* vertex_shader, const D3D12Shader* pixel_shader,
     ID3D12RootSignature* root_signature) {
-  auto context = GetD3D12Context();
-  auto provider = context->GetD3D12Provider();
+  auto provider = GetD3D12Context()->GetD3D12Provider();
   auto device = provider->GetDevice();
-  auto current_frame = context->GetCurrentFrame();
   auto& regs = *register_file_;
 
 #if FINE_GRAINED_DRAW_SCOPES
@@ -2765,8 +2808,9 @@ bool D3D12CommandProcessor::UpdateBindings(
   // Update constant buffers.
   if (!cbuffer_bindings_system_.up_to_date) {
     uint8_t* system_constants = constant_buffer_pool_->Request(
-        current_frame, xe::align(uint32_t(sizeof(system_constants_)), 256u),
-        nullptr, nullptr, &cbuffer_bindings_system_.buffer_address);
+        fence_current_value_,
+        xe::align(uint32_t(sizeof(system_constants_)), 256u), nullptr, nullptr,
+        &cbuffer_bindings_system_.buffer_address);
     if (system_constants == nullptr) {
       return false;
     }
@@ -2777,7 +2821,7 @@ bool D3D12CommandProcessor::UpdateBindings(
   }
   if (!cbuffer_bindings_float_vertex_.up_to_date) {
     uint8_t* float_constants = constant_buffer_pool_->Request(
-        current_frame, float_constant_size_vertex, nullptr, nullptr,
+        fence_current_value_, float_constant_size_vertex, nullptr, nullptr,
         &cbuffer_bindings_float_vertex_.buffer_address);
     if (float_constants == nullptr) {
       return false;
@@ -2802,7 +2846,7 @@ bool D3D12CommandProcessor::UpdateBindings(
   }
   if (!cbuffer_bindings_float_pixel_.up_to_date) {
     uint8_t* float_constants = constant_buffer_pool_->Request(
-        current_frame, float_constant_size_pixel, nullptr, nullptr,
+        fence_current_value_, float_constant_size_pixel, nullptr, nullptr,
         &cbuffer_bindings_float_pixel_.buffer_address);
     if (float_constants == nullptr) {
       return false;
@@ -2832,7 +2876,7 @@ bool D3D12CommandProcessor::UpdateBindings(
   if (!cbuffer_bindings_bool_loop_.up_to_date) {
     uint32_t* bool_loop_constants =
         reinterpret_cast<uint32_t*>(constant_buffer_pool_->Request(
-            current_frame, 768, nullptr, nullptr,
+            fence_current_value_, 768, nullptr, nullptr,
             &cbuffer_bindings_bool_loop_.buffer_address));
     if (bool_loop_constants == nullptr) {
       return false;
@@ -2851,9 +2895,9 @@ bool D3D12CommandProcessor::UpdateBindings(
     write_bool_loop_constant_view = true;
   }
   if (!cbuffer_bindings_fetch_.up_to_date) {
-    uint8_t* fetch_constants =
-        constant_buffer_pool_->Request(current_frame, 768, nullptr, nullptr,
-                                       &cbuffer_bindings_fetch_.buffer_address);
+    uint8_t* fetch_constants = constant_buffer_pool_->Request(
+        fence_current_value_, 768, nullptr, nullptr,
+        &cbuffer_bindings_fetch_.buffer_address);
     if (fetch_constants == nullptr) {
       return false;
     }
@@ -3200,8 +3244,7 @@ ID3D12Resource* D3D12CommandProcessor::RequestReadbackBuffer(uint32_t size) {
   }
   size = xe::align(size, kReadbackBufferSizeIncrement);
   if (size > readback_buffer_size_) {
-    auto context = GetD3D12Context();
-    auto device = context->GetD3D12Provider()->GetDevice();
+    auto device = GetD3D12Context()->GetD3D12Provider()->GetDevice();
     D3D12_RESOURCE_DESC buffer_desc;
     ui::d3d12::util::FillBufferResourceDesc(buffer_desc, size,
                                             D3D12_RESOURCE_FLAG_NONE);

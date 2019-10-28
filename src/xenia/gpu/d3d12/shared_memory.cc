@@ -167,8 +167,7 @@ void SharedMemory::Shutdown() {
 }
 
 void SharedMemory::BeginFrame() {
-  upload_buffer_pool_->Reclaim(
-      command_processor_->GetD3D12Context()->GetLastCompletedFrame());
+  upload_buffer_pool_->Reclaim(command_processor_->GetCompletedFenceValue());
   heap_creation_failed_ = false;
 }
 
@@ -329,8 +328,8 @@ bool SharedMemory::MakeTilesResident(uint32_t start, uint32_t length) {
     UINT range_tile_count = kHeapSize / D3D12_TILED_RESOURCE_TILE_SIZE_IN_BYTES;
     // FIXME(Triang3l): This may cause issues if the emulator is shut down
     // mid-frame and the heaps are destroyed before tile mappings are updated
-    // (AwaitAllFramesCompletion won't catch this then). Defer this until the
-    // actual command list submission at the end of the frame.
+    // (awaiting the fence won't catch this then). Defer this until the actual
+    // command list submission at the end of the frame.
     direct_queue->UpdateTileMappings(
         buffer_, 1, &region_start_coordinates, &region_size, heaps_[i], 1,
         &range_flags, &heap_range_start_offset, &range_tile_count,
@@ -376,7 +375,7 @@ bool SharedMemory::RequestRange(uint32_t start, uint32_t length) {
       ID3D12Resource* upload_buffer;
       uint32_t upload_buffer_offset, upload_buffer_size;
       uint8_t* upload_buffer_mapping = upload_buffer_pool_->RequestPartial(
-          command_processor_->GetD3D12Context()->GetCurrentFrame(),
+          command_processor_->GetCurrentFenceValue(),
           upload_range_length << page_size_log2_, &upload_buffer,
           &upload_buffer_offset, &upload_buffer_size, nullptr);
       if (upload_buffer_mapping == nullptr) {

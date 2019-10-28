@@ -63,6 +63,9 @@ class D3D12CommandProcessor : public CommandProcessor {
   // targets.
   bool IsROVUsedForEDRAM() const;
 
+  uint64_t GetCurrentFenceValue() const { return fence_current_value_; }
+  uint64_t GetCompletedFenceValue() const { return fence_completed_value_; }
+
   // Gets the current color write mask, taking the pixel shader's write mask
   // into account. If a shader doesn't write to a render target, it shouldn't be
   // written to and it shouldn't be even bound - otherwise, in Halo 3, one
@@ -167,6 +170,8 @@ class D3D12CommandProcessor : public CommandProcessor {
   void FinalizeTrace() override;
 
  private:
+  static constexpr uint32_t kQueuedFrames = 3;
+
   enum RootParameter : UINT {
     // These are always present.
 
@@ -215,6 +220,7 @@ class D3D12CommandProcessor : public CommandProcessor {
   bool BeginFrame();
   // Returns true if an open frame was ended.
   bool EndFrame();
+  void AwaitAllSubmissionsCompletion();
 
   void UpdateFixedFunctionState(bool primitive_two_faced);
   void UpdateSystemConstantValues(
@@ -239,8 +245,12 @@ class D3D12CommandProcessor : public CommandProcessor {
 
   bool cache_clear_requested_ = false;
 
-  std::unique_ptr<ui::d3d12::CommandList>
-      command_lists_[ui::d3d12::D3D12Context::kQueuedFrames] = {};
+  uint64_t fence_current_value_ = 1;
+  uint64_t fence_completed_value_ = 0;
+  HANDLE fence_completion_event_ = nullptr;
+  ID3D12Fence* fence_ = nullptr;
+
+  std::unique_ptr<ui::d3d12::CommandList> command_lists_[kQueuedFrames] = {};
   std::unique_ptr<DeferredCommandList> deferred_command_list_ = nullptr;
 
   std::unique_ptr<SharedMemory> shared_memory_ = nullptr;
@@ -265,11 +275,10 @@ class D3D12CommandProcessor : public CommandProcessor {
   ID3D12Resource* gamma_ramp_texture_ = nullptr;
   D3D12_RESOURCE_STATES gamma_ramp_texture_state_;
   // Upload buffer for an image that is the same as gamma_ramp_, but with
-  // ui::d3d12::D3D12Context::kQueuedFrames array layers.
+  // kQueuedFrames array layers.
   ID3D12Resource* gamma_ramp_upload_ = nullptr;
   uint8_t* gamma_ramp_upload_mapping_ = nullptr;
-  D3D12_PLACED_SUBRESOURCE_FOOTPRINT
-  gamma_ramp_footprints_[ui::d3d12::D3D12Context::kQueuedFrames * 2];
+  D3D12_PLACED_SUBRESOURCE_FOOTPRINT gamma_ramp_footprints_[kQueuedFrames * 2];
 
   static constexpr uint32_t kSwapTextureWidth = 1280;
   static constexpr uint32_t kSwapTextureHeight = 720;
@@ -291,7 +300,7 @@ class D3D12CommandProcessor : public CommandProcessor {
 
   struct BufferForDeletion {
     ID3D12Resource* buffer;
-    uint64_t last_usage_frame;
+    uint64_t last_usage_fence_value;
   };
   std::deque<BufferForDeletion> buffers_for_deletion_;
 
@@ -305,7 +314,7 @@ class D3D12CommandProcessor : public CommandProcessor {
   ID3D12Resource* readback_buffer_ = nullptr;
   uint32_t readback_buffer_size_ = 0;
 
-  uint32_t current_queue_frame_ = UINT32_MAX;
+  bool submission_open_ = false;
 
   std::atomic<bool> pix_capture_requested_ = false;
   bool pix_capturing_;
