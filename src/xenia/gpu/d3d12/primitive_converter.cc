@@ -142,28 +142,31 @@ void PrimitiveConverter::Shutdown() {
 
 void PrimitiveConverter::ClearCache() { buffer_pool_->ClearCache(); }
 
-void PrimitiveConverter::BeginFrame() {
-  uint64_t completed_fence_value = command_processor_->GetCompletedFenceValue();
+void PrimitiveConverter::BeginSubmission() {
   // Got a command list now - upload and transition the static index buffer if
   // needed.
-  if (static_ib_upload_ != nullptr) {
-    if (static_ib_upload_fence_value_ == UINT64_MAX) {
-      // Not uploaded yet - upload.
-      command_processor_->GetDeferredCommandList()->D3DCopyResource(
-          static_ib_, static_ib_upload_);
-      command_processor_->PushTransitionBarrier(
-          static_ib_, D3D12_RESOURCE_STATE_COPY_DEST,
-          D3D12_RESOURCE_STATE_INDEX_BUFFER);
-      static_ib_upload_fence_value_ =
-          command_processor_->GetCurrentFenceValue();
-    } else if (completed_fence_value >= static_ib_upload_fence_value_) {
-      // Completely uploaded - release the upload buffer.
-      static_ib_upload_->Release();
-      static_ib_upload_ = nullptr;
-    }
+  if (static_ib_upload_ && static_ib_upload_fence_value_ == UINT64_MAX) {
+    // Not uploaded yet - upload.
+    command_processor_->GetDeferredCommandList()->D3DCopyResource(
+        static_ib_, static_ib_upload_);
+    command_processor_->PushTransitionBarrier(
+        static_ib_, D3D12_RESOURCE_STATE_COPY_DEST,
+        D3D12_RESOURCE_STATE_INDEX_BUFFER);
+    static_ib_upload_fence_value_ = command_processor_->GetCurrentFenceValue();
+  }
+}
+
+void PrimitiveConverter::BeginFrame() {
+  uint64_t completed_fence_value = command_processor_->GetCompletedFenceValue();
+
+  if (static_ib_upload_ && static_ib_upload_fence_value_ != UINT64_MAX &&
+      completed_fence_value >= static_ib_upload_fence_value_) {
+    // Completely uploaded - release the upload buffer.
+    static_ib_upload_->Release();
+    static_ib_upload_ = nullptr;
   }
 
-  buffer_pool_->Reclaim(completed_fence_value);
+  buffer_pool_->Reclaim(command_processor_->GetCompletedFenceValue());
 
   converted_indices_cache_.clear();
   memory_regions_used_ = 0;

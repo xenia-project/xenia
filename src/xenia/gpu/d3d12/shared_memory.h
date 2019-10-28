@@ -165,8 +165,6 @@ class SharedMemory {
   ID3D12Heap* heaps_[kBufferSize >> kHeapSizeLog2] = {};
   // Number of the heaps currently resident, for profiling.
   uint32_t heap_count_ = 0;
-  // Whether creation of a heap has failed in the current frame.
-  bool heap_creation_failed_ = false;
 
   // Log2 of system page size.
   uint32_t page_size_log2_;

@@ -255,7 +255,8 @@ class RenderTargetCache {
   void Shutdown();
   void ClearCache();
 
-  void BeginFrame();
+  void BeginSubmission();
+  void EndSubmission();
   // Called in the beginning of a draw call - may bind pipelines.
   bool UpdateRenderTargets(const D3D12Shader* pixel_shader);
   // Returns the host-to-guest mappings and host formats of currently bound
@@ -276,7 +277,6 @@ class RenderTargetCache {
   // special.
   void UnbindRenderTargets();
   void WriteEDRAMUint32UAVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle);
-  void EndFrame();
 
   // Totally necessary to rely on the base format - Too Human switches between
   // 2_10_10_10_FLOAT and 2_10_10_10_FLOAT_AS_16_16_16_16 every draw.

@@ -97,7 +97,6 @@ bool SharedMemory::Initialize() {
 
   std::memset(heaps_, 0, sizeof(heaps_));
   heap_count_ = 0;
-  heap_creation_failed_ = false;
 
   D3D12_DESCRIPTOR_HEAP_DESC buffer_descriptor_heap_desc;
   buffer_descriptor_heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
@@ -168,7 +167,6 @@ void SharedMemory::Shutdown() {
 
 void SharedMemory::BeginFrame() {
   upload_buffer_pool_->Reclaim(command_processor_->GetCompletedFenceValue());
-  heap_creation_failed_ = false;
 }
 
 SharedMemory::GlobalWatchHandle SharedMemory::RegisterGlobalWatch(
@@ -294,11 +292,6 @@ bool SharedMemory::MakeTilesResident(uint32_t start, uint32_t length) {
     if (heaps_[i] != nullptr) {
       continue;
     }
-    if (heap_creation_failed_) {
-      // Don't try to create a heap for every vertex buffer or texture in the
-      // current frame anymore if have failed at least once.
-      return false;
-    }
     auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
     auto device = provider->GetDevice();
     auto direct_queue = provider->GetDirectQueue();
@@ -308,7 +301,6 @@ bool SharedMemory::MakeTilesResident(uint32_t start, uint32_t length) {
     heap_desc.Flags = D3D12_HEAP_FLAG_ALLOW_ONLY_BUFFERS;
     if (FAILED(device->CreateHeap(&heap_desc, IID_PPV_ARGS(&heaps_[i])))) {
       XELOGE("Shared memory: Failed to create a tile heap");
-      heap_creation_failed_ = true;
       return false;
     }
     ++heap_count_;

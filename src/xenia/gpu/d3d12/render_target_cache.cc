@@ -451,14 +451,16 @@ void RenderTargetCache::ClearCache() {
 #endif
 }
 
-void RenderTargetCache::BeginFrame() {
-  // A frame does not always end in a resolve (for example, when memexport
+void RenderTargetCache::BeginSubmission() {
+  // A submission does not always end in a resolve (for example, when memexport
   // readback happens) or something else that would surely submit the UAV
   // barrier, so we need to preserve the `current_` variables.
   if (!command_processor_->IsROVUsedForEDRAM()) {
     ClearBindings();
   }
 }
+
+void RenderTargetCache::EndSubmission() { UnbindRenderTargets(); }
 
 bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
   // There are two kinds of render target binding updates in this implementation
@@ -2115,8 +2117,6 @@ void RenderTargetCache::WriteEDRAMUint32UAVDescriptor(
           uint32_t(EDRAMBufferDescriptorIndex::kUint32UAV)),
       D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 }
-
-void RenderTargetCache::EndFrame() { UnbindRenderTargets(); }
 
 ColorRenderTargetFormat RenderTargetCache::GetBaseColorFormat(
     ColorRenderTargetFormat format) {
