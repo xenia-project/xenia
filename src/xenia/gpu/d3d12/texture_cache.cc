@@ -1169,8 +1169,7 @@ void TextureCache::BeginFrame() {
   texture_current_usage_time_ = xe::Clock::QueryHostUptimeMillis();
 
   // If memory usage is too high, destroy unused textures.
-  uint64_t last_completed_frame =
-      command_processor_->GetD3D12Context()->GetLastCompletedFrame();
+  uint64_t completed_fence_value = command_processor_->GetCompletedFenceValue();
   uint32_t limit_soft_mb = cvars::d3d12_texture_cache_limit_soft;
   uint32_t limit_hard_mb = cvars::d3d12_texture_cache_limit_hard;
   if (IsResolutionScale2X()) {
@@ -1187,7 +1186,7 @@ void TextureCache::BeginFrame() {
       break;
     }
     Texture* texture = texture_used_first_;
-    if (texture->last_usage_frame > last_completed_frame) {
+    if (texture->last_usage_fence_value > completed_fence_value) {
       break;
     }
     if (!limit_hard_exceeded &&
@@ -1956,8 +1955,8 @@ bool TextureCache::EnsureScaledResolveBufferResident(uint32_t start_unscaled,
         kScaledResolveHeapSize / D3D12_TILED_RESOURCE_TILE_SIZE_IN_BYTES;
     // FIXME(Triang3l): This may cause issues if the emulator is shut down
     // mid-frame and the heaps are destroyed before tile mappings are updated
-    // (AwaitAllFramesCompletion won't catch this then). Defer this until the
-    // actual command list submission at the end of the frame.
+    // (awaiting the fence won't catch this then). Defer this until the actual
+    // command list submission.
     direct_queue->UpdateTileMappings(
         scaled_resolve_buffer_, 1, &region_start_coordinates, &region_size,
         scaled_resolve_heaps_[i], 1, &range_flags, &heap_range_start_offset,
@@ -2293,8 +2292,8 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
   // Untiling through a buffer instead of using unordered access because copying
   // is not done that often.
   desc.Flags = D3D12_RESOURCE_FLAG_NONE;
-  auto context = command_processor_->GetD3D12Context();
-  auto device = context->GetD3D12Provider()->GetDevice();
+  auto device =
+      command_processor_->GetD3D12Context()->GetD3D12Provider()->GetDevice();
   // Assuming untiling will be the next operation.
   D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_COPY_DEST;
   ID3D12Resource* resource;
@@ -2312,7 +2311,7 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
   texture->resource_size =
       device->GetResourceAllocationInfo(0, 1, &desc).SizeInBytes;
   texture->state = state;
-  texture->last_usage_frame = context->GetCurrentFrame();
+  texture->last_usage_fence_value = command_processor_->GetCurrentFenceValue();
   texture->last_usage_time = texture_current_usage_time_;
   texture->used_previous = texture_used_last_;
   texture->used_next = nullptr;
@@ -2406,8 +2405,7 @@ bool TextureCache::LoadTextureData(Texture* texture) {
   }
 
   auto command_list = command_processor_->GetDeferredCommandList();
-  auto context = command_processor_->GetD3D12Context();
-  auto provider = context->GetD3D12Provider();
+  auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
   auto device = provider->GetDevice();
 
   // Get the pipeline.
@@ -2608,7 +2606,7 @@ bool TextureCache::LoadTextureData(Texture* texture) {
       }
       D3D12_GPU_VIRTUAL_ADDRESS cbuffer_gpu_address;
       uint8_t* cbuffer_mapping = cbuffer_pool->Request(
-          context->GetCurrentFrame(),
+          command_processor_->GetCurrentFenceValue(),
           xe::align(uint32_t(sizeof(load_constants)), 256u), nullptr, nullptr,
           &cbuffer_gpu_address);
       if (cbuffer_mapping == nullptr) {
@@ -2686,11 +2684,10 @@ bool TextureCache::LoadTextureData(Texture* texture) {
 }
 
 void TextureCache::MarkTextureUsed(Texture* texture) {
-  uint64_t current_frame =
-      command_processor_->GetD3D12Context()->GetCurrentFrame();
+  uint64_t current_fence_value = command_processor_->GetCurrentFenceValue();
   // This is called very frequently, don't relink unless needed for caching.
-  if (texture->last_usage_frame != current_frame) {
-    texture->last_usage_frame = current_frame;
+  if (texture->last_usage_fence_value != current_fence_value) {
+    texture->last_usage_fence_value = current_fence_value;
     texture->last_usage_time = texture_current_usage_time_;
     if (texture->used_next == nullptr) {
       // Simplify the code a bit - already in the end of the list.

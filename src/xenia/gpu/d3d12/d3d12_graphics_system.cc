@@ -199,12 +199,6 @@ std::unique_ptr<xe::ui::RawImage> D3D12GraphicsSystem::Capture() {
   return d3d12_command_processor->Capture();
 }
 
-void D3D12GraphicsSystem::AwaitFrontBufferUnused() {
-  if (display_context_ != nullptr) {
-    display_context_->AwaitAllFramesCompletion();
-  }
-}
-
 void D3D12GraphicsSystem::StretchTextureToFrontBuffer(
     D3D12_GPU_DESCRIPTOR_HANDLE handle,
     D3D12_GPU_DESCRIPTOR_HANDLE* gamma_ramp_handle, float gamma_ramp_inv_size,

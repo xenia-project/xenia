@@ -112,7 +112,7 @@ bool PrimitiveConverter::Initialize() {
   }
   static_ib_upload_->Unmap(0, nullptr);
   // Not uploaded yet.
-  static_ib_upload_frame_ = UINT64_MAX;
+  static_ib_upload_fence_value_ = UINT64_MAX;
   if (FAILED(device->CreateCommittedResource(
           &ui::d3d12::util::kHeapPropertiesDefault, D3D12_HEAP_FLAG_NONE,
           &static_ib_desc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr,
@@ -143,27 +143,27 @@ void PrimitiveConverter::Shutdown() {
 void PrimitiveConverter::ClearCache() { buffer_pool_->ClearCache(); }
 
 void PrimitiveConverter::BeginFrame() {
+  uint64_t completed_fence_value = command_processor_->GetCompletedFenceValue();
   // Got a command list now - upload and transition the static index buffer if
   // needed.
   if (static_ib_upload_ != nullptr) {
-    auto context = command_processor_->GetD3D12Context();
-    if (static_ib_upload_frame_ == UINT64_MAX) {
+    if (static_ib_upload_fence_value_ == UINT64_MAX) {
       // Not uploaded yet - upload.
       command_processor_->GetDeferredCommandList()->D3DCopyResource(
           static_ib_, static_ib_upload_);
       command_processor_->PushTransitionBarrier(
           static_ib_, D3D12_RESOURCE_STATE_COPY_DEST,
           D3D12_RESOURCE_STATE_INDEX_BUFFER);
-      static_ib_upload_frame_ = context->GetCurrentFrame();
-    } else if (context->GetLastCompletedFrame() >= static_ib_upload_frame_) {
+      static_ib_upload_fence_value_ =
+          command_processor_->GetCurrentFenceValue();
+    } else if (completed_fence_value >= static_ib_upload_fence_value_) {
       // Completely uploaded - release the upload buffer.
       static_ib_upload_->Release();
       static_ib_upload_ = nullptr;
     }
   }
 
-  buffer_pool_->Reclaim(
-      command_processor_->GetD3D12Context()->GetLastCompletedFrame());
+  buffer_pool_->Reclaim(completed_fence_value);
 
   converted_indices_cache_.clear();
   memory_regions_used_ = 0;
@@ -694,9 +694,9 @@ void* PrimitiveConverter::AllocateIndices(
     size += 16;
   }
   D3D12_GPU_VIRTUAL_ADDRESS gpu_address;
-  uint8_t* mapping = buffer_pool_->Request(
-      command_processor_->GetD3D12Context()->GetCurrentFrame(), size, nullptr,
-      nullptr, &gpu_address);
+  uint8_t* mapping =
+      buffer_pool_->Request(command_processor_->GetCurrentFenceValue(), size,
+                            nullptr, nullptr, &gpu_address);
   if (mapping == nullptr) {
     XELOGE("Failed to allocate space for %u converted %u-bit vertex indices",
            count, format == IndexFormat::kInt32 ? 32 : 16);

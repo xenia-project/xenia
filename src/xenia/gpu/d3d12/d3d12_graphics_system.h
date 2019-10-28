@@ -36,8 +36,6 @@ class D3D12GraphicsSystem : public GraphicsSystem {
 
   std::unique_ptr<xe::ui::RawImage> Capture() override;
 
-  void AwaitFrontBufferUnused();
-
   // Draws a texture covering the entire viewport to the render target currently
   // bound on the specified command list (in D3D12Context::kSwapChainFormat).
   // This changes the current pipeline, graphics root signature and primitive

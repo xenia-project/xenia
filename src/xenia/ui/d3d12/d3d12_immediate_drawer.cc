@@ -399,7 +399,7 @@ void D3D12ImmediateDrawer::UpdateTexture(ImmediateTexture* texture,
                                              &location_source, nullptr);
     SubmittedTextureUpload submitted_upload;
     submitted_upload.buffer = buffer;
-    submitted_upload.frame = context_->GetCurrentFrame();
+    submitted_upload.fence_value = context_->GetSwapCurrentFenceValue();
     texture_uploads_submitted_.push_back(submitted_upload);
   } else {
     // Defer uploading to the next frame when there's a command list.
@@ -417,14 +417,14 @@ void D3D12ImmediateDrawer::Begin(int render_target_width,
   // Use the compositing command list.
   current_command_list_ = context_->GetSwapCommandList();
 
-  uint64_t current_frame = context_->GetCurrentFrame();
-  uint64_t last_completed_frame = context_->GetLastCompletedFrame();
+  uint64_t completed_fence_value = context_->GetSwapCompletedFenceValue();
+  uint64_t current_fence_value = context_->GetSwapCurrentFenceValue();
 
   // Remove temporary buffers for completed texture uploads.
   auto erase_uploads_end = texture_uploads_submitted_.begin();
   while (erase_uploads_end != texture_uploads_submitted_.end()) {
-    uint64_t upload_frame = erase_uploads_end->frame;
-    if (upload_frame > last_completed_frame) {
+    uint64_t upload_fence_value = erase_uploads_end->fence_value;
+    if (upload_fence_value > completed_fence_value) {
       ++erase_uploads_end;
       break;
     }
@@ -456,13 +456,13 @@ void D3D12ImmediateDrawer::Begin(int render_target_width,
                                              &location_source, nullptr);
     SubmittedTextureUpload submitted_upload;
     submitted_upload.buffer = pending_upload.buffer;
-    submitted_upload.frame = current_frame;
+    submitted_upload.fence_value = current_fence_value;
     texture_uploads_submitted_.push_back(submitted_upload);
     texture_uploads_pending_.pop_back();
   }
 
-  vertex_buffer_pool_->Reclaim(last_completed_frame);
-  texture_descriptor_pool_->Reclaim(last_completed_frame);
+  vertex_buffer_pool_->Reclaim(completed_fence_value);
+  texture_descriptor_pool_->Reclaim(completed_fence_value);
   texture_descriptor_pool_heap_index_ = DescriptorHeapPool::kHeapIndexInvalid;
 
   current_render_target_width_ = render_target_width;
@@ -493,6 +493,7 @@ void D3D12ImmediateDrawer::BeginDrawBatch(const ImmediateDrawBatch& batch) {
   if (current_command_list_ == nullptr) {
     return;
   }
+  uint64_t current_fence_value = context_->GetSwapCurrentFenceValue();
 
   batch_open_ = false;
 
@@ -502,8 +503,8 @@ void D3D12ImmediateDrawer::BeginDrawBatch(const ImmediateDrawBatch& batch) {
   vertex_buffer_view.SizeInBytes =
       batch.vertex_count * uint32_t(sizeof(ImmediateVertex));
   void* vertex_buffer_mapping = vertex_buffer_pool_->Request(
-      context_->GetCurrentFrame(), vertex_buffer_view.SizeInBytes, nullptr,
-      nullptr, &vertex_buffer_view.BufferLocation);
+      current_fence_value, vertex_buffer_view.SizeInBytes, nullptr, nullptr,
+      &vertex_buffer_view.BufferLocation);
   if (vertex_buffer_mapping == nullptr) {
     XELOGE("Failed to get a buffer for %u vertices in the immediate drawer",
            batch.vertex_count);
@@ -520,7 +521,7 @@ void D3D12ImmediateDrawer::BeginDrawBatch(const ImmediateDrawBatch& batch) {
     index_buffer_view.SizeInBytes = batch.index_count * sizeof(uint16_t);
     index_buffer_view.Format = DXGI_FORMAT_R16_UINT;
     void* index_buffer_mapping = vertex_buffer_pool_->Request(
-        context_->GetCurrentFrame(),
+        current_fence_value,
         xe::align(index_buffer_view.SizeInBytes, UINT(sizeof(uint32_t))),
         nullptr, nullptr, &index_buffer_view.BufferLocation);
     if (index_buffer_mapping == nullptr) {
@@ -563,7 +564,7 @@ void D3D12ImmediateDrawer::Draw(const ImmediateDraw& draw) {
   bool bind_texture = current_texture_ != texture;
   uint32_t texture_descriptor_index;
   uint64_t texture_heap_index = texture_descriptor_pool_->Request(
-      context_->GetCurrentFrame(), texture_descriptor_pool_heap_index_,
+      context_->GetSwapCurrentFenceValue(), texture_descriptor_pool_heap_index_,
       bind_texture ? 1 : 0, 1, texture_descriptor_index);
   if (texture_heap_index == DescriptorHeapPool::kHeapIndexInvalid) {
     return;
@@ -674,9 +675,7 @@ void D3D12ImmediateDrawer::Draw(const ImmediateDraw& draw) {
 
 void D3D12ImmediateDrawer::EndDrawBatch() { batch_open_ = false; }
 
-void D3D12ImmediateDrawer::End() {
-  current_command_list_ = nullptr;
-}
+void D3D12ImmediateDrawer::End() { current_command_list_ = nullptr; }
 
 }  // namespace d3d12
 }  // namespace ui

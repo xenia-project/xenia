@@ -13,7 +13,6 @@
 #include <memory>
 
 #include "xenia/ui/d3d12/command_list.h"
-#include "xenia/ui/d3d12/cpu_fence.h"
 #include "xenia/ui/d3d12/d3d12_immediate_drawer.h"
 #include "xenia/ui/d3d12/d3d12_provider.h"
 #include "xenia/ui/graphics_context.h"
@@ -45,16 +44,6 @@ class D3D12Context : public GraphicsContext {
     return static_cast<D3D12Provider*>(provider_);
   }
 
-  // The count of copies of transient objects (like command lists, dynamic
-  // descriptor heaps) that must be kept when rendering with this context.
-  static constexpr uint32_t kQueuedFrames = 3;
-  // The current absolute frame number.
-  uint64_t GetCurrentFrame() { return current_frame_; }
-  // The last completed frame - it's fine to destroy objects used in it.
-  uint64_t GetLastCompletedFrame() { return last_completed_frame_; }
-  uint32_t GetCurrentQueueFrame() { return current_queue_frame_; }
-  void AwaitAllFramesCompletion();
-
   static constexpr DXGI_FORMAT kSwapChainFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
   ID3D12Resource* GetSwapChainBuffer(uint32_t buffer_index) const {
     return swap_chain_buffers_[buffer_index];
@@ -71,8 +60,18 @@ class D3D12Context : public GraphicsContext {
     width = swap_chain_width_;
     height = swap_chain_height_;
   }
+  // Inside the current BeginSwap/EndSwap pair.
+  uint64_t GetSwapCurrentFenceValue() const {
+    return swap_fence_current_value_;
+  }
+  uint64_t GetSwapCompletedFenceValue() const {
+    return swap_fence_completed_value_;
+  }
   ID3D12GraphicsCommandList* GetSwapCommandList() const {
-    return swap_command_lists_[current_queue_frame_]->GetCommandList();
+    uint32_t command_list_index =
+        uint32_t((swap_fence_current_value_ + (kSwapCommandListCount - 1)) %
+                 kSwapCommandListCount);
+    return swap_command_lists_[command_list_index]->GetCommandList();
   }
 
  private:
@@ -85,14 +84,7 @@ class D3D12Context : public GraphicsContext {
   bool InitializeSwapChainBuffers();
   void Shutdown();
 
-  bool initialized_fully_ = false;
-
   bool context_lost_ = false;
-
-  uint64_t current_frame_ = 1;
-  uint64_t last_completed_frame_ = 0;
-  uint32_t current_queue_frame_ = 1;
-  std::unique_ptr<CPUFence> fences_[kQueuedFrames] = {};
 
   static constexpr uint32_t kSwapChainBufferCount = 3;
   IDXGISwapChain3* swap_chain_ = nullptr;
@@ -101,7 +93,17 @@ class D3D12Context : public GraphicsContext {
   uint32_t swap_chain_back_buffer_index_ = 0;
   ID3D12DescriptorHeap* swap_chain_rtv_heap_ = nullptr;
   D3D12_CPU_DESCRIPTOR_HANDLE swap_chain_rtv_heap_start_;
-  std::unique_ptr<CommandList> swap_command_lists_[kQueuedFrames] = {};
+
+  uint64_t swap_fence_current_value_ = 1;
+  uint64_t swap_fence_completed_value_ = 0;
+  HANDLE swap_fence_completion_event_ = nullptr;
+  ID3D12Fence* swap_fence_ = nullptr;
+
+  static constexpr uint32_t kSwapCommandListCount = 3;
+  std::unique_ptr<CommandList> swap_command_lists_[kSwapCommandListCount] = {};
+  // Current is
+  // ((swap_fence_current_value_ + (kSwapCommandListCount - 1))) %
+  //     kSwapCommandListCount.
 
   std::unique_ptr<D3D12ImmediateDrawer> immediate_drawer_ = nullptr;
 };

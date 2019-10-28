@@ -22,9 +22,7 @@ namespace d3d12 {
 UploadBufferPool::UploadBufferPool(ID3D12Device* device, uint32_t page_size)
     : device_(device), page_size_(page_size) {}
 
-UploadBufferPool::~UploadBufferPool() {
-  ClearCache();
-}
+UploadBufferPool::~UploadBufferPool() { ClearCache(); }
 
 void UploadBufferPool::Reclaim(uint64_t completed_fence_value) {
   while (submitted_first_) {
@@ -172,9 +170,7 @@ DescriptorHeapPool::DescriptorHeapPool(ID3D12Device* device,
                                        uint32_t page_size)
     : device_(device), type_(type), page_size_(page_size) {}
 
-DescriptorHeapPool::~DescriptorHeapPool() {
-  ClearCache();
-}
+DescriptorHeapPool::~DescriptorHeapPool() { ClearCache(); }
 
 void DescriptorHeapPool::Reclaim(uint64_t completed_fence_value) {
   while (submitted_first_) {
