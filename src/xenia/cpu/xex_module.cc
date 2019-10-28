@@ -103,10 +103,9 @@ bool XexModule::GetOptHeader(xex2_header_keys key, void** out_ptr) const {
   return XexModule::GetOptHeader(xex_header(), key, out_ptr);
 }
 
-const xex2_security_info* XexModule::GetSecurityInfo(
-    const xex2_header* header) {
-  return reinterpret_cast<const xex2_security_info*>(uintptr_t(header) +
-                                                     header->security_offset);
+const void* XexModule::GetSecurityInfo(const xex2_header* header) {
+  return reinterpret_cast<const void*>(uintptr_t(header) +
+                                       header->security_offset);
 }
 
 const PESection* XexModule::GetPESection(const char* name) {
@@ -870,7 +869,11 @@ bool XexModule::Load(const std::string& name, const std::string& path,
                      const void* xex_addr, size_t xex_length) {
   auto src_header = reinterpret_cast<const xex2_header*>(xex_addr);
 
-  if (src_header->magic != 'XEX2') {
+  if (src_header->magic == 'XEX1') {
+    xex_format_ = kFormatXex1;
+  } else if (src_header->magic == 'XEX2') {
+    xex_format_ = kFormatXex2;
+  } else {
     return false;
   }
 
@@ -880,6 +883,34 @@ bool XexModule::Load(const std::string& name, const std::string& path,
   // Read in XEX headers
   xex_header_mem_.resize(src_header->header_size);
   std::memcpy(xex_header_mem_.data(), src_header, src_header->header_size);
+
+  if (xex_format_ == kFormatXex1) {
+    const xex1_security_info* xex1_sec_info =
+        reinterpret_cast<const xex1_security_info*>(
+            GetSecurityInfo(xex_header()));
+
+    security_info_.rsa_signature = xex1_sec_info->rsa_signature;
+    security_info_.aes_key = xex1_sec_info->aes_key;
+    security_info_.image_size = xex1_sec_info->image_size;
+    security_info_.image_flags = xex1_sec_info->image_flags;
+    security_info_.export_table = xex1_sec_info->export_table;
+    security_info_.load_address = xex1_sec_info->load_address;
+    security_info_.page_descriptor_count = xex1_sec_info->page_descriptor_count;
+    security_info_.page_descriptors = xex1_sec_info->page_descriptors;
+  } else if (xex_format_ == kFormatXex2) {
+    const xex2_security_info* xex2_sec_info =
+        reinterpret_cast<const xex2_security_info*>(
+            GetSecurityInfo(xex_header()));
+
+    security_info_.rsa_signature = xex2_sec_info->rsa_signature;
+    security_info_.aes_key = xex2_sec_info->aes_key;
+    security_info_.image_size = xex2_sec_info->image_size;
+    security_info_.image_flags = xex2_sec_info->image_flags;
+    security_info_.export_table = xex2_sec_info->export_table;
+    security_info_.load_address = xex2_sec_info->load_address;
+    security_info_.page_descriptor_count = xex2_sec_info->page_descriptor_count;
+    security_info_.page_descriptors = xex2_sec_info->page_descriptors;
+  }
 
   auto sec_header = xex_security_info();
 
