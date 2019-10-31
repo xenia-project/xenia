@@ -452,15 +452,22 @@ void RenderTargetCache::ClearCache() {
 }
 
 void RenderTargetCache::BeginSubmission() {
-  // A submission does not always end in a resolve (for example, when memexport
-  // readback happens) or something else that would surely submit the UAV
-  // barrier, so we need to preserve the `current_` variables.
-  if (!command_processor_->IsROVUsedForEDRAM()) {
-    ClearBindings();
-  }
+  // With the ROV, a submission does not always end in a resolve (for example,
+  // when memexport readback happens) or something else that would surely submit
+  // the UAV barrier, so we need to preserve the `current_` variables.
+  //
+  // With RTVs, simply going to a different command list doesn't have to cause
+  // storing the render targets to the EDRAM buffer, however, the new command
+  // list doesn't have the needed RTVs/DSV bound yet.
+  //
+  // Just make sure they are bound to the new command list.
+  ForceApplyOnNextUpdate();
 }
 
-void RenderTargetCache::EndSubmission() { UnbindRenderTargets(); }
+void RenderTargetCache::EndFrame() {
+  // May be clearing the cache after this.
+  FlushAndUnbindRenderTargets();
+}
 
 bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
   // There are two kinds of render target binding updates in this implementation
@@ -754,6 +761,8 @@ bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
     }
   }
 
+  bool sample_positions_set = false;
+
   // Need to change the bindings.
   if (full_update || render_targets_to_attach) {
 #if 0
@@ -895,7 +904,8 @@ bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
     if (!rov_used) {
       // Sample positions when loading depth must match sample positions when
       // drawing.
-      command_processor_->SetSamplePositions(rb_surface_info.msaa_samples);
+      command_processor_->SetSamplePositions(current_msaa_samples_);
+      sample_positions_set = true;
 
       // Load the contents of the new render targets from the EDRAM buffer (will
       // change the state of the render targets to copy destination).
@@ -921,13 +931,16 @@ bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
 
       // Transition the render targets to the appropriate state if needed,
       // compress the list of the render target because null RTV descriptors are
-      // broken in Direct3D 12 and bind the render targets to the command list.
-      D3D12_CPU_DESCRIPTOR_HANDLE rtv_handles[4];
+      // broken in Direct3D 12 and update the list of the render targets to bind
+      // to the command list.
       uint32_t rtv_count = 0;
       for (uint32_t i = 0; i < 4; ++i) {
         const RenderTargetBinding& binding = current_bindings_[i];
+        if (!binding.is_bound) {
+          continue;
+        }
         RenderTarget* render_target = binding.render_target;
-        if (!binding.is_bound || render_target == nullptr) {
+        if (render_target == nullptr) {
           continue;
         }
         XELOGGPU("RT Color %u: base %u, format %u", i, edram_bases[i],
@@ -936,7 +949,6 @@ bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
             render_target->resource, render_target->state,
             D3D12_RESOURCE_STATE_RENDER_TARGET);
         render_target->state = D3D12_RESOURCE_STATE_RENDER_TARGET;
-        rtv_handles[rtv_count] = render_target->handle;
         current_pipeline_render_targets_[rtv_count].guest_render_target = i;
         current_pipeline_render_targets_[rtv_count].format =
             GetColorDXGIFormat(ColorRenderTargetFormat(formats[i]));
@@ -946,7 +958,6 @@ bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
         current_pipeline_render_targets_[i].guest_render_target = i;
         current_pipeline_render_targets_[i].format = DXGI_FORMAT_UNKNOWN;
       }
-      const D3D12_CPU_DESCRIPTOR_HANDLE* dsv_handle;
       const RenderTargetBinding& depth_binding = current_bindings_[4];
       RenderTarget* depth_render_target = depth_binding.render_target;
       current_pipeline_render_targets_[4].guest_render_target = 4;
@@ -956,17 +967,42 @@ bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
             depth_render_target->resource, depth_render_target->state,
             D3D12_RESOURCE_STATE_DEPTH_WRITE);
         depth_render_target->state = D3D12_RESOURCE_STATE_DEPTH_WRITE;
-        dsv_handle = &depth_binding.render_target->handle;
         current_pipeline_render_targets_[4].format =
             GetDepthDXGIFormat(DepthRenderTargetFormat(formats[4]));
       } else {
-        dsv_handle = nullptr;
         current_pipeline_render_targets_[4].format = DXGI_FORMAT_UNKNOWN;
       }
       command_processor_->SubmitBarriers();
-      command_processor_->GetDeferredCommandList()->D3DOMSetRenderTargets(
-          rtv_count, rtv_handles, FALSE, dsv_handle);
+      apply_to_command_list_ = true;
     }
+  }
+
+  // Bind the render targets to the command list, either in case of an update or
+  // if asked to externally.
+  if (!rov_used && apply_to_command_list_) {
+    apply_to_command_list_ = false;
+    if (!sample_positions_set) {
+      command_processor_->SetSamplePositions(current_msaa_samples_);
+    }
+    D3D12_CPU_DESCRIPTOR_HANDLE rtv_handles[4];
+    uint32_t rtv_count;
+    for (rtv_count = 0; rtv_count < 4; ++rtv_count) {
+      const PipelineRenderTarget& pipeline_render_target =
+          current_pipeline_render_targets_[rtv_count];
+      if (pipeline_render_target.format == DXGI_FORMAT_UNKNOWN) {
+        break;
+      }
+      const RenderTargetBinding& binding =
+          current_bindings_[pipeline_render_target.guest_render_target];
+      rtv_handles[rtv_count] = binding.render_target->handle;
+    }
+    const RenderTargetBinding& depth_binding = current_bindings_[4];
+    const D3D12_CPU_DESCRIPTOR_HANDLE* dsv_handle =
+        current_pipeline_render_targets_[4].format != DXGI_FORMAT_UNKNOWN
+            ? &depth_binding.render_target->handle
+            : nullptr;
+    command_processor_->GetDeferredCommandList()->D3DOMSetRenderTargets(
+        rtv_count, rtv_handles, FALSE, dsv_handle);
   }
 
   // Update the dirty regions.
@@ -2098,7 +2134,7 @@ RenderTargetCache::ResolveTarget* RenderTargetCache::FindOrCreateResolveTarget(
   return resolve_target;
 }
 
-void RenderTargetCache::UnbindRenderTargets() {
+void RenderTargetCache::FlushAndUnbindRenderTargets() {
   if (command_processor_->IsROVUsedForEDRAM()) {
     return;
   }
@@ -2217,6 +2253,7 @@ void RenderTargetCache::ClearBindings() {
   current_msaa_samples_ = MsaaSamples::k1X;
   current_edram_max_rows_ = 0;
   std::memset(current_bindings_, 0, sizeof(current_bindings_));
+  apply_to_command_list_ = true;
 }
 
 #if 0

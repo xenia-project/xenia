@@ -24,9 +24,9 @@ UploadBufferPool::UploadBufferPool(ID3D12Device* device, uint32_t page_size)
 
 UploadBufferPool::~UploadBufferPool() { ClearCache(); }
 
-void UploadBufferPool::Reclaim(uint64_t completed_fence_value) {
+void UploadBufferPool::Reclaim(uint64_t completed_submission_index) {
   while (submitted_first_) {
-    if (submitted_first_->last_usage_fence_value > completed_fence_value) {
+    if (submitted_first_->last_submission_index > completed_submission_index) {
       break;
     }
     if (writable_last_) {
@@ -67,7 +67,7 @@ void UploadBufferPool::ClearCache() {
   writable_last_ = nullptr;
 }
 
-uint8_t* UploadBufferPool::Request(uint64_t usage_fence_value, uint32_t size,
+uint8_t* UploadBufferPool::Request(uint64_t submission_index, uint32_t size,
                                    ID3D12Resource** buffer_out,
                                    uint32_t* offset_out,
                                    D3D12_GPU_VIRTUAL_ADDRESS* gpu_address_out) {
@@ -76,9 +76,9 @@ uint8_t* UploadBufferPool::Request(uint64_t usage_fence_value, uint32_t size,
     return nullptr;
   }
   assert_true(!current_page_used_ ||
-              usage_fence_value >= writable_first_->last_usage_fence_value);
+              submission_index >= writable_first_->last_submission_index);
   assert_true(!submitted_last_ ||
-              usage_fence_value >= submitted_last_->last_usage_fence_value);
+              submission_index >= submitted_last_->last_submission_index);
   if (page_size_ - current_page_used_ < size || !writable_first_) {
     // Start a new page if can't fit all the bytes or don't have an open page.
     if (writable_first_) {
@@ -122,13 +122,13 @@ uint8_t* UploadBufferPool::Request(uint64_t usage_fence_value, uint32_t size,
       writable_first_->buffer = new_buffer;
       writable_first_->gpu_address = new_buffer->GetGPUVirtualAddress();
       writable_first_->mapping = new_buffer_mapping;
-      writable_first_->last_usage_fence_value = usage_fence_value;
+      writable_first_->last_submission_index = submission_index;
       writable_first_->next = nullptr;
       writable_last_ = writable_first_;
     }
     current_page_used_ = 0;
   }
-  writable_first_->last_usage_fence_value = usage_fence_value;
+  writable_first_->last_submission_index = submission_index;
   if (buffer_out) {
     *buffer_out = writable_first_->buffer;
   }
@@ -145,7 +145,7 @@ uint8_t* UploadBufferPool::Request(uint64_t usage_fence_value, uint32_t size,
 }
 
 uint8_t* UploadBufferPool::RequestPartial(
-    uint64_t usage_fence_value, uint32_t size, ID3D12Resource** buffer_out,
+    uint64_t submission_index, uint32_t size, ID3D12Resource** buffer_out,
     uint32_t* offset_out, uint32_t* size_out,
     D3D12_GPU_VIRTUAL_ADDRESS* gpu_address_out) {
   size = std::min(size, page_size_);
@@ -153,7 +153,7 @@ uint8_t* UploadBufferPool::RequestPartial(
     size = std::min(size, page_size_ - current_page_used_);
   }
   uint8_t* mapping =
-      Request(usage_fence_value, size, buffer_out, offset_out, gpu_address_out);
+      Request(submission_index, size, buffer_out, offset_out, gpu_address_out);
   if (!mapping) {
     return nullptr;
   }
@@ -172,9 +172,9 @@ DescriptorHeapPool::DescriptorHeapPool(ID3D12Device* device,
 
 DescriptorHeapPool::~DescriptorHeapPool() { ClearCache(); }
 
-void DescriptorHeapPool::Reclaim(uint64_t completed_fence_value) {
+void DescriptorHeapPool::Reclaim(uint64_t completed_submission_index) {
   while (submitted_first_) {
-    if (submitted_first_->last_usage_fence_value > completed_fence_value) {
+    if (submitted_first_->last_submission_index > completed_submission_index) {
       break;
     }
     if (writable_last_) {
@@ -213,7 +213,7 @@ void DescriptorHeapPool::ClearCache() {
   writable_last_ = nullptr;
 }
 
-uint64_t DescriptorHeapPool::Request(uint64_t usage_fence_value,
+uint64_t DescriptorHeapPool::Request(uint64_t submission_index,
                                      uint64_t previous_heap_index,
                                      uint32_t count_for_partial_update,
                                      uint32_t count_for_full_update,
@@ -225,9 +225,9 @@ uint64_t DescriptorHeapPool::Request(uint64_t usage_fence_value,
     return kHeapIndexInvalid;
   }
   assert_true(!current_page_used_ ||
-              usage_fence_value >= writable_first_->last_usage_fence_value);
+              submission_index >= writable_first_->last_submission_index);
   assert_true(!submitted_last_ ||
-              usage_fence_value >= submitted_last_->last_usage_fence_value);
+              submission_index >= submitted_last_->last_submission_index);
   // If the last full update happened on the current page, a partial update is
   // possible.
   uint32_t count = previous_heap_index == current_heap_index_
@@ -271,11 +271,11 @@ uint64_t DescriptorHeapPool::Request(uint64_t usage_fence_value,
     writable_first_->heap = new_heap;
     writable_first_->cpu_start = new_heap->GetCPUDescriptorHandleForHeapStart();
     writable_first_->gpu_start = new_heap->GetGPUDescriptorHandleForHeapStart();
-    writable_first_->last_usage_fence_value = usage_fence_value;
+    writable_first_->last_submission_index = submission_index;
     writable_first_->next = nullptr;
     writable_last_ = writable_first_;
   }
-  writable_first_->last_usage_fence_value = usage_fence_value;
+  writable_first_->last_submission_index = submission_index;
   index_out = current_page_used_;
   current_page_used_ += count;
   return current_heap_index_;

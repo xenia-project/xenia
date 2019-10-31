@@ -112,7 +112,7 @@ class PrimitiveConverter {
   // CPU-side, used only for uploading - destroyed once the copy commands have
   // been completed.
   ID3D12Resource* static_ib_upload_ = nullptr;
-  uint64_t static_ib_upload_fence_value_;
+  uint64_t static_ib_upload_submission_;
   // GPU-side - used for drawing.
   ID3D12Resource* static_ib_ = nullptr;
   D3D12_GPU_VIRTUAL_ADDRESS static_ib_gpu_address_;

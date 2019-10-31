@@ -53,7 +53,8 @@ class D3D12CommandProcessor : public CommandProcessor {
     return static_cast<xe::ui::d3d12::D3D12Context*>(context_.get());
   }
 
-  // Returns the deferred drawing command list for the currently open frame.
+  // Returns the deferred drawing command list for the currently open
+  // submission.
   DeferredCommandList* GetDeferredCommandList() {
     return deferred_command_list_.get();
   }
@@ -63,8 +64,11 @@ class D3D12CommandProcessor : public CommandProcessor {
   // targets.
   bool IsROVUsedForEDRAM() const;
 
-  uint64_t GetCurrentFenceValue() const { return fence_current_value_; }
-  uint64_t GetCompletedFenceValue() const { return fence_completed_value_; }
+  uint64_t GetCurrentSubmission() const { return submission_current_; }
+  uint64_t GetCompletedSubmission() const { return submission_completed_; }
+
+  uint64_t GetCurrentFrame() const { return frame_current_; }
+  uint64_t GetCompletedFrame() const { return frame_completed_; }
 
   // Gets the current color write mask, taking the pixel shader's write mask
   // into account. If a shader doesn't write to a render target, it shouldn't be
@@ -106,8 +110,8 @@ class D3D12CommandProcessor : public CommandProcessor {
       D3D12_CPU_DESCRIPTOR_HANDLE& cpu_handle_out,
       D3D12_GPU_DESCRIPTOR_HANDLE& gpu_handle_out);
 
-  // Returns a single temporary GPU-side buffer within a frame for tasks like
-  // texture untiling and resolving.
+  // Returns a single temporary GPU-side buffer within a submission for tasks
+  // like texture untiling and resolving.
   ID3D12Resource* RequestScratchGPUBuffer(uint32_t size,
                                           D3D12_RESOURCE_STATES state);
   // This must be called when done with the scratch buffer, to notify the
@@ -127,22 +131,23 @@ class D3D12CommandProcessor : public CommandProcessor {
   }
 
   // Sets the current pipeline state to a compute pipeline. This is for cache
-  // invalidation primarily. A frame must be open.
+  // invalidation primarily. A submission must be open.
   void SetComputePipeline(ID3D12PipelineState* pipeline);
 
   // Stores and unbinds render targets before binding changing render targets
   // externally. This is separate from SetExternalGraphicsPipeline because it
   // causes computations to be dispatched, and the scratch buffer may also be
   // used.
-  void UnbindRenderTargets();
+  void FlushAndUnbindRenderTargets();
 
   // Sets the current pipeline state to a special drawing pipeline, invalidating
-  // various cached state variables. UnbindRenderTargets may be needed before
-  // calling this. A frame must be open.
-  void SetExternalGraphicsPipeline(ID3D12PipelineState* pipeline,
-                                   bool reset_viewport = true,
-                                   bool reset_blend_factor = false,
-                                   bool reset_stencil_ref = false);
+  // various cached state variables. FlushAndUnbindRenderTargets may be needed
+  // before calling this. A submission must be open.
+  void SetExternalGraphicsPipeline(
+      ID3D12PipelineState* pipeline,
+      bool changing_rts_and_sample_positions = true,
+      bool changing_viewport = true, bool changing_blend_factor = false,
+      bool changing_stencil_ref = false);
 
   // Returns the text to display in the GPU backend name in the window title.
   std::wstring GetWindowTitleText() const;
@@ -170,7 +175,7 @@ class D3D12CommandProcessor : public CommandProcessor {
   void FinalizeTrace() override;
 
  private:
-  static constexpr uint32_t kQueuedFrames = 3;
+  static constexpr uint32_t kQueueFrames = 3;
 
   enum RootParameter : UINT {
     // These are always present.
@@ -226,9 +231,12 @@ class D3D12CommandProcessor : public CommandProcessor {
   // opposed to simply resuming after mid-frame synchronization).
   void BeginSubmission(bool is_guest_command);
   // If is_swap is true, a full frame is closed - with, if needed, cache
-  // clearing and stopping capturing.
-  void EndSubmission(bool is_swap);
+  // clearing and stopping capturing. Returns whether the submission was done
+  // successfully, if it has failed, leaves it open.
+  bool EndSubmission(bool is_swap);
   void AwaitAllSubmissionsCompletion();
+  // Need to await submission completion before calling.
+  void ClearCommandListCache();
 
   void UpdateFixedFunctionState(bool primitive_two_faced);
   void UpdateSystemConstantValues(
@@ -253,12 +261,30 @@ class D3D12CommandProcessor : public CommandProcessor {
 
   bool cache_clear_requested_ = false;
 
-  uint64_t fence_current_value_ = 1;
-  uint64_t fence_completed_value_ = 0;
-  HANDLE fence_completion_event_ = nullptr;
-  ID3D12Fence* fence_ = nullptr;
+  bool submission_open_ = false;
+  // Values of submission_fence_.
+  uint64_t submission_current_ = 1;
+  uint64_t submission_completed_ = 0;
+  HANDLE submission_fence_completion_event_ = nullptr;
+  ID3D12Fence* submission_fence_ = nullptr;
 
-  std::unique_ptr<ui::d3d12::CommandList> command_lists_[kQueuedFrames] = {};
+  bool frame_open_ = false;
+  // Guest frame index, since some transient resources can be reused across
+  // submissions. Values updated in the beginning of a frame.
+  uint64_t frame_current_ = 1;
+  uint64_t frame_completed_ = 0;
+  // Submission indices of frames that have already been submitted.
+  uint64_t closed_frame_submissions_[kQueueFrames] = {};
+
+  struct CommandList {
+    std::unique_ptr<ui::d3d12::CommandList> command_list;
+    uint64_t last_usage_submission;
+    CommandList* next;
+  };
+  CommandList* command_list_writable_first_ = nullptr;
+  CommandList* command_list_writable_last_ = nullptr;
+  CommandList* command_list_submitted_first_ = nullptr;
+  CommandList* command_list_submitted_last_ = nullptr;
   std::unique_ptr<DeferredCommandList> deferred_command_list_ = nullptr;
 
   std::unique_ptr<SharedMemory> shared_memory_ = nullptr;
@@ -283,10 +309,10 @@ class D3D12CommandProcessor : public CommandProcessor {
   ID3D12Resource* gamma_ramp_texture_ = nullptr;
   D3D12_RESOURCE_STATES gamma_ramp_texture_state_;
   // Upload buffer for an image that is the same as gamma_ramp_, but with
-  // kQueuedFrames array layers.
+  // kQueueFrames array layers.
   ID3D12Resource* gamma_ramp_upload_ = nullptr;
   uint8_t* gamma_ramp_upload_mapping_ = nullptr;
-  D3D12_PLACED_SUBRESOURCE_FOOTPRINT gamma_ramp_footprints_[kQueuedFrames * 2];
+  D3D12_PLACED_SUBRESOURCE_FOOTPRINT gamma_ramp_footprints_[kQueueFrames * 2];
 
   static constexpr uint32_t kSwapTextureWidth = 1280;
   static constexpr uint32_t kSwapTextureHeight = 720;
@@ -308,7 +334,7 @@ class D3D12CommandProcessor : public CommandProcessor {
 
   struct BufferForDeletion {
     ID3D12Resource* buffer;
-    uint64_t last_usage_fence_value;
+    uint64_t last_usage_submission;
   };
   std::deque<BufferForDeletion> buffers_for_deletion_;
 
@@ -321,9 +347,6 @@ class D3D12CommandProcessor : public CommandProcessor {
   static constexpr uint32_t kReadbackBufferSizeIncrement = 16 * 1024 * 1024;
   ID3D12Resource* readback_buffer_ = nullptr;
   uint32_t readback_buffer_size_ = 0;
-
-  bool submission_open_ = false;
-  bool submission_frame_open_ = false;
 
   std::atomic<bool> pix_capture_requested_ = false;
   bool pix_capturing_;
