@@ -343,7 +343,7 @@ class TextureCache {
     uint64_t resource_size;
     D3D12_RESOURCE_STATES state;
 
-    uint64_t last_usage_fence_value;
+    uint64_t last_usage_frame;
     uint64_t last_usage_time;
     Texture* used_previous;
     Texture* used_next;

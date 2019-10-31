@@ -44,7 +44,7 @@ class SharedMemory {
     return buffer_gpu_address_;
   }
 
-  void BeginFrame();
+  void BeginSubmission();
 
   typedef void (*GlobalWatchCallback)(void* context, uint32_t address_first,
                                       uint32_t address_last,

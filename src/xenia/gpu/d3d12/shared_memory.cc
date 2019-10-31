@@ -165,8 +165,8 @@ void SharedMemory::Shutdown() {
   }
 }
 
-void SharedMemory::BeginFrame() {
-  upload_buffer_pool_->Reclaim(command_processor_->GetCompletedFenceValue());
+void SharedMemory::BeginSubmission() {
+  upload_buffer_pool_->Reclaim(command_processor_->GetCompletedSubmission());
 }
 
 SharedMemory::GlobalWatchHandle SharedMemory::RegisterGlobalWatch(
@@ -367,7 +367,7 @@ bool SharedMemory::RequestRange(uint32_t start, uint32_t length) {
       ID3D12Resource* upload_buffer;
       uint32_t upload_buffer_offset, upload_buffer_size;
       uint8_t* upload_buffer_mapping = upload_buffer_pool_->RequestPartial(
-          command_processor_->GetCurrentFenceValue(),
+          command_processor_->GetCurrentSubmission(),
           upload_range_length << page_size_log2_, &upload_buffer,
           &upload_buffer_offset, &upload_buffer_size, nullptr);
       if (upload_buffer_mapping == nullptr) {

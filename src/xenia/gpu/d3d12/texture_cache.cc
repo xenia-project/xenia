@@ -1169,7 +1169,7 @@ void TextureCache::BeginFrame() {
   texture_current_usage_time_ = xe::Clock::QueryHostUptimeMillis();
 
   // If memory usage is too high, destroy unused textures.
-  uint64_t completed_fence_value = command_processor_->GetCompletedFenceValue();
+  uint64_t completed_frame = command_processor_->GetCompletedFrame();
   uint32_t limit_soft_mb = cvars::d3d12_texture_cache_limit_soft;
   uint32_t limit_hard_mb = cvars::d3d12_texture_cache_limit_hard;
   if (IsResolutionScale2X()) {
@@ -1186,7 +1186,7 @@ void TextureCache::BeginFrame() {
       break;
     }
     Texture* texture = texture_used_first_;
-    if (texture->last_usage_fence_value > completed_fence_value) {
+    if (texture->last_usage_frame > completed_frame) {
       break;
     }
     if (!limit_hard_exceeded &&
@@ -2311,7 +2311,7 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
   texture->resource_size =
       device->GetResourceAllocationInfo(0, 1, &desc).SizeInBytes;
   texture->state = state;
-  texture->last_usage_fence_value = command_processor_->GetCurrentFenceValue();
+  texture->last_usage_frame = command_processor_->GetCurrentFrame();
   texture->last_usage_time = texture_current_usage_time_;
   texture->used_previous = texture_used_last_;
   texture->used_next = nullptr;
@@ -2606,7 +2606,7 @@ bool TextureCache::LoadTextureData(Texture* texture) {
       }
       D3D12_GPU_VIRTUAL_ADDRESS cbuffer_gpu_address;
       uint8_t* cbuffer_mapping = cbuffer_pool->Request(
-          command_processor_->GetCurrentFenceValue(),
+          command_processor_->GetCurrentFrame(),
           xe::align(uint32_t(sizeof(load_constants)), 256u), nullptr, nullptr,
           &cbuffer_gpu_address);
       if (cbuffer_mapping == nullptr) {
@@ -2684,10 +2684,10 @@ bool TextureCache::LoadTextureData(Texture* texture) {
 }
 
 void TextureCache::MarkTextureUsed(Texture* texture) {
-  uint64_t current_fence_value = command_processor_->GetCurrentFenceValue();
+  uint64_t current_frame = command_processor_->GetCurrentFrame();
   // This is called very frequently, don't relink unless needed for caching.
-  if (texture->last_usage_fence_value != current_fence_value) {
-    texture->last_usage_fence_value = current_fence_value;
+  if (texture->last_usage_frame != current_frame) {
+    texture->last_usage_frame = current_frame;
     texture->last_usage_time = texture_current_usage_time_;
     if (texture->used_next == nullptr) {
       // Simplify the code a bit - already in the end of the list.

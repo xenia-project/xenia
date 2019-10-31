@@ -18,21 +18,24 @@ namespace xe {
 namespace ui {
 namespace d3d12 {
 
+// Submission index is the fence value or a value derived from it (if reclaiming
+// less often than once per fence value, for instance).
+
 class UploadBufferPool {
  public:
   UploadBufferPool(ID3D12Device* device, uint32_t page_size);
   ~UploadBufferPool();
 
-  void Reclaim(uint64_t completed_fence_value);
+  void Reclaim(uint64_t completed_submission_index);
   void ClearCache();
 
   // Request to write data in a single piece, creating a new page if the current
   // one doesn't have enough free space.
-  uint8_t* Request(uint64_t usage_fence_value, uint32_t size,
+  uint8_t* Request(uint64_t submission_index, uint32_t size,
                    ID3D12Resource** buffer_out, uint32_t* offset_out,
                    D3D12_GPU_VIRTUAL_ADDRESS* gpu_address_out);
   // Request to write data in multiple parts, filling the buffer entirely.
-  uint8_t* RequestPartial(uint64_t usage_fence_value, uint32_t size,
+  uint8_t* RequestPartial(uint64_t submission_index, uint32_t size,
                           ID3D12Resource** buffer_out, uint32_t* offset_out,
                           uint32_t* size_out,
                           D3D12_GPU_VIRTUAL_ADDRESS* gpu_address_out);
@@ -45,7 +48,7 @@ class UploadBufferPool {
     ID3D12Resource* buffer;
     D3D12_GPU_VIRTUAL_ADDRESS gpu_address;
     void* mapping;
-    uint64_t last_usage_fence_value;
+    uint64_t last_submission_index;
     Page* next;
   };
 
@@ -68,7 +71,7 @@ class DescriptorHeapPool {
                      uint32_t page_size);
   ~DescriptorHeapPool();
 
-  void Reclaim(uint64_t completed_fence_value);
+  void Reclaim(uint64_t completed_submission_index);
   void ClearCache();
 
   // Because all descriptors for a single draw call must be in the same heap,
@@ -96,7 +99,7 @@ class DescriptorHeapPool {
   // This MUST be called even if there's nothing to write in a partial update
   // (with count_for_partial_update being 0), because a full update may still be
   // required.
-  uint64_t Request(uint64_t usage_fence_value, uint64_t previous_heap_index,
+  uint64_t Request(uint64_t submission_index, uint64_t previous_heap_index,
                    uint32_t count_for_partial_update,
                    uint32_t count_for_full_update, uint32_t& index_out);
 
@@ -122,7 +125,7 @@ class DescriptorHeapPool {
     ID3D12DescriptorHeap* heap;
     D3D12_CPU_DESCRIPTOR_HANDLE cpu_start;
     D3D12_GPU_DESCRIPTOR_HANDLE gpu_start;
-    uint64_t last_usage_fence_value;
+    uint64_t last_submission_index;
     Page* next;
   };
 

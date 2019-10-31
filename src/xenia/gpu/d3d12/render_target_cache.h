@@ -256,7 +256,7 @@ class RenderTargetCache {
   void ClearCache();
 
   void BeginSubmission();
-  void EndSubmission();
+  void EndFrame();
   // Called in the beginning of a draw call - may bind pipelines.
   bool UpdateRenderTargets(const D3D12Shader* pixel_shader);
   // Returns the host-to-guest mappings and host formats of currently bound
@@ -272,10 +272,13 @@ class RenderTargetCache {
   bool Resolve(SharedMemory* shared_memory, TextureCache* texture_cache,
                Memory* memory, uint32_t& written_address_out,
                uint32_t& written_length_out);
+  // Makes sure the render targets are re-attached to the command list for which
+  // the next update will take place.
+  void ForceApplyOnNextUpdate() { apply_to_command_list_ = true; }
   // Flushes the render targets to EDRAM and unbinds them, for instance, when
   // the command processor takes over framebuffer bindings to draw something
   // special.
-  void UnbindRenderTargets();
+  void FlushAndUnbindRenderTargets();
   void WriteEDRAMUint32UAVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle);
 
   // Totally necessary to rely on the base format - Too Human switches between
@@ -636,6 +639,7 @@ class RenderTargetCache {
   // current_edram_max_rows_ is for RTV/DSV only (render target texture size).
   uint32_t current_edram_max_rows_ = 0;
   RenderTargetBinding current_bindings_[5] = {};
+  bool apply_to_command_list_ = true;
 
   PipelineRenderTarget current_pipeline_render_targets_[5];
 
