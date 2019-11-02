@@ -9,8 +9,6 @@
 
 #include "xenia/apu/xaudio2/xaudio2_audio_system.h"
 
-#include <xaudio2.h>
-
 #include "xenia/apu/apu_flags.h"
 #include "xenia/apu/xaudio2/xaudio2_audio_driver.h"
 
