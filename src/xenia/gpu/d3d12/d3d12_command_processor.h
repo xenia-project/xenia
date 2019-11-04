@@ -48,6 +48,8 @@ class D3D12CommandProcessor : public CommandProcessor {
 
   void TracePlaybackWroteMemory(uint32_t base_ptr, uint32_t length) override;
 
+  void RestoreEDRAMSnapshot(const void* snapshot) override;
+
   // Needed by everything that owns transient objects.
   xe::ui::d3d12::D3D12Context* GetD3D12Context() const {
     return static_cast<xe::ui::d3d12::D3D12Context*>(context_.get());

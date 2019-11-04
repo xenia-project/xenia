@@ -52,6 +52,7 @@ class VulkanCommandProcessor : public CommandProcessor {
 
   void RequestFrameTrace(const std::wstring& root_path) override;
   void TracePlaybackWroteMemory(uint32_t base_ptr, uint32_t length) override;
+  void RestoreEDRAMSnapshot(const void* snapshot) override;
   void ClearCaches() override;
 
   RenderCache* render_cache() { return render_cache_.get(); }

@@ -229,6 +229,37 @@ void TraceWriter::WriteMemoryCommand(TraceCommandType type, uint32_t base_ptr,
   }
 }
 
+void TraceWriter::WriteEDRAMSnapshot(const void* snapshot) {
+  const uint32_t kEDRAMSize = 10 * 1024 * 1024;
+  EDRAMSnapshotCommand cmd;
+  cmd.type = TraceCommandType::kEDRAMSnapshot;
+  if (compress_output_) {
+    // Write the header now so we reserve space in the buffer.
+    long header_position = std::ftell(file_);
+    cmd.encoding_format = MemoryEncodingFormat::kSnappy;
+    fwrite(&cmd, 1, sizeof(cmd), file_);
+
+    // Stream the content right to the buffer.
+    snappy::ByteArraySource snappy_source(
+        reinterpret_cast<const char*>(snapshot), kEDRAMSize);
+    SnappySink snappy_sink(file_);
+    cmd.encoded_length =
+        static_cast<uint32_t>(snappy::Compress(&snappy_source, &snappy_sink));
+
+    // Seek back and overwrite the header with our final size.
+    std::fseek(file_, header_position, SEEK_SET);
+    fwrite(&cmd, 1, sizeof(cmd), file_);
+    std::fseek(file_, header_position + sizeof(cmd) + cmd.encoded_length,
+               SEEK_SET);
+  } else {
+    // Uncompressed - write buffer directly to the file.
+    cmd.encoding_format = MemoryEncodingFormat::kNone;
+    cmd.encoded_length = kEDRAMSize;
+    fwrite(&cmd, 1, sizeof(cmd), file_);
+    fwrite(snapshot, 1, kEDRAMSize, file_);
+  }
+}
+
 void TraceWriter::WriteEvent(EventCommand::Type event_type) {
   if (!file_) {
     return;
