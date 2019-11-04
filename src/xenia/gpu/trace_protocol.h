@@ -51,6 +51,7 @@ enum class TraceCommandType : uint32_t {
   kPacketEnd,
   kMemoryRead,
   kMemoryWrite,
+  kEDRAMSnapshot,
   kEvent,
 };
 
@@ -108,6 +109,18 @@ struct MemoryCommand {
   // Number of bytes the data occupies in memory after decoding.
   // Note that if no encoding is used this will equal encoded_length.
   uint32_t decoded_length;
+};
+
+// Represents a full 10 MB snapshot of EDRAM contents, for trace initialization
+// (since replaying the trace will reconstruct its state at any point later) as
+// a sequence of tiles with row-major samples (2x multisampling as 1x2 samples,
+// 4x as 2x2 samples).
+struct EDRAMSnapshotCommand {
+  TraceCommandType type;
+  // Encoding format of the data in the trace file.
+  MemoryEncodingFormat encoding_format;
+  // Number of bytes the data occupies in the trace file in its encoded form.
+  uint32_t encoded_length;
 };
 
 // Represents a GPU event of EventCommand::Type.

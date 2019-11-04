@@ -391,6 +391,8 @@ bool RenderTargetCache::Initialize(const TextureCache* texture_cache) {
 void RenderTargetCache::Shutdown() {
   ClearCache();
 
+  edram_snapshot_restore_pool_.reset();
+  ui::d3d12::util::ReleaseAndNull(edram_snapshot_download_buffer_);
   for (auto& resolve_pipeline : resolve_pipelines_) {
     resolve_pipeline.pipeline->Release();
   }
@@ -449,9 +451,16 @@ void RenderTargetCache::ClearCache() {
     }
   }
 #endif
+
+  edram_snapshot_restore_pool_.reset();
 }
 
 void RenderTargetCache::BeginSubmission() {
+  if (edram_snapshot_restore_pool_) {
+    edram_snapshot_restore_pool_->Reclaim(
+        command_processor_->GetCompletedSubmission());
+  }
+
   // With the ROV, a submission does not always end in a resolve (for example,
   // when memexport readback happens) or something else that would surely submit
   // the UAV barrier, so we need to preserve the `current_` variables.
@@ -2197,6 +2206,113 @@ DXGI_FORMAT RenderTargetCache::GetColorDXGIFormat(
   return DXGI_FORMAT_UNKNOWN;
 }
 
+bool RenderTargetCache::InitializeTraceSubmitDownloads() {
+  if (resolution_scale_2x_) {
+    // No 1:1 mapping.
+    return false;
+  }
+  const uint32_t kEDRAMSize = 2048 * 5120;
+  if (!edram_snapshot_download_buffer_) {
+    D3D12_RESOURCE_DESC edram_snapshot_download_buffer_desc;
+    ui::d3d12::util::FillBufferResourceDesc(edram_snapshot_download_buffer_desc,
+                                            kEDRAMSize,
+                                            D3D12_RESOURCE_FLAG_NONE);
+    auto device =
+        command_processor_->GetD3D12Context()->GetD3D12Provider()->GetDevice();
+    if (FAILED(device->CreateCommittedResource(
+            &ui::d3d12::util::kHeapPropertiesReadback, D3D12_HEAP_FLAG_NONE,
+            &edram_snapshot_download_buffer_desc,
+            D3D12_RESOURCE_STATE_COPY_DEST, nullptr,
+            IID_PPV_ARGS(&edram_snapshot_download_buffer_)))) {
+      XELOGE("Failed to create a EDRAM snapshot download buffer");
+      return false;
+    }
+  }
+  auto command_list = command_processor_->GetDeferredCommandList();
+  TransitionEDRAMBuffer(D3D12_RESOURCE_STATE_COPY_SOURCE);
+  command_processor_->SubmitBarriers();
+  command_list->D3DCopyBufferRegion(edram_snapshot_download_buffer_, 0,
+                                    edram_buffer_, 0, kEDRAMSize);
+  return true;
+}
+
+void RenderTargetCache::InitializeTraceCompleteDownloads() {
+  if (!edram_snapshot_download_buffer_) {
+    return;
+  }
+  void* download_mapping;
+  if (SUCCEEDED(edram_snapshot_download_buffer_->Map(0, nullptr,
+                                                     &download_mapping))) {
+    trace_writer_->WriteEDRAMSnapshot(download_mapping);
+    D3D12_RANGE download_write_range = {};
+    edram_snapshot_download_buffer_->Unmap(0, &download_write_range);
+  } else {
+    XELOGE("Failed to map the EDRAM snapshot download buffer");
+  }
+  edram_snapshot_download_buffer_->Release();
+  edram_snapshot_download_buffer_ = nullptr;
+}
+
+void RenderTargetCache::RestoreEDRAMSnapshot(const void* snapshot) {
+  if (resolution_scale_2x_) {
+    // No 1:1 mapping.
+    return;
+  }
+  auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
+  auto device = provider->GetDevice();
+  const uint32_t kEDRAMSize = 2048 * 5120;
+  if (!edram_snapshot_restore_pool_) {
+    edram_snapshot_restore_pool_ =
+        std::make_unique<ui::d3d12::UploadBufferPool>(device, kEDRAMSize);
+  }
+  ID3D12Resource* upload_buffer;
+  uint32_t upload_buffer_offset;
+  void* upload_buffer_mapping = edram_snapshot_restore_pool_->Request(
+      command_processor_->GetCurrentSubmission(), kEDRAMSize, &upload_buffer,
+      &upload_buffer_offset, nullptr);
+  if (!upload_buffer_mapping) {
+    XELOGE("Failed to get a buffer for restoring a EDRAM snapshot");
+    return;
+  }
+  std::memcpy(upload_buffer_mapping, snapshot, kEDRAMSize);
+  auto command_list = command_processor_->GetDeferredCommandList();
+  TransitionEDRAMBuffer(D3D12_RESOURCE_STATE_COPY_DEST);
+  command_processor_->SubmitBarriers();
+  command_list->D3DCopyBufferRegion(edram_buffer_, 0, upload_buffer,
+                                    upload_buffer_offset, kEDRAMSize);
+  if (!command_processor_->IsROVUsedForEDRAM()) {
+    // Clear and ignore the old 32-bit float depth - the non-ROV path is
+    // inaccurate anyway, and this is backend-specific, not a part of a guest
+    // trace.
+    D3D12_CPU_DESCRIPTOR_HANDLE shader_visbile_descriptor_cpu;
+    D3D12_GPU_DESCRIPTOR_HANDLE shader_visbile_descriptor_gpu;
+    if (command_processor_->RequestViewDescriptors(
+            ui::d3d12::DescriptorHeapPool::kHeapIndexInvalid, 1, 1,
+            shader_visbile_descriptor_cpu, shader_visbile_descriptor_gpu) !=
+        ui::d3d12::DescriptorHeapPool::kHeapIndexInvalid) {
+      WriteEDRAMUint32UAVDescriptor(shader_visbile_descriptor_cpu);
+      UINT clear_value[4] = {0, 0, 0, 0};
+      D3D12_RECT clear_rect;
+      clear_rect.left = kEDRAMSize >> 2;
+      clear_rect.top = 0;
+      clear_rect.right = (kEDRAMSize >> 2) << 1;
+      clear_rect.bottom = 1;
+      TransitionEDRAMBuffer(D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+      command_processor_->SubmitBarriers();
+      // ClearUnorderedAccessView takes a shader-visible GPU descriptor and a
+      // non-shader-visible CPU descriptor.
+      command_list->D3DClearUnorderedAccessViewUint(
+          shader_visbile_descriptor_gpu,
+          provider->OffsetViewDescriptor(
+              edram_buffer_descriptor_heap_start_,
+              uint32_t(EDRAMBufferDescriptorIndex::kUint32UAV)),
+          edram_buffer_, clear_value, 1, &clear_rect);
+    } else {
+      XELOGE("Failed to get a UAV descriptor for invalidating 32-bit depth");
+    }
+  }
+}
+
 uint32_t RenderTargetCache::GetEDRAMBufferSize() const {
   uint32_t size = 2048 * 5120;
   if (!command_processor_->IsROVUsedForEDRAM()) {
@@ -2215,10 +2331,14 @@ void RenderTargetCache::TransitionEDRAMBuffer(D3D12_RESOURCE_STATES new_state) {
   command_processor_->PushTransitionBarrier(edram_buffer_, edram_buffer_state_,
                                             new_state);
   edram_buffer_state_ = new_state;
+  if (new_state != D3D12_RESOURCE_STATE_UNORDERED_ACCESS) {
+    edram_buffer_modified_ = false;
+  }
 }
 
 void RenderTargetCache::CommitEDRAMBufferUAVWrites(bool force) {
-  if (edram_buffer_modified_ || force) {
+  if ((edram_buffer_modified_ || force) &&
+      edram_buffer_state_ == D3D12_RESOURCE_STATE_UNORDERED_ACCESS) {
     command_processor_->PushUAVBarrier(edram_buffer_);
   }
   edram_buffer_modified_ = false;

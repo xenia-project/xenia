@@ -32,7 +32,7 @@ TracePlayer::TracePlayer(xe::ui::Loop* loop, GraphicsSystem* graphics_system)
   playback_event_ = xe::threading::Event::CreateAutoResetEvent(false);
 }
 
-TracePlayer::~TracePlayer() = default;
+TracePlayer::~TracePlayer() { delete[] edram_snapshot_; }
 
 const TraceReader::Frame* TracePlayer::current_frame() const {
   if (current_frame_index_ >= frame_count()) {
@@ -184,6 +184,19 @@ void TracePlayer::PlayTraceOnThread(const uint8_t* trace_data,
         // ?
         // Assuming the command processor will do the same write.
         trace_ptr += cmd->encoded_length;
+        break;
+      }
+      case TraceCommandType::kEDRAMSnapshot: {
+        auto cmd = reinterpret_cast<const EDRAMSnapshotCommand*>(trace_ptr);
+        trace_ptr += sizeof(*cmd);
+        const size_t kEDRAMSize = 10 * 1024 * 1024;
+        if (!edram_snapshot_) {
+          edram_snapshot_ = new uint8_t[kEDRAMSize];
+        }
+        DecompressMemory(cmd->encoding_format, trace_ptr, cmd->encoded_length,
+                         edram_snapshot_, kEDRAMSize);
+        trace_ptr += cmd->encoded_length;
+        command_processor->RestoreEDRAMSnapshot(edram_snapshot_);
         break;
       }
       case TraceCommandType::kEvent: {

@@ -87,6 +87,12 @@ void D3D12CommandProcessor::TracePlaybackWroteMemory(uint32_t base_ptr,
   primitive_converter_->MemoryWriteCallback(base_ptr, length, true);
 }
 
+void D3D12CommandProcessor::RestoreEDRAMSnapshot(const void* snapshot) {
+  // Starting a new frame because descriptors may be needed.
+  BeginSubmission(true);
+  render_target_cache_->RestoreEDRAMSnapshot(snapshot);
+}
+
 bool D3D12CommandProcessor::IsROVUsedForEDRAM() const {
   if (!cvars::d3d12_edram_rov) {
     return false;
@@ -699,8 +705,6 @@ std::unique_ptr<xe::ui::RawImage> D3D12CommandProcessor::Capture() {
                     i * swap_texture_copy_footprint_.Footprint.RowPitch,
                 raw_image->stride);
   }
-  D3D12_RANGE readback_written_range = {};
-  gamma_ramp_upload_->Unmap(0, &readback_written_range);
   return raw_image;
 }
 
@@ -1720,13 +1724,23 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
 
 void D3D12CommandProcessor::InitializeTrace() {
   BeginSubmission(false);
-  bool any_downloads_submitted = false;
-  any_downloads_submitted |= shared_memory_->InitializeTraceSubmitDownloads();
-  if (!any_downloads_submitted || !EndSubmission(false)) {
+  bool render_target_cache_submitted =
+      render_target_cache_->InitializeTraceSubmitDownloads();
+  bool shared_memory_submitted =
+      shared_memory_->InitializeTraceSubmitDownloads();
+  if (!render_target_cache_submitted && !shared_memory_submitted) {
+    return;
+  }
+  if (!EndSubmission(false)) {
     return;
   }
   AwaitAllSubmissionsCompletion();
-  shared_memory_->InitializeTraceCompleteDownloads();
+  if (render_target_cache_submitted) {
+    render_target_cache_->InitializeTraceCompleteDownloads();
+  }
+  if (shared_memory_submitted) {
+    shared_memory_->InitializeTraceCompleteDownloads();
+  }
 }
 
 void D3D12CommandProcessor::FinalizeTrace() {}

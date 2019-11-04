@@ -42,6 +42,7 @@ class TraceWriter {
   void WriteMemoryReadCachedNop(uint32_t base_ptr, size_t length);
   void WriteMemoryWrite(uint32_t base_ptr, size_t length,
                         const void* host_ptr = nullptr);
+  void WriteEDRAMSnapshot(const void* snapshot);
   void WriteEvent(EventCommand::Type event_type);
 
  private:
