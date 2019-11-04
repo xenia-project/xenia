@@ -363,7 +363,10 @@ class TextureCache {
 
     // SRV descriptor from the cache, for the first swizzle the texture was used
     // with (which is usually determined by the format, such as RGBA or BGRA).
+    // If swizzle is kCachedSRVDescriptorSwizzleMissing, the cached descriptor
+    // doesn't exist yet (there are no invalid D3D descriptor handle values).
     D3D12_CPU_DESCRIPTOR_HANDLE cached_srv_descriptor;
+    static constexpr uint32_t kCachedSRVDescriptorSwizzleMissing = UINT32_MAX;
     uint32_t cached_srv_descriptor_swizzle;
 
     // Watch handles for the memory ranges (protected by the shared memory watch

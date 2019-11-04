@@ -91,6 +91,7 @@ namespace d3d12 {
 #include "xenia/gpu/d3d12/shaders/dxbc/texture_tile_r10g11b11_rgba16_cs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/texture_tile_r11g11b10_rgba16_cs.h"
 
+constexpr uint32_t TextureCache::Texture::kCachedSRVDescriptorSwizzleMissing;
 constexpr uint32_t TextureCache::SRVDescriptorCachePage::kHeapSize;
 constexpr uint32_t TextureCache::LoadConstants::kGuestPitchTiled;
 constexpr uint32_t TextureCache::kScaledResolveBufferSizeLog2;
@@ -1213,7 +1214,8 @@ void TextureCache::BeginFrame() {
     // Exclude the texture from the memory usage counter.
     textures_total_size_ -= texture->resource_size;
     // Destroy the texture.
-    if (texture->cached_srv_descriptor.ptr) {
+    if (texture->cached_srv_descriptor_swizzle !=
+        Texture::kCachedSRVDescriptorSwizzleMissing) {
       srv_descriptor_cache_free_.push_back(texture->cached_srv_descriptor);
     }
     shared_memory_->UnwatchMemoryRange(texture->base_watch_handle);
@@ -1515,16 +1517,20 @@ void TextureCache::WriteTextureSRV(const D3D12Shader::TextureSRV& texture_srv,
   // swizzle. Profiling results say that CreateShaderResourceView takes the
   // longest time of draw call processing, and it's very noticeable in many
   // games.
+  bool cached_handle_available = false;
   D3D12_CPU_DESCRIPTOR_HANDLE cached_handle = {};
   assert_not_null(texture);
-  if (texture->cached_srv_descriptor.ptr) {
+  if (texture->cached_srv_descriptor_swizzle !=
+      Texture::kCachedSRVDescriptorSwizzleMissing) {
     // Use an existing cached descriptor if it has the needed swizzle.
     if (binding.swizzle == texture->cached_srv_descriptor_swizzle) {
+      cached_handle_available = true;
       cached_handle = texture->cached_srv_descriptor;
     }
   } else {
     // Try to create a new cached descriptor if it doesn't exist yet.
     if (!srv_descriptor_cache_free_.empty()) {
+      cached_handle_available = true;
       cached_handle = srv_descriptor_cache_free_.back();
       srv_descriptor_cache_free_.pop_back();
     } else if (srv_descriptor_cache_.empty() ||
@@ -1542,22 +1548,24 @@ void TextureCache::WriteTextureSRV(const D3D12Shader::TextureSRV& texture_srv,
         new_page.heap = new_heap;
         new_page.heap_start = new_heap->GetCPUDescriptorHandleForHeapStart();
         new_page.current_usage = 1;
+        cached_handle_available = true;
         cached_handle = new_page.heap_start;
         srv_descriptor_cache_.push_back(new_page);
       }
     } else {
       SRVDescriptorCachePage& page = srv_descriptor_cache_.back();
+      cached_handle_available = true;
       cached_handle =
           provider->OffsetViewDescriptor(page.heap_start, page.current_usage);
       ++page.current_usage;
     }
-    if (cached_handle.ptr) {
+    if (cached_handle_available) {
       device->CreateShaderResourceView(resource, &desc, cached_handle);
       texture->cached_srv_descriptor = cached_handle;
       texture->cached_srv_descriptor_swizzle = binding.swizzle;
     }
   }
-  if (cached_handle.ptr) {
+  if (cached_handle_available) {
     device->CopyDescriptorsSimple(1, handle, cached_handle,
                                   D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
   } else {
@@ -2380,8 +2388,8 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
   }
   texture->base_watch_handle = nullptr;
   texture->mip_watch_handle = nullptr;
-  texture->cached_srv_descriptor.ptr = 0;
-  texture->cached_srv_descriptor_swizzle = 0b100100100100;
+  texture->cached_srv_descriptor_swizzle =
+      Texture::kCachedSRVDescriptorSwizzleMissing;
   textures_.insert(std::make_pair(map_key, texture));
   COUNT_profile_set("gpu/texture_cache/textures", textures_.size());
   textures_total_size_ += texture->resource_size;
