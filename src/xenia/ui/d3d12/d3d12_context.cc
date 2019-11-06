@@ -26,7 +26,7 @@ namespace xe {
 namespace ui {
 namespace d3d12 {
 
-constexpr uint32_t D3D12Context::kSwapCommandListCount;
+constexpr uint32_t D3D12Context::kSwapCommandAllocatorCount;
 constexpr uint32_t D3D12Context::kSwapChainBufferCount;
 
 D3D12Context::D3D12Context(D3D12Provider* provider, Window* target_window)
@@ -113,15 +113,25 @@ bool D3D12Context::Initialize() {
       return false;
     }
 
-    // Create command lists for compositing.
-    for (uint32_t i = 0; i < kSwapCommandListCount; ++i) {
-      swap_command_lists_[i] = CommandList::Create(
-          device, direct_queue, D3D12_COMMAND_LIST_TYPE_DIRECT);
-      if (swap_command_lists_[i] == nullptr) {
+    // Create the command list for compositing.
+    for (uint32_t i = 0; i < kSwapCommandAllocatorCount; ++i) {
+      if (FAILED(device->CreateCommandAllocator(
+              D3D12_COMMAND_LIST_TYPE_DIRECT,
+              IID_PPV_ARGS(&swap_command_allocators_[i])))) {
+        XELOGE("Failed to create a composition command allocator");
         Shutdown();
         return false;
       }
     }
+    if (FAILED(device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT,
+                                         swap_command_allocators_[0], nullptr,
+                                         IID_PPV_ARGS(&swap_command_list_)))) {
+      XELOGE("Failed to create the composition graphics command list");
+      Shutdown();
+      return false;
+    }
+    // Initially in open state, wait until BeginSwap.
+    swap_command_list_->Close();
 
     // Initialize the immediate mode drawer if not offscreen.
     immediate_drawer_ = std::make_unique<D3D12ImmediateDrawer>(this);
@@ -163,6 +173,10 @@ bool D3D12Context::InitializeSwapChainBuffers() {
 }
 
 void D3D12Context::Shutdown() {
+  if (!target_window_) {
+    return;
+  }
+
   if (!context_lost_ && swap_fence_ &&
       swap_fence_->GetCompletedValue() + 1 < swap_fence_current_value_) {
     swap_fence_->SetEventOnCompletion(swap_fence_current_value_ - 1,
@@ -172,8 +186,14 @@ void D3D12Context::Shutdown() {
 
   immediate_drawer_.reset();
 
-  for (uint32_t i = 0; i < kSwapCommandListCount; ++i) {
-    swap_command_lists_[i].reset();
+  util::ReleaseAndNull(swap_command_list_);
+  for (uint32_t i = 0; i < kSwapCommandAllocatorCount; ++i) {
+    auto& swap_command_allocator = swap_command_allocators_[i];
+    if (!swap_command_allocator) {
+      break;
+    }
+    swap_command_allocator->Release();
+    swap_command_allocator = nullptr;
   }
 
   if (swap_chain_) {
@@ -186,12 +206,10 @@ void D3D12Context::Shutdown() {
       swap_chain_buffer = nullptr;
     }
 
-    if (swap_chain_rtv_heap_) {
-      swap_chain_rtv_heap_->Release();
-      swap_chain_rtv_heap_ = nullptr;
-    }
+    util::ReleaseAndNull(swap_chain_rtv_heap_);
 
     swap_chain_->Release();
+    swap_chain_ = nullptr;
   }
 
   // First release the fence since it may reference the event.
@@ -253,24 +271,27 @@ void D3D12Context::BeginSwap() {
     }
   }
 
-  // Wait for a swap command list to become free.
-  // Command list 0 is used when swap_fence_current_value_ is 1, 4, 7...
+  // Wait for a swap command allocator to become free.
+  // Command allocator 0 is used when swap_fence_current_value_ is 1, 4, 7...
   swap_fence_completed_value_ = swap_fence_->GetCompletedValue();
-  if (swap_fence_completed_value_ + kSwapCommandListCount <
+  if (swap_fence_completed_value_ + kSwapCommandAllocatorCount <
       swap_fence_current_value_) {
     swap_fence_->SetEventOnCompletion(
-        swap_fence_current_value_ - kSwapCommandListCount,
+        swap_fence_current_value_ - kSwapCommandAllocatorCount,
         swap_fence_completion_event_);
     WaitForSingleObject(swap_fence_completion_event_, INFINITE);
     swap_fence_completed_value_ = swap_fence_->GetCompletedValue();
   }
 
+  // Start the command list.
+  uint32_t command_allocator_index =
+      uint32_t((swap_fence_current_value_ + (kSwapCommandAllocatorCount - 1)) %
+               kSwapCommandAllocatorCount);
+  auto command_allocator = swap_command_allocators_[command_allocator_index];
+  command_allocator->Reset();
+  swap_command_list_->Reset(command_allocator, nullptr);
+
   // Bind the back buffer as a render target and clear it.
-  uint32_t command_list_index =
-      uint32_t((swap_fence_current_value_ + (kSwapCommandListCount - 1)) %
-               kSwapCommandListCount);
-  auto command_list = swap_command_lists_[command_list_index].get();
-  auto graphics_command_list = command_list->BeginRecording();
   D3D12_RESOURCE_BARRIER barrier;
   barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
   barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
@@ -279,9 +300,9 @@ void D3D12Context::BeginSwap() {
   barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
   barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
   barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
-  graphics_command_list->ResourceBarrier(1, &barrier);
+  swap_command_list_->ResourceBarrier(1, &barrier);
   D3D12_CPU_DESCRIPTOR_HANDLE back_buffer_rtv = GetSwapChainBackBufferRTV();
-  graphics_command_list->OMSetRenderTargets(1, &back_buffer_rtv, TRUE, nullptr);
+  swap_command_list_->OMSetRenderTargets(1, &back_buffer_rtv, TRUE, nullptr);
   float clear_color[4];
   if (cvars::d3d12_random_clear_color) {
     clear_color[0] = rand() / float(RAND_MAX);  // NOLINT(runtime/threadsafe_fn)
@@ -293,8 +314,8 @@ void D3D12Context::BeginSwap() {
     clear_color[2] = 238.0f / 255.0f;
   }
   clear_color[3] = 1.0f;
-  graphics_command_list->ClearRenderTargetView(back_buffer_rtv, clear_color, 0,
-                                               nullptr);
+  swap_command_list_->ClearRenderTargetView(back_buffer_rtv, clear_color, 0,
+                                            nullptr);
 }
 
 void D3D12Context::EndSwap() {
@@ -302,12 +323,9 @@ void D3D12Context::EndSwap() {
     return;
   }
 
+  auto direct_queue = GetD3D12Provider()->GetDirectQueue();
+
   // Switch the back buffer to presentation state.
-  uint32_t command_list_index =
-      uint32_t((swap_fence_current_value_ + (kSwapCommandListCount - 1)) %
-               kSwapCommandListCount);
-  auto command_list = swap_command_lists_[command_list_index].get();
-  auto graphics_command_list = command_list->GetCommandList();
   D3D12_RESOURCE_BARRIER barrier;
   barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
   barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
@@ -316,9 +334,12 @@ void D3D12Context::EndSwap() {
   barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
   barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
   barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
-  graphics_command_list->ResourceBarrier(1, &barrier);
+  swap_command_list_->ResourceBarrier(1, &barrier);
 
-  command_list->Execute();
+  // Submit the command list.
+  swap_command_list_->Close();
+  ID3D12CommandList* execute_command_lists[] = {swap_command_list_};
+  direct_queue->ExecuteCommandLists(1, execute_command_lists);
 
   // Present and check if the context was lost.
   HRESULT result = swap_chain_->Present(0, 0);
@@ -329,8 +350,7 @@ void D3D12Context::EndSwap() {
   }
 
   // Signal the fence to wait for frame resources to become free again.
-  GetD3D12Provider()->GetDirectQueue()->Signal(swap_fence_,
-                                               swap_fence_current_value_++);
+  direct_queue->Signal(swap_fence_, swap_fence_current_value_++);
 
   // Get the back buffer index for the next frame.
   swap_chain_back_buffer_index_ = swap_chain_->GetCurrentBackBufferIndex();

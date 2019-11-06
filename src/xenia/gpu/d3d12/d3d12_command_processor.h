@@ -28,7 +28,6 @@
 #include "xenia/gpu/dxbc_shader_translator.h"
 #include "xenia/gpu/xenos.h"
 #include "xenia/kernel/kernel_state.h"
-#include "xenia/ui/d3d12/command_list.h"
 #include "xenia/ui/d3d12/d3d12_context.h"
 #include "xenia/ui/d3d12/pools.h"
 
@@ -238,7 +237,7 @@ class D3D12CommandProcessor : public CommandProcessor {
   bool EndSubmission(bool is_swap);
   void AwaitAllSubmissionsCompletion();
   // Need to await submission completion before calling.
-  void ClearCommandListCache();
+  void ClearCommandAllocatorCache();
 
   void UpdateFixedFunctionState(bool primitive_two_faced);
   void UpdateSystemConstantValues(
@@ -278,15 +277,17 @@ class D3D12CommandProcessor : public CommandProcessor {
   // Submission indices of frames that have already been submitted.
   uint64_t closed_frame_submissions_[kQueueFrames] = {};
 
-  struct CommandList {
-    std::unique_ptr<ui::d3d12::CommandList> command_list;
+  struct CommandAllocator {
+    ID3D12CommandAllocator* command_allocator;
     uint64_t last_usage_submission;
-    CommandList* next;
+    CommandAllocator* next;
   };
-  CommandList* command_list_writable_first_ = nullptr;
-  CommandList* command_list_writable_last_ = nullptr;
-  CommandList* command_list_submitted_first_ = nullptr;
-  CommandList* command_list_submitted_last_ = nullptr;
+  CommandAllocator* command_allocator_writable_first_ = nullptr;
+  CommandAllocator* command_allocator_writable_last_ = nullptr;
+  CommandAllocator* command_allocator_submitted_first_ = nullptr;
+  CommandAllocator* command_allocator_submitted_last_ = nullptr;
+  ID3D12GraphicsCommandList* command_list_ = nullptr;
+  ID3D12GraphicsCommandList1* command_list_1_ = nullptr;
   std::unique_ptr<DeferredCommandList> deferred_command_list_ = nullptr;
 
   std::unique_ptr<SharedMemory> shared_memory_ = nullptr;

@@ -555,7 +555,8 @@ void D3D12CommandProcessor::SetSamplePositions(MsaaSamples sample_positions) {
   // for ROV output. There's hardly any difference between 2,6 (of 0 and 3 with
   // 4x MSAA) and 4,4 anyway.
   // https://docs.microsoft.com/en-us/windows/desktop/api/d3d12/nf-d3d12-id3d12graphicscommandlist1-setsamplepositions
-  if (cvars::d3d12_ssaa_custom_sample_positions && !IsROVUsedForEDRAM()) {
+  if (cvars::d3d12_ssaa_custom_sample_positions && !IsROVUsedForEDRAM() &&
+      command_list_1_) {
     auto provider = GetD3D12Context()->GetD3D12Provider();
     auto tier = provider->GetProgrammableSamplePositionsTier();
     if (tier >= 2) {
@@ -738,10 +739,31 @@ bool D3D12CommandProcessor::SetupContext() {
   frame_completed_ = 0;
   std::memset(closed_frame_submissions_, 0, sizeof(closed_frame_submissions_));
 
-  command_list_writable_first_ = nullptr;
-  command_list_writable_last_ = nullptr;
-  command_list_submitted_first_ = nullptr;
-  command_list_submitted_last_ = nullptr;
+  // Create the command list and one allocator because it's needed for a command
+  // list.
+  ID3D12CommandAllocator* command_allocator;
+  if (FAILED(device->CreateCommandAllocator(
+          D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&command_allocator)))) {
+    XELOGE("Failed to create a command allocator");
+    return false;
+  }
+  command_allocator_writable_first_ = new CommandAllocator;
+  command_allocator_writable_first_->command_allocator = command_allocator;
+  command_allocator_writable_first_->last_usage_submission = 0;
+  command_allocator_writable_first_->next = nullptr;
+  command_allocator_writable_last_ = command_allocator_writable_first_;
+  command_allocator_submitted_first_ = nullptr;
+  command_allocator_submitted_last_ = nullptr;
+  if (FAILED(device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT,
+                                       command_allocator, nullptr,
+                                       IID_PPV_ARGS(&command_list_)))) {
+    XELOGE("Failed to create the graphics command list");
+    return false;
+  }
+  // Initially in open state, wait until a deferred command list submission.
+  command_list_->Close();
+  // Optional - added in Creators Update (SDK 10.0.15063.0).
+  command_list_->QueryInterface(IID_PPV_ARGS(&command_list_1_));
   deferred_command_list_ = std::make_unique<DeferredCommandList>(this);
 
   constant_buffer_pool_ =
@@ -974,7 +996,9 @@ void D3D12CommandProcessor::ShutdownContext() {
   shared_memory_.reset();
 
   deferred_command_list_.reset();
-  ClearCommandListCache();
+  ui::d3d12::util::ReleaseAndNull(command_list_1_);
+  ui::d3d12::util::ReleaseAndNull(command_list_);
+  ClearCommandAllocatorCache();
 
   frame_open_ = false;
   frame_current_ = 1;
@@ -1824,23 +1848,25 @@ void D3D12CommandProcessor::BeginSubmission(bool is_guest_command) {
     }
   }
 
-  // Reclaim command lists.
-  while (command_list_submitted_first_) {
-    if (command_list_submitted_first_->last_usage_submission >
+  // Reclaim command allocators.
+  while (command_allocator_submitted_first_) {
+    if (command_allocator_submitted_first_->last_usage_submission >
         submission_completed_) {
       break;
     }
-    if (command_list_writable_last_) {
-      command_list_writable_last_->next = command_list_submitted_first_;
+    if (command_allocator_writable_last_) {
+      command_allocator_writable_last_->next =
+          command_allocator_submitted_first_;
     } else {
-      command_list_writable_first_ = command_list_submitted_first_;
+      command_allocator_writable_first_ = command_allocator_submitted_first_;
     }
-    command_list_writable_last_ = command_list_submitted_first_;
-    command_list_submitted_first_ = command_list_submitted_first_->next;
-    command_list_writable_last_->next = nullptr;
+    command_allocator_writable_last_ = command_allocator_submitted_first_;
+    command_allocator_submitted_first_ =
+        command_allocator_submitted_first_->next;
+    command_allocator_writable_last_->next = nullptr;
   }
-  if (!command_list_submitted_first_) {
-    command_list_submitted_last_ = nullptr;
+  if (!command_allocator_submitted_first_) {
+    command_allocator_submitted_last_ = nullptr;
   }
 
   // Delete transient buffers marked for deletion.
@@ -1858,8 +1884,9 @@ void D3D12CommandProcessor::BeginSubmission(bool is_guest_command) {
   if (!submission_open_) {
     submission_open_ = true;
 
-    // Start a new deferred command list - will create the real one in the end
-    // of submission.
+    // Start a new deferred command list - will submit it to the real one in the
+    // end of the submission (when async pipeline state object creation requests
+    // are fulfilled).
     deferred_command_list_->Reset();
 
     // Reset cached state of the command list.
@@ -1928,22 +1955,22 @@ void D3D12CommandProcessor::BeginSubmission(bool is_guest_command) {
 bool D3D12CommandProcessor::EndSubmission(bool is_swap) {
   auto provider = GetD3D12Context()->GetD3D12Provider();
 
-  // Make sure there is a command list to submit to.
-  if (submission_open_ && !command_list_writable_first_) {
-    std::unique_ptr<ui::d3d12::CommandList> new_command_list =
-        ui::d3d12::CommandList::Create(provider->GetDevice(),
-                                       provider->GetDirectQueue(),
-                                       D3D12_COMMAND_LIST_TYPE_DIRECT);
-    if (!new_command_list) {
+  // Make sure there is a command allocator to write commands to.
+  if (submission_open_ && !command_allocator_writable_first_) {
+    ID3D12CommandAllocator* command_allocator;
+    if (FAILED(provider->GetDevice()->CreateCommandAllocator(
+            D3D12_COMMAND_LIST_TYPE_DIRECT,
+            IID_PPV_ARGS(&command_allocator)))) {
+      XELOGE("Failed to create a command allocator");
       // Try to submit later. Completely dropping the submission is not
       // permitted because resources would be left in an undefined state.
       return false;
     }
-    command_list_writable_first_ = new CommandList;
-    command_list_writable_first_->command_list = std::move(new_command_list);
-    command_list_writable_first_->last_usage_submission = 0;
-    command_list_writable_first_->next = nullptr;
-    command_list_writable_last_ = command_list_writable_first_;
+    command_allocator_writable_first_ = new CommandAllocator;
+    command_allocator_writable_first_->command_allocator = command_allocator;
+    command_allocator_writable_first_->last_usage_submission = 0;
+    command_allocator_writable_first_->next = nullptr;
+    command_allocator_writable_last_ = command_allocator_writable_first_;
   }
 
   bool is_closing_frame = is_swap && frame_open_;
@@ -1961,28 +1988,33 @@ bool D3D12CommandProcessor::EndSubmission(bool is_swap) {
     // destroyed between frames.
     SubmitBarriers();
 
+    auto direct_queue = provider->GetDirectQueue();
+
     // Submit the command list.
-    auto current_command_list =
-        command_list_writable_first_->command_list.get();
-    current_command_list->BeginRecording();
-    deferred_command_list_->Execute(current_command_list->GetCommandList(),
-                                    current_command_list->GetCommandList1());
-    current_command_list->Execute();
-    command_list_writable_first_->last_usage_submission = submission_current_;
-    if (command_list_submitted_last_) {
-      command_list_submitted_last_->next = command_list_writable_first_;
+    ID3D12CommandAllocator* command_allocator =
+        command_allocator_writable_first_->command_allocator;
+    command_allocator->Reset();
+    command_list_->Reset(command_allocator, nullptr);
+    deferred_command_list_->Execute(command_list_, command_list_1_);
+    command_list_->Close();
+    ID3D12CommandList* execute_command_lists[] = {command_list_};
+    direct_queue->ExecuteCommandLists(1, execute_command_lists);
+    command_allocator_writable_first_->last_usage_submission =
+        submission_current_;
+    if (command_allocator_submitted_last_) {
+      command_allocator_submitted_last_->next =
+          command_allocator_writable_first_;
     } else {
-      command_list_submitted_first_ = command_list_writable_first_;
+      command_allocator_submitted_first_ = command_allocator_writable_first_;
     }
-    command_list_submitted_last_ = command_list_writable_first_;
-    command_list_writable_first_ = command_list_writable_first_->next;
-    command_list_submitted_last_->next = nullptr;
-    if (!command_list_writable_first_) {
-      command_list_writable_last_ = nullptr;
+    command_allocator_submitted_last_ = command_allocator_writable_first_;
+    command_allocator_writable_first_ = command_allocator_writable_first_->next;
+    command_allocator_submitted_last_->next = nullptr;
+    if (!command_allocator_writable_first_) {
+      command_allocator_writable_last_ = nullptr;
     }
 
-    provider->GetDirectQueue()->Signal(submission_fence_,
-                                       submission_current_++);
+    direct_queue->Signal(submission_fence_, submission_current_++);
 
     submission_open_ = false;
   }
@@ -2005,7 +2037,7 @@ bool D3D12CommandProcessor::EndSubmission(bool is_swap) {
       cache_clear_requested_ = false;
       AwaitAllSubmissionsCompletion();
 
-      ClearCommandListCache();
+      ClearCommandAllocatorCache();
 
       ui::d3d12::util::ReleaseAndNull(scratch_buffer_);
       scratch_buffer_size_ = 0;
@@ -2047,19 +2079,21 @@ void D3D12CommandProcessor::AwaitAllSubmissionsCompletion() {
   submission_completed_ = submission_current_ - 1;
 }
 
-void D3D12CommandProcessor::ClearCommandListCache() {
-  while (command_list_submitted_first_) {
-    auto next = command_list_submitted_first_->next;
-    delete command_list_submitted_first_;
-    command_list_submitted_first_ = next;
+void D3D12CommandProcessor::ClearCommandAllocatorCache() {
+  while (command_allocator_submitted_first_) {
+    auto next = command_allocator_submitted_first_->next;
+    command_allocator_submitted_first_->command_allocator->Release();
+    delete command_allocator_submitted_first_;
+    command_allocator_submitted_first_ = next;
   }
-  command_list_submitted_last_ = nullptr;
-  while (command_list_writable_first_) {
-    auto next = command_list_writable_first_->next;
-    delete command_list_writable_first_;
-    command_list_writable_first_ = next;
+  command_allocator_submitted_last_ = nullptr;
+  while (command_allocator_writable_first_) {
+    auto next = command_allocator_writable_first_->next;
+    command_allocator_writable_first_->command_allocator->Release();
+    delete command_allocator_writable_first_;
+    command_allocator_writable_first_ = next;
   }
-  command_list_writable_last_ = nullptr;
+  command_allocator_writable_last_ = nullptr;
 }
 
 void D3D12CommandProcessor::UpdateFixedFunctionState(bool primitive_two_faced) {

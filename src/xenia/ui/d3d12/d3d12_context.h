@@ -12,7 +12,6 @@
 
 #include <memory>
 
-#include "xenia/ui/d3d12/command_list.h"
 #include "xenia/ui/d3d12/d3d12_immediate_drawer.h"
 #include "xenia/ui/d3d12/d3d12_provider.h"
 #include "xenia/ui/graphics_context.h"
@@ -68,10 +67,7 @@ class D3D12Context : public GraphicsContext {
     return swap_fence_completed_value_;
   }
   ID3D12GraphicsCommandList* GetSwapCommandList() const {
-    uint32_t command_list_index =
-        uint32_t((swap_fence_current_value_ + (kSwapCommandListCount - 1)) %
-                 kSwapCommandListCount);
-    return swap_command_lists_[command_list_index]->GetCommandList();
+    return swap_command_list_;
   }
 
  private:
@@ -99,11 +95,13 @@ class D3D12Context : public GraphicsContext {
   HANDLE swap_fence_completion_event_ = nullptr;
   ID3D12Fence* swap_fence_ = nullptr;
 
-  static constexpr uint32_t kSwapCommandListCount = 3;
-  std::unique_ptr<CommandList> swap_command_lists_[kSwapCommandListCount] = {};
-  // Current is
-  // ((swap_fence_current_value_ + (kSwapCommandListCount - 1))) %
-  //     kSwapCommandListCount.
+  static constexpr uint32_t kSwapCommandAllocatorCount = 3;
+  ID3D12CommandAllocator* swap_command_allocators_[kSwapCommandAllocatorCount] =
+      {};
+  // Current command allocator is:
+  // ((swap_fence_current_value_ + (kSwapCommandAllocatorCount - 1))) %
+  //     kSwapCommandAllocatorCount.
+  ID3D12GraphicsCommandList* swap_command_list_ = nullptr;
 
   std::unique_ptr<D3D12ImmediateDrawer> immediate_drawer_ = nullptr;
 };
