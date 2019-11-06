@@ -14,7 +14,6 @@
 #include <memory>
 #include <vector>
 
-#include "xenia/ui/d3d12/command_list.h"
 #include "xenia/ui/d3d12/d3d12_api.h"
 #include "xenia/ui/d3d12/pools.h"
 #include "xenia/ui/immediate_drawer.h"
