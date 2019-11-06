@@ -15,7 +15,7 @@
 #include <vector>
 
 #include "xenia/base/math.h"
-#include "xenia/ui/d3d12/command_list.h"
+#include "xenia/ui/d3d12/d3d12_api.h"
 
 namespace xe {
 namespace gpu {
