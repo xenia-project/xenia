@@ -20,7 +20,6 @@ project("xenia-hid-demo")
   kind("WindowedApp")
   language("C++")
   links({
-    "glew",
     "imgui",
     "volk",
     "xenia-base",
@@ -28,10 +27,6 @@ project("xenia-hid-demo")
     "xenia-hid-nop",
     "xenia-ui",
     "xenia-ui-vulkan",
-  })
-  defines({
-    "GLEW_STATIC=1",
-    "GLEW_MX=1",
   })
   files({
     "hid_demo.cc",
@@ -46,7 +41,6 @@ project("xenia-hid-demo")
       "X11",
       "xcb",
       "X11-xcb",
-      "GL",
       "vulkan",
     })
 

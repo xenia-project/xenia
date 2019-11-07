@@ -22,9 +22,6 @@ includedirs({
 defines({
   "_UNICODE",
   "UNICODE",
-
-  -- TODO(benvanik): find a better place for this stuff.
-  "GLEW_NO_GLU=1",
 })
 
 -- TODO(DrChat): Find a way to disable this on other architectures.
@@ -217,7 +214,6 @@ solution("xenia")
   include("third_party/discord-rpc.lua")
   include("third_party/cxxopts.lua")
   include("third_party/cpptoml.lua")
-  include("third_party/glew.lua")
   include("third_party/glslang-spirv.lua")
   include("third_party/imgui.lua")
   include("third_party/libav.lua")
