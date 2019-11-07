@@ -14,7 +14,6 @@
 
 #include "third_party/xxhash/xxhash.h"
 
-#include "xenia/gpu/glsl_shader_translator.h"
 #include "xenia/gpu/register_file.h"
 #include "xenia/gpu/spirv_shader_translator.h"
 #include "xenia/gpu/vulkan/render_cache.h"

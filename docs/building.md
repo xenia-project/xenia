@@ -105,7 +105,7 @@ sudo -E apt-get -yq --no-install-suggests --no-install-recommends --force-yes in
 
 You will also need some development libraries. To get them on an Ubuntu system:
 ```
-sudo apt-get install libgtk-3-dev libpthread-stubs0-dev liblz4-dev libglew-dev libx11-dev libvulkan-dev libc++-dev libc++abi-dev
+sudo apt-get install libgtk-3-dev libpthread-stubs0-dev liblz4-dev libx11-dev libvulkan-dev libc++-dev libc++abi-dev
 ```
 
 In addition, you will need the latest Vulkan libraries and drivers for your hardware.
