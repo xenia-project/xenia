@@ -36,7 +36,6 @@ using xe::ui::vulkan::CheckResult;
 PipelineCache::PipelineCache(RegisterFile* register_file,
                              ui::vulkan::VulkanDevice* device)
     : register_file_(register_file), device_(device) {
-  // We can also use the GLSL translator with a Vulkan dialect.
   shader_translator_.reset(new SpirvShaderTranslator());
 }
 
