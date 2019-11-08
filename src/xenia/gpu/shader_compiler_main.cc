@@ -18,7 +18,6 @@
 #include "xenia/base/platform.h"
 #include "xenia/base/string.h"
 #include "xenia/gpu/dxbc_shader_translator.h"
-#include "xenia/gpu/glsl_shader_translator.h"
 #include "xenia/gpu/shader_translator.h"
 #include "xenia/gpu/spirv_shader_translator.h"
 #include "xenia/ui/spirv/spirv_disassembler.h"
@@ -34,8 +33,7 @@ DEFINE_string(shader_input_type, "",
               "GPU");
 DEFINE_string(shader_output, "", "Output shader file path.", "GPU");
 DEFINE_string(shader_output_type, "ucode",
-              "Translator to use: [ucode, glsl45, spirv, spirvtext, dxbc].",
-              "GPU");
+              "Translator to use: [ucode, spirv, spirvtext, dxbc].", "GPU");
 DEFINE_string(shader_output_patch, "",
               "Tessellation patch type in the generated tessellation "
               "evaluation (domain) shader, or unspecified to produce a vertex "
@@ -105,9 +103,6 @@ int shader_compiler_main(const std::vector<std::wstring>& args) {
   if (cvars::shader_output_type == "spirv" ||
       cvars::shader_output_type == "spirvtext") {
     translator = std::make_unique<SpirvShaderTranslator>();
-  } else if (cvars::shader_output_type == "glsl45") {
-    translator = std::make_unique<GlslShaderTranslator>(
-        GlslShaderTranslator::Dialect::kGL45);
   } else if (cvars::shader_output_type == "dxbc") {
     translator = std::make_unique<DxbcShaderTranslator>(
         0, cvars::shader_output_dxbc_rov);
