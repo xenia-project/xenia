@@ -33,7 +33,8 @@ DEFINE_string(shader_input_type, "",
               "GPU");
 DEFINE_string(shader_output, "", "Output shader file path.", "GPU");
 DEFINE_string(shader_output_type, "ucode",
-              "Translator to use: [ucode, spirv, spirvtext, dxbc].", "GPU");
+              "Translator to use: [ucode, spirv, spirvtext, dxbc, dxbctext].",
+              "GPU");
 DEFINE_string(shader_output_patch, "",
               "Tessellation patch type in the generated tessellation "
               "evaluation (domain) shader, or unspecified to produce a vertex "
@@ -103,7 +104,8 @@ int shader_compiler_main(const std::vector<std::wstring>& args) {
   if (cvars::shader_output_type == "spirv" ||
       cvars::shader_output_type == "spirvtext") {
     translator = std::make_unique<SpirvShaderTranslator>();
-  } else if (cvars::shader_output_type == "dxbc") {
+  } else if (cvars::shader_output_type == "dxbc" ||
+             cvars::shader_output_type == "dxbctext") {
     translator = std::make_unique<DxbcShaderTranslator>(
         0, cvars::shader_output_dxbc_rov);
   } else {
@@ -136,7 +138,7 @@ int shader_compiler_main(const std::vector<std::wstring>& args) {
   }
 #if XE_PLATFORM_WIN32
   ID3DBlob* dxbc_disasm_blob = nullptr;
-  if (cvars::shader_output_type == "dxbc") {
+  if (cvars::shader_output_type == "dxbctext") {
     HMODULE d3d_compiler = LoadLibrary(L"D3DCompiler_47.dll");
     if (d3d_compiler != nullptr) {
       pD3DDisassemble d3d_disassemble =
@@ -149,6 +151,13 @@ int shader_compiler_main(const std::vector<std::wstring>& args) {
                                       nullptr, &dxbc_disasm_blob))) {
           source_data = dxbc_disasm_blob->GetBufferPointer();
           source_data_size = dxbc_disasm_blob->GetBufferSize();
+          // Stop at the null terminator.
+          for (size_t i = 0; i < source_data_size; ++i) {
+            if (reinterpret_cast<const char*>(source_data)[i] == '\0') {
+              source_data_size = i;
+              break;
+            }
+          }
         }
       }
       FreeLibrary(d3d_compiler);
