@@ -226,9 +226,6 @@ namespace shader_playground {
       switch (translationComboBox.SelectedIndex) {
         default:
         case 0:
-          outputType = "glsl45";
-          break;
-        case 1:
           outputType = "spirvtext";
           break;
       }
