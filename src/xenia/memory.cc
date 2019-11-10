@@ -1355,6 +1355,11 @@ bool PhysicalHeap::Alloc(uint32_t size, uint32_t alignment,
     // TODO(benvanik): don't leak parent memory.
     return false;
   }
+
+  if (protect & kMemoryProtectWrite) {
+    TriggerWatches(address, size, true, true, false);
+  }
+
   *out_address = address;
   return true;
 }
@@ -1390,6 +1395,10 @@ bool PhysicalHeap::AllocFixed(uint32_t base_address, uint32_t size,
         "PhysicalHeap::Alloc unable to pin physical memory in physical heap");
     // TODO(benvanik): don't leak parent memory.
     return false;
+  }
+
+  if (protect & kMemoryProtectWrite) {
+    TriggerWatches(address, size, true, true, false);
   }
 
   return true;
@@ -1432,6 +1441,11 @@ bool PhysicalHeap::AllocRange(uint32_t low_address, uint32_t high_address,
     // TODO(benvanik): don't leak parent memory.
     return false;
   }
+
+  if (protect & kMemoryProtectWrite) {
+    TriggerWatches(address, size, true, true, false);
+  }
+
   *out_address = address;
   return true;
 }
@@ -1449,17 +1463,10 @@ bool PhysicalHeap::Decommit(uint32_t address, uint32_t size) {
 bool PhysicalHeap::Release(uint32_t base_address, uint32_t* out_region_size) {
   auto global_lock = global_critical_region_.Acquire();
   uint32_t parent_base_address = GetPhysicalAddress(base_address);
-  uint32_t region_size = 0;
-  if (QuerySize(base_address, &region_size)) {
-    TriggerWatches(base_address, region_size, true, true,
-                   !cvars::protect_on_release);
-  }
-
   if (!parent_heap_->Release(parent_base_address, out_region_size)) {
     XELOGE("PhysicalHeap::Release failed due to parent heap failure");
     return false;
   }
-
   return BaseHeap::Release(base_address, out_region_size);
 }
 
@@ -1467,7 +1474,11 @@ bool PhysicalHeap::Protect(uint32_t address, uint32_t size, uint32_t protect,
                            uint32_t* old_protect) {
   auto global_lock = global_critical_region_.Acquire();
 
-  TriggerWatches(address, size, true, true, false);
+  // Only invalidate if making writable again, for simplicity - not when simply
+  // marking some range as immutable, for instance.
+  if (protect & kMemoryProtectWrite) {
+    TriggerWatches(address, size, true, true, false);
+  }
 
   if (!parent_heap_->Protect(GetPhysicalAddress(address), size, protect,
                              old_protect)) {

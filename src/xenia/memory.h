@@ -363,15 +363,15 @@ class Memory {
   // triggered multiple times for a single range, and for any watched page every
   // registered callbacks is triggered. This is a very simple one-shot method
   // for use primarily for cache invalidation - there may be spurious firing,
-  // for example, if the game only changes the protection level without writing
-  // anything.
+  // for example, if the game only makes the pages writable without actually
+  // writing anything (done for simplicity).
   //
   // A range of pages can be watched at any time, but pages are only unwatched
   // when watches are triggered (since multiple subscribers can depend on the
   // same memory, and one subscriber shouldn't interfere with another).
   //
   // Callbacks can be triggered for one page (if the guest just stores words) or
-  // for multiple pages (for file reading, protection level changes).
+  // for multiple pages (for file reading, making pages writable).
   //
   // Only guest physical memory mappings are watched - the host-only mapping is
   // not protected so it can be used to bypass the write protection (for file
@@ -392,11 +392,12 @@ class Memory {
 
   // Enables watching of the specified memory range, snapped to system page
   // boundaries. When something is written to a watched range (or when the
-  // protection of it changes), the registered watch callbacks are triggered for
-  // the page (or pages, for file reads and protection changes) where something
-  // has been written to. This protects physical memory only under
-  // virtual_membase_, so writing to physical_membase_ can be done to bypass the
-  // protection placed by the watches.
+  // protection of it changes in a a way that it becomes writable), the
+  // registered watch callbacks are triggered for the page (or pages, for file
+  // reads and protection changes) where something has been written to. This
+  // protects physical memory only under virtual_membase_, so writing to
+  // physical_membase_ can be done to bypass the protection placed by the
+  // watches.
   void WatchPhysicalMemoryWrite(uint32_t physical_address, uint32_t length);
 
   // Forces triggering of watch callbacks for a virtual address range if pages
