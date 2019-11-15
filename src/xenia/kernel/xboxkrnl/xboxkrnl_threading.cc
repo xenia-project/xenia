@@ -138,7 +138,6 @@ dword_result_t ExCreateThread(lpdword_t handle_ptr, dword_t stack_size,
       if (creation_flags & 0x80) {
         *handle_ptr = thread->guest_object();
       } else {
-        thread->RetainHandle();
         *handle_ptr = thread->handle();
       }
     }
