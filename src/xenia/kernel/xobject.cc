@@ -49,6 +49,7 @@ XObject::XObject(KernelState* kernel_state, Type type)
 }
 
 XObject::~XObject() {
+  assert_true(handles_.empty());
   assert_zero(pointer_ref_count_);
 
   if (allocated_guest_object_) {
