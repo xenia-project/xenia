@@ -69,7 +69,7 @@ dword_result_t ObLookupThreadByThreadId(dword_t thread_id,
   }
 
   // Retain the object. Will be released in ObDereferenceObject.
-  thread->Retain();
+  thread->RetainHandle();
   *out_object_ptr = thread->guest_object();
   return X_STATUS_SUCCESS;
 }
@@ -133,7 +133,7 @@ dword_result_t ObReferenceObjectByHandle(dword_t handle,
 
     // Caller takes the reference.
     // It's released in ObDereferenceObject.
-    object->Retain();
+    object->RetainHandle();
     if (out_object_ptr.guest_address()) {
       *out_object_ptr = native_ptr;
     }
@@ -169,7 +169,7 @@ dword_result_t ObDereferenceObject(dword_t native_ptr) {
   auto object = XObject::GetNativeObject<XObject>(
       kernel_state(), kernel_memory()->TranslateVirtual(native_ptr));
   if (object) {
-    object->Release();
+    object->ReleaseHandle();
   }
 
   return 0;
