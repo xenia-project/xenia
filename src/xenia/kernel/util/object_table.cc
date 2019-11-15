@@ -194,6 +194,7 @@ X_STATUS ObjectTable::RemoveHandle(X_HANDLE handle) {
   if (entry->object) {
     auto object = entry->object;
     entry->object = nullptr;
+    assert_zero(entry->handle_ref_count);
     entry->handle_ref_count = 0;
 
     // Walk the object's handles and remove this one.
