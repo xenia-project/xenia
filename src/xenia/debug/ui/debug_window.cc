@@ -140,7 +140,7 @@ void DebugWindow::DrawFrame() {
   float top_panes_height =
       ImGui::GetContentRegionAvail().y - bottom_panes_height;
   float log_pane_width =
-      ImGui::GetContentRegionAvailWidth() - breakpoints_pane_width;
+      ImGui::GetContentRegionAvail().x - breakpoints_pane_width;
 
   ImGui::BeginChild("##toolbar", ImVec2(0, 25), true);
   DrawToolbar();
@@ -237,11 +237,9 @@ void DebugWindow::DrawFrame() {
   ImGui::PopStyleVar();
 
   if (cvars::imgui_debug) {
-    ImGui::ShowTestWindow();
+    ImGui::ShowDemoWindow();
     ImGui::ShowMetricsWindow();
   }
-
-  ImGui::Render();
 
   // Continuous paint.
   window_->Invalidate();
@@ -340,7 +338,7 @@ void DebugWindow::DrawSourcePane() {
   ImGui::SameLine();
   char name[256];
   std::strcpy(name, function->name().c_str());
-  ImGui::PushItemWidth(ImGui::GetContentRegionAvailWidth() - 10);
+  ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x - 10);
   if (ImGui::InputText("##name", name, sizeof(name),
                        ImGuiInputTextFlags_AutoSelectAll)) {
     function->set_name(name);
@@ -623,7 +621,7 @@ void DebugWindow::DrawBreakpointGutterButton(
 void DebugWindow::ScrollToSourceIfPcChanged() {
   if (state_.has_changed_pc) {
     // TODO(benvanik): not so annoying scroll.
-    ImGui::SetScrollHere();
+    ImGui::SetScrollHereY(0.5f);
     state_.has_changed_pc = false;
   }
 }
@@ -1006,7 +1004,7 @@ void DebugWindow::DrawThreadsPane() {
       continue;
     }
     if (is_current_thread && state_.has_changed_thread) {
-      ImGui::SetScrollHere();
+      ImGui::SetScrollHereY(0.5f);
       state_.has_changed_thread = false;
     }
     if (!is_current_thread) {
@@ -1017,7 +1015,7 @@ void DebugWindow::DrawThreadsPane() {
     }
     ImGui::PushID(thread_info);
     if (is_current_thread) {
-      ImGui::SetNextTreeNodeOpen(true, ImGuiCond_Always);
+      ImGui::SetNextItemOpen(true, ImGuiCond_Always);
     }
     const char* state_label = "?";
     if (thread->can_debugger_suspend()) {
