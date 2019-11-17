@@ -26,8 +26,6 @@ const char kProggyTinyCompressedDataBase85[10950 + 1] =
 static_assert(sizeof(ImmediateVertex) == sizeof(ImDrawVert),
               "Vertex types must match");
 
-ImGuiDrawer* ImGuiDrawer::current_drawer_ = nullptr;
-
 ImGuiDrawer::ImGuiDrawer(xe::ui::Window* window)
     : window_(window), graphics_context_(window->context()) {
   Initialize();
@@ -38,7 +36,6 @@ ImGuiDrawer::~ImGuiDrawer() {
     ImGui::DestroyContext(internal_state_);
     internal_state_ = nullptr;
   }
-  current_drawer_ = nullptr;
 }
 
 void ImGuiDrawer::Initialize() {
@@ -46,20 +43,11 @@ void ImGuiDrawer::Initialize() {
   // This will give us state we can swap to the ImGui globals when in use.
   internal_state_ = ImGui::CreateContext();
 
-  current_drawer_ = this;
-
   auto& io = ImGui::GetIO();
-
-  font_atlas_ = std::make_unique<ImFontAtlas>();
-  io.Fonts = font_atlas_.get();
 
   SetupFont();
 
   io.DeltaTime = 1.0f / 60.0f;
-  io.RenderDrawListsFn = [](ImDrawData* data) {
-    assert_not_null(current_drawer_);
-    current_drawer_->RenderDrawLists(data);
-  };
 
   auto& style = ImGui::GetStyle();
   style.ScrollbarRounding = 0;
@@ -67,7 +55,7 @@ void ImGuiDrawer::Initialize() {
   style.Colors[ImGuiCol_Text] = ImVec4(0.89f, 0.90f, 0.90f, 1.00f);
   style.Colors[ImGuiCol_TextDisabled] = ImVec4(0.60f, 0.60f, 0.60f, 1.00f);
   style.Colors[ImGuiCol_WindowBg] = ImVec4(0.00f, 0.06f, 0.00f, 1.00f);
-  style.Colors[ImGuiCol_ChildWindowBg] = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
+  style.Colors[ImGuiCol_ChildBg] = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
   style.Colors[ImGuiCol_Border] = ImVec4(1.00f, 1.00f, 1.00f, 1.00f);
   style.Colors[ImGuiCol_BorderShadow] = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
   style.Colors[ImGuiCol_FrameBg] = ImVec4(0.80f, 0.80f, 0.80f, 0.30f);
@@ -105,8 +93,7 @@ void ImGuiDrawer::Initialize() {
   style.Colors[ImGuiCol_PlotHistogramHovered] =
       ImVec4(1.00f, 0.60f, 0.00f, 1.00f);
   style.Colors[ImGuiCol_TextSelectedBg] = ImVec4(0.00f, 1.00f, 0.00f, 0.21f);
-  style.Colors[ImGuiCol_ModalWindowDarkening] =
-      ImVec4(0.20f, 0.20f, 0.20f, 0.35f);
+  style.Colors[ImGuiCol_ModalWindowDimBg] = ImVec4(0.20f, 0.20f, 0.20f, 0.35f);
 
   io.KeyMap[ImGuiKey_Tab] = 0x09;  // VK_TAB;
   io.KeyMap[ImGuiKey_LeftArrow] = 0x25;
@@ -221,9 +208,16 @@ void ImGuiDrawer::RenderDrawLists(ImDrawData* data) {
 }
 
 ImGuiIO& ImGuiDrawer::GetIO() {
-  current_drawer_ = this;
   ImGui::SetCurrentContext(internal_state_);
   return ImGui::GetIO();
+}
+
+void ImGuiDrawer::RenderDrawLists() {
+  ImGui::SetCurrentContext(internal_state_);
+  auto draw_data = ImGui::GetDrawData();
+  if (draw_data) {
+    RenderDrawLists(draw_data);
+  }
 }
 
 void ImGuiDrawer::OnKeyDown(KeyEvent* e) {

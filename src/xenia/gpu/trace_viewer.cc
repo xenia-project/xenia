@@ -192,7 +192,7 @@ void TraceViewer::DrawMultilineString(const std::string& str) {
 }
 
 void TraceViewer::DrawUI() {
-  // ImGui::ShowTestWindow();
+  // ImGui::ShowDemoWindow();
 
   DrawControllerUI();
   DrawCommandListUI();
@@ -538,7 +538,7 @@ void TraceViewer::DrawCommandListUI() {
   }
   ImGui::PopID();
   if (did_seek && target_command == -1) {
-    ImGui::SetScrollHereY();
+    ImGui::SetScrollHereY(0.5f);
   }
 
   auto id = RecursiveDrawCommandBufferUI(frame, frame->command_tree.get());

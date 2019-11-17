@@ -17,7 +17,6 @@
 #include "xenia/ui/window_listener.h"
 
 struct ImDrawData;
-struct ImFontAtlas;
 struct ImGuiContext;
 struct ImGuiIO;
 
@@ -35,6 +34,7 @@ class ImGuiDrawer : public WindowListener {
   void SetupDefaultInput() {}
 
   ImGuiIO& GetIO();
+  void RenderDrawLists();
 
   static const uint64_t kIgnoreAlpha = (1ull << 63);
 
@@ -58,7 +58,6 @@ class ImGuiDrawer : public WindowListener {
   GraphicsContext* graphics_context_ = nullptr;
 
   ImGuiContext* internal_state_ = nullptr;
-  std::unique_ptr<ImFontAtlas> font_atlas_;
   std::unique_ptr<ImmediateTexture> font_texture_;
 };
 
