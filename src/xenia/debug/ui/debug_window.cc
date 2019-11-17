@@ -321,7 +321,7 @@ void DebugWindow::DrawSourcePane() {
   //   address start - end
   //   name text box (editable)
   //   combo for interleaved + [ppc, hir, opt hir, x64 + byte with sizes]
-  ImGui::AlignFirstTextHeightToWidgets();
+  ImGui::AlignTextToFramePadding();
   ImGui::Text("%s", function->module()->name().c_str());
   ImGui::SameLine();
   ImGui::Dummy(ImVec2(4, 0));
@@ -868,7 +868,7 @@ void DebugWindow::DrawRegistersPane() {
       }
       ImGui::BeginChild("##guest_general");
       ImGui::BeginGroup();
-      ImGui::AlignFirstTextHeightToWidgets();
+      ImGui::AlignTextToFramePadding();
       ImGui::Text(" lr");
       ImGui::SameLine();
       ImGui::Dummy(ImVec2(4, 0));
@@ -877,7 +877,7 @@ void DebugWindow::DrawRegistersPane() {
           DrawRegisterTextBox(100, &thread_info->guest_context.lr);
       ImGui::EndGroup();
       ImGui::BeginGroup();
-      ImGui::AlignFirstTextHeightToWidgets();
+      ImGui::AlignTextToFramePadding();
       ImGui::Text("ctr");
       ImGui::SameLine();
       ImGui::Dummy(ImVec2(4, 0));
@@ -891,7 +891,7 @@ void DebugWindow::DrawRegistersPane() {
       // VSCR
       for (int i = 0; i < 32; ++i) {
         ImGui::BeginGroup();
-        ImGui::AlignFirstTextHeightToWidgets();
+        ImGui::AlignTextToFramePadding();
         ImGui::Text(i < 10 ? " r%d" : "r%d", i);
         ImGui::SameLine();
         ImGui::Dummy(ImVec2(4, 0));
@@ -909,7 +909,7 @@ void DebugWindow::DrawRegistersPane() {
       ImGui::BeginChild("##guest_float");
       for (int i = 0; i < 32; ++i) {
         ImGui::BeginGroup();
-        ImGui::AlignFirstTextHeightToWidgets();
+        ImGui::AlignTextToFramePadding();
         ImGui::Text(i < 10 ? " f%d" : "f%d", i);
         ImGui::SameLine();
         ImGui::Dummy(ImVec2(4, 0));
@@ -927,7 +927,7 @@ void DebugWindow::DrawRegistersPane() {
       ImGui::BeginChild("##guest_vector");
       for (int i = 0; i < 128; ++i) {
         ImGui::BeginGroup();
-        ImGui::AlignFirstTextHeightToWidgets();
+        ImGui::AlignTextToFramePadding();
         ImGui::Text(i < 10 ? "  v%d" : (i < 100 ? " v%d" : "v%d"), i);
         ImGui::SameLine();
         ImGui::Dummy(ImVec2(4, 0));
@@ -943,7 +943,7 @@ void DebugWindow::DrawRegistersPane() {
       for (int i = 0; i < 18; ++i) {
         auto reg = static_cast<X64Register>(i);
         ImGui::BeginGroup();
-        ImGui::AlignFirstTextHeightToWidgets();
+        ImGui::AlignTextToFramePadding();
         ImGui::Text("%3s", X64Context::GetRegisterName(reg));
         ImGui::SameLine();
         ImGui::Dummy(ImVec2(4, 0));
@@ -968,7 +968,7 @@ void DebugWindow::DrawRegistersPane() {
         auto reg =
             static_cast<X64Register>(static_cast<int>(X64Register::kXmm0) + i);
         ImGui::BeginGroup();
-        ImGui::AlignFirstTextHeightToWidgets();
+        ImGui::AlignTextToFramePadding();
         ImGui::Text("%5s", X64Context::GetRegisterName(reg));
         ImGui::SameLine();
         ImGui::Dummy(ImVec2(4, 0));
@@ -1017,7 +1017,7 @@ void DebugWindow::DrawThreadsPane() {
     }
     ImGui::PushID(thread_info);
     if (is_current_thread) {
-      ImGui::SetNextTreeNodeOpened(true, ImGuiSetCond_Always);
+      ImGui::SetNextTreeNodeOpen(true, ImGuiCond_Always);
     }
     const char* state_label = "?";
     if (thread->can_debugger_suspend()) {
@@ -1037,8 +1037,9 @@ void DebugWindow::DrawThreadsPane() {
                   thread->is_guest_thread() ? "guest" : "host", state_label,
                   thread->thread_id(), thread->handle(),
                   thread->name().c_str());
-    if (ImGui::CollapsingHeader(thread_label, nullptr, true,
-                                is_current_thread)) {
+    if (ImGui::CollapsingHeader(
+            thread_label,
+            is_current_thread ? ImGuiTreeNodeFlags_DefaultOpen : 0)) {
       //   |     (log button) detail of kernel call categories
       // log button toggles only logging that thread
       ImGui::BulletText("Call Stack");
@@ -1133,7 +1134,7 @@ void DebugWindow::DrawBreakpointsPane() {
   if (ImGui::BeginPopup("##add_code_breakpoint")) {
     ++add_code_popup_render_count;
 
-    ImGui::AlignFirstTextHeightToWidgets();
+    ImGui::AlignTextToFramePadding();
     ImGui::Text("PPC");
     ImGui::SameLine();
     ImGui::Dummy(ImVec2(2, 0));
@@ -1158,7 +1159,7 @@ void DebugWindow::DrawBreakpointsPane() {
     ImGui::PopItemWidth();
     ImGui::Dummy(ImVec2(0, 2));
 
-    ImGui::AlignFirstTextHeightToWidgets();
+    ImGui::AlignTextToFramePadding();
     ImGui::Text("x64");
     ImGui::SameLine();
     ImGui::Dummy(ImVec2(2, 0));
