@@ -201,8 +201,9 @@ void TraceViewer::DrawUI() {
 }
 
 void TraceViewer::DrawControllerUI() {
-  ImGui::SetNextWindowPos(ImVec2(5, 5), ImGuiSetCond_FirstUseEver);
-  if (!ImGui::Begin("Controller", nullptr, ImVec2(340, 60))) {
+  ImGui::SetNextWindowPos(ImVec2(5, 5), ImGuiCond_FirstUseEver);
+  ImGui::SetNextWindowSize(ImVec2(340, 60));
+  if (!ImGui::Begin("Controller", nullptr)) {
     ImGui::End();
     return;
   }
@@ -248,10 +249,11 @@ void TraceViewer::DrawControllerUI() {
 }
 
 void TraceViewer::DrawPacketDisassemblerUI() {
-  ImGui::SetNextWindowCollapsed(true, ImGuiSetCond_FirstUseEver);
+  ImGui::SetNextWindowCollapsed(true, ImGuiCond_FirstUseEver);
   ImGui::SetNextWindowPos(ImVec2(float(window_->width()) - 500 - 5, 5),
-                          ImGuiSetCond_FirstUseEver);
-  if (!ImGui::Begin("Packet Disassembler", nullptr, ImVec2(500, 300))) {
+                          ImGuiCond_FirstUseEver);
+  ImGui::SetNextWindowSize(ImVec2(500, 300));
+  if (!ImGui::Begin("Packet Disassembler", nullptr)) {
     ImGui::End();
     return;
   }
@@ -456,8 +458,9 @@ int TraceViewer::RecursiveDrawCommandBufferUI(
 }
 
 void TraceViewer::DrawCommandListUI() {
-  ImGui::SetNextWindowPos(ImVec2(5, 70), ImGuiSetCond_FirstUseEver);
-  if (!ImGui::Begin("Command List", nullptr, ImVec2(200, 640))) {
+  ImGui::SetNextWindowPos(ImVec2(5, 70), ImGuiCond_FirstUseEver);
+  ImGui::SetNextWindowSize(ImVec2(200, 640));
+  if (!ImGui::Begin("Command List", nullptr)) {
     ImGui::End();
     return;
   }
@@ -535,7 +538,7 @@ void TraceViewer::DrawCommandListUI() {
   }
   ImGui::PopID();
   if (did_seek && target_command == -1) {
-    ImGui::SetScrollPosHere();
+    ImGui::SetScrollHereY();
   }
 
   auto id = RecursiveDrawCommandBufferUI(frame, frame->command_tree.get());
@@ -1052,8 +1055,9 @@ void TraceViewer::DrawStateUI() {
   auto& regs = *graphics_system_->register_file();
 
   ImGui::SetNextWindowPos(ImVec2(float(window_->width()) - 500 - 5, 30),
-                          ImGuiSetCond_FirstUseEver);
-  if (!ImGui::Begin("State", nullptr, ImVec2(500, 680))) {
+                          ImGuiCond_FirstUseEver);
+  ImGui::SetNextWindowSize(ImVec2(500, 680));
+  if (!ImGui::Begin("State", nullptr)) {
     ImGui::End();
     return;
   }
@@ -1330,7 +1334,8 @@ void TraceViewer::DrawStateUI() {
       ImGui::BulletText("Blend Color: (%.2f,%.2f,%.2f,%.2f)", blend_color.x,
                         blend_color.y, blend_color.z, blend_color.w);
       ImGui::SameLine();
-      ImGui::ColorButton(blend_color, true);
+      // TODO small_height (was true) parameter was removed
+      ImGui::ColorButton(nullptr, blend_color);
 
       uint32_t rb_color_mask = regs[XE_GPU_REG_RB_COLOR_MASK].u32;
       uint32_t color_info[4] = {
