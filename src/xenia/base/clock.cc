@@ -16,6 +16,11 @@
 #include "xenia/base/assert.h"
 #include "xenia/base/math.h"
 
+DEFINE_bool(clock_no_scaling, false,
+            "Disable scaling code. Time management and locking is bypassed. "
+            "Guest system time is directly pulled from host.",
+            "CPU");
+
 namespace xe {
 
 // Time scalar applied to all time operations.
@@ -61,6 +66,11 @@ void RecomputeGuestTickScalar() {
 uint64_t UpdateGuestClock() {
   uint64_t host_tick_count = Clock::QueryHostTickCount();
 
+  if (cvars::clock_no_scaling) {
+    // Nothing to update, calculate on the fly
+    return host_tick_count * guest_tick_ratio_.first / guest_tick_ratio_.second;
+  }
+
   std::unique_lock<std::mutex> lock(tick_mutex_, std::defer_lock);
   if (lock.try_lock()) {
     // Translate host tick count to guest tick count.
@@ -81,6 +91,10 @@ uint64_t UpdateGuestClock() {
 
 // Offset of the current guest system file time relative to the guest base time.
 inline uint64_t QueryGuestSystemTimeOffset() {
+  if (cvars::clock_no_scaling) {
+    return Clock::QueryHostSystemTime() - guest_system_time_base_;
+  }
+
   auto guest_tick_count = UpdateGuestClock();
 
   uint64_t numerator = 10000000;  // 100ns/10MHz resolution
@@ -93,6 +107,10 @@ inline uint64_t QueryGuestSystemTimeOffset() {
 double Clock::guest_time_scalar() { return guest_time_scalar_; }
 
 void Clock::set_guest_time_scalar(double scalar) {
+  if (cvars::clock_no_scaling) {
+    return;
+  }
+
   guest_time_scalar_ = scalar;
   RecomputeGuestTickScalar();
 }
@@ -116,6 +134,10 @@ uint64_t Clock::QueryGuestTickCount() {
 }
 
 uint64_t Clock::QueryGuestSystemTime() {
+  if (cvars::clock_no_scaling) {
+    return Clock::QueryHostSystemTime();
+  }
+
   auto guest_system_time_offset = QueryGuestSystemTimeOffset();
   return guest_system_time_base_ + guest_system_time_offset;
 }
@@ -127,12 +149,21 @@ uint32_t Clock::QueryGuestUptimeMillis() {
 }
 
 void Clock::SetGuestSystemTime(uint64_t system_time) {
+  if (cvars::clock_no_scaling) {
+    // Time is fixed to host time.
+    return;
+  }
+
   // Query the filetime offset to calculate a new base time.
   auto guest_system_time_offset = QueryGuestSystemTimeOffset();
   guest_system_time_base_ = system_time - guest_system_time_offset;
 }
 
 uint32_t Clock::ScaleGuestDurationMillis(uint32_t guest_ms) {
+  if (cvars::clock_no_scaling) {
+    return guest_ms;
+  }
+
   constexpr uint64_t max = std::numeric_limits<uint32_t>::max();
 
   if (guest_ms >= max) {
@@ -146,6 +177,10 @@ uint32_t Clock::ScaleGuestDurationMillis(uint32_t guest_ms) {
 }
 
 int64_t Clock::ScaleGuestDurationFileTime(int64_t guest_file_time) {
+  if (cvars::clock_no_scaling) {
+    return static_cast<uint64_t>(guest_file_time);
+  }
+
   if (!guest_file_time) {
     return 0;
   } else if (guest_file_time > 0) {
@@ -165,6 +200,10 @@ int64_t Clock::ScaleGuestDurationFileTime(int64_t guest_file_time) {
 }
 
 void Clock::ScaleGuestDurationTimeval(int32_t* tv_sec, int32_t* tv_usec) {
+  if (cvars::clock_no_scaling) {
+    return;
+  }
+
   uint64_t scaled_sec = static_cast<uint64_t>(static_cast<uint64_t>(*tv_sec) *
                                               guest_time_scalar_);
   uint64_t scaled_usec = static_cast<uint64_t>(static_cast<uint64_t>(*tv_usec) *
