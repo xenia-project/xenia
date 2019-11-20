@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2015 Ben Vanik. All rights reserved.                             *
+ * Copyright 2019 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -47,9 +47,7 @@ class Clock {
   // Queries the milliseconds since the guest began, accounting for scaling.
   static uint32_t QueryGuestUptimeMillis();
 
-  // Sets the guest tick count for the current thread.
-  static void SetGuestTickCount(uint64_t tick_count);
-  // Sets the system time for the current thread.
+  // Sets the system time of the guest.
   static void SetGuestSystemTime(uint64_t system_time);
 
   // Scales a time duration in milliseconds, from guest time.
