@@ -12,6 +12,10 @@
 
 #include <cstdint>
 
+#include "xenia/base/cvar.h"
+
+DECLARE_bool(clock_no_scaling);
+
 namespace xe {
 
 class Clock {
