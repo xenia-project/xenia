@@ -126,13 +126,6 @@ uint32_t Clock::QueryGuestUptimeMillis() {
                          std::numeric_limits<uint32_t>::max()));
 }
 
-void Clock::SetGuestTickCount(uint64_t tick_count) {
-  std::lock_guard<std::mutex> lock(tick_mutex_);
-
-  last_host_tick_count_ = Clock::QueryHostTickCount();
-  last_guest_tick_count_ = tick_count;
-}
-
 void Clock::SetGuestSystemTime(uint64_t system_time) {
   // Query the filetime offset to calculate a new base time.
   auto guest_system_time_offset = QueryGuestSystemTimeOffset();
