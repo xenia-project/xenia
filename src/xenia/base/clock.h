@@ -15,13 +15,22 @@
 #include "xenia/base/cvar.h"
 
 DECLARE_bool(clock_no_scaling);
+DECLARE_bool(clock_source_raw);
 
 namespace xe {
 
 class Clock {
  public:
-  // Host ticks-per-second.
-  static uint64_t host_tick_frequency();
+  // Host ticks-per-second. Generally QueryHostTickFrequency should be used.
+  // Either from platform suplied time source or from hardware directly.
+  static uint64_t host_tick_frequency_platform();
+  static uint64_t host_tick_frequency_raw();
+  // Host tick count. Generally QueryHostTickCount() should be used.
+  static uint64_t host_tick_count_platform();
+  static uint64_t host_tick_count_raw();
+
+  // Queries the host tick frequency.
+  static uint64_t QueryHostTickFrequency();
   // Queries the current host tick count.
   static uint64_t QueryHostTickCount();
   // Host time, in FILETIME format.
@@ -43,6 +52,7 @@ class Clock {
   // Sets the guest time base, used for computing the system time.
   // By default this is the current system time.
   static void set_guest_system_time_base(uint64_t time_base);
+
   // Queries the current guest tick count, accounting for frequency adjustment
   // and scaling.
   static uint64_t QueryGuestTickCount();

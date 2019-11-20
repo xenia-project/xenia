@@ -20,13 +20,17 @@ DEFINE_bool(clock_no_scaling, false,
             "Disable scaling code. Time management and locking is bypassed. "
             "Guest system time is directly pulled from host.",
             "CPU");
+DEFINE_bool(clock_source_raw, false,
+            "Use the RDTSC instruction as the time source. "
+            "Host CPU must support invariant TSC. ",
+            "CPU");
 
 namespace xe {
 
 // Time scalar applied to all time operations.
 double guest_time_scalar_ = 1.0;
 // Tick frequency of guest.
-uint64_t guest_tick_frequency_ = Clock::host_tick_frequency();
+uint64_t guest_tick_frequency_ = Clock::host_tick_frequency_platform();
 // Base FILETIME of the guest system from app start.
 uint64_t guest_system_time_base_ = Clock::QueryHostSystemTime();
 // Combined time and frequency ratio between host and guest.
@@ -44,7 +48,7 @@ std::mutex tick_mutex_;
 void RecomputeGuestTickScalar() {
   // Create a rational number with numerator (first) and denominator (second)
   auto frac =
-      std::make_pair(guest_tick_frequency_, Clock::host_tick_frequency());
+      std::make_pair(guest_tick_frequency_, Clock::QueryHostTickFrequency());
   // Doing it this way ensures we don't mess up our frequency scaling and
   // precisely controls the precision the guest_time_scalar_ can have.
   if (guest_time_scalar_ > 1.0) {
@@ -102,6 +106,21 @@ inline uint64_t QueryGuestSystemTimeOffset() {
   reduce_fraction(numerator, denominator);
 
   return guest_tick_count * numerator / denominator;
+}
+
+uint64_t Clock::QueryHostTickFrequency() {
+  if (cvars::clock_source_raw) {
+    return host_tick_frequency_raw();
+  } else {
+    return host_tick_frequency_platform();
+  }
+}
+uint64_t Clock::QueryHostTickCount() {
+  if (cvars::clock_source_raw) {
+    return host_tick_count_raw();
+  } else {
+    return host_tick_count_platform();
+  }
 }
 
 double Clock::guest_time_scalar() { return guest_time_scalar_; }
