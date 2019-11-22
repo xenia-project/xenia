@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2014 Ben Vanik. All rights reserved.                             *
+ * Copyright 2019 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -440,9 +440,34 @@ EMITTER_OPCODE_TABLE(OPCODE_ROUND, ROUND_F32, ROUND_F64, ROUND_V128);
 // ============================================================================
 struct LOAD_CLOCK : Sequence<LOAD_CLOCK, I<OPCODE_LOAD_CLOCK, I64Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    // It'd be cool to call QueryPerformanceCounter directly, but w/e.
-    e.CallNative(LoadClock);
-    e.mov(i.dest, e.rax);
+    // When scaling is disabled and the raw clock source is selected, the code
+    // in the Clock class is actually just forwarding tick counts after one
+    // simple multiply and division. In that case we rather bake the scaling in
+    // here to cut extra function calls with CPU cache misses and stack frame
+    // overhead.
+    if (cvars::clock_no_scaling && cvars::clock_source_raw) {
+      auto ratio = Clock::guest_tick_ratio();
+      // The 360 CPU is an in-order CPU, AMD64 usually isn't. Without
+      // mfence/lfence magic the rdtsc instruction can be executed sooner or
+      // later in the cache window. Since it's resolution however is much higher
+      // than the 360's mftb instruction this can safely be ignored.
+
+      // Read time stamp in edx (high part) and eax (low part).
+      e.rdtsc();
+      // Make it a 64 bit number in rax.
+      e.shl(e.rdx, 32);
+      e.or_(e.rax, e.rdx);
+      // Apply tick frequency scaling.
+      e.mov(e.rcx, ratio.first);
+      e.mul(e.rcx);
+      // We actually now have a 128 bit number in rdx:rax.
+      e.mov(e.rcx, ratio.second);
+      e.div(e.rcx);
+      e.mov(i.dest, e.rax);
+    } else {
+      e.CallNative(LoadClock);
+      e.mov(i.dest, e.rax);
+    }
   }
   static uint64_t LoadClock(void* raw_context) {
     return Clock::QueryGuestTickCount();
