@@ -134,6 +134,11 @@ void Clock::set_guest_time_scalar(double scalar) {
   RecomputeGuestTickScalar();
 }
 
+std::pair<uint64_t, uint64_t> Clock::guest_tick_ratio() {
+  std::lock_guard<std::mutex> lock(tick_mutex_);
+  return guest_tick_ratio_;
+}
+
 uint64_t Clock::guest_tick_frequency() { return guest_tick_frequency_; }
 
 void Clock::set_guest_tick_frequency(uint64_t frequency) {
