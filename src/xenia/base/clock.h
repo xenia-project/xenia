@@ -43,6 +43,8 @@ class Clock {
   // Sets the guest time scalar, adjusting tick and wall clock speed.
   // Ex: 1x=normal, 2x=double speed, 1/2x=half speed.
   static void set_guest_time_scalar(double scalar);
+  // Get the tick ration between host and guest including time scaling if set.
+  static std::pair<uint64_t, uint64_t> guest_tick_ratio();
   // Guest ticks-per-second.
   static uint64_t guest_tick_frequency();
   // Sets the guest ticks-per-second.
