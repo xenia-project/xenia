@@ -78,70 +78,35 @@ DECLARE_XBOXKRNL_EXPORT1(ObLookupThreadByThreadId, kNone, kImplemented);
 dword_result_t ObReferenceObjectByHandle(dword_t handle,
                                          dword_t object_type_ptr,
                                          lpdword_t out_object_ptr) {
-  X_STATUS result = X_STATUS_SUCCESS;
+  const static std::unordered_map<XObject::Type, uint32_t> obj_type_match = {
+      {XObject::kTypeEvent, 0xD00EBEEF},
+      {XObject::kTypeSemaphore, 0xD017BEEF},
+      {XObject::kTypeThread, 0xD01BBEEF}};
 
   auto object = kernel_state()->object_table()->LookupObject<XObject>(handle);
-  if (object) {
-    // TODO(benvanik): verify type with object_type_ptr
 
-    // TODO(benvanik): get native value, if supported.
-    uint32_t native_ptr;
-    switch (object_type_ptr) {
-      case 0x00000000: {  // whatever?
-        switch (object->type()) {
-          case XObject::kTypeEvent: {
-            assert(object->type() == XObject::kTypeEvent);
-            native_ptr = object->guest_object();
-            assert_not_zero(native_ptr);
-          } break;
-          case XObject::kTypeSemaphore: {
-            assert(object->type() == XObject::kTypeSemaphore);
-            native_ptr = object->guest_object();
-            assert_not_zero(native_ptr);
-          } break;
-          case XObject::kTypeThread: {
-            assert(object->type() == XObject::kTypeThread);
-            native_ptr = object->guest_object();
-            assert_not_zero(native_ptr);
-          } break;
-          default: {
-            assert_unhandled_case(object->type());
-            native_ptr = 0xDEADF00D;
-          } break;
-        }
-      } break;
-      case 0xD00EBEEF: {  // ExEventObjectType
-        assert(object->type() == XObject::kTypeEvent);
-        native_ptr = object->guest_object();
-        assert_not_zero(native_ptr);
-      } break;
-      case 0xD017BEEF: {  // ExSemaphoreObjectType
-        assert(object->type() == XObject::kTypeSemaphore);
-        native_ptr = object->guest_object();
-        assert_not_zero(native_ptr);
-      } break;
-      case 0xD01BBEEF: {  // ExThreadObjectType
-        assert(object->type() == XObject::kTypeThread);
-        native_ptr = object->guest_object();
-        assert_not_zero(native_ptr);
-      } break;
-      default: {
-        assert_unhandled_case(object_type_ptr);
-        native_ptr = 0xDEADF00D;
-      } break;
-    }
-
-    // Caller takes the reference.
-    // It's released in ObDereferenceObject.
-    object->RetainHandle();
-    if (out_object_ptr.guest_address()) {
-      *out_object_ptr = native_ptr;
-    }
-  } else {
-    result = X_STATUS_INVALID_HANDLE;
+  if (!object) {
+    return X_STATUS_INVALID_HANDLE;
   }
 
-  return result;
+  uint32_t native_ptr = object->guest_object();
+  auto obj_type = obj_type_match.find(object->type());
+
+  if (obj_type != obj_type_match.end()) {
+    if (object_type_ptr && object_type_ptr != obj_type->second) {
+      return X_STATUS_OBJECT_TYPE_MISMATCH;
+    }
+  } else {
+    assert_unhandled_case(object->type());
+    native_ptr = 0xDEADF00D;
+  }
+  // Caller takes the reference.
+  // It's released in ObDereferenceObject.
+  object->RetainHandle();
+  if (out_object_ptr.guest_address()) {
+    *out_object_ptr = native_ptr;
+  }
+  return X_STATUS_SUCCESS;
 }
 DECLARE_XBOXKRNL_EXPORT1(ObReferenceObjectByHandle, kNone, kImplemented);
 
