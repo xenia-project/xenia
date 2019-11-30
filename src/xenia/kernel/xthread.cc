@@ -364,7 +364,7 @@ X_STATUS XThread::Create() {
   InitializeGuestObject();
 
   // Always retain when starting - the thread owns itself until exited.
-  Retain();
+  RetainHandle();
 
   xe::threading::Thread::CreationParameters params;
   params.stack_size = 16 * 1024 * 1024;  // Allocate a big host stack.
@@ -405,7 +405,7 @@ X_STATUS XThread::Create() {
     xe::Profiler::ThreadExit();
 
     // Release the self-reference to the thread.
-    Release();
+    ReleaseHandle();
   });
 
   if (!thread_) {
@@ -464,7 +464,7 @@ X_STATUS XThread::Exit(int exit_code) {
   xe::Profiler::ThreadExit();
 
   running_ = false;
-  Release();
+  ReleaseHandle();
 
   // NOTE: this does not return!
   xe::threading::Thread::Exit(exit_code);
@@ -484,11 +484,11 @@ X_STATUS XThread::Terminate(int exit_code) {
 
   running_ = false;
   if (XThread::IsInThread(this)) {
-    Release();
+    ReleaseHandle();
     xe::threading::Thread::Exit(exit_code);
   } else {
     thread_->Terminate(exit_code);
-    Release();
+    ReleaseHandle();
   }
 
   return X_STATUS_SUCCESS;
@@ -991,7 +991,7 @@ object_ref<XThread> XThread::Restore(KernelState* kernel_state,
     context->vscr_sat = state.context.vscr_sat;
 
     // Always retain when starting - the thread owns itself until exited.
-    thread->Retain();
+    thread->RetainHandle();
 
     xe::threading::Thread::CreationParameters params;
     params.create_suspended = true;  // Not done restoring yet.
@@ -1033,7 +1033,7 @@ object_ref<XThread> XThread::Restore(KernelState* kernel_state,
       xe::Profiler::ThreadExit();
 
       // Release the self-reference to the thread.
-      thread->Release();
+      thread->ReleaseHandle();
     });
 
     // Notify processor we were recreated.
