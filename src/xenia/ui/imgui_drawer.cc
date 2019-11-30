@@ -45,6 +45,11 @@ void ImGuiDrawer::Initialize() {
 
   auto& io = ImGui::GetIO();
 
+  // TODO(gibbed): disable imgui.ini saving for now,
+  // imgui assumes paths are char* so we can't throw a good path at it on
+  // Windows.
+  io.IniFilename = nullptr;
+
   SetupFont();
 
   io.DeltaTime = 1.0f / 60.0f;
