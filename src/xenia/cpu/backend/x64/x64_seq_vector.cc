@@ -1223,26 +1223,24 @@ struct VECTOR_ROTATE_LEFT_V128
     switch (i.instr->flags) {
       case INT8_TYPE:
         // TODO(benvanik): native version (with shift magic).
-        e.lea(e.GetNativeParam(0), e.StashXmm(0, i.src1));
         if (i.src2.is_constant) {
-          e.LoadConstantXmm(e.xmm0, i.src2.constant());
-          e.lea(e.GetNativeParam(1), e.StashXmm(1, e.xmm0));
+          e.lea(e.GetNativeParam(1), e.StashConstantXmm(1, i.src2.constant()));
         } else {
           e.lea(e.GetNativeParam(1), e.StashXmm(1, i.src2));
         }
+        e.lea(e.GetNativeParam(0), e.StashXmm(0, i.src1));
         e.CallNativeSafe(
             reinterpret_cast<void*>(EmulateVectorRotateLeft<uint8_t>));
         e.vmovaps(i.dest, e.xmm0);
         break;
       case INT16_TYPE:
         // TODO(benvanik): native version (with shift magic).
-        e.lea(e.GetNativeParam(0), e.StashXmm(0, i.src1));
         if (i.src2.is_constant) {
-          e.LoadConstantXmm(e.xmm0, i.src2.constant());
-          e.lea(e.GetNativeParam(1), e.StashXmm(1, e.xmm0));
+          e.lea(e.GetNativeParam(1), e.StashConstantXmm(1, i.src2.constant()));
         } else {
           e.lea(e.GetNativeParam(1), e.StashXmm(1, i.src2));
         }
+        e.lea(e.GetNativeParam(0), e.StashXmm(0, i.src1));
         e.CallNativeSafe(
             reinterpret_cast<void*>(EmulateVectorRotateLeft<uint16_t>));
         e.vmovaps(i.dest, e.xmm0);
@@ -1264,13 +1262,13 @@ struct VECTOR_ROTATE_LEFT_V128
           e.vpor(i.dest, e.xmm1);
         } else {
           // TODO(benvanik): non-AVX2 native version.
-          e.lea(e.GetNativeParam(0), e.StashXmm(0, i.src1));
           if (i.src2.is_constant) {
-            e.LoadConstantXmm(e.xmm0, i.src2.constant());
-            e.lea(e.GetNativeParam(1), e.StashXmm(1, e.xmm0));
+            e.lea(e.GetNativeParam(1),
+                  e.StashConstantXmm(1, i.src2.constant()));
           } else {
             e.lea(e.GetNativeParam(1), e.StashXmm(1, i.src2));
           }
+          e.lea(e.GetNativeParam(0), e.StashXmm(0, i.src1));
           e.CallNativeSafe(
               reinterpret_cast<void*>(EmulateVectorRotateLeft<uint32_t>));
           e.vmovaps(i.dest, e.xmm0);
