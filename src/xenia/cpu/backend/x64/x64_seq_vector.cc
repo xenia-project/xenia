@@ -1252,7 +1252,12 @@ struct VECTOR_ROTATE_LEFT_V128
             temp = e.xmm2;
           }
           // Shift left (to get high bits):
-          e.vpand(e.xmm0, i.src2, e.GetXmmConstPtr(XMMShiftMaskPS));
+          if (i.src2.is_constant) {
+            e.LoadConstantXmm(temp, i.src2.constant());
+            e.vpand(e.xmm0, temp, e.GetXmmConstPtr(XMMShiftMaskPS));
+          } else {
+            e.vpand(e.xmm0, i.src2, e.GetXmmConstPtr(XMMShiftMaskPS));
+          }
           e.vpsllvd(e.xmm1, i.src1, e.xmm0);
           // Shift right (to get low bits):
           e.vmovaps(temp, e.GetXmmConstPtr(XMMPI32));
