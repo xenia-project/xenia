@@ -709,8 +709,7 @@ struct VECTOR_SHL_V128
   static void EmitInt8(X64Emitter& e, const EmitArgType& i) {
     // TODO(benvanik): native version (with shift magic).
     if (i.src2.is_constant) {
-      e.LoadConstantXmm(e.xmm0, i.src2.constant());
-      e.lea(e.GetNativeParam(1), e.StashXmm(1, e.xmm0));
+      e.lea(e.GetNativeParam(1), e.StashConstantXmm(1, i.src2.constant()));
     } else {
       e.lea(e.GetNativeParam(1), e.StashXmm(1, i.src2));
     }
@@ -767,8 +766,7 @@ struct VECTOR_SHL_V128
     // TODO(benvanik): native version (with shift magic).
     e.L(emu);
     if (i.src2.is_constant) {
-      e.LoadConstantXmm(e.xmm0, i.src2.constant());
-      e.lea(e.GetNativeParam(1), e.StashXmm(1, e.xmm0));
+      e.lea(e.GetNativeParam(1), e.StashConstantXmm(1, i.src2.constant()));
     } else {
       e.lea(e.GetNativeParam(1), e.StashXmm(1, i.src2));
     }
@@ -844,8 +842,7 @@ struct VECTOR_SHL_V128
       // TODO(benvanik): native version (with shift magic).
       e.L(emu);
       if (i.src2.is_constant) {
-        e.LoadConstantXmm(e.xmm0, i.src2.constant());
-        e.lea(e.GetNativeParam(1), e.StashXmm(1, e.xmm0));
+        e.lea(e.GetNativeParam(1), e.StashConstantXmm(1, i.src2.constant()));
       } else {
         e.lea(e.GetNativeParam(1), e.StashXmm(1, i.src2));
       }
@@ -901,8 +898,7 @@ struct VECTOR_SHR_V128
   static void EmitInt8(X64Emitter& e, const EmitArgType& i) {
     // TODO(benvanik): native version (with shift magic).
     if (i.src2.is_constant) {
-      e.LoadConstantXmm(e.xmm0, i.src2.constant());
-      e.lea(e.GetNativeParam(1), e.StashXmm(1, e.xmm0));
+      e.lea(e.GetNativeParam(1), e.StashConstantXmm(1, i.src2.constant()));
     } else {
       e.lea(e.GetNativeParam(1), e.StashXmm(1, i.src2));
     }
@@ -951,8 +947,7 @@ struct VECTOR_SHR_V128
     // TODO(benvanik): native version (with shift magic).
     e.L(emu);
     if (i.src2.is_constant) {
-      e.LoadConstantXmm(e.xmm0, i.src2.constant());
-      e.lea(e.GetNativeParam(1), e.StashXmm(1, e.xmm0));
+      e.lea(e.GetNativeParam(1), e.StashConstantXmm(1, i.src2.constant()));
     } else {
       e.lea(e.GetNativeParam(1), e.StashXmm(1, i.src2));
     }
@@ -1028,8 +1023,7 @@ struct VECTOR_SHR_V128
       // TODO(benvanik): native version.
       e.L(emu);
       if (i.src2.is_constant) {
-        e.LoadConstantXmm(e.xmm0, i.src2.constant());
-        e.lea(e.GetNativeParam(1), e.StashXmm(1, e.xmm0));
+        e.lea(e.GetNativeParam(1), e.StashConstantXmm(1, i.src2.constant()));
       } else {
         e.lea(e.GetNativeParam(1), e.StashXmm(1, i.src2));
       }
@@ -1068,8 +1062,7 @@ struct VECTOR_SHA_V128
   static void EmitInt8(X64Emitter& e, const EmitArgType& i) {
     // TODO(benvanik): native version (with shift magic).
     if (i.src2.is_constant) {
-      e.LoadConstantXmm(e.xmm0, i.src2.constant());
-      e.lea(e.GetNativeParam(1), e.StashXmm(1, e.xmm0));
+      e.lea(e.GetNativeParam(1), e.StashConstantXmm(1, i.src2.constant()));
     } else {
       e.lea(e.GetNativeParam(1), e.StashXmm(1, i.src2));
     }
@@ -1118,8 +1111,7 @@ struct VECTOR_SHA_V128
     // TODO(benvanik): native version (with shift magic).
     e.L(emu);
     if (i.src2.is_constant) {
-      e.LoadConstantXmm(e.xmm0, i.src2.constant());
-      e.lea(e.GetNativeParam(1), e.StashXmm(1, e.xmm0));
+      e.lea(e.GetNativeParam(1), e.StashConstantXmm(1, i.src2.constant()));
     } else {
       e.lea(e.GetNativeParam(1), e.StashXmm(1, i.src2));
     }
@@ -1180,8 +1172,7 @@ struct VECTOR_SHA_V128
       // TODO(benvanik): native version.
       e.L(emu);
       if (i.src2.is_constant) {
-        e.LoadConstantXmm(e.xmm0, i.src2.constant());
-        e.lea(e.GetNativeParam(1), e.StashXmm(1, e.xmm0));
+        e.lea(e.GetNativeParam(1), e.StashConstantXmm(1, i.src2.constant()));
       } else {
         e.lea(e.GetNativeParam(1), e.StashXmm(1, i.src2));
       }
@@ -1340,8 +1331,8 @@ struct VECTOR_AVERAGE
               // No 32bit averages in AVX.
               if (is_unsigned) {
                 if (i.src2.is_constant) {
-                  e.LoadConstantXmm(e.xmm0, i.src2.constant());
-                  e.lea(e.GetNativeParam(1), e.StashXmm(1, e.xmm0));
+                  e.lea(e.GetNativeParam(1),
+                        e.StashConstantXmm(1, i.src2.constant()));
                 } else {
                   e.lea(e.GetNativeParam(1), e.StashXmm(1, i.src2));
                 }
@@ -1351,8 +1342,8 @@ struct VECTOR_AVERAGE
                 e.vmovaps(i.dest, e.xmm0);
               } else {
                 if (i.src2.is_constant) {
-                  e.LoadConstantXmm(e.xmm0, i.src2.constant());
-                  e.lea(e.GetNativeParam(1), e.StashXmm(1, e.xmm0));
+                  e.lea(e.GetNativeParam(1),
+                        e.StashConstantXmm(1, i.src2.constant()));
                 } else {
                   e.lea(e.GetNativeParam(1), e.StashXmm(1, i.src2));
                 }
@@ -1877,8 +1868,8 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
     // http://blogs.msdn.com/b/chuckw/archive/2012/09/11/directxmath-f16c-and-fma.aspx
     // dest = [(src1.x | src1.y), 0, 0, 0]
 
-    Xmm src;
     if (e.IsFeatureEnabled(kX64EmitF16C)) {
+      Xmm src;
       if (i.src1.is_constant) {
         src = i.dest;
         e.LoadConstantXmm(src, i.src1.constant());
@@ -1891,12 +1882,10 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
       e.vpshufb(i.dest, i.dest, e.GetXmmConstPtr(XMMPackFLOAT16_2));
     } else {
       if (i.src1.is_constant) {
-        src = e.xmm0;
-        e.LoadConstantXmm(src, i.src1.constant());
+        e.lea(e.GetNativeParam(0), e.StashConstantXmm(0, i.src1.constant()));
       } else {
-        src = i.src1;
+        e.lea(e.GetNativeParam(0), e.StashXmm(0, i.src1));
       }
-      e.lea(e.GetNativeParam(0), e.StashXmm(0, src));
       e.CallNativeSafe(reinterpret_cast<void*>(EmulateFLOAT16_2));
       e.vmovaps(i.dest, e.xmm0);
     }
@@ -1918,8 +1907,8 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
     assert_true(i.src2.value->IsConstantZero());
     // dest = [(src1.z | src1.w), (src1.x | src1.y), 0, 0]
 
-    Xmm src;
     if (e.IsFeatureEnabled(kX64EmitF16C)) {
+      Xmm src;
       if (i.src1.is_constant) {
         src = i.dest;
         e.LoadConstantXmm(src, i.src1.constant());
@@ -1932,12 +1921,10 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
       e.vpshufb(i.dest, i.dest, e.GetXmmConstPtr(XMMPackFLOAT16_4));
     } else {
       if (i.src1.is_constant) {
-        src = e.xmm0;
-        e.LoadConstantXmm(src, i.src1.constant());
+        e.lea(e.GetNativeParam(0), e.StashConstantXmm(0, i.src1.constant()));
       } else {
-        src = i.src1;
+        e.lea(e.GetNativeParam(0), e.StashXmm(0, i.src1));
       }
-      e.lea(e.GetNativeParam(0), e.StashXmm(0, src));
       e.CallNativeSafe(reinterpret_cast<void*>(EmulateFLOAT16_4));
       e.vmovaps(i.dest, e.xmm0);
     }
@@ -2066,8 +2053,8 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
         if (IsPackOutSaturate(flags)) {
           // unsigned -> unsigned + saturate
           if (i.src2.is_constant) {
-            e.LoadConstantXmm(e.xmm0, i.src2.constant());
-            e.lea(e.GetNativeParam(1), e.StashXmm(1, e.xmm0));
+            e.lea(e.GetNativeParam(1),
+                  e.StashConstantXmm(1, i.src2.constant()));
           } else {
             e.lea(e.GetNativeParam(1), e.StashXmm(1, i.src2));
           }
@@ -2308,8 +2295,8 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
     // Also zero out the high end.
     // TODO(benvanik): special case constant unpacks that just get 0/1/etc.
 
-    Xmm src;
     if (e.IsFeatureEnabled(kX64EmitF16C)) {
+      Xmm src;
       if (i.src1.is_constant) {
         src = i.dest;
         e.LoadConstantXmm(src, i.src1.constant());
@@ -2329,12 +2316,10 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
       e.vpor(i.dest, e.GetXmmConstPtr(XMM0001));
     } else {
       if (i.src1.is_constant) {
-        src = e.xmm0;
-        e.LoadConstantXmm(src, i.src1.constant());
+        e.lea(e.GetNativeParam(0), e.StashConstantXmm(0, i.src1.constant()));
       } else {
-        src = i.src1;
+        e.lea(e.GetNativeParam(0), e.StashXmm(0, i.src1));
       }
-      e.lea(e.GetNativeParam(0), e.StashXmm(0, src));
       e.CallNativeSafe(reinterpret_cast<void*>(EmulateFLOAT16_2));
       e.vmovaps(i.dest, e.xmm0);
     }
@@ -2352,8 +2337,8 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
   }
   static void EmitFLOAT16_4(X64Emitter& e, const EmitArgType& i) {
     // src = [(dest.x | dest.y), (dest.z | dest.w), 0, 0]
-    Xmm src;
     if (e.IsFeatureEnabled(kX64EmitF16C)) {
+      Xmm src;
       if (i.src1.is_constant) {
         src = i.dest;
         e.LoadConstantXmm(src, i.src1.constant());
@@ -2365,12 +2350,10 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
       e.vcvtph2ps(i.dest, i.dest);
     } else {
       if (i.src1.is_constant) {
-        src = e.xmm0;
-        e.LoadConstantXmm(src, i.src1.constant());
+        e.lea(e.GetNativeParam(0), e.StashConstantXmm(0, i.src1.constant()));
       } else {
-        src = i.src1;
+        e.lea(e.GetNativeParam(0), e.StashXmm(0, i.src1));
       }
-      e.lea(e.GetNativeParam(0), e.StashXmm(0, src));
       e.CallNativeSafe(reinterpret_cast<void*>(EmulateFLOAT16_4));
       e.vmovaps(i.dest, e.xmm0);
     }
