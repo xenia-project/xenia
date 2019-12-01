@@ -180,9 +180,9 @@ class Window {
 
   uint32_t frame_count_ = 0;
   uint32_t fps_ = 0;
-  uint64_t fps_update_time_ns_ = 0;
+  uint64_t fps_update_time_ticks_ = 0;
   uint64_t fps_frame_count_ = 0;
-  uint64_t last_paint_time_ns_ = 0;
+  uint64_t last_paint_time_ticks_ = 0;
 
   bool modifier_shift_pressed_ = false;
   bool modifier_cntrl_pressed_ = false;
