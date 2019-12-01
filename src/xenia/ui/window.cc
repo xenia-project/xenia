@@ -199,13 +199,14 @@ void Window::OnPaint(UIEvent* e) {
   }
   io.DisplaySize = ImVec2(static_cast<float>(scaled_width()),
                           static_cast<float>(scaled_height()));
-  ImGui::NewFrame();
 
   context_->BeginSwap();
   if (context_->WasLost()) {
     on_context_lost(e);
     return;
   }
+
+  ImGui::NewFrame();
 
   ForEachListener([e](auto listener) { listener->OnPainting(e); });
   on_painting(e);
