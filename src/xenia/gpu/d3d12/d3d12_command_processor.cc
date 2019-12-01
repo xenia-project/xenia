@@ -770,9 +770,15 @@ bool D3D12CommandProcessor::SetupContext() {
       std::make_unique<ui::d3d12::UploadBufferPool>(device, 1024 * 1024);
   view_heap_pool_ = std::make_unique<ui::d3d12::DescriptorHeapPool>(
       device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 32768);
-  // Can't create a shader-visible heap with more than 2048 samplers.
+  // Direct3D 12 only allows shader-visible heaps with no more than 2048
+  // samplers (due to Nvidia addressing). However, there's also possibly a weird
+  // bug in the Nvidia driver (tested on 440.97 and earlier on Windows 10 1803)
+  // that caused the sampler with index 2047 not to work if a heap with 8 or
+  // less samplers also exists - in case of Xenia, it's the immediate drawer's
+  // sampler heap.
+  // FIXME(Triang3l): Investigate the issue with the sampler 2047 on Nvidia.
   sampler_heap_pool_ = std::make_unique<ui::d3d12::DescriptorHeapPool>(
-      device, D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, 2048);
+      device, D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, 2000);
 
   shared_memory_ =
       std::make_unique<SharedMemory>(this, memory_, &trace_writer_);
