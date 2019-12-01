@@ -214,6 +214,9 @@ class X64Emitter : public Xbyak::CodeGenerator {
   void LoadConstantXmm(Xbyak::Xmm dest, double v);
   void LoadConstantXmm(Xbyak::Xmm dest, const vec128_t& v);
   Xbyak::Address StashXmm(int index, const Xbyak::Xmm& r);
+  Xbyak::Address StashConstantXmm(int index, float v);
+  Xbyak::Address StashConstantXmm(int index, double v);
+  Xbyak::Address StashConstantXmm(int index, const vec128_t& v);
 
   bool IsFeatureEnabled(uint32_t feature_flag) const {
     return (feature_flags_ & feature_flag) != 0;

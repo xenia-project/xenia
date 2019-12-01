@@ -784,6 +784,7 @@ Xbyak::Address X64Emitter::GetXmmConstPtr(XmmConst id) {
                                      sizeof(vec128_t) * id)];
 }
 
+// Implies possible StashXmm(0, ...)!
 void X64Emitter::LoadConstantXmm(Xbyak::Xmm dest, const vec128_t& v) {
   // https://www.agner.org/optimize/optimizing_assembly.pdf
   // 13.4 Generating constants
@@ -844,6 +845,35 @@ Xbyak::Address X64Emitter::StashXmm(int index, const Xbyak::Xmm& r) {
   auto addr = ptr[rsp + kStashOffset + (index * 16)];
   vmovups(addr, r);
   return addr;
+}
+
+Xbyak::Address X64Emitter::StashConstantXmm(int index, float v) {
+  union {
+    float f;
+    uint32_t i;
+  } x = {v};
+  auto addr = rsp + kStashOffset + (index * 16);
+  MovMem64(addr, x.i);
+  MovMem64(addr + 8, 0);
+  return ptr[addr];
+}
+
+Xbyak::Address X64Emitter::StashConstantXmm(int index, double v) {
+  union {
+    double d;
+    uint64_t i;
+  } x = {v};
+  auto addr = rsp + kStashOffset + (index * 16);
+  MovMem64(addr, x.i);
+  MovMem64(addr + 8, 0);
+  return ptr[addr];
+}
+
+Xbyak::Address X64Emitter::StashConstantXmm(int index, const vec128_t& v) {
+  auto addr = rsp + kStashOffset + (index * 16);
+  MovMem64(addr, v.low);
+  MovMem64(addr + 8, v.high);
+  return ptr[addr];
 }
 
 }  // namespace x64
