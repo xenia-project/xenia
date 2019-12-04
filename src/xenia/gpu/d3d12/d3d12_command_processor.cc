@@ -50,6 +50,10 @@ DEFINE_bool(d3d12_ssaa_custom_sample_positions, false,
             "path where available instead of centers (experimental, not very "
             "high-quality).",
             "D3D12");
+DEFINE_bool(d3d12_submit_on_primary_buffer_end, true,
+            "Submit the command list when a PM4 primary buffer ends if it's "
+            "possible to submit immediately to try to reduce frame latency.",
+            "D3D12");
 
 namespace xe {
 namespace gpu {
@@ -1222,6 +1226,13 @@ void D3D12CommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
   EndSubmission(true);
 }
 
+void D3D12CommandProcessor::OnPrimaryBufferEnd() {
+  if (cvars::d3d12_submit_on_primary_buffer_end && submission_open_ &&
+      CanEndSubmissionImmediately()) {
+    EndSubmission(false);
+  }
+}
+
 Shader* D3D12CommandProcessor::LoadShader(ShaderType shader_type,
                                           uint32_t guest_address,
                                           const uint32_t* host_address,
@@ -2071,6 +2082,10 @@ bool D3D12CommandProcessor::EndSubmission(bool is_swap) {
   }
 
   return true;
+}
+
+bool D3D12CommandProcessor::CanEndSubmissionImmediately() const {
+  return !submission_open_ || !pipeline_cache_->IsCreatingPipelines();
 }
 
 void D3D12CommandProcessor::AwaitAllSubmissionsCompletion() {

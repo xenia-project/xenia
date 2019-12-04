@@ -464,6 +464,8 @@ uint32_t CommandProcessor::ExecutePrimaryBuffer(uint32_t read_index,
     }
   } while (reader.read_count());
 
+  OnPrimaryBufferEnd();
+
   trace_writer_.WritePrimaryBufferEnd();
 
   return write_index;

@@ -43,6 +43,7 @@ class PipelineCache {
   void ClearCache();
 
   void EndSubmission();
+  bool IsCreatingPipelines();
 
   D3D12Shader* LoadShader(ShaderType shader_type, uint32_t guest_address,
                           const uint32_t* host_address, uint32_t dword_count);

@@ -177,6 +177,7 @@ class CommandProcessor {
                            uint32_t frontbuffer_height) = 0;
 
   uint32_t ExecutePrimaryBuffer(uint32_t start_index, uint32_t end_index);
+  virtual void OnPrimaryBufferEnd() {}
   void ExecuteIndirectBuffer(uint32_t ptr, uint32_t length);
   bool ExecutePacket(RingBuffer* reader);
   bool ExecutePacketType0(RingBuffer* reader, uint32_t packet);
