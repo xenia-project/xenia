@@ -164,6 +164,8 @@ class D3D12CommandProcessor : public CommandProcessor {
   void PerformSwap(uint32_t frontbuffer_ptr, uint32_t frontbuffer_width,
                    uint32_t frontbuffer_height) override;
 
+  void OnPrimaryBufferEnd() override;
+
   Shader* LoadShader(ShaderType shader_type, uint32_t guest_address,
                      const uint32_t* host_address,
                      uint32_t dword_count) override;
@@ -235,6 +237,11 @@ class D3D12CommandProcessor : public CommandProcessor {
   // clearing and stopping capturing. Returns whether the submission was done
   // successfully, if it has failed, leaves it open.
   bool EndSubmission(bool is_swap);
+  // Checks if ending a submission right now would not cause potentially more
+  // delay than it would reduce by making the GPU start working earlier - such
+  // as when there are unfinished graphics pipeline state creation requests that
+  // would need to be fulfilled before actually submitting the command list.
+  bool CanEndSubmissionImmediately() const;
   void AwaitAllSubmissionsCompletion();
   // Need to await submission completion before calling.
   void ClearCommandAllocatorCache();

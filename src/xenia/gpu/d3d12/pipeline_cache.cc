@@ -172,6 +172,14 @@ void PipelineCache::EndSubmission() {
   }
 }
 
+bool PipelineCache::IsCreatingPipelines() {
+  if (creation_threads_.empty()) {
+    return false;
+  }
+  std::lock_guard<std::mutex> lock(creation_request_lock_);
+  return !creation_queue_.empty() || creation_threads_busy_ != 0;
+}
+
 D3D12Shader* PipelineCache::LoadShader(ShaderType shader_type,
                                        uint32_t guest_address,
                                        const uint32_t* host_address,
