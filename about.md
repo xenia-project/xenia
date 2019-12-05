@@ -12,9 +12,9 @@ permalink: /about/
 
 See [here](/faq/#system-requirements).
 
-## Overview
+<!--## Overview
 
-TODO
+TODO-->
 
 ### Project Origin
 
@@ -43,4 +43,4 @@ games to play I'm really just hacking to have fun.
 
 Contributors can be seen [here on GitHub](https://github.com/xenia-project/xenia/graphs/contributors).
 
-TODO: auto generate a list from API.
+<!--TODO: auto generate a list from API.-->
