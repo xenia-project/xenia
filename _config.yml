@@ -58,7 +58,7 @@ navigation:
       url: https://www.youtube.com/channel/UC6bJhkUUHE18HVG2mpbygSQ
       icon: videocam
 #    - title: "#xenia @ freenode"
-#      url: http://webchat.freenode.net/?channels=%23xenia
+#      url: https://webchat.freenode.net/?channels=%23xenia
 #      icon: people
   - title: Development
     pages:
@@ -72,7 +72,7 @@ navigation:
       url: https://github.com/xenia-project/xenia/issues
       icon: bug_report
 #    - title: Buildbot
-#      url: http://build.xenia.jp/waterfall
+#      url: https://build.xenia.jp/waterfall
 #      icon: settings_system_daydream
 
 artifacts:

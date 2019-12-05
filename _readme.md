@@ -1,4 +1,4 @@
-* [Install Ruby 2.2+ and DevKit](http://rubyinstaller.org/downloads).
+* [Install Ruby 2.2+ and DevKit](https://rubyinstaller.org/downloads).
 * `gem update --system`
 * Extract DevKit
 * `ruby dk.rb init`
@@ -12,5 +12,6 @@ bundle install
 bundle exec jekyll serve
 ```
 
-Theme and such from: http://www.getmdl.io/
-Icons from: https://www.google.com/design/icons/
+Theme and such from: https://www.getmdl.io/
+
+Icons from: https://material.io/resources/icons/?style=baseline
