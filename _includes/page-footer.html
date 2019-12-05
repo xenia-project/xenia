@@ -28,6 +28,20 @@
           </li>
           {% endif %}
 
+          {% if site.patreon_username %}
+          <li>
+            <a href="https://patreon.com/{{ site.patreon_username }}">
+              <span class="icon  icon--patreon">
+                <svg viewBox="0 0 16 16">
+                  <path fill="#828282" d="M 9.617188 0.015625 C 6.640625 0.015625 4.214844 2.539062 4.214844 5.640625 C 4.214844 8.734375 6.640625 11.25 9.617188 11.25 C 12.585938 11.25 15 8.734375 15 5.640625 C 15 2.539062 12.585938 0.015625 9.617188 0.015625"/><path d="M 0 15 L 2.636719 15 L 2.636719 0.015625 L 0 0.015625 Z M 0 15"/>
+                </svg>
+              </span>
+
+              <span class="username">{{ site.patreon_username }}</span>
+            </a>
+          </li>
+          {% endif %}
+
           {% if site.twitter_username %}
           <li>
             <a href="https://twitter.com/{{ site.twitter_username }}">
@@ -72,7 +86,7 @@
         <p class="text">
         <strong class="blink">WARNING:</strong>
         Anyone asking about or sharing information related to illegal activities
-        will be banned from IRC/GitHub/etc.
+        will be banned from Discord/GitHub/etc.
         </p>
       </div>
     </div>

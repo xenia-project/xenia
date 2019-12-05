@@ -15,8 +15,9 @@ description: >
   games on modern PCs.
 baseurl:
 url: "https://xenia.jp"
-twitter_username: xeniaproject
 github_username:  xenia-project
+patreon_username: xenia_project
+twitter_username: xeniaproject
 discord_invite: Q9mxZf9
 
 markdown: kramdown
