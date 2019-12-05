@@ -33,7 +33,7 @@ permalink: /
           <p class="updated" style="display:inline">
             Latest commit to the <strong>master</strong> branch on <span class="update-date">???</span>.
           </p>
-          <!--<a href="http://build.xenia.jp/waterfall" style="position: absolute; right: 10px; display: inline;">
+          <!--<a href="https://build.xenia.jp/waterfall" style="position: absolute; right: 10px; display: inline;">
             <img id="buildStatusImage" src="" alt="Build Status" style="min-width: 84px; height: 18px; max-width: 100%; visibility: hidden;">
           </a>-->
         </div>
@@ -80,7 +80,7 @@ permalink: /
   // Build server can be slow, so do this async.
   var buildStatusImage = document.getElementById('buildStatusImage');
   var buildStatusLoader = new Image();
-  buildStatusLoader.src = 'http://build.xenia.jp/png?builder=auto-builds';
+  buildStatusLoader.src = 'https://build.xenia.jp/png?builder=auto-builds';
   buildStatusLoader.onload = function() {
     buildStatusImage.src = buildStatusLoader.src;
     buildStatusImage.style.visibility = '';
