@@ -19,9 +19,6 @@
 namespace xe {
 namespace ui {
 
-// File: 'ProggyTiny.ttf' (35656 bytes)
-// Exported using binary_to_compressed_c.cpp
-
 static_assert(sizeof(ImmediateVertex) == sizeof(ImDrawVert),
               "Vertex types must match");
 
