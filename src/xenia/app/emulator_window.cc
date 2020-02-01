@@ -154,6 +154,10 @@ bool EmulatorWindow::Initialize() {
         ShowHelpWebsite();
       } break;
 
+      case 0x71: {  // VK_F2
+        ShowCommitID();
+      } break;
+
       default: { handled = false; } break;
     }
     e->set_handled(handled);
@@ -258,12 +262,8 @@ bool EmulatorWindow::Initialize() {
   auto help_menu = MenuItem::Create(MenuItem::Type::kPopup, L"&Help");
   {
     help_menu->AddChild(MenuItem::Create(
-        MenuItem::Type::kString, L"Build commit on GitHub...", [this]() {
-          std::wstring url =
-              std::wstring(L"https://github.com/xenia-project/xenia/tree/") +
-              xe::to_wstring(XE_BUILD_COMMIT) + L"/";
-          LaunchBrowser(url.c_str());
-        }));
+        MenuItem::Type::kString, L"Build commit on GitHub...", L"F2",
+        std::bind(&EmulatorWindow::ShowCommitID, this)));
     help_menu->AddChild(MenuItem::Create(
         MenuItem::Type::kString, L"Recent changes on GitHub...", [this]() {
           std::wstring url =
@@ -426,6 +426,13 @@ void EmulatorWindow::ToggleFullscreen() {
 }
 
 void EmulatorWindow::ShowHelpWebsite() { LaunchBrowser(L"https://xenia.jp"); }
+
+void EmulatorWindow::ShowCommitID() {
+  std::wstring url =
+      std::wstring(L"https://github.com/xenia-project/xenia/commit/") +
+      xe::to_wstring(XE_BUILD_COMMIT) + L"/";
+  LaunchBrowser(url.c_str());
+}
 
 void EmulatorWindow::UpdateTitle() {
   std::wstring title(base_title_);
