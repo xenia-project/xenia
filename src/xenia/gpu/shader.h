@@ -139,10 +139,6 @@ enum class InstructionStorageSource {
   kRegister,
   // Source is stored in a float constant indexed by storage_index [0-511].
   kConstantFloat,
-  // Source is stored in a float constant indexed by storage_index [0-31].
-  kConstantInt,
-  // Source is stored in a float constant indexed by storage_index [0-255].
-  kConstantBool,
   // Source is stored in a vertex fetch constant indexed by storage_index
   // [0-95].
   kVertexFetchConstant,
@@ -568,10 +564,10 @@ class Shader {
     // base, so bit 0 in a vertex shader is register 0, and bit 0 in a fragment
     // shader is register 256.
     uint64_t float_bitmap[256 / 64];
-    // Bitmap of all kConstantInt registers read by the shader.
+    // Bitmap of all loop constants read by the shader.
     // Each bit corresponds to a storage index [0-31].
-    uint32_t int_bitmap;
-    // Bitmap of all kConstantBool registers read by the shader.
+    uint32_t loop_bitmap;
+    // Bitmap of all bool constants read by the shader.
     // Each bit corresponds to a storage index [0-255].
     uint32_t bool_bitmap[256 / 32];
 

@@ -3053,23 +3053,15 @@ bool D3D12CommandProcessor::UpdateBindings(
     write_float_constant_view_pixel = true;
   }
   if (!cbuffer_bindings_bool_loop_.up_to_date) {
-    uint32_t* bool_loop_constants =
-        reinterpret_cast<uint32_t*>(constant_buffer_pool_->Request(
-            frame_current_, 768, nullptr, nullptr,
-            &cbuffer_bindings_bool_loop_.buffer_address));
+    uint8_t* bool_loop_constants = constant_buffer_pool_->Request(
+        frame_current_, 256, nullptr, nullptr,
+        &cbuffer_bindings_bool_loop_.buffer_address);
     if (bool_loop_constants == nullptr) {
       return false;
     }
-    // Bool and loop constants are quadrupled to allow dynamic indexing.
-    for (uint32_t i = 0; i < 40; ++i) {
-      uint32_t bool_loop_constant =
-          regs[XE_GPU_REG_SHADER_CONSTANT_BOOL_000_031 + i].u32;
-      uint32_t* bool_loop_constant_vector = bool_loop_constants + (i << 2);
-      bool_loop_constant_vector[0] = bool_loop_constant;
-      bool_loop_constant_vector[1] = bool_loop_constant;
-      bool_loop_constant_vector[2] = bool_loop_constant;
-      bool_loop_constant_vector[3] = bool_loop_constant;
-    }
+    std::memcpy(bool_loop_constants,
+                &regs[XE_GPU_REG_SHADER_CONSTANT_BOOL_000_031].u32,
+                (8 + 32) * sizeof(uint32_t));
     cbuffer_bindings_bool_loop_.up_to_date = true;
     write_bool_loop_constant_view = true;
   }
@@ -3226,7 +3218,7 @@ bool D3D12CommandProcessor::UpdateBindings(
     gpu_handle_bool_loop_constants_ = view_gpu_handle;
     constant_buffer_desc.BufferLocation =
         cbuffer_bindings_bool_loop_.buffer_address;
-    constant_buffer_desc.SizeInBytes = 768;
+    constant_buffer_desc.SizeInBytes = 256;
     device->CreateConstantBufferView(&constant_buffer_desc, view_cpu_handle);
     view_cpu_handle.ptr += descriptor_size_view;
     view_gpu_handle.ptr += descriptor_size_view;
