@@ -919,7 +919,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kFloat4Array6,
     // Float constants - size written dynamically.
     kFloat4ConstantArray,
-    // Bool constants constants, front/back stencil, render target keep masks.
+    // Bool constants, front/back stencil, render target keep masks.
     kUint4Array2,
     // Loop constants.
     kUint4Array8,
