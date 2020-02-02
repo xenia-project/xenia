@@ -400,7 +400,7 @@ std::pair<VkDeviceSize, VkDeviceSize> BufferCache::UploadConstantRegisters(
     }
   }
   for (int i = 0; i < 32; ++i) {
-    if (constant_register_map.int_bitmap & (1 << i)) {
+    if (constant_register_map.loop_bitmap & (1 << i)) {
       xe::store<uint32_t>(dest_ptr,
                           values[XE_GPU_REG_SHADER_CONSTANT_LOOP_00 + i].u32);
       dest_ptr += 4;

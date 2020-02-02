@@ -93,12 +93,6 @@ void DisassembleSourceOperand(const InstructionOperand& op, StringBuffer* out) {
     case InstructionStorageSource::kConstantFloat:
       out->Append('c');
       break;
-    case InstructionStorageSource::kConstantInt:
-      out->Append('i');
-      break;
-    case InstructionStorageSource::kConstantBool:
-      out->Append('b');
-      break;
     case InstructionStorageSource::kTextureFetchConstant:
     case InstructionStorageSource::kVertexFetchConstant:
       assert_always();

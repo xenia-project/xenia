@@ -919,12 +919,10 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kFloat4Array6,
     // Float constants - size written dynamically.
     kFloat4ConstantArray,
-    // Front/back stencil, render target keep masks.
+    // Bool constants constants, front/back stencil, render target keep masks.
     kUint4Array2,
-    // Bool constants.
-    kUint4Array8,
     // Loop constants.
-    kUint4Array32,
+    kUint4Array8,
     // Fetch constants.
     kUint4Array48,
 
@@ -978,7 +976,6 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // Whether constants are dynamically indexed and need to be marked as such in
   // dcl_constantBuffer.
   bool float_constants_dynamic_indexed_;
-  bool bool_loop_constants_dynamic_indexed_;
 
   // Offsets of float constant indices in shader_code_, for remapping in
   // CompleteTranslation (initially, at these offsets, guest float constant

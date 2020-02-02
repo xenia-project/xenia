@@ -183,7 +183,7 @@ bool ShaderTranslator::TranslateInternal(Shader* shader,
       4 * 4 * constant_register_map_.float_count;
   // Each bit indicates a single word.
   constant_register_map_.packed_byte_length +=
-      4 * xe::bit_count(constant_register_map_.int_bitmap);
+      4 * xe::bit_count(constant_register_map_.loop_bitmap);
   // Direct map between words and words we upload.
   for (int i = 0; i < 8; ++i) {
     if (constant_register_map_.bool_bitmap[i]) {
@@ -714,7 +714,7 @@ void ShaderTranslator::TranslateControlFlowLoopStart(
   ParsedLoopStartInstruction i;
   i.dword_index = cf_index_;
   i.loop_constant_index = cf.loop_id();
-  constant_register_map_.int_bitmap |= 1 << i.loop_constant_index;
+  constant_register_map_.loop_bitmap |= 1 << i.loop_constant_index;
   i.is_repeat = cf.is_repeat();
   i.loop_skip_address = cf.address();
 
@@ -730,7 +730,7 @@ void ShaderTranslator::TranslateControlFlowLoopEnd(
   i.is_predicated_break = cf.is_predicated_break();
   i.predicate_condition = cf.condition();
   i.loop_constant_index = cf.loop_id();
-  constant_register_map_.int_bitmap |= 1 << i.loop_constant_index;
+  constant_register_map_.loop_bitmap |= 1 << i.loop_constant_index;
   i.loop_body_address = cf.address();
 
   i.Disassemble(&ucode_disasm_buffer_);
