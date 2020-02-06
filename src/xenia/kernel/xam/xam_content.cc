@@ -43,11 +43,14 @@ struct DeviceInfo {
 // they incorrectly only look at the lower 32-bits of free_bytes,
 // when it is a 64-bit value. Which means any size above ~4GB
 // will not be recognized properly.
+//
+// NOTE(randprint): you can use 120 GB and 42 GB 'fullness'
+// with the proper deviceID feel free to change at your discression
 #define ONE_GB (1024ull * 1024ull * 1024ull)
 static const DeviceInfo dummy_device_info_ = {
-    0xF00D0000,    1,
-    4ull * ONE_GB,  // 4GB
-    3ull * ONE_GB,  // 3GB, so it looks a little used.
+    0x00000001,    1,  // found from debugging / reversing UE3 engine titles
+    4ull * ONE_GB,     // 4GB
+    3ull * ONE_GB,     // 3GB, so it looks a little used.
     L"Dummy HDD",
 };
 #undef ONE_GB
@@ -72,7 +75,7 @@ DECLARE_XAM_EXPORT2(XamContentGetLicenseMask, kContent, kStub, kHighFrequency);
 dword_result_t XamContentGetDeviceName(dword_t device_id,
                                        lpwstring_t name_buffer,
                                        dword_t name_capacity) {
-  if ((device_id & 0xFFFF0000) != dummy_device_info_.device_id) {
+  if ((device_id & 0x0000000F) != dummy_device_info_.device_id) {
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }
 
@@ -89,7 +92,7 @@ DECLARE_XAM_EXPORT1(XamContentGetDeviceName, kContent, kImplemented);
 
 dword_result_t XamContentGetDeviceState(dword_t device_id,
                                         lpunknown_t overlapped_ptr) {
-  if ((device_id & 0xFFFF0000) != dummy_device_info_.device_id) {
+  if ((device_id & 0x0000000F) != dummy_device_info_.device_id) {
     if (overlapped_ptr) {
       kernel_state()->CompleteOverlappedImmediateEx(
           overlapped_ptr, X_ERROR_FUNCTION_FAILED, X_ERROR_DEVICE_NOT_CONNECTED,
@@ -121,7 +124,7 @@ static_assert_size(X_CONTENT_DEVICE_DATA, 0x50);
 
 dword_result_t XamContentGetDeviceData(
     dword_t device_id, pointer_t<X_CONTENT_DEVICE_DATA> device_data) {
-  if ((device_id & 0xFFFF0000) != dummy_device_info_.device_id) {
+  if ((device_id & 0x0000000F) != dummy_device_info_.device_id) {
     // TODO(benvanik): memset 0 the data?
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }
@@ -160,7 +163,7 @@ dword_result_t XamContentCreateEnumerator(dword_t user_index, dword_t device_id,
                                           lpdword_t buffer_size_ptr,
                                           lpdword_t handle_out) {
   assert_not_null(handle_out);
-  if ((device_id && (device_id & 0xFFFF0000) != dummy_device_info_.device_id) ||
+  if ((device_id && (device_id & 0x0000000F) != dummy_device_info_.device_id) ||
       !handle_out) {
     if (buffer_size_ptr) {
       *buffer_size_ptr = 0;

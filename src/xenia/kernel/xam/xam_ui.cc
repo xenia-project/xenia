@@ -298,22 +298,9 @@ dword_result_t XamShowDeviceSelectorUI(dword_t user_index, dword_t content_type,
                                        qword_t total_requested,
                                        lpdword_t device_id_ptr,
                                        pointer_t<XAM_OVERLAPPED> overlapped) {
-  // NOTE: 0xF00D0000 magic from xam_content.cc
-  switch (content_type) {
-    case 1:  // save game
-      *device_id_ptr = 0xF00D0000 | 0x0001;
-      break;
-    case 2:  // marketplace
-      *device_id_ptr = 0xF00D0000 | 0x0002;
-      break;
-    case 3:  // title/publisher update?
-      *device_id_ptr = 0xF00D0000 | 0x0003;
-      break;
-    default:
-      assert_unhandled_case(content_type);
-      *device_id_ptr = 0xF00D0000 | 0x0001;
-      break;
-  }
+
+  // NOTE: 0x00000001 is our dummy device ID from xam_content.cc
+  *device_id_ptr = 0x00000001;
 
   // Broadcast XN_SYS_UI = true followed by XN_SYS_UI = false
   kernel_state()->BroadcastNotification(0x9, true);
