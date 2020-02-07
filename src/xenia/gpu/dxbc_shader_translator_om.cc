@@ -154,228 +154,96 @@ void DxbcShaderTranslator::StartPixelShader_LoadROVParameters() {
   // 4 (-> 1) to a temp SGPR.
   uint32_t resolution_scale_log2_temp = PushSystemTemp();
   system_constants_used_ |= 1ull << kSysConst_EDRAMResolutionSquareScale_Index;
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_USHR) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-  shader_code_.push_back(resolution_scale_log2_temp);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
-                                kSysConst_EDRAMResolutionSquareScale_Comp, 3));
-  shader_code_.push_back(cbuffer_index_system_constants_);
-  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-  shader_code_.push_back(kSysConst_EDRAMResolutionSquareScale_Vec);
-  shader_code_.push_back(
-      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  shader_code_.push_back(2);
-  ++stat_.instruction_count;
-  ++stat_.uint_instruction_count;
-
+  DxbcOpUShR(DxbcDest::R(resolution_scale_log2_temp, 0b0001),
+             DxbcSrc::CB(cbuffer_index_system_constants_,
+                         uint32_t(CbufferRegister::kSystemConstants),
+                         kSysConst_EDRAMResolutionSquareScale_Vec)
+                 .Select(kSysConst_EDRAMResolutionSquareScale_Comp),
+             DxbcSrc::LU(2));
   // Convert the pixel position (if resolution scale is 4, this will be 2x2
   // bigger) to integer to system_temp_rov_params_.zw.
   // system_temp_rov_params_.z = X host pixel position as uint
   // system_temp_rov_params_.w = Y host pixel position as uint
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_FTOU) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1100, 1));
-  shader_code_.push_back(system_temp_rov_params_);
-  shader_code_.push_back(
-      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_INPUT, 0b01000000, 1));
-  shader_code_.push_back(uint32_t(InOutRegister::kPSInPosition));
-  ++stat_.instruction_count;
-  ++stat_.conversion_instruction_count;
-
+  DxbcOpFToU(DxbcDest::R(system_temp_rov_params_, 0b1100),
+             DxbcSrc::V(uint32_t(InOutRegister::kPSInPosition), 0b01000000));
   // Revert the resolution scale to convert the position to guest pixels.
   // system_temp_rov_params_.z = X guest pixel position / sample width
   // system_temp_rov_params_.w = Y guest pixel position / sample height
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_USHR) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1100, 1));
-  shader_code_.push_back(system_temp_rov_params_);
-  shader_code_.push_back(
-      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-  shader_code_.push_back(system_temp_rov_params_);
-  shader_code_.push_back(
-      EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-  shader_code_.push_back(resolution_scale_log2_temp);
-  ++stat_.instruction_count;
-  ++stat_.uint_instruction_count;
+  DxbcOpUShR(DxbcDest::R(system_temp_rov_params_, 0b1100),
+             DxbcSrc::R(system_temp_rov_params_),
+             DxbcSrc::R(resolution_scale_log2_temp, DxbcSrc::kXXXX));
 
   // Convert the position from pixels to samples.
   // system_temp_rov_params_.z = X guest sample 0 position
   // system_temp_rov_params_.w = Y guest sample 0 position
   system_constants_used_ |= 1ull << kSysConst_SampleCountLog2_Index;
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ISHL) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1100, 1));
-  shader_code_.push_back(system_temp_rov_params_);
-  shader_code_.push_back(
-      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-  shader_code_.push_back(system_temp_rov_params_);
-  shader_code_.push_back(EncodeVectorSwizzledOperand(
-      D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
-      (kSysConst_SampleCountLog2_Comp << 4) |
-          ((kSysConst_SampleCountLog2_Comp + 1) << 6),
-      3));
-  shader_code_.push_back(cbuffer_index_system_constants_);
-  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-  shader_code_.push_back(kSysConst_SampleCountLog2_Vec);
-  ++stat_.instruction_count;
-  ++stat_.int_instruction_count;
-
+  DxbcOpIShL(DxbcDest::R(system_temp_rov_params_, 0b1100),
+             DxbcSrc::R(system_temp_rov_params_),
+             DxbcSrc::CB(cbuffer_index_system_constants_,
+                         uint32_t(CbufferRegister::kSystemConstants),
+                         kSysConst_SampleCountLog2_Vec,
+                         (kSysConst_SampleCountLog2_Comp << 4) |
+                             ((kSysConst_SampleCountLog2_Comp + 1) << 6)));
   // Get 80x16 samples tile index - start dividing X by 80 by getting the high
   // part of the result of multiplication of X by 0xCCCCCCCD into X.
   // system_temp_rov_params_.x = (X * 0xCCCCCCCD) >> 32, or X / 80 * 64
   // system_temp_rov_params_.z = X guest sample 0 position
   // system_temp_rov_params_.w = Y guest sample 0 position
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_UMUL) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(8));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-  shader_code_.push_back(system_temp_rov_params_);
-  shader_code_.push_back(
-      EncodeZeroComponentOperand(D3D10_SB_OPERAND_TYPE_NULL, 0));
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
-  shader_code_.push_back(system_temp_rov_params_);
-  shader_code_.push_back(
-      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  shader_code_.push_back(0xCCCCCCCDu);
-  ++stat_.instruction_count;
-  ++stat_.uint_instruction_count;
-
+  DxbcOpUMul(DxbcDest::R(system_temp_rov_params_, 0b0001), DxbcDest::Null(),
+             DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kZZZZ),
+             DxbcSrc::LU(0xCCCCCCCDu));
   // Get 80x16 samples tile index - finish dividing X by 80 and divide Y by 16
   // into system_temp_rov_params_.xy.
   // system_temp_rov_params_.x = X tile position
   // system_temp_rov_params_.y = Y tile position
   // system_temp_rov_params_.z = X guest sample 0 position
   // system_temp_rov_params_.w = Y guest sample 0 position
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_USHR) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(10));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0011, 1));
-  shader_code_.push_back(system_temp_rov_params_);
-  shader_code_.push_back(
-      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b00001100, 1));
-  shader_code_.push_back(system_temp_rov_params_);
-  shader_code_.push_back(EncodeVectorSwizzledOperand(
-      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-  shader_code_.push_back(6);
-  shader_code_.push_back(4);
-  shader_code_.push_back(0);
-  shader_code_.push_back(0);
-  ++stat_.instruction_count;
-  ++stat_.uint_instruction_count;
-
+  DxbcOpUShR(DxbcDest::R(system_temp_rov_params_, 0b0011),
+             DxbcSrc::R(system_temp_rov_params_, 0b00001100),
+             DxbcSrc::LU(6, 4, 0, 0));
   // Get the tile index to system_temp_rov_params_.y.
   // system_temp_rov_params_.x = X tile position
   // system_temp_rov_params_.y = tile index
   // system_temp_rov_params_.z = X guest sample 0 position
   // system_temp_rov_params_.w = Y guest sample 0 position
   system_constants_used_ |= 1ull << kSysConst_EDRAMPitchTiles_Index;
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_UMAD) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(11));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0010, 1));
-  shader_code_.push_back(system_temp_rov_params_);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
-  shader_code_.push_back(system_temp_rov_params_);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
-                                kSysConst_EDRAMPitchTiles_Comp, 3));
-  shader_code_.push_back(cbuffer_index_system_constants_);
-  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-  shader_code_.push_back(kSysConst_EDRAMPitchTiles_Vec);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-  shader_code_.push_back(system_temp_rov_params_);
-  ++stat_.instruction_count;
-  ++stat_.uint_instruction_count;
-
+  DxbcOpUMAd(DxbcDest::R(system_temp_rov_params_, 0b0010),
+             DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kYYYY),
+             DxbcSrc::CB(cbuffer_index_system_constants_,
+                         uint32_t(CbufferRegister::kSystemConstants),
+                         kSysConst_EDRAMPitchTiles_Vec)
+                 .Select(kSysConst_EDRAMPitchTiles_Comp),
+             DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kXXXX));
   // Convert the tile index into a tile offset.
   // system_temp_rov_params_.x = X tile position
   // system_temp_rov_params_.y = tile offset
   // system_temp_rov_params_.z = X guest sample 0 position
   // system_temp_rov_params_.w = Y guest sample 0 position
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_UMUL) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(8));
-  shader_code_.push_back(
-      EncodeZeroComponentOperand(D3D10_SB_OPERAND_TYPE_NULL, 0));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0010, 1));
-  shader_code_.push_back(system_temp_rov_params_);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
-  shader_code_.push_back(system_temp_rov_params_);
-  shader_code_.push_back(
-      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  shader_code_.push_back(1280);
-  ++stat_.instruction_count;
-  ++stat_.uint_instruction_count;
-
+  DxbcOpUMul(DxbcDest::Null(), DxbcDest::R(system_temp_rov_params_, 0b0010),
+             DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kYYYY),
+             DxbcSrc::LU(1280));
   // Get tile-local X sample index into system_temp_rov_params_.z.
   // system_temp_rov_params_.y = tile offset
   // system_temp_rov_params_.z = X sample 0 position within the tile
   // system_temp_rov_params_.w = Y guest sample 0 position
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IMAD) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0100, 1));
-  shader_code_.push_back(system_temp_rov_params_);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-  shader_code_.push_back(system_temp_rov_params_);
-  shader_code_.push_back(
-      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  shader_code_.push_back(uint32_t(-80));
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
-  shader_code_.push_back(system_temp_rov_params_);
-  ++stat_.instruction_count;
-  ++stat_.int_instruction_count;
-
+  DxbcOpIMAd(DxbcDest::R(system_temp_rov_params_, 0b0100),
+             DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kXXXX),
+             DxbcSrc::LI(-80),
+             DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kZZZZ));
   // Get tile-local Y sample index into system_temp_rov_params_.w.
   // system_temp_rov_params_.y = tile offset
   // system_temp_rov_params_.z = X sample 0 position within the tile
   // system_temp_rov_params_.w = Y sample 0 position within the tile
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1000, 1));
-  shader_code_.push_back(system_temp_rov_params_);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 3, 1));
-  shader_code_.push_back(system_temp_rov_params_);
-  shader_code_.push_back(
-      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  shader_code_.push_back(15);
-  ++stat_.instruction_count;
-  ++stat_.uint_instruction_count;
-
+  DxbcOpAnd(DxbcDest::R(system_temp_rov_params_, 0b1000),
+            DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kWWWW),
+            DxbcSrc::LU(15));
   // Go to the target row within the tile in system_temp_rov_params_.y.
   // system_temp_rov_params_.y = row offset
   // system_temp_rov_params_.z = X sample 0 position within the tile
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IMAD) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0010, 1));
-  shader_code_.push_back(system_temp_rov_params_);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 3, 1));
-  shader_code_.push_back(system_temp_rov_params_);
-  shader_code_.push_back(
-      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  shader_code_.push_back(80);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
-  shader_code_.push_back(system_temp_rov_params_);
-  ++stat_.instruction_count;
-  ++stat_.uint_instruction_count;
-
+  DxbcOpIMAd(DxbcDest::R(system_temp_rov_params_, 0b0010),
+             DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kWWWW),
+             DxbcSrc::LI(80),
+             DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kYYYY));
   // Choose in which 40-sample half of the tile the pixel is, for swapping
   // 40-sample columns when accessing the depth buffer - games expect this
   // behavior when writing depth back to the EDRAM via color writing (GTA IV,
@@ -383,218 +251,78 @@ void DxbcShaderTranslator::StartPixelShader_LoadROVParameters() {
   // system_temp_rov_params_.x = tile-local sample 0 X >= 40
   // system_temp_rov_params_.y = row offset
   // system_temp_rov_params_.z = X sample 0 position within the tile
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_UGE) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-  shader_code_.push_back(system_temp_rov_params_);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
-  shader_code_.push_back(system_temp_rov_params_);
-  shader_code_.push_back(
-      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  shader_code_.push_back(40);
-  ++stat_.instruction_count;
-  ++stat_.uint_instruction_count;
-
+  DxbcOpUGE(DxbcDest::R(system_temp_rov_params_, 0b0001),
+            DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kZZZZ),
+            DxbcSrc::LU(40));
   // Choose what to add to the depth/stencil X position.
   // system_temp_rov_params_.x = 40 or -40 offset for the depth buffer
   // system_temp_rov_params_.y = row offset
   // system_temp_rov_params_.z = X sample 0 position within the tile
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-  shader_code_.push_back(system_temp_rov_params_);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-  shader_code_.push_back(system_temp_rov_params_);
-  shader_code_.push_back(
-      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  shader_code_.push_back(uint32_t(-40));
-  shader_code_.push_back(
-      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  shader_code_.push_back(40);
-  ++stat_.instruction_count;
-  ++stat_.movc_instruction_count;
-
+  DxbcOpMovC(DxbcDest::R(system_temp_rov_params_, 0b0001),
+             DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kXXXX),
+             DxbcSrc::LI(-40), DxbcSrc::LI(40));
   // Flip tile halves for the depth/stencil buffer.
   // system_temp_rov_params_.x = X sample 0 position within the depth tile
   // system_temp_rov_params_.y = row offset
   // system_temp_rov_params_.z = X sample 0 position within the tile
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IADD) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-  shader_code_.push_back(system_temp_rov_params_);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
-  shader_code_.push_back(system_temp_rov_params_);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-  shader_code_.push_back(system_temp_rov_params_);
-  ++stat_.instruction_count;
-  ++stat_.int_instruction_count;
-
+  DxbcOpIAdd(DxbcDest::R(system_temp_rov_params_, 0b0001),
+             DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kZZZZ),
+             DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kXXXX));
   if (color_targets_written) {
     // Write 32bpp color offset to system_temp_rov_params_.z.
     // system_temp_rov_params_.x = X sample 0 position within the depth tile
     // system_temp_rov_params_.y = row offset
     // system_temp_rov_params_.z = unscaled 32bpp color offset
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IADD) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0100, 1));
-    shader_code_.push_back(system_temp_rov_params_);
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
-    shader_code_.push_back(system_temp_rov_params_);
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
-    shader_code_.push_back(system_temp_rov_params_);
-    ++stat_.instruction_count;
-    ++stat_.int_instruction_count;
+    DxbcOpIAdd(DxbcDest::R(system_temp_rov_params_, 0b0100),
+               DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kYYYY),
+               DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kZZZZ));
   }
-
   // Write depth/stencil offset to system_temp_rov_params_.y.
   // system_temp_rov_params_.y = unscaled 32bpp depth/stencil offset
   // system_temp_rov_params_.z = unscaled 32bpp color offset if needed
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IADD) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0010, 1));
-  shader_code_.push_back(system_temp_rov_params_);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
-  shader_code_.push_back(system_temp_rov_params_);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-  shader_code_.push_back(system_temp_rov_params_);
-  ++stat_.instruction_count;
-  ++stat_.int_instruction_count;
-
+  DxbcOpIAdd(DxbcDest::R(system_temp_rov_params_, 0b0010),
+             DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kYYYY),
+             DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kXXXX));
   // Add the EDRAM base for depth/stencil.
   // system_temp_rov_params_.y = unscaled 32bpp depth/stencil address
   // system_temp_rov_params_.z = unscaled 32bpp color offset if needed
   system_constants_used_ |= 1ull << kSysConst_EDRAMDepthBaseDwords_Index;
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IADD) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0010, 1));
-  shader_code_.push_back(system_temp_rov_params_);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
-  shader_code_.push_back(system_temp_rov_params_);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
-                                kSysConst_EDRAMDepthBaseDwords_Comp, 3));
-  shader_code_.push_back(cbuffer_index_system_constants_);
-  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-  shader_code_.push_back(kSysConst_EDRAMDepthBaseDwords_Vec);
-  ++stat_.instruction_count;
-  ++stat_.int_instruction_count;
+  DxbcOpIAdd(DxbcDest::R(system_temp_rov_params_, 0b0010),
+             DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kYYYY),
+             DxbcSrc::CB(cbuffer_index_system_constants_,
+                         uint32_t(CbufferRegister::kSystemConstants),
+                         kSysConst_EDRAMDepthBaseDwords_Vec)
+                 .Select(kSysConst_EDRAMDepthBaseDwords_Comp));
 
   // Apply the resolution scale.
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
-                         ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(
-                             D3D10_SB_INSTRUCTION_TEST_NONZERO) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-  shader_code_.push_back(resolution_scale_log2_temp);
-  ++stat_.instruction_count;
-  ++stat_.dynamic_flow_control_count;
-
+  DxbcOpIf(true, DxbcSrc::R(resolution_scale_log2_temp, DxbcSrc::kXXXX));
   // Release resolution_scale_log2_temp.
   PopSystemTemp();
-
-  uint32_t offsets_masked, offsets_select;
-  uint32_t offsets_immediate, offsets_components;
-  if (color_targets_written) {
-    offsets_masked =
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0110, 1);
-    offsets_select = EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP,
-                                                 kSwizzleXYZW, 1);
-    offsets_immediate = EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0);
-    offsets_components = 4;
-  } else {
-    offsets_masked =
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0010, 1);
-    offsets_select =
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1);
-    offsets_immediate =
-        EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0);
-    offsets_components = 1;
-  }
-
-  // Scale the offsets by the resolution scale.
-  // system_temp_rov_params_.y = scaled 32bpp depth/stencil first host pixel
-  //                             address
-  // system_temp_rov_params_.z = scaled 32bpp color first host pixel offset if
-  //                             needed
-  shader_code_.push_back(
-      ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ISHL) |
-      ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(6 + offsets_components));
-  shader_code_.push_back(offsets_masked);
-  shader_code_.push_back(system_temp_rov_params_);
-  shader_code_.push_back(offsets_select);
-  shader_code_.push_back(system_temp_rov_params_);
-  shader_code_.push_back(offsets_immediate);
-  for (uint32_t i = 0; i < offsets_components; ++i) {
-    shader_code_.push_back(2);
-  }
-  ++stat_.instruction_count;
-  ++stat_.int_instruction_count;
-
-  // Add host pixel offsets.
-  // system_temp_rov_params_.y = scaled 32bpp depth/stencil address
-  // system_temp_rov_params_.z = scaled 32bpp color offset if needed
-  for (uint32_t i = 0; i < 2; ++i) {
-    // Convert a position component to integer.
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_FTOU) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-    shader_code_.push_back(system_temp_rov_params_);
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_INPUT, i, 1));
-    shader_code_.push_back(uint32_t(InOutRegister::kPSInPosition));
-    ++stat_.instruction_count;
-    ++stat_.conversion_instruction_count;
-
-    // Insert the host pixel offset on each axis.
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_BFI) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(
-                               9 + offsets_components * 2));
-    shader_code_.push_back(offsets_masked);
-    shader_code_.push_back(system_temp_rov_params_);
-    shader_code_.push_back(offsets_immediate);
-    for (uint32_t j = 0; j < offsets_components; ++j) {
-      shader_code_.push_back(1);
+  {
+    DxbcDest offsets_dest(DxbcDest::R(system_temp_rov_params_,
+                                      color_targets_written ? 0b0110 : 0b0010));
+    // Scale the offsets by the resolution scale.
+    // system_temp_rov_params_.y = scaled 32bpp depth/stencil first host pixel
+    //                             address
+    // system_temp_rov_params_.z = scaled 32bpp color first host pixel offset if
+    //                             needed
+    DxbcOpIShL(offsets_dest, DxbcSrc::R(system_temp_rov_params_),
+               DxbcSrc::LU(2));
+    // Add host pixel offsets.
+    // system_temp_rov_params_.y = scaled 32bpp depth/stencil address
+    // system_temp_rov_params_.z = scaled 32bpp color offset if needed
+    for (uint32_t i = 0; i < 2; ++i) {
+      // Convert a position component to integer.
+      DxbcOpFToU(DxbcDest::R(system_temp_rov_params_, 0b0001),
+                 DxbcSrc::V(uint32_t(InOutRegister::kPSInPosition)).Select(i));
+      // Insert the host pixel offset on each axis.
+      DxbcOpBFI(offsets_dest, DxbcSrc::LU(1), DxbcSrc::LU(i),
+                DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kXXXX),
+                DxbcSrc::R(system_temp_rov_params_));
     }
-    shader_code_.push_back(offsets_immediate);
-    for (uint32_t j = 0; j < offsets_components; ++j) {
-      shader_code_.push_back(i);
-    }
-    if (color_targets_written) {
-      shader_code_.push_back(
-          EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-    } else {
-      shader_code_.push_back(
-          EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-    }
-    shader_code_.push_back(system_temp_rov_params_);
-    shader_code_.push_back(offsets_select);
-    shader_code_.push_back(system_temp_rov_params_);
-    ++stat_.instruction_count;
-    ++stat_.uint_instruction_count;
   }
-
   // Close the resolution scale conditional.
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
-  ++stat_.instruction_count;
+  DxbcOpEndIf();
 
   if (color_targets_written) {
     // Get the 64bpp color offset to system_temp_rov_params_.w.
@@ -603,19 +331,9 @@ void DxbcShaderTranslator::StartPixelShader_LoadROVParameters() {
     // system_temp_rov_params_.y = scaled 32bpp depth/stencil address
     // system_temp_rov_params_.z = scaled 32bpp color offset
     // system_temp_rov_params_.w = scaled 64bpp color offset
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ISHL) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1000, 1));
-    shader_code_.push_back(system_temp_rov_params_);
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
-    shader_code_.push_back(system_temp_rov_params_);
-    shader_code_.push_back(
-        EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-    shader_code_.push_back(1);
-    ++stat_.instruction_count;
-    ++stat_.int_instruction_count;
+    DxbcOpIShL(DxbcDest::R(system_temp_rov_params_, 0b1000),
+               DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kZZZZ),
+               DxbcSrc::LU(1));
   }
 
   // ***************************************************************************
@@ -627,80 +345,30 @@ void DxbcShaderTranslator::StartPixelShader_LoadROVParameters() {
 
   // Check if 4x MSAA is enabled.
   system_constants_used_ |= 1ull << kSysConst_SampleCountLog2_Index;
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
-                         ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(
-                             D3D10_SB_INSTRUCTION_TEST_NONZERO) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
-                                kSysConst_SampleCountLog2_Comp, 3));
-  shader_code_.push_back(cbuffer_index_system_constants_);
-  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-  shader_code_.push_back(kSysConst_SampleCountLog2_Vec);
-  ++stat_.instruction_count;
-  ++stat_.dynamic_flow_control_count;
-
-  // Copy the 4x AA coverage to system_temp_rov_params_.x.
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(6));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-  shader_code_.push_back(system_temp_rov_params_);
-  shader_code_.push_back(EncodeVectorSelectOperand(
-      D3D11_SB_OPERAND_TYPE_INPUT_COVERAGE_MASK, 0, 0));
-  shader_code_.push_back(
-      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  shader_code_.push_back((1 << 4) - 1);
-  ++stat_.instruction_count;
-  ++stat_.uint_instruction_count;
-
+  DxbcOpIf(true, DxbcSrc::CB(cbuffer_index_system_constants_,
+                             uint32_t(CbufferRegister::kSystemConstants),
+                             kSysConst_SampleCountLog2_Vec)
+                     .Select(kSysConst_SampleCountLog2_Comp));
+  {
+    // Copy the 4x AA coverage to system_temp_rov_params_.x.
+    DxbcOpAnd(DxbcDest::R(system_temp_rov_params_, 0b0001),
+              DxbcSrc::VCoverage(), DxbcSrc::LU((1 << 4) - 1));
+  }
   // Handle 1 or 2 samples.
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ELSE) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
-  ++stat_.instruction_count;
-
-  // Extract sample 3 coverage, which will be used as sample 1.
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_UBFE) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(8));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-  shader_code_.push_back(system_temp_rov_params_);
-  shader_code_.push_back(
-      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  shader_code_.push_back(1);
-  shader_code_.push_back(
-      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  shader_code_.push_back(3);
-  shader_code_.push_back(EncodeVectorSelectOperand(
-      D3D11_SB_OPERAND_TYPE_INPUT_COVERAGE_MASK, 0, 0));
-  ++stat_.instruction_count;
-  ++stat_.uint_instruction_count;
-
-  // Combine coverage of samples 0 (in bit 0 of vCoverage) and 3 (in bit 0 of
-  // system_temp_rov_params_.x).
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_BFI) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(10));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-  shader_code_.push_back(system_temp_rov_params_);
-  shader_code_.push_back(
-      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  shader_code_.push_back(31);
-  shader_code_.push_back(
-      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  shader_code_.push_back(1);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-  shader_code_.push_back(system_temp_rov_params_);
-  shader_code_.push_back(EncodeVectorSelectOperand(
-      D3D11_SB_OPERAND_TYPE_INPUT_COVERAGE_MASK, 0, 0));
-  ++stat_.instruction_count;
-  ++stat_.uint_instruction_count;
-
+  DxbcOpElse();
+  {
+    // Extract sample 3 coverage, which will be used as sample 1.
+    DxbcOpUBFE(DxbcDest::R(system_temp_rov_params_, 0b0001), DxbcSrc::LU(1),
+               DxbcSrc::LU(3), DxbcSrc::VCoverage());
+    // Combine coverage of samples 0 (in bit 0 of vCoverage) and 3 (in bit 0 of
+    // system_temp_rov_params_.x).
+    DxbcOpBFI(DxbcDest::R(system_temp_rov_params_, 0b0001), DxbcSrc::LU(31),
+              DxbcSrc::LU(1),
+              DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kXXXX),
+              DxbcSrc::VCoverage());
+  }
   // Close the 4x MSAA conditional.
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
-  ++stat_.instruction_count;
+  DxbcOpEndIf();
 }
 
 void DxbcShaderTranslator::ROV_DepthStencilTest() {
@@ -709,132 +377,55 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
   // Check whether depth/stencil is enabled. 1 SGPR taken.
   // temp1.x = kSysFlag_ROVDepthStencil
   system_constants_used_ |= 1ull << kSysConst_Flags_Index;
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-  shader_code_.push_back(temp1);
-  shader_code_.push_back(EncodeVectorSelectOperand(
-      D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSysConst_Flags_Comp, 3));
-  shader_code_.push_back(cbuffer_index_system_constants_);
-  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-  shader_code_.push_back(kSysConst_Flags_Vec);
-  shader_code_.push_back(
-      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  shader_code_.push_back(kSysFlag_ROVDepthStencil);
-  ++stat_.instruction_count;
-  ++stat_.uint_instruction_count;
-
+  DxbcOpAnd(DxbcDest::R(temp1, 0b0001),
+            DxbcSrc::CB(cbuffer_index_system_constants_,
+                        uint32_t(CbufferRegister::kSystemConstants),
+                        kSysConst_Flags_Vec)
+                .Select(kSysConst_Flags_Comp),
+            DxbcSrc::LU(kSysFlag_ROVDepthStencil));
   // Open the depth/stencil enabled conditional. 1 SGPR released.
   // temp1.x = free
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
-                         ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(
-                             D3D10_SB_INSTRUCTION_TEST_NONZERO) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-  shader_code_.push_back(temp1);
-  ++stat_.instruction_count;
-  ++stat_.dynamic_flow_control_count;
+  DxbcOpIf(true, DxbcSrc::R(temp1, DxbcSrc::kXXXX));
 
   if (writes_depth()) {
     // Convert the shader-generated depth to 24-bit - move the 32-bit depth to
     // the conversion subroutine's argument.
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-    shader_code_.push_back(system_temps_subroutine_);
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-    shader_code_.push_back(system_temp_rov_depth_stencil_);
-    ++stat_.instruction_count;
-    ++stat_.mov_instruction_count;
-
+    DxbcOpMov(DxbcDest::R(system_temps_subroutine_, 0b0001),
+              DxbcSrc::R(system_temp_rov_depth_stencil_, DxbcSrc::kXXXX));
     // Convert the shader-generated depth to 24-bit.
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_CALL) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
-    shader_code_.push_back(EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_LABEL, 1));
-    shader_code_.push_back(label_rov_depth_to_24bit_);
-    ++stat_.instruction_count;
-    ++stat_.static_flow_control_count;
-
+    DxbcOpCall(DxbcSrc::Label(label_rov_depth_to_24bit_));
     // Store a copy of the depth in temp1.x to reload later.
     // temp1.x = 24-bit oDepth
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-    shader_code_.push_back(temp1);
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-    shader_code_.push_back(system_temps_subroutine_);
-    ++stat_.instruction_count;
-    ++stat_.mov_instruction_count;
+    DxbcOpMov(DxbcDest::R(temp1, 0b0001),
+              DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kXXXX));
   } else {
     // Load the first sample's Z and W to system_temps_subroutine_[0] - need
     // this regardless of coverage for polygon offset.
-    shader_code_.push_back(
-        ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_EVAL_SAMPLE_INDEX) |
-        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0011, 1));
-    shader_code_.push_back(system_temps_subroutine_);
-    shader_code_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_INPUT, kSwizzleXYZW, 1));
-    shader_code_.push_back(uint32_t(InOutRegister::kPSInClipSpaceZW));
-    shader_code_.push_back(
-        EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-    shader_code_.push_back(0);
-    ++stat_.instruction_count;
-
+    DxbcOpEvalSampleIndex(DxbcDest::R(system_temps_subroutine_, 0b0011),
+                          DxbcSrc::V(uint32_t(InOutRegister::kPSInClipSpaceZW)),
+                          DxbcSrc::LU(0));
     // Calculate the first sample's Z/W to system_temps_subroutine_[0].x for
     // conversion to 24-bit and depth test.
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DIV) |
-                           ENCODE_D3D10_SB_INSTRUCTION_SATURATE(1) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-    shader_code_.push_back(system_temps_subroutine_);
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-    shader_code_.push_back(system_temps_subroutine_);
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
-    shader_code_.push_back(system_temps_subroutine_);
-    ++stat_.instruction_count;
-    ++stat_.float_instruction_count;
-
+    DxbcOpDiv(DxbcDest::R(system_temps_subroutine_, 0b0001),
+              DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kXXXX),
+              DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kYYYY), true);
     // Apply viewport Z range to the first sample because this would affect the
     // slope-scaled depth bias (tested on PC on Direct3D 12, by comparing the
     // fraction of the polygon's area with depth clamped - affected by the
     // constant bias, but not affected by the slope-scaled bias, also depth
     // range clamping should be done after applying the offset as well).
     system_constants_used_ |= 1ull << kSysConst_EDRAMDepthRange_Index;
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MAD) |
-                           ENCODE_D3D10_SB_INSTRUCTION_SATURATE(1) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(13));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-    shader_code_.push_back(system_temps_subroutine_);
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-    shader_code_.push_back(system_temps_subroutine_);
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
-                                  kSysConst_EDRAMDepthRangeScale_Comp, 3));
-    shader_code_.push_back(cbuffer_index_system_constants_);
-    shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-    shader_code_.push_back(kSysConst_EDRAMDepthRange_Vec);
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
-                                  kSysConst_EDRAMDepthRangeOffset_Comp, 3));
-    shader_code_.push_back(cbuffer_index_system_constants_);
-    shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-    shader_code_.push_back(kSysConst_EDRAMDepthRange_Vec);
-    ++stat_.instruction_count;
-    ++stat_.float_instruction_count;
-
+    DxbcOpMAd(DxbcDest::R(system_temps_subroutine_, 0b0001),
+              DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kXXXX),
+              DxbcSrc::CB(cbuffer_index_system_constants_,
+                          uint32_t(CbufferRegister::kSystemConstants),
+                          kSysConst_EDRAMDepthRange_Vec)
+                  .Select(kSysConst_EDRAMDepthRangeScale_Comp),
+              DxbcSrc::CB(cbuffer_index_system_constants_,
+                          uint32_t(CbufferRegister::kSystemConstants),
+                          kSysConst_EDRAMDepthRange_Vec)
+                  .Select(kSysConst_EDRAMDepthRangeOffset_Comp),
+              true);
     // Get the derivatives of a sample's depth, for the slope-scaled polygon
     // offset. Probably not very significant that it's for the sample 0 rather
     // than for the center, likely neither is accurate because Xenos probably
@@ -842,125 +433,59 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
     // the slope-scaled polygon offset in R5xx Acceleration. Take 2 VGPRs.
     // temp1.x = ddx(z)
     // temp1.y = ddy(z)
-    for (uint32_t i = 0; i < 2; ++i) {
-      shader_code_.push_back(
-          ENCODE_D3D10_SB_OPCODE_TYPE(i ? D3D11_SB_OPCODE_DERIV_RTY_COARSE
-                                        : D3D11_SB_OPCODE_DERIV_RTX_COARSE) |
-          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
-      shader_code_.push_back(EncodeVectorMaskedOperand(
-          D3D10_SB_OPERAND_TYPE_TEMP, 0b0001 << i, 1));
-      shader_code_.push_back(temp1);
-      shader_code_.push_back(
-          EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-      shader_code_.push_back(system_temps_subroutine_);
-      ++stat_.instruction_count;
-      ++stat_.float_instruction_count;
-    }
-
+    DxbcOpDerivRTXCoarse(DxbcDest::R(temp1, 0b0001),
+                         DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kXXXX));
+    DxbcOpDerivRTYCoarse(DxbcDest::R(temp1, 0b0010),
+                         DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kXXXX));
     // Get the maximum depth slope for polygon offset to temp1.y.
     // Release 1 VGPR (Y derivative).
     // temp1.x = max(|ddx(z)|, |ddy(z)|)
     // temp1.y = free
     // https://docs.microsoft.com/en-us/windows/desktop/direct3d9/depth-bias
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MAX) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-    shader_code_.push_back(temp1);
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1) |
-        ENCODE_D3D10_SB_OPERAND_EXTENDED(1));
-    shader_code_.push_back(ENCODE_D3D10_SB_EXTENDED_OPERAND_MODIFIER(
-        D3D10_SB_OPERAND_MODIFIER_ABS));
-    shader_code_.push_back(temp1);
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1) |
-        ENCODE_D3D10_SB_OPERAND_EXTENDED(1));
-    shader_code_.push_back(ENCODE_D3D10_SB_EXTENDED_OPERAND_MODIFIER(
-        D3D10_SB_OPERAND_MODIFIER_ABS));
-    shader_code_.push_back(temp1);
-    ++stat_.instruction_count;
-    ++stat_.float_instruction_count;
-
+    DxbcOpMax(DxbcDest::R(temp1, 0b0001),
+              DxbcSrc::R(temp1, DxbcSrc::kXXXX).Abs(),
+              DxbcSrc::R(temp1, DxbcSrc::kYYYY).Abs());
     // Copy the needed polygon offset values to temp1.yz. Take 2 VGPRs.
     // temp1.x = max(|ddx(z)|, |ddy(z)|)
     // temp1.y = polygon offset scale
     // temp1.z = polygon offset bias
     system_constants_used_ |= (1ull << kSysConst_EDRAMPolyOffsetFront_Index) |
                               (1ull << kSysConst_EDRAMPolyOffsetBack_Index);
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(13));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0110, 1));
-    shader_code_.push_back(temp1);
-    shader_code_.push_back(
-        EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_INPUT, 0, 1));
-    shader_code_.push_back(uint32_t(InOutRegister::kPSInFrontFace));
-    shader_code_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
-        (kSysConst_EDRAMPolyOffsetFrontScale_Comp << 2) |
-            (kSysConst_EDRAMPolyOffsetFrontOffset_Comp << 4),
-        3));
-    shader_code_.push_back(cbuffer_index_system_constants_);
-    shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-    shader_code_.push_back(kSysConst_EDRAMPolyOffsetFront_Vec);
-    shader_code_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
-        (kSysConst_EDRAMPolyOffsetBackScale_Comp << 2) |
-            (kSysConst_EDRAMPolyOffsetBackOffset_Comp << 4),
-        3));
-    shader_code_.push_back(cbuffer_index_system_constants_);
-    shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-    shader_code_.push_back(kSysConst_EDRAMPolyOffsetBack_Vec);
-    ++stat_.instruction_count;
-    ++stat_.movc_instruction_count;
-
+    DxbcOpMovC(
+        DxbcDest::R(temp1, 0b0110),
+        DxbcSrc::V(uint32_t(InOutRegister::kPSInFrontFace), DxbcSrc::kXXXX),
+        DxbcSrc::CB(cbuffer_index_system_constants_,
+                    uint32_t(CbufferRegister::kSystemConstants),
+                    kSysConst_EDRAMPolyOffsetFront_Vec,
+                    (kSysConst_EDRAMPolyOffsetFrontScale_Comp << 2) |
+                        (kSysConst_EDRAMPolyOffsetFrontOffset_Comp << 4)),
+        DxbcSrc::CB(cbuffer_index_system_constants_,
+                    uint32_t(CbufferRegister::kSystemConstants),
+                    kSysConst_EDRAMPolyOffsetBack_Vec,
+                    (kSysConst_EDRAMPolyOffsetBackScale_Comp << 2) |
+                        (kSysConst_EDRAMPolyOffsetBackOffset_Comp << 4)));
     // Apply the slope scale and the constant bias to the offset, and release 2
     // VGPRs.
     // temp1.x = polygon offset
     // temp1.y = free
     // temp1.z = free
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MAD) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-    shader_code_.push_back(temp1);
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
-    shader_code_.push_back(temp1);
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-    shader_code_.push_back(temp1);
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
-    shader_code_.push_back(temp1);
-    ++stat_.instruction_count;
-    ++stat_.float_instruction_count;
-
+    DxbcOpMAd(DxbcDest::R(temp1, 0b0001), DxbcSrc::R(temp1, DxbcSrc::kYYYY),
+              DxbcSrc::R(temp1, DxbcSrc::kXXXX),
+              DxbcSrc::R(temp1, DxbcSrc::kZZZZ));
     // Calculate the upper Z range bound to temp1.y for clamping after biasing,
     // taking 1 SGPR.
     // temp1.x = polygon offset
     // temp1.y = viewport maximum depth
     system_constants_used_ |= 1ull << kSysConst_EDRAMDepthRange_Index;
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ADD) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(11));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0010, 1));
-    shader_code_.push_back(temp1);
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
-                                  kSysConst_EDRAMDepthRangeOffset_Comp, 3));
-    shader_code_.push_back(cbuffer_index_system_constants_);
-    shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-    shader_code_.push_back(kSysConst_EDRAMDepthRange_Vec);
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
-                                  kSysConst_EDRAMDepthRangeScale_Comp, 3));
-    shader_code_.push_back(cbuffer_index_system_constants_);
-    shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-    shader_code_.push_back(kSysConst_EDRAMDepthRange_Vec);
-    ++stat_.instruction_count;
-    ++stat_.float_instruction_count;
+    DxbcOpAdd(DxbcDest::R(temp1, 0b0010),
+              DxbcSrc::CB(cbuffer_index_system_constants_,
+                          uint32_t(CbufferRegister::kSystemConstants),
+                          kSysConst_EDRAMDepthRange_Vec)
+                  .Select(kSysConst_EDRAMDepthRangeOffset_Comp),
+              DxbcSrc::CB(cbuffer_index_system_constants_,
+                          uint32_t(CbufferRegister::kSystemConstants),
+                          kSysConst_EDRAMDepthRange_Vec)
+                  .Select(kSysConst_EDRAMDepthRangeScale_Comp));
   }
 
   for (uint32_t i = 0; i < 4; ++i) {
@@ -968,33 +493,14 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
     // temp1.x = polygon offset or 24-bit oDepth
     // temp1.y = viewport maximum depth if not writing to oDepth
     // temp1.z = coverage of the current sample
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0100, 1));
-    shader_code_.push_back(temp1);
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-    shader_code_.push_back(system_temp_rov_params_);
-    shader_code_.push_back(
-        EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-    shader_code_.push_back(1 << i);
-    ++stat_.instruction_count;
-    ++stat_.uint_instruction_count;
-
+    DxbcOpAnd(DxbcDest::R(temp1, 0b0100),
+              DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kXXXX),
+              DxbcSrc::LU(1 << i));
     // Check if the current sample is covered. Release 1 VGPR.
     // temp1.x = polygon offset or 24-bit oDepth
     // temp1.y = viewport maximum depth if not writing to oDepth
     // temp1.z = free
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
-                           ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(
-                               D3D10_SB_INSTRUCTION_TEST_NONZERO) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
-    shader_code_.push_back(temp1);
-    ++stat_.instruction_count;
-    ++stat_.dynamic_flow_control_count;
+    DxbcOpIf(true, DxbcSrc::R(temp1, DxbcSrc::kZZZZ));
 
     if (writes_depth()) {
       // Same depth for all samples, already converted to 24-bit - only move it
@@ -1002,17 +508,8 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
       // not already there (it's there for the first sample - returned from the
       // conversion to 24-bit).
       if (i) {
-        shader_code_.push_back(
-            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
-        shader_code_.push_back(
-            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-        shader_code_.push_back(system_temps_subroutine_);
-        shader_code_.push_back(
-            EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-        shader_code_.push_back(temp1);
-        ++stat_.instruction_count;
-        ++stat_.mov_instruction_count;
+        DxbcOpMov(DxbcDest::R(system_temps_subroutine_, 0b0001),
+                  DxbcSrc::R(temp1, DxbcSrc::kXXXX));
       }
     } else {
       if (i) {
@@ -1028,247 +525,96 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
           // 2x MSAA, handling samples 0 and 3 (upper-left and lower-right) as 0
           // and 1. Thus, evaluate Z/W at sample 3 when 4x is not enabled.
           system_constants_used_ |= 1ull << kSysConst_SampleCountLog2_Index;
-          shader_code_.push_back(
-              ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
-              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(11));
-          shader_code_.push_back(
-              EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-          shader_code_.push_back(system_temps_subroutine_);
-          shader_code_.push_back(
-              EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
-                                        kSysConst_SampleCountLog2_Comp, 3));
-          shader_code_.push_back(cbuffer_index_system_constants_);
-          shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-          shader_code_.push_back(kSysConst_SampleCountLog2_Vec);
-          shader_code_.push_back(
-              EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-          shader_code_.push_back(3);
-          shader_code_.push_back(
-              EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-          shader_code_.push_back(1);
-          ++stat_.instruction_count;
-          ++stat_.movc_instruction_count;
-
-          shader_code_.push_back(
-              ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_EVAL_SAMPLE_INDEX) |
-              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-          shader_code_.push_back(
-              EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0011, 1));
-          shader_code_.push_back(system_temps_subroutine_);
-          shader_code_.push_back(EncodeVectorSwizzledOperand(
-              D3D10_SB_OPERAND_TYPE_INPUT, kSwizzleXYZW, 1));
-          shader_code_.push_back(uint32_t(InOutRegister::kPSInClipSpaceZW));
-          shader_code_.push_back(
-              EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-          shader_code_.push_back(system_temps_subroutine_);
-          ++stat_.instruction_count;
+          DxbcOpMovC(DxbcDest::R(system_temps_subroutine_, 0b0001),
+                     DxbcSrc::CB(cbuffer_index_system_constants_,
+                                 uint32_t(CbufferRegister::kSystemConstants),
+                                 kSysConst_SampleCountLog2_Vec)
+                         .Select(kSysConst_SampleCountLog2_Comp),
+                     DxbcSrc::LU(3), DxbcSrc::LU(1));
+          DxbcOpEvalSampleIndex(
+              DxbcDest::R(system_temps_subroutine_, 0b0011),
+              DxbcSrc::V(uint32_t(InOutRegister::kPSInClipSpaceZW)),
+              DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kXXXX));
         } else {
-          shader_code_.push_back(
-              ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_EVAL_SAMPLE_INDEX) |
-              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-          shader_code_.push_back(
-              EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0011, 1));
-          shader_code_.push_back(system_temps_subroutine_);
-          shader_code_.push_back(EncodeVectorSwizzledOperand(
-              D3D10_SB_OPERAND_TYPE_INPUT, kSwizzleXYZW, 1));
-          shader_code_.push_back(uint32_t(InOutRegister::kPSInClipSpaceZW));
-          shader_code_.push_back(
-              EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-          shader_code_.push_back(1 << i);
-          ++stat_.instruction_count;
+          DxbcOpEvalSampleIndex(
+              DxbcDest::R(system_temps_subroutine_, 0b0011),
+              DxbcSrc::V(uint32_t(InOutRegister::kPSInClipSpaceZW)),
+              DxbcSrc::LU(i));
         }
-
         // Calculate Z/W for the current sample from the evaluated Z and W.
-        shader_code_.push_back(
-            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DIV) |
-            ENCODE_D3D10_SB_INSTRUCTION_SATURATE(1) |
-            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-        shader_code_.push_back(
-            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-        shader_code_.push_back(system_temps_subroutine_);
-        shader_code_.push_back(
-            EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-        shader_code_.push_back(system_temps_subroutine_);
-        shader_code_.push_back(
-            EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
-        shader_code_.push_back(system_temps_subroutine_);
-        ++stat_.instruction_count;
-        ++stat_.float_instruction_count;
-
+        DxbcOpDiv(DxbcDest::R(system_temps_subroutine_, 0b0001),
+                  DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kXXXX),
+                  DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kYYYY), true);
         // Apply viewport Z range the same way as it was applied to sample 0.
         system_constants_used_ |= 1ull << kSysConst_EDRAMDepthRange_Index;
-        shader_code_.push_back(
-            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MAD) |
-            ENCODE_D3D10_SB_INSTRUCTION_SATURATE(1) |
-            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(13));
-        shader_code_.push_back(
-            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-        shader_code_.push_back(system_temps_subroutine_);
-        shader_code_.push_back(
-            EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-        shader_code_.push_back(system_temps_subroutine_);
-        shader_code_.push_back(
-            EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
-                                      kSysConst_EDRAMDepthRangeScale_Comp, 3));
-        shader_code_.push_back(cbuffer_index_system_constants_);
-        shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-        shader_code_.push_back(kSysConst_EDRAMDepthRange_Vec);
-        shader_code_.push_back(
-            EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
-                                      kSysConst_EDRAMDepthRangeOffset_Comp, 3));
-        shader_code_.push_back(cbuffer_index_system_constants_);
-        shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-        shader_code_.push_back(kSysConst_EDRAMDepthRange_Vec);
-        ++stat_.instruction_count;
-        ++stat_.float_instruction_count;
+        DxbcOpMAd(DxbcDest::R(system_temps_subroutine_, 0b0001),
+                  DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kXXXX),
+                  DxbcSrc::CB(cbuffer_index_system_constants_,
+                              uint32_t(CbufferRegister::kSystemConstants),
+                              kSysConst_EDRAMDepthRange_Vec)
+                      .Select(kSysConst_EDRAMDepthRangeScale_Comp),
+                  DxbcSrc::CB(cbuffer_index_system_constants_,
+                              uint32_t(CbufferRegister::kSystemConstants),
+                              kSysConst_EDRAMDepthRange_Vec)
+                      .Select(kSysConst_EDRAMDepthRangeOffset_Comp),
+                  true);
       }
-
       // Add the bias to the depth of the sample.
-      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ADD) |
-                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-      shader_code_.push_back(
-          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-      shader_code_.push_back(system_temps_subroutine_);
-      shader_code_.push_back(
-          EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-      shader_code_.push_back(system_temps_subroutine_);
-      shader_code_.push_back(
-          EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-      shader_code_.push_back(temp1);
-      ++stat_.instruction_count;
-      ++stat_.float_instruction_count;
-
+      DxbcOpAdd(DxbcDest::R(system_temps_subroutine_, 0b0001),
+                DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kXXXX),
+                DxbcSrc::R(temp1, DxbcSrc::kXXXX));
       // Clamp the biased depth to the lower viewport depth bound.
       system_constants_used_ |= 1ull << kSysConst_EDRAMDepthRange_Index;
-      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MAX) |
-                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-      shader_code_.push_back(
-          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-      shader_code_.push_back(system_temps_subroutine_);
-      shader_code_.push_back(
-          EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-      shader_code_.push_back(system_temps_subroutine_);
-      shader_code_.push_back(
-          EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
-                                    kSysConst_EDRAMDepthRangeOffset_Comp, 3));
-      shader_code_.push_back(cbuffer_index_system_constants_);
-      shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-      shader_code_.push_back(kSysConst_EDRAMDepthRange_Vec);
-      ++stat_.instruction_count;
-      ++stat_.float_instruction_count;
-
+      DxbcOpMax(DxbcDest::R(system_temps_subroutine_, 0b0001),
+                DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kXXXX),
+                DxbcSrc::CB(cbuffer_index_system_constants_,
+                            uint32_t(CbufferRegister::kSystemConstants),
+                            kSysConst_EDRAMDepthRange_Vec)
+                    .Select(kSysConst_EDRAMDepthRangeOffset_Comp));
       // Clamp the biased depth to the upper viewport depth bound.
-      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MIN) |
-                             ENCODE_D3D10_SB_INSTRUCTION_SATURATE(1) |
-                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-      shader_code_.push_back(
-          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-      shader_code_.push_back(system_temps_subroutine_);
-      shader_code_.push_back(
-          EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-      shader_code_.push_back(system_temps_subroutine_);
-      shader_code_.push_back(
-          EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
-      shader_code_.push_back(temp1);
-      ++stat_.instruction_count;
-      ++stat_.float_instruction_count;
-
+      DxbcOpMin(DxbcDest::R(system_temps_subroutine_, 0b0001),
+                DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kXXXX),
+                DxbcSrc::R(temp1, DxbcSrc::kYYYY), true);
       // Convert the depth to 24-bit - takes system_temps_subroutine_[0].x,
       // returns also in system_temps_subroutine_[0].x.
-      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_CALL) |
-                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
-      shader_code_.push_back(
-          EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_LABEL, 1));
-      shader_code_.push_back(label_rov_depth_to_24bit_);
-      ++stat_.instruction_count;
-      ++stat_.static_flow_control_count;
+      DxbcOpCall(DxbcSrc::Label(label_rov_depth_to_24bit_));
     }
 
     // Perform depth/stencil test for the sample, get the result in bits 4
     // (passed) and 8 (new depth/stencil buffer value is different).
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_CALL) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
-    shader_code_.push_back(EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_LABEL, 1));
-    shader_code_.push_back(label_rov_depth_stencil_sample_);
-    ++stat_.instruction_count;
-    ++stat_.static_flow_control_count;
-
+    DxbcOpCall(DxbcSrc::Label(label_rov_depth_stencil_sample_));
     // Write the resulting depth/stencil value in system_temps_subroutine_[0].x
     // to the sample's depth in system_temp_rov_depth_stencil_.
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1 << i, 1));
-    shader_code_.push_back(system_temp_rov_depth_stencil_);
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-    shader_code_.push_back(system_temps_subroutine_);
-    ++stat_.instruction_count;
-    ++stat_.mov_instruction_count;
-
+    DxbcOpMov(DxbcDest::R(system_temp_rov_depth_stencil_, 1 << i),
+              DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kXXXX));
     if (i) {
       // Shift the result bits to the correct position.
-      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ISHL) |
-                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-      shader_code_.push_back(
-          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0010, 1));
-      shader_code_.push_back(system_temps_subroutine_);
-      shader_code_.push_back(
-          EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
-      shader_code_.push_back(system_temps_subroutine_);
-      shader_code_.push_back(
-          EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-      shader_code_.push_back(i);
-      ++stat_.instruction_count;
-      ++stat_.int_instruction_count;
+      DxbcOpIShL(DxbcDest::R(system_temps_subroutine_, 0b0010),
+                 DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kYYYY),
+                 DxbcSrc::LU(i));
     }
-
     // Add the result in system_temps_subroutine_[0].y to
     // system_temp_rov_params_.x. Bits 0:3 will be cleared in case of test
     // failure (only doing this for covered samples), bits 4:7 will be added if
     // need to defer writing.
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_XOR) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-    shader_code_.push_back(system_temp_rov_params_);
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-    shader_code_.push_back(system_temp_rov_params_);
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
-    shader_code_.push_back(system_temps_subroutine_);
-    ++stat_.instruction_count;
-    ++stat_.uint_instruction_count;
+    DxbcOpXOr(DxbcDest::R(system_temp_rov_params_, 0b0001),
+              DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kXXXX),
+              DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kYYYY));
 
     // Close the sample conditional.
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
-    ++stat_.instruction_count;
+    DxbcOpEndIf();
 
     // Go to the next sample (samples are at +0, +80, +1, +81, so need to do
     // +80, -79, +80 and -81 after each sample).
     system_constants_used_ |= 1ull
                               << kSysConst_EDRAMResolutionSquareScale_Index;
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IMAD) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(11));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0010, 1));
-    shader_code_.push_back(system_temp_rov_params_);
-    shader_code_.push_back(
-        EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-    shader_code_.push_back((i & 1) ? -78 - i : 80);
-    shader_code_.push_back(EncodeVectorSelectOperand(
-        D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
-        kSysConst_EDRAMResolutionSquareScale_Comp, 3));
-    shader_code_.push_back(cbuffer_index_system_constants_);
-    shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-    shader_code_.push_back(kSysConst_EDRAMResolutionSquareScale_Vec);
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
-    shader_code_.push_back(system_temp_rov_params_);
-    ++stat_.instruction_count;
-    ++stat_.int_instruction_count;
+    DxbcOpIMAd(DxbcDest::R(system_temp_rov_params_, 0b0010),
+               DxbcSrc::LI((i & 1) ? -78 - i : 80),
+               DxbcSrc::CB(cbuffer_index_system_constants_,
+                           uint32_t(CbufferRegister::kSystemConstants),
+                           kSysConst_EDRAMResolutionSquareScale_Vec)
+                   .Select(kSysConst_EDRAMResolutionSquareScale_Comp),
+               DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kYYYY));
   }
 
   if (ROV_IsDepthStencilEarly()) {
@@ -1279,96 +625,38 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
     // reject at 2x2 quad granularity because texture fetches need derivatives.
 
     // temp1.x = coverage | deferred depth/stencil write
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-    shader_code_.push_back(temp1);
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-    shader_code_.push_back(system_temp_rov_params_);
-    shader_code_.push_back(
-        EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-    shader_code_.push_back(0b11111111);
-    ++stat_.instruction_count;
-    ++stat_.uint_instruction_count;
-
+    DxbcOpAnd(DxbcDest::R(temp1, 0b0001),
+              DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kXXXX),
+              DxbcSrc::LU(0b11111111));
     // temp1.x = 1.0 if any sample is covered or potentially needs stencil write
     // in the end of the shader in the current pixel
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-    shader_code_.push_back(temp1);
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-    shader_code_.push_back(temp1);
-    shader_code_.push_back(
-        EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-    shader_code_.push_back(0x3F800000);
-    shader_code_.push_back(
-        EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-    shader_code_.push_back(0);
-    ++stat_.instruction_count;
-    ++stat_.movc_instruction_count;
-
-    for (uint32_t i = 0; i < 2; ++i) {
-      // temp1.x = 1.0 if anything is covered in the current pixel (i = 0) /
-      //           the current half of the quad (i = 1)
-      // temp1.y = non-zero if anything is covered in the pixel across X
-      //           (i = 0) / the two pixels across Y (i = 1)
-      shader_code_.push_back(
-          ENCODE_D3D10_SB_OPCODE_TYPE(i ? D3D11_SB_OPCODE_DERIV_RTY_COARSE
-                                        : D3D11_SB_OPCODE_DERIV_RTX_FINE) |
-          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
-      shader_code_.push_back(
-          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0010, 1));
-      shader_code_.push_back(temp1);
-      shader_code_.push_back(
-          EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-      shader_code_.push_back(temp1);
-      ++stat_.instruction_count;
-      ++stat_.float_instruction_count;
-
-      // temp1.x = 1.0 if anything is covered in the current half of the quad
-      //           (i = 0) / the whole quad (i = 1)
-      // temp1.y = free
-      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
-                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-      shader_code_.push_back(
-          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-      shader_code_.push_back(temp1);
-      shader_code_.push_back(
-          EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
-      shader_code_.push_back(temp1);
-      shader_code_.push_back(
-          EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-      shader_code_.push_back(0x3F800000);
-      shader_code_.push_back(
-          EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-      shader_code_.push_back(temp1);
-      ++stat_.instruction_count;
-      ++stat_.movc_instruction_count;
-    }
-
+    DxbcOpMovC(DxbcDest::R(temp1, 0b0001), DxbcSrc::R(temp1, DxbcSrc::kXXXX),
+               DxbcSrc::LF(1.0f), DxbcSrc::LF(0.0f));
+    // temp1.x = 1.0 if any sample is covered or potentially needs stencil write
+    // in the end of the shader in the current pixel
+    // temp1.y = non-zero if anything is covered in the pixel across X
+    DxbcOpDerivRTXFine(DxbcDest::R(temp1, 0b0010),
+                       DxbcSrc::R(temp1, DxbcSrc::kXXXX));
+    // temp1.x = 1.0 if anything is covered in the current half of the quad
+    // temp1.y = free
+    DxbcOpMovC(DxbcDest::R(temp1, 0b0001), DxbcSrc::R(temp1, DxbcSrc::kYYYY),
+               DxbcSrc::LF(1.0f), DxbcSrc::R(temp1, DxbcSrc::kXXXX));
+    // temp1.x = 1.0 if anything is covered in the current half of the quad
+    // temp1.y = non-zero if anything is covered in the two pixels across Y
+    DxbcOpDerivRTYCoarse(DxbcDest::R(temp1, 0b0010),
+                         DxbcSrc::R(temp1, DxbcSrc::kXXXX));
+    // temp1.x = 1.0 if anything is covered in the current whole quad
+    // temp1.y = free
+    DxbcOpMovC(DxbcDest::R(temp1, 0b0001), DxbcSrc::R(temp1, DxbcSrc::kYYYY),
+               DxbcSrc::LF(1.0f), DxbcSrc::R(temp1, DxbcSrc::kXXXX));
     // End the shader if nothing is covered in the 2x2 quad after early
     // depth/stencil.
     // temp1.x = free
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_RETC) |
-                           ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(
-                               D3D10_SB_INSTRUCTION_TEST_ZERO) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-    shader_code_.push_back(temp1);
-    ++stat_.instruction_count;
-    ++stat_.dynamic_flow_control_count;
+    DxbcOpRetC(false, DxbcSrc::R(temp1, DxbcSrc::kXXXX));
   }
 
   // Close the large depth/stencil conditional.
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
-  ++stat_.instruction_count;
+  DxbcOpEndIf();
 
   // Release temp1.
   PopSystemTemp();

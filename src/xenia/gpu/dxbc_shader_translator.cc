@@ -180,6 +180,87 @@ void DxbcShaderTranslator::Reset() {
   std::memset(&stat_, 0, sizeof(stat_));
 }
 
+void DxbcShaderTranslator::DxbcSrc::Write(std::vector<uint32_t>& code,
+                                          uint32_t dest_write_mask,
+                                          bool is_integer) const {
+  uint32_t operand_token = GetOperandTokenTypeAndIndex();
+  uint32_t dest_component = DxbcDest::GetMaskSingleComponent(dest_write_mask);
+  uint32_t select_component = dest_component != UINT32_MAX ? dest_component : 0;
+  bool dest_is_vector =
+      dest_write_mask != 0b0000 && dest_component == UINT32_MAX;
+  if (type_ == DxbcOperandType::kImmediate32) {
+    if (dest_is_vector) {
+      operand_token |= uint32_t(DxbcOperandDimension::kVector) |
+                       (uint32_t(DxbcComponentSelection::kSwizzle) << 2) |
+                       (DxbcSrc::kXYZW << 4);
+    } else {
+      operand_token |= uint32_t(DxbcOperandDimension::kScalar);
+    }
+    code.push_back(operand_token);
+    if (dest_is_vector) {
+      for (uint32_t i = 0; i < 4; ++i) {
+        code.push_back((dest_write_mask & (1 << i))
+                           ? GetModifiedImmediate(i, is_integer)
+                           : 0);
+      }
+    } else {
+      code.push_back(GetModifiedImmediate(select_component, is_integer));
+    }
+  } else {
+    switch (GetDimension()) {
+      case DxbcOperandDimension::kScalar:
+        if (dest_is_vector) {
+          operand_token |= uint32_t(DxbcOperandDimension::kVector) |
+                           (uint32_t(DxbcComponentSelection::kSwizzle) << 2) |
+                           (DxbcSrc::kXXXX << 4);
+        } else {
+          operand_token |= uint32_t(DxbcOperandDimension::kScalar);
+        }
+        break;
+      case DxbcOperandDimension::kVector:
+        operand_token |= uint32_t(DxbcOperandDimension::kVector);
+        if (dest_is_vector) {
+          operand_token |= uint32_t(DxbcComponentSelection::kSwizzle) << 2;
+          // Clear swizzle of unused components to a used value to avoid
+          // referencing potentially uninitialized register components.
+          uint32_t used_component;
+          if (!xe::bit_scan_forward(dest_write_mask, &used_component)) {
+            used_component = 0;
+          }
+          for (uint32_t i = 0; i < 4; ++i) {
+            uint32_t swizzle_index =
+                (dest_write_mask & (1 << i)) ? i : used_component;
+            operand_token |=
+                (((swizzle_ >> (swizzle_index * 2)) & 3) << (4 + i * 2));
+          }
+        } else {
+          operand_token |= (uint32_t(DxbcComponentSelection::kSelect1) << 2) |
+                           (((swizzle_ >> (select_component * 2)) & 3) << 4);
+        }
+        break;
+      default:
+        break;
+    }
+    DxbcOperandModifier modifier = DxbcOperandModifier::kNone;
+    if (absolute_ && negate_) {
+      modifier = DxbcOperandModifier::kAbsoluteNegate;
+    } else if (absolute_) {
+      modifier = DxbcOperandModifier::kAbsolute;
+    } else if (negate_) {
+      modifier = DxbcOperandModifier::kNegate;
+    }
+    if (modifier != DxbcOperandModifier::kNone) {
+      operand_token |= uint32_t(1) << 31;
+    }
+    code.push_back(operand_token);
+    if (modifier != DxbcOperandModifier::kNone) {
+      code.push_back(uint32_t(DxbcExtendedOperandType::kModifier) |
+                     (uint32_t(modifier) << 6));
+    }
+    DxbcOperandAddress::Write(code);
+  }
+}
+
 bool DxbcShaderTranslator::UseSwitchForControlFlow() const {
   // Xenia crashes on Intel HD Graphics 4000 with switch.
   return cvars::dxbc_switch && vendor_id_ != 0x8086;
@@ -1304,6 +1385,15 @@ void DxbcShaderTranslator::StartTranslation() {
     system_temp_loop_count_ = PushSystemTemp(0b1111);
     system_temp_grad_h_lod_ = PushSystemTemp(0b1111);
     system_temp_grad_v_ = PushSystemTemp(0b0111);
+  }
+
+  // Zero general-purpose registers to prevent crashes when the game references
+  // them.
+  for (uint32_t i = IsDxbcPixelShader() ? kInterpolatorCount : 0;
+       i < register_count(); ++i) {
+    DxbcOpMov(
+        uses_register_dynamic_addressing() ? DxbcDest::X(0, i) : DxbcDest::R(i),
+        DxbcSrc::LU(uint32_t(0)));
   }
 
   // Write stage-specific prologue.

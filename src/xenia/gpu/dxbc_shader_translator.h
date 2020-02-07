@@ -10,10 +10,12 @@
 #ifndef XENIA_GPU_DXBC_SHADER_TRANSLATOR_H_
 #define XENIA_GPU_DXBC_SHADER_TRANSLATOR_H_
 
+#include <cstdlib>
 #include <cstring>
 #include <string>
 #include <vector>
 
+#include "xenia/base/assert.h"
 #include "xenia/base/cvar.h"
 #include "xenia/base/math.h"
 #include "xenia/base/string_buffer.h"
@@ -25,6 +27,28 @@ namespace xe {
 namespace gpu {
 
 // Generates shader model 5_1 byte code (for Direct3D 12).
+//
+// IMPORTANT CONTRIBUTION NOTES:
+//
+// Not all DXBC instructions accept all kinds of operands equally!
+// Refer to Shader Model 4 and 5 Assembly on MSDN to see if the needed
+// swizzle/selection, absolute/negate modifiers and saturation are supported by
+// the instruction.
+// https://docs.microsoft.com/en-us/windows/win32/direct3dhlsl/dx9-graphics-reference-asm
+// Before adding anything that behaves in a way that doesn't follow patterns
+// already used in Xenia, try to write the same logic in HLSL, compile it with
+// FXC and see the resulting assembly *and preferably binary bytecode* as some
+// instructions may, for example, require selection rather than swizzling for
+// certain operands. For bytecode structure, see d3d12TokenizedProgramFormat.hpp
+// from the Windows Driver Kit.
+//
+// Avoid using uninitialized register components - such as registers written to
+// in "if" and not in "else", but then used outside unconditionally or with a
+// different condition (or even with the same condition, but in a different "if"
+// block). This will cause crashes on AMD drivers, and will also limit
+// optimization possibilities as this may result in false dependencies. Always
+// mov l(0, 0, 0, 0) to such components before potential branching -
+// PushSystemTemp accepts a zero mask for this purpose.
 class DxbcShaderTranslator : public ShaderTranslator {
  public:
   DxbcShaderTranslator(uint32_t vendor_id, bool edram_rov_used);
@@ -360,6 +384,752 @@ class DxbcShaderTranslator : public ShaderTranslator {
   void ProcessAluInstruction(const ParsedAluInstruction& instr) override;
 
  private:
+  // D3D10_SB_OPERAND_TYPE
+  enum class DxbcOperandType : uint32_t {
+    kTemp = 0,
+    kInput = 1,
+    kOutput = 2,
+    // Only usable as destination or source (but not both) in mov (and it
+    // becomes an array instruction this way).
+    kIndexableTemp = 3,
+    kImmediate32 = 4,
+    kSampler = 6,
+    kResource = 7,
+    kConstantBuffer = 8,
+    kLabel = 10,
+    kInputPrimitiveID = 11,
+    kOutputDepth = 12,
+    kNull = 13,
+    kInputDomainPoint = 28,
+    kUnorderedAccessView = 30,
+    kInputCoverageMask = 35,
+  };
+
+  // D3D10_SB_OPERAND_INDEX_DIMENSION
+  static constexpr uint32_t GetDxbcOperandIndexDimension(DxbcOperandType type) {
+    switch (type) {
+      case DxbcOperandType::kTemp:
+      case DxbcOperandType::kInput:
+      case DxbcOperandType::kOutput:
+      case DxbcOperandType::kLabel:
+        return 1;
+      case DxbcOperandType::kIndexableTemp:
+      case DxbcOperandType::kSampler:
+      case DxbcOperandType::kResource:
+      case DxbcOperandType::kUnorderedAccessView:
+        return 2;
+      case DxbcOperandType::kConstantBuffer:
+        return 3;
+      default:
+        return 0;
+    }
+  }
+
+  // D3D10_SB_OPERAND_NUM_COMPONENTS
+  enum class DxbcOperandDimension : uint32_t {
+    kNoData,  // D3D10_SB_OPERAND_0_COMPONENT
+    kScalar,  // D3D10_SB_OPERAND_1_COMPONENT
+    kVector,  // D3D10_SB_OPERAND_4_COMPONENT
+  };
+
+  static constexpr DxbcOperandDimension GetDxbcOperandDimension(
+      DxbcOperandType type, bool dest_in_dcl = false) {
+    switch (type) {
+      case DxbcOperandType::kSampler:
+      case DxbcOperandType::kLabel:
+      case DxbcOperandType::kNull:
+        return DxbcOperandDimension::kNoData;
+      case DxbcOperandType::kInputPrimitiveID:
+      case DxbcOperandType::kOutputDepth:
+        return DxbcOperandDimension::kScalar;
+      case DxbcOperandType::kInputCoverageMask:
+        return dest_in_dcl ? DxbcOperandDimension::kScalar
+                           : DxbcOperandDimension::kVector;
+      default:
+        return DxbcOperandDimension::kVector;
+    }
+  }
+
+  // D3D10_SB_OPERAND_4_COMPONENT_SELECTION_MODE
+  enum class DxbcComponentSelection {
+    kMask,
+    kSwizzle,
+    kSelect1,
+  };
+
+  struct DxbcIndex {
+    // D3D10_SB_OPERAND_INDEX_REPRESENTATION
+    enum class Representation : uint32_t {
+      kImmediate32 = 0,
+      kRelative = 2,
+      kImmediate32PlusRelative = 3,
+    };
+
+    uint32_t index_;
+    // UINT32_MAX if absolute. Lower 2 bits are the component index, upper bits
+    // are the temp register index. Applicable to indexable temps, inputs,
+    // outputs except for pixel shaders, constant buffers and bindings.
+    uint32_t relative_to_temp_;
+
+    // Implicit constructor.
+    DxbcIndex(uint32_t index = 0)
+        : index_(index), relative_to_temp_(UINT32_MAX) {}
+    DxbcIndex(uint32_t temp, uint32_t temp_component, uint32_t offset = 0)
+        : index_(offset), relative_to_temp_((temp << 2) | temp_component) {}
+
+    Representation GetRepresentation() const {
+      if (relative_to_temp_ != UINT32_MAX) {
+        return index_ != 0 ? Representation::kImmediate32PlusRelative
+                           : Representation::kRelative;
+      }
+      return Representation::kImmediate32;
+    }
+    uint32_t GetLength() const {
+      return relative_to_temp_ != UINT32_MAX ? (index_ != 0 ? 3 : 2) : 1;
+    }
+    void Write(std::vector<uint32_t>& code) const {
+      if (relative_to_temp_ == UINT32_MAX || index_ != 0) {
+        code.push_back(index_);
+      }
+      if (relative_to_temp_ != UINT32_MAX) {
+        // Encode selecting one component from absolute-indexed r#.
+        code.push_back(uint32_t(DxbcOperandDimension::kVector) |
+                       (uint32_t(DxbcComponentSelection::kSelect1) << 2) |
+                       ((relative_to_temp_ & 3) << 4) |
+                       (uint32_t(DxbcOperandType::kTemp) << 12) | (1 << 20) |
+                       (uint32_t(Representation::kImmediate32) << 22));
+        code.push_back(relative_to_temp_ >> 2);
+      }
+    }
+  };
+
+  struct DxbcOperandAddress {
+    DxbcOperandType type_;
+    DxbcIndex index_1d_, index_2d_, index_3d_;
+
+    explicit DxbcOperandAddress(DxbcOperandType type,
+                                DxbcIndex index_1d = DxbcIndex(),
+                                DxbcIndex index_2d = DxbcIndex(),
+                                DxbcIndex index_3d = DxbcIndex())
+        : type_(type),
+          index_1d_(index_1d),
+          index_2d_(index_2d),
+          index_3d_(index_3d) {}
+
+    DxbcOperandDimension GetDimension(bool dest_in_dcl = false) const {
+      return GetDxbcOperandDimension(type_, dest_in_dcl);
+    }
+    uint32_t GetIndexDimension() const {
+      return GetDxbcOperandIndexDimension(type_);
+    }
+    uint32_t GetOperandTokenTypeAndIndex() const {
+      uint32_t index_dimension = GetIndexDimension();
+      uint32_t operand_token =
+          (uint32_t(type_) << 12) | (index_dimension << 20);
+      if (index_dimension > 0) {
+        operand_token |= uint32_t(index_1d_.GetRepresentation()) << 22;
+        if (index_dimension > 1) {
+          operand_token |= uint32_t(index_2d_.GetRepresentation()) << 25;
+          if (index_dimension > 2) {
+            operand_token |= uint32_t(index_2d_.GetRepresentation()) << 28;
+          }
+        }
+      }
+      return operand_token;
+    }
+    uint32_t GetLength() const {
+      uint32_t length = 0;
+      uint32_t index_dimension = GetIndexDimension();
+      if (index_dimension > 0) {
+        length += index_1d_.GetLength();
+        if (index_dimension > 1) {
+          length += index_2d_.GetLength();
+          if (index_dimension > 2) {
+            length += index_3d_.GetLength();
+          }
+        }
+      }
+      return length;
+    }
+    void Write(std::vector<uint32_t>& code) const {
+      uint32_t index_dimension = GetIndexDimension();
+      if (index_dimension > 0) {
+        index_1d_.Write(code);
+        if (index_dimension > 1) {
+          index_2d_.Write(code);
+          if (index_dimension > 2) {
+            index_3d_.Write(code);
+          }
+        }
+      }
+    }
+  };
+
+  // D3D10_SB_EXTENDED_OPERAND_TYPE
+  enum class DxbcExtendedOperandType : uint32_t {
+    kEmpty,
+    kModifier,
+  };
+
+  // D3D10_SB_OPERAND_MODIFIER
+  enum class DxbcOperandModifier : uint32_t {
+    kNone,
+    kNegate,
+    kAbsolute,
+    kAbsoluteNegate,
+  };
+
+  struct DxbcDest : DxbcOperandAddress {
+    // Ignored for 0-component and 1-component operand types.
+    uint32_t write_mask_;
+
+    explicit DxbcDest(DxbcOperandType type, uint32_t write_mask = 0b1111,
+                      DxbcIndex index_1d = DxbcIndex(),
+                      DxbcIndex index_2d = DxbcIndex(),
+                      DxbcIndex index_3d = DxbcIndex())
+        : DxbcOperandAddress(type, index_1d, index_2d, index_3d),
+          write_mask_(write_mask) {}
+
+    static DxbcDest R(uint32_t index, uint32_t write_mask = 0b1111) {
+      return DxbcDest(DxbcOperandType::kTemp, write_mask, index);
+    }
+    static DxbcDest O(DxbcIndex index, uint32_t write_mask = 0b1111) {
+      return DxbcDest(DxbcOperandType::kOutput, write_mask, index);
+    }
+    static DxbcDest X(uint32_t index_1d, DxbcIndex index_2d,
+                      uint32_t write_mask = 0b1111) {
+      return DxbcDest(DxbcOperandType::kIndexableTemp, write_mask, index_1d,
+                      index_2d);
+    }
+    static DxbcDest ODepth() {
+      return DxbcDest(DxbcOperandType::kOutputDepth, 0b0001);
+    }
+    static DxbcDest Null() { return DxbcDest(DxbcOperandType::kNull, 0b0000); }
+    // Must write to all 4 components.
+    static DxbcDest U(uint32_t index_1d, DxbcIndex index_2d) {
+      return DxbcDest(DxbcOperandType::kUnorderedAccessView, 0b1111, index_1d,
+                      index_2d);
+    }
+
+    uint32_t GetMask() const {
+      switch (GetDimension()) {
+        case DxbcOperandDimension::kNoData:
+          return 0b0000;
+        case DxbcOperandDimension::kScalar:
+          return 0b0001;
+        case DxbcOperandDimension::kVector:
+          return write_mask_;
+        default:
+          assert_unhandled_case(GetDimension());
+          return 0b0000;
+      }
+    }
+    DxbcDest Mask(uint32_t write_mask) const {
+      return DxbcDest(type_, write_mask, index_1d_, index_2d_, index_3d_);
+    }
+    DxbcDest MaskMasked(uint32_t write_mask) const {
+      return DxbcDest(type_, write_mask_ & write_mask, index_1d_, index_2d_,
+                      index_3d_);
+    }
+    static uint32_t GetMaskSingleComponent(uint32_t write_mask) {
+      uint32_t component;
+      if (xe::bit_scan_forward(write_mask, &component)) {
+        if ((write_mask >> component) == 1) {
+          return component;
+        }
+      }
+      return UINT32_MAX;
+    }
+    uint32_t GetMaskSingleComponent() const {
+      return GetMaskSingleComponent(GetMask());
+    }
+
+    uint32_t GetLength() const { return 1 + DxbcOperandAddress::GetLength(); }
+    void Write(std::vector<uint32_t>& code, bool in_dcl = false) const {
+      uint32_t operand_token = GetOperandTokenTypeAndIndex();
+      DxbcOperandDimension dimension = GetDimension(in_dcl);
+      operand_token |= uint32_t(dimension);
+      if (dimension == DxbcOperandDimension::kVector) {
+        operand_token |=
+            (uint32_t(DxbcComponentSelection::kMask) << 2) | (write_mask_ << 4);
+      }
+      code.push_back(operand_token);
+      DxbcOperandAddress::Write(code);
+    }
+  };
+
+  struct DxbcSrc : DxbcOperandAddress {
+    enum : uint32_t {
+      kXYZW = 0b11100100,
+      kXXXX = 0b00000000,
+      kYYYY = 0b01010101,
+      kZZZZ = 0b10101010,
+      kWWWW = 0b11111111,
+    };
+
+    // Ignored for 0-component and 1-component operand types.
+    uint32_t swizzle_;
+    bool absolute_;
+    bool negate_;
+    // Only valid for DxbcOperandType::kImmediate32.
+    uint32_t immediate_[4];
+
+    explicit DxbcSrc(DxbcOperandType type, uint32_t swizzle = kXYZW,
+                     DxbcIndex index_1d = DxbcIndex(),
+                     DxbcIndex index_2d = DxbcIndex(),
+                     DxbcIndex index_3d = DxbcIndex())
+        : DxbcOperandAddress(type, index_1d, index_2d, index_3d),
+          swizzle_(swizzle),
+          absolute_(false),
+          negate_(false) {}
+
+    static DxbcSrc R(uint32_t index, uint32_t swizzle = kXYZW) {
+      return DxbcSrc(DxbcOperandType::kTemp, swizzle, index);
+    }
+    static DxbcSrc V(DxbcIndex index, uint32_t swizzle = kXYZW) {
+      return DxbcSrc(DxbcOperandType::kInput, swizzle, index);
+    }
+    static DxbcSrc X(uint32_t index_1d, DxbcIndex index_2d,
+                     uint32_t swizzle = kXYZW) {
+      return DxbcSrc(DxbcOperandType::kIndexableTemp, swizzle, index_1d,
+                     index_2d);
+    }
+    static DxbcSrc LU(uint32_t x, uint32_t y, uint32_t z, uint32_t w) {
+      DxbcSrc src(DxbcOperandType::kImmediate32, kXYZW);
+      src.immediate_[0] = x;
+      src.immediate_[1] = y;
+      src.immediate_[2] = z;
+      src.immediate_[3] = w;
+      return src;
+    }
+    static DxbcSrc LU(uint32_t x) { return LU(x, x, x, x); }
+    static DxbcSrc LI(int32_t x, int32_t y, int32_t z, int32_t w) {
+      return LU(uint32_t(x), uint32_t(y), uint32_t(z), uint32_t(w));
+    }
+    static DxbcSrc LI(int32_t x) { return LI(x, x, x, x); }
+    static DxbcSrc LF(float x, float y, float z, float w) {
+      return LU(*reinterpret_cast<const uint32_t*>(&x),
+                *reinterpret_cast<const uint32_t*>(&y),
+                *reinterpret_cast<const uint32_t*>(&z),
+                *reinterpret_cast<const uint32_t*>(&w));
+    }
+    static DxbcSrc LF(float x) { return LF(x, x, x, x); }
+    static DxbcSrc LP(const uint32_t* xyzw) {
+      return LU(xyzw[0], xyzw[1], xyzw[2], xyzw[3]);
+    }
+    static DxbcSrc LP(const int32_t* xyzw) {
+      return LI(xyzw[0], xyzw[1], xyzw[2], xyzw[3]);
+    }
+    static DxbcSrc LP(const float* xyzw) {
+      return LF(xyzw[0], xyzw[1], xyzw[2], xyzw[3]);
+    }
+    static DxbcSrc S(uint32_t index_1d, DxbcIndex index_2d) {
+      return DxbcSrc(DxbcOperandType::kSampler, kXXXX, index_1d, index_2d);
+    }
+    static DxbcSrc T(uint32_t index_1d, DxbcIndex index_2d,
+                     uint32_t swizzle = kXYZW) {
+      return DxbcSrc(DxbcOperandType::kResource, swizzle, index_1d, index_2d);
+    }
+    static DxbcSrc CB(uint32_t index_1d, DxbcIndex index_2d, DxbcIndex index_3d,
+                      uint32_t swizzle = kXYZW) {
+      return DxbcSrc(DxbcOperandType::kConstantBuffer, swizzle, index_1d,
+                     index_2d, index_3d);
+    }
+    static DxbcSrc Label(uint32_t index) {
+      return DxbcSrc(DxbcOperandType::kLabel, kXXXX, index);
+    }
+    static DxbcSrc VPrim() {
+      return DxbcSrc(DxbcOperandType::kInputPrimitiveID, kXXXX);
+    }
+    static DxbcSrc VDomain(uint32_t swizzle = kXYZW) {
+      return DxbcSrc(DxbcOperandType::kInputDomainPoint, swizzle);
+    }
+    static DxbcSrc U(uint32_t index_1d, DxbcIndex index_2d,
+                     uint32_t swizzle = kXYZW) {
+      return DxbcSrc(DxbcOperandType::kUnorderedAccessView, swizzle, index_1d,
+                     index_2d);
+    }
+    static DxbcSrc VCoverage() {
+      return DxbcSrc(DxbcOperandType::kInputCoverageMask, kXXXX);
+    }
+
+    DxbcSrc WithModifiers(bool absolute, bool negate) const {
+      DxbcSrc new_src(*this);
+      new_src.absolute_ = absolute;
+      new_src.negate_ = negate;
+      return new_src;
+    }
+    DxbcSrc WithAbs(bool absolute) const {
+      return WithModifiers(absolute, negate_);
+    }
+    DxbcSrc WithNeg(bool negate) const {
+      return WithModifiers(absolute_, negate);
+    }
+    DxbcSrc Abs() const { return WithModifiers(true, false); }
+    DxbcSrc operator-() const { return WithModifiers(absolute_, !negate_); }
+    DxbcSrc Swizzle(uint32_t swizzle) const {
+      DxbcSrc new_src(*this);
+      new_src.swizzle_ = swizzle;
+      return new_src;
+    }
+    DxbcSrc SwizzleSwizzled(uint32_t swizzle) const {
+      DxbcSrc new_src(*this);
+      new_src.swizzle_ = 0;
+      for (uint32_t i = 0; i < 4; ++i) {
+        new_src.swizzle_ |= ((swizzle_ >> (((swizzle >> (i * 2)) & 3) * 2)) & 3)
+                            << (i * 2);
+      }
+      return new_src;
+    }
+    DxbcSrc Select(uint32_t component) const {
+      DxbcSrc new_src(*this);
+      new_src.swizzle_ = component * 0b01010101;
+      return new_src;
+    }
+    DxbcSrc SelectFromSwizzled(uint32_t component) const {
+      DxbcSrc new_src(*this);
+      new_src.swizzle_ = ((swizzle_ >> (component * 2)) & 3) * 0b01010101;
+      return new_src;
+    }
+
+    uint32_t GetLength(uint32_t dest_write_mask) const {
+      bool dest_is_vector =
+          dest_write_mask != 0b0000 &&
+          DxbcDest::GetMaskSingleComponent(dest_write_mask) == UINT32_MAX;
+      if (type_ == DxbcOperandType::kImmediate32) {
+        return dest_is_vector ? 5 : 2;
+      }
+      return ((absolute_ || negate_) ? 2 : 1) + DxbcOperandAddress::GetLength();
+    }
+    static uint32_t GetModifiedImmediate(uint32_t value, bool is_integer,
+                                         bool absolute, bool negate) {
+      if (is_integer) {
+        if (absolute) {
+          *reinterpret_cast<int32_t*>(&value) =
+              std::abs(*reinterpret_cast<const int32_t*>(&value));
+        }
+        if (negate) {
+          *reinterpret_cast<int32_t*>(&value) =
+              -*reinterpret_cast<const int32_t*>(&value);
+        }
+      } else {
+        if (absolute) {
+          value &= uint32_t(INT32_MAX);
+        }
+        if (negate) {
+          value ^= uint32_t(INT32_MAX) + 1;
+        }
+      }
+      return value;
+    }
+    uint32_t GetModifiedImmediate(uint32_t swizzle_index,
+                                  bool is_integer) const {
+      return GetModifiedImmediate(
+          immediate_[(swizzle_ >> (swizzle_index * 2)) & 3], is_integer,
+          absolute_, negate_);
+    }
+    void Write(std::vector<uint32_t>& code, uint32_t dest_write_mask,
+               bool is_integer) const;
+  };
+
+  // D3D10_SB_OPCODE_TYPE
+  enum class DxbcOpcode : uint32_t {
+    kAdd = 0,
+    kAnd = 1,
+    kCall = 4,
+    kDiv = 14,
+    kElse = 18,
+    kEndIf = 21,
+    kEndLoop = 22,
+    kEndSwitch = 23,
+    kFToU = 28,
+    kIAdd = 30,
+    kIf = 31,
+    kIMAd = 35,
+    kIShL = 41,
+    kMAd = 50,
+    kMin = 51,
+    kMax = 52,
+    kMov = 54,
+    kMovC = 55,
+    kRetC = 63,
+    kUGE = 80,
+    kUMul = 81,
+    kUMAd = 82,
+    kUShR = 85,
+    kXOr = 87,
+    kDerivRTXCoarse = 122,
+    kDerivRTXFine = 123,
+    kDerivRTYCoarse = 124,
+    kDerivRTYFine = 125,
+    kUBFE = 138,
+    kIBFE = 139,
+    kBFI = 140,
+    kEvalSampleIndex = 204,
+  };
+
+  static uint32_t DxbcOpcodeToken(DxbcOpcode opcode, uint32_t operands_length,
+                                  bool saturate = false) {
+    return uint32_t(opcode) | (saturate ? (1 << 13) : 0) |
+           ((1 + operands_length) << 24);
+  }
+
+  void DxbcEmitAluOp(DxbcOpcode opcode, uint32_t src_are_integer,
+                     const DxbcDest& dest, const DxbcSrc& src,
+                     bool saturate = false) {
+    uint32_t dest_write_mask = dest.GetMask();
+    uint32_t operands_length =
+        dest.GetLength() + src.GetLength(dest_write_mask);
+    shader_code_.reserve(shader_code_.size() + 1 + operands_length);
+    shader_code_.push_back(DxbcOpcodeToken(opcode, operands_length, saturate));
+    dest.Write(shader_code_);
+    src.Write(shader_code_, dest_write_mask, (src_are_integer & 0b1) != 0);
+    ++stat_.instruction_count;
+  }
+  void DxbcEmitAluOp(DxbcOpcode opcode, uint32_t src_are_integer,
+                     const DxbcDest& dest, const DxbcSrc& src0,
+                     const DxbcSrc& src1, bool saturate = false) {
+    uint32_t dest_write_mask = dest.GetMask();
+    uint32_t operands_length = dest.GetLength() +
+                               src0.GetLength(dest_write_mask) +
+                               src1.GetLength(dest_write_mask);
+    shader_code_.reserve(shader_code_.size() + 1 + operands_length);
+    shader_code_.push_back(DxbcOpcodeToken(opcode, operands_length, saturate));
+    dest.Write(shader_code_);
+    src0.Write(shader_code_, dest_write_mask, (src_are_integer & 0b1) != 0);
+    src1.Write(shader_code_, dest_write_mask, (src_are_integer & 0b10) != 0);
+    ++stat_.instruction_count;
+  }
+  void DxbcEmitAluOp(DxbcOpcode opcode, uint32_t src_are_integer,
+                     const DxbcDest& dest, const DxbcSrc& src0,
+                     const DxbcSrc& src1, const DxbcSrc& src2,
+                     bool saturate = false) {
+    uint32_t dest_write_mask = dest.GetMask();
+    uint32_t operands_length =
+        dest.GetLength() + src0.GetLength(dest_write_mask) +
+        src1.GetLength(dest_write_mask) + src2.GetLength(dest_write_mask);
+    shader_code_.reserve(shader_code_.size() + 1 + operands_length);
+    shader_code_.push_back(DxbcOpcodeToken(opcode, operands_length, saturate));
+    dest.Write(shader_code_);
+    src0.Write(shader_code_, dest_write_mask, (src_are_integer & 0b1) != 0);
+    src1.Write(shader_code_, dest_write_mask, (src_are_integer & 0b10) != 0);
+    src2.Write(shader_code_, dest_write_mask, (src_are_integer & 0b100) != 0);
+    ++stat_.instruction_count;
+  }
+  void DxbcEmitAluOp(DxbcOpcode opcode, uint32_t src_are_integer,
+                     const DxbcDest& dest, const DxbcSrc& src0,
+                     const DxbcSrc& src1, const DxbcSrc& src2,
+                     const DxbcSrc& src3, bool saturate = false) {
+    uint32_t dest_write_mask = dest.GetMask();
+    uint32_t operands_length =
+        dest.GetLength() + src0.GetLength(dest_write_mask) +
+        src1.GetLength(dest_write_mask) + src2.GetLength(dest_write_mask) +
+        src3.GetLength(dest_write_mask);
+    shader_code_.reserve(shader_code_.size() + 1 + operands_length);
+    shader_code_.push_back(DxbcOpcodeToken(opcode, operands_length, saturate));
+    dest.Write(shader_code_);
+    src0.Write(shader_code_, dest_write_mask, (src_are_integer & 0b1) != 0);
+    src1.Write(shader_code_, dest_write_mask, (src_are_integer & 0b10) != 0);
+    src2.Write(shader_code_, dest_write_mask, (src_are_integer & 0b100) != 0);
+    src3.Write(shader_code_, dest_write_mask, (src_are_integer & 0b1000) != 0);
+    ++stat_.instruction_count;
+  }
+  void DxbcEmitAluOp(DxbcOpcode opcode, uint32_t src_are_integer,
+                     const DxbcDest& dest0, const DxbcDest& dest1,
+                     const DxbcSrc& src0, const DxbcSrc& src1,
+                     bool saturate = false) {
+    uint32_t dest_write_mask = dest0.GetMask() | dest1.GetMask();
+    uint32_t operands_length = dest0.GetLength() + dest1.GetLength() +
+                               src0.GetLength(dest_write_mask) +
+                               src1.GetLength(dest_write_mask);
+    shader_code_.reserve(shader_code_.size() + 1 + operands_length);
+    shader_code_.push_back(DxbcOpcodeToken(opcode, operands_length, saturate));
+    dest0.Write(shader_code_);
+    dest1.Write(shader_code_);
+    src0.Write(shader_code_, dest_write_mask, (src_are_integer & 0b1) != 0);
+    src1.Write(shader_code_, dest_write_mask, (src_are_integer & 0b10) != 0);
+    ++stat_.instruction_count;
+  }
+  void DxbcEmitFlowOp(DxbcOpcode opcode, const DxbcSrc& src,
+                      bool test = false) {
+    uint32_t operands_length = src.GetLength(0b0000);
+    shader_code_.reserve(shader_code_.size() + 1 + operands_length);
+    shader_code_.push_back(DxbcOpcodeToken(opcode, operands_length) |
+                           (test ? (1 << 18) : 0));
+    src.Write(shader_code_, 0b0000, true);
+    ++stat_.instruction_count;
+  }
+
+  void DxbcOpAdd(const DxbcDest& dest, const DxbcSrc& src0, const DxbcSrc& src1,
+                 bool saturate = false) {
+    DxbcEmitAluOp(DxbcOpcode::kAdd, 0b00, dest, src0, src1, saturate);
+    ++stat_.float_instruction_count;
+  }
+  void DxbcOpAnd(const DxbcDest& dest, const DxbcSrc& src0,
+                 const DxbcSrc& src1) {
+    DxbcEmitAluOp(DxbcOpcode::kAnd, 0b11, dest, src0, src1);
+    ++stat_.uint_instruction_count;
+  }
+  void DxbcOpCall(const DxbcSrc& label) {
+    DxbcEmitFlowOp(DxbcOpcode::kCall, label);
+    ++stat_.static_flow_control_count;
+  }
+  void DxbcOpElse() {
+    shader_code_.push_back(DxbcOpcodeToken(DxbcOpcode::kElse, 0));
+    ++stat_.instruction_count;
+  }
+  void DxbcOpDiv(const DxbcDest& dest, const DxbcSrc& src0, const DxbcSrc& src1,
+                 bool saturate = false) {
+    DxbcEmitAluOp(DxbcOpcode::kDiv, 0b00, dest, src0, src1, saturate);
+    ++stat_.float_instruction_count;
+  }
+  void DxbcOpEndIf() {
+    shader_code_.push_back(DxbcOpcodeToken(DxbcOpcode::kEndIf, 0));
+    ++stat_.instruction_count;
+  }
+  void DxbcOpEndLoop() {
+    shader_code_.push_back(DxbcOpcodeToken(DxbcOpcode::kEndLoop, 0));
+    ++stat_.instruction_count;
+  }
+  void DxbcOpEndSwitch() {
+    shader_code_.push_back(DxbcOpcodeToken(DxbcOpcode::kEndSwitch, 0));
+    ++stat_.instruction_count;
+  }
+  void DxbcOpFToU(const DxbcDest& dest, const DxbcSrc& src) {
+    DxbcEmitAluOp(DxbcOpcode::kFToU, 0b0, dest, src);
+    ++stat_.conversion_instruction_count;
+  }
+  void DxbcOpIAdd(const DxbcDest& dest, const DxbcSrc& src0,
+                  const DxbcSrc& src1) {
+    DxbcEmitAluOp(DxbcOpcode::kIAdd, 0b11, dest, src0, src1);
+    ++stat_.int_instruction_count;
+  }
+  void DxbcOpIf(bool test, const DxbcSrc& src) {
+    DxbcEmitFlowOp(DxbcOpcode::kIf, src, test);
+    ++stat_.dynamic_flow_control_count;
+  }
+  void DxbcOpIMAd(const DxbcDest& dest, const DxbcSrc& mul0,
+                  const DxbcSrc& mul1, const DxbcSrc& add) {
+    DxbcEmitAluOp(DxbcOpcode::kIMAd, 0b111, dest, mul0, mul1, add);
+    ++stat_.int_instruction_count;
+  }
+  void DxbcOpIShL(const DxbcDest& dest, const DxbcSrc& value,
+                  const DxbcSrc& shift) {
+    DxbcEmitAluOp(DxbcOpcode::kIShL, 0b11, dest, value, shift);
+    ++stat_.int_instruction_count;
+  }
+  void DxbcOpMAd(const DxbcDest& dest, const DxbcSrc& mul0, const DxbcSrc& mul1,
+                 const DxbcSrc& add, bool saturate = false) {
+    DxbcEmitAluOp(DxbcOpcode::kMAd, 0b000, dest, mul0, mul1, add, saturate);
+    ++stat_.float_instruction_count;
+  }
+  void DxbcOpMin(const DxbcDest& dest, const DxbcSrc& src0, const DxbcSrc& src1,
+                 bool saturate = false) {
+    DxbcEmitAluOp(DxbcOpcode::kMin, 0b00, dest, src0, src1, saturate);
+    ++stat_.float_instruction_count;
+  }
+  void DxbcOpMax(const DxbcDest& dest, const DxbcSrc& src0, const DxbcSrc& src1,
+                 bool saturate = false) {
+    DxbcEmitAluOp(DxbcOpcode::kMax, 0b00, dest, src0, src1, saturate);
+    ++stat_.float_instruction_count;
+  }
+  void DxbcOpMov(const DxbcDest& dest, const DxbcSrc& src,
+                 bool saturate = false) {
+    DxbcEmitAluOp(DxbcOpcode::kMov, 0b0, dest, src, saturate);
+    if (dest.type_ == DxbcOperandType::kIndexableTemp ||
+        src.type_ == DxbcOperandType::kIndexableTemp) {
+      ++stat_.array_instruction_count;
+    } else {
+      ++stat_.mov_instruction_count;
+    }
+  }
+  void DxbcOpMovC(const DxbcDest& dest, const DxbcSrc& test,
+                  const DxbcSrc& src_nz, const DxbcSrc& src_z,
+                  bool saturate = false) {
+    DxbcEmitAluOp(DxbcOpcode::kMovC, 0b001, dest, test, src_nz, src_z,
+                  saturate);
+    ++stat_.movc_instruction_count;
+  }
+  void DxbcOpRetC(bool test, const DxbcSrc& src) {
+    DxbcEmitFlowOp(DxbcOpcode::kRetC, src, test);
+    ++stat_.dynamic_flow_control_count;
+  }
+  void DxbcOpUGE(const DxbcDest& dest, const DxbcSrc& src0,
+                 const DxbcSrc& src1) {
+    DxbcEmitAluOp(DxbcOpcode::kUGE, 0b11, dest, src0, src1);
+    ++stat_.uint_instruction_count;
+  }
+  void DxbcOpUMul(const DxbcDest& dest_hi, const DxbcDest& dest_lo,
+                  const DxbcSrc& src0, const DxbcSrc& src1) {
+    DxbcEmitAluOp(DxbcOpcode::kUMul, 0b11, dest_hi, dest_lo, src0, src1);
+    ++stat_.uint_instruction_count;
+  }
+  void DxbcOpUMAd(const DxbcDest& dest, const DxbcSrc& mul0,
+                  const DxbcSrc& mul1, const DxbcSrc& add) {
+    DxbcEmitAluOp(DxbcOpcode::kUMAd, 0b111, dest, mul0, mul1, add);
+    ++stat_.uint_instruction_count;
+  }
+  void DxbcOpUShR(const DxbcDest& dest, const DxbcSrc& value,
+                  const DxbcSrc& shift) {
+    DxbcEmitAluOp(DxbcOpcode::kUShR, 0b11, dest, value, shift);
+    ++stat_.uint_instruction_count;
+  }
+  void DxbcOpXOr(const DxbcDest& dest, const DxbcSrc& src0,
+                 const DxbcSrc& src1) {
+    DxbcEmitAluOp(DxbcOpcode::kXOr, 0b11, dest, src0, src1);
+    ++stat_.uint_instruction_count;
+  }
+  void DxbcOpDerivRTXCoarse(const DxbcDest& dest, const DxbcSrc& src,
+                            bool saturate = false) {
+    DxbcEmitAluOp(DxbcOpcode::kDerivRTXCoarse, 0b0, dest, src, saturate);
+    ++stat_.float_instruction_count;
+  }
+  void DxbcOpDerivRTXFine(const DxbcDest& dest, const DxbcSrc& src,
+                          bool saturate = false) {
+    DxbcEmitAluOp(DxbcOpcode::kDerivRTXFine, 0b0, dest, src, saturate);
+    ++stat_.float_instruction_count;
+  }
+  void DxbcOpDerivRTYCoarse(const DxbcDest& dest, const DxbcSrc& src,
+                            bool saturate = false) {
+    DxbcEmitAluOp(DxbcOpcode::kDerivRTYCoarse, 0b0, dest, src, saturate);
+    ++stat_.float_instruction_count;
+  }
+  void DxbcOpDerivRTYFine(const DxbcDest& dest, const DxbcSrc& src,
+                          bool saturate = false) {
+    DxbcEmitAluOp(DxbcOpcode::kDerivRTYFine, 0b0, dest, src, saturate);
+    ++stat_.float_instruction_count;
+  }
+  void DxbcOpUBFE(const DxbcDest& dest, const DxbcSrc& width,
+                  const DxbcSrc& offset, const DxbcSrc& src) {
+    DxbcEmitAluOp(DxbcOpcode::kUBFE, 0b111, dest, width, offset, src);
+    ++stat_.uint_instruction_count;
+  }
+  void DxbcOpIBFE(const DxbcDest& dest, const DxbcSrc& width,
+                  const DxbcSrc& offset, const DxbcSrc& src) {
+    DxbcEmitAluOp(DxbcOpcode::kIBFE, 0b111, dest, width, offset, src);
+    ++stat_.int_instruction_count;
+  }
+  void DxbcOpBFI(const DxbcDest& dest, const DxbcSrc& width,
+                 const DxbcSrc& offset, const DxbcSrc& from,
+                 const DxbcSrc& to) {
+    DxbcEmitAluOp(DxbcOpcode::kBFI, 0b1111, dest, width, offset, from, to);
+    ++stat_.uint_instruction_count;
+  }
+  void DxbcOpEvalSampleIndex(const DxbcDest& dest, const DxbcSrc& value,
+                             const DxbcSrc& sample_index) {
+    uint32_t dest_write_mask = dest.GetMask();
+    uint32_t operands_length = dest.GetLength() +
+                               value.GetLength(dest_write_mask) +
+                               sample_index.GetLength(0b0000);
+    shader_code_.reserve(shader_code_.size() + 1 + operands_length);
+    shader_code_.push_back(
+        DxbcOpcodeToken(DxbcOpcode::kEvalSampleIndex, operands_length));
+    dest.Write(shader_code_);
+    value.Write(shader_code_, dest_write_mask, false);
+    sample_index.Write(shader_code_, 0b0000, true);
+    ++stat_.instruction_count;
+  }
+
   enum : uint32_t {
     kSysConst_Flags_Index = 0,
     kSysConst_Flags_Vec = 0,
