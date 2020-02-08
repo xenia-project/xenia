@@ -636,7 +636,7 @@ class BaseBuildCommand(Command):
         else:
             result = subprocess.call([
                 'make',
-                '-j' if threads is 0 else '-j%d' % threads,
+                '-j' if threads == 0 else '-j%d' % threads,
                 '-Cbuild/',
                 'config=%s_linux' % (args['config']),
             ] + pass_args + args['target'], shell=False, env=dict(os.environ))
