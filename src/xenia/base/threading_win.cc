@@ -13,6 +13,9 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/platform_win.h"
 
+typedef HANDLE (*SetThreadDescriptionFn)(HANDLE hThread,
+                                         PCWSTR lpThreadDescription);
+
 namespace xe {
 namespace threading {
 
@@ -39,14 +42,31 @@ struct THREADNAME_INFO {
 };
 #pragma pack(pop)
 
-void set_name(DWORD thread_id, const std::string& name) {
+void set_name(HANDLE thread, const std::string& name) {
+    auto kern = GetModuleHandleW(L"kernel32.dll");
+    if (kern)
+    {
+        auto set_thread_description = (SetThreadDescriptionFn)GetProcAddress(kern, "SetThreadDescription");
+        if (set_thread_description)
+        {
+            int len = MultiByteToWideChar(CP_ACP, 0, name.c_str(), -1, NULL, 0);
+            auto str = (LPWSTR)alloca(len * sizeof(WCHAR));
+            if (str)
+            {
+                MultiByteToWideChar(CP_ACP, 0, name.c_str(), -1, str, len);
+                set_thread_description(thread, str);
+            }
+        }
+    }
+
   if (!IsDebuggerPresent()) {
     return;
   }
+
   THREADNAME_INFO info;
   info.dwType = 0x1000;
   info.szName = name.c_str();
-  info.dwThreadID = thread_id;
+  info.dwThreadID = ::GetThreadId(thread);
   info.dwFlags = 0;
   __try {
     RaiseException(0x406D1388, 0, sizeof(info) / sizeof(ULONG_PTR),
@@ -56,11 +76,7 @@ void set_name(DWORD thread_id, const std::string& name) {
 }
 
 void set_name(const std::string& name) {
-  set_name(static_cast<DWORD>(-1), name);
-}
-
-void set_name(std::thread::native_handle_type handle, const std::string& name) {
-  set_name(GetThreadId(handle), name);
+  set_name(GetCurrentThread(), name);
 }
 
 void MaybeYield() {
