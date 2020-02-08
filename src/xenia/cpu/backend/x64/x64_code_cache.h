@@ -82,7 +82,7 @@ class X64CodeCache : public CodeCache {
   // This is picked to be high enough to cover whatever we can reasonably
   // expect. If we hit issues with this it probably means some corner case
   // in analysis triggering.
-  static const size_t kMaximumFunctionCount = 50000;
+  static const size_t kMaximumFunctionCount = 100000;
 
   struct UnwindReservation {
     size_t data_size = 0;
