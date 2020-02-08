@@ -7,11 +7,10 @@
  ******************************************************************************
  */
 
-#include "xenia/base/threading.h"
-
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/platform_win.h"
+#include "xenia/base/threading.h"
 
 typedef HANDLE (*SetThreadDescriptionFn)(HANDLE hThread,
                                          PCWSTR lpThreadDescription);
@@ -43,21 +42,19 @@ struct THREADNAME_INFO {
 #pragma pack(pop)
 
 void set_name(HANDLE thread, const std::string& name) {
-    auto kern = GetModuleHandleW(L"kernel32.dll");
-    if (kern)
-    {
-        auto set_thread_description = (SetThreadDescriptionFn)GetProcAddress(kern, "SetThreadDescription");
-        if (set_thread_description)
-        {
-            int len = MultiByteToWideChar(CP_ACP, 0, name.c_str(), -1, NULL, 0);
-            auto str = (LPWSTR)alloca(len * sizeof(WCHAR));
-            if (str)
-            {
-                MultiByteToWideChar(CP_ACP, 0, name.c_str(), -1, str, len);
-                set_thread_description(thread, str);
-            }
-        }
+  auto kern = GetModuleHandleW(L"kernel32.dll");
+  if (kern) {
+    auto set_thread_description =
+        (SetThreadDescriptionFn)GetProcAddress(kern, "SetThreadDescription");
+    if (set_thread_description) {
+      int len = MultiByteToWideChar(CP_ACP, 0, name.c_str(), -1, NULL, 0);
+      auto str = (LPWSTR)alloca(len * sizeof(WCHAR));
+      if (str) {
+        MultiByteToWideChar(CP_ACP, 0, name.c_str(), -1, str, len);
+        set_thread_description(thread, str);
+      }
     }
+  }
 
   if (!IsDebuggerPresent()) {
     return;
@@ -75,9 +72,7 @@ void set_name(HANDLE thread, const std::string& name) {
   }
 }
 
-void set_name(const std::string& name) {
-  set_name(GetCurrentThread(), name);
-}
+void set_name(const std::string& name) { set_name(GetCurrentThread(), name); }
 
 void MaybeYield() {
   SwitchToThread();
