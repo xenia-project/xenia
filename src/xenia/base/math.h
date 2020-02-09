@@ -233,12 +233,12 @@ inline bool bit_scan_forward(uint64_t v, uint32_t* out_first_set_index) {
 #else
 inline bool bit_scan_forward(uint32_t v, uint32_t* out_first_set_index) {
   int i = ffs(v);
-  *out_first_set_index = i;
+  *out_first_set_index = i - 1;
   return i != 0;
 }
 inline bool bit_scan_forward(uint64_t v, uint32_t* out_first_set_index) {
   int i = ffsll(v);
-  *out_first_set_index = i;
+  *out_first_set_index = i - 1;
   return i != 0;
 }
 #endif  // XE_PLATFORM_WIN32
