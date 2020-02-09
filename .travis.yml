@@ -20,6 +20,7 @@ addons:
       - libc++abi-dev
       - libgtk-3-dev
       - libpthread-stubs0-dev
+      - libsdl2-dev
       #- libvulkan1
       #- libvulkan-dev
       - libx11-dev
