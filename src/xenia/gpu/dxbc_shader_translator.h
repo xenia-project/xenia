@@ -605,10 +605,10 @@ class DxbcShaderTranslator : public ShaderTranslator {
       return DxbcDest(DxbcOperandType::kOutputDepth, 0b0001);
     }
     static DxbcDest Null() { return DxbcDest(DxbcOperandType::kNull, 0b0000); }
-    // Must write to all 4 components.
-    static DxbcDest U(uint32_t index_1d, DxbcIndex index_2d) {
-      return DxbcDest(DxbcOperandType::kUnorderedAccessView, 0b1111, index_1d,
-                      index_2d);
+    static DxbcDest U(uint32_t index_1d, DxbcIndex index_2d,
+                      uint32_t write_mask = 0b1111) {
+      return DxbcDest(DxbcOperandType::kUnorderedAccessView, write_mask,
+                      index_1d, index_2d);
     }
 
     uint32_t GetMask() const {
@@ -792,12 +792,12 @@ class DxbcShaderTranslator : public ShaderTranslator {
       return new_src;
     }
 
-    uint32_t GetLength(uint32_t dest_write_mask) const {
-      bool dest_is_vector =
-          dest_write_mask != 0b0000 &&
-          DxbcDest::GetMaskSingleComponent(dest_write_mask) == UINT32_MAX;
+    uint32_t GetLength(uint32_t mask, bool force_vector = false) const {
+      bool is_vector = force_vector ||
+                       (mask != 0b0000 &&
+                        DxbcDest::GetMaskSingleComponent(mask) == UINT32_MAX);
       if (type_ == DxbcOperandType::kImmediate32) {
-        return dest_is_vector ? 5 : 2;
+        return is_vector ? 5 : 2;
       }
       return ((absolute_ || negate_) ? 2 : 1) + DxbcOperandAddress::GetLength();
     }
@@ -828,43 +828,74 @@ class DxbcShaderTranslator : public ShaderTranslator {
           immediate_[(swizzle_ >> (swizzle_index * 2)) & 3], is_integer,
           absolute_, negate_);
     }
-    void Write(std::vector<uint32_t>& code, uint32_t dest_write_mask,
-               bool is_integer) const;
+    void Write(std::vector<uint32_t>& code, bool is_integer, uint32_t mask,
+               bool force_vector = false) const;
   };
 
   // D3D10_SB_OPCODE_TYPE
   enum class DxbcOpcode : uint32_t {
     kAdd = 0,
     kAnd = 1,
+    kBreak = 2,
     kCall = 4,
+    kCallC = 5,
+    kCase = 6,
+    kDefault = 10,
+    kDiscard = 13,
     kDiv = 14,
     kElse = 18,
     kEndIf = 21,
     kEndLoop = 22,
     kEndSwitch = 23,
+    kEq = 24,
+    kFToI = 27,
     kFToU = 28,
+    kGE = 29,
     kIAdd = 30,
     kIf = 31,
+    kIEq = 32,
+    kILT = 34,
     kIMAd = 35,
+    kIMax = 36,
+    kIMin = 37,
+    kINE = 39,
     kIShL = 41,
+    kIToF = 43,
+    kLabel = 44,
+    kLT = 49,
     kMAd = 50,
     kMin = 51,
     kMax = 52,
     kMov = 54,
     kMovC = 55,
+    kMul = 56,
+    kNot = 59,
+    kOr = 60,
+    kRet = 62,
     kRetC = 63,
+    kRoundNE = 64,
+    kSwitch = 76,
+    kULT = 79,
     kUGE = 80,
     kUMul = 81,
     kUMAd = 82,
+    kUMax = 83,
+    kUMin = 84,
     kUShR = 85,
+    kUToF = 86,
     kXOr = 87,
     kDerivRTXCoarse = 122,
     kDerivRTXFine = 123,
     kDerivRTYCoarse = 124,
     kDerivRTYFine = 125,
+    kF32ToF16 = 130,
+    kF16ToF32 = 131,
+    kFirstBitHi = 135,
     kUBFE = 138,
     kIBFE = 139,
     kBFI = 140,
+    kLdUAVTyped = 163,
+    kStoreUAVTyped = 164,
     kEvalSampleIndex = 204,
   };
 
@@ -883,7 +914,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
     shader_code_.reserve(shader_code_.size() + 1 + operands_length);
     shader_code_.push_back(DxbcOpcodeToken(opcode, operands_length, saturate));
     dest.Write(shader_code_);
-    src.Write(shader_code_, dest_write_mask, (src_are_integer & 0b1) != 0);
+    src.Write(shader_code_, (src_are_integer & 0b1) != 0, dest_write_mask);
     ++stat_.instruction_count;
   }
   void DxbcEmitAluOp(DxbcOpcode opcode, uint32_t src_are_integer,
@@ -896,8 +927,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
     shader_code_.reserve(shader_code_.size() + 1 + operands_length);
     shader_code_.push_back(DxbcOpcodeToken(opcode, operands_length, saturate));
     dest.Write(shader_code_);
-    src0.Write(shader_code_, dest_write_mask, (src_are_integer & 0b1) != 0);
-    src1.Write(shader_code_, dest_write_mask, (src_are_integer & 0b10) != 0);
+    src0.Write(shader_code_, (src_are_integer & 0b1) != 0, dest_write_mask);
+    src1.Write(shader_code_, (src_are_integer & 0b10) != 0, dest_write_mask);
     ++stat_.instruction_count;
   }
   void DxbcEmitAluOp(DxbcOpcode opcode, uint32_t src_are_integer,
@@ -911,9 +942,9 @@ class DxbcShaderTranslator : public ShaderTranslator {
     shader_code_.reserve(shader_code_.size() + 1 + operands_length);
     shader_code_.push_back(DxbcOpcodeToken(opcode, operands_length, saturate));
     dest.Write(shader_code_);
-    src0.Write(shader_code_, dest_write_mask, (src_are_integer & 0b1) != 0);
-    src1.Write(shader_code_, dest_write_mask, (src_are_integer & 0b10) != 0);
-    src2.Write(shader_code_, dest_write_mask, (src_are_integer & 0b100) != 0);
+    src0.Write(shader_code_, (src_are_integer & 0b1) != 0, dest_write_mask);
+    src1.Write(shader_code_, (src_are_integer & 0b10) != 0, dest_write_mask);
+    src2.Write(shader_code_, (src_are_integer & 0b100) != 0, dest_write_mask);
     ++stat_.instruction_count;
   }
   void DxbcEmitAluOp(DxbcOpcode opcode, uint32_t src_are_integer,
@@ -928,10 +959,10 @@ class DxbcShaderTranslator : public ShaderTranslator {
     shader_code_.reserve(shader_code_.size() + 1 + operands_length);
     shader_code_.push_back(DxbcOpcodeToken(opcode, operands_length, saturate));
     dest.Write(shader_code_);
-    src0.Write(shader_code_, dest_write_mask, (src_are_integer & 0b1) != 0);
-    src1.Write(shader_code_, dest_write_mask, (src_are_integer & 0b10) != 0);
-    src2.Write(shader_code_, dest_write_mask, (src_are_integer & 0b100) != 0);
-    src3.Write(shader_code_, dest_write_mask, (src_are_integer & 0b1000) != 0);
+    src0.Write(shader_code_, (src_are_integer & 0b1) != 0, dest_write_mask);
+    src1.Write(shader_code_, (src_are_integer & 0b10) != 0, dest_write_mask);
+    src2.Write(shader_code_, (src_are_integer & 0b100) != 0, dest_write_mask);
+    src3.Write(shader_code_, (src_are_integer & 0b1000) != 0, dest_write_mask);
     ++stat_.instruction_count;
   }
   void DxbcEmitAluOp(DxbcOpcode opcode, uint32_t src_are_integer,
@@ -946,8 +977,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
     shader_code_.push_back(DxbcOpcodeToken(opcode, operands_length, saturate));
     dest0.Write(shader_code_);
     dest1.Write(shader_code_);
-    src0.Write(shader_code_, dest_write_mask, (src_are_integer & 0b1) != 0);
-    src1.Write(shader_code_, dest_write_mask, (src_are_integer & 0b10) != 0);
+    src0.Write(shader_code_, (src_are_integer & 0b1) != 0, dest_write_mask);
+    src1.Write(shader_code_, (src_are_integer & 0b10) != 0, dest_write_mask);
     ++stat_.instruction_count;
   }
   void DxbcEmitFlowOp(DxbcOpcode opcode, const DxbcSrc& src,
@@ -956,7 +987,17 @@ class DxbcShaderTranslator : public ShaderTranslator {
     shader_code_.reserve(shader_code_.size() + 1 + operands_length);
     shader_code_.push_back(DxbcOpcodeToken(opcode, operands_length) |
                            (test ? (1 << 18) : 0));
-    src.Write(shader_code_, 0b0000, true);
+    src.Write(shader_code_, true, 0b0000);
+    ++stat_.instruction_count;
+  }
+  void DxbcEmitFlowOp(DxbcOpcode opcode, const DxbcSrc& src0,
+                      const DxbcSrc& src1, bool test = false) {
+    uint32_t operands_length = src0.GetLength(0b0000) + src1.GetLength(0b0000);
+    shader_code_.reserve(shader_code_.size() + 1 + operands_length);
+    shader_code_.push_back(DxbcOpcodeToken(opcode, operands_length) |
+                           (test ? (1 << 18) : 0));
+    src0.Write(shader_code_, true, 0b0000);
+    src1.Write(shader_code_, true, 0b0000);
     ++stat_.instruction_count;
   }
 
@@ -970,18 +1011,38 @@ class DxbcShaderTranslator : public ShaderTranslator {
     DxbcEmitAluOp(DxbcOpcode::kAnd, 0b11, dest, src0, src1);
     ++stat_.uint_instruction_count;
   }
+  void DxbcOpBreak() {
+    shader_code_.push_back(DxbcOpcodeToken(DxbcOpcode::kBreak, 0));
+    ++stat_.instruction_count;
+  }
   void DxbcOpCall(const DxbcSrc& label) {
     DxbcEmitFlowOp(DxbcOpcode::kCall, label);
     ++stat_.static_flow_control_count;
   }
-  void DxbcOpElse() {
-    shader_code_.push_back(DxbcOpcodeToken(DxbcOpcode::kElse, 0));
+  void DxbcOpCallC(bool test, const DxbcSrc& src, const DxbcSrc& label) {
+    DxbcEmitFlowOp(DxbcOpcode::kCallC, src, label, test);
+    ++stat_.dynamic_flow_control_count;
+  }
+  void DxbcOpCase(const DxbcSrc& src) {
+    DxbcEmitFlowOp(DxbcOpcode::kCase, src);
+    ++stat_.static_flow_control_count;
+  }
+  void DxbcOpDefault() {
+    shader_code_.push_back(DxbcOpcodeToken(DxbcOpcode::kDefault, 0));
     ++stat_.instruction_count;
+    ++stat_.static_flow_control_count;
+  }
+  void DxbcOpDiscard(bool test, const DxbcSrc& src) {
+    DxbcEmitFlowOp(DxbcOpcode::kDiscard, src, test);
   }
   void DxbcOpDiv(const DxbcDest& dest, const DxbcSrc& src0, const DxbcSrc& src1,
                  bool saturate = false) {
     DxbcEmitAluOp(DxbcOpcode::kDiv, 0b00, dest, src0, src1, saturate);
     ++stat_.float_instruction_count;
+  }
+  void DxbcOpElse() {
+    shader_code_.push_back(DxbcOpcodeToken(DxbcOpcode::kElse, 0));
+    ++stat_.instruction_count;
   }
   void DxbcOpEndIf() {
     shader_code_.push_back(DxbcOpcodeToken(DxbcOpcode::kEndIf, 0));
@@ -995,9 +1056,23 @@ class DxbcShaderTranslator : public ShaderTranslator {
     shader_code_.push_back(DxbcOpcodeToken(DxbcOpcode::kEndSwitch, 0));
     ++stat_.instruction_count;
   }
+  void DxbcOpEq(const DxbcDest& dest, const DxbcSrc& src0,
+                const DxbcSrc& src1) {
+    DxbcEmitAluOp(DxbcOpcode::kEq, 0b00, dest, src0, src1);
+    ++stat_.float_instruction_count;
+  }
+  void DxbcOpFToI(const DxbcDest& dest, const DxbcSrc& src) {
+    DxbcEmitAluOp(DxbcOpcode::kFToI, 0b0, dest, src);
+    ++stat_.conversion_instruction_count;
+  }
   void DxbcOpFToU(const DxbcDest& dest, const DxbcSrc& src) {
     DxbcEmitAluOp(DxbcOpcode::kFToU, 0b0, dest, src);
     ++stat_.conversion_instruction_count;
+  }
+  void DxbcOpGE(const DxbcDest& dest, const DxbcSrc& src0,
+                const DxbcSrc& src1) {
+    DxbcEmitAluOp(DxbcOpcode::kGE, 0b00, dest, src0, src1);
+    ++stat_.float_instruction_count;
   }
   void DxbcOpIAdd(const DxbcDest& dest, const DxbcSrc& src0,
                   const DxbcSrc& src1) {
@@ -1008,15 +1083,59 @@ class DxbcShaderTranslator : public ShaderTranslator {
     DxbcEmitFlowOp(DxbcOpcode::kIf, src, test);
     ++stat_.dynamic_flow_control_count;
   }
+  void DxbcOpIEq(const DxbcDest& dest, const DxbcSrc& src0,
+                 const DxbcSrc& src1) {
+    DxbcEmitAluOp(DxbcOpcode::kIEq, 0b11, dest, src0, src1);
+    ++stat_.int_instruction_count;
+  }
+  void DxbcOpILT(const DxbcDest& dest, const DxbcSrc& src0,
+                 const DxbcSrc& src1) {
+    DxbcEmitAluOp(DxbcOpcode::kILT, 0b11, dest, src0, src1);
+    ++stat_.int_instruction_count;
+  }
   void DxbcOpIMAd(const DxbcDest& dest, const DxbcSrc& mul0,
                   const DxbcSrc& mul1, const DxbcSrc& add) {
     DxbcEmitAluOp(DxbcOpcode::kIMAd, 0b111, dest, mul0, mul1, add);
+    ++stat_.int_instruction_count;
+  }
+  void DxbcOpIMax(const DxbcDest& dest, const DxbcSrc& src0,
+                  const DxbcSrc& src1) {
+    DxbcEmitAluOp(DxbcOpcode::kIMax, 0b11, dest, src0, src1);
+    ++stat_.int_instruction_count;
+  }
+  void DxbcOpIMin(const DxbcDest& dest, const DxbcSrc& src0,
+                  const DxbcSrc& src1) {
+    DxbcEmitAluOp(DxbcOpcode::kIMin, 0b11, dest, src0, src1);
+    ++stat_.int_instruction_count;
+  }
+  void DxbcOpINE(const DxbcDest& dest, const DxbcSrc& src0,
+                 const DxbcSrc& src1) {
+    DxbcEmitAluOp(DxbcOpcode::kINE, 0b11, dest, src0, src1);
     ++stat_.int_instruction_count;
   }
   void DxbcOpIShL(const DxbcDest& dest, const DxbcSrc& value,
                   const DxbcSrc& shift) {
     DxbcEmitAluOp(DxbcOpcode::kIShL, 0b11, dest, value, shift);
     ++stat_.int_instruction_count;
+  }
+  void DxbcOpIToF(const DxbcDest& dest, const DxbcSrc& src) {
+    DxbcEmitAluOp(DxbcOpcode::kIToF, 0b1, dest, src);
+    ++stat_.conversion_instruction_count;
+  }
+  void DxbcOpLabel(const DxbcSrc& label) {
+    // The label is source, not destination, for simplicity, to unify it will
+    // call/callc (in DXBC it's just a zero-component label operand).
+    uint32_t operands_length = label.GetLength(0b0000);
+    shader_code_.reserve(shader_code_.size() + 1 + operands_length);
+    shader_code_.push_back(
+        DxbcOpcodeToken(DxbcOpcode::kLabel, operands_length));
+    label.Write(shader_code_, true, 0b0000);
+    // Doesn't count towards stat_.instruction_count.
+  }
+  void DxbcOpLT(const DxbcDest& dest, const DxbcSrc& src0,
+                const DxbcSrc& src1) {
+    DxbcEmitAluOp(DxbcOpcode::kLT, 0b00, dest, src0, src1);
+    ++stat_.float_instruction_count;
   }
   void DxbcOpMAd(const DxbcDest& dest, const DxbcSrc& mul0, const DxbcSrc& mul1,
                  const DxbcSrc& add, bool saturate = false) {
@@ -1050,9 +1169,42 @@ class DxbcShaderTranslator : public ShaderTranslator {
                   saturate);
     ++stat_.movc_instruction_count;
   }
+  void DxbcOpMul(const DxbcDest& dest, const DxbcSrc& src0, const DxbcSrc& src1,
+                 bool saturate = false) {
+    DxbcEmitAluOp(DxbcOpcode::kMul, 0b00, dest, src0, src1, saturate);
+    ++stat_.float_instruction_count;
+  }
+  void DxbcOpNot(const DxbcDest& dest, const DxbcSrc& src) {
+    DxbcEmitAluOp(DxbcOpcode::kNot, 0b1, dest, src);
+    ++stat_.uint_instruction_count;
+  }
+  void DxbcOpOr(const DxbcDest& dest, const DxbcSrc& src0,
+                const DxbcSrc& src1) {
+    DxbcEmitAluOp(DxbcOpcode::kOr, 0b11, dest, src0, src1);
+    ++stat_.uint_instruction_count;
+  }
+  void DxbcOpRet() {
+    shader_code_.push_back(DxbcOpcodeToken(DxbcOpcode::kRet, 0));
+    ++stat_.instruction_count;
+    ++stat_.static_flow_control_count;
+  }
   void DxbcOpRetC(bool test, const DxbcSrc& src) {
     DxbcEmitFlowOp(DxbcOpcode::kRetC, src, test);
     ++stat_.dynamic_flow_control_count;
+  }
+  void DxbcOpRoundNE(const DxbcDest& dest, const DxbcSrc& src,
+                     bool saturate = false) {
+    DxbcEmitAluOp(DxbcOpcode::kRoundNE, 0b0, dest, src, saturate);
+    ++stat_.float_instruction_count;
+  }
+  void DxbcOpSwitch(const DxbcSrc& src) {
+    DxbcEmitFlowOp(DxbcOpcode::kSwitch, src);
+    ++stat_.dynamic_flow_control_count;
+  }
+  void DxbcOpULT(const DxbcDest& dest, const DxbcSrc& src0,
+                 const DxbcSrc& src1) {
+    DxbcEmitAluOp(DxbcOpcode::kULT, 0b11, dest, src0, src1);
+    ++stat_.uint_instruction_count;
   }
   void DxbcOpUGE(const DxbcDest& dest, const DxbcSrc& src0,
                  const DxbcSrc& src1) {
@@ -1069,10 +1221,24 @@ class DxbcShaderTranslator : public ShaderTranslator {
     DxbcEmitAluOp(DxbcOpcode::kUMAd, 0b111, dest, mul0, mul1, add);
     ++stat_.uint_instruction_count;
   }
+  void DxbcOpUMax(const DxbcDest& dest, const DxbcSrc& src0,
+                  const DxbcSrc& src1) {
+    DxbcEmitAluOp(DxbcOpcode::kUMax, 0b11, dest, src0, src1);
+    ++stat_.uint_instruction_count;
+  }
+  void DxbcOpUMin(const DxbcDest& dest, const DxbcSrc& src0,
+                  const DxbcSrc& src1) {
+    DxbcEmitAluOp(DxbcOpcode::kUMin, 0b11, dest, src0, src1);
+    ++stat_.uint_instruction_count;
+  }
   void DxbcOpUShR(const DxbcDest& dest, const DxbcSrc& value,
                   const DxbcSrc& shift) {
     DxbcEmitAluOp(DxbcOpcode::kUShR, 0b11, dest, value, shift);
     ++stat_.uint_instruction_count;
+  }
+  void DxbcOpUToF(const DxbcDest& dest, const DxbcSrc& src) {
+    DxbcEmitAluOp(DxbcOpcode::kUToF, 0b1, dest, src);
+    ++stat_.conversion_instruction_count;
   }
   void DxbcOpXOr(const DxbcDest& dest, const DxbcSrc& src0,
                  const DxbcSrc& src1) {
@@ -1099,6 +1265,18 @@ class DxbcShaderTranslator : public ShaderTranslator {
     DxbcEmitAluOp(DxbcOpcode::kDerivRTYFine, 0b0, dest, src, saturate);
     ++stat_.float_instruction_count;
   }
+  void DxbcOpF32ToF16(const DxbcDest& dest, const DxbcSrc& src) {
+    DxbcEmitAluOp(DxbcOpcode::kF32ToF16, 0b0, dest, src);
+    ++stat_.conversion_instruction_count;
+  }
+  void DxbcOpF16ToF32(const DxbcDest& dest, const DxbcSrc& src) {
+    DxbcEmitAluOp(DxbcOpcode::kF16ToF32, 0b1, dest, src);
+    ++stat_.conversion_instruction_count;
+  }
+  void DxbcOpFirstBitHi(const DxbcDest& dest, const DxbcSrc& src) {
+    DxbcEmitAluOp(DxbcOpcode::kFirstBitHi, 0b1, dest, src);
+    ++stat_.uint_instruction_count;
+  }
   void DxbcOpUBFE(const DxbcDest& dest, const DxbcSrc& width,
                   const DxbcSrc& offset, const DxbcSrc& src) {
     DxbcEmitAluOp(DxbcOpcode::kUBFE, 0b111, dest, width, offset, src);
@@ -1115,6 +1293,40 @@ class DxbcShaderTranslator : public ShaderTranslator {
     DxbcEmitAluOp(DxbcOpcode::kBFI, 0b1111, dest, width, offset, from, to);
     ++stat_.uint_instruction_count;
   }
+  void DxbcOpLdUAVTyped(const DxbcDest& dest, const DxbcSrc& address,
+                        uint32_t address_components, const DxbcSrc& uav) {
+    uint32_t dest_write_mask = dest.GetMask();
+    uint32_t address_mask = (1 << address_components) - 1;
+    uint32_t operands_length = dest.GetLength() +
+                               address.GetLength(address_mask, true) +
+                               uav.GetLength(dest_write_mask, true);
+    shader_code_.reserve(shader_code_.size() + 1 + operands_length);
+    shader_code_.push_back(
+        DxbcOpcodeToken(DxbcOpcode::kLdUAVTyped, operands_length));
+    dest.Write(shader_code_);
+    address.Write(shader_code_, true, address_mask, true);
+    uav.Write(shader_code_, false, dest_write_mask, true);
+    ++stat_.instruction_count;
+    ++stat_.texture_load_instructions;
+  }
+  void DxbcOpStoreUAVTyped(const DxbcDest& dest, const DxbcSrc& address,
+                           uint32_t address_components, const DxbcSrc& value) {
+    uint32_t dest_write_mask = dest.GetMask();
+    // Typed UAV writes don't support write masking.
+    assert_true(dest_write_mask == 0b1111);
+    uint32_t address_mask = (1 << address_components) - 1;
+    uint32_t operands_length = dest.GetLength() +
+                               address.GetLength(address_mask, true) +
+                               value.GetLength(dest_write_mask);
+    shader_code_.reserve(shader_code_.size() + 1 + operands_length);
+    shader_code_.push_back(
+        DxbcOpcodeToken(DxbcOpcode::kStoreUAVTyped, operands_length));
+    dest.Write(shader_code_);
+    address.Write(shader_code_, true, address_mask, true);
+    value.Write(shader_code_, false, dest_write_mask);
+    ++stat_.instruction_count;
+    ++stat_.c_texture_store_instructions;
+  }
   void DxbcOpEvalSampleIndex(const DxbcDest& dest, const DxbcSrc& value,
                              const DxbcSrc& sample_index) {
     uint32_t dest_write_mask = dest.GetMask();
@@ -1125,8 +1337,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
     shader_code_.push_back(
         DxbcOpcodeToken(DxbcOpcode::kEvalSampleIndex, operands_length));
     dest.Write(shader_code_);
-    value.Write(shader_code_, dest_write_mask, false);
-    sample_index.Write(shader_code_, 0b0000, true);
+    value.Write(shader_code_, false, dest_write_mask);
+    sample_index.Write(shader_code_, true, 0b0000);
     ++stat_.instruction_count;
   }
 
@@ -1444,15 +1656,9 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // multiple times.
   void ExportToMemory();
   void CompleteVertexOrDomainShader();
-  // Applies the exponent bias from the constant to one color output.
-  void CompletePixelShader_ApplyColorExpBias(uint32_t rt_index);
   // Discards the SSAA sample if it fails alpha to coverage.
   void CompletePixelShader_WriteToRTVs_AlphaToCoverage();
   void CompletePixelShader_WriteToRTVs();
-  // Returns if coverage in system_temp_rov_params_.x is empty.
-  void CompletePixelShader_ROV_CheckAnyCovered(
-      bool check_deferred_stencil_write, uint32_t temp,
-      uint32_t temp_component);
   // Masks the sample away from system_temp_rov_params_.x if it's not covered.
   void CompletePixelShader_ROV_AlphaToCoverageSample(uint32_t sample_index,
                                                      float threshold,
