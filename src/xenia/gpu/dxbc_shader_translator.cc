@@ -181,15 +181,16 @@ void DxbcShaderTranslator::Reset() {
 }
 
 void DxbcShaderTranslator::DxbcSrc::Write(std::vector<uint32_t>& code,
-                                          uint32_t dest_write_mask,
-                                          bool is_integer) const {
+                                          bool is_integer, uint32_t mask,
+                                          bool force_vector) const {
   uint32_t operand_token = GetOperandTokenTypeAndIndex();
-  uint32_t dest_component = DxbcDest::GetMaskSingleComponent(dest_write_mask);
-  uint32_t select_component = dest_component != UINT32_MAX ? dest_component : 0;
-  bool dest_is_vector =
-      dest_write_mask != 0b0000 && dest_component == UINT32_MAX;
+  uint32_t mask_single_component = DxbcDest::GetMaskSingleComponent(mask);
+  uint32_t select_component =
+      mask_single_component != UINT32_MAX ? mask_single_component : 0;
+  bool is_vector =
+      force_vector || (mask != 0b0000 && mask_single_component == UINT32_MAX);
   if (type_ == DxbcOperandType::kImmediate32) {
-    if (dest_is_vector) {
+    if (is_vector) {
       operand_token |= uint32_t(DxbcOperandDimension::kVector) |
                        (uint32_t(DxbcComponentSelection::kSwizzle) << 2) |
                        (DxbcSrc::kXYZW << 4);
@@ -197,11 +198,10 @@ void DxbcShaderTranslator::DxbcSrc::Write(std::vector<uint32_t>& code,
       operand_token |= uint32_t(DxbcOperandDimension::kScalar);
     }
     code.push_back(operand_token);
-    if (dest_is_vector) {
+    if (is_vector) {
       for (uint32_t i = 0; i < 4; ++i) {
-        code.push_back((dest_write_mask & (1 << i))
-                           ? GetModifiedImmediate(i, is_integer)
-                           : 0);
+        code.push_back((mask & (1 << i)) ? GetModifiedImmediate(i, is_integer)
+                                         : 0);
       }
     } else {
       code.push_back(GetModifiedImmediate(select_component, is_integer));
@@ -209,7 +209,7 @@ void DxbcShaderTranslator::DxbcSrc::Write(std::vector<uint32_t>& code,
   } else {
     switch (GetDimension()) {
       case DxbcOperandDimension::kScalar:
-        if (dest_is_vector) {
+        if (is_vector) {
           operand_token |= uint32_t(DxbcOperandDimension::kVector) |
                            (uint32_t(DxbcComponentSelection::kSwizzle) << 2) |
                            (DxbcSrc::kXXXX << 4);
@@ -219,17 +219,16 @@ void DxbcShaderTranslator::DxbcSrc::Write(std::vector<uint32_t>& code,
         break;
       case DxbcOperandDimension::kVector:
         operand_token |= uint32_t(DxbcOperandDimension::kVector);
-        if (dest_is_vector) {
+        if (is_vector) {
           operand_token |= uint32_t(DxbcComponentSelection::kSwizzle) << 2;
           // Clear swizzle of unused components to a used value to avoid
           // referencing potentially uninitialized register components.
           uint32_t used_component;
-          if (!xe::bit_scan_forward(dest_write_mask, &used_component)) {
+          if (!xe::bit_scan_forward(mask, &used_component)) {
             used_component = 0;
           }
           for (uint32_t i = 0; i < 4; ++i) {
-            uint32_t swizzle_index =
-                (dest_write_mask & (1 << i)) ? i : used_component;
+            uint32_t swizzle_index = (mask & (1 << i)) ? i : used_component;
             operand_token |=
                 (((swizzle_ >> (swizzle_index * 2)) & 3) << (4 + i * 2));
           }
@@ -1388,7 +1387,7 @@ void DxbcShaderTranslator::StartTranslation() {
   }
 
   // Zero general-purpose registers to prevent crashes when the game references
-  // them.
+  // them after only initializing them conditionally.
   for (uint32_t i = IsDxbcPixelShader() ? kInterpolatorCount : 0;
        i < register_count(); ++i) {
     DxbcOpMov(
