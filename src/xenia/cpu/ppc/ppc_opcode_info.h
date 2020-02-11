@@ -131,6 +131,7 @@ enum class PPCOpcodeField : uint32_t {
   kME,
   kMB,
   kTO,
+  kLEV,
 };
 
 struct PPCOpcodeDisasmInfo {
