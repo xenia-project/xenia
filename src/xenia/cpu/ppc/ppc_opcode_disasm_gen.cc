@@ -1977,10 +1977,11 @@ void PrintDisasm_rlwnmx(const PPCDecodeData& d, StringBuffer* str) {
   str->AppendFormat("%d", d.M.ME());
 }
 void PrintDisasm_sc(const PPCDecodeData& d, StringBuffer* str) {
-  // sc
+  // sc [LEV]
   size_t str_start = str->length();
   str->Append("sc");
   PadStringBuffer(str, str_start, kNamePad);
+  if (d.SC.LEV()) str->AppendFormat("%d", d.SC.LEV());
 }
 void PrintDisasm_sldx(const PPCDecodeData& d, StringBuffer* str) {
   // sld[Rc] [RA], [RS], [RB]
@@ -5131,7 +5132,7 @@ PPCOpcodeDisasmInfo ppc_opcode_disasm_table[] = {
   INSTRUCTION(0x50000000, "rlwimix"     , kM      , kI, kGeneral, "Rotate Left Word Immediate then Mask Insert"                                , (PPCOpcodeField::kRS,PPCOpcodeField::kSH,PPCOpcodeField::kMB,PPCOpcodeField::kME), (PPCOpcodeField::kRA,PPCOpcodeField::kCRcond), PrintDisasm_rlwimix),
   INSTRUCTION(0x54000000, "rlwinmx"     , kM      , kI, kGeneral, "Rotate Left Word Immediate then AND with Mask"                              , (PPCOpcodeField::kRS,PPCOpcodeField::kSH,PPCOpcodeField::kMB,PPCOpcodeField::kME), (PPCOpcodeField::kRA,PPCOpcodeField::kCRcond), PrintDisasm_rlwinmx),
   INSTRUCTION(0x5c000000, "rlwnmx"      , kM      , kI, kGeneral, "Rotate Left Word then AND with Mask"                                        , (PPCOpcodeField::kRS,PPCOpcodeField::kRB,PPCOpcodeField::kMB,PPCOpcodeField::kME), (PPCOpcodeField::kRA,PPCOpcodeField::kCRcond), PrintDisasm_rlwnmx),
-  INSTRUCTION(0x44000002, "sc"          , kSC     , kB, kSync   , "System Call"                                                                , (), (), PrintDisasm_sc),
+  INSTRUCTION(0x44000002, "sc"          , kSC     , kB, kSync   , "System Call"                                                                , (PPCOpcodeField::kLEV), (), PrintDisasm_sc),
   INSTRUCTION(0x7c000036, "sldx"        , kX      , kI, kGeneral, "Shift Left Doubleword"                                                      , (PPCOpcodeField::kRS,PPCOpcodeField::kRB), (PPCOpcodeField::kRA,PPCOpcodeField::kCRcond), PrintDisasm_sldx),
   INSTRUCTION(0x7c000030, "slwx"        , kX      , kI, kGeneral, "Shift Left Word"                                                            , (PPCOpcodeField::kRS,PPCOpcodeField::kRB), (PPCOpcodeField::kRA,PPCOpcodeField::kCRcond), PrintDisasm_slwx),
   INSTRUCTION(0x7c000674, "sradix"      , kXS     , kI, kGeneral, "Shift Right Algebraic Doubleword Immediate"                                 , (PPCOpcodeField::kRS,PPCOpcodeField::kSH), (PPCOpcodeField::kRA,PPCOpcodeField::kCRcond,PPCOpcodeField::kCA), PrintDisasm_sradix),

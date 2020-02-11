@@ -270,6 +270,8 @@ def generate_token_append(i, token):
     return 'str->AppendFormat(d.%s.%s() < 0 ? "-0x%%X" : "0x%%X", std::abs(d.%s.%s()));' % (i.o_form, token, i.o_form, token)
   elif token == 'ADDR':
     return 'str->AppendFormat("0x%%X", d.%s.%s());' % (i.o_form, token)
+  elif token == 'LEV':
+    return 'if (d.%s.%s()) str->AppendFormat("%%d", d.%s.%s());' % (i.o_form, token, i.o_form, token)
   return 'str->AppendFormat("(UNHANDLED %s)");' % token
 
 
