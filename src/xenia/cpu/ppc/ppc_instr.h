@@ -49,6 +49,11 @@ struct InstrData {
     } B;
 
     // kXEPPCInstrFormatSC
+    struct {
+      uint32_t : 5;
+      uint32_t LEV : 7;
+      uint32_t : 20;
+    } SC;
     // kXEPPCInstrFormatD
     struct {
       uint32_t DS : 16;

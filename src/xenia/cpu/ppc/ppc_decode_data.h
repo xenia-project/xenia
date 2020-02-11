@@ -42,7 +42,20 @@ static inline uint64_t XEMASK(uint32_t mstart, uint32_t mstop) {
 }
 
 struct PPCDecodeData {
-  struct FormatSC {};
+  struct FormatSC {
+    uint32_t LEV() const { return bits_.LEV; }
+
+   private:
+    uint32_t address_;
+    union {
+      uint32_t value_;
+      struct {
+        uint32_t : 5;
+        uint32_t LEV : 7;
+        uint32_t : 20;
+      } bits_;
+    };
+  };
   struct FormatD {
     uint32_t RT() const { return bits_.RT; }
     uint32_t RD() const { return RT(); }
