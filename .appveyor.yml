@@ -40,6 +40,7 @@ after_build:
   - cmd: |
       7z a xenia-%appveyor_repo_branch%.zip LICENSE %APPVEYOR_BUILD_FOLDER%\build\bin\%PLATFORM%\%CONFIGURATION%\xenia.exe %APPVEYOR_BUILD_FOLDER%\build\bin\%PLATFORM%\%CONFIGURATION%\xenia.pdb
       7z a xenia-vfs-dump-%appveyor_repo_branch%.zip LICENSE %APPVEYOR_BUILD_FOLDER%\build\bin\%PLATFORM%\%CONFIGURATION%\xenia-vfs-dump.exe %APPVEYOR_BUILD_FOLDER%\build\bin\%PLATFORM%\%CONFIGURATION%\xenia-vfs-dump.pdb
+      7z a SDL2.zip %APPVEYOR_BUILD_FOLDER%\build\bin\%PLATFORM%\%CONFIGURATION%\SDL2.dll
 
 before_test:
   - cmd: xb gentests
@@ -51,12 +52,13 @@ artifacts:
   - path: xenia-cpu-ppc-test.log
   - path: xenia-$(appveyor_repo_branch).zip
   - path: xenia-vfs-dump-$(appveyor_repo_branch).zip
+  - path: SDL2.zip
 
 deploy:
   - provider: Environment
     name: xenia-master
     release: xenia-$(appveyor_repo_branch)-v$(appveyor_build_version)
-    artifact: xenia-$(appveyor_repo_branch).zip,xenia-vfs-dump-$(appveyor_repo_branch).zip
+    artifact: xenia-$(appveyor_repo_branch).zip,xenia-vfs-dump-$(appveyor_repo_branch).zip,SDL2.zip
     draft: false
     prerelease: true
     on:
