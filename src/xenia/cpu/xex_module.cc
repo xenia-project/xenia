@@ -1225,15 +1225,17 @@ bool XexModule::SetupLibraryImports(const char* name,
         //     bctr
         // Real consoles rewrite this with some code that sets r11.
         // If we did that we'd still have to put a thunk somewhere and do the
-        // dynamic lookup. Instead, we rewrite it to use syscalls, as they
-        // aren't used on the 360. CPU backends can either take the syscall
-        // or do something smarter.
-        //     sc
+        // dynamic lookup. Instead, we rewrite it to use syscalls.
+        // We use sc with a LEV operand of 2, which is reserved usage and
+        // should never see actual usage outside of our rewrite.
+        // CPU backends can either take the special form syscall or do
+        // something smarter.
+        //     sc 2
         //     blr
         //     nop
         //     nop
         uint8_t* p = memory()->TranslateVirtual(record_addr);
-        xe::store_and_swap<uint32_t>(p + 0x0, 0x44000002);
+        xe::store_and_swap<uint32_t>(p + 0x0, 0x44000042);
         xe::store_and_swap<uint32_t>(p + 0x4, 0x4E800020);
         xe::store_and_swap<uint32_t>(p + 0x8, 0x60000000);
         xe::store_and_swap<uint32_t>(p + 0xC, 0x60000000);
