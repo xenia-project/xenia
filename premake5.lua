@@ -222,7 +222,6 @@ solution("xenia")
   include("third_party/spirv-tools.lua")
   include("third_party/volk.lua")
   include("third_party/xxhash.lua")
-  include("third_party/yaml-cpp.lua")
 
   include("src/xenia")
   include("src/xenia/app")
