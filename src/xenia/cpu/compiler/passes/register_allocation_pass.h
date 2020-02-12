@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2014 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -39,11 +39,9 @@ class RegisterAllocationPass : public CompilerPass {
     RegisterUsage() : value(nullptr), use(nullptr) {}
     RegisterUsage(hir::Value* value_, hir::Value::Use* use_)
         : value(value_), use(use_) {}
-    struct Comparer : std::binary_function<RegisterUsage, RegisterUsage, bool> {
-      bool operator()(const RegisterUsage& a, const RegisterUsage& b) const {
-        return a.use->instr->ordinal < b.use->instr->ordinal;
-      }
-    };
+    static bool Compare(const RegisterUsage& a, const RegisterUsage& b) {
+      return a.use->instr->ordinal < b.use->instr->ordinal;
+    }
   };
   struct RegisterSetUsage {
     const backend::MachineInfo::RegisterSet* set = nullptr;
