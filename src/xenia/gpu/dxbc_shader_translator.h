@@ -49,6 +49,10 @@ namespace gpu {
 // optimization possibilities as this may result in false dependencies. Always
 // mov l(0, 0, 0, 0) to such components before potential branching -
 // PushSystemTemp accepts a zero mask for this purpose.
+//
+// Clamping must be done first to the lower bound (using max), then to the upper
+// bound (using min), to match the saturate modifier behavior, which results in
+// 0 for NaN.
 class DxbcShaderTranslator : public ShaderTranslator {
  public:
   DxbcShaderTranslator(uint32_t vendor_id, bool edram_rov_used);
@@ -1626,7 +1630,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
                        uint32_t temp2_component);
   // Packs a float32x4 color value to 32bpp or a 64bpp in color_temp to
   // packed_temp.packed_temp_components, using 2 temporary VGPR. color_temp and
-  // packed_temp may be the same if packed_temp_components is 0.
+  // packed_temp may be the same if packed_temp_components is 0. If the format
+  // is 32bpp, will still the high part to break register dependency.
   void ROV_PackPreClampedColor(uint32_t rt_index, uint32_t color_temp,
                                uint32_t packed_temp,
                                uint32_t packed_temp_components, uint32_t temp1,
@@ -2002,7 +2007,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // W - Base-relative resolution-scaled EDRAM offset for 64bpp color data, in
   //     dwords.
   uint32_t system_temp_rov_params_;
-  // ROV only - new depth/stencil data. 4 VGPRs.
+  // ROV only - new depth/stencil data. 4 VGPRs when not writing to oDepth, 1
+  // VGPR when writing to oDepth.
   // When not writing to oDepth: New per-sample depth/stencil values, generated
   // during early depth/stencil test (actual writing checks coverage bits).
   // When writing to oDepth: X also used to hold the depth written by the

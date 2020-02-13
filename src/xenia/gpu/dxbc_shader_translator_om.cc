@@ -880,6 +880,10 @@ void DxbcShaderTranslator::ROV_PackPreClampedColor(
   DxbcDest temp2_dest(DxbcDest::R(temp2, 1 << temp2_component));
   DxbcSrc temp2_src(DxbcSrc::R(temp2).Select(temp2_component));
 
+  // Break register dependency after 32bpp cases.
+  DxbcOpMov(DxbcDest::R(packed_temp, 1 << (packed_temp_components + 1)),
+            DxbcSrc::LU(0));
+
   // Choose the packing based on the render target's format.
   system_constants_used_ |= 1ull << kSysConst_EDRAMRTFormatFlags_Index;
   DxbcOpSwitch(DxbcSrc::CB(cbuffer_index_system_constants_,
