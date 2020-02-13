@@ -1333,14 +1333,16 @@ void DxbcShaderTranslator::StartTranslation() {
     system_temp_position_ = PushSystemTemp(0b1111);
   } else if (IsDxbcPixelShader()) {
     if (edram_rov_used_) {
+      // Will be initialized unconditionally.
       system_temp_rov_params_ = PushSystemTemp();
-      // If the shader doesn't write to depth, StartPixelShader will load the
-      // depth/stencil for early test, so no need to initialize. If it does,
-      // initialize it to something consistent - depth must be written on every
-      // shader execution path (at least in PC ps_3_0 and later shader models)
-      // and to make compilation easier.
+      // If the shader doesn't write to oDepth, each component will be written
+      // to if depth/stencil is enabled and the respective sample is covered -
+      // so need to initialize now because the first writes will be conditional.
+      // If the shader writes to oDepth, this is oDepth of the shader, written
+      // by the guest code, so initialize because assumptions can't be made
+      // about the integrity of the guest code.
       system_temp_rov_depth_stencil_ =
-          PushSystemTemp(writes_depth() ? 0b0001 : 0);
+          PushSystemTemp(writes_depth() ? 0b0001 : 0b1111);
     }
     for (uint32_t i = 0; i < 4; ++i) {
       if (writes_color_target(i)) {
@@ -1377,7 +1379,10 @@ void DxbcShaderTranslator::StartTranslation() {
       }
     }
 
-    // Allocate system temporary variables for the translated code.
+    // Allocate system temporary variables for the translated code. Since access
+    // depends on the guest code (thus no guarantees), initialize everything
+    // now (except for pv, it's an internal temporary variable, not accessible
+    // by the guest).
     system_temp_pv_ = PushSystemTemp();
     system_temp_ps_pc_p0_a0_ = PushSystemTemp(0b1111);
     system_temp_aL_ = PushSystemTemp(0b1111);
