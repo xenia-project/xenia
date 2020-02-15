@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <utility>
 
 #include "xenia/base/assert.h"
 #include "xenia/base/byte_order.h"
@@ -281,6 +282,14 @@ bool MMIOHandler::ExceptionCallback(Exception* ex) {
   if (ex->code() != Exception::Code::kAccessViolation) {
     return false;
   }
+  Exception::AccessViolationOperation operation =
+      ex->access_violation_operation();
+  if (operation != Exception::AccessViolationOperation::kRead &&
+      operation != Exception::AccessViolationOperation::kWrite) {
+    // Data Execution Prevention or something else uninteresting.
+    return false;
+  }
+  bool is_write = operation == Exception::AccessViolationOperation::kWrite;
   if (ex->fault_address() < uint64_t(virtual_membase_) ||
       ex->fault_address() > uint64_t(memory_end_)) {
     // Quick kill anything outside our mapping.
@@ -304,32 +313,23 @@ bool MMIOHandler::ExceptionCallback(Exception* ex) {
   }
   if (!range) {
     // Recheck if the pages are still protected (race condition - another thread
-    // clears the writewatch we just hit).
+    // clears the watch we just hit).
     // Do this under the lock so we don't introduce another race condition.
     auto lock = global_critical_region_.Acquire();
     memory::PageAccess cur_access;
     size_t page_length = memory::page_size();
     memory::QueryProtect(fault_host_address, page_length, cur_access);
-    if (cur_access != memory::PageAccess::kReadOnly &&
-        cur_access != memory::PageAccess::kNoAccess) {
-      // Another thread has cleared this write watch. Abort.
+    if (cur_access != memory::PageAccess::kNoAccess &&
+        (!is_write || cur_access != memory::PageAccess::kReadOnly)) {
+      // Another thread has cleared this watch. Abort.
       return true;
     }
-
     // The address is not found within any range, so either a write watch or an
     // actual access violation.
     if (access_violation_callback_) {
-      switch (ex->access_violation_operation()) {
-        case Exception::AccessViolationOperation::kRead:
-          return access_violation_callback_(access_violation_callback_context_,
-                                            fault_host_address, false);
-        case Exception::AccessViolationOperation::kWrite:
-          return access_violation_callback_(access_violation_callback_context_,
-                                            fault_host_address, true);
-        default:
-          // Data Execution Prevention or something else uninteresting.
-          break;
-      }
+      return access_violation_callback_(std::move(lock),
+                                        access_violation_callback_context_,
+                                        fault_host_address, is_write);
     }
     return false;
   }

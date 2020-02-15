@@ -11,7 +11,9 @@
 
 #include <algorithm>
 #include <cstring>
+#include <utility>
 
+#include "xenia/base/assert.h"
 #include "xenia/base/byte_stream.h"
 #include "xenia/base/clock.h"
 #include "xenia/base/cvar.h"
@@ -96,8 +98,8 @@ Memory::~Memory() {
   // requests.
   mmio_handler_.reset();
 
-  for (auto physical_write_watch : physical_write_watches_) {
-    delete physical_write_watch;
+  for (auto invalidation_callback : physical_memory_invalidation_callbacks_) {
+    delete invalidation_callback;
   }
 
   heaps_.v00000000.Dispose();
@@ -433,13 +435,12 @@ cpu::MMIORange* Memory::LookupVirtualMappedRange(uint32_t virtual_address) {
   return mmio_handler_->LookupRange(virtual_address);
 }
 
-bool Memory::AccessViolationCallback(void* host_address, bool is_write) {
-  if (!is_write) {
-    // TODO(Triang3l): Handle GPU readback.
-    return false;
-  }
-  // Access via physical_membase_ is special, when need to bypass everything,
-  // so only watching virtual memory regions.
+bool Memory::AccessViolationCallback(
+    std::unique_lock<std::recursive_mutex> global_lock_locked_once,
+    void* host_address, bool is_write) {
+  // Access via physical_membase_ is special, when need to bypass everything
+  // (for instance, for a data provider to actually write the data) so only
+  // triggering callbacks on virtual memory regions.
   if (reinterpret_cast<size_t>(host_address) <
           reinterpret_cast<size_t>(virtual_membase_) ||
       reinterpret_cast<size_t>(host_address) >=
@@ -448,65 +449,79 @@ bool Memory::AccessViolationCallback(void* host_address, bool is_write) {
   }
   uint32_t virtual_address = HostToGuestVirtual(host_address);
   BaseHeap* heap = LookupHeap(virtual_address);
-  if (heap->IsGuestPhysicalHeap()) {
-    // Will be rounded to physical page boundaries internally, so just pass 1 as
-    // the length - guranteed not to cross page boundaries also.
-    return static_cast<PhysicalHeap*>(heap)->TriggerWatches(virtual_address, 1,
-                                                            is_write, false);
+  if (!heap->IsGuestPhysicalHeap()) {
+    return false;
   }
 
-  return false;
+  // Access violation callbacks from the guest are triggered when the global
+  // critical region mutex is locked once.
+  //
+  // Will be rounded to physical page boundaries internally, so just pass 1 as
+  // the length - guranteed not to cross page boundaries also.
+  auto physical_heap = static_cast<PhysicalHeap*>(heap);
+  return physical_heap->TriggerCallbacks(std::move(global_lock_locked_once),
+                                         virtual_address, 1, is_write, false);
 }
 
-bool Memory::AccessViolationCallbackThunk(void* context, void* host_address,
-                                          bool is_write) {
+bool Memory::AccessViolationCallbackThunk(
+    std::unique_lock<std::recursive_mutex> global_lock_locked_once,
+    void* context, void* host_address, bool is_write) {
   return reinterpret_cast<Memory*>(context)->AccessViolationCallback(
-      host_address, is_write);
+      std::move(global_lock_locked_once), host_address, is_write);
 }
 
-bool Memory::TriggerWatches(uint32_t virtual_address, uint32_t length,
-                            bool is_write, bool unwatch_exact_range,
-                            bool unprotect) {
+bool Memory::TriggerPhysicalMemoryCallbacks(
+    std::unique_lock<std::recursive_mutex> global_lock_locked_once,
+    uint32_t virtual_address, uint32_t length, bool is_write,
+    bool unwatch_exact_range, bool unprotect) {
   BaseHeap* heap = LookupHeap(virtual_address);
   if (heap->IsGuestPhysicalHeap()) {
-    return static_cast<PhysicalHeap*>(heap)->TriggerWatches(
-        virtual_address, length, is_write, unwatch_exact_range, unprotect);
+    auto physical_heap = static_cast<PhysicalHeap*>(heap);
+    return physical_heap->TriggerCallbacks(std::move(global_lock_locked_once),
+                                           virtual_address, length, is_write,
+                                           unwatch_exact_range, unprotect);
   }
   return false;
 }
 
-void* Memory::RegisterPhysicalWriteWatch(PhysicalWriteWatchCallback callback,
-                                         void* callback_context) {
-  PhysicalWriteWatchEntry* entry = new PhysicalWriteWatchEntry;
-  entry->callback = callback;
-  entry->callback_context = callback_context;
-
+void* Memory::RegisterPhysicalMemoryInvalidationCallback(
+    PhysicalMemoryInvalidationCallback callback, void* callback_context) {
+  auto entry = new std::pair<PhysicalMemoryInvalidationCallback, void*>(
+      callback, callback_context);
   auto lock = global_critical_region_.Acquire();
-  physical_write_watches_.push_back(entry);
-
+  physical_memory_invalidation_callbacks_.push_back(entry);
   return entry;
 }
 
-void Memory::UnregisterPhysicalWriteWatch(void* watch_handle) {
-  auto entry = reinterpret_cast<PhysicalWriteWatchEntry*>(watch_handle);
+void Memory::UnregisterPhysicalMemoryInvalidationCallback(
+    void* callback_handle) {
+  auto entry =
+      reinterpret_cast<std::pair<PhysicalMemoryInvalidationCallback, void*>*>(
+          callback_handle);
   {
     auto lock = global_critical_region_.Acquire();
-    auto it = std::find(physical_write_watches_.begin(),
-                        physical_write_watches_.end(), entry);
-    assert_false(it == physical_write_watches_.end());
-    if (it != physical_write_watches_.end()) {
-      physical_write_watches_.erase(it);
+    auto it = std::find(physical_memory_invalidation_callbacks_.begin(),
+                        physical_memory_invalidation_callbacks_.end(), entry);
+    assert_true(it != physical_memory_invalidation_callbacks_.end());
+    if (it != physical_memory_invalidation_callbacks_.end()) {
+      physical_memory_invalidation_callbacks_.erase(it);
     }
   }
   delete entry;
 }
 
-void Memory::WatchPhysicalMemoryWrite(uint32_t physical_address,
-                                      uint32_t length) {
-  // Watch independently in all three mappings.
-  heaps_.vA0000000.WatchPhysicalWrite(physical_address, length);
-  heaps_.vC0000000.WatchPhysicalWrite(physical_address, length);
-  heaps_.vE0000000.WatchPhysicalWrite(physical_address, length);
+void Memory::EnablePhysicalMemoryAccessCallbacks(
+    uint32_t physical_address, uint32_t length,
+    bool enable_invalidation_notifications, bool enable_data_providers) {
+  heaps_.vA0000000.EnableAccessCallbacks(physical_address, length,
+                                         enable_invalidation_notifications,
+                                         enable_data_providers);
+  heaps_.vC0000000.EnableAccessCallbacks(physical_address, length,
+                                         enable_invalidation_notifications,
+                                         enable_data_providers);
+  heaps_.vE0000000.EnableAccessCallbacks(physical_address, length,
+                                         enable_invalidation_notifications,
+                                         enable_data_providers);
 }
 
 uint32_t Memory::SystemHeapAlloc(uint32_t size, uint32_t alignment,
@@ -798,7 +813,8 @@ bool BaseHeap::Restore(ByteStream* stream) {
 void BaseHeap::Reset() {
   // TODO(DrChat): protect pages.
   std::memset(page_table_.data(), 0, sizeof(PageEntry) * page_table_.size());
-  // TODO(Triang3l): Unwatch pages.
+  // TODO(Triang3l): Remove access callbacks from pages if this is a physical
+  // memory heap.
 }
 
 bool BaseHeap::Alloc(uint32_t size, uint32_t alignment,
@@ -1313,9 +1329,7 @@ void PhysicalHeap::Initialize(Memory* memory, uint8_t* membase,
   system_page_count_ =
       (heap_size_ /* already - 1 */ + host_address_offset + system_page_size_) /
       system_page_size_;
-  system_pages_watched_write_.resize((system_page_count_ + 63) / 64);
-  std::memset(system_pages_watched_write_.data(), 0,
-              system_pages_watched_write_.size() * sizeof(uint64_t));
+  system_page_flags_.resize((system_page_count_ + 63) / 64);
 }
 
 bool PhysicalHeap::Alloc(uint32_t size, uint32_t alignment,
@@ -1357,7 +1371,7 @@ bool PhysicalHeap::Alloc(uint32_t size, uint32_t alignment,
   }
 
   if (protect & kMemoryProtectWrite) {
-    TriggerWatches(address, size, true, true, false);
+    TriggerCallbacks(std::move(global_lock), address, size, true, true, false);
   }
 
   *out_address = address;
@@ -1398,7 +1412,7 @@ bool PhysicalHeap::AllocFixed(uint32_t base_address, uint32_t size,
   }
 
   if (protect & kMemoryProtectWrite) {
-    TriggerWatches(address, size, true, true, false);
+    TriggerCallbacks(std::move(global_lock), address, size, true, true, false);
   }
 
   return true;
@@ -1443,7 +1457,7 @@ bool PhysicalHeap::AllocRange(uint32_t low_address, uint32_t high_address,
   }
 
   if (protect & kMemoryProtectWrite) {
-    TriggerWatches(address, size, true, true, false);
+    TriggerCallbacks(std::move(global_lock), address, size, true, true, false);
   }
 
   *out_address = address;
@@ -1477,7 +1491,7 @@ bool PhysicalHeap::Protect(uint32_t address, uint32_t size, uint32_t protect,
   // Only invalidate if making writable again, for simplicity - not when simply
   // marking some range as immutable, for instance.
   if (protect & kMemoryProtectWrite) {
-    TriggerWatches(address, size, true, true, false);
+    TriggerCallbacks(std::move(global_lock), address, size, true, true, false);
   }
 
   if (!parent_heap_->Protect(GetPhysicalAddress(address), size, protect,
@@ -1489,8 +1503,15 @@ bool PhysicalHeap::Protect(uint32_t address, uint32_t size, uint32_t protect,
   return BaseHeap::Protect(address, size, protect);
 }
 
-void PhysicalHeap::WatchPhysicalWrite(uint32_t physical_address,
-                                      uint32_t length) {
+void PhysicalHeap::EnableAccessCallbacks(uint32_t physical_address,
+                                         uint32_t length,
+                                         bool enable_invalidation_notifications,
+                                         bool enable_data_providers) {
+  // TODO(Triang3l): Implement data providers.
+  assert_false(enable_data_providers);
+  if (!enable_invalidation_notifications && !enable_data_providers) {
+    return;
+  }
   uint32_t physical_address_offset = GetPhysicalAddress(heap_base_);
   if (physical_address < physical_address_offset) {
     if (physical_address_offset - physical_address >= length) {
@@ -1516,28 +1537,61 @@ void PhysicalHeap::WatchPhysicalWrite(uint32_t physical_address,
   system_page_last = std::min(system_page_last, system_page_count_ - 1);
   assert_true(system_page_first <= system_page_last);
 
-  auto global_lock = global_critical_region_.Acquire();
-
-  // Protect the pages and mark them as watched. Don't mark non-writable pages
-  // as watched, so true access violations can still occur there.
+  // Update callback flags for system pages and make their protection stricter
+  // if needed.
+  xe::memory::PageAccess protect_access =
+      enable_data_providers ? xe::memory::PageAccess::kNoAccess
+                            : xe::memory::PageAccess::kReadOnly;
   uint8_t* protect_base = membase_ + heap_base_;
   uint32_t protect_system_page_first = UINT32_MAX;
+  auto global_lock = global_critical_region_.Acquire();
   for (uint32_t i = system_page_first; i <= system_page_last; ++i) {
-    uint64_t page_bit = uint64_t(1) << (i & 63);
-    // Check if need to allow writing to this page.
-    bool add_page_to_watch =
-        (system_pages_watched_write_[i >> 6] & page_bit) == 0;
-    if (add_page_to_watch) {
-      uint32_t page_number =
-          xe::sat_sub(i * system_page_size_, host_address_offset()) /
-          page_size_;
-      if (ToPageAccess(page_table_[page_number].current_protect) !=
-          xe::memory::PageAccess::kReadWrite) {
-        add_page_to_watch = false;
+    // Check if need to enable callbacks for the page and raise its protection.
+    //
+    // If enabling invalidation notifications:
+    // - Page writable and not watched for changes yet - protect and enable
+    //   invalidation notifications.
+    // - Page seen as writable by the guest, but only needs data providers -
+    //   just set the bits to enable invalidation notifications (already has
+    //   even stricter protection than needed).
+    // - Page not writable as requested by the game - don't do anything (need
+    //   real access violations here).
+    // If enabling data providers:
+    // - Page accessible (either read/write or read-only) and didn't need data
+    //   providers initially - protect and enable data providers.
+    // - Otherwise - do nothing.
+    //
+    // It's safe not to await data provider completion here before protecting as
+    // this never makes protection lighter, so it can't interfere with page
+    // faults that await data providers.
+    //
+    // Enabling data providers doesn't need to be deferred - providers will be
+    // polled for the last time without releasing the lock.
+    SystemPageFlagsBlock& page_flags_block = system_page_flags_[i >> 6];
+    uint64_t page_flags_bit = uint64_t(1) << (i & 63);
+    uint32_t guest_page_number =
+        xe::sat_sub(i * system_page_size_, host_address_offset()) / page_size_;
+    xe::memory::PageAccess current_page_access =
+        ToPageAccess(page_table_[guest_page_number].current_protect);
+    bool protect_system_page = false;
+    // Don't do anything with inaccessible pages - don't protect, don't enable
+    // callbacks - because real access violations are needed there. And don't
+    // enable invalidation notifications for read-only pages for the same
+    // reason.
+    if (current_page_access != xe::memory::PageAccess::kNoAccess) {
+      // TODO(Triang3l): Enable data providers.
+      if (enable_invalidation_notifications) {
+        if (current_page_access != xe::memory::PageAccess::kReadOnly &&
+            (page_flags_block.notify_on_invalidation & page_flags_bit) == 0) {
+          // TODO(Triang3l): Check if data providers are already enabled.
+          // If data providers are already enabled for the page, it has even
+          // stricter protection.
+          protect_system_page = true;
+          page_flags_block.notify_on_invalidation |= page_flags_bit;
+        }
       }
     }
-    if (add_page_to_watch) {
-      system_pages_watched_write_[i >> 6] |= page_bit;
+    if (protect_system_page) {
       if (protect_system_page_first == UINT32_MAX) {
         protect_system_page_first = i;
       }
@@ -1546,7 +1600,7 @@ void PhysicalHeap::WatchPhysicalWrite(uint32_t physical_address,
         xe::memory::Protect(
             protect_base + protect_system_page_first * system_page_size_,
             (i - protect_system_page_first) * system_page_size_,
-            xe::memory::PageAccess::kReadOnly);
+            protect_access);
         protect_system_page_first = UINT32_MAX;
       }
     }
@@ -1555,13 +1609,14 @@ void PhysicalHeap::WatchPhysicalWrite(uint32_t physical_address,
     xe::memory::Protect(
         protect_base + protect_system_page_first * system_page_size_,
         (system_page_last + 1 - protect_system_page_first) * system_page_size_,
-        xe::memory::PageAccess::kReadOnly);
+        protect_access);
   }
 }
 
-bool PhysicalHeap::TriggerWatches(uint32_t virtual_address, uint32_t length,
-                                  bool is_write, bool unwatch_exact_range,
-                                  bool unprotect) {
+bool PhysicalHeap::TriggerCallbacks(
+    std::unique_lock<std::recursive_mutex> global_lock_locked_once,
+    uint32_t virtual_address, uint32_t length, bool is_write,
+    bool unwatch_exact_range, bool unprotect) {
   // TODO(Triang3l): Support read watches.
   assert_true(is_write);
   if (!is_write) {
@@ -1594,12 +1649,10 @@ bool PhysicalHeap::TriggerWatches(uint32_t virtual_address, uint32_t length,
   uint32_t block_index_first = system_page_first >> 6;
   uint32_t block_index_last = system_page_last >> 6;
 
-  auto global_lock = global_critical_region_.Acquire();
-
   // Check if watching any page, whether need to call the callback at all.
   bool any_watched = false;
   for (uint32_t i = block_index_first; i <= block_index_last; ++i) {
-    uint64_t block = system_pages_watched_write_[i];
+    uint64_t block = system_page_flags_[i].notify_on_invalidation;
     if (i == block_index_first) {
       block &= ~((uint64_t(1) << (system_page_first & 63)) - 1);
     }
@@ -1633,11 +1686,12 @@ bool PhysicalHeap::TriggerWatches(uint32_t virtual_address, uint32_t length,
       heap_size_ + 1 - (physical_address_start - physical_address_offset));
   uint32_t unwatch_first = 0;
   uint32_t unwatch_last = UINT32_MAX;
-  for (auto physical_write_watch : memory_->physical_write_watches_) {
+  for (auto invalidation_callback :
+       memory_->physical_memory_invalidation_callbacks_) {
     std::pair<uint32_t, uint32_t> callback_unwatch_range =
-        physical_write_watch->callback(physical_write_watch->callback_context,
-                                       physical_address_start, physical_length,
-                                       unwatch_exact_range);
+        invalidation_callback->first(invalidation_callback->second,
+                                     physical_address_start, physical_length,
+                                     unwatch_exact_range);
     if (!unwatch_exact_range) {
       unwatch_first = std::max(unwatch_first, callback_unwatch_range.first);
       unwatch_last = std::min(
@@ -1682,13 +1736,13 @@ bool PhysicalHeap::TriggerWatches(uint32_t virtual_address, uint32_t length,
     uint32_t unprotect_system_page_first = UINT32_MAX;
     for (uint32_t i = system_page_first; i <= system_page_last; ++i) {
       // Check if need to allow writing to this page.
-      bool unprotect_page = (system_pages_watched_write_[i >> 6] &
+      bool unprotect_page = (system_page_flags_[i >> 6].notify_on_invalidation &
                              (uint64_t(1) << (i & 63))) != 0;
       if (unprotect_page) {
-        uint32_t page_number =
+        uint32_t guest_page_number =
             xe::sat_sub(i * system_page_size_, host_address_offset()) /
             page_size_;
-        if (ToPageAccess(page_table_[page_number].current_protect) !=
+        if (ToPageAccess(page_table_[guest_page_number].current_protect) !=
             xe::memory::PageAccess::kReadWrite) {
           unprotect_page = false;
         }
@@ -1725,7 +1779,7 @@ bool PhysicalHeap::TriggerWatches(uint32_t virtual_address, uint32_t length,
     if (i == block_index_last && (system_page_last & 63) != 63) {
       mask |= ~((uint64_t(1) << ((system_page_last & 63) + 1)) - 1);
     }
-    system_pages_watched_write_[i] &= mask;
+    system_page_flags_[i].notify_on_invalidation &= mask;
   }
 
   return true;

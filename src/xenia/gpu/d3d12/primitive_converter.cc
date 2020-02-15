@@ -124,16 +124,18 @@ bool PrimitiveConverter::Initialize() {
   static_ib_gpu_address_ = static_ib_->GetGPUVirtualAddress();
 
   memory_regions_invalidated_.store(0ull, std::memory_order_relaxed);
-  physical_write_watch_handle_ =
-      memory_->RegisterPhysicalWriteWatch(MemoryWriteCallbackThunk, this);
+  memory_invalidation_callback_handle_ =
+      memory_->RegisterPhysicalMemoryInvalidationCallback(
+          MemoryInvalidationCallbackThunk, this);
 
   return true;
 }
 
 void PrimitiveConverter::Shutdown() {
-  if (physical_write_watch_handle_ != nullptr) {
-    memory_->UnregisterPhysicalWriteWatch(physical_write_watch_handle_);
-    physical_write_watch_handle_ = nullptr;
+  if (memory_invalidation_callback_handle_ != nullptr) {
+    memory_->UnregisterPhysicalMemoryInvalidationCallback(
+        memory_invalidation_callback_handle_);
+    memory_invalidation_callback_handle_ = nullptr;
   }
   ui::d3d12::util::ReleaseAndNull(static_ib_);
   ui::d3d12::util::ReleaseAndNull(static_ib_upload_);
@@ -142,24 +144,25 @@ void PrimitiveConverter::Shutdown() {
 
 void PrimitiveConverter::ClearCache() { buffer_pool_->ClearCache(); }
 
+void PrimitiveConverter::CompletedSubmissionUpdated() {
+  if (static_ib_upload_ && command_processor_->GetCompletedSubmission() >=
+                               static_ib_upload_submission_) {
+    // Completely uploaded - release the upload buffer.
+    static_ib_upload_->Release();
+    static_ib_upload_ = nullptr;
+  }
+}
+
 void PrimitiveConverter::BeginSubmission() {
   // Got a command list now - upload and transition the static index buffer if
   // needed.
-  if (static_ib_upload_) {
-    if (static_ib_upload_submission_ == UINT64_MAX) {
-      // Not uploaded yet - upload.
-      command_processor_->GetDeferredCommandList()->D3DCopyResource(
-          static_ib_, static_ib_upload_);
-      command_processor_->PushTransitionBarrier(
-          static_ib_, D3D12_RESOURCE_STATE_COPY_DEST,
-          D3D12_RESOURCE_STATE_INDEX_BUFFER);
-      static_ib_upload_submission_ = command_processor_->GetCurrentSubmission();
-    } else if (command_processor_->GetCompletedSubmission() >=
-               static_ib_upload_submission_) {
-      // Completely uploaded - release the upload buffer.
-      static_ib_upload_->Release();
-      static_ib_upload_ = nullptr;
-    }
+  if (static_ib_upload_ && static_ib_upload_submission_ == UINT64_MAX) {
+    command_processor_->GetDeferredCommandList()->D3DCopyResource(
+        static_ib_, static_ib_upload_);
+    command_processor_->PushTransitionBarrier(
+        static_ib_, D3D12_RESOURCE_STATE_COPY_DEST,
+        D3D12_RESOURCE_STATE_INDEX_BUFFER);
+    static_ib_upload_submission_ = command_processor_->GetCurrentSubmission();
   }
 }
 
@@ -706,7 +709,7 @@ void* PrimitiveConverter::AllocateIndices(
   return mapping + simd_offset;
 }
 
-std::pair<uint32_t, uint32_t> PrimitiveConverter::MemoryWriteCallback(
+std::pair<uint32_t, uint32_t> PrimitiveConverter::MemoryInvalidationCallback(
     uint32_t physical_address_start, uint32_t length, bool exact_range) {
   // 1 bit = (512 / 64) MB = 8 MB. Invalidate a region of this size.
   uint32_t bit_index_first = physical_address_start >> 23;
@@ -719,11 +722,12 @@ std::pair<uint32_t, uint32_t> PrimitiveConverter::MemoryWriteCallback(
   return std::make_pair<uint32_t, uint32_t>(0, UINT32_MAX);
 }
 
-std::pair<uint32_t, uint32_t> PrimitiveConverter::MemoryWriteCallbackThunk(
+std::pair<uint32_t, uint32_t>
+PrimitiveConverter::MemoryInvalidationCallbackThunk(
     void* context_ptr, uint32_t physical_address_start, uint32_t length,
     bool exact_range) {
   return reinterpret_cast<PrimitiveConverter*>(context_ptr)
-      ->MemoryWriteCallback(physical_address_start, length, exact_range);
+      ->MemoryInvalidationCallback(physical_address_start, length, exact_range);
 }
 
 D3D12_GPU_VIRTUAL_ADDRESS PrimitiveConverter::GetStaticIndexBuffer(

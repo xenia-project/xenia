@@ -1702,7 +1702,7 @@ void TextureCache::MarkRangeAsResolved(uint32_t start_unscaled,
     uint32_t page_last = (start_unscaled + length_unscaled - 1) >> 12;
     uint32_t block_first = page_first >> 5;
     uint32_t block_last = page_last >> 5;
-    auto watch_lock = shared_memory_->LockWatchMutex();
+    auto global_lock = global_critical_region_.Acquire();
     for (uint32_t i = block_first; i <= block_last; ++i) {
       uint32_t add_bits = UINT32_MAX;
       if (i == block_first) {
@@ -1812,8 +1812,8 @@ bool TextureCache::TileResolvedTexture(
       return false;
     }
   } else {
-    if (!shared_memory_->MakeTilesResident(texture_modified_start,
-                                           texture_modified_length)) {
+    if (!shared_memory_->EnsureTilesResident(texture_modified_start,
+                                             texture_modified_length)) {
       return false;
     }
   }
@@ -2404,7 +2404,7 @@ bool TextureCache::LoadTextureData(Texture* texture) {
   // See what we need to upload.
   bool base_in_sync, mips_in_sync;
   {
-    auto watch_lock = shared_memory_->LockWatchMutex();
+    auto global_lock = global_critical_region_.Acquire();
     base_in_sync = texture->base_in_sync;
     mips_in_sync = texture->mips_in_sync;
   }
@@ -2672,7 +2672,7 @@ bool TextureCache::LoadTextureData(Texture* texture) {
   // regular texture or a vertex buffer, and thus the scaled resolve version is
   // not up to date anymore.
   {
-    auto watch_lock = shared_memory_->LockWatchMutex();
+    auto global_lock = global_critical_region_.Acquire();
     texture->base_in_sync = true;
     texture->mips_in_sync = true;
     if (!base_in_sync) {
@@ -2761,7 +2761,7 @@ bool TextureCache::IsRangeScaledResolved(uint32_t start_unscaled,
   uint32_t block_last = page_last >> 5;
   uint32_t l2_block_first = block_first >> 6;
   uint32_t l2_block_last = block_last >> 6;
-  auto watch_lock = shared_memory_->LockWatchMutex();
+  auto global_lock = global_critical_region_.Acquire();
   for (uint32_t i = l2_block_first; i <= l2_block_last; ++i) {
     uint64_t l2_block = scaled_resolve_pages_l2_[i];
     if (i == l2_block_first) {

@@ -150,16 +150,18 @@ VkResult TextureCache::Initialize() {
 
   device_queue_ = device_->AcquireQueue(device_->queue_family_index());
 
-  physical_write_watch_handle_ =
-      memory_->RegisterPhysicalWriteWatch(MemoryWriteCallbackThunk, this);
+  memory_invalidation_callback_handle_ =
+      memory_->RegisterPhysicalMemoryInvalidationCallback(
+          MemoryInvalidationCallbackThunk, this);
 
   return VK_SUCCESS;
 }
 
 void TextureCache::Shutdown() {
-  if (physical_write_watch_handle_ != nullptr) {
-    memory_->UnregisterPhysicalWriteWatch(physical_write_watch_handle_);
-    physical_write_watch_handle_ = nullptr;
+  if (memory_invalidation_callback_handle_ != nullptr) {
+    memory_->UnregisterPhysicalMemoryInvalidationCallback(
+        memory_invalidation_callback_handle_);
+    memory_invalidation_callback_handle_ = nullptr;
   }
 
   if (device_queue_) {
@@ -411,7 +413,7 @@ void TextureCache::WatchTexture(Texture* texture) {
     texture->is_watched = true;
   }
 
-  memory_->WatchPhysicalMemoryWrite(address, size);
+  memory_->EnablePhysicalMemoryAccessCallbacks(address, size, true, false);
 }
 
 void TextureCache::TextureTouched(Texture* texture) {
@@ -428,7 +430,7 @@ void TextureCache::TextureTouched(Texture* texture) {
   texture->pending_invalidation = true;
 }
 
-std::pair<uint32_t, uint32_t> TextureCache::MemoryWriteCallback(
+std::pair<uint32_t, uint32_t> TextureCache::MemoryInvalidationCallback(
     uint32_t physical_address_start, uint32_t length, bool exact_range) {
   global_critical_region_.Acquire();
   if (watched_textures_.empty()) {
@@ -468,11 +470,11 @@ std::pair<uint32_t, uint32_t> TextureCache::MemoryWriteCallback(
   return std::make_pair(previous_end, next_start - previous_end);
 }
 
-std::pair<uint32_t, uint32_t> TextureCache::MemoryWriteCallbackThunk(
+std::pair<uint32_t, uint32_t> TextureCache::MemoryInvalidationCallbackThunk(
     void* context_ptr, uint32_t physical_address_start, uint32_t length,
     bool exact_range) {
   return reinterpret_cast<TextureCache*>(context_ptr)
-      ->MemoryWriteCallback(physical_address_start, length, exact_range);
+      ->MemoryInvalidationCallback(physical_address_start, length, exact_range);
 }
 
 TextureCache::Texture* TextureCache::DemandResolveTexture(

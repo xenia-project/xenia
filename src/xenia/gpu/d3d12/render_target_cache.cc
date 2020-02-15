@@ -455,12 +455,14 @@ void RenderTargetCache::ClearCache() {
   edram_snapshot_restore_pool_.reset();
 }
 
-void RenderTargetCache::BeginSubmission() {
+void RenderTargetCache::CompletedSubmissionUpdated() {
   if (edram_snapshot_restore_pool_) {
     edram_snapshot_restore_pool_->Reclaim(
         command_processor_->GetCompletedSubmission());
   }
+}
 
+void RenderTargetCache::BeginSubmission() {
   // With the ROV, a submission does not always end in a resolve (for example,
   // when memexport readback happens) or something else that would surely submit
   // the UAV barrier, so we need to preserve the `current_` variables.
@@ -1417,8 +1419,8 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
         return false;
       }
     } else {
-      if (!shared_memory->MakeTilesResident(dest_modified_start,
-                                            dest_modified_length)) {
+      if (!shared_memory->EnsureTilesResident(dest_modified_start,
+                                              dest_modified_length)) {
         return false;
       }
     }

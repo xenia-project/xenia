@@ -11,9 +11,9 @@
 #define XENIA_GPU_D3D12_TEXTURE_CACHE_H_
 
 #include <atomic>
-#include <mutex>
 #include <unordered_map>
 
+#include "xenia/base/mutex.h"
 #include "xenia/gpu/d3d12/d3d12_shader.h"
 #include "xenia/gpu/d3d12/shared_memory.h"
 #include "xenia/gpu/register_file.h"
@@ -369,15 +369,14 @@ class TextureCache {
     static constexpr uint32_t kCachedSRVDescriptorSwizzleMissing = UINT32_MAX;
     uint32_t cached_srv_descriptor_swizzle;
 
-    // Watch handles for the memory ranges (protected by the shared memory watch
-    // mutex).
+    // These are to be accessed within the global critical region to synchronize
+    // with shared memory.
+    // Watch handles for the memory ranges.
     SharedMemory::WatchHandle base_watch_handle;
     SharedMemory::WatchHandle mip_watch_handle;
-    // Whether the recent base level data has been loaded from the memory
-    // (protected by the shared memory watch mutex).
+    // Whether the recent base level data has been loaded from the memory.
     bool base_in_sync;
-    // Whether the recent mip data has been loaded from the memory (protected by
-    // the shared memory watch mutex).
+    // Whether the recent mip data has been loaded from the memory.
     bool mips_in_sync;
   };
 
@@ -620,16 +619,16 @@ class TextureCache {
                                     kScaledResolveHeapSizeLog2] = {};
   // Number of currently resident portions of the tiled buffer, for profiling.
   uint32_t scaled_resolve_heap_count_ = 0;
+  // Global watch for scaled resolve data invalidation.
+  SharedMemory::GlobalWatchHandle scaled_resolve_global_watch_handle_ = nullptr;
+
+  xe::global_critical_region global_critical_region_;
   // Bit vector storing whether each 4 KB physical memory page contains scaled
   // resolve data. uint32_t rather than uint64_t because parts of it are sent to
   // shaders.
-  // PROTECTED BY THE SHARED MEMORY WATCH MUTEX!
   uint32_t* scaled_resolve_pages_ = nullptr;
   // Second level of the bit vector for faster rejection of non-scaled textures.
-  // PROTECTED BY THE SHARED MEMORY WATCH MUTEX!
   uint64_t scaled_resolve_pages_l2_[(512 << 20) >> (12 + 5 + 6)];
-  // Global watch for scaled resolve data invalidation.
-  SharedMemory::GlobalWatchHandle scaled_resolve_global_watch_handle_ = nullptr;
 };
 
 }  // namespace d3d12
