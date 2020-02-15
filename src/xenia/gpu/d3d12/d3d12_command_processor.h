@@ -229,6 +229,9 @@ class D3D12CommandProcessor : public CommandProcessor {
   // frame. EndSubmission(true) will close the frame no matter whether the
   // submission has already been closed.
 
+  // Rechecks submission number and reclaims per-submission resources. Pass 0 as
+  // the submission to await to simply check status.
+  void CheckSubmissionFence(uint64_t await_submission);
   // If is_guest_command is true, a new full frame - with full cleanup of
   // resources and, if needed, starting capturing - is opened if pending (as
   // opposed to simply resuming after mid-frame synchronization).

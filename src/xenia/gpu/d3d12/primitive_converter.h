@@ -46,6 +46,7 @@ class PrimitiveConverter {
   void Shutdown();
   void ClearCache();
 
+  void CompletedSubmissionUpdated();
   void BeginSubmission();
   void BeginFrame();
 
@@ -83,7 +84,7 @@ class PrimitiveConverter {
       uint32_t& index_count_out) const;
 
   // Callback for invalidating buffers mid-frame.
-  std::pair<uint32_t, uint32_t> MemoryWriteCallback(
+  std::pair<uint32_t, uint32_t> MemoryInvalidationCallback(
       uint32_t physical_address_start, uint32_t length, bool exact_range);
 
   void InitializeTrace();
@@ -96,7 +97,7 @@ class PrimitiveConverter {
                         uint32_t simd_offset,
                         D3D12_GPU_VIRTUAL_ADDRESS& gpu_address_out);
 
-  static std::pair<uint32_t, uint32_t> MemoryWriteCallbackThunk(
+  static std::pair<uint32_t, uint32_t> MemoryInvalidationCallbackThunk(
       void* context_ptr, uint32_t physical_address_start, uint32_t length,
       bool exact_range);
 
@@ -176,7 +177,7 @@ class PrimitiveConverter {
   // the cache.
   uint64_t memory_regions_used_;
   std::atomic<uint64_t> memory_regions_invalidated_ = 0;
-  void* physical_write_watch_handle_ = nullptr;
+  void* memory_invalidation_callback_handle_ = nullptr;
   uint32_t system_page_size_;
 };
 

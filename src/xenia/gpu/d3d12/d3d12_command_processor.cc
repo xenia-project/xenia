@@ -87,8 +87,8 @@ void D3D12CommandProcessor::RequestFrameTrace(const std::wstring& root_path) {
 
 void D3D12CommandProcessor::TracePlaybackWroteMemory(uint32_t base_ptr,
                                                      uint32_t length) {
-  shared_memory_->MemoryWriteCallback(base_ptr, length, true);
-  primitive_converter_->MemoryWriteCallback(base_ptr, length, true);
+  shared_memory_->MemoryInvalidationCallback(base_ptr, length, true);
+  primitive_converter_->MemoryInvalidationCallback(base_ptr, length, true);
 }
 
 void D3D12CommandProcessor::RestoreEDRAMSnapshot(const void* snapshot) {
@@ -866,6 +866,7 @@ bool D3D12CommandProcessor::SetupContext() {
   if (FAILED(gamma_ramp_upload_->Map(
           0, nullptr, reinterpret_cast<void**>(&gamma_ramp_upload_mapping_)))) {
     XELOGE("Failed to map the gamma ramp upload buffer");
+    gamma_ramp_upload_mapping_ = nullptr;
     return false;
   }
 
@@ -1827,42 +1828,24 @@ bool D3D12CommandProcessor::IssueCopy() {
   return true;
 }
 
-void D3D12CommandProcessor::BeginSubmission(bool is_guest_command) {
-#if FINE_GRAINED_DRAW_SCOPES
-  SCOPE_profile_cpu_f("gpu");
-#endif  // FINE_GRAINED_DRAW_SCOPES
-
-  bool is_opening_frame = is_guest_command && !frame_open_;
-  if (submission_open_ && !is_opening_frame) {
-    return;
+void D3D12CommandProcessor::CheckSubmissionFence(uint64_t await_submission) {
+  assert_true(await_submission <= submission_current_);
+  if (await_submission == submission_current_) {
+    assert_true(submission_open_);
+    EndSubmission(false);
   }
 
-  // Check the fence - needed for all kinds of submissions (to reclaim transient
-  // resources early) and specifically for frames (not to queue too many).
+  uint64_t submission_completed_before = submission_completed_;
   submission_completed_ = submission_fence_->GetCompletedValue();
-  if (is_opening_frame) {
-    // Await the availability of the current frame.
-    uint64_t frame_current_last_submission =
-        closed_frame_submissions_[frame_current_ % kQueueFrames];
-    if (frame_current_last_submission > submission_completed_) {
-      submission_fence_->SetEventOnCompletion(
-          frame_current_last_submission, submission_fence_completion_event_);
-      WaitForSingleObject(submission_fence_completion_event_, INFINITE);
-      submission_completed_ = submission_fence_->GetCompletedValue();
-    }
-    // Update the completed frame index, also obtaining the actual completed
-    // frame number (since the CPU may be actually less than 3 frames behind)
-    // before reclaiming resources tracked with the frame number.
-    frame_completed_ =
-        std::max(frame_current_, uint64_t(kQueueFrames)) - kQueueFrames;
-    for (uint64_t frame = frame_completed_ + 1; frame < frame_current_;
-         ++frame) {
-      if (closed_frame_submissions_[frame % kQueueFrames] >
-          submission_completed_) {
-        break;
-      }
-      frame_completed_ = frame;
-    }
+  if (submission_completed_ < await_submission) {
+    submission_fence_->SetEventOnCompletion(await_submission,
+                                            submission_fence_completion_event_);
+    WaitForSingleObject(submission_fence_completion_event_, INFINITE);
+    submission_completed_ = submission_fence_->GetCompletedValue();
+  }
+  if (submission_completed_ <= submission_completed_before) {
+    // Not updated - no need to reclaim or download things.
+    return;
   }
 
   // Reclaim command allocators.
@@ -1898,6 +1881,46 @@ void D3D12CommandProcessor::BeginSubmission(bool is_guest_command) {
   }
   buffers_for_deletion_.erase(buffers_for_deletion_.begin(), erase_buffers_end);
 
+  shared_memory_->CompletedSubmissionUpdated();
+
+  render_target_cache_->CompletedSubmissionUpdated();
+
+  primitive_converter_->CompletedSubmissionUpdated();
+}
+
+void D3D12CommandProcessor::BeginSubmission(bool is_guest_command) {
+#if FINE_GRAINED_DRAW_SCOPES
+  SCOPE_profile_cpu_f("gpu");
+#endif  // FINE_GRAINED_DRAW_SCOPES
+
+  bool is_opening_frame = is_guest_command && !frame_open_;
+  if (submission_open_ && !is_opening_frame) {
+    return;
+  }
+
+  // Check the fence - needed for all kinds of submissions (to reclaim transient
+  // resources early) and specifically for frames (not to queue too many), and
+  // await the availability of the current frame.
+  CheckSubmissionFence(
+      is_opening_frame
+          ? closed_frame_submissions_[frame_current_ % kQueueFrames]
+          : 0);
+  if (is_opening_frame) {
+    // Update the completed frame index, also obtaining the actual completed
+    // frame number (since the CPU may be actually less than 3 frames behind)
+    // before reclaiming resources tracked with the frame number.
+    frame_completed_ =
+        std::max(frame_current_, uint64_t(kQueueFrames)) - kQueueFrames;
+    for (uint64_t frame = frame_completed_ + 1; frame < frame_current_;
+         ++frame) {
+      if (closed_frame_submissions_[frame % kQueueFrames] >
+          submission_completed_) {
+        break;
+      }
+      frame_completed_ = frame;
+    }
+  }
+
   if (!submission_open_) {
     submission_open_ = true;
 
@@ -1919,8 +1942,6 @@ void D3D12CommandProcessor::BeginSubmission(bool is_guest_command) {
     current_view_heap_ = nullptr;
     current_sampler_heap_ = nullptr;
     primitive_topology_ = D3D_PRIMITIVE_TOPOLOGY_UNDEFINED;
-
-    shared_memory_->BeginSubmission();
 
     render_target_cache_->BeginSubmission();
 

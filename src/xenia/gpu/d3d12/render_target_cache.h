@@ -257,6 +257,7 @@ class RenderTargetCache {
   void Shutdown();
   void ClearCache();
 
+  void CompletedSubmissionUpdated();
   void BeginSubmission();
   void EndFrame();
   // Called in the beginning of a draw call - may bind pipelines.

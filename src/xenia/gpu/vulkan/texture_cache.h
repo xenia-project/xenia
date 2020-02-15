@@ -147,9 +147,9 @@ class TextureCache {
 
   void WatchTexture(Texture* texture);
   void TextureTouched(Texture* texture);
-  std::pair<uint32_t, uint32_t> MemoryWriteCallback(
+  std::pair<uint32_t, uint32_t> MemoryInvalidationCallback(
       uint32_t physical_address_start, uint32_t length, bool exact_range);
-  static std::pair<uint32_t, uint32_t> MemoryWriteCallbackThunk(
+  static std::pair<uint32_t, uint32_t> MemoryInvalidationCallbackThunk(
       void* context_ptr, uint32_t physical_address_start, uint32_t length,
       bool exact_range);
 
@@ -220,7 +220,7 @@ class TextureCache {
   std::unordered_map<uint64_t, Sampler*> samplers_;
   std::list<Texture*> pending_delete_textures_;
 
-  void* physical_write_watch_handle_ = nullptr;
+  void* memory_invalidation_callback_handle_ = nullptr;
 
   xe::global_critical_region global_critical_region_;
   std::list<WatchedTexture> watched_textures_;

@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <utility>
 #include <vector>
 
 #include "xenia/base/assert.h"
@@ -49,11 +50,6 @@ SharedMemory::SharedMemory(D3D12CommandProcessor* command_processor,
       trace_writer_(trace_writer) {
   page_size_log2_ = xe::log2_ceil(uint32_t(xe::memory::page_size()));
   page_count_ = kBufferSize >> page_size_log2_;
-  uint32_t page_bitmap_length = page_count_ >> 6;
-  assert_true(page_bitmap_length != 0);
-
-  // Two interleaved bit arrays.
-  valid_and_gpu_written_pages_.resize(page_bitmap_length << 1);
 }
 
 SharedMemory::~SharedMemory() { Shutdown(); }
@@ -125,14 +121,16 @@ bool SharedMemory::Initialize() {
                                      uint32_t(BufferDescriptorIndex::kRawUAV)),
       buffer_, kBufferSize);
 
-  std::memset(valid_and_gpu_written_pages_.data(), 0,
-              valid_and_gpu_written_pages_.size() * sizeof(uint64_t));
+  system_page_flags_.clear();
+  system_page_flags_.resize((page_count_ + 63) / 64);
 
-  upload_buffer_pool_ =
-      std::make_unique<ui::d3d12::UploadBufferPool>(device, 4 * 1024 * 1024);
+  upload_buffer_pool_ = std::make_unique<ui::d3d12::UploadBufferPool>(
+      device,
+      xe::align(uint32_t(4 * 1024 * 1024), uint32_t(1) << page_size_log2_));
 
-  physical_write_watch_handle_ =
-      memory_->RegisterPhysicalWriteWatch(MemoryWriteCallbackThunk, this);
+  memory_invalidation_callback_handle_ =
+      memory_->RegisterPhysicalMemoryInvalidationCallback(
+          MemoryInvalidationCallbackThunk, this);
 
   ResetTraceGPUWrittenBuffer();
 
@@ -144,9 +142,10 @@ void SharedMemory::Shutdown() {
 
   // TODO(Triang3l): Do something in case any watches are still registered.
 
-  if (physical_write_watch_handle_ != nullptr) {
-    memory_->UnregisterPhysicalWriteWatch(physical_write_watch_handle_);
-    physical_write_watch_handle_ = nullptr;
+  if (memory_invalidation_callback_handle_ != nullptr) {
+    memory_->UnregisterPhysicalMemoryInvalidationCallback(
+        memory_invalidation_callback_handle_);
+    memory_invalidation_callback_handle_ = nullptr;
   }
 
   upload_buffer_pool_.reset();
@@ -165,7 +164,7 @@ void SharedMemory::Shutdown() {
   }
 }
 
-void SharedMemory::BeginSubmission() {
+void SharedMemory::CompletedSubmissionUpdated() {
   upload_buffer_pool_->Reclaim(command_processor_->GetCompletedSubmission());
 }
 
@@ -273,7 +272,7 @@ void SharedMemory::UnwatchMemoryRange(WatchHandle handle) {
   UnlinkWatchRange(reinterpret_cast<WatchRange*>(handle));
 }
 
-bool SharedMemory::MakeTilesResident(uint32_t start, uint32_t length) {
+bool SharedMemory::EnsureTilesResident(uint32_t start, uint32_t length) {
   if (length == 0) {
     // Some texture is empty, for example - safe to draw in this case.
     return true;
@@ -347,7 +346,7 @@ bool SharedMemory::RequestRange(uint32_t start, uint32_t length) {
 #endif  // FINE_GRAINED_DRAW_SCOPES
 
   // Ensure all tile heaps are present.
-  if (!MakeTilesResident(start, length)) {
+  if (!EnsureTilesResident(start, length)) {
     return false;
   }
 
@@ -375,7 +374,8 @@ bool SharedMemory::RequestRange(uint32_t start, uint32_t length) {
         return false;
       }
       uint32_t upload_buffer_pages = upload_buffer_size >> page_size_log2_;
-      MakeRangeValid(upload_range_start, upload_buffer_pages, false);
+      MakeRangeValid(upload_range_start << page_size_log2_,
+                     upload_buffer_pages << page_size_log2_, false);
       std::memcpy(
           upload_buffer_mapping,
           memory_->TranslatePhysical(upload_range_start << page_size_log2_),
@@ -439,7 +439,7 @@ void SharedMemory::RangeWrittenByGPU(uint32_t start, uint32_t length) {
 
   // Mark the range as valid (so pages are not reuploaded until modified by the
   // CPU) and watch it so the CPU can reuse it and this will be caught.
-  MakeRangeValid(page_first, page_last - page_first + 1, true);
+  MakeRangeValid(start, length, true);
 }
 
 bool SharedMemory::AreTiledResourcesUsed() const {
@@ -453,14 +453,15 @@ bool SharedMemory::AreTiledResourcesUsed() const {
          provider->GetGraphicsAnalysis() == nullptr;
 }
 
-void SharedMemory::MakeRangeValid(uint32_t valid_page_first,
-                                  uint32_t valid_page_count,
+void SharedMemory::MakeRangeValid(uint32_t start, uint32_t length,
                                   bool written_by_gpu) {
-  if (valid_page_first >= page_count_ || valid_page_count == 0) {
+  if (length == 0 || start >= kBufferSize) {
     return;
   }
-  valid_page_count = std::min(valid_page_count, page_count_ - valid_page_first);
-  uint32_t valid_page_last = valid_page_first + valid_page_count - 1;
+  length = std::min(length, kBufferSize - start);
+  uint32_t last = start + length - 1;
+  uint32_t valid_page_first = start >> page_size_log2_;
+  uint32_t valid_page_last = last >> page_size_log2_;
   uint32_t valid_block_first = valid_page_first >> 6;
   uint32_t valid_block_last = valid_page_last >> 6;
 
@@ -475,18 +476,21 @@ void SharedMemory::MakeRangeValid(uint32_t valid_page_first,
       if (i == valid_block_last && (valid_page_last & 63) != 63) {
         valid_bits &= (1ull << ((valid_page_last & 63) + 1)) - 1;
       }
-      valid_and_gpu_written_pages_[i << 1] |= valid_bits;
+      SystemPageFlagsBlock& block = system_page_flags_[i];
+      block.valid |= valid_bits;
       if (written_by_gpu) {
-        valid_and_gpu_written_pages_[(i << 1) + 1] |= valid_bits;
+        block.valid_and_gpu_written |= valid_bits;
       } else {
-        valid_and_gpu_written_pages_[(i << 1) + 1] &= ~valid_bits;
+        block.valid_and_gpu_written &= ~valid_bits;
       }
     }
   }
 
-  if (physical_write_watch_handle_) {
-    memory_->WatchPhysicalMemoryWrite(valid_page_first << page_size_log2_,
-                                      valid_page_count << page_size_log2_);
+  if (memory_invalidation_callback_handle_) {
+    memory_->EnablePhysicalMemoryAccessCallbacks(
+        valid_page_first << page_size_log2_,
+        (valid_page_last - valid_page_first + 1) << page_size_log2_, true,
+        false);
   }
 }
 
@@ -527,7 +531,7 @@ void SharedMemory::GetRangesToUpload(uint32_t request_page_first,
 
   uint32_t range_start = UINT32_MAX;
   for (uint32_t i = request_block_first; i <= request_block_last; ++i) {
-    uint64_t block_valid = valid_and_gpu_written_pages_[i << 1];
+    uint64_t block_valid = system_page_flags_[i].valid;
     // Consider pages in the block outside the requested range valid.
     if (i == request_block_first) {
       block_valid |= (1ull << (request_page_first & 63)) - 1;
@@ -569,17 +573,23 @@ void SharedMemory::GetRangesToUpload(uint32_t request_page_first,
   }
 }
 
-std::pair<uint32_t, uint32_t> SharedMemory::MemoryWriteCallbackThunk(
+std::pair<uint32_t, uint32_t> SharedMemory::MemoryInvalidationCallbackThunk(
     void* context_ptr, uint32_t physical_address_start, uint32_t length,
     bool exact_range) {
   return reinterpret_cast<SharedMemory*>(context_ptr)
-      ->MemoryWriteCallback(physical_address_start, length, exact_range);
+      ->MemoryInvalidationCallback(physical_address_start, length, exact_range);
 }
 
-std::pair<uint32_t, uint32_t> SharedMemory::MemoryWriteCallback(
+std::pair<uint32_t, uint32_t> SharedMemory::MemoryInvalidationCallback(
     uint32_t physical_address_start, uint32_t length, bool exact_range) {
+  if (length == 0 || physical_address_start >= kBufferSize) {
+    return std::make_pair(uint32_t(0), UINT32_MAX);
+  }
+  length = std::min(length, kBufferSize - physical_address_start);
+  uint32_t physical_address_last = physical_address_start + (length - 1);
+
   uint32_t page_first = physical_address_start >> page_size_log2_;
-  uint32_t page_last = (physical_address_start + length - 1) >> page_size_log2_;
+  uint32_t page_last = physical_address_last >> page_size_log2_;
   assert_true(page_first < page_count_ && page_last < page_count_);
   uint32_t block_first = page_first >> 6;
   uint32_t block_last = page_last >> 6;
@@ -596,14 +606,14 @@ std::pair<uint32_t, uint32_t> SharedMemory::MemoryWriteCallback(
     // frame, but with 256 KB it's 0.7 ms.
     if (page_first & 63) {
       uint64_t gpu_written_start =
-          valid_and_gpu_written_pages_[(block_first << 1) + 1];
+          system_page_flags_[block_first].valid_and_gpu_written;
       gpu_written_start &= (1ull << (page_first & 63)) - 1;
       page_first =
           (page_first & ~uint32_t(63)) + (64 - xe::lzcnt(gpu_written_start));
     }
     if ((page_last & 63) != 63) {
       uint64_t gpu_written_end =
-          valid_and_gpu_written_pages_[(block_last << 1) + 1];
+          system_page_flags_[block_last].valid_and_gpu_written;
       gpu_written_end &= ~((1ull << ((page_last & 63) + 1)) - 1);
       page_last = (page_last & ~uint32_t(63)) +
                   (std::max(xe::tzcnt(gpu_written_end), uint8_t(1)) - 1);
@@ -618,8 +628,9 @@ std::pair<uint32_t, uint32_t> SharedMemory::MemoryWriteCallback(
     if (i == block_last && (page_last & 63) != 63) {
       invalidate_bits &= (1ull << ((page_last & 63) + 1)) - 1;
     }
-    valid_and_gpu_written_pages_[i << 1] &= ~invalidate_bits;
-    valid_and_gpu_written_pages_[(i << 1) + 1] &= ~invalidate_bits;
+    SystemPageFlagsBlock& block = system_page_flags_[i];
+    block.valid &= ~invalidate_bits;
+    block.valid_and_gpu_written &= ~invalidate_bits;
   }
 
   FireWatches(page_first, page_last, false);
@@ -664,10 +675,11 @@ bool SharedMemory::InitializeTraceSubmitDownloads() {
     auto global_lock = global_critical_region_.Acquire();
     uint32_t fire_watches_range_start = UINT32_MAX;
     uint32_t gpu_written_range_start = UINT32_MAX;
-    for (uint32_t i = 0; i * 2 < valid_and_gpu_written_pages_.size(); ++i) {
-      uint64_t previously_valid_block = valid_and_gpu_written_pages_[i * 2];
-      uint64_t gpu_written_block = valid_and_gpu_written_pages_[i * 2 + 1];
-      valid_and_gpu_written_pages_[i * 2] = gpu_written_block;
+    for (uint32_t i = 0; i < system_page_flags_.size(); ++i) {
+      SystemPageFlagsBlock& page_flags_block = system_page_flags_[i];
+      uint64_t previously_valid_block = page_flags_block.valid;
+      uint64_t gpu_written_block = page_flags_block.valid_and_gpu_written;
+      page_flags_block.valid = gpu_written_block;
 
       // Fire watches on the invalidated pages.
       uint64_t fire_watches_block = previously_valid_block & ~gpu_written_block;
@@ -748,8 +760,8 @@ bool SharedMemory::InitializeTraceSubmitDownloads() {
           &gpu_written_buffer_desc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr,
           IID_PPV_ARGS(&trace_gpu_written_buffer_)))) {
     XELOGE(
-        "Failed to create a %u KB GPU-written memory download buffer for frame "
-        "tracing",
+        "Shared memory: Failed to create a %u KB GPU-written memory download "
+        "buffer for frame tracing",
         gpu_written_page_count << page_size_log2_ >> 10);
     ResetTraceGPUWrittenBuffer();
     return false;
@@ -761,8 +773,8 @@ bool SharedMemory::InitializeTraceSubmitDownloads() {
   for (auto& gpu_written_submit_range : trace_gpu_written_ranges_) {
     // For cases like resolution scale, when the data may not be actually
     // written, just marked as valid.
-    if (!MakeTilesResident(gpu_written_submit_range.first,
-                           gpu_written_submit_range.second)) {
+    if (!EnsureTilesResident(gpu_written_submit_range.first,
+                             gpu_written_submit_range.second)) {
       gpu_written_submit_range.second = 0;
       continue;
     }

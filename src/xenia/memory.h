@@ -12,6 +12,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <utility>
 #include <vector>
@@ -238,10 +239,14 @@ class PhysicalHeap : public BaseHeap {
   bool Protect(uint32_t address, uint32_t size, uint32_t protect,
                uint32_t* old_protect = nullptr) override;
 
-  void WatchPhysicalWrite(uint32_t physical_address, uint32_t length);
+  void EnableAccessCallbacks(uint32_t physical_address, uint32_t length,
+                             bool enable_invalidation_notifications,
+                             bool enable_data_providers);
   // Returns true if any page in the range was watched.
-  bool TriggerWatches(uint32_t virtual_address, uint32_t length, bool is_write,
-                      bool unwatch_exact_range, bool unprotect = true);
+  bool TriggerCallbacks(
+      std::unique_lock<std::recursive_mutex> global_lock_locked_once,
+      uint32_t virtual_address, uint32_t length, bool is_write,
+      bool unwatch_exact_range, bool unprotect = true);
 
   bool IsGuestPhysicalHeap() const override { return true; }
   uint32_t GetPhysicalAddress(uint32_t address) const;
@@ -251,8 +256,15 @@ class PhysicalHeap : public BaseHeap {
 
   uint32_t system_page_size_;
   uint32_t system_page_count_;
-  // Protected by global_critical_region.
-  std::vector<uint64_t> system_pages_watched_write_;
+
+  struct SystemPageFlagsBlock {
+    // Whether writing to each page should result trigger invalidation
+    // callbacks.
+    uint64_t notify_on_invalidation;
+  };
+  // Protected by global_critical_region. Flags for each 64 system pages,
+  // interleaved as blocks, so bit scan can be used to quickly extract ranges.
+  std::vector<SystemPageFlagsBlock> system_page_flags_;
 };
 
 // Models the entire guest memory system on the console.
@@ -347,64 +359,80 @@ class Memory {
   // Gets the defined MMIO range for the given virtual address, if any.
   cpu::MMIORange* LookupVirtualMappedRange(uint32_t virtual_address);
 
+  // Physical memory access callbacks, two types of them.
+  //
+  // This is simple per-system-page protection without reference counting or
+  // stored ranges. Whenever a watched page is accessed, all callbacks for it
+  // are triggered. Also the only way to remove callbacks is to trigger them
+  // somehow. Since there are no references from pages to individual callbacks,
+  // there's no way to disable only a specific callback for a page. Also
+  // callbacks may be triggered spuriously, and handlers should properly ignore
+  // pages they don't care about.
+  //
+  // Once callbacks are triggered for a page, the page is not watched anymore
+  // until requested again later. It is, however, unwatched only in one guest
+  // view of physical memory (because different views may have different
+  // protection for the same memory) - but it's rare when the same memory is
+  // used with different guest page sizes, and it's okay to fire a callback more
+  // than once.
+  //
+  // Only accessing the guest virtual memory views of physical memory triggers
+  // callbacks - data providers, for instance, must write to the host physical
+  // heap directly, otherwise their threads may infinitely await themselves.
+  //
+  // - Invalidation notifications:
+  //
+  // Protecting from writing. One-shot callbacks for invalidation of various
+  // kinds of physical memory caches (such as the GPU copy of the memory).
+  //
+  // May be triggered for a single page (in case of a write access violation or
+  // when need to synchronize data given by data providers) or for multiple
+  // pages (like when memory is allocated).
+  //
+  // Since granularity of callbacks is one single page, an invalidation
+  // notification handler must invalidate the all the data stored in the touched
+  // pages.
+  //
+  // Because large ranges (like whole framebuffers) may be written to and
+  // exceptions are expensive, it's better to unprotect multiple pages as a
+  // result of a write access violation, so the shortest common range returned
+  // by all the invalidation callbacks (clamped to a sane range and also not to
+  // touch pages with provider callbacks) is unprotected.
+  //
+  // - Data providers:
+  //
+  // TODO(Triang3l): Implement data providers - more complicated because they
+  // will need to be able to release the global lock.
+
   // Returns start and length of the smallest physical memory region surrounding
   // the watched region that can be safely unwatched, if it doesn't matter,
   // return (0, UINT32_MAX).
-  typedef std::pair<uint32_t, uint32_t> (*PhysicalWriteWatchCallback)(
+  typedef std::pair<uint32_t, uint32_t> (*PhysicalMemoryInvalidationCallback)(
       void* context_ptr, uint32_t physical_address_start, uint32_t length,
       bool exact_range);
+  // Returns a handle for unregistering or for skipping one notification handler
+  // while triggering data providers.
+  void* RegisterPhysicalMemoryInvalidationCallback(
+      PhysicalMemoryInvalidationCallback callback, void* callback_context);
+  // Unregisters a physical memory invalidation callback previously added with
+  // RegisterPhysicalMemoryInvalidationCallback.
+  void UnregisterPhysicalMemoryInvalidationCallback(void* callback_handle);
 
-  // Physical memory write watching, allowing subsystems to invalidate cached
-  // data that depends on memory contents.
-  //
-  // Placing a watch simply marks the pages (of the system page size) as
-  // watched, individual watched ranges (or which specific subscribers are
-  // watching specific pages) are not stored. Because of this, callbacks may be
-  // triggered multiple times for a single range, and for any watched page every
-  // registered callbacks is triggered. This is a very simple one-shot method
-  // for use primarily for cache invalidation - there may be spurious firing,
-  // for example, if the game only makes the pages writable without actually
-  // writing anything (done for simplicity).
-  //
-  // A range of pages can be watched at any time, but pages are only unwatched
-  // when watches are triggered (since multiple subscribers can depend on the
-  // same memory, and one subscriber shouldn't interfere with another).
-  //
-  // Callbacks can be triggered for one page (if the guest just stores words) or
-  // for multiple pages (for file reading, making pages writable).
-  //
-  // Only guest physical memory mappings are watched - the host-only mapping is
-  // not protected so it can be used to bypass the write protection (for file
-  // reads, for example - in this case, watches are triggered manually).
-  //
-  // Note that when a watch is triggered, the watched page is unprotected only
-  // in the heap where the address is located. Since different virtual memory
-  // mappings of physical memory can have different protection levels for the
-  // same pages, and watches must not be placed on read-only or totally
-  // inaccessible pages, there are significant difficulties with synchronizing
-  // all the three ranges, but it's generally not needed.
-  void* RegisterPhysicalWriteWatch(PhysicalWriteWatchCallback callback,
-                                   void* callback_context);
-
-  // Unregisters a physical memory write watch previously added with
-  // RegisterPhysicalWriteWatch.
-  void UnregisterPhysicalWriteWatch(void* watch_handle);
-
-  // Enables watching of the specified memory range, snapped to system page
-  // boundaries. When something is written to a watched range (or when the
-  // protection of it changes in a a way that it becomes writable), the
-  // registered watch callbacks are triggered for the page (or pages, for file
-  // reads and protection changes) where something has been written to. This
-  // protects physical memory only under virtual_membase_, so writing to
-  // physical_membase_ can be done to bypass the protection placed by the
-  // watches.
-  void WatchPhysicalMemoryWrite(uint32_t physical_address, uint32_t length);
+  // Enables physical memory access callbacks for the specified memory range,
+  // snapped to system page boundaries.
+  void EnablePhysicalMemoryAccessCallbacks(
+      uint32_t physical_address, uint32_t length,
+      bool enable_invalidation_notifications, bool enable_data_providers);
 
   // Forces triggering of watch callbacks for a virtual address range if pages
   // are watched there and unwatching them. Returns whether any page was
-  // watched.
-  bool TriggerWatches(uint32_t virtual_address, uint32_t length, bool is_write,
-                      bool unwatch_exact_range, bool unprotect = true);
+  // watched. Must be called with global critical region locking depth of 1.
+  // TODO(Triang3l): Implement data providers - this is why locking depth of 1
+  // will be required in the future.
+  bool TriggerPhysicalMemoryCallbacks(
+      std::unique_lock<std::recursive_mutex> global_lock_locked_once,
+      uint32_t virtual_address, uint32_t length, bool is_write,
+      bool unwatch_exact_range, bool unprotect = true);
 
   // Allocates virtual memory from the 'system' heap.
   // System memory is kept separate from game memory but is still accessible
@@ -443,9 +471,12 @@ class Memory {
   static uint32_t HostToGuestVirtualThunk(const void* context,
                                           const void* host_address);
 
-  bool AccessViolationCallback(void* host_address, bool is_write);
-  static bool AccessViolationCallbackThunk(void* context, void* host_address,
-                                           bool is_write);
+  bool AccessViolationCallback(
+      std::unique_lock<std::recursive_mutex> global_lock_locked_once,
+      void* host_address, bool is_write);
+  static bool AccessViolationCallbackThunk(
+      std::unique_lock<std::recursive_mutex> global_lock_locked_once,
+      void* context, void* host_address, bool is_write);
 
   std::wstring file_name_;
   uint32_t system_page_size_ = 0;
@@ -487,12 +518,9 @@ class Memory {
   friend class BaseHeap;
 
   friend class PhysicalHeap;
-  struct PhysicalWriteWatchEntry {
-    PhysicalWriteWatchCallback callback;
-    void* callback_context;
-  };
   xe::global_critical_region global_critical_region_;
-  std::vector<PhysicalWriteWatchEntry*> physical_write_watches_;
+  std::vector<std::pair<PhysicalMemoryInvalidationCallback, void*>*>
+      physical_memory_invalidation_callbacks_;
 };
 
 }  // namespace xe
