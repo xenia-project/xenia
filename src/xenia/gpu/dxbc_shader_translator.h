@@ -55,7 +55,8 @@ namespace gpu {
 // 0 for NaN.
 class DxbcShaderTranslator : public ShaderTranslator {
  public:
-  DxbcShaderTranslator(uint32_t vendor_id, bool edram_rov_used);
+  DxbcShaderTranslator(uint32_t vendor_id, bool edram_rov_used,
+                       bool force_emit_source_map = false);
   ~DxbcShaderTranslator() override;
 
   // Constant buffer bindings in space 0.
@@ -1873,6 +1874,10 @@ class DxbcShaderTranslator : public ShaderTranslator {
 
   // Buffer for instruction disassembly comments.
   StringBuffer instruction_disassembly_buffer_;
+
+  // Whether to write comments with the original Xenos instructions to the
+  // output.
+  bool emit_source_map_;
 
   // Vendor ID of the GPU manufacturer, for toggling unsupported features.
   uint32_t vendor_id_;
