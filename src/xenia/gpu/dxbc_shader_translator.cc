@@ -81,8 +81,10 @@ constexpr uint32_t DxbcShaderTranslator::kCbufferIndexUnallocated;
 constexpr uint32_t DxbcShaderTranslator::kCfExecBoolConstantNone;
 
 DxbcShaderTranslator::DxbcShaderTranslator(uint32_t vendor_id,
-                                           bool edram_rov_used)
+                                           bool edram_rov_used,
+                                           bool force_emit_source_map)
     : vendor_id_(vendor_id), edram_rov_used_(edram_rov_used) {
+  emit_source_map_ = force_emit_source_map || cvars::dxbc_source_map;
   // Don't allocate again and again for the first shader.
   shader_code_.reserve(8192);
   shader_object_.reserve(16384);
@@ -1963,7 +1965,7 @@ std::vector<uint8_t> DxbcShaderTranslator::CompleteTranslation() {
 }
 
 void DxbcShaderTranslator::EmitInstructionDisassembly() {
-  if (!cvars::dxbc_source_map) {
+  if (!emit_source_map_) {
     return;
   }
 
@@ -2955,7 +2957,7 @@ void DxbcShaderTranslator::ProcessLabel(uint32_t cf_index) {
 
 void DxbcShaderTranslator::ProcessExecInstructionBegin(
     const ParsedExecInstruction& instr) {
-  if (cvars::dxbc_source_map) {
+  if (emit_source_map_) {
     instruction_disassembly_buffer_.Reset();
     instr.Disassemble(&instruction_disassembly_buffer_);
     // Will be emitted by UpdateExecConditionals.
@@ -3006,7 +3008,7 @@ void DxbcShaderTranslator::ProcessLoopStartInstruction(
   // Loop control is outside execs - actually close the last exec.
   CloseExecConditionals();
 
-  if (cvars::dxbc_source_map) {
+  if (emit_source_map_) {
     instruction_disassembly_buffer_.Reset();
     instr.Disassemble(&instruction_disassembly_buffer_);
     EmitInstructionDisassembly();
@@ -3118,7 +3120,7 @@ void DxbcShaderTranslator::ProcessLoopEndInstruction(
   // Loop control is outside execs - actually close the last exec.
   CloseExecConditionals();
 
-  if (cvars::dxbc_source_map) {
+  if (emit_source_map_) {
     instruction_disassembly_buffer_.Reset();
     instr.Disassemble(&instruction_disassembly_buffer_);
     EmitInstructionDisassembly();
@@ -3276,7 +3278,7 @@ void DxbcShaderTranslator::ProcessLoopEndInstruction(
 
 void DxbcShaderTranslator::ProcessJumpInstruction(
     const ParsedJumpInstruction& instr) {
-  if (cvars::dxbc_source_map) {
+  if (emit_source_map_) {
     instruction_disassembly_buffer_.Reset();
     instr.Disassemble(&instruction_disassembly_buffer_);
     // Will be emitted by UpdateExecConditionals.
@@ -3305,7 +3307,7 @@ void DxbcShaderTranslator::ProcessJumpInstruction(
 
 void DxbcShaderTranslator::ProcessAllocInstruction(
     const ParsedAllocInstruction& instr) {
-  if (cvars::dxbc_source_map) {
+  if (emit_source_map_) {
     instruction_disassembly_buffer_.Reset();
     instr.Disassemble(&instruction_disassembly_buffer_);
     EmitInstructionDisassembly();
