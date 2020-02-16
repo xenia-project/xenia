@@ -21,6 +21,7 @@
 #include "xenia/base/math.h"
 #include "xenia/base/profiling.h"
 #include "xenia/gpu/d3d12/d3d12_command_processor.h"
+#include "xenia/gpu/gpu_flags.h"
 #include "xenia/gpu/texture_info.h"
 #include "xenia/gpu/texture_util.h"
 #include "xenia/ui/d3d12/d3d12_util.h"
@@ -2094,13 +2095,28 @@ void TextureCache::BindingInfoFromFetchConstant(
     *has_signed_out = false;
   }
 
-  if (fetch.type != 2) {
-    XELOGW(
-        "Texture fetch type is not 2 - ignoring (fetch constant is %.8X %.8X "
-        "%.8X %.8X %.8X %.8X)!",
-        fetch.dword_0, fetch.dword_1, fetch.dword_2, fetch.dword_3,
-        fetch.dword_4, fetch.dword_5);
-    return;
+  switch (fetch.type) {
+    case xenos::FetchConstantType::kTexture:
+      break;
+    case xenos::FetchConstantType::kInvalidTexture:
+      if (cvars::gpu_allow_invalid_fetch_constants) {
+        break;
+      }
+      XELOGW(
+          "Texture fetch constant (%.8X %.8X %.8X %.8X %.8X %.8X) has "
+          "\"invalid\" type! This is incorrect behavior, but you can try "
+          "bypassing this by launching Xenia with "
+          "--gpu_allow_invalid_fetch_constants=true.",
+          fetch.dword_0, fetch.dword_1, fetch.dword_2, fetch.dword_3,
+          fetch.dword_4, fetch.dword_5);
+      return;
+    default:
+      XELOGW(
+          "Texture fetch constant (%.8X %.8X %.8X %.8X %.8X %.8X) is "
+          "completely invalid!",
+          fetch.dword_0, fetch.dword_1, fetch.dword_2, fetch.dword_3,
+          fetch.dword_4, fetch.dword_5);
+      return;
   }
 
   // Validate the dimensions, get the size and clamp the maximum mip level.

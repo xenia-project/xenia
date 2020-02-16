@@ -639,9 +639,24 @@ VkDescriptorSet BufferCache::PrepareVertexSet(
         break;
     }
 
-    if (fetch->type != 0x3) {
-      // TODO(DrChat): Some games use type 0x0 (with no data).
-      return nullptr;
+    // TODO(DrChat): Some games use type kInvalidTexture (with no data).
+    switch (fetch->type) {
+      case xenos::FetchConstantType::kVertex:
+        break;
+      case xenos::FetchConstantType::kInvalidVertex:
+        if (cvars::gpu_allow_invalid_fetch_constants) {
+          break;
+        }
+        XELOGW(
+            "Vertex fetch constant %u (%.8X %.8X) has \"invalid\" type! This "
+            "is incorrect behavior, but you can try bypassing this by "
+            "launching Xenia with --gpu_allow_invalid_fetch_constants=true.",
+            vertex_binding.fetch_constant, fetch->dword_0, fetch->dword_1);
+        return nullptr;
+      default:
+        XELOGW("Vertex fetch constant %u (%.8X %.8X) is completely invalid!",
+               vertex_binding.fetch_constant, fetch->dword_0, fetch->dword_1);
+        return nullptr;
     }
 
     // TODO(benvanik): compute based on indices or vertex count.
