@@ -17,3 +17,11 @@ DEFINE_string(dump_shaders, "",
               "Path to write GPU shaders to as they are compiled.", "GPU");
 
 DEFINE_bool(vsync, true, "Enable VSYNC.", "GPU");
+
+DEFINE_bool(
+    gpu_allow_invalid_fetch_constants, false,
+    "Allow texture and vertex fetch constants with invalid type - generally "
+    "unsafe because the constant may contain completely invalid values, but "
+    "may be used to bypass fetch constant type errors in certain games until "
+    "the real reason why they're invalid is found.",
+    "GPU");

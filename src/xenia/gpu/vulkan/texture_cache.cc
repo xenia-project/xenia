@@ -1501,9 +1501,28 @@ bool TextureCache::SetupTextureBinding(VkCommandBuffer command_buffer,
 
   // Disabled?
   // TODO(benvanik): reset sampler.
-  if (fetch.type != 0x2) {
-    XELOGGPU("Fetch type is not 2!");
-    return false;
+  switch (fetch.type) {
+    case xenos::FetchConstantType::kTexture:
+      break;
+    case xenos::FetchConstantType::kInvalidTexture:
+      if (cvars::gpu_allow_invalid_fetch_constants) {
+        break;
+      }
+      XELOGW(
+          "Texture fetch constant %u (%.8X %.8X %.8X %.8X %.8X %.8X) has "
+          "\"invalid\" type! This is incorrect behavior, but you can try "
+          "bypassing this by launching Xenia with "
+          "--gpu_allow_invalid_fetch_constants=true.",
+          binding.fetch_constant, fetch.dword_0, fetch.dword_1, fetch.dword_2,
+          fetch.dword_3, fetch.dword_4, fetch.dword_5);
+      return false;
+    default:
+      XELOGW(
+          "Texture fetch constant %u (%.8X %.8X %.8X %.8X %.8X %.8X) is "
+          "completely invalid!",
+          binding.fetch_constant, fetch.dword_0, fetch.dword_1, fetch.dword_2,
+          fetch.dword_3, fetch.dword_4, fetch.dword_5);
+      return false;
   }
 
   TextureInfo texture_info;

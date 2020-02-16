@@ -605,11 +605,19 @@ inline uint32_t GpuToCpu(uint32_t p) { return p; }
 
 inline uint32_t CpuToGpu(uint32_t p) { return p & 0x1FFFFFFF; }
 
+// SQ_TEX_VTX_INVALID/VALID_TEXTURE/BUFFER
+enum class FetchConstantType : uint32_t {
+  kInvalidTexture,
+  kInvalidVertex,
+  kTexture,
+  kVertex,
+};
+
 // XE_GPU_REG_SHADER_CONSTANT_FETCH_*
 XEPACKEDUNION(xe_gpu_vertex_fetch_t, {
   XEPACKEDSTRUCTANONYMOUS({
-    uint32_t type : 2;      // +0
-    uint32_t address : 30;  // +2 address in dwords
+    FetchConstantType type : 2;  // +0
+    uint32_t address : 30;       // +2 address in dwords
 
     Endian endian : 2;   // +0
     uint32_t size : 24;  // +2 size in words
@@ -624,7 +632,7 @@ XEPACKEDUNION(xe_gpu_vertex_fetch_t, {
 // XE_GPU_REG_SHADER_CONSTANT_FETCH_*
 XEPACKEDUNION(xe_gpu_texture_fetch_t, {
   XEPACKEDSTRUCTANONYMOUS({
-    uint32_t type : 2;                // +0 dword_0
+    FetchConstantType type : 2;       // +0 dword_0
     TextureSign sign_x : 2;           // +2
     TextureSign sign_y : 2;           // +4
     TextureSign sign_z : 2;           // +6

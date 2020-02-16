@@ -966,7 +966,7 @@ bool VulkanCommandProcessor::IssueCopy() {
       fetch = &group->vertex_fetch_2;
       break;
   }
-  assert_true(fetch->type == 3);
+  assert_true(fetch->type == xenos::FetchConstantType::kVertex);
   assert_true(fetch->endian == Endian::k8in32);
   assert_true(fetch->size == 6);
   const uint8_t* vertex_addr = memory_->TranslatePhysical(fetch->address << 2);

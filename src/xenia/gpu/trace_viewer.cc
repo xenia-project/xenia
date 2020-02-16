@@ -19,6 +19,7 @@
 #include "xenia/base/string.h"
 #include "xenia/base/threading.h"
 #include "xenia/gpu/command_processor.h"
+#include "xenia/gpu/gpu_flags.h"
 #include "xenia/gpu/graphics_system.h"
 #include "xenia/gpu/packet_disassembler.h"
 #include "xenia/gpu/register_file.h"
@@ -664,7 +665,9 @@ void TraceViewer::DrawTextureInfo(
           texture_binding.fetch_constant * 6;
   auto group = reinterpret_cast<const xe_gpu_fetch_group_t*>(&regs.values[r]);
   auto& fetch = group->texture_fetch;
-  if (fetch.type != 0x2) {
+  if (fetch.type != xenos::FetchConstantType::kTexture &&
+      (!cvars::gpu_allow_invalid_fetch_constants ||
+       fetch.type != xenos::FetchConstantType::kInvalidTexture)) {
     DrawFailedTextureInfo(texture_binding, "Invalid fetch type");
     return;
   }

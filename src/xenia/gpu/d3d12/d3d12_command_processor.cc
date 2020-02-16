@@ -20,6 +20,7 @@
 #include "xenia/gpu/d3d12/d3d12_command_processor.h"
 #include "xenia/gpu/d3d12/d3d12_graphics_system.h"
 #include "xenia/gpu/d3d12/d3d12_shader.h"
+#include "xenia/gpu/gpu_flags.h"
 #include "xenia/gpu/xenos.h"
 #include "xenia/ui/d3d12/d3d12_util.h"
 
@@ -1476,10 +1477,23 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     }
     const auto& vfetch_constant = regs.Get<xenos::xe_gpu_vertex_fetch_t>(
         XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + vfetch_index * 2);
-    if (vfetch_constant.type != 3) {
-      XELOGW("Vertex fetch type is not 3 (fetch constant %u is %.8X %.8X)!",
-             vfetch_index, vfetch_constant.dword_0, vfetch_constant.dword_1);
-      return false;
+    switch (vfetch_constant.type) {
+      case xenos::FetchConstantType::kVertex:
+        break;
+      case xenos::FetchConstantType::kInvalidVertex:
+        if (cvars::gpu_allow_invalid_fetch_constants) {
+          break;
+        }
+        XELOGW(
+            "Vertex fetch constant %u (%.8X %.8X) has \"invalid\" type! This "
+            "is incorrect behavior, but you can try bypassing this by "
+            "launching Xenia with --gpu_allow_invalid_fetch_constants=true.",
+            vfetch_index, vfetch_constant.dword_0, vfetch_constant.dword_1);
+        return false;
+      default:
+        XELOGW("Vertex fetch constant %u (%.8X %.8X) is completely invalid!",
+               vfetch_index, vfetch_constant.dword_0, vfetch_constant.dword_1);
+        return false;
     }
     if (!shared_memory_->RequestRange(vfetch_constant.address << 2,
                                       vfetch_constant.size << 2)) {

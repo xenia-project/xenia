@@ -1087,7 +1087,7 @@ bool RenderTargetCache::Resolve(SharedMemory* shared_memory,
   // HACK: Vertices to use are always in vf0.
   const auto& fetch = regs.Get<xenos::xe_gpu_vertex_fetch_t>(
       XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0);
-  assert_true(fetch.type == 3);
+  assert_true(fetch.type == xenos::FetchConstantType::kVertex);
   assert_true(fetch.endian == Endian::k8in32);
   assert_true(fetch.size == 6);
   trace_writer_->WriteMemoryRead(fetch.address << 2, fetch.size << 2);
