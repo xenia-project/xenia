@@ -53,16 +53,14 @@ test_script:
   - cmd: xb test --config=%CONFIGURATION% --no_build
 
 artifacts:
+  - path: '*.zip'
   - path: xenia-cpu-ppc-test.log
-  - path: xenia-$(appveyor_repo_branch).zip
-  - path: xenia-vfs-dump-$(appveyor_repo_branch).zip
-  - path: SDL2.zip
 
 deploy:
   - provider: Environment
     name: xenia-master
     release: xenia-$(appveyor_repo_branch)-v$(appveyor_build_version)
-    artifact: xenia-$(appveyor_repo_branch).zip,xenia-vfs-dump-$(appveyor_repo_branch).zip,SDL2.zip
+    artifact: '*.zip'
     draft: false
     prerelease: true
     on:
