@@ -112,7 +112,7 @@ enum class TextureSign : uint32_t {
 enum class TextureFilter : uint32_t {
   kPoint = 0,
   kLinear = 1,
-  kBaseMap = 2,  // Only applicable for mip-filter.
+  kBaseMap = 2,  // Only applicable for mip-filter - always fetch from level 0.
   kUseFetchConst = 3,
 };
 
@@ -133,6 +133,8 @@ enum class BorderColor : uint32_t {
   k_ACBCRY_BLACK = 3,
 };
 
+// For the tfetch instruction, not the fetch constant - slightly different
+// meaning, as stacked textures are stored as 2D, but fetched using tfetch3D.
 enum class TextureDimension : uint32_t {
   k1D = 0,
   k2D = 1,
@@ -661,13 +663,11 @@ XEPACKEDUNION(xe_gpu_texture_fetch_t, {
       struct {
         uint32_t width : 13;
         uint32_t height : 13;
-        uint32_t : 6;
+        // Should be 0 for k2D and 5 for kCube if not stacked, but not very
+        // meaningful in this case, preferably should be ignored for
+        // non-stacked.
+        uint32_t stack_depth : 6;
       } size_2d;
-      struct {
-        uint32_t width : 13;
-        uint32_t height : 13;
-        uint32_t depth : 6;
-      } size_stack;
       struct {
         uint32_t width : 11;
         uint32_t height : 11;
@@ -700,7 +700,7 @@ XEPACKEDUNION(xe_gpu_texture_fetch_t, {
     uint32_t force_bc_w_to_max : 1;  // +2
     uint32_t tri_clamp : 2;          // +3
     int32_t aniso_bias : 4;          // +5
-    uint32_t dimension : 2;          // +9
+    Dimension dimension : 2;         // +9
     uint32_t packed_mips : 1;        // +11
     uint32_t mip_address : 20;       // +12 mip address >> 12
   });

@@ -36,7 +36,7 @@ bool TextureInfo::Prepare(const xe_gpu_texture_fetch_t& fetch,
   info.format = fetch.format;
   info.endianness = fetch.endianness;
 
-  info.dimension = static_cast<Dimension>(fetch.dimension);
+  info.dimension = fetch.dimension;
   info.width = info.height = info.depth = 0;
   info.is_stacked = false;
   switch (info.dimension) {
@@ -46,13 +46,10 @@ bool TextureInfo::Prepare(const xe_gpu_texture_fetch_t& fetch,
       assert_true(!fetch.stacked);
       break;
     case Dimension::k2D:
-      if (!fetch.stacked) {
-        info.width = fetch.size_2d.width;
-        info.height = fetch.size_2d.height;
-      } else {
-        info.width = fetch.size_stack.width;
-        info.height = fetch.size_stack.height;
-        info.depth = fetch.size_stack.depth;
+      info.width = fetch.size_2d.width;
+      info.height = fetch.size_2d.height;
+      if (fetch.stacked) {
+        info.depth = fetch.size_2d.stack_depth;
         info.is_stacked = true;
       }
       break;
@@ -63,9 +60,10 @@ bool TextureInfo::Prepare(const xe_gpu_texture_fetch_t& fetch,
       assert_true(!fetch.stacked);
       break;
     case Dimension::kCube:
-      info.width = fetch.size_stack.width;
-      info.height = fetch.size_stack.height;
-      info.depth = fetch.size_stack.depth;
+      info.width = fetch.size_2d.width;
+      info.height = fetch.size_2d.height;
+      assert_true(fetch.size_2d.stack_depth == 5);
+      info.depth = fetch.size_2d.stack_depth;
       assert_true(!fetch.stacked);
       break;
     default:
