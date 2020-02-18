@@ -1587,17 +1587,10 @@ TextureCache::SamplerParameters TextureCache::GetSamplerParameters(
   parameters.clamp_z = fetch.clamp_z;
   parameters.border_color = fetch.border_color;
 
-  uint32_t mip_min_level = fetch.mip_min_level;
-  uint32_t mip_max_level = fetch.mip_max_level;
-  uint32_t base_page = fetch.base_address & 0x1FFFF;
-  uint32_t mip_page = fetch.mip_address & 0x1FFFF;
-  if (base_page == 0 || base_page == mip_page) {
-    // Games should clamp mip level in this case anyway, but just for safety.
-    mip_min_level = std::max(mip_min_level, 1u);
-  }
-  if (mip_page == 0) {
-    mip_max_level = 0;
-  }
+  uint32_t mip_min_level, mip_max_level;
+  texture_util::GetSubresourcesFromFetchConstant(
+      fetch, nullptr, nullptr, nullptr, nullptr, nullptr, &mip_min_level,
+      &mip_max_level, binding.mip_filter);
   parameters.mip_min_level = mip_min_level;
   parameters.mip_max_level = std::max(mip_max_level, mip_min_level);
   parameters.lod_bias = fetch.lod_bias;
@@ -1627,7 +1620,6 @@ TextureCache::SamplerParameters TextureCache::GetSamplerParameters(
             ? fetch.mip_filter
             : binding.mip_filter;
     parameters.mip_linear = mip_filter == TextureFilter::kLinear;
-    // TODO(Triang3l): Investigate mip_filter TextureFilter::kBaseMap.
   }
 
   return parameters;
@@ -1649,7 +1641,6 @@ void TextureCache::WriteSampler(SamplerParameters parameters,
     D3D12_FILTER_TYPE d3d_filter_mip = parameters.mip_linear
                                            ? D3D12_FILTER_TYPE_LINEAR
                                            : D3D12_FILTER_TYPE_POINT;
-    // TODO(Triang3l): Investigate mip_filter TextureFilter::kBaseMap.
     desc.Filter = D3D12_ENCODE_BASIC_FILTER(
         d3d_filter_min, d3d_filter_mag, d3d_filter_mip,
         D3D12_FILTER_REDUCTION_TYPE_STANDARD);
@@ -2119,65 +2110,20 @@ void TextureCache::BindingInfoFromFetchConstant(
       return;
   }
 
-  // Validate the dimensions, get the size and clamp the maximum mip level.
-  Dimension dimension = Dimension(fetch.dimension);
-  uint32_t width, height, depth;
-  switch (dimension) {
-    case Dimension::k1D:
-      if (fetch.tiled || fetch.stacked || fetch.packed_mips) {
-        assert_always();
-        XELOGGPU(
-            "1D texture has unsupported properties - ignoring! "
-            "Report the game to Xenia developers");
-        return;
-      }
-      width = fetch.size_1d.width + 1;
-      if (width > 8192) {
-        assert_always();
-        XELOGGPU(
-            "1D texture is too wide (%u) - ignoring! "
-            "Report the game to Xenia developers",
-            width);
-      }
-      height = 1;
-      depth = 1;
-      break;
-    case Dimension::k2D:
-      width = fetch.size_stack.width + 1;
-      height = fetch.size_stack.height + 1;
-      depth = fetch.stacked ? fetch.size_stack.depth + 1 : 1;
-      break;
-    case Dimension::k3D:
-      width = fetch.size_3d.width + 1;
-      height = fetch.size_3d.height + 1;
-      depth = fetch.size_3d.depth + 1;
-      break;
-    case Dimension::kCube:
-      width = fetch.size_2d.width + 1;
-      height = fetch.size_2d.height + 1;
-      depth = 6;
-      break;
-  }
-  uint32_t mip_max_level = texture_util::GetSmallestMipLevel(
-      width, height, dimension == Dimension::k3D ? depth : 1, false);
-  mip_max_level = std::min(mip_max_level, fetch.mip_max_level);
-
-  // Normalize and check the addresses.
-  uint32_t base_page = fetch.base_address & 0x1FFFF;
-  uint32_t mip_page = mip_max_level != 0 ? fetch.mip_address & 0x1FFFF : 0;
-  // Special case for streaming. Games such as Banjo-Kazooie: Nuts & Bolts
-  // specify the same address for both the base level and the mips and set
-  // mip_min_index to 1 until the texture is actually loaded - this is the way
-  // recommended by a GPU hang error message found in game executables. In this
-  // case we assume that the base level is not loaded yet.
-  // TODO(Triang3l): Ignore the base level completely if min_mip_level is not 0
-  // once we start reusing textures with zero base address to reduce memory
-  // usage.
-  if (base_page == mip_page) {
-    base_page = 0;
-  }
+  uint32_t width, height, depth_or_faces;
+  uint32_t base_page, mip_page, mip_max_level;
+  texture_util::GetSubresourcesFromFetchConstant(
+      fetch, &width, &height, &depth_or_faces, &base_page, &mip_page, nullptr,
+      &mip_max_level);
   if (base_page == 0 && mip_page == 0) {
     // No texture data at all.
+    return;
+  }
+  if (fetch.dimension == Dimension::k1D && width > 8192) {
+    XELOGE(
+        "1D texture is too wide (%u) - ignoring! "
+        "Report the game to Xenia developers",
+        width);
     return;
   }
 
@@ -2185,10 +2131,10 @@ void TextureCache::BindingInfoFromFetchConstant(
 
   key_out.base_page = base_page;
   key_out.mip_page = mip_page;
-  key_out.dimension = dimension;
+  key_out.dimension = fetch.dimension;
   key_out.width = width;
   key_out.height = height;
-  key_out.depth = depth;
+  key_out.depth = depth_or_faces;
   key_out.mip_max_level = mip_max_level;
   key_out.tiled = fetch.tiled;
   key_out.packed_mips = fetch.packed_mips;
@@ -2278,6 +2224,8 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
   uint64_t map_key = key.GetMapKey();
 
   // Try to find an existing texture.
+  // TODO(Triang3l): Reuse a texture with mip_page unchanged, but base_page
+  // previously 0, now not 0, to save memory - common case in streaming.
   auto found_range = textures_.equal_range(map_key);
   for (auto iter = found_range.first; iter != found_range.second; ++iter) {
     Texture* found_texture = iter->second;

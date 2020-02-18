@@ -18,12 +18,108 @@ namespace xe {
 namespace gpu {
 namespace texture_util {
 
+void GetSubresourcesFromFetchConstant(
+    const xenos::xe_gpu_texture_fetch_t& fetch, uint32_t* width_out,
+    uint32_t* height_out, uint32_t* depth_or_faces_out, uint32_t* base_page_out,
+    uint32_t* mip_page_out, uint32_t* mip_min_level_out,
+    uint32_t* mip_max_level_out, TextureFilter sampler_mip_filter) {
+  uint32_t width = 0, height = 0, depth_or_faces = 0;
+  switch (fetch.dimension) {
+    case Dimension::k1D:
+      assert_false(fetch.stacked);
+      assert_false(fetch.tiled);
+      assert_false(fetch.packed_mips);
+      width = fetch.size_1d.width;
+      break;
+    case Dimension::k2D:
+      width = fetch.size_2d.width;
+      height = fetch.size_2d.height;
+      depth_or_faces = fetch.stacked ? fetch.size_2d.stack_depth : 0;
+      break;
+    case Dimension::k3D:
+      assert_false(fetch.stacked);
+      width = fetch.size_3d.width;
+      height = fetch.size_3d.height;
+      depth_or_faces = fetch.size_3d.depth;
+      break;
+    case Dimension::kCube:
+      assert_false(fetch.stacked);
+      assert_true(fetch.size_2d.stack_depth == 5);
+      width = fetch.size_2d.width;
+      height = fetch.size_2d.height;
+      depth_or_faces = 5;
+      break;
+  }
+  ++width;
+  ++height;
+  ++depth_or_faces;
+  if (width_out) {
+    *width_out = width;
+  }
+  if (height_out) {
+    *height_out = height;
+  }
+  if (depth_or_faces_out) {
+    *depth_or_faces_out = depth_or_faces;
+  }
+
+  uint32_t size_mip_max_level = GetSmallestMipLevel(
+      width, height, fetch.dimension == Dimension::k3D ? depth_or_faces : 1,
+      false);
+  TextureFilter mip_filter = sampler_mip_filter == TextureFilter::kUseFetchConst
+                                 ? fetch.mip_filter
+                                 : sampler_mip_filter;
+
+  uint32_t base_page = fetch.base_address & 0x1FFFF;
+  uint32_t mip_page = fetch.mip_address & 0x1FFFF;
+
+  uint32_t mip_min_level, mip_max_level;
+  if (mip_filter == TextureFilter::kBaseMap || mip_page == 0) {
+    mip_min_level = 0;
+    mip_max_level = 0;
+  } else {
+    mip_min_level = std::min(fetch.mip_min_level, size_mip_max_level);
+    mip_max_level = std::max(std::min(fetch.mip_max_level, size_mip_max_level),
+                             mip_min_level);
+  }
+  if (mip_max_level != 0) {
+    // Special case for streaming. Games such as Banjo-Kazooie: Nuts & Bolts
+    // specify the same address for both the base level and the mips and set
+    // mip_min_index to 1 until the texture is actually loaded - this is the way
+    // recommended by a GPU hang error message found in game executables. In
+    // this case we assume that the base level is not loaded yet.
+    if (base_page == mip_page) {
+      base_page = 0;
+    }
+    if (base_page == 0) {
+      mip_min_level = std::max(mip_min_level, uint32_t(1));
+    }
+    if (mip_min_level != 0) {
+      base_page = 0;
+    }
+  } else {
+    mip_page = 0;
+  }
+
+  if (base_page_out) {
+    *base_page_out = base_page;
+  }
+  if (mip_page_out) {
+    *mip_page_out = mip_page;
+  }
+  if (mip_min_level_out) {
+    *mip_min_level_out = mip_min_level;
+  }
+  if (mip_max_level_out) {
+    *mip_max_level_out = mip_max_level;
+  }
+}
+
 void GetGuestMipBlocks(Dimension dimension, uint32_t width, uint32_t height,
                        uint32_t depth, TextureFormat format, uint32_t mip,
                        uint32_t& width_blocks_out, uint32_t& height_blocks_out,
                        uint32_t& depth_blocks_out) {
   // Get mipmap size.
-  // TODO(Triang3l): Verify if mipmap storage actually needs to be power of two.
   if (mip != 0) {
     width = std::max(xe::next_pow2(width) >> mip, 1u);
     if (dimension != Dimension::k1D) {
@@ -171,10 +267,10 @@ bool GetPackedMipOffset(uint32_t width, uint32_t height, uint32_t depth,
 void GetTextureTotalSize(Dimension dimension, uint32_t width, uint32_t height,
                          uint32_t depth, TextureFormat format, bool is_tiled,
                          bool packed_mips, uint32_t mip_max_level,
-                         uint32_t* base_size, uint32_t* mip_size) {
+                         uint32_t* base_size_out, uint32_t* mip_size_out) {
   bool is_3d = dimension == Dimension::k3D;
   uint32_t width_blocks, height_blocks, depth_blocks;
-  if (base_size != nullptr) {
+  if (base_size_out) {
     GetGuestMipBlocks(dimension, width, height, depth, format, 0, width_blocks,
                       height_blocks, depth_blocks);
     uint32_t size = GetGuestMipSliceStorageSize(
@@ -182,9 +278,9 @@ void GetTextureTotalSize(Dimension dimension, uint32_t width, uint32_t height,
     if (!is_3d) {
       size *= depth;
     }
-    *base_size = size;
+    *base_size_out = size;
   }
-  if (mip_size != nullptr) {
+  if (mip_size_out) {
     mip_max_level = std::min(
         mip_max_level,
         GetSmallestMipLevel(width, height, is_3d ? depth : 1, packed_mips));
@@ -199,7 +295,7 @@ void GetTextureTotalSize(Dimension dimension, uint32_t width, uint32_t height,
       }
       size += level_size;
     }
-    *mip_size = size;
+    *mip_size_out = size;
   }
 }
 

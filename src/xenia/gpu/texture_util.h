@@ -22,6 +22,16 @@ namespace texture_util {
 // This namespace replaces texture_extent and most of texture_info for
 // simplicity.
 
+// Extracts the size from the fetch constant, and also cleans up addresses and
+// mip range based on real presence of the base level and mips. Returns 6 faces
+// for cube textures.
+void GetSubresourcesFromFetchConstant(
+    const xenos::xe_gpu_texture_fetch_t& fetch, uint32_t* width_out,
+    uint32_t* height_out, uint32_t* depth_or_faces_out, uint32_t* base_page_out,
+    uint32_t* mip_page_out, uint32_t* mip_min_level_out,
+    uint32_t* mip_max_level_out,
+    TextureFilter sampler_mip_filter = TextureFilter::kUseFetchConst);
+
 // Calculates width, height and depth of the image backing the guest mipmap (or
 // the base level if mip is 0).
 void GetGuestMipBlocks(Dimension dimension, uint32_t width, uint32_t height,
@@ -71,7 +81,7 @@ inline uint32_t GetSmallestMipLevel(uint32_t width, uint32_t height,
 void GetTextureTotalSize(Dimension dimension, uint32_t width, uint32_t height,
                          uint32_t depth, TextureFormat format, bool is_tiled,
                          bool packed_mips, uint32_t mip_max_level,
-                         uint32_t* base_size, uint32_t* mip_size);
+                         uint32_t* base_size_out, uint32_t* mip_size_out);
 
 int32_t GetTiledOffset2D(int32_t x, int32_t y, uint32_t width,
                          uint32_t bpb_log2);
