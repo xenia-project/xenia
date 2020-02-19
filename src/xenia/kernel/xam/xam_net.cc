@@ -941,6 +941,17 @@ dword_result_t NetDll_sendto(dword_t caller, dword_t socket_handle,
 }
 DECLARE_XAM_EXPORT1(NetDll_sendto, kNetworking, kImplemented);
 
+dword_result_t NetDll___WSAFDIsSet(dword_t socket_handle,
+                                   pointer_t<x_fd_set> fd_set) {
+  for (uint32_t i = 0; i < fd_set->fd_count.value; i++) {
+    if (fd_set->fd_array[i] == socket_handle) {
+      return 1;
+    }
+  }
+  return 0;
+}
+DECLARE_XAM_EXPORT1(NetDll___WSAFDIsSet, kNetworking, kImplemented);
+
 void RegisterNetExports(xe::cpu::ExportResolver* export_resolver,
                         KernelState* kernel_state) {
   SHIM_SET_MAPPING("xam.xex", NetDll_XNetQosServiceLookup, state);
