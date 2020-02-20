@@ -70,7 +70,7 @@ uint32_t KernelModule::GenerateTrampoline(
   uint32_t guest_addr = guest_trampoline_ + (guest_trampoline_next_++ * 8);
 
   auto mem = memory()->TranslateVirtual(guest_addr);
-  xe::store_and_swap<uint32_t>(mem + 0x0, 0x44000002);  // sc
+  xe::store_and_swap<uint32_t>(mem + 0x0, 0x44000042);  // sc
   xe::store_and_swap<uint32_t>(mem + 0x4, 0x4E800020);  // blr
 
   // Declare/define the extern function.
