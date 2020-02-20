@@ -49,7 +49,7 @@ ieq r0.x, CB0[0][0].x, l(0)
 ge r0.y, l(1.000000), v0.x
 or r0.x, r0.y, r0.x
 if_nz r0.x
-  sample r0.xyzw, v0.xyxx, T0[0].xyzw, S0[0]
+  sample_l r0.xyzw, v0.xyxx, T0[0].xyzw, S0[0], l(0.000000)
   mul o0.xyzw, r0.xyzw, v1.xyzw
 else 
   mov o0.xyzw, v1.xyzw
