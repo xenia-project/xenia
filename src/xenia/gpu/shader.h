@@ -29,8 +29,15 @@ enum class InstructionStorageTarget {
   kInterpolant,
   // Result is stored to the position export (gl_Position).
   kPosition,
-  // Result is stored to the point size export (gl_PointSize).
-  kPointSize,
+  // Result is stored to the vertex shader misc export register.
+  // See R6xx/R7xx registers for details (USE_VTX_POINT_SIZE, USE_VTX_EDGE_FLAG,
+  // USE_VTX_KILL_FLAG).
+  // X - PSIZE (gl_PointSize).
+  // Y - EDGEFLAG (glEdgeFlag) for PrimitiveType::kPolygon wireframe/point
+  //     drawing.
+  // Z - KILLVERTEX flag (used in Banjo-Kazooie: Nuts & Bolts for grass), set
+  //     for killing primitives based on PA_CL_CLIP_CNTL::VTX_KILL_OR condition.
+  kPointSizeEdgeFlagKillVertex,
   // Result is stored as memexport destination address
   // (see xenos::xe_gpu_memexport_stream_t).
   kExportAddress,

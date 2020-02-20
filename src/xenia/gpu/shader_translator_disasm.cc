@@ -35,7 +35,7 @@ void DisassembleResultOperand(const InstructionResult& result,
     case InstructionStorageTarget::kPosition:
       out->Append("oPos");
       break;
-    case InstructionStorageTarget::kPointSize:
+    case InstructionStorageTarget::kPointSizeEdgeFlagKillVertex:
       out->Append("oPts");
       break;
     case InstructionStorageTarget::kExportAddress:

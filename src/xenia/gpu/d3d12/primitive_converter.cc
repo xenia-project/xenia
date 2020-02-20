@@ -25,7 +25,8 @@ DEFINE_bool(d3d12_convert_quads_to_triangles, false,
             "Convert quad lists to triangle lists on the CPU instead of using "
             "a geometry shader. Not recommended for playing, for debugging "
             "primarily (because PIX fails to display vertices when a geometry "
-            "shader is used).",
+            "shader is used), and this way quads can't be discarded correctly "
+            "when the game uses vertex kill functionality.",
             "D3D12");
 
 namespace xe {

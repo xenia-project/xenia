@@ -218,13 +218,11 @@ bool PipelineCache::EnsureShadersTranslated(D3D12Shader* vertex_shader,
 
   auto sq_program_cntl = regs.Get<reg::SQ_PROGRAM_CNTL>();
 
-  // Normal vertex shaders only, for now.
-  assert_true(sq_program_cntl.vs_export_mode ==
-                  xenos::VertexShaderExportMode::kPosition1Vector ||
-              sq_program_cntl.vs_export_mode ==
-                  xenos::VertexShaderExportMode::kPosition2VectorsSprite ||
-              sq_program_cntl.vs_export_mode ==
-                  xenos::VertexShaderExportMode::kMultipass);
+  // Edge flags are not supported yet (because polygon primitives are not).
+  assert_true(sq_program_cntl.vs_export_mode !=
+                  xenos::VertexShaderExportMode::kPosition2VectorsEdge &&
+              sq_program_cntl.vs_export_mode !=
+                  xenos::VertexShaderExportMode::kPosition2VectorsEdgeKill);
   assert_false(sq_program_cntl.gen_index_vtx);
 
   if (!vertex_shader->is_translated() &&

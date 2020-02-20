@@ -28,6 +28,7 @@
 // SV_Position              0   xyzw       18      POS   float   xyzw
 // SV_ClipDistance          0   xyzw       19  CLIPDST   float   xyzw
 // SV_ClipDistance          1   xy         20  CLIPDST   float   xy  
+// SV_CullDistance          0     z        20  CULLDST   float     z 
 //
 //
 // Output signature:
@@ -79,6 +80,7 @@ dcl_input v[3][17].xy
 dcl_input_siv v[3][18].xyzw, position
 dcl_input v[3][19].xyzw
 dcl_input v[3][20].xy
+dcl_input v[3][20].z
 dcl_temps 21
 dcl_inputprimitive triangle 
 dcl_stream m0
@@ -105,6 +107,24 @@ dcl_output_siv o18.xyzw, position
 dcl_output_siv o19.xyzw, clip_distance
 dcl_output_siv o20.xy, clip_distance
 dcl_maxout 6
+max [precise(x)] r0.x, v[1][20].z, v[0][20].z
+max [precise(x)] r0.x, r0.x, v[2][20].z
+lt [precise(x)] r0.x, r0.x, l(0.000000)
+ne [precise] r1.xyzw, v[0][18].xyzw, v[0][18].xyzw
+or [precise(yz)] r0.yz, r1.zzwz, r1.xxyx
+or [precise(y)] r0.y, r0.z, r0.y
+or [precise(x)] r0.x, r0.y, r0.x
+ne [precise] r1.xyzw, v[1][18].xyzw, v[1][18].xyzw
+or [precise(yz)] r0.yz, r1.zzwz, r1.xxyx
+or [precise(y)] r0.y, r0.z, r0.y
+or [precise(x)] r0.x, r0.y, r0.x
+ne [precise] r1.xyzw, v[2][18].xyzw, v[2][18].xyzw
+or [precise(yz)] r0.yz, r1.zzwz, r1.xxyx
+or [precise(y)] r0.y, r0.z, r0.y
+or [precise(x)] r0.x, r0.y, r0.x
+if_nz r0.x
+  ret 
+endif 
 mov o0.xyzw, v[0][0].xyzw
 mov o1.xyzw, v[0][1].xyzw
 mov o2.xyzw, v[0][2].xyzw
@@ -172,15 +192,15 @@ mov o19.xyzw, v[2][19].xyzw
 mov o20.xy, v[2][20].xyxx
 emit_stream m0
 cut_stream m0
-add r0.xyz, -v[0][18].xyzx, v[1][18].xyzx
-add r1.xyz, -v[0][18].xyzx, v[2][18].xyzx
-add r2.xyz, -v[1][18].xyzx, v[2][18].xyzx
-dp3 r0.x, r0.xyzx, r0.xyzx
-dp3 r0.y, r1.xyzx, r1.xyzx
-dp3 r0.z, r2.xyzx, r2.xyzx
-lt r0.w, r0.x, r0.z
-lt r1.x, r0.y, r0.z
-and r0.w, r0.w, r1.x
+add [precise(xyz)] r0.xyz, -v[0][18].xyzx, v[1][18].xyzx
+add [precise(xyz)] r1.xyz, -v[0][18].xyzx, v[2][18].xyzx
+add [precise(xyz)] r2.xyz, -v[1][18].xyzx, v[2][18].xyzx
+dp3 [precise(x)] r0.x, r0.xyzx, r0.xyzx
+dp3 [precise(y)] r0.y, r1.xyzx, r1.xyzx
+dp3 [precise(z)] r0.z, r2.xyzx, r2.xyzx
+lt [precise(w)] r0.w, r0.x, r0.z
+lt [precise(x)] r1.x, r0.y, r0.z
+and [precise(w)] r0.w, r0.w, r1.x
 if_nz r0.w
   mov o0.xyzw, v[2][0].xyzw
   mov o1.xyzw, v[2][1].xyzw
@@ -226,11 +246,11 @@ if_nz r0.w
   mov o19.xyzw, v[1][19].xyzw
   mov o20.xy, v[1][20].xyxx
   emit_stream m0
-  mov r0.xyz, l(1.000000,1.000000,-1.000000,0)
+  mov [precise(xyz)] r0.xyz, l(1.000000,1.000000,-1.000000,0)
 else 
-  lt r0.x, r0.x, r0.y
-  lt r0.y, r0.z, r0.y
-  and r0.x, r0.y, r0.x
+  lt [precise(x)] r0.x, r0.x, r0.y
+  lt [precise(y)] r0.y, r0.z, r0.y
+  and [precise(x)] r0.x, r0.y, r0.x
   if_nz r0.x
     mov o0.xyzw, v[0][0].xyzw
     mov o1.xyzw, v[0][1].xyzw
@@ -276,7 +296,7 @@ else
     mov o19.xyzw, v[2][19].xyzw
     mov o20.xy, v[2][20].xyxx
     emit_stream m0
-    mov r0.xy, l(-1.000000,1.000000,0,0)
+    mov [precise(xy)] r0.xy, l(-1.000000,1.000000,0,0)
   else 
     mov o0.xyzw, v[1][0].xyzw
     mov o1.xyzw, v[1][1].xyzw
@@ -322,9 +342,9 @@ else
     mov o19.xyzw, v[0][19].xyzw
     mov o20.xy, v[0][20].xyxx
     emit_stream m0
-    mov r0.xy, l(1.000000,-1.000000,0,0)
+    mov [precise(xy)] r0.xy, l(1.000000,-1.000000,0,0)
   endif 
-  mov r0.z, l(1.000000)
+  mov [precise(z)] r0.z, l(1.000000)
 endif 
 mul r1.xyzw, r0.xxxx, v[1][0].xyzw
 mad r1.xyzw, r0.zzzz, v[0][0].xyzw, r1.xyzw
@@ -380,9 +400,11 @@ mad r17.xyz, r0.yyyy, v[2][16].xyzx, r17.xyzx
 mul r18.xy, r0.xxxx, v[1][17].xyxx
 mad r18.xy, r0.zzzz, v[0][17].xyxx, r18.xyxx
 mad r18.xy, r0.yyyy, v[2][17].xyxx, r18.xyxx
-mul r19.xyzw, r0.xxxx, v[1][18].xyzw
-mad r19.xyzw, r0.zzzz, v[0][18].xyzw, r19.xyzw
-mad r19.xyzw, r0.yyyy, v[2][18].xyzw, r19.xyzw
+mul [precise] r19.xyzw, r0.zzzz, v[0][18].xyzw
+mul [precise] r20.xyzw, r0.xxxx, v[1][18].xyzw
+add [precise] r19.xyzw, r19.xyzw, r20.xyzw
+mul [precise] r20.xyzw, r0.yyyy, v[2][18].xyzw
+add [precise] r19.xyzw, r19.xyzw, r20.xyzw
 mul r20.xyzw, r0.xxxx, v[1][19].xyzw
 mad r20.xyzw, r0.zzzz, v[0][19].xyzw, r20.xyzw
 mad r20.xyzw, r0.yyyy, v[2][19].xyzw, r20.xyzw
@@ -413,4 +435,4 @@ mov o20.xy, r0.xyxx
 emit_stream m0
 cut_stream m0
 ret 
-// Approximately 308 instruction slots used
+// Approximately 328 instruction slots used

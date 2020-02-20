@@ -3301,7 +3301,7 @@ void SpirvShaderTranslator::StoreToResult(Id source_value_id,
       storage_offsets.push_back(0);
       storage_array = false;
       break;
-    case InstructionStorageTarget::kPointSize:
+    case InstructionStorageTarget::kPointSizeEdgeFlagKillVertex:
       assert_true(is_vertex_shader());
       storage_pointer = point_size_;
       storage_class = spv::StorageClass::StorageClassOutput;
