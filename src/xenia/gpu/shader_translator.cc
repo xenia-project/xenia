@@ -1285,7 +1285,8 @@ void ShaderTranslator::ParseAluVectorOperation(const AluInstruction& op,
         i.vector_result.storage_target = InstructionStorageTarget::kPosition;
         break;
       case 63:
-        i.vector_result.storage_target = InstructionStorageTarget::kPointSize;
+        i.vector_result.storage_target =
+            InstructionStorageTarget::kPointSizeEdgeFlagKillVertex;
         break;
       default:
         if (dest_num < 16) {
@@ -1453,7 +1454,8 @@ void ShaderTranslator::ParseAluScalarOperation(const AluInstruction& op,
         i.scalar_result.storage_target = InstructionStorageTarget::kPosition;
         break;
       case 63:
-        i.scalar_result.storage_target = InstructionStorageTarget::kPointSize;
+        i.scalar_result.storage_target =
+            InstructionStorageTarget::kPointSizeEdgeFlagKillVertex;
         break;
       default:
         if (dest_num < 16) {

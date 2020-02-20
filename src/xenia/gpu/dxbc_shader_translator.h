@@ -80,6 +80,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kSysFlag_UserClipPlane4_Shift,
     kSysFlag_UserClipPlane5_Shift,
     kSysFlag_ReverseZ_Shift,
+    kSysFlag_KillIfAnyVertexKilled_Shift,
     kSysFlag_AlphaPassIfLess_Shift,
     kSysFlag_AlphaPassIfEqual_Shift,
     kSysFlag_AlphaPassIfGreater_Shift,
@@ -121,6 +122,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kSysFlag_UserClipPlane4 = 1u << kSysFlag_UserClipPlane4_Shift,
     kSysFlag_UserClipPlane5 = 1u << kSysFlag_UserClipPlane5_Shift,
     kSysFlag_ReverseZ = 1u << kSysFlag_ReverseZ_Shift,
+    kSysFlag_KillIfAnyVertexKilled = 1u << kSysFlag_KillIfAnyVertexKilled_Shift,
     kSysFlag_AlphaPassIfLess = 1u << kSysFlag_AlphaPassIfLess_Shift,
     kSysFlag_AlphaPassIfEqual = 1u << kSysFlag_AlphaPassIfEqual_Shift,
     kSysFlag_AlphaPassIfGreater = 1u << kSysFlag_AlphaPassIfGreater_Shift,
@@ -874,6 +876,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kMov = 54,
     kMovC = 55,
     kMul = 56,
+    kNE = 57,
     kNot = 59,
     kOr = 60,
     kRet = 62,
@@ -1177,6 +1180,11 @@ class DxbcShaderTranslator : public ShaderTranslator {
   void DxbcOpMul(const DxbcDest& dest, const DxbcSrc& src0, const DxbcSrc& src1,
                  bool saturate = false) {
     DxbcEmitAluOp(DxbcOpcode::kMul, 0b00, dest, src0, src1, saturate);
+    ++stat_.float_instruction_count;
+  }
+  void DxbcOpNE(const DxbcDest& dest, const DxbcSrc& src0,
+                const DxbcSrc& src1) {
+    DxbcEmitAluOp(DxbcOpcode::kNE, 0b00, dest, src0, src1);
     ++stat_.float_instruction_count;
   }
   void DxbcOpNot(const DxbcDest& dest, const DxbcSrc& src) {
@@ -1488,11 +1496,13 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kVSOutPointParameters = kVSOutInterpolators + kInterpolatorCount,
     kVSOutClipSpaceZW,
     kVSOutPosition,
+    // Clip and cull distances must be tightly packed in Direct3D!
     kVSOutClipDistance0123,
-    kVSOutClipDistance45,
+    kVSOutClipDistance45AndCullDistance,
     // TODO(Triang3l): Use SV_CullDistance instead for
     // PA_CL_CLIP_CNTL::UCP_CULL_ONLY_ENA, but can't have more than 8 clip and
-    // cull distances in total.
+    // cull distances in total. Currently only using SV_CullDistance for vertex
+    // kill.
 
     kPSInInterpolators = 0,
     kPSInPointParameters = kPSInInterpolators + kInterpolatorCount,
@@ -1989,6 +1999,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // Position in vertex shaders (because viewport and W transformations can be
   // applied in the end of the shader).
   uint32_t system_temp_position_;
+  // Special exports in vertex shaders.
+  uint32_t system_temp_point_size_edge_flag_kill_vertex_;
   // ROV only - 4 persistent VGPRs when writing to color targets, 2 VGPRs when
   // not:
   // X - Bit masks:

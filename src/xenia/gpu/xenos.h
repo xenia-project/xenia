@@ -479,6 +479,8 @@ enum class VertexShaderExportMode : uint32_t {
   kPosition2VectorsKill = 4,
   kPosition2VectorsSpriteKill = 5,
   kPosition2VectorsEdgeKill = 6,
+  // Vertex shader outputs are ignored (kill all primitives) - see
+  // SX_MISC::MULTIPASS on R6xx/R7xx.
   kMultipass = 7,
 };
 
