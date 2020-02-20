@@ -41,6 +41,10 @@ X_RESULT UnknownFEApp::DispatchMessageSync(uint32_t message,
              (uint32_t)data->unk_48);
       return X_ERROR_SUCCESS;
     }
+    case 0x00021012: {
+      XELOGD("UnknownFEApp(0x00021012)");
+      return X_ERROR_SUCCESS;
+    }
     case 0x00022005: {
       struct message_data {
         xe::be<uint32_t> unk_00;  // ? output_ptr ?
