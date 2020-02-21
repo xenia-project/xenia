@@ -10,13 +10,12 @@
 #ifndef XENIA_CPU_PROCESSOR_H_
 #define XENIA_CPU_PROCESSOR_H_
 
-#include <gflags/gflags.h>
-
 #include <map>
 #include <memory>
 #include <string>
 #include <vector>
 
+#include "xenia/base/cvar.h"
 #include "xenia/base/mapped_memory.h"
 #include "xenia/base/mutex.h"
 #include "xenia/cpu/backend/backend.h"

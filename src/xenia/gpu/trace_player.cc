@@ -21,18 +21,18 @@ TracePlayer::TracePlayer(xe::ui::Loop* loop, GraphicsSystem* graphics_system)
       graphics_system_(graphics_system),
       current_frame_index_(0),
       current_command_index_(-1) {
-  // Need to allocate all of physical memory so that we can write to it
-  // during playback.
-  graphics_system_->memory()
-      ->LookupHeapByType(true, 4096)
-      ->AllocFixed(0, 0x1FFFFFFF, 4096,
+  // Need to allocate all of physical memory so that we can write to it during
+  // playback. The 64 KB page heap is larger, covers the entire physical memory,
+  // so it is used instead of the 4 KB page one.
+  auto heap = graphics_system_->memory()->LookupHeapByType(true, 64 * 1024);
+  heap->AllocFixed(heap->heap_base(), heap->heap_size(), heap->page_size(),
                    kMemoryAllocationReserve | kMemoryAllocationCommit,
                    kMemoryProtectRead | kMemoryProtectWrite);
 
   playback_event_ = xe::threading::Event::CreateAutoResetEvent(false);
 }
 
-TracePlayer::~TracePlayer() = default;
+TracePlayer::~TracePlayer() { delete[] edram_snapshot_; }
 
 const TraceReader::Frame* TracePlayer::current_frame() const {
   if (current_frame_index_ >= frame_count()) {
@@ -174,13 +174,29 @@ void TracePlayer::PlayTraceOnThread(const uint8_t* trace_data,
                          memory->TranslatePhysical(cmd->base_ptr),
                          cmd->decoded_length);
         trace_ptr += cmd->encoded_length;
+        command_processor->TracePlaybackWroteMemory(cmd->base_ptr,
+                                                    cmd->decoded_length);
         break;
       }
       case TraceCommandType::kMemoryWrite: {
         auto cmd = reinterpret_cast<const MemoryCommand*>(trace_ptr);
         trace_ptr += sizeof(*cmd);
         // ?
+        // Assuming the command processor will do the same write.
         trace_ptr += cmd->encoded_length;
+        break;
+      }
+      case TraceCommandType::kEDRAMSnapshot: {
+        auto cmd = reinterpret_cast<const EDRAMSnapshotCommand*>(trace_ptr);
+        trace_ptr += sizeof(*cmd);
+        const size_t kEDRAMSize = 10 * 1024 * 1024;
+        if (!edram_snapshot_) {
+          edram_snapshot_ = new uint8_t[kEDRAMSize];
+        }
+        DecompressMemory(cmd->encoding_format, trace_ptr, cmd->encoded_length,
+                         edram_snapshot_, kEDRAMSize);
+        trace_ptr += cmd->encoded_length;
+        command_processor->RestoreEDRAMSnapshot(edram_snapshot_);
         break;
       }
       case TraceCommandType::kEvent: {

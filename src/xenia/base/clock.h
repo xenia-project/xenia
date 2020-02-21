@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2015 Ben Vanik. All rights reserved.                             *
+ * Copyright 2019 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -12,24 +12,39 @@
 
 #include <cstdint>
 
+#include "xenia/base/cvar.h"
+
+DECLARE_bool(clock_no_scaling);
+DECLARE_bool(clock_source_raw);
+
 namespace xe {
 
 class Clock {
  public:
-  // Host ticks-per-second.
-  static uint64_t host_tick_frequency();
+  // Host ticks-per-second. Generally QueryHostTickFrequency should be used.
+  // Either from platform suplied time source or from hardware directly.
+  static uint64_t host_tick_frequency_platform();
+  static uint64_t host_tick_frequency_raw();
+  // Host tick count. Generally QueryHostTickCount() should be used.
+  static uint64_t host_tick_count_platform();
+  static uint64_t host_tick_count_raw();
+
+  // Queries the host tick frequency.
+  static uint64_t QueryHostTickFrequency();
   // Queries the current host tick count.
   static uint64_t QueryHostTickCount();
   // Host time, in FILETIME format.
   static uint64_t QueryHostSystemTime();
   // Queries the milliseconds since the host began.
-  static uint32_t QueryHostUptimeMillis();
+  static uint64_t QueryHostUptimeMillis();
 
   // Guest time scalar.
   static double guest_time_scalar();
   // Sets the guest time scalar, adjusting tick and wall clock speed.
   // Ex: 1x=normal, 2x=double speed, 1/2x=half speed.
   static void set_guest_time_scalar(double scalar);
+  // Get the tick ration between host and guest including time scaling if set.
+  static std::pair<uint64_t, uint64_t> guest_tick_ratio();
   // Guest ticks-per-second.
   static uint64_t guest_tick_frequency();
   // Sets the guest ticks-per-second.
@@ -39,6 +54,7 @@ class Clock {
   // Sets the guest time base, used for computing the system time.
   // By default this is the current system time.
   static void set_guest_system_time_base(uint64_t time_base);
+
   // Queries the current guest tick count, accounting for frequency adjustment
   // and scaling.
   static uint64_t QueryGuestTickCount();
@@ -47,9 +63,7 @@ class Clock {
   // Queries the milliseconds since the guest began, accounting for scaling.
   static uint32_t QueryGuestUptimeMillis();
 
-  // Sets the guest tick count for the current thread.
-  static void SetGuestTickCount(uint64_t tick_count);
-  // Sets the system time for the current thread.
+  // Sets the system time of the guest.
   static void SetGuestSystemTime(uint64_t system_time);
 
   // Scales a time duration in milliseconds, from guest time.

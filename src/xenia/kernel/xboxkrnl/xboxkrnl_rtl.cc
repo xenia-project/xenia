@@ -19,7 +19,6 @@
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/user_module.h"
 #include "xenia/kernel/util/shim_utils.h"
-#include "xenia/kernel/util/xex2.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_private.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_threading.h"
 #include "xenia/kernel/xevent.h"
@@ -34,7 +33,7 @@ namespace xe {
 namespace kernel {
 namespace xboxkrnl {
 
-// http://msdn.microsoft.com/en-us/library/ff561778
+// https://msdn.microsoft.com/en-us/library/ff561778
 dword_result_t RtlCompareMemory(lpvoid_t source1, lpvoid_t source2,
                                 dword_t length) {
   uint8_t* p1 = source1;
@@ -53,9 +52,9 @@ dword_result_t RtlCompareMemory(lpvoid_t source1, lpvoid_t source2,
 
   return c;
 }
-DECLARE_XBOXKRNL_EXPORT(RtlCompareMemory, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(RtlCompareMemory, kMemory, kImplemented);
 
-// http://msdn.microsoft.com/en-us/library/ff552123
+// https://msdn.microsoft.com/en-us/library/ff552123
 dword_result_t RtlCompareMemoryUlong(lpvoid_t source, dword_t length,
                                      dword_t pattern) {
   // Return 0 if source/length not aligned
@@ -74,9 +73,9 @@ dword_result_t RtlCompareMemoryUlong(lpvoid_t source, dword_t length,
 
   return n;
 }
-DECLARE_XBOXKRNL_EXPORT(RtlCompareMemoryUlong, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(RtlCompareMemoryUlong, kMemory, kImplemented);
 
-// http://msdn.microsoft.com/en-us/library/ff552263
+// https://msdn.microsoft.com/en-us/library/ff552263
 void RtlFillMemoryUlong(lpvoid_t destination, dword_t length, dword_t pattern) {
   // NOTE: length must be % 4, so we can work on uint32s.
   uint32_t count = length >> 2;
@@ -87,7 +86,7 @@ void RtlFillMemoryUlong(lpvoid_t destination, dword_t length, dword_t pattern) {
     *p = swapped_pattern;
   }
 }
-DECLARE_XBOXKRNL_EXPORT(RtlFillMemoryUlong, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(RtlFillMemoryUlong, kMemory, kImplemented);
 
 dword_result_t RtlUpperChar(dword_t in) {
   char c = in & 0xFF;
@@ -97,7 +96,7 @@ dword_result_t RtlUpperChar(dword_t in) {
 
   return c;
 }
-DECLARE_XBOXKRNL_EXPORT(RtlUpperChar, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(RtlUpperChar, kNone, kImplemented);
 
 dword_result_t RtlLowerChar(dword_t in) {
   char c = in & 0xFF;
@@ -107,7 +106,7 @@ dword_result_t RtlLowerChar(dword_t in) {
 
   return c;
 }
-DECLARE_XBOXKRNL_EXPORT(RtlLowerChar, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(RtlLowerChar, kNone, kImplemented);
 
 dword_result_t RtlCompareString(lpstring_t string_1, lpstring_t string_2,
                                 dword_t case_insensitive) {
@@ -116,7 +115,7 @@ dword_result_t RtlCompareString(lpstring_t string_1, lpstring_t string_2,
 
   return ret;
 }
-DECLARE_XBOXKRNL_EXPORT(RtlCompareString, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(RtlCompareString, kNone, kImplemented);
 
 dword_result_t RtlCompareStringN(lpstring_t string_1, dword_t string_1_len,
                                  lpstring_t string_2, dword_t string_2_len,
@@ -137,9 +136,9 @@ dword_result_t RtlCompareStringN(lpstring_t string_1, dword_t string_1_len,
 
   return ret;
 }
-DECLARE_XBOXKRNL_EXPORT(RtlCompareStringN, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(RtlCompareStringN, kNone, kImplemented);
 
-// http://msdn.microsoft.com/en-us/library/ff561918
+// https://msdn.microsoft.com/en-us/library/ff561918
 void RtlInitAnsiString(pointer_t<X_ANSI_STRING> destination,
                        lpstring_t source) {
   if (source) {
@@ -152,9 +151,9 @@ void RtlInitAnsiString(pointer_t<X_ANSI_STRING> destination,
 
   destination->pointer = source.guest_address();
 }
-DECLARE_XBOXKRNL_EXPORT(RtlInitAnsiString, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(RtlInitAnsiString, kNone, kImplemented);
 
-// http://msdn.microsoft.com/en-us/library/ff561899
+// https://msdn.microsoft.com/en-us/library/ff561899
 void RtlFreeAnsiString(pointer_t<X_ANSI_STRING> string) {
   if (string->pointer) {
     kernel_memory()->SystemHeapFree(string->pointer);
@@ -162,9 +161,9 @@ void RtlFreeAnsiString(pointer_t<X_ANSI_STRING> string) {
 
   string->reset();
 }
-DECLARE_XBOXKRNL_EXPORT(RtlFreeAnsiString, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(RtlFreeAnsiString, kNone, kImplemented);
 
-// http://msdn.microsoft.com/en-us/library/ff561934
+// https://msdn.microsoft.com/en-us/library/ff561934
 void RtlInitUnicodeString(pointer_t<X_UNICODE_STRING> destination,
                           lpwstring_t source) {
   if (source) {
@@ -175,9 +174,9 @@ void RtlInitUnicodeString(pointer_t<X_UNICODE_STRING> destination,
     destination->reset();
   }
 }
-DECLARE_XBOXKRNL_EXPORT(RtlInitUnicodeString, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(RtlInitUnicodeString, kNone, kImplemented);
 
-// http://msdn.microsoft.com/en-us/library/ff561903
+// https://msdn.microsoft.com/en-us/library/ff561903
 void RtlFreeUnicodeString(pointer_t<X_UNICODE_STRING> string) {
   if (string->pointer) {
     kernel_memory()->SystemHeapFree(string->pointer);
@@ -185,9 +184,43 @@ void RtlFreeUnicodeString(pointer_t<X_UNICODE_STRING> string) {
 
   string->reset();
 }
-DECLARE_XBOXKRNL_EXPORT(RtlFreeUnicodeString, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(RtlFreeUnicodeString, kNone, kImplemented);
 
-// http://msdn.microsoft.com/en-us/library/ff562969
+void RtlCopyString(pointer_t<X_ANSI_STRING> destination,
+                   pointer_t<X_ANSI_STRING> source) {
+  if (!source) {
+    destination->length = 0;
+    return;
+  }
+
+  auto length = std::min(destination->maximum_length, source->length);
+  if (length > 0) {
+    auto dst_buf = kernel_memory()->TranslateVirtual(destination->pointer);
+    auto src_buf = kernel_memory()->TranslateVirtual(source->pointer);
+    std::memcpy(dst_buf, src_buf, length);
+  }
+  destination->length = length;
+}
+DECLARE_XBOXKRNL_EXPORT1(RtlCopyString, kNone, kImplemented);
+
+void RtlCopyUnicodeString(pointer_t<X_UNICODE_STRING> destination,
+                          pointer_t<X_UNICODE_STRING> source) {
+  if (!source) {
+    destination->length = 0;
+    return;
+  }
+
+  auto length = std::min(destination->maximum_length, source->length);
+  if (length > 0) {
+    auto dst_buf = kernel_memory()->TranslateVirtual(destination->pointer);
+    auto src_buf = kernel_memory()->TranslateVirtual(source->pointer);
+    std::memcpy(dst_buf, src_buf, length * 2);
+  }
+  destination->length = length;
+}
+DECLARE_XBOXKRNL_EXPORT1(RtlCopyUnicodeString, kNone, kImplemented);
+
+// https://msdn.microsoft.com/en-us/library/ff562969
 dword_result_t RtlUnicodeStringToAnsiString(
     pointer_t<X_ANSI_STRING> destination_ptr,
     pointer_t<X_UNICODE_STRING> source_ptr, dword_t alloc_dest) {
@@ -197,7 +230,7 @@ dword_result_t RtlUnicodeStringToAnsiString(
   // _In_     BOOLEAN AllocateDestinationString
 
   std::wstring unicode_str =
-      source_ptr->to_string(kernel_memory()->virtual_membase());
+      util::TranslateUnicodeString(kernel_memory(), source_ptr);
   std::string ansi_str = xe::to_string(unicode_str);
   if (ansi_str.size() > 0xFFFF - 1) {
     return X_STATUS_INVALID_PARAMETER_2;
@@ -208,7 +241,7 @@ dword_result_t RtlUnicodeStringToAnsiString(
     uint32_t buffer_ptr =
         kernel_memory()->SystemHeapAlloc(uint32_t(ansi_str.size() + 1));
 
-    memcpy(kernel_memory()->virtual_membase() + buffer_ptr, ansi_str.data(),
+    memcpy(kernel_memory()->TranslateVirtual(buffer_ptr), ansi_str.data(),
            ansi_str.size() + 1);
     destination_ptr->length = static_cast<uint16_t>(ansi_str.size());
     destination_ptr->maximum_length =
@@ -217,7 +250,7 @@ dword_result_t RtlUnicodeStringToAnsiString(
   } else {
     uint32_t buffer_capacity = destination_ptr->maximum_length;
     auto buffer_ptr =
-        kernel_memory()->virtual_membase() + destination_ptr->pointer;
+        kernel_memory()->TranslateVirtual(destination_ptr->pointer);
     if (buffer_capacity < ansi_str.size() + 1) {
       // Too large - we just write what we can.
       result = X_STATUS_BUFFER_OVERFLOW;
@@ -229,7 +262,7 @@ dword_result_t RtlUnicodeStringToAnsiString(
   }
   return result;
 }
-DECLARE_XBOXKRNL_EXPORT(RtlUnicodeStringToAnsiString, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(RtlUnicodeStringToAnsiString, kNone, kImplemented);
 
 // https://msdn.microsoft.com/en-us/library/ff553113
 dword_result_t RtlMultiByteToUnicodeN(lpword_t destination_ptr,
@@ -253,8 +286,8 @@ dword_result_t RtlMultiByteToUnicodeN(lpword_t destination_ptr,
 
   return 0;
 }
-DECLARE_XBOXKRNL_EXPORT(RtlMultiByteToUnicodeN,
-                        ExportTag::kImplemented | ExportTag::kSketchy);
+DECLARE_XBOXKRNL_EXPORT3(RtlMultiByteToUnicodeN, kNone, kImplemented,
+                         kHighFrequency, kSketchy);
 
 // https://msdn.microsoft.com/en-us/library/ff553261
 dword_result_t RtlUnicodeToMultiByteN(pointer_t<uint8_t> destination_ptr,
@@ -276,20 +309,44 @@ dword_result_t RtlUnicodeToMultiByteN(pointer_t<uint8_t> destination_ptr,
 
   return 0;
 }
-DECLARE_XBOXKRNL_EXPORT(RtlUnicodeToMultiByteN,
-                        ExportTag::kImplemented | ExportTag::kSketchy);
+DECLARE_XBOXKRNL_EXPORT3(RtlUnicodeToMultiByteN, kNone, kImplemented,
+                         kHighFrequency, kSketchy);
+
+// https://undocumented.ntinternals.net/UserMode/Undocumented%20Functions/Executable%20Images/RtlImageNtHeader.html
+pointer_result_t RtlImageNtHeader(lpvoid_t module) {
+  if (!module) {
+    return 0;
+  }
+
+  // Little-endian! no swapping!
+
+  auto dos_header = module.as<const uint8_t*>();
+  auto dos_magic = *reinterpret_cast<const uint16_t*>(&dos_header[0x00]);
+  if (dos_magic != 0x5A4D) {  // 'MZ'
+    return 0;
+  }
+  auto dos_lfanew = *reinterpret_cast<const int32_t*>(&dos_header[0x3C]);
+
+  auto nt_header = &dos_header[dos_lfanew];
+  auto nt_magic = *reinterpret_cast<const uint32_t*>(&nt_header[0x00]);
+  if (nt_magic != 0x4550) {  // 'PE'
+    return 0;
+  }
+  return kernel_memory()->HostToGuestVirtual(nt_header);
+}
+DECLARE_XBOXKRNL_EXPORT1(RtlImageNtHeader, kNone, kImplemented);
 
 pointer_result_t RtlImageXexHeaderField(pointer_t<xex2_header> xex_header,
                                         dword_t field_dword) {
   uint32_t field_value = 0;
   uint32_t field = field_dword;  // VS acts weird going from dword_t -> enum
 
-  UserModule::GetOptHeader(kernel_memory()->virtual_membase(), xex_header,
-                           xe_xex2_header_keys(field), &field_value);
+  UserModule::GetOptHeader(kernel_memory(), xex_header, xex2_header_keys(field),
+                           &field_value);
 
   return field_value;
 }
-DECLARE_XBOXKRNL_EXPORT(RtlImageXexHeaderField, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(RtlImageXexHeaderField, kNone, kImplemented);
 
 // Unfortunately the Windows RTL_CRITICAL_SECTION object is bigger than the one
 // on the 360 (32b vs. 28b). This means that we can't do in-place splatting of
@@ -301,9 +358,10 @@ DECLARE_XBOXKRNL_EXPORT(RtlImageXexHeaderField, ExportTag::kImplemented);
 // into guest memory, as it should be opaque and so long as our size is right
 // the user code will never know.
 //
-// Ref: http://msdn.microsoft.com/en-us/magazine/cc164040.aspx
 // Ref:
-// http://svn.reactos.org/svn/reactos/trunk/reactos/lib/rtl/critical.c?view=markup
+// https://web.archive.org/web/20161214022602/https://msdn.microsoft.com/en-us/magazine/cc164040.aspx
+// Ref:
+// https://github.com/reactos/reactos/blob/master/sdk/lib/rtl/critical.c
 
 // This structure tries to match the one on the 360 as best I can figure out.
 // Unfortunately some games have the critical sections pre-initialized in
@@ -331,7 +389,7 @@ void xeRtlInitializeCriticalSection(X_RTL_CRITICAL_SECTION* cs,
 void RtlInitializeCriticalSection(pointer_t<X_RTL_CRITICAL_SECTION> cs) {
   xeRtlInitializeCriticalSection(cs, cs.guest_address());
 }
-DECLARE_XBOXKRNL_EXPORT(RtlInitializeCriticalSection, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(RtlInitializeCriticalSection, kNone, kImplemented);
 
 X_STATUS xeRtlInitializeCriticalSectionAndSpinCount(X_RTL_CRITICAL_SECTION* cs,
                                                     uint32_t cs_ptr,
@@ -358,8 +416,8 @@ dword_result_t RtlInitializeCriticalSectionAndSpinCount(
   return xeRtlInitializeCriticalSectionAndSpinCount(cs, cs.guest_address(),
                                                     spin_count);
 }
-DECLARE_XBOXKRNL_EXPORT(RtlInitializeCriticalSectionAndSpinCount,
-                        ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(RtlInitializeCriticalSectionAndSpinCount, kNone,
+                         kImplemented);
 
 void RtlEnterCriticalSection(pointer_t<X_RTL_CRITICAL_SECTION> cs) {
   uint32_t cur_thread = XThread::GetCurrentThread()->guest_object();
@@ -384,16 +442,16 @@ void RtlEnterCriticalSection(pointer_t<X_RTL_CRITICAL_SECTION> cs) {
 
   if (xe::atomic_inc(&cs->lock_count) != 0) {
     // Create a full waiter.
-    KeWaitForSingleObject(reinterpret_cast<void*>(cs.host_address()), 8, 0, 0,
-                          nullptr);
+    xeKeWaitForSingleObject(reinterpret_cast<void*>(cs.host_address()), 8, 0, 0,
+                            nullptr);
   }
 
   assert_true(cs->owning_thread == 0);
   cs->owning_thread = cur_thread;
   cs->recursion_count = 1;
 }
-DECLARE_XBOXKRNL_EXPORT(RtlEnterCriticalSection,
-                        ExportTag::kImplemented | ExportTag::kHighFrequency);
+DECLARE_XBOXKRNL_EXPORT2(RtlEnterCriticalSection, kNone, kImplemented,
+                         kHighFrequency);
 
 dword_result_t RtlTryEnterCriticalSection(
     pointer_t<X_RTL_CRITICAL_SECTION> cs) {
@@ -414,8 +472,8 @@ dword_result_t RtlTryEnterCriticalSection(
   // Failed to acquire lock.
   return 0;
 }
-DECLARE_XBOXKRNL_EXPORT(RtlTryEnterCriticalSection,
-                        ExportTag::kImplemented | ExportTag::kHighFrequency);
+DECLARE_XBOXKRNL_EXPORT2(RtlTryEnterCriticalSection, kNone, kImplemented,
+                         kHighFrequency);
 
 void RtlLeaveCriticalSection(pointer_t<X_RTL_CRITICAL_SECTION> cs) {
   assert_true(cs->owning_thread == XThread::GetCurrentThread()->guest_object());
@@ -433,11 +491,11 @@ void RtlLeaveCriticalSection(pointer_t<X_RTL_CRITICAL_SECTION> cs) {
   cs->owning_thread = 0;
   if (xe::atomic_dec(&cs->lock_count) != -1) {
     // There were waiters - wake one of them.
-    KeSetEvent(reinterpret_cast<X_KEVENT*>(cs.host_address()), 1, 0);
+    xeKeSetEvent(reinterpret_cast<X_KEVENT*>(cs.host_address()), 1, 0);
   }
 }
-DECLARE_XBOXKRNL_EXPORT(RtlLeaveCriticalSection,
-                        ExportTag::kImplemented | ExportTag::kHighFrequency);
+DECLARE_XBOXKRNL_EXPORT2(RtlLeaveCriticalSection, kNone, kImplemented,
+                         kHighFrequency);
 
 struct X_TIME_FIELDS {
   xe::be<uint16_t> year;
@@ -467,7 +525,7 @@ void RtlTimeToTimeFields(lpqword_t time_ptr,
   time_fields_ptr->milliseconds = time_ms % 1000;
   time_fields_ptr->weekday = tm->tm_wday;
 }
-DECLARE_XBOXKRNL_EXPORT(RtlTimeToTimeFields, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(RtlTimeToTimeFields, kNone, kImplemented);
 
 dword_result_t RtlTimeFieldsToTime(pointer_t<X_TIME_FIELDS> time_fields_ptr,
                                    lpqword_t time_ptr) {
@@ -489,7 +547,74 @@ dword_result_t RtlTimeFieldsToTime(pointer_t<X_TIME_FIELDS> time_fields_ptr,
   *time_ptr = time;
   return 1;
 }
-DECLARE_XBOXKRNL_EXPORT(RtlTimeFieldsToTime, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(RtlTimeFieldsToTime, kNone, kImplemented);
+
+static uint32_t crc32_table[256] = {
+    0x00000000u, 0x77073096u, 0xEE0E612Cu, 0x990951BAu, 0x076DC419u,
+    0x706AF48Fu, 0xE963A535u, 0x9E6495A3u, 0x0EDB8832u, 0x79DCB8A4u,
+    0xE0D5E91Eu, 0x97D2D988u, 0x09B64C2Bu, 0x7EB17CBDu, 0xE7B82D07u,
+    0x90BF1D91u, 0x1DB71064u, 0x6AB020F2u, 0xF3B97148u, 0x84BE41DEu,
+    0x1ADAD47Du, 0x6DDDE4EBu, 0xF4D4B551u, 0x83D385C7u, 0x136C9856u,
+    0x646BA8C0u, 0xFD62F97Au, 0x8A65C9ECu, 0x14015C4Fu, 0x63066CD9u,
+    0xFA0F3D63u, 0x8D080DF5u, 0x3B6E20C8u, 0x4C69105Eu, 0xD56041E4u,
+    0xA2677172u, 0x3C03E4D1u, 0x4B04D447u, 0xD20D85FDu, 0xA50AB56Bu,
+    0x35B5A8FAu, 0x42B2986Cu, 0xDBBBC9D6u, 0xACBCF940u, 0x32D86CE3u,
+    0x45DF5C75u, 0xDCD60DCFu, 0xABD13D59u, 0x26D930ACu, 0x51DE003Au,
+    0xC8D75180u, 0xBFD06116u, 0x21B4F4B5u, 0x56B3C423u, 0xCFBA9599u,
+    0xB8BDA50Fu, 0x2802B89Eu, 0x5F058808u, 0xC60CD9B2u, 0xB10BE924u,
+    0x2F6F7C87u, 0x58684C11u, 0xC1611DABu, 0xB6662D3Du, 0x76DC4190u,
+    0x01DB7106u, 0x98D220BCu, 0xEFD5102Au, 0x71B18589u, 0x06B6B51Fu,
+    0x9FBFE4A5u, 0xE8B8D433u, 0x7807C9A2u, 0x0F00F934u, 0x9609A88Eu,
+    0xE10E9818u, 0x7F6A0DBBu, 0x086D3D2Du, 0x91646C97u, 0xE6635C01u,
+    0x6B6B51F4u, 0x1C6C6162u, 0x856530D8u, 0xF262004Eu, 0x6C0695EDu,
+    0x1B01A57Bu, 0x8208F4C1u, 0xF50FC457u, 0x65B0D9C6u, 0x12B7E950u,
+    0x8BBEB8EAu, 0xFCB9887Cu, 0x62DD1DDFu, 0x15DA2D49u, 0x8CD37CF3u,
+    0xFBD44C65u, 0x4DB26158u, 0x3AB551CEu, 0xA3BC0074u, 0xD4BB30E2u,
+    0x4ADFA541u, 0x3DD895D7u, 0xA4D1C46Du, 0xD3D6F4FBu, 0x4369E96Au,
+    0x346ED9FCu, 0xAD678846u, 0xDA60B8D0u, 0x44042D73u, 0x33031DE5u,
+    0xAA0A4C5Fu, 0xDD0D7CC9u, 0x5005713Cu, 0x270241AAu, 0xBE0B1010u,
+    0xC90C2086u, 0x5768B525u, 0x206F85B3u, 0xB966D409u, 0xCE61E49Fu,
+    0x5EDEF90Eu, 0x29D9C998u, 0xB0D09822u, 0xC7D7A8B4u, 0x59B33D17u,
+    0x2EB40D81u, 0xB7BD5C3Bu, 0xC0BA6CADu, 0xEDB88320u, 0x9ABFB3B6u,
+    0x03B6E20Cu, 0x74B1D29Au, 0xEAD54739u, 0x9DD277AFu, 0x04DB2615u,
+    0x73DC1683u, 0xE3630B12u, 0x94643B84u, 0x0D6D6A3Eu, 0x7A6A5AA8u,
+    0xE40ECF0Bu, 0x9309FF9Du, 0x0A00AE27u, 0x7D079EB1u, 0xF00F9344u,
+    0x8708A3D2u, 0x1E01F268u, 0x6906C2FEu, 0xF762575Du, 0x806567CBu,
+    0x196C3671u, 0x6E6B06E7u, 0xFED41B76u, 0x89D32BE0u, 0x10DA7A5Au,
+    0x67DD4ACCu, 0xF9B9DF6Fu, 0x8EBEEFF9u, 0x17B7BE43u, 0x60B08ED5u,
+    0xD6D6A3E8u, 0xA1D1937Eu, 0x38D8C2C4u, 0x4FDFF252u, 0xD1BB67F1u,
+    0xA6BC5767u, 0x3FB506DDu, 0x48B2364Bu, 0xD80D2BDAu, 0xAF0A1B4Cu,
+    0x36034AF6u, 0x41047A60u, 0xDF60EFC3u, 0xA867DF55u, 0x316E8EEFu,
+    0x4669BE79u, 0xCB61B38Cu, 0xBC66831Au, 0x256FD2A0u, 0x5268E236u,
+    0xCC0C7795u, 0xBB0B4703u, 0x220216B9u, 0x5505262Fu, 0xC5BA3BBEu,
+    0xB2BD0B28u, 0x2BB45A92u, 0x5CB36A04u, 0xC2D7FFA7u, 0xB5D0CF31u,
+    0x2CD99E8Bu, 0x5BDEAE1Du, 0x9B64C2B0u, 0xEC63F226u, 0x756AA39Cu,
+    0x026D930Au, 0x9C0906A9u, 0xEB0E363Fu, 0x72076785u, 0x05005713u,
+    0x95BF4A82u, 0xE2B87A14u, 0x7BB12BAEu, 0x0CB61B38u, 0x92D28E9Bu,
+    0xE5D5BE0Du, 0x7CDCEFB7u, 0x0BDBDF21u, 0x86D3D2D4u, 0xF1D4E242u,
+    0x68DDB3F8u, 0x1FDA836Eu, 0x81BE16CDu, 0xF6B9265Bu, 0x6FB077E1u,
+    0x18B74777u, 0x88085AE6u, 0xFF0F6A70u, 0x66063BCAu, 0x11010B5Cu,
+    0x8F659EFFu, 0xF862AE69u, 0x616BFFD3u, 0x166CCF45u, 0xA00AE278u,
+    0xD70DD2EEu, 0x4E048354u, 0x3903B3C2u, 0xA7672661u, 0xD06016F7u,
+    0x4969474Du, 0x3E6E77DBu, 0xAED16A4Au, 0xD9D65ADCu, 0x40DF0B66u,
+    0x37D83BF0u, 0xA9BCAE53u, 0xDEBB9EC5u, 0x47B2CF7Fu, 0x30B5FFE9u,
+    0xBDBDF21Cu, 0xCABAC28Au, 0x53B39330u, 0x24B4A3A6u, 0xBAD03605u,
+    0xCDD70693u, 0x54DE5729u, 0x23D967BFu, 0xB3667A2Eu, 0xC4614AB8u,
+    0x5D681B02u, 0x2A6F2B94u, 0xB40BBE37u, 0xC30C8EA1u, 0x5A05DF1Bu,
+    0x2D02EF8Du,
+};
+
+dword_result_t RtlComputeCrc32(dword_t seed, lpvoid_t buffer, dword_t length) {
+  if (!length) {
+    return seed.value();
+  }
+  uint32_t hash = ~seed;
+  for (uint32_t i = 0; i < length; ++i) {
+    hash = crc32_table[buffer[i] ^ (hash & 0xFF)] ^ (hash >> 8);
+  }
+  return ~hash;
+}
+DECLARE_XBOXKRNL_EXPORT1(RtlComputeCrc32, kNone, kImplemented);
 
 void RegisterRtlExports(xe::cpu::ExportResolver* export_resolver,
                         KernelState* kernel_state) {}

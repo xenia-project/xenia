@@ -10,8 +10,6 @@
 #ifndef XENIA_UI_VULKAN_VULKAN_H_
 #define XENIA_UI_VULKAN_VULKAN_H_
 
-#include <gflags/gflags.h>
-
 #include "xenia/base/platform.h"
 
 #if XE_PLATFORM_WIN32
@@ -22,12 +20,10 @@
 #error Platform not yet supported.
 #endif  // XE_PLATFORM_WIN32
 
-// We are statically linked with the loader, so use function prototypes.
-#define VK_PROTOTYPES
+// We use a loader with its own function prototypes.
+#include "third_party/volk/volk.h"
 #include "third_party/vulkan/vulkan.h"
-
-// NOTE: header order matters here, unfortunately:
-#include "third_party/vulkan/vk_lunarg_debug_marker.h"
+#include "xenia/base/cvar.h"
 
 #define XELOGVK XELOGI
 

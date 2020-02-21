@@ -39,9 +39,11 @@ enum LoadStoreFlags {
   LOAD_STORE_BYTE_SWAP = 1 << 0,
 };
 
-enum PrefetchFlags {
-  PREFETCH_LOAD = (1 << 1),
-  PREFETCH_STORE = (1 << 2),
+enum CacheControlType {
+  CACHE_CONTOROL_TYPE_DATA_TOUCH,
+  CACHE_CONTOROL_TYPE_DATA_TOUCH_FOR_STORE,
+  CACHE_CONTOROL_TYPE_DATA_STORE,
+  CACHE_CONTOROL_TYPE_DATA_STORE_AND_FLUSH,
 };
 
 enum ArithmeticFlags {
@@ -81,10 +83,11 @@ enum PackType : uint16_t {
   PACK_TYPE_FLOAT16_4 = 3,
   PACK_TYPE_SHORT_2 = 4,
   PACK_TYPE_UINT_2101010 = 5,
+  PACK_TYPE_ULONG_4202020 = 6,
 
   // Types which use the bitmasks below for configuration:
-  PACK_TYPE_8_IN_16 = 6,
-  PACK_TYPE_16_IN_32 = 7,
+  PACK_TYPE_8_IN_16 = 7,
+  PACK_TYPE_16_IN_32 = 8,
 
   PACK_TYPE_MODE = 0x000F,  // just to get the mode
                             // Unpack to low or high parts.
@@ -152,10 +155,12 @@ enum Opcode {
   OPCODE_CONTEXT_BARRIER,
   OPCODE_LOAD_MMIO,
   OPCODE_STORE_MMIO,
+  OPCODE_LOAD_OFFSET,
+  OPCODE_STORE_OFFSET,
   OPCODE_LOAD,
   OPCODE_STORE,
   OPCODE_MEMSET,
-  OPCODE_PREFETCH,
+  OPCODE_CACHE_CONTROL,
   OPCODE_MEMORY_BARRIER,
   OPCODE_MAX,
   OPCODE_VECTOR_MAX,

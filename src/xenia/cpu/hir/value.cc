@@ -847,16 +847,16 @@ void Value::Extract(Value* vec, Value* index) {
   assert_true(vec->type == VEC128_TYPE);
   switch (type) {
     case INT8_TYPE:
-      constant.u8 = vec->constant.v128.u8[index->constant.u8];
+      constant.u8 = vec->constant.v128.u8[index->constant.u8 & 0x1F];
       break;
     case INT16_TYPE:
-      constant.u16 = vec->constant.v128.u16[index->constant.u16];
+      constant.u16 = vec->constant.v128.u16[index->constant.u16 & 0x7];
       break;
     case INT32_TYPE:
-      constant.u32 = vec->constant.v128.u32[index->constant.u32];
+      constant.u32 = vec->constant.v128.u32[index->constant.u32 & 0x3];
       break;
     case INT64_TYPE:
-      constant.u64 = vec->constant.v128.u64[index->constant.u64];
+      constant.u64 = vec->constant.v128.u64[index->constant.u64 & 0x1];
       break;
     default:
       assert_unhandled_case(type);
@@ -1079,17 +1079,27 @@ void Value::VectorCompareUGE(Value* other, TypeName type) {
   }
 }
 
-void Value::VectorConvertI2F(Value* other) {
+void Value::VectorConvertI2F(Value* other, bool is_unsigned) {
   assert_true(type == VEC128_TYPE);
   for (int i = 0; i < 4; i++) {
-    constant.v128.f32[i] = (float)other->constant.v128.i32[i];
+    if (is_unsigned) {
+      constant.v128.f32[i] = (float)other->constant.v128.u32[i];
+    } else {
+      constant.v128.f32[i] = (float)other->constant.v128.i32[i];
+    }
   }
 }
 
-void Value::VectorConvertF2I(Value* other) {
+void Value::VectorConvertF2I(Value* other, bool is_unsigned) {
   assert_true(type == VEC128_TYPE);
+
+  // FIXME(DrChat): This does not saturate!
   for (int i = 0; i < 4; i++) {
-    constant.v128.i32[i] = (int32_t)other->constant.v128.f32[i];
+    if (is_unsigned) {
+      constant.v128.u32[i] = (uint32_t)other->constant.v128.f32[i];
+    } else {
+      constant.v128.i32[i] = (int32_t)other->constant.v128.f32[i];
+    }
   }
 }
 
@@ -1192,7 +1202,16 @@ void Value::VectorAdd(Value* other, TypeName type, bool is_unsigned,
       break;
     case INT8_TYPE:
       if (saturate) {
-        assert_always();
+        for (int i = 0; i < 16; i++) {
+          if (is_unsigned) {
+            constant.v128.u8[i] =
+                xe::sat_add(constant.v128.u8[i], other->constant.v128.u8[i]);
+          } else {
+            constant.v128.i8[i] =
+                xe::sat_add(constant.v128.i8[i], other->constant.v128.i8[i]);
+          }
+        }
+        // TODO(Triang3l): Trace DID_SATURATE.
       } else {
         for (int i = 0; i < 16; i++) {
           if (is_unsigned) {
@@ -1205,7 +1224,16 @@ void Value::VectorAdd(Value* other, TypeName type, bool is_unsigned,
       break;
     case INT16_TYPE:
       if (saturate) {
-        assert_always();
+        for (int i = 0; i < 8; i++) {
+          if (is_unsigned) {
+            constant.v128.u16[i] =
+                xe::sat_add(constant.v128.u16[i], other->constant.v128.u16[i]);
+          } else {
+            constant.v128.i16[i] =
+                xe::sat_add(constant.v128.i16[i], other->constant.v128.i16[i]);
+          }
+        }
+        // TODO(Triang3l): Trace DID_SATURATE.
       } else {
         for (int i = 0; i < 8; i++) {
           if (is_unsigned) {
@@ -1218,7 +1246,16 @@ void Value::VectorAdd(Value* other, TypeName type, bool is_unsigned,
       break;
     case INT32_TYPE:
       if (saturate) {
-        assert_always();
+        for (int i = 0; i < 4; i++) {
+          if (is_unsigned) {
+            constant.v128.u32[i] =
+                xe::sat_add(constant.v128.u32[i], other->constant.v128.u32[i]);
+          } else {
+            constant.v128.i32[i] =
+                xe::sat_add(constant.v128.i32[i], other->constant.v128.i32[i]);
+          }
+        }
+        // TODO(Triang3l): Trace DID_SATURATE.
       } else {
         for (int i = 0; i < 4; i++) {
           if (is_unsigned) {
@@ -1231,7 +1268,16 @@ void Value::VectorAdd(Value* other, TypeName type, bool is_unsigned,
       break;
     case INT64_TYPE:
       if (saturate) {
-        assert_always();
+        for (int i = 0; i < 2; i++) {
+          if (is_unsigned) {
+            constant.v128.u64[i] =
+                xe::sat_add(constant.v128.u64[i], other->constant.v128.u64[i]);
+          } else {
+            constant.v128.i64[i] =
+                xe::sat_add(constant.v128.i64[i], other->constant.v128.i64[i]);
+          }
+        }
+        // TODO(Triang3l): Trace DID_SATURATE.
       } else {
         if (is_unsigned) {
           constant.v128.u64[0] += other->constant.v128.u64[0];
@@ -1272,7 +1318,16 @@ void Value::VectorSub(Value* other, TypeName type, bool is_unsigned,
       break;
     case INT8_TYPE:
       if (saturate) {
-        assert_always();
+        for (int i = 0; i < 16; i++) {
+          if (is_unsigned) {
+            constant.v128.u8[i] =
+                xe::sat_sub(constant.v128.u8[i], other->constant.v128.u8[i]);
+          } else {
+            constant.v128.i8[i] =
+                xe::sat_sub(constant.v128.i8[i], other->constant.v128.i8[i]);
+          }
+        }
+        // TODO(Triang3l): Trace DID_SATURATE.
       } else {
         for (int i = 0; i < 16; i++) {
           if (is_unsigned) {
@@ -1285,7 +1340,16 @@ void Value::VectorSub(Value* other, TypeName type, bool is_unsigned,
       break;
     case INT16_TYPE:
       if (saturate) {
-        assert_always();
+        for (int i = 0; i < 8; i++) {
+          if (is_unsigned) {
+            constant.v128.u16[i] =
+                xe::sat_sub(constant.v128.u16[i], other->constant.v128.u16[i]);
+          } else {
+            constant.v128.i16[i] =
+                xe::sat_sub(constant.v128.i16[i], other->constant.v128.i16[i]);
+          }
+        }
+        // TODO(Triang3l): Trace DID_SATURATE.
       } else {
         for (int i = 0; i < 8; i++) {
           if (is_unsigned) {
@@ -1298,7 +1362,16 @@ void Value::VectorSub(Value* other, TypeName type, bool is_unsigned,
       break;
     case INT32_TYPE:
       if (saturate) {
-        assert_always();
+        for (int i = 0; i < 4; i++) {
+          if (is_unsigned) {
+            constant.v128.u32[i] =
+                xe::sat_sub(constant.v128.u32[i], other->constant.v128.u32[i]);
+          } else {
+            constant.v128.i32[i] =
+                xe::sat_sub(constant.v128.i32[i], other->constant.v128.i32[i]);
+          }
+        }
+        // TODO(Triang3l): Trace DID_SATURATE.
       } else {
         for (int i = 0; i < 4; i++) {
           if (is_unsigned) {
@@ -1311,7 +1384,16 @@ void Value::VectorSub(Value* other, TypeName type, bool is_unsigned,
       break;
     case INT64_TYPE:
       if (saturate) {
-        assert_always();
+        for (int i = 0; i < 2; i++) {
+          if (is_unsigned) {
+            constant.v128.u64[i] =
+                xe::sat_sub(constant.v128.u64[i], other->constant.v128.u64[i]);
+          } else {
+            constant.v128.i64[i] =
+                xe::sat_sub(constant.v128.i64[i], other->constant.v128.i64[i]);
+          }
+        }
+        // TODO(Triang3l): Trace DID_SATURATE.
       } else {
         if (is_unsigned) {
           constant.v128.u64[0] -= other->constant.v128.u64[0];
@@ -1359,6 +1441,61 @@ void Value::DotProduct4(Value* other) {
       // TODO(rick): is this sane?
       type = FLOAT32_TYPE;
       constant.f32 = result[0];
+    } break;
+    default:
+      assert_unhandled_case(type);
+      break;
+  }
+}
+
+void Value::VectorAverage(Value* other, TypeName type, bool is_unsigned,
+                          bool saturate) {
+  assert_true(this->type == VEC128_TYPE && other->type == VEC128_TYPE);
+  switch (type) {
+    case INT8_TYPE: {
+      for (int i = 0; i < 16; i++) {
+        if (is_unsigned) {
+          constant.v128.u8[i] =
+              uint8_t((uint16_t(constant.v128.u8[i]) +
+                       uint16_t(other->constant.v128.u8[i]) + 1) >>
+                      1);
+        } else {
+          constant.v128.i8[i] =
+              int8_t((int16_t(constant.v128.i8[i]) +
+                      int16_t(other->constant.v128.i8[i]) + 1) >>
+                     1);
+        }
+      }
+    } break;
+    case INT16_TYPE: {
+      for (int i = 0; i < 8; i++) {
+        if (is_unsigned) {
+          constant.v128.u16[i] =
+              uint16_t((uint32_t(constant.v128.u16[i]) +
+                        uint32_t(other->constant.v128.u16[i]) + 1) >>
+                       1);
+        } else {
+          constant.v128.i16[i] =
+              int16_t((int32_t(constant.v128.i16[i]) +
+                       int32_t(other->constant.v128.i16[i]) + 1) >>
+                      1);
+        }
+      }
+    } break;
+    case INT32_TYPE: {
+      for (int i = 0; i < 4; i++) {
+        if (is_unsigned) {
+          constant.v128.u32[i] =
+              uint32_t((uint64_t(constant.v128.u32[i]) +
+                        uint64_t(other->constant.v128.u32[i]) + 1) >>
+                       1);
+        } else {
+          constant.v128.i32[i] =
+              int32_t((int64_t(constant.v128.i32[i]) +
+                       int64_t(other->constant.v128.i32[i]) + 1) >>
+                      1);
+        }
+      }
     } break;
     default:
       assert_unhandled_case(type);

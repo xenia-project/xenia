@@ -1,205 +1,70 @@
-#---------------------------------#
-#      general configuration      #
-#---------------------------------#
-
-# version format
 version: 1.0.{build}-{branch}
 
-# branches to build
 branches:
-  # whitelist
-  # only:
-  #   - master
-
-  # blacklist
   except:
     - gh-pages
 
-# Do not build on tags (GitHub only)
 skip_tags: true
 
 skip_commits:
   files:
     - docs/*
+    - .github/*
     - LICENSE
     - README.md
+    - .travis.yml
+
+skip_branch_with_pr: true
 
 pull_requests:
   do_not_increment_build_number: true
 
-#---------------------------------#
-#    environment configuration    #
-#---------------------------------#
+os: Visual Studio 2019
 
-# Operating system (build VM template)
-os: Visual Studio 2015
-
-# scripts that are called at very beginning, before repo cloning
 init:
   - git config --global core.autocrlf input
 
-# clone directory
-clone_folder: c:\dev\xenia
-
-# environment variables
-environment:
-  my_var1: value1
-  my_var2: value2
-
-# build cache to preserve files/folders between builds
-#cache:
-
-# scripts that run after cloning repository
 install:
-  - cmd: set PATH=C:\Program Files (x86)\MSBuild\14.0\Bin;%PATH%
-  - cmd: xb.bat setup
+  - cmd: xb setup
 
-
-#---------------------------------#
-#       build configuration       #
-#---------------------------------#
-
-# build platform, i.e. x86, x64, Any CPU. This setting is optional.
 platform: Windows
 
-# build Configuration, i.e. Debug, Release, etc.
 configuration:
   - Release
   - Checked
 
-#build:
-#  parallel: true                  # enable MSBuild parallel builds
-#  project: build\xenia.sln        # path to Visual Studio solution or project
-#
-#  # MSBuild verbosity level
-#  #verbosity: quiet|minimal|normal|detailed
-#  verbosity: minimal
-
-# scripts to run before build
-#before_build:
-  #- xb.bat lint --all
-
-# scripts to run after build
-after_build:
-  - 7z a xenia-%appveyor_repo_branch%.zip LICENSE %APPVEYOR_BUILD_FOLDER%\build\bin\%PLATFORM%\%CONFIGURATION%\xenia.exe %APPVEYOR_BUILD_FOLDER%\build\bin\%PLATFORM%\%CONFIGURATION%\xenia.pdb
-
-# to run your custom scripts instead of automatic MSBuild
-# We also compile the tests here instead of later on.
 build_script:
-  - cmd: xb.bat build --config=%CONFIGURATION% --target=src\xenia-app --target=tests\xenia-cpu-ppc-tests
+  - cmd: xb build --config=%CONFIGURATION% --target=src\xenia-app --target=tests\xenia-cpu-ppc-tests --target=src\xenia-vfs-dump
 
-# to disable automatic builds
-#build: off
+after_build:
+  - cmd: |
+      IF NOT "%CONFIGURATION%"=="Checked" SET "ARCHIVE_SUFFIX=%APPVEYOR_REPO_BRANCH%"
+      IF NOT "%CONFIGURATION%"=="Checked" SET "ARCHIVE_SWITCHES=--"
+      IF     "%CONFIGURATION%"=="Checked" SET "ARCHIVE_SUFFIX=%APPVEYOR_REPO_BRANCH%_FOR-DEVS-ONLY"
+      IF     "%CONFIGURATION%"=="Checked" SET "ARCHIVE_SWITCHES="-pI know what I am doing." --"
+      7z a xenia_%ARCHIVE_SUFFIX%.zip          %ARCHIVE_SWITCHES% LICENSE "%APPVEYOR_BUILD_FOLDER%\build\bin\%PLATFORM%\%CONFIGURATION%\xenia.exe"          "%APPVEYOR_BUILD_FOLDER%\build\bin\%PLATFORM%\%CONFIGURATION%\xenia.pdb"
+      7z a xenia-vfs-dump_%ARCHIVE_SUFFIX%.zip %ARCHIVE_SWITCHES% LICENSE "%APPVEYOR_BUILD_FOLDER%\build\bin\%PLATFORM%\%CONFIGURATION%\xenia-vfs-dump.exe" "%APPVEYOR_BUILD_FOLDER%\build\bin\%PLATFORM%\%CONFIGURATION%\xenia-vfs-dump.pdb"
+      7z a SDL2.zip                            %ARCHIVE_SWITCHES% "%APPVEYOR_BUILD_FOLDER%\build\bin\%PLATFORM%\%CONFIGURATION%\SDL2.dll"
 
-
-#---------------------------------#
-#       tests configuration       #
-#---------------------------------#
-
-# scripts to run before tests
 before_test:
-  - cmd: xb.bat gentests
+  - cmd: xb gentests
 
-# scripts to run after tests
-after_test:
-
-# to run your custom scripts instead of automatic tests
 test_script:
-  - cmd: xb.bat test --config=%CONFIGURATION% --no_build
-
-# to disable automatic tests
-#test: off
-
-
-#---------------------------------#
-#      artifacts configuration    #
-#---------------------------------#
+  - cmd: xb test --config=%CONFIGURATION% --no_build
 
 artifacts:
-  # pushing a single file
-  #- path: test.zip
-
-  # pushing a single file with environment variable in path and "Deployment name" specified
-  #- path: MyProject\bin\$(configuration)
-  #  name: myapp
-
-  # pushing entire folder as a zip archive
-  #- path: logs
-
-  # pushing all *.nupkg files in directory
-  #- path: out\*.nupkg
-
+  - path: '*.zip'
   - path: xenia-cpu-ppc-test.log
-  - path: xenia-$(appveyor_repo_branch).zip
 
-
-#---------------------------------#
-#     deployment configuration    #
-#---------------------------------#
-
-# providers: Local, FTP, WebDeploy, AzureCS, AzureBlob, S3, NuGet, Environment
-# provider names are case-sensitive!
 deploy:
   - provider: Environment
     name: xenia-master
     release: xenia-$(appveyor_repo_branch)-v$(appveyor_build_version)
-    artifact: xenia-$(appveyor_repo_branch).zip
+    artifact: '*.zip'
     draft: false
     prerelease: true
     on:
-      branch: master                # release from master branch only
-      configuration: release        # deploy release builds only
-      appveyor_repo_tag: true       # deploy on tag push only
-      is_not_pr: true               # don't deploy pull requests
-
-# scripts to run before deployment
-#before_deploy:
-
-# scripts to run after deployment
-#after_deploy:
-
-# to run your custom scripts instead of provider deployments
-#deploy_script:
-
-# to disable deployment
-# deploy: off
-
-
-#---------------------------------#
-#        global handlers          #
-#---------------------------------#
-
-# on successful build
-on_success:
-
-# on build failure
-on_failure:
-
-# after build failure or success
-on_finish:
-
-
-#---------------------------------#
-#         notifications           #
-#---------------------------------#
-
-# notifications:
-#   # Email
-#   - provider: Email
-#     to:
-#       - user1@email.com
-#       - user2@email.com
-#     subject: 'Build {{status}}'                  # optional
-#     message: "{{message}}, {{commitId}}, ..."    # optional
-#     on_build_status_changed: true
-
-#   # Webhook
-#   - provider: Webhook
-#     url: http://www.myhook2.com
-#     headers:
-#       User-Agent: myapp 1.0
-#       Authorization:
-#         secure: GhD+5xhLz/tkYY6AO3fcfQ==
-#     on_build_success: false
-#     on_build_failure: true
-#     on_build_status_changed: true
+      branch: master
+      configuration: release
+      appveyor_repo_tag: true
+      is_not_pr: true

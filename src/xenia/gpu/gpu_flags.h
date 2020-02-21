@@ -9,8 +9,7 @@
 
 #ifndef XENIA_GPU_GPU_FLAGS_H_
 #define XENIA_GPU_GPU_FLAGS_H_
-
-#include <gflags/gflags.h>
+#include "xenia/base/cvar.h"
 
 DECLARE_string(trace_gpu_prefix);
 DECLARE_bool(trace_gpu_stream);
@@ -18,5 +17,7 @@ DECLARE_bool(trace_gpu_stream);
 DECLARE_string(dump_shaders);
 
 DECLARE_bool(vsync);
+
+DECLARE_bool(gpu_allow_invalid_fetch_constants);
 
 #endif  // XENIA_GPU_GPU_FLAGS_H_

@@ -3,6 +3,9 @@
 
 #version 450 core
 #extension all : warn
+#extension GL_ARB_shading_language_420pack : require
+#extension GL_ARB_separate_shader_objects : require
+#extension GL_ARB_explicit_attrib_location : require
 
 in gl_PerVertex {
   vec4 gl_Position;
@@ -23,7 +26,6 @@ layout(location = 16) in vec2 _in_point_coord_unused[];
 layout(location = 17) in float _in_point_size_unused[];
 
 layout(location = 16) out vec2 _out_point_coord_unused;
-layout(location = 17) out float _out_point_size_unused;
 
 layout(lines_adjacency) in;
 layout(triangle_strip, max_vertices = 4) out;

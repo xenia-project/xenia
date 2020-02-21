@@ -1,11 +1,11 @@
 //
-//Copyright (C) 2014-2015 LunarG, Inc.
+// Copyright (C) 2014-2015 LunarG, Inc.
 //
-//All rights reserved.
+// All rights reserved.
 //
-//Redistribution and use in source and binary forms, with or without
-//modification, are permitted provided that the following conditions
-//are met:
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions
+// are met:
 //
 //    Redistributions of source code must retain the above copyright
 //    notice, this list of conditions and the following disclaimer.
@@ -19,25 +19,21 @@
 //    contributors may be used to endorse or promote products derived
 //    from this software without specific prior written permission.
 //
-//THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-//"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-//LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
-//FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
-//COPYRIGHT HOLDERS OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
-//INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
-//BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-//LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-//CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
-//LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
-//ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-//POSSIBILITY OF SUCH DAMAGE.
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+// FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+// COPYRIGHT HOLDERS OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+// INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+// BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+// LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+// CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+// LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+// ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+// POSSIBILITY OF SUCH DAMAGE.
 
 //
-// Author: John Kessenich, LunarG
-//
-
-//
-// 1) Programatically fill in instruction/operand information.
+// 1) Programmatically fill in instruction/operand information.
 //    This can be used for disassembly, printing documentation, etc.
 //
 // 2) Print documentation from this parameterization.
@@ -45,9 +41,23 @@
 
 #include "doc.h"
 
-#include <stdio.h>
-#include <string.h>
+#include <cstdio>
+#include <cstring>
 #include <algorithm>
+
+namespace spv {
+    extern "C" {
+        // Include C-based headers that don't have a namespace
+        #include "GLSL.ext.KHR.h"
+        #include "GLSL.ext.EXT.h"
+#ifdef AMD_EXTENSIONS
+        #include "GLSL.ext.AMD.h"
+#endif
+#ifdef NV_EXTENSIONS
+        #include "GLSL.ext.NV.h"
+#endif
+    }
+}
 
 namespace spv {
 
@@ -59,12 +69,12 @@ namespace spv {
 // Also, the ceilings are declared next to these, to help keep them in sync.
 // Ceilings should be
 //  - one more than the maximum value an enumerant takes on, for non-mask enumerants
-//    (for non-sparse enums, this is the number of enumurants)
+//    (for non-sparse enums, this is the number of enumerants)
 //  - the number of bits consumed by the set of masks
-//    (for non-sparse mask enums, this is the number of enumurants)
+//    (for non-sparse mask enums, this is the number of enumerants)
 //
 
-const int SourceLanguageCeiling = 5;
+const int SourceLanguageCeiling = 6; // HLSL todo: need official enumerant
 
 const char* SourceString(int source)
 {
@@ -74,6 +84,7 @@ const char* SourceString(int source)
     case 2:  return "GLSL";
     case 3:  return "OpenCL_C";
     case 4:  return "OpenCL_CPP";
+    case 5:  return "HLSL";
 
     case SourceLanguageCeiling:
     default: return "Bad";
@@ -165,12 +176,13 @@ const char* ExecutionModeString(int mode)
     case 31: return "ContractionOff";
     case 32: return "Bad";
 
+    case 4446:  return "PostDepthCoverage";
     case ExecutionModeCeiling:
     default: return "Bad";
     }
 }
 
-const int StorageClassCeiling = 12;
+const int StorageClassCeiling = 13;
 
 const char* StorageClassString(int StorageClass)
 {
@@ -187,6 +199,7 @@ const char* StorageClassString(int StorageClass)
     case 9:  return "PushConstant";
     case 10: return "AtomicCounter";
     case 11: return "Image";
+    case 12: return "StorageBuffer";
 
     case StorageClassCeiling:
     default: return "Bad";
@@ -246,6 +259,16 @@ const char* DecorationString(int decoration)
 
     case DecorationCeiling:
     default:  return "Bad";
+
+#ifdef AMD_EXTENSIONS
+    case 4999: return "ExplicitInterpAMD";
+#endif
+#ifdef NV_EXTENSIONS
+    case 5248: return "OverrideCoverageNV";
+    case 5250: return "PassthroughNV";
+    case 5252: return "ViewportRelativeNV";
+    case 5256: return "SecondaryViewportRelativeNV";
+#endif
     }
 }
 
@@ -298,6 +321,38 @@ const char* BuiltInString(int builtIn)
     case 41: return "SubgroupLocalInvocationId";
     case 42: return "VertexIndex";                 // TBD: put next to VertexId?
     case 43: return "InstanceIndex";               // TBD: put next to InstanceId?
+
+    case 4416: return "SubgroupEqMaskKHR";
+    case 4417: return "SubgroupGeMaskKHR";
+    case 4418: return "SubgroupGtMaskKHR";
+    case 4419: return "SubgroupLeMaskKHR";
+    case 4420: return "SubgroupLtMaskKHR";
+    case 4438: return "DeviceIndex";
+    case 4440: return "ViewIndex";
+    case 4424: return "BaseVertex";
+    case 4425: return "BaseInstance";
+    case 4426: return "DrawIndex";
+    case 5014: return "FragStencilRefEXT";
+
+#ifdef AMD_EXTENSIONS
+    case 4992: return "BaryCoordNoPerspAMD";
+    case 4993: return "BaryCoordNoPerspCentroidAMD";
+    case 4994: return "BaryCoordNoPerspSampleAMD";
+    case 4995: return "BaryCoordSmoothAMD";
+    case 4996: return "BaryCoordSmoothCentroidAMD";
+    case 4997: return "BaryCoordSmoothSampleAMD";
+    case 4998: return "BaryCoordPullModelAMD";
+#endif
+
+#ifdef NV_EXTENSIONS
+    case 5253: return "ViewportMaskNV";
+    case 5257: return "SecondaryPositionNV";
+    case 5258: return "SecondaryViewportMaskNV";
+    case 5261: return "PositionPerViewNV";
+    case 5262: return "ViewportMaskPerViewNV";
+#endif
+
+    case 5264: return "FullyCoveredEXT";
 
     case BuiltInCeiling:
     default: return "Bad";
@@ -586,13 +641,15 @@ const char* SelectControlString(int cont)
     }
 }
 
-const int LoopControlCeiling = 2;
+const int LoopControlCeiling = 4;
 
 const char* LoopControlString(int cont)
 {
     switch (cont) {
     case 0:  return "Unroll";
     case 1:  return "DontUnroll";
+    case 2:  return "DependencyInfinite";
+    case 3:  return "DependencyLength";
 
     case LoopControlCeiling:
     default: return "Bad";
@@ -776,6 +833,39 @@ const char* CapabilityString(int info)
     case 55: return "StorageImageReadWithoutFormat";
     case 56: return "StorageImageWriteWithoutFormat";
     case 57: return "MultiViewport";
+
+    case 4423: return "SubgroupBallotKHR";
+    case 4427: return "DrawParameters";
+    case 4431: return "SubgroupVoteKHR";
+
+    case 4433: return "StorageUniformBufferBlock16";
+    case 4434: return "StorageUniform16";
+    case 4435: return "StoragePushConstant16";
+    case 4436: return "StorageInputOutput16";
+
+    case 4437: return "DeviceGroup";
+    case 4439: return "MultiView";
+
+    case 5013: return "StencilExportEXT";
+
+#ifdef AMD_EXTENSIONS
+    case 5009: return "ImageGatherBiasLodAMD";
+    case 5010: return "FragmentMaskAMD";
+    case 5015: return "ImageReadWriteLodAMD";
+#endif
+
+    case 4445: return "AtomicStorageOps";
+
+    case 4447: return "SampleMaskPostDepthCoverage";
+#ifdef NV_EXTENSIONS
+    case 5251: return "GeometryShaderPassthroughNV";
+    case 5254: return "ShaderViewportIndexLayerNV";
+    case 5255: return "ShaderViewportMaskNV";
+    case 5259: return "ShaderStereoViewNV";
+    case 5260: return "PerViewAttributesNV";
+#endif
+
+    case 5265: return "FragmentFullyCoveredEXT";
 
     case CapabilityCeiling:
     default: return "Bad";
@@ -1107,6 +1197,27 @@ const char* OpcodeString(int op)
     case 319: return "OpAtomicFlagClear";
     case 320: return "OpImageSparseRead";
 
+    case 4421: return "OpSubgroupBallotKHR";
+    case 4422: return "OpSubgroupFirstInvocationKHR";
+    case 4428: return "OpSubgroupAllKHR";
+    case 4429: return "OpSubgroupAnyKHR";
+    case 4430: return "OpSubgroupAllEqualKHR";
+    case 4432: return "OpSubgroupReadInvocationKHR";
+
+#ifdef AMD_EXTENSIONS
+    case 5000: return "OpGroupIAddNonUniformAMD";
+    case 5001: return "OpGroupFAddNonUniformAMD";
+    case 5002: return "OpGroupFMinNonUniformAMD";
+    case 5003: return "OpGroupUMinNonUniformAMD";
+    case 5004: return "OpGroupSMinNonUniformAMD";
+    case 5005: return "OpGroupFMaxNonUniformAMD";
+    case 5006: return "OpGroupUMaxNonUniformAMD";
+    case 5007: return "OpGroupSMaxNonUniformAMD";
+
+    case 5011: return "OpFragmentMaskFetchAMD";
+    case 5012: return "OpFragmentFetchAMD";
+#endif
+
     case OpcodeCeiling:
     default:
         return "Bad";
@@ -1115,7 +1226,7 @@ const char* OpcodeString(int op)
 
 // The set of objects that hold all the instruction/operand
 // parameterization information.
-InstructionParameters InstructionDesc[OpcodeCeiling];
+InstructionParameters InstructionDesc[OpCodeMask + 1];
 OperandParameters ExecutionModeOperands[ExecutionModeCeiling];
 OperandParameters DecorationOperands[DecorationCeiling];
 
@@ -2447,6 +2558,7 @@ void Parameterize()
     InstructionDesc[OpLoopMerge].operands.push(OperandId, "'Merge Block'");
     InstructionDesc[OpLoopMerge].operands.push(OperandId, "'Continue Target'");
     InstructionDesc[OpLoopMerge].operands.push(OperandLoop, "");
+    InstructionDesc[OpLoopMerge].operands.push(OperandOptionalLiteral, "");
 
     InstructionDesc[OpSelectionMerge].operands.push(OperandId, "'Merge Block'");
     InstructionDesc[OpSelectionMerge].operands.push(OperandSelect, "");
@@ -2706,6 +2818,77 @@ void Parameterize()
     InstructionDesc[OpEnqueueMarker].operands.push(OperandId, "'Num Events'");
     InstructionDesc[OpEnqueueMarker].operands.push(OperandId, "'Wait Events'");
     InstructionDesc[OpEnqueueMarker].operands.push(OperandId, "'Ret Event'");
+
+    InstructionDesc[OpSubgroupBallotKHR].operands.push(OperandId, "'Predicate'");
+
+    InstructionDesc[OpSubgroupFirstInvocationKHR].operands.push(OperandId, "'Value'");
+
+    InstructionDesc[OpSubgroupAnyKHR].capabilities.push_back(CapabilitySubgroupVoteKHR);
+    InstructionDesc[OpSubgroupAnyKHR].operands.push(OperandScope, "'Execution'");
+    InstructionDesc[OpSubgroupAnyKHR].operands.push(OperandId, "'Predicate'");
+
+    InstructionDesc[OpSubgroupAllKHR].capabilities.push_back(CapabilitySubgroupVoteKHR);
+    InstructionDesc[OpSubgroupAllKHR].operands.push(OperandScope, "'Execution'");
+    InstructionDesc[OpSubgroupAllKHR].operands.push(OperandId, "'Predicate'");
+
+    InstructionDesc[OpSubgroupAllEqualKHR].capabilities.push_back(CapabilitySubgroupVoteKHR);
+    InstructionDesc[OpSubgroupAllEqualKHR].operands.push(OperandScope, "'Execution'");
+    InstructionDesc[OpSubgroupAllEqualKHR].operands.push(OperandId, "'Predicate'");
+
+    InstructionDesc[OpSubgroupReadInvocationKHR].capabilities.push_back(CapabilityGroups);
+    InstructionDesc[OpSubgroupReadInvocationKHR].operands.push(OperandId, "'Value'");
+    InstructionDesc[OpSubgroupReadInvocationKHR].operands.push(OperandId, "'Index'");
+
+#ifdef AMD_EXTENSIONS
+    InstructionDesc[OpGroupIAddNonUniformAMD].capabilities.push_back(CapabilityGroups);
+    InstructionDesc[OpGroupIAddNonUniformAMD].operands.push(OperandScope, "'Execution'");
+    InstructionDesc[OpGroupIAddNonUniformAMD].operands.push(OperandGroupOperation, "'Operation'");
+    InstructionDesc[OpGroupIAddNonUniformAMD].operands.push(OperandId, "'X'");
+
+    InstructionDesc[OpGroupFAddNonUniformAMD].capabilities.push_back(CapabilityGroups);
+    InstructionDesc[OpGroupFAddNonUniformAMD].operands.push(OperandScope, "'Execution'");
+    InstructionDesc[OpGroupFAddNonUniformAMD].operands.push(OperandGroupOperation, "'Operation'");
+    InstructionDesc[OpGroupFAddNonUniformAMD].operands.push(OperandId, "'X'");
+
+    InstructionDesc[OpGroupUMinNonUniformAMD].capabilities.push_back(CapabilityGroups);
+    InstructionDesc[OpGroupUMinNonUniformAMD].operands.push(OperandScope, "'Execution'");
+    InstructionDesc[OpGroupUMinNonUniformAMD].operands.push(OperandGroupOperation, "'Operation'");
+    InstructionDesc[OpGroupUMinNonUniformAMD].operands.push(OperandId, "'X'");
+
+    InstructionDesc[OpGroupSMinNonUniformAMD].capabilities.push_back(CapabilityGroups);
+    InstructionDesc[OpGroupSMinNonUniformAMD].operands.push(OperandScope, "'Execution'");
+    InstructionDesc[OpGroupSMinNonUniformAMD].operands.push(OperandGroupOperation, "'Operation'");
+    InstructionDesc[OpGroupSMinNonUniformAMD].operands.push(OperandId, "X");
+
+    InstructionDesc[OpGroupFMinNonUniformAMD].capabilities.push_back(CapabilityGroups);
+    InstructionDesc[OpGroupFMinNonUniformAMD].operands.push(OperandScope, "'Execution'");
+    InstructionDesc[OpGroupFMinNonUniformAMD].operands.push(OperandGroupOperation, "'Operation'");
+    InstructionDesc[OpGroupFMinNonUniformAMD].operands.push(OperandId, "X");
+
+    InstructionDesc[OpGroupUMaxNonUniformAMD].capabilities.push_back(CapabilityGroups);
+    InstructionDesc[OpGroupUMaxNonUniformAMD].operands.push(OperandScope, "'Execution'");
+    InstructionDesc[OpGroupUMaxNonUniformAMD].operands.push(OperandGroupOperation, "'Operation'");
+    InstructionDesc[OpGroupUMaxNonUniformAMD].operands.push(OperandId, "X");
+
+    InstructionDesc[OpGroupSMaxNonUniformAMD].capabilities.push_back(CapabilityGroups);
+    InstructionDesc[OpGroupSMaxNonUniformAMD].operands.push(OperandScope, "'Execution'");
+    InstructionDesc[OpGroupSMaxNonUniformAMD].operands.push(OperandGroupOperation, "'Operation'");
+    InstructionDesc[OpGroupSMaxNonUniformAMD].operands.push(OperandId, "X");
+
+    InstructionDesc[OpGroupFMaxNonUniformAMD].capabilities.push_back(CapabilityGroups);
+    InstructionDesc[OpGroupFMaxNonUniformAMD].operands.push(OperandScope, "'Execution'");
+    InstructionDesc[OpGroupFMaxNonUniformAMD].operands.push(OperandGroupOperation, "'Operation'");
+    InstructionDesc[OpGroupFMaxNonUniformAMD].operands.push(OperandId, "X");
+
+    InstructionDesc[OpFragmentMaskFetchAMD].capabilities.push_back(CapabilityFragmentMaskAMD);
+    InstructionDesc[OpFragmentMaskFetchAMD].operands.push(OperandId, "'Image'");
+    InstructionDesc[OpFragmentMaskFetchAMD].operands.push(OperandId, "'Coordinate'");
+
+    InstructionDesc[OpFragmentFetchAMD].capabilities.push_back(CapabilityFragmentMaskAMD);
+    InstructionDesc[OpFragmentFetchAMD].operands.push(OperandId, "'Image'");
+    InstructionDesc[OpFragmentFetchAMD].operands.push(OperandId, "'Coordinate'");
+    InstructionDesc[OpFragmentFetchAMD].operands.push(OperandId, "'Fragment Index'");
+#endif
 }
 
 }; // end spv namespace

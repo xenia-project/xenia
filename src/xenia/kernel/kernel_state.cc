@@ -9,8 +9,6 @@
 
 #include "xenia/kernel/kernel_state.h"
 
-#include <gflags/gflags.h>
-
 #include <string>
 
 #include "xenia/base/assert.h"
@@ -19,20 +17,15 @@
 #include "xenia/base/string.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/emulator.h"
-#include "xenia/kernel/notify_listener.h"
 #include "xenia/kernel/user_module.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xam/xam_module.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_module.h"
 #include "xenia/kernel/xevent.h"
 #include "xenia/kernel/xmodule.h"
+#include "xenia/kernel/xnotifylistener.h"
 #include "xenia/kernel/xobject.h"
 #include "xenia/kernel/xthread.h"
-
-DEFINE_bool(headless, false,
-            "Don't display any UI, using defaults for prompts as needed.");
-DEFINE_string(content_root, "content",
-              "Root path for content (save/etc) storage.");
 
 namespace xe {
 namespace kernel {
@@ -57,7 +50,7 @@ KernelState::KernelState(Emulator* emulator)
   app_manager_ = std::make_unique<xam::AppManager>();
   user_profile_ = std::make_unique<xam::UserProfile>();
 
-  auto content_root = xe::to_wstring(FLAGS_content_root);
+  auto content_root = emulator_->content_root();
   content_root = xe::to_absolute_path(content_root);
   content_manager_ = std::make_unique<xam::ContentManager>(this, content_root);
 
@@ -374,8 +367,7 @@ object_ref<UserModule> KernelState::LoadUserModule(const char* raw_name,
     // See if we've already loaded it
     for (auto& existing_module : user_modules_) {
       if (existing_module->path() == path) {
-        existing_module->Retain();
-        return retain_object(existing_module.get());
+        return existing_module;
       }
     }
 
@@ -385,14 +377,13 @@ object_ref<UserModule> KernelState::LoadUserModule(const char* raw_name,
     module = object_ref<UserModule>(new UserModule(this));
     X_STATUS status = module->LoadFromFile(path);
     if (XFAILED(status)) {
-      object_table()->RemoveHandle(module->handle());
+      object_table()->ReleaseHandle(module->handle());
       return nullptr;
     }
 
     global_lock.lock();
 
-    // Retain when putting into the listing.
-    module->Retain();
+    // Putting into the listing automatically retains.
     user_modules_.push_back(module);
   }
 
@@ -412,6 +403,39 @@ object_ref<UserModule> KernelState::LoadUserModule(const char* raw_name,
   }
 
   return module;
+}
+
+void KernelState::UnloadUserModule(const object_ref<UserModule>& module,
+                                   bool call_entry) {
+  auto global_lock = global_critical_region_.Acquire();
+
+  if (module->is_dll_module() && module->entry_point() && call_entry) {
+    // Call DllMain(DLL_PROCESS_DETACH):
+    // https://msdn.microsoft.com/en-us/library/windows/desktop/ms682583%28v=vs.85%29.aspx
+    uint64_t args[] = {
+        module->handle(),
+        0,  // DLL_PROCESS_DETACH
+        0,  // 0 for now, assume XexUnloadImage is like FreeLibrary
+    };
+    auto thread_state = XThread::GetCurrentThread()->thread_state();
+    processor()->Execute(thread_state, module->entry_point(), args,
+                         xe::countof(args));
+  }
+
+  auto iter = std::find_if(
+      user_modules_.begin(), user_modules_.end(),
+      [&module](const auto& e) { return e->path() == module->path(); });
+  assert_true(iter != user_modules_.end());  // Unloading an unregistered module
+                                             // is probably really bad
+  user_modules_.erase(iter);
+
+  // Ensure this module was not somehow registered twice
+  assert_true(std::find_if(user_modules_.begin(), user_modules_.end(),
+                           [&module](const auto& e) {
+                             return e->path() == module->path();
+                           }) == user_modules_.end());
+
+  object_table()->ReleaseHandle(module->handle());
 }
 
 void KernelState::TerminateTitle() {
@@ -575,13 +599,13 @@ object_ref<XThread> KernelState::GetThreadByID(uint32_t thread_id) {
   return retain_object(thread);
 }
 
-void KernelState::RegisterNotifyListener(NotifyListener* listener) {
+void KernelState::RegisterNotifyListener(XNotifyListener* listener) {
   auto global_lock = global_critical_region_.Acquire();
   notify_listeners_.push_back(retain_object(listener));
 
   // Games seem to expect a few notifications on startup, only for the first
   // listener.
-  // http://cs.rin.ru/forum/viewtopic.php?f=38&t=60668&hilit=resident+evil+5&start=375
+  // https://cs.rin.ru/forum/viewtopic.php?f=38&t=60668&hilit=resident+evil+5&start=375
   if (!has_notified_startup_ && listener->mask() & 0x00000001) {
     has_notified_startup_ = true;
     // XN_SYS_UI (on, off)
@@ -599,7 +623,7 @@ void KernelState::RegisterNotifyListener(NotifyListener* listener) {
   }
 }
 
-void KernelState::UnregisterNotifyListener(NotifyListener* listener) {
+void KernelState::UnregisterNotifyListener(XNotifyListener* listener) {
   auto global_lock = global_critical_region_.Acquire();
   for (auto it = notify_listeners_.begin(); it != notify_listeners_.end();
        ++it) {

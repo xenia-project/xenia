@@ -9,8 +9,6 @@
 
 #include "xenia/base/logging.h"
 
-#include <gflags/gflags.h>
-
 #include <atomic>
 #include <cinttypes>
 #include <cstdarg>
@@ -19,6 +17,7 @@
 #include <vector>
 
 #include "xenia/base/atomic.h"
+#include "xenia/base/cvar.h"
 #include "xenia/base/debugging.h"
 #include "xenia/base/filesystem.h"
 #include "xenia/base/main.h"
@@ -26,6 +25,7 @@
 #include "xenia/base/memory.h"
 #include "xenia/base/ring_buffer.h"
 #include "xenia/base/threading.h"
+//#include "xenia/base/cvar.h"
 
 // For MessageBox:
 // TODO(benvanik): generic API? logging_win.cc?
@@ -35,12 +35,15 @@
 
 DEFINE_string(
     log_file, "",
-    "Logs are written to the given file (specify stdout for command line)");
-DEFINE_bool(log_debugprint, false, "Dump the log to DebugPrint.");
-DEFINE_bool(flush_log, true, "Flush log file after each log line batch.");
+    "Logs are written to the given file (specify stdout for command line)",
+    "Logging");
+DEFINE_bool(log_to_debugprint, false, "Dump the log to DebugPrint.", "Logging");
+DEFINE_bool(flush_log, true, "Flush log file after each log line batch.",
+            "Logging");
 DEFINE_int32(
     log_level, 2,
-    "Maximum level to be logged. (0=error, 1=warning, 2=info, 3=debug)");
+    "Maximum level to be logged. (0=error, 1=warning, 2=info, 3=debug)",
+    "Logging");
 
 namespace xe {
 
@@ -52,16 +55,16 @@ thread_local std::vector<char> log_format_buffer_(64 * 1024);
 class Logger {
  public:
   explicit Logger(const std::wstring& app_name) : running_(true) {
-    if (FLAGS_log_file.empty()) {
+    if (cvars::log_file.empty()) {
       // Default to app name.
       auto file_path = app_name + L".log";
       xe::filesystem::CreateParentFolder(file_path);
       file_ = xe::filesystem::OpenFile(file_path, "wt");
     } else {
-      if (FLAGS_log_file == "stdout") {
+      if (cvars::log_file == "stdout") {
         file_ = stdout;
       } else {
-        auto file_path = xe::to_wstring(FLAGS_log_file.c_str());
+        auto file_path = xe::to_wstring(cvars::log_file);
         xe::filesystem::CreateParentFolder(file_path);
         file_ = xe::filesystem::OpenFile(file_path, "wt");
       }
@@ -81,7 +84,7 @@ class Logger {
 
   void AppendLine(uint32_t thread_id, LogLevel level, const char prefix_char,
                   const char* buffer, size_t buffer_length) {
-    if (static_cast<int32_t>(level) > FLAGS_log_level) {
+    if (static_cast<int32_t>(level) > cvars::log_level) {
       // Discard this line.
       return;
     }
@@ -148,7 +151,7 @@ class Logger {
       fwrite(buf, 1, size, file_);
     }
 
-    if (FLAGS_log_debugprint) {
+    if (cvars::log_to_debugprint) {
       debugging::DebugPrint("%.*s", size, buf);
     }
   }
@@ -156,9 +159,12 @@ class Logger {
   void WriteThread() {
     RingBuffer rb(buffer_, kBufferSize);
     uint32_t idle_loops = 0;
-    while (running_) {
+    while (true) {
       bool did_write = false;
       rb.set_write_offset(write_tail_);
+      if (!running_ && rb.empty()) {
+        break;
+      }
       while (!rb.empty()) {
         did_write = true;
 
@@ -211,7 +217,7 @@ class Logger {
         read_head_ = rb.read_offset();
       }
       if (did_write) {
-        if (FLAGS_flush_log) {
+        if (cvars::flush_log) {
           fflush(file_);
         }
 
@@ -227,8 +233,8 @@ class Logger {
     }
   }
 
+  volatile size_t write_tail_ = 0;
   size_t write_head_ = 0;
-  size_t write_tail_ = 0;
   size_t read_head_ = 0;
   uint8_t buffer_[kBufferSize];
   FILE* file_ = nullptr;
@@ -238,17 +244,28 @@ class Logger {
 };
 
 void InitializeLogging(const std::wstring& app_name) {
-  // We leak this intentionally - lots of cleanup code needs it.
   auto mem = memory::AlignedAlloc<Logger>(0x10);
   logger_ = new (mem) Logger(app_name);
 }
 
+void ShutdownLogging() {
+  Logger* logger = logger_;
+  logger_ = nullptr;
+
+  logger->~Logger();
+  memory::AlignedFree(logger);
+}
+
 void LogLineFormat(LogLevel log_level, const char prefix_char, const char* fmt,
                    ...) {
+  if (!logger_) {
+    return;
+  }
+
   va_list args;
   va_start(args, fmt);
-  int chars_written = vsnprintf(log_format_buffer_.data(),
-                                log_format_buffer_.capacity(), fmt, args);
+  int chars_written = std::vsnprintf(log_format_buffer_.data(),
+                                     log_format_buffer_.capacity(), fmt, args);
   va_end(args);
   if (chars_written >= 0 && chars_written < log_format_buffer_.capacity()) {
     logger_->AppendLine(xe::threading::current_thread_id(), log_level,
@@ -261,8 +278,12 @@ void LogLineFormat(LogLevel log_level, const char prefix_char, const char* fmt,
 
 void LogLineVarargs(LogLevel log_level, const char prefix_char, const char* fmt,
                     va_list args) {
-  int chars_written = vsnprintf(log_format_buffer_.data(),
-                                log_format_buffer_.capacity(), fmt, args);
+  if (!logger_) {
+    return;
+  }
+
+  int chars_written = std::vsnprintf(log_format_buffer_.data(),
+                                     log_format_buffer_.capacity(), fmt, args);
   if (chars_written < 0) {
     return;
   }
@@ -275,6 +296,10 @@ void LogLineVarargs(LogLevel log_level, const char prefix_char, const char* fmt,
 
 void LogLine(LogLevel log_level, const char prefix_char, const char* str,
              size_t str_length) {
+  if (!logger_) {
+    return;
+  }
+
   logger_->AppendLine(
       xe::threading::current_thread_id(), log_level, prefix_char, str,
       str_length == std::string::npos ? std::strlen(str) : str_length);
@@ -282,6 +307,10 @@ void LogLine(LogLevel log_level, const char prefix_char, const char* str,
 
 void LogLine(LogLevel log_level, const char prefix_char,
              const std::string& str) {
+  if (!logger_) {
+    return;
+  }
+
   logger_->AppendLine(xe::threading::current_thread_id(), log_level,
                       prefix_char, str.c_str(), str.length());
 }
@@ -289,23 +318,44 @@ void LogLine(LogLevel log_level, const char prefix_char,
 void FatalError(const char* fmt, ...) {
   va_list args;
   va_start(args, fmt);
-  LogLineVarargs(LogLevel::LOG_LEVEL_ERROR, 'X', fmt, args);
+  LogLineVarargs(LogLevel::Error, 'X', fmt, args);
   va_end(args);
 
 #if XE_PLATFORM_WIN32
   if (!xe::has_console_attached()) {
     va_start(args, fmt);
-    vsnprintf(log_format_buffer_.data(), log_format_buffer_.capacity(), fmt,
-              args);
+    std::vsnprintf(log_format_buffer_.data(), log_format_buffer_.capacity(),
+                   fmt, args);
     va_end(args);
     MessageBoxA(NULL, log_format_buffer_.data(), "Xenia Error",
                 MB_OK | MB_ICONERROR | MB_APPLMODAL | MB_SETFOREGROUND);
   }
 #endif  // WIN32
+  ShutdownLogging();
+  std::exit(1);
+}
 
-  exit(1);
+void FatalError(const wchar_t* fmt, ...) {
+  va_list args;
+  va_start(args, fmt);
+  std::vswprintf((wchar_t*)log_format_buffer_.data(),
+                 log_format_buffer_.capacity() >> 1, fmt, args);
+  va_end(args);
+
+  LogLine(LogLevel::Error, 'X',
+          xe::to_string((wchar_t*)log_format_buffer_.data()));
+
+#if XE_PLATFORM_WIN32
+  if (!xe::has_console_attached()) {
+    MessageBoxW(NULL, (wchar_t*)log_format_buffer_.data(), L"Xenia Error",
+                MB_OK | MB_ICONERROR | MB_APPLMODAL | MB_SETFOREGROUND);
+  }
+#endif  // WIN32
+  ShutdownLogging();
+  std::exit(1);
 }
 
 void FatalError(const std::string& str) { FatalError(str.c_str()); }
+void FatalError(const std::wstring& str) { FatalError(str.c_str()); }
 
 }  // namespace xe

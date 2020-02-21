@@ -34,7 +34,7 @@ namespace vfs {
 class Device;
 class File;
 
-// Matches http://source.winehq.org/source/include/winternl.h#1591.
+// Matches https://source.winehq.org/source/include/winternl.h#1591.
 enum class FileAction {
   kSuperseded = 0,
   kOpened = 1,
@@ -98,6 +98,9 @@ class Entry {
 
   Entry* GetChild(std::string name);
 
+  const std::vector<std::unique_ptr<Entry>>& children() const {
+    return children_;
+  }
   size_t child_count() const { return children_.size(); }
   Entry* IterateChildren(const xe::filesystem::WildcardEngine& engine,
                          size_t* current_index);
@@ -117,6 +120,7 @@ class Entry {
                                                    size_t length = 0) {
     return nullptr;
   }
+  virtual void update() { return; }
 
  protected:
   Entry(Device* device, Entry* parent, const std::string& path);

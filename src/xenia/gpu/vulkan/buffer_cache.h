@@ -15,10 +15,15 @@
 #include "xenia/gpu/xenos.h"
 #include "xenia/memory.h"
 #include "xenia/ui/vulkan/circular_buffer.h"
+#include "xenia/ui/vulkan/fenced_pools.h"
 #include "xenia/ui/vulkan/vulkan.h"
 #include "xenia/ui/vulkan/vulkan_device.h"
 
+#include "third_party/vulkan/vk_mem_alloc.h"
+#include "third_party/xxhash/xxhash.h"
+
 #include <map>
+#include <unordered_map>
 
 namespace xe {
 namespace gpu {
@@ -43,10 +48,16 @@ class BufferCache {
   //   binding = 0: for use in vertex shaders
   //   binding = 1: for use in fragment shaders
   VkDescriptorSet constant_descriptor_set() const {
-    return transient_descriptor_set_;
+    return constant_descriptor_set_;
   }
   VkDescriptorSetLayout constant_descriptor_set_layout() const {
-    return descriptor_set_layout_;
+    return constant_descriptor_set_layout_;
+  }
+
+  // Descriptor set containing vertex buffers stored in storage buffers.
+  // This set contains one binding with an array of 32 storage buffers.
+  VkDescriptorSetLayout vertex_descriptor_set_layout() const {
+    return vertex_descriptor_set_layout_;
   }
 
   // Uploads the constants specified in the register maps to the transient
@@ -77,6 +88,11 @@ class BufferCache {
       VkCommandBuffer command_buffer, uint32_t source_addr,
       uint32_t source_length, Endian endian, VkFence fence);
 
+  // Prepares and returns a vertex descriptor set.
+  VkDescriptorSet PrepareVertexSet(
+      VkCommandBuffer setup_buffer, VkFence fence,
+      const std::vector<Shader::VertexBinding>& vertex_bindings);
+
   // Flushes all pending data to the GPU.
   // Until this is called the GPU is not guaranteed to see any data.
   // The given command buffer will be used to queue up events so that the
@@ -95,6 +111,25 @@ class BufferCache {
   void Scavenge();
 
  private:
+  // This represents an uploaded vertex buffer.
+  struct VertexBuffer {
+    uint32_t guest_address;
+    uint32_t size;
+
+    VmaAllocation alloc;
+    VmaAllocationInfo alloc_info;
+  };
+
+  VkResult CreateVertexDescriptorPool();
+  void FreeVertexDescriptorPool();
+
+  VkResult CreateConstantDescriptorSet();
+  void FreeConstantDescriptorSet();
+
+  void HashVertexBindings(
+      XXH64_state_t* hash_state,
+      const std::vector<Shader::VertexBinding>& vertex_bindings);
+
   // Allocates a block of memory in the transient buffer.
   // When memory is not available fences are checked and space is reclaimed.
   // Returns VK_WHOLE_SIZE if requested amount of memory is not available.
@@ -115,15 +150,24 @@ class BufferCache {
   ui::vulkan::VulkanDevice* device_ = nullptr;
 
   VkDeviceMemory gpu_memory_pool_ = nullptr;
+  VmaAllocator mem_allocator_ = nullptr;
 
   // Staging ringbuffer we cycle through fast. Used for data we don't
   // plan on keeping past the current frame.
   std::unique_ptr<ui::vulkan::CircularBuffer> transient_buffer_ = nullptr;
-  std::map<uint64_t, VkDeviceSize> transient_cache_;
+  std::map<uint32_t, std::pair<uint32_t, VkDeviceSize>> transient_cache_;
 
-  VkDescriptorPool descriptor_pool_ = nullptr;
-  VkDescriptorSetLayout descriptor_set_layout_ = nullptr;
-  VkDescriptorSet transient_descriptor_set_ = nullptr;
+  // Vertex buffer descriptors
+  std::unique_ptr<ui::vulkan::DescriptorPool> vertex_descriptor_pool_ = nullptr;
+  VkDescriptorSetLayout vertex_descriptor_set_layout_ = nullptr;
+
+  // Current frame vertex sets.
+  std::unordered_map<uint64_t, VkDescriptorSet> vertex_sets_;
+
+  // Descriptor set used to hold vertex/pixel shader float constants
+  VkDescriptorPool constant_descriptor_pool_ = nullptr;
+  VkDescriptorSetLayout constant_descriptor_set_layout_ = nullptr;
+  VkDescriptorSet constant_descriptor_set_ = nullptr;
 };
 
 }  // namespace vulkan

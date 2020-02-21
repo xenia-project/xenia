@@ -9,6 +9,7 @@ Run with --help or no arguments for possible commands.
 from __future__ import print_function
 
 import argparse
+import json
 import os
 import re
 import shutil
@@ -47,7 +48,7 @@ def main():
         if vs_version is None:
             print('ERROR: Visual Studio not found!')
             print('Please refer to the building guide:')
-            print('https://github.com/benvanik/xenia/blob/master/docs/building.md')
+            print('https://github.com/xenia-project/xenia/blob/master/docs/building.md')
             sys.exit(1)
 
     # Setup main argument parser and common arguments.
@@ -89,26 +90,42 @@ def import_vs_environment():
     interesting environment variables into os.environ.
 
     Returns:
-      A version such as 2015 or None if no VS is found.
+      A version such as 2015 or None if no installation is found.
     """
     version = 0
+    install_path = None
+    env_tool_args = None
 
-    candidate_path = subprocess.check_output('third_party/vswhere/vswhere.exe -version "[15,)" -latest -format value -property installationPath', shell=False, universal_newlines=True)
-    candidate_path = candidate_path.strip()
+    vswhere = subprocess.check_output('third_party/vswhere/vswhere.exe -version "[15,)" -latest -prerelease -format json -utf8', shell=False, universal_newlines=True, encoding="utf-8")
+    if vswhere:
+        vswhere = json.loads(vswhere)
+    if vswhere and len(vswhere) > 0:
+        version = int(vswhere[0].get("catalog", {}).get("productLineVersion", 2017))
+        install_path = vswhere[0].get("installationPath", None)
 
-    tools_path = ''
-    if candidate_path:
-        tools_path = os.path.join(candidate_path, 'vc\\auxiliary\\build\\vcvarsall.bat')
-        if os.path.isfile(tools_path) and os.access(tools_path, os.X_OK):
-            version = 2017
-    if version == 0 and 'VS140COMNTOOLS' in os.environ:
-        version = 2015
-        tools_path = os.environ['VS140COMNTOOLS']
-        tools_path = os.path.join(tools_path, '..\\..\\vc\\vcvarsall.bat')
+    if version < 2017:
+        if 'VS140COMNTOOLS' in os.environ:
+            version = 2015
+            vcvars_path = os.environ['VS140COMNTOOLS']
+            vcvars_path = os.path.join(tools_path, '..\\..\\vc\\vcvarsall.bat')
+            env_tool_args = [vcvars_path, 'x64', '&&', 'set']
+    else:
+        vsdevcmd_path = os.path.join(install_path, 'Common7\\Tools\\VsDevCmd.bat')
+        if os.path.isfile(vsdevcmd_path) and os.access(vsdevcmd_path, os.X_OK):
+            env_tool_args = [vsdevcmd_path, '-arch=amd64', '-host_arch=amd64', '&&', 'set']
+        else:
+            vcvars_path = os.path.join(install_path, 'VC\\Auxiliary\\Build\\vcvarsall.bat')
+            env_tool_args = [vcvars_path, 'x64', '&&', 'set']
+
     if version == 0:
         return None
 
-    args = [tools_path, 'x64', '&&', 'set']
+    import_subprocess_environment(env_tool_args)
+    os.environ['VSVERSION'] = str(version)
+    return version
+
+
+def import_subprocess_environment(args):
     popen = subprocess.Popen(
         args, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
     variables, _ = popen.communicate()
@@ -132,10 +149,6 @@ def import_vs_environment():
                     setting = os.path.dirname(sys.executable) + os.pathsep + setting
                 os.environ[var.upper()] = setting
                 break
-
-    os.environ['VSVERSION'] = str(version)
-    return version
-
 
 def has_bin(binary):
     """Checks whether the given binary is present.
@@ -304,29 +317,32 @@ def get_clang_format_binary():
         if has_bin(binary):
             return binary
     print('ERROR: clang-format is not on PATH')
-    print('LLVM is available from http://llvm.org/releases/download.html')
+    print('LLVM is available from https://llvm.org/releases/download.html')
     print('At least version 3.8 is required.')
     print('See docs/style_guide.md for instructions on how to get it.')
     sys.exit(1)
 
 
-def run_premake(target_os, action):
+def run_premake(target_os, action, cc=None):
     """Runs premake on the main project with the given format.
 
     Args:
       target_os: target --os to pass to premake.
       action: action to preform.
     """
-    ret = subprocess.call([
-        'python',
+    args = [
+        sys.executable,
         os.path.join('tools', 'build', 'premake'),
         '--file=premake5.lua',
         '--os=%s' % target_os,
-        '--cc=clang',
         '--test-suite-mode=combined',
         '--verbose',
         action,
-        ], shell=False)
+    ]
+    if cc:
+        args.insert(4, '--cc=%s' % cc)
+
+    ret = subprocess.call(args, shell=False)
 
     if ret == 0:
         generate_version_h()
@@ -344,7 +360,7 @@ def run_premake_clean():
         return run_premake('linux', 'clean')
 
 
-def run_platform_premake():
+def run_platform_premake(cc=None):
     """Runs all gyp configurations.
     """
     if sys.platform == 'darwin':
@@ -356,7 +372,7 @@ def run_platform_premake():
 
         return run_premake('windows', 'vs' + vs_version)
     else:
-        ret = run_premake('linux', 'gmake')
+        ret = run_premake('linux', 'gmake', cc)
         ret = ret != 0 and run_premake('linux', 'codelite') or ret
         return ret
 
@@ -389,7 +405,7 @@ def get_build_bin_path(args):
         platform = 'windows'
     else:
         platform = 'linux'
-    return os.path.join(self_path, 'build', 'bin', platform, args['config'])
+    return os.path.join(self_path, 'build', 'bin', platform.capitalize(), args['config'].capitalize())
 
 
 def discover_commands(subparsers):
@@ -420,6 +436,7 @@ def discover_commands(subparsers):
         }
     if sys.platform == 'win32':
         commands['devenv'] = DevenvCommand(subparsers)
+        commands['buildhlsl'] = BuildHlslCommand(subparsers)
     return commands
 
 
@@ -546,12 +563,14 @@ class PremakeCommand(Command):
             name='premake',
             help_short='Runs premake to update all projects.',
             *args, **kwargs)
+        self.parser.add_argument(
+            '--cc', default='clang', help='Compiler toolchain passed to premake')
 
     def execute(self, args, pass_args, cwd):
         # Update premake. If no binary found, it will be built from source.
         print('Running premake...')
         print('')
-        if run_platform_premake() == 0:
+        if run_platform_premake(args['cc']) == 0:
             print('Success!')
 
         return 0
@@ -565,6 +584,8 @@ class BaseBuildCommand(Command):
             subparsers,
             *args, **kwargs)
         self.parser.add_argument(
+            '--cc', default='clang', help='Compiler toolchain passed to premake')
+        self.parser.add_argument(
             '--config', choices=['checked', 'debug', 'release'], default='debug',
             type=str.lower, help='Chooses the build configuration.')
         self.parser.add_argument(
@@ -577,12 +598,12 @@ class BaseBuildCommand(Command):
             '--no_premake', action='store_true',
             help='Skips running premake before building.')
         self.parser.add_argument(
-            '-j', default=0, type=int, help='Number of parallel threads')
+            '-j', default=4, type=int, help='Number of parallel threads')
 
     def execute(self, args, pass_args, cwd):
         if not args['no_premake']:
             print('- running premake...')
-            run_platform_premake()
+            run_platform_premake(args['cc'])
             print('')
 
         threads = args['j']
@@ -613,15 +634,9 @@ class BaseBuildCommand(Command):
             print('ERROR: don\'t know how to build on this platform.')
             result = 1
         else:
-            # TODO(benvanik): allow gcc?
-            if 'CXX' not in os.environ:
-                os.environ['CXX'] = 'clang++-3.8'
-            if 'CC' not in os.environ:
-                os.environ['CC'] = 'clang-3.8'
-
             result = subprocess.call([
                 'make',
-                '-j' if threads is 0 else '-j%d' % threads,
+                '-j' if threads == 0 else '-j%d' % threads,
                 '-Cbuild/',
                 'config=%s_linux' % (args['config']),
             ] + pass_args + args['target'], shell=False, env=dict(os.environ))
@@ -710,6 +725,7 @@ class GenSpirvCommand(Command):
             # GLSL source -> .spv binary
             shell_call([
                 glslang,
+                '-Os',
                 '-V', src_file,
                 '-o', spv_file,
                 ])
@@ -743,6 +759,95 @@ class GenSpirvCommand(Command):
 
         if any_errors:
             print('ERROR: failed to build one or more SPIR-V files.')
+            return 1
+
+        return 0
+
+
+class BuildHlslCommand(Command):
+    """'buildhlsl' command."""
+
+    def __init__(self, subparsers, *args, **kwargs):
+        super(BuildHlslCommand, self).__init__(
+            subparsers,
+            name='buildhlsl',
+            help_short='Generates Direct3D shader binaries and header files.',
+            help_long='''
+            Generates the .cso/.h binaries under src/xenia/*/d3d12/shaders/dxbc/.
+            Run after modifying any .hs/vs/ds/gs/ps/cs.hlsl files.
+            ''',
+            *args, **kwargs)
+
+    def execute(self, args, pass_args, cwd):
+        print('Building Direct3D shaders...')
+        print('')
+
+        windows_sdk_bin_path = os.path.join(os.environ['ProgramFiles(x86)'],
+                                            'Windows Kits/10/bin/x64')
+        fxc = os.path.join(windows_sdk_bin_path, 'fxc')
+
+        # Ensure we have the tools.
+        if not os.path.exists(windows_sdk_bin_path):
+            print('ERROR: could not find Windows 10 SDK binaries')
+            return 1
+        elif not has_bin(fxc):
+            print('ERROR: could not find fxc')
+            return 1
+
+        src_files = [os.path.join(root, name)
+                     for root, dirs, files in os.walk('src')
+                     for name in files
+                     if (name.endswith('.hs.hlsl') or
+                         name.endswith('.vs.hlsl') or
+                         name.endswith('.ds.hlsl') or
+                         name.endswith('.gs.hlsl') or
+                         name.endswith('.ps.hlsl') or
+                         name.endswith('.cs.hlsl'))]
+
+        # TODO(Triang3l): Handle any_errors.
+        any_errors = False
+        for src_file in src_files:
+            print('- %s' % (src_file))
+            src_name = os.path.splitext(os.path.basename(src_file))[0]
+            identifier = os.path.basename(src_file)[:-5].replace('.', '_')
+
+            bin_path = os.path.join(os.path.dirname(src_file), 'dxbc')
+            if not os.path.exists(bin_path):
+                os.mkdir(bin_path)
+            cso_file = os.path.join(bin_path, identifier) + '.cso'
+            txt_file = os.path.join(bin_path, identifier) + '.txt'
+            h_file = os.path.join(bin_path, identifier) + '.h'
+
+            # HLSL source -> .cso binary and DXBC disassembly.
+            shell_call([
+                fxc,
+                '/nologo',
+                '/T', identifier[-2:] + '_5_1',
+                '/Fo', cso_file,
+                '/Fc', txt_file,
+                src_file,
+                ])
+
+            # bin2c so we get a header file we can compile in.
+            with open(h_file, 'w') as out_file:
+                out_file.write('// generated from `xb buildhlsl`\n')
+                out_file.write('// source: %s\n' % os.path.basename(src_file))
+                out_file.write('const uint8_t %s[] = {' % (identifier))
+                with open(cso_file, 'rb') as in_file:
+                    index = 0
+                    c = in_file.read(1)
+                    while len(c) != 0:
+                        if index % 12 == 0:
+                            out_file.write('\n    ')
+                        else:
+                            out_file.write(' ')
+                        index += 1
+                        out_file.write('0x%02X,' % ord(c))
+                        c = in_file.read(1)
+                out_file.write('\n};\n')
+
+        if any_errors:
+            print('ERROR: failed to build one or more shaders.')
             return 1
 
         return 0
@@ -943,7 +1048,7 @@ class GpuTestCommand(BaseBuildCommand):
 
         # The test executables that will be built and run.
         test_targets = args['target'] or [
-            'xenia-gpu-gl4-trace-dump',
+            'xenia-gpu-vulkan-trace-dump',
             ]
         args['target'] = test_targets
 
@@ -975,7 +1080,7 @@ class GpuTestCommand(BaseBuildCommand):
         # Run tests.
         any_failed = False
         result = shell_call([
-            'python',
+            sys.executable,
             os.path.join(self_path, 'tools', 'gpu-trace-diff'),
             '--executable=' + test_executables[0],
             '--trace_path=' + os.path.join(reference_trace_root, 'traces'),
@@ -1120,7 +1225,7 @@ class LintCommand(Command):
                         file_path,
                         ], throw_on_error=False, stdout_path=difftemp)
                     shell_call([
-                        'python',
+                        sys.executable,
                         'tools/diff.py',
                         file_path,
                         difftemp,
@@ -1143,7 +1248,7 @@ class LintCommand(Command):
             print('- git-clang-format --diff')
             if os.path.exists(difftemp): os.remove(difftemp)
             ret = shell_call([
-                'python',
+                sys.executable,
                 'third_party/clang-format/git-clang-format',
                 '--binary=%s' % (clang_format_binary),
                 '--commit=%s' % ('origin/master' if args['origin'] else 'HEAD'),
@@ -1159,7 +1264,7 @@ class LintCommand(Command):
                 any_errors = True
                 print('')
                 shell_call([
-                    'python',
+                    sys.executable,
                     'third_party/clang-format/git-clang-format',
                     '--binary=%s' % (clang_format_binary),
                     '--commit=%s' % ('origin/master' if args['origin'] else 'HEAD'),
@@ -1215,7 +1320,7 @@ class FormatCommand(Command):
         else:
             print('- git-clang-format')
             shell_call([
-                'python',
+                sys.executable,
                 'third_party/clang-format/git-clang-format',
                 '--binary=%s' % (clang_format_binary),
                 '--commit=%s' % ('origin/master' if args['origin'] else 'HEAD'),
@@ -1241,7 +1346,7 @@ class StyleCommand(Command):
                      if not file_path.endswith('_test.cc')]
         print('- cpplint [%d files]' % (len(all_files)))
         ret = shell_call([
-            'python',
+            sys.executable,
             'third_party/google-styleguide/cpplint/cpplint.py',
             '--output=vs7',
             '--linelength=80',
@@ -1265,7 +1370,7 @@ class TidyCommand(Command):
         super(TidyCommand, self).__init__(
             subparsers,
             name='tidy',
-            help_short='Runs the clang-tiday checker on all code.',
+            help_short='Runs the clang-tidy checker on all code.',
             *args, **kwargs)
         self.parser.add_argument(
             '--fix', action='store_true',

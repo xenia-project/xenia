@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2014 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -347,9 +347,9 @@ bool RegisterAllocationPass::SpillOneRegister(HIRBuilder* builder, Block* block,
   DumpUsage("SpillOneRegister (pre)");
   // Pick the one with the furthest next use.
   assert_true(!usage_set->upcoming_uses.empty());
-  auto furthest_usage = std::max_element(usage_set->upcoming_uses.begin(),
-                                         usage_set->upcoming_uses.end(),
-                                         RegisterUsage::Comparer());
+  auto furthest_usage =
+      std::max_element(usage_set->upcoming_uses.begin(),
+                       usage_set->upcoming_uses.end(), &RegisterUsage::Compare);
   assert_true(furthest_usage->value->def->block == block);
   assert_true(furthest_usage->use->instr->block == block);
   auto spill_value = furthest_usage->value;
@@ -489,7 +489,7 @@ int CompareValueUse(const Value::Use* a, const Value::Use* b) {
 }  // namespace
 void RegisterAllocationPass::SortUsageList(Value* value) {
   // Modified in-place linked list sort from:
-  // http://www.chiark.greenend.org.uk/~sgtatham/algorithms/listsort.c
+  // https://www.chiark.greenend.org.uk/~sgtatham/algorithms/listsort.c
   if (!value->use_head) {
     return;
   }

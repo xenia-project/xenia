@@ -26,8 +26,8 @@ namespace gpu {
 // Nvidia Optimus/AMD PowerXpress support.
 // These exports force the process to trigger the discrete GPU in multi-GPU
 // systems.
-// http://developer.download.nvidia.com/devzone/devcenter/gamegraphics/files/OptimusRenderingPolicies.pdf
-// http://stackoverflow.com/questions/17458803/amd-equivalent-to-nvoptimusenablement
+// https://developer.download.nvidia.com/devzone/devcenter/gamegraphics/files/OptimusRenderingPolicies.pdf
+// https://stackoverflow.com/questions/17458803/amd-equivalent-to-nvoptimusenablement
 #if XE_PLATFORM_WIN32
 extern "C" {
 __declspec(dllexport) uint32_t NvOptimusEnablement = 0x00000001;
@@ -68,10 +68,14 @@ X_STATUS GraphicsSystem::Setup(cpu::Processor* processor,
 
     if (!processor_context) {
       xe::FatalError(
-          "Unable to initialize graphics context. Xenia requires OpenGL 4.5 or "
-          "Vulkan support. Ensure you have the latest drivers for your GPU and "
-          "that it supports OpenGL or Vulkan. See http://xenia.jp/faq/ for "
-          "more information.");
+          "Unable to initialize graphics context. Xenia requires Vulkan "
+          "support.\n"
+          "\n"
+          "Ensure you have the latest drivers for your GPU and "
+          "that it supports Vulkan.\n"
+          "\n"
+          "See https://xenia.jp/faq/ for more information and a list of "
+          "supported GPUs.");
       return X_STATUS_UNSUCCESSFUL;
     }
   }
@@ -109,7 +113,7 @@ X_STATUS GraphicsSystem::Setup(cpu::Processor* processor,
   vsync_worker_running_ = true;
   vsync_worker_thread_ = kernel::object_ref<kernel::XHostThread>(
       new kernel::XHostThread(kernel_state_, 128 * 1024, 0, [this]() {
-        uint64_t vsync_duration = FLAGS_vsync ? 16 : 1;
+        uint64_t vsync_duration = cvars::vsync ? 16 : 1;
         uint64_t last_frame_time = Clock::QueryGuestTickCount();
         while (vsync_worker_running_) {
           uint64_t current_time = Clock::QueryGuestTickCount();
@@ -128,7 +132,7 @@ X_STATUS GraphicsSystem::Setup(cpu::Processor* processor,
   vsync_worker_thread_->set_name("GraphicsSystem Vsync");
   vsync_worker_thread_->Create();
 
-  if (FLAGS_trace_gpu_stream) {
+  if (cvars::trace_gpu_stream) {
     BeginTracing();
   }
 
@@ -138,12 +142,7 @@ X_STATUS GraphicsSystem::Setup(cpu::Processor* processor,
 void GraphicsSystem::Shutdown() {
   if (command_processor_) {
     EndTracing();
-  }
-
-  if (command_processor_) {
     command_processor_->Shutdown();
-    // TODO(benvanik): remove mapped range.
-    command_processor_.reset();
   }
 
   if (vsync_worker_thread_) {
@@ -175,17 +174,17 @@ uint32_t GraphicsSystem::ReadRegister(uint32_t addr) {
   uint32_t r = (addr & 0xFFFF) / 4;
 
   switch (r) {
-    case 0x0F00:  // ?
+    case 0x0F00:  // RB_EDRAM_TIMING
       return 0x08100748;
     case 0x0F01:  // RB_BC_CONTROL
       return 0x0000200E;
-    case 0x194C:  // R500_D1MODE_V_COUNTER(?) / scanline(?)
+    case 0x194C:  // R500_D1MODE_V_COUNTER
       return 0x000002D0;
-    case 0x1951:  // ? vblank pending?
-      return 1;
+    case 0x1951:  // interrupt status
+      return 1;   // vblank
     case 0x1961:  // AVIVO_D1MODE_VIEWPORT_SIZE
                   // Screen res - 1280x720
-                  // [width(0x0FFF), height(0x0FFF)]
+                  // maximum [width(0x0FFF), height(0x0FFF)]
       return 0x050002D0;
     default:
       if (!register_file_.GetRegisterInfo(r)) {
@@ -216,7 +215,7 @@ void GraphicsSystem::WriteRegister(uint32_t addr, uint32_t value) {
 }
 
 void GraphicsSystem::InitializeRingBuffer(uint32_t ptr, uint32_t log2_size) {
-  command_processor_->InitializeRingBuffer(ptr, (log2_size | 0x2) + 1);
+  command_processor_->InitializeRingBuffer(ptr, log2_size + 0x3);
 }
 
 void GraphicsSystem::EnableReadPointerWriteBack(uint32_t ptr,
@@ -271,11 +270,12 @@ void GraphicsSystem::ClearCaches() {
 }
 
 void GraphicsSystem::RequestFrameTrace() {
-  command_processor_->RequestFrameTrace(xe::to_wstring(FLAGS_trace_gpu_prefix));
+  command_processor_->RequestFrameTrace(
+      xe::to_wstring(cvars::trace_gpu_prefix));
 }
 
 void GraphicsSystem::BeginTracing() {
-  command_processor_->BeginTracing(xe::to_wstring(FLAGS_trace_gpu_prefix));
+  command_processor_->BeginTracing(xe::to_wstring(cvars::trace_gpu_prefix));
 }
 
 void GraphicsSystem::EndTracing() { command_processor_->EndTracing(); }

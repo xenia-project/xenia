@@ -7,7 +7,7 @@ project("xenia-gpu-vulkan")
   kind("StaticLib")
   language("C++")
   links({
-    "vulkan-loader",
+    "volk",
     "xenia-base",
     "xenia-gpu",
     "xenia-ui",
@@ -16,9 +16,6 @@ project("xenia-gpu-vulkan")
     "xxhash",
   })
   defines({
-  })
-  includedirs({
-    project_root.."/third_party/gflags/src",
   })
   local_platform_files()
   files({
@@ -32,15 +29,16 @@ project("xenia-gpu-vulkan-trace-viewer")
   kind("WindowedApp")
   language("C++")
   links({
+    "aes_128",
     "capstone",
-    "gflags",
     "glslang-spirv",
     "imgui",
     "libavcodec",
     "libavutil",
+    "mspack",
     "snappy",
     "spirv-tools",
-    "vulkan-loader",
+    "volk",
     "xenia-apu",
     "xenia-apu-nop",
     "xenia-base",
@@ -58,18 +56,21 @@ project("xenia-gpu-vulkan-trace-viewer")
     "xenia-vfs",
     "xxhash",
   })
-  flags({
-    "WinMain",  -- Use WinMain instead of main.
-  })
   defines({
-  })
-  includedirs({
-    project_root.."/third_party/gflags/src",
   })
   files({
     "vulkan_trace_viewer_main.cc",
     "../../base/main_"..platform_suffix..".cc",
   })
+
+  filter("platforms:Linux")
+    links({
+      "X11",
+      "xcb",
+      "X11-xcb",
+      "GL",
+      "vulkan",
+    })
 
   filter("platforms:Windows")
     links({
@@ -83,7 +84,6 @@ project("xenia-gpu-vulkan-trace-viewer")
     if not os.isfile(user_file) then
       debugdir(project_root)
       debugargs({
-        "--flagfile=scratch/flags.txt",
         "2>&1",
         "1>scratch/stdout-trace-viewer.txt",
       })
@@ -95,15 +95,16 @@ project("xenia-gpu-vulkan-trace-dump")
   kind("ConsoleApp")
   language("C++")
   links({
+    "aes_128",
     "capstone",
-    "gflags",
     "glslang-spirv",
     "imgui",
     "libavcodec",
     "libavutil",
+    "mspack",
     "snappy",
     "spirv-tools",
-    "vulkan-loader",
+    "volk",
     "xenia-apu",
     "xenia-apu-nop",
     "xenia-base",
@@ -123,13 +124,19 @@ project("xenia-gpu-vulkan-trace-dump")
   })
   defines({
   })
-  includedirs({
-    project_root.."/third_party/gflags/src",
-  })
   files({
     "vulkan_trace_dump_main.cc",
     "../../base/main_"..platform_suffix..".cc",
   })
+
+  filter("platforms:Linux")
+    links({
+      "X11",
+      "xcb",
+      "X11-xcb",
+      "GL",
+      "vulkan",
+    })
 
   filter("platforms:Windows")
     -- Only create the .user file if it doesn't already exist.
@@ -137,7 +144,6 @@ project("xenia-gpu-vulkan-trace-dump")
     if not os.isfile(user_file) then
       debugdir(project_root)
       debugargs({
-        "--flagfile=scratch/flags.txt",
         "2>&1",
         "1>scratch/stdout-trace-dump.txt",
       })

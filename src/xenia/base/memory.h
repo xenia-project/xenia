@@ -62,7 +62,7 @@ bool DeallocFixed(void* base_address, size_t length,
 // Sets the access rights for the given block of memory and returns the previous
 // access rights. Both base_address and length will be adjusted to page_size().
 bool Protect(void* base_address, size_t length, PageAccess access,
-             PageAccess* out_old_access);
+             PageAccess* out_old_access = nullptr);
 
 // Queries a region of pages to get the access rights. This will modify the
 // length parameter to the length of pages with the same consecutive access
@@ -295,49 +295,49 @@ inline std::wstring load_and_swap<std::wstring>(const void* mem) {
 }
 
 template <typename T>
-void store(void* mem, T value);
+void store(void* mem, const T& value);
 template <>
-inline void store<int8_t>(void* mem, int8_t value) {
+inline void store<int8_t>(void* mem, const int8_t& value) {
   *reinterpret_cast<int8_t*>(mem) = value;
 }
 template <>
-inline void store<uint8_t>(void* mem, uint8_t value) {
+inline void store<uint8_t>(void* mem, const uint8_t& value) {
   *reinterpret_cast<uint8_t*>(mem) = value;
 }
 template <>
-inline void store<int16_t>(void* mem, int16_t value) {
+inline void store<int16_t>(void* mem, const int16_t& value) {
   *reinterpret_cast<int16_t*>(mem) = value;
 }
 template <>
-inline void store<uint16_t>(void* mem, uint16_t value) {
+inline void store<uint16_t>(void* mem, const uint16_t& value) {
   *reinterpret_cast<uint16_t*>(mem) = value;
 }
 template <>
-inline void store<int32_t>(void* mem, int32_t value) {
+inline void store<int32_t>(void* mem, const int32_t& value) {
   *reinterpret_cast<int32_t*>(mem) = value;
 }
 template <>
-inline void store<uint32_t>(void* mem, uint32_t value) {
+inline void store<uint32_t>(void* mem, const uint32_t& value) {
   *reinterpret_cast<uint32_t*>(mem) = value;
 }
 template <>
-inline void store<int64_t>(void* mem, int64_t value) {
+inline void store<int64_t>(void* mem, const int64_t& value) {
   *reinterpret_cast<int64_t*>(mem) = value;
 }
 template <>
-inline void store<uint64_t>(void* mem, uint64_t value) {
+inline void store<uint64_t>(void* mem, const uint64_t& value) {
   *reinterpret_cast<uint64_t*>(mem) = value;
 }
 template <>
-inline void store<float>(void* mem, float value) {
+inline void store<float>(void* mem, const float& value) {
   *reinterpret_cast<float*>(mem) = value;
 }
 template <>
-inline void store<double>(void* mem, double value) {
+inline void store<double>(void* mem, const double& value) {
   *reinterpret_cast<double*>(mem) = value;
 }
 template <typename T>
-inline void store(const void* mem, T value) {
+inline void store(const void* mem, const T& value) {
   if (sizeof(T) == 1) {
     store<uint8_t>(mem, static_cast<uint8_t>(value));
   } else if (sizeof(T) == 2) {
@@ -352,55 +352,55 @@ inline void store(const void* mem, T value) {
 }
 
 template <typename T>
-void store_and_swap(void* mem, T value);
+void store_and_swap(void* mem, const T& value);
 template <>
-inline void store_and_swap<int8_t>(void* mem, int8_t value) {
+inline void store_and_swap<int8_t>(void* mem, const int8_t& value) {
   *reinterpret_cast<int8_t*>(mem) = value;
 }
 template <>
-inline void store_and_swap<uint8_t>(void* mem, uint8_t value) {
+inline void store_and_swap<uint8_t>(void* mem, const uint8_t& value) {
   *reinterpret_cast<uint8_t*>(mem) = value;
 }
 template <>
-inline void store_and_swap<int16_t>(void* mem, int16_t value) {
+inline void store_and_swap<int16_t>(void* mem, const int16_t& value) {
   *reinterpret_cast<int16_t*>(mem) = byte_swap(value);
 }
 template <>
-inline void store_and_swap<uint16_t>(void* mem, uint16_t value) {
+inline void store_and_swap<uint16_t>(void* mem, const uint16_t& value) {
   *reinterpret_cast<uint16_t*>(mem) = byte_swap(value);
 }
 template <>
-inline void store_and_swap<int32_t>(void* mem, int32_t value) {
+inline void store_and_swap<int32_t>(void* mem, const int32_t& value) {
   *reinterpret_cast<int32_t*>(mem) = byte_swap(value);
 }
 template <>
-inline void store_and_swap<uint32_t>(void* mem, uint32_t value) {
+inline void store_and_swap<uint32_t>(void* mem, const uint32_t& value) {
   *reinterpret_cast<uint32_t*>(mem) = byte_swap(value);
 }
 template <>
-inline void store_and_swap<int64_t>(void* mem, int64_t value) {
+inline void store_and_swap<int64_t>(void* mem, const int64_t& value) {
   *reinterpret_cast<int64_t*>(mem) = byte_swap(value);
 }
 template <>
-inline void store_and_swap<uint64_t>(void* mem, uint64_t value) {
+inline void store_and_swap<uint64_t>(void* mem, const uint64_t& value) {
   *reinterpret_cast<uint64_t*>(mem) = byte_swap(value);
 }
 template <>
-inline void store_and_swap<float>(void* mem, float value) {
+inline void store_and_swap<float>(void* mem, const float& value) {
   *reinterpret_cast<float*>(mem) = byte_swap(value);
 }
 template <>
-inline void store_and_swap<double>(void* mem, double value) {
+inline void store_and_swap<double>(void* mem, const double& value) {
   *reinterpret_cast<double*>(mem) = byte_swap(value);
 }
 template <>
-inline void store_and_swap<std::string>(void* mem, std::string value) {
+inline void store_and_swap<std::string>(void* mem, const std::string& value) {
   for (auto i = 0; i < value.size(); ++i) {
     xe::store_and_swap<uint8_t>(reinterpret_cast<uint8_t*>(mem) + i, value[i]);
   }
 }
 template <>
-inline void store_and_swap<std::wstring>(void* mem, std::wstring value) {
+inline void store_and_swap<std::wstring>(void* mem, const std::wstring& value) {
   for (auto i = 0; i < value.size(); ++i) {
     xe::store_and_swap<uint16_t>(reinterpret_cast<uint16_t*>(mem) + i,
                                  value[i]);

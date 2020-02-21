@@ -55,34 +55,41 @@ X_RESULT XmpApp::XMPCreateTitlePlaylist(uint32_t songs_ptr, uint32_t song_count,
   playlist->handle = ++next_playlist_handle_;
   playlist->name = std::move(playlist_name);
   playlist->flags = flags;
-  for (uint32_t i = 0; i < song_count; ++i) {
-    auto song = std::make_unique<Song>();
-    song->handle = ++next_song_handle_;
-    uint8_t* song_base = memory_->TranslateVirtual(songs_ptr + (i * 36));
-    song->file_path = xe::load_and_swap<std::wstring>(
-        memory_->TranslateVirtual(xe::load_and_swap<uint32_t>(song_base + 0)));
-    song->name = xe::load_and_swap<std::wstring>(
-        memory_->TranslateVirtual(xe::load_and_swap<uint32_t>(song_base + 4)));
-    song->artist = xe::load_and_swap<std::wstring>(
-        memory_->TranslateVirtual(xe::load_and_swap<uint32_t>(song_base + 8)));
-    song->album = xe::load_and_swap<std::wstring>(
-        memory_->TranslateVirtual(xe::load_and_swap<uint32_t>(song_base + 12)));
-    song->album_artist = xe::load_and_swap<std::wstring>(
-        memory_->TranslateVirtual(xe::load_and_swap<uint32_t>(song_base + 16)));
-    song->genre = xe::load_and_swap<std::wstring>(
-        memory_->TranslateVirtual(xe::load_and_swap<uint32_t>(song_base + 20)));
-    song->track_number = xe::load_and_swap<uint32_t>(song_base + 24);
-    song->duration_ms = xe::load_and_swap<uint32_t>(song_base + 28);
-    song->format =
-        static_cast<Song::Format>(xe::load_and_swap<uint32_t>(song_base + 32));
-    if (out_song_handles) {
-      xe::store_and_swap<uint32_t>(
-          memory_->TranslateVirtual(out_song_handles + (i * 4)), song->handle);
+  if (songs_ptr) {
+    for (uint32_t i = 0; i < song_count; ++i) {
+      auto song = std::make_unique<Song>();
+      song->handle = ++next_song_handle_;
+      uint8_t* song_base = memory_->TranslateVirtual(songs_ptr + (i * 36));
+      song->file_path =
+          xe::load_and_swap<std::wstring>(memory_->TranslateVirtual(
+              xe::load_and_swap<uint32_t>(song_base + 0)));
+      song->name = xe::load_and_swap<std::wstring>(memory_->TranslateVirtual(
+          xe::load_and_swap<uint32_t>(song_base + 4)));
+      song->artist = xe::load_and_swap<std::wstring>(memory_->TranslateVirtual(
+          xe::load_and_swap<uint32_t>(song_base + 8)));
+      song->album = xe::load_and_swap<std::wstring>(memory_->TranslateVirtual(
+          xe::load_and_swap<uint32_t>(song_base + 12)));
+      song->album_artist =
+          xe::load_and_swap<std::wstring>(memory_->TranslateVirtual(
+              xe::load_and_swap<uint32_t>(song_base + 16)));
+      song->genre = xe::load_and_swap<std::wstring>(memory_->TranslateVirtual(
+          xe::load_and_swap<uint32_t>(song_base + 20)));
+      song->track_number = xe::load_and_swap<uint32_t>(song_base + 24);
+      song->duration_ms = xe::load_and_swap<uint32_t>(song_base + 28);
+      song->format = static_cast<Song::Format>(
+          xe::load_and_swap<uint32_t>(song_base + 32));
+      if (out_song_handles) {
+        xe::store_and_swap<uint32_t>(
+            memory_->TranslateVirtual(out_song_handles + (i * 4)),
+            song->handle);
+      }
+      playlist->songs.emplace_back(std::move(song));
     }
-    playlist->songs.emplace_back(std::move(song));
   }
-  xe::store_and_swap<uint32_t>(memory_->TranslateVirtual(out_playlist_handle),
-                               playlist->handle);
+  if (out_playlist_handle) {
+    xe::store_and_swap<uint32_t>(memory_->TranslateVirtual(out_playlist_handle),
+                                 playlist->handle);
+  }
 
   auto global_lock = global_critical_region_.Acquire();
   playlists_.insert({playlist->handle, playlist.get()});
@@ -268,12 +275,15 @@ X_RESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
     }
     case 0x0007000B: {
       assert_true(!buffer_length || buffer_length == 8);
-      uint32_t xmp_client = xe::load_and_swap<uint32_t>(buffer + 0);
-      uint32_t float_ptr = xe::load_and_swap<uint32_t>(
-          buffer + 4);  // out ptr to 4b - floating point
-      assert_true(xmp_client == 0x00000002);
-      XELOGD("XMPGetVolume(%.8X)", float_ptr);
-      xe::store_and_swap<float>(memory_->TranslateVirtual(float_ptr), volume_);
+      struct {
+        xe::be<uint32_t> xmp_client;
+        xe::be<uint32_t> volume_ptr;
+      }* args = memory_->TranslateVirtual<decltype(args)>(buffer_ptr);
+
+      assert_true(args->xmp_client == 0x00000002);
+      XELOGD("XMPGetVolume(%.8X)", uint32_t(args->volume_ptr));
+      xe::store_and_swap<float>(memory_->TranslateVirtual(args->volume_ptr),
+                                volume_);
       return X_ERROR_SUCCESS;
     }
     case 0x0007000C: {
@@ -349,14 +359,20 @@ X_RESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       return XMPDeleteTitlePlaylist(playlist_handle);
     }
     case 0x0007001A: {
+      // XMPSetPlaybackController
       assert_true(!buffer_length || buffer_length == 12);
-      uint32_t xmp_client = xe::load_and_swap<uint32_t>(buffer + 0);
-      uint32_t unk1 = xe::load_and_swap<uint32_t>(buffer + 4);
-      uint32_t enabled = xe::load_and_swap<uint32_t>(buffer + 8);
-      assert_true(xmp_client == 0x00000002);
-      assert_zero(unk1);
-      XELOGD("XMPSetEnabled(%.8X, %.8X)", unk1, enabled);
-      disabled_ = enabled;
+      struct {
+        xe::be<uint32_t> xmp_client;
+        xe::be<uint32_t> controller;
+        xe::be<uint32_t> locked;
+      }* args = memory_->TranslateVirtual<decltype(args)>(buffer_ptr);
+
+      assert_true(args->xmp_client == 0x00000002);
+      assert_true(args->controller == 0x00000000);
+      XELOGD("XMPSetPlaybackController(%.8X, %.8X)", uint32_t(args->controller),
+             uint32_t(args->locked));
+
+      disabled_ = args->locked;
       if (disabled_) {
         XMPStop(0);
       }
@@ -364,22 +380,29 @@ X_RESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       return X_ERROR_SUCCESS;
     }
     case 0x0007001B: {
+      // XMPGetPlaybackController
       assert_true(!buffer_length || buffer_length == 12);
-      uint32_t xmp_client = xe::load_and_swap<uint32_t>(buffer + 0);
-      uint32_t unk_ptr =
-          xe::load_and_swap<uint32_t>(buffer + 4);  // out ptr to 4b - expect 0
-      uint32_t disabled_ptr = xe::load_and_swap<uint32_t>(
-          buffer + 8);  // out ptr to 4b - expect 1 (to skip)
-      assert_true(xmp_client == 0x00000002);
-      XELOGD("XMPGetEnabled(%.8X, %.8X)", unk_ptr, disabled_ptr);
-      xe::store_and_swap<uint32_t>(memory_->TranslateVirtual(unk_ptr), 0);
-      xe::store_and_swap<uint32_t>(memory_->TranslateVirtual(disabled_ptr),
-                                   disabled_);
+      struct {
+        xe::be<uint32_t> xmp_client;
+        xe::be<uint32_t> controller_ptr;
+        xe::be<uint32_t> locked_ptr;
+      }* args = memory_->TranslateVirtual<decltype(args)>(buffer_ptr);
+
+      assert_true(args->xmp_client == 0x00000002);
+      XELOGD("XMPGetPlaybackController(%.8X, %.8X, %.8X)",
+             uint32_t(args->xmp_client), uint32_t(args->controller_ptr),
+             uint32_t(args->locked_ptr));
+      xe::store_and_swap<uint32_t>(
+          memory_->TranslateVirtual(args->controller_ptr), 0);
+      xe::store_and_swap<uint32_t>(memory_->TranslateVirtual(args->locked_ptr),
+                                   0);
+
       // Atrain spawns a thread 82437FD0 to call this in a tight loop forever.
       xe::threading::Sleep(std::chrono::milliseconds(10));
       return X_ERROR_SUCCESS;
     }
     case 0x00070029: {
+      // XMPGetPlaybackBehavior
       assert_true(!buffer_length || buffer_length == 16);
       uint32_t xmp_client = xe::load_and_swap<uint32_t>(buffer + 0);
       uint32_t playback_mode_ptr = xe::load_and_swap<uint32_t>(buffer + 4);
@@ -388,12 +411,19 @@ X_RESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       assert_true(xmp_client == 0x00000002);
       XELOGD("XMPGetPlaybackBehavior(%.8X, %.8X, %.8X)", playback_mode_ptr,
              repeat_mode_ptr, unk3_ptr);
-      xe::store_and_swap<uint32_t>(memory_->TranslateVirtual(playback_mode_ptr),
-                                   static_cast<uint32_t>(playback_mode_));
-      xe::store_and_swap<uint32_t>(memory_->TranslateVirtual(repeat_mode_ptr),
-                                   static_cast<uint32_t>(repeat_mode_));
-      xe::store_and_swap<uint32_t>(memory_->TranslateVirtual(unk3_ptr),
-                                   unknown_flags_);
+      if (playback_mode_ptr) {
+        xe::store_and_swap<uint32_t>(
+            memory_->TranslateVirtual(playback_mode_ptr),
+            static_cast<uint32_t>(playback_mode_));
+      }
+      if (repeat_mode_ptr) {
+        xe::store_and_swap<uint32_t>(memory_->TranslateVirtual(repeat_mode_ptr),
+                                     static_cast<uint32_t>(repeat_mode_));
+      }
+      if (unk3_ptr) {
+        xe::store_and_swap<uint32_t>(memory_->TranslateVirtual(unk3_ptr),
+                                     unknown_flags_);
+      }
       return X_ERROR_SUCCESS;
     }
     case 0x0007002E: {

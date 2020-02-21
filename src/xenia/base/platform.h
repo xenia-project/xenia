@@ -19,7 +19,9 @@
 // NOTE: ordering matters here as sometimes multiple flags are defined on
 // certain platforms.
 //
-// Great resource on predefined macros: http://predef.sourceforge.net/preos.html
+// Great resource on predefined macros:
+// https://sourceforge.net/p/predef/wiki/OperatingSystems/
+// Original link: https://predef.sourceforge.net/preos.html
 
 #if defined(__APPLE__)
 #include <TargetConditionals.h>
@@ -93,7 +95,6 @@ namespace xe {
 #if XE_PLATFORM_WIN32
 const char kPathSeparator = '\\';
 const wchar_t kWPathSeparator = L'\\';
-const size_t kMaxPath = 260;  // _MAX_PATH
 #else
 const char kPathSeparator = '/';
 const wchar_t kWPathSeparator = L'/';
@@ -101,7 +102,7 @@ const size_t kMaxPath = 1024;  // PATH_MAX
 #endif  // XE_PLATFORM_WIN32
 
 // Launches a web browser to the given URL.
-void LaunchBrowser(const char* url);
+void LaunchBrowser(const wchar_t* url);
 
 }  // namespace xe
 

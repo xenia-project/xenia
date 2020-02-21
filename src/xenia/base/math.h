@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2014 Ben Vanik. All rights reserved.                             *
+ * Copyright 2019 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -14,6 +14,8 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <limits>
+#include <numeric>
 #include <type_traits>
 #include "xenia/base/platform.h"
 
@@ -56,6 +58,34 @@ T next_pow2(T value) {
   value |= value >> 16;
   value++;
   return value;
+}
+
+#if __cpp_lib_gcd_lcm
+template <typename T>
+inline constexpr T greatest_common_divisor(T a, T b) {
+  return std::gcd(a, b);
+}
+#else
+template <typename T>
+constexpr T greatest_common_divisor(T a, T b) {
+  // Use the Euclid algorithm to calculate the greatest common divisor
+  while (b) {
+    a = std::exchange(b, a % b);
+  }
+  return a;
+}
+#endif
+
+template <typename T>
+inline constexpr void reduce_fraction(T& numerator, T& denominator) {
+  auto gcd = greatest_common_divisor(numerator, denominator);
+  numerator /= gcd;
+  denominator /= gcd;
+}
+
+template <typename T>
+inline constexpr void reduce_fraction(std::pair<T, T>& fraction) {
+  reduce_fraction<T>(fraction.first, fraction.second);
 }
 
 constexpr uint32_t make_bitmask(uint32_t a, uint32_t b) {
@@ -127,28 +157,28 @@ inline uint8_t tzcnt(uint8_t v) {
   unsigned long index;
   unsigned long mask = v;
   unsigned char is_nonzero = _BitScanForward(&index, mask);
-  return static_cast<uint8_t>(is_nonzero ? int8_t(index) ^ 0x7 : 8);
+  return static_cast<uint8_t>(is_nonzero ? int8_t(index) : 8);
 }
 
 inline uint8_t tzcnt(uint16_t v) {
   unsigned long index;
   unsigned long mask = v;
   unsigned char is_nonzero = _BitScanForward(&index, mask);
-  return static_cast<uint8_t>(is_nonzero ? int8_t(index) ^ 0xF : 16);
+  return static_cast<uint8_t>(is_nonzero ? int8_t(index) : 16);
 }
 
 inline uint8_t tzcnt(uint32_t v) {
   unsigned long index;
   unsigned long mask = v;
   unsigned char is_nonzero = _BitScanForward(&index, mask);
-  return static_cast<uint8_t>(is_nonzero ? int8_t(index) ^ 0x1F : 32);
+  return static_cast<uint8_t>(is_nonzero ? int8_t(index) : 32);
 }
 
 inline uint8_t tzcnt(uint64_t v) {
   unsigned long index;
   unsigned long long mask = v;
   unsigned char is_nonzero = _BitScanForward64(&index, mask);
-  return static_cast<uint8_t>(is_nonzero ? int8_t(index) ^ 0x3F : 64);
+  return static_cast<uint8_t>(is_nonzero ? int8_t(index) : 64);
 }
 
 #else  // XE_PLATFORM_WIN32
@@ -203,12 +233,12 @@ inline bool bit_scan_forward(uint64_t v, uint32_t* out_first_set_index) {
 #else
 inline bool bit_scan_forward(uint32_t v, uint32_t* out_first_set_index) {
   int i = ffs(v);
-  *out_first_set_index = i;
+  *out_first_set_index = i - 1;
   return i != 0;
 }
 inline bool bit_scan_forward(uint64_t v, uint32_t* out_first_set_index) {
   int i = ffsll(v);
-  *out_first_set_index = i;
+  *out_first_set_index = i - 1;
   return i != 0;
 }
 #endif  // XE_PLATFORM_WIN32
@@ -301,6 +331,40 @@ int64_t m128_i64(const __m128& v) {
 
 uint16_t float_to_half(float value);
 float half_to_float(uint16_t value);
+
+// https://locklessinc.com/articles/sat_arithmetic/
+template <typename T>
+inline T sat_add(T a, T b) {
+  using TU = typename std::make_unsigned<T>::type;
+  TU result = TU(a) + TU(b);
+  if (std::is_unsigned<T>::value) {
+    result |=
+        TU(-static_cast<typename std::make_signed<T>::type>(result < TU(a)));
+  } else {
+    TU overflowed =
+        (TU(a) >> (sizeof(T) * 8 - 1)) + std::numeric_limits<T>::max();
+    if (T((overflowed ^ TU(b)) | ~(TU(b) ^ result)) >= 0) {
+      result = overflowed;
+    }
+  }
+  return T(result);
+}
+template <typename T>
+inline T sat_sub(T a, T b) {
+  using TU = typename std::make_unsigned<T>::type;
+  TU result = TU(a) - TU(b);
+  if (std::is_unsigned<T>::value) {
+    result &=
+        TU(-static_cast<typename std::make_signed<T>::type>(result <= TU(a)));
+  } else {
+    TU overflowed =
+        (TU(a) >> (sizeof(T) * 8 - 1)) + std::numeric_limits<T>::max();
+    if (T((overflowed ^ TU(b)) & (overflowed ^ result)) < 0) {
+      result = overflowed;
+    }
+  }
+  return T(result);
+}
 
 }  // namespace xe
 

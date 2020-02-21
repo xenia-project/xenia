@@ -9,8 +9,6 @@
 
 #include "xenia/ui/vulkan/vulkan_provider.h"
 
-#include <gflags/gflags.h>
-
 #include <algorithm>
 
 #include "xenia/base/logging.h"
@@ -19,7 +17,8 @@
 #include "xenia/ui/vulkan/vulkan_instance.h"
 #include "xenia/ui/vulkan/vulkan_util.h"
 
-DEFINE_uint64(vulkan_device_index, 0, "Index of the physical device to use.");
+DEFINE_uint64(vulkan_device_index, 0, "Index of the physical device to use.",
+              "Vulkan");
 
 namespace xe {
 namespace ui {
@@ -30,9 +29,12 @@ std::unique_ptr<VulkanProvider> VulkanProvider::Create(Window* main_window) {
   if (!provider->Initialize()) {
     xe::FatalError(
         "Unable to initialize Vulkan graphics subsystem.\n"
+        "\n"
         "Ensure you have the latest drivers for your GPU and that it "
-        "supports Vulkan. See http://xenia.jp/faq/ for more information and a "
-        "list of supported GPUs.");
+        "supports Vulkan.\n"
+        "\n"
+        "See https://xenia.jp/faq/ for more information and a list of "
+        "supported GPUs.");
     return nullptr;
   }
   return provider;
@@ -70,7 +72,7 @@ bool VulkanProvider::Initialize() {
     return false;
   }
   size_t device_index =
-      std::min(available_devices.size(), FLAGS_vulkan_device_index);
+      std::min(available_devices.size(), cvars::vulkan_device_index);
   auto& device_info = available_devices[device_index];
 
   // Create the device.

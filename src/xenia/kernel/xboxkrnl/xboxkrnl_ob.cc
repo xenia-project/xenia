@@ -31,9 +31,10 @@ dword_result_t ObOpenObjectByName(lpunknown_t obj_attributes_ptr,
   // r5 = 0
   // r6 = out_ptr (handle?)
 
-  auto name =
-      X_ANSI_STRING::to_string_indirect(kernel_memory()->virtual_membase(),
-                                        obj_attributes_ptr.guest_address() + 4);
+  auto name = util::TranslateAnsiStringAddress(
+      kernel_memory(),
+      xe::load_and_swap<uint32_t>(kernel_memory()->TranslateVirtual(
+          obj_attributes_ptr.guest_address() + 4)));
 
   X_HANDLE handle = X_INVALID_HANDLE_VALUE;
   X_STATUS result =
@@ -44,7 +45,7 @@ dword_result_t ObOpenObjectByName(lpunknown_t obj_attributes_ptr,
 
   return result;
 }
-DECLARE_XBOXKRNL_EXPORT(ObOpenObjectByName, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(ObOpenObjectByName, kNone, kImplemented);
 
 dword_result_t ObOpenObjectByPointer(lpvoid_t object_ptr,
                                      lpdword_t out_handle_ptr) {
@@ -58,7 +59,7 @@ dword_result_t ObOpenObjectByPointer(lpvoid_t object_ptr,
   *out_handle_ptr = object->handle();
   return X_STATUS_SUCCESS;
 }
-DECLARE_XBOXKRNL_EXPORT(ObOpenObjectByPointer, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(ObOpenObjectByPointer, kNone, kImplemented);
 
 dword_result_t ObLookupThreadByThreadId(dword_t thread_id,
                                         lpdword_t out_object_ptr) {
@@ -68,76 +69,61 @@ dword_result_t ObLookupThreadByThreadId(dword_t thread_id,
   }
 
   // Retain the object. Will be released in ObDereferenceObject.
-  thread->Retain();
+  thread->RetainHandle();
   *out_object_ptr = thread->guest_object();
   return X_STATUS_SUCCESS;
 }
-DECLARE_XBOXKRNL_EXPORT(ObLookupThreadByThreadId, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(ObLookupThreadByThreadId, kNone, kImplemented);
 
 dword_result_t ObReferenceObjectByHandle(dword_t handle,
                                          dword_t object_type_ptr,
                                          lpdword_t out_object_ptr) {
-  X_STATUS result = X_STATUS_SUCCESS;
+  const static std::unordered_map<XObject::Type, uint32_t> obj_type_match = {
+      {XObject::kTypeEvent, 0xD00EBEEF},
+      {XObject::kTypeSemaphore, 0xD017BEEF},
+      {XObject::kTypeThread, 0xD01BBEEF}};
 
   auto object = kernel_state()->object_table()->LookupObject<XObject>(handle);
-  if (object) {
-    // TODO(benvanik): verify type with object_type_ptr
 
-    // TODO(benvanik): get native value, if supported.
-    uint32_t native_ptr;
-    switch (object_type_ptr) {
-      case 0x00000000: {  // whatever?
-        switch (object->type()) {
-          case XObject::kTypeEvent: {
-            assert(object->type() == XObject::kTypeEvent);
-            native_ptr = object->guest_object();
-            assert_not_zero(native_ptr);
-          } break;
-          case XObject::kTypeSemaphore: {
-            assert(object->type() == XObject::kTypeSemaphore);
-            native_ptr = object->guest_object();
-            assert_not_zero(native_ptr);
-          } break;
-          case XObject::kTypeThread: {
-            assert(object->type() == XObject::kTypeThread);
-            native_ptr = object->guest_object();
-            assert_not_zero(native_ptr);
-          } break;
-          default: {
-            assert_unhandled_case(object->type());
-            native_ptr = 0xDEADF00D;
-          } break;
-        }
-      } break;
-      case 0xD017BEEF: {  // ExSemaphoreObjectType
-        assert(object->type() == XObject::kTypeSemaphore);
-        native_ptr = object->guest_object();
-        assert_not_zero(native_ptr);
-      } break;
-      case 0xD01BBEEF: {  // ExThreadObjectType
-        assert(object->type() == XObject::kTypeThread);
-        native_ptr = object->guest_object();
-        assert_not_zero(native_ptr);
-      } break;
-      default: {
-        assert_unhandled_case(object_type_ptr);
-        native_ptr = 0xDEADF00D;
-      } break;
-    }
+  if (!object) {
+    return X_STATUS_INVALID_HANDLE;
+  }
 
-    // Caller takes the reference.
-    // It's released in ObDereferenceObject.
-    object->Retain();
-    if (out_object_ptr.guest_address()) {
-      *out_object_ptr = native_ptr;
+  uint32_t native_ptr = object->guest_object();
+  auto obj_type = obj_type_match.find(object->type());
+
+  if (obj_type != obj_type_match.end()) {
+    if (object_type_ptr && object_type_ptr != obj_type->second) {
+      return X_STATUS_OBJECT_TYPE_MISMATCH;
     }
   } else {
-    result = X_STATUS_INVALID_HANDLE;
+    assert_unhandled_case(object->type());
+    native_ptr = 0xDEADF00D;
+  }
+  // Caller takes the reference.
+  // It's released in ObDereferenceObject.
+  object->RetainHandle();
+  if (out_object_ptr.guest_address()) {
+    *out_object_ptr = native_ptr;
+  }
+  return X_STATUS_SUCCESS;
+}
+DECLARE_XBOXKRNL_EXPORT1(ObReferenceObjectByHandle, kNone, kImplemented);
+
+dword_result_t ObReferenceObjectByName(lpstring_t name, dword_t attributes,
+                                       dword_t object_type_ptr,
+                                       lpvoid_t parse_context,
+                                       lpdword_t out_object_ptr) {
+  X_HANDLE handle = X_INVALID_HANDLE_VALUE;
+  X_STATUS result =
+      kernel_state()->object_table()->GetObjectByName(name.value(), &handle);
+  if (XSUCCEEDED(result)) {
+    return ObReferenceObjectByHandle(handle, object_type_ptr, out_object_ptr);
   }
 
   return result;
 }
-DECLARE_XBOXKRNL_EXPORT(ObReferenceObjectByHandle, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(ObReferenceObjectByName, kNone, kImplemented);
 
 dword_result_t ObDereferenceObject(dword_t native_ptr) {
   // Check if a dummy value from ObReferenceObjectByHandle.
@@ -146,19 +132,19 @@ dword_result_t ObDereferenceObject(dword_t native_ptr) {
   }
 
   auto object = XObject::GetNativeObject<XObject>(
-      kernel_state(), kernel_memory()->virtual_membase() + native_ptr);
+      kernel_state(), kernel_memory()->TranslateVirtual(native_ptr));
   if (object) {
-    object->Release();
+    object->ReleaseHandle();
   }
 
   return 0;
 }
-DECLARE_XBOXKRNL_EXPORT(ObDereferenceObject, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(ObDereferenceObject, kNone, kImplemented);
 
 dword_result_t ObCreateSymbolicLink(pointer_t<X_ANSI_STRING> path,
                                     pointer_t<X_ANSI_STRING> target) {
-  auto path_str = path->to_string(kernel_memory()->virtual_membase());
-  auto target_str = target->to_string(kernel_memory()->virtual_membase());
+  auto path_str = util::TranslateAnsiString(kernel_memory(), path);
+  auto target_str = util::TranslateAnsiString(kernel_memory(), target);
   path_str = filesystem::CanonicalizePath(path_str);
   target_str = filesystem::CanonicalizePath(target_str);
 
@@ -174,17 +160,17 @@ dword_result_t ObCreateSymbolicLink(pointer_t<X_ANSI_STRING> path,
 
   return X_STATUS_SUCCESS;
 }
-DECLARE_XBOXKRNL_EXPORT(ObCreateSymbolicLink, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(ObCreateSymbolicLink, kNone, kImplemented);
 
 dword_result_t ObDeleteSymbolicLink(pointer_t<X_ANSI_STRING> path) {
-  auto path_str = path->to_string(kernel_memory()->virtual_membase());
+  auto path_str = util::TranslateAnsiString(kernel_memory(), path);
   if (!kernel_state()->file_system()->UnregisterSymbolicLink(path_str)) {
     return X_STATUS_UNSUCCESSFUL;
   }
 
   return X_STATUS_SUCCESS;
 }
-DECLARE_XBOXKRNL_EXPORT(ObDeleteSymbolicLink, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(ObDeleteSymbolicLink, kNone, kImplemented);
 
 dword_result_t NtDuplicateObject(dword_t handle, lpdword_t new_handle_ptr,
                                  dword_t options) {
@@ -209,12 +195,12 @@ dword_result_t NtDuplicateObject(dword_t handle, lpdword_t new_handle_ptr,
 
   return result;
 }
-DECLARE_XBOXKRNL_EXPORT(NtDuplicateObject, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(NtDuplicateObject, kNone, kImplemented);
 
 dword_result_t NtClose(dword_t handle) {
   return kernel_state()->object_table()->ReleaseHandle(handle);
 }
-DECLARE_XBOXKRNL_EXPORT(NtClose, ExportTag::kImplemented);
+DECLARE_XBOXKRNL_EXPORT1(NtClose, kNone, kImplemented);
 
 void RegisterObExports(xe::cpu::ExportResolver* export_resolver,
                        KernelState* kernel_state) {}

@@ -18,6 +18,11 @@ NullCommandProcessor::NullCommandProcessor(NullGraphicsSystem* graphics_system,
     : CommandProcessor(graphics_system, kernel_state) {}
 NullCommandProcessor::~NullCommandProcessor() = default;
 
+void NullCommandProcessor::TracePlaybackWroteMemory(uint32_t base_ptr,
+                                                    uint32_t length) {}
+
+void NullCommandProcessor::RestoreEDRAMSnapshot(const void* snapshot) {}
+
 bool NullCommandProcessor::SetupContext() {
   return CommandProcessor::SetupContext();
 }
@@ -44,6 +49,10 @@ bool NullCommandProcessor::IssueDraw(PrimitiveType prim_type,
 }
 
 bool NullCommandProcessor::IssueCopy() { return true; }
+
+void NullCommandProcessor::InitializeTrace() {}
+
+void NullCommandProcessor::FinalizeTrace() {}
 
 }  // namespace null
 }  // namespace gpu

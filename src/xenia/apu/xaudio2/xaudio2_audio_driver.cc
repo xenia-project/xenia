@@ -12,8 +12,6 @@
 // Must be included before xaudio2.h so we get the right windows.h include.
 #include "xenia/base/platform_win.h"
 
-#include <xaudio2.h>  // NOLINT(build/include_order)
-
 #include "xenia/apu/apu_flags.h"
 #include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
@@ -22,7 +20,7 @@ namespace xe {
 namespace apu {
 namespace xaudio2 {
 
-class XAudio2AudioDriver::VoiceCallback : public IXAudio2VoiceCallback {
+class XAudio2AudioDriver::VoiceCallback : public api::IXAudio2VoiceCallback {
  public:
   explicit VoiceCallback(xe::threading::Semaphore* semaphore)
       : semaphore_(semaphore) {}
@@ -45,51 +43,99 @@ class XAudio2AudioDriver::VoiceCallback : public IXAudio2VoiceCallback {
 
 XAudio2AudioDriver::XAudio2AudioDriver(Memory* memory,
                                        xe::threading::Semaphore* semaphore)
-    : AudioDriver(memory), semaphore_(semaphore) {
-  static_assert(frame_count_ == XAUDIO2_MAX_QUEUED_BUFFERS,
-                "xaudio header differs");
-}
+    : AudioDriver(memory), semaphore_(semaphore) {}
 
 XAudio2AudioDriver::~XAudio2AudioDriver() = default;
 
-const DWORD ChannelMasks[] = {
-    0,
-    0,
-    SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT | SPEAKER_LOW_FREQUENCY,
-    0,
-    0,
-    0,
-    SPEAKER_FRONT_LEFT | SPEAKER_FRONT_CENTER | SPEAKER_FRONT_RIGHT |
-        SPEAKER_LOW_FREQUENCY | SPEAKER_BACK_LEFT | SPEAKER_BACK_RIGHT,
-    0,
-};
-
-void XAudio2AudioDriver::Initialize() {
+bool XAudio2AudioDriver::Initialize() {
   HRESULT hr;
 
   voice_callback_ = new VoiceCallback(semaphore_);
 
-  hr = XAudio2Create(&audio_, 0, XAUDIO2_DEFAULT_PROCESSOR);
-  if (FAILED(hr)) {
-    XELOGE("XAudio2Create failed with %.8X", hr);
-    assert_always();
-    return;
+  // Load the XAudio2 DLL dynamically. Needed both for 2.7 and for
+  // differentiating between 2.8 and later versions. Windows 8.1 SDK references
+  // XAudio2_8.dll in xaudio2.lib, which is available on Windows 8.1, however,
+  // Windows 10 SDK references XAudio2_9.dll in it, which is only available in
+  // Windows 10, and XAudio2_8.dll is linked through a different .lib -
+  // xaudio2_8.lib, so easier not to link the .lib at all.
+  xaudio2_module_ = reinterpret_cast<void*>(LoadLibrary(L"XAudio2_8.dll"));
+  if (xaudio2_module_) {
+    api_minor_version_ = 8;
+  } else {
+    xaudio2_module_ = reinterpret_cast<void*>(LoadLibrary(L"XAudio2_7.dll"));
+    if (xaudio2_module_) {
+      api_minor_version_ = 7;
+    } else {
+      XELOGE("Failed to load XAudio 2.8 or 2.7 library DLL");
+      assert_always();
+      return false;
+    }
   }
 
-  XAUDIO2_DEBUG_CONFIGURATION config;
-  config.TraceMask = XAUDIO2_LOG_ERRORS | XAUDIO2_LOG_WARNINGS;
+  // First CPU (2.8 default). XAUDIO2_ANY_PROCESSOR (2.7 default) steals too
+  // much time from other things. Ideally should process audio on what roughly
+  // represents thread 4 (5th) on the Xbox 360 (2.7 default on the console), or
+  // even beyond the 6 guest cores.
+  api::XAUDIO2_PROCESSOR processor = 0x00000001;
+  if (api_minor_version_ >= 8) {
+    union {
+      // clang-format off
+      HRESULT (__stdcall* xaudio2_create)(
+          api::IXAudio2_8** xaudio2_out, UINT32 flags,
+          api::XAUDIO2_PROCESSOR xaudio2_processor);
+      // clang-format on
+      FARPROC xaudio2_create_ptr;
+    };
+    xaudio2_create_ptr = GetProcAddress(
+        reinterpret_cast<HMODULE>(xaudio2_module_), "XAudio2Create");
+    if (!xaudio2_create_ptr) {
+      XELOGE("XAudio2Create not found in XAudio2_8.dll");
+      assert_always();
+      return false;
+    }
+    hr = xaudio2_create(&objects_.api_2_8.audio, 0, processor);
+    if (FAILED(hr)) {
+      XELOGE("XAudio2Create failed with %.8X", hr);
+      assert_always();
+      return false;
+    }
+    return InitializeObjects(objects_.api_2_8);
+  } else {
+    hr = CoCreateInstance(__uuidof(api::XAudio2_7), NULL, CLSCTX_INPROC_SERVER,
+                          IID_PPV_ARGS(&objects_.api_2_7.audio));
+    if (FAILED(hr)) {
+      XELOGE("CoCreateInstance for XAudio2 failed with %.8X", hr);
+      assert_always();
+      return false;
+    }
+    hr = objects_.api_2_7.audio->Initialize(0, processor);
+    if (FAILED(hr)) {
+      XELOGE("IXAudio2::Initialize failed with %.8X", hr);
+      assert_always();
+      return false;
+    }
+    return InitializeObjects(objects_.api_2_7);
+  }
+}
+
+template <typename Objects>
+bool XAudio2AudioDriver::InitializeObjects(Objects& objects) {
+  HRESULT hr;
+
+  api::XAUDIO2_DEBUG_CONFIGURATION config;
+  config.TraceMask = api::XE_XAUDIO2_LOG_ERRORS | api::XE_XAUDIO2_LOG_WARNINGS;
   config.BreakMask = 0;
   config.LogThreadID = FALSE;
   config.LogTiming = TRUE;
   config.LogFunctionName = TRUE;
   config.LogFileline = TRUE;
-  audio_->SetDebugConfiguration(&config);
+  objects.audio->SetDebugConfiguration(&config);
 
-  hr = audio_->CreateMasteringVoice(&mastering_voice_);
+  hr = objects.audio->CreateMasteringVoice(&objects.mastering_voice);
   if (FAILED(hr)) {
-    XELOGE("CreateMasteringVoice failed with %.8X", hr);
+    XELOGE("IXAudio2::CreateMasteringVoice failed with %.8X", hr);
     assert_always();
-    return;
+    return false;
   }
 
   WAVEFORMATIEEEFLOATEX waveformat;
@@ -107,36 +153,54 @@ void XAudio2AudioDriver::Initialize() {
 
   waveformat.SubFormat = KSDATAFORMAT_SUBTYPE_IEEE_FLOAT;
   waveformat.Samples.wValidBitsPerSample = waveformat.Format.wBitsPerSample;
-  waveformat.dwChannelMask = ChannelMasks[waveformat.Format.nChannels];
+  static const DWORD kChannelMasks[] = {
+      0,
+      0,
+      SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT,
+      0,
+      0,
+      0,
+      SPEAKER_FRONT_LEFT | SPEAKER_FRONT_CENTER | SPEAKER_FRONT_RIGHT |
+          SPEAKER_LOW_FREQUENCY | SPEAKER_BACK_LEFT | SPEAKER_BACK_RIGHT,
+      0,
+  };
+  waveformat.dwChannelMask = kChannelMasks[waveformat.Format.nChannels];
 
-  hr = audio_->CreateSourceVoice(
-      &pcm_voice_, &waveformat.Format,
-      0,  // XAUDIO2_VOICE_NOSRC | XAUDIO2_VOICE_NOPITCH,
-      XAUDIO2_MAX_FREQ_RATIO, voice_callback_);
+  hr = objects.audio->CreateSourceVoice(
+      &objects.pcm_voice, &waveformat.Format,
+      0,  // api::XE_XAUDIO2_VOICE_NOSRC | api::XE_XAUDIO2_VOICE_NOPITCH,
+      api::XE_XAUDIO2_MAX_FREQ_RATIO, voice_callback_);
   if (FAILED(hr)) {
-    XELOGE("CreateSourceVoice failed with %.8X", hr);
+    XELOGE("IXAudio2::CreateSourceVoice failed with %.8X", hr);
     assert_always();
-    return;
+    return false;
   }
 
-  hr = pcm_voice_->Start();
+  hr = objects.pcm_voice->Start();
   if (FAILED(hr)) {
-    XELOGE("Start failed with %.8X", hr);
+    XELOGE("IXAudio2SourceVoice::Start failed with %.8X", hr);
     assert_always();
-    return;
+    return false;
   }
 
-  if (FLAGS_mute) {
-    pcm_voice_->SetVolume(0.0f);
+  if (cvars::mute) {
+    objects.pcm_voice->SetVolume(0.0f);
   }
+
+  return true;
 }
 
 void XAudio2AudioDriver::SubmitFrame(uint32_t frame_ptr) {
   // Process samples! They are big-endian floats.
   HRESULT hr;
 
-  XAUDIO2_VOICE_STATE state;
-  pcm_voice_->GetState(&state, XAUDIO2_VOICE_NOSAMPLESPLAYED);
+  api::XAUDIO2_VOICE_STATE state;
+  if (api_minor_version_ >= 8) {
+    objects_.api_2_8.pcm_voice->GetState(&state,
+                                         api::XE_XAUDIO2_VOICE_NOSAMPLESPLAYED);
+  } else {
+    objects_.api_2_7.pcm_voice->GetState(&state);
+  }
   assert_true(state.BuffersQueued < frame_count_);
 
   auto input_frame = memory_->TranslateVirtual<float*>(frame_ptr);
@@ -151,17 +215,21 @@ void XAudio2AudioDriver::SubmitFrame(uint32_t frame_ptr) {
     }
   }
 
-  XAUDIO2_BUFFER buffer;
+  api::XAUDIO2_BUFFER buffer;
   buffer.Flags = 0;
   buffer.pAudioData = reinterpret_cast<BYTE*>(output_frame);
   buffer.AudioBytes = frame_size_;
   buffer.PlayBegin = 0;
   buffer.PlayLength = channel_samples_;
-  buffer.LoopBegin = XAUDIO2_NO_LOOP_REGION;
+  buffer.LoopBegin = api::XE_XAUDIO2_NO_LOOP_REGION;
   buffer.LoopLength = 0;
   buffer.LoopCount = 0;
   buffer.pContext = 0;
-  hr = pcm_voice_->SubmitSourceBuffer(&buffer);
+  if (api_minor_version_ >= 8) {
+    hr = objects_.api_2_8.pcm_voice->SubmitSourceBuffer(&buffer);
+  } else {
+    hr = objects_.api_2_7.pcm_voice->SubmitSourceBuffer(&buffer);
+  }
   if (FAILED(hr)) {
     XELOGE("SubmitSourceBuffer failed with %.8X", hr);
     assert_always();
@@ -172,22 +240,50 @@ void XAudio2AudioDriver::SubmitFrame(uint32_t frame_ptr) {
 
   // Update playback ratio to our time scalar.
   // This will keep audio in sync with the game clock.
-  pcm_voice_->SetFrequencyRatio(
-      static_cast<float>(xe::Clock::guest_time_scalar()));
+  float frequency_ratio = static_cast<float>(xe::Clock::guest_time_scalar());
+  if (api_minor_version_ >= 8) {
+    objects_.api_2_8.pcm_voice->SetFrequencyRatio(frequency_ratio);
+  } else {
+    objects_.api_2_7.pcm_voice->SetFrequencyRatio(frequency_ratio);
+  }
 }
 
 void XAudio2AudioDriver::Shutdown() {
-  pcm_voice_->Stop();
-  pcm_voice_->DestroyVoice();
-  pcm_voice_ = NULL;
+  if (api_minor_version_ >= 8) {
+    ShutdownObjects(objects_.api_2_8);
+  } else {
+    ShutdownObjects(objects_.api_2_7);
+  }
 
-  mastering_voice_->DestroyVoice();
-  mastering_voice_ = NULL;
+  if (xaudio2_module_) {
+    FreeLibrary(reinterpret_cast<HMODULE>(xaudio2_module_));
+    xaudio2_module_ = nullptr;
+  }
 
-  audio_->StopEngine();
-  audio_->Release();
+  if (voice_callback_) {
+    delete voice_callback_;
+    voice_callback_ = nullptr;
+  }
+}
 
-  delete voice_callback_;
+template <typename Objects>
+void XAudio2AudioDriver::ShutdownObjects(Objects& objects) {
+  if (objects.pcm_voice) {
+    objects.pcm_voice->Stop();
+    objects.pcm_voice->DestroyVoice();
+    objects.pcm_voice = nullptr;
+  }
+
+  if (objects.mastering_voice) {
+    objects.mastering_voice->DestroyVoice();
+    objects.mastering_voice = nullptr;
+  }
+
+  if (objects.audio) {
+    objects.audio->StopEngine();
+    objects.audio->Release();
+    objects.audio = nullptr;
+  }
 }
 
 }  // namespace xaudio2

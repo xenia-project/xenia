@@ -21,6 +21,8 @@ class NopAudioSystem : public AudioSystem {
   explicit NopAudioSystem(cpu::Processor* processor);
   ~NopAudioSystem() override;
 
+  static bool IsAvailable() { return true; }
+
   static std::unique_ptr<AudioSystem> Create(cpu::Processor* processor);
 
   X_STATUS CreateDriver(size_t index, xe::threading::Semaphore* semaphore,

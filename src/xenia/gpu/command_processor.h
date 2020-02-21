@@ -58,6 +58,50 @@ enum class SwapMode {
   kIgnored,
 };
 
+enum class GammaRampType {
+  kUnknown = 0,
+  kNormal,
+  kPWL,
+};
+
+struct GammaRamp {
+  struct NormalEntry {
+    union {
+      struct {
+        uint32_t b : 10;
+        uint32_t g : 10;
+        uint32_t r : 10;
+        uint32_t : 2;
+      };
+      uint32_t value;
+    };
+  };
+
+  struct PWLValue {
+    union {
+      struct {
+        uint16_t base;
+        uint16_t delta;
+      };
+      uint32_t value;
+    };
+  };
+
+  struct PWLEntry {
+    union {
+      struct {
+        PWLValue r;
+        PWLValue g;
+        PWLValue b;
+      };
+      PWLValue values[3];
+    };
+  };
+
+  NormalEntry normal[256];
+  PWLEntry pwl[128];
+};
+
 class CommandProcessor {
  public:
   CommandProcessor(GraphicsSystem* graphics_system,
@@ -90,6 +134,10 @@ class CommandProcessor {
   virtual void BeginTracing(const std::wstring& root_path);
   virtual void EndTracing();
 
+  virtual void TracePlaybackWroteMemory(uint32_t base_ptr, uint32_t length) = 0;
+
+  virtual void RestoreEDRAMSnapshot(const void* snapshot) = 0;
+
   void InitializeRingBuffer(uint32_t ptr, uint32_t page_count);
   void EnableReadPointerWriteBack(uint32_t ptr, uint32_t block_size);
 
@@ -107,7 +155,7 @@ class CommandProcessor {
  protected:
   struct IndexBufferInfo {
     IndexFormat format = IndexFormat::kInt16;
-    Endian endianness = Endian::kUnspecified;
+    Endian endianness = Endian::kNone;
     uint32_t count = 0;
     uint32_t guest_base = 0;
     size_t length = 0;
@@ -119,6 +167,8 @@ class CommandProcessor {
 
   virtual void WriteRegister(uint32_t index, uint32_t value);
 
+  void UpdateGammaRampValue(GammaRampType type, uint32_t value);
+
   virtual void MakeCoherent();
   virtual void PrepareForWait();
   virtual void ReturnFromWait();
@@ -127,6 +177,7 @@ class CommandProcessor {
                            uint32_t frontbuffer_height) = 0;
 
   uint32_t ExecutePrimaryBuffer(uint32_t start_index, uint32_t end_index);
+  virtual void OnPrimaryBufferEnd() {}
   void ExecuteIndirectBuffer(uint32_t ptr, uint32_t length);
   bool ExecutePacket(RingBuffer* reader);
   bool ExecutePacketType0(RingBuffer* reader, uint32_t packet);
@@ -191,6 +242,9 @@ class CommandProcessor {
                          IndexBufferInfo* index_buffer_info) = 0;
   virtual bool IssueCopy() = 0;
 
+  virtual void InitializeTrace() = 0;
+  virtual void FinalizeTrace() = 0;
+
   Memory* memory_ = nullptr;
   kernel::KernelState* kernel_state_ = nullptr;
   GraphicsSystem* graphics_system_ = nullptr;
@@ -215,6 +269,9 @@ class CommandProcessor {
   std::function<void()> swap_request_handler_;
   std::queue<std::function<void()>> pending_fns_;
 
+  // MicroEngine binary from PM4_ME_INIT
+  std::vector<uint32_t> me_bin_;
+
   uint32_t counter_ = 0;
 
   uint32_t primary_buffer_ptr_ = 0;
@@ -234,6 +291,11 @@ class CommandProcessor {
   Shader* active_pixel_shader_ = nullptr;
 
   bool paused_ = false;
+
+  GammaRamp gamma_ramp_ = {};
+  int gamma_ramp_rw_subindex_ = 0;
+  bool dirty_gamma_ramp_normal_ = true;
+  bool dirty_gamma_ramp_pwl_ = true;
 };
 
 }  // namespace gpu

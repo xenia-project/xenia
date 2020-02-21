@@ -9,8 +9,6 @@
 
 #include "xenia/apu/xaudio2/xaudio2_audio_system.h"
 
-#include <xaudio2.h>
-
 #include "xenia/apu/apu_flags.h"
 #include "xenia/apu/xaudio2/xaudio2_audio_driver.h"
 
@@ -35,7 +33,11 @@ X_STATUS XAudio2AudioSystem::CreateDriver(size_t index,
                                           AudioDriver** out_driver) {
   assert_not_null(out_driver);
   auto driver = new XAudio2AudioDriver(memory_, semaphore);
-  driver->Initialize();
+  if (!driver->Initialize()) {
+    driver->Shutdown();
+    return X_STATUS_UNSUCCESSFUL;
+  }
+
   *out_driver = driver;
   return X_STATUS_SUCCESS;
 }

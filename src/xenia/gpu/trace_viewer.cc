@@ -9,8 +9,6 @@
 
 #include "xenia/gpu/trace_viewer.h"
 
-#include <gflags/gflags.h>
-
 #include <cinttypes>
 
 #include "third_party/half/include/half.hpp"
@@ -21,6 +19,7 @@
 #include "xenia/base/string.h"
 #include "xenia/base/threading.h"
 #include "xenia/gpu/command_processor.h"
+#include "xenia/gpu/gpu_flags.h"
 #include "xenia/gpu/graphics_system.h"
 #include "xenia/gpu/packet_disassembler.h"
 #include "xenia/gpu/register_file.h"
@@ -32,7 +31,8 @@
 #include "xenia/ui/window.h"
 #include "xenia/xbox.h"
 
-DEFINE_string(target_trace_file, "", "Specifies the trace file to load.");
+DEFINE_string(target_trace_file, "", "Specifies the trace file to load.",
+              "GPU");
 
 namespace xe {
 namespace gpu {
@@ -53,11 +53,11 @@ TraceViewer::~TraceViewer() = default;
 int TraceViewer::Main(const std::vector<std::wstring>& args) {
   // Grab path from the flag or unnamed argument.
   std::wstring path;
-  if (!FLAGS_target_trace_file.empty()) {
+  if (!cvars::target_trace_file.empty()) {
     // Passed as a named argument.
     // TODO(benvanik): find something better than gflags that supports
     // unicode.
-    path = xe::to_wstring(FLAGS_target_trace_file);
+    path = xe::to_wstring(cvars::target_trace_file);
   } else if (args.size() >= 2) {
     // Passed as an unnamed argument.
     path = args[1];
@@ -122,7 +122,7 @@ bool TraceViewer::Setup() {
   window_->Resize(1920, 1200);
 
   // Create the emulator but don't initialize so we can setup the window.
-  emulator_ = std::make_unique<Emulator>(L"");
+  emulator_ = std::make_unique<Emulator>(L"", L"");
   X_STATUS result =
       emulator_->Setup(window_.get(), nullptr,
                        [this]() { return CreateGraphicsSystem(); }, nullptr);
@@ -193,7 +193,7 @@ void TraceViewer::DrawMultilineString(const std::string& str) {
 }
 
 void TraceViewer::DrawUI() {
-  // ImGui::ShowTestWindow();
+  // ImGui::ShowDemoWindow();
 
   DrawControllerUI();
   DrawCommandListUI();
@@ -202,8 +202,9 @@ void TraceViewer::DrawUI() {
 }
 
 void TraceViewer::DrawControllerUI() {
-  ImGui::SetNextWindowPos(ImVec2(5, 5), ImGuiSetCond_FirstUseEver);
-  if (!ImGui::Begin("Controller", nullptr, ImVec2(340, 60))) {
+  ImGui::SetNextWindowPos(ImVec2(5, 5), ImGuiCond_FirstUseEver);
+  ImGui::SetNextWindowSize(ImVec2(340, 60));
+  if (!ImGui::Begin("Controller", nullptr)) {
     ImGui::End();
     return;
   }
@@ -249,10 +250,11 @@ void TraceViewer::DrawControllerUI() {
 }
 
 void TraceViewer::DrawPacketDisassemblerUI() {
-  ImGui::SetNextWindowCollapsed(true, ImGuiSetCond_FirstUseEver);
+  ImGui::SetNextWindowCollapsed(true, ImGuiCond_FirstUseEver);
   ImGui::SetNextWindowPos(ImVec2(float(window_->width()) - 500 - 5, 5),
-                          ImGuiSetCond_FirstUseEver);
-  if (!ImGui::Begin("Packet Disassembler", nullptr, ImVec2(500, 300))) {
+                          ImGuiCond_FirstUseEver);
+  ImGui::SetNextWindowSize(ImVec2(500, 300));
+  if (!ImGui::Begin("Packet Disassembler", nullptr)) {
     ImGui::End();
     return;
   }
@@ -373,6 +375,12 @@ void TraceViewer::DrawPacketDisassemblerUI() {
         // ImGui::BulletText("MemoryWrite");
         break;
       }
+      case TraceCommandType::kEDRAMSnapshot: {
+        auto cmd = reinterpret_cast<const EDRAMSnapshotCommand*>(trace_ptr);
+        trace_ptr += sizeof(*cmd) + cmd->encoded_length;
+        // ImGui::BulletText("EDRAMSnapshot");
+        break;
+      }
       case TraceCommandType::kEvent: {
         auto cmd = reinterpret_cast<const EventCommand*>(trace_ptr);
         trace_ptr += sizeof(*cmd);
@@ -451,8 +459,9 @@ int TraceViewer::RecursiveDrawCommandBufferUI(
 }
 
 void TraceViewer::DrawCommandListUI() {
-  ImGui::SetNextWindowPos(ImVec2(5, 70), ImGuiSetCond_FirstUseEver);
-  if (!ImGui::Begin("Command List", nullptr, ImVec2(200, 640))) {
+  ImGui::SetNextWindowPos(ImVec2(5, 70), ImGuiCond_FirstUseEver);
+  ImGui::SetNextWindowSize(ImVec2(200, 640));
+  if (!ImGui::Begin("Command List", nullptr)) {
     ImGui::End();
     return;
   }
@@ -530,7 +539,7 @@ void TraceViewer::DrawCommandListUI() {
   }
   ImGui::PopID();
   if (did_seek && target_command == -1) {
-    ImGui::SetScrollPosHere();
+    ImGui::SetScrollHereY(0.5f);
   }
 
   auto id = RecursiveDrawCommandBufferUI(frame, frame->command_tree.get());
@@ -656,7 +665,9 @@ void TraceViewer::DrawTextureInfo(
           texture_binding.fetch_constant * 6;
   auto group = reinterpret_cast<const xe_gpu_fetch_group_t*>(&regs.values[r]);
   auto& fetch = group->texture_fetch;
-  if (fetch.type != 0x2) {
+  if (fetch.type != xenos::FetchConstantType::kTexture &&
+      (!cvars::gpu_allow_invalid_fetch_constants ||
+       fetch.type != xenos::FetchConstantType::kInvalidTexture)) {
     DrawFailedTextureInfo(texture_binding, "Invalid fetch type");
     return;
   }
@@ -686,7 +697,7 @@ void TraceViewer::DrawTextureInfo(
   }
   ImGui::NextColumn();
   ImGui::Text("Fetch Slot: %u", texture_binding.fetch_constant);
-  ImGui::Text("Guest Address: %.8X", texture_info.guest_address);
+  ImGui::Text("Guest Address: %.8X", texture_info.memory.base_address);
   ImGui::Text("Format: %s", texture_info.format_info()->name);
   switch (texture_info.dimension) {
     case Dimension::k1D:
@@ -825,7 +836,7 @@ void TraceViewer::DrawVertexFetcher(Shader* shader,
 #define LOADEL(type, wo)                                                   \
   GpuSwap(xe::load<type>(vstart +                                          \
                          (attrib.fetch_instr.attributes.offset + wo) * 4), \
-          Endian(fetch->endian))
+          fetch->endian)
       switch (attrib.fetch_instr.attributes.data_format) {
         case VertexFormat::k_32:
           ImGui::Text("%.8X", LOADEL(uint32_t, 0));
@@ -990,9 +1001,9 @@ static const char* kColorFormatNames[] = {
     /* 7  */ "k_16_16_16_16_FLOAT",
     /* 8  */ "unknown(8)",
     /* 9  */ "unknown(9)",
-    /* 10 */ "k_2_10_10_10_unknown",
+    /* 10 */ "k_2_10_10_10_AS_10_10_10_10",
     /* 11 */ "unknown(11)",
-    /* 12 */ "k_2_10_10_10_FLOAT_unknown",
+    /* 12 */ "k_2_10_10_10_FLOAT_AS_16_16_16_16",
     /* 13 */ "unknown(13)",
     /* 14 */ "k_32_FLOAT",
     /* 15 */ "k_32_32_FLOAT",
@@ -1047,8 +1058,9 @@ void TraceViewer::DrawStateUI() {
   auto& regs = *graphics_system_->register_file();
 
   ImGui::SetNextWindowPos(ImVec2(float(window_->width()) - 500 - 5, 30),
-                          ImGuiSetCond_FirstUseEver);
-  if (!ImGui::Begin("State", nullptr, ImVec2(500, 680))) {
+                          ImGuiCond_FirstUseEver);
+  ImGui::SetNextWindowSize(ImVec2(500, 680));
+  if (!ImGui::Begin("State", nullptr)) {
     ImGui::End();
     return;
   }
@@ -1325,7 +1337,8 @@ void TraceViewer::DrawStateUI() {
       ImGui::BulletText("Blend Color: (%.2f,%.2f,%.2f,%.2f)", blend_color.x,
                         blend_color.y, blend_color.z, blend_color.w);
       ImGui::SameLine();
-      ImGui::ColorButton(blend_color, true);
+      // TODO small_height (was true) parameter was removed
+      ImGui::ColorButton(nullptr, blend_color);
 
       uint32_t rb_color_mask = regs[XE_GPU_REG_RB_COLOR_MASK].u32;
       uint32_t color_info[4] = {
@@ -1335,10 +1348,10 @@ void TraceViewer::DrawStateUI() {
           regs[XE_GPU_REG_RB_COLOR3_INFO].u32,
       };
       uint32_t rb_blendcontrol[4] = {
-          regs[XE_GPU_REG_RB_BLENDCONTROL_0].u32,
-          regs[XE_GPU_REG_RB_BLENDCONTROL_1].u32,
-          regs[XE_GPU_REG_RB_BLENDCONTROL_2].u32,
-          regs[XE_GPU_REG_RB_BLENDCONTROL_3].u32,
+          regs[XE_GPU_REG_RB_BLENDCONTROL0].u32,
+          regs[XE_GPU_REG_RB_BLENDCONTROL1].u32,
+          regs[XE_GPU_REG_RB_BLENDCONTROL2].u32,
+          regs[XE_GPU_REG_RB_BLENDCONTROL3].u32,
       };
       ImGui::Columns(2);
       for (int i = 0; i < xe::countof(color_info); ++i) {
@@ -1714,7 +1727,7 @@ void TraceViewer::DrawStateUI() {
             fetch = &group->vertex_fetch_2;
             break;
         }
-        assert_true(fetch->endian == 2);
+        assert_true(fetch->endian == Endian::k8in32);
         char tree_root_id[32];
         sprintf(tree_root_id, "#vertices_root_%d",
                 vertex_binding.fetch_constant);

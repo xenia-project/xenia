@@ -50,7 +50,9 @@ class VulkanCommandProcessor : public CommandProcessor {
                          kernel::KernelState* kernel_state);
   ~VulkanCommandProcessor() override;
 
-  virtual void RequestFrameTrace(const std::wstring& root_path) override;
+  void RequestFrameTrace(const std::wstring& root_path) override;
+  void TracePlaybackWroteMemory(uint32_t base_ptr, uint32_t length) override;
+  void RestoreEDRAMSnapshot(const void* snapshot) override;
   void ClearCaches() override;
 
   RenderCache* render_cache() { return render_cache_.get(); }
@@ -86,12 +88,16 @@ class VulkanCommandProcessor : public CommandProcessor {
   bool PopulateIndexBuffer(VkCommandBuffer command_buffer,
                            IndexBufferInfo* index_buffer_info);
   bool PopulateVertexBuffers(VkCommandBuffer command_buffer,
+                             VkCommandBuffer setup_buffer,
                              VulkanShader* vertex_shader);
   bool PopulateSamplers(VkCommandBuffer command_buffer,
                         VkCommandBuffer setup_buffer,
                         VulkanShader* vertex_shader,
                         VulkanShader* pixel_shader);
   bool IssueCopy() override;
+
+  void InitializeTrace() override;
+  void FinalizeTrace() override;
 
   xe::ui::vulkan::VulkanDevice* device_ = nullptr;
 
@@ -103,6 +109,7 @@ class VulkanCommandProcessor : public CommandProcessor {
   uint64_t dirty_float_constants_ = 0;  // Dirty float constants in blocks of 4
   uint8_t dirty_bool_constants_ = 0;
   uint32_t dirty_loop_constants_ = 0;
+  uint8_t dirty_gamma_constants_ = 0;
 
   uint32_t coher_base_vc_ = 0;
   uint32_t coher_size_vc_ = 0;

@@ -2,25 +2,77 @@
 
 You must have a 64-bit machine for building and running the project. Always
 run your system updater before building and make sure you have the latest
-video drivers for your card.
+drivers.
 
 ## Setup
 
 ### Windows
 
-* Windows 8 or later
-* Visual Studio 2015 or Visual Studio 2017
-* [Python 2.7](https://www.python.org/downloads/release/python-2713/)
-* If you are on Windows 8, you will also need the [Windows 8.1 SDK](http://msdn.microsoft.com/en-us/windows/desktop/bg162891)
+* Windows 7 or later
+* [Visual Studio 2019 or Visual Studio 2017](https://www.visualstudio.com/downloads/)
+* [Python 3.4+](https://www.python.org/downloads/)
+  * Ensure Python is in PATH.
+* Windows 10 SDK
 
-Ensure Python is in your PATH (`C:\Python27\`).
+```
+git clone https://github.com/xenia-project/xenia.git
+cd xenia
+xb setup
 
-I recommend using [Cmder](http://cmder.net/) for git and command
-line usage.
+# Build on command line (add --config=release for release):
+xb build
+
+
+# Pull latest changes, rebase, update submodules, and run premake:
+xb pull
+
+# Run premake and open Visual Studio (run the 'xenia-app' project):
+xb devenv
+
+# Run premake to update the sln/vcproj's:
+xb premake
+
+# Format code to the style guide:
+xb format
+```
+<!--
+# Remove intermediate files and build outputs (doesn't work on Linux):
+xb clean
+
+# Check for lint errors with clang-format:
+xb lint
+
+# Run the style checker on all code:
+xb style
+
+# Remove all build/ output and do a hard git reset:
+xb nuke
+
+# Runs the clang-tidy checker on all code:
+xb tidy
+
+
+## Testing:
+
+# Generate tests:
+xb gentests
+
+# Run tests:
+xb test
+
+# Run GPU tests:
+xb gputest
+
+
+## Other:
+
+# Generate SPIR-V binaries and header files:
+xb genspirv
+-->
 
 #### Debugging
 
-VS behaves oddly with the debug paths. Open the xenia project properties
+VS behaves oddly with the debug paths. Open the 'xenia-app' project properties
 and set the 'Command' to `$(SolutionDir)$(TargetPath)` and the
 'Working Directory' to `$(SolutionDir)..\..`. You can specify flags and
 the file to run in the 'Command Arguments' field (or use `--flagfile=flags.txt`).
@@ -39,11 +91,10 @@ Linux support is extremely experimental and presently incomplete.
 The build script uses LLVM/Clang 3.8. GCC should also work, but is not easily
 swappable right now.
 
-[CodeLite](http://codelite.org) is the IDE of choice and `xb premake` will spit
+[CodeLite](https://codelite.org) is the IDE of choice and `xb premake` will spit
 out files for that. Make also works via `xb build`.
 
-To get the latest Clang on an ubuntu system:
-
+To get the latest Clang on an Ubuntu system:
 ```
 sudo -E apt-add-repository -y "ppa:ubuntu-toolchain-r/test"
 curl -sSL "http://llvm.org/apt/llvm-snapshot.gpg.key" | sudo -E apt-key add -
@@ -52,39 +103,34 @@ sudo -E apt-get -yq update &>> ~/apt-get-update.log
 sudo -E apt-get -yq --no-install-suggests --no-install-recommends --force-yes install clang-4.0 clang-format-4.0
 ```
 
-You will also need some development libraries. To get them on an ubuntu system:
+You will also need some development libraries. To get them on an Ubuntu system:
 ```
-sudo apt-get install libgtk-3-dev libpthread-stubs0-dev liblz4-dev libglew-dev libx11-dev libvulkan-dev libc++-dev libc++abi-dev
+sudo apt-get install libgtk-3-dev libpthread-stubs0-dev liblz4-dev libx11-dev libvulkan-dev libc++-dev libc++abi-dev
 ```
 
-In addition, you will need the latest OpenGL libraries and drivers for your hardware. Intel and the open source
-drivers are not supported as they do not yet support OpenGL 4.5.
+In addition, you will need the latest Vulkan libraries and drivers for your hardware.
 
 #### Linux NVIDIA Vulkan Drivers
 
 You'll need to install the latest NVIDIA drivers to enable Vulkan support on Linux.
 
 First, remove all existing NVIDIA drivers:
-
 ```
 sudo apt-get purge nvidia*
 ```
 
 Add the graphics-drivers PPA to your system:
-
 ```
 sudo add-apt-repository ppa:graphics-drivers
 sudo apt update
 ```
 
 Install the NVIDIA drivers (newer ones may be released after 387; check online):
-
 ```
 sudo apt install nvidia-387
 ```
 
-Either reboot the computer, or inject the NVIDIA drivers:
-
+Either restart the computer, or inject the NVIDIA drivers:
 ```
 sudo rmmod nouveau
 sudo modprobe nvidia

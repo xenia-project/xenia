@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2019 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -24,6 +24,18 @@ namespace xe {
 namespace cpu {
 namespace backend {
 namespace x64 {
+
+struct EmitFunctionInfo {
+  struct _code_size {
+    size_t prolog;
+    size_t body;
+    size_t epilog;
+    size_t tail;
+    size_t total;
+  } code_size;
+  size_t prolog_stack_alloc_offset;  // offset of instruction after stack alloc
+  size_t stack_size;
+};
 
 class X64CodeCache : public CodeCache {
  public:
@@ -48,9 +60,9 @@ class X64CodeCache : public CodeCache {
   void CommitExecutableRange(uint32_t guest_low, uint32_t guest_high);
 
   void* PlaceHostCode(uint32_t guest_address, void* machine_code,
-                      size_t code_size, size_t stack_size);
+                      const EmitFunctionInfo& func_info);
   void* PlaceGuestCode(uint32_t guest_address, void* machine_code,
-                       size_t code_size, size_t stack_size,
+                       const EmitFunctionInfo& func_info,
                        GuestFunction* function_info);
   uint32_t PlaceData(const void* data, size_t length);
 
@@ -70,7 +82,7 @@ class X64CodeCache : public CodeCache {
   // This is picked to be high enough to cover whatever we can reasonably
   // expect. If we hit issues with this it probably means some corner case
   // in analysis triggering.
-  static const size_t kMaximumFunctionCount = 50000;
+  static const size_t kMaximumFunctionCount = 100000;
 
   struct UnwindReservation {
     size_t data_size = 0;
@@ -84,8 +96,7 @@ class X64CodeCache : public CodeCache {
     return UnwindReservation();
   }
   virtual void PlaceCode(uint32_t guest_address, void* machine_code,
-                         size_t code_size, size_t stack_size,
-                         void* code_address,
+                         const EmitFunctionInfo& func_info, void* code_address,
                          UnwindReservation unwind_reservation) {}
 
   std::wstring file_name_;

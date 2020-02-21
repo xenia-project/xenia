@@ -43,17 +43,20 @@ class EmulatorWindow {
 
   bool Initialize();
 
-  void FileDrop(wchar_t* filename);
+  void FileDrop(const wchar_t* filename);
   void FileOpen();
   void FileClose();
+  void ShowContentDirectory();
   void CheckHideCursor();
   void CpuTimeScalarReset();
   void CpuTimeScalarSetHalf();
   void CpuTimeScalarSetDouble();
   void CpuBreakIntoDebugger();
+  void CpuBreakIntoHostDebugger();
   void GpuTraceFrame();
   void GpuClearCaches();
   void ShowHelpWebsite();
+  void ShowCommitID();
 
   Emulator* emulator_;
   std::unique_ptr<ui::Loop> loop_;

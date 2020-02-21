@@ -9,8 +9,6 @@
 
 #include "xenia/ui/vulkan/vulkan_device.h"
 
-#include <gflags/gflags.h>
-
 #include <cinttypes>
 #include <climits>
 #include <mutex>
@@ -33,7 +31,7 @@ namespace ui {
 namespace vulkan {
 
 VulkanDevice::VulkanDevice(VulkanInstance* instance) : instance_(instance) {
-  if (FLAGS_vulkan_validation) {
+  if (cvars::vulkan_validation) {
     DeclareRequiredLayer("VK_LAYER_LUNARG_standard_validation",
                          Version::Make(0, 0, 0), true);
     // DeclareRequiredLayer("VK_LAYER_GOOGLE_unique_objects", Version::Make(0,
@@ -57,8 +55,15 @@ VulkanDevice::VulkanDevice(VulkanInstance* instance) : instance_(instance) {
     */
   }
 
+  // AMD shader info (optional)
+  DeclareRequiredExtension(VK_AMD_SHADER_INFO_EXTENSION_NAME,
+                           Version::Make(0, 0, 0), true);
+  // Debug markers (optional)
   DeclareRequiredExtension(VK_EXT_DEBUG_MARKER_EXTENSION_NAME,
                            Version::Make(0, 0, 0), true);
+
+  DeclareRequiredExtension(VK_KHR_SAMPLER_MIRROR_CLAMP_TO_EDGE_EXTENSION_NAME,
+                           Version::Make(0, 0, 0), false);
 }
 
 VulkanDevice::~VulkanDevice() {
@@ -100,7 +105,9 @@ bool VulkanDevice::Initialize(DeviceInfo device_info) {
   }
   ENABLE_AND_EXPECT(shaderClipDistance);
   ENABLE_AND_EXPECT(shaderCullDistance);
+  ENABLE_AND_EXPECT(shaderStorageImageExtendedFormats);
   ENABLE_AND_EXPECT(shaderTessellationAndGeometryPointSize);
+  ENABLE_AND_EXPECT(samplerAnisotropy);
   ENABLE_AND_EXPECT(geometryShader);
   ENABLE_AND_EXPECT(depthClamp);
   ENABLE_AND_EXPECT(multiViewport);
@@ -141,7 +148,7 @@ bool VulkanDevice::Initialize(DeviceInfo device_info) {
   }
 
   // Some tools *cough* renderdoc *cough* can't handle multiple queues.
-  if (FLAGS_vulkan_primary_queue_only) {
+  if (cvars::vulkan_primary_queue_only) {
     queue_count = 1;
   }
 
@@ -160,7 +167,7 @@ bool VulkanDevice::Initialize(DeviceInfo device_info) {
     queue_info.queueFamilyIndex = i;
     queue_info.queueCount = family_props.queueCount;
 
-    queue_priorities[i].resize(queue_count, 0.f);
+    queue_priorities[i].resize(family_props.queueCount, 0.f);
     if (i == ideal_queue_family_index) {
       // Prioritize the first queue on the primary queue family.
       queue_priorities[i][0] = 1.0f;
@@ -208,6 +215,18 @@ bool VulkanDevice::Initialize(DeviceInfo device_info) {
   for (auto& ext : enabled_extensions_) {
     if (!std::strcmp(ext, VK_EXT_DEBUG_MARKER_EXTENSION_NAME)) {
       debug_marker_ena_ = true;
+      pfn_vkDebugMarkerSetObjectNameEXT_ =
+          (PFN_vkDebugMarkerSetObjectNameEXT)vkGetDeviceProcAddr(
+              *this, "vkDebugMarkerSetObjectNameEXT");
+      pfn_vkCmdDebugMarkerBeginEXT_ =
+          (PFN_vkCmdDebugMarkerBeginEXT)vkGetDeviceProcAddr(
+              *this, "vkCmdDebugMarkerBeginEXT");
+      pfn_vkCmdDebugMarkerEndEXT_ =
+          (PFN_vkCmdDebugMarkerEndEXT)vkGetDeviceProcAddr(
+              *this, "vkCmdDebugMarkerEndEXT");
+      pfn_vkCmdDebugMarkerInsertEXT_ =
+          (PFN_vkCmdDebugMarkerInsertEXT)vkGetDeviceProcAddr(
+              *this, "vkCmdDebugMarkerInsertEXT");
     }
   }
 
@@ -245,6 +264,16 @@ bool VulkanDevice::Initialize(DeviceInfo device_info) {
   return true;
 }
 
+bool VulkanDevice::HasEnabledExtension(const char* name) {
+  for (auto extension : enabled_extensions_) {
+    if (!std::strcmp(extension, name)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 VkQueue VulkanDevice::AcquireQueue(uint32_t queue_family_index) {
   std::lock_guard<std::mutex> lock(queue_mutex_);
   if (free_queues_[queue_family_index].empty()) {
@@ -261,33 +290,68 @@ void VulkanDevice::ReleaseQueue(VkQueue queue, uint32_t queue_family_index) {
   free_queues_[queue_family_index].push_back(queue);
 }
 
-void VulkanDevice::DbgSetObjectName(VkDevice device, uint64_t object,
+void VulkanDevice::DbgSetObjectName(uint64_t object,
                                     VkDebugReportObjectTypeEXT object_type,
                                     std::string name) {
-  // Check to see if the extension is even loaded
-  if (vkGetDeviceProcAddr(device, "vkDebugMarkerSetObjectNameEXT") == nullptr) {
+  if (!debug_marker_ena_ || pfn_vkDebugMarkerSetObjectNameEXT_ == nullptr) {
+    // Extension disabled.
     return;
   }
 
-  // TODO(DrChat): fix linkage errors
   VkDebugMarkerObjectNameInfoEXT info;
   info.sType = VK_STRUCTURE_TYPE_DEBUG_MARKER_OBJECT_NAME_INFO_EXT;
   info.pNext = nullptr;
   info.objectType = object_type;
   info.object = object;
   info.pObjectName = name.c_str();
-  // vkDebugMarkerSetObjectNameEXT(device, &info);
+  pfn_vkDebugMarkerSetObjectNameEXT_(*this, &info);
 }
 
-void VulkanDevice::DbgSetObjectName(uint64_t object,
-                                    VkDebugReportObjectTypeEXT object_type,
-                                    std::string name) {
-  if (!debug_marker_ena_) {
+void VulkanDevice::DbgMarkerBegin(VkCommandBuffer command_buffer,
+                                  std::string name, float r, float g, float b,
+                                  float a) {
+  if (!debug_marker_ena_ || pfn_vkCmdDebugMarkerBeginEXT_ == nullptr) {
     // Extension disabled.
     return;
   }
 
-  DbgSetObjectName(*this, object, object_type, name);
+  VkDebugMarkerMarkerInfoEXT info;
+  info.sType = VK_STRUCTURE_TYPE_DEBUG_MARKER_MARKER_INFO_EXT;
+  info.pNext = nullptr;
+  info.pMarkerName = name.c_str();
+  info.color[0] = r;
+  info.color[1] = g;
+  info.color[2] = b;
+  info.color[3] = a;
+  pfn_vkCmdDebugMarkerBeginEXT_(command_buffer, &info);
+}
+
+void VulkanDevice::DbgMarkerEnd(VkCommandBuffer command_buffer) {
+  if (!debug_marker_ena_ || pfn_vkCmdDebugMarkerEndEXT_ == nullptr) {
+    // Extension disabled.
+    return;
+  }
+
+  pfn_vkCmdDebugMarkerEndEXT_(command_buffer);
+}
+
+void VulkanDevice::DbgMarkerInsert(VkCommandBuffer command_buffer,
+                                   std::string name, float r, float g, float b,
+                                   float a) {
+  if (!debug_marker_ena_ || pfn_vkCmdDebugMarkerInsertEXT_ == nullptr) {
+    // Extension disabled.
+    return;
+  }
+
+  VkDebugMarkerMarkerInfoEXT info;
+  info.sType = VK_STRUCTURE_TYPE_DEBUG_MARKER_MARKER_INFO_EXT;
+  info.pNext = nullptr;
+  info.pMarkerName = name.c_str();
+  info.color[0] = r;
+  info.color[1] = g;
+  info.color[2] = g;
+  info.color[3] = b;
+  pfn_vkCmdDebugMarkerInsertEXT_(command_buffer, &info);
 }
 
 bool VulkanDevice::is_renderdoc_attached() const {

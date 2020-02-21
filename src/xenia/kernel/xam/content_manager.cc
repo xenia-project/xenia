@@ -23,6 +23,8 @@ namespace xam {
 
 static const wchar_t* kThumbnailFileName = L"__thumbnail.png";
 
+static const wchar_t* kGameUserContentDirName = L"profile";
+
 static int content_device_id_ = 0;
 
 ContentPackage::ContentPackage(KernelState* kernel_state, std::string root_name,
@@ -41,8 +43,9 @@ ContentPackage::ContentPackage(KernelState* kernel_state, std::string root_name,
 }
 
 ContentPackage::~ContentPackage() {
-  kernel_state_->file_system()->UnregisterSymbolicLink(root_name_ + ":");
-  // TODO(benvanik): unregister device.
+  auto fs = kernel_state_->file_system();
+  fs->UnregisterSymbolicLink(root_name_ + ":");
+  fs->UnregisterDevice(device_path_);
 }
 
 ContentManager::ContentManager(KernelState* kernel_state,
@@ -144,7 +147,7 @@ X_RESULT ContentManager::CreateContent(std::string root_name,
 
   if (open_packages_.count(root_name)) {
     // Already content open with this root name.
-    return X_ERROR_INVALID_NAME;
+    return X_ERROR_ALREADY_EXISTS;
   }
 
   auto package_path = ResolvePackagePath(data);
@@ -171,7 +174,7 @@ X_RESULT ContentManager::OpenContent(std::string root_name,
 
   if (open_packages_.count(root_name)) {
     // Already content open with this root name.
-    return X_ERROR_INVALID_NAME;
+    return X_ERROR_ALREADY_EXISTS;
   }
 
   auto package_path = ResolvePackagePath(data);
@@ -249,6 +252,20 @@ X_RESULT ContentManager::DeleteContent(const XCONTENT_DATA& data) {
   } else {
     return X_ERROR_FILE_NOT_FOUND;
   }
+}
+
+std::wstring ContentManager::ResolveGameUserContentPath() {
+  wchar_t title_id[9] = L"00000000";
+  std::swprintf(title_id, 9, L"%.8X", kernel_state_->title_id());
+  auto user_name = xe::to_wstring(kernel_state_->user_profile()->name());
+
+  // Per-game per-profile data location:
+  // content_root/title_id/profile/user_name
+  auto package_root = xe::join_paths(
+      root_path_,
+      xe::join_paths(title_id,
+                     xe::join_paths(kGameUserContentDirName, user_name)));
+  return package_root + xe::kWPathSeparator;
 }
 
 }  // namespace xam

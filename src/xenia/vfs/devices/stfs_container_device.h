@@ -10,6 +10,7 @@
 #ifndef XENIA_VFS_DEVICES_STFS_CONTAINER_DEVICE_H_
 #define XENIA_VFS_DEVICES_STFS_CONTAINER_DEVICE_H_
 
+#include <map>
 #include <memory>
 #include <string>
 
@@ -19,7 +20,9 @@
 namespace xe {
 namespace vfs {
 
-// http://www.free60.org/wiki/STFS
+// https://free60project.github.io/wiki/STFS.html
+
+class StfsContainerEntry;
 
 enum class StfsPackageType {
   kCon,
@@ -32,6 +35,7 @@ enum class StfsContentType : uint32_t {
   kAvatarItem = 0x00009000,
   kCacheFile = 0x00040000,
   kCommunityGame = 0x02000000,
+  kGamesOnDemand = 0x00007000,
   kGameDemo = 0x00080000,
   kGamerPicture = 0x00020000,
   kGameTitle = 0x000A0000,
@@ -75,13 +79,40 @@ struct StfsVolumeDescriptor {
   bool Read(const uint8_t* p);
 
   uint8_t descriptor_size;
-  uint8_t reserved;
-  uint8_t block_separation;
+  uint8_t version;
+  uint8_t flags;
   uint16_t file_table_block_count;
   uint32_t file_table_block_number;
   uint8_t top_hash_table_hash[0x14];
   uint32_t total_allocated_block_count;
   uint32_t total_unallocated_block_count;
+};
+
+enum SvodDeviceFeatures {
+  kFeatureHasEnhancedGDFLayout = 0x40,
+};
+
+enum SvodLayoutType {
+  kUnknownLayout = 0x0,
+  kEnhancedGDFLayout = 0x1,
+  kXSFLayout = 0x2,
+  kSingleFileLayout = 0x4,
+};
+
+struct SvodVolumeDescriptor {
+  bool Read(const uint8_t* p);
+
+  uint8_t descriptor_size;
+  uint8_t block_cache_element_count;
+  uint8_t worker_thread_processor;
+  uint8_t worker_thread_priority;
+  uint8_t hash[0x14];
+  uint8_t device_features;
+  uint32_t data_block_count;
+  uint32_t data_block_offset;
+  // 0x5 padding bytes...
+
+  SvodLayoutType layout_type;
 };
 
 class StfsHeader {
@@ -105,7 +136,10 @@ class StfsHeader {
   uint32_t save_game_id;
   uint8_t console_id[0x5];
   uint8_t profile_id[0x8];
-  StfsVolumeDescriptor volume_descriptor;
+  union {
+    StfsVolumeDescriptor stfs_volume_descriptor;
+    SvodVolumeDescriptor svod_volume_descriptor;
+  };
   uint32_t data_file_count;
   uint64_t data_file_combined_size;
   StfsDescriptorType descriptor_type;
@@ -119,6 +153,14 @@ class StfsHeader {
   uint32_t title_thumbnail_image_size;
   uint8_t thumbnail_image[0x4000];
   uint8_t title_thumbnail_image[0x4000];
+
+  // Metadata v2 Fields
+  uint8_t series_id[0x10];
+  uint8_t season_id[0x10];
+  int16_t season_number;
+  int16_t episode_number;
+  wchar_t additonal_display_names[0x300 / 2];
+  wchar_t additional_display_descriptions[0x300 / 2];
 };
 
 class StfsContainerDevice : public Device {
@@ -128,9 +170,11 @@ class StfsContainerDevice : public Device {
   ~StfsContainerDevice() override;
 
   bool Initialize() override;
+  void Dump(StringBuffer* string_buffer) override;
+  Entry* ResolvePath(const std::string& path) override;
 
   uint32_t total_allocation_units() const override {
-    return uint32_t(mmap_->size() / sectors_per_allocation_unit() /
+    return uint32_t(mmap_total_size_ / sectors_per_allocation_unit() /
                     bytes_per_sector());
   }
   uint32_t available_allocation_units() const override { return 0; }
@@ -151,17 +195,33 @@ class StfsContainerDevice : public Device {
     uint32_t info;
   };
 
-  Error ReadHeaderAndVerify(const uint8_t* map_ptr);
-  Error ReadAllEntries(const uint8_t* map_ptr);
-  size_t BlockToOffset(uint32_t block);
-  uint32_t ComputeBlockNumber(uint32_t block_index);
+  const uint32_t kSTFSHashSpacing = 170;
+
+  bool ResolveFromFolder(const std::wstring& path);
+
+  Error MapFiles();
+  static Error ReadPackageType(const uint8_t* map_ptr, size_t map_size,
+                               StfsPackageType* package_type_out);
+  Error ReadHeaderAndVerify(const uint8_t* map_ptr, size_t map_size);
+
+  Error ReadSVOD();
+  Error ReadEntrySVOD(uint32_t sector, uint32_t ordinal,
+                      StfsContainerEntry* parent);
+  void BlockToOffsetSVOD(size_t sector, size_t* address, size_t* file_index);
+
+  Error ReadSTFS();
+  size_t BlockToOffsetSTFS(uint64_t block);
 
   BlockHash GetBlockHash(const uint8_t* map_ptr, uint32_t block_index,
                          uint32_t table_offset);
 
   std::wstring local_path_;
-  std::unique_ptr<MappedMemory> mmap_;
+  std::map<size_t, std::unique_ptr<MappedMemory>> mmap_;
+  size_t mmap_total_size_;
 
+  size_t base_offset_;
+  size_t magic_offset_;
+  std::unique_ptr<Entry> root_entry_;
   StfsPackageType package_type_;
   StfsHeader header_;
   uint32_t table_size_shift_;

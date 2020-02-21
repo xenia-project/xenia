@@ -11,8 +11,8 @@
 
 namespace xe {
 
-void LaunchBrowser(const char* url) {
-  ShellExecuteA(NULL, "open", url, NULL, NULL, SW_SHOWNORMAL);
+void LaunchBrowser(const wchar_t* url) {
+  ShellExecuteW(NULL, L"open", url, NULL, NULL, SW_SHOWNORMAL);
 }
 
 }  // namespace xe

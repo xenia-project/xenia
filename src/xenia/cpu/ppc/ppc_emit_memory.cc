@@ -9,11 +9,10 @@
 
 #include "xenia/cpu/ppc/ppc_emit-private.h"
 
+#include <stddef.h>
 #include "xenia/base/assert.h"
 #include "xenia/cpu/ppc/ppc_context.h"
 #include "xenia/cpu/ppc/ppc_hir_builder.h"
-
-#include <stddef.h>
 
 namespace xe {
 namespace cpu {
@@ -63,8 +62,15 @@ int InstrEmit_lbz(PPCHIRBuilder& f, const InstrData& i) {
   //   b <- (RA)
   // EA <- b + EXTS(D)
   // RT <- i56.0 || MEM(EA, 1)
-  Value* ea = CalculateEA_0_i(f, i.D.RA, XEEXTS16(i.D.DS));
-  Value* rt = f.ZeroExtend(f.Load(ea, INT8_TYPE), INT64_TYPE);
+  Value* b;
+  if (i.D.RA == 0) {
+    b = f.LoadZeroInt64();
+  } else {
+    b = f.LoadGPR(i.D.RA);
+  }
+
+  Value* offset = f.LoadConstantInt64(XEEXTS16(i.D.DS));
+  Value* rt = f.ZeroExtend(f.LoadOffset(b, offset, INT8_TYPE), INT64_TYPE);
   f.StoreGPR(i.D.RT, rt);
   return 0;
 }
@@ -73,10 +79,11 @@ int InstrEmit_lbzu(PPCHIRBuilder& f, const InstrData& i) {
   // EA <- (RA) + EXTS(D)
   // RT <- i56.0 || MEM(EA, 1)
   // RA <- EA
-  Value* ea = CalculateEA_i(f, i.D.RA, XEEXTS16(i.D.DS));
-  Value* rt = f.ZeroExtend(f.Load(ea, INT8_TYPE), INT64_TYPE);
+  Value* ra = f.LoadGPR(i.D.RA);
+  Value* offset = f.LoadConstantInt64(XEEXTS16(i.D.DS));
+  Value* rt = f.ZeroExtend(f.LoadOffset(ra, offset, INT8_TYPE), INT64_TYPE);
   f.StoreGPR(i.D.RT, rt);
-  StoreEA(f, i.D.RA, ea);
+  StoreEA(f, i.D.RA, f.Add(ra, offset));
   return 0;
 }
 
@@ -111,8 +118,16 @@ int InstrEmit_lha(PPCHIRBuilder& f, const InstrData& i) {
   //   b <- (RA)
   // EA <- b + EXTS(D)
   // RT <- EXTS(MEM(EA, 2))
-  Value* ea = CalculateEA_0_i(f, i.D.RA, XEEXTS16(i.D.DS));
-  Value* rt = f.SignExtend(f.ByteSwap(f.Load(ea, INT16_TYPE)), INT64_TYPE);
+  Value* b;
+  if (i.D.RA == 0) {
+    b = f.LoadZeroInt64();
+  } else {
+    b = f.LoadGPR(i.D.RA);
+  }
+
+  Value* offset = f.LoadConstantInt64(XEEXTS16(i.D.DS));
+  Value* rt =
+      f.SignExtend(f.ByteSwap(f.LoadOffset(b, offset, INT16_TYPE)), INT64_TYPE);
   f.StoreGPR(i.D.RT, rt);
   return 0;
 }
@@ -121,10 +136,12 @@ int InstrEmit_lhau(PPCHIRBuilder& f, const InstrData& i) {
   // EA <- (RA) + EXTS(D)
   // RT <- EXTS(MEM(EA, 2))
   // RA <- EA
-  Value* ea = CalculateEA_i(f, i.D.RA, XEEXTS16(i.D.DS));
-  Value* rt = f.SignExtend(f.ByteSwap(f.Load(ea, INT16_TYPE)), INT64_TYPE);
+  Value* ra = f.LoadGPR(i.D.RA);
+  Value* offset = f.LoadConstantInt64(XEEXTS16(i.D.DS));
+  Value* rt = f.SignExtend(f.ByteSwap(f.LoadOffset(ra, offset, INT16_TYPE)),
+                           INT64_TYPE);
   f.StoreGPR(i.D.RT, rt);
-  StoreEA(f, i.D.RA, ea);
+  StoreEA(f, i.D.RA, f.Add(ra, offset));
   return 0;
 }
 
@@ -159,8 +176,16 @@ int InstrEmit_lhz(PPCHIRBuilder& f, const InstrData& i) {
   //   b <- (RA)
   // EA <- b + EXTS(D)
   // RT <- i48.0 || MEM(EA, 2)
-  Value* ea = CalculateEA_0_i(f, i.D.RA, XEEXTS16(i.D.DS));
-  Value* rt = f.ZeroExtend(f.ByteSwap(f.Load(ea, INT16_TYPE)), INT64_TYPE);
+  Value* b;
+  if (i.D.RA == 0) {
+    b = f.LoadZeroInt64();
+  } else {
+    b = f.LoadGPR(i.D.RA);
+  }
+
+  Value* offset = f.LoadConstantInt64(XEEXTS16(i.D.DS));
+  Value* rt =
+      f.ZeroExtend(f.ByteSwap(f.LoadOffset(b, offset, INT16_TYPE)), INT64_TYPE);
   f.StoreGPR(i.D.RT, rt);
   return 0;
 }
@@ -169,10 +194,12 @@ int InstrEmit_lhzu(PPCHIRBuilder& f, const InstrData& i) {
   // EA <- (RA) + EXTS(D)
   // RT <- i48.0 || MEM(EA, 2)
   // RA <- EA
-  Value* ea = CalculateEA_i(f, i.D.RA, XEEXTS16(i.D.DS));
-  Value* rt = f.ZeroExtend(f.ByteSwap(f.Load(ea, INT16_TYPE)), INT64_TYPE);
+  Value* ra = f.LoadGPR(i.D.RA);
+  Value* offset = f.LoadConstantInt64(XEEXTS16(i.D.DS));
+  Value* rt = f.ZeroExtend(f.ByteSwap(f.LoadOffset(ra, offset, INT16_TYPE)),
+                           INT64_TYPE);
   f.StoreGPR(i.D.RT, rt);
-  StoreEA(f, i.D.RA, ea);
+  StoreEA(f, i.D.RA, f.Add(ra, offset));
   return 0;
 }
 
@@ -207,8 +234,16 @@ int InstrEmit_lwa(PPCHIRBuilder& f, const InstrData& i) {
   //   b <- (RA)
   // EA <- b + EXTS(D || 00)
   // RT <- EXTS(MEM(EA, 4))
-  Value* ea = CalculateEA_0_i(f, i.DS.RA, XEEXTS16(i.DS.DS << 2));
-  Value* rt = f.SignExtend(f.ByteSwap(f.Load(ea, INT32_TYPE)), INT64_TYPE);
+  Value* b;
+  if (i.DS.RA == 0) {
+    b = f.LoadZeroInt64();
+  } else {
+    b = f.LoadGPR(i.DS.RA);
+  }
+
+  Value* offset = f.LoadConstantInt64(XEEXTS16(i.DS.DS << 2));
+  Value* rt =
+      f.SignExtend(f.ByteSwap(f.LoadOffset(b, offset, INT32_TYPE)), INT64_TYPE);
   f.StoreGPR(i.DS.RT, rt);
   return 0;
 }
@@ -244,8 +279,16 @@ int InstrEmit_lwz(PPCHIRBuilder& f, const InstrData& i) {
   //   b <- (RA)
   // EA <- b + EXTS(D)
   // RT <- i32.0 || MEM(EA, 4)
-  Value* ea = CalculateEA_0_i(f, i.D.RA, XEEXTS16(i.D.DS));
-  Value* rt = f.ZeroExtend(f.ByteSwap(f.Load(ea, INT32_TYPE)), INT64_TYPE);
+  Value* b;
+  if (i.D.RA == 0) {
+    b = f.LoadZeroInt64();
+  } else {
+    b = f.LoadGPR(i.D.RA);
+  }
+
+  Value* offset = f.LoadConstantInt64(XEEXTS16(i.D.DS));
+  Value* rt =
+      f.ZeroExtend(f.ByteSwap(f.LoadOffset(b, offset, INT32_TYPE)), INT64_TYPE);
   f.StoreGPR(i.D.RT, rt);
   return 0;
 }
@@ -254,10 +297,12 @@ int InstrEmit_lwzu(PPCHIRBuilder& f, const InstrData& i) {
   // EA <- (RA) + EXTS(D)
   // RT <- i32.0 || MEM(EA, 4)
   // RA <- EA
-  Value* ea = CalculateEA_i(f, i.D.RA, XEEXTS16(i.D.DS));
-  Value* rt = f.ZeroExtend(f.ByteSwap(f.Load(ea, INT32_TYPE)), INT64_TYPE);
+  Value* ra = f.LoadGPR(i.D.RA);
+  Value* offset = f.LoadConstantInt64(XEEXTS16(i.D.DS));
+  Value* rt = f.ZeroExtend(f.ByteSwap(f.LoadOffset(ra, offset, INT32_TYPE)),
+                           INT64_TYPE);
   f.StoreGPR(i.D.RT, rt);
-  StoreEA(f, i.D.RA, ea);
+  StoreEA(f, i.D.RA, f.Add(ra, offset));
   return 0;
 }
 
@@ -292,8 +337,15 @@ int InstrEmit_ld(PPCHIRBuilder& f, const InstrData& i) {
   //   b <- (RA)
   // EA <- b + EXTS(DS || 0b00)
   // RT <- MEM(EA, 8)
-  Value* ea = CalculateEA_0_i(f, i.DS.RA, XEEXTS16(i.DS.DS << 2));
-  Value* rt = f.ByteSwap(f.Load(ea, INT64_TYPE));
+  Value* b;
+  if (i.DS.RA == 0) {
+    b = f.LoadZeroInt64();
+  } else {
+    b = f.LoadGPR(i.DS.RA);
+  }
+
+  Value* offset = f.LoadConstantInt64(XEEXTS16(i.DS.DS << 2));
+  Value* rt = f.ByteSwap(f.LoadOffset(b, offset, INT64_TYPE));
   f.StoreGPR(i.DS.RT, rt);
   return 0;
 }
@@ -342,8 +394,15 @@ int InstrEmit_stb(PPCHIRBuilder& f, const InstrData& i) {
   //   b <- (RA)
   // EA <- b + EXTS(D)
   // MEM(EA, 1) <- (RS)[56:63]
-  Value* ea = CalculateEA_0_i(f, i.D.RA, XEEXTS16(i.D.DS));
-  f.Store(ea, f.Truncate(f.LoadGPR(i.D.RT), INT8_TYPE));
+  Value* b;
+  if (i.D.RA == 0) {
+    b = f.LoadZeroInt64();
+  } else {
+    b = f.LoadGPR(i.D.RA);
+  }
+
+  Value* offset = f.LoadConstantInt64(XEEXTS16(i.D.DS));
+  f.StoreOffset(b, offset, f.Truncate(f.LoadGPR(i.D.RT), INT8_TYPE));
   return 0;
 }
 
@@ -386,8 +445,16 @@ int InstrEmit_sth(PPCHIRBuilder& f, const InstrData& i) {
   //   b <- (RA)
   // EA <- b + EXTS(D)
   // MEM(EA, 2) <- (RS)[48:63]
-  Value* ea = CalculateEA_0_i(f, i.D.RA, XEEXTS16(i.D.DS));
-  f.Store(ea, f.ByteSwap(f.Truncate(f.LoadGPR(i.D.RT), INT16_TYPE)));
+  Value* b;
+  if (i.D.RA == 0) {
+    b = f.LoadZeroInt64();
+  } else {
+    b = f.LoadGPR(i.D.RA);
+  }
+
+  Value* offset = f.LoadConstantInt64(XEEXTS16(i.D.DS));
+  f.StoreOffset(b, offset,
+                f.ByteSwap(f.Truncate(f.LoadGPR(i.D.RT), INT16_TYPE)));
   return 0;
 }
 
@@ -430,8 +497,32 @@ int InstrEmit_stw(PPCHIRBuilder& f, const InstrData& i) {
   //   b <- (RA)
   // EA <- b + EXTS(D)
   // MEM(EA, 4) <- (RS)[32:63]
-  Value* ea = CalculateEA_0_i(f, i.D.RA, XEEXTS16(i.D.DS));
-  f.Store(ea, f.ByteSwap(f.Truncate(f.LoadGPR(i.D.RT), INT32_TYPE)));
+  Value* b;
+  if (i.D.RA == 0) {
+    b = f.LoadZeroInt64();
+  } else {
+    b = f.LoadGPR(i.D.RA);
+  }
+  Value* offset = f.LoadConstantInt64(XEEXTS16(i.D.DS));
+  f.StoreOffset(b, offset,
+                f.ByteSwap(f.Truncate(f.LoadGPR(i.D.RT), INT32_TYPE)));
+
+  return 0;
+}
+
+int InstrEmit_stmw(PPCHIRBuilder& f, const InstrData& i) {
+  Value* b;
+  if (i.D.RA == 0) {
+    b = f.LoadZeroInt64();
+  } else {
+    b = f.LoadGPR(i.D.RA);
+  }
+
+  for (uint32_t j = 0; j < 32 - i.D.RT; ++j) {
+    Value* offset = f.LoadConstantInt64(XEEXTS16(i.D.DS) + j * 4);
+    f.StoreOffset(b, offset,
+                  f.ByteSwap(f.Truncate(f.LoadGPR(i.D.RT + j), INT32_TYPE)));
+  }
   return 0;
 }
 
@@ -474,8 +565,15 @@ int InstrEmit_std(PPCHIRBuilder& f, const InstrData& i) {
   //   b <- (RA)
   // EA <- b + EXTS(DS || 0b00)
   // MEM(EA, 8) <- (RS)
-  Value* ea = CalculateEA_0_i(f, i.DS.RA, XEEXTS16(i.DS.DS << 2));
-  f.Store(ea, f.ByteSwap(f.LoadGPR(i.DS.RT)));
+  Value* b;
+  if (i.DS.RA == 0) {
+    b = f.LoadZeroInt64();
+  } else {
+    b = f.LoadGPR(i.DS.RA);
+  }
+
+  Value* offset = f.LoadConstantInt64(XEEXTS16(i.DS.DS << 2));
+  f.StoreOffset(b, offset, f.ByteSwap(f.LoadGPR(i.DS.RT)));
   return 0;
 }
 
@@ -591,13 +689,23 @@ int InstrEmit_stdbrx(PPCHIRBuilder& f, const InstrData& i) {
 // Integer load and store multiple (A-16)
 
 int InstrEmit_lmw(PPCHIRBuilder& f, const InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
-}
+  Value* b;
+  if (i.D.RA == 0) {
+    b = f.LoadZeroInt64();
+  } else {
+    b = f.LoadGPR(i.D.RA);
+  }
 
-int InstrEmit_stmw(PPCHIRBuilder& f, const InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  for (uint32_t j = 0; j < 32 - i.D.RT; ++j) {
+    if (i.D.RT + j == i.D.RA) {
+      continue;
+    }
+    Value* offset = f.LoadConstantInt64(XEEXTS16(i.D.DS) + j * 4);
+    Value* rt = f.ZeroExtend(f.ByteSwap(f.LoadOffset(b, offset, INT32_TYPE)),
+                             INT64_TYPE);
+    f.StoreGPR(i.D.RT + j, rt);
+  }
+  return 0;
 }
 
 // Integer load and store string (A-17)
@@ -966,36 +1074,34 @@ int InstrEmit_stfsx(PPCHIRBuilder& f, const InstrData& i) {
 }
 
 // Cache management (A-27)
+// dcbf, dcbst, dcbt, dcbtst work with 128-byte cache lines, not 32-byte cache
+// blocks, on the Xenon:
+// https://github.com/ValveSoftware/source-sdk-2013/blob/master/mp/src/mathlib/sseconst.cpp#L321
+// https://randomascii.wordpress.com/2018/01/07/finding-a-cpu-design-bug-in-the-xbox-360/
 
 int InstrEmit_dcbf(PPCHIRBuilder& f, const InstrData& i) {
-  // No-op for now.
-  // TODO(benvanik): use prefetch
-  // XEINSTRNOTIMPLEMENTED();
-  f.Nop();
+  Value* ea = CalculateEA_0(f, i.X.RA, i.X.RB);
+  f.CacheControl(ea, 128,
+                 CacheControlType::CACHE_CONTOROL_TYPE_DATA_STORE_AND_FLUSH);
   return 0;
 }
 
 int InstrEmit_dcbst(PPCHIRBuilder& f, const InstrData& i) {
-  // No-op for now.
-  // TODO(benvanik): use prefetch
-  // XEINSTRNOTIMPLEMENTED();
-  f.Nop();
+  Value* ea = CalculateEA_0(f, i.X.RA, i.X.RB);
+  f.CacheControl(ea, 128, CacheControlType::CACHE_CONTOROL_TYPE_DATA_STORE);
   return 0;
 }
 
 int InstrEmit_dcbt(PPCHIRBuilder& f, const InstrData& i) {
-  // No-op for now.
-  // TODO(benvanik): use prefetch
-  // XEINSTRNOTIMPLEMENTED();
-  f.Nop();
+  Value* ea = CalculateEA_0(f, i.X.RA, i.X.RB);
+  f.CacheControl(ea, 128, CacheControlType::CACHE_CONTOROL_TYPE_DATA_TOUCH);
   return 0;
 }
 
 int InstrEmit_dcbtst(PPCHIRBuilder& f, const InstrData& i) {
-  // No-op for now.
-  // TODO(benvanik): use prefetch
-  // XEINSTRNOTIMPLEMENTED();
-  f.Nop();
+  Value* ea = CalculateEA_0(f, i.X.RA, i.X.RB);
+  f.CacheControl(ea, 128,
+                 CacheControlType::CACHE_CONTOROL_TYPE_DATA_TOUCH_FOR_STORE);
   return 0;
 }
 

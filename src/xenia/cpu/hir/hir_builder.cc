@@ -764,7 +764,7 @@ void HIRBuilder::CommentFormat(const char* format, ...) {
   va_start(args, format);
   size_t chars_written = vsnprintf(p, kMaxCommentSize - 1, format, args);
   va_end(args);
-  size_t rewind = kMaxCommentSize - chars_written;
+  size_t rewind = kMaxCommentSize - chars_written - 1;
   arena_->Rewind(rewind);
   Instr* i = AppendInstr(OPCODE_COMMENT_info, 0);
   i->src1.offset = (uint64_t)p;
@@ -1232,6 +1232,25 @@ void HIRBuilder::StoreMmio(cpu::MMIORange* mmio_range, uint32_t address,
   i->set_src3(value);
 }
 
+Value* HIRBuilder::LoadOffset(Value* address, Value* offset, TypeName type,
+                              uint32_t load_flags) {
+  ASSERT_ADDRESS_TYPE(address);
+  Instr* i = AppendInstr(OPCODE_LOAD_OFFSET_info, load_flags, AllocValue(type));
+  i->set_src1(address);
+  i->set_src2(offset);
+  i->src3.value = NULL;
+  return i->dest;
+}
+
+void HIRBuilder::StoreOffset(Value* address, Value* offset, Value* value,
+                             uint32_t store_flags) {
+  ASSERT_ADDRESS_TYPE(address);
+  Instr* i = AppendInstr(OPCODE_STORE_OFFSET_info, store_flags);
+  i->set_src1(address);
+  i->set_src2(offset);
+  i->set_src3(value);
+}
+
 Value* HIRBuilder::Load(Value* address, TypeName type, uint32_t load_flags) {
   ASSERT_ADDRESS_TYPE(address);
   Instr* i = AppendInstr(OPCODE_LOAD_info, load_flags, AllocValue(type));
@@ -1258,12 +1277,12 @@ void HIRBuilder::Memset(Value* address, Value* value, Value* length) {
   i->set_src3(length);
 }
 
-void HIRBuilder::Prefetch(Value* address, size_t length,
-                          uint32_t prefetch_flags) {
+void HIRBuilder::CacheControl(Value* address, size_t cache_line_size,
+                              CacheControlType type) {
   ASSERT_ADDRESS_TYPE(address);
-  Instr* i = AppendInstr(OPCODE_PREFETCH_info, prefetch_flags);
+  Instr* i = AppendInstr(OPCODE_CACHE_CONTROL_info, uint32_t(type));
   i->set_src1(address);
-  i->src2.offset = length;
+  i->src2.offset = cache_line_size;
   i->src3.value = NULL;
 }
 

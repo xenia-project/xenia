@@ -14,7 +14,6 @@
 
 #include "third_party/xxhash/xxhash.h"
 
-#include "xenia/gpu/glsl_shader_translator.h"
 #include "xenia/gpu/register_file.h"
 #include "xenia/gpu/spirv_shader_translator.h"
 #include "xenia/gpu/vulkan/render_cache.h"
@@ -43,7 +42,8 @@ class PipelineCache {
   ~PipelineCache();
 
   VkResult Initialize(VkDescriptorSetLayout uniform_descriptor_set_layout,
-                      VkDescriptorSetLayout texture_descriptor_set_layout);
+                      VkDescriptorSetLayout texture_descriptor_set_layout,
+                      VkDescriptorSetLayout vertex_descriptor_set_layout);
   void Shutdown();
 
   // Loads a shader from the cache, possibly translating it.
@@ -78,7 +78,9 @@ class PipelineCache {
   // state.
   VkPipeline GetPipeline(const RenderState* render_state, uint64_t hash_key);
 
-  bool TranslateShader(VulkanShader* shader, xenos::xe_gpu_program_cntl_t cntl);
+  bool TranslateShader(VulkanShader* shader, reg::SQ_PROGRAM_CNTL cntl);
+
+  void DumpShaderDisasmAMD(VkPipeline pipeline);
   void DumpShaderDisasmNV(const VkGraphicsPipelineCreateInfo& info);
 
   // Gets a geometry shader used to emulate the given primitive type.
@@ -87,7 +89,7 @@ class PipelineCache {
                                    bool is_line_mode);
 
   RegisterFile* register_file_ = nullptr;
-  VkDevice device_ = nullptr;
+  ui::vulkan::VulkanDevice* device_ = nullptr;
 
   // Reusable shader translator.
   std::unique_ptr<ShaderTranslator> shader_translator_ = nullptr;
@@ -167,7 +169,7 @@ class PipelineCache {
   struct UpdateShaderStagesRegisters {
     PrimitiveType primitive_type;
     uint32_t pa_su_sc_mode_cntl;
-    uint32_t sq_program_cntl;
+    reg::SQ_PROGRAM_CNTL sq_program_cntl;
     VulkanShader* vertex_shader;
     VulkanShader* pixel_shader;
 
@@ -184,9 +186,9 @@ class PipelineCache {
     void Reset() { std::memset(this, 0, sizeof(*this)); }
   } update_vertex_input_state_regs_;
   VkPipelineVertexInputStateCreateInfo update_vertex_input_state_info_;
-  VkVertexInputBindingDescription update_vertex_input_state_binding_descrs_[64];
+  VkVertexInputBindingDescription update_vertex_input_state_binding_descrs_[32];
   VkVertexInputAttributeDescription
-      update_vertex_input_state_attrib_descrs_[64];
+      update_vertex_input_state_attrib_descrs_[96];
 
   struct UpdateInputAssemblyStateRegisters {
     PrimitiveType primitive_type;
@@ -225,6 +227,7 @@ class PipelineCache {
     uint32_t pa_sc_screen_scissor_tl;
     uint32_t pa_sc_screen_scissor_br;
     uint32_t pa_sc_viz_query;
+    uint32_t pa_su_poly_offset_enable;
     uint32_t multi_prim_ib_reset_index;
 
     UpdateRasterizationStateRegisters() { Reset(); }
@@ -252,7 +255,6 @@ class PipelineCache {
   VkPipelineDepthStencilStateCreateInfo update_depth_stencil_state_info_;
 
   struct UpdateColorBlendStateRegisters {
-    uint32_t rb_colorcontrol;
     uint32_t rb_color_mask;
     uint32_t rb_blendcontrol[4];
     uint32_t rb_modecontrol;
@@ -271,6 +273,10 @@ class PipelineCache {
     uint32_t pa_sc_window_scissor_br;
 
     uint32_t rb_surface_info;
+    uint32_t pa_su_sc_vtx_cntl;
+    // Bias is in Vulkan units because depth format may potentially effect it.
+    float pa_su_poly_offset_scale;
+    float pa_su_poly_offset_offset;
     uint32_t pa_cl_vte_cntl;
     float pa_cl_vport_xoffset;
     float pa_cl_vport_yoffset;
@@ -282,9 +288,13 @@ class PipelineCache {
     float rb_blend_rgba[4];
     uint32_t rb_stencilrefmask;
 
-    uint32_t sq_program_cntl;
+    reg::SQ_PROGRAM_CNTL sq_program_cntl;
     uint32_t sq_context_misc;
     uint32_t rb_colorcontrol;
+    reg::RB_COLOR_INFO rb_color_info;
+    reg::RB_COLOR_INFO rb_color1_info;
+    reg::RB_COLOR_INFO rb_color2_info;
+    reg::RB_COLOR_INFO rb_color3_info;
     float rb_alpha_ref;
     uint32_t pa_su_point_size;
 

@@ -14,6 +14,8 @@
 
 #include "third_party/imgui/imgui.h"
 #include "xenia/base/clock.h"
+#include "xenia/base/cvar.h"
+#include "xenia/base/debugging.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/platform.h"
 #include "xenia/base/profiling.h"
@@ -24,6 +26,8 @@
 #include "xenia/ui/file_picker.h"
 #include "xenia/ui/imgui_dialog.h"
 #include "xenia/ui/imgui_drawer.h"
+
+DECLARE_bool(debug);
 
 namespace xe {
 namespace app {
@@ -40,7 +44,15 @@ EmulatorWindow::EmulatorWindow(Emulator* emulator)
     : emulator_(emulator),
       loop_(ui::Loop::Create()),
       window_(ui::Window::Create(loop_.get(), kBaseTitle)) {
-  base_title_ = kBaseTitle + L" (" + xe::to_wstring(XE_BUILD_BRANCH) + L"/" +
+  base_title_ = kBaseTitle +
+#ifdef DEBUG
+#if _NO_DEBUG_HEAP == 1
+                L" DEBUG" +
+#else
+                L" CHECKED" +
+#endif
+#endif
+                L" (" + xe::to_wstring(XE_BUILD_BRANCH) + L"/" +
                 xe::to_wstring(XE_BUILD_COMMIT_SHORT) + L"/" +
                 xe::to_wstring(XE_BUILD_DATE) + L")";
 }
@@ -134,9 +146,16 @@ bool EmulatorWindow::Initialize() {
       case 0x13: {  // VK_PAUSE
         CpuBreakIntoDebugger();
       } break;
+      case 0x03: {  // VK_CANCEL
+        CpuBreakIntoHostDebugger();
+      } break;
 
       case 0x70: {  // VK_F1
         ShowHelpWebsite();
+      } break;
+
+      case 0x71: {  // VK_F2
+        ShowCommitID();
       } break;
 
       default: { handled = false; } break;
@@ -164,11 +183,16 @@ bool EmulatorWindow::Initialize() {
   auto file_menu = MenuItem::Create(MenuItem::Type::kPopup, L"&File");
   {
     file_menu->AddChild(
-        MenuItem::Create(MenuItem::Type::kString, L"&Open", L"Ctrl+O",
+        MenuItem::Create(MenuItem::Type::kString, L"&Open...", L"Ctrl+O",
                          std::bind(&EmulatorWindow::FileOpen, this)));
     file_menu->AddChild(
         MenuItem::Create(MenuItem::Type::kString, L"Close",
                          std::bind(&EmulatorWindow::FileClose, this)));
+    file_menu->AddChild(MenuItem::Create(MenuItem::Type::kSeparator));
+    file_menu->AddChild(MenuItem::Create(
+        MenuItem::Type::kString, L"Show content directory...",
+        std::bind(&EmulatorWindow::ShowContentDirectory, this)));
+    file_menu->AddChild(MenuItem::Create(MenuItem::Type::kSeparator));
     file_menu->AddChild(MenuItem::Create(MenuItem::Type::kString, L"E&xit",
                                          L"Alt+F4",
                                          [this]() { window_->Close(); }));
@@ -200,8 +224,13 @@ bool EmulatorWindow::Initialize() {
   cpu_menu->AddChild(MenuItem::Create(MenuItem::Type::kSeparator));
   {
     cpu_menu->AddChild(MenuItem::Create(
-        MenuItem::Type::kString, L"&Break and Show Debugger", L"Pause/Break",
+        MenuItem::Type::kString, L"&Break and Show Guest Debugger",
+        L"Pause/Break",
         std::bind(&EmulatorWindow::CpuBreakIntoDebugger, this)));
+    cpu_menu->AddChild(MenuItem::Create(
+        MenuItem::Type::kString, L"&Break into Host Debugger",
+        L"Ctrl+Pause/Break",
+        std::bind(&EmulatorWindow::CpuBreakIntoHostDebugger, this)));
   }
   main_menu->AddChild(std::move(cpu_menu));
 
@@ -233,17 +262,14 @@ bool EmulatorWindow::Initialize() {
   auto help_menu = MenuItem::Create(MenuItem::Type::kPopup, L"&Help");
   {
     help_menu->AddChild(MenuItem::Create(
-        MenuItem::Type::kString, L"Build commit on GitHub...", [this]() {
-          std::string url =
-              std::string("https://github.com/benvanik/xenia/tree/") +
-              XE_BUILD_COMMIT + "/";
-          LaunchBrowser(url.c_str());
-        }));
+        MenuItem::Type::kString, L"Build commit on GitHub...", L"F2",
+        std::bind(&EmulatorWindow::ShowCommitID, this)));
     help_menu->AddChild(MenuItem::Create(
         MenuItem::Type::kString, L"Recent changes on GitHub...", [this]() {
-          std::string url =
-              std::string("https://github.com/benvanik/xenia/compare/") +
-              XE_BUILD_COMMIT + "..." + XE_BUILD_BRANCH;
+          std::wstring url =
+              std::wstring(L"https://github.com/xenia-project/xenia/compare/") +
+              xe::to_wstring(XE_BUILD_COMMIT) + L"..." +
+              xe::to_wstring(XE_BUILD_BRANCH);
           LaunchBrowser(url.c_str());
         }));
     help_menu->AddChild(MenuItem::Create(MenuItem::Type::kSeparator));
@@ -252,7 +278,7 @@ bool EmulatorWindow::Initialize() {
                          std::bind(&EmulatorWindow::ShowHelpWebsite, this)));
     help_menu->AddChild(MenuItem::Create(
         MenuItem::Type::kString, L"&About...",
-        [this]() { LaunchBrowser("http://xenia.jp/about/"); }));
+        [this]() { LaunchBrowser(L"https://xenia.jp/about/"); }));
   }
   main_menu->AddChild(std::move(help_menu));
 
@@ -265,9 +291,8 @@ bool EmulatorWindow::Initialize() {
   return true;
 }
 
-void EmulatorWindow::FileDrop(wchar_t* filename) {
-  std::wstring path = filename;
-  auto result = emulator_->LaunchPath(path);
+void EmulatorWindow::FileDrop(const wchar_t* filename) {
+  auto result = emulator_->LaunchPath(filename);
   if (XFAILED(result)) {
     // TODO: Display a message box.
     XELOGE("Failed to launch target: %.8X", result);
@@ -314,6 +339,27 @@ void EmulatorWindow::FileClose() {
   }
 }
 
+void EmulatorWindow::ShowContentDirectory() {
+  std::wstring target_path;
+
+  auto content_root = emulator_->content_root();
+  if (!emulator_->is_title_open() || !emulator_->kernel_state()) {
+    target_path = content_root;
+  } else {
+    // TODO(gibbed): expose this via ContentManager?
+    wchar_t title_id[9] = L"00000000";
+    std::swprintf(title_id, 9, L"%.8X", emulator_->kernel_state()->title_id());
+    auto package_root = xe::join_paths(content_root, title_id);
+    target_path = package_root;
+  }
+
+  if (!xe::filesystem::PathExists(target_path)) {
+    xe::filesystem::CreateFolder(target_path);
+  }
+
+  LaunchBrowser(target_path.c_str());
+}
+
 void EmulatorWindow::CheckHideCursor() {
   if (!window_->is_fullscreen()) {
     // Only hide when fullscreen.
@@ -341,7 +387,7 @@ void EmulatorWindow::CpuTimeScalarSetDouble() {
 }
 
 void EmulatorWindow::CpuBreakIntoDebugger() {
-  if (!FLAGS_debug) {
+  if (!cvars::debug) {
     xe::ui::ImGuiDialog::ShowMessageBox(window_.get(), "Xenia Debugger",
                                         "Xenia must be launched with the "
                                         "--debug flag in order to enable "
@@ -357,6 +403,8 @@ void EmulatorWindow::CpuBreakIntoDebugger() {
     processor->ShowDebugger();
   }
 }
+
+void EmulatorWindow::CpuBreakIntoHostDebugger() { xe::debugging::Break(); }
 
 void EmulatorWindow::GpuTraceFrame() {
   emulator()->graphics_system()->RequestFrameTrace();
@@ -376,7 +424,14 @@ void EmulatorWindow::ToggleFullscreen() {
   }
 }
 
-void EmulatorWindow::ShowHelpWebsite() { LaunchBrowser("http://xenia.jp"); }
+void EmulatorWindow::ShowHelpWebsite() { LaunchBrowser(L"https://xenia.jp"); }
+
+void EmulatorWindow::ShowCommitID() {
+  std::wstring url =
+      std::wstring(L"https://github.com/xenia-project/xenia/commit/") +
+      xe::to_wstring(XE_BUILD_COMMIT) + L"/";
+  LaunchBrowser(url.c_str());
+}
 
 void EmulatorWindow::UpdateTitle() {
   std::wstring title(base_title_);

@@ -2,16 +2,18 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2019 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
 
 #include "xenia/kernel/xthread.h"
 
-#include <gflags/gflags.h>
-
 #include <cstring>
+
+#ifdef XE_PLATFORM_WIN32
+#include <objbase.h>
+#endif
 
 #include "xenia/base/byte_stream.h"
 #include "xenia/base/clock.h"
@@ -29,9 +31,9 @@
 #include "xenia/kernel/xmutant.h"
 
 DEFINE_bool(ignore_thread_priorities, true,
-            "Ignores game-specified thread priorities.");
+            "Ignores game-specified thread priorities.", "Kernel");
 DEFINE_bool(ignore_thread_affinities, true,
-            "Ignores game-specified thread affinities.");
+            "Ignores game-specified thread affinities.", "Kernel");
 
 namespace xe {
 namespace kernel {
@@ -45,13 +47,13 @@ using xe::cpu::ppc::PPCOpcode;
 uint32_t next_xthread_id_ = 0;
 
 XThread::XThread(KernelState* kernel_state)
-    : XObject(kernel_state, kTypeThread), guest_thread_(true) {}
+    : XObject(kernel_state, kType), guest_thread_(true) {}
 
 XThread::XThread(KernelState* kernel_state, uint32_t stack_size,
                  uint32_t xapi_thread_startup, uint32_t start_address,
                  uint32_t start_context, uint32_t creation_flags,
                  bool guest_thread, bool main_thread)
-    : XObject(kernel_state, kTypeThread),
+    : XObject(kernel_state, kType),
       thread_id_(++next_xthread_id_),
       guest_thread_(guest_thread),
       main_thread_(main_thread),
@@ -313,7 +315,7 @@ X_STATUS XThread::Create() {
   }
 
   // Allocate thread state block from heap.
-  // http://www.microsoft.com/msj/archive/s2ce.aspx
+  // https://web.archive.org/web/20170704035330/https://www.microsoft.com/msj/archive/S2CE.aspx
   // This is set as r13 for user code and some special inlined Win32 calls
   // (like GetLastError/etc) will poke it directly.
   // We try to use it as our primary store of data just to keep things all
@@ -362,7 +364,7 @@ X_STATUS XThread::Create() {
   InitializeGuestObject();
 
   // Always retain when starting - the thread owns itself until exited.
-  Retain();
+  RetainHandle();
 
   xe::threading::Thread::CreationParameters params;
   params.stack_size = 16 * 1024 * 1024;  // Allocate a big host stack.
@@ -373,6 +375,20 @@ X_STATUS XThread::Create() {
 
     // Set name immediately, if we have one.
     thread_->set_name(thread_name_);
+
+#ifdef XE_PLATFORM_WIN32
+    // Setup COM on this thread.
+    //
+    // https://devblogs.microsoft.com/oldnewthing/?p=4613
+    //
+    // "If any thread in the process calls CoInitialize[Ex] with the
+    // COINIT_MULTITHREADED flag, then that not only initializes the current
+    // thread as a member of the multi-threaded apartment, but it also says,
+    // "Any thread which has never called CoInitialize[Ex] is also part of the
+    // multi-threaded apartment."
+#pragma warning(suppress : 6031)
+    CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+#endif
 
     // Profiler needs to know about the thread.
     xe::Profiler::ThreadEnter(thread_name_.c_str());
@@ -389,7 +405,7 @@ X_STATUS XThread::Create() {
     xe::Profiler::ThreadExit();
 
     // Release the self-reference to the thread.
-    Release();
+    ReleaseHandle();
   });
 
   if (!thread_) {
@@ -398,7 +414,7 @@ X_STATUS XThread::Create() {
     return X_STATUS_NO_MEMORY;
   }
 
-  if (!FLAGS_ignore_thread_affinities) {
+  if (!cvars::ignore_thread_affinities) {
     thread_->set_affinity_mask(proc_mask);
   }
 
@@ -448,7 +464,7 @@ X_STATUS XThread::Exit(int exit_code) {
   xe::Profiler::ThreadExit();
 
   running_ = false;
-  Release();
+  ReleaseHandle();
 
   // NOTE: this does not return!
   xe::threading::Thread::Exit(exit_code);
@@ -468,11 +484,11 @@ X_STATUS XThread::Terminate(int exit_code) {
 
   running_ = false;
   if (XThread::IsInThread(this)) {
-    Release();
+    ReleaseHandle();
     xe::threading::Thread::Exit(exit_code);
   } else {
     thread_->Terminate(exit_code);
-    Release();
+    ReleaseHandle();
   }
 
   return X_STATUS_SUCCESS;
@@ -568,8 +584,8 @@ void XThread::EnqueueApc(uint32_t normal_routine, uint32_t normal_context,
 }
 
 void XThread::DeliverAPCs() {
-  // http://www.drdobbs.com/inside-nts-asynchronous-procedure-call/184416590?pgno=1
-  // http://www.drdobbs.com/inside-nts-asynchronous-procedure-call/184416590?pgno=7
+  // https://www.drdobbs.com/inside-nts-asynchronous-procedure-call/184416590?pgno=1
+  // https://www.drdobbs.com/inside-nts-asynchronous-procedure-call/184416590?pgno=7
   auto processor = kernel_state()->processor();
   LockApc();
   while (apc_list_.HasPending()) {
@@ -680,7 +696,7 @@ void XThread::SetPriority(int32_t increment) {
   } else {
     target_priority = xe::threading::ThreadPriority::kNormal;
   }
-  if (!FLAGS_ignore_thread_priorities) {
+  if (!cvars::ignore_thread_priorities) {
     thread_->set_priority(target_priority);
   }
 }
@@ -701,7 +717,7 @@ void XThread::SetAffinity(uint32_t affinity) {
   }
   SetActiveCpu(GetFakeCpuNumber(affinity));
   affinity_ = affinity;
-  if (!FLAGS_ignore_thread_affinities) {
+  if (!cvars::ignore_thread_affinities) {
     thread_->set_affinity_mask(affinity);
   }
 }
@@ -805,10 +821,6 @@ struct ThreadSavedState {
   bool is_main_thread;  // Is this the main thread?
   bool is_running;
 
-  // Clock settings (invalid if not running)
-  uint64_t tick_count_;
-  uint64_t system_time_;
-
   uint32_t apc_head;
   uint32_t tls_static_address;
   uint32_t tls_dynamic_address;
@@ -877,10 +889,6 @@ bool XThread::Save(ByteStream* stream) {
   state.stack_alloc_size = stack_alloc_size_;
 
   if (running_) {
-    state.tick_count_ = Clock::QueryGuestTickCount();
-    state.system_time_ =
-        Clock::QueryGuestSystemTime() - Clock::guest_system_time_base();
-
     // Context information
     auto context = thread_state_->context();
     state.context.lr = context->lr;
@@ -975,7 +983,7 @@ object_ref<XThread> XThread::Restore(KernelState* kernel_state,
     context->vscr_sat = state.context.vscr_sat;
 
     // Always retain when starting - the thread owns itself until exited.
-    thread->Retain();
+    thread->RetainHandle();
 
     xe::threading::Thread::CreationParameters params;
     params.create_suspended = true;  // Not done restoring yet.
@@ -989,10 +997,6 @@ object_ref<XThread> XThread::Restore(KernelState* kernel_state,
 
       // Profiler needs to know about the thread.
       xe::Profiler::ThreadEnter(thread->name().c_str());
-
-      // Setup the time now that we're in the thread.
-      Clock::SetGuestTickCount(state.tick_count_);
-      Clock::SetGuestSystemTime(state.system_time_);
 
       current_xthread_tls_ = thread;
       current_thread_ = thread;
@@ -1017,7 +1021,7 @@ object_ref<XThread> XThread::Restore(KernelState* kernel_state,
       xe::Profiler::ThreadExit();
 
       // Release the self-reference to the thread.
-      thread->Release();
+      thread->ReleaseHandle();
     });
 
     // Notify processor we were recreated.

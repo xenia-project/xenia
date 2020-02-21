@@ -7,8 +7,6 @@
  ******************************************************************************
  */
 
-#include <gflags/gflags.h>
-
 #include <cstring>
 
 #include "third_party/imgui/imgui.h"
@@ -104,7 +102,7 @@ int window_demo_main(const std::vector<std::wstring>& args) {
   window->on_painting.AddListener([&](xe::ui::UIEvent* e) {
     auto& io = window->imgui_drawer()->GetIO();
 
-    ImGui::ShowTestWindow();
+    ImGui::ShowDemoWindow();
     ImGui::ShowMetricsWindow();
 
     // Continuous paint.

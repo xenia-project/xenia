@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2016 Ben Vanik. All rights reserved.                             *
+ * Copyright 2019 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -12,6 +12,8 @@
 #include "xenia/gpu/trace_dump.h"
 #include "xenia/gpu/vulkan/vulkan_command_processor.h"
 #include "xenia/gpu/vulkan/vulkan_graphics_system.h"
+#include "xenia/ui/vulkan/vulkan_device.h"
+#include "xenia/ui/vulkan/vulkan_provider.h"
 
 namespace xe {
 namespace gpu {
@@ -23,6 +25,24 @@ class VulkanTraceDump : public TraceDump {
  public:
   std::unique_ptr<gpu::GraphicsSystem> CreateGraphicsSystem() override {
     return std::unique_ptr<gpu::GraphicsSystem>(new VulkanGraphicsSystem());
+  }
+
+  void BeginHostCapture() override {
+    auto device = static_cast<const ui::vulkan::VulkanProvider*>(
+                      graphics_system_->provider())
+                      ->device();
+    if (device->is_renderdoc_attached()) {
+      device->BeginRenderDocFrameCapture();
+    }
+  }
+
+  void EndHostCapture() override {
+    auto device = static_cast<const ui::vulkan::VulkanProvider*>(
+                      graphics_system_->provider())
+                      ->device();
+    if (device->is_renderdoc_attached()) {
+      device->EndRenderDocFrameCapture();
+    }
   }
 };
 
@@ -36,5 +56,5 @@ int trace_dump_main(const std::vector<std::wstring>& args) {
 }  // namespace xe
 
 DEFINE_ENTRY_POINT(L"xenia-gpu-vulkan-trace-dump",
-                   L"xenia-gpu-vulkan-trace-dump some.trace",
-                   xe::gpu::vulkan::trace_dump_main);
+                   xe::gpu::vulkan::trace_dump_main, "some.trace",
+                   "target_trace_file");

@@ -48,6 +48,11 @@ void VulkanCommandProcessor::RequestFrameTrace(const std::wstring& root_path) {
   return CommandProcessor::RequestFrameTrace(root_path);
 }
 
+void VulkanCommandProcessor::TracePlaybackWroteMemory(uint32_t base_ptr,
+                                                      uint32_t length) {}
+
+void VulkanCommandProcessor::RestoreEDRAMSnapshot(const void* snapshot) {}
+
 void VulkanCommandProcessor::ClearCaches() {
   CommandProcessor::ClearCaches();
   cache_clear_requested_ = true;
@@ -106,7 +111,8 @@ bool VulkanCommandProcessor::SetupContext() {
   pipeline_cache_ = std::make_unique<PipelineCache>(register_file_, device_);
   status = pipeline_cache_->Initialize(
       buffer_cache_->constant_descriptor_set_layout(),
-      texture_cache_->texture_descriptor_set_layout());
+      texture_cache_->texture_descriptor_set_layout(),
+      buffer_cache_->vertex_descriptor_set_layout());
   if (status != VK_SUCCESS) {
     XELOGE("Unable to initialize pipeline cache");
     pipeline_cache_->Shutdown();
@@ -121,26 +127,11 @@ bool VulkanCommandProcessor::SetupContext() {
     return false;
   }
 
-  VkEventCreateInfo info = {
-      VK_STRUCTURE_TYPE_EVENT_CREATE_INFO,
-      nullptr,
-      0,
-  };
-
-  status = vkCreateEvent(*device_, &info, nullptr,
-                         reinterpret_cast<VkEvent*>(&swap_state_.backend_data));
-  if (status != VK_SUCCESS) {
-    return false;
-  }
-
   return true;
 }
 
 void VulkanCommandProcessor::ShutdownContext() {
   // TODO(benvanik): wait until idle.
-
-  vkDestroyEvent(*device_, reinterpret_cast<VkEvent>(swap_state_.backend_data),
-                 nullptr);
 
   if (swap_state_.front_buffer_texture) {
     // Free swap chain image.
@@ -226,6 +217,20 @@ void VulkanCommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
     offset ^= 0x1F;
 
     dirty_loop_constants_ |= (1 << offset);
+  } else if (index == XE_GPU_REG_DC_LUT_PWL_DATA) {
+    UpdateGammaRampValue(GammaRampType::kPWL, value);
+  } else if (index == XE_GPU_REG_DC_LUT_30_COLOR) {
+    UpdateGammaRampValue(GammaRampType::kNormal, value);
+  } else if (index >= XE_GPU_REG_DC_LUT_RW_MODE &&
+             index <= XE_GPU_REG_DC_LUTA_CONTROL) {
+    uint32_t offset = index - XE_GPU_REG_DC_LUT_RW_MODE;
+    offset ^= 0x05;
+
+    dirty_gamma_constants_ |= (1 << offset);
+
+    if (index == XE_GPU_REG_DC_LUT_RW_INDEX) {
+      gamma_ramp_rw_subindex_ = 0;
+    }
   }
 }
 
@@ -356,7 +361,7 @@ void VulkanCommandProcessor::BeginFrame() {
   // The capture will end when these commands are submitted to the queue.
   static uint32_t frame = 0;
   if (device_->is_renderdoc_attached() && !capturing_ &&
-      (FLAGS_vulkan_renderdoc_capture_all || trace_requested_)) {
+      (cvars::vulkan_renderdoc_capture_all || trace_requested_)) {
     if (queue_mutex_) {
       queue_mutex_->lock();
     }
@@ -503,10 +508,6 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
     std::lock_guard<std::mutex> lock(swap_state_.mutex);
     swap_state_.width = frontbuffer_width;
     swap_state_.height = frontbuffer_height;
-
-    auto swap_event = reinterpret_cast<VkEvent>(swap_state_.backend_data);
-    vkCmdSetEvent(copy_commands, swap_event,
-                  VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT);
   }
 
   status = vkEndCommandBuffer(copy_commands);
@@ -557,9 +558,9 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
     }
   }
 
+  vkWaitForFences(*device_, 1, &current_batch_fence_, VK_TRUE, -1);
   if (cache_clear_requested_) {
     cache_clear_requested_ = false;
-    vkWaitForFences(*device_, 1, &current_batch_fence_, VK_TRUE, -1);
 
     buffer_cache_->ClearCache();
     pipeline_cache_->ClearCache();
@@ -688,7 +689,7 @@ bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
   }
 
   // Upload and bind all vertex buffer data.
-  if (!PopulateVertexBuffers(command_buffer, vertex_shader)) {
+  if (!PopulateVertexBuffers(command_buffer, setup_buffer, vertex_shader)) {
     return false;
   }
 
@@ -809,7 +810,8 @@ bool VulkanCommandProcessor::PopulateIndexBuffer(
 }
 
 bool VulkanCommandProcessor::PopulateVertexBuffers(
-    VkCommandBuffer command_buffer, VulkanShader* vertex_shader) {
+    VkCommandBuffer command_buffer, VkCommandBuffer setup_buffer,
+    VulkanShader* vertex_shader) {
   auto& regs = *register_file_;
 
 #if FINE_GRAINED_DRAW_SCOPES
@@ -823,69 +825,16 @@ bool VulkanCommandProcessor::PopulateVertexBuffers(
   }
 
   assert_true(vertex_bindings.size() <= 32);
-  VkBuffer all_buffers[32];
-  VkDeviceSize all_buffer_offsets[32];
-  uint32_t buffer_index = 0;
-
-  for (const auto& vertex_binding : vertex_bindings) {
-    int r = XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 +
-            (vertex_binding.fetch_constant / 3) * 6;
-    const auto group = reinterpret_cast<xe_gpu_fetch_group_t*>(&regs.values[r]);
-    const xe_gpu_vertex_fetch_t* fetch = nullptr;
-    switch (vertex_binding.fetch_constant % 3) {
-      case 0:
-        fetch = &group->vertex_fetch_0;
-        break;
-      case 1:
-        fetch = &group->vertex_fetch_1;
-        break;
-      case 2:
-        fetch = &group->vertex_fetch_2;
-        break;
-    }
-
-    if (fetch->type != 0x3) {
-      // TODO(DrChat): Some games use type 0x0 (with no data).
-      return false;
-    }
-
-    // TODO(benvanik): compute based on indices or vertex count.
-    //     THIS CAN BE MASSIVELY INCORRECT (too large).
-    uint32_t source_length = fetch->size * 4;
-
-    uint32_t physical_address = fetch->address << 2;
-    trace_writer_.WriteMemoryRead(physical_address, source_length);
-
-    // Upload (or get a cached copy of) the buffer.
-    // TODO: Make the buffer cache ... actually cache buffers. We can have
-    // a list of buffers that were cached, and store those in chunks in a
-    // multiple of the host's page size.
-    // WRITE WATCHES: We need to invalidate vertex buffers if they're written
-    // to. Since most vertex buffers aren't aligned to a page boundary, this
-    // means a watch may cover more than one vertex buffer.
-    // We need to maintain a list of write watches, and what memory ranges
-    // they cover. If a vertex buffer lies within a write watch's range, assign
-    // it to the watch. If there's partial alignment where a buffer lies within
-    // one watch and outside of it, should we create a new watch or extend the
-    // existing watch?
-    auto buffer_ref = buffer_cache_->UploadVertexBuffer(
-        current_setup_buffer_, physical_address, source_length,
-        static_cast<Endian>(fetch->endian), current_batch_fence_);
-    if (buffer_ref.second == VK_WHOLE_SIZE) {
-      // Failed to upload buffer.
-      return false;
-    }
-
-    // Stash the buffer reference for our bulk bind at the end.
-    all_buffers[buffer_index] = buffer_ref.first;
-    all_buffer_offsets[buffer_index] = buffer_ref.second;
-    ++buffer_index;
+  auto descriptor_set = buffer_cache_->PrepareVertexSet(
+      setup_buffer, current_batch_fence_, vertex_bindings);
+  if (!descriptor_set) {
+    XELOGW("Failed to prepare vertex set!");
+    return false;
   }
 
-  // Bind buffers.
-  vkCmdBindVertexBuffers(command_buffer, 0, buffer_index, all_buffers,
-                         all_buffer_offsets);
-
+  vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                          pipeline_cache_->pipeline_layout(), 2, 1,
+                          &descriptor_set, 0, nullptr);
   return true;
 }
 
@@ -903,6 +852,7 @@ bool VulkanCommandProcessor::PopulateSamplers(VkCommandBuffer command_buffer,
       pixel_shader ? pixel_shader->texture_bindings() : dummy_bindings);
   if (!descriptor_set) {
     // Unable to bind set.
+    XELOGW("Failed to prepare texture set!");
     return false;
   }
 
@@ -971,7 +921,7 @@ bool VulkanCommandProcessor::IssueCopy() {
   assert_true(copy_regs->copy_mask == 0);
 
   // RB_SURFACE_INFO
-  // http://fossies.org/dox/MesaLib-10.3.5/fd2__gmem_8c_source.html
+  // https://fossies.org/dox/MesaLib-10.3.5/fd2__gmem_8c_source.html
   uint32_t surface_info = regs[XE_GPU_REG_RB_SURFACE_INFO].u32;
   uint32_t surface_pitch = surface_info & 0x3FFF;
   auto surface_msaa = static_cast<MsaaSamples>((surface_info >> 16) & 0x3);
@@ -986,15 +936,8 @@ bool VulkanCommandProcessor::IssueCopy() {
   // vtx_window_offset_enable
   assert_true(regs[XE_GPU_REG_PA_SU_SC_MODE_CNTL].u32 & 0x00010000);
   uint32_t window_offset = regs[XE_GPU_REG_PA_SC_WINDOW_OFFSET].u32;
-  int16_t window_offset_x = window_offset & 0x7FFF;
-  int16_t window_offset_y = (window_offset >> 16) & 0x7FFF;
-  // Sign-extension
-  if (window_offset_x & 0x4000) {
-    window_offset_x |= 0x8000;
-  }
-  if (window_offset_y & 0x4000) {
-    window_offset_y |= 0x8000;
-  }
+  int32_t window_offset_x = window_regs->window_offset.window_x_offset;
+  int32_t window_offset_y = window_regs->window_offset.window_y_offset;
 
   uint32_t dest_texel_size = uint32_t(GetTexelSize(copy_dest_format));
 
@@ -1023,8 +966,8 @@ bool VulkanCommandProcessor::IssueCopy() {
       fetch = &group->vertex_fetch_2;
       break;
   }
-  assert_true(fetch->type == 3);
-  assert_true(fetch->endian == 2);
+  assert_true(fetch->type == xenos::FetchConstantType::kVertex);
+  assert_true(fetch->endian == Endian::k8in32);
   assert_true(fetch->size == 6);
   const uint8_t* vertex_addr = memory_->TranslatePhysical(fetch->address << 2);
   trace_writer_.WriteMemoryRead(fetch->address << 2, fetch->size * 4);
@@ -1036,7 +979,7 @@ bool VulkanCommandProcessor::IssueCopy() {
   float dest_points[6];
   for (int i = 0; i < 6; i++) {
     dest_points[i] =
-        GpuSwap(xe::load<float>(vertex_addr + i * 4), Endian(fetch->endian)) +
+        GpuSwap(xe::load<float>(vertex_addr + i * 4), fetch->endian) +
         vtx_offset;
   }
 
@@ -1061,25 +1004,22 @@ bool VulkanCommandProcessor::IssueCopy() {
   DepthRenderTargetFormat depth_format;
   if (is_color_source) {
     // Source from a color target.
-    uint32_t color_info[4] = {
-        regs[XE_GPU_REG_RB_COLOR_INFO].u32,
-        regs[XE_GPU_REG_RB_COLOR1_INFO].u32,
-        regs[XE_GPU_REG_RB_COLOR2_INFO].u32,
-        regs[XE_GPU_REG_RB_COLOR3_INFO].u32,
+    reg::RB_COLOR_INFO color_info[4] = {
+        regs.Get<reg::RB_COLOR_INFO>(),
+        regs.Get<reg::RB_COLOR_INFO>(XE_GPU_REG_RB_COLOR1_INFO),
+        regs.Get<reg::RB_COLOR_INFO>(XE_GPU_REG_RB_COLOR2_INFO),
+        regs.Get<reg::RB_COLOR_INFO>(XE_GPU_REG_RB_COLOR3_INFO),
     };
-    color_edram_base = color_info[copy_src_select] & 0xFFF;
-
-    color_format = static_cast<ColorRenderTargetFormat>(
-        (color_info[copy_src_select] >> 16) & 0xF);
+    color_edram_base = color_info[copy_src_select].color_base;
+    color_format = color_info[copy_src_select].color_format;
+    assert_true(color_info[copy_src_select].color_exp_bias == 0);
   }
 
   if (!is_color_source || depth_clear_enabled) {
     // Source from or clear a depth target.
-    uint32_t depth_info = regs[XE_GPU_REG_RB_DEPTH_INFO].u32;
-    depth_edram_base = depth_info & 0xFFF;
-
-    depth_format =
-        static_cast<DepthRenderTargetFormat>((depth_info >> 16) & 0x1);
+    reg::RB_DEPTH_INFO depth_info = {regs[XE_GPU_REG_RB_DEPTH_INFO].u32};
+    depth_edram_base = depth_info.depth_base;
+    depth_format = depth_info.depth_format;
     if (!is_color_source) {
       copy_dest_format = DepthRenderTargetToTextureFormat(depth_format);
     }
@@ -1088,21 +1028,32 @@ bool VulkanCommandProcessor::IssueCopy() {
   Endian resolve_endian = Endian::k8in32;
   if (copy_regs->copy_dest_info.copy_dest_endian <= Endian128::k16in32) {
     resolve_endian =
-        static_cast<Endian>(copy_regs->copy_dest_info.copy_dest_endian.value());
+        static_cast<Endian>(copy_regs->copy_dest_info.copy_dest_endian);
   }
 
   // Demand a resolve texture from the texture cache.
   TextureInfo texture_info;
-  TextureInfo::PrepareResolve(copy_dest_base, copy_dest_format, resolve_endian,
-                              dest_logical_width,
-                              std::max(1u, dest_logical_height), &texture_info);
+  TextureInfo::PrepareResolve(
+      copy_dest_base, copy_dest_format, resolve_endian, copy_dest_pitch,
+      dest_logical_width, std::max(1u, dest_logical_height), 1, &texture_info);
 
   auto texture = texture_cache_->DemandResolveTexture(texture_info);
-  assert_not_null(texture);
+  if (!texture) {
+    // Out of memory.
+    XELOGD("Failed to demand resolve texture!");
+    return false;
+  }
+
+  if (!(texture->usage_flags & (VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+                                VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT))) {
+    // Resolve image doesn't support drawing, and we don't support conversion.
+    return false;
+  }
+
   texture->in_flight_fence = current_batch_fence_;
 
   // For debugging purposes only (trace viewer)
-  last_copy_base_ = texture->texture_info.guest_address;
+  last_copy_base_ = texture->texture_info.memory.base_address;
 
   if (!frame_open_) {
     BeginFrame();
@@ -1167,6 +1118,10 @@ bool VulkanCommandProcessor::IssueCopy() {
   uint32_t src_format = is_color_source ? static_cast<uint32_t>(color_format)
                                         : static_cast<uint32_t>(depth_format);
   VkFilter filter = is_color_source ? VK_FILTER_LINEAR : VK_FILTER_NEAREST;
+
+  XELOGGPU("Resolve RT %.8X %.8X(%d) -> 0x%.8X (%dx%d, format: %s)", edram_base,
+           surface_pitch, surface_pitch, copy_dest_base, copy_dest_pitch,
+           copy_dest_height, texture_info.format_info()->name);
   switch (copy_command) {
     case CopyCommand::kRaw:
       /*
@@ -1193,6 +1148,7 @@ bool VulkanCommandProcessor::IssueCopy() {
       auto view = render_cache_->FindTileView(
           edram_base, surface_pitch, surface_msaa, is_color_source, src_format);
       if (!view) {
+        XELOGGPU("Failed to find tile view!");
         break;
       }
 
@@ -1250,35 +1206,50 @@ bool VulkanCommandProcessor::IssueCopy() {
           resolve_extent,
       };
 
-      // By offsetting the destination texture by the window offset, we've
-      // already handled it and need to subtract the window offset from the
-      // destination rectangle.
       VkRect2D dst_rect = {
-          {resolve_offset.x + window_offset_x,
-           resolve_offset.y + window_offset_y},
+          {resolve_offset.x, resolve_offset.y},
           resolve_extent,
       };
 
+      // If the destination rectangle lies outside the window, make it start
+      // inside. The Xenos does not copy pixel data at any offset in screen
+      // coordinates.
+      int32_t dst_adj_x =
+          std::max(dst_rect.offset.x, -window_offset_x) - dst_rect.offset.x;
+      int32_t dst_adj_y =
+          std::max(dst_rect.offset.y, -window_offset_y) - dst_rect.offset.y;
+
+      if (uint32_t(dst_adj_x) > dst_rect.extent.width ||
+          uint32_t(dst_adj_y) > dst_rect.extent.height) {
+        // No-op?
+        break;
+      }
+
+      dst_rect.offset.x += dst_adj_x;
+      dst_rect.offset.y += dst_adj_y;
+      dst_rect.extent.width -= dst_adj_x;
+      dst_rect.extent.height -= dst_adj_y;
+      src_rect.extent.width -= dst_adj_x;
+      src_rect.extent.height -= dst_adj_y;
+
       VkViewport viewport = {
-          float(-window_offset_x),
-          float(-window_offset_y),
-          float(copy_dest_pitch),
-          float(copy_dest_height),
-          0.f,
-          1.f,
+          0.f, 0.f, float(copy_dest_pitch), float(copy_dest_height), 0.f, 1.f,
       };
 
+      uint32_t scissor_tl_x = window_regs->window_scissor_tl.tl_x;
+      uint32_t scissor_br_x = window_regs->window_scissor_br.br_x;
+      uint32_t scissor_tl_y = window_regs->window_scissor_tl.tl_y;
+      uint32_t scissor_br_y = window_regs->window_scissor_br.br_y;
+
+      // Clamp the values to destination dimensions.
+      scissor_tl_x = std::min(scissor_tl_x, copy_dest_pitch);
+      scissor_br_x = std::min(scissor_br_x, copy_dest_pitch);
+      scissor_tl_y = std::min(scissor_tl_y, copy_dest_height);
+      scissor_br_y = std::min(scissor_br_y, copy_dest_height);
+
       VkRect2D scissor = {
-          {
-              int32_t(window_regs->window_scissor_tl.tl_x.value()),
-              int32_t(window_regs->window_scissor_tl.tl_y.value()),
-          },
-          {
-              window_regs->window_scissor_br.br_x.value() -
-                  window_regs->window_scissor_tl.tl_x.value(),
-              window_regs->window_scissor_br.br_y.value() -
-                  window_regs->window_scissor_tl.tl_y.value(),
-          },
+          {int32_t(scissor_tl_x), int32_t(scissor_tl_y)},
+          {scissor_br_x - scissor_tl_x, scissor_br_y - scissor_tl_y},
       };
 
       blitter_->BlitTexture2D(
@@ -1323,7 +1294,7 @@ bool VulkanCommandProcessor::IssueCopy() {
   // Perform any requested clears.
   uint32_t copy_depth_clear = regs[XE_GPU_REG_RB_DEPTH_CLEAR].u32;
   uint32_t copy_color_clear = regs[XE_GPU_REG_RB_COLOR_CLEAR].u32;
-  uint32_t copy_color_clear_low = regs[XE_GPU_REG_RB_COLOR_CLEAR_LOW].u32;
+  uint32_t copy_color_clear_low = regs[XE_GPU_REG_RB_COLOR_CLEAR_LO].u32;
   assert_true(copy_color_clear == copy_color_clear_low);
 
   if (color_clear_enabled) {
@@ -1355,6 +1326,10 @@ bool VulkanCommandProcessor::IssueCopy() {
 
   return true;
 }
+
+void VulkanCommandProcessor::InitializeTrace() {}
+
+void VulkanCommandProcessor::FinalizeTrace() {}
 
 }  // namespace vulkan
 }  // namespace gpu

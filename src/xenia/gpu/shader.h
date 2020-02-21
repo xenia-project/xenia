@@ -29,8 +29,20 @@ enum class InstructionStorageTarget {
   kInterpolant,
   // Result is stored to the position export (gl_Position).
   kPosition,
-  // Result is stored to the point size export (gl_PointSize).
-  kPointSize,
+  // Result is stored to the vertex shader misc export register.
+  // See R6xx/R7xx registers for details (USE_VTX_POINT_SIZE, USE_VTX_EDGE_FLAG,
+  // USE_VTX_KILL_FLAG).
+  // X - PSIZE (gl_PointSize).
+  // Y - EDGEFLAG (glEdgeFlag) for PrimitiveType::kPolygon wireframe/point
+  //     drawing.
+  // Z - KILLVERTEX flag (used in Banjo-Kazooie: Nuts & Bolts for grass), set
+  //     for killing primitives based on PA_CL_CLIP_CNTL::VTX_KILL_OR condition.
+  kPointSizeEdgeFlagKillVertex,
+  // Result is stored as memexport destination address
+  // (see xenos::xe_gpu_memexport_stream_t).
+  kExportAddress,
+  // Result is stored to memexport destination data.
+  kExportData,
   // Result is stored to a color target export indexed by storage_index [0-3].
   kColorTarget,
   // Result is stored to the depth export (gl_FragDepth).
@@ -134,10 +146,6 @@ enum class InstructionStorageSource {
   kRegister,
   // Source is stored in a float constant indexed by storage_index [0-511].
   kConstantFloat,
-  // Source is stored in a float constant indexed by storage_index [0-31].
-  kConstantInt,
-  // Source is stored in a float constant indexed by storage_index [0-255].
-  kConstantBool,
   // Source is stored in a vertex fetch constant indexed by storage_index
   // [0-95].
   kVertexFetchConstant,
@@ -174,6 +182,28 @@ struct InstructionOperand {
                components[3] == SwizzleSource::kW;
     }
     return false;
+  }
+
+  // Whether absolute values of two operands are identical (useful for emulating
+  // Shader Model 3 0*anything=0 multiplication behavior).
+  bool EqualsAbsolute(const InstructionOperand& other) const {
+    if (storage_source != other.storage_source ||
+        storage_index != other.storage_index ||
+        storage_addressing_mode != other.storage_addressing_mode ||
+        component_count != other.component_count) {
+      return false;
+    }
+    for (int i = 0; i < component_count; ++i) {
+      if (components[i] != other.components[i]) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  bool operator==(const InstructionOperand& other) const {
+    return EqualsAbsolute(other) && is_negated == other.is_negated &&
+           is_absolute_value == other.is_absolute_value;
   }
 };
 
@@ -413,9 +443,12 @@ struct ParsedTextureFetchInstruction {
     TextureFilter min_filter = TextureFilter::kUseFetchConst;
     TextureFilter mip_filter = TextureFilter::kUseFetchConst;
     AnisoFilter aniso_filter = AnisoFilter::kUseFetchConst;
+    TextureFilter vol_mag_filter = TextureFilter::kUseFetchConst;
+    TextureFilter vol_min_filter = TextureFilter::kUseFetchConst;
     bool use_computed_lod = true;
     bool use_register_lod = false;
     bool use_register_gradients = false;
+    float lod_bias = 0.0f;
     float offset_x = 0.0f;
     float offset_y = 0.0f;
     float offset_z = 0.0f;
@@ -431,38 +464,65 @@ struct ParsedAluInstruction {
   // Index into the ucode dword source.
   uint32_t dword_index = 0;
 
-  enum class Type {
-    kNop,
-    kVector,
-    kScalar,
-  };
-  // Type of the instruction.
-  Type type = Type::kNop;
-  bool is_nop() const { return type == Type::kNop; }
-  bool is_vector_type() const { return type == Type::kVector; }
-  bool is_scalar_type() const { return type == Type::kScalar; }
-  // Opcode for the instruction if it is a vector type.
-  ucode::AluVectorOpcode vector_opcode = ucode::AluVectorOpcode::kAdd;
-  // Opcode for the instruction if it is a scalar type.
-  ucode::AluScalarOpcode scalar_opcode = ucode::AluScalarOpcode::kAdds;
-  // Friendly name of the instruction.
-  const char* opcode_name = nullptr;
+  // True if the vector part of the instruction needs to be executed and data
+  // about it in this structure is valid.
+  bool has_vector_op = false;
+  // True if the scalar part of the instruction needs to be executed and data
+  // about it in this structure is valid.
+  bool has_scalar_op = false;
+  bool is_nop() const { return !has_vector_op && !has_scalar_op; }
 
-  // True if the instruction is paired with another instruction.
-  bool is_paired = false;
+  // Opcode for the vector part of the instruction.
+  ucode::AluVectorOpcode vector_opcode = ucode::AluVectorOpcode::kAdd;
+  // Opcode for the scalar part of the instruction.
+  ucode::AluScalarOpcode scalar_opcode = ucode::AluScalarOpcode::kAdds;
+  // Friendly name of the vector instruction.
+  const char* vector_opcode_name = nullptr;
+  // Friendly name of the scalar instruction.
+  const char* scalar_opcode_name = nullptr;
+
   // True if the instruction is predicated on the specified
   // predicate_condition.
   bool is_predicated = false;
   // Expected predication condition value if predicated.
   bool predicate_condition = false;
 
-  // Describes how the instruction result is stored.
-  InstructionResult result;
+  // Describes how the vector operation result is stored.
+  InstructionResult vector_result;
+  // Describes how the scalar operation result is stored.
+  InstructionResult scalar_result;
+  // Both operations must be executed before any result is stored if vector and
+  // scalar operations are paired. There are cases of vector result being used
+  // as scalar operand or vice versa (the halo on Avalanche in Halo 3, for
+  // example), in this case there must be no dependency between the two
+  // operations.
 
-  // Number of source operands.
-  size_t operand_count = 0;
-  // Describes each source operand.
-  InstructionOperand operands[3];
+  // Number of source operands of the vector operation.
+  size_t vector_operand_count = 0;
+  // Describes each source operand of the vector operation.
+  InstructionOperand vector_operands[3];
+  // Number of source operands of the scalar operation.
+  size_t scalar_operand_count = 0;
+  // Describes each source operand of the scalar operation.
+  InstructionOperand scalar_operands[2];
+
+  // If this is a valid eA write (MAD with a stream constant), returns the index
+  // of the stream float constant, otherwise returns UINT32_MAX.
+  uint32_t GetMemExportStreamConstant() const {
+    if (has_vector_op &&
+        vector_result.storage_target ==
+            InstructionStorageTarget::kExportAddress &&
+        vector_opcode == ucode::AluVectorOpcode::kMad &&
+        vector_result.has_all_writes() &&
+        vector_operands[2].storage_source ==
+            InstructionStorageSource::kConstantFloat &&
+        vector_operands[2].storage_addressing_mode ==
+            InstructionStorageAddressingMode::kStatic &&
+        vector_operands[2].is_standard_swizzle()) {
+      return vector_operands[2].storage_index;
+    }
+    return UINT32_MAX;
+  }
 
   // Disassembles the instruction into ucode assembly text.
   void Disassemble(StringBuffer* out) const;
@@ -511,12 +571,15 @@ class Shader {
     // base, so bit 0 in a vertex shader is register 0, and bit 0 in a fragment
     // shader is register 256.
     uint64_t float_bitmap[256 / 64];
-    // Bitmap of all kConstantInt registers read by the shader.
+    // Bitmap of all loop constants read by the shader.
     // Each bit corresponds to a storage index [0-31].
-    uint32_t int_bitmap;
-    // Bitmap of all kConstantBool registers read by the shader.
+    uint32_t loop_bitmap;
+    // Bitmap of all bool constants read by the shader.
     // Each bit corresponds to a storage index [0-255].
     uint32_t bool_bitmap[256 / 32];
+
+    // Total number of kConstantFloat registers read by the shader.
+    uint32_t float_count;
 
     // Computed byte count of all registers required when packed.
     uint32_t packed_byte_length;
@@ -528,6 +591,10 @@ class Shader {
 
   // Whether the shader is identified as a vertex or pixel shader.
   ShaderType type() const { return shader_type_; }
+
+  // Tessellation patch primitive type for a vertex shader translated into a
+  // domain shader, or PrimitiveType::kNone for a normal vertex shader.
+  PrimitiveType patch_primitive_type() const { return patch_primitive_type_; }
 
   // Microcode dwords in host endianness.
   const std::vector<uint32_t>& ucode_data() const { return ucode_data_; }
@@ -552,8 +619,21 @@ class Shader {
     return constant_register_map_;
   }
 
+  // All c# registers used as the addend in MAD operations to eA.
+  const std::vector<uint32_t>& memexport_stream_constants() const {
+    return memexport_stream_constants_;
+  }
+
   // Returns true if the given color target index [0-3].
   bool writes_color_target(int i) const { return writes_color_targets_[i]; }
+
+  // True if the shader overrides the pixel depth.
+  bool writes_depth() const { return writes_depth_; }
+
+  // True if Xenia can automatically enable early depth/stencil for the pixel
+  // shader when RB_DEPTHCONTROL EARLY_Z_ENABLE is not set, provided alpha
+  // testing and alpha to coverage are disabled.
+  bool implicit_early_z_allowed() const { return implicit_early_z_allowed_; }
 
   // True if the shader was translated and prepared without error.
   bool is_valid() const { return is_valid_; }
@@ -596,6 +676,7 @@ class Shader {
   friend class ShaderTranslator;
 
   ShaderType shader_type_;
+  PrimitiveType patch_primitive_type_ = PrimitiveType::kNone;
   std::vector<uint32_t> ucode_data_;
   uint64_t ucode_data_hash_;
 
@@ -603,6 +684,9 @@ class Shader {
   std::vector<TextureBinding> texture_bindings_;
   ConstantRegisterMap constant_register_map_ = {0};
   bool writes_color_targets_[4] = {false, false, false, false};
+  bool writes_depth_ = false;
+  bool implicit_early_z_allowed_ = true;
+  std::vector<uint32_t> memexport_stream_constants_;
 
   bool is_valid_ = false;
   bool is_translated_ = false;

@@ -26,7 +26,7 @@ using xe::cpu::hir::RoundMode;
 using xe::cpu::hir::Value;
 
 // Good source of information:
-// http://mamedev.org/source/src/emu/cpu/powerpc/ppc_ops.c
+// https://github.com/mamedev/historic-mame/blob/master/src/emu/cpu/powerpc/ppc_ops.c
 // The correctness of that code is not reflected here yet -_-
 
 // Enable rounding numbers to single precision as required.
@@ -242,10 +242,20 @@ int InstrEmit_fcfidx(PPCHIRBuilder& f, const InstrData& i) {
 
 int InstrEmit_fctidxx_(PPCHIRBuilder& f, const InstrData& i,
                        RoundMode round_mode) {
-  Value* v = f.Convert(f.LoadFPR(i.X.RB), INT64_TYPE, round_mode);
+  auto end = f.NewLabel();
+  auto isnan = f.NewLabel();
+  Value* v;
+  f.BranchTrue(f.IsNan(f.LoadFPR(i.X.RB)), isnan);
+  v = f.Convert(f.LoadFPR(i.X.RB), INT64_TYPE, round_mode);
   v = f.Cast(v, FLOAT64_TYPE);
   f.StoreFPR(i.X.RT, v);
   f.UpdateFPSCR(v, i.X.Rc);
+  f.Branch(end);
+  f.MarkLabel(isnan);
+  v = f.Cast(f.LoadConstantUint64(0x8000000000000000u), FLOAT64_TYPE);
+  f.StoreFPR(i.X.RT, v);
+  f.UpdateFPSCR(v, i.X.Rc);
+  f.MarkLabel(end);
   return 0;
 }
 
@@ -260,10 +270,20 @@ int InstrEmit_fctidzx(PPCHIRBuilder& f, const InstrData& i) {
 
 int InstrEmit_fctiwxx_(PPCHIRBuilder& f, const InstrData& i,
                        RoundMode round_mode) {
-  Value* v = f.Convert(f.LoadFPR(i.X.RB), INT32_TYPE, round_mode);
+  auto end = f.NewLabel();
+  auto isnan = f.NewLabel();
+  Value* v;
+  f.BranchTrue(f.IsNan(f.LoadFPR(i.X.RB)), isnan);
+  v = f.Convert(f.LoadFPR(i.X.RB), INT32_TYPE, round_mode);
   v = f.Cast(f.SignExtend(v, INT64_TYPE), FLOAT64_TYPE);
   f.StoreFPR(i.X.RT, v);
   f.UpdateFPSCR(v, i.X.Rc);
+  f.Branch(end);
+  f.MarkLabel(isnan);
+  v = f.Cast(f.LoadConstantUint32(0x80000000u), FLOAT64_TYPE);
+  f.StoreFPR(i.X.RT, v);
+  f.UpdateFPSCR(v, i.X.Rc);
+  f.MarkLabel(end);
   return 0;
 }
 

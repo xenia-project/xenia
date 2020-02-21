@@ -163,7 +163,7 @@
       this.translationComboBox.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
       this.translationComboBox.FormattingEnabled = true;
       this.translationComboBox.Items.AddRange(
-          new object[]{"GLSL for GL4.5", "SPIRV"});
+          new object[]{"SPIRV"});
       this.translationComboBox.Location = new System.Drawing.Point(1224, 0);
       this.translationComboBox.Margin = new System.Windows.Forms.Padding(3, 0, 3, 0);
       this.translationComboBox.Name = "translationComboBox";

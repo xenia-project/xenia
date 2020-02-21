@@ -35,8 +35,7 @@ using xe::ui::vulkan::CheckResult;
 
 PipelineCache::PipelineCache(RegisterFile* register_file,
                              ui::vulkan::VulkanDevice* device)
-    : register_file_(register_file), device_(*device) {
-  // We can also use the GLSL translator with a Vulkan dialect.
+    : register_file_(register_file), device_(device) {
   shader_translator_.reset(new SpirvShaderTranslator());
 }
 
@@ -44,7 +43,8 @@ PipelineCache::~PipelineCache() { Shutdown(); }
 
 VkResult PipelineCache::Initialize(
     VkDescriptorSetLayout uniform_descriptor_set_layout,
-    VkDescriptorSetLayout texture_descriptor_set_layout) {
+    VkDescriptorSetLayout texture_descriptor_set_layout,
+    VkDescriptorSetLayout vertex_descriptor_set_layout) {
   VkResult status;
 
   // Initialize the shared driver pipeline cache.
@@ -57,7 +57,7 @@ VkResult PipelineCache::Initialize(
   pipeline_cache_info.flags = 0;
   pipeline_cache_info.initialDataSize = 0;
   pipeline_cache_info.pInitialData = nullptr;
-  status = vkCreatePipelineCache(device_, &pipeline_cache_info, nullptr,
+  status = vkCreatePipelineCache(*device_, &pipeline_cache_info, nullptr,
                                  &pipeline_cache_);
   if (status != VK_SUCCESS) {
     return status;
@@ -70,6 +70,8 @@ VkResult PipelineCache::Initialize(
       uniform_descriptor_set_layout,
       // All texture bindings.
       texture_descriptor_set_layout,
+      // Vertex bindings.
+      vertex_descriptor_set_layout,
   };
 
   // Push constants used for draw parameters.
@@ -93,7 +95,7 @@ VkResult PipelineCache::Initialize(
   pipeline_layout_info.pushConstantRangeCount =
       static_cast<uint32_t>(xe::countof(push_constant_ranges));
   pipeline_layout_info.pPushConstantRanges = push_constant_ranges;
-  status = vkCreatePipelineLayout(device_, &pipeline_layout_info, nullptr,
+  status = vkCreatePipelineLayout(*device_, &pipeline_layout_info, nullptr,
                                   &pipeline_layout_);
   if (status != VK_SUCCESS) {
     return status;
@@ -110,90 +112,95 @@ VkResult PipelineCache::Initialize(
       static_cast<uint32_t>(sizeof(line_quad_list_geom));
   shader_module_info.pCode =
       reinterpret_cast<const uint32_t*>(line_quad_list_geom);
-  status = vkCreateShaderModule(device_, &shader_module_info, nullptr,
+  status = vkCreateShaderModule(*device_, &shader_module_info, nullptr,
                                 &geometry_shaders_.line_quad_list);
   if (status != VK_SUCCESS) {
     return status;
   }
+  device_->DbgSetObjectName(uint64_t(geometry_shaders_.line_quad_list),
+                            VK_DEBUG_REPORT_OBJECT_TYPE_SHADER_MODULE_EXT,
+                            "S(g): Line Quad List");
 
   shader_module_info.codeSize = static_cast<uint32_t>(sizeof(point_list_geom));
   shader_module_info.pCode = reinterpret_cast<const uint32_t*>(point_list_geom);
-  status = vkCreateShaderModule(device_, &shader_module_info, nullptr,
+  status = vkCreateShaderModule(*device_, &shader_module_info, nullptr,
                                 &geometry_shaders_.point_list);
   if (status != VK_SUCCESS) {
     return status;
   }
+  device_->DbgSetObjectName(uint64_t(geometry_shaders_.point_list),
+                            VK_DEBUG_REPORT_OBJECT_TYPE_SHADER_MODULE_EXT,
+                            "S(g): Point List");
 
   shader_module_info.codeSize = static_cast<uint32_t>(sizeof(quad_list_geom));
   shader_module_info.pCode = reinterpret_cast<const uint32_t*>(quad_list_geom);
-  status = vkCreateShaderModule(device_, &shader_module_info, nullptr,
+  status = vkCreateShaderModule(*device_, &shader_module_info, nullptr,
                                 &geometry_shaders_.quad_list);
   if (status != VK_SUCCESS) {
     return status;
   }
+  device_->DbgSetObjectName(uint64_t(geometry_shaders_.quad_list),
+                            VK_DEBUG_REPORT_OBJECT_TYPE_SHADER_MODULE_EXT,
+                            "S(g): Quad List");
 
   shader_module_info.codeSize = static_cast<uint32_t>(sizeof(rect_list_geom));
   shader_module_info.pCode = reinterpret_cast<const uint32_t*>(rect_list_geom);
-  status = vkCreateShaderModule(device_, &shader_module_info, nullptr,
+  status = vkCreateShaderModule(*device_, &shader_module_info, nullptr,
                                 &geometry_shaders_.rect_list);
   if (status != VK_SUCCESS) {
     return status;
   }
+  device_->DbgSetObjectName(uint64_t(geometry_shaders_.rect_list),
+                            VK_DEBUG_REPORT_OBJECT_TYPE_SHADER_MODULE_EXT,
+                            "S(g): Rect List");
 
   shader_module_info.codeSize = static_cast<uint32_t>(sizeof(dummy_frag));
   shader_module_info.pCode = reinterpret_cast<const uint32_t*>(dummy_frag);
-  status = vkCreateShaderModule(device_, &shader_module_info, nullptr,
+  status = vkCreateShaderModule(*device_, &shader_module_info, nullptr,
                                 &dummy_pixel_shader_);
   if (status != VK_SUCCESS) {
     return status;
   }
+  device_->DbgSetObjectName(uint64_t(dummy_pixel_shader_),
+                            VK_DEBUG_REPORT_OBJECT_TYPE_SHADER_MODULE_EXT,
+                            "S(p): Dummy");
 
   return VK_SUCCESS;
 }
 
 void PipelineCache::Shutdown() {
-  // Destroy all pipelines.
-  for (auto it : cached_pipelines_) {
-    vkDestroyPipeline(device_, it.second, nullptr);
-  }
-  cached_pipelines_.clear();
+  ClearCache();
 
   // Destroy geometry shaders.
   if (geometry_shaders_.line_quad_list) {
-    vkDestroyShaderModule(device_, geometry_shaders_.line_quad_list, nullptr);
+    vkDestroyShaderModule(*device_, geometry_shaders_.line_quad_list, nullptr);
     geometry_shaders_.line_quad_list = nullptr;
   }
   if (geometry_shaders_.point_list) {
-    vkDestroyShaderModule(device_, geometry_shaders_.point_list, nullptr);
+    vkDestroyShaderModule(*device_, geometry_shaders_.point_list, nullptr);
     geometry_shaders_.point_list = nullptr;
   }
   if (geometry_shaders_.quad_list) {
-    vkDestroyShaderModule(device_, geometry_shaders_.quad_list, nullptr);
+    vkDestroyShaderModule(*device_, geometry_shaders_.quad_list, nullptr);
     geometry_shaders_.quad_list = nullptr;
   }
   if (geometry_shaders_.rect_list) {
-    vkDestroyShaderModule(device_, geometry_shaders_.rect_list, nullptr);
+    vkDestroyShaderModule(*device_, geometry_shaders_.rect_list, nullptr);
     geometry_shaders_.rect_list = nullptr;
   }
   if (dummy_pixel_shader_) {
-    vkDestroyShaderModule(device_, dummy_pixel_shader_, nullptr);
+    vkDestroyShaderModule(*device_, dummy_pixel_shader_, nullptr);
     dummy_pixel_shader_ = nullptr;
   }
 
   if (pipeline_layout_) {
-    vkDestroyPipelineLayout(device_, pipeline_layout_, nullptr);
+    vkDestroyPipelineLayout(*device_, pipeline_layout_, nullptr);
     pipeline_layout_ = nullptr;
   }
   if (pipeline_cache_) {
-    vkDestroyPipelineCache(device_, pipeline_cache_, nullptr);
+    vkDestroyPipelineCache(*device_, pipeline_cache_, nullptr);
     pipeline_cache_ = nullptr;
   }
-
-  // Destroy all shaders.
-  for (auto it : shader_map_) {
-    delete it.second;
-  }
-  shader_map_.clear();
 }
 
 VulkanShader* PipelineCache::LoadShader(ShaderType shader_type,
@@ -266,7 +273,18 @@ PipelineCache::UpdateStatus PipelineCache::ConfigurePipeline(
 }
 
 void PipelineCache::ClearCache() {
-  // TODO(benvanik): caching.
+  // Destroy all pipelines.
+  for (auto it : cached_pipelines_) {
+    vkDestroyPipeline(*device_, it.second, nullptr);
+  }
+  cached_pipelines_.clear();
+  COUNT_profile_set("gpu/pipeline_cache/pipelines", 0);
+
+  // Destroy all shaders.
+  for (auto it : shader_map_) {
+    delete it.second;
+  }
+  shader_map_.clear();
 }
 
 VkPipeline PipelineCache::GetPipeline(const RenderState* render_state,
@@ -319,7 +337,7 @@ VkPipeline PipelineCache::GetPipeline(const RenderState* render_state,
   pipeline_info.basePipelineHandle = nullptr;
   pipeline_info.basePipelineIndex = -1;
   VkPipeline pipeline = nullptr;
-  auto result = vkCreateGraphicsPipelines(device_, pipeline_cache_, 1,
+  auto result = vkCreateGraphicsPipelines(*device_, pipeline_cache_, 1,
                                           &pipeline_info, nullptr, &pipeline);
   if (result != VK_SUCCESS) {
     XELOGE("vkCreateGraphicsPipelines failed with code %d", result);
@@ -328,21 +346,27 @@ VkPipeline PipelineCache::GetPipeline(const RenderState* render_state,
   }
 
   // Dump shader disassembly.
-  if (FLAGS_vulkan_dump_disasm) {
-    DumpShaderDisasmNV(pipeline_info);
+  if (cvars::vulkan_dump_disasm) {
+    if (device_->HasEnabledExtension(VK_AMD_SHADER_INFO_EXTENSION_NAME)) {
+      DumpShaderDisasmAMD(pipeline);
+    } else if (device_->device_info().properties.vendorID == 0x10DE) {
+      // NVIDIA cards
+      DumpShaderDisasmNV(pipeline_info);
+    }
   }
 
   // Add to cache with the hash key for reuse.
   cached_pipelines_.insert({hash_key, pipeline});
+  COUNT_profile_set("gpu/pipeline_cache/pipelines", cached_pipelines_.size());
 
   return pipeline;
 }
 
 bool PipelineCache::TranslateShader(VulkanShader* shader,
-                                    xenos::xe_gpu_program_cntl_t cntl) {
+                                    reg::SQ_PROGRAM_CNTL cntl) {
   // Perform translation.
   // If this fails the shader will be marked as invalid and ignored later.
-  if (!shader_translator_->Translate(shader, cntl)) {
+  if (!shader_translator_->Translate(shader, PrimitiveType::kNone, cntl)) {
     XELOGE("Shader translation failed; marking shader as ignored");
     return false;
   }
@@ -362,11 +386,58 @@ bool PipelineCache::TranslateShader(VulkanShader* shader,
   }
 
   // Dump shader files if desired.
-  if (!FLAGS_dump_shaders.empty()) {
-    shader->Dump(FLAGS_dump_shaders, "vk");
+  if (!cvars::dump_shaders.empty()) {
+    shader->Dump(cvars::dump_shaders, "vk");
   }
 
   return shader->is_valid();
+}
+
+static void DumpShaderStatisticsAMD(const VkShaderStatisticsInfoAMD& stats) {
+  XELOGI(" - resource usage:");
+  XELOGI("   numUsedVgprs: %d", stats.resourceUsage.numUsedVgprs);
+  XELOGI("   numUsedSgprs: %d", stats.resourceUsage.numUsedSgprs);
+  XELOGI("   ldsSizePerLocalWorkGroup: %d",
+         stats.resourceUsage.ldsSizePerLocalWorkGroup);
+  XELOGI("   ldsUsageSizeInBytes     : %d",
+         stats.resourceUsage.ldsUsageSizeInBytes);
+  XELOGI("   scratchMemUsageInBytes  : %d",
+         stats.resourceUsage.scratchMemUsageInBytes);
+  XELOGI("numPhysicalVgprs : %d", stats.numPhysicalVgprs);
+  XELOGI("numPhysicalSgprs : %d", stats.numPhysicalSgprs);
+  XELOGI("numAvailableVgprs: %d", stats.numAvailableVgprs);
+  XELOGI("numAvailableSgprs: %d", stats.numAvailableSgprs);
+}
+
+void PipelineCache::DumpShaderDisasmAMD(VkPipeline pipeline) {
+  auto fn_GetShaderInfoAMD = (PFN_vkGetShaderInfoAMD)vkGetDeviceProcAddr(
+      *device_, "vkGetShaderInfoAMD");
+
+  VkResult status = VK_SUCCESS;
+  size_t data_size = 0;
+
+  VkShaderStatisticsInfoAMD stats;
+  data_size = sizeof(stats);
+
+  // Vertex shader
+  status = fn_GetShaderInfoAMD(*device_, pipeline, VK_SHADER_STAGE_VERTEX_BIT,
+                               VK_SHADER_INFO_TYPE_STATISTICS_AMD, &data_size,
+                               &stats);
+  if (status == VK_SUCCESS) {
+    XELOGI("AMD Vertex Shader Statistics:");
+    DumpShaderStatisticsAMD(stats);
+  }
+
+  // Fragment shader
+  status = fn_GetShaderInfoAMD(*device_, pipeline, VK_SHADER_STAGE_FRAGMENT_BIT,
+                               VK_SHADER_INFO_TYPE_STATISTICS_AMD, &data_size,
+                               &stats);
+  if (status == VK_SUCCESS) {
+    XELOGI("AMD Fragment Shader Statistics:");
+    DumpShaderStatisticsAMD(stats);
+  }
+
+  // TODO(DrChat): Eventually dump the disasm...
 }
 
 void PipelineCache::DumpShaderDisasmNV(
@@ -382,22 +453,22 @@ void PipelineCache::DumpShaderDisasmNV(
   pipeline_cache_info.flags = 0;
   pipeline_cache_info.initialDataSize = 0;
   pipeline_cache_info.pInitialData = nullptr;
-  auto status = vkCreatePipelineCache(device_, &pipeline_cache_info, nullptr,
+  auto status = vkCreatePipelineCache(*device_, &pipeline_cache_info, nullptr,
                                       &dummy_pipeline_cache);
   CheckResult(status, "vkCreatePipelineCache");
 
   // Create a pipeline on the dummy cache and dump it.
   VkPipeline dummy_pipeline;
-  status = vkCreateGraphicsPipelines(device_, dummy_pipeline_cache, 1,
+  status = vkCreateGraphicsPipelines(*device_, dummy_pipeline_cache, 1,
                                      &pipeline_info, nullptr, &dummy_pipeline);
 
   std::vector<uint8_t> pipeline_data;
   size_t data_size = 0;
-  status = vkGetPipelineCacheData(device_, dummy_pipeline_cache, &data_size,
+  status = vkGetPipelineCacheData(*device_, dummy_pipeline_cache, &data_size,
                                   nullptr);
   if (status == VK_SUCCESS) {
     pipeline_data.resize(data_size);
-    vkGetPipelineCacheData(device_, dummy_pipeline_cache, &data_size,
+    vkGetPipelineCacheData(*device_, dummy_pipeline_cache, &data_size,
                            pipeline_data.data());
 
     // Scan the data for the disassembly.
@@ -454,8 +525,8 @@ void PipelineCache::DumpShaderDisasmNV(
            disasm_fp.c_str());
   }
 
-  vkDestroyPipeline(device_, dummy_pipeline, nullptr);
-  vkDestroyPipelineCache(device_, dummy_pipeline_cache, nullptr);
+  vkDestroyPipeline(*device_, dummy_pipeline, nullptr);
+  vkDestroyPipelineCache(*device_, dummy_pipeline_cache, nullptr);
 }
 
 VkShaderModule PipelineCache::GetGeometryShader(PrimitiveType primitive_type,
@@ -483,11 +554,9 @@ VkShaderModule PipelineCache::GetGeometryShader(PrimitiveType primitive_type,
       // TODO(benvanik): quad strip geometry shader.
       assert_always("Quad strips not implemented");
       return nullptr;
-    case PrimitiveType::k2DCopyRectListV0:
-    case PrimitiveType::k2DCopyRectListV1:
-    case PrimitiveType::k2DCopyRectListV2:
-    case PrimitiveType::k2DCopyRectListV3:
-      // TODO(DrChat): Research this.
+    case PrimitiveType::kTrianglePatch:
+    case PrimitiveType::kQuadPatch:
+      assert_always("Tessellation is not implemented");
       return nullptr;
     default:
       assert_unhandled_case(primitive_type);
@@ -512,17 +581,13 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
   // http://ftp.tku.edu.tw/NetBSD/NetBSD-current/xsrc/external/mit/xf86-video-ati/dist/src/r600_reg_auto_r6xx.h
   // See r200UpdateWindow:
   // https://github.com/freedreno/mesa/blob/master/src/mesa/drivers/dri/r200/r200_state.c
-  int16_t window_offset_x = 0;
-  int16_t window_offset_y = 0;
-  if ((regs.pa_su_sc_mode_cntl >> 16) & 1) {
-    window_offset_x = regs.pa_sc_window_offset & 0x7FFF;
-    window_offset_y = (regs.pa_sc_window_offset >> 16) & 0x7FFF;
-    if (window_offset_x & 0x4000) {
-      window_offset_x |= 0x8000;
-    }
-    if (window_offset_y & 0x4000) {
-      window_offset_y |= 0x8000;
-    }
+  int16_t window_offset_x = regs.pa_sc_window_offset & 0x7FFF;
+  int16_t window_offset_y = (regs.pa_sc_window_offset >> 16) & 0x7FFF;
+  if (window_offset_x & 0x4000) {
+    window_offset_x |= 0x8000;
+  }
+  if (window_offset_y & 0x4000) {
+    window_offset_y |= 0x8000;
   }
 
   // VK_DYNAMIC_STATE_SCISSOR
@@ -534,16 +599,22 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
   if (scissor_state_dirty) {
     int32_t ws_x = regs.pa_sc_window_scissor_tl & 0x7FFF;
     int32_t ws_y = (regs.pa_sc_window_scissor_tl >> 16) & 0x7FFF;
-    uint32_t ws_w = (regs.pa_sc_window_scissor_br & 0x7FFF) - ws_x;
-    uint32_t ws_h = ((regs.pa_sc_window_scissor_br >> 16) & 0x7FFF) - ws_y;
-    ws_x += window_offset_x;
-    ws_y += window_offset_y;
+    int32_t ws_w = (regs.pa_sc_window_scissor_br & 0x7FFF) - ws_x;
+    int32_t ws_h = ((regs.pa_sc_window_scissor_br >> 16) & 0x7FFF) - ws_y;
+    if (!(regs.pa_sc_window_scissor_tl & 0x80000000)) {
+      // ! WINDOW_OFFSET_DISABLE
+      ws_x += window_offset_x;
+      ws_y += window_offset_y;
+    }
+
+    int32_t adj_x = ws_x - std::max(ws_x, 0);
+    int32_t adj_y = ws_y - std::max(ws_y, 0);
 
     VkRect2D scissor_rect;
-    scissor_rect.offset.x = ws_x;
-    scissor_rect.offset.y = ws_y;
-    scissor_rect.extent.width = ws_w;
-    scissor_rect.extent.height = ws_h;
+    scissor_rect.offset.x = ws_x - adj_x;
+    scissor_rect.offset.y = ws_y - adj_y;
+    scissor_rect.extent.width = std::max(ws_w + adj_x, 0);
+    scissor_rect.extent.height = std::max(ws_h + adj_y, 0);
     vkCmdSetScissor(command_buffer, 0, 1, &scissor_rect);
   }
 
@@ -553,6 +624,8 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
       SetShadowRegister(&regs.rb_surface_info, XE_GPU_REG_RB_SURFACE_INFO);
   viewport_state_dirty |=
       SetShadowRegister(&regs.pa_cl_vte_cntl, XE_GPU_REG_PA_CL_VTE_CNTL);
+  viewport_state_dirty |=
+      SetShadowRegister(&regs.pa_su_sc_vtx_cntl, XE_GPU_REG_PA_SU_VTX_CNTL);
   viewport_state_dirty |= SetShadowRegister(&regs.pa_cl_vport_xoffset,
                                             XE_GPU_REG_PA_CL_VPORT_XOFFSET);
   viewport_state_dirty |= SetShadowRegister(&regs.pa_cl_vport_yoffset,
@@ -584,7 +657,7 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
   }
 
   // Whether each of the viewport settings are enabled.
-  // http://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
+  // https://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
   bool vport_xscale_enable = (regs.pa_cl_vte_cntl & (1 << 0)) > 0;
   bool vport_xoffset_enable = (regs.pa_cl_vte_cntl & (1 << 1)) > 0;
   bool vport_yscale_enable = (regs.pa_cl_vte_cntl & (1 << 2)) > 0;
@@ -595,10 +668,12 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
               vport_zscale_enable == vport_xoffset_enable ==
               vport_yoffset_enable == vport_zoffset_enable);
 
-  float vpw, vph, vpx, vpy;
-  float texel_offset_x = 0.0f;
-  float texel_offset_y = 0.0f;
+  int16_t vtx_window_offset_x =
+      (regs.pa_su_sc_mode_cntl >> 16) & 1 ? window_offset_x : 0;
+  int16_t vtx_window_offset_y =
+      (regs.pa_su_sc_mode_cntl >> 16) & 1 ? window_offset_y : 0;
 
+  float vpw, vph, vpx, vpy;
   if (vport_xscale_enable) {
     float vox = vport_xoffset_enable ? regs.pa_cl_vport_xoffset : 0;
     float voy = vport_yoffset_enable ? regs.pa_cl_vport_yoffset : 0;
@@ -608,20 +683,21 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
     window_width_scalar = window_height_scalar = 1;
     vpw = 2 * window_width_scalar * vsx;
     vph = -2 * window_height_scalar * vsy;
-    vpx = window_width_scalar * vox - vpw / 2 + window_offset_x;
-    vpy = window_height_scalar * voy - vph / 2 + window_offset_y;
+    vpx = window_width_scalar * vox - vpw / 2 + vtx_window_offset_x;
+    vpy = window_height_scalar * voy - vph / 2 + vtx_window_offset_y;
   } else {
-    vpw = 2 * 2560.0f * window_width_scalar;
-    vph = 2 * 2560.0f * window_height_scalar;
-    vpx = -2560.0f * window_width_scalar + window_offset_x;
-    vpy = -2560.0f * window_height_scalar + window_offset_y;
+    // TODO(DrChat): This should be the width/height of the target picture
+    vpw = 2560.0f;
+    vph = 2560.0f;
+    vpx = vtx_window_offset_x;
+    vpy = vtx_window_offset_y;
   }
 
   if (viewport_state_dirty) {
     VkViewport viewport_rect;
     std::memset(&viewport_rect, 0, sizeof(VkViewport));
-    viewport_rect.x = vpx + texel_offset_x;
-    viewport_rect.y = vpy + texel_offset_y;
+    viewport_rect.x = vpx;
+    viewport_rect.y = vpy;
     viewport_rect.width = vpw;
     viewport_rect.height = vph;
 
@@ -633,6 +709,66 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
     assert_true(viewport_rect.maxDepth >= -1 && viewport_rect.maxDepth <= 1);
 
     vkCmdSetViewport(command_buffer, 0, 1, &viewport_rect);
+  }
+
+  // VK_DYNAMIC_STATE_DEPTH_BIAS
+  // No separate front/back bias in Vulkan - using what's more expected to work.
+  // No need to reset to 0 if not enabled in the pipeline - recheck conditions.
+  float depth_bias_scales[2] = {0}, depth_bias_offsets[2] = {0};
+  auto cull_mode = regs.pa_su_sc_mode_cntl & 3;
+  if (cull_mode != 1) {
+    // Front faces are not culled.
+    depth_bias_scales[0] =
+        register_file_->values[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_SCALE].f32;
+    depth_bias_offsets[0] =
+        register_file_->values[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_OFFSET].f32;
+  }
+  if (cull_mode != 2) {
+    // Back faces are not culled.
+    depth_bias_scales[1] =
+        register_file_->values[XE_GPU_REG_PA_SU_POLY_OFFSET_BACK_SCALE].f32;
+    depth_bias_offsets[1] =
+        register_file_->values[XE_GPU_REG_PA_SU_POLY_OFFSET_BACK_OFFSET].f32;
+  }
+  if (depth_bias_scales[0] != 0.0f || depth_bias_scales[1] != 0.0f ||
+      depth_bias_offsets[0] != 0.0f || depth_bias_offsets[1] != 0.0f) {
+    float depth_bias_scale, depth_bias_offset;
+    // Prefer front if not culled and offset for both is enabled.
+    // However, if none are culled, and there's no front offset, use back offset
+    // (since there was an intention to enable depth offset at all).
+    // As SetRenderState sets for both sides, this should be very rare anyway.
+    // TODO(Triang3l): Verify the intentions if this happens in real games.
+    if (depth_bias_scales[0] != 0.0f || depth_bias_offsets[0] != 0.0f) {
+      depth_bias_scale = depth_bias_scales[0];
+      depth_bias_offset = depth_bias_offsets[0];
+    } else {
+      depth_bias_scale = depth_bias_scales[1];
+      depth_bias_offset = depth_bias_offsets[1];
+    }
+    // Convert to Vulkan units based on the values in Call of Duty 4:
+    // r_polygonOffsetScale is -1 there, but 32 in the register.
+    // r_polygonOffsetBias is -1 also, but passing 2/65536.
+    // 1/65536 and 2 scales are applied separately, however, and for shadow maps
+    // 0.5/65536 is passed (while sm_polygonOffsetBias is 0.5), and with 32768
+    // it would be 0.25, which seems too small. So using 65536, assuming it's a
+    // common scale value (which also looks less arbitrary than 32768).
+    // TODO(Triang3l): Investigate, also considering the depth format (kD24FS8).
+    // Possibly refer to:
+    // https://www.winehq.org/pipermail/wine-patches/2015-July/141200.html
+    float depth_bias_scale_vulkan = depth_bias_scale * (1.0f / 32.0f);
+    float depth_bias_offset_vulkan = depth_bias_offset * 65536.0f;
+    if (full_update ||
+        regs.pa_su_poly_offset_scale != depth_bias_scale_vulkan ||
+        regs.pa_su_poly_offset_offset != depth_bias_offset_vulkan) {
+      regs.pa_su_poly_offset_scale = depth_bias_scale_vulkan;
+      regs.pa_su_poly_offset_offset = depth_bias_offset_vulkan;
+      vkCmdSetDepthBias(command_buffer, depth_bias_offset_vulkan, 0.0f,
+                        depth_bias_scale_vulkan);
+    }
+  } else if (full_update) {
+    regs.pa_su_poly_offset_scale = 0.0f;
+    regs.pa_su_poly_offset_offset = 0.0f;
+    vkCmdSetDepthBias(command_buffer, 0.0f, 0.0f, 0.0f);
   }
 
   // VK_DYNAMIC_STATE_BLEND_CONSTANTS
@@ -671,51 +807,51 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
   }
 
   bool push_constants_dirty = full_update || viewport_state_dirty;
-  push_constants_dirty |=
-      SetShadowRegister(&regs.sq_program_cntl, XE_GPU_REG_SQ_PROGRAM_CNTL);
+  push_constants_dirty |= SetShadowRegister(&regs.sq_program_cntl.value,
+                                            XE_GPU_REG_SQ_PROGRAM_CNTL);
   push_constants_dirty |=
       SetShadowRegister(&regs.sq_context_misc, XE_GPU_REG_SQ_CONTEXT_MISC);
   push_constants_dirty |=
       SetShadowRegister(&regs.rb_colorcontrol, XE_GPU_REG_RB_COLORCONTROL);
   push_constants_dirty |=
+      SetShadowRegister(&regs.rb_color_info.value, XE_GPU_REG_RB_COLOR_INFO);
+  push_constants_dirty |=
+      SetShadowRegister(&regs.rb_color1_info.value, XE_GPU_REG_RB_COLOR1_INFO);
+  push_constants_dirty |=
+      SetShadowRegister(&regs.rb_color2_info.value, XE_GPU_REG_RB_COLOR2_INFO);
+  push_constants_dirty |=
+      SetShadowRegister(&regs.rb_color3_info.value, XE_GPU_REG_RB_COLOR3_INFO);
+  push_constants_dirty |=
       SetShadowRegister(&regs.rb_alpha_ref, XE_GPU_REG_RB_ALPHA_REF);
   push_constants_dirty |=
       SetShadowRegister(&regs.pa_su_point_size, XE_GPU_REG_PA_SU_POINT_SIZE);
   if (push_constants_dirty) {
-    xenos::xe_gpu_program_cntl_t program_cntl;
-    program_cntl.dword_0 = regs.sq_program_cntl;
-
     // Normal vertex shaders only, for now.
-    // TODO(benvanik): transform feedback/memexport.
-    // https://github.com/freedreno/freedreno/blob/master/includes/a2xx.xml.h
-    // Draw calls skipped if they have unsupported export modes.
-    // 0 = positionOnly
-    // 1 = unused
-    // 2 = sprite
-    // 3 = edge
-    // 4 = kill
-    // 5 = spriteKill
-    // 6 = edgeKill
-    // 7 = multipass
-    assert_true(program_cntl.vs_export_mode == 0 ||
-                program_cntl.vs_export_mode == 2 ||
-                program_cntl.vs_export_mode == 7);
-    assert_false(program_cntl.gen_index_vtx);
+    assert_true(regs.sq_program_cntl.vs_export_mode ==
+                    xenos::VertexShaderExportMode::kPosition1Vector ||
+                regs.sq_program_cntl.vs_export_mode ==
+                    xenos::VertexShaderExportMode::kPosition2VectorsSprite ||
+                regs.sq_program_cntl.vs_export_mode ==
+                    xenos::VertexShaderExportMode::kMultipass);
+    assert_false(regs.sq_program_cntl.gen_index_vtx);
 
-    SpirvPushConstants push_constants;
+    SpirvPushConstants push_constants = {};
 
     // Done in VS, no need to flush state.
-    if ((regs.pa_cl_vte_cntl & (1 << 0)) > 0) {
+    if (vport_xscale_enable) {
       push_constants.window_scale[0] = 1.0f;
       push_constants.window_scale[1] = -1.0f;
+      push_constants.window_scale[2] = 0.f;
+      push_constants.window_scale[3] = 0.f;
     } else {
-      push_constants.window_scale[0] = 1.0f / 2560.0f;
-      push_constants.window_scale[1] = 1.0f / 2560.0f;
+      // 1 / unscaled viewport w/h
+      push_constants.window_scale[0] = window_width_scalar / 1280.f;
+      push_constants.window_scale[1] = window_height_scalar / 1280.f;
+      push_constants.window_scale[2] = (-1280.f / window_width_scalar) + 0.5f;
+      push_constants.window_scale[3] = (-1280.f / window_height_scalar) + 0.5f;
     }
-    push_constants.window_scale[2] = vpw;
-    push_constants.window_scale[3] = vph;
 
-    // http://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
+    // https://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
     // VTX_XY_FMT = true: the incoming XY have already been multiplied by 1/W0.
     //            = false: multiply the X, Y coordinates by 1/W0.
     // VTX_Z_FMT = true: the incoming Z has already been multiplied by 1/W0.
@@ -736,6 +872,17 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
     push_constants.point_size[1] =
         static_cast<float>((regs.pa_su_point_size & 0x0000ffff)) / 8.0f;
 
+    reg::RB_COLOR_INFO color_info[4] = {
+        regs.rb_color_info,
+        regs.rb_color1_info,
+        regs.rb_color2_info,
+        regs.rb_color3_info,
+    };
+    for (int i = 0; i < 4; i++) {
+      push_constants.color_exp_bias[i] =
+          static_cast<float>(1 << color_info[i].color_exp_bias);
+    }
+
     // Alpha testing -- ALPHAREF, ALPHAFUNC, ALPHATESTENABLE
     // Emulated in shader.
     // if(ALPHATESTENABLE && frag_out.a [<=/ALPHAFUNC] ALPHAREF) discard;
@@ -750,7 +897,8 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
 
     // Whether to populate a register in the pixel shader with frag coord.
     int ps_param_gen = (regs.sq_context_misc >> 8) & 0xFF;
-    push_constants.ps_param_gen = program_cntl.param_gen ? ps_param_gen : -1;
+    push_constants.ps_param_gen =
+        regs.sq_program_cntl.param_gen ? ps_param_gen : -1;
 
     vkCmdPushConstants(command_buffer, pipeline_layout_,
                        VK_SHADER_STAGE_VERTEX_BIT |
@@ -762,9 +910,6 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
   if (full_update) {
     // VK_DYNAMIC_STATE_LINE_WIDTH
     vkCmdSetLineWidth(command_buffer, 1.0f);
-
-    // VK_DYNAMIC_STATE_DEPTH_BIAS
-    vkCmdSetDepthBias(command_buffer, 0.0f, 0.0f, 0.0f);
 
     // VK_DYNAMIC_STATE_DEPTH_BOUNDS
     vkCmdSetDepthBounds(command_buffer, 0.0f, 1.0f);
@@ -905,7 +1050,8 @@ PipelineCache::UpdateStatus PipelineCache::UpdateShaderStages(
   bool dirty = false;
   dirty |= SetShadowRegister(&regs.pa_su_sc_mode_cntl,
                              XE_GPU_REG_PA_SU_SC_MODE_CNTL);
-  dirty |= SetShadowRegister(&regs.sq_program_cntl, XE_GPU_REG_SQ_PROGRAM_CNTL);
+  dirty |= SetShadowRegister(&regs.sq_program_cntl.value,
+                             XE_GPU_REG_SQ_PROGRAM_CNTL);
   dirty |= regs.vertex_shader != vertex_shader;
   dirty |= regs.pixel_shader != pixel_shader;
   dirty |= regs.primitive_type != primitive_type;
@@ -917,17 +1063,14 @@ PipelineCache::UpdateStatus PipelineCache::UpdateShaderStages(
     return UpdateStatus::kCompatible;
   }
 
-  xenos::xe_gpu_program_cntl_t sq_program_cntl;
-  sq_program_cntl.dword_0 = regs.sq_program_cntl;
-
   if (!vertex_shader->is_translated() &&
-      !TranslateShader(vertex_shader, sq_program_cntl)) {
+      !TranslateShader(vertex_shader, regs.sq_program_cntl)) {
     XELOGE("Failed to translate the vertex shader!");
     return UpdateStatus::kError;
   }
 
   if (pixel_shader && !pixel_shader->is_translated() &&
-      !TranslateShader(pixel_shader, sq_program_cntl)) {
+      !TranslateShader(pixel_shader, regs.sq_program_cntl)) {
     XELOGE("Failed to translate the pixel shader!");
     return UpdateStatus::kError;
   }
@@ -994,143 +1137,16 @@ PipelineCache::UpdateStatus PipelineCache::UpdateVertexInputState(
     return UpdateStatus::kCompatible;
   }
 
+  // We don't use vertex inputs.
   state_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
   state_info.pNext = nullptr;
   state_info.flags = 0;
+  state_info.vertexBindingDescriptionCount = 0;
+  state_info.vertexAttributeDescriptionCount = 0;
+  state_info.pVertexBindingDescriptions = nullptr;
+  state_info.pVertexAttributeDescriptions = nullptr;
 
-  auto& vertex_binding_descrs = update_vertex_input_state_binding_descrs_;
-  auto& vertex_attrib_descrs = update_vertex_input_state_attrib_descrs_;
-  uint32_t vertex_binding_count = 0;
-  uint32_t vertex_attrib_count = 0;
-  for (const auto& vertex_binding : vertex_shader->vertex_bindings()) {
-    assert_true(vertex_binding_count < xe::countof(vertex_binding_descrs));
-    auto& vertex_binding_descr = vertex_binding_descrs[vertex_binding_count++];
-    vertex_binding_descr.binding = vertex_binding.binding_index;
-    vertex_binding_descr.stride = vertex_binding.stride_words * 4;
-    vertex_binding_descr.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-
-    for (const auto& attrib : vertex_binding.attributes) {
-      assert_true(vertex_attrib_count < xe::countof(vertex_attrib_descrs));
-      auto& vertex_attrib_descr = vertex_attrib_descrs[vertex_attrib_count++];
-      vertex_attrib_descr.location = attrib.attrib_index;
-      vertex_attrib_descr.binding = vertex_binding.binding_index;
-      vertex_attrib_descr.format = VK_FORMAT_UNDEFINED;
-      vertex_attrib_descr.offset = attrib.fetch_instr.attributes.offset * 4;
-
-      // TODO(DrChat): Some floating point formats have is_integer set. Input
-      // data is still floating point, does this mean we need to truncate?
-      bool is_signed = attrib.fetch_instr.attributes.is_signed;
-      bool is_integer = attrib.fetch_instr.attributes.is_integer;
-      switch (attrib.fetch_instr.attributes.data_format) {
-        case VertexFormat::k_8_8_8_8:
-          if (is_integer) {
-            vertex_attrib_descr.format =
-                is_signed ? VK_FORMAT_R8G8B8A8_SINT : VK_FORMAT_R8G8B8A8_UINT;
-          } else {
-            vertex_attrib_descr.format =
-                is_signed ? VK_FORMAT_R8G8B8A8_SNORM : VK_FORMAT_R8G8B8A8_UNORM;
-          }
-          break;
-        case VertexFormat::k_2_10_10_10:
-          vertex_attrib_descr.format = is_signed
-                                           ? VK_FORMAT_A2B10G10R10_SNORM_PACK32
-                                           : VK_FORMAT_A2B10G10R10_UNORM_PACK32;
-          break;
-        case VertexFormat::k_10_11_11:
-          // Converted in-shader.
-          vertex_attrib_descr.format =
-              is_signed ? VK_FORMAT_R32_SINT : VK_FORMAT_R32_UINT;
-          break;
-        case VertexFormat::k_11_11_10:
-          // Converted in-shader.
-          vertex_attrib_descr.format =
-              is_signed ? VK_FORMAT_R32_SINT : VK_FORMAT_R32_UINT;
-          break;
-        case VertexFormat::k_16_16:
-          if (is_integer) {
-            vertex_attrib_descr.format =
-                is_signed ? VK_FORMAT_R16G16_SINT : VK_FORMAT_R16G16_UINT;
-          } else {
-            vertex_attrib_descr.format =
-                is_signed ? VK_FORMAT_R16G16_SNORM : VK_FORMAT_R16G16_UNORM;
-          }
-          break;
-        case VertexFormat::k_16_16_FLOAT:
-          // assert_true(is_signed);
-          vertex_attrib_descr.format = VK_FORMAT_R16G16_SFLOAT;
-          break;
-        case VertexFormat::k_16_16_16_16:
-          if (is_integer) {
-            vertex_attrib_descr.format = is_signed
-                                             ? VK_FORMAT_R16G16B16A16_SINT
-                                             : VK_FORMAT_R16G16B16A16_UINT;
-          } else {
-            vertex_attrib_descr.format = is_signed
-                                             ? VK_FORMAT_R16G16B16A16_SNORM
-                                             : VK_FORMAT_R16G16B16A16_UNORM;
-          }
-          break;
-        case VertexFormat::k_16_16_16_16_FLOAT:
-          // assert_true(is_signed);
-          vertex_attrib_descr.format = VK_FORMAT_R16G16B16A16_SFLOAT;
-          break;
-        case VertexFormat::k_32:
-          if (is_integer) {
-            vertex_attrib_descr.format =
-                is_signed ? VK_FORMAT_R32_SINT : VK_FORMAT_R32_UINT;
-          } else {
-            // No NORM format.
-            assert_always();
-          }
-          break;
-        case VertexFormat::k_32_32:
-          if (is_integer) {
-            vertex_attrib_descr.format =
-                is_signed ? VK_FORMAT_R32G32_SINT : VK_FORMAT_R32G32_UINT;
-          } else {
-            // No NORM format.
-            assert_always();
-          }
-          break;
-        case VertexFormat::k_32_32_32_32:
-          if (is_integer) {
-            vertex_attrib_descr.format = is_signed
-                                             ? VK_FORMAT_R32G32B32A32_SINT
-                                             : VK_FORMAT_R32G32B32A32_UINT;
-          } else {
-            // No NORM format.
-            assert_always();
-          }
-          break;
-        case VertexFormat::k_32_FLOAT:
-          // assert_true(is_signed);
-          vertex_attrib_descr.format = VK_FORMAT_R32_SFLOAT;
-          break;
-        case VertexFormat::k_32_32_FLOAT:
-          // assert_true(is_signed);
-          vertex_attrib_descr.format = VK_FORMAT_R32G32_SFLOAT;
-          break;
-        case VertexFormat::k_32_32_32_FLOAT:
-          // assert_true(is_signed);
-          vertex_attrib_descr.format = VK_FORMAT_R32G32B32_SFLOAT;
-          break;
-        case VertexFormat::k_32_32_32_32_FLOAT:
-          // assert_true(is_signed);
-          vertex_attrib_descr.format = VK_FORMAT_R32G32B32A32_SFLOAT;
-          break;
-        default:
-          assert_unhandled_case(attrib.fetch_instr.attributes.data_format);
-          break;
-      }
-    }
-  }
-
-  state_info.vertexBindingDescriptionCount = vertex_binding_count;
-  state_info.pVertexBindingDescriptions = vertex_binding_descrs;
-  state_info.vertexAttributeDescriptionCount = vertex_attrib_count;
-  state_info.pVertexAttributeDescriptions = vertex_attrib_descrs;
-
-  return UpdateStatus::kMismatch;
+  return UpdateStatus::kCompatible;
 }
 
 PipelineCache::UpdateStatus PipelineCache::UpdateInputAssemblyState(
@@ -1199,16 +1215,12 @@ PipelineCache::UpdateStatus PipelineCache::UpdateInputAssemblyState(
   //   glProvokingVertex(GL_FIRST_VERTEX_CONVENTION);
   // }
 
+  // Primitive restart index is handled in the buffer cache.
   if (regs.pa_su_sc_mode_cntl & (1 << 21)) {
     state_info.primitiveRestartEnable = VK_TRUE;
   } else {
     state_info.primitiveRestartEnable = VK_FALSE;
   }
-  // TODO(benvanik): no way to specify in Vulkan?
-  assert_true(regs.multi_prim_ib_reset_index == 0xFFFF ||
-              regs.multi_prim_ib_reset_index == 0xFFFFFF ||
-              regs.multi_prim_ib_reset_index == 0xFFFFFFFF);
-  // glPrimitiveRestartIndex(regs.multi_prim_ib_reset_index);
 
   return UpdateStatus::kMismatch;
 }
@@ -1248,6 +1260,33 @@ PipelineCache::UpdateStatus PipelineCache::UpdateRasterizationState(
   dirty |= SetShadowRegister(&regs.multi_prim_ib_reset_index,
                              XE_GPU_REG_VGT_MULTI_PRIM_IB_RESET_INDX);
   regs.primitive_type = primitive_type;
+
+  // Vulkan doesn't support separate depth biases for different sides.
+  // SetRenderState also accepts only one argument, so they should be rare.
+  // The culling mode must match the one in SetDynamicState, so not applying
+  // the primitive type exceptions to this (very unlikely to happen anyway).
+  bool depth_bias_enable = false;
+  uint32_t cull_mode = regs.pa_su_sc_mode_cntl & 0x3;
+  if (cull_mode != 1) {
+    float depth_bias_scale =
+        register_file_->values[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_SCALE].f32;
+    float depth_bias_offset =
+        register_file_->values[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_OFFSET].f32;
+    depth_bias_enable = (depth_bias_scale != 0.0f && depth_bias_offset != 0.0f);
+  }
+  if (!depth_bias_enable && cull_mode != 2) {
+    float depth_bias_scale =
+        register_file_->values[XE_GPU_REG_PA_SU_POLY_OFFSET_BACK_SCALE].f32;
+    float depth_bias_offset =
+        register_file_->values[XE_GPU_REG_PA_SU_POLY_OFFSET_BACK_OFFSET].f32;
+    depth_bias_enable = (depth_bias_scale != 0.0f && depth_bias_offset != 0.0f);
+  }
+  if (regs.pa_su_poly_offset_enable !=
+      static_cast<uint32_t>(depth_bias_enable)) {
+    regs.pa_su_poly_offset_enable = static_cast<uint32_t>(depth_bias_enable);
+    dirty = true;
+  }
+
   XXH64_update(&hash_state_, &regs, sizeof(regs));
   if (!dirty) {
     return UpdateStatus::kCompatible;
@@ -1282,7 +1321,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateRasterizationState(
     state_info.polygonMode = VK_POLYGON_MODE_FILL;
   }
 
-  switch (regs.pa_su_sc_mode_cntl & 0x3) {
+  switch (cull_mode) {
     case 0:
       state_info.cullMode = VK_CULL_MODE_NONE;
       break;
@@ -1310,7 +1349,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateRasterizationState(
     state_info.cullMode = VK_CULL_MODE_NONE;
   }
 
-  state_info.depthBiasEnable = VK_FALSE;
+  state_info.depthBiasEnable = depth_bias_enable ? VK_TRUE : VK_FALSE;
 
   // Ignored; set dynamically:
   state_info.depthBiasConstantFactor = 0;
@@ -1344,7 +1383,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateMultisampleState() {
   // PA_SU_SC_MODE_CNTL MSAA_ENABLE (0x10000)
   // If set, all samples will be sampled at set locations. Otherwise, they're
   // all sampled from the pixel center.
-  if (FLAGS_vulkan_native_msaa) {
+  if (cvars::vulkan_native_msaa) {
     auto msaa_num_samples =
         static_cast<MsaaSamples>((regs.rb_surface_info >> 16) & 0x3);
     switch (msaa_num_samples) {
@@ -1461,16 +1500,15 @@ PipelineCache::UpdateStatus PipelineCache::UpdateColorBlendState() {
   auto& state_info = update_color_blend_state_info_;
 
   bool dirty = false;
-  dirty |= SetShadowRegister(&regs.rb_colorcontrol, XE_GPU_REG_RB_COLORCONTROL);
   dirty |= SetShadowRegister(&regs.rb_color_mask, XE_GPU_REG_RB_COLOR_MASK);
   dirty |=
-      SetShadowRegister(&regs.rb_blendcontrol[0], XE_GPU_REG_RB_BLENDCONTROL_0);
+      SetShadowRegister(&regs.rb_blendcontrol[0], XE_GPU_REG_RB_BLENDCONTROL0);
   dirty |=
-      SetShadowRegister(&regs.rb_blendcontrol[1], XE_GPU_REG_RB_BLENDCONTROL_1);
+      SetShadowRegister(&regs.rb_blendcontrol[1], XE_GPU_REG_RB_BLENDCONTROL1);
   dirty |=
-      SetShadowRegister(&regs.rb_blendcontrol[2], XE_GPU_REG_RB_BLENDCONTROL_2);
+      SetShadowRegister(&regs.rb_blendcontrol[2], XE_GPU_REG_RB_BLENDCONTROL2);
   dirty |=
-      SetShadowRegister(&regs.rb_blendcontrol[3], XE_GPU_REG_RB_BLENDCONTROL_3);
+      SetShadowRegister(&regs.rb_blendcontrol[3], XE_GPU_REG_RB_BLENDCONTROL3);
   dirty |= SetShadowRegister(&regs.rb_modecontrol, XE_GPU_REG_RB_MODECONTROL);
   XXH64_update(&hash_state_, &regs, sizeof(regs));
   if (!dirty) {
@@ -1516,7 +1554,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateColorBlendState() {
   for (int i = 0; i < 4; ++i) {
     uint32_t blend_control = regs.rb_blendcontrol[i];
     auto& attachment_state = attachment_states[i];
-    attachment_state.blendEnable = !(regs.rb_colorcontrol & 0x20);
+    attachment_state.blendEnable = (blend_control & 0x1FFF1FFF) != 0x00010001;
     // A2XX_RB_BLEND_CONTROL_COLOR_SRCBLEND
     attachment_state.srcColorBlendFactor =
         kBlendFactorMap[(blend_control & 0x0000001F) >> 0];

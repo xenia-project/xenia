@@ -9,13 +9,12 @@
 
 #include "xenia/ui/vulkan/vulkan_instance.h"
 
-#include <gflags/gflags.h>
-
 #include <cinttypes>
 #include <mutex>
 #include <string>
 
 #include "third_party/renderdoc/renderdoc_app.h"
+#include "third_party/volk/volk.h"
 
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
@@ -30,14 +29,14 @@
 #include "xenia/ui/window_gtk.h"
 #endif
 
-#define VK_API_VERSION VK_API_VERSION_1_0
+#define VK_API_VERSION VK_API_VERSION_1_1
 
 namespace xe {
 namespace ui {
 namespace vulkan {
 
 VulkanInstance::VulkanInstance() {
-  if (FLAGS_vulkan_validation) {
+  if (cvars::vulkan_validation) {
     DeclareRequiredLayer("VK_LAYER_LUNARG_standard_validation",
                          Version::Make(0, 0, 0), true);
     // DeclareRequiredLayer("VK_LAYER_GOOGLE_unique_objects", Version::Make(0,
@@ -72,6 +71,10 @@ VulkanInstance::~VulkanInstance() { DestroyInstance(); }
 bool VulkanInstance::Initialize() {
   auto version = Version::Parse(VK_API_VERSION);
   XELOGVK("Initializing Vulkan %s...", version.pretty_string.c_str());
+  if (volkInitialize() != VK_SUCCESS) {
+    XELOGE("volkInitialize() failed!");
+    return false;
+  }
 
   // Get all of the global layers and extensions provided by the system.
   if (!QueryGlobals()) {
@@ -271,6 +274,9 @@ bool VulkanInstance::CreateInstance() {
       return false;
   }
 
+  // Load Vulkan entrypoints and extensions.
+  volkLoadInstance(handle);
+
   // Enable debug validation, if needed.
   EnableDebugValidation();
 
@@ -292,6 +298,19 @@ VkBool32 VKAPI_PTR DebugMessageCallback(VkDebugReportFlagsEXT flags,
                                         int32_t messageCode,
                                         const char* pLayerPrefix,
                                         const char* pMessage, void* pUserData) {
+  if (strcmp(pLayerPrefix, "Validation") == 0) {
+    const char* blacklist[] = {
+        "bound but it was never updated. You may want to either update it or "
+        "not bind it.",
+        "is being used in draw but has not been updated.",
+    };
+    for (uint32_t i = 0; i < xe::countof(blacklist); ++i) {
+      if (strstr(pMessage, blacklist[i]) != nullptr) {
+        return false;
+      }
+    }
+  }
+
   auto instance = reinterpret_cast<VulkanInstance*>(pUserData);
   const char* message_type = "UNKNOWN";
   if (flags & VK_DEBUG_REPORT_ERROR_BIT_EXT) {
@@ -305,6 +324,7 @@ VkBool32 VKAPI_PTR DebugMessageCallback(VkDebugReportFlagsEXT flags,
   } else if (flags & VK_DEBUG_REPORT_DEBUG_BIT_EXT) {
     message_type = "DEBUG";
   }
+
   XELOGVK("[%s/%s:%d] %s", pLayerPrefix, message_type, messageCode, pMessage);
   return false;
 }
@@ -330,10 +350,14 @@ void VulkanInstance::EnableDebugValidation() {
       VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_DEBUG_BIT_EXT;
   create_info.pfnCallback = &DebugMessageCallback;
   create_info.pUserData = this;
-  auto err = vk_create_debug_report_callback_ext(handle, &create_info, nullptr,
-                                                 &dbg_report_callback_);
-  CheckResult(err, "vkCreateDebugReportCallbackEXT");
-  XELOGVK("Debug validation layer enabled");
+  auto status = vk_create_debug_report_callback_ext(
+      handle, &create_info, nullptr, &dbg_report_callback_);
+  if (status == VK_SUCCESS) {
+    XELOGVK("Debug validation layer enabled");
+  } else {
+    XELOGVK("Debug validation layer failed to install; error %s",
+            to_string(status));
+  }
 }
 
 void VulkanInstance::DisableDebugValidation() {

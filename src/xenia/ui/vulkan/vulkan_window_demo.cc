@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2016 Ben Vanik. All rights reserved.                             *
+ * Copyright 2019 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -26,5 +26,5 @@ std::unique_ptr<GraphicsProvider> CreateDemoGraphicsProvider(Window* window) {
 }  // namespace ui
 }  // namespace xe
 
-DEFINE_ENTRY_POINT(L"xenia-ui-window-vulkan-demo",
-                   L"xenia-ui-window-vulkan-demo", xe::ui::window_demo_main);
+DEFINE_ENTRY_POINT(L"xenia-ui-window-vulkan-demo", xe::ui::window_demo_main,
+                   "");

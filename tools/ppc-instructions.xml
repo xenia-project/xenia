@@ -1083,7 +1083,8 @@
     <disasm>rlwnm[Rc] [RA], [RS], [RB], [MB], [ME]</disasm>
   </insn>
   <insn mnem="sc"           opcode="44000002" form="SC"       group="b" desc="System Call" sync="true">
-    <disasm>sc</disasm>
+    <in field="LEV" />
+    <disasm>sc [LEV]</disasm>
   </insn>
   <insn mnem="sldx"         opcode="7c000036" form="X"        group="i" desc="Shift Left Doubleword">
     <in field="RS" />

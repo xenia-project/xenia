@@ -21,7 +21,7 @@ dword_result_t XamVoiceIsActiveProcess() {
   // Returning 0 here will short-circuit a bunch of voice stuff.
   return 0;
 }
-DECLARE_XAM_EXPORT(XamVoiceIsActiveProcess, ExportTag::kStub);
+DECLARE_XAM_EXPORT1(XamVoiceIsActiveProcess, kNone, kStub);
 
 dword_result_t XamVoiceCreate(unknown_t unk1,  // 0
                               unknown_t unk2,  // 0xF
@@ -30,13 +30,13 @@ dword_result_t XamVoiceCreate(unknown_t unk1,  // 0
   out_voice_ptr.Zero();
   return X_ERROR_ACCESS_DENIED;
 }
-DECLARE_XAM_EXPORT(XamVoiceCreate, ExportTag::kStub);
+DECLARE_XAM_EXPORT1(XamVoiceCreate, kNone, kStub);
 
 dword_result_t XamVoiceClose(lpunknown_t voice_ptr) { return 0; }
-DECLARE_XAM_EXPORT(XamVoiceClose, ExportTag::kStub);
+DECLARE_XAM_EXPORT1(XamVoiceClose, kNone, kStub);
 
 dword_result_t XamVoiceHeadsetPresent(lpunknown_t voice_ptr) { return 0; }
-DECLARE_XAM_EXPORT(XamVoiceHeadsetPresent, ExportTag::kStub);
+DECLARE_XAM_EXPORT1(XamVoiceHeadsetPresent, kNone, kStub);
 
 void RegisterVoiceExports(xe::cpu::ExportResolver* export_resolver,
                           KernelState* kernel_state) {}

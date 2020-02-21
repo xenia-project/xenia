@@ -12,12 +12,12 @@
 
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "third_party/glslang-spirv/SpvBuilder.h"
 #include "third_party/spirv/GLSL.std.450.hpp11"
 #include "xenia/gpu/shader_translator.h"
-#include "xenia/gpu/spirv/compiler.h"
 #include "xenia/ui/spirv/spirv_disassembler.h"
 #include "xenia/ui/spirv/spirv_validator.h"
 
@@ -29,14 +29,15 @@ namespace gpu {
 // supported size).
 struct SpirvPushConstants {
   // Accessible to vertex shader only:
-  float window_scale[4];  // scale x/y, viewport width/height (pixels)
+  float window_scale[4];  // scale x/y, offset x/y (pixels)
   float vtx_fmt[4];
 
   // Accessible to geometry shader only:
   float point_size[4];  // psx, psy, unused, unused
 
   // Accessible to fragment shader only:
-  float alpha_test[4];  // alpha test enable, func, ref, ?
+  float alpha_test[4];  // alpha test enable, func, ref
+  float color_exp_bias[4];
   uint32_t ps_param_gen;
 };
 static_assert(sizeof(SpirvPushConstants) <= 128,
@@ -87,8 +88,10 @@ class SpirvShaderTranslator : public ShaderTranslator {
  private:
   spv::Function* CreateCubeFunction();
 
-  void ProcessVectorAluInstruction(const ParsedAluInstruction& instr);
-  void ProcessScalarAluInstruction(const ParsedAluInstruction& instr);
+  bool ProcessVectorAluOperation(const ParsedAluInstruction& instr,
+                                 bool& close_predicate_block);
+  bool ProcessScalarAluOperation(const ParsedAluInstruction& instr,
+                                 bool& close_predicate_block);
 
   spv::Id BitfieldExtract(spv::Id result_type, spv::Id base, bool is_signed,
                           uint32_t offset, uint32_t count);
@@ -112,7 +115,6 @@ class SpirvShaderTranslator : public ShaderTranslator {
 
   xe::ui::spirv::SpirvDisassembler disassembler_;
   xe::ui::spirv::SpirvValidator validator_;
-  xe::gpu::spirv::Compiler compiler_;
 
   // True if there's an open predicated block
   bool open_predicated_block_ = false;
@@ -133,7 +135,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
 
   // Types.
   spv::Id float_type_ = 0, bool_type_ = 0, int_type_ = 0, uint_type_ = 0;
-  spv::Id vec2_int_type_ = 0, vec2_uint_type_ = 0;
+  spv::Id vec2_int_type_ = 0, vec2_uint_type_ = 0, vec3_int_type_ = 0;
   spv::Id vec2_float_type_ = 0, vec3_float_type_ = 0, vec4_float_type_ = 0;
   spv::Id vec4_int_type_ = 0, vec4_uint_type_ = 0;
   spv::Id vec2_bool_type_ = 0, vec3_bool_type_ = 0, vec4_bool_type_ = 0;
@@ -150,6 +152,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
   spv::Id loop_count_ = 0;   // Loop counter stack
   spv::Id ps_ = 0, pv_ = 0;  // IDs of previous results
   spv::Id pc_ = 0;           // Program counter
+  spv::Id lod_ = 0;          // LOD register
   spv::Id pos_ = 0;
   spv::Id push_consts_ = 0;
   spv::Id interpolators_ = 0;
@@ -159,12 +162,12 @@ class SpirvShaderTranslator : public ShaderTranslator {
   spv::Id frag_outputs_ = 0, frag_depth_ = 0;
   spv::Id samplers_ = 0;
   spv::Id tex_[3] = {0};  // Images {2D, 3D, Cube}
+  std::unordered_map<uint32_t, uint32_t> tex_binding_map_;
+  spv::Id vtx_ = 0;  // Vertex buffer array (32 runtime arrays)
+  std::unordered_map<uint32_t, uint32_t> vtx_binding_map_;
 
   // SPIR-V IDs that are part of the in/out interface.
   std::vector<spv::Id> interface_ids_;
-
-  // Map of {binding -> {offset -> spv input}}
-  std::map<uint32_t, std::map<uint32_t, spv::Id>> vertex_binding_map_;
 
   struct CFBlock {
     spv::Block* block = nullptr;

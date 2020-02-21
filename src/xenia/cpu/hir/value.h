@@ -170,6 +170,7 @@ class Value {
     constant.v128 = value;
   }
   void set_from(const Value* other) {
+    assert_true(other->IsConstant());
     type = other->type;
     flags = other->flags;
     constant.v128 = other->constant.v128;
@@ -526,8 +527,8 @@ class Value {
   void VectorCompareSGE(Value* other, TypeName type);
   void VectorCompareUGT(Value* other, TypeName type);
   void VectorCompareUGE(Value* other, TypeName type);
-  void VectorConvertI2F(Value* other);
-  void VectorConvertF2I(Value* other);
+  void VectorConvertI2F(Value* other, bool is_unsigned);
+  void VectorConvertF2I(Value* other, bool is_unsigned);
   void VectorShl(Value* other, TypeName type);
   void VectorShr(Value* other, TypeName type);
   void VectorRol(Value* other, TypeName type);
@@ -535,6 +536,8 @@ class Value {
   void VectorSub(Value* other, TypeName type, bool is_unsigned, bool saturate);
   void DotProduct3(Value* other);
   void DotProduct4(Value* other);
+  void VectorAverage(Value* other, TypeName type, bool is_unsigned,
+                     bool saturate);
   void ByteSwap();
   void CountLeadingZeros(const Value* other);
   bool Compare(Opcode opcode, Value* other);

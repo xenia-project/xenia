@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2015 Ben Vanik. All rights reserved.                             *
+ * Copyright 2019 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -13,15 +13,13 @@
 
 namespace xe {
 
-uint64_t Clock::host_tick_frequency() {
-  static LARGE_INTEGER frequency = {{0}};
-  if (!frequency.QuadPart) {
-    QueryPerformanceFrequency(&frequency);
-  }
+uint64_t Clock::host_tick_frequency_platform() {
+  LARGE_INTEGER frequency;
+  QueryPerformanceFrequency(&frequency);
   return frequency.QuadPart;
 }
 
-uint64_t Clock::QueryHostTickCount() {
+uint64_t Clock::host_tick_count_platform() {
   LARGE_INTEGER counter;
   uint64_t time = 0;
   if (QueryPerformanceCounter(&counter)) {
@@ -36,8 +34,8 @@ uint64_t Clock::QueryHostSystemTime() {
   return (uint64_t(t.dwHighDateTime) << 32) | t.dwLowDateTime;
 }
 
-uint32_t Clock::QueryHostUptimeMillis() {
-  return uint32_t(QueryHostTickCount() / (host_tick_frequency() / 1000));
+uint64_t Clock::QueryHostUptimeMillis() {
+  return host_tick_count_platform() * 1000 / host_tick_frequency_platform();
 }
 
 }  // namespace xe

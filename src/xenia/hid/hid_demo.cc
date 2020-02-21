@@ -2,33 +2,34 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2017 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
-
-#include <gflags/gflags.h>
 
 #include <cstring>
 
 #include "third_party/imgui/imgui.h"
 #include "xenia/base/clock.h"
+#include "xenia/base/cvar.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/main.h"
 #include "xenia/base/threading.h"
 #include "xenia/hid/input_system.h"
-#include "xenia/ui/gl/gl_provider.h"
 #include "xenia/ui/imgui_drawer.h"
+#include "xenia/ui/vulkan/vulkan_provider.h"
 #include "xenia/ui/window.h"
 
 // Available input drivers:
 #include "xenia/hid/nop/nop_hid.h"
+#include "xenia/hid/sdl/sdl_hid.h"
 #if XE_PLATFORM_WIN32
 #include "xenia/hid/winkey/winkey_hid.h"
 #include "xenia/hid/xinput/xinput_hid.h"
 #endif  // XE_PLATFORM_WIN32
 
-DEFINE_string(hid, "any", "Input system. Use: [any, nop, winkey, xinput]");
+DEFINE_string(hid, "any", "Input system. Use: [any, nop, sdl, winkey, xinput]",
+              "General");
 
 namespace xe {
 namespace hid {
@@ -38,22 +39,37 @@ std::unique_ptr<xe::hid::InputSystem> input_system_;
 std::vector<std::unique_ptr<hid::InputDriver>> CreateInputDrivers(
     ui::Window* window) {
   std::vector<std::unique_ptr<hid::InputDriver>> drivers;
-  if (FLAGS_hid.compare("nop") == 0) {
+  if (cvars::hid.compare("nop") == 0) {
     drivers.emplace_back(xe::hid::nop::Create(window));
+  } else if (cvars::hid.compare("sdl") == 0) {
+    auto driver = xe::hid::sdl::Create(window);
+    if (XSUCCEEDED(driver->Setup())) {
+      drivers.emplace_back(std::move(driver));
+    }
 #if XE_PLATFORM_WIN32
-  } else if (FLAGS_hid.compare("winkey") == 0) {
-    drivers.emplace_back(xe::hid::winkey::Create(window));
-  } else if (FLAGS_hid.compare("xinput") == 0) {
-    drivers.emplace_back(xe::hid::xinput::Create(window));
+  } else if (cvars::hid.compare("winkey") == 0) {
+    auto driver = xe::hid::winkey::Create(window);
+    if (XSUCCEEDED(driver->Setup())) {
+      drivers.emplace_back(std::move(driver));
+    }
+  } else if (cvars::hid.compare("xinput") == 0) {
+    auto driver = xe::hid::xinput::Create(window);
+    if (XSUCCEEDED(driver->Setup())) {
+      drivers.emplace_back(std::move(driver));
+    }
 #endif  // XE_PLATFORM_WIN32
   } else {
+    auto sdl_driver = xe::hid::sdl::Create(window);
+    if (sdl_driver && XSUCCEEDED(sdl_driver->Setup())) {
+      drivers.emplace_back(std::move(sdl_driver));
+    }
 #if XE_PLATFORM_WIN32
     auto xinput_driver = xe::hid::xinput::Create(window);
-    if (xinput_driver) {
+    if (xinput_driver && XSUCCEEDED(xinput_driver->Setup())) {
       drivers.emplace_back(std::move(xinput_driver));
     }
     auto winkey_driver = xe::hid::winkey::Create(window);
-    if (winkey_driver) {
+    if (winkey_driver && XSUCCEEDED(winkey_driver->Setup())) {
       drivers.emplace_back(std::move(winkey_driver));
     }
 #endif  // XE_PLATFORM_WIN32
@@ -67,7 +83,7 @@ std::vector<std::unique_ptr<hid::InputDriver>> CreateInputDrivers(
 
 std::unique_ptr<xe::ui::GraphicsProvider> CreateDemoGraphicsProvider(
     xe::ui::Window* window) {
-  return xe::ui::gl::GLProvider::Create(window);
+  return xe::ui::vulkan::VulkanProvider::Create(window);
 }
 
 void DrawInputStatus();
@@ -215,5 +231,4 @@ void DrawInputStatus() {
 }  // namespace hid
 }  // namespace xe
 
-DEFINE_ENTRY_POINT(L"xenia-hid-demo", L"xenia-hid-demo",
-                   xe::hid::hid_demo_main);
+DEFINE_ENTRY_POINT(L"xenia-hid-demo", xe::hid::hid_demo_main, "");

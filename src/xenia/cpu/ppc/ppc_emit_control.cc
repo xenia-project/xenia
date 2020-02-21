@@ -423,8 +423,15 @@ int InstrEmit_mcrf(PPCHIRBuilder& f, const InstrData& i) {
 // System linkage (A-24)
 
 int InstrEmit_sc(PPCHIRBuilder& f, const InstrData& i) {
-  f.CallExtern(f.function());
-  return 0;
+  // Game code should only ever use LEV=0.
+  // LEV=2 is to signify 'call import' from Xenia.
+  // TODO(gibbed): syscalls!
+  if (i.SC.LEV == 2) {
+    f.CallExtern(f.function());
+    return 0;
+  }
+  XEINSTRNOTIMPLEMENTED();
+  return 1;
 }
 
 // Trap (A-25)
@@ -728,12 +735,12 @@ int InstrEmit_mtmsr(PPCHIRBuilder& f, const InstrData& i) {
         f.ZeroExtend(f.ZeroExtend(f.LoadGPR(i.X.RT), INT64_TYPE), INT64_TYPE));
     if (i.X.RT == 13) {
       // iff storing from r13 we are taking a lock (disable interrupts).
-      if (!FLAGS_disable_global_lock) {
+      if (!cvars::disable_global_lock) {
         f.CallExtern(f.builtins()->enter_global_lock);
       }
     } else {
       // Otherwise we are restoring interrupts (probably).
-      if (!FLAGS_disable_global_lock) {
+      if (!cvars::disable_global_lock) {
         f.CallExtern(f.builtins()->leave_global_lock);
       }
     }
@@ -753,12 +760,12 @@ int InstrEmit_mtmsrd(PPCHIRBuilder& f, const InstrData& i) {
                    f.ZeroExtend(f.LoadGPR(i.X.RT), INT64_TYPE));
     if (i.X.RT == 13) {
       // iff storing from r13 we are taking a lock (disable interrupts).
-      if (!FLAGS_disable_global_lock) {
+      if (!cvars::disable_global_lock) {
         f.CallExtern(f.builtins()->enter_global_lock);
       }
     } else {
       // Otherwise we are restoring interrupts (probably).
-      if (!FLAGS_disable_global_lock) {
+      if (!cvars::disable_global_lock) {
         f.CallExtern(f.builtins()->leave_global_lock);
       }
     }

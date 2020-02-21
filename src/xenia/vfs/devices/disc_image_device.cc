@@ -49,6 +49,32 @@ bool DiscImageDevice::Initialize() {
   return true;
 }
 
+void DiscImageDevice::Dump(StringBuffer* string_buffer) {
+  auto global_lock = global_critical_region_.Acquire();
+  root_entry_->Dump(string_buffer, 0);
+}
+
+Entry* DiscImageDevice::ResolvePath(const std::string& path) {
+  // The filesystem will have stripped our prefix off already, so the path will
+  // be in the form:
+  // some\PATH.foo
+
+  XELOGFS("DiscImageDevice::ResolvePath(%s)", path.c_str());
+
+  // Walk the path, one separator at a time.
+  auto entry = root_entry_.get();
+  auto path_parts = xe::split_path(path);
+  for (auto& part : path_parts) {
+    entry = entry->GetChild(part);
+    if (!entry) {
+      // Not found.
+      return nullptr;
+    }
+  }
+
+  return entry;
+}
+
 DiscImageDevice::Error DiscImageDevice::Verify(ParseState* state) {
   // Find sector 32 of the game partition - try at a few points.
   static const size_t likely_offsets[] = {

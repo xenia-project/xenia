@@ -11,12 +11,9 @@ project("xenia-debug-ui")
     "xenia-base",
     "xenia-cpu",
     "xenia-ui",
-    "yaml-cpp",
   })
   defines({
   })
   includedirs({
-    project_root.."/third_party/gflags/src",
-    project_root.."/third_party/yaml-cpp/include/",
   })
   local_platform_files()

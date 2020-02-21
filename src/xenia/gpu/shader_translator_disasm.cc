@@ -35,8 +35,15 @@ void DisassembleResultOperand(const InstructionResult& result,
     case InstructionStorageTarget::kPosition:
       out->Append("oPos");
       break;
-    case InstructionStorageTarget::kPointSize:
+    case InstructionStorageTarget::kPointSizeEdgeFlagKillVertex:
       out->Append("oPts");
+      break;
+    case InstructionStorageTarget::kExportAddress:
+      out->Append("eA");
+      break;
+    case InstructionStorageTarget::kExportData:
+      out->Append("eM");
+      uses_storage_index = true;
       break;
     case InstructionStorageTarget::kColorTarget:
       out->AppendFormat("oC");
@@ -85,12 +92,6 @@ void DisassembleSourceOperand(const InstructionOperand& op, StringBuffer* out) {
       break;
     case InstructionStorageSource::kConstantFloat:
       out->Append('c');
-      break;
-    case InstructionStorageSource::kConstantInt:
-      out->Append('i');
-      break;
-    case InstructionStorageSource::kConstantBool:
-      out->Append('b');
       break;
     case InstructionStorageSource::kTextureFetchConstant:
     case InstructionStorageSource::kVertexFetchConstant:
@@ -416,6 +417,16 @@ void ParsedTextureFetchInstruction::Disassemble(StringBuffer* out) const {
         ", AnisoFilter=%s",
         kAnisoFilterNames[static_cast<int>(attributes.aniso_filter)]);
   }
+  if (attributes.vol_mag_filter != TextureFilter::kUseFetchConst) {
+    out->AppendFormat(
+        ", VolMagFilter=%s",
+        kTextureFilterNames[static_cast<int>(attributes.vol_mag_filter)]);
+  }
+  if (attributes.vol_min_filter != TextureFilter::kUseFetchConst) {
+    out->AppendFormat(
+        ", VolMinFilter=%s",
+        kTextureFilterNames[static_cast<int>(attributes.vol_min_filter)]);
+  }
   if (!attributes.use_computed_lod) {
     out->Append(", UseComputedLOD=false");
   }
@@ -424,6 +435,9 @@ void ParsedTextureFetchInstruction::Disassemble(StringBuffer* out) const {
   }
   if (attributes.use_register_gradients) {
     out->Append(", UseRegisterGradients=true");
+  }
+  if (attributes.lod_bias != 0.0f) {
+    out->AppendFormat(", LODBias=%g", attributes.lod_bias);
   }
   int component_count = GetTextureDimensionComponentCount(dimension);
   if (attributes.offset_x != 0.0f) {
@@ -444,29 +458,44 @@ void ParsedAluInstruction::Disassemble(StringBuffer* out) const {
     out->Append("         nop\n");
     return;
   }
-  if (is_scalar_type() && is_paired) {
-    out->Append("              + ");
-  } else {
+  if (has_vector_op) {
     out->Append("   ");
+    if (is_predicated) {
+      out->Append(predicate_condition ? " (p0) " : "(!p0) ");
+    } else {
+      out->Append("      ");
+    }
+    out->Append(vector_opcode_name);
+    if (vector_result.is_clamped) {
+      out->Append("_sat");
+    }
+    out->Append(' ');
+    DisassembleResultOperand(vector_result, out);
+    for (int i = 0; i < vector_operand_count; ++i) {
+      out->Append(", ");
+      DisassembleSourceOperand(vector_operands[i], out);
+    }
+    out->Append('\n');
   }
-  if (is_predicated) {
-    out->Append(predicate_condition ? " (p0) " : "(!p0) ");
-  } else {
-    out->Append("      ");
+  if (has_scalar_op) {
+    out->Append(has_vector_op ? "              + " : "   ");
+    if (is_predicated) {
+      out->Append(predicate_condition ? " (p0) " : "(!p0) ");
+    } else {
+      out->Append("      ");
+    }
+    out->Append(scalar_opcode_name);
+    if (scalar_result.is_clamped) {
+      out->Append("_sat");
+    }
+    out->Append(' ');
+    DisassembleResultOperand(scalar_result, out);
+    for (int i = 0; i < scalar_operand_count; ++i) {
+      out->Append(", ");
+      DisassembleSourceOperand(scalar_operands[i], out);
+    }
+    out->Append('\n');
   }
-  out->Append(opcode_name);
-  if (result.is_clamped) {
-    out->Append("_sat");
-  }
-  out->Append(' ');
-
-  DisassembleResultOperand(result, out);
-
-  for (int i = 0; i < operand_count; ++i) {
-    out->Append(", ");
-    DisassembleSourceOperand(operands[i], out);
-  }
-  out->Append('\n');
 }
 
 }  // namespace gpu

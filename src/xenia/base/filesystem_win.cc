@@ -12,10 +12,34 @@
 
 #include <string>
 
+#include <shlobj.h>
+
 #include "xenia/base/platform_win.h"
 
 namespace xe {
 namespace filesystem {
+
+std::wstring GetExecutablePath() {
+  wchar_t* path;
+  auto error = _get_wpgmptr(&path);
+  return !error ? std::wstring(path) : std::wstring();
+}
+
+std::wstring GetExecutableFolder() {
+  auto path = GetExecutablePath();
+  return xe::find_base_path(path);
+}
+
+std::wstring GetUserFolder() {
+  std::wstring result;
+  PWSTR path;
+  if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_Documents, KF_FLAG_DEFAULT,
+                                     nullptr, &path))) {
+    result.assign(path);
+    CoTaskMemFree(path);
+  }
+  return result;
+}
 
 bool PathExists(const std::wstring& path) {
   DWORD attrib = GetFileAttributes(path.c_str());
@@ -23,13 +47,11 @@ bool PathExists(const std::wstring& path) {
 }
 
 bool CreateFolder(const std::wstring& path) {
-  wchar_t folder[kMaxPath] = {0};
-  auto end = std::wcschr(path.c_str(), xe::kWPathSeparator);
-  while (end) {
-    wcsncpy(folder, path.c_str(), end - path.c_str() + 1);
-    CreateDirectory(folder, NULL);
-    end = wcschr(++end, xe::kWPathSeparator);
-  }
+  size_t pos = 0;
+  do {
+    pos = path.find_first_of(xe::kWPathSeparator, pos + 1);
+    CreateDirectoryW(path.substr(0, pos).c_str(), nullptr);
+  } while (pos != std::string::npos);
   return PathExists(path);
 }
 
@@ -115,6 +137,17 @@ class Win32FileHandle : public FileHandle {
       return false;
     }
   }
+  bool SetLength(size_t length) {
+    LARGE_INTEGER position;
+    position.QuadPart = length;
+    if (!SetFilePointerEx(handle_, position, nullptr, SEEK_SET)) {
+      return false;
+    }
+    if (!SetEndOfFile(handle_)) {
+      return false;
+    }
+    return true;
+  }
   void Flush() override { FlushFileBuffers(handle_); }
 
  private:
@@ -174,6 +207,7 @@ bool GetInfo(const std::wstring& path, FileInfo* out_info) {
     out_info->total_size =
         (data.nFileSizeHigh * (size_t(MAXDWORD) + 1)) + data.nFileSizeLow;
   }
+  out_info->path = xe::find_base_path(path);
   out_info->name = xe::find_name_from_path(path);
   out_info->create_timestamp = COMBINE_TIME(data.ftCreationTime);
   out_info->access_timestamp = COMBINE_TIME(data.ftLastAccessTime);
@@ -203,6 +237,7 @@ std::vector<FileInfo> ListFiles(const std::wstring& path) {
       info.total_size =
           (ffd.nFileSizeHigh * (size_t(MAXDWORD) + 1)) + ffd.nFileSizeLow;
     }
+    info.path = path;
     info.name = ffd.cFileName;
     info.create_timestamp = COMBINE_TIME(ffd.ftCreationTime);
     info.access_timestamp = COMBINE_TIME(ffd.ftLastAccessTime);

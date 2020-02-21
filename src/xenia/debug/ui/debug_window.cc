@@ -2,24 +2,21 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2015 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
 
 #include "xenia/debug/ui/debug_window.h"
 
-#include <gflags/gflags.h>
-
 #include <algorithm>
 #include <cinttypes>
 #include <utility>
 
-#include "third_party/capstone/include/capstone.h"
-#include "third_party/capstone/include/x86.h"
+#include "third_party/capstone/include/capstone/capstone.h"
+#include "third_party/capstone/include/capstone/x86.h"
 #include "third_party/imgui/imgui.h"
 #include "third_party/imgui/imgui_internal.h"
-#include "third_party/yaml-cpp/include/yaml-cpp/yaml.h"
 #include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
@@ -35,7 +32,7 @@
 #include "xenia/ui/graphics_provider.h"
 #include "xenia/ui/imgui_drawer.h"
 
-DEFINE_bool(imgui_debug, false, "Show ImGui debugging tools.");
+DEFINE_bool(imgui_debug, false, "Show ImGui debugging tools.", "UI");
 
 namespace xe {
 namespace debug {
@@ -142,7 +139,7 @@ void DebugWindow::DrawFrame() {
   float top_panes_height =
       ImGui::GetContentRegionAvail().y - bottom_panes_height;
   float log_pane_width =
-      ImGui::GetContentRegionAvailWidth() - breakpoints_pane_width;
+      ImGui::GetContentRegionAvail().x - breakpoints_pane_width;
 
   ImGui::BeginChild("##toolbar", ImVec2(0, 25), true);
   DrawToolbar();
@@ -238,12 +235,10 @@ void DebugWindow::DrawFrame() {
   ImGui::End();
   ImGui::PopStyleVar();
 
-  if (FLAGS_imgui_debug) {
-    ImGui::ShowTestWindow();
+  if (cvars::imgui_debug) {
+    ImGui::ShowDemoWindow();
     ImGui::ShowMetricsWindow();
   }
-
-  ImGui::Render();
 
   // Continuous paint.
   window_->Invalidate();
@@ -323,7 +318,7 @@ void DebugWindow::DrawSourcePane() {
   //   address start - end
   //   name text box (editable)
   //   combo for interleaved + [ppc, hir, opt hir, x64 + byte with sizes]
-  ImGui::AlignFirstTextHeightToWidgets();
+  ImGui::AlignTextToFramePadding();
   ImGui::Text("%s", function->module()->name().c_str());
   ImGui::SameLine();
   ImGui::Dummy(ImVec2(4, 0));
@@ -342,7 +337,7 @@ void DebugWindow::DrawSourcePane() {
   ImGui::SameLine();
   char name[256];
   std::strcpy(name, function->name().c_str());
-  ImGui::PushItemWidth(ImGui::GetContentRegionAvailWidth() - 10);
+  ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x - 10);
   if (ImGui::InputText("##name", name, sizeof(name),
                        ImGuiInputTextFlags_AutoSelectAll)) {
     function->set_name(name);
@@ -625,7 +620,7 @@ void DebugWindow::DrawBreakpointGutterButton(
 void DebugWindow::ScrollToSourceIfPcChanged() {
   if (state_.has_changed_pc) {
     // TODO(benvanik): not so annoying scroll.
-    ImGui::SetScrollHere();
+    ImGui::SetScrollHereY(0.5f);
     state_.has_changed_pc = false;
   }
 }
@@ -870,7 +865,7 @@ void DebugWindow::DrawRegistersPane() {
       }
       ImGui::BeginChild("##guest_general");
       ImGui::BeginGroup();
-      ImGui::AlignFirstTextHeightToWidgets();
+      ImGui::AlignTextToFramePadding();
       ImGui::Text(" lr");
       ImGui::SameLine();
       ImGui::Dummy(ImVec2(4, 0));
@@ -879,7 +874,7 @@ void DebugWindow::DrawRegistersPane() {
           DrawRegisterTextBox(100, &thread_info->guest_context.lr);
       ImGui::EndGroup();
       ImGui::BeginGroup();
-      ImGui::AlignFirstTextHeightToWidgets();
+      ImGui::AlignTextToFramePadding();
       ImGui::Text("ctr");
       ImGui::SameLine();
       ImGui::Dummy(ImVec2(4, 0));
@@ -893,7 +888,7 @@ void DebugWindow::DrawRegistersPane() {
       // VSCR
       for (int i = 0; i < 32; ++i) {
         ImGui::BeginGroup();
-        ImGui::AlignFirstTextHeightToWidgets();
+        ImGui::AlignTextToFramePadding();
         ImGui::Text(i < 10 ? " r%d" : "r%d", i);
         ImGui::SameLine();
         ImGui::Dummy(ImVec2(4, 0));
@@ -911,7 +906,7 @@ void DebugWindow::DrawRegistersPane() {
       ImGui::BeginChild("##guest_float");
       for (int i = 0; i < 32; ++i) {
         ImGui::BeginGroup();
-        ImGui::AlignFirstTextHeightToWidgets();
+        ImGui::AlignTextToFramePadding();
         ImGui::Text(i < 10 ? " f%d" : "f%d", i);
         ImGui::SameLine();
         ImGui::Dummy(ImVec2(4, 0));
@@ -929,7 +924,7 @@ void DebugWindow::DrawRegistersPane() {
       ImGui::BeginChild("##guest_vector");
       for (int i = 0; i < 128; ++i) {
         ImGui::BeginGroup();
-        ImGui::AlignFirstTextHeightToWidgets();
+        ImGui::AlignTextToFramePadding();
         ImGui::Text(i < 10 ? "  v%d" : (i < 100 ? " v%d" : "v%d"), i);
         ImGui::SameLine();
         ImGui::Dummy(ImVec2(4, 0));
@@ -945,7 +940,7 @@ void DebugWindow::DrawRegistersPane() {
       for (int i = 0; i < 18; ++i) {
         auto reg = static_cast<X64Register>(i);
         ImGui::BeginGroup();
-        ImGui::AlignFirstTextHeightToWidgets();
+        ImGui::AlignTextToFramePadding();
         ImGui::Text("%3s", X64Context::GetRegisterName(reg));
         ImGui::SameLine();
         ImGui::Dummy(ImVec2(4, 0));
@@ -970,7 +965,7 @@ void DebugWindow::DrawRegistersPane() {
         auto reg =
             static_cast<X64Register>(static_cast<int>(X64Register::kXmm0) + i);
         ImGui::BeginGroup();
-        ImGui::AlignFirstTextHeightToWidgets();
+        ImGui::AlignTextToFramePadding();
         ImGui::Text("%5s", X64Context::GetRegisterName(reg));
         ImGui::SameLine();
         ImGui::Dummy(ImVec2(4, 0));
@@ -1008,7 +1003,7 @@ void DebugWindow::DrawThreadsPane() {
       continue;
     }
     if (is_current_thread && state_.has_changed_thread) {
-      ImGui::SetScrollHere();
+      ImGui::SetScrollHereY(0.5f);
       state_.has_changed_thread = false;
     }
     if (!is_current_thread) {
@@ -1019,7 +1014,7 @@ void DebugWindow::DrawThreadsPane() {
     }
     ImGui::PushID(thread_info);
     if (is_current_thread) {
-      ImGui::SetNextTreeNodeOpened(true, ImGuiSetCond_Always);
+      ImGui::SetNextItemOpen(true, ImGuiCond_Always);
     }
     const char* state_label = "?";
     if (thread->can_debugger_suspend()) {
@@ -1039,8 +1034,9 @@ void DebugWindow::DrawThreadsPane() {
                   thread->is_guest_thread() ? "guest" : "host", state_label,
                   thread->thread_id(), thread->handle(),
                   thread->name().c_str());
-    if (ImGui::CollapsingHeader(thread_label, nullptr, true,
-                                is_current_thread)) {
+    if (ImGui::CollapsingHeader(
+            thread_label,
+            is_current_thread ? ImGuiTreeNodeFlags_DefaultOpen : 0)) {
       //   |     (log button) detail of kernel call categories
       // log button toggles only logging that thread
       ImGui::BulletText("Call Stack");
@@ -1135,7 +1131,7 @@ void DebugWindow::DrawBreakpointsPane() {
   if (ImGui::BeginPopup("##add_code_breakpoint")) {
     ++add_code_popup_render_count;
 
-    ImGui::AlignFirstTextHeightToWidgets();
+    ImGui::AlignTextToFramePadding();
     ImGui::Text("PPC");
     ImGui::SameLine();
     ImGui::Dummy(ImVec2(2, 0));
@@ -1160,7 +1156,7 @@ void DebugWindow::DrawBreakpointsPane() {
     ImGui::PopItemWidth();
     ImGui::Dummy(ImVec2(0, 2));
 
-    ImGui::AlignFirstTextHeightToWidgets();
+    ImGui::AlignTextToFramePadding();
     ImGui::Text("x64");
     ImGui::SameLine();
     ImGui::Dummy(ImVec2(2, 0));

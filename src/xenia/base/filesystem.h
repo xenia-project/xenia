@@ -20,6 +20,15 @@
 namespace xe {
 namespace filesystem {
 
+// Get executable path.
+std::wstring GetExecutablePath();
+
+// Get executable folder.
+std::wstring GetExecutableFolder();
+
+// Get user folder.
+std::wstring GetUserFolder();
+
 // Canonicalizes a path, removing ..'s.
 std::string CanonicalizePath(const std::string& original_path);
 
@@ -88,6 +97,9 @@ class FileHandle {
   virtual bool Write(size_t file_offset, const void* buffer,
                      size_t buffer_length, size_t* out_bytes_written) = 0;
 
+  // Set length of the file in bytes.
+  virtual bool SetLength(size_t length) = 0;
+
   // Flushes any pending write buffers to the underlying filesystem.
   virtual void Flush() = 0;
 
@@ -104,6 +116,7 @@ struct FileInfo {
   };
   Type type;
   std::wstring name;
+  std::wstring path;
   size_t total_size;
   uint64_t create_timestamp;
   uint64_t access_timestamp;

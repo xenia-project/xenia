@@ -2,28 +2,76 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2019 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
 
 #include "xenia/kernel/xboxkrnl/xboxkrnl_module.h"
 
-#include <gflags/gflags.h>
-
 #include <vector>
 
 #include "xenia/base/clock.h"
+#include "xenia/base/debugging.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
+#include "xenia/cpu/ppc/ppc_context.h"
+#include "xenia/cpu/processor.h"
 #include "xenia/emulator.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/user_module.h"
+#include "xenia/kernel/xboxkrnl/cert_monitor.h"
+#include "xenia/kernel/xboxkrnl/debug_monitor.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_private.h"
+#include "xenia/kernel/xthread.h"
+
+DEFINE_string(cl, "", "Specify additional command-line provided to guest.",
+              "Kernel");
+
+DEFINE_bool(kernel_debug_monitor, false, "Enable debug monitor.", "Kernel");
+DEFINE_bool(kernel_cert_monitor, false, "Enable cert monitor.", "Kernel");
+DEFINE_bool(kernel_pix, false, "Enable PIX.", "Kernel");
 
 namespace xe {
 namespace kernel {
 namespace xboxkrnl {
+
+bool XboxkrnlModule::SendPIXCommand(const char* cmd) {
+  if (!cvars::kernel_pix) {
+    return false;
+  }
+
+  auto global_lock = global_critical_region_.Acquire();
+  if (!XThread::IsInThread()) {
+    assert_always();
+    return false;
+  }
+
+  auto scratch = memory_->SystemHeapAlloc(260 + 260);
+
+  auto response = memory_->TranslateVirtual<const char*>(scratch + 0);
+  auto command = memory_->TranslateVirtual<char*>(scratch + 260);
+
+  std::snprintf(command, 260, "PIX!m!%s", cmd);
+
+  global_lock.unlock();
+  uint64_t args[] = {scratch + 260, scratch, 260};
+  auto result = kernel_state_->processor()->Execute(
+      XThread::GetCurrentThread()->thread_state(), pix_function_, args,
+      xe::countof(args));
+  global_lock.lock();
+
+  XELOGD("PIX(command): %s", cmd);
+  XELOGD("PIX(response): %s", response);
+
+  memory_->SystemHeapFree(scratch);
+
+  if (XSUCCEEDED(result)) {
+    return true;
+  }
+
+  return false;
+}
 
 XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state)
     : KernelModule(kernel_state, "xe:\\xboxkrnl.exe"),
@@ -37,6 +85,7 @@ XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state)
   RegisterDebugExports(export_resolver_, kernel_state_);
   RegisterErrorExports(export_resolver_, kernel_state_);
   RegisterHalExports(export_resolver_, kernel_state_);
+  RegisterHidExports(export_resolver_, kernel_state_);
   RegisterIoExports(export_resolver_, kernel_state_);
   RegisterMemoryExports(export_resolver_, kernel_state_);
   RegisterMiscExports(export_resolver_, kernel_state_);
@@ -47,24 +96,52 @@ XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state)
   RegisterThreadingExports(export_resolver_, kernel_state_);
   RegisterUsbcamExports(export_resolver_, kernel_state_);
   RegisterVideoExports(export_resolver_, kernel_state_);
+  RegisterXConfigExports(export_resolver_, kernel_state_);
 
   // KeDebugMonitorData (?*)
   // Set to a valid value when a remote debugger is attached.
   // Offset 0x18 is a 4b pointer to a handler function that seems to take two
   // arguments. If we wanted to see what would happen we could fake that.
-  uint32_t pKeDebugMonitorData = memory_->SystemHeapAlloc(256);
-  auto lpKeDebugMonitorData = memory_->TranslateVirtual(pKeDebugMonitorData);
+  uint32_t pKeDebugMonitorData;
+  if (!cvars::kernel_debug_monitor) {
+    pKeDebugMonitorData = memory_->SystemHeapAlloc(4);
+    auto lpKeDebugMonitorData = memory_->TranslateVirtual(pKeDebugMonitorData);
+    xe::store_and_swap<uint32_t>(lpKeDebugMonitorData, 0);
+  } else {
+    pKeDebugMonitorData =
+        memory_->SystemHeapAlloc(4 + sizeof(X_KEDEBUGMONITORDATA));
+    xe::store_and_swap<uint32_t>(memory_->TranslateVirtual(pKeDebugMonitorData),
+                                 pKeDebugMonitorData + 4);
+    auto lpKeDebugMonitorData =
+        memory_->TranslateVirtual<X_KEDEBUGMONITORDATA*>(pKeDebugMonitorData +
+                                                         4);
+    std::memset(lpKeDebugMonitorData, 0, sizeof(X_KEDEBUGMONITORDATA));
+    lpKeDebugMonitorData->callback_fn =
+        GenerateTrampoline("KeDebugMonitorCallback", KeDebugMonitorCallback);
+  }
   export_resolver_->SetVariableMapping(
       "xboxkrnl.exe", ordinals::KeDebugMonitorData, pKeDebugMonitorData);
-  xe::store_and_swap<uint32_t>(lpKeDebugMonitorData, 0);
 
   // KeCertMonitorData (?*)
   // Always set to zero, ignored.
-  uint32_t pKeCertMonitorData = memory_->SystemHeapAlloc(4);
-  auto lpKeCertMonitorData = memory_->TranslateVirtual(pKeCertMonitorData);
+  uint32_t pKeCertMonitorData;
+  if (!cvars::kernel_cert_monitor) {
+    pKeCertMonitorData = memory_->SystemHeapAlloc(4);
+    auto lpKeCertMonitorData = memory_->TranslateVirtual(pKeCertMonitorData);
+    xe::store_and_swap<uint32_t>(lpKeCertMonitorData, 0);
+  } else {
+    pKeCertMonitorData =
+        memory_->SystemHeapAlloc(4 + sizeof(X_KECERTMONITORDATA));
+    xe::store_and_swap<uint32_t>(memory_->TranslateVirtual(pKeCertMonitorData),
+                                 pKeCertMonitorData + 4);
+    auto lpKeCertMonitorData =
+        memory_->TranslateVirtual<X_KECERTMONITORDATA*>(pKeCertMonitorData + 4);
+    std::memset(lpKeCertMonitorData, 0, sizeof(X_KECERTMONITORDATA));
+    lpKeCertMonitorData->callback_fn =
+        GenerateTrampoline("KeCertMonitorCallback", KeCertMonitorCallback);
+  }
   export_resolver_->SetVariableMapping(
       "xboxkrnl.exe", ordinals::KeCertMonitorData, pKeCertMonitorData);
-  xe::store_and_swap<uint32_t>(lpKeCertMonitorData, 0);
 
   // XboxHardwareInfo (XboxHardwareInfo_t, 16b)
   // flags       cpu#  ?     ?     ?     ?           ?       ?
@@ -81,6 +158,14 @@ XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state)
   xe::store_and_swap<uint32_t>(lpXboxHardwareInfo + 0, 0);    // flags
   xe::store_and_swap<uint8_t>(lpXboxHardwareInfo + 4, 0x06);  // cpu count
   // Remaining 11b are zeroes?
+
+  // ExConsoleGameRegion, probably same values as keyvault region uses?
+  // Just return all 0xFF, should satisfy anything that checks it
+  uint32_t pExConsoleGameRegion = memory_->SystemHeapAlloc(4);
+  auto lpExConsoleGameRegion = memory_->TranslateVirtual(pExConsoleGameRegion);
+  export_resolver_->SetVariableMapping(
+      "xboxkrnl.exe", ordinals::ExConsoleGameRegion, pExConsoleGameRegion);
+  xe::store<uint32_t>(lpExConsoleGameRegion, 0xFFFFFFFF);
 
   // XexExecutableModuleHandle (?**)
   // Games try to dereference this to get a pointer to some module struct.
@@ -100,13 +185,20 @@ XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state)
   // The name of the xex. Not sure this is ever really used on real devices.
   // Perhaps it's how swap disc/etc data is sent?
   // Always set to "default.xex" (with quotes) for now.
-  uint32_t pExLoadedCommandLine = memory_->SystemHeapAlloc(1024);
+  // TODO(gibbed): set this to the actual module name.
+  std::string command_line("\"default.xex\"");
+  if (cvars::cl.length()) {
+    command_line += " " + cvars::cl;
+  }
+  uint32_t command_line_length =
+      xe::align(static_cast<uint32_t>(command_line.length()) + 1, 1024u);
+  uint32_t pExLoadedCommandLine = memory_->SystemHeapAlloc(command_line_length);
   auto lpExLoadedCommandLine = memory_->TranslateVirtual(pExLoadedCommandLine);
   export_resolver_->SetVariableMapping(
       "xboxkrnl.exe", ordinals::ExLoadedCommandLine, pExLoadedCommandLine);
-  char command_line[] = "\"default.xex\"";
-  std::memcpy(lpExLoadedCommandLine, command_line,
-              xe::countof(command_line) + 1);
+  std::memset(lpExLoadedCommandLine, 0, command_line_length);
+  std::memcpy(lpExLoadedCommandLine, command_line.c_str(),
+              command_line.length());
 
   // XboxKrnlVersion (8b)
   // Kernel version, looks like 2b.2b.2b.2b.
