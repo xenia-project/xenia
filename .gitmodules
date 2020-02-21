@@ -55,3 +55,6 @@
 [submodule "third_party/utfcpp"]
 	path = third_party/utfcpp
 	url = https://github.com/xenia-project/utfcpp.git
+[submodule "third_party/fmt"]
+	path = third_party/fmt
+	url = https://github.com/fmtlib/fmt.git
