@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2015 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -123,9 +123,9 @@ bool TraceViewer::Setup() {
 
   // Create the emulator but don't initialize so we can setup the window.
   emulator_ = std::make_unique<Emulator>(L"", L"");
-  X_STATUS result =
-      emulator_->Setup(window_.get(), nullptr,
-                       [this]() { return CreateGraphicsSystem(); }, nullptr);
+  X_STATUS result = emulator_->Setup(
+      window_.get(), nullptr, [this]() { return CreateGraphicsSystem(); },
+      nullptr);
   if (XFAILED(result)) {
     XELOGE("Failed to setup emulator: %.8X", result);
     return false;
