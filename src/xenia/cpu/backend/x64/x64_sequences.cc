@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2019 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -891,44 +891,56 @@ EMITTER_OPCODE_TABLE(OPCODE_IS_NAN, IS_NAN_F32, IS_NAN_F64);
 struct COMPARE_EQ_I8
     : Sequence<COMPARE_EQ_I8, I<OPCODE_COMPARE_EQ, I8Op, I8Op, I8Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    EmitCommutativeCompareOp(e, i,
-                             [](X64Emitter& e, const Reg8& src1,
-                                const Reg8& src2) { e.cmp(src1, src2); },
-                             [](X64Emitter& e, const Reg8& src1,
-                                int32_t constant) { e.cmp(src1, constant); });
+    EmitCommutativeCompareOp(
+        e, i,
+        [](X64Emitter& e, const Reg8& src1, const Reg8& src2) {
+          e.cmp(src1, src2);
+        },
+        [](X64Emitter& e, const Reg8& src1, int32_t constant) {
+          e.cmp(src1, constant);
+        });
     e.sete(i.dest);
   }
 };
 struct COMPARE_EQ_I16
     : Sequence<COMPARE_EQ_I16, I<OPCODE_COMPARE_EQ, I8Op, I16Op, I16Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    EmitCommutativeCompareOp(e, i,
-                             [](X64Emitter& e, const Reg16& src1,
-                                const Reg16& src2) { e.cmp(src1, src2); },
-                             [](X64Emitter& e, const Reg16& src1,
-                                int32_t constant) { e.cmp(src1, constant); });
+    EmitCommutativeCompareOp(
+        e, i,
+        [](X64Emitter& e, const Reg16& src1, const Reg16& src2) {
+          e.cmp(src1, src2);
+        },
+        [](X64Emitter& e, const Reg16& src1, int32_t constant) {
+          e.cmp(src1, constant);
+        });
     e.sete(i.dest);
   }
 };
 struct COMPARE_EQ_I32
     : Sequence<COMPARE_EQ_I32, I<OPCODE_COMPARE_EQ, I8Op, I32Op, I32Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    EmitCommutativeCompareOp(e, i,
-                             [](X64Emitter& e, const Reg32& src1,
-                                const Reg32& src2) { e.cmp(src1, src2); },
-                             [](X64Emitter& e, const Reg32& src1,
-                                int32_t constant) { e.cmp(src1, constant); });
+    EmitCommutativeCompareOp(
+        e, i,
+        [](X64Emitter& e, const Reg32& src1, const Reg32& src2) {
+          e.cmp(src1, src2);
+        },
+        [](X64Emitter& e, const Reg32& src1, int32_t constant) {
+          e.cmp(src1, constant);
+        });
     e.sete(i.dest);
   }
 };
 struct COMPARE_EQ_I64
     : Sequence<COMPARE_EQ_I64, I<OPCODE_COMPARE_EQ, I8Op, I64Op, I64Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    EmitCommutativeCompareOp(e, i,
-                             [](X64Emitter& e, const Reg64& src1,
-                                const Reg64& src2) { e.cmp(src1, src2); },
-                             [](X64Emitter& e, const Reg64& src1,
-                                int32_t constant) { e.cmp(src1, constant); });
+    EmitCommutativeCompareOp(
+        e, i,
+        [](X64Emitter& e, const Reg64& src1, const Reg64& src2) {
+          e.cmp(src1, src2);
+        },
+        [](X64Emitter& e, const Reg64& src1, int32_t constant) {
+          e.cmp(src1, constant);
+        });
     e.sete(i.dest);
   }
 };
@@ -962,44 +974,56 @@ EMITTER_OPCODE_TABLE(OPCODE_COMPARE_EQ, COMPARE_EQ_I8, COMPARE_EQ_I16,
 struct COMPARE_NE_I8
     : Sequence<COMPARE_NE_I8, I<OPCODE_COMPARE_NE, I8Op, I8Op, I8Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    EmitCommutativeCompareOp(e, i,
-                             [](X64Emitter& e, const Reg8& src1,
-                                const Reg8& src2) { e.cmp(src1, src2); },
-                             [](X64Emitter& e, const Reg8& src1,
-                                int32_t constant) { e.cmp(src1, constant); });
+    EmitCommutativeCompareOp(
+        e, i,
+        [](X64Emitter& e, const Reg8& src1, const Reg8& src2) {
+          e.cmp(src1, src2);
+        },
+        [](X64Emitter& e, const Reg8& src1, int32_t constant) {
+          e.cmp(src1, constant);
+        });
     e.setne(i.dest);
   }
 };
 struct COMPARE_NE_I16
     : Sequence<COMPARE_NE_I16, I<OPCODE_COMPARE_NE, I8Op, I16Op, I16Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    EmitCommutativeCompareOp(e, i,
-                             [](X64Emitter& e, const Reg16& src1,
-                                const Reg16& src2) { e.cmp(src1, src2); },
-                             [](X64Emitter& e, const Reg16& src1,
-                                int32_t constant) { e.cmp(src1, constant); });
+    EmitCommutativeCompareOp(
+        e, i,
+        [](X64Emitter& e, const Reg16& src1, const Reg16& src2) {
+          e.cmp(src1, src2);
+        },
+        [](X64Emitter& e, const Reg16& src1, int32_t constant) {
+          e.cmp(src1, constant);
+        });
     e.setne(i.dest);
   }
 };
 struct COMPARE_NE_I32
     : Sequence<COMPARE_NE_I32, I<OPCODE_COMPARE_NE, I8Op, I32Op, I32Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    EmitCommutativeCompareOp(e, i,
-                             [](X64Emitter& e, const Reg32& src1,
-                                const Reg32& src2) { e.cmp(src1, src2); },
-                             [](X64Emitter& e, const Reg32& src1,
-                                int32_t constant) { e.cmp(src1, constant); });
+    EmitCommutativeCompareOp(
+        e, i,
+        [](X64Emitter& e, const Reg32& src1, const Reg32& src2) {
+          e.cmp(src1, src2);
+        },
+        [](X64Emitter& e, const Reg32& src1, int32_t constant) {
+          e.cmp(src1, constant);
+        });
     e.setne(i.dest);
   }
 };
 struct COMPARE_NE_I64
     : Sequence<COMPARE_NE_I64, I<OPCODE_COMPARE_NE, I8Op, I64Op, I64Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    EmitCommutativeCompareOp(e, i,
-                             [](X64Emitter& e, const Reg64& src1,
-                                const Reg64& src2) { e.cmp(src1, src2); },
-                             [](X64Emitter& e, const Reg64& src1,
-                                int32_t constant) { e.cmp(src1, constant); });
+    EmitCommutativeCompareOp(
+        e, i,
+        [](X64Emitter& e, const Reg64& src1, const Reg64& src2) {
+          e.cmp(src1, src2);
+        },
+        [](X64Emitter& e, const Reg64& src1, int32_t constant) {
+          e.cmp(src1, constant);
+        });
     e.setne(i.dest);
   }
 };
