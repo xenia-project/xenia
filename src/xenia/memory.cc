@@ -1299,7 +1299,7 @@ bool BaseHeap::QueryProtect(uint32_t address, uint32_t* out_protect) {
 
 xe::memory::PageAccess BaseHeap::QueryRangeAccess(uint32_t low_address,
                                                   uint32_t high_address) {
-  if (low_address >= high_address || low_address < heap_base_ ||
+  if (low_address > high_address || low_address < heap_base_ ||
       (high_address - heap_base_) >= heap_size_) {
     return xe::memory::PageAccess::kNoAccess;
   }
