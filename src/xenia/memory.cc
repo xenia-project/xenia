@@ -1297,6 +1297,24 @@ bool BaseHeap::QueryProtect(uint32_t address, uint32_t* out_protect) {
   return true;
 }
 
+xe::memory::PageAccess BaseHeap::QueryRangeAccess(uint32_t low_address,
+                                                  uint32_t high_address) {
+  if (low_address >= high_address || low_address < heap_base_ ||
+      (high_address - heap_base_) >= heap_size_) {
+    return xe::memory::PageAccess::kNoAccess;
+  }
+  uint32_t low_page_number = (low_address - heap_base_) / page_size_;
+  uint32_t high_page_number = (high_address - heap_base_) / page_size_;
+  uint32_t protect = kMemoryProtectRead | kMemoryProtectWrite;
+  {
+    auto global_lock = global_critical_region_.Acquire();
+    for (uint32_t i = low_page_number; protect && i <= high_page_number; ++i) {
+      protect &= page_table_[i].current_protect;
+    }
+  }
+  return ToPageAccess(protect);
+}
+
 VirtualHeap::VirtualHeap() = default;
 
 VirtualHeap::~VirtualHeap() = default;
