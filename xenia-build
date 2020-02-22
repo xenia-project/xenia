@@ -185,7 +185,7 @@ def get_bin(binary):
     return None
 
 
-def shell_call(command, throw_on_error=True, stdout_path=None):
+def shell_call(command, throw_on_error=True, stdout_path=None, shell=False):
     """Executes a shell command.
 
     Args:
@@ -203,10 +203,10 @@ def shell_call(command, throw_on_error=True, stdout_path=None):
     try:
         if throw_on_error:
             result = 1
-            subprocess.check_call(command, shell=False, stdout=stdout_file)
+            subprocess.check_call(command, shell=shell, stdout=stdout_file)
             result = 0
         else:
-            result = subprocess.call(command, shell=False, stdout=stdout_file)
+            result = subprocess.call(command, shell=shell, stdout=stdout_file)
     finally:
         if stdout_file:
             stdout_file.close()
@@ -1234,7 +1234,7 @@ class LintCommand(Command):
                     shell_call([
                         'type' if sys.platform == 'win32' else 'cat',
                         difftemp,
-                        ])
+                        ], shell=True if sys.platform == 'win32' else False)
                     if os.path.exists(difftemp): os.remove(difftemp)
                     print('')
             print('')
