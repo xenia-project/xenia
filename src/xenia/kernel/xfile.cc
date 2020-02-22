@@ -130,7 +130,7 @@ X_STATUS XFile::Read(uint32_t buffer_guest_address, uint32_t buffer_length,
       } else {
         xe::PhysicalHeap* buffer_physical_heap =
             buffer_start_heap->IsGuestPhysicalHeap()
-                ? static_cast<PhysicalHeap*>(buffer_start_heap)
+                ? static_cast<xe::PhysicalHeap*>(buffer_start_heap)
                 : nullptr;
         if (buffer_physical_heap &&
             buffer_physical_heap->QueryRangeAccess(buffer_guest_address,
