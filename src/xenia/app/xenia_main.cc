@@ -89,7 +89,7 @@ class Factory {
 
   void Add(const std::string& name,
            std::function<std::unique_ptr<T>(Args...)> instantiate) {
-    constexpr auto always_available = []() { return true; };
+    auto always_available = []() { return true; };
     Add(name, always_available, instantiate);
   }
 
