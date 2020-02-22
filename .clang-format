@@ -3,17 +3,3 @@ BasedOnStyle: Google
 DerivePointerAlignment: false
 PointerAlignment: Left
 SortIncludes: true
-
-# The following should match defaults on Windows,
-# but were found to be different on Travis.
-
-AlignConsecutiveMacros: false
-AllowAllArgumentsOnNextLine: true
-AllowAllConstructorInitializersOnNextLine: true
-AllowShortLambdasOnASingleLine: All
-AllowShortIfStatementsOnASingleLine: WithoutElse
-BraceWrapping:
-  AfterCaseLabel: false
-  SplitEmptyNamespace: true
-IncludeBlocks: Regroup
-SpaceAfterLogicalNot: false
