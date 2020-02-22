@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -174,7 +174,9 @@ int32_t format_core(PPCContext* ppc_context, FormatData& data, ArgList& args,
       case FS_Invalid:
       case FS_Unknown:
       case FS_End:
-      default: { assert_always(); }
+      default: {
+        assert_always();
+      }
 
       case FS_Start: {
         if (c == '%') {
@@ -220,7 +222,6 @@ int32_t format_core(PPCContext* ppc_context, FormatData& data, ArgList& args,
           flags |= FF_AddPrefix;
           continue;
         }
-
         state = FS_Width;
         // fall through, don't need to goto restart
       }
@@ -240,7 +241,6 @@ int32_t format_core(PPCContext* ppc_context, FormatData& data, ArgList& args,
           width += c - '0';
           continue;
         }
-
         state = FS_PrecisionStart;
         // fall through, don't need to goto restart
       }
@@ -252,7 +252,6 @@ int32_t format_core(PPCContext* ppc_context, FormatData& data, ArgList& args,
           precision = 0;
           continue;
         }
-
         state = FS_Size;
         goto restart;
       }
@@ -271,7 +270,6 @@ int32_t format_core(PPCContext* ppc_context, FormatData& data, ArgList& args,
           precision += c - '0';
           continue;
         }
-
         state = FS_Size;
         // fall through
       }
@@ -310,7 +308,6 @@ int32_t format_core(PPCContext* ppc_context, FormatData& data, ArgList& args,
             continue;
           }
         }
-
         // fall through
       }
 
@@ -581,7 +578,9 @@ int32_t format_core(PPCContext* ppc_context, FormatData& data, ArgList& args,
             break;
           }
 
-          default: { assert_always(); }
+          default: {
+            assert_always();
+          }
         }
       }
     }
