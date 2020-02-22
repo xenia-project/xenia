@@ -92,17 +92,22 @@ class XFile : public XObject {
   const std::string& path() const { return file_->entry()->path(); }
   const std::string& name() const { return file_->entry()->name(); }
 
-  size_t position() const { return position_; }
-  void set_position(size_t value) { position_ = value; }
+  uint64_t position() const { return position_; }
+  void set_position(uint64_t value) { position_ = value; }
 
   X_STATUS QueryDirectory(X_FILE_DIRECTORY_INFORMATION* out_info, size_t length,
                           const char* file_name, bool restart);
 
-  X_STATUS Read(void* buffer, size_t buffer_length, size_t byte_offset,
-                size_t* out_bytes_read, uint32_t apc_context);
+  // Don't do within the global critical region because invalidation callbacks
+  // may be triggered (as per the usual rule of not doing I/O within the global
+  // critical region).
+  X_STATUS Read(uint32_t buffer_guess_address, uint32_t buffer_length,
+                uint64_t byte_offset, uint32_t* out_bytes_read,
+                uint32_t apc_context);
 
-  X_STATUS Write(const void* buffer, size_t buffer_length, size_t byte_offset,
-                 size_t* out_bytes_written, uint32_t apc_context);
+  X_STATUS Write(uint32_t buffer_guess_address, uint32_t buffer_length,
+                 uint64_t byte_offset, uint32_t* out_bytes_written,
+                 uint32_t apc_context);
 
   X_STATUS SetLength(size_t length);
 
@@ -133,7 +138,7 @@ class XFile : public XObject {
 
   // TODO(benvanik): create flags, open state, etc.
 
-  size_t position_ = 0;
+  uint64_t position_ = 0;
 
   xe::filesystem::WildcardEngine find_engine_;
   size_t find_index_ = 0;

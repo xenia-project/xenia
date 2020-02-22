@@ -172,6 +172,11 @@ class BaseHeap {
   // address.
   bool QueryProtect(uint32_t address, uint32_t* out_protect);
 
+  // Queries the currently strictest readability and writability for the entire
+  // range.
+  xe::memory::PageAccess QueryRangeAccess(uint32_t low_address,
+                                          uint32_t high_address);
+
   // Whether the heap is a guest virtual memory mapping of the physical memory.
   virtual bool IsGuestPhysicalHeap() const { return false; }
 
