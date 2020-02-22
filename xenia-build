@@ -1202,6 +1202,7 @@ class LintCommand(Command):
 
         if args['all']:
             all_files = find_all_source_files()
+            all_files.sort()
             print('- linting %d files' % (len(all_files)))
             any_errors = False
             for file_path in all_files:
@@ -1298,6 +1299,7 @@ class FormatCommand(Command):
 
         if args['all']:
             all_files = find_all_source_files()
+            all_files.sort()
             print('- clang-format [%d files]' % (len(all_files)))
             any_errors = False
             for file_path in all_files:
