@@ -1253,6 +1253,7 @@ class LintCommand(Command):
                 'third_party/clang-format/git-clang-format',
                 '--binary=%s' % (clang_format_binary),
                 '--commit=%s' % ('origin/master' if args['origin'] else 'HEAD'),
+                '--style=file',
                 '--diff',
                 ], throw_on_error=False, stdout_path=difftemp)
             with open(difftemp) as f:
@@ -1269,6 +1270,7 @@ class LintCommand(Command):
                     'third_party/clang-format/git-clang-format',
                     '--binary=%s' % (clang_format_binary),
                     '--commit=%s' % ('origin/master' if args['origin'] else 'HEAD'),
+                    '--style=file',
                     '--diff',
                     ])
                 print('ERROR: 1+ diffs. Stage changes and run \'xb format\' to fix.')
