@@ -1388,11 +1388,6 @@ bool PhysicalHeap::Alloc(uint32_t size, uint32_t alignment,
     // TODO(benvanik): don't leak parent memory.
     return false;
   }
-
-  if (protect & kMemoryProtectWrite) {
-    TriggerCallbacks(std::move(global_lock), address, size, true, true, false);
-  }
-
   *out_address = address;
   return true;
 }
@@ -1428,10 +1423,6 @@ bool PhysicalHeap::AllocFixed(uint32_t base_address, uint32_t size,
         "PhysicalHeap::Alloc unable to pin physical memory in physical heap");
     // TODO(benvanik): don't leak parent memory.
     return false;
-  }
-
-  if (protect & kMemoryProtectWrite) {
-    TriggerCallbacks(std::move(global_lock), address, size, true, true, false);
   }
 
   return true;
@@ -1474,32 +1465,49 @@ bool PhysicalHeap::AllocRange(uint32_t low_address, uint32_t high_address,
     // TODO(benvanik): don't leak parent memory.
     return false;
   }
-
-  if (protect & kMemoryProtectWrite) {
-    TriggerCallbacks(std::move(global_lock), address, size, true, true, false);
-  }
-
   *out_address = address;
   return true;
 }
 
 bool PhysicalHeap::Decommit(uint32_t address, uint32_t size) {
   auto global_lock = global_critical_region_.Acquire();
+
   uint32_t parent_address = GetPhysicalAddress(address);
   if (!parent_heap_->Decommit(parent_address, size)) {
     XELOGE("PhysicalHeap::Decommit failed due to parent heap failure");
     return false;
   }
+
+  // Not caring about the contents anymore.
+  TriggerCallbacks(std::move(global_lock), address, size, true, true);
+
   return BaseHeap::Decommit(address, size);
 }
 
 bool PhysicalHeap::Release(uint32_t base_address, uint32_t* out_region_size) {
   auto global_lock = global_critical_region_.Acquire();
+
   uint32_t parent_base_address = GetPhysicalAddress(base_address);
   if (!parent_heap_->Release(parent_base_address, out_region_size)) {
     XELOGE("PhysicalHeap::Release failed due to parent heap failure");
     return false;
   }
+
+  // Must invalidate here because the range being released may be reused in
+  // another mapping of physical memory - but callback flags are set in each
+  // heap separately (https://github.com/xenia-project/xenia/issues/1559 -
+  // dynamic vertices in Viva Pinata start screen and menu allocated in
+  // 0xA0000000 at addresses that overlap intro video textures in 0xE0000000,
+  // with the state of the allocator as of February 24th, 2020). If memory is
+  // invalidated in Alloc instead, Alloc won't be aware of callbacks enabled in
+  // other heaps, thus callback handlers will keep considering this range valid
+  // forever.
+  uint32_t region_size;
+  if (QuerySize(base_address, &region_size)) {
+    TriggerCallbacks(std::move(global_lock), base_address, region_size, true,
+                     true);
+  }
+
   return BaseHeap::Release(base_address, out_region_size);
 }
 
