@@ -140,7 +140,9 @@ X_STATUS XFile::Read(uint32_t buffer_guest_address, uint32_t buffer_length,
         } else {
           result = file_->ReadSync(
               buffer_physical_heap
-                  ? memory()->TranslatePhysical(buffer_guest_address)
+                  ? memory()->TranslatePhysical(
+                        buffer_physical_heap->GetPhysicalAddress(
+                            buffer_guest_address))
                   : memory()->TranslateVirtual(buffer_guest_address),
               buffer_length, size_t(byte_offset), &bytes_read);
           if (XSUCCEEDED(result)) {
