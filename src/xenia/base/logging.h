@@ -37,7 +37,9 @@ enum class LogLevel {
 void InitializeLogging(const std::wstring& app_name);
 void ShutdownLogging();
 
-// Appends a line to the log with printf-style formatting.
+// Zips the log...
+void ZipCurrentLog();
+    // Appends a line to the log with printf-style formatting.
 void LogLineFormat(LogLevel log_level, const char prefix_char, const char* fmt,
                    ...);
 void LogLineVarargs(LogLevel log_level, const char prefix_char, const char* fmt,
@@ -79,6 +81,8 @@ void FatalError(const std::wstring& str);
 #define XELOGKERNEL(fmt, ...) \
   XELOGCORE(xe::LogLevel::Info, 'K', fmt, ##__VA_ARGS__)
 #define XELOGFS(fmt, ...) XELOGCORE(xe::LogLevel::Info, 'F', fmt, ##__VA_ARGS__)
+
+#define ZIPLOG xe::ZipCurrentLog()
 
 }  // namespace xe
 

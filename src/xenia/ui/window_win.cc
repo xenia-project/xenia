@@ -178,6 +178,7 @@ void Win32Window::OnClose() {
   if (!closing_ && hwnd_) {
     closing_ = true;
   }
+  ZIPLOG;
   super::OnClose();
 }
 
