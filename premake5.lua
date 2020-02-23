@@ -150,13 +150,17 @@ filter("platforms:Windows")
   cppdialect("C++17")
   buildoptions({
     "/MP",      -- Multiprocessor compilation.
+    "/utf-8",   -- 'build correctly on systems with non-Latin codepages'.
+    -- Mark warnings as severe
+    "/w14839", -- non-standard use of class 'type' as an argument to a variadic function
+    "/w14840", -- non-portable use of class 'type' as an argument to a variadic function
+    -- Disable warnings
     "/wd4100",  -- Unreferenced parameters are ok.
     "/wd4201",  -- Nameless struct/unions are ok.
     "/wd4512",  -- 'assignment operator was implicitly defined as deleted'.
     "/wd4127",  -- 'conditional expression is constant'.
     "/wd4324",  -- 'structure was padded due to alignment specifier'.
     "/wd4189",  -- 'local variable is initialized but not referenced'.
-    "/utf-8",   -- 'build correctly on systems with non-Latin codepages'.
   })
   flags({
     "NoMinimalRebuild", -- Required for /MP above.
