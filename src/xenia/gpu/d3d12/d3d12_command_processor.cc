@@ -2115,8 +2115,7 @@ bool D3D12CommandProcessor::EndSubmission(bool is_swap) {
       }
       root_signatures_.clear();
 
-      // TODO(Triang3l): Shared memory cache clear.
-      // shared_memory_->ClearCache();
+      shared_memory_->ClearCache();
     }
   }
 
