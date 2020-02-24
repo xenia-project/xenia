@@ -49,6 +49,7 @@ enum FormatFlags {
   FF_IsWide = 1 << 9,
   FF_IsSigned = 1 << 10,
   FF_ForceLeadingZero = 1 << 11,
+  FF_InvertWide = 1 << 12,
 };
 
 enum ArgumentSize {
@@ -316,16 +317,14 @@ int32_t format_core(PPCContext* ppc_context, FormatData& data, ArgList& args,
         // wide character
         switch (c) {
           case 'C': {
-            if (!(flags & (FF_IsShort | FF_IsLong | FF_IsWide))) {
-              flags |= FF_IsWide;
-            }
+            flags |= FF_InvertWide;
             // fall through
           }
 
           // character
           case 'c': {
             bool is_wide;
-            if (flags & FF_IsLong) {
+            if (flags & (FF_IsLong | FF_IsWide)) {
               // "An lc, lC, wc or wC type specifier is synonymous with C in
               // printf functions and with c in wprintf functions."
               is_wide = true;
@@ -334,7 +333,7 @@ int32_t format_core(PPCContext* ppc_context, FormatData& data, ArgList& args,
               // functions and with C in wprintf functions."
               is_wide = false;
             } else {
-              is_wide = ((flags & FF_IsWide) != 0) ^ wide;
+              is_wide = ((flags & FF_InvertWide) != 0) ^ wide;
             }
 
             auto value = args.get32();
@@ -521,9 +520,7 @@ int32_t format_core(PPCContext* ppc_context, FormatData& data, ArgList& args,
 
           // wide string
           case 'S': {
-            if (!(flags & (FF_IsShort | FF_IsLong | FF_IsWide))) {
-              flags |= FF_IsWide;
-            }
+            flags |= FF_InvertWide;
             // fall through
           }
 
@@ -540,7 +537,7 @@ int32_t format_core(PPCContext* ppc_context, FormatData& data, ArgList& args,
             } else {
               void* str = SHIM_MEM_ADDR(pointer);
               bool is_wide;
-              if (flags & FF_IsLong) {
+              if (flags & (FF_IsLong | FF_IsWide)) {
                 // "An ls, lS, ws or wS type specifier is synonymous with S in
                 // printf functions and with s in wprintf functions."
                 is_wide = true;
@@ -549,7 +546,7 @@ int32_t format_core(PPCContext* ppc_context, FormatData& data, ArgList& args,
                 // functions and with S in wprintf functions."
                 is_wide = false;
               } else {
-                is_wide = ((flags & (FF_IsWide)) != 0) ^ wide;
+                is_wide = ((flags & FF_InvertWide) != 0) ^ wide;
               }
               int32_t length;
 
