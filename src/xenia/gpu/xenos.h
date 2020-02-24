@@ -37,12 +37,11 @@ enum class PrimitiveType : uint32_t {
   kQuadStrip = 0x0E,
   kPolygon = 0x0F,
 
-  // Starting with this primitive mode, registers like VGT_OUTPUT_PATH_CNTL have
-  // effect (deduced from R6xx/R7xx registers, and Halo 3 also doesn't reset
-  // VGT_OUTPUT_PATH_CNTL after the first draw with tessellation).
-  // TODO(Triang3l): Find out if VGT_DRAW_INITIATOR (0x21FC on Adreno 2xx, but
-  // not seen being used in games) specifies the major mode (or if it's set
-  // somewhere else).
+  // Starting with this primitive type, explicit major mode is assumed (in the
+  // R6xx/R7xx registers, k2DCopyRectListV0 is 22, and implicit major mode is
+  // only used for primitive types 0 through 21) - and tessellation patches use
+  // the range that starts from k2DCopyRectListV0.
+  // TODO(Triang3l): Verify if this is also true for the Xenos.
   kExplicitMajorModeForceStart = 0x10,
 
   k2DCopyRectListV0 = 0x10,
@@ -459,6 +458,25 @@ typedef enum {
 
   XE_GPU_INVALIDATE_MASK_ALL = 0x7FFF,
 } XE_GPU_INVALIDATE_MASK;
+
+// VGT_DRAW_INITIATOR::DI_SRC_SEL_*
+enum class SourceSelect : uint32_t {
+  kDMA,
+  kImmediate,
+  kAutoIndex,
+};
+
+// VGT_DRAW_INITIATOR::DI_MAJOR_MODE_*
+enum class MajorMode : uint32_t {
+  kImplicit,
+  kExplicit,
+};
+
+inline bool IsMajorModeExplicit(MajorMode major_mode,
+                                PrimitiveType primitive_type) {
+  return major_mode != MajorMode::kImplicit ||
+         primitive_type >= PrimitiveType::kExplicitMajorModeForceStart;
+}
 
 // instr_arbitrary_filter_t
 enum class ArbitraryFilter : uint32_t {

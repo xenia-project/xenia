@@ -171,7 +171,8 @@ class D3D12CommandProcessor : public CommandProcessor {
                      uint32_t dword_count) override;
 
   bool IssueDraw(PrimitiveType primitive_type, uint32_t index_count,
-                 IndexBufferInfo* index_buffer_info) override;
+                 IndexBufferInfo* index_buffer_info,
+                 bool major_mode_explicit) override;
   bool IssueCopy() override;
 
   void InitializeTrace() override;
