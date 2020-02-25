@@ -12,6 +12,7 @@
 #include "xenia/base/main.h"
 #include "xenia/base/math.h"
 #include "xenia/base/platform.h"
+#include "xenia/base/string_buffer.h"
 #include "xenia/cpu/backend/x64/x64_backend.h"
 #include "xenia/cpu/cpu_flags.h"
 #include "xenia/cpu/ppc/ppc_context.h"
@@ -325,6 +326,10 @@ class TestRunner {
         auto base_address = memory_->TranslateVirtual(address);
         auto p = base_address;
         const char* c = bytes_str.c_str();
+        bool failed = false;
+        size_t count = 0;
+        StringBuffer expecteds;
+        StringBuffer actuals;
         while (*c) {
           while (*c == ' ') ++c;
           if (!*c) {
@@ -332,17 +337,25 @@ class TestRunner {
           }
           char ccs[3] = {c[0], c[1], 0};
           c += 2;
+          count++;
           uint32_t current_address =
               address + static_cast<uint32_t>(p - base_address);
           uint32_t expected = std::strtoul(ccs, nullptr, 16);
           uint8_t actual = *p;
+
+          expecteds.AppendFormat(" %02X", expected);
+          actuals.AppendFormat(" %02X", actual);
+
           if (expected != actual) {
             any_failed = true;
-            XELOGE("Memory {} assert failed:\n", address_str);
-            XELOGE("  Expected: {:08X} {:02X}\n", current_address, expected);
-            XELOGE("    Actual: {:08X} {:02X}\n", current_address, actual);
+            failed = true;
           }
           ++p;
+        }
+        if (failed) {
+          XELOGE("Memory {} assert failed:\n", address_str);
+          XELOGE("  Expected:{}\n", expecteds.to_string());
+          XELOGE("    Actual:{}\n", actuals.to_string());
         }
       }
     }
