@@ -2496,6 +2496,48 @@ struct LOG2_V128 : Sequence<LOG2_V128, I<OPCODE_LOG2, V128Op, V128Op>> {
 };
 EMITTER_OPCODE_TABLE(OPCODE_LOG2, LOG2_F32, LOG2_F64, LOG2_V128);
 
+struct DOT_PRODUCT_V128 {
+  static void Emit(X64Emitter& e, Xmm dest, Xmm src1, Xmm src2, uint8_t imm) {
+    // TODO(benvanik): apparently this is very slow
+    // - find alternative?
+    Xbyak::Label end;
+    e.inLocalLabel();
+
+    // Grab space to put MXCSR.
+    // TODO(gibbed): stick this in TLS or
+    // something?
+    e.sub(e.rsp, 8);
+
+    // Grab MXCSR and mask off the overflow flag,
+    // because it's sticky.
+    e.vstmxcsr(e.dword[e.rsp]);
+    e.mov(e.eax, e.dword[e.rsp]);
+    e.and_(e.eax, uint32_t(~8));
+    e.mov(e.dword[e.rsp], e.eax);
+    e.vldmxcsr(e.dword[e.rsp]);
+
+    // Hey we can do the dot product now.
+    e.vdpps(dest, src1, src2, imm);
+
+    // Load MXCSR...
+    e.vstmxcsr(e.dword[e.rsp]);
+
+    // ..free our temporary space and get MXCSR at
+    // the same time
+    e.pop(e.rax);
+
+    // Did we overflow?
+    e.test(e.al, 8);
+    e.jz(end);
+
+    // Infinity? HA! Give NAN.
+    e.vmovdqa(dest, e.GetXmmConstPtr(XMMQNaN));
+
+    e.L(end);
+    e.outLocalLabel();
+  }
+};
+
 // ============================================================================
 // OPCODE_DOT_PRODUCT_3
 // ============================================================================
@@ -2504,12 +2546,10 @@ struct DOT_PRODUCT_3_V128
                I<OPCODE_DOT_PRODUCT_3, F32Op, V128Op, V128Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     // https://msdn.microsoft.com/en-us/library/bb514054(v=vs.90).aspx
-    EmitCommutativeBinaryXmmOp(e, i,
-                               [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
-                                 // TODO(benvanik): apparently this is very slow
-                                 // - find alternative?
-                                 e.vdpps(dest, src1, src2, 0b01110001);
-                               });
+    EmitCommutativeBinaryXmmOp(
+        e, i, [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
+          DOT_PRODUCT_V128::Emit(e, dest, src1, src2, 0b01110001);
+        });
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_DOT_PRODUCT_3, DOT_PRODUCT_3_V128);
@@ -2522,12 +2562,10 @@ struct DOT_PRODUCT_4_V128
                I<OPCODE_DOT_PRODUCT_4, F32Op, V128Op, V128Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     // https://msdn.microsoft.com/en-us/library/bb514054(v=vs.90).aspx
-    EmitCommutativeBinaryXmmOp(e, i,
-                               [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
-                                 // TODO(benvanik): apparently this is very slow
-                                 // - find alternative?
-                                 e.vdpps(dest, src1, src2, 0b11110001);
-                               });
+    EmitCommutativeBinaryXmmOp(
+        e, i, [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
+          DOT_PRODUCT_V128::Emit(e, dest, src1, src2, 0b11110001);
+        });
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_DOT_PRODUCT_4, DOT_PRODUCT_4_V128);
