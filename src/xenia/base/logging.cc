@@ -9,9 +9,10 @@
 
 #include "xenia/base/logging.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <string.h>
-#include <assert.h>
+
 #include <atomic>
 #include <cinttypes>
 #include <cstdarg>
@@ -29,17 +30,7 @@
 #include "xenia/base/ring_buffer.h"
 #include "xenia/base/threading.h"
 //#include "xenia/base/cvar.h"
-
-#include"zlib/zlib.h"
-// read this: https://zlib.net/zlib_how.html
-#if defined(MSDOS) || defined(OS2) || defined(WIN32) || defined(__CYGWIN__)
-#include <fcntl.h>
-#include <io.h>
-#define SET_BINARY_MODE(file) setmode(fileno(file), O_BINARY)
-#else
-#define SET_BINARY_MODE(file)
-#endif
-#define CHUNK 16384
+#include "xenia\base\log_zipper.h"
 
 
 // For MessageBox:
@@ -47,6 +38,7 @@
 #if XE_PLATFORM_WIN32
 #include "xenia/base/platform_win.h"
 #endif  // XE_PLATFORM_WIN32
+
 
 DEFINE_string(
     log_file, "",
@@ -75,6 +67,7 @@ class Logger {
       file_path = app_name + L".log";
       xe::filesystem::CreateParentFolder(file_path);
       file_ = xe::filesystem::OpenFile(file_path, "wt");
+      log_zipper_ = new LogZipper(file_path);
     } else {
       if (cvars::log_file == "stdout") {
         file_ = stdout;
@@ -93,69 +86,9 @@ class Logger {
   ~Logger() {
     running_ = false;
     xe::threading::Wait(write_thread_.get(), true);
+    log_zipper_->~LogZipper();
     fflush(file_);
     fclose(file_);
-    ZipLog();
-  }
-
-  void ZipLog() {
-    if (file_ != stdout) {
-      // here we do our compression
-      int ret, flush;
-      unsigned have;
-      z_stream strm;
-      unsigned char in[CHUNK];
-      unsigned char out[CHUNK];
-
-      auto gz_file = file_path + L".gz";
-      FILE* dest = xe::filesystem::OpenFile(gz_file, "wt");
-      FILE* source = xe::filesystem::OpenFile(file_path, "r");
-
-      /* allocate deflate state */
-      strm.zalloc = Z_NULL;
-      strm.zfree = Z_NULL;
-      strm.opaque = Z_NULL;
-      ret = deflateInit(&strm, Z_DEFAULT_COMPRESSION);
-      if (ret != Z_OK) return;  // it failed to initialize
-
-      /* compress until end of file */
-      do {
-        strm.avail_in = (uInt)fread(in, 1, CHUNK, source);
-        if (ferror(source)) {
-          (void)deflateEnd(&strm);
-          return;  // failed to read
-        }
-        flush = feof(source) ? Z_FINISH : Z_NO_FLUSH;
-        strm.next_in = in;
-
-        /* run deflate() on input until output buffer not full, finish
-           compression if all of source has been read in */
-        do {
-          strm.avail_out = CHUNK;
-          strm.next_out = out;
-
-          ret = deflate(&strm, flush);   /* no bad return value */
-          assert(ret != Z_STREAM_ERROR); /* state not clobbered */
-
-          have = CHUNK - strm.avail_out;
-          if (fwrite(out, 1, have, dest) != have || ferror(dest)) {
-            (void)deflateEnd(&strm);
-            return;
-          }
-
-        } while (strm.avail_out == 0);
-        assert(strm.avail_in == 0); /* all input will be used */
-
-        /* done when last data in file processed */
-      } while (flush != Z_FINISH);
-      assert(ret == Z_STREAM_END); /* stream will be complete */
-
-      /* clean up and return */
-      (void)deflateEnd(&strm);
-      fflush(dest);
-      fclose(dest);
-      fclose(source);
-    }
   }
 
   void AppendLine(uint32_t thread_id, LogLevel level, const char prefix_char,
@@ -225,6 +158,10 @@ class Logger {
   void Write(const char* buf, size_t size) {
     if (file_) {
       fwrite(buf, 1, size, file_);
+    }
+
+    if (log_zipper_) {
+      log_zipper_->write(buf, size);
     }
 
     if (cvars::log_to_debugprint) {
@@ -315,6 +252,7 @@ class Logger {
   uint8_t buffer_[kBufferSize];
   FILE* file_ = nullptr;
   std::wstring file_path;
+  LogZipper* log_zipper_ = nullptr;
 
   std::atomic<bool> running_;
   std::unique_ptr<xe::threading::Thread> write_thread_;
@@ -332,8 +270,6 @@ void ShutdownLogging() {
   logger->~Logger();
   memory::AlignedFree(logger);
 }
-
-void ZipCurrentLog() { logger_->ZipLog(); }
 
 void LogLineFormat(LogLevel log_level, const char prefix_char, const char* fmt,
                    ...) {

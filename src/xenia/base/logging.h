@@ -82,8 +82,6 @@ void FatalError(const std::wstring& str);
   XELOGCORE(xe::LogLevel::Info, 'K', fmt, ##__VA_ARGS__)
 #define XELOGFS(fmt, ...) XELOGCORE(xe::LogLevel::Info, 'F', fmt, ##__VA_ARGS__)
 
-#define ZIPLOG xe::ZipCurrentLog()
-
 }  // namespace xe
 
 #endif  // XENIA_BASE_LOGGING_H_
