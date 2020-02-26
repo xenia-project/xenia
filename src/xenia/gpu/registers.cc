@@ -19,6 +19,7 @@ constexpr Register WAIT_UNTIL::register_index;
 constexpr Register SQ_PROGRAM_CNTL::register_index;
 constexpr Register SQ_CONTEXT_MISC::register_index;
 
+constexpr Register VGT_DRAW_INITIATOR::register_index;
 constexpr Register VGT_OUTPUT_PATH_CNTL::register_index;
 constexpr Register VGT_HOS_CNTL::register_index;
 

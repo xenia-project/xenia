@@ -347,8 +347,8 @@ dword_result_t MmAllocatePhysicalMemoryEx(dword_t flags, dword_t region_size,
   uint32_t heap_max_addr =
       xe::sat_sub(max_addr_range.value(), heap_physical_address_offset);
   uint32_t heap_size = heap->heap_size();
-  heap_min_addr = heap_base + std::min(heap_min_addr, heap_size);
-  heap_max_addr = heap_base + std::min(heap_max_addr, heap_size);
+  heap_min_addr = heap_base + std::min(heap_min_addr, heap_size - 1);
+  heap_max_addr = heap_base + std::min(heap_max_addr, heap_size - 1);
   uint32_t base_address;
   if (!heap->AllocRange(heap_min_addr, heap_max_addr, adjusted_size,
                         adjusted_alignment, allocation_type, protect, top_down,

@@ -10,10 +10,11 @@ addons:
   apt:
     sources:
       - ubuntu-toolchain-r-test
-      - llvm-toolchain-bionic-7
+      - llvm-toolchain-9
     packages:
-      - clang-7
-      - llvm-7-dev
+      - clang-9
+      - clang-format-9
+      - llvm-9-dev
       - g++-8
       - python3
       - libc++-dev
@@ -28,10 +29,10 @@ addons:
 
 matrix:
   include:
-    - env: C_COMPILER=clang-7 CXX_COMPILER=clang++-7 LINT=true
+    - env: C_COMPILER=clang-9 CXX_COMPILER=clang++-9 LINT=true
       sudo: false
-    - env: C_COMPILER=clang-7 CXX_COMPILER=clang++-7 BUILD=true CONFIG=Debug
-    - env: C_COMPILER=clang-7 CXX_COMPILER=clang++-7 BUILD=true CONFIG=Release
+    - env: C_COMPILER=clang-9 CXX_COMPILER=clang++-9 BUILD=true CONFIG=Debug
+    - env: C_COMPILER=clang-9 CXX_COMPILER=clang++-9 BUILD=true CONFIG=Release
 
 git:
   # We handle submodules ourselves in xenia-build setup.
@@ -44,6 +45,8 @@ before_script:
   # Dump useful info.
   - $CXX --version
   - python3 --version
+  - clang-format-9 --version
+  - clang-format-9 -style=file -dump-config
   # Add Vulkan dependencies.
   - travis_retry wget http://mirrors.kernel.org/ubuntu/pool/universe/v/vulkan/libvulkan1_$LIBVULKAN_VERSION+dfsg1-1_amd64.deb
   - travis_retry wget http://mirrors.kernel.org/ubuntu/pool/universe/v/vulkan/libvulkan-dev_$LIBVULKAN_VERSION+dfsg1-1_amd64.deb

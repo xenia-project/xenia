@@ -8,11 +8,15 @@ skip_tags: true
 
 skip_commits:
   files:
-    - docs/*
     - .github/*
+    - .travis.yml
+    - docs/*
+    - src/**/*_posix.*
+    - src/**/*_linux.*
+    - src/**/*_x11.*
+    - src/**/*_gtk.*
     - LICENSE
     - README.md
-    - .travis.yml
 
 skip_branch_with_pr: true
 

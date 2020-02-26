@@ -37,6 +37,7 @@ class SharedMemory {
 
   bool Initialize();
   void Shutdown();
+  void ClearCache();
 
   ID3D12Resource* GetBuffer() const { return buffer_; }
   D3D12_GPU_VIRTUAL_ADDRESS GetGPUAddress() const {

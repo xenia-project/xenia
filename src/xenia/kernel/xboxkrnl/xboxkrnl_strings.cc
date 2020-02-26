@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -49,6 +49,7 @@ enum FormatFlags {
   FF_IsWide = 1 << 9,
   FF_IsSigned = 1 << 10,
   FF_ForceLeadingZero = 1 << 11,
+  FF_InvertWide = 1 << 12,
 };
 
 enum ArgumentSize {
@@ -174,7 +175,9 @@ int32_t format_core(PPCContext* ppc_context, FormatData& data, ArgList& args,
       case FS_Invalid:
       case FS_Unknown:
       case FS_End:
-      default: { assert_always(); }
+      default: {
+        assert_always();
+      }
 
       case FS_Start: {
         if (c == '%') {
@@ -220,7 +223,6 @@ int32_t format_core(PPCContext* ppc_context, FormatData& data, ArgList& args,
           flags |= FF_AddPrefix;
           continue;
         }
-
         state = FS_Width;
         // fall through, don't need to goto restart
       }
@@ -240,7 +242,6 @@ int32_t format_core(PPCContext* ppc_context, FormatData& data, ArgList& args,
           width += c - '0';
           continue;
         }
-
         state = FS_PrecisionStart;
         // fall through, don't need to goto restart
       }
@@ -252,7 +253,6 @@ int32_t format_core(PPCContext* ppc_context, FormatData& data, ArgList& args,
           precision = 0;
           continue;
         }
-
         state = FS_Size;
         goto restart;
       }
@@ -271,7 +271,6 @@ int32_t format_core(PPCContext* ppc_context, FormatData& data, ArgList& args,
           precision += c - '0';
           continue;
         }
-
         state = FS_Size;
         // fall through
       }
@@ -310,7 +309,6 @@ int32_t format_core(PPCContext* ppc_context, FormatData& data, ArgList& args,
             continue;
           }
         }
-
         // fall through
       }
 
@@ -319,16 +317,14 @@ int32_t format_core(PPCContext* ppc_context, FormatData& data, ArgList& args,
         // wide character
         switch (c) {
           case 'C': {
-            if (!(flags & (FF_IsShort | FF_IsLong | FF_IsWide))) {
-              flags |= FF_IsWide;
-            }
+            flags |= FF_InvertWide;
             // fall through
           }
 
           // character
           case 'c': {
             bool is_wide;
-            if (flags & FF_IsLong) {
+            if (flags & (FF_IsLong | FF_IsWide)) {
               // "An lc, lC, wc or wC type specifier is synonymous with C in
               // printf functions and with c in wprintf functions."
               is_wide = true;
@@ -337,7 +333,7 @@ int32_t format_core(PPCContext* ppc_context, FormatData& data, ArgList& args,
               // functions and with C in wprintf functions."
               is_wide = false;
             } else {
-              is_wide = ((flags & FF_IsWide) != 0) ^ wide;
+              is_wide = ((flags & FF_InvertWide) != 0) ^ wide;
             }
 
             auto value = args.get32();
@@ -524,9 +520,7 @@ int32_t format_core(PPCContext* ppc_context, FormatData& data, ArgList& args,
 
           // wide string
           case 'S': {
-            if (!(flags & (FF_IsShort | FF_IsLong | FF_IsWide))) {
-              flags |= FF_IsWide;
-            }
+            flags |= FF_InvertWide;
             // fall through
           }
 
@@ -543,7 +537,7 @@ int32_t format_core(PPCContext* ppc_context, FormatData& data, ArgList& args,
             } else {
               void* str = SHIM_MEM_ADDR(pointer);
               bool is_wide;
-              if (flags & FF_IsLong) {
+              if (flags & (FF_IsLong | FF_IsWide)) {
                 // "An ls, lS, ws or wS type specifier is synonymous with S in
                 // printf functions and with s in wprintf functions."
                 is_wide = true;
@@ -552,7 +546,7 @@ int32_t format_core(PPCContext* ppc_context, FormatData& data, ArgList& args,
                 // functions and with S in wprintf functions."
                 is_wide = false;
               } else {
-                is_wide = ((flags & (FF_IsWide)) != 0) ^ wide;
+                is_wide = ((flags & FF_InvertWide) != 0) ^ wide;
               }
               int32_t length;
 
@@ -581,7 +575,9 @@ int32_t format_core(PPCContext* ppc_context, FormatData& data, ArgList& args,
             break;
           }
 
-          default: { assert_always(); }
+          default: {
+            assert_always();
+          }
         }
       }
     }
@@ -728,7 +724,7 @@ class StringFormatData : public FormatData {
 
   void skip(int32_t count) {
     while (count-- > 0) {
-      if (!*input_) {
+      if (!get()) {
         break;
       }
     }
@@ -761,11 +757,11 @@ class WideStringFormatData : public FormatData {
     return xe::byte_swap(result);
   }
 
-  uint16_t peek(int32_t offset) { return input_[offset]; }
+  uint16_t peek(int32_t offset) { return xe::byte_swap(input_[offset]); }
 
   void skip(int32_t count) {
     while (count-- > 0) {
-      if (!*input_) {
+      if (!get()) {
         break;
       }
     }
@@ -795,11 +791,11 @@ class WideCountFormatData : public FormatData {
     return xe::byte_swap(result);
   }
 
-  uint16_t peek(int32_t offset) { return input_[offset]; }
+  uint16_t peek(int32_t offset) { return xe::byte_swap(input_[offset]); }
 
   void skip(int32_t count) {
     while (count-- > 0) {
-      if (!*input_) {
+      if (!get()) {
         break;
       }
     }

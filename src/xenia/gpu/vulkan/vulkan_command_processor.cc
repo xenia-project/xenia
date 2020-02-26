@@ -598,7 +598,8 @@ Shader* VulkanCommandProcessor::LoadShader(ShaderType shader_type,
 
 bool VulkanCommandProcessor::IssueDraw(PrimitiveType primitive_type,
                                        uint32_t index_count,
-                                       IndexBufferInfo* index_buffer_info) {
+                                       IndexBufferInfo* index_buffer_info,
+                                       bool major_mode_explicit) {
   auto& regs = *register_file_;
 
 #if FINE_GRAINED_DRAW_SCOPES
