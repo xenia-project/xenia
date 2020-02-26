@@ -27,6 +27,7 @@ size_t LogZipper::write(const char* buffer, size_t size) {
   bytes_written_since_last_flush += bytes_written;
   if (bytes_written_since_last_flush >= FLUSH_INTERVAL) {
     gzflush(output, Z_SYNC_FLUSH);
+    bytes_written_since_last_flush = 0;
   }
   return bytes_written;
 };

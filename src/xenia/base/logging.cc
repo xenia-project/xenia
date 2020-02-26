@@ -75,6 +75,7 @@ class Logger {
         auto file_path = xe::to_wstring(cvars::log_file);
         xe::filesystem::CreateParentFolder(file_path);
         file_ = xe::filesystem::OpenFile(file_path, "wt");
+        log_zipper_ = new LogZipper(file_path);
       }
     }
 

@@ -5,6 +5,9 @@ project("xenia-base")
   uuid("aeadaf22-2b20-4941-b05f-a802d5679c11")
   kind("StaticLib")
   language("C++")
+  links({
+    "zlib"
+  })
   defines({
   })
   local_platform_files()

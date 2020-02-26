@@ -19,6 +19,7 @@ project("zlib")
     "zlib/deflate.h",
     "zlib/gzclose.c",
     "zlib/gzguts.h",
+    "zlib/gzlib.c",
     "zlib/gzread.c",
     "zlib/gzwrite.c",
     "zlib/infback.c",

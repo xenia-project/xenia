@@ -13,7 +13,7 @@
 #else
 #define SET_BINARY_MODE(file)
 #endif
-#define FLUSH_INTERVAL 32 * 1024 * 1024
+#define FLUSH_INTERVAL 32 * 1024
 
 namespace xe {
 
