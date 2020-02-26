@@ -32,13 +32,11 @@
 //#include "xenia/base/cvar.h"
 #include "xenia\base\log_zipper.h"
 
-
 // For MessageBox:
 // TODO(benvanik): generic API? logging_win.cc?
 #if XE_PLATFORM_WIN32
 #include "xenia/base/platform_win.h"
 #endif  // XE_PLATFORM_WIN32
-
 
 DEFINE_string(
     log_file, "",
