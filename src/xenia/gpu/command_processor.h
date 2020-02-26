@@ -239,7 +239,8 @@ class CommandProcessor {
                              uint32_t dword_count) = 0;
 
   virtual bool IssueDraw(PrimitiveType prim_type, uint32_t index_count,
-                         IndexBufferInfo* index_buffer_info) = 0;
+                         IndexBufferInfo* index_buffer_info,
+                         bool major_mode_explicit) = 0;
   virtual bool IssueCopy() = 0;
 
   virtual void InitializeTrace() = 0;

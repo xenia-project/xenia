@@ -359,7 +359,7 @@ uint32_t Memory::HostToGuestVirtual(const void* host_address) const {
       size_t(heaps_.vE0000000.heap_base()) + vE0000000_host_offset;
   if (virtual_address >= vE0000000_host_base &&
       virtual_address <=
-          (vE0000000_host_base + heaps_.vE0000000.heap_size() - 1)) {
+          (vE0000000_host_base + (heaps_.vE0000000.heap_size() - 1))) {
     virtual_address -= vE0000000_host_offset;
   }
   return uint32_t(virtual_address);
@@ -640,7 +640,7 @@ void BaseHeap::Initialize(Memory* memory, uint8_t* membase, uint32_t heap_base,
   memory_ = memory;
   membase_ = membase;
   heap_base_ = heap_base;
-  heap_size_ = heap_size - 1;
+  heap_size_ = heap_size;
   page_size_ = page_size;
   host_address_offset_ = host_address_offset;
   page_table_.resize(heap_size / page_size);
@@ -662,7 +662,7 @@ void BaseHeap::Dispose() {
 void BaseHeap::DumpMap() {
   auto global_lock = global_critical_region_.Acquire();
   XELOGE("------------------------------------------------------------------");
-  XELOGE("Heap: %.8X-%.8X", heap_base_, heap_base_ + heap_size_);
+  XELOGE("Heap: %.8X-%.8X", heap_base_, heap_base_ + (heap_size_ - 1));
   XELOGE("------------------------------------------------------------------");
   XELOGE("            Heap Base: %.8X", heap_base_);
   XELOGE("            Heap Size: %d (%.8X)", heap_size_, heap_size_);
@@ -704,7 +704,8 @@ void BaseHeap::DumpMap() {
   }
   if (is_empty_span) {
     XELOGE("  %.8X-%.8X - %d unreserved pages)",
-           heap_base_ + empty_span_start * page_size_, heap_base_ + heap_size_,
+           heap_base_ + empty_span_start * page_size_,
+           heap_base_ + (heap_size_ - 1),
            page_table_.size() - empty_span_start);
   }
 }
@@ -739,7 +740,7 @@ uint32_t BaseHeap::GetUnreservedPageCount() {
 }
 
 bool BaseHeap::Save(ByteStream* stream) {
-  XELOGD("Heap %.8X-%.8X", heap_base_, heap_base_ + heap_size_);
+  XELOGD("Heap %.8X-%.8X", heap_base_, heap_base_ + (heap_size_ - 1));
 
   for (size_t i = 0; i < page_table_.size(); i++) {
     auto& page = page_table_[i];
@@ -767,7 +768,7 @@ bool BaseHeap::Save(ByteStream* stream) {
 }
 
 bool BaseHeap::Restore(ByteStream* stream) {
-  XELOGD("Heap %.8X-%.8X", heap_base_, heap_base_ + heap_size_);
+  XELOGD("Heap %.8X-%.8X", heap_base_, heap_base_ + (heap_size_ - 1));
 
   for (size_t i = 0; i < page_table_.size(); i++) {
     auto& page = page_table_[i];
@@ -824,7 +825,7 @@ bool BaseHeap::Alloc(uint32_t size, uint32_t alignment,
   size = xe::round_up(size, page_size_);
   alignment = xe::round_up(alignment, page_size_);
   uint32_t low_address = heap_base_;
-  uint32_t high_address = heap_base_ + heap_size_;
+  uint32_t high_address = heap_base_ + (heap_size_ - 1);
   return AllocRange(low_address, high_address, size, alignment, allocation_type,
                     protect, top_down, out_address);
 }
@@ -916,8 +917,8 @@ bool BaseHeap::AllocRange(uint32_t low_address, uint32_t high_address,
   alignment = xe::round_up(alignment, page_size_);
   uint32_t page_count = get_page_count(size, page_size_);
   low_address = std::max(heap_base_, xe::align(low_address, alignment));
-  high_address =
-      std::min(heap_base_ + heap_size_, xe::align(high_address, alignment));
+  high_address = std::min(heap_base_ + (heap_size_ - 1),
+                          xe::align(high_address, alignment));
   uint32_t low_page_number = (low_address - heap_base_) / page_size_;
   uint32_t high_page_number = (high_address - heap_base_) / page_size_;
   low_page_number = std::min(uint32_t(page_table_.size()) - 1, low_page_number);
@@ -1296,6 +1297,24 @@ bool BaseHeap::QueryProtect(uint32_t address, uint32_t* out_protect) {
   return true;
 }
 
+xe::memory::PageAccess BaseHeap::QueryRangeAccess(uint32_t low_address,
+                                                  uint32_t high_address) {
+  if (low_address > high_address || low_address < heap_base_ ||
+      (high_address - heap_base_) >= heap_size_) {
+    return xe::memory::PageAccess::kNoAccess;
+  }
+  uint32_t low_page_number = (low_address - heap_base_) / page_size_;
+  uint32_t high_page_number = (high_address - heap_base_) / page_size_;
+  uint32_t protect = kMemoryProtectRead | kMemoryProtectWrite;
+  {
+    auto global_lock = global_critical_region_.Acquire();
+    for (uint32_t i = low_page_number; protect && i <= high_page_number; ++i) {
+      protect &= page_table_[i].current_protect;
+    }
+  }
+  return ToPageAccess(protect);
+}
+
 VirtualHeap::VirtualHeap() = default;
 
 VirtualHeap::~VirtualHeap() = default;
@@ -1327,7 +1346,7 @@ void PhysicalHeap::Initialize(Memory* memory, uint8_t* membase,
   system_page_size_ = uint32_t(xe::memory::page_size());
 
   system_page_count_ =
-      (heap_size_ /* already - 1 */ + host_address_offset + system_page_size_) /
+      (size_t(heap_size_) + host_address_offset + (system_page_size_ - 1)) /
       system_page_size_;
   system_page_flags_.resize((system_page_count_ + 63) / 64);
 }
@@ -1349,7 +1368,7 @@ bool PhysicalHeap::Alloc(uint32_t size, uint32_t alignment,
 
   // Allocate from parent heap (gets our physical address in 0-512mb).
   uint32_t parent_heap_start = GetPhysicalAddress(heap_base_);
-  uint32_t parent_heap_end = GetPhysicalAddress(heap_base_ + heap_size_);
+  uint32_t parent_heap_end = GetPhysicalAddress(heap_base_ + (heap_size_ - 1));
   uint32_t parent_address;
   if (!parent_heap_->AllocRange(parent_heap_start, parent_heap_end, size,
                                 alignment, allocation_type, protect, top_down,
@@ -1369,11 +1388,6 @@ bool PhysicalHeap::Alloc(uint32_t size, uint32_t alignment,
     // TODO(benvanik): don't leak parent memory.
     return false;
   }
-
-  if (protect & kMemoryProtectWrite) {
-    TriggerCallbacks(std::move(global_lock), address, size, true, true, false);
-  }
-
   *out_address = address;
   return true;
 }
@@ -1411,10 +1425,6 @@ bool PhysicalHeap::AllocFixed(uint32_t base_address, uint32_t size,
     return false;
   }
 
-  if (protect & kMemoryProtectWrite) {
-    TriggerCallbacks(std::move(global_lock), address, size, true, true, false);
-  }
-
   return true;
 }
 
@@ -1432,7 +1442,7 @@ bool PhysicalHeap::AllocRange(uint32_t low_address, uint32_t high_address,
 
   // Allocate from parent heap (gets our physical address in 0-512mb).
   low_address = std::max(heap_base_, low_address);
-  high_address = std::min(heap_base_ + heap_size_, high_address);
+  high_address = std::min(heap_base_ + (heap_size_ - 1), high_address);
   uint32_t parent_low_address = GetPhysicalAddress(low_address);
   uint32_t parent_high_address = GetPhysicalAddress(high_address);
   uint32_t parent_address;
@@ -1455,32 +1465,49 @@ bool PhysicalHeap::AllocRange(uint32_t low_address, uint32_t high_address,
     // TODO(benvanik): don't leak parent memory.
     return false;
   }
-
-  if (protect & kMemoryProtectWrite) {
-    TriggerCallbacks(std::move(global_lock), address, size, true, true, false);
-  }
-
   *out_address = address;
   return true;
 }
 
 bool PhysicalHeap::Decommit(uint32_t address, uint32_t size) {
   auto global_lock = global_critical_region_.Acquire();
+
   uint32_t parent_address = GetPhysicalAddress(address);
   if (!parent_heap_->Decommit(parent_address, size)) {
     XELOGE("PhysicalHeap::Decommit failed due to parent heap failure");
     return false;
   }
+
+  // Not caring about the contents anymore.
+  TriggerCallbacks(std::move(global_lock), address, size, true, true);
+
   return BaseHeap::Decommit(address, size);
 }
 
 bool PhysicalHeap::Release(uint32_t base_address, uint32_t* out_region_size) {
   auto global_lock = global_critical_region_.Acquire();
+
   uint32_t parent_base_address = GetPhysicalAddress(base_address);
   if (!parent_heap_->Release(parent_base_address, out_region_size)) {
     XELOGE("PhysicalHeap::Release failed due to parent heap failure");
     return false;
   }
+
+  // Must invalidate here because the range being released may be reused in
+  // another mapping of physical memory - but callback flags are set in each
+  // heap separately (https://github.com/xenia-project/xenia/issues/1559 -
+  // dynamic vertices in Viva Pinata start screen and menu allocated in
+  // 0xA0000000 at addresses that overlap intro video textures in 0xE0000000,
+  // with the state of the allocator as of February 24th, 2020). If memory is
+  // invalidated in Alloc instead, Alloc won't be aware of callbacks enabled in
+  // other heaps, thus callback handlers will keep considering this range valid
+  // forever.
+  uint32_t region_size;
+  if (QuerySize(base_address, &region_size)) {
+    TriggerCallbacks(std::move(global_lock), base_address, region_size, true,
+                     true);
+  }
+
   return BaseHeap::Release(base_address, out_region_size);
 }
 
@@ -1521,10 +1548,10 @@ void PhysicalHeap::EnableAccessCallbacks(uint32_t physical_address,
     physical_address = physical_address_offset;
   }
   uint32_t heap_relative_address = physical_address - physical_address_offset;
-  if (heap_relative_address >= heap_size_ + 1) {
+  if (heap_relative_address >= heap_size_) {
     return;
   }
-  length = std::min(length, heap_size_ + 1 - heap_relative_address);
+  length = std::min(length, heap_size_ - heap_relative_address);
   if (length == 0) {
     return;
   }
@@ -1631,10 +1658,10 @@ bool PhysicalHeap::TriggerCallbacks(
     virtual_address = heap_base_;
   }
   uint32_t heap_relative_address = virtual_address - heap_base_;
-  if (heap_relative_address >= heap_size_ + 1) {
+  if (heap_relative_address >= heap_size_) {
     return false;
   }
-  length = std::min(length, heap_size_ + 1 - heap_relative_address);
+  length = std::min(length, heap_size_ - heap_relative_address);
   if (length == 0) {
     return false;
   }
@@ -1683,7 +1710,7 @@ bool PhysicalHeap::TriggerCallbacks(
       xe::sat_sub(system_page_last * system_page_size_ + system_page_size_,
                   host_address_offset()) +
           physical_address_offset - physical_address_start,
-      heap_size_ + 1 - (physical_address_start - physical_address_offset));
+      heap_size_ - (physical_address_start - physical_address_offset));
   uint32_t unwatch_first = 0;
   uint32_t unwatch_last = UINT32_MAX;
   for (auto invalidation_callback :
@@ -1718,8 +1745,8 @@ bool PhysicalHeap::TriggerCallbacks(
     unwatch_first = xe::sat_sub(unwatch_first, physical_address_offset);
     unwatch_last = xe::sat_sub(unwatch_last, physical_address_offset);
     // Clamp to the heap upper bound.
-    unwatch_first = std::min(unwatch_first, heap_size_);
-    unwatch_last = std::min(unwatch_last, heap_size_);
+    unwatch_first = std::min(unwatch_first, heap_size_ - 1);
+    unwatch_last = std::min(unwatch_last, heap_size_ - 1);
     // Convert to system pages and update the range.
     unwatch_first += host_address_offset();
     unwatch_last += host_address_offset();
@@ -1788,7 +1815,7 @@ bool PhysicalHeap::TriggerCallbacks(
 uint32_t PhysicalHeap::GetPhysicalAddress(uint32_t address) const {
   assert_true(address >= heap_base_);
   address -= heap_base_;
-  assert_true(address <= heap_size_);
+  assert_true(address < heap_size_);
   if (heap_base_ >= 0xE0000000) {
     address += 0x1000;
   }

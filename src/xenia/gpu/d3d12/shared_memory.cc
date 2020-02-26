@@ -140,7 +140,22 @@ bool SharedMemory::Initialize() {
 void SharedMemory::Shutdown() {
   ResetTraceGPUWrittenBuffer();
 
-  // TODO(Triang3l): Do something in case any watches are still registered.
+  FireWatches(0, (kBufferSize - 1) >> page_size_log2_, false);
+  assert_true(global_watches_.empty());
+  // No watches now, so no references to the pools accessible by guest threads -
+  // safe not to enter the global critical region.
+  watch_node_first_free_ = nullptr;
+  watch_node_current_pool_allocated_ = 0;
+  for (WatchNode* pool : watch_node_pools_) {
+    delete[] pool;
+  }
+  watch_node_pools_.clear();
+  watch_range_first_free_ = nullptr;
+  watch_range_current_pool_allocated_ = 0;
+  for (WatchRange* pool : watch_range_pools_) {
+    delete[] pool;
+  }
+  watch_range_pools_.clear();
 
   if (memory_invalidation_callback_handle_ != nullptr) {
     memory_->UnregisterPhysicalMemoryInvalidationCallback(
@@ -162,6 +177,36 @@ void SharedMemory::Shutdown() {
     heap_count_ = 0;
     COUNT_profile_set("gpu/shared_memory/used_mb", 0);
   }
+}
+
+void SharedMemory::ClearCache() {
+  upload_buffer_pool_->ClearCache();
+
+  // Keeping GPU-written data, so "invalidated by GPU".
+  FireWatches(0, (kBufferSize - 1) >> page_size_log2_, true);
+  // No watches now, so no references to the pools accessible by guest threads -
+  // safe not to enter the global critical region.
+  watch_node_first_free_ = nullptr;
+  watch_node_current_pool_allocated_ = 0;
+  for (WatchNode* pool : watch_node_pools_) {
+    delete[] pool;
+  }
+  watch_node_pools_.clear();
+  watch_range_first_free_ = nullptr;
+  watch_range_current_pool_allocated_ = 0;
+  for (WatchRange* pool : watch_range_pools_) {
+    delete[] pool;
+  }
+  watch_range_pools_.clear();
+
+  {
+    auto global_lock = global_critical_region_.Acquire();
+    for (SystemPageFlagsBlock& block : system_page_flags_) {
+      block.valid = block.valid_and_gpu_written;
+    }
+  }
+
+  // TODO(Triang3l): Unmap and destroy heaps.
 }
 
 void SharedMemory::CompletedSubmissionUpdated() {

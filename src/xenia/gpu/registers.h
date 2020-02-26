@@ -145,6 +145,22 @@ union SQ_CONTEXT_MISC {
 
 *******************************************************************************/
 
+union VGT_DRAW_INITIATOR {
+  // Different than on A2xx and R6xx/R7xx.
+  struct {
+    PrimitiveType prim_type : 6;            // +0
+    xenos::SourceSelect source_select : 2;  // +6
+    xenos::MajorMode major_mode : 2;        // +8
+    uint32_t : 1;                           // +10
+    IndexFormat index_size : 1;             // +11
+    uint32_t not_eop : 1;                   // +12
+    uint32_t : 3;                           // +13
+    uint32_t num_indices : 16;              // +16
+  };
+  uint32_t value;
+  static constexpr Register register_index = XE_GPU_REG_VGT_DRAW_INITIATOR;
+};
+
 union VGT_OUTPUT_PATH_CNTL {
   struct {
     xenos::VGTOutputPath path_select : 2;  // +0

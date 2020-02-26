@@ -172,6 +172,11 @@ class BaseHeap {
   // address.
   bool QueryProtect(uint32_t address, uint32_t* out_protect);
 
+  // Queries the currently strictest readability and writability for the entire
+  // range.
+  xe::memory::PageAccess QueryRangeAccess(uint32_t low_address,
+                                          uint32_t high_address);
+
   // Whether the heap is a guest virtual memory mapping of the physical memory.
   virtual bool IsGuestPhysicalHeap() const { return false; }
 
@@ -387,7 +392,9 @@ class Memory {
   //
   // May be triggered for a single page (in case of a write access violation or
   // when need to synchronize data given by data providers) or for multiple
-  // pages (like when memory is allocated).
+  // pages (like when memory is released, or explicitly to trigger callbacks
+  // when host-side code can't rely on regular access violations, like when
+  // accessing a file).
   //
   // Since granularity of callbacks is one single page, an invalidation
   // notification handler must invalidate the all the data stored in the touched

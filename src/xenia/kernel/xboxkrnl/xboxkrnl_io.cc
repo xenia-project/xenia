@@ -170,23 +170,15 @@ dword_result_t NtReadFile(dword_t file_handle, dword_t event_handle,
 
   if (XSUCCEEDED(result)) {
     if (true || file->is_synchronous()) {
-      // some games NtReadFile() directly into texture memory
-      auto heap = kernel_memory()->LookupHeap(buffer.guest_address());
-      if (heap && heap->IsGuestPhysicalHeap()) {
-        kernel_memory()->TriggerPhysicalMemoryCallbacks(
-            xe::global_critical_region::AcquireDirect(), buffer.guest_address(),
-            buffer_length, true, true);
-      }
-
       // Synchronous.
-      size_t bytes_read = 0;
+      uint32_t bytes_read = 0;
       result = file->Read(
-          buffer, buffer_length,
+          buffer.guest_address(), buffer_length,
           byte_offset_ptr ? static_cast<uint64_t>(*byte_offset_ptr) : -1,
           &bytes_read, apc_context);
       if (io_status_block) {
         io_status_block->status = result;
-        io_status_block->information = static_cast<uint32_t>(bytes_read);
+        io_status_block->information = bytes_read;
       }
 
       // Queue the APC callback. It must be delivered via the APC mechanism even
@@ -218,7 +210,8 @@ dword_result_t NtReadFile(dword_t file_handle, dword_t event_handle,
       state, file,
       (XAsyncRequest::CompletionCallback)xeNtReadFileCompleted,
       call_state);*/
-      // result = file->Read(buffer, buffer_length, byte_offset, request);
+      // result = file->Read(buffer.guest_address(), buffer_length, byte_offset,
+      //                     request);
       if (io_status_block) {
         io_status_block->status = X_STATUS_PENDING;
         io_status_block->information = 0;
@@ -270,13 +263,13 @@ dword_result_t NtWriteFile(dword_t file_handle, dword_t event_handle,
     // TODO(benvanik): async path.
     if (true || file->is_synchronous()) {
       // Synchronous request.
-      size_t bytes_written = 0;
+      uint32_t bytes_written = 0;
       result = file->Write(
-          buffer, buffer_length,
+          buffer.guest_address(), buffer_length,
           byte_offset_ptr ? static_cast<uint64_t>(*byte_offset_ptr) : -1,
           &bytes_written, apc_context);
       if (XSUCCEEDED(result)) {
-        info = (int32_t)bytes_written;
+        info = bytes_written;
       }
 
       if (!file->is_synchronous()) {
@@ -515,10 +508,12 @@ dword_result_t NtQueryInformationFile(
         // XctdDecompression.
         /*
         uint32_t magic;
-        size_t bytes_read;
-        size_t cur_pos = file->position();
+        uint32_t bytes_read;
+        uint64_t cur_pos = file->position();
 
         file->set_position(0);
+        // FIXME(Triang3l): For now, XFile can be read only to guest buffers -
+        // this line won't work, implement reading to host buffers if needed.
         result = file->Read(&magic, sizeof(magic), 0, &bytes_read);
         if (XSUCCEEDED(result)) {
           if (bytes_read == sizeof(magic)) {

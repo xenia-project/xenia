@@ -44,7 +44,8 @@ Shader* NullCommandProcessor::LoadShader(ShaderType shader_type,
 
 bool NullCommandProcessor::IssueDraw(PrimitiveType prim_type,
                                      uint32_t index_count,
-                                     IndexBufferInfo* index_buffer_info) {
+                                     IndexBufferInfo* index_buffer_info,
+                                     bool major_mode_explicit) {
   return true;
 }
 

@@ -13,8 +13,10 @@
 #include "xenia/base/byte_stream.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
+#include "xenia/base/mutex.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/xevent.h"
+#include "xenia/memory.h"
 
 namespace xe {
 namespace kernel {
@@ -87,18 +89,73 @@ X_STATUS XFile::QueryDirectory(X_FILE_DIRECTORY_INFORMATION* out_info,
   return X_STATUS_SUCCESS;
 }
 
-X_STATUS XFile::Read(void* buffer, size_t buffer_length, size_t byte_offset,
-                     size_t* out_bytes_read, uint32_t apc_context) {
-  if (byte_offset == -1) {
+X_STATUS XFile::Read(uint32_t buffer_guest_address, uint32_t buffer_length,
+                     uint64_t byte_offset, uint32_t* out_bytes_read,
+                     uint32_t apc_context) {
+  if (byte_offset == uint64_t(-1)) {
     // Read from current position.
     byte_offset = position_;
   }
 
   size_t bytes_read = 0;
-  X_STATUS result =
-      file_->ReadSync(buffer, buffer_length, byte_offset, &bytes_read);
-  if (XSUCCEEDED(result)) {
-    position_ += bytes_read;
+  X_STATUS result = X_STATUS_SUCCESS;
+  // Zero length means success for a valid file object according to Windows
+  // tests.
+  if (buffer_length) {
+    if (UINT32_MAX - buffer_guest_address < buffer_length) {
+      result = X_STATUS_ACCESS_VIOLATION;
+    } else {
+      // Games often read directly to texture/vertex buffer memory - in this
+      // case, invalidation notifications must be sent. However, having any
+      // memory callbacks in the range will result in STATUS_ACCESS_VIOLATION at
+      // least on Windows, without anything being read or any callbacks being
+      // triggered. So for physical memory, host protection must be bypassed,
+      // and invalidation callbacks must be triggered manually (it's also wrong
+      // to trigger invalidation callbacks before reading in this case, because
+      // during the read, the guest may still access the data around the buffer
+      // that is located in the same host pages as the buffer's start and end,
+      // on the GPU - and that must not trigger a race condition).
+      uint32_t buffer_guest_high_address =
+          buffer_guest_address + buffer_length - 1;
+      xe::BaseHeap* buffer_start_heap =
+          memory()->LookupHeap(buffer_guest_address);
+      const xe::BaseHeap* buffer_end_heap =
+          memory()->LookupHeap(buffer_guest_high_address);
+      if (!buffer_start_heap || !buffer_end_heap ||
+          buffer_start_heap->IsGuestPhysicalHeap() !=
+              buffer_end_heap->IsGuestPhysicalHeap() ||
+          (buffer_start_heap->IsGuestPhysicalHeap() &&
+           buffer_start_heap != buffer_end_heap)) {
+        result = X_STATUS_ACCESS_VIOLATION;
+      } else {
+        xe::PhysicalHeap* buffer_physical_heap =
+            buffer_start_heap->IsGuestPhysicalHeap()
+                ? static_cast<xe::PhysicalHeap*>(buffer_start_heap)
+                : nullptr;
+        if (buffer_physical_heap &&
+            buffer_physical_heap->QueryRangeAccess(buffer_guest_address,
+                                                   buffer_guest_high_address) !=
+                memory::PageAccess::kReadWrite) {
+          result = X_STATUS_ACCESS_VIOLATION;
+        } else {
+          result = file_->ReadSync(
+              buffer_physical_heap
+                  ? memory()->TranslatePhysical(
+                        buffer_physical_heap->GetPhysicalAddress(
+                            buffer_guest_address))
+                  : memory()->TranslateVirtual(buffer_guest_address),
+              buffer_length, size_t(byte_offset), &bytes_read);
+          if (XSUCCEEDED(result)) {
+            if (buffer_physical_heap) {
+              buffer_physical_heap->TriggerCallbacks(
+                  xe::global_critical_region::AcquireDirect(),
+                  buffer_guest_address, buffer_length, true, true);
+            }
+            position_ += bytes_read;
+          }
+        }
+      }
+    }
   }
 
   XIOCompletion::IONotification notify;
@@ -109,24 +166,25 @@ X_STATUS XFile::Read(void* buffer, size_t buffer_length, size_t byte_offset,
   NotifyIOCompletionPorts(notify);
 
   if (out_bytes_read) {
-    *out_bytes_read = bytes_read;
+    *out_bytes_read = uint32_t(bytes_read);
   }
 
   async_event_->Set();
   return result;
 }
 
-X_STATUS XFile::Write(const void* buffer, size_t buffer_length,
-                      size_t byte_offset, size_t* out_bytes_written,
+X_STATUS XFile::Write(uint32_t buffer_guest_address, uint32_t buffer_length,
+                      uint64_t byte_offset, uint32_t* out_bytes_written,
                       uint32_t apc_context) {
-  if (byte_offset == -1) {
+  if (byte_offset == uint64_t(-1)) {
     // Write from current position.
     byte_offset = position_;
   }
 
   size_t bytes_written = 0;
   X_STATUS result =
-      file_->WriteSync(buffer, buffer_length, byte_offset, &bytes_written);
+      file_->WriteSync(memory()->TranslateVirtual(buffer_guest_address),
+                       buffer_length, size_t(byte_offset), &bytes_written);
   if (XSUCCEEDED(result)) {
     position_ += bytes_written;
   }
@@ -139,7 +197,7 @@ X_STATUS XFile::Write(const void* buffer, size_t buffer_length,
   NotifyIOCompletionPorts(notify);
 
   if (out_bytes_written) {
-    *out_bytes_written = bytes_written;
+    *out_bytes_written = uint32_t(bytes_written);
   }
 
   async_event_->Set();

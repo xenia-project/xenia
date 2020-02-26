@@ -1245,7 +1245,8 @@ Shader* D3D12CommandProcessor::LoadShader(ShaderType shader_type,
 
 bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
                                       uint32_t index_count,
-                                      IndexBufferInfo* index_buffer_info) {
+                                      IndexBufferInfo* index_buffer_info,
+                                      bool major_mode_explicit) {
   auto device = GetD3D12Context()->GetD3D12Provider()->GetDevice();
   auto& regs = *register_file_;
 
@@ -1272,8 +1273,7 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
 
   // Check if using tessellation to get the correct primitive type.
   bool tessellated;
-  if (uint32_t(primitive_type) >=
-      uint32_t(PrimitiveType::kExplicitMajorModeForceStart)) {
+  if (major_mode_explicit) {
     tessellated = regs.Get<reg::VGT_OUTPUT_PATH_CNTL>().path_select ==
                   xenos::VGTOutputPath::kTessellationEnable;
   } else {
@@ -2115,8 +2115,7 @@ bool D3D12CommandProcessor::EndSubmission(bool is_swap) {
       }
       root_signatures_.clear();
 
-      // TODO(Triang3l): Shared memory cache clear.
-      // shared_memory_->ClearCache();
+      shared_memory_->ClearCache();
     }
   }
 

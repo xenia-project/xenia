@@ -89,7 +89,8 @@ class Factory {
 
   void Add(const std::string& name,
            std::function<std::unique_ptr<T>(Args...)> instantiate) {
-    Add(name, []() { return true; }, instantiate);
+    auto always_available = []() { return true; };
+    Add(name, always_available, instantiate);
   }
 
   template <typename DT>
