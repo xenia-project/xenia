@@ -14,7 +14,7 @@ LogZipper::LogZipper(const std::wstring& file_path) {
   std::wcstombs(buffer, gz_file_c, size);
 
   // create file
-  output = gzopen(buffer, "wb");
+  output = gzopen(buffer, "wb1");
 };
 
 LogZipper::~LogZipper() {
