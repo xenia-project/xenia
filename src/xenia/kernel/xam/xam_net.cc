@@ -196,7 +196,7 @@ dword_result_t NetDll_XNetGetOpt(dword_t one, dword_t option_id,
       std::memcpy(buffer_ptr, &xnet_startup_params, sizeof(XNetStartupParams));
       return 0;
     default:
-      XELOGE("NetDll_XNetGetOpt: option %d unimplemented", option_id);
+      XELOGE("NetDll_XNetGetOpt: option {} unimplemented", option_id);
       return 0x2726;  // WSAEINVAL
   }
 }
@@ -537,7 +537,7 @@ SHIM_CALL NetDll_XNetQosServiceLookup_shim(PPCContext* ppc_context,
   uint32_t event_handle = SHIM_GET_ARG_32(2);
   uint32_t out_ptr = SHIM_GET_ARG_32(3);
 
-  XELOGD("NetDll_XNetQosServiceLookup(%d, %d, %.8X, %.8X)", caller, zero,
+  XELOGD("NetDll_XNetQosServiceLookup({}, {}, {:08X}, {:08X})", caller, zero,
          event_handle, out_ptr);
 
   // Non-zero is error.

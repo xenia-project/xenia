@@ -702,7 +702,7 @@ void* PrimitiveConverter::AllocateIndices(
       buffer_pool_->Request(command_processor_->GetCurrentFrame(), size,
                             nullptr, nullptr, &gpu_address);
   if (mapping == nullptr) {
-    XELOGE("Failed to allocate space for %u converted %u-bit vertex indices",
+    XELOGE("Failed to allocate space for {} converted {}-bit vertex indices",
            count, format == IndexFormat::kInt32 ? 32 : 16);
     return nullptr;
   }

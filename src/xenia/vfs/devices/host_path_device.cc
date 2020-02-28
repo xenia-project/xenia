@@ -54,7 +54,7 @@ Entry* HostPathDevice::ResolvePath(const std::string_view path) {
   // be in the form:
   // some\PATH.foo
 
-  XELOGFS("HostPathDevice::ResolvePath(%s)", path.c_str());
+  XELOGFS("HostPathDevice::ResolvePath({})", path);
 
   // Walk the path, one separator at a time.
   auto entry = root_entry_.get();

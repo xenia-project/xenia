@@ -266,7 +266,7 @@ bool RenderTargetCache::Initialize(const TextureCache* texture_cache) {
         (!rov_used && edram_store_pipelines_[i] == nullptr) ||
         (load_2x_resolve_pipeline_used &&
          edram_load_2x_resolve_pipelines_[i] == nullptr)) {
-      XELOGE("Failed to create the EDRAM load/store pipelines for mode %u", i);
+      XELOGE("Failed to create the EDRAM load/store pipelines for mode {}", i);
       Shutdown();
       return false;
     }
@@ -824,7 +824,7 @@ bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
       }
 #endif
     }
-    XELOGGPU("RT Cache: %s update - pitch %u, samples %u, RTs to attach %u",
+    XELOGGPU("RT Cache: {} update - pitch {}, samples {}, RTs to attach {}",
              full_update ? "Full" : "Partial", surface_pitch,
              rb_surface_info.msaa_samples, render_targets_to_attach);
 
@@ -954,7 +954,7 @@ bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
         if (render_target == nullptr) {
           continue;
         }
-        XELOGGPU("RT Color %u: base %u, format %u", i, edram_bases[i],
+        XELOGGPU("RT Color {}: base {}, format {}", i, edram_bases[i],
                  formats[i]);
         command_processor_->PushTransitionBarrier(
             render_target->resource, render_target->state,
@@ -973,7 +973,7 @@ bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
       RenderTarget* depth_render_target = depth_binding.render_target;
       current_pipeline_render_targets_[4].guest_render_target = 4;
       if (depth_binding.is_bound && depth_render_target != nullptr) {
-        XELOGGPU("RT Depth: base %u, format %u", edram_bases[4], formats[4]);
+        XELOGGPU("RT Depth: base {}, format {}", edram_bases[4], formats[4]);
         command_processor_->PushTransitionBarrier(
             depth_render_target->resource, depth_render_target->state,
             D3D12_RESOURCE_STATE_DEPTH_WRITE);
@@ -1165,8 +1165,8 @@ bool RenderTargetCache::Resolve(SharedMemory* shared_memory,
   rect.bottom = std::min(rect.bottom, scissor.bottom);
 
   XELOGGPU(
-      "Resolve: (%d,%d)->(%d,%d) of RT %u (pitch %u, %u sample%s, format %u) "
-      "at %u",
+      "Resolve: ({},{})->({},{}) of RT {} (pitch {}, {} sample{}, format {}) "
+      "at {}",
       rect.left, rect.top, rect.right, rect.bottom, surface_index,
       surface_pitch, 1 << uint32_t(rb_surface_info.msaa_samples),
       rb_surface_info.msaa_samples != MsaaSamples::k1X ? "s" : "",
@@ -1340,8 +1340,8 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
   bool dest_swap = !is_depth && rb_copy_dest_info.copy_dest_swap;
 
   XELOGGPU(
-      "Resolve: Copying samples %u to 0x%.8X (%ux%u, %cD), destination Z %u, "
-      "destination format %s, exponent bias %d, red and blue %sswapped",
+      "Resolve: Copying samples {} to {:#08X} ({}x{}, {}D), destination Z {}, "
+      "destination format {}, exponent bias {}, red and blue {}swapped",
       uint32_t(sample_select), dest_address, dest_pitch, dest_height,
       rb_copy_dest_info.copy_dest_array ? '3' : '2', dest_z,
       dest_format_info->name, dest_exp_bias, dest_swap ? "" : "not ");
@@ -1532,7 +1532,7 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
         texture_cache->GetResolveDXGIFormat(dest_format);
     if (dest_dxgi_format == DXGI_FORMAT_UNKNOWN) {
       XELOGE(
-          "No resolve pipeline for destination format %s - tell Xenia "
+          "No resolve pipeline for destination format {} - tell Xenia "
           "developers!",
           FormatInfo::Get(dest_format)->name);
       return false;
@@ -1864,7 +1864,7 @@ bool RenderTargetCache::ResolveClear(uint32_t edram_base,
     }
   }
 
-  XELOGGPU("Resolve: Clearing the %s render target",
+  XELOGGPU("Resolve: Clearing the {} render target",
            is_depth ? "depth" : "color");
 
   // Calculate the layout.
@@ -1980,7 +1980,7 @@ ID3D12PipelineState* RenderTargetCache::GetResolvePipeline(
   ID3D12PipelineState* pipeline;
   if (FAILED(device->CreateGraphicsPipelineState(&pipeline_desc,
                                                  IID_PPV_ARGS(&pipeline)))) {
-    XELOGE("Failed to create the resolve pipeline for DXGI format %u",
+    XELOGE("Failed to create the resolve pipeline for DXGI format {}",
            dest_format);
     return nullptr;
   }
@@ -2063,8 +2063,8 @@ RenderTargetCache::ResolveTarget* RenderTargetCache::FindOrCreateResolveTarget(
   if (heap_page_count == 0 || heap_page_count > kHeap4MBPages) {
     assert_always();
     XELOGE(
-        "%ux%u resolve target with DXGI format %u can't fit in a heap, "
-        "needs %u bytes - tell Xenia developers to increase the heap size!",
+        "{}x{} resolve target with DXGI format {} can't fit in a heap, "
+        "needs {} bytes - tell Xenia developers to increase the heap size!",
         uint32_t(resource_desc.Width), resource_desc.Height, format,
         uint32_t(allocation_info.SizeInBytes));
     return nullptr;
@@ -2090,8 +2090,8 @@ RenderTargetCache::ResolveTarget* RenderTargetCache::FindOrCreateResolveTarget(
           heaps_[heap_index], (min_heap_page_first % kHeap4MBPages) << 22,
           &resource_desc, state, nullptr, IID_PPV_ARGS(&resource)))) {
     XELOGE(
-        "Failed to create a placed resource for %ux%u resolve target with DXGI "
-        "format %u at heap 4 MB pages %u:%u",
+        "Failed to create a placed resource for {}x{} resolve target with DXGI "
+        "format {} at heap 4 MB pages {}:{}",
         uint32_t(resource_desc.Width), resource_desc.Height, format,
         min_heap_page_first, min_heap_page_first + heap_page_count - 1);
     return nullptr;
@@ -2101,8 +2101,8 @@ RenderTargetCache::ResolveTarget* RenderTargetCache::FindOrCreateResolveTarget(
           &ui::d3d12::util::kHeapPropertiesDefault, D3D12_HEAP_FLAG_NONE,
           &resource_desc, state, nullptr, IID_PPV_ARGS(&resource)))) {
     XELOGE(
-        "Failed to create a committed resource for %ux%u resolve target with "
-        "DXGI format %u",
+        "Failed to create a committed resource for {}x{} resolve target with "
+        "DXGI format {}",
         uint32_t(resource_desc.Width), resource_desc.Height, format);
     return nullptr;
   }
@@ -2397,7 +2397,7 @@ bool RenderTargetCache::MakeHeapResident(uint32_t heap_index) {
   heap_desc.Flags = D3D12_HEAP_FLAG_ALLOW_ONLY_RT_DS_TEXTURES;
   if (FAILED(
           device->CreateHeap(&heap_desc, IID_PPV_ARGS(&heaps_[heap_index])))) {
-    XELOGE("Failed to create a %u MB heap for render targets",
+    XELOGE("Failed to create a {} MB heap for render targets",
            kHeap4MBPages * 4);
     return false;
   }
@@ -2422,7 +2422,7 @@ bool RenderTargetCache::EnsureRTVHeapAvailable(bool is_depth) {
   ID3D12DescriptorHeap* new_d3d_heap;
   if (FAILED(device->CreateDescriptorHeap(&heap_desc,
                                           IID_PPV_ARGS(&new_d3d_heap)))) {
-    XELOGE("Failed to create a heap for %u %s buffer descriptors",
+    XELOGE("Failed to create a heap for {} {} buffer descriptors",
            kRenderTargetDescriptorHeapSize, is_depth ? "depth" : "color");
     return false;
   }
@@ -2530,8 +2530,8 @@ RenderTargetCache::RenderTarget* RenderTargetCache::FindOrCreateRenderTarget(
           heaps_[heap_index], (heap_page_first % kHeap4MBPages) << 22,
           &resource_desc, state, nullptr, IID_PPV_ARGS(&resource)))) {
     XELOGE(
-        "Failed to create a placed resource for %ux%u %s render target with "
-        "format %u at heap 4 MB pages %u:%u",
+        "Failed to create a placed resource for {}x{} {} render target with "
+        "format {} at heap 4 MB pages {}:{}",
         uint32_t(resource_desc.Width), resource_desc.Height,
         key.is_depth ? "depth" : "color", key.format, heap_page_first,
         heap_page_first + heap_page_count - 1);
@@ -2542,8 +2542,8 @@ RenderTargetCache::RenderTarget* RenderTargetCache::FindOrCreateRenderTarget(
           &ui::d3d12::util::kHeapPropertiesDefault, D3D12_HEAP_FLAG_NONE,
           &resource_desc, state, nullptr, IID_PPV_ARGS(&resource)))) {
     XELOGE(
-        "Failed to create a committed resource for %ux%u %s render target with "
-        "format %u",
+        "Failed to create a committed resource for {}x{} {} render target with "
+        "format {}",
         uint32_t(resource_desc.Width), resource_desc.Height,
         key.is_depth ? "depth" : "color", key.format);
     return nullptr;
@@ -2598,12 +2598,12 @@ RenderTargetCache::RenderTarget* RenderTargetCache::FindOrCreateRenderTarget(
                     render_targets_.size());
 #if 0
   XELOGGPU(
-      "Created %ux%u %s render target with format %u at heap 4 MB pages %u:%u",
+      "Created {}x{} {} render target with format {} at heap 4 MB pages {}:{}",
       uint32_t(resource_desc.Width), resource_desc.Height,
       key.is_depth ? "depth" : "color", key.format, heap_page_first,
       heap_page_first + heap_page_count - 1);
 #else
-  XELOGGPU("Created %ux%u %s render target with format %u",
+  XELOGGPU("Created {}x{} {} render target with format {}",
            uint32_t(resource_desc.Width), resource_desc.Height,
            key.is_depth ? "depth" : "color", key.format);
 #endif

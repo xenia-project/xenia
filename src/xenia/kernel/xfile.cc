@@ -226,7 +226,8 @@ void XFile::RemoveIOCompletionPort(uint32_t key) {
 }
 
 bool XFile::Save(ByteStream* stream) {
-  XELOGD("XFile %.8X (%s)", handle(), file_->entry()->absolute_path().c_str());
+  XELOGD("XFile {:08X} ({})", handle(),
+         file_->entry()->absolute_path().c_str());
 
   if (!SaveObject(stream)) {
     return false;
@@ -257,7 +258,7 @@ object_ref<XFile> XFile::Restore(KernelState* kernel_state,
   auto is_directory = stream->Read<bool>();
   auto is_synchronous = stream->Read<bool>();
 
-  XELOGD("XFile %.8X (%s)", file->handle(), abs_path.c_str());
+  XELOGD("XFile {:08X} ({})", file->handle(), abs_path);
 
   vfs::File* vfs_file = nullptr;
   vfs::FileAction action;
@@ -265,7 +266,7 @@ object_ref<XFile> XFile::Restore(KernelState* kernel_state,
       abs_path, vfs::FileDisposition::kOpen, access, is_directory, &vfs_file,
       &action);
   if (XFAILED(res)) {
-    XELOGE("Failed to open XFile: error %.8X", res);
+    XELOGE("Failed to open XFile: error {:08X}", res);
     return object_ref<XFile>(file);
   }
 

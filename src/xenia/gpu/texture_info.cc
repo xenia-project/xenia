@@ -79,7 +79,7 @@ bool TextureInfo::Prepare(const xe_gpu_texture_fetch_t& fetch,
   info.has_packed_mips = fetch.packed_mips;
 
   if (info.format_info()->format == TextureFormat::kUnknown) {
-    XELOGE("Attempting to fetch from unsupported texture format %d",
+    XELOGE("Attempting to fetch from unsupported texture format {}",
            info.format);
     info.memory.base_address = fetch.base_address << 12;
     info.memory.mip_address = fetch.mip_address << 12;

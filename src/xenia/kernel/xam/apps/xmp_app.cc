@@ -35,7 +35,7 @@ X_RESULT XmpApp::XMPGetStatus(uint32_t state_ptr) {
   // here to keep from starving real threads.
   xe::threading::Sleep(std::chrono::milliseconds(1));
 
-  XELOGD("XMPGetStatus(%.8X)", state_ptr);
+  XELOGD("XMPGetStatus({:08X})", state_ptr);
   xe::store_and_swap<uint32_t>(memory_->TranslateVirtual(state_ptr),
                                static_cast<uint32_t>(state_));
   return X_ERROR_SUCCESS;
@@ -47,10 +47,11 @@ X_RESULT XmpApp::XMPCreateTitlePlaylist(uint32_t songs_ptr, uint32_t song_count,
                                         uint32_t flags,
                                         uint32_t out_song_handles,
                                         uint32_t out_playlist_handle) {
-  XELOGD("XMPCreateTitlePlaylist(%.8X, %.8X, %.8X(%s), %.8X, %.8X, %.8X)",
-         songs_ptr, song_count, playlist_name_ptr,
-         xe::to_utf8(playlist_name).c_str(), flags, out_song_handles,
-         out_playlist_handle);
+  XELOGD(
+      "XMPCreateTitlePlaylist({:08X}, {:08X}, {:08X}({}), {:08X}, {:08X}, "
+      "{:08X})",
+      songs_ptr, song_count, playlist_name_ptr, xe::to_utf8(playlist_name),
+      flags, out_song_handles, out_playlist_handle);
   auto playlist = std::make_unique<Playlist>();
   playlist->handle = ++next_playlist_handle_;
   playlist->name = playlist_name;
@@ -99,7 +100,7 @@ X_RESULT XmpApp::XMPCreateTitlePlaylist(uint32_t songs_ptr, uint32_t song_count,
 }
 
 X_RESULT XmpApp::XMPDeleteTitlePlaylist(uint32_t playlist_handle) {
-  XELOGD("XMPDeleteTitlePlaylist(%.8X)", playlist_handle);
+  XELOGD("XMPDeleteTitlePlaylist({:08X})", playlist_handle);
   auto global_lock = global_critical_region_.Acquire();
   auto it = playlists_.find(playlist_handle);
   if (it == playlists_.end()) {
@@ -117,13 +118,13 @@ X_RESULT XmpApp::XMPDeleteTitlePlaylist(uint32_t playlist_handle) {
 
 X_RESULT XmpApp::XMPPlayTitlePlaylist(uint32_t playlist_handle,
                                       uint32_t song_handle) {
-  XELOGD("XMPPlayTitlePlaylist(%.8X, %.8X)", playlist_handle, song_handle);
+  XELOGD("XMPPlayTitlePlaylist({:08X}, {:08X})", playlist_handle, song_handle);
   Playlist* playlist = nullptr;
   {
     auto global_lock = global_critical_region_.Acquire();
     auto it = playlists_.find(playlist_handle);
     if (it == playlists_.end()) {
-      XELOGE("Playlist %.8X not found", playlist_handle);
+      XELOGE("Playlist {:08X} not found", playlist_handle);
       return X_ERROR_NOT_FOUND;
     }
     playlist = it->second;
@@ -156,7 +157,7 @@ X_RESULT XmpApp::XMPContinue() {
 
 X_RESULT XmpApp::XMPStop(uint32_t unk) {
   assert_zero(unk);
-  XELOGD("XMPStop(%.8X)", unk);
+  XELOGD("XMPStop({:08X})", unk);
   active_playlist_ = nullptr;  // ?
   active_song_index_ = 0;
   state_ = State::kIdle;
@@ -258,7 +259,7 @@ X_RESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       uint32_t repeat_mode = xe::load_and_swap<uint32_t>(buffer + 8);
       uint32_t flags = xe::load_and_swap<uint32_t>(buffer + 12);
       assert_true(xmp_client == 0x00000002);
-      XELOGD("XMPSetPlaybackBehavior(%.8X, %.8X, %.8X)", playback_mode,
+      XELOGD("XMPSetPlaybackBehavior({:08X}, {:08X}, {:08X})", playback_mode,
              repeat_mode, flags);
       playback_mode_ = static_cast<PlaybackMode>(playback_mode);
       repeat_mode_ = static_cast<RepeatMode>(repeat_mode);
@@ -282,7 +283,7 @@ X_RESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       }* args = memory_->TranslateVirtual<decltype(args)>(buffer_ptr);
 
       assert_true(args->xmp_client == 0x00000002);
-      XELOGD("XMPGetVolume(%.8X)", uint32_t(args->volume_ptr));
+      XELOGD("XMPGetVolume({:08X})", uint32_t(args->volume_ptr));
       xe::store_and_swap<float>(memory_->TranslateVirtual(args->volume_ptr),
                                 volume_);
       return X_ERROR_SUCCESS;
@@ -292,7 +293,7 @@ X_RESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       uint32_t xmp_client = xe::load_and_swap<uint32_t>(buffer + 0);
       float float_value = xe::load_and_swap<float>(buffer + 4);
       assert_true(xmp_client == 0x00000002);
-      XELOGD("XMPSetVolume(%g)", float_value);
+      XELOGD("XMPSetVolume({})", float_value);
       volume_ = float_value;
       return X_ERROR_SUCCESS;
     }
@@ -332,7 +333,7 @@ X_RESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       auto info = memory_->TranslateVirtual(info_ptr);
       assert_true(xmp_client == 0x00000002);
       assert_zero(unk_ptr);
-      XELOGE("XMPGetInfo?(%.8X, %.8X)", unk_ptr, info_ptr);
+      XELOGE("XMPGetInfo?({:08X}, {:08X})", unk_ptr, info_ptr);
       if (!active_playlist_) {
         return X_STATUS_UNSUCCESSFUL;
       }
@@ -370,8 +371,8 @@ X_RESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
 
       assert_true(args->xmp_client == 0x00000002);
       assert_true(args->controller == 0x00000000);
-      XELOGD("XMPSetPlaybackController(%.8X, %.8X)", uint32_t(args->controller),
-             uint32_t(args->locked));
+      XELOGD("XMPSetPlaybackController({:08X}, {:08X})",
+             uint32_t(args->controller), uint32_t(args->locked));
 
       disabled_ = args->locked;
       if (disabled_) {
@@ -390,7 +391,7 @@ X_RESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       }* args = memory_->TranslateVirtual<decltype(args)>(buffer_ptr);
 
       assert_true(args->xmp_client == 0x00000002);
-      XELOGD("XMPGetPlaybackController(%.8X, %.8X, %.8X)",
+      XELOGD("XMPGetPlaybackController({:08X}, {:08X}, {:08X})",
              uint32_t(args->xmp_client), uint32_t(args->controller_ptr),
              uint32_t(args->locked_ptr));
       xe::store_and_swap<uint32_t>(
@@ -410,8 +411,8 @@ X_RESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       uint32_t repeat_mode_ptr = xe::load_and_swap<uint32_t>(buffer + 8);
       uint32_t unk3_ptr = xe::load_and_swap<uint32_t>(buffer + 12);
       assert_true(xmp_client == 0x00000002);
-      XELOGD("XMPGetPlaybackBehavior(%.8X, %.8X, %.8X)", playback_mode_ptr,
-             repeat_mode_ptr, unk3_ptr);
+      XELOGD("XMPGetPlaybackBehavior({:08X}, {:08X}, {:08X})",
+             playback_mode_ptr, repeat_mode_ptr, unk3_ptr);
       if (playback_mode_ptr) {
         xe::store_and_swap<uint32_t>(
             memory_->TranslateVirtual(playback_mode_ptr),
@@ -447,8 +448,10 @@ X_RESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       return X_STATUS_UNSUCCESSFUL;
     }
   }
-  XELOGE("Unimplemented XMP message app=%.8X, msg=%.8X, arg1=%.8X, arg2=%.8X",
-         app_id(), message, buffer_ptr, buffer_length);
+  XELOGE(
+      "Unimplemented XMP message app={:08X}, msg={:08X}, arg1={:08X}, "
+      "arg2={:08X}",
+      app_id(), message, buffer_ptr, buffer_length);
   return X_STATUS_UNSUCCESSFUL;
 }
 

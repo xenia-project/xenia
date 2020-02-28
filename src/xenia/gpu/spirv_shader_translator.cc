@@ -674,7 +674,7 @@ void SpirvShaderTranslator::PostTranslation(Shader* shader) {
         reinterpret_cast<const uint32_t*>(shader->translated_binary().data()),
         shader->translated_binary().size() / sizeof(uint32_t));
     if (validation->has_error()) {
-      XELOGE("SPIR-V Shader Validation failed! Error: %s",
+      XELOGE("SPIR-V Shader Validation failed! Error: {}",
              validation->error_string());
     }
   }

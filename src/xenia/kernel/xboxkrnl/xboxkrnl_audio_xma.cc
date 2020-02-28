@@ -130,7 +130,7 @@ dword_result_t XMAInitializeContext(lpvoid_t context_ptr,
     assert_true(input_buffer_0_physical_address != UINT32_MAX);
     if (input_buffer_0_physical_address == UINT32_MAX) {
       XELOGE(
-          "XMAInitializeContext: Invalid input buffer 0 virtual address %.8X",
+          "XMAInitializeContext: Invalid input buffer 0 virtual address {:08X}",
           input_buffer_0_guest_ptr);
       return X_E_FALSE;
     }
@@ -143,7 +143,7 @@ dword_result_t XMAInitializeContext(lpvoid_t context_ptr,
     assert_true(input_buffer_1_physical_address != UINT32_MAX);
     if (input_buffer_1_physical_address == UINT32_MAX) {
       XELOGE(
-          "XMAInitializeContext: Invalid input buffer 1 virtual address %.8X",
+          "XMAInitializeContext: Invalid input buffer 1 virtual address {:08X}",
           input_buffer_1_guest_ptr);
       return X_E_FALSE;
     }
@@ -154,7 +154,7 @@ dword_result_t XMAInitializeContext(lpvoid_t context_ptr,
       kernel_memory()->GetPhysicalAddress(output_buffer_guest_ptr);
   assert_true(output_buffer_physical_address != UINT32_MAX);
   if (output_buffer_physical_address == UINT32_MAX) {
-    XELOGE("XMAInitializeContext: Invalid output buffer virtual address %.8X",
+    XELOGE("XMAInitializeContext: Invalid output buffer virtual address {:08X}",
            output_buffer_guest_ptr);
     return X_E_FALSE;
   }
@@ -234,7 +234,7 @@ dword_result_t XMASetInputBuffer0(lpvoid_t context_ptr, lpvoid_t buffer,
   assert_true(buffer_physical_address != UINT32_MAX);
   if (buffer_physical_address == UINT32_MAX) {
     // Xenia-specific safety check.
-    XELOGE("XMASetInputBuffer0: Invalid buffer virtual address %.8X",
+    XELOGE("XMASetInputBuffer0: Invalid buffer virtual address {:08X}",
            buffer.guest_address());
     return X_E_FALSE;
   }
@@ -275,7 +275,7 @@ dword_result_t XMASetInputBuffer1(lpvoid_t context_ptr, lpvoid_t buffer,
   assert_true(buffer_physical_address != UINT32_MAX);
   if (buffer_physical_address == UINT32_MAX) {
     // Xenia-specific safety check.
-    XELOGE("XMASetInputBuffer1: Invalid buffer virtual address %.8X",
+    XELOGE("XMASetInputBuffer1: Invalid buffer virtual address {:08X}",
            buffer.guest_address());
     return X_E_FALSE;
   }

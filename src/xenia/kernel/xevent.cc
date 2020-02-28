@@ -72,7 +72,7 @@ int32_t XEvent::Reset() {
 void XEvent::Clear() { event_->Reset(); }
 
 bool XEvent::Save(ByteStream* stream) {
-  XELOGD("XEvent %.8X (%s)", handle(), manual_reset_ ? "manual" : "auto");
+  XELOGD("XEvent {:08X} ({})", handle(), manual_reset_ ? "manual" : "auto");
   SaveObject(stream);
 
   bool signaled = true;

@@ -340,7 +340,7 @@ X_STATUS XThread::Create() {
   // This is thread safe.
   thread_state_ = new cpu::ThreadState(kernel_state()->processor(), thread_id_,
                                        stack_base_, pcr_address_);
-  XELOGI("XThread%08X (%X) Stack: %.8X-%.8X", handle(), thread_id_,
+  XELOGI("XThread{:08X} ({:X}) Stack: {:08X}-{:08X}", handle(), thread_id_,
          stack_limit_, stack_base_);
 
   // Exports use this to get the kernel.
@@ -493,8 +493,8 @@ X_STATUS XThread::Terminate(int exit_code) {
 }
 
 void XThread::Execute() {
-  XELOGKERNEL("XThread::Execute thid %d (handle=%.8X, '%s', native=%.8X)",
-              thread_id_, handle(), thread_name_.c_str(), thread_->system_id());
+  XELOGKERNEL("XThread::Execute thid {} (handle={:08X}, '{}', native={:08X})",
+              thread_id_, handle(), thread_name_, thread_->system_id());
 
   // Let the kernel know we are starting.
   kernel_state()->OnThreadExecute(this);
@@ -593,7 +593,7 @@ void XThread::DeliverAPCs() {
     auto apc = reinterpret_cast<XAPC*>(memory()->TranslateVirtual(apc_ptr));
     bool needs_freeing = apc->kernel_routine == XAPC::kDummyKernelRoutine;
 
-    XELOGD("Delivering APC to %.8X", uint32_t(apc->normal_routine));
+    XELOGD("Delivering APC to {:08X}", uint32_t(apc->normal_routine));
 
     // Mark as uninserted so that it can be reinserted again by the routine.
     apc->enqueued = 0;
@@ -636,7 +636,7 @@ void XThread::DeliverAPCs() {
       LockApc();
     }
 
-    XELOGD("Completed delivery of APC to %.8X (%.8X, %.8X, %.8X)",
+    XELOGD("Completed delivery of APC to {:08X} ({:08X}, {:08X}, {:08X})",
            normal_routine, normal_context, arg1, arg2);
 
     // If special, free it.
@@ -852,13 +852,13 @@ bool XThread::Save(ByteStream* stream) {
     return false;
   }
 
-  XELOGD("XThread %.8X serializing...", handle());
+  XELOGD("XThread {:08X} serializing...", handle());
 
   uint32_t pc = 0;
   if (running_) {
     pc = emulator()->processor()->StepToGuestSafePoint(thread_id_);
     if (!pc) {
-      XELOGE("XThread %.8X failed to save: could not step to a safe point!",
+      XELOGE("XThread {:08X} failed to save: could not step to a safe point!",
              handle());
       assert_always();
       return false;
@@ -930,7 +930,7 @@ object_ref<XThread> XThread::Restore(KernelState* kernel_state,
     return nullptr;
   }
 
-  XELOGD("XThread %.8X", thread->handle());
+  XELOGD("XThread {:08X}", thread->handle());
 
   thread->thread_name_ = stream->Read<std::string>();
 
@@ -1041,8 +1041,8 @@ XHostThread::XHostThread(KernelState* kernel_state, uint32_t stack_size,
 
 void XHostThread::Execute() {
   XELOGKERNEL(
-      "XThread::Execute thid %d (handle=%.8X, '%s', native=%.8X, <host>)",
-      thread_id_, handle(), thread_name_.c_str(), thread_->system_id());
+      "XThread::Execute thid {} (handle={:08X}, '{}', native={:08X}, <host>)",
+      thread_id_, handle(), thread_name_, thread_->system_id());
 
   // Let the kernel know we are starting.
   kernel_state()->OnThreadExecute(this);

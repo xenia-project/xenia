@@ -29,7 +29,7 @@ DEFINE_transient_path(dump_path, "",
 
 int vfs_dump_main(const std::vector<std::string>& args) {
   if (cvars::source.empty() || cvars::dump_path.empty()) {
-    XELOGE("Usage: %s [source] [dump_path]", xe::path_to_utf8(args[0]).c_str());
+    XELOGE("Usage: {} [source] [dump_path]", xe::path_to_utf8(args[0]));
     return 1;
   }
 
@@ -59,7 +59,7 @@ int vfs_dump_main(const std::vector<std::string>& args) {
       queue.push(entry.get());
     }
 
-    XELOGI("%s", entry->path().c_str());
+    XELOGI("{}", entry->path());
     auto dest_name = base_path / xe::to_path(entry->path());
     if (entry->attributes() & kFileAttributeDirectory) {
       xe::filesystem::CreateFolder(dest_name);

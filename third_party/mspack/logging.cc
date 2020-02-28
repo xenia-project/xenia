@@ -8,5 +8,5 @@ extern "C" void xenia_log(const char* fmt, ...) {
   va_start(args, fmt);
   vsnprintf(buffer, sizeof(buffer), fmt, args);
   va_end(args);
-  XELOGW("mspack: %s", buffer);
+  XELOGW("mspack: {}", buffer);
 }

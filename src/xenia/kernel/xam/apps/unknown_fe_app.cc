@@ -36,15 +36,15 @@ X_RESULT UnknownFEApp::DispatchMessageSync(uint32_t message,
       assert_true(buffer_length == sizeof(message_data));
       auto unk = memory_->TranslateVirtual<xe::be<uint32_t>*>(data->unk_44);
       *unk = 0;
-      XELOGD("UnknownFEApp(0x00020021)('%s', %.8X, %.8X, %.8X)", data->unk_00,
-             (uint32_t)data->unk_40, (uint32_t)data->unk_44,
+      XELOGD("UnknownFEApp(0x00020021)('{}', {:08X}, {:08X}, {:08X})",
+             data->unk_00, (uint32_t)data->unk_40, (uint32_t)data->unk_44,
              (uint32_t)data->unk_48);
       return X_ERROR_SUCCESS;
     }
   }
   XELOGE(
-      "Unimplemented 0xFE message app=%.8X, msg=%.8X, arg1=%.8X, "
-      "arg2=%.8X",
+      "Unimplemented 0xFE message app={:08X}, msg={:08X}, arg1={:08X}, "
+      "arg2={:08X}",
       app_id(), message, buffer_ptr, buffer_length);
   return X_STATUS_UNSUCCESSFUL;
 }

@@ -19,16 +19,9 @@ bool IsDebuggerAttached() { return IsDebuggerPresent() ? true : false; }
 
 void Break() { __debugbreak(); }
 
-void DebugPrint(const char* fmt, ...) {
-  StringBuffer buff;
-
-  va_list va;
-  va_start(va, fmt);
-  buff.AppendVarargs(fmt, va);
-  va_end(va);
-
-  OutputDebugStringA(buff.GetString());
-}
+namespace internal {
+void DebugPrint(const char* s) { OutputDebugStringA(s); }
+}  // namespace internal
 
 }  // namespace debugging
 }  // namespace xe

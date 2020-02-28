@@ -61,13 +61,13 @@ class TestSuite {
 
   bool Load() {
     if (!ReadMap()) {
-      XELOGE("Unable to read map for test %s",
-             xe::path_to_utf8(src_file_path_).c_str());
+      XELOGE("Unable to read map for test {}",
+             xe::path_to_utf8(src_file_path_));
       return false;
     }
     if (!ReadAnnotations()) {
-      XELOGE("Unable to read annotations for test %s",
-             xe::path_to_utf8(src_file_path_).c_str());
+      XELOGE("Unable to read annotations for test {}",
+             xe::path_to_utf8(src_file_path_));
       return false;
     }
     return true;
@@ -144,8 +144,8 @@ class TestSuite {
         std::string label(start + strlen("test_"), strchr(start, ':'));
         current_test_case = FindTestCase(label);
         if (!current_test_case) {
-          XELOGE("Test case %s not found in corresponding map for %s",
-                 label.c_str(), xe::path_to_utf8(src_file_path_).c_str());
+          XELOGE("Test case {} not found in corresponding map for {}", label,
+                 xe::path_to_utf8(src_file_path_));
           return false;
         }
       } else if (strlen(start) > 3 && start[0] == '#' && start[1] == '_') {
@@ -160,8 +160,8 @@ class TestSuite {
             value.erase(value.end() - 1);
           }
           if (!current_test_case) {
-            XELOGE("Annotation outside of test case in %s",
-                   xe::path_to_utf8(src_file_path_).c_str());
+            XELOGE("Annotation outside of test case in {}",
+                   xe::path_to_utf8(src_file_path_));
             return false;
           }
           current_test_case->annotations.emplace_back(key, value);
@@ -214,8 +214,8 @@ class TestRunner {
     // Load the binary module.
     auto module = std::make_unique<xe::cpu::RawModule>(processor_.get());
     if (!module->LoadFile(START_ADDRESS, suite.bin_file_path())) {
-      XELOGE("Unable to load test binary %s",
-             xe::path_to_utf8(suite.bin_file_path).c_str());
+      XELOGE("Unable to load test binary {}",
+             xe::path_to_utf8(suite.bin_file_path()));
       return false;
     }
     processor_->AddModule(std::move(module));
@@ -313,9 +313,9 @@ class TestRunner {
         if (!ppc_context->CompareRegWithString(
                 reg_name.c_str(), reg_value.c_str(), actual_value)) {
           any_failed = true;
-          XELOGE("Register %s assert failed:\n", reg_name.c_str());
-          XELOGE("  Expected: %s == %s\n", reg_name.c_str(), reg_value.c_str());
-          XELOGE("    Actual: %s == %s\n", reg_name.c_str(), actual_value);
+          XELOGE("Register {} assert failed:\n", reg_name);
+          XELOGE("  Expected: {} == {}\n", reg_name, reg_value);
+          XELOGE("    Actual: {} == {}\n", reg_name, actual_value);
         }
       } else if (it.first == "MEMORY_OUT") {
         size_t space_pos = it.second.find(" ");
@@ -338,9 +338,9 @@ class TestRunner {
           uint8_t actual = *p;
           if (expected != actual) {
             any_failed = true;
-            XELOGE("Memory %s assert failed:\n", address_str.c_str());
-            XELOGE("  Expected: %.8X %.2X\n", current_address, expected);
-            XELOGE("    Actual: %.8X %.2X\n", current_address, actual);
+            XELOGE("Memory {} assert failed:\n", address_str);
+            XELOGE("  Expected: {:08X} {:02X}\n", current_address, expected);
+            XELOGE("    Actual: {:08X} {:02X}\n", current_address, actual);
           }
           ++p;
         }
@@ -418,7 +418,7 @@ bool RunTests(const std::string_view test_name) {
     XELOGE("No tests discovered - invalid path?");
     return false;
   }
-  XELOGI("%d tests discovered.", (int)test_files.size());
+  XELOGI("{} tests discovered.", test_files.size());
   XELOGI("");
 
   std::vector<TestSuite> test_suites;
@@ -429,8 +429,7 @@ bool RunTests(const std::string_view test_name) {
       continue;
     }
     if (!test_suite.Load()) {
-      XELOGE("TEST SUITE %s FAILED TO LOAD",
-             xe::path_to_utf8(test_path).c_str());
+      XELOGE("TEST SUITE {} FAILED TO LOAD", xe::path_to_utf8(test_path));
       load_failed = true;
       continue;
     }
@@ -440,13 +439,13 @@ bool RunTests(const std::string_view test_name) {
     XELOGE("One or more test suites failed to load.");
   }
 
-  XELOGI("%d tests loaded.", (int)test_suites.size());
+  XELOGI("{} tests loaded.", test_suites.size());
   TestRunner runner;
   for (auto& test_suite : test_suites) {
-    XELOGI("%s.s:", xe::path_to_utf8(test_suite.name()).c_str());
+    XELOGI("{}.s:", test_suite.name());
 
     for (auto& test_case : test_suite.test_cases()) {
-      XELOGI("  - %s", test_case.name.c_str());
+      XELOGI("  - {}", test_case.name);
       ProtectedRunTest(test_suite, runner, test_case, failed_count,
                        passed_count);
     }
@@ -455,9 +454,9 @@ bool RunTests(const std::string_view test_name) {
   }
 
   XELOGI("");
-  XELOGI("Total tests: %d", failed_count + passed_count);
-  XELOGI("Passed: %d", passed_count);
-  XELOGI("Failed: %d", failed_count);
+  XELOGI("Total tests: {}", failed_count + passed_count);
+  XELOGI("Passed: {}", passed_count);
+  XELOGI("Failed: {}", failed_count);
 
   return failed_count ? false : true;
 }

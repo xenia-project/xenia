@@ -294,7 +294,7 @@ void EmulatorWindow::FileDrop(const std::filesystem::path& filename) {
   auto result = emulator_->LaunchPath(filename);
   if (XFAILED(result)) {
     // TODO: Display a message box.
-    XELOGE("Failed to launch target: %.8X", result);
+    XELOGE("Failed to launch target: {:08X}", result);
   }
 }
 
@@ -326,7 +326,7 @@ void EmulatorWindow::FileOpen() {
     auto result = emulator_->LaunchPath(abs_path);
     if (XFAILED(result)) {
       // TODO: Display a message box.
-      XELOGE("Failed to launch target: %.8X", result);
+      XELOGE("Failed to launch target: {:08X}", result);
     }
   }
 }

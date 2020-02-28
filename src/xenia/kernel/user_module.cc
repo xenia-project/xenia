@@ -55,7 +55,7 @@ X_STATUS UserModule::LoadFromFile(const std::string_view path) {
   // TODO(benvanik): make this code shared?
   auto fs_entry = kernel_state()->file_system()->ResolvePath(path);
   if (!fs_entry) {
-    XELOGE("File not found: %s", path.c_str());
+    XELOGE("File not found: {}", path);
     return X_STATUS_NO_SUCH_FILE;
   }
 
@@ -109,17 +109,17 @@ X_STATUS UserModule::LoadFromFile(const std::string_view path) {
     if (patch_entry) {
       auto patch_path = patch_entry->absolute_path();
 
-      XELOGI("Loading XEX patch from %s", patch_path.c_str());
+      XELOGI("Loading XEX patch from {}", patch_path);
 
       auto patch_module = object_ref<UserModule>(new UserModule(kernel_state_));
       result = patch_module->LoadFromFile(patch_path);
       if (!result) {
         result = patch_module->xex_module()->ApplyPatch(xex_module());
         if (result) {
-          XELOGE("Failed to apply XEX patch, code: %d", result);
+          XELOGE("Failed to apply XEX patch, code: {}", result);
         }
       } else {
-        XELOGE("Failed to load XEX patch, code: %d", result);
+        XELOGE("Failed to load XEX patch, code: {}", result);
       }
 
       if (result) {
@@ -145,7 +145,7 @@ X_STATUS UserModule::LoadFromMemory(const void* addr, const size_t length) {
       XELOGE("XNA executables are not yet implemented");
       return X_STATUS_NOT_IMPLEMENTED;
     } else {
-      XELOGE("Unknown module magic: %.8X", magic);
+      XELOGE("Unknown module magic: {:08X}", magic);
       return X_STATUS_NOT_IMPLEMENTED;
     }
   }
@@ -376,8 +376,8 @@ object_ref<UserModule> UserModule::Restore(KernelState* kernel_state,
 
   auto result = module->LoadFromFile(path);
   if (XFAILED(result)) {
-    XELOGD("UserModule::Restore LoadFromFile(%s) FAILED - code %.8X",
-           path.c_str(), result);
+    XELOGD("UserModule::Restore LoadFromFile({}) FAILED - code {:08X}", path,
+           result);
     return nullptr;
   }
 
@@ -801,7 +801,7 @@ void UserModule::Dump() {
     sb.Append("\n");
   }
 
-  xe::LogLine(xe::LogLevel::Info, 'i', sb.to_string_view());
+  xe::logging::AppendLogLine(xe::LogLevel::Info, 'i', sb.to_string_view());
 }
 
 }  // namespace kernel

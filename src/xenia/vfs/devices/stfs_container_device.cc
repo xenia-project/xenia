@@ -62,21 +62,21 @@ StfsContainerDevice::~StfsContainerDevice() = default;
 bool StfsContainerDevice::Initialize() {
   // Resolve a valid STFS file if a directory is given.
   if (filesystem::IsFolder(host_path_) && !ResolveFromFolder(host_path_)) {
-    XELOGE("Could not resolve an STFS container given path %s",
-           xe::path_to_utf8(host_path_).c_str());
+    XELOGE("Could not resolve an STFS container given path {}",
+           xe::path_to_utf8(host_path_));
     return false;
   }
 
   if (!filesystem::PathExists(host_path_)) {
-    XELOGE("Path to STFS container does not exist: %s",
-           xe::path_to_utf8(host_path_).c_str());
+    XELOGE("Path to STFS container does not exist: {}",
+           xe::path_to_utf8(host_path_));
     return false;
   }
 
   // Map the data file(s)
   auto map_result = MapFiles();
   if (map_result != Error::kSuccess) {
-    XELOGE("Failed to map STFS container: %d", map_result);
+    XELOGE("Failed to map STFS container: {}", map_result);
     return false;
   }
 
@@ -87,14 +87,14 @@ bool StfsContainerDevice::Initialize() {
     case StfsDescriptorType::kSvod:
       return ReadSVOD() == Error::kSuccess;
     default:
-      XELOGE("Unknown STFS Descriptor Type: %d", header_.descriptor_type);
+      XELOGE("Unknown STFS Descriptor Type: {}", header_.descriptor_type);
       return false;
   }
 }
 
 StfsContainerDevice::Error StfsContainerDevice::MapFiles() {
   // Map the file containing the STFS Header and read it.
-  XELOGI("Mapping STFS Header file: %s", xe::path_to_utf8(host_path_).c_str());
+  XELOGI("Mapping STFS Header file: {}", xe::path_to_utf8(host_path_));
   auto header_map = MappedMemory::Open(host_path_, MappedMemory::Mode::kRead);
   if (!header_map) {
     XELOGE("Error mapping STFS Header file.");
@@ -104,7 +104,7 @@ StfsContainerDevice::Error StfsContainerDevice::MapFiles() {
   auto header_result =
       ReadHeaderAndVerify(header_map->data(), header_map->size());
   if (header_result != Error::kSuccess) {
-    XELOGE("Error reading STFS Header: %d", header_result);
+    XELOGE("Error reading STFS Header: {}", header_result);
     return header_result;
   }
 
@@ -121,8 +121,8 @@ StfsContainerDevice::Error StfsContainerDevice::MapFiles() {
   // the files in the .data folder and can discard the header.
   auto data_fragment_path = host_path_ / ".data";
   if (!filesystem::PathExists(data_fragment_path)) {
-    XELOGE("STFS container is multi-file, but path %s does not exist.",
-           xe::path_to_utf8(data_fragment_path).c_str());
+    XELOGE("STFS container is multi-file, but path {} does not exist.",
+           xe::path_to_utf8(data_fragment_path));
     return Error::kErrorFileMismatch;
   }
 
@@ -134,7 +134,7 @@ StfsContainerDevice::Error StfsContainerDevice::MapFiles() {
             });
 
   if (fragment_files.size() != header_.data_file_count) {
-    XELOGE("SVOD expecting %d data fragments, but %d are present.",
+    XELOGE("SVOD expecting {} data fragments, but {} are present.",
            header_.data_file_count, fragment_files.size());
     return Error::kErrorFileMismatch;
   }
@@ -144,13 +144,13 @@ StfsContainerDevice::Error StfsContainerDevice::MapFiles() {
     auto path = file.path / file.name;
     auto data = MappedMemory::Open(path, MappedMemory::Mode::kRead);
     if (!data) {
-      XELOGI("Failed to map SVOD file %s.", xe::path_to_utf8(path).c_str());
+      XELOGI("Failed to map SVOD file {}.", xe::path_to_utf8(path));
       mmap_.clear();
       return Error::kErrorReadError;
     }
     mmap_.emplace(std::make_pair(i, std::move(data)));
   }
-  XELOGI("SVOD successfully mapped %d files.", fragment_files.size());
+  XELOGI("SVOD successfully mapped {} files.", fragment_files.size());
   return Error::kSuccess;
 }
 
@@ -164,7 +164,7 @@ Entry* StfsContainerDevice::ResolvePath(const std::string_view path) {
   // be in the form:
   // some\PATH.foo
 
-  XELOGFS("StfsContainerDevice::ResolvePath(%s)", path.c_str());
+  XELOGFS("StfsContainerDevice::ResolvePath({})", path);
 
   // Walk the path, one separator at a time.
   auto entry = root_entry_.get();
@@ -642,7 +642,7 @@ StfsContainerDevice::BlockHash StfsContainerDevice::GetBlockHash(
 bool StfsVolumeDescriptor::Read(const uint8_t* p) {
   descriptor_size = xe::load_and_swap<uint8_t>(p + 0x00);
   if (descriptor_size != 0x24) {
-    XELOGE("STFS volume descriptor size mismatch, expected 0x24 but got 0x%X",
+    XELOGE("STFS volume descriptor size mismatch, expected 0x24 but got {:#X}",
            descriptor_size);
     return false;
   }
@@ -659,7 +659,7 @@ bool StfsVolumeDescriptor::Read(const uint8_t* p) {
 bool SvodVolumeDescriptor::Read(const uint8_t* p) {
   descriptor_size = xe::load<uint8_t>(p + 0x00);
   if (descriptor_size != 0x24) {
-    XELOGE("SVOD volume descriptor size mismatch, expected 0x24 but got 0x%X",
+    XELOGE("SVOD volume descriptor size mismatch, expected 0x24 but got {:#X}",
            descriptor_size);
     return false;
   }
@@ -703,7 +703,7 @@ bool StfsHeader::Read(const uint8_t* p) {
       svod_volume_descriptor.Read(p + 0x379);
       break;
     default:
-      XELOGE("STFS descriptor format not supported: %d", descriptor_type);
+      XELOGE("STFS descriptor format not supported: {}", descriptor_type);
       return false;
   }
   memcpy(device_id, p + 0x3FD, 0x14);
@@ -764,7 +764,7 @@ bool StfsContainerDevice::ResolveFromFolder(const std::filesystem::path& path) {
       if (map && ReadPackageType(map->data(), map->size(), nullptr) ==
                      Error::kSuccess) {
         host_path_ = current_file.path / current_file.name;
-        XELOGI("STFS Package found: %s", xe::path_to_utf8(host_path_).c_str());
+        XELOGI("STFS Package found: {}", xe::path_to_utf8(host_path_));
         return true;
       }
     }

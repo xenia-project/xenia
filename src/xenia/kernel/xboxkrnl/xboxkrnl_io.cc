@@ -375,7 +375,7 @@ dword_result_t NtSetInformationFile(
         info = 0;
         bool delete_on_close =
             (xe::load_and_swap<uint8_t>(file_info)) ? true : false;
-        XELOGW("NtSetInformationFile ignoring delete on close: %d",
+        XELOGW("NtSetInformationFile ignoring delete on close: {}",
                delete_on_close);
         break;
       }

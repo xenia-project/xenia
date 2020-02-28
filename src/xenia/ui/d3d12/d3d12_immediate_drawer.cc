@@ -78,7 +78,7 @@ bool D3D12ImmediateTexture::Initialize(ID3D12Device* device) {
   if (FAILED(device->CreateCommittedResource(
           &util::kHeapPropertiesDefault, D3D12_HEAP_FLAG_NONE, &resource_desc,
           state_, nullptr, IID_PPV_ARGS(&resource_)))) {
-    XELOGE("Failed to create a %ux%u texture for immediate drawing", width,
+    XELOGE("Failed to create a {}x{} texture for immediate drawing", width,
            height);
     return false;
   }
@@ -358,7 +358,7 @@ void D3D12ImmediateDrawer::UpdateTexture(ImmediateTexture* texture,
           &util::kHeapPropertiesUpload, D3D12_HEAP_FLAG_NONE, &buffer_desc,
           D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&buffer)))) {
     XELOGE(
-        "Failed to create an upload buffer for a %ux%u texture for "
+        "Failed to create an upload buffer for a {}x{} texture for "
         "immediate drawing",
         width, height);
     return;
@@ -369,7 +369,7 @@ void D3D12ImmediateDrawer::UpdateTexture(ImmediateTexture* texture,
   void* buffer_mapping;
   if (FAILED(buffer->Map(0, &buffer_read_range, &buffer_mapping))) {
     XELOGE(
-        "Failed to map an upload buffer for a %ux%u texture for immediate "
+        "Failed to map an upload buffer for a {}x{} texture for immediate "
         "drawing",
         width, height);
     buffer->Release();
@@ -506,7 +506,7 @@ void D3D12ImmediateDrawer::BeginDrawBatch(const ImmediateDrawBatch& batch) {
       current_fence_value, vertex_buffer_view.SizeInBytes, nullptr, nullptr,
       &vertex_buffer_view.BufferLocation);
   if (vertex_buffer_mapping == nullptr) {
-    XELOGE("Failed to get a buffer for %u vertices in the immediate drawer",
+    XELOGE("Failed to get a buffer for {} vertices in the immediate drawer",
            batch.vertex_count);
     return;
   }
@@ -525,7 +525,7 @@ void D3D12ImmediateDrawer::BeginDrawBatch(const ImmediateDrawBatch& batch) {
         xe::align(index_buffer_view.SizeInBytes, UINT(sizeof(uint32_t))),
         nullptr, nullptr, &index_buffer_view.BufferLocation);
     if (index_buffer_mapping == nullptr) {
-      XELOGE("Failed to get a buffer for %u indices in the immediate drawer",
+      XELOGE("Failed to get a buffer for {} indices in the immediate drawer",
              batch.index_count);
       return;
     }

@@ -87,7 +87,7 @@ bool D3D12Provider::Initialize() {
   library_d3dcompiler_ = LoadLibraryW(L"D3DCompiler_47.dll");
   if (library_dxgi_ == nullptr || library_d3d12_ == nullptr ||
       library_d3dcompiler_ == nullptr) {
-    XELOGE("Failed to load dxgi.dll, D3D12.dll and D3DCompiler_47.dll.");
+    XELOGE("Failed to load dxgi.dll, D3D12.dll or D3DCompiler_47.dll.");
     return false;
   }
   bool libraries_loaded = true;
@@ -184,8 +184,8 @@ bool D3D12Provider::Initialize() {
     if (WideCharToMultiByte(CP_UTF8, 0, adapter_desc.Description, -1,
                             adapter_name_mb, adapter_name_mb_size, nullptr,
                             nullptr) != 0) {
-      XELOGD3D("DXGI adapter: %s (vendor %.4X, device %.4X)", adapter_name_mb,
-               adapter_desc.VendorId, adapter_desc.DeviceId);
+      XELOGD3D("DXGI adapter: {} (vendor {:04X}, device {:04X})",
+               adapter_name_mb, adapter_desc.VendorId, adapter_desc.DeviceId);
     }
   }
 
@@ -253,13 +253,13 @@ bool D3D12Provider::Initialize() {
         virtual_address_support.MaxGPUVirtualAddressBitsPerResource;
   }
   XELOGD3D("Direct3D 12 device features:");
-  XELOGD3D("* Max GPU virtual address bits per resource: %u",
+  XELOGD3D("* Max GPU virtual address bits per resource: {}",
            virtual_address_bits_per_resource_);
-  XELOGD3D("* Programmable sample positions: tier %u",
+  XELOGD3D("* Programmable sample positions: tier {}",
            programmable_sample_positions_tier_);
-  XELOGD3D("* Rasterizer-ordered views: %s",
+  XELOGD3D("* Rasterizer-ordered views: {}",
            rasterizer_ordered_views_supported_ ? "yes" : "no");
-  XELOGD3D("* Tiled resources: tier %u", tiled_resources_tier_);
+  XELOGD3D("* Tiled resources: tier {}", tiled_resources_tier_);
 
   // Get the graphics analysis interface, will silently fail if PIX is not
   // attached.

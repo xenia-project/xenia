@@ -509,7 +509,7 @@ std::pair<VkBuffer, VkDeviceSize> BufferCache::UploadVertexBuffer(
     // OOM.
     XELOGW(
         "Failed to allocate transient data for vertex buffer! Wanted to "
-        "allocate %u bytes.",
+        "allocate {} bytes.",
         upload_size);
     return {nullptr, VK_WHOLE_SIZE};
   }
@@ -648,14 +648,16 @@ VkDescriptorSet BufferCache::PrepareVertexSet(
           break;
         }
         XELOGW(
-            "Vertex fetch constant %u (%.8X %.8X) has \"invalid\" type! This "
+            "Vertex fetch constant {} ({:08X} {:08X}) has \"invalid\" type! "
+            "This "
             "is incorrect behavior, but you can try bypassing this by "
             "launching Xenia with --gpu_allow_invalid_fetch_constants=true.",
             vertex_binding.fetch_constant, fetch->dword_0, fetch->dword_1);
         return nullptr;
       default:
-        XELOGW("Vertex fetch constant %u (%.8X %.8X) is completely invalid!",
-               vertex_binding.fetch_constant, fetch->dword_0, fetch->dword_1);
+        XELOGW(
+            "Vertex fetch constant {} ({:08X} {:08X}) is completely invalid!",
+            vertex_binding.fetch_constant, fetch->dword_0, fetch->dword_1);
         return nullptr;
     }
 

@@ -324,7 +324,7 @@ void VulkanImmediateDrawer::BeginDrawBatch(const ImmediateDrawBatch& batch) {
       vertex_buffer_size, vertex_buffer, vertex_buffer_offset);
   if (!vertex_buffer_mapping) {
     XELOGE(
-        "Failed to get a Vulkan buffer for %u vertices in the immediate drawer",
+        "Failed to get a Vulkan buffer for {} vertices in the immediate drawer",
         batch.vertex_count);
     return;
   }
@@ -343,7 +343,7 @@ void VulkanImmediateDrawer::BeginDrawBatch(const ImmediateDrawBatch& batch) {
         index_buffer, index_buffer_offset);
     if (!index_buffer_mapping) {
       XELOGE(
-          "Failed to get a Vulkan buffer for %u indices in the immediate "
+          "Failed to get a Vulkan buffer for {} indices in the immediate "
           "drawer",
           batch.index_count);
       return;

@@ -20,16 +20,11 @@ namespace debugging {
 bool IsDebuggerAttached() { return false; }
 void Break() { raise(SIGTRAP); }
 
-void DebugPrint(const char* fmt, ...) {
-  StringBuffer buff;
-
-  va_list va;
-  va_start(va, fmt);
-  buff.AppendVarargs(fmt, va);
-  va_end(va);
-
-  // OutputDebugStringA(buff.GetString());
+namespace internal {
+void DebugPrint(const char* s) {
+  // TODO: proper implementation.
 }
+}  // namespace internal
 
 }  // namespace debugging
 }  // namespace xe

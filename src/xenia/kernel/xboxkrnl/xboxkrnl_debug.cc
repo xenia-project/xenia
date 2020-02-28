@@ -60,7 +60,7 @@ void HandleSetThreadName(pointer_t<X_EXCEPTION_RECORD> record) {
   }
 
   if (thread) {
-    XELOGD("SetThreadName(%d, %s)", thread->thread_id(), name);
+    XELOGD("SetThreadName({}, {})", thread->thread_id(), name);
     thread->set_name(name);
   }
 
@@ -136,7 +136,7 @@ DECLARE_XBOXKRNL_EXPORT2(RtlRaiseException, kDebug, kStub, kImportant);
 
 void KeBugCheckEx(dword_t code, dword_t param1, dword_t param2, dword_t param3,
                   dword_t param4) {
-  XELOGD("*** STOP: 0x%.8X (0x%.8X, 0x%.8X, 0x%.8X, 0x%.8X)", code, param1,
+  XELOGD("*** STOP: {:#08X} ({:#08X}, {:#08X}, {:#08X}, {:#08X})", code, param1,
          param2, param3, param4);
   fflush(stdout);
   xe::debugging::Break();

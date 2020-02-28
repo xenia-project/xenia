@@ -450,7 +450,7 @@ std::unique_ptr<Thread> Thread::Create(CreationParameters params,
   if (handle == INVALID_HANDLE_VALUE) {
     // TODO(benvanik): pass back?
     auto last_error = GetLastError();
-    XELOGE("Unable to CreateThread: %d", last_error);
+    XELOGE("Unable to CreateThread: {}", last_error);
     delete start_data;
     return nullptr;
   }

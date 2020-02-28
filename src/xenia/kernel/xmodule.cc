@@ -69,7 +69,7 @@ uint32_t XModule::GetHandleFromHModule(void* hmodule) {
 }
 
 bool XModule::Save(ByteStream* stream) {
-  XELOGD("XModule %.8X (%s)", handle(), path().c_str());
+  XELOGD("XModule {:08X} ({})", handle(), path());
 
   stream->Write('XMOD');
 
@@ -99,7 +99,7 @@ object_ref<XModule> XModule::Restore(KernelState* kernel_state,
     return nullptr;
   }
 
-  XELOGD("XModule %.8X (%s)", module->handle(), module->path().c_str());
+  XELOGD("XModule {:08X} ({})", module->handle(), module->path());
 
   module->hmodule_ptr_ = hmodule_ptr;
   return module;

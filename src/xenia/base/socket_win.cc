@@ -50,7 +50,7 @@ class Win32Socket : public Socket {
     int ret =
         getaddrinfo(hostname.c_str(), port_string.c_str(), &hints, &result);
     if (ret != 0) {
-      XELOGE("getaddrinfo failed with error: %d", ret);
+      XELOGE("getaddrinfo failed with error: {}", ret);
       return false;
     }
     SOCKET try_socket = INVALID_SOCKET;
@@ -58,7 +58,7 @@ class Win32Socket : public Socket {
       // Create a SOCKET for connecting to server.
       try_socket = socket(ptr->ai_family, ptr->ai_socktype, ptr->ai_protocol);
       if (try_socket == INVALID_SOCKET) {
-        XELOGE("socket failed with error: %ld", WSAGetLastError());
+        XELOGE("socket failed with error: {}", WSAGetLastError());
         freeaddrinfo(result);
         return false;
       }
@@ -144,7 +144,7 @@ class Win32Socket : public Socket {
         event_->Reset();
         return 0;
       }
-      XELOGE("Socket send error: %d", e);
+      XELOGE("Socket send error: {}", e);
       Close();
       return -1;
     } else if (ret == 0) {
@@ -175,7 +175,7 @@ class Win32Socket : public Socket {
                       buffer_data_sent.data(), 0, nullptr, nullptr);
     if (ret == SOCKET_ERROR) {
       int e = WSAGetLastError();
-      XELOGE("Socket send error: %d", e);
+      XELOGE("Socket send error: {}", e);
       Close();
       return false;
     }
@@ -250,12 +250,12 @@ class Win32SocketServer : public SocketServer {
     if (bind(socket_, reinterpret_cast<sockaddr*>(&socket_addr),
              sizeof(socket_addr)) == SOCKET_ERROR) {
       int e = WSAGetLastError();
-      XELOGE("Unable to bind debug socket: %d", e);
+      XELOGE("Unable to bind debug socket: {}", e);
       return false;
     }
     if (listen(socket_, 5) == SOCKET_ERROR) {
       int e = WSAGetLastError();
-      XELOGE("Unable to listen on accept socket %d", e);
+      XELOGE("Unable to listen on accept socket {}", e);
       return false;
     }
 

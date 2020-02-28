@@ -22,8 +22,8 @@ namespace ppc {
 #define XEREGISTERINSTR(name) \
   RegisterOpcodeEmitter(PPCOpcode::name, InstrEmit_##name);
 
-#define XEINSTRNOTIMPLEMENTED()                          \
-  XELOGE("Unimplemented instruction: %s", __FUNCTION__); \
+#define XEINSTRNOTIMPLEMENTED()                      \
+  XELOGE("Unimplemented instruction: {}", __func__); \
   assert_always("Instruction not implemented");
 
 }  // namespace ppc

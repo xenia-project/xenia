@@ -241,7 +241,7 @@ bool VulkanProvider::Initialize() {
                                       &physical_device_memory_properties_);
 
   // Log physical device properties.
-  XELOGVK("Vulkan physical device: %s (vendor %.4X, device %.4X)",
+  XELOGVK("Vulkan physical device: {} (vendor {:04X}, device {:04X})",
           physical_device_properties_.deviceName,
           physical_device_properties_.vendorID,
           physical_device_properties_.deviceID);

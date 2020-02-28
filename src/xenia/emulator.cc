@@ -546,23 +546,24 @@ bool Emulator::ExceptionCallback(Exception* ex) {
   auto context = current_thread->thread_state()->context();
 
   XELOGE("==== CRASH DUMP ====");
-  XELOGE("Thread ID (Host: 0x%.8X / Guest: 0x%.8X)",
+  XELOGE("Thread ID (Host: {:#08X} / Guest: {:#08X})",
          current_thread->thread()->system_id(), current_thread->thread_id());
-  XELOGE("Thread Handle: 0x%.8X", current_thread->handle());
-  XELOGE("PC: 0x%.8X", guest_function->MapMachineCodeToGuestAddress(ex->pc()));
+  XELOGE("Thread Handle: {:#08X}", current_thread->handle());
+  XELOGE("PC: {:#08X}", guest_function->MapMachineCodeToGuestAddress(ex->pc()));
   XELOGE("Registers:");
   for (int i = 0; i < 32; i++) {
-    XELOGE(" r%-3d = 0x%.16" PRIX64, i, context->r[i]);
+    XELOGE(" r{:-3d} = {:016X}", i, context->r[i]);
   }
 
   for (int i = 0; i < 32; i++) {
-    XELOGE(" f%-3d = 0x%.16" PRIX64 " = (double)%f = (float)%f", i,
-           context->f[i], context->f[i], *(float*)&context->f[i]);
+    XELOGE(" f{:-3d} = {:08X} = (double){} = (float){}", i, context->f[i],
+           context->f[i], *(float*)&context->f[i]);
   }
 
   for (int i = 0; i < 128; i++) {
-    XELOGE(" v%-3d = [0x%.8X, 0x%.8X, 0x%.8X, 0x%.8X]", i, context->v[i].i32[0],
-           context->v[i].i32[1], context->v[i].i32[2], context->v[i].i32[3]);
+    XELOGE(" v{:-3d} = [{:#08X}, {:#08X}, {:#08X}, {:#08X}]", i,
+           context->v[i].i32[0], context->v[i].i32[1], context->v[i].i32[2],
+           context->v[i].i32[3]);
   }
 
   // Display a dialog telling the user the guest has crashed.
@@ -621,14 +622,14 @@ std::string Emulator::FindLaunchModule() {
       if (XSUCCEEDED(result)) {
         kernel::util::GameInfo info(buffer);
         if (info.is_valid()) {
-          XELOGI("Found virtual title %s", info.virtual_title_id().c_str());
+          XELOGI("Found virtual title {}", info.virtual_title_id());
 
           const std::string xna_id("584E07D1");
           auto xna_id_entry(file_system_->ResolvePath(path + xna_id));
           if (xna_id_entry) {
             default_module = xna_id + "\\" + info.module_name();
           } else {
-            XELOGE("Could not find fixed XNA path %s", xna_id.c_str());
+            XELOGE("Could not find fixed XNA path {}", xna_id);
           }
         }
       }
@@ -648,10 +649,10 @@ X_STATUS Emulator::CompleteLaunch(const std::filesystem::path& path,
   // Allow xam to request module loads.
   auto xam = kernel_state()->GetKernelModule<kernel::xam::XamModule>("xam.xex");
 
-  XELOGI("Launching module %s", module_path.c_str());
+  XELOGI("Launching module {}", module_path);
   auto module = kernel_state_->LoadUserModule(module_path);
   if (!module) {
-    XELOGE("Failed to load user module %s", xe::path_to_utf8(path).c_str());
+    XELOGE("Failed to load user module {}", xe::path_to_utf8(path));
     return X_STATUS_NOT_FOUND;
   }
 

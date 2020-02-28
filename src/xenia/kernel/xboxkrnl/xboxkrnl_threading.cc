@@ -129,7 +129,7 @@ dword_result_t ExCreateThread(lpdword_t handle_ptr, dword_t stack_size,
   X_STATUS result = thread->Create();
   if (XFAILED(result)) {
     // Failed!
-    XELOGE("Thread creation failed: %.8X", result);
+    XELOGE("Thread creation failed: {:08X}", result);
     return result;
   }
 
@@ -872,7 +872,7 @@ DECLARE_XBOXKRNL_EXPORT3(NtSignalAndWaitForSingleObjectEx, kThreading,
 
 uint32_t xeKeKfAcquireSpinLock(uint32_t* lock) {
   // XELOGD(
-  //     "KfAcquireSpinLock(%.8X)",
+  //     "KfAcquireSpinLock({:08X})",
   //     lock_ptr);
 
   // Lock.
