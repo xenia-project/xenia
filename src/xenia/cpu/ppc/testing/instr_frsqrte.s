@@ -15,5 +15,5 @@ test_frsqrte_3:
   #_ REGISTER_IN f1 0.5
   frsqrte f1, f1
   blr
-  #_ REGISTER_OUT f1 1.4138183593750000
+  #_ REGISTER_OUT f1 1.41381835937500000
   # want: 1.375
