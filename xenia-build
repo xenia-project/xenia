@@ -880,7 +880,8 @@ class TestCommand(BaseBuildCommand):
 
         # The test executables that will be built and run.
         test_targets = args['target'] or [
-            'xenia-cpu-ppc-tests',
+            'xenia-base-tests',
+            'xenia-cpu-ppc-tests'
             ]
         args['target'] = test_targets
 
@@ -895,9 +896,9 @@ class TestCommand(BaseBuildCommand):
         test_executables = [
             get_bin(os.path.join(get_build_bin_path(args), test_target))
             for test_target in test_targets]
-        for test_executable in test_executables:
-            if not has_bin(test_executable):
-                print('ERROR: Unable to find %s - build it.' % (test_executable))
+        for i in range(0, len(test_targets)):
+            if test_executables[i] is None:
+                print('ERROR: Unable to find %s - build it.' % (test_targets[i]))
                 return 1
 
         # Run tests.
@@ -1063,9 +1064,9 @@ class GpuTestCommand(BaseBuildCommand):
         test_executables = [
             get_bin(os.path.join(get_build_bin_path(args), test_target))
             for test_target in test_targets]
-        for test_executable in test_executables:
-            if not has_bin(test_executable):
-                print('ERROR: Unable to find %s - build it.' % (test_executable))
+        for i in range(0, len(test_targets)):
+            if test_executables[i] is None:
+                print('ERROR: Unable to find %s - build it.' % (test_targets[i]))
                 return 1
 
         output_path = os.path.join(self_path, 'build', 'gputest')
