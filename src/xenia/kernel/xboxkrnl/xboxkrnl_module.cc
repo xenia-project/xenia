@@ -65,8 +65,8 @@ bool XboxkrnlModule::SendPIXCommand(const char* cmd) {
       xe::countof(args));
   global_lock.lock();
 
-  XELOGD("PIX(command): %s", cmd);
-  XELOGD("PIX(response): %s", response);
+  XELOGD("PIX(command): {}", cmd);
+  XELOGD("PIX(response): {}", response);
 
   memory_->SystemHeapFree(scratch_ptr);
 

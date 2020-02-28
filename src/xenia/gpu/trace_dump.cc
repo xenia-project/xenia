@@ -63,7 +63,7 @@ int TraceDump::Main(const std::vector<std::string>& args) {
 
   // Normalize the path and make absolute.
   auto abs_path = std::filesystem::absolute(path);
-  XELOGI("Loading trace file %s...", xe::path_to_utf8(abs_path).c_str());
+  XELOGI("Loading trace file {}...", xe::path_to_utf8(abs_path));
 
   if (!Setup()) {
     XELOGE("Unable to setup trace dump tool");
@@ -96,7 +96,7 @@ bool TraceDump::Setup() {
   X_STATUS result = emulator_->Setup(
       nullptr, nullptr, [this]() { return CreateGraphicsSystem(); }, nullptr);
   if (XFAILED(result)) {
-    XELOGE("Failed to setup emulator: %.8X", result);
+    XELOGE("Failed to setup emulator: {:08X}", result);
     return false;
   }
   graphics_system_ = emulator_->graphics_system();

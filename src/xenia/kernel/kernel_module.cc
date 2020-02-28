@@ -48,8 +48,8 @@ KernelModule::KernelModule(KernelState* kernel_state,
     module->SetAddressRange(guest_trampoline_, guest_trampoline_size_);
     emulator_->processor()->AddModule(std::move(module));
   } else {
-    XELOGW("KernelModule %s could not allocate trampoline for GetProcAddress!",
-           path.c_str());
+    XELOGW("KernelModule {} could not allocate trampoline for GetProcAddress!",
+           path);
   }
 
   OnLoad();
@@ -99,7 +99,7 @@ uint32_t KernelModule::GetProcAddressByOrdinal(uint16_t ordinal) {
       return export_entry->variable_ptr;
     } else {
       XELOGW(
-          "ERROR: var export referenced GetProcAddressByOrdinal(%.4X(%s)) is "
+          "ERROR: var export referenced GetProcAddressByOrdinal({:04X}({})) is "
           "not implemented",
           ordinal, export_entry->name);
       return 0;
@@ -127,7 +127,7 @@ uint32_t KernelModule::GetProcAddressByOrdinal(uint16_t ordinal) {
       uint32_t guest_addr =
           GenerateTrampoline(export_entry->name, handler, export_entry);
 
-      XELOGD("GetProcAddressByOrdinal(\"%s\", \"%s\") = %.8X", name().c_str(),
+      XELOGD("GetProcAddressByOrdinal(\"{}\", \"{}\") = {:08X}", name(),
              export_entry->name, guest_addr);
 
       // Register the function in our map.
@@ -136,7 +136,7 @@ uint32_t KernelModule::GetProcAddressByOrdinal(uint16_t ordinal) {
     } else {
       // Not implemented.
       XELOGW(
-          "ERROR: fn export referenced GetProcAddressByOrdinal(%.4X(%s)) is "
+          "ERROR: fn export referenced GetProcAddressByOrdinal({:04X}({})) is "
           "not implemented",
           ordinal, export_entry->name);
       return 0;

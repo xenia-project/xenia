@@ -805,7 +805,7 @@ bool SharedMemory::InitializeTraceSubmitDownloads() {
           &gpu_written_buffer_desc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr,
           IID_PPV_ARGS(&trace_gpu_written_buffer_)))) {
     XELOGE(
-        "Shared memory: Failed to create a %u KB GPU-written memory download "
+        "Shared memory: Failed to create a {} KB GPU-written memory download "
         "buffer for frame tracing",
         gpu_written_page_count << page_size_log2_ >> 10);
     ResetTraceGPUWrittenBuffer();

@@ -14,6 +14,7 @@
 #include <cstdint>
 #include <string>
 
+#include "third_party/fmt/include/fmt/format.h"
 #include "xenia/base/string.h"
 
 namespace xe {
@@ -38,42 +39,104 @@ enum class LogLevel {
 void InitializeLogging(const std::string_view app_name);
 void ShutdownLogging();
 
+namespace logging {
+namespace internal {
+
+bool ShouldLog(LogLevel log_level);
+std::pair<char*, size_t> GetThreadBuffer();
+
+void AppendLogLine(LogLevel log_level, const char prefix_char, size_t written);
+
+}  // namespace internal
+
 // Appends a line to the log with printf-style formatting.
-void LogLineFormat(LogLevel log_level, const char prefix_char, const char* fmt,
-                   ...);
-void LogLineVarargs(LogLevel log_level, const char prefix_char, const char* fmt,
-                    va_list args);
+template <typename... Args>
+void AppendLogLineFormat(LogLevel log_level, const char prefix_char,
+                         const char* format, const Args&... args) {
+  if (!internal::ShouldLog(log_level)) {
+    return;
+  }
+  auto target = internal::GetThreadBuffer();
+  auto result = fmt::format_to_n(target.first, target.second, format, args...);
+  internal::AppendLogLine(log_level, prefix_char, result.size);
+}
+
 // Appends a line to the log.
-void LogLine(LogLevel log_level, const char prefix_char, std::string_view str);
+void AppendLogLine(LogLevel log_level, const char prefix_char,
+                   const std::string_view str);
+
+}  // namespace logging
 
 // Logs a fatal error and aborts the program.
 void FatalError(const std::string_view str);
 
-#if XE_OPTION_ENABLE_LOGGING
-#define XELOGCORE(level, prefix, fmt, ...) \
-  xe::LogLineFormat(level, prefix, fmt, ##__VA_ARGS__)
-#else
-#define XELOGCORE(level, fmt, ...) \
-  do {                             \
-  } while (false)
-#endif  // ENABLE_LOGGING
-
-#define XELOGE(fmt, ...) XELOGCORE(xe::LogLevel::Error, '!', fmt, ##__VA_ARGS__)
-#define XELOGW(fmt, ...) \
-  XELOGCORE(xe::LogLevel::Warning, 'w', fmt, ##__VA_ARGS__)
-#define XELOGI(fmt, ...) XELOGCORE(xe::LogLevel::Info, 'i', fmt, ##__VA_ARGS__)
-#define XELOGD(fmt, ...) XELOGCORE(xe::LogLevel::Debug, 'd', fmt, ##__VA_ARGS__)
-
-#define XELOGCPU(fmt, ...) \
-  XELOGCORE(xe::LogLevel::Info, 'C', fmt, ##__VA_ARGS__)
-#define XELOGAPU(fmt, ...) \
-  XELOGCORE(xe::LogLevel::Info, 'A', fmt, ##__VA_ARGS__)
-#define XELOGGPU(fmt, ...) \
-  XELOGCORE(xe::LogLevel::Info, 'G', fmt, ##__VA_ARGS__)
-#define XELOGKERNEL(fmt, ...) \
-  XELOGCORE(xe::LogLevel::Info, 'K', fmt, ##__VA_ARGS__)
-#define XELOGFS(fmt, ...) XELOGCORE(xe::LogLevel::Info, 'F', fmt, ##__VA_ARGS__)
-
 }  // namespace xe
+
+#if XE_OPTION_ENABLE_LOGGING
+
+template <typename... Args>
+void XELOGE(const char* format, const Args&... args) {
+  xe::logging::AppendLogLineFormat(xe::LogLevel::Error, '!', format, args...);
+}
+
+template <typename... Args>
+void XELOGW(const char* format, const Args&... args) {
+  xe::logging::AppendLogLineFormat(xe::LogLevel::Warning, 'w', format, args...);
+}
+
+template <typename... Args>
+void XELOGI(const char* format, const Args&... args) {
+  xe::logging::AppendLogLineFormat(xe::LogLevel::Info, 'i', format, args...);
+}
+
+template <typename... Args>
+void XELOGD(const char* format, const Args&... args) {
+  xe::logging::AppendLogLineFormat(xe::LogLevel::Debug, 'd', format, args...);
+}
+
+template <typename... Args>
+void XELOGCPU(const char* format, const Args&... args) {
+  xe::logging::AppendLogLineFormat(xe::LogLevel::Info, 'C', format, args...);
+}
+
+template <typename... Args>
+void XELOGAPU(const char* format, const Args&... args) {
+  xe::logging::AppendLogLineFormat(xe::LogLevel::Info, 'A', format, args...);
+}
+
+template <typename... Args>
+void XELOGGPU(const char* format, const Args&... args) {
+  xe::logging::AppendLogLineFormat(xe::LogLevel::Info, 'G', format, args...);
+}
+
+template <typename... Args>
+void XELOGKERNEL(const char* format, const Args&... args) {
+  xe::logging::AppendLogLineFormat(xe::LogLevel::Info, 'K', format, args...);
+}
+
+template <typename... Args>
+void XELOGFS(const char* format, const Args&... args) {
+  xe::logging::AppendLogLineFormat(xe::LogLevel::Info, 'F', format, args...);
+}
+
+#else
+
+#define XELOGDUMMY \
+  do {             \
+  } while (false)
+
+#define XELOGE(...) XELOGDUMMY
+#define XELOGW(...) XELOGDUMMY
+#define XELOGI(...) XELOGDUMMY
+#define XELOGD(...) XELOGDUMMY
+#define XELOGCPU(...) XELOGDUMMY
+#define XELOGAPU(...) XELOGDUMMY
+#define XELOGGPU(...) XELOGDUMMY
+#define XELOGKERNEL(...) XELOGDUMMY
+#define XELOGFS(...) XELOGDUMMY
+
+#undef XELOGDUMMY
+
+#endif  // ENABLE_LOGGING
 
 #endif  // XENIA_BASE_LOGGING_H_

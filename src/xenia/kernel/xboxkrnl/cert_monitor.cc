@@ -31,7 +31,7 @@ void KeCertMonitorCallback(cpu::ppc::PPCContext* ppc_context,
                            kernel::KernelState* kernel_state) {
   auto id = ppc_context->r[3];
   auto arg = ppc_context->r[4];
-  XELOGI("KeCertMonitorCallback(%u, %08x)", id, arg);
+  XELOGI("KeCertMonitorCallback({}, {:08X})", id, arg);
   auto xboxkrnl = kernel_state->GetKernelModule<XboxkrnlModule>("xboxkrnl.exe");
 }
 

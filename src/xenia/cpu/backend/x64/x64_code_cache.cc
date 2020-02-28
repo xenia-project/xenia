@@ -56,9 +56,10 @@ bool X64CodeCache::Initialize() {
   if (!indirection_table_base_) {
     XELOGE("Unable to allocate code cache indirection table");
     XELOGE(
-        "This is likely because the %.8X-%.8X range is in use by some other "
+        "This is likely because the {:X}-{:X} range is in use by some other "
         "system DLL",
-        kIndirectionTableBase, kIndirectionTableBase + kIndirectionTableSize);
+        static_cast<uint64_t>(kIndirectionTableBase),
+        kIndirectionTableBase + kIndirectionTableSize);
   }
 
   // Create mmap file. This allows us to share the code cache with the debugger.
@@ -79,9 +80,10 @@ bool X64CodeCache::Initialize() {
   if (!generated_code_base_) {
     XELOGE("Unable to allocate code cache generated code storage");
     XELOGE(
-        "This is likely because the %.8X-%.8X range is in use by some other "
+        "This is likely because the {:X}-{:X} range is in use by some other "
         "system DLL",
-        kGeneratedCodeBase, kGeneratedCodeBase + kGeneratedCodeSize);
+        static_cast<uint64_t>(kGeneratedCodeBase),
+        kGeneratedCodeBase + kGeneratedCodeSize);
     return false;
   }
 

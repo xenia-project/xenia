@@ -189,7 +189,7 @@ dword_result_t XamContentCreateEnumerator(dword_t user_index, dword_t device_id,
     content_data.Write(ptr);
   }
 
-  XELOGD("XamContentCreateEnumerator: added %d items to enumerator",
+  XELOGD("XamContentCreateEnumerator: added {} items to enumerator",
          e->item_count());
 
   *handle_out = e->handle();

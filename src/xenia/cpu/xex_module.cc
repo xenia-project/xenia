@@ -128,7 +128,7 @@ uint32_t XexModule::GetProcAddress(uint16_t ordinal) const {
 
     ordinal -= export_table->base;
     if (ordinal > export_table->count) {
-      XELOGE("GetProcAddress(%.3X): ordinal out of bounds", ordinal);
+      XELOGE("GetProcAddress({:03X}): ordinal out of bounds", ordinal);
       return 0;
     }
 
@@ -290,7 +290,7 @@ int XexModule::ApplyPatch(XexModule* module) {
       &patch_header->info, headerpatch_size,
       file_format_header->compression_info.normal.window_size, header_ptr);
   if (result_code) {
-    XELOGE("XEX header patch application failed, error code %d", result_code);
+    XELOGE("XEX header patch application failed, error code {}", result_code);
     return result_code;
   }
 
@@ -315,7 +315,7 @@ int XexModule::ApplyPatch(XexModule* module) {
                 xe::kMemoryProtectRead | xe::kMemoryProtectWrite);
 
     if (!alloc_result) {
-      XELOGE("Unable to allocate XEX memory at %.8X-%.8X.", addr_new_mem,
+      XELOGE("Unable to allocate XEX memory at {:08X}-{:08X}.", addr_new_mem,
              size_delta);
       assert_always();
       return 6;
@@ -440,7 +440,7 @@ int XexModule::ApplyPatch(XexModule* module) {
                              ->Decommit(addr_free_mem, size_delta);
 
       if (!free_result) {
-        XELOGE("Unable to decommit XEX memory at %.8X-%.8X.", addr_free_mem,
+        XELOGE("Unable to decommit XEX memory at {:08X}-{:08X}.", addr_free_mem,
                size_delta);
         assert_always();
       }
@@ -455,12 +455,12 @@ int XexModule::ApplyPatch(XexModule* module) {
         xe::byte_swap<uint32_t>(patch_header->target_version.value);
 
     XELOGI(
-        "XEX patch applied successfully: base version: %d.%d.%d.%d, new "
-        "version: %d.%d.%d.%d",
+        "XEX patch applied successfully: base version: {}.{}.{}.{}, new "
+        "version: {}.{}.{}.{}",
         source_ver.major, source_ver.minor, source_ver.build, source_ver.qfe,
         target_ver.major, target_ver.minor, target_ver.build, target_ver.qfe);
   } else {
-    XELOGE("XEX patch application failed, error code %d", result_code);
+    XELOGE("XEX patch application failed, error code {}", result_code);
   }
 
   if (free_input) {
@@ -536,7 +536,7 @@ int XexModule::ReadImageUncompressed(const void* xex_addr, size_t xex_length) {
               xe::kMemoryAllocationReserve | xe::kMemoryAllocationCommit,
               xe::kMemoryProtectRead | xe::kMemoryProtectWrite);
   if (!alloc_result) {
-    XELOGE("Unable to allocate XEX memory at %.8X-%.8X.", base_address_,
+    XELOGE("Unable to allocate XEX memory at {:08X}-{:08X}.", base_address_,
            uncompressed_size);
     return 2;
   }
@@ -603,7 +603,7 @@ int XexModule::ReadImageBasicCompressed(const void* xex_addr,
       xe::kMemoryAllocationReserve | xe::kMemoryAllocationCommit,
       xe::kMemoryProtectRead | xe::kMemoryProtectWrite);
   if (!alloc_result) {
-    XELOGE("Unable to allocate XEX memory at %.8X-%.8X.", base_address_,
+    XELOGE("Unable to allocate XEX memory at {:08X}-{:08X}.", base_address_,
            uncompressed_size);
     return 1;
   }
@@ -761,7 +761,7 @@ int XexModule::ReadImageCompressed(const void* xex_addr, size_t xex_length) {
           compress_buffer, d - compress_buffer, buffer, uncompressed_size,
           compression_info->normal.window_size, nullptr, 0);
     } else {
-      XELOGE("Unable to allocate XEX memory at %.8X-%.8X.", base_address_,
+      XELOGE("Unable to allocate XEX memory at {:08X}-{:08X}.", base_address_,
              uncompressed_size);
       result_code = 3;
     }
@@ -933,12 +933,12 @@ bool XexModule::Load(const std::string_view name, const std::string_view path,
   // We'll try using both XEX2 keys to see if any give a valid PE
   int result_code = ReadImage(xex_addr, xex_length, false);
   if (result_code) {
-    XELOGW("XEX load failed with code %d, trying with devkit encryption key...",
+    XELOGW("XEX load failed with code {}, trying with devkit encryption key...",
            result_code);
 
     result_code = ReadImage(xex_addr, xex_length, true);
     if (result_code) {
-      XELOGE("XEX load failed with code %d, tried both encryption keys",
+      XELOGE("XEX load failed with code {}, tried both encryption keys",
              result_code);
       return false;
     }
@@ -1132,9 +1132,9 @@ bool XexModule::SetupLibraryImports(const std::string_view name,
     // Import not resolved?
     if (!kernel_export && !user_export_addr) {
       XELOGW(
-          "WARNING: an import variable was not resolved! (library: %s, import "
-          "lib: %s, ordinal: %.3X)",
-          name_.c_str(), name.c_str(), ordinal);
+          "WARNING: an import variable was not resolved! (library: {}, import "
+          "lib: {}, ordinal: {:03X})",
+          name_, name, ordinal);
     }
 
     StringBuffer import_name;
@@ -1166,7 +1166,7 @@ bool XexModule::SetupLibraryImports(const std::string_view name,
           } else {
             // Not implemented - write with a dummy value.
             *record_slot = 0xD000BEEF | (kernel_export->ordinal & 0xFFF) << 16;
-            XELOGCPU("WARNING: imported a variable with no value: %s",
+            XELOGCPU("WARNING: imported a variable with no value: {}",
                      kernel_export->name);
           }
         }
@@ -1251,8 +1251,8 @@ bool XexModule::SetupLibraryImports(const std::string_view name,
                 (GuestFunction::ExternHandler)kernel_export->function_data.shim;
           }
         } else {
-          XELOGW("WARNING: Imported kernel function %s is unimplemented!",
-                 import_name.buffer());
+          XELOGW("WARNING: Imported kernel function {} is unimplemented!",
+                 import_name.to_string_view());
         }
         static_cast<GuestFunction*>(function)->SetupExtern(handler,
                                                            kernel_export);

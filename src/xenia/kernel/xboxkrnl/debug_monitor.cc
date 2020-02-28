@@ -43,7 +43,7 @@ void KeDebugMonitorCallback(cpu::ppc::PPCContext* ppc_context,
   auto id = static_cast<DebugMonitorCommand>(ppc_context->r[3] & 0xFFFFFFFFu);
   auto arg = static_cast<uint32_t>(ppc_context->r[4] & 0xFFFFFFFFu);
 
-  XELOGI("KeDebugMonitorCallback(%u, %08x)", static_cast<uint32_t>(id), arg);
+  XELOGI("KeDebugMonitorCallback({}, {:08X})", static_cast<uint32_t>(id), arg);
 
   if (!cvars::kernel_pix) {
     SHIM_SET_RETURN_32(-1);
@@ -55,8 +55,8 @@ void KeDebugMonitorCallback(cpu::ppc::PPCContext* ppc_context,
   switch (id) {
     case DebugMonitorCommand::PIXCommandResult: {
       auto s = kernel_state->memory()->TranslateVirtual<const char*>(arg);
-      debugging::DebugPrint("%s\n", s);
-      XELOGD("PIX command result: %s\n", s);
+      debugging::DebugPrint("{}\n", s);
+      XELOGD("PIX command result: {}\n", s);
       if (strcmp(s, "PIX!{CaptureFileCreationEnded} 0x00000000") == 0) {
         xboxkrnl->SendPIXCommand("{BeginCapture}");
       }

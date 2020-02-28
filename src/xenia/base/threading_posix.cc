@@ -437,7 +437,7 @@ std::unique_ptr<Thread> Thread::Create(CreationParameters params,
   if (ret != 0) {
     // TODO(benvanik): pass back?
     auto last_error = errno;
-    XELOGE("Unable to pthread_create: %d", last_error);
+    XELOGE("Unable to pthread_create: {}", last_error);
     delete start_data;
     return nullptr;
   }

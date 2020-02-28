@@ -36,13 +36,13 @@ bool DiscImageDevice::Initialize() {
   state.size = mmap_->size();
   auto result = Verify(&state);
   if (result != Error::kSuccess) {
-    XELOGE("Failed to verify disc image header: %d", result);
+    XELOGE("Failed to verify disc image header: {}", result);
     return false;
   }
 
   result = ReadAllEntries(&state, state.ptr + state.root_offset);
   if (result != Error::kSuccess) {
-    XELOGE("Failed to read all GDFX entries: %d", result);
+    XELOGE("Failed to read all GDFX entries: {}", result);
     return false;
   }
 
@@ -59,7 +59,7 @@ Entry* DiscImageDevice::ResolvePath(const std::string_view path) {
   // be in the form:
   // some\PATH.foo
 
-  XELOGFS("DiscImageDevice::ResolvePath(%s)", path.c_str());
+  XELOGFS("DiscImageDevice::ResolvePath({})", path);
 
   // Walk the path, one separator at a time.
   auto entry = root_entry_.get();

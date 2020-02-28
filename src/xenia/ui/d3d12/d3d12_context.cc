@@ -149,7 +149,7 @@ bool D3D12Context::InitializeSwapChainBuffers() {
   for (uint32_t i = 0; i < kSwapChainBufferCount; ++i) {
     if (FAILED(
             swap_chain_->GetBuffer(i, IID_PPV_ARGS(&swap_chain_buffers_[i])))) {
-      XELOGE("Failed to get buffer %u of the swap chain", i);
+      XELOGE("Failed to get buffer {} of the swap chain", i);
       return false;
     }
   }

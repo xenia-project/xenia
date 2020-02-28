@@ -105,7 +105,7 @@ uint8_t* UploadBufferPool::Request(uint64_t submission_index, uint32_t size,
               &util::kHeapPropertiesUpload, D3D12_HEAP_FLAG_NONE,
               &new_buffer_desc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
               IID_PPV_ARGS(&new_buffer)))) {
-        XELOGE("Failed to create a D3D upload buffer with %u bytes",
+        XELOGE("Failed to create a D3D upload buffer with {} bytes",
                page_size_);
         return nullptr;
       }
@@ -114,7 +114,7 @@ uint8_t* UploadBufferPool::Request(uint64_t submission_index, uint32_t size,
       read_range.End = 0;
       void* new_buffer_mapping;
       if (FAILED(new_buffer->Map(0, &read_range, &new_buffer_mapping))) {
-        XELOGE("Failed to map a D3D upload buffer with %u bytes", page_size_);
+        XELOGE("Failed to map a D3D upload buffer with {} bytes", page_size_);
         new_buffer->Release();
         return nullptr;
       }
@@ -263,7 +263,7 @@ uint64_t DescriptorHeapPool::Request(uint64_t submission_index,
     ID3D12DescriptorHeap* new_heap;
     if (FAILED(device_->CreateDescriptorHeap(&new_heap_desc,
                                              IID_PPV_ARGS(&new_heap)))) {
-      XELOGE("Failed to create a heap for %u shader-visible descriptors",
+      XELOGE("Failed to create a heap for {} shader-visible descriptors",
              page_size_);
       return kHeapIndexInvalid;
     }

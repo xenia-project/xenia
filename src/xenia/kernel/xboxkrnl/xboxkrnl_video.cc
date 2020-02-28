@@ -370,7 +370,7 @@ void VdSwap(lpvoid_t buffer_ptr,  // ptr into primary ringbuffer
   assert_true(frontbuffer_address != UINT32_MAX);
   if (frontbuffer_address == UINT32_MAX) {
     // Xenia-specific safety check.
-    XELOGE("VdSwap: Invalid front buffer virtual address 0x%.8X",
+    XELOGE("VdSwap: Invalid front buffer virtual address {:#08X}",
            fetch.base_address << 12);
     return;
   }

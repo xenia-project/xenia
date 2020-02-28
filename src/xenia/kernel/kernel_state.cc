@@ -249,7 +249,7 @@ object_ref<XThread> KernelState::LaunchModule(object_ref<UserModule> module) {
 
   X_STATUS result = thread->Create();
   if (XFAILED(result)) {
-    XELOGE("Could not create launch thread: %.8X", result);
+    XELOGE("Could not create launch thread: {:08X}", result);
     return nullptr;
   }
 
@@ -736,7 +736,7 @@ bool KernelState::Save(ByteStream* stream) {
   stream->Write(static_cast<uint32_t>(threads.size()));
 
   size_t num_threads = threads.size();
-  XELOGD("Serializing %d threads...", threads.size());
+  XELOGD("Serializing {} threads...", threads.size());
   for (auto thread : threads) {
     if (!thread->is_guest_thread()) {
       // Don't save host threads. They can be reconstructed on startup.
@@ -745,7 +745,7 @@ bool KernelState::Save(ByteStream* stream) {
     }
 
     if (!thread->Save(stream)) {
-      XELOGD("Failed to save thread \"%s\"", thread->name().c_str());
+      XELOGD("Failed to save thread \"{}\"", thread->name());
       num_threads--;
     }
   }
@@ -759,7 +759,7 @@ bool KernelState::Save(ByteStream* stream) {
   stream->Write(static_cast<uint32_t>(objects.size()));
 
   size_t num_objects = objects.size();
-  XELOGD("Serializing %d objects...", num_objects);
+  XELOGD("Serializing {} objects...", num_objects);
   for (auto object : objects) {
     auto prev_offset = stream->offset();
 
@@ -771,7 +771,7 @@ bool KernelState::Save(ByteStream* stream) {
 
     stream->Write<uint32_t>(object->type());
     if (!object->Save(stream)) {
-      XELOGD("Did not save object of type %d", object->type());
+      XELOGD("Did not save object of type {}", object->type());
       assert_always();
 
       // Revert backwards and overwrite if a save failed.
@@ -802,7 +802,7 @@ bool KernelState::Restore(ByteStream* stream) {
   }
 
   uint32_t num_threads = stream->Read<uint32_t>();
-  XELOGD("Loading %d threads...", num_threads);
+  XELOGD("Loading {} threads...", num_threads);
   for (uint32_t i = 0; i < num_threads; i++) {
     auto thread = XObject::Restore(this, XObject::kTypeThread, stream);
     if (!thread) {
@@ -813,7 +813,7 @@ bool KernelState::Restore(ByteStream* stream) {
   }
 
   uint32_t num_objects = stream->Read<uint32_t>();
-  XELOGD("Loading %d objects...", num_objects);
+  XELOGD("Loading {} objects...", num_objects);
   for (uint32_t i = 0; i < num_objects; i++) {
     uint32_t type = stream->Read<uint32_t>();
 

@@ -88,8 +88,8 @@ VkResult TextureCache::Initialize() {
       limits.maxPerStageDescriptorSampledImages < kMaxTextureSamplers) {
     XELOGE(
         "Physical device is unable to support required number of sampled "
-        "images! Expect instability! (maxPerStageDescriptorSamplers=%d, "
-        "maxPerStageDescriptorSampledImages=%d)",
+        "images! Expect instability! (maxPerStageDescriptorSamplers={}, "
+        "maxPerStageDescriptorSampledImages={})",
         limits.maxPerStageDescriptorSamplers,
         limits.maxPerStageDescriptorSampledImages);
     // assert_always();
@@ -190,7 +190,7 @@ TextureCache::Texture* TextureCache::AllocateTexture(
   VkFormat format = config.host_format;
   if (format == VK_FORMAT_UNDEFINED) {
     XELOGE(
-        "Texture Cache: Attempted to allocate texture format %s, which is "
+        "Texture Cache: Attempted to allocate texture format {}, which is "
         "defined as VK_FORMAT_UNDEFINED!",
         texture_info.format_info()->name);
     return nullptr;
@@ -235,13 +235,11 @@ TextureCache::Texture* TextureCache::AllocateTexture(
   if ((props.optimalTilingFeatures & required_flags) != required_flags) {
     // Texture needs conversion on upload to a native format.
     XELOGE(
-        "Texture Cache: Invalid usage flag specified on format %s (%s)\n\t"
-        "(requested: %s)",
+        "Texture Cache: Invalid usage flag specified on format {} ({})\n\t"
+        "(requested: {})",
         texture_info.format_info()->name, ui::vulkan::to_string(format),
-        ui::vulkan::to_flags_string(
-            static_cast<VkFormatFeatureFlagBits>(required_flags &
-                                                 ~props.optimalTilingFeatures))
-            .c_str());
+        ui::vulkan::to_flags_string(static_cast<VkFormatFeatureFlagBits>(
+            required_flags & ~props.optimalTilingFeatures)));
   }
 
   if (texture_info.dimension != Dimension::kCube &&
@@ -1070,9 +1068,9 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
   size_t unpack_length = ComputeTextureStorage(src);
 
   XELOGGPU(
-      "Uploading texture @ 0x%.8X/0x%.8X (%ux%ux%u, format: %s, dim: %s, "
-      "levels: %u (%u-%u), stacked: %s, pitch: %u, tiled: %s, packed mips: %s, "
-      "unpack length: 0x%.8X)",
+      "Uploading texture @ {:#08X}/{:#08X} ({}x{}x{}, format: {}, dim: {}, "
+      "levels: {} ({}-{}), stacked: {}, pitch: {}, tiled: {}, packed mips: {}, "
+      "unpack length: {:#X})",
       src.memory.base_address, src.memory.mip_address, src.width + 1,
       src.height + 1, src.depth + 1, src.format_info()->name,
       get_dimension_name(src.dimension), src.mip_levels(), src.mip_min_level,
@@ -1080,7 +1078,7 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
       src.is_tiled ? "yes" : "no", src.has_packed_mips ? "yes" : "no",
       unpack_length);
 
-  XELOGGPU("Extent: %ux%ux%u  %u,%u,%u", src.extent.pitch, src.extent.height,
+  XELOGGPU("Extent: {}x{}x{}  {},{},{}", src.extent.pitch, src.extent.height,
            src.extent.depth, src.extent.block_pitch_h, src.extent.block_height,
            src.extent.block_pitch_v);
 
@@ -1099,7 +1097,7 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
     if (!staging_buffer_.CanAcquire(unpack_length)) {
       // The staging buffer isn't big enough to hold this texture.
       XELOGE(
-          "TextureCache staging buffer is too small! (uploading 0x%.8X bytes)",
+          "TextureCache staging buffer is too small! (uploading {:#X} bytes)",
           unpack_length);
       assert_always();
       return false;
@@ -1110,7 +1108,7 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
   auto alloc = staging_buffer_.Acquire(unpack_length, completion_fence);
   assert_not_null(alloc);
   if (!alloc) {
-    XELOGE("%s: Failed to acquire staging memory!", __func__);
+    XELOGE("{}: Failed to acquire staging memory!", __func__);
     return false;
   }
 
@@ -1125,7 +1123,7 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
   }
 
   if (!valid) {
-    XELOGW("Warning: Texture @ 0x%.8X is blank!", src.memory.base_address);
+    XELOGW("Warning: Texture @ {:#08X} is blank!", src.memory.base_address);
   }
 
   // Upload texture into GPU memory.
@@ -1142,14 +1140,14 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
        mip++, region++) {
     if (!ConvertTexture(&unpack_buffer[unpack_offset], &copy_regions[region],
                         mip, src)) {
-      XELOGW("Failed to convert texture mip %u!", mip);
+      XELOGW("Failed to convert texture mip {}!", mip);
       return false;
     }
     copy_regions[region].bufferOffset = alloc->offset + unpack_offset;
     copy_regions[region].imageOffset = {0, 0, 0};
 
     /*
-    XELOGGPU("Mip %u %ux%ux%u @ 0x%X", mip,
+    XELOGGPU("Mip {} {}x{}x{} @ {:#X}", mip,
              copy_regions[region].imageExtent.width,
              copy_regions[region].imageExtent.height,
              copy_regions[region].imageExtent.depth, unpack_offset);
@@ -1510,7 +1508,8 @@ bool TextureCache::SetupTextureBinding(VkCommandBuffer command_buffer,
         break;
       }
       XELOGW(
-          "Texture fetch constant %u (%.8X %.8X %.8X %.8X %.8X %.8X) has "
+          "Texture fetch constant {} ({:08X} {:08X} {:08X} {:08X} {:08X} "
+          "{:08X}) has "
           "\"invalid\" type! This is incorrect behavior, but you can try "
           "bypassing this by launching Xenia with "
           "--gpu_allow_invalid_fetch_constants=true.",
@@ -1519,7 +1518,8 @@ bool TextureCache::SetupTextureBinding(VkCommandBuffer command_buffer,
       return false;
     default:
       XELOGW(
-          "Texture fetch constant %u (%.8X %.8X %.8X %.8X %.8X %.8X) is "
+          "Texture fetch constant {} ({:08X} {:08X} {:08X} {:08X} {:08X} "
+          "{:08X}) is "
           "completely invalid!",
           binding.fetch_constant, fetch.dword_0, fetch.dword_1, fetch.dword_2,
           fetch.dword_3, fetch.dword_4, fetch.dword_5);

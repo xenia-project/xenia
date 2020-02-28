@@ -95,7 +95,7 @@ bool XAudio2AudioDriver::Initialize() {
     }
     hr = xaudio2_create(&objects_.api_2_8.audio, 0, processor);
     if (FAILED(hr)) {
-      XELOGE("XAudio2Create failed with %.8X", hr);
+      XELOGE("XAudio2Create failed with {:08X}", hr);
       assert_always();
       return false;
     }
@@ -104,13 +104,13 @@ bool XAudio2AudioDriver::Initialize() {
     hr = CoCreateInstance(__uuidof(api::XAudio2_7), NULL, CLSCTX_INPROC_SERVER,
                           IID_PPV_ARGS(&objects_.api_2_7.audio));
     if (FAILED(hr)) {
-      XELOGE("CoCreateInstance for XAudio2 failed with %.8X", hr);
+      XELOGE("CoCreateInstance for XAudio2 failed with {:08X}", hr);
       assert_always();
       return false;
     }
     hr = objects_.api_2_7.audio->Initialize(0, processor);
     if (FAILED(hr)) {
-      XELOGE("IXAudio2::Initialize failed with %.8X", hr);
+      XELOGE("IXAudio2::Initialize failed with {:08X}", hr);
       assert_always();
       return false;
     }
@@ -133,7 +133,7 @@ bool XAudio2AudioDriver::InitializeObjects(Objects& objects) {
 
   hr = objects.audio->CreateMasteringVoice(&objects.mastering_voice);
   if (FAILED(hr)) {
-    XELOGE("IXAudio2::CreateMasteringVoice failed with %.8X", hr);
+    XELOGE("IXAudio2::CreateMasteringVoice failed with {:08X}", hr);
     assert_always();
     return false;
   }
@@ -171,14 +171,14 @@ bool XAudio2AudioDriver::InitializeObjects(Objects& objects) {
       0,  // api::XE_XAUDIO2_VOICE_NOSRC | api::XE_XAUDIO2_VOICE_NOPITCH,
       api::XE_XAUDIO2_MAX_FREQ_RATIO, voice_callback_);
   if (FAILED(hr)) {
-    XELOGE("IXAudio2::CreateSourceVoice failed with %.8X", hr);
+    XELOGE("IXAudio2::CreateSourceVoice failed with {:08X}", hr);
     assert_always();
     return false;
   }
 
   hr = objects.pcm_voice->Start();
   if (FAILED(hr)) {
-    XELOGE("IXAudio2SourceVoice::Start failed with %.8X", hr);
+    XELOGE("IXAudio2SourceVoice::Start failed with {:08X}", hr);
     assert_always();
     return false;
   }
@@ -231,7 +231,7 @@ void XAudio2AudioDriver::SubmitFrame(uint32_t frame_ptr) {
     hr = objects_.api_2_7.pcm_voice->SubmitSourceBuffer(&buffer);
   }
   if (FAILED(hr)) {
-    XELOGE("SubmitSourceBuffer failed with %.8X", hr);
+    XELOGE("SubmitSourceBuffer failed with {:08X}", hr);
     assert_always();
     return;
   }

@@ -36,7 +36,7 @@ bool VirtualFileSystem::UnregisterDevice(const std::string_view path) {
   auto global_lock = global_critical_region_.Acquire();
   for (auto it = devices_.begin(); it != devices_.end(); ++it) {
     if ((*it)->mount_path() == path) {
-      XELOGD("Unregistered device: %s", (*it)->mount_path().c_str());
+      XELOGD("Unregistered device: {}", (*it)->mount_path());
       devices_.erase(it);
       return true;
     }
@@ -48,8 +48,7 @@ bool VirtualFileSystem::RegisterSymbolicLink(const std::string_view path,
                                              const std::string_view target) {
   auto global_lock = global_critical_region_.Acquire();
   symlinks_.insert({std::string(path), std::string(target)});
-  XELOGD("Registered symbolic link: %s => %s", std::string(path).c_str(),
-         std::string(target).c_str());
+  XELOGD("Registered symbolic link: {} => {}", path, target);
 
   return true;
 }
@@ -62,8 +61,7 @@ bool VirtualFileSystem::UnregisterSymbolicLink(const std::string_view path) {
   if (it == symlinks_.end()) {
     return false;
   }
-  XELOGD("Unregistered symbolic link: %s => %s", it->first.c_str(),
-         it->second.c_str());
+  XELOGD("Unregistered symbolic link: {} => {}", it->first, it->second);
 
   symlinks_.erase(it);
   return true;
@@ -120,8 +118,7 @@ Entry* VirtualFileSystem::ResolvePath(const std::string_view path) {
         return xe::utf8::starts_with(normalized_path, d->mount_path());
       });
   if (it == devices_.cend()) {
-    XELOGE("ResolvePath(%s) failed - device not found",
-           std::string(path).c_str());
+    XELOGE("ResolvePath({}) failed - device not found", path);
     return nullptr;
   }
 

@@ -864,7 +864,7 @@ bool RenderCache::ConfigureRenderPass(VkCommandBuffer command_buffer,
     render_pass = new CachedRenderPass(*device_, *config);
     VkResult status = render_pass->Initialize();
     if (status != VK_SUCCESS) {
-      XELOGE("%s: Failed to create render pass, status %s", __func__,
+      XELOGE("{}: Failed to create render pass, status {}", __func__,
              ui::vulkan::to_string(status));
       delete render_pass;
       return false;
@@ -943,7 +943,7 @@ bool RenderCache::ConfigureRenderPass(VkCommandBuffer command_buffer,
         target_color_attachments, target_depth_stencil_attachment);
     VkResult status = framebuffer->Initialize();
     if (status != VK_SUCCESS) {
-      XELOGE("%s: Failed to create framebuffer, status %s", __func__,
+      XELOGE("{}: Failed to create framebuffer, status {}", __func__,
              ui::vulkan::to_string(status));
       delete framebuffer;
       return false;
@@ -996,7 +996,7 @@ CachedTileView* RenderCache::FindOrCreateTileView(
   tile_view = new CachedTileView(device_, edram_memory_, view_key);
   VkResult status = tile_view->Initialize(command_buffer);
   if (status != VK_SUCCESS) {
-    XELOGE("%s: Failed to create tile view, status %s", __func__,
+    XELOGE("{}: Failed to create tile view, status {}", __func__,
            ui::vulkan::to_string(status));
 
     delete tile_view;

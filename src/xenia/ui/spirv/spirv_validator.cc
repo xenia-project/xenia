@@ -65,7 +65,7 @@ std::unique_ptr<SpirvValidator::Result> SpirvValidator::Validate(
   auto result_code = spvValidate(spv_context_, &binary, &diagnostic);
   std::unique_ptr<Result> result(new Result(text, diagnostic));
   if (result_code) {
-    XELOGE("Failed to validate spv: %d", result_code);
+    XELOGE("Failed to validate spv: {}", result_code);
     if (result->has_error()) {
       return result;
     } else {

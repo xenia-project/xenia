@@ -172,8 +172,9 @@ dword_result_t XamUserReadProfileSettings(
       }
     } else {
       any_missing = true;
-      XELOGE("XamUserReadProfileSettings requested unimplemented setting %.8X",
-             setting_id);
+      XELOGE(
+          "XamUserReadProfileSettings requested unimplemented setting {:08X}",
+          setting_id);
     }
   }
 
@@ -288,8 +289,8 @@ dword_result_t XamUserWriteProfileSettings(
   for (uint32_t n = 0; n < setting_count; ++n) {
     const X_USER_WRITE_PROFILE_SETTING& settings_data = settings[n];
     XELOGD(
-        "XamUserWriteProfileSettings: setting index [%d]:"
-        " from=%d setting_id=%.8X data.type=%d",
+        "XamUserWriteProfileSettings: setting index [{}]:"
+        " from={} setting_id={:08X} data.type={}",
         n, (uint32_t)settings_data.from, (uint32_t)settings_data.setting_id,
         settings_data.type);
 
@@ -327,7 +328,7 @@ dword_result_t XamUserWriteProfileSettings(
       case UserProfile::Setting::Type::DATETIME:
       default:
 
-        XELOGE("XamUserWriteProfileSettings: Unimplemented data type %d",
+        XELOGE("XamUserWriteProfileSettings: Unimplemented data type {}",
                settingType);
         break;
     };

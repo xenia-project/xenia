@@ -1004,7 +1004,7 @@ bool TextureCache::Initialize() {
     load_pipelines_[i] = ui::d3d12::util::CreateComputePipeline(
         device, mode_info.shader, mode_info.shader_size, load_root_signature_);
     if (load_pipelines_[i] == nullptr) {
-      XELOGE("Failed to create the texture loading pipeline for mode %u", i);
+      XELOGE("Failed to create the texture loading pipeline for mode {}", i);
       Shutdown();
       return false;
     }
@@ -1015,7 +1015,7 @@ bool TextureCache::Initialize() {
       if (load_pipelines_2x_[i] == nullptr) {
         XELOGE(
             "Failed to create the 2x-scaled texture loading pipeline for mode "
-            "%u",
+            "{}",
             i);
         Shutdown();
         return false;
@@ -1028,7 +1028,7 @@ bool TextureCache::Initialize() {
         device, mode_info.shader, mode_info.shader_size,
         resolve_tile_root_signature_);
     if (resolve_tile_pipelines_[i] == nullptr) {
-      XELOGE("Failed to create the texture tiling pipeline for mode %u", i);
+      XELOGE("Failed to create the texture tiling pipeline for mode {}", i);
       Shutdown();
       return false;
     }
@@ -1243,7 +1243,7 @@ void TextureCache::EndFrame() {
       XELOGE("Unsupported texture formats used in the frame:");
       unsupported_header_written = true;
     }
-    XELOGE("* %s%s%s%s", FormatInfo::Get(TextureFormat(i))->name,
+    XELOGE("* {}{}{}{}", FormatInfo::Get(TextureFormat(i))->name,
            unsupported_features & kUnsupportedResourceBit ? " resource" : "",
            unsupported_features & kUnsupportedUnormBit ? " unorm" : "",
            unsupported_features & kUnsupportedSnormBit ? " snorm" : "");
@@ -2094,7 +2094,8 @@ void TextureCache::BindingInfoFromFetchConstant(
         break;
       }
       XELOGW(
-          "Texture fetch constant (%.8X %.8X %.8X %.8X %.8X %.8X) has "
+          "Texture fetch constant ({:08X} {:08X} {:08X} {:08X} {:08X} {:08X}) "
+          "has "
           "\"invalid\" type! This is incorrect behavior, but you can try "
           "bypassing this by launching Xenia with "
           "--gpu_allow_invalid_fetch_constants=true.",
@@ -2103,7 +2104,8 @@ void TextureCache::BindingInfoFromFetchConstant(
       return;
     default:
       XELOGW(
-          "Texture fetch constant (%.8X %.8X %.8X %.8X %.8X %.8X) is "
+          "Texture fetch constant ({:08X} {:08X} {:08X} {:08X} {:08X} {:08X}) "
+          "is "
           "completely invalid!",
           fetch.dword_0, fetch.dword_1, fetch.dword_2, fetch.dword_3,
           fetch.dword_4, fetch.dword_5);
@@ -2121,7 +2123,7 @@ void TextureCache::BindingInfoFromFetchConstant(
   }
   if (fetch.dimension == Dimension::k1D && width > 8192) {
     XELOGE(
-        "1D texture is too wide (%u) - ignoring! "
+        "1D texture is too wide ({}) - ignoring! "
         "Report the game to Xenia developers",
         width);
     return;
@@ -2175,8 +2177,8 @@ void TextureCache::BindingInfoFromFetchConstant(
 
 void TextureCache::LogTextureKeyAction(TextureKey key, const char* action) {
   XELOGGPU(
-      "%s %s %s%ux%ux%u %s %s texture with %u %spacked mip level%s, "
-      "base at 0x%.8X, mips at 0x%.8X",
+      "{} {} {}{}x{}x{} {} {} texture with {} {}packed mip level{}, "
+      "base at {:#08X}, mips at {:#08X}",
       action, key.tiled ? "tiled" : "linear",
       key.scaled_resolve ? "2x-scaled " : "", key.width, key.height, key.depth,
       dimension_names_[uint32_t(key.dimension)],
@@ -2188,8 +2190,8 @@ void TextureCache::LogTextureKeyAction(TextureKey key, const char* action) {
 void TextureCache::LogTextureAction(const Texture* texture,
                                     const char* action) {
   XELOGGPU(
-      "%s %s %s%ux%ux%u %s %s texture with %u %spacked mip level%s, "
-      "base at 0x%.8X (size %u), mips at 0x%.8X (size %u)",
+      "{} {} {}{}x{}x{} {} {} texture with {} {}packed mip level{}, "
+      "base at {:#08X} (size {}), mips at {:#08X} (size {})",
       action, texture->key.tiled ? "tiled" : "linear",
       texture->key.scaled_resolve ? "2x-scaled " : "", texture->key.width,
       texture->key.height, texture->key.depth,

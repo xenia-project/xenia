@@ -340,7 +340,7 @@ VkPipeline PipelineCache::GetPipeline(const RenderState* render_state,
   auto result = vkCreateGraphicsPipelines(*device_, pipeline_cache_, 1,
                                           &pipeline_info, nullptr, &pipeline);
   if (result != VK_SUCCESS) {
-    XELOGE("vkCreateGraphicsPipelines failed with code %d", result);
+    XELOGE("vkCreateGraphicsPipelines failed with code {}", result);
     assert_always();
     return nullptr;
   }
@@ -379,10 +379,10 @@ bool PipelineCache::TranslateShader(VulkanShader* shader,
   }
 
   if (shader->is_valid()) {
-    XELOGGPU("Generated %s shader (%db) - hash %.16" PRIX64 ":\n%s\n",
+    XELOGGPU("Generated {} shader ({}b) - hash {:016X}:\n{}\n",
              shader->type() == ShaderType::kVertex ? "vertex" : "pixel",
              shader->ucode_dword_count() * 4, shader->ucode_data_hash(),
-             shader->ucode_disassembly().c_str());
+             shader->ucode_disassembly());
   }
 
   // Dump shader files if desired.
@@ -395,18 +395,18 @@ bool PipelineCache::TranslateShader(VulkanShader* shader,
 
 static void DumpShaderStatisticsAMD(const VkShaderStatisticsInfoAMD& stats) {
   XELOGI(" - resource usage:");
-  XELOGI("   numUsedVgprs: %d", stats.resourceUsage.numUsedVgprs);
-  XELOGI("   numUsedSgprs: %d", stats.resourceUsage.numUsedSgprs);
-  XELOGI("   ldsSizePerLocalWorkGroup: %d",
+  XELOGI("   numUsedVgprs: {}", stats.resourceUsage.numUsedVgprs);
+  XELOGI("   numUsedSgprs: {}", stats.resourceUsage.numUsedSgprs);
+  XELOGI("   ldsSizePerLocalWorkGroup: {}",
          stats.resourceUsage.ldsSizePerLocalWorkGroup);
-  XELOGI("   ldsUsageSizeInBytes     : %d",
+  XELOGI("   ldsUsageSizeInBytes     : {}",
          stats.resourceUsage.ldsUsageSizeInBytes);
-  XELOGI("   scratchMemUsageInBytes  : %d",
+  XELOGI("   scratchMemUsageInBytes  : {}",
          stats.resourceUsage.scratchMemUsageInBytes);
-  XELOGI("numPhysicalVgprs : %d", stats.numPhysicalVgprs);
-  XELOGI("numPhysicalSgprs : %d", stats.numPhysicalSgprs);
-  XELOGI("numAvailableVgprs: %d", stats.numAvailableVgprs);
-  XELOGI("numAvailableSgprs: %d", stats.numAvailableSgprs);
+  XELOGI("numPhysicalVgprs : {}", stats.numPhysicalVgprs);
+  XELOGI("numPhysicalSgprs : {}", stats.numPhysicalSgprs);
+  XELOGI("numAvailableVgprs: {}", stats.numAvailableVgprs);
+  XELOGI("numAvailableSgprs: {}", stats.numAvailableSgprs);
 }
 
 void PipelineCache::DumpShaderDisasmAMD(VkPipeline pipeline) {
@@ -521,8 +521,8 @@ void PipelineCache::DumpShaderDisasmNV(
       disasm_fp = std::string("Shader disassembly not available.");
     }
 
-    XELOGI("%s\n=====================================\n%s\n", disasm_vp.c_str(),
-           disasm_fp.c_str());
+    XELOGI("{}\n=====================================\n{}\n", disasm_vp,
+           disasm_fp);
   }
 
   vkDestroyPipeline(*device_, dummy_pipeline, nullptr);
@@ -1201,7 +1201,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateInputAssemblyState(
       break;
     default:
     case PrimitiveType::kTriangleWithWFlags:
-      XELOGE("unsupported primitive type %d", primitive_type);
+      XELOGE("unsupported primitive type {}", primitive_type);
       assert_unhandled_case(primitive_type);
       return UpdateStatus::kError;
   }

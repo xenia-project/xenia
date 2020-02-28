@@ -121,22 +121,21 @@ X_STATUS SDLInputDriver::Setup() {
 
     if (!cvars::mappings_file.empty()) {
       if (!filesystem::PathExists(cvars::mappings_file)) {
-        XELOGW("SDL GameControllerDB: file '%s' does not exist.",
-               xe::path_to_utf8(cvars::mappings_file).c_str());
+        XELOGW("SDL GameControllerDB: file '{}' does not exist.",
+               xe::path_to_utf8(cvars::mappings_file));
       } else {
         auto mappings_file = filesystem::OpenFile(cvars::mappings_file, "rb");
         if (!mappings_file) {
-          XELOGE("SDL GameControllerDB: failed to open file '%s'.",
-                 xe::path_to_utf8(cvars::mappings_file).c_str());
+          XELOGE("SDL GameControllerDB: failed to open file '{}'.",
+                 xe::path_to_utf8(cvars::mappings_file));
         } else {
           auto mappings_result = SDL_GameControllerAddMappingsFromRW(
               SDL_RWFromFP(mappings_file, SDL_TRUE), 1);
           if (mappings_result < 0) {
-            XELOGE("SDL GameControllerDB: error loading file '%s': %d.",
-                   xe::path_to_utf8(cvars::mappings_file).c_str(),
-                   mappings_result);
+            XELOGE("SDL GameControllerDB: error loading file '{}': {}.",
+                   xe::path_to_utf8(cvars::mappings_file), mappings_result);
           } else {
-            XELOGI("SDL GameControllerDB: loaded %d mappings.",
+            XELOGI("SDL GameControllerDB: loaded {} mappings.",
                    mappings_result);
           }
         }

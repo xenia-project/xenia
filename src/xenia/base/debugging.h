@@ -12,6 +12,8 @@
 
 #include <cstdint>
 
+#include "third_party/fmt/include/fmt/format.h"
+
 namespace xe {
 namespace debugging {
 
@@ -25,10 +27,18 @@ bool IsDebuggerAttached();
 // If no debugger is present, a signal will be raised.
 void Break();
 
+namespace internal {
+void DebugPrint(const char* s);
+}
+
 // Prints a message to the attached debugger.
 // This bypasses the normal logging mechanism. If no debugger is attached it's
 // likely to no-op.
-void DebugPrint(const char* fmt, ...);
+template <typename... Args>
+void DebugPrint(fmt::string_view format, const Args&... args) {
+  internal::DebugPrint(
+      fmt::vformat(format, fmt::make_format_args(args...)).c_str());
+}
 
 }  // namespace debugging
 }  // namespace xe

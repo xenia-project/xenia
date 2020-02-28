@@ -67,7 +67,7 @@ std::unique_ptr<SpirvDisassembler::Result> SpirvDisassembler::Disassemble(
                       SPV_BINARY_TO_TEXT_OPTION_INDENT, &text, &diagnostic);
   std::unique_ptr<Result> result(new Result(text, diagnostic));
   if (result_code) {
-    XELOGE("Failed to disassemble spv: %d", result_code);
+    XELOGE("Failed to disassemble spv: {}", result_code);
     if (result->has_error()) {
       return result;
     } else {

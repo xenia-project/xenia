@@ -32,16 +32,16 @@ FunctionDebugInfo::~FunctionDebugInfo() {
 
 void FunctionDebugInfo::Dump() {
   if (source_disasm_) {
-    XELOGD("PPC:\n%s\n", source_disasm_);
+    XELOGD("PPC:\n{}\n", source_disasm_);
   }
   if (raw_hir_disasm_) {
-    XELOGD("Unoptimized HIR:\n%s\n", raw_hir_disasm_);
+    XELOGD("Unoptimized HIR:\n{}\n", raw_hir_disasm_);
   }
   if (hir_disasm_) {
-    XELOGD("Optimized HIR:\n%s\n", hir_disasm_);
+    XELOGD("Optimized HIR:\n{}\n", hir_disasm_);
   }
   if (machine_code_disasm_) {
-    XELOGD("Machine Code:\n%s\n", machine_code_disasm_);
+    XELOGD("Machine Code:\n{}\n", machine_code_disasm_);
   }
 }
 
