@@ -58,3 +58,6 @@
 [submodule "third_party/fmt"]
 	path = third_party/fmt
 	url = https://github.com/fmtlib/fmt.git
+[submodule "third_party/disruptorplus"]
+	path = third_party/disruptorplus
+	url = https://github.com/xenia-project/disruptorplus.git
