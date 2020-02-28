@@ -40,7 +40,7 @@ bool SDLAudioDriver::Initialize() {
     if ((ver.major < 2) ||
         (ver.major == 2 && ver.minor == 0 && ver.patch < 8)) {
       XELOGW(
-          "SDL library version %d.%d.%d is outdated. "
+          "SDL library version {}.{}.{} is outdated. "
           "You may experience choppy audio.",
           ver.major, ver.minor, ver.patch);
     }

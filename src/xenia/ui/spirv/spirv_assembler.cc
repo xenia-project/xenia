@@ -63,7 +63,7 @@ std::unique_ptr<SpirvAssembler::Result> SpirvAssembler::Assemble(
                                      source_text_length, &binary, &diagnostic);
   std::unique_ptr<Result> result(new Result(binary, diagnostic));
   if (result_code) {
-    XELOGE("Failed to assemble spv: %d", result_code);
+    XELOGE("Failed to assemble spv: {}", result_code);
     if (result->has_error()) {
       return result;
     } else {

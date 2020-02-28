@@ -284,13 +284,13 @@ void CommandProcessor::UpdateWritePointer(uint32_t value) {
 void CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
   RegisterFile* regs = register_file_;
   if (index >= RegisterFile::kRegisterCount) {
-    XELOGW("CommandProcessor::WriteRegister index out of bounds: %d", index);
+    XELOGW("CommandProcessor::WriteRegister index out of bounds: {}", index);
     return;
   }
 
   regs->values[index].u32 = value;
   if (!regs->GetRegisterInfo(index)) {
-    XELOGW("GPU: Write to unknown register (%.4X = %.8X)", index, value);
+    XELOGW("GPU: Write to unknown register ({:04X} = {:08X})", index, value);
   }
 
   // If this is a COHER register, set the dirty flag.
@@ -376,7 +376,7 @@ void CommandProcessor::MakeCoherent() {
   }
 
   // TODO(benvanik): notify resource cache of base->size and type.
-  XELOGD("Make %.8X -> %.8X (%db) coherent, action = %s", base_host,
+  XELOGD("Make {:08X} -> {:08X} ({}b) coherent, action = {}", base_host,
          base_host + size_host, size_host, action);
 
   // Mark coherent.
@@ -541,8 +541,9 @@ bool CommandProcessor::ExecutePacketType0(RingBuffer* reader, uint32_t packet) {
 
   uint32_t count = ((packet >> 16) & 0x3FFF) + 1;
   if (reader->read_count() < count * sizeof(uint32_t)) {
-    XELOGE("ExecutePacketType0 overflow (read count %.8X, packet count %.8X)",
-           reader->read_count(), count * sizeof(uint32_t));
+    XELOGE(
+        "ExecutePacketType0 overflow (read count {:08X}, packet count {:08X})",
+        reader->read_count(), count * sizeof(uint32_t));
     return false;
   }
 
@@ -589,8 +590,9 @@ bool CommandProcessor::ExecutePacketType3(RingBuffer* reader, uint32_t packet) {
   auto data_start_offset = reader->read_offset();
 
   if (reader->read_count() < count * sizeof(uint32_t)) {
-    XELOGE("ExecutePacketType3 overflow (read count %.8X, packet count %.8X)",
-           reader->read_count(), count * sizeof(uint32_t));
+    XELOGE(
+        "ExecutePacketType3 overflow (read count {:08X}, packet count {:08X})",
+        reader->read_count(), count * sizeof(uint32_t));
     return false;
   }
 
@@ -728,14 +730,14 @@ bool CommandProcessor::ExecutePacketType3(RingBuffer* reader, uint32_t packet) {
     case PM4_CONTEXT_UPDATE: {
       assert_true(count == 1);
       uint64_t value = reader->ReadAndSwap<uint32_t>();
-      XELOGGPU("GPU context update = %.8X", value);
+      XELOGGPU("GPU context update = {:08X}", value);
       assert_true(value == 0);
       result = true;
       break;
     }
 
     default:
-      XELOGGPU("Unimplemented GPU OPCODE: 0x%.2X\t\tCOUNT: %d\n", opcode,
+      XELOGGPU("Unimplemented GPU OPCODE: {:#02X}\t\tCOUNT: {}\n", opcode,
                count);
       assert_always();
       reader->AdvanceRead(count * sizeof(uint32_t));
@@ -1200,7 +1202,7 @@ bool CommandProcessor::ExecutePacketType3_DRAW_INDX(RingBuffer* reader,
                 xenos::IsMajorModeExplicit(vgt_draw_initiator.major_mode,
                                            vgt_draw_initiator.prim_type));
   if (!success) {
-    XELOGE("PM4_DRAW_INDX(%d, %d, %d): Failed in backend",
+    XELOGE("PM4_DRAW_INDX({}, {}, {}): Failed in backend",
            vgt_draw_initiator.num_indices,
            uint32_t(vgt_draw_initiator.prim_type),
            uint32_t(vgt_draw_initiator.source_select));
@@ -1231,7 +1233,7 @@ bool CommandProcessor::ExecutePacketType3_DRAW_INDX_2(RingBuffer* reader,
       xenos::IsMajorModeExplicit(vgt_draw_initiator.major_mode,
                                  vgt_draw_initiator.prim_type));
   if (!success) {
-    XELOGE("PM4_DRAW_INDX_IMM(%d, %d): Failed in backend",
+    XELOGE("PM4_DRAW_INDX_IMM({}, {}): Failed in backend",
            vgt_draw_initiator.num_indices,
            uint32_t(vgt_draw_initiator.prim_type));
   }
@@ -1426,11 +1428,11 @@ bool CommandProcessor::ExecutePacketType3_VIZ_QUERY(RingBuffer* reader,
   if (!end) {
     // begin a new viz query @ id
     WriteRegister(XE_GPU_REG_VGT_EVENT_INITIATOR, VIZQUERY_START);
-    XELOGGPU("Begin viz query ID %.2X", id);
+    XELOGGPU("Begin viz query ID {:02X}", id);
   } else {
     // end the viz query
     WriteRegister(XE_GPU_REG_VGT_EVENT_INITIATOR, VIZQUERY_END);
-    XELOGGPU("End viz query ID %.2X", id);
+    XELOGGPU("End viz query ID {:02X}", id);
   }
 
   return true;

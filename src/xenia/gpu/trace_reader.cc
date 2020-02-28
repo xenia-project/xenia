@@ -37,7 +37,7 @@ bool TraceReader::Open(const std::filesystem::path& path) {
   // Verify version.
   auto header = reinterpret_cast<const TraceHeader*>(trace_data_);
   if (header->version != kTraceFormatVersion) {
-    XELOGE("Trace format version mismatch, code has %u, file has %u",
+    XELOGE("Trace format version mismatch, code has {}, file has {}",
            kTraceFormatVersion, header->version);
     if (header->version < kTraceFormatVersion) {
       XELOGE("You need to regenerate your trace for the latest version");
@@ -45,13 +45,12 @@ bool TraceReader::Open(const std::filesystem::path& path) {
     return false;
   }
 
-  auto path_str = xe::path_to_utf8(path);
-  XELOGI("Mapped %" PRId64 "b trace from %s", trace_size_, path_str.c_str());
-  XELOGI("   Version: %u", header->version);
+  XELOGI("Mapped {}b trace from {}", trace_size_, xe::path_to_utf8(path));
+  XELOGI("   Version: {}", header->version);
   auto commit_str = std::string(header->build_commit_sha,
                                 xe::countof(header->build_commit_sha));
-  XELOGI("    Commit: %s", commit_str.c_str());
-  XELOGI("  Title ID: %u", header->title_id);
+  XELOGI("    Commit: {}", commit_str);
+  XELOGI("  Title ID: {}", header->title_id);
 
   ParseTrace();
 

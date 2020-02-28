@@ -23,7 +23,7 @@ dword_result_t XMsgInProcessCall(dword_t app, dword_t message, dword_t arg1,
   auto result = kernel_state()->app_manager()->DispatchMessageSync(app, message,
                                                                    arg1, arg2);
   if (result == X_ERROR_NOT_FOUND) {
-    XELOGE("XMsgInProcessCall: app %.8X undefined", (uint32_t)app);
+    XELOGE("XMsgInProcessCall: app {:08X} undefined", app);
   }
   return result;
 }
@@ -34,7 +34,7 @@ dword_result_t XMsgSystemProcessCall(dword_t app, dword_t message,
   auto result = kernel_state()->app_manager()->DispatchMessageAsync(
       app, message, buffer, buffer_length);
   if (result == X_ERROR_NOT_FOUND) {
-    XELOGE("XMsgSystemProcessCall: app %.8X undefined", (uint32_t)app);
+    XELOGE("XMsgSystemProcessCall: app {:08X} undefined", app);
   }
   return result;
 }
@@ -46,7 +46,7 @@ dword_result_t XMsgStartIORequest(dword_t app, dword_t message,
   auto result = kernel_state()->app_manager()->DispatchMessageAsync(
       app, message, buffer, buffer_length);
   if (result == X_ERROR_NOT_FOUND) {
-    XELOGE("XMsgStartIORequest: app %.8X undefined", (uint32_t)app);
+    XELOGE("XMsgStartIORequest: app {:08X} undefined", app);
   }
   if (overlapped_ptr) {
     kernel_state()->CompleteOverlappedImmediate(overlapped_ptr, result);
@@ -63,7 +63,7 @@ dword_result_t XMsgStartIORequestEx(dword_t app, dword_t message,
   auto result = kernel_state()->app_manager()->DispatchMessageAsync(
       app, message, buffer, buffer_length);
   if (result == X_ERROR_NOT_FOUND) {
-    XELOGE("XMsgStartIORequestEx: app %.8X undefined", (uint32_t)app);
+    XELOGE("XMsgStartIORequestEx: app {:08X} undefined", app);
   }
   if (overlapped_ptr) {
     kernel_state()->CompleteOverlappedImmediate(overlapped_ptr, result);

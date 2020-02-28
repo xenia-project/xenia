@@ -126,7 +126,7 @@ bool TraceViewer::Setup() {
       window_.get(), nullptr, [this]() { return CreateGraphicsSystem(); },
       nullptr);
   if (XFAILED(result)) {
-    XELOGE("Failed to setup emulator: %.8X", result);
+    XELOGE("Failed to setup emulator: {:08X}", result);
     return false;
   }
   memory_ = emulator_->memory();

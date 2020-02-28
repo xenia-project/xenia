@@ -160,7 +160,7 @@ class Win32FileHandle : public FileHandle {
     } else {
       if (GetLastError() == ERROR_NOACCESS) {
         XELOGW(
-            "Win32FileHandle::Read(..., %.8llX, %.8llX, ...) returned "
+            "Win32FileHandle::Read(..., {}, {:#X}, ...) returned "
             "ERROR_NOACCESS. Read-only memory?",
             buffer, buffer_length);
       }

@@ -471,7 +471,7 @@ void VulkanContext::BeginSwap() {
       swapchain_create_info.oldSwapchain = swapchain_;
       if (vkCreateSwapchainKHR(device, &swapchain_create_info, nullptr,
                                &swapchain) != VK_SUCCESS) {
-        XELOGE("Failed to create a %ux%u Vulkan swap chain",
+        XELOGE("Failed to create a {}x{} Vulkan swap chain",
                target_window_extent.width, target_window_extent.height);
         context_lost_ = true;
         return;

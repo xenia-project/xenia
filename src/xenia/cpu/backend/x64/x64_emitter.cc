@@ -245,7 +245,7 @@ bool X64Emitter::Emit(HIRBuilder* builder, EmitFunctionInfo& func_info) {
         // NOTE: If you encounter this after adding a new instruction, do a full
         // rebuild!
         assert_always();
-        XELOGE("Unable to process HIR opcode %s", instr->opcode->name);
+        XELOGE("Unable to process HIR opcode {}", instr->opcode->name);
         break;
       }
       instr = new_tail;
@@ -328,10 +328,10 @@ uint64_t TrapDebugPrint(void* raw_context, uint64_t address) {
   // uint16_t str_len = uint16_t(thread_state->context()->r[4]);
   auto str = thread_state->memory()->TranslateVirtual<const char*>(str_ptr);
   // TODO(benvanik): truncate to length?
-  XELOGD("(DebugPrint) %s", str);
+  XELOGD("(DebugPrint) {}", str);
 
   if (cvars::debugprint_trap_log) {
-    debugging::DebugPrint("(DebugPrint) %s", str);
+    debugging::DebugPrint("(DebugPrint) {}", str);
   }
 
   return 0;
@@ -363,7 +363,7 @@ void X64Emitter::Trap(uint16_t trap_type) {
       // ?
       break;
     default:
-      XELOGW("Unknown trap type %d", trap_type);
+      XELOGW("Unknown trap type {}", trap_type);
       db(0xCC);
       break;
   }
@@ -481,8 +481,8 @@ uint64_t UndefinedCallExtern(void* raw_context, uint64_t function_ptr) {
     xe::FatalError(fmt::format("undefined extern call to {:08X} {}",
                                function->address(), function->name().c_str()));
   } else {
-    XELOGE("undefined extern call to %.8X %s", function->address(),
-           function->name().c_str());
+    XELOGE("undefined extern call to {:08X} {}", function->address(),
+           function->name());
   }
   return 0;
 }

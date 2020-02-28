@@ -323,7 +323,7 @@ bool Processor::Execute(ThreadState* thread_state, uint32_t address) {
   auto function = ResolveFunction(address);
   if (!function) {
     // Symbol not found in any module.
-    XELOGCPU("Execute(%.8X): failed to find function", address);
+    XELOGCPU("Execute({:08X}): failed to find function", address);
     return false;
   }
 
@@ -354,7 +354,7 @@ bool Processor::ExecuteRaw(ThreadState* thread_state, uint32_t address) {
   auto function = ResolveFunction(address);
   if (!function) {
     // Symbol not found in any module.
-    XELOGCPU("Execute(%.8X): failed to find function", address);
+    XELOGCPU("Execute({:08X}): failed to find function", address);
     return false;
   }
 
@@ -973,8 +973,9 @@ bool Processor::StepToGuestAddress(uint32_t thread_id, uint32_t pc) {
   if (functions.empty()) {
     // Function hasn't been generated yet. Generate it.
     if (!ResolveFunction(pc)) {
-      XELOGE("Processor::StepToAddress(%.8X) - Function could not be resolved",
-             pc);
+      XELOGE(
+          "Processor::StepToAddress({:08X}) - Function could not be resolved",
+          pc);
       return false;
     }
   }

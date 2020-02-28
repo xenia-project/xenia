@@ -339,7 +339,7 @@ bool MMIOHandler::ExceptionCallback(Exception* ex) {
   DecodedMov mov = {0};
   bool decoded = TryDecodeMov(p, &mov);
   if (!decoded) {
-    XELOGE("Unable to decode MMIO mov at %p", p);
+    XELOGE("Unable to decode MMIO mov at {}", p);
     assert_always("Unknown MMIO instruction type");
     return false;
   }

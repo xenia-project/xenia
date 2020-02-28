@@ -143,8 +143,7 @@ int Main() {
   }
 
   // Print version info.
-  XELOGI("Build: %s / %s on %s", XE_BUILD_BRANCH, XE_BUILD_COMMIT,
-         XE_BUILD_DATE);
+  XELOGI("Build: " XE_BUILD_BRANCH " / " XE_BUILD_COMMIT " on " XE_BUILD_DATE);
 
   // Request high performance timing.
   if (cvars::win32_high_freq) {

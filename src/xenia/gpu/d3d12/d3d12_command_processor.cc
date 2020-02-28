@@ -419,8 +419,8 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(
       GetD3D12Context()->GetD3D12Provider(), desc);
   if (root_signature == nullptr) {
     XELOGE(
-        "Failed to create a root signature with %u pixel textures, %u pixel "
-        "samplers, %u vertex textures and %u vertex samplers",
+        "Failed to create a root signature with {} pixel textures, {} pixel "
+        "samplers, {} vertex textures and {} vertex samplers",
         texture_count_pixel, sampler_count_pixel, texture_count_vertex,
         sampler_count_vertex);
     return nullptr;
@@ -544,7 +544,7 @@ ID3D12Resource* D3D12CommandProcessor::RequestScratchGPUBuffer(
   if (FAILED(device->CreateCommittedResource(
           &ui::d3d12::util::kHeapPropertiesDefault, D3D12_HEAP_FLAG_NONE,
           &buffer_desc, state, nullptr, IID_PPV_ARGS(&buffer)))) {
-    XELOGE("Failed to create a %u MB scratch GPU buffer", size >> 20);
+    XELOGE("Failed to create a {} MB scratch GPU buffer", size >> 20);
     return nullptr;
   }
   if (scratch_buffer_ != nullptr) {
@@ -1492,20 +1492,22 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
           break;
         }
         XELOGW(
-            "Vertex fetch constant %u (%.8X %.8X) has \"invalid\" type! This "
+            "Vertex fetch constant {} ({:08X} {:08X}) has \"invalid\" type! "
+            "This "
             "is incorrect behavior, but you can try bypassing this by "
             "launching Xenia with --gpu_allow_invalid_fetch_constants=true.",
             vfetch_index, vfetch_constant.dword_0, vfetch_constant.dword_1);
         return false;
       default:
-        XELOGW("Vertex fetch constant %u (%.8X %.8X) is completely invalid!",
-               vfetch_index, vfetch_constant.dword_0, vfetch_constant.dword_1);
+        XELOGW(
+            "Vertex fetch constant {} ({:08X} {:08X}) is completely invalid!",
+            vfetch_index, vfetch_constant.dword_0, vfetch_constant.dword_1);
         return false;
     }
     if (!shared_memory_->RequestRange(vfetch_constant.address << 2,
                                       vfetch_constant.size << 2)) {
       XELOGE(
-          "Failed to request vertex buffer at 0x%.8X (size %u) in the shared "
+          "Failed to request vertex buffer at {:#08X} (size {}) in the shared "
           "memory",
           vfetch_constant.address << 2, vfetch_constant.size << 2);
       return false;
@@ -1534,7 +1536,7 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
       uint32_t memexport_format_size =
           GetSupportedMemExportFormatSize(memexport_stream.format);
       if (memexport_format_size == 0) {
-        XELOGE("Unsupported memexport format %s",
+        XELOGE("Unsupported memexport format {}",
                FormatInfo::Get(TextureFormat(uint32_t(memexport_stream.format)))
                    ->name);
         return false;
@@ -1576,7 +1578,7 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
       uint32_t memexport_format_size =
           GetSupportedMemExportFormatSize(memexport_stream.format);
       if (memexport_format_size == 0) {
-        XELOGE("Unsupported memexport format %s",
+        XELOGE("Unsupported memexport format {}",
                FormatInfo::Get(TextureFormat(uint32_t(memexport_stream.format)))
                    ->name);
         return false;
@@ -1607,7 +1609,7 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     if (!shared_memory_->RequestRange(memexport_range.base_address_dwords << 2,
                                       memexport_range.size_dwords << 2)) {
       XELOGE(
-          "Failed to request memexport stream at 0x%.8X (size %u) in the "
+          "Failed to request memexport stream at {:#08X} (size {}) in the "
           "shared memory",
           memexport_range.base_address_dwords << 2,
           memexport_range.size_dwords << 2);
@@ -1653,7 +1655,7 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
       uint32_t index_buffer_size = index_buffer_info->count * index_size;
       if (!shared_memory_->RequestRange(index_base, index_buffer_size)) {
         XELOGE(
-            "Failed to request index buffer at 0x%.8X (size %u) in the shared "
+            "Failed to request index buffer at {:#08X} (size {}) in the shared "
             "memory",
             index_base, index_buffer_size);
         return false;
@@ -3477,7 +3479,7 @@ ID3D12Resource* D3D12CommandProcessor::RequestReadbackBuffer(uint32_t size) {
             &ui::d3d12::util::kHeapPropertiesReadback, D3D12_HEAP_FLAG_NONE,
             &buffer_desc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr,
             IID_PPV_ARGS(&buffer)))) {
-      XELOGE("Failed to create a %u MB readback buffer", size >> 20);
+      XELOGE("Failed to create a {} MB readback buffer", size >> 20);
       return nullptr;
     }
     if (readback_buffer_ != nullptr) {

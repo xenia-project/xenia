@@ -194,7 +194,7 @@ uint32_t GraphicsSystem::ReadRegister(uint32_t addr) {
       return 0x050002D0;
     default:
       if (!register_file_.GetRegisterInfo(r)) {
-        XELOGE("GPU: Read from unknown register (%.4X)", r);
+        XELOGE("GPU: Read from unknown register ({:04X})", r);
       }
   }
 
@@ -212,7 +212,7 @@ void GraphicsSystem::WriteRegister(uint32_t addr, uint32_t value) {
     case 0x1844:  // AVIVO_D1GRPH_PRIMARY_SURFACE_ADDRESS
       break;
     default:
-      XELOGW("Unknown GPU register %.4X write: %.8X", r, value);
+      XELOGW("Unknown GPU register {:04X} write: {:08X}", r, value);
       break;
   }
 
@@ -233,7 +233,7 @@ void GraphicsSystem::SetInterruptCallback(uint32_t callback,
                                           uint32_t user_data) {
   interrupt_callback_ = callback;
   interrupt_callback_data_ = user_data;
-  XELOGGPU("SetInterruptCallback(%.4X, %.4X)", callback, user_data);
+  XELOGGPU("SetInterruptCallback({:08X}, {:08X})", callback, user_data);
 }
 
 void GraphicsSystem::DispatchInterruptCallback(uint32_t source, uint32_t cpu) {
@@ -250,7 +250,7 @@ void GraphicsSystem::DispatchInterruptCallback(uint32_t source, uint32_t cpu) {
   }
   thread->SetActiveCpu(cpu);
 
-  // XELOGGPU("Dispatching GPU interrupt at %.8X w/ mode %d on cpu %d",
+  // XELOGGPU("Dispatching GPU interrupt at {:08X} w/ mode {} on cpu {}",
   //          interrupt_callback_, source, cpu);
 
   uint64_t args[] = {source, interrupt_callback_data_};

@@ -30,7 +30,7 @@ ID3D12RootSignature* CreateRootSignature(
           &desc, D3D_ROOT_SIGNATURE_VERSION_1, &blob, &error_blob))) {
     XELOGE("Failed to serialize a root signature");
     if (error_blob != nullptr) {
-      XELOGE("%s",
+      XELOGE("{}",
              reinterpret_cast<const char*>(error_blob->GetBufferPointer()));
       error_blob->Release();
     }

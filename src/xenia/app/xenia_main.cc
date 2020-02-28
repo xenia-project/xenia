@@ -226,7 +226,7 @@ int xenia_main(const std::vector<std::string>& args) {
     }
   }
   storage_root = std::filesystem::absolute(storage_root);
-  XELOGI("Storage root: %S", storage_root.c_str());
+  XELOGI("Storage root: {}", xe::path_to_utf8(storage_root));
 
   config::SetupConfig(storage_root);
 
@@ -235,7 +235,7 @@ int xenia_main(const std::vector<std::string>& args) {
     content_root = storage_root / "content";
   }
   content_root = std::filesystem::absolute(content_root);
-  XELOGI("Content root: %S", content_root.c_str());
+  XELOGI("Content root: {}", xe::path_to_utf8(content_root));
 
   if (cvars::discord) {
     discord::DiscordPresence::Initialize();
@@ -254,7 +254,7 @@ int xenia_main(const std::vector<std::string>& args) {
       emulator->Setup(emulator_window->window(), CreateAudioSystem,
                       CreateGraphicsSystem, CreateInputDrivers);
   if (XFAILED(result)) {
-    XELOGE("Failed to setup emulator: %.8X", result);
+    XELOGE("Failed to setup emulator: {:08X}", result);
     return 1;
   }
 

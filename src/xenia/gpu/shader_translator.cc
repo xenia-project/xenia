@@ -1299,7 +1299,7 @@ void ShaderTranslator::ParseAluVectorOperation(const AluInstruction& op,
           // assert_always();
           XELOGE(
               "ShaderTranslator::ParseAluVectorOperation: Unsupported write to "
-              "export %d",
+              "export {}",
               dest_num);
           i.vector_result.storage_target = InstructionStorageTarget::kNone;
           i.vector_result.storage_index = 0;
@@ -1343,7 +1343,7 @@ void ShaderTranslator::ParseAluVectorOperation(const AluInstruction& op,
       default:
         XELOGE(
             "ShaderTranslator::ParseAluVectorOperation: Unsupported write to "
-            "export %d",
+            "export {}",
             dest_num);
         i.vector_result.storage_target = InstructionStorageTarget::kNone;
         i.vector_result.storage_index = 0;
@@ -1468,7 +1468,7 @@ void ShaderTranslator::ParseAluScalarOperation(const AluInstruction& op,
           // assert_always();
           XELOGE(
               "ShaderTranslator::ParseAluScalarOperation: Unsupported write to "
-              "export %d",
+              "export {}",
               dest_num);
           i.scalar_result.storage_target = InstructionStorageTarget::kNone;
           i.scalar_result.storage_index = 0;

@@ -363,8 +363,7 @@ void PipelineCache::InitializeShaderStorage(
         delete shader;
       }
     }
-    XELOGGPU("Translated %zu shaders from the storage in %" PRIu64
-             " milliseconds",
+    XELOGGPU("Translated {} shaders from the storage in {} milliseconds",
              shaders_translated,
              (xe::Clock::QueryHostTickCount() -
               shader_storage_initialization_start) *
@@ -580,8 +579,8 @@ void PipelineCache::InitializeShaderStorage(
           }
         }
         XELOGGPU(
-            "Created %zu graphics pipeline state objects from the storage in "
-            "%" PRIu64 " milliseconds",
+            "Created {} graphics pipeline state objects from the storage in {} "
+            "milliseconds",
             pipeline_states_created,
             (xe::Clock::QueryHostTickCount() -
              pipeline_state_storage_initialization_start_) *
@@ -770,7 +769,7 @@ Shader::HostVertexShaderType PipelineCache::GetHostVertexShaderTypeIfValid()
       // tessellation.
   }
   XELOGE(
-      "Unsupported tessellation mode %u for primitive type %u. Report the game "
+      "Unsupported tessellation mode {} for primitive type {}. Report the game "
       "to Xenia developers!",
       uint32_t(tessellation_mode), uint32_t(vgt_draw_initiator.prim_type));
   return Shader::HostVertexShaderType(-1);
@@ -931,7 +930,7 @@ bool PipelineCache::TranslateShader(
   // Perform translation.
   // If this fails the shader will be marked as invalid and ignored later.
   if (!translator.Translate(shader, cntl, host_vertex_shader_type)) {
-    XELOGE("Shader %.16" PRIX64 " translation failed; marking as ignored",
+    XELOGE("Shader {:016X} translation failed; marking as ignored",
            shader->ucode_data_hash());
     return false;
   }
@@ -973,7 +972,7 @@ bool PipelineCache::TranslateShader(
     } else {
       host_shader_type = "pixel";
     }
-    XELOGGPU("Generated %s shader (%db) - hash %.16" PRIX64 ":\n%s\n",
+    XELOGGPU("Generated {} shader ({}b) - hash {:016X}:\n{}\n",
              host_shader_type, shader->ucode_dword_count() * 4,
              shader->ucode_data_hash(), shader->ucode_disassembly().c_str());
   }
@@ -992,7 +991,7 @@ bool PipelineCache::TranslateShader(
   if (cvars::d3d12_dxbc_disasm) {
     auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
     if (!shader->DisassembleDxbc(provider)) {
-      XELOGE("Failed to disassemble DXBC shader %.16" PRIX64,
+      XELOGE("Failed to disassemble DXBC shader {:016X}",
              shader->ucode_data_hash());
     }
   }
@@ -1364,12 +1363,13 @@ ID3D12PipelineState* PipelineCache::CreateD3D12PipelineState(
   const PipelineDescription& description = runtime_description.description;
 
   if (runtime_description.pixel_shader != nullptr) {
-    XELOGGPU("Creating graphics pipeline state with VS %.16" PRIX64
-             ", PS %.16" PRIX64,
-             runtime_description.vertex_shader->ucode_data_hash(),
-             runtime_description.pixel_shader->ucode_data_hash());
+    XELOGGPU(
+        "Creating graphics pipeline state with VS {:016X}"
+        ", PS {:016X}",
+        runtime_description.vertex_shader->ucode_data_hash(),
+        runtime_description.pixel_shader->ucode_data_hash());
   } else {
-    XELOGGPU("Creating graphics pipeline state with VS %.16" PRIX64,
+    XELOGGPU("Creating graphics pipeline state with VS {:016X}",
              runtime_description.vertex_shader->ucode_data_hash());
   }
 
@@ -1395,7 +1395,7 @@ ID3D12PipelineState* PipelineCache::CreateD3D12PipelineState(
 
   // Primitive topology, vertex, hull, domain and geometry shaders.
   if (!runtime_description.vertex_shader->is_translated()) {
-    XELOGE("Vertex shader %.16" PRIX64 " not translated",
+    XELOGE("Vertex shader {:016X} not translated",
            runtime_description.vertex_shader->ucode_data_hash());
     assert_always();
     return nullptr;
@@ -1404,10 +1404,10 @@ ID3D12PipelineState* PipelineCache::CreateD3D12PipelineState(
       description.host_vertex_shader_type;
   if (runtime_description.vertex_shader->host_vertex_shader_type() !=
       host_vertex_shader_type) {
-    XELOGE("Vertex shader %.16" PRIX64
-           " translated into the wrong host shader "
-           "type",
-           runtime_description.vertex_shader->ucode_data_hash());
+    XELOGE(
+        "Vertex shader {:016X} translated into the wrong host shader "
+        "type",
+        runtime_description.vertex_shader->ucode_data_hash());
     assert_always();
     return nullptr;
   }
@@ -1511,7 +1511,7 @@ ID3D12PipelineState* PipelineCache::CreateD3D12PipelineState(
   // Pixel shader.
   if (runtime_description.pixel_shader != nullptr) {
     if (!runtime_description.pixel_shader->is_translated()) {
-      XELOGE("Pixel shader %.16" PRIX64 " not translated",
+      XELOGE("Pixel shader {:016X} not translated",
              runtime_description.pixel_shader->ucode_data_hash());
       assert_always();
       return nullptr;
@@ -1681,12 +1681,13 @@ ID3D12PipelineState* PipelineCache::CreateD3D12PipelineState(
   if (FAILED(device->CreateGraphicsPipelineState(&state_desc,
                                                  IID_PPV_ARGS(&state)))) {
     if (runtime_description.pixel_shader != nullptr) {
-      XELOGE("Failed to create graphics pipeline state with VS %.16" PRIX64
-             ", PS %.16" PRIX64,
-             runtime_description.vertex_shader->ucode_data_hash(),
-             runtime_description.pixel_shader->ucode_data_hash());
+      XELOGE(
+          "Failed to create graphics pipeline state with VS {:016X}"
+          ", PS {:016X}",
+          runtime_description.vertex_shader->ucode_data_hash(),
+          runtime_description.pixel_shader->ucode_data_hash());
     } else {
-      XELOGE("Failed to create graphics pipeline state with VS %.16" PRIX64,
+      XELOGE("Failed to create graphics pipeline state with VS {:016X}",
              runtime_description.vertex_shader->ucode_data_hash());
     }
     return nullptr;

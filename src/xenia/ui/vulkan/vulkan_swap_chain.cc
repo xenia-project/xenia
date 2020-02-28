@@ -162,7 +162,7 @@ VkResult VulkanSwapChain::Initialize(VkSurfaceKHR surface) {
   if (surface_caps.maxImageCount > 0 &&
       image_count > surface_caps.maxImageCount) {
     // Too many requested - use whatever we can.
-    XELOGI("Requested number of swapchain images (%d) exceeds maximum (%d)",
+    XELOGI("Requested number of swapchain images ({}) exceeds maximum ({})",
            image_count, surface_caps.maxImageCount);
     image_count = surface_caps.maxImageCount;
   }
@@ -194,25 +194,25 @@ VkResult VulkanSwapChain::Initialize(VkSurfaceKHR surface) {
   create_info.oldSwapchain = nullptr;
 
   XELOGVK("Creating swap chain:");
-  XELOGVK("  minImageCount    = %u", create_info.minImageCount);
-  XELOGVK("  imageFormat      = %s", to_string(create_info.imageFormat));
-  XELOGVK("  imageExtent      = %d x %d", create_info.imageExtent.width,
+  XELOGVK("  minImageCount    = {}", create_info.minImageCount);
+  XELOGVK("  imageFormat      = {}", to_string(create_info.imageFormat));
+  XELOGVK("  imageExtent      = {} x {}", create_info.imageExtent.width,
           create_info.imageExtent.height);
   auto pre_transform_str = to_flags_string(create_info.preTransform);
-  XELOGVK("  preTransform     = %s", pre_transform_str.c_str());
-  XELOGVK("  imageArrayLayers = %u", create_info.imageArrayLayers);
-  XELOGVK("  presentMode      = %s", to_string(create_info.presentMode));
-  XELOGVK("  clipped          = %s", create_info.clipped ? "true" : "false");
-  XELOGVK("  imageColorSpace  = %s", to_string(create_info.imageColorSpace));
+  XELOGVK("  preTransform     = {}", pre_transform_str);
+  XELOGVK("  imageArrayLayers = {}", create_info.imageArrayLayers);
+  XELOGVK("  presentMode      = {}", to_string(create_info.presentMode));
+  XELOGVK("  clipped          = {}", create_info.clipped ? "true" : "false");
+  XELOGVK("  imageColorSpace  = {}", to_string(create_info.imageColorSpace));
   auto image_usage_flags_str = to_flags_string(
       static_cast<VkImageUsageFlagBits>(create_info.imageUsage));
-  XELOGVK("  imageUsageFlags  = %s", image_usage_flags_str.c_str());
-  XELOGVK("  imageSharingMode = %s", to_string(create_info.imageSharingMode));
-  XELOGVK("  queueFamilyCount = %u", create_info.queueFamilyIndexCount);
+  XELOGVK("  imageUsageFlags  = {}", image_usage_flags_str);
+  XELOGVK("  imageSharingMode = {}", to_string(create_info.imageSharingMode));
+  XELOGVK("  queueFamilyCount = {}", create_info.queueFamilyIndexCount);
 
   status = vkCreateSwapchainKHR(*device_, &create_info, nullptr, &handle);
   if (status != VK_SUCCESS) {
-    XELOGE("Failed to create swapchain: %s", to_string(status));
+    XELOGE("Failed to create swapchain: {}", to_string(status));
     return status;
   }
 
@@ -799,7 +799,7 @@ VkResult VulkanSwapChain::End() {
       // Fatal. Device lost.
       break;
     default:
-      XELOGE("Failed to queue present: %s", to_string(status));
+      XELOGE("Failed to queue present: {}", to_string(status));
       assert_always("Unexpected queue present failure");
   }
 

@@ -114,8 +114,9 @@ dword_result_t keXamBuildResourceLocator(uint64_t module,
   std::u16string path;
   if (!module) {
     path = fmt::format(u"file://media:/{0}.xzp#{0}", container, resource);
-    XELOGD("XamBuildResourceLocator(%s) returning locator to local file %s.xzp",
-           xe::to_utf8(container).c_str(), xe::to_utf8(container).c_str());
+    XELOGD(
+        "XamBuildResourceLocator({0}) returning locator to local file {0}.xzp",
+        xe::to_utf8(container));
   } else {
     path = fmt::format(u"section://{:X},{}#{}", (uint32_t)module, container,
                        resource);
@@ -358,8 +359,9 @@ dword_result_t XamEnumerate(dword_t handle, dword_t flags, lpvoid_t buffer,
     // Known culprits:
     //   Final Fight: Double Impact (saves)
     XELOGW(
-        "Broken usage of XamEnumerate! buffer length=%.X vs actual length=%.X "
-        "(item size=%.X, items per enumerate=%u)",
+        "Broken usage of XamEnumerate! buffer length={:X} vs actual "
+        "length={:X} "
+        "(item size={:X}, items per enumerate={})",
         (uint32_t)buffer_length, actual_buffer_length, e->item_size(),
         e->items_per_enumerate());
   }

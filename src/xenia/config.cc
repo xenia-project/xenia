@@ -61,7 +61,7 @@ void ReadConfig(const std::filesystem::path& file_path) {
       config_var->LoadConfigValue(config->get_qualified(config_key));
     }
   }
-  XELOGI("Loaded config: %s", xe::path_to_utf8(file_path).c_str());
+  XELOGI("Loaded config: {}", xe::path_to_utf8(file_path));
 }
 
 void ReadGameConfig(const std::filesystem::path& file_path) {
@@ -73,7 +73,7 @@ void ReadGameConfig(const std::filesystem::path& file_path) {
       config_var->LoadGameConfigValue(config->get_qualified(config_key));
     }
   }
-  XELOGI("Loaded game config: %s", xe::path_to_utf8(file_path).c_str());
+  XELOGI("Loaded game config: {}", xe::path_to_utf8(file_path));
 }
 
 void SaveConfig() {

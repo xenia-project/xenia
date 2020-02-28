@@ -93,9 +93,10 @@ bool UploadBufferChain::EnsureCurrentBufferAllocated() {
   if (vkCreateBuffer(device, &buffer_create_info, nullptr,
                      &upload_buffer.buffer) != VK_SUCCESS) {
     XELOGE(
-        "Failed to create a Vulkan upload buffer with %ull x %u bytes and "
-        "0x%.8X usage",
-        buffer_create_info.size, VulkanContext::kQueuedFrames, usage_flags_);
+        "Failed to create a Vulkan upload buffer with {} x {} bytes and "
+        "{:#08X} usage",
+        buffer_create_info.size, VulkanContext::kQueuedFrames,
+        static_cast<uint32_t>(usage_flags_));
     buffer_creation_failed_ = true;
     return false;
   }
@@ -110,8 +111,8 @@ bool UploadBufferChain::EnsureCurrentBufferAllocated() {
                                  VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
     if (memory_type_ == UINT32_MAX) {
       XELOGE(
-          "Failed to find a memory type for an upload buffer with %ull bytes "
-          "and 0x%.8X usage",
+          "Failed to find a memory type for an upload buffer with {} bytes "
+          "and {:#08X} usage",
           buffer_memory_requirements.size, usage_flags_);
       vkDestroyBuffer(device, upload_buffer.buffer, nullptr);
       buffer_creation_failed_ = true;
@@ -132,7 +133,7 @@ bool UploadBufferChain::EnsureCurrentBufferAllocated() {
   memory_allocate_info.memoryTypeIndex = memory_type_;
   if (vkAllocateMemory(device, &memory_allocate_info, nullptr,
                        &upload_buffer.memory) != VK_SUCCESS) {
-    XELOGE("Failed to allocate %ull for a Vulkan upload buffer",
+    XELOGE("Failed to allocate {} for a Vulkan upload buffer",
            memory_page_size_);
     vkDestroyBuffer(device, upload_buffer.buffer, nullptr);
     buffer_creation_failed_ = true;
@@ -141,7 +142,7 @@ bool UploadBufferChain::EnsureCurrentBufferAllocated() {
 
   if (vkBindBufferMemory(device, upload_buffer.buffer, upload_buffer.memory,
                          0) != VK_SUCCESS) {
-    XELOGE("Failed to bind a %ull-byte memory object to a Vulkan upload buffer",
+    XELOGE("Failed to bind a {}-byte memory object to a Vulkan upload buffer",
            memory_page_size_);
     vkDestroyBuffer(device, upload_buffer.buffer, nullptr);
     vkFreeMemory(device, upload_buffer.memory, nullptr);
@@ -151,7 +152,7 @@ bool UploadBufferChain::EnsureCurrentBufferAllocated() {
 
   if (vkMapMemory(device, upload_buffer.memory, 0, memory_page_size_, 0,
                   &upload_buffer.mapping) != VK_SUCCESS) {
-    XELOGE("Failed to map a %ull-byte memory object of a Vulkan upload buffer",
+    XELOGE("Failed to map a {}-byte memory object of a Vulkan upload buffer",
            memory_page_size_);
     vkDestroyBuffer(device, upload_buffer.buffer, nullptr);
     vkFreeMemory(device, upload_buffer.memory, nullptr);

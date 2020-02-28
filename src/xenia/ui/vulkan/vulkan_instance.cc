@@ -70,7 +70,7 @@ VulkanInstance::~VulkanInstance() { DestroyInstance(); }
 
 bool VulkanInstance::Initialize() {
   auto version = Version::Parse(VK_API_VERSION);
-  XELOGVK("Initializing Vulkan %s...", version.pretty_string.c_str());
+  XELOGVK("Initializing Vulkan {}...", version.pretty_string);
   if (volkInitialize() != VK_SUCCESS) {
     XELOGE("volkInitialize() failed!");
     return false;
@@ -134,7 +134,7 @@ bool VulkanInstance::EnableRenderDoc() {
   int minor;
   int patch;
   api->GetAPIVersion(&major, &minor, &patch);
-  XELOGI("RenderDoc attached; %d.%d.%d", major, minor, patch);
+  XELOGI("RenderDoc attached; {}.{}.{}", major, minor, patch);
 
   is_renderdoc_attached_ = true;
 
@@ -173,18 +173,17 @@ bool VulkanInstance::QueryGlobals() {
     } while (err == VK_INCOMPLETE);
     CheckResult(err, "vkEnumerateInstanceExtensionProperties");
   }
-  XELOGVK("Found %d global layers:", global_layers_.size());
+  XELOGVK("Found {} global layers:", global_layers_.size());
   for (size_t i = 0; i < global_layers_.size(); ++i) {
     auto& global_layer = global_layers_[i];
     auto spec_version = Version::Parse(global_layer.properties.specVersion);
     auto impl_version =
         Version::Parse(global_layer.properties.implementationVersion);
-    XELOGVK("- %s (spec: %s, impl: %s)", global_layer.properties.layerName,
-            spec_version.pretty_string.c_str(),
-            impl_version.pretty_string.c_str());
-    XELOGVK("  %s", global_layer.properties.description);
+    XELOGVK("- {} (spec: {}, impl: {})", global_layer.properties.layerName,
+            spec_version.pretty_string, impl_version.pretty_string);
+    XELOGVK("  {}", global_layer.properties.description);
     if (!global_layer.extensions.empty()) {
-      XELOGVK("  %d extensions:", global_layer.extensions.size());
+      XELOGVK("  {} extensions:", global_layer.extensions.size());
       DumpExtensions(global_layer.extensions, "  ");
     }
   }
@@ -198,7 +197,7 @@ bool VulkanInstance::QueryGlobals() {
                                                  global_extensions_.data());
   } while (err == VK_INCOMPLETE);
   CheckResult(err, "vkEnumerateInstanceExtensionProperties");
-  XELOGVK("Found %d global extensions:", global_extensions_.size());
+  XELOGVK("Found {} global extensions:", global_extensions_.size());
   DumpExtensions(global_extensions_, "");
 
   return true;
@@ -249,7 +248,7 @@ bool VulkanInstance::CreateInstance() {
 
   auto err = vkCreateInstance(&instance_info, nullptr, &handle);
   if (err != VK_SUCCESS) {
-    XELOGE("vkCreateInstance returned %s", to_string(err));
+    XELOGE("vkCreateInstance returned {}", to_string(err));
   }
   switch (err) {
     case VK_SUCCESS:
@@ -270,7 +269,7 @@ bool VulkanInstance::CreateInstance() {
       XELOGE("Instance initialization failed; requested layer not present");
       return false;
     default:
-      XELOGE("Instance initialization failed; unknown: %s", to_string(err));
+      XELOGE("Instance initialization failed; unknown: {}", to_string(err));
       return false;
   }
 
@@ -325,7 +324,7 @@ VkBool32 VKAPI_PTR DebugMessageCallback(VkDebugReportFlagsEXT flags,
     message_type = "DEBUG";
   }
 
-  XELOGVK("[%s/%s:%d] %s", pLayerPrefix, message_type, messageCode, pMessage);
+  XELOGVK("[{}/{}:{}] {}", pLayerPrefix, message_type, messageCode, pMessage);
   return false;
 }
 
@@ -355,7 +354,7 @@ void VulkanInstance::EnableDebugValidation() {
   if (status == VK_SUCCESS) {
     XELOGVK("Debug validation layer enabled");
   } else {
-    XELOGVK("Debug validation layer failed to install; error %s",
+    XELOGVK("Debug validation layer failed to install; error {}",
             to_string(status));
   }
 }
@@ -437,10 +436,10 @@ bool VulkanInstance::QueryDevices() {
     available_devices_.push_back(std::move(device_info));
   }
 
-  XELOGVK("Found %d physical devices:", available_devices_.size());
+  XELOGVK("Found {} physical devices:", available_devices_.size());
   for (size_t i = 0; i < available_devices_.size(); ++i) {
     auto& device_info = available_devices_[i];
-    XELOGVK("- Device %d:", i);
+    XELOGVK("- Device {}:", i);
     DumpDeviceInfo(device_info);
   }
 
@@ -453,12 +452,11 @@ void VulkanInstance::DumpLayers(const std::vector<LayerInfo>& layers,
     auto& layer = layers[i];
     auto spec_version = Version::Parse(layer.properties.specVersion);
     auto impl_version = Version::Parse(layer.properties.implementationVersion);
-    XELOGVK("%s- %s (spec: %s, impl: %s)", indent, layer.properties.layerName,
-            spec_version.pretty_string.c_str(),
-            impl_version.pretty_string.c_str());
-    XELOGVK("%s  %s", indent, layer.properties.description);
+    XELOGVK("{}- {} (spec: {}, impl: {})", indent, layer.properties.layerName,
+            spec_version.pretty_string, impl_version.pretty_string);
+    XELOGVK("{}  {}", indent, layer.properties.description);
     if (!layer.extensions.empty()) {
-      XELOGVK("%s  %d extensions:", indent, layer.extensions.size());
+      XELOGVK("{}  {} extensions:", indent, layer.extensions.size());
       DumpExtensions(layer.extensions, std::strlen(indent) ? "    " : "  ");
     }
   }
@@ -469,8 +467,8 @@ void VulkanInstance::DumpExtensions(
   for (size_t i = 0; i < extensions.size(); ++i) {
     auto& extension = extensions[i];
     auto version = Version::Parse(extension.specVersion);
-    XELOGVK("%s- %s (%s)", indent, extension.extensionName,
-            version.pretty_string.c_str());
+    XELOGVK("{}- {} ({})", indent, extension.extensionName,
+            version.pretty_string);
   }
 }
 
@@ -478,21 +476,20 @@ void VulkanInstance::DumpDeviceInfo(const DeviceInfo& device_info) {
   auto& properties = device_info.properties;
   auto api_version = Version::Parse(properties.apiVersion);
   auto driver_version = Version::Parse(properties.driverVersion);
-  XELOGVK("  apiVersion     = %s", api_version.pretty_string.c_str());
-  XELOGVK("  driverVersion  = %s", driver_version.pretty_string.c_str());
-  XELOGVK("  vendorId       = 0x%04x", properties.vendorID);
-  XELOGVK("  deviceId       = 0x%04x", properties.deviceID);
-  XELOGVK("  deviceType     = %s", to_string(properties.deviceType));
-  XELOGVK("  deviceName     = %s", properties.deviceName);
+  XELOGVK("  apiVersion     = {}", api_version.pretty_string);
+  XELOGVK("  driverVersion  = {}", driver_version.pretty_string);
+  XELOGVK("  vendorId       = {:#04x}", properties.vendorID);
+  XELOGVK("  deviceId       = {:#04x}", properties.deviceID);
+  XELOGVK("  deviceType     = {}", to_string(properties.deviceType));
+  XELOGVK("  deviceName     = {}", properties.deviceName);
 
   auto& memory_props = device_info.memory_properties;
   XELOGVK("  Memory Heaps:");
   for (size_t j = 0; j < memory_props.memoryHeapCount; ++j) {
-    XELOGVK("  - Heap %u: %" PRIu64 " bytes", j,
-            memory_props.memoryHeaps[j].size);
+    XELOGVK("  - Heap {}: {} bytes", j, memory_props.memoryHeaps[j].size);
     for (size_t k = 0; k < memory_props.memoryTypeCount; ++k) {
       if (memory_props.memoryTypes[k].heapIndex == j) {
-        XELOGVK("    - Type %u:", k);
+        XELOGVK("    - Type {}:", k);
         auto type_flags = memory_props.memoryTypes[k].propertyFlags;
         if (!type_flags) {
           XELOGVK("      VK_MEMORY_PROPERTY_DEVICE_ONLY");
@@ -519,16 +516,16 @@ void VulkanInstance::DumpDeviceInfo(const DeviceInfo& device_info) {
   XELOGVK("  Queue Families:");
   for (size_t j = 0; j < device_info.queue_family_properties.size(); ++j) {
     auto& queue_props = device_info.queue_family_properties[j];
-    XELOGVK("  - Queue %d:", j);
+    XELOGVK("  - Queue {}:", j);
     XELOGVK(
-        "    queueFlags         = %s%s%s%s",
+        "    queueFlags         = {}{}{}{}",
         (queue_props.queueFlags & VK_QUEUE_GRAPHICS_BIT) ? "graphics, " : "",
         (queue_props.queueFlags & VK_QUEUE_COMPUTE_BIT) ? "compute, " : "",
         (queue_props.queueFlags & VK_QUEUE_TRANSFER_BIT) ? "transfer, " : "",
         (queue_props.queueFlags & VK_QUEUE_SPARSE_BINDING_BIT) ? "sparse, "
                                                                : "");
-    XELOGVK("    queueCount         = %u", queue_props.queueCount);
-    XELOGVK("    timestampValidBits = %u", queue_props.timestampValidBits);
+    XELOGVK("    queueCount         = {}", queue_props.queueCount);
+    XELOGVK("    timestampValidBits = {}", queue_props.timestampValidBits);
   }
 
   XELOGVK("  Layers:");

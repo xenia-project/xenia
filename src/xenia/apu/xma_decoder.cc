@@ -91,7 +91,8 @@ void av_log_callback(void* avcl, int level, const char* fmt, va_list va) {
 
   StringBuffer buff;
   buff.AppendVarargs(fmt, va);
-  xe::LogLineFormat(log_level, level_char, "libav: %s", buff.buffer());
+  xe::logging::AppendLogLineFormat(log_level, level_char, "libav: {}",
+                                   buff.to_string_view());
 }
 
 X_STATUS XmaDecoder::Setup(kernel::KernelState* kernel_state) {
@@ -248,7 +249,7 @@ uint32_t XmaDecoder::ReadRegister(uint32_t addr) {
   switch (r) {
     default: {
       if (!register_file_.GetRegisterInfo(r)) {
-        XELOGE("XMA: Read from unknown register (%.4X)", r);
+        XELOGE("XMA: Read from unknown register ({:04X})", r);
       }
     }
 #pragma warning(suppress : 4065)
@@ -285,7 +286,7 @@ void XmaDecoder::WriteRegister(uint32_t addr, uint32_t value) {
   } else {
     switch (r) {
       default: {
-        XELOGE("XMA: Write to unhandled register (%.4X): %.8X", r, value);
+        XELOGE("XMA: Write to unhandled register ({:04X}): {:08X}", r, value);
         break;
       }
 #pragma warning(suppress : 4065)

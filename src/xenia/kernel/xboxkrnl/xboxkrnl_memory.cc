@@ -160,7 +160,7 @@ dword_result_t NtAllocateVirtualMemory(lpdword_t base_addr_ptr,
     }
   }
 
-  XELOGD("NtAllocateVirtualMemory = %.8X", address);
+  XELOGD("NtAllocateVirtualMemory = {:08X}", address);
 
   // Stash back.
   // Maybe set X_STATUS_ALREADY_COMMITTED if MEM_COMMIT?
@@ -356,7 +356,7 @@ dword_result_t MmAllocatePhysicalMemoryEx(dword_t flags, dword_t region_size,
     // Failed - assume no memory available.
     return 0;
   }
-  XELOGD("MmAllocatePhysicalMemoryEx = %.8X", base_address);
+  XELOGD("MmAllocatePhysicalMemoryEx = {:08X}", base_address);
 
   return base_address;
 }

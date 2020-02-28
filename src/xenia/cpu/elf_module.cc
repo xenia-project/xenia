@@ -83,7 +83,7 @@ bool ElfModule::Load(const std::string_view name, const std::string_view path,
     // Not a PPC ELF!
     XELOGE(
         "ELF: Could not load ELF because target machine is not PPC! (target: "
-        "%d)",
+        "{})",
         uint32_t(hdr->e_machine));
     return false;
   }
@@ -114,7 +114,7 @@ bool ElfModule::Load(const std::string_view name, const std::string_view path,
       // Allocate and copy into memory.
       // Base address @ 0x80000000
       if (phdr[i].p_vaddr < 0x80000000 || phdr[i].p_vaddr > 0x9FFFFFFF) {
-        XELOGE("ELF: Could not allocate memory for section @ address 0x%.8X",
+        XELOGE("ELF: Could not allocate memory for section @ address {:#08X}",
                uint32_t(phdr[i].p_vaddr));
         return false;
       }

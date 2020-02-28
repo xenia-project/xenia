@@ -51,7 +51,7 @@ bool PPCScanner::Scan(GuestFunction* function, FunctionDebugInfo* debug_info) {
 
   Memory* memory = frontend_->memory();
 
-  LOGPPC("Analyzing function %.8X...", function->address());
+  LOGPPC("Analyzing function {:08X}...", function->address());
 
   // For debug info, only if needed.
   uint32_t address_reference_count = 0;
@@ -71,7 +71,7 @@ bool PPCScanner::Scan(GuestFunction* function, FunctionDebugInfo* debug_info) {
     // If we fetched 0 assume that we somehow hit one of the awesome
     // 'no really we meant to end after that bl' functions.
     if (!code) {
-      LOGPPC("function end %.8X (0x00000000 read)", address);
+      LOGPPC("function end {:08X} (0x00000000 read)", address);
       // Don't include the 0's.
       address -= 4;
       break;
@@ -106,16 +106,17 @@ bool PPCScanner::Scan(GuestFunction* function, FunctionDebugInfo* debug_info) {
       // Invalid instruction.
       // We can just ignore it because there's (very little)/no chance it'll
       // affect flow control.
-      LOGPPC("Invalid instruction at %.8X: %.8X", address, code);
+      LOGPPC("Invalid instruction at {:08X}: {:08X}", address, code);
     } else if (code == 0x4E800020) {
       // blr -- unconditional branch to LR.
       // This is generally a return.
       if (furthest_target > address) {
         // Remaining targets within function, not end.
-        LOGPPC("ignoring blr %.8X (branch to %.8X)", address, furthest_target);
+        LOGPPC("ignoring blr {:08X} (branch to {:08X})", address,
+               furthest_target);
       } else {
         // Function end point.
-        LOGPPC("function end %.8X", address);
+        LOGPPC("function end {:08X}", address);
         ends_fn = true;
       }
       ends_block = true;
@@ -126,10 +127,11 @@ bool PPCScanner::Scan(GuestFunction* function, FunctionDebugInfo* debug_info) {
       // TODO(benvanik): decode jump tables.
       if (furthest_target > address) {
         // Remaining targets within function, not end.
-        LOGPPC("ignoring bctr %.8X (branch to %.8X)", address, furthest_target);
+        LOGPPC("ignoring bctr {:08X} (branch to {:08X})", address,
+               furthest_target);
       } else {
         // Function end point.
-        LOGPPC("function end %.8X", address);
+        LOGPPC("function end {:08X}", address);
         ends_fn = true;
       }
       ends_block = true;
@@ -137,25 +139,25 @@ bool PPCScanner::Scan(GuestFunction* function, FunctionDebugInfo* debug_info) {
       // b/ba/bl/bla
       uint32_t target = d.I.ADDR();
       if (d.I.LK()) {
-        LOGPPC("bl %.8X -> %.8X", address, target);
+        LOGPPC("bl {:08X} -> {:08X}", address, target);
         // Queue call target if needed.
         // GetOrInsertFunction(target);
       } else {
-        LOGPPC("b %.8X -> %.8X", address, target);
+        LOGPPC("b {:08X} -> {:08X}", address, target);
 
         // If the target is back into the function and there's no further target
         // we are at the end of a function.
         // (Indirect branches may still go beyond, but no way of knowing).
         if (target >= start_address && target < address &&
             furthest_target <= address) {
-          LOGPPC("function end %.8X (back b)", address);
+          LOGPPC("function end {:08X} (back b)", address);
           ends_fn = true;
         }
 
         // If the target is not a branch and it goes to before the current
         // address it's definitely a tail call.
         if (!ends_fn && target < start_address && furthest_target <= address) {
-          LOGPPC("function end %.8X (back b before addr)", address);
+          LOGPPC("function end {:08X} (back b before addr)", address);
           ends_fn = true;
         }
 
@@ -164,7 +166,7 @@ bool PPCScanner::Scan(GuestFunction* function, FunctionDebugInfo* debug_info) {
         // of the function somewhere, so ensure we don't have any branches over
         // it.
         if (!ends_fn && furthest_target <= address && IsRestGprLr(target)) {
-          LOGPPC("function end %.8X (__restgprlr_*)", address);
+          LOGPPC("function end {:08X} (__restgprlr_*)", address);
           ends_fn = true;
         }
 
@@ -176,7 +178,7 @@ bool PPCScanner::Scan(GuestFunction* function, FunctionDebugInfo* debug_info) {
         // This check may hit on functions that jump over data code, so only
         // trigger this check in leaf functions (no mfspr lr/prolog).
         if (!ends_fn && !starts_with_mfspr_lr && blocks_found == 1) {
-          LOGPPC("HEURISTIC: ending at simple leaf thunk %.8X", address);
+          LOGPPC("HEURISTIC: ending at simple leaf thunk {:08X}", address);
           ends_fn = true;
         }
 
@@ -213,14 +215,14 @@ bool PPCScanner::Scan(GuestFunction* function, FunctionDebugInfo* debug_info) {
       // bc/bca/bcl/bcla
       uint32_t target = d.B.ADDR();
       if (d.B.LK()) {
-        LOGPPC("bcl %.8X -> %.8X", address, target);
+        LOGPPC("bcl {:08X} -> {:08X}", address, target);
 
         // Queue call target if needed.
         // TODO(benvanik): see if this is correct - not sure anyone makes
         //     function calls with bcl.
         // GetOrInsertFunction(target);
       } else {
-        LOGPPC("bc %.8X -> %.8X", address, target);
+        LOGPPC("bc {:08X} -> {:08X}", address, target);
 
         // TODO(benvanik): GetOrInsertFunction? it's likely a BB
 
@@ -232,17 +234,17 @@ bool PPCScanner::Scan(GuestFunction* function, FunctionDebugInfo* debug_info) {
     } else if (opcode == PPCOpcode::bclrx) {
       // bclr/bclrl
       if (d.XL.LK()) {
-        LOGPPC("bclrl %.8X", address);
+        LOGPPC("bclrl {:08X}", address);
       } else {
-        LOGPPC("bclr %.8X", address);
+        LOGPPC("bclr {:08X}", address);
       }
       ends_block = true;
     } else if (opcode == PPCOpcode::bcctrx) {
       // bcctr/bcctrl
       if (d.XL.LK()) {
-        LOGPPC("bcctrl %.8X", address);
+        LOGPPC("bcctrl {:08X}", address);
       } else {
-        LOGPPC("bcctr %.8X", address);
+        LOGPPC("bcctr {:08X}", address);
       }
       ends_block = true;
     }
@@ -257,7 +259,8 @@ bool PPCScanner::Scan(GuestFunction* function, FunctionDebugInfo* debug_info) {
     address += 4;
     if (end_address && address > end_address) {
       // Hmm....
-      LOGPPC("Ran over function bounds! %.8X-%.8X", start_address, end_address);
+      LOGPPC("Ran over function bounds! {:08X}-{:08X}", start_address,
+             end_address);
       break;
     }
   }
@@ -267,7 +270,7 @@ bool PPCScanner::Scan(GuestFunction* function, FunctionDebugInfo* debug_info) {
     // from someplace valid (like method hints) this may indicate an error.
     // It's also possible that we guessed in hole-filling and there's another
     // function below this one.
-    LOGPPC("Function ran under: %.8X-%.8X ended at %.8X", start_address,
+    LOGPPC("Function ran under: {:08X}-{:08X} ended at {:08X}", start_address,
            end_address, address + 4);
   }
   function->set_end_address(address);
@@ -285,7 +288,7 @@ bool PPCScanner::Scan(GuestFunction* function, FunctionDebugInfo* debug_info) {
     debug_info->set_instruction_result_count(instruction_result_count);
   }
 
-  LOGPPC("Finished analyzing %.8X", start_address);
+  LOGPPC("Finished analyzing {:08X}", start_address);
   return true;
 }
 
