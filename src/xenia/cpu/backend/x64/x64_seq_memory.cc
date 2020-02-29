@@ -1045,12 +1045,12 @@ struct CACHE_CONTROL
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     bool is_clflush = false, is_prefetch = false;
     switch (CacheControlType(i.instr->flags)) {
-      case CacheControlType::CACHE_CONTOROL_TYPE_DATA_TOUCH:
-      case CacheControlType::CACHE_CONTOROL_TYPE_DATA_TOUCH_FOR_STORE:
+      case CacheControlType::CACHE_CONTROL_TYPE_DATA_TOUCH:
+      case CacheControlType::CACHE_CONTROL_TYPE_DATA_TOUCH_FOR_STORE:
         is_prefetch = true;
         break;
-      case CacheControlType::CACHE_CONTOROL_TYPE_DATA_STORE:
-      case CacheControlType::CACHE_CONTOROL_TYPE_DATA_STORE_AND_FLUSH:
+      case CacheControlType::CACHE_CONTROL_TYPE_DATA_STORE:
+      case CacheControlType::CACHE_CONTROL_TYPE_DATA_STORE_AND_FLUSH:
         is_clflush = true;
         break;
       default:
