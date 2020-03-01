@@ -1,7 +1,7 @@
 group("third_party")
 project("zlib")
   kind("StaticLib")
-  language("C++")
+  language("C")
   links({
   })
   defines({
