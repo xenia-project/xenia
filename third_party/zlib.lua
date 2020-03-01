@@ -10,6 +10,7 @@ project("zlib")
   includedirs({
     "zlib",
   })
+  removeflags({ "FatalWarnings" })
   files({
     "zlib/adler32.c",
     "zlib/compress.c",
