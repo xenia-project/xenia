@@ -30,7 +30,7 @@
 #include "xenia/base/ring_buffer.h"
 #include "xenia/base/threading.h"
 //#include "xenia/base/cvar.h"
-#include "xenia\base\log_zipper.h"
+#include "xenia/base/log_zipper.h"
 
 // For MessageBox:
 // TODO(benvanik): generic API? logging_win.cc?

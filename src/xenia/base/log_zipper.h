@@ -3,7 +3,7 @@
 
 #include <cstdint>
 #include <string>
-#include "zlib\zlib.h"
+#include "third_party/zlib/zlib.h"
 
 // read this: https://zlib.net/zlib_how.html
 #if defined(MSDOS) || defined(OS2) || defined(WIN32) || defined(__CYGWIN__)
