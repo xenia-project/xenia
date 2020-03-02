@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -22,15 +22,15 @@ class HostPathDevice;
 
 class HostPathEntry : public Entry {
  public:
-  HostPathEntry(Device* device, Entry* parent, std::string path,
-                const std::wstring& local_path);
+  HostPathEntry(Device* device, Entry* parent, const std::string_view path,
+                const std::filesystem::path& host_path);
   ~HostPathEntry() override;
 
   static HostPathEntry* Create(Device* device, Entry* parent,
-                               const std::wstring& full_path,
+                               const std::filesystem::path& full_path,
                                xe::filesystem::FileInfo file_info);
 
-  const std::wstring& local_path() { return local_path_; }
+  const std::filesystem::path& host_path() { return host_path_; }
 
   X_STATUS Open(uint32_t desired_access, File** out_file) override;
 
@@ -43,11 +43,11 @@ class HostPathEntry : public Entry {
  private:
   friend class HostPathDevice;
 
-  std::unique_ptr<Entry> CreateEntryInternal(std::string name,
+  std::unique_ptr<Entry> CreateEntryInternal(const std::string_view name,
                                              uint32_t attributes) override;
   bool DeleteEntryInternal(Entry* entry) override;
 
-  std::wstring local_path_;
+  std::filesystem::path host_path_;
 };
 
 }  // namespace vfs

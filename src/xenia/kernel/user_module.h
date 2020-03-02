@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -36,6 +36,9 @@ class UserModule : public XModule {
   UserModule(KernelState* kernel_state);
   ~UserModule() override;
 
+  const std::string& path() const override { return path_; }
+  const std::string& name() const override { return name_; }
+
   enum ModuleFormat {
     kModuleFormatUndefined = 0,
     kModuleFormatXex,
@@ -61,13 +64,13 @@ class UserModule : public XModule {
   uint32_t entry_point() const { return entry_point_; }
   uint32_t stack_size() const { return stack_size_; }
 
-  X_STATUS LoadFromFile(std::string path);
+  X_STATUS LoadFromFile(const std::string_view path);
   X_STATUS LoadFromMemory(const void* addr, const size_t length);
   X_STATUS Unload();
 
   uint32_t GetProcAddressByOrdinal(uint16_t ordinal) override;
-  uint32_t GetProcAddressByName(const char* name) override;
-  X_STATUS GetSection(const char* name, uint32_t* out_section_data,
+  uint32_t GetProcAddressByName(const std::string_view name) override;
+  X_STATUS GetSection(const std::string_view name, uint32_t* out_section_data,
                       uint32_t* out_section_size) override;
 
   // Get optional header - FOR HOST USE ONLY!
@@ -89,10 +92,14 @@ class UserModule : public XModule {
 
   bool Save(ByteStream* stream) override;
   static object_ref<UserModule> Restore(KernelState* kernel_state,
-                                        ByteStream* stream, std::string path);
+                                        ByteStream* stream,
+                                        const std::string_view path);
 
  private:
   X_STATUS LoadXexContinue();
+
+  std::string name_;
+  std::string path_;
 
   uint32_t guest_xex_header_ = 0;
   ModuleFormat module_format_ = kModuleFormatUndefined;

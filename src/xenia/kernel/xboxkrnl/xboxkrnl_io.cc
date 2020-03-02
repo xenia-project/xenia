@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -91,8 +91,7 @@ dword_result_t NtCreateFile(lpdword_t handle_out, dword_t desired_access,
       kernel_memory()->TranslateVirtual<X_ANSI_STRING*>(object_attrs->name_ptr);
 
   // Compute path, possibly attrs relative.
-  std::string target_path =
-      util::TranslateAnsiString(kernel_memory(), object_name);
+  auto target_path = util::TranslateAnsiString(kernel_memory(), object_name);
   if (object_attrs->root_directory != 0xFFFFFFFD &&  // ObDosDevices
       object_attrs->root_directory != 0) {
     auto root_file = kernel_state()->object_table()->LookupObject<XFile>(
@@ -102,8 +101,8 @@ dword_result_t NtCreateFile(lpdword_t handle_out, dword_t desired_access,
 
     // Resolve the file using the device the root directory is part of.
     auto device = root_file->device();
-    target_path = xe::join_paths(
-        device->mount_path(), xe::join_paths(root_file->path(), target_path));
+    target_path = xe::utf8::join_guest_paths(
+        {device->mount_path(), root_file->path(), target_path});
   }
 
   // Attempt open (or create).
@@ -686,9 +685,8 @@ dword_result_t NtQueryDirectoryFile(
   auto name = util::TranslateAnsiString(kernel_memory(), file_name);
   if (file) {
     X_FILE_DIRECTORY_INFORMATION dir_info = {0};
-    result = file->QueryDirectory(file_info_ptr, length,
-                                  !name.empty() ? name.c_str() : nullptr,
-                                  restart_scan != 0);
+    result =
+        file->QueryDirectory(file_info_ptr, length, name, restart_scan != 0);
     if (XSUCCEEDED(result)) {
       info = length;
     }
@@ -741,8 +739,7 @@ dword_result_t NtOpenSymbolicLinkObject(
     assert_always();
   }
 
-  auto pos = target_path.find("\\??\\");
-  if (pos != target_path.npos && pos == 0) {
+  if (utf8::starts_with(target_path, "\\??\\")) {
     target_path = target_path.substr(4);  // Strip the full qualifier
   }
 

@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -12,6 +12,7 @@
 #include <cinttypes>
 
 #include "config.h"
+#include "third_party/fmt/include/fmt/format.h"
 #include "xenia/apu/audio_system.h"
 #include "xenia/base/assert.h"
 #include "xenia/base/byte_stream.h"
@@ -56,9 +57,9 @@ DEFINE_string(
 
 namespace xe {
 
-Emulator::Emulator(const std::wstring& command_line,
-                   const std::wstring& storage_root,
-                   const std::wstring& content_root)
+Emulator::Emulator(const std::filesystem::path& command_line,
+                   const std::filesystem::path& storage_root,
+                   const std::filesystem::path& content_root)
     : on_launch(),
       on_terminate(),
       on_exit(),
@@ -241,27 +242,22 @@ X_STATUS Emulator::TerminateTitle() {
 
   kernel_state_->TerminateTitle();
   title_id_ = 0;
-  game_title_ = L"";
+  game_title_ = "";
   on_terminate();
   return X_STATUS_SUCCESS;
 }
 
-X_STATUS Emulator::LaunchPath(std::wstring path) {
+X_STATUS Emulator::LaunchPath(const std::filesystem::path& path) {
   // Launch based on file type.
   // This is a silly guess based on file extension.
-  auto last_slash = path.find_last_of(xe::kPathSeparator);
-  auto last_dot = path.find_last_of('.');
-  if (last_dot < last_slash) {
-    last_dot = std::wstring::npos;
-  }
-  if (last_dot == std::wstring::npos) {
+  if (!path.has_extension()) {
     // Likely an STFS container.
     return LaunchStfsContainer(path);
   };
-  auto extension = path.substr(last_dot);
+  auto extension = xe::path_to_utf8(path.extension());
   std::transform(extension.begin(), extension.end(), extension.begin(),
                  tolower);
-  if (extension == L".xex" || extension == L".elf" || extension == L".exe") {
+  if (extension == ".xex" || extension == ".elf" || extension == ".exe") {
     // Treat as a naked xex file.
     return LaunchXexFile(path);
   } else {
@@ -270,7 +266,7 @@ X_STATUS Emulator::LaunchPath(std::wstring path) {
   }
 }
 
-X_STATUS Emulator::LaunchXexFile(std::wstring path) {
+X_STATUS Emulator::LaunchXexFile(const std::filesystem::path& path) {
   // We create a virtual filesystem pointing to its directory and symlink
   // that to the game filesystem.
   // e.g., /my/files/foo.xex will get a local fs at:
@@ -281,7 +277,7 @@ X_STATUS Emulator::LaunchXexFile(std::wstring path) {
   auto mount_path = "\\Device\\Harddisk0\\Partition0";
 
   // Register the local directory in the virtual filesystem.
-  auto parent_path = xe::find_base_path(path);
+  auto parent_path = path.parent_path();
   auto device =
       std::make_unique<vfs::HostPathDevice>(mount_path, parent_path, true);
   if (!device->Initialize()) {
@@ -298,14 +294,14 @@ X_STATUS Emulator::LaunchXexFile(std::wstring path) {
   file_system_->RegisterSymbolicLink("d:", mount_path);
 
   // Get just the filename (foo.xex).
-  auto file_name = xe::find_name_from_path(path);
+  auto file_name = path.filename();
 
   // Launch the game.
-  std::string fs_path = "game:\\" + xe::to_string(file_name);
+  auto fs_path = "game:\\" + xe::path_to_utf8(file_name);
   return CompleteLaunch(path, fs_path);
 }
 
-X_STATUS Emulator::LaunchDiscImage(std::wstring path) {
+X_STATUS Emulator::LaunchDiscImage(const std::filesystem::path& path) {
   auto mount_path = "\\Device\\Cdrom0";
 
   // Register the disc image in the virtual filesystem.
@@ -328,7 +324,7 @@ X_STATUS Emulator::LaunchDiscImage(std::wstring path) {
   return CompleteLaunch(path, module_path);
 }
 
-X_STATUS Emulator::LaunchStfsContainer(std::wstring path) {
+X_STATUS Emulator::LaunchStfsContainer(const std::filesystem::path& path) {
   auto mount_path = "\\Device\\Cdrom0";
 
   // Register the container in the virtual filesystem.
@@ -407,7 +403,7 @@ void Emulator::Resume() {
   }
 }
 
-bool Emulator::SaveToFile(const std::wstring& path) {
+bool Emulator::SaveToFile(const std::filesystem::path& path) {
   Pause();
 
   filesystem::CreateFile(path);
@@ -435,7 +431,7 @@ bool Emulator::SaveToFile(const std::wstring& path) {
   return true;
 }
 
-bool Emulator::RestoreFromFile(const std::wstring& path) {
+bool Emulator::RestoreFromFile(const std::filesystem::path& path) {
   // Restore the emulator state from a file
   auto map = MappedMemory::Open(path, MappedMemory::Mode::kReadWrite);
   if (!map) {
@@ -509,7 +505,7 @@ void Emulator::LaunchNextTitle() {
   auto xam = kernel_state()->GetKernelModule<kernel::xam::XamModule>("xam.xex");
   auto next_title = xam->loader_data().launch_path;
 
-  CompleteLaunch(L"", next_title);
+  CompleteLaunch("", next_title);
 }
 
 bool Emulator::ExceptionCallbackThunk(Exception* ex, void* data) {
@@ -642,20 +638,20 @@ std::string Emulator::FindLaunchModule() {
   return path + default_module;
 }
 
-X_STATUS Emulator::CompleteLaunch(const std::wstring& path,
-                                  const std::string& module_path) {
+X_STATUS Emulator::CompleteLaunch(const std::filesystem::path& path,
+                                  const std::string_view module_path) {
   // Reset state.
   title_id_ = 0;
-  game_title_ = L"";
+  game_title_ = "";
   display_window_->SetIcon(nullptr, 0);
 
   // Allow xam to request module loads.
   auto xam = kernel_state()->GetKernelModule<kernel::xam::XamModule>("xam.xex");
 
   XELOGI("Launching module %s", module_path.c_str());
-  auto module = kernel_state_->LoadUserModule(module_path.c_str());
+  auto module = kernel_state_->LoadUserModule(module_path);
   if (!module) {
-    XELOGE("Failed to load user module %S", path.c_str());
+    XELOGE("Failed to load user module %s", xe::path_to_utf8(path).c_str());
     return X_STATUS_NOT_FOUND;
   }
 
@@ -668,17 +664,16 @@ X_STATUS Emulator::CompleteLaunch(const std::wstring& path,
 
   // Try and load the resource database (xex only).
   if (module->title_id()) {
-    char title_id[9] = {0};
-    std::snprintf(title_id, xe::countof(title_id), "%08X", module->title_id());
-    config::LoadGameConfig(xe::to_wstring(title_id));
+    auto title_id = fmt::format("{:08X}", module->title_id());
+    config::LoadGameConfig(title_id);
     uint32_t resource_data = 0;
     uint32_t resource_size = 0;
-    if (XSUCCEEDED(
-            module->GetSection(title_id, &resource_data, &resource_size))) {
+    if (XSUCCEEDED(module->GetSection(title_id.c_str(), &resource_data,
+                                      &resource_size))) {
       kernel::util::XdbfGameData db(
           module->memory()->TranslateVirtual(resource_data), resource_size);
       if (db.is_valid()) {
-        game_title_ = xe::to_wstring(db.title());
+        game_title_ = db.title();
         auto icon_block = db.icon();
         if (icon_block) {
           display_window_->SetIcon(icon_block.buffer, icon_block.size);

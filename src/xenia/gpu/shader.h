@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2015 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -10,6 +10,7 @@
 #ifndef XENIA_GPU_SHADER_H_
 #define XENIA_GPU_SHADER_H_
 
+#include <filesystem>
 #include <string>
 #include <vector>
 
@@ -685,8 +686,8 @@ class Shader {
   // Both the ucode binary and disassembled and translated shader will be
   // written.
   // Returns the filename of the shader and the binary.
-  std::pair<std::string, std::string> Dump(const std::string& base_path,
-                                           const char* path_prefix);
+  std::pair<std::filesystem::path, std::filesystem::path> Dump(
+      const std::filesystem::path& base_path, const char* path_prefix);
 
  protected:
   friend class ShaderTranslator;

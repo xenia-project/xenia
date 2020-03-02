@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2017 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -87,7 +87,7 @@ class TestSuite {
     return result;
   }
 
-  TestCase* FindTestCase(const std::string& name) {
+  TestCase* FindTestCase(const std::string_view name) {
     for (auto& test_case : test_cases) {
       if (test_case.name == name) {
         return &test_case;

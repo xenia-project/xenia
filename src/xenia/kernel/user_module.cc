@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -48,7 +48,7 @@ uint32_t UserModule::title_id() const {
   return 0;
 }
 
-X_STATUS UserModule::LoadFromFile(std::string path) {
+X_STATUS UserModule::LoadFromFile(const std::string_view path) {
   X_STATUS result = X_STATUS_UNSUCCESSFUL;
 
   // Resolve the file to open.
@@ -60,7 +60,7 @@ X_STATUS UserModule::LoadFromFile(std::string path) {
   }
 
   path_ = fs_entry->absolute_path();
-  name_ = NameFromPath(path_);
+  name_ = utf8::find_base_name_from_guest_path(path_);
 
   // If the FS supports mapping, map the file in and load from that.
   if (fs_entry->can_map()) {
@@ -258,11 +258,12 @@ uint32_t UserModule::GetProcAddressByOrdinal(uint16_t ordinal) {
   return xex_module()->GetProcAddress(ordinal);
 }
 
-uint32_t UserModule::GetProcAddressByName(const char* name) {
+uint32_t UserModule::GetProcAddressByName(std::string_view name) {
   return xex_module()->GetProcAddress(name);
 }
 
-X_STATUS UserModule::GetSection(const char* name, uint32_t* out_section_data,
+X_STATUS UserModule::GetSection(const std::string_view name,
+                                uint32_t* out_section_data,
                                 uint32_t* out_section_size) {
   xex2_opt_resource_info* resource_header = nullptr;
   if (!cpu::XexModule::GetOptHeader(xex_header(), XEX_HEADER_RESOURCE_INFO,
@@ -270,15 +271,13 @@ X_STATUS UserModule::GetSection(const char* name, uint32_t* out_section_data,
     // No resources.
     return X_STATUS_NOT_FOUND;
   }
-
   uint32_t count = (resource_header->size - 4) / sizeof(xex2_resource);
   for (uint32_t i = 0; i < count; i++) {
     auto& res = resource_header->resources[i];
-    if (std::strncmp(name, res.name, 8) == 0) {
+    if (utf8::equal_z(name, std::string_view(res.name, 8))) {
       // Found!
       *out_section_data = res.address;
       *out_section_size = res.size;
-
       return X_STATUS_SUCCESS;
     }
   }
@@ -366,7 +365,7 @@ bool UserModule::Save(ByteStream* stream) {
 
 object_ref<UserModule> UserModule::Restore(KernelState* kernel_state,
                                            ByteStream* stream,
-                                           std::string path) {
+                                           const std::string_view path) {
   auto module = new UserModule(kernel_state);
 
   // XModule::Save took care of this earlier...
@@ -403,23 +402,23 @@ void UserModule::Dump() {
   auto header = xex_header();
 
   // XEX header.
-  sb.AppendFormat("Module %s:\n", path_.c_str());
-  sb.AppendFormat("    Module Flags: %.8X\n", (uint32_t)header->module_flags);
+  sb.AppendFormat("Module {}:\n", path_);
+  sb.AppendFormat("    Module Flags: {:08X}\n", (uint32_t)header->module_flags);
 
   // Security header
   auto security_info = xex_module()->xex_security_info();
-  sb.AppendFormat("Security Header:\n");
-  sb.AppendFormat("     Image Flags: %.8X\n",
+  sb.Append("Security Header:\n");
+  sb.AppendFormat("     Image Flags: {:08X}\n",
                   (uint32_t)security_info->image_flags);
-  sb.AppendFormat("    Load Address: %.8X\n",
+  sb.AppendFormat("    Load Address: {:08X}\n",
                   (uint32_t)security_info->load_address);
-  sb.AppendFormat("      Image Size: %.8X\n",
+  sb.AppendFormat("      Image Size: {:08X}\n",
                   (uint32_t)security_info->image_size);
-  sb.AppendFormat("    Export Table: %.8X\n",
+  sb.AppendFormat("    Export Table: {:08X}\n",
                   (uint32_t)security_info->export_table);
 
   // Optional headers
-  sb.AppendFormat("Optional Header Count: %d\n",
+  sb.AppendFormat("Optional Header Count: {}\n",
                   (uint32_t)header->header_count);
 
   for (uint32_t i = 0; i < header->header_count; i++) {
@@ -430,7 +429,7 @@ void UserModule::Dump() {
         reinterpret_cast<const uint8_t*>(header) + opt_header.offset;
     switch (opt_header.key) {
       case XEX_HEADER_RESOURCE_INFO: {
-        sb.AppendFormat("  XEX_HEADER_RESOURCE_INFO:\n");
+        sb.Append("  XEX_HEADER_RESOURCE_INFO:\n");
         auto opt_resource_info =
             reinterpret_cast<const xex2_opt_resource_info*>(opt_header_ptr);
 
@@ -444,36 +443,36 @@ void UserModule::Dump() {
           name[8] = 0;
 
           sb.AppendFormat(
-              "    %-8s %.8X-%.8X, %db\n", name, (uint32_t)res.address,
+              "    {:<8} {:08X}-{:08X}, {}b\n", name, (uint32_t)res.address,
               (uint32_t)res.address + (uint32_t)res.size, (uint32_t)res.size);
         }
       } break;
       case XEX_HEADER_FILE_FORMAT_INFO: {
-        sb.AppendFormat("  XEX_HEADER_FILE_FORMAT_INFO (TODO):\n");
+        sb.Append("  XEX_HEADER_FILE_FORMAT_INFO (TODO):\n");
       } break;
       case XEX_HEADER_DELTA_PATCH_DESCRIPTOR: {
-        sb.AppendFormat("  XEX_HEADER_DELTA_PATCH_DESCRIPTOR (TODO):\n");
+        sb.Append("  XEX_HEADER_DELTA_PATCH_DESCRIPTOR (TODO):\n");
       } break;
       case XEX_HEADER_BOUNDING_PATH: {
         auto opt_bound_path =
             reinterpret_cast<const xex2_opt_bound_path*>(opt_header_ptr);
-        sb.AppendFormat("  XEX_HEADER_BOUNDING_PATH: %s\n",
+        sb.AppendFormat("  XEX_HEADER_BOUNDING_PATH: {}\n",
                         opt_bound_path->path);
       } break;
       case XEX_HEADER_ORIGINAL_BASE_ADDRESS: {
-        sb.AppendFormat("  XEX_HEADER_ORIGINAL_BASE_ADDRESS: %.8X\n",
+        sb.AppendFormat("  XEX_HEADER_ORIGINAL_BASE_ADDRESS: {:08X}\n",
                         (uint32_t)opt_header.value);
       } break;
       case XEX_HEADER_ENTRY_POINT: {
-        sb.AppendFormat("  XEX_HEADER_ENTRY_POINT: %.8X\n",
+        sb.AppendFormat("  XEX_HEADER_ENTRY_POINT: {:08X}\n",
                         (uint32_t)opt_header.value);
       } break;
       case XEX_HEADER_IMAGE_BASE_ADDRESS: {
-        sb.AppendFormat("  XEX_HEADER_IMAGE_BASE_ADDRESS: %.8X\n",
+        sb.AppendFormat("  XEX_HEADER_IMAGE_BASE_ADDRESS: {:08X}\n",
                         (uint32_t)opt_header.value);
       } break;
       case XEX_HEADER_IMPORT_LIBRARIES: {
-        sb.AppendFormat("  XEX_HEADER_IMPORT_LIBRARIES:\n");
+        sb.Append("  XEX_HEADER_IMPORT_LIBRARIES:\n");
         auto opt_import_libraries =
             reinterpret_cast<const xex2_opt_import_libraries*>(opt_header_ptr);
 
@@ -509,7 +508,7 @@ void UserModule::Dump() {
           }
           auto name = string_table[library->name_index & 0xFF];
           assert_not_null(name);
-          sb.AppendFormat("    %s - %d imports\n", name,
+          sb.AppendFormat("    {} - {} imports\n", name,
                           (uint16_t)library->count);
 
           // Manually byteswap these because of the bitfields.
@@ -517,9 +516,9 @@ void UserModule::Dump() {
           version.value = xe::byte_swap<uint32_t>(library->version.value);
           version_min.value =
               xe::byte_swap<uint32_t>(library->version_min.value);
-          sb.AppendFormat("      Version: %d.%d.%d.%d\n", version.major,
+          sb.AppendFormat("      Version: {}.{}.{}.{}\n", version.major,
                           version.minor, version.build, version.qfe);
-          sb.AppendFormat("      Min Version: %d.%d.%d.%d\n", version_min.major,
+          sb.AppendFormat("      Min Version: {}.{}.{}.{}\n", version_min.major,
                           version_min.minor, version_min.build,
                           version_min.qfe);
 
@@ -527,23 +526,23 @@ void UserModule::Dump() {
         }
       } break;
       case XEX_HEADER_CHECKSUM_TIMESTAMP: {
-        sb.AppendFormat("  XEX_HEADER_CHECKSUM_TIMESTAMP (TODO):\n");
+        sb.Append("  XEX_HEADER_CHECKSUM_TIMESTAMP (TODO):\n");
       } break;
       case XEX_HEADER_ORIGINAL_PE_NAME: {
         auto opt_pe_name =
             reinterpret_cast<const xex2_opt_original_pe_name*>(opt_header_ptr);
-        sb.AppendFormat("  XEX_HEADER_ORIGINAL_PE_NAME: %s\n",
+        sb.AppendFormat("  XEX_HEADER_ORIGINAL_PE_NAME: {}\n",
                         opt_pe_name->name);
       } break;
       case XEX_HEADER_STATIC_LIBRARIES: {
-        sb.AppendFormat("  XEX_HEADER_STATIC_LIBRARIES:\n");
+        sb.Append("  XEX_HEADER_STATIC_LIBRARIES:\n");
         auto opt_static_libraries =
             reinterpret_cast<const xex2_opt_static_libraries*>(opt_header_ptr);
 
         uint32_t count = (opt_static_libraries->size - 4) / 0x10;
         for (uint32_t l = 0; l < count; l++) {
           auto& library = opt_static_libraries->libraries[l];
-          sb.AppendFormat("    %-8s : %d.%d.%d.%d\n", library.name,
+          sb.AppendFormat("    {:<8} : {}.{}.{}.{}\n", library.name,
                           static_cast<uint16_t>(library.version_major),
                           static_cast<uint16_t>(library.version_minor),
                           static_cast<uint16_t>(library.version_build),
@@ -551,84 +550,84 @@ void UserModule::Dump() {
         }
       } break;
       case XEX_HEADER_TLS_INFO: {
-        sb.AppendFormat("  XEX_HEADER_TLS_INFO:\n");
+        sb.Append("  XEX_HEADER_TLS_INFO:\n");
         auto opt_tls_info =
             reinterpret_cast<const xex2_opt_tls_info*>(opt_header_ptr);
 
-        sb.AppendFormat("          Slot Count: %d\n",
+        sb.AppendFormat("          Slot Count: {}\n",
                         static_cast<uint32_t>(opt_tls_info->slot_count));
-        sb.AppendFormat("    Raw Data Address: %.8X\n",
+        sb.AppendFormat("    Raw Data Address: {:08X}\n",
                         static_cast<uint32_t>(opt_tls_info->raw_data_address));
-        sb.AppendFormat("           Data Size: %d\n",
+        sb.AppendFormat("           Data Size: {}\n",
                         static_cast<uint32_t>(opt_tls_info->data_size));
-        sb.AppendFormat("       Raw Data Size: %d\n",
+        sb.AppendFormat("       Raw Data Size: {}\n",
                         static_cast<uint32_t>(opt_tls_info->raw_data_size));
       } break;
       case XEX_HEADER_DEFAULT_STACK_SIZE: {
-        sb.AppendFormat("  XEX_HEADER_DEFAULT_STACK_SIZE: %d\n",
+        sb.AppendFormat("  XEX_HEADER_DEFAULT_STACK_SIZE: {}\n",
                         static_cast<uint32_t>(opt_header.value));
       } break;
       case XEX_HEADER_DEFAULT_FILESYSTEM_CACHE_SIZE: {
-        sb.AppendFormat("  XEX_HEADER_DEFAULT_FILESYSTEM_CACHE_SIZE: %d\n",
+        sb.AppendFormat("  XEX_HEADER_DEFAULT_FILESYSTEM_CACHE_SIZE: {}\n",
                         static_cast<uint32_t>(opt_header.value));
       } break;
       case XEX_HEADER_DEFAULT_HEAP_SIZE: {
-        sb.AppendFormat("  XEX_HEADER_DEFAULT_HEAP_SIZE: %d\n",
+        sb.AppendFormat("  XEX_HEADER_DEFAULT_HEAP_SIZE: {}\n",
                         static_cast<uint32_t>(opt_header.value));
       } break;
       case XEX_HEADER_PAGE_HEAP_SIZE_AND_FLAGS: {
-        sb.AppendFormat("  XEX_HEADER_PAGE_HEAP_SIZE_AND_FLAGS (TODO):\n");
+        sb.Append("  XEX_HEADER_PAGE_HEAP_SIZE_AND_FLAGS (TODO):\n");
       } break;
       case XEX_HEADER_SYSTEM_FLAGS: {
-        sb.AppendFormat("  XEX_HEADER_SYSTEM_FLAGS: %.8X\n",
+        sb.AppendFormat("  XEX_HEADER_SYSTEM_FLAGS: {:08X}\n",
                         static_cast<uint32_t>(opt_header.value));
       } break;
       case XEX_HEADER_EXECUTION_INFO: {
-        sb.AppendFormat("  XEX_HEADER_EXECUTION_INFO:\n");
+        sb.Append("  XEX_HEADER_EXECUTION_INFO:\n");
         auto opt_exec_info =
             reinterpret_cast<const xex2_opt_execution_info*>(opt_header_ptr);
 
-        sb.AppendFormat("       Media ID: %.8X\n",
+        sb.AppendFormat("       Media ID: {:08X}\n",
                         static_cast<uint32_t>(opt_exec_info->media_id));
-        sb.AppendFormat("       Title ID: %.8X\n",
+        sb.AppendFormat("       Title ID: {:08X}\n",
                         static_cast<uint32_t>(opt_exec_info->title_id));
-        sb.AppendFormat("    Savegame ID: %.8X\n",
+        sb.AppendFormat("    Savegame ID: {:08X}\n",
                         static_cast<uint32_t>(opt_exec_info->title_id));
-        sb.AppendFormat("    Disc Number / Total: %d / %d\n",
+        sb.AppendFormat("    Disc Number / Total: {} / {}\n",
                         opt_exec_info->disc_number, opt_exec_info->disc_count);
       } break;
       case XEX_HEADER_TITLE_WORKSPACE_SIZE: {
-        sb.AppendFormat("  XEX_HEADER_TITLE_WORKSPACE_SIZE: %d\n",
+        sb.AppendFormat("  XEX_HEADER_TITLE_WORKSPACE_SIZE: {}\n",
                         uint32_t(opt_header.value));
       } break;
       case XEX_HEADER_GAME_RATINGS: {
-        sb.AppendFormat("  XEX_HEADER_GAME_RATINGS (TODO):\n");
+        sb.Append("  XEX_HEADER_GAME_RATINGS (TODO):\n");
       } break;
       case XEX_HEADER_LAN_KEY: {
-        sb.AppendFormat("  XEX_HEADER_LAN_KEY:");
+        sb.Append("  XEX_HEADER_LAN_KEY:");
         auto opt_lan_key =
             reinterpret_cast<const xex2_opt_lan_key*>(opt_header_ptr);
 
         for (int l = 0; l < 16; l++) {
-          sb.AppendFormat(" %.2X", opt_lan_key->key[l]);
+          sb.AppendFormat(" {:02X}", opt_lan_key->key[l]);
         }
         sb.Append("\n");
       } break;
       case XEX_HEADER_XBOX360_LOGO: {
-        sb.AppendFormat("  XEX_HEADER_XBOX360_LOGO (TODO):\n");
+        sb.Append("  XEX_HEADER_XBOX360_LOGO (TODO):\n");
       } break;
       case XEX_HEADER_MULTIDISC_MEDIA_IDS: {
-        sb.AppendFormat("  XEX_HEADER_MULTIDISC_MEDIA_IDS (TODO):\n");
+        sb.Append("  XEX_HEADER_MULTIDISC_MEDIA_IDS (TODO):\n");
       } break;
       case XEX_HEADER_ALTERNATE_TITLE_IDS: {
-        sb.AppendFormat("  XEX_HEADER_ALTERNATE_TITLE_IDS (TODO):\n");
+        sb.Append("  XEX_HEADER_ALTERNATE_TITLE_IDS (TODO):\n");
       } break;
       case XEX_HEADER_ADDITIONAL_TITLE_MEMORY: {
-        sb.AppendFormat("  XEX_HEADER_ADDITIONAL_TITLE_MEMORY: %d\n",
+        sb.AppendFormat("  XEX_HEADER_ADDITIONAL_TITLE_MEMORY: {}\n",
                         uint32_t(opt_header.value));
       } break;
       case XEX_HEADER_EXPORTS_BY_NAME: {
-        sb.AppendFormat("  XEX_HEADER_EXPORTS_BY_NAME:\n");
+        sb.Append("  XEX_HEADER_EXPORTS_BY_NAME:\n");
         auto dir =
             reinterpret_cast<const xex2_opt_data_directory*>(opt_header_ptr);
 
@@ -650,16 +649,17 @@ void UserModule::Dump() {
           auto name = reinterpret_cast<const char*>(e_base + name_table[n]);
           uint16_t ordinal = ordinal_table[n];
           uint32_t addr = exe_address + function_table[ordinal];
-          sb.AppendFormat("    %-28s - %.3X - %.8X\n", name, ordinal, addr);
+          sb.AppendFormat("    {:<28} - {:03X} - {:08X}\n", name, ordinal,
+                          addr);
         }
       } break;
       default: {
-        sb.AppendFormat("  Unknown Header %.8X\n", (uint32_t)opt_header.key);
+        sb.AppendFormat("  Unknown Header {:08X}\n", (uint32_t)opt_header.key);
       } break;
     }
   }
 
-  sb.AppendFormat("Sections:\n");
+  sb.Append("Sections:\n");
   for (uint32_t i = 0, page = 0; i < security_info->page_descriptor_count;
        i++) {
     // Manually byteswap the bitfield data.
@@ -686,8 +686,8 @@ void UserModule::Dump() {
     uint32_t end_address =
         start_address + (page_descriptor.page_count * page_size);
 
-    sb.AppendFormat("  %3u %s %3u pages    %.8X - %.8X (%d bytes)\n", page,
-                    type, page_descriptor.page_count, start_address,
+    sb.AppendFormat("  {:3} {} {:3} pages    {:08X} - {:08X} ({} bytes)\n",
+                    page, type, page_descriptor.page_count, start_address,
                     end_address, page_descriptor.page_count * page_size);
     page += page_descriptor.page_count;
   }
@@ -696,20 +696,20 @@ void UserModule::Dump() {
 
   auto import_libs = xex_module()->import_libraries();
 
-  sb.AppendFormat("Imports:\n");
+  sb.Append("Imports:\n");
   for (std::vector<cpu::XexModule::ImportLibrary>::const_iterator library =
            import_libs->begin();
        library != import_libs->end(); ++library) {
     if (library->imports.size() > 0) {
-      sb.AppendFormat(" %s - %lld imports\n", library->name.c_str(),
+      sb.AppendFormat(" {} - {} imports\n", library->name,
                       library->imports.size());
-      sb.AppendFormat("   Version: %d.%d.%d.%d\n", library->version.major,
+      sb.AppendFormat("   Version: {}.{}.{}.{}\n", library->version.major,
                       library->version.minor, library->version.build,
                       library->version.qfe);
-      sb.AppendFormat("   Min Version: %d.%d.%d.%d\n",
+      sb.AppendFormat("   Min Version: {}.{}.{}.{}\n",
                       library->min_version.major, library->min_version.minor,
                       library->min_version.build, library->min_version.qfe);
-      sb.AppendFormat("\n");
+      sb.Append("\n");
 
       // Counts.
       int known_count = 0;
@@ -720,9 +720,9 @@ void UserModule::Dump() {
       for (std::vector<cpu::XexModule::ImportLibraryFn>::const_iterator info =
                library->imports.begin();
            info != library->imports.end(); ++info) {
-        if (kernel_state_->IsKernelModule(library->name.c_str())) {
-          auto kernel_export = export_resolver->GetExportByOrdinal(
-              library->name.c_str(), info->ordinal);
+        if (kernel_state_->IsKernelModule(library->name)) {
+          auto kernel_export =
+              export_resolver->GetExportByOrdinal(library->name, info->ordinal);
           if (kernel_export) {
             known_count++;
             if (kernel_export->is_implemented()) {
@@ -735,7 +735,7 @@ void UserModule::Dump() {
             unimpl_count++;
           }
         } else {
-          auto module = kernel_state_->GetModule(library->name.c_str());
+          auto module = kernel_state_->GetModule(library->name);
           if (module) {
             uint32_t export_addr =
                 module->GetProcAddressByOrdinal(info->ordinal);
@@ -753,12 +753,12 @@ void UserModule::Dump() {
         }
       }
       float total_count = static_cast<float>(library->imports.size()) / 100.0f;
-      sb.AppendFormat("         Total: %4llu\n", library->imports.size());
-      sb.AppendFormat("         Known:  %3d%% (%d known, %d unknown)\n",
+      sb.AppendFormat("         Total: {:4}\n", library->imports.size());
+      sb.AppendFormat("         Known:  {:3}% ({} known, {} unknown)\n",
                       static_cast<int>(known_count / total_count), known_count,
                       unknown_count);
       sb.AppendFormat(
-          "   Implemented:  %3d%% (%d implemented, %d unimplemented)\n",
+          "   Implemented:  {:3}% ({} implemented, {} unimplemented)\n",
           static_cast<int>(impl_count / total_count), impl_count, unimpl_count);
       sb.AppendFormat("\n");
 
@@ -770,15 +770,15 @@ void UserModule::Dump() {
         bool implemented = false;
 
         cpu::Export* kernel_export = nullptr;
-        if (kernel_state_->IsKernelModule(library->name.c_str())) {
-          kernel_export = export_resolver->GetExportByOrdinal(
-              library->name.c_str(), info->ordinal);
+        if (kernel_state_->IsKernelModule(library->name)) {
+          kernel_export =
+              export_resolver->GetExportByOrdinal(library->name, info->ordinal);
           if (kernel_export) {
             name = kernel_export->name;
             implemented = kernel_export->is_implemented();
           }
         } else {
-          auto module = kernel_state_->GetModule(library->name.c_str());
+          auto module = kernel_state_->GetModule(library->name);
           if (module && module->GetProcAddressByOrdinal(info->ordinal)) {
             // TODO(benvanik): name lookup.
             implemented = true;
@@ -786,11 +786,11 @@ void UserModule::Dump() {
         }
         if (kernel_export &&
             kernel_export->type == cpu::Export::Type::kVariable) {
-          sb.AppendFormat("   V %.8X          %.3X (%4d) %s %s\n",
+          sb.AppendFormat("   V {:08X}          {:03X} ({:4}) {} {}\n",
                           info->value_address, info->ordinal, info->ordinal,
                           implemented ? "  " : "!!", name);
         } else if (info->thunk_address) {
-          sb.AppendFormat("   F %.8X %.8X %.3X (%4d) %s %s\n",
+          sb.AppendFormat("   F {:08X} {:08X} {:03X} ({:4}) {} {}\n",
                           info->value_address, info->thunk_address,
                           info->ordinal, info->ordinal,
                           implemented ? "  " : "!!", name);
@@ -798,10 +798,10 @@ void UserModule::Dump() {
       }
     }
 
-    sb.AppendFormat("\n");
+    sb.Append("\n");
   }
 
-  xe::LogLine(xe::LogLevel::Info, 'i', sb.GetString());
+  xe::LogLine(xe::LogLevel::Info, 'i', sb.to_string_view());
 }
 
 }  // namespace kernel

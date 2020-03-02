@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2016 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -26,11 +26,11 @@ class FnWrapper {
   std::function<void()> fn_;
 };
 
-std::unique_ptr<Window> Window::Create(Loop* loop, const std::wstring& title) {
+std::unique_ptr<Window> Window::Create(Loop* loop, const std::string& title) {
   return std::make_unique<GTKWindow>(loop, title);
 }
 
-GTKWindow::GTKWindow(Loop* loop, const std::wstring& title)
+GTKWindow::GTKWindow(Loop* loop, const std::string& title)
     : Window(loop, title) {}
 
 GTKWindow::~GTKWindow() {
@@ -99,7 +99,7 @@ void GTKWindow::OnClose() {
   super::OnClose();
 }
 
-bool GTKWindow::set_title(const std::wstring& title) {
+bool GTKWindow::set_title(const std::string& title) {
   if (!super::set_title(title)) {
     return false;
   }
@@ -368,8 +368,8 @@ bool GTKWindow::HandleKeyboard(GdkEventKey* event) {
 }
 
 std::unique_ptr<ui::MenuItem> MenuItem::Create(Type type,
-                                               const std::wstring& text,
-                                               const std::wstring& hotkey,
+                                               const std::string& text,
+                                               const std::string& hotkey,
                                                std::function<void()> callback) {
   return std::make_unique<GTKMenuItem>(type, text, hotkey, callback);
 }
@@ -380,8 +380,8 @@ static void _menu_activate_callback(GtkWidget* menu, gpointer data) {
   delete fn;
 }
 
-GTKMenuItem::GTKMenuItem(Type type, const std::wstring& text,
-                         const std::wstring& hotkey,
+GTKMenuItem::GTKMenuItem(Type type, const std::string& text,
+                         const std::string& hotkey,
                          std::function<void()> callback)
     : MenuItem(type, text, hotkey, std::move(callback)) {
   switch (type) {
@@ -390,7 +390,7 @@ GTKMenuItem::GTKMenuItem(Type type, const std::wstring& text,
       menu_ = gtk_menu_bar_new();
       break;
     case MenuItem::Type::kPopup:
-      menu_ = gtk_menu_item_new_with_label((gchar*)xe::to_string(text).c_str());
+      menu_ = gtk_menu_item_new_with_label((gchar*)text.c_str());
       break;
     case MenuItem::Type::kSeparator:
       menu_ = gtk_separator_menu_item_new();
@@ -398,10 +398,9 @@ GTKMenuItem::GTKMenuItem(Type type, const std::wstring& text,
     case MenuItem::Type::kString:
       auto full_name = text;
       if (!hotkey.empty()) {
-        full_name += L"\t" + hotkey;
+        full_name += "\t" + hotkey;
       }
-      menu_ = gtk_menu_item_new_with_label(
-          (gchar*)xe::to_string(full_name).c_str());
+      menu_ = gtk_menu_item_new_with_label((gchar*)full_name.c_str());
       break;
   }
   if (GTK_IS_MENU_ITEM(menu_))

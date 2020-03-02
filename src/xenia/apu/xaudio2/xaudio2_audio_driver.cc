@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -58,11 +58,11 @@ bool XAudio2AudioDriver::Initialize() {
   // Windows 10 SDK references XAudio2_9.dll in it, which is only available in
   // Windows 10, and XAudio2_8.dll is linked through a different .lib -
   // xaudio2_8.lib, so easier not to link the .lib at all.
-  xaudio2_module_ = reinterpret_cast<void*>(LoadLibrary(L"XAudio2_8.dll"));
+  xaudio2_module_ = reinterpret_cast<void*>(LoadLibraryW(L"XAudio2_8.dll"));
   if (xaudio2_module_) {
     api_minor_version_ = 8;
   } else {
-    xaudio2_module_ = reinterpret_cast<void*>(LoadLibrary(L"XAudio2_7.dll"));
+    xaudio2_module_ = reinterpret_cast<void*>(LoadLibraryW(L"XAudio2_7.dll"));
     if (xaudio2_module_) {
       api_minor_version_ = 7;
     } else {

@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -13,6 +13,7 @@
 #include <cstring>
 #include <string>
 
+#include "third_party/fmt/include/fmt/format.h"
 #include "xenia/base/byte_order.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/memory.h"
@@ -101,22 +102,22 @@ inline std::string TranslateAnsiStringAddress(const Memory* memory,
       memory, memory->TranslateVirtual<const X_ANSI_STRING*>(guest_address));
 }
 
-inline std::wstring TranslateUnicodeString(
+inline std::u16string TranslateUnicodeString(
     const Memory* memory, const X_UNICODE_STRING* unicode_string) {
   if (!unicode_string) {
-    return L"";
+    return u"";
   }
   uint16_t length = unicode_string->length;
   if (!length) {
-    return L"";
+    return u"";
   }
   const xe::be<uint16_t>* guest_string =
       memory->TranslateVirtual<const xe::be<uint16_t>*>(
           unicode_string->pointer);
-  std::wstring translated_string;
+  std::u16string translated_string;
   translated_string.reserve(length);
   for (uint16_t i = 0; i < length; ++i) {
-    translated_string += wchar_t(uint16_t(guest_string[i]));
+    translated_string += char16_t(uint16_t(guest_string[i]));
   }
   return translated_string;
 }
@@ -352,7 +353,7 @@ using lpqword_t = const shim::PrimitivePointerParam<uint64_t>&;
 using lpfloat_t = const shim::PrimitivePointerParam<float>&;
 using lpdouble_t = const shim::PrimitivePointerParam<double>&;
 using lpstring_t = const shim::StringPointerParam<char, std::string>&;
-using lpwstring_t = const shim::StringPointerParam<wchar_t, std::wstring>&;
+using lpu16string_t = const shim::StringPointerParam<char16_t, std::u16string>&;
 using function_t = const shim::ParamBase<uint32_t>&;
 using unknown_t = const shim::ParamBase<uint32_t>&;
 using lpunknown_t = const shim::PointerParam&;
@@ -371,65 +372,65 @@ inline Memory* kernel_memory() { return kernel_state()->memory(); }
 namespace shim {
 
 inline void AppendParam(StringBuffer* string_buffer, int_t param) {
-  string_buffer->AppendFormat("%d", int32_t(param));
+  string_buffer->AppendFormat("{}", int32_t(param));
 }
 inline void AppendParam(StringBuffer* string_buffer, word_t param) {
-  string_buffer->AppendFormat("%.4X", uint16_t(param));
+  string_buffer->AppendFormat("{:04X}", uint16_t(param));
 }
 inline void AppendParam(StringBuffer* string_buffer, dword_t param) {
-  string_buffer->AppendFormat("%.8X", uint32_t(param));
+  string_buffer->AppendFormat("{:08X}", uint32_t(param));
 }
 inline void AppendParam(StringBuffer* string_buffer, qword_t param) {
-  string_buffer->AppendFormat("%.16llX", uint64_t(param));
+  string_buffer->AppendFormat("{:016X}", uint64_t(param));
 }
 inline void AppendParam(StringBuffer* string_buffer, float_t param) {
-  string_buffer->AppendFormat("%G", static_cast<float>(param));
+  string_buffer->AppendFormat("{:G}", static_cast<float>(param));
 }
 inline void AppendParam(StringBuffer* string_buffer, double_t param) {
-  string_buffer->AppendFormat("%G", static_cast<double>(param));
+  string_buffer->AppendFormat("{:G}", static_cast<double>(param));
 }
 inline void AppendParam(StringBuffer* string_buffer, lpvoid_t param) {
-  string_buffer->AppendFormat("%.8X", uint32_t(param));
+  string_buffer->AppendFormat("{:08X}", uint32_t(param));
 }
 inline void AppendParam(StringBuffer* string_buffer, lpdword_t param) {
-  string_buffer->AppendFormat("%.8X", param.guest_address());
+  string_buffer->AppendFormat("{:08X}", param.guest_address());
   if (param) {
-    string_buffer->AppendFormat("(%.8X)", param.value());
+    string_buffer->AppendFormat("({:08X})", param.value());
   }
 }
 inline void AppendParam(StringBuffer* string_buffer, lpqword_t param) {
-  string_buffer->AppendFormat("%.8X", param.guest_address());
+  string_buffer->AppendFormat("{:08X}", param.guest_address());
   if (param) {
-    string_buffer->AppendFormat("(%.16llX)", param.value());
+    string_buffer->AppendFormat("({:016X})", param.value());
   }
 }
 inline void AppendParam(StringBuffer* string_buffer, lpfloat_t param) {
-  string_buffer->AppendFormat("%.8X", param.guest_address());
+  string_buffer->AppendFormat("{:08X}", param.guest_address());
   if (param) {
-    string_buffer->AppendFormat("(%G)", param.value());
+    string_buffer->AppendFormat("({:G})", param.value());
   }
 }
 inline void AppendParam(StringBuffer* string_buffer, lpdouble_t param) {
-  string_buffer->AppendFormat("%.8X", param.guest_address());
+  string_buffer->AppendFormat("{:08X}", param.guest_address());
   if (param) {
-    string_buffer->AppendFormat("(%G)", param.value());
+    string_buffer->AppendFormat("({:G})", param.value());
   }
 }
 inline void AppendParam(StringBuffer* string_buffer, lpstring_t param) {
-  string_buffer->AppendFormat("%.8X", param.guest_address());
+  string_buffer->AppendFormat("{:08X}", param.guest_address());
   if (param) {
-    string_buffer->AppendFormat("(%s)", param.value().c_str());
+    string_buffer->AppendFormat("({})", param.value());
   }
 }
-inline void AppendParam(StringBuffer* string_buffer, lpwstring_t param) {
-  string_buffer->AppendFormat("%.8X", param.guest_address());
+inline void AppendParam(StringBuffer* string_buffer, lpu16string_t param) {
+  string_buffer->AppendFormat("{:08X}", param.guest_address());
   if (param) {
-    string_buffer->AppendFormat("(%S)", param.value().c_str());
+    string_buffer->AppendFormat("({})", xe::to_utf8(param.value()));
   }
 }
 inline void AppendParam(StringBuffer* string_buffer,
                         pointer_t<X_OBJECT_ATTRIBUTES> record) {
-  string_buffer->AppendFormat("%.8X", record.guest_address());
+  string_buffer->AppendFormat("{:08X}", record.guest_address());
   if (record) {
     auto name_string =
         kernel_memory()->TranslateVirtual<X_ANSI_STRING*>(record->name_ptr);
@@ -437,25 +438,25 @@ inline void AppendParam(StringBuffer* string_buffer,
         name_string == nullptr
             ? "(null)"
             : util::TranslateAnsiString(kernel_memory(), name_string);
-    string_buffer->AppendFormat("(%.8X,%s,%.8X)",
-                                uint32_t(record->root_directory), name.c_str(),
+    string_buffer->AppendFormat("({:08X},{},{:08X})",
+                                uint32_t(record->root_directory), name,
                                 uint32_t(record->attributes));
   }
 }
 inline void AppendParam(StringBuffer* string_buffer,
                         pointer_t<X_EX_TITLE_TERMINATE_REGISTRATION> reg) {
-  string_buffer->AppendFormat("%.8X(%.8X, %.8X)", reg.guest_address(),
+  string_buffer->AppendFormat("{:08X}({:08X}, {:08X})", reg.guest_address(),
                               static_cast<uint32_t>(reg->notification_routine),
                               static_cast<uint32_t>(reg->priority));
 }
 inline void AppendParam(StringBuffer* string_buffer,
                         pointer_t<X_EXCEPTION_RECORD> record) {
-  string_buffer->AppendFormat("%.8X(%.8X)", record.guest_address(),
+  string_buffer->AppendFormat("{:08X}({:08X})", record.guest_address(),
                               uint32_t(record->exception_code));
 }
 template <typename T>
 void AppendParam(StringBuffer* string_buffer, pointer_t<T> param) {
-  string_buffer->AppendFormat("%.8X", param.guest_address());
+  string_buffer->AppendFormat("{:08X}", param.guest_address());
 }
 
 enum class KernelModuleId {
@@ -493,11 +494,9 @@ void PrintKernelCall(cpu::Export* export_entry, const Tuple& params) {
   AppendKernelCallParams(string_buffer, export_entry, params);
   string_buffer.Append(')');
   if (export_entry->tags & xe::cpu::ExportTag::kImportant) {
-    xe::LogLine(xe::LogLevel::Info, 'i', string_buffer.GetString(),
-                string_buffer.length());
+    xe::LogLine(xe::LogLevel::Info, 'i', string_buffer.to_string_view());
   } else {
-    xe::LogLine(xe::LogLevel::Debug, 'd', string_buffer.GetString(),
-                string_buffer.length());
+    xe::LogLine(xe::LogLevel::Debug, 'd', string_buffer.to_string_view());
   }
 }
 

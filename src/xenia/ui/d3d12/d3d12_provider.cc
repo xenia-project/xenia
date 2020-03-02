@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2018 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -28,7 +28,7 @@ namespace ui {
 namespace d3d12 {
 
 bool D3D12Provider::IsD3D12APIAvailable() {
-  HMODULE library_d3d12 = LoadLibrary(L"D3D12.dll");
+  HMODULE library_d3d12 = LoadLibraryW(L"D3D12.dll");
   if (!library_d3d12) {
     return false;
   }
@@ -82,9 +82,9 @@ D3D12Provider::~D3D12Provider() {
 
 bool D3D12Provider::Initialize() {
   // Load the libraries.
-  library_dxgi_ = LoadLibrary(L"dxgi.dll");
-  library_d3d12_ = LoadLibrary(L"D3D12.dll");
-  library_d3dcompiler_ = LoadLibrary(L"D3DCompiler_47.dll");
+  library_dxgi_ = LoadLibraryW(L"dxgi.dll");
+  library_d3d12_ = LoadLibraryW(L"D3D12.dll");
+  library_d3dcompiler_ = LoadLibraryW(L"D3DCompiler_47.dll");
   if (library_dxgi_ == nullptr || library_d3d12_ == nullptr ||
       library_d3dcompiler_ == nullptr) {
     XELOGE("Failed to load dxgi.dll, D3D12.dll and D3DCompiler_47.dll.");

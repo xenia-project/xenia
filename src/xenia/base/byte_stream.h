@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2015 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -51,14 +51,14 @@ class ByteStream {
     Write(reinterpret_cast<uint8_t*>(&data), sizeof(T));
   }
 
-  void Write(const std::string& str) {
+  void Write(const std::string_view str) {
     Write(uint32_t(str.length()));
-    Write(str.c_str(), str.length());
+    Write(str.data(), str.length() * sizeof(char));
   }
 
-  void Write(const std::wstring& str) {
+  void Write(const std::u16string_view str) {
     Write(uint32_t(str.length()));
-    Write(str.c_str(), str.length() * 2);
+    Write(str.data(), str.length() * sizeof(char16_t));
   }
 
  private:
@@ -71,7 +71,7 @@ template <>
 std::string ByteStream::Read();
 
 template <>
-std::wstring ByteStream::Read();
+std::u16string ByteStream::Read();
 
 }  // namespace xe
 

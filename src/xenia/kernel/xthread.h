@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -142,7 +142,7 @@ class XThread : public XObject, public cpu::Thread {
   uint32_t thread_id() const { return thread_id_; }
   uint32_t last_error();
   void set_last_error(uint32_t error_code);
-  void set_name(const std::string& name);
+  void set_name(const std::string_view name);
 
   X_STATUS Create();
   X_STATUS Exit(int exit_code);

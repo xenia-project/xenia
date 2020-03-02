@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2014 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -110,9 +110,9 @@ class UserProfile {
     }
   };
   struct UnicodeSetting : public Setting {
-    UnicodeSetting(uint32_t setting_id, const std::wstring& value)
+    UnicodeSetting(uint32_t setting_id, const std::u16string& value)
         : Setting(setting_id, Type::WSTRING, 8, true), value(value) {}
-    std::wstring value;
+    std::u16string value;
     size_t extra_size() const override {
       return value.empty() ? 0 : 2 * (static_cast<int32_t>(value.size()) + 1);
     }

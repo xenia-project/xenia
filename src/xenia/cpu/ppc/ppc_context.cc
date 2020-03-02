@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -143,13 +143,12 @@ void PPCContext::SetRegFromString(const char* name, const char* value) {
 }
 
 bool PPCContext::CompareRegWithString(const char* name, const char* value,
-                                      char* out_value,
-                                      size_t out_value_size) const {
+                                      std::string& result) const {
   int n;
   if (sscanf(name, "r%d", &n) == 1) {
     uint64_t expected = string_util::from_string<uint64_t>(value);
     if (this->r[n] != expected) {
-      std::snprintf(out_value, out_value_size, "%016" PRIX64, this->r[n]);
+      result = fmt::format("{:016X}", this->r[n]);
       return false;
     }
     return true;
@@ -157,23 +156,17 @@ bool PPCContext::CompareRegWithString(const char* name, const char* value,
     if (std::strstr(value, "0x")) {
       // Special case: Treat float as integer.
       uint64_t expected = string_util::from_string<uint64_t>(value, true);
-
-      union {
-        double f;
-        uint64_t u;
-      } f2u;
-      f2u.f = this->f[n];
-
-      if (f2u.u != expected) {
-        std::snprintf(out_value, out_value_size, "%016" PRIX64, f2u.u);
+      uint64_t pun;
+      std::memcpy(&pun, &this->f[n], sizeof(pun));
+      if (pun != expected) {
+        result = fmt::format("{:016X}", pun);
         return false;
       }
     } else {
       double expected = string_util::from_string<double>(value);
-
       // TODO(benvanik): epsilon
       if (this->f[n] != expected) {
-        std::snprintf(out_value, out_value_size, "%f", this->f[n]);
+        result = fmt::format("{:.17f}", this->f[n]);
         return false;
       }
     }
@@ -181,9 +174,9 @@ bool PPCContext::CompareRegWithString(const char* name, const char* value,
   } else if (sscanf(name, "v%d", &n) == 1) {
     vec128_t expected = string_util::from_string<vec128_t>(value);
     if (this->v[n] != expected) {
-      std::snprintf(out_value, out_value_size, "[%.8X, %.8X, %.8X, %.8X]",
-                    this->v[n].i32[0], this->v[n].i32[1], this->v[n].i32[2],
-                    this->v[n].i32[3]);
+      result =
+          fmt::format("[{:08X}, {:08X}, {:08X}, {:08X}]", this->v[n].i32[0],
+                      this->v[n].i32[1], this->v[n].i32[2], this->v[n].i32[3]);
       return false;
     }
     return true;
@@ -191,7 +184,7 @@ bool PPCContext::CompareRegWithString(const char* name, const char* value,
     uint64_t actual = this->cr();
     uint64_t expected = string_util::from_string<uint64_t>(value);
     if (actual != expected) {
-      std::snprintf(out_value, out_value_size, "%016" PRIX64, actual);
+      result = fmt::format("{:016X}", actual);
       return false;
     }
     return true;

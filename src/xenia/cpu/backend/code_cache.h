@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2015 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -23,7 +23,7 @@ class CodeCache {
   CodeCache() = default;
   virtual ~CodeCache() = default;
 
-  virtual std::wstring file_name() const = 0;
+  virtual const std::filesystem::path& file_name() const = 0;
   virtual uint32_t base_address() const = 0;
   virtual uint32_t total_size() const = 0;
 

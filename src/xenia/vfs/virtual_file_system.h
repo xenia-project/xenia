@@ -29,19 +29,20 @@ class VirtualFileSystem {
   ~VirtualFileSystem();
 
   bool RegisterDevice(std::unique_ptr<Device> device);
-  bool UnregisterDevice(const std::string& path);
+  bool UnregisterDevice(const std::string_view path);
 
-  bool RegisterSymbolicLink(const std::string& path, const std::string& target);
-  bool UnregisterSymbolicLink(const std::string& path);
-  bool FindSymbolicLink(const std::string& path, std::string& target);
+  bool RegisterSymbolicLink(const std::string_view path,
+                            const std::string_view target);
+  bool UnregisterSymbolicLink(const std::string_view path);
+  bool FindSymbolicLink(const std::string_view path, std::string& target);
 
-  Entry* ResolvePath(const std::string& path);
-  Entry* ResolveBasePath(const std::string& path);
+  Entry* ResolvePath(const std::string_view path);
+  Entry* ResolveBasePath(const std::string_view path);
 
-  Entry* CreatePath(const std::string& path, uint32_t attributes);
-  bool DeletePath(const std::string& path);
+  Entry* CreatePath(const std::string_view path, uint32_t attributes);
+  bool DeletePath(const std::string_view path);
 
-  X_STATUS OpenFile(const std::string& path,
+  X_STATUS OpenFile(const std::string_view path,
                     FileDisposition creation_disposition,
                     uint32_t desired_access, bool is_directory, File** out_file,
                     FileAction* out_action);
@@ -51,7 +52,7 @@ class VirtualFileSystem {
   std::vector<std::unique_ptr<Device>> devices_;
   std::unordered_map<std::string, std::string> symlinks_;
 
-  bool ResolveSymbolicLink(const std::string& path, std::string& result);
+  bool ResolveSymbolicLink(const std::string_view path, std::string& result);
 };
 
 }  // namespace vfs

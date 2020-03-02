@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2015 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -13,6 +13,7 @@
 #include <cinttypes>
 #include <cmath>
 
+#include "third_party/fmt/include/fmt/format.h"
 #include "xenia/base/byte_stream.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
@@ -87,11 +88,12 @@ void CommandProcessor::Shutdown() {
   worker_thread_.reset();
 }
 
-void CommandProcessor::InitializeShaderStorage(const std::wstring& storage_root,
-                                               uint32_t title_id,
-                                               bool blocking) {}
+void CommandProcessor::InitializeShaderStorage(
+    const std::filesystem::path& storage_root, uint32_t title_id,
+    bool blocking) {}
 
-void CommandProcessor::RequestFrameTrace(const std::wstring& root_path) {
+void CommandProcessor::RequestFrameTrace(
+    const std::filesystem::path& root_path) {
   if (trace_state_ == TraceState::kStreaming) {
     XELOGE("Streaming trace; cannot also trace frame.");
     return;
@@ -104,7 +106,7 @@ void CommandProcessor::RequestFrameTrace(const std::wstring& root_path) {
   trace_frame_path_ = root_path;
 }
 
-void CommandProcessor::BeginTracing(const std::wstring& root_path) {
+void CommandProcessor::BeginTracing(const std::filesystem::path& root_path) {
   if (trace_state_ == TraceState::kStreaming) {
     XELOGE("Streaming already active; ignoring request.");
     return;
@@ -440,8 +442,8 @@ uint32_t CommandProcessor::ExecutePrimaryBuffer(uint32_t read_index,
     uint32_t title_id = kernel_state_->GetExecutableModule()
                             ? kernel_state_->GetExecutableModule()->title_id()
                             : 0;
-    auto file_name = xe::format_string(L"%8X_stream.xtr", title_id);
-    auto path = trace_stream_path_ + file_name;
+    auto file_name = fmt::format("{:8X}_stream.xtr", title_id);
+    auto path = trace_stream_path_ / file_name;
     trace_writer_.Open(path, title_id);
     InitializeTrace();
   }
@@ -754,8 +756,8 @@ bool CommandProcessor::ExecutePacketType3(RingBuffer* reader, uint32_t packet) {
     } else if (trace_state_ == TraceState::kSingleFrame) {
       // New trace request - we only start tracing at the beginning of a frame.
       uint32_t title_id = kernel_state_->GetExecutableModule()->title_id();
-      auto file_name = xe::format_string(L"%8X_%u.xtr", title_id, counter_ - 1);
-      auto path = trace_frame_path_ + file_name;
+      auto file_name = fmt::format("{:8X}_{}.xtr", title_id, counter_ - 1);
+      auto path = trace_frame_path_ / file_name;
       trace_writer_.Open(path, title_id);
       InitializeTrace();
     }

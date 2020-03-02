@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2015 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -133,11 +133,12 @@ class CommandProcessor {
   // May be called not only from the command processor thread when the command
   // processor is paused, and the termination of this function may be explicitly
   // awaited.
-  virtual void InitializeShaderStorage(const std::wstring& storage_root,
-                                       uint32_t title_id, bool blocking);
+  virtual void InitializeShaderStorage(
+      const std::filesystem::path& storage_root, uint32_t title_id,
+      bool blocking);
 
-  virtual void RequestFrameTrace(const std::wstring& root_path);
-  virtual void BeginTracing(const std::wstring& root_path);
+  virtual void RequestFrameTrace(const std::filesystem::path& root_path);
+  virtual void BeginTracing(const std::filesystem::path& root_path);
   virtual void EndTracing();
 
   virtual void TracePlaybackWroteMemory(uint32_t base_ptr, uint32_t length) = 0;
@@ -264,8 +265,8 @@ class CommandProcessor {
     kSingleFrame,
   };
   TraceState trace_state_ = TraceState::kDisabled;
-  std::wstring trace_stream_path_;
-  std::wstring trace_frame_path_;
+  std::filesystem::path trace_stream_path_;
+  std::filesystem::path trace_frame_path_;
 
   std::atomic<bool> worker_running_;
   kernel::object_ref<kernel::XHostThread> worker_thread_;

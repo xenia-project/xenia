@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -22,7 +22,7 @@ class RawModule : public Module {
   explicit RawModule(Processor* processor);
   ~RawModule() override;
 
-  bool LoadFile(uint32_t base_address, const std::wstring& path);
+  bool LoadFile(uint32_t base_address, const std::filesystem::path& path);
 
   // Set address range if you've already allocated memory and placed code
   // in it.
@@ -30,7 +30,7 @@ class RawModule : public Module {
 
   const std::string& name() const override { return name_; }
   bool is_executable() const override { return is_executable_; }
-  void set_name(const std::string& name) { name_ = name; }
+  void set_name(const std::string_view name) { name_ = name; }
   void set_executable(bool is_executable) { is_executable_ = is_executable; }
 
   bool ContainsAddress(uint32_t address) override;

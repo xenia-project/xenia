@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2017 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -61,8 +61,9 @@ bool QueryProtect(void* base_address, size_t& length, PageAccess& access_out) {
   return false;
 }
 
-FileMappingHandle CreateFileMappingHandle(std::wstring path, size_t length,
-                                          PageAccess access, bool commit) {
+FileMappingHandle CreateFileMappingHandle(const std::filesystem::path& path,
+                                          size_t length, PageAccess access,
+                                          bool commit) {
   int oflag;
   switch (access) {
     case PageAccess::kNoAccess:
@@ -81,7 +82,7 @@ FileMappingHandle CreateFileMappingHandle(std::wstring path, size_t length,
   }
 
   oflag |= O_CREAT;
-  int ret = shm_open(xe::to_string(path).c_str(), oflag, 0777);
+  int ret = shm_open(path.c_str(), oflag, 0777);
   if (ret > 0) {
     ftruncate64(ret, length);
   }

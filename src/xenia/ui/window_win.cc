@@ -2,27 +2,30 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2014 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
 
+#include "xenia/ui/window_win.h"
+
 #include <ShellScalingApi.h>
+
 #include <string>
 
 #include "xenia/base/assert.h"
+#include "xenia/base/filesystem.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/platform_win.h"
-#include "xenia/ui/window_win.h"
 
 namespace xe {
 namespace ui {
 
-std::unique_ptr<Window> Window::Create(Loop* loop, const std::wstring& title) {
+std::unique_ptr<Window> Window::Create(Loop* loop, const std::string& title) {
   return std::make_unique<Win32Window>(loop, title);
 }
 
-Win32Window::Win32Window(Loop* loop, const std::wstring& title)
+Win32Window::Win32Window(Loop* loop, const std::string& title)
     : Window(loop, title) {}
 
 Win32Window::~Win32Window() {
@@ -48,7 +51,7 @@ bool Win32Window::OnCreate() {
   HINSTANCE hInstance = GetModuleHandle(nullptr);
 
   if (!SetProcessDpiAwareness_ || !GetDpiForMonitor_) {
-    auto shcore = GetModuleHandle(L"shcore.dll");
+    auto shcore = GetModuleHandleW(L"shcore.dll");
     if (shcore) {
       SetProcessDpiAwareness_ =
           GetProcAddress(shcore, "SetProcessDpiAwareness");
@@ -74,8 +77,8 @@ bool Win32Window::OnCreate() {
     wcex.cbClsExtra = 0;
     wcex.cbWndExtra = 0;
     wcex.hInstance = hInstance;
-    wcex.hIcon = LoadIcon(hInstance, L"MAINICON");
-    wcex.hIconSm = NULL;  // LoadIcon(hInstance, L"MAINICON");
+    wcex.hIcon = LoadIconW(hInstance, L"MAINICON");
+    wcex.hIconSm = NULL;  // LoadIconW(hInstance, L"MAINICON");
     wcex.hCursor = LoadCursor(nullptr, IDC_ARROW);
     wcex.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
     wcex.lpszMenuName = nullptr;
@@ -94,16 +97,18 @@ bool Win32Window::OnCreate() {
   AdjustWindowRect(&rc, WS_OVERLAPPEDWINDOW, FALSE);
 
   // Create window.
-  hwnd_ = CreateWindowEx(window_ex_style, L"XeniaWindowClass", title_.c_str(),
-                         window_style, rc.left, rc.top, rc.right - rc.left,
-                         rc.bottom - rc.top, nullptr, nullptr, hInstance, this);
+  hwnd_ =
+      CreateWindowExW(window_ex_style, L"XeniaWindowClass",
+                      reinterpret_cast<LPCWSTR>(xe::to_utf16(title_).c_str()),
+                      window_style, rc.left, rc.top, rc.right - rc.left,
+                      rc.bottom - rc.top, nullptr, nullptr, hInstance, this);
   if (!hwnd_) {
     XELOGE("CreateWindow failed");
     return false;
   }
 
   // Disable flicks.
-  ATOM atom = GlobalAddAtom(L"MicrosoftTabletPenServiceProperty");
+  ATOM atom = GlobalAddAtomW(L"MicrosoftTabletPenServiceProperty");
   const DWORD_PTR dwHwndTabletProperty =
       TABLET_DISABLE_PRESSANDHOLD |    // disables press and hold (right-click)
                                        // gesture
@@ -114,8 +119,8 @@ bool Win32Window::OnCreate() {
                                // drag up)
       TABLET_DISABLE_TOUCHSWITCH | TABLET_DISABLE_SMOOTHSCROLLING |
       TABLET_DISABLE_TOUCHUIFORCEON | TABLET_ENABLE_MULTITOUCHDATA;
-  SetProp(hwnd_, L"MicrosoftTabletPenServiceProperty",
-          reinterpret_cast<HANDLE>(dwHwndTabletProperty));
+  SetPropW(hwnd_, L"MicrosoftTabletPenServiceProperty",
+           reinterpret_cast<HANDLE>(dwHwndTabletProperty));
   GlobalDeleteAtom(atom);
 
   // Enable DWM elevation.
@@ -140,7 +145,7 @@ bool Win32Window::OnCreate() {
 }
 
 void Win32Window::EnableMMCSS() {
-  HMODULE hLibrary = LoadLibrary(L"DWMAPI.DLL");
+  HMODULE hLibrary = LoadLibraryW(L"DWMAPI.DLL");
   if (!hLibrary) {
     return;
   }
@@ -193,11 +198,11 @@ void Win32Window::DisableMainMenu() {
   }
 }
 
-bool Win32Window::set_title(const std::wstring& title) {
+bool Win32Window::set_title(const std::string& title) {
   if (!super::set_title(title)) {
     return false;
   }
-  SetWindowText(hwnd_, title.c_str());
+  SetWindowTextW(hwnd_, reinterpret_cast<LPCWSTR>(xe::to_utf16(title).c_str()));
   return true;
 }
 
@@ -208,11 +213,11 @@ bool Win32Window::SetIcon(const void* buffer, size_t size) {
   }
 
   // Reset icon to default.
-  auto default_icon = LoadIcon(GetModuleHandle(nullptr), L"MAINICON");
-  SendMessage(hwnd_, WM_SETICON, ICON_BIG,
-              reinterpret_cast<LPARAM>(default_icon));
-  SendMessage(hwnd_, WM_SETICON, ICON_SMALL,
-              reinterpret_cast<LPARAM>(default_icon));
+  auto default_icon = LoadIconW(GetModuleHandle(nullptr), L"MAINICON");
+  SendMessageW(hwnd_, WM_SETICON, ICON_BIG,
+               reinterpret_cast<LPARAM>(default_icon));
+  SendMessageW(hwnd_, WM_SETICON, ICON_SMALL,
+               reinterpret_cast<LPARAM>(default_icon));
   if (!buffer || !size) {
     return true;
   }
@@ -223,8 +228,9 @@ bool Win32Window::SetIcon(const void* buffer, size_t size) {
       static_cast<DWORD>(size), TRUE, 0x00030000, 0, 0,
       LR_DEFAULTCOLOR | LR_DEFAULTSIZE);
   if (icon_) {
-    SendMessage(hwnd_, WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM>(icon_));
-    SendMessage(hwnd_, WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM>(icon_));
+    SendMessageW(hwnd_, WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM>(icon_));
+    SendMessageW(hwnd_, WM_SETICON, ICON_SMALL,
+                 reinterpret_cast<LPARAM>(icon_));
   }
 
   return false;
@@ -493,7 +499,7 @@ LRESULT Win32Window::WndProc(HWND hWnd, UINT message, WPARAM wParam,
   switch (message) {
     case WM_DROPFILES: {
       HDROP hDrop = reinterpret_cast<HDROP>(wParam);
-      std::wstring path;
+      std::u16string path;
 
       // Get required buffer size
       UINT buf_size = DragQueryFileW(hDrop, 0, nullptr, 0);
@@ -501,8 +507,8 @@ LRESULT Win32Window::WndProc(HWND hWnd, UINT message, WPARAM wParam,
         path.resize(buf_size + 1);  // Give space for a null terminator
 
         // Only getting first file dropped (other files ignored)
-        if (DragQueryFileW(hDrop, 0, &path[0], buf_size + 1)) {
-          auto e = FileDropEvent(this, path.c_str());
+        if (DragQueryFileW(hDrop, 0, (LPWSTR)&path[0], buf_size + 1)) {
+          auto e = FileDropEvent(this, xe::to_path(path));
           OnFileDrop(&e);
         }
       }
@@ -512,7 +518,7 @@ LRESULT Win32Window::WndProc(HWND hWnd, UINT message, WPARAM wParam,
     case WM_NCCREATE: {
       // Tell Windows to automatically scale non-client areas on different DPIs.
       auto en = (BOOL(WINAPI*)(HWND hwnd))GetProcAddress(
-          GetModuleHandle(L"user32.dll"), "EnableNonClientDpiScaling");
+          GetModuleHandleW(L"user32.dll"), "EnableNonClientDpiScaling");
       if (en) {
         en(hWnd);
       }
@@ -716,14 +722,14 @@ bool Win32Window::HandleKeyboard(UINT message, WPARAM wParam, LPARAM lParam) {
 }
 
 std::unique_ptr<ui::MenuItem> MenuItem::Create(Type type,
-                                               const std::wstring& text,
-                                               const std::wstring& hotkey,
+                                               const std::string& text,
+                                               const std::string& hotkey,
                                                std::function<void()> callback) {
   return std::make_unique<Win32MenuItem>(type, text, hotkey, callback);
 }
 
-Win32MenuItem::Win32MenuItem(Type type, const std::wstring& text,
-                             const std::wstring& hotkey,
+Win32MenuItem::Win32MenuItem(Type type, const std::string& text,
+                             const std::string& hotkey,
                              std::function<void()> callback)
     : MenuItem(type, text, hotkey, std::move(callback)) {
   switch (type) {
@@ -777,9 +783,9 @@ void Win32MenuItem::OnChildAdded(MenuItem* generic_child_item) {
       // Nothing special.
       break;
     case MenuItem::Type::kPopup:
-      AppendMenuW(handle_, MF_POPUP,
-                  reinterpret_cast<UINT_PTR>(child_item->handle()),
-                  child_item->text().c_str());
+      AppendMenuW(
+          handle_, MF_POPUP, reinterpret_cast<UINT_PTR>(child_item->handle()),
+          reinterpret_cast<LPCWSTR>(xe::to_utf16(child_item->text()).c_str()));
       break;
     case MenuItem::Type::kSeparator:
       AppendMenuW(handle_, MF_SEPARATOR, UINT_PTR(child_item->handle_), 0);
@@ -787,10 +793,10 @@ void Win32MenuItem::OnChildAdded(MenuItem* generic_child_item) {
     case MenuItem::Type::kString:
       auto full_name = child_item->text();
       if (!child_item->hotkey().empty()) {
-        full_name += L"\t" + child_item->hotkey();
+        full_name += "\t" + child_item->hotkey();
       }
       AppendMenuW(handle_, MF_STRING, UINT_PTR(child_item->handle_),
-                  full_name.c_str());
+                  reinterpret_cast<LPCWSTR>(xe::to_utf16(full_name).c_str()));
       break;
   }
 }

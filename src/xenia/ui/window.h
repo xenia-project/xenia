@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2014 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -30,7 +30,7 @@ class ImGuiDrawer;
 
 class Window {
  public:
-  static std::unique_ptr<Window> Create(Loop* loop, const std::wstring& title);
+  static std::unique_ptr<Window> Create(Loop* loop, const std::string& title);
 
   virtual ~Window();
 
@@ -47,8 +47,8 @@ class Window {
   virtual void EnableMainMenu() = 0;
   virtual void DisableMainMenu() = 0;
 
-  const std::wstring& title() const { return title_; }
-  virtual bool set_title(const std::wstring& title) {
+  const std::string& title() const { return title_; }
+  virtual bool set_title(const std::string& title) {
     if (title == title_) {
       return false;
     }
@@ -131,7 +131,7 @@ class Window {
   Delegate<MouseEvent*> on_mouse_wheel;
 
  protected:
-  Window(Loop* loop, const std::wstring& title);
+  Window(Loop* loop, const std::string& title);
 
   void ForEachListener(std::function<void(WindowListener*)> fn);
   void TryForEachListener(std::function<bool(WindowListener*)> fn);
@@ -168,7 +168,7 @@ class Window {
 
   Loop* loop_ = nullptr;
   std::unique_ptr<MenuItem> main_menu_;
-  std::wstring title_;
+  std::string title_;
   int32_t width_ = 0;
   int32_t height_ = 0;
   bool has_focus_ = true;

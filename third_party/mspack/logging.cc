@@ -1,5 +1,7 @@
 #include "xenia/base/logging.h"
 
+#include <cstdarg>
+
 extern "C" void xenia_log(const char* fmt, ...) {
   char buffer[128];
   va_list args;

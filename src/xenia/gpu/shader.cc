@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2015 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -12,6 +12,7 @@
 #include <cinttypes>
 #include <cstring>
 
+#include "third_party/fmt/include/fmt/format.h"
 #include "xenia/base/filesystem.h"
 #include "xenia/base/math.h"
 #include "xenia/base/memory.h"
@@ -40,30 +41,32 @@ std::string Shader::GetTranslatedBinaryString() const {
   return result;
 }
 
-std::pair<std::string, std::string> Shader::Dump(const std::string& base_path,
-                                                 const char* path_prefix) {
+std::pair<std::filesystem::path, std::filesystem::path> Shader::Dump(
+    const std::filesystem::path& base_path, const char* path_prefix) {
   // Ensure target path exists.
-  auto target_path = xe::to_wstring(base_path);
+  auto target_path = base_path;
   if (!target_path.empty()) {
-    target_path = xe::to_absolute_path(target_path);
+    target_path = std::filesystem::absolute(target_path);
     xe::filesystem::CreateFolder(target_path);
   }
 
-  const std::string file_name_no_extension =
-      xe::format_string("%s/shader_%s_%.16" PRIX64, base_path.c_str(),
-                        path_prefix, ucode_data_hash_);
+  auto base_name =
+      fmt::format("shader_{}_{:016X}", path_prefix, ucode_data_hash_);
 
-  std::string txt_file_name, bin_file_name;
-
+  std::string txt_name, bin_name;
   if (shader_type_ == ShaderType::kVertex) {
-    txt_file_name = file_name_no_extension + ".vert";
-    bin_file_name = file_name_no_extension + ".bin.vert";
+    txt_name = base_name + ".vert";
+    bin_name = base_name + ".bin.vert";
   } else {
-    txt_file_name = file_name_no_extension + ".frag";
-    bin_file_name = file_name_no_extension + ".bin.frag";
+    txt_name = base_name + ".frag";
+    bin_name = base_name + ".bin.frag";
   }
 
-  FILE* f = fopen(txt_file_name.c_str(), "wb");
+  std::filesystem::path txt_path, bin_path;
+  txt_path = base_path / txt_name;
+  bin_path = base_path / bin_name;
+
+  FILE* f = filesystem::OpenFile(txt_path, "wb");
   if (f) {
     fwrite(translated_binary_.data(), 1, translated_binary_.size(), f);
     fprintf(f, "\n\n");
@@ -81,13 +84,13 @@ std::pair<std::string, std::string> Shader::Dump(const std::string& base_path,
     fclose(f);
   }
 
-  f = fopen(bin_file_name.c_str(), "wb");
+  f = filesystem::OpenFile(bin_path, "wb");
   if (f) {
     fwrite(ucode_data_.data(), 4, ucode_data_.size(), f);
     fclose(f);
   }
 
-  return {std::move(txt_file_name), std::move(bin_file_name)};
+  return {std::move(txt_path), std::move(bin_path)};
 }
 
 }  //  namespace gpu

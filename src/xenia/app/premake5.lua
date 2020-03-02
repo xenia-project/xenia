@@ -10,6 +10,7 @@ project("xenia-app")
   links({
     "aes_128",
     "capstone",
+    "fmt",
     "dxbc",
     "discord-rpc",
     "glslang-spirv",

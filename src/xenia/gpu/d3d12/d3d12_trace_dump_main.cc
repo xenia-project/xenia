@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2019 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -45,7 +45,7 @@ class D3D12TraceDump : public TraceDump {
   }
 };
 
-int trace_dump_main(const std::vector<std::wstring>& args) {
+int trace_dump_main(const std::vector<std::string>& args) {
   D3D12TraceDump trace_dump;
   return trace_dump.Main(args);
 }
@@ -54,6 +54,6 @@ int trace_dump_main(const std::vector<std::wstring>& args) {
 }  // namespace gpu
 }  // namespace xe
 
-DEFINE_ENTRY_POINT(L"xenia-gpu-d3d12-trace-dump",
+DEFINE_ENTRY_POINT("xenia-gpu-d3d12-trace-dump",
                    xe::gpu::d3d12::trace_dump_main, "some.trace",
                    "target_trace_file");

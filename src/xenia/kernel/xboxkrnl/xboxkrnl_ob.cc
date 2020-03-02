@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -141,20 +141,18 @@ dword_result_t ObDereferenceObject(dword_t native_ptr) {
 }
 DECLARE_XBOXKRNL_EXPORT1(ObDereferenceObject, kNone, kImplemented);
 
-dword_result_t ObCreateSymbolicLink(pointer_t<X_ANSI_STRING> path,
-                                    pointer_t<X_ANSI_STRING> target) {
-  auto path_str = util::TranslateAnsiString(kernel_memory(), path);
-  auto target_str = util::TranslateAnsiString(kernel_memory(), target);
-  path_str = filesystem::CanonicalizePath(path_str);
-  target_str = filesystem::CanonicalizePath(target_str);
+dword_result_t ObCreateSymbolicLink(pointer_t<X_ANSI_STRING> path_ptr,
+                                    pointer_t<X_ANSI_STRING> target_ptr) {
+  auto path = util::TranslateAnsiString(kernel_memory(), path_ptr);
+  auto target = util::TranslateAnsiString(kernel_memory(), target_ptr);
+  path = xe::utf8::canonicalize_guest_path(path);
+  target = xe::utf8::canonicalize_guest_path(target);
 
-  auto pos = path_str.find("\\??\\");
-  if (pos != path_str.npos && pos == 0) {
-    path_str = path_str.substr(4);  // Strip the full qualifier
+  if (xe::utf8::starts_with(path, u8"\\??\\")) {
+    path = path.substr(4);  // Strip the full qualifier
   }
 
-  if (!kernel_state()->file_system()->RegisterSymbolicLink(path_str,
-                                                           target_str)) {
+  if (!kernel_state()->file_system()->RegisterSymbolicLink(path, target)) {
     return X_STATUS_UNSUCCESSFUL;
   }
 
@@ -162,9 +160,9 @@ dword_result_t ObCreateSymbolicLink(pointer_t<X_ANSI_STRING> path,
 }
 DECLARE_XBOXKRNL_EXPORT1(ObCreateSymbolicLink, kNone, kImplemented);
 
-dword_result_t ObDeleteSymbolicLink(pointer_t<X_ANSI_STRING> path) {
-  auto path_str = util::TranslateAnsiString(kernel_memory(), path);
-  if (!kernel_state()->file_system()->UnregisterSymbolicLink(path_str)) {
+dword_result_t ObDeleteSymbolicLink(pointer_t<X_ANSI_STRING> path_ptr) {
+  auto path = util::TranslateAnsiString(kernel_memory(), path_ptr);
+  if (!kernel_state()->file_system()->UnregisterSymbolicLink(path)) {
     return X_STATUS_UNSUCCESSFUL;
   }
 

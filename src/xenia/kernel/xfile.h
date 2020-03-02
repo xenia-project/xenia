@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -96,7 +96,7 @@ class XFile : public XObject {
   void set_position(uint64_t value) { position_ = value; }
 
   X_STATUS QueryDirectory(X_FILE_DIRECTORY_INFORMATION* out_info, size_t length,
-                          const char* file_name, bool restart);
+                          const std::string_view file_name, bool restart);
 
   // Don't do within the global critical region because invalidation callbacks
   // may be triggered (as per the usual rule of not doing I/O within the global

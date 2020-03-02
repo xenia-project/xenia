@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -24,8 +24,8 @@
 #include "xenia/base/math.h"
 #include "xenia/base/memory.h"
 #include "xenia/base/ring_buffer.h"
+#include "xenia/base/string.h"
 #include "xenia/base/threading.h"
-//#include "xenia/base/cvar.h"
 
 // For MessageBox:
 // TODO(benvanik): generic API? logging_win.cc?
@@ -33,7 +33,9 @@
 #include "xenia/base/platform_win.h"
 #endif  // XE_PLATFORM_WIN32
 
-DEFINE_string(
+#include "third_party/fmt/include/fmt/format.h"
+
+DEFINE_path(
     log_file, "",
     "Logs are written to the given file (specify stdout for command line)",
     "Logging");
@@ -54,19 +56,19 @@ thread_local std::vector<char> log_format_buffer_(64 * 1024);
 
 class Logger {
  public:
-  explicit Logger(const std::wstring& app_name) : running_(true) {
+  explicit Logger(const std::string_view app_name) : running_(true) {
     if (cvars::log_file.empty()) {
       // Default to app name.
-      auto file_path = app_name + L".log";
+      auto file_name = fmt::format("{}.log", app_name);
+      auto file_path = std::filesystem::path(file_name);
       xe::filesystem::CreateParentFolder(file_path);
       file_ = xe::filesystem::OpenFile(file_path, "wt");
     } else {
       if (cvars::log_file == "stdout") {
         file_ = stdout;
       } else {
-        auto file_path = xe::to_wstring(cvars::log_file);
-        xe::filesystem::CreateParentFolder(file_path);
-        file_ = xe::filesystem::OpenFile(file_path, "wt");
+        xe::filesystem::CreateParentFolder(cvars::log_file);
+        file_ = xe::filesystem::OpenFile(cvars::log_file, "wt");
       }
     }
 
@@ -243,7 +245,7 @@ class Logger {
   std::unique_ptr<xe::threading::Thread> write_thread_;
 };
 
-void InitializeLogging(const std::wstring& app_name) {
+void InitializeLogging(const std::string_view app_name) {
   auto mem = memory::AlignedAlloc<Logger>(0x10);
   logger_ = new (mem) Logger(app_name);
 }
@@ -294,68 +296,28 @@ void LogLineVarargs(LogLevel log_level, const char prefix_char, const char* fmt,
                       prefix_char, log_format_buffer_.data(), size);
 }
 
-void LogLine(LogLevel log_level, const char prefix_char, const char* str,
-             size_t str_length) {
-  if (!logger_) {
-    return;
-  }
-
-  logger_->AppendLine(
-      xe::threading::current_thread_id(), log_level, prefix_char, str,
-      str_length == std::string::npos ? std::strlen(str) : str_length);
-}
-
-void LogLine(LogLevel log_level, const char prefix_char,
-             const std::string& str) {
+void logging::AppendLogLine(LogLevel log_level, const char prefix_char,
+                            const std::string_view str) {
   if (!logger_) {
     return;
   }
 
   logger_->AppendLine(xe::threading::current_thread_id(), log_level,
-                      prefix_char, str.c_str(), str.length());
+                      prefix_char, str.data(), str.length());
 }
 
-void FatalError(const char* fmt, ...) {
-  va_list args;
-  va_start(args, fmt);
-  LogLineVarargs(LogLevel::Error, 'X', fmt, args);
-  va_end(args);
+void FatalError(const std::string_view str) {
+  LogLine(LogLevel::Error, 'X', str);
+  logging::AppendLogLine(LogLevel::Error, 'X', str);
 
 #if XE_PLATFORM_WIN32
   if (!xe::has_console_attached()) {
-    va_start(args, fmt);
-    std::vsnprintf(log_format_buffer_.data(), log_format_buffer_.capacity(),
-                   fmt, args);
-    va_end(args);
-    MessageBoxA(NULL, log_format_buffer_.data(), "Xenia Error",
+    MessageBoxW(NULL, (LPCWSTR)xe::to_utf16(str).c_str(), L"Xenia Error",
                 MB_OK | MB_ICONERROR | MB_APPLMODAL | MB_SETFOREGROUND);
   }
 #endif  // WIN32
   ShutdownLogging();
   std::exit(1);
 }
-
-void FatalError(const wchar_t* fmt, ...) {
-  va_list args;
-  va_start(args, fmt);
-  std::vswprintf((wchar_t*)log_format_buffer_.data(),
-                 log_format_buffer_.capacity() >> 1, fmt, args);
-  va_end(args);
-
-  LogLine(LogLevel::Error, 'X',
-          xe::to_string((wchar_t*)log_format_buffer_.data()));
-
-#if XE_PLATFORM_WIN32
-  if (!xe::has_console_attached()) {
-    MessageBoxW(NULL, (wchar_t*)log_format_buffer_.data(), L"Xenia Error",
-                MB_OK | MB_ICONERROR | MB_APPLMODAL | MB_SETFOREGROUND);
-  }
-#endif  // WIN32
-  ShutdownLogging();
-  std::exit(1);
-}
-
-void FatalError(const std::string& str) { FatalError(str.c_str()); }
-void FatalError(const std::wstring& str) { FatalError(str.c_str()); }
 
 }  // namespace xe

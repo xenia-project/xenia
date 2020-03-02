@@ -2,16 +2,18 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2014 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
 
+#include "xenia/kernel/xam/user_profile.h"
+
 #include <sstream>
 
+#include "third_party/fmt/include/fmt/format.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/util/shim_utils.h"
-#include "xenia/kernel/xam/user_profile.h"
 
 namespace xe {
 namespace kernel {
@@ -42,7 +44,7 @@ UserProfile::UserProfile() {
   // XPROFILE_OPTION_VOICE_VOLUME
   AddSetting(std::make_unique<Int32Setting>(0x1004000E, 0x64));
   // XPROFILE_GAMERCARD_MOTTO
-  AddSetting(std::make_unique<UnicodeSetting>(0x402C0011, L""));
+  AddSetting(std::make_unique<UnicodeSetting>(0x402C0011, u""));
   // XPROFILE_GAMERCARD_TITLES_PLAYED
   AddSetting(std::make_unique<Int32Setting>(0x10040012, 1));
   // XPROFILE_GAMERCARD_ACHIEVEMENTS_EARNED
@@ -77,7 +79,7 @@ UserProfile::UserProfile() {
   // If we set this, games will try to get it.
   // XPROFILE_GAMERCARD_PICTURE_KEY
   AddSetting(
-      std::make_unique<UnicodeSetting>(0x4064000F, L"gamercard_picture_key"));
+      std::make_unique<UnicodeSetting>(0x4064000F, u"gamercard_picture_key"));
 
   // XPROFILE_TITLE_SPECIFIC1
   AddSetting(std::make_unique<BinarySetting>(0x63E83FFF));
@@ -130,8 +132,8 @@ void UserProfile::LoadSetting(UserProfile::Setting* setting) {
   if (setting->is_title_specific()) {
     auto content_dir =
         kernel_state()->content_manager()->ResolveGameUserContentPath();
-    auto setting_id = xe::format_string(L"%.8X", setting->setting_id);
-    auto file_path = xe::join_paths(content_dir, setting_id);
+    auto setting_id = fmt::format("{:08X}", setting->setting_id);
+    auto file_path = content_dir / setting_id;
     auto file = xe::filesystem::OpenFile(file_path, "rb");
     if (file) {
       fseek(file, 0, SEEK_END);
@@ -157,8 +159,8 @@ void UserProfile::SaveSetting(UserProfile::Setting* setting) {
     auto content_dir =
         kernel_state()->content_manager()->ResolveGameUserContentPath();
     xe::filesystem::CreateFolder(content_dir);
-    auto setting_id = xe::format_string(L"%.8X", setting->setting_id);
-    auto file_path = xe::join_paths(content_dir, setting_id);
+    auto setting_id = fmt::format("{:08X}", setting->setting_id);
+    auto file_path = content_dir / setting_id;
     auto file = xe::filesystem::OpenFile(file_path, "wb");
     fwrite(serialized_setting.data(), 1, serialized_setting.size(), file);
     fclose(file);

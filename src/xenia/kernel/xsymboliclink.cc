@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -22,8 +22,8 @@ XSymbolicLink::XSymbolicLink() : XObject(kType), path_(), target_() {}
 
 XSymbolicLink::~XSymbolicLink() {}
 
-void XSymbolicLink::Initialize(const std::string& path,
-                               const std::string& target) {
+void XSymbolicLink::Initialize(const std::string_view path,
+                               const std::string_view target) {
   path_ = path;
   target_ = target;
   // TODO(gibbed): kernel_state_->RegisterSymbolicLink(this);

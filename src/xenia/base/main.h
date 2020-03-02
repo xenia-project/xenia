@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2019 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -24,10 +24,10 @@ bool has_console_attached();
 // Extern defined by user code. This must be present for the application to
 // launch.
 struct EntryInfo {
-  std::wstring name;
+  std::string name;
   std::string positional_usage;
   std::vector<std::string> positional_options;
-  int (*entry_point)(const std::vector<std::wstring>& args);
+  int (*entry_point)(const std::vector<std::string>& args);
 };
 EntryInfo GetEntryInfo();
 

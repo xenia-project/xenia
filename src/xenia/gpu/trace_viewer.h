@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2015 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -36,14 +36,14 @@ class TraceViewer {
  public:
   virtual ~TraceViewer();
 
-  int Main(const std::vector<std::wstring>& args);
+  int Main(const std::vector<std::string>& args);
 
  protected:
   TraceViewer();
 
   virtual std::unique_ptr<gpu::GraphicsSystem> CreateGraphicsSystem() = 0;
 
-  void DrawMultilineString(const std::string& str);
+  void DrawMultilineString(const std::string_view str);
 
   virtual uintptr_t GetColorRenderTarget(uint32_t pitch, MsaaSamples samples,
                                          uint32_t base,
@@ -74,7 +74,7 @@ class TraceViewer {
     kHostDisasm,
   };
 
-  bool Load(std::wstring trace_file_path);
+  bool Load(const std::filesystem::path& trace_file_path);
   void Run();
 
   void DrawUI();

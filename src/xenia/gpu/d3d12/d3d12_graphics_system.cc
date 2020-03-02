@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2018 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -31,13 +31,13 @@ bool D3D12GraphicsSystem::IsAvailable() {
   return xe::ui::d3d12::D3D12Provider::IsD3D12APIAvailable();
 }
 
-std::wstring D3D12GraphicsSystem::name() const {
+std::string D3D12GraphicsSystem::name() const {
   auto d3d12_command_processor =
       static_cast<D3D12CommandProcessor*>(command_processor());
   if (d3d12_command_processor != nullptr) {
     return d3d12_command_processor->GetWindowTitleText();
   }
-  return L"Direct3D 12";
+  return "Direct3D 12";
 }
 
 X_STATUS D3D12GraphicsSystem::Setup(cpu::Processor* processor,

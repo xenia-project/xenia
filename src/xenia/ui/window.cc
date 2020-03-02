@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2014 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -31,7 +31,7 @@ constexpr double kDoubleClickDistance = 5;
 
 constexpr int32_t kMouseWheelDetent = 120;
 
-Window::Window(Loop* loop, const std::wstring& title)
+Window::Window(Loop* loop, const std::string& title)
     : loop_(loop), title_(title) {}
 
 Window::~Window() {

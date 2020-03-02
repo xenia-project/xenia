@@ -2,13 +2,14 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2014 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
 
 #include "xenia/cpu/compiler/passes/finalization_pass.h"
 
+#include "third_party/fmt/include/fmt/format.h"
 #include "xenia/base/profiling.h"
 #include "xenia/cpu/backend/backend.h"
 #include "xenia/cpu/compiler/compiler.h"
@@ -43,9 +44,11 @@ bool FinalizationPass::Run(HIRBuilder* builder) {
     auto label = block->label_head;
     while (label) {
       if (!label->name) {
-        const size_t label_len = 6 + 4 + 1;
-        char* name = reinterpret_cast<char*>(arena->Alloc(label_len));
-        snprintf(name, label_len, "_label%d", label->id);
+        const size_t label_len = 6 + 4;
+        char* name = reinterpret_cast<char*>(arena->Alloc(label_len + 1));
+        assert_true(label->id <= 9999);
+        auto end = fmt::format_to_n(name, label_len, "_label{}", label->id);
+        name[end.size] = '\0';
         label->name = name;
       }
       label = label->next;

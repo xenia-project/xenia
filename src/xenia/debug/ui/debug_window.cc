@@ -18,6 +18,7 @@
 #include "third_party/imgui/imgui.h"
 #include "third_party/imgui/imgui_internal.h"
 #include "xenia/base/clock.h"
+#include "xenia/base/fuzzy.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/platform.h"
@@ -47,7 +48,7 @@ using xe::ui::MenuItem;
 using xe::ui::MouseEvent;
 using xe::ui::UIEvent;
 
-const std::wstring kBaseTitle = L"Xenia Debugger";
+const std::string kBaseTitle = "Xenia Debugger";
 
 DebugWindow::DebugWindow(Emulator* emulator, xe::ui::Loop* loop)
     : emulator_(emulator),
@@ -90,10 +91,10 @@ bool DebugWindow::Initialize() {
 
   // Main menu.
   auto main_menu = MenuItem::Create(MenuItem::Type::kNormal);
-  auto file_menu = MenuItem::Create(MenuItem::Type::kPopup, L"&File");
+  auto file_menu = MenuItem::Create(MenuItem::Type::kPopup, "&File");
   {
-    file_menu->AddChild(MenuItem::Create(MenuItem::Type::kString, L"&Close",
-                                         L"Alt+F4",
+    file_menu->AddChild(MenuItem::Create(MenuItem::Type::kString, "&Close",
+                                         "Alt+F4",
                                          [this]() { window_->Close(); }));
   }
   main_menu->AddChild(std::move(file_menu));
@@ -291,7 +292,7 @@ void DebugWindow::DrawToolbar() {
     ++i;
   }
   if (ImGui::Combo("##thread_combo", &current_thread_index,
-                   thread_combo.GetString(), 10)) {
+                   thread_combo.buffer(), 10)) {
     // Thread changed.
     SelectThreadStackFrame(cache_.thread_debug_infos[current_thread_index], 0,
                            true);
@@ -509,7 +510,7 @@ void DebugWindow::DrawGuestFunctionSource() {
     uint32_t code =
         xe::load_and_swap<uint32_t>(memory->TranslateVirtual(address));
     cpu::ppc::DisasmPPC(address, code, &str);
-    ImGui::Text("%.8X %.8X   %s", address, code, str.GetString());
+    ImGui::Text("%.8X %.8X   %s", address, code, str.buffer());
     str.Reset();
 
     if (is_current_instr) {
@@ -1425,19 +1426,19 @@ void DebugWindow::UpdateCache() {
   auto object_table = kernel_state->object_table();
 
   loop_->Post([this]() {
-    std::wstring title = kBaseTitle;
+    std::string title = kBaseTitle;
     switch (processor_->execution_state()) {
       case cpu::ExecutionState::kEnded:
-        title += L" (ended)";
+        title += " (ended)";
         break;
       case cpu::ExecutionState::kPaused:
-        title += L" (paused)";
+        title += " (paused)";
         break;
       case cpu::ExecutionState::kRunning:
-        title += L" (running)";
+        title += " (running)";
         break;
       case cpu::ExecutionState::kStepping:
-        title += L" (stepping)";
+        title += " (stepping)";
         break;
     }
     window_->set_title(title);

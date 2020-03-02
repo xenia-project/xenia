@@ -2,18 +2,19 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2015 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
 
 #include "xenia/base/filesystem_wildcard.h"
-#include "xenia/base/assert.h"
 
 #include <algorithm>
 
-namespace xe {
-namespace filesystem {
+#include "xenia/base/assert.h"
+#include "xenia/base/string.h"
+
+namespace xe::filesystem {
 
 WildcardFlags WildcardFlags::FIRST(true, false, false);
 WildcardFlags WildcardFlags::LAST(false, true, false);
@@ -25,47 +26,45 @@ WildcardFlags::WildcardFlags()
 WildcardFlags::WildcardFlags(bool start, bool end, bool exact_length)
     : FromStart(start), ToEnd(end), ExactLength(exact_length) {}
 
-WildcardRule::WildcardRule(const std::string& str_match,
+WildcardRule::WildcardRule(const std::string_view match,
                            const WildcardFlags& flags)
-    : match(str_match), rules(flags) {
-  std::transform(match.begin(), match.end(), match.begin(), tolower);
-}
+    : match_(utf8::lower_ascii(match)), rules_(flags) {}
 
-bool WildcardRule::Check(const std::string& str_lower,
+bool WildcardRule::Check(const std::string_view lower,
                          std::string::size_type* offset) const {
-  if (match.empty()) {
+  if (match_.empty()) {
     return true;
   }
 
-  if ((str_lower.size() - *offset) < match.size()) {
+  if ((lower.size() - *offset) < match_.size()) {
     return false;
   }
 
-  if (rules.ExactLength) {
-    *offset += match.size();
+  if (rules_.ExactLength) {
+    *offset += match_.size();
     return true;
   }
 
-  std::string::size_type result(str_lower.find(match, *offset));
+  std::string_view::size_type result(lower.find(match_, *offset));
 
-  if (result != std::string::npos) {
-    if (rules.FromStart && result != *offset) {
+  if (result != std::string_view::npos) {
+    if (rules_.FromStart && result != *offset) {
       return false;
     }
 
-    if (rules.ToEnd && result != (str_lower.size() - match.size())) {
+    if (rules_.ToEnd && result != (lower.size() - match_.size())) {
       return false;
     }
 
-    *offset = (result + match.size());
+    *offset = (result + match_.size());
     return true;
   }
 
   return false;
 }
 
-void WildcardEngine::PreparePattern(const std::string& pattern) {
-  rules.clear();
+void WildcardEngine::PreparePattern(const std::string_view pattern) {
+  rules_.clear();
 
   WildcardFlags flags(WildcardFlags::FIRST);
   size_t n = 0;
@@ -73,12 +72,12 @@ void WildcardEngine::PreparePattern(const std::string& pattern) {
   while ((n = pattern.find_first_of("*?", last)) != pattern.npos) {
     if (last != n) {
       std::string str_str(pattern.substr(last, n - last));
-      rules.push_back(WildcardRule(str_str, flags));
+      rules_.push_back(WildcardRule(str_str, flags));
     }
     if (pattern[n] == '?') {
       auto end = pattern.find_first_not_of('?', n + 1);
       auto count = end == pattern.npos ? (pattern.size() - n) : (end - n);
-      rules.push_back(
+      rules_.push_back(
           WildcardRule(pattern.substr(n, count), WildcardFlags::ANY));
       last = n + count;
     } else if (pattern[n] == '*') {
@@ -90,20 +89,18 @@ void WildcardEngine::PreparePattern(const std::string& pattern) {
   }
   if (last != pattern.size()) {
     std::string str_str(pattern.substr(last));
-    rules.push_back(WildcardRule(str_str, WildcardFlags::LAST));
+    rules_.push_back(WildcardRule(str_str, WildcardFlags::LAST));
   }
 }
 
-void WildcardEngine::SetRule(const std::string& pattern) {
+void WildcardEngine::SetRule(const std::string_view pattern) {
   PreparePattern(pattern);
 }
 
-bool WildcardEngine::Match(const std::string& str) const {
-  std::string str_lc;
-  std::transform(str.begin(), str.end(), std::back_inserter(str_lc), tolower);
-
+bool WildcardEngine::Match(const std::string_view str) const {
+  std::string str_lc = utf8::lower_ascii(str);
   std::string::size_type offset(0);
-  for (const auto& rule : rules) {
+  for (const auto& rule : rules_) {
     if (!(rule.Check(str_lc, &offset))) {
       return false;
     }
@@ -112,5 +109,4 @@ bool WildcardEngine::Match(const std::string& str) const {
   return true;
 }
 
-}  // namespace filesystem
-}  // namespace xe
+}  // namespace xe::filesystem

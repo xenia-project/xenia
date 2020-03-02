@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2019 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -36,12 +36,10 @@
 #error "No cpu instruction wrappers for current compiler implemented."
 #endif
 
-#define CLOCK_FATAL(msg)                                      \
-  xe::FatalError(                                             \
-      "The raw clock source is not supported on your CPU. \n" \
-      "%s \n"                                                 \
-      "Set the cvar 'clock_source_raw' to 'false'.",          \
-      (msg));
+#define CLOCK_FATAL(msg)                                                    \
+  xe::FatalError("The raw clock source is not supported on your CPU.\n" msg \
+                 "\n"                                                       \
+                 "Set the cvar 'clock_source_raw' to 'false'.");
 
 namespace xe {
 // Getting the TSC frequency can be a bit tricky. This method here only works on

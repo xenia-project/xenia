@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -12,6 +12,7 @@
 
 #include <vector>
 
+#include "third_party/fmt/include/fmt/format.h"
 #include "xenia/base/arena.h"
 #include "xenia/base/string_buffer.h"
 #include "xenia/cpu/hir/block.h"
@@ -68,9 +69,19 @@ class HIRBuilder {
   // static allocations:
   // Value* AllocStatic(size_t length);
 
-  void Comment(const char* value);
+  void Comment(const std::string_view value);
   void Comment(const StringBuffer& value);
-  void CommentFormat(const char* format, ...);
+
+  template <typename... Args>
+  void CommentFormat(const std::string_view format, const Args&... args) {
+    static const uint32_t kMaxCommentSize = 1024;
+    char* p = reinterpret_cast<char*>(arena_->Alloc(kMaxCommentSize));
+    auto result = fmt::format_to_n(p, kMaxCommentSize - 1, format, args...);
+    p[result.size] = '\0';
+    size_t rewind = kMaxCommentSize - 1 - result.size;
+    arena_->Rewind(rewind);
+    CommentBuffer(p);
+  }
 
   void Nop();
 
@@ -261,6 +272,7 @@ class HIRBuilder {
   void EndBlock();
   bool IsUnconditionalJump(Instr* instr);
   Instr* AppendInstr(const OpcodeInfo& opcode, uint16_t flags, Value* dest = 0);
+  void CommentBuffer(const char* p);
   Value* CompareXX(const OpcodeInfo& opcode, Value* value1, Value* value2);
   Value* VectorCompareXX(const OpcodeInfo& opcode, Value* value1, Value* value2,
                          TypeName part_type);

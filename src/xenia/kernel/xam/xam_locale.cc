@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2019 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -45,75 +45,75 @@ uint8_t xeXamGetOnlineCountryFromLocale(uint8_t id) {
   return id < xe::countof(table) ? table[id] : 0;
 }
 
-const wchar_t* xeXamGetOnlineCountryString(uint8_t id) {
-  static const wchar_t* const table[] = {
-      L"ZZ", L"AE",   L"AL", L"AM", L"AR",   L"AT", L"AU",   L"AZ",   L"BE",
-      L"BG", L"BH",   L"BN", L"BO", L"BR",   L"BY", L"BZ",   L"CA",   nullptr,
-      L"CH", L"CL",   L"CN", L"CO", L"CR",   L"CZ", L"DE",   L"DK",   L"DO",
-      L"DZ", L"EC",   L"EE", L"EG", L"ES",   L"FI", L"FO",   L"FR",   L"GB",
-      L"GE", L"GR",   L"GT", L"HK", L"HN",   L"HR", L"HU",   L"ID",   L"IE",
-      L"IL", L"IN",   L"IQ", L"IR", L"IS",   L"IT", L"JM",   L"JO",   L"JP",
-      L"KE", L"KG",   L"KR", L"KW", L"KZ",   L"LB", L"LI",   L"LT",   L"LU",
-      L"LV", L"LY",   L"MA", L"MC", L"MK",   L"MN", L"MO",   L"MV",   L"MX",
-      L"MY", L"NI",   L"NL", L"NO", L"NZ",   L"OM", L"PA",   L"PE",   L"PH",
-      L"PK", L"PL",   L"PR", L"PT", L"PY",   L"QA", L"RO",   L"RU",   L"SA",
-      L"SE", L"SG",   L"SI", L"SK", nullptr, L"SV", L"SY",   L"TH",   L"TN",
-      L"TR", L"TT",   L"TW", L"UA", L"US",   L"UY", L"UZ",   L"VE",   L"VN",
-      L"YE", L"ZA",   L"ZW", L"AF", nullptr, L"AD", L"AO",   L"AI",   nullptr,
-      L"AG", L"AW",   L"BS", L"BD", L"BB",   L"BJ", L"BM",   L"BT",   L"BA",
-      L"BW", L"BF",   L"BI", L"KH", L"CM",   L"CV", L"KY",   L"CF",   L"TD",
-      L"CX", L"CC",   L"KM", L"CG", L"CD",   L"CK", L"CI",   L"CY",   L"DJ",
-      L"DM", nullptr, L"GQ", L"ER", L"ET",   L"FK", L"FJ",   L"GF",   L"PF",
-      L"GA", L"GM",   L"GH", L"GI", L"GL",   L"GD", L"GP",   nullptr, L"GG",
-      L"GN", L"GW",   L"GY", L"HT", L"JE",   L"KI", L"LA",   L"LS",   L"LR",
-      L"MG", L"MW",   L"ML", L"MT", L"MH",   L"MQ", L"MR",   L"MU",   L"YT",
-      L"FM", L"MD",   L"ME", L"MS", L"MZ",   L"MM", L"NA",   L"NR",   L"NP",
-      L"AN", L"NC",   L"NE", L"NG", L"NU",   L"NF", nullptr, L"PW",   L"PS",
-      L"PG", L"PN",   L"RE", L"RW", L"WS",   L"SM", L"ST",   L"SN",   L"RS",
-      L"SC", L"SL",   L"SB", L"SO", L"LK",   L"SH", L"KN",   L"LC",   L"PM",
-      L"VC", L"SR",   L"SZ", L"TJ", L"TZ",   L"TL", L"TG",   L"TK",   L"TO",
-      L"TM", L"TC",   L"TV", L"UG", L"VU",   L"VA", nullptr, L"VG",   L"WF",
-      L"EH", L"ZM",   L"ZZ",
+const char16_t* xeXamGetOnlineCountryString(uint8_t id) {
+  static const char16_t* const table[] = {
+      u"ZZ", u"AE",   u"AL", u"AM", u"AR",   u"AT", u"AU",   u"AZ",   u"BE",
+      u"BG", u"BH",   u"BN", u"BO", u"BR",   u"BY", u"BZ",   u"CA",   nullptr,
+      u"CH", u"CL",   u"CN", u"CO", u"CR",   u"CZ", u"DE",   u"DK",   u"DO",
+      u"DZ", u"EC",   u"EE", u"EG", u"ES",   u"FI", u"FO",   u"FR",   u"GB",
+      u"GE", u"GR",   u"GT", u"HK", u"HN",   u"HR", u"HU",   u"ID",   u"IE",
+      u"IL", u"IN",   u"IQ", u"IR", u"IS",   u"IT", u"JM",   u"JO",   u"JP",
+      u"KE", u"KG",   u"KR", u"KW", u"KZ",   u"LB", u"LI",   u"LT",   u"LU",
+      u"LV", u"LY",   u"MA", u"MC", u"MK",   u"MN", u"MO",   u"MV",   u"MX",
+      u"MY", u"NI",   u"NL", u"NO", u"NZ",   u"OM", u"PA",   u"PE",   u"PH",
+      u"PK", u"PL",   u"PR", u"PT", u"PY",   u"QA", u"RO",   u"RU",   u"SA",
+      u"SE", u"SG",   u"SI", u"SK", nullptr, u"SV", u"SY",   u"TH",   u"TN",
+      u"TR", u"TT",   u"TW", u"UA", u"US",   u"UY", u"UZ",   u"VE",   u"VN",
+      u"YE", u"ZA",   u"ZW", u"AF", nullptr, u"AD", u"AO",   u"AI",   nullptr,
+      u"AG", u"AW",   u"BS", u"BD", u"BB",   u"BJ", u"BM",   u"BT",   u"BA",
+      u"BW", u"BF",   u"BI", u"KH", u"CM",   u"CV", u"KY",   u"CF",   u"TD",
+      u"CX", u"CC",   u"KM", u"CG", u"CD",   u"CK", u"CI",   u"CY",   u"DJ",
+      u"DM", nullptr, u"GQ", u"ER", u"ET",   u"FK", u"FJ",   u"GF",   u"PF",
+      u"GA", u"GM",   u"GH", u"GI", u"GL",   u"GD", u"GP",   nullptr, u"GG",
+      u"GN", u"GW",   u"GY", u"HT", u"JE",   u"KI", u"LA",   u"LS",   u"LR",
+      u"MG", u"MW",   u"ML", u"MT", u"MH",   u"MQ", u"MR",   u"MU",   u"YT",
+      u"FM", u"MD",   u"ME", u"MS", u"MZ",   u"MM", u"NA",   u"NR",   u"NP",
+      u"AN", u"NC",   u"NE", u"NG", u"NU",   u"NF", nullptr, u"PW",   u"PS",
+      u"PG", u"PN",   u"RE", u"RW", u"WS",   u"SM", u"ST",   u"SN",   u"RS",
+      u"SC", u"SL",   u"SB", u"SO", u"LK",   u"SH", u"KN",   u"LC",   u"PM",
+      u"VC", u"SR",   u"SZ", u"TJ", u"TZ",   u"TL", u"TG",   u"TK",   u"TO",
+      u"TM", u"TC",   u"TV", u"UG", u"VU",   u"VA", nullptr, u"VG",   u"WF",
+      u"EH", u"ZM",   u"ZZ",
   };
 #pragma warning(suppress : 6385)
   return id < xe::countof(table) ? table[id] : nullptr;
 }
 
-const wchar_t* xeXamGetCountryString(uint8_t id) {
-  static const wchar_t* const table[] = {
-      L"ZZ", L"AE", L"AL", L"AM", L"AR",   L"AT", L"AU", L"AZ",   L"BE", L"BG",
-      L"BH", L"BN", L"BO", L"BR", L"BY",   L"BZ", L"CA", nullptr, L"CH", L"CL",
-      L"CN", L"CO", L"CR", L"CZ", L"DE",   L"DK", L"DO", L"DZ",   L"EC", L"EE",
-      L"EG", L"ES", L"FI", L"FO", L"FR",   L"GB", L"GE", L"GR",   L"GT", L"HK",
-      L"HN", L"HR", L"HU", L"ID", L"IE",   L"IL", L"IN", L"IQ",   L"IR", L"IS",
-      L"IT", L"JM", L"JO", L"JP", L"KE",   L"KG", L"KR", L"KW",   L"KZ", L"LB",
-      L"LI", L"LT", L"LU", L"LV", L"LY",   L"MA", L"MC", L"MK",   L"MN", L"MO",
-      L"MV", L"MX", L"MY", L"NI", L"NL",   L"NO", L"NZ", L"OM",   L"PA", L"PE",
-      L"PH", L"PK", L"PL", L"PR", L"PT",   L"PY", L"QA", L"RO",   L"RU", L"SA",
-      L"SE", L"SG", L"SI", L"SK", nullptr, L"SV", L"SY", L"TH",   L"TN", L"TR",
-      L"TT", L"TW", L"UA", L"US", L"UY",   L"UZ", L"VE", L"VN",   L"YE", L"ZA",
-      L"ZW", L"ZZ",
+const char16_t* xeXamGetCountryString(uint8_t id) {
+  static const char16_t* const table[] = {
+      u"ZZ", u"AE", u"AL", u"AM", u"AR",   u"AT", u"AU", u"AZ",   u"BE", u"BG",
+      u"BH", u"BN", u"BO", u"BR", u"BY",   u"BZ", u"CA", nullptr, u"CH", u"CL",
+      u"CN", u"CO", u"CR", u"CZ", u"DE",   u"DK", u"DO", u"DZ",   u"EC", u"EE",
+      u"EG", u"ES", u"FI", u"FO", u"FR",   u"GB", u"GE", u"GR",   u"GT", u"HK",
+      u"HN", u"HR", u"HU", u"ID", u"IE",   u"IL", u"IN", u"IQ",   u"IR", u"IS",
+      u"IT", u"JM", u"JO", u"JP", u"KE",   u"KG", u"KR", u"KW",   u"KZ", u"LB",
+      u"LI", u"LT", u"LU", u"LV", u"LY",   u"MA", u"MC", u"MK",   u"MN", u"MO",
+      u"MV", u"MX", u"MY", u"NI", u"NL",   u"NO", u"NZ", u"OM",   u"PA", u"PE",
+      u"PH", u"PK", u"PL", u"PR", u"PT",   u"PY", u"QA", u"RO",   u"RU", u"SA",
+      u"SE", u"SG", u"SI", u"SK", nullptr, u"SV", u"SY", u"TH",   u"TN", u"TR",
+      u"TT", u"TW", u"UA", u"US", u"UY",   u"UZ", u"VE", u"VN",   u"YE", u"ZA",
+      u"ZW", u"ZZ",
   };
 #pragma warning(suppress : 6385)
   return id < xe::countof(table) ? table[id] : nullptr;
 }
 
-const wchar_t* xeXamGetLanguageString(uint8_t id) {
-  static const wchar_t* const table[] = {
-      L"zz", L"en",   L"ja", L"de", L"fr", L"es", L"it", L"ko", L"zh",
-      L"pt", nullptr, L"pl", L"ru", L"sv", L"tr", L"nb", L"nl", L"zh",
+const char16_t* xeXamGetLanguageString(uint8_t id) {
+  static const char16_t* const table[] = {
+      u"zz", u"en",   u"ja", u"de", u"fr", u"es", u"it", u"ko", u"zh",
+      u"pt", nullptr, u"pl", u"ru", u"sv", u"tr", u"nb", u"nl", u"zh",
   };
 #pragma warning(suppress : 6385)
   return id < xe::countof(table) ? table[id] : nullptr;
 }
 
-const wchar_t* xeXamGetLocaleString(uint8_t id) {
-  static const wchar_t* const table[] = {
-      L"ZZ", L"AU", L"AT", L"BE", L"BR", L"CA", L"CL", L"CN", L"CO",
-      L"CZ", L"DK", L"FI", L"FR", L"DE", L"GR", L"HK", L"HU", L"IN",
-      L"IE", L"IT", L"JP", L"KR", L"MX", L"NL", L"NZ", L"NO", L"PL",
-      L"PT", L"SG", L"SK", L"ZA", L"ES", L"SE", L"CH", L"TW", L"GB",
-      L"US", L"RU", L"ZZ", L"TR", L"AR", L"SA", L"IL", L"AE",
+const char16_t* xeXamGetLocaleString(uint8_t id) {
+  static const char16_t* const table[] = {
+      u"ZZ", u"AU", u"AT", u"BE", u"BR", u"CA", u"CL", u"CN", u"CO",
+      u"CZ", u"DK", u"FI", u"FR", u"DE", u"GR", u"HK", u"HU", u"IN",
+      u"IE", u"IT", u"JP", u"KR", u"MX", u"NL", u"NZ", u"NO", u"PL",
+      u"PT", u"SG", u"SK", u"ZA", u"ES", u"SE", u"CH", u"TW", u"GB",
+      u"US", u"RU", u"ZZ", u"TR", u"AR", u"SA", u"IL", u"AE",
   };
 #pragma warning(suppress : 6385)
   return id < xe::countof(table) ? table[id] : nullptr;
@@ -149,15 +149,15 @@ uint8_t xeXamGetLanguageFromOnlineLanguage(uint8_t id) {
   return id < xe::countof(table) ? table[id] : 0;
 }
 
-const wchar_t* xeXamGetOnlineLanguageString(uint8_t id) {
-  static const wchar_t* const table[] = {
-      L"zz", L"en", L"ja", L"de", L"fr", L"es", L"it", L"ko", L"zh",
-      L"pt", L"zh", L"pl", L"ru", L"da", L"fi", L"nb", L"nl", L"sv",
-      L"cs", L"el", L"hu", L"sk", L"id", L"ms", L"ar", L"bg", L"et",
-      L"hr", L"he", L"is", L"kk", L"lt", L"lv", L"ro", L"sl", L"th",
-      L"tr", L"uk", L"vi", L"ps", L"sq", L"hy", L"bn", L"be", L"km",
-      L"am", L"fo", L"ka", L"kl", L"sw", L"ky", L"lb", L"mk", L"mt",
-      L"mn", L"ne", L"ur", L"rw", L"wo", L"si", L"tk",
+const char16_t* xeXamGetOnlineLanguageString(uint8_t id) {
+  static const char16_t* const table[] = {
+      u"zz", u"en", u"ja", u"de", u"fr", u"es", u"it", u"ko", u"zh",
+      u"pt", u"zh", u"pl", u"ru", u"da", u"fi", u"nb", u"nl", u"sv",
+      u"cs", u"el", u"hu", u"sk", u"id", u"ms", u"ar", u"bg", u"et",
+      u"hr", u"he", u"is", u"kk", u"lt", u"lv", u"ro", u"sl", u"th",
+      u"tr", u"uk", u"vi", u"ps", u"sq", u"hy", u"bn", u"be", u"km",
+      u"am", u"fo", u"ka", u"kl", u"sw", u"ky", u"lb", u"mk", u"mt",
+      u"mn", u"ne", u"ur", u"rw", u"wo", u"si", u"tk",
   };
 #pragma warning(suppress : 6385)
   return id < xe::countof(table) ? table[id] : nullptr;
@@ -235,7 +235,7 @@ dword_result_t XamGetOnlineCountryFromLocale(dword_t id) {
 DECLARE_XAM_EXPORT1(XamGetOnlineCountryFromLocale, kLocale, kImplemented);
 
 dword_result_t XamGetOnlineCountryString(dword_t id, dword_t buffer_length,
-                                         lpwstring_t buffer) {
+                                         lpu16string_t buffer) {
   if (buffer_length >= 0x80000000u) {
     return X_E_INVALIDARG;
   }
@@ -245,19 +245,19 @@ dword_result_t XamGetOnlineCountryString(dword_t id, dword_t buffer_length,
     return X_E_NOTFOUND;
   }
 
-  const auto value = std::wstring(str);
+  const auto value = std::u16string(str);
   if (value.size() + 1 > buffer_length) {
     return X_HRESULT_FROM_WIN32(X_ERROR_INSUFFICIENT_BUFFER);
   }
 
-  xe::store_and_swap<std::wstring>(buffer, value);
-  static_cast<wchar_t*>(buffer)[value.size()] = 0;
+  xe::store_and_swap<std::u16string>(buffer, value);
+  static_cast<char16_t*>(buffer)[value.size()] = 0;
   return X_E_SUCCESS;
 }
 DECLARE_XAM_EXPORT1(XamGetOnlineCountryString, kLocale, kImplemented);
 
 dword_result_t XamGetCountryString(dword_t id, dword_t buffer_length,
-                                   lpwstring_t buffer) {
+                                   lpu16string_t buffer) {
   if (buffer_length >= 0x80000000u) {
     return X_E_INVALIDARG;
   }
@@ -267,19 +267,19 @@ dword_result_t XamGetCountryString(dword_t id, dword_t buffer_length,
     return X_E_NOTFOUND;
   }
 
-  const auto value = std::wstring(str);
+  const auto value = std::u16string(str);
   if (value.size() + 1 > buffer_length) {
     return X_HRESULT_FROM_WIN32(X_ERROR_INSUFFICIENT_BUFFER);
   }
 
-  xe::store_and_swap<std::wstring>(buffer, value);
-  static_cast<wchar_t*>(buffer)[value.size()] = 0;
+  xe::store_and_swap<std::u16string>(buffer, value);
+  static_cast<char16_t*>(buffer)[value.size()] = 0;
   return X_E_SUCCESS;
 }
 DECLARE_XAM_EXPORT1(XamGetCountryString, kLocale, kImplemented);
 
 dword_result_t XamGetLanguageString(dword_t id, dword_t buffer_length,
-                                    lpwstring_t buffer) {
+                                    lpu16string_t buffer) {
   if (buffer_length >= 0x80000000u) {
     return X_E_INVALIDARG;
   }
@@ -289,13 +289,13 @@ dword_result_t XamGetLanguageString(dword_t id, dword_t buffer_length,
     return X_E_NOTFOUND;
   }
 
-  const auto value = std::wstring(str);
+  const auto value = std::u16string(str);
   if (value.size() + 1 > buffer_length) {
     return X_HRESULT_FROM_WIN32(X_ERROR_INSUFFICIENT_BUFFER);
   }
 
-  xe::store_and_swap<std::wstring>(buffer, value);
-  static_cast<wchar_t*>(buffer)[value.size()] = 0;
+  xe::store_and_swap<std::u16string>(buffer, value);
+  static_cast<char16_t*>(buffer)[value.size()] = 0;
   return X_E_SUCCESS;
 }
 DECLARE_XAM_EXPORT1(XamGetLanguageString, kLocale, kImplemented);
@@ -303,7 +303,7 @@ DECLARE_XAM_EXPORT1(XamGetLanguageString, kLocale, kImplemented);
 dword_result_t XamGetLanguageLocaleString(dword_t language_id,
                                           dword_t locale_id,
                                           dword_t buffer_length,
-                                          lpwstring_t buffer) {
+                                          lpu16string_t buffer) {
   if (buffer_length >= 0x80000000u) {
     return X_E_INVALIDARG;
   }
@@ -319,13 +319,13 @@ dword_result_t XamGetLanguageLocaleString(dword_t language_id,
   }
 
   const auto value =
-      std::wstring(language_str) + L"-" + std::wstring(locale_str);
+      std::u16string(language_str) + u"-" + std::u16string(locale_str);
   if (value.size() + 1 > buffer_length) {
     return X_HRESULT_FROM_WIN32(X_ERROR_INSUFFICIENT_BUFFER);
   }
 
-  xe::store_and_swap<std::wstring>(buffer, value);
-  static_cast<wchar_t*>(buffer)[value.size()] = 0;
+  xe::store_and_swap<std::u16string>(buffer, value);
+  static_cast<char16_t*>(buffer)[value.size()] = 0;
   return X_E_SUCCESS;
 }
 DECLARE_XAM_EXPORT1(XamGetLanguageLocaleString, kLocale, kImplemented);
@@ -333,7 +333,7 @@ DECLARE_XAM_EXPORT1(XamGetLanguageLocaleString, kLocale, kImplemented);
 dword_result_t XamGetOnlineLanguageAndCountryString(dword_t language_id,
                                                     dword_t country_id,
                                                     dword_t buffer_length,
-                                                    lpwstring_t buffer) {
+                                                    lpu16string_t buffer) {
   if (buffer_length >= 0x80000000u) {
     return X_E_INVALIDARG;
   }
@@ -351,20 +351,20 @@ dword_result_t XamGetOnlineLanguageAndCountryString(dword_t language_id,
   }
 
   const auto value =
-      std::wstring(language_str) + L"-" + std::wstring(country_str);
+      std::u16string(language_str) + u"-" + std::u16string(country_str);
   if (value.size() + 1 > buffer_length) {
     return X_HRESULT_FROM_WIN32(X_ERROR_INSUFFICIENT_BUFFER);
   }
 
-  xe::store_and_swap<std::wstring>(buffer, value);
-  static_cast<wchar_t*>(buffer)[value.size()] = 0;
+  xe::store_and_swap<std::u16string>(buffer, value);
+  static_cast<char16_t*>(buffer)[value.size()] = 0;
   return X_E_SUCCESS;
 }
 DECLARE_XAM_EXPORT1(XamGetOnlineLanguageAndCountryString, kLocale,
                     kImplemented);
 
 dword_result_t XamGetLocaleString(dword_t id, dword_t buffer_length,
-                                  lpwstring_t buffer) {
+                                  lpu16string_t buffer) {
   if (buffer_length >= 0x80000000u) {
     return X_E_INVALIDARG;
   }
@@ -374,13 +374,13 @@ dword_result_t XamGetLocaleString(dword_t id, dword_t buffer_length,
     return X_E_NOTFOUND;
   }
 
-  const auto value = std::wstring(str);
+  const auto value = std::u16string(str);
   if (value.size() + 1 > buffer_length) {
     return X_HRESULT_FROM_WIN32(X_ERROR_INSUFFICIENT_BUFFER);
   }
 
-  xe::store_and_swap<std::wstring>(buffer, value);
-  static_cast<wchar_t*>(buffer)[value.size()] = 0;
+  xe::store_and_swap<std::u16string>(buffer, value);
+  static_cast<char16_t*>(buffer)[value.size()] = 0;
   return X_E_SUCCESS;
 }
 DECLARE_XAM_EXPORT1(XamGetLocaleString, kLocale, kImplemented);
@@ -396,7 +396,7 @@ dword_result_t XamGetLanguageFromOnlineLanguage(dword_t id) {
 DECLARE_XAM_EXPORT1(XamGetLanguageFromOnlineLanguage, kLocale, kImplemented);
 
 dword_result_t XamGetOnlineLanguageString(dword_t id, dword_t buffer_length,
-                                          lpwstring_t buffer) {
+                                          lpu16string_t buffer) {
   if (buffer_length >= 0x80000000u) {
     return X_E_INVALIDARG;
   }
@@ -406,13 +406,13 @@ dword_result_t XamGetOnlineLanguageString(dword_t id, dword_t buffer_length,
     return X_E_NOTFOUND;
   }
 
-  const auto value = std::wstring(str);
+  const auto value = std::u16string(str);
   if (value.size() + 1 > buffer_length) {
     return X_HRESULT_FROM_WIN32(X_ERROR_INSUFFICIENT_BUFFER);
   }
 
-  xe::store_and_swap<std::wstring>(buffer, value);
-  static_cast<wchar_t*>(buffer)[value.size()] = 0;
+  xe::store_and_swap<std::u16string>(buffer, value);
+  static_cast<char16_t*>(buffer)[value.size()] = 0;
   return X_E_SUCCESS;
 }
 DECLARE_XAM_EXPORT1(XamGetOnlineLanguageString, kLocale, kImplemented);

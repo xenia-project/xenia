@@ -253,25 +253,25 @@ def generate_token_append(i, token):
   elif token == 'AA':
     return 'if (d.%s.AA()) str->Append(\'a\');' % (i.o_form)
   elif token in ['RA', 'RA0', 'RB', 'RC', 'RT', 'RS', 'RD']:
-    return 'str->AppendFormat("r%%d", d.%s.%s());' % (i.o_form, token)
+    return 'str->AppendFormat("r{}", d.%s.%s());' % (i.o_form, token)
   elif token in ['FA', 'FB', 'FC', 'FT', 'FS', 'FD']:
-    return 'str->AppendFormat("fr%%d", d.%s.%s());' % (i.o_form, token)
+    return 'str->AppendFormat("fr{}", d.%s.%s());' % (i.o_form, token)
   elif token in ['VA', 'VB', 'VC', 'VT', 'VS', 'VD']:
-    return 'str->AppendFormat("vr%%d", d.%s.%s());' % (i.o_form, token)
+    return 'str->AppendFormat("vr{}", d.%s.%s());' % (i.o_form, token)
   elif token in ['CRFD', 'CRFS']:
-    return 'str->AppendFormat("crf%%d", d.%s.%s());' % (i.o_form, token)
+    return 'str->AppendFormat("crf{}", d.%s.%s());' % (i.o_form, token)
   elif token in ['CRBA', 'CRBB', 'CRBD']:
-    return 'str->AppendFormat("crb%%d", d.%s.%s());' % (i.o_form, token)
+    return 'str->AppendFormat("crb{}", d.%s.%s());' % (i.o_form, token)
   elif token in ['BO', 'BI', 'TO', 'SPR', 'TBR', 'L', 'FM', 'MB', 'ME', 'SH', 'IMM', 'z']:
-    return 'str->AppendFormat("%%d", d.%s.%s());' % (i.o_form, token)
+    return 'str->AppendFormat("{}", d.%s.%s());' % (i.o_form, token)
   elif token == 'UIMM':
-    return 'str->AppendFormat("0x%%X", d.%s.%s());' % (i.o_form, token)
+    return 'str->AppendFormat("0x{:X}", d.%s.%s());' % (i.o_form, token)
   elif token in ['d', 'ds', 'SIMM']:
-    return 'str->AppendFormat(d.%s.%s() < 0 ? "-0x%%X" : "0x%%X", std::abs(d.%s.%s()));' % (i.o_form, token, i.o_form, token)
+    return 'str->AppendFormat(d.%s.%s() < 0 ? "-0x{:X}" : "0x{:X}", std::abs(d.%s.%s()));' % (i.o_form, token, i.o_form, token)
   elif token == 'ADDR':
-    return 'str->AppendFormat("0x%%X", d.%s.%s());' % (i.o_form, token)
+    return 'str->AppendFormat("0x{:X}", d.%s.%s());' % (i.o_form, token)
   elif token == 'LEV':
-    return 'if (d.%s.%s()) str->AppendFormat("%%d", d.%s.%s());' % (i.o_form, token, i.o_form, token)
+    return 'if (d.%s.%s()) str->AppendFormat("{}", d.%s.%s());' % (i.o_form, token, i.o_form, token)
   return 'str->AppendFormat("(UNHANDLED %s)");' % token
 
 

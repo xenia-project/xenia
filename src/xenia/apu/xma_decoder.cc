@@ -91,7 +91,7 @@ void av_log_callback(void* avcl, int level, const char* fmt, va_list va) {
 
   StringBuffer buff;
   buff.AppendVarargs(fmt, va);
-  xe::LogLineFormat(log_level, level_char, "libav: %s", buff.GetString());
+  xe::LogLineFormat(log_level, level_char, "libav: %s", buff.buffer());
 }
 
 X_STATUS XmaDecoder::Setup(kernel::KernelState* kernel_state) {

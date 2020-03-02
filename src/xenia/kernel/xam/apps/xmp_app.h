@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2014 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -49,19 +49,19 @@ class XmpApp : public App {
     };
 
     uint32_t handle;
-    std::wstring file_path;
-    std::wstring name;
-    std::wstring artist;
-    std::wstring album;
-    std::wstring album_artist;
-    std::wstring genre;
+    std::u16string file_path;
+    std::u16string name;
+    std::u16string artist;
+    std::u16string album;
+    std::u16string album_artist;
+    std::u16string genre;
     uint32_t track_number;
     uint32_t duration_ms;
     Format format;
   };
   struct Playlist {
     uint32_t handle;
-    std::wstring name;
+    std::u16string name;
     uint32_t flags;
     std::vector<std::unique_ptr<Song>> songs;
   };
@@ -72,8 +72,8 @@ class XmpApp : public App {
 
   X_RESULT XMPCreateTitlePlaylist(uint32_t songs_ptr, uint32_t song_count,
                                   uint32_t playlist_name_ptr,
-                                  std::wstring playlist_name, uint32_t flags,
-                                  uint32_t out_song_handles,
+                                  const std::u16string& playlist_name,
+                                  uint32_t flags, uint32_t out_song_handles,
                                   uint32_t out_playlist_handle);
   X_RESULT XMPDeleteTitlePlaylist(uint32_t playlist_handle);
   X_RESULT XMPPlayTitlePlaylist(uint32_t playlist_handle, uint32_t song_handle);

@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -18,14 +18,14 @@ namespace vfs {
 
 const size_t kXESectorSize = 2048;
 
-DiscImageDevice::DiscImageDevice(const std::string& mount_path,
-                                 const std::wstring& local_path)
-    : Device(mount_path), local_path_(local_path) {}
+DiscImageDevice::DiscImageDevice(const std::string_view mount_path,
+                                 const std::filesystem::path& host_path)
+    : Device(mount_path), host_path_(host_path) {}
 
 DiscImageDevice::~DiscImageDevice() = default;
 
 bool DiscImageDevice::Initialize() {
-  mmap_ = MappedMemory::Open(local_path_, MappedMemory::Mode::kRead);
+  mmap_ = MappedMemory::Open(host_path_, MappedMemory::Mode::kRead);
   if (!mmap_) {
     XELOGE("Disc image could not be mapped");
     return false;
@@ -54,7 +54,7 @@ void DiscImageDevice::Dump(StringBuffer* string_buffer) {
   root_entry_->Dump(string_buffer, 0);
 }
 
-Entry* DiscImageDevice::ResolvePath(const std::string& path) {
+Entry* DiscImageDevice::ResolvePath(const std::string_view path) {
   // The filesystem will have stripped our prefix off already, so the path will
   // be in the form:
   // some\PATH.foo
@@ -63,8 +63,7 @@ Entry* DiscImageDevice::ResolvePath(const std::string& path) {
 
   // Walk the path, one separator at a time.
   auto entry = root_entry_.get();
-  auto path_parts = xe::split_path(path);
-  for (auto& part : path_parts) {
+  for (const auto& part : xe::utf8::split_path(path)) {
     entry = entry->GetChild(part);
     if (!entry) {
       // Not found.
@@ -142,14 +141,15 @@ bool DiscImageDevice::ReadEntry(ParseState* state, const uint8_t* buffer,
   size_t length = xe::load<uint32_t>(p + 8);
   uint8_t attributes = xe::load<uint8_t>(p + 12);
   uint8_t name_length = xe::load<uint8_t>(p + 13);
-  auto name = reinterpret_cast<const char*>(p + 14);
+  auto name_buffer = reinterpret_cast<const char*>(p + 14);
 
   if (node_l && !ReadEntry(state, buffer, node_l, parent)) {
     return false;
   }
 
-  auto entry = DiscImageEntry::Create(
-      this, parent, std::string(name, name_length), mmap_.get());
+  auto name = std::string(name_buffer, name_length);
+
+  auto entry = DiscImageEntry::Create(this, parent, name, mmap_.get());
   entry->attributes_ = attributes | kFileAttributeReadOnly;
   entry->size_ = length;
   entry->allocation_size_ = xe::round_up(length, bytes_per_sector());

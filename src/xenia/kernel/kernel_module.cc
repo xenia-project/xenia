@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -19,14 +19,15 @@
 namespace xe {
 namespace kernel {
 
-KernelModule::KernelModule(KernelState* kernel_state, const char* path)
+KernelModule::KernelModule(KernelState* kernel_state,
+                           const std::string_view path)
     : XModule(kernel_state, ModuleType::kKernelModule) {
   emulator_ = kernel_state->emulator();
   memory_ = emulator_->memory();
   export_resolver_ = kernel_state->emulator()->export_resolver();
 
   path_ = path;
-  name_ = NameFromPath(path);
+  name_ = utf8::find_base_name_from_guest_path(path);
 
   // Persist this object through reloads.
   host_object_ = true;
@@ -48,7 +49,7 @@ KernelModule::KernelModule(KernelState* kernel_state, const char* path)
     emulator_->processor()->AddModule(std::move(module));
   } else {
     XELOGW("KernelModule %s could not allocate trampoline for GetProcAddress!",
-           path);
+           path.c_str());
   }
 
   OnLoad();
@@ -143,7 +144,7 @@ uint32_t KernelModule::GetProcAddressByOrdinal(uint16_t ordinal) {
   }
 }
 
-uint32_t KernelModule::GetProcAddressByName(const char* name) {
+uint32_t KernelModule::GetProcAddressByName(const std::string_view name) {
   // TODO: Does this even work for kernel modules?
   XELOGE("KernelModule::GetProcAddressByName not implemented");
   return 0;

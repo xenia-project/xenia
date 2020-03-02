@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2019 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -10,18 +10,20 @@
 #ifndef XENIA_CVAR_H_
 #define XENIA_CVAR_H_
 
+#include <filesystem>
 #include <map>
 #include <string>
 #include <vector>
 
 #include "cpptoml/include/cpptoml.h"
 #include "cxxopts/include/cxxopts.hpp"
+#include "xenia/base/filesystem.h"
 #include "xenia/base/string_util.h"
 
 namespace cvar {
 
 namespace toml {
-std::string EscapeString(const std::string& str);
+std::string EscapeString(const std::string_view str);
 }
 
 class ICommandVar {
@@ -116,9 +118,21 @@ template <class T>
 void ConfigVar<T>::LoadConfigValue(std::shared_ptr<cpptoml::base> result) {
   SetConfigValue(*cpptoml::get_impl<T>(result));
 }
+template <>
+inline void ConfigVar<std::filesystem::path>::LoadConfigValue(
+    std::shared_ptr<cpptoml::base> result) {
+  SetConfigValue(
+      xe::utf8::fix_path_separators(*cpptoml::get_impl<std::string>(result)));
+}
 template <class T>
 void ConfigVar<T>::LoadGameConfigValue(std::shared_ptr<cpptoml::base> result) {
   SetGameConfigValue(*cpptoml::get_impl<T>(result));
+}
+template <>
+inline void ConfigVar<std::filesystem::path>::LoadGameConfigValue(
+    std::shared_ptr<cpptoml::base> result) {
+  SetGameConfigValue(
+      xe::utf8::fix_path_separators(*cpptoml::get_impl<std::string>(result)));
 }
 template <class T>
 CommandVar<T>::CommandVar(const char* name, T* default_value,
@@ -158,6 +172,11 @@ template <>
 inline std::string CommandVar<std::string>::Convert(std::string val) {
   return val;
 }
+template <>
+inline std::filesystem::path CommandVar<std::filesystem::path>::Convert(
+    std::string val) {
+  return xe::to_path(val);
+}
 
 template <>
 inline std::string CommandVar<bool>::ToString(bool val) {
@@ -166,6 +185,12 @@ inline std::string CommandVar<bool>::ToString(bool val) {
 template <>
 inline std::string CommandVar<std::string>::ToString(std::string val) {
   return toml::EscapeString(val);
+}
+template <>
+inline std::string CommandVar<std::filesystem::path>::ToString(
+    std::filesystem::path val) {
+  return toml::EscapeString(
+      xe::utf8::fix_path_separators(xe::path_to_utf8(val), '/'));
 }
 
 template <class T>
@@ -217,8 +242,8 @@ inline void AddCommandVar(ICommandVar* cv) {
   if (!CmdVars) CmdVars = new std::map<std::string, ICommandVar*>();
   CmdVars->insert(std::pair<std::string, ICommandVar*>(cv->name(), cv));
 }
-void ParseLaunchArguments(int argc, char** argv,
-                          const std::string& positional_help,
+void ParseLaunchArguments(int& argc, char**& argv,
+                          const std::string_view positional_help,
                           const std::vector<std::string>& positional_options);
 
 template <typename T>
@@ -237,6 +262,9 @@ T* define_cmdvar(const char* name, T* default_value, const char* description) {
   return default_value;
 }
 
+#define DEFINE_bool(name, default_value, description, category) \
+  DEFINE_CVar(name, default_value, description, category, false, bool)
+
 #define DEFINE_int32(name, default_value, description, category) \
   DEFINE_CVar(name, default_value, description, category, false, int32_t)
 
@@ -249,11 +277,16 @@ T* define_cmdvar(const char* name, T* default_value, const char* description) {
 #define DEFINE_string(name, default_value, description, category) \
   DEFINE_CVar(name, default_value, description, category, false, std::string)
 
+#define DEFINE_path(name, default_value, description, category)  \
+  DEFINE_CVar(name, default_value, description, category, false, \
+              std::filesystem::path)
+
 #define DEFINE_transient_string(name, default_value, description, category) \
   DEFINE_CVar(name, default_value, description, category, true, std::string)
 
-#define DEFINE_bool(name, default_value, description, category) \
-  DEFINE_CVar(name, default_value, description, category, false, bool)
+#define DEFINE_transient_path(name, default_value, description, category) \
+  DEFINE_CVar(name, default_value, description, category, true,           \
+              std::filesystem::path)
 
 #define DEFINE_CVar(name, default_value, description, category, is_transient, \
                     type)                                                     \
@@ -275,15 +308,17 @@ T* define_cmdvar(const char* name, T* default_value, const char* description) {
       cvar::define_cmdvar(#name, &cvars::name, description); \
   }
 
-#define DECLARE_double(name) DECLARE_CVar(name, double)
-
 #define DECLARE_bool(name) DECLARE_CVar(name, bool)
-
-#define DECLARE_string(name) DECLARE_CVar(name, std::string)
 
 #define DECLARE_int32(name) DECLARE_CVar(name, int32_t)
 
 #define DECLARE_uint64(name) DECLARE_CVar(name, uint64_t)
+
+#define DECLARE_double(name) DECLARE_CVar(name, double)
+
+#define DECLARE_string(name) DECLARE_CVar(name, std::string)
+
+#define DECLARE_path(name) DECLARE_CVar(name, std::filesystem::path)
 
 #define DECLARE_CVar(name, type) \
   namespace cvars {              \

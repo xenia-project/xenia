@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -23,13 +23,13 @@ class DiscImageEntry;
 
 class DiscImageDevice : public Device {
  public:
-  DiscImageDevice(const std::string& mount_path,
-                  const std::wstring& local_path);
+  DiscImageDevice(const std::string_view mount_path,
+                  const std::filesystem::path& host_path);
   ~DiscImageDevice() override;
 
   bool Initialize() override;
   void Dump(StringBuffer* string_buffer) override;
-  Entry* ResolvePath(const std::string& path) override;
+  Entry* ResolvePath(const std::string_view path) override;
 
   uint32_t total_allocation_units() const override {
     return uint32_t(mmap_->size() / sectors_per_allocation_unit() /
@@ -48,7 +48,7 @@ class DiscImageDevice : public Device {
     kErrorDamagedFile = -31,
   };
 
-  std::wstring local_path_;
+  std::filesystem::path host_path_;
   std::unique_ptr<Entry> root_entry_;
   std::unique_ptr<MappedMemory> mmap_;
 

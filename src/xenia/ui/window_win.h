@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2014 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -13,6 +13,7 @@
 #include <memory>
 #include <string>
 
+#include "xenia/base/platform_win.h"
 #include "xenia/ui/menu_item.h"
 #include "xenia/ui/window.h"
 
@@ -23,7 +24,7 @@ class Win32Window : public Window {
   using super = Window;
 
  public:
-  Win32Window(Loop* loop, const std::wstring& title);
+  Win32Window(Loop* loop, const std::string& title);
   ~Win32Window() override;
 
   NativePlatformHandle native_platform_handle() const override;
@@ -33,7 +34,7 @@ class Win32Window : public Window {
   void EnableMainMenu() override;
   void DisableMainMenu() override;
 
-  bool set_title(const std::wstring& title) override;
+  bool set_title(const std::string& title) override;
 
   bool SetIcon(const void* buffer, size_t size) override;
 
@@ -92,7 +93,7 @@ class Win32Window : public Window {
 
 class Win32MenuItem : public MenuItem {
  public:
-  Win32MenuItem(Type type, const std::wstring& text, const std::wstring& hotkey,
+  Win32MenuItem(Type type, const std::string& text, const std::string& hotkey,
                 std::function<void()> callback);
   ~Win32MenuItem() override;
 
