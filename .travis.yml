@@ -4,7 +4,6 @@ language: cpp
 os:
   - linux
 
-sudo: required
 dist: bionic
 addons:
   apt:
@@ -27,10 +26,9 @@ addons:
       - libx11-dev
       - liblz4-dev
 
-matrix:
+jobs:
   include:
     - env: C_COMPILER=clang-9 CXX_COMPILER=clang++-9 LINT=true
-      sudo: false
     - env: C_COMPILER=clang-9 CXX_COMPILER=clang++-9 BUILD=true CONFIG=Debug
     - env: C_COMPILER=clang-9 CXX_COMPILER=clang++-9 BUILD=true CONFIG=Release
 
