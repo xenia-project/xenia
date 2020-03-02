@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -110,25 +110,25 @@ void HIRBuilder::DumpValue(StringBuffer* str, Value* value) {
   if (value->IsConstant()) {
     switch (value->type) {
       case INT8_TYPE:
-        str->AppendFormat("%X", value->constant.i8);
+        str->AppendFormat("{:X}", value->constant.i8);
         break;
       case INT16_TYPE:
-        str->AppendFormat("%X", value->constant.i16);
+        str->AppendFormat("{:X}", value->constant.i16);
         break;
       case INT32_TYPE:
-        str->AppendFormat("%X", value->constant.i32);
+        str->AppendFormat("{:X}", value->constant.i32);
         break;
       case INT64_TYPE:
-        str->AppendFormat("%" PRIX64, value->constant.i64);
+        str->AppendFormat("{:X}", value->constant.i64);
         break;
       case FLOAT32_TYPE:
-        str->AppendFormat("%F", value->constant.f32);
+        str->AppendFormat("{:F}", value->constant.f32);
         break;
       case FLOAT64_TYPE:
-        str->AppendFormat("%F", value->constant.f64);
+        str->AppendFormat("{:F}", value->constant.f64);
         break;
       case VEC128_TYPE:
-        str->AppendFormat("(%F,%F,%F,%F)", value->constant.v128.x,
+        str->AppendFormat("({:F},{:F},{:F},{:F})", value->constant.v128.x,
                           value->constant.v128.y, value->constant.v128.z,
                           value->constant.v128.w);
         break;
@@ -140,10 +140,10 @@ void HIRBuilder::DumpValue(StringBuffer* str, Value* value) {
     static const char* type_names[] = {
         "i8", "i16", "i32", "i64", "f32", "f64", "v128",
     };
-    str->AppendFormat("v%d.%s", value->ordinal, type_names[value->type]);
+    str->AppendFormat("v{}.{}", value->ordinal, type_names[value->type]);
   }
   if (value->reg.index != -1) {
-    str->AppendFormat("<%s%d>", value->reg.set->name, value->reg.index);
+    str->AppendFormat("<{}{}>", value->reg.set->name, value->reg.index);
   }
 }
 
@@ -156,11 +156,11 @@ void HIRBuilder::DumpOp(StringBuffer* str, OpcodeSignatureType sig_type,
       if (op->label->name) {
         str->Append(op->label->name);
       } else {
-        str->AppendFormat("label%d", op->label->id);
+        str->AppendFormat("label{}", op->label->id);
       }
       break;
     case OPCODE_SIG_TYPE_O:
-      str->AppendFormat("+%lld", op->offset);
+      str->AppendFormat("+{}", op->offset);
       break;
     case OPCODE_SIG_TYPE_S:
       if (true) {
@@ -176,7 +176,7 @@ void HIRBuilder::DumpOp(StringBuffer* str, OpcodeSignatureType sig_type,
 
 void HIRBuilder::Dump(StringBuffer* str) {
   if (attributes_) {
-    str->AppendFormat("; attributes = %.8X\n", attributes_);
+    str->AppendFormat("; attributes = {:08X}\n", attributes_);
   }
 
   for (auto it = locals_.begin(); it != locals_.end(); ++it) {
@@ -192,16 +192,16 @@ void HIRBuilder::Dump(StringBuffer* str) {
     if (block == block_head_) {
       str->Append("<entry>:\n");
     } else if (!block->label_head) {
-      str->AppendFormat("<block%d>:\n", block_ordinal);
+      str->AppendFormat("<block{}>:\n", block_ordinal);
     }
     block_ordinal++;
 
     Label* label = block->label_head;
     while (label) {
       if (label->name) {
-        str->AppendFormat("%s:\n", label->name);
+        str->AppendFormat("{}:\n", label->name);
       } else {
-        str->AppendFormat("label%d:\n", label->id);
+        str->AppendFormat("label{}:\n", label->id);
       }
       label = label->next;
     }
@@ -210,13 +210,13 @@ void HIRBuilder::Dump(StringBuffer* str) {
     while (incoming_edge) {
       auto src_label = incoming_edge->src->label_head;
       if (src_label && src_label->name) {
-        str->AppendFormat("  ; in: %s", src_label->name);
+        str->AppendFormat("  ; in: {}", src_label->name);
       } else if (src_label) {
-        str->AppendFormat("  ; in: label%d", src_label->id);
+        str->AppendFormat("  ; in: label{}", src_label->id);
       } else {
-        str->AppendFormat("  ; in: <block%d>", incoming_edge->src->ordinal);
+        str->AppendFormat("  ; in: <block{}>", incoming_edge->src->ordinal);
       }
-      str->AppendFormat(", dom:%d, uncond:%d\n",
+      str->AppendFormat(", dom:{}, uncond:{}\n",
                         (incoming_edge->flags & Edge::DOMINATES) ? 1 : 0,
                         (incoming_edge->flags & Edge::UNCONDITIONAL) ? 1 : 0);
       incoming_edge = incoming_edge->incoming_next;
@@ -225,13 +225,13 @@ void HIRBuilder::Dump(StringBuffer* str) {
     while (outgoing_edge) {
       auto dest_label = outgoing_edge->dest->label_head;
       if (dest_label && dest_label->name) {
-        str->AppendFormat("  ; out: %s", dest_label->name);
+        str->AppendFormat("  ; out: {}", dest_label->name);
       } else if (dest_label) {
-        str->AppendFormat("  ; out: label%d", dest_label->id);
+        str->AppendFormat("  ; out: label{}", dest_label->id);
       } else {
-        str->AppendFormat("  ; out: <block%d>", outgoing_edge->dest->ordinal);
+        str->AppendFormat("  ; out: <block{}>", outgoing_edge->dest->ordinal);
       }
-      str->AppendFormat(", dom:%d, uncond:%d\n",
+      str->AppendFormat(", dom:{}, uncond:{}\n",
                         (outgoing_edge->flags & Edge::DOMINATES) ? 1 : 0,
                         (outgoing_edge->flags & Edge::UNCONDITIONAL) ? 1 : 0);
       outgoing_edge = outgoing_edge->outgoing_next;
@@ -244,7 +244,7 @@ void HIRBuilder::Dump(StringBuffer* str) {
         continue;
       }
       if (i->opcode == &OPCODE_COMMENT_info) {
-        str->AppendFormat("  ; %s\n", reinterpret_cast<char*>(i->src1.offset));
+        str->AppendFormat("  ; {}\n", reinterpret_cast<char*>(i->src1.offset));
         i = i->next;
         continue;
       }
@@ -260,7 +260,7 @@ void HIRBuilder::Dump(StringBuffer* str) {
         str->Append(" = ");
       }
       if (i->flags) {
-        str->AppendFormat("%s.%d", info->name, i->flags);
+        str->AppendFormat("{}.{}", info->name, i->flags);
       } else {
         str->Append(info->name);
       }
@@ -734,13 +734,14 @@ Value* HIRBuilder::CloneValue(Value* source) {
   return value;
 }
 
-void HIRBuilder::Comment(const char* value) {
-  size_t length = std::strlen(value);
-  if (!length) {
+void HIRBuilder::Comment(std::string_view value) {
+  if (value.empty()) {
     return;
   }
-  void* p = arena_->Alloc(length + 1);
-  std::memcpy(p, value, length + 1);
+  auto size = value.size();
+  auto p = reinterpret_cast<char*>(arena_->Alloc(size + 1));
+  std::memcpy(p, value.data(), size);
+  p[size] = '\0';
   Instr* i = AppendInstr(OPCODE_COMMENT_info, 0);
   i->src1.offset = (uint64_t)p;
   i->src2.value = i->src3.value = NULL;
@@ -750,22 +751,16 @@ void HIRBuilder::Comment(const StringBuffer& value) {
   if (!value.length()) {
     return;
   }
-  void* p = arena_->Alloc(value.length() + 1);
-  std::memcpy(p, value.GetString(), value.length() + 1);
+  auto size = value.length();
+  auto p = reinterpret_cast<char*>(arena_->Alloc(size + 1));
+  std::memcpy(p, value.buffer(), size);
+  p[size] = '\0';
   Instr* i = AppendInstr(OPCODE_COMMENT_info, 0);
   i->src1.offset = (uint64_t)p;
   i->src2.value = i->src3.value = NULL;
 }
 
-void HIRBuilder::CommentFormat(const char* format, ...) {
-  static const uint32_t kMaxCommentSize = 1024;
-  char* p = reinterpret_cast<char*>(arena_->Alloc(kMaxCommentSize));
-  va_list args;
-  va_start(args, format);
-  size_t chars_written = vsnprintf(p, kMaxCommentSize - 1, format, args);
-  va_end(args);
-  size_t rewind = kMaxCommentSize - chars_written - 1;
-  arena_->Rewind(rewind);
+void HIRBuilder::CommentBuffer(const char* p) {
   Instr* i = AppendInstr(OPCODE_COMMENT_info, 0);
   i->src1.offset = (uint64_t)p;
   i->src2.value = i->src3.value = NULL;

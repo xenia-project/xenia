@@ -7,6 +7,7 @@ project("xenia-gpu-vulkan")
   kind("StaticLib")
   language("C++")
   links({
+    "fmt",
     "volk",
     "xenia-base",
     "xenia-gpu",
@@ -31,6 +32,7 @@ project("xenia-gpu-vulkan-trace-viewer")
   links({
     "aes_128",
     "capstone",
+    "fmt",
     "glslang-spirv",
     "imgui",
     "libavcodec",
@@ -97,6 +99,7 @@ project("xenia-gpu-vulkan-trace-dump")
   links({
     "aes_128",
     "capstone",
+    "fmt",
     "glslang-spirv",
     "imgui",
     "libavcodec",

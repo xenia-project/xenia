@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -63,16 +63,17 @@ class XModule : public XObject {
   virtual ~XModule();
 
   ModuleType module_type() const { return module_type_; }
-  const std::string& path() const { return path_; }
-  const std::string& name() const { return name_; }
-  bool Matches(const std::string& name) const;
+  virtual const std::string& path() const = 0;
+  virtual const std::string& name() const = 0;
+  bool Matches(const std::string_view name) const;
 
   xe::cpu::Module* processor_module() const { return processor_module_; }
   uint32_t hmodule_ptr() const { return hmodule_ptr_; }
 
   virtual uint32_t GetProcAddressByOrdinal(uint16_t ordinal) = 0;
-  virtual uint32_t GetProcAddressByName(const char* name) = 0;
-  virtual X_STATUS GetSection(const char* name, uint32_t* out_section_data,
+  virtual uint32_t GetProcAddressByName(const std::string_view name) = 0;
+  virtual X_STATUS GetSection(const std::string_view name,
+                              uint32_t* out_section_data,
                               uint32_t* out_section_size);
 
   static object_ref<XModule> GetFromHModule(KernelState* kernel_state,
@@ -86,11 +87,8 @@ class XModule : public XObject {
  protected:
   void OnLoad();
   void OnUnload();
-  static std::string NameFromPath(std::string path);
 
   ModuleType module_type_;
-  std::string name_;
-  std::string path_;
 
   xe::cpu::Module* processor_module_;
 

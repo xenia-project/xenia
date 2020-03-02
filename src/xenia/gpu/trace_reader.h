@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2015 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -129,7 +129,7 @@ class TraceReader {
   const Frame* frame(int n) const { return &frames_[n]; }
   int frame_count() const { return int(frames_.size()); }
 
-  bool Open(const std::wstring& path);
+  bool Open(const std::filesystem::path& path);
 
   void Close();
 

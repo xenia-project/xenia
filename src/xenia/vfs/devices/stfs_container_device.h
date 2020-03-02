@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2014 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -144,10 +144,10 @@ class StfsHeader {
   uint64_t data_file_combined_size;
   StfsDescriptorType descriptor_type;
   uint8_t device_id[0x14];
-  wchar_t display_names[0x900 / 2];
-  wchar_t display_descs[0x900 / 2];
-  wchar_t publisher_name[0x80 / 2];
-  wchar_t title_name[0x80 / 2];
+  char16_t display_names[0x900 / 2];
+  char16_t display_descs[0x900 / 2];
+  char16_t publisher_name[0x80 / 2];
+  char16_t title_name[0x80 / 2];
   uint8_t transfer_flags;
   uint32_t thumbnail_image_size;
   uint32_t title_thumbnail_image_size;
@@ -159,19 +159,19 @@ class StfsHeader {
   uint8_t season_id[0x10];
   int16_t season_number;
   int16_t episode_number;
-  wchar_t additonal_display_names[0x300 / 2];
-  wchar_t additional_display_descriptions[0x300 / 2];
+  char16_t additonal_display_names[0x300 / 2];
+  char16_t additional_display_descriptions[0x300 / 2];
 };
 
 class StfsContainerDevice : public Device {
  public:
-  StfsContainerDevice(const std::string& mount_path,
-                      const std::wstring& local_path);
+  StfsContainerDevice(const std::string_view mount_path,
+                      const std::filesystem::path& host_path);
   ~StfsContainerDevice() override;
 
   bool Initialize() override;
   void Dump(StringBuffer* string_buffer) override;
-  Entry* ResolvePath(const std::string& path) override;
+  Entry* ResolvePath(const std::string_view path) override;
 
   uint32_t total_allocation_units() const override {
     return uint32_t(mmap_total_size_ / sectors_per_allocation_unit() /
@@ -197,7 +197,7 @@ class StfsContainerDevice : public Device {
 
   const uint32_t kSTFSHashSpacing = 170;
 
-  bool ResolveFromFolder(const std::wstring& path);
+  bool ResolveFromFolder(const std::filesystem::path& path);
 
   Error MapFiles();
   static Error ReadPackageType(const uint8_t* map_ptr, size_t map_size,
@@ -215,7 +215,7 @@ class StfsContainerDevice : public Device {
   BlockHash GetBlockHash(const uint8_t* map_ptr, uint32_t block_index,
                          uint32_t table_offset);
 
-  std::wstring local_path_;
+  std::filesystem::path host_path_;
   std::map<size_t, std::unique_ptr<MappedMemory>> mmap_;
   size_t mmap_total_size_;
 

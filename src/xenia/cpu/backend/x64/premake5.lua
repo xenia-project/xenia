@@ -8,6 +8,7 @@ project("xenia-cpu-backend-x64")
   language("C++")
   links({
     "capstone",
+    "fmt",
     "xenia-base",
     "xenia-cpu",
   })

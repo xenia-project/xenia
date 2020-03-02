@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -11,6 +11,8 @@
 
 #include <stddef.h>
 #include <cstring>
+
+#include "third_party/fmt/include/fmt/format.h"
 
 #include "xenia/base/byte_order.h"
 #include "xenia/base/logging.h"
@@ -48,10 +50,10 @@ void DumpAllOpcodeCounts() {
     auto& disasm_info = GetOpcodeDisasmInfo(opcode);
     auto translation_count = opcode_translation_counts[i];
     if (translation_count) {
-      sb.AppendFormat("%8d : %s\n", translation_count, disasm_info.name);
+      sb.AppendFormat("{:8d} : {}\n", translation_count, disasm_info.name);
     }
   }
-  fprintf(stdout, "%s", sb.GetString());
+  fprintf(stdout, "%s", sb.to_string().c_str());
   fflush(stdout);
 }
 
@@ -83,7 +85,7 @@ bool PPCHIRBuilder::Emit(GuestFunction* function, uint32_t flags) {
 
   with_debug_info_ = (flags & EMIT_DEBUG_COMMENTS) == EMIT_DEBUG_COMMENTS;
   if (with_debug_info_) {
-    CommentFormat("%s fn %.8X-%.8X %s", function_->module()->name().c_str(),
+    CommentFormat("{} fn {:08X}-{:08X} {}", function_->module()->name().c_str(),
                   function_->address(), function_->end_address(),
                   function_->name().c_str());
   }
@@ -127,7 +129,7 @@ bool PPCHIRBuilder::Emit(GuestFunction* function, uint32_t flags) {
         AnnotateLabel(address, label);
       }
       comment_buffer_.Reset();
-      comment_buffer_.AppendFormat("%.8X %.8X ", address, code);
+      comment_buffer_.AppendFormat("{:08X} {:08X} ", address, code);
       DisasmPPC(address, code, &comment_buffer_);
       Comment(comment_buffer_);
       first_instr = last_instr();
@@ -229,7 +231,8 @@ void PPCHIRBuilder::MaybeBreakOnInstruction(uint32_t address) {
 
 void PPCHIRBuilder::AnnotateLabel(uint32_t address, Label* label) {
   char name_buffer[13];
-  snprintf(name_buffer, xe::countof(name_buffer), "loc_%.8X", address);
+  auto format_result = fmt::format_to_n(name_buffer, 12, "loc_{:08X}", address);
+  name_buffer[format_result.size] = '\0';
   label->name = (char*)arena_->Alloc(sizeof(name_buffer));
   memcpy(label->name, name_buffer, sizeof(name_buffer));
 }

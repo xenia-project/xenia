@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -37,15 +37,15 @@ XFile::~XFile() {
 }
 
 X_STATUS XFile::QueryDirectory(X_FILE_DIRECTORY_INFORMATION* out_info,
-                               size_t length, const char* file_name,
+                               size_t length, const std::string_view file_name,
                                bool restart) {
   assert_not_null(out_info);
 
   vfs::Entry* entry = nullptr;
 
-  if (file_name != nullptr) {
+  if (!file_name.empty()) {
     // Only queries in the current directory are supported for now.
-    assert_true(std::strchr(file_name, '\\') == nullptr);
+    assert_true(utf8::find_any_of(file_name, "\\") == std::string_view::npos);
 
     find_engine_.SetRule(file_name);
 

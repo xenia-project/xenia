@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -20,16 +20,18 @@
 namespace xe {
 namespace vfs {
 
-HostPathEntry::HostPathEntry(Device* device, Entry* parent, std::string path,
-                             const std::wstring& local_path)
-    : Entry(device, parent, path), local_path_(local_path) {}
+HostPathEntry::HostPathEntry(Device* device, Entry* parent,
+                             const std::string_view path,
+                             const std::filesystem::path& host_path)
+    : Entry(device, parent, path), host_path_(host_path) {}
 
 HostPathEntry::~HostPathEntry() = default;
 
 HostPathEntry* HostPathEntry::Create(Device* device, Entry* parent,
-                                     const std::wstring& full_path,
+                                     const std::filesystem::path& full_path,
                                      xe::filesystem::FileInfo file_info) {
-  auto path = xe::join_paths(parent->path(), xe::to_string(file_info.name));
+  auto path = xe::utf8::join_guest_paths(parent->path(),
+                                         xe::path_to_utf8(file_info.name));
   auto entry = new HostPathEntry(device, parent, path, full_path);
 
   entry->create_timestamp_ = file_info.create_timestamp;
@@ -56,7 +58,7 @@ X_STATUS HostPathEntry::Open(uint32_t desired_access, File** out_file) {
     return X_STATUS_ACCESS_DENIED;
   }
   auto file_handle =
-      xe::filesystem::FileHandle::OpenExisting(local_path_, desired_access);
+      xe::filesystem::FileHandle::OpenExisting(host_path_, desired_access);
   if (!file_handle) {
     // TODO(benvanik): pick correct response.
     return X_STATUS_NO_SUCH_FILE;
@@ -68,12 +70,12 @@ X_STATUS HostPathEntry::Open(uint32_t desired_access, File** out_file) {
 std::unique_ptr<MappedMemory> HostPathEntry::OpenMapped(MappedMemory::Mode mode,
                                                         size_t offset,
                                                         size_t length) {
-  return MappedMemory::Open(local_path_, mode, offset, length);
+  return MappedMemory::Open(host_path_, mode, offset, length);
 }
 
-std::unique_ptr<Entry> HostPathEntry::CreateEntryInternal(std::string name,
-                                                          uint32_t attributes) {
-  auto full_path = xe::join_paths(local_path_, xe::to_wstring(name));
+std::unique_ptr<Entry> HostPathEntry::CreateEntryInternal(
+    const std::string_view name, uint32_t attributes) {
+  auto full_path = host_path_ / xe::to_path(name);
   if (attributes & kFileAttributeDirectory) {
     if (!xe::filesystem::CreateFolder(full_path)) {
       return nullptr;
@@ -94,7 +96,7 @@ std::unique_ptr<Entry> HostPathEntry::CreateEntryInternal(std::string name,
 }
 
 bool HostPathEntry::DeleteEntryInternal(Entry* entry) {
-  auto full_path = xe::join_paths(local_path_, xe::to_wstring(entry->name()));
+  auto full_path = host_path_ / xe::to_path(entry->name());
   if (entry->attributes() & kFileAttributeDirectory) {
     // Delete entire directory and contents.
     return xe::filesystem::DeleteFolder(full_path);
@@ -106,7 +108,7 @@ bool HostPathEntry::DeleteEntryInternal(Entry* entry) {
 
 void HostPathEntry::update() {
   xe::filesystem::FileInfo file_info;
-  if (!xe::filesystem::GetInfo(local_path_, &file_info)) {
+  if (!xe::filesystem::GetInfo(host_path_, &file_info)) {
     return;
   }
   if (file_info.type == xe::filesystem::FileInfo::Type::kFile) {

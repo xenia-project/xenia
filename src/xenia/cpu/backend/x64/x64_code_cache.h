@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2019 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -45,7 +45,7 @@ class X64CodeCache : public CodeCache {
 
   virtual bool Initialize();
 
-  std::wstring file_name() const override { return file_name_; }
+  const std::filesystem::path& file_name() const override { return file_name_; }
   uint32_t base_address() const override { return kGeneratedCodeBase; }
   uint32_t total_size() const override { return kGeneratedCodeSize; }
 
@@ -99,7 +99,7 @@ class X64CodeCache : public CodeCache {
                          const EmitFunctionInfo& func_info, void* code_address,
                          UnwindReservation unwind_reservation) {}
 
-  std::wstring file_name_;
+  std::filesystem::path file_name_;
   xe::memory::FileMappingHandle mapping_ = nullptr;
 
   // NOTE: the global critical region must be held when manipulating the offsets

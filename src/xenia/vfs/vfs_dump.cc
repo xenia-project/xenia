@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2018 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -21,23 +21,23 @@
 namespace xe {
 namespace vfs {
 
-DEFINE_transient_string(source, "", "Specifies the file to dump from.",
-                        "General");
+DEFINE_transient_path(source, "", "Specifies the file to dump from.",
+                      "General");
 
-DEFINE_transient_string(dump_path, "",
-                        "Specifies the directory to dump files to.", "General");
+DEFINE_transient_path(dump_path, "",
+                      "Specifies the directory to dump files to.", "General");
 
-int vfs_dump_main(const std::vector<std::wstring>& args) {
-  if (args.size() <= 2) {
-    XELOGE("Usage: %S [source] [dump_path]", args[0].c_str());
+int vfs_dump_main(const std::vector<std::string>& args) {
+  if (cvars::source.empty() || cvars::dump_path.empty()) {
+    XELOGE("Usage: %s [source] [dump_path]", xe::path_to_utf8(args[0]).c_str());
     return 1;
   }
 
-  std::wstring base_path = args[2];
+  std::filesystem::path base_path = cvars::dump_path;
   std::unique_ptr<vfs::Device> device;
 
   // TODO: Flags specifying the type of device.
-  device = std::make_unique<vfs::StfsContainerDevice>("", args[1]);
+  device = std::make_unique<vfs::StfsContainerDevice>("", cvars::source);
   if (!device->Initialize()) {
     XELOGE("Failed to initialize device");
     return 1;
@@ -60,9 +60,9 @@ int vfs_dump_main(const std::vector<std::wstring>& args) {
     }
 
     XELOGI("%s", entry->path().c_str());
-    auto dest_name = xe::join_paths(base_path, xe::to_wstring(entry->path()));
+    auto dest_name = base_path / xe::to_path(entry->path());
     if (entry->attributes() & kFileAttributeDirectory) {
-      xe::filesystem::CreateFolder(dest_name + L"\\");
+      xe::filesystem::CreateFolder(dest_name);
       continue;
     }
 
@@ -113,5 +113,5 @@ int vfs_dump_main(const std::vector<std::wstring>& args) {
 }  // namespace vfs
 }  // namespace xe
 
-DEFINE_ENTRY_POINT(L"xenia-vfs-dump", xe::vfs::vfs_dump_main,
+DEFINE_ENTRY_POINT("xenia-vfs-dump", xe::vfs::vfs_dump_main,
                    "[source] [dump_path]", "source", "dump_path");

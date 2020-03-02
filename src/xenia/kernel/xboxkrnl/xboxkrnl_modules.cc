@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2019 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -46,7 +46,7 @@ dword_result_t XexGetModuleHandle(lpstring_t module_name,
   if (!module_name) {
     module = kernel_state()->GetExecutableModule();
   } else {
-    module = kernel_state()->GetModule(module_name);
+    module = kernel_state()->GetModule(module_name.value());
   }
 
   if (!module) {
@@ -69,7 +69,7 @@ dword_result_t XexGetModuleSection(lpvoid_t hmodule, lpstring_t name,
   if (module) {
     uint32_t section_data = 0;
     uint32_t section_size = 0;
-    result = module->GetSection(name, &section_data, &section_size);
+    result = module->GetSection(name.value(), &section_data, &section_size);
     if (XSUCCEEDED(result)) {
       *data_ptr = section_data;
       *size_ptr = section_size;
@@ -87,14 +87,14 @@ dword_result_t XexLoadImage(lpstring_t module_name, dword_t module_flags,
   X_STATUS result = X_STATUS_NO_SUCH_FILE;
 
   uint32_t hmodule = 0;
-  auto module = kernel_state()->GetModule(module_name);
+  auto module = kernel_state()->GetModule(module_name.value());
   if (module) {
     // Existing module found.
     hmodule = module->hmodule_ptr();
     result = X_STATUS_SUCCESS;
   } else {
     // Not found; attempt to load as a user module.
-    auto user_module = kernel_state()->LoadUserModule(module_name);
+    auto user_module = kernel_state()->LoadUserModule(module_name.value());
     if (user_module) {
       // Give up object ownership, this reference will be released by the last
       // XexUnloadImage call

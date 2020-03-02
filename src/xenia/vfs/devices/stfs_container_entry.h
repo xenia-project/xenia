@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2014 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -27,13 +27,13 @@ class StfsContainerDevice;
 
 class StfsContainerEntry : public Entry {
  public:
-  StfsContainerEntry(Device* device, Entry* parent, std::string path,
+  StfsContainerEntry(Device* device, Entry* parent, const std::string_view path,
                      MultifileMemoryMap* mmap);
   ~StfsContainerEntry() override;
 
   static std::unique_ptr<StfsContainerEntry> Create(Device* device,
                                                     Entry* parent,
-                                                    std::string name,
+                                                    const std::string_view name,
                                                     MultifileMemoryMap* mmap);
 
   MultifileMemoryMap* mmap() const { return mmap_; }

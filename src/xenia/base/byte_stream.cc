@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2015 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -47,8 +47,8 @@ std::string ByteStream::Read() {
 }
 
 template <>
-std::wstring ByteStream::Read() {
-  std::wstring str;
+std::u16string ByteStream::Read() {
+  std::u16string str;
   uint32_t len = Read<uint32_t>();
   str.resize(len);
 

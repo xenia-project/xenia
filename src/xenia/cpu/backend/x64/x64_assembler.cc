@@ -86,7 +86,7 @@ bool X64Assembler::Assemble(GuestFunction* function, HIRBuilder* builder,
   if (debug_info_flags & DebugInfoFlags::kDebugInfoDisasmMachineCode) {
     DumpMachineCode(machine_code, code_size, function->source_map(),
                     &string_buffer_);
-    debug_info->set_machine_code_disasm(string_buffer_.ToString());
+    debug_info->set_machine_code_disasm(strdup(string_buffer_.buffer()));
     string_buffer_.Reset();
   }
 
@@ -126,7 +126,7 @@ void X64Assembler::DumpMachineCode(
     if (code_offset >= next_code_offset &&
         source_map_index < source_map.size()) {
       auto& source_map_entry = source_map[source_map_index];
-      str->AppendFormat("%.8X ", source_map_entry.guest_address);
+      str->AppendFormat("{:08X} ", source_map_entry.guest_address);
       ++source_map_index;
       next_code_offset = source_map_index < source_map.size()
                              ? source_map[source_map_index].code_offset
@@ -135,7 +135,7 @@ void X64Assembler::DumpMachineCode(
       str->Append("         ");
     }
 
-    str->AppendFormat("%.8X      %-6s %s\n", uint32_t(insn.address),
+    str->AppendFormat("{:08X}      {:<6} {}\n", uint32_t(insn.address),
                       insn.mnemonic, insn.op_str);
   }
 }

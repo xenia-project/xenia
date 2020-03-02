@@ -8,6 +8,7 @@ project("xenia-kernel")
   language("C++")
   links({
     "aes_128",
+    "fmt",
     "xenia-apu",
     "xenia-base",
     "xenia-cpu",

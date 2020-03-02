@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2015 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -58,7 +58,7 @@ bool ElfModule::is_executable() const {
   return hdr->e_entry != 0;
 }
 
-bool ElfModule::Load(const std::string& name, const std::string& path,
+bool ElfModule::Load(const std::string_view name, const std::string_view path,
                      const void* elf_addr, size_t elf_length) {
   name_ = name;
   path_ = path;

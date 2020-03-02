@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -16,7 +16,7 @@
 namespace xe {
 namespace vfs {
 
-Entry::Entry(Device* device, Entry* parent, const std::string& path)
+Entry::Entry(Device* device, Entry* parent, const std::string_view path)
     : device_(device),
       parent_(parent),
       path_(path),
@@ -27,8 +27,8 @@ Entry::Entry(Device* device, Entry* parent, const std::string& path)
       access_timestamp_(0),
       write_timestamp_(0) {
   assert_not_null(device);
-  absolute_path_ = xe::join_paths(device->mount_path(), path);
-  name_ = xe::find_name_from_path(path);
+  absolute_path_ = xe::utf8::join_guest_paths(device->mount_path(), path);
+  name_ = xe::utf8::find_name_from_guest_path(path);
 }
 
 Entry::~Entry() = default;
@@ -46,15 +46,16 @@ void Entry::Dump(xe::StringBuffer* string_buffer, int indent) {
 
 bool Entry::is_read_only() const { return device_->is_read_only(); }
 
-Entry* Entry::GetChild(std::string name) {
+Entry* Entry::GetChild(const std::string_view name) {
   auto global_lock = global_critical_region_.Acquire();
-  // TODO(benvanik): a faster search
-  for (auto& child : children_) {
-    if (strcasecmp(child->name().c_str(), name.c_str()) == 0) {
-      return child.get();
-    }
+  auto it = std::find_if(children_.cbegin(), children_.cend(),
+                         [&](const auto& child) {
+                           return xe::utf8::equal_case(child->name(), name);
+                         });
+  if (it == children_.cend()) {
+    return nullptr;
   }
-  return nullptr;
+  return (*it).get();
 }
 
 Entry* Entry::IterateChildren(const xe::filesystem::WildcardEngine& engine,
@@ -70,7 +71,7 @@ Entry* Entry::IterateChildren(const xe::filesystem::WildcardEngine& engine,
   return nullptr;
 }
 
-Entry* Entry::CreateEntry(std::string name, uint32_t attributes) {
+Entry* Entry::CreateEntry(const std::string_view name, uint32_t attributes) {
   auto global_lock = global_critical_region_.Acquire();
   if (is_read_only()) {
     return nullptr;

@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2015 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -91,7 +91,7 @@ class Socket {
 
   // Asynchronously sends a string buffer.
   // Returns false if the socket is disconnected or the data cannot be sent.
-  bool Send(const std::string& value) {
+  bool Send(const std::string_view value) {
     return Send(value.data(), value.size());
   }
 };

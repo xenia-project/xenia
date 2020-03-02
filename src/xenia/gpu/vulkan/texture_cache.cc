@@ -2,16 +2,16 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2016 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
 
 #include "xenia/gpu/vulkan/texture_cache.h"
-#include "xenia/gpu/vulkan/texture_config.h"
 
 #include <algorithm>
 
+#include "third_party/fmt/include/fmt/format.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/memory.h"
@@ -20,6 +20,7 @@
 #include "xenia/gpu/sampler_info.h"
 #include "xenia/gpu/texture_conversion.h"
 #include "xenia/gpu/texture_info.h"
+#include "xenia/gpu/vulkan/texture_config.h"
 #include "xenia/gpu/vulkan/vulkan_gpu_flags.h"
 #include "xenia/ui/vulkan/vulkan_mem_alloc.h"
 
@@ -522,8 +523,8 @@ TextureCache::Texture* TextureCache::DemandResolveTexture(
   device_->DbgSetObjectName(
       reinterpret_cast<uint64_t>(texture->image),
       VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT,
-      xe::format_string(
-          "RT: 0x%.8X - 0x%.8X (%s, %s)", texture_info.memory.base_address,
+      fmt::format(
+          "RT: {:#.8X} - {:#.8X} ({}, {})", texture_info.memory.base_address,
           texture_info.memory.base_address + texture_info.memory.base_size,
           texture_info.format_info()->name,
           get_dimension_name(texture_info.dimension)));
@@ -605,8 +606,8 @@ TextureCache::Texture* TextureCache::Demand(const TextureInfo& texture_info,
   device_->DbgSetObjectName(
       reinterpret_cast<uint64_t>(texture->image),
       VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT,
-      xe::format_string(
-          "T: 0x%.8X - 0x%.8X (%s, %s)", texture_info.memory.base_address,
+      fmt::format(
+          "T: {:#.8X} - {:#.8X} ({}, {})", texture_info.memory.base_address,
           texture_info.memory.base_address + texture_info.memory.base_size,
           texture_info.format_info()->name,
           get_dimension_name(texture_info.dimension)));

@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2019 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -62,7 +62,7 @@ class VulkanTraceViewer : public TraceViewer {
   }
 };
 
-int trace_viewer_main(const std::vector<std::wstring>& args) {
+int trace_viewer_main(const std::vector<std::string>& args) {
   VulkanTraceViewer trace_viewer;
   return trace_viewer.Main(args);
 }
@@ -71,6 +71,6 @@ int trace_viewer_main(const std::vector<std::wstring>& args) {
 }  // namespace gpu
 }  // namespace xe
 
-DEFINE_ENTRY_POINT(L"xenia-gpu-vulkan-trace-viewer",
+DEFINE_ENTRY_POINT("xenia-gpu-vulkan-trace-viewer",
                    xe::gpu::vulkan::trace_viewer_main, "some.trace",
                    "target_trace_file");

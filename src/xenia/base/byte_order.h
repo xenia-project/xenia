@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2014 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -40,8 +40,8 @@ inline int16_t byte_swap(int16_t value) {
 inline uint16_t byte_swap(uint16_t value) {
   return XENIA_BASE_BYTE_SWAP_16(value);
 }
-inline uint16_t byte_swap(wchar_t value) {
-  return static_cast<wchar_t>(XENIA_BASE_BYTE_SWAP_16(value));
+inline uint16_t byte_swap(char16_t value) {
+  return static_cast<char16_t>(XENIA_BASE_BYTE_SWAP_16(value));
 }
 inline int32_t byte_swap(int32_t value) {
   return static_cast<int32_t>(

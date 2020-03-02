@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2016 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -38,7 +38,8 @@ VulkanCommandProcessor::VulkanCommandProcessor(
 
 VulkanCommandProcessor::~VulkanCommandProcessor() = default;
 
-void VulkanCommandProcessor::RequestFrameTrace(const std::wstring& root_path) {
+void VulkanCommandProcessor::RequestFrameTrace(
+    const std::filesystem::path& root_path) {
   // Override traces if renderdoc is attached.
   if (device_->is_renderdoc_attached()) {
     trace_requested_ = true;

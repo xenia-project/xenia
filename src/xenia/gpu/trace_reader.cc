@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2015 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -12,7 +12,7 @@
 #include <cinttypes>
 
 #include "third_party/snappy/snappy.h"
-
+#include "xenia/base/filesystem.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/mapped_memory.h"
 #include "xenia/base/math.h"
@@ -23,7 +23,7 @@
 namespace xe {
 namespace gpu {
 
-bool TraceReader::Open(const std::wstring& path) {
+bool TraceReader::Open(const std::filesystem::path& path) {
   Close();
 
   mmap_ = MappedMemory::Open(path, MappedMemory::Mode::kRead);
@@ -45,7 +45,7 @@ bool TraceReader::Open(const std::wstring& path) {
     return false;
   }
 
-  auto path_str = xe::to_string(path);
+  auto path_str = xe::path_to_utf8(path);
   XELOGI("Mapped %" PRId64 "b trace from %s", trace_size_, path_str.c_str());
   XELOGI("   Version: %u", header->version);
   auto commit_str = std::string(header->build_commit_sha,

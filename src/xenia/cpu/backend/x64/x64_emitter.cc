@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2019 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -10,9 +10,11 @@
 #include "xenia/cpu/backend/x64/x64_emitter.h"
 
 #include <stddef.h>
+
 #include <climits>
 #include <cstring>
 
+#include "third_party/fmt/include/fmt/format.h"
 #include "xenia/base/assert.h"
 #include "xenia/base/atomic.h"
 #include "xenia/base/debugging.h"
@@ -476,8 +478,8 @@ void X64Emitter::CallIndirect(const hir::Instr* instr,
 uint64_t UndefinedCallExtern(void* raw_context, uint64_t function_ptr) {
   auto function = reinterpret_cast<Function*>(function_ptr);
   if (!cvars::ignore_undefined_externs) {
-    xe::FatalError("undefined extern call to %.8X %s", function->address(),
-                   function->name().c_str());
+    xe::FatalError(fmt::format("undefined extern call to {:08X} {}",
+                               function->address(), function->name().c_str()));
   } else {
     XELOGE("undefined extern call to %.8X %s", function->address(),
            function->name().c_str());

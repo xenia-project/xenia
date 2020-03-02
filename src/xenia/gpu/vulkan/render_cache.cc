@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2016 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -11,6 +11,7 @@
 
 #include <algorithm>
 
+#include "third_party/fmt/include/fmt/format.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/memory.h"
@@ -231,10 +232,11 @@ VkResult CachedTileView::Initialize(VkCommandBuffer command_buffer) {
 
   device_->DbgSetObjectName(
       reinterpret_cast<uint64_t>(image), VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT,
-      xe::format_string("RT(d): 0x%.8X 0x%.8X(%d) 0x%.8X(%d) %d %d %d",
-                        key.tile_offset, key.tile_width, key.tile_width,
-                        key.tile_height, key.tile_height, key.color_or_depth,
-                        key.msaa_samples, key.edram_format));
+      fmt::format("RT(d): {:#.8X} {:#.8X}({}) {:#.8X}({}) {} {} {}",
+                  uint32_t(key.tile_offset), uint32_t(key.tile_width),
+                  uint32_t(key.tile_width), uint32_t(key.tile_height),
+                  uint32_t(key.tile_height), uint32_t(key.color_or_depth),
+                  uint32_t(key.msaa_samples), uint32_t(key.edram_format)));
 
   VkMemoryRequirements memory_requirements;
   vkGetImageMemoryRequirements(*device_, image, &memory_requirements);

@@ -2,18 +2,23 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2016 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
 
 #include "xenia/ui/file_picker.h"
 
-#include <codecvt>
-#include <locale>
+#include <filesystem>
 #include <string>
+
+#include <gdk/gdkx.h>
+#include <gtk/gtk.h>
+
 #include "xenia/base/assert.h"
+#include "xenia/base/filesystem.h"
 #include "xenia/base/platform_linux.h"
+#include "xenia/base/string.h"
 
 namespace xe {
 namespace ui {
@@ -54,10 +59,8 @@ bool GtkFilePicker::Show(void* parent_window_handle) {
   if (res == GTK_RESPONSE_ACCEPT) {
     GtkFileChooser* chooser = GTK_FILE_CHOOSER(dialog);
     filename = gtk_file_chooser_get_filename(chooser);
-    std::vector<std::wstring> selected_files;
-    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
-    std::wstring ws_filename = converter.from_bytes(filename);
-    selected_files.push_back(ws_filename);
+    std::vector<std::filesystem::path> selected_files;
+    selected_files.push_back(xe::to_path(std::string(filename)));
     set_selected_files(selected_files);
     gtk_widget_destroy(dialog);
     return true;

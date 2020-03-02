@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -11,20 +11,15 @@
 
 #include "xenia/base/assert.h"
 #include "xenia/base/math.h"
+#include "xenia/base/string.h"
 
 namespace xe {
 namespace cpu {
 
-ExportResolver::Table::Table(const char* module_name,
+ExportResolver::Table::Table(const std::string_view module_name,
                              const std::vector<Export*>* exports_by_ordinal)
     : exports_by_ordinal_(exports_by_ordinal) {
-  auto dot_pos = std::strrchr(module_name, '.');
-  if (dot_pos != nullptr) {
-    std::strncpy(module_name_, module_name,
-                 static_cast<size_t>(dot_pos - module_name));
-  } else {
-    std::strncpy(module_name_, module_name, xe::countof(module_name_) - 1);
-  }
+  module_name_ = utf8::find_base_name_from_guest_path(module_name);
 
   exports_by_name_.reserve(exports_by_ordinal_->size());
   for (size_t i = 0; i < exports_by_ordinal_->size(); ++i) {
@@ -43,7 +38,8 @@ ExportResolver::ExportResolver() = default;
 ExportResolver::~ExportResolver() = default;
 
 void ExportResolver::RegisterTable(
-    const char* module_name, const std::vector<xe::cpu::Export*>* exports) {
+    const std::string_view module_name,
+    const std::vector<xe::cpu::Export*>* exports) {
   tables_.emplace_back(module_name, exports);
 
   all_exports_by_name_.reserve(all_exports_by_name_.size() + exports->size());
@@ -58,11 +54,10 @@ void ExportResolver::RegisterTable(
       [](Export* a, Export* b) { return std::strcmp(a->name, b->name) <= 0; });
 }
 
-Export* ExportResolver::GetExportByOrdinal(const char* module_name,
+Export* ExportResolver::GetExportByOrdinal(const std::string_view module_name,
                                            uint16_t ordinal) {
   for (const auto& table : tables_) {
-    if (std::strncmp(module_name, table.module_name(),
-                     std::strlen(table.module_name())) == 0) {
+    if (xe::utf8::starts_with_case(module_name, table.module_name())) {
       if (ordinal > table.exports_by_ordinal().size()) {
         return nullptr;
       }
@@ -72,7 +67,7 @@ Export* ExportResolver::GetExportByOrdinal(const char* module_name,
   return nullptr;
 }
 
-void ExportResolver::SetVariableMapping(const char* module_name,
+void ExportResolver::SetVariableMapping(const std::string_view module_name,
                                         uint16_t ordinal, uint32_t value) {
   auto export_entry = GetExportByOrdinal(module_name, ordinal);
   assert_not_null(export_entry);
@@ -80,7 +75,7 @@ void ExportResolver::SetVariableMapping(const char* module_name,
   export_entry->variable_ptr = value;
 }
 
-void ExportResolver::SetFunctionMapping(const char* module_name,
+void ExportResolver::SetFunctionMapping(const std::string_view module_name,
                                         uint16_t ordinal,
                                         xe_kernel_export_shim_fn shim) {
   auto export_entry = GetExportByOrdinal(module_name, ordinal);
@@ -89,7 +84,7 @@ void ExportResolver::SetFunctionMapping(const char* module_name,
   export_entry->function_data.shim = shim;
 }
 
-void ExportResolver::SetFunctionMapping(const char* module_name,
+void ExportResolver::SetFunctionMapping(const std::string_view module_name,
                                         uint16_t ordinal,
                                         ExportTrampoline trampoline) {
   auto export_entry = GetExportByOrdinal(module_name, ordinal);

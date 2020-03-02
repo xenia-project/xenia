@@ -20,6 +20,7 @@ project("xenia-hid-demo")
   kind("WindowedApp")
   language("C++")
   links({
+    "fmt",
     "imgui",
     "volk",
     "xenia-base",

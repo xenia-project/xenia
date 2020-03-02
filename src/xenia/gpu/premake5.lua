@@ -8,6 +8,7 @@ project("xenia-gpu")
   language("C++")
   links({
     "dxbc",
+    "fmt",
     "glslang-spirv",
     "snappy",
     "spirv-tools",
@@ -32,6 +33,7 @@ project("xenia-gpu-shader-compiler")
   language("C++")
   links({
     "dxbc",
+    "fmt",
     "glslang-spirv",
     "spirv-tools",
     "xenia-base",

@@ -2,13 +2,14 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2016 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
 
 #include "xenia/ui/vulkan/vulkan_util.h"
 
+#include "third_party/fmt/include/fmt/format.h"
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
 
@@ -29,8 +30,8 @@ Version Version::Parse(uint32_t value) {
   version.major = VK_VERSION_MAJOR(value);
   version.minor = VK_VERSION_MINOR(value);
   version.patch = VK_VERSION_PATCH(value);
-  version.pretty_string = xe::format_string("%u.%u.%u", version.major,
-                                            version.minor, version.patch);
+  version.pretty_string =
+      fmt::format("{}.{}.{}", version.major, version.minor, version.patch);
   return version;
 }
 

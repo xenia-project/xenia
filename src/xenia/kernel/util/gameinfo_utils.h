@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2016 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -48,9 +48,9 @@ class GameInfoWrapper {
   static_assert_size(GameInfoBlockComm, 4);
 
   struct GameInfoBlockTitl {
-    xe::be<wchar_t> title[128];
-    xe::be<wchar_t> description[256];
-    xe::be<wchar_t> publisher[256];  // assumed field name from wxPirs
+    xe::be<char16_t> title[128];
+    xe::be<char16_t> description[256];
+    xe::be<char16_t> publisher[256];  // assumed field name from wxPirs
   };
 
  private:

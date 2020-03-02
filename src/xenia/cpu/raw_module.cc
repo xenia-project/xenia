@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -23,9 +23,9 @@ RawModule::RawModule(Processor* processor)
 
 RawModule::~RawModule() {}
 
-bool RawModule::LoadFile(uint32_t base_address, const std::wstring& path) {
-  auto fixed_path = xe::fix_path_separators(path);
-  FILE* file = xe::filesystem::OpenFile(fixed_path, "rb");
+bool RawModule::LoadFile(uint32_t base_address,
+                         const std::filesystem::path& path) {
+  FILE* file = xe::filesystem::OpenFile(path, "rb");
   fseek(file, 0, SEEK_END);
   uint32_t file_length = static_cast<uint32_t>(ftell(file));
   fseek(file, 0, SEEK_SET);
@@ -48,12 +48,7 @@ bool RawModule::LoadFile(uint32_t base_address, const std::wstring& path) {
   fclose(file);
 
   // Setup debug info.
-  auto last_slash = fixed_path.find_last_of(xe::kPathSeparator);
-  if (last_slash != std::string::npos) {
-    name_ = xe::to_string(fixed_path.substr(last_slash + 1));
-  } else {
-    name_ = xe::to_string(fixed_path);
-  }
+  name_ = xe::path_to_utf8(path.filename());
   // TODO(benvanik): debug info
 
   low_address_ = base_address;

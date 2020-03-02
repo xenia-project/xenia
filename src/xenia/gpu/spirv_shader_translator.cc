@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2017 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -15,6 +15,7 @@
 #include <cstring>
 #include <vector>
 
+#include "third_party/fmt/include/fmt/format.h"
 #include "xenia/base/cvar.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
@@ -232,9 +233,9 @@ void SpirvShaderTranslator::StartTranslation() {
 
     // Create 3 texture types, all aliased on the same binding
     for (int i = 0; i < 3; i++) {
-      tex_[i] = b.createVariable(
-          spv::StorageClass::StorageClassUniformConstant, tex_a_t[i],
-          xe::format_string("textures%dD", i + 2).c_str());
+      tex_[i] = b.createVariable(spv::StorageClass::StorageClassUniformConstant,
+                                 tex_a_t[i],
+                                 fmt::format("textures{}D", i + 2).c_str());
       b.addDecoration(tex_[i], spv::Decoration::DecorationDescriptorSet, 1);
       b.addDecoration(tex_[i], spv::Decoration::DecorationBinding, 0);
     }

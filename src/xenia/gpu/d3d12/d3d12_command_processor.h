@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2018 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -43,10 +43,10 @@ class D3D12CommandProcessor : public CommandProcessor {
 
   void ClearCaches() override;
 
-  void InitializeShaderStorage(const std::wstring& storage_root,
+  void InitializeShaderStorage(const std::filesystem::path& storage_root,
                                uint32_t title_id, bool blocking) override;
 
-  void RequestFrameTrace(const std::wstring& root_path) override;
+  void RequestFrameTrace(const std::filesystem::path& root_path) override;
 
   void TracePlaybackWroteMemory(uint32_t base_ptr, uint32_t length) override;
 
@@ -154,7 +154,7 @@ class D3D12CommandProcessor : public CommandProcessor {
       bool changing_stencil_ref = false);
 
   // Returns the text to display in the GPU backend name in the window title.
-  std::wstring GetWindowTitleText() const;
+  std::string GetWindowTitleText() const;
 
   std::unique_ptr<xe::ui::RawImage> Capture();
 

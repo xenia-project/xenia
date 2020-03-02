@@ -88,7 +88,7 @@ std::unique_ptr<xe::ui::GraphicsProvider> CreateDemoGraphicsProvider(
 
 void DrawInputStatus();
 
-int hid_demo_main(const std::vector<std::wstring>& args) {
+int hid_demo_main(const std::vector<std::string>& args) {
   // Create run loop and the window.
   auto loop = ui::Loop::Create();
   auto window = xe::ui::Window::Create(loop.get(), GetEntryInfo().name);
@@ -231,4 +231,4 @@ void DrawInputStatus() {
 }  // namespace hid
 }  // namespace xe
 
-DEFINE_ENTRY_POINT(L"xenia-hid-demo", xe::hid::hid_demo_main, "");
+DEFINE_ENTRY_POINT("xenia-hid-demo", xe::hid::hid_demo_main, "");

@@ -46,7 +46,7 @@ class PipelineCache {
   void Shutdown();
   void ClearCache(bool shutting_down = false);
 
-  void InitializeShaderStorage(const std::wstring& storage_root,
+  void InitializeShaderStorage(const std::filesystem::path& storage_root,
                                uint32_t title_id, bool blocking);
   void ShutdownShaderStorage();
 
@@ -262,7 +262,7 @@ class PipelineCache {
   PipelineState* current_pipeline_state_ = nullptr;
 
   // Currently open shader storage path.
-  std::wstring shader_storage_root_;
+  std::filesystem::path shader_storage_root_;
   uint32_t shader_storage_title_id_ = 0;
 
   // Shader storage output stream, for preload in the next emulator runs.

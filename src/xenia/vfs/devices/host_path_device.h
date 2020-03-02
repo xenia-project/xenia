@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -21,13 +21,13 @@ class HostPathEntry;
 
 class HostPathDevice : public Device {
  public:
-  HostPathDevice(const std::string& mount_path, const std::wstring& local_path,
-                 bool read_only);
+  HostPathDevice(const std::string_view mount_path,
+                 const std::filesystem::path& host_path, bool read_only);
   ~HostPathDevice() override;
 
   bool Initialize() override;
   void Dump(StringBuffer* string_buffer) override;
-  Entry* ResolvePath(const std::string& path) override;
+  Entry* ResolvePath(const std::string_view path) override;
 
   bool is_read_only() const override { return read_only_; }
 
@@ -39,7 +39,7 @@ class HostPathDevice : public Device {
  private:
   void PopulateEntry(HostPathEntry* parent_entry);
 
-  std::wstring local_path_;
+  std::filesystem::path host_path_;
   std::unique_ptr<Entry> root_entry_;
   bool read_only_;
 };

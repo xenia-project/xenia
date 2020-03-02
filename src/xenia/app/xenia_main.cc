@@ -44,6 +44,7 @@
 #include "xenia/hid/xinput/xinput_hid.h"
 #endif  // XE_PLATFORM_WIN32
 
+#include "third_party/fmt/include/fmt/format.h"
 #include "third_party/xbyak/xbyak/xbyak_util.h"
 
 DEFINE_string(apu, "any", "Audio system. Use: [any, nop, sdl, xaudio2]", "APU");
@@ -54,13 +55,13 @@ DEFINE_string(hid, "any", "Input system. Use: [any, nop, sdl, winkey, xinput]",
 
 DEFINE_bool(fullscreen, false, "Toggles fullscreen", "GPU");
 
-DEFINE_string(
+DEFINE_path(
     storage_root, "",
     "Root path for persistent internal data storage (config, etc.), or empty "
     "to use the path preferred for the OS, such as the documents folder, or "
     "the emulator executable directory if portable.txt is present in it.",
     "Storage");
-DEFINE_string(
+DEFINE_path(
     content_root, "",
     "Root path for guest content storage (saves, etc.), or empty to use the "
     "content folder under the storage root.",
@@ -69,9 +70,9 @@ DEFINE_string(
 DEFINE_bool(mount_scratch, false, "Enable scratch mount", "Storage");
 DEFINE_bool(mount_cache, false, "Enable cache mount", "Storage");
 
-DEFINE_transient_string(target, "",
-                        "Specifies the target .xex or .iso to execute.",
-                        "General");
+DEFINE_transient_path(target, "",
+                      "Specifies the target .xex or .iso to execute.",
+                      "General");
 DECLARE_bool(debug);
 
 DEFINE_bool(discord, true, "Enable Discord rich presence", "General");
@@ -91,25 +92,25 @@ class Factory {
   std::vector<Creator> creators_;
 
  public:
-  void Add(const std::string& name, std::function<bool()> is_available,
+  void Add(const std::string_view name, std::function<bool()> is_available,
            std::function<std::unique_ptr<T>(Args...)> instantiate) {
-    creators_.push_back({name, is_available, instantiate});
+    creators_.push_back({std::string(name), is_available, instantiate});
   }
 
-  void Add(const std::string& name,
+  void Add(const std::string_view name,
            std::function<std::unique_ptr<T>(Args...)> instantiate) {
     auto always_available = []() { return true; };
     Add(name, always_available, instantiate);
   }
 
   template <typename DT>
-  void Add(const std::string& name) {
+  void Add(const std::string_view name) {
     Add(name, DT::IsAvailable, [](Args... args) {
       return std::make_unique<DT>(std::forward<Args>(args)...);
     });
   }
 
-  std::unique_ptr<T> Create(const std::string& name, Args... args) {
+  std::unique_ptr<T> Create(const std::string_view name, Args... args) {
     if (!name.empty() && name != "any") {
       auto it = std::find_if(
           creators_.cbegin(), creators_.cend(),
@@ -129,7 +130,7 @@ class Factory {
     }
   }
 
-  std::vector<std::unique_ptr<T>> CreateAll(const std::string& name,
+  std::vector<std::unique_ptr<T>> CreateAll(const std::string_view name,
                                             Args... args) {
     std::vector<std::unique_ptr<T>> instances;
     if (!name.empty() && name != "any") {
@@ -206,35 +207,34 @@ std::vector<std::unique_ptr<hid::InputDriver>> CreateInputDrivers(
   return drivers;
 }
 
-int xenia_main(const std::vector<std::wstring>& args) {
+int xenia_main(const std::vector<std::string>& args) {
   Profiler::Initialize();
   Profiler::ThreadEnter("main");
 
   // Figure out where internal files and content should go.
-  std::wstring storage_root = xe::to_wstring(cvars::storage_root);
+  std::filesystem::path storage_root = cvars::storage_root;
   if (storage_root.empty()) {
     storage_root = xe::filesystem::GetExecutableFolder();
-    if (!xe::filesystem::PathExists(
-            xe::join_paths(storage_root, L"portable.txt"))) {
+    if (!xe::filesystem::PathExists(storage_root / "portable.txt")) {
       storage_root = xe::filesystem::GetUserFolder();
 #if defined(XE_PLATFORM_WIN32) || defined(XE_PLATFORM_LINUX)
-      storage_root = xe::join_paths(storage_root, L"Xenia");
+      storage_root = storage_root / "Xenia";
 #else
 #warning Unhandled platform for the data root.
-      storage_root = xe::join_paths(storage_root, L"Xenia");
+      storage_root = storage_root / "Xenia";
 #endif
     }
   }
-  storage_root = xe::to_absolute_path(storage_root);
+  storage_root = std::filesystem::absolute(storage_root);
   XELOGI("Storage root: %S", storage_root.c_str());
 
   config::SetupConfig(storage_root);
 
-  std::wstring content_root = xe::to_wstring(cvars::content_root);
+  std::filesystem::path content_root = cvars::content_root;
   if (content_root.empty()) {
-    content_root = xe::join_paths(storage_root, L"content");
+    content_root = storage_root / "content";
   }
-  content_root = xe::to_absolute_path(content_root);
+  content_root = std::filesystem::absolute(content_root);
   XELOGI("Content root: %S", content_root.c_str());
 
   if (cvars::discord) {
@@ -243,7 +243,7 @@ int xenia_main(const std::vector<std::wstring>& args) {
   }
 
   // Create the emulator but don't initialize so we can setup the window.
-  auto emulator = std::make_unique<Emulator>(L"", storage_root, content_root);
+  auto emulator = std::make_unique<Emulator>("", storage_root, content_root);
 
   // Main emulator display window.
   auto emulator_window = EmulatorWindow::Create(emulator.get());
@@ -260,7 +260,7 @@ int xenia_main(const std::vector<std::wstring>& args) {
 
   if (cvars::mount_scratch) {
     auto scratch_device = std::make_unique<xe::vfs::HostPathDevice>(
-        "\\SCRATCH", L"scratch", false);
+        "\\SCRATCH", "scratch", false);
     if (!scratch_device->Initialize()) {
       XELOGE("Unable to scan scratch path");
     } else {
@@ -274,7 +274,7 @@ int xenia_main(const std::vector<std::wstring>& args) {
 
   if (cvars::mount_cache) {
     auto cache0_device =
-        std::make_unique<xe::vfs::HostPathDevice>("\\CACHE0", L"cache0", false);
+        std::make_unique<xe::vfs::HostPathDevice>("\\CACHE0", "cache0", false);
     if (!cache0_device->Initialize()) {
       XELOGE("Unable to scan cache0 path");
     } else {
@@ -286,7 +286,7 @@ int xenia_main(const std::vector<std::wstring>& args) {
     }
 
     auto cache1_device =
-        std::make_unique<xe::vfs::HostPathDevice>("\\CACHE1", L"cache1", false);
+        std::make_unique<xe::vfs::HostPathDevice>("\\CACHE1", "cache1", false);
     if (!cache1_device->Initialize()) {
       XELOGE("Unable to scan cache1 path");
     } else {
@@ -325,7 +325,7 @@ int xenia_main(const std::vector<std::wstring>& args) {
   emulator->on_launch.AddListener([&](auto title_id, const auto& game_title) {
     if (cvars::discord) {
       discord::DiscordPresence::PlayingTitle(
-          game_title.empty() ? L"Unknown Title" : game_title);
+          game_title.empty() ? "Unknown Title" : std::string(game_title));
     }
     emulator_window->UpdateTitle();
     evt->Set();
@@ -365,9 +365,9 @@ int xenia_main(const std::vector<std::wstring>& args) {
   emulator_window->window()->EnableMainMenu();
 
   // Grab path from the flag or unnamed argument.
-  std::wstring path;
+  std::filesystem::path path;
   if (!cvars::target.empty()) {
-    path = xe::to_wstring(cvars::target);
+    path = cvars::target;
   }
 
   // Toggles fullscreen
@@ -375,10 +375,10 @@ int xenia_main(const std::vector<std::wstring>& args) {
 
   if (!path.empty()) {
     // Normalize the path and make absolute.
-    std::wstring abs_path = xe::to_absolute_path(path);
+    auto abs_path = std::filesystem::absolute(path);
     result = emulator->LaunchPath(abs_path);
     if (XFAILED(result)) {
-      xe::FatalError("Failed to launch target: %.8X", result);
+      xe::FatalError(fmt::format("Failed to launch target: {:08X}", result));
       emulator.reset();
       emulator_window.reset();
       return 1;
@@ -416,5 +416,5 @@ int xenia_main(const std::vector<std::wstring>& args) {
 }  // namespace app
 }  // namespace xe
 
-DEFINE_ENTRY_POINT(L"xenia", xe::app::xenia_main, "[Path to .iso/.xex]",
+DEFINE_ENTRY_POINT("xenia", xe::app::xenia_main, "[Path to .iso/.xex]",
                    "target");

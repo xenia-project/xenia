@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2014 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -12,6 +12,7 @@
 
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <functional>
 #include <string>
 
@@ -97,8 +98,9 @@ void AlignedFree(T* ptr) {
 
 typedef void* FileMappingHandle;
 
-FileMappingHandle CreateFileMappingHandle(std::wstring path, size_t length,
-                                          PageAccess access, bool commit);
+FileMappingHandle CreateFileMappingHandle(const std::filesystem::path& path,
+                                          size_t length, PageAccess access,
+                                          bool commit);
 void CloseFileMappingHandle(FileMappingHandle handle);
 void* MapFileView(FileMappingHandle handle, void* base_address, size_t length,
                   PageAccess access, size_t file_offset);
@@ -281,8 +283,8 @@ inline std::string load_and_swap<std::string>(const void* mem) {
   return value;
 }
 template <>
-inline std::wstring load_and_swap<std::wstring>(const void* mem) {
-  std::wstring value;
+inline std::u16string load_and_swap<std::u16string>(const void* mem) {
+  std::u16string value;
   for (int i = 0;; ++i) {
     auto c =
         xe::load_and_swap<uint16_t>(reinterpret_cast<const uint16_t*>(mem) + i);
@@ -337,17 +339,17 @@ inline void store<double>(void* mem, const double& value) {
   *reinterpret_cast<double*>(mem) = value;
 }
 template <typename T>
-inline void store(const void* mem, const T& value) {
-  if (sizeof(T) == 1) {
+constexpr inline void store(const void* mem, const T& value) {
+  if constexpr (sizeof(T) == 1) {
     store<uint8_t>(mem, static_cast<uint8_t>(value));
-  } else if (sizeof(T) == 2) {
+  } else if constexpr (sizeof(T) == 2) {
     store<uint8_t>(mem, static_cast<uint16_t>(value));
-  } else if (sizeof(T) == 4) {
+  } else if constexpr (sizeof(T) == 4) {
     store<uint8_t>(mem, static_cast<uint32_t>(value));
-  } else if (sizeof(T) == 8) {
+  } else if constexpr (sizeof(T) == 8) {
     store<uint8_t>(mem, static_cast<uint64_t>(value));
   } else {
-    assert_always("Invalid xe::store size");
+    static_assert("Invalid xe::store size");
   }
 }
 
@@ -394,17 +396,28 @@ inline void store_and_swap<double>(void* mem, const double& value) {
   *reinterpret_cast<double*>(mem) = byte_swap(value);
 }
 template <>
-inline void store_and_swap<std::string>(void* mem, const std::string& value) {
+inline void store_and_swap<std::string_view>(void* mem,
+                                             const std::string_view& value) {
   for (auto i = 0; i < value.size(); ++i) {
     xe::store_and_swap<uint8_t>(reinterpret_cast<uint8_t*>(mem) + i, value[i]);
   }
 }
 template <>
-inline void store_and_swap<std::wstring>(void* mem, const std::wstring& value) {
+inline void store_and_swap<std::string>(void* mem, const std::string& value) {
+  return store_and_swap<std::string_view>(mem, value);
+}
+template <>
+inline void store_and_swap<std::u16string_view>(
+    void* mem, const std::u16string_view& value) {
   for (auto i = 0; i < value.size(); ++i) {
     xe::store_and_swap<uint16_t>(reinterpret_cast<uint16_t*>(mem) + i,
                                  value[i]);
   }
+}
+template <>
+inline void store_and_swap<std::u16string>(void* mem,
+                                           const std::u16string& value) {
+  return store_and_swap<std::u16string_view>(mem, value);
 }
 
 }  // namespace xe

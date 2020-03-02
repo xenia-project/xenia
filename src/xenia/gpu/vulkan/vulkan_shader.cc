@@ -2,13 +2,14 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2016 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
 
 #include "xenia/gpu/vulkan/vulkan_shader.h"
 
+#include "third_party/fmt/include/fmt/format.h"
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
@@ -54,7 +55,7 @@ bool VulkanShader::Prepare() {
                       : shader_type_ == ShaderType::kVertex ? 'v' : 'u';
   device_->DbgSetObjectName(
       uint64_t(shader_module_), VK_DEBUG_REPORT_OBJECT_TYPE_SHADER_MODULE_EXT,
-      xe::format_string("S(%c): %.16llX", typeChar, ucode_data_hash()));
+      fmt::format("S({}): {:016X}", typeChar, ucode_data_hash()));
   return status == VK_SUCCESS;
 }
 

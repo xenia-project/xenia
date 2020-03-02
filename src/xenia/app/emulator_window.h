@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2015 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -44,7 +44,7 @@ class EmulatorWindow {
 
   bool Initialize();
 
-  void FileDrop(const wchar_t* filename);
+  void FileDrop(const std::filesystem::path& filename);
   void FileOpen();
   void FileClose();
   void ShowContentDirectory();
@@ -62,7 +62,7 @@ class EmulatorWindow {
   Emulator* emulator_;
   std::unique_ptr<ui::Loop> loop_;
   std::unique_ptr<ui::Window> window_;
-  std::wstring base_title_;
+  std::string base_title_;
   uint64_t cursor_hide_time_ = 0;
   bool initializing_shader_storage_ = false;
 };

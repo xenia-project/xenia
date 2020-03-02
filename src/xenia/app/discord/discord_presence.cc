@@ -2,7 +2,7 @@
 ******************************************************************************
 * Xenia : Xbox 360 Emulator Research Project                                 *
 ******************************************************************************
-* Copyright 2015 Ben Vanik. All rights reserved.                             *
+* Copyright 2020 Ben Vanik. All rights reserved.                             *
 * Released under the BSD license - see LICENSE in the root for more details. *
 ******************************************************************************
 */
@@ -39,11 +39,10 @@ void DiscordPresence::NotPlaying() {
   Discord_UpdatePresence(&discordPresence);
 }
 
-void DiscordPresence::PlayingTitle(const std::wstring& game_title) {
-  auto discord_game_title = xe::to_string(game_title);
+void DiscordPresence::PlayingTitle(const std::string_view game_title) {
   DiscordRichPresence discordPresence = {};
   discordPresence.state = "In Game";
-  discordPresence.details = discord_game_title.c_str();
+  discordPresence.details = std::string(game_title).c_str();
   // TODO(gibbed): we don't have state icons yet.
   // discordPresence.smallImageKey = "app";
   // discordPresence.largeImageKey = "state_ingame";

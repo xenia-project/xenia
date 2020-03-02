@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2016 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -12,6 +12,9 @@
 
 #include <memory>
 #include <string>
+
+#include <gdk/gdkx.h>
+#include <gtk/gtk.h>
 
 #include "xenia/base/platform_linux.h"
 #include "xenia/ui/menu_item.h"
@@ -24,7 +27,7 @@ class GTKWindow : public Window {
   using super = Window;
 
  public:
-  GTKWindow(Loop* loop, const std::wstring& title);
+  GTKWindow(Loop* loop, const std::string& title);
   ~GTKWindow() override;
 
   NativePlatformHandle native_platform_handle() const override {
@@ -35,7 +38,7 @@ class GTKWindow : public Window {
   void EnableMainMenu() override {}
   void DisableMainMenu() override {}
 
-  bool set_title(const std::wstring& title) override;
+  bool set_title(const std::string& title) override;
 
   bool SetIcon(const void* buffer, size_t size) override;
 
@@ -82,7 +85,7 @@ class GTKWindow : public Window {
 
 class GTKMenuItem : public MenuItem {
  public:
-  GTKMenuItem(Type type, const std::wstring& text, const std::wstring& hotkey,
+  GTKMenuItem(Type type, const std::string& text, const std::string& hotkey,
               std::function<void()> callback);
   ~GTKMenuItem() override;
 

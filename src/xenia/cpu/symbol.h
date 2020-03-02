@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -45,7 +45,7 @@ class Symbol {
   uint32_t address() const { return address_; }
 
   const std::string& name() const { return name_; }
-  void set_name(const std::string& value) { name_ = value; }
+  void set_name(const std::string_view value) { name_ = value; }
 
  protected:
   Type type_ = Type::kVariable;

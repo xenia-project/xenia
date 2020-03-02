@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2015 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -27,12 +27,12 @@ TraceWriter::TraceWriter(uint8_t* membase)
 
 TraceWriter::~TraceWriter() = default;
 
-bool TraceWriter::Open(const std::wstring& path, uint32_t title_id) {
+bool TraceWriter::Open(const std::filesystem::path& path, uint32_t title_id) {
   Close();
 
-  auto canonical_path = xe::to_absolute_path(path);
-  auto base_path = xe::find_base_path(canonical_path);
-  if (!base_path.empty()) {
+  auto canonical_path = std::filesystem::absolute(path);
+  if (canonical_path.has_parent_path()) {
+    auto base_path = canonical_path.parent_path();
     xe::filesystem::CreateFolder(base_path);
   }
 

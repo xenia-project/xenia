@@ -224,7 +224,7 @@ bool ShaderTranslator::TranslateInternal(
 }
 
 void ShaderTranslator::MarkUcodeInstruction(uint32_t dword_offset) {
-  auto disasm = ucode_disasm_buffer_.GetString();
+  auto disasm = ucode_disasm_buffer_.buffer();
   size_t current_offset = ucode_disasm_buffer_.length();
   for (size_t i = previous_ucode_disasm_scan_offset_; i < current_offset; ++i) {
     if (disasm[i] == '\n') {
@@ -568,7 +568,7 @@ bool ShaderTranslator::TranslateBlocks() {
 }
 
 std::vector<uint8_t> UcodeShaderTranslator::CompleteTranslation() {
-  return ucode_disasm_buffer().ToBytes();
+  return ucode_disasm_buffer().to_bytes();
 }
 
 void ShaderTranslator::TranslateControlFlowInstruction(
