@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2019 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -27,11 +27,11 @@
 #include "xenia/ui/d3d12/d3d12_api.h"
 #endif  // XE_PLATFORM_WIN32
 
-DEFINE_string(shader_input, "", "Input shader binary file path.", "GPU");
+DEFINE_path(shader_input, "", "Input shader binary file path.", "GPU");
 DEFINE_string(shader_input_type, "",
               "'vs', 'ps', or unspecified to infer from the given filename.",
               "GPU");
-DEFINE_string(shader_output, "", "Output shader file path.", "GPU");
+DEFINE_path(shader_output, "", "Output shader file path.", "GPU");
 DEFINE_string(shader_output_type, "ucode",
               "Translator to use: [ucode, spirv, spirvtext, dxbc, dxbctext].",
               "GPU");
@@ -48,7 +48,7 @@ DEFINE_bool(shader_output_dxbc_rov, false,
 namespace xe {
 namespace gpu {
 
-int shader_compiler_main(const std::vector<std::wstring>& args) {
+int shader_compiler_main(const std::vector<std::string>& args) {
   ShaderType shader_type;
   if (!cvars::shader_input_type.empty()) {
     if (cvars::shader_input_type == "vs") {
@@ -60,13 +60,13 @@ int shader_compiler_main(const std::vector<std::wstring>& args) {
       return 1;
     }
   } else {
-    auto last_dot = cvars::shader_input.find_last_of('.');
     bool valid_type = false;
-    if (last_dot != std::string::npos) {
-      if (cvars::shader_input.substr(last_dot) == ".vs") {
+    if (cvars::shader_input.has_extension()) {
+      auto extension = cvars::shader_input.extension();
+      if (extension == ".vs") {
         shader_type = ShaderType::kVertex;
         valid_type = true;
-      } else if (cvars::shader_input.substr(last_dot) == ".ps") {
+      } else if (extension == ".ps") {
         shader_type = ShaderType::kPixel;
         valid_type = true;
       }
@@ -79,9 +79,10 @@ int shader_compiler_main(const std::vector<std::wstring>& args) {
     }
   }
 
-  auto input_file = fopen(cvars::shader_input.c_str(), "rb");
+  auto input_file = filesystem::OpenFile(cvars::shader_input, "rb");
   if (!input_file) {
-    XELOGE("Unable to open input file: %s", cvars::shader_input.c_str());
+    XELOGE("Unable to open input file: %s",
+           xe::path_to_utf8(cvars::shader_input).c_str());
     return 1;
   }
   fseek(input_file, 0, SEEK_END);
@@ -92,7 +93,7 @@ int shader_compiler_main(const std::vector<std::wstring>& args) {
   fclose(input_file);
 
   XELOGI("Opened %s as a %s shader, %" PRId64 " words (%" PRId64 " bytes).",
-         cvars::shader_input.c_str(),
+         xe::path_to_utf8(cvars::shader_input).c_str(),
          shader_type == ShaderType::kVertex ? "vertex" : "pixel",
          ucode_dwords.size(), ucode_dwords.size() * 4);
 
@@ -153,7 +154,7 @@ int shader_compiler_main(const std::vector<std::wstring>& args) {
 #if XE_PLATFORM_WIN32
   ID3DBlob* dxbc_disasm_blob = nullptr;
   if (cvars::shader_output_type == "dxbctext") {
-    HMODULE d3d_compiler = LoadLibrary(L"D3DCompiler_47.dll");
+    HMODULE d3d_compiler = LoadLibraryW(L"D3DCompiler_47.dll");
     if (d3d_compiler != nullptr) {
       pD3DDisassemble d3d_disassemble =
           pD3DDisassemble(GetProcAddress(d3d_compiler, "D3DDisassemble"));
@@ -180,7 +181,7 @@ int shader_compiler_main(const std::vector<std::wstring>& args) {
 #endif  // XE_PLATFORM_WIN32
 
   if (!cvars::shader_output.empty()) {
-    auto output_file = fopen(cvars::shader_output.c_str(), "wb");
+    auto output_file = filesystem::OpenFile(cvars::shader_output, "wb");
     fwrite(source_data, 1, source_data_size, output_file);
     fclose(output_file);
   }
@@ -197,5 +198,5 @@ int shader_compiler_main(const std::vector<std::wstring>& args) {
 }  // namespace gpu
 }  // namespace xe
 
-DEFINE_ENTRY_POINT(L"xenia-gpu-shader-compiler", xe::gpu::shader_compiler_main,
+DEFINE_ENTRY_POINT("xenia-gpu-shader-compiler", xe::gpu::shader_compiler_main,
                    "shader.bin", "shader_input");

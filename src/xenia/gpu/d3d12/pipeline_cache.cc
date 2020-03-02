@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2018 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -18,8 +18,8 @@
 #include <mutex>
 #include <utility>
 
+#include "third_party/fmt/include/fmt/format.h"
 #include "third_party/xxhash/xxhash.h"
-
 #include "xenia/base/assert.h"
 #include "xenia/base/byte_order.h"
 #include "xenia/base/clock.h"
@@ -138,7 +138,7 @@ void PipelineCache::Shutdown() {
 void PipelineCache::ClearCache(bool shutting_down) {
   bool reinitialize_shader_storage =
       !shutting_down && storage_write_thread_ != nullptr;
-  std::wstring shader_storage_root;
+  std::filesystem::path shader_storage_root;
   uint32_t shader_storage_title_id = shader_storage_title_id_;
   if (reinitialize_shader_storage) {
     shader_storage_root = shader_storage_root_;
@@ -188,19 +188,19 @@ void PipelineCache::ClearCache(bool shutting_down) {
   }
 }
 
-void PipelineCache::InitializeShaderStorage(const std::wstring& storage_root,
-                                            uint32_t title_id, bool blocking) {
+void PipelineCache::InitializeShaderStorage(
+    const std::filesystem::path& storage_root, uint32_t title_id,
+    bool blocking) {
   ShutdownShaderStorage();
 
-  auto shader_storage_root = xe::join_paths(storage_root, L"shaders");
+  auto shader_storage_root = storage_root / "shaders";
   // For files that can be moved between different hosts.
   // Host PSO blobs - if ever added - should be stored in shaders/local/ (they
   // currently aren't used because because they may be not very practical -
   // would need to invalidate them every commit likely, and additional I/O
   // cost - though D3D's internal validation would possibly be enough to ensure
   // they are up to date).
-  auto shader_storage_shareable_root =
-      xe::join_paths(shader_storage_root, L"shareable");
+  auto shader_storage_shareable_root = shader_storage_root / "shareable";
   if (!xe::filesystem::CreateFolder(shader_storage_shareable_root)) {
     return;
   }
@@ -215,8 +215,7 @@ void PipelineCache::InitializeShaderStorage(const std::wstring& storage_root,
   uint64_t shader_storage_initialization_start =
       xe::Clock::QueryHostTickCount();
   shader_storage_file_ = xe::filesystem::OpenFile(
-      xe::join_paths(shader_storage_shareable_root,
-                     xe::format_string(L"%.8X.xsh", title_id)),
+      shader_storage_shareable_root / fmt::format("{:08X}.xsh", title_id),
       "a+b");
   if (!shader_storage_file_) {
     return;
@@ -388,11 +387,11 @@ void PipelineCache::InitializeShaderStorage(const std::wstring& storage_root,
   // Initialize the pipeline state storage stream.
   uint64_t pipeline_state_storage_initialization_start_ =
       xe::Clock::QueryHostTickCount();
-  pipeline_state_storage_file_ = xe::filesystem::OpenFile(
-      xe::join_paths(shader_storage_shareable_root,
-                     xe::format_string(L"%.8X.%s.d3d12.xpso", title_id,
-                                       edram_rov_used_ ? L"rov" : L"rtv")),
-      "a+b");
+  pipeline_state_storage_file_ =
+      xe::filesystem::OpenFile(shader_storage_shareable_root /
+                                   fmt::format("{:08X}.{}.d3d12.xpso", title_id,
+                                               edram_rov_used_ ? "rov" : "rtv"),
+                               "a+b");
   if (!pipeline_state_storage_file_) {
     fclose(shader_storage_file_);
     shader_storage_file_ = nullptr;
@@ -1694,13 +1693,12 @@ ID3D12PipelineState* PipelineCache::CreateD3D12PipelineState(
   }
   std::wstring name;
   if (runtime_description.pixel_shader != nullptr) {
-    name =
-        xe::format_string(L"VS %.16I64X, PS %.16I64X",
-                          runtime_description.vertex_shader->ucode_data_hash(),
-                          runtime_description.pixel_shader->ucode_data_hash());
+    name = fmt::format(L"VS {:016X}, PS {:016X}",
+                       runtime_description.vertex_shader->ucode_data_hash(),
+                       runtime_description.pixel_shader->ucode_data_hash());
   } else {
-    name = xe::format_string(
-        L"VS %.16I64X", runtime_description.vertex_shader->ucode_data_hash());
+    name = fmt::format(L"VS {:016X}",
+                       runtime_description.vertex_shader->ucode_data_hash());
   }
   state->SetName(name.c_str());
   return state;

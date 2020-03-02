@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -52,15 +52,8 @@ void StringBuffer::Append(const char* value) {
   AppendBytes(reinterpret_cast<const uint8_t*>(value), std::strlen(value));
 }
 
-void StringBuffer::Append(const std::string& value) {
+void StringBuffer::Append(const std::string_view value) {
   AppendBytes(reinterpret_cast<const uint8_t*>(value.data()), value.size());
-}
-
-void StringBuffer::AppendFormat(const char* format, ...) {
-  va_list args;
-  va_start(args, format);
-  AppendVarargs(format, args);
-  va_end(args);
 }
 
 void StringBuffer::AppendVarargs(const char* format, va_list args) {
@@ -78,15 +71,15 @@ void StringBuffer::AppendBytes(const uint8_t* buffer, size_t length) {
   buffer_[buffer_offset_] = 0;
 }
 
-const char* StringBuffer::GetString() const { return buffer_; }
-
 std::string StringBuffer::to_string() {
   return std::string(buffer_, buffer_offset_);
 }
 
-char* StringBuffer::ToString() { return strdup(buffer_); }
+std::string_view StringBuffer::to_string_view() const {
+  return std::string_view(buffer_, buffer_offset_);
+}
 
-std::vector<uint8_t> StringBuffer::ToBytes() const {
+std::vector<uint8_t> StringBuffer::to_bytes() const {
   std::vector<uint8_t> bytes(buffer_offset_);
   std::memcpy(bytes.data(), buffer_, buffer_offset_);
   return bytes;

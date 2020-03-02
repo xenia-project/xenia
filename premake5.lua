@@ -91,15 +91,17 @@ filter({"configurations:Release", "platforms:Windows"})
 filter("platforms:Linux")
   system("linux")
   toolset("clang")
+  cppdialect("C++17")
   buildoptions({
     -- "-mlzcnt",  -- (don't) Assume lzcnt is supported.
     "`pkg-config --cflags gtk+-x11-3.0`",
     "-fno-lto", -- Premake doesn't support LTO on clang
   })
   links({
-    "pthread",
+    "stdc++fs",
     "dl",
     "lz4",
+    "pthread",
     "rt",
   })
   linkoptions({
@@ -110,9 +112,7 @@ filter({"platforms:Linux", "kind:*App"})
   linkgroups("On")
 
 filter({"platforms:Linux", "language:C++", "toolset:gcc"})
-  buildoptions({
-    "-std=c++14",
-  })
+  cppdialect("C++17")
   links({
   })
   disablewarnings({
@@ -141,13 +141,13 @@ filter({"platforms:Linux", "language:C++", "toolset:clang"})
   })
 filter({"platforms:Linux", "language:C++", "toolset:clang", "files:*.cc or *.cpp"})
   buildoptions({
-    "-std=c++14",
     "-stdlib=libstdc++",
   })
 
 filter("platforms:Windows")
   system("windows")
   toolset("msc")
+  cppdialect("C++17")
   buildoptions({
     "/MP",      -- Multiprocessor compilation.
     "/wd4100",  -- Unreferenced parameters are ok.
@@ -214,6 +214,7 @@ solution("xenia")
   include("third_party/discord-rpc.lua")
   include("third_party/cxxopts.lua")
   include("third_party/cpptoml.lua")
+  include("third_party/fmt.lua")
   include("third_party/glslang-spirv.lua")
   include("third_party/imgui.lua")
   include("third_party/libav.lua")

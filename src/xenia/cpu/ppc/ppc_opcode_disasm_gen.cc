@@ -20,11 +20,11 @@ void PrintDisasm_addcx(const PPCDecodeData& d, StringBuffer* str) {
   if (d.XO.OE()) str->Append('o');
   if (d.XO.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.XO.RD());
+  str->AppendFormat("r{}", d.XO.RD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.XO.RA());
+  str->AppendFormat("r{}", d.XO.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.XO.RB());
+  str->AppendFormat("r{}", d.XO.RB());
 }
 void PrintDisasm_addex(const PPCDecodeData& d, StringBuffer* str) {
   // adde[OE][Rc] [RD], [RA], [RB]
@@ -33,55 +33,55 @@ void PrintDisasm_addex(const PPCDecodeData& d, StringBuffer* str) {
   if (d.XO.OE()) str->Append('o');
   if (d.XO.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.XO.RD());
+  str->AppendFormat("r{}", d.XO.RD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.XO.RA());
+  str->AppendFormat("r{}", d.XO.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.XO.RB());
+  str->AppendFormat("r{}", d.XO.RB());
 }
 void PrintDisasm_addi(const PPCDecodeData& d, StringBuffer* str) {
   // addi [RD], [RA0], [SIMM]
   size_t str_start = str->length();
   str->Append("addi");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.D.RD());
+  str->AppendFormat("r{}", d.D.RD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.D.RA0());
+  str->AppendFormat("r{}", d.D.RA0());
   str->Append(", ");
-  str->AppendFormat(d.D.SIMM() < 0 ? "-0x%X" : "0x%X", std::abs(d.D.SIMM()));
+  str->AppendFormat(d.D.SIMM() < 0 ? "-0x{:X}" : "0x{:X}", std::abs(d.D.SIMM()));
 }
 void PrintDisasm_addic(const PPCDecodeData& d, StringBuffer* str) {
   // addic [RD], [RA], [SIMM]
   size_t str_start = str->length();
   str->Append("addic");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.D.RD());
+  str->AppendFormat("r{}", d.D.RD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.D.RA());
+  str->AppendFormat("r{}", d.D.RA());
   str->Append(", ");
-  str->AppendFormat(d.D.SIMM() < 0 ? "-0x%X" : "0x%X", std::abs(d.D.SIMM()));
+  str->AppendFormat(d.D.SIMM() < 0 ? "-0x{:X}" : "0x{:X}", std::abs(d.D.SIMM()));
 }
 void PrintDisasm_addicx(const PPCDecodeData& d, StringBuffer* str) {
   // addic. [RD], [RA], [SIMM]
   size_t str_start = str->length();
   str->Append("addic.");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.D.RD());
+  str->AppendFormat("r{}", d.D.RD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.D.RA());
+  str->AppendFormat("r{}", d.D.RA());
   str->Append(", ");
-  str->AppendFormat(d.D.SIMM() < 0 ? "-0x%X" : "0x%X", std::abs(d.D.SIMM()));
+  str->AppendFormat(d.D.SIMM() < 0 ? "-0x{:X}" : "0x{:X}", std::abs(d.D.SIMM()));
 }
 void PrintDisasm_addis(const PPCDecodeData& d, StringBuffer* str) {
   // addis [RD], [RA0], [SIMM]
   size_t str_start = str->length();
   str->Append("addis");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.D.RD());
+  str->AppendFormat("r{}", d.D.RD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.D.RA0());
+  str->AppendFormat("r{}", d.D.RA0());
   str->Append(", ");
-  str->AppendFormat(d.D.SIMM() < 0 ? "-0x%X" : "0x%X", std::abs(d.D.SIMM()));
+  str->AppendFormat(d.D.SIMM() < 0 ? "-0x{:X}" : "0x{:X}", std::abs(d.D.SIMM()));
 }
 void PrintDisasm_addmex(const PPCDecodeData& d, StringBuffer* str) {
   // addme[OE][Rc] [RD], [RA]
@@ -90,9 +90,9 @@ void PrintDisasm_addmex(const PPCDecodeData& d, StringBuffer* str) {
   if (d.XO.OE()) str->Append('o');
   if (d.XO.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.XO.RD());
+  str->AppendFormat("r{}", d.XO.RD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.XO.RA());
+  str->AppendFormat("r{}", d.XO.RA());
 }
 void PrintDisasm_addx(const PPCDecodeData& d, StringBuffer* str) {
   // add[OE][Rc] [RD], [RA], [RB]
@@ -101,11 +101,11 @@ void PrintDisasm_addx(const PPCDecodeData& d, StringBuffer* str) {
   if (d.XO.OE()) str->Append('o');
   if (d.XO.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.XO.RD());
+  str->AppendFormat("r{}", d.XO.RD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.XO.RA());
+  str->AppendFormat("r{}", d.XO.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.XO.RB());
+  str->AppendFormat("r{}", d.XO.RB());
 }
 void PrintDisasm_addzex(const PPCDecodeData& d, StringBuffer* str) {
   // addze[OE][Rc] [RD], [RA]
@@ -114,9 +114,9 @@ void PrintDisasm_addzex(const PPCDecodeData& d, StringBuffer* str) {
   if (d.XO.OE()) str->Append('o');
   if (d.XO.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.XO.RD());
+  str->AppendFormat("r{}", d.XO.RD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.XO.RA());
+  str->AppendFormat("r{}", d.XO.RA());
 }
 void PrintDisasm_andcx(const PPCDecodeData& d, StringBuffer* str) {
   // andc[Rc] [RA], [RS], [RB]
@@ -124,33 +124,33 @@ void PrintDisasm_andcx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("andc");
   if (d.X.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RA());
+  str->AppendFormat("r{}", d.X.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RS());
+  str->AppendFormat("r{}", d.X.RS());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_andisx(const PPCDecodeData& d, StringBuffer* str) {
   // andis. [RA], [RS], [UIMM]
   size_t str_start = str->length();
   str->Append("andis.");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.D.RA());
+  str->AppendFormat("r{}", d.D.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.D.RS());
+  str->AppendFormat("r{}", d.D.RS());
   str->Append(", ");
-  str->AppendFormat("0x%X", d.D.UIMM());
+  str->AppendFormat("0x{:X}", d.D.UIMM());
 }
 void PrintDisasm_andix(const PPCDecodeData& d, StringBuffer* str) {
   // andi. [RA], [RS], [UIMM]
   size_t str_start = str->length();
   str->Append("andi.");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.D.RA());
+  str->AppendFormat("r{}", d.D.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.D.RS());
+  str->AppendFormat("r{}", d.D.RS());
   str->Append(", ");
-  str->AppendFormat("0x%X", d.D.UIMM());
+  str->AppendFormat("0x{:X}", d.D.UIMM());
 }
 void PrintDisasm_andx(const PPCDecodeData& d, StringBuffer* str) {
   // and[Rc] [RA], [RS], [RB]
@@ -158,11 +158,11 @@ void PrintDisasm_andx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("and");
   if (d.X.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RA());
+  str->AppendFormat("r{}", d.X.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RS());
+  str->AppendFormat("r{}", d.X.RS());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_bcctrx(const PPCDecodeData& d, StringBuffer* str) {
   // bcctr[LK] [BO], [BI]
@@ -170,9 +170,9 @@ void PrintDisasm_bcctrx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("bcctr");
   if (d.XL.LK()) str->Append('l');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("%d", d.XL.BO());
+  str->AppendFormat("{}", d.XL.BO());
   str->Append(", ");
-  str->AppendFormat("%d", d.XL.BI());
+  str->AppendFormat("{}", d.XL.BI());
 }
 void PrintDisasm_bclrx(const PPCDecodeData& d, StringBuffer* str) {
   // bclr[LK] [BO], [BI]
@@ -180,9 +180,9 @@ void PrintDisasm_bclrx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("bclr");
   if (d.XL.LK()) str->Append('l');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("%d", d.XL.BO());
+  str->AppendFormat("{}", d.XL.BO());
   str->Append(", ");
-  str->AppendFormat("%d", d.XL.BI());
+  str->AppendFormat("{}", d.XL.BI());
 }
 void PrintDisasm_bx(const PPCDecodeData& d, StringBuffer* str) {
   // b[LK][AA] [ADDR]
@@ -191,68 +191,68 @@ void PrintDisasm_bx(const PPCDecodeData& d, StringBuffer* str) {
   if (d.I.LK()) str->Append('l');
   if (d.I.AA()) str->Append('a');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("0x%X", d.I.ADDR());
+  str->AppendFormat("0x{:X}", d.I.ADDR());
 }
 void PrintDisasm_cmp(const PPCDecodeData& d, StringBuffer* str) {
   // cmp [CRFD], [L], [RA], [RB]
   size_t str_start = str->length();
   str->Append("cmp");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("crf%d", d.X.CRFD());
+  str->AppendFormat("crf{}", d.X.CRFD());
   str->Append(", ");
-  str->AppendFormat("%d", d.X.L());
+  str->AppendFormat("{}", d.X.L());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA());
+  str->AppendFormat("r{}", d.X.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_cmpi(const PPCDecodeData& d, StringBuffer* str) {
   // cmpi [CRFD], [L], [RA], [SIMM]
   size_t str_start = str->length();
   str->Append("cmpi");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("crf%d", d.D.CRFD());
+  str->AppendFormat("crf{}", d.D.CRFD());
   str->Append(", ");
-  str->AppendFormat("%d", d.D.L());
+  str->AppendFormat("{}", d.D.L());
   str->Append(", ");
-  str->AppendFormat("r%d", d.D.RA());
+  str->AppendFormat("r{}", d.D.RA());
   str->Append(", ");
-  str->AppendFormat(d.D.SIMM() < 0 ? "-0x%X" : "0x%X", std::abs(d.D.SIMM()));
+  str->AppendFormat(d.D.SIMM() < 0 ? "-0x{:X}" : "0x{:X}", std::abs(d.D.SIMM()));
 }
 void PrintDisasm_cmpl(const PPCDecodeData& d, StringBuffer* str) {
   // cmpl [CRFD], [L], [RA], [RB]
   size_t str_start = str->length();
   str->Append("cmpl");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("crf%d", d.X.CRFD());
+  str->AppendFormat("crf{}", d.X.CRFD());
   str->Append(", ");
-  str->AppendFormat("%d", d.X.L());
+  str->AppendFormat("{}", d.X.L());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA());
+  str->AppendFormat("r{}", d.X.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_cmpli(const PPCDecodeData& d, StringBuffer* str) {
   // cmpli [CRFD], [L], [RA], [UIMM]
   size_t str_start = str->length();
   str->Append("cmpli");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("crf%d", d.D.CRFD());
+  str->AppendFormat("crf{}", d.D.CRFD());
   str->Append(", ");
-  str->AppendFormat("%d", d.D.L());
+  str->AppendFormat("{}", d.D.L());
   str->Append(", ");
-  str->AppendFormat("r%d", d.D.RA());
+  str->AppendFormat("r{}", d.D.RA());
   str->Append(", ");
-  str->AppendFormat("0x%X", d.D.UIMM());
+  str->AppendFormat("0x{:X}", d.D.UIMM());
 }
 void PrintDisasm_cntlzdx(const PPCDecodeData& d, StringBuffer* str) {
   // cntlzd [RA], [RS]
   size_t str_start = str->length();
   str->Append("cntlzd");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RA());
+  str->AppendFormat("r{}", d.X.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RS());
+  str->AppendFormat("r{}", d.X.RS());
 }
 void PrintDisasm_cntlzwx(const PPCDecodeData& d, StringBuffer* str) {
   // cntlzw[Rc] [RA], [RS]
@@ -260,160 +260,160 @@ void PrintDisasm_cntlzwx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("cntlzw");
   if (d.X.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RA());
+  str->AppendFormat("r{}", d.X.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RS());
+  str->AppendFormat("r{}", d.X.RS());
 }
 void PrintDisasm_crand(const PPCDecodeData& d, StringBuffer* str) {
   // crand [CRBD], [CRBA], [CRBB]
   size_t str_start = str->length();
   str->Append("crand");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("crb%d", d.XL.CRBD());
+  str->AppendFormat("crb{}", d.XL.CRBD());
   str->Append(", ");
-  str->AppendFormat("crb%d", d.XL.CRBA());
+  str->AppendFormat("crb{}", d.XL.CRBA());
   str->Append(", ");
-  str->AppendFormat("crb%d", d.XL.CRBB());
+  str->AppendFormat("crb{}", d.XL.CRBB());
 }
 void PrintDisasm_crandc(const PPCDecodeData& d, StringBuffer* str) {
   // crandc [CRBD], [CRBA], [CRBB]
   size_t str_start = str->length();
   str->Append("crandc");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("crb%d", d.XL.CRBD());
+  str->AppendFormat("crb{}", d.XL.CRBD());
   str->Append(", ");
-  str->AppendFormat("crb%d", d.XL.CRBA());
+  str->AppendFormat("crb{}", d.XL.CRBA());
   str->Append(", ");
-  str->AppendFormat("crb%d", d.XL.CRBB());
+  str->AppendFormat("crb{}", d.XL.CRBB());
 }
 void PrintDisasm_creqv(const PPCDecodeData& d, StringBuffer* str) {
   // creqv [CRBD], [CRBA], [CRBB]
   size_t str_start = str->length();
   str->Append("creqv");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("crb%d", d.XL.CRBD());
+  str->AppendFormat("crb{}", d.XL.CRBD());
   str->Append(", ");
-  str->AppendFormat("crb%d", d.XL.CRBA());
+  str->AppendFormat("crb{}", d.XL.CRBA());
   str->Append(", ");
-  str->AppendFormat("crb%d", d.XL.CRBB());
+  str->AppendFormat("crb{}", d.XL.CRBB());
 }
 void PrintDisasm_crnand(const PPCDecodeData& d, StringBuffer* str) {
   // crnand [CRBD], [CRBA], [CRBB]
   size_t str_start = str->length();
   str->Append("crnand");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("crb%d", d.XL.CRBD());
+  str->AppendFormat("crb{}", d.XL.CRBD());
   str->Append(", ");
-  str->AppendFormat("crb%d", d.XL.CRBA());
+  str->AppendFormat("crb{}", d.XL.CRBA());
   str->Append(", ");
-  str->AppendFormat("crb%d", d.XL.CRBB());
+  str->AppendFormat("crb{}", d.XL.CRBB());
 }
 void PrintDisasm_crnor(const PPCDecodeData& d, StringBuffer* str) {
   // crnor [CRBD], [CRBA], [CRBB]
   size_t str_start = str->length();
   str->Append("crnor");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("crb%d", d.XL.CRBD());
+  str->AppendFormat("crb{}", d.XL.CRBD());
   str->Append(", ");
-  str->AppendFormat("crb%d", d.XL.CRBA());
+  str->AppendFormat("crb{}", d.XL.CRBA());
   str->Append(", ");
-  str->AppendFormat("crb%d", d.XL.CRBB());
+  str->AppendFormat("crb{}", d.XL.CRBB());
 }
 void PrintDisasm_cror(const PPCDecodeData& d, StringBuffer* str) {
   // cror [CRBD], [CRBA], [CRBB]
   size_t str_start = str->length();
   str->Append("cror");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("crb%d", d.XL.CRBD());
+  str->AppendFormat("crb{}", d.XL.CRBD());
   str->Append(", ");
-  str->AppendFormat("crb%d", d.XL.CRBA());
+  str->AppendFormat("crb{}", d.XL.CRBA());
   str->Append(", ");
-  str->AppendFormat("crb%d", d.XL.CRBB());
+  str->AppendFormat("crb{}", d.XL.CRBB());
 }
 void PrintDisasm_crorc(const PPCDecodeData& d, StringBuffer* str) {
   // crorc [CRBD], [CRBA], [CRBB]
   size_t str_start = str->length();
   str->Append("crorc");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("crb%d", d.XL.CRBD());
+  str->AppendFormat("crb{}", d.XL.CRBD());
   str->Append(", ");
-  str->AppendFormat("crb%d", d.XL.CRBA());
+  str->AppendFormat("crb{}", d.XL.CRBA());
   str->Append(", ");
-  str->AppendFormat("crb%d", d.XL.CRBB());
+  str->AppendFormat("crb{}", d.XL.CRBB());
 }
 void PrintDisasm_crxor(const PPCDecodeData& d, StringBuffer* str) {
   // crxor [CRBD], [CRBA], [CRBB]
   size_t str_start = str->length();
   str->Append("crxor");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("crb%d", d.XL.CRBD());
+  str->AppendFormat("crb{}", d.XL.CRBD());
   str->Append(", ");
-  str->AppendFormat("crb%d", d.XL.CRBA());
+  str->AppendFormat("crb{}", d.XL.CRBA());
   str->Append(", ");
-  str->AppendFormat("crb%d", d.XL.CRBB());
+  str->AppendFormat("crb{}", d.XL.CRBB());
 }
 void PrintDisasm_dcbf(const PPCDecodeData& d, StringBuffer* str) {
   // dcbf [RA0], [RB]
   size_t str_start = str->length();
   str->Append("dcbf");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RA0());
+  str->AppendFormat("r{}", d.X.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_dcbi(const PPCDecodeData& d, StringBuffer* str) {
   // dcbi [RA0], [RB]
   size_t str_start = str->length();
   str->Append("dcbi");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RA0());
+  str->AppendFormat("r{}", d.X.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_dcbst(const PPCDecodeData& d, StringBuffer* str) {
   // dcbst [RA0], [RB]
   size_t str_start = str->length();
   str->Append("dcbst");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RA0());
+  str->AppendFormat("r{}", d.X.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_dcbt(const PPCDecodeData& d, StringBuffer* str) {
   // dcbt [RA0], [RB]
   size_t str_start = str->length();
   str->Append("dcbt");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RA0());
+  str->AppendFormat("r{}", d.X.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_dcbtst(const PPCDecodeData& d, StringBuffer* str) {
   // dcbtst [RA0], [RB]
   size_t str_start = str->length();
   str->Append("dcbtst");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RA0());
+  str->AppendFormat("r{}", d.X.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_dcbz(const PPCDecodeData& d, StringBuffer* str) {
   // dcbz [RA0], [RB]
   size_t str_start = str->length();
   str->Append("dcbz");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.DCBZ.RA0());
+  str->AppendFormat("r{}", d.DCBZ.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.DCBZ.RB());
+  str->AppendFormat("r{}", d.DCBZ.RB());
 }
 void PrintDisasm_dcbz128(const PPCDecodeData& d, StringBuffer* str) {
   // dcbz128 [RA0], [RB]
   size_t str_start = str->length();
   str->Append("dcbz128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.DCBZ.RA0());
+  str->AppendFormat("r{}", d.DCBZ.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.DCBZ.RB());
+  str->AppendFormat("r{}", d.DCBZ.RB());
 }
 void PrintDisasm_divdux(const PPCDecodeData& d, StringBuffer* str) {
   // divdu[OE][Rc] [RD], [RA], [RB]
@@ -422,11 +422,11 @@ void PrintDisasm_divdux(const PPCDecodeData& d, StringBuffer* str) {
   if (d.XO.OE()) str->Append('o');
   if (d.XO.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.XO.RD());
+  str->AppendFormat("r{}", d.XO.RD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.XO.RA());
+  str->AppendFormat("r{}", d.XO.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.XO.RB());
+  str->AppendFormat("r{}", d.XO.RB());
 }
 void PrintDisasm_divdx(const PPCDecodeData& d, StringBuffer* str) {
   // divd[OE][Rc] [RD], [RA], [RB]
@@ -435,11 +435,11 @@ void PrintDisasm_divdx(const PPCDecodeData& d, StringBuffer* str) {
   if (d.XO.OE()) str->Append('o');
   if (d.XO.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.XO.RD());
+  str->AppendFormat("r{}", d.XO.RD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.XO.RA());
+  str->AppendFormat("r{}", d.XO.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.XO.RB());
+  str->AppendFormat("r{}", d.XO.RB());
 }
 void PrintDisasm_divwux(const PPCDecodeData& d, StringBuffer* str) {
   // divwu[OE][Rc] [RD], [RA], [RB]
@@ -448,11 +448,11 @@ void PrintDisasm_divwux(const PPCDecodeData& d, StringBuffer* str) {
   if (d.XO.OE()) str->Append('o');
   if (d.XO.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.XO.RD());
+  str->AppendFormat("r{}", d.XO.RD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.XO.RA());
+  str->AppendFormat("r{}", d.XO.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.XO.RB());
+  str->AppendFormat("r{}", d.XO.RB());
 }
 void PrintDisasm_divwx(const PPCDecodeData& d, StringBuffer* str) {
   // divw[OE][Rc] [RD], [RA], [RB]
@@ -461,11 +461,11 @@ void PrintDisasm_divwx(const PPCDecodeData& d, StringBuffer* str) {
   if (d.XO.OE()) str->Append('o');
   if (d.XO.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.XO.RD());
+  str->AppendFormat("r{}", d.XO.RD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.XO.RA());
+  str->AppendFormat("r{}", d.XO.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.XO.RB());
+  str->AppendFormat("r{}", d.XO.RB());
 }
 void PrintDisasm_eieio(const PPCDecodeData& d, StringBuffer* str) {
   // eieio
@@ -479,11 +479,11 @@ void PrintDisasm_eqvx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("eqv");
   if (d.X.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RA());
+  str->AppendFormat("r{}", d.X.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RS());
+  str->AppendFormat("r{}", d.X.RS());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_extsbx(const PPCDecodeData& d, StringBuffer* str) {
   // extsb[Rc] [RA], [RS]
@@ -491,9 +491,9 @@ void PrintDisasm_extsbx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("extsb");
   if (d.X.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RA());
+  str->AppendFormat("r{}", d.X.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RS());
+  str->AppendFormat("r{}", d.X.RS());
 }
 void PrintDisasm_extshx(const PPCDecodeData& d, StringBuffer* str) {
   // extsh[Rc] [RA], [RS]
@@ -501,9 +501,9 @@ void PrintDisasm_extshx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("extsh");
   if (d.X.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RA());
+  str->AppendFormat("r{}", d.X.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RS());
+  str->AppendFormat("r{}", d.X.RS());
 }
 void PrintDisasm_extswx(const PPCDecodeData& d, StringBuffer* str) {
   // extsw[Rc] [RA], [RS]
@@ -511,9 +511,9 @@ void PrintDisasm_extswx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("extsw");
   if (d.X.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RA());
+  str->AppendFormat("r{}", d.X.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RS());
+  str->AppendFormat("r{}", d.X.RS());
 }
 void PrintDisasm_fabsx(const PPCDecodeData& d, StringBuffer* str) {
   // fabs[Rc] [FD], [FB]
@@ -521,9 +521,9 @@ void PrintDisasm_fabsx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("fabs");
   if (d.X.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("fr%d", d.X.FD());
+  str->AppendFormat("fr{}", d.X.FD());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.X.FB());
+  str->AppendFormat("fr{}", d.X.FB());
 }
 void PrintDisasm_faddsx(const PPCDecodeData& d, StringBuffer* str) {
   // fadds[Rc] [FD], [FA], [FB]
@@ -531,11 +531,11 @@ void PrintDisasm_faddsx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("fadds");
   if (d.A.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("fr%d", d.A.FD());
+  str->AppendFormat("fr{}", d.A.FD());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.A.FA());
+  str->AppendFormat("fr{}", d.A.FA());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.A.FB());
+  str->AppendFormat("fr{}", d.A.FB());
 }
 void PrintDisasm_faddx(const PPCDecodeData& d, StringBuffer* str) {
   // fadd[Rc] [FD], [FA], [FB]
@@ -543,11 +543,11 @@ void PrintDisasm_faddx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("fadd");
   if (d.A.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("fr%d", d.A.FD());
+  str->AppendFormat("fr{}", d.A.FD());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.A.FA());
+  str->AppendFormat("fr{}", d.A.FA());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.A.FB());
+  str->AppendFormat("fr{}", d.A.FB());
 }
 void PrintDisasm_fcfidx(const PPCDecodeData& d, StringBuffer* str) {
   // fcfid[Rc] [FD], [FB]
@@ -555,31 +555,31 @@ void PrintDisasm_fcfidx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("fcfid");
   if (d.X.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("fr%d", d.X.FD());
+  str->AppendFormat("fr{}", d.X.FD());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.X.FB());
+  str->AppendFormat("fr{}", d.X.FB());
 }
 void PrintDisasm_fcmpo(const PPCDecodeData& d, StringBuffer* str) {
   // fcmpo [CRFD], [FA], [FB]
   size_t str_start = str->length();
   str->Append("fcmpo");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("crf%d", d.X.CRFD());
+  str->AppendFormat("crf{}", d.X.CRFD());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.X.FA());
+  str->AppendFormat("fr{}", d.X.FA());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.X.FB());
+  str->AppendFormat("fr{}", d.X.FB());
 }
 void PrintDisasm_fcmpu(const PPCDecodeData& d, StringBuffer* str) {
   // fcmpu [CRFD], [FA], [FB]
   size_t str_start = str->length();
   str->Append("fcmpu");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("crf%d", d.X.CRFD());
+  str->AppendFormat("crf{}", d.X.CRFD());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.X.FA());
+  str->AppendFormat("fr{}", d.X.FA());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.X.FB());
+  str->AppendFormat("fr{}", d.X.FB());
 }
 void PrintDisasm_fctidx(const PPCDecodeData& d, StringBuffer* str) {
   // fctid[Rc] [FD], [FB]
@@ -587,9 +587,9 @@ void PrintDisasm_fctidx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("fctid");
   if (d.X.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("fr%d", d.X.FD());
+  str->AppendFormat("fr{}", d.X.FD());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.X.FB());
+  str->AppendFormat("fr{}", d.X.FB());
 }
 void PrintDisasm_fctidzx(const PPCDecodeData& d, StringBuffer* str) {
   // fctidz[Rc] [FD], [FB]
@@ -597,9 +597,9 @@ void PrintDisasm_fctidzx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("fctidz");
   if (d.X.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("fr%d", d.X.FD());
+  str->AppendFormat("fr{}", d.X.FD());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.X.FB());
+  str->AppendFormat("fr{}", d.X.FB());
 }
 void PrintDisasm_fctiwx(const PPCDecodeData& d, StringBuffer* str) {
   // fctiw[Rc] [FD], [FB]
@@ -607,9 +607,9 @@ void PrintDisasm_fctiwx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("fctiw");
   if (d.X.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("fr%d", d.X.FD());
+  str->AppendFormat("fr{}", d.X.FD());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.X.FB());
+  str->AppendFormat("fr{}", d.X.FB());
 }
 void PrintDisasm_fctiwzx(const PPCDecodeData& d, StringBuffer* str) {
   // fctiwz[Rc] [FD], [FB]
@@ -617,9 +617,9 @@ void PrintDisasm_fctiwzx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("fctiwz");
   if (d.X.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("fr%d", d.X.FD());
+  str->AppendFormat("fr{}", d.X.FD());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.X.FB());
+  str->AppendFormat("fr{}", d.X.FB());
 }
 void PrintDisasm_fdivsx(const PPCDecodeData& d, StringBuffer* str) {
   // fdivs[Rc] [FD], [FA], [FB]
@@ -627,11 +627,11 @@ void PrintDisasm_fdivsx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("fdivs");
   if (d.A.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("fr%d", d.A.FD());
+  str->AppendFormat("fr{}", d.A.FD());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.A.FA());
+  str->AppendFormat("fr{}", d.A.FA());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.A.FB());
+  str->AppendFormat("fr{}", d.A.FB());
 }
 void PrintDisasm_fdivx(const PPCDecodeData& d, StringBuffer* str) {
   // fdiv[Rc] [FD], [FA], [FB]
@@ -639,11 +639,11 @@ void PrintDisasm_fdivx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("fdiv");
   if (d.A.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("fr%d", d.A.FD());
+  str->AppendFormat("fr{}", d.A.FD());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.A.FA());
+  str->AppendFormat("fr{}", d.A.FA());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.A.FB());
+  str->AppendFormat("fr{}", d.A.FB());
 }
 void PrintDisasm_fmaddsx(const PPCDecodeData& d, StringBuffer* str) {
   // fmadds[Rc] [FD], [FA], [FC], [FB]
@@ -651,13 +651,13 @@ void PrintDisasm_fmaddsx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("fmadds");
   if (d.A.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("fr%d", d.A.FD());
+  str->AppendFormat("fr{}", d.A.FD());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.A.FA());
+  str->AppendFormat("fr{}", d.A.FA());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.A.FC());
+  str->AppendFormat("fr{}", d.A.FC());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.A.FB());
+  str->AppendFormat("fr{}", d.A.FB());
 }
 void PrintDisasm_fmaddx(const PPCDecodeData& d, StringBuffer* str) {
   // fmadd[Rc] [FD], [FA], [FC], [FB]
@@ -665,13 +665,13 @@ void PrintDisasm_fmaddx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("fmadd");
   if (d.A.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("fr%d", d.A.FD());
+  str->AppendFormat("fr{}", d.A.FD());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.A.FA());
+  str->AppendFormat("fr{}", d.A.FA());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.A.FC());
+  str->AppendFormat("fr{}", d.A.FC());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.A.FB());
+  str->AppendFormat("fr{}", d.A.FB());
 }
 void PrintDisasm_fmrx(const PPCDecodeData& d, StringBuffer* str) {
   // fmr[Rc] [FD], [FB]
@@ -679,9 +679,9 @@ void PrintDisasm_fmrx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("fmr");
   if (d.X.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("fr%d", d.X.FD());
+  str->AppendFormat("fr{}", d.X.FD());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.X.FB());
+  str->AppendFormat("fr{}", d.X.FB());
 }
 void PrintDisasm_fmsubsx(const PPCDecodeData& d, StringBuffer* str) {
   // fmsubs[Rc] [FD], [FA], [FC], [FB]
@@ -689,13 +689,13 @@ void PrintDisasm_fmsubsx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("fmsubs");
   if (d.A.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("fr%d", d.A.FD());
+  str->AppendFormat("fr{}", d.A.FD());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.A.FA());
+  str->AppendFormat("fr{}", d.A.FA());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.A.FC());
+  str->AppendFormat("fr{}", d.A.FC());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.A.FB());
+  str->AppendFormat("fr{}", d.A.FB());
 }
 void PrintDisasm_fmsubx(const PPCDecodeData& d, StringBuffer* str) {
   // fmsub[Rc] [FD], [FA], [FC], [FB]
@@ -703,13 +703,13 @@ void PrintDisasm_fmsubx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("fmsub");
   if (d.A.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("fr%d", d.A.FD());
+  str->AppendFormat("fr{}", d.A.FD());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.A.FA());
+  str->AppendFormat("fr{}", d.A.FA());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.A.FC());
+  str->AppendFormat("fr{}", d.A.FC());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.A.FB());
+  str->AppendFormat("fr{}", d.A.FB());
 }
 void PrintDisasm_fmulsx(const PPCDecodeData& d, StringBuffer* str) {
   // fmuls[Rc] [FD], [FA], [FC]
@@ -717,11 +717,11 @@ void PrintDisasm_fmulsx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("fmuls");
   if (d.A.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("fr%d", d.A.FD());
+  str->AppendFormat("fr{}", d.A.FD());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.A.FA());
+  str->AppendFormat("fr{}", d.A.FA());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.A.FC());
+  str->AppendFormat("fr{}", d.A.FC());
 }
 void PrintDisasm_fmulx(const PPCDecodeData& d, StringBuffer* str) {
   // fmul[Rc] [FD], [FA], [FC]
@@ -729,11 +729,11 @@ void PrintDisasm_fmulx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("fmul");
   if (d.A.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("fr%d", d.A.FD());
+  str->AppendFormat("fr{}", d.A.FD());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.A.FA());
+  str->AppendFormat("fr{}", d.A.FA());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.A.FC());
+  str->AppendFormat("fr{}", d.A.FC());
 }
 void PrintDisasm_fnabsx(const PPCDecodeData& d, StringBuffer* str) {
   // fnabs[Rc] [FD], [FB]
@@ -741,9 +741,9 @@ void PrintDisasm_fnabsx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("fnabs");
   if (d.X.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("fr%d", d.X.FD());
+  str->AppendFormat("fr{}", d.X.FD());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.X.FB());
+  str->AppendFormat("fr{}", d.X.FB());
 }
 void PrintDisasm_fnegx(const PPCDecodeData& d, StringBuffer* str) {
   // fneg[Rc] [FD], [FB]
@@ -751,9 +751,9 @@ void PrintDisasm_fnegx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("fneg");
   if (d.X.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("fr%d", d.X.FD());
+  str->AppendFormat("fr{}", d.X.FD());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.X.FB());
+  str->AppendFormat("fr{}", d.X.FB());
 }
 void PrintDisasm_fnmaddsx(const PPCDecodeData& d, StringBuffer* str) {
   // fnmadds[Rc] [FD], [FA], [FC], [FB]
@@ -761,13 +761,13 @@ void PrintDisasm_fnmaddsx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("fnmadds");
   if (d.A.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("fr%d", d.A.FD());
+  str->AppendFormat("fr{}", d.A.FD());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.A.FA());
+  str->AppendFormat("fr{}", d.A.FA());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.A.FC());
+  str->AppendFormat("fr{}", d.A.FC());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.A.FB());
+  str->AppendFormat("fr{}", d.A.FB());
 }
 void PrintDisasm_fnmaddx(const PPCDecodeData& d, StringBuffer* str) {
   // fnmadd[Rc] [FD], [FA], [FC], [FB]
@@ -775,13 +775,13 @@ void PrintDisasm_fnmaddx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("fnmadd");
   if (d.A.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("fr%d", d.A.FD());
+  str->AppendFormat("fr{}", d.A.FD());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.A.FA());
+  str->AppendFormat("fr{}", d.A.FA());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.A.FC());
+  str->AppendFormat("fr{}", d.A.FC());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.A.FB());
+  str->AppendFormat("fr{}", d.A.FB());
 }
 void PrintDisasm_fnmsubsx(const PPCDecodeData& d, StringBuffer* str) {
   // fnmsubs[Rc] [FD], [FA], [FC], [FB]
@@ -789,13 +789,13 @@ void PrintDisasm_fnmsubsx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("fnmsubs");
   if (d.A.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("fr%d", d.A.FD());
+  str->AppendFormat("fr{}", d.A.FD());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.A.FA());
+  str->AppendFormat("fr{}", d.A.FA());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.A.FC());
+  str->AppendFormat("fr{}", d.A.FC());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.A.FB());
+  str->AppendFormat("fr{}", d.A.FB());
 }
 void PrintDisasm_fnmsubx(const PPCDecodeData& d, StringBuffer* str) {
   // fnmsub[Rc] [FD], [FA], [FC], [FB]
@@ -803,13 +803,13 @@ void PrintDisasm_fnmsubx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("fnmsub");
   if (d.A.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("fr%d", d.A.FD());
+  str->AppendFormat("fr{}", d.A.FD());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.A.FA());
+  str->AppendFormat("fr{}", d.A.FA());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.A.FC());
+  str->AppendFormat("fr{}", d.A.FC());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.A.FB());
+  str->AppendFormat("fr{}", d.A.FB());
 }
 void PrintDisasm_fresx(const PPCDecodeData& d, StringBuffer* str) {
   // fres[Rc] [FD], [FB]
@@ -817,9 +817,9 @@ void PrintDisasm_fresx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("fres");
   if (d.A.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("fr%d", d.A.FD());
+  str->AppendFormat("fr{}", d.A.FD());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.A.FB());
+  str->AppendFormat("fr{}", d.A.FB());
 }
 void PrintDisasm_frspx(const PPCDecodeData& d, StringBuffer* str) {
   // frsp[Rc] [FD], [FB]
@@ -827,9 +827,9 @@ void PrintDisasm_frspx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("frsp");
   if (d.X.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("fr%d", d.X.FD());
+  str->AppendFormat("fr{}", d.X.FD());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.X.FB());
+  str->AppendFormat("fr{}", d.X.FB());
 }
 void PrintDisasm_frsqrtex(const PPCDecodeData& d, StringBuffer* str) {
   // frsqrte[Rc] [FD], [FB]
@@ -837,9 +837,9 @@ void PrintDisasm_frsqrtex(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("frsqrte");
   if (d.A.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("fr%d", d.A.FD());
+  str->AppendFormat("fr{}", d.A.FD());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.A.FB());
+  str->AppendFormat("fr{}", d.A.FB());
 }
 void PrintDisasm_fselx(const PPCDecodeData& d, StringBuffer* str) {
   // fsel[Rc] [FD], [FA], [FC], [FB]
@@ -847,13 +847,13 @@ void PrintDisasm_fselx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("fsel");
   if (d.A.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("fr%d", d.A.FD());
+  str->AppendFormat("fr{}", d.A.FD());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.A.FA());
+  str->AppendFormat("fr{}", d.A.FA());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.A.FC());
+  str->AppendFormat("fr{}", d.A.FC());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.A.FB());
+  str->AppendFormat("fr{}", d.A.FB());
 }
 void PrintDisasm_fsqrtsx(const PPCDecodeData& d, StringBuffer* str) {
   // fsqrts[Rc] [FD], [FB]
@@ -861,9 +861,9 @@ void PrintDisasm_fsqrtsx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("fsqrts");
   if (d.A.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("fr%d", d.A.FD());
+  str->AppendFormat("fr{}", d.A.FD());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.A.FB());
+  str->AppendFormat("fr{}", d.A.FB());
 }
 void PrintDisasm_fsqrtx(const PPCDecodeData& d, StringBuffer* str) {
   // fsqrt[Rc] [FD], [FB]
@@ -871,9 +871,9 @@ void PrintDisasm_fsqrtx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("fsqrt");
   if (d.A.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("fr%d", d.A.FD());
+  str->AppendFormat("fr{}", d.A.FD());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.A.FB());
+  str->AppendFormat("fr{}", d.A.FB());
 }
 void PrintDisasm_fsubsx(const PPCDecodeData& d, StringBuffer* str) {
   // fsubs[Rc] [FD], [FA], [FB]
@@ -881,11 +881,11 @@ void PrintDisasm_fsubsx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("fsubs");
   if (d.A.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("fr%d", d.A.FD());
+  str->AppendFormat("fr{}", d.A.FD());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.A.FA());
+  str->AppendFormat("fr{}", d.A.FA());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.A.FB());
+  str->AppendFormat("fr{}", d.A.FB());
 }
 void PrintDisasm_fsubx(const PPCDecodeData& d, StringBuffer* str) {
   // fsub[Rc] [FD], [FA], [FB]
@@ -893,20 +893,20 @@ void PrintDisasm_fsubx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("fsub");
   if (d.A.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("fr%d", d.A.FD());
+  str->AppendFormat("fr{}", d.A.FD());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.A.FA());
+  str->AppendFormat("fr{}", d.A.FA());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.A.FB());
+  str->AppendFormat("fr{}", d.A.FB());
 }
 void PrintDisasm_icbi(const PPCDecodeData& d, StringBuffer* str) {
   // icbi [RA], [RB]
   size_t str_start = str->length();
   str->Append("icbi");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RA());
+  str->AppendFormat("r{}", d.X.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_isync(const PPCDecodeData& d, StringBuffer* str) {
   // isync
@@ -919,11 +919,11 @@ void PrintDisasm_lbz(const PPCDecodeData& d, StringBuffer* str) {
   size_t str_start = str->length();
   str->Append("lbz");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.D.RD());
+  str->AppendFormat("r{}", d.D.RD());
   str->Append(", ");
-  str->AppendFormat(d.D.d() < 0 ? "-0x%X" : "0x%X", std::abs(d.D.d()));
+  str->AppendFormat(d.D.d() < 0 ? "-0x{:X}" : "0x{:X}", std::abs(d.D.d()));
   str->Append("(");
-  str->AppendFormat("r%d", d.D.RA0());
+  str->AppendFormat("r{}", d.D.RA0());
   str->Append(")");
 }
 void PrintDisasm_lbzu(const PPCDecodeData& d, StringBuffer* str) {
@@ -931,11 +931,11 @@ void PrintDisasm_lbzu(const PPCDecodeData& d, StringBuffer* str) {
   size_t str_start = str->length();
   str->Append("lbzu");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.D.RD());
+  str->AppendFormat("r{}", d.D.RD());
   str->Append(", ");
-  str->AppendFormat(d.D.d() < 0 ? "-0x%X" : "0x%X", std::abs(d.D.d()));
+  str->AppendFormat(d.D.d() < 0 ? "-0x{:X}" : "0x{:X}", std::abs(d.D.d()));
   str->Append("(");
-  str->AppendFormat("r%d", d.D.RA());
+  str->AppendFormat("r{}", d.D.RA());
   str->Append(")");
 }
 void PrintDisasm_lbzux(const PPCDecodeData& d, StringBuffer* str) {
@@ -943,33 +943,33 @@ void PrintDisasm_lbzux(const PPCDecodeData& d, StringBuffer* str) {
   size_t str_start = str->length();
   str->Append("lbzux");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RD());
+  str->AppendFormat("r{}", d.X.RD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA());
+  str->AppendFormat("r{}", d.X.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_lbzx(const PPCDecodeData& d, StringBuffer* str) {
   // lbzx [RD], [RA0], [RB]
   size_t str_start = str->length();
   str->Append("lbzx");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RD());
+  str->AppendFormat("r{}", d.X.RD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA0());
+  str->AppendFormat("r{}", d.X.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_ld(const PPCDecodeData& d, StringBuffer* str) {
   // ld [RD], [ds]([RA0])
   size_t str_start = str->length();
   str->Append("ld");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.DS.RD());
+  str->AppendFormat("r{}", d.DS.RD());
   str->Append(", ");
-  str->AppendFormat(d.DS.ds() < 0 ? "-0x%X" : "0x%X", std::abs(d.DS.ds()));
+  str->AppendFormat(d.DS.ds() < 0 ? "-0x{:X}" : "0x{:X}", std::abs(d.DS.ds()));
   str->Append("(");
-  str->AppendFormat("r%d", d.DS.RA0());
+  str->AppendFormat("r{}", d.DS.RA0());
   str->Append(")");
 }
 void PrintDisasm_ldarx(const PPCDecodeData& d, StringBuffer* str) {
@@ -977,33 +977,33 @@ void PrintDisasm_ldarx(const PPCDecodeData& d, StringBuffer* str) {
   size_t str_start = str->length();
   str->Append("ldarx");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RD());
+  str->AppendFormat("r{}", d.X.RD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA0());
+  str->AppendFormat("r{}", d.X.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_ldbrx(const PPCDecodeData& d, StringBuffer* str) {
   // ldbrx [RD], [RA0], [RB]
   size_t str_start = str->length();
   str->Append("ldbrx");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RD());
+  str->AppendFormat("r{}", d.X.RD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA0());
+  str->AppendFormat("r{}", d.X.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_ldu(const PPCDecodeData& d, StringBuffer* str) {
   // ldu [RD], [ds]([RA])
   size_t str_start = str->length();
   str->Append("ldu");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.DS.RD());
+  str->AppendFormat("r{}", d.DS.RD());
   str->Append(", ");
-  str->AppendFormat(d.DS.ds() < 0 ? "-0x%X" : "0x%X", std::abs(d.DS.ds()));
+  str->AppendFormat(d.DS.ds() < 0 ? "-0x{:X}" : "0x{:X}", std::abs(d.DS.ds()));
   str->Append("(");
-  str->AppendFormat("r%d", d.DS.RA());
+  str->AppendFormat("r{}", d.DS.RA());
   str->Append(")");
 }
 void PrintDisasm_ldux(const PPCDecodeData& d, StringBuffer* str) {
@@ -1011,33 +1011,33 @@ void PrintDisasm_ldux(const PPCDecodeData& d, StringBuffer* str) {
   size_t str_start = str->length();
   str->Append("ldux");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RD());
+  str->AppendFormat("r{}", d.X.RD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA());
+  str->AppendFormat("r{}", d.X.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_ldx(const PPCDecodeData& d, StringBuffer* str) {
   // ldx [RD], [RA0], [RB]
   size_t str_start = str->length();
   str->Append("ldx");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RD());
+  str->AppendFormat("r{}", d.X.RD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA0());
+  str->AppendFormat("r{}", d.X.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_lfd(const PPCDecodeData& d, StringBuffer* str) {
   // lfd [FD], [d]([RA0])
   size_t str_start = str->length();
   str->Append("lfd");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("fr%d", d.D.FD());
+  str->AppendFormat("fr{}", d.D.FD());
   str->Append(", ");
-  str->AppendFormat(d.D.d() < 0 ? "-0x%X" : "0x%X", std::abs(d.D.d()));
+  str->AppendFormat(d.D.d() < 0 ? "-0x{:X}" : "0x{:X}", std::abs(d.D.d()));
   str->Append("(");
-  str->AppendFormat("r%d", d.D.RA0());
+  str->AppendFormat("r{}", d.D.RA0());
   str->Append(")");
 }
 void PrintDisasm_lfdu(const PPCDecodeData& d, StringBuffer* str) {
@@ -1045,11 +1045,11 @@ void PrintDisasm_lfdu(const PPCDecodeData& d, StringBuffer* str) {
   size_t str_start = str->length();
   str->Append("lfdu");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("fr%d", d.D.FD());
+  str->AppendFormat("fr{}", d.D.FD());
   str->Append(", ");
-  str->AppendFormat(d.D.d() < 0 ? "-0x%X" : "0x%X", std::abs(d.D.d()));
+  str->AppendFormat(d.D.d() < 0 ? "-0x{:X}" : "0x{:X}", std::abs(d.D.d()));
   str->Append("(");
-  str->AppendFormat("r%d", d.D.RA());
+  str->AppendFormat("r{}", d.D.RA());
   str->Append(")");
 }
 void PrintDisasm_lfdux(const PPCDecodeData& d, StringBuffer* str) {
@@ -1057,33 +1057,33 @@ void PrintDisasm_lfdux(const PPCDecodeData& d, StringBuffer* str) {
   size_t str_start = str->length();
   str->Append("lfdux");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("fr%d", d.X.FD());
+  str->AppendFormat("fr{}", d.X.FD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA());
+  str->AppendFormat("r{}", d.X.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_lfdx(const PPCDecodeData& d, StringBuffer* str) {
   // lfdx [FD], [RA0], [RB]
   size_t str_start = str->length();
   str->Append("lfdx");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("fr%d", d.X.FD());
+  str->AppendFormat("fr{}", d.X.FD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA0());
+  str->AppendFormat("r{}", d.X.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_lfs(const PPCDecodeData& d, StringBuffer* str) {
   // lfs [FD], [d]([RA0])
   size_t str_start = str->length();
   str->Append("lfs");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("fr%d", d.D.FD());
+  str->AppendFormat("fr{}", d.D.FD());
   str->Append(", ");
-  str->AppendFormat(d.D.d() < 0 ? "-0x%X" : "0x%X", std::abs(d.D.d()));
+  str->AppendFormat(d.D.d() < 0 ? "-0x{:X}" : "0x{:X}", std::abs(d.D.d()));
   str->Append("(");
-  str->AppendFormat("r%d", d.D.RA0());
+  str->AppendFormat("r{}", d.D.RA0());
   str->Append(")");
 }
 void PrintDisasm_lfsu(const PPCDecodeData& d, StringBuffer* str) {
@@ -1091,11 +1091,11 @@ void PrintDisasm_lfsu(const PPCDecodeData& d, StringBuffer* str) {
   size_t str_start = str->length();
   str->Append("lfsu");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("fr%d", d.D.FD());
+  str->AppendFormat("fr{}", d.D.FD());
   str->Append(", ");
-  str->AppendFormat(d.D.d() < 0 ? "-0x%X" : "0x%X", std::abs(d.D.d()));
+  str->AppendFormat(d.D.d() < 0 ? "-0x{:X}" : "0x{:X}", std::abs(d.D.d()));
   str->Append("(");
-  str->AppendFormat("r%d", d.D.RA());
+  str->AppendFormat("r{}", d.D.RA());
   str->Append(")");
 }
 void PrintDisasm_lfsux(const PPCDecodeData& d, StringBuffer* str) {
@@ -1103,33 +1103,33 @@ void PrintDisasm_lfsux(const PPCDecodeData& d, StringBuffer* str) {
   size_t str_start = str->length();
   str->Append("lfsux");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("fr%d", d.X.FD());
+  str->AppendFormat("fr{}", d.X.FD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA());
+  str->AppendFormat("r{}", d.X.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_lfsx(const PPCDecodeData& d, StringBuffer* str) {
   // lfsx [FD], [RA0], [RB]
   size_t str_start = str->length();
   str->Append("lfsx");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("fr%d", d.X.FD());
+  str->AppendFormat("fr{}", d.X.FD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA0());
+  str->AppendFormat("r{}", d.X.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_lha(const PPCDecodeData& d, StringBuffer* str) {
   // lha [RD], [d]([RA0])
   size_t str_start = str->length();
   str->Append("lha");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.D.RD());
+  str->AppendFormat("r{}", d.D.RD());
   str->Append(", ");
-  str->AppendFormat(d.D.d() < 0 ? "-0x%X" : "0x%X", std::abs(d.D.d()));
+  str->AppendFormat(d.D.d() < 0 ? "-0x{:X}" : "0x{:X}", std::abs(d.D.d()));
   str->Append("(");
-  str->AppendFormat("r%d", d.D.RA0());
+  str->AppendFormat("r{}", d.D.RA0());
   str->Append(")");
 }
 void PrintDisasm_lhau(const PPCDecodeData& d, StringBuffer* str) {
@@ -1137,11 +1137,11 @@ void PrintDisasm_lhau(const PPCDecodeData& d, StringBuffer* str) {
   size_t str_start = str->length();
   str->Append("lhau");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.D.RD());
+  str->AppendFormat("r{}", d.D.RD());
   str->Append(", ");
-  str->AppendFormat(d.D.d() < 0 ? "-0x%X" : "0x%X", std::abs(d.D.d()));
+  str->AppendFormat(d.D.d() < 0 ? "-0x{:X}" : "0x{:X}", std::abs(d.D.d()));
   str->Append("(");
-  str->AppendFormat("r%d", d.D.RA());
+  str->AppendFormat("r{}", d.D.RA());
   str->Append(")");
 }
 void PrintDisasm_lhaux(const PPCDecodeData& d, StringBuffer* str) {
@@ -1149,44 +1149,44 @@ void PrintDisasm_lhaux(const PPCDecodeData& d, StringBuffer* str) {
   size_t str_start = str->length();
   str->Append("lhaux");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RD());
+  str->AppendFormat("r{}", d.X.RD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA());
+  str->AppendFormat("r{}", d.X.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_lhax(const PPCDecodeData& d, StringBuffer* str) {
   // lhax [RD], [RA0], [RB]
   size_t str_start = str->length();
   str->Append("lhax");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RD());
+  str->AppendFormat("r{}", d.X.RD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA0());
+  str->AppendFormat("r{}", d.X.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_lhbrx(const PPCDecodeData& d, StringBuffer* str) {
   // lhbrx [RD], [RA0], [RB]
   size_t str_start = str->length();
   str->Append("lhbrx");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RD());
+  str->AppendFormat("r{}", d.X.RD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA0());
+  str->AppendFormat("r{}", d.X.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_lhz(const PPCDecodeData& d, StringBuffer* str) {
   // lhz [RD], [d]([RA0])
   size_t str_start = str->length();
   str->Append("lhz");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.D.RD());
+  str->AppendFormat("r{}", d.D.RD());
   str->Append(", ");
-  str->AppendFormat(d.D.d() < 0 ? "-0x%X" : "0x%X", std::abs(d.D.d()));
+  str->AppendFormat(d.D.d() < 0 ? "-0x{:X}" : "0x{:X}", std::abs(d.D.d()));
   str->Append("(");
-  str->AppendFormat("r%d", d.D.RA0());
+  str->AppendFormat("r{}", d.D.RA0());
   str->Append(")");
 }
 void PrintDisasm_lhzu(const PPCDecodeData& d, StringBuffer* str) {
@@ -1194,11 +1194,11 @@ void PrintDisasm_lhzu(const PPCDecodeData& d, StringBuffer* str) {
   size_t str_start = str->length();
   str->Append("lhzu");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.D.RD());
+  str->AppendFormat("r{}", d.D.RD());
   str->Append(", ");
-  str->AppendFormat(d.D.d() < 0 ? "-0x%X" : "0x%X", std::abs(d.D.d()));
+  str->AppendFormat(d.D.d() < 0 ? "-0x{:X}" : "0x{:X}", std::abs(d.D.d()));
   str->Append("(");
-  str->AppendFormat("r%d", d.D.RA());
+  str->AppendFormat("r{}", d.D.RA());
   str->Append(")");
 }
 void PrintDisasm_lhzux(const PPCDecodeData& d, StringBuffer* str) {
@@ -1206,253 +1206,253 @@ void PrintDisasm_lhzux(const PPCDecodeData& d, StringBuffer* str) {
   size_t str_start = str->length();
   str->Append("lhzux");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RD());
+  str->AppendFormat("r{}", d.X.RD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA());
+  str->AppendFormat("r{}", d.X.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_lhzx(const PPCDecodeData& d, StringBuffer* str) {
   // lhzx [RD], [RA0], [RB]
   size_t str_start = str->length();
   str->Append("lhzx");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RD());
+  str->AppendFormat("r{}", d.X.RD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA0());
+  str->AppendFormat("r{}", d.X.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_lvebx(const PPCDecodeData& d, StringBuffer* str) {
   // lvebx [VD], [RA0], [RB]
   size_t str_start = str->length();
   str->Append("lvebx");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.X.VD());
+  str->AppendFormat("vr{}", d.X.VD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA0());
+  str->AppendFormat("r{}", d.X.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_lvehx(const PPCDecodeData& d, StringBuffer* str) {
   // lvehx [VD], [RA0], [RB]
   size_t str_start = str->length();
   str->Append("lvehx");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.X.VD());
+  str->AppendFormat("vr{}", d.X.VD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA0());
+  str->AppendFormat("r{}", d.X.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_lvewx(const PPCDecodeData& d, StringBuffer* str) {
   // lvewx [VD], [RA0], [RB]
   size_t str_start = str->length();
   str->Append("lvewx");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.X.VD());
+  str->AppendFormat("vr{}", d.X.VD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA0());
+  str->AppendFormat("r{}", d.X.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_lvewx128(const PPCDecodeData& d, StringBuffer* str) {
   // lvewx128 [VD], [RA0], [RB]
   size_t str_start = str->length();
   str->Append("lvewx128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128_1.VD());
+  str->AppendFormat("vr{}", d.VX128_1.VD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.VX128_1.RA0());
+  str->AppendFormat("r{}", d.VX128_1.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.VX128_1.RB());
+  str->AppendFormat("r{}", d.VX128_1.RB());
 }
 void PrintDisasm_lvlx(const PPCDecodeData& d, StringBuffer* str) {
   // lvlx [VD], [RA0], [RB]
   size_t str_start = str->length();
   str->Append("lvlx");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.X.VD());
+  str->AppendFormat("vr{}", d.X.VD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA0());
+  str->AppendFormat("r{}", d.X.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_lvlx128(const PPCDecodeData& d, StringBuffer* str) {
   // lvlx128 [VD], [RA0], [RB]
   size_t str_start = str->length();
   str->Append("lvlx128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128_1.VD());
+  str->AppendFormat("vr{}", d.VX128_1.VD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.VX128_1.RA0());
+  str->AppendFormat("r{}", d.VX128_1.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.VX128_1.RB());
+  str->AppendFormat("r{}", d.VX128_1.RB());
 }
 void PrintDisasm_lvlxl(const PPCDecodeData& d, StringBuffer* str) {
   // lvlxl [VD], [RA0], [RB]
   size_t str_start = str->length();
   str->Append("lvlxl");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.X.VD());
+  str->AppendFormat("vr{}", d.X.VD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA0());
+  str->AppendFormat("r{}", d.X.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_lvlxl128(const PPCDecodeData& d, StringBuffer* str) {
   // lvlxl128 [VD], [RA0], [RB]
   size_t str_start = str->length();
   str->Append("lvlxl128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128_1.VD());
+  str->AppendFormat("vr{}", d.VX128_1.VD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.VX128_1.RA0());
+  str->AppendFormat("r{}", d.VX128_1.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.VX128_1.RB());
+  str->AppendFormat("r{}", d.VX128_1.RB());
 }
 void PrintDisasm_lvrx(const PPCDecodeData& d, StringBuffer* str) {
   // lvrx [VD], [RA0], [RB]
   size_t str_start = str->length();
   str->Append("lvrx");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.X.VD());
+  str->AppendFormat("vr{}", d.X.VD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA0());
+  str->AppendFormat("r{}", d.X.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_lvrx128(const PPCDecodeData& d, StringBuffer* str) {
   // lvrx128 [VD], [RA0], [RB]
   size_t str_start = str->length();
   str->Append("lvrx128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128_1.VD());
+  str->AppendFormat("vr{}", d.VX128_1.VD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.VX128_1.RA0());
+  str->AppendFormat("r{}", d.VX128_1.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.VX128_1.RB());
+  str->AppendFormat("r{}", d.VX128_1.RB());
 }
 void PrintDisasm_lvrxl(const PPCDecodeData& d, StringBuffer* str) {
   // lvrxl [VD], [RA0], [RB]
   size_t str_start = str->length();
   str->Append("lvrxl");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.X.VD());
+  str->AppendFormat("vr{}", d.X.VD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA0());
+  str->AppendFormat("r{}", d.X.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_lvrxl128(const PPCDecodeData& d, StringBuffer* str) {
   // lvrxl128 [VD], [RA0], [RB]
   size_t str_start = str->length();
   str->Append("lvrxl128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128_1.VD());
+  str->AppendFormat("vr{}", d.VX128_1.VD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.VX128_1.RA0());
+  str->AppendFormat("r{}", d.VX128_1.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.VX128_1.RB());
+  str->AppendFormat("r{}", d.VX128_1.RB());
 }
 void PrintDisasm_lvsl(const PPCDecodeData& d, StringBuffer* str) {
   // lvsl [VD], [RA0], [RB]
   size_t str_start = str->length();
   str->Append("lvsl");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.X.VD());
+  str->AppendFormat("vr{}", d.X.VD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA0());
+  str->AppendFormat("r{}", d.X.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_lvsl128(const PPCDecodeData& d, StringBuffer* str) {
   // lvsl128 [VD], [RA0], [RB]
   size_t str_start = str->length();
   str->Append("lvsl128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128_1.VD());
+  str->AppendFormat("vr{}", d.VX128_1.VD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.VX128_1.RA0());
+  str->AppendFormat("r{}", d.VX128_1.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.VX128_1.RB());
+  str->AppendFormat("r{}", d.VX128_1.RB());
 }
 void PrintDisasm_lvsr(const PPCDecodeData& d, StringBuffer* str) {
   // lvsr [VD], [RA0], [RB]
   size_t str_start = str->length();
   str->Append("lvsr");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.X.VD());
+  str->AppendFormat("vr{}", d.X.VD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA0());
+  str->AppendFormat("r{}", d.X.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_lvsr128(const PPCDecodeData& d, StringBuffer* str) {
   // lvsr128 [VD], [RA0], [RB]
   size_t str_start = str->length();
   str->Append("lvsr128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128_1.VD());
+  str->AppendFormat("vr{}", d.VX128_1.VD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.VX128_1.RA0());
+  str->AppendFormat("r{}", d.VX128_1.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.VX128_1.RB());
+  str->AppendFormat("r{}", d.VX128_1.RB());
 }
 void PrintDisasm_lvx(const PPCDecodeData& d, StringBuffer* str) {
   // lvx [VD], [RA0], [RB]
   size_t str_start = str->length();
   str->Append("lvx");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.X.VD());
+  str->AppendFormat("vr{}", d.X.VD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA0());
+  str->AppendFormat("r{}", d.X.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_lvx128(const PPCDecodeData& d, StringBuffer* str) {
   // lvx128 [VD], [RA0], [RB]
   size_t str_start = str->length();
   str->Append("lvx128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128_1.VD());
+  str->AppendFormat("vr{}", d.VX128_1.VD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.VX128_1.RA0());
+  str->AppendFormat("r{}", d.VX128_1.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.VX128_1.RB());
+  str->AppendFormat("r{}", d.VX128_1.RB());
 }
 void PrintDisasm_lvxl(const PPCDecodeData& d, StringBuffer* str) {
   // lvslx [VD], [RA0], [RB]
   size_t str_start = str->length();
   str->Append("lvslx");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.X.VD());
+  str->AppendFormat("vr{}", d.X.VD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA0());
+  str->AppendFormat("r{}", d.X.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_lvxl128(const PPCDecodeData& d, StringBuffer* str) {
   // lvxl128 [VD], [RA0], [RB]
   size_t str_start = str->length();
   str->Append("lvxl128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128_1.VD());
+  str->AppendFormat("vr{}", d.VX128_1.VD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.VX128_1.RA0());
+  str->AppendFormat("r{}", d.VX128_1.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.VX128_1.RB());
+  str->AppendFormat("r{}", d.VX128_1.RB());
 }
 void PrintDisasm_lwa(const PPCDecodeData& d, StringBuffer* str) {
   // lwa [RD], [ds]([RA0])
   size_t str_start = str->length();
   str->Append("lwa");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.DS.RD());
+  str->AppendFormat("r{}", d.DS.RD());
   str->Append(", ");
-  str->AppendFormat(d.DS.ds() < 0 ? "-0x%X" : "0x%X", std::abs(d.DS.ds()));
+  str->AppendFormat(d.DS.ds() < 0 ? "-0x{:X}" : "0x{:X}", std::abs(d.DS.ds()));
   str->Append("(");
-  str->AppendFormat("r%d", d.DS.RA0());
+  str->AppendFormat("r{}", d.DS.RA0());
   str->Append(")");
 }
 void PrintDisasm_lwarx(const PPCDecodeData& d, StringBuffer* str) {
@@ -1460,55 +1460,55 @@ void PrintDisasm_lwarx(const PPCDecodeData& d, StringBuffer* str) {
   size_t str_start = str->length();
   str->Append("lwarx");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RD());
+  str->AppendFormat("r{}", d.X.RD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA0());
+  str->AppendFormat("r{}", d.X.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_lwaux(const PPCDecodeData& d, StringBuffer* str) {
   // lwaux [RD], [RA], [RB]
   size_t str_start = str->length();
   str->Append("lwaux");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RD());
+  str->AppendFormat("r{}", d.X.RD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA());
+  str->AppendFormat("r{}", d.X.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_lwax(const PPCDecodeData& d, StringBuffer* str) {
   // lwax [RD], [RA0], [RB]
   size_t str_start = str->length();
   str->Append("lwax");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RD());
+  str->AppendFormat("r{}", d.X.RD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA0());
+  str->AppendFormat("r{}", d.X.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_lwbrx(const PPCDecodeData& d, StringBuffer* str) {
   // lwbrx [RD], [RA0], [RB]
   size_t str_start = str->length();
   str->Append("lwbrx");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RD());
+  str->AppendFormat("r{}", d.X.RD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA0());
+  str->AppendFormat("r{}", d.X.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_lwz(const PPCDecodeData& d, StringBuffer* str) {
   // lwz [RD], [d]([RA0])
   size_t str_start = str->length();
   str->Append("lwz");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.D.RD());
+  str->AppendFormat("r{}", d.D.RD());
   str->Append(", ");
-  str->AppendFormat(d.D.d() < 0 ? "-0x%X" : "0x%X", std::abs(d.D.d()));
+  str->AppendFormat(d.D.d() < 0 ? "-0x{:X}" : "0x{:X}", std::abs(d.D.d()));
   str->Append("(");
-  str->AppendFormat("r%d", d.D.RA0());
+  str->AppendFormat("r{}", d.D.RA0());
   str->Append(")");
 }
 void PrintDisasm_lwzu(const PPCDecodeData& d, StringBuffer* str) {
@@ -1516,11 +1516,11 @@ void PrintDisasm_lwzu(const PPCDecodeData& d, StringBuffer* str) {
   size_t str_start = str->length();
   str->Append("lwzu");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.D.RD());
+  str->AppendFormat("r{}", d.D.RD());
   str->Append(", ");
-  str->AppendFormat(d.D.d() < 0 ? "-0x%X" : "0x%X", std::abs(d.D.d()));
+  str->AppendFormat(d.D.d() < 0 ? "-0x{:X}" : "0x{:X}", std::abs(d.D.d()));
   str->Append("(");
-  str->AppendFormat("r%d", d.D.RA());
+  str->AppendFormat("r{}", d.D.RA());
   str->Append(")");
 }
 void PrintDisasm_lwzux(const PPCDecodeData& d, StringBuffer* str) {
@@ -1528,54 +1528,54 @@ void PrintDisasm_lwzux(const PPCDecodeData& d, StringBuffer* str) {
   size_t str_start = str->length();
   str->Append("lwzux");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RD());
+  str->AppendFormat("r{}", d.X.RD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA());
+  str->AppendFormat("r{}", d.X.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_lwzx(const PPCDecodeData& d, StringBuffer* str) {
   // lwzx [RD], [RA0], [RB]
   size_t str_start = str->length();
   str->Append("lwzx");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RD());
+  str->AppendFormat("r{}", d.X.RD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA0());
+  str->AppendFormat("r{}", d.X.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_mcrf(const PPCDecodeData& d, StringBuffer* str) {
   // mcrf [CRFD], [CRFS]
   size_t str_start = str->length();
   str->Append("mcrf");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("crf%d", d.XL.CRFD());
+  str->AppendFormat("crf{}", d.XL.CRFD());
   str->Append(", ");
-  str->AppendFormat("crf%d", d.XL.CRFS());
+  str->AppendFormat("crf{}", d.XL.CRFS());
 }
 void PrintDisasm_mcrfs(const PPCDecodeData& d, StringBuffer* str) {
   // mcrfs [CRFD], [CRFS]
   size_t str_start = str->length();
   str->Append("mcrfs");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("crf%d", d.X.CRFD());
+  str->AppendFormat("crf{}", d.X.CRFD());
   str->Append(", ");
-  str->AppendFormat("crf%d", d.X.CRFS());
+  str->AppendFormat("crf{}", d.X.CRFS());
 }
 void PrintDisasm_mcrxr(const PPCDecodeData& d, StringBuffer* str) {
   // mcrxr [CRFD]
   size_t str_start = str->length();
   str->Append("mcrxr");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("crf%d", d.X.CRFD());
+  str->AppendFormat("crf{}", d.X.CRFD());
 }
 void PrintDisasm_mfcr(const PPCDecodeData& d, StringBuffer* str) {
   // mfcr [RD]
   size_t str_start = str->length();
   str->Append("mfcr");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RD());
+  str->AppendFormat("r{}", d.X.RD());
 }
 void PrintDisasm_mffsx(const PPCDecodeData& d, StringBuffer* str) {
   // mffs[Rc] [RD]
@@ -1583,32 +1583,32 @@ void PrintDisasm_mffsx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("mffs");
   if (d.X.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RD());
+  str->AppendFormat("r{}", d.X.RD());
 }
 void PrintDisasm_mfmsr(const PPCDecodeData& d, StringBuffer* str) {
   // mfmsr [RD]
   size_t str_start = str->length();
   str->Append("mfmsr");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RD());
+  str->AppendFormat("r{}", d.X.RD());
 }
 void PrintDisasm_mfspr(const PPCDecodeData& d, StringBuffer* str) {
   // mfspr [RD], [SPR]
   size_t str_start = str->length();
   str->Append("mfspr");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.XFX.RD());
+  str->AppendFormat("r{}", d.XFX.RD());
   str->Append(", ");
-  str->AppendFormat("%d", d.XFX.SPR());
+  str->AppendFormat("{}", d.XFX.SPR());
 }
 void PrintDisasm_mftb(const PPCDecodeData& d, StringBuffer* str) {
   // mftb [RD], [TBR]
   size_t str_start = str->length();
   str->Append("mftb");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.XFX.RD());
+  str->AppendFormat("r{}", d.XFX.RD());
   str->Append(", ");
-  str->AppendFormat("%d", d.XFX.TBR());
+  str->AppendFormat("{}", d.XFX.TBR());
 }
 void PrintDisasm_mtcrf(const PPCDecodeData& d, StringBuffer* str) {
   // mtcrf [CRM], [RS]
@@ -1617,7 +1617,7 @@ void PrintDisasm_mtcrf(const PPCDecodeData& d, StringBuffer* str) {
   PadStringBuffer(str, str_start, kNamePad);
   str->AppendFormat("(UNHANDLED CRM)");
   str->Append(", ");
-  str->AppendFormat("r%d", d.XFX.RS());
+  str->AppendFormat("r{}", d.XFX.RS());
 }
 void PrintDisasm_mtfsb0x(const PPCDecodeData& d, StringBuffer* str) {
   // mtfsb0[Rc] [FPSCRD]
@@ -1641,9 +1641,9 @@ void PrintDisasm_mtfsfix(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("mtfsfi");
   if (d.X.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("crf%d", d.X.CRFD());
+  str->AppendFormat("crf{}", d.X.CRFD());
   str->Append(", ");
-  str->AppendFormat("%d", d.X.IMM());
+  str->AppendFormat("{}", d.X.IMM());
 }
 void PrintDisasm_mtfsfx(const PPCDecodeData& d, StringBuffer* str) {
   // mtfsf[Rc] [FM], [FB]
@@ -1651,32 +1651,32 @@ void PrintDisasm_mtfsfx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("mtfsf");
   if (d.XFL.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("%d", d.XFL.FM());
+  str->AppendFormat("{}", d.XFL.FM());
   str->Append(", ");
-  str->AppendFormat("fr%d", d.XFL.FB());
+  str->AppendFormat("fr{}", d.XFL.FB());
 }
 void PrintDisasm_mtmsr(const PPCDecodeData& d, StringBuffer* str) {
   // mtmsr [RS]
   size_t str_start = str->length();
   str->Append("mtmsr");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RS());
+  str->AppendFormat("r{}", d.X.RS());
 }
 void PrintDisasm_mtmsrd(const PPCDecodeData& d, StringBuffer* str) {
   // mtmsrd [RS]
   size_t str_start = str->length();
   str->Append("mtmsrd");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RS());
+  str->AppendFormat("r{}", d.X.RS());
 }
 void PrintDisasm_mtspr(const PPCDecodeData& d, StringBuffer* str) {
   // mtspr [SPR], [RS]
   size_t str_start = str->length();
   str->Append("mtspr");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("%d", d.XFX.SPR());
+  str->AppendFormat("{}", d.XFX.SPR());
   str->Append(", ");
-  str->AppendFormat("r%d", d.XFX.RS());
+  str->AppendFormat("r{}", d.XFX.RS());
 }
 void PrintDisasm_mulhdux(const PPCDecodeData& d, StringBuffer* str) {
   // mulhdu[Rc] [RD], [RA], [RB]
@@ -1684,11 +1684,11 @@ void PrintDisasm_mulhdux(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("mulhdu");
   if (d.XO.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.XO.RD());
+  str->AppendFormat("r{}", d.XO.RD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.XO.RA());
+  str->AppendFormat("r{}", d.XO.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.XO.RB());
+  str->AppendFormat("r{}", d.XO.RB());
 }
 void PrintDisasm_mulhdx(const PPCDecodeData& d, StringBuffer* str) {
   // mulhd[Rc] [RD], [RA], [RB]
@@ -1696,11 +1696,11 @@ void PrintDisasm_mulhdx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("mulhd");
   if (d.XO.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.XO.RD());
+  str->AppendFormat("r{}", d.XO.RD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.XO.RA());
+  str->AppendFormat("r{}", d.XO.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.XO.RB());
+  str->AppendFormat("r{}", d.XO.RB());
 }
 void PrintDisasm_mulhwux(const PPCDecodeData& d, StringBuffer* str) {
   // mulhwu[Rc] [RD], [RA], [RB]
@@ -1708,11 +1708,11 @@ void PrintDisasm_mulhwux(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("mulhwu");
   if (d.XO.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.XO.RD());
+  str->AppendFormat("r{}", d.XO.RD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.XO.RA());
+  str->AppendFormat("r{}", d.XO.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.XO.RB());
+  str->AppendFormat("r{}", d.XO.RB());
 }
 void PrintDisasm_mulhwx(const PPCDecodeData& d, StringBuffer* str) {
   // mulhw[Rc] [RD], [RA], [RB]
@@ -1720,11 +1720,11 @@ void PrintDisasm_mulhwx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("mulhw");
   if (d.XO.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.XO.RD());
+  str->AppendFormat("r{}", d.XO.RD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.XO.RA());
+  str->AppendFormat("r{}", d.XO.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.XO.RB());
+  str->AppendFormat("r{}", d.XO.RB());
 }
 void PrintDisasm_mulldx(const PPCDecodeData& d, StringBuffer* str) {
   // mulld[OE][Rc] [RD], [RA], [RB]
@@ -1733,22 +1733,22 @@ void PrintDisasm_mulldx(const PPCDecodeData& d, StringBuffer* str) {
   if (d.XO.OE()) str->Append('o');
   if (d.XO.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.XO.RD());
+  str->AppendFormat("r{}", d.XO.RD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.XO.RA());
+  str->AppendFormat("r{}", d.XO.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.XO.RB());
+  str->AppendFormat("r{}", d.XO.RB());
 }
 void PrintDisasm_mulli(const PPCDecodeData& d, StringBuffer* str) {
   // mulli [RD], [RA], [SIMM]
   size_t str_start = str->length();
   str->Append("mulli");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.D.RD());
+  str->AppendFormat("r{}", d.D.RD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.D.RA());
+  str->AppendFormat("r{}", d.D.RA());
   str->Append(", ");
-  str->AppendFormat(d.D.SIMM() < 0 ? "-0x%X" : "0x%X", std::abs(d.D.SIMM()));
+  str->AppendFormat(d.D.SIMM() < 0 ? "-0x{:X}" : "0x{:X}", std::abs(d.D.SIMM()));
 }
 void PrintDisasm_mullwx(const PPCDecodeData& d, StringBuffer* str) {
   // mullw[OE][Rc] [RD], [RA], [RB]
@@ -1757,11 +1757,11 @@ void PrintDisasm_mullwx(const PPCDecodeData& d, StringBuffer* str) {
   if (d.XO.OE()) str->Append('o');
   if (d.XO.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.XO.RD());
+  str->AppendFormat("r{}", d.XO.RD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.XO.RA());
+  str->AppendFormat("r{}", d.XO.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.XO.RB());
+  str->AppendFormat("r{}", d.XO.RB());
 }
 void PrintDisasm_nandx(const PPCDecodeData& d, StringBuffer* str) {
   // nand[Rc] [RA], [RS], [RB]
@@ -1769,11 +1769,11 @@ void PrintDisasm_nandx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("nand");
   if (d.X.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RA());
+  str->AppendFormat("r{}", d.X.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RS());
+  str->AppendFormat("r{}", d.X.RS());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_negx(const PPCDecodeData& d, StringBuffer* str) {
   // neg[OE][Rc] [RD], [RA]
@@ -1782,9 +1782,9 @@ void PrintDisasm_negx(const PPCDecodeData& d, StringBuffer* str) {
   if (d.XO.OE()) str->Append('o');
   if (d.XO.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.XO.RD());
+  str->AppendFormat("r{}", d.XO.RD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.XO.RA());
+  str->AppendFormat("r{}", d.XO.RA());
 }
 void PrintDisasm_norx(const PPCDecodeData& d, StringBuffer* str) {
   // nor[Rc] [RA], [RS], [RB]
@@ -1792,11 +1792,11 @@ void PrintDisasm_norx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("nor");
   if (d.X.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RA());
+  str->AppendFormat("r{}", d.X.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RS());
+  str->AppendFormat("r{}", d.X.RS());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_orcx(const PPCDecodeData& d, StringBuffer* str) {
   // orc[Rc] [RA], [RS], [RB]
@@ -1804,33 +1804,33 @@ void PrintDisasm_orcx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("orc");
   if (d.X.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RA());
+  str->AppendFormat("r{}", d.X.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RS());
+  str->AppendFormat("r{}", d.X.RS());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_ori(const PPCDecodeData& d, StringBuffer* str) {
   // ori [RA], [RS], [UIMM]
   size_t str_start = str->length();
   str->Append("ori");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.D.RA());
+  str->AppendFormat("r{}", d.D.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.D.RS());
+  str->AppendFormat("r{}", d.D.RS());
   str->Append(", ");
-  str->AppendFormat("0x%X", d.D.UIMM());
+  str->AppendFormat("0x{:X}", d.D.UIMM());
 }
 void PrintDisasm_oris(const PPCDecodeData& d, StringBuffer* str) {
   // oris [RA], [RS], [UIMM]
   size_t str_start = str->length();
   str->Append("oris");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.D.RA());
+  str->AppendFormat("r{}", d.D.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.D.RS());
+  str->AppendFormat("r{}", d.D.RS());
   str->Append(", ");
-  str->AppendFormat("0x%X", d.D.UIMM());
+  str->AppendFormat("0x{:X}", d.D.UIMM());
 }
 void PrintDisasm_orx(const PPCDecodeData& d, StringBuffer* str) {
   // or[Rc] [RA], [RS], [RB]
@@ -1838,11 +1838,11 @@ void PrintDisasm_orx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("or");
   if (d.X.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RA());
+  str->AppendFormat("r{}", d.X.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RS());
+  str->AppendFormat("r{}", d.X.RS());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_rldclx(const PPCDecodeData& d, StringBuffer* str) {
   // rldcl[Rc] [RA], [RS], [RB], [MB]
@@ -1850,13 +1850,13 @@ void PrintDisasm_rldclx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("rldcl");
   if (d.MDS.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.MDS.RA());
+  str->AppendFormat("r{}", d.MDS.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.MDS.RS());
+  str->AppendFormat("r{}", d.MDS.RS());
   str->Append(", ");
-  str->AppendFormat("r%d", d.MDS.RB());
+  str->AppendFormat("r{}", d.MDS.RB());
   str->Append(", ");
-  str->AppendFormat("%d", d.MDS.MB());
+  str->AppendFormat("{}", d.MDS.MB());
 }
 void PrintDisasm_rldcrx(const PPCDecodeData& d, StringBuffer* str) {
   // rldcr[Rc] [RA], [RS], [RB], [ME]
@@ -1864,13 +1864,13 @@ void PrintDisasm_rldcrx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("rldcr");
   if (d.MDS.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.MDS.RA());
+  str->AppendFormat("r{}", d.MDS.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.MDS.RS());
+  str->AppendFormat("r{}", d.MDS.RS());
   str->Append(", ");
-  str->AppendFormat("r%d", d.MDS.RB());
+  str->AppendFormat("r{}", d.MDS.RB());
   str->Append(", ");
-  str->AppendFormat("%d", d.MDS.ME());
+  str->AppendFormat("{}", d.MDS.ME());
 }
 void PrintDisasm_rldiclx(const PPCDecodeData& d, StringBuffer* str) {
   // rldicl[Rc] [RA], [RS], [SH], [MB]
@@ -1878,13 +1878,13 @@ void PrintDisasm_rldiclx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("rldicl");
   if (d.MD.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.MD.RA());
+  str->AppendFormat("r{}", d.MD.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.MD.RS());
+  str->AppendFormat("r{}", d.MD.RS());
   str->Append(", ");
-  str->AppendFormat("%d", d.MD.SH());
+  str->AppendFormat("{}", d.MD.SH());
   str->Append(", ");
-  str->AppendFormat("%d", d.MD.MB());
+  str->AppendFormat("{}", d.MD.MB());
 }
 void PrintDisasm_rldicrx(const PPCDecodeData& d, StringBuffer* str) {
   // rldicr[Rc] [RA], [RS], [SH], [ME]
@@ -1892,13 +1892,13 @@ void PrintDisasm_rldicrx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("rldicr");
   if (d.MD.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.MD.RA());
+  str->AppendFormat("r{}", d.MD.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.MD.RS());
+  str->AppendFormat("r{}", d.MD.RS());
   str->Append(", ");
-  str->AppendFormat("%d", d.MD.SH());
+  str->AppendFormat("{}", d.MD.SH());
   str->Append(", ");
-  str->AppendFormat("%d", d.MD.ME());
+  str->AppendFormat("{}", d.MD.ME());
 }
 void PrintDisasm_rldicx(const PPCDecodeData& d, StringBuffer* str) {
   // rldic[Rc] [RA], [RS], [SH], [MB]
@@ -1906,13 +1906,13 @@ void PrintDisasm_rldicx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("rldic");
   if (d.MD.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.MD.RA());
+  str->AppendFormat("r{}", d.MD.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.MD.RS());
+  str->AppendFormat("r{}", d.MD.RS());
   str->Append(", ");
-  str->AppendFormat("%d", d.MD.SH());
+  str->AppendFormat("{}", d.MD.SH());
   str->Append(", ");
-  str->AppendFormat("%d", d.MD.MB());
+  str->AppendFormat("{}", d.MD.MB());
 }
 void PrintDisasm_rldimix(const PPCDecodeData& d, StringBuffer* str) {
   // rldimi[Rc] [RA], [RS], [SH], [MB]
@@ -1920,13 +1920,13 @@ void PrintDisasm_rldimix(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("rldimi");
   if (d.MD.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.MD.RA());
+  str->AppendFormat("r{}", d.MD.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.MD.RS());
+  str->AppendFormat("r{}", d.MD.RS());
   str->Append(", ");
-  str->AppendFormat("%d", d.MD.SH());
+  str->AppendFormat("{}", d.MD.SH());
   str->Append(", ");
-  str->AppendFormat("%d", d.MD.MB());
+  str->AppendFormat("{}", d.MD.MB());
 }
 void PrintDisasm_rlwimix(const PPCDecodeData& d, StringBuffer* str) {
   // rlwimi[Rc] [RA], [RS], [SH], [MB], [ME]
@@ -1934,15 +1934,15 @@ void PrintDisasm_rlwimix(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("rlwimi");
   if (d.M.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.M.RA());
+  str->AppendFormat("r{}", d.M.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.M.RS());
+  str->AppendFormat("r{}", d.M.RS());
   str->Append(", ");
-  str->AppendFormat("%d", d.M.SH());
+  str->AppendFormat("{}", d.M.SH());
   str->Append(", ");
-  str->AppendFormat("%d", d.M.MB());
+  str->AppendFormat("{}", d.M.MB());
   str->Append(", ");
-  str->AppendFormat("%d", d.M.ME());
+  str->AppendFormat("{}", d.M.ME());
 }
 void PrintDisasm_rlwinmx(const PPCDecodeData& d, StringBuffer* str) {
   // rlwinm[Rc] [RA], [RS], [SH], [MB], [ME]
@@ -1950,15 +1950,15 @@ void PrintDisasm_rlwinmx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("rlwinm");
   if (d.M.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.M.RA());
+  str->AppendFormat("r{}", d.M.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.M.RS());
+  str->AppendFormat("r{}", d.M.RS());
   str->Append(", ");
-  str->AppendFormat("%d", d.M.SH());
+  str->AppendFormat("{}", d.M.SH());
   str->Append(", ");
-  str->AppendFormat("%d", d.M.MB());
+  str->AppendFormat("{}", d.M.MB());
   str->Append(", ");
-  str->AppendFormat("%d", d.M.ME());
+  str->AppendFormat("{}", d.M.ME());
 }
 void PrintDisasm_rlwnmx(const PPCDecodeData& d, StringBuffer* str) {
   // rlwnm[Rc] [RA], [RS], [RB], [MB], [ME]
@@ -1966,22 +1966,22 @@ void PrintDisasm_rlwnmx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("rlwnm");
   if (d.M.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.M.RA());
+  str->AppendFormat("r{}", d.M.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.M.RS());
+  str->AppendFormat("r{}", d.M.RS());
   str->Append(", ");
-  str->AppendFormat("r%d", d.M.RB());
+  str->AppendFormat("r{}", d.M.RB());
   str->Append(", ");
-  str->AppendFormat("%d", d.M.MB());
+  str->AppendFormat("{}", d.M.MB());
   str->Append(", ");
-  str->AppendFormat("%d", d.M.ME());
+  str->AppendFormat("{}", d.M.ME());
 }
 void PrintDisasm_sc(const PPCDecodeData& d, StringBuffer* str) {
   // sc [LEV]
   size_t str_start = str->length();
   str->Append("sc");
   PadStringBuffer(str, str_start, kNamePad);
-  if (d.SC.LEV()) str->AppendFormat("%d", d.SC.LEV());
+  if (d.SC.LEV()) str->AppendFormat("{}", d.SC.LEV());
 }
 void PrintDisasm_sldx(const PPCDecodeData& d, StringBuffer* str) {
   // sld[Rc] [RA], [RS], [RB]
@@ -1989,11 +1989,11 @@ void PrintDisasm_sldx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("sld");
   if (d.X.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RA());
+  str->AppendFormat("r{}", d.X.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RS());
+  str->AppendFormat("r{}", d.X.RS());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_slwx(const PPCDecodeData& d, StringBuffer* str) {
   // slw[Rc] [RA], [RS], [RB]
@@ -2001,11 +2001,11 @@ void PrintDisasm_slwx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("slw");
   if (d.X.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RA());
+  str->AppendFormat("r{}", d.X.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RS());
+  str->AppendFormat("r{}", d.X.RS());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_sradix(const PPCDecodeData& d, StringBuffer* str) {
   // sradi[Rc] [RA], [RS], [SH]
@@ -2013,11 +2013,11 @@ void PrintDisasm_sradix(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("sradi");
   if (d.XS.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.XS.RA());
+  str->AppendFormat("r{}", d.XS.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.XS.RS());
+  str->AppendFormat("r{}", d.XS.RS());
   str->Append(", ");
-  str->AppendFormat("%d", d.XS.SH());
+  str->AppendFormat("{}", d.XS.SH());
 }
 void PrintDisasm_sradx(const PPCDecodeData& d, StringBuffer* str) {
   // srad[Rc] [RA], [RS], [RB]
@@ -2025,11 +2025,11 @@ void PrintDisasm_sradx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("srad");
   if (d.X.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RA());
+  str->AppendFormat("r{}", d.X.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RS());
+  str->AppendFormat("r{}", d.X.RS());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_srawix(const PPCDecodeData& d, StringBuffer* str) {
   // srawi[Rc] [RA], [RS], [SH]
@@ -2037,11 +2037,11 @@ void PrintDisasm_srawix(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("srawi");
   if (d.X.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RA());
+  str->AppendFormat("r{}", d.X.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RS());
+  str->AppendFormat("r{}", d.X.RS());
   str->Append(", ");
-  str->AppendFormat("%d", d.X.SH());
+  str->AppendFormat("{}", d.X.SH());
 }
 void PrintDisasm_srawx(const PPCDecodeData& d, StringBuffer* str) {
   // sraw[Rc] [RA], [RS], [RB]
@@ -2049,11 +2049,11 @@ void PrintDisasm_srawx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("sraw");
   if (d.X.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RA());
+  str->AppendFormat("r{}", d.X.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RS());
+  str->AppendFormat("r{}", d.X.RS());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_srdx(const PPCDecodeData& d, StringBuffer* str) {
   // srd[Rc] [RA], [RS], [RB]
@@ -2061,11 +2061,11 @@ void PrintDisasm_srdx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("srd");
   if (d.X.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RA());
+  str->AppendFormat("r{}", d.X.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RS());
+  str->AppendFormat("r{}", d.X.RS());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_srwx(const PPCDecodeData& d, StringBuffer* str) {
   // srw[Rc] [RA], [RS], [RB]
@@ -2073,22 +2073,22 @@ void PrintDisasm_srwx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("srw");
   if (d.X.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RA());
+  str->AppendFormat("r{}", d.X.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RS());
+  str->AppendFormat("r{}", d.X.RS());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_stb(const PPCDecodeData& d, StringBuffer* str) {
   // stb [RS], [d]([RA0])
   size_t str_start = str->length();
   str->Append("stb");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.D.RS());
+  str->AppendFormat("r{}", d.D.RS());
   str->Append(", ");
-  str->AppendFormat(d.D.d() < 0 ? "-0x%X" : "0x%X", std::abs(d.D.d()));
+  str->AppendFormat(d.D.d() < 0 ? "-0x{:X}" : "0x{:X}", std::abs(d.D.d()));
   str->Append("(");
-  str->AppendFormat("r%d", d.D.RA0());
+  str->AppendFormat("r{}", d.D.RA0());
   str->Append(")");
 }
 void PrintDisasm_stbu(const PPCDecodeData& d, StringBuffer* str) {
@@ -2096,11 +2096,11 @@ void PrintDisasm_stbu(const PPCDecodeData& d, StringBuffer* str) {
   size_t str_start = str->length();
   str->Append("stbu");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.D.RS());
+  str->AppendFormat("r{}", d.D.RS());
   str->Append(", ");
-  str->AppendFormat(d.D.d() < 0 ? "-0x%X" : "0x%X", std::abs(d.D.d()));
+  str->AppendFormat(d.D.d() < 0 ? "-0x{:X}" : "0x{:X}", std::abs(d.D.d()));
   str->Append("(");
-  str->AppendFormat("r%d", d.D.RA());
+  str->AppendFormat("r{}", d.D.RA());
   str->Append(")");
 }
 void PrintDisasm_stbux(const PPCDecodeData& d, StringBuffer* str) {
@@ -2108,33 +2108,33 @@ void PrintDisasm_stbux(const PPCDecodeData& d, StringBuffer* str) {
   size_t str_start = str->length();
   str->Append("stbux");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RS());
+  str->AppendFormat("r{}", d.X.RS());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA());
+  str->AppendFormat("r{}", d.X.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_stbx(const PPCDecodeData& d, StringBuffer* str) {
   // stbx [RS], [RA0], [RB]
   size_t str_start = str->length();
   str->Append("stbx");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RS());
+  str->AppendFormat("r{}", d.X.RS());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA0());
+  str->AppendFormat("r{}", d.X.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_std(const PPCDecodeData& d, StringBuffer* str) {
   // std [RS], [ds]([RA0])
   size_t str_start = str->length();
   str->Append("std");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.DS.RS());
+  str->AppendFormat("r{}", d.DS.RS());
   str->Append(", ");
-  str->AppendFormat(d.DS.ds() < 0 ? "-0x%X" : "0x%X", std::abs(d.DS.ds()));
+  str->AppendFormat(d.DS.ds() < 0 ? "-0x{:X}" : "0x{:X}", std::abs(d.DS.ds()));
   str->Append("(");
-  str->AppendFormat("r%d", d.DS.RA0());
+  str->AppendFormat("r{}", d.DS.RA0());
   str->Append(")");
 }
 void PrintDisasm_stdbrx(const PPCDecodeData& d, StringBuffer* str) {
@@ -2142,33 +2142,33 @@ void PrintDisasm_stdbrx(const PPCDecodeData& d, StringBuffer* str) {
   size_t str_start = str->length();
   str->Append("stdbrx");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RS());
+  str->AppendFormat("r{}", d.X.RS());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA0());
+  str->AppendFormat("r{}", d.X.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_stdcx(const PPCDecodeData& d, StringBuffer* str) {
   // stdcx. [RS], [RA0], [RB]
   size_t str_start = str->length();
   str->Append("stdcx.");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RS());
+  str->AppendFormat("r{}", d.X.RS());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA0());
+  str->AppendFormat("r{}", d.X.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_stdu(const PPCDecodeData& d, StringBuffer* str) {
   // stdu [RS], [ds]([RA])
   size_t str_start = str->length();
   str->Append("stdu");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.DS.RS());
+  str->AppendFormat("r{}", d.DS.RS());
   str->Append(", ");
-  str->AppendFormat(d.DS.ds() < 0 ? "-0x%X" : "0x%X", std::abs(d.DS.ds()));
+  str->AppendFormat(d.DS.ds() < 0 ? "-0x{:X}" : "0x{:X}", std::abs(d.DS.ds()));
   str->Append("(");
-  str->AppendFormat("r%d", d.DS.RA());
+  str->AppendFormat("r{}", d.DS.RA());
   str->Append(")");
 }
 void PrintDisasm_stdux(const PPCDecodeData& d, StringBuffer* str) {
@@ -2176,33 +2176,33 @@ void PrintDisasm_stdux(const PPCDecodeData& d, StringBuffer* str) {
   size_t str_start = str->length();
   str->Append("stdux");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RS());
+  str->AppendFormat("r{}", d.X.RS());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA());
+  str->AppendFormat("r{}", d.X.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_stdx(const PPCDecodeData& d, StringBuffer* str) {
   // stdx [RS], [RA0], [RB]
   size_t str_start = str->length();
   str->Append("stdx");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RS());
+  str->AppendFormat("r{}", d.X.RS());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA0());
+  str->AppendFormat("r{}", d.X.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_stfd(const PPCDecodeData& d, StringBuffer* str) {
   // stfd [FS], [d]([RA0])
   size_t str_start = str->length();
   str->Append("stfd");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("fr%d", d.D.FS());
+  str->AppendFormat("fr{}", d.D.FS());
   str->Append(", ");
-  str->AppendFormat(d.D.d() < 0 ? "-0x%X" : "0x%X", std::abs(d.D.d()));
+  str->AppendFormat(d.D.d() < 0 ? "-0x{:X}" : "0x{:X}", std::abs(d.D.d()));
   str->Append("(");
-  str->AppendFormat("r%d", d.D.RA0());
+  str->AppendFormat("r{}", d.D.RA0());
   str->Append(")");
 }
 void PrintDisasm_stfdu(const PPCDecodeData& d, StringBuffer* str) {
@@ -2210,11 +2210,11 @@ void PrintDisasm_stfdu(const PPCDecodeData& d, StringBuffer* str) {
   size_t str_start = str->length();
   str->Append("stfdu");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("fr%d", d.D.FS());
+  str->AppendFormat("fr{}", d.D.FS());
   str->Append(", ");
-  str->AppendFormat(d.D.d() < 0 ? "-0x%X" : "0x%X", std::abs(d.D.d()));
+  str->AppendFormat(d.D.d() < 0 ? "-0x{:X}" : "0x{:X}", std::abs(d.D.d()));
   str->Append("(");
-  str->AppendFormat("r%d", d.D.RA());
+  str->AppendFormat("r{}", d.D.RA());
   str->Append(")");
 }
 void PrintDisasm_stfdux(const PPCDecodeData& d, StringBuffer* str) {
@@ -2222,44 +2222,44 @@ void PrintDisasm_stfdux(const PPCDecodeData& d, StringBuffer* str) {
   size_t str_start = str->length();
   str->Append("stfdux");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("fr%d", d.X.FS());
+  str->AppendFormat("fr{}", d.X.FS());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA());
+  str->AppendFormat("r{}", d.X.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_stfdx(const PPCDecodeData& d, StringBuffer* str) {
   // stfdx [FS], [RA0], [RB]
   size_t str_start = str->length();
   str->Append("stfdx");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("fr%d", d.X.FS());
+  str->AppendFormat("fr{}", d.X.FS());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA0());
+  str->AppendFormat("r{}", d.X.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_stfiwx(const PPCDecodeData& d, StringBuffer* str) {
   // stfiwx [FS], [RA0], [RB]
   size_t str_start = str->length();
   str->Append("stfiwx");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("fr%d", d.X.FS());
+  str->AppendFormat("fr{}", d.X.FS());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA0());
+  str->AppendFormat("r{}", d.X.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_stfs(const PPCDecodeData& d, StringBuffer* str) {
   // stfs [FS], [d]([RA0])
   size_t str_start = str->length();
   str->Append("stfs");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("fr%d", d.D.FS());
+  str->AppendFormat("fr{}", d.D.FS());
   str->Append(", ");
-  str->AppendFormat(d.D.d() < 0 ? "-0x%X" : "0x%X", std::abs(d.D.d()));
+  str->AppendFormat(d.D.d() < 0 ? "-0x{:X}" : "0x{:X}", std::abs(d.D.d()));
   str->Append("(");
-  str->AppendFormat("r%d", d.D.RA0());
+  str->AppendFormat("r{}", d.D.RA0());
   str->Append(")");
 }
 void PrintDisasm_stfsu(const PPCDecodeData& d, StringBuffer* str) {
@@ -2267,11 +2267,11 @@ void PrintDisasm_stfsu(const PPCDecodeData& d, StringBuffer* str) {
   size_t str_start = str->length();
   str->Append("stfsu");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("fr%d", d.D.FS());
+  str->AppendFormat("fr{}", d.D.FS());
   str->Append(", ");
-  str->AppendFormat(d.D.d() < 0 ? "-0x%X" : "0x%X", std::abs(d.D.d()));
+  str->AppendFormat(d.D.d() < 0 ? "-0x{:X}" : "0x{:X}", std::abs(d.D.d()));
   str->Append("(");
-  str->AppendFormat("r%d", d.D.RA());
+  str->AppendFormat("r{}", d.D.RA());
   str->Append(")");
 }
 void PrintDisasm_stfsux(const PPCDecodeData& d, StringBuffer* str) {
@@ -2279,33 +2279,33 @@ void PrintDisasm_stfsux(const PPCDecodeData& d, StringBuffer* str) {
   size_t str_start = str->length();
   str->Append("stfsux");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("fr%d", d.X.FS());
+  str->AppendFormat("fr{}", d.X.FS());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA());
+  str->AppendFormat("r{}", d.X.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_stfsx(const PPCDecodeData& d, StringBuffer* str) {
   // stfsx [FS], [RA], [RB]
   size_t str_start = str->length();
   str->Append("stfsx");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("fr%d", d.X.FS());
+  str->AppendFormat("fr{}", d.X.FS());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA());
+  str->AppendFormat("r{}", d.X.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_sth(const PPCDecodeData& d, StringBuffer* str) {
   // sth [RS], [d]([RA0])
   size_t str_start = str->length();
   str->Append("sth");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.D.RS());
+  str->AppendFormat("r{}", d.D.RS());
   str->Append(", ");
-  str->AppendFormat(d.D.d() < 0 ? "-0x%X" : "0x%X", std::abs(d.D.d()));
+  str->AppendFormat(d.D.d() < 0 ? "-0x{:X}" : "0x{:X}", std::abs(d.D.d()));
   str->Append("(");
-  str->AppendFormat("r%d", d.D.RA0());
+  str->AppendFormat("r{}", d.D.RA0());
   str->Append(")");
 }
 void PrintDisasm_sthbrx(const PPCDecodeData& d, StringBuffer* str) {
@@ -2313,22 +2313,22 @@ void PrintDisasm_sthbrx(const PPCDecodeData& d, StringBuffer* str) {
   size_t str_start = str->length();
   str->Append("sthbrx");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RS());
+  str->AppendFormat("r{}", d.X.RS());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA0());
+  str->AppendFormat("r{}", d.X.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_sthu(const PPCDecodeData& d, StringBuffer* str) {
   // sthu [RS], [d]([RA])
   size_t str_start = str->length();
   str->Append("sthu");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.D.RS());
+  str->AppendFormat("r{}", d.D.RS());
   str->Append(", ");
-  str->AppendFormat(d.D.d() < 0 ? "-0x%X" : "0x%X", std::abs(d.D.d()));
+  str->AppendFormat(d.D.d() < 0 ? "-0x{:X}" : "0x{:X}", std::abs(d.D.d()));
   str->Append("(");
-  str->AppendFormat("r%d", d.D.RA());
+  str->AppendFormat("r{}", d.D.RA());
   str->Append(")");
 }
 void PrintDisasm_sthux(const PPCDecodeData& d, StringBuffer* str) {
@@ -2336,209 +2336,209 @@ void PrintDisasm_sthux(const PPCDecodeData& d, StringBuffer* str) {
   size_t str_start = str->length();
   str->Append("sthux");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RS());
+  str->AppendFormat("r{}", d.X.RS());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA());
+  str->AppendFormat("r{}", d.X.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_sthx(const PPCDecodeData& d, StringBuffer* str) {
   // sthx [RS], [RA0], [RB]
   size_t str_start = str->length();
   str->Append("sthx");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RS());
+  str->AppendFormat("r{}", d.X.RS());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA0());
+  str->AppendFormat("r{}", d.X.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_stvebx(const PPCDecodeData& d, StringBuffer* str) {
   // stvebx [VS], [RA0], [RB]
   size_t str_start = str->length();
   str->Append("stvebx");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.X.VS());
+  str->AppendFormat("vr{}", d.X.VS());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA0());
+  str->AppendFormat("r{}", d.X.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_stvehx(const PPCDecodeData& d, StringBuffer* str) {
   // stvehx [VS], [RA0], [RB]
   size_t str_start = str->length();
   str->Append("stvehx");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.X.VS());
+  str->AppendFormat("vr{}", d.X.VS());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA0());
+  str->AppendFormat("r{}", d.X.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_stvewx(const PPCDecodeData& d, StringBuffer* str) {
   // stvewx [VS], [RA0], [RB]
   size_t str_start = str->length();
   str->Append("stvewx");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.X.VS());
+  str->AppendFormat("vr{}", d.X.VS());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA0());
+  str->AppendFormat("r{}", d.X.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_stvewx128(const PPCDecodeData& d, StringBuffer* str) {
   // stvewx128 [VS], [RA0], [RB]
   size_t str_start = str->length();
   str->Append("stvewx128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128_1.VS());
+  str->AppendFormat("vr{}", d.VX128_1.VS());
   str->Append(", ");
-  str->AppendFormat("r%d", d.VX128_1.RA0());
+  str->AppendFormat("r{}", d.VX128_1.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.VX128_1.RB());
+  str->AppendFormat("r{}", d.VX128_1.RB());
 }
 void PrintDisasm_stvlx(const PPCDecodeData& d, StringBuffer* str) {
   // stvlx [VS], [RA0], [RB]
   size_t str_start = str->length();
   str->Append("stvlx");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.X.VS());
+  str->AppendFormat("vr{}", d.X.VS());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA0());
+  str->AppendFormat("r{}", d.X.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_stvlx128(const PPCDecodeData& d, StringBuffer* str) {
   // stvlx128 [VS], [RA0], [RB]
   size_t str_start = str->length();
   str->Append("stvlx128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128_1.VS());
+  str->AppendFormat("vr{}", d.VX128_1.VS());
   str->Append(", ");
-  str->AppendFormat("r%d", d.VX128_1.RA0());
+  str->AppendFormat("r{}", d.VX128_1.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.VX128_1.RB());
+  str->AppendFormat("r{}", d.VX128_1.RB());
 }
 void PrintDisasm_stvlxl(const PPCDecodeData& d, StringBuffer* str) {
   // stvlxl [VS], [RA0], [RB]
   size_t str_start = str->length();
   str->Append("stvlxl");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.X.VS());
+  str->AppendFormat("vr{}", d.X.VS());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA0());
+  str->AppendFormat("r{}", d.X.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_stvlxl128(const PPCDecodeData& d, StringBuffer* str) {
   // stvlxl128 [VS], [RA0], [RB]
   size_t str_start = str->length();
   str->Append("stvlxl128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128_1.VS());
+  str->AppendFormat("vr{}", d.VX128_1.VS());
   str->Append(", ");
-  str->AppendFormat("r%d", d.VX128_1.RA0());
+  str->AppendFormat("r{}", d.VX128_1.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.VX128_1.RB());
+  str->AppendFormat("r{}", d.VX128_1.RB());
 }
 void PrintDisasm_stvrx(const PPCDecodeData& d, StringBuffer* str) {
   // stvrx [VS], [RA0], [RB]
   size_t str_start = str->length();
   str->Append("stvrx");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.X.VS());
+  str->AppendFormat("vr{}", d.X.VS());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA0());
+  str->AppendFormat("r{}", d.X.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_stvrx128(const PPCDecodeData& d, StringBuffer* str) {
   // stvrx128 [VS], [RA0], [RB]
   size_t str_start = str->length();
   str->Append("stvrx128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128_1.VS());
+  str->AppendFormat("vr{}", d.VX128_1.VS());
   str->Append(", ");
-  str->AppendFormat("r%d", d.VX128_1.RA0());
+  str->AppendFormat("r{}", d.VX128_1.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.VX128_1.RB());
+  str->AppendFormat("r{}", d.VX128_1.RB());
 }
 void PrintDisasm_stvrxl(const PPCDecodeData& d, StringBuffer* str) {
   // stvrxl [VS], [RA0], [RB]
   size_t str_start = str->length();
   str->Append("stvrxl");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.X.VS());
+  str->AppendFormat("vr{}", d.X.VS());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA0());
+  str->AppendFormat("r{}", d.X.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_stvrxl128(const PPCDecodeData& d, StringBuffer* str) {
   // stvrxl128 [VS], [RA0], [RB]
   size_t str_start = str->length();
   str->Append("stvrxl128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128_1.VS());
+  str->AppendFormat("vr{}", d.VX128_1.VS());
   str->Append(", ");
-  str->AppendFormat("r%d", d.VX128_1.RA0());
+  str->AppendFormat("r{}", d.VX128_1.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.VX128_1.RB());
+  str->AppendFormat("r{}", d.VX128_1.RB());
 }
 void PrintDisasm_stvx(const PPCDecodeData& d, StringBuffer* str) {
   // stvx [VS], [RA0], [RB]
   size_t str_start = str->length();
   str->Append("stvx");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.X.VS());
+  str->AppendFormat("vr{}", d.X.VS());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA0());
+  str->AppendFormat("r{}", d.X.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_stvx128(const PPCDecodeData& d, StringBuffer* str) {
   // stvx128 [VS], [RA0], [RB]
   size_t str_start = str->length();
   str->Append("stvx128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128_1.VS());
+  str->AppendFormat("vr{}", d.VX128_1.VS());
   str->Append(", ");
-  str->AppendFormat("r%d", d.VX128_1.RA0());
+  str->AppendFormat("r{}", d.VX128_1.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.VX128_1.RB());
+  str->AppendFormat("r{}", d.VX128_1.RB());
 }
 void PrintDisasm_stvxl(const PPCDecodeData& d, StringBuffer* str) {
   // stvxl [VS], [RA0], [RB]
   size_t str_start = str->length();
   str->Append("stvxl");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.X.VS());
+  str->AppendFormat("vr{}", d.X.VS());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA0());
+  str->AppendFormat("r{}", d.X.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_stvxl128(const PPCDecodeData& d, StringBuffer* str) {
   // stvxl128 [VS], [RA0], [RB]
   size_t str_start = str->length();
   str->Append("stvxl128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128_1.VS());
+  str->AppendFormat("vr{}", d.VX128_1.VS());
   str->Append(", ");
-  str->AppendFormat("r%d", d.VX128_1.RA0());
+  str->AppendFormat("r{}", d.VX128_1.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.VX128_1.RB());
+  str->AppendFormat("r{}", d.VX128_1.RB());
 }
 void PrintDisasm_stw(const PPCDecodeData& d, StringBuffer* str) {
   // stw [RS], [d]([RA0])
   size_t str_start = str->length();
   str->Append("stw");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.D.RS());
+  str->AppendFormat("r{}", d.D.RS());
   str->Append(", ");
-  str->AppendFormat(d.D.d() < 0 ? "-0x%X" : "0x%X", std::abs(d.D.d()));
+  str->AppendFormat(d.D.d() < 0 ? "-0x{:X}" : "0x{:X}", std::abs(d.D.d()));
   str->Append("(");
-  str->AppendFormat("r%d", d.D.RA0());
+  str->AppendFormat("r{}", d.D.RA0());
   str->Append(")");
 }
 void PrintDisasm_stwbrx(const PPCDecodeData& d, StringBuffer* str) {
@@ -2546,33 +2546,33 @@ void PrintDisasm_stwbrx(const PPCDecodeData& d, StringBuffer* str) {
   size_t str_start = str->length();
   str->Append("stwbrx");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RS());
+  str->AppendFormat("r{}", d.X.RS());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA0());
+  str->AppendFormat("r{}", d.X.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_stwcx(const PPCDecodeData& d, StringBuffer* str) {
   // stwcx. [RS], [RA0], [RB]
   size_t str_start = str->length();
   str->Append("stwcx.");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RS());
+  str->AppendFormat("r{}", d.X.RS());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA0());
+  str->AppendFormat("r{}", d.X.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_stwu(const PPCDecodeData& d, StringBuffer* str) {
   // stwu [RS], [d]([RA])
   size_t str_start = str->length();
   str->Append("stwu");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.D.RS());
+  str->AppendFormat("r{}", d.D.RS());
   str->Append(", ");
-  str->AppendFormat(d.D.d() < 0 ? "-0x%X" : "0x%X", std::abs(d.D.d()));
+  str->AppendFormat(d.D.d() < 0 ? "-0x{:X}" : "0x{:X}", std::abs(d.D.d()));
   str->Append("(");
-  str->AppendFormat("r%d", d.D.RA());
+  str->AppendFormat("r{}", d.D.RA());
   str->Append(")");
 }
 void PrintDisasm_stwux(const PPCDecodeData& d, StringBuffer* str) {
@@ -2580,22 +2580,22 @@ void PrintDisasm_stwux(const PPCDecodeData& d, StringBuffer* str) {
   size_t str_start = str->length();
   str->Append("stwux");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RS());
+  str->AppendFormat("r{}", d.X.RS());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA());
+  str->AppendFormat("r{}", d.X.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_stwx(const PPCDecodeData& d, StringBuffer* str) {
   // stwx [RS], [RA0], [RB]
   size_t str_start = str->length();
   str->Append("stwx");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RS());
+  str->AppendFormat("r{}", d.X.RS());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA0());
+  str->AppendFormat("r{}", d.X.RA0());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_subfcx(const PPCDecodeData& d, StringBuffer* str) {
   // subfc[OE][Rc] [RD], [RA], [RB]
@@ -2604,11 +2604,11 @@ void PrintDisasm_subfcx(const PPCDecodeData& d, StringBuffer* str) {
   if (d.XO.OE()) str->Append('o');
   if (d.XO.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.XO.RD());
+  str->AppendFormat("r{}", d.XO.RD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.XO.RA());
+  str->AppendFormat("r{}", d.XO.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.XO.RB());
+  str->AppendFormat("r{}", d.XO.RB());
 }
 void PrintDisasm_subfex(const PPCDecodeData& d, StringBuffer* str) {
   // subfe[OE][Rc] [RD], [RA], [RB]
@@ -2617,22 +2617,22 @@ void PrintDisasm_subfex(const PPCDecodeData& d, StringBuffer* str) {
   if (d.XO.OE()) str->Append('o');
   if (d.XO.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.XO.RD());
+  str->AppendFormat("r{}", d.XO.RD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.XO.RA());
+  str->AppendFormat("r{}", d.XO.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.XO.RB());
+  str->AppendFormat("r{}", d.XO.RB());
 }
 void PrintDisasm_subficx(const PPCDecodeData& d, StringBuffer* str) {
   // subfic [RD], [RA], [SIMM]
   size_t str_start = str->length();
   str->Append("subfic");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.D.RD());
+  str->AppendFormat("r{}", d.D.RD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.D.RA());
+  str->AppendFormat("r{}", d.D.RA());
   str->Append(", ");
-  str->AppendFormat(d.D.SIMM() < 0 ? "-0x%X" : "0x%X", std::abs(d.D.SIMM()));
+  str->AppendFormat(d.D.SIMM() < 0 ? "-0x{:X}" : "0x{:X}", std::abs(d.D.SIMM()));
 }
 void PrintDisasm_subfmex(const PPCDecodeData& d, StringBuffer* str) {
   // subfme[OE][Rc] [RD], [RA]
@@ -2641,9 +2641,9 @@ void PrintDisasm_subfmex(const PPCDecodeData& d, StringBuffer* str) {
   if (d.XO.OE()) str->Append('o');
   if (d.XO.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.XO.RD());
+  str->AppendFormat("r{}", d.XO.RD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.XO.RA());
+  str->AppendFormat("r{}", d.XO.RA());
 }
 void PrintDisasm_subfx(const PPCDecodeData& d, StringBuffer* str) {
   // subf[OE][Rc] [RD], [RA], [RB]
@@ -2652,11 +2652,11 @@ void PrintDisasm_subfx(const PPCDecodeData& d, StringBuffer* str) {
   if (d.XO.OE()) str->Append('o');
   if (d.XO.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.XO.RD());
+  str->AppendFormat("r{}", d.XO.RD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.XO.RA());
+  str->AppendFormat("r{}", d.XO.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.XO.RB());
+  str->AppendFormat("r{}", d.XO.RB());
 }
 void PrintDisasm_subfzex(const PPCDecodeData& d, StringBuffer* str) {
   // subfze[OE][Rc] [RD], [RA]
@@ -2665,9 +2665,9 @@ void PrintDisasm_subfzex(const PPCDecodeData& d, StringBuffer* str) {
   if (d.XO.OE()) str->Append('o');
   if (d.XO.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.XO.RD());
+  str->AppendFormat("r{}", d.XO.RD());
   str->Append(", ");
-  str->AppendFormat("r%d", d.XO.RA());
+  str->AppendFormat("r{}", d.XO.RA());
 }
 void PrintDisasm_sync(const PPCDecodeData& d, StringBuffer* str) {
   // sync
@@ -2680,330 +2680,330 @@ void PrintDisasm_td(const PPCDecodeData& d, StringBuffer* str) {
   size_t str_start = str->length();
   str->Append("td");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("%d", d.X.TO());
+  str->AppendFormat("{}", d.X.TO());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA());
+  str->AppendFormat("r{}", d.X.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_tdi(const PPCDecodeData& d, StringBuffer* str) {
   // tdi [TO], [RA], [SIMM]
   size_t str_start = str->length();
   str->Append("tdi");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("%d", d.D.TO());
+  str->AppendFormat("{}", d.D.TO());
   str->Append(", ");
-  str->AppendFormat("r%d", d.D.RA());
+  str->AppendFormat("r{}", d.D.RA());
   str->Append(", ");
-  str->AppendFormat(d.D.SIMM() < 0 ? "-0x%X" : "0x%X", std::abs(d.D.SIMM()));
+  str->AppendFormat(d.D.SIMM() < 0 ? "-0x{:X}" : "0x{:X}", std::abs(d.D.SIMM()));
 }
 void PrintDisasm_tw(const PPCDecodeData& d, StringBuffer* str) {
   // tw [TO], [RA], [RB]
   size_t str_start = str->length();
   str->Append("tw");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("%d", d.X.TO());
+  str->AppendFormat("{}", d.X.TO());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RA());
+  str->AppendFormat("r{}", d.X.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 void PrintDisasm_twi(const PPCDecodeData& d, StringBuffer* str) {
   // tw [TO], [RA], [SIMM]
   size_t str_start = str->length();
   str->Append("tw");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("%d", d.D.TO());
+  str->AppendFormat("{}", d.D.TO());
   str->Append(", ");
-  str->AppendFormat("r%d", d.D.RA());
+  str->AppendFormat("r{}", d.D.RA());
   str->Append(", ");
-  str->AppendFormat(d.D.SIMM() < 0 ? "-0x%X" : "0x%X", std::abs(d.D.SIMM()));
+  str->AppendFormat(d.D.SIMM() < 0 ? "-0x{:X}" : "0x{:X}", std::abs(d.D.SIMM()));
 }
 void PrintDisasm_vaddcuw(const PPCDecodeData& d, StringBuffer* str) {
   // vaddcuw [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vaddcuw");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vaddfp(const PPCDecodeData& d, StringBuffer* str) {
   // vaddfp [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vaddfp");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vaddfp128(const PPCDecodeData& d, StringBuffer* str) {
   // vaddfp128 [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vaddfp128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128.VD());
+  str->AppendFormat("vr{}", d.VX128.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VA());
+  str->AppendFormat("vr{}", d.VX128.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VB());
+  str->AppendFormat("vr{}", d.VX128.VB());
 }
 void PrintDisasm_vaddsbs(const PPCDecodeData& d, StringBuffer* str) {
   // vaddsbs [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vaddsbs");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vaddshs(const PPCDecodeData& d, StringBuffer* str) {
   // vaddshs [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vaddshs");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vaddsws(const PPCDecodeData& d, StringBuffer* str) {
   // vaddsws [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vaddsws");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vaddubm(const PPCDecodeData& d, StringBuffer* str) {
   // vaddubm [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vaddubm");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vaddubs(const PPCDecodeData& d, StringBuffer* str) {
   // vaddubs [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vaddubs");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vadduhm(const PPCDecodeData& d, StringBuffer* str) {
   // vadduhm [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vadduhm");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vadduhs(const PPCDecodeData& d, StringBuffer* str) {
   // vadduhs [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vadduhs");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vadduwm(const PPCDecodeData& d, StringBuffer* str) {
   // vadduwm [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vadduwm");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vadduws(const PPCDecodeData& d, StringBuffer* str) {
   // vadduws [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vadduws");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vand(const PPCDecodeData& d, StringBuffer* str) {
   // vand [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vand");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vand128(const PPCDecodeData& d, StringBuffer* str) {
   // vand128 [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vand128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128.VD());
+  str->AppendFormat("vr{}", d.VX128.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VA());
+  str->AppendFormat("vr{}", d.VX128.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VB());
+  str->AppendFormat("vr{}", d.VX128.VB());
 }
 void PrintDisasm_vandc(const PPCDecodeData& d, StringBuffer* str) {
   // vandc [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vandc");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vandc128(const PPCDecodeData& d, StringBuffer* str) {
   // vandc128 [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vandc128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128.VD());
+  str->AppendFormat("vr{}", d.VX128.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VA());
+  str->AppendFormat("vr{}", d.VX128.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VB());
+  str->AppendFormat("vr{}", d.VX128.VB());
 }
 void PrintDisasm_vavgsb(const PPCDecodeData& d, StringBuffer* str) {
   // vavgsb [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vavgsb");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vavgsh(const PPCDecodeData& d, StringBuffer* str) {
   // vavgsh [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vavgsh");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vavgsw(const PPCDecodeData& d, StringBuffer* str) {
   // vavgsw [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vavgsw");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vavgub(const PPCDecodeData& d, StringBuffer* str) {
   // vavgub [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vavgub");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vavguh(const PPCDecodeData& d, StringBuffer* str) {
   // vavguh [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vavguh");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vavguw(const PPCDecodeData& d, StringBuffer* str) {
   // vavguw [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vavguw");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vcfpsxws128(const PPCDecodeData& d, StringBuffer* str) {
   // vcfpsxws128 [VD], [VB], [UIMM]
   size_t str_start = str->length();
   str->Append("vcfpsxws128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128_3.VD());
+  str->AppendFormat("vr{}", d.VX128_3.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128_3.VB());
+  str->AppendFormat("vr{}", d.VX128_3.VB());
   str->Append(", ");
-  str->AppendFormat("0x%X", d.VX128_3.UIMM());
+  str->AppendFormat("0x{:X}", d.VX128_3.UIMM());
 }
 void PrintDisasm_vcfpuxws128(const PPCDecodeData& d, StringBuffer* str) {
   // vcfpuxws128 [VD], [VB], [UIMM]
   size_t str_start = str->length();
   str->Append("vcfpuxws128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128_3.VD());
+  str->AppendFormat("vr{}", d.VX128_3.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128_3.VB());
+  str->AppendFormat("vr{}", d.VX128_3.VB());
   str->Append(", ");
-  str->AppendFormat("0x%X", d.VX128_3.UIMM());
+  str->AppendFormat("0x{:X}", d.VX128_3.UIMM());
 }
 void PrintDisasm_vcfsx(const PPCDecodeData& d, StringBuffer* str) {
   // vcfsx [VD], [VB], [UIMM]
   size_t str_start = str->length();
   str->Append("vcfsx");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
   str->Append(", ");
-  str->AppendFormat("0x%X", d.VX.UIMM());
+  str->AppendFormat("0x{:X}", d.VX.UIMM());
 }
 void PrintDisasm_vcfux(const PPCDecodeData& d, StringBuffer* str) {
   // vcfux [VD], [VB], [UIMM]
   size_t str_start = str->length();
   str->Append("vcfux");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
   str->Append(", ");
-  str->AppendFormat("0x%X", d.VX.UIMM());
+  str->AppendFormat("0x{:X}", d.VX.UIMM());
 }
 void PrintDisasm_vcmpbfp(const PPCDecodeData& d, StringBuffer* str) {
   // vcmpbfp[Rc] [VD], [VA], [VB]
@@ -3011,11 +3011,11 @@ void PrintDisasm_vcmpbfp(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("vcmpbfp");
   if (d.VC.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VC.VD());
+  str->AppendFormat("vr{}", d.VC.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VC.VA());
+  str->AppendFormat("vr{}", d.VC.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VC.VB());
+  str->AppendFormat("vr{}", d.VC.VB());
 }
 void PrintDisasm_vcmpbfp128(const PPCDecodeData& d, StringBuffer* str) {
   // vcmpbfp128[Rc] [VD], [VA], [VB]
@@ -3023,11 +3023,11 @@ void PrintDisasm_vcmpbfp128(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("vcmpbfp128");
   if (d.VX128_R.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128_R.VD());
+  str->AppendFormat("vr{}", d.VX128_R.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128_R.VA());
+  str->AppendFormat("vr{}", d.VX128_R.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128_R.VB());
+  str->AppendFormat("vr{}", d.VX128_R.VB());
 }
 void PrintDisasm_vcmpeqfp(const PPCDecodeData& d, StringBuffer* str) {
   // vcmpeqfp[Rc] [VD], [VA], [VB]
@@ -3035,11 +3035,11 @@ void PrintDisasm_vcmpeqfp(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("vcmpeqfp");
   if (d.VC.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VC.VD());
+  str->AppendFormat("vr{}", d.VC.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VC.VA());
+  str->AppendFormat("vr{}", d.VC.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VC.VB());
+  str->AppendFormat("vr{}", d.VC.VB());
 }
 void PrintDisasm_vcmpeqfp128(const PPCDecodeData& d, StringBuffer* str) {
   // vcmpeqfp128[Rc] [VD], [VA], [VB]
@@ -3047,11 +3047,11 @@ void PrintDisasm_vcmpeqfp128(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("vcmpeqfp128");
   if (d.VX128_R.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128_R.VD());
+  str->AppendFormat("vr{}", d.VX128_R.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128_R.VA());
+  str->AppendFormat("vr{}", d.VX128_R.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128_R.VB());
+  str->AppendFormat("vr{}", d.VX128_R.VB());
 }
 void PrintDisasm_vcmpequb(const PPCDecodeData& d, StringBuffer* str) {
   // vcmpequb[Rc] [VD], [VA], [VB]
@@ -3059,11 +3059,11 @@ void PrintDisasm_vcmpequb(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("vcmpequb");
   if (d.VC.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VC.VD());
+  str->AppendFormat("vr{}", d.VC.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VC.VA());
+  str->AppendFormat("vr{}", d.VC.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VC.VB());
+  str->AppendFormat("vr{}", d.VC.VB());
 }
 void PrintDisasm_vcmpequh(const PPCDecodeData& d, StringBuffer* str) {
   // vcmpequh[Rc] [VD], [VA], [VB]
@@ -3071,11 +3071,11 @@ void PrintDisasm_vcmpequh(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("vcmpequh");
   if (d.VC.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VC.VD());
+  str->AppendFormat("vr{}", d.VC.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VC.VA());
+  str->AppendFormat("vr{}", d.VC.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VC.VB());
+  str->AppendFormat("vr{}", d.VC.VB());
 }
 void PrintDisasm_vcmpequw(const PPCDecodeData& d, StringBuffer* str) {
   // vcmpequw[Rc] [VD], [VA], [VB]
@@ -3083,11 +3083,11 @@ void PrintDisasm_vcmpequw(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("vcmpequw");
   if (d.VC.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VC.VD());
+  str->AppendFormat("vr{}", d.VC.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VC.VA());
+  str->AppendFormat("vr{}", d.VC.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VC.VB());
+  str->AppendFormat("vr{}", d.VC.VB());
 }
 void PrintDisasm_vcmpequw128(const PPCDecodeData& d, StringBuffer* str) {
   // vcmpequw128[Rc] [VD], [VA], [VB]
@@ -3095,11 +3095,11 @@ void PrintDisasm_vcmpequw128(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("vcmpequw128");
   if (d.VX128_R.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128_R.VD());
+  str->AppendFormat("vr{}", d.VX128_R.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128_R.VA());
+  str->AppendFormat("vr{}", d.VX128_R.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128_R.VB());
+  str->AppendFormat("vr{}", d.VX128_R.VB());
 }
 void PrintDisasm_vcmpgefp(const PPCDecodeData& d, StringBuffer* str) {
   // vcmpgefp[Rc] [VD], [VA], [VB]
@@ -3107,11 +3107,11 @@ void PrintDisasm_vcmpgefp(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("vcmpgefp");
   if (d.VC.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VC.VD());
+  str->AppendFormat("vr{}", d.VC.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VC.VA());
+  str->AppendFormat("vr{}", d.VC.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VC.VB());
+  str->AppendFormat("vr{}", d.VC.VB());
 }
 void PrintDisasm_vcmpgefp128(const PPCDecodeData& d, StringBuffer* str) {
   // vcmpgefp128[Rc] [VD], [VA], [VB]
@@ -3119,11 +3119,11 @@ void PrintDisasm_vcmpgefp128(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("vcmpgefp128");
   if (d.VX128_R.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128_R.VD());
+  str->AppendFormat("vr{}", d.VX128_R.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128_R.VA());
+  str->AppendFormat("vr{}", d.VX128_R.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128_R.VB());
+  str->AppendFormat("vr{}", d.VX128_R.VB());
 }
 void PrintDisasm_vcmpgtfp(const PPCDecodeData& d, StringBuffer* str) {
   // vcmpgtfp[Rc] [VD], [VA], [VB]
@@ -3131,11 +3131,11 @@ void PrintDisasm_vcmpgtfp(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("vcmpgtfp");
   if (d.VC.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VC.VD());
+  str->AppendFormat("vr{}", d.VC.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VC.VA());
+  str->AppendFormat("vr{}", d.VC.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VC.VB());
+  str->AppendFormat("vr{}", d.VC.VB());
 }
 void PrintDisasm_vcmpgtfp128(const PPCDecodeData& d, StringBuffer* str) {
   // vcmpgtfp128[Rc] [VD], [VA], [VB]
@@ -3143,11 +3143,11 @@ void PrintDisasm_vcmpgtfp128(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("vcmpgtfp128");
   if (d.VX128_R.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128_R.VD());
+  str->AppendFormat("vr{}", d.VX128_R.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128_R.VA());
+  str->AppendFormat("vr{}", d.VX128_R.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128_R.VB());
+  str->AppendFormat("vr{}", d.VX128_R.VB());
 }
 void PrintDisasm_vcmpgtsb(const PPCDecodeData& d, StringBuffer* str) {
   // vcmpgtsb[Rc] [VD], [VA], [VB]
@@ -3155,11 +3155,11 @@ void PrintDisasm_vcmpgtsb(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("vcmpgtsb");
   if (d.VC.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VC.VD());
+  str->AppendFormat("vr{}", d.VC.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VC.VA());
+  str->AppendFormat("vr{}", d.VC.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VC.VB());
+  str->AppendFormat("vr{}", d.VC.VB());
 }
 void PrintDisasm_vcmpgtsh(const PPCDecodeData& d, StringBuffer* str) {
   // vcmpgtsh[Rc] [VD], [VA], [VB]
@@ -3167,11 +3167,11 @@ void PrintDisasm_vcmpgtsh(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("vcmpgtsh");
   if (d.VC.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VC.VD());
+  str->AppendFormat("vr{}", d.VC.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VC.VA());
+  str->AppendFormat("vr{}", d.VC.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VC.VB());
+  str->AppendFormat("vr{}", d.VC.VB());
 }
 void PrintDisasm_vcmpgtsw(const PPCDecodeData& d, StringBuffer* str) {
   // vcmpgtsw[Rc] [VD], [VA], [VB]
@@ -3179,11 +3179,11 @@ void PrintDisasm_vcmpgtsw(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("vcmpgtsw");
   if (d.VC.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VC.VD());
+  str->AppendFormat("vr{}", d.VC.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VC.VA());
+  str->AppendFormat("vr{}", d.VC.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VC.VB());
+  str->AppendFormat("vr{}", d.VC.VB());
 }
 void PrintDisasm_vcmpgtub(const PPCDecodeData& d, StringBuffer* str) {
   // vcmpgtub[Rc] [VD], [VA], [VB]
@@ -3191,11 +3191,11 @@ void PrintDisasm_vcmpgtub(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("vcmpgtub");
   if (d.VC.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VC.VD());
+  str->AppendFormat("vr{}", d.VC.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VC.VA());
+  str->AppendFormat("vr{}", d.VC.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VC.VB());
+  str->AppendFormat("vr{}", d.VC.VB());
 }
 void PrintDisasm_vcmpgtuh(const PPCDecodeData& d, StringBuffer* str) {
   // vcmpgtuh[Rc] [VD], [VA], [VB]
@@ -3203,11 +3203,11 @@ void PrintDisasm_vcmpgtuh(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("vcmpgtuh");
   if (d.VC.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VC.VD());
+  str->AppendFormat("vr{}", d.VC.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VC.VA());
+  str->AppendFormat("vr{}", d.VC.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VC.VB());
+  str->AppendFormat("vr{}", d.VC.VB());
 }
 void PrintDisasm_vcmpgtuw(const PPCDecodeData& d, StringBuffer* str) {
   // vcmpgtuw[Rc] [VD], [VA], [VB]
@@ -3215,1150 +3215,1150 @@ void PrintDisasm_vcmpgtuw(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("vcmpgtuw");
   if (d.VC.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VC.VD());
+  str->AppendFormat("vr{}", d.VC.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VC.VA());
+  str->AppendFormat("vr{}", d.VC.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VC.VB());
+  str->AppendFormat("vr{}", d.VC.VB());
 }
 void PrintDisasm_vcsxwfp128(const PPCDecodeData& d, StringBuffer* str) {
   // vcsxwfp128 [VD], [VB], [UIMM]
   size_t str_start = str->length();
   str->Append("vcsxwfp128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128_3.VD());
+  str->AppendFormat("vr{}", d.VX128_3.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128_3.VB());
+  str->AppendFormat("vr{}", d.VX128_3.VB());
   str->Append(", ");
-  str->AppendFormat("0x%X", d.VX128_3.UIMM());
+  str->AppendFormat("0x{:X}", d.VX128_3.UIMM());
 }
 void PrintDisasm_vctsxs(const PPCDecodeData& d, StringBuffer* str) {
   // vctsxs [VD], [VB], [UIMM]
   size_t str_start = str->length();
   str->Append("vctsxs");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
   str->Append(", ");
-  str->AppendFormat("0x%X", d.VX.UIMM());
+  str->AppendFormat("0x{:X}", d.VX.UIMM());
 }
 void PrintDisasm_vctuxs(const PPCDecodeData& d, StringBuffer* str) {
   // vctuxs [VD], [VB], [UIMM]
   size_t str_start = str->length();
   str->Append("vctuxs");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
   str->Append(", ");
-  str->AppendFormat("0x%X", d.VX.UIMM());
+  str->AppendFormat("0x{:X}", d.VX.UIMM());
 }
 void PrintDisasm_vcuxwfp128(const PPCDecodeData& d, StringBuffer* str) {
   // vcuxwfp128 [VD], [VB], [UIMM]
   size_t str_start = str->length();
   str->Append("vcuxwfp128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128_3.VD());
+  str->AppendFormat("vr{}", d.VX128_3.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128_3.VB());
+  str->AppendFormat("vr{}", d.VX128_3.VB());
   str->Append(", ");
-  str->AppendFormat("0x%X", d.VX128_3.UIMM());
+  str->AppendFormat("0x{:X}", d.VX128_3.UIMM());
 }
 void PrintDisasm_vexptefp(const PPCDecodeData& d, StringBuffer* str) {
   // vexptefp [VD], [VB]
   size_t str_start = str->length();
   str->Append("vexptefp");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vexptefp128(const PPCDecodeData& d, StringBuffer* str) {
   // vexptefp128 [VD], [VB]
   size_t str_start = str->length();
   str->Append("vexptefp128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128_3.VD());
+  str->AppendFormat("vr{}", d.VX128_3.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128_3.VB());
+  str->AppendFormat("vr{}", d.VX128_3.VB());
 }
 void PrintDisasm_vlogefp(const PPCDecodeData& d, StringBuffer* str) {
   // vlogefp [VD], [VB]
   size_t str_start = str->length();
   str->Append("vlogefp");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vlogefp128(const PPCDecodeData& d, StringBuffer* str) {
   // vlogefp128 [VD], [VB]
   size_t str_start = str->length();
   str->Append("vlogefp128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128_3.VD());
+  str->AppendFormat("vr{}", d.VX128_3.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128_3.VB());
+  str->AppendFormat("vr{}", d.VX128_3.VB());
 }
 void PrintDisasm_vmaddcfp128(const PPCDecodeData& d, StringBuffer* str) {
   // vmaddcfp128 [VD], [VA], [VD], [VB]
   size_t str_start = str->length();
   str->Append("vmaddcfp128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128.VD());
+  str->AppendFormat("vr{}", d.VX128.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VA());
+  str->AppendFormat("vr{}", d.VX128.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VD());
+  str->AppendFormat("vr{}", d.VX128.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VB());
+  str->AppendFormat("vr{}", d.VX128.VB());
 }
 void PrintDisasm_vmaddfp(const PPCDecodeData& d, StringBuffer* str) {
   // vmaddfp [VD], [VA], [VC], [VB]
   size_t str_start = str->length();
   str->Append("vmaddfp");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VA.VD());
+  str->AppendFormat("vr{}", d.VA.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VA.VA());
+  str->AppendFormat("vr{}", d.VA.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VA.VC());
+  str->AppendFormat("vr{}", d.VA.VC());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VA.VB());
+  str->AppendFormat("vr{}", d.VA.VB());
 }
 void PrintDisasm_vmaddfp128(const PPCDecodeData& d, StringBuffer* str) {
   // vmaddfp128 [VD], [VA], [VB], [VD]
   size_t str_start = str->length();
   str->Append("vmaddfp128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128.VD());
+  str->AppendFormat("vr{}", d.VX128.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VA());
+  str->AppendFormat("vr{}", d.VX128.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VB());
+  str->AppendFormat("vr{}", d.VX128.VB());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VD());
+  str->AppendFormat("vr{}", d.VX128.VD());
 }
 void PrintDisasm_vmaxfp(const PPCDecodeData& d, StringBuffer* str) {
   // vmaxfp [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vmaxfp");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vmaxfp128(const PPCDecodeData& d, StringBuffer* str) {
   // vmaxfp128 [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vmaxfp128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128.VD());
+  str->AppendFormat("vr{}", d.VX128.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VA());
+  str->AppendFormat("vr{}", d.VX128.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VB());
+  str->AppendFormat("vr{}", d.VX128.VB());
 }
 void PrintDisasm_vmaxsb(const PPCDecodeData& d, StringBuffer* str) {
   // vmaxsb [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vmaxsb");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vmaxsh(const PPCDecodeData& d, StringBuffer* str) {
   // vmaxsh [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vmaxsh");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vmaxsw(const PPCDecodeData& d, StringBuffer* str) {
   // vmaxsw [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vmaxsw");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vmaxub(const PPCDecodeData& d, StringBuffer* str) {
   // vmaxub [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vmaxub");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vmaxuh(const PPCDecodeData& d, StringBuffer* str) {
   // vmaxuh [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vmaxuh");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vmaxuw(const PPCDecodeData& d, StringBuffer* str) {
   // vmaxuw [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vmaxuw");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vmhaddshs(const PPCDecodeData& d, StringBuffer* str) {
   // vmhaddshs [VD], [VA], [VB], [VC]
   size_t str_start = str->length();
   str->Append("vmhaddshs");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VA.VD());
+  str->AppendFormat("vr{}", d.VA.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VA.VA());
+  str->AppendFormat("vr{}", d.VA.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VA.VB());
+  str->AppendFormat("vr{}", d.VA.VB());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VA.VC());
+  str->AppendFormat("vr{}", d.VA.VC());
 }
 void PrintDisasm_vmhraddshs(const PPCDecodeData& d, StringBuffer* str) {
   // vmhraddshs [VD], [VA], [VB], [VC]
   size_t str_start = str->length();
   str->Append("vmhraddshs");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VA.VD());
+  str->AppendFormat("vr{}", d.VA.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VA.VA());
+  str->AppendFormat("vr{}", d.VA.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VA.VB());
+  str->AppendFormat("vr{}", d.VA.VB());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VA.VC());
+  str->AppendFormat("vr{}", d.VA.VC());
 }
 void PrintDisasm_vminfp(const PPCDecodeData& d, StringBuffer* str) {
   // vminfp [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vminfp");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vminfp128(const PPCDecodeData& d, StringBuffer* str) {
   // vminfp128 [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vminfp128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128.VD());
+  str->AppendFormat("vr{}", d.VX128.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VA());
+  str->AppendFormat("vr{}", d.VX128.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VB());
+  str->AppendFormat("vr{}", d.VX128.VB());
 }
 void PrintDisasm_vminsb(const PPCDecodeData& d, StringBuffer* str) {
   // vminsb [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vminsb");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vminsh(const PPCDecodeData& d, StringBuffer* str) {
   // vminsh [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vminsh");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vminsw(const PPCDecodeData& d, StringBuffer* str) {
   // vminsw [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vminsw");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vminub(const PPCDecodeData& d, StringBuffer* str) {
   // vminub [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vminub");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vminuh(const PPCDecodeData& d, StringBuffer* str) {
   // vminuh [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vminuh");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vminuw(const PPCDecodeData& d, StringBuffer* str) {
   // vminuw [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vminuw");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vmladduhm(const PPCDecodeData& d, StringBuffer* str) {
   // vmladduhm [VD], [VA], [VB], [VC]
   size_t str_start = str->length();
   str->Append("vmladduhm");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VA.VD());
+  str->AppendFormat("vr{}", d.VA.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VA.VA());
+  str->AppendFormat("vr{}", d.VA.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VA.VB());
+  str->AppendFormat("vr{}", d.VA.VB());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VA.VC());
+  str->AppendFormat("vr{}", d.VA.VC());
 }
 void PrintDisasm_vmrghb(const PPCDecodeData& d, StringBuffer* str) {
   // vmrghb [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vmrghb");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vmrghh(const PPCDecodeData& d, StringBuffer* str) {
   // vmrghh [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vmrghh");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vmrghw(const PPCDecodeData& d, StringBuffer* str) {
   // vmrghw [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vmrghw");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vmrghw128(const PPCDecodeData& d, StringBuffer* str) {
   // vmrghw128 [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vmrghw128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128.VD());
+  str->AppendFormat("vr{}", d.VX128.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VA());
+  str->AppendFormat("vr{}", d.VX128.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VB());
+  str->AppendFormat("vr{}", d.VX128.VB());
 }
 void PrintDisasm_vmrglb(const PPCDecodeData& d, StringBuffer* str) {
   // vmrglb [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vmrglb");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vmrglh(const PPCDecodeData& d, StringBuffer* str) {
   // vmrglh [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vmrglh");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vmrglw(const PPCDecodeData& d, StringBuffer* str) {
   // vmrglw [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vmrglw");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vmrglw128(const PPCDecodeData& d, StringBuffer* str) {
   // vmrglw128 [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vmrglw128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128.VD());
+  str->AppendFormat("vr{}", d.VX128.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VA());
+  str->AppendFormat("vr{}", d.VX128.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VB());
+  str->AppendFormat("vr{}", d.VX128.VB());
 }
 void PrintDisasm_vmsum3fp128(const PPCDecodeData& d, StringBuffer* str) {
   // vmsum3fp128 [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vmsum3fp128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128.VD());
+  str->AppendFormat("vr{}", d.VX128.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VA());
+  str->AppendFormat("vr{}", d.VX128.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VB());
+  str->AppendFormat("vr{}", d.VX128.VB());
 }
 void PrintDisasm_vmsum4fp128(const PPCDecodeData& d, StringBuffer* str) {
   // vmsum4fp128 [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vmsum4fp128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128.VD());
+  str->AppendFormat("vr{}", d.VX128.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VA());
+  str->AppendFormat("vr{}", d.VX128.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VB());
+  str->AppendFormat("vr{}", d.VX128.VB());
 }
 void PrintDisasm_vmsummbm(const PPCDecodeData& d, StringBuffer* str) {
   // vmsummbm [VD], [VA], [VB], [VC]
   size_t str_start = str->length();
   str->Append("vmsummbm");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VA.VD());
+  str->AppendFormat("vr{}", d.VA.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VA.VA());
+  str->AppendFormat("vr{}", d.VA.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VA.VB());
+  str->AppendFormat("vr{}", d.VA.VB());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VA.VC());
+  str->AppendFormat("vr{}", d.VA.VC());
 }
 void PrintDisasm_vmsumshm(const PPCDecodeData& d, StringBuffer* str) {
   // vmsumshm [VD], [VA], [VB], [VC]
   size_t str_start = str->length();
   str->Append("vmsumshm");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VA.VD());
+  str->AppendFormat("vr{}", d.VA.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VA.VA());
+  str->AppendFormat("vr{}", d.VA.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VA.VB());
+  str->AppendFormat("vr{}", d.VA.VB());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VA.VC());
+  str->AppendFormat("vr{}", d.VA.VC());
 }
 void PrintDisasm_vmsumshs(const PPCDecodeData& d, StringBuffer* str) {
   // vmsumshs [VD], [VA], [VB], [VC]
   size_t str_start = str->length();
   str->Append("vmsumshs");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VA.VD());
+  str->AppendFormat("vr{}", d.VA.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VA.VA());
+  str->AppendFormat("vr{}", d.VA.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VA.VB());
+  str->AppendFormat("vr{}", d.VA.VB());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VA.VC());
+  str->AppendFormat("vr{}", d.VA.VC());
 }
 void PrintDisasm_vmsumubm(const PPCDecodeData& d, StringBuffer* str) {
   // vmsumubm [VD], [VA], [VB], [VC]
   size_t str_start = str->length();
   str->Append("vmsumubm");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VA.VD());
+  str->AppendFormat("vr{}", d.VA.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VA.VA());
+  str->AppendFormat("vr{}", d.VA.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VA.VB());
+  str->AppendFormat("vr{}", d.VA.VB());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VA.VC());
+  str->AppendFormat("vr{}", d.VA.VC());
 }
 void PrintDisasm_vmsumuhm(const PPCDecodeData& d, StringBuffer* str) {
   // vmsumuhm [VD], [VA], [VB], [VC]
   size_t str_start = str->length();
   str->Append("vmsumuhm");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VA.VD());
+  str->AppendFormat("vr{}", d.VA.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VA.VA());
+  str->AppendFormat("vr{}", d.VA.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VA.VB());
+  str->AppendFormat("vr{}", d.VA.VB());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VA.VC());
+  str->AppendFormat("vr{}", d.VA.VC());
 }
 void PrintDisasm_vmsumuhs(const PPCDecodeData& d, StringBuffer* str) {
   // vmsumuhs [VD], [VA], [VB], [VC]
   size_t str_start = str->length();
   str->Append("vmsumuhs");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VA.VD());
+  str->AppendFormat("vr{}", d.VA.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VA.VA());
+  str->AppendFormat("vr{}", d.VA.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VA.VB());
+  str->AppendFormat("vr{}", d.VA.VB());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VA.VC());
+  str->AppendFormat("vr{}", d.VA.VC());
 }
 void PrintDisasm_vmulesb(const PPCDecodeData& d, StringBuffer* str) {
   // vmulesb [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vmulesb");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vmulesh(const PPCDecodeData& d, StringBuffer* str) {
   // vmulesh [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vmulesh");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vmuleub(const PPCDecodeData& d, StringBuffer* str) {
   // vmuleub [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vmuleub");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vmuleuh(const PPCDecodeData& d, StringBuffer* str) {
   // vmuleuh [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vmuleuh");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vmulfp128(const PPCDecodeData& d, StringBuffer* str) {
   // vmulfp128 [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vmulfp128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128.VD());
+  str->AppendFormat("vr{}", d.VX128.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VA());
+  str->AppendFormat("vr{}", d.VX128.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VB());
+  str->AppendFormat("vr{}", d.VX128.VB());
 }
 void PrintDisasm_vmulosb(const PPCDecodeData& d, StringBuffer* str) {
   // vmulosb [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vmulosb");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vmulosh(const PPCDecodeData& d, StringBuffer* str) {
   // vmulosh [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vmulosh");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vmuloub(const PPCDecodeData& d, StringBuffer* str) {
   // vmuloub [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vmuloub");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vmulouh(const PPCDecodeData& d, StringBuffer* str) {
   // vmulouh [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vmulouh");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vnmsubfp(const PPCDecodeData& d, StringBuffer* str) {
   // vnmsubfp [VD], [VA], [VC], [VB]
   size_t str_start = str->length();
   str->Append("vnmsubfp");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VA.VD());
+  str->AppendFormat("vr{}", d.VA.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VA.VA());
+  str->AppendFormat("vr{}", d.VA.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VA.VC());
+  str->AppendFormat("vr{}", d.VA.VC());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VA.VB());
+  str->AppendFormat("vr{}", d.VA.VB());
 }
 void PrintDisasm_vnmsubfp128(const PPCDecodeData& d, StringBuffer* str) {
   // vnmsubfp128 [VD], [VA], [VD], [VB]
   size_t str_start = str->length();
   str->Append("vnmsubfp128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128.VD());
+  str->AppendFormat("vr{}", d.VX128.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VA());
+  str->AppendFormat("vr{}", d.VX128.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VD());
+  str->AppendFormat("vr{}", d.VX128.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VB());
+  str->AppendFormat("vr{}", d.VX128.VB());
 }
 void PrintDisasm_vnor(const PPCDecodeData& d, StringBuffer* str) {
   // vnor [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vnor");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vnor128(const PPCDecodeData& d, StringBuffer* str) {
   // vnor128 [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vnor128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128.VD());
+  str->AppendFormat("vr{}", d.VX128.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VA());
+  str->AppendFormat("vr{}", d.VX128.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VB());
+  str->AppendFormat("vr{}", d.VX128.VB());
 }
 void PrintDisasm_vor(const PPCDecodeData& d, StringBuffer* str) {
   // vor [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vor");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vor128(const PPCDecodeData& d, StringBuffer* str) {
   // vor128 [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vor128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128.VD());
+  str->AppendFormat("vr{}", d.VX128.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VA());
+  str->AppendFormat("vr{}", d.VX128.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VB());
+  str->AppendFormat("vr{}", d.VX128.VB());
 }
 void PrintDisasm_vperm(const PPCDecodeData& d, StringBuffer* str) {
   // vperm [VD], [VA], [VB], [VC]
   size_t str_start = str->length();
   str->Append("vperm");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VA.VD());
+  str->AppendFormat("vr{}", d.VA.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VA.VA());
+  str->AppendFormat("vr{}", d.VA.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VA.VB());
+  str->AppendFormat("vr{}", d.VA.VB());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VA.VC());
+  str->AppendFormat("vr{}", d.VA.VC());
 }
 void PrintDisasm_vperm128(const PPCDecodeData& d, StringBuffer* str) {
   // vperm128 [VD], [VA], [VB], [VC]
   size_t str_start = str->length();
   str->Append("vperm128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128_2.VD());
+  str->AppendFormat("vr{}", d.VX128_2.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128_2.VA());
+  str->AppendFormat("vr{}", d.VX128_2.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128_2.VB());
+  str->AppendFormat("vr{}", d.VX128_2.VB());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128_2.VC());
+  str->AppendFormat("vr{}", d.VX128_2.VC());
 }
 void PrintDisasm_vpermwi128(const PPCDecodeData& d, StringBuffer* str) {
   // vpermwi128 [VD], [VB], [UIMM]
   size_t str_start = str->length();
   str->Append("vpermwi128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128_P.VD());
+  str->AppendFormat("vr{}", d.VX128_P.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128_P.VB());
+  str->AppendFormat("vr{}", d.VX128_P.VB());
   str->Append(", ");
-  str->AppendFormat("0x%X", d.VX128_P.UIMM());
+  str->AppendFormat("0x{:X}", d.VX128_P.UIMM());
 }
 void PrintDisasm_vpkpx(const PPCDecodeData& d, StringBuffer* str) {
   // vpkpx [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vpkpx");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vpkshss(const PPCDecodeData& d, StringBuffer* str) {
   // vpkshss [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vpkshss");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vpkshss128(const PPCDecodeData& d, StringBuffer* str) {
   // vpkshss128 [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vpkshss128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128.VD());
+  str->AppendFormat("vr{}", d.VX128.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VA());
+  str->AppendFormat("vr{}", d.VX128.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VB());
+  str->AppendFormat("vr{}", d.VX128.VB());
 }
 void PrintDisasm_vpkshus(const PPCDecodeData& d, StringBuffer* str) {
   // vpkshus [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vpkshus");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vpkshus128(const PPCDecodeData& d, StringBuffer* str) {
   // vpkshus128 [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vpkshus128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128.VD());
+  str->AppendFormat("vr{}", d.VX128.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VA());
+  str->AppendFormat("vr{}", d.VX128.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VB());
+  str->AppendFormat("vr{}", d.VX128.VB());
 }
 void PrintDisasm_vpkswss(const PPCDecodeData& d, StringBuffer* str) {
   // vpkswss [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vpkswss");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vpkswss128(const PPCDecodeData& d, StringBuffer* str) {
   // vpkswss128 [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vpkswss128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128.VD());
+  str->AppendFormat("vr{}", d.VX128.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VA());
+  str->AppendFormat("vr{}", d.VX128.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VB());
+  str->AppendFormat("vr{}", d.VX128.VB());
 }
 void PrintDisasm_vpkswus(const PPCDecodeData& d, StringBuffer* str) {
   // vpkswus [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vpkswus");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vpkswus128(const PPCDecodeData& d, StringBuffer* str) {
   // vpkswus128 [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vpkswus128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128.VD());
+  str->AppendFormat("vr{}", d.VX128.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VA());
+  str->AppendFormat("vr{}", d.VX128.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VB());
+  str->AppendFormat("vr{}", d.VX128.VB());
 }
 void PrintDisasm_vpkuhum(const PPCDecodeData& d, StringBuffer* str) {
   // vpkuhum [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vpkuhum");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vpkuhum128(const PPCDecodeData& d, StringBuffer* str) {
   // vpkuhum128 [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vpkuhum128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128.VD());
+  str->AppendFormat("vr{}", d.VX128.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VA());
+  str->AppendFormat("vr{}", d.VX128.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VB());
+  str->AppendFormat("vr{}", d.VX128.VB());
 }
 void PrintDisasm_vpkuhus(const PPCDecodeData& d, StringBuffer* str) {
   // vpkuhus [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vpkuhus");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vpkuhus128(const PPCDecodeData& d, StringBuffer* str) {
   // vpkuhus128 [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vpkuhus128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128.VD());
+  str->AppendFormat("vr{}", d.VX128.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VA());
+  str->AppendFormat("vr{}", d.VX128.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VB());
+  str->AppendFormat("vr{}", d.VX128.VB());
 }
 void PrintDisasm_vpkuwum(const PPCDecodeData& d, StringBuffer* str) {
   // vpkuwum [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vpkuwum");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vpkuwum128(const PPCDecodeData& d, StringBuffer* str) {
   // vpkuwum128 [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vpkuwum128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128.VD());
+  str->AppendFormat("vr{}", d.VX128.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VA());
+  str->AppendFormat("vr{}", d.VX128.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VB());
+  str->AppendFormat("vr{}", d.VX128.VB());
 }
 void PrintDisasm_vpkuwus(const PPCDecodeData& d, StringBuffer* str) {
   // vpkuwus [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vpkuwus");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vpkuwus128(const PPCDecodeData& d, StringBuffer* str) {
   // vpkuwus128 [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vpkuwus128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128.VD());
+  str->AppendFormat("vr{}", d.VX128.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VA());
+  str->AppendFormat("vr{}", d.VX128.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VB());
+  str->AppendFormat("vr{}", d.VX128.VB());
 }
 void PrintDisasm_vrefp(const PPCDecodeData& d, StringBuffer* str) {
   // vrefp [VD], [VB]
   size_t str_start = str->length();
   str->Append("vrefp");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vrefp128(const PPCDecodeData& d, StringBuffer* str) {
   // vrefp128 [VD], [VB]
   size_t str_start = str->length();
   str->Append("vrefp128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128_3.VD());
+  str->AppendFormat("vr{}", d.VX128_3.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128_3.VB());
+  str->AppendFormat("vr{}", d.VX128_3.VB());
 }
 void PrintDisasm_vrfim(const PPCDecodeData& d, StringBuffer* str) {
   // vrfim [VD], [VB]
   size_t str_start = str->length();
   str->Append("vrfim");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vrfim128(const PPCDecodeData& d, StringBuffer* str) {
   // vrfim128 [VD], [VB]
   size_t str_start = str->length();
   str->Append("vrfim128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128_3.VD());
+  str->AppendFormat("vr{}", d.VX128_3.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128_3.VB());
+  str->AppendFormat("vr{}", d.VX128_3.VB());
 }
 void PrintDisasm_vrfin(const PPCDecodeData& d, StringBuffer* str) {
   // vrfin [VD], [VB]
   size_t str_start = str->length();
   str->Append("vrfin");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vrfin128(const PPCDecodeData& d, StringBuffer* str) {
   // vrfin128 [VD], [VB]
   size_t str_start = str->length();
   str->Append("vrfin128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128_3.VD());
+  str->AppendFormat("vr{}", d.VX128_3.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128_3.VB());
+  str->AppendFormat("vr{}", d.VX128_3.VB());
 }
 void PrintDisasm_vrfip(const PPCDecodeData& d, StringBuffer* str) {
   // vrfip [VD], [VB]
   size_t str_start = str->length();
   str->Append("vrfip");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vrfip128(const PPCDecodeData& d, StringBuffer* str) {
   // vrfip128 [VD], [VB]
   size_t str_start = str->length();
   str->Append("vrfip128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128_3.VD());
+  str->AppendFormat("vr{}", d.VX128_3.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128_3.VB());
+  str->AppendFormat("vr{}", d.VX128_3.VB());
 }
 void PrintDisasm_vrfiz(const PPCDecodeData& d, StringBuffer* str) {
   // vrfiz [VD], [VB]
   size_t str_start = str->length();
   str->Append("vrfiz");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vrfiz128(const PPCDecodeData& d, StringBuffer* str) {
   // vrfiz128 [VD], [VB]
   size_t str_start = str->length();
   str->Append("vrfiz128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128_3.VD());
+  str->AppendFormat("vr{}", d.VX128_3.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128_3.VB());
+  str->AppendFormat("vr{}", d.VX128_3.VB());
 }
 void PrintDisasm_vrlb(const PPCDecodeData& d, StringBuffer* str) {
   // vrlb [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vrlb");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vrlh(const PPCDecodeData& d, StringBuffer* str) {
   // vrlh [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vrlh");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vrlimi128(const PPCDecodeData& d, StringBuffer* str) {
   // vrlimi128 [VD], [VB], [IMM], [z]
   size_t str_start = str->length();
   str->Append("vrlimi128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128_4.VD());
+  str->AppendFormat("vr{}", d.VX128_4.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128_4.VB());
+  str->AppendFormat("vr{}", d.VX128_4.VB());
   str->Append(", ");
-  str->AppendFormat("%d", d.VX128_4.IMM());
+  str->AppendFormat("{}", d.VX128_4.IMM());
   str->Append(", ");
-  str->AppendFormat("%d", d.VX128_4.z());
+  str->AppendFormat("{}", d.VX128_4.z());
 }
 void PrintDisasm_vrlw(const PPCDecodeData& d, StringBuffer* str) {
   // vrlw [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vrlw");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vrlw128(const PPCDecodeData& d, StringBuffer* str) {
   // vrlw128 [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vrlw128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128.VD());
+  str->AppendFormat("vr{}", d.VX128.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VA());
+  str->AppendFormat("vr{}", d.VX128.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VB());
+  str->AppendFormat("vr{}", d.VX128.VB());
 }
 void PrintDisasm_vrsqrtefp(const PPCDecodeData& d, StringBuffer* str) {
   // vrsqrtefp [VD], [VB]
   size_t str_start = str->length();
   str->Append("vrsqrtefp");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vrsqrtefp128(const PPCDecodeData& d, StringBuffer* str) {
   // vrsqrtefp128 [VD], [VB]
   size_t str_start = str->length();
   str->Append("vrsqrtefp128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128_3.VD());
+  str->AppendFormat("vr{}", d.VX128_3.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128_3.VB());
+  str->AppendFormat("vr{}", d.VX128_3.VB());
 }
 void PrintDisasm_vsel(const PPCDecodeData& d, StringBuffer* str) {
   // vsel [VD], [VA], [VB], [VC]
   size_t str_start = str->length();
   str->Append("vsel");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VA.VD());
+  str->AppendFormat("vr{}", d.VA.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VA.VA());
+  str->AppendFormat("vr{}", d.VA.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VA.VB());
+  str->AppendFormat("vr{}", d.VA.VB());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VA.VC());
+  str->AppendFormat("vr{}", d.VA.VC());
 }
 void PrintDisasm_vsel128(const PPCDecodeData& d, StringBuffer* str) {
   // vsel128 [VD], [VA], [VB], [VD]
   size_t str_start = str->length();
   str->Append("vsel128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128.VD());
+  str->AppendFormat("vr{}", d.VX128.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VA());
+  str->AppendFormat("vr{}", d.VX128.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VB());
+  str->AppendFormat("vr{}", d.VX128.VB());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VD());
+  str->AppendFormat("vr{}", d.VX128.VD());
 }
 void PrintDisasm_vsl(const PPCDecodeData& d, StringBuffer* str) {
   // vsl [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vsl");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vslb(const PPCDecodeData& d, StringBuffer* str) {
   // vslb [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vslb");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vsldoi(const PPCDecodeData& d, StringBuffer* str) {
   // vsldoi [VD], [VA], [VB], [SHB]
   size_t str_start = str->length();
   str->Append("vsldoi");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VA.VD());
+  str->AppendFormat("vr{}", d.VA.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VA.VA());
+  str->AppendFormat("vr{}", d.VA.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VA.VB());
+  str->AppendFormat("vr{}", d.VA.VB());
   str->Append(", ");
   str->AppendFormat("(UNHANDLED SHB)");
 }
@@ -4367,11 +4367,11 @@ void PrintDisasm_vsldoi128(const PPCDecodeData& d, StringBuffer* str) {
   size_t str_start = str->length();
   str->Append("vsldoi128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128_5.VD());
+  str->AppendFormat("vr{}", d.VX128_5.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128_5.VA());
+  str->AppendFormat("vr{}", d.VX128_5.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128_5.VB());
+  str->AppendFormat("vr{}", d.VX128_5.VB());
   str->Append(", ");
   str->AppendFormat("(UNHANDLED SHB)");
 }
@@ -4380,559 +4380,559 @@ void PrintDisasm_vslh(const PPCDecodeData& d, StringBuffer* str) {
   size_t str_start = str->length();
   str->Append("vslh");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vslo(const PPCDecodeData& d, StringBuffer* str) {
   // vslo [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vslo");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vslo128(const PPCDecodeData& d, StringBuffer* str) {
   // vslo128 [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vslo128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128.VD());
+  str->AppendFormat("vr{}", d.VX128.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VA());
+  str->AppendFormat("vr{}", d.VX128.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VB());
+  str->AppendFormat("vr{}", d.VX128.VB());
 }
 void PrintDisasm_vslw(const PPCDecodeData& d, StringBuffer* str) {
   // vslw [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vslw");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vslw128(const PPCDecodeData& d, StringBuffer* str) {
   // vslw128 [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vslw128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128.VD());
+  str->AppendFormat("vr{}", d.VX128.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VA());
+  str->AppendFormat("vr{}", d.VX128.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VB());
+  str->AppendFormat("vr{}", d.VX128.VB());
 }
 void PrintDisasm_vspltb(const PPCDecodeData& d, StringBuffer* str) {
   // vspltb [VD], [VB], [UIMM]
   size_t str_start = str->length();
   str->Append("vspltb");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
   str->Append(", ");
-  str->AppendFormat("0x%X", d.VX.UIMM());
+  str->AppendFormat("0x{:X}", d.VX.UIMM());
 }
 void PrintDisasm_vsplth(const PPCDecodeData& d, StringBuffer* str) {
   // vsplth [VD], [VB], [UIMM]
   size_t str_start = str->length();
   str->Append("vsplth");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
   str->Append(", ");
-  str->AppendFormat("0x%X", d.VX.UIMM());
+  str->AppendFormat("0x{:X}", d.VX.UIMM());
 }
 void PrintDisasm_vspltisb(const PPCDecodeData& d, StringBuffer* str) {
   // vspltisb [VD], [SIMM]
   size_t str_start = str->length();
   str->Append("vspltisb");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat(d.VX.SIMM() < 0 ? "-0x%X" : "0x%X", std::abs(d.VX.SIMM()));
+  str->AppendFormat(d.VX.SIMM() < 0 ? "-0x{:X}" : "0x{:X}", std::abs(d.VX.SIMM()));
 }
 void PrintDisasm_vspltish(const PPCDecodeData& d, StringBuffer* str) {
   // vspltish [VD], [SIMM]
   size_t str_start = str->length();
   str->Append("vspltish");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat(d.VX.SIMM() < 0 ? "-0x%X" : "0x%X", std::abs(d.VX.SIMM()));
+  str->AppendFormat(d.VX.SIMM() < 0 ? "-0x{:X}" : "0x{:X}", std::abs(d.VX.SIMM()));
 }
 void PrintDisasm_vspltisw(const PPCDecodeData& d, StringBuffer* str) {
   // vspltisw [VD], [SIMM]
   size_t str_start = str->length();
   str->Append("vspltisw");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat(d.VX.SIMM() < 0 ? "-0x%X" : "0x%X", std::abs(d.VX.SIMM()));
+  str->AppendFormat(d.VX.SIMM() < 0 ? "-0x{:X}" : "0x{:X}", std::abs(d.VX.SIMM()));
 }
 void PrintDisasm_vspltisw128(const PPCDecodeData& d, StringBuffer* str) {
   // vspltisw128 [VD], [SIMM]
   size_t str_start = str->length();
   str->Append("vspltisw128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128_3.VD());
+  str->AppendFormat("vr{}", d.VX128_3.VD());
   str->Append(", ");
-  str->AppendFormat(d.VX128_3.SIMM() < 0 ? "-0x%X" : "0x%X", std::abs(d.VX128_3.SIMM()));
+  str->AppendFormat(d.VX128_3.SIMM() < 0 ? "-0x{:X}" : "0x{:X}", std::abs(d.VX128_3.SIMM()));
 }
 void PrintDisasm_vspltw(const PPCDecodeData& d, StringBuffer* str) {
   // vspltw [VD], [VB], [UIMM]
   size_t str_start = str->length();
   str->Append("vspltw");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
   str->Append(", ");
-  str->AppendFormat("0x%X", d.VX.UIMM());
+  str->AppendFormat("0x{:X}", d.VX.UIMM());
 }
 void PrintDisasm_vspltw128(const PPCDecodeData& d, StringBuffer* str) {
   // vspltw128 [VD], [VB], [UIMM]
   size_t str_start = str->length();
   str->Append("vspltw128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128_3.VD());
+  str->AppendFormat("vr{}", d.VX128_3.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128_3.VB());
+  str->AppendFormat("vr{}", d.VX128_3.VB());
   str->Append(", ");
-  str->AppendFormat("0x%X", d.VX128_3.UIMM());
+  str->AppendFormat("0x{:X}", d.VX128_3.UIMM());
 }
 void PrintDisasm_vsr(const PPCDecodeData& d, StringBuffer* str) {
   // vsr [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vsr");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vsrab(const PPCDecodeData& d, StringBuffer* str) {
   // vsrab [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vsrab");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vsrah(const PPCDecodeData& d, StringBuffer* str) {
   // vsrah [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vsrah");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vsraw(const PPCDecodeData& d, StringBuffer* str) {
   // vsraw [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vsraw");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vsraw128(const PPCDecodeData& d, StringBuffer* str) {
   // vsraw128 [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vsraw128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128.VD());
+  str->AppendFormat("vr{}", d.VX128.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VA());
+  str->AppendFormat("vr{}", d.VX128.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VB());
+  str->AppendFormat("vr{}", d.VX128.VB());
 }
 void PrintDisasm_vsrb(const PPCDecodeData& d, StringBuffer* str) {
   // vsrb [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vsrb");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vsrh(const PPCDecodeData& d, StringBuffer* str) {
   // vsrh [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vsrh");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vsro(const PPCDecodeData& d, StringBuffer* str) {
   // vsro [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vsro");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vsro128(const PPCDecodeData& d, StringBuffer* str) {
   // vsro128 [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vsro128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128.VD());
+  str->AppendFormat("vr{}", d.VX128.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VA());
+  str->AppendFormat("vr{}", d.VX128.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VB());
+  str->AppendFormat("vr{}", d.VX128.VB());
 }
 void PrintDisasm_vsrw(const PPCDecodeData& d, StringBuffer* str) {
   // vsrw [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vsrw");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vsrw128(const PPCDecodeData& d, StringBuffer* str) {
   // vsrw128 [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vsrw128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128.VD());
+  str->AppendFormat("vr{}", d.VX128.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VA());
+  str->AppendFormat("vr{}", d.VX128.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VB());
+  str->AppendFormat("vr{}", d.VX128.VB());
 }
 void PrintDisasm_vsubcuw(const PPCDecodeData& d, StringBuffer* str) {
   // vsubcuw [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vsubcuw");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vsubfp(const PPCDecodeData& d, StringBuffer* str) {
   // vsubfp [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vsubfp");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vsubfp128(const PPCDecodeData& d, StringBuffer* str) {
   // vsubfp128 [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vsubfp128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128.VD());
+  str->AppendFormat("vr{}", d.VX128.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VA());
+  str->AppendFormat("vr{}", d.VX128.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VB());
+  str->AppendFormat("vr{}", d.VX128.VB());
 }
 void PrintDisasm_vsubsbs(const PPCDecodeData& d, StringBuffer* str) {
   // vsubsbs [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vsubsbs");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vsubshs(const PPCDecodeData& d, StringBuffer* str) {
   // vsubshs [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vsubshs");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vsubsws(const PPCDecodeData& d, StringBuffer* str) {
   // vsubsws [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vsubsws");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vsububm(const PPCDecodeData& d, StringBuffer* str) {
   // vsububm [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vsububm");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vsububs(const PPCDecodeData& d, StringBuffer* str) {
   // vsububs [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vsububs");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vsubuhm(const PPCDecodeData& d, StringBuffer* str) {
   // vsubuhm [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vsubuhm");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vsubuhs(const PPCDecodeData& d, StringBuffer* str) {
   // vsubuhs [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vsubuhs");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vsubuwm(const PPCDecodeData& d, StringBuffer* str) {
   // vsubuwm [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vsubuwm");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vsubuws(const PPCDecodeData& d, StringBuffer* str) {
   // vsubuws [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vsubuws");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vsum2sws(const PPCDecodeData& d, StringBuffer* str) {
   // vsum2sws [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vsum2sws");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vsum4sbs(const PPCDecodeData& d, StringBuffer* str) {
   // vsum4sbs [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vsum4sbs");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vsum4shs(const PPCDecodeData& d, StringBuffer* str) {
   // vsum4shs [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vsum4shs");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vsum4ubs(const PPCDecodeData& d, StringBuffer* str) {
   // vsum4ubs [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vsum4ubs");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vsumsws(const PPCDecodeData& d, StringBuffer* str) {
   // vsumsws [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vsumsws");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vupkhpx(const PPCDecodeData& d, StringBuffer* str) {
   // vupkhpx [VD], [VB]
   size_t str_start = str->length();
   str->Append("vupkhpx");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vupkhsb(const PPCDecodeData& d, StringBuffer* str) {
   // vupkhsb [VD], [VB]
   size_t str_start = str->length();
   str->Append("vupkhsb");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vupkhsb128(const PPCDecodeData& d, StringBuffer* str) {
   // vupkhsb128 [VD], [VB]
   size_t str_start = str->length();
   str->Append("vupkhsb128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128.VD());
+  str->AppendFormat("vr{}", d.VX128.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VB());
+  str->AppendFormat("vr{}", d.VX128.VB());
 }
 void PrintDisasm_vupkhsh(const PPCDecodeData& d, StringBuffer* str) {
   // vupkhsh [VD], [VB]
   size_t str_start = str->length();
   str->Append("vupkhsh");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vupklpx(const PPCDecodeData& d, StringBuffer* str) {
   // vupklpx [VD], [VB]
   size_t str_start = str->length();
   str->Append("vupklpx");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vupklsb(const PPCDecodeData& d, StringBuffer* str) {
   // vupklsb [VD], [VB]
   size_t str_start = str->length();
   str->Append("vupklsb");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vupklsb128(const PPCDecodeData& d, StringBuffer* str) {
   // vupklsb128 [VD], [VB]
   size_t str_start = str->length();
   str->Append("vupklsb128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128.VD());
+  str->AppendFormat("vr{}", d.VX128.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VB());
+  str->AppendFormat("vr{}", d.VX128.VB());
 }
 void PrintDisasm_vupklsh(const PPCDecodeData& d, StringBuffer* str) {
   // vupklsh [VD], [VB]
   size_t str_start = str->length();
   str->Append("vupklsh");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vxor(const PPCDecodeData& d, StringBuffer* str) {
   // vxor [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vxor");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX.VD());
+  str->AppendFormat("vr{}", d.VX.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VA());
+  str->AppendFormat("vr{}", d.VX.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX.VB());
+  str->AppendFormat("vr{}", d.VX.VB());
 }
 void PrintDisasm_vxor128(const PPCDecodeData& d, StringBuffer* str) {
   // vxor128 [VD], [VA], [VB]
   size_t str_start = str->length();
   str->Append("vxor128");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("vr%d", d.VX128.VD());
+  str->AppendFormat("vr{}", d.VX128.VD());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VA());
+  str->AppendFormat("vr{}", d.VX128.VA());
   str->Append(", ");
-  str->AppendFormat("vr%d", d.VX128.VB());
+  str->AppendFormat("vr{}", d.VX128.VB());
 }
 void PrintDisasm_xori(const PPCDecodeData& d, StringBuffer* str) {
   // xori [RA], [RS], [UIMM]
   size_t str_start = str->length();
   str->Append("xori");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.D.RA());
+  str->AppendFormat("r{}", d.D.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.D.RS());
+  str->AppendFormat("r{}", d.D.RS());
   str->Append(", ");
-  str->AppendFormat("0x%X", d.D.UIMM());
+  str->AppendFormat("0x{:X}", d.D.UIMM());
 }
 void PrintDisasm_xoris(const PPCDecodeData& d, StringBuffer* str) {
   // xoris [RA], [RS], [UIMM]
   size_t str_start = str->length();
   str->Append("xoris");
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.D.RA());
+  str->AppendFormat("r{}", d.D.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.D.RS());
+  str->AppendFormat("r{}", d.D.RS());
   str->Append(", ");
-  str->AppendFormat("0x%X", d.D.UIMM());
+  str->AppendFormat("0x{:X}", d.D.UIMM());
 }
 void PrintDisasm_xorx(const PPCDecodeData& d, StringBuffer* str) {
   // xor[Rc] [RA], [RS], [RB]
@@ -4940,11 +4940,11 @@ void PrintDisasm_xorx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("xor");
   if (d.X.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r%d", d.X.RA());
+  str->AppendFormat("r{}", d.X.RA());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RS());
+  str->AppendFormat("r{}", d.X.RS());
   str->Append(", ");
-  str->AppendFormat("r%d", d.X.RB());
+  str->AppendFormat("r{}", d.X.RB());
 }
 #define INIT_LIST(...) {__VA_ARGS__}
 #define INSTRUCTION(opcode, mnem, form, group, type, desc, reads, writes, fn) \

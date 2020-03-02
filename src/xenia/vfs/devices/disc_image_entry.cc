@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -17,8 +17,8 @@
 namespace xe {
 namespace vfs {
 
-DiscImageEntry::DiscImageEntry(Device* device, Entry* parent, std::string path,
-                               MappedMemory* mmap)
+DiscImageEntry::DiscImageEntry(Device* device, Entry* parent,
+                               const std::string_view path, MappedMemory* mmap)
     : Entry(device, parent, path),
       mmap_(mmap),
       data_offset_(0),
@@ -26,13 +26,11 @@ DiscImageEntry::DiscImageEntry(Device* device, Entry* parent, std::string path,
 
 DiscImageEntry::~DiscImageEntry() = default;
 
-std::unique_ptr<DiscImageEntry> DiscImageEntry::Create(Device* device,
-                                                       Entry* parent,
-                                                       std::string name,
-                                                       MappedMemory* mmap) {
-  auto path = xe::join_paths(parent->path(), name);
+std::unique_ptr<DiscImageEntry> DiscImageEntry::Create(
+    Device* device, Entry* parent, const std::string_view name,
+    MappedMemory* mmap) {
+  auto path = xe::utf8::join_guest_paths(parent->path(), name);
   auto entry = std::make_unique<DiscImageEntry>(device, parent, path, mmap);
-
   return std::move(entry);
 }
 

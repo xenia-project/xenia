@@ -1618,7 +1618,7 @@ void DxbcShaderTranslator::EmitInstructionDisassembly() {
     return;
   }
 
-  const char* source = instruction_disassembly_buffer_.GetString();
+  const char* source = instruction_disassembly_buffer_.buffer();
   uint32_t length = uint32_t(instruction_disassembly_buffer_.length());
   // Trim leading spaces and trailing new line.
   while (length != 0 && source[0] == ' ') {

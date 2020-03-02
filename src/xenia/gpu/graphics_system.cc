@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -275,8 +275,9 @@ void GraphicsSystem::ClearCaches() {
       [&]() { command_processor_->ClearCaches(); });
 }
 
-void GraphicsSystem::InitializeShaderStorage(const std::wstring& storage_root,
-                                             uint32_t title_id, bool blocking) {
+void GraphicsSystem::InitializeShaderStorage(
+    const std::filesystem::path& storage_root, uint32_t title_id,
+    bool blocking) {
   if (!cvars::store_shaders) {
     return;
   }
@@ -304,12 +305,11 @@ void GraphicsSystem::InitializeShaderStorage(const std::wstring& storage_root,
 }
 
 void GraphicsSystem::RequestFrameTrace() {
-  command_processor_->RequestFrameTrace(
-      xe::to_wstring(cvars::trace_gpu_prefix));
+  command_processor_->RequestFrameTrace(cvars::trace_gpu_prefix);
 }
 
 void GraphicsSystem::BeginTracing() {
-  command_processor_->BeginTracing(xe::to_wstring(cvars::trace_gpu_prefix));
+  command_processor_->BeginTracing(cvars::trace_gpu_prefix);
 }
 
 void GraphicsSystem::EndTracing() { command_processor_->EndTracing(); }

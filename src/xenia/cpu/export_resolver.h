@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2019 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -117,9 +117,10 @@ class ExportResolver {
  public:
   class Table {
    public:
-    Table(const char* module_name, const std::vector<Export*>* exports);
+    Table(const std::string_view module_name,
+          const std::vector<Export*>* exports);
 
-    const char* module_name() const { return module_name_; }
+    const std::string& module_name() const { return module_name_; }
     const std::vector<Export*>& exports_by_ordinal() const {
       return *exports_by_ordinal_;
     }
@@ -128,7 +129,7 @@ class ExportResolver {
     }
 
    private:
-    char module_name_[32] = {0};
+    std::string module_name_;
     const std::vector<Export*>* exports_by_ordinal_ = nullptr;
     std::vector<Export*> exports_by_name_;
   };
@@ -136,20 +137,21 @@ class ExportResolver {
   ExportResolver();
   ~ExportResolver();
 
-  void RegisterTable(const char* module_name,
+  void RegisterTable(const std::string_view module_name,
                      const std::vector<Export*>* exports);
   const std::vector<Table>& tables() const { return tables_; }
   const std::vector<Export*>& all_exports_by_name() const {
     return all_exports_by_name_;
   }
 
-  Export* GetExportByOrdinal(const char* module_name, uint16_t ordinal);
+  Export* GetExportByOrdinal(const std::string_view module_name,
+                             uint16_t ordinal);
 
-  void SetVariableMapping(const char* module_name, uint16_t ordinal,
+  void SetVariableMapping(const std::string_view module_name, uint16_t ordinal,
                           uint32_t value);
-  void SetFunctionMapping(const char* module_name, uint16_t ordinal,
+  void SetFunctionMapping(const std::string_view module_name, uint16_t ordinal,
                           xe_kernel_export_shim_fn shim);
-  void SetFunctionMapping(const char* module_name, uint16_t ordinal,
+  void SetFunctionMapping(const std::string_view module_name, uint16_t ordinal,
                           ExportTrampoline trampoline);
 
  private:

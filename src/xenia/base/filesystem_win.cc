@@ -2,37 +2,56 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2015 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
 
-#include "xenia/base/filesystem.h"
-#include "xenia/base/logging.h"
-
-#include <string>
-
 #include <io.h>
 #include <shlobj.h>
 
+#include <string>
+
+#undef CreateFile
+#undef DeleteFile
+
+#include "xenia/base/filesystem.h"
+#include "xenia/base/logging.h"
 #include "xenia/base/platform_win.h"
+#include "xenia/base/string.h"
 
 namespace xe {
+
+std::string path_to_utf8(const std::filesystem::path& path) {
+  return xe::to_utf8(path.u16string());
+}
+
+std::u16string path_to_utf16(const std::filesystem::path& path) {
+  return path.u16string();
+}
+
+std::filesystem::path to_path(const std::string_view source) {
+  return xe::to_utf16(source);
+}
+
+std::filesystem::path to_path(const std::u16string_view source) {
+  return source;
+}
+
 namespace filesystem {
 
-std::wstring GetExecutablePath() {
+std::filesystem::path GetExecutablePath() {
   wchar_t* path;
   auto error = _get_wpgmptr(&path);
-  return !error ? std::wstring(path) : std::wstring();
+  return !error ? std::filesystem::path(path) : std::filesystem::path();
 }
 
-std::wstring GetExecutableFolder() {
-  auto path = GetExecutablePath();
-  return xe::find_base_path(path);
+std::filesystem::path GetExecutableFolder() {
+  return GetExecutablePath().parent_path();
 }
 
-std::wstring GetUserFolder() {
-  std::wstring result;
+std::filesystem::path GetUserFolder() {
+  std::filesystem::path result;
   PWSTR path;
   if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_Documents, KF_FLAG_DEFAULT,
                                      nullptr, &path))) {
@@ -42,22 +61,22 @@ std::wstring GetUserFolder() {
   return result;
 }
 
-bool PathExists(const std::wstring& path) {
+bool PathExists(const std::filesystem::path& path) {
   DWORD attrib = GetFileAttributes(path.c_str());
   return attrib != INVALID_FILE_ATTRIBUTES;
 }
 
-bool CreateFolder(const std::wstring& path) {
-  size_t pos = 0;
-  do {
-    pos = path.find_first_of(xe::kWPathSeparator, pos + 1);
-    CreateDirectoryW(path.substr(0, pos).c_str(), nullptr);
-  } while (pos != std::string::npos);
+bool CreateFolder(const std::filesystem::path& path) {
+  std::filesystem::path create_path;
+  for (auto it = path.begin(); it != path.end(); ++it) {
+    create_path /= *it;
+    CreateDirectoryW(create_path.c_str(), nullptr);
+  }
   return PathExists(path);
 }
 
-bool DeleteFolder(const std::wstring& path) {
-  auto double_null_path = path + std::wstring(L"\0", 1);
+bool DeleteFolder(const std::filesystem::path& path) {
+  auto double_null_path = path.wstring() + std::wstring(L"\0", 1);
   SHFILEOPSTRUCT op = {0};
   op.wFunc = FO_DELETE;
   op.pFrom = double_null_path.c_str();
@@ -65,14 +84,13 @@ bool DeleteFolder(const std::wstring& path) {
   return SHFileOperation(&op) == 0;
 }
 
-bool IsFolder(const std::wstring& path) {
+bool IsFolder(const std::filesystem::path& path) {
   DWORD attrib = GetFileAttributes(path.c_str());
   return attrib != INVALID_FILE_ATTRIBUTES &&
          (attrib & FILE_ATTRIBUTE_DIRECTORY) == FILE_ATTRIBUTE_DIRECTORY;
 }
 
-#undef CreateFile
-bool CreateFile(const std::wstring& path) {
+bool CreateFile(const std::filesystem::path& path) {
   auto handle = CreateFileW(path.c_str(), 0, 0, nullptr, CREATE_ALWAYS,
                             FILE_ATTRIBUTE_NORMAL, nullptr);
   if (handle == INVALID_HANDLE_VALUE) {
@@ -83,9 +101,10 @@ bool CreateFile(const std::wstring& path) {
   return true;
 }
 
-FILE* OpenFile(const std::wstring& path, const char* mode) {
-  auto fixed_path = xe::fix_path_separators(path);
-  return _wfopen(fixed_path.c_str(), xe::to_wstring(mode).c_str());
+FILE* OpenFile(const std::filesystem::path& path, const std::string_view mode) {
+  // Dumb, but OK.
+  const auto wmode = xe::to_utf16(mode);
+  return _wfopen(path.c_str(), reinterpret_cast<const wchar_t*>(wmode.c_str()));
 }
 
 bool Seek(FILE* file, int64_t offset, int origin) {
@@ -114,14 +133,14 @@ bool TruncateStdioFile(FILE* file, uint64_t length) {
   return true;
 }
 
-bool DeleteFile(const std::wstring& path) {
+bool DeleteFile(const std::filesystem::path& path) {
   return DeleteFileW(path.c_str()) ? true : false;
 }
 
 class Win32FileHandle : public FileHandle {
  public:
-  Win32FileHandle(std::wstring path, HANDLE handle)
-      : FileHandle(std::move(path)), handle_(handle) {}
+  Win32FileHandle(const std::filesystem::path& path, HANDLE handle)
+      : FileHandle(path), handle_(handle) {}
   ~Win32FileHandle() override {
     CloseHandle(handle_);
     handle_ = nullptr;
@@ -181,8 +200,8 @@ class Win32FileHandle : public FileHandle {
   HANDLE handle_ = nullptr;
 };
 
-std::unique_ptr<FileHandle> FileHandle::OpenExisting(std::wstring path,
-                                                     uint32_t desired_access) {
+std::unique_ptr<FileHandle> FileHandle::OpenExisting(
+    const std::filesystem::path& path, uint32_t desired_access) {
   DWORD open_access = 0;
   if (desired_access & FileAccess::kGenericRead) {
     open_access |= GENERIC_READ;
@@ -220,7 +239,7 @@ std::unique_ptr<FileHandle> FileHandle::OpenExisting(std::wstring path,
 
 #define COMBINE_TIME(t) (((uint64_t)t.dwHighDateTime << 32) | t.dwLowDateTime)
 
-bool GetInfo(const std::wstring& path, FileInfo* out_info) {
+bool GetInfo(const std::filesystem::path& path, FileInfo* out_info) {
   std::memset(out_info, 0, sizeof(FileInfo));
   WIN32_FILE_ATTRIBUTE_DATA data = {0};
   if (!GetFileAttributesEx(path.c_str(), GetFileExInfoStandard, &data)) {
@@ -234,19 +253,19 @@ bool GetInfo(const std::wstring& path, FileInfo* out_info) {
     out_info->total_size =
         (data.nFileSizeHigh * (size_t(MAXDWORD) + 1)) + data.nFileSizeLow;
   }
-  out_info->path = xe::find_base_path(path);
-  out_info->name = xe::find_name_from_path(path);
+  out_info->path = path.parent_path();
+  out_info->name = path.filename();
   out_info->create_timestamp = COMBINE_TIME(data.ftCreationTime);
   out_info->access_timestamp = COMBINE_TIME(data.ftLastAccessTime);
   out_info->write_timestamp = COMBINE_TIME(data.ftLastWriteTime);
   return true;
 }
 
-std::vector<FileInfo> ListFiles(const std::wstring& path) {
+std::vector<FileInfo> ListFiles(const std::filesystem::path& path) {
   std::vector<FileInfo> result;
 
   WIN32_FIND_DATA ffd;
-  HANDLE handle = FindFirstFile((path + L"\\*").c_str(), &ffd);
+  HANDLE handle = FindFirstFileW((path / "*").c_str(), &ffd);
   if (handle == INVALID_HANDLE_VALUE) {
     return result;
   }

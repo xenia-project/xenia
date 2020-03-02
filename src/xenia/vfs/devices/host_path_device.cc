@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -18,24 +18,25 @@
 namespace xe {
 namespace vfs {
 
-HostPathDevice::HostPathDevice(const std::string& mount_path,
-                               const std::wstring& local_path, bool read_only)
-    : Device(mount_path), local_path_(local_path), read_only_(read_only) {}
+HostPathDevice::HostPathDevice(const std::string_view mount_path,
+                               const std::filesystem::path& host_path,
+                               bool read_only)
+    : Device(mount_path), host_path_(host_path), read_only_(read_only) {}
 
 HostPathDevice::~HostPathDevice() = default;
 
 bool HostPathDevice::Initialize() {
-  if (!xe::filesystem::PathExists(local_path_)) {
+  if (!xe::filesystem::PathExists(host_path_)) {
     if (!read_only_) {
       // Create the path.
-      xe::filesystem::CreateFolder(local_path_);
+      xe::filesystem::CreateFolder(host_path_);
     } else {
       XELOGE("Host path does not exist");
       return false;
     }
   }
 
-  auto root_entry = new HostPathEntry(this, nullptr, "", local_path_);
+  auto root_entry = new HostPathEntry(this, nullptr, "", host_path_);
   root_entry->attributes_ = kFileAttributeDirectory;
   root_entry_ = std::unique_ptr<Entry>(root_entry);
   PopulateEntry(root_entry);
@@ -48,7 +49,7 @@ void HostPathDevice::Dump(StringBuffer* string_buffer) {
   root_entry_->Dump(string_buffer, 0);
 }
 
-Entry* HostPathDevice::ResolvePath(const std::string& path) {
+Entry* HostPathDevice::ResolvePath(const std::string_view path) {
   // The filesystem will have stripped our prefix off already, so the path will
   // be in the form:
   // some\PATH.foo
@@ -57,7 +58,7 @@ Entry* HostPathDevice::ResolvePath(const std::string& path) {
 
   // Walk the path, one separator at a time.
   auto entry = root_entry_.get();
-  auto path_parts = xe::split_path(path);
+  auto path_parts = xe::utf8::split_path(path);
   for (auto& part : path_parts) {
     entry = entry->GetChild(part);
     if (!entry) {
@@ -70,11 +71,10 @@ Entry* HostPathDevice::ResolvePath(const std::string& path) {
 }
 
 void HostPathDevice::PopulateEntry(HostPathEntry* parent_entry) {
-  auto child_infos = xe::filesystem::ListFiles(parent_entry->local_path());
+  auto child_infos = xe::filesystem::ListFiles(parent_entry->host_path());
   for (auto& child_info : child_infos) {
     auto child = HostPathEntry::Create(
-        this, parent_entry,
-        xe::join_paths(parent_entry->local_path(), child_info.name),
+        this, parent_entry, parent_entry->host_path() / child_info.name,
         child_info);
     parent_entry->children_.push_back(std::unique_ptr<Entry>(child));
 

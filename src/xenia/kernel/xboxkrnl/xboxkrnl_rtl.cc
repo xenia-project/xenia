@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -165,7 +165,7 @@ DECLARE_XBOXKRNL_EXPORT1(RtlFreeAnsiString, kNone, kImplemented);
 
 // https://msdn.microsoft.com/en-us/library/ff561934
 void RtlInitUnicodeString(pointer_t<X_UNICODE_STRING> destination,
-                          lpwstring_t source) {
+                          lpu16string_t source) {
   if (source) {
     destination->length = (uint16_t)source.value().size() * 2;
     destination->maximum_length = (uint16_t)(source.value().size() + 1) * 2;
@@ -229,9 +229,9 @@ dword_result_t RtlUnicodeStringToAnsiString(
   // _In_     PCUNICODE_STRING SourceString,
   // _In_     BOOLEAN AllocateDestinationString
 
-  std::wstring unicode_str =
+  std::u16string unicode_str =
       util::TranslateUnicodeString(kernel_memory(), source_ptr);
-  std::string ansi_str = xe::to_string(unicode_str);
+  std::string ansi_str = xe::to_utf8(unicode_str);
   if (ansi_str.size() > 0xFFFF - 1) {
     return X_STATUS_INVALID_PARAMETER_2;
   }

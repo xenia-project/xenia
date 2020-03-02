@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2015 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -26,7 +26,7 @@ namespace ui {
 // Implemented in one of the window_*_demo.cc files under a subdir.
 std::unique_ptr<GraphicsProvider> CreateDemoGraphicsProvider(Window* window);
 
-int window_demo_main(const std::vector<std::wstring>& args) {
+int window_demo_main(const std::vector<std::string>& args) {
   Profiler::Initialize();
   Profiler::ThreadEnter("main");
 
@@ -44,20 +44,20 @@ int window_demo_main(const std::vector<std::wstring>& args) {
 
   // Main menu.
   auto main_menu = MenuItem::Create(MenuItem::Type::kNormal);
-  auto file_menu = MenuItem::Create(MenuItem::Type::kPopup, L"&File");
+  auto file_menu = MenuItem::Create(MenuItem::Type::kPopup, "&File");
   {
-    file_menu->AddChild(MenuItem::Create(MenuItem::Type::kString, L"&Close",
-                                         L"Alt+F4",
+    file_menu->AddChild(MenuItem::Create(MenuItem::Type::kString, "&Close",
+                                         "Alt+F4",
                                          [&window]() { window->Close(); }));
   }
   main_menu->AddChild(std::move(file_menu));
-  auto debug_menu = MenuItem::Create(MenuItem::Type::kPopup, L"&Debug");
+  auto debug_menu = MenuItem::Create(MenuItem::Type::kPopup, "&Debug");
   {
     debug_menu->AddChild(MenuItem::Create(MenuItem::Type::kString,
-                                          L"Toggle Profiler &Display", L"F3",
+                                          "Toggle Profiler &Display", "F3",
                                           []() { Profiler::ToggleDisplay(); }));
     debug_menu->AddChild(MenuItem::Create(MenuItem::Type::kString,
-                                          L"&Pause/Resume Profiler", L"`",
+                                          "&Pause/Resume Profiler", "`",
                                           []() { Profiler::TogglePause(); }));
   }
   main_menu->AddChild(std::move(debug_menu));

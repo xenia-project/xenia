@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2015 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -34,25 +34,25 @@ class WildcardFlags {
 
 class WildcardRule {
  public:
-  WildcardRule(const std::string& str_match, const WildcardFlags& flags);
-  bool Check(const std::string& str_lower,
-             std::string::size_type* offset) const;
+  WildcardRule(const std::string_view match, const WildcardFlags& flags);
+  bool Check(const std::string_view lower,
+             std::string_view::size_type* offset) const;
 
  private:
-  std::string match;
-  WildcardFlags rules;
+  std::string match_;
+  WildcardFlags rules_;
 };
 
 class WildcardEngine {
  public:
-  void SetRule(const std::string& pattern);
+  void SetRule(const std::string_view pattern);
 
   // Always ignoring case
-  bool Match(const std::string& str) const;
+  bool Match(const std::string_view str) const;
 
  private:
-  std::vector<WildcardRule> rules;
-  void PreparePattern(const std::string& pattern);
+  std::vector<WildcardRule> rules_;
+  void PreparePattern(const std::string_view pattern);
 };
 
 }  // namespace filesystem

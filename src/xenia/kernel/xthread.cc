@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2019 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -15,6 +15,7 @@
 #include <objbase.h>
 #endif
 
+#include "third_party/fmt/include/fmt/format.h"
 #include "xenia/base/byte_stream.h"
 #include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
@@ -145,8 +146,8 @@ void XThread::set_last_error(uint32_t error_code) {
   guest_object<X_KTHREAD>()->last_error = error_code;
 }
 
-void XThread::set_name(const std::string& name) {
-  thread_name_ = xe::format_string("%s (%.8X)", name.c_str(), handle());
+void XThread::set_name(const std::string_view name) {
+  thread_name_ = fmt::format("{} ({:08X})", name, handle());
 
   if (thread_) {
     // May be getting set before the thread is created.
@@ -420,10 +421,7 @@ X_STATUS XThread::Create() {
 
   // Set the thread name based on host ID (for easier debugging).
   if (thread_name_.empty()) {
-    char thread_name[32];
-    snprintf(thread_name, xe::countof(thread_name), "XThread%.04X",
-             thread_->system_id());
-    set_name(thread_name);
+    set_name(fmt::format("XThread{:04X}", thread_->system_id()));
   }
 
   if (creation_params_.creation_flags & 0x60) {

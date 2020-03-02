@@ -19,6 +19,7 @@ project("xenia-vfs-dump")
   kind("ConsoleApp")
   language("C++")
   links({
+    "fmt",
     "xenia-base",
     "xenia-vfs",
   })

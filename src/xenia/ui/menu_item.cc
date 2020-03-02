@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2014 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -13,21 +13,20 @@ namespace xe {
 namespace ui {
 
 std::unique_ptr<MenuItem> MenuItem::Create(Type type) {
-  return MenuItem::Create(type, L"", L"", nullptr);
+  return MenuItem::Create(type, "", "", nullptr);
 }
 
-std::unique_ptr<MenuItem> MenuItem::Create(Type type,
-                                           const std::wstring& text) {
-  return MenuItem::Create(type, text, L"", nullptr);
+std::unique_ptr<MenuItem> MenuItem::Create(Type type, const std::string& text) {
+  return MenuItem::Create(type, text, "", nullptr);
 }
 
-std::unique_ptr<MenuItem> MenuItem::Create(Type type, const std::wstring& text,
+std::unique_ptr<MenuItem> MenuItem::Create(Type type, const std::string& text,
                                            std::function<void()> callback) {
-  return MenuItem::Create(type, text, L"", std::move(callback));
+  return MenuItem::Create(type, text, "", std::move(callback));
 }
 
-MenuItem::MenuItem(Type type, const std::wstring& text,
-                   const std::wstring& hotkey, std::function<void()> callback)
+MenuItem::MenuItem(Type type, const std::string& text,
+                   const std::string& hotkey, std::function<void()> callback)
     : type_(type),
       parent_item_(nullptr),
       text_(text),

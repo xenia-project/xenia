@@ -2,18 +2,18 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2014 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
-
-#include "xenia/base/mapped_memory.h"
 
 #include <memory>
 #include <mutex>
 #include <vector>
 
+#include "third_party/fmt/include/fmt/format.h"
 #include "xenia/base/logging.h"
+#include "xenia/base/mapped_memory.h"
 #include "xenia/base/math.h"
 #include "xenia/base/memory.h"
 #include "xenia/base/platform_win.h"
@@ -22,7 +22,7 @@ namespace xe {
 
 class Win32MappedMemory : public MappedMemory {
  public:
-  Win32MappedMemory(const std::wstring& path, Mode mode)
+  Win32MappedMemory(const std::filesystem::path& path, Mode mode)
       : MappedMemory(path, mode) {}
 
   ~Win32MappedMemory() override {
@@ -88,9 +88,9 @@ class Win32MappedMemory : public MappedMemory {
   DWORD view_access_ = 0;
 };
 
-std::unique_ptr<MappedMemory> MappedMemory::Open(const std::wstring& path,
-                                                 Mode mode, size_t offset,
-                                                 size_t length) {
+std::unique_ptr<MappedMemory> MappedMemory::Open(
+    const std::filesystem::path& path, Mode mode, size_t offset,
+    size_t length) {
   DWORD file_access = 0;
   DWORD file_share = 0;
   DWORD create_mode = 0;
@@ -157,8 +157,8 @@ std::unique_ptr<MappedMemory> MappedMemory::Open(const std::wstring& path,
 
 class Win32ChunkedMappedMemoryWriter : public ChunkedMappedMemoryWriter {
  public:
-  Win32ChunkedMappedMemoryWriter(const std::wstring& path, size_t chunk_size,
-                                 bool low_address_space)
+  Win32ChunkedMappedMemoryWriter(const std::filesystem::path& path,
+                                 size_t chunk_size, bool low_address_space)
       : ChunkedMappedMemoryWriter(path, chunk_size, low_address_space) {}
 
   ~Win32ChunkedMappedMemoryWriter() override {
@@ -175,7 +175,8 @@ class Win32ChunkedMappedMemoryWriter : public ChunkedMappedMemoryWriter {
       }
     }
     auto chunk = std::make_unique<Chunk>(chunk_size_);
-    auto chunk_path = path_ + L"." + std::to_wstring(chunks_.size());
+    auto chunk_path =
+        path_.replace_extension(fmt::format(".{}", chunks_.size()));
     if (!chunk->Open(chunk_path, low_address_space_)) {
       return nullptr;
     }
@@ -221,7 +222,7 @@ class Win32ChunkedMappedMemoryWriter : public ChunkedMappedMemoryWriter {
       }
     }
 
-    bool Open(const std::wstring& path, bool low_address_space) {
+    bool Open(const std::filesystem::path& path, bool low_address_space) {
       DWORD file_access = GENERIC_READ | GENERIC_WRITE;
       DWORD file_share = FILE_SHARE_READ;
       DWORD create_mode = CREATE_ALWAYS;
@@ -300,7 +301,8 @@ class Win32ChunkedMappedMemoryWriter : public ChunkedMappedMemoryWriter {
 };
 
 std::unique_ptr<ChunkedMappedMemoryWriter> ChunkedMappedMemoryWriter::Open(
-    const std::wstring& path, size_t chunk_size, bool low_address_space) {
+    const std::filesystem::path& path, size_t chunk_size,
+    bool low_address_space) {
   SYSTEM_INFO system_info;
   GetSystemInfo(&system_info);
   size_t aligned_chunk_size =

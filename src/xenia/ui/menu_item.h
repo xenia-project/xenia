@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2014 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -34,19 +34,19 @@ class MenuItem {
   };
 
   static std::unique_ptr<MenuItem> Create(Type type);
-  static std::unique_ptr<MenuItem> Create(Type type, const std::wstring& text);
-  static std::unique_ptr<MenuItem> Create(Type type, const std::wstring& text,
+  static std::unique_ptr<MenuItem> Create(Type type, const std::string& text);
+  static std::unique_ptr<MenuItem> Create(Type type, const std::string& text,
                                           std::function<void()> callback);
-  static std::unique_ptr<MenuItem> Create(Type type, const std::wstring& text,
-                                          const std::wstring& hotkey,
+  static std::unique_ptr<MenuItem> Create(Type type, const std::string& text,
+                                          const std::string& hotkey,
                                           std::function<void()> callback);
 
   virtual ~MenuItem();
 
   MenuItem* parent_item() const { return parent_item_; }
   Type type() { return type_; }
-  const std::wstring& text() { return text_; }
-  const std::wstring& hotkey() { return hotkey_; }
+  const std::string& text() { return text_; }
+  const std::string& hotkey() { return hotkey_; }
 
   void AddChild(MenuItem* child_item);
   void AddChild(std::unique_ptr<MenuItem> child_item);
@@ -58,7 +58,7 @@ class MenuItem {
   virtual void DisableMenuItem(Window& window) = 0;
 
  protected:
-  MenuItem(Type type, const std::wstring& text, const std::wstring& hotkey,
+  MenuItem(Type type, const std::string& text, const std::string& hotkey,
            std::function<void()> callback);
 
   virtual void OnChildAdded(MenuItem* child_item) {}
@@ -69,8 +69,8 @@ class MenuItem {
   Type type_;
   MenuItem* parent_item_;
   std::vector<MenuItemPtr> children_;
-  std::wstring text_;
-  std::wstring hotkey_;
+  std::string text_;
+  std::string hotkey_;
   std::function<void()> callback_;
 };
 

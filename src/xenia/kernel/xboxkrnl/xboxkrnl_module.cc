@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2019 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -11,6 +11,7 @@
 
 #include <vector>
 
+#include "third_party/fmt/include/fmt/format.h"
 #include "xenia/base/clock.h"
 #include "xenia/base/debugging.h"
 #include "xenia/base/logging.h"
@@ -47,15 +48,18 @@ bool XboxkrnlModule::SendPIXCommand(const char* cmd) {
     return false;
   }
 
-  auto scratch = memory_->SystemHeapAlloc(260 + 260);
+  uint32_t scratch_size = 260 + 260;
+  auto scratch_ptr = memory_->SystemHeapAlloc(scratch_size);
+  auto scratch = memory_->TranslateVirtual(scratch_ptr);
+  std::memset(scratch, 0, scratch_size);
 
-  auto response = memory_->TranslateVirtual<const char*>(scratch + 0);
-  auto command = memory_->TranslateVirtual<char*>(scratch + 260);
+  auto response = reinterpret_cast<char*>(scratch + 0);
+  auto command = reinterpret_cast<char*>(scratch + 260);
 
-  std::snprintf(command, 260, "PIX!m!%s", cmd);
+  fmt::format_to_n(command, 259, "PIX!m!{}", cmd);
 
   global_lock.unlock();
-  uint64_t args[] = {scratch + 260, scratch, 260};
+  uint64_t args[] = {scratch_ptr + 260, scratch_ptr, 260};
   auto result = kernel_state_->processor()->Execute(
       XThread::GetCurrentThread()->thread_state(), pix_function_, args,
       xe::countof(args));
@@ -64,7 +68,7 @@ bool XboxkrnlModule::SendPIXCommand(const char* cmd) {
   XELOGD("PIX(command): %s", cmd);
   XELOGD("PIX(response): %s", response);
 
-  memory_->SystemHeapFree(scratch);
+  memory_->SystemHeapFree(scratch_ptr);
 
   if (XSUCCEEDED(result)) {
     return true;

@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2014 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -43,17 +43,17 @@ X_RESULT XmpApp::XMPGetStatus(uint32_t state_ptr) {
 
 X_RESULT XmpApp::XMPCreateTitlePlaylist(uint32_t songs_ptr, uint32_t song_count,
                                         uint32_t playlist_name_ptr,
-                                        std::wstring playlist_name,
+                                        const std::u16string& playlist_name,
                                         uint32_t flags,
                                         uint32_t out_song_handles,
                                         uint32_t out_playlist_handle) {
   XELOGD("XMPCreateTitlePlaylist(%.8X, %.8X, %.8X(%s), %.8X, %.8X, %.8X)",
          songs_ptr, song_count, playlist_name_ptr,
-         xe::to_string(playlist_name).c_str(), flags, out_song_handles,
+         xe::to_utf8(playlist_name).c_str(), flags, out_song_handles,
          out_playlist_handle);
   auto playlist = std::make_unique<Playlist>();
   playlist->handle = ++next_playlist_handle_;
-  playlist->name = std::move(playlist_name);
+  playlist->name = playlist_name;
   playlist->flags = flags;
   if (songs_ptr) {
     for (uint32_t i = 0; i < song_count; ++i) {
@@ -61,18 +61,19 @@ X_RESULT XmpApp::XMPCreateTitlePlaylist(uint32_t songs_ptr, uint32_t song_count,
       song->handle = ++next_song_handle_;
       uint8_t* song_base = memory_->TranslateVirtual(songs_ptr + (i * 36));
       song->file_path =
-          xe::load_and_swap<std::wstring>(memory_->TranslateVirtual(
+          xe::load_and_swap<std::u16string>(memory_->TranslateVirtual(
               xe::load_and_swap<uint32_t>(song_base + 0)));
-      song->name = xe::load_and_swap<std::wstring>(memory_->TranslateVirtual(
+      song->name = xe::load_and_swap<std::u16string>(memory_->TranslateVirtual(
           xe::load_and_swap<uint32_t>(song_base + 4)));
-      song->artist = xe::load_and_swap<std::wstring>(memory_->TranslateVirtual(
-          xe::load_and_swap<uint32_t>(song_base + 8)));
-      song->album = xe::load_and_swap<std::wstring>(memory_->TranslateVirtual(
+      song->artist =
+          xe::load_and_swap<std::u16string>(memory_->TranslateVirtual(
+              xe::load_and_swap<uint32_t>(song_base + 8)));
+      song->album = xe::load_and_swap<std::u16string>(memory_->TranslateVirtual(
           xe::load_and_swap<uint32_t>(song_base + 12)));
       song->album_artist =
-          xe::load_and_swap<std::wstring>(memory_->TranslateVirtual(
+          xe::load_and_swap<std::u16string>(memory_->TranslateVirtual(
               xe::load_and_swap<uint32_t>(song_base + 16)));
-      song->genre = xe::load_and_swap<std::wstring>(memory_->TranslateVirtual(
+      song->genre = xe::load_and_swap<std::u16string>(memory_->TranslateVirtual(
           xe::load_and_swap<uint32_t>(song_base + 20)));
       song->track_number = xe::load_and_swap<uint32_t>(song_base + 24);
       song->duration_ms = xe::load_and_swap<uint32_t>(song_base + 28);
@@ -310,11 +311,11 @@ X_RESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       xe::store_and_swap<uint32_t>(
           memory_->TranslateVirtual(playlist_handle_ptr), storage_ptr);
       assert_true(xmp_client == 0x00000002);
-      std::wstring playlist_name;
+      std::u16string playlist_name;
       if (!playlist_name_ptr) {
-        playlist_name = L"";
+        playlist_name = u"";
       } else {
-        playlist_name = xe::load_and_swap<std::wstring>(
+        playlist_name = xe::load_and_swap<std::u16string>(
             memory_->TranslateVirtual(playlist_name_ptr));
       }
       // dummy_alloc_ptr is the result of a XamAlloc of storage_size.
@@ -337,12 +338,12 @@ X_RESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       }
       auto& song = active_playlist_->songs[active_song_index_];
       xe::store_and_swap<uint32_t>(info + 0, song->handle);
-      xe::store_and_swap<std::wstring>(info + 4 + 572 + 0, song->name);
-      xe::store_and_swap<std::wstring>(info + 4 + 572 + 40, song->artist);
-      xe::store_and_swap<std::wstring>(info + 4 + 572 + 80, song->album);
-      xe::store_and_swap<std::wstring>(info + 4 + 572 + 120,
-                                       song->album_artist);
-      xe::store_and_swap<std::wstring>(info + 4 + 572 + 160, song->genre);
+      xe::store_and_swap<std::u16string>(info + 4 + 572 + 0, song->name);
+      xe::store_and_swap<std::u16string>(info + 4 + 572 + 40, song->artist);
+      xe::store_and_swap<std::u16string>(info + 4 + 572 + 80, song->album);
+      xe::store_and_swap<std::u16string>(info + 4 + 572 + 120,
+                                         song->album_artist);
+      xe::store_and_swap<std::u16string>(info + 4 + 572 + 160, song->genre);
       xe::store_and_swap<uint32_t>(info + 4 + 572 + 200, song->track_number);
       xe::store_and_swap<uint32_t>(info + 4 + 572 + 204, song->duration_ms);
       xe::store_and_swap<uint32_t>(info + 4 + 572 + 208,

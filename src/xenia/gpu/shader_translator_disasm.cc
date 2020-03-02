@@ -46,7 +46,7 @@ void DisassembleResultOperand(const InstructionResult& result,
       uses_storage_index = true;
       break;
     case InstructionStorageTarget::kColorTarget:
-      out->AppendFormat("oC");
+      out->Append("oC");
       uses_storage_index = true;
       break;
     case InstructionStorageTarget::kDepth:
@@ -58,13 +58,13 @@ void DisassembleResultOperand(const InstructionResult& result,
   if (uses_storage_index) {
     switch (result.storage_addressing_mode) {
       case InstructionStorageAddressingMode::kStatic:
-        out->AppendFormat("%d", result.storage_index);
+        out->AppendFormat("{}", result.storage_index);
         break;
       case InstructionStorageAddressingMode::kAddressAbsolute:
-        out->AppendFormat("[%d+a0]", result.storage_index);
+        out->AppendFormat("[{}+a0]", result.storage_index);
         break;
       case InstructionStorageAddressingMode::kAddressRelative:
-        out->AppendFormat("[%d+aL]", result.storage_index);
+        out->AppendFormat("[{}+aL]", result.storage_index);
         break;
     }
   }
@@ -104,16 +104,16 @@ void DisassembleSourceOperand(const InstructionOperand& op, StringBuffer* out) {
   switch (op.storage_addressing_mode) {
     case InstructionStorageAddressingMode::kStatic:
       if (op.is_absolute_value) {
-        out->AppendFormat("[%d]", op.storage_index);
+        out->AppendFormat("[{}]", op.storage_index);
       } else {
-        out->AppendFormat("%d", op.storage_index);
+        out->AppendFormat("{}", op.storage_index);
       }
       break;
     case InstructionStorageAddressingMode::kAddressAbsolute:
-      out->AppendFormat("[%d+a0]", op.storage_index);
+      out->AppendFormat("[{}+a0]", op.storage_index);
       break;
     case InstructionStorageAddressingMode::kAddressRelative:
-      out->AppendFormat("[%d+aL]", op.storage_index);
+      out->AppendFormat("[{}+aL]", op.storage_index);
       break;
   }
   if (!op.is_standard_swizzle()) {
@@ -134,18 +134,18 @@ void DisassembleSourceOperand(const InstructionOperand& op, StringBuffer* out) {
 void ParsedExecInstruction::Disassemble(StringBuffer* out) const {
   switch (type) {
     case Type::kUnconditional:
-      out->AppendFormat("      %s ", opcode_name);
+      out->AppendFormat("      {} ", opcode_name);
       break;
     case Type::kPredicated:
       out->Append(condition ? " (p0) " : "(!p0) ");
-      out->AppendFormat("%s ", opcode_name);
+      out->AppendFormat("{} ", opcode_name);
       break;
     case Type::kConditional:
-      out->AppendFormat("      %s ", opcode_name);
+      out->AppendFormat("      {} ", opcode_name);
       if (!condition) {
         out->Append('!');
       }
-      out->AppendFormat("b%u", bool_constant_index);
+      out->AppendFormat("b{}", bool_constant_index);
       break;
   }
   if (is_yield) {
@@ -159,7 +159,7 @@ void ParsedExecInstruction::Disassemble(StringBuffer* out) const {
 
 void ParsedLoopStartInstruction::Disassemble(StringBuffer* out) const {
   out->Append("      loop ");
-  out->AppendFormat("i%u, L%u", loop_constant_index, loop_skip_address);
+  out->AppendFormat("i{}, L{}", loop_constant_index, loop_skip_address);
   if (is_repeat) {
     out->Append(", Repeat=true");
   }
@@ -172,7 +172,7 @@ void ParsedLoopEndInstruction::Disassemble(StringBuffer* out) const {
   } else {
     out->Append("      ");
   }
-  out->AppendFormat("endloop i%u, L%u", loop_constant_index, loop_body_address);
+  out->AppendFormat("endloop i{}, L{}", loop_constant_index, loop_body_address);
   out->Append('\n');
 }
 
@@ -190,10 +190,10 @@ void ParsedCallInstruction::Disassemble(StringBuffer* out) const {
       if (!condition) {
         out->Append('!');
       }
-      out->AppendFormat("b%u, ", bool_constant_index);
+      out->AppendFormat("b{}, ", bool_constant_index);
       break;
   }
-  out->AppendFormat("L%u", target_address);
+  out->AppendFormat("L{}", target_address);
   out->Append('\n');
 }
 
@@ -215,10 +215,10 @@ void ParsedJumpInstruction::Disassemble(StringBuffer* out) const {
       if (!condition) {
         out->Append('!');
       }
-      out->AppendFormat("b%u, ", bool_constant_index);
+      out->AppendFormat("b{}, ", bool_constant_index);
       break;
   }
-  out->AppendFormat("L%u", target_address);
+  out->AppendFormat("L{}", target_address);
   out->Append('\n');
 }
 
@@ -228,7 +228,7 @@ void ParsedAllocInstruction::Disassemble(StringBuffer* out) const {
     case AllocType::kNone:
       break;
     case AllocType::kVsPosition:
-      out->AppendFormat("position");
+      out->Append("position");
       break;
     case AllocType::kVsInterpolators:  // or AllocType::kPsColors
       if (is_vertex_shader) {
@@ -238,7 +238,7 @@ void ParsedAllocInstruction::Disassemble(StringBuffer* out) const {
       }
       break;
     case AllocType::kMemory:
-      out->AppendFormat("export = %d", count);
+      out->AppendFormat("export = {}", count);
       break;
   }
   out->Append('\n');
@@ -315,32 +315,32 @@ void ParsedVertexFetchInstruction::Disassemble(StringBuffer* out) const {
   } else {
     out->Append("      ");
   }
-  out->AppendFormat(opcode_name);
+  out->Append(opcode_name);
   out->Append(' ');
   DisassembleResultOperand(result, out);
   if (!is_mini_fetch) {
     out->Append(", ");
     DisassembleSourceOperand(operands[0], out);
     out->Append(", ");
-    out->AppendFormat("vf%d", 95 - operands[1].storage_index);
+    out->AppendFormat("vf{}", 95 - operands[1].storage_index);
   }
 
   if (attributes.is_index_rounded) {
     out->Append(", RoundIndex=true");
   }
   if (attributes.exp_adjust) {
-    out->AppendFormat(", ExpAdjust=%d", attributes.exp_adjust);
+    out->AppendFormat(", ExpAdjust={}", attributes.exp_adjust);
   }
   if (attributes.offset) {
-    out->AppendFormat(", Offset=%d", attributes.offset);
+    out->AppendFormat(", Offset={}", attributes.offset);
   }
   if (attributes.data_format != VertexFormat::kUndefined) {
     out->AppendFormat(
-        ", DataFormat=%s",
-        kVertexFetchDataFormats[static_cast<int>(attributes.data_format)]);
+        ", DataFormat={}",
+        kVertexFetchDataFormats[static_cast<int>(attributes.data_format)].name);
   }
   if (!is_mini_fetch && attributes.stride) {
-    out->AppendFormat(", Stride=%d", attributes.stride);
+    out->AppendFormat(", Stride={}", attributes.stride);
   }
   if (attributes.is_signed) {
     out->Append(", Signed=true");
@@ -349,7 +349,7 @@ void ParsedVertexFetchInstruction::Disassemble(StringBuffer* out) const {
     out->Append(", NumFormat=integer");
   }
   if (attributes.prefetch_count) {
-    out->AppendFormat(", PrefetchCount=%u", attributes.prefetch_count + 1);
+    out->AppendFormat(", PrefetchCount={}", attributes.prefetch_count + 1);
   }
 
   out->Append('\n');
@@ -388,7 +388,7 @@ void ParsedTextureFetchInstruction::Disassemble(StringBuffer* out) const {
     if (needs_comma) {
       out->Append(", ");
     }
-    out->AppendFormat("tf%u", operands[1].storage_index);
+    out->AppendFormat("tf{}", operands[1].storage_index);
   }
 
   if (!attributes.fetch_valid_only) {
@@ -399,32 +399,32 @@ void ParsedTextureFetchInstruction::Disassemble(StringBuffer* out) const {
   }
   if (attributes.mag_filter != TextureFilter::kUseFetchConst) {
     out->AppendFormat(
-        ", MagFilter=%s",
+        ", MagFilter={}",
         kTextureFilterNames[static_cast<int>(attributes.mag_filter)]);
   }
   if (attributes.min_filter != TextureFilter::kUseFetchConst) {
     out->AppendFormat(
-        ", MinFilter=%s",
+        ", MinFilter={}",
         kTextureFilterNames[static_cast<int>(attributes.min_filter)]);
   }
   if (attributes.mip_filter != TextureFilter::kUseFetchConst) {
     out->AppendFormat(
-        ", MipFilter=%s",
+        ", MipFilter={}",
         kTextureFilterNames[static_cast<int>(attributes.mip_filter)]);
   }
   if (attributes.aniso_filter != AnisoFilter::kUseFetchConst) {
     out->AppendFormat(
-        ", AnisoFilter=%s",
+        ", AnisoFilter={}",
         kAnisoFilterNames[static_cast<int>(attributes.aniso_filter)]);
   }
   if (attributes.vol_mag_filter != TextureFilter::kUseFetchConst) {
     out->AppendFormat(
-        ", VolMagFilter=%s",
+        ", VolMagFilter={}",
         kTextureFilterNames[static_cast<int>(attributes.vol_mag_filter)]);
   }
   if (attributes.vol_min_filter != TextureFilter::kUseFetchConst) {
     out->AppendFormat(
-        ", VolMinFilter=%s",
+        ", VolMinFilter={}",
         kTextureFilterNames[static_cast<int>(attributes.vol_min_filter)]);
   }
   if (!attributes.use_computed_lod) {
@@ -437,17 +437,17 @@ void ParsedTextureFetchInstruction::Disassemble(StringBuffer* out) const {
     out->Append(", UseRegisterGradients=true");
   }
   if (attributes.lod_bias != 0.0f) {
-    out->AppendFormat(", LODBias=%g", attributes.lod_bias);
+    out->AppendFormat(", LODBias={:g}", attributes.lod_bias);
   }
   int component_count = GetTextureDimensionComponentCount(dimension);
   if (attributes.offset_x != 0.0f) {
-    out->AppendFormat(", OffsetX=%g", attributes.offset_x);
+    out->AppendFormat(", OffsetX={:g}", attributes.offset_x);
   }
   if (component_count > 1 && attributes.offset_y != 0.0f) {
-    out->AppendFormat(", OffsetY=%g", attributes.offset_y);
+    out->AppendFormat(", OffsetY={:g}", attributes.offset_y);
   }
   if (component_count > 2 && attributes.offset_z != 0.0f) {
-    out->AppendFormat(", OffsetZ=%g", attributes.offset_z);
+    out->AppendFormat(", OffsetZ={:g}", attributes.offset_z);
   }
 
   out->Append('\n');

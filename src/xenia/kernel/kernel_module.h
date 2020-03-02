@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -26,16 +26,22 @@ class KernelState;
 
 class KernelModule : public XModule {
  public:
-  KernelModule(KernelState* kernel_state, const char* path);
+  KernelModule(KernelState* kernel_state, const std::string_view path);
   ~KernelModule() override;
 
+  const std::string& path() const override { return path_; }
+  const std::string& name() const override { return name_; }
+
   uint32_t GetProcAddressByOrdinal(uint16_t ordinal) override;
-  uint32_t GetProcAddressByName(const char* name) override;
+  uint32_t GetProcAddressByName(const std::string_view name) override;
 
  protected:
   Emulator* emulator_;
   Memory* memory_;
   xe::cpu::ExportResolver* export_resolver_;
+
+  std::string name_;
+  std::string path_;
 
   // Guest trampoline for GetProcAddress
   static const uint32_t kTrampolineSize = 400 * 8;

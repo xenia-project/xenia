@@ -2,15 +2,15 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2015 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
 
-#include "xenia/ui/file_picker.h"
-
 #include "xenia/base/assert.h"
 #include "xenia/base/platform_win.h"
+#include "xenia/base/string.h"
+#include "xenia/ui/file_picker.h"
 
 namespace xe {
 namespace ui {
@@ -136,7 +136,7 @@ bool Win32FilePicker::Show(void* parent_window_handle) {
     return false;
   }
 
-  hr = file_dialog->SetTitle(title().c_str());
+  hr = file_dialog->SetTitle((LPCWSTR)xe::to_utf16(title()).c_str());
   if (!SUCCEEDED(hr)) {
     return false;
   }
@@ -159,13 +159,17 @@ bool Win32FilePicker::Show(void* parent_window_handle) {
   }
 
   // Set the file types to display only. Notice that this is a 1-based array.
-  std::vector<COMDLG_FILTERSPEC> save_types;
-  auto extensions = this->extensions();
-  for (auto& extension : extensions) {
-    save_types.push_back({extension.first.c_str(), extension.second.c_str()});
+  std::vector<std::pair<std::u16string, std::u16string>> file_pairs;
+  std::vector<COMDLG_FILTERSPEC> file_types;
+  for (const auto& extension : this->extensions()) {
+    const auto& file_pair =
+        file_pairs.emplace_back(std::move(xe::to_utf16(extension.first)),
+                                std::move(xe::to_utf16(extension.second)));
+    file_types.push_back(
+        {(LPCWSTR)file_pair.first.c_str(), (LPCWSTR)file_pair.second.c_str()});
   }
-  hr = file_dialog->SetFileTypes(static_cast<UINT>(save_types.size()),
-                                 save_types.data());
+  hr = file_dialog->SetFileTypes(static_cast<UINT>(file_types.size()),
+                                 file_types.data());
   if (!SUCCEEDED(hr)) {
     return false;
   }
@@ -209,8 +213,8 @@ bool Win32FilePicker::Show(void* parent_window_handle) {
   if (!SUCCEEDED(hr)) {
     return false;
   }
-  std::vector<std::wstring> selected_files;
-  selected_files.push_back(std::wstring(file_path));
+  std::vector<std::filesystem::path> selected_files;
+  selected_files.push_back(std::filesystem::path(file_path));
   set_selected_files(selected_files);
   CoTaskMemFree(file_path);
 

@@ -7,6 +7,7 @@ project("xenia-ui-vulkan")
   kind("StaticLib")
   language("C++")
   links({
+    "fmt",
     "xenia-base",
     "xenia-ui",
     "xenia-ui-spirv",
@@ -28,6 +29,7 @@ project("xenia-ui-window-vulkan-demo")
   kind("WindowedApp")
   language("C++")
   links({
+    "fmt",
     "imgui",
     "volk",
     "xenia-base",

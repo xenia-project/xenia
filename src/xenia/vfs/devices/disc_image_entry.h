@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -24,12 +24,12 @@ class DiscImageDevice;
 
 class DiscImageEntry : public Entry {
  public:
-  DiscImageEntry(Device* device, Entry* parent, std::string path,
+  DiscImageEntry(Device* device, Entry* parent, const std::string_view path,
                  MappedMemory* mmap);
   ~DiscImageEntry() override;
 
   static std::unique_ptr<DiscImageEntry> Create(Device* device, Entry* parent,
-                                                std::string name,
+                                                const std::string_view name,
                                                 MappedMemory* mmap);
 
   MappedMemory* mmap() const { return mmap_; }

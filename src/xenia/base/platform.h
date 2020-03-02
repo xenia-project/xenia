@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2014 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -94,15 +94,11 @@ namespace xe {
 
 #if XE_PLATFORM_WIN32
 const char kPathSeparator = '\\';
-const wchar_t kWPathSeparator = L'\\';
 #else
 const char kPathSeparator = '/';
-const wchar_t kWPathSeparator = L'/';
-const size_t kMaxPath = 1024;  // PATH_MAX
 #endif  // XE_PLATFORM_WIN32
 
-// Launches a web browser to the given URL.
-void LaunchBrowser(const wchar_t* url);
+const char kGuestPathSeparator = '\\';
 
 }  // namespace xe
 

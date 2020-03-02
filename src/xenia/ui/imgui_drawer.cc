@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2015 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -136,7 +136,7 @@ void ImGuiDrawer::SetupFont() {
   // TODO(benvanik): jp font on other platforms?
   // https://github.com/Koruri/kibitaki looks really good, but is 1.5MiB.
   const char* jp_font_path = "C:\\Windows\\Fonts\\msgothic.ttc";
-  if (xe::filesystem::PathExists(xe::to_wstring(jp_font_path))) {
+  if (xe::filesystem::PathExists(jp_font_path)) {
     ImFontConfig jp_font_config;
     jp_font_config.MergeMode = true;
     jp_font_config.OversampleH = jp_font_config.OversampleV = 1;

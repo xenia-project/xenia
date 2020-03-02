@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -132,10 +132,10 @@ class XexModule : public xe::cpu::Module {
   const PESection* GetPESection(const char* name);
 
   uint32_t GetProcAddress(uint16_t ordinal) const;
-  uint32_t GetProcAddress(const char* name) const;
+  uint32_t GetProcAddress(const std::string_view name) const;
 
   int ApplyPatch(XexModule* module);
-  bool Load(const std::string& name, const std::string& path,
+  bool Load(const std::string_view name, const std::string_view path,
             const void* xex_addr, size_t xex_length);
   bool LoadContinue();
   bool Unload();
@@ -177,7 +177,7 @@ class XexModule : public xe::cpu::Module {
 
   int ReadPEHeaders();
 
-  bool SetupLibraryImports(const char* name,
+  bool SetupLibraryImports(const std::string_view name,
                            const xex2_import_library* library);
   bool FindSaveRest();
 

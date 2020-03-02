@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -10,6 +10,7 @@
 #ifndef XENIA_BASE_LOGGING_H_
 #define XENIA_BASE_LOGGING_H_
 
+#include <cstdarg>
 #include <cstdint>
 #include <string>
 
@@ -34,7 +35,7 @@ enum class LogLevel {
 
 // Initializes the logging system and any outputs requested.
 // Must be called on startup.
-void InitializeLogging(const std::wstring& app_name);
+void InitializeLogging(const std::string_view app_name);
 void ShutdownLogging();
 
 // Appends a line to the log with printf-style formatting.
@@ -43,17 +44,10 @@ void LogLineFormat(LogLevel log_level, const char prefix_char, const char* fmt,
 void LogLineVarargs(LogLevel log_level, const char prefix_char, const char* fmt,
                     va_list args);
 // Appends a line to the log.
-void LogLine(LogLevel log_level, const char prefix_char, const char* str,
-             size_t str_length = std::string::npos);
-void LogLine(LogLevel log_level, const char prefix_char,
-             const std::string& str);
+void LogLine(LogLevel log_level, const char prefix_char, std::string_view str);
 
-// Logs a fatal error with printf-style formatting and aborts the program.
-void FatalError(const char* fmt, ...);
-void FatalError(const wchar_t* fmt, ...);
 // Logs a fatal error and aborts the program.
-void FatalError(const std::string& str);
-void FatalError(const std::wstring& str);
+void FatalError(const std::string_view str);
 
 #if XE_OPTION_ENABLE_LOGGING
 #define XELOGCORE(level, prefix, fmt, ...) \

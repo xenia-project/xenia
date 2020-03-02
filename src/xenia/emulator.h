@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -47,22 +47,22 @@ namespace xe {
 // This is responsible for initializing and managing all the various subsystems.
 class Emulator {
  public:
-  explicit Emulator(const std::wstring& command_line,
-                    const std::wstring& storage_root,
-                    const std::wstring& content_root);
+  explicit Emulator(const std::filesystem::path& command_line,
+                    const std::filesystem::path& storage_root,
+                    const std::filesystem::path& content_root);
   ~Emulator();
 
   // Full command line used when launching the process.
-  const std::wstring& command_line() const { return command_line_; }
+  const std::filesystem::path& command_line() const { return command_line_; }
 
   // Folder persistent internal emulator data is stored in.
-  const std::wstring& storage_root() const { return storage_root_; }
+  const std::filesystem::path& storage_root() const { return storage_root_; }
 
   // Folder guest content is stored in.
-  const std::wstring& content_root() const { return content_root_; }
+  const std::filesystem::path& content_root() const { return content_root_; }
 
   // Title of the game in the default language.
-  const std::wstring& game_title() const { return game_title_; }
+  const std::string& game_title() const { return game_title_; }
 
   // Currently running title ID
   uint32_t title_id() const { return title_id_; }
@@ -123,24 +123,24 @@ class Emulator {
   // Launches a game from the given file path.
   // This will attempt to infer the type of the given file (such as an iso, etc)
   // using heuristics.
-  X_STATUS LaunchPath(std::wstring path);
+  X_STATUS LaunchPath(const std::filesystem::path& path);
 
   // Launches a game from a .xex file by mounting the containing folder as if it
   // was an extracted STFS container.
-  X_STATUS LaunchXexFile(std::wstring path);
+  X_STATUS LaunchXexFile(const std::filesystem::path& path);
 
   // Launches a game from a disc image file (.iso, etc).
-  X_STATUS LaunchDiscImage(std::wstring path);
+  X_STATUS LaunchDiscImage(const std::filesystem::path& path);
 
   // Launches a game from an STFS container file.
-  X_STATUS LaunchStfsContainer(std::wstring path);
+  X_STATUS LaunchStfsContainer(const std::filesystem::path& path);
 
   void Pause();
   void Resume();
   bool is_paused() const { return paused_; }
 
-  bool SaveToFile(const std::wstring& path);
-  bool RestoreFromFile(const std::wstring& path);
+  bool SaveToFile(const std::filesystem::path& path);
+  bool RestoreFromFile(const std::filesystem::path& path);
 
   // The game can request another title to be loaded.
   bool TitleRequested();
@@ -149,7 +149,7 @@ class Emulator {
   void WaitUntilExit();
 
  public:
-  xe::Delegate<uint32_t, const std::wstring&> on_launch;
+  xe::Delegate<uint32_t, const std::string_view> on_launch;
   xe::Delegate<bool> on_shader_storage_initialization;
   xe::Delegate<> on_terminate;
   xe::Delegate<> on_exit;
@@ -160,14 +160,14 @@ class Emulator {
 
   std::string FindLaunchModule();
 
-  X_STATUS CompleteLaunch(const std::wstring& path,
-                          const std::string& module_path);
+  X_STATUS CompleteLaunch(const std::filesystem::path& path,
+                          const std::string_view module_path);
 
-  std::wstring command_line_;
-  std::wstring storage_root_;
-  std::wstring content_root_;
+  std::filesystem::path command_line_;
+  std::filesystem::path storage_root_;
+  std::filesystem::path content_root_;
 
-  std::wstring game_title_;
+  std::string game_title_;
 
   ui::Window* display_window_;
 

@@ -14,12 +14,13 @@
 #endif  // XE_PLATFORM_WIN32
 
 #include "xenia/base/cvar.h"
+#include "xenia/base/logging.h"
 #include "xenia/ui/window.h"
 
 // TODO(joellinn) make this path relative to the config folder.
-DEFINE_string(mappings_file, "gamecontrollerdb.txt",
-              "Filename of a database with custom game controller mappings.",
-              "SDL");
+DEFINE_path(mappings_file, "gamecontrollerdb.txt",
+            "Filename of a database with custom game controller mappings.",
+            "SDL");
 
 namespace xe {
 namespace hid {
@@ -118,7 +119,29 @@ X_STATUS SDLInputDriver::Setup() {
     }
     sdl_gamecontroller_initialized_ = true;
 
-    SDL_GameControllerAddMappingsFromFile(cvars::mappings_file.c_str());
+    if (!cvars::mappings_file.empty()) {
+      if (!filesystem::PathExists(cvars::mappings_file)) {
+        XELOGW("SDL GameControllerDB: file '%s' does not exist.",
+               xe::path_to_utf8(cvars::mappings_file).c_str());
+      } else {
+        auto mappings_file = filesystem::OpenFile(cvars::mappings_file, "rb");
+        if (!mappings_file) {
+          XELOGE("SDL GameControllerDB: failed to open file '%s'.",
+                 xe::path_to_utf8(cvars::mappings_file).c_str());
+        } else {
+          auto mappings_result = SDL_GameControllerAddMappingsFromRW(
+              SDL_RWFromFP(mappings_file, SDL_TRUE), 1);
+          if (mappings_result < 0) {
+            XELOGE("SDL GameControllerDB: error loading file '%s': %d.",
+                   xe::path_to_utf8(cvars::mappings_file).c_str(),
+                   mappings_result);
+          } else {
+            XELOGI("SDL GameControllerDB: loaded %d mappings.",
+                   mappings_result);
+          }
+        }
+      }
+    }
   });
   return sdl_events_initialized_ && sdl_gamecontroller_initialized_;
 }

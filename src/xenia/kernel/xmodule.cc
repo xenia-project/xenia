@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -39,24 +39,19 @@ XModule::~XModule() {
   memory()->SystemHeapFree(hmodule_ptr_);
 }
 
-bool XModule::Matches(const std::string& name) const {
-  if (strcasecmp(xe::find_name_from_path(path_).c_str(), name.c_str()) == 0) {
-    return true;
-  }
-  if (strcasecmp(name_.c_str(), name.c_str()) == 0) {
-    return true;
-  }
-  if (strcasecmp(path_.c_str(), name.c_str()) == 0) {
-    return true;
-  }
-  return false;
-}
+bool XModule::Matches(const std::string_view name) const {
+  return xe::utf8::equal_case(xe::utf8::find_name_from_guest_path(path()),
+                              name) ||
+         xe::utf8::equal_case(this->name(), name) ||
+         xe::utf8::equal_case(path(), name);
+}  // namespace kernel
 
 void XModule::OnLoad() { kernel_state_->RegisterModule(this); }
 
 void XModule::OnUnload() { kernel_state_->UnregisterModule(this); }
 
-X_STATUS XModule::GetSection(const char* name, uint32_t* out_section_data,
+X_STATUS XModule::GetSection(const std::string_view name,
+                             uint32_t* out_section_data,
                              uint32_t* out_section_size) {
   return X_STATUS_UNSUCCESSFUL;
 }
@@ -73,31 +68,12 @@ uint32_t XModule::GetHandleFromHModule(void* hmodule) {
   return ldr_data->checksum;
 }
 
-std::string XModule::NameFromPath(std::string path) {
-  std::string name;
-  auto last_slash = path.find_last_of('/');
-  if (last_slash == path.npos) {
-    last_slash = path.find_last_of('\\');
-  }
-  if (last_slash == path.npos) {
-    name = path;
-  } else {
-    name = path.substr(last_slash + 1);
-  }
-  auto dot = name.find_last_of('.');
-  if (dot != name.npos) {
-    name = name.substr(0, dot);
-  }
-
-  return name;
-}
-
 bool XModule::Save(ByteStream* stream) {
-  XELOGD("XModule %.8X (%s)", handle(), path_.c_str());
+  XELOGD("XModule %.8X (%s)", handle(), path().c_str());
 
   stream->Write('XMOD');
 
-  stream->Write(path_);
+  stream->Write(path());
   stream->Write(hmodule_ptr_);
 
   if (!SaveObject(stream)) {
@@ -123,7 +99,7 @@ object_ref<XModule> XModule::Restore(KernelState* kernel_state,
     return nullptr;
   }
 
-  XELOGD("XModule %.8X (%s)", module->handle(), module->path_.c_str());
+  XELOGD("XModule %.8X (%s)", module->handle(), module->path().c_str());
 
   module->hmodule_ptr_ = hmodule_ptr;
   return module;

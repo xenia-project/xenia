@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -10,6 +10,8 @@
 #include "xenia/cpu/xex_module.h"
 
 #include <algorithm>
+
+#include "third_party/fmt/include/fmt/format.h"
 
 #include "xenia/base/byte_order.h"
 #include "xenia/base/logging.h"
@@ -156,7 +158,7 @@ uint32_t XexModule::GetProcAddress(uint16_t ordinal) const {
   return 0;
 }
 
-uint32_t XexModule::GetProcAddress(const char* name) const {
+uint32_t XexModule::GetProcAddress(const std::string_view name) const {
   assert_not_zero(base_address_);
 
   xex2_opt_data_directory* pe_export_directory = 0;
@@ -185,7 +187,7 @@ uint32_t XexModule::GetProcAddress(const char* name) const {
     auto fn_name = reinterpret_cast<const char*>(uintptr_t(e) + name_table[i]);
     uint16_t ordinal = ordinal_table[i];
     uint32_t addr = base_address_ + function_table[ordinal];
-    if (!std::strcmp(name, fn_name)) {
+    if (name == std::string_view(fn_name)) {
       // We have a match!
       return addr;
     }
@@ -865,7 +867,7 @@ int XexModule::ReadPEHeaders() {
   return 0;
 }
 
-bool XexModule::Load(const std::string& name, const std::string& path,
+bool XexModule::Load(const std::string_view name, const std::string_view path,
                      const void* xex_addr, size_t xex_length) {
   auto src_header = reinterpret_cast<const xex2_header*>(xex_addr);
 
@@ -922,8 +924,8 @@ bool XexModule::Load(const std::string& name, const std::string& path,
     base_address_ = *base_addr_opt;
 
   // Setup debug info.
-  name_ = std::string(name);
-  path_ = std::string(path);
+  name_ = name;
+  path_ = path;
 
   uint8_t* data = memory()->TranslateVirtual(base_address_);
 
@@ -1027,7 +1029,8 @@ bool XexModule::LoadContinue() {
       assert_true(library_name_index <
                   opt_import_libraries->string_table.count);
       assert_not_null(string_table[library_name_index]);
-      SetupLibraryImports(string_table[library_name_index], library);
+      auto library_name = std::string(string_table[library_name_index]);
+      SetupLibraryImports(library_name, library);
       library_offset += library->size;
     }
   }
@@ -1087,7 +1090,7 @@ bool XexModule::Unload() {
   return true;
 }
 
-bool XexModule::SetupLibraryImports(const char* name,
+bool XexModule::SetupLibraryImports(const std::string_view name,
                                     const xex2_import_library* library) {
   ExportResolver* kernel_resolver = nullptr;
   if (kernel_state_->IsKernelModule(name)) {
@@ -1096,14 +1099,10 @@ bool XexModule::SetupLibraryImports(const char* name,
 
   auto user_module = kernel_state_->GetModule(name);
 
-  std::string libbasename = name;
-  auto dot = libbasename.find_last_of('.');
-  if (dot != libbasename.npos) {
-    libbasename = libbasename.substr(0, dot);
-  }
+  auto base_name = utf8::find_base_name_from_guest_path(name);
 
   ImportLibrary library_info;
-  library_info.name = libbasename;
+  library_info.name = base_name;
   library_info.id = library->id;
   library_info.version.value = library->version.value;
   library_info.min_version.value = library->version_min.value;
@@ -1135,7 +1134,7 @@ bool XexModule::SetupLibraryImports(const char* name,
       XELOGW(
           "WARNING: an import variable was not resolved! (library: %s, import "
           "lib: %s, ordinal: %.3X)",
-          name_.c_str(), name, ordinal);
+          name_.c_str(), name.c_str(), ordinal);
     }
 
     StringBuffer import_name;
@@ -1147,11 +1146,11 @@ bool XexModule::SetupLibraryImports(const char* name,
       import_info.value_address = record_addr;
       library_info.imports.push_back(import_info);
 
-      import_name.AppendFormat("__imp__");
+      import_name.Append("__imp__");
       if (kernel_export) {
-        import_name.AppendFormat("%s", kernel_export->name);
+        import_name.Append(kernel_export->name);
       } else {
-        import_name.AppendFormat("%s_%.3X", libbasename.c_str(), ordinal);
+        import_name.AppendFormat("{}_{:03X}", base_name, ordinal);
       }
 
       if (kernel_export) {
@@ -1180,7 +1179,7 @@ bool XexModule::SetupLibraryImports(const char* name,
       // Setup a variable and define it.
       Symbol* var_info;
       DeclareVariable(record_addr, &var_info);
-      var_info->set_name(import_name.GetString());
+      var_info->set_name(import_name.to_string_view());
       var_info->set_status(Symbol::Status::kDeclared);
       DefineVariable(var_info);
       var_info->set_status(Symbol::Status::kDefined);
@@ -1194,15 +1193,15 @@ bool XexModule::SetupLibraryImports(const char* name,
       }
 
       if (kernel_export) {
-        import_name.AppendFormat("%s", kernel_export->name);
+        import_name.Append(kernel_export->name);
       } else {
-        import_name.AppendFormat("__%s_%.3X", libbasename.c_str(), ordinal);
+        import_name.AppendFormat("__{}_{:03X}", base_name, ordinal);
       }
 
       Function* function;
       DeclareFunction(record_addr, &function);
       function->set_end_address(record_addr + 16 - 4);
-      function->set_name(import_name.GetString());
+      function->set_name(import_name.to_string_view());
 
       if (user_export_addr) {
         // Rewrite PPC code to set r11 to the target address
@@ -1253,7 +1252,7 @@ bool XexModule::SetupLibraryImports(const char* name,
           }
         } else {
           XELOGW("WARNING: Imported kernel function %s is unimplemented!",
-                 import_name.GetString());
+                 import_name.buffer());
         }
         static_cast<GuestFunction*>(function)->SetupExtern(handler,
                                                            kernel_export);
@@ -1488,11 +1487,12 @@ bool XexModule::FindSaveRest() {
   if (gplr_start) {
     uint32_t address = gplr_start;
     for (int n = 14; n <= 31; n++) {
-      snprintf(name, xe::countof(name), "__savegprlr_%d", n);
+      auto format_result =
+          fmt::format_to_n(name, xe::countof(name), "__savegprlr_{}", n);
       Function* function;
       DeclareFunction(address, &function);
       function->set_end_address(address + (31 - n) * 4 + 2 * 4);
-      function->set_name(name);
+      function->set_name(std::string_view(name, format_result.size));
       // TODO(benvanik): set type  fn->type = FunctionSymbol::User;
       // TODO(benvanik): set flags fn->flags |= FunctionSymbol::kFlagSaveGprLr;
       function->set_behavior(Function::Behavior::kProlog);
@@ -1501,11 +1501,12 @@ bool XexModule::FindSaveRest() {
     }
     address = gplr_start + 20 * 4;
     for (int n = 14; n <= 31; n++) {
-      snprintf(name, xe::countof(name), "__restgprlr_%d", n);
+      auto format_result =
+          fmt::format_to_n(name, xe::countof(name), "__restgprlr_{}", n);
       Function* function;
       DeclareFunction(address, &function);
       function->set_end_address(address + (31 - n) * 4 + 3 * 4);
-      function->set_name(name);
+      function->set_name(std::string_view(name, format_result.size));
       // TODO(benvanik): set type  fn->type = FunctionSymbol::User;
       // TODO(benvanik): set flags fn->flags |= FunctionSymbol::kFlagRestGprLr;
       function->set_behavior(Function::Behavior::kEpilogReturn);
@@ -1516,11 +1517,12 @@ bool XexModule::FindSaveRest() {
   if (fpr_start) {
     uint32_t address = fpr_start;
     for (int n = 14; n <= 31; n++) {
-      snprintf(name, xe::countof(name), "__savefpr_%d", n);
+      auto format_result =
+          fmt::format_to_n(name, xe::countof(name), "__savefpr_{}", n);
       Function* function;
       DeclareFunction(address, &function);
       function->set_end_address(address + (31 - n) * 4 + 1 * 4);
-      function->set_name(name);
+      function->set_name(std::string_view(name, format_result.size));
       // TODO(benvanik): set type  fn->type = FunctionSymbol::User;
       // TODO(benvanik): set flags fn->flags |= FunctionSymbol::kFlagSaveFpr;
       function->set_behavior(Function::Behavior::kProlog);
@@ -1529,11 +1531,12 @@ bool XexModule::FindSaveRest() {
     }
     address = fpr_start + (18 * 4) + (1 * 4);
     for (int n = 14; n <= 31; n++) {
-      snprintf(name, xe::countof(name), "__restfpr_%d", n);
+      auto format_result =
+          fmt::format_to_n(name, xe::countof(name), "__restfpr_{}", n);
       Function* function;
       DeclareFunction(address, &function);
       function->set_end_address(address + (31 - n) * 4 + 1 * 4);
-      function->set_name(name);
+      function->set_name(std::string_view(name, format_result.size));
       // TODO(benvanik): set type  fn->type = FunctionSymbol::User;
       // TODO(benvanik): set flags fn->flags |= FunctionSymbol::kFlagRestFpr;
       function->set_behavior(Function::Behavior::kEpilog);
@@ -1549,10 +1552,11 @@ bool XexModule::FindSaveRest() {
     // 64-127 rest
     uint32_t address = vmx_start;
     for (int n = 14; n <= 31; n++) {
-      snprintf(name, xe::countof(name), "__savevmx_%d", n);
+      auto format_result =
+          fmt::format_to_n(name, xe::countof(name), "__savevmx_{}", n);
       Function* function;
       DeclareFunction(address, &function);
-      function->set_name(name);
+      function->set_name(std::string_view(name, format_result.size));
       // TODO(benvanik): set type  fn->type = FunctionSymbol::User;
       // TODO(benvanik): set flags fn->flags |= FunctionSymbol::kFlagSaveVmx;
       function->set_behavior(Function::Behavior::kProlog);
@@ -1561,10 +1565,11 @@ bool XexModule::FindSaveRest() {
     }
     address += 4;
     for (int n = 64; n <= 127; n++) {
-      snprintf(name, xe::countof(name), "__savevmx_%d", n);
+      auto format_result =
+          fmt::format_to_n(name, xe::countof(name), "__savevmx_{}", n);
       Function* function;
       DeclareFunction(address, &function);
-      function->set_name(name);
+      function->set_name(std::string_view(name, format_result.size));
       // TODO(benvanik): set type  fn->type = FunctionSymbol::User;
       // TODO(benvanik): set flags fn->flags |= FunctionSymbol::kFlagSaveVmx;
       function->set_behavior(Function::Behavior::kProlog);
@@ -1573,10 +1578,11 @@ bool XexModule::FindSaveRest() {
     }
     address = vmx_start + (18 * 2 * 4) + (1 * 4) + (64 * 2 * 4) + (1 * 4);
     for (int n = 14; n <= 31; n++) {
-      snprintf(name, xe::countof(name), "__restvmx_%d", n);
+      auto format_result =
+          fmt::format_to_n(name, xe::countof(name), "__restvmx_{}", n);
       Function* function;
       DeclareFunction(address, &function);
-      function->set_name(name);
+      function->set_name(std::string_view(name, format_result.size));
       // TODO(benvanik): set type  fn->type = FunctionSymbol::User;
       // TODO(benvanik): set flags fn->flags |= FunctionSymbol::kFlagRestVmx;
       function->set_behavior(Function::Behavior::kEpilog);
@@ -1585,10 +1591,11 @@ bool XexModule::FindSaveRest() {
     }
     address += 4;
     for (int n = 64; n <= 127; n++) {
-      snprintf(name, xe::countof(name), "__restvmx_%d", n);
+      auto format_result =
+          fmt::format_to_n(name, xe::countof(name), "__restvmx_{}", n);
       Function* function;
       DeclareFunction(address, &function);
-      function->set_name(name);
+      function->set_name(std::string_view(name, format_result.size));
       // TODO(benvanik): set type  fn->type = FunctionSymbol::User;
       // TODO(benvanik): set flags fn->flags |= FunctionSymbol::kFlagRestVmx;
       function->set_behavior(Function::Behavior::kEpilog);

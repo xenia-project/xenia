@@ -28,7 +28,7 @@ bool DisasmPPC(uint32_t address, uint32_t code, StringBuffer* str) {
     d.code = code;
     disasm_info.disasm(d, str);
   } else {
-    str->AppendFormat("%-8s", disasm_info.name);
+    str->AppendFormat("{:<8}", disasm_info.name);
   }
   return true;
 }

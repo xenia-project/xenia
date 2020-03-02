@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2016 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -50,7 +50,7 @@ class VulkanCommandProcessor : public CommandProcessor {
                          kernel::KernelState* kernel_state);
   ~VulkanCommandProcessor() override;
 
-  void RequestFrameTrace(const std::wstring& root_path) override;
+  void RequestFrameTrace(const std::filesystem::path& root_path) override;
   void TracePlaybackWroteMemory(uint32_t base_ptr, uint32_t length) override;
   void RestoreEDRAMSnapshot(const void* snapshot) override;
   void ClearCaches() override;

@@ -7,6 +7,7 @@ project("xenia-gpu-d3d12")
   kind("StaticLib")
   language("C++")
   links({
+    "fmt",
     "xenia-base",
     "xenia-gpu",
     "xenia-ui",
@@ -27,6 +28,7 @@ project("xenia-gpu-d3d12-trace-viewer")
     "aes_128",
     "capstone",
     "dxbc",
+    "fmt",
     "imgui",
     "libavcodec",
     "libavutil",
@@ -71,6 +73,7 @@ project("xenia-gpu-d3d12-trace-dump")
     "aes_128",
     "capstone",
     "dxbc",
+    "fmt",
     "imgui",
     "libavcodec",
     "libavutil",

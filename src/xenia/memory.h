@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -300,7 +300,7 @@ class Memory {
   void Reset();
 
   // Full file name and path of the memory-mapped file backing all memory.
-  const std::wstring& file_name() const { return file_name_; }
+  const std::filesystem::path& file_name() const { return file_name_; }
 
   // Base address of virtual memory in the host address space.
   // This is often something like 0x100000000.
@@ -485,7 +485,7 @@ class Memory {
       std::unique_lock<std::recursive_mutex> global_lock_locked_once,
       void* context, void* host_address, bool is_write);
 
-  std::wstring file_name_;
+  std::filesystem::path file_name_;
   uint32_t system_page_size_ = 0;
   uint32_t system_allocation_granularity_ = 0;
   uint8_t* virtual_membase_ = nullptr;

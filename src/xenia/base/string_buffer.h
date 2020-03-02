@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -14,6 +14,8 @@
 #include <string>
 #include <vector>
 
+#include "third_party/fmt/include/fmt/format.h"
+
 namespace xe {
 
 class StringBuffer {
@@ -21,21 +23,27 @@ class StringBuffer {
   explicit StringBuffer(size_t initial_capacity = 0);
   ~StringBuffer();
 
+  char* buffer() const { return buffer_; }
   size_t length() const { return buffer_offset_; }
 
   void Reset();
 
   void Append(char c);
   void Append(const char* value);
-  void Append(const std::string& value);
-  void AppendFormat(const char* format, ...);
+  void Append(const std::string_view value);
+
+  template <typename... Args>
+  void AppendFormat(const char* format, const Args&... args) {
+    auto s = fmt::format(format, args...);
+    Append(s.c_str());
+  }
+
   void AppendVarargs(const char* format, va_list args);
   void AppendBytes(const uint8_t* buffer, size_t length);
 
-  const char* GetString() const;
   std::string to_string();
-  char* ToString();
-  std::vector<uint8_t> ToBytes() const;
+  std::string_view to_string_view() const;
+  std::vector<uint8_t> to_bytes() const;
 
  private:
   void Grow(size_t additional_length);

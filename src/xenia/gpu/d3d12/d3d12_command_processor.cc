@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2018 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -85,12 +85,14 @@ void D3D12CommandProcessor::ClearCaches() {
 }
 
 void D3D12CommandProcessor::InitializeShaderStorage(
-    const std::wstring& storage_root, uint32_t title_id, bool blocking) {
+    const std::filesystem::path& storage_root, uint32_t title_id,
+    bool blocking) {
   CommandProcessor::InitializeShaderStorage(storage_root, title_id, blocking);
   pipeline_cache_->InitializeShaderStorage(storage_root, title_id, blocking);
 }
 
-void D3D12CommandProcessor::RequestFrameTrace(const std::wstring& root_path) {
+void D3D12CommandProcessor::RequestFrameTrace(
+    const std::filesystem::path& root_path) {
   // Capture with PIX if attached.
   if (GetD3D12Context()->GetD3D12Provider()->GetGraphicsAnalysis() != nullptr) {
     pix_capture_requested_.store(true, std::memory_order_relaxed);
@@ -668,16 +670,16 @@ void D3D12CommandProcessor::SetExternalGraphicsPipeline(
   }
 }
 
-std::wstring D3D12CommandProcessor::GetWindowTitleText() const {
+std::string D3D12CommandProcessor::GetWindowTitleText() const {
   if (IsROVUsedForEDRAM()) {
     // Currently scaling is only supported with ROV.
     if (texture_cache_ != nullptr && texture_cache_->IsResolutionScale2X()) {
-      return L"Direct3D 12 - ROV 2x";
+      return "Direct3D 12 - ROV 2x";
     } else {
-      return L"Direct3D 12 - ROV";
+      return "Direct3D 12 - ROV";
     }
   } else {
-    return L"Direct3D 12 - RTV/DSV";
+    return "Direct3D 12 - RTV/DSV";
   }
 }
 

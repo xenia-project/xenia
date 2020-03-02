@@ -2,21 +2,20 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2018 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
-
-#include "xenia/gpu/dxbc_shader_translator.h"
 
 #include <algorithm>
 #include <memory>
 #include <sstream>
 
 #include "third_party/dxbc/d3d12TokenizedProgramFormat.hpp"
-
+#include "third_party/fmt/include/fmt/format.h"
 #include "xenia/base/assert.h"
 #include "xenia/base/string.h"
+#include "xenia/gpu/dxbc_shader_translator.h"
 
 namespace xe {
 namespace gpu {
@@ -791,9 +790,8 @@ uint32_t DxbcShaderTranslator::FindOrAddTextureSRV(uint32_t fetch_constant,
     default:
       dimension_name = "2d";
   }
-  new_texture_srv.name =
-      xe::format_string("xe_texture%u_%s_%c", fetch_constant, dimension_name,
-                        is_signed ? 's' : 'u');
+  new_texture_srv.name = fmt::format("xe_texture{}_{}_{}", fetch_constant,
+                                     dimension_name, is_signed ? 's' : 'u');
   uint32_t srv_register = 1 + uint32_t(texture_srvs_.size());
   texture_srvs_.emplace_back(std::move(new_texture_srv));
   return srv_register;

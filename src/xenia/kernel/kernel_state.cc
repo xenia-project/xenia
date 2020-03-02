@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -11,6 +11,7 @@
 
 #include <string>
 
+#include "third_party/fmt/include/fmt/format.h"
 #include "xenia/base/assert.h"
 #include "xenia/base/byte_stream.h"
 #include "xenia/base/logging.h"
@@ -51,7 +52,7 @@ KernelState::KernelState(Emulator* emulator)
   user_profile_ = std::make_unique<xam::UserProfile>();
 
   auto content_root = emulator_->content_root();
-  content_root = xe::to_absolute_path(content_root);
+  content_root = std::filesystem::absolute(content_root);
   content_manager_ = std::make_unique<xam::ContentManager>(this, content_root);
 
   assert_null(shared_kernel_state_);
@@ -165,8 +166,8 @@ void KernelState::UnregisterUserModule(UserModule* module) {
   }
 }
 
-bool KernelState::IsKernelModule(const char* name) {
-  if (!name) {
+bool KernelState::IsKernelModule(const std::string_view name) {
+  if (name.empty()) {
     // Executing module isn't a kernel module.
     return false;
   }
@@ -179,7 +180,8 @@ bool KernelState::IsKernelModule(const char* name) {
   return false;
 }
 
-object_ref<KernelModule> KernelState::GetKernelModule(const char* name) {
+object_ref<KernelModule> KernelState::GetKernelModule(
+    const std::string_view name) {
   assert_true(IsKernelModule(name));
 
   for (auto kernel_module : kernel_modules_) {
@@ -191,12 +193,13 @@ object_ref<KernelModule> KernelState::GetKernelModule(const char* name) {
   return nullptr;
 }
 
-object_ref<XModule> KernelState::GetModule(const char* name, bool user_only) {
-  if (!name) {
+object_ref<XModule> KernelState::GetModule(const std::string_view name,
+                                           bool user_only) {
+  if (name.empty()) {
     // NULL name = self.
     // TODO(benvanik): lookup module from caller address.
     return GetExecutableModule();
-  } else if (strcasecmp(name, "kernel32.dll") == 0) {
+  } else if (xe::utf8::equal_case(name, "kernel32.dll")) {
     // Some games request this, for some reason. wtf.
     return nullptr;
   }
@@ -211,7 +214,7 @@ object_ref<XModule> KernelState::GetModule(const char* name, bool user_only) {
     }
   }
 
-  std::string path(name);
+  auto path(name);
 
   // Resolve the path to an absolute path.
   auto entry = file_system_->ResolvePath(name);
@@ -242,10 +245,7 @@ object_ref<XThread> KernelState::LaunchModule(object_ref<UserModule> module) {
                   module->entry_point(), 0, X_CREATE_SUSPENDED, true, true));
 
   // We know this is the 'main thread'.
-  char thread_name[32];
-  std::snprintf(thread_name, xe::countof(thread_name), "Main XThread%08X",
-                thread->handle());
-  thread->set_name(thread_name);
+  thread->set_name(fmt::format("Main XThread{:08X}", thread->handle()));
 
   X_STATUS result = thread->Create();
   if (XFAILED(result)) {
@@ -350,14 +350,15 @@ void KernelState::LoadKernelModule(object_ref<KernelModule> kernel_module) {
   kernel_modules_.push_back(std::move(kernel_module));
 }
 
-object_ref<UserModule> KernelState::LoadUserModule(const char* raw_name,
-                                                   bool call_entry) {
+object_ref<UserModule> KernelState::LoadUserModule(
+    const std::string_view raw_name, bool call_entry) {
   // Some games try to load relative to launch module, others specify full path.
-  std::string name = xe::find_name_from_path(raw_name);
+  auto name = xe::utf8::find_name_from_guest_path(raw_name);
   std::string path(raw_name);
   if (name == raw_name) {
     assert_not_null(executable_module_);
-    path = xe::join_paths(xe::find_base_path(executable_module_->path()), name);
+    path = xe::utf8::join_guest_paths(
+        xe::utf8::find_base_guest_path(executable_module_->path()), name);
   }
 
   object_ref<UserModule> module;

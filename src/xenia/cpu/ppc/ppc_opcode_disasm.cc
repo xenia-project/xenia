@@ -148,9 +148,9 @@ void PrintDisasm_bcx(const PPCDecodeData& d, StringBuffer* str) {
     if (d.B.LK()) str->Append('l');
     if (d.B.AA()) str->Append('a');
     PadStringBuffer(str, str_start, kNamePad);
-    str->AppendFormat("%d", bo);
+    str->AppendFormat("{}", bo);
     str->Append(", ");
-    str->AppendFormat("%d", bi);
+    str->AppendFormat("{}", bi);
   } else {
     if (d.B.LK()) str->Append('l');
     if (d.B.AA()) str->Append('a');
@@ -162,11 +162,11 @@ void PrintDisasm_bcx(const PPCDecodeData& d, StringBuffer* str) {
     }
 
     PadStringBuffer(str, str_start, kNamePad);
-    str->AppendFormat("crf%d", bi / 4);
+    str->AppendFormat("crf{}", bi / 4);
   }
 
   str->Append(", ");
-  str->AppendFormat("0x%X", addr);
+  str->AppendFormat("0x{:X}", addr);
 }
 
 }  // namespace ppc

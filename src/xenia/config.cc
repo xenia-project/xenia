@@ -1,18 +1,26 @@
+/**
+ ******************************************************************************
+ * Xenia : Xbox 360 Emulator Research Project                                 *
+ ******************************************************************************
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Released under the BSD license - see LICENSE in the root for more details. *
+ ******************************************************************************
+ */
+
 #include "config.h"
-#include "cpptoml/include/cpptoml.h"
+
+#include "third_party/cpptoml/include/cpptoml.h"
+#include "third_party/fmt/include/fmt/format.h"
 #include "xenia/base/cvar.h"
 #include "xenia/base/filesystem.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/string.h"
 
-std::shared_ptr<cpptoml::table> ParseFile(const std::wstring& filename) {
-#if XE_PLATFORM_WIN32
+std::shared_ptr<cpptoml::table> ParseFile(
+    const std::filesystem::path& filename) {
   std::ifstream file(filename);
-#else
-  std::ifstream file(xe::to_string(filename));
-#endif
   if (!file.is_open()) {
-    throw cpptoml::parse_exception(xe::to_string(filename) +
+    throw cpptoml::parse_exception(xe::path_to_utf8(filename) +
                                    " could not be opened for parsing");
   }
   cpptoml::parser p(file);
@@ -21,10 +29,10 @@ std::shared_ptr<cpptoml::table> ParseFile(const std::wstring& filename) {
 
 CmdVar(config, "", "Specifies the target config to load.");
 namespace config {
-std::wstring config_name = L"xenia.config.toml";
-std::wstring config_folder;
-std::wstring config_path;
-std::wstring game_config_suffix = L".config.toml";
+std::string config_name = "xenia.config.toml";
+std::filesystem::path config_folder;
+std::filesystem::path config_path;
+std::string game_config_suffix = ".config.toml";
 
 bool sortCvar(cvar::IConfigVar* a, cvar::IConfigVar* b) {
   if (a->category() < b->category()) return true;
@@ -33,17 +41,18 @@ bool sortCvar(cvar::IConfigVar* a, cvar::IConfigVar* b) {
   return false;
 }
 
-std::shared_ptr<cpptoml::table> ParseConfig(const std::wstring& config_path) {
+std::shared_ptr<cpptoml::table> ParseConfig(
+    const std::filesystem::path& config_path) {
   try {
     return ParseFile(config_path);
   } catch (cpptoml::parse_exception e) {
-    xe::FatalError(L"Failed to parse config file '%s':\n\n%s",
-                   config_path.c_str(), xe::to_wstring(e.what()).c_str());
+    xe::FatalError(fmt::format("Failed to parse config file '{}':\n\n{}",
+                               xe::path_to_utf8(config_path), e.what()));
     return nullptr;
   }
 }
 
-void ReadConfig(const std::wstring& file_path) {
+void ReadConfig(const std::filesystem::path& file_path) {
   const auto config = ParseConfig(file_path);
   for (auto& it : *cvar::ConfigVars) {
     auto config_var = static_cast<cvar::IConfigVar*>(it.second);
@@ -52,10 +61,10 @@ void ReadConfig(const std::wstring& file_path) {
       config_var->LoadConfigValue(config->get_qualified(config_key));
     }
   }
-  XELOGI("Loaded config: %S", file_path.c_str());
+  XELOGI("Loaded config: %s", xe::path_to_utf8(file_path).c_str());
 }
 
-void ReadGameConfig(std::wstring file_path) {
+void ReadGameConfig(const std::filesystem::path& file_path) {
   const auto config = ParseConfig(file_path);
   for (auto& it : *cvar::ConfigVars) {
     auto config_var = static_cast<cvar::IConfigVar*>(it.second);
@@ -64,7 +73,7 @@ void ReadGameConfig(std::wstring file_path) {
       config_var->LoadGameConfigValue(config->get_qualified(config_key));
     }
   }
-  XELOGI("Loaded game config: %S", file_path.c_str());
+  XELOGI("Loaded game config: %s", xe::path_to_utf8(file_path).c_str());
 }
 
 void SaveConfig() {
@@ -84,31 +93,29 @@ void SaveConfig() {
         output << std::endl;
       }
       last_category = config_var->category();
-      output << xe::format_string("[%s]\n", last_category.c_str());
+      output << fmt::format("[{}]\n", last_category);
     }
 
     auto value = config_var->config_value();
-    if (value.find('\n') == std::string::npos) {
+    if (xe::utf8::find_any_of(value, "\n") == std::string_view::npos) {
       output << std::left << std::setw(40) << std::setfill(' ')
-             << xe::format_string("%s = %s", config_var->name().c_str(),
-                                  config_var->config_value().c_str());
+             << fmt::format("{} = {}", config_var->name(),
+                            config_var->config_value());
     } else {
-      auto lines = xe::split_string(value, "\n");
+      auto lines = xe::utf8::split(value, "\n");
       auto first_it = lines.cbegin();
-      output << xe::format_string("%s = %s\n", config_var->name().c_str(),
-                                  (*first_it).c_str());
+      output << fmt::format("{} = {}\n", config_var->name(), *first_it);
       auto last_it = std::prev(lines.cend());
       for (auto it = std::next(first_it); it != last_it; ++it) {
-        output << (*it).c_str() << "\n";
+        output << *it << "\n";
       }
-      output << std::left << std::setw(40) << std::setfill(' ')
-             << (*last_it).c_str();
+      output << std::left << std::setw(40) << std::setfill(' ') << *last_it;
     }
-    output << xe::format_string("\t# %s\n", config_var->description().c_str());
+    output << fmt::format("\t# {}\n", config_var->description());
   }
 
   if (xe::filesystem::PathExists(config_path)) {
-    std::ifstream existingConfigStream(xe::to_string(config_path).c_str());
+    std::ifstream existingConfigStream(config_path);
     const std::string existingConfig(
         (std::istreambuf_iterator<char>(existingConfigStream)),
         std::istreambuf_iterator<char>());
@@ -119,20 +126,16 @@ void SaveConfig() {
   // save the config file
   xe::filesystem::CreateParentFolder(config_path);
   std::ofstream file;
-#if XE_PLATFORM_WIN32
   file.open(config_path, std::ios::out | std::ios::trunc);
-#else
-  file.open(xe::to_string(config_path), std::ios::out | std::ios::trunc);
-#endif
   file << output.str();
   file.close();
 }
 
-void SetupConfig(const std::wstring& config_folder) {
+void SetupConfig(const std::filesystem::path& config_folder) {
   config::config_folder = config_folder;
   // check if the user specified a specific config to load
   if (!cvars::config.empty()) {
-    config_path = xe::to_wstring(cvars::config);
+    config_path = xe::to_path(cvars::config);
     if (xe::filesystem::PathExists(config_path)) {
       ReadConfig(config_path);
       return;
@@ -141,7 +144,7 @@ void SetupConfig(const std::wstring& config_folder) {
   // if the user specified a --config argument, but the file doesn't exist,
   // let's also load the default config
   if (!config_folder.empty()) {
-    config_path = xe::join_paths(config_folder, config_name);
+    config_path = config_folder / config_name;
     if (xe::filesystem::PathExists(config_path)) {
       ReadConfig(config_path);
     }
@@ -151,9 +154,10 @@ void SetupConfig(const std::wstring& config_folder) {
   }
 }
 
-void LoadGameConfig(const std::wstring& title_id) {
-  const auto game_config_path = xe::join_paths(
-      xe::join_paths(config_folder, L"config"), title_id + game_config_suffix);
+void LoadGameConfig(const std::string_view title_id) {
+  const auto game_config_folder = config_folder / "config";
+  const auto game_config_path =
+      game_config_folder / (std::string(title_id) + game_config_suffix);
   if (xe::filesystem::PathExists(game_config_path)) {
     ReadGameConfig(game_config_path);
   }

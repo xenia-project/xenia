@@ -155,7 +155,7 @@ bool PPCTranslator::Translate(GuestFunction* function,
   // Stash source.
   if (debug_info_flags & DebugInfoFlags::kDebugInfoDisasmSource) {
     DumpSource(function, &string_buffer_);
-    debug_info->set_source_disasm(string_buffer_.ToString());
+    debug_info->set_source_disasm(strdup(string_buffer_.buffer()));
     string_buffer_.Reset();
   }
 
@@ -171,7 +171,7 @@ bool PPCTranslator::Translate(GuestFunction* function,
   // Stash raw HIR.
   if (debug_info_flags & DebugInfoFlags::kDebugInfoDisasmRawHir) {
     builder_->Dump(&string_buffer_);
-    debug_info->set_raw_hir_disasm(string_buffer_.ToString());
+    debug_info->set_raw_hir_disasm(strdup(string_buffer_.buffer()));
     string_buffer_.Reset();
   }
 
@@ -183,7 +183,7 @@ bool PPCTranslator::Translate(GuestFunction* function,
   // Stash optimized HIR.
   if (debug_info_flags & DebugInfoFlags::kDebugInfoDisasmHir) {
     builder_->Dump(&string_buffer_);
-    debug_info->set_hir_disasm(string_buffer_.ToString());
+    debug_info->set_hir_disasm(strdup(string_buffer_.buffer()));
     string_buffer_.Reset();
   }
 
@@ -201,7 +201,7 @@ void PPCTranslator::DumpSource(GuestFunction* function,
   Memory* memory = frontend_->memory();
 
   string_buffer->AppendFormat(
-      "%s fn %.8X-%.8X %s\n", function->module()->name().c_str(),
+      "{} fn {:08X}-{:08X} {}\n", function->module()->name().c_str(),
       function->address(), function->end_address(), function->name().c_str());
 
   auto blocks = scanner_->FindBlocks(function);
@@ -216,12 +216,12 @@ void PPCTranslator::DumpSource(GuestFunction* function,
 
     // Check labels.
     if (block_it != blocks.end() && block_it->start_address == address) {
-      string_buffer->AppendFormat("%.8X          loc_%.8X:\n", address,
+      string_buffer->AppendFormat("{:08X}          loc_{:08X}:\n", address,
                                   address);
       ++block_it;
     }
 
-    string_buffer->AppendFormat("%.8X %.8X   ", address, code);
+    string_buffer->AppendFormat("{:08X} {:08X}   ", address, code);
     DisasmPPC(address, code, string_buffer);
     string_buffer->Append('\n');
   }

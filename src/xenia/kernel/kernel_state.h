@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -123,18 +123,19 @@ class KernelState {
   void UnregisterModule(XModule* module);
   bool RegisterUserModule(object_ref<UserModule> module);
   void UnregisterUserModule(UserModule* module);
-  bool IsKernelModule(const char* name);
-  object_ref<XModule> GetModule(const char* name, bool user_only = false);
+  bool IsKernelModule(const std::string_view name);
+  object_ref<XModule> GetModule(const std::string_view name,
+                                bool user_only = false);
 
   object_ref<XThread> LaunchModule(object_ref<UserModule> module);
   object_ref<UserModule> GetExecutableModule();
   void SetExecutableModule(object_ref<UserModule> module);
-  object_ref<UserModule> LoadUserModule(const char* name,
+  object_ref<UserModule> LoadUserModule(const std::string_view name,
                                         bool call_entry = true);
   void UnloadUserModule(const object_ref<UserModule>& module,
                         bool call_entry = true);
 
-  object_ref<KernelModule> GetKernelModule(const char* name);
+  object_ref<KernelModule> GetKernelModule(const std::string_view name);
   template <typename T>
   object_ref<KernelModule> LoadKernelModule() {
     auto kernel_module = object_ref<KernelModule>(new T(emulator_, this));
@@ -142,7 +143,7 @@ class KernelState {
     return kernel_module;
   }
   template <typename T>
-  object_ref<T> GetKernelModule(const char* name) {
+  object_ref<T> GetKernelModule(const std::string_view name) {
     auto module = GetKernelModule(name);
     return object_ref<T>(reinterpret_cast<T*>(module.release()));
   }

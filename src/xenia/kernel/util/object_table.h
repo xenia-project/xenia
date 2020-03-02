@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "xenia/base/mutex.h"
+#include "xenia/base/string_key.h"
 #include "xenia/kernel/xobject.h"
 #include "xenia/xbox.h"
 
@@ -57,9 +58,9 @@ class ObjectTable {
     return result;
   }
 
-  X_STATUS AddNameMapping(const std::string& name, X_HANDLE handle);
-  void RemoveNameMapping(const std::string& name);
-  X_STATUS GetObjectByName(const std::string& name, X_HANDLE* out_handle);
+  X_STATUS AddNameMapping(const std::string_view name, X_HANDLE handle);
+  void RemoveNameMapping(const std::string_view name);
+  X_STATUS GetObjectByName(const std::string_view name, X_HANDLE* out_handle);
   template <typename T>
   std::vector<object_ref<T>> GetObjectsByType(XObject::Type type) {
     std::vector<object_ref<T>> results;
@@ -99,7 +100,7 @@ class ObjectTable {
   uint32_t table_capacity_ = 0;
   ObjectTableEntry* table_ = nullptr;
   uint32_t last_free_entry_ = 0;
-  std::unordered_map<std::string, X_HANDLE> name_table_;
+  std::unordered_map<string_key_case, X_HANDLE> name_table_;
 };
 
 // Generic lookup

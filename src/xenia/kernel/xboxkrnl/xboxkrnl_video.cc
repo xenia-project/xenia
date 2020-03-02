@@ -294,7 +294,7 @@ struct BufferScaling {
 };
 void AppendParam(StringBuffer* string_buffer, pointer_t<BufferScaling> param) {
   string_buffer->AppendFormat(
-      "%.8X(scale %dx%d -> %dx%d))", param.guest_address(),
+      "{:08X}(scale {}x{} -> {}x{}))", param.guest_address(),
       uint16_t(param->bb_width), uint16_t(param->bb_height),
       uint16_t(param->fb_width), uint16_t(param->fb_height));
 }

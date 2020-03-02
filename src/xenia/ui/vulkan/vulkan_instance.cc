@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2017 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -106,7 +106,7 @@ bool VulkanInstance::EnableRenderDoc() {
   // RenderDoc injects itself into our process, so we should be able to get it.
   pRENDERDOC_GetAPI get_api = nullptr;
 #if XE_PLATFORM_WIN32
-  auto module_handle = GetModuleHandle(L"renderdoc.dll");
+  auto module_handle = GetModuleHandleW(L"renderdoc.dll");
   if (!module_handle) {
     XELOGI("RenderDoc support requested but it is not attached");
     return false;

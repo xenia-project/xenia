@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2015 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -54,8 +54,8 @@ class SpirvAssembler {
   // The return may have an error set on it if the source text is malformed.
   std::unique_ptr<Result> Assemble(const char* source_text,
                                    size_t source_text_length);
-  std::unique_ptr<Result> Assemble(const std::string& source_text) {
-    return Assemble(source_text.c_str(), source_text.size());
+  std::unique_ptr<Result> Assemble(const std::string_view source_text) {
+    return Assemble(source_text.data(), source_text.size());
   }
 
  private:

@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2017 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -27,6 +27,8 @@
 
 #if XE_PLATFORM_LINUX
 #include "xenia/ui/window_gtk.h"
+
+#include <X11/Xlib-xcb.h>
 #endif
 
 namespace xe {

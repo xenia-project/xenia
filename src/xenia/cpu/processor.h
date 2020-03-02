@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -99,12 +99,11 @@ class Processor {
   }
 
   bool AddModule(std::unique_ptr<Module> module);
-  Module* GetModule(const char* name);
-  Module* GetModule(const std::string& name) { return GetModule(name.c_str()); }
+  Module* GetModule(const std::string_view name);
   std::vector<Module*> GetModules();
 
   Module* builtin_module() const { return builtin_module_; }
-  Function* DefineBuiltin(const std::string& name,
+  Function* DefineBuiltin(const std::string_view name,
                           BuiltinFunction::Handler handler, void* arg0,
                           void* arg1);
 
@@ -245,7 +244,7 @@ class Processor {
   // Which debug features are enabled in generated code.
   uint32_t debug_info_flags_ = 0;
   // If specified, the file trace data gets written to when running.
-  std::wstring functions_trace_path_;
+  std::filesystem::path functions_trace_path_;
   std::unique_ptr<ChunkedMappedMemoryWriter> functions_trace_file_;
 
   std::unique_ptr<ppc::PPCFrontend> frontend_;
