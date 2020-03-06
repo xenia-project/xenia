@@ -10,7 +10,7 @@ drivers.
 
 * Windows 7 or later
 * [Visual Studio 2019 or Visual Studio 2017](https://www.visualstudio.com/downloads/)
-* [Python 3.4+](https://www.python.org/downloads/)
+* [Python 3.6+](https://www.python.org/downloads/)
   * Ensure Python is in PATH.
 * Windows 10 SDK
 
