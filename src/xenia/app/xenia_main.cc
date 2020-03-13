@@ -54,8 +54,17 @@ DEFINE_string(hid, "any", "Input system. Use: [any, nop, sdl, winkey, xinput]",
 
 DEFINE_bool(fullscreen, false, "Toggles fullscreen", "GPU");
 
-DEFINE_string(content_root, "", "Root path for content (save/etc) storage.",
-              "Storage");
+DEFINE_string(
+    storage_root, "",
+    "Root path for persistent internal data storage (config, etc.), or empty "
+    "to use the path preferred for the OS, such as the documents folder, or "
+    "the emulator executable directory if portable.txt is present in it.",
+    "Storage");
+DEFINE_string(
+    content_root, "",
+    "Root path for guest content storage (saves, etc.), or empty to use the "
+    "content folder under the storage root.",
+    "Storage");
 
 DEFINE_bool(mount_scratch, false, "Enable scratch mount", "Storage");
 DEFINE_bool(mount_cache, false, "Enable cache mount", "Storage");
@@ -201,36 +210,32 @@ int xenia_main(const std::vector<std::wstring>& args) {
   Profiler::Initialize();
   Profiler::ThreadEnter("main");
 
-  // Figure out where content should go.
-  std::wstring content_root = xe::to_wstring(cvars::content_root);
-  std::wstring config_folder;
-
-  if (content_root.empty()) {
-    auto base_path = xe::filesystem::GetExecutableFolder();
-    base_path = xe::to_absolute_path(base_path);
-
-    auto portable_path = xe::join_paths(base_path, L"portable.txt");
-    if (xe::filesystem::PathExists(portable_path)) {
-      content_root = xe::join_paths(base_path, L"content");
-      config_folder = base_path;
-    } else {
-      content_root = xe::filesystem::GetUserFolder();
-#if defined(XE_PLATFORM_WIN32)
-      content_root = xe::join_paths(content_root, L"Xenia");
-#elif defined(XE_PLATFORM_LINUX)
-      content_root = xe::join_paths(content_root, L"Xenia");
+  // Figure out where internal files and content should go.
+  std::wstring storage_root = xe::to_wstring(cvars::storage_root);
+  if (storage_root.empty()) {
+    storage_root = xe::filesystem::GetExecutableFolder();
+    if (!xe::filesystem::PathExists(
+            xe::join_paths(storage_root, L"portable.txt"))) {
+      storage_root = xe::filesystem::GetUserFolder();
+#if defined(XE_PLATFORM_WIN32) || defined(XE_PLATFORM_LINUX)
+      storage_root = xe::join_paths(storage_root, L"Xenia");
 #else
-#warning Unhandled platform for content root.
-      content_root = xe::join_paths(content_root, L"Xenia");
+#warning Unhandled platform for the data root.
+      storage_root = xe::join_paths(storage_root, L"Xenia");
 #endif
-      config_folder = content_root;
-      content_root = xe::join_paths(content_root, L"content");
     }
   }
-  content_root = xe::to_absolute_path(content_root);
+  storage_root = xe::to_absolute_path(storage_root);
+  XELOGI("Storage root: %S", storage_root.c_str());
 
+  config::SetupConfig(storage_root);
+
+  std::wstring content_root = xe::to_wstring(cvars::content_root);
+  if (content_root.empty()) {
+    content_root = xe::join_paths(storage_root, L"content");
+  }
+  content_root = xe::to_absolute_path(content_root);
   XELOGI("Content root: %S", content_root.c_str());
-  config::SetupConfig(config_folder);
 
   if (cvars::discord) {
     discord::DiscordPresence::Initialize();

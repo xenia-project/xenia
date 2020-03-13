@@ -24,6 +24,7 @@ namespace config {
 std::wstring config_name = L"xenia.config.toml";
 std::wstring config_folder;
 std::wstring config_path;
+std::wstring game_config_suffix = L".config.toml";
 
 bool sortCvar(cvar::IConfigVar* a, cvar::IConfigVar* b) {
   if (a->category() < b->category()) return true;
@@ -151,9 +152,8 @@ void SetupConfig(const std::wstring& config_folder) {
 }
 
 void LoadGameConfig(const std::wstring& title_id) {
-  const auto content_folder = xe::join_paths(config_folder, L"content");
-  const auto game_folder = xe::join_paths(content_folder, title_id);
-  const auto game_config_path = xe::join_paths(game_folder, config_name);
+  const auto game_config_path = xe::join_paths(
+      xe::join_paths(config_folder, L"config"), title_id + game_config_suffix);
   if (xe::filesystem::PathExists(game_config_path)) {
     ReadGameConfig(game_config_path);
   }
