@@ -20,6 +20,12 @@
 #include "xenia/ui/graphics_provider.h"
 #include "xenia/ui/loop.h"
 
+DEFINE_bool(
+    store_shaders, true,
+    "Store shaders persistently and load them when loading games to avoid "
+    "runtime spikes and freezes when playing the game not for the first time.",
+    "GPU");
+
 namespace xe {
 namespace gpu {
 
@@ -267,6 +273,34 @@ void GraphicsSystem::MarkVblank() {
 void GraphicsSystem::ClearCaches() {
   command_processor_->CallInThread(
       [&]() { command_processor_->ClearCaches(); });
+}
+
+void GraphicsSystem::InitializeShaderStorage(const std::wstring& storage_root,
+                                             uint32_t title_id, bool blocking) {
+  if (!cvars::store_shaders) {
+    return;
+  }
+  if (blocking) {
+    if (command_processor_->is_paused()) {
+      // Safe to run on any thread while the command processor is paused, no
+      // race condition.
+      command_processor_->InitializeShaderStorage(storage_root, title_id, true);
+    } else {
+      xe::threading::Fence fence;
+      command_processor_->CallInThread(
+          [this, storage_root, title_id, &fence]() {
+            command_processor_->InitializeShaderStorage(storage_root, title_id,
+                                                        true);
+            fence.Signal();
+          });
+      fence.Wait();
+    }
+  } else {
+    command_processor_->CallInThread([this, storage_root, title_id]() {
+      command_processor_->InitializeShaderStorage(storage_root, title_id,
+                                                  false);
+    });
+  }
 }
 
 void GraphicsSystem::RequestFrameTrace() {

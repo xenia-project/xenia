@@ -130,6 +130,12 @@ class CommandProcessor {
     swap_request_handler_ = fn;
   }
 
+  // May be called not only from the command processor thread when the command
+  // processor is paused, and the termination of this function may be explicitly
+  // awaited.
+  virtual void InitializeShaderStorage(const std::wstring& storage_root,
+                                       uint32_t title_id, bool blocking);
+
   virtual void RequestFrameTrace(const std::wstring& root_path);
   virtual void BeginTracing(const std::wstring& root_path);
   virtual void EndTracing();

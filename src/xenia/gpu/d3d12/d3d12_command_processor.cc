@@ -77,6 +77,12 @@ void D3D12CommandProcessor::ClearCaches() {
   cache_clear_requested_ = true;
 }
 
+void D3D12CommandProcessor::InitializeShaderStorage(
+    const std::wstring& storage_root, uint32_t title_id, bool blocking) {
+  CommandProcessor::InitializeShaderStorage(storage_root, title_id, blocking);
+  pipeline_cache_->InitializeShaderStorage(storage_root, title_id, blocking);
+}
+
 void D3D12CommandProcessor::RequestFrameTrace(const std::wstring& root_path) {
   // Capture with PIX if attached.
   if (GetD3D12Context()->GetD3D12Provider()->GetGraphicsAnalysis() != nullptr) {
@@ -2123,7 +2129,7 @@ bool D3D12CommandProcessor::EndSubmission(bool is_swap) {
 }
 
 bool D3D12CommandProcessor::CanEndSubmissionImmediately() const {
-  return !submission_open_ || !pipeline_cache_->IsCreatingPipelines();
+  return !submission_open_ || !pipeline_cache_->IsCreatingPipelineStates();
 }
 
 void D3D12CommandProcessor::AwaitAllSubmissionsCompletion() {

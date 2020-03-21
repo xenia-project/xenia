@@ -76,6 +76,31 @@ FILE* OpenFile(const std::wstring& path, const char* mode) {
   return fopen(xe::to_string(fixed_path).c_str(), mode);
 }
 
+bool Seek(FILE* file, int64_t offset, int origin) {
+  return fseeko64(file, off64_t(offset), origin) == 0;
+}
+
+int64_t Tell(FILE* file) { return int64_t(ftello64(file)); }
+
+bool TruncateStdioFile(FILE* file, uint64_t length) {
+  if (fflush(file)) {
+    return false;
+  }
+  int64_t position = Tell(file);
+  if (position < 0) {
+    return false;
+  }
+  if (ftruncate64(fileno(file), off64_t(length))) {
+    return false;
+  }
+  if (uint64_t(position) > length) {
+    if (!Seek(file, 0, SEEK_END)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 bool CreateFolder(const std::wstring& path) {
   return mkdir(xe::to_string(path).c_str(), 0774);
 }
