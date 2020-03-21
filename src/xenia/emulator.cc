@@ -57,11 +57,13 @@ DEFINE_string(
 namespace xe {
 
 Emulator::Emulator(const std::wstring& command_line,
+                   const std::wstring& storage_root,
                    const std::wstring& content_root)
     : on_launch(),
       on_terminate(),
       on_exit(),
       command_line_(command_line),
+      storage_root_(storage_root),
       content_root_(content_root),
       game_title_(),
       display_window_(nullptr),
@@ -685,11 +687,18 @@ X_STATUS Emulator::CompleteLaunch(const std::wstring& path,
     }
   }
 
+  // Initializing the shader storage in a blocking way so the user doesn't miss
+  // the initial seconds - for instance, sound from an intro video may start
+  // playing before the video can be seen if doing this in parallel with the
+  // main thread.
+  on_shader_storage_initialization(true);
+  graphics_system_->InitializeShaderStorage(storage_root_, title_id_, true);
+  on_shader_storage_initialization(false);
+
   auto main_thread = kernel_state_->LaunchModule(module);
   if (!main_thread) {
     return X_STATUS_UNSUCCESSFUL;
   }
-
   main_thread_ = main_thread;
   on_launch(title_id_, game_title_);
 

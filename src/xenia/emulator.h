@@ -48,13 +48,17 @@ namespace xe {
 class Emulator {
  public:
   explicit Emulator(const std::wstring& command_line,
+                    const std::wstring& storage_root,
                     const std::wstring& content_root);
   ~Emulator();
 
   // Full command line used when launching the process.
   const std::wstring& command_line() const { return command_line_; }
 
-  // Folder content is stored in.
+  // Folder persistent internal emulator data is stored in.
+  const std::wstring& storage_root() const { return storage_root_; }
+
+  // Folder guest content is stored in.
   const std::wstring& content_root() const { return content_root_; }
 
   // Title of the game in the default language.
@@ -146,6 +150,7 @@ class Emulator {
 
  public:
   xe::Delegate<uint32_t, const std::wstring&> on_launch;
+  xe::Delegate<bool> on_shader_storage_initialization;
   xe::Delegate<> on_terminate;
   xe::Delegate<> on_exit;
 
@@ -159,6 +164,7 @@ class Emulator {
                           const std::string& module_path);
 
   std::wstring command_line_;
+  std::wstring storage_root_;
   std::wstring content_root_;
 
   std::wstring game_title_;

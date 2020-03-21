@@ -87,6 +87,10 @@ void CommandProcessor::Shutdown() {
   worker_thread_.reset();
 }
 
+void CommandProcessor::InitializeShaderStorage(const std::wstring& storage_root,
+                                               uint32_t title_id,
+                                               bool blocking) {}
+
 void CommandProcessor::RequestFrameTrace(const std::wstring& root_path) {
   if (trace_state_ == TraceState::kStreaming) {
     XELOGE("Streaming trace; cannot also trace frame.");

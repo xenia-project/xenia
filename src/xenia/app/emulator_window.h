@@ -37,6 +37,7 @@ class EmulatorWindow {
 
   void UpdateTitle();
   void ToggleFullscreen();
+  void SetInitializingShaderStorage(bool initializing);
 
  private:
   explicit EmulatorWindow(Emulator* emulator);
@@ -63,6 +64,7 @@ class EmulatorWindow {
   std::unique_ptr<ui::Window> window_;
   std::wstring base_title_;
   uint64_t cursor_hide_time_ = 0;
+  bool initializing_shader_storage_ = false;
 };
 
 }  // namespace app

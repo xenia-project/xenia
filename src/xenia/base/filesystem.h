@@ -58,6 +58,17 @@ bool CreateFile(const std::wstring& path);
 // This behaves like fopen and the returned handle can be used with stdio.
 FILE* OpenFile(const std::wstring& path, const char* mode);
 
+// Wrapper for the 64-bit version of fseek, returns true on success.
+bool Seek(FILE* file, int64_t offset, int origin);
+
+// Wrapper for the 64-bit version of ftell, returns a positive value on success.
+int64_t Tell(FILE* file);
+
+// Reduces the size of a stdio file opened for writing. The file pointer is
+// clamped. If this returns false, the size of the file and the file pointer are
+// undefined.
+bool TruncateStdioFile(FILE* file, uint64_t length);
+
 // Deletes the file at the given path.
 // Returns true if the file was found and removed.
 bool DeleteFile(const std::wstring& path);

@@ -43,6 +43,9 @@ class D3D12CommandProcessor : public CommandProcessor {
 
   void ClearCaches() override;
 
+  void InitializeShaderStorage(const std::wstring& storage_root,
+                               uint32_t title_id, bool blocking) override;
+
   void RequestFrameTrace(const std::wstring& root_path) override;
 
   void TracePlaybackWroteMemory(uint32_t base_ptr, uint32_t length) override;
@@ -125,10 +128,11 @@ class D3D12CommandProcessor : public CommandProcessor {
   // render targets or copying to depth render targets.
   void SetSamplePositions(MsaaSamples sample_positions);
 
-  // Returns a pipeline with deferred creation by its handle. May return nullptr
-  // if failed to create the pipeline.
-  inline ID3D12PipelineState* GetPipelineStateByHandle(void* handle) const {
-    return pipeline_cache_->GetPipelineStateByHandle(handle);
+  // Returns a pipeline state object with deferred creation by its handle. May
+  // return nullptr if failed to create the pipeline state object.
+  inline ID3D12PipelineState* GetD3D12PipelineStateByHandle(
+      void* handle) const {
+    return pipeline_cache_->GetD3D12PipelineStateByHandle(handle);
   }
 
   // Sets the current pipeline state to a compute pipeline. This is for cache

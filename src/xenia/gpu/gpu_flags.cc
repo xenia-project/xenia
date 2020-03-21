@@ -13,8 +13,10 @@ DEFINE_string(trace_gpu_prefix, "scratch/gpu/",
               "Prefix path for GPU trace files.", "GPU");
 DEFINE_bool(trace_gpu_stream, false, "Trace all GPU packets.", "GPU");
 
-DEFINE_string(dump_shaders, "",
-              "Path to write GPU shaders to as they are compiled.", "GPU");
+DEFINE_string(
+    dump_shaders, "",
+    "For shader debugging, path to dump GPU shaders to as they are compiled.",
+    "GPU");
 
 DEFINE_bool(vsync, true, "Enable VSYNC.", "GPU");
 

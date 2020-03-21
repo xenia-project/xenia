@@ -12,6 +12,7 @@
 
 #include <string>
 
+#include <io.h>
 #include <shlobj.h>
 
 #include "xenia/base/platform_win.h"
@@ -85,6 +86,32 @@ bool CreateFile(const std::wstring& path) {
 FILE* OpenFile(const std::wstring& path, const char* mode) {
   auto fixed_path = xe::fix_path_separators(path);
   return _wfopen(fixed_path.c_str(), xe::to_wstring(mode).c_str());
+}
+
+bool Seek(FILE* file, int64_t offset, int origin) {
+  return _fseeki64(file, offset, origin) == 0;
+}
+
+int64_t Tell(FILE* file) { return _ftelli64(file); }
+
+bool TruncateStdioFile(FILE* file, uint64_t length) {
+  // Flush is necessary - if not flushing, stream position may be out of sync.
+  if (fflush(file)) {
+    return false;
+  }
+  int64_t position = Tell(file);
+  if (position < 0) {
+    return false;
+  }
+  if (_chsize_s(_fileno(file), int64_t(length))) {
+    return false;
+  }
+  if (uint64_t(position) > length) {
+    if (!Seek(file, 0, SEEK_END)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 bool DeleteFile(const std::wstring& path) {

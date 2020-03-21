@@ -243,7 +243,7 @@ int xenia_main(const std::vector<std::wstring>& args) {
   }
 
   // Create the emulator but don't initialize so we can setup the window.
-  auto emulator = std::make_unique<Emulator>(L"", content_root);
+  auto emulator = std::make_unique<Emulator>(L"", storage_root, content_root);
 
   // Main emulator display window.
   auto emulator_window = EmulatorWindow::Create(emulator.get());
@@ -330,6 +330,11 @@ int xenia_main(const std::vector<std::wstring>& args) {
     emulator_window->UpdateTitle();
     evt->Set();
   });
+
+  emulator->on_shader_storage_initialization.AddListener(
+      [&](bool initializing) {
+        emulator_window->SetInitializingShaderStorage(initializing);
+      });
 
   emulator->on_terminate.AddListener([&]() {
     if (cvars::discord) {

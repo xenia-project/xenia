@@ -245,9 +245,9 @@ bool EmulatorWindow::Initialize() {
   }
   gpu_menu->AddChild(MenuItem::Create(MenuItem::Type::kSeparator));
   {
-    gpu_menu->AddChild(
-        MenuItem::Create(MenuItem::Type::kString, L"&Clear Caches", L"F5",
-                         std::bind(&EmulatorWindow::GpuClearCaches, this)));
+    gpu_menu->AddChild(MenuItem::Create(
+        MenuItem::Type::kString, L"&Clear Runtime Caches", L"F5",
+        std::bind(&EmulatorWindow::GpuClearCaches, this)));
   }
   main_menu->AddChild(std::move(gpu_menu));
 
@@ -454,7 +454,19 @@ void EmulatorWindow::UpdateTitle() {
     title += xe::format_string(L" (@%.2fx)", Clock::guest_time_scalar());
   }
 
+  if (initializing_shader_storage_) {
+    title += L" (Preloading shaders\u2026)";
+  }
+
   window_->set_title(title);
+}
+
+void EmulatorWindow::SetInitializingShaderStorage(bool initializing) {
+  if (initializing_shader_storage_ == initializing) {
+    return;
+  }
+  initializing_shader_storage_ = initializing;
+  UpdateTitle();
 }
 
 }  // namespace app

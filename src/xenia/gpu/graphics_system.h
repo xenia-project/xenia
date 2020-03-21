@@ -12,6 +12,7 @@
 
 #include <atomic>
 #include <memory>
+#include <string>
 #include <thread>
 
 #include "xenia/cpu/processor.h"
@@ -61,6 +62,9 @@ class GraphicsSystem {
   void DispatchInterruptCallback(uint32_t source, uint32_t cpu);
 
   virtual void ClearCaches();
+
+  void InitializeShaderStorage(const std::wstring& storage_root,
+                               uint32_t title_id, bool blocking);
 
   void RequestFrameTrace();
   void BeginTracing();
