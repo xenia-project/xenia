@@ -40,17 +40,15 @@ using namespace ucode;
 // Notes about operands:
 //
 // Reading and writing:
-// - Writes to 4-component registers must be masked.
-// - Reads from 4-component registers can be swizzled, or 1 component can be
-//   selected.
 // - r# (temporary registers) are 4-component and can be used anywhere.
 // - v# (inputs) are 4-component and read-only.
 // - o# (outputs) are 4-component and write-only.
 // - oDepth (pixel shader depth output) is 1-component and write-only.
-// - x# (indexable temporary registers) are 4-component (though not sure what
-//   happens if you dcl them as 1-component) and can be accessed either via
-//   a mov load or a mov store (and those movs are counted as ArrayInstructions
-//   in STAT, not as MovInstructions).
+// - x# (indexable temporary registers) are 4-component and can be accessed
+//   either via a mov load or a mov store (and those movs are counted as
+//   ArrayInstructions in STAT, not as MovInstructions), even though the D3D11.3
+//   functional specification says x# can be used wherever r# can be used, but
+//   FXC emits only mov load/store in simple tests.
 //
 // Indexing:
 // - Constant buffers use 3D indices in CBx[y][z] format, where x is the ID of

@@ -30,17 +30,53 @@ namespace gpu {
 //
 // IMPORTANT CONTRIBUTION NOTES:
 //
-// Not all DXBC instructions accept all kinds of operands equally!
-// Refer to Shader Model 4 and 5 Assembly on MSDN to see if the needed
-// swizzle/selection, absolute/negate modifiers and saturation are supported by
-// the instruction.
+// While DXBC may look like a flexible and high-level representation with highly
+// generalized building blocks, actually it has a lot of restrictions on operand
+// usage!
+// Check the Direct3D 11.3 Functional Specification before adding anything!
+// https://microsoft.github.io/DirectX-Specs/d3d/archive/D3D11_3_FunctionalSpec.htm
+// (the "7. Common Shader Internals" chapter and the documentation of the
+// specific instruction you want to use).
+// For instructions, MSDN also provides some information, but it's not as
+// detailed as the functional specification:
 // https://docs.microsoft.com/en-us/windows/win32/direct3dhlsl/dx9-graphics-reference-asm
-// Before adding anything that behaves in a way that doesn't follow patterns
-// already used in Xenia, try to write the same logic in HLSL, compile it with
-// FXC and see the resulting assembly *and preferably binary bytecode* as some
-// instructions may, for example, require selection rather than swizzling for
-// certain operands. For bytecode structure, see d3d12TokenizedProgramFormat.hpp
-// from the Windows Driver Kit.
+// Most important limitations:
+// - This is very easy to hit, looks weird at first, and also not very important
+//   for modern drivers using DXILConv, but still needs to be respected for
+//   safety! One instruction can't accept more than one immediate or constant
+//   buffer source operand combined in total:
+//     and r0.x, CB0[0][0].x, l(1)
+//     and r0.x, CB0[0][0].x, CB0[0][0].y
+//   are illegal, even though pretty useful. Copy one of the operands to r#.
+// - Absolute, negate and saturate are only supported by instructions that
+//   explicitly support them.
+// - Component selection in the general case (ALU instructions - things like
+//   resource access and flow control mostly explicitly need a specific
+//   component selection mode defined in the specification of the instruction):
+//   - 0-component - for operand types with no data (samplers, labels).
+//   - 1-component - for scalar destination operand types, and for scalar source
+//     operand types when the destination vector has 1 component masked
+//     (including scalar immediates).
+//   - Mask - for vector destination operand types.
+//   - Swizzle - for both vector and scalar (replicated in this case) source
+//     operand types, when the destination vector has 2 or more components
+//     masked. Immediates in this case have XYZW swizzle.
+//   - Select 1 - for vector source operand types, when the destination has 1
+//     component masked or is of a scalar type.
+// - Input operands (v#) can be used only as sources, output operands (o#) can
+//   be used only as destinations.
+// - The specification says that x#[] can be used wherever r# can be used,
+//   however, in tests, FXC only emits load/store mov instructions for x#[]
+//   (they are also counted in ArrayInstructions rather than MovInstructions in
+//   STAT), so it's better to only use mov for x#[]. The specification also
+//   permits using x#[] in relative addressing along with r# (as long as
+//   relative addressing isn't nested), but it's probably not very safe either.
+// Don't do anything that FXC wouldn't do.
+// TODO(Triang3l): Fix all places violating these rules - currently there are
+// lots of them in Xenia!
+//
+// For bytecode structure, see d3d12TokenizedProgramFormat.hpp from the Windows
+// Driver Kit.
 //
 // Avoid using uninitialized register components - such as registers written to
 // in "if" and not in "else", but then used outside unconditionally or with a
