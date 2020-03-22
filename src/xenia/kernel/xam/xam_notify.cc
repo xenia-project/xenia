@@ -67,10 +67,14 @@ dword_result_t XNotifyGetNext(dword_t handle, dword_t match_id,
 
   if (dequeued) {
     *id_ptr = id;
-    *param_ptr = param;
+    if (param_ptr) {
+      *param_ptr = param;
+    }
   } else {
     *id_ptr = 0;
-    *param_ptr = 0;
+    if (param_ptr) {
+      *param_ptr = 0;
+    }
   }
 
   return dequeued ? 1 : 0;
