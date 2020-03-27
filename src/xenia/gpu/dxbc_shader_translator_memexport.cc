@@ -81,22 +81,12 @@ void DxbcShaderTranslator::ExportToMemory() {
     if (edram_rov_used_) {
       system_constants_used_ |= 1ull
                                 << kSysConst_EDRAMResolutionSquareScale_Index;
-      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_UGE) |
-                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-      shader_code_.push_back(
-          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0010, 1));
-      shader_code_.push_back(control_temp);
-      shader_code_.push_back(EncodeVectorSelectOperand(
-          D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
-          kSysConst_EDRAMResolutionSquareScale_Comp, 3));
-      shader_code_.push_back(
-          EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-      shader_code_.push_back(1);
-      shader_code_.push_back(cbuffer_index_system_constants_);
-      shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-      shader_code_.push_back(kSysConst_EDRAMResolutionSquareScale_Vec);
-      ++stat_.instruction_count;
-      ++stat_.uint_instruction_count;
+      DxbcOpULT(DxbcDest::R(control_temp, 0b0010),
+                DxbcSrc::CB(cbuffer_index_system_constants_,
+                            uint32_t(CbufferRegister::kSystemConstants),
+                            kSysConst_EDRAMResolutionSquareScale_Vec)
+                    .Select(kSysConst_EDRAMResolutionSquareScale_Comp),
+                DxbcSrc::LU(2));
 
       shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
                              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
