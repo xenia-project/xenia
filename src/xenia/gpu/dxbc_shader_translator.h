@@ -33,23 +33,22 @@ namespace gpu {
 // While DXBC may look like a flexible and high-level representation with highly
 // generalized building blocks, actually it has a lot of restrictions on operand
 // usage!
-// Check the Direct3D 11.3 Functional Specification before adding anything!
-// https://microsoft.github.io/DirectX-Specs/d3d/archive/D3D11_3_FunctionalSpec.htm
-// (the "7. Common Shader Internals" chapter and the documentation of the
-// specific instruction you want to use).
-// For instructions, MSDN also provides some information, but it's not as
-// detailed as the functional specification:
-// https://docs.microsoft.com/en-us/windows/win32/direct3dhlsl/dx9-graphics-reference-asm
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+// !!!DO NOT ADD ANYTHING FXC THAT WOULD NOT PRODUCE!!!
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+// Before adding any sequence that you haven't seen in Xenia, try writing
+// equivalent code in HLSL and running it through FXC, try with /Od, try with
+// full optimization, but if you see that FXC follows a different pattern than
+// what you are expecting, do what FXC does!!!
 // Most important limitations:
-// - This is very easy to hit, looks weird at first, and also not very important
-//   for modern drivers using DXILConv, but still needs to be respected for
-//   safety! One instruction can't accept more than one immediate or constant
-//   buffer source operand combined in total:
-//     and r0.x, CB0[0][0].x, l(1)
-//     and r0.x, CB0[0][0].x, CB0[0][0].y
-//   are illegal, even though pretty useful. Copy one of the operands to r#.
 // - Absolute, negate and saturate are only supported by instructions that
-//   explicitly support them.
+//   explicitly support them. See MSDN pages of the specific instructions you
+//   want to use with modifiers:
+//   https://docs.microsoft.com/en-us/windows/win32/direct3dhlsl/dx9-graphics-reference-asm
 // - Component selection in the general case (ALU instructions - things like
 //   resource access and flow control mostly explicitly need a specific
 //   component selection mode defined in the specification of the instruction):
@@ -65,15 +64,26 @@ namespace gpu {
 //     component masked or is of a scalar type.
 // - Input operands (v#) can be used only as sources, output operands (o#) can
 //   be used only as destinations.
-// - The specification says that x#[] can be used wherever r# can be used,
-//   however, in tests, FXC only emits load/store mov instructions for x#[]
-//   (they are also counted in ArrayInstructions rather than MovInstructions in
-//   STAT), so it's better to only use mov for x#[]. The specification also
-//   permits using x#[] in relative addressing along with r# (as long as
-//   relative addressing isn't nested), but it's probably not very safe either.
-// Don't do anything that FXC wouldn't do.
-// TODO(Triang3l): Fix all places violating these rules - currently there are
-// lots of them in Xenia!
+// - Indexable temporaries (x#) can only be used as a destination or a source
+//   operand (but not both at once) of a mov instruction - a load/store pattern
+//   here. Also, movs involving x# are counted as ArrayInstructions rather than
+//   MovInstructions in STAT. The other operand can be anything that most other
+//   instructions accept, but it still must be a mov with x# on one side.
+// TODO(Triang3l): Fix all places in the translator currently violating these
+// rules.
+// !NOTE!: The D3D11.3 Functional Specification on Microsoft's GitHub profile,
+// as of March 27th, 2020, is NOT a reliable reference, even though it contains
+// many DXBC details! There are multiple places where it clearly contradicts
+// what FXC does, even when targeting old shader models like 4_0:
+// - The limit of 1 immediate or constant buffer source operand per instruction
+//   is totally ignored by FXC - in simple tests, it can emit an instruction
+//   with two constant buffer sources, or one constant buffer source and one
+//   immediate, or a multiply-add with two immediate operands.
+// - It says x# can be used wherever r# can be used - in synthetic tests, FXC
+//   always accesses x# in a load/store way via mov.
+// - It says x# can be used for indexing, including nested indexing of x# (one
+//   level deep), however, FXC moves the inner index operand to r# first in this
+//   case.
 //
 // For bytecode structure, see d3d12TokenizedProgramFormat.hpp from the Windows
 // Driver Kit.
