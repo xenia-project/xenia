@@ -1424,6 +1424,7 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToRTVs() {
                  DxbcSrc::R(system_temps_color_[j]),
                  guest_rt_first ? DxbcSrc::LF(0.0f)
                                 : DxbcSrc::R(remap_movc_target_temp));
+      guest_rt_first = false;
     }
     // Write the remapped color to host render target i.
     DxbcOpMov(DxbcDest::O(i), DxbcSrc::R(remap_movc_target_temp));
