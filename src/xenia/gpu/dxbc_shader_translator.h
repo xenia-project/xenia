@@ -950,6 +950,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kBFI = 140,
     kLdUAVTyped = 163,
     kStoreUAVTyped = 164,
+    kStoreRaw = 166,
     kEvalSampleIndex = 204,
   };
 
@@ -1386,6 +1387,23 @@ class DxbcShaderTranslator : public ShaderTranslator {
     ++stat_.instruction_count;
     ++stat_.c_texture_store_instructions;
   }
+  void DxbcOpStoreRaw(const DxbcDest& dest, const DxbcSrc& byte_offset,
+                      const DxbcSrc& value) {
+    uint32_t dest_write_mask = dest.GetMask();
+    assert_true(dest_write_mask == 0b0001 || dest_write_mask == 0b0011 ||
+                dest_write_mask == 0b0111 || dest_write_mask == 0b1111);
+    uint32_t operands_length = dest.GetLength() +
+                               byte_offset.GetLength(0b0000) +
+                               value.GetLength(dest_write_mask);
+    shader_code_.reserve(shader_code_.size() + 1 + operands_length);
+    shader_code_.push_back(
+        DxbcOpcodeToken(DxbcOpcode::kStoreRaw, operands_length));
+    dest.Write(shader_code_);
+    byte_offset.Write(shader_code_, true, 0b0000);
+    value.Write(shader_code_, true, dest_write_mask);
+    ++stat_.instruction_count;
+    ++stat_.c_texture_store_instructions;
+  }
   void DxbcOpEvalSampleIndex(const DxbcDest& dest, const DxbcSrc& value,
                              const DxbcSrc& sample_index) {
     uint32_t dest_write_mask = dest.GetMask();
@@ -1716,6 +1734,10 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // Writing the epilogue.
   // ExportToMemory modifies the values of eA/eM# for simplicity, don't call
   // multiple times.
+  void ExportToMemory_PackFixed32(const uint32_t* eM_temps, uint32_t eM_count,
+                                  const uint32_t bits[4],
+                                  const DxbcSrc& is_integer,
+                                  const DxbcSrc& is_signed);
   void ExportToMemory();
   void CompleteVertexOrDomainShader();
   // Discards the SSAA sample if it fails alpha to coverage.
