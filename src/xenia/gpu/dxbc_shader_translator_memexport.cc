@@ -93,13 +93,7 @@ void DxbcShaderTranslator::ExportToMemory() {
     return;
   }
 
-  // Allocate a register that will be used for storing:
-  // - Bits for checking whether export can be done at all.
-  // - Format info.
-  // - Calculated element size.
-  // - Endian swap bits.
-  // - Element size comparison results (for choosing the store with the right
-  //   write mask).
+  // Allocate a register for temporary values at various stages.
   uint32_t control_temp = PushSystemTemp();
 
   // Safety check if the shared memory is bound as UAV.
