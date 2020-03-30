@@ -398,21 +398,12 @@ bool SDLInputDriver::TestSDLVersion() {
   const Uint8 min_patchlevel = 4;
 #endif
 
-  // With msvc delayed loading, exceptions are used to determine dll presence.
-#if XE_PLATFORM_WIN32
-  __try {
-#endif  // XE_PLATFORM_WIN32
-    SDL_version ver = {};
-    SDL_GetVersion(&ver);
-    if ((ver.major < 2) ||
-        (ver.major == 2 && ver.minor == 0 && ver.patch < min_patchlevel)) {
-      return false;
-    }
-#if XE_PLATFORM_WIN32
-  } __except (EXCEPTION_EXECUTE_HANDLER) {
+  SDL_version ver = {};
+  SDL_GetVersion(&ver);
+  if ((ver.major < 2) ||
+      (ver.major == 2 && ver.minor == 0 && ver.patch < min_patchlevel)) {
     return false;
   }
-#endif  // XE_PLATFORM_WIN32
   return true;
 }
 
