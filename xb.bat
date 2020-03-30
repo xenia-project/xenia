@@ -10,7 +10,7 @@ REM ============================================================================
 CALL :check_python
 IF %_RESULT% NEQ 0 (
   ECHO.
-  ECHO Python 3.4+ must be installed and on PATH:
+  ECHO Python 3.6+ must be installed and on PATH:
   ECHO https://www.python.org/
   GOTO :eof
 )
@@ -35,9 +35,7 @@ SET FOUND_PATH=""
 
 SET "CANDIDATE_PATHS[0]=C:\python37\python.exe"
 SET "CANDIDATE_PATHS[1]=C:\python36\python.exe"
-SET "CANDIDATE_PATHS[2]=C:\python35\python.exe"
-SET "CANDIDATE_PATHS[3]=C:\python34\python.exe"
-SET OUTPUT_INDEX=4
+SET OUTPUT_INDEX=2
 
 FOR /F "usebackq delims=" %%L IN (`2^>NUL where python3`) DO (
   IF %%~zL NEQ 0 (
@@ -72,9 +70,9 @@ IF "%FOUND_PATH%"=="" (
   GOTO :eof
 )
 
-CMD /C ""%FOUND_PATH%" -c "import sys; sys.exit(1 if not sys.version_info[:2] ^>= (3, 4) else 0)"
+CMD /C ""%FOUND_PATH%" -c "import sys; sys.exit(1 if not sys.version_info[:2] ^>= (3, 6) else 0)"
 IF %ERRORLEVEL% NEQ 0 (
-  ECHO ERROR: Python version mismatch, not at least 3.4.
+  ECHO ERROR: Python version mismatch, not at least 3.6.
   ECHO Found Python executable was "%FOUND_PATH%".
   ENDLOCAL & SET _RESULT=1
   GOTO :eof
