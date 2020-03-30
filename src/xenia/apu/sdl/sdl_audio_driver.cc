@@ -31,24 +31,14 @@ SDLAudioDriver::~SDLAudioDriver() {
 };
 
 bool SDLAudioDriver::Initialize() {
-  // With msvc delayed loading, exceptions are used to determine dll presence.
-#if XE_PLATFORM_WIN32
-  __try {
-#endif  // XE_PLATFORM_WIN32
-    SDL_version ver = {};
-    SDL_GetVersion(&ver);
-    if ((ver.major < 2) ||
-        (ver.major == 2 && ver.minor == 0 && ver.patch < 8)) {
-      XELOGW(
-          "SDL library version {}.{}.{} is outdated. "
-          "You may experience choppy audio.",
-          ver.major, ver.minor, ver.patch);
-    }
-#if XE_PLATFORM_WIN32
-  } __except (EXCEPTION_EXECUTE_HANDLER) {
-    return false;
+  SDL_version ver = {};
+  SDL_GetVersion(&ver);
+  if ((ver.major < 2) || (ver.major == 2 && ver.minor == 0 && ver.patch < 8)) {
+    XELOGW(
+        "SDL library version {}.{}.{} is outdated. "
+        "You may experience choppy audio.",
+        ver.major, ver.minor, ver.patch);
   }
-#endif  // XE_PLATFORM_WIN32
 
   if (SDL_InitSubSystem(SDL_INIT_AUDIO) < 0) {
     return false;
