@@ -38,8 +38,8 @@ def main():
         sys.exit(1)
 
     # Check python version.
-    if not sys.version_info[:2] >= (3, 4):
-        print('ERROR: Python 3.4+ must be installed and on PATH')
+    if not sys.version_info[:2] >= (3, 6):
+        print('ERROR: Python 3.6+ must be installed and on PATH')
         sys.exit(1)
 
     # Grab Visual Studio version and execute shell to set up environment.
