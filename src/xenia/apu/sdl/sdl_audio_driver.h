@@ -9,12 +9,12 @@
 
 #ifndef XENIA_APU_SDL_SDL_AUDIO_DRIVER_H_
 #define XENIA_APU_SDL_SDL_AUDIO_DRIVER_H_
-#include <SDL2/SDL.h>
 
 #include <mutex>
 #include <queue>
 #include <stack>
 
+#include "SDL.h"
 #include "xenia/apu/audio_driver.h"
 #include "xenia/base/threading.h"
 

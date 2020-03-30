@@ -10,12 +10,11 @@
 #ifndef XENIA_HID_SDL_SDL_INPUT_DRIVER_H_
 #define XENIA_HID_SDL_SDL_INPUT_DRIVER_H_
 
-#include <SDL2/SDL.h>
-
 #include <array>
 #include <atomic>
 #include <mutex>
 
+#include "SDL.h"
 #include "xenia/hid/input_driver.h"
 
 #define HID_SDL_USER_COUNT (4)
