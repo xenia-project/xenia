@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# Copyright 2015 Ben Vanik. All Rights Reserved.
+# Copyright 2020 Ben Vanik. All Rights Reserved.
 
 """Main build script and tooling for xenia.
 
@@ -360,7 +360,7 @@ def run_premake_clean():
         return run_premake('linux', 'clean')
 
 
-def run_platform_premake(cc=None):
+def run_platform_premake(cc='clang', devenv=None):
     """Runs all gyp configurations.
     """
     if sys.platform == 'darwin':
@@ -372,9 +372,7 @@ def run_platform_premake(cc=None):
 
         return run_premake('windows', 'vs' + vs_version)
     else:
-        ret = run_premake('linux', 'gmake', cc)
-        ret = ret != 0 and run_premake('linux', 'codelite') or ret
-        return ret
+        return run_premake('linux', devenv == 'codelite' and devenv or 'gmake', cc)
 
 
 def run_premake_export_commands():
@@ -423,6 +421,7 @@ def discover_commands(subparsers):
         'pull': PullCommand(subparsers),
         'premake': PremakeCommand(subparsers),
         'build': BuildCommand(subparsers),
+        'devenv': DevenvCommand(subparsers),
         'genspirv': GenSpirvCommand(subparsers),
         'gentests': GenTestsCommand(subparsers),
         'test': TestCommand(subparsers),
@@ -435,7 +434,6 @@ def discover_commands(subparsers):
         'tidy': TidyCommand(subparsers),
         }
     if sys.platform == 'win32':
-        commands['devenv'] = DevenvCommand(subparsers)
         commands['buildhlsl'] = BuildHlslCommand(subparsers)
     return commands
 
@@ -565,12 +563,14 @@ class PremakeCommand(Command):
             *args, **kwargs)
         self.parser.add_argument(
             '--cc', default='clang', help='Compiler toolchain passed to premake')
+        self.parser.add_argument(
+            '--devenv', default=None, help='Development environment')
 
     def execute(self, args, pass_args, cwd):
         # Update premake. If no binary found, it will be built from source.
         print('Running premake...')
         print('')
-        if run_platform_premake(args['cc']) == 0:
+        if run_platform_premake(cc=args['cc'], devenv=args['devenv']) == 0:
             print('Success!')
 
         return 0
@@ -654,7 +654,7 @@ class BuildCommand(BaseBuildCommand):
         super(BuildCommand, self).__init__(
             subparsers,
             name='build',
-            help_short='Builds the project.',
+            help_short='Builds the project with the default toolchain.',
             *args, **kwargs)
 
     def execute(self, args, pass_args, cwd):
@@ -1436,21 +1436,32 @@ class DevenvCommand(Command):
         super(DevenvCommand, self).__init__(
             subparsers,
             name='devenv',
-            help_short='Launches Visual Studio with the sln.',
+            help_short='Launches the development environment.',
             *args, **kwargs)
 
     def execute(self, args, pass_args, cwd):
-        print('Launching Visual Studio...')
+        devenv = None
+        if sys.platform == 'win32':
+            print('Launching Visual Studio...')
+        else:
+            print('Launching CodeLite...')
+            devenv = 'codelite'
         print('')
 
         print('- running premake...')
-        run_platform_premake()
+        run_platform_premake(devenv=devenv)
         print('')
 
         print('- launching devenv...')
-        shell_call([
-            'devenv',
-            'build\\xenia.sln',
+        if sys.platform == 'win32':
+            shell_call([
+                'devenv',
+                'build\\xenia.sln',
+            ])
+        else:
+            shell_call([
+                'codelite',
+                'build/xenia.workspace',
             ])
         print('')
 
