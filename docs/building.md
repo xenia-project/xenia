@@ -10,7 +10,7 @@ drivers.
 
 * Windows 7 or later
 * [Visual Studio 2019 or Visual Studio 2017](https://www.visualstudio.com/downloads/)
-* [Python 3.4+](https://www.python.org/downloads/)
+* [Python 3.6+](https://www.python.org/downloads/)
   * Ensure Python is in PATH.
 * Windows 10 SDK
 
@@ -88,56 +88,20 @@ get helpful spacers/movs in the disassembly.
 
 Linux support is extremely experimental and presently incomplete.
 
-The build script uses LLVM/Clang 3.8. GCC should also work, but is not easily
-swappable right now.
+The build script uses LLVM/Clang 9. GCC while it should work in theory, is not easily
+interchangeable right now.
 
-[CodeLite](https://codelite.org) is the IDE of choice and `xb premake` will spit
-out files for that. Make also works via `xb build`.
+[CodeLite](https://codelite.org) is the supported IDE and `xb devenv` will generate a workspace and attempt to open it. Your distribution's version may be out of date so check their website.
+Normal building via `xb build` uses Make.
 
-To get the latest Clang on an Ubuntu system:
-```
-sudo -E apt-add-repository -y "ppa:ubuntu-toolchain-r/test"
-curl -sSL "http://llvm.org/apt/llvm-snapshot.gpg.key" | sudo -E apt-key add -
-echo "deb http://llvm.org/apt/precise/ llvm-toolchain-precise main" | sudo tee -a /etc/apt/sources.list > /dev/null
-sudo -E apt-get -yq update &>> ~/apt-get-update.log
-sudo -E apt-get -yq --no-install-suggests --no-install-recommends --force-yes install clang-4.0 clang-format-4.0
-```
-
+Clang-9 or newer should be available from system repositories on all up to date distributions.
 You will also need some development libraries. To get them on an Ubuntu system:
 ```
-sudo apt-get install libgtk-3-dev libpthread-stubs0-dev liblz4-dev libx11-dev libvulkan-dev libc++-dev libc++abi-dev
+sudo apt-get install libgtk-3-dev libpthread-stubs0-dev liblz4-dev libx11-dev libvulkan-dev libsdl2-dev libiberty-dev libunwind-dev libc++-dev libc++abi-dev
 ```
 
-In addition, you will need the latest Vulkan libraries and drivers for your hardware.
-
-#### Linux NVIDIA Vulkan Drivers
-
-You'll need to install the latest NVIDIA drivers to enable Vulkan support on Linux.
-
-First, remove all existing NVIDIA drivers:
-```
-sudo apt-get purge nvidia*
-```
-
-Add the graphics-drivers PPA to your system:
-```
-sudo add-apt-repository ppa:graphics-drivers
-sudo apt update
-```
-
-Install the NVIDIA drivers (newer ones may be released after 387; check online):
-```
-sudo apt install nvidia-387
-```
-
-Either restart the computer, or inject the NVIDIA drivers:
-```
-sudo rmmod nouveau
-sudo modprobe nvidia
-```
+In addition, you will need up to date Vulkan libraries and drivers for your hardware, which most distributions have in their standard repositories nowadays.
 
 ## Running
 
-To make life easier you can use `--flagfile=myflags.txt` to specify all
-arguments, including using `--target=my.xex` to pick an executable. You
-can also specify `--log_file=stdout` to log to stdout rather than a file.
+To make life easier you can set the program startup arguments in your IDE to something like `--log_file=stdout /path/to/Default.xex` to log to console rather than a file and start up the emulator right away.
