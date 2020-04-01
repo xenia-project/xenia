@@ -372,7 +372,7 @@ def run_platform_premake(cc='clang', devenv=None):
 
         return run_premake('windows', 'vs' + vs_version)
     else:
-        return run_premake('linux', devenv == 'codelite' and devenv or 'gmake', cc)
+        return run_premake('linux', devenv == 'codelite' and devenv or 'gmake2', cc)
 
 
 def run_premake_export_commands():
