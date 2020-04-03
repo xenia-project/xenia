@@ -29,6 +29,8 @@ namespace xe {
 namespace kernel {
 namespace xam {
 
+class ContentPackage;
+
 struct XCONTENT_DATA {
   static const size_t kSize = 4 + 4 + 128 * 2 + 42 + 2;  // = 306 + 2b padding
   uint32_t device_id;
@@ -52,28 +54,18 @@ struct XCONTENT_DATA {
   }
 };
 
-class ContentPackage {
- public:
-  ContentPackage(KernelState* kernel_state, std::string root_name,
-                 const XCONTENT_DATA& data, std::wstring package_path);
-  ~ContentPackage();
-
- private:
-  KernelState* kernel_state_;
-  std::string root_name_;
-  std::string device_path_;
-};
-
 class ContentManager {
  public:
+  // Extension to append to folder path when searching for STFS headers
+  static constexpr const wchar_t* const kStfsHeadersExtension = L".headers.bin";
+
   ContentManager(KernelState* kernel_state, std::wstring root_path);
   ~ContentManager();
 
   std::vector<XCONTENT_DATA> ListContent(uint32_t device_id,
                                          uint32_t content_type);
 
-  std::unique_ptr<ContentPackage> ResolvePackage(std::string root_name,
-                                                 const XCONTENT_DATA& data);
+  ContentPackage* ResolvePackage(const XCONTENT_DATA& data);
 
   bool ContentExists(const XCONTENT_DATA& data);
   X_RESULT CreateContent(std::string root_name, const XCONTENT_DATA& data);
@@ -95,7 +87,7 @@ class ContentManager {
 
   // TODO(benvanik): remove use of global lock, it's bad here!
   xe::global_critical_region global_critical_region_;
-  std::unordered_map<std::string, ContentPackage*> open_packages_;
+  std::vector<ContentPackage*> open_packages_;
 };
 
 }  // namespace xam

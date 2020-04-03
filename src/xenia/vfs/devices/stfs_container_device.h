@@ -117,6 +117,8 @@ struct SvodVolumeDescriptor {
 
 class StfsHeader {
  public:
+  static const uint32_t kHeaderLength = 0xA000;
+
   bool Read(const uint8_t* p);
 
   uint8_t license_entries[0x100];
@@ -180,6 +182,8 @@ class StfsContainerDevice : public Device {
   uint32_t available_allocation_units() const override { return 0; }
   uint32_t sectors_per_allocation_unit() const override { return 1; }
   uint32_t bytes_per_sector() const override { return 4 * 1024; }
+
+  StfsHeader& header() { return header_; }
 
  private:
   enum class Error {
