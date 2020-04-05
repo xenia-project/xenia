@@ -526,9 +526,9 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
           PopSystemTemp();
         }
         if (register_count() >= 2) {
-          // Write the swizzle of the barycentric coordinates to r1.x. It
-          // appears that the tessellator offloads the reordering of coordinates
-          // for edges to game shaders.
+          // Write the swizzle of the UV coordinates to r1.x. It appears that
+          // the tessellator offloads the reordering of coordinates for edges to
+          // game shaders.
           //
           // In Viva Pinata, if we assume that r0.y is V and r0.z is U, the
           // factors each control point value is multiplied by are the
