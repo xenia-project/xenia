@@ -437,6 +437,14 @@ class DxbcShaderTranslator : public ShaderTranslator {
   void ProcessAluInstruction(const ParsedAluInstruction& instr) override;
 
  private:
+  // D3D11_SB_TESSELLATOR_DOMAIN
+  enum class DxbcTessellatorDomain : uint32_t {
+    kUndefined,
+    kIsoline,
+    kTriangle,
+    kQuad,
+  };
+
   // D3D10_SB_OPERAND_TYPE
   enum class DxbcOperandType : uint32_t {
     kTemp = 0,
@@ -2202,7 +2210,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
     uint32_t c_control_points;
     uint32_t hs_output_primitive;
     uint32_t hs_partitioning;
-    uint32_t tessellator_domain;
+    DxbcTessellatorDomain tessellator_domain;
     // Unknown in Wine.
     uint32_t c_barrier_instructions;
     // Unknown in Wine.
