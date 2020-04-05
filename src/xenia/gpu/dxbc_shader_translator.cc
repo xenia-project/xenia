@@ -278,34 +278,12 @@ uint32_t DxbcShaderTranslator::PushSystemTemp(uint32_t zero_mask,
   system_temp_count_current_ += count;
   system_temp_count_max_ =
       std::max(system_temp_count_max_, system_temp_count_current_);
-
+  zero_mask &= 0b1111;
   if (zero_mask) {
-    uint32_t zero_operand, zero_count;
-    if (zero_mask == 0b0001 || zero_mask == 0b0010 || zero_mask == 0b0100 ||
-        zero_mask == 0b1000) {
-      zero_operand = EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0);
-      zero_count = 1;
-    } else {
-      zero_operand = EncodeVectorSwizzledOperand(
-          D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0);
-      zero_count = 4;
-    }
     for (uint32_t i = 0; i < count; ++i) {
-      shader_code_.push_back(
-          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4 + zero_count));
-      shader_code_.push_back(
-          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, zero_mask, 1));
-      shader_code_.push_back(register_index + i);
-      shader_code_.push_back(zero_operand);
-      for (uint32_t j = 0; j < zero_count; ++j) {
-        shader_code_.push_back(0);
-      }
-      ++stat_.instruction_count;
-      ++stat_.mov_instruction_count;
+      DxbcOpMov(DxbcDest::R(register_index + i, zero_mask), DxbcSrc::LU(0));
     }
   }
-
   return register_index;
 }
 
@@ -331,167 +309,46 @@ void DxbcShaderTranslator::ConvertPWLGamma(
               accumulator_temp_component != source_temp_component);
   assert_true(piece_temp != accumulator_temp ||
               piece_temp_component != accumulator_temp_component);
-  uint32_t piece_temp_mask = 1 << piece_temp_component;
-  uint32_t accumulator_temp_mask = 1 << accumulator_temp_component;
-
+  DxbcSrc source_src(DxbcSrc::R(source_temp).Select(source_temp_component));
+  DxbcDest piece_dest(DxbcDest::R(piece_temp, 1 << piece_temp_component));
+  DxbcSrc piece_src(DxbcSrc::R(piece_temp).Select(piece_temp_component));
+  DxbcDest accumulator_dest(
+      DxbcDest::R(accumulator_temp, 1 << accumulator_temp_component));
+  DxbcSrc accumulator_src(
+      DxbcSrc::R(accumulator_temp).Select(accumulator_temp_component));
   // For each piece:
   // 1) Calculate how far we are on it. Multiply by 1/width, subtract
   //    start/width and saturate.
   // 2) Add the contribution of the piece - multiply the position on the piece
   //    by its slope*width and accumulate.
-
   // Piece 1.
-
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MUL) |
-                         ENCODE_D3D10_SB_INSTRUCTION_SATURATE(1) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-  shader_code_.push_back(EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP,
-                                                   piece_temp_mask, 1));
-  shader_code_.push_back(piece_temp);
-  shader_code_.push_back(EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP,
-                                                   source_temp_component, 1));
-  shader_code_.push_back(source_temp);
-  shader_code_.push_back(
-      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  // 1.0 / 0.0625 to, 1.0 / 0.25 from.
-  shader_code_.push_back(to_gamma ? 0x41800000u : 0x40800000u);
-  ++stat_.instruction_count;
-  ++stat_.float_instruction_count;
-
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MUL) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-  shader_code_.push_back(EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP,
-                                                   accumulator_temp_mask, 1));
-  shader_code_.push_back(accumulator_temp);
-  shader_code_.push_back(EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP,
-                                                   piece_temp_component, 1));
-  shader_code_.push_back(piece_temp);
-  shader_code_.push_back(
-      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  // 4.0 * 0.0625 to, 0.25 * 0.25 from.
-  shader_code_.push_back(to_gamma ? 0x3E800000u : 0x3D800000u);
-  ++stat_.instruction_count;
-  ++stat_.float_instruction_count;
-
+  DxbcOpMul(piece_dest, source_src,
+            DxbcSrc::LF(to_gamma ? (1.0f / 0.0625f) : (1.0f / 0.25f)), true);
+  DxbcOpMul(accumulator_dest, piece_src,
+            DxbcSrc::LF(to_gamma ? (4.0f * 0.0625f) : (0.25f * 0.25f)));
   // Piece 2.
-
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MAD) |
-                         ENCODE_D3D10_SB_INSTRUCTION_SATURATE(1) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-  shader_code_.push_back(EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP,
-                                                   piece_temp_mask, 1));
-  shader_code_.push_back(piece_temp);
-  shader_code_.push_back(EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP,
-                                                   source_temp_component, 1));
-  shader_code_.push_back(source_temp);
-  shader_code_.push_back(
-      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  // 1.0 / 0.0625 to, 1.0 / 0.125 from.
-  shader_code_.push_back(to_gamma ? 0x41800000u : 0x41000000u);
-  shader_code_.push_back(
-      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  // -0.0625 / 0.0625 to, -0.25 / 0.125 from.
-  shader_code_.push_back(to_gamma ? 0xBF800000u : 0xC0000000u);
-  ++stat_.instruction_count;
-  ++stat_.float_instruction_count;
-
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MAD) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-  shader_code_.push_back(EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP,
-                                                   accumulator_temp_mask, 1));
-  shader_code_.push_back(accumulator_temp);
-  shader_code_.push_back(EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP,
-                                                   piece_temp_component, 1));
-  shader_code_.push_back(piece_temp);
-  shader_code_.push_back(
-      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  // 2.0 * 0.0625 to, 0.5 * 0.125 from.
-  shader_code_.push_back(to_gamma ? 0x3E000000u : 0x3D800000u);
-  shader_code_.push_back(EncodeVectorSelectOperand(
-      D3D10_SB_OPERAND_TYPE_TEMP, accumulator_temp_component, 1));
-  shader_code_.push_back(accumulator_temp);
-  ++stat_.instruction_count;
-  ++stat_.float_instruction_count;
-
+  DxbcOpMAd(piece_dest, source_src,
+            DxbcSrc::LF(to_gamma ? (1.0f / 0.0625f) : (1.0f / 0.125f)),
+            DxbcSrc::LF(to_gamma ? (-0.0625f / 0.0625f) : (-0.25f / 0.125f)),
+            true);
+  DxbcOpMAd(accumulator_dest, piece_src,
+            DxbcSrc::LF(to_gamma ? (2.0f * 0.0625f) : (0.5f * 0.125f)),
+            accumulator_src);
   // Piece 3.
-
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MAD) |
-                         ENCODE_D3D10_SB_INSTRUCTION_SATURATE(1) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-  shader_code_.push_back(EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP,
-                                                   piece_temp_mask, 1));
-  shader_code_.push_back(piece_temp);
-  shader_code_.push_back(EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP,
-                                                   source_temp_component, 1));
-  shader_code_.push_back(source_temp);
-  shader_code_.push_back(
-      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  // 1.0 / 0.375 to, 1.0 / 0.375 from.
-  shader_code_.push_back(0x402AAAABu);
-  shader_code_.push_back(
-      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  // -0.125 / 0.375 to, -0.375 / 0.375 from.
-  shader_code_.push_back(to_gamma ? 0xBEAAAAABu : 0xBF800000u);
-  ++stat_.instruction_count;
-  ++stat_.float_instruction_count;
-
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MAD) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-  shader_code_.push_back(EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP,
-                                                   accumulator_temp_mask, 1));
-  shader_code_.push_back(accumulator_temp);
-  shader_code_.push_back(EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP,
-                                                   piece_temp_component, 1));
-  shader_code_.push_back(piece_temp);
-  shader_code_.push_back(
-      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  // 1.0 * 0.375 to, 1.0 * 0.375 from.
-  shader_code_.push_back(0x3EC00000u);
-  shader_code_.push_back(EncodeVectorSelectOperand(
-      D3D10_SB_OPERAND_TYPE_TEMP, accumulator_temp_component, 1));
-  shader_code_.push_back(accumulator_temp);
-  ++stat_.instruction_count;
-  ++stat_.float_instruction_count;
-
+  DxbcOpMAd(piece_dest, source_src,
+            DxbcSrc::LF(to_gamma ? (1.0f / 0.375f) : (1.0f / 0.375f)),
+            DxbcSrc::LF(to_gamma ? (-0.125f / 0.375f) : (-0.375f / 0.375f)),
+            true);
+  DxbcOpMAd(accumulator_dest, piece_src,
+            DxbcSrc::LF(to_gamma ? (1.0f * 0.375f) : (1.0f * 0.375f)),
+            accumulator_src);
   // Piece 4.
-
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MAD) |
-                         ENCODE_D3D10_SB_INSTRUCTION_SATURATE(1) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-  shader_code_.push_back(EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP,
-                                                   piece_temp_mask, 1));
-  shader_code_.push_back(piece_temp);
-  shader_code_.push_back(EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP,
-                                                   source_temp_component, 1));
-  shader_code_.push_back(source_temp);
-  shader_code_.push_back(
-      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  // 1.0 / 0.5 to, 1.0 / 0.25 from.
-  shader_code_.push_back(to_gamma ? 0x40000000u : 0x40800000u);
-  shader_code_.push_back(
-      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  // -0.5 / 0.5 to, -0.75 / 0.25 from.
-  shader_code_.push_back(to_gamma ? 0xBF800000u : 0xC0400000u);
-  ++stat_.instruction_count;
-  ++stat_.float_instruction_count;
-
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MAD) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-  shader_code_.push_back(EncodeVectorMaskedOperand(
-      D3D10_SB_OPERAND_TYPE_TEMP, 1 << target_temp_component, 1));
-  shader_code_.push_back(target_temp);
-  shader_code_.push_back(EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP,
-                                                   piece_temp_component, 1));
-  shader_code_.push_back(piece_temp);
-  shader_code_.push_back(
-      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  // 0.5 * 0.5 to, 2.0 * 0.25 from.
-  shader_code_.push_back(to_gamma ? 0x3E800000u : 0x3F000000u);
-  shader_code_.push_back(EncodeVectorSelectOperand(
-      D3D10_SB_OPERAND_TYPE_TEMP, accumulator_temp_component, 1));
-  shader_code_.push_back(accumulator_temp);
-  ++stat_.instruction_count;
-  ++stat_.float_instruction_count;
+  DxbcOpMAd(piece_dest, source_src,
+            DxbcSrc::LF(to_gamma ? (1.0f / 0.5f) : (1.0f / 0.25f)),
+            DxbcSrc::LF(to_gamma ? (-0.5f / 0.5f) : (-0.75f / 0.25f)), true);
+  DxbcOpMAd(DxbcDest::R(target_temp, 1 << target_temp_component), piece_src,
+            DxbcSrc::LF(to_gamma ? (0.5f * 0.5f) : (2.0f * 0.25f)),
+            accumulator_src);
 }
 
 void DxbcShaderTranslator::StartVertexShader_LoadVertexIndex() {
@@ -499,18 +356,8 @@ void DxbcShaderTranslator::StartVertexShader_LoadVertexIndex() {
     return;
   }
 
-  // Vertex index is in an input bound to SV_VertexID, byte swapped according to
-  // xe_vertex_index_endian_and_edge_factors system constant and written to
-  // GPR 0.
-
-  // xe_vertex_index_endian_and_edge_factors & 0b11 is:
-  // - 00 for no swap.
-  // - 01 for 8-in-16.
-  // - 10 for 8-in-32 (8-in-16 and 16-in-32).
-  // - 11 for 16-in-32.
-
-  // Write to GPR 0 - either directly if not using indexable registers, or via a
-  // system temporary register.
+  // Writing the index to X of GPR 0 - either directly if not using indexable
+  // registers, or via a system temporary register.
   uint32_t reg;
   if (uses_register_dynamic_addressing()) {
     reg = PushSystemTemp();
@@ -518,302 +365,89 @@ void DxbcShaderTranslator::StartVertexShader_LoadVertexIndex() {
     reg = 0;
   }
 
+  DxbcDest index_dest(DxbcDest::R(reg, 0b0001));
+  DxbcSrc index_src(DxbcSrc::R(reg, DxbcSrc::kXXXX));
+
   // Check if the closing vertex of a non-indexed line loop is being processed.
   system_constants_used_ |= 1ull << kSysConst_LineLoopClosingIndex_Index;
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_INE) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-  shader_code_.push_back(reg);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_INPUT, 0, 1));
-  shader_code_.push_back(uint32_t(InOutRegister::kVSInVertexIndex));
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
-                                kSysConst_LineLoopClosingIndex_Comp, 3));
-  shader_code_.push_back(cbuffer_index_system_constants_);
-  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-  shader_code_.push_back(kSysConst_LineLoopClosingIndex_Vec);
-  ++stat_.instruction_count;
-  ++stat_.int_instruction_count;
+  DxbcOpINE(
+      index_dest,
+      DxbcSrc::V(uint32_t(InOutRegister::kVSInVertexIndex), DxbcSrc::kXXXX),
+      DxbcSrc::CB(cbuffer_index_system_constants_,
+                  uint32_t(CbufferRegister::kSystemConstants),
+                  kSysConst_LineLoopClosingIndex_Vec)
+          .Select(kSysConst_LineLoopClosingIndex_Comp));
   // Zero the index if processing the closing vertex of a line loop, or do
   // nothing (replace 0 with 0) if not needed.
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-  shader_code_.push_back(reg);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_INPUT, 0, 1));
-  shader_code_.push_back(uint32_t(InOutRegister::kVSInVertexIndex));
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-  shader_code_.push_back(reg);
-  ++stat_.instruction_count;
-  ++stat_.uint_instruction_count;
+  DxbcOpAnd(
+      index_dest,
+      DxbcSrc::V(uint32_t(InOutRegister::kVSInVertexIndex), DxbcSrc::kXXXX),
+      index_src);
 
-  // 8-in-16: Create target for A and C insertion in Y and sources in X and Z.
-  // ushr reg.xyz, input, l(0, 8, 16, 0)
-  // ABCD | BCD0 | CD00 | unused
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_USHR) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(10));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0111, 1));
-  shader_code_.push_back(reg);
-  shader_code_.push_back(
-      EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-  shader_code_.push_back(reg);
-  shader_code_.push_back(EncodeVectorSwizzledOperand(
-      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-  shader_code_.push_back(0);
-  shader_code_.push_back(8);
-  shader_code_.push_back(16);
-  shader_code_.push_back(0);
-  ++stat_.instruction_count;
-  ++stat_.uint_instruction_count;
-
-  // 8-in-16: Insert A in Y.
-  // bfi reg.y, l(8), l(8), reg.x, reg.y
-  // ABCD | BAD0 | CD00 | unused
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_BFI) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(11));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0010, 1));
-  shader_code_.push_back(reg);
-  shader_code_.push_back(
-      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  shader_code_.push_back(8);
-  shader_code_.push_back(
-      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  shader_code_.push_back(8);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-  shader_code_.push_back(reg);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
-  shader_code_.push_back(reg);
-  ++stat_.instruction_count;
-  ++stat_.uint_instruction_count;
-
-  // 8-in-16: Insert C in W.
-  // bfi reg.y, l(8), l(24), reg.z, reg.y
-  // ABCD | BADC | CD00 | unused
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_BFI) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(11));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0010, 1));
-  shader_code_.push_back(reg);
-  shader_code_.push_back(
-      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  shader_code_.push_back(8);
-  shader_code_.push_back(
-      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  shader_code_.push_back(24);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
-  shader_code_.push_back(reg);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
-  shader_code_.push_back(reg);
-  ++stat_.instruction_count;
-  ++stat_.uint_instruction_count;
-
-  // Get bits indicating what swaps should be done.
-  // ubfe reg.zw, l(0, 0, 1, 1).zw, l(0, 0, 0, 1).zw,
-  //      xe_vertex_index_endian_and_edge_factors.xx
-  // ABCD | BADC | 8in16/16in32? | 8in32/16in32?
+  // Extract the endianness of the vertex index.
   system_constants_used_ |= 1ull
                             << kSysConst_VertexIndexEndianAndEdgeFactors_Index;
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_UBFE) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(17));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1100, 1));
-  shader_code_.push_back(reg);
-  shader_code_.push_back(EncodeVectorSwizzledOperand(
-      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-  shader_code_.push_back(0);
-  shader_code_.push_back(0);
-  shader_code_.push_back(1);
-  shader_code_.push_back(1);
-  shader_code_.push_back(EncodeVectorSwizzledOperand(
-      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-  shader_code_.push_back(0);
-  shader_code_.push_back(0);
-  shader_code_.push_back(0);
-  shader_code_.push_back(1);
-  shader_code_.push_back(EncodeVectorReplicatedOperand(
-      D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
-      kSysConst_VertexIndexEndianAndEdgeFactors_Comp, 3));
-  shader_code_.push_back(uint32_t(cbuffer_index_system_constants_));
-  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-  shader_code_.push_back(kSysConst_VertexIndexEndianAndEdgeFactors_Vec);
-  ++stat_.instruction_count;
-  ++stat_.uint_instruction_count;
+  DxbcOpAnd(DxbcDest::R(reg, 0b0010),
+            DxbcSrc::CB(cbuffer_index_system_constants_,
+                        uint32_t(CbufferRegister::kSystemConstants),
+                        kSysConst_VertexIndexEndianAndEdgeFactors_Vec)
+                .Select(kSysConst_VertexIndexEndianAndEdgeFactors_Comp),
+            DxbcSrc::LU(0b11));
 
-  // 16-in-32 is used as intermediate swapping step here rather than 8-in-32.
-  // Thus 8-in-16 needs to be done for 8-in-16 (01) and 8-in-32 (10).
-  // And 16-in-32 needs to be done for 8-in-32 (10) and 16-in-32 (11).
-  // xor reg.z, reg.z, reg.w
-  // ABCD | BADC | 8in16/8in32? | 8in32/16in32?
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_XOR) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0100, 1));
-  shader_code_.push_back(reg);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
-  shader_code_.push_back(reg);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 3, 1));
-  shader_code_.push_back(reg);
-  ++stat_.instruction_count;
-  ++stat_.uint_instruction_count;
+  // 8-in-16 or one half of 8-in-32.
+  DxbcOpSwitch(DxbcSrc::R(reg, DxbcSrc::kYYYY));
+  DxbcOpCase(DxbcSrc::LU(uint32_t(Endian::k8in16)));
+  DxbcOpCase(DxbcSrc::LU(uint32_t(Endian::k8in32)));
+  // Temp = X0Z0.
+  DxbcOpAnd(DxbcDest::R(reg, 0b0100), index_src, DxbcSrc::LU(0x00FF00FF));
+  // Index = YZW0.
+  DxbcOpUShR(index_dest, index_src, DxbcSrc::LU(8));
+  // Index = Y0W0.
+  DxbcOpAnd(index_dest, index_src, DxbcSrc::LU(0x00FF00FF));
+  // Index = YXWZ.
+  DxbcOpUMAd(index_dest, DxbcSrc::R(reg, DxbcSrc::kZZZZ), DxbcSrc::LU(256),
+             index_src);
+  DxbcOpBreak();
+  DxbcOpEndSwitch();
 
-  // Write the 8-in-16 value to X if needed.
-  // movc reg.x, reg.z, reg.y, reg.x
-  // ABCD/BADC | unused | unused | 8in32/16in32?
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-  shader_code_.push_back(reg);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
-  shader_code_.push_back(reg);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
-  shader_code_.push_back(reg);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-  shader_code_.push_back(reg);
-  ++stat_.instruction_count;
-  ++stat_.movc_instruction_count;
-
-  // 16-in-32: Write the low 16 bits.
-  // ushr reg.y, reg.x, l(16)
-  // ABCD/BADC | CD00/DC00 | unused | 8in32/16in32?
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_USHR) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0010, 1));
-  shader_code_.push_back(reg);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-  shader_code_.push_back(reg);
-  shader_code_.push_back(
-      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  shader_code_.push_back(16);
-  ++stat_.instruction_count;
-  ++stat_.uint_instruction_count;
-
-  // 16-in-32: Write the high 16 bits.
-  // bfi reg.y, l(16), l(16), reg.x, reg.y
-  // ABCD/BADC | CDAB/DCBA | unused | 8in32/16in32?
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_BFI) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(11));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0010, 1));
-  shader_code_.push_back(reg);
-  shader_code_.push_back(
-      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  shader_code_.push_back(16);
-  shader_code_.push_back(
-      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  shader_code_.push_back(16);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-  shader_code_.push_back(reg);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
-  shader_code_.push_back(reg);
-  ++stat_.instruction_count;
-  ++stat_.uint_instruction_count;
-
-  // Apply the 16-in-32 swap if needed.
-  // movc reg.x, reg.w, reg.y, reg.x
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-  shader_code_.push_back(reg);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 3, 1));
-  shader_code_.push_back(reg);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
-  shader_code_.push_back(reg);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-  shader_code_.push_back(reg);
-  ++stat_.instruction_count;
-  ++stat_.movc_instruction_count;
+  // 16-in-32 or another half of 8-in-32.
+  DxbcOpSwitch(DxbcSrc::R(reg, DxbcSrc::kYYYY));
+  DxbcOpCase(DxbcSrc::LU(uint32_t(Endian::k8in32)));
+  DxbcOpCase(DxbcSrc::LU(uint32_t(Endian::k16in32)));
+  // Temp = ZW00.
+  DxbcOpUShR(DxbcDest::R(reg, 0b0010), index_src, DxbcSrc::LU(16));
+  // Index = ZWXY.
+  DxbcOpBFI(index_dest, DxbcSrc::LU(16), DxbcSrc::LU(16), index_src,
+            DxbcSrc::R(reg, DxbcSrc::kYYYY));
+  DxbcOpBreak();
+  DxbcOpEndSwitch();
 
   // Add the base vertex index.
   system_constants_used_ |= 1ull << kSysConst_VertexBaseIndex_Index;
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IADD) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-  shader_code_.push_back(reg);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-  shader_code_.push_back(reg);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
-                                kSysConst_VertexBaseIndex_Comp, 3));
-  shader_code_.push_back(uint32_t(cbuffer_index_system_constants_));
-  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-  shader_code_.push_back(kSysConst_VertexBaseIndex_Vec);
-  ++stat_.instruction_count;
-  ++stat_.int_instruction_count;
+  DxbcOpIAdd(index_dest, index_src,
+             DxbcSrc::CB(cbuffer_index_system_constants_,
+                         uint32_t(CbufferRegister::kSystemConstants),
+                         kSysConst_VertexBaseIndex_Vec)
+                 .Select(kSysConst_VertexBaseIndex_Comp));
 
-  // Convert to float and replicate the swapped value in the destination
-  // register (what should be in YZW is unknown, but just to make it a bit
-  // cleaner).
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_UTOF) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
-  shader_code_.push_back(reg);
-  shader_code_.push_back(
-      EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-  shader_code_.push_back(reg);
-  ++stat_.instruction_count;
-  ++stat_.conversion_instruction_count;
+  // Convert to float.
+  DxbcOpIToF(index_dest, index_src);
 
   if (uses_register_dynamic_addressing()) {
     // Store to indexed GPR 0 in x0[0].
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(6));
-    shader_code_.push_back(EncodeVectorMaskedOperand(
-        D3D10_SB_OPERAND_TYPE_INDEXABLE_TEMP, 0b1111, 2));
-    shader_code_.push_back(0);
-    shader_code_.push_back(0);
-    shader_code_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-    shader_code_.push_back(reg);
-    ++stat_.instruction_count;
-    ++stat_.array_instruction_count;
+    DxbcOpMov(DxbcDest::X(0, 0, 0b0001), DxbcSrc::R(reg, DxbcSrc::kXXXX));
     PopSystemTemp();
+  } else {
+    // Break register dependency.
+    DxbcOpMov(DxbcDest::R(reg, 0b1110), DxbcSrc::LF(0.0f));
   }
 }
 
 void DxbcShaderTranslator::StartVertexOrDomainShader() {
   // Zero the interpolators.
   for (uint32_t i = 0; i < kInterpolatorCount; ++i) {
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(8));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_OUTPUT, 0b1111, 1));
-    shader_code_.push_back(uint32_t(InOutRegister::kVSOutInterpolators) + i);
-    shader_code_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-    shader_code_.push_back(0);
-    shader_code_.push_back(0);
-    shader_code_.push_back(0);
-    shader_code_.push_back(0);
-    ++stat_.instruction_count;
-    ++stat_.mov_instruction_count;
+    DxbcOpMov(DxbcDest::O(uint32_t(InOutRegister::kVSOutInterpolators) + i),
+              DxbcSrc::LF(0.0f));
   }
 
   if (IsDxbcVertexShader()) {
@@ -833,39 +467,20 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
         // ZYX swizzle with r1.y == 0, according to the water shader in
         // Banjo-Kazooie: Nuts & Bolts.
         domain_location_swizzle = 0b00000110;
-        stat_.tessellator_domain = D3D11_SB_TESSELLATOR_DOMAIN_TRI;
+        stat_.tessellator_domain = DxbcTessellatorDomain::kTriangle;
       } else {
         // TODO(Triang3l): Support line patches.
         assert_true(patch_primitive_type() == PrimitiveType::kQuadPatch);
-        // According to the ground shader in Viva Pinata, though it's impossible
-        // (as of December 12th, 2018) to test there since it possibly requires
-        // memexport for ground control points (the memory region with them is
-        // filled with zeros).
+        // According to the ground shader in Viva Pinata, though it's untested
+        // as of April 4th, 2020.
         domain_location_mask = 0b0110;
         domain_location_swizzle = 0b00000100;
-        stat_.tessellator_domain = D3D11_SB_TESSELLATOR_DOMAIN_QUAD;
+        stat_.tessellator_domain = DxbcTessellatorDomain::kQuad;
       }
-      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(
-                                 2 + temp_register_operand_length));
-      if (uses_register_dynamic_addressing()) {
-        shader_code_.push_back(EncodeVectorMaskedOperand(
-            D3D10_SB_OPERAND_TYPE_INDEXABLE_TEMP, domain_location_mask, 2));
-        shader_code_.push_back(0);
-      } else {
-        shader_code_.push_back(EncodeVectorMaskedOperand(
-            D3D10_SB_OPERAND_TYPE_TEMP, domain_location_mask, 1));
-      }
-      shader_code_.push_back(0);
-      shader_code_.push_back(
-          EncodeVectorSwizzledOperand(D3D11_SB_OPERAND_TYPE_INPUT_DOMAIN_POINT,
-                                      domain_location_swizzle, 0));
-      ++stat_.instruction_count;
-      if (uses_register_dynamic_addressing()) {
-        ++stat_.array_instruction_count;
-      } else {
-        ++stat_.mov_instruction_count;
-      }
+      DxbcOpMov(uses_register_dynamic_addressing()
+                    ? DxbcDest::X(0, 0, domain_location_mask)
+                    : DxbcDest::R(0, domain_location_mask),
+                DxbcSrc::VDomain(domain_location_swizzle));
 
       // Copy the primitive index to r0.x (for quad patches) or r1.x (for
       // triangle patches) as a float.
@@ -877,34 +492,14 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
       // TODO(Triang3l): Support line patches.
       uint32_t primitive_id_gpr_index =
           patch_primitive_type() == PrimitiveType::kTrianglePatch ? 1 : 0;
-
       if (register_count() > primitive_id_gpr_index) {
         uint32_t primitive_id_temp = uses_register_dynamic_addressing()
                                          ? PushSystemTemp()
                                          : primitive_id_gpr_index;
-        shader_code_.push_back(
-            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_UTOF) |
-            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4));
-        shader_code_.push_back(
-            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-        shader_code_.push_back(primitive_id_temp);
-        shader_code_.push_back(
-            EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_INPUT_PRIMITIVEID, 0));
-        ++stat_.instruction_count;
-        ++stat_.conversion_instruction_count;
+        DxbcOpUToF(DxbcDest::R(primitive_id_temp, 0b0001), DxbcSrc::VPrim());
         if (uses_register_dynamic_addressing()) {
-          shader_code_.push_back(
-              ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(6));
-          shader_code_.push_back(EncodeVectorMaskedOperand(
-              D3D10_SB_OPERAND_TYPE_INDEXABLE_TEMP, 0b0001, 2));
-          shader_code_.push_back(0);
-          shader_code_.push_back(primitive_id_gpr_index);
-          shader_code_.push_back(
-              EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-          shader_code_.push_back(primitive_id_temp);
-          ++stat_.instruction_count;
-          ++stat_.array_instruction_count;
+          DxbcOpMov(DxbcDest::X(0, primitive_id_gpr_index, 0b0001),
+                    DxbcSrc::R(primitive_id_temp, DxbcSrc::kXXXX));
           // Release primitive_id_temp.
           PopSystemTemp();
         }
@@ -951,29 +546,10 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
         uint32_t domain_location_swizzle_mask =
             patch_primitive_type() == PrimitiveType::kTrianglePatch ? 0b0010
                                                                     : 0b0001;
-        shader_code_.push_back(
-            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(
-                3 + temp_register_operand_length));
-        if (uses_register_dynamic_addressing()) {
-          shader_code_.push_back(
-              EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_INDEXABLE_TEMP,
-                                        domain_location_swizzle_mask, 2));
-          shader_code_.push_back(0);
-        } else {
-          shader_code_.push_back(EncodeVectorMaskedOperand(
-              D3D10_SB_OPERAND_TYPE_TEMP, domain_location_swizzle_mask, 1));
-        }
-        shader_code_.push_back(1);
-        shader_code_.push_back(
-            EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-        shader_code_.push_back(0);
-        ++stat_.instruction_count;
-        if (uses_register_dynamic_addressing()) {
-          ++stat_.array_instruction_count;
-        } else {
-          ++stat_.mov_instruction_count;
-        }
+        DxbcOpMov(uses_register_dynamic_addressing()
+                      ? DxbcDest::X(0, 1, domain_location_swizzle_mask)
+                      : DxbcDest::R(1, domain_location_swizzle_mask),
+                  DxbcSrc::LF(0.0f));
       }
     }
   }
@@ -1385,7 +961,7 @@ void DxbcShaderTranslator::StartTranslation() {
        i < register_count(); ++i) {
     DxbcOpMov(
         uses_register_dynamic_addressing() ? DxbcDest::X(0, i) : DxbcDest::R(i),
-        DxbcSrc::LU(uint32_t(0)));
+        DxbcSrc::LF(0.0f));
   }
 
   // Write stage-specific prologue.
