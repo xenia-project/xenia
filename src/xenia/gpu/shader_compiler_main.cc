@@ -35,11 +35,12 @@ DEFINE_string(shader_output, "", "Output shader file path.", "GPU");
 DEFINE_string(shader_output_type, "ucode",
               "Translator to use: [ucode, spirv, spirvtext, dxbc, dxbctext].",
               "GPU");
-DEFINE_string(shader_output_patch, "",
-              "Tessellation patch type in the generated tessellation "
-              "evaluation (domain) shader, or unspecified to produce a vertex "
-              "shader: [line, triangle, quad].",
-              "GPU");
+DEFINE_string(
+    vertex_shader_output_type, "",
+    "Type of the host interface to produce the vertex or domain shader for: "
+    "[vertex or unspecified, linedomain, linedomainadaptive, triangledomain, "
+    "triangledomainadaptive, quaddomain, quaddomainadaptive].",
+    "GPU");
 DEFINE_bool(shader_output_dxbc_rov, false,
             "Output ROV-based output-merger code in DXBC pixel shaders.",
             "GPU");
@@ -112,18 +113,31 @@ int shader_compiler_main(const std::vector<std::wstring>& args) {
     translator = std::make_unique<UcodeShaderTranslator>();
   }
 
-  PrimitiveType patch_primitive_type = PrimitiveType::kNone;
+  Shader::HostVertexShaderType host_vertex_shader_type =
+      Shader::HostVertexShaderType::kVertex;
   if (shader_type == ShaderType::kVertex) {
-    if (cvars::shader_output_patch == "line") {
-      patch_primitive_type = PrimitiveType::kLinePatch;
-    } else if (cvars::shader_output_patch == "triangle") {
-      patch_primitive_type = PrimitiveType::kTrianglePatch;
-    } else if (cvars::shader_output_patch == "quad") {
-      patch_primitive_type = PrimitiveType::kQuadPatch;
+    if (cvars::vertex_shader_output_type == "linedomain") {
+      host_vertex_shader_type =
+          Shader::HostVertexShaderType::kLineDomainConstant;
+    } else if (cvars::vertex_shader_output_type == "linedomainadaptive") {
+      host_vertex_shader_type =
+          Shader::HostVertexShaderType::kLineDomainAdaptive;
+    } else if (cvars::vertex_shader_output_type == "triangledomain") {
+      host_vertex_shader_type =
+          Shader::HostVertexShaderType::kTriangleDomainConstant;
+    } else if (cvars::vertex_shader_output_type == "triangledomainadaptive") {
+      host_vertex_shader_type =
+          Shader::HostVertexShaderType::kTriangleDomainAdaptive;
+    } else if (cvars::vertex_shader_output_type == "quaddomain") {
+      host_vertex_shader_type =
+          Shader::HostVertexShaderType::kQuadDomainConstant;
+    } else if (cvars::vertex_shader_output_type == "quaddomainadaptive") {
+      host_vertex_shader_type =
+          Shader::HostVertexShaderType::kQuadDomainAdaptive;
     }
   }
 
-  translator->Translate(shader.get(), patch_primitive_type);
+  translator->Translate(shader.get(), host_vertex_shader_type);
 
   const void* source_data = shader->translated_binary().data();
   size_t source_data_size = shader->translated_binary().size();

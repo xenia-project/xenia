@@ -1657,11 +1657,11 @@ class DxbcShaderTranslator : public ShaderTranslator {
   }
   inline bool IsDxbcVertexShader() const {
     return IsDxbcVertexOrDomainShader() &&
-           patch_primitive_type() == PrimitiveType::kNone;
+           host_vertex_shader_type() == Shader::HostVertexShaderType::kVertex;
   }
   inline bool IsDxbcDomainShader() const {
     return IsDxbcVertexOrDomainShader() &&
-           patch_primitive_type() != PrimitiveType::kNone;
+           host_vertex_shader_type() != Shader::HostVertexShaderType::kVertex;
   }
   inline bool IsDxbcPixelShader() const {
     return is_depth_only_pixel_shader_ || is_pixel_shader();

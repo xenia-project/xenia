@@ -177,14 +177,17 @@ void D3D12CommandProcessor::SubmitBarriers() {
 }
 
 ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(
-    const D3D12Shader* vertex_shader, const D3D12Shader* pixel_shader,
-    bool tessellated) {
+    const D3D12Shader* vertex_shader, const D3D12Shader* pixel_shader) {
   assert_true(vertex_shader->is_translated());
   assert_true(pixel_shader == nullptr || pixel_shader->is_translated());
 
-  D3D12_SHADER_VISIBILITY vertex_visibility =
-      tessellated ? D3D12_SHADER_VISIBILITY_DOMAIN
-                  : D3D12_SHADER_VISIBILITY_VERTEX;
+  D3D12_SHADER_VISIBILITY vertex_visibility;
+  if (vertex_shader->host_vertex_shader_type() !=
+      Shader::HostVertexShaderType::kVertex) {
+    vertex_visibility = D3D12_SHADER_VISIBILITY_DOMAIN;
+  } else {
+    vertex_visibility = D3D12_SHADER_VISIBILITY_VERTEX;
+  }
 
   uint32_t texture_count_vertex, sampler_count_vertex;
   vertex_shader->GetTextureSRVs(texture_count_vertex);
@@ -207,7 +210,8 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(
   index_offset += D3D12Shader::kMaxTextureSRVIndexBits;
   index |= sampler_count_vertex << index_offset;
   index_offset += D3D12Shader::kMaxSamplerBindingIndexBits;
-  index |= (tessellated ? 1 : 0) << index_offset;
+  index |= uint32_t(vertex_visibility == D3D12_SHADER_VISIBILITY_DOMAIN)
+           << index_offset;
   ++index_offset;
   assert_true(index_offset <= 32);
 
@@ -1284,15 +1288,6 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     return true;
   }
 
-  // Check if using tessellation to get the correct primitive type.
-  bool tessellated;
-  if (major_mode_explicit) {
-    tessellated = regs.Get<reg::VGT_OUTPUT_PATH_CNTL>().path_select ==
-                  xenos::VGTOutputPath::kTessellationEnable;
-  } else {
-    tessellated = false;
-  }
-
   // Shaders will have already been defined by previous loads.
   // We need them to do just about anything so validate here.
   auto vertex_shader = static_cast<D3D12Shader*>(active_vertex_shader());
@@ -1308,13 +1303,21 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     // Need a pixel shader in normal color mode.
     return false;
   }
+  // Get tessellation info for the current draw for vertex shader translation.
+  Shader::HostVertexShaderType host_vertex_shader_type =
+      pipeline_cache_->GetHostVertexShaderTypeIfValid();
+  if (host_vertex_shader_type == Shader::HostVertexShaderType(-1)) {
+    return false;
+  }
   // Translate the shaders now to get memexport configuration and color mask,
   // which is needed by the render target cache, to check the possibility of
   // doing early depth/stencil, and also to get used textures and samplers.
   if (!pipeline_cache_->EnsureShadersTranslated(vertex_shader, pixel_shader,
-                                                tessellated, primitive_type)) {
+                                                host_vertex_shader_type)) {
     return false;
   }
+  bool tessellated =
+      host_vertex_shader_type != Shader::HostVertexShaderType::kVertex;
 
   // Check if memexport is used. If it is, we can't skip draw calls that have no
   // visual effect.
@@ -1348,39 +1351,24 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
 
   // Set up primitive topology.
   bool indexed = index_buffer_info != nullptr && index_buffer_info->guest_base;
+  bool adaptive_tessellation =
+      host_vertex_shader_type ==
+          Shader::HostVertexShaderType::kLineDomainAdaptive ||
+      host_vertex_shader_type ==
+          Shader::HostVertexShaderType::kTriangleDomainAdaptive ||
+      host_vertex_shader_type ==
+          Shader::HostVertexShaderType::kQuadDomainAdaptive;
   // Adaptive tessellation requires an index buffer, but it contains per-edge
   // tessellation factors (as floats) instead of control point indices.
-  bool adaptive_tessellation;
-  if (tessellated) {
-    xenos::TessellationMode tessellation_mode =
-        regs.Get<reg::VGT_HOS_CNTL>().tess_mode;
-    adaptive_tessellation =
-        tessellation_mode == xenos::TessellationMode::kAdaptive;
-    if (adaptive_tessellation &&
-        (!indexed || index_buffer_info->format != IndexFormat::kInt32)) {
-      return false;
-    }
-    // TODO(Triang3l): Implement all tessellation modes if games using any other
-    // than adaptive are found. The biggest question about them is what is being
-    // passed to vertex shader registers, especially if patches are drawn with
-    // an index buffer.
-    // https://www.slideshare.net/blackdevilvikas/next-generation-graphics-programming-on-xbox-360
-    if (tessellation_mode != xenos::TessellationMode::kAdaptive) {
-      XELOGE(
-          "Tessellation mode %u is not implemented yet, only adaptive is "
-          "partially available now - report the game to Xenia developers!",
-          uint32_t(tessellation_mode));
-      return false;
-    }
-  } else {
-    adaptive_tessellation = false;
-  }
+  assert_true(!adaptive_tessellation ||
+              (indexed && index_buffer_info->format == IndexFormat::kInt32));
   PrimitiveType primitive_type_converted;
   D3D_PRIMITIVE_TOPOLOGY primitive_topology;
   if (tessellated) {
     primitive_type_converted = primitive_type;
     switch (primitive_type_converted) {
-      // TODO(Triang3l): Support line patches.
+      // TODO(Triang3l): Support all kinds of patches if found in games.
+      case PrimitiveType::kTriangleList:
       case PrimitiveType::kTrianglePatch:
         primitive_topology = D3D_PRIMITIVE_TOPOLOGY_3_CONTROL_POINT_PATCHLIST;
         break;
@@ -1422,7 +1410,7 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     deferred_command_list_->D3DIASetPrimitiveTopology(primitive_topology);
   }
   uint32_t line_loop_closing_index;
-  if (!tessellated && primitive_type == PrimitiveType::kLineLoop && !indexed &&
+  if (primitive_type == PrimitiveType::kLineLoop && !indexed &&
       index_count >= 3) {
     // Add a vertex to close the loop, and make the vertex shader replace its
     // index (before adding the offset) with 0 to fetch the first vertex again.
@@ -1455,7 +1443,7 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
   void* pipeline_handle;
   ID3D12RootSignature* root_signature;
   if (!pipeline_cache_->ConfigurePipeline(
-          vertex_shader, pixel_shader, tessellated, primitive_type_converted,
+          vertex_shader, pixel_shader, primitive_type_converted,
           indexed ? index_buffer_info->format : IndexFormat::kInt16, early_z,
           pipeline_render_targets, &pipeline_handle, &root_signature)) {
     return false;

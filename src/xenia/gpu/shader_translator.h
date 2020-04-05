@@ -33,9 +33,12 @@ class ShaderTranslator {
   // DEPRECATED(benvanik): remove this when shader cache is removed.
   bool GatherAllBindingInformation(Shader* shader);
 
-  bool Translate(Shader* shader, PrimitiveType patch_type,
-                 reg::SQ_PROGRAM_CNTL cntl);
-  bool Translate(Shader* shader, PrimitiveType patch_type);
+  bool Translate(Shader* shader, reg::SQ_PROGRAM_CNTL cntl,
+                 Shader::HostVertexShaderType host_vertex_shader_type =
+                     Shader::HostVertexShaderType::kVertex);
+  bool Translate(Shader* shader,
+                 Shader::HostVertexShaderType host_vertex_shader_type =
+                     Shader::HostVertexShaderType::kVertex);
 
  protected:
   ShaderTranslator();
@@ -47,9 +50,11 @@ class ShaderTranslator {
   uint32_t register_count() const { return register_count_; }
   // True if the current shader is a vertex shader.
   bool is_vertex_shader() const { return shader_type_ == ShaderType::kVertex; }
-  // Tessellation patch primitive type for a vertex shader translated into a
-  // domain shader, or PrimitiveType::kNone for a normal vertex shader.
-  PrimitiveType patch_primitive_type() const { return patch_primitive_type_; }
+  // If translating a vertex shader, type of the shader in a D3D11-like
+  // rendering pipeline.
+  Shader::HostVertexShaderType host_vertex_shader_type() const {
+    return host_vertex_shader_type_;
+  }
   // True if the current shader is a pixel shader.
   bool is_pixel_shader() const { return shader_type_ == ShaderType::kPixel; }
   const Shader::ConstantRegisterMap& constant_register_map() const {
@@ -181,7 +186,8 @@ class ShaderTranslator {
     bool disable_implicit_early_z;
   };
 
-  bool TranslateInternal(Shader* shader, PrimitiveType patch_type);
+  bool TranslateInternal(Shader* shader,
+                         Shader::HostVertexShaderType host_vertex_shader_type);
 
   void MarkUcodeInstruction(uint32_t dword_offset);
   void AppendUcodeDisasm(char c);
@@ -230,7 +236,7 @@ class ShaderTranslator {
 
   // Input shader metadata and microcode.
   ShaderType shader_type_;
-  PrimitiveType patch_primitive_type_;
+  Shader::HostVertexShaderType host_vertex_shader_type_;
   const uint32_t* ucode_dwords_;
   size_t ucode_dword_count_;
   reg::SQ_PROGRAM_CNTL program_cntl_;
