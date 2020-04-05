@@ -56,13 +56,17 @@ class PipelineCache {
   D3D12Shader* LoadShader(ShaderType shader_type, uint32_t guest_address,
                           const uint32_t* host_address, uint32_t dword_count);
 
+  // Returns the host vertex shader type for the current draw if it's valid and
+  // supported, or Shader::HostVertexShaderType(-1) if not.
+  Shader::HostVertexShaderType GetHostVertexShaderTypeIfValid() const;
+
   // Translates shaders if needed, also making shader info up to date.
-  bool EnsureShadersTranslated(D3D12Shader* vertex_shader,
-                               D3D12Shader* pixel_shader, bool tessellated,
-                               PrimitiveType primitive_type);
+  bool EnsureShadersTranslated(
+      D3D12Shader* vertex_shader, D3D12Shader* pixel_shader,
+      Shader::HostVertexShaderType host_vertex_shader_type);
 
   bool ConfigurePipeline(
-      D3D12Shader* vertex_shader, D3D12Shader* pixel_shader, bool tessellated,
+      D3D12Shader* vertex_shader, D3D12Shader* pixel_shader,
       PrimitiveType primitive_type, IndexFormat index_format, bool early_z,
       const RenderTargetCache::PipelineRenderTarget render_targets[5],
       void** pipeline_state_handle_out,
@@ -81,11 +85,11 @@ class PipelineCache {
 
     uint32_t ucode_dword_count : 16;
     ShaderType type : 1;
-    PrimitiveType patch_primitive_type : 6;
+    Shader::HostVertexShaderType host_vertex_shader_type : 3;
 
     reg::SQ_PROGRAM_CNTL sq_program_cntl;
 
-    static constexpr uint32_t kVersion = 0x20200301;
+    static constexpr uint32_t kVersion = 0x20200405;
   });
 
   // Update PipelineDescription::kVersion if any of the Pipeline* enums are
@@ -115,7 +119,6 @@ class PipelineCache {
     kPoint,
     kLine,
     kTriangle,
-    kPatch,
   };
 
   enum class PipelineGeometryShader : uint32_t {
@@ -169,21 +172,23 @@ class PipelineCache {
     float depth_bias_slope_scaled;
 
     PipelineStripCutIndex strip_cut_index : 2;                  // 2
-    PipelineTessellationMode tessellation_mode : 2;             // 4
-    PipelinePrimitiveTopologyType primitive_topology_type : 2;  // 6
-    PipelinePatchType patch_type : 2;                           // 8
-    PipelineGeometryShader geometry_shader : 2;                 // 10
-    uint32_t fill_mode_wireframe : 1;                           // 11
-    PipelineCullMode cull_mode : 2;                             // 13
-    uint32_t front_counter_clockwise : 1;                       // 14
-    uint32_t depth_clip : 1;                                    // 15
-    uint32_t rov_msaa : 1;                                      // 16
-    DepthRenderTargetFormat depth_format : 1;                   // 17
-    CompareFunction depth_func : 3;                             // 20
-    uint32_t depth_write : 1;                                   // 21
-    uint32_t stencil_enable : 1;                                // 22
-    uint32_t stencil_read_mask : 8;                             // 30
-    uint32_t force_early_z : 1;                                 // 31
+    Shader::HostVertexShaderType host_vertex_shader_type : 3;   // 5
+    // PipelinePrimitiveTopologyType for a vertex shader.
+    // xenos::TessellationMode for a domain shader.
+    uint32_t primitive_topology_type_or_tessellation_mode : 2;  // 7
+    // Zero for non-kVertex host_vertex_shader_type.
+    PipelineGeometryShader geometry_shader : 2;  // 9
+    uint32_t fill_mode_wireframe : 1;            // 10
+    PipelineCullMode cull_mode : 2;              // 12
+    uint32_t front_counter_clockwise : 1;        // 13
+    uint32_t depth_clip : 1;                     // 14
+    uint32_t rov_msaa : 1;                       // 15
+    DepthRenderTargetFormat depth_format : 1;    // 16
+    CompareFunction depth_func : 3;              // 19
+    uint32_t depth_write : 1;                    // 20
+    uint32_t stencil_enable : 1;                 // 21
+    uint32_t stencil_read_mask : 8;              // 29
+    uint32_t force_early_z : 1;                  // 30
 
     uint32_t stencil_write_mask : 8;            // 8
     StencilOp stencil_front_fail_op : 3;        // 11
@@ -197,7 +202,7 @@ class PipelineCache {
 
     PipelineRenderTarget render_targets[4];
 
-    static constexpr uint32_t kVersion = 0x20200309;
+    static constexpr uint32_t kVersion = 0x20200405;
   });
 
   XEPACKEDSTRUCT(PipelineStoredDescription, {
@@ -214,10 +219,11 @@ class PipelineCache {
 
   bool TranslateShader(DxbcShaderTranslator& translator, D3D12Shader* shader,
                        reg::SQ_PROGRAM_CNTL cntl,
-                       PrimitiveType patch_primitive_type);
+                       Shader::HostVertexShaderType host_vertex_shader_type =
+                           Shader::HostVertexShaderType::kVertex);
 
   bool GetCurrentStateDescription(
-      D3D12Shader* vertex_shader, D3D12Shader* pixel_shader, bool tessellated,
+      D3D12Shader* vertex_shader, D3D12Shader* pixel_shader,
       PrimitiveType primitive_type, IndexFormat index_format, bool early_z,
       const RenderTargetCache::PipelineRenderTarget render_targets[5],
       PipelineRuntimeDescription& runtime_description_out);

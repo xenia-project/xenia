@@ -107,26 +107,27 @@ bool ShaderTranslator::GatherAllBindingInformation(Shader* shader) {
   return true;
 }
 
-bool ShaderTranslator::Translate(Shader* shader, PrimitiveType patch_type,
-                                 reg::SQ_PROGRAM_CNTL cntl) {
+bool ShaderTranslator::Translate(
+    Shader* shader, reg::SQ_PROGRAM_CNTL cntl,
+    Shader::HostVertexShaderType host_vertex_shader_type) {
   Reset();
   uint32_t cntl_num_reg =
       shader->type() == ShaderType::kVertex ? cntl.vs_num_reg : cntl.ps_num_reg;
   register_count_ = (cntl_num_reg & 0x80) ? 0 : (cntl_num_reg + 1);
 
-  return TranslateInternal(shader, patch_type);
+  return TranslateInternal(shader, host_vertex_shader_type);
 }
 
-bool ShaderTranslator::Translate(Shader* shader, PrimitiveType patch_type) {
+bool ShaderTranslator::Translate(
+    Shader* shader, Shader::HostVertexShaderType host_vertex_shader_type) {
   Reset();
-  return TranslateInternal(shader, patch_type);
+  return TranslateInternal(shader, host_vertex_shader_type);
 }
 
-bool ShaderTranslator::TranslateInternal(Shader* shader,
-                                         PrimitiveType patch_type) {
+bool ShaderTranslator::TranslateInternal(
+    Shader* shader, Shader::HostVertexShaderType host_vertex_shader_type) {
   shader_type_ = shader->type();
-  patch_primitive_type_ =
-      shader_type_ == ShaderType::kVertex ? patch_type : PrimitiveType::kNone;
+  host_vertex_shader_type_ = host_vertex_shader_type;
   ucode_dwords_ = shader->ucode_dwords();
   ucode_dword_count_ = shader->ucode_dword_count();
 
@@ -194,7 +195,7 @@ bool ShaderTranslator::TranslateInternal(Shader* shader,
   shader->errors_ = std::move(errors_);
   shader->translated_binary_ = CompleteTranslation();
   shader->ucode_disassembly_ = ucode_disasm_buffer_.to_string();
-  shader->patch_primitive_type_ = patch_primitive_type_;
+  shader->host_vertex_shader_type_ = host_vertex_shader_type_;
   shader->vertex_bindings_ = std::move(vertex_bindings_);
   shader->texture_bindings_ = std::move(texture_bindings_);
   shader->constant_register_map_ = std::move(constant_register_map_);

@@ -530,6 +530,19 @@ struct ParsedAluInstruction {
 
 class Shader {
  public:
+  // If values are changed, invalidate shader storages where this is stored! And
+  // check bit count where this is packed. This is : uint32_t for simplicity of
+  // packing in bit fields.
+  enum class HostVertexShaderType : uint32_t {
+    kVertex,
+    kLineDomainConstant,
+    kLineDomainAdaptive,
+    kTriangleDomainConstant,
+    kTriangleDomainAdaptive,
+    kQuadDomainConstant,
+    kQuadDomainAdaptive,
+  };
+
   struct Error {
     bool is_fatal = false;
     std::string message;
@@ -592,9 +605,12 @@ class Shader {
   // Whether the shader is identified as a vertex or pixel shader.
   ShaderType type() const { return shader_type_; }
 
-  // Tessellation patch primitive type for a vertex shader translated into a
-  // domain shader, or PrimitiveType::kNone for a normal vertex shader.
-  PrimitiveType patch_primitive_type() const { return patch_primitive_type_; }
+  // If this is a vertex shader, and it has been translated, type of the shader
+  // in a D3D11-like rendering pipeline - shader interface depends on in, so it
+  // must be known at translation time.
+  HostVertexShaderType host_vertex_shader_type() const {
+    return host_vertex_shader_type_;
+  }
 
   // Microcode dwords in host endianness.
   const std::vector<uint32_t>& ucode_data() const { return ucode_data_; }
@@ -676,7 +692,7 @@ class Shader {
   friend class ShaderTranslator;
 
   ShaderType shader_type_;
-  PrimitiveType patch_primitive_type_ = PrimitiveType::kNone;
+  HostVertexShaderType host_vertex_shader_type_ = HostVertexShaderType::kVertex;
   std::vector<uint32_t> ucode_data_;
   uint64_t ucode_data_hash_;
 

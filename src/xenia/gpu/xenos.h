@@ -52,17 +52,19 @@ enum class PrimitiveType : uint32_t {
   k2DLineStrip = 0x15,
   k2DTriStrip = 0x16,
 
-  // Tessellation patches (D3DTPT) when VGT_OUTPUT_PATH_CNTL & 3 is
-  // VGT_OUTPATH_TESS_EN (1).
+  // Tessellation patches (D3DTPT) when VGT_OUTPUT_PATH_CNTL::path_select is
+  // xenos::VGTOutputPath::tess_mode. Seen being used with adaptive tessellation
+  // in Banjo-Kazooie: Nuts & Bolts, Halo 3 and Viva Pinata; discrete/continuous
+  // uses kTriangleList in Call of Duty 3 and Viva Pinata.
   kLinePatch = 0x10,
   kTrianglePatch = 0x11,
   kQuadPatch = 0x12,
 };
 
 inline bool IsPrimitiveTwoFaced(bool tessellated, PrimitiveType type) {
-  if (tessellated) {
-    return type == PrimitiveType::kTrianglePatch ||
-           type == PrimitiveType::kQuadPatch;
+  if (tessellated && (type == PrimitiveType::kTrianglePatch ||
+                      type == PrimitiveType::kQuadPatch)) {
+    return true;
   }
   switch (type) {
     case PrimitiveType::kTriangleList:

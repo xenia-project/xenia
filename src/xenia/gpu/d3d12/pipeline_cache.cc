@@ -272,9 +272,10 @@ void PipelineCache::InitializeShaderStorage(const std::wstring& storage_root,
           break;
         }
         assert_not_null(shader_to_translate.second);
-        if (!TranslateShader(translator, shader_to_translate.second,
-                             shader_to_translate.first.sq_program_cntl,
-                             shader_to_translate.first.patch_primitive_type)) {
+        if (!TranslateShader(
+                translator, shader_to_translate.second,
+                shader_to_translate.first.sq_program_cntl,
+                shader_to_translate.first.host_vertex_shader_type)) {
           std::unique_lock<std::mutex> lock(shaders_failed_to_translate_mutex);
           shaders_failed_to_translate.push_back(shader_to_translate.second);
         }
@@ -516,8 +517,7 @@ void PipelineCache::InitializeShaderStorage(const std::wstring& storage_root,
           pipeline_runtime_description.root_signature =
               command_processor_->GetRootSignature(
                   pipeline_runtime_description.vertex_shader,
-                  pipeline_runtime_description.pixel_shader,
-                  pipeline_description.patch_type != PipelinePatchType::kNone);
+                  pipeline_runtime_description.pixel_shader);
           if (!pipeline_runtime_description.root_signature) {
             continue;
           }
@@ -712,10 +712,59 @@ D3D12Shader* PipelineCache::LoadShader(ShaderType shader_type,
   return shader;
 }
 
-bool PipelineCache::EnsureShadersTranslated(D3D12Shader* vertex_shader,
-                                            D3D12Shader* pixel_shader,
-                                            bool tessellated,
-                                            PrimitiveType primitive_type) {
+Shader::HostVertexShaderType PipelineCache::GetHostVertexShaderTypeIfValid()
+    const {
+  auto& regs = *register_file_;
+  auto vgt_draw_initiator = regs.Get<reg::VGT_DRAW_INITIATOR>();
+  if (!xenos::IsMajorModeExplicit(vgt_draw_initiator.major_mode,
+                                  vgt_draw_initiator.prim_type)) {
+    // VGT_OUTPUT_PATH_CNTL and HOS registers are ignored in implicit major
+    // mode.
+    return Shader::HostVertexShaderType::kVertex;
+  }
+  if (regs.Get<reg::VGT_OUTPUT_PATH_CNTL>().path_select !=
+      xenos::VGTOutputPath::kTessellationEnable) {
+    return Shader::HostVertexShaderType::kVertex;
+  }
+  xenos::TessellationMode tessellation_mode =
+      regs.Get<reg::VGT_HOS_CNTL>().tess_mode;
+  switch (vgt_draw_initiator.prim_type) {
+    // case PrimitiveType::kTriangleList:
+    //   switch (tessellation_mode) {
+    //     case xenos::TessellationMode::kDiscrete:
+    //       // Call of Duty 3 - green terrain in the first mission.
+    //     case xenos::TessellationMode::kContinuous:
+    //       // Viva Pinata - something on the start screen.
+    //       return Shader::HostVertexShaderType::kTriangleDomainConstant;
+    //   }
+    //   break;
+    // TODO(Triang3l): Support non-adaptive tessellation.
+    case PrimitiveType::kTrianglePatch:
+      if (tessellation_mode == xenos::TessellationMode::kAdaptive) {
+        // Banjo-Kazooie: Nuts & Bolts - water.
+        // Halo 3 - water.
+        return Shader::HostVertexShaderType::kTriangleDomainAdaptive;
+      }
+      break;
+    case PrimitiveType::kQuadPatch:
+      if (tessellation_mode == xenos::TessellationMode::kAdaptive) {
+        // Viva Pinata - something on the start screen.
+        return Shader::HostVertexShaderType::kQuadDomainAdaptive;
+      }
+      break;
+      // TODO(Triang3l): Support line patches and non-adaptive quad
+      // tessellation.
+  }
+  XELOGE(
+      "Unsupported tessellation mode %u for primitive type %u. Report the game "
+      "to Xenia developers!",
+      uint32_t(tessellation_mode), uint32_t(vgt_draw_initiator.prim_type));
+  return Shader::HostVertexShaderType(-1);
+}
+
+bool PipelineCache::EnsureShadersTranslated(
+    D3D12Shader* vertex_shader, D3D12Shader* pixel_shader,
+    Shader::HostVertexShaderType host_vertex_shader_type) {
   auto& regs = *register_file_;
 
   // These are the constant base addresses/ranges for shaders.
@@ -734,12 +783,9 @@ bool PipelineCache::EnsureShadersTranslated(D3D12Shader* vertex_shader,
                   xenos::VertexShaderExportMode::kPosition2VectorsEdgeKill);
   assert_false(sq_program_cntl.gen_index_vtx);
 
-  PrimitiveType patch_primitive_type =
-      tessellated ? primitive_type : PrimitiveType::kNone;
-
   if (!vertex_shader->is_translated()) {
     if (!TranslateShader(*shader_translator_, vertex_shader, sq_program_cntl,
-                         patch_primitive_type)) {
+                         host_vertex_shader_type)) {
       XELOGE("Failed to translate the vertex shader!");
       return false;
     }
@@ -756,8 +802,7 @@ bool PipelineCache::EnsureShadersTranslated(D3D12Shader* vertex_shader,
   }
 
   if (pixel_shader != nullptr && !pixel_shader->is_translated()) {
-    if (!TranslateShader(*shader_translator_, pixel_shader, sq_program_cntl,
-                         patch_primitive_type)) {
+    if (!TranslateShader(*shader_translator_, pixel_shader, sq_program_cntl)) {
       XELOGE("Failed to translate the pixel shader!");
       return false;
     }
@@ -777,7 +822,7 @@ bool PipelineCache::EnsureShadersTranslated(D3D12Shader* vertex_shader,
 }
 
 bool PipelineCache::ConfigurePipeline(
-    D3D12Shader* vertex_shader, D3D12Shader* pixel_shader, bool tessellated,
+    D3D12Shader* vertex_shader, D3D12Shader* pixel_shader,
     PrimitiveType primitive_type, IndexFormat index_format, bool early_z,
     const RenderTargetCache::PipelineRenderTarget render_targets[5],
     void** pipeline_state_handle_out,
@@ -790,9 +835,9 @@ bool PipelineCache::ConfigurePipeline(
   assert_not_null(root_signature_out);
 
   PipelineRuntimeDescription runtime_description;
-  if (!GetCurrentStateDescription(vertex_shader, pixel_shader, tessellated,
-                                  primitive_type, index_format, early_z,
-                                  render_targets, runtime_description)) {
+  if (!GetCurrentStateDescription(vertex_shader, pixel_shader, primitive_type,
+                                  index_format, early_z, render_targets,
+                                  runtime_description)) {
     return false;
   }
   PipelineDescription& description = runtime_description.description;
@@ -819,8 +864,9 @@ bool PipelineCache::ConfigurePipeline(
     }
   }
 
-  if (!EnsureShadersTranslated(vertex_shader, pixel_shader, tessellated,
-                               primitive_type)) {
+  if (!EnsureShadersTranslated(
+          vertex_shader, pixel_shader,
+          Shader::HostVertexShaderType(description.host_vertex_shader_type))) {
     return false;
   }
 
@@ -864,13 +910,13 @@ bool PipelineCache::ConfigurePipeline(
   return true;
 }
 
-bool PipelineCache::TranslateShader(DxbcShaderTranslator& translator,
-                                    D3D12Shader* shader,
-                                    reg::SQ_PROGRAM_CNTL cntl,
-                                    PrimitiveType patch_primitive_type) {
+bool PipelineCache::TranslateShader(
+    DxbcShaderTranslator& translator, D3D12Shader* shader,
+    reg::SQ_PROGRAM_CNTL cntl,
+    Shader::HostVertexShaderType host_vertex_shader_type) {
   // Perform translation.
   // If this fails the shader will be marked as invalid and ignored later.
-  if (!translator.Translate(shader, patch_primitive_type, cntl)) {
+  if (!translator.Translate(shader, cntl, host_vertex_shader_type)) {
     XELOGE("Shader %.16" PRIX64 " translation failed; marking as ignored",
            shader->ucode_data_hash());
     return false;
@@ -923,7 +969,7 @@ bool PipelineCache::TranslateShader(DxbcShaderTranslator& translator,
 }
 
 bool PipelineCache::GetCurrentStateDescription(
-    D3D12Shader* vertex_shader, D3D12Shader* pixel_shader, bool tessellated,
+    D3D12Shader* vertex_shader, D3D12Shader* pixel_shader,
     PrimitiveType primitive_type, IndexFormat index_format, bool early_z,
     const RenderTargetCache::PipelineRenderTarget render_targets[5],
     PipelineRuntimeDescription& runtime_description_out) {
@@ -931,14 +977,13 @@ bool PipelineCache::GetCurrentStateDescription(
 
   auto& regs = *register_file_;
   auto pa_su_sc_mode_cntl = regs.Get<reg::PA_SU_SC_MODE_CNTL>();
-  bool primitive_two_faced = IsPrimitiveTwoFaced(tessellated, primitive_type);
 
   // Initialize all unused fields to zero for comparison/hashing.
   std::memset(&runtime_description_out, 0, sizeof(runtime_description_out));
 
   // Root signature.
-  runtime_description_out.root_signature = command_processor_->GetRootSignature(
-      vertex_shader, pixel_shader, tessellated);
+  runtime_description_out.root_signature =
+      command_processor_->GetRootSignature(vertex_shader, pixel_shader);
   if (runtime_description_out.root_signature == nullptr) {
     return false;
   }
@@ -962,48 +1007,18 @@ bool PipelineCache::GetCurrentStateDescription(
     description_out.strip_cut_index = PipelineStripCutIndex::kNone;
   }
 
-  // Primitive topology type, tessellation mode and geometry shader.
-  if (tessellated) {
-    xenos::TessellationMode tessellation_mode =
-        regs.Get<reg::VGT_HOS_CNTL>().tess_mode;
-    switch (tessellation_mode) {
-      case xenos::TessellationMode::kDiscrete:
-        description_out.tessellation_mode = PipelineTessellationMode::kDiscrete;
-        break;
-      case xenos::TessellationMode::kContinuous:
-        description_out.tessellation_mode =
-            PipelineTessellationMode::kContinuous;
-        break;
-      case xenos::TessellationMode::kAdaptive:
-        description_out.tessellation_mode = PipelineTessellationMode::kAdaptive;
-        break;
-      default:
-        assert_unhandled_case(tessellation_mode);
-        return false;
-    }
-    description_out.primitive_topology_type =
-        PipelinePrimitiveTopologyType::kPatch;
-    switch (primitive_type) {
-      case PrimitiveType::kLinePatch:
-        description_out.patch_type = PipelinePatchType::kLine;
-        break;
-      case PrimitiveType::kTrianglePatch:
-        description_out.patch_type = PipelinePatchType::kTriangle;
-        break;
-      case PrimitiveType::kQuadPatch:
-        description_out.patch_type = PipelinePatchType::kQuad;
-        break;
-      default:
-        assert_unhandled_case(primitive_type);
-        return false;
-    }
-    description_out.geometry_shader = PipelineGeometryShader::kNone;
-  } else {
-    description_out.tessellation_mode = PipelineTessellationMode::kNone;
+  // Host vertex shader type and primitive topology.
+  Shader::HostVertexShaderType host_vertex_shader_type =
+      GetHostVertexShaderTypeIfValid();
+  if (host_vertex_shader_type == Shader::HostVertexShaderType(-1)) {
+    return false;
+  }
+  description_out.host_vertex_shader_type = host_vertex_shader_type;
+  if (host_vertex_shader_type == Shader::HostVertexShaderType::kVertex) {
     switch (primitive_type) {
       case PrimitiveType::kPointList:
-        description_out.primitive_topology_type =
-            PipelinePrimitiveTopologyType::kPoint;
+        description_out.primitive_topology_type_or_tessellation_mode =
+            uint32_t(PipelinePrimitiveTopologyType::kPoint);
         break;
       case PrimitiveType::kLineList:
       case PrimitiveType::kLineStrip:
@@ -1011,15 +1026,14 @@ bool PipelineCache::GetCurrentStateDescription(
       // Quads are emulated as line lists with adjacency.
       case PrimitiveType::kQuadList:
       case PrimitiveType::k2DLineStrip:
-        description_out.primitive_topology_type =
-            PipelinePrimitiveTopologyType::kLine;
+        description_out.primitive_topology_type_or_tessellation_mode =
+            uint32_t(PipelinePrimitiveTopologyType::kLine);
         break;
       default:
-        description_out.primitive_topology_type =
-            PipelinePrimitiveTopologyType::kTriangle;
+        description_out.primitive_topology_type_or_tessellation_mode =
+            uint32_t(PipelinePrimitiveTopologyType::kTriangle);
         break;
     }
-    description_out.patch_type = PipelinePatchType::kNone;
     switch (primitive_type) {
       case PrimitiveType::kPointList:
         description_out.geometry_shader = PipelineGeometryShader::kPointList;
@@ -1035,7 +1049,14 @@ bool PipelineCache::GetCurrentStateDescription(
         description_out.geometry_shader = PipelineGeometryShader::kNone;
         break;
     }
+  } else {
+    description_out.primitive_topology_type_or_tessellation_mode =
+        uint32_t(regs.Get<reg::VGT_HOS_CNTL>().tess_mode);
   }
+
+  bool primitive_two_faced = IsPrimitiveTwoFaced(
+      host_vertex_shader_type != Shader::HostVertexShaderType::kVertex,
+      primitive_type);
 
   // Rasterizer state.
   // Because Direct3D 12 doesn't support per-side fill mode and depth bias, the
@@ -1139,9 +1160,8 @@ bool PipelineCache::GetCurrentStateDescription(
     description_out.depth_bias_slope_scaled =
         poly_offset_scale * (1.0f / 16.0f);
   }
-  if (cvars::d3d12_tessellation_wireframe && tessellated &&
-      (primitive_type == PrimitiveType::kTrianglePatch ||
-       primitive_type == PrimitiveType::kQuadPatch)) {
+  if (cvars::d3d12_tessellation_wireframe &&
+      host_vertex_shader_type != Shader::HostVertexShaderType::kVertex) {
     description_out.fill_mode_wireframe = 1;
   }
   description_out.depth_clip = !regs.Get<reg::PA_CL_CLIP_CNTL>().clip_disable;
@@ -1333,130 +1353,119 @@ ID3D12PipelineState* PipelineCache::CreateD3D12PipelineState(
       break;
   }
 
-  // Vertex or hull/domain shaders.
+  // Primitive topology, vertex, hull/domain and geometry shaders.
   if (!runtime_description.vertex_shader->is_translated()) {
     XELOGE("Vertex shader %.16" PRIX64 " not translated",
            runtime_description.vertex_shader->ucode_data_hash());
     assert_always();
     return nullptr;
   }
-  if (description.tessellation_mode != PipelineTessellationMode::kNone) {
-    state_desc.VS.pShaderBytecode = tessellation_vs;
-    state_desc.VS.BytecodeLength = sizeof(tessellation_vs);
-    switch (description.patch_type) {
-      case PipelinePatchType::kTriangle:
-        if (runtime_description.vertex_shader->patch_primitive_type() !=
-            PrimitiveType::kTrianglePatch) {
-          XELOGE(
-              "Tried to use vertex shader %.16" PRIX64
-              " for triangle patch tessellation, but it's not a tessellation "
-              "domain shader or has the wrong domain",
-              runtime_description.vertex_shader->ucode_data_hash());
-          assert_always();
-          return nullptr;
-        }
-        switch (description.tessellation_mode) {
-          case PipelineTessellationMode::kDiscrete:
-            state_desc.HS.pShaderBytecode = discrete_triangle_hs;
-            state_desc.HS.BytecodeLength = sizeof(discrete_triangle_hs);
-            break;
-          case PipelineTessellationMode::kContinuous:
-            state_desc.HS.pShaderBytecode = continuous_triangle_hs;
-            state_desc.HS.BytecodeLength = sizeof(continuous_triangle_hs);
-            break;
-          case PipelineTessellationMode::kAdaptive:
-            state_desc.HS.pShaderBytecode = adaptive_triangle_hs;
-            state_desc.HS.BytecodeLength = sizeof(adaptive_triangle_hs);
-            break;
-          default:
-            assert_unhandled_case(description.tessellation_mode);
-            return nullptr;
-        }
-        break;
-      case PipelinePatchType::kQuad:
-        if (runtime_description.vertex_shader->patch_primitive_type() !=
-            PrimitiveType::kQuadPatch) {
-          XELOGE("Tried to use vertex shader %.16" PRIX64
-                 " for quad patch tessellation, but it's not a tessellation "
-                 "domain shader or has the wrong domain",
-                 runtime_description.vertex_shader->ucode_data_hash());
-          assert_always();
-          return nullptr;
-        }
-        switch (description.tessellation_mode) {
-          case PipelineTessellationMode::kDiscrete:
-            state_desc.HS.pShaderBytecode = discrete_quad_hs;
-            state_desc.HS.BytecodeLength = sizeof(discrete_quad_hs);
-            break;
-          case PipelineTessellationMode::kContinuous:
-            state_desc.HS.pShaderBytecode = continuous_quad_hs;
-            state_desc.HS.BytecodeLength = sizeof(continuous_quad_hs);
-            break;
-          // TODO(Triang3l): True adaptive tessellation when properly tested.
-          default:
-            assert_unhandled_case(description.tessellation_mode);
-            return nullptr;
-        }
-        break;
-      default:
-        assert_unhandled_case(description.patch_type);
-        return nullptr;
-    }
-    // The Xenos vertex shader works like a domain shader with tessellation.
-    state_desc.DS.pShaderBytecode =
-        runtime_description.vertex_shader->translated_binary().data();
-    state_desc.DS.BytecodeLength =
-        runtime_description.vertex_shader->translated_binary().size();
-  } else {
-    if (runtime_description.vertex_shader->patch_primitive_type() !=
-        PrimitiveType::kNone) {
-      XELOGE("Tried to use vertex shader %.16" PRIX64
-             " without tessellation, but it's a tessellation domain shader",
-             runtime_description.vertex_shader->ucode_data_hash());
-      assert_always();
-      return nullptr;
-    }
+  Shader::HostVertexShaderType host_vertex_shader_type =
+      description.host_vertex_shader_type;
+  if (runtime_description.vertex_shader->host_vertex_shader_type() !=
+      host_vertex_shader_type) {
+    XELOGE("Vertex shader %.16" PRIX64
+           " translated into the wrong host shader "
+           "type",
+           runtime_description.vertex_shader->ucode_data_hash());
+    assert_always();
+    return nullptr;
+  }
+  if (host_vertex_shader_type == Shader::HostVertexShaderType::kVertex) {
     state_desc.VS.pShaderBytecode =
         runtime_description.vertex_shader->translated_binary().data();
     state_desc.VS.BytecodeLength =
         runtime_description.vertex_shader->translated_binary().size();
-  }
-
-  // Pre-GS primitive topology type.
-  switch (description.primitive_topology_type) {
-    case PipelinePrimitiveTopologyType::kPoint:
-      state_desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_POINT;
-      break;
-    case PipelinePrimitiveTopologyType::kLine:
-      state_desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE;
-      break;
-    case PipelinePrimitiveTopologyType::kTriangle:
-      state_desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-      break;
-    case PipelinePrimitiveTopologyType::kPatch:
-      state_desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_PATCH;
-      break;
-    default:
-      assert_unhandled_case(description.primitive_topology_type);
-      return nullptr;
-  }
-
-  // Geometry shader.
-  switch (description.geometry_shader) {
-    case PipelineGeometryShader::kPointList:
-      state_desc.GS.pShaderBytecode = primitive_point_list_gs;
-      state_desc.GS.BytecodeLength = sizeof(primitive_point_list_gs);
-      break;
-    case PipelineGeometryShader::kRectangleList:
-      state_desc.GS.pShaderBytecode = primitive_rectangle_list_gs;
-      state_desc.GS.BytecodeLength = sizeof(primitive_rectangle_list_gs);
-      break;
-    case PipelineGeometryShader::kQuadList:
-      state_desc.GS.pShaderBytecode = primitive_quad_list_gs;
-      state_desc.GS.BytecodeLength = sizeof(primitive_quad_list_gs);
-      break;
-    default:
-      break;
+    PipelinePrimitiveTopologyType primitive_topology_type =
+        PipelinePrimitiveTopologyType(
+            description.primitive_topology_type_or_tessellation_mode);
+    switch (primitive_topology_type) {
+      case PipelinePrimitiveTopologyType::kPoint:
+        state_desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_POINT;
+        break;
+      case PipelinePrimitiveTopologyType::kLine:
+        state_desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE;
+        break;
+      case PipelinePrimitiveTopologyType::kTriangle:
+        state_desc.PrimitiveTopologyType =
+            D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+        break;
+      default:
+        assert_unhandled_case(primitive_topology_type);
+        return nullptr;
+    }
+    switch (description.geometry_shader) {
+      case PipelineGeometryShader::kPointList:
+        state_desc.GS.pShaderBytecode = primitive_point_list_gs;
+        state_desc.GS.BytecodeLength = sizeof(primitive_point_list_gs);
+        break;
+      case PipelineGeometryShader::kRectangleList:
+        state_desc.GS.pShaderBytecode = primitive_rectangle_list_gs;
+        state_desc.GS.BytecodeLength = sizeof(primitive_rectangle_list_gs);
+        break;
+      case PipelineGeometryShader::kQuadList:
+        state_desc.GS.pShaderBytecode = primitive_quad_list_gs;
+        state_desc.GS.BytecodeLength = sizeof(primitive_quad_list_gs);
+        break;
+      default:
+        break;
+    }
+  } else {
+    state_desc.VS.pShaderBytecode = tessellation_vs;
+    state_desc.VS.BytecodeLength = sizeof(tessellation_vs);
+    state_desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_PATCH;
+    xenos::TessellationMode tessellation_mode = xenos::TessellationMode(
+        description.primitive_topology_type_or_tessellation_mode);
+    switch (tessellation_mode) {
+      case xenos::TessellationMode::kDiscrete:
+        switch (host_vertex_shader_type) {
+          case Shader::HostVertexShaderType::kTriangleDomainConstant:
+            state_desc.HS.pShaderBytecode = discrete_triangle_hs;
+            state_desc.HS.BytecodeLength = sizeof(discrete_triangle_hs);
+            break;
+          case Shader::HostVertexShaderType::kQuadDomainConstant:
+            state_desc.HS.pShaderBytecode = discrete_quad_hs;
+            state_desc.HS.BytecodeLength = sizeof(discrete_quad_hs);
+            break;
+          default:
+            assert_unhandled_case(host_vertex_shader_type);
+            return nullptr;
+        }
+        break;
+      case xenos::TessellationMode::kContinuous:
+        switch (host_vertex_shader_type) {
+          case Shader::HostVertexShaderType::kTriangleDomainConstant:
+            state_desc.HS.pShaderBytecode = continuous_triangle_hs;
+            state_desc.HS.BytecodeLength = sizeof(continuous_triangle_hs);
+            break;
+          case Shader::HostVertexShaderType::kQuadDomainConstant:
+            state_desc.HS.pShaderBytecode = continuous_quad_hs;
+            state_desc.HS.BytecodeLength = sizeof(continuous_quad_hs);
+            break;
+          default:
+            assert_unhandled_case(host_vertex_shader_type);
+            return nullptr;
+        }
+        break;
+      case xenos::TessellationMode::kAdaptive:
+        switch (host_vertex_shader_type) {
+          case Shader::HostVertexShaderType::kTriangleDomainAdaptive:
+            state_desc.HS.pShaderBytecode = adaptive_triangle_hs;
+            state_desc.HS.BytecodeLength = sizeof(adaptive_triangle_hs);
+            break;
+          default:
+            assert_unhandled_case(host_vertex_shader_type);
+            return nullptr;
+        }
+        break;
+      default:
+        assert_unhandled_case(tessellation_mode);
+        return nullptr;
+    }
+    state_desc.DS.pShaderBytecode =
+        runtime_description.vertex_shader->translated_binary().data();
+    state_desc.DS.BytecodeLength =
+        runtime_description.vertex_shader->translated_binary().size();
   }
 
   // Pixel shader.
@@ -1715,7 +1724,7 @@ void PipelineCache::StorageWriteThread() {
       shader_header.ucode_data_hash = shader->ucode_data_hash();
       shader_header.ucode_dword_count = shader->ucode_dword_count();
       shader_header.type = shader->type();
-      shader_header.patch_primitive_type = shader->patch_primitive_type();
+      shader_header.host_vertex_shader_type = shader->host_vertex_shader_type();
       shader_header.sq_program_cntl = shader_pair.second;
       assert_not_null(shader_storage_file_);
       fwrite(&shader_header, sizeof(shader_header), 1, shader_storage_file_);
