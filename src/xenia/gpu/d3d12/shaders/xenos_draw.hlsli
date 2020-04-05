@@ -1,10 +1,13 @@
 #ifndef XENIA_GPU_D3D12_SHADERS_XENOS_DRAW_HLSLI_
 #define XENIA_GPU_D3D12_SHADERS_XENOS_DRAW_HLSLI_
 
+#define XeSysFlag_SharedMemoryIsUAV_Shift 0u
+#define XeSysFlag_SharedMemoryIsUAV (1u << XeSysFlag_SharedMemoryIsUAV_Shift)
+
 cbuffer xe_system_cbuffer : register(b0) {
   uint xe_flags;
   uint xe_line_loop_closing_index;
-  uint xe_vertex_index_endian_and_edge_factors;
+  uint xe_vertex_index_endian;
   int xe_vertex_base_index;
 
   float4 xe_user_clip_planes[6];
@@ -51,6 +54,15 @@ cbuffer xe_system_cbuffer : register(b0) {
   float4 xe_edram_blend_constant;
 };
 
+struct XeHSControlPointInput {
+  int index_or_edge_factor : XEVERTEXID;
+};
+
+struct XeHSControlPointOutput {
+  // TODO(Triang3l): Re-enable when non-adaptive tessellation is properly added.
+  // float index : XEVERTEXID;
+};
+
 struct XeVertexPostGS {
   float4 interpolators[16] : TEXCOORD0;
   float3 point_params : TEXCOORD16;
@@ -70,16 +82,5 @@ struct XeVertexPreGS {
   // have negative cull distance.
   float cull_distance : SV_CullDistance;
 };
-
-#define XeSysFlag_SharedMemoryIsUAV_Shift 0u
-#define XeSysFlag_SharedMemoryIsUAV (1u << XeSysFlag_SharedMemoryIsUAV_Shift)
-
-uint XeGetTessellationFactorAddress(uint control_point_id,
-                                    uint control_points_per_patch) {
-  // TODO(Triang3l): Verify whether the index offset is applied correctly.
-  control_point_id += asuint(xe_vertex_base_index) * control_points_per_patch;
-  return (xe_vertex_index_endian_and_edge_factors & 0x1FFFFFFCu) +
-         control_point_id * 4u;
-}
 
 #endif  // XENIA_GPU_D3D12_SHADERS_XENOS_DRAW_HLSLI_

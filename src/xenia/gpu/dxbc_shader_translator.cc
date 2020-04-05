@@ -384,43 +384,48 @@ void DxbcShaderTranslator::StartVertexShader_LoadVertexIndex() {
       DxbcSrc::V(uint32_t(InOutRegister::kVSInVertexIndex), DxbcSrc::kXXXX),
       index_src);
 
-  // Extract the endianness of the vertex index.
-  system_constants_used_ |= 1ull
-                            << kSysConst_VertexIndexEndianAndEdgeFactors_Index;
-  DxbcOpAnd(DxbcDest::R(reg, 0b0010),
-            DxbcSrc::CB(cbuffer_index_system_constants_,
-                        uint32_t(CbufferRegister::kSystemConstants),
-                        kSysConst_VertexIndexEndianAndEdgeFactors_Vec)
-                .Select(kSysConst_VertexIndexEndianAndEdgeFactors_Comp),
-            DxbcSrc::LU(0b11));
+  {
+    // Swap the vertex index's endianness.
+    system_constants_used_ |= 1ull << kSysConst_VertexIndexEndian_Index;
+    DxbcSrc endian_src(DxbcSrc::CB(cbuffer_index_system_constants_,
+                                   uint32_t(CbufferRegister::kSystemConstants),
+                                   kSysConst_VertexIndexEndian_Vec)
+                           .Select(kSysConst_VertexIndexEndian_Comp));
+    DxbcDest swap_temp_dest(DxbcDest::R(reg, 0b0010));
+    DxbcSrc swap_temp_src(DxbcSrc::R(reg, DxbcSrc::kYYYY));
 
-  // 8-in-16 or one half of 8-in-32.
-  DxbcOpSwitch(DxbcSrc::R(reg, DxbcSrc::kYYYY));
-  DxbcOpCase(DxbcSrc::LU(uint32_t(Endian::k8in16)));
-  DxbcOpCase(DxbcSrc::LU(uint32_t(Endian::k8in32)));
-  // Temp = X0Z0.
-  DxbcOpAnd(DxbcDest::R(reg, 0b0100), index_src, DxbcSrc::LU(0x00FF00FF));
-  // Index = YZW0.
-  DxbcOpUShR(index_dest, index_src, DxbcSrc::LU(8));
-  // Index = Y0W0.
-  DxbcOpAnd(index_dest, index_src, DxbcSrc::LU(0x00FF00FF));
-  // Index = YXWZ.
-  DxbcOpUMAd(index_dest, DxbcSrc::R(reg, DxbcSrc::kZZZZ), DxbcSrc::LU(256),
-             index_src);
-  DxbcOpBreak();
-  DxbcOpEndSwitch();
+    // 8-in-16 or one half of 8-in-32.
+    DxbcOpSwitch(endian_src);
+    DxbcOpCase(DxbcSrc::LU(uint32_t(Endian::k8in16)));
+    DxbcOpCase(DxbcSrc::LU(uint32_t(Endian::k8in32)));
+    // Temp = X0Z0.
+    DxbcOpAnd(swap_temp_dest, index_src, DxbcSrc::LU(0x00FF00FF));
+    // Index = YZW0.
+    DxbcOpUShR(index_dest, index_src, DxbcSrc::LU(8));
+    // Index = Y0W0.
+    DxbcOpAnd(index_dest, index_src, DxbcSrc::LU(0x00FF00FF));
+    // Index = YXWZ.
+    DxbcOpUMAd(index_dest, swap_temp_src, DxbcSrc::LU(256), index_src);
+    DxbcOpBreak();
+    DxbcOpEndSwitch();
 
-  // 16-in-32 or another half of 8-in-32.
-  DxbcOpSwitch(DxbcSrc::R(reg, DxbcSrc::kYYYY));
-  DxbcOpCase(DxbcSrc::LU(uint32_t(Endian::k8in32)));
-  DxbcOpCase(DxbcSrc::LU(uint32_t(Endian::k16in32)));
-  // Temp = ZW00.
-  DxbcOpUShR(DxbcDest::R(reg, 0b0010), index_src, DxbcSrc::LU(16));
-  // Index = ZWXY.
-  DxbcOpBFI(index_dest, DxbcSrc::LU(16), DxbcSrc::LU(16), index_src,
-            DxbcSrc::R(reg, DxbcSrc::kYYYY));
-  DxbcOpBreak();
-  DxbcOpEndSwitch();
+    // 16-in-32 or another half of 8-in-32.
+    DxbcOpSwitch(endian_src);
+    DxbcOpCase(DxbcSrc::LU(uint32_t(Endian::k8in32)));
+    DxbcOpCase(DxbcSrc::LU(uint32_t(Endian::k16in32)));
+    // Temp = ZW00.
+    DxbcOpUShR(swap_temp_dest, index_src, DxbcSrc::LU(16));
+    // Index = ZWXY.
+    DxbcOpBFI(index_dest, DxbcSrc::LU(16), DxbcSrc::LU(16), index_src,
+              swap_temp_src);
+    DxbcOpBreak();
+    DxbcOpEndSwitch();
+
+    if (!uses_register_dynamic_addressing()) {
+      // Break register dependency.
+      DxbcOpMov(swap_temp_dest, DxbcSrc::LF(0.0f));
+    }
+  }
 
   // Add the base vertex index.
   system_constants_used_ |= 1ull << kSysConst_VertexBaseIndex_Index;
@@ -435,11 +440,8 @@ void DxbcShaderTranslator::StartVertexShader_LoadVertexIndex() {
 
   if (uses_register_dynamic_addressing()) {
     // Store to indexed GPR 0 in x0[0].
-    DxbcOpMov(DxbcDest::X(0, 0, 0b0001), DxbcSrc::R(reg, DxbcSrc::kXXXX));
+    DxbcOpMov(DxbcDest::X(0, 0, 0b0001), index_src);
     PopSystemTemp();
-  } else {
-    // Break register dependency.
-    DxbcOpMov(DxbcDest::R(reg, 0b1110), DxbcSrc::LF(0.0f));
   }
 }
 
@@ -2988,7 +2990,7 @@ const DxbcShaderTranslator::SystemConstantRdef DxbcShaderTranslator::
     system_constant_rdef_[DxbcShaderTranslator::kSysConst_Count] = {
         {"xe_flags", RdefTypeIndex::kUint, 4},
         {"xe_line_loop_closing_index", RdefTypeIndex::kUint, 4},
-        {"xe_vertex_index_endian_and_edge_factors", RdefTypeIndex::kUint, 4},
+        {"xe_vertex_index_endian", RdefTypeIndex::kUint, 4},
         {"xe_vertex_base_index", RdefTypeIndex::kInt, 4},
 
         {"xe_user_clip_planes", RdefTypeIndex::kFloat4Array6, 96},

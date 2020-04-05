@@ -9,7 +9,7 @@
 //
 //   uint xe_flags;                     // Offset:    0 Size:     4 [unused]
 //   uint xe_line_loop_closing_index;   // Offset:    4 Size:     4 [unused]
-//   uint xe_vertex_index_endian_and_edge_factors;// Offset:    8 Size:     4 [unused]
+//   uint xe_vertex_index_endian;       // Offset:    8 Size:     4 [unused]
 //   int xe_vertex_base_index;          // Offset:   12 Size:     4 [unused]
 //   float4 xe_user_clip_planes[6];     // Offset:   16 Size:    96 [unused]
 //   float3 xe_ndc_scale;               // Offset:  112 Size:    12 [unused]
@@ -65,7 +65,8 @@
 //
 // Name                 Index   Mask Register SysValue  Format   Used
 // -------------------- ----- ------ -------- -------- ------- ------
-// no Input
+// XEVERTEXID               0   x           0     NONE     int       
+//
 //
 // Output signature:
 //
@@ -89,6 +90,8 @@ dcl_tessellator_partitioning partitioning_integer
 dcl_tessellator_output_primitive output_triangle_cw
 dcl_globalFlags refactoringAllowed
 dcl_constantbuffer CB0[0:0][15], immediateIndexed, space=0
+hs_control_point_phase 
+ret 
 hs_fork_phase 
 dcl_hs_fork_phase_instance_count 4
 dcl_input vForkInstanceID
@@ -111,4 +114,4 @@ dcl_indexrange o4.x 2
 mov r0.x, vForkInstanceID.x
 mov o[r0.x + 4].x, CB0[0][14].y
 ret 
-// Approximately 6 instruction slots used
+// Approximately 7 instruction slots used

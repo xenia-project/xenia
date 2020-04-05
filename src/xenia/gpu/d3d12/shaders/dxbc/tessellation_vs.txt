@@ -9,8 +9,8 @@
 //
 //   uint xe_flags;                     // Offset:    0 Size:     4 [unused]
 //   uint xe_line_loop_closing_index;   // Offset:    4 Size:     4 [unused]
-//   uint xe_vertex_index_endian;       // Offset:    8 Size:     4 [unused]
-//   int xe_vertex_base_index;          // Offset:   12 Size:     4 [unused]
+//   uint xe_vertex_index_endian;       // Offset:    8 Size:     4
+//   int xe_vertex_base_index;          // Offset:   12 Size:     4
 //   float4 xe_user_clip_planes[6];     // Offset:   16 Size:    96 [unused]
 //   float3 xe_ndc_scale;               // Offset:  112 Size:    12 [unused]
 //   uint xe_pixel_pos_reg;             // Offset:  124 Size:     4 [unused]
@@ -26,7 +26,7 @@
 //   uint xe_edram_depth_base_dwords;   // Offset:  188 Size:     4 [unused]
 //   float4 xe_color_exp_bias;          // Offset:  192 Size:    16 [unused]
 //   uint4 xe_color_output_map;         // Offset:  208 Size:    16 [unused]
-//   float2 xe_tessellation_factor_range;// Offset:  224 Size:     8
+//   float2 xe_tessellation_factor_range;// Offset:  224 Size:     8 [unused]
 //   float2 xe_edram_depth_range;       // Offset:  232 Size:     8 [unused]
 //   float2 xe_edram_poly_offset_front; // Offset:  240 Size:     8 [unused]
 //   float2 xe_edram_poly_offset_back;  // Offset:  248 Size:     8 [unused]
@@ -49,60 +49,44 @@
 //
 //
 //
-// Patch Constant signature:
-//
-// Name                 Index   Mask Register SysValue  Format   Used
-// -------------------- ----- ------ -------- -------- ------- ------
-// SV_TessFactor            0   x           0  TRIEDGE   float   x   
-// SV_TessFactor            1   x           1  TRIEDGE   float   x   
-// SV_TessFactor            2   x           2  TRIEDGE   float   x   
-// SV_InsideTessFactor      0   x           3   TRIINT   float   x   
-//
-//
 // Input signature:
 //
 // Name                 Index   Mask Register SysValue  Format   Used
 // -------------------- ----- ------ -------- -------- ------- ------
-// XEVERTEXID               0   x           0     NONE     int       
+// SV_VertexID              0   x           0   VERTID    uint   x   
 //
 //
 // Output signature:
 //
 // Name                 Index   Mask Register SysValue  Format   Used
 // -------------------- ----- ------ -------- -------- ------- ------
-// no Output
-// Tessellation Domain   # of control points
-// -------------------- --------------------
-// Triangle                                3
+// XEVERTEXID               0   x           0     NONE     int   x   
+// SV_Position              0   xyzw        1      POS   float   xyzw
 //
-// Tessellation Output Primitive  Partitioning Type 
-// ------------------------------ ------------------
-// Clockwise Triangles            Integer           
-//
-hs_5_1
-hs_decls 
-dcl_input_control_point_count 3
-dcl_output_control_point_count 3
-dcl_tessellator_domain domain_tri
-dcl_tessellator_partitioning partitioning_integer
-dcl_tessellator_output_primitive output_triangle_cw
+vs_5_1
 dcl_globalFlags refactoringAllowed
-dcl_constantbuffer CB0[0:0][15], immediateIndexed, space=0
-hs_control_point_phase 
-ret 
-hs_fork_phase 
-dcl_hs_fork_phase_instance_count 3
-dcl_input vForkInstanceID
-dcl_output_siv o0.x, finalTriUeq0EdgeTessFactor
-dcl_output_siv o1.x, finalTriVeq0EdgeTessFactor
-dcl_output_siv o2.x, finalTriWeq0EdgeTessFactor
+dcl_constantbuffer CB0[0:0][1], immediateIndexed, space=0
+dcl_input_sgv v0.x, vertex_id
+dcl_output o0.x
+dcl_output_siv o1.xyzw, position
 dcl_temps 1
-dcl_indexrange o0.x 3
-mov r0.x, vForkInstanceID.x
-mov o[r0.x + 0].x, CB0[0][14].y
+ushr r0.x, CB0[0][0].z, l(1)
+xor r0.x, r0.x, CB0[0][0].z
+and r0.x, r0.x, l(1)
+if_nz r0.x
+  ishl r0.x, v0.x, l(8)
+  ushr r0.y, v0.x, l(8)
+  and r0.xy, r0.xyxx, l(0xff00ff00, 0x00ff00ff, 0, 0)
+  iadd r0.x, r0.y, r0.x
+else 
+  mov r0.x, v0.x
+endif 
+and r0.y, CB0[0][0].z, l(2)
+if_nz r0.y
+  ushr r0.y, r0.x, l(16)
+  bfi r0.x, l(16), l(16), r0.x, r0.y
+endif 
+iadd o0.x, r0.x, CB0[0][0].w
+mov o1.xyzw, l(0,0,0,0)
 ret 
-hs_fork_phase 
-dcl_output_siv o3.x, finalTriInsideTessFactor
-mov o3.x, CB0[0][14].y
-ret 
-// Approximately 6 instruction slots used
+// Approximately 19 instruction slots used
