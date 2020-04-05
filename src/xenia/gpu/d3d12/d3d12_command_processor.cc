@@ -55,6 +55,13 @@ DEFINE_bool(d3d12_submit_on_primary_buffer_end, true,
             "Submit the command list when a PM4 primary buffer ends if it's "
             "possible to submit immediately to try to reduce frame latency.",
             "D3D12");
+DEFINE_bool(
+    d3d12_tessellation_adaptive, false,
+    "Allow games to use adaptive tessellation - may be disabled if the game "
+    "has issues with memexport, the maximum factor will be used in this case. "
+    "Temporarily disabled by default since there are visible cracks currently "
+    "in Halo 3.",
+    "D3D12");
 
 namespace xe {
 namespace gpu {
@@ -1467,8 +1474,8 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
   UpdateSystemConstantValues(
       memexport_used, primitive_two_faced, line_loop_closing_index,
       indexed ? index_buffer_info->endianness : Endian::kNone,
-      adaptive_tessellation ? (index_buffer_info->guest_base & 0x1FFFFFFC) : 0,
-      early_z, GetCurrentColorMask(pixel_shader), pipeline_render_targets);
+      adaptive_tessellation, early_z, GetCurrentColorMask(pixel_shader),
+      pipeline_render_targets);
 
   // Update constant buffers, descriptors and root parameters.
   if (!UpdateBindings(vertex_shader, pixel_shader, root_signature)) {
@@ -1661,7 +1668,7 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
             index_base, index_buffer_size);
         return false;
       }
-      if (memexport_used && !adaptive_tessellation) {
+      if (memexport_used) {
         // If the shared memory is a UAV, it can't be used as an index buffer
         // (UAV is a read/write state, index buffer is a read-only state). Need
         // to copy the indices to a buffer in the index buffer state.
@@ -1692,13 +1699,8 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
       shared_memory_->UseForReading();
     }
     SubmitBarriers();
-    if (adaptive_tessellation) {
-      // Index buffer used for per-edge factors.
-      deferred_command_list_->D3DDrawInstanced(index_count, 1, 0, 0);
-    } else {
-      deferred_command_list_->D3DIASetIndexBuffer(&index_buffer_view);
-      deferred_command_list_->D3DDrawIndexedInstanced(index_count, 1, 0, 0, 0);
-    }
+    deferred_command_list_->D3DIASetIndexBuffer(&index_buffer_view);
+    deferred_command_list_->D3DDrawIndexedInstanced(index_count, 1, 0, 0, 0);
     if (scratch_index_buffer != nullptr) {
       ReleaseScratchGPUBuffer(scratch_index_buffer,
                               D3D12_RESOURCE_STATE_INDEX_BUFFER);
@@ -2329,7 +2331,7 @@ void D3D12CommandProcessor::UpdateFixedFunctionState(bool primitive_two_faced) {
 void D3D12CommandProcessor::UpdateSystemConstantValues(
     bool shared_memory_is_uav, bool primitive_two_faced,
     uint32_t line_loop_closing_index, Endian index_endian,
-    uint32_t edge_factor_base, bool early_z, uint32_t color_mask,
+    bool adaptive_tessellation, bool early_z, uint32_t color_mask,
     const RenderTargetCache::PipelineRenderTarget render_targets[4]) {
   auto& regs = *register_file_;
 
@@ -2353,7 +2355,8 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   auto rb_surface_info = regs.Get<reg::RB_SURFACE_INFO>();
   auto sq_context_misc = regs.Get<reg::SQ_CONTEXT_MISC>();
   auto sq_program_cntl = regs.Get<reg::SQ_PROGRAM_CNTL>();
-  int32_t vgt_indx_offset = int32_t(regs[XE_GPU_REG_VGT_INDX_OFFSET].u32);
+  int32_t vgt_indx_offset =
+      adaptive_tessellation ? 0 : int32_t(regs[XE_GPU_REG_VGT_INDX_OFFSET].u32);
 
   // Get the color info register values for each render target, and also put
   // some safety measures for the ROV path - disable fully aliased render
@@ -2507,6 +2510,10 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
       regs[XE_GPU_REG_VGT_HOS_MIN_TESS_LEVEL].f32 + 1.0f;
   float tessellation_factor_max =
       regs[XE_GPU_REG_VGT_HOS_MAX_TESS_LEVEL].f32 + 1.0f;
+  if (adaptive_tessellation && !cvars::d3d12_tessellation_adaptive) {
+    // Make clamping force the factor to a single value the maximum.
+    tessellation_factor_min = tessellation_factor_max;
+  }
   dirty |= system_constants_.tessellation_factor_range_min !=
            tessellation_factor_min;
   system_constants_.tessellation_factor_range_min = tessellation_factor_min;
@@ -2523,13 +2530,9 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   dirty |= system_constants_.vertex_base_index != vgt_indx_offset;
   system_constants_.vertex_base_index = vgt_indx_offset;
 
-  // Index buffer endianness and adaptive tessellation factors.
-  uint32_t index_endian_and_edge_factors =
-      uint32_t(index_endian) | edge_factor_base;
-  dirty |= system_constants_.vertex_index_endian_and_edge_factors !=
-           index_endian_and_edge_factors;
-  system_constants_.vertex_index_endian_and_edge_factors =
-      index_endian_and_edge_factors;
+  // Index or tessellation edge factor buffer endianness.
+  dirty |= system_constants_.vertex_index_endian != index_endian;
+  system_constants_.vertex_index_endian = index_endian;
 
   // User clip planes (UCP_ENA_#), when not CLIP_DISABLE.
   if (!pa_cl_clip_cntl.clip_disable) {

@@ -209,7 +209,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
   struct SystemConstants {
     uint32_t flags;
     uint32_t line_loop_closing_index;
-    uint32_t vertex_index_endian_and_edge_factors;
+    Endian vertex_index_endian;
     int32_t vertex_base_index;
 
     float user_clip_planes[6][4];
@@ -1434,12 +1434,11 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kSysConst_LineLoopClosingIndex_Index = kSysConst_Flags_Index + 1,
     kSysConst_LineLoopClosingIndex_Vec = kSysConst_Flags_Vec,
     kSysConst_LineLoopClosingIndex_Comp = 1,
-    kSysConst_VertexIndexEndianAndEdgeFactors_Index =
+    kSysConst_VertexIndexEndian_Index =
         kSysConst_LineLoopClosingIndex_Index + 1,
-    kSysConst_VertexIndexEndianAndEdgeFactors_Vec = kSysConst_Flags_Vec,
-    kSysConst_VertexIndexEndianAndEdgeFactors_Comp = 2,
-    kSysConst_VertexBaseIndex_Index =
-        kSysConst_VertexIndexEndianAndEdgeFactors_Index + 1,
+    kSysConst_VertexIndexEndian_Vec = kSysConst_Flags_Vec,
+    kSysConst_VertexIndexEndian_Comp = 2,
+    kSysConst_VertexBaseIndex_Index = kSysConst_VertexIndexEndian_Index + 1,
     kSysConst_VertexBaseIndex_Vec = kSysConst_Flags_Vec,
     kSysConst_VertexBaseIndex_Comp = 3,
 

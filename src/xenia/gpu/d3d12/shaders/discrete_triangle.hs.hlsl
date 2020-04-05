@@ -1,7 +1,5 @@
 #include "xenos_draw.hlsli"
 
-struct XeHSControlPointOutput {};
-
 struct XeHSConstantDataOutput {
   float edges[3] : SV_TessFactor;
   float inside : SV_InsideTessFactor;
@@ -36,4 +34,12 @@ XeHSConstantDataOutput XePatchConstant() {
 [outputtopology("triangle_cw")]
 [outputcontrolpoints(3)]
 [patchconstantfunc("XePatchConstant")]
-void main(InputPatch<XeHSControlPointOutput, 3> input_patch) {}
+XeHSControlPointOutput main(
+    InputPatch<XeHSControlPointInput, 3> xe_input_patch,
+    uint xe_control_point_id : SV_OutputControlPointID) {
+  XeHSControlPointOutput output;
+  // TODO(Triang3l): Re-enable when non-adaptive tessellation is properly added.
+  /* output.index =
+      float(xe_input_patch[xe_control_point_id].index_or_edge_factor); */
+  return output;
+}

@@ -41,13 +41,6 @@ DEFINE_int32(
     "specify the number of threads explicitly (up to the number of logical CPU "
     "cores), 0 to disable multithreaded pipeline state object creation.",
     "D3D12");
-DEFINE_bool(
-    d3d12_tessellation_adaptive, false,
-    "Allow games to use adaptive tessellation - may be disabled if the game "
-    "has issues with memexport, the maximum factor will be used in this case. "
-    "Temporarily disabled by default since there are visible cracks currently "
-    "in Halo 3.",
-    "D3D12");
 DEFINE_bool(d3d12_tessellation_wireframe, false,
             "Display tessellated surfaces as wireframe for debugging.",
             "D3D12");
@@ -65,8 +58,7 @@ namespace d3d12 {
 #include "xenia/gpu/d3d12/shaders/dxbc/primitive_point_list_gs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/primitive_quad_list_gs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/primitive_rectangle_list_gs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/tessellation_quad_vs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/tessellation_triangle_vs.h"
+#include "xenia/gpu/d3d12/shaders/dxbc/tessellation_vs.h"
 
 constexpr uint32_t PipelineCache::PipelineDescription::kVersion;
 
@@ -972,20 +964,22 @@ bool PipelineCache::GetCurrentStateDescription(
 
   // Primitive topology type, tessellation mode and geometry shader.
   if (tessellated) {
-    switch (regs.Get<reg::VGT_HOS_CNTL>().tess_mode) {
+    xenos::TessellationMode tessellation_mode =
+        regs.Get<reg::VGT_HOS_CNTL>().tess_mode;
+    switch (tessellation_mode) {
+      case xenos::TessellationMode::kDiscrete:
+        description_out.tessellation_mode = PipelineTessellationMode::kDiscrete;
+        break;
       case xenos::TessellationMode::kContinuous:
         description_out.tessellation_mode =
             PipelineTessellationMode::kContinuous;
         break;
       case xenos::TessellationMode::kAdaptive:
-        description_out.tessellation_mode =
-            cvars::d3d12_tessellation_adaptive
-                ? PipelineTessellationMode::kAdaptive
-                : PipelineTessellationMode::kContinuous;
+        description_out.tessellation_mode = PipelineTessellationMode::kAdaptive;
         break;
       default:
-        description_out.tessellation_mode = PipelineTessellationMode::kDiscrete;
-        break;
+        assert_unhandled_case(tessellation_mode);
+        return false;
     }
     description_out.primitive_topology_type =
         PipelinePrimitiveTopologyType::kPatch;
@@ -1347,6 +1341,8 @@ ID3D12PipelineState* PipelineCache::CreateD3D12PipelineState(
     return nullptr;
   }
   if (description.tessellation_mode != PipelineTessellationMode::kNone) {
+    state_desc.VS.pShaderBytecode = tessellation_vs;
+    state_desc.VS.BytecodeLength = sizeof(tessellation_vs);
     switch (description.patch_type) {
       case PipelinePatchType::kTriangle:
         if (runtime_description.vertex_shader->patch_primitive_type() !=
@@ -1359,20 +1355,23 @@ ID3D12PipelineState* PipelineCache::CreateD3D12PipelineState(
           assert_always();
           return nullptr;
         }
-        if (description.tessellation_mode ==
-            PipelineTessellationMode::kDiscrete) {
-          state_desc.HS.pShaderBytecode = discrete_triangle_hs;
-          state_desc.HS.BytecodeLength = sizeof(discrete_triangle_hs);
-        } else if (description.tessellation_mode ==
-                   PipelineTessellationMode::kAdaptive) {
-          state_desc.HS.pShaderBytecode = adaptive_triangle_hs;
-          state_desc.HS.BytecodeLength = sizeof(adaptive_triangle_hs);
-        } else {
-          state_desc.HS.pShaderBytecode = continuous_triangle_hs;
-          state_desc.HS.BytecodeLength = sizeof(continuous_triangle_hs);
+        switch (description.tessellation_mode) {
+          case PipelineTessellationMode::kDiscrete:
+            state_desc.HS.pShaderBytecode = discrete_triangle_hs;
+            state_desc.HS.BytecodeLength = sizeof(discrete_triangle_hs);
+            break;
+          case PipelineTessellationMode::kContinuous:
+            state_desc.HS.pShaderBytecode = continuous_triangle_hs;
+            state_desc.HS.BytecodeLength = sizeof(continuous_triangle_hs);
+            break;
+          case PipelineTessellationMode::kAdaptive:
+            state_desc.HS.pShaderBytecode = adaptive_triangle_hs;
+            state_desc.HS.BytecodeLength = sizeof(adaptive_triangle_hs);
+            break;
+          default:
+            assert_unhandled_case(description.tessellation_mode);
+            return nullptr;
         }
-        state_desc.VS.pShaderBytecode = tessellation_triangle_vs;
-        state_desc.VS.BytecodeLength = sizeof(tessellation_triangle_vs);
         break;
       case PipelinePatchType::kQuad:
         if (runtime_description.vertex_shader->patch_primitive_type() !=
@@ -1384,17 +1383,20 @@ ID3D12PipelineState* PipelineCache::CreateD3D12PipelineState(
           assert_always();
           return nullptr;
         }
-        if (description.tessellation_mode ==
-            PipelineTessellationMode::kDiscrete) {
-          state_desc.HS.pShaderBytecode = discrete_quad_hs;
-          state_desc.HS.BytecodeLength = sizeof(discrete_quad_hs);
-        } else {
-          state_desc.HS.pShaderBytecode = continuous_quad_hs;
-          state_desc.HS.BytecodeLength = sizeof(continuous_quad_hs);
+        switch (description.tessellation_mode) {
+          case PipelineTessellationMode::kDiscrete:
+            state_desc.HS.pShaderBytecode = discrete_quad_hs;
+            state_desc.HS.BytecodeLength = sizeof(discrete_quad_hs);
+            break;
+          case PipelineTessellationMode::kContinuous:
+            state_desc.HS.pShaderBytecode = continuous_quad_hs;
+            state_desc.HS.BytecodeLength = sizeof(continuous_quad_hs);
+            break;
           // TODO(Triang3l): True adaptive tessellation when properly tested.
+          default:
+            assert_unhandled_case(description.tessellation_mode);
+            return nullptr;
         }
-        state_desc.VS.pShaderBytecode = tessellation_quad_vs;
-        state_desc.VS.BytecodeLength = sizeof(tessellation_quad_vs);
         break;
       default:
         assert_unhandled_case(description.patch_type);
