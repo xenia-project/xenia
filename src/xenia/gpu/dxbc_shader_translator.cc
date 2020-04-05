@@ -27,11 +27,11 @@ DEFINE_bool(dxbc_switch, true,
             "(possibly the shader compiler tries to flatten them). On Intel "
             "HD Graphics, this is ignored because of a crash with the switch "
             "instruction.",
-            "D3D12");
+            "GPU");
 DEFINE_bool(dxbc_source_map, false,
             "Disassemble Xenos instructions as comments in the resulting DXBC "
             "for debugging.",
-            "D3D12");
+            "GPU");
 
 namespace xe {
 namespace gpu {
