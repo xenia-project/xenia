@@ -1353,7 +1353,7 @@ ID3D12PipelineState* PipelineCache::CreateD3D12PipelineState(
       break;
   }
 
-  // Primitive topology, vertex, hull/domain and geometry shaders.
+  // Primitive topology, vertex, hull, domain and geometry shaders.
   if (!runtime_description.vertex_shader->is_translated()) {
     XELOGE("Vertex shader %.16" PRIX64 " not translated",
            runtime_description.vertex_shader->ucode_data_hash());
