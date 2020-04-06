@@ -8,6 +8,7 @@ project("xenia-app")
   targetname("xenia")
   language("C++")
   links({
+    "zlib",
     "aes_128",
     "capstone",
     "dxbc",

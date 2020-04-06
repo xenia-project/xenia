@@ -208,6 +208,7 @@ solution("xenia")
   end
   configurations({"Checked", "Debug", "Release"})
 
+  include("third_party/zlib.lua")
   include("third_party/aes_128.lua")
   include("third_party/capstone.lua")
   include("third_party/dxbc.lua")

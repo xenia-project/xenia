@@ -9,6 +9,10 @@
 
 #include "xenia/base/logging.h"
 
+#include <assert.h>
+#include <stdio.h>
+#include <string.h>
+
 #include <atomic>
 #include <cinttypes>
 #include <cstdarg>
@@ -26,6 +30,7 @@
 #include "xenia/base/ring_buffer.h"
 #include "xenia/base/threading.h"
 //#include "xenia/base/cvar.h"
+#include "xenia/base/log_zipper.h"
 
 // For MessageBox:
 // TODO(benvanik): generic API? logging_win.cc?
@@ -57,9 +62,10 @@ class Logger {
   explicit Logger(const std::wstring& app_name) : running_(true) {
     if (cvars::log_file.empty()) {
       // Default to app name.
-      auto file_path = app_name + L".log";
+      file_path = app_name + L".log";
       xe::filesystem::CreateParentFolder(file_path);
       file_ = xe::filesystem::OpenFile(file_path, "wt");
+      log_zipper_ = new LogZipper(file_path);
     } else {
       if (cvars::log_file == "stdout") {
         file_ = stdout;
@@ -67,6 +73,7 @@ class Logger {
         auto file_path = xe::to_wstring(cvars::log_file);
         xe::filesystem::CreateParentFolder(file_path);
         file_ = xe::filesystem::OpenFile(file_path, "wt");
+        log_zipper_ = new LogZipper(file_path);
       }
     }
 
@@ -78,6 +85,7 @@ class Logger {
   ~Logger() {
     running_ = false;
     xe::threading::Wait(write_thread_.get(), true);
+    log_zipper_->~LogZipper();
     fflush(file_);
     fclose(file_);
   }
@@ -149,6 +157,10 @@ class Logger {
   void Write(const char* buf, size_t size) {
     if (file_) {
       fwrite(buf, 1, size, file_);
+    }
+
+    if (log_zipper_) {
+      log_zipper_->write(buf, size);
     }
 
     if (cvars::log_to_debugprint) {
@@ -238,6 +250,8 @@ class Logger {
   size_t read_head_ = 0;
   uint8_t buffer_[kBufferSize];
   FILE* file_ = nullptr;
+  std::wstring file_path;
+  LogZipper* log_zipper_ = nullptr;
 
   std::atomic<bool> running_;
   std::unique_ptr<xe::threading::Thread> write_thread_;
