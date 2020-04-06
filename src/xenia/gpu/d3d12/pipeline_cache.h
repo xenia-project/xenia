@@ -171,8 +171,8 @@ class PipelineCache {
     int32_t depth_bias;
     float depth_bias_slope_scaled;
 
-    PipelineStripCutIndex strip_cut_index : 2;                  // 2
-    Shader::HostVertexShaderType host_vertex_shader_type : 3;   // 5
+    PipelineStripCutIndex strip_cut_index : 2;                 // 2
+    Shader::HostVertexShaderType host_vertex_shader_type : 3;  // 5
     // PipelinePrimitiveTopologyType for a vertex shader.
     // xenos::TessellationMode for a domain shader.
     uint32_t primitive_topology_type_or_tessellation_mode : 2;  // 7
