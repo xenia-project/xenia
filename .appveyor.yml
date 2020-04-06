@@ -25,49 +25,31 @@ pull_requests:
 
 os: Visual Studio 2019
 
-init:
-  - git config --global core.autocrlf input
-
 install:
-  - cmd: xb setup
-
-platform: Windows
+  - xb setup
 
 configuration:
   - Release
   - Checked
 
 build_script:
-  - cmd: xb build --config=%CONFIGURATION% --target=src\xenia-app --target=tests\xenia-base-tests --target=tests\xenia-cpu-ppc-tests --target=src\xenia-vfs-dump
+  - xb build --config=%CONFIGURATION% --target=src\xenia-app --target=tests\xenia-base-tests --target=tests\xenia-cpu-ppc-tests --target=src\xenia-vfs-dump
 
 after_build:
-  - cmd: |
+  - |
       IF NOT "%CONFIGURATION%"=="Checked" SET "ARCHIVE_SUFFIX=%APPVEYOR_REPO_BRANCH%"
       IF NOT "%CONFIGURATION%"=="Checked" SET "ARCHIVE_SWITCHES=--"
       IF     "%CONFIGURATION%"=="Checked" SET "ARCHIVE_SUFFIX=%APPVEYOR_REPO_BRANCH%_FOR-DEVS-ONLY"
       IF     "%CONFIGURATION%"=="Checked" SET "ARCHIVE_SWITCHES="-pI know what I am doing." --"
-      7z a xenia_%ARCHIVE_SUFFIX%.zip          %ARCHIVE_SWITCHES% LICENSE "%APPVEYOR_BUILD_FOLDER%\build\bin\%PLATFORM%\%CONFIGURATION%\xenia.exe"          "%APPVEYOR_BUILD_FOLDER%\build\bin\%PLATFORM%\%CONFIGURATION%\xenia.pdb"
-      7z a xenia-vfs-dump_%ARCHIVE_SUFFIX%.zip %ARCHIVE_SWITCHES% LICENSE "%APPVEYOR_BUILD_FOLDER%\build\bin\%PLATFORM%\%CONFIGURATION%\xenia-vfs-dump.exe" "%APPVEYOR_BUILD_FOLDER%\build\bin\%PLATFORM%\%CONFIGURATION%\xenia-vfs-dump.pdb"
+      7z a xenia_%ARCHIVE_SUFFIX%.zip          %ARCHIVE_SWITCHES% LICENSE "%APPVEYOR_BUILD_FOLDER%\build\bin\Windows\%CONFIGURATION%\xenia.exe"          "%APPVEYOR_BUILD_FOLDER%\build\bin\Windows\%CONFIGURATION%\xenia.pdb"
+      7z a xenia-vfs-dump_%ARCHIVE_SUFFIX%.zip %ARCHIVE_SWITCHES% LICENSE "%APPVEYOR_BUILD_FOLDER%\build\bin\Windows\%CONFIGURATION%\xenia-vfs-dump.exe" "%APPVEYOR_BUILD_FOLDER%\build\bin\Windows\%CONFIGURATION%\xenia-vfs-dump.pdb"
 
 before_test:
-  - cmd: xb gentests
+  - xb gentests
 
 test_script:
-  - cmd: xb test --config=%CONFIGURATION% --no_build
+  - xb test --config=%CONFIGURATION% --no_build
 
 artifacts:
   - path: '*.zip'
   - path: xenia-cpu-ppc-test.log
-
-deploy:
-  - provider: Environment
-    name: xenia-master
-    release: xenia-$(appveyor_repo_branch)-v$(appveyor_build_version)
-    artifact: '*.zip'
-    draft: false
-    prerelease: true
-    on:
-      branch: master
-      configuration: release
-      appveyor_repo_tag: true
-      is_not_pr: true
