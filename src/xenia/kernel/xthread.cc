@@ -50,15 +50,16 @@ XThread::XThread(KernelState* kernel_state)
     : XObject(kernel_state, kType), guest_thread_(true) {}
 
 XThread::XThread(KernelState* kernel_state, uint32_t stack_size,
-                 uint32_t xapi_thread_startup, uint32_t start_address,
-                 uint32_t start_context, uint32_t creation_flags,
-                 bool guest_thread, bool main_thread)
+                 StartupType startup_type, uint32_t xapi_thread_startup,
+                 uint32_t start_address, uint32_t start_context,
+                 uint32_t creation_flags, bool guest_thread, bool main_thread)
     : XObject(kernel_state, kType),
       thread_id_(++next_xthread_id_),
       guest_thread_(guest_thread),
       main_thread_(main_thread),
       apc_list_(kernel_state->memory()) {
   creation_params_.stack_size = stack_size;
+  creation_params_.startup_type = startup_type;
   creation_params_.xapi_thread_startup = xapi_thread_startup;
   creation_params_.start_address = start_address;
   creation_params_.start_context = start_context;
@@ -513,12 +514,23 @@ void XThread::Execute() {
 
   // If a XapiThreadStartup value is present, we use that as a trampoline.
   // Otherwise, we are a raw thread.
-  if (creation_params_.xapi_thread_startup) {
+
+  if (creation_params_.startup_type == StartupType::XapiThreadStartup) {
     uint64_t args[] = {creation_params_.start_address,
                        creation_params_.start_context};
     kernel_state()->processor()->Execute(thread_state_,
                                          creation_params_.xapi_thread_startup,
                                          args, xe::countof(args));
+  } else if (creation_params_.startup_type == StartupType::DllMain) {
+    // Call DllMain(DLL_PROCESS_ATTACH):
+    // https://msdn.microsoft.com/en-us/library/windows/desktop/ms682583%28v=vs.85%29.aspx
+    uint64_t args[] = {
+        creation_params_.start_context,
+        1,  // DLL_PROCESS_ATTACH
+        0,  // 0 because always dynamic
+    };
+    kernel_state()->processor()->Execute(
+        thread_state_, creation_params_.start_address, args, xe::countof(args));
   } else {
     // Run user code.
     uint64_t args[] = {creation_params_.start_context};
@@ -1034,7 +1046,8 @@ object_ref<XThread> XThread::Restore(KernelState* kernel_state,
 
 XHostThread::XHostThread(KernelState* kernel_state, uint32_t stack_size,
                          uint32_t creation_flags, std::function<int()> host_fn)
-    : XThread(kernel_state, stack_size, 0, 0, 0, creation_flags, false),
+    : XThread(kernel_state, stack_size, XThread::StartupType::Normal, 0, 0, 0,
+              creation_flags, false),
       host_fn_(host_fn) {
   // By default host threads are not debugger suspendable. If the thread runs
   // any guest code this must be overridden.
