@@ -59,8 +59,7 @@ struct XeHSControlPointInput {
 };
 
 struct XeHSControlPointOutput {
-  // TODO(Triang3l): Re-enable when non-adaptive tessellation is properly added.
-  // float index : XEVERTEXID;
+  float index : XEVERTEXID;
 };
 
 struct XeVertexPostGS {

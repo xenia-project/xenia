@@ -448,7 +448,7 @@ void DxbcShaderTranslator::StartVertexShader_LoadVertexIndex() {
 void DxbcShaderTranslator::StartVertexOrDomainShader() {
   // Zero the interpolators.
   for (uint32_t i = 0; i < kInterpolatorCount; ++i) {
-    DxbcOpMov(DxbcDest::O(uint32_t(InOutRegister::kVSOutInterpolators) + i),
+    DxbcOpMov(DxbcDest::O(uint32_t(InOutRegister::kVSDSOutInterpolators) + i),
               DxbcSrc::LF(0.0f));
   }
 
@@ -457,6 +457,30 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
   switch (host_vertex_shader_type()) {
     case Shader::HostVertexShaderType::kVertex:
       StartVertexShader_LoadVertexIndex();
+      break;
+
+    case Shader::HostVertexShaderType::kTriangleDomainConstant:
+      assert_true(register_count() >= 2);
+      if (register_count() >= 1) {
+        // Copy the domain location to r0.xyz.
+        // ZYX swizzle according to Call of Duty 3 and Viva Pinata.
+        DxbcOpMov(uses_register_dynamic_addressing() ? DxbcDest::X(0, 0, 0b0111)
+                                                     : DxbcDest::R(0, 0b0111),
+                  DxbcSrc::VDomain(0b000110));
+        if (register_count() >= 2) {
+          // Copy the control point indices (already swapped and converted to
+          // float by the host vertex and hull shaders) to r1.xyz.
+          DxbcDest control_point_index_dest(uses_register_dynamic_addressing()
+                                                ? DxbcDest::X(0, 1)
+                                                : DxbcDest::R(1));
+          for (uint32_t i = 0; i < 3; ++i) {
+            DxbcOpMov(control_point_index_dest.Mask(1 << i),
+                      DxbcSrc::VICP(
+                          i, uint32_t(InOutRegister::kDSInControlPointIndex),
+                          DxbcSrc::kXXXX));
+          }
+        }
+      }
       break;
 
     case Shader::HostVertexShaderType::kTriangleDomainAdaptive:
@@ -1162,7 +1186,8 @@ void DxbcShaderTranslator::CompleteVertexOrDomainShader() {
                            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(12));
     shader_code_.push_back(
         EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_OUTPUT, ucp_mask, 1));
-    shader_code_.push_back(uint32_t(InOutRegister::kVSOutClipDistance0123) + i);
+    shader_code_.push_back(uint32_t(InOutRegister::kVSDSOutClipDistance0123) +
+                           i);
     shader_code_.push_back(EncodeVectorSwizzledOperand(
         D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
     shader_code_.push_back(ucp_enabled_temp);
@@ -1276,7 +1301,7 @@ void DxbcShaderTranslator::CompleteVertexOrDomainShader() {
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
   shader_code_.push_back(
       EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_OUTPUT, 0b0011, 1));
-  shader_code_.push_back(uint32_t(InOutRegister::kVSOutClipSpaceZW));
+  shader_code_.push_back(uint32_t(InOutRegister::kVSDSOutClipSpaceZW));
   shader_code_.push_back(
       EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b11111110, 1));
   shader_code_.push_back(system_temp_position_);
@@ -1284,10 +1309,10 @@ void DxbcShaderTranslator::CompleteVertexOrDomainShader() {
   ++stat_.mov_instruction_count;
 
   // Initialize SV_CullDistance.
-  DxbcOpMov(
-      DxbcDest::O(uint32_t(InOutRegister::kVSOutClipDistance45AndCullDistance),
-                  0b0100),
-      DxbcSrc::LF(0.0f));
+  DxbcOpMov(DxbcDest::O(
+                uint32_t(InOutRegister::kVSDSOutClipDistance45AndCullDistance),
+                0b0100),
+            DxbcSrc::LF(0.0f));
   // Kill the primitive if needed - check if the shader wants to kill.
   // TODO(Triang3l): Find if the condition is actually the flag being non-zero.
   uint32_t kill_temp = PushSystemTemp();
@@ -1319,7 +1344,7 @@ void DxbcShaderTranslator::CompleteVertexOrDomainShader() {
       // negative.
       DxbcOpMov(
           DxbcDest::O(
-              uint32_t(InOutRegister::kVSOutClipDistance45AndCullDistance),
+              uint32_t(InOutRegister::kVSDSOutClipDistance45AndCullDistance),
               0b0100),
           DxbcSrc::LF(-1.0f));
     }
@@ -1332,7 +1357,7 @@ void DxbcShaderTranslator::CompleteVertexOrDomainShader() {
                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
   shader_code_.push_back(
       EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_OUTPUT, 0b1111, 1));
-  shader_code_.push_back(uint32_t(InOutRegister::kVSOutPosition));
+  shader_code_.push_back(uint32_t(InOutRegister::kVSDSOutPosition));
   shader_code_.push_back(
       EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
   shader_code_.push_back(system_temp_position_);
@@ -1341,11 +1366,13 @@ void DxbcShaderTranslator::CompleteVertexOrDomainShader() {
 
   // Zero the point coordinate (will be set in the geometry shader if needed)
   // and write the point size.
-  DxbcOpMov(DxbcDest::O(uint32_t(InOutRegister::kVSOutPointParameters), 0b0011),
-            DxbcSrc::LF(0.0f));
-  DxbcOpMov(DxbcDest::O(uint32_t(InOutRegister::kVSOutPointParameters), 0b0100),
-            DxbcSrc::R(system_temp_point_size_edge_flag_kill_vertex_,
-                       DxbcSrc::kXXXX));
+  DxbcOpMov(
+      DxbcDest::O(uint32_t(InOutRegister::kVSDSOutPointParameters), 0b0011),
+      DxbcSrc::LF(0.0f));
+  DxbcOpMov(
+      DxbcDest::O(uint32_t(InOutRegister::kVSDSOutPointParameters), 0b0100),
+      DxbcSrc::R(system_temp_point_size_edge_flag_kill_vertex_,
+                 DxbcSrc::kXXXX));
 }
 
 void DxbcShaderTranslator::CompleteShaderCode() {
@@ -2178,7 +2205,7 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
             saturate_bit);
         shader_code_.push_back(
             EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_OUTPUT, mask, 1));
-        shader_code_.push_back(uint32_t(InOutRegister::kVSOutInterpolators) +
+        shader_code_.push_back(uint32_t(InOutRegister::kVSDSOutInterpolators) +
                                uint32_t(result.storage_index));
         break;
 
@@ -3605,10 +3632,42 @@ void DxbcShaderTranslator::WriteInputSignature() {
     // Vertex index semantic name.
     AppendString(shader_object_, "SV_VertexID");
   } else if (IsDxbcDomainShader()) {
-    // No inputs - tessellation factors specified in PCSG.
-    shader_object_.push_back(0);
-    // Unknown.
-    shader_object_.push_back(8);
+    // Tessellation factors are specified in PCSG, not ISGN.
+    if (host_vertex_shader_type() ==
+            Shader::HostVertexShaderType::kTriangleDomainConstant ||
+        host_vertex_shader_type() ==
+            Shader::HostVertexShaderType::kQuadDomainConstant) {
+      // TODO(Triang3l): Support line patches.
+
+      // Control point indices, byte-swapped, biased according to the base index
+      // and converted to float by the host vertex and hull shaders.
+      shader_object_.push_back(1);
+      // Unknown.
+      shader_object_.push_back(8);
+
+      // Control point indices.
+      // Semantic name XEVERTEXID (the only one in the signature).
+      shader_object_.push_back(
+          (signature_position_dwords + signature_size_dwords) *
+          sizeof(uint32_t));
+      // Semantic index.
+      shader_object_.push_back(0);
+      // D3D_NAME_UNDEFINED.
+      shader_object_.push_back(0);
+      // D3D_REGISTER_COMPONENT_FLOAT32.
+      shader_object_.push_back(3);
+      shader_object_.push_back(uint32_t(InOutRegister::kDSInControlPointIndex));
+      // x present, x used (always written to GPR 1).
+      shader_object_.push_back(0b0001 | (0b0001 << 8));
+
+      // Control point indices semantic name.
+      AppendString(shader_object_, "XEVERTEXID");
+    } else {
+      // No inputs.
+      shader_object_.push_back(0);
+      // Unknown.
+      shader_object_.push_back(8);
+    }
   } else {
     assert_true(IsDxbcPixelShader());
     // Interpolators, point parameters (coordinates, size), clip space ZW,
@@ -3804,7 +3863,7 @@ void DxbcShaderTranslator::WriteOutputSignature() {
       shader_object_.push_back(0);
       // D3D_REGISTER_COMPONENT_FLOAT32.
       shader_object_.push_back(3);
-      shader_object_.push_back(uint32_t(InOutRegister::kVSOutInterpolators) +
+      shader_object_.push_back(uint32_t(InOutRegister::kVSDSOutInterpolators) +
                                i);
       // Unlike in ISGN, the second byte contains the unused components, not the
       // used ones. All components are always used because they are reset to 0.
@@ -3817,7 +3876,7 @@ void DxbcShaderTranslator::WriteOutputSignature() {
     shader_object_.push_back(kPointParametersTexCoord);
     shader_object_.push_back(0);
     shader_object_.push_back(3);
-    shader_object_.push_back(uint32_t(InOutRegister::kVSOutPointParameters));
+    shader_object_.push_back(uint32_t(InOutRegister::kVSDSOutPointParameters));
     shader_object_.push_back(0b0111 | (0b1000 << 8));
 
     // Z and W in clip space, for getting per-sample depth with ROV.
@@ -3825,7 +3884,7 @@ void DxbcShaderTranslator::WriteOutputSignature() {
     shader_object_.push_back(kClipSpaceZWTexCoord);
     shader_object_.push_back(0);
     shader_object_.push_back(3);
-    shader_object_.push_back(uint32_t(InOutRegister::kVSOutClipSpaceZW));
+    shader_object_.push_back(uint32_t(InOutRegister::kVSDSOutClipSpaceZW));
     shader_object_.push_back(0b0011 | (0b1100 << 8));
 
     // Position.
@@ -3834,7 +3893,7 @@ void DxbcShaderTranslator::WriteOutputSignature() {
     // D3D_NAME_POSITION.
     shader_object_.push_back(1);
     shader_object_.push_back(3);
-    shader_object_.push_back(uint32_t(InOutRegister::kVSOutPosition));
+    shader_object_.push_back(uint32_t(InOutRegister::kVSDSOutPosition));
     shader_object_.push_back(0b1111);
 
     // Clip and cull distances.
@@ -3844,8 +3903,8 @@ void DxbcShaderTranslator::WriteOutputSignature() {
       // D3D_NAME_CLIP_DISTANCE.
       shader_object_.push_back(2);
       shader_object_.push_back(3);
-      shader_object_.push_back(uint32_t(InOutRegister::kVSOutClipDistance0123) +
-                               i);
+      shader_object_.push_back(
+          uint32_t(InOutRegister::kDSVSOutClipDistance0123) + i);
       shader_object_.push_back(i ? (0b0011 | (0b1100 << 8)) : 0b1111);
     }
     shader_object_.push_back(0);
@@ -3854,7 +3913,7 @@ void DxbcShaderTranslator::WriteOutputSignature() {
     shader_object_.push_back(3);
     shader_object_.push_back(3);
     shader_object_.push_back(
-        uint32_t(InOutRegister::kVSOutClipDistance45AndCullDistance));
+        uint32_t(InOutRegister::kVSDSOutClipDistance45AndCullDistance));
     shader_object_.push_back(0b0100 | (0b1011 << 8));
 
     // Write the semantic names.
@@ -4186,13 +4245,39 @@ void DxbcShaderTranslator::WriteShaderCode() {
       shader_object_.push_back(EncodeVectorMaskedOperand(
           D3D11_SB_OPERAND_TYPE_INPUT_DOMAIN_POINT, domain_location_mask, 0));
       ++stat_.dcl_count;
-      // Primitive index input.
-      shader_object_.push_back(
-          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_INPUT) |
-          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(2));
-      shader_object_.push_back(
-          EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_INPUT_PRIMITIVEID, 0));
-      ++stat_.dcl_count;
+      // Control point indices as float for discrete/continuous tessellation, or
+      // primitive index for adaptive tessellation.
+      uint32_t control_point_array_size;
+      switch (host_vertex_shader_type()) {
+        case Shader::HostVertexShaderType::kTriangleDomainConstant:
+          control_point_array_size = 3;
+          break;
+        case Shader::HostVertexShaderType::kQuadDomainConstant:
+          control_point_array_size = 4;
+          break;
+        default:
+          // TODO(Triang3l): Support line patches.
+          // Adaptive.
+          control_point_array_size = 0;
+      }
+      if (control_point_array_size) {
+        shader_object_.push_back(
+            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_INPUT) |
+            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4));
+        shader_object_.push_back(EncodeVectorMaskedOperand(
+            D3D11_SB_OPERAND_TYPE_INPUT_CONTROL_POINT, 0b0001, 2));
+        shader_object_.push_back(control_point_array_size);
+        shader_object_.push_back(
+            uint32_t(InOutRegister::kDSInControlPointIndex));
+        ++stat_.dcl_count;
+      } else {
+        shader_object_.push_back(
+            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_INPUT) |
+            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(2));
+        shader_object_.push_back(
+            EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_INPUT_PRIMITIVEID, 0));
+        ++stat_.dcl_count;
+      }
     } else {
       // Unswapped vertex index input (only X component).
       shader_object_.push_back(
@@ -4211,7 +4296,7 @@ void DxbcShaderTranslator::WriteShaderCode() {
           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
       shader_object_.push_back(
           EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_OUTPUT, 0b1111, 1));
-      shader_object_.push_back(uint32_t(InOutRegister::kVSOutInterpolators) +
+      shader_object_.push_back(uint32_t(InOutRegister::kVSDSOutInterpolators) +
                                i);
       ++stat_.dcl_count;
     }
@@ -4221,7 +4306,7 @@ void DxbcShaderTranslator::WriteShaderCode() {
         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
     shader_object_.push_back(
         EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_OUTPUT, 0b0111, 1));
-    shader_object_.push_back(uint32_t(InOutRegister::kVSOutPointParameters));
+    shader_object_.push_back(uint32_t(InOutRegister::kVSDSOutPointParameters));
     ++stat_.dcl_count;
     // Clip space Z and W output.
     shader_object_.push_back(
@@ -4229,7 +4314,7 @@ void DxbcShaderTranslator::WriteShaderCode() {
         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
     shader_object_.push_back(
         EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_OUTPUT, 0b0011, 1));
-    shader_object_.push_back(uint32_t(InOutRegister::kVSOutClipSpaceZW));
+    shader_object_.push_back(uint32_t(InOutRegister::kVSDSOutClipSpaceZW));
     ++stat_.dcl_count;
     // Position output.
     shader_object_.push_back(
@@ -4237,7 +4322,7 @@ void DxbcShaderTranslator::WriteShaderCode() {
         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4));
     shader_object_.push_back(
         EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_OUTPUT, 0b1111, 1));
-    shader_object_.push_back(uint32_t(InOutRegister::kVSOutPosition));
+    shader_object_.push_back(uint32_t(InOutRegister::kVSDSOutPosition));
     shader_object_.push_back(ENCODE_D3D10_SB_NAME(D3D10_SB_NAME_POSITION));
     ++stat_.dcl_count;
     // Clip distance outputs.
@@ -4247,8 +4332,8 @@ void DxbcShaderTranslator::WriteShaderCode() {
           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4));
       shader_object_.push_back(EncodeVectorMaskedOperand(
           D3D10_SB_OPERAND_TYPE_OUTPUT, i ? 0b0011 : 0b1111, 1));
-      shader_object_.push_back(uint32_t(InOutRegister::kVSOutClipDistance0123) +
-                               i);
+      shader_object_.push_back(
+          uint32_t(InOutRegister::kVDSSOutClipDistance0123) + i);
       shader_object_.push_back(
           ENCODE_D3D10_SB_NAME(D3D10_SB_NAME_CLIP_DISTANCE));
       ++stat_.dcl_count;
@@ -4260,7 +4345,7 @@ void DxbcShaderTranslator::WriteShaderCode() {
     shader_object_.push_back(
         EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_OUTPUT, 0b0100, 1));
     shader_object_.push_back(
-        uint32_t(InOutRegister::kVSOutClipDistance45AndCullDistance));
+        uint32_t(InOutRegister::kVSDSOutClipDistance45AndCullDistance));
     shader_object_.push_back(ENCODE_D3D10_SB_NAME(D3D10_SB_NAME_CULL_DISTANCE));
     ++stat_.dcl_count;
   } else if (IsDxbcPixelShader()) {

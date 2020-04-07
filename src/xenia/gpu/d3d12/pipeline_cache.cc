@@ -714,6 +714,12 @@ D3D12Shader* PipelineCache::LoadShader(ShaderType shader_type,
 
 Shader::HostVertexShaderType PipelineCache::GetHostVertexShaderTypeIfValid()
     const {
+  // If the values this functions returns are changed, INVALIDATE THE SHADER
+  // STORAGE (increase kVersion for BOTH shaders and pipeline states)! The
+  // exception is when the function originally returned "unsupported", but
+  // started to return a valid value (in this case the shader wouldn't be cached
+  // in the first place). Otherwise games will not be able to locate shaders for
+  // draws for which the host vertex shader type has changed!
   auto& regs = *register_file_;
   auto vgt_draw_initiator = regs.Get<reg::VGT_DRAW_INITIATOR>();
   if (!xenos::IsMajorModeExplicit(vgt_draw_initiator.major_mode,
@@ -729,26 +735,35 @@ Shader::HostVertexShaderType PipelineCache::GetHostVertexShaderTypeIfValid()
   xenos::TessellationMode tessellation_mode =
       regs.Get<reg::VGT_HOS_CNTL>().tess_mode;
   switch (vgt_draw_initiator.prim_type) {
-    // case PrimitiveType::kTriangleList:
-    //   switch (tessellation_mode) {
-    //     case xenos::TessellationMode::kDiscrete:
-    //       // Call of Duty 3 - green terrain in the first mission.
-    //     case xenos::TessellationMode::kContinuous:
-    //       // Viva Pinata - something on the start screen.
-    //       return Shader::HostVertexShaderType::kTriangleDomainConstant;
-    //   }
-    //   break;
-    // TODO(Triang3l): Support non-adaptive tessellation.
+    case PrimitiveType::kTriangleList:
+      // Also supported by triangle strips and fans according to:
+      // https://www.khronos.org/registry/OpenGL/extensions/AMD/AMD_vertex_shader_tessellator.txt
+      // Would need to convert those to triangle lists, but haven't seen any
+      // games using tessellated strips/fans so far.
+      switch (tessellation_mode) {
+        case xenos::TessellationMode::kDiscrete:
+          // - Call of Duty 3 - nets above barrels in the beginning of the
+          //   first mission (turn right after the end of the intro) -
+          //   kTriangleList.
+        case xenos::TessellationMode::kContinuous:
+          // - Viva Pinata - tree building with a beehive in the beginning
+          //   (visible on the start screen behind the logo), waterfall in the
+          //   beginning - kTriangleList.
+          return Shader::HostVertexShaderType::kTriangleDomainConstant;
+        default:
+          break;
+      }
+      break;
     case PrimitiveType::kTrianglePatch:
       if (tessellation_mode == xenos::TessellationMode::kAdaptive) {
-        // Banjo-Kazooie: Nuts & Bolts - water.
-        // Halo 3 - water.
+        // - Banjo-Kazooie: Nuts & Bolts - water.
+        // - Halo 3 - water.
         return Shader::HostVertexShaderType::kTriangleDomainAdaptive;
       }
       break;
     case PrimitiveType::kQuadPatch:
       if (tessellation_mode == xenos::TessellationMode::kAdaptive) {
-        // Viva Pinata - something on the start screen.
+        // - Viva Pinata - something on the start screen.
         return Shader::HostVertexShaderType::kQuadDomainAdaptive;
       }
       break;
@@ -932,10 +947,36 @@ bool PipelineCache::TranslateShader(
                                  sampler_bindings, sampler_binding_count);
 
   if (shader->is_valid()) {
+    const char* host_shader_type;
+    if (shader->type() == ShaderType::kVertex) {
+      switch (shader->host_vertex_shader_type()) {
+        case Shader::HostVertexShaderType::kLineDomainConstant:
+          host_shader_type = "constant line domain";
+          break;
+        case Shader::HostVertexShaderType::kLineDomainAdaptive:
+          host_shader_type = "adaptive line domain";
+          break;
+        case Shader::HostVertexShaderType::kTriangleDomainConstant:
+          host_shader_type = "constant triangle domain";
+          break;
+        case Shader::HostVertexShaderType::kTriangleDomainAdaptive:
+          host_shader_type = "adaptive triangle domain";
+          break;
+        case Shader::HostVertexShaderType::kQuadDomainConstant:
+          host_shader_type = "constant quad domain";
+          break;
+        case Shader::HostVertexShaderType::kQuadDomainAdaptive:
+          host_shader_type = "adaptive quad domain";
+          break;
+        default:
+          host_shader_type = "vertex";
+      }
+    } else {
+      host_shader_type = "pixel";
+    }
     XELOGGPU("Generated %s shader (%db) - hash %.16" PRIX64 ":\n%s\n",
-             shader->type() == ShaderType::kVertex ? "vertex" : "pixel",
-             shader->ucode_dword_count() * 4, shader->ucode_data_hash(),
-             shader->ucode_disassembly().c_str());
+             host_shader_type, shader->ucode_dword_count() * 4,
+             shader->ucode_data_hash(), shader->ucode_disassembly().c_str());
   }
 
   // Create a version of the shader with early depth/stencil forced by Xenia

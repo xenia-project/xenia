@@ -461,6 +461,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kInputPrimitiveID = 11,
     kOutputDepth = 12,
     kNull = 13,
+    kInputControlPoint = 25,
     kInputDomainPoint = 28,
     kUnorderedAccessView = 30,
     kInputCoverageMask = 35,
@@ -477,6 +478,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
       case DxbcOperandType::kIndexableTemp:
       case DxbcOperandType::kSampler:
       case DxbcOperandType::kResource:
+      case DxbcOperandType::kInputControlPoint:
       case DxbcOperandType::kUnorderedAccessView:
         return 2;
       case DxbcOperandType::kConstantBuffer:
@@ -801,6 +803,11 @@ class DxbcShaderTranslator : public ShaderTranslator {
     }
     static DxbcSrc VPrim() {
       return DxbcSrc(DxbcOperandType::kInputPrimitiveID, kXXXX);
+    }
+    static DxbcSrc VICP(DxbcIndex index_1d, DxbcIndex index_2d,
+                        uint32_t swizzle = kXYZW) {
+      return DxbcSrc(DxbcOperandType::kInputControlPoint, swizzle, index_1d,
+                     index_2d);
     }
     static DxbcSrc VDomain(uint32_t swizzle = kXYZW) {
       return DxbcSrc(DxbcOperandType::kInputDomainPoint, swizzle);
@@ -1563,13 +1570,15 @@ class DxbcShaderTranslator : public ShaderTranslator {
     // MUST BE UPDATED!
     kVSInVertexIndex = 0,
 
-    kVSOutInterpolators = 0,
-    kVSOutPointParameters = kVSOutInterpolators + kInterpolatorCount,
-    kVSOutClipSpaceZW,
-    kVSOutPosition,
+    kDSInControlPointIndex = 0,
+
+    kVSDSOutInterpolators = 0,
+    kVSDSOutPointParameters = kVSDSOutInterpolators + kInterpolatorCount,
+    kVSDSOutClipSpaceZW,
+    kVSDSOutPosition,
     // Clip and cull distances must be tightly packed in Direct3D!
-    kVSOutClipDistance0123,
-    kVSOutClipDistance45AndCullDistance,
+    kVSDSOutClipDistance0123,
+    kVSDSOutClipDistance45AndCullDistance,
     // TODO(Triang3l): Use SV_CullDistance instead for
     // PA_CL_CLIP_CNTL::UCP_CULL_ONLY_ENA, but can't have more than 8 clip and
     // cull distances in total. Currently only using SV_CullDistance for vertex
