@@ -4333,7 +4333,7 @@ void DxbcShaderTranslator::WriteShaderCode() {
       shader_object_.push_back(EncodeVectorMaskedOperand(
           D3D10_SB_OPERAND_TYPE_OUTPUT, i ? 0b0011 : 0b1111, 1));
       shader_object_.push_back(
-          uint32_t(InOutRegister::kVDSSOutClipDistance0123) + i);
+          uint32_t(InOutRegister::kVSDSOutClipDistance0123) + i);
       shader_object_.push_back(
           ENCODE_D3D10_SB_NAME(D3D10_SB_NAME_CLIP_DISTANCE));
       ++stat_.dcl_count;
