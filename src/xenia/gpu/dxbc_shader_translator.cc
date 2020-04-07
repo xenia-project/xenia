@@ -3904,7 +3904,7 @@ void DxbcShaderTranslator::WriteOutputSignature() {
       shader_object_.push_back(2);
       shader_object_.push_back(3);
       shader_object_.push_back(
-          uint32_t(InOutRegister::kDSVSOutClipDistance0123) + i);
+          uint32_t(InOutRegister::kVSDSOutClipDistance0123) + i);
       shader_object_.push_back(i ? (0b0011 | (0b1100 << 8)) : 0b1111);
     }
     shader_object_.push_back(0);
