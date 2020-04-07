@@ -56,11 +56,9 @@ DEFINE_bool(d3d12_submit_on_primary_buffer_end, true,
             "possible to submit immediately to try to reduce frame latency.",
             "D3D12");
 DEFINE_bool(
-    d3d12_tessellation_adaptive, false,
+    d3d12_tessellation_adaptive, true,
     "Allow games to use adaptive tessellation - may be disabled if the game "
-    "has issues with memexport, the maximum factor will be used in this case. "
-    "Temporarily disabled by default since there are visible cracks currently "
-    "in Halo 3.",
+    "has issues with memexport, the maximum factor will be used in this case.",
     "D3D12");
 
 namespace xe {

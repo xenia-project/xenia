@@ -99,8 +99,9 @@ dcl_output_siv o1.x, finalTriVeq0EdgeTessFactor
 dcl_output_siv o2.x, finalTriWeq0EdgeTessFactor
 dcl_temps 1
 dcl_indexrange o0.x 3
-ineg r0.x, vForkInstanceID.x
-add r0.x, l(1.000000), vicp[r0.x + 2][0].x
+iadd r0.x, vForkInstanceID.x, l(1)
+udiv null, r0.x, r0.x, l(3)
+add r0.x, l(1.000000), vicp[r0.x + 0][0].x
 max r0.x, r0.x, CB0[0][14].x
 min r0.x, r0.x, CB0[0][14].y
 mov r0.y, vForkInstanceID.x
@@ -115,4 +116,4 @@ dcl_temps 1
 min r0.x, vpc0.x, vpc1.x
 min o3.x, r0.x, vpc2.x
 ret 
-// Approximately 11 instruction slots used
+// Approximately 12 instruction slots used

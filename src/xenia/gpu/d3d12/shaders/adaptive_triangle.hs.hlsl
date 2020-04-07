@@ -20,13 +20,29 @@ XeHSConstantDataOutput XePatchConstant(
   // has already been added on the CPU.
 
   // Fork phase.
-  // UVW are taken with ZYX swizzle (when r1.y is 0) in the vertex (domain)
-  // shader. Edge 0 is with U = 0, edge 1 is with V = 0, edge 2 is with W = 0.
-  // TODO(Triang3l): Verify this order. There are still cracks.
+  // It appears that on the Xbox 360:
+  // - [0] is the factor for the v0->v1 edge.
+  // - [1] is the factor for the v1->v2 edge.
+  // - [2] is the factor for the v2->v0 edge.
+  // Where v0 is the U1V0W0 vertex, v1 is the U0V1W0 vertex, and v2 is the
+  // U0V0W1 vertex.
+  // The hint at the order was provided in the Code Listing 15 of:
+  // http://www.uraldev.ru/files/download/21/Real-Time_Tessellation_on_GPU.pdf
+  // In Direct3D 12:
+  // - [0] is the factor for the U0 edge (v1->v2).
+  // - [1] is the factor for the V0 edge (v2->v0),
+  // - [2] is the factor for the W0 edge (v0->v1).
+  // Direct3D 12 provides barycentrics as X for v0, Y for v1, Z for v2.
+  // In Xenia's domain shaders, the barycentric coordinates are handled as:
+  // 1) vDomain.xyz -> r0.zyx by Xenia.
+  // 2) r0.zyx -> r0.zyx by the guest (because r1.y is set to 0 by Xenia, which
+  //    apparently means identity swizzle to games).
+  // 3) r0.z * v0 + r0.y * v1 + r0.x * v2 by the guest.
+  // With this order, there are no cracks in Halo 3 water.
   [unroll] for (i = 0u; i < 3u; ++i) {
-    output.edges[i] =
-        clamp(asfloat(xe_input_patch[2u - i].index_or_edge_factor) + 1.0f,
-              xe_tessellation_factor_range.x, xe_tessellation_factor_range.y);
+    output.edges[i] = clamp(
+        asfloat(xe_input_patch[(i + 1u) % 3u].index_or_edge_factor) + 1.0f,
+        xe_tessellation_factor_range.x, xe_tessellation_factor_range.y);
   }
 
   // Join phase. vpc0, vpc1, vpc2 taken as inputs.
