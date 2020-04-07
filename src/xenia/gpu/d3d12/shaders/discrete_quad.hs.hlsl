@@ -39,8 +39,7 @@ XeHSControlPointOutput main(
     InputPatch<XeHSControlPointInput, 4> xe_input_patch,
     uint xe_control_point_id : SV_OutputControlPointID) {
   XeHSControlPointOutput output;
-  // TODO(Triang3l): Re-enable when non-adaptive tessellation is properly added.
-  /* output.index =
-      float(xe_input_patch[xe_control_point_id].index_or_edge_factor); */
+  output.index =
+      float(xe_input_patch[xe_control_point_id].index_or_edge_factor);
   return output;
 }

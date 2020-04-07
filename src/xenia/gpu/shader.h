@@ -530,9 +530,9 @@ struct ParsedAluInstruction {
 
 class Shader {
  public:
-  // If values are changed, invalidate shader storages where this is stored! And
-  // check bit count where this is packed. This is : uint32_t for simplicity of
-  // packing in bit fields.
+  // If values are changed, INVALIDATE SHADER STORAGES (increase their version
+  // constexpr) where those are stored! And check bit count where this is
+  // packed. This is : uint32_t for simplicity of packing in bit fields.
   enum class HostVertexShaderType : uint32_t {
     kVertex,
     kLineDomainConstant,
