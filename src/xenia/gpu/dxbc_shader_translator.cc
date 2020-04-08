@@ -520,8 +520,8 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
           // rotation of the swizzle to the right, and 1 << 2 is set when the
           // swizzle needs to be flipped before rotating.
           //
-          // Direct3D 12 appears to be passing the coordinates in a consistent
-          // order, so can just use ZYX for triangle patches.
+          // Direct3D 12 passes the coordinates in a consistent order, so can
+          // just use the identity swizzle.
           DxbcOpMov(uses_register_dynamic_addressing()
                         ? DxbcDest::X(0, 1, 0b0010)
                         : DxbcDest::R(1, 0b0010),
@@ -534,11 +534,10 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
       assert_true(register_count() >= 2);
       if (register_count() >= 1) {
         // Copy the domain location to r0.yz.
-        // According to the ground shader in Viva Pinata, though it's untested
-        // as of April 4th, 2020.
+        // XY swizzle according to the ground shader in Viva Pinata.
         DxbcOpMov(uses_register_dynamic_addressing() ? DxbcDest::X(0, 0, 0b0110)
                                                      : DxbcDest::R(0, 0b0110),
-                  DxbcSrc::VDomain(0b000100));
+                  DxbcSrc::VDomain(0b010000));
         // Copy the primitive index to r0.x as a float.
         uint32_t primitive_id_temp =
             uses_register_dynamic_addressing() ? PushSystemTemp() : 0;
@@ -554,19 +553,16 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
           // the tessellator offloads the reordering of coordinates for edges to
           // game shaders.
           //
-          // In Viva Pinata, if we assume that r0.y is V and r0.z is U, the
+          // In Viva Pinata, if we assume that r0.y is U and r0.z is V, the
           // factors each control point value is multiplied by are the
           // following:
-          // - (1-v)*(1-u), v*(1-u), (1-v)*u, v*u for 0.0 (base swizzle).
-          // - v*(1-u), (1-v)*(1-u), v*u, (1-v)*u for 1.0 (YXWZ).
-          // - v*u, (1-v)*u, v*(1-u), (1-v)*(1-u) for 2.0 (WZYX).
-          // - (1-v)*u, v*u, (1-v)*(1-u), v*(1-u) for 3.0 (ZWXY).
-          // According to the control point order at
-          // https://www.khronos.org/registry/OpenGL/extensions/AMD/AMD_vertex_shader_tessellator.txt
-          // the first is located at (0,0), the second at (0,1), the third at
-          // (1,0) and the fourth at (1,1). So, swizzle index 0 appears to be
-          // the correct one. (This, however, hasn't been tested yet as of April
-          // 5th, 2020.)
+          // - (1-u)*(1-v), u*(1-v), (1-u)*v, u*v for 0.0 (identity swizzle).
+          // - u*(1-v), (1-u)*(1-v), u*v, (1-u)*v for 1.0 (YXWZ).
+          // - u*v, (1-u)*v, u*(1-v), (1-u)*(1-v) for 2.0 (WZYX).
+          // - (1-u)*v, u*v, (1-u)*(1-v), u*(1-v) for 3.0 (ZWXY).
+          //
+          // Direct3D 12 passes the coordinates in a consistent order, so can
+          // just use the identity swizzle.
           DxbcOpMov(uses_register_dynamic_addressing()
                         ? DxbcDest::X(0, 1, 0b0001)
                         : DxbcDest::R(1, 0b0001),
@@ -576,7 +572,7 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
       break;
 
     default:
-      // TODO(Triang3l): Support line and non-adaptive patches.
+      // TODO(Triang3l): Support line and non-adaptive quad patches.
       assert_unhandled_case(host_vertex_shader_type());
       EmitTranslationError(
           "Unsupported host vertex shader type in StartVertexOrDomainShader");

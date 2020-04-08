@@ -55,11 +55,6 @@ DEFINE_bool(d3d12_submit_on_primary_buffer_end, true,
             "Submit the command list when a PM4 primary buffer ends if it's "
             "possible to submit immediately to try to reduce frame latency.",
             "D3D12");
-DEFINE_bool(
-    d3d12_tessellation_adaptive, true,
-    "Allow games to use adaptive tessellation - may be disabled if the game "
-    "has issues with memexport, the maximum factor will be used in this case.",
-    "D3D12");
 
 namespace xe {
 namespace gpu {
@@ -1351,17 +1346,6 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
 
   // Set up primitive topology.
   bool indexed = index_buffer_info != nullptr && index_buffer_info->guest_base;
-  bool adaptive_tessellation =
-      host_vertex_shader_type ==
-          Shader::HostVertexShaderType::kLineDomainAdaptive ||
-      host_vertex_shader_type ==
-          Shader::HostVertexShaderType::kTriangleDomainAdaptive ||
-      host_vertex_shader_type ==
-          Shader::HostVertexShaderType::kQuadDomainAdaptive;
-  // Adaptive tessellation requires an index buffer, but it contains per-edge
-  // tessellation factors (as floats) instead of control point indices.
-  assert_true(!adaptive_tessellation ||
-              (indexed && index_buffer_info->format == IndexFormat::kInt32));
   PrimitiveType primitive_type_converted;
   D3D_PRIMITIVE_TOPOLOGY primitive_topology;
   if (tessellated) {
@@ -1461,9 +1445,8 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
   // Update system constants before uploading them.
   UpdateSystemConstantValues(
       memexport_used, primitive_two_faced, line_loop_closing_index,
-      indexed ? index_buffer_info->endianness : Endian::kNone,
-      adaptive_tessellation, early_z, GetCurrentColorMask(pixel_shader),
-      pipeline_render_targets);
+      indexed ? index_buffer_info->endianness : Endian::kNone, early_z,
+      GetCurrentColorMask(pixel_shader), pipeline_render_targets);
 
   // Update constant buffers, descriptors and root parameters.
   if (!UpdateBindings(vertex_shader, pixel_shader, root_signature)) {
@@ -2320,8 +2303,8 @@ void D3D12CommandProcessor::UpdateFixedFunctionState(bool primitive_two_faced) {
 
 void D3D12CommandProcessor::UpdateSystemConstantValues(
     bool shared_memory_is_uav, bool primitive_two_faced,
-    uint32_t line_loop_closing_index, Endian index_endian,
-    bool adaptive_tessellation, bool early_z, uint32_t color_mask,
+    uint32_t line_loop_closing_index, Endian index_endian, bool early_z,
+    uint32_t color_mask,
     const RenderTargetCache::PipelineRenderTarget render_targets[4]) {
   auto& regs = *register_file_;
 
@@ -2345,8 +2328,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   auto rb_surface_info = regs.Get<reg::RB_SURFACE_INFO>();
   auto sq_context_misc = regs.Get<reg::SQ_CONTEXT_MISC>();
   auto sq_program_cntl = regs.Get<reg::SQ_PROGRAM_CNTL>();
-  int32_t vgt_indx_offset =
-      adaptive_tessellation ? 0 : int32_t(regs[XE_GPU_REG_VGT_INDX_OFFSET].u32);
+  int32_t vgt_indx_offset = int32_t(regs[XE_GPU_REG_VGT_INDX_OFFSET].u32);
 
   // Get the color info register values for each render target, and also put
   // some safety measures for the ROV path - disable fully aliased render
@@ -2500,10 +2482,6 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
       regs[XE_GPU_REG_VGT_HOS_MIN_TESS_LEVEL].f32 + 1.0f;
   float tessellation_factor_max =
       regs[XE_GPU_REG_VGT_HOS_MAX_TESS_LEVEL].f32 + 1.0f;
-  if (adaptive_tessellation && !cvars::d3d12_tessellation_adaptive) {
-    // Make clamping force the factor to a single value the maximum.
-    tessellation_factor_min = tessellation_factor_max;
-  }
   dirty |= system_constants_.tessellation_factor_range_min !=
            tessellation_factor_min;
   system_constants_.tessellation_factor_range_min = tessellation_factor_min;
