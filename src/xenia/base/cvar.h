@@ -104,14 +104,31 @@ template <class T>
 void CommandVar<T>::AddToLaunchOptions(cxxopts::Options* options) {
   options->add_options()(name_, description_, cxxopts::value<T>());
 }
+template <>
+inline void CommandVar<std::filesystem::path>::AddToLaunchOptions(
+    cxxopts::Options* options) {
+  options->add_options()(name_, description_, cxxopts::value<std::string>());
+}
 template <class T>
 void ConfigVar<T>::AddToLaunchOptions(cxxopts::Options* options) {
   options->add_options(category_)(this->name_, this->description_,
                                   cxxopts::value<T>());
 }
+template <>
+inline void ConfigVar<std::filesystem::path>::AddToLaunchOptions(
+    cxxopts::Options* options) {
+  options->add_options(category_)(this->name_, this->description_,
+                                  cxxopts::value<std::string>());
+}
 template <class T>
 void CommandVar<T>::LoadFromLaunchOptions(cxxopts::ParseResult* result) {
   T value = (*result)[name_].template as<T>();
+  SetCommandLineValue(value);
+}
+template <>
+inline void CommandVar<std::filesystem::path>::LoadFromLaunchOptions(
+    cxxopts::ParseResult* result) {
+  std::string value = (*result)[name_].template as<std::string>();
   SetCommandLineValue(value);
 }
 template <class T>
