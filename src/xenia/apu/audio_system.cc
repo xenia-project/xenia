@@ -282,7 +282,8 @@ bool AudioSystem::Restore(ByteStream* stream) {
     auto status = CreateDriver(id, client_semaphore, &driver);
     if (XFAILED(status)) {
       XELOGE(
-          "AudioSystem::Restore - Call to CreateDriver failed with status %.8X",
+          "AudioSystem::Restore - Call to CreateDriver failed with status "
+          "{:08X}",
           status);
       return false;
     }

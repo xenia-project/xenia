@@ -104,7 +104,7 @@ X_RESULT XmpApp::XMPDeleteTitlePlaylist(uint32_t playlist_handle) {
   auto global_lock = global_critical_region_.Acquire();
   auto it = playlists_.find(playlist_handle);
   if (it == playlists_.end()) {
-    XELOGE("Playlist %.8X not found", playlist_handle);
+    XELOGE("Playlist {:08X} not found", playlist_handle);
     return X_ERROR_NOT_FOUND;
   }
   auto playlist = it->second;
