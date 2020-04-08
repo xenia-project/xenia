@@ -522,7 +522,7 @@ TextureCache::Texture* TextureCache::DemandResolveTexture(
       reinterpret_cast<uint64_t>(texture->image),
       VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT,
       fmt::format(
-          "RT: {:#.8X} - {:#.8X} ({}, {})", texture_info.memory.base_address,
+          "RT: {:#08X} - {:#08X} ({}, {})", texture_info.memory.base_address,
           texture_info.memory.base_address + texture_info.memory.base_size,
           texture_info.format_info()->name,
           get_dimension_name(texture_info.dimension)));
@@ -605,7 +605,7 @@ TextureCache::Texture* TextureCache::Demand(const TextureInfo& texture_info,
       reinterpret_cast<uint64_t>(texture->image),
       VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT,
       fmt::format(
-          "T: {:#.8X} - {:#.8X} ({}, {})", texture_info.memory.base_address,
+          "T: {:#08X} - {:#08X} ({}, {})", texture_info.memory.base_address,
           texture_info.memory.base_address + texture_info.memory.base_size,
           texture_info.format_info()->name,
           get_dimension_name(texture_info.dimension)));
