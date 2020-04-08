@@ -61,14 +61,12 @@
 // Name                 Index   Mask Register SysValue  Format   Used
 // -------------------- ----- ------ -------- -------- ------- ------
 // XEVERTEXID               0   x           0     NONE     int   x   
-// SV_Position              0   xyzw        1      POS   float   xyzw
 //
 vs_5_1
 dcl_globalFlags refactoringAllowed
 dcl_constantbuffer CB0[0:0][1], immediateIndexed, space=0
 dcl_input_sgv v0.x, vertex_id
 dcl_output o0.x
-dcl_output_siv o1.xyzw, position
 dcl_temps 1
 ushr r0.x, CB0[0][0].z, l(1)
 xor r0.x, r0.x, CB0[0][0].z
@@ -87,6 +85,5 @@ if_nz r0.y
   bfi r0.x, l(16), l(16), r0.x, r0.y
 endif 
 iadd o0.x, r0.x, CB0[0][0].w
-mov o1.xyzw, l(0,0,0,0)
 ret 
-// Approximately 19 instruction slots used
+// Approximately 18 instruction slots used
