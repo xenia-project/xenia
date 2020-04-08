@@ -62,6 +62,8 @@ struct XeHSControlPointOutput {
   float index : XEVERTEXID;
 };
 
+struct XeHSAdaptiveControlPointOutput {};
+
 struct XeVertexPostGS {
   float4 interpolators[16] : TEXCOORD0;
   float3 point_params : TEXCOORD16;

@@ -50,6 +50,7 @@ namespace gpu {
 namespace d3d12 {
 
 // Generated with `xb buildhlsl`.
+#include "xenia/gpu/d3d12/shaders/dxbc/adaptive_quad_hs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/adaptive_triangle_hs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/continuous_quad_hs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/continuous_triangle_hs.h"
@@ -761,7 +762,7 @@ Shader::HostVertexShaderType PipelineCache::GetHostVertexShaderTypeIfValid()
       break;
     case PrimitiveType::kQuadPatch:
       if (tessellation_mode == xenos::TessellationMode::kAdaptive) {
-        // - Viva Pinata - something on the start screen.
+        // - Viva Pinata - garden ground.
         return Shader::HostVertexShaderType::kQuadDomainAdaptive;
       }
       break;
@@ -1492,6 +1493,10 @@ ID3D12PipelineState* PipelineCache::CreateD3D12PipelineState(
           case Shader::HostVertexShaderType::kTriangleDomainAdaptive:
             state_desc.HS.pShaderBytecode = adaptive_triangle_hs;
             state_desc.HS.BytecodeLength = sizeof(adaptive_triangle_hs);
+            break;
+          case Shader::HostVertexShaderType::kQuadDomainAdaptive:
+            state_desc.HS.pShaderBytecode = adaptive_quad_hs;
+            state_desc.HS.BytecodeLength = sizeof(adaptive_quad_hs);
             break;
           default:
             assert_unhandled_case(host_vertex_shader_type);

@@ -5,8 +5,6 @@ struct XeHSConstantDataOutput {
   float inside : SV_InsideTessFactor;
 };
 
-struct XeAdaptiveHSControlPointOutput {};
-
 XeHSConstantDataOutput XePatchConstant(
     InputPatch<XeHSControlPointInput, 3> xe_input_patch) {
   XeHSConstantDataOutput output = (XeHSConstantDataOutput)0;
@@ -56,8 +54,8 @@ XeHSConstantDataOutput XePatchConstant(
 [outputtopology("triangle_cw")]
 [outputcontrolpoints(3)]
 [patchconstantfunc("XePatchConstant")]
-XeAdaptiveHSControlPointOutput main(
+XeHSAdaptiveControlPointOutput main(
     InputPatch<XeHSControlPointInput, 3> xe_input_patch) {
-  XeAdaptiveHSControlPointOutput output;
+  XeHSAdaptiveControlPointOutput output;
   return output;
 }
