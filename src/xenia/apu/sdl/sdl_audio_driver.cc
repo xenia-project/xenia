@@ -31,6 +31,7 @@ SDLAudioDriver::~SDLAudioDriver() {
 };
 
 bool SDLAudioDriver::Initialize() {
+  XELOG_SDL_INIT()
   SDL_version ver = {};
   SDL_GetVersion(&ver);
   if ((ver.major < 2) || (ver.major == 2 && ver.minor == 0 && ver.patch < 8)) {
