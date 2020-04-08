@@ -6,7 +6,7 @@ project("xenia-base")
   kind("StaticLib")
   language("C++")
   links({
-    "fmt"
+    "fmt",
   })
   defines({
   })

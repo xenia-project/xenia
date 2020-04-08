@@ -53,6 +53,7 @@ SDLInputDriver::~SDLInputDriver() {
 }
 
 X_STATUS SDLInputDriver::Setup() {
+  XELOG_SDL_INIT()
   if (!TestSDLVersion()) {
     return X_STATUS_UNSUCCESSFUL;
   }
