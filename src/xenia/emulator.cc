@@ -556,14 +556,15 @@ bool Emulator::ExceptionCallback(Exception* ex) {
   }
 
   for (int i = 0; i < 32; i++) {
-    XELOGE(" f{:-3d} = {:08X} = (double){} = (float){}", i, context->f[i],
-           context->f[i], *(float*)&context->f[i]);
+    XELOGE(" f{:-3d} = {:016X} = (double){} = (float){}", i,
+           *reinterpret_cast<uint64_t*>(&context->f[i]), context->f[i],
+           *(float*)&context->f[i]);
   }
 
   for (int i = 0; i < 128; i++) {
     XELOGE(" v{:-3d} = [{:#08X}, {:#08X}, {:#08X}, {:#08X}]", i,
-           context->v[i].i32[0], context->v[i].i32[1], context->v[i].i32[2],
-           context->v[i].i32[3]);
+           context->v[i].u32[0], context->v[i].u32[1], context->v[i].u32[2],
+           context->v[i].u32[3]);
   }
 
   // Display a dialog telling the user the guest has crashed.
