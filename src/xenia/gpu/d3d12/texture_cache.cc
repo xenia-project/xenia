@@ -2178,7 +2178,7 @@ void TextureCache::BindingInfoFromFetchConstant(
 void TextureCache::LogTextureKeyAction(TextureKey key, const char* action) {
   XELOGGPU(
       "{} {} {}{}x{}x{} {} {} texture with {} {}packed mip level{}, "
-      "base at {:#08X}, mips at {:#08X}",
+      "base at 0x{:08X}, mips at 0x{:08X}",
       action, key.tiled ? "tiled" : "linear",
       key.scaled_resolve ? "2x-scaled " : "", key.width, key.height, key.depth,
       dimension_names_[uint32_t(key.dimension)],
@@ -2191,7 +2191,7 @@ void TextureCache::LogTextureAction(const Texture* texture,
                                     const char* action) {
   XELOGGPU(
       "{} {} {}{}x{}x{} {} {} texture with {} {}packed mip level{}, "
-      "base at {:#08X} (size {}), mips at {:#08X} (size {})",
+      "base at 0x{:08X} (size {}), mips at 0x{:08X} (size {})",
       action, texture->key.tiled ? "tiled" : "linear",
       texture->key.scaled_resolve ? "2x-scaled " : "", texture->key.width,
       texture->key.height, texture->key.depth,

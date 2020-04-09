@@ -643,7 +643,7 @@ StfsContainerDevice::BlockHash StfsContainerDevice::GetBlockHash(
 bool StfsVolumeDescriptor::Read(const uint8_t* p) {
   descriptor_size = xe::load_and_swap<uint8_t>(p + 0x00);
   if (descriptor_size != 0x24) {
-    XELOGE("STFS volume descriptor size mismatch, expected 0x24 but got {:#X}",
+    XELOGE("STFS volume descriptor size mismatch, expected 0x24 but got 0x{:X}",
            descriptor_size);
     return false;
   }
@@ -660,7 +660,7 @@ bool StfsVolumeDescriptor::Read(const uint8_t* p) {
 bool SvodVolumeDescriptor::Read(const uint8_t* p) {
   descriptor_size = xe::load<uint8_t>(p + 0x00);
   if (descriptor_size != 0x24) {
-    XELOGE("SVOD volume descriptor size mismatch, expected 0x24 but got {:#X}",
+    XELOGE("SVOD volume descriptor size mismatch, expected 0x24 but got 0x{:X}",
            descriptor_size);
     return false;
   }

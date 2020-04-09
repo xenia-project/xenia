@@ -94,7 +94,7 @@ bool UploadBufferChain::EnsureCurrentBufferAllocated() {
                      &upload_buffer.buffer) != VK_SUCCESS) {
     XELOGE(
         "Failed to create a Vulkan upload buffer with {} x {} bytes and "
-        "{:#08X} usage",
+        "0x{:08X} usage",
         buffer_create_info.size, VulkanContext::kQueuedFrames,
         static_cast<uint32_t>(usage_flags_));
     buffer_creation_failed_ = true;
@@ -112,7 +112,7 @@ bool UploadBufferChain::EnsureCurrentBufferAllocated() {
     if (memory_type_ == UINT32_MAX) {
       XELOGE(
           "Failed to find a memory type for an upload buffer with {} bytes "
-          "and {:#08X} usage",
+          "and 0x{:08X} usage",
           buffer_memory_requirements.size, usage_flags_);
       vkDestroyBuffer(device, upload_buffer.buffer, nullptr);
       buffer_creation_failed_ = true;

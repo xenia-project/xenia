@@ -1340,7 +1340,7 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
   bool dest_swap = !is_depth && rb_copy_dest_info.copy_dest_swap;
 
   XELOGGPU(
-      "Resolve: Copying samples {} to {:#08X} ({}x{}, {}D), destination Z {}, "
+      "Resolve: Copying samples {} to 0x{:08X} ({}x{}, {}D), destination Z {}, "
       "destination format {}, exponent bias {}, red and blue {}swapped",
       uint32_t(sample_select), dest_address, dest_pitch, dest_height,
       rb_copy_dest_info.copy_dest_array ? '3' : '2', dest_z,
