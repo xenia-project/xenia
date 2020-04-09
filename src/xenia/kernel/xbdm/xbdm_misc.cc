@@ -33,7 +33,13 @@ DECLARE_XBDM_EXPORT1(DmCloseLoadedModules, kDebug, kStub);
 
 MAKE_DUMMY_STUB_STATUS(DmFreePool);
 
-MAKE_DUMMY_STUB_STATUS(DmGetXbeInfo);
+dword_result_t DmGetXbeInfo() {
+  // TODO(gibbed): Crackdown appears to expect this as success?
+  // Unknown arguments -- let's hope things don't explode.
+  return 0x02DA0000;
+}
+DECLARE_XBDM_EXPORT1(DmGetXbeInfo, kDebug, kStub);
+
 MAKE_DUMMY_STUB_STATUS(DmGetXboxName);
 
 dword_result_t DmIsDebuggerPresent() { return 0; }
