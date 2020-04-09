@@ -202,7 +202,7 @@ void PipelineCache::InitializeShaderStorage(
   // cost - though D3D's internal validation would possibly be enough to ensure
   // they are up to date).
   auto shader_storage_shareable_root = shader_storage_root / "shareable";
-  if (!xe::filesystem::CreateFolder(shader_storage_shareable_root)) {
+  if (!std::filesystem::create_directories(shader_storage_shareable_root)) {
     return;
   }
 

@@ -106,10 +106,6 @@ bool TruncateStdioFile(FILE* file, uint64_t length) {
   return true;
 }
 
-bool CreateFolder(const std::filesystem::path& path) {
-  return mkdir(path.c_str(), 0774);
-}
-
 static int removeCallback(const char* fpath, const struct stat* sb,
                           int typeflag, struct FTW* ftwbuf) {
   int rv = remove(fpath);

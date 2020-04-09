@@ -77,7 +77,7 @@ std::unique_ptr<Entry> HostPathEntry::CreateEntryInternal(
     const std::string_view name, uint32_t attributes) {
   auto full_path = host_path_ / xe::to_path(name);
   if (attributes & kFileAttributeDirectory) {
-    if (!xe::filesystem::CreateFolder(full_path)) {
+    if (!std::filesystem::create_directories(full_path)) {
       return nullptr;
     }
   } else {
