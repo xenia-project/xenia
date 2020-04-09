@@ -10,10 +10,10 @@
 #ifndef XENIA_GPU_TRACE_WRITER_H_
 #define XENIA_GPU_TRACE_WRITER_H_
 
+#include <filesystem>
 #include <set>
 #include <string>
 
-#include "xenia/base/filesystem.h"
 #include "xenia/gpu/trace_protocol.h"
 
 namespace xe {

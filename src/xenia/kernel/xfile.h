@@ -12,7 +12,6 @@
 
 #include <string>
 
-#include "xenia/base/filesystem.h"
 #include "xenia/kernel/xevent.h"
 #include "xenia/kernel/xiocompletion.h"
 #include "xenia/kernel/xobject.h"
