@@ -1102,7 +1102,7 @@ SHIM_CALL vswprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
   uint32_t format_ptr = SHIM_GET_ARG_32(1);
   uint32_t arg_ptr = SHIM_GET_ARG_32(2);
 
-  XELOGD("vswprintf(%08X, %08X, %08X)", buffer_ptr, format_ptr, arg_ptr);
+  XELOGD("vswprintf({:08X}, {:08X}, {:08X})", buffer_ptr, format_ptr, arg_ptr);
 
   if (buffer_ptr == 0 || format_ptr == 0) {
     SHIM_SET_RETURN_32(-1);
