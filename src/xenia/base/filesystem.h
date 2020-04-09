@@ -59,10 +59,6 @@ int64_t Tell(FILE* file);
 // undefined.
 bool TruncateStdioFile(FILE* file, uint64_t length);
 
-// Deletes the file at the given path.
-// Returns true if the file was found and removed.
-bool DeleteFile(const std::filesystem::path& path);
-
 struct FileAccess {
   // Implies kFileReadData.
   static const uint32_t kGenericRead = 0x80000000;

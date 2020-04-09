@@ -131,11 +131,6 @@ bool CreateFile(const std::filesystem::path& path) {
   return false;
 }
 
-bool DeleteFile(const std::filesystem::path& path) {
-  // TODO: proper implementation.
-  return (path.c_str()) == 0 ? true : false;
-}
-
 class PosixFileHandle : public FileHandle {
  public:
   PosixFileHandle(std::filesystem::path path, int handle)
