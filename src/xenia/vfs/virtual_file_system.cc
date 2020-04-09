@@ -9,7 +9,6 @@
 
 #include "xenia/vfs/virtual_file_system.h"
 
-#include "xenia/base/filesystem.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/string.h"
 #include "xenia/kernel/xfile.h"

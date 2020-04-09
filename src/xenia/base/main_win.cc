@@ -13,7 +13,6 @@
 #include <cstdlib>
 
 #include "xenia/base/cvar.h"
-#include "xenia/base/filesystem.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/main.h"
 #include "xenia/base/platform_win.h"
