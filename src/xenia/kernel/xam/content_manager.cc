@@ -243,8 +243,7 @@ X_RESULT ContentManager::DeleteContent(const XCONTENT_DATA& data) {
   auto global_lock = global_critical_region_.Acquire();
 
   auto package_path = ResolvePackagePath(data);
-  if (std::filesystem::exists(package_path)) {
-    xe::filesystem::DeleteFolder(package_path);
+  if (std::filesystem::remove_all(package_path) > 0) {
     return X_ERROR_SUCCESS;
   } else {
     return X_ERROR_FILE_NOT_FOUND;

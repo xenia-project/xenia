@@ -61,15 +61,6 @@ std::filesystem::path GetUserFolder() {
   return result;
 }
 
-bool DeleteFolder(const std::filesystem::path& path) {
-  auto double_null_path = path.wstring() + std::wstring(L"\0", 1);
-  SHFILEOPSTRUCT op = {0};
-  op.wFunc = FO_DELETE;
-  op.pFrom = double_null_path.c_str();
-  op.fFlags = FOF_NO_UI;
-  return SHFileOperation(&op) == 0;
-}
-
 bool CreateFile(const std::filesystem::path& path) {
   auto handle = CreateFileW(path.c_str(), 0, 0, nullptr, CREATE_ALWAYS,
                             FILE_ATTRIBUTE_NORMAL, nullptr);
