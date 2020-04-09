@@ -52,9 +52,6 @@ bool CreateFolder(const std::filesystem::path& path);
 // Returns true if the path was found and removed.
 bool DeleteFolder(const std::filesystem::path& path);
 
-// Returns true if the given path exists and is a folder.
-bool IsFolder(const std::filesystem::path& path);
-
 // Creates an empty file at the given path.
 bool CreateFile(const std::filesystem::path& path);
 

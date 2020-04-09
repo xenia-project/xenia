@@ -137,14 +137,6 @@ static uint64_t convertUnixtimeToWinFiletime(time_t unixtime) {
   return filetime;
 }
 
-bool IsFolder(const std::filesystem::path& path) {
-  struct stat st;
-  if (stat(path.c_str(), &st) == 0) {
-    if (S_ISDIR(st.st_mode)) return true;
-  }
-  return false;
-}
-
 bool CreateFile(const std::filesystem::path& path) {
   int file = creat(path.c_str(), 0774);
   if (file >= 0) {

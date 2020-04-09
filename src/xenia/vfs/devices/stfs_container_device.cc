@@ -61,7 +61,7 @@ StfsContainerDevice::~StfsContainerDevice() = default;
 
 bool StfsContainerDevice::Initialize() {
   // Resolve a valid STFS file if a directory is given.
-  if (filesystem::IsFolder(host_path_) && !ResolveFromFolder(host_path_)) {
+  if (std::filesystem::is_directory(host_path_) && !ResolveFromFolder(host_path_)) {
     XELOGE("Could not resolve an STFS container given path {}",
            xe::path_to_utf8(host_path_));
     return false;
