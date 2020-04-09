@@ -84,12 +84,6 @@ bool DeleteFolder(const std::filesystem::path& path) {
   return SHFileOperation(&op) == 0;
 }
 
-bool IsFolder(const std::filesystem::path& path) {
-  DWORD attrib = GetFileAttributes(path.c_str());
-  return attrib != INVALID_FILE_ATTRIBUTES &&
-         (attrib & FILE_ATTRIBUTE_DIRECTORY) == FILE_ATTRIBUTE_DIRECTORY;
-}
-
 bool CreateFile(const std::filesystem::path& path) {
   auto handle = CreateFileW(path.c_str(), 0, 0, nullptr, CREATE_ALWAYS,
                             FILE_ATTRIBUTE_NORMAL, nullptr);
