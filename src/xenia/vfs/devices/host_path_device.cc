@@ -26,7 +26,7 @@ HostPathDevice::HostPathDevice(const std::string_view mount_path,
 HostPathDevice::~HostPathDevice() = default;
 
 bool HostPathDevice::Initialize() {
-  if (!xe::filesystem::PathExists(host_path_)) {
+  if (!std::filesystem::exists(host_path_)) {
     if (!read_only_) {
       // Create the path.
       xe::filesystem::CreateFolder(host_path_);

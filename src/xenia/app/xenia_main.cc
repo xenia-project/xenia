@@ -215,7 +215,7 @@ int xenia_main(const std::vector<std::string>& args) {
   std::filesystem::path storage_root = cvars::storage_root;
   if (storage_root.empty()) {
     storage_root = xe::filesystem::GetExecutableFolder();
-    if (!xe::filesystem::PathExists(storage_root / "portable.txt")) {
+    if (!std::filesystem::exists(storage_root / "portable.txt")) {
       storage_root = xe::filesystem::GetUserFolder();
 #if defined(XE_PLATFORM_WIN32) || defined(XE_PLATFORM_LINUX)
       storage_root = storage_root / "Xenia";

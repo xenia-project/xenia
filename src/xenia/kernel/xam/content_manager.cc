@@ -122,7 +122,7 @@ std::vector<XCONTENT_DATA> ContentManager::ListContent(uint32_t device_id,
 std::unique_ptr<ContentPackage> ContentManager::ResolvePackage(
     const std::string_view root_name, const XCONTENT_DATA& data) {
   auto package_path = ResolvePackagePath(data);
-  if (!xe::filesystem::PathExists(package_path)) {
+  if (!std::filesystem::exists(package_path)) {
     return nullptr;
   }
 
@@ -135,7 +135,7 @@ std::unique_ptr<ContentPackage> ContentManager::ResolvePackage(
 
 bool ContentManager::ContentExists(const XCONTENT_DATA& data) {
   auto path = ResolvePackagePath(data);
-  return xe::filesystem::PathExists(path);
+  return std::filesystem::exists(path);
 }
 
 X_RESULT ContentManager::CreateContent(const std::string_view root_name,
@@ -148,7 +148,7 @@ X_RESULT ContentManager::CreateContent(const std::string_view root_name,
   }
 
   auto package_path = ResolvePackagePath(data);
-  if (xe::filesystem::PathExists(package_path)) {
+  if (std::filesystem::exists(package_path)) {
     // Exists, must not!
     return X_ERROR_ALREADY_EXISTS;
   }
@@ -175,7 +175,7 @@ X_RESULT ContentManager::OpenContent(const std::string_view root_name,
   }
 
   auto package_path = ResolvePackagePath(data);
-  if (!xe::filesystem::PathExists(package_path)) {
+  if (!std::filesystem::exists(package_path)) {
     // Does not exist, must be created.
     return X_ERROR_FILE_NOT_FOUND;
   }
@@ -209,7 +209,7 @@ X_RESULT ContentManager::GetContentThumbnail(const XCONTENT_DATA& data,
   auto global_lock = global_critical_region_.Acquire();
   auto package_path = ResolvePackagePath(data);
   auto thumb_path = package_path / kThumbnailFileName;
-  if (xe::filesystem::PathExists(thumb_path)) {
+  if (std::filesystem::exists(thumb_path)) {
     auto file = xe::filesystem::OpenFile(thumb_path, "rb");
     fseek(file, 0, SEEK_END);
     size_t file_len = ftell(file);
@@ -228,7 +228,7 @@ X_RESULT ContentManager::SetContentThumbnail(const XCONTENT_DATA& data,
   auto global_lock = global_critical_region_.Acquire();
   auto package_path = ResolvePackagePath(data);
   xe::filesystem::CreateFolder(package_path);
-  if (xe::filesystem::PathExists(package_path)) {
+  if (std::filesystem::exists(package_path)) {
     auto thumb_path = package_path / kThumbnailFileName;
     auto file = xe::filesystem::OpenFile(thumb_path, "wb");
     fwrite(buffer.data(), 1, buffer.size(), file);
@@ -243,7 +243,7 @@ X_RESULT ContentManager::DeleteContent(const XCONTENT_DATA& data) {
   auto global_lock = global_critical_region_.Acquire();
 
   auto package_path = ResolvePackagePath(data);
-  if (xe::filesystem::PathExists(package_path)) {
+  if (std::filesystem::exists(package_path)) {
     xe::filesystem::DeleteFolder(package_path);
     return X_ERROR_SUCCESS;
   } else {
