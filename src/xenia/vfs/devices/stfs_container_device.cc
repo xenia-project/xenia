@@ -61,13 +61,14 @@ StfsContainerDevice::~StfsContainerDevice() = default;
 
 bool StfsContainerDevice::Initialize() {
   // Resolve a valid STFS file if a directory is given.
-  if (std::filesystem::is_directory(host_path_) && !ResolveFromFolder(host_path_)) {
+  if (std::filesystem::is_directory(host_path_) &&
+      !ResolveFromFolder(host_path_)) {
     XELOGE("Could not resolve an STFS container given path {}",
            xe::path_to_utf8(host_path_));
     return false;
   }
 
-  if (!filesystem::PathExists(host_path_)) {
+  if (!std::filesystem::exists(host_path_)) {
     XELOGE("Path to STFS container does not exist: {}",
            xe::path_to_utf8(host_path_));
     return false;
@@ -120,7 +121,7 @@ StfsContainerDevice::Error StfsContainerDevice::MapFiles() {
   // If the STFS package is multi-file, it is an SVOD system. We need to map
   // the files in the .data folder and can discard the header.
   auto data_fragment_path = host_path_ / ".data";
-  if (!filesystem::PathExists(data_fragment_path)) {
+  if (!std::filesystem::exists(data_fragment_path)) {
     XELOGE("STFS container is multi-file, but path {} does not exist.",
            xe::path_to_utf8(data_fragment_path));
     return Error::kErrorFileMismatch;

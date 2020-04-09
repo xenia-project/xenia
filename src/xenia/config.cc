@@ -114,7 +114,7 @@ void SaveConfig() {
     output << fmt::format("\t# {}\n", config_var->description());
   }
 
-  if (xe::filesystem::PathExists(config_path)) {
+  if (std::filesystem::exists(config_path)) {
     std::ifstream existingConfigStream(config_path);
     const std::string existingConfig(
         (std::istreambuf_iterator<char>(existingConfigStream)),
@@ -136,7 +136,7 @@ void SetupConfig(const std::filesystem::path& config_folder) {
   // check if the user specified a specific config to load
   if (!cvars::config.empty()) {
     config_path = xe::to_path(cvars::config);
-    if (xe::filesystem::PathExists(config_path)) {
+    if (std::filesystem::exists(config_path)) {
       ReadConfig(config_path);
       return;
     }
@@ -145,7 +145,7 @@ void SetupConfig(const std::filesystem::path& config_folder) {
   // let's also load the default config
   if (!config_folder.empty()) {
     config_path = config_folder / config_name;
-    if (xe::filesystem::PathExists(config_path)) {
+    if (std::filesystem::exists(config_path)) {
       ReadConfig(config_path);
     }
     // we only want to save the config if the user is using the default
@@ -158,7 +158,7 @@ void LoadGameConfig(const std::string_view title_id) {
   const auto game_config_folder = config_folder / "config";
   const auto game_config_path =
       game_config_folder / (std::string(title_id) + game_config_suffix);
-  if (xe::filesystem::PathExists(game_config_path)) {
+  if (std::filesystem::exists(game_config_path)) {
     ReadGameConfig(game_config_path);
   }
 }

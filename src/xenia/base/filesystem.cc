@@ -17,7 +17,7 @@ namespace filesystem {
 bool CreateParentFolder(const std::filesystem::path& path) {
   if (path.has_parent_path()) {
     auto parent_path = path.parent_path();
-    if (!PathExists(parent_path)) {
+    if (!std::filesystem::exists(parent_path)) {
       return CreateFolder(parent_path);
     }
   }

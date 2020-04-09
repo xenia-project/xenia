@@ -61,18 +61,13 @@ std::filesystem::path GetUserFolder() {
   return result;
 }
 
-bool PathExists(const std::filesystem::path& path) {
-  DWORD attrib = GetFileAttributes(path.c_str());
-  return attrib != INVALID_FILE_ATTRIBUTES;
-}
-
 bool CreateFolder(const std::filesystem::path& path) {
   std::filesystem::path create_path;
   for (auto it = path.begin(); it != path.end(); ++it) {
     create_path /= *it;
     CreateDirectoryW(create_path.c_str(), nullptr);
   }
-  return PathExists(path);
+  return std::filesystem::exists(path);
 }
 
 bool DeleteFolder(const std::filesystem::path& path) {

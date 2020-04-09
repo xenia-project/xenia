@@ -36,9 +36,6 @@ std::filesystem::path GetExecutableFolder();
 // Get user folder.
 std::filesystem::path GetUserFolder();
 
-// Returns true of the specified path exists as either a directory or file.
-bool PathExists(const std::filesystem::path& path);
-
 // Creates the parent folder of the specified path if needed.
 // This can be used to ensure the destination path for a new file exists before
 // attempting to create it.

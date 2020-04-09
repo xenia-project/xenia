@@ -351,7 +351,7 @@ void EmulatorWindow::ShowContentDirectory() {
     target_path = package_root;
   }
 
-  if (!xe::filesystem::PathExists(target_path)) {
+  if (!std::filesystem::exists(target_path)) {
     xe::filesystem::CreateFolder(target_path);
   }
 
