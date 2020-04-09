@@ -13,7 +13,6 @@
 #include <string>
 #include <vector>
 
-#include "xenia/base/filesystem.h"
 #include "xenia/base/mapped_memory.h"
 #include "xenia/vfs/entry.h"
 

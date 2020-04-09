@@ -16,6 +16,7 @@
 
 #include "build/version.h"
 #include "xenia/base/assert.h"
+#include "xenia/base/filesystem.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/string.h"
 
