@@ -136,13 +136,16 @@ typedef struct {
 static_assert_size(X_USER_READ_PROFILE_SETTING, 40);
 
 // https://github.com/oukiar/freestyledash/blob/master/Freestyle/Tools/Generic/xboxtools.cpp
-uint32_t xeXamUserReadProfileSettingsEx(
-    uint32_t title_id, uint32_t user_index, uint32_t unk_0, uint32_t unk_1,
-    uint32_t setting_count, lpdword_t setting_ids, uint32_t unk_2,
-    lpdword_t buffer_size_ptr, lpvoid_t buffer_ptr, uint32_t overlapped_ptr) {
-  assert_zero(unk_0);
-  assert_zero(unk_1);
-  assert_zero(unk_2);
+uint32_t xeXamUserReadProfileSettingsEx(uint32_t title_id, uint32_t user_index,
+                                        uint32_t xuid_count, lpvoid_t xuids_ptr,
+                                        uint32_t setting_count,
+                                        lpdword_t setting_ids, uint32_t unk,
+                                        lpdword_t buffer_size_ptr,
+                                        lpvoid_t buffer_ptr,
+                                        uint32_t overlapped_ptr) {
+  assert_zero(xuid_count);
+  assert_zero(xuids_ptr.value());
+  assert_zero(unk);
 
   // must have at least 1 to 32 settings
   if (setting_count < 1 || setting_count > 32) {
@@ -172,7 +175,7 @@ uint32_t xeXamUserReadProfileSettingsEx(
       } break;
     }
   }
-  // needed_size *= !unk_1 ? 1 : unk_0;
+  // needed_size *= !xuids_ptr ? 1 : xuid_count;
   needed_size += sizeof(X_USER_READ_PROFILE_SETTINGS);
 
   if (!buffer_ptr || buffer_size < needed_size) {
@@ -267,22 +270,23 @@ uint32_t xeXamUserReadProfileSettingsEx(
 }
 
 dword_result_t XamUserReadProfileSettings(
-    dword_t title_id, dword_t user_index, dword_t unk_0, dword_t unk_1,
-    dword_t setting_count, lpdword_t setting_ids, lpdword_t buffer_size_ptr,
-    lpvoid_t buffer_ptr, dword_t overlapped_ptr) {
+    dword_t title_id, dword_t user_index, dword_t xuid_count,
+    lpvoid_t xuids_ptr, dword_t setting_count, lpdword_t setting_ids,
+    lpdword_t buffer_size_ptr, lpvoid_t buffer_ptr, dword_t overlapped_ptr) {
   return xeXamUserReadProfileSettingsEx(
-      title_id, user_index, unk_0, unk_1, setting_count, setting_ids, 0,
-      buffer_size_ptr, buffer_ptr, overlapped_ptr);
+      title_id, user_index, xuid_count, xuids_ptr, setting_count, setting_ids,
+      0, buffer_size_ptr, buffer_ptr, overlapped_ptr);
 }
 DECLARE_XAM_EXPORT1(XamUserReadProfileSettings, kUserProfiles, kImplemented);
 
 dword_result_t XamUserReadProfileSettingsEx(
-    dword_t title_id, dword_t user_index, dword_t unk_0, dword_t unk_1,
-    dword_t setting_count, lpdword_t setting_ids, lpdword_t buffer_size_ptr,
-    dword_t unk_2, lpvoid_t buffer_ptr, dword_t overlapped_ptr) {
+    dword_t title_id, dword_t user_index, dword_t xuid_count,
+    lpvoid_t xuids_ptr, dword_t setting_count, lpdword_t setting_ids,
+    lpdword_t buffer_size_ptr, dword_t unk_2, lpvoid_t buffer_ptr,
+    dword_t overlapped_ptr) {
   return xeXamUserReadProfileSettingsEx(
-      title_id, user_index, unk_0, unk_1, setting_count, setting_ids, unk_2,
-      buffer_size_ptr, buffer_ptr, overlapped_ptr);
+      title_id, user_index, xuid_count, xuids_ptr, setting_count, setting_ids,
+      unk_2, buffer_size_ptr, buffer_ptr, overlapped_ptr);
 }
 DECLARE_XAM_EXPORT1(XamUserReadProfileSettingsEx, kUserProfiles, kImplemented);
 
@@ -310,7 +314,7 @@ typedef struct {
 } X_USER_WRITE_PROFILE_SETTING;
 
 dword_result_t XamUserWriteProfileSettings(
-    dword_t user_index, dword_t unk, dword_t setting_count,
+    dword_t title_id, dword_t user_index, dword_t setting_count,
     pointer_t<X_USER_WRITE_PROFILE_SETTING> settings, dword_t overlapped_ptr) {
   if (!setting_count || !settings) {
     return X_ERROR_INVALID_PARAMETER;
