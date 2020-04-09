@@ -29,7 +29,7 @@ bool HostPathDevice::Initialize() {
   if (!std::filesystem::exists(host_path_)) {
     if (!read_only_) {
       // Create the path.
-      xe::filesystem::CreateFolder(host_path_);
+      std::filesystem::create_directories(host_path_);
     } else {
       XELOGE("Host path does not exist");
       return false;

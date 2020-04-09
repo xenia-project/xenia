@@ -158,7 +158,7 @@ void UserProfile::SaveSetting(UserProfile::Setting* setting) {
     auto serialized_setting = setting->Serialize();
     auto content_dir =
         kernel_state()->content_manager()->ResolveGameUserContentPath();
-    xe::filesystem::CreateFolder(content_dir);
+    std::filesystem::create_directories(content_dir);
     auto setting_id = fmt::format("{:08X}", setting->setting_id);
     auto file_path = content_dir / setting_id;
     auto file = xe::filesystem::OpenFile(file_path, "wb");

@@ -62,7 +62,7 @@ int vfs_dump_main(const std::vector<std::string>& args) {
     XELOGI("{}", entry->path());
     auto dest_name = base_path / xe::to_path(entry->path());
     if (entry->attributes() & kFileAttributeDirectory) {
-      xe::filesystem::CreateFolder(dest_name);
+      std::filesystem::create_directories(dest_name);
       continue;
     }
 
