@@ -522,7 +522,7 @@ TextureCache::Texture* TextureCache::DemandResolveTexture(
       reinterpret_cast<uint64_t>(texture->image),
       VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT,
       fmt::format(
-          "RT: {:#08X} - {:#08X} ({}, {})", texture_info.memory.base_address,
+          "RT: 0x{:08X} - 0x{:08X} ({}, {})", texture_info.memory.base_address,
           texture_info.memory.base_address + texture_info.memory.base_size,
           texture_info.format_info()->name,
           get_dimension_name(texture_info.dimension)));
@@ -605,7 +605,7 @@ TextureCache::Texture* TextureCache::Demand(const TextureInfo& texture_info,
       reinterpret_cast<uint64_t>(texture->image),
       VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT,
       fmt::format(
-          "T: {:#08X} - {:#08X} ({}, {})", texture_info.memory.base_address,
+          "T: 0x{:08X} - 0x{:08X} ({}, {})", texture_info.memory.base_address,
           texture_info.memory.base_address + texture_info.memory.base_size,
           texture_info.format_info()->name,
           get_dimension_name(texture_info.dimension)));
@@ -1068,9 +1068,9 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
   size_t unpack_length = ComputeTextureStorage(src);
 
   XELOGGPU(
-      "Uploading texture @ {:#08X}/{:#08X} ({}x{}x{}, format: {}, dim: {}, "
+      "Uploading texture @ 0x{:08X}/0x{:08X} ({}x{}x{}, format: {}, dim: {}, "
       "levels: {} ({}-{}), stacked: {}, pitch: {}, tiled: {}, packed mips: {}, "
-      "unpack length: {:#X})",
+      "unpack length: 0x{:X})",
       src.memory.base_address, src.memory.mip_address, src.width + 1,
       src.height + 1, src.depth + 1, src.format_info()->name,
       get_dimension_name(src.dimension), src.mip_levels(), src.mip_min_level,
@@ -1097,7 +1097,7 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
     if (!staging_buffer_.CanAcquire(unpack_length)) {
       // The staging buffer isn't big enough to hold this texture.
       XELOGE(
-          "TextureCache staging buffer is too small! (uploading {:#X} bytes)",
+          "TextureCache staging buffer is too small! (uploading 0x{:X} bytes)",
           unpack_length);
       assert_always();
       return false;
@@ -1123,7 +1123,7 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
   }
 
   if (!valid) {
-    XELOGW("Warning: Texture @ {:#08X} is blank!", src.memory.base_address);
+    XELOGW("Warning: Texture @ 0x{:08X} is blank!", src.memory.base_address);
   }
 
   // Upload texture into GPU memory.
@@ -1147,7 +1147,7 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
     copy_regions[region].imageOffset = {0, 0, 0};
 
     /*
-    XELOGGPU("Mip {} {}x{}x{} @ {:#X}", mip,
+    XELOGGPU("Mip {} {}x{}x{} @ 0x{:X}", mip,
              copy_regions[region].imageExtent.width,
              copy_regions[region].imageExtent.height,
              copy_regions[region].imageExtent.depth, unpack_offset);

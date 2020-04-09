@@ -232,7 +232,7 @@ VkResult CachedTileView::Initialize(VkCommandBuffer command_buffer) {
 
   device_->DbgSetObjectName(
       reinterpret_cast<uint64_t>(image), VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT,
-      fmt::format("RT(d): {:#08X} {:#08X}({}) {:#08X}({}) {} {} {}",
+      fmt::format("RT(d): 0x{:08X} 0x{:08X}({}) 0x{:08X}({}) {} {} {}",
                   uint32_t(key.tile_offset), uint32_t(key.tile_width),
                   uint32_t(key.tile_width), uint32_t(key.tile_height),
                   uint32_t(key.tile_height), uint32_t(key.color_or_depth),

@@ -737,7 +737,7 @@ bool CommandProcessor::ExecutePacketType3(RingBuffer* reader, uint32_t packet) {
     }
 
     default:
-      XELOGGPU("Unimplemented GPU OPCODE: {:#02X}\t\tCOUNT: {}\n", opcode,
+      XELOGGPU("Unimplemented GPU OPCODE: 0x{:02X}\t\tCOUNT: {}\n", opcode,
                count);
       assert_always();
       reader->AdvanceRead(count * sizeof(uint32_t));

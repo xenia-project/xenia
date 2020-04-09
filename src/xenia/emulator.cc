@@ -546,10 +546,11 @@ bool Emulator::ExceptionCallback(Exception* ex) {
   auto context = current_thread->thread_state()->context();
 
   XELOGE("==== CRASH DUMP ====");
-  XELOGE("Thread ID (Host: {:#08X} / Guest: {:#08X})",
+  XELOGE("Thread ID (Host: 0x{:08X} / Guest: 0x{:08X})",
          current_thread->thread()->system_id(), current_thread->thread_id());
-  XELOGE("Thread Handle: {:#08X}", current_thread->handle());
-  XELOGE("PC: {:#08X}", guest_function->MapMachineCodeToGuestAddress(ex->pc()));
+  XELOGE("Thread Handle: 0x{:08X}", current_thread->handle());
+  XELOGE("PC: 0x{:08X}",
+         guest_function->MapMachineCodeToGuestAddress(ex->pc()));
   XELOGE("Registers:");
   for (int i = 0; i < 32; i++) {
     XELOGE(" r{:-3d} = {:016X}", i, context->r[i]);
@@ -562,7 +563,7 @@ bool Emulator::ExceptionCallback(Exception* ex) {
   }
 
   for (int i = 0; i < 128; i++) {
-    XELOGE(" v{:-3d} = [{:#08X}, {:#08X}, {:#08X}, {:#08X}]", i,
+    XELOGE(" v{:-3d} = [0x{:08X}, 0x{:08X}, 0x{:08X}, 0x{:08X}]", i,
            context->v[i].u32[0], context->v[i].u32[1], context->v[i].u32[2],
            context->v[i].u32[3]);
   }

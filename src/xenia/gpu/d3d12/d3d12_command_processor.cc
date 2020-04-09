@@ -1488,7 +1488,7 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     if (!shared_memory_->RequestRange(vfetch_constant.address << 2,
                                       vfetch_constant.size << 2)) {
       XELOGE(
-          "Failed to request vertex buffer at {:#08X} (size {}) in the shared "
+          "Failed to request vertex buffer at 0x{:08X} (size {}) in the shared "
           "memory",
           vfetch_constant.address << 2, vfetch_constant.size << 2);
       return false;
@@ -1590,7 +1590,7 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     if (!shared_memory_->RequestRange(memexport_range.base_address_dwords << 2,
                                       memexport_range.size_dwords << 2)) {
       XELOGE(
-          "Failed to request memexport stream at {:#08X} (size {}) in the "
+          "Failed to request memexport stream at 0x{:08X} (size {}) in the "
           "shared memory",
           memexport_range.base_address_dwords << 2,
           memexport_range.size_dwords << 2);
@@ -1636,8 +1636,8 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
       uint32_t index_buffer_size = index_buffer_info->count * index_size;
       if (!shared_memory_->RequestRange(index_base, index_buffer_size)) {
         XELOGE(
-            "Failed to request index buffer at {:#08X} (size {}) in the shared "
-            "memory",
+            "Failed to request index buffer at 0x{:08X} (size {}) in the "
+            "shared memory",
             index_base, index_buffer_size);
         return false;
       }
