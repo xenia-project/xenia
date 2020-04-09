@@ -77,11 +77,6 @@ std::filesystem::path GetUserFolder() {
   return std::filesystem::path(home) / ".local" / "share";
 }
 
-bool PathExists(const std::filesystem::path& path) {
-  struct stat st;
-  return stat(path.c_str(), &st) == 0;
-}
-
 FILE* OpenFile(const std::filesystem::path& path, const std::string_view mode) {
   return fopen(path.c_str(), std::string(mode).c_str());
 }

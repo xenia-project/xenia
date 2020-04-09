@@ -121,7 +121,7 @@ X_STATUS SDLInputDriver::Setup() {
     sdl_gamecontroller_initialized_ = true;
 
     if (!cvars::mappings_file.empty()) {
-      if (!filesystem::PathExists(cvars::mappings_file)) {
+      if (!std::filesystem::exists(cvars::mappings_file)) {
         XELOGW("SDL GameControllerDB: file '{}' does not exist.",
                xe::path_to_utf8(cvars::mappings_file));
       } else {
