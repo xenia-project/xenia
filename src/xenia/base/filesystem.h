@@ -41,10 +41,6 @@ std::filesystem::path GetUserFolder();
 // attempting to create it.
 bool CreateParentFolder(const std::filesystem::path& path);
 
-// Creates a folder at the specified path.
-// Returns true if the path was created.
-bool CreateFolder(const std::filesystem::path& path);
-
 // Recursively deletes the files and folders at the specified path.
 // Returns true if the path was found and removed.
 bool DeleteFolder(const std::filesystem::path& path);

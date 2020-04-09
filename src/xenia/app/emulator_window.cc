@@ -352,7 +352,7 @@ void EmulatorWindow::ShowContentDirectory() {
   }
 
   if (!std::filesystem::exists(target_path)) {
-    xe::filesystem::CreateFolder(target_path);
+    std::filesystem::create_directories(target_path);
   }
 
   LaunchFileExplorer(target_path);

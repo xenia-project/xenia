@@ -33,7 +33,7 @@ bool TraceWriter::Open(const std::filesystem::path& path, uint32_t title_id) {
   auto canonical_path = std::filesystem::absolute(path);
   if (canonical_path.has_parent_path()) {
     auto base_path = canonical_path.parent_path();
-    xe::filesystem::CreateFolder(base_path);
+    std::filesystem::create_directories(base_path);
   }
 
   file_ = xe::filesystem::OpenFile(canonical_path, "wb");

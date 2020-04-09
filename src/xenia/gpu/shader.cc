@@ -47,7 +47,7 @@ std::pair<std::filesystem::path, std::filesystem::path> Shader::Dump(
   auto target_path = base_path;
   if (!target_path.empty()) {
     target_path = std::filesystem::absolute(target_path);
-    xe::filesystem::CreateFolder(target_path);
+    std::filesystem::create_directories(target_path);
   }
 
   auto base_name =

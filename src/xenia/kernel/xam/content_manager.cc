@@ -153,7 +153,7 @@ X_RESULT ContentManager::CreateContent(const std::string_view root_name,
     return X_ERROR_ALREADY_EXISTS;
   }
 
-  if (!xe::filesystem::CreateFolder(package_path)) {
+  if (!std::filesystem::create_directories(package_path)) {
     return X_ERROR_ACCESS_DENIED;
   }
 
@@ -227,7 +227,7 @@ X_RESULT ContentManager::SetContentThumbnail(const XCONTENT_DATA& data,
                                              std::vector<uint8_t> buffer) {
   auto global_lock = global_critical_region_.Acquire();
   auto package_path = ResolvePackagePath(data);
-  xe::filesystem::CreateFolder(package_path);
+  std::filesystem::create_directories(package_path);
   if (std::filesystem::exists(package_path)) {
     auto thumb_path = package_path / kThumbnailFileName;
     auto file = xe::filesystem::OpenFile(thumb_path, "wb");
