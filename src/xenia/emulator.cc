@@ -553,17 +553,15 @@ bool Emulator::ExceptionCallback(Exception* ex) {
          guest_function->MapMachineCodeToGuestAddress(ex->pc()));
   XELOGE("Registers:");
   for (int i = 0; i < 32; i++) {
-    XELOGE(" r{:-3d} = {:016X}", i, context->r[i]);
+    XELOGE(" r{:<3} = {:016X}", i, context->r[i]);
   }
-
   for (int i = 0; i < 32; i++) {
-    XELOGE(" f{:-3d} = {:016X} = (double){} = (float){}", i,
+    XELOGE(" f{:<3} = {:016X} = (double){} = (float){}", i,
            *reinterpret_cast<uint64_t*>(&context->f[i]), context->f[i],
            *(float*)&context->f[i]);
   }
-
   for (int i = 0; i < 128; i++) {
-    XELOGE(" v{:-3d} = [0x{:08X}, 0x{:08X}, 0x{:08X}, 0x{:08X}]", i,
+    XELOGE(" v{:<3} = [0x{:08X}, 0x{:08X}, 0x{:08X}, 0x{:08X}]", i,
            context->v[i].u32[0], context->v[i].u32[1], context->v[i].u32[2],
            context->v[i].u32[3]);
   }
