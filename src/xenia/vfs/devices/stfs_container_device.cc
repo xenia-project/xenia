@@ -120,7 +120,8 @@ StfsContainerDevice::Error StfsContainerDevice::MapFiles() {
 
   // If the STFS package is multi-file, it is an SVOD system. We need to map
   // the files in the .data folder and can discard the header.
-  auto data_fragment_path = host_path_ / ".data";
+  auto data_fragment_path = host_path_;
+  data_fragment_path += ".data";
   if (!std::filesystem::exists(data_fragment_path)) {
     XELOGE("STFS container is multi-file, but path {} does not exist.",
            xe::path_to_utf8(data_fragment_path));
