@@ -10,9 +10,10 @@ XeHSConstantDataOutput XePatchConstant(
   XeHSConstantDataOutput output = (XeHSConstantDataOutput)0;
   uint i;
 
-  // 1.0 already added to the factor on the CPU, according to the images in
+  // 1.0 added to the factors according to the images in
   // https://www.slideshare.net/blackdevilvikas/next-generation-graphics-programming-on-xbox-360
-  // (fractional_even also requires a factor of at least 2.0).
+  // (fractional_even also requires a factor of at least 2.0), to the min/max it
+  // has already been added on the CPU.
 
   // Direct3D 12 (goes in a direction along the perimeter):
   // [0] - between U0V1 and U0V0.
