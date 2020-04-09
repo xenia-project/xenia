@@ -99,7 +99,7 @@ bool HostPathEntry::DeleteEntryInternal(Entry* entry) {
   auto full_path = host_path_ / xe::to_path(entry->name());
   if (entry->attributes() & kFileAttributeDirectory) {
     // Delete entire directory and contents.
-    return xe::filesystem::DeleteFolder(full_path);
+    return std::filesystem::remove_all(full_path);
   } else {
     // Delete file.
     return xe::filesystem::DeleteFile(full_path);
