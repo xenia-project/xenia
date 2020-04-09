@@ -102,7 +102,8 @@ bool HostPathEntry::DeleteEntryInternal(Entry* entry) {
     return std::filesystem::remove_all(full_path);
   } else {
     // Delete file.
-    return xe::filesystem::DeleteFile(full_path);
+    return !std::filesystem::is_directory(full_path) &&
+           std::filesystem::remove(full_path);
   }
 }
 

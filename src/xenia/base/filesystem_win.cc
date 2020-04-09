@@ -13,7 +13,6 @@
 #include <string>
 
 #undef CreateFile
-#undef DeleteFile
 
 #include "xenia/base/filesystem.h"
 #include "xenia/base/logging.h"
@@ -102,10 +101,6 @@ bool TruncateStdioFile(FILE* file, uint64_t length) {
     }
   }
   return true;
-}
-
-bool DeleteFile(const std::filesystem::path& path) {
-  return DeleteFileW(path.c_str()) ? true : false;
 }
 
 class Win32FileHandle : public FileHandle {
