@@ -498,22 +498,26 @@ LRESULT Win32Window::WndProc(HWND hWnd, UINT message, WPARAM wParam,
 
   switch (message) {
     case WM_DROPFILES: {
-      HDROP hDrop = reinterpret_cast<HDROP>(wParam);
-      std::u16string path;
-
-      // Get required buffer size
-      UINT buf_size = DragQueryFileW(hDrop, 0, nullptr, 0);
-      if (buf_size > 0) {
-        path.resize(buf_size + 1);  // Give space for a null terminator
-
-        // Only getting first file dropped (other files ignored)
-        if (DragQueryFileW(hDrop, 0, (LPWSTR)&path[0], buf_size + 1)) {
-          auto e = FileDropEvent(this, xe::to_path(path));
-          OnFileDrop(&e);
+      HDROP drop_handle = reinterpret_cast<HDROP>(wParam);
+      auto drop_count = DragQueryFileW(drop_handle, 0xFFFFFFFFu, nullptr, 0);
+      if (drop_count > 0) {
+        // Get required buffer size
+        UINT path_size = DragQueryFileW(drop_handle, 0, nullptr, 0);
+        if (path_size > 0 && path_size < 0xFFFFFFFFu) {
+          std::u16string path;
+          ++path_size;             // Ensure space for the null terminator
+          path.resize(path_size);  // Reserve space
+          // Only getting first file dropped (other files ignored)
+          path_size =
+              DragQueryFileW(drop_handle, 0, (LPWSTR)&path[0], path_size);
+          if (path_size > 0) {
+            path.resize(path_size);  // Will drop the null terminator
+            auto e = FileDropEvent(this, xe::to_path(path));
+            OnFileDrop(&e);
+          }
         }
       }
-
-      DragFinish(hDrop);
+      DragFinish(drop_handle);
     } break;
     case WM_NCCREATE: {
       // Tell Windows to automatically scale non-client areas on different DPIs.
