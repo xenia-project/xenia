@@ -86,7 +86,7 @@ namespace gpu {
 //   case.
 //
 // For bytecode structure, see d3d12TokenizedProgramFormat.hpp from the Windows
-// Driver Kit.
+// Driver Kit, and DXILConv from DirectX Shader Compiler.
 //
 // Avoid using uninitialized register components - such as registers written to
 // in "if" and not in "else", but then used outside unconditionally or with a
@@ -437,6 +437,159 @@ class DxbcShaderTranslator : public ShaderTranslator {
   void ProcessAluInstruction(const ParsedAluInstruction& instr) override;
 
  private:
+  // D3D_SHADER_VARIABLE_CLASS
+  enum class DxbcRdefVariableClass : uint32_t {
+    kScalar,
+    kVector,
+    kMatrixRows,
+    kMatrixColumns,
+    kObject,
+    kStruct,
+    kInterfaceClass,
+    kInterfacePointer,
+  };
+
+  // D3D_SHADER_VARIABLE_TYPE subset
+  enum class DxbcRdefVariableType : uint32_t {
+    kInt = 2,
+    kFloat = 3,
+    kUInt = 19,
+  };
+
+  // D3D_SHADER_VARIABLE_FLAGS
+  enum DxbcRdefVariableFlags : uint32_t {
+    kDxbcRdefVariableFlagUserPacked = 1 << 0,
+    kDxbcRdefVariableFlagUsed = 1 << 1,
+    kDxbcRdefVariableFlagInterfacePointer = 1 << 2,
+    kDxbcRdefVariableFlagInterfaceParameter = 1 << 3,
+  };
+
+  // D3D_CBUFFER_TYPE
+  enum class DxbcRdefCbufferType : uint32_t {
+    kCbuffer,
+    kTbuffer,
+    kInterfacePointers,
+    kResourceBindInfo,
+  };
+
+  // D3D_SHADER_INPUT_TYPE
+  enum class DxbcRdefInputType : uint32_t {
+    kCbuffer,
+    kTbuffer,
+    kTexture,
+    kSampler,
+    kUAVRWTyped,
+    kStructured,
+    kUAVRWStructured,
+    kByteAddress,
+    kUAVRWByteAddress,
+    kUAVAppendStructured,
+    kUAVConsumeStructured,
+    kUAVRWStructuredWithCounter,
+  };
+
+  // D3D_RESOURCE_RETURN_TYPE
+  enum class DxbcRdefReturnType : uint32_t {
+    kVoid,
+    kUNorm,
+    kSNorm,
+    kSInt,
+    kUInt,
+    kFloat,
+    kMixed,
+    kDouble,
+    kContinued,
+  };
+
+  // D3D12_SRV_DIMENSION/D3D12_UAV_DIMENSION
+  enum class DxbcRdefDimension : uint32_t {
+    kUnknown = 0,
+
+    kSRVBuffer = 1,
+    kSRVTexture1D,
+    kSRVTexture1DArray,
+    kSRVTexture2D,
+    kSRVTexture2DArray,
+    kSRVTexture2DMS,
+    kSRVTexture2DMSArray,
+    kSRVTexture3D,
+    kSRVTextureCube,
+    kSRVTextureCubeArray,
+
+    kUAVBuffer = 1,
+    kUAVTexture1D,
+    kUAVTexture1DArray,
+    kUAVTexture2D,
+    kUAVTexture2DArray,
+    kUAVTexture3D,
+  };
+
+  // D3D_SHADER_INPUT_FLAGS
+  enum DxbcRdefInputFlags : uint32_t {
+    // For constant buffers, UserPacked is set if it was declared as `cbuffer`
+    // rather than `ConstantBuffer<T>` (not dynamically indexable; though
+    // non-uniform dynamic indexing of constant buffers also didn't work on AMD
+    // drivers in 2018).
+    DxbcRdefInputFlagUserPacked = 1 << 0,
+    DxbcRdefInputFlagComparisonSampler = 1 << 1,
+    DxbcRdefInputFlagComponent0 = 1 << 2,
+    DxbcRdefInputFlagComponent1 = 1 << 3,
+    DxbcRdefInputFlagsComponents =
+        DxbcRdefInputFlagComponent0 | DxbcRdefInputFlagComponent1,
+    DxbcRdefInputFlagUnused = 1 << 4,
+  };
+
+  // D3D_NAME subset
+  enum class DxbcName : uint32_t {
+    kUndefined = 0,
+    kPosition = 1,
+    kClipDistance = 2,
+    kCullDistance = 3,
+    kVertexID = 6,
+    kIsFrontFace = 9,
+    kFinalQuadEdgeTessFactor = 11,
+    kFinalQuadInsideTessFactor = 12,
+    kFinalTriEdgeTessFactor = 13,
+    kFinalTriInsideTessFactor = 14,
+  };
+
+  // D3D_REGISTER_COMPONENT_TYPE
+  enum class DxbcSignatureRegisterComponentType : uint32_t {
+    kUnknown,
+    kUInt32,
+    kSInt32,
+    kFloat32,
+  };
+
+  // D3D10_INTERNALSHADER_PARAMETER
+  struct DxbcSignatureParameter {
+    // Offset in bytes from the start of the chunk.
+    uint32_t semantic_name;
+    uint32_t semantic_index;
+    // kUndefined for pixel shader outputs - inferred from the component type
+    // and what is used in the shader.
+    DxbcName system_value;
+    DxbcSignatureRegisterComponentType component_type;
+    // o#/v# when there's linkage, SV_Target index or -1 in pixel shader output.
+    uint32_t register_index;
+    uint8_t mask;
+    union {
+      // For an output signature.
+      uint8_t never_writes_mask;
+      // For an input signature.
+      uint8_t always_reads_mask;
+    };
+  };
+  static_assert(alignof(DxbcSignatureParameter) <= sizeof(uint32_t));
+
+  // D3D10_INTERNALSHADER_SIGNATURE
+  struct DxbcSignature {
+    uint32_t parameter_count;
+    // Offset in bytes from the start of the chunk.
+    uint32_t parameter_info_offset;
+  };
+  static_assert(alignof(DxbcSignature) <= sizeof(uint32_t));
+
   // D3D11_SB_TESSELLATOR_DOMAIN
   enum class DxbcTessellatorDomain : uint32_t {
     kUndefined,
@@ -445,7 +598,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kQuad,
   };
 
-  // D3D10_SB_OPERAND_TYPE
+  // D3D10_SB_OPERAND_TYPE subset
   enum class DxbcOperandType : uint32_t {
     kTemp = 0,
     kInput = 1,
@@ -523,9 +676,11 @@ class DxbcShaderTranslator : public ShaderTranslator {
   struct DxbcIndex {
     // D3D10_SB_OPERAND_INDEX_REPRESENTATION
     enum class Representation : uint32_t {
-      kImmediate32 = 0,
-      kRelative = 2,
-      kImmediate32PlusRelative = 3,
+      kImmediate32,
+      kImmediate64,
+      kRelative,
+      kImmediate32PlusRelative,
+      kImmediate64PlusRelative,
     };
 
     uint32_t index_;
@@ -900,7 +1055,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
                bool force_vector = false) const;
   };
 
-  // D3D10_SB_OPCODE_TYPE
+  // D3D10_SB_OPCODE_TYPE subset
   enum class DxbcOpcode : uint32_t {
     kAdd = 0,
     kAnd = 1,
@@ -2019,10 +2174,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
   struct RdefType {
     // Name ignored for arrays.
     const char* name;
-    // D3D10_SHADER_VARIABLE_CLASS.
-    uint32_t type_class;
-    // D3D10_SHADER_VARIABLE_TYPE.
-    uint32_t type;
+    DxbcRdefVariableClass variable_class;
+    DxbcRdefVariableType variable_type;
     uint32_t row_count;
     uint32_t column_count;
     // 0 for primitive types, 1 for structures, array size for arrays.
