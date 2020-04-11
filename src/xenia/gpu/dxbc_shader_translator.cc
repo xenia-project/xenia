@@ -2983,33 +2983,47 @@ uint32_t DxbcShaderTranslator::AppendString(std::vector<uint32_t>& dest,
 const DxbcShaderTranslator::RdefType DxbcShaderTranslator::rdef_types_[size_t(
     DxbcShaderTranslator::RdefTypeIndex::kCount)] = {
     // kFloat
-    {"float", 0, 3, 1, 1, 0, 0, RdefTypeIndex::kUnknown, nullptr},
+    {"float", DxbcRdefVariableClass::kScalar, DxbcRdefVariableType::kFloat, 1,
+     1, 0, 0, RdefTypeIndex::kUnknown, nullptr},
     // kFloat2
-    {"float2", 1, 3, 1, 2, 0, 0, RdefTypeIndex::kUnknown, nullptr},
+    {"float2", DxbcRdefVariableClass::kVector, DxbcRdefVariableType::kFloat, 1,
+     2, 0, 0, RdefTypeIndex::kUnknown, nullptr},
     // kFloat3
-    {"float3", 1, 3, 1, 3, 0, 0, RdefTypeIndex::kUnknown, nullptr},
+    {"float3", DxbcRdefVariableClass::kVector, DxbcRdefVariableType::kFloat, 1,
+     3, 0, 0, RdefTypeIndex::kUnknown, nullptr},
     // kFloat4
-    {"float4", 1, 3, 1, 4, 0, 0, RdefTypeIndex::kUnknown, nullptr},
+    {"float4", DxbcRdefVariableClass::kVector, DxbcRdefVariableType::kFloat, 1,
+     4, 0, 0, RdefTypeIndex::kUnknown, nullptr},
     // kInt
-    {"int", 0, 2, 1, 1, 0, 0, RdefTypeIndex::kUnknown, nullptr},
+    {"int", DxbcRdefVariableClass::kScalar, DxbcRdefVariableType::kInt, 1, 1, 0,
+     0, RdefTypeIndex::kUnknown, nullptr},
     // kUint
-    {"uint", 0, 19, 1, 1, 0, 0, RdefTypeIndex::kUnknown, nullptr},
+    {"uint", DxbcRdefVariableClass::kScalar, DxbcRdefVariableType::kUInt, 1, 1,
+     0, 0, RdefTypeIndex::kUnknown, nullptr},
     // kUint2
-    {"uint2", 1, 19, 1, 2, 0, 0, RdefTypeIndex::kUnknown, nullptr},
+    {"uint2", DxbcRdefVariableClass::kVector, DxbcRdefVariableType::kUInt, 1, 2,
+     0, 0, RdefTypeIndex::kUnknown, nullptr},
     // kUint4
-    {"uint4", 1, 19, 1, 4, 0, 0, RdefTypeIndex::kUnknown, nullptr},
+    {"uint4", DxbcRdefVariableClass::kVector, DxbcRdefVariableType::kUInt, 1, 4,
+     0, 0, RdefTypeIndex::kUnknown, nullptr},
     // kFloat4Array4
-    {nullptr, 1, 3, 1, 4, 4, 0, RdefTypeIndex::kFloat4, nullptr},
+    {nullptr, DxbcRdefVariableClass::kVector, DxbcRdefVariableType::kFloat, 1,
+     4, 4, 0, RdefTypeIndex::kFloat4, nullptr},
     // kFloat4Array6
-    {nullptr, 1, 3, 1, 4, 6, 0, RdefTypeIndex::kFloat4, nullptr},
+    {nullptr, DxbcRdefVariableClass::kVector, DxbcRdefVariableType::kFloat, 1,
+     4, 6, 0, RdefTypeIndex::kFloat4, nullptr},
     // kFloat4ConstantArray - float constants - size written dynamically.
-    {nullptr, 1, 3, 1, 4, 0, 0, RdefTypeIndex::kFloat4, nullptr},
+    {nullptr, DxbcRdefVariableClass::kVector, DxbcRdefVariableType::kFloat, 1,
+     4, 0, 0, RdefTypeIndex::kFloat4, nullptr},
     // kUint4Array2
-    {nullptr, 1, 19, 1, 4, 2, 0, RdefTypeIndex::kUint4, nullptr},
+    {nullptr, DxbcRdefVariableClass::kVector, DxbcRdefVariableType::kUInt, 1, 4,
+     2, 0, RdefTypeIndex::kUint4, nullptr},
     // kUint4Array8
-    {nullptr, 1, 19, 1, 4, 8, 0, RdefTypeIndex::kUint4, nullptr},
+    {nullptr, DxbcRdefVariableClass::kVector, DxbcRdefVariableType::kUInt, 1, 4,
+     8, 0, RdefTypeIndex::kUint4, nullptr},
     // kUint4Array48
-    {nullptr, 1, 19, 1, 4, 48, 0, RdefTypeIndex::kUint4, nullptr},
+    {nullptr, DxbcRdefVariableClass::kVector, DxbcRdefVariableType::kUInt, 1, 4,
+     48, 0, RdefTypeIndex::kUint4, nullptr},
 };
 
 const DxbcShaderTranslator::SystemConstantRdef DxbcShaderTranslator::
@@ -3162,7 +3176,8 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
   const uint32_t type_size = type_size_dwords * sizeof(uint32_t);
   for (uint32_t i = 0; i < uint32_t(RdefTypeIndex::kCount); ++i) {
     const RdefType& type = rdef_types_[i];
-    shader_object_.push_back(type.type_class | (type.type << 16));
+    shader_object_.push_back(uint32_t(type.variable_class) |
+                             (uint32_t(type.variable_type) << 16));
     shader_object_.push_back(type.row_count | (type.column_count << 16));
     if (RdefTypeIndex(i) == RdefTypeIndex::kFloat4ConstantArray) {
       // Declaring a 0-sized array may not be safe, so write something valid
@@ -3254,9 +3269,9 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
       shader_object_.push_back(constant_name_offsets_system[i]);
       shader_object_.push_back(system_cbuffer_constant_offset);
       shader_object_.push_back(constant.size);
-      // Flag 0x2 is D3D_SVF_USED.
-      shader_object_.push_back((system_constants_used_ & (1ull << i)) ? 0x2
-                                                                      : 0);
+      shader_object_.push_back((system_constants_used_ & (1ull << i))
+                                   ? kDxbcRdefVariableFlagUsed
+                                   : 0);
       shader_object_.push_back(types_offset +
                                uint32_t(constant.type) * type_size);
       // Default value (always 0).
@@ -3278,7 +3293,7 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
     shader_object_.push_back(0);
     shader_object_.push_back(std::max(float_constant_count, 1u) * 4 *
                              sizeof(float));
-    shader_object_.push_back(0x2);
+    shader_object_.push_back(kDxbcRdefVariableFlagUsed);
     shader_object_.push_back(types_offset +
                              uint32_t(RdefTypeIndex::kFloat4ConstantArray) *
                                  type_size);
@@ -3296,7 +3311,7 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
     shader_object_.push_back(constant_name_offset_bool);
     shader_object_.push_back(0);
     shader_object_.push_back(2 * 4 * sizeof(uint32_t));
-    shader_object_.push_back(0x2);
+    shader_object_.push_back(kDxbcRdefVariableFlagUsed);
     shader_object_.push_back(types_offset +
                              uint32_t(RdefTypeIndex::kUint4Array2) * type_size);
     shader_object_.push_back(0);
@@ -3305,10 +3320,11 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
     shader_object_.push_back(0xFFFFFFFFu);
     shader_object_.push_back(0);
     new_offset += constant_size;
+
     shader_object_.push_back(constant_name_offset_loop);
     shader_object_.push_back(2 * 4 * sizeof(uint32_t));
     shader_object_.push_back(8 * 4 * sizeof(uint32_t));
-    shader_object_.push_back(0x2);
+    shader_object_.push_back(kDxbcRdefVariableFlagUsed);
     shader_object_.push_back(types_offset +
                              uint32_t(RdefTypeIndex::kUint4Array8) * type_size);
     shader_object_.push_back(0);
@@ -3325,7 +3341,7 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
     shader_object_.push_back(constant_name_offset_fetch);
     shader_object_.push_back(0);
     shader_object_.push_back(32 * 6 * sizeof(uint32_t));
-    shader_object_.push_back(0x2);
+    shader_object_.push_back(kDxbcRdefVariableFlagUsed);
     shader_object_.push_back(
         types_offset + uint32_t(RdefTypeIndex::kUint4Array48) * type_size);
     shader_object_.push_back(0);
@@ -3371,8 +3387,7 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
       shader_object_.push_back(constant_offset_system);
       shader_object_.push_back(
           uint32_t(xe::align(sizeof(SystemConstants), 4 * sizeof(uint32_t))));
-      // D3D_CT_CBUFFER.
-      shader_object_.push_back(0);
+      shader_object_.push_back(uint32_t(DxbcRdefCbufferType::kCbuffer));
       // No D3D_SHADER_CBUFFER_FLAGS.
       shader_object_.push_back(0);
     } else if (i == cbuffer_index_float_constants_) {
@@ -3381,7 +3396,7 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
       shader_object_.push_back(constant_offset_float);
       shader_object_.push_back(std::max(float_constant_count, 1u) * 4 *
                                sizeof(float));
-      shader_object_.push_back(0);
+      shader_object_.push_back(uint32_t(DxbcRdefCbufferType::kCbuffer));
       shader_object_.push_back(0);
     } else if (i == cbuffer_index_bool_loop_constants_) {
       shader_object_.push_back(cbuffer_name_offset_bool_loop);
@@ -3389,14 +3404,14 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
       shader_object_.push_back(2);
       shader_object_.push_back(constant_offset_bool_loop);
       shader_object_.push_back((2 + 8) * 4 * sizeof(uint32_t));
-      shader_object_.push_back(0);
+      shader_object_.push_back(uint32_t(DxbcRdefCbufferType::kCbuffer));
       shader_object_.push_back(0);
     } else if (i == cbuffer_index_fetch_constants_) {
       shader_object_.push_back(cbuffer_name_offset_fetch);
       shader_object_.push_back(1);
       shader_object_.push_back(constant_offset_fetch);
       shader_object_.push_back(32 * 6 * sizeof(uint32_t));
-      shader_object_.push_back(0);
+      shader_object_.push_back(uint32_t(DxbcRdefCbufferType::kCbuffer));
       shader_object_.push_back(0);
     }
   }
@@ -3441,19 +3456,16 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
     for (uint32_t i = 0; i < uint32_t(sampler_bindings_.size()); ++i) {
       const SamplerBinding& sampler_binding = sampler_bindings_[i];
       shader_object_.push_back(sampler_name_offset);
-      // D3D_SIT_SAMPLER.
-      shader_object_.push_back(3);
-      // No D3D_RESOURCE_RETURN_TYPE.
-      shader_object_.push_back(0);
-      // D3D_SRV_DIMENSION_UNKNOWN (not an SRV).
-      shader_object_.push_back(0);
+      shader_object_.push_back(uint32_t(DxbcRdefInputType::kSampler));
+      shader_object_.push_back(uint32_t(DxbcRdefReturnType::kVoid));
+      shader_object_.push_back(uint32_t(DxbcRdefDimension::kUnknown));
       // Multisampling not applicable.
       shader_object_.push_back(0);
       // Register s[i].
       shader_object_.push_back(i);
       // One binding.
       shader_object_.push_back(1);
-      // No D3D_SHADER_INPUT_FLAGS.
+      // No DxbcRdefInputFlags.
       shader_object_.push_back(0);
       // Register space 0.
       shader_object_.push_back(0);
@@ -3464,19 +3476,16 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
 
     // Shared memory (when memexport isn't used in the pipeline).
     shader_object_.push_back(shared_memory_srv_name_offset);
-    // D3D_SIT_BYTEADDRESS.
-    shader_object_.push_back(7);
-    // D3D_RETURN_TYPE_MIXED.
-    shader_object_.push_back(6);
-    // D3D_SRV_DIMENSION_BUFFER.
-    shader_object_.push_back(1);
+    shader_object_.push_back(uint32_t(DxbcRdefInputType::kByteAddress));
+    shader_object_.push_back(uint32_t(DxbcRdefReturnType::kMixed));
+    shader_object_.push_back(uint32_t(DxbcRdefDimension::kSRVBuffer));
     // Multisampling not applicable.
     shader_object_.push_back(0);
     // Register t0.
     shader_object_.push_back(0);
     // One binding.
     shader_object_.push_back(1);
-    // No D3D_SHADER_INPUT_FLAGS.
+    // No DxbcRdefInputFlags.
     shader_object_.push_back(0);
     // Register space 0.
     shader_object_.push_back(0);
@@ -3486,22 +3495,19 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
     for (uint32_t i = 0; i < uint32_t(texture_srvs_.size()); ++i) {
       const TextureSRV& texture_srv = texture_srvs_[i];
       shader_object_.push_back(texture_name_offset);
-      // D3D_SIT_TEXTURE.
-      shader_object_.push_back(2);
-      // D3D_RETURN_TYPE_FLOAT.
-      shader_object_.push_back(5);
+      shader_object_.push_back(uint32_t(DxbcRdefInputType::kTexture));
+      shader_object_.push_back(uint32_t(DxbcRdefReturnType::kFloat));
       switch (texture_srv.dimension) {
         case TextureDimension::k3D:
-          // D3D_SRV_DIMENSION_TEXTURE3D.
-          shader_object_.push_back(8);
+          shader_object_.push_back(uint32_t(DxbcRdefDimension::kSRVTexture3D));
           break;
         case TextureDimension::kCube:
-          // D3D_SRV_DIMENSION_TEXTURECUBE.
-          shader_object_.push_back(9);
+          shader_object_.push_back(
+              uint32_t(DxbcRdefDimension::kSRVTextureCube));
           break;
         default:
-          // D3D_SRV_DIMENSION_TEXTURE2DARRAY.
-          shader_object_.push_back(5);
+          shader_object_.push_back(
+              uint32_t(DxbcRdefDimension::kSRVTexture2DArray));
       }
       // Not multisampled.
       shader_object_.push_back(0xFFFFFFFFu);
@@ -3509,8 +3515,8 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
       shader_object_.push_back(1 + i);
       // One binding.
       shader_object_.push_back(1);
-      // D3D_SIF_TEXTURE_COMPONENTS (4-component).
-      shader_object_.push_back(0xC);
+      // 4-component.
+      shader_object_.push_back(DxbcRdefInputFlagsComponents);
       // Register space 0.
       shader_object_.push_back(0);
       // SRV ID T[1 + i] - T0 is shared memory.
@@ -3520,18 +3526,15 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
 
     // Shared memory (when memexport is used in the pipeline).
     shader_object_.push_back(shared_memory_uav_name_offset);
-    // D3D_SIT_UAV_RWBYTEADDRESS.
-    shader_object_.push_back(8);
-    // D3D_RETURN_TYPE_MIXED.
-    shader_object_.push_back(6);
-    // D3D_UAV_DIMENSION_BUFFER.
-    shader_object_.push_back(1);
+    shader_object_.push_back(uint32_t(DxbcRdefInputType::kUAVRWByteAddress));
+    shader_object_.push_back(uint32_t(DxbcRdefReturnType::kMixed));
+    shader_object_.push_back(uint32_t(DxbcRdefDimension::kUAVBuffer));
     // Multisampling not applicable.
     shader_object_.push_back(0);
     shader_object_.push_back(uint32_t(UAVRegister::kSharedMemory));
     // One binding.
     shader_object_.push_back(1);
-    // No D3D_SHADER_INPUT_FLAGS.
+    // No DxbcRdefInputFlags.
     shader_object_.push_back(0);
     // Register space 0.
     shader_object_.push_back(0);
@@ -3542,18 +3545,15 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
   if (IsDxbcPixelShader() && edram_rov_used_) {
     // EDRAM uint32 buffer.
     shader_object_.push_back(edram_name_offset);
-    // D3D_SIT_UAV_RWTYPED.
-    shader_object_.push_back(4);
-    // D3D_RETURN_TYPE_UINT.
-    shader_object_.push_back(4);
-    // D3D_UAV_DIMENSION_BUFFER.
-    shader_object_.push_back(1);
+    shader_object_.push_back(uint32_t(DxbcRdefInputType::kUAVRWTyped));
+    shader_object_.push_back(uint32_t(DxbcRdefReturnType::kUInt));
+    shader_object_.push_back(uint32_t(DxbcRdefDimension::kUAVBuffer));
     // Not multisampled.
     shader_object_.push_back(0xFFFFFFFFu);
     shader_object_.push_back(uint32_t(UAVRegister::kEDRAM));
     // One binding.
     shader_object_.push_back(1);
-    // No D3D_SHADER_INPUT_FLAGS.
+    // No DxbcRdefInputFlags.
     shader_object_.push_back(0);
     // Register space 0.
     shader_object_.push_back(0);
@@ -3577,20 +3577,16 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
       shader_object_.push_back(cbuffer_name_offset_fetch);
       register_index = uint32_t(CbufferRegister::kFetchConstants);
     }
-    // D3D_SIT_CBUFFER.
-    shader_object_.push_back(0);
-    // No D3D_RESOURCE_RETURN_TYPE.
-    shader_object_.push_back(0);
-    // D3D_SRV_DIMENSION_UNKNOWN (not an SRV).
-    shader_object_.push_back(0);
+    shader_object_.push_back(uint32_t(DxbcRdefInputType::kCbuffer));
+    shader_object_.push_back(uint32_t(DxbcRdefReturnType::kVoid));
+    shader_object_.push_back(uint32_t(DxbcRdefDimension::kUnknown));
     // Multisampling not applicable.
     shader_object_.push_back(0);
     shader_object_.push_back(register_index);
     // One binding.
     shader_object_.push_back(1);
-    // D3D_SIF_USERPACKED if a `cbuffer` rather than a `ConstantBuffer<T>`, but
-    // we don't use indexable constant buffer descriptors.
-    shader_object_.push_back(0);
+    // Like `cbuffer`, don't need `ConstantBuffer<T>` properties.
+    shader_object_.push_back(DxbcRdefInputFlagUserPacked);
     // Register space 0.
     shader_object_.push_back(0);
     // CBV ID CB[i].
@@ -3599,36 +3595,43 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
 }
 
 void DxbcShaderTranslator::WriteInputSignature() {
-  uint32_t chunk_position_dwords = uint32_t(shader_object_.size());
-  uint32_t new_offset;
-
-  const uint32_t signature_position_dwords = 2;
-  const uint32_t signature_size_dwords = 6;
+  // Because of shader_object_.resize(), pointers can't be kept persistently
+  // here! Resize also zeroes the memory.
+  uint32_t chunk_position = uint32_t(shader_object_.size());
+  // Reserve space for the header.
+  shader_object_.resize(shader_object_.size() +
+                        sizeof(DxbcSignature) / sizeof(uint32_t));
+  uint32_t parameter_count = 0;
+  constexpr size_t kParameterDwords =
+      sizeof(DxbcSignatureParameter) / sizeof(uint32_t);
 
   if (IsDxbcVertexShader()) {
-    // Only unswapped vertex index.
-    shader_object_.push_back(1);
-    // Unknown.
-    shader_object_.push_back(8);
+    // Unswapped vertex index (SV_VertexID).
+    size_t vertex_id_position = shader_object_.size();
+    shader_object_.resize(shader_object_.size() + kParameterDwords);
+    ++parameter_count;
+    {
+      DxbcSignatureParameter& vertex_id =
+          *reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
+                                                     vertex_id_position);
+      vertex_id.system_value = DxbcName::kVertexID;
+      vertex_id.component_type = DxbcSignatureRegisterComponentType::kUInt32;
+      vertex_id.register_index = uint32_t(InOutRegister::kVSInVertexIndex);
+      vertex_id.mask = 0b0001;
+      vertex_id.always_reads_mask = 0b0001;
+    }
 
-    // Vertex index.
-    // Semantic name SV_VertexID (the only one in the signature).
-    shader_object_.push_back(
-        (signature_position_dwords + signature_size_dwords) * sizeof(uint32_t));
-    // Semantic index.
-    shader_object_.push_back(0);
-    // D3D_NAME_VERTEX_ID.
-    shader_object_.push_back(6);
-    // D3D_REGISTER_COMPONENT_UINT32.
-    shader_object_.push_back(1);
-    shader_object_.push_back(uint32_t(InOutRegister::kVSInVertexIndex));
-    // x present, x used (always written to GPR 0).
-    shader_object_.push_back(0b0001 | (0b0001 << 8));
-
-    // Vertex index semantic name.
-    AppendString(shader_object_, "SV_VertexID");
+    // Semantic names.
+    uint32_t semantic_offset =
+        uint32_t((shader_object_.size() - chunk_position) * sizeof(uint32_t));
+    {
+      DxbcSignatureParameter& vertex_id =
+          *reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
+                                                     vertex_id_position);
+      vertex_id.semantic_name = semantic_offset;
+    }
+    semantic_offset += AppendString(shader_object_, "SV_VertexID");
   } else if (IsDxbcDomainShader()) {
-    // Tessellation factors are specified in PCSG, not ISGN.
     if (host_vertex_shader_type() ==
             Shader::HostVertexShaderType::kTriangleDomainConstant ||
         host_vertex_shader_type() ==
@@ -3636,155 +3639,212 @@ void DxbcShaderTranslator::WriteInputSignature() {
       // TODO(Triang3l): Support line patches.
 
       // Control point indices, byte-swapped, biased according to the base index
-      // and converted to float by the host vertex and hull shaders.
-      shader_object_.push_back(1);
-      // Unknown.
-      shader_object_.push_back(8);
+      // and converted to float by the host vertex and hull shaders
+      // (XEVERTEXID).
+      size_t control_point_index_position = shader_object_.size();
+      shader_object_.resize(shader_object_.size() + kParameterDwords);
+      ++parameter_count;
+      {
+        DxbcSignatureParameter& control_point_index =
+            *reinterpret_cast<DxbcSignatureParameter*>(
+                shader_object_.data() + control_point_index_position);
+        control_point_index.component_type =
+            DxbcSignatureRegisterComponentType::kFloat32;
+        control_point_index.register_index =
+            uint32_t(InOutRegister::kDSInControlPointIndex);
+        control_point_index.mask = 0b0001;
+        control_point_index.always_reads_mask = 0b0001;
+      }
 
-      // Control point indices.
-      // Semantic name XEVERTEXID (the only one in the signature).
-      shader_object_.push_back(
-          (signature_position_dwords + signature_size_dwords) *
-          sizeof(uint32_t));
-      // Semantic index.
-      shader_object_.push_back(0);
-      // D3D_NAME_UNDEFINED.
-      shader_object_.push_back(0);
-      // D3D_REGISTER_COMPONENT_FLOAT32.
-      shader_object_.push_back(3);
-      shader_object_.push_back(uint32_t(InOutRegister::kDSInControlPointIndex));
-      // x present, x used (always written to GPR 1).
-      shader_object_.push_back(0b0001 | (0b0001 << 8));
-
-      // Control point indices semantic name.
-      AppendString(shader_object_, "XEVERTEXID");
-    } else {
-      // No inputs.
-      shader_object_.push_back(0);
-      // Unknown.
-      shader_object_.push_back(8);
+      // Semantic names.
+      uint32_t semantic_offset =
+          uint32_t((shader_object_.size() - chunk_position) * sizeof(uint32_t));
+      {
+        DxbcSignatureParameter& control_point_index =
+            *reinterpret_cast<DxbcSignatureParameter*>(
+                shader_object_.data() + control_point_index_position);
+        control_point_index.semantic_name = semantic_offset;
+      }
+      semantic_offset += AppendString(shader_object_, "XEVERTEXID");
     }
-  } else {
-    assert_true(IsDxbcPixelShader());
-    // Interpolators, point parameters (coordinates, size), clip space ZW,
-    // screen position, is front face.
-    shader_object_.push_back(kInterpolatorCount + 4);
-    // Unknown.
-    shader_object_.push_back(8);
-
-    // Intepolators.
-    for (uint32_t i = 0; i < kInterpolatorCount; ++i) {
-      // Reserve space for the semantic name (TEXCOORD).
-      shader_object_.push_back(0);
-      shader_object_.push_back(i);
-      // D3D_NAME_UNDEFINED.
-      shader_object_.push_back(0);
-      // D3D_REGISTER_COMPONENT_FLOAT32.
-      shader_object_.push_back(3);
-      shader_object_.push_back(uint32_t(InOutRegister::kPSInInterpolators) + i);
-      // Interpolators are copied to GPRs in the beginning of the shader. If
-      // there's a register to copy to, this interpolator is used.
-      uint32_t interpolator_used =
-          (!is_depth_only_pixel_shader_ && i < register_count()) ? (0b1111 << 8)
-                                                                 : 0b0000;
-      shader_object_.push_back(0b1111 | interpolator_used);
+  } else if (IsDxbcPixelShader()) {
+    // Intepolators (TEXCOORD#).
+    size_t interpolator_position = shader_object_.size();
+    shader_object_.resize(shader_object_.size() +
+                          kInterpolatorCount * kParameterDwords);
+    parameter_count += kInterpolatorCount;
+    {
+      DxbcSignatureParameter* interpolators =
+          reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
+                                                    interpolator_position);
+      for (uint32_t i = 0; i < kInterpolatorCount; ++i) {
+        DxbcSignatureParameter& interpolator = interpolators[i];
+        interpolator.semantic_index = i;
+        interpolator.component_type =
+            DxbcSignatureRegisterComponentType::kFloat32;
+        interpolator.register_index =
+            uint32_t(InOutRegister::kPSInInterpolators) + i;
+        interpolator.mask = 0b1111;
+        // Interpolators are copied to GPRs in the beginning of the shader. If
+        // there's a register to copy to, this interpolator is used.
+        interpolator.always_reads_mask =
+            (!is_depth_only_pixel_shader_ && i < register_count()) ? 0b1111
+                                                                   : 0b0000;
+      }
     }
 
     // Point parameters - coordinate on the point and point size as a float3
     // TEXCOORD (but the size in Z is not needed). Always used because
     // ps_param_gen is handled dynamically.
-    shader_object_.push_back(0);
-    shader_object_.push_back(kPointParametersTexCoord);
-    shader_object_.push_back(0);
-    shader_object_.push_back(3);
-    shader_object_.push_back(uint32_t(InOutRegister::kPSInPointParameters));
-    shader_object_.push_back(
-        0b0111 | (is_depth_only_pixel_shader_ ? 0b0000 : (0b0011 << 8)));
-
-    // Z and W in clip space, for getting per-sample depth with ROV.
-    shader_object_.push_back(0);
-    shader_object_.push_back(kClipSpaceZWTexCoord);
-    shader_object_.push_back(0);
-    shader_object_.push_back(3);
-    shader_object_.push_back(uint32_t(InOutRegister::kPSInClipSpaceZW));
-    shader_object_.push_back(0b0011 |
-                             ((edram_rov_used_ ? 0b0011 : 0b0000) << 8));
-
-    // Position (only XY needed for ps_param_gen and for EDRAM address
-    // calculation). Z is not needed - ROV depth testing calculates the depth
-    // from the clip space Z/W texcoord, and if oDepth is used, it must be
-    // written to on every execution path anyway.
-    shader_object_.push_back(0);
-    shader_object_.push_back(0);
-    // D3D_NAME_POSITION.
-    shader_object_.push_back(1);
-    shader_object_.push_back(3);
-    shader_object_.push_back(uint32_t(InOutRegister::kPSInPosition));
-    shader_object_.push_back(0b1111 | (0b0011 << 8));
-
-    // Is front face. Always used because ps_param_gen is handled dynamically.
-    shader_object_.push_back(0);
-    shader_object_.push_back(0);
-    // D3D_NAME_IS_FRONT_FACE.
-    shader_object_.push_back(9);
-    shader_object_.push_back(1);
-    shader_object_.push_back(uint32_t(InOutRegister::kPSInFrontFace));
-    if (edram_rov_used_) {
-      shader_object_.push_back(0b0001 | (0b0001 << 8));
-    } else {
-      shader_object_.push_back(
-          0b0001 | (is_depth_only_pixel_shader_ ? 0b0000 : (0b0001 << 8)));
+    size_t point_parameters_position = shader_object_.size();
+    shader_object_.resize(shader_object_.size() + kParameterDwords);
+    ++parameter_count;
+    {
+      DxbcSignatureParameter& point_parameters =
+          *reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
+                                                     point_parameters_position);
+      point_parameters.semantic_index = kPointParametersTexCoord;
+      point_parameters.component_type =
+          DxbcSignatureRegisterComponentType::kFloat32;
+      point_parameters.register_index =
+          uint32_t(InOutRegister::kPSInPointParameters);
+      point_parameters.mask = 0b0111;
+      point_parameters.always_reads_mask =
+          is_depth_only_pixel_shader_ ? 0b0000 : 0b0011;
     }
 
-    // Write the semantic names.
-    new_offset = (uint32_t(shader_object_.size()) - chunk_position_dwords) *
-                 sizeof(uint32_t);
-    uint32_t name_position_dwords =
-        chunk_position_dwords + signature_position_dwords;
-    for (uint32_t i = 0; i < kInterpolatorCount + 2; ++i) {
-      shader_object_[name_position_dwords] = new_offset;
-      name_position_dwords += signature_size_dwords;
+    // Z and W in clip space, for getting per-sample depth with ROV (TEXCOORD#).
+    size_t clip_space_zw_position = shader_object_.size();
+    shader_object_.resize(shader_object_.size() + kParameterDwords);
+    ++parameter_count;
+    {
+      DxbcSignatureParameter& clip_space_zw =
+          *reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
+                                                     clip_space_zw_position);
+      clip_space_zw.semantic_index = kClipSpaceZWTexCoord;
+      clip_space_zw.component_type =
+          DxbcSignatureRegisterComponentType::kFloat32;
+      clip_space_zw.register_index = uint32_t(InOutRegister::kPSInClipSpaceZW);
+      clip_space_zw.mask = 0b0011;
+      clip_space_zw.always_reads_mask = edram_rov_used_ ? 0b0011 : 0b0000;
     }
-    new_offset += AppendString(shader_object_, "TEXCOORD");
-    shader_object_[name_position_dwords] = new_offset;
-    name_position_dwords += signature_size_dwords;
-    new_offset += AppendString(shader_object_, "SV_Position");
-    shader_object_[name_position_dwords] = new_offset;
-    name_position_dwords += signature_size_dwords;
-    new_offset += AppendString(shader_object_, "SV_IsFrontFace");
+
+    // Position (SV_Position, only XY needed for ps_param_gen and for EDRAM
+    // address calculation). Z is not needed - ROV depth testing calculates the
+    // depth from the clip space Z/W texcoord, and if oDepth is used, it must be
+    // written to on every execution path anyway (SV_Position).
+    size_t position_position = shader_object_.size();
+    shader_object_.resize(shader_object_.size() + kParameterDwords);
+    ++parameter_count;
+    {
+      DxbcSignatureParameter& position =
+          *reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
+                                                     position_position);
+      position.system_value = DxbcName::kPosition;
+      position.component_type = DxbcSignatureRegisterComponentType::kFloat32;
+      position.register_index = uint32_t(InOutRegister::kPSInPosition);
+      position.mask = 0b1111;
+      position.always_reads_mask =
+          (!is_depth_only_pixel_shader_ || edram_rov_used_) ? 0b0011 : 0b0000;
+    }
+
+    // Is front face (SV_IsFrontFace). Always used because ps_param_gen is
+    // handled dynamically, and ROV stencil depends on it.
+    size_t is_front_face_position = shader_object_.size();
+    shader_object_.resize(shader_object_.size() + kParameterDwords);
+    ++parameter_count;
+    {
+      DxbcSignatureParameter& is_front_face =
+          *reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
+                                                     is_front_face_position);
+      is_front_face.system_value = DxbcName::kIsFrontFace;
+      is_front_face.component_type =
+          DxbcSignatureRegisterComponentType::kUInt32;
+      is_front_face.register_index = uint32_t(InOutRegister::kPSInFrontFace);
+      is_front_face.mask = 0b0001;
+      is_front_face.always_reads_mask =
+          (!is_depth_only_pixel_shader_ || edram_rov_used_) ? 0b0001 : 0b0000;
+    }
+
+    // Semantic names.
+    uint32_t semantic_offset =
+        uint32_t((shader_object_.size() - chunk_position) * sizeof(uint32_t));
+    {
+      DxbcSignatureParameter* interpolators =
+          reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
+                                                    interpolator_position);
+      for (uint32_t i = 0; i < kInterpolatorCount; ++i) {
+        interpolators[i].semantic_name = semantic_offset;
+      }
+      DxbcSignatureParameter& point_parameters =
+          *reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
+                                                     point_parameters_position);
+      point_parameters.semantic_name = semantic_offset;
+      DxbcSignatureParameter& clip_space_zw =
+          *reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
+                                                     clip_space_zw_position);
+      clip_space_zw.semantic_name = semantic_offset;
+    }
+    semantic_offset += AppendString(shader_object_, "TEXCOORD");
+    {
+      DxbcSignatureParameter& position =
+          *reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
+                                                     position_position);
+      position.semantic_name = semantic_offset;
+    }
+    semantic_offset += AppendString(shader_object_, "SV_Position");
+    {
+      DxbcSignatureParameter& is_front_face =
+          *reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
+                                                     is_front_face_position);
+      is_front_face.semantic_name = semantic_offset;
+    }
+    semantic_offset += AppendString(shader_object_, "SV_IsFrontFace");
+  }
+
+  // Header.
+  {
+    DxbcSignature& header = *reinterpret_cast<DxbcSignature*>(
+        shader_object_.data() + chunk_position);
+    header.parameter_count = parameter_count;
+    header.parameter_info_offset = sizeof(DxbcSignature);
   }
 }
 
 void DxbcShaderTranslator::WritePatchConstantSignature() {
   assert_true(IsDxbcDomainShader());
+  // Because of shader_object_.resize(), pointers can't be kept persistently
+  // here! Resize also zeroes the memory.
+  uint32_t chunk_position = uint32_t(shader_object_.size());
+  // Reserve space for the header.
+  shader_object_.resize(shader_object_.size() +
+                        sizeof(DxbcSignature) / sizeof(uint32_t));
+  uint32_t parameter_count = 0;
+  constexpr size_t kParameterDwords =
+      sizeof(DxbcSignatureParameter) / sizeof(uint32_t);
 
-  uint32_t chunk_position_dwords = uint32_t(shader_object_.size());
-
-  const uint32_t signature_position_dwords = 2;
-  const uint32_t signature_size_dwords = 6;
-
-  // FXC refuses to compile without SV_TessFactor and SV_InsideTessFactor input,
-  // so this is required.
-  uint32_t tess_factor_count_edge = 3, tess_factor_name_edge = 13;
-  uint32_t tess_factor_count_inside = 1, tess_factor_name_inside = 14;
+  // FXC always compiles with SV_TessFactor and SV_InsideTessFactor input, so
+  // this is required even if not referenced (HS and DS have very strict
+  // linkage, by the way, everything that HS outputs must be listed in DS
+  // inputs).
+  uint32_t tess_factor_edge_count = 0;
+  DxbcName tess_factor_edge_system_value = DxbcName::kUndefined;
+  uint32_t tess_factor_inside_count = 0;
+  DxbcName tess_factor_inside_system_value = DxbcName::kUndefined;
   switch (host_vertex_shader_type()) {
     case Shader::HostVertexShaderType::kTriangleDomainConstant:
     case Shader::HostVertexShaderType::kTriangleDomainAdaptive:
-      tess_factor_count_edge = 3;
-      // D3D_NAME_FINAL_TRI_EDGE_TESSFACTOR.
-      tess_factor_name_edge = 13;
-      tess_factor_count_inside = 1;
-      // D3D_NAME_FINAL_TRI_INSIDE_TESSFACTOR.
-      tess_factor_name_inside = 14;
+      tess_factor_edge_count = 3;
+      tess_factor_edge_system_value = DxbcName::kFinalTriEdgeTessFactor;
+      tess_factor_inside_count = 1;
+      tess_factor_inside_system_value = DxbcName::kFinalTriInsideTessFactor;
       break;
     case Shader::HostVertexShaderType::kQuadDomainConstant:
     case Shader::HostVertexShaderType::kQuadDomainAdaptive:
-      tess_factor_count_edge = 4;
-      // D3D_NAME_FINAL_QUAD_EDGE_TESSFACTOR.
-      tess_factor_name_edge = 11;
-      tess_factor_count_inside = 2;
-      // D3D_NAME_FINAL_QUAD_INSIDE_TESSFACTOR.
-      tess_factor_name_inside = 12;
+      tess_factor_edge_count = 4;
+      tess_factor_edge_system_value = DxbcName::kFinalQuadEdgeTessFactor;
+      tess_factor_inside_count = 2;
+      tess_factor_inside_system_value = DxbcName::kFinalQuadInsideTessFactor;
       break;
     default:
       // TODO(Triang3l): Support line patches.
@@ -3792,208 +3852,322 @@ void DxbcShaderTranslator::WritePatchConstantSignature() {
       EmitTranslationError(
           "Unsupported host vertex shader type in WritePatchConstantSignature");
   }
-  uint32_t tess_factor_count_total =
-      tess_factor_count_edge + tess_factor_count_inside;
-  shader_object_.push_back(tess_factor_count_total);
-  // Unknown.
-  shader_object_.push_back(8);
 
-  for (uint32_t i = 0; i < tess_factor_count_total; ++i) {
-    // Reserve space for the semantic name (SV_TessFactor or
-    // SV_InsideTessFactor).
-    shader_object_.push_back(0);
-    shader_object_.push_back(
-        i < tess_factor_count_edge ? i : (i - tess_factor_count_edge));
-    if (i < tess_factor_count_edge) {
-      shader_object_.push_back(tess_factor_name_edge);
-    } else {
-      shader_object_.push_back(tess_factor_name_inside);
+  // Edge tessellation factors (SV_TessFactor).
+  size_t tess_factor_edge_position = shader_object_.size();
+  shader_object_.resize(shader_object_.size() +
+                        tess_factor_edge_count * kParameterDwords);
+  parameter_count += tess_factor_edge_count;
+  {
+    DxbcSignatureParameter* tess_factors_edge =
+        reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
+                                                  tess_factor_edge_position);
+    for (uint32_t i = 0; i < tess_factor_edge_count; ++i) {
+      DxbcSignatureParameter& tess_factor_edge = tess_factors_edge[i];
+      tess_factor_edge.semantic_index = i;
+      tess_factor_edge.system_value = tess_factor_edge_system_value;
+      tess_factor_edge.component_type =
+          DxbcSignatureRegisterComponentType::kFloat32;
+      // Not using any of these, just assigning consecutive registers.
+      tess_factor_edge.register_index = i;
+      tess_factor_edge.mask = 0b0001;
     }
-    // D3D_REGISTER_COMPONENT_FLOAT32.
-    shader_object_.push_back(3);
-    // Not using any of these, and just assigning consecutive registers.
-    shader_object_.push_back(i);
-    // 1 component, none used.
-    shader_object_.push_back(1);
   }
 
-  // Write the semantic names.
-  uint32_t new_offset =
-      (uint32_t(shader_object_.size()) - chunk_position_dwords) *
-      sizeof(uint32_t);
-  uint32_t name_position_dwords =
-      chunk_position_dwords + signature_position_dwords;
-  for (uint32_t i = 0; i < tess_factor_count_edge; ++i) {
-    shader_object_[name_position_dwords] = new_offset;
-    name_position_dwords += signature_size_dwords;
+  // Inside tessellation factors (SV_InsideTessFactor).
+  size_t tess_factor_inside_position = shader_object_.size();
+  shader_object_.resize(shader_object_.size() +
+                        tess_factor_inside_count * kParameterDwords);
+  parameter_count += tess_factor_inside_count;
+  {
+    DxbcSignatureParameter* tess_factors_inside =
+        reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
+                                                  tess_factor_inside_position);
+    for (uint32_t i = 0; i < tess_factor_inside_count; ++i) {
+      DxbcSignatureParameter& tess_factor_inside = tess_factors_inside[i];
+      tess_factor_inside.semantic_index = i;
+      tess_factor_inside.system_value = tess_factor_inside_system_value;
+      tess_factor_inside.component_type =
+          DxbcSignatureRegisterComponentType::kFloat32;
+      // Not using any of these, just assigning consecutive registers.
+      tess_factor_inside.register_index = tess_factor_edge_count + i;
+      tess_factor_inside.mask = 0b0001;
+    }
   }
-  new_offset += AppendString(shader_object_, "SV_TessFactor");
-  for (uint32_t i = 0; i < tess_factor_count_inside; ++i) {
-    shader_object_[name_position_dwords] = new_offset;
-    name_position_dwords += signature_size_dwords;
+
+  // Semantic names.
+  uint32_t semantic_offset =
+      uint32_t((shader_object_.size() - chunk_position) * sizeof(uint32_t));
+  {
+    DxbcSignatureParameter* tess_factors_edge =
+        reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
+                                                  tess_factor_edge_position);
+    for (uint32_t i = 0; i < tess_factor_edge_count; ++i) {
+      tess_factors_edge[i].semantic_name = semantic_offset;
+    }
   }
-  new_offset += AppendString(shader_object_, "SV_InsideTessFactor");
+  semantic_offset += AppendString(shader_object_, "SV_TessFactor");
+  {
+    DxbcSignatureParameter* tess_factors_inside =
+        reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
+                                                  tess_factor_inside_position);
+    for (uint32_t i = 0; i < tess_factor_inside_count; ++i) {
+      tess_factors_inside[i].semantic_name = semantic_offset;
+    }
+  }
+  semantic_offset += AppendString(shader_object_, "SV_InsideTessFactor");
+
+  // Header.
+  {
+    DxbcSignature& header = *reinterpret_cast<DxbcSignature*>(
+        shader_object_.data() + chunk_position);
+    header.parameter_count = parameter_count;
+    header.parameter_info_offset = sizeof(DxbcSignature);
+  }
 }
 
 void DxbcShaderTranslator::WriteOutputSignature() {
-  uint32_t chunk_position_dwords = uint32_t(shader_object_.size());
-  uint32_t new_offset;
-
-  const uint32_t signature_position_dwords = 2;
-  const uint32_t signature_size_dwords = 6;
+  // Because of shader_object_.resize(), pointers can't be kept persistently
+  // here! Resize also zeroes the memory.
+  uint32_t chunk_position = uint32_t(shader_object_.size());
+  // Reserve space for the header.
+  shader_object_.resize(shader_object_.size() +
+                        sizeof(DxbcSignature) / sizeof(uint32_t));
+  uint32_t parameter_count = 0;
+  constexpr size_t kParameterDwords =
+      sizeof(DxbcSignatureParameter) / sizeof(uint32_t);
 
   if (IsDxbcVertexOrDomainShader()) {
-    // Interpolators, point parameters (coordinates, size), clip space ZW,
-    // screen position, 6 clip distances in 2 vectors, cull distance.
-    shader_object_.push_back(kInterpolatorCount + 6);
-    // Unknown.
-    shader_object_.push_back(8);
-
-    // Intepolators.
-    for (uint32_t i = 0; i < kInterpolatorCount; ++i) {
-      // Reserve space for the semantic name (TEXCOORD).
-      shader_object_.push_back(0);
-      // Semantic index.
-      shader_object_.push_back(i);
-      // D3D_NAME_UNDEFINED.
-      shader_object_.push_back(0);
-      // D3D_REGISTER_COMPONENT_FLOAT32.
-      shader_object_.push_back(3);
-      shader_object_.push_back(uint32_t(InOutRegister::kVSDSOutInterpolators) +
-                               i);
-      // Unlike in ISGN, the second byte contains the unused components, not the
-      // used ones. All components are always used because they are reset to 0.
-      shader_object_.push_back(0b1111);
+    // Intepolators (TEXCOORD#).
+    size_t interpolator_position = shader_object_.size();
+    shader_object_.resize(shader_object_.size() +
+                          kInterpolatorCount * kParameterDwords);
+    parameter_count += kInterpolatorCount;
+    {
+      DxbcSignatureParameter* interpolators =
+          reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
+                                                    interpolator_position);
+      for (uint32_t i = 0; i < kInterpolatorCount; ++i) {
+        DxbcSignatureParameter& interpolator = interpolators[i];
+        interpolator.semantic_index = i;
+        interpolator.component_type =
+            DxbcSignatureRegisterComponentType::kFloat32;
+        interpolator.register_index =
+            uint32_t(InOutRegister::kVSDSOutInterpolators) + i;
+        interpolator.mask = 0b1111;
+      }
     }
 
     // Point parameters - coordinate on the point and point size as a float3
     // TEXCOORD. Always used because reset to (0, 0, -1).
-    shader_object_.push_back(0);
-    shader_object_.push_back(kPointParametersTexCoord);
-    shader_object_.push_back(0);
-    shader_object_.push_back(3);
-    shader_object_.push_back(uint32_t(InOutRegister::kVSDSOutPointParameters));
-    shader_object_.push_back(0b0111 | (0b1000 << 8));
-
-    // Z and W in clip space, for getting per-sample depth with ROV.
-    shader_object_.push_back(0);
-    shader_object_.push_back(kClipSpaceZWTexCoord);
-    shader_object_.push_back(0);
-    shader_object_.push_back(3);
-    shader_object_.push_back(uint32_t(InOutRegister::kVSDSOutClipSpaceZW));
-    shader_object_.push_back(0b0011 | (0b1100 << 8));
-
-    // Position.
-    shader_object_.push_back(0);
-    shader_object_.push_back(0);
-    // D3D_NAME_POSITION.
-    shader_object_.push_back(1);
-    shader_object_.push_back(3);
-    shader_object_.push_back(uint32_t(InOutRegister::kVSDSOutPosition));
-    shader_object_.push_back(0b1111);
-
-    // Clip and cull distances.
-    for (uint32_t i = 0; i < 2; ++i) {
-      shader_object_.push_back(0);
-      shader_object_.push_back(i);
-      // D3D_NAME_CLIP_DISTANCE.
-      shader_object_.push_back(2);
-      shader_object_.push_back(3);
-      shader_object_.push_back(
-          uint32_t(InOutRegister::kVSDSOutClipDistance0123) + i);
-      shader_object_.push_back(i ? (0b0011 | (0b1100 << 8)) : 0b1111);
+    size_t point_parameters_position = shader_object_.size();
+    shader_object_.resize(shader_object_.size() + kParameterDwords);
+    ++parameter_count;
+    {
+      DxbcSignatureParameter& point_parameters =
+          *reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
+                                                     point_parameters_position);
+      point_parameters.semantic_index = kPointParametersTexCoord;
+      point_parameters.component_type =
+          DxbcSignatureRegisterComponentType::kFloat32;
+      point_parameters.register_index =
+          uint32_t(InOutRegister::kVSDSOutPointParameters);
+      point_parameters.mask = 0b0111;
+      point_parameters.never_writes_mask = 0b1000;
     }
-    shader_object_.push_back(0);
-    shader_object_.push_back(0);
-    // D3D_NAME_CULL_DISTANCE.
-    shader_object_.push_back(3);
-    shader_object_.push_back(3);
-    shader_object_.push_back(
-        uint32_t(InOutRegister::kVSDSOutClipDistance45AndCullDistance));
-    shader_object_.push_back(0b0100 | (0b1011 << 8));
 
-    // Write the semantic names.
-    new_offset = (uint32_t(shader_object_.size()) - chunk_position_dwords) *
-                 sizeof(uint32_t);
-    uint32_t name_position_dwords =
-        chunk_position_dwords + signature_position_dwords;
-    for (uint32_t i = 0; i < kInterpolatorCount + 2; ++i) {
-      shader_object_[name_position_dwords] = new_offset;
-      name_position_dwords += signature_size_dwords;
+    // Z and W in clip space, for getting per-sample depth with ROV (TEXCOORD#).
+    size_t clip_space_zw_position = shader_object_.size();
+    shader_object_.resize(shader_object_.size() + kParameterDwords);
+    ++parameter_count;
+    {
+      DxbcSignatureParameter& clip_space_zw =
+          *reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
+                                                     clip_space_zw_position);
+      clip_space_zw.semantic_index = kClipSpaceZWTexCoord;
+      clip_space_zw.component_type =
+          DxbcSignatureRegisterComponentType::kFloat32;
+      clip_space_zw.register_index =
+          uint32_t(InOutRegister::kVSDSOutClipSpaceZW);
+      clip_space_zw.mask = 0b0011;
+      clip_space_zw.never_writes_mask = 0b1100;
     }
-    new_offset += AppendString(shader_object_, "TEXCOORD");
-    shader_object_[name_position_dwords] = new_offset;
-    name_position_dwords += signature_size_dwords;
-    new_offset += AppendString(shader_object_, "SV_Position");
-    for (uint32_t i = 0; i < 2; ++i) {
-      shader_object_[name_position_dwords] = new_offset;
-      name_position_dwords += signature_size_dwords;
-    }
-    new_offset += AppendString(shader_object_, "SV_ClipDistance");
-    shader_object_[name_position_dwords] = new_offset;
-    name_position_dwords += signature_size_dwords;
-    new_offset += AppendString(shader_object_, "SV_CullDistance");
-  } else {
-    assert_true(IsDxbcPixelShader());
-    if (edram_rov_used_) {
-      // No outputs - only ROV read/write.
-      shader_object_.push_back(0);
-      // Unknown.
-      shader_object_.push_back(8);
-    } else {
-      bool writes_color = writes_any_color_target();
-      // Color render targets, optionally depth.
-      shader_object_.push_back((writes_color ? 4 : 0) +
-                               (writes_depth() ? 1 : 0));
-      // Unknown.
-      shader_object_.push_back(8);
 
-      // Color render targets.
-      if (writes_color) {
+    // Position (SV_Position).
+    size_t position_position = shader_object_.size();
+    shader_object_.resize(shader_object_.size() + kParameterDwords);
+    ++parameter_count;
+    {
+      DxbcSignatureParameter& position =
+          *reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
+                                                     position_position);
+      position.system_value = DxbcName::kPosition;
+      position.component_type = DxbcSignatureRegisterComponentType::kFloat32;
+      position.register_index = uint32_t(InOutRegister::kVSDSOutPosition);
+      position.mask = 0b1111;
+    }
+
+    // Clip (SV_ClipDistance) and cull (SV_CullDistance) distances.
+    size_t clip_distance_0123_position = shader_object_.size();
+    shader_object_.resize(shader_object_.size() + kParameterDwords);
+    ++parameter_count;
+    {
+      DxbcSignatureParameter& clip_distance_0123 =
+          *reinterpret_cast<DxbcSignatureParameter*>(
+              shader_object_.data() + clip_distance_0123_position);
+      clip_distance_0123.system_value = DxbcName::kClipDistance;
+      clip_distance_0123.component_type =
+          DxbcSignatureRegisterComponentType::kFloat32;
+      clip_distance_0123.register_index =
+          uint32_t(InOutRegister::kVSDSOutClipDistance0123);
+      clip_distance_0123.mask = 0b1111;
+    }
+    size_t clip_distance_45_position = shader_object_.size();
+    shader_object_.resize(shader_object_.size() + kParameterDwords);
+    ++parameter_count;
+    {
+      DxbcSignatureParameter& clip_distance_45 =
+          *reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
+                                                     clip_distance_45_position);
+      clip_distance_45.semantic_index = 1;
+      clip_distance_45.system_value = DxbcName::kClipDistance;
+      clip_distance_45.component_type =
+          DxbcSignatureRegisterComponentType::kFloat32;
+      clip_distance_45.register_index =
+          uint32_t(InOutRegister::kVSDSOutClipDistance45AndCullDistance);
+      clip_distance_45.mask = 0b0011;
+      clip_distance_45.never_writes_mask = 0b1100;
+    }
+    size_t cull_distance_position = shader_object_.size();
+    shader_object_.resize(shader_object_.size() + kParameterDwords);
+    ++parameter_count;
+    {
+      DxbcSignatureParameter& cull_distance =
+          *reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
+                                                     cull_distance_position);
+      cull_distance.system_value = DxbcName::kCullDistance;
+      cull_distance.component_type =
+          DxbcSignatureRegisterComponentType::kFloat32;
+      cull_distance.register_index =
+          uint32_t(InOutRegister::kVSDSOutClipDistance45AndCullDistance);
+      cull_distance.mask = 0b0100;
+      cull_distance.never_writes_mask = 0b1011;
+    }
+
+    // Semantic names.
+    uint32_t semantic_offset =
+        uint32_t((shader_object_.size() - chunk_position) * sizeof(uint32_t));
+    {
+      DxbcSignatureParameter* interpolators =
+          reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
+                                                    interpolator_position);
+      for (uint32_t i = 0; i < kInterpolatorCount; ++i) {
+        interpolators[i].semantic_name = semantic_offset;
+      }
+      DxbcSignatureParameter& point_parameters =
+          *reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
+                                                     point_parameters_position);
+      point_parameters.semantic_name = semantic_offset;
+      DxbcSignatureParameter& clip_space_zw =
+          *reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
+                                                     clip_space_zw_position);
+      clip_space_zw.semantic_name = semantic_offset;
+    }
+    semantic_offset += AppendString(shader_object_, "TEXCOORD");
+    {
+      DxbcSignatureParameter& position =
+          *reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
+                                                     position_position);
+      position.semantic_name = semantic_offset;
+    }
+    semantic_offset += AppendString(shader_object_, "SV_Position");
+    {
+      DxbcSignatureParameter& clip_distance_0123 =
+          *reinterpret_cast<DxbcSignatureParameter*>(
+              shader_object_.data() + clip_distance_0123_position);
+      clip_distance_0123.semantic_name = semantic_offset;
+      DxbcSignatureParameter& clip_distance_45 =
+          *reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
+                                                     clip_distance_45_position);
+      clip_distance_45.semantic_name = semantic_offset;
+    }
+    semantic_offset += AppendString(shader_object_, "SV_ClipDistance");
+    {
+      DxbcSignatureParameter& cull_distance =
+          *reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
+                                                     cull_distance_position);
+      cull_distance.semantic_name = semantic_offset;
+    }
+    semantic_offset += AppendString(shader_object_, "SV_CullDistance");
+  } else if (IsDxbcPixelShader()) {
+    if (!edram_rov_used_) {
+      // Color render targets (SV_Target#).
+      size_t target_position = SIZE_MAX;
+      if (writes_any_color_target()) {
+        target_position = shader_object_.size();
+        shader_object_.resize(shader_object_.size() + 4 * kParameterDwords);
+        parameter_count += 4;
+        DxbcSignatureParameter* targets =
+            reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
+                                                      target_position);
         for (uint32_t i = 0; i < 4; ++i) {
-          // Reserve space for the semantic name (SV_Target).
-          shader_object_.push_back(0);
-          shader_object_.push_back(i);
-          // D3D_NAME_UNDEFINED for some reason - this is correct.
-          shader_object_.push_back(0);
-          shader_object_.push_back(3);
-          // Register must match the render target index.
-          shader_object_.push_back(i);
-          // All are used because X360 RTs are dynamically remapped to D3D12 RTs
-          // to make the indices consecutive.
-          shader_object_.push_back(0xF);
+          DxbcSignatureParameter& target = targets[i];
+          target.semantic_index = i;
+          target.component_type = DxbcSignatureRegisterComponentType::kFloat32;
+          target.register_index = i;
+          target.mask = 0b1111;
+          // All are always written because X360 RTs are dynamically remapped to
+          // D3D12 RTs to make RT indices consecutive.
         }
       }
 
-      // Depth.
+      // Depth (SV_Depth).
+      size_t depth_position = SIZE_MAX;
       if (writes_depth()) {
-        // Reserve space for the semantic name (SV_Depth).
-        shader_object_.push_back(0);
-        shader_object_.push_back(0);
-        shader_object_.push_back(0);
-        shader_object_.push_back(3);
-        shader_object_.push_back(0xFFFFFFFFu);
-        shader_object_.push_back(0x1 | (0xE << 8));
+        depth_position = shader_object_.size();
+        shader_object_.resize(shader_object_.size() + kParameterDwords);
+        ++parameter_count;
+        DxbcSignatureParameter& depth =
+            *reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
+                                                       depth_position);
+        depth.component_type = DxbcSignatureRegisterComponentType::kFloat32;
+        depth.register_index = UINT32_MAX;
+        depth.mask = 0b0001;
+        depth.never_writes_mask = 0b1110;
       }
 
-      // Write the semantic names.
-      new_offset = (uint32_t(shader_object_.size()) - chunk_position_dwords) *
-                   sizeof(uint32_t);
-      uint32_t name_position_dwords =
-          chunk_position_dwords + signature_position_dwords;
-      if (writes_color) {
-        for (uint32_t i = 0; i < 4; ++i) {
-          shader_object_[name_position_dwords] = new_offset;
-          name_position_dwords += signature_size_dwords;
+      // Semantic names.
+      uint32_t semantic_offset =
+          uint32_t((shader_object_.size() - chunk_position) * sizeof(uint32_t));
+      if (target_position != SIZE_MAX) {
+        {
+          DxbcSignatureParameter* targets =
+              reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
+                                                        target_position);
+          for (uint32_t i = 0; i < 4; ++i) {
+            targets[i].semantic_name = semantic_offset;
+          }
         }
+        semantic_offset += AppendString(shader_object_, "SV_Target");
       }
-      new_offset += AppendString(shader_object_, "SV_Target");
-      if (writes_depth()) {
-        shader_object_[name_position_dwords] = new_offset;
-        name_position_dwords += signature_size_dwords;
-        new_offset += AppendString(shader_object_, "SV_Depth");
+      if (depth_position != SIZE_MAX) {
+        {
+          DxbcSignatureParameter& depth =
+              *reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
+                                                         depth_position);
+          depth.semantic_name = semantic_offset;
+        }
+        semantic_offset += AppendString(shader_object_, "SV_Depth");
       }
     }
+  }
+
+  // Header.
+  {
+    DxbcSignature& header = *reinterpret_cast<DxbcSignature*>(
+        shader_object_.data() + chunk_position);
+    header.parameter_count = parameter_count;
+    header.parameter_info_offset = sizeof(DxbcSignature);
   }
 }
 
