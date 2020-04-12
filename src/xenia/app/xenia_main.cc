@@ -233,6 +233,12 @@ int xenia_main(const std::vector<std::string>& args) {
   std::filesystem::path content_root = cvars::content_root;
   if (content_root.empty()) {
     content_root = storage_root / "content";
+  } else {
+    // If content root isn't an absolute path, then it should be relative to the
+    // storage root.
+    if (!content_root.is_absolute()) {
+      content_root = storage_root / content_root;
+    }
   }
   content_root = std::filesystem::absolute(content_root);
   XELOGI("Content root: {}", xe::path_to_utf8(content_root));
