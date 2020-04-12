@@ -233,8 +233,6 @@ class PipelineCache {
 
   D3D12CommandProcessor* command_processor_;
   RegisterFile* register_file_;
-
-  // Whether the output merger is emulated in pixel shaders.
   bool edram_rov_used_;
   uint32_t resolution_scale_;
 

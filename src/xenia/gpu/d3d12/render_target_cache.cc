@@ -101,18 +101,19 @@ const RenderTargetCache::EDRAMLoadStoreModeInfo
 
 RenderTargetCache::RenderTargetCache(D3D12CommandProcessor* command_processor,
                                      RegisterFile* register_file,
-                                     TraceWriter* trace_writer)
+                                     TraceWriter* trace_writer,
+                                     bool edram_rov_used)
     : command_processor_(command_processor),
       register_file_(register_file),
-      trace_writer_(trace_writer) {}
+      trace_writer_(trace_writer),
+      edram_rov_used_(edram_rov_used) {}
 
 RenderTargetCache::~RenderTargetCache() { Shutdown(); }
 
 bool RenderTargetCache::Initialize(const TextureCache* texture_cache) {
   // EDRAM buffer size depends on this.
   resolution_scale_2x_ = texture_cache->IsResolutionScale2X();
-  assert_false(resolution_scale_2x_ &&
-               !command_processor_->IsROVUsedForEDRAM());
+  assert_false(resolution_scale_2x_ && !edram_rov_used_);
 
   auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
   auto device = provider->GetDevice();
@@ -125,7 +126,7 @@ bool RenderTargetCache::Initialize(const TextureCache* texture_cache) {
       edram_buffer_desc, GetEDRAMBufferSize(),
       D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
   // The first operation will likely be drawing with ROV or a load without ROV.
-  edram_buffer_state_ = command_processor_->IsROVUsedForEDRAM()
+  edram_buffer_state_ = edram_rov_used_
                             ? D3D12_RESOURCE_STATE_UNORDERED_ACCESS
                             : D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
   if (FAILED(device->CreateCommittedResource(
@@ -238,14 +239,13 @@ bool RenderTargetCache::Initialize(const TextureCache* texture_cache) {
   }
 
   // Create the pipelines.
-  bool rov_used = command_processor_->IsROVUsedForEDRAM();
   // Load and store.
   for (uint32_t i = 0; i < uint32_t(EDRAMLoadStoreMode::kCount); ++i) {
     const EDRAMLoadStoreModeInfo& mode_info = edram_load_store_mode_info_[i];
     edram_load_pipelines_[i] = ui::d3d12::util::CreateComputePipeline(
         device, mode_info.load_shader, mode_info.load_shader_size,
         edram_load_store_root_signature_);
-    if (!rov_used) {
+    if (!edram_rov_used_) {
       edram_store_pipelines_[i] = ui::d3d12::util::CreateComputePipeline(
           device, mode_info.store_shader, mode_info.store_shader_size,
           edram_load_store_root_signature_);
@@ -263,7 +263,7 @@ bool RenderTargetCache::Initialize(const TextureCache* texture_cache) {
               edram_load_store_root_signature_);
     }
     if (edram_load_pipelines_[i] == nullptr ||
-        (!rov_used && edram_store_pipelines_[i] == nullptr) ||
+        (!edram_rov_used_ && edram_store_pipelines_[i] == nullptr) ||
         (load_2x_resolve_pipeline_used &&
          edram_load_2x_resolve_pipelines_[i] == nullptr)) {
       XELOGE("Failed to create the EDRAM load/store pipelines for mode {}", i);
@@ -563,8 +563,6 @@ bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
   SCOPE_profile_cpu_f("gpu");
 #endif  // FINE_GRAINED_DRAW_SCOPES
 
-  bool rov_used = command_processor_->IsROVUsedForEDRAM();
-
   auto rb_surface_info = regs.Get<reg::RB_SURFACE_INFO>();
   uint32_t surface_pitch = std::min(rb_surface_info.surface_pitch, 2560u);
   if (surface_pitch == 0) {
@@ -652,7 +650,7 @@ bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
   // Check the following full update conditions:
   // - Render target is disabled and another render target got more space than
   //   is currently available in the textures (RTV/DSV only).
-  if (!rov_used && edram_max_rows > current_edram_max_rows_) {
+  if (!edram_rov_used_ && edram_max_rows > current_edram_max_rows_) {
     full_update = true;
   }
 
@@ -698,7 +696,7 @@ bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
           full_update = true;
           break;
         }
-        if (rov_used) {
+        if (edram_rov_used_) {
           if (i != 4) {
             full_update |= IsColorFormat64bpp(binding.color_format) !=
                            formats_are_64bpp[i];
@@ -780,7 +778,7 @@ bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
     uint32_t heap_usage[5] = {};
 #endif
     if (full_update) {
-      if (rov_used) {
+      if (edram_rov_used_) {
         // Place a UAV barrier because across draws, pixels with different
         // SV_Positions or different sample counts (thus without interlocking
         // between each other) may access the same data now.
@@ -794,7 +792,7 @@ bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
       ClearBindings();
       current_surface_pitch_ = surface_pitch;
       current_msaa_samples_ = rb_surface_info.msaa_samples;
-      if (!rov_used) {
+      if (!edram_rov_used_) {
         current_edram_max_rows_ = edram_max_rows;
       }
 
@@ -807,7 +805,7 @@ bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
       }
     } else {
 #if 0
-      if (!rov_used) {
+      if (!edram_rov_used_) {
         // If updating partially, only need to attach new render targets.
         for (uint32_t i = 0; i < 5; ++i) {
           const RenderTargetBinding& binding = current_bindings_[i];
@@ -845,7 +843,7 @@ bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
       binding.format = formats[i];
       binding.render_target = nullptr;
 
-      if (!rov_used) {
+      if (!edram_rov_used_) {
         RenderTargetKey key;
         key.width_ss_div_80 = edram_row_tiles_32bpp;
         key.height_ss_div_16 = current_edram_max_rows_;
@@ -912,7 +910,7 @@ bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
       }
     }
 
-    if (!rov_used) {
+    if (!edram_rov_used_) {
       // Sample positions when loading depth must match sample positions when
       // drawing.
       command_processor_->SetSamplePositions(current_msaa_samples_);
@@ -990,7 +988,7 @@ bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
 
   // Bind the render targets to the command list, either in case of an update or
   // if asked to externally.
-  if (!rov_used && apply_to_command_list_) {
+  if (!edram_rov_used_ && apply_to_command_list_) {
     apply_to_command_list_ = false;
     if (!sample_positions_set) {
       command_processor_->SetSamplePositions(current_msaa_samples_);
@@ -1022,7 +1020,7 @@ bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
       continue;
     }
     RenderTargetBinding& binding = current_bindings_[i];
-    if (!rov_used && binding.render_target == nullptr) {
+    if (!edram_rov_used_ && binding.render_target == nullptr) {
       // Nothing to store to the EDRAM buffer if there was an error.
       continue;
     }
@@ -1030,7 +1028,7 @@ bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
         std::max(binding.edram_dirty_rows, edram_dirty_rows);
   }
 
-  if (rov_used) {
+  if (edram_rov_used_) {
     // The buffer will be used for ROV drawing now.
     TransitionEDRAMBuffer(D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
     edram_buffer_modified_ = true;
@@ -1045,7 +1043,7 @@ bool RenderTargetCache::Resolve(SharedMemory* shared_memory,
                                 uint32_t& written_length_out) {
   written_address_out = written_length_out = 0;
 
-  if (!command_processor_->IsROVUsedForEDRAM()) {
+  if (!edram_rov_used_) {
     // Save the currently bound render targets to the EDRAM buffer that will be
     // used as the resolve source and clear bindings to allow render target
     // resources to be reused as source textures for format conversion,
@@ -1177,7 +1175,7 @@ bool RenderTargetCache::Resolve(SharedMemory* shared_memory,
     return true;
   }
 
-  if (command_processor_->IsROVUsedForEDRAM()) {
+  if (edram_rov_used_) {
     // Commit ROV writes.
     CommitEDRAMBufferUAVWrites(false);
   }
@@ -1331,8 +1329,7 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
       // sampling the host render target gives 1/32 of what is actually stored
       // there on the guest side.
       // http://www.students.science.uu.nl/~3220516/advancedgraphics/papers/inferred_lighting.pdf
-      if (command_processor_->IsROVUsedForEDRAM() ||
-          cvars::d3d12_16bit_rtv_full_range) {
+      if (edram_rov_used_ || cvars::d3d12_16bit_rtv_full_range) {
         dest_exp_bias += 5;
       }
     }
@@ -1798,7 +1795,7 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
     command_list->D3DIASetPrimitiveTopology(
         D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     command_list->D3DDrawInstanced(3, 1, 0, 0);
-    if (command_processor_->IsROVUsedForEDRAM()) {
+    if (edram_rov_used_) {
       // Clean up - the ROV path doesn't need render targets bound and has
       // non-zero ForcedSampleCount.
       command_list->D3DOMSetRenderTargets(0, nullptr, FALSE, nullptr);
@@ -1907,7 +1904,7 @@ bool RenderTargetCache::ResolveClear(uint32_t edram_base,
       (resolution_scale_2x_ ? (1 << 13) : 0) | (is_depth ? (1 << 15) : 0) |
       (surface_pitch_tiles << 16);
   // When ROV is used, there's no 32-bit depth buffer.
-  if (!command_processor_->IsROVUsedForEDRAM() && is_depth &&
+  if (!edram_rov_used_ && is_depth &&
       DepthRenderTargetFormat(format) == DepthRenderTargetFormat::kD24FS8) {
     root_constants.clear_depth24 = regs[XE_GPU_REG_RB_DEPTH_CLEAR].u32;
     // 20e4 [0,2), based on CFloat24 from d3dref9.dll and on 6e4 in DirectXTex.
@@ -2146,7 +2143,7 @@ RenderTargetCache::ResolveTarget* RenderTargetCache::FindOrCreateResolveTarget(
 }
 
 void RenderTargetCache::FlushAndUnbindRenderTargets() {
-  if (command_processor_->IsROVUsedForEDRAM()) {
+  if (edram_rov_used_) {
     return;
   }
   StoreRenderTargetsToEDRAM();
@@ -2282,7 +2279,7 @@ void RenderTargetCache::RestoreEDRAMSnapshot(const void* snapshot) {
   command_processor_->SubmitBarriers();
   command_list->D3DCopyBufferRegion(edram_buffer_, 0, upload_buffer,
                                     upload_buffer_offset, kEDRAMSize);
-  if (!command_processor_->IsROVUsedForEDRAM()) {
+  if (!edram_rov_used_) {
     // Clear and ignore the old 32-bit float depth - the non-ROV path is
     // inaccurate anyway, and this is backend-specific, not a part of a guest
     // trace.
@@ -2317,7 +2314,7 @@ void RenderTargetCache::RestoreEDRAMSnapshot(const void* snapshot) {
 
 uint32_t RenderTargetCache::GetEDRAMBufferSize() const {
   uint32_t size = 2048 * 5120;
-  if (!command_processor_->IsROVUsedForEDRAM()) {
+  if (!edram_rov_used_) {
     // Two 10 MB pages, one containing color and integer depth data, another
     // with 32-bit float depth when 20e4 depth is used to allow for multipass
     // drawing without precision loss in case of EDRAM store/load.
@@ -2686,7 +2683,7 @@ RenderTargetCache::EDRAMLoadStoreMode RenderTargetCache::GetLoadStoreMode(
 }
 
 void RenderTargetCache::StoreRenderTargetsToEDRAM() {
-  if (command_processor_->IsROVUsedForEDRAM()) {
+  if (edram_rov_used_) {
     return;
   }
 

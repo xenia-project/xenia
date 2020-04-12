@@ -250,7 +250,8 @@ class RenderTargetCache {
   };
 
   RenderTargetCache(D3D12CommandProcessor* command_processor,
-                    RegisterFile* register_file, TraceWriter* trace_writer);
+                    RegisterFile* register_file, TraceWriter* trace_writer,
+                    bool edram_rov_used);
   ~RenderTargetCache();
 
   bool Initialize(const TextureCache* texture_cache);
@@ -516,6 +517,7 @@ class RenderTargetCache {
   D3D12CommandProcessor* command_processor_;
   RegisterFile* register_file_;
   TraceWriter* trace_writer_;
+  bool edram_rov_used_;
 
   // Whether 1 guest pixel is rendered as 2x2 host pixels (currently only
   // supported with ROV).
