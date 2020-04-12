@@ -17,6 +17,8 @@
 
 namespace xe::utf8 {
 
+size_t count(const std::string_view view);
+
 std::string lower_ascii(const std::string_view view);
 std::string upper_ascii(const std::string_view view);
 
