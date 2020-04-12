@@ -59,16 +59,16 @@ std::pair<utf8_criter, utf8_criter> make_criter(const utf8_criter begin,
           utf8_criter(end.base(), begin.base(), end.base())};
 }
 
-size_t get_count(const std::string_view view) {
+size_t byte_length(utf8_citer begin, utf8_citer end) {
+  return size_t(std::distance(begin.base(), end.base()));
+}
+
+size_t byte_length(utf8_criter begin, utf8_criter end) {
+  return size_t(std::distance(begin.base(), end.base()));
+}
+
+size_t count(const std::string_view view) {
   return size_t(utfcpp::distance(view.cbegin(), view.cend()));
-}
-
-size_t get_byte_length(utf8_citer begin, utf8_citer end) {
-  return size_t(std::distance(begin.base(), end.base()));
-}
-
-size_t get_byte_length(utf8_criter begin, utf8_criter end) {
-  return size_t(std::distance(begin.base(), end.base()));
 }
 
 std::string lower_ascii(const std::string_view view) {
@@ -168,8 +168,8 @@ std::vector<std::string_view> split(const std::string_view haystack,
     }
 
     if (it != last) {
-      auto offset = get_byte_length(haystack_begin, last);
-      auto length = get_byte_length(haystack_begin, it) - offset;
+      auto offset = byte_length(haystack_begin, last);
+      auto length = byte_length(haystack_begin, it) - offset;
       result.push_back(haystack.substr(offset, length));
     }
 
@@ -178,7 +178,7 @@ std::vector<std::string_view> split(const std::string_view haystack,
   }
 
   if (last != haystack_end) {
-    auto offset = get_byte_length(haystack_begin, last);
+    auto offset = byte_length(haystack_begin, last);
     result.push_back(haystack.substr(offset));
   }
 
@@ -249,14 +249,14 @@ std::string_view::size_type find_any_of(const std::string_view haystack,
 
   auto [haystack_begin, haystack_end] = make_citer(haystack);
   auto [needle_begin, needle_end] = make_citer(needles);
-  auto needle_count = get_count(needles);
+  auto needle_count = count(needles);
 
   auto it = find_needle(haystack_begin, haystack_end, needle_begin, needle_end);
   if (it == haystack_end) {
     return std::string_view::npos;
   }
 
-  return std::string_view::size_type(get_byte_length(haystack_begin, it));
+  return std::string_view::size_type(byte_length(haystack_begin, it));
 }
 
 std::string_view::size_type find_any_of_case(const std::string_view haystack,
@@ -269,7 +269,7 @@ std::string_view::size_type find_any_of_case(const std::string_view haystack,
 
   auto [haystack_begin, haystack_end] = make_citer(haystack);
   auto [needle_begin, needle_end] = make_citer(needles);
-  auto needle_count = get_count(needles);
+  auto needle_count = count(needles);
 
   auto it =
       find_needle_case(haystack_begin, haystack_end, needle_begin, needle_end);
@@ -277,7 +277,7 @@ std::string_view::size_type find_any_of_case(const std::string_view haystack,
     return std::string_view::npos;
   }
 
-  return std::string_view::size_type(get_byte_length(haystack_begin, it));
+  return std::string_view::size_type(byte_length(haystack_begin, it));
 }
 
 std::string_view::size_type find_first_of(const std::string_view haystack,
@@ -290,7 +290,7 @@ std::string_view::size_type find_first_of(const std::string_view haystack,
 
   auto [haystack_begin, haystack_end] = make_citer(haystack);
   auto [needle_begin, needle_end] = make_citer(needle);
-  auto needle_count = get_count(needle);
+  auto needle_count = count(needle);
 
   auto it = haystack_begin;
   for (; it != haystack_end; ++it) {
@@ -310,7 +310,7 @@ std::string_view::size_type find_first_of(const std::string_view haystack,
 
     auto [sub_start, sub_end] = make_citer(it, end);
     if (std::equal(needle_begin, needle_end, sub_start, sub_end)) {
-      return std::string_view::size_type(get_byte_length(haystack_begin, it));
+      return std::string_view::size_type(byte_length(haystack_begin, it));
     }
   }
 
@@ -327,7 +327,7 @@ std::string_view::size_type find_first_of_case(const std::string_view haystack,
 
   auto [haystack_begin, haystack_end] = make_citer(haystack);
   auto [needle_begin, needle_end] = make_citer(needle);
-  auto needle_count = get_count(needle);
+  auto needle_count = count(needle);
   auto nc = *needle_begin;
 
   auto it = haystack_begin;
@@ -351,7 +351,7 @@ std::string_view::size_type find_first_of_case(const std::string_view haystack,
     auto [sub_start, sub_end] = make_citer(it, end);
     if (std::equal(needle_begin, needle_end, sub_start, sub_end,
                    equal_ascii_case)) {
-      return std::string_view::size_type(get_byte_length(haystack_begin, it));
+      return std::string_view::size_type(byte_length(haystack_begin, it));
     }
   }
 
@@ -368,7 +368,7 @@ bool starts_with(const std::string_view haystack,
 
   auto [haystack_begin, haystack_end] = make_citer(haystack);
   auto [needle_begin, needle_end] = make_citer(needle);
-  auto needle_count = get_count(needle);
+  auto needle_count = count(needle);
 
   auto it = haystack_begin;
   auto end = it;
@@ -394,7 +394,7 @@ bool starts_with_case(const std::string_view haystack,
 
   auto [haystack_begin, haystack_end] = make_citer(haystack);
   auto [needle_begin, needle_end] = make_citer(needle);
-  auto needle_count = get_count(needle);
+  auto needle_count = count(needle);
 
   auto it = haystack_begin;
   auto end = it;
@@ -420,7 +420,7 @@ bool ends_with(const std::string_view haystack, const std::string_view needle) {
 
   auto [haystack_begin, haystack_end] = make_criter(haystack);
   auto [needle_begin, needle_end] = make_criter(needle);
-  auto needle_count = get_count(needle);
+  auto needle_count = count(needle);
 
   auto it = haystack_begin;
   auto end = it;
@@ -446,7 +446,7 @@ bool ends_with_case(const std::string_view haystack,
 
   auto [haystack_begin, haystack_end] = make_criter(haystack);
   auto [needle_begin, needle_end] = make_criter(needle);
-  auto needle_count = get_count(needle);
+  auto needle_count = count(needle);
 
   auto it = haystack_begin;
   auto end = it;
@@ -512,8 +512,8 @@ std::string fix_path_separators(const std::string_view path, char32_t new_sep) {
     }
 
     if (it != last) {
-      auto offset = get_byte_length(path_begin, last);
-      auto length = get_byte_length(path_begin, it) - offset;
+      auto offset = byte_length(path_begin, last);
+      auto length = byte_length(path_begin, it) - offset;
       result += path.substr(offset, length);
       utfcpp::append(new_sep, result);
     }
@@ -527,7 +527,7 @@ std::string fix_path_separators(const std::string_view path, char32_t new_sep) {
   }
 
   if (last != path_end) {
-    auto offset = get_byte_length(path_begin, last);
+    auto offset = byte_length(path_begin, last);
     result += path.substr(offset);
   }
 
@@ -557,7 +557,7 @@ std::string find_name_from_path(const std::string_view path, char32_t sep) {
     return std::string(path.substr(0, path.size() - padding));
   }
 
-  auto length = get_byte_length(begin, it);
+  auto length = byte_length(begin, it);
   auto offset = path.length() - length;
   return std::string(path.substr(offset, length - padding));
 }
@@ -581,7 +581,7 @@ std::string find_base_name_from_path(const std::string_view path,
     return std::string();
   }
 
-  auto length = name.length() - get_byte_length(begin, it);
+  auto length = name.length() - byte_length(begin, it);
   return std::string(name.substr(0, length));
 }
 
@@ -607,7 +607,7 @@ std::string find_base_path(const std::string_view path, char32_t sep) {
     return std::string();
   }
 
-  auto length = path.length() - get_byte_length(begin, it);
+  auto length = path.length() - byte_length(begin, it);
   return std::string(path.substr(0, length));
 }
 
