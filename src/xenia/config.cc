@@ -15,6 +15,7 @@
 #include "xenia/base/filesystem.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/string.h"
+#include "xenia/base/string_buffer.h"
 
 std::shared_ptr<cpptoml::table> ParseFile(
     const std::filesystem::path& filename) {
@@ -33,13 +34,6 @@ std::string config_name = "xenia.config.toml";
 std::filesystem::path config_folder;
 std::filesystem::path config_path;
 std::string game_config_suffix = ".config.toml";
-
-bool sortCvar(cvar::IConfigVar* a, cvar::IConfigVar* b) {
-  if (a->category() < b->category()) return true;
-  if (a->category() > b->category()) return false;
-  if (a->name() < b->name()) return true;
-  return false;
-}
 
 std::shared_ptr<cpptoml::table> ParseConfig(
     const std::filesystem::path& config_path) {
@@ -78,57 +72,86 @@ void ReadGameConfig(const std::filesystem::path& file_path) {
 
 void SaveConfig() {
   std::vector<cvar::IConfigVar*> vars;
-  for (const auto& s : *cvar::ConfigVars) vars.push_back(s.second);
-  std::sort(vars.begin(), vars.end(), sortCvar);
+  for (const auto& s : *cvar::ConfigVars) {
+    vars.push_back(s.second);
+  }
+  std::sort(vars.begin(), vars.end(), [](auto a, auto b) {
+    if (a->category() < b->category()) return true;
+    if (a->category() > b->category()) return false;
+    if (a->name() < b->name()) return true;
+    return false;
+  });
+
   // we use our own write logic because cpptoml doesn't
   // allow us to specify comments :(
-  std::ostringstream output;
   std::string last_category;
+  xe::StringBuffer sb;
   for (auto config_var : vars) {
     if (config_var->is_transient()) {
       continue;
     }
     if (last_category != config_var->category()) {
       if (!last_category.empty()) {
-        output << std::endl;
+        sb.Append("\n");
       }
       last_category = config_var->category();
-      output << fmt::format("[{}]\n", last_category);
+      sb.AppendFormat("[{}]\n", last_category);
     }
 
     auto value = config_var->config_value();
+    size_t line_count;
     if (xe::utf8::find_any_of(value, "\n") == std::string_view::npos) {
-      output << std::left << std::setw(40) << std::setfill(' ')
-             << fmt::format("{} = {}", config_var->name(),
-                            config_var->config_value());
+      auto line = fmt::format("{} = {}", config_var->name(),
+                              config_var->config_value());
+      sb.Append(line);
+      line_count = xe::utf8::count(line);
     } else {
       auto lines = xe::utf8::split(value, "\n");
-      auto first_it = lines.cbegin();
-      output << fmt::format("{} = {}\n", config_var->name(), *first_it);
-      auto last_it = std::prev(lines.cend());
-      for (auto it = std::next(first_it); it != last_it; ++it) {
-        output << *it << "\n";
+      auto first = lines.cbegin();
+      sb.AppendFormat("{} = {}\n", config_var->name(), *first);
+      auto last = std::prev(lines.cend());
+      for (auto it = std::next(first); it != last; ++it) {
+        sb.Append(*it);
+        sb.Append('\n');
       }
-      output << std::left << std::setw(40) << std::setfill(' ') << *last_it;
+      sb.Append(*last);
+      line_count = xe::utf8::count(*last);
     }
-    output << fmt::format("\t# {}\n", config_var->description());
-  }
 
-  if (std::filesystem::exists(config_path)) {
-    std::ifstream existingConfigStream(config_path);
-    const std::string existingConfig(
-        (std::istreambuf_iterator<char>(existingConfigStream)),
-        std::istreambuf_iterator<char>());
-    // if the config didn't change, no need to modify the file
-    if (existingConfig == output.str()) return;
+    const size_t value_alignment = 50;
+    const auto& description = config_var->description();
+    if (!description.empty()) {
+      if (line_count < value_alignment) {
+        sb.Append(' ', value_alignment - line_count);
+      }
+      if (xe::utf8::find_any_of(description, "\n") == std::string_view::npos) {
+        sb.AppendFormat("\t# {}\n", config_var->description());
+      } else {
+        auto lines = xe::utf8::split(description, "\n");
+        auto first = lines.cbegin();
+        sb.Append("\t# ");
+        sb.Append(*first);
+        sb.Append('\n');
+        for (auto it = std::next(first); it != lines.cend(); ++it) {
+          sb.Append(' ', value_alignment);
+          sb.Append("\t# ");
+          sb.Append(*it);
+          sb.Append('\n');
+        }
+      }
+    }
   }
 
   // save the config file
   xe::filesystem::CreateParentFolder(config_path);
-  std::ofstream file;
-  file.open(config_path, std::ios::out | std::ios::trunc);
-  file << output.str();
-  file.close();
+
+  auto handle = xe::filesystem::OpenFile(config_path, "wb");
+  if (!handle) {
+    XELOGE("Failed to open '{}' for writing.", xe::path_to_utf8(config_path));
+  } else {
+    fwrite(sb.buffer(), 1, sb.length(), handle);
+    fclose(handle);
+  }
 }
 
 void SetupConfig(const std::filesystem::path& config_folder) {
