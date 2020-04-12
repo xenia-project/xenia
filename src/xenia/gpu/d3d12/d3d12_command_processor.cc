@@ -106,14 +106,6 @@ void D3D12CommandProcessor::RestoreEDRAMSnapshot(const void* snapshot) {
   render_target_cache_->RestoreEDRAMSnapshot(snapshot);
 }
 
-bool D3D12CommandProcessor::IsROVUsedForEDRAM() const {
-  if (!cvars::d3d12_edram_rov) {
-    return false;
-  }
-  auto provider = GetD3D12Context()->GetD3D12Provider();
-  return provider->AreRasterizerOrderedViewsSupported();
-}
-
 uint32_t D3D12CommandProcessor::GetCurrentColorMask(
     const D3D12Shader* pixel_shader) const {
   if (pixel_shader == nullptr) {
@@ -330,7 +322,7 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(
         UINT(DxbcShaderTranslator::UAVRegister::kSharedMemory);
     shared_memory_and_edram_ranges[1].RegisterSpace = 0;
     shared_memory_and_edram_ranges[1].OffsetInDescriptorsFromTableStart = 1;
-    if (IsROVUsedForEDRAM()) {
+    if (edram_rov_used_) {
       ++parameter.DescriptorTable.NumDescriptorRanges;
       shared_memory_and_edram_ranges[2].RangeType =
           D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
@@ -572,7 +564,7 @@ void D3D12CommandProcessor::SetSamplePositions(MsaaSamples sample_positions) {
   // for ROV output. There's hardly any difference between 2,6 (of 0 and 3 with
   // 4x MSAA) and 4,4 anyway.
   // https://docs.microsoft.com/en-us/windows/desktop/api/d3d12/nf-d3d12-id3d12graphicscommandlist1-setsamplepositions
-  if (cvars::d3d12_ssaa_custom_sample_positions && !IsROVUsedForEDRAM() &&
+  if (cvars::d3d12_ssaa_custom_sample_positions && !edram_rov_used_ &&
       command_list_1_) {
     auto provider = GetD3D12Context()->GetD3D12Provider();
     auto tier = provider->GetProgrammableSamplePositionsTier();
@@ -664,7 +656,10 @@ void D3D12CommandProcessor::SetExternalGraphicsPipeline(
 }
 
 std::string D3D12CommandProcessor::GetWindowTitleText() const {
-  if (IsROVUsedForEDRAM()) {
+  if (!render_target_cache_) {
+    return "Direct3D 12";
+  }
+  if (edram_rov_used_) {
     // Currently scaling is only supported with ROV.
     if (texture_cache_ != nullptr && texture_cache_->IsResolutionScale2X()) {
       return "Direct3D 12 - ROV 2x";
@@ -804,22 +799,25 @@ bool D3D12CommandProcessor::SetupContext() {
     return false;
   }
 
+  edram_rov_used_ =
+      cvars::d3d12_edram_rov && provider->AreRasterizerOrderedViewsSupported();
+
   texture_cache_ = std::make_unique<TextureCache>(this, register_file_,
                                                   shared_memory_.get());
-  if (!texture_cache_->Initialize()) {
+  if (!texture_cache_->Initialize(edram_rov_used_)) {
     XELOGE("Failed to initialize the texture cache");
     return false;
   }
 
-  render_target_cache_ =
-      std::make_unique<RenderTargetCache>(this, register_file_, &trace_writer_);
+  render_target_cache_ = std::make_unique<RenderTargetCache>(
+      this, register_file_, &trace_writer_, edram_rov_used_);
   if (!render_target_cache_->Initialize(texture_cache_.get())) {
     XELOGE("Failed to initialize the render target cache");
     return false;
   }
 
   pipeline_cache_ = std::make_unique<PipelineCache>(
-      this, register_file_, IsROVUsedForEDRAM(),
+      this, register_file_, edram_rov_used_,
       texture_cache_->IsResolutionScale2X() ? 2 : 1);
   if (!pipeline_cache_->Initialize()) {
     XELOGE("Failed to initialize the graphics pipeline state cache");
@@ -2153,7 +2151,7 @@ void D3D12CommandProcessor::UpdateFixedFunctionState(bool primitive_two_faced) {
   // EDRAM with multisampling with RTV/DSV (with ROV, there's MSAA), and also
   // resolution scale.
   uint32_t pixel_size_x, pixel_size_y;
-  if (IsROVUsedForEDRAM()) {
+  if (edram_rov_used_) {
     pixel_size_x = 1;
     pixel_size_y = 1;
   } else {
@@ -2260,7 +2258,7 @@ void D3D12CommandProcessor::UpdateFixedFunctionState(bool primitive_two_faced) {
     ff_scissor_update_needed_ = false;
   }
 
-  if (!IsROVUsedForEDRAM()) {
+  if (!edram_rov_used_) {
     // Blend factor.
     ff_blend_factor_update_needed_ |=
         ff_blend_factor_[0] != regs[XE_GPU_REG_RB_BLEND_RED].f32;
@@ -2342,7 +2340,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
         reg::RB_COLOR_INFO::rt_register_indices[i]);
     color_infos[i] = color_info;
 
-    if (IsROVUsedForEDRAM()) {
+    if (edram_rov_used_) {
       // Get the mask for keeping previous color's components unmodified,
       // or two UINT32_MAX if no colors actually existing in the RT are written.
       DxbcShaderTranslator::ROV_GetColorFormatSystemConstants(
@@ -2372,7 +2370,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   // already disabled there).
   bool depth_stencil_enabled =
       rb_depthcontrol.stencil_enable || rb_depthcontrol.z_enable;
-  if (IsROVUsedForEDRAM() && depth_stencil_enabled) {
+  if (edram_rov_used_ && depth_stencil_enabled) {
     for (uint32_t i = 0; i < 4; ++i) {
       if (rb_depth_info.depth_base == color_infos[i].color_base &&
           (rt_keep_masks[i][0] != UINT32_MAX ||
@@ -2448,7 +2446,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
       flags |= DxbcShaderTranslator::kSysFlag_Color0Gamma << i;
     }
   }
-  if (IsROVUsedForEDRAM() && depth_stencil_enabled) {
+  if (edram_rov_used_ && depth_stencil_enabled) {
     flags |= DxbcShaderTranslator::kSysFlag_ROVDepthStencil;
     if (rb_depth_info.depth_format == DepthRenderTargetFormat::kD24FS8) {
       flags |= DxbcShaderTranslator::kSysFlag_ROVDepthFloat24;
@@ -2661,7 +2659,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   system_constants_.alpha_test_reference = rb_alpha_ref;
 
   // EDRAM pitch for ROV writing.
-  if (IsROVUsedForEDRAM()) {
+  if (edram_rov_used_) {
     uint32_t edram_pitch_tiles =
         ((std::min(rb_surface_info.surface_pitch, 2560u) *
           (rb_surface_info.msaa_samples >= MsaaSamples::k4X ? 2 : 1)) +
@@ -2685,7 +2683,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
       // be incorrect in this case, but there's no other way without using ROV,
       // though there's an option to limit the range to -1...1).
       // http://www.students.science.uu.nl/~3220516/advancedgraphics/papers/inferred_lighting.pdf
-      if (!IsROVUsedForEDRAM() && cvars::d3d12_16bit_rtv_full_range) {
+      if (!edram_rov_used_ && cvars::d3d12_16bit_rtv_full_range) {
         color_exp_bias -= 5;
       }
     }
@@ -2694,7 +2692,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
         0x3F800000 + (color_exp_bias << 23);
     dirty |= system_constants_.color_exp_bias[i] != color_exp_bias_scale;
     system_constants_.color_exp_bias[i] = color_exp_bias_scale;
-    if (IsROVUsedForEDRAM()) {
+    if (edram_rov_used_) {
       dirty |=
           system_constants_.edram_rt_keep_mask[i][0] != rt_keep_masks[i][0];
       system_constants_.edram_rt_keep_mask[i][0] = rt_keep_masks[i][0];
@@ -2736,7 +2734,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   }
 
   // Resolution scale, depth/stencil testing and blend constant for ROV.
-  if (IsROVUsedForEDRAM()) {
+  if (edram_rov_used_) {
     uint32_t resolution_square_scale =
         texture_cache_->IsResolutionScale2X() ? 4 : 1;
     dirty |= system_constants_.edram_resolution_square_scale !=
@@ -3136,7 +3134,7 @@ bool D3D12CommandProcessor::UpdateBindings(
   // All the constants + shared memory SRV and UAV + textures.
   uint32_t view_count_full_update =
       7 + texture_count_vertex + texture_count_pixel;
-  if (IsROVUsedForEDRAM()) {
+  if (edram_rov_used_) {
     // + EDRAM UAV.
     ++view_count_full_update;
   }
@@ -3193,7 +3191,7 @@ bool D3D12CommandProcessor::UpdateBindings(
     shared_memory_->WriteRawUAVDescriptor(view_cpu_handle);
     view_cpu_handle.ptr += descriptor_size_view;
     view_gpu_handle.ptr += descriptor_size_view;
-    if (IsROVUsedForEDRAM()) {
+    if (edram_rov_used_) {
       render_target_cache_->WriteEDRAMUint32UAVDescriptor(view_cpu_handle);
       view_cpu_handle.ptr += descriptor_size_view;
       view_gpu_handle.ptr += descriptor_size_view;

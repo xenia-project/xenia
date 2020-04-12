@@ -63,11 +63,6 @@ class D3D12CommandProcessor : public CommandProcessor {
     return deferred_command_list_.get();
   }
 
-  // Should a rasterizer-ordered UAV of the EDRAM buffer with format conversion
-  // and blending performed in pixel shaders be used instead of host render
-  // targets.
-  bool IsROVUsedForEDRAM() const;
-
   uint64_t GetCurrentSubmission() const { return submission_current_; }
   uint64_t GetCompletedSubmission() const { return submission_completed_; }
 
@@ -310,6 +305,11 @@ class D3D12CommandProcessor : public CommandProcessor {
   std::unordered_map<uint32_t, ID3D12RootSignature*> root_signatures_;
 
   std::unique_ptr<PipelineCache> pipeline_cache_ = nullptr;
+
+  // Should a rasterizer-ordered UAV of the EDRAM buffer with format conversion
+  // and blending performed in pixel shaders be used instead of host render
+  // targets.
+  bool edram_rov_used_ = false;
 
   std::unique_ptr<TextureCache> texture_cache_ = nullptr;
 

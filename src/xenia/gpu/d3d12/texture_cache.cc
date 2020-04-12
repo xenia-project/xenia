@@ -912,15 +912,14 @@ TextureCache::TextureCache(D3D12CommandProcessor* command_processor,
 
 TextureCache::~TextureCache() { Shutdown(); }
 
-bool TextureCache::Initialize() {
+bool TextureCache::Initialize(bool edram_rov_used) {
   auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
   auto device = provider->GetDevice();
 
   // Try to create the tiled buffer 2x resolution scaling.
   // Not currently supported with the RTV/DSV output path for various reasons.
   // As of November 27th, 2018, PIX doesn't support tiled buffers.
-  if (cvars::d3d12_resolution_scale >= 2 &&
-      command_processor_->IsROVUsedForEDRAM() &&
+  if (cvars::d3d12_resolution_scale >= 2 && edram_rov_used &&
       provider->GetTiledResourcesTier() >= 1 &&
       provider->GetGraphicsAnalysis() == nullptr &&
       provider->GetVirtualAddressBitsPerResource() >=

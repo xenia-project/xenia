@@ -96,7 +96,7 @@ class TextureCache {
                RegisterFile* register_file, SharedMemory* shared_memory);
   ~TextureCache();
 
-  bool Initialize();
+  bool Initialize(bool edram_rov_used);
   void Shutdown();
   void ClearCache();
 
