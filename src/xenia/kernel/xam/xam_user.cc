@@ -163,15 +163,16 @@ uint32_t xeXamUserReadProfileSettingsEx(uint32_t title_id, uint32_t user_index,
     return X_ERROR_INVALID_PARAMETER;
   }
 
-  uint32_t needed_size = 0;
+  uint32_t needed_header_size = 0;
+  uint32_t needed_extra_size = 0;
   for (uint32_t i = 0; i < setting_count; ++i) {
-    needed_size += sizeof(X_USER_READ_PROFILE_SETTING);
+    needed_header_size += sizeof(X_USER_READ_PROFILE_SETTING);
     UserProfile::Setting::Key setting_key;
     setting_key.value = static_cast<uint32_t>(setting_ids[i]);
     switch (static_cast<UserProfile::Setting::Type>(setting_key.type)) {
       case UserProfile::Setting::Type::WSTRING:
       case UserProfile::Setting::Type::BINARY: {
-        needed_size += setting_key.size;
+        needed_extra_size += setting_key.size;
         break;
       }
       default: {
@@ -179,15 +180,16 @@ uint32_t xeXamUserReadProfileSettingsEx(uint32_t title_id, uint32_t user_index,
       }
     }
   }
-  // needed_size *= !xuids_ptr ? 1 : xuid_count;
-  needed_size += sizeof(X_USER_READ_PROFILE_SETTINGS);
+  if (xuids_ptr) {
+    // needed_header_size *= xuid_count;
+    // needed_extra_size *= !xuid_count;
+  }
+  needed_header_size += sizeof(X_USER_READ_PROFILE_SETTINGS);
 
+  uint32_t needed_size = needed_header_size + needed_extra_size;
   if (!buffer_ptr || buffer_size < needed_size) {
-    *buffer_size_ptr = needed_size;
-    if (overlapped_ptr) {
-      kernel_state()->CompleteOverlappedImmediate(overlapped_ptr,
-                                                  X_ERROR_INSUFFICIENT_BUFFER);
-      return X_ERROR_IO_PENDING;
+    if (!buffer_size) {
+      *buffer_size_ptr = needed_size;
     }
     return X_ERROR_INSUFFICIENT_BUFFER;
   }
@@ -241,7 +243,7 @@ uint32_t xeXamUserReadProfileSettingsEx(uint32_t title_id, uint32_t user_index,
   auto out_setting =
       reinterpret_cast<X_USER_READ_PROFILE_SETTING*>(&out_header[1]);
 
-  size_t buffer_offset = sizeof(X_USER_READ_PROFILE_SETTINGS);
+  size_t buffer_offset = needed_header_size;
   for (uint32_t n = 0; n < setting_count; ++n) {
     uint32_t setting_id = setting_ids[n];
     auto setting = user_profile->GetSetting(setting_id);
