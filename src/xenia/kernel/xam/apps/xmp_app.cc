@@ -254,16 +254,22 @@ X_RESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
     }
     case 0x00070008: {
       assert_true(!buffer_length || buffer_length == 16);
-      uint32_t xmp_client = xe::load_and_swap<uint32_t>(buffer + 0);
-      uint32_t playback_mode = xe::load_and_swap<uint32_t>(buffer + 4);
-      uint32_t repeat_mode = xe::load_and_swap<uint32_t>(buffer + 8);
-      uint32_t flags = xe::load_and_swap<uint32_t>(buffer + 12);
-      assert_true(xmp_client == 0x00000002);
-      XELOGD("XMPSetPlaybackBehavior({:08X}, {:08X}, {:08X})", playback_mode,
-             repeat_mode, flags);
-      playback_mode_ = static_cast<PlaybackMode>(playback_mode);
-      repeat_mode_ = static_cast<RepeatMode>(repeat_mode);
-      unknown_flags_ = flags;
+      struct {
+        xe::be<uint32_t> xmp_client;
+        xe::be<uint32_t> playback_mode;
+        xe::be<uint32_t> repeat_mode;
+        xe::be<uint32_t> flags;
+      }* args = memory_->TranslateVirtual<decltype(args)>(buffer_ptr);
+      static_assert_size(decltype(*args), 16);
+
+      assert_true(args->xmp_client == 0x00000002 ||
+                  args->xmp_client == 0x00000000);
+      XELOGD("XMPSetPlaybackBehavior({:08X}, {:08X}, {:08X})",
+             uint32_t(args->playback_mode), uint32_t(args->repeat_mode),
+             uint32_t(args->flags));
+      playback_mode_ = static_cast<PlaybackMode>(uint32_t(args->playback_mode));
+      repeat_mode_ = static_cast<RepeatMode>(uint32_t(args->repeat_mode));
+      unknown_flags_ = args->flags;
       kernel_state_->BroadcastNotification(kMsgPlaybackBehaviorChanged, 0);
       return X_ERROR_SUCCESS;
     }
@@ -281,6 +287,7 @@ X_RESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
         xe::be<uint32_t> xmp_client;
         xe::be<uint32_t> volume_ptr;
       }* args = memory_->TranslateVirtual<decltype(args)>(buffer_ptr);
+      static_assert_size(decltype(*args), 8);
 
       assert_true(args->xmp_client == 0x00000002);
       XELOGD("XMPGetVolume({:08X})", uint32_t(args->volume_ptr));
@@ -290,50 +297,66 @@ X_RESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
     }
     case 0x0007000C: {
       assert_true(!buffer_length || buffer_length == 8);
-      uint32_t xmp_client = xe::load_and_swap<uint32_t>(buffer + 0);
-      float float_value = xe::load_and_swap<float>(buffer + 4);
-      assert_true(xmp_client == 0x00000002);
-      XELOGD("XMPSetVolume({})", float_value);
-      volume_ = float_value;
+      struct {
+        xe::be<uint32_t> xmp_client;
+        xe::be<float> value;
+      }* args = memory_->TranslateVirtual<decltype(args)>(buffer_ptr);
+      static_assert_size(decltype(*args), 8);
+
+      assert_true(args->xmp_client == 0x00000002);
+      XELOGD("XMPSetVolume({:g})", float(args->value));
+      volume_ = args->value;
       return X_ERROR_SUCCESS;
     }
     case 0x0007000D: {
       assert_true(!buffer_length || buffer_length == 36);
-      uint32_t xmp_client = xe::load_and_swap<uint32_t>(buffer + 0);
-      uint32_t storage_ptr = xe::load_and_swap<uint32_t>(buffer + 4);
-      uint32_t storage_size = xe::load_and_swap<uint32_t>(buffer + 8);
-      uint32_t songs_ptr = xe::load_and_swap<uint32_t>(buffer + 12);
-      uint32_t song_count = xe::load_and_swap<uint32_t>(buffer + 16);
-      uint32_t playlist_name_ptr = xe::load_and_swap<uint32_t>(buffer + 20);
-      uint32_t flags = xe::load_and_swap<uint32_t>(buffer + 24);
-      uint32_t song_handles_ptr =
-          xe::load_and_swap<uint32_t>(buffer + 28);  // 0?
-      uint32_t playlist_handle_ptr = xe::load_and_swap<uint32_t>(buffer + 32);
+      struct {
+        xe::be<uint32_t> xmp_client;
+        xe::be<uint32_t> storage_ptr;
+        xe::be<uint32_t> storage_size;
+        xe::be<uint32_t> songs_ptr;
+        xe::be<uint32_t> song_count;
+        xe::be<uint32_t> playlist_name_ptr;
+        xe::be<uint32_t> flags;
+        xe::be<uint32_t> song_handles_ptr;
+        xe::be<uint32_t> playlist_handle_ptr;
+      }* args = memory_->TranslateVirtual<decltype(args)>(buffer_ptr);
+      static_assert_size(decltype(*args), 36);
+
       xe::store_and_swap<uint32_t>(
-          memory_->TranslateVirtual(playlist_handle_ptr), storage_ptr);
-      assert_true(xmp_client == 0x00000002);
+          memory_->TranslateVirtual(args->playlist_handle_ptr),
+          args->storage_ptr);
+      assert_true(args->xmp_client == 0x00000002 ||
+                  args->xmp_client == 0x00000000);
       std::u16string playlist_name;
-      if (!playlist_name_ptr) {
+      if (!args->playlist_name_ptr) {
         playlist_name = u"";
       } else {
         playlist_name = xe::load_and_swap<std::u16string>(
-            memory_->TranslateVirtual(playlist_name_ptr));
+            memory_->TranslateVirtual(args->playlist_name_ptr));
       }
       // dummy_alloc_ptr is the result of a XamAlloc of storage_size.
-      assert_true(storage_size == 4 + song_count * 128);
-      return XMPCreateTitlePlaylist(songs_ptr, song_count, playlist_name_ptr,
-                                    playlist_name, flags, song_handles_ptr,
-                                    storage_ptr);
+      assert_true(uint32_t(args->storage_size) ==
+                  4 + uint32_t(args->song_count) * 128);
+      return XMPCreateTitlePlaylist(args->songs_ptr, args->song_count,
+                                    args->playlist_name_ptr, playlist_name,
+                                    args->flags, args->song_handles_ptr,
+                                    args->storage_ptr);
     }
     case 0x0007000E: {
       assert_true(!buffer_length || buffer_length == 12);
-      uint32_t xmp_client = xe::load_and_swap<uint32_t>(buffer + 0);
-      uint32_t unk_ptr = xe::load_and_swap<uint32_t>(buffer + 4);  // 0
-      uint32_t info_ptr = xe::load_and_swap<uint32_t>(buffer + 8);
-      auto info = memory_->TranslateVirtual(info_ptr);
-      assert_true(xmp_client == 0x00000002);
-      assert_zero(unk_ptr);
-      XELOGE("XMPGetInfo?({:08X}, {:08X})", unk_ptr, info_ptr);
+      struct {
+        xe::be<uint32_t> xmp_client;
+        xe::be<uint32_t> unk_ptr;  // 0
+        xe::be<uint32_t> info_ptr;
+      }* args = memory_->TranslateVirtual<decltype(args)>(buffer_ptr);
+      static_assert_size(decltype(*args), 12);
+
+      auto info = memory_->TranslateVirtual(args->info_ptr);
+      assert_true(args->xmp_client == 0x00000002);
+      assert_zero(args->unk_ptr);
+      XELOGE("XMPGetInfo?({:08X}, {:08X})", uint32_t(args->unk_ptr),
+             uint32_t(args->info_ptr));
       if (!active_playlist_) {
         return X_STATUS_UNSUCCESSFUL;
       }
@@ -353,11 +376,16 @@ X_RESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
     }
     case 0x00070013: {
       assert_true(!buffer_length || buffer_length == 8);
-      uint32_t xmp_client = xe::load_and_swap<uint32_t>(buffer + 0);
-      uint32_t storage_ptr = xe::load_and_swap<uint32_t>(buffer + 4);
-      uint32_t playlist_handle =
-          xe::load_and_swap<uint32_t>(memory_->TranslateVirtual(storage_ptr));
-      assert_true(xmp_client == 0x00000002);
+      struct {
+        xe::be<uint32_t> xmp_client;
+        xe::be<uint32_t> storage_ptr;
+      }* args = memory_->TranslateVirtual<decltype(args)>(buffer_ptr);
+      static_assert_size(decltype(*args), 8);
+
+      uint32_t playlist_handle = xe::load_and_swap<uint32_t>(
+          memory_->TranslateVirtual(args->storage_ptr));
+      assert_true(args->xmp_client == 0x00000002 ||
+                  args->xmp_client == 0x00000000);
       return XMPDeleteTitlePlaylist(playlist_handle);
     }
     case 0x0007001A: {
@@ -368,9 +396,11 @@ X_RESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
         xe::be<uint32_t> controller;
         xe::be<uint32_t> locked;
       }* args = memory_->TranslateVirtual<decltype(args)>(buffer_ptr);
+      static_assert_size(decltype(*args), 12);
 
-      assert_true(args->xmp_client == 0x00000002);
-      assert_true(args->controller == 0x00000000);
+      assert_true(
+          (args->xmp_client == 0x00000002 && args->controller == 0x00000000) ||
+          (args->xmp_client == 0x00000000 && args->controller == 0x00000001));
       XELOGD("XMPSetPlaybackController({:08X}, {:08X})",
              uint32_t(args->controller), uint32_t(args->locked));
 
@@ -389,6 +419,7 @@ X_RESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
         xe::be<uint32_t> controller_ptr;
         xe::be<uint32_t> locked_ptr;
       }* args = memory_->TranslateVirtual<decltype(args)>(buffer_ptr);
+      static_assert_size(decltype(*args), 12);
 
       assert_true(args->xmp_client == 0x00000002);
       XELOGD("XMPGetPlaybackController({:08X}, {:08X}, {:08X})",
@@ -406,24 +437,31 @@ X_RESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
     case 0x00070029: {
       // XMPGetPlaybackBehavior
       assert_true(!buffer_length || buffer_length == 16);
-      uint32_t xmp_client = xe::load_and_swap<uint32_t>(buffer + 0);
-      uint32_t playback_mode_ptr = xe::load_and_swap<uint32_t>(buffer + 4);
-      uint32_t repeat_mode_ptr = xe::load_and_swap<uint32_t>(buffer + 8);
-      uint32_t unk3_ptr = xe::load_and_swap<uint32_t>(buffer + 12);
-      assert_true(xmp_client == 0x00000002);
+      struct {
+        xe::be<uint32_t> xmp_client;
+        xe::be<uint32_t> playback_mode_ptr;
+        xe::be<uint32_t> repeat_mode_ptr;
+        xe::be<uint32_t> unk3_ptr;
+      }* args = memory_->TranslateVirtual<decltype(args)>(buffer_ptr);
+      static_assert_size(decltype(*args), 16);
+
+      assert_true(args->xmp_client == 0x00000002 ||
+                  args->xmp_client == 0x00000000);
       XELOGD("XMPGetPlaybackBehavior({:08X}, {:08X}, {:08X})",
-             playback_mode_ptr, repeat_mode_ptr, unk3_ptr);
-      if (playback_mode_ptr) {
+             uint32_t(args->playback_mode_ptr), uint32_t(args->repeat_mode_ptr),
+             uint32_t(args->unk3_ptr));
+      if (args->playback_mode_ptr) {
         xe::store_and_swap<uint32_t>(
-            memory_->TranslateVirtual(playback_mode_ptr),
+            memory_->TranslateVirtual(args->playback_mode_ptr),
             static_cast<uint32_t>(playback_mode_));
       }
-      if (repeat_mode_ptr) {
-        xe::store_and_swap<uint32_t>(memory_->TranslateVirtual(repeat_mode_ptr),
-                                     static_cast<uint32_t>(repeat_mode_));
+      if (args->repeat_mode_ptr) {
+        xe::store_and_swap<uint32_t>(
+            memory_->TranslateVirtual(args->repeat_mode_ptr),
+            static_cast<uint32_t>(repeat_mode_));
       }
-      if (unk3_ptr) {
-        xe::store_and_swap<uint32_t>(memory_->TranslateVirtual(unk3_ptr),
+      if (args->unk3_ptr) {
+        xe::store_and_swap<uint32_t>(memory_->TranslateVirtual(args->unk3_ptr),
                                      unknown_flags_);
       }
       return X_ERROR_SUCCESS;
@@ -432,13 +470,18 @@ X_RESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       assert_true(!buffer_length || buffer_length == 12);
       // Query of size for XamAlloc - the result of the alloc is passed to
       // 0x0007000D.
-      uint32_t xmp_client = xe::load_and_swap<uint32_t>(buffer + 0);
-      uint32_t song_count = xe::load_and_swap<uint32_t>(buffer + 4);
-      uint32_t size_ptr = xe::load_and_swap<uint32_t>(buffer + 8);
-      assert_true(xmp_client == 0x00000002);
+      struct {
+        xe::be<uint32_t> xmp_client;
+        xe::be<uint32_t> song_count;
+        xe::be<uint32_t> size_ptr;
+      }* args = memory_->TranslateVirtual<decltype(args)>(buffer_ptr);
+      static_assert_size(decltype(*args), 12);
+
+      assert_true(args->xmp_client == 0x00000002 ||
+                  args->xmp_client == 0x00000000);
       // We don't use the storage, so just fudge the number.
-      xe::store_and_swap<uint32_t>(memory_->TranslateVirtual(size_ptr),
-                                   4 + song_count * 128);
+      xe::store_and_swap<uint32_t>(memory_->TranslateVirtual(args->size_ptr),
+                                   4 + uint32_t(args->song_count) * 128);
       return X_ERROR_SUCCESS;
     }
     case 0x0007003D: {
