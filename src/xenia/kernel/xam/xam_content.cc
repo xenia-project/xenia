@@ -14,13 +14,15 @@
 #include "xenia/kernel/xenumerator.h"
 #include "xenia/xbox.h"
 
-DEFINE_int32(license_mask, 0,
-             "Set license mask for activated content: "
-             "0 - disable all licenses / "
-             "1 - enable the first license - usually the full version license "
-             "in Xbox Live Arcade games / "
-             "-1 or 0xFFFFFFFF - enable all possible licenses.",
-             "Content");
+DEFINE_int32(
+    license_mask, 0,
+    "Set license mask for activated content.\n"
+    " 0 = No licenses enabled.\n"
+    " 1 = First license enabled. Generally the full version license in\n"
+    "     Xbox Live Arcade titles.\n"
+    " -1 or 0xFFFFFFFF = All possible licenses enabled. Generally a\n"
+    "                    bad idea, could lead to undefined behavior.",
+    "Content");
 
 namespace xe {
 namespace kernel {
