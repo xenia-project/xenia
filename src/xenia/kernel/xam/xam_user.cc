@@ -172,7 +172,11 @@ uint32_t xeXamUserReadProfileSettingsEx(uint32_t title_id, uint32_t user_index,
       case UserProfile::Setting::Type::WSTRING:
       case UserProfile::Setting::Type::BINARY: {
         needed_size += setting_key.size;
-      } break;
+        break;
+      }
+      default: {
+        break;
+      }
     }
   }
   // needed_size *= !xuids_ptr ? 1 : xuid_count;
