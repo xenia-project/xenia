@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2014 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -10,7 +10,7 @@
 #include "xenia/kernel/xam/app_manager.h"
 
 #include "xenia/kernel/kernel_state.h"
-#include "xenia/kernel/xam/apps/unknown_fe_app.h"
+#include "xenia/kernel/xam/apps/xam_app.h"
 #include "xenia/kernel/xam/apps/xgi_app.h"
 #include "xenia/kernel/xam/apps/xlivebase_app.h"
 #include "xenia/kernel/xam/apps/xmp_app.h"
@@ -28,7 +28,7 @@ void AppManager::RegisterApps(KernelState* kernel_state, AppManager* manager) {
   manager->RegisterApp(std::make_unique<apps::XmpApp>(kernel_state));
   manager->RegisterApp(std::make_unique<apps::XgiApp>(kernel_state));
   manager->RegisterApp(std::make_unique<apps::XLiveBaseApp>(kernel_state));
-  manager->RegisterApp(std::make_unique<apps::UnknownFEApp>(kernel_state));
+  manager->RegisterApp(std::make_unique<apps::XamApp>(kernel_state));
 }
 
 void AppManager::RegisterApp(std::unique_ptr<App> app) {
