@@ -588,6 +588,7 @@ void X64ThunkEmitter::EmitSaveVolatileRegs() {
   mov(qword[rsp + offsetof(StackLayout::Thunk, r[6])], r9);
   mov(qword[rsp + offsetof(StackLayout::Thunk, r[7])], r10);
   mov(qword[rsp + offsetof(StackLayout::Thunk, r[8])], r11);
+
   // vmovaps(qword[rsp + offsetof(StackLayout::Thunk, xmm[0])], xmm0);
   vmovaps(qword[rsp + offsetof(StackLayout::Thunk, xmm[1])], xmm1);
   vmovaps(qword[rsp + offsetof(StackLayout::Thunk, xmm[2])], xmm2);
@@ -608,6 +609,7 @@ void X64ThunkEmitter::EmitLoadVolatileRegs() {
   mov(r9, qword[rsp + offsetof(StackLayout::Thunk, r[6])]);
   mov(r10, qword[rsp + offsetof(StackLayout::Thunk, r[7])]);
   mov(r11, qword[rsp + offsetof(StackLayout::Thunk, r[8])]);
+
   // vmovaps(xmm0, qword[rsp + offsetof(StackLayout::Thunk, xmm[0])]);
   vmovaps(xmm1, qword[rsp + offsetof(StackLayout::Thunk, xmm[1])]);
   vmovaps(xmm2, qword[rsp + offsetof(StackLayout::Thunk, xmm[2])]);
