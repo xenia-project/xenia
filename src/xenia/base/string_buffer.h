@@ -29,6 +29,7 @@ class StringBuffer {
   void Reset();
 
   void Append(char c);
+  void Append(char c, size_t count);
   void Append(const char* value);
   void Append(const std::string_view value);
 
