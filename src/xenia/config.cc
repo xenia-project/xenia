@@ -85,17 +85,23 @@ void SaveConfig() {
   // we use our own write logic because cpptoml doesn't
   // allow us to specify comments :(
   std::string last_category;
+  bool last_multiline_description = false;
   xe::StringBuffer sb;
   for (auto config_var : vars) {
     if (config_var->is_transient()) {
       continue;
     }
+
     if (last_category != config_var->category()) {
       if (!last_category.empty()) {
         sb.Append('\n', 2);
       }
       last_category = config_var->category();
+      last_multiline_description = false;
       sb.AppendFormat("[{}]\n", last_category);
+    } else if (last_multiline_description) {
+      last_multiline_description = false;
+      sb.Append('\n');
     }
 
     auto value = config_var->config_value();
@@ -138,6 +144,7 @@ void SaveConfig() {
           sb.Append(*it);
           sb.Append('\n');
         }
+        last_multiline_description = true;
       }
     }
   }
