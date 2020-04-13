@@ -53,7 +53,6 @@ class ObjectTable {
     if (object) {
       assert_true(object->type() == T::kType);
     }
-
     auto result = object_ref<T>(reinterpret_cast<T*>(object));
     return result;
   }
