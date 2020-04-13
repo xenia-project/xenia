@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2014 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -67,9 +67,10 @@ uint32_t current_thread_id();
 void set_current_thread_id(uint32_t id);
 
 // Sets the current thread name.
-void set_name(const std::string& name);
+void set_name(const std::string_view name);
 // Sets the target thread name.
-void set_name(std::thread::native_handle_type handle, const std::string& name);
+void set_name(std::thread::native_handle_type handle,
+              const std::string_view name);
 
 // Yields the current thread to the scheduler. Maybe.
 void MaybeYield();
@@ -358,7 +359,7 @@ class Thread : public WaitHandle {
   virtual uint32_t system_id() const = 0;
 
   // Returns the current name of the thread, if previously specified.
-  std::string name() const { return name_; }
+  const std::string& name() const { return name_; }
 
   // Sets the name of the thread, used in debugging and logging.
   virtual void set_name(std::string name) { name_ = std::move(name); }

@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2014 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -41,25 +41,10 @@ struct THREADNAME_INFO {
 };
 #pragma pack(pop)
 
-void set_name(HANDLE thread, const std::string& name) {
-  auto kern = GetModuleHandleW(L"kernel32.dll");
-  if (kern) {
-    auto set_thread_description =
-        (SetThreadDescriptionFn)GetProcAddress(kern, "SetThreadDescription");
-    if (set_thread_description) {
-      int len = MultiByteToWideChar(CP_ACP, 0, name.c_str(), -1, NULL, 0);
-      auto str = (LPWSTR)alloca(len * sizeof(WCHAR));
-      if (str) {
-        MultiByteToWideChar(CP_ACP, 0, name.c_str(), -1, str, len);
-        set_thread_description(thread, str);
-      }
-    }
-  }
-
+void raise_thread_name_exception(HANDLE thread, const std::string& name) {
   if (!IsDebuggerPresent()) {
     return;
   }
-
   THREADNAME_INFO info;
   info.dwType = 0x1000;
   info.szName = name.c_str();
@@ -72,7 +57,21 @@ void set_name(HANDLE thread, const std::string& name) {
   }
 }
 
-void set_name(const std::string& name) { set_name(GetCurrentThread(), name); }
+void set_name(HANDLE thread, const std::string_view name) {
+  auto kernel = GetModuleHandleW(L"kernel32.dll");
+  if (kernel) {
+    auto func =
+        (SetThreadDescriptionFn)GetProcAddress(kernel, "SetThreadDescription");
+    if (func) {
+      func(thread, reinterpret_cast<PCWSTR>(xe::to_utf16(name).c_str()));
+    }
+  }
+  raise_thread_name_exception(thread, std::string(name));
+}
+
+void set_name(const std::string_view name) {
+  set_name(GetCurrentThread(), name);
+}
 
 void MaybeYield() {
   SwitchToThread();
