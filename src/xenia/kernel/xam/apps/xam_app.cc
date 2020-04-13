@@ -2,12 +2,12 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2015 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
 
-#include "xenia/kernel/xam/apps/unknown_fe_app.h"
+#include "xenia/kernel/xam/apps/xam_app.h"
 
 #include "xenia/base/logging.h"
 #include "xenia/base/threading.h"
@@ -17,12 +17,10 @@ namespace kernel {
 namespace xam {
 namespace apps {
 
-UnknownFEApp::UnknownFEApp(KernelState* kernel_state)
-    : App(kernel_state, 0xFE) {}
+XamApp::XamApp(KernelState* kernel_state) : App(kernel_state, 0xFE) {}
 
-X_RESULT UnknownFEApp::DispatchMessageSync(uint32_t message,
-                                           uint32_t buffer_ptr,
-                                           uint32_t buffer_length) {
+X_RESULT XamApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
+                                     uint32_t buffer_length) {
   // NOTE: buffer_length may be zero or valid.
   auto buffer = memory_->TranslateVirtual(buffer_ptr);
   switch (message) {
@@ -36,13 +34,13 @@ X_RESULT UnknownFEApp::DispatchMessageSync(uint32_t message,
       assert_true(buffer_length == sizeof(message_data));
       auto unk = memory_->TranslateVirtual<xe::be<uint32_t>*>(data->unk_44);
       *unk = 0;
-      XELOGD("UnknownFEApp(0x00020021)('{}', {:08X}, {:08X}, {:08X})",
-             data->unk_00, (uint32_t)data->unk_40, (uint32_t)data->unk_44,
+      XELOGD("XamApp(0x00020021)('{}', {:08X}, {:08X}, {:08X})", data->unk_00,
+             (uint32_t)data->unk_40, (uint32_t)data->unk_44,
              (uint32_t)data->unk_48);
       return X_ERROR_SUCCESS;
     }
     case 0x00021012: {
-      XELOGD("UnknownFEApp(0x00021012)");
+      XELOGD("XamApp(0x00021012)");
       return X_ERROR_SUCCESS;
     }
     case 0x00022005: {
@@ -53,13 +51,13 @@ X_RESULT UnknownFEApp::DispatchMessageSync(uint32_t message,
       assert_true(buffer_length == sizeof(message_data));
       auto unk = memory_->TranslateVirtual<xe::be<uint32_t>*>(data->unk_00);
       auto adr = *unk;
-      XELOGD("UnknownFEApp(0x00022005)(%.8X, %.8X)", (uint32_t)data->unk_00,
+      XELOGD("XamApp(0x00022005)(%.8X, %.8X)", (uint32_t)data->unk_00,
              (uint32_t)data->unk_04);
       return X_ERROR_SUCCESS;
     }
   }
   XELOGE(
-      "Unimplemented 0xFE message app={:08X}, msg={:08X}, arg1={:08X}, "
+      "Unimplemented XAM message app={:08X}, msg={:08X}, arg1={:08X}, "
       "arg2={:08X}",
       app_id(), message, buffer_ptr, buffer_length);
   return X_STATUS_UNSUCCESSFUL;
