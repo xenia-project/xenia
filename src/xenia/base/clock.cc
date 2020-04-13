@@ -22,7 +22,7 @@ DEFINE_bool(clock_no_scaling, false,
             "CPU");
 DEFINE_bool(clock_source_raw, false,
             "Use the RDTSC instruction as the time source. "
-            "Host CPU must support invariant TSC. ",
+            "Host CPU must support invariant TSC.",
             "CPU");
 
 namespace xe {

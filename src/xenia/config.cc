@@ -92,7 +92,7 @@ void SaveConfig() {
     }
     if (last_category != config_var->category()) {
       if (!last_category.empty()) {
-        sb.Append("\n");
+        sb.Append('\n', 2);
       }
       last_category = config_var->category();
       sb.AppendFormat("[{}]\n", last_category);
