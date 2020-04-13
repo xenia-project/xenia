@@ -52,6 +52,13 @@ void StringBuffer::Append(char c) {
   AppendBytes(reinterpret_cast<const uint8_t*>(&c), 1);
 }
 
+void StringBuffer::Append(char c, size_t count) {
+  Grow(count + 1);
+  std::memset(buffer_ + buffer_offset_, c, count);
+  buffer_offset_ += count;
+  buffer_[buffer_offset_] = 0;
+}
+
 void StringBuffer::Append(const char* value) {
   AppendBytes(reinterpret_cast<const uint8_t*>(value), std::strlen(value));
 }
