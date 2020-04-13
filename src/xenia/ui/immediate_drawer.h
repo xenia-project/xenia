@@ -37,7 +37,7 @@ class ImmediateTexture {
 
  protected:
   ImmediateTexture(uint32_t width, uint32_t height)
-      : width(width), height(height) {}
+      : width(width), height(height), handle(0ULL) {}
 };
 
 // Describes the primitive type used by a draw call.
