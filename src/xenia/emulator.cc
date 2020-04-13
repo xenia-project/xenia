@@ -254,9 +254,7 @@ X_STATUS Emulator::LaunchPath(const std::filesystem::path& path) {
     // Likely an STFS container.
     return LaunchStfsContainer(path);
   };
-  auto extension = xe::path_to_utf8(path.extension());
-  std::transform(extension.begin(), extension.end(), extension.begin(),
-                 tolower);
+  auto extension = xe::utf8::lower_ascii(xe::path_to_utf8(path.extension()));
   if (extension == ".xex" || extension == ".elf" || extension == ".exe") {
     // Treat as a naked xex file.
     return LaunchXexFile(path);
