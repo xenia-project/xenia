@@ -202,8 +202,12 @@ void PipelineCache::InitializeShaderStorage(
   // cost - though D3D's internal validation would possibly be enough to ensure
   // they are up to date).
   auto shader_storage_shareable_root = shader_storage_root / "shareable";
-  if (!std::filesystem::create_directories(shader_storage_shareable_root)) {
-    return;
+  if (!std::filesystem::exists(shader_storage_shareable_root)) {
+    if (!std::filesystem::create_directories(shader_storage_shareable_root)) {
+      XELOGE("Failed to create shareable shader storage directory: {}",
+             xe::path_to_utf8(shader_storage_shareable_root));
+      return;
+    }
   }
 
   size_t logical_processor_count = xe::threading::logical_processor_count();
@@ -215,10 +219,12 @@ void PipelineCache::InitializeShaderStorage(
   // Initialize the Xenos shader storage stream.
   uint64_t shader_storage_initialization_start =
       xe::Clock::QueryHostTickCount();
-  shader_storage_file_ = xe::filesystem::OpenFile(
-      shader_storage_shareable_root / fmt::format("{:08X}.xsh", title_id),
-      "a+b");
+  auto shader_storage_path =
+      shader_storage_shareable_root / fmt::format("{:08X}.xsh", title_id);
+  shader_storage_file_ = xe::filesystem::OpenFile(shader_storage_path, "a+b");
   if (!shader_storage_file_) {
+    XELOGE("Failed to create shareable shader: {}",
+           xe::path_to_utf8(shader_storage_path));
     return;
   }
   shader_storage_file_flush_needed_ = false;
