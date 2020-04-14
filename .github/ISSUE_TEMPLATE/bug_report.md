@@ -12,7 +12,7 @@ assignees: ''
 # https://github.com/xenia-project/xenia/wiki
 #
 # If your question wasn't answered there or you need help, proceed here:
-# Xenia Discord (#help) - https://discord.gg/5g93S8H
+# Xenia Discord (#help) - https://discord.gg/Q9mxZf9
 # /r/xenia (questions thread) - https://www.reddit.com/r/xenia/
 #
 # DO NOT CREATE ISSUES ABOUT SPECIFIC GAMES IN THIS REPOSITORY!
