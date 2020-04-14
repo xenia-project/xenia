@@ -8,9 +8,9 @@ skip_tags: true
 
 skip_commits:
   files:
-    - .github/*
+    - .github/**
     - .travis.yml
-    - docs/*
+    - docs/**
     - src/**/*_posix.*
     - src/**/*_linux.*
     - src/**/*_x11.*
