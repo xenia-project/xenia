@@ -204,8 +204,10 @@ void PipelineCache::InitializeShaderStorage(
   auto shader_storage_shareable_root = shader_storage_root / "shareable";
   if (!std::filesystem::exists(shader_storage_shareable_root)) {
     if (!std::filesystem::create_directories(shader_storage_shareable_root)) {
-      XELOGE("Failed to create shareable shader storage directory: {}",
-             xe::path_to_utf8(shader_storage_shareable_root));
+      XELOGE(
+          "Failed to create the shareable shader storage directory, persistent "
+          "shader storage will be disabled: {}",
+          xe::path_to_utf8(shader_storage_shareable_root));
       return;
     }
   }
@@ -219,12 +221,15 @@ void PipelineCache::InitializeShaderStorage(
   // Initialize the Xenos shader storage stream.
   uint64_t shader_storage_initialization_start =
       xe::Clock::QueryHostTickCount();
-  auto shader_storage_path =
+  auto shader_storage_file_path =
       shader_storage_shareable_root / fmt::format("{:08X}.xsh", title_id);
-  shader_storage_file_ = xe::filesystem::OpenFile(shader_storage_path, "a+b");
+  shader_storage_file_ =
+      xe::filesystem::OpenFile(shader_storage_file_path, "a+b");
   if (!shader_storage_file_) {
-    XELOGE("Failed to create shareable shader: {}",
-           xe::path_to_utf8(shader_storage_path));
+    XELOGE(
+        "Failed to open the guest shader storage file for writing, persistent "
+        "shader storage will be disabled: {}",
+        xe::path_to_utf8(shader_storage_file_path));
     return;
   }
   shader_storage_file_flush_needed_ = false;
@@ -393,12 +398,17 @@ void PipelineCache::InitializeShaderStorage(
   // Initialize the pipeline state storage stream.
   uint64_t pipeline_state_storage_initialization_start_ =
       xe::Clock::QueryHostTickCount();
+  auto pipeline_state_storage_file_path =
+      shader_storage_shareable_root /
+      fmt::format("{:08X}.{}.d3d12.xpso", title_id,
+                  edram_rov_used_ ? "rov" : "rtv");
   pipeline_state_storage_file_ =
-      xe::filesystem::OpenFile(shader_storage_shareable_root /
-                                   fmt::format("{:08X}.{}.d3d12.xpso", title_id,
-                                               edram_rov_used_ ? "rov" : "rtv"),
-                               "a+b");
+      xe::filesystem::OpenFile(pipeline_state_storage_file_path, "a+b");
   if (!pipeline_state_storage_file_) {
+    XELOGE(
+        "Failed to open the Direct3D 12 pipeline state description storage "
+        "file for writing, persistent shader storage will be disabled: {}",
+        xe::path_to_utf8(pipeline_state_storage_file_path));
     fclose(shader_storage_file_);
     shader_storage_file_ = nullptr;
     return;
