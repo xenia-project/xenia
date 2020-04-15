@@ -501,7 +501,7 @@ void DxbcShaderTranslator::ProcessVertexFetchInstruction(
       D3D10_SB_OPERAND_TYPE_RESOURCE,
       kSwizzleXYZW & ((1 << (load_dword_count * 2)) - 1), 2));
   shader_code_.push_back(0);
-  shader_code_.push_back(0);
+  shader_code_.push_back(uint32_t(SRVMainRegister::kSharedMemory));
   ++stat_.instruction_count;
   ++stat_.texture_load_instructions;
 
@@ -756,7 +756,6 @@ uint32_t DxbcShaderTranslator::FindOrAddTextureSRV(uint32_t fetch_constant,
   if (dimension == TextureDimension::k1D) {
     dimension = TextureDimension::k2D;
   }
-  // 1 is added to the return value because T0/t0 is shared memory.
   for (uint32_t i = 0; i < uint32_t(texture_srvs_.size()); ++i) {
     TextureSRV& texture_srv = texture_srvs_[i];
     if (texture_srv.fetch_constant == fetch_constant &&
@@ -767,12 +766,12 @@ uint32_t DxbcShaderTranslator::FindOrAddTextureSRV(uint32_t fetch_constant,
         // must be bound even when all components are signed.
         texture_srv.is_sign_required = true;
       }
-      return 1 + i;
+      return i;
     }
   }
   if (texture_srvs_.size() >= kMaxTextureSRVs) {
     assert_always();
-    return 1 + (kMaxTextureSRVs - 1);
+    return kMaxTextureSRVs - 1;
   }
   TextureSRV new_texture_srv;
   new_texture_srv.fetch_constant = fetch_constant;
@@ -792,9 +791,9 @@ uint32_t DxbcShaderTranslator::FindOrAddTextureSRV(uint32_t fetch_constant,
   }
   new_texture_srv.name = fmt::format("xe_texture{}_{}_{}", fetch_constant,
                                      dimension_name, is_signed ? 's' : 'u');
-  uint32_t srv_register = 1 + uint32_t(texture_srvs_.size());
+  uint32_t srv_index = uint32_t(texture_srvs_.size());
   texture_srvs_.emplace_back(std::move(new_texture_srv));
-  return srv_register;
+  return srv_index;
 }
 
 uint32_t DxbcShaderTranslator::FindOrAddSamplerBinding(
@@ -1277,8 +1276,8 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
     store_result = true;
 
     // 0 is unsigned, 1 is signed.
-    uint32_t srv_registers[2] = {UINT32_MAX, UINT32_MAX};
-    uint32_t srv_registers_stacked[2] = {UINT32_MAX, UINT32_MAX};
+    uint32_t srv_indices[2] = {UINT32_MAX, UINT32_MAX};
+    uint32_t srv_indices_stacked[2] = {UINT32_MAX, UINT32_MAX};
     uint32_t sampler_register = UINT32_MAX;
     // Only the fetch constant needed for kGetTextureWeights.
     if (instr.opcode != FetchOpcode::kGetTextureWeights) {
@@ -1286,23 +1285,23 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
         // The LOD is a scalar and it doesn't depend on the texture contents, so
         // require any variant - unsigned in this case because more texture
         // formats support it.
-        srv_registers[0] =
+        srv_indices[0] =
             FindOrAddTextureSRV(tfetch_index, instr.dimension, false, true);
         if (instr.dimension == TextureDimension::k3D) {
           // 3D or 2D stacked is selected dynamically.
-          srv_registers_stacked[0] = FindOrAddTextureSRV(
+          srv_indices_stacked[0] = FindOrAddTextureSRV(
               tfetch_index, TextureDimension::k2D, false, true);
         }
       } else {
-        srv_registers[0] =
+        srv_indices[0] =
             FindOrAddTextureSRV(tfetch_index, instr.dimension, false);
-        srv_registers[1] =
+        srv_indices[1] =
             FindOrAddTextureSRV(tfetch_index, instr.dimension, true);
         if (instr.dimension == TextureDimension::k3D) {
           // 3D or 2D stacked is selected dynamically.
-          srv_registers_stacked[0] =
+          srv_indices_stacked[0] =
               FindOrAddTextureSRV(tfetch_index, TextureDimension::k2D, false);
-          srv_registers_stacked[1] =
+          srv_indices_stacked[1] =
               FindOrAddTextureSRV(tfetch_index, TextureDimension::k2D, true);
         }
       }
@@ -2297,8 +2296,8 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
           // The non-pixel-shader case should be handled before because it
           // just returns a constant in this case.
           assert_true(IsDxbcPixelShader());
-          uint32_t srv_register_current =
-              i ? srv_registers_stacked[0] : srv_registers[0];
+          uint32_t srv_index_current =
+              i ? srv_indices_stacked[0] : srv_indices[0];
           replicate_result = true;
           shader_code_.push_back(
               ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_1_SB_OPCODE_LOD) |
@@ -2311,8 +2310,10 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
           shader_code_.push_back(coord_temp);
           shader_code_.push_back(EncodeVectorSwizzledOperand(
               D3D10_SB_OPERAND_TYPE_RESOURCE, kSwizzleXYZW, 2));
-          shader_code_.push_back(srv_register_current);
-          shader_code_.push_back(srv_register_current);
+          shader_code_.push_back(1 + srv_index_current);
+          shader_code_.push_back(
+              uint32_t(SRVMainRegister::kBoundTexturesStart) +
+              srv_index_current);
           shader_code_.push_back(
               EncodeZeroComponentOperand(D3D10_SB_OPERAND_TYPE_SAMPLER, 2));
           shader_code_.push_back(sampler_register);
@@ -2341,8 +2342,8 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
           // Sample both unsigned and signed, and for stacked textures, two
           // samples if filtering is needed.
           for (uint32_t j = 0; j < 2; ++j) {
-            uint32_t srv_register_current =
-                i ? srv_registers_stacked[j] : srv_registers[j];
+            uint32_t srv_index_current =
+                i ? srv_indices_stacked[j] : srv_indices[j];
             uint32_t target_temp_sign = j ? signed_value_temp : system_temp_pv_;
             for (uint32_t k = 0;
                  k < (vol_filter_lerp_temp != UINT32_MAX ? 2u : 1u); ++k) {
@@ -2392,8 +2393,10 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
                 shader_code_.push_back(coord_temp);
                 shader_code_.push_back(EncodeVectorSwizzledOperand(
                     D3D10_SB_OPERAND_TYPE_RESOURCE, kSwizzleXYZW, 2));
-                shader_code_.push_back(srv_register_current);
-                shader_code_.push_back(srv_register_current);
+                shader_code_.push_back(1 + srv_index_current);
+                shader_code_.push_back(
+                    uint32_t(SRVMainRegister::kBoundTexturesStart) +
+                    srv_index_current);
                 shader_code_.push_back(EncodeZeroComponentOperand(
                     D3D10_SB_OPERAND_TYPE_SAMPLER, 2));
                 shader_code_.push_back(sampler_register);
@@ -2419,8 +2422,10 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
                 shader_code_.push_back(coord_temp);
                 shader_code_.push_back(EncodeVectorSwizzledOperand(
                     D3D10_SB_OPERAND_TYPE_RESOURCE, kSwizzleXYZW, 2));
-                shader_code_.push_back(srv_register_current);
-                shader_code_.push_back(srv_register_current);
+                shader_code_.push_back(1 + srv_index_current);
+                shader_code_.push_back(
+                    uint32_t(SRVMainRegister::kBoundTexturesStart) +
+                    srv_index_current);
                 shader_code_.push_back(EncodeZeroComponentOperand(
                     D3D10_SB_OPERAND_TYPE_SAMPLER, 2));
                 shader_code_.push_back(sampler_register);
@@ -2466,8 +2471,10 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
                 shader_code_.push_back(coord_temp);
                 shader_code_.push_back(EncodeVectorSwizzledOperand(
                     D3D10_SB_OPERAND_TYPE_RESOURCE, kSwizzleXYZW, 2));
-                shader_code_.push_back(srv_register_current);
-                shader_code_.push_back(srv_register_current);
+                shader_code_.push_back(1 + srv_index_current);
+                shader_code_.push_back(
+                    uint32_t(SRVMainRegister::kBoundTexturesStart) +
+                    srv_index_current);
                 shader_code_.push_back(EncodeZeroComponentOperand(
                     D3D10_SB_OPERAND_TYPE_SAMPLER, 2));
                 shader_code_.push_back(sampler_register);

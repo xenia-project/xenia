@@ -312,8 +312,10 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(
     shared_memory_and_edram_ranges[0].RangeType =
         D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
     shared_memory_and_edram_ranges[0].NumDescriptors = 1;
-    shared_memory_and_edram_ranges[0].BaseShaderRegister = 0;
-    shared_memory_and_edram_ranges[0].RegisterSpace = 0;
+    shared_memory_and_edram_ranges[0].BaseShaderRegister =
+        uint32_t(DxbcShaderTranslator::SRVMainRegister::kSharedMemory);
+    shared_memory_and_edram_ranges[0].RegisterSpace =
+        uint32_t(DxbcShaderTranslator::SRVSpace::kMain);
     shared_memory_and_edram_ranges[0].OffsetInDescriptorsFromTableStart = 0;
     shared_memory_and_edram_ranges[1].RangeType =
         D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
@@ -346,8 +348,9 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(
     parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
     range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
     range.NumDescriptors = texture_count_pixel;
-    range.BaseShaderRegister = 1;
-    range.RegisterSpace = 0;
+    range.BaseShaderRegister =
+        uint32_t(DxbcShaderTranslator::SRVMainRegister::kBoundTexturesStart);
+    range.RegisterSpace = uint32_t(DxbcShaderTranslator::SRVSpace::kMain);
     range.OffsetInDescriptorsFromTableStart = 0;
     ++desc.NumParameters;
   }
@@ -378,8 +381,9 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(
     parameter.ShaderVisibility = vertex_visibility;
     range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
     range.NumDescriptors = texture_count_vertex;
-    range.BaseShaderRegister = 1;
-    range.RegisterSpace = 0;
+    range.BaseShaderRegister =
+        uint32_t(DxbcShaderTranslator::SRVMainRegister::kBoundTexturesStart);
+    range.RegisterSpace = uint32_t(DxbcShaderTranslator::SRVSpace::kMain);
     range.OffsetInDescriptorsFromTableStart = 0;
     ++desc.NumParameters;
   }

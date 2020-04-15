@@ -321,6 +321,18 @@ class DxbcShaderTranslator : public ShaderTranslator {
     float edram_blend_constant[4];
   };
 
+  // Shader resource view binding spaces.
+  enum class SRVSpace {
+    // SRVMainSpaceRegister t# layout.
+    kMain,
+  };
+
+  // Shader resource view bindings in SRVSpace::kMain.
+  enum class SRVMainRegister {
+    kSharedMemory,
+    kBoundTexturesStart,
+  };
+
   // 192 textures at most because there are 32 fetch constants, and textures can
   // be 2D array, 3D or cube, and also signed and unsigned.
   static constexpr uint32_t kMaxTextureSRVIndexBits = 8;
@@ -335,7 +347,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
     bool is_sign_required;
     std::string name;
   };
-  // The first binding returned is at t1 because t0 is shared memory.
+  // The first binding returned is at t[SRVMainRegister::kBoundTexturesStart]
+  // of space SRVSpace::kMain.
   const TextureSRV* GetTextureSRVs(uint32_t& count_out) const {
     count_out = uint32_t(texture_srvs_.size());
     return texture_srvs_.data();
@@ -2081,7 +2094,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // Emits copde for endian swapping of the data located in pv.
   void SwapVertexData(uint32_t vfetch_index, uint32_t write_mask);
 
-  // Returns T#/t# index (they are the same in this translator).
+  // Returns index in texture_srvs_, and, for bound textures, it's also relative
+  // to the base T#/t# index of textures.
   uint32_t FindOrAddTextureSRV(uint32_t fetch_constant,
                                TextureDimension dimension, bool is_signed,
                                bool is_sign_required = false);
