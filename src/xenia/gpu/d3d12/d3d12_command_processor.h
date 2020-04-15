@@ -195,8 +195,7 @@ class D3D12CommandProcessor : public CommandProcessor {
     // Pretty rarely used and rarely changed - flow control constants.
     kRootParameter_BoolLoopConstants,
     // Never changed except for when starting a new descriptor heap - shared
-    // memory byte address buffer (t0) and, if ROV is used for EDRAM, EDRAM UAV
-    // (u0).
+    // memory byte address buffer, and, if ROV is used for EDRAM, EDRAM UAV.
     kRootParameter_SharedMemoryAndEDRAM,
 
     kRootParameter_Count_Base,

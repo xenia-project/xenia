@@ -3481,14 +3481,12 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
     shader_object_.push_back(uint32_t(DxbcRdefDimension::kSRVBuffer));
     // Multisampling not applicable.
     shader_object_.push_back(0);
-    // Register t0.
-    shader_object_.push_back(0);
+    shader_object_.push_back(uint32_t(SRVMainRegister::kSharedMemory));
     // One binding.
     shader_object_.push_back(1);
     // No DxbcRdefInputFlags.
     shader_object_.push_back(0);
-    // Register space 0.
-    shader_object_.push_back(0);
+    shader_object_.push_back(uint32_t(SRVSpace::kMain));
     // SRV ID T0.
     shader_object_.push_back(0);
 
@@ -3511,14 +3509,13 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
       }
       // Not multisampled.
       shader_object_.push_back(0xFFFFFFFFu);
-      // Register t[1 + i] - t0 is shared memory.
-      shader_object_.push_back(1 + i);
+      shader_object_.push_back(uint32_t(SRVMainRegister::kBoundTexturesStart) +
+                               i);
       // One binding.
       shader_object_.push_back(1);
       // 4-component.
       shader_object_.push_back(DxbcRdefInputFlagsComponents);
-      // Register space 0.
-      shader_object_.push_back(0);
+      shader_object_.push_back(uint32_t(SRVSpace::kMain));
       // SRV ID T[1 + i] - T0 is shared memory.
       shader_object_.push_back(1 + i);
       texture_name_offset += GetStringLength(texture_srv.name.c_str());
@@ -4326,16 +4323,16 @@ void DxbcShaderTranslator::WriteShaderCode() {
     }
 
     // Shader resources.
-    // Shared memory ByteAddressBuffer (T0, at t0, space0).
+    // Shared memory ByteAddressBuffer.
     shader_object_.push_back(
         ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_DCL_RESOURCE_RAW) |
         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(6));
     shader_object_.push_back(EncodeVectorSwizzledOperand(
         D3D10_SB_OPERAND_TYPE_RESOURCE, kSwizzleXYZW, 3));
     shader_object_.push_back(0);
-    shader_object_.push_back(0);
-    shader_object_.push_back(0);
-    shader_object_.push_back(0);
+    shader_object_.push_back(uint32_t(SRVMainRegister::kSharedMemory));
+    shader_object_.push_back(uint32_t(SRVMainRegister::kSharedMemory));
+    shader_object_.push_back(uint32_t(SRVSpace::kMain));
     // Textures.
     for (uint32_t i = 0; i < uint32_t(texture_srvs_.size()); ++i) {
       const TextureSRV& texture_srv = texture_srvs_[i];
@@ -4358,15 +4355,16 @@ void DxbcShaderTranslator::WriteShaderCode() {
           D3D10_SB_OPERAND_TYPE_RESOURCE, kSwizzleXYZW, 3));
       // T0 is shared memory.
       shader_object_.push_back(1 + i);
-      // t0 is shared memory.
-      shader_object_.push_back(1 + i);
-      shader_object_.push_back(1 + i);
+      shader_object_.push_back(uint32_t(SRVMainRegister::kBoundTexturesStart) +
+                               i);
+      shader_object_.push_back(uint32_t(SRVMainRegister::kBoundTexturesStart) +
+                               i);
       shader_object_.push_back(
           ENCODE_D3D10_SB_RESOURCE_RETURN_TYPE(D3D10_SB_RETURN_TYPE_FLOAT, 0) |
           ENCODE_D3D10_SB_RESOURCE_RETURN_TYPE(D3D10_SB_RETURN_TYPE_FLOAT, 1) |
           ENCODE_D3D10_SB_RESOURCE_RETURN_TYPE(D3D10_SB_RETURN_TYPE_FLOAT, 2) |
           ENCODE_D3D10_SB_RESOURCE_RETURN_TYPE(D3D10_SB_RETURN_TYPE_FLOAT, 3));
-      shader_object_.push_back(0);
+      shader_object_.push_back(uint32_t(SRVSpace::kMain));
     }
   }
 
