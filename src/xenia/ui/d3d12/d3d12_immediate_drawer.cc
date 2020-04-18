@@ -198,7 +198,8 @@ bool D3D12ImmediateDrawer::Initialize() {
   pipeline_blend_desc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
   pipeline_desc.SampleMask = UINT_MAX;
   pipeline_desc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
-  pipeline_desc.RasterizerState.CullMode = D3D12_CULL_MODE_BACK;
+  pipeline_desc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+  pipeline_desc.RasterizerState.FrontCounterClockwise = FALSE;
   pipeline_desc.RasterizerState.DepthClipEnable = TRUE;
   D3D12_INPUT_ELEMENT_DESC pipeline_input_elements[3] = {};
   pipeline_input_elements[0].SemanticName = "POSITION";
