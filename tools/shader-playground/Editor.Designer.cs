@@ -25,6 +25,7 @@
     private void InitializeComponent() {
       this.wordsTextBox = new System.Windows.Forms.TextBox();
       this.tableLayoutPanel1 = new System.Windows.Forms.TableLayoutPanel();
+      this.vertexShaderComboBox = new System.Windows.Forms.ComboBox();
       this.compilerTranslatedTextBox = new System.Windows.Forms.TextBox();
       this.sourceCodeTextBox = new System.Windows.Forms.TextBox();
       this.outputTextBox = new System.Windows.Forms.TextBox();
@@ -46,19 +47,21 @@
       this.wordsTextBox.Name = "wordsTextBox";
       this.wordsTextBox.ReadOnly = true;
       this.wordsTextBox.Size = new System.Drawing.Size(1631, 137);
-      this.wordsTextBox.TabIndex = 4;
+      this.wordsTextBox.TabIndex = 11;
       // 
       // tableLayoutPanel1
       // 
       this.tableLayoutPanel1.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
             | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
+      this.tableLayoutPanel1.AutoSizeMode = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
       this.tableLayoutPanel1.ColumnCount = 4;
       this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 25F));
       this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 25F));
       this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 25F));
       this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 25F));
-      this.tableLayoutPanel1.Controls.Add(this.compilerTranslatedTextBox, 3, 1);
+      this.tableLayoutPanel1.Controls.Add(this.vertexShaderComboBox, 3, 1);
+      this.tableLayoutPanel1.Controls.Add(this.compilerTranslatedTextBox, 3, 2);
       this.tableLayoutPanel1.Controls.Add(this.sourceCodeTextBox, 0, 1);
       this.tableLayoutPanel1.Controls.Add(this.outputTextBox, 1, 1);
       this.tableLayoutPanel1.Controls.Add(this.compilerUcodeTextBox, 2, 1);
@@ -68,11 +71,33 @@
       this.tableLayoutPanel1.Controls.Add(this.translationComboBox, 3, 0);
       this.tableLayoutPanel1.Location = new System.Drawing.Point(12, 12);
       this.tableLayoutPanel1.Name = "tableLayoutPanel1";
-      this.tableLayoutPanel1.RowCount = 2;
-      this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 20F));
+      this.tableLayoutPanel1.RowCount = 3;
+      this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle());
+      this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle());
       this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 100F));
+      this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 20F));
       this.tableLayoutPanel1.Size = new System.Drawing.Size(1631, 639);
-      this.tableLayoutPanel1.TabIndex = 5;
+      this.tableLayoutPanel1.TabIndex = 1;
+      // 
+      // vertexShaderComboBox
+      // 
+      this.vertexShaderComboBox.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
+            | System.Windows.Forms.AnchorStyles.Right)));
+      this.vertexShaderComboBox.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+      this.vertexShaderComboBox.FormattingEnabled = true;
+      this.vertexShaderComboBox.Items.AddRange(new object[] {
+            "VS to VS",
+            "VS to isoline DS with constant factors",
+            "VS to isoline DS with adaptive factors",
+            "VS to triangle DS with constant factors",
+            "VS to triangle DS with adaptive factors",
+            "VS to quad DS with constant factors",
+            "VS to quad DS with adaptive factors"});
+      this.vertexShaderComboBox.Location = new System.Drawing.Point(1224, 24);
+      this.vertexShaderComboBox.Margin = new System.Windows.Forms.Padding(3, 3, 3, 0);
+      this.vertexShaderComboBox.Name = "vertexShaderComboBox";
+      this.vertexShaderComboBox.Size = new System.Drawing.Size(404, 21);
+      this.vertexShaderComboBox.TabIndex = 7;
       // 
       // compilerTranslatedTextBox
       // 
@@ -80,13 +105,13 @@
       this.compilerTranslatedTextBox.AcceptsTab = true;
       this.compilerTranslatedTextBox.Dock = System.Windows.Forms.DockStyle.Fill;
       this.compilerTranslatedTextBox.Font = new System.Drawing.Font("Consolas", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-      this.compilerTranslatedTextBox.Location = new System.Drawing.Point(1224, 23);
+      this.compilerTranslatedTextBox.Location = new System.Drawing.Point(1224, 48);
       this.compilerTranslatedTextBox.Multiline = true;
       this.compilerTranslatedTextBox.Name = "compilerTranslatedTextBox";
       this.compilerTranslatedTextBox.ReadOnly = true;
       this.compilerTranslatedTextBox.ScrollBars = System.Windows.Forms.ScrollBars.Vertical;
-      this.compilerTranslatedTextBox.Size = new System.Drawing.Size(404, 613);
-      this.compilerTranslatedTextBox.TabIndex = 11;
+      this.compilerTranslatedTextBox.Size = new System.Drawing.Size(404, 588);
+      this.compilerTranslatedTextBox.TabIndex = 10;
       // 
       // sourceCodeTextBox
       // 
@@ -94,12 +119,13 @@
       this.sourceCodeTextBox.AcceptsTab = true;
       this.sourceCodeTextBox.Dock = System.Windows.Forms.DockStyle.Fill;
       this.sourceCodeTextBox.Font = new System.Drawing.Font("Consolas", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-      this.sourceCodeTextBox.Location = new System.Drawing.Point(3, 23);
+      this.sourceCodeTextBox.Location = new System.Drawing.Point(3, 24);
       this.sourceCodeTextBox.Multiline = true;
       this.sourceCodeTextBox.Name = "sourceCodeTextBox";
+      this.tableLayoutPanel1.SetRowSpan(this.sourceCodeTextBox, 2);
       this.sourceCodeTextBox.ScrollBars = System.Windows.Forms.ScrollBars.Vertical;
-      this.sourceCodeTextBox.Size = new System.Drawing.Size(401, 613);
-      this.sourceCodeTextBox.TabIndex = 6;
+      this.sourceCodeTextBox.Size = new System.Drawing.Size(401, 612);
+      this.sourceCodeTextBox.TabIndex = 5;
       // 
       // outputTextBox
       // 
@@ -107,13 +133,14 @@
       this.outputTextBox.AcceptsTab = true;
       this.outputTextBox.Dock = System.Windows.Forms.DockStyle.Fill;
       this.outputTextBox.Font = new System.Drawing.Font("Consolas", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-      this.outputTextBox.Location = new System.Drawing.Point(410, 23);
+      this.outputTextBox.Location = new System.Drawing.Point(410, 24);
       this.outputTextBox.Multiline = true;
       this.outputTextBox.Name = "outputTextBox";
       this.outputTextBox.ReadOnly = true;
+      this.tableLayoutPanel1.SetRowSpan(this.outputTextBox, 2);
       this.outputTextBox.ScrollBars = System.Windows.Forms.ScrollBars.Vertical;
-      this.outputTextBox.Size = new System.Drawing.Size(401, 613);
-      this.outputTextBox.TabIndex = 5;
+      this.outputTextBox.Size = new System.Drawing.Size(401, 612);
+      this.outputTextBox.TabIndex = 8;
       // 
       // compilerUcodeTextBox
       // 
@@ -121,13 +148,14 @@
       this.compilerUcodeTextBox.AcceptsTab = true;
       this.compilerUcodeTextBox.Dock = System.Windows.Forms.DockStyle.Fill;
       this.compilerUcodeTextBox.Font = new System.Drawing.Font("Consolas", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-      this.compilerUcodeTextBox.Location = new System.Drawing.Point(817, 23);
+      this.compilerUcodeTextBox.Location = new System.Drawing.Point(817, 24);
       this.compilerUcodeTextBox.Multiline = true;
       this.compilerUcodeTextBox.Name = "compilerUcodeTextBox";
       this.compilerUcodeTextBox.ReadOnly = true;
+      this.tableLayoutPanel1.SetRowSpan(this.compilerUcodeTextBox, 2);
       this.compilerUcodeTextBox.ScrollBars = System.Windows.Forms.ScrollBars.Vertical;
-      this.compilerUcodeTextBox.Size = new System.Drawing.Size(401, 613);
-      this.compilerUcodeTextBox.TabIndex = 4;
+      this.compilerUcodeTextBox.Size = new System.Drawing.Size(401, 612);
+      this.compilerUcodeTextBox.TabIndex = 9;
       // 
       // label1
       // 
@@ -135,7 +163,7 @@
       this.label1.Location = new System.Drawing.Point(3, 0);
       this.label1.Name = "label1";
       this.label1.Size = new System.Drawing.Size(78, 13);
-      this.label1.TabIndex = 7;
+      this.label1.TabIndex = 2;
       this.label1.Text = "Input Assembly";
       // 
       // label2
@@ -144,7 +172,7 @@
       this.label2.Location = new System.Drawing.Point(410, 0);
       this.label2.Name = "label2";
       this.label2.Size = new System.Drawing.Size(107, 13);
-      this.label2.TabIndex = 8;
+      this.label2.TabIndex = 3;
       this.label2.Text = "XNA Compiler Output";
       // 
       // label3
@@ -153,7 +181,7 @@
       this.label3.Location = new System.Drawing.Point(817, 0);
       this.label3.Name = "label3";
       this.label3.Size = new System.Drawing.Size(191, 13);
-      this.label3.TabIndex = 9;
+      this.label3.TabIndex = 4;
       this.label3.Text = "xenia-gpu-shader-compiler Disassembly";
       // 
       // translationComboBox
@@ -162,13 +190,15 @@
             | System.Windows.Forms.AnchorStyles.Right)));
       this.translationComboBox.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
       this.translationComboBox.FormattingEnabled = true;
-      this.translationComboBox.Items.AddRange(
-          new object[]{"SPIRV"});
+      this.translationComboBox.Items.AddRange(new object[] {
+            "DXBC (RTV/DSV RB)",
+            "DXBC (ROV RB)",
+            "SPIR-V"});
       this.translationComboBox.Location = new System.Drawing.Point(1224, 0);
       this.translationComboBox.Margin = new System.Windows.Forms.Padding(3, 0, 3, 0);
       this.translationComboBox.Name = "translationComboBox";
       this.translationComboBox.Size = new System.Drawing.Size(404, 21);
-      this.translationComboBox.TabIndex = 12;
+      this.translationComboBox.TabIndex = 6;
       // 
       // Editor
       // 
@@ -197,6 +227,7 @@
     private System.Windows.Forms.Label label3;
     private System.Windows.Forms.TextBox compilerTranslatedTextBox;
     private System.Windows.Forms.ComboBox translationComboBox;
+    private System.Windows.Forms.ComboBox vertexShaderComboBox;
   }
 }
 
