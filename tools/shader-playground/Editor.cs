@@ -134,8 +134,10 @@ namespace shader_playground {
     }
 
     void Process(string shaderSourceCode) {
-      shaderSourceCode += "\ncnop";
-      shaderSourceCode += "\ncnop";
+      if (shaderSourceCode.IndexOf("xvs_3_0") != -1 || shaderSourceCode.IndexOf("xps_3_0") != -1) {
+        shaderSourceCode += "\ncnop";
+        shaderSourceCode += "\ncnop";
+      }
       var preprocessorDefines = new CompilerMacro[2];
       preprocessorDefines[0].Name = "XBOX";
       preprocessorDefines[1].Name = "XBOX360";
@@ -170,7 +172,7 @@ namespace shader_playground {
       UpdateTextBox(outputTextBox, disassembledSourceCode, true);
 
       string shaderType =
-          shaderSourceCode.IndexOf("xvs_") == -1 ? "ps" : "vs";
+          shaderSourceCode.IndexOf("vs_") == -1 ? "ps" : "vs";
       var ucodeWords = ExtractAndDumpWords(shaderType, compiledShader.GetShaderCode());
       if (ucodeWords != null) {
         TryCompiler(shaderType, ucodeWords);
