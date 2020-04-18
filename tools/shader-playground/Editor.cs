@@ -66,6 +66,10 @@ namespace shader_playground {
       translationComboBox.SelectedIndexChanged += (object sender, EventArgs e) => {
         Process(sourceCodeTextBox.Text);
       };
+      vertexShaderComboBox.SelectedIndex = 0;
+      vertexShaderComboBox.SelectedIndexChanged += (object sender, EventArgs e) => {
+        Process(sourceCodeTextBox.Text);
+      };
 
     sourceCodeTextBox.Text = string.Join(
         Environment.NewLine, new string[] {
@@ -222,21 +226,52 @@ namespace shader_playground {
         UpdateTextBox(compilerUcodeTextBox, "COMPILER FAILURE", false);
       }
 
-      string outputType;
+      string outputType = "ucode";
       switch (translationComboBox.SelectedIndex) {
-        default:
         case 0:
+        case 1:
+          outputType = "dxbctext";
+          break;
+        case 2:
           outputType = "spirvtext";
           break;
       }
 
-      startInfo = new ProcessStartInfo(compilerPath_);
-      startInfo.Arguments = string.Join(" ", new string[]{
+      string vertexShaderType = "vertex";
+      switch (vertexShaderComboBox.SelectedIndex) {
+        case 1:
+          vertexShaderType = "linedomain";
+          break;
+        case 2:
+          vertexShaderType = "linedomainadaptive";
+          break;
+        case 3:
+          vertexShaderType = "triangledomain";
+          break;
+        case 4:
+          vertexShaderType = "triangledomainadaptive";
+          break;
+        case 5:
+          vertexShaderType = "quaddomain";
+          break;
+        case 6:
+          vertexShaderType = "quaddomainadaptive";
+          break;
+      }
+
+      List<string> startArguments = new List<string>{
         "--shader_input=" + ucodePath,
         "--shader_input_type=" + shaderType,
         "--shader_output=" + translatedDisasmPath,
         "--shader_output_type=" + outputType,
-      });
+        "--vertex_shader_output_type=" + vertexShaderType,
+      };
+      if (translationComboBox.SelectedIndex == 1) {
+        startArguments.Add("--shader_output_dxbc_rov=true");
+      }
+
+      startInfo = new ProcessStartInfo(compilerPath_);
+      startInfo.Arguments = string.Join(" ", startArguments.ToArray());
       startInfo.WindowStyle = ProcessWindowStyle.Hidden;
       startInfo.CreateNoWindow = true;
       try {
