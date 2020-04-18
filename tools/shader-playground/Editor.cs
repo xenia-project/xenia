@@ -134,7 +134,7 @@ namespace shader_playground {
       shaderSourceCode += "\ncnop";
       var preprocessorDefines = new CompilerMacro[2];
       preprocessorDefines[0].Name = "XBOX";
-      preprocessorDefines[0].Name = "XBOX360";
+      preprocessorDefines[1].Name = "XBOX360";
       var includeHandler = new NopIncludeHandler();
       var options = CompilerOptions.None;
       var compiledShader = ShaderCompiler.AssembleFromSource(
@@ -254,7 +254,7 @@ namespace shader_playground {
       var shaderSourceCode = sourcePrefix + compilerSource;
       var preprocessorDefines = new CompilerMacro[2];
       preprocessorDefines[0].Name = "XBOX";
-      preprocessorDefines[0].Name = "XBOX360";
+      preprocessorDefines[1].Name = "XBOX360";
       var includeHandler = new NopIncludeHandler();
       var options = CompilerOptions.None;
       var compiledShader = ShaderCompiler.AssembleFromSource(
