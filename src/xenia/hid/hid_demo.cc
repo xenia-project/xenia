@@ -7,8 +7,13 @@
  ******************************************************************************
  */
 
+#include <array>
 #include <cstring>
+#include <forward_list>
+#include <map>
+#include <tuple>
 
+#include "third_party/fmt/include/fmt/format.h"
 #include "third_party/imgui/imgui.h"
 #include "xenia/base/clock.h"
 #include "xenia/base/cvar.h"
@@ -30,6 +35,10 @@
 
 DEFINE_string(hid, "any", "Input system. Use: [any, nop, sdl, winkey, xinput]",
               "General");
+
+#define MAX_USERS 4
+#define COL_WIDTH_STATE 320
+#define COL_WIDTH_STROKE 416
 
 namespace xe {
 namespace hid {
@@ -86,7 +95,8 @@ std::unique_ptr<xe::ui::GraphicsProvider> CreateDemoGraphicsProvider(
   return xe::ui::vulkan::VulkanProvider::Create(window);
 }
 
-void DrawInputStatus();
+void DrawInputGetState();
+void DrawInputGetKeystroke(bool poll, bool hide_repeats, bool clear_log);
 
 int hid_demo_main(const std::vector<std::string>& args) {
   // Create run loop and the window.
@@ -107,7 +117,7 @@ int hid_demo_main(const std::vector<std::string>& args) {
   loop->on_quit.AddListener([&window](xe::ui::UIEvent* e) { window.reset(); });
 
   // Initial size setting, done here so that it knows the menu exists.
-  window->Resize(600, 500);
+  window->Resize(COL_WIDTH_STATE + COL_WIDTH_STROKE, 500);
 
   // Create the graphics context used for drawing and setup the window.
   std::unique_ptr<xe::ui::GraphicsProvider> graphics_provider;
@@ -128,24 +138,46 @@ int hid_demo_main(const std::vector<std::string>& args) {
     window->Invalidate();
   });
 
+  window->set_imgui_input_enabled(true);
+
   window->on_painting.AddListener([&](xe::ui::UIEvent* e) {
     auto& io = window->imgui_drawer()->GetIO();
 
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(-1, 0));
-    ImGui::Begin("main_window", nullptr,
-                 ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize |
-                     ImGuiWindowFlags_NoTitleBar |
-                     ImGuiWindowFlags_NoScrollbar |
-                     ImGuiWindowFlags_NoSavedSettings);
-    ImGui::SetWindowPos(ImVec2(0, 0));
-    ImGui::SetWindowSize(io.DisplaySize);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(4, 4));
+    const ImGuiWindowFlags wflags =
+        ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
+        ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings |
+        ImGuiWindowFlags_NoScrollbar;
 
-    DrawInputStatus();
+    ImGui::Begin("GetState()", nullptr, wflags);
+    {
+      ImGui::SetWindowPos(ImVec2(0, 0));
+      ImGui::SetWindowSize(ImVec2(COL_WIDTH_STATE, io.DisplaySize.y));
 
-    ImGui::PopStyleVar();
+      static bool enable_GetState = false;
+      ImGui::Checkbox("Active", &enable_GetState);
+      if (enable_GetState) {
+        ImGui::Spacing();
+        DrawInputGetState();
+      }
+    }
     ImGui::End();
-    ImGui::PopStyleVar();
+
+    ImGui::Begin("GetKeystroke()", nullptr, wflags);
+    {
+      ImGui::SetWindowPos(ImVec2(COL_WIDTH_STATE, 0));
+      ImGui::SetWindowSize(ImVec2(COL_WIDTH_STROKE, io.DisplaySize.y));
+
+      static bool enable_GetKeystroke = false;
+      static bool hide_repeats = false;
+      ImGui::Checkbox("Active", &enable_GetKeystroke);
+      ImGui::SameLine();
+      ImGui::Checkbox("Hide repeats", &hide_repeats);
+      ImGui::SameLine();
+      const bool clear_log = ImGui::Button("Clear");
+      ImGui::Spacing();
+      DrawInputGetKeystroke(enable_GetKeystroke, hide_repeats, clear_log);
+    }
+    ImGui::End();
 
     // Continuous paint.
     window->Invalidate();
@@ -162,7 +194,7 @@ int hid_demo_main(const std::vector<std::string>& args) {
   return 0;
 }
 
-void DrawUserInputStatus(uint32_t user_index) {
+void DrawUserInputGetState(uint32_t user_index) {
   ImGui::Text("User %u:", user_index);
 
   X_INPUT_STATE state;
@@ -218,14 +250,138 @@ void DrawUserInputStatus(uint32_t user_index) {
   ImGui::Text(" ");
 }
 
-void DrawInputStatus() {
-  ImGui::BeginChild("##input_status", ImVec2(0, 0), true);
+void DrawInputGetState() {
+  ImGui::BeginChild("##input_get_state_scroll");
+  for (uint32_t user_index = 0; user_index < MAX_USERS; ++user_index) {
+    DrawUserInputGetState(user_index);
+  }
+  ImGui::EndChild();
+}
 
-  for (uint32_t user_index = 0; user_index < 4; ++user_index) {
-    DrawUserInputStatus(user_index);
+static const std::map<std::underlying_type<X_INPUT_GAMEPAD_VK>::type,
+                      const std::string>
+    vk_pretty = {
+        {X_INPUT_GAMEPAD_VK_A, "A"},
+        {X_INPUT_GAMEPAD_VK_B, "B"},
+        {X_INPUT_GAMEPAD_VK_X, "X"},
+        {X_INPUT_GAMEPAD_VK_Y, "Y"},
+        {X_INPUT_GAMEPAD_VK_RSHOULDER, "R Shoulder"},
+        {X_INPUT_GAMEPAD_VK_LSHOULDER, "L Shoulder"},
+        {X_INPUT_GAMEPAD_VK_LTRIGGER, "L Trigger"},
+        {X_INPUT_GAMEPAD_VK_RTRIGGER, "R Trigger"},
+
+        {X_INPUT_GAMEPAD_VK_DPAD_UP, "DPad up"},
+        {X_INPUT_GAMEPAD_VK_DPAD_DOWN, "DPad down"},
+        {X_INPUT_GAMEPAD_VK_DPAD_LEFT, "DPad left"},
+        {X_INPUT_GAMEPAD_VK_DPAD_RIGHT, "DPad right"},
+        {X_INPUT_GAMEPAD_VK_START, "Start"},
+        {X_INPUT_GAMEPAD_VK_BACK, "Back"},
+        {X_INPUT_GAMEPAD_VK_LTHUMB_PRESS, "L Thumb press"},
+        {X_INPUT_GAMEPAD_VK_RTHUMB_PRESS, "R Thumb press"},
+
+        {X_INPUT_GAMEPAD_VK_LTHUMB_UP, "L Thumb up"},
+        {X_INPUT_GAMEPAD_VK_LTHUMB_DOWN, "L Thumb down"},
+        {X_INPUT_GAMEPAD_VK_LTHUMB_RIGHT, "L Thumb right"},
+        {X_INPUT_GAMEPAD_VK_LTHUMB_LEFT, "L Thumb left"},
+        {X_INPUT_GAMEPAD_VK_LTHUMB_UPLEFT, "L Thumb up & left"},
+        {X_INPUT_GAMEPAD_VK_LTHUMB_UPRIGHT, "L Thumb up & right"},
+        {X_INPUT_GAMEPAD_VK_LTHUMB_DOWNRIGHT, "L Thumb down & right"},
+        {X_INPUT_GAMEPAD_VK_LTHUMB_DOWNLEFT, "L Thumb down & left"},
+
+        {X_INPUT_GAMEPAD_VK_RTHUMB_UP, "R Thumb up"},
+        {X_INPUT_GAMEPAD_VK_RTHUMB_DOWN, "R Thumb down"},
+        {X_INPUT_GAMEPAD_VK_RTHUMB_RIGHT, "R Thumb right"},
+        {X_INPUT_GAMEPAD_VK_RTHUMB_LEFT, "R Thumb left"},
+        {X_INPUT_GAMEPAD_VK_RTHUMB_UPLEFT, "R Thumb up & left"},
+        {X_INPUT_GAMEPAD_VK_RTHUMB_UPRIGHT, "R Thumb up & right"},
+        {X_INPUT_GAMEPAD_VK_RTHUMB_DOWNRIGHT, "R Thumb down & right"},
+        {X_INPUT_GAMEPAD_VK_RTHUMB_DOWNLEFT, "R Thumb down & left"},
+};
+
+void DrawUserInputGetKeystroke(uint32_t user_index, bool poll,
+                               bool hide_repeats, bool clear_log) {
+  const size_t maxLog = 128;
+  static std::array<std::forward_list<std::string>, MAX_USERS> event_logs;
+  static std::array<uint64_t, MAX_USERS> last_event_times = {};
+
+  auto& event_log = event_logs.at(user_index);
+  if (clear_log) {
+    event_log.clear();
   }
 
-  ImGui::EndChild();
+  if (poll) {
+    X_INPUT_KEYSTROKE stroke;
+    bool continue_poll;
+    do {
+      continue_poll = false;
+      auto status = input_system_->GetKeystroke(user_index, 0, &stroke);
+      switch (status) {
+        case X_ERROR_SUCCESS: {
+          if (!stroke.virtual_key) {
+            event_log.emplace_front("Error: Empty KEYSTROKE on SUCCESS.");
+            break;
+          }
+          continue_poll = true;
+
+          const auto now = Clock::QueryHostUptimeMillis();
+          const auto dur = now - last_event_times[user_index];
+          last_event_times[user_index] = now;
+
+          if (hide_repeats && (stroke.flags & X_INPUT_KEYSTROKE_REPEAT)) {
+            break;
+          }
+
+          const auto key_search = vk_pretty.find(stroke.virtual_key);
+          const auto key = key_search != vk_pretty.end()
+                               ? key_search->second
+                               : fmt::format("0x{:04x}", stroke.virtual_key);
+          event_log.emplace_front(fmt::format(
+              "{:>6} {:>9}ms    {:<20}    {} {} {}", ImGui::GetFrameCount(),
+              dur, key,
+              ((stroke.flags & X_INPUT_KEYSTROKE_KEYDOWN) ? "down" : "    "),
+              ((stroke.flags & X_INPUT_KEYSTROKE_KEYUP) ? "up" : "  "),
+              ((stroke.flags & X_INPUT_KEYSTROKE_REPEAT) ? "repeat" : "")));
+
+          break;
+        }
+        case X_ERROR_DEVICE_NOT_CONNECTED:
+        case X_ERROR_EMPTY:
+          break;
+        default:
+          event_log.emplace_front(
+              fmt::format("Error: Unknown result code: 0x{:08X}", status));
+          break;
+      }
+    } while (continue_poll);
+  }
+
+  if (ImGui::BeginTabItem(fmt::format("User {}", user_index).c_str())) {
+    ImGui::BeginChild(
+        fmt::format("##input_get_keystroke_scroll_{}", user_index).c_str());
+    ImGui::Text(" frame  since last    button                  flags");
+    for (auto [it, count] = std::tuple{event_log.begin(), 1};
+         it != event_log.end(); ++it, ++count) {
+      ImGui::Text("%s", it->c_str());
+
+      if (count >= maxLog) {
+        auto last = it;
+        if (++it != event_log.end()) {
+          event_log.erase_after(last);
+        }
+        break;
+      }
+    }
+    ImGui::EndChild();
+    ImGui::EndTabItem();
+  }
+}
+
+void DrawInputGetKeystroke(bool poll, bool hide_repeats, bool clear_log) {
+  bool tab_bar = ImGui::BeginTabBar("DrawInputGetKeystroke");
+  for (uint32_t user_index = 0; user_index < MAX_USERS; ++user_index) {
+    DrawUserInputGetKeystroke(user_index, poll, hide_repeats, clear_log);
+  }
+  if (tab_bar) ImGui::EndTabBar();
 }
 
 }  // namespace hid
