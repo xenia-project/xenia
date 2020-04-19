@@ -56,6 +56,7 @@ void ImGuiDrawer::Initialize() {
   auto& style = ImGui::GetStyle();
   style.ScrollbarRounding = 0;
   style.WindowRounding = 0;
+  style.TabRounding = 0;
   style.Colors[ImGuiCol_Text] = ImVec4(0.89f, 0.90f, 0.90f, 1.00f);
   style.Colors[ImGuiCol_TextDisabled] = ImVec4(0.60f, 0.60f, 0.60f, 1.00f);
   style.Colors[ImGuiCol_WindowBg] = ImVec4(0.00f, 0.06f, 0.00f, 1.00f);
