@@ -1358,6 +1358,7 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
       case PrimitiveType::kTrianglePatch:
         primitive_topology = D3D_PRIMITIVE_TOPOLOGY_3_CONTROL_POINT_PATCHLIST;
         break;
+      case PrimitiveType::kQuadList:
       case PrimitiveType::kQuadPatch:
         primitive_topology = D3D_PRIMITIVE_TOPOLOGY_4_CONTROL_POINT_PATCHLIST;
         break;

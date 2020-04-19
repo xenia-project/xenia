@@ -530,6 +530,40 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
       }
       break;
 
+    case Shader::HostVertexShaderType::kQuadDomainConstant:
+      assert_true(register_count() >= 2);
+      if (register_count() >= 1) {
+        // Copy the domain location to r0.xy.
+        DxbcOpMov(uses_register_dynamic_addressing() ? DxbcDest::X(0, 0, 0b0011)
+                                                     : DxbcDest::R(0, 0b0011),
+                  DxbcSrc::VDomain());
+        // Control point indices according to the shader from the main menu of
+        // Defender, which starts from `cndeq r2, c255.xxxy, r1.xyzz, r0.zzzz`,
+        // where c255.x is 0, and c255.y is 1.
+        // r0.z for (1 - r0.x) * (1 - r0.y)
+        // r1.x for r0.x * (1 - r0.y)
+        // r1.y for r0.x * r0.y
+        // r1.z for (1 - r0.x) * r0.y
+        DxbcOpMov(
+            uses_register_dynamic_addressing() ? DxbcDest::X(0, 0, 0b0100)
+                                               : DxbcDest::R(0, 0b0100),
+            DxbcSrc::VICP(0, uint32_t(InOutRegister::kDSInControlPointIndex),
+                          DxbcSrc::kXXXX));
+        if (register_count() >= 2) {
+          DxbcDest r1_dest(uses_register_dynamic_addressing()
+                               ? DxbcDest::X(0, 1)
+                               : DxbcDest::R(1));
+          for (uint32_t i = 0; i < 3; ++i) {
+            DxbcOpMov(
+                r1_dest.Mask(1 << i),
+                DxbcSrc::VICP(1 + i,
+                              uint32_t(InOutRegister::kDSInControlPointIndex),
+                              DxbcSrc::kXXXX));
+          }
+        }
+      }
+      break;
+
     case Shader::HostVertexShaderType::kQuadDomainAdaptive:
       assert_true(register_count() >= 2);
       if (register_count() >= 1) {
