@@ -769,6 +769,19 @@ Shader::HostVertexShaderType PipelineCache::GetHostVertexShaderTypeIfValid()
           break;
       }
       break;
+    case PrimitiveType::kQuadList:
+      switch (tessellation_mode) {
+        // Also supported by quad strips according to:
+        // https://www.khronos.org/registry/OpenGL/extensions/AMD/AMD_vertex_shader_tessellator.txt
+        // Would need to convert those to quad lists, but haven't seen any games
+        // using tessellated strips so far.
+        case xenos::TessellationMode::kContinuous:
+          // - Defender - retro screen and beams in the main menu - kQuadList.
+          return Shader::HostVertexShaderType::kQuadDomainConstant;
+        default:
+          break;
+      }
+      break;
     case PrimitiveType::kTrianglePatch:
       if (tessellation_mode == xenos::TessellationMode::kAdaptive) {
         // - Banjo-Kazooie: Nuts & Bolts - water.
