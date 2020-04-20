@@ -159,7 +159,8 @@ inline utf8_citer find_needle_case(utf8_citer haystack_it,
 }
 
 std::vector<std::string_view> split(const std::string_view haystack,
-                                    const std::string_view needles) {
+                                    const std::string_view needles,
+                                    bool remove_empty) {
   std::vector<std::string_view> result;
 
   auto [haystack_begin, haystack_end] = make_citer(haystack);
@@ -177,6 +178,8 @@ std::vector<std::string_view> split(const std::string_view haystack,
       auto offset = byte_length(haystack_begin, last);
       auto length = byte_length(haystack_begin, it) - offset;
       result.push_back(haystack.substr(offset, length));
+    } else if (!remove_empty) {
+      result.push_back("");
     }
 
     ++it;
@@ -478,7 +481,7 @@ bool ends_with_case(const std::string_view haystack,
 }
 
 std::vector<std::string_view> split_path(const std::string_view path) {
-  return split(path, u8"\\/");
+  return split(path, u8"\\/", true);
 }
 
 std::string join_paths(const std::string_view left_path,
