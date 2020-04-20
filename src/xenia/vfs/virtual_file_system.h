@@ -37,12 +37,11 @@ class VirtualFileSystem {
   bool FindSymbolicLink(const std::string_view path, std::string& target);
 
   Entry* ResolvePath(const std::string_view path);
-  Entry* ResolveBasePath(const std::string_view path);
 
   Entry* CreatePath(const std::string_view path, uint32_t attributes);
   bool DeletePath(const std::string_view path);
 
-  X_STATUS OpenFile(const std::string_view path,
+  X_STATUS OpenFile(Entry* root_entry, const std::string_view path,
                     FileDisposition creation_disposition,
                     uint32_t desired_access, bool is_directory, File** out_file,
                     FileAction* out_action);

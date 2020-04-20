@@ -165,21 +165,8 @@ Entry* StfsContainerDevice::ResolvePath(const std::string_view path) {
   // The filesystem will have stripped our prefix off already, so the path will
   // be in the form:
   // some\PATH.foo
-
   XELOGFS("StfsContainerDevice::ResolvePath({})", path);
-
-  // Walk the path, one separator at a time.
-  auto entry = root_entry_.get();
-  auto path_parts = xe::utf8::split_path(path);
-  for (auto& part : path_parts) {
-    entry = entry->GetChild(part);
-    if (!entry) {
-      // Not found.
-      return nullptr;
-    }
-  }
-
-  return entry;
+  return root_entry_->ResolvePath(path);
 }
 
 StfsContainerDevice::Error StfsContainerDevice::ReadPackageType(

@@ -126,11 +126,6 @@ Entry* VirtualFileSystem::ResolvePath(const std::string_view path) {
   return device->ResolvePath(relative_path);
 }
 
-Entry* VirtualFileSystem::ResolveBasePath(const std::string_view path) {
-  auto base_path = xe::utf8::find_base_guest_path(path);
-  return ResolvePath(base_path);
-}
-
 Entry* VirtualFileSystem::CreatePath(const std::string_view path,
                                      uint32_t attributes) {
   // Create all required directories recursively.
@@ -173,7 +168,8 @@ bool VirtualFileSystem::DeletePath(const std::string_view path) {
   return parent->Delete(entry);
 }
 
-X_STATUS VirtualFileSystem::OpenFile(const std::string_view path,
+X_STATUS VirtualFileSystem::OpenFile(Entry* root_entry,
+                                     const std::string_view path,
                                      FileDisposition creation_disposition,
                                      uint32_t desired_access, bool is_directory,
                                      File** out_file, FileAction* out_action) {
@@ -195,8 +191,11 @@ X_STATUS VirtualFileSystem::OpenFile(const std::string_view path,
   // If no device or parent, fail.
   Entry* parent_entry = nullptr;
   Entry* entry = nullptr;
-  if (!xe::utf8::find_base_guest_path(path).empty()) {
-    parent_entry = ResolveBasePath(path);
+
+  auto base_path = xe::utf8::find_base_guest_path(path);
+  if (!base_path.empty()) {
+    parent_entry = !root_entry ? ResolvePath(base_path)
+                               : root_entry->ResolvePath(base_path);
     if (!parent_entry) {
       *out_action = FileAction::kDoesNotExist;
       return X_STATUS_NO_SUCH_FILE;
@@ -205,7 +204,7 @@ X_STATUS VirtualFileSystem::OpenFile(const std::string_view path,
     auto file_name = xe::utf8::find_name_from_guest_path(path);
     entry = parent_entry->GetChild(file_name);
   } else {
-    entry = ResolvePath(path);
+    entry = !root_entry ? ResolvePath(path) : root_entry->GetChild(path);
   }
 
   // Check if exists (if we need it to), or that it doesn't (if it shouldn't).
