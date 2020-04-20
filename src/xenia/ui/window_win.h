@@ -38,6 +38,9 @@ class Win32Window : public Window {
 
   bool SetIcon(const void* buffer, size_t size) override;
 
+  bool CaptureMouse() override;
+  bool ReleaseMouse() override;
+
   bool is_fullscreen() const override;
   void ToggleFullscreen(bool fullscreen) override;
 
