@@ -97,6 +97,7 @@ class Entry {
   bool is_read_only() const;
 
   Entry* GetChild(const std::string_view name);
+  Entry* ResolvePath(const std::string_view path);
 
   const std::vector<std::unique_ptr<Entry>>& children() const {
     return children_;

@@ -58,20 +58,8 @@ Entry* DiscImageDevice::ResolvePath(const std::string_view path) {
   // The filesystem will have stripped our prefix off already, so the path will
   // be in the form:
   // some\PATH.foo
-
   XELOGFS("DiscImageDevice::ResolvePath({})", path);
-
-  // Walk the path, one separator at a time.
-  auto entry = root_entry_.get();
-  for (const auto& part : xe::utf8::split_path(path)) {
-    entry = entry->GetChild(part);
-    if (!entry) {
-      // Not found.
-      return nullptr;
-    }
-  }
-
-  return entry;
+  return root_entry_->ResolvePath(path);
 }
 
 DiscImageDevice::Error DiscImageDevice::Verify(ParseState* state) {
