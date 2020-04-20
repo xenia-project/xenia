@@ -59,6 +59,9 @@ class Window {
   virtual bool SetIcon(const void* buffer, size_t size) = 0;
   void ResetIcon() { SetIcon(nullptr, 0); }
 
+  virtual bool CaptureMouse() = 0;
+  virtual bool ReleaseMouse() = 0;
+
   virtual bool is_fullscreen() const { return false; }
   virtual void ToggleFullscreen(bool fullscreen) {}
 

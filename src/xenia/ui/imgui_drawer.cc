@@ -268,16 +268,27 @@ void ImGuiDrawer::OnKeyChar(KeyEvent* e) {
 void ImGuiDrawer::OnMouseDown(MouseEvent* e) {
   auto& io = GetIO();
   io.MousePos = ImVec2(float(e->x()), float(e->y()));
+  int button = -1;
   switch (e->button()) {
     case xe::ui::MouseEvent::Button::kLeft: {
-      io.MouseDown[0] = true;
-    } break;
+      button = 0;
+      break;
+    }
     case xe::ui::MouseEvent::Button::kRight: {
-      io.MouseDown[1] = true;
-    } break;
+      button = 1;
+      break;
+    }
     default: {
       // Ignored.
-    } break;
+      break;
+    }
+  }
+
+  if (button >= 0 && button < std::size(io.MouseDown)) {
+    if (!ImGui::IsAnyMouseDown()) {
+      window_->CaptureMouse();
+    }
+    io.MouseDown[button] = true;
   }
 }
 
@@ -289,16 +300,27 @@ void ImGuiDrawer::OnMouseMove(MouseEvent* e) {
 void ImGuiDrawer::OnMouseUp(MouseEvent* e) {
   auto& io = GetIO();
   io.MousePos = ImVec2(float(e->x()), float(e->y()));
+  int button = -1;
   switch (e->button()) {
     case xe::ui::MouseEvent::Button::kLeft: {
-      io.MouseDown[0] = false;
-    } break;
+      button = 0;
+      break;
+    }
     case xe::ui::MouseEvent::Button::kRight: {
-      io.MouseDown[1] = false;
-    } break;
+      button = 1;
+      break;
+    }
     default: {
       // Ignored.
-    } break;
+      break;
+    }
+  }
+
+  if (button >= 0 && button < std::size(io.MouseDown)) {
+    io.MouseDown[button] = false;
+    if (!ImGui::IsAnyMouseDown()) {
+      window_->ReleaseMouse();
+    }
   }
 }
 

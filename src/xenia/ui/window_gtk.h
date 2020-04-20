@@ -42,6 +42,10 @@ class GTKWindow : public Window {
 
   bool SetIcon(const void* buffer, size_t size) override;
 
+  // This seems to happen implicitly compared to Windows.
+  bool CaptureMouse() override { return true; };
+  bool ReleaseMouse() override { return true; };
+
   bool is_fullscreen() const override;
   void ToggleFullscreen(bool fullscreen) override;
 
