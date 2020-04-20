@@ -22,7 +22,8 @@ StfsContainerEntry::StfsContainerEntry(Device* device, Entry* parent,
     : Entry(device, parent, path),
       mmap_(mmap),
       data_offset_(0),
-      data_size_(0) {}
+      data_size_(0),
+      block_(0) {}
 
 StfsContainerEntry::~StfsContainerEntry() = default;
 

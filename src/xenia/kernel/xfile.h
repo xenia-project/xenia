@@ -23,58 +23,55 @@
 namespace xe {
 namespace kernel {
 
-// https://msdn.microsoft.com/en-us/library/windows/hardware/ff545822.aspx
-struct X_FILE_NETWORK_OPEN_INFORMATION {
-  xe::be<uint64_t> creation_time;
-  xe::be<uint64_t> last_access_time;
-  xe::be<uint64_t> last_write_time;
-  xe::be<uint64_t> change_time;
-  xe::be<uint64_t> allocation_size;
-  xe::be<uint64_t> end_of_file;  // size in bytes
-  xe::be<uint32_t> attributes;
-  xe::be<uint32_t> pad;
+// https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/ns-wdm-_io_status_block
+struct X_IO_STATUS_BLOCK {
+  union {
+    be<uint32_t> status;
+    be<uint32_t> pointer;
+  };
+  be<uint32_t> information;
 };
 
-// https://msdn.microsoft.com/en-us/library/windows/hardware/ff540248.aspx
+// https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/ns-ntifs-_file_directory_information
 class X_FILE_DIRECTORY_INFORMATION {
  public:
   // FILE_DIRECTORY_INFORMATION
-  xe::be<uint32_t> next_entry_offset;  // 0x0
-  xe::be<uint32_t> file_index;         // 0x4
-  xe::be<uint64_t> creation_time;      // 0x8
-  xe::be<uint64_t> last_access_time;   // 0x10
-  xe::be<uint64_t> last_write_time;    // 0x18
-  xe::be<uint64_t> change_time;        // 0x20
-  xe::be<uint64_t> end_of_file;        // 0x28 size in bytes
-  xe::be<uint64_t> allocation_size;    // 0x30
-  xe::be<uint32_t> attributes;         // 0x38 X_FILE_ATTRIBUTES
-  xe::be<uint32_t> file_name_length;   // 0x3C
-  char file_name[1];                   // 0x40
+  be<uint32_t> next_entry_offset;  // 0x0
+  be<uint32_t> file_index;         // 0x4
+  be<uint64_t> creation_time;      // 0x8
+  be<uint64_t> last_access_time;   // 0x10
+  be<uint64_t> last_write_time;    // 0x18
+  be<uint64_t> change_time;        // 0x20
+  be<uint64_t> end_of_file;        // 0x28 size in bytes
+  be<uint64_t> allocation_size;    // 0x30
+  be<uint32_t> attributes;         // 0x38 X_FILE_ATTRIBUTES
+  be<uint32_t> file_name_length;   // 0x3C
+  char file_name[1];               // 0x40
 
   void Write(uint8_t* base, uint32_t p) {
     uint8_t* dst = base + p;
     uint8_t* src = reinterpret_cast<uint8_t*>(this);
-    X_FILE_DIRECTORY_INFORMATION* info;
+    X_FILE_DIRECTORY_INFORMATION* right;
     do {
-      info = reinterpret_cast<X_FILE_DIRECTORY_INFORMATION*>(src);
-      xe::store_and_swap<uint32_t>(dst, info->next_entry_offset);
-      xe::store_and_swap<uint32_t>(dst + 4, info->file_index);
-      xe::store_and_swap<uint64_t>(dst + 8, info->creation_time);
-      xe::store_and_swap<uint64_t>(dst + 16, info->last_access_time);
-      xe::store_and_swap<uint64_t>(dst + 24, info->last_write_time);
-      xe::store_and_swap<uint64_t>(dst + 32, info->change_time);
-      xe::store_and_swap<uint64_t>(dst + 40, info->end_of_file);
-      xe::store_and_swap<uint64_t>(dst + 48, info->allocation_size);
-      xe::store_and_swap<uint32_t>(dst + 56, info->attributes);
-      xe::store_and_swap<uint32_t>(dst + 60, info->file_name_length);
-      memcpy(dst + 64, info->file_name, info->file_name_length);
+      auto left = reinterpret_cast<X_FILE_DIRECTORY_INFORMATION*>(dst);
+      right = reinterpret_cast<X_FILE_DIRECTORY_INFORMATION*>(src);
+      left->next_entry_offset = right->next_entry_offset;
+      left->file_index = right->file_index;
+      left->creation_time = right->creation_time;
+      left->last_access_time = right->last_access_time;
+      left->last_write_time = right->last_write_time;
+      left->change_time = right->change_time;
+      left->end_of_file = right->end_of_file;
+      left->allocation_size = right->allocation_size;
+      left->attributes = right->attributes;
+      left->file_name_length = right->file_name_length;
+      std::memcpy(left->file_name, right->file_name, right->file_name_length);
 
-      dst += info->next_entry_offset;
-      src += info->next_entry_offset;
-    } while (info->next_entry_offset != 0);
+      dst += right->next_entry_offset;
+      src += right->next_entry_offset;
+    } while (right->next_entry_offset != 0);
   }
 };
-static_assert_size(X_FILE_DIRECTORY_INFORMATION, 72);
 
 class XFile : public XObject {
  public:

@@ -173,15 +173,21 @@ class StfsContainerDevice : public Device {
   void Dump(StringBuffer* string_buffer) override;
   Entry* ResolvePath(const std::string_view path) override;
 
+  const std::string& name() const override { return name_; }
+  uint32_t attributes() const override { return 0; }
+  uint32_t component_name_max_length() const override { return 40; }
+
   uint32_t total_allocation_units() const override {
     return uint32_t(mmap_total_size_ / sectors_per_allocation_unit() /
                     bytes_per_sector());
   }
   uint32_t available_allocation_units() const override { return 0; }
-  uint32_t sectors_per_allocation_unit() const override { return 1; }
-  uint32_t bytes_per_sector() const override { return 4 * 1024; }
+  uint32_t sectors_per_allocation_unit() const override { return 8; }
+  uint32_t bytes_per_sector() const override { return 0x200; }
 
  private:
+  const uint32_t kSectorSize = 0x1000;
+
   enum class Error {
     kSuccess = 0,
     kErrorOutOfMemory = -1,
@@ -215,6 +221,7 @@ class StfsContainerDevice : public Device {
   BlockHash GetBlockHash(const uint8_t* map_ptr, uint32_t block_index,
                          uint32_t table_offset);
 
+  std::string name_;
   std::filesystem::path host_path_;
   std::map<size_t, std::unique_ptr<MappedMemory>> mmap_;
   size_t mmap_total_size_;
