@@ -431,11 +431,23 @@ struct XnAddrStatus {
 dword_result_t NetDll_XNetGetTitleXnAddr(dword_t caller,
                                          pointer_t<XNADDR> addr_ptr) {
   // Just return a loopback address atm.
-  // FIXME: This needs to return the ethernet MAC address!
   addr_ptr->ina.s_addr = htonl(INADDR_LOOPBACK);
   addr_ptr->inaOnline.s_addr = 0;
   addr_ptr->wPortOnline = 0;
-  std::memset(addr_ptr->abEnet, 0, 6);
+
+  // TODO(gibbed): A proper mac address.
+  // RakNet's 360 version appears to depend on abEnet to create "random" 64-bit
+  // numbers. A zero value will cause RakPeer::Startup to fail. This causes
+  // Peggle 2 to crash on startup.
+  // The 360-specific code is scrubbed from the RakNet repo, but there's still
+  // traces of what it's doing which match the game code.
+  // https://github.com/facebookarchive/RakNet/blob/master/Source/RakPeer.cpp#L382
+  // https://github.com/facebookarchive/RakNet/blob/master/Source/RakPeer.cpp#L4527
+  // https://github.com/facebookarchive/RakNet/blob/master/Source/RakPeer.cpp#L4467
+  // "Mac address is a poor solution because you can't have multiple connections
+  // from the same system"
+  std::memset(addr_ptr->abEnet, 0xCC, 6);
+
   std::memset(addr_ptr->abOnline, 0, 20);
 
   return XnAddrStatus::XNET_GET_XNADDR_STATIC;
