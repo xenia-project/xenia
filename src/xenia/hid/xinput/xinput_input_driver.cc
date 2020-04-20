@@ -14,6 +14,7 @@
 
 #include <xinput.h>  // NOLINT(build/include_order)
 
+#include "xenia/base/logging.h"
 #include "xenia/hid/hid_flags.h"
 
 namespace xe {
@@ -71,6 +72,12 @@ X_STATUS XInputInputDriver::Setup() {
   XInputGetKeystroke_ = xigk;
   XInputSetState_ = xiss;
   XInputEnable_ = xie;
+
+  if (cvars::guide_button) {
+    // Theoretically there is XInputGetStateEx
+    // but thats undocumented and milage varies.
+    XELOGW("XInput: Guide button support is not implemented.");
+  }
   return X_STATUS_SUCCESS;
 }
 
