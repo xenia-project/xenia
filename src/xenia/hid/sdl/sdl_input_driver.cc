@@ -272,9 +272,7 @@ void SDLInputDriver::OnControllerDeviceRemoved(SDL_Event* event) {
   std::unique_lock<std::mutex> guard(controllers_mutex_);
 
   // Find the disconnected gamecontroller and close it.
-  bool found;
-  size_t i;
-  std::tie(found, i) = GetControllerIndexFromInstanceID(event->cdevice.which);
+  auto [found, i] = GetControllerIndexFromInstanceID(event->cdevice.which);
   assert(found);
   SDL_GameControllerClose(controllers_.at(i).sdl);
   controllers_.at(i) = {};
@@ -284,29 +282,27 @@ void SDLInputDriver::OnControllerDeviceAxisMotion(SDL_Event* event) {
   assert(window_->loop()->is_on_loop_thread());
   std::unique_lock<std::mutex> guard(controllers_mutex_);
 
-  bool found;
-  size_t i;
-  std::tie(found, i) = GetControllerIndexFromInstanceID(event->caxis.which);
+  auto [found, i] = GetControllerIndexFromInstanceID(event->caxis.which);
   assert(found);
-  const auto pad = &controllers_.at(i).state.gamepad;
+  auto& pad = controllers_.at(i).state.gamepad;
   switch (event->caxis.axis) {
     case SDL_CONTROLLER_AXIS_LEFTX:
-      pad->thumb_lx = event->caxis.value;
+      pad.thumb_lx = event->caxis.value;
       break;
     case SDL_CONTROLLER_AXIS_LEFTY:
-      pad->thumb_ly = ~event->caxis.value;
+      pad.thumb_ly = ~event->caxis.value;
       break;
     case SDL_CONTROLLER_AXIS_RIGHTX:
-      pad->thumb_rx = event->caxis.value;
+      pad.thumb_rx = event->caxis.value;
       break;
     case SDL_CONTROLLER_AXIS_RIGHTY:
-      pad->thumb_ry = ~event->caxis.value;
+      pad.thumb_ry = ~event->caxis.value;
       break;
     case SDL_CONTROLLER_AXIS_TRIGGERLEFT:
-      pad->left_trigger = static_cast<uint8_t>(event->caxis.value >> 7);
+      pad.left_trigger = static_cast<uint8_t>(event->caxis.value >> 7);
       break;
     case SDL_CONTROLLER_AXIS_TRIGGERRIGHT:
-      pad->right_trigger = static_cast<uint8_t>(event->caxis.value >> 7);
+      pad.right_trigger = static_cast<uint8_t>(event->caxis.value >> 7);
       break;
     default:
       assert_always();
@@ -338,13 +334,11 @@ void SDLInputDriver::OnControllerDeviceButtonChanged(SDL_Event* event) {
                         X_INPUT_GAMEPAD_DPAD_LEFT,
                         X_INPUT_GAMEPAD_DPAD_RIGHT};
 
-  bool found;
-  size_t i;
-  std::tie(found, i) = GetControllerIndexFromInstanceID(event->cbutton.which);
+  auto [found, i] = GetControllerIndexFromInstanceID(event->cbutton.which);
   assert(found);
-  const auto controller = &controllers_.at(i);
+  auto& controller = controllers_.at(i);
 
-  uint16_t xbuttons = controller->state.gamepad.buttons;
+  uint16_t xbuttons = controller.state.gamepad.buttons;
   // Lookup the XInput button code.
   auto xbutton = xbutton_lookup.at(event->cbutton.button);
   // Pressed or released?
@@ -353,8 +347,8 @@ void SDLInputDriver::OnControllerDeviceButtonChanged(SDL_Event* event) {
   } else {
     xbuttons &= ~xbutton;
   }
-  controller->state.gamepad.buttons = xbuttons;
-  controller->state_changed = true;
+  controller.state.gamepad.buttons = xbuttons;
+  controller.state_changed = true;
 }
 
 std::pair<bool, size_t> SDLInputDriver::GetControllerIndexFromInstanceID(
