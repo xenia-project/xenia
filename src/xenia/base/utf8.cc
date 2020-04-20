@@ -500,8 +500,12 @@ std::string join_paths(const std::string_view left_path,
 
 std::string join_paths(std::vector<std::string_view> paths, char32_t sep) {
   std::string result;
-  for (const auto& path : paths) {
-    result = join_paths(result, path, sep);
+  auto it = paths.cbegin();
+  if (it != paths.cend()) {
+    result = *it++;
+    for (; it != paths.cend(); ++it) {
+      result = join_paths(result, *it, sep);
+    }
   }
   return result;
 }
