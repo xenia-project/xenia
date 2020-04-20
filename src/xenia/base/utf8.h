@@ -27,7 +27,8 @@ size_t hash_fnv1a_case(const std::string_view view);
 
 // Splits the given string on any delimiters and returns all parts.
 std::vector<std::string_view> split(const std::string_view path,
-                                    const std::string_view delimiters);
+                                    const std::string_view delimiters,
+                                    bool remove_empty = false);
 
 bool equal_z(const std::string_view left, const std::string_view right);
 
