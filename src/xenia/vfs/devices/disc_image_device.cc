@@ -20,7 +20,7 @@ const size_t kXESectorSize = 2048;
 
 DiscImageDevice::DiscImageDevice(const std::string_view mount_path,
                                  const std::filesystem::path& host_path)
-    : Device(mount_path), host_path_(host_path) {}
+    : Device(mount_path), name_("GDFX"), host_path_(host_path) {}
 
 DiscImageDevice::~DiscImageDevice() = default;
 

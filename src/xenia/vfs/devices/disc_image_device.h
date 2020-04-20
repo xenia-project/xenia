@@ -31,13 +31,17 @@ class DiscImageDevice : public Device {
   void Dump(StringBuffer* string_buffer) override;
   Entry* ResolvePath(const std::string_view path) override;
 
+  const std::string& name() const override { return name_; }
+  uint32_t attributes() const override { return 0; }
+  uint32_t component_name_max_length() const override { return 255; }
+
   uint32_t total_allocation_units() const override {
     return uint32_t(mmap_->size() / sectors_per_allocation_unit() /
                     bytes_per_sector());
   }
   uint32_t available_allocation_units() const override { return 0; }
   uint32_t sectors_per_allocation_unit() const override { return 1; }
-  uint32_t bytes_per_sector() const override { return 2 * 1024; }
+  uint32_t bytes_per_sector() const override { return 0x200; }
 
  private:
   enum class Error {
@@ -48,6 +52,7 @@ class DiscImageDevice : public Device {
     kErrorDamagedFile = -31,
   };
 
+  std::string name_;
   std::filesystem::path host_path_;
   std::unique_ptr<Entry> root_entry_;
   std::unique_ptr<MappedMemory> mmap_;
