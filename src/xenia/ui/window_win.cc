@@ -236,6 +236,21 @@ bool Win32Window::SetIcon(const void* buffer, size_t size) {
   return false;
 }
 
+bool Win32Window::CaptureMouse() {
+  if (GetCapture() != nullptr) {
+    return false;
+  }
+  SetCapture(hwnd_);
+  return true;
+}
+
+bool Win32Window::ReleaseMouse() {
+  if (GetCapture() != hwnd_) {
+    return false;
+  }
+  return ReleaseCapture() != 0;
+}
+
 bool Win32Window::is_fullscreen() const { return fullscreen_; }
 
 // https://blogs.msdn.microsoft.com/oldnewthing/20131017-00/?p=2903
