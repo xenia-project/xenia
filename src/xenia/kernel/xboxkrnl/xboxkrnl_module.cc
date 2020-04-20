@@ -91,6 +91,7 @@ XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state)
   RegisterHalExports(export_resolver_, kernel_state_);
   RegisterHidExports(export_resolver_, kernel_state_);
   RegisterIoExports(export_resolver_, kernel_state_);
+  RegisterIoInfoExports(export_resolver_, kernel_state_);
   RegisterMemoryExports(export_resolver_, kernel_state_);
   RegisterMiscExports(export_resolver_, kernel_state_);
   RegisterModuleExports(export_resolver_, kernel_state_);

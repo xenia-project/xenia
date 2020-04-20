@@ -33,6 +33,10 @@ class Device {
   virtual void Dump(StringBuffer* string_buffer) = 0;
   virtual Entry* ResolvePath(const std::string_view path) = 0;
 
+  virtual const std::string& name() const = 0;
+  virtual uint32_t attributes() const = 0;
+  virtual uint32_t component_name_max_length() const = 0;
+
   virtual uint32_t total_allocation_units() const = 0;
   virtual uint32_t available_allocation_units() const = 0;
   virtual uint32_t sectors_per_allocation_unit() const = 0;

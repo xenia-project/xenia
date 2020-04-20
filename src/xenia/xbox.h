@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -161,47 +161,6 @@ enum X_FILE_ATTRIBUTES : uint32_t {
   X_FILE_ATTRIBUTE_TEMPORARY = 0x0100,
   X_FILE_ATTRIBUTE_COMPRESSED = 0x0800,
   X_FILE_ATTRIBUTE_ENCRYPTED = 0x4000,
-};
-
-// https://github.com/oukiar/vdash/blob/master/vdash/include/kernel.h
-enum X_FILE_INFORMATION_CLASS {
-  XFileDirectoryInformation = 1,
-  XFileFullDirectoryInformation,
-  XFileBothDirectoryInformation,
-  XFileBasicInformation,
-  XFileStandardInformation,
-  XFileInternalInformation,
-  XFileEaInformation,
-  XFileAccessInformation,
-  XFileNameInformation,
-  XFileRenameInformation,
-  XFileLinkInformation,
-  XFileNamesInformation,
-  XFileDispositionInformation,
-  XFilePositionInformation,
-  XFileFullEaInformation,
-  XFileModeInformation,
-  XFileAlignmentInformation,
-  XFileAllInformation,
-  XFileAllocationInformation,
-  XFileEndOfFileInformation,
-  XFileAlternateNameInformation,
-  XFileStreamInformation,
-  XFileMountPartitionInformation,
-  XFileMountPartitionsInformation,
-  XFilePipeRemoteInformation,
-  XFileSectorInformation,
-  XFileXctdCompressionInformation,
-  XFileCompressionInformation,
-  XFileObjectIdInformation,
-  XFileCompletionInformation,
-  XFileMoveClusterInformation,
-  XFileIoPriorityInformation,
-  XFileReparsePointInformation,
-  XFileNetworkOpenInformation,
-  XFileAttributeTagInformation,
-  XFileTrackingInformation,
-  XFileMaximumInformation
 };
 
 // Known as XOVERLAPPED to 360 code.

@@ -55,7 +55,15 @@ uint64_t decode_fat_timestamp(uint32_t date, uint32_t time) {
 
 StfsContainerDevice::StfsContainerDevice(const std::string_view mount_path,
                                          const std::filesystem::path& host_path)
-    : Device(mount_path), host_path_(host_path) {}
+    : Device(mount_path),
+      name_("STFS"),
+      host_path_(host_path),
+      mmap_total_size_(),
+      base_offset_(),
+      magic_offset_(),
+      package_type_(),
+      header_(),
+      table_size_shift_() {}
 
 StfsContainerDevice::~StfsContainerDevice() = default;
 
@@ -370,7 +378,7 @@ StfsContainerDevice::Error StfsContainerDevice::ReadEntrySVOD(
     // Entry is a file
     entry->attributes_ = kFileAttributeNormal | kFileAttributeReadOnly;
     entry->size_ = length;
-    entry->allocation_size_ = xe::round_up(length, bytes_per_sector());
+    entry->allocation_size_ = xe::round_up(length, kSectorSize);
     entry->data_offset_ = data_address;
     entry->data_size_ = length;
     entry->block_ = data_block;
@@ -536,7 +544,7 @@ StfsContainerDevice::Error StfsContainerDevice::ReadSTFS() {
         entry->data_size_ = file_size;
       }
       entry->size_ = file_size;
-      entry->allocation_size_ = xe::round_up(file_size, bytes_per_sector());
+      entry->allocation_size_ = xe::round_up(file_size, kSectorSize);
 
       entry->create_timestamp_ = decode_fat_timestamp(update_date, update_time);
       entry->access_timestamp_ = decode_fat_timestamp(access_date, access_time);
@@ -618,7 +626,7 @@ StfsContainerDevice::BlockHash StfsContainerDevice::GetBlockHash(
   // table and then subtract one sector to land on the table itself.
   size_t hash_offset = BlockToOffsetSTFS(
       xe::round_up(block_index + 1, kSTFSHashSpacing) - kSTFSHashSpacing);
-  hash_offset -= bytes_per_sector();
+  hash_offset -= kSectorSize;
   const uint8_t* hash_data = map_ptr + hash_offset;
 
   // table_index += table_offset - (1 << table_size_shift_);

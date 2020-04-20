@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -32,6 +32,7 @@ DECLARE_REGISTER_EXPORTS(Error);
 DECLARE_REGISTER_EXPORTS(Hal);
 DECLARE_REGISTER_EXPORTS(Hid);
 DECLARE_REGISTER_EXPORTS(Io);
+DECLARE_REGISTER_EXPORTS(IoInfo);
 DECLARE_REGISTER_EXPORTS(Memory);
 DECLARE_REGISTER_EXPORTS(Misc);
 DECLARE_REGISTER_EXPORTS(Module);
