@@ -58,6 +58,19 @@ Entry* Entry::GetChild(const std::string_view name) {
   return (*it).get();
 }
 
+Entry* Entry::ResolvePath(const std::string_view path) {
+  // Walk the path, one separator at a time.
+  Entry* entry = this;
+  for (auto& part : xe::utf8::split_path(path)) {
+    entry = entry->GetChild(part);
+    if (!entry) {
+      // Not found.
+      return nullptr;
+    }
+  }
+  return entry;
+}
+
 Entry* Entry::IterateChildren(const xe::filesystem::WildcardEngine& engine,
                               size_t* current_index) {
   auto global_lock = global_critical_region_.Acquire();

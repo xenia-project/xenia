@@ -90,6 +90,8 @@ dword_result_t NtCreateFile(lpdword_t handle_out, dword_t desired_access,
   auto object_name =
       kernel_memory()->TranslateVirtual<X_ANSI_STRING*>(object_attrs->name_ptr);
 
+  vfs::Entry* root_entry = nullptr;
+
   // Compute path, possibly attrs relative.
   auto target_path = util::TranslateAnsiString(kernel_memory(), object_name);
   if (object_attrs->root_directory != 0xFFFFFFFD &&  // ObDosDevices
@@ -99,18 +101,15 @@ dword_result_t NtCreateFile(lpdword_t handle_out, dword_t desired_access,
     assert_not_null(root_file);
     assert_true(root_file->type() == XObject::Type::kTypeFile);
 
-    // Resolve the file using the device the root directory is part of.
-    auto device = root_file->device();
-    target_path = xe::utf8::join_guest_paths(
-        {device->mount_path(), root_file->path(), target_path});
+    root_entry = root_file->entry();
   }
 
   // Attempt open (or create).
   vfs::File* vfs_file;
   vfs::FileAction file_action;
   X_STATUS result = kernel_state()->file_system()->OpenFile(
-      target_path, vfs::FileDisposition((uint32_t)creation_disposition),
-      desired_access,
+      root_entry, target_path,
+      vfs::FileDisposition((uint32_t)creation_disposition), desired_access,
       (create_options & CreateOptions::FILE_DIRECTORY_FILE) != 0, &vfs_file,
       &file_action);
   object_ref<XFile> file = nullptr;
