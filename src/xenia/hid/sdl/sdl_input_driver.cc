@@ -15,6 +15,7 @@
 
 #include "xenia/base/cvar.h"
 #include "xenia/base/logging.h"
+#include "xenia/hid/hid_flags.h"
 #include "xenia/ui/window.h"
 
 // TODO(joellinn) make this path relative to the config folder.
@@ -162,7 +163,8 @@ X_RESULT SDLInputDriver::GetCapabilities(uint32_t user_index, uint32_t flags,
   out_caps->type = 0x01;      // XINPUT_DEVTYPE_GAMEPAD
   out_caps->sub_type = 0x01;  // XINPUT_DEVSUBTYPE_GAMEPAD
   out_caps->flags = 0;
-  out_caps->gamepad.buttons = 0xF3FF;
+  out_caps->gamepad.buttons =
+      0xF3FF | (cvars::guide_button ? X_INPUT_GAMEPAD_GUIDE : 0x0);
   out_caps->gamepad.left_trigger = 0xFF;
   out_caps->gamepad.right_trigger = 0xFF;
   out_caps->gamepad.thumb_lx = static_cast<int16_t>(0xFFFFu);
@@ -323,7 +325,7 @@ void SDLInputDriver::OnControllerDeviceButtonChanged(SDL_Event* event) {
                         X_INPUT_GAMEPAD_X,
                         X_INPUT_GAMEPAD_Y,
                         X_INPUT_GAMEPAD_BACK,
-                        0 /* Guide button */,
+                        X_INPUT_GAMEPAD_GUIDE,
                         X_INPUT_GAMEPAD_START,
                         X_INPUT_GAMEPAD_LEFT_THUMB,
                         X_INPUT_GAMEPAD_RIGHT_THUMB,
@@ -343,6 +345,9 @@ void SDLInputDriver::OnControllerDeviceButtonChanged(SDL_Event* event) {
   auto xbutton = xbutton_lookup.at(event->cbutton.button);
   // Pressed or released?
   if (event->cbutton.state == SDL_PRESSED) {
+    if (xbutton == X_INPUT_GAMEPAD_GUIDE && !cvars::guide_button) {
+      return;
+    }
     xbuttons |= xbutton;
   } else {
     xbuttons &= ~xbutton;

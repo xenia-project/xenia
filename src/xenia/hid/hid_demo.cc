@@ -20,6 +20,7 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/main.h"
 #include "xenia/base/threading.h"
+#include "xenia/hid/hid_flags.h"
 #include "xenia/hid/input_system.h"
 #include "xenia/ui/imgui_drawer.h"
 #include "xenia/ui/vulkan/vulkan_provider.h"
@@ -155,6 +156,8 @@ int hid_demo_main(const std::vector<std::string>& args) {
 
       static bool enable_GetState = false;
       ImGui::Checkbox("Active", &enable_GetState);
+      ImGui::SameLine();
+      ImGui::Checkbox("Guide Button", &cvars::guide_button);
       if (enable_GetState) {
         ImGui::Spacing();
         DrawInputGetState();
@@ -203,35 +206,38 @@ void DrawUserInputGetState(uint32_t user_index) {
     return;
   }
 
-  ImGui::Text(" Packet Number: %u", static_cast<uint32_t>(state.packet_number));
+  ImGui::Text("  Packet Number: %u",
+              static_cast<uint32_t>(state.packet_number));
 
   auto& gamepad = state.gamepad;
-  ImGui::Text("       Buttons: [%c][%c][%c][%c]  [%s][%s]",
+  ImGui::Text("  Right Buttons: [%c][%c][%c][%c]",
               gamepad.buttons & X_INPUT_GAMEPAD_A ? 'A' : ' ',
               gamepad.buttons & X_INPUT_GAMEPAD_B ? 'B' : ' ',
               gamepad.buttons & X_INPUT_GAMEPAD_X ? 'X' : ' ',
-              gamepad.buttons & X_INPUT_GAMEPAD_Y ? 'Y' : ' ',
-              gamepad.buttons & X_INPUT_GAMEPAD_START ? "start" : "     ",
-              gamepad.buttons & X_INPUT_GAMEPAD_BACK ? "back" : "    ");
-  ImGui::Text("         D-pad: [%c][%c][%c][%c]",
+              gamepad.buttons & X_INPUT_GAMEPAD_Y ? 'Y' : ' ');
+  ImGui::Text("Special Buttons: [%s][%s][%s]",
+              gamepad.buttons & X_INPUT_GAMEPAD_BACK ? "back" : "    ",
+              gamepad.buttons & X_INPUT_GAMEPAD_GUIDE ? "guide" : "     ",
+              gamepad.buttons & X_INPUT_GAMEPAD_START ? "start" : "     ");
+  ImGui::Text("          D-pad: [%c][%c][%c][%c]",
               gamepad.buttons & X_INPUT_GAMEPAD_DPAD_UP ? 'U' : ' ',
               gamepad.buttons & X_INPUT_GAMEPAD_DPAD_DOWN ? 'D' : ' ',
               gamepad.buttons & X_INPUT_GAMEPAD_DPAD_LEFT ? 'L' : ' ',
               gamepad.buttons & X_INPUT_GAMEPAD_DPAD_RIGHT ? 'R' : ' ');
-  ImGui::Text("        Thumbs: [%c][%c]",
+  ImGui::Text("         Thumbs: [%c][%c]",
               gamepad.buttons & X_INPUT_GAMEPAD_LEFT_THUMB ? 'L' : ' ',
               gamepad.buttons & X_INPUT_GAMEPAD_RIGHT_THUMB ? 'R' : ' ');
-  ImGui::Text("     Shoulders: [%c][%c]",
+  ImGui::Text("      Shoulders: [%c][%c]",
               gamepad.buttons & X_INPUT_GAMEPAD_LEFT_SHOULDER ? 'L' : ' ',
               gamepad.buttons & X_INPUT_GAMEPAD_RIGHT_SHOULDER ? 'R' : ' ');
-  ImGui::Text("  Left Trigger: %3u",
+  ImGui::Text("   Left Trigger: %3u",
               static_cast<uint16_t>(gamepad.left_trigger));
-  ImGui::Text(" Right Trigger: %3u",
+  ImGui::Text("  Right Trigger: %3u",
               static_cast<uint16_t>(gamepad.right_trigger));
-  ImGui::Text("    Left Thumb: %6d, %6d",
+  ImGui::Text("     Left Thumb: %6d, %6d",
               static_cast<int32_t>(gamepad.thumb_lx),
               static_cast<int32_t>(gamepad.thumb_ly));
-  ImGui::Text("   Right Thumb: %6d, %6d",
+  ImGui::Text("    Right Thumb: %6d, %6d",
               static_cast<int32_t>(gamepad.thumb_rx),
               static_cast<int32_t>(gamepad.thumb_ry));
 
@@ -243,7 +249,7 @@ void DrawUserInputGetState(uint32_t user_index) {
       UINT16_MAX);
   input_system_->SetState(user_index, &vibration);
 
-  ImGui::Text(" Motor Speeds: L %5u, R %5u",
+  ImGui::Text("  Motor Speeds: L %5u, R %5u",
               static_cast<uint32_t>(vibration.left_motor_speed),
               static_cast<uint32_t>(vibration.right_motor_speed));
 
