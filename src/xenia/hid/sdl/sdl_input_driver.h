@@ -17,7 +17,11 @@
 #include "SDL.h"
 #include "xenia/hid/input_driver.h"
 
-#define HID_SDL_USER_COUNT (4)
+#define HID_SDL_USER_COUNT 4
+#define HID_SDL_THUMB_THRES 0x4E00
+#define HID_SDL_TRIGG_THRES 0x1F
+#define HID_SDL_REPEAT_DELAY 400
+#define HID_SDL_REPEAT_RATE 100
 
 namespace xe {
 namespace hid {
@@ -44,6 +48,20 @@ class SDLInputDriver : public InputDriver {
     X_INPUT_STATE state;
   };
 
+  enum class RepeatState {
+    Idle,       // no buttons pressed or repeating has ended
+    Waiting,    // a button is held and the delay is awaited
+    Repeating,  // actively repeating at a rate
+  };
+  struct KeystrokeState {
+    uint64_t buttons;
+    RepeatState repeat_state;
+    // the button number that was pressed last:
+    uint8_t repeat_butt_idx;
+    // the last time (ms) a down (and/or repeat) event for that button was send:
+    uint32_t repeat_time;
+  };
+
  protected:
   void OnControllerDeviceAdded(SDL_Event* event);
   void OnControllerDeviceRemoved(SDL_Event* event);
@@ -52,8 +70,9 @@ class SDLInputDriver : public InputDriver {
   std::pair<bool, size_t> GetControllerIndexFromInstanceID(
       SDL_JoystickID instance_id);
   ControllerState* GetControllerState(uint32_t user_index);
-  bool TestSDLVersion();
+  bool TestSDLVersion() const;
   void QueueControllerUpdate();
+  inline uint64_t AnalogToKeyfield(const X_INPUT_GAMEPAD& gamepad) const;
 
  protected:
   bool sdl_events_initialized_;
@@ -62,6 +81,7 @@ class SDLInputDriver : public InputDriver {
   std::atomic<bool> sdl_pumpevents_queued_;
   std::array<ControllerState, HID_SDL_USER_COUNT> controllers_;
   std::mutex controllers_mutex_;
+  std::array<KeystrokeState, HID_SDL_USER_COUNT> keystroke_states_;
 };
 
 }  // namespace sdl
