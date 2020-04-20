@@ -25,6 +25,12 @@ using utf8_criter = utfcpp::iterator<std::string_view::const_reverse_iterator>;
 
 namespace xe::utf8 {
 
+std::string to_string(char32_t c) {
+  std::string result;
+  utfcpp::append(c, result);
+  return result;
+}
+
 uint32_t lower_ascii(const uint32_t c) {
   return c >= 'A' && c <= 'Z' ? c + 32 : c;
 }
@@ -358,6 +364,14 @@ std::string_view::size_type find_first_of_case(const std::string_view haystack,
   return std::string_view::npos;
 }
 
+bool starts_with(const std::string_view haystack, char32_t needle) {
+  if (haystack.empty()) {
+    return false;
+  }
+  auto [it, end] = make_citer(haystack);
+  return *it == uint32_t(needle);
+}
+
 bool starts_with(const std::string_view haystack,
                  const std::string_view needle) {
   if (needle.empty()) {
@@ -616,36 +630,30 @@ std::string canonicalize_path(const std::string_view path, char32_t sep) {
     return std::string();
   }
 
+  auto is_rooted = starts_with(path, sep);
+
   auto parts = split_path(path);
-
-  std::vector<std::vector<std::string_view>::size_type> indices(parts.size());
-  std::iota(indices.begin(), indices.end(), 0);
-
-  for (auto it = indices.begin(); it != indices.end();) {
-    const auto& part = parts[*it];
+  for (auto it = parts.begin(); it != parts.end();) {
+    const auto& part = *it;
     if (part == ".") {
       // Potential marker for current directory.
-      it = indices.erase(it);
+      it = parts.erase(it);
     } else if (part == "..") {
       // Ensure we don't override the device name.
-      if (it != indices.begin()) {
+      if (it != parts.begin()) {
         auto prev = std::prev(it);
-        if (!ends_with(parts[*prev], ":")) {
-          it = indices.erase(prev);
+        if (!ends_with(*prev, ":")) {
+          it = parts.erase(prev);
         }
       }
-      it = indices.erase(it);
+      it = parts.erase(it);
     } else {
       ++it;
     }
   }
 
-  std::string result;
-  for (auto index : indices) {
-    result = join_paths(result, parts[index], sep);
-  }
-
-  return result == "." || result == ".." ? std::string() : result;
-}  // namespace utf8
+  return !is_rooted ? join_paths(parts, sep)
+                    : to_string(sep) + join_paths(parts, sep);
+}
 
 }  // namespace xe::utf8
