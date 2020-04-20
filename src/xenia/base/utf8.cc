@@ -485,7 +485,7 @@ std::vector<std::string_view> split_path(const std::string_view path) {
 }
 
 std::string join_paths(const std::string_view left_path,
-                       const std::string_view right_path, char32_t sep) {
+                       const std::string_view right_path, char32_t separator) {
   if (!left_path.length()) {
     return std::string(right_path);
   } else if (!right_path.length()) {
@@ -495,31 +495,33 @@ std::string join_paths(const std::string_view left_path,
   auto [it, end] = make_criter(left_path);
 
   std::string result = std::string(left_path);
-  if (*it != static_cast<uint32_t>(sep)) {
-    utfcpp::append(sep, result);
+  if (*it != static_cast<uint32_t>(separator)) {
+    utfcpp::append(separator, result);
   }
   return result + std::string(right_path);
 }
 
-std::string join_paths(std::vector<std::string_view> paths, char32_t sep) {
+std::string join_paths(std::vector<std::string_view> paths,
+                       char32_t separator) {
   std::string result;
   auto it = paths.cbegin();
   if (it != paths.cend()) {
     result = *it++;
     for (; it != paths.cend(); ++it) {
-      result = join_paths(result, *it, sep);
+      result = join_paths(result, *it, separator);
     }
   }
   return result;
 }
 
-std::string fix_path_separators(const std::string_view path, char32_t new_sep) {
+std::string fix_path_separators(const std::string_view path,
+                                char32_t new_separator) {
   if (path.empty()) {
     return std::string();
   }
 
   // Swap all separators to new_sep.
-  const char32_t old_sep = new_sep == U'\\' ? U'/' : U'\\';
+  const char32_t old_separator = new_separator == U'\\' ? U'/' : U'\\';
 
   auto [path_begin, path_end] = make_citer(path);
 
@@ -527,7 +529,7 @@ std::string fix_path_separators(const std::string_view path, char32_t new_sep) {
   auto it = path_begin;
   auto last = it;
   for (;;) {
-    it = std::find(it, path_end, uint32_t(old_sep));
+    it = std::find(it, path_end, uint32_t(old_separator));
     if (it == path_end) {
       break;
     }
@@ -536,7 +538,7 @@ std::string fix_path_separators(const std::string_view path, char32_t new_sep) {
       auto offset = byte_length(path_begin, last);
       auto length = byte_length(path_begin, it) - offset;
       result += path.substr(offset, length);
-      utfcpp::append(new_sep, result);
+      utfcpp::append(new_separator, result);
     }
 
     ++it;
@@ -555,7 +557,8 @@ std::string fix_path_separators(const std::string_view path, char32_t new_sep) {
   return result;
 }
 
-std::string find_name_from_path(const std::string_view path, char32_t sep) {
+std::string find_name_from_path(const std::string_view path,
+                                char32_t separator) {
   if (path.empty()) {
     return std::string();
   }
@@ -564,7 +567,7 @@ std::string find_name_from_path(const std::string_view path, char32_t sep) {
 
   auto it = begin;
   size_t padding = 0;
-  if (*it == uint32_t(sep)) {
+  if (*it == uint32_t(separator)) {
     ++it;
     padding = 1;
   }
@@ -573,7 +576,7 @@ std::string find_name_from_path(const std::string_view path, char32_t sep) {
     return std::string();
   }
 
-  it = std::find(it, end, uint32_t(sep));
+  it = std::find(it, end, uint32_t(separator));
   if (it == end) {
     return std::string(path.substr(0, path.size() - padding));
   }
@@ -584,8 +587,8 @@ std::string find_name_from_path(const std::string_view path, char32_t sep) {
 }
 
 std::string find_base_name_from_path(const std::string_view path,
-                                     char32_t sep) {
-  auto name = find_name_from_path(path, sep);
+                                     char32_t separator) {
+  auto name = find_name_from_path(path, separator);
   if (!name.size()) {
     return std::string();
   }
@@ -606,7 +609,7 @@ std::string find_base_name_from_path(const std::string_view path,
   return std::string(name.substr(0, length));
 }
 
-std::string find_base_path(const std::string_view path, char32_t sep) {
+std::string find_base_path(const std::string_view path, char32_t separator) {
   if (path.empty()) {
     return std::string();
   }
@@ -614,11 +617,11 @@ std::string find_base_path(const std::string_view path, char32_t sep) {
   auto [begin, end] = make_criter(path);
 
   auto it = begin;
-  if (*it == uint32_t(sep)) {
+  if (*it == uint32_t(separator)) {
     ++it;
   }
 
-  it = std::find(it, end, uint32_t(sep));
+  it = std::find(it, end, uint32_t(separator));
   if (it == end) {
     return std::string();
   }
@@ -632,12 +635,12 @@ std::string find_base_path(const std::string_view path, char32_t sep) {
   return std::string(path.substr(0, length));
 }
 
-std::string canonicalize_path(const std::string_view path, char32_t sep) {
+std::string canonicalize_path(const std::string_view path, char32_t separator) {
   if (path.empty()) {
     return std::string();
   }
 
-  auto is_rooted = starts_with(path, sep);
+  auto is_rooted = starts_with(path, separator);
 
   auto parts = split_path(path);
   for (auto it = parts.begin(); it != parts.end();) {
@@ -659,8 +662,8 @@ std::string canonicalize_path(const std::string_view path, char32_t sep) {
     }
   }
 
-  return !is_rooted ? join_paths(parts, sep)
-                    : to_string(sep) + join_paths(parts, sep);
+  return !is_rooted ? join_paths(parts, separator)
+                    : to_string(separator) + join_paths(parts, separator);
 }
 
 }  // namespace xe::utf8
