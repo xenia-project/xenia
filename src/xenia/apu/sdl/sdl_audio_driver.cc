@@ -13,9 +13,7 @@
 
 #include "xenia/apu/apu_flags.h"
 #include "xenia/base/logging.h"
-#if XE_PLATFORM_WIN32
-#include "xenia/base/platform_win.h"
-#endif  // XE_PLATFORM_WIN32
+#include "xenia/helper/sdl/sdl_helper.h"
 
 namespace xe {
 namespace apu {
@@ -31,7 +29,6 @@ SDLAudioDriver::~SDLAudioDriver() {
 };
 
 bool SDLAudioDriver::Initialize() {
-  XELOG_SDL_INIT()
   SDL_version ver = {};
   SDL_GetVersion(&ver);
   if ((ver.major < 2) || (ver.major == 2 && ver.minor == 0 && ver.patch < 8)) {
@@ -41,6 +38,9 @@ bool SDLAudioDriver::Initialize() {
         ver.major, ver.minor, ver.patch);
   }
 
+  if (!xe::helper::sdl::SDLHelper::Prepare()) {
+    return false;
+  }
   if (SDL_InitSubSystem(SDL_INIT_AUDIO) < 0) {
     return false;
   }
