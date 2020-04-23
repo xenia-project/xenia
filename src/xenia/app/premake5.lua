@@ -34,6 +34,7 @@ project("xenia-app")
     "xenia-gpu-null",
     "xenia-gpu-vk",
     "xenia-gpu-vulkan",
+    "xenia-helper-sdl",
     "xenia-hid",
     "xenia-hid-nop",
     "xenia-hid-sdl",

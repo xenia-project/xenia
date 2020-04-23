@@ -24,6 +24,7 @@ project("xenia-hid-demo")
     "imgui",
     "volk",
     "xenia-base",
+    "xenia-helper-sdl",
     "xenia-hid",
     "xenia-hid-nop",
     "xenia-hid-sdl",

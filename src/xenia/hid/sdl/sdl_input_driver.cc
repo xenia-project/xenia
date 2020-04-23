@@ -18,6 +18,7 @@
 #include "xenia/base/clock.h"
 #include "xenia/base/cvar.h"
 #include "xenia/base/logging.h"
+#include "xenia/helper/sdl/sdl_helper.h"
 #include "xenia/hid/hid_flags.h"
 #include "xenia/ui/window.h"
 
@@ -58,7 +59,6 @@ SDLInputDriver::~SDLInputDriver() {
 }
 
 X_STATUS SDLInputDriver::Setup() {
-  XELOG_SDL_INIT()
   if (!TestSDLVersion()) {
     return X_STATUS_UNSUCCESSFUL;
   }
@@ -66,6 +66,9 @@ X_STATUS SDLInputDriver::Setup() {
   // SDL_PumpEvents should only be run in the thread that initialized SDL - we
   // are hijacking the window loop thread for that.
   window_->loop()->PostSynchronous([&]() {
+    if (!xe::helper::sdl::SDLHelper::Prepare()) {
+      return;
+    }
     // Initialize the event system early, so we catch device events for already
     // connected controllers.
     if (SDL_InitSubSystem(SDL_INIT_EVENTS) < 0) {
