@@ -2,17 +2,16 @@ project_root = "../../../.."
 include(project_root.."/tools/build")
 
 group("src")
-project("xenia-apu-sdl")
-  uuid("153b4e8b-813a-40e6-9366-4b51abc73c45")
+project("xenia-helper-sdl")
+  uuid("84b00ad3-fba3-4561-96c9-1f9993b14c9c")
   kind("StaticLib")
   language("C++")
   links({
-    "xenia-apu",
-    "xenia-base",
-    "xenia-helper-sdl",
     "SDL2",
   })
   defines({
+  })
+  includedirs({
   })
   local_platform_files()
   sdl2_include()

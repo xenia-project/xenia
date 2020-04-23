@@ -119,40 +119,6 @@ void XELOGFS(const char* format, const Args&... args) {
   xe::logging::AppendLogLineFormat(xe::LogLevel::Info, 'F', format, args...);
 }
 
-// Redirect SDL_Log* output (internal library stuff) to our log system.
-// Can't execute this code here without linking SDL2 into all projects.
-// Use this macro everywhere SDL_InitSubSystem() is called.
-#define XELOG_SDL_INIT()                                              \
-  {                                                                   \
-    SDL_LogSetOutputFunction(                                         \
-        [](void* userdata, int category, SDL_LogPriority priority,    \
-           const char* message) {                                     \
-          const char* msg_fmt = "SDL: {}";                            \
-          switch (priority) {                                         \
-            case SDL_LOG_PRIORITY_VERBOSE:                            \
-            case SDL_LOG_PRIORITY_DEBUG:                              \
-              XELOGD(msg_fmt, message);                               \
-              break;                                                  \
-            case SDL_LOG_PRIORITY_INFO:                               \
-              XELOGI(msg_fmt, message);                               \
-              break;                                                  \
-            case SDL_LOG_PRIORITY_WARN:                               \
-              XELOGW(msg_fmt, message);                               \
-              break;                                                  \
-            case SDL_LOG_PRIORITY_ERROR:                              \
-            case SDL_LOG_PRIORITY_CRITICAL:                           \
-              XELOGE(msg_fmt, message);                               \
-              break;                                                  \
-            default:                                                  \
-              XELOGI(msg_fmt, message);                               \
-              assert_always("SDL: Unknown log priority");             \
-              break;                                                  \
-          }                                                           \
-        },                                                            \
-        nullptr);                                                     \
-    SDL_LogSetAllPriority(SDL_LogPriority::SDL_LOG_PRIORITY_VERBOSE); \
-  }
-
 #else
 
 #define XELOGDUMMY \
@@ -168,8 +134,6 @@ void XELOGFS(const char* format, const Args&... args) {
 #define XELOGGPU(...) XELOGDUMMY
 #define XELOGKERNEL(...) XELOGDUMMY
 #define XELOGFS(...) XELOGDUMMY
-
-#define XELOG_SDL_INIT() XELOGDUMMY
 
 #undef XELOGDUMMY
 
