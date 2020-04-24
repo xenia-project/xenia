@@ -127,6 +127,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kSysFlag_UserClipPlane5_Shift,
     kSysFlag_ReverseZ_Shift,
     kSysFlag_KillIfAnyVertexKilled_Shift,
+    kSysFlag_PrimitiveTwoFaced_Shift,
     kSysFlag_AlphaPassIfLess_Shift,
     kSysFlag_AlphaPassIfEqual_Shift,
     kSysFlag_AlphaPassIfGreater_Shift,
@@ -169,6 +170,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kSysFlag_UserClipPlane5 = 1u << kSysFlag_UserClipPlane5_Shift,
     kSysFlag_ReverseZ = 1u << kSysFlag_ReverseZ_Shift,
     kSysFlag_KillIfAnyVertexKilled = 1u << kSysFlag_KillIfAnyVertexKilled_Shift,
+    kSysFlag_PrimitiveTwoFaced = 1u << kSysFlag_PrimitiveTwoFaced_Shift,
     kSysFlag_AlphaPassIfLess = 1u << kSysFlag_AlphaPassIfLess_Shift,
     kSysFlag_AlphaPassIfEqual = 1u << kSysFlag_AlphaPassIfEqual_Shift,
     kSysFlag_AlphaPassIfGreater = 1u << kSysFlag_AlphaPassIfGreater_Shift,
@@ -215,10 +217,10 @@ class DxbcShaderTranslator : public ShaderTranslator {
     float user_clip_planes[6][4];
 
     float ndc_scale[3];
-    uint32_t pixel_pos_reg;
+    uint32_t ps_param_gen;
 
     float ndc_offset[3];
-    float pixel_half_pixel_offset;
+    float alpha_test_reference;
 
     float point_size[2];
     float point_size_min_max[2];
@@ -231,10 +233,10 @@ class DxbcShaderTranslator : public ShaderTranslator {
     // EDRAM address calculation.
     uint32_t sample_count_log2[2];
 
-    float alpha_test_reference;
     uint32_t edram_resolution_square_scale;
     uint32_t edram_pitch_tiles;
     uint32_t edram_depth_base_dwords;
+    uint32_t padding_edram_depth_base_dwords;
 
     float color_exp_bias[4];
 
@@ -1111,6 +1113,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kRet = 62,
     kRetC = 63,
     kRoundNE = 64,
+    kRoundZ = 67,
     kSwitch = 76,
     kULT = 79,
     kUGE = 80,
@@ -1440,6 +1443,11 @@ class DxbcShaderTranslator : public ShaderTranslator {
     DxbcEmitAluOp(DxbcOpcode::kRoundNE, 0b0, dest, src, saturate);
     ++stat_.float_instruction_count;
   }
+  void DxbcOpRoundZ(const DxbcDest& dest, const DxbcSrc& src,
+                    bool saturate = false) {
+    DxbcEmitAluOp(DxbcOpcode::kRoundZ, 0b0, dest, src, saturate);
+    ++stat_.float_instruction_count;
+  }
   void DxbcOpSwitch(const DxbcSrc& src) {
     DxbcEmitFlowOp(DxbcOpcode::kSwitch, src);
     ++stat_.dynamic_flow_control_count;
@@ -1624,19 +1632,19 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kSysConst_NDCScale_Index = kSysConst_UserClipPlanes_Index + 1,
     kSysConst_NDCScale_Vec = kSysConst_UserClipPlanes_Vec + 6,
     kSysConst_NDCScale_Comp = 0,
-    kSysConst_PixelPosReg_Index = kSysConst_NDCScale_Index + 1,
-    kSysConst_PixelPosReg_Vec = kSysConst_NDCScale_Vec,
-    kSysConst_PixelPosReg_Comp = 3,
+    kSysConst_PSParamGen_Index = kSysConst_NDCScale_Index + 1,
+    kSysConst_PSParamGen_Vec = kSysConst_NDCScale_Vec,
+    kSysConst_PSParamGen_Comp = 3,
 
-    kSysConst_NDCOffset_Index = kSysConst_PixelPosReg_Index + 1,
-    kSysConst_NDCOffset_Vec = kSysConst_PixelPosReg_Vec + 1,
+    kSysConst_NDCOffset_Index = kSysConst_PSParamGen_Index + 1,
+    kSysConst_NDCOffset_Vec = kSysConst_PSParamGen_Vec + 1,
     kSysConst_NDCOffset_Comp = 0,
-    kSysConst_PixelHalfPixelOffset_Index = kSysConst_NDCOffset_Index + 1,
-    kSysConst_PixelHalfPixelOffset_Vec = kSysConst_NDCOffset_Vec,
-    kSysConst_PixelHalfPixelOffset_Comp = 3,
+    kSysConst_AlphaTestReference_Index = kSysConst_NDCOffset_Index + 1,
+    kSysConst_AlphaTestReference_Vec = kSysConst_NDCOffset_Vec,
+    kSysConst_AlphaTestReference_Comp = 3,
 
-    kSysConst_PointSize_Index = kSysConst_PixelHalfPixelOffset_Index + 1,
-    kSysConst_PointSize_Vec = kSysConst_PixelHalfPixelOffset_Vec + 1,
+    kSysConst_PointSize_Index = kSysConst_AlphaTestReference_Index + 1,
+    kSysConst_PointSize_Vec = kSysConst_AlphaTestReference_Vec + 1,
     kSysConst_PointSize_Comp = 0,
     kSysConst_PointSizeMinMax_Index = kSysConst_PointSize_Index + 1,
     kSysConst_PointSizeMinMax_Vec = kSysConst_PointSize_Vec,
@@ -1649,20 +1657,19 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kSysConst_SampleCountLog2_Vec = kSysConst_PointScreenToNDC_Vec,
     kSysConst_SampleCountLog2_Comp = 2,
 
-    kSysConst_AlphaTestReference_Index = kSysConst_SampleCountLog2_Index + 1,
-    kSysConst_AlphaTestReference_Vec = kSysConst_SampleCountLog2_Vec + 1,
-    kSysConst_AlphaTestReference_Comp = 0,
     kSysConst_EDRAMResolutionSquareScale_Index =
-        kSysConst_AlphaTestReference_Index + 1,
-    kSysConst_EDRAMResolutionSquareScale_Vec = kSysConst_AlphaTestReference_Vec,
-    kSysConst_EDRAMResolutionSquareScale_Comp = 1,
+        kSysConst_SampleCountLog2_Index + 1,
+    kSysConst_EDRAMResolutionSquareScale_Vec =
+        kSysConst_SampleCountLog2_Vec + 1,
+    kSysConst_EDRAMResolutionSquareScale_Comp = 0,
     kSysConst_EDRAMPitchTiles_Index =
         kSysConst_EDRAMResolutionSquareScale_Index + 1,
-    kSysConst_EDRAMPitchTiles_Vec = kSysConst_AlphaTestReference_Vec,
-    kSysConst_EDRAMPitchTiles_Comp = 2,
+    kSysConst_EDRAMPitchTiles_Vec = kSysConst_EDRAMResolutionSquareScale_Vec,
+    kSysConst_EDRAMPitchTiles_Comp = 1,
     kSysConst_EDRAMDepthBaseDwords_Index = kSysConst_EDRAMPitchTiles_Index + 1,
-    kSysConst_EDRAMDepthBaseDwords_Vec = kSysConst_AlphaTestReference_Vec,
-    kSysConst_EDRAMDepthBaseDwords_Comp = 3,
+    kSysConst_EDRAMDepthBaseDwords_Vec =
+        kSysConst_EDRAMResolutionSquareScale_Vec,
+    kSysConst_EDRAMDepthBaseDwords_Comp = 2,
 
     kSysConst_ColorExpBias_Index = kSysConst_EDRAMDepthBaseDwords_Index + 1,
     kSysConst_ColorExpBias_Vec = kSysConst_EDRAMDepthBaseDwords_Vec + 1,
@@ -2228,6 +2235,9 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // CompleteTranslation (initially, at these offsets, guest float constant
   // indices are written).
   std::vector<uint32_t> float_constant_index_offsets_;
+
+  // Whether InOutRegister::kDSInControlPointIndex has been used in the shader.
+  bool in_control_point_index_used_;
 
   // Subroutine labels. D3D10_SB_OPCODE_LABEL is not counted as an instruction
   // in STAT.
