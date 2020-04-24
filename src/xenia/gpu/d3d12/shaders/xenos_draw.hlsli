@@ -13,10 +13,10 @@ cbuffer xe_system_cbuffer : register(b0) {
   float4 xe_user_clip_planes[6];
 
   float3 xe_ndc_scale;
-  uint xe_pixel_pos_reg;
+  uint xe_ps_param_gen;
 
   float3 xe_ndc_offset;
-  float xe_pixel_half_pixel_offset;
+  float xe_alpha_test_reference;
 
   float2 xe_point_size;
   float2 xe_point_size_min_max;
@@ -24,7 +24,6 @@ cbuffer xe_system_cbuffer : register(b0) {
   float2 xe_point_screen_to_ndc;
   uint2 xe_sample_count_log2;
 
-  float xe_alpha_test_reference;
   uint xe_edram_resolution_square_scale;
   uint xe_edram_pitch_tiles;
   uint xe_edram_depth_base_dwords;

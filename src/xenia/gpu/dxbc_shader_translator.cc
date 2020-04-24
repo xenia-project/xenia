@@ -164,6 +164,8 @@ void DxbcShaderTranslator::Reset() {
   float_constants_dynamic_indexed_ = false;
   float_constant_index_offsets_.clear();
 
+  in_control_point_index_used_ = false;
+
   system_temp_count_current_ = 0;
   system_temp_count_max_ = 0;
 
@@ -473,6 +475,7 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
           DxbcDest control_point_index_dest(uses_register_dynamic_addressing()
                                                 ? DxbcDest::X(0, 1)
                                                 : DxbcDest::R(1));
+          in_control_point_index_used_ = true;
           for (uint32_t i = 0; i < 3; ++i) {
             DxbcOpMov(control_point_index_dest.Mask(1 << i),
                       DxbcSrc::VICP(
@@ -544,6 +547,7 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
         // r1.x for r0.x * (1 - r0.y)
         // r1.y for r0.x * r0.y
         // r1.z for (1 - r0.x) * r0.y
+        in_control_point_index_used_ = true;
         DxbcOpMov(
             uses_register_dynamic_addressing() ? DxbcDest::X(0, 0, 0b0100)
                                                : DxbcDest::R(0, 0b0100),
@@ -630,293 +634,154 @@ void DxbcShaderTranslator::StartPixelShader() {
     return;
   }
 
-  // Copy interpolants to GPRs.
   uint32_t interpolator_count = std::min(kInterpolatorCount, register_count());
-  if (uses_register_dynamic_addressing()) {
+  if (interpolator_count != 0) {
+    // Copy interpolants to GPRs.
     for (uint32_t i = 0; i < interpolator_count; ++i) {
-      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(6));
-      shader_code_.push_back(EncodeVectorMaskedOperand(
-          D3D10_SB_OPERAND_TYPE_INDEXABLE_TEMP, 0b1111, 2));
-      shader_code_.push_back(0);
-      shader_code_.push_back(i);
-      shader_code_.push_back(EncodeVectorSwizzledOperand(
-          D3D10_SB_OPERAND_TYPE_INPUT, kSwizzleXYZW, 1));
-      shader_code_.push_back(uint32_t(InOutRegister::kPSInInterpolators) + i);
-      ++stat_.instruction_count;
-      ++stat_.array_instruction_count;
+      DxbcOpMov(uses_register_dynamic_addressing() ? DxbcDest::X(0, i)
+                                                   : DxbcDest::R(i),
+                DxbcSrc::V(uint32_t(InOutRegister::kPSInInterpolators) + i));
     }
-  } else {
-    for (uint32_t i = 0; i < interpolator_count; ++i) {
-      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
-      shader_code_.push_back(
-          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
-      shader_code_.push_back(i);
-      shader_code_.push_back(EncodeVectorSwizzledOperand(
-          D3D10_SB_OPERAND_TYPE_INPUT, kSwizzleXYZW, 1));
-      shader_code_.push_back(uint32_t(InOutRegister::kPSInInterpolators) + i);
-      ++stat_.instruction_count;
-      ++stat_.mov_instruction_count;
-    }
-  }
 
-  // Write screen and point coordinates to the specified interpolator register
-  // (ps_param_gen).
-  uint32_t param_gen_select_temp = PushSystemTemp();
-  uint32_t param_gen_value_temp = PushSystemTemp();
-  // Check if they need to be written.
-  system_constants_used_ |= 1ull << kSysConst_PixelPosReg_Index;
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ULT) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-  shader_code_.push_back(param_gen_select_temp);
-  shader_code_.push_back(EncodeVectorSelectOperand(
-      D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSysConst_PixelPosReg_Comp, 3));
-  shader_code_.push_back(cbuffer_index_system_constants_);
-  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-  shader_code_.push_back(kSysConst_PixelPosReg_Vec);
-  shader_code_.push_back(
-      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  shader_code_.push_back(interpolator_count);
-  ++stat_.instruction_count;
-  ++stat_.uint_instruction_count;
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
-                         ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(
-                             D3D10_SB_INSTRUCTION_TEST_NONZERO) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-  shader_code_.push_back(param_gen_select_temp);
-  ++stat_.instruction_count;
-  ++stat_.dynamic_flow_control_count;
-  // Write VPOS (without supersampling because SSAA is used to fake MSAA with
-  // RTV/DSV), at integer coordinates rather than half-pixel if needed, to XY.
-  if (!edram_rov_used_) {
-    // Get inverse of the sample size.
-    system_constants_used_ |= 1ull << kSysConst_SampleCountLog2_Index;
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IMAD) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(17));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0011, 1));
-    shader_code_.push_back(param_gen_value_temp);
-    shader_code_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
-        kSysConst_SampleCountLog2_Comp |
-            ((kSysConst_SampleCountLog2_Comp + 1) << 2),
-        3));
-    shader_code_.push_back(cbuffer_index_system_constants_);
-    shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-    shader_code_.push_back(kSysConst_SampleCountLog2_Vec);
-    shader_code_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-    shader_code_.push_back(uint32_t(-(1 << 23)));
-    shader_code_.push_back(uint32_t(-(1 << 23)));
-    shader_code_.push_back(0);
-    shader_code_.push_back(0);
-    shader_code_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-    shader_code_.push_back(0x3F800000);
-    shader_code_.push_back(0x3F800000);
-    shader_code_.push_back(0);
-    shader_code_.push_back(0);
-    ++stat_.instruction_count;
-    ++stat_.int_instruction_count;
-    // Convert from samples to pixels.
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MUL) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0011, 1));
-    shader_code_.push_back(param_gen_value_temp);
-    shader_code_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_INPUT, kSwizzleXYZW, 1));
-    shader_code_.push_back(uint32_t(InOutRegister::kPSInPosition));
-    shader_code_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-    shader_code_.push_back(param_gen_value_temp);
-    ++stat_.instruction_count;
-    ++stat_.float_instruction_count;
-  }
-  // Floor VPOS so with SSAA, the resulting pixel corner/center is written, not
-  // the sample position.
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ROUND_NI) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0011, 1));
-  shader_code_.push_back(param_gen_value_temp);
-  shader_code_.push_back(
-      EncodeVectorSwizzledOperand(edram_rov_used_ ? D3D10_SB_OPERAND_TYPE_INPUT
-                                                  : D3D10_SB_OPERAND_TYPE_TEMP,
-                                  kSwizzleXYZW, 1));
-  shader_code_.push_back(edram_rov_used_
-                             ? uint32_t(InOutRegister::kPSInPosition)
-                             : param_gen_value_temp);
-  ++stat_.instruction_count;
-  ++stat_.float_instruction_count;
-  // If in OpenGL half-pixel offset mode, write the center of the pixel.
-  system_constants_used_ |= 1ull << kSysConst_PixelHalfPixelOffset_Index;
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ADD) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0011, 1));
-  shader_code_.push_back(param_gen_value_temp);
-  shader_code_.push_back(
-      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-  shader_code_.push_back(param_gen_value_temp);
-  shader_code_.push_back(
-      EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
-                                    kSysConst_PixelHalfPixelOffset_Comp, 3));
-  shader_code_.push_back(cbuffer_index_system_constants_);
-  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-  shader_code_.push_back(kSysConst_PixelHalfPixelOffset_Vec);
-  ++stat_.instruction_count;
-  ++stat_.float_instruction_count;
-  // Undo 2x resolution scale in VPOS.
-  if (edram_rov_used_) {
-    // Check if resolution scale is 4.
-    system_constants_used_ |= 1ull
-                              << kSysConst_EDRAMResolutionSquareScale_Index;
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IEQ) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0100, 1));
-    shader_code_.push_back(param_gen_value_temp);
-    shader_code_.push_back(EncodeVectorSelectOperand(
-        D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
-        kSysConst_EDRAMResolutionSquareScale_Comp, 3));
-    shader_code_.push_back(cbuffer_index_system_constants_);
-    shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-    shader_code_.push_back(kSysConst_EDRAMResolutionSquareScale_Vec);
-    shader_code_.push_back(
-        EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-    shader_code_.push_back(4);
-    ++stat_.instruction_count;
-    ++stat_.int_instruction_count;
-    // Get inverse of the width/height scale.
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0100, 1));
-    shader_code_.push_back(param_gen_value_temp);
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
-    shader_code_.push_back(param_gen_value_temp);
-    shader_code_.push_back(
-        EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-    // 0.5
-    shader_code_.push_back(0x3F000000);
-    shader_code_.push_back(
-        EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-    // 1.0
-    shader_code_.push_back(0x3F800000);
-    ++stat_.instruction_count;
-    ++stat_.int_instruction_count;
-    // Convert to guest pixels.
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MUL) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0011, 1));
-    shader_code_.push_back(param_gen_value_temp);
-    shader_code_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-    shader_code_.push_back(param_gen_value_temp);
-    shader_code_.push_back(
-        EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
-    shader_code_.push_back(param_gen_value_temp);
-    ++stat_.instruction_count;
-    ++stat_.float_instruction_count;
-  }
-  // Write point sprite coordinates to ZW.
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1100, 1));
-  shader_code_.push_back(param_gen_value_temp);
-  shader_code_.push_back(
-      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_INPUT, 0b01000000, 1));
-  shader_code_.push_back(uint32_t(InOutRegister::kPSInPointParameters));
-  ++stat_.instruction_count;
-  ++stat_.mov_instruction_count;
-  if (uses_register_dynamic_addressing()) {
-    // Copy the register index to an r# so it can be used for indexable temp
-    // addressing.
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(8));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-    shader_code_.push_back(param_gen_select_temp);
-    shader_code_.push_back(EncodeVectorSelectOperand(
-        D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSysConst_PixelPosReg_Comp, 3));
-    shader_code_.push_back(cbuffer_index_system_constants_);
-    shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-    shader_code_.push_back(kSysConst_PixelPosReg_Vec);
-    ++stat_.instruction_count;
-    ++stat_.mov_instruction_count;
-    // Store the value to an x0[xe_pixel_pos_reg].
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-    shader_code_.push_back(EncodeVectorMaskedOperand(
-        D3D10_SB_OPERAND_TYPE_INDEXABLE_TEMP, 0b1111, 2,
-        D3D10_SB_OPERAND_INDEX_IMMEDIATE32, D3D10_SB_OPERAND_INDEX_RELATIVE));
-    shader_code_.push_back(0);
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-    shader_code_.push_back(param_gen_select_temp);
-    shader_code_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-    shader_code_.push_back(param_gen_value_temp);
-    ++stat_.instruction_count;
-    ++stat_.array_instruction_count;
-  } else {
-    // Store to the needed register using movc.
-    for (uint32_t i = 0; i < interpolator_count; ++i) {
-      if ((i & 3) == 0) {
-        // Get a mask of whether the current register index is the target one.
-        shader_code_.push_back(
-            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IEQ) |
-            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(12));
-        shader_code_.push_back(
-            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
-        shader_code_.push_back(param_gen_select_temp);
-        shader_code_.push_back(
-            EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
-                                          kSysConst_PixelPosReg_Comp, 3));
-        shader_code_.push_back(cbuffer_index_system_constants_);
-        shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-        shader_code_.push_back(kSysConst_PixelPosReg_Vec);
-        shader_code_.push_back(EncodeVectorSwizzledOperand(
-            D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-        shader_code_.push_back(i);
-        shader_code_.push_back(i + 1);
-        shader_code_.push_back(i + 2);
-        shader_code_.push_back(i + 3);
-        ++stat_.instruction_count;
-        ++stat_.int_instruction_count;
+    // Write pixel parameters - screen (XY absolute value) and point sprite (ZW
+    // absolute value) coordinates, facing (X sign bit) - to the specified
+    // interpolator register (ps_param_gen).
+    system_constants_used_ |= 1ull << kSysConst_PSParamGen_Index;
+    DxbcSrc param_gen_index_src(
+        DxbcSrc::CB(cbuffer_index_system_constants_,
+                    uint32_t(CbufferRegister::kSystemConstants),
+                    kSysConst_PSParamGen_Vec)
+            .Select(kSysConst_PSParamGen_Comp));
+    uint32_t param_gen_temp = PushSystemTemp();
+    // Check if pixel parameters need to be written.
+    DxbcOpULT(DxbcDest::R(param_gen_temp, 0b0001), param_gen_index_src,
+              DxbcSrc::LU(interpolator_count));
+    DxbcOpIf(true, DxbcSrc::R(param_gen_temp, DxbcSrc::kXXXX));
+    {
+      // XY - floored pixel position (Direct3D VPOS) in the absolute value,
+      // faceness as X sign bit. Using Z as scratch register now.
+      if (edram_rov_used_) {
+        // Get XY address of the current host pixel as float.
+        DxbcOpRoundZ(DxbcDest::R(param_gen_temp, 0b0011),
+                     DxbcSrc::V(uint32_t(InOutRegister::kPSInPosition)));
+        // Revert resolution scale - after truncating, so if the pixel position
+        // is passed to tfetch (assuming the game doesn't round it by itself),
+        // it will be sampled with higher resolution too.
+        // Check if resolution scale is 2x2 and multiply by 0.5 in this case.
+        system_constants_used_ |= 1ull
+                                  << kSysConst_EDRAMResolutionSquareScale_Index;
+        DxbcOpIEq(DxbcDest::R(param_gen_temp, 0b0100),
+                  DxbcSrc::CB(cbuffer_index_system_constants_,
+                              uint32_t(CbufferRegister::kSystemConstants),
+                              kSysConst_EDRAMResolutionSquareScale_Vec)
+                      .Select(kSysConst_EDRAMResolutionSquareScale_Comp),
+                  DxbcSrc::LU(4));
+        DxbcOpIf(true, DxbcSrc::R(param_gen_temp, DxbcSrc::kZZZZ));
+        {
+          DxbcOpMul(DxbcDest::R(param_gen_temp, 0b0011),
+                    DxbcSrc::R(param_gen_temp), DxbcSrc::LF(0.5f));
+        }
+        DxbcOpEndIf();
+      } else {
+        // Get XY address of the current SSAA sample by converting
+        // SV_Position.xy to an integer.
+        DxbcOpFToU(DxbcDest::R(param_gen_temp, 0b0011),
+                   DxbcSrc::V(uint32_t(InOutRegister::kPSInPosition)));
+        // Undo SSAA that is used instead of MSAA - since it's used as a
+        // workaround for MSAA emulation, guest pixel position must be the same
+        // for all samples, so this should be done is integers (or before
+        // truncating).
+        system_constants_used_ |= 1ull << kSysConst_SampleCountLog2_Index;
+        DxbcOpUShR(
+            DxbcDest::R(param_gen_temp, 0b0011), DxbcSrc::R(param_gen_temp),
+            DxbcSrc::CB(cbuffer_index_system_constants_,
+                        uint32_t(CbufferRegister::kSystemConstants),
+                        kSysConst_SampleCountLog2_Vec,
+                        kSysConst_SampleCountLog2_Comp |
+                            ((kSysConst_SampleCountLog2_Comp + 1) << 2)));
+        // Convert the integer position to float Direct3D 9 VPOS.
+        DxbcOpUToF(DxbcDest::R(param_gen_temp, 0b0011),
+                   DxbcSrc::R(param_gen_temp));
       }
-      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
-                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-      shader_code_.push_back(
-          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
-      shader_code_.push_back(i);
-      shader_code_.push_back(
-          EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, i & 3, 1));
-      shader_code_.push_back(param_gen_select_temp);
-      shader_code_.push_back(EncodeVectorSwizzledOperand(
-          D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-      shader_code_.push_back(param_gen_value_temp);
-      shader_code_.push_back(EncodeVectorSwizzledOperand(
-          D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-      shader_code_.push_back(i);
-      ++stat_.instruction_count;
-      ++stat_.movc_instruction_count;
+      // Check if faceness applies to the current primitive type.
+      system_constants_used_ |= 1ull << kSysConst_Flags_Index;
+      DxbcOpAnd(DxbcDest::R(param_gen_temp, 0b0100),
+                DxbcSrc::CB(cbuffer_index_system_constants_,
+                            uint32_t(CbufferRegister::kSystemConstants),
+                            kSysConst_Flags_Vec)
+                    .Select(kSysConst_Flags_Comp),
+                DxbcSrc::LU(kSysFlag_PrimitiveTwoFaced_Shift));
+      DxbcOpIf(true, DxbcSrc::R(param_gen_temp, DxbcSrc::kZZZZ));
+      {
+        // Negate modifier flips the sign bit even for 0 - set it to minus for
+        // backfaces.
+        DxbcOpMovC(
+            DxbcDest::R(param_gen_temp, 0b0001),
+            DxbcSrc::V(uint32_t(InOutRegister::kPSInFrontFace), DxbcSrc::kXXXX),
+            DxbcSrc::R(param_gen_temp, DxbcSrc::kXXXX),
+            -DxbcSrc::R(param_gen_temp, DxbcSrc::kXXXX));
+      }
+      DxbcOpEndIf();
+      // ZW - UV within a point sprite in the absolute value.
+      DxbcOpMov(DxbcDest::R(param_gen_temp, 0b1100),
+                DxbcSrc::V(uint32_t(InOutRegister::kPSInPointParameters),
+                           0b01000000));
+      // Write ps_param_gen to the specified GPR.
+      DxbcSrc param_gen_src(DxbcSrc::R(param_gen_temp));
+      if (uses_register_dynamic_addressing()) {
+        // Copy the GPR number to r# for relative addressing.
+        uint32_t param_gen_copy_temp = PushSystemTemp();
+        DxbcOpMov(DxbcDest::R(param_gen_copy_temp, 0b0001),
+                  DxbcSrc::CB(cbuffer_index_system_constants_,
+                              uint32_t(CbufferRegister::kSystemConstants),
+                              kSysConst_PSParamGen_Vec)
+                      .Select(kSysConst_PSParamGen_Comp));
+        // Write to the GPR.
+        DxbcOpMov(DxbcDest::X(0, DxbcIndex(param_gen_copy_temp, 0)),
+                  param_gen_src);
+        // Release param_gen_copy_temp.
+        PopSystemTemp();
+      } else {
+        if (interpolator_count == 1) {
+          DxbcOpMov(DxbcDest::R(0), param_gen_src);
+        } else {
+          // Write to the r# using binary search.
+          uint32_t param_gen_copy_temp = PushSystemTemp();
+          auto param_gen_copy_node = [&](uint32_t low, uint32_t high,
+                                         const auto& self) -> void {
+            assert_true(low < high);
+            uint32_t mid = low + (high - low + 1) / 2;
+            DxbcOpULT(DxbcDest::R(param_gen_copy_temp, 0b0001),
+                      param_gen_index_src, DxbcSrc::LU(mid));
+            DxbcOpIf(true, DxbcSrc::R(param_gen_copy_temp, DxbcSrc::kXXXX));
+            {
+              if (low + 1 == mid) {
+                DxbcOpMov(DxbcDest::R(low), param_gen_src);
+              } else {
+                self(low, mid - 1, self);
+              }
+            }
+            DxbcOpElse();
+            {
+              if (mid == high) {
+                DxbcOpMov(DxbcDest::R(mid), param_gen_src);
+              } else {
+                self(mid, high, self);
+              }
+            }
+            DxbcOpEndIf();
+          };
+          param_gen_copy_node(0, interpolator_count - 1, param_gen_copy_node);
+          // Release param_gen_copy_temp.
+          PopSystemTemp();
+        }
+      }
     }
+    // Close the ps_param_gen check.
+    DxbcOpEndIf();
+    // Release param_gen_temp.
+    PopSystemTemp();
   }
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
-  ++stat_.instruction_count;
-  // Release param_gen_select_temp and param_gen_value_temp.
-  PopSystemTemp(2);
 }
 
 void DxbcShaderTranslator::StartTranslation() {
@@ -3070,10 +2935,10 @@ const DxbcShaderTranslator::SystemConstantRdef DxbcShaderTranslator::
         {"xe_user_clip_planes", RdefTypeIndex::kFloat4Array6, 96},
 
         {"xe_ndc_scale", RdefTypeIndex::kFloat3, 12},
-        {"xe_pixel_pos_reg", RdefTypeIndex::kUint, 4},
+        {"xe_ps_param_gen", RdefTypeIndex::kUint, 4},
 
         {"xe_ndc_offset", RdefTypeIndex::kFloat3, 12},
-        {"xe_pixel_half_pixel_offset", RdefTypeIndex::kFloat, 4},
+        {"xe_alpha_test_reference", RdefTypeIndex::kFloat, 4},
 
         {"xe_point_size", RdefTypeIndex::kFloat2, 8},
         {"xe_point_size_min_max", RdefTypeIndex::kFloat2, 8},
@@ -3081,10 +2946,9 @@ const DxbcShaderTranslator::SystemConstantRdef DxbcShaderTranslator::
         {"xe_point_screen_to_ndc", RdefTypeIndex::kFloat2, 8},
         {"xe_sample_count_log2", RdefTypeIndex::kUint2, 8},
 
-        {"xe_alpha_test_reference", RdefTypeIndex::kFloat, 4},
         {"xe_edram_resolution_square_scale", RdefTypeIndex::kUint, 4},
         {"xe_edram_pitch_tiles", RdefTypeIndex::kUint, 4},
-        {"xe_edram_depth_base_dwords", RdefTypeIndex::kUint, 4},
+        {"xe_edram_depth_base_dwords", RdefTypeIndex::kUint, 4, 4},
 
         {"xe_color_exp_bias", RdefTypeIndex::kFloat4, 16},
 
@@ -3649,7 +3513,7 @@ void DxbcShaderTranslator::WriteInputSignature() {
       vertex_id.component_type = DxbcSignatureRegisterComponentType::kUInt32;
       vertex_id.register_index = uint32_t(InOutRegister::kVSInVertexIndex);
       vertex_id.mask = 0b0001;
-      vertex_id.always_reads_mask = 0b0001;
+      vertex_id.always_reads_mask = (register_count() >= 1) ? 0b0001 : 0b0000;
     }
 
     // Semantic names.
@@ -3684,7 +3548,8 @@ void DxbcShaderTranslator::WriteInputSignature() {
         control_point_index.register_index =
             uint32_t(InOutRegister::kDSInControlPointIndex);
         control_point_index.mask = 0b0001;
-        control_point_index.always_reads_mask = 0b0001;
+        control_point_index.always_reads_mask =
+            in_control_point_index_used_ ? 0b0001 : 0b0000;
       }
 
       // Semantic names.
@@ -3699,6 +3564,10 @@ void DxbcShaderTranslator::WriteInputSignature() {
       semantic_offset += AppendString(shader_object_, "XEVERTEXID");
     }
   } else if (IsDxbcPixelShader()) {
+    // Written dynamically, so assume it's always used if it can be written to
+    // any interpolator register.
+    bool param_gen_used = !is_depth_only_pixel_shader_ && register_count() != 0;
+
     // Intepolators (TEXCOORD#).
     size_t interpolator_position = shader_object_.size();
     shader_object_.resize(shader_object_.size() +
@@ -3724,9 +3593,8 @@ void DxbcShaderTranslator::WriteInputSignature() {
       }
     }
 
-    // Point parameters - coordinate on the point and point size as a float3
-    // TEXCOORD (but the size in Z is not needed). Always used because
-    // ps_param_gen is handled dynamically.
+    // Point parameters for ps_param_gen - coordinate on the point and point
+    // size as a float3 TEXCOORD (but the size in Z is not needed).
     size_t point_parameters_position = shader_object_.size();
     shader_object_.resize(shader_object_.size() + kParameterDwords);
     ++parameter_count;
@@ -3740,8 +3608,7 @@ void DxbcShaderTranslator::WriteInputSignature() {
       point_parameters.register_index =
           uint32_t(InOutRegister::kPSInPointParameters);
       point_parameters.mask = 0b0111;
-      point_parameters.always_reads_mask =
-          is_depth_only_pixel_shader_ ? 0b0000 : 0b0011;
+      point_parameters.always_reads_mask = param_gen_used ? 0b0011 : 0b0000;
     }
 
     // Z and W in clip space, for getting per-sample depth with ROV (TEXCOORD#).
@@ -3776,11 +3643,10 @@ void DxbcShaderTranslator::WriteInputSignature() {
       position.register_index = uint32_t(InOutRegister::kPSInPosition);
       position.mask = 0b1111;
       position.always_reads_mask =
-          (!is_depth_only_pixel_shader_ || edram_rov_used_) ? 0b0011 : 0b0000;
+          (param_gen_used || edram_rov_used_) ? 0b0011 : 0b0000;
     }
 
-    // Is front face (SV_IsFrontFace). Always used because ps_param_gen is
-    // handled dynamically, and ROV stencil depends on it.
+    // Is front face (SV_IsFrontFace), for ps_param_gen and ROV stencil.
     size_t is_front_face_position = shader_object_.size();
     shader_object_.resize(shader_object_.size() + kParameterDwords);
     ++parameter_count;
@@ -3794,7 +3660,7 @@ void DxbcShaderTranslator::WriteInputSignature() {
       is_front_face.register_index = uint32_t(InOutRegister::kPSInFrontFace);
       is_front_face.mask = 0b0001;
       is_front_face.always_reads_mask =
-          (!is_depth_only_pixel_shader_ || edram_rov_used_) ? 0b0001 : 0b0000;
+          (param_gen_used || edram_rov_used_) ? 0b0001 : 0b0000;
     }
 
     // Semantic names.

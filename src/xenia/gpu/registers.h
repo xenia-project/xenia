@@ -118,10 +118,26 @@ union SQ_CONTEXT_MISC {
     uint32_t sc_output_screen_xy : 1;         // +1
     xenos::SampleControl sc_sample_cntl : 2;  // +2
     uint32_t : 4;                             // +4
-    uint32_t param_gen_pos : 8;               // +8
-    uint32_t perfcounter_ref : 1;             // +16
-    uint32_t yeild_optimize : 1;              // +17 sic
-    uint32_t tx_cache_sel : 1;                // +18
+    // Pixel shader interpolator (according to the XNA microcode compiler) index
+    // to write pixel parameters to. So far have been able to find the following
+    // usage:
+    // * |XY| - position on screen (vPos - the XNA microcode compiler translates
+    //   ps_3_0 vPos directly to this, so at least in Direct3D 9 pixel center
+    //   mode, this contains 0, 1, 2, not 0.5, 1.5, 2.5). flto also said in the
+    //   Freedreno IRC that it's .0 even in OpenGL:
+    //   https://dri.freedesktop.org/~cbrill/dri-log/?channel=freedreno&date=2020-04-19
+    //   (on Android, according to LG P705 GL_OES_get_program_binary
+    //   disassembly, gl_FragCoord.xy is |r0.xy| * c221.xy + c222.zw - haven't
+    //   been able to dump the constant values by exploiting a huge uniform
+    //   array, but flto says c222.zw contains tile offset plus 0.5).
+    // * Sign bit of X - is front face (vFace), non-negative for front face,
+    //   negative for back face (used with `rcpc` in shaders to take signedness
+    //   of 0 into account in `cndge`).
+    // * |ZW| - UV within a point sprite (sign meaning is unknown so far).
+    uint32_t param_gen_pos : 8;    // +8
+    uint32_t perfcounter_ref : 1;  // +16
+    uint32_t yeild_optimize : 1;   // +17 sic
+    uint32_t tx_cache_sel : 1;     // +18
   };
   uint32_t value;
   static constexpr Register register_index = XE_GPU_REG_SQ_CONTEXT_MISC;
