@@ -29,6 +29,8 @@
 #define timegm _mkgmtime
 #endif
 
+static constexpr uint64_t MAX_TIME64_T = 0x793406FFF;
+
 namespace xe {
 namespace kernel {
 namespace xboxkrnl {
@@ -514,6 +516,14 @@ void RtlTimeToTimeFields(lpqword_t time_ptr,
                          pointer_t<X_TIME_FIELDS> time_fields_ptr) {
   int64_t time_ms = time_ptr.value() / 10000 - 11644473600000LL;
   time_t timet = time_ms / 1000;
+
+  // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/localtime-s-localtime32-s-localtime64-s?view=vs-2019
+  // __time64_t structure
+  // allows dates to be expressed up through 23:59:59, January 18, 3001
+  if (uint64_t(timet) > MAX_TIME64_T) {
+    return;
+  }
+
   struct tm* tm = gmtime(&timet);
 
   time_fields_ptr->year = tm->tm_year + 1900;
