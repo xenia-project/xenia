@@ -661,19 +661,16 @@ void D3D12CommandProcessor::SetExternalGraphicsPipeline(
 }
 
 std::string D3D12CommandProcessor::GetWindowTitleText() const {
-  if (!render_target_cache_) {
-    return "Direct3D 12";
-  }
-  if (edram_rov_used_) {
+  if (render_target_cache_) {
+    if (!edram_rov_used_) {
+      return "Direct3D 12 - no ROV, inaccurate";
+    }
     // Currently scaling is only supported with ROV.
     if (texture_cache_ != nullptr && texture_cache_->IsResolutionScale2X()) {
-      return "Direct3D 12 - ROV 2x";
-    } else {
-      return "Direct3D 12 - ROV";
+      return "Direct3D 12 - 2x";
     }
-  } else {
-    return "Direct3D 12 - RTV/DSV";
   }
+  return "Direct3D 12";
 }
 
 std::unique_ptr<xe::ui::RawImage> D3D12CommandProcessor::Capture() {
