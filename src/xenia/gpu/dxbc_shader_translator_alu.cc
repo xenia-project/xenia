@@ -2428,10 +2428,9 @@ void DxbcShaderTranslator::ProcessAluInstruction(
   if (emit_source_map_) {
     instruction_disassembly_buffer_.Reset();
     instr.Disassemble(&instruction_disassembly_buffer_);
-    // Will be emitted by UpdateInstructionPredication.
   }
-  UpdateInstructionPredication(instr.is_predicated, instr.predicate_condition,
-                               true);
+  UpdateInstructionPredicationAndEmitDisassembly(instr.is_predicated,
+                                                 instr.predicate_condition);
 
   // Whether the instruction has changed the predicate and it needs to be
   // checked again later.
