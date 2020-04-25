@@ -1078,6 +1078,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kCall = 4,
     kCallC = 5,
     kCase = 6,
+    kContinue = 7,
     kDefault = 10,
     kDiscard = 13,
     kDiv = 14,
@@ -1267,6 +1268,10 @@ class DxbcShaderTranslator : public ShaderTranslator {
   void DxbcOpCase(const DxbcSrc& src) {
     DxbcEmitFlowOp(DxbcOpcode::kCase, src);
     ++stat_.static_flow_control_count;
+  }
+  void DxbcOpContinue() {
+    shader_code_.push_back(DxbcOpcodeToken(DxbcOpcode::kContinue, 0));
+    ++stat_.instruction_count;
   }
   void DxbcOpDefault() {
     shader_code_.push_back(DxbcOpcodeToken(DxbcOpcode::kDefault, 0));
@@ -2077,21 +2082,21 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // of exec and in jumps), closing the previous conditionals if needed.
   // However, if the condition is not different, the instruction-level predicate
   // `if` also won't be closed - this must be checked separately if needed (for
-  // example, in jumps). If emit_disassembly is true, this function emits the
-  // last disassembly written to instruction_disassembly_buffer_ after closing
-  // the previous conditional and before opening a new one.
-  void UpdateExecConditionals(ParsedExecInstruction::Type type,
-                              uint32_t bool_constant_index, bool condition,
-                              bool emit_disassembly);
+  // example, in jumps). Also emits the last disassembly written to
+  // instruction_disassembly_buffer_ after closing the previous conditional and
+  // before opening a new one.
+  void UpdateExecConditionalsAndEmitDisassembly(
+      ParsedExecInstruction::Type type, uint32_t bool_constant_index,
+      bool condition);
   // Closes `if`s opened by exec and instructions within them (but not by
   // labels) and updates the state accordingly.
   void CloseExecConditionals();
-  // Opens or reopens the predicate check conditional for the instruction. If
-  // emit_disassembly is true, this function emits the last disassembly written
-  // to instruction_disassembly_buffer_ after closing the previous predicate
-  // conditional and before opening a new one.
-  void UpdateInstructionPredication(bool predicated, bool condition,
-                                    bool emit_disassembly);
+  // Opens or reopens the predicate check conditional for the instruction, and
+  // emits the last disassembly written to instruction_disassembly_buffer_ after
+  // closing the previous predicate conditional and before opening a new one.
+  // This should be called before processing a non-control-flow instruction.
+  void UpdateInstructionPredicationAndEmitDisassembly(bool predicated,
+                                                      bool condition);
   // Closes the instruction-level predicate `if` if it's open, useful if a flow
   // control instruction needs to do some code which needs to respect the exec's
   // conditional, but can't itself be predicated.

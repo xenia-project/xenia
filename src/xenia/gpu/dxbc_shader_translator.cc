@@ -2233,9 +2233,9 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
   }
 }
 
-void DxbcShaderTranslator::UpdateExecConditionals(
+void DxbcShaderTranslator::UpdateExecConditionalsAndEmitDisassembly(
     ParsedExecInstruction::Type type, uint32_t bool_constant_index,
-    bool condition, bool emit_disassembly) {
+    bool condition) {
   // Check if we can merge the new exec with the previous one, or the jump with
   // the previous exec. The instruction-level predicate check is also merged in
   // this case.
@@ -2264,72 +2264,35 @@ void DxbcShaderTranslator::UpdateExecConditionals(
 
   if (merge) {
     // Emit the disassembly for the exec/jump merged with the previous one.
-    if (emit_disassembly) {
-      EmitInstructionDisassembly();
-    }
+    EmitInstructionDisassembly();
     return;
   }
 
   CloseExecConditionals();
 
   // Emit the disassembly for the new exec/jump.
-  if (emit_disassembly) {
-    EmitInstructionDisassembly();
-  }
-
-  D3D10_SB_INSTRUCTION_TEST_BOOLEAN test =
-      condition ? D3D10_SB_INSTRUCTION_TEST_NONZERO
-                : D3D10_SB_INSTRUCTION_TEST_ZERO;
+  EmitInstructionDisassembly();
 
   if (type == ParsedExecInstruction::Type::kConditional) {
-    uint32_t bool_constant_test_register = PushSystemTemp();
-
+    uint32_t bool_constant_test_temp = PushSystemTemp();
     // Check the bool constant value.
     if (cbuffer_index_bool_loop_constants_ == kCbufferIndexUnallocated) {
       cbuffer_index_bool_loop_constants_ = cbuffer_count_++;
     }
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-    shader_code_.push_back(bool_constant_test_register);
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
-                                  (bool_constant_index >> 5) & 3, 3));
-    shader_code_.push_back(cbuffer_index_bool_loop_constants_);
-    shader_code_.push_back(uint32_t(CbufferRegister::kBoolLoopConstants));
-    shader_code_.push_back(bool_constant_index >> 7);
-    shader_code_.push_back(
-        EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-    shader_code_.push_back(1u << (bool_constant_index & 31));
-    ++stat_.instruction_count;
-    ++stat_.uint_instruction_count;
-
+    DxbcOpAnd(DxbcDest::R(bool_constant_test_temp, 0b0001),
+              DxbcSrc::CB(cbuffer_index_bool_loop_constants_,
+                          uint32_t(CbufferRegister::kBoolLoopConstants),
+                          bool_constant_index >> 7)
+                  .Select((bool_constant_index >> 5) & 3),
+              DxbcSrc::LU(uint32_t(1) << (bool_constant_index & 31)));
     // Open the new `if`.
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
-                           ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(test) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-    shader_code_.push_back(bool_constant_test_register);
-    ++stat_.instruction_count;
-    ++stat_.dynamic_flow_control_count;
-
-    // Release bool_constant_test_register.
+    DxbcOpIf(condition, DxbcSrc::R(bool_constant_test_temp, DxbcSrc::kXXXX));
+    // Release bool_constant_test_temp.
     PopSystemTemp();
-
     cf_exec_bool_constant_ = bool_constant_index;
     cf_exec_bool_constant_condition_ = condition;
   } else if (type == ParsedExecInstruction::Type::kPredicated) {
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
-                           ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(test) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
-    shader_code_.push_back(system_temp_ps_pc_p0_a0_);
-    ++stat_.instruction_count;
-    ++stat_.dynamic_flow_control_count;
-
+    DxbcOpIf(condition, DxbcSrc::R(system_temp_ps_pc_p0_a0_, DxbcSrc::kZZZZ));
     cf_exec_predicated_ = true;
     cf_exec_predicate_condition_ = condition;
   }
@@ -2341,9 +2304,7 @@ void DxbcShaderTranslator::CloseExecConditionals() {
   // Exec level.
   if (cf_exec_bool_constant_ != kCfExecBoolConstantNone ||
       cf_exec_predicated_) {
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
-    ++stat_.instruction_count;
+    DxbcOpEndIf();
     cf_exec_bool_constant_ = kCfExecBoolConstantNone;
     cf_exec_predicated_ = false;
   }
@@ -2351,80 +2312,51 @@ void DxbcShaderTranslator::CloseExecConditionals() {
   cf_exec_predicate_written_ = false;
 }
 
-void DxbcShaderTranslator::UpdateInstructionPredication(bool predicated,
-                                                        bool condition,
-                                                        bool emit_disassembly) {
-  if (predicated) {
-    if (cf_instruction_predicate_if_open_) {
-      if (cf_instruction_predicate_condition_ == condition) {
-        // Already in the needed instruction-level `if`.
-        if (emit_disassembly) {
-          EmitInstructionDisassembly();
-        }
-        return;
-      }
-      CloseInstructionPredication();
-    }
+void DxbcShaderTranslator::UpdateInstructionPredicationAndEmitDisassembly(
+    bool predicated, bool condition) {
+  if (!predicated) {
+    CloseInstructionPredication();
+    EmitInstructionDisassembly();
+    return;
+  }
 
-    // Emit the disassembly before opening (or not opening) the new conditional.
-    if (emit_disassembly) {
+  if (cf_instruction_predicate_if_open_) {
+    if (cf_instruction_predicate_condition_ == condition) {
+      // Already in the needed instruction-level `if`.
       EmitInstructionDisassembly();
-    }
-
-    // If the instruction predicate condition is the same as the exec predicate
-    // condition, no need to open a check. However, if there was a `setp` prior
-    // to this instruction, the predicate value now may be different than it was
-    // in the beginning of the exec.
-    if (!cf_exec_predicate_written_ && cf_exec_predicated_ &&
-        cf_exec_predicate_condition_ == condition) {
       return;
     }
-
-    D3D10_SB_INSTRUCTION_TEST_BOOLEAN test =
-        condition ? D3D10_SB_INSTRUCTION_TEST_NONZERO
-                  : D3D10_SB_INSTRUCTION_TEST_ZERO;
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
-                           ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(test) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
-    shader_code_.push_back(system_temp_ps_pc_p0_a0_);
-    ++stat_.instruction_count;
-    ++stat_.dynamic_flow_control_count;
-
-    cf_instruction_predicate_if_open_ = true;
-    cf_instruction_predicate_condition_ = condition;
-  } else {
     CloseInstructionPredication();
-    if (emit_disassembly) {
-      EmitInstructionDisassembly();
-    }
   }
+
+  // Emit the disassembly before opening (or not opening) the new conditional.
+  EmitInstructionDisassembly();
+
+  // If the instruction predicate condition is the same as the exec predicate
+  // condition, no need to open a check. However, if there was a `setp` prior
+  // to this instruction, the predicate value now may be different than it was
+  // in the beginning of the exec.
+  if (!cf_exec_predicate_written_ && cf_exec_predicated_ &&
+      cf_exec_predicate_condition_ == condition) {
+    return;
+  }
+
+  DxbcOpIf(condition, DxbcSrc::R(system_temp_ps_pc_p0_a0_, DxbcSrc::kZZZZ));
+  cf_instruction_predicate_if_open_ = true;
+  cf_instruction_predicate_condition_ = condition;
 }
 
 void DxbcShaderTranslator::CloseInstructionPredication() {
   if (cf_instruction_predicate_if_open_) {
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
-    ++stat_.instruction_count;
+    DxbcOpEndIf();
     cf_instruction_predicate_if_open_ = false;
   }
 }
 
 void DxbcShaderTranslator::JumpToLabel(uint32_t address) {
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0010, 1));
-  shader_code_.push_back(system_temp_ps_pc_p0_a0_);
-  shader_code_.push_back(
-      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  shader_code_.push_back(address);
-  ++stat_.instruction_count;
-  ++stat_.mov_instruction_count;
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_CONTINUE) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
-  ++stat_.instruction_count;
+  DxbcOpMov(DxbcDest::R(system_temp_ps_pc_p0_a0_, 0b0010),
+            DxbcSrc::LU(address));
+  DxbcOpContinue();
 }
 
 void DxbcShaderTranslator::ProcessLabel(uint32_t cf_index) {
@@ -2432,72 +2364,27 @@ void DxbcShaderTranslator::ProcessLabel(uint32_t cf_index) {
     // 0 already added in the beginning.
     return;
   }
-
   // Close flow control on the deeper levels below - prevent attempts to merge
   // execs across labels.
   CloseExecConditionals();
-
   if (UseSwitchForControlFlow()) {
     // Fallthrough to the label from the previous one on the next iteration if
     // no `continue` was done. Can't simply fallthrough because in DXBC, a
     // non-empty switch case must end with a break.
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0010, 1));
-    shader_code_.push_back(system_temp_ps_pc_p0_a0_);
-    shader_code_.push_back(
-        EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-    shader_code_.push_back(cf_index);
-    ++stat_.instruction_count;
-    ++stat_.mov_instruction_count;
-    shader_code_.push_back(
-        ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_CONTINUE) |
-        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
-    ++stat_.instruction_count;
+    JumpToLabel(cf_index);
     // Close the previous label.
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_BREAK) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
-    ++stat_.instruction_count;
+    DxbcOpBreak();
     // Go to the next label.
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_CASE) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
-    shader_code_.push_back(
-        EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-    shader_code_.push_back(cf_index);
-    ++stat_.instruction_count;
-    ++stat_.static_flow_control_count;
+    DxbcOpCase(DxbcSrc::LU(cf_index));
   } else {
     // Close the previous label.
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
-    ++stat_.instruction_count;
-
-    // pc <= cf_index
-    uint32_t test_register = PushSystemTemp();
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_UGE) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-    shader_code_.push_back(test_register);
-    shader_code_.push_back(
-        EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-    shader_code_.push_back(cf_index);
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
-    shader_code_.push_back(system_temp_ps_pc_p0_a0_);
-    ++stat_.instruction_count;
-    ++stat_.uint_instruction_count;
+    DxbcOpEndIf();
     // if (pc <= cf_index)
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3) |
-                           ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(
-                               D3D10_SB_INSTRUCTION_TEST_NONZERO));
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-    shader_code_.push_back(test_register);
-    ++stat_.instruction_count;
-    ++stat_.dynamic_flow_control_count;
+    uint32_t test_temp = PushSystemTemp();
+    DxbcOpUGE(DxbcDest::R(test_temp, 0b0001), DxbcSrc::LU(cf_index),
+              DxbcSrc::R(system_temp_ps_pc_p0_a0_, DxbcSrc::kYYYY));
+    DxbcOpIf(true, DxbcSrc::R(test_temp, DxbcSrc::kXXXX));
+    // Release test_temp.
     PopSystemTemp();
   }
 }
@@ -2507,43 +2394,24 @@ void DxbcShaderTranslator::ProcessExecInstructionBegin(
   if (emit_source_map_) {
     instruction_disassembly_buffer_.Reset();
     instr.Disassemble(&instruction_disassembly_buffer_);
-    // Will be emitted by UpdateExecConditionals.
   }
-  UpdateExecConditionals(instr.type, instr.bool_constant_index, instr.condition,
-                         true);
-  // TODO(Triang3l): Find out what PredicateClean=false in exec actually means
-  // (execs containing setp have PredicateClean=false, it possibly means that
-  // the predicate is dirty after the exec).
+  UpdateExecConditionalsAndEmitDisassembly(
+      instr.type, instr.bool_constant_index, instr.condition);
 }
 
 void DxbcShaderTranslator::ProcessExecInstructionEnd(
     const ParsedExecInstruction& instr) {
-  // TODO(Triang3l): Check whether is_end is conditional or not.
   if (instr.is_end) {
     // Break out of the main loop.
     CloseInstructionPredication();
     if (UseSwitchForControlFlow()) {
       // Write an invalid value to pc.
-      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
-      shader_code_.push_back(
-          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0010, 1));
-      shader_code_.push_back(system_temp_ps_pc_p0_a0_);
-      shader_code_.push_back(
-          EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-      shader_code_.push_back(0xFFFFFFFFu);
-      ++stat_.instruction_count;
-      ++stat_.mov_instruction_count;
+      DxbcOpMov(DxbcDest::R(system_temp_ps_pc_p0_a0_, 0b0010),
+                DxbcSrc::LU(UINT32_MAX));
       // Go to the next iteration, where switch cases won't be reached.
-      shader_code_.push_back(
-          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_CONTINUE) |
-          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
-      ++stat_.instruction_count;
+      DxbcOpContinue();
     } else {
-      shader_code_.push_back(
-          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_BREAK) |
-          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
-      ++stat_.instruction_count;
+      DxbcOpBreak();
     }
   }
 }
@@ -2561,103 +2429,37 @@ void DxbcShaderTranslator::ProcessLoopStartInstruction(
     EmitInstructionDisassembly();
   }
 
-  uint32_t loop_count_and_aL = PushSystemTemp();
-
-  // Count (as uint) in bits 0:7 of the loop constant, aL in 8:15.
+  // Count (as uint) in bits 0:7 of the loop constant, initial aL in 8:15.
+  // Starting from vector 2 because of bool constants.
   if (cbuffer_index_bool_loop_constants_ == kCbufferIndexUnallocated) {
     cbuffer_index_bool_loop_constants_ = cbuffer_count_++;
   }
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_UBFE) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(17));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0011, 1));
-  shader_code_.push_back(loop_count_and_aL);
-  shader_code_.push_back(EncodeVectorSwizzledOperand(
-      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-  shader_code_.push_back(8);
-  shader_code_.push_back(8);
-  shader_code_.push_back(0);
-  shader_code_.push_back(0);
-  shader_code_.push_back(EncodeVectorSwizzledOperand(
-      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-  shader_code_.push_back(0);
-  shader_code_.push_back(8);
-  shader_code_.push_back(0);
-  shader_code_.push_back(0);
-  shader_code_.push_back(EncodeVectorReplicatedOperand(
-      D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, instr.loop_constant_index & 3, 3));
-  shader_code_.push_back(cbuffer_index_bool_loop_constants_);
-  shader_code_.push_back(uint32_t(CbufferRegister::kBoolLoopConstants));
-  // 2 because of bool constants.
-  shader_code_.push_back(2 + (instr.loop_constant_index >> 2));
-  ++stat_.instruction_count;
-  ++stat_.uint_instruction_count;
+  DxbcSrc loop_constant_src(
+      DxbcSrc::CB(cbuffer_index_bool_loop_constants_,
+                  uint32_t(CbufferRegister::kBoolLoopConstants),
+                  2 + (instr.loop_constant_index >> 2))
+          .Select(instr.loop_constant_index & 3));
 
   // Push the count to the loop count stack - move XYZ to YZW and set X to this
   // loop count.
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1110, 1));
-  shader_code_.push_back(system_temp_loop_count_);
-  shader_code_.push_back(
-      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b10010000, 1));
-  shader_code_.push_back(system_temp_loop_count_);
-  ++stat_.instruction_count;
-  ++stat_.mov_instruction_count;
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-  shader_code_.push_back(system_temp_loop_count_);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-  shader_code_.push_back(loop_count_and_aL);
-  ++stat_.instruction_count;
-  ++stat_.mov_instruction_count;
+  DxbcOpMov(DxbcDest::R(system_temp_loop_count_, 0b1110),
+            DxbcSrc::R(system_temp_loop_count_, 0b10010000));
+  DxbcOpAnd(DxbcDest::R(system_temp_loop_count_, 0b0001), loop_constant_src,
+            DxbcSrc::LU(UINT8_MAX));
 
   // Push aL - keep the same value as in the previous loop if repeating, or the
   // new one otherwise.
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
-  shader_code_.push_back(system_temp_aL_);
-  shader_code_.push_back(
-      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b10010000, 1));
-  shader_code_.push_back(system_temp_aL_);
-  ++stat_.instruction_count;
-  ++stat_.mov_instruction_count;
+  DxbcOpMov(DxbcDest::R(system_temp_aL_, instr.is_repeat ? 0b1111 : 0b1110),
+            DxbcSrc::R(system_temp_aL_, 0b10010000));
   if (!instr.is_repeat) {
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-    shader_code_.push_back(system_temp_aL_);
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
-    shader_code_.push_back(loop_count_and_aL);
-    ++stat_.instruction_count;
-    ++stat_.mov_instruction_count;
+    DxbcOpUBFE(DxbcDest::R(system_temp_aL_, 0b0001), DxbcSrc::LU(8),
+               DxbcSrc::LU(8), loop_constant_src);
   }
 
-  // Release loop_count_and_aL.
-  PopSystemTemp();
-
-  // Short-circuit if loop counter is 0.
-  shader_code_.push_back(
-      ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
-      ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(D3D10_SB_INSTRUCTION_TEST_ZERO) |
-      ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-  shader_code_.push_back(system_temp_loop_count_);
-  ++stat_.instruction_count;
-  ++stat_.dynamic_flow_control_count;
+  // Break if the loop counter is 0 (since the condition is checked in the end).
+  DxbcOpIf(false, DxbcSrc::R(system_temp_loop_count_, DxbcSrc::kXXXX));
   JumpToLabel(instr.loop_skip_address);
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
-  ++stat_.instruction_count;
+  DxbcOpEndIf();
 }
 
 void DxbcShaderTranslator::ProcessLoopEndInstruction(
@@ -2674,153 +2476,68 @@ void DxbcShaderTranslator::ProcessLoopEndInstruction(
   }
 
   // Subtract 1 from the loop counter.
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IADD) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-  shader_code_.push_back(system_temp_loop_count_);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-  shader_code_.push_back(system_temp_loop_count_);
-  shader_code_.push_back(
-      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  shader_code_.push_back(uint32_t(-1));
-  ++stat_.instruction_count;
-  ++stat_.int_instruction_count;
-
-  // Break case.
+  DxbcOpIAdd(DxbcDest::R(system_temp_loop_count_, 0b0001),
+             DxbcSrc::R(system_temp_loop_count_, DxbcSrc::kXXXX),
+             DxbcSrc::LI(-1));
 
   if (instr.is_predicated_break) {
     // if (loop_count.x == 0 || [!]p0)
     uint32_t break_case_temp = PushSystemTemp();
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-    shader_code_.push_back(break_case_temp);
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
-    shader_code_.push_back(system_temp_ps_pc_p0_a0_);
     if (instr.predicate_condition) {
       // If p0 is non-zero, set the test value to 0 (since if_z is used,
       // otherwise check if the loop counter is zero).
-      shader_code_.push_back(
-          EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-      shader_code_.push_back(0);
-    }
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-    shader_code_.push_back(system_temp_loop_count_);
-    if (!instr.predicate_condition) {
+      DxbcOpMovC(DxbcDest::R(break_case_temp, 0b0001),
+                 DxbcSrc::R(system_temp_ps_pc_p0_a0_, DxbcSrc::kZZZZ),
+                 DxbcSrc::LU(0),
+                 DxbcSrc::R(system_temp_loop_count_, DxbcSrc::kXXXX));
+    } else {
       // If p0 is zero, set the test value to 0 (since if_z is used, otherwise
       // check if the loop counter is zero).
-      shader_code_.push_back(
-          EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-      shader_code_.push_back(0);
+      DxbcOpMovC(DxbcDest::R(break_case_temp, 0b0001),
+                 DxbcSrc::R(system_temp_ps_pc_p0_a0_, DxbcSrc::kZZZZ),
+                 DxbcSrc::R(system_temp_loop_count_, DxbcSrc::kXXXX),
+                 DxbcSrc::LU(0));
     }
-    ++stat_.instruction_count;
-    ++stat_.movc_instruction_count;
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
-                           ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(
-                               D3D10_SB_INSTRUCTION_TEST_ZERO) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-    shader_code_.push_back(break_case_temp);
+    DxbcOpIf(false, DxbcSrc::R(break_case_temp, DxbcSrc::kXXXX));
+    // Release break_case_temp.
     PopSystemTemp();
   } else {
     // if (loop_count.x == 0)
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
-                           ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(
-                               D3D10_SB_INSTRUCTION_TEST_ZERO) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-    shader_code_.push_back(system_temp_loop_count_);
+    DxbcOpIf(false, DxbcSrc::R(system_temp_loop_count_, DxbcSrc::kXXXX));
   }
-  ++stat_.instruction_count;
-  ++stat_.dynamic_flow_control_count;
-
-  // Pop the current loop off the stack, move YZW to XYZ and set W to 0.
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0111, 1));
-  shader_code_.push_back(system_temp_loop_count_);
-  shader_code_.push_back(
-      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b11111001, 1));
-  shader_code_.push_back(system_temp_loop_count_);
-  ++stat_.instruction_count;
-  ++stat_.mov_instruction_count;
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1000, 1));
-  shader_code_.push_back(system_temp_loop_count_);
-  shader_code_.push_back(
-      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  shader_code_.push_back(0);
-  ++stat_.instruction_count;
-  ++stat_.mov_instruction_count;
-
-  // Now going to fall through to the next exec (no need to jump).
-
-  // Continue case.
-
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ELSE) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
-  ++stat_.instruction_count;
-
-  uint32_t aL_add_temp = PushSystemTemp();
-
-  // Extract the value to add to aL (in bits 16:23 of the loop constant).
-  if (cbuffer_index_bool_loop_constants_ == kCbufferIndexUnallocated) {
-    cbuffer_index_bool_loop_constants_ = cbuffer_count_++;
+  {
+    // Break case.
+    // Pop the current loop off the stack, move YZW to XYZ and set W to 0.
+    DxbcOpMov(DxbcDest::R(system_temp_loop_count_, 0b0111),
+              DxbcSrc::R(system_temp_loop_count_, 0b111001));
+    DxbcOpMov(DxbcDest::R(system_temp_loop_count_, 0b1000), DxbcSrc::LU(0));
+    // Now going to fall through to the next exec (no need to jump).
   }
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_UBFE) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(11));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-  shader_code_.push_back(aL_add_temp);
-  shader_code_.push_back(
-      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  shader_code_.push_back(8);
-  shader_code_.push_back(
-      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  shader_code_.push_back(16);
-  shader_code_.push_back(EncodeVectorSelectOperand(
-      D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, instr.loop_constant_index & 3, 3));
-  shader_code_.push_back(cbuffer_index_bool_loop_constants_);
-  shader_code_.push_back(uint32_t(CbufferRegister::kBoolLoopConstants));
-  // 2 because of bool constants.
-  shader_code_.push_back(2 + (instr.loop_constant_index >> 2));
-  ++stat_.instruction_count;
-  ++stat_.uint_instruction_count;
-
-  // Add the needed value to aL.
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IADD) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-  shader_code_.push_back(system_temp_aL_);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-  shader_code_.push_back(system_temp_aL_);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-  shader_code_.push_back(aL_add_temp);
-  ++stat_.instruction_count;
-  ++stat_.int_instruction_count;
-
-  // Release aL_add_temp.
-  PopSystemTemp();
-
-  // Jump back to the beginning of the loop body.
-  JumpToLabel(instr.loop_body_address);
-
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
-  ++stat_.instruction_count;
+  DxbcOpElse();
+  {
+    // Continue case.
+    uint32_t aL_add_temp = PushSystemTemp();
+    // Extract the value to add to aL (in bits 16:23 of the loop constant).
+    // Starting from vector 2 because of bool constants.
+    if (cbuffer_index_bool_loop_constants_ == kCbufferIndexUnallocated) {
+      cbuffer_index_bool_loop_constants_ = cbuffer_count_++;
+    }
+    DxbcOpUBFE(DxbcDest::R(aL_add_temp, 0b0001), DxbcSrc::LU(8),
+               DxbcSrc::LU(16),
+               DxbcSrc::CB(cbuffer_index_bool_loop_constants_,
+                           uint32_t(CbufferRegister::kBoolLoopConstants),
+                           2 + (instr.loop_constant_index >> 2))
+                   .Select(instr.loop_constant_index & 3));
+    // Add the needed value to aL.
+    DxbcOpIAdd(DxbcDest::R(system_temp_aL_, 0b0001),
+               DxbcSrc::R(system_temp_aL_, DxbcSrc::kXXXX),
+               DxbcSrc::R(aL_add_temp, DxbcSrc::kXXXX));
+    // Release aL_add_temp.
+    PopSystemTemp();
+    // Jump back to the beginning of the loop body.
+    JumpToLabel(instr.loop_body_address);
+  }
+  DxbcOpEndIf();
 }
 
 void DxbcShaderTranslator::ProcessJumpInstruction(
@@ -2828,7 +2545,6 @@ void DxbcShaderTranslator::ProcessJumpInstruction(
   if (emit_source_map_) {
     instruction_disassembly_buffer_.Reset();
     instr.Disassemble(&instruction_disassembly_buffer_);
-    // Will be emitted by UpdateExecConditionals.
   }
 
   // Treat like exec, merge with execs if possible, since it's an if too.
@@ -2840,13 +2556,13 @@ void DxbcShaderTranslator::ProcessJumpInstruction(
   } else {
     type = ParsedExecInstruction::Type::kUnconditional;
   }
-  UpdateExecConditionals(type, instr.bool_constant_index, instr.condition,
-                         true);
+  UpdateExecConditionalsAndEmitDisassembly(type, instr.bool_constant_index,
+                                           instr.condition);
 
-  // UpdateExecConditionals may not necessarily close the instruction-level
-  // predicate check (it's not necessary if the execs are merged), but here the
-  // instruction itself is on the flow control level, so the predicate check is
-  // on the flow control level too.
+  // UpdateExecConditionalsAndEmitDisassembly may not necessarily close the
+  // instruction-level predicate check (it's not necessary if the execs are
+  // merged), but here the instruction itself is on the flow control level, so
+  // the predicate check is on the flow control level too.
   CloseInstructionPredication();
 
   JumpToLabel(instr.target_address);

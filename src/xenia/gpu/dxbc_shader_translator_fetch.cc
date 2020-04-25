@@ -324,10 +324,9 @@ void DxbcShaderTranslator::ProcessVertexFetchInstruction(
   if (emit_source_map_) {
     instruction_disassembly_buffer_.Reset();
     instr.Disassemble(&instruction_disassembly_buffer_);
-    // Will be emitted by UpdateInstructionPredication.
   }
-  UpdateInstructionPredication(instr.is_predicated, instr.predicate_condition,
-                               true);
+  UpdateInstructionPredicationAndEmitDisassembly(instr.is_predicated,
+                                                 instr.predicate_condition);
 
   // Convert the index to an integer, according to
   // http://web.archive.org/web/20100302145413/http://msdn.microsoft.com:80/en-us/library/bb313960.aspx
@@ -1162,75 +1161,9 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
   if (emit_source_map_) {
     instruction_disassembly_buffer_.Reset();
     instr.Disassemble(&instruction_disassembly_buffer_);
-    // Will be emitted later explicitly or by UpdateInstructionPredication.
   }
-
-  // Predication should not affect derivative calculation:
-  // https://docs.microsoft.com/en-us/windows/desktop/direct3dhlsl/dx9-graphics-reference-asm-ps-registers-output-color
-  // Do the part involving derivative calculation unconditionally, and re-enter
-  // the predicate check before writing the result.
-  bool suppress_predication = false;
-  if (IsDxbcPixelShader()) {
-    if (instr.opcode == FetchOpcode::kGetTextureComputedLod ||
-        instr.opcode == FetchOpcode::kGetTextureGradients) {
-      suppress_predication = true;
-    } else if (instr.opcode == FetchOpcode::kTextureFetch) {
-      suppress_predication = instr.attributes.use_computed_lod &&
-                             !instr.attributes.use_register_lod;
-    }
-  }
-  uint32_t exec_p0_temp = UINT32_MAX;
-  if (suppress_predication) {
-    // Emit the disassembly before all this to indicate the reason of going
-    // unconditional.
-    EmitInstructionDisassembly();
-    // Close instruction-level predication.
-    CloseInstructionPredication();
-    // Temporarily close exec-level predication - will reopen at the end, so not
-    // changing cf_exec_predicated_.
-    if (cf_exec_predicated_) {
-      if (cf_exec_predicate_written_) {
-        // Restore the predicate value in the beginning of the exec and put it
-        // in exec_p0_temp.
-        exec_p0_temp = PushSystemTemp();
-        // `if` case - the value was cf_exec_predicate_condition_.
-        shader_code_.push_back(
-            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
-        shader_code_.push_back(
-            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-        shader_code_.push_back(exec_p0_temp);
-        shader_code_.push_back(
-            EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-        shader_code_.push_back(cf_exec_predicate_condition_ ? 0xFFFFFFFFu : 0u);
-        ++stat_.instruction_count;
-        ++stat_.mov_instruction_count;
-        shader_code_.push_back(
-            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ELSE) |
-            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
-        ++stat_.instruction_count;
-        // `else` case - the value was !cf_exec_predicate_condition_.
-        shader_code_.push_back(
-            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
-        shader_code_.push_back(
-            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-        shader_code_.push_back(exec_p0_temp);
-        shader_code_.push_back(
-            EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-        shader_code_.push_back(cf_exec_predicate_condition_ ? 0u : 0xFFFFFFFFu);
-        ++stat_.instruction_count;
-        ++stat_.mov_instruction_count;
-      }
-      shader_code_.push_back(
-          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
-          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
-      ++stat_.instruction_count;
-    }
-  } else {
-    UpdateInstructionPredication(instr.is_predicated, instr.predicate_condition,
-                                 true);
-  }
+  UpdateInstructionPredicationAndEmitDisassembly(instr.is_predicated,
+                                                 instr.predicate_condition);
 
   bool store_result = false;
   // Whether the result is only in X and all components should be remapped to X
@@ -2962,31 +2895,6 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
 
   if (instr.operand_count >= 1) {
     UnloadDxbcSourceOperand(operand);
-  }
-
-  // Re-enter conditional execution if closed it.
-  if (suppress_predication) {
-    // Re-enter exec-level predication.
-    if (cf_exec_predicated_) {
-      D3D10_SB_INSTRUCTION_TEST_BOOLEAN test =
-          cf_exec_predicate_condition_ ? D3D10_SB_INSTRUCTION_TEST_NONZERO
-                                       : D3D10_SB_INSTRUCTION_TEST_ZERO;
-      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
-                             ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(test) |
-                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
-      shader_code_.push_back(EncodeVectorSelectOperand(
-          D3D10_SB_OPERAND_TYPE_TEMP, exec_p0_temp != UINT32_MAX ? 0 : 2, 1));
-      shader_code_.push_back(
-          exec_p0_temp != UINT32_MAX ? exec_p0_temp : system_temp_ps_pc_p0_a0_);
-      ++stat_.instruction_count;
-      ++stat_.dynamic_flow_control_count;
-      if (exec_p0_temp != UINT32_MAX) {
-        PopSystemTemp();
-      }
-    }
-    // Update instruction-level predication to the one needed by this tfetch.
-    UpdateInstructionPredication(instr.is_predicated, instr.predicate_condition,
-                                 false);
   }
 
   if (store_result) {
