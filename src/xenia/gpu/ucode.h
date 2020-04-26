@@ -1139,7 +1139,7 @@ enum class AluVectorOpcode : uint32_t {
 
   // Cube Map
   // cube/CUBEv dest, src0, src1
-  //     dest.x = T cube coordinate:
+  //     dest.x = T cube coordinate;
   //     dest.y = S cube coordinate;
   //     dest.z = 2.0 * MajorAxis;
   //     dest.w = FaceID;
