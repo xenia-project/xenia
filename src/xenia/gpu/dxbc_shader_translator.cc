@@ -634,6 +634,12 @@ void DxbcShaderTranslator::StartPixelShader() {
     return;
   }
 
+  if (!edram_rov_used_ && writes_depth()) {
+    // Initialize the depth output if used, which must be written to regardless
+    // of the taken execution path.
+    DxbcOpMov(DxbcDest::ODepth(), DxbcSrc::LF(0.0f));
+  }
+
   uint32_t interpolator_count = std::min(kInterpolatorCount, register_count());
   if (interpolator_count != 0) {
     // Copy interpolants to GPRs.
@@ -901,333 +907,136 @@ void DxbcShaderTranslator::StartTranslation() {
   }
 
   // Start the main loop (for jumping to labels by setting pc and continuing).
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_LOOP) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
-  ++stat_.instruction_count;
-  ++stat_.dynamic_flow_control_count;
+  DxbcOpLoop();
   // Switch and the first label (pc == 0).
   if (UseSwitchForControlFlow()) {
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_SWITCH) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
-    shader_code_.push_back(system_temp_ps_pc_p0_a0_);
-    ++stat_.instruction_count;
-    ++stat_.dynamic_flow_control_count;
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_CASE) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
-    shader_code_.push_back(
-        EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-    shader_code_.push_back(0);
-    ++stat_.instruction_count;
-    ++stat_.static_flow_control_count;
+    DxbcOpSwitch(DxbcSrc::R(system_temp_ps_pc_p0_a0_, DxbcSrc::kYYYY));
+    DxbcOpCase(DxbcSrc::LU(0));
   } else {
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
-                           ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(
-                               D3D10_SB_INSTRUCTION_TEST_ZERO) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
-    shader_code_.push_back(system_temp_ps_pc_p0_a0_);
-    ++stat_.instruction_count;
-    ++stat_.dynamic_flow_control_count;
+    DxbcOpIf(false, DxbcSrc::R(system_temp_ps_pc_p0_a0_, DxbcSrc::kYYYY));
   }
 }
 
 void DxbcShaderTranslator::CompleteVertexOrDomainShader() {
-  // Get what we need to do with the position.
-  uint32_t ndc_control_temp = PushSystemTemp();
+  uint32_t temp = PushSystemTemp();
+  DxbcDest temp_x_dest(DxbcDest::R(temp, 0b0001));
+  DxbcSrc temp_x_src(DxbcSrc::R(temp, DxbcSrc::kXXXX));
+
   system_constants_used_ |= 1ull << kSysConst_Flags_Index;
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(12));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
-  shader_code_.push_back(ndc_control_temp);
-  shader_code_.push_back(EncodeVectorReplicatedOperand(
-      D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSysConst_Flags_Comp, 3));
-  shader_code_.push_back(cbuffer_index_system_constants_);
-  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-  shader_code_.push_back(kSysConst_Flags_Vec);
-  shader_code_.push_back(EncodeVectorSwizzledOperand(
-      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-  shader_code_.push_back(kSysFlag_XYDividedByW);
-  shader_code_.push_back(kSysFlag_ZDividedByW);
-  shader_code_.push_back(kSysFlag_WNotReciprocal);
-  shader_code_.push_back(kSysFlag_ReverseZ);
-  ++stat_.instruction_count;
-  ++stat_.uint_instruction_count;
+  DxbcSrc flags_src(DxbcSrc::CB(cbuffer_index_system_constants_,
+                                uint32_t(CbufferRegister::kSystemConstants),
+                                kSysConst_Flags_Vec)
+                        .Select(kSysConst_Flags_Comp));
 
-  // Revert getting the reciprocal of W and dividing XY by W if needed.
-  // TODO(Triang3l): Check if having XY or Z pre-divided by W should enable
+  // Check if the shader already returns W, not 1/W, and if it doesn't, turn 1/W
+  // into W.
+  DxbcOpAnd(temp_x_dest, flags_src, DxbcSrc::LU(kSysFlag_WNotReciprocal));
+  DxbcOpIf(false, temp_x_src);
+  DxbcOpRcp(DxbcDest::R(system_temp_position_, 0b1000),
+            DxbcSrc::R(system_temp_position_, DxbcSrc::kWWWW));
+  DxbcOpEndIf();
+
+  // Check if the shader returns XY/W rather than XY, and if it does, revert
+  // that.
+  // TODO(Triang3l): Check if having XY or Z pre-divided by W should result in
   // affine interpolation.
-  uint32_t w_format_temp = PushSystemTemp();
-  // If the shader has returned 1/W, restore W. First take the reciprocal, which
-  // may be either W (what we need) or 1/W, depending on the vertex W format.
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_RCP) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-  shader_code_.push_back(w_format_temp);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 3, 1));
-  shader_code_.push_back(system_temp_position_);
-  ++stat_.instruction_count;
-  ++stat_.float_instruction_count;
-  // Then, if the shader returns 1/W (vtx_w0_fmt is 0), write 1/(1/W) to the
-  // position.
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1000, 1));
-  shader_code_.push_back(system_temp_position_);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
-  shader_code_.push_back(ndc_control_temp);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 3, 1));
-  shader_code_.push_back(system_temp_position_);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-  shader_code_.push_back(w_format_temp);
-  ++stat_.instruction_count;
-  ++stat_.movc_instruction_count;
-  // Multiply XYZ by W in case the shader returns XYZ/W and we'll need to
-  // restore XYZ.
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MUL) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0111, 1));
-  shader_code_.push_back(w_format_temp);
-  shader_code_.push_back(
-      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-  shader_code_.push_back(system_temp_position_);
-  shader_code_.push_back(
-      EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 3, 1));
-  shader_code_.push_back(system_temp_position_);
-  ++stat_.instruction_count;
-  ++stat_.float_instruction_count;
-  // If vtx_xy_fmt and/or vtx_z_fmt are 1, XY and/or Z are pre-divided by W.
-  // Restore them in this case.
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0111, 1));
-  shader_code_.push_back(system_temp_position_);
-  shader_code_.push_back(
-      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b00010000, 1));
-  shader_code_.push_back(ndc_control_temp);
-  shader_code_.push_back(
-      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-  shader_code_.push_back(w_format_temp);
-  shader_code_.push_back(
-      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-  shader_code_.push_back(system_temp_position_);
-  ++stat_.instruction_count;
-  ++stat_.movc_instruction_count;
-  // Release w_format_temp.
-  PopSystemTemp();
+  DxbcOpAnd(temp_x_dest, flags_src, DxbcSrc::LU(kSysFlag_XYDividedByW));
+  DxbcOpIf(true, temp_x_src);
+  DxbcOpMul(DxbcDest::R(system_temp_position_, 0b0011),
+            DxbcSrc::R(system_temp_position_),
+            DxbcSrc::R(system_temp_position_, DxbcSrc::kWWWW));
+  DxbcOpEndIf();
 
+  // Check if the shader returns Z/W rather than Z, and if it does, revert that.
+  // TODO(Triang3l): Check if having XY or Z pre-divided by W should result in
+  // affine interpolation.
+  DxbcOpAnd(temp_x_dest, flags_src, DxbcSrc::LU(kSysFlag_ZDividedByW));
+  DxbcOpIf(true, temp_x_src);
+  DxbcOpMul(DxbcDest::R(system_temp_position_, 0b0100),
+            DxbcSrc::R(system_temp_position_, DxbcSrc::kZZZZ),
+            DxbcSrc::R(system_temp_position_, DxbcSrc::kWWWW));
+  DxbcOpEndIf();
+
+  // Zero-initialize SV_ClipDistance# (for user clip planes) and SV_CullDistance
+  // (for vertex kill) in case they're not needed.
+  DxbcOpMov(DxbcDest::O(uint32_t(InOutRegister::kVSDSOutClipDistance0123)),
+            DxbcSrc::LF(0.0f));
+  DxbcOpMov(DxbcDest::O(
+                uint32_t(InOutRegister::kVSDSOutClipDistance45AndCullDistance),
+                0b0111),
+            DxbcSrc::LF(0.0f));
   // Clip against user clip planes.
   // Not possible to handle UCP_CULL_ONLY_ENA with the same shader though, since
   // there can be only 8 SV_ClipDistance + SV_CullDistance values at most, but
   // 12 would be needed.
-  uint32_t ucp_dot_temp = PushSystemTemp();
-  uint32_t ucp_enabled_temp = PushSystemTemp();
-  system_constants_used_ |= (1ull << kSysConst_UserClipPlanes_Index) |
-                            (1ull << kSysConst_Flags_Index);
-  for (uint32_t i = 0; i < 2; ++i) {
-    uint32_t ucp_count = i ? 2 : 4;
-    uint32_t ucp_mask = (1 << ucp_count) - 1;
-    for (uint32_t j = 0; j < ucp_count; ++j) {
-      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DP4) |
-                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-      shader_code_.push_back(
-          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1 << j, 1));
-      shader_code_.push_back(ucp_dot_temp);
-      shader_code_.push_back(EncodeVectorSwizzledOperand(
-          D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-      shader_code_.push_back(system_temp_position_);
-      shader_code_.push_back(EncodeVectorSwizzledOperand(
-          D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSwizzleXYZW, 3));
-      shader_code_.push_back(cbuffer_index_system_constants_);
-      shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-      shader_code_.push_back(kSysConst_UserClipPlanes_Vec + i * 4 + j);
-      ++stat_.instruction_count;
-      ++stat_.float_instruction_count;
-    }
-    // Using movc rather than zeroing the planes in the constants because dp4
-    // would handle Infinity and NaN in an unexpected way.
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(12));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, ucp_mask, 1));
-    shader_code_.push_back(ucp_enabled_temp);
-    shader_code_.push_back(EncodeVectorReplicatedOperand(
-        D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSysConst_Flags_Comp, 3));
-    shader_code_.push_back(cbuffer_index_system_constants_);
-    shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-    shader_code_.push_back(kSysConst_Flags_Vec);
-    shader_code_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-    for (uint32_t j = 0; j < ucp_count; ++j) {
-      shader_code_.push_back(kSysFlag_UserClipPlane0 << (i * 4 + j));
-    }
-    for (uint32_t j = ucp_count; j < 4; ++j) {
-      shader_code_.push_back(0);
-    }
-    ++stat_.instruction_count;
-    ++stat_.uint_instruction_count;
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(12));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_OUTPUT, ucp_mask, 1));
-    shader_code_.push_back(uint32_t(InOutRegister::kVSDSOutClipDistance0123) +
-                           i);
-    shader_code_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-    shader_code_.push_back(ucp_enabled_temp);
-    shader_code_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-    shader_code_.push_back(ucp_dot_temp);
-    shader_code_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-    shader_code_.push_back(0);
-    shader_code_.push_back(0);
-    shader_code_.push_back(0);
-    shader_code_.push_back(0);
-    ++stat_.instruction_count;
-    ++stat_.movc_instruction_count;
+  system_constants_used_ |= 1ull << kSysConst_UserClipPlanes_Index;
+  for (uint32_t i = 0; i < 6; ++i) {
+    // Check if the clip plane is enabled - this `if` is needed, as opposed to
+    // just zeroing the clip planes in the constants, so Infinity and NaN in the
+    // position won't have any effect caused by this if clip planes are
+    // disabled.
+    DxbcOpAnd(temp_x_dest, flags_src,
+              DxbcSrc::LU(kSysFlag_UserClipPlane0 << i));
+    DxbcOpIf(true, temp_x_src);
+    DxbcOpDP4(DxbcDest::O(
+                  uint32_t(InOutRegister::kVSDSOutClipDistance0123) + (i >> 2),
+                  1 << (i & 3)),
+              DxbcSrc::R(system_temp_position_),
+              DxbcSrc::CB(cbuffer_index_system_constants_,
+                          uint32_t(CbufferRegister::kSystemConstants),
+                          kSysConst_UserClipPlanes_Vec + i));
+    DxbcOpEndIf();
   }
-  // Release ucp_dot_temp and ucp_enabled_temp.
-  PopSystemTemp(2);
 
   // Apply scale for drawing without a viewport, and also remap from OpenGL
   // Z clip space to Direct3D if needed. Also, if the vertex shader is
   // multipass, the NDC scale constant can be used to set position to NaN to
   // kill all primitives.
   system_constants_used_ |= 1ull << kSysConst_NDCScale_Index;
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MUL) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0111, 1));
-  shader_code_.push_back(system_temp_position_);
-  shader_code_.push_back(
-      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-  shader_code_.push_back(system_temp_position_);
-  shader_code_.push_back(EncodeVectorSwizzledOperand(
-      D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
-      kSysConst_NDCScale_Comp | ((kSysConst_NDCScale_Comp + 1) << 2) |
-          ((kSysConst_NDCScale_Comp + 2) << 4),
-      3));
-  shader_code_.push_back(cbuffer_index_system_constants_);
-  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-  shader_code_.push_back(kSysConst_NDCScale_Vec);
-  ++stat_.instruction_count;
-  ++stat_.float_instruction_count;
+  DxbcOpMul(DxbcDest::R(system_temp_position_, 0b0111),
+            DxbcSrc::R(system_temp_position_),
+            DxbcSrc::CB(cbuffer_index_system_constants_,
+                        uint32_t(CbufferRegister::kSystemConstants),
+                        kSysConst_NDCScale_Vec,
+                        kSysConst_NDCScale_Comp * 0b010101 + 0b100100));
 
   // Reverse Z (Z = W - Z) if the viewport depth is inverted.
-  uint32_t reverse_z_temp = PushSystemTemp();
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ADD) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(8));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-  shader_code_.push_back(reverse_z_temp);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 3, 1));
-  shader_code_.push_back(system_temp_position_);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1) |
-      ENCODE_D3D10_SB_OPERAND_EXTENDED(1));
-  shader_code_.push_back(
-      ENCODE_D3D10_SB_EXTENDED_OPERAND_MODIFIER(D3D10_SB_OPERAND_MODIFIER_NEG));
-  shader_code_.push_back(system_temp_position_);
-  ++stat_.instruction_count;
-  ++stat_.float_instruction_count;
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0100, 1));
-  shader_code_.push_back(system_temp_position_);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 3, 1));
-  shader_code_.push_back(ndc_control_temp);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-  shader_code_.push_back(reverse_z_temp);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
-  shader_code_.push_back(system_temp_position_);
-  ++stat_.instruction_count;
-  ++stat_.movc_instruction_count;
-  // Release reverse_z_temp.
-  PopSystemTemp();
-
-  // Release ndc_control_temp.
-  PopSystemTemp();
+  DxbcOpAnd(temp_x_dest, flags_src, DxbcSrc::LU(kSysFlag_ReverseZ));
+  DxbcOpIf(true, temp_x_src);
+  DxbcOpAdd(DxbcDest::R(system_temp_position_, 0b0100),
+            DxbcSrc::R(system_temp_position_, DxbcSrc::kWWWW),
+            -DxbcSrc::R(system_temp_position_, DxbcSrc::kZZZZ));
+  DxbcOpEndIf();
 
   // Apply offset (multiplied by W) for drawing without a viewport and for half
   // pixel offset.
   system_constants_used_ |= 1ull << kSysConst_NDCOffset_Index;
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MAD) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(11));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0111, 1));
-  shader_code_.push_back(system_temp_position_);
-  shader_code_.push_back(EncodeVectorSwizzledOperand(
-      D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
-      kSysConst_NDCOffset_Comp | ((kSysConst_NDCOffset_Comp + 1) << 2) |
-          ((kSysConst_NDCOffset_Comp + 2) << 4),
-      3));
-  shader_code_.push_back(cbuffer_index_system_constants_);
-  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-  shader_code_.push_back(kSysConst_NDCOffset_Vec);
-  shader_code_.push_back(
-      EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 3, 1));
-  shader_code_.push_back(system_temp_position_);
-  shader_code_.push_back(
-      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-  shader_code_.push_back(system_temp_position_);
-  ++stat_.instruction_count;
-  ++stat_.float_instruction_count;
+  DxbcOpMAd(DxbcDest::R(system_temp_position_, 0b0111),
+            DxbcSrc::CB(cbuffer_index_system_constants_,
+                        uint32_t(CbufferRegister::kSystemConstants),
+                        kSysConst_NDCOffset_Vec,
+                        kSysConst_NDCOffset_Comp * 0b010101 + 0b100100),
+            DxbcSrc::R(system_temp_position_, DxbcSrc::kWWWW),
+            DxbcSrc::R(system_temp_position_));
 
   // Write Z and W of the position to a separate attribute so ROV output can get
   // per-sample depth.
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_OUTPUT, 0b0011, 1));
-  shader_code_.push_back(uint32_t(InOutRegister::kVSDSOutClipSpaceZW));
-  shader_code_.push_back(
-      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b11111110, 1));
-  shader_code_.push_back(system_temp_position_);
-  ++stat_.instruction_count;
-  ++stat_.mov_instruction_count;
+  DxbcOpMov(DxbcDest::O(uint32_t(InOutRegister::kVSDSOutClipSpaceZW), 0b0011),
+            DxbcSrc::R(system_temp_position_, 0b1110));
 
-  // Initialize SV_CullDistance.
-  DxbcOpMov(DxbcDest::O(
-                uint32_t(InOutRegister::kVSDSOutClipDistance45AndCullDistance),
-                0b0100),
-            DxbcSrc::LF(0.0f));
+  // Assuming SV_CullDistance was zeroed earlier in this function.
   // Kill the primitive if needed - check if the shader wants to kill.
   // TODO(Triang3l): Find if the condition is actually the flag being non-zero.
-  uint32_t kill_temp = PushSystemTemp();
   DxbcOpNE(
-      DxbcDest::R(kill_temp, 0b0001),
+      temp_x_dest,
       DxbcSrc::R(system_temp_point_size_edge_flag_kill_vertex_, DxbcSrc::kZZZZ),
       DxbcSrc::LF(0.0f));
-  DxbcOpIf(true, DxbcSrc::R(kill_temp, DxbcSrc::kXXXX));
+  DxbcOpIf(true, temp_x_src);
   {
     // Extract the killing condition.
-    system_constants_used_ |= 1ull << kSysConst_Flags_Index;
-    DxbcOpAnd(DxbcDest::R(kill_temp, 0b0001),
-              DxbcSrc::CB(cbuffer_index_system_constants_,
-                          uint32_t(CbufferRegister::kSystemConstants),
-                          kSysConst_Flags_Vec)
-                  .Select(kSysConst_Flags_Comp),
+    DxbcOpAnd(temp_x_dest, flags_src,
               DxbcSrc::LU(kSysFlag_KillIfAnyVertexKilled_Shift));
-    DxbcOpIf(true, DxbcSrc::R(kill_temp, DxbcSrc::kXXXX));
-    // Release kill_temp.
-    PopSystemTemp();
+    DxbcOpIf(true, temp_x_src);
     {
       // Kill the primitive if any vertex is killed - write NaN to position.
       DxbcOpMov(DxbcDest::R(system_temp_position_, 0b1000),
@@ -1248,16 +1057,8 @@ void DxbcShaderTranslator::CompleteVertexOrDomainShader() {
   DxbcOpEndIf();
 
   // Write the position to the output.
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_OUTPUT, 0b1111, 1));
-  shader_code_.push_back(uint32_t(InOutRegister::kVSDSOutPosition));
-  shader_code_.push_back(
-      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-  shader_code_.push_back(system_temp_position_);
-  ++stat_.instruction_count;
-  ++stat_.mov_instruction_count;
+  DxbcOpMov(DxbcDest::O(uint32_t(InOutRegister::kVSDSOutPosition)),
+            DxbcSrc::R(system_temp_position_));
 
   // Zero the point coordinate (will be set in the geometry shader if needed)
   // and write the point size.
@@ -1268,6 +1069,9 @@ void DxbcShaderTranslator::CompleteVertexOrDomainShader() {
       DxbcDest::O(uint32_t(InOutRegister::kVSDSOutPointParameters), 0b0100),
       DxbcSrc::R(system_temp_point_size_edge_flag_kill_vertex_,
                  DxbcSrc::kXXXX));
+
+  // Release temp.
+  PopSystemTemp();
 }
 
 void DxbcShaderTranslator::CompleteShaderCode() {
@@ -1277,28 +1081,14 @@ void DxbcShaderTranslator::CompleteShaderCode() {
     CloseExecConditionals();
     // Close the last label and the switch.
     if (UseSwitchForControlFlow()) {
-      shader_code_.push_back(
-          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_BREAK) |
-          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
-      ++stat_.instruction_count;
-      shader_code_.push_back(
-          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDSWITCH) |
-          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
-      ++stat_.instruction_count;
+      DxbcOpBreak();
+      DxbcOpEndSwitch();
     } else {
-      shader_code_.push_back(
-          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
-          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
-      ++stat_.instruction_count;
+      DxbcOpEndIf();
     }
     // End the main loop.
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_BREAK) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
-    ++stat_.instruction_count;
-    shader_code_.push_back(
-        ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDLOOP) |
-        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
-    ++stat_.instruction_count;
+    DxbcOpBreak();
+    DxbcOpEndLoop();
 
     // Release the following system temporary values so epilogue can reuse them:
     // - system_temp_pv_.
@@ -1339,10 +1129,7 @@ void DxbcShaderTranslator::CompleteShaderCode() {
   }
 
   // Return from `main`.
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_RET) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
-  ++stat_.instruction_count;
-  ++stat_.static_flow_control_count;
+  DxbcOpRet();
 
   // Write subroutines - can only do this immediately after `ret`. They still
   // need the global system temps, and can't allocate their own temps (since
@@ -4259,20 +4046,6 @@ void DxbcShaderTranslator::WriteShaderCode() {
     // 4 components in each.
     shader_object_.push_back(4);
     stat_.temp_array_count += register_count();
-  }
-
-  // Initialize the depth output if used, which must be initialized on every
-  // execution path.
-  if (!edram_rov_used_ && IsDxbcPixelShader() && writes_depth()) {
-    shader_object_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4));
-    shader_object_.push_back(
-        EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_OUTPUT_DEPTH, 0));
-    shader_object_.push_back(
-        EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-    shader_object_.push_back(0);
-    ++stat_.instruction_count;
-    ++stat_.mov_instruction_count;
   }
 
   // Write the translated shader code.

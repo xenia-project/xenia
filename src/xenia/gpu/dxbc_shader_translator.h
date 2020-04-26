@@ -1082,6 +1082,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kDefault = 10,
     kDiscard = 13,
     kDiv = 14,
+    kDP4 = 17,
     kElse = 18,
     kEndIf = 21,
     kEndLoop = 22,
@@ -1101,6 +1102,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kIShL = 41,
     kIToF = 43,
     kLabel = 44,
+    kLoop = 48,
     kLT = 49,
     kMAd = 50,
     kMin = 51,
@@ -1129,6 +1131,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kDerivRTXFine = 123,
     kDerivRTYCoarse = 124,
     kDerivRTYFine = 125,
+    kRcp = 129,
     kF32ToF16 = 130,
     kF16ToF32 = 131,
     kFirstBitHi = 135,
@@ -1286,6 +1289,19 @@ class DxbcShaderTranslator : public ShaderTranslator {
     DxbcEmitAluOp(DxbcOpcode::kDiv, 0b00, dest, src0, src1, saturate);
     ++stat_.float_instruction_count;
   }
+  void DxbcOpDP4(const DxbcDest& dest, const DxbcSrc& src0, const DxbcSrc& src1,
+                 bool saturate = false) {
+    uint32_t operands_length =
+        dest.GetLength() + src0.GetLength(0b1111) + src1.GetLength(0b1111);
+    shader_code_.reserve(shader_code_.size() + 1 + operands_length);
+    shader_code_.push_back(
+        DxbcOpcodeToken(DxbcOpcode::kDP4, operands_length, saturate));
+    dest.Write(shader_code_);
+    src0.Write(shader_code_, false, 0b1111);
+    src1.Write(shader_code_, false, 0b1111);
+    ++stat_.instruction_count;
+    ++stat_.float_instruction_count;
+  }
   void DxbcOpElse() {
     shader_code_.push_back(DxbcOpcodeToken(DxbcOpcode::kElse, 0));
     ++stat_.instruction_count;
@@ -1377,6 +1393,11 @@ class DxbcShaderTranslator : public ShaderTranslator {
         DxbcOpcodeToken(DxbcOpcode::kLabel, operands_length));
     label.Write(shader_code_, true, 0b0000);
     // Doesn't count towards stat_.instruction_count.
+  }
+  void DxbcOpLoop() {
+    shader_code_.push_back(DxbcOpcodeToken(DxbcOpcode::kLoop, 0));
+    ++stat_.instruction_count;
+    ++stat_.dynamic_flow_control_count;
   }
   void DxbcOpLT(const DxbcDest& dest, const DxbcSrc& src0,
                 const DxbcSrc& src1) {
@@ -1519,6 +1540,11 @@ class DxbcShaderTranslator : public ShaderTranslator {
   void DxbcOpDerivRTYFine(const DxbcDest& dest, const DxbcSrc& src,
                           bool saturate = false) {
     DxbcEmitAluOp(DxbcOpcode::kDerivRTYFine, 0b0, dest, src, saturate);
+    ++stat_.float_instruction_count;
+  }
+  void DxbcOpRcp(const DxbcDest& dest, const DxbcSrc& src,
+                 bool saturate = false) {
+    DxbcEmitAluOp(DxbcOpcode::kRcp, 0b0, dest, src, saturate);
     ++stat_.float_instruction_count;
   }
   void DxbcOpF32ToF16(const DxbcDest& dest, const DxbcSrc& src) {
