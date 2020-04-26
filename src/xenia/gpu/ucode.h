@@ -653,8 +653,8 @@ static_assert_size(TextureFetchInstruction, 12);
 
 // What follows is largely a mash up of the microcode assembly naming and the
 // R600 docs that have a near 1:1 with the instructions available in the xenos
-// GPU. Some of the behavior has been experimentally verified. Some has been
-// guessed.
+// GPU, and Adreno 2xx instruction names found in Freedreno. Some of the
+// behavior has been experimentally verified. Some has been guessed.
 // Docs: https://www.x.org/docs/AMD/old/r600isa.pdf
 //
 // Conventions:
@@ -665,100 +665,101 @@ static_assert_size(TextureFetchInstruction, 12);
 // - Scalar ops write the result to the entire destination register.
 // - pv and ps are the previous results of a vector or scalar ALU operation.
 //   Both are valid only within the current ALU clause. They are not modified
-//   when write masks are disabled or the instruction that would write them
-//   fails its predication check.
+//   when the instruction that would write them fails its predication check.
+// - Direct3D 9 rules (like in GCN v_*_legacy_f32 instructions) for
+//   multiplication (0 * anything = 0) and for NaN in min/max.
 
 enum class AluScalarOpcode : uint32_t {
   // Floating-Point Add
-  // adds dest, src0.ab
+  // adds/ADDs dest, src0.ab
   //     dest.xyzw = src0.a + src0.b;
   kAdds = 0,
 
   // Floating-Point Add (with Previous)
-  // adds_prev dest, src0.a
+  // adds_prev/ADD_PREVs dest, src0.a
   //     dest.xyzw = src0.a + ps;
   kAddsPrev = 1,
 
   // Floating-Point Multiply
-  // muls dest, src0.ab
+  // muls/MULs dest, src0.ab
   //     dest.xyzw = src0.a * src0.b;
   kMuls = 2,
 
   // Floating-Point Multiply (with Previous)
-  // muls_prev dest, src0.a
+  // muls_prev/MUL_PREVs dest, src0.a
   //     dest.xyzw = src0.a * ps;
   kMulsPrev = 3,
 
   // Scalar Multiply Emulating LIT Operation
-  // muls_prev2 dest, src0.ab
+  // muls_prev2/MUL_PREV2s dest, src0.ab
   //    dest.xyzw =
   //        ps == -FLT_MAX || !isfinite(ps) || !isfinite(src0.b) || src0.b <= 0
   //        ? -FLT_MAX : src0.a * ps;
   kMulsPrev2 = 4,
 
   // Floating-Point Maximum
-  // maxs dest, src0.ab
+  // maxs/MAXs dest, src0.ab
   //     dest.xyzw = src0.a >= src0.b ? src0.a : src0.b;
   kMaxs = 5,
 
   // Floating-Point Minimum
-  // mins dest, src0.ab
+  // mins/MINs dest, src0.ab
   //     dest.xyzw = src0.a < src0.b ? src0.a : src0.b;
   kMins = 6,
 
   // Floating-Point Set If Equal
-  // seqs dest, src0.a
+  // seqs/SETEs dest, src0.a
   //     dest.xyzw = src0.a == 0.0 ? 1.0 : 0.0;
   kSeqs = 7,
 
   // Floating-Point Set If Greater Than
-  // sgts dest, src0.a
+  // sgts/SETGTs dest, src0.a
   //     dest.xyzw = src0.a > 0.0 ? 1.0 : 0.0;
   kSgts = 8,
 
   // Floating-Point Set If Greater Than Or Equal
-  // sges dest, src0.a
+  // sges/SETGTEs dest, src0.a
   //     dest.xyzw = src0.a >= 0.0 ? 1.0 : 0.0;
   kSges = 9,
 
   // Floating-Point Set If Not Equal
-  // snes dest, src0.a
+  // snes/SETNEs dest, src0.a
   //     dest.xyzw = src0.a != 0.0 ? 1.0 : 0.0;
   kSnes = 10,
 
   // Floating-Point Fractional
-  // frcs dest, src0.a
+  // frcs/FRACs dest, src0.a
   //     dest.xyzw = src0.a - floor(src0.a);
   kFrcs = 11,
 
   // Floating-Point Truncate
-  // truncs dest, src0.a
+  // truncs/TRUNCs dest, src0.a
   //     dest.xyzw = src0.a >= 0 ? floor(src0.a) : -floor(-src0.a);
   kTruncs = 12,
 
   // Floating-Point Floor
-  // floors dest, src0.a
+  // floors/FLOORs dest, src0.a
   //     dest.xyzw = floor(src0.a);
   kFloors = 13,
 
   // Scalar Base-2 Exponent, IEEE
-  // exp dest, src0.a
+  // exp/EXP_IEEE dest, src0.a
   //     dest.xyzw = src0.a == 0.0 ? 1.0 : pow(2, src0.a);
   kExp = 14,
 
   // Scalar Base-2 Log
-  // logc dest, src0.a
+  // logc/LOG_CLAMP dest, src0.a
   //     float t = src0.a == 1.0 ? 0.0 : log(src0.a) / log(2.0);
   //     dest.xyzw = t == -INF ? -FLT_MAX : t;
   kLogc = 15,
 
   // Scalar Base-2 IEEE Log
-  // log dest, src0.a
+  // log/LOG_IEEE dest, src0.a
   //     dest.xyzw = src0.a == 1.0 ? 0.0 : log(src0.a) / log(2.0);
   kLog = 16,
 
   // Scalar Reciprocal, Clamp to Maximum
-  // rcpc dest, src0.a
+  // rcpc/RECIP_CLAMP dest, src0.a
   //     float t = src0.a == 1.0 ? 1.0 : 1.0 / src0.a;
   //     if (t == -INF) t = -FLT_MAX;
   //     else if (t == INF) t = FLT_MAX;
@@ -766,7 +767,8 @@ enum class AluScalarOpcode : uint32_t {
   kRcpc = 17,
 
   // Scalar Reciprocal, Clamp to Zero
-  // rcpf dest, src0.a
+  // Mimicking the behavior of the fixed-function pipeline.
+  // rcpf/RECIP_FF dest, src0.a
   //     float t = src0.a == 1.0 ? 1.0 : 1.0 / src0.a;
   //     if (t == -INF) t = -0.0;
   //     else if (t == INF) t = 0.0;
@@ -774,12 +776,12 @@ enum class AluScalarOpcode : uint32_t {
   kRcpf = 18,
 
   // Scalar Reciprocal, IEEE Approximation
-  // rcp dest, src0.a
+  // rcp/RECIP_IEEE dest, src0.a
   //     dest.xyzw = src0.a == 1.0 ? 1.0 : 1.0 / src0.a;
   kRcp = 19,
 
   // Scalar Reciprocal Square Root, Clamp to Maximum
-  // rsqc dest, src0.a
+  // rsqc/RECIPSQ_CLAMP dest, src0.a
   //     float t = src0.a == 1.0 ? 1.0 : 1.0 / sqrt(src0.a);
   //     if (t == -INF) t = -FLT_MAX;
   //     else if (t == INF) t = FLT_MAX;
@@ -787,7 +789,7 @@ enum class AluScalarOpcode : uint32_t {
   kRsqc = 20,
 
   // Scalar Reciprocal Square Root, Clamp to Zero
-  // rsqc dest, src0.a
+  // rsqf/RECIPSQ_FF dest, src0.a
   //     float t = src0.a == 1.0 ? 1.0 : 1.0 / sqrt(src0.a);
   //     if (t == -INF) t = -0.0;
   //     else if (t == INF) t = 0.0;
@@ -795,13 +797,13 @@ enum class AluScalarOpcode : uint32_t {
   kRsqf = 21,
 
   // Scalar Reciprocal Square Root, IEEE Approximation
-  // rsq dest, src0.a
+  // rsq/RECIPSQ_IEEE dest, src0.a
   //     dest.xyzw = src0.a == 1.0 ? 1.0 : 1.0 / sqrt(src0.a);
   kRsq = 22,
 
   // Floating-Point Maximum with Copy To Integer in AR
   // maxas dest, src0.ab
-  // movas dest, src0.aa
+  // movas/MOVAs dest, src0.aa
   //     int result = (int)floor(src0.a + 0.5);
   //     a0 = clamp(result, -256, 255);
   //     dest.xyzw = src0.a >= src0.b ? src0.a : src0.b;
@@ -809,24 +811,24 @@ enum class AluScalarOpcode : uint32_t {
 
   // Floating-Point Maximum with Copy Truncated To Integer in AR
   // maxasf dest, src0.ab
-  // movasf dest, src0.aa
+  // movasf/MOVA_FLOORs dest, src0.aa
   //     int result = (int)floor(src0.a);
   //     a0 = clamp(result, -256, 255);
   //     dest.xyzw = src0.a >= src0.b ? src0.a : src0.b;
   kMaxAsf = 24,
 
   // Floating-Point Subtract
-  // subs dest, src0.ab
+  // subs/SUBs dest, src0.ab
   //     dest.xyzw = src0.a - src0.b;
   kSubs = 25,
 
   // Floating-Point Subtract (with Previous)
-  // subs_prev dest, src0.a
+  // subs_prev/SUB_PREVs dest, src0.a
   //     dest.xyzw = src0.a - ps;
   kSubsPrev = 26,
 
   // Floating-Point Predicate Set If Equal
-  // setp_eq dest, src0.a
+  // setp_eq/PRED_SETEs dest, src0.a
   //     if (src0.a == 0.0) {
   //       dest.xyzw = 0.0;
   //       p0 = 1;
@@ -837,7 +839,7 @@ enum class AluScalarOpcode : uint32_t {
   kSetpEq = 27,
 
   // Floating-Point Predicate Set If Not Equal
-  // setp_ne dest, src0.a
+  // setp_ne/PRED_SETNEs dest, src0.a
   //     if (src0.a != 0.0) {
   //       dest.xyzw = 0.0;
   //       p0 = 1;
@@ -848,7 +850,7 @@ enum class AluScalarOpcode : uint32_t {
   kSetpNe = 28,
 
   // Floating-Point Predicate Set If Greater Than
-  // setp_gt dest, src0.a
+  // setp_gt/PRED_SETGTs dest, src0.a
   //     if (src0.a > 0.0) {
   //       dest.xyzw = 0.0;
   //       p0 = 1;
@@ -859,7 +861,7 @@ enum class AluScalarOpcode : uint32_t {
   kSetpGt = 29,
 
   // Floating-Point Predicate Set If Greater Than Or Equal
-  // setp_ge dest, src0.a
+  // setp_ge/PRED_SETGTEs dest, src0.a
   //     if (src0.a >= 0.0) {
   //       dest.xyzw = 0.0;
   //       p0 = 1;
@@ -870,7 +872,7 @@ enum class AluScalarOpcode : uint32_t {
   kSetpGe = 30,
 
   // Predicate Counter Invert
-  // setp_inv dest, src0.a
+  // setp_inv/PRED_SET_INVs dest, src0.a
   //     if (src0.a == 1.0) {
   //       dest.xyzw = 0.0;
   //       p0 = 1;
@@ -885,7 +887,7 @@ enum class AluScalarOpcode : uint32_t {
   kSetpInv = 31,
 
   // Predicate Counter Pop
-  // setp_pop dest, src0.a
+  // setp_pop/PRED_SET_POPs dest, src0.a
   //     if (src0.a - 1.0 <= 0.0) {
   //       dest.xyzw = 0.0;
   //       p0 = 1;
@@ -896,13 +898,13 @@ enum class AluScalarOpcode : uint32_t {
   kSetpPop = 32,
 
   // Predicate Counter Clear
-  // setp_clr dest
+  // setp_clr/PRED_SET_CLRs dest
   //     dest.xyzw = FLT_MAX;
   //     p0 = 0;
   kSetpClr = 33,
 
   // Predicate Counter Restore
-  // setp_rstr dest, src0.a
+  // setp_rstr/PRED_SET_RESTOREs dest, src0.a
   //     if (src0.a == 0.0) {
   //       dest.xyzw = 0.0;
   //       p0 = 1;
@@ -913,7 +915,7 @@ enum class AluScalarOpcode : uint32_t {
   kSetpRstr = 34,
 
   // Floating-Point Pixel Kill If Equal
-  // kills_eq dest, src0.a
+  // kills_eq/KILLEs dest, src0.a
   //     if (src0.a == 0.0) {
   //       dest.xyzw = 1.0;
   //       discard;
@@ -923,7 +925,7 @@ enum class AluScalarOpcode : uint32_t {
   kKillsEq = 35,
 
   // Floating-Point Pixel Kill If Greater Than
-  // kills_gt dest, src0.a
+  // kills_gt/KILLGTs dest, src0.a
   //     if (src0.a > 0.0) {
   //       dest.xyzw = 1.0;
   //       discard;
@@ -933,7 +935,7 @@ enum class AluScalarOpcode : uint32_t {
   kKillsGt = 36,
 
   // Floating-Point Pixel Kill If Greater Than Or Equal
-  // kills_ge dest, src0.a
+  // kills_ge/KILLGTEs dest, src0.a
   //     if (src0.a >= 0.0) {
   //       dest.xyzw = 1.0;
   //       discard;
@@ -943,7 +945,7 @@ enum class AluScalarOpcode : uint32_t {
   kKillsGe = 37,
 
   // Floating-Point Pixel Kill If Not Equal
-  // kills_ne dest, src0.a
+  // kills_ne/KILLNEs dest, src0.a
   //     if (src0.a != 0.0) {
   //       dest.xyzw = 1.0;
   //       discard;
@@ -953,7 +955,7 @@ enum class AluScalarOpcode : uint32_t {
   kKillsNe = 38,
 
   // Floating-Point Pixel Kill If One
-  // kills_one dest, src0.a
+  // kills_one/KILLONEs dest, src0.a
   //     if (src0.a == 1.0) {
   //       dest.xyzw = 1.0;
   //       discard;
@@ -963,41 +965,41 @@ enum class AluScalarOpcode : uint32_t {
   kKillsOne = 39,
 
   // Scalar Square Root, IEEE Aproximation
-  // sqrt dest, src0.a
+  // sqrt/SQRT_IEEE dest, src0.a
   //     dest.xyzw = sqrt(src0.a);
   kSqrt = 40,
 
-  // mulsc dest, src0.a, src1.a
+  // mulsc/MUL_CONST_0 dest, src0.a, src1.a
   kMulsc0 = 42,
-  // mulsc dest, src0.a, src1.a
+  // mulsc/MUL_CONST_1 dest, src0.a, src1.a
   kMulsc1 = 43,
-  // addsc dest, src0.a, src1.a
+  // addsc/ADD_CONST_0 dest, src0.a, src1.a
   kAddsc0 = 44,
-  // addsc dest, src0.a, src1.a
+  // addsc/ADD_CONST_1 dest, src0.a, src1.a
   kAddsc1 = 45,
-  // subsc dest, src0.a, src1.a
+  // subsc/SUB_CONST_0 dest, src0.a, src1.a
   kSubsc0 = 46,
-  // subsc dest, src0.a, src1.a
+  // subsc/SUB_CONST_1 dest, src0.a, src1.a
   kSubsc1 = 47,
 
   // Scalar Sin
-  // sin dest, src0.a
+  // sin/SIN dest, src0.a
   //     dest.xyzw = sin(src0.a);
   kSin = 48,
 
   // Scalar Cos
-  // cos dest, src0.a
+  // cos/COS dest, src0.a
   //     dest.xyzw = cos(src0.a);
   kCos = 49,
 
-  // retain_prev dest
+  // retain_prev/RETAIN_PREV dest
   //     dest.xyzw = ps;
   kRetainPrev = 50,
 };
 
 enum class AluVectorOpcode : uint32_t {
   // Per-Component Floating-Point Add
-  // add dest, src0, src1
+  // add/ADDv dest, src0, src1
   //     dest.x = src0.x + src1.x;
   //     dest.y = src0.y + src1.y;
   //     dest.z = src0.z + src1.z;
@@ -1005,7 +1007,7 @@ enum class AluVectorOpcode : uint32_t {
   kAdd = 0,
 
   // Per-Component Floating-Point Multiply
-  // mul dest, src0, src1
+  // mul/MULv dest, src0, src1
   //     dest.x = src0.x * src1.x;
   //     dest.y = src0.y * src1.y;
   //     dest.z = src0.z * src1.z;
@@ -1013,7 +1015,7 @@ enum class AluVectorOpcode : uint32_t {
   kMul = 1,
 
   // Per-Component Floating-Point Maximum
-  // max dest, src0, src1
+  // max/MAXv dest, src0, src1
   //     dest.x = src0.x >= src1.x ? src0.x : src1.x;
   //     dest.y = src0.x >= src1.y ? src0.y : src1.y;
   //     dest.z = src0.x >= src1.z ? src0.z : src1.z;
@@ -1021,7 +1023,7 @@ enum class AluVectorOpcode : uint32_t {
   kMax = 2,
 
   // Per-Component Floating-Point Minimum
-  // min dest, src0, src1
+  // min/MINv dest, src0, src1
   //     dest.x = src0.x < src1.x ? src0.x : src1.x;
   //     dest.y = src0.x < src1.y ? src0.y : src1.y;
   //     dest.z = src0.x < src1.z ? src0.z : src1.z;
@@ -1029,7 +1031,7 @@ enum class AluVectorOpcode : uint32_t {
   kMin = 3,
 
   // Per-Component Floating-Point Set If Equal
-  // seq dest, src0, src1
+  // seq/SETEv dest, src0, src1
   //     dest.x = src0.x == src1.x ? 1.0 : 0.0;
   //     dest.y = src0.y == src1.y ? 1.0 : 0.0;
   //     dest.z = src0.z == src1.z ? 1.0 : 0.0;
@@ -1037,7 +1039,7 @@ enum class AluVectorOpcode : uint32_t {
   kSeq = 4,
 
   // Per-Component Floating-Point Set If Greater Than
-  // sgt dest, src0, src1
+  // sgt/SETGTv dest, src0, src1
   //     dest.x = src0.x > src1.x ? 1.0 : 0.0;
   //     dest.y = src0.y > src1.y ? 1.0 : 0.0;
   //     dest.z = src0.z > src1.z ? 1.0 : 0.0;
@@ -1045,7 +1047,7 @@ enum class AluVectorOpcode : uint32_t {
   kSgt = 5,
 
   // Per-Component Floating-Point Set If Greater Than Or Equal
-  // sge dest, src0, src1
+  // sge/SETGTEv dest, src0, src1
   //     dest.x = src0.x >= src1.x ? 1.0 : 0.0;
   //     dest.y = src0.y >= src1.y ? 1.0 : 0.0;
   //     dest.z = src0.z >= src1.z ? 1.0 : 0.0;
@@ -1053,7 +1055,7 @@ enum class AluVectorOpcode : uint32_t {
   kSge = 6,
 
   // Per-Component Floating-Point Set If Not Equal
-  // sne dest, src0, src1
+  // sne/SETNEv dest, src0, src1
   //     dest.x = src0.x != src1.x ? 1.0 : 0.0;
   //     dest.y = src0.y != src1.y ? 1.0 : 0.0;
   //     dest.z = src0.z != src1.z ? 1.0 : 0.0;
@@ -1061,7 +1063,7 @@ enum class AluVectorOpcode : uint32_t {
   kSne = 7,
 
   // Per-Component Floating-Point Fractional
-  // frc dest, src0
+  // frc/FRACv dest, src0
   //     dest.x = src0.x - floor(src0.x);
   //     dest.y = src0.y - floor(src0.y);
   //     dest.z = src0.z - floor(src0.z);
@@ -1069,7 +1071,7 @@ enum class AluVectorOpcode : uint32_t {
   kFrc = 8,
 
   // Per-Component Floating-Point Truncate
-  // trunc dest, src0
+  // trunc/TRUNCv dest, src0
   //     dest.x = src0.x >= 0 ? floor(src0.x) : -floor(-src0.x);
   //     dest.y = src0.y >= 0 ? floor(src0.y) : -floor(-src0.y);
   //     dest.z = src0.z >= 0 ? floor(src0.z) : -floor(-src0.z);
@@ -1077,7 +1079,7 @@ enum class AluVectorOpcode : uint32_t {
   kTrunc = 9,
 
   // Per-Component Floating-Point Floor
-  // floor dest, src0
+  // floor/FLOORv dest, src0
   //     dest.x = floor(src0.x);
   //     dest.y = floor(src0.y);
   //     dest.z = floor(src0.z);
@@ -1085,7 +1087,7 @@ enum class AluVectorOpcode : uint32_t {
   kFloor = 10,
 
   // Per-Component Floating-Point Multiply-Add
-  // mad dest, src0, src1, src2
+  // mad/MULADDv dest, src0, src1, src2
   //     dest.x = src0.x * src1.x + src2.x;
   //     dest.y = src0.y * src1.y + src2.y;
   //     dest.z = src0.z * src1.z + src2.z;
@@ -1093,7 +1095,7 @@ enum class AluVectorOpcode : uint32_t {
   kMad = 11,
 
   // Per-Component Floating-Point Conditional Move If Equal
-  // cndeq dest, src0, src1, src2
+  // cndeq/CNDEv dest, src0, src1, src2
   //     dest.x = src0.x == 0.0 ? src1.x : src2.x;
   //     dest.y = src0.y == 0.0 ? src1.y : src2.y;
   //     dest.z = src0.z == 0.0 ? src1.z : src2.z;
@@ -1101,7 +1103,7 @@ enum class AluVectorOpcode : uint32_t {
   kCndEq = 12,
 
   // Per-Component Floating-Point Conditional Move If Greater Than Or Equal
-  // cndge dest, src0, src1, src2
+  // cndge/CNDGTEv dest, src0, src1, src2
   //     dest.x = src0.x >= 0.0 ? src1.x : src2.x;
   //     dest.y = src0.y >= 0.0 ? src1.y : src2.y;
   //     dest.z = src0.z >= 0.0 ? src1.z : src2.z;
@@ -1109,7 +1111,7 @@ enum class AluVectorOpcode : uint32_t {
   kCndGe = 13,
 
   // Per-Component Floating-Point Conditional Move If Greater Than
-  // cndgt dest, src0, src1, src2
+  // cndgt/CNDGTv dest, src0, src1, src2
   //     dest.x = src0.x > 0.0 ? src1.x : src2.x;
   //     dest.y = src0.y > 0.0 ? src1.y : src2.y;
   //     dest.z = src0.z > 0.0 ? src1.z : src2.z;
@@ -1117,43 +1119,60 @@ enum class AluVectorOpcode : uint32_t {
   kCndGt = 14,
 
   // Four-Element Dot Product
-  // dp4 dest, src0, src1
+  // dp4/DOT4v dest, src0, src1
   //     dest.xyzw = src0.x * src1.x + src0.y * src1.y + src0.z * src1.z +
   //                 src0.w * src1.w;
   // Note: only pv.x contains the value.
   kDp4 = 15,
 
   // Three-Element Dot Product
-  // dp3 dest, src0, src1
+  // dp3/DOT3v dest, src0, src1
   //     dest.xyzw = src0.x * src1.x + src0.y * src1.y + src0.z * src1.z;
   // Note: only pv.x contains the value.
   kDp3 = 16,
 
   // Two-Element Dot Product and Add
-  // dp2add dest, src0, src1, src2
+  // dp2add/DOT2ADDv dest, src0, src1, src2
   //     dest.xyzw = src0.x * src1.x + src0.y * src1.y + src2.x;
   // Note: only pv.x contains the value.
   kDp2Add = 17,
 
   // Cube Map
-  // cube dest, src0, src1
-  //     dest.x = T cube coordinate;
+  // cube/CUBEv dest, src0, src1
+  //     dest.x = T cube coordinate:
   //     dest.y = S cube coordinate;
   //     dest.z = 2.0 * MajorAxis;
   //     dest.w = FaceID;
+  // https://developer.amd.com/wordpress/media/2012/12/AMD_Southern_Islands_Instruction_Set_Architecture.pdf
+  //     if (abs(z) >= abs(x) && abs(z) >= abs(y)) {
+  //       tc = -y;
+  //       sc = z < 0.0 ? -x : x;
+  //       ma = 2.0 * z;
+  //       id = z < 0.0 ? 5.0 : 4.0;
+  //     } else if (abs(y) >= abs(x)) {
+  //       tc = y < 0.0 ? -z : z;
+  //       sc = x;
+  //       ma = 2.0 * y;
+  //       id = y < 0.0 ? 3.0 : 2.0;
+  //     } else {
+  //       tc = -y;
+  //       sc = x < 0.0 ? z : -z;
+  //       ma = 2.0 * x;
+  //       id = x < 0.0 ? 1.0 : 0.0;
+  //     }
   // Expects src0.zzxy and src1.yxzz swizzles.
   // FaceID is D3DCUBEMAP_FACES:
   // https://msdn.microsoft.com/en-us/library/windows/desktop/bb172528(v=vs.85).aspx
   kCube = 18,
 
   // Four-Element Maximum
-  // max4 dest, src0
+  // max4/MAX4v dest, src0
   //     dest.xyzw = max(src0.x, src0.y, src0.z, src0.w);
   // Note: only pv.x contains the value.
   kMax4 = 19,
 
   // Floating-Point Predicate Counter Increment If Equal
-  // setp_eq_push dest, src0, src1
+  // setp_eq_push/PRED_SETE_PUSHv dest, src0, src1
   //     if (src0.w == 0.0 && src1.w == 0.0) {
   //       p0 = 1;
   //     } else {
@@ -1167,7 +1186,7 @@ enum class AluVectorOpcode : uint32_t {
   kSetpEqPush = 20,
 
   // Floating-Point Predicate Counter Increment If Not Equal
-  // setp_ne_push dest, src0, src1
+  // setp_ne_push/PRED_SETNE_PUSHv dest, src0, src1
   //     if (src0.w == 0.0 && src1.w != 0.0) {
   //       p0 = 1;
   //     } else {
@@ -1181,7 +1200,7 @@ enum class AluVectorOpcode : uint32_t {
   kSetpNePush = 21,
 
   // Floating-Point Predicate Counter Increment If Greater Than
-  // setp_gt_push dest, src0, src1
+  // setp_gt_push/PRED_SETGT_PUSHv dest, src0, src1
   //     if (src0.w == 0.0 && src1.w > 0.0) {
   //       p0 = 1;
   //     } else {
@@ -1195,7 +1214,7 @@ enum class AluVectorOpcode : uint32_t {
   kSetpGtPush = 22,
 
   // Floating-Point Predicate Counter Increment If Greater Than Or Equal
-  // setp_ge_push dest, src0, src1
+  // setp_ge_push/PRED_SETGTE_PUSHv dest, src0, src1
   //     if (src0.w == 0.0 && src1.w >= 0.0) {
   //       p0 = 1;
   //     } else {
@@ -1209,7 +1228,7 @@ enum class AluVectorOpcode : uint32_t {
   kSetpGePush = 23,
 
   // Floating-Point Pixel Kill If Equal
-  // kill_eq dest, src0, src1
+  // kill_eq/KILLEv dest, src0, src1
   //     if (src0.x == src1.x ||
   //         src0.y == src1.y ||
   //         src0.z == src1.z ||
@@ -1222,7 +1241,7 @@ enum class AluVectorOpcode : uint32_t {
   kKillEq = 24,
 
   // Floating-Point Pixel Kill If Greater Than
-  // kill_gt dest, src0, src1
+  // kill_gt/KILLGTv dest, src0, src1
   //     if (src0.x > src1.x ||
   //         src0.y > src1.y ||
   //         src0.z > src1.z ||
@@ -1235,7 +1254,7 @@ enum class AluVectorOpcode : uint32_t {
   kKillGt = 25,
 
   // Floating-Point Pixel Kill If Equal
-  // kill_ge dest, src0, src1
+  // kill_ge/KILLGTEv dest, src0, src1
   //     if (src0.x >= src1.x ||
   //         src0.y >= src1.y ||
   //         src0.z >= src1.z ||
@@ -1248,7 +1267,7 @@ enum class AluVectorOpcode : uint32_t {
   kKillGe = 26,
 
   // Floating-Point Pixel Kill If Equal
-  // kill_ne dest, src0, src1
+  // kill_ne/KILLNEv dest, src0, src1
   //     if (src0.x != src1.x ||
   //         src0.y != src1.y ||
   //         src0.z != src1.z ||
@@ -1260,7 +1279,7 @@ enum class AluVectorOpcode : uint32_t {
   //     }
   kKillNe = 27,
 
-  // dst dest, src0, src1
+  // dst/DSTv dest, src0, src1
   //     dest.x = 1.0;
   //     dest.y = src0.y * src1.y;
   //     dest.z = src0.z;
@@ -1269,7 +1288,7 @@ enum class AluVectorOpcode : uint32_t {
 
   // Per-Component Floating-Point Maximum with Copy To Integer in AR
   // maxa dest, src0, src1
-  // This is a combined max + mova.
+  // This is a combined max + mova/MOVAv.
   //     int result = (int)floor(src0.w + 0.5);
   //     a0 = clamp(result, -256, 255);
   //     dest.x = src0.x >= src1.x ? src0.x : src1.x;
