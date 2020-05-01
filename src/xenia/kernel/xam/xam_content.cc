@@ -333,6 +333,16 @@ dword_result_t XamContentCreate(dword_t user_index, lpstring_t root_name,
 }
 DECLARE_XAM_EXPORT1(XamContentCreate, kContent, kImplemented);
 
+dword_result_t XamContentCreateInternal(
+    lpstring_t root_name, lpvoid_t content_data_ptr, dword_t flags,
+    lpdword_t disposition_ptr, lpdword_t license_mask_ptr, dword_t cache_size,
+    qword_t content_size, lpvoid_t overlapped_ptr) {
+  return XamContentCreateEx(0xFE, root_name, content_data_ptr, flags,
+                            disposition_ptr, license_mask_ptr, cache_size,
+                            content_size, overlapped_ptr);
+}
+DECLARE_XAM_EXPORT1(XamContentCreateInternal, kContent, kImplemented);
+
 dword_result_t XamContentOpenFile(dword_t user_index, lpstring_t root_name,
                                   lpstring_t path, dword_t flags,
                                   lpdword_t disposition_ptr,
