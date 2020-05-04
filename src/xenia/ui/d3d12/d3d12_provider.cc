@@ -212,6 +212,7 @@ bool D3D12Provider::Initialize() {
     XELOGE("Failed to create a direct command queue");
     device->Release();
     dxgi_factory->Release();
+    return false;
   }
 
   dxgi_factory_ = dxgi_factory;
