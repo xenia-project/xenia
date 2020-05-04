@@ -97,6 +97,7 @@ class D3D12Provider : public GraphicsProvider {
  private:
   explicit D3D12Provider(Window* main_window);
 
+  static bool EnableIncreaseBasePriorityPrivilege();
   bool Initialize();
 
   HMODULE library_dxgi_ = nullptr;
