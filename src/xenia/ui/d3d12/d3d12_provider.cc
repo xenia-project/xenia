@@ -22,6 +22,12 @@ DEFINE_int32(d3d12_adapter, -1,
              "Index of the DXGI adapter to use. "
              "-1 for any physical adapter, -2 for WARP software rendering.",
              "D3D12");
+DEFINE_int32(
+    d3d12_queue_priority, 1,
+    "Graphics (direct) command queue scheduling priority, 0 - normal, 1 - "
+    "high, 2 - global realtime (requires administrator privileges, may impact "
+    "system responsibility)",
+    "D3D12");
 
 namespace xe {
 namespace ui {
@@ -78,6 +84,25 @@ D3D12Provider::~D3D12Provider() {
   if (library_dxgi_ != nullptr) {
     FreeLibrary(library_dxgi_);
   }
+}
+
+bool D3D12Provider::EnableIncreaseBasePriorityPrivilege() {
+  TOKEN_PRIVILEGES privileges;
+  privileges.PrivilegeCount = 1;
+  privileges.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+  if (!LookupPrivilegeValue(nullptr, SE_INC_BASE_PRIORITY_NAME,
+                            &privileges.Privileges[0].Luid)) {
+    return false;
+  }
+  HANDLE token;
+  if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES, &token)) {
+    return false;
+  }
+  bool enabled = AdjustTokenPrivileges(token, FALSE, &privileges,
+                                       sizeof(privileges), nullptr, nullptr) &&
+                 GetLastError() != ERROR_NOT_ALL_ASSIGNED;
+  CloseHandle(token);
+  return enabled;
 }
 
 bool D3D12Provider::Initialize() {
@@ -203,16 +228,41 @@ bool D3D12Provider::Initialize() {
   // Create the command queue for graphics.
   D3D12_COMMAND_QUEUE_DESC queue_desc;
   queue_desc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
-  queue_desc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_NORMAL;
+  if (cvars::d3d12_queue_priority >= 2) {
+    queue_desc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_GLOBAL_REALTIME;
+    if (!EnableIncreaseBasePriorityPrivilege()) {
+      XELOGD3D(
+          "Failed to enable SeIncreaseBasePriorityPrivilege for global "
+          "realtime Direct3D 12 command queue priority, falling back to high "
+          "priority, try launching Xenia as administrator");
+      queue_desc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_HIGH;
+    }
+  } else if (cvars::d3d12_queue_priority >= 1) {
+    queue_desc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_HIGH;
+  } else {
+    queue_desc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_NORMAL;
+  }
   queue_desc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
   queue_desc.NodeMask = 0;
   ID3D12CommandQueue* direct_queue;
   if (FAILED(device->CreateCommandQueue(&queue_desc,
                                         IID_PPV_ARGS(&direct_queue)))) {
-    XELOGE("Failed to create a direct command queue");
-    device->Release();
-    dxgi_factory->Release();
-    return false;
+    bool queue_created = false;
+    if (queue_desc.Priority == D3D12_COMMAND_QUEUE_PRIORITY_GLOBAL_REALTIME) {
+      XELOGD3D(
+          "Failed to create a Direct3D 12 direct command queue with global "
+          "realtime priority, falling back to high priority, try launching "
+          "Xenia as administrator");
+      queue_desc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_HIGH;
+      queue_created = SUCCEEDED(
+          device->CreateCommandQueue(&queue_desc, IID_PPV_ARGS(&direct_queue)));
+    }
+    if (!queue_created) {
+      XELOGE("Failed to create a Direct3D 12 direct command queue");
+      device->Release();
+      dxgi_factory->Release();
+      return false;
+    }
   }
 
   dxgi_factory_ = dxgi_factory;
