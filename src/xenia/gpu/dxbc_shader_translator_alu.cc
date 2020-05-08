@@ -23,7 +23,8 @@ bool DxbcShaderTranslator::ProcessVectorAluOperation(
   replicate_result_x = false;
   predicate_written = false;
 
-  if (!instr.has_vector_op) {
+  if (!instr.vector_and_constant_result.GetUsedWriteMask() &&
+      !AluVectorOpHasSideEffects(instr.vector_opcode)) {
     return false;
   }
 
@@ -32,7 +33,7 @@ bool DxbcShaderTranslator::ProcessVectorAluOperation(
   if (instr.vector_opcode == AluVectorOpcode::kCube) {
     operand_count = 1;
   } else {
-    operand_count = uint32_t(instr.vector_operand_count);
+    operand_count = instr.vector_operand_count;
   }
   DxbcSourceOperand dxbc_operands[3];
   // Whether the operand is the same as any previous operand, and thus is loaded
@@ -42,7 +43,7 @@ bool DxbcShaderTranslator::ProcessVectorAluOperation(
   for (uint32_t i = 0; i < operand_count; ++i) {
     const InstructionOperand& operand = instr.vector_operands[i];
     for (uint32_t j = 0; j < i; ++j) {
-      if (operand == instr.vector_operands[j]) {
+      if (operand.GetIdenticalComponents(instr.vector_operands[j]) == 0b1111) {
         operands_duplicate[i] = true;
         dxbc_operands[i] = dxbc_operands[j];
         break;
@@ -117,7 +118,8 @@ bool DxbcShaderTranslator::ProcessVectorAluOperation(
       UseDxbcSourceOperand(dxbc_operands[1]);
       ++stat_.instruction_count;
       ++stat_.float_instruction_count;
-      if (!instr.vector_operands[0].EqualsAbsolute(instr.vector_operands[1])) {
+      if (instr.vector_operands[0].GetAbsoluteIdenticalComponents(
+              instr.vector_operands[1]) != 0b1111) {
         // Reproduce Shader Model 3 multiplication behavior (0 * anything = 0),
         // flushing denormals (must be done using eq - doing bitwise comparison
         // doesn't flush denormals).
@@ -281,7 +283,8 @@ bool DxbcShaderTranslator::ProcessVectorAluOperation(
       UseDxbcSourceOperand(dxbc_operands[2]);
       ++stat_.instruction_count;
       ++stat_.float_instruction_count;
-      if (!instr.vector_operands[0].EqualsAbsolute(instr.vector_operands[1])) {
+      if (instr.vector_operands[0].GetAbsoluteIdenticalComponents(
+              instr.vector_operands[1]) != 0b1111) {
         // Reproduce Shader Model 3 multiplication behavior (0 * anything = 0).
         // If any operand is zero or denormalized, just leave the addition part.
         uint32_t is_subnormal_temp = PushSystemTemp();
@@ -388,7 +391,8 @@ bool DxbcShaderTranslator::ProcessVectorAluOperation(
     case AluVectorOpcode::kDp4:
     case AluVectorOpcode::kDp3:
     case AluVectorOpcode::kDp2Add: {
-      if (instr.vector_operands[0].EqualsAbsolute(instr.vector_operands[1])) {
+      if (instr.vector_operands[0].GetAbsoluteIdenticalComponents(
+              instr.vector_operands[1]) != 0b1111) {
         // The operands are the same when calculating vector length, no need to
         // emulate 0 * anything = 0 in this case.
         shader_code_.push_back(
@@ -1092,7 +1096,9 @@ bool DxbcShaderTranslator::ProcessVectorAluOperation(
       UseDxbcSourceOperand(dxbc_operands[1], kSwizzleXYZW, 1);
       ++stat_.instruction_count;
       ++stat_.float_instruction_count;
-      if (!instr.vector_operands[0].EqualsAbsolute(instr.vector_operands[1])) {
+      if (!(instr.vector_operands[0].GetAbsoluteIdenticalComponents(
+                instr.vector_operands[1]) &
+            0b0010)) {
         // Reproduce Shader Model 3 multiplication behavior (0 * anything = 0).
         // This is an attenuation calculation function, so infinity is probably
         // not very unlikely.
@@ -1294,7 +1300,8 @@ bool DxbcShaderTranslator::ProcessScalarAluOperation(
     const ParsedAluInstruction& instr, bool& predicate_written) {
   predicate_written = false;
 
-  if (!instr.has_scalar_op) {
+  if (instr.scalar_opcode == ucode::AluScalarOpcode::kRetainPrev &&
+      !instr.scalar_result.GetUsedWriteMask()) {
     return false;
   }
 
@@ -1306,7 +1313,7 @@ bool DxbcShaderTranslator::ProcessScalarAluOperation(
   for (uint32_t i = 0; i < uint32_t(instr.scalar_operand_count); ++i) {
     const InstructionOperand& operand = instr.scalar_operands[i];
     for (uint32_t j = 0; j < i; ++j) {
-      if (operand == instr.scalar_operands[j]) {
+      if (operand.GetIdenticalComponents(instr.scalar_operands[j]) == 0b1111) {
         operands_duplicate[i] = true;
         dxbc_operands[i] = dxbc_operands[j];
         break;
@@ -2303,7 +2310,9 @@ bool DxbcShaderTranslator::ProcessScalarAluOperation(
       UseDxbcSourceOperand(dxbc_operands[1], kSwizzleXYZW, 0);
       ++stat_.instruction_count;
       ++stat_.float_instruction_count;
-      if (!instr.scalar_operands[0].EqualsAbsolute(instr.scalar_operands[1])) {
+      if (!(instr.scalar_operands[0].GetAbsoluteIdenticalComponents(
+                instr.scalar_operands[1]) &
+            0b0001)) {
         // Reproduce Shader Model 3 multiplication behavior (0 * anything = 0).
         uint32_t is_subnormal_temp = PushSystemTemp();
         // Get the non-NaN multiplicand closer to zero to check if any of them
@@ -2421,7 +2430,7 @@ bool DxbcShaderTranslator::ProcessScalarAluOperation(
 
 void DxbcShaderTranslator::ProcessAluInstruction(
     const ParsedAluInstruction& instr) {
-  if (instr.is_nop()) {
+  if (instr.IsNop()) {
     return;
   }
 
@@ -2445,7 +2454,8 @@ void DxbcShaderTranslator::ProcessAluInstruction(
       ProcessScalarAluOperation(instr, predicate_written_scalar);
 
   if (store_vector) {
-    StoreResult(instr.vector_result, system_temp_pv_, replicate_vector_x,
+    StoreResult(instr.vector_and_constant_result, system_temp_pv_,
+                replicate_vector_x,
                 instr.GetMemExportStreamConstant() != UINT32_MAX);
   }
   if (store_scalar) {

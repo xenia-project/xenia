@@ -267,6 +267,7 @@ namespace shader_playground {
         "--shader_output=" + translatedDisasmPath,
         "--shader_output_type=" + outputType,
         "--vertex_shader_output_type=" + vertexShaderType,
+        "--dxbc_source_map=true",
       };
       if (translationComboBox.SelectedIndex == 1) {
         startArguments.Add("--shader_output_dxbc_rov=true");

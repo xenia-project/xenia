@@ -57,15 +57,19 @@ class ShaderTranslator {
   }
   // True if the current shader is a pixel shader.
   bool is_pixel_shader() const { return shader_type_ == ShaderType::kPixel; }
+  // Used constant register info, populated before translation.
   const Shader::ConstantRegisterMap& constant_register_map() const {
     return constant_register_map_;
   }
   // True if the current shader addresses general-purpose registers with dynamic
-  // indices.
+  // indices, set before translation. Doesn't include writes to r[#+a#] with an
+  // empty used write mask.
   bool uses_register_dynamic_addressing() const {
     return uses_register_dynamic_addressing_;
   }
-  // True if the current shader writes to a color target on any execution path.
+  // True if the current shader writes to a color target on any execution path,
+  // set before translation. Doesn't include writes with an empty used write
+  // mask.
   bool writes_color_target(int i) const { return writes_color_targets_[i]; }
   bool writes_any_color_target() const {
     for (size_t i = 0; i < xe::countof(writes_color_targets_); ++i) {
@@ -75,7 +79,8 @@ class ShaderTranslator {
     }
     return false;
   }
-  // True if the current shader overrides the pixel depth.
+  // True if the current shader overrides the pixel depth, set before
+  // translation. Doesn't include writes with an empty used write mask.
   bool writes_depth() const { return writes_depth_; }
   // True if Xenia can automatically enable early depth/stencil for the pixel
   // shader when RB_DEPTHCONTROL EARLY_Z_ENABLE is not set, provided alpha
@@ -181,8 +186,8 @@ class ShaderTranslator {
  private:
   struct AluOpcodeInfo {
     const char* name;
-    size_t argument_count;
-    int src_swizzle_component_count;
+    uint32_t argument_count;
+    uint32_t src_swizzle_component_count;
     bool disable_implicit_early_z;
   };
 
@@ -229,10 +234,16 @@ class ShaderTranslator {
                                     ParsedTextureFetchInstruction* out_instr);
 
   void TranslateAluInstruction(const ucode::AluInstruction& op);
-  void ParseAluVectorOperation(const ucode::AluInstruction& op,
-                               ParsedAluInstruction& instr);
-  void ParseAluScalarOperation(const ucode::AluInstruction& op,
-                               ParsedAluInstruction& instr);
+  void ParseAluInstruction(const ucode::AluInstruction& op,
+                           ParsedAluInstruction& out_instr) const;
+  static void ParseAluInstructionOperand(const ucode::AluInstruction& op,
+                                         uint32_t i,
+                                         uint32_t swizzle_component_count,
+                                         InstructionOperand& out_op);
+  static void ParseAluInstructionOperandSpecial(
+      const ucode::AluInstruction& op, InstructionStorageSource storage_source,
+      uint32_t reg, bool negate, int const_slot, uint32_t component_index,
+      InstructionOperand& out_op);
 
   // Input shader metadata and microcode.
   ShaderType shader_type_;
@@ -265,12 +276,16 @@ class ShaderTranslator {
   uint32_t unique_vertex_bindings_ = 0;
   uint32_t unique_texture_bindings_ = 0;
 
+  // These all are gathered before translation.
+  // uses_register_dynamic_addressing_ for writes, writes_color_targets_,
+  // writes_depth_ don't include empty used write masks.
   Shader::ConstantRegisterMap constant_register_map_ = {0};
   bool uses_register_dynamic_addressing_ = false;
   bool writes_color_targets_[4] = {false, false, false, false};
   bool writes_depth_ = false;
   bool implicit_early_z_allowed_ = true;
 
+  // Memexport info is gathered before translation.
   uint32_t memexport_alloc_count_ = 0;
   // For register allocation in implementations - what was used after each
   // `alloc export`.

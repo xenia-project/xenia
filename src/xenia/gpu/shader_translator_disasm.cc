@@ -28,7 +28,7 @@ void DisassembleResultOperand(const InstructionResult& result,
       out->Append('r');
       uses_storage_index = true;
       break;
-    case InstructionStorageTarget::kInterpolant:
+    case InstructionStorageTarget::kInterpolator:
       out->Append('o');
       uses_storage_index = true;
       break;
@@ -45,7 +45,7 @@ void DisassembleResultOperand(const InstructionResult& result,
       out->Append("eM");
       uses_storage_index = true;
       break;
-    case InstructionStorageTarget::kColorTarget:
+    case InstructionStorageTarget::kColor:
       out->Append("oC");
       uses_storage_index = true;
       break;
@@ -68,12 +68,19 @@ void DisassembleResultOperand(const InstructionResult& result,
         break;
     }
   }
-  if (!result.has_any_writes()) {
+  // Not using GetUsedWriteMask/IsStandardSwizzle because they filter out
+  // components not having any runtime effect, but those components are still
+  // present in the microcode.
+  if (!result.original_write_mask) {
     out->Append("._");
-  } else if (!result.is_standard_swizzle()) {
+  } else if (result.original_write_mask != 0b1111 ||
+             result.components[0] != SwizzleSource::kX ||
+             result.components[1] != SwizzleSource::kY ||
+             result.components[2] != SwizzleSource::kZ ||
+             result.components[3] != SwizzleSource::kW) {
     out->Append('.');
     for (int i = 0; i < 4; ++i) {
-      if (result.write_mask[i]) {
+      if (result.original_write_mask & (1 << i)) {
         out->Append(GetCharForSwizzle(result.components[i]));
       } else {
         out->Append('_');
@@ -116,7 +123,7 @@ void DisassembleSourceOperand(const InstructionOperand& op, StringBuffer* out) {
       out->AppendFormat("[{}+aL]", op.storage_index);
       break;
   }
-  if (!op.is_standard_swizzle()) {
+  if (!op.IsStandardSwizzle()) {
     out->Append('.');
     if (op.component_count == 1) {
       out->Append(GetCharForSwizzle(op.components[0]));
@@ -124,7 +131,7 @@ void DisassembleSourceOperand(const InstructionOperand& op, StringBuffer* out) {
       out->Append(GetCharForSwizzle(op.components[0]));
       out->Append(GetCharForSwizzle(op.components[1]));
     } else {
-      for (int j = 0; j < op.component_count; ++j) {
+      for (uint32_t j = 0; j < op.component_count; ++j) {
         out->Append(GetCharForSwizzle(op.components[j]));
       }
     }
@@ -454,11 +461,19 @@ void ParsedTextureFetchInstruction::Disassemble(StringBuffer* out) const {
 }
 
 void ParsedAluInstruction::Disassemble(StringBuffer* out) const {
-  if (is_nop()) {
-    out->Append("         nop\n");
+  bool is_vector_op_default_nop = IsVectorOpDefaultNop();
+  bool is_scalar_op_default_nop = IsScalarOpDefaultNop();
+  if (is_vector_op_default_nop && is_scalar_op_default_nop) {
+    out->Append("   ");
+    if (is_predicated) {
+      out->Append(predicate_condition ? " (p0) " : "(!p0) ");
+    } else {
+      out->Append("      ");
+    }
+    out->Append("nop\n");
     return;
   }
-  if (has_vector_op) {
+  if (!is_vector_op_default_nop) {
     out->Append("   ");
     if (is_predicated) {
       out->Append(predicate_condition ? " (p0) " : "(!p0) ");
@@ -466,19 +481,19 @@ void ParsedAluInstruction::Disassemble(StringBuffer* out) const {
       out->Append("      ");
     }
     out->Append(vector_opcode_name);
-    if (vector_result.is_clamped) {
+    if (vector_and_constant_result.is_clamped) {
       out->Append("_sat");
     }
     out->Append(' ');
-    DisassembleResultOperand(vector_result, out);
-    for (int i = 0; i < vector_operand_count; ++i) {
+    DisassembleResultOperand(vector_and_constant_result, out);
+    for (uint32_t i = 0; i < vector_operand_count; ++i) {
       out->Append(", ");
       DisassembleSourceOperand(vector_operands[i], out);
     }
     out->Append('\n');
   }
-  if (has_scalar_op) {
-    out->Append(has_vector_op ? "              + " : "   ");
+  if (!is_scalar_op_default_nop) {
+    out->Append(is_vector_op_default_nop ? "   " : "              + ");
     if (is_predicated) {
       out->Append(predicate_condition ? " (p0) " : "(!p0) ");
     } else {
@@ -490,7 +505,7 @@ void ParsedAluInstruction::Disassemble(StringBuffer* out) const {
     }
     out->Append(' ');
     DisassembleResultOperand(scalar_result, out);
-    for (int i = 0; i < scalar_operand_count; ++i) {
+    for (uint32_t i = 0; i < scalar_operand_count; ++i) {
       out->Append(", ");
       DisassembleSourceOperand(scalar_operands[i], out);
     }

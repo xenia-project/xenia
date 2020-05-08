@@ -18,6 +18,7 @@
 
 #include "xenia/base/assert.h"
 #include "xenia/base/cvar.h"
+#include "xenia/base/math.h"
 
 DEFINE_bool(dxbc_switch, true,
             "Use switch rather than if for flow control. Turning this off or "
@@ -86,7 +87,6 @@ DxbcShaderTranslator::DxbcShaderTranslator(uint32_t vendor_id,
   // Don't allocate again and again for the first shader.
   shader_code_.reserve(8192);
   shader_object_.reserve(16384);
-  float_constant_index_offsets_.reserve(512);
 }
 DxbcShaderTranslator::~DxbcShaderTranslator() = default;
 
@@ -161,8 +161,6 @@ void DxbcShaderTranslator::Reset() {
   cbuffer_index_fetch_constants_ = kCbufferIndexUnallocated;
 
   system_constants_used_ = 0;
-  float_constants_dynamic_indexed_ = false;
-  float_constant_index_offsets_.clear();
 
   in_control_point_index_used_ = false;
 
@@ -1166,29 +1164,6 @@ void DxbcShaderTranslator::CompleteShaderCode() {
 
   // Release system_temps_subroutine_.
   PopSystemTemp(system_temps_subroutine_count_);
-
-  // Remap float constant indices if not indexed dynamically.
-  if (!float_constants_dynamic_indexed_ &&
-      !float_constant_index_offsets_.empty()) {
-    uint8_t float_constant_map[256] = {};
-    uint32_t float_constant_count = 0;
-    for (uint32_t i = 0; i < 4; ++i) {
-      uint64_t float_constants_used = constant_register_map().float_bitmap[i];
-      uint32_t float_constant_index;
-      while (
-          xe::bit_scan_forward(float_constants_used, &float_constant_index)) {
-        float_constants_used &= ~(1ull << float_constant_index);
-        float_constant_map[i * 64 + float_constant_index] =
-            float_constant_count++;
-      }
-    }
-    size_t index_count = float_constant_index_offsets_.size();
-    for (size_t i = 0; i < index_count; ++i) {
-      uint32_t index_offset = float_constant_index_offsets_[i];
-      shader_code_[index_offset] =
-          float_constant_map[shader_code_[index_offset] & 255];
-    }
-  }
 }
 
 std::vector<uint8_t> DxbcShaderTranslator::CompleteTranslation() {
@@ -1420,7 +1395,7 @@ void DxbcShaderTranslator::LoadDxbcSourceOperand(
           shader_code_.push_back(EncodeVectorSwizzledOperand(
               D3D10_SB_OPERAND_TYPE_INDEXABLE_TEMP, kSwizzleXYZW, 2));
           shader_code_.push_back(0);
-          shader_code_.push_back(uint32_t(operand.storage_index));
+          shader_code_.push_back(operand.storage_index);
         } else {
           shader_code_.push_back(
               ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
@@ -1433,7 +1408,7 @@ void DxbcShaderTranslator::LoadDxbcSourceOperand(
               D3D10_SB_OPERAND_INDEX_IMMEDIATE32,
               D3D10_SB_OPERAND_INDEX_IMMEDIATE32_PLUS_RELATIVE));
           shader_code_.push_back(0);
-          shader_code_.push_back(uint32_t(operand.storage_index));
+          shader_code_.push_back(operand.storage_index);
           shader_code_.push_back(EncodeVectorSelectOperand(
               D3D10_SB_OPERAND_TYPE_TEMP, dynamic_address_component, 1));
           shader_code_.push_back(dynamic_address_register);
@@ -1445,7 +1420,7 @@ void DxbcShaderTranslator::LoadDxbcSourceOperand(
         assert_true(operand.storage_addressing_mode ==
                     InstructionStorageAddressingMode::kStatic);
         dxbc_operand.type = DxbcSourceOperand::Type::kRegister;
-        dxbc_operand.index = uint32_t(operand.storage_index);
+        dxbc_operand.index = operand.storage_index;
       }
       break;
 
@@ -1457,11 +1432,18 @@ void DxbcShaderTranslator::LoadDxbcSourceOperand(
         cbuffer_index_float_constants_ = cbuffer_count_++;
       }
       dxbc_operand.type = DxbcSourceOperand::Type::kConstantFloat;
-      dxbc_operand.index = uint32_t(operand.storage_index);
       dxbc_operand.addressing_mode = operand.storage_addressing_mode;
-      if (operand.storage_addressing_mode !=
+      if (operand.storage_addressing_mode ==
           InstructionStorageAddressingMode::kStatic) {
-        float_constants_dynamic_indexed_ = true;
+        uint32_t float_constant_index =
+            constant_register_map().GetPackedFloatConstantIndex(
+                operand.storage_index);
+        assert_true(float_constant_index != UINT32_MAX);
+        dxbc_operand.index =
+            float_constant_index != UINT32_MAX ? float_constant_index : 0;
+      } else {
+        assert_true(constant_register_map().float_dynamic_addressing);
+        dxbc_operand.index = operand.storage_index;
       }
       break;
 
@@ -1652,11 +1634,6 @@ void DxbcShaderTranslator::UseDxbcSourceOperand(
       }
       shader_code_.push_back(cbuffer_index_float_constants_);
       shader_code_.push_back(uint32_t(CbufferRegister::kFloatConstants));
-      if (!float_constants_dynamic_indexed_) {
-        // If there's no dynamic indexing in the shader, constants are compacted
-        // and remapped. Store where the index has been written.
-        float_constant_index_offsets_.push_back(uint32_t(shader_code_.size()));
-      }
       shader_code_.push_back(operand.index);
       if (!is_static) {
         uint32_t dynamic_address_register, dynamic_address_component;
@@ -1718,8 +1695,9 @@ void DxbcShaderTranslator::UnloadDxbcSourceOperand(
 void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
                                        uint32_t reg, bool replicate_x,
                                        bool can_store_memexport_address) {
+  uint32_t used_write_mask = result.GetUsedWriteMask();
   if (result.storage_target == InstructionStorageTarget::kNone ||
-      !result.has_any_writes()) {
+      !result.GetUsedWriteMask()) {
     return;
   }
 
@@ -1744,10 +1722,9 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
       ENCODE_D3D10_SB_INSTRUCTION_SATURATE(result.is_clamped);
 
   // Scalar targets get only one component.
+  // TODO(Triang3l): It's not replicated, it's X specifically.
   if (result.storage_target == InstructionStorageTarget::kDepth) {
-    if (!result.write_mask[0]) {
-      return;
-    }
+    assert_not_zero(used_write_mask & 0b0001);
     SwizzleSource component = result.components[0];
     if (replicate_x && component <= SwizzleSource::kW) {
       component = SwizzleSource::kX;
@@ -1802,7 +1779,7 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
   uint32_t constant_mask = 0;
   uint32_t constant_values = 0;
   for (uint32_t i = 0; i < 4; ++i) {
-    if (!result.write_mask[i]) {
+    if (!(used_write_mask & (1 << i))) {
       continue;
     }
     SwizzleSource component = result.components[i];
@@ -1858,7 +1835,7 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
               is_static ? D3D10_SB_OPERAND_INDEX_IMMEDIATE32
                         : D3D10_SB_OPERAND_INDEX_IMMEDIATE32_PLUS_RELATIVE));
           shader_code_.push_back(0);
-          shader_code_.push_back(uint32_t(result.storage_index));
+          shader_code_.push_back(result.storage_index);
           if (!is_static) {
             shader_code_.push_back(EncodeVectorSelectOperand(
                 D3D10_SB_OPERAND_TYPE_TEMP, dynamic_address_component, 1));
@@ -1874,11 +1851,11 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
               saturate_bit);
           shader_code_.push_back(
               EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, mask, 1));
-          shader_code_.push_back(uint32_t(result.storage_index));
+          shader_code_.push_back(result.storage_index);
         }
         break;
 
-      case InstructionStorageTarget::kInterpolant:
+      case InstructionStorageTarget::kInterpolator:
         ++stat_.instruction_count;
         ++stat_.mov_instruction_count;
         shader_code_.push_back(
@@ -1943,7 +1920,7 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
                                         [uint32_t(result.storage_index)]);
         break;
 
-      case InstructionStorageTarget::kColorTarget:
+      case InstructionStorageTarget::kColor:
         ++stat_.instruction_count;
         ++stat_.mov_instruction_count;
         shader_code_.push_back(
@@ -1952,8 +1929,7 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
             saturate_bit);
         shader_code_.push_back(
             EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, mask, 1));
-        shader_code_.push_back(
-            system_temps_color_[uint32_t(result.storage_index)]);
+        shader_code_.push_back(system_temps_color_[result.storage_index]);
         break;
 
       default:
@@ -1989,13 +1965,13 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
     shader_code_.push_back(
         EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
     shader_code_.push_back(
-        1u << (uint32_t(result.storage_index) + ((memexport_index & 3) << 3)));
+        uint32_t(1) << (result.storage_index + ((memexport_index & 3) << 3)));
     ++stat_.instruction_count;
     ++stat_.uint_instruction_count;
   }
 
   if (edram_rov_used_ &&
-      result.storage_target == InstructionStorageTarget::kColorTarget) {
+      result.storage_target == InstructionStorageTarget::kColor) {
     // For ROV output, mark that the color has been written to.
     // According to:
     // https://docs.microsoft.com/en-us/windows/desktop/direct3dhlsl/dx9-graphics-reference-asm-ps-registers-output-color
@@ -2014,7 +1990,7 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
     shader_code_.push_back(system_temp_rov_params_);
     shader_code_.push_back(
         EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-    shader_code_.push_back(1 << (8 + uint32_t(result.storage_index)));
+    shader_code_.push_back(1 << (8 + result.storage_index));
     ++stat_.instruction_count;
     ++stat_.uint_instruction_count;
   }
@@ -2479,19 +2455,6 @@ const DxbcShaderTranslator::SystemConstantRdef DxbcShaderTranslator::
 };
 
 void DxbcShaderTranslator::WriteResourceDefinitions() {
-  // ***************************************************************************
-  // Preparation
-  // ***************************************************************************
-
-  // Float constant count.
-  uint32_t float_constant_count = 0;
-  if (cbuffer_index_float_constants_ != kCbufferIndexUnallocated) {
-    for (uint32_t i = 0; i < 4; ++i) {
-      float_constant_count +=
-          xe::bit_count(constant_register_map().float_bitmap[i]);
-    }
-  }
-
   uint32_t chunk_position_dwords = uint32_t(shader_object_.size());
   uint32_t new_offset;
 
@@ -2583,7 +2546,8 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
     if (RdefTypeIndex(i) == RdefTypeIndex::kFloat4ConstantArray) {
       // Declaring a 0-sized array may not be safe, so write something valid
       // even if they aren't used.
-      shader_object_.push_back(std::max(float_constant_count, 1u));
+      shader_object_.push_back(
+          std::max(constant_register_map().float_count, uint32_t(1)));
     } else {
       shader_object_.push_back(type.element_count |
                                (type.struct_member_count << 16));
@@ -2692,8 +2656,9 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
   if (cbuffer_index_float_constants_ != kCbufferIndexUnallocated) {
     shader_object_.push_back(constant_name_offset_float);
     shader_object_.push_back(0);
-    shader_object_.push_back(std::max(float_constant_count, 1u) * 4 *
-                             sizeof(float));
+    shader_object_.push_back(
+        std::max(constant_register_map().float_count, uint32_t(1)) * 4 *
+        sizeof(float));
     shader_object_.push_back(kDxbcRdefVariableFlagUsed);
     shader_object_.push_back(types_offset +
                              uint32_t(RdefTypeIndex::kFloat4ConstantArray) *
@@ -2795,8 +2760,9 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
       shader_object_.push_back(cbuffer_name_offset_float);
       shader_object_.push_back(1);
       shader_object_.push_back(constant_offset_float);
-      shader_object_.push_back(std::max(float_constant_count, 1u) * 4 *
-                               sizeof(float));
+      shader_object_.push_back(
+          std::max(constant_register_map().float_count, uint32_t(1)) * 4 *
+          sizeof(float));
       shader_object_.push_back(uint32_t(DxbcRdefCbufferType::kCbuffer));
       shader_object_.push_back(0);
     } else if (i == cbuffer_index_bool_loop_constants_) {
@@ -3646,15 +3612,10 @@ void DxbcShaderTranslator::WriteShaderCode() {
   // Constant buffers, from most frequenly accessed to least frequently accessed
   // (the order is a hint to the driver according to the DXBC header).
   if (cbuffer_index_float_constants_ != kCbufferIndexUnallocated) {
-    uint32_t float_constant_count = 0;
-    for (uint32_t i = 0; i < 4; ++i) {
-      float_constant_count +=
-          xe::bit_count(constant_register_map().float_bitmap[i]);
-    }
     shader_object_.push_back(
         ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_CONSTANT_BUFFER) |
         ENCODE_D3D10_SB_D3D10_SB_CONSTANT_BUFFER_ACCESS_PATTERN(
-            float_constants_dynamic_indexed_
+            constant_register_map().float_dynamic_addressing
                 ? D3D10_SB_CONSTANT_BUFFER_DYNAMIC_INDEXED
                 : D3D10_SB_CONSTANT_BUFFER_IMMEDIATE_INDEXED) |
         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
@@ -3663,7 +3624,7 @@ void DxbcShaderTranslator::WriteShaderCode() {
     shader_object_.push_back(cbuffer_index_float_constants_);
     shader_object_.push_back(uint32_t(CbufferRegister::kFloatConstants));
     shader_object_.push_back(uint32_t(CbufferRegister::kFloatConstants));
-    shader_object_.push_back(float_constant_count);
+    shader_object_.push_back(constant_register_map().float_count);
     shader_object_.push_back(0);
   }
   if (cbuffer_index_system_constants_ != kCbufferIndexUnallocated) {

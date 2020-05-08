@@ -667,7 +667,11 @@ static_assert_size(TextureFetchInstruction, 12);
 //   Both are valid only within the current ALU clause. They are not modified
 //   when the instruction that would write them fails its predication check.
 // - Direct3D 9 rules (like in GCN v_*_legacy_f32 instructions) for
-//   multiplication (0 * anything = 0) and for NaN in min/max.
+//   multiplication (0 * anything = 0) wherever it's present (mul, mad, dp,
+//   etc.) and for NaN in min/max. It's very important to respect this rule for
+//   multiplication, as games often rely on it in vector normalization (rcp and
+//   mul), Infinity * 0 resulting in NaN breaks a lot of things in games -
+//   causes white screen in Halo 3, white specular on characters in GTA IV.
 
 enum class AluScalarOpcode : uint32_t {
   // Floating-Point Add
@@ -1300,8 +1304,10 @@ enum class AluVectorOpcode : uint32_t {
 
 // Whether the vector instruction has side effects such as discarding a pixel or
 // setting the predicate and can't be ignored even if it doesn't write to
-// anywhere.
-inline bool AluVectorOpcodeHasSideEffects(AluVectorOpcode vector_opcode) {
+// anywhere. Note that all scalar operations except for retain_prev have a side
+// effect of modifying the previous scalar result register, so they must always
+// be executed even if not writing.
+constexpr bool AluVectorOpHasSideEffects(AluVectorOpcode vector_opcode) {
   switch (vector_opcode) {
     case AluVectorOpcode::kSetpEqPush:
     case AluVectorOpcode::kSetpNePush:
@@ -1319,7 +1325,126 @@ inline bool AluVectorOpcodeHasSideEffects(AluVectorOpcode vector_opcode) {
   return false;
 }
 
+// Whether each component of a source operand is used at all in the instruction
+// (doesn't check the operand count though).
+constexpr uint32_t GetAluVectorOpUsedSourceComponents(
+    AluVectorOpcode vector_opcode, uint32_t src_index) {
+  switch (vector_opcode) {
+    case AluVectorOpcode::kDp3:
+      return 0b0111;
+    case AluVectorOpcode::kDp2Add:
+      return src_index == 3 ? 0b0001 : 0b0011;
+    case AluVectorOpcode::kSetpEqPush:
+    case AluVectorOpcode::kSetpNePush:
+    case AluVectorOpcode::kSetpGtPush:
+    case AluVectorOpcode::kSetpGePush:
+      return 0b1001;
+    case AluVectorOpcode::kDst:
+      return src_index == 2 ? 0b1010 : 0b0110;
+    default:
+      break;
+  }
+  return 0b1111;
+}
+
+// Whether each component of a source operand is needed for the instruction if
+// executed with the specified write mask, and thus can't be thrown away or be
+// undefined in translation. For per-component operations, for example, only the
+// components specified in the write mask are needed, but there are instructions
+// with special behavior for certain components.
+constexpr uint32_t GetAluVectorOpNeededSourceComponents(
+    AluVectorOpcode vector_opcode, uint32_t src_index, uint32_t write_mask) {
+  uint32_t components = write_mask;
+  switch (vector_opcode) {
+    case AluVectorOpcode::kDp4:
+    case AluVectorOpcode::kMax4:
+      components = write_mask ? 0b1111 : 0;
+      break;
+    case AluVectorOpcode::kDp3:
+      components = write_mask ? 0b0111 : 0;
+      break;
+    case AluVectorOpcode::kDp2Add:
+      components = write_mask ? (src_index == 3 ? 0b0001 : 0b0011) : 0;
+      break;
+    case AluVectorOpcode::kCube:
+      components = write_mask ? 0b1111 : 0;
+      break;
+    case AluVectorOpcode::kSetpEqPush:
+    case AluVectorOpcode::kSetpNePush:
+    case AluVectorOpcode::kSetpGtPush:
+    case AluVectorOpcode::kSetpGePush:
+      components = write_mask ? 0b1001 : 0b1000;
+      break;
+    case AluVectorOpcode::kKillEq:
+    case AluVectorOpcode::kKillGt:
+    case AluVectorOpcode::kKillGe:
+    case AluVectorOpcode::kKillNe:
+      components = 0b1111;
+      break;
+    // kDst is per-component, but not all components are used -
+    // GetAluVectorOpUsedSourceComponents will filter out the unused ones.
+    case AluVectorOpcode::kMaxA:
+      if (src_index == 1) {
+        components |= 0b1000;
+      }
+      break;
+    default:
+      break;
+  }
+  return components &
+         GetAluVectorOpUsedSourceComponents(vector_opcode, src_index);
+}
+
+enum class ExportRegister : uint32_t {
+  kVSInterpolator0 = 0,
+  kVSInterpolator1,
+  kVSInterpolator2,
+  kVSInterpolator3,
+  kVSInterpolator4,
+  kVSInterpolator5,
+  kVSInterpolator6,
+  kVSInterpolator7,
+  kVSInterpolator8,
+  kVSInterpolator9,
+  kVSInterpolator10,
+  kVSInterpolator11,
+  kVSInterpolator12,
+  kVSInterpolator13,
+  kVSInterpolator14,
+  kVSInterpolator15,
+
+  kVSPosition = 62,
+
+  // See R6xx/R7xx registers for details (USE_VTX_POINT_SIZE, USE_VTX_EDGE_FLAG,
+  // USE_VTX_KILL_FLAG).
+  // X - PSIZE (gl_PointSize).
+  // Y - EDGEFLAG (glEdgeFlag) for PrimitiveType::kPolygon wireframe/point
+  //     drawing.
+  // Z - KILLVERTEX flag (used in Banjo-Kazooie: Nuts & Bolts for grass), set
+  //     for killing primitives based on PA_CL_CLIP_CNTL::VTX_KILL_OR condition.
+  kVSPointSizeEdgeFlagKillVertex = 63,
+
+  kPSColor0 = 0,
+  kPSColor1,
+  kPSColor2,
+  kPSColor3,
+
+  // In X.
+  kPSDepth = 61,
+
+  // Memory export: index.?y?? * 0100 + xe_gpu_memexport_stream_t.xyzw.
+  kExportAddress = 32,
+  // Memory export: values for texels [index+0], [index+1], ..., [index+4].
+  kExportData0 = 33,
+  kExportData1,
+  kExportData2,
+  kExportData3,
+  kExportData4,
+};
+
 struct AluInstruction {
+  // Raw accessors.
+
   // Whether data is being exported (or written to local registers).
   bool is_export() const { return data_.export_data == 1; }
   bool export_write_mask() const { return data_.scalar_dest_rel == 1; }
@@ -1334,20 +1459,12 @@ struct AluInstruction {
   bool is_const_1_addressed() const { return data_.const_1_rel_abs == 1; }
   bool is_address_relative() const { return data_.address_absolute == 1; }
 
-  bool has_vector_op() const {
-    return vector_write_mask() || is_export() ||
-           AluVectorOpcodeHasSideEffects(vector_opcode());
-  }
   AluVectorOpcode vector_opcode() const { return data_.vector_opc; }
   uint32_t vector_write_mask() const { return data_.vector_write_mask; }
   uint32_t vector_dest() const { return data_.vector_dest; }
   bool is_vector_dest_relative() const { return data_.vector_dest_rel == 1; }
   bool vector_clamp() const { return data_.vector_clamp == 1; }
 
-  bool has_scalar_op() const {
-    return scalar_opcode() != AluScalarOpcode::kRetainPrev ||
-           (!is_export() && scalar_write_mask() != 0);
-  }
   AluScalarOpcode scalar_opcode() const { return data_.scalar_opc; }
   uint32_t scalar_write_mask() const { return data_.scalar_write_mask; }
   uint32_t scalar_dest() const { return data_.scalar_dest; }
@@ -1407,14 +1524,62 @@ struct AluInstruction {
     }
   }
 
+  // Helpers.
+
+  // Note that even if the export component is unused (like W of the vertex
+  // shader misc register, YZW of pixel shader depth), it must still not be
+  // excluded - that may make disassembly not reassemblable if there are
+  // constant 0 writes in the export, like, oPts.x000 will be assembled, but
+  // oPts.x00_ will not, even though W has no effect on anything.
+  uint32_t GetVectorOpResultWriteMask() const {
+    uint32_t mask = vector_write_mask();
+    if (is_export()) {
+      mask &= ~scalar_write_mask();
+    }
+    return mask;
+  }
+  uint32_t GetScalarOpResultWriteMask() const {
+    uint32_t mask = scalar_write_mask();
+    if (is_export()) {
+      mask &= ~vector_write_mask();
+    }
+    return mask;
+  }
+  uint32_t GetConstant0WriteMask() const {
+    if (!is_export() || !is_scalar_dest_relative()) {
+      return 0b0000;
+    }
+    return 0b1111 & ~(vector_write_mask() | scalar_write_mask());
+  }
+  uint32_t GetConstant1WriteMask() const {
+    if (!is_export()) {
+      return 0b0000;
+    }
+    return vector_write_mask() & scalar_write_mask();
+  }
+
  private:
   XEPACKEDSTRUCT(Data, {
     XEPACKEDSTRUCTANONYMOUS({
+      // If exporting, both vector and scalar operations use the vector
+      // destination (which can't be relative in this case).
+      // Not very important note: If both scalar and vector operations exporting
+      // something have empty write mask, the XNA assembler forces vector_dest
+      // to 0 (interpolator 0 or color 0) directly in the microcode.
       uint32_t vector_dest : 6;
       uint32_t vector_dest_rel : 1;
       uint32_t abs_constants : 1;
       uint32_t scalar_dest : 6;
       uint32_t scalar_dest_rel : 1;
+      // Exports have different write masking (export is done to vector_dest by
+      // both the vector and the scalar operation, and exports can write
+      // constant 0 and 1). For each component:
+      // - vector_write_mask 0, scalar_write_mask 0:
+      //   - scalar_dest_rel 0 - unchanged.
+      //   - scalar_dest_rel 1 - constant 0 (all components must be written).
+      // - vector_write_mask 1, scalar_write_mask 0 - from vector operation.
+      // - vector_write_mask 0, scalar_write_mask 1 - from scalar operation.
+      // - vector_write_mask 1, scalar_write_mask 1 - constant 1.
       uint32_t export_data : 1;
       uint32_t vector_write_mask : 4;
       uint32_t scalar_write_mask : 4;

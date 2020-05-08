@@ -2003,7 +2003,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
 
 void SpirvShaderTranslator::ProcessAluInstruction(
     const ParsedAluInstruction& instr) {
-  if (instr.is_nop()) {
+  if (instr.IsNop()) {
     return;
   }
 
@@ -2044,7 +2044,7 @@ void SpirvShaderTranslator::ProcessAluInstruction(
       ProcessScalarAluOperation(instr, close_predicated_block_scalar);
 
   if (store_vector) {
-    StoreToResult(b.createLoad(pv_), instr.vector_result);
+    StoreToResult(b.createLoad(pv_), instr.vector_and_constant_result);
   }
   if (store_scalar) {
     StoreToResult(b.createLoad(ps_), instr.scalar_result);
@@ -2252,7 +2252,8 @@ bool SpirvShaderTranslator::ProcessVectorAluOperation(
     const ParsedAluInstruction& instr, bool& close_predicated_block) {
   close_predicated_block = false;
 
-  if (!instr.has_vector_op) {
+  if (!instr.vector_and_constant_result.GetUsedWriteMask() &&
+      !AluVectorOpHasSideEffects(instr.vector_opcode)) {
     return false;
   }
 
@@ -2261,7 +2262,7 @@ bool SpirvShaderTranslator::ProcessVectorAluOperation(
   // TODO: If we have identical operands, reuse previous one.
   Id sources[3] = {0};
   Id dest = vec4_float_zero_;
-  for (size_t i = 0; i < instr.vector_operand_count; i++) {
+  for (uint32_t i = 0; i < instr.vector_operand_count; i++) {
     sources[i] = LoadFromOperand(instr.vector_operands[i]);
   }
 
@@ -2636,7 +2637,8 @@ bool SpirvShaderTranslator::ProcessScalarAluOperation(
     const ParsedAluInstruction& instr, bool& close_predicated_block) {
   close_predicated_block = false;
 
-  if (!instr.has_scalar_op) {
+  if (instr.scalar_opcode == ucode::AluScalarOpcode::kRetainPrev &&
+      !instr.scalar_result.GetUsedWriteMask()) {
     return false;
   }
 
@@ -2645,12 +2647,12 @@ bool SpirvShaderTranslator::ProcessScalarAluOperation(
   // TODO: If we have identical operands, reuse previous one.
   Id sources[3] = {0};
   Id dest = b.makeFloatConstant(0);
-  for (size_t i = 0, x = 0; i < instr.scalar_operand_count; i++) {
+  for (uint32_t i = 0, x = 0; i < instr.scalar_operand_count; i++) {
     auto src = LoadFromOperand(instr.scalar_operands[i]);
 
     // Pull components out of the vector operands and use them as sources.
     if (instr.scalar_operands[i].component_count > 1) {
-      for (int j = 0; j < instr.scalar_operands[i].component_count; j++) {
+      for (uint32_t j = 0; j < instr.scalar_operands[i].component_count; j++) {
         sources[x++] = b.createCompositeExtract(src, float_type_, j);
       }
     } else {
@@ -3191,7 +3193,7 @@ Id SpirvShaderTranslator::LoadFromOperand(const InstructionOperand& op) {
   }
 
   // swizzle
-  if (op.component_count > 1 && !op.is_standard_swizzle()) {
+  if (op.component_count > 1 && !op.IsStandardSwizzle()) {
     std::vector<uint32_t> operands;
     operands.push_back(storage_value);
     operands.push_back(b.makeCompositeConstant(
@@ -3200,7 +3202,7 @@ Id SpirvShaderTranslator::LoadFromOperand(const InstructionOperand& op) {
 
     // Components start from left and are duplicated rightwards
     // e.g. count = 1, xxxx / count = 2, xyyy ...
-    for (int i = 0; i < 4; i++) {
+    for (uint32_t i = 0; i < 4; i++) {
       auto swiz = op.components[i];
       if (i > op.component_count - 1) {
         swiz = op.components[op.component_count - 1];
@@ -3244,7 +3246,8 @@ void SpirvShaderTranslator::StoreToResult(Id source_value_id,
     return;
   }
 
-  if (!result.has_any_writes()) {
+  uint32_t used_write_mask = result.GetUsedWriteMask();
+  if (!used_write_mask) {
     return;
   }
 
@@ -3285,7 +3288,7 @@ void SpirvShaderTranslator::StoreToResult(Id source_value_id,
       storage_array = true;
       assert_true(uint32_t(result.storage_index) < register_count());
       break;
-    case InstructionStorageTarget::kInterpolant:
+    case InstructionStorageTarget::kInterpolator:
       assert_true(is_vertex_shader());
       storage_pointer = interpolators_;
       storage_class = spv::StorageClass::StorageClassOutput;
@@ -3310,7 +3313,7 @@ void SpirvShaderTranslator::StoreToResult(Id source_value_id,
       storage_offsets.push_back(0);
       storage_array = false;
       break;
-    case InstructionStorageTarget::kColorTarget:
+    case InstructionStorageTarget::kColor:
       assert_true(is_pixel_shader());
       assert_not_zero(frag_outputs_);
       storage_pointer = frag_outputs_;
@@ -3351,7 +3354,7 @@ void SpirvShaderTranslator::StoreToResult(Id source_value_id,
 
   // Only load from storage if we need it later.
   Id storage_value = 0;
-  if ((source_is_scalar && !storage_is_scalar) || !result.has_all_writes()) {
+  if ((source_is_scalar && !storage_is_scalar) || used_write_mask != 0b1111) {
     storage_value = b.createLoad(storage_pointer);
   }
 
@@ -3366,7 +3369,7 @@ void SpirvShaderTranslator::StoreToResult(Id source_value_id,
   }
 
   // destination swizzle
-  if (!result.is_standard_swizzle() && !source_is_scalar) {
+  if (!result.IsStandardSwizzle() && !source_is_scalar) {
     std::vector<uint32_t> operands;
     operands.push_back(source_value_id);
     operands.push_back(b.makeCompositeConstant(
@@ -3377,7 +3380,7 @@ void SpirvShaderTranslator::StoreToResult(Id source_value_id,
     // e.g. count = 1, xxxx / count = 2, xyyy ...
     uint32_t source_components = b.getNumComponents(source_value_id);
     for (int i = 0; i < 4; i++) {
-      if (!result.write_mask[i]) {
+      if (!(used_write_mask & (1 << i))) {
         // Undefined / don't care.
         operands.push_back(0);
         continue;
@@ -3411,29 +3414,30 @@ void SpirvShaderTranslator::StoreToResult(Id source_value_id,
   }
 
   // write mask
-  if (!result.has_all_writes() && !source_is_scalar && !storage_is_scalar) {
+  if (used_write_mask != 0b1111 && !source_is_scalar && !storage_is_scalar) {
     std::vector<uint32_t> operands;
     operands.push_back(source_value_id);
     operands.push_back(storage_value);
 
     for (int i = 0; i < b.getNumTypeComponents(storage_type); i++) {
-      operands.push_back(
-          result.write_mask[i] ? i : b.getNumComponents(source_value_id) + i);
+      operands.push_back((used_write_mask & (1 << i))
+                             ? i
+                             : b.getNumComponents(source_value_id) + i);
     }
 
     source_value_id =
         b.createOp(spv::Op::OpVectorShuffle, storage_type, operands);
   } else if (source_is_scalar && !storage_is_scalar) {
-    assert_true(result.num_writes() >= 1);
+    assert_not_zero(used_write_mask);
 
-    if (result.has_all_writes()) {
+    if (used_write_mask == 0b1111) {
       source_value_id =
           b.smearScalar(spv::NoPrecision, source_value_id, storage_type);
     } else {
       // Find first enabled component
       uint32_t index = 0;
       for (uint32_t i = 0; i < 4; i++) {
-        if (result.write_mask[i]) {
+        if (used_write_mask & (1 << i)) {
           index = i;
           break;
         }
@@ -3443,10 +3447,10 @@ void SpirvShaderTranslator::StoreToResult(Id source_value_id,
     }
   } else if (!source_is_scalar && storage_is_scalar) {
     // Num writes /needs/ to be 1, and let's assume it's the first element.
-    assert_true(result.num_writes() == 1);
+    assert_true(xe::bit_count(used_write_mask) == 1);
 
     for (uint32_t i = 0; i < 4; i++) {
-      if (result.write_mask[i]) {
+      if (used_write_mask & (1 << i)) {
         source_value_id =
             b.createCompositeExtract(source_value_id, storage_type, 0);
         break;
