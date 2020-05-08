@@ -809,14 +809,6 @@ bool PipelineCache::EnsureShadersTranslated(
     D3D12Shader* vertex_shader, D3D12Shader* pixel_shader,
     Shader::HostVertexShaderType host_vertex_shader_type) {
   auto& regs = *register_file_;
-
-  // These are the constant base addresses/ranges for shaders.
-  // We have these hardcoded right now cause nothing seems to differ.
-  assert_true(regs[XE_GPU_REG_SQ_VS_CONST].u32 == 0x000FF000 ||
-              regs[XE_GPU_REG_SQ_VS_CONST].u32 == 0x00000000);
-  assert_true(regs[XE_GPU_REG_SQ_PS_CONST].u32 == 0x000FF100 ||
-              regs[XE_GPU_REG_SQ_PS_CONST].u32 == 0x00000000);
-
   auto sq_program_cntl = regs.Get<reg::SQ_PROGRAM_CNTL>();
 
   // Edge flags are not supported yet (because polygon primitives are not).

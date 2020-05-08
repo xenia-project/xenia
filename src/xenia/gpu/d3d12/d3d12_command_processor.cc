@@ -2961,6 +2961,14 @@ bool D3D12CommandProcessor::UpdateBindings(
       (!samplers_written_pixel_ ||
        current_samplers_hash_pixel_ != samplers_hash_pixel);
 
+  // These are the constant base addresses/ranges for shaders.
+  // We have these hardcoded right now cause nothing seems to differ on the Xbox
+  // 360 (however, OpenGL ES on Adreno 200 on Android has different ranges).
+  assert_true(regs[XE_GPU_REG_SQ_VS_CONST].u32 == 0x000FF000 ||
+              regs[XE_GPU_REG_SQ_VS_CONST].u32 == 0x00000000);
+  assert_true(regs[XE_GPU_REG_SQ_PS_CONST].u32 == 0x000FF100 ||
+              regs[XE_GPU_REG_SQ_PS_CONST].u32 == 0x00000000);
+
   // Check if the float constant layout is still the same and get the counts.
   const Shader::ConstantRegisterMap& float_constant_map_vertex =
       vertex_shader->constant_register_map();

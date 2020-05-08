@@ -857,10 +857,10 @@ class DxbcShaderTranslator : public ShaderTranslator {
           return 0b0000;
       }
     }
-    DxbcDest Mask(uint32_t write_mask) const {
+    [[nodiscard]] DxbcDest Mask(uint32_t write_mask) const {
       return DxbcDest(type_, write_mask, index_1d_, index_2d_, index_3d_);
     }
-    DxbcDest MaskMasked(uint32_t write_mask) const {
+    [[nodiscard]] DxbcDest MaskMasked(uint32_t write_mask) const {
       return DxbcDest(type_, write_mask_ & write_mask, index_1d_, index_2d_,
                       index_3d_);
     }
@@ -991,26 +991,28 @@ class DxbcShaderTranslator : public ShaderTranslator {
       return DxbcSrc(DxbcOperandType::kInputCoverageMask, kXXXX);
     }
 
-    DxbcSrc WithModifiers(bool absolute, bool negate) const {
+    [[nodiscard]] DxbcSrc WithModifiers(bool absolute, bool negate) const {
       DxbcSrc new_src(*this);
       new_src.absolute_ = absolute;
       new_src.negate_ = negate;
       return new_src;
     }
-    DxbcSrc WithAbs(bool absolute) const {
+    [[nodiscard]] DxbcSrc WithAbs(bool absolute) const {
       return WithModifiers(absolute, negate_);
     }
-    DxbcSrc WithNeg(bool negate) const {
+    [[nodiscard]] DxbcSrc WithNeg(bool negate) const {
       return WithModifiers(absolute_, negate);
     }
-    DxbcSrc Abs() const { return WithModifiers(true, false); }
-    DxbcSrc operator-() const { return WithModifiers(absolute_, !negate_); }
-    DxbcSrc Swizzle(uint32_t swizzle) const {
+    [[nodiscard]] DxbcSrc Abs() const { return WithModifiers(true, false); }
+    [[nodiscard]] DxbcSrc operator-() const {
+      return WithModifiers(absolute_, !negate_);
+    }
+    [[nodiscard]] DxbcSrc Swizzle(uint32_t swizzle) const {
       DxbcSrc new_src(*this);
       new_src.swizzle_ = swizzle;
       return new_src;
     }
-    DxbcSrc SwizzleSwizzled(uint32_t swizzle) const {
+    [[nodiscard]] DxbcSrc SwizzleSwizzled(uint32_t swizzle) const {
       DxbcSrc new_src(*this);
       new_src.swizzle_ = 0;
       for (uint32_t i = 0; i < 4; ++i) {
@@ -1019,12 +1021,12 @@ class DxbcShaderTranslator : public ShaderTranslator {
       }
       return new_src;
     }
-    DxbcSrc Select(uint32_t component) const {
+    [[nodiscard]] DxbcSrc Select(uint32_t component) const {
       DxbcSrc new_src(*this);
       new_src.swizzle_ = component * 0b01010101;
       return new_src;
     }
-    DxbcSrc SelectFromSwizzled(uint32_t component) const {
+    [[nodiscard]] DxbcSrc SelectFromSwizzled(uint32_t component) const {
       DxbcSrc new_src(*this);
       new_src.swizzle_ = ((swizzle_ >> (component * 2)) & 3) * 0b01010101;
       return new_src;
@@ -2026,6 +2028,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
   void EmitInstructionDisassembly();
 
   // Abstract 4-component vector source operand.
+  // TODO(Triang3l): Remove after fully moving to the new emitter.
   struct DxbcSourceOperand {
     enum class Type {
       // GPR number in the index - used only when GPRs are not dynamically
@@ -2064,18 +2067,22 @@ class DxbcShaderTranslator : public ShaderTranslator {
   };
   // Each Load must be followed by Unload, otherwise there may be a temporary
   // register leak.
+  // TODO(Triang3l): Remove after fully moving to the new emitter.
   void LoadDxbcSourceOperand(const InstructionOperand& operand,
                              DxbcSourceOperand& dxbc_operand);
   // Number of tokens this operand adds to the instruction length when used.
+  // TODO(Triang3l): Remove after fully moving to the new emitter.
   uint32_t DxbcSourceOperandLength(const DxbcSourceOperand& operand,
                                    bool negate = false,
                                    bool absolute = false) const;
   // Writes the operand access tokens to the instruction (either for a scalar if
   // select_component is <= 3, or for a vector).
+  // TODO(Triang3l): Remove after fully moving to the new emitter.
   void UseDxbcSourceOperand(const DxbcSourceOperand& operand,
                             uint32_t additional_swizzle = kSwizzleXYZW,
                             uint32_t select_component = 4, bool negate = false,
                             bool absolute = false);
+  // TODO(Triang3l): Remove after fully moving to the new emitter.
   void UnloadDxbcSourceOperand(const DxbcSourceOperand& operand);
 
   // Writes xyzw or xxxx of the specified r# to the destination.
@@ -2257,15 +2264,6 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // Mask of system constants (1 << kSysConst_#_Index) used in the shader, so
   // the remaining ones can be marked as unused in RDEF.
   uint64_t system_constants_used_;
-
-  // Whether constants are dynamically indexed and need to be marked as such in
-  // dcl_constantBuffer.
-  bool float_constants_dynamic_indexed_;
-
-  // Offsets of float constant indices in shader_code_, for remapping in
-  // CompleteTranslation (initially, at these offsets, guest float constant
-  // indices are written).
-  std::vector<uint32_t> float_constant_index_offsets_;
 
   // Whether InOutRegister::kDSInControlPointIndex has been used in the shader.
   bool in_control_point_index_used_;

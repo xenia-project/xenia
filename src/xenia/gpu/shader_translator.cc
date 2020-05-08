@@ -131,9 +131,8 @@ bool ShaderTranslator::TranslateInternal(
   ucode_dwords_ = shader->ucode_dwords();
   ucode_dword_count_ = shader->ucode_dword_count();
 
-  // Run through and gather all binding information and to check whether
-  // registers are dynamically addressed.
-  // Translators may need this before they start codegen.
+  // Run through and gather all binding, operand addressing and export
+  // information. Translators may need this before they start codegen.
   uint32_t max_cf_dword_index = static_cast<uint32_t>(ucode_dword_count_);
   for (uint32_t i = 0; i < max_cf_dword_index; i += 3) {
     ControlFlowInstruction cf_a;
@@ -151,10 +150,27 @@ bool ShaderTranslator::TranslateInternal(
     GatherInstructionInformation(cf_a);
     GatherInstructionInformation(cf_b);
   }
+
+  if (constant_register_map_.float_dynamic_addressing) {
+    // All potentially can be referenced.
+    constant_register_map_.float_count = 256;
+    memset(constant_register_map_.float_bitmap, UINT8_MAX,
+           sizeof(constant_register_map_.float_bitmap));
+  } else {
+    constant_register_map_.float_count = 0;
+    for (int i = 0; i < 4; ++i) {
+      // Each bit indicates a vec4 (4 floats).
+      constant_register_map_.float_count +=
+          xe::bit_count(constant_register_map_.float_bitmap[i]);
+    }
+  }
+
   // Cleanup invalid/unneeded memexport allocs.
   for (uint32_t i = 0; i < kMaxMemExports; ++i) {
-    if (!memexport_eM_written_[i]) {
-      memexport_eA_written_ &= ~(1u << i);
+    if (!(memexport_eA_written_ & (uint32_t(1) << i))) {
+      memexport_eM_written_[i] = 0;
+    } else if (!memexport_eM_written_[i]) {
+      memexport_eA_written_ &= ~(uint32_t(1) << i);
     }
   }
   if (memexport_eA_written_ == 0) {
@@ -170,27 +186,6 @@ bool ShaderTranslator::TranslateInternal(
   StartTranslation();
 
   TranslateBlocks();
-
-  // Compute total number of float registers and total bytes used by the
-  // register map. This saves us work later when we need to pack them.
-  constant_register_map_.packed_byte_length = 0;
-  constant_register_map_.float_count = 0;
-  for (int i = 0; i < 4; ++i) {
-    // Each bit indicates a vec4 (4 floats).
-    constant_register_map_.float_count +=
-        xe::bit_count(constant_register_map_.float_bitmap[i]);
-  }
-  constant_register_map_.packed_byte_length +=
-      4 * 4 * constant_register_map_.float_count;
-  // Each bit indicates a single word.
-  constant_register_map_.packed_byte_length +=
-      4 * xe::bit_count(constant_register_map_.loop_bitmap);
-  // Direct map between words and words we upload.
-  for (int i = 0; i < 8; ++i) {
-    if (constant_register_map_.bool_bitmap[i]) {
-      constant_register_map_.packed_byte_length += 4;
-    }
-  }
 
   shader->errors_ = std::move(errors_);
   shader->translated_binary_ = CompleteTranslation();
@@ -267,6 +262,43 @@ void ShaderTranslator::EmitUnimplementedTranslationError() {
 
 void ShaderTranslator::GatherInstructionInformation(
     const ControlFlowInstruction& cf) {
+  uint32_t bool_constant_index = UINT32_MAX;
+  switch (cf.opcode()) {
+    case ControlFlowOpcode::kCondExec:
+    case ControlFlowOpcode::kCondExecEnd:
+    case ControlFlowOpcode::kCondExecPredClean:
+    case ControlFlowOpcode::kCondExecPredCleanEnd:
+      bool_constant_index = cf.cond_exec.bool_address();
+      break;
+    case ControlFlowOpcode::kCondCall:
+      if (!cf.cond_call.is_unconditional() && !cf.cond_call.is_predicated()) {
+        bool_constant_index = cf.cond_call.bool_address();
+      }
+      break;
+    case ControlFlowOpcode::kCondJmp:
+      if (!cf.cond_jmp.is_unconditional() && !cf.cond_jmp.is_predicated()) {
+        bool_constant_index = cf.cond_jmp.bool_address();
+      }
+      break;
+    case ControlFlowOpcode::kLoopStart:
+      constant_register_map_.loop_bitmap |= uint32_t(1)
+                                            << cf.loop_start.loop_id();
+      break;
+    case ControlFlowOpcode::kLoopEnd:
+      constant_register_map_.loop_bitmap |= uint32_t(1)
+                                            << cf.loop_end.loop_id();
+      break;
+    case ControlFlowOpcode::kAlloc:
+      if (cf.alloc.alloc_type() == AllocType::kMemory) {
+        ++memexport_alloc_count_;
+      }
+      break;
+  }
+  if (bool_constant_index != UINT32_MAX) {
+    constant_register_map_.bool_bitmap[bool_constant_index / 32] |=
+        uint32_t(1) << (bool_constant_index % 32);
+  }
+
   switch (cf.opcode()) {
     case ControlFlowOpcode::kExec:
     case ControlFlowOpcode::kExecEnd:
@@ -296,99 +328,128 @@ void ShaderTranslator::GatherInstructionInformation(
                     ucode_dwords_ + instr_offset * 3));
           }
         } else {
-          // Gather up color targets written to, and check if using dynamic
-          // register indices.
+          // Gather info needed for the translation pass because having such
+          // state changed in the middle of translation may break things. Check
+          // the comments for each specific variable set here to see usage
+          // restrictions that can be assumed here (such as only marking exports
+          // as written if the used write mask is non-empty).
           auto& op = *reinterpret_cast<const AluInstruction*>(ucode_dwords_ +
                                                               instr_offset * 3);
-          if (op.has_vector_op()) {
-            const auto& opcode_info =
-                alu_vector_opcode_infos_[static_cast<int>(op.vector_opcode())];
-            implicit_early_z_allowed_ &= !opcode_info.disable_implicit_early_z;
-            for (size_t i = 0; i < opcode_info.argument_count; ++i) {
-              if (op.src_is_temp(i + 1) && (op.src_reg(i + 1) & 0x40)) {
-                uses_register_dynamic_addressing_ = true;
-              }
-            }
-            if (op.is_export()) {
-              if (is_pixel_shader()) {
-                if (op.vector_dest() <= 3) {
-                  writes_color_targets_[op.vector_dest()] = true;
-                } else if (op.vector_dest() == 61) {
+          ParsedAluInstruction instr;
+          ParseAluInstruction(op, instr);
+
+          const auto& vector_opcode_info =
+              alu_vector_opcode_infos_[uint32_t(op.vector_opcode())];
+          implicit_early_z_allowed_ &=
+              !vector_opcode_info.disable_implicit_early_z;
+          const auto& scalar_opcode_info =
+              alu_scalar_opcode_infos_[uint32_t(op.scalar_opcode())];
+          implicit_early_z_allowed_ &=
+              !scalar_opcode_info.disable_implicit_early_z;
+
+          if (instr.vector_and_constant_result.storage_target !=
+                  InstructionStorageTarget::kRegister ||
+              instr.scalar_result.storage_target !=
+                  InstructionStorageTarget::kRegister) {
+            // Export is done to vector_dest of the ucode instruction for both
+            // vector and scalar operations - no need to check separately.
+            assert_true(instr.vector_and_constant_result.storage_target ==
+                            instr.scalar_result.storage_target &&
+                        instr.vector_and_constant_result.storage_index ==
+                            instr.scalar_result.storage_index);
+            if (instr.vector_and_constant_result.GetUsedWriteMask() ||
+                instr.scalar_result.GetUsedWriteMask()) {
+              InstructionStorageTarget export_target =
+                  instr.vector_and_constant_result.storage_target;
+              uint32_t export_index =
+                  instr.vector_and_constant_result.storage_index;
+              switch (export_target) {
+                case InstructionStorageTarget::kExportAddress:
+                  // Store used memexport constants because CPU code needs
+                  // addresses and sizes, and also whether there have been
+                  // writes to eA and eM# for register allocation in shader
+                  // translator implementations.
+                  // eA is (hopefully) always written to using:
+                  // mad eA, r#, const0100, c#
+                  // (though there are some exceptions, shaders in Halo 3 for
+                  // some reason set eA to zeros, but the swizzle of the
+                  // constant is not .xyzw in this case, and they don't write to
+                  // eM#).
+                  if (memexport_alloc_count_ > 0 &&
+                      memexport_alloc_count_ <= kMaxMemExports) {
+                    uint32_t memexport_stream_constant =
+                        instr.GetMemExportStreamConstant();
+                    if (memexport_stream_constant != UINT32_MAX) {
+                      memexport_eA_written_ |= uint32_t(1)
+                                               << (memexport_alloc_count_ - 1);
+                      memexport_stream_constants_.insert(
+                          memexport_stream_constant);
+                    } else {
+                      XELOGE(
+                          "ShaderTranslator::GatherInstructionInformation: "
+                          "Couldn't extract memexport stream constant index");
+                    }
+                  }
+                  break;
+                case InstructionStorageTarget::kExportData:
+                  if (memexport_alloc_count_ > 0 &&
+                      memexport_alloc_count_ <= kMaxMemExports) {
+                    memexport_eM_written_[memexport_alloc_count_ - 1] |=
+                        uint32_t(1) << export_index;
+                  }
+                  break;
+                case InstructionStorageTarget::kColor:
+                  writes_color_targets_[export_index] = true;
+                  break;
+                case InstructionStorageTarget::kDepth:
                   writes_depth_ = true;
                   implicit_early_z_allowed_ = false;
-                }
-              }
-              if (memexport_alloc_count_ > 0 &&
-                  memexport_alloc_count_ <= kMaxMemExports) {
-                // Store used memexport constants because CPU code needs
-                // addresses and sizes, and also whether there have been writes
-                // to eA and eM# for register allocation in shader translator
-                // implementations.
-                // eA is (hopefully) always written to using:
-                // mad eA, r#, const0100, c#
-                // (though there are some exceptions, shaders in Halo 3 for some
-                // reason set eA to zeros, but the swizzle of the constant is
-                // not .xyzw in this case, and they don't write to eM#).
-                uint32_t memexport_alloc_index = memexport_alloc_count_ - 1;
-                if (op.vector_dest() == 32 &&
-                    op.vector_opcode() == AluVectorOpcode::kMad &&
-                    op.vector_write_mask() == 0b1111 && !op.src_is_temp(3) &&
-                    op.src_swizzle(3) == 0) {
-                  memexport_eA_written_ |= 1u << memexport_alloc_index;
-                  memexport_stream_constants_.insert(op.src_reg(3));
-                } else if (op.vector_dest() >= 33 && op.vector_dest() <= 37) {
-                  if (memexport_eA_written_ & (1u << memexport_alloc_index)) {
-                    memexport_eM_written_[memexport_alloc_index] |=
-                        1 << (op.vector_dest() - 33);
-                  }
-                }
-              }
-            } else {
-              if (op.is_vector_dest_relative()) {
-                uses_register_dynamic_addressing_ = true;
+                  break;
+                default:
+                  break;
               }
             }
-          }
-          if (op.has_scalar_op()) {
-            const auto& opcode_info =
-                alu_scalar_opcode_infos_[static_cast<int>(op.scalar_opcode())];
-            implicit_early_z_allowed_ &= !opcode_info.disable_implicit_early_z;
-            if (opcode_info.argument_count == 1 && op.src_is_temp(3) &&
-                (op.src_reg(3) & 0x40)) {
+          } else {
+            if ((instr.vector_and_constant_result.GetUsedWriteMask() &&
+                 instr.vector_and_constant_result.storage_addressing_mode !=
+                     InstructionStorageAddressingMode::kStatic) ||
+                (instr.scalar_result.GetUsedWriteMask() &&
+                 instr.scalar_result.storage_addressing_mode !=
+                     InstructionStorageAddressingMode::kStatic)) {
               uses_register_dynamic_addressing_ = true;
             }
-            if (op.is_export()) {
-              if (is_pixel_shader()) {
-                if (op.scalar_dest() <= 3) {
-                  writes_color_targets_[op.scalar_dest()] = true;
-                } else if (op.scalar_dest() == 61) {
-                  writes_depth_ = true;
-                  implicit_early_z_allowed_ = false;
-                }
-              }
-              if (memexport_alloc_count_ > 0 &&
-                  memexport_alloc_count_ <= kMaxMemExports &&
-                  op.scalar_dest() >= 33 && op.scalar_dest() <= 37) {
-                uint32_t memexport_alloc_index = memexport_alloc_count_ - 1;
-                if (memexport_eA_written_ & (1u << memexport_alloc_index)) {
-                  memexport_eM_written_[memexport_alloc_index] |=
-                      1 << (op.scalar_dest() - 33);
-                }
-              }
-            } else {
-              if (op.is_scalar_dest_relative()) {
+          }
+
+          uint32_t total_operand_count =
+              instr.vector_operand_count + instr.scalar_operand_count;
+          for (uint32_t i = 0; i < total_operand_count; ++i) {
+            const InstructionOperand& operand =
+                (i < instr.vector_operand_count)
+                    ? instr.vector_operands[i]
+                    : instr.scalar_operands[i - instr.vector_operand_count];
+            if (operand.storage_source == InstructionStorageSource::kRegister) {
+              if (operand.storage_addressing_mode !=
+                  InstructionStorageAddressingMode::kStatic) {
                 uses_register_dynamic_addressing_ = true;
+              }
+            } else if (operand.storage_source ==
+                       InstructionStorageSource::kConstantFloat) {
+              if (operand.storage_addressing_mode ==
+                  InstructionStorageAddressingMode::kStatic) {
+                // Store used float constants before translating so the
+                // translator can use tightly packed indices if not dynamically
+                // indexed.
+                uint32_t constant_index = operand.storage_index;
+                constant_register_map_.float_bitmap[constant_index / 64] |=
+                    uint64_t(1) << (constant_index % 64);
+              } else {
+                constant_register_map_.float_dynamic_addressing = true;
               }
             }
           }
         }
       }
     } break;
-    case ControlFlowOpcode::kAlloc:
-      if (cf.alloc.alloc_type() == AllocType::kMemory) {
-        ++memexport_alloc_count_;
-      }
-      break;
     default:
       break;
   }
@@ -674,8 +735,9 @@ void ShaderTranslator::TranslateControlFlowCondExec(
   i.instruction_count = cf.count();
   i.type = ParsedExecInstruction::Type::kConditional;
   i.bool_constant_index = cf.bool_address();
-  constant_register_map_.bool_bitmap[i.bool_constant_index / 32] |=
-      1 << (i.bool_constant_index % 32);
+  assert_not_zero(
+      constant_register_map_.bool_bitmap[i.bool_constant_index / 32] &
+      (uint32_t(1) << (i.bool_constant_index % 32)));
   i.condition = cf.condition();
   switch (cf.opcode()) {
     case ControlFlowOpcode::kCondExec:
@@ -715,7 +777,8 @@ void ShaderTranslator::TranslateControlFlowLoopStart(
   ParsedLoopStartInstruction i;
   i.dword_index = cf_index_;
   i.loop_constant_index = cf.loop_id();
-  constant_register_map_.loop_bitmap |= 1 << i.loop_constant_index;
+  assert_not_zero(constant_register_map_.loop_bitmap &
+                  (uint32_t(1) << i.loop_constant_index));
   i.is_repeat = cf.is_repeat();
   i.loop_skip_address = cf.address();
 
@@ -731,7 +794,8 @@ void ShaderTranslator::TranslateControlFlowLoopEnd(
   i.is_predicated_break = cf.is_predicated_break();
   i.predicate_condition = cf.condition();
   i.loop_constant_index = cf.loop_id();
-  constant_register_map_.loop_bitmap |= 1 << i.loop_constant_index;
+  assert_not_zero(constant_register_map_.loop_bitmap &
+                  (uint32_t(1) << i.loop_constant_index));
   i.loop_body_address = cf.address();
 
   i.Disassemble(&ucode_disasm_buffer_);
@@ -752,8 +816,9 @@ void ShaderTranslator::TranslateControlFlowCondCall(
   } else {
     i.type = ParsedCallInstruction::Type::kConditional;
     i.bool_constant_index = cf.bool_address();
-    constant_register_map_.bool_bitmap[i.bool_constant_index / 32] |=
-        1 << (i.bool_constant_index % 32);
+    assert_not_zero(
+        constant_register_map_.bool_bitmap[i.bool_constant_index / 32] &
+        (uint32_t(1) << (i.bool_constant_index % 32)));
     i.condition = cf.condition();
   }
 
@@ -785,8 +850,9 @@ void ShaderTranslator::TranslateControlFlowCondJmp(
   } else {
     i.type = ParsedJumpInstruction::Type::kConditional;
     i.bool_constant_index = cf.bool_address();
-    constant_register_map_.bool_bitmap[i.bool_constant_index / 32] |=
-        1 << (i.bool_constant_index % 32);
+    assert_not_zero(
+        constant_register_map_.bool_bitmap[i.bool_constant_index / 32] &
+        (uint32_t(1) << (i.bool_constant_index % 32)));
     i.condition = cf.condition();
   }
 
@@ -852,23 +918,25 @@ void ParseFetchInstructionResult(uint32_t dest, uint32_t swizzle,
                                  InstructionResult* out_result) {
   out_result->storage_target = InstructionStorageTarget::kRegister;
   out_result->storage_index = dest;
-  out_result->is_export = false;
   out_result->is_clamped = false;
   out_result->storage_addressing_mode =
       is_relative ? InstructionStorageAddressingMode::kAddressRelative
                   : InstructionStorageAddressingMode::kStatic;
+  out_result->original_write_mask = 0b1111;
   for (int i = 0; i < 4; ++i) {
-    out_result->write_mask[i] = true;
-    if ((swizzle & 0x7) == 4) {
-      out_result->components[i] = SwizzleSource::k0;
-    } else if ((swizzle & 0x7) == 5) {
-      out_result->components[i] = SwizzleSource::k1;
-    } else if ((swizzle & 0x7) == 6) {
-      out_result->components[i] = SwizzleSource::k0;
-    } else if ((swizzle & 0x7) == 7) {
-      out_result->write_mask[i] = false;
-    } else {
-      out_result->components[i] = GetSwizzleFromComponentIndex(swizzle & 0x3);
+    switch (swizzle & 0x7) {
+      case 4:
+      case 6:
+        out_result->components[i] = SwizzleSource::k0;
+        break;
+      case 5:
+        out_result->components[i] = SwizzleSource::k1;
+        break;
+      case 7:
+        out_result->original_write_mask &= ~uint32_t(1 << i);
+        break;
+      default:
+        out_result->components[i] = GetSwizzleFromComponentIndex(swizzle & 0x3);
     }
     swizzle >>= 3;
   }
@@ -885,7 +953,6 @@ void ShaderTranslator::TranslateVertexFetchInstruction(
 void ShaderTranslator::ParseVertexFetchInstruction(
     const VertexFetchInstruction& op, ParsedVertexFetchInstruction* out_instr) {
   auto& i = *out_instr;
-  i.dword_index = 0;
   i.opcode = FetchOpcode::kVertexFetch;
   i.opcode_name = op.is_mini_fetch() ? "vfetch_mini" : "vfetch_full";
   i.is_mini_fetch = op.is_mini_fetch();
@@ -908,7 +975,7 @@ void ShaderTranslator::ParseVertexFetchInstruction(
   src_op.is_absolute_value = false;
   src_op.component_count = 1;
   uint32_t swizzle = full_op.src_swizzle();
-  for (int j = 0; j < src_op.component_count; ++j, swizzle >>= 2) {
+  for (uint32_t j = 0; j < src_op.component_count; ++j, swizzle >>= 2) {
     src_op.components[j] = GetSwizzleFromComponentIndex(swizzle & 0x3);
   }
 
@@ -947,7 +1014,7 @@ void ShaderTranslator::ParseTextureFetchInstruction(
     bool has_dest;
     bool has_const;
     bool has_attributes;
-    int override_component_count;
+    uint32_t override_component_count;
   } opcode_info;
   switch (op.opcode()) {
     case FetchOpcode::kTextureFetch: {
@@ -993,7 +1060,6 @@ void ShaderTranslator::ParseTextureFetchInstruction(
   }
 
   auto& i = *out_instr;
-  i.dword_index = 0;
   i.opcode = op.opcode();
   i.opcode_name = opcode_info.name;
   i.dimension = op.dimension();
@@ -1020,7 +1086,7 @@ void ShaderTranslator::ParseTextureFetchInstruction(
           ? opcode_info.override_component_count
           : GetTextureDimensionComponentCount(op.dimension());
   uint32_t swizzle = op.src_swizzle();
-  for (int j = 0; j < src_op.component_count; ++j, swizzle >>= 2) {
+  for (uint32_t j = 0; j < src_op.component_count; ++j, swizzle >>= 2) {
     src_op.components[j] = GetSwizzleFromComponentIndex(swizzle & 0x3);
   }
 
@@ -1118,7 +1184,7 @@ const ShaderTranslator::AluOpcodeInfo
         {"setp_ge", 1, 1, false},      // 30
         {"setp_inv", 1, 1, false},     // 31
         {"setp_pop", 1, 1, false},     // 32
-        {"setp_clr", 1, 1, false},     // 33
+        {"setp_clr", 0, 0, false},     // 33
         {"setp_rstr", 1, 1, false},    // 34
         {"kills_eq", 1, 1, true},      // 35
         {"kills_gt", 1, 1, true},      // 36
@@ -1135,28 +1201,164 @@ const ShaderTranslator::AluOpcodeInfo
         {"subsc", 2, 1, false},        // 47
         {"sin", 1, 1, false},          // 48
         {"cos", 1, 1, false},          // 49
-        {"retain_prev", 1, 1, false},  // 50
+        {"retain_prev", 0, 0, false},  // 50
 };
 
 void ShaderTranslator::TranslateAluInstruction(const AluInstruction& op) {
   ParsedAluInstruction instr;
-
-  instr.dword_index = 0;
-
-  instr.is_predicated = op.is_predicated();
-  instr.predicate_condition = op.predicate_condition();
-
-  ParseAluVectorOperation(op, instr);
-  ParseAluScalarOperation(op, instr);
-
+  ParseAluInstruction(op, instr);
   instr.Disassemble(&ucode_disasm_buffer_);
-
   ProcessAluInstruction(instr);
 }
 
-void ParseAluInstructionOperand(const AluInstruction& op, int i,
-                                int swizzle_component_count,
-                                InstructionOperand* out_op) {
+void ShaderTranslator::ParseAluInstruction(const AluInstruction& op,
+                                           ParsedAluInstruction& instr) const {
+  instr.is_predicated = op.is_predicated();
+  instr.predicate_condition = op.predicate_condition();
+
+  bool is_export = op.is_export();
+
+  InstructionStorageTarget storage_target = InstructionStorageTarget::kRegister;
+  uint32_t storage_index_export = 0;
+  if (is_export) {
+    storage_target = InstructionStorageTarget::kNone;
+    // Both vector and scalar operation export to vector_dest.
+    ExportRegister export_register = ExportRegister(op.vector_dest());
+    if (export_register == ExportRegister::kExportAddress) {
+      storage_target = InstructionStorageTarget::kExportAddress;
+    } else if (export_register >= ExportRegister::kExportData0 &&
+               export_register <= ExportRegister::kExportData4) {
+      storage_target = InstructionStorageTarget::kExportData;
+      storage_index_export =
+          uint32_t(export_register) - uint32_t(ExportRegister::kExportData0);
+    } else if (is_vertex_shader()) {
+      if (export_register >= ExportRegister::kVSInterpolator0 &&
+          export_register <= ExportRegister::kVSInterpolator15) {
+        storage_target = InstructionStorageTarget::kInterpolator;
+        storage_index_export = uint32_t(export_register) -
+                               uint32_t(ExportRegister::kVSInterpolator0);
+      } else if (export_register == ExportRegister::kVSPosition) {
+        storage_target = InstructionStorageTarget::kPosition;
+      } else if (export_register ==
+                 ExportRegister::kVSPointSizeEdgeFlagKillVertex) {
+        storage_target = InstructionStorageTarget::kPointSizeEdgeFlagKillVertex;
+      }
+    } else if (is_pixel_shader()) {
+      if (export_register >= ExportRegister::kPSColor0 &&
+          export_register <= ExportRegister::kPSColor3) {
+        storage_target = InstructionStorageTarget::kColor;
+        storage_index_export =
+            uint32_t(export_register) - uint32_t(ExportRegister::kPSColor0);
+      } else if (export_register == ExportRegister::kPSDepth) {
+        storage_target = InstructionStorageTarget::kDepth;
+      }
+    }
+    if (storage_target == InstructionStorageTarget::kNone) {
+      assert_always();
+      XELOGE(
+          "ShaderTranslator::ParseAluInstruction: Unsupported write to export "
+          "{}",
+          uint32_t(export_register));
+    }
+  }
+
+  // Vector operation and constant 0/1 writes.
+
+  instr.vector_opcode = op.vector_opcode();
+  const auto& vector_opcode_info =
+      alu_vector_opcode_infos_[uint32_t(instr.vector_opcode)];
+  instr.vector_opcode_name = vector_opcode_info.name;
+
+  instr.vector_and_constant_result.storage_target = storage_target;
+  instr.vector_and_constant_result.storage_addressing_mode =
+      InstructionStorageAddressingMode::kStatic;
+  if (is_export) {
+    instr.vector_and_constant_result.storage_index = storage_index_export;
+  } else {
+    instr.vector_and_constant_result.storage_index = op.vector_dest();
+    assert_true(op.vector_dest() < register_count());
+    if (op.is_vector_dest_relative()) {
+      instr.vector_and_constant_result.storage_addressing_mode =
+          InstructionStorageAddressingMode::kAddressRelative;
+    }
+  }
+  instr.vector_and_constant_result.is_clamped = op.vector_clamp();
+  uint32_t constant_0_mask = op.GetConstant0WriteMask();
+  uint32_t constant_1_mask = op.GetConstant1WriteMask();
+  instr.vector_and_constant_result.original_write_mask =
+      op.GetVectorOpResultWriteMask() | constant_0_mask | constant_1_mask;
+  for (uint32_t i = 0; i < 4; ++i) {
+    SwizzleSource component = GetSwizzleFromComponentIndex(i);
+    if (constant_0_mask & (1 << i)) {
+      component = SwizzleSource::k0;
+    } else if (constant_1_mask & (1 << i)) {
+      component = SwizzleSource::k1;
+    }
+    instr.vector_and_constant_result.components[i] = component;
+  }
+
+  instr.vector_operand_count = vector_opcode_info.argument_count;
+  for (uint32_t i = 0; i < instr.vector_operand_count; ++i) {
+    InstructionOperand& vector_operand = instr.vector_operands[i];
+    ParseAluInstructionOperand(op, i + 1,
+                               vector_opcode_info.src_swizzle_component_count,
+                               vector_operand);
+  }
+
+  // Scalar operation.
+
+  instr.scalar_opcode = op.scalar_opcode();
+  const auto& scalar_opcode_info =
+      alu_scalar_opcode_infos_[uint32_t(instr.scalar_opcode)];
+  instr.scalar_opcode_name = scalar_opcode_info.name;
+
+  instr.scalar_result.storage_target = storage_target;
+  instr.scalar_result.storage_addressing_mode =
+      InstructionStorageAddressingMode::kStatic;
+  if (is_export) {
+    instr.scalar_result.storage_index = storage_index_export;
+  } else {
+    instr.scalar_result.storage_index = op.scalar_dest();
+    assert_true(op.scalar_dest() < register_count());
+    if (op.is_scalar_dest_relative()) {
+      instr.scalar_result.storage_addressing_mode =
+          InstructionStorageAddressingMode::kAddressRelative;
+    }
+  }
+  instr.scalar_result.is_clamped = op.scalar_clamp();
+  instr.scalar_result.original_write_mask = op.GetScalarOpResultWriteMask();
+  for (uint32_t i = 0; i < 4; ++i) {
+    instr.scalar_result.components[i] = GetSwizzleFromComponentIndex(i);
+  }
+
+  instr.scalar_operand_count = scalar_opcode_info.argument_count;
+  if (instr.scalar_operand_count) {
+    if (instr.scalar_operand_count == 1) {
+      ParseAluInstructionOperand(op, 3,
+                                 scalar_opcode_info.src_swizzle_component_count,
+                                 instr.scalar_operands[0]);
+    } else {
+      uint32_t src3_swizzle = op.src_swizzle(3);
+      uint32_t component_a = ((src3_swizzle >> 6) + 3) & 0x3;
+      uint32_t component_b = ((src3_swizzle >> 0) + 0) & 0x3;
+      uint32_t reg2 = (src3_swizzle & 0x3C) | (op.src_is_temp(3) << 1) |
+                      (static_cast<int>(op.scalar_opcode()) & 1);
+      int const_slot = (op.src_is_temp(1) || op.src_is_temp(2)) ? 1 : 0;
+
+      ParseAluInstructionOperandSpecial(
+          op, InstructionStorageSource::kConstantFloat, op.src_reg(3),
+          op.src_negate(3), 0, component_a, instr.scalar_operands[0]);
+
+      ParseAluInstructionOperandSpecial(op, InstructionStorageSource::kRegister,
+                                        reg2, op.src_negate(3), const_slot,
+                                        component_b, instr.scalar_operands[1]);
+    }
+  }
+}
+
+void ShaderTranslator::ParseAluInstructionOperand(
+    const AluInstruction& op, uint32_t i, uint32_t swizzle_component_count,
+    InstructionOperand& out_op) {
   int const_slot = 0;
   switch (i) {
     case 2:
@@ -1166,393 +1368,80 @@ void ParseAluInstructionOperand(const AluInstruction& op, int i,
       const_slot = op.src_is_temp(1) && op.src_is_temp(2) ? 0 : 1;
       break;
   }
-  out_op->is_negated = op.src_negate(i);
+  out_op.is_negated = op.src_negate(i);
   uint32_t reg = op.src_reg(i);
   if (op.src_is_temp(i)) {
-    out_op->storage_source = InstructionStorageSource::kRegister;
-    out_op->storage_index = reg & 0x1F;
-    out_op->is_absolute_value = (reg & 0x80) == 0x80;
-    out_op->storage_addressing_mode =
+    out_op.storage_source = InstructionStorageSource::kRegister;
+    out_op.storage_index = reg & 0x1F;
+    out_op.is_absolute_value = (reg & 0x80) == 0x80;
+    out_op.storage_addressing_mode =
         (reg & 0x40) ? InstructionStorageAddressingMode::kAddressRelative
                      : InstructionStorageAddressingMode::kStatic;
   } else {
-    out_op->storage_source = InstructionStorageSource::kConstantFloat;
-    out_op->storage_index = reg;
+    out_op.storage_source = InstructionStorageSource::kConstantFloat;
+    out_op.storage_index = reg;
     if ((const_slot == 0 && op.is_const_0_addressed()) ||
         (const_slot == 1 && op.is_const_1_addressed())) {
       if (op.is_address_relative()) {
-        out_op->storage_addressing_mode =
+        out_op.storage_addressing_mode =
             InstructionStorageAddressingMode::kAddressAbsolute;
       } else {
-        out_op->storage_addressing_mode =
+        out_op.storage_addressing_mode =
             InstructionStorageAddressingMode::kAddressRelative;
       }
     } else {
-      out_op->storage_addressing_mode =
+      out_op.storage_addressing_mode =
           InstructionStorageAddressingMode::kStatic;
     }
-    out_op->is_absolute_value = op.abs_constants();
+    out_op.is_absolute_value = op.abs_constants();
   }
-  out_op->component_count = swizzle_component_count;
+  out_op.component_count = swizzle_component_count;
   uint32_t swizzle = op.src_swizzle(i);
   if (swizzle_component_count == 1) {
     uint32_t a = ((swizzle >> 6) + 3) & 0x3;
-    out_op->components[0] = GetSwizzleFromComponentIndex(a);
+    out_op.components[0] = GetSwizzleFromComponentIndex(a);
   } else if (swizzle_component_count == 2) {
     uint32_t a = ((swizzle >> 6) + 3) & 0x3;
     uint32_t b = ((swizzle >> 0) + 0) & 0x3;
-    out_op->components[0] = GetSwizzleFromComponentIndex(a);
-    out_op->components[1] = GetSwizzleFromComponentIndex(b);
+    out_op.components[0] = GetSwizzleFromComponentIndex(a);
+    out_op.components[1] = GetSwizzleFromComponentIndex(b);
   } else if (swizzle_component_count == 3) {
     assert_always();
   } else if (swizzle_component_count == 4) {
-    for (int j = 0; j < swizzle_component_count; ++j, swizzle >>= 2) {
-      out_op->components[j] = GetSwizzleFromComponentIndex((swizzle + j) & 0x3);
+    for (uint32_t j = 0; j < swizzle_component_count; ++j, swizzle >>= 2) {
+      out_op.components[j] = GetSwizzleFromComponentIndex((swizzle + j) & 0x3);
     }
   }
 }
 
-void ParseAluInstructionOperandSpecial(const AluInstruction& op,
-                                       InstructionStorageSource storage_source,
-                                       uint32_t reg, bool negate,
-                                       int const_slot, uint32_t swizzle,
-                                       InstructionOperand* out_op) {
-  out_op->is_negated = negate;
-  out_op->is_absolute_value = op.abs_constants();
-  out_op->storage_source = storage_source;
+void ShaderTranslator::ParseAluInstructionOperandSpecial(
+    const AluInstruction& op, InstructionStorageSource storage_source,
+    uint32_t reg, bool negate, int const_slot, uint32_t component_index,
+    InstructionOperand& out_op) {
+  out_op.is_negated = negate;
+  out_op.is_absolute_value = op.abs_constants();
+  out_op.storage_source = storage_source;
   if (storage_source == InstructionStorageSource::kRegister) {
-    out_op->storage_index = reg & 0x7F;
-    out_op->storage_addressing_mode = InstructionStorageAddressingMode::kStatic;
+    out_op.storage_index = reg & 0x7F;
+    out_op.storage_addressing_mode = InstructionStorageAddressingMode::kStatic;
   } else {
-    out_op->storage_index = reg;
+    out_op.storage_index = reg;
     if ((const_slot == 0 && op.is_const_0_addressed()) ||
         (const_slot == 1 && op.is_const_1_addressed())) {
       if (op.is_address_relative()) {
-        out_op->storage_addressing_mode =
+        out_op.storage_addressing_mode =
             InstructionStorageAddressingMode::kAddressAbsolute;
       } else {
-        out_op->storage_addressing_mode =
+        out_op.storage_addressing_mode =
             InstructionStorageAddressingMode::kAddressRelative;
       }
     } else {
-      out_op->storage_addressing_mode =
+      out_op.storage_addressing_mode =
           InstructionStorageAddressingMode::kStatic;
     }
   }
-  out_op->component_count = 1;
-  uint32_t a = swizzle & 0x3;
-  out_op->components[0] = GetSwizzleFromComponentIndex(a);
-}
-
-void ShaderTranslator::ParseAluVectorOperation(const AluInstruction& op,
-                                               ParsedAluInstruction& i) {
-  i.has_vector_op = op.has_vector_op();
-  if (!i.has_vector_op) {
-    return;
-  }
-  i.vector_opcode = op.vector_opcode();
-  const auto& opcode_info =
-      alu_vector_opcode_infos_[static_cast<int>(op.vector_opcode())];
-  i.vector_opcode_name = opcode_info.name;
-
-  i.vector_result.is_export = op.is_export();
-  i.vector_result.is_clamped = op.vector_clamp();
-  i.vector_result.storage_target = InstructionStorageTarget::kRegister;
-  i.vector_result.storage_index = 0;
-  uint32_t dest_num = op.vector_dest();
-  if (!op.is_export()) {
-    assert_true(dest_num < 32);
-    i.vector_result.storage_target = InstructionStorageTarget::kRegister;
-    i.vector_result.storage_index = dest_num;
-    i.vector_result.storage_addressing_mode =
-        op.is_vector_dest_relative()
-            ? InstructionStorageAddressingMode::kAddressRelative
-            : InstructionStorageAddressingMode::kStatic;
-  } else if (is_vertex_shader()) {
-    switch (dest_num) {
-      case 32:
-        i.vector_result.storage_target =
-            InstructionStorageTarget::kExportAddress;
-        break;
-      case 33:
-      case 34:
-      case 35:
-      case 36:
-      case 37:
-        i.vector_result.storage_index = dest_num - 33;
-        i.vector_result.storage_target = InstructionStorageTarget::kExportData;
-        break;
-      case 62:
-        i.vector_result.storage_target = InstructionStorageTarget::kPosition;
-        break;
-      case 63:
-        i.vector_result.storage_target =
-            InstructionStorageTarget::kPointSizeEdgeFlagKillVertex;
-        break;
-      default:
-        if (dest_num < 16) {
-          i.vector_result.storage_target =
-              InstructionStorageTarget::kInterpolant;
-          i.vector_result.storage_index = dest_num;
-        } else {
-          // Unimplemented.
-          // assert_always();
-          XELOGE(
-              "ShaderTranslator::ParseAluVectorOperation: Unsupported write to "
-              "export {}",
-              dest_num);
-          i.vector_result.storage_target = InstructionStorageTarget::kNone;
-          i.vector_result.storage_index = 0;
-        }
-        break;
-    }
-  } else if (is_pixel_shader()) {
-    switch (dest_num) {
-      case 0:
-      case 63:  // ? masked?
-        i.vector_result.storage_target = InstructionStorageTarget::kColorTarget;
-        i.vector_result.storage_index = 0;
-        break;
-      case 1:
-        i.vector_result.storage_target = InstructionStorageTarget::kColorTarget;
-        i.vector_result.storage_index = 1;
-        break;
-      case 2:
-        i.vector_result.storage_target = InstructionStorageTarget::kColorTarget;
-        i.vector_result.storage_index = 2;
-        break;
-      case 3:
-        i.vector_result.storage_target = InstructionStorageTarget::kColorTarget;
-        i.vector_result.storage_index = 3;
-        break;
-      case 32:
-        i.vector_result.storage_target =
-            InstructionStorageTarget::kExportAddress;
-        break;
-      case 33:
-      case 34:
-      case 35:
-      case 36:
-      case 37:
-        i.vector_result.storage_index = dest_num - 33;
-        i.vector_result.storage_target = InstructionStorageTarget::kExportData;
-        break;
-      case 61:
-        i.vector_result.storage_target = InstructionStorageTarget::kDepth;
-        break;
-      default:
-        XELOGE(
-            "ShaderTranslator::ParseAluVectorOperation: Unsupported write to "
-            "export {}",
-            dest_num);
-        i.vector_result.storage_target = InstructionStorageTarget::kNone;
-        i.vector_result.storage_index = 0;
-    }
-  }
-  if (op.is_export()) {
-    uint32_t write_mask = op.vector_write_mask();
-    uint32_t const_1_mask = op.scalar_write_mask();
-    if (!write_mask) {
-      for (int j = 0; j < 4; ++j) {
-        i.vector_result.write_mask[j] = false;
-      }
-    } else {
-      for (int j = 0; j < 4; ++j, write_mask >>= 1, const_1_mask >>= 1) {
-        i.vector_result.write_mask[j] = true;
-        if (write_mask & 0x1) {
-          if (const_1_mask & 0x1) {
-            i.vector_result.components[j] = SwizzleSource::k1;
-          } else {
-            i.vector_result.components[j] = GetSwizzleFromComponentIndex(j);
-          }
-        } else {
-          if (op.is_scalar_dest_relative()) {
-            i.vector_result.components[j] = SwizzleSource::k0;
-          } else {
-            i.vector_result.write_mask[j] = false;
-          }
-        }
-      }
-    }
-  } else {
-    uint32_t write_mask = op.vector_write_mask();
-    for (int j = 0; j < 4; ++j, write_mask >>= 1) {
-      i.vector_result.write_mask[j] = (write_mask & 0x1) == 0x1;
-      i.vector_result.components[j] = GetSwizzleFromComponentIndex(j);
-    }
-  }
-
-  i.vector_operand_count = opcode_info.argument_count;
-  for (int j = 0; j < i.vector_operand_count; ++j) {
-    ParseAluInstructionOperand(op, j + 1,
-                               opcode_info.src_swizzle_component_count,
-                               &i.vector_operands[j]);
-
-    // Track constant float register loads.
-    if (i.vector_operands[j].storage_source ==
-        InstructionStorageSource::kConstantFloat) {
-      if (i.vector_operands[j].storage_addressing_mode !=
-          InstructionStorageAddressingMode::kStatic) {
-        // Dynamic addressing makes all constants required.
-        std::memset(constant_register_map_.float_bitmap, 0xFF,
-                    sizeof(constant_register_map_.float_bitmap));
-      } else {
-        auto register_index = i.vector_operands[j].storage_index;
-        constant_register_map_.float_bitmap[register_index / 64] |=
-            1ull << (register_index % 64);
-      }
-    }
-  }
-}
-
-void ShaderTranslator::ParseAluScalarOperation(const AluInstruction& op,
-                                               ParsedAluInstruction& i) {
-  i.has_scalar_op = op.has_scalar_op();
-  if (!i.has_scalar_op) {
-    return;
-  }
-  i.scalar_opcode = op.scalar_opcode();
-  const auto& opcode_info =
-      alu_scalar_opcode_infos_[static_cast<int>(op.scalar_opcode())];
-  i.scalar_opcode_name = opcode_info.name;
-
-  uint32_t dest_num;
-  uint32_t write_mask;
-  if (op.is_export()) {
-    dest_num = op.vector_dest();
-    write_mask = op.scalar_write_mask() & ~op.vector_write_mask();
-  } else {
-    dest_num = op.scalar_dest();
-    write_mask = op.scalar_write_mask();
-  }
-  i.scalar_result.is_export = op.is_export();
-  i.scalar_result.is_clamped = op.scalar_clamp();
-  i.scalar_result.storage_target = InstructionStorageTarget::kRegister;
-  i.scalar_result.storage_index = 0;
-  if (!op.is_export()) {
-    assert_true(dest_num < 32);
-    i.scalar_result.storage_target = InstructionStorageTarget::kRegister;
-    i.scalar_result.storage_index = dest_num;
-    i.scalar_result.storage_addressing_mode =
-        op.is_scalar_dest_relative()
-            ? InstructionStorageAddressingMode::kAddressRelative
-            : InstructionStorageAddressingMode::kStatic;
-  } else if (is_vertex_shader()) {
-    switch (dest_num) {
-      case 32:
-        i.scalar_result.storage_target =
-            InstructionStorageTarget::kExportAddress;
-        break;
-      case 33:
-      case 34:
-      case 35:
-      case 36:
-      case 37:
-        i.scalar_result.storage_index = dest_num - 33;
-        i.scalar_result.storage_target = InstructionStorageTarget::kExportData;
-        break;
-      case 62:
-        i.scalar_result.storage_target = InstructionStorageTarget::kPosition;
-        break;
-      case 63:
-        i.scalar_result.storage_target =
-            InstructionStorageTarget::kPointSizeEdgeFlagKillVertex;
-        break;
-      default:
-        if (dest_num < 16) {
-          i.scalar_result.storage_target =
-              InstructionStorageTarget::kInterpolant;
-          i.scalar_result.storage_index = dest_num;
-        } else {
-          // Unimplemented.
-          // assert_always();
-          XELOGE(
-              "ShaderTranslator::ParseAluScalarOperation: Unsupported write to "
-              "export {}",
-              dest_num);
-          i.scalar_result.storage_target = InstructionStorageTarget::kNone;
-          i.scalar_result.storage_index = 0;
-        }
-        break;
-    }
-  } else if (is_pixel_shader()) {
-    switch (dest_num) {
-      case 0:
-      case 63:  // ? masked?
-        i.scalar_result.storage_target = InstructionStorageTarget::kColorTarget;
-        i.scalar_result.storage_index = 0;
-        break;
-      case 1:
-        i.scalar_result.storage_target = InstructionStorageTarget::kColorTarget;
-        i.scalar_result.storage_index = 1;
-        break;
-      case 2:
-        i.scalar_result.storage_target = InstructionStorageTarget::kColorTarget;
-        i.scalar_result.storage_index = 2;
-        break;
-      case 3:
-        i.scalar_result.storage_target = InstructionStorageTarget::kColorTarget;
-        i.scalar_result.storage_index = 3;
-        break;
-      case 32:
-        i.scalar_result.storage_target =
-            InstructionStorageTarget::kExportAddress;
-        break;
-      case 33:
-      case 34:
-      case 35:
-      case 36:
-      case 37:
-        i.scalar_result.storage_index = dest_num - 33;
-        i.scalar_result.storage_target = InstructionStorageTarget::kExportData;
-        break;
-      case 61:
-        i.scalar_result.storage_target = InstructionStorageTarget::kDepth;
-        break;
-    }
-  }
-  for (int j = 0; j < 4; ++j, write_mask >>= 1) {
-    i.scalar_result.write_mask[j] = (write_mask & 0x1) == 0x1;
-    i.scalar_result.components[j] = GetSwizzleFromComponentIndex(j);
-  }
-
-  i.scalar_operand_count = opcode_info.argument_count;
-  if (opcode_info.argument_count == 1) {
-    ParseAluInstructionOperand(op, 3, opcode_info.src_swizzle_component_count,
-                               &i.scalar_operands[0]);
-  } else {
-    uint32_t src3_swizzle = op.src_swizzle(3);
-    uint32_t swiz_a = ((src3_swizzle >> 6) + 3) & 0x3;
-    uint32_t swiz_b = ((src3_swizzle >> 0) + 0) & 0x3;
-    uint32_t reg2 = (src3_swizzle & 0x3C) | (op.src_is_temp(3) << 1) |
-                    (static_cast<int>(op.scalar_opcode()) & 1);
-
-    int const_slot = (op.src_is_temp(1) || op.src_is_temp(2)) ? 1 : 0;
-
-    ParseAluInstructionOperandSpecial(
-        op, InstructionStorageSource::kConstantFloat, op.src_reg(3),
-        op.src_negate(3), 0, swiz_a, &i.scalar_operands[0]);
-
-    ParseAluInstructionOperandSpecial(op, InstructionStorageSource::kRegister,
-                                      reg2, op.src_negate(3), const_slot,
-                                      swiz_b, &i.scalar_operands[1]);
-  }
-
-  // Track constant float register loads - in either case, a float constant may
-  // be used in operand 0.
-  if (i.scalar_operands[0].storage_source ==
-      InstructionStorageSource::kConstantFloat) {
-    auto register_index = i.scalar_operands[0].storage_index;
-    if (i.scalar_operands[0].storage_addressing_mode !=
-        InstructionStorageAddressingMode::kStatic) {
-      // Dynamic addressing makes all constants required.
-      std::memset(constant_register_map_.float_bitmap, 0xFF,
-                  sizeof(constant_register_map_.float_bitmap));
-    } else {
-      constant_register_map_.float_bitmap[register_index / 64] |=
-          1ull << (register_index % 64);
-    }
-  }
+  out_op.component_count = 1;
+  out_op.components[0] = GetSwizzleFromComponentIndex(component_index);
 }
 
 }  // namespace gpu
