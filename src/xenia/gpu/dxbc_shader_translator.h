@@ -1092,6 +1092,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kEndLoop = 22,
     kEndSwitch = 23,
     kEq = 24,
+    kExp = 25,
     kFrc = 26,
     kFToI = 27,
     kFToU = 28,
@@ -1107,6 +1108,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kIShL = 41,
     kIToF = 43,
     kLabel = 44,
+    kLog = 47,
     kLoop = 48,
     kLT = 49,
     kMAd = 50,
@@ -1123,7 +1125,10 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kRoundNE = 64,
     kRoundNI = 65,
     kRoundZ = 67,
+    kRSq = 68,
+    kSqRt = 75,
     kSwitch = 76,
+    kSinCos = 77,
     kULT = 79,
     kUGE = 80,
     kUMul = 81,
@@ -1214,6 +1219,19 @@ class DxbcShaderTranslator : public ShaderTranslator {
     src1.Write(shader_code_, (src_are_integer & 0b10) != 0, dest_write_mask);
     src2.Write(shader_code_, (src_are_integer & 0b100) != 0, dest_write_mask);
     src3.Write(shader_code_, (src_are_integer & 0b1000) != 0, dest_write_mask);
+    ++stat_.instruction_count;
+  }
+  void DxbcEmitAluOp(DxbcOpcode opcode, uint32_t src_are_integer,
+                     const DxbcDest& dest0, const DxbcDest& dest1,
+                     const DxbcSrc& src, bool saturate = false) {
+    uint32_t dest_write_mask = dest0.GetMask() | dest1.GetMask();
+    uint32_t operands_length =
+        dest0.GetLength() + dest1.GetLength() + src.GetLength(dest_write_mask);
+    shader_code_.reserve(shader_code_.size() + 1 + operands_length);
+    shader_code_.push_back(DxbcOpcodeToken(opcode, operands_length, saturate));
+    dest0.Write(shader_code_);
+    dest1.Write(shader_code_);
+    src.Write(shader_code_, (src_are_integer & 0b1) != 0, dest_write_mask);
     ++stat_.instruction_count;
   }
   void DxbcEmitAluOp(DxbcOpcode opcode, uint32_t src_are_integer,
@@ -1355,6 +1373,11 @@ class DxbcShaderTranslator : public ShaderTranslator {
     DxbcEmitAluOp(DxbcOpcode::kEq, 0b00, dest, src0, src1);
     ++stat_.float_instruction_count;
   }
+  void DxbcOpExp(const DxbcDest& dest, const DxbcSrc& src,
+                 bool saturate = false) {
+    DxbcEmitAluOp(DxbcOpcode::kExp, 0b0, dest, src, saturate);
+    ++stat_.float_instruction_count;
+  }
   void DxbcOpFrc(const DxbcDest& dest, const DxbcSrc& src,
                  bool saturate = false) {
     DxbcEmitAluOp(DxbcOpcode::kFrc, 0b0, dest, src, saturate);
@@ -1430,6 +1453,11 @@ class DxbcShaderTranslator : public ShaderTranslator {
         DxbcOpcodeToken(DxbcOpcode::kLabel, operands_length));
     label.Write(shader_code_, true, 0b0000);
     // Doesn't count towards stat_.instruction_count.
+  }
+  void DxbcOpLog(const DxbcDest& dest, const DxbcSrc& src,
+                 bool saturate = false) {
+    DxbcEmitAluOp(DxbcOpcode::kLog, 0b0, dest, src, saturate);
+    ++stat_.float_instruction_count;
   }
   void DxbcOpLoop() {
     shader_code_.push_back(DxbcOpcodeToken(DxbcOpcode::kLoop, 0));
@@ -1516,9 +1544,24 @@ class DxbcShaderTranslator : public ShaderTranslator {
     DxbcEmitAluOp(DxbcOpcode::kRoundZ, 0b0, dest, src, saturate);
     ++stat_.float_instruction_count;
   }
+  void DxbcOpRSq(const DxbcDest& dest, const DxbcSrc& src,
+                 bool saturate = false) {
+    DxbcEmitAluOp(DxbcOpcode::kRSq, 0b0, dest, src, saturate);
+    ++stat_.float_instruction_count;
+  }
+  void DxbcOpSqRt(const DxbcDest& dest, const DxbcSrc& src,
+                  bool saturate = false) {
+    DxbcEmitAluOp(DxbcOpcode::kSqRt, 0b0, dest, src, saturate);
+    ++stat_.float_instruction_count;
+  }
   void DxbcOpSwitch(const DxbcSrc& src) {
     DxbcEmitFlowOp(DxbcOpcode::kSwitch, src);
     ++stat_.dynamic_flow_control_count;
+  }
+  void DxbcOpSinCos(const DxbcDest& dest_sin, const DxbcDest& dest_cos,
+                    const DxbcSrc& src, bool saturate = false) {
+    DxbcEmitAluOp(DxbcOpcode::kSinCos, 0b0, dest_sin, dest_cos, src, saturate);
+    ++stat_.float_instruction_count;
   }
   void DxbcOpULT(const DxbcDest& dest, const DxbcSrc& src0,
                  const DxbcSrc& src1) {
@@ -2206,7 +2249,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
   void ProcessVectorAluOperation(const ParsedAluInstruction& instr,
                                  uint32_t& result_swizzle,
                                  bool& predicate_written);
-  bool ProcessScalarAluOperation(const ParsedAluInstruction& instr,
+  void ProcessScalarAluOperation(const ParsedAluInstruction& instr,
                                  bool& predicate_written);
 
   // Appends a string to a DWORD stream, returns the DWORD-aligned length.
