@@ -293,6 +293,8 @@ void ShaderTranslator::GatherInstructionInformation(
         ++memexport_alloc_count_;
       }
       break;
+    default:
+      break;
   }
   if (bool_constant_index != UINT32_MAX) {
     constant_register_map_.bool_bitmap[bool_constant_index / 32] |=
