@@ -875,7 +875,7 @@ void DxbcShaderTranslator::StartTranslation() {
     // depends on the guest code (thus no guarantees), initialize everything
     // now (except for pv, it's an internal temporary variable, not accessible
     // by the guest).
-    system_temp_pv_ = PushSystemTemp();
+    system_temp_result_ = PushSystemTemp();
     system_temp_ps_pc_p0_a0_ = PushSystemTemp(0b1111);
     system_temp_aL_ = PushSystemTemp(0b1111);
     system_temp_loop_count_ = PushSystemTemp(0b1111);
@@ -1089,7 +1089,7 @@ void DxbcShaderTranslator::CompleteShaderCode() {
     DxbcOpEndLoop();
 
     // Release the following system temporary values so epilogue can reuse them:
-    // - system_temp_pv_.
+    // - system_temp_result_.
     // - system_temp_ps_pc_p0_a0_.
     // - system_temp_aL_.
     // - system_temp_loop_count_.
@@ -1304,6 +1304,96 @@ void DxbcShaderTranslator::EmitInstructionDisassembly() {
   // translator for the same Xenos shader give the same DXBC.
   std::memset(target + length + 1, 0xAB,
               length_dwords * sizeof(uint32_t) - length - 1);
+}
+
+DxbcShaderTranslator::DxbcSrc DxbcShaderTranslator::LoadOperand(
+    const InstructionOperand& operand, uint32_t needed_components,
+    bool& temp_pushed_out) {
+  temp_pushed_out = false;
+
+  uint32_t first_needed_component;
+  if (!xe::bit_scan_forward(needed_components, &first_needed_component)) {
+    return DxbcSrc::LF(0.0f);
+  }
+
+  DxbcIndex index(operand.storage_index);
+  switch (operand.storage_addressing_mode) {
+    case InstructionStorageAddressingMode::kStatic:
+      break;
+    case InstructionStorageAddressingMode::kAddressAbsolute:
+      index = DxbcIndex(system_temp_ps_pc_p0_a0_, 3, operand.storage_index);
+      break;
+    case InstructionStorageAddressingMode::kAddressRelative:
+      index = DxbcIndex(system_temp_aL_, 0, operand.storage_index);
+      break;
+  }
+
+  DxbcSrc src(DxbcSrc::LF(0.0f));
+  switch (operand.storage_source) {
+    case InstructionStorageSource::kRegister: {
+      if (uses_register_dynamic_addressing()) {
+        // Load x#[#] to r# because x#[#] can be used only with mov.
+        uint32_t temp = PushSystemTemp();
+        temp_pushed_out = true;
+        uint32_t used_swizzle_components = 0;
+        for (uint32_t i = 0; i < uint32_t(operand.component_count); ++i) {
+          if (!(needed_components & (1 << i))) {
+            continue;
+          }
+          SwizzleSource component = operand.GetComponent(i);
+          assert_true(component >= SwizzleSource::kX &&
+                      component <= SwizzleSource::kW);
+          used_swizzle_components |=
+              1 << (uint32_t(component) - uint32_t(SwizzleSource::kX));
+        }
+        assert_not_zero(used_swizzle_components);
+        DxbcOpMov(DxbcDest::R(temp, used_swizzle_components),
+                  DxbcSrc::X(0, index));
+        src = DxbcSrc::R(temp);
+      } else {
+        assert_true(operand.storage_addressing_mode ==
+                    InstructionStorageAddressingMode::kStatic);
+        src = DxbcSrc::R(index.index_);
+      }
+    } break;
+    case InstructionStorageSource::kConstantFloat: {
+      if (cbuffer_index_float_constants_ == kCbufferIndexUnallocated) {
+        cbuffer_index_float_constants_ = cbuffer_count_++;
+      }
+      if (operand.storage_addressing_mode ==
+          InstructionStorageAddressingMode::kStatic) {
+        uint32_t float_constant_index =
+            constant_register_map().GetPackedFloatConstantIndex(
+                operand.storage_index);
+        assert_true(float_constant_index != UINT32_MAX);
+        if (float_constant_index == UINT32_MAX) {
+          return DxbcSrc::LF(0.0f);
+        }
+        index.index_ = float_constant_index;
+      } else {
+        assert_true(constant_register_map().float_dynamic_addressing);
+      }
+      src = DxbcSrc::CB(cbuffer_index_float_constants_,
+                        uint32_t(CbufferRegister::kFloatConstants), index);
+    } break;
+    default:
+      assert_unhandled_case(operand.storage_source);
+      return DxbcSrc::LF(0.0f);
+  }
+
+  // Swizzle, skipping unneeded components similar to how FXC skips components,
+  // by replacing them with the leftmost used one.
+  uint32_t swizzle = 0;
+  for (uint32_t i = 0; i < 4; ++i) {
+    SwizzleSource component = operand.GetComponent(
+        (needed_components & (1 << i)) ? i : first_needed_component);
+    assert_true(component >= SwizzleSource::kX &&
+                component <= SwizzleSource::kW);
+    swizzle |= (uint32_t(component) - uint32_t(SwizzleSource::kX)) << (i * 2);
+  }
+  src = src.Swizzle(swizzle);
+
+  return src.WithModifiers(operand.is_absolute_value, operand.is_negated);
 }
 
 void DxbcShaderTranslator::LoadDxbcSourceOperand(
@@ -1693,306 +1783,151 @@ void DxbcShaderTranslator::UnloadDxbcSourceOperand(
 }
 
 void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
-                                       uint32_t reg, bool replicate_x,
+                                       const DxbcSrc& src,
                                        bool can_store_memexport_address) {
   uint32_t used_write_mask = result.GetUsedWriteMask();
-  if (result.storage_target == InstructionStorageTarget::kNone ||
-      !result.GetUsedWriteMask()) {
+  if (!used_write_mask) {
     return;
   }
 
-  // Validate memexport writes (Halo 3 has some weird invalid ones).
-  if (result.storage_target == InstructionStorageTarget::kExportAddress) {
-    if (!can_store_memexport_address || memexport_alloc_current_count_ == 0 ||
-        memexport_alloc_current_count_ > kMaxMemExports ||
-        system_temps_memexport_address_[memexport_alloc_current_count_ - 1] ==
-            UINT32_MAX) {
+  // Get the destination address and type.
+  DxbcDest dest(DxbcDest::Null());
+  bool is_clamped = result.is_clamped;
+  switch (result.storage_target) {
+    case InstructionStorageTarget::kNone:
       return;
-    }
-  } else if (result.storage_target == InstructionStorageTarget::kExportData) {
-    if (memexport_alloc_current_count_ == 0 ||
-        memexport_alloc_current_count_ > kMaxMemExports ||
-        system_temps_memexport_data_[memexport_alloc_current_count_ - 1]
-                                    [result.storage_index] == UINT32_MAX) {
-      return;
-    }
-  }
-
-  uint32_t saturate_bit =
-      ENCODE_D3D10_SB_INSTRUCTION_SATURATE(result.is_clamped);
-
-  // Scalar targets get only one component.
-  // TODO(Triang3l): It's not replicated, it's X specifically.
-  if (result.storage_target == InstructionStorageTarget::kDepth) {
-    assert_not_zero(used_write_mask & 0b0001);
-    SwizzleSource component = result.components[0];
-    if (replicate_x && component <= SwizzleSource::kW) {
-      component = SwizzleSource::kX;
-    }
-    // Both r[imm32] and imm32 operands are 2 tokens long.
-    switch (result.storage_target) {
-      case InstructionStorageTarget::kDepth:
-        assert_true(writes_depth());
-        if (writes_depth()) {
-          if (edram_rov_used_) {
-            shader_code_.push_back(
-                ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-                ENCODE_D3D10_SB_INSTRUCTION_SATURATE(1) |
-                ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
-            shader_code_.push_back(EncodeVectorMaskedOperand(
-                D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-            shader_code_.push_back(system_temp_rov_depth_stencil_);
-          } else {
-            shader_code_.push_back(
-                ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-                ENCODE_D3D10_SB_INSTRUCTION_SATURATE(1) |
-                ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4));
-            shader_code_.push_back(
-                EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_OUTPUT_DEPTH, 0));
-          }
+    case InstructionStorageTarget::kRegister:
+      if (uses_register_dynamic_addressing()) {
+        DxbcIndex register_index(result.storage_index);
+        switch (result.storage_addressing_mode) {
+          case InstructionStorageAddressingMode::kStatic:
+            break;
+          case InstructionStorageAddressingMode::kAddressAbsolute:
+            register_index =
+                DxbcIndex(system_temp_ps_pc_p0_a0_, 3, result.storage_index);
+            break;
+          case InstructionStorageAddressingMode::kAddressRelative:
+            register_index =
+                DxbcIndex(system_temp_aL_, 0, result.storage_index);
+            break;
         }
-        break;
-      default:
-        assert_unhandled_case(result.storage_target);
+        dest = DxbcDest::X(0, register_index);
+      } else {
+        assert_true(result.storage_addressing_mode ==
+                    InstructionStorageAddressingMode::kStatic);
+        dest = DxbcDest::R(result.storage_index);
+      }
+      break;
+    case InstructionStorageTarget::kInterpolator:
+      dest = DxbcDest::O(uint32_t(InOutRegister::kVSDSOutInterpolators) +
+                         result.storage_index);
+      break;
+    case InstructionStorageTarget::kPosition:
+      dest = DxbcDest::R(system_temp_position_);
+      break;
+    case InstructionStorageTarget::kPointSizeEdgeFlagKillVertex:
+      assert_zero(used_write_mask & 0b1000);
+      dest = DxbcDest::R(system_temp_point_size_edge_flag_kill_vertex_);
+      break;
+    case InstructionStorageTarget::kExportAddress:
+      // Validate memexport writes (Halo 3 has some weird invalid ones).
+      if (!can_store_memexport_address || memexport_alloc_current_count_ == 0 ||
+          memexport_alloc_current_count_ > kMaxMemExports ||
+          system_temps_memexport_address_[memexport_alloc_current_count_ - 1] ==
+              UINT32_MAX) {
         return;
-    }
-    if (component <= SwizzleSource::kW) {
-      shader_code_.push_back(EncodeVectorSelectOperand(
-          D3D10_SB_OPERAND_TYPE_TEMP, uint32_t(component), 1));
-      shader_code_.push_back(reg);
-    } else {
-      shader_code_.push_back(
-          EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-      shader_code_.push_back(component == SwizzleSource::k1 ? 0x3F800000 : 0);
-    }
-    ++stat_.instruction_count;
-    ++stat_.mov_instruction_count;
+      }
+      dest = DxbcDest::R(
+          system_temps_memexport_address_[memexport_alloc_current_count_ - 1]);
+      break;
+    case InstructionStorageTarget::kExportData: {
+      // Validate memexport writes (Halo 3 has some weird invalid ones).
+      if (memexport_alloc_current_count_ == 0 ||
+          memexport_alloc_current_count_ > kMaxMemExports ||
+          system_temps_memexport_data_[memexport_alloc_current_count_ - 1]
+                                      [result.storage_index] == UINT32_MAX) {
+        return;
+      }
+      dest = DxbcDest::R(
+          system_temps_memexport_data_[memexport_alloc_current_count_ - 1]
+                                      [result.storage_index]);
+      // Mark that the eM# has been written to and needs to be exported.
+      assert_not_zero(used_write_mask);
+      uint32_t memexport_index = memexport_alloc_current_count_ - 1;
+      DxbcOpOr(DxbcDest::R(system_temp_memexport_written_,
+                           1 << (memexport_index >> 2)),
+               DxbcSrc::R(system_temp_memexport_written_)
+                   .Select(memexport_index >> 2),
+               DxbcSrc::LU(uint32_t(1) << (result.storage_index +
+                                           ((memexport_index & 3) << 3))));
+    } break;
+    case InstructionStorageTarget::kColor:
+      assert_not_zero(used_write_mask);
+      assert_true(writes_color_target(result.storage_index));
+      dest = DxbcDest::R(system_temps_color_[result.storage_index]);
+      if (edram_rov_used_) {
+        // For ROV output, mark that the color has been written to.
+        // According to:
+        // https://docs.microsoft.com/en-us/windows/desktop/direct3dhlsl/dx9-graphics-reference-asm-ps-registers-output-color
+        // if a color target hasn't been written to - including due to flow
+        // control - the render target must not be modified (the unwritten
+        // components of a written target are undefined, not sure if this
+        // behavior is respected on the real GPU, but the ROV code currently
+        // doesn't preserve unmodified components).
+        DxbcOpOr(DxbcDest::R(system_temp_rov_params_, 0b0001),
+                 DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kXXXX),
+                 DxbcSrc::LU(uint32_t(1) << (8 + result.storage_index)));
+      }
+      break;
+    case InstructionStorageTarget::kDepth:
+      // Writes X to scalar oDepth or to X of system_temp_rov_depth_stencil_, no
+      // additional swizzling needed.
+      assert_true(used_write_mask == 0b0001);
+      assert_true(writes_depth());
+      if (edram_rov_used_) {
+        dest = DxbcDest::R(system_temp_rov_depth_stencil_);
+      } else {
+        dest = DxbcDest::ODepth();
+      }
+      // Depth outside [0, 1] is not safe for use with the ROV code. Though 20e4
+      // float depth can store values below 2, it's a very unusual case.
+      // Direct3D 10+ SV_Depth, however, can accept any values, including
+      // specials, when the depth buffer is floating-point.
+      is_clamped = true;
+      break;
+  }
+  if (dest.type_ == DxbcOperandType::kNull) {
     return;
   }
 
-  // Get the write masks and data required for loading of both the swizzled part
-  // and the constant (zero/one) part. The write mask is treated also as a read
-  // mask in DXBC, and `mov r0.zw, r1.xyzw` actually means r0.zw = r1.zw, not
-  // r0.zw = r1.xy.
-  uint32_t swizzle_mask = 0;
-  uint32_t swizzle_components = 0;
-  uint32_t constant_mask = 0;
-  uint32_t constant_values = 0;
+  // Write.
+  uint32_t src_additional_swizzle = 0;
+  uint32_t constant_mask = 0, constant_1_mask = 0;
   for (uint32_t i = 0; i < 4; ++i) {
     if (!(used_write_mask & (1 << i))) {
       continue;
     }
     SwizzleSource component = result.components[i];
-    if (component <= SwizzleSource::kW) {
-      swizzle_mask |= 1 << i;
-      // If replicating X, just keep zero swizzle (XXXX).
-      if (!replicate_x) {
-        swizzle_components |= uint32_t(component) << (i * 2);
-      }
+    if (component >= SwizzleSource::kX && component <= SwizzleSource::kW) {
+      src_additional_swizzle |=
+          (uint32_t(component) - uint32_t(SwizzleSource::kX)) << (i * 2);
     } else {
       constant_mask |= 1 << i;
-      constant_values |= (component == SwizzleSource::k1 ? 1 : 0) << i;
-    }
-  }
-
-  bool is_static = result.storage_addressing_mode ==
-                   InstructionStorageAddressingMode::kStatic;
-  // If the index is dynamic, choose where it's taken from.
-  uint32_t dynamic_address_register, dynamic_address_component;
-  if (result.storage_addressing_mode ==
-      InstructionStorageAddressingMode::kAddressRelative) {
-    // Addressed by aL.x.
-    dynamic_address_register = system_temp_aL_;
-    dynamic_address_component = 0;
-  } else {
-    // Addressed by a0.
-    dynamic_address_register = system_temp_ps_pc_p0_a0_;
-    dynamic_address_component = 3;
-  }
-
-  // Store both parts of the write (i == 0 - swizzled, i == 1 - constant).
-  for (uint32_t i = 0; i < 2; ++i) {
-    uint32_t mask = i == 0 ? swizzle_mask : constant_mask;
-    if (mask == 0) {
-      continue;
-    }
-
-    // r# for the swizzled part, 4-component imm32 for the constant part.
-    uint32_t source_length = i != 0 ? 5 : 2;
-    switch (result.storage_target) {
-      case InstructionStorageTarget::kRegister:
-        if (uses_register_dynamic_addressing()) {
-          ++stat_.instruction_count;
-          ++stat_.array_instruction_count;
-          shader_code_.push_back(
-              ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH((is_static ? 4 : 6) +
-                                                           source_length) |
-              saturate_bit);
-          shader_code_.push_back(EncodeVectorMaskedOperand(
-              D3D10_SB_OPERAND_TYPE_INDEXABLE_TEMP, mask, 2,
-              D3D10_SB_OPERAND_INDEX_IMMEDIATE32,
-              is_static ? D3D10_SB_OPERAND_INDEX_IMMEDIATE32
-                        : D3D10_SB_OPERAND_INDEX_IMMEDIATE32_PLUS_RELATIVE));
-          shader_code_.push_back(0);
-          shader_code_.push_back(result.storage_index);
-          if (!is_static) {
-            shader_code_.push_back(EncodeVectorSelectOperand(
-                D3D10_SB_OPERAND_TYPE_TEMP, dynamic_address_component, 1));
-            shader_code_.push_back(dynamic_address_register);
-          }
-        } else {
-          assert_true(is_static);
-          ++stat_.instruction_count;
-          ++stat_.mov_instruction_count;
-          shader_code_.push_back(
-              ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3 + source_length) |
-              saturate_bit);
-          shader_code_.push_back(
-              EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, mask, 1));
-          shader_code_.push_back(result.storage_index);
-        }
-        break;
-
-      case InstructionStorageTarget::kInterpolator:
-        ++stat_.instruction_count;
-        ++stat_.mov_instruction_count;
-        shader_code_.push_back(
-            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3 + source_length) |
-            saturate_bit);
-        shader_code_.push_back(
-            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_OUTPUT, mask, 1));
-        shader_code_.push_back(uint32_t(InOutRegister::kVSDSOutInterpolators) +
-                               uint32_t(result.storage_index));
-        break;
-
-      case InstructionStorageTarget::kPosition:
-        ++stat_.instruction_count;
-        ++stat_.mov_instruction_count;
-        shader_code_.push_back(
-            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3 + source_length) |
-            saturate_bit);
-        shader_code_.push_back(
-            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, mask, 1));
-        shader_code_.push_back(system_temp_position_);
-        break;
-
-      case InstructionStorageTarget::kPointSizeEdgeFlagKillVertex:
-        ++stat_.instruction_count;
-        ++stat_.mov_instruction_count;
-        shader_code_.push_back(
-            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3 + source_length) |
-            saturate_bit);
-        shader_code_.push_back(
-            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, mask, 1));
-        shader_code_.push_back(system_temp_point_size_edge_flag_kill_vertex_);
-        break;
-
-      case InstructionStorageTarget::kExportAddress:
-        ++stat_.instruction_count;
-        ++stat_.mov_instruction_count;
-        shader_code_.push_back(
-            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3 + source_length) |
-            saturate_bit);
-        shader_code_.push_back(
-            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, mask, 1));
-        shader_code_.push_back(
-            system_temps_memexport_address_[memexport_alloc_current_count_ -
-                                            1]);
-        break;
-
-      case InstructionStorageTarget::kExportData:
-        ++stat_.instruction_count;
-        ++stat_.mov_instruction_count;
-        shader_code_.push_back(
-            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3 + source_length) |
-            saturate_bit);
-        shader_code_.push_back(
-            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, mask, 1));
-        shader_code_.push_back(
-            system_temps_memexport_data_[memexport_alloc_current_count_ - 1]
-                                        [uint32_t(result.storage_index)]);
-        break;
-
-      case InstructionStorageTarget::kColor:
-        ++stat_.instruction_count;
-        ++stat_.mov_instruction_count;
-        shader_code_.push_back(
-            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3 + source_length) |
-            saturate_bit);
-        shader_code_.push_back(
-            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, mask, 1));
-        shader_code_.push_back(system_temps_color_[result.storage_index]);
-        break;
-
-      default:
-        continue;
-    }
-
-    if (i == 0) {
-      // Copy from the source r#.
-      shader_code_.push_back(EncodeVectorSwizzledOperand(
-          D3D10_SB_OPERAND_TYPE_TEMP, swizzle_components, 1));
-      shader_code_.push_back(reg);
-    } else {
-      // Load constants.
-      shader_code_.push_back(EncodeVectorSwizzledOperand(
-          D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-      for (uint32_t j = 0; j < 4; ++j) {
-        shader_code_.push_back((constant_values & (1 << j)) ? 0x3F800000 : 0);
+      if (component == SwizzleSource::k1) {
+        constant_1_mask |= 1 << i;
       }
     }
   }
-
-  if (result.storage_target == InstructionStorageTarget::kExportData) {
-    // Mark that the eM# has been written to and needs to be exported.
-    uint32_t memexport_index = memexport_alloc_current_count_ - 1;
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_OR) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-    shader_code_.push_back(EncodeVectorMaskedOperand(
-        D3D10_SB_OPERAND_TYPE_TEMP, 1 << (memexport_index >> 2), 1));
-    shader_code_.push_back(system_temp_memexport_written_);
-    shader_code_.push_back(EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP,
-                                                     memexport_index >> 2, 1));
-    shader_code_.push_back(system_temp_memexport_written_);
-    shader_code_.push_back(
-        EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-    shader_code_.push_back(
-        uint32_t(1) << (result.storage_index + ((memexport_index & 3) << 3)));
-    ++stat_.instruction_count;
-    ++stat_.uint_instruction_count;
+  if (used_write_mask != constant_mask) {
+    DxbcOpMov(dest.Mask(used_write_mask & ~constant_mask),
+              src.SwizzleSwizzled(src_additional_swizzle), is_clamped);
   }
-
-  if (edram_rov_used_ &&
-      result.storage_target == InstructionStorageTarget::kColor) {
-    // For ROV output, mark that the color has been written to.
-    // According to:
-    // https://docs.microsoft.com/en-us/windows/desktop/direct3dhlsl/dx9-graphics-reference-asm-ps-registers-output-color
-    // if a color target has been written to - including due to flow control -
-    // the render target must not be modified (the unwritten components of a
-    // written target are undefined, not sure if this behavior is respected on
-    // the real GPU, but the ROV code currently uses pre-packed masks to keep
-    // the old values, so preservation of components is not done).
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_OR) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-    shader_code_.push_back(system_temp_rov_params_);
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-    shader_code_.push_back(system_temp_rov_params_);
-    shader_code_.push_back(
-        EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-    shader_code_.push_back(1 << (8 + result.storage_index));
-    ++stat_.instruction_count;
-    ++stat_.uint_instruction_count;
+  if (constant_mask) {
+    DxbcOpMov(dest.Mask(constant_mask),
+              DxbcSrc::LF(float(constant_1_mask & 1),
+                          float((constant_1_mask >> 1) & 1),
+                          float((constant_1_mask >> 2) & 1),
+                          float((constant_1_mask >> 3) & 1)));
   }
 }
 
@@ -2192,8 +2127,8 @@ void DxbcShaderTranslator::ProcessLoopStartInstruction(
     EmitInstructionDisassembly();
   }
 
-  // Count (as uint) in bits 0:7 of the loop constant, initial aL in 8:15.
-  // Starting from vector 2 because of bool constants.
+  // Count (unsigned) in bits 0:7 of the loop constant, initial aL (unsigned) in
+  // 8:15. Starting from vector 2 because of bool constants.
   if (cbuffer_index_bool_loop_constants_ == kCbufferIndexUnallocated) {
     cbuffer_index_bool_loop_constants_ = cbuffer_count_++;
   }
@@ -2280,12 +2215,12 @@ void DxbcShaderTranslator::ProcessLoopEndInstruction(
   {
     // Continue case.
     uint32_t aL_add_temp = PushSystemTemp();
-    // Extract the value to add to aL (in bits 16:23 of the loop constant).
-    // Starting from vector 2 because of bool constants.
+    // Extract the value to add to aL (signed, in bits 16:23 of the loop
+    // constant). Starting from vector 2 because of bool constants.
     if (cbuffer_index_bool_loop_constants_ == kCbufferIndexUnallocated) {
       cbuffer_index_bool_loop_constants_ = cbuffer_count_++;
     }
-    DxbcOpUBFE(DxbcDest::R(aL_add_temp, 0b0001), DxbcSrc::LU(8),
+    DxbcOpIBFE(DxbcDest::R(aL_add_temp, 0b0001), DxbcSrc::LU(8),
                DxbcSrc::LU(16),
                DxbcSrc::CB(cbuffer_index_bool_loop_constants_,
                            uint32_t(CbufferRegister::kBoolLoopConstants),

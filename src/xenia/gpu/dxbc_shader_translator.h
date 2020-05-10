@@ -764,7 +764,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
         if (index_dimension > 1) {
           operand_token |= uint32_t(index_2d_.GetRepresentation()) << 25;
           if (index_dimension > 2) {
-            operand_token |= uint32_t(index_2d_.GetRepresentation()) << 28;
+            operand_token |= uint32_t(index_3d_.GetRepresentation()) << 28;
           }
         }
       }
@@ -1084,12 +1084,15 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kDefault = 10,
     kDiscard = 13,
     kDiv = 14,
+    kDP2 = 15,
+    kDP3 = 16,
     kDP4 = 17,
     kElse = 18,
     kEndIf = 21,
     kEndLoop = 22,
     kEndSwitch = 23,
     kEq = 24,
+    kFrc = 26,
     kFToI = 27,
     kFToU = 28,
     kGE = 29,
@@ -1118,6 +1121,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kRet = 62,
     kRetC = 63,
     kRoundNE = 64,
+    kRoundNI = 65,
     kRoundZ = 67,
     kSwitch = 76,
     kULT = 79,
@@ -1291,6 +1295,32 @@ class DxbcShaderTranslator : public ShaderTranslator {
     DxbcEmitAluOp(DxbcOpcode::kDiv, 0b00, dest, src0, src1, saturate);
     ++stat_.float_instruction_count;
   }
+  void DxbcOpDP2(const DxbcDest& dest, const DxbcSrc& src0, const DxbcSrc& src1,
+                 bool saturate = false) {
+    uint32_t operands_length =
+        dest.GetLength() + src0.GetLength(0b0011) + src1.GetLength(0b0011);
+    shader_code_.reserve(shader_code_.size() + 1 + operands_length);
+    shader_code_.push_back(
+        DxbcOpcodeToken(DxbcOpcode::kDP2, operands_length, saturate));
+    dest.Write(shader_code_);
+    src0.Write(shader_code_, false, 0b0011);
+    src1.Write(shader_code_, false, 0b0011);
+    ++stat_.instruction_count;
+    ++stat_.float_instruction_count;
+  }
+  void DxbcOpDP3(const DxbcDest& dest, const DxbcSrc& src0, const DxbcSrc& src1,
+                 bool saturate = false) {
+    uint32_t operands_length =
+        dest.GetLength() + src0.GetLength(0b0111) + src1.GetLength(0b0111);
+    shader_code_.reserve(shader_code_.size() + 1 + operands_length);
+    shader_code_.push_back(
+        DxbcOpcodeToken(DxbcOpcode::kDP3, operands_length, saturate));
+    dest.Write(shader_code_);
+    src0.Write(shader_code_, false, 0b0111);
+    src1.Write(shader_code_, false, 0b0111);
+    ++stat_.instruction_count;
+    ++stat_.float_instruction_count;
+  }
   void DxbcOpDP4(const DxbcDest& dest, const DxbcSrc& src0, const DxbcSrc& src1,
                  bool saturate = false) {
     uint32_t operands_length =
@@ -1323,6 +1353,11 @@ class DxbcShaderTranslator : public ShaderTranslator {
   void DxbcOpEq(const DxbcDest& dest, const DxbcSrc& src0,
                 const DxbcSrc& src1) {
     DxbcEmitAluOp(DxbcOpcode::kEq, 0b00, dest, src0, src1);
+    ++stat_.float_instruction_count;
+  }
+  void DxbcOpFrc(const DxbcDest& dest, const DxbcSrc& src,
+                 bool saturate = false) {
+    DxbcEmitAluOp(DxbcOpcode::kFrc, 0b0, dest, src, saturate);
     ++stat_.float_instruction_count;
   }
   void DxbcOpFToI(const DxbcDest& dest, const DxbcSrc& src) {
@@ -1469,6 +1504,11 @@ class DxbcShaderTranslator : public ShaderTranslator {
   void DxbcOpRoundNE(const DxbcDest& dest, const DxbcSrc& src,
                      bool saturate = false) {
     DxbcEmitAluOp(DxbcOpcode::kRoundNE, 0b0, dest, src, saturate);
+    ++stat_.float_instruction_count;
+  }
+  void DxbcOpRoundNI(const DxbcDest& dest, const DxbcSrc& src,
+                     bool saturate = false) {
+    DxbcEmitAluOp(DxbcOpcode::kRoundNI, 0b0, dest, src, saturate);
     ++stat_.float_instruction_count;
   }
   void DxbcOpRoundZ(const DxbcDest& dest, const DxbcSrc& src,
@@ -2027,6 +2067,14 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // as shader messages, from instruction_disassembly_buffer_.
   void EmitInstructionDisassembly();
 
+  // Converts a shader translator source operand to a DXBC emitter operand, or
+  // returns a zero literal operand if it's not going to be referenced. This may
+  // allocate a temporary register and emit instructions if the operand can't be
+  // used directly with most DXBC instructions (like, if it's an indexable GPR),
+  // in this case, temp_pushed_out will be set to true, and PopSystemTemp must
+  // be done when the operand is not needed anymore.
+  DxbcSrc LoadOperand(const InstructionOperand& operand,
+                      uint32_t needed_components, bool& temp_pushed_out);
   // Abstract 4-component vector source operand.
   // TODO(Triang3l): Remove after fully moving to the new emitter.
   struct DxbcSourceOperand {
@@ -2085,11 +2133,12 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // TODO(Triang3l): Remove after fully moving to the new emitter.
   void UnloadDxbcSourceOperand(const DxbcSourceOperand& operand);
 
-  // Writes xyzw or xxxx of the specified r# to the destination.
-  // can_store_memexport_address is for safety, to allow only proper MADs with
-  // a stream constant to write to eA.
-  void StoreResult(const InstructionResult& result, uint32_t reg,
-                   bool replicate_x, bool can_store_memexport_address = false);
+  // Writes the specified source (src must be usable as a vector `mov` source,
+  // including to x#) to an instruction storage target.
+  // can_store_memexport_address is for safety, to allow only proper MADs with a
+  // stream constant to write to eA.
+  void StoreResult(const InstructionResult& result, const DxbcSrc& src,
+                   bool can_store_memexport_address = false);
 
   // The nesting of `if` instructions is the following:
   // - pc checks (labels).
@@ -2150,12 +2199,12 @@ class DxbcShaderTranslator : public ShaderTranslator {
                                    TextureFilter min_filter,
                                    TextureFilter mip_filter,
                                    AnisoFilter aniso_filter);
-  // Converts (S, T, face index) in the specified temporary register to a 3D
-  // cubemap coordinate.
-  void ArrayCoordToCubeDirection(uint32_t reg);
+  // Converts (array S + 1, array T + 1, face index) in the specified temporary
+  // register to a 3D cubemap coordinate.
+  void TfetchCubeCoordToCubeDirection(uint32_t reg);
 
-  bool ProcessVectorAluOperation(const ParsedAluInstruction& instr,
-                                 bool& replicate_result_x,
+  void ProcessVectorAluOperation(const ParsedAluInstruction& instr,
+                                 uint32_t& result_swizzle,
                                  bool& predicate_written);
   bool ProcessScalarAluOperation(const ParsedAluInstruction& instr,
                                  bool& predicate_written);
@@ -2334,9 +2383,9 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // eM# in each `alloc export`, or UINT32_MAX if not used.
   uint32_t system_temps_memexport_data_[kMaxMemExports][5];
 
-  // Vector ALU result or fetch scratch (since Xenos write masks can contain
+  // Vector ALU or fetch result/scratch (since Xenos write masks can contain
   // swizzles).
-  uint32_t system_temp_pv_;
+  uint32_t system_temp_result_;
   // Temporary register ID for previous scalar result, program counter,
   // predicate and absolute address register.
   uint32_t system_temp_ps_pc_p0_a0_;
