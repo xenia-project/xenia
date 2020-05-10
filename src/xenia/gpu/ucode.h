@@ -810,16 +810,14 @@ enum class AluScalarOpcode : uint32_t {
   // Floating-Point Maximum with Copy To Integer in AR
   // maxas dest, src0.ab
   // movas/MOVAs dest, src0.aa
-  //     int result = (int)floor(src0.a + 0.5);
-  //     a0 = clamp(result, -256, 255);
+  //     a0 = (int)clamp(floor(src0.a + 0.5), -256.0, 255.0);
   //     dest.xyzw = src0.a >= src0.b ? src0.a : src0.b;
   kMaxAs = 23,
 
   // Floating-Point Maximum with Copy Truncated To Integer in AR
   // maxasf dest, src0.ab
   // movasf/MOVA_FLOORs dest, src0.aa
-  //     int result = (int)floor(src0.a);
-  //     a0 = clamp(result, -256, 255);
+  //     a0 = (int)clamp(floor(src0.a), -256.0, 255.0);
   //     dest.xyzw = src0.a >= src0.b ? src0.a : src0.b;
   kMaxAsf = 24,
 
