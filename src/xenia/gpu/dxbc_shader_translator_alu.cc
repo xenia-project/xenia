@@ -44,7 +44,7 @@ void DxbcShaderTranslator::ProcessVectorAluOperation(
     operand_needed_components[i] = ucode::GetAluVectorOpNeededSourceComponents(
         instr.vector_opcode, i + 1, used_result_components);
   }
-  // .zzxy - don't need the first component.
+  // .zzxy - don't need duplicated Z.
   if (instr.vector_opcode == AluVectorOpcode::kCube) {
     operand_needed_components[0] &= 0b1101;
   }
