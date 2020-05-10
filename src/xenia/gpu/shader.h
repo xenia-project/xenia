@@ -289,7 +289,7 @@ struct ParsedLoopStartInstruction {
   uint32_t dword_index = 0;
 
   // Integer constant register that holds the loop parameters.
-  // Byte-wise: [loop count, start, step [-128, 127], ?]
+  // 0:7 - uint8 loop count, 8:15 - uint8 start aL, 16:23 - int8 aL step.
   uint32_t loop_constant_index = 0;
   // Whether to reuse the current aL instead of reset it to loop start.
   bool is_repeat = false;
@@ -311,7 +311,7 @@ struct ParsedLoopEndInstruction {
   bool predicate_condition = false;
 
   // Integer constant register that holds the loop parameters.
-  // Byte-wise: [loop count, start, step [-128, 127], ?]
+  // 0:7 - uint8 loop count, 8:15 - uint8 start aL, 16:23 - int8 aL step.
   uint32_t loop_constant_index = 0;
 
   // Target address of the start of the loop body.

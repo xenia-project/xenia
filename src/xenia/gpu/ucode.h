@@ -256,7 +256,7 @@ struct ControlFlowLoopStartInstruction {
   // Whether to reuse the current aL instead of reset it to loop start.
   bool is_repeat() const { return is_repeat_; }
   // Integer constant register that holds the loop parameters.
-  // Byte-wise: [loop count, start, step [-128, 127], ?]
+  // 0:7 - uint8 loop count, 8:15 - uint8 start aL, 16:23 - int8 aL step.
   uint32_t loop_id() const { return loop_id_; }
 
  private:
@@ -281,7 +281,7 @@ struct ControlFlowLoopEndInstruction {
   // Target address of the start of the loop body.
   uint32_t address() const { return address_; }
   // Integer constant register that holds the loop parameters.
-  // Byte-wise: [loop count, start, step [-128, 127], ?]
+  // 0:7 - uint8 loop count, 8:15 - uint8 start aL, 16:23 - int8 aL step.
   uint32_t loop_id() const { return loop_id_; }
   // Break from the loop if the predicate matches the expected value.
   bool is_predicated_break() const { return is_predicated_break_; }
@@ -667,11 +667,13 @@ static_assert_size(TextureFetchInstruction, 12);
 //   Both are valid only within the current ALU clause. They are not modified
 //   when the instruction that would write them fails its predication check.
 // - Direct3D 9 rules (like in GCN v_*_legacy_f32 instructions) for
-//   multiplication (0 * anything = 0) wherever it's present (mul, mad, dp,
-//   etc.) and for NaN in min/max. It's very important to respect this rule for
-//   multiplication, as games often rely on it in vector normalization (rcp and
-//   mul), Infinity * 0 resulting in NaN breaks a lot of things in games -
-//   causes white screen in Halo 3, white specular on characters in GTA IV.
+//   multiplication (0 or denormal * anything = 0) wherever it's present (mul,
+//   mad, dp, etc.) and for NaN in min/max. It's very important to respect this
+//   rule for multiplication, as games often rely on it in vector normalization
+//   (rcp and mul), Infinity * 0 resulting in NaN breaks a lot of things in
+//   games - causes white screen in Halo 3, white specular on characters in GTA
+//   IV.
+// TODO(Triang3l): Investigate signed zero handling in multiplication.
 
 enum class AluScalarOpcode : uint32_t {
   // Floating-Point Add
@@ -1145,7 +1147,7 @@ enum class AluVectorOpcode : uint32_t {
   // cube/CUBEv dest, src0, src1
   //     dest.x = T cube coordinate;
   //     dest.y = S cube coordinate;
-  //     dest.z = 2.0 * MajorAxis;
+  //     dest.z = 2.0 * major axis;
   //     dest.w = FaceID;
   // https://developer.amd.com/wordpress/media/2012/12/AMD_Southern_Islands_Instruction_Set_Architecture.pdf
   //     if (abs(z) >= abs(x) && abs(z) >= abs(y)) {
@@ -1167,6 +1169,16 @@ enum class AluVectorOpcode : uint32_t {
   // Expects src0.zzxy and src1.yxzz swizzles.
   // FaceID is D3DCUBEMAP_FACES:
   // https://msdn.microsoft.com/en-us/library/windows/desktop/bb172528(v=vs.85).aspx
+  // Used like:
+  //     cube r0, source.zzxy, source.yxz
+  //     rcp r0.z, r0_abs.z
+  //     mad r0.xy, r0, r0.zzzw, 1.5f
+  //     tfetchCube r0, r0.yxw, tf0
+  // http://web.archive.org/web/20100705154143/http://msdn.microsoft.com/en-us/library/bb313921.aspx
+  // On GCN, the sequence is the same, so GCN documentation can be used as a
+  // reference (tfetchCube doesn't accept the UV as if the texture was a 2D
+  // array in XY exactly, to get texture array UV, 1 must be subtracted from its
+  // XY inputs).
   kCube = 18,
 
   // Four-Element Maximum
@@ -1293,12 +1305,20 @@ enum class AluVectorOpcode : uint32_t {
   // Per-Component Floating-Point Maximum with Copy To Integer in AR
   // maxa dest, src0, src1
   // This is a combined max + mova/MOVAv.
-  //     int result = (int)floor(src0.w + 0.5);
-  //     a0 = clamp(result, -256, 255);
+  //     a0 = (int)clamp(floor(src0.w + 0.5), -256.0, 255.0);
   //     dest.x = src0.x >= src1.x ? src0.x : src1.x;
   //     dest.y = src0.x >= src1.y ? src0.y : src1.y;
   //     dest.z = src0.x >= src1.z ? src0.z : src1.z;
   //     dest.w = src0.x >= src1.w ? src0.w : src1.w;
+  // The MSDN documentation specifies clamp as:
+  // if (!(SQResultF >= -256.0)) {
+  //   SQResultF = -256.0;
+  // }
+  // if (SQResultF > 255.0) {
+  //   SQResultF = 255.0;
+  // }
+  // http://web.archive.org/web/20100705151335/http://msdn.microsoft.com:80/en-us/library/bb313931.aspx
+  // However, using NaN as an address would be unusual.
   kMaxA = 29,
 };
 
@@ -1329,6 +1349,7 @@ constexpr bool AluVectorOpHasSideEffects(AluVectorOpcode vector_opcode) {
 // (doesn't check the operand count though).
 constexpr uint32_t GetAluVectorOpUsedSourceComponents(
     AluVectorOpcode vector_opcode, uint32_t src_index) {
+  assert_not_zero(src_index);
   switch (vector_opcode) {
     case AluVectorOpcode::kDp3:
       return 0b0111;
@@ -1353,27 +1374,30 @@ constexpr uint32_t GetAluVectorOpUsedSourceComponents(
 // components specified in the write mask are needed, but there are instructions
 // with special behavior for certain components.
 constexpr uint32_t GetAluVectorOpNeededSourceComponents(
-    AluVectorOpcode vector_opcode, uint32_t src_index, uint32_t write_mask) {
-  uint32_t components = write_mask;
+    AluVectorOpcode vector_opcode, uint32_t src_index,
+    uint32_t used_result_components) {
+  assert_not_zero(src_index);
+  uint32_t components = used_result_components;
   switch (vector_opcode) {
     case AluVectorOpcode::kDp4:
     case AluVectorOpcode::kMax4:
-      components = write_mask ? 0b1111 : 0;
+      components = used_result_components ? 0b1111 : 0;
       break;
     case AluVectorOpcode::kDp3:
-      components = write_mask ? 0b0111 : 0;
+      components = used_result_components ? 0b0111 : 0;
       break;
     case AluVectorOpcode::kDp2Add:
-      components = write_mask ? (src_index == 3 ? 0b0001 : 0b0011) : 0;
+      components =
+          used_result_components ? (src_index == 3 ? 0b0001 : 0b0011) : 0;
       break;
     case AluVectorOpcode::kCube:
-      components = write_mask ? 0b1111 : 0;
+      components = used_result_components ? 0b1111 : 0;
       break;
     case AluVectorOpcode::kSetpEqPush:
     case AluVectorOpcode::kSetpNePush:
     case AluVectorOpcode::kSetpGtPush:
     case AluVectorOpcode::kSetpGePush:
-      components = write_mask ? 0b1001 : 0b1000;
+      components = used_result_components ? 0b1001 : 0b1000;
       break;
     case AluVectorOpcode::kKillEq:
     case AluVectorOpcode::kKillGt:
