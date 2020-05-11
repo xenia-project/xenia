@@ -751,6 +751,7 @@ Shader::HostVertexShaderType PipelineCache::GetHostVertexShaderTypeIfValid()
       regs.Get<reg::VGT_HOS_CNTL>().tess_mode;
   switch (vgt_draw_initiator.prim_type) {
     case PrimitiveType::kTriangleList:
+    case PrimitiveType::kTrianglePatch:
       // Also supported by triangle strips and fans according to:
       // https://www.khronos.org/registry/OpenGL/extensions/AMD/AMD_vertex_shader_tessellator.txt
       // Would need to convert those to triangle lists, but haven't seen any
@@ -764,39 +765,44 @@ Shader::HostVertexShaderType PipelineCache::GetHostVertexShaderTypeIfValid()
           // - Viva Pinata - tree building with a beehive in the beginning
           //   (visible on the start screen behind the logo), waterfall in the
           //   beginning - kTriangleList.
-          return Shader::HostVertexShaderType::kTriangleDomainConstant;
+          return Shader::HostVertexShaderType::kTriangleDomainCPIndexed;
+        case xenos::TessellationMode::kAdaptive:
+          if (vgt_draw_initiator.prim_type == PrimitiveType::kTrianglePatch) {
+            // - Banjo-Kazooie: Nuts & Bolts - water.
+            // - Halo 3 - water.
+            return Shader::HostVertexShaderType::kTriangleDomainPatchIndexed;
+          }
+          break;
         default:
           break;
       }
       break;
     case PrimitiveType::kQuadList:
+    case PrimitiveType::kQuadPatch:
       switch (tessellation_mode) {
         // Also supported by quad strips according to:
         // https://www.khronos.org/registry/OpenGL/extensions/AMD/AMD_vertex_shader_tessellator.txt
         // Would need to convert those to quad lists, but haven't seen any games
         // using tessellated strips so far.
+        case xenos::TessellationMode::kDiscrete:
+          // Not seen in games so far.
         case xenos::TessellationMode::kContinuous:
           // - Defender - retro screen and beams in the main menu - kQuadList.
-          return Shader::HostVertexShaderType::kQuadDomainConstant;
+          // - Fable 2 - kQuadPatch.
+          return Shader::HostVertexShaderType::kQuadDomainCPIndexed;
+        case xenos::TessellationMode::kAdaptive:
+          if (vgt_draw_initiator.prim_type == PrimitiveType::kQuadPatch) {
+            // - Viva Pinata - garden ground.
+            return Shader::HostVertexShaderType::kQuadDomainPatchIndexed;
+          }
+          break;
         default:
           break;
       }
       break;
-    case PrimitiveType::kTrianglePatch:
-      if (tessellation_mode == xenos::TessellationMode::kAdaptive) {
-        // - Banjo-Kazooie: Nuts & Bolts - water.
-        // - Halo 3 - water.
-        return Shader::HostVertexShaderType::kTriangleDomainAdaptive;
-      }
+    default:
+      // TODO(Triang3l): Support line patches.
       break;
-    case PrimitiveType::kQuadPatch:
-      if (tessellation_mode == xenos::TessellationMode::kAdaptive) {
-        // - Viva Pinata - garden ground.
-        return Shader::HostVertexShaderType::kQuadDomainAdaptive;
-      }
-      break;
-      // TODO(Triang3l): Support line patches and non-adaptive quad
-      // tessellation.
   }
   XELOGE(
       "Unsupported tessellation mode {} for primitive type {}. Report the game "
@@ -970,23 +976,23 @@ bool PipelineCache::TranslateShader(
     const char* host_shader_type;
     if (shader->type() == ShaderType::kVertex) {
       switch (shader->host_vertex_shader_type()) {
-        case Shader::HostVertexShaderType::kLineDomainConstant:
-          host_shader_type = "constant line domain";
+        case Shader::HostVertexShaderType::kLineDomainCPIndexed:
+          host_shader_type = "control-point-indexed line domain";
           break;
-        case Shader::HostVertexShaderType::kLineDomainAdaptive:
-          host_shader_type = "adaptive line domain";
+        case Shader::HostVertexShaderType::kLineDomainPatchIndexed:
+          host_shader_type = "patch-indexed line domain";
           break;
-        case Shader::HostVertexShaderType::kTriangleDomainConstant:
-          host_shader_type = "constant triangle domain";
+        case Shader::HostVertexShaderType::kTriangleDomainCPIndexed:
+          host_shader_type = "control-point-indexed triangle domain";
           break;
-        case Shader::HostVertexShaderType::kTriangleDomainAdaptive:
-          host_shader_type = "adaptive triangle domain";
+        case Shader::HostVertexShaderType::kTriangleDomainPatchIndexed:
+          host_shader_type = "patch-indexed triangle domain";
           break;
-        case Shader::HostVertexShaderType::kQuadDomainConstant:
-          host_shader_type = "constant quad domain";
+        case Shader::HostVertexShaderType::kQuadDomainCPIndexed:
+          host_shader_type = "control-point-indexed quad domain";
           break;
-        case Shader::HostVertexShaderType::kQuadDomainAdaptive:
-          host_shader_type = "adaptive quad domain";
+        case Shader::HostVertexShaderType::kQuadDomainPatchIndexed:
+          host_shader_type = "patch-indexed quad domain";
           break;
         default:
           host_shader_type = "vertex";
@@ -1481,11 +1487,13 @@ ID3D12PipelineState* PipelineCache::CreateD3D12PipelineState(
     switch (tessellation_mode) {
       case xenos::TessellationMode::kDiscrete:
         switch (host_vertex_shader_type) {
-          case Shader::HostVertexShaderType::kTriangleDomainConstant:
+          case Shader::HostVertexShaderType::kTriangleDomainCPIndexed:
+          case Shader::HostVertexShaderType::kTriangleDomainPatchIndexed:
             state_desc.HS.pShaderBytecode = discrete_triangle_hs;
             state_desc.HS.BytecodeLength = sizeof(discrete_triangle_hs);
             break;
-          case Shader::HostVertexShaderType::kQuadDomainConstant:
+          case Shader::HostVertexShaderType::kQuadDomainCPIndexed:
+          case Shader::HostVertexShaderType::kQuadDomainPatchIndexed:
             state_desc.HS.pShaderBytecode = discrete_quad_hs;
             state_desc.HS.BytecodeLength = sizeof(discrete_quad_hs);
             break;
@@ -1496,11 +1504,13 @@ ID3D12PipelineState* PipelineCache::CreateD3D12PipelineState(
         break;
       case xenos::TessellationMode::kContinuous:
         switch (host_vertex_shader_type) {
-          case Shader::HostVertexShaderType::kTriangleDomainConstant:
+          case Shader::HostVertexShaderType::kTriangleDomainCPIndexed:
+          case Shader::HostVertexShaderType::kTriangleDomainPatchIndexed:
             state_desc.HS.pShaderBytecode = continuous_triangle_hs;
             state_desc.HS.BytecodeLength = sizeof(continuous_triangle_hs);
             break;
-          case Shader::HostVertexShaderType::kQuadDomainConstant:
+          case Shader::HostVertexShaderType::kQuadDomainCPIndexed:
+          case Shader::HostVertexShaderType::kQuadDomainPatchIndexed:
             state_desc.HS.pShaderBytecode = continuous_quad_hs;
             state_desc.HS.BytecodeLength = sizeof(continuous_quad_hs);
             break;
@@ -1511,11 +1521,11 @@ ID3D12PipelineState* PipelineCache::CreateD3D12PipelineState(
         break;
       case xenos::TessellationMode::kAdaptive:
         switch (host_vertex_shader_type) {
-          case Shader::HostVertexShaderType::kTriangleDomainAdaptive:
+          case Shader::HostVertexShaderType::kTriangleDomainPatchIndexed:
             state_desc.HS.pShaderBytecode = adaptive_triangle_hs;
             state_desc.HS.BytecodeLength = sizeof(adaptive_triangle_hs);
             break;
-          case Shader::HostVertexShaderType::kQuadDomainAdaptive:
+          case Shader::HostVertexShaderType::kQuadDomainPatchIndexed:
             state_desc.HS.pShaderBytecode = adaptive_quad_hs;
             state_desc.HS.BytecodeLength = sizeof(adaptive_quad_hs);
             break;

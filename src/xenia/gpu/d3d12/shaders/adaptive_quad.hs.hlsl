@@ -48,8 +48,10 @@ XeHSConstantDataOutput XePatchConstant(
 [outputtopology("triangle_cw")]
 [outputcontrolpoints(4)]
 [patchconstantfunc("XePatchConstant")]
-XeHSAdaptiveControlPointOutput main(
+XeHSControlPointOutput main(
     InputPatch<XeHSControlPointInput, 4> xe_input_patch) {
-  XeHSAdaptiveControlPointOutput output;
+  XeHSControlPointOutput output;
+  // Not used with control point indices.
+  output.index = 0.0f;
   return output;
 }

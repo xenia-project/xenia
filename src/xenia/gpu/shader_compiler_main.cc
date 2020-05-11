@@ -38,8 +38,8 @@ DEFINE_string(shader_output_type, "ucode",
 DEFINE_string(
     vertex_shader_output_type, "",
     "Type of the host interface to produce the vertex or domain shader for: "
-    "[vertex or unspecified, linedomain, linedomainadaptive, triangledomain, "
-    "triangledomainadaptive, quaddomain, quaddomainadaptive].",
+    "[vertex or unspecified, linedomaincp, linedomainpatch, triangledomaincp, "
+    "triangledomainpatch, quaddomaincp, quaddomainpatch].",
     "GPU");
 DEFINE_bool(shader_output_dxbc_rov, false,
             "Output ROV-based output-merger code in DXBC pixel shaders.",
@@ -117,24 +117,24 @@ int shader_compiler_main(const std::vector<std::string>& args) {
   Shader::HostVertexShaderType host_vertex_shader_type =
       Shader::HostVertexShaderType::kVertex;
   if (shader_type == ShaderType::kVertex) {
-    if (cvars::vertex_shader_output_type == "linedomain") {
+    if (cvars::vertex_shader_output_type == "linedomaincp") {
       host_vertex_shader_type =
-          Shader::HostVertexShaderType::kLineDomainConstant;
-    } else if (cvars::vertex_shader_output_type == "linedomainadaptive") {
+          Shader::HostVertexShaderType::kLineDomainCPIndexed;
+    } else if (cvars::vertex_shader_output_type == "linedomainpatch") {
       host_vertex_shader_type =
-          Shader::HostVertexShaderType::kLineDomainAdaptive;
-    } else if (cvars::vertex_shader_output_type == "triangledomain") {
+          Shader::HostVertexShaderType::kLineDomainPatchIndexed;
+    } else if (cvars::vertex_shader_output_type == "triangledomaincp") {
       host_vertex_shader_type =
-          Shader::HostVertexShaderType::kTriangleDomainConstant;
-    } else if (cvars::vertex_shader_output_type == "triangledomainadaptive") {
+          Shader::HostVertexShaderType::kTriangleDomainCPIndexed;
+    } else if (cvars::vertex_shader_output_type == "triangledomainpatch") {
       host_vertex_shader_type =
-          Shader::HostVertexShaderType::kTriangleDomainAdaptive;
-    } else if (cvars::vertex_shader_output_type == "quaddomain") {
+          Shader::HostVertexShaderType::kTriangleDomainPatchIndexed;
+    } else if (cvars::vertex_shader_output_type == "quaddomaincp") {
       host_vertex_shader_type =
-          Shader::HostVertexShaderType::kQuadDomainConstant;
-    } else if (cvars::vertex_shader_output_type == "quaddomainadaptive") {
+          Shader::HostVertexShaderType::kQuadDomainCPIndexed;
+    } else if (cvars::vertex_shader_output_type == "quaddomainpatch") {
       host_vertex_shader_type =
-          Shader::HostVertexShaderType::kQuadDomainAdaptive;
+          Shader::HostVertexShaderType::kQuadDomainPatchIndexed;
     }
   }
 

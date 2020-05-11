@@ -52,10 +52,9 @@ enum class PrimitiveType : uint32_t {
   k2DLineStrip = 0x15,
   k2DTriStrip = 0x16,
 
-  // Tessellation patches (D3DTPT) when VGT_OUTPUT_PATH_CNTL::path_select is
-  // xenos::VGTOutputPath::kTessellationEnable. Seen being used with adaptive
-  // tessellation in Banjo-Kazooie: Nuts & Bolts, Halo 3 and Viva Pinata;
-  // discrete/continuous uses kTriangleList in Call of Duty 3 and Viva Pinata.
+  // Tessellation patches when VGT_OUTPUT_PATH_CNTL::path_select is
+  // xenos::VGTOutputPath::kTessellationEnable. The vertex shader receives patch
+  // index rather than control point indices.
   kLinePatch = 0x10,
   kTrianglePatch = 0x11,
   kQuadPatch = 0x12,

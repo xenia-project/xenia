@@ -242,22 +242,22 @@ namespace shader_playground {
       string vertexShaderType = "vertex";
       switch (vertexShaderComboBox.SelectedIndex) {
         case 1:
-          vertexShaderType = "linedomain";
+          vertexShaderType = "linedomaincp";
           break;
         case 2:
-          vertexShaderType = "linedomainadaptive";
+          vertexShaderType = "linedomainpatch";
           break;
         case 3:
-          vertexShaderType = "triangledomain";
+          vertexShaderType = "triangledomaincp";
           break;
         case 4:
-          vertexShaderType = "triangledomainadaptive";
+          vertexShaderType = "triangledomainpatch";
           break;
         case 5:
-          vertexShaderType = "quaddomain";
+          vertexShaderType = "quaddomaincp";
           break;
         case 6:
-          vertexShaderType = "quaddomainadaptive";
+          vertexShaderType = "quaddomainpatch";
           break;
       }
 

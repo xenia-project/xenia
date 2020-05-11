@@ -69,7 +69,8 @@
 //
 // Name                 Index   Mask Register SysValue  Format   Used
 // -------------------- ----- ------ -------- -------- ------- ------
-// no Output
+// XEVERTEXID               0   x           0     NONE   float   x   
+//
 // Tessellation Domain   # of control points
 // -------------------- --------------------
 // Triangle                                3
@@ -88,6 +89,8 @@ dcl_tessellator_output_primitive output_triangle_cw
 dcl_globalFlags refactoringAllowed
 dcl_constantbuffer CB0[0:0][15], immediateIndexed, space=0
 hs_control_point_phase 
+dcl_output o0.x
+mov o0.x, l(0)
 ret 
 hs_fork_phase 
 dcl_hs_fork_phase_instance_count 3
@@ -115,4 +118,4 @@ dcl_temps 1
 min r0.x, vpc0.x, vpc1.x
 min o3.x, r0.x, vpc2.x
 ret 
-// Approximately 12 instruction slots used
+// Approximately 13 instruction slots used

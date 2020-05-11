@@ -87,12 +87,12 @@
       this.vertexShaderComboBox.FormattingEnabled = true;
       this.vertexShaderComboBox.Items.AddRange(new object[] {
             "VS to VS",
-            "VS to isoline DS with constant factors",
-            "VS to isoline DS with adaptive factors",
-            "VS to triangle DS with constant factors",
-            "VS to triangle DS with adaptive factors",
-            "VS to quad DS with constant factors",
-            "VS to quad DS with adaptive factors"});
+            "VS to line DS with control point indices",
+            "VS to line DS with patch index",
+            "VS to triangle DS with control point indices",
+            "VS to triangle DS with patch index",
+            "VS to quad DS with control point indices",
+            "VS to quad DS with patch index"});
       this.vertexShaderComboBox.Location = new System.Drawing.Point(1224, 24);
       this.vertexShaderComboBox.Margin = new System.Windows.Forms.Padding(3, 3, 3, 0);
       this.vertexShaderComboBox.Name = "vertexShaderComboBox";
