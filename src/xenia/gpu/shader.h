@@ -646,12 +646,12 @@ class Shader {
   // packed. This is : uint32_t for simplicity of packing in bit fields.
   enum class HostVertexShaderType : uint32_t {
     kVertex,
-    kLineDomainConstant,
-    kLineDomainAdaptive,
-    kTriangleDomainConstant,
-    kTriangleDomainAdaptive,
-    kQuadDomainConstant,
-    kQuadDomainAdaptive,
+    kLineDomainCPIndexed,
+    kLineDomainPatchIndexed,
+    kTriangleDomainCPIndexed,
+    kTriangleDomainPatchIndexed,
+    kQuadDomainCPIndexed,
+    kQuadDomainPatchIndexed,
   };
 
   struct Error {

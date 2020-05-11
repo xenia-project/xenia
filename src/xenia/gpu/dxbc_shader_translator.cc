@@ -162,6 +162,8 @@ void DxbcShaderTranslator::Reset() {
 
   system_constants_used_ = 0;
 
+  in_domain_location_used_ = 0;
+  in_primitive_id_used_ = false;
   in_control_point_index_used_ = false;
 
   system_temp_count_current_ = 0;
@@ -459,11 +461,12 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
       StartVertexShader_LoadVertexIndex();
       break;
 
-    case Shader::HostVertexShaderType::kTriangleDomainConstant:
+    case Shader::HostVertexShaderType::kTriangleDomainCPIndexed:
       assert_true(register_count() >= 2);
       if (register_count() >= 1) {
         // Copy the domain location to r0.xyz.
         // ZYX swizzle according to Call of Duty 3 and Viva Pinata.
+        in_domain_location_used_ |= 0b0111;
         DxbcOpMov(uses_register_dynamic_addressing() ? DxbcDest::X(0, 0, 0b0111)
                                                      : DxbcDest::R(0, 0b0111),
                   DxbcSrc::VDomain(0b000110));
@@ -484,12 +487,13 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
       }
       break;
 
-    case Shader::HostVertexShaderType::kTriangleDomainAdaptive:
+    case Shader::HostVertexShaderType::kTriangleDomainPatchIndexed:
       assert_true(register_count() >= 2);
       if (register_count() >= 1) {
         // Copy the domain location to r0.xyz.
         // ZYX swizzle with r1.y == 0, according to the water shader in
         // Banjo-Kazooie: Nuts & Bolts.
+        in_domain_location_used_ |= 0b0111;
         DxbcOpMov(uses_register_dynamic_addressing() ? DxbcDest::X(0, 0, 0b0111)
                                                      : DxbcDest::R(0, 0b0111),
                   DxbcSrc::VDomain(0b000110));
@@ -497,6 +501,7 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
           // Copy the primitive index to r1.x as a float.
           uint32_t primitive_id_temp =
               uses_register_dynamic_addressing() ? PushSystemTemp() : 1;
+          in_primitive_id_used_ = true;
           DxbcOpUToF(DxbcDest::R(primitive_id_temp, 0b0001), DxbcSrc::VPrim());
           if (uses_register_dynamic_addressing()) {
             DxbcOpMov(DxbcDest::X(0, 1, 0b0001),
@@ -531,10 +536,11 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
       }
       break;
 
-    case Shader::HostVertexShaderType::kQuadDomainConstant:
+    case Shader::HostVertexShaderType::kQuadDomainCPIndexed:
       assert_true(register_count() >= 2);
       if (register_count() >= 1) {
         // Copy the domain location to r0.xy.
+        in_domain_location_used_ |= 0b0011;
         DxbcOpMov(uses_register_dynamic_addressing() ? DxbcDest::X(0, 0, 0b0011)
                                                      : DxbcDest::R(0, 0b0011),
                   DxbcSrc::VDomain());
@@ -566,17 +572,19 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
       }
       break;
 
-    case Shader::HostVertexShaderType::kQuadDomainAdaptive:
+    case Shader::HostVertexShaderType::kQuadDomainPatchIndexed:
       assert_true(register_count() >= 2);
       if (register_count() >= 1) {
         // Copy the domain location to r0.yz.
         // XY swizzle according to the ground shader in Viva Pinata.
+        in_domain_location_used_ |= 0b0011;
         DxbcOpMov(uses_register_dynamic_addressing() ? DxbcDest::X(0, 0, 0b0110)
                                                      : DxbcDest::R(0, 0b0110),
                   DxbcSrc::VDomain(0b010000));
         // Copy the primitive index to r0.x as a float.
         uint32_t primitive_id_temp =
             uses_register_dynamic_addressing() ? PushSystemTemp() : 0;
+        in_primitive_id_used_ = true;
         DxbcOpUToF(DxbcDest::R(primitive_id_temp, 0b0001), DxbcSrc::VPrim());
         if (uses_register_dynamic_addressing()) {
           DxbcOpMov(DxbcDest::X(0, 0, 0b0001),
@@ -2931,42 +2939,38 @@ void DxbcShaderTranslator::WriteInputSignature() {
     }
     semantic_offset += AppendString(shader_object_, "SV_VertexID");
   } else if (IsDxbcDomainShader()) {
-    if (host_vertex_shader_type() ==
-            Shader::HostVertexShaderType::kTriangleDomainConstant ||
-        host_vertex_shader_type() ==
-            Shader::HostVertexShaderType::kQuadDomainConstant) {
-      // TODO(Triang3l): Support line patches.
-
-      // Control point indices, byte-swapped, biased according to the base index
-      // and converted to float by the host vertex and hull shaders
-      // (XEVERTEXID).
-      size_t control_point_index_position = shader_object_.size();
-      shader_object_.resize(shader_object_.size() + kParameterDwords);
-      ++parameter_count;
-      {
-        DxbcSignatureParameter& control_point_index =
-            *reinterpret_cast<DxbcSignatureParameter*>(
-                shader_object_.data() + control_point_index_position);
-        control_point_index.component_type =
-            DxbcSignatureRegisterComponentType::kFloat32;
-        control_point_index.register_index =
-            uint32_t(InOutRegister::kDSInControlPointIndex);
-        control_point_index.mask = 0b0001;
-        control_point_index.always_reads_mask =
-            in_control_point_index_used_ ? 0b0001 : 0b0000;
-      }
-
-      // Semantic names.
-      uint32_t semantic_offset =
-          uint32_t((shader_object_.size() - chunk_position) * sizeof(uint32_t));
-      {
-        DxbcSignatureParameter& control_point_index =
-            *reinterpret_cast<DxbcSignatureParameter*>(
-                shader_object_.data() + control_point_index_position);
-        control_point_index.semantic_name = semantic_offset;
-      }
-      semantic_offset += AppendString(shader_object_, "XEVERTEXID");
+    // Control point indices, byte-swapped, biased according to the base index
+    // and converted to float by the host vertex and hull shaders
+    // (XEVERTEXID). Needed even for patch-indexed tessellation modes because
+    // hull and domain shaders have strict linkage requirements, all hull shader
+    // outputs must be declared in a domain shader, and the same hull shaders
+    // are used for control-point-indexed and patch-indexed tessellation modes.
+    size_t control_point_index_position = shader_object_.size();
+    shader_object_.resize(shader_object_.size() + kParameterDwords);
+    ++parameter_count;
+    {
+      DxbcSignatureParameter& control_point_index =
+          *reinterpret_cast<DxbcSignatureParameter*>(
+              shader_object_.data() + control_point_index_position);
+      control_point_index.component_type =
+          DxbcSignatureRegisterComponentType::kFloat32;
+      control_point_index.register_index =
+          uint32_t(InOutRegister::kDSInControlPointIndex);
+      control_point_index.mask = 0b0001;
+      control_point_index.always_reads_mask =
+          in_control_point_index_used_ ? 0b0001 : 0b0000;
     }
+
+    // Semantic names.
+    uint32_t semantic_offset =
+        uint32_t((shader_object_.size() - chunk_position) * sizeof(uint32_t));
+    {
+      DxbcSignatureParameter& control_point_index =
+          *reinterpret_cast<DxbcSignatureParameter*>(
+              shader_object_.data() + control_point_index_position);
+      control_point_index.semantic_name = semantic_offset;
+    }
+    semantic_offset += AppendString(shader_object_, "XEVERTEXID");
   } else if (IsDxbcPixelShader()) {
     // Written dynamically, so assume it's always used if it can be written to
     // any interpolator register.
@@ -3133,15 +3137,15 @@ void DxbcShaderTranslator::WritePatchConstantSignature() {
   uint32_t tess_factor_inside_count = 0;
   DxbcName tess_factor_inside_system_value = DxbcName::kUndefined;
   switch (host_vertex_shader_type()) {
-    case Shader::HostVertexShaderType::kTriangleDomainConstant:
-    case Shader::HostVertexShaderType::kTriangleDomainAdaptive:
+    case Shader::HostVertexShaderType::kTriangleDomainCPIndexed:
+    case Shader::HostVertexShaderType::kTriangleDomainPatchIndexed:
       tess_factor_edge_count = 3;
       tess_factor_edge_system_value = DxbcName::kFinalTriEdgeTessFactor;
       tess_factor_inside_count = 1;
       tess_factor_inside_system_value = DxbcName::kFinalTriInsideTessFactor;
       break;
-    case Shader::HostVertexShaderType::kQuadDomainConstant:
-    case Shader::HostVertexShaderType::kQuadDomainAdaptive:
+    case Shader::HostVertexShaderType::kQuadDomainCPIndexed:
+    case Shader::HostVertexShaderType::kQuadDomainPatchIndexed:
       tess_factor_edge_count = 4;
       tess_factor_edge_system_value = DxbcName::kFinalQuadEdgeTessFactor;
       tess_factor_inside_count = 2;
@@ -3501,24 +3505,21 @@ void DxbcShaderTranslator::WriteShaderCode() {
   // Inputs/outputs have 1D-indexed operands with a component mask and a
   // register index.
 
-  uint32_t domain_location_mask = 0b0111;
   if (IsDxbcDomainShader()) {
     // Not using control point data since Xenos only has a vertex shader acting
     // as both vertex shader and domain shader.
     stat_.c_control_points = 3;
     stat_.tessellator_domain = DxbcTessellatorDomain::kTriangle;
     switch (host_vertex_shader_type()) {
-      case Shader::HostVertexShaderType::kTriangleDomainConstant:
-      case Shader::HostVertexShaderType::kTriangleDomainAdaptive:
+      case Shader::HostVertexShaderType::kTriangleDomainCPIndexed:
+      case Shader::HostVertexShaderType::kTriangleDomainPatchIndexed:
         stat_.c_control_points = 3;
         stat_.tessellator_domain = DxbcTessellatorDomain::kTriangle;
-        domain_location_mask = 0b0111;
         break;
-      case Shader::HostVertexShaderType::kQuadDomainConstant:
-      case Shader::HostVertexShaderType::kQuadDomainAdaptive:
+      case Shader::HostVertexShaderType::kQuadDomainCPIndexed:
+      case Shader::HostVertexShaderType::kQuadDomainPatchIndexed:
         stat_.c_control_points = 4;
         stat_.tessellator_domain = DxbcTessellatorDomain::kQuad;
-        domain_location_mask = 0b0011;
         break;
       default:
         // TODO(Triang3l): Support line patches.
@@ -3705,39 +3706,18 @@ void DxbcShaderTranslator::WriteShaderCode() {
   // Inputs and outputs.
   if (IsDxbcVertexOrDomainShader()) {
     if (IsDxbcDomainShader()) {
-      // Domain location input (barycentric for triangles, UV for quads).
-      shader_object_.push_back(
-          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_INPUT) |
-          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(2));
-      shader_object_.push_back(EncodeVectorMaskedOperand(
-          D3D11_SB_OPERAND_TYPE_INPUT_DOMAIN_POINT, domain_location_mask, 0));
-      ++stat_.dcl_count;
-      // Control point indices as float for discrete/continuous tessellation, or
-      // primitive index for adaptive tessellation.
-      uint32_t control_point_array_size;
-      switch (host_vertex_shader_type()) {
-        case Shader::HostVertexShaderType::kTriangleDomainConstant:
-          control_point_array_size = 3;
-          break;
-        case Shader::HostVertexShaderType::kQuadDomainConstant:
-          control_point_array_size = 4;
-          break;
-        default:
-          // TODO(Triang3l): Support line patches.
-          // Adaptive.
-          control_point_array_size = 0;
-      }
-      if (control_point_array_size) {
+      if (in_domain_location_used_) {
+        // Domain location input.
         shader_object_.push_back(
             ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_INPUT) |
-            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4));
-        shader_object_.push_back(EncodeVectorMaskedOperand(
-            D3D11_SB_OPERAND_TYPE_INPUT_CONTROL_POINT, 0b0001, 2));
-        shader_object_.push_back(control_point_array_size);
+            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(2));
         shader_object_.push_back(
-            uint32_t(InOutRegister::kDSInControlPointIndex));
+            EncodeVectorMaskedOperand(D3D11_SB_OPERAND_TYPE_INPUT_DOMAIN_POINT,
+                                      in_domain_location_used_, 0));
         ++stat_.dcl_count;
-      } else {
+      }
+      if (in_primitive_id_used_) {
+        // Primitive (patch) index input.
         shader_object_.push_back(
             ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_INPUT) |
             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(2));
@@ -3745,16 +3725,48 @@ void DxbcShaderTranslator::WriteShaderCode() {
             EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_INPUT_PRIMITIVEID, 0));
         ++stat_.dcl_count;
       }
+      if (in_control_point_index_used_) {
+        // Control point indices as float input.
+        uint32_t control_point_array_size;
+        switch (host_vertex_shader_type()) {
+          case Shader::HostVertexShaderType::kTriangleDomainCPIndexed:
+            control_point_array_size = 3;
+            break;
+          case Shader::HostVertexShaderType::kQuadDomainCPIndexed:
+            control_point_array_size = 4;
+            break;
+          default:
+            // TODO(Triang3l): Support line patches.
+            assert_unhandled_case(host_vertex_shader_type());
+            EmitTranslationError(
+                "Unsupported host vertex shader type in "
+                "StartVertexOrDomainShader");
+            control_point_array_size = 0;
+        }
+        if (control_point_array_size) {
+          shader_object_.push_back(
+              ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_INPUT) |
+              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4));
+          shader_object_.push_back(EncodeVectorMaskedOperand(
+              D3D11_SB_OPERAND_TYPE_INPUT_CONTROL_POINT, 0b0001, 2));
+          shader_object_.push_back(control_point_array_size);
+          shader_object_.push_back(
+              uint32_t(InOutRegister::kDSInControlPointIndex));
+          ++stat_.dcl_count;
+        }
+      }
     } else {
-      // Unswapped vertex index input (only X component).
-      shader_object_.push_back(
-          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_INPUT_SGV) |
-          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4));
-      shader_object_.push_back(
-          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_INPUT, 0b0001, 1));
-      shader_object_.push_back(uint32_t(InOutRegister::kVSInVertexIndex));
-      shader_object_.push_back(ENCODE_D3D10_SB_NAME(D3D10_SB_NAME_VERTEX_ID));
-      ++stat_.dcl_count;
+      if (register_count()) {
+        // Unswapped vertex index input (only X component).
+        shader_object_.push_back(
+            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_INPUT_SGV) |
+            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4));
+        shader_object_.push_back(
+            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_INPUT, 0b0001, 1));
+        shader_object_.push_back(uint32_t(InOutRegister::kVSInVertexIndex));
+        shader_object_.push_back(ENCODE_D3D10_SB_NAME(D3D10_SB_NAME_VERTEX_ID));
+        ++stat_.dcl_count;
+      }
     }
     // Interpolator output.
     for (uint32_t i = 0; i < kInterpolatorCount; ++i) {
@@ -3832,16 +3844,18 @@ void DxbcShaderTranslator::WriteShaderCode() {
                                  i);
         ++stat_.dcl_count;
       }
-      // Point parameters input (only coordinates, not size, needed).
-      shader_object_.push_back(
-          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_INPUT_PS) |
-          ENCODE_D3D10_SB_INPUT_INTERPOLATION_MODE(
-              D3D10_SB_INTERPOLATION_LINEAR) |
-          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
-      shader_object_.push_back(
-          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_INPUT, 0b0011, 1));
-      shader_object_.push_back(uint32_t(InOutRegister::kPSInPointParameters));
-      ++stat_.dcl_count;
+      if (register_count()) {
+        // Point parameters input (only coordinates, not size, needed).
+        shader_object_.push_back(
+            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_INPUT_PS) |
+            ENCODE_D3D10_SB_INPUT_INTERPOLATION_MODE(
+                D3D10_SB_INTERPOLATION_LINEAR) |
+            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
+        shader_object_.push_back(
+            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_INPUT, 0b0011, 1));
+        shader_object_.push_back(uint32_t(InOutRegister::kPSInPointParameters));
+        ++stat_.dcl_count;
+      }
     }
     if (edram_rov_used_) {
       // Z and W in clip space, for per-sample depth.
@@ -3855,19 +3869,19 @@ void DxbcShaderTranslator::WriteShaderCode() {
       shader_object_.push_back(uint32_t(InOutRegister::kPSInClipSpaceZW));
       ++stat_.dcl_count;
     }
-    // Position input (only XY needed for ps_param_gen, and the ROV depth code
-    // calculates the depth from clip space Z and W).
-    shader_object_.push_back(
-        ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_INPUT_PS_SIV) |
-        ENCODE_D3D10_SB_INPUT_INTERPOLATION_MODE(
-            D3D10_SB_INTERPOLATION_LINEAR_NOPERSPECTIVE) |
-        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4));
-    shader_object_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_INPUT, 0b0011, 1));
-    shader_object_.push_back(uint32_t(InOutRegister::kPSInPosition));
-    shader_object_.push_back(ENCODE_D3D10_SB_NAME(D3D10_SB_NAME_POSITION));
-    ++stat_.dcl_count;
-    if (edram_rov_used_ || !is_depth_only_pixel_shader_) {
+    if (edram_rov_used_ || (!is_depth_only_pixel_shader_ && register_count())) {
+      // Position input (only XY needed for ps_param_gen, and the ROV depth code
+      // calculates the depth from clip space Z and W).
+      shader_object_.push_back(
+          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_INPUT_PS_SIV) |
+          ENCODE_D3D10_SB_INPUT_INTERPOLATION_MODE(
+              D3D10_SB_INTERPOLATION_LINEAR_NOPERSPECTIVE) |
+          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4));
+      shader_object_.push_back(
+          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_INPUT, 0b0011, 1));
+      shader_object_.push_back(uint32_t(InOutRegister::kPSInPosition));
+      shader_object_.push_back(ENCODE_D3D10_SB_NAME(D3D10_SB_NAME_POSITION));
+      ++stat_.dcl_count;
       // Is front face.
       shader_object_.push_back(
           ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_INPUT_PS_SGV) |
