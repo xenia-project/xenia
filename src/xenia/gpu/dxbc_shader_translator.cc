@@ -927,10 +927,10 @@ void DxbcShaderTranslator::CompleteVertexOrDomainShader() {
                         .Select(kSysConst_Flags_Comp));
 
   // Check if the shader already returns W, not 1/W, and if it doesn't, turn 1/W
-  // into W.
+  // into W. Using div rather than relaxed-precision rcp for safety.
   DxbcOpAnd(temp_x_dest, flags_src, DxbcSrc::LU(kSysFlag_WNotReciprocal));
   DxbcOpIf(false, temp_x_src);
-  DxbcOpRcp(DxbcDest::R(system_temp_position_, 0b1000),
+  DxbcOpDiv(DxbcDest::R(system_temp_position_, 0b1000), DxbcSrc::LF(1.0f),
             DxbcSrc::R(system_temp_position_, DxbcSrc::kWWWW));
   DxbcOpEndIf();
 
