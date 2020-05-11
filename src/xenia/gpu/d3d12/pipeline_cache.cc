@@ -751,7 +751,6 @@ Shader::HostVertexShaderType PipelineCache::GetHostVertexShaderTypeIfValid()
       regs.Get<reg::VGT_HOS_CNTL>().tess_mode;
   switch (vgt_draw_initiator.prim_type) {
     case PrimitiveType::kTriangleList:
-    case PrimitiveType::kTrianglePatch:
       // Also supported by triangle strips and fans according to:
       // https://www.khronos.org/registry/OpenGL/extensions/AMD/AMD_vertex_shader_tessellator.txt
       // Would need to convert those to triangle lists, but haven't seen any
@@ -766,19 +765,11 @@ Shader::HostVertexShaderType PipelineCache::GetHostVertexShaderTypeIfValid()
           //   (visible on the start screen behind the logo), waterfall in the
           //   beginning - kTriangleList.
           return Shader::HostVertexShaderType::kTriangleDomainCPIndexed;
-        case xenos::TessellationMode::kAdaptive:
-          if (vgt_draw_initiator.prim_type == PrimitiveType::kTrianglePatch) {
-            // - Banjo-Kazooie: Nuts & Bolts - water.
-            // - Halo 3 - water.
-            return Shader::HostVertexShaderType::kTriangleDomainPatchIndexed;
-          }
-          break;
         default:
           break;
       }
       break;
     case PrimitiveType::kQuadList:
-    case PrimitiveType::kQuadPatch:
       switch (tessellation_mode) {
         // Also supported by quad strips according to:
         // https://www.khronos.org/registry/OpenGL/extensions/AMD/AMD_vertex_shader_tessellator.txt
@@ -788,18 +779,19 @@ Shader::HostVertexShaderType PipelineCache::GetHostVertexShaderTypeIfValid()
           // Not seen in games so far.
         case xenos::TessellationMode::kContinuous:
           // - Defender - retro screen and beams in the main menu - kQuadList.
-          // - Fable 2 - kQuadPatch.
           return Shader::HostVertexShaderType::kQuadDomainCPIndexed;
-        case xenos::TessellationMode::kAdaptive:
-          if (vgt_draw_initiator.prim_type == PrimitiveType::kQuadPatch) {
-            // - Viva Pinata - garden ground.
-            return Shader::HostVertexShaderType::kQuadDomainPatchIndexed;
-          }
-          break;
         default:
           break;
       }
       break;
+    case PrimitiveType::kTrianglePatch:
+      // - Banjo-Kazooie: Nuts & Bolts - water - adaptive.
+      // - Halo 3 - water - adaptive.
+      return Shader::HostVertexShaderType::kTriangleDomainPatchIndexed;
+    case PrimitiveType::kQuadPatch:
+      // - Fable II - continuous.
+      // - Viva Pinata - garden ground - adaptive.
+      return Shader::HostVertexShaderType::kQuadDomainPatchIndexed;
     default:
       // TODO(Triang3l): Support line patches.
       break;
