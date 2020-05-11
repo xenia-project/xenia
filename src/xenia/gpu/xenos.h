@@ -657,6 +657,12 @@ XEPACKEDUNION(xe_gpu_vertex_fetch_t, {
 XEPACKEDUNION(xe_gpu_texture_fetch_t, {
   XEPACKEDSTRUCTANONYMOUS({
     FetchConstantType type : 2;       // +0 dword_0
+    // Likely before the swizzle, seems logical from R5xx (SIGNED_COMP0/1/2/3
+    // set the signedness of components 0/1/2/3, while SEL_ALPHA/RED/GREEN/BLUE
+    // specify "swizzling for each channel at the input of the pixel shader",
+    // which can be texture components 0/1/2/3 or constant 0/1) and R6xx
+    // (signedness is FORMAT_COMP_X/Y/Z/W, while the swizzle is DST_SEL_X/Y/Z/W,
+    // which is named in resources the same as DST_SEL in fetch clauses).
     TextureSign sign_x : 2;           // +2
     TextureSign sign_y : 2;           // +4
     TextureSign sign_z : 2;           // +6

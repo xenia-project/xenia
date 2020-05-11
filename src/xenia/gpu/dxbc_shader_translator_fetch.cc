@@ -2520,6 +2520,7 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
         // linearization must be done on color values in 0...1 range, and this
         // is closer to the storage format, while exponent bias is closer to the
         // actual usage in shaders.
+        // TODO(Triang3l): Signs should be pre-swizzled.
         for (uint32_t i = 0; i < 4; ++i) {
           // Extract the sign values from dword 0 ([0].x or [1].z) of the fetch
           // constant (in bits 2:9, 2 bits per component) to sign_temp.x.

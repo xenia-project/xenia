@@ -2160,6 +2160,7 @@ void TextureCache::BindingInfoFromFetchConstant(
     *swizzle_out = swizzle;
   }
 
+  // TODO(Triang3l): Move to texture_util::SwizzleSigns.
   if (has_unsigned_out != nullptr) {
     *has_unsigned_out = fetch.sign_x != TextureSign::kSigned ||
                         fetch.sign_y != TextureSign::kSigned ||
