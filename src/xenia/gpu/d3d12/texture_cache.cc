@@ -1645,13 +1645,17 @@ void TextureCache::WriteSampler(SamplerParameters parameters,
         D3D12_FILTER_REDUCTION_TYPE_STANDARD);
     desc.MaxAnisotropy = 1;
   }
-  // FIXME(Triang3l): Halfway and mirror clamp to border aren't mapped properly.
   static const D3D12_TEXTURE_ADDRESS_MODE kAddressModeMap[] = {
       /* kRepeat               */ D3D12_TEXTURE_ADDRESS_MODE_WRAP,
       /* kMirroredRepeat       */ D3D12_TEXTURE_ADDRESS_MODE_MIRROR,
       /* kClampToEdge          */ D3D12_TEXTURE_ADDRESS_MODE_CLAMP,
       /* kMirrorClampToEdge    */ D3D12_TEXTURE_ADDRESS_MODE_MIRROR_ONCE,
+      // No GL_CLAMP (clamp to half edge, half border) equivalent in Direct3D
+      // 12, but there's no Direct3D 9 equivalent anyway, and too weird to be
+      // suitable for intentional real usage.
       /* kClampToHalfway       */ D3D12_TEXTURE_ADDRESS_MODE_CLAMP,
+      // No mirror and clamp to border equivalents in Direct3D 12, but they
+      // aren't there in Direct3D 9 either.
       /* kMirrorClampToHalfway */ D3D12_TEXTURE_ADDRESS_MODE_MIRROR_ONCE,
       /* kClampToBorder        */ D3D12_TEXTURE_ADDRESS_MODE_BORDER,
       /* kMirrorClampToBorder  */ D3D12_TEXTURE_ADDRESS_MODE_MIRROR_ONCE,
