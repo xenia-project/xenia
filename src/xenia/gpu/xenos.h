@@ -655,7 +655,7 @@ XEPACKEDUNION(xe_gpu_vertex_fetch_t, {
 // XE_GPU_REG_SHADER_CONSTANT_FETCH_*
 XEPACKEDUNION(xe_gpu_texture_fetch_t, {
   XEPACKEDSTRUCTANONYMOUS({
-    FetchConstantType type : 2;       // +0 dword_0
+    FetchConstantType type : 2;  // +0 dword_0
     // Likely before the swizzle, seems logical from R5xx (SIGNED_COMP0/1/2/3
     // set the signedness of components 0/1/2/3, while SEL_ALPHA/RED/GREEN/BLUE
     // specify "swizzling for each channel at the input of the pixel shader",
