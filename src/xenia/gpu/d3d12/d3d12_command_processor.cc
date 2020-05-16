@@ -1409,8 +1409,8 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
 
   // Update the textures - this may bind pipelines.
   texture_cache_->RequestTextures(
-      vertex_shader->GetUsedTextureMask(),
-      pixel_shader != nullptr ? pixel_shader->GetUsedTextureMask() : 0);
+      vertex_shader->GetUsedTextureMask() |
+      (pixel_shader != nullptr ? pixel_shader->GetUsedTextureMask() : 0));
 
   // Check if early depth/stencil can be enabled.
   bool early_z;
