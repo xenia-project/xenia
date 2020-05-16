@@ -15,8 +15,10 @@
 
 #include <DXProgrammableCapture.h>
 #include <d3d12.h>
+#include <d3d12sdklayers.h>
 #include <d3dcompiler.h>
 #include <dxgi1_4.h>
+#include <dxgidebug.h>
 
 #define XELOGD3D XELOGI
 
