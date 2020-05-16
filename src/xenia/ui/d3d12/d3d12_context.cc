@@ -342,9 +342,7 @@ void D3D12Context::EndSwap() {
   direct_queue->ExecuteCommandLists(1, execute_command_lists);
 
   // Present and check if the context was lost.
-  HRESULT result = swap_chain_->Present(0, 0);
-  if (result == DXGI_ERROR_DEVICE_RESET ||
-      result == DXGI_ERROR_DEVICE_REMOVED) {
+  if (FAILED(swap_chain_->Present(0, 0))) {
     context_lost_ = true;
     return;
   }

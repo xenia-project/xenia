@@ -1153,16 +1153,23 @@ void D3D12CommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
     dirty_gamma_ramp_pwl_ = false;
   }
 
-  D3D12_CPU_DESCRIPTOR_HANDLE descriptor_cpu_start;
-  D3D12_GPU_DESCRIPTOR_HANDLE descriptor_gpu_start;
-  if (RequestViewDescriptors(ui::d3d12::DescriptorHeapPool::kHeapIndexInvalid,
-                             2, 2, descriptor_cpu_start,
-                             descriptor_gpu_start) !=
-      ui::d3d12::DescriptorHeapPool::kHeapIndexInvalid) {
-    TextureFormat frontbuffer_format;
-    if (texture_cache_->RequestSwapTexture(descriptor_cpu_start,
-                                           frontbuffer_format)) {
-      render_target_cache_->FlushAndUnbindRenderTargets();
+  D3D12_SHADER_RESOURCE_VIEW_DESC swap_texture_srv_desc;
+  TextureFormat frontbuffer_format;
+  ID3D12Resource* swap_texture_resource = texture_cache_->RequestSwapTexture(
+      swap_texture_srv_desc, frontbuffer_format);
+  if (swap_texture_resource) {
+    render_target_cache_->FlushAndUnbindRenderTargets();
+    D3D12_CPU_DESCRIPTOR_HANDLE descriptor_cpu_start;
+    D3D12_GPU_DESCRIPTOR_HANDLE descriptor_gpu_start;
+    if (RequestViewDescriptors(ui::d3d12::DescriptorHeapPool::kHeapIndexInvalid,
+                               2, 2, descriptor_cpu_start,
+                               descriptor_gpu_start) !=
+        ui::d3d12::DescriptorHeapPool::kHeapIndexInvalid) {
+      // Must not call anything that can change the descriptor heap from now on!
+
+      // Create the swap texture descriptor.
+      device->CreateShaderResourceView(
+          swap_texture_resource, &swap_texture_srv_desc, descriptor_cpu_start);
 
       // Create the gamma ramp texture descriptor.
       // This is according to D3D::InitializePresentationParameters from a game
@@ -1453,6 +1460,7 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
   if (!UpdateBindings(vertex_shader, pixel_shader, root_signature)) {
     return false;
   }
+  // Must not call anything that can change the descriptor heap from now on!
 
   // Ensure vertex and index buffers are resident and draw.
   // TODO(Triang3l): Cache residency for ranges in a way similar to how texture

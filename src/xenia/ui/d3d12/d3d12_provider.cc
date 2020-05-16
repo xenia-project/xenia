@@ -14,10 +14,13 @@
 
 #include "xenia/base/cvar.h"
 #include "xenia/base/logging.h"
+#include "xenia/base/math.h"
 #include "xenia/ui/d3d12/d3d12_context.h"
 
 DEFINE_bool(d3d12_debug, false, "Enable Direct3D 12 and DXGI debug layer.",
             "D3D12");
+DEFINE_bool(d3d12_break_on_error, false,
+            "Break on Direct3D 12 validation errors.", "D3D12");
 DEFINE_int32(d3d12_adapter, -1,
              "Index of the DXGI adapter to use. "
              "-1 for any physical adapter, -2 for WARP software rendering.",
@@ -139,6 +142,19 @@ bool D3D12Provider::Initialize() {
     return false;
   }
 
+  // Configure the DXGI debug info queue.
+  if (cvars::d3d12_break_on_error) {
+    IDXGIInfoQueue* dxgi_info_queue;
+    if (SUCCEEDED(pfn_dxgi_get_debug_interface1_(
+            0, IID_PPV_ARGS(&dxgi_info_queue)))) {
+      dxgi_info_queue->SetBreakOnSeverity(
+          DXGI_DEBUG_ALL, DXGI_INFO_QUEUE_MESSAGE_SEVERITY_CORRUPTION, TRUE);
+      dxgi_info_queue->SetBreakOnSeverity(
+          DXGI_DEBUG_ALL, DXGI_INFO_QUEUE_MESSAGE_SEVERITY_ERROR, TRUE);
+      dxgi_info_queue->Release();
+    }
+  }
+
   // Enable the debug layer.
   bool debug = cvars::d3d12_debug;
   if (debug) {
@@ -224,6 +240,36 @@ bool D3D12Provider::Initialize() {
     return false;
   }
   adapter->Release();
+
+  // Configure the Direct3D 12 debug info queue.
+  ID3D12InfoQueue* d3d12_info_queue;
+  if (SUCCEEDED(device->QueryInterface(IID_PPV_ARGS(&d3d12_info_queue)))) {
+    D3D12_MESSAGE_SEVERITY d3d12_info_queue_denied_severities[] = {
+        D3D12_MESSAGE_SEVERITY_INFO,
+    };
+    D3D12_MESSAGE_ID d3d12_info_queue_denied_messages[] = {
+        // Xbox 360 vertex fetch is explicit in shaders.
+        D3D12_MESSAGE_ID_CREATEINPUTLAYOUT_EMPTY_LAYOUT,
+        // Render targets and shader exports don't have to match on the Xbox
+        // 360.
+        D3D12_MESSAGE_ID_CREATEGRAPHICSPIPELINESTATE_PS_OUTPUT_RT_OUTPUT_MISMATCH,
+    };
+    D3D12_INFO_QUEUE_FILTER d3d12_info_queue_filter = {};
+    d3d12_info_queue_filter.DenyList.NumSeverities =
+        UINT(xe::countof(d3d12_info_queue_denied_severities));
+    d3d12_info_queue_filter.DenyList.pSeverityList =
+        d3d12_info_queue_denied_severities;
+    d3d12_info_queue_filter.DenyList.NumIDs =
+        UINT(xe::countof(d3d12_info_queue_denied_messages));
+    d3d12_info_queue_filter.DenyList.pIDList = d3d12_info_queue_denied_messages;
+    d3d12_info_queue->PushStorageFilter(&d3d12_info_queue_filter);
+    if (cvars::d3d12_break_on_error) {
+      d3d12_info_queue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_CORRUPTION,
+                                           TRUE);
+      d3d12_info_queue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_ERROR, TRUE);
+    }
+    d3d12_info_queue->Release();
+  }
 
   // Create the command queue for graphics.
   D3D12_COMMAND_QUEUE_DESC queue_desc;

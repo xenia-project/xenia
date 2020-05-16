@@ -261,7 +261,8 @@ class RenderTargetCache {
   void CompletedSubmissionUpdated();
   void BeginSubmission();
   void EndFrame();
-  // Called in the beginning of a draw call - may bind pipelines.
+  // Called in the beginning of a draw call - may bind pipelines and change the
+  // view descriptor heap.
   bool UpdateRenderTargets(const D3D12Shader* pixel_shader);
   // Returns the host-to-guest mappings and host formats of currently bound
   // render targets for pipeline creation and remapping in shaders. They are
@@ -281,7 +282,7 @@ class RenderTargetCache {
   void ForceApplyOnNextUpdate() { apply_to_command_list_ = true; }
   // Flushes the render targets to EDRAM and unbinds them, for instance, when
   // the command processor takes over framebuffer bindings to draw something
-  // special.
+  // special. May change the CBV/SRV/UAV descriptor heap.
   void FlushAndUnbindRenderTargets();
   void WriteEDRAMUint32UAVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle);
 
