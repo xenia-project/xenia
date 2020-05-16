@@ -1250,8 +1250,7 @@ void TextureCache::EndFrame() {
   }
 }
 
-void TextureCache::RequestTextures(uint32_t used_vertex_texture_mask,
-                                   uint32_t used_pixel_texture_mask) {
+void TextureCache::RequestTextures(uint32_t used_texture_mask) {
   auto& regs = *register_file_;
 
 #if FINE_GRAINED_DRAW_SCOPES
@@ -1268,12 +1267,11 @@ void TextureCache::RequestTextures(uint32_t used_vertex_texture_mask,
   }
 
   // Update the texture keys and the textures.
-  uint32_t used_texture_mask =
-      used_vertex_texture_mask | used_pixel_texture_mask;
+  uint32_t textures_remaining = used_texture_mask;
   uint32_t index = 0;
-  while (xe::bit_scan_forward(used_texture_mask, &index)) {
-    uint32_t index_bit = 1u << index;
-    used_texture_mask &= ~index_bit;
+  while (xe::bit_scan_forward(textures_remaining, &index)) {
+    uint32_t index_bit = uint32_t(1) << index;
+    textures_remaining &= ~index_bit;
     if (texture_keys_in_sync_ & index_bit) {
       continue;
     }
@@ -1337,34 +1335,35 @@ void TextureCache::RequestTextures(uint32_t used_vertex_texture_mask,
     }
   }
 
-  // Transition the textures to the needed usage.
-  used_texture_mask = used_vertex_texture_mask | used_pixel_texture_mask;
-  while (xe::bit_scan_forward(used_texture_mask, &index)) {
-    uint32_t index_bit = 1u << index;
-    used_texture_mask &= ~index_bit;
-
-    D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATES(0);
-    if (used_vertex_texture_mask & index_bit) {
-      state |= D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
-    }
-    if (used_pixel_texture_mask & index_bit) {
-      state |= D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
-    }
-
+  // Transition the textures to the needed usage - always in
+  // NON_PIXEL_SHADER_RESOURCE | PIXEL_SHADER_RESOURCE states because barriers
+  // between read-only stages, if needed, are discouraged (also if these were
+  // tracked separately, checks would be needed to make sure, if the same
+  // texture is bound through different fetch constants to both VS and PS, it
+  // would be in both states).
+  textures_remaining = used_texture_mask;
+  while (xe::bit_scan_forward(textures_remaining, &index)) {
+    textures_remaining &= ~(uint32_t(1) << index);
     TextureBinding& binding = texture_bindings_[index];
     if (binding.texture != nullptr) {
       // Will be referenced by the command list, so mark as used.
       MarkTextureUsed(binding.texture);
-      command_processor_->PushTransitionBarrier(binding.texture->resource,
-                                                binding.texture->state, state);
-      binding.texture->state = state;
+      command_processor_->PushTransitionBarrier(
+          binding.texture->resource, binding.texture->state,
+          D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE |
+              D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+      binding.texture->state = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE |
+                               D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
     }
     if (binding.texture_signed != nullptr) {
       MarkTextureUsed(binding.texture_signed);
       command_processor_->PushTransitionBarrier(
           binding.texture_signed->resource, binding.texture_signed->state,
-          state);
-      binding.texture_signed->state = state;
+          D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE |
+              D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+      binding.texture_signed->state =
+          D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE |
+          D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
     }
   }
 }
@@ -2028,6 +2027,9 @@ bool TextureCache::RequestSwapTexture(D3D12_CPU_DESCRIPTOR_HANDLE handle,
     return false;
   }
   MarkTextureUsed(texture);
+  // The swap texture is likely to be used only for the presentation pixel
+  // shader, and not during emulation, where it'd be NON_PIXEL_SHADER_RESOURCE |
+  // PIXEL_SHADER_RESOURCE.
   command_processor_->PushTransitionBarrier(
       texture->resource, texture->state,
       D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
