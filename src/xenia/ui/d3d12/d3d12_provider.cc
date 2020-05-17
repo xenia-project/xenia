@@ -252,7 +252,7 @@ bool D3D12Provider::Initialize() {
         D3D12_MESSAGE_ID_CREATEINPUTLAYOUT_EMPTY_LAYOUT,
         // Render targets and shader exports don't have to match on the Xbox
         // 360.
-        D3D12_MESSAGE_ID_CREATEGRAPHICSPIPELINESTATE_PS_OUTPUT_RT_OUTPUT_MISMATCH,
+        D3D12_MESSAGE_ID_CREATEGRAPHICSPIPELINESTATE_RENDERTARGETVIEW_NOT_SET,
     };
     D3D12_INFO_QUEUE_FILTER d3d12_info_queue_filter = {};
     d3d12_info_queue_filter.DenyList.NumSeverities =
