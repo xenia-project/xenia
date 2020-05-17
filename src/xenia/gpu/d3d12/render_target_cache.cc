@@ -2000,8 +2000,8 @@ RenderTargetCache::ResolveTarget* RenderTargetCache::FindOrCreateResolveTarget(
   assert_true(min_heap_page_first < kHeap4MBPages * 5);
 #endif
 
-  if (width_unscaled == 0 || height_unscaled == 0 || width_unscaled > 2160 ||
-      height_unscaled > 2160) {
+  if (width_unscaled == 0 || height_unscaled == 0 || width_unscaled > 2560 ||
+      height_unscaled > 2560) {
     assert_always();
     return nullptr;
   }
