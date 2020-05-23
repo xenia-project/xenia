@@ -722,7 +722,7 @@ void DxbcShaderTranslator::StartPixelShader() {
                             uint32_t(CbufferRegister::kSystemConstants),
                             kSysConst_Flags_Vec)
                     .Select(kSysConst_Flags_Comp),
-                DxbcSrc::LU(kSysFlag_PrimitiveTwoFaced_Shift));
+                DxbcSrc::LU(kSysFlag_PrimitiveTwoFaced));
       DxbcOpIf(true, DxbcSrc::R(param_gen_temp, DxbcSrc::kZZZZ));
       {
         // Negate modifier flips the sign bit even for 0 - set it to minus for
@@ -1041,7 +1041,7 @@ void DxbcShaderTranslator::CompleteVertexOrDomainShader() {
   {
     // Extract the killing condition.
     DxbcOpAnd(temp_x_dest, flags_src,
-              DxbcSrc::LU(kSysFlag_KillIfAnyVertexKilled_Shift));
+              DxbcSrc::LU(kSysFlag_KillIfAnyVertexKilled));
     DxbcOpIf(true, temp_x_src);
     {
       // Kill the primitive if any vertex is killed - write NaN to position.

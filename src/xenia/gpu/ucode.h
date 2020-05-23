@@ -506,10 +506,10 @@ struct VertexFetchInstruction {
   bool is_signed() const { return data_.fomat_comp_all == 1; }
   bool is_normalized() const { return data_.num_format_all == 0; }
   bool is_index_rounded() const { return data_.is_index_rounded == 1; }
-  // Dword stride, [0-255].
+  // Dword stride, [0, 255].
   uint32_t stride() const { return data_.stride; }
-  // Dword offset, [
-  uint32_t offset() const { return data_.offset; }
+  // Dword offset, [-4194304, 4194303].
+  int32_t offset() const { return data_.offset; }
 
   void AssignFromFull(const VertexFetchInstruction& full) {
     data_.stride = full.data_.stride;
@@ -528,6 +528,7 @@ struct VertexFetchInstruction {
       uint32_t must_be_one : 1;
       uint32_t const_index : 5;
       uint32_t const_index_sel : 2;
+      // Prefetch count minus 1.
       uint32_t prefetch_count : 3;
       uint32_t src_swiz : 2;
     });
@@ -545,7 +546,7 @@ struct VertexFetchInstruction {
     });
     XEPACKEDSTRUCTANONYMOUS({
       uint32_t stride : 8;
-      uint32_t offset : 23;
+      int32_t offset : 23;
       uint32_t pred_condition : 1;
     });
   });
@@ -1375,6 +1376,7 @@ constexpr uint32_t GetAluVectorOpNeededSourceComponents(
     AluVectorOpcode vector_opcode, uint32_t src_index,
     uint32_t used_result_components) {
   assert_not_zero(src_index);
+  assert_zero(used_result_components & ~uint32_t(0b1111));
   uint32_t components = used_result_components;
   switch (vector_opcode) {
     case AluVectorOpcode::kDp4:

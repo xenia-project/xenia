@@ -1100,10 +1100,12 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kIAdd = 30,
     kIf = 31,
     kIEq = 32,
+    kIGE = 33,
     kILT = 34,
     kIMAd = 35,
     kIMax = 36,
     kIMin = 37,
+    kIMul = 38,
     kINE = 39,
     kIShL = 41,
     kIToF = 43,
@@ -1151,6 +1153,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kBFI = 140,
     kLdUAVTyped = 163,
     kStoreUAVTyped = 164,
+    kLdRaw = 165,
     kStoreRaw = 166,
     kEvalSampleIndex = 204,
   };
@@ -1410,6 +1413,11 @@ class DxbcShaderTranslator : public ShaderTranslator {
     DxbcEmitAluOp(DxbcOpcode::kIEq, 0b11, dest, src0, src1);
     ++stat_.int_instruction_count;
   }
+  void DxbcOpIGE(const DxbcDest& dest, const DxbcSrc& src0,
+                 const DxbcSrc& src1) {
+    DxbcEmitAluOp(DxbcOpcode::kIGE, 0b11, dest, src0, src1);
+    ++stat_.int_instruction_count;
+  }
   void DxbcOpILT(const DxbcDest& dest, const DxbcSrc& src0,
                  const DxbcSrc& src1) {
     DxbcEmitAluOp(DxbcOpcode::kILT, 0b11, dest, src0, src1);
@@ -1428,6 +1436,11 @@ class DxbcShaderTranslator : public ShaderTranslator {
   void DxbcOpIMin(const DxbcDest& dest, const DxbcSrc& src0,
                   const DxbcSrc& src1) {
     DxbcEmitAluOp(DxbcOpcode::kIMin, 0b11, dest, src0, src1);
+    ++stat_.int_instruction_count;
+  }
+  void DxbcOpIMul(const DxbcDest& dest_hi, const DxbcDest& dest_lo,
+                  const DxbcSrc& src0, const DxbcSrc& src1) {
+    DxbcEmitAluOp(DxbcOpcode::kIMul, 0b11, dest_hi, dest_lo, src0, src1);
     ++stat_.int_instruction_count;
   }
   void DxbcOpINE(const DxbcDest& dest, const DxbcSrc& src0,
@@ -1693,6 +1706,33 @@ class DxbcShaderTranslator : public ShaderTranslator {
     value.Write(shader_code_, false, dest_write_mask);
     ++stat_.instruction_count;
     ++stat_.c_texture_store_instructions;
+  }
+  void DxbcOpLdRaw(const DxbcDest& dest, const DxbcSrc& byte_offset,
+                   const DxbcSrc& src) {
+    // For Load, FXC emits code for writing to any component of the destination,
+    // with xxxx swizzle of the source SRV/UAV.
+    // For Load2/Load3/Load4, it's xy/xyz/xyzw write mask and xyxx/xyzx/xyzw
+    // swizzle.
+    uint32_t dest_write_mask = dest.GetMask();
+    assert_true(dest_write_mask == 0b0001 || dest_write_mask == 0b0010 ||
+                dest_write_mask == 0b0100 || dest_write_mask == 0b1000 ||
+                dest_write_mask == 0b0011 || dest_write_mask == 0b0111 ||
+                dest_write_mask == 0b1111);
+    uint32_t component_count = xe::bit_count(dest_write_mask);
+    assert_true((src.swizzle_ & ((1 << (component_count * 2)) - 1)) ==
+                (DxbcSrc::kXYZW & ((1 << (component_count * 2)) - 1)));
+    uint32_t src_mask = (1 << component_count) - 1;
+    uint32_t operands_length = dest.GetLength() +
+                               byte_offset.GetLength(0b0000) +
+                               src.GetLength(src_mask, true);
+    shader_code_.reserve(shader_code_.size() + 1 + operands_length);
+    shader_code_.push_back(
+        DxbcOpcodeToken(DxbcOpcode::kLdRaw, operands_length));
+    dest.Write(shader_code_);
+    byte_offset.Write(shader_code_, true, 0b0000);
+    src.Write(shader_code_, true, src_mask, true);
+    ++stat_.instruction_count;
+    ++stat_.texture_load_instructions;
   }
   void DxbcOpStoreRaw(const DxbcDest& dest, const DxbcSrc& byte_offset,
                       const DxbcSrc& value) {
@@ -2227,9 +2267,6 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // conditional, but can't itself be predicated.
   void CloseInstructionPredication();
   void JumpToLabel(uint32_t address);
-
-  // Emits copde for endian swapping of the data located in pv.
-  void SwapVertexData(uint32_t vfetch_index, uint32_t write_mask);
 
   // Returns index in texture_srvs_, and, for bound textures, it's also relative
   // to the base T#/t# index of textures.

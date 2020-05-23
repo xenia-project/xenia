@@ -8,12 +8,14 @@
  */
 
 #include <algorithm>
+#include <cmath>
 #include <memory>
 #include <sstream>
 
 #include "third_party/dxbc/d3d12TokenizedProgramFormat.hpp"
 #include "third_party/fmt/include/fmt/format.h"
 #include "xenia/base/assert.h"
+#include "xenia/base/math.h"
 #include "xenia/base/string.h"
 #include "xenia/gpu/dxbc_shader_translator.h"
 
@@ -21,306 +23,8 @@ namespace xe {
 namespace gpu {
 using namespace ucode;
 
-void DxbcShaderTranslator::SwapVertexData(uint32_t vfetch_index,
-                                          uint32_t write_mask) {
-  // Make sure we have fetch constants.
-  if (cbuffer_index_fetch_constants_ == kCbufferIndexUnallocated) {
-    cbuffer_index_fetch_constants_ = cbuffer_count_++;
-  }
-
-  // Allocate temporary registers for intermediate values.
-  uint32_t temp1 = PushSystemTemp();
-  uint32_t temp2 = PushSystemTemp();
-
-  // 8-in-16: Create the value being built in temp1.
-  // ushr temp1, pv, l(8, 8, 8, 8)
-  // pv: ABCD, temp1: BCD0
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_USHR) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(10));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, write_mask, 1));
-  shader_code_.push_back(temp1);
-  shader_code_.push_back(
-      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-  shader_code_.push_back(system_temp_result_);
-  shader_code_.push_back(EncodeVectorSwizzledOperand(
-      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-  shader_code_.push_back(8);
-  shader_code_.push_back(8);
-  shader_code_.push_back(8);
-  shader_code_.push_back(8);
-  ++stat_.instruction_count;
-  ++stat_.uint_instruction_count;
-
-  // 8-in-16: Insert A in Y of temp1.
-  // bfi temp1, l(8, 8, 8, 8), l(8, 8, 8, 8), pv, temp1
-  // pv: ABCD, temp1: BAD0
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_BFI) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(17));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, write_mask, 1));
-  shader_code_.push_back(temp1);
-  shader_code_.push_back(EncodeVectorSwizzledOperand(
-      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-  shader_code_.push_back(8);
-  shader_code_.push_back(8);
-  shader_code_.push_back(8);
-  shader_code_.push_back(8);
-  shader_code_.push_back(EncodeVectorSwizzledOperand(
-      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-  shader_code_.push_back(8);
-  shader_code_.push_back(8);
-  shader_code_.push_back(8);
-  shader_code_.push_back(8);
-  shader_code_.push_back(
-      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-  shader_code_.push_back(system_temp_result_);
-  shader_code_.push_back(
-      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-  shader_code_.push_back(temp1);
-  ++stat_.instruction_count;
-  ++stat_.uint_instruction_count;
-
-  // 8-in-16: Create the source for C insertion in temp2.
-  // ushr temp2, pv, l(16, 16, 16, 16)
-  // pv: ABCD, temp1: BAD0, temp2: CD00
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_USHR) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(10));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, write_mask, 1));
-  shader_code_.push_back(temp2);
-  shader_code_.push_back(
-      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-  shader_code_.push_back(system_temp_result_);
-  shader_code_.push_back(EncodeVectorSwizzledOperand(
-      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-  shader_code_.push_back(16);
-  shader_code_.push_back(16);
-  shader_code_.push_back(16);
-  shader_code_.push_back(16);
-  ++stat_.instruction_count;
-  ++stat_.uint_instruction_count;
-
-  // 8-in-16: Insert C in W of temp1.
-  // bfi temp1, l(8, 8, 8, 8), l(24, 24, 24, 24), temp2, temp1
-  // pv: ABCD, temp1: BADC
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_BFI) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(17));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, write_mask, 1));
-  shader_code_.push_back(temp1);
-  shader_code_.push_back(EncodeVectorSwizzledOperand(
-      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-  shader_code_.push_back(8);
-  shader_code_.push_back(8);
-  shader_code_.push_back(8);
-  shader_code_.push_back(8);
-  shader_code_.push_back(EncodeVectorSwizzledOperand(
-      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-  shader_code_.push_back(24);
-  shader_code_.push_back(24);
-  shader_code_.push_back(24);
-  shader_code_.push_back(24);
-  shader_code_.push_back(
-      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-  shader_code_.push_back(temp2);
-  shader_code_.push_back(
-      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-  shader_code_.push_back(temp1);
-  ++stat_.instruction_count;
-  ++stat_.uint_instruction_count;
-
-  // Get bits indicating what swaps should be done. The endianness is located in
-  // the low 2 bits of the second dword of the fetch constant:
-  // - 00 for no swap.
-  // - 01 for 8-in-16.
-  // - 10 for 8-in-32 (8-in-16 and 16-in-32).
-  // - 11 for 16-in-32.
-  // ubfe temp2.xy, l(1, 1), l(0, 1), fetch.yy
-  // pv: ABCD, temp1: BADC, temp2: 8in16/16in32?|8in32/16in32?
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_UBFE) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(17));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0011, 1));
-  shader_code_.push_back(temp2);
-  shader_code_.push_back(EncodeVectorSwizzledOperand(
-      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-  shader_code_.push_back(1);
-  shader_code_.push_back(1);
-  shader_code_.push_back(0);
-  shader_code_.push_back(0);
-  shader_code_.push_back(EncodeVectorSwizzledOperand(
-      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-  shader_code_.push_back(0);
-  shader_code_.push_back(1);
-  shader_code_.push_back(0);
-  shader_code_.push_back(0);
-  shader_code_.push_back(EncodeVectorReplicatedOperand(
-      D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, (vfetch_index & 1) * 2 + 1, 3));
-  shader_code_.push_back(cbuffer_index_fetch_constants_);
-  shader_code_.push_back(uint32_t(CbufferRegister::kFetchConstants));
-  shader_code_.push_back(vfetch_index >> 1);
-  ++stat_.instruction_count;
-  ++stat_.uint_instruction_count;
-
-  // 16-in-32 is used as intermediate swapping step here rather than 8-in-32.
-  // Thus 8-in-16 needs to be done for 8-in-16 (01) and 8-in-32 (10).
-  // And 16-in-32 needs to be done for 8-in-32 (10) and 16-in-32 (11).
-  // xor temp2.x, temp2.x, temp2.y
-  // pv: ABCD, temp1: BADC, temp2: 8in16/8in32?|8in32/16in32?
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_XOR) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-  shader_code_.push_back(temp2);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-  shader_code_.push_back(temp2);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
-  shader_code_.push_back(temp2);
-  ++stat_.instruction_count;
-  ++stat_.uint_instruction_count;
-
-  // Write the 8-in-16 value to pv if needed.
-  // movc pv, temp2.xxxx, temp1, pv
-  // pv: ABCD/BADC, temp2: 8in16/8in32?|8in32/16in32?
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, write_mask, 1));
-  shader_code_.push_back(system_temp_result_);
-  shader_code_.push_back(
-      EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-  shader_code_.push_back(temp2);
-  shader_code_.push_back(
-      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-  shader_code_.push_back(temp1);
-  shader_code_.push_back(
-      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-  shader_code_.push_back(system_temp_result_);
-  ++stat_.instruction_count;
-  ++stat_.movc_instruction_count;
-
-  // 16-in-32: Write the low 16 bits to temp1.
-  // ushr temp1, pv, l(16, 16, 16, 16)
-  // pv: ABCD/BADC, temp1: CD00/DC00, temp2: 8in16/8in32?|8in32/16in32?
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_USHR) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(10));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, write_mask, 1));
-  shader_code_.push_back(temp1);
-  shader_code_.push_back(
-      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-  shader_code_.push_back(system_temp_result_);
-  shader_code_.push_back(EncodeVectorSwizzledOperand(
-      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-  shader_code_.push_back(16);
-  shader_code_.push_back(16);
-  shader_code_.push_back(16);
-  shader_code_.push_back(16);
-  ++stat_.instruction_count;
-  ++stat_.uint_instruction_count;
-
-  // 16-in-32: Write the high 16 bits to temp1.
-  // bfi temp1, l(16, 16, 16, 16), l(16, 16, 16, 16), pv, temp1
-  // pv: ABCD/BADC, temp1: CDAB/DCBA, temp2: 8in16/8in32?|8in32/16in32?
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_BFI) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(17));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, write_mask, 1));
-  shader_code_.push_back(temp1);
-  shader_code_.push_back(EncodeVectorSwizzledOperand(
-      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-  shader_code_.push_back(16);
-  shader_code_.push_back(16);
-  shader_code_.push_back(16);
-  shader_code_.push_back(16);
-  shader_code_.push_back(EncodeVectorSwizzledOperand(
-      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-  shader_code_.push_back(16);
-  shader_code_.push_back(16);
-  shader_code_.push_back(16);
-  shader_code_.push_back(16);
-  shader_code_.push_back(
-      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-  shader_code_.push_back(system_temp_result_);
-  shader_code_.push_back(
-      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-  shader_code_.push_back(temp1);
-  ++stat_.instruction_count;
-  ++stat_.uint_instruction_count;
-
-  // Write the swapped value to pv.
-  // movc pv, temp2.yyyy, temp1, pv
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, write_mask, 1));
-  shader_code_.push_back(system_temp_result_);
-  shader_code_.push_back(
-      EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
-  shader_code_.push_back(temp2);
-  shader_code_.push_back(
-      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-  shader_code_.push_back(temp1);
-  shader_code_.push_back(
-      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-  shader_code_.push_back(system_temp_result_);
-  ++stat_.instruction_count;
-  ++stat_.movc_instruction_count;
-
-  PopSystemTemp(2);
-}
-
 void DxbcShaderTranslator::ProcessVertexFetchInstruction(
     const ParsedVertexFetchInstruction& instr) {
-  if (instr.operand_count < 2 ||
-      instr.operands[1].storage_source !=
-          InstructionStorageSource::kVertexFetchConstant) {
-    assert_always();
-    return;
-  }
-
-  // Get the mask for ld_raw and byte swapping.
-  uint32_t load_dword_count;
-  switch (instr.attributes.data_format) {
-    case VertexFormat::k_8_8_8_8:
-    case VertexFormat::k_2_10_10_10:
-    case VertexFormat::k_10_11_11:
-    case VertexFormat::k_11_11_10:
-    case VertexFormat::k_16_16:
-    case VertexFormat::k_16_16_FLOAT:
-    case VertexFormat::k_32:
-    case VertexFormat::k_32_FLOAT:
-      load_dword_count = 1;
-      break;
-    case VertexFormat::k_16_16_16_16:
-    case VertexFormat::k_16_16_16_16_FLOAT:
-    case VertexFormat::k_32_32:
-    case VertexFormat::k_32_32_FLOAT:
-      load_dword_count = 2;
-      break;
-    case VertexFormat::k_32_32_32_FLOAT:
-      load_dword_count = 3;
-      break;
-    case VertexFormat::k_32_32_32_32:
-    case VertexFormat::k_32_32_32_32_FLOAT:
-      load_dword_count = 4;
-      break;
-    default:
-      assert_unhandled_case(instr.attributes.data_format);
-      return;
-  }
-  // Get the result write mask.
-  uint32_t result_component_count =
-      GetVertexFormatComponentCount(instr.attributes.data_format);
-  if (result_component_count == 0) {
-    assert_always();
-    return;
-  }
-  uint32_t result_write_mask = (1 << result_component_count) - 1;
-
   if (emit_source_map_) {
     instruction_disassembly_buffer_.Reset();
     instr.Disassemble(&instruction_disassembly_buffer_);
@@ -328,419 +32,364 @@ void DxbcShaderTranslator::ProcessVertexFetchInstruction(
   UpdateInstructionPredicationAndEmitDisassembly(instr.is_predicated,
                                                  instr.predicate_condition);
 
-  // Convert the index to an integer, according to
-  // http://web.archive.org/web/20100302145413/http://msdn.microsoft.com:80/en-us/library/bb313960.aspx
-  // (truncating rather than flooring to skip one operation because negatives
-  // are not valid anyway, and it's safer if -tiny value becomes 0, also doing
-  // round-to-nearest rather than round_ne so 0.5, 1.5, 2.5, 3.5 is 1, 2, 3, 4,
-  // which is more valid as an index sequence than 0, 2, 2, 4).
-  DxbcSourceOperand index_operand;
-  LoadDxbcSourceOperand(instr.operands[0], index_operand);
-  if (instr.attributes.is_index_rounded) {
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ADD) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(
-                               5 + DxbcSourceOperandLength(index_operand)));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-    shader_code_.push_back(system_temp_result_);
-    UseDxbcSourceOperand(index_operand, kSwizzleXYZW, 0);
-    shader_code_.push_back(
-        EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-    shader_code_.push_back(0x3F000000);
-    ++stat_.instruction_count;
-    ++stat_.float_instruction_count;
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_FTOU) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-    shader_code_.push_back(system_temp_result_);
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-    shader_code_.push_back(system_temp_result_);
-    ++stat_.instruction_count;
-    ++stat_.conversion_instruction_count;
-  } else {
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_FTOU) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(
-                               3 + DxbcSourceOperandLength(index_operand)));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-    shader_code_.push_back(system_temp_result_);
-    UseDxbcSourceOperand(index_operand, kSwizzleXYZW, 0);
-    ++stat_.instruction_count;
-    ++stat_.conversion_instruction_count;
+  uint32_t used_result_components = instr.result.GetUsedResultComponents();
+  uint32_t needed_words = GetVertexFormatNeededWords(
+      instr.attributes.data_format, used_result_components);
+  if (!needed_words) {
+    // Nothing to load - just constant 0/1 writes, or the swizzle includes only
+    // components that don't exist in the format (writing zero instead of them).
+    // Unpacking assumes at least some word is needed.
+    StoreResult(instr.result, DxbcSrc::LF(0.0f));
+    return;
   }
-  UnloadDxbcSourceOperand(index_operand);
-  // TODO(Triang3l): Index clamping maybe.
 
-  uint32_t vfetch_index = instr.operands[1].storage_index;
-
-  // Get the memory address (taken from the fetch constant - the low 2 bits of
-  // it are removed because vertices and raw buffer operations are 4-aligned and
-  // fetch type - 3 for vertices - is stored there). Vertex fetch is specified
-  // by 2 dwords in fetch constants, but in our case they are 4-component, so
-  // one vector of fetch constants contains two vfetches.
-  // TODO(Triang3l): Clamp to buffer size maybe (may be difficult if the buffer
-  // is smaller than 16).
-  // http://xboxforums.create.msdn.com/forums/p/7537/39919.aspx#39919
+  // Create a 2-component DxbcSrc for the fetch constant (vf0 is in [0].xy of
+  // the fetch constants array, vf1 is in [0].zw, vf2 is in [1].xy).
   if (cbuffer_index_fetch_constants_ == kCbufferIndexUnallocated) {
     cbuffer_index_fetch_constants_ = cbuffer_count_++;
   }
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0010, 1));
-  shader_code_.push_back(system_temp_result_);
-  shader_code_.push_back(EncodeVectorSelectOperand(
-      D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, (vfetch_index & 1) * 2, 3));
-  shader_code_.push_back(cbuffer_index_fetch_constants_);
-  shader_code_.push_back(uint32_t(CbufferRegister::kFetchConstants));
-  shader_code_.push_back(vfetch_index >> 1);
-  shader_code_.push_back(
-      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  shader_code_.push_back(0x1FFFFFFC);
-  ++stat_.instruction_count;
-  ++stat_.uint_instruction_count;
+  DxbcSrc fetch_constant_src(
+      DxbcSrc::CB(cbuffer_index_fetch_constants_,
+                  uint32_t(CbufferRegister::kFetchConstants),
+                  instr.operands[1].storage_index >> 1)
+          .Swizzle((instr.operands[1].storage_index & 1) ? 0b10101110
+                                                         : 0b00000100));
 
-  // Calculate the address of the vertex.
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_UMAD) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-  shader_code_.push_back(system_temp_result_);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-  shader_code_.push_back(system_temp_result_);
-  shader_code_.push_back(
-      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  shader_code_.push_back(instr.attributes.stride * 4);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
-  shader_code_.push_back(system_temp_result_);
-  ++stat_.instruction_count;
-  ++stat_.uint_instruction_count;
+  // TODO(Triang3l): Verify the fetch constant type (that it's a vertex fetch,
+  // not a texture fetch), here instead of dropping draws with invalid vertex
+  // fetch constants on the CPU when proper bound checks are added - vfetch may
+  // be conditional, so fetch constants may also be used conditionally.
 
-  // Add the element offset.
-  if (instr.attributes.offset != 0) {
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IADD) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-    shader_code_.push_back(system_temp_result_);
-    shader_code_.push_back(
-        EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-    shader_code_.push_back(system_temp_result_);
-    shader_code_.push_back(
-        EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-    shader_code_.push_back(instr.attributes.offset * 4);
-    ++stat_.instruction_count;
-    ++stat_.int_instruction_count;
+  // - Load the byte address in physical memory to system_temp_result_.w (so
+  //   it's not overwritten by data loads until the last one).
+
+  DxbcDest address_dest(DxbcDest::R(system_temp_result_, 0b1000));
+  DxbcSrc address_src(DxbcSrc::R(system_temp_result_, DxbcSrc::kWWWW));
+  if (instr.attributes.stride) {
+    // Convert the index to an integer by flooring or by rounding to the nearest
+    // (as floor(index + 0.5) because rounding to the nearest even makes no
+    // sense for addressing, both 1.5 and 2.5 would be 2).
+    // http://web.archive.org/web/20100302145413/http://msdn.microsoft.com:80/en-us/library/bb313960.aspx
+    {
+      bool index_operand_temp_pushed = false;
+      DxbcSrc index_operand(
+          LoadOperand(instr.operands[0], 0b0001, index_operand_temp_pushed)
+              .SelectFromSwizzled(0));
+      if (instr.attributes.is_index_rounded) {
+        DxbcOpAdd(address_dest, index_operand, DxbcSrc::LF(0.5f));
+        DxbcOpRoundNI(address_dest, address_src);
+      } else {
+        DxbcOpRoundNI(address_dest, index_operand);
+      }
+      if (index_operand_temp_pushed) {
+        PopSystemTemp();
+      }
+    }
+    DxbcOpFToI(address_dest, address_src);
+    // Extract the byte address from the fetch constant to
+    // system_temp_result_.z.
+    DxbcOpAnd(DxbcDest::R(system_temp_result_, 0b0100),
+              fetch_constant_src.SelectFromSwizzled(0),
+              DxbcSrc::LU(~uint32_t(3)));
+    // Merge the index and the base address.
+    DxbcOpIMAd(address_dest, address_src,
+               DxbcSrc::LU(instr.attributes.stride * sizeof(uint32_t)),
+               DxbcSrc::R(system_temp_result_, DxbcSrc::kZZZZ));
+  } else {
+    // Fetching from the same location - extract the byte address of the
+    // beginning of the buffer.
+    DxbcOpAnd(address_dest, fetch_constant_src.SelectFromSwizzled(0),
+              DxbcSrc::LU(~uint32_t(3)));
+  }
+  // Add the word offset from the instruction, plus the offset of the first
+  // needed word within the element.
+  uint32_t first_word_index;
+  xe::bit_scan_forward(needed_words, &first_word_index);
+  int32_t first_word_buffer_offset =
+      instr.attributes.offset + int32_t(first_word_index);
+  if (first_word_buffer_offset) {
+    // Add the constant word offset.
+    DxbcOpIAdd(address_dest, address_src,
+               DxbcSrc::LI(first_word_buffer_offset * sizeof(uint32_t)));
   }
 
-  // Select whether shared memory is an SRV or a UAV (depending on whether
-  // memexport is used in the pipeline) - check the flag.
+  // - Load needed words to system_temp_result_, words 0, 1, 2, 3 to X, Y, Z, W
+  //   respectively.
+
+  // FIXME(Triang3l): Bound checking is not done here, but haven't encountered
+  // any games relying on out-of-bounds access. On Adreno 200 on Android (LG
+  // P705), however, words (not full elements) out of glBufferData bounds
+  // contain 0.
+
+  // Loading the FXC way, Load4.xyw becomes Load2 and Load - would be a
+  // compromise between AMD, where there are load_dwordx2/3/4, and Nvidia, where
+  // a ByteAddressBuffer is more like an R32_UINT buffer.
+
+  // Depending on whether the shared memory is bound as an SRV or as a UAV (if
+  // memexport is used), fetch from the appropriate binding. Extract whether
+  // shared memory is a UAV to system_temp_result_.x and check. In the `if`, put
+  // the more likely case (SRV), in the `else`, the less likely one (UAV).
   system_constants_used_ |= 1ull << kSysConst_Flags_Index;
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0010, 1));
-  shader_code_.push_back(system_temp_result_);
-  shader_code_.push_back(EncodeVectorSelectOperand(
-      D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSysConst_Flags_Comp, 3));
-  shader_code_.push_back(cbuffer_index_system_constants_);
-  shader_code_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-  shader_code_.push_back(kSysConst_Flags_Vec);
-  shader_code_.push_back(
-      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  shader_code_.push_back(kSysFlag_SharedMemoryIsUAV);
-  ++stat_.instruction_count;
-  ++stat_.uint_instruction_count;
+  DxbcOpAnd(DxbcDest::R(system_temp_result_, 0b0001),
+            DxbcSrc::CB(cbuffer_index_system_constants_,
+                        uint32_t(CbufferRegister::kSystemConstants),
+                        kSysConst_Flags_Vec)
+                .Select(kSysConst_Flags_Comp),
+            DxbcSrc::LU(kSysFlag_SharedMemoryIsUAV));
+  DxbcOpIf(false, DxbcSrc::R(system_temp_result_, DxbcSrc::kXXXX));
+  for (uint32_t i = 0; i < 2; ++i) {
+    if (i) {
+      DxbcOpElse();
+    }
+    DxbcSrc shared_memory_src(
+        i ? DxbcSrc::U(0, uint32_t(UAVRegister::kSharedMemory))
+          : DxbcSrc::T(0, uint32_t(SRVMainRegister::kSharedMemory)));
+    uint32_t needed_words_remaining = needed_words;
+    uint32_t word_index_previous = first_word_index;
+    while (needed_words_remaining) {
+      uint32_t word_index;
+      xe::bit_scan_forward(needed_words_remaining, &word_index);
+      uint32_t word_count;
+      xe::bit_scan_forward(~(needed_words_remaining >> word_index),
+                           &word_count);
+      needed_words_remaining &=
+          ~((uint32_t(1) << (word_index + word_count)) - uint32_t(1));
+      if (word_index != word_index_previous) {
+        // Go to the word in the buffer.
+        DxbcOpIAdd(
+            address_dest, address_src,
+            DxbcSrc::LU((word_index - word_index_previous) * sizeof(uint32_t)));
+        word_index_previous = word_index;
+      }
+      // Can ld_raw either to the first multiple components, or to any scalar
+      // component.
+      DxbcDest words_result_dest(DxbcDest::R(
+          system_temp_result_, ((1 << word_count) - 1) << word_index));
+      if (!word_index || word_count == 1) {
+        // Read directly to system_temp_result_.
+        DxbcOpLdRaw(words_result_dest, address_src, shared_memory_src);
+      } else {
+        // Read to the first components of a temporary register.
+        uint32_t load_temp = PushSystemTemp();
+        DxbcOpLdRaw(DxbcDest::R(load_temp, (1 << word_count) - 1), address_src,
+                    shared_memory_src);
+        // Copy to system_temp_result_.
+        DxbcOpMov(words_result_dest,
+                  DxbcSrc::R(load_temp,
+                             (DxbcSrc::kXYZW & ((1 << (word_count * 2)) - 1))
+                                 << (word_index * 2)));
+        // Release load_temp.
+        PopSystemTemp();
+      }
+    }
+  }
+  DxbcOpEndIf();
 
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
-                         ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(
-                             D3D10_SB_INSTRUCTION_TEST_NONZERO) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
-  shader_code_.push_back(system_temp_result_);
-  ++stat_.instruction_count;
-  ++stat_.dynamic_flow_control_count;
+  DxbcSrc result_src(DxbcSrc::R(system_temp_result_));
 
-  // Load the vertex data from the shared memory at U0.
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_LD_RAW) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(8));
-  shader_code_.push_back(EncodeVectorMaskedOperand(
-      D3D10_SB_OPERAND_TYPE_TEMP, (1 << load_dword_count) - 1, 1));
-  shader_code_.push_back(system_temp_result_);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-  shader_code_.push_back(system_temp_result_);
-  shader_code_.push_back(EncodeVectorSwizzledOperand(
-      D3D11_SB_OPERAND_TYPE_UNORDERED_ACCESS_VIEW,
-      kSwizzleXYZW & ((1 << (load_dword_count * 2)) - 1), 2));
-  shader_code_.push_back(0);
-  shader_code_.push_back(uint32_t(UAVRegister::kSharedMemory));
-  ++stat_.instruction_count;
-  ++stat_.texture_load_instructions;
+  // - Endian swap the words.
 
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ELSE) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
-  ++stat_.instruction_count;
+  {
+    uint32_t swap_temp = PushSystemTemp();
 
-  // Load the vertex data from the shared memory at T0, register t0.
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_LD_RAW) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(8));
-  shader_code_.push_back(EncodeVectorMaskedOperand(
-      D3D10_SB_OPERAND_TYPE_TEMP, (1 << load_dword_count) - 1, 1));
-  shader_code_.push_back(system_temp_result_);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-  shader_code_.push_back(system_temp_result_);
-  shader_code_.push_back(EncodeVectorSwizzledOperand(
-      D3D10_SB_OPERAND_TYPE_RESOURCE,
-      kSwizzleXYZW & ((1 << (load_dword_count * 2)) - 1), 2));
-  shader_code_.push_back(0);
-  shader_code_.push_back(uint32_t(SRVMainRegister::kSharedMemory));
-  ++stat_.instruction_count;
-  ++stat_.texture_load_instructions;
+    // Extract the endianness from the fetch constant.
+    uint32_t endian_temp, endian_temp_component;
+    if (needed_words == 0b1111) {
+      endian_temp = PushSystemTemp();
+      endian_temp_component = 0;
+    } else {
+      endian_temp = swap_temp;
+      xe::bit_scan_forward(~needed_words, &endian_temp_component);
+    }
+    DxbcOpAnd(DxbcDest::R(endian_temp, 1 << endian_temp_component),
+              fetch_constant_src.SelectFromSwizzled(1), DxbcSrc::LU(0b11));
+    DxbcSrc endian_src(DxbcSrc::R(endian_temp).Select(endian_temp_component));
 
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
-  ++stat_.instruction_count;
+    DxbcDest swap_temp_dest(DxbcDest::R(swap_temp, needed_words));
+    DxbcSrc swap_temp_src(DxbcSrc::R(swap_temp));
+    DxbcDest swap_result_dest(DxbcDest::R(system_temp_result_, needed_words));
 
-  // Byte swap the data.
-  SwapVertexData(vfetch_index, (1 << load_dword_count) - 1);
+    // 8-in-16 or one half of 8-in-32.
+    DxbcOpSwitch(endian_src);
+    DxbcOpCase(DxbcSrc::LU(uint32_t(Endian128::k8in16)));
+    DxbcOpCase(DxbcSrc::LU(uint32_t(Endian128::k8in32)));
+    // Temp = X0Z0.
+    DxbcOpAnd(swap_temp_dest, result_src, DxbcSrc::LU(0x00FF00FF));
+    // Result = YZW0.
+    DxbcOpUShR(swap_result_dest, result_src, DxbcSrc::LU(8));
+    // Result = Y0W0.
+    DxbcOpAnd(swap_result_dest, result_src, DxbcSrc::LU(0x00FF00FF));
+    // Result = YXWZ.
+    DxbcOpUMAd(swap_result_dest, swap_temp_src, DxbcSrc::LU(256), result_src);
+    DxbcOpBreak();
+    DxbcOpEndSwitch();
 
-  // Get the data needed for unpacking and converting.
-  bool extract_signed = instr.attributes.is_signed;
-  uint32_t extract_widths[4] = {}, extract_offsets[4] = {};
-  uint32_t extract_swizzle = kSwizzleXXXX;
-  float normalize_scales[4] = {};
+    // 16-in-32 or another half of 8-in-32.
+    DxbcOpSwitch(endian_src);
+    DxbcOpCase(DxbcSrc::LU(uint32_t(Endian128::k8in32)));
+    DxbcOpCase(DxbcSrc::LU(uint32_t(Endian128::k16in32)));
+    // Temp = ZW00.
+    DxbcOpUShR(swap_temp_dest, result_src, DxbcSrc::LU(16));
+    // Result = ZWXY.
+    DxbcOpBFI(swap_result_dest, DxbcSrc::LU(16), DxbcSrc::LU(16), result_src,
+              swap_temp_src);
+    DxbcOpBreak();
+    DxbcOpEndSwitch();
+
+    // Release endian_temp (if allocated) and swap_temp.
+    PopSystemTemp((endian_temp != swap_temp) ? 2 : 1);
+  }
+
+  // - Unpack the format.
+
+  uint32_t used_format_components =
+      used_result_components &
+      ((1 << GetVertexFormatComponentCount(instr.attributes.data_format)) - 1);
+  DxbcDest result_unpacked_dest(
+      DxbcDest::R(system_temp_result_, used_format_components));
+  // If needed_words is not zero (checked in the beginning), this must not be
+  // zero too. For simplicity, it's assumed that something will be unpacked
+  // here.
+  assert_not_zero(used_format_components);
+  uint32_t packed_widths[4] = {}, packed_offsets[4] = {};
+  uint32_t packed_swizzle = DxbcSrc::kXXXX;
   switch (instr.attributes.data_format) {
     case VertexFormat::k_8_8_8_8:
-      extract_widths[0] = extract_widths[1] = extract_widths[2] =
-          extract_widths[3] = 8;
-      // Assuming little endian ByteAddressBuffer Load.
-      extract_offsets[1] = 8;
-      extract_offsets[2] = 16;
-      extract_offsets[3] = 24;
-      normalize_scales[0] = normalize_scales[1] = normalize_scales[2] =
-          normalize_scales[3] =
-              instr.attributes.is_signed ? (1.0f / 127.0f) : (1.0f / 255.0f);
+      packed_widths[0] = packed_widths[1] = packed_widths[2] =
+          packed_widths[3] = 8;
+      packed_offsets[1] = 8;
+      packed_offsets[2] = 16;
+      packed_offsets[3] = 24;
       break;
     case VertexFormat::k_2_10_10_10:
-      extract_widths[0] = extract_widths[1] = extract_widths[2] = 10;
-      extract_widths[3] = 2;
-      extract_offsets[1] = 10;
-      extract_offsets[2] = 20;
-      extract_offsets[3] = 30;
-      normalize_scales[0] = normalize_scales[1] = normalize_scales[2] =
-          instr.attributes.is_signed ? (1.0f / 511.0f) : (1.0f / 1023.0f);
-      normalize_scales[3] = instr.attributes.is_signed ? 1.0f : (1.0f / 3.0f);
+      packed_widths[0] = packed_widths[1] = packed_widths[2] = 10;
+      packed_widths[3] = 2;
+      packed_offsets[1] = 10;
+      packed_offsets[2] = 20;
+      packed_offsets[3] = 30;
       break;
     case VertexFormat::k_10_11_11:
-      extract_widths[0] = extract_widths[1] = 11;
-      extract_widths[2] = 10;
-      extract_offsets[1] = 11;
-      extract_offsets[2] = 22;
-      normalize_scales[0] = normalize_scales[1] =
-          instr.attributes.is_signed ? (1.0f / 1023.0f) : (1.0f / 2047.0f);
-      normalize_scales[2] =
-          instr.attributes.is_signed ? (1.0f / 511.0f) : (1.0f / 1023.0f);
+      packed_widths[0] = packed_widths[1] = 11;
+      packed_widths[2] = 10;
+      packed_offsets[1] = 11;
+      packed_offsets[2] = 22;
       break;
     case VertexFormat::k_11_11_10:
-      extract_widths[0] = 10;
-      extract_widths[1] = extract_widths[2] = 11;
-      extract_offsets[1] = 10;
-      extract_offsets[2] = 21;
-      normalize_scales[0] =
-          instr.attributes.is_signed ? (1.0f / 511.0f) : (1.0f / 1023.0f);
-      normalize_scales[1] = normalize_scales[2] =
-          instr.attributes.is_signed ? (1.0f / 1023.0f) : (1.0f / 2047.0f);
+      packed_widths[0] = 10;
+      packed_widths[1] = packed_widths[2] = 11;
+      packed_offsets[1] = 10;
+      packed_offsets[2] = 21;
       break;
     case VertexFormat::k_16_16:
-      extract_widths[0] = extract_widths[1] = 16;
-      extract_offsets[1] = 16;
-      normalize_scales[0] = normalize_scales[1] =
-          instr.attributes.is_signed ? (1.0f / 32767.0f) : (1.0f / 65535.0f);
+      packed_widths[0] = packed_widths[1] = 16;
+      packed_offsets[1] = 16;
       break;
     case VertexFormat::k_16_16_16_16:
-      extract_widths[0] = extract_widths[1] = extract_widths[2] =
-          extract_widths[3] = 16;
-      extract_offsets[1] = extract_offsets[3] = 16;
-      extract_swizzle = 0b01010000;
-      normalize_scales[0] = normalize_scales[1] = normalize_scales[2] =
-          normalize_scales[3] = instr.attributes.is_signed ? (1.0f / 32767.0f)
-                                                           : (1.0f / 65535.0f);
-      break;
-    case VertexFormat::k_16_16_FLOAT:
-      extract_signed = false;
-      extract_widths[0] = extract_widths[1] = 16;
-      extract_offsets[1] = 16;
-      break;
-    case VertexFormat::k_16_16_16_16_FLOAT:
-      extract_signed = false;
-      extract_widths[0] = extract_widths[1] = extract_widths[2] =
-          extract_widths[3] = 16;
-      extract_offsets[1] = extract_offsets[3] = 16;
-      extract_swizzle = 0b01010000;
-      break;
-    // For 32-bit, extraction is not done at all, so its parameters are ignored.
-    case VertexFormat::k_32:
-    case VertexFormat::k_32_32:
-    case VertexFormat::k_32_32_32_32:
-      normalize_scales[0] = normalize_scales[1] = normalize_scales[2] =
-          normalize_scales[3] =
-              instr.attributes.is_signed ? (1.0f / 2147483647.0f)
-                                         : (1.0f / 4294967295.0f);
+      packed_widths[0] = packed_widths[1] = packed_widths[2] =
+          packed_widths[3] = 16;
+      packed_offsets[1] = packed_offsets[3] = 16;
+      packed_swizzle = 0b01010000;
       break;
     default:
-      // 32-bit float.
+      // Not a packed integer format.
       break;
   }
-
-  // Extract components from packed data if needed.
-  if (extract_widths[0] != 0) {
-    shader_code_.push_back(
-        ENCODE_D3D10_SB_OPCODE_TYPE(extract_signed ? D3D11_SB_OPCODE_IBFE
-                                                   : D3D11_SB_OPCODE_UBFE) |
-        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(15));
-    shader_code_.push_back(EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP,
-                                                     result_write_mask, 1));
-    shader_code_.push_back(system_temp_result_);
-    shader_code_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-    shader_code_.push_back(extract_widths[0]);
-    shader_code_.push_back(extract_widths[1]);
-    shader_code_.push_back(extract_widths[2]);
-    shader_code_.push_back(extract_widths[3]);
-    shader_code_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-    shader_code_.push_back(extract_offsets[0]);
-    shader_code_.push_back(extract_offsets[1]);
-    shader_code_.push_back(extract_offsets[2]);
-    shader_code_.push_back(extract_offsets[3]);
-    shader_code_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_TEMP, extract_swizzle, 1));
-    shader_code_.push_back(system_temp_result_);
-    ++stat_.instruction_count;
-    if (extract_signed) {
-      ++stat_.int_instruction_count;
+  if (packed_widths[0]) {
+    // Handle packed integer formats.
+    if (instr.attributes.is_signed) {
+      DxbcOpIBFE(result_unpacked_dest, DxbcSrc::LP(packed_widths),
+                 DxbcSrc::LP(packed_offsets),
+                 DxbcSrc::R(system_temp_result_, packed_swizzle));
+      DxbcOpIToF(result_unpacked_dest, result_src);
+      if (!instr.attributes.is_integer) {
+        float packed_scales[4];
+        for (uint32_t i = 0; i < 4; ++i) {
+          if (packed_widths[i]) {
+            packed_scales[i] =
+                1.0f / float((uint32_t(1) << (packed_widths[i] - 1)) - 1);
+          } else {
+            packed_scales[i] = 0.0f;
+          }
+        }
+        DxbcOpMul(result_unpacked_dest, result_src, DxbcSrc::LP(packed_scales));
+      }
+      // Treat both -(2^(n-1)) and -(2^(n-1)-1) as -1, according to Direct3D
+      // snorm to float conversion rules.
+      DxbcOpMax(result_unpacked_dest, result_src, DxbcSrc::LF(-1.0f));
     } else {
-      ++stat_.uint_instruction_count;
+      DxbcOpUBFE(result_unpacked_dest, DxbcSrc::LP(packed_widths),
+                 DxbcSrc::LP(packed_offsets),
+                 DxbcSrc::R(system_temp_result_, packed_swizzle));
+      DxbcOpUToF(result_unpacked_dest, result_src);
+      if (!instr.attributes.is_integer) {
+        float packed_scales[4];
+        for (uint32_t i = 0; i < 4; ++i) {
+          if (packed_widths[i]) {
+            packed_scales[i] =
+                1.0f / float((uint32_t(1) << packed_widths[i]) - 1);
+          } else {
+            packed_scales[i] = 0.0f;
+          }
+        }
+        DxbcOpMul(result_unpacked_dest, result_src, DxbcSrc::LP(packed_scales));
+      }
+    }
+  } else {
+    switch (instr.attributes.data_format) {
+      case VertexFormat::k_16_16_FLOAT:
+      case VertexFormat::k_16_16_16_16_FLOAT:
+        // FIXME(Triang3l): This converts from D3D10+ float16 with NaNs instead
+        // of Xbox 360 float16 with extended range. However, haven't encountered
+        // games relying on that yet.
+        DxbcOpUBFE(result_unpacked_dest, DxbcSrc::LU(16),
+                   DxbcSrc::LU(0, 16, 0, 16),
+                   DxbcSrc::R(system_temp_result_, 0b01010000));
+        DxbcOpF16ToF32(result_unpacked_dest, result_src);
+        break;
+      case VertexFormat::k_32:
+      case VertexFormat::k_32_32:
+      case VertexFormat::k_32_32_32_32:
+        if (instr.attributes.is_signed) {
+          DxbcOpIToF(result_unpacked_dest, result_src);
+        } else {
+          DxbcOpUToF(result_unpacked_dest, result_src);
+        }
+        if (!instr.attributes.is_integer) {
+          DxbcOpMul(
+              result_unpacked_dest, result_src,
+              DxbcSrc::LF(instr.attributes.is_signed ? (1.0f / 2147483647.0f)
+                                                     : (1.0f / 4294967295.0f)));
+          // No need to clamp to -1 if signed - 1/(2^31-1) is rounded to
+          // 1/(2^31) as float32.
+        }
+        break;
+      case VertexFormat::k_32_FLOAT:
+      case VertexFormat::k_32_32_FLOAT:
+      case VertexFormat::k_32_32_32_32_FLOAT:
+      case VertexFormat::k_32_32_32_FLOAT:
+        // Already in the needed result components.
+        break;
+      default:
+        // Packed integer or unknown format.
+        assert_not_zero(packed_widths[0]);
+        break;
     }
   }
 
-  // Convert to float and normalize if needed.
-  if (instr.attributes.data_format == VertexFormat::k_16_16_FLOAT ||
-      instr.attributes.data_format == VertexFormat::k_16_16_16_16_FLOAT) {
-    shader_code_.push_back(
-        ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_F16TOF32) |
-        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
-    shader_code_.push_back(EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP,
-                                                     result_write_mask, 1));
-    shader_code_.push_back(system_temp_result_);
-    shader_code_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-    shader_code_.push_back(system_temp_result_);
-    ++stat_.instruction_count;
-    ++stat_.conversion_instruction_count;
-  } else if (normalize_scales[0] != 0.0f) {
-    // If no normalize_scales, it's a float value already. Otherwise, convert to
-    // float and normalize if needed.
-    shader_code_.push_back(
-        ENCODE_D3D10_SB_OPCODE_TYPE(instr.attributes.is_signed
-                                        ? D3D10_SB_OPCODE_ITOF
-                                        : D3D10_SB_OPCODE_UTOF) |
-        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
-    shader_code_.push_back(EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP,
-                                                     result_write_mask, 1));
-    shader_code_.push_back(system_temp_result_);
-    shader_code_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-    shader_code_.push_back(system_temp_result_);
-    ++stat_.instruction_count;
-    ++stat_.conversion_instruction_count;
-    if (!instr.attributes.is_integer) {
-      // Normalize.
-      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MUL) |
-                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(10));
-      shader_code_.push_back(EncodeVectorMaskedOperand(
-          D3D10_SB_OPERAND_TYPE_TEMP, result_write_mask, 1));
-      shader_code_.push_back(system_temp_result_);
-      shader_code_.push_back(EncodeVectorSwizzledOperand(
-          D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-      shader_code_.push_back(system_temp_result_);
-      shader_code_.push_back(EncodeVectorSwizzledOperand(
-          D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-      for (uint32_t i = 0; i < 4; ++i) {
-        shader_code_.push_back(
-            reinterpret_cast<const uint32_t*>(normalize_scales)[i]);
-      }
-      ++stat_.instruction_count;
-      ++stat_.float_instruction_count;
-      // Clamp to -1 (both -127 and -128 should be -1 in graphics APIs for
-      // snorm8).
-      if (instr.attributes.is_signed) {
-        shader_code_.push_back(
-            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MAX) |
-            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(10));
-        shader_code_.push_back(EncodeVectorMaskedOperand(
-            D3D10_SB_OPERAND_TYPE_TEMP, result_write_mask, 1));
-        shader_code_.push_back(system_temp_result_);
-        shader_code_.push_back(EncodeVectorSwizzledOperand(
-            D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-        shader_code_.push_back(system_temp_result_);
-        shader_code_.push_back(EncodeVectorSwizzledOperand(
-            D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-        shader_code_.push_back(0xBF800000u);
-        shader_code_.push_back(0xBF800000u);
-        shader_code_.push_back(0xBF800000u);
-        shader_code_.push_back(0xBF800000u);
-        ++stat_.instruction_count;
-        ++stat_.float_instruction_count;
-      }
-    }
+  // - Apply the exponent bias.
+
+  if (instr.attributes.exp_adjust) {
+    DxbcOpMul(result_unpacked_dest, result_src,
+              DxbcSrc::LF(std::ldexp(1.0f, instr.attributes.exp_adjust)));
   }
 
-  // Zero unused components if loaded a 32-bit component (because it's not
-  // bfe'd, in this case, the unused components would have been zeroed already).
-  if (extract_widths[0] == 0 && result_write_mask != 0b1111) {
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(8));
-    shader_code_.push_back(EncodeVectorMaskedOperand(
-        D3D10_SB_OPERAND_TYPE_TEMP, 0b1111 & ~result_write_mask, 1));
-    shader_code_.push_back(system_temp_result_);
-    shader_code_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-    shader_code_.push_back(0);
-    shader_code_.push_back(0);
-    shader_code_.push_back(0);
-    shader_code_.push_back(0);
-    ++stat_.instruction_count;
-    ++stat_.mov_instruction_count;
-  }
+  // - Write zeros to components not present in the format.
 
-  // Apply the exponent bias.
-  if (instr.attributes.exp_adjust != 0) {
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MUL) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(10));
-    shader_code_.push_back(EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP,
-                                                     result_write_mask, 1));
-    shader_code_.push_back(system_temp_result_);
-    shader_code_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-    shader_code_.push_back(system_temp_result_);
-    shader_code_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-    uint32_t exp_adjust_scale =
-        uint32_t(0x3F800000 + (instr.attributes.exp_adjust << 23));
-    shader_code_.push_back(exp_adjust_scale);
-    shader_code_.push_back(exp_adjust_scale);
-    shader_code_.push_back(exp_adjust_scale);
-    shader_code_.push_back(exp_adjust_scale);
-    ++stat_.instruction_count;
-    ++stat_.float_instruction_count;
+  uint32_t used_missing_components =
+      used_result_components & ~used_format_components;
+  if (used_missing_components) {
+    DxbcOpMov(DxbcDest::R(system_temp_result_, used_missing_components),
+              DxbcSrc::LF(0.0f));
   }
 
   StoreResult(instr.result, DxbcSrc::R(system_temp_result_));

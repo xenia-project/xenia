@@ -401,6 +401,43 @@ inline int GetVertexFormatSizeInWords(VertexFormat format) {
   }
 }
 
+inline uint32_t GetVertexFormatNeededWords(VertexFormat format,
+                                           uint32_t used_components) {
+  assert_zero(used_components & ~uint32_t(0b1111));
+  if (!used_components) {
+    return 0;
+  }
+  switch (format) {
+    case VertexFormat::k_8_8_8_8:
+    case VertexFormat::k_2_10_10_10:
+      return 0b0001;
+    case VertexFormat::k_10_11_11:
+    case VertexFormat::k_11_11_10:
+      return (used_components & 0b0111) ? 0b0001 : 0b0000;
+    case VertexFormat::k_16_16:
+    case VertexFormat::k_16_16_FLOAT:
+      return (used_components & 0b0011) ? 0b0001 : 0b0000;
+    case VertexFormat::k_16_16_16_16:
+    case VertexFormat::k_16_16_16_16_FLOAT:
+      return ((used_components & 0b0011) ? 0b0001 : 0b0000) |
+             ((used_components & 0b1100) ? 0b0010 : 0b0000);
+    case VertexFormat::k_32:
+    case VertexFormat::k_32_FLOAT:
+      return used_components & 0b0001;
+    case VertexFormat::k_32_32:
+    case VertexFormat::k_32_32_FLOAT:
+      return used_components & 0b0011;
+    case VertexFormat::k_32_32_32_32:
+    case VertexFormat::k_32_32_32_32_FLOAT:
+      return used_components;
+    case VertexFormat::k_32_32_32_FLOAT:
+      return used_components & 0b0111;
+    default:
+      assert_unhandled_case(format);
+      return 0b0000;
+  }
+}
+
 enum class CompareFunction : uint32_t {
   kNever = 0b000,
   kLess = 0b001,

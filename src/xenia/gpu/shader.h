@@ -423,13 +423,14 @@ struct ParsedVertexFetchInstruction {
 
   struct Attributes {
     VertexFormat data_format = VertexFormat::kUndefined;
-    int offset = 0;
-    int stride = 0;  // In dwords.
-    int exp_adjust = 0;
+    int32_t offset = 0;
+    uint32_t stride = 0;  // In dwords.
+    int32_t exp_adjust = 0;
+    // Prefetch count minus 1.
+    uint32_t prefetch_count = 0;
     bool is_index_rounded = false;
     bool is_signed = false;
     bool is_integer = false;
-    int prefetch_count = 0;
   };
   // Attributes describing the fetch operation.
   Attributes attributes;
