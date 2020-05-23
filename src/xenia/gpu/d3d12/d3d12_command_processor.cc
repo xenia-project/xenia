@@ -2211,11 +2211,6 @@ void D3D12CommandProcessor::UpdateFixedFunctionState(bool primitive_two_faced) {
     viewport_offset_x += float(pa_sc_window_offset.window_x_offset);
     viewport_offset_y += float(pa_sc_window_offset.window_y_offset);
   }
-  if (cvars::d3d12_half_pixel_offset &&
-      !regs.Get<reg::PA_SU_VTX_CNTL>().pix_center) {
-    viewport_offset_x += 0.5f;
-    viewport_offset_y += 0.5f;
-  }
   D3D12_VIEWPORT viewport;
   viewport.TopLeftX =
       (viewport_offset_x - viewport_scale_x) * float(pixel_size_x);
@@ -2331,6 +2326,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   auto pa_su_point_minmax = regs.Get<reg::PA_SU_POINT_MINMAX>();
   auto pa_su_point_size = regs.Get<reg::PA_SU_POINT_SIZE>();
   auto pa_su_sc_mode_cntl = regs.Get<reg::PA_SU_SC_MODE_CNTL>();
+  auto pa_su_vtx_cntl = regs.Get<reg::PA_SU_VTX_CNTL>();
   float rb_alpha_ref = regs[XE_GPU_REG_RB_ALPHA_REF].f32;
   auto rb_colorcontrol = regs.Get<reg::RB_COLORCONTROL>();
   auto rb_depth_info = regs.Get<reg::RB_DEPTH_INFO>();
@@ -2541,7 +2537,9 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   // shaders (for rectangle list drawing, for instance) to the 8192x8192
   // viewport (the maximum render target size) that is used to emulate
   // unnormalized coordinates. Z scale/offset is to convert from OpenGL NDC to
-  // Direct3D NDC if needed.
+  // Direct3D NDC if needed. Also apply half-pixel offset to reproduce Direct3D
+  // 9 rasterization rules - must be done before clipping, not through the
+  // viewport, for SSAA and resolution scale to work correctly.
   float viewport_scale_x = regs[XE_GPU_REG_PA_CL_VPORT_XSCALE].f32;
   float viewport_scale_y = regs[XE_GPU_REG_PA_CL_VPORT_YSCALE].f32;
   // Kill all primitives if multipass or both faces are culled, but still need
@@ -2579,6 +2577,24 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
     float ndc_offset_x = pa_cl_vte_cntl.vport_x_offset_ena ? 0.0f : -1.0f;
     float ndc_offset_y = pa_cl_vte_cntl.vport_y_offset_ena ? 0.0f : 1.0f;
     float ndc_offset_z = gl_clip_space_def ? 0.5f : 0.0f;
+    if (cvars::d3d12_half_pixel_offset && !pa_su_vtx_cntl.pix_center) {
+      // Signs are hopefully correct here, tested in GTA IV on both clearing
+      // (without a viewport) and drawing things near the edges of the screen.
+      if (pa_cl_vte_cntl.vport_x_scale_ena) {
+        if (viewport_scale_x != 0.0f) {
+          ndc_offset_x += 0.5f / viewport_scale_x;
+        }
+      } else {
+        ndc_offset_x += 1.0f / 8192.0f;
+      }
+      if (pa_cl_vte_cntl.vport_y_scale_ena) {
+        if (viewport_scale_y != 0.0f) {
+          ndc_offset_y += 0.5f / viewport_scale_y;
+        }
+      } else {
+        ndc_offset_y -= 1.0f / 8192.0f;
+      }
+    }
     dirty |= system_constants_.ndc_scale[0] != ndc_scale_x;
     dirty |= system_constants_.ndc_scale[1] != ndc_scale_y;
     dirty |= system_constants_.ndc_scale[2] != ndc_scale_z;
