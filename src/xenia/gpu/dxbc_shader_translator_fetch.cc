@@ -302,36 +302,48 @@ void DxbcShaderTranslator::ProcessVertexFetchInstruction(
                  DxbcSrc::R(system_temp_result_, packed_swizzle));
       DxbcOpIToF(result_unpacked_dest, result_src);
       if (!instr.attributes.is_integer) {
-        float packed_scales[4];
+        float packed_scales[4] = {};
+        uint32_t packed_scales_mask = 0b0000;
         for (uint32_t i = 0; i < 4; ++i) {
-          if (packed_widths[i]) {
+          if (!(used_format_components & (1 << i))) {
+            continue;
+          }
+          if (packed_widths[i] > 2) {
             packed_scales[i] =
                 1.0f / float((uint32_t(1) << (packed_widths[i] - 1)) - 1);
-          } else {
-            packed_scales[i] = 0.0f;
+            packed_scales_mask |= 1 << i;
           }
         }
-        DxbcOpMul(result_unpacked_dest, result_src, DxbcSrc::LP(packed_scales));
+        if (packed_scales_mask) {
+          DxbcOpMul(DxbcDest::R(system_temp_result_, packed_scales_mask),
+                    result_src, DxbcSrc::LP(packed_scales));
+        }
+        // Treat both -(2^(n-1)) and -(2^(n-1)-1) as -1, according to Direct3D
+        // snorm to float conversion rules.
+        DxbcOpMax(result_unpacked_dest, result_src, DxbcSrc::LF(-1.0f));
       }
-      // Treat both -(2^(n-1)) and -(2^(n-1)-1) as -1, according to Direct3D
-      // snorm to float conversion rules.
-      DxbcOpMax(result_unpacked_dest, result_src, DxbcSrc::LF(-1.0f));
     } else {
       DxbcOpUBFE(result_unpacked_dest, DxbcSrc::LP(packed_widths),
                  DxbcSrc::LP(packed_offsets),
                  DxbcSrc::R(system_temp_result_, packed_swizzle));
       DxbcOpUToF(result_unpacked_dest, result_src);
       if (!instr.attributes.is_integer) {
-        float packed_scales[4];
+        float packed_scales[4] = {};
+        uint32_t packed_scales_mask = 0b0000;
         for (uint32_t i = 0; i < 4; ++i) {
-          if (packed_widths[i]) {
+          if (!(used_format_components & (1 << i))) {
+            continue;
+          }
+          if (packed_widths[i] > 1) {
             packed_scales[i] =
                 1.0f / float((uint32_t(1) << packed_widths[i]) - 1);
-          } else {
-            packed_scales[i] = 0.0f;
+            packed_scales_mask |= 1 << i;
           }
         }
-        DxbcOpMul(result_unpacked_dest, result_src, DxbcSrc::LP(packed_scales));
+        if (packed_scales_mask) {
+          DxbcOpMul(DxbcDest::R(system_temp_result_, packed_scales_mask),
+                    result_src, DxbcSrc::LP(packed_scales));
+        }
       }
     }
   } else {
