@@ -989,10 +989,10 @@ void ShaderTranslator::ParseVertexFetchInstruction(
   i.attributes.offset = op.offset();
   i.attributes.stride = full_op.stride();
   i.attributes.exp_adjust = op.exp_adjust();
+  i.attributes.prefetch_count = op.prefetch_count();
   i.attributes.is_index_rounded = op.is_index_rounded();
   i.attributes.is_signed = op.is_signed();
   i.attributes.is_integer = !op.is_normalized();
-  i.attributes.prefetch_count = op.prefetch_count();
 
   // Store for later use by mini fetches.
   if (!op.is_mini_fetch()) {
