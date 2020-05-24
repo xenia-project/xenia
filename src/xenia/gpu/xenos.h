@@ -183,11 +183,11 @@ enum class IndexFormat : uint32_t {
   kInt32,
 };
 
-// GPUSURFACENUMBER from a game .pdb. "Repeat" means repeating fraction, it's
-// what ATI calls normalized.
+// SurfaceNumberX from yamato_enum.h.
 enum class SurfaceNumFormat : uint32_t {
-  kUnsignedRepeat = 0,
-  kSignedRepeat = 1,
+  kUnsignedRepeatingFraction = 0,
+  // Microsoft-style, scale factor (2^(n-1))-1.
+  kSignedRepeatingFraction = 1,
   kUnsignedInteger = 2,
   kSignedInteger = 3,
   kFloat = 7,
@@ -516,6 +516,14 @@ inline bool IsMajorModeExplicit(MajorMode major_mode,
          primitive_type >= PrimitiveType::kExplicitMajorModeForceStart;
 }
 
+enum class SignedRepeatingFractionMode : uint32_t {
+  // Microsoft-style representation with two -1 representations (one is slightly
+  // past -1 but clamped).
+  kZeroClampMinusOne,
+  // OpenGL "alternate mapping" format lacking representation for zero.
+  kNoZero,
+};
+
 // instr_arbitrary_filter_t
 enum class ArbitraryFilter : uint32_t {
   k2x4Sym = 0,
@@ -699,14 +707,14 @@ XEPACKEDUNION(xe_gpu_texture_fetch_t, {
     // which can be texture components 0/1/2/3 or constant 0/1) and R6xx
     // (signedness is FORMAT_COMP_X/Y/Z/W, while the swizzle is DST_SEL_X/Y/Z/W,
     // which is named in resources the same as DST_SEL in fetch clauses).
-    TextureSign sign_x : 2;           // +2
-    TextureSign sign_y : 2;           // +4
-    TextureSign sign_z : 2;           // +6
-    TextureSign sign_w : 2;           // +8
-    ClampMode clamp_x : 3;            // +10
-    ClampMode clamp_y : 3;            // +13
-    ClampMode clamp_z : 3;            // +16
-    uint32_t signed_rf_mode_all : 1;  // +19
+    TextureSign sign_x : 2;                                     // +2
+    TextureSign sign_y : 2;                                     // +4
+    TextureSign sign_z : 2;                                     // +6
+    TextureSign sign_w : 2;                                     // +8
+    ClampMode clamp_x : 3;                                      // +10
+    ClampMode clamp_y : 3;                                      // +13
+    ClampMode clamp_z : 3;                                      // +16
+    xenos::SignedRepeatingFractionMode signed_rf_mode_all : 1;  // +19
     // TODO(Triang3l): 1 or 2 dim_tbd bits?
     uint32_t unk_0 : 2;  // +20
     uint32_t pitch : 9;  // +22 byte_pitch >> 5

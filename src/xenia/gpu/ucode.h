@@ -505,6 +505,9 @@ struct VertexFetchInstruction {
   int exp_adjust() const { return data_.exp_adjust; }
   bool is_signed() const { return data_.fomat_comp_all == 1; }
   bool is_normalized() const { return data_.num_format_all == 0; }
+  xenos::SignedRepeatingFractionMode signed_rf_mode() const {
+    return data_.signed_rf_mode_all;
+  }
   bool is_index_rounded() const { return data_.is_index_rounded == 1; }
   // Dword stride, [0, 255].
   uint32_t stride() const { return data_.stride; }
@@ -536,7 +539,7 @@ struct VertexFetchInstruction {
       uint32_t dst_swiz : 12;
       uint32_t fomat_comp_all : 1;
       uint32_t num_format_all : 1;
-      uint32_t signed_rf_mode_all : 1;
+      xenos::SignedRepeatingFractionMode signed_rf_mode_all : 1;
       uint32_t is_index_rounded : 1;
       VertexFormat format : 6;
       uint32_t reserved2 : 2;

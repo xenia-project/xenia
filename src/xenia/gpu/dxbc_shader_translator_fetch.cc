@@ -303,24 +303,43 @@ void DxbcShaderTranslator::ProcessVertexFetchInstruction(
       DxbcOpIToF(result_unpacked_dest, result_src);
       if (!instr.attributes.is_integer) {
         float packed_scales[4] = {};
-        uint32_t packed_scales_mask = 0b0000;
-        for (uint32_t i = 0; i < 4; ++i) {
-          if (!(used_format_components & (1 << i))) {
-            continue;
-          }
-          if (packed_widths[i] > 2) {
-            packed_scales[i] =
-                1.0f / float((uint32_t(1) << (packed_widths[i] - 1)) - 1);
-            packed_scales_mask |= 1 << i;
-          }
+        switch (instr.attributes.signed_rf_mode) {
+          case xenos::SignedRepeatingFractionMode::kZeroClampMinusOne: {
+            uint32_t packed_scales_mask = 0b0000;
+            for (uint32_t i = 0; i < 4; ++i) {
+              if (!(used_format_components & (1 << i))) {
+                continue;
+              }
+              if (packed_widths[i] > 2) {
+                packed_scales[i] =
+                    1.0f / float((uint32_t(1) << (packed_widths[i] - 1)) - 1);
+                packed_scales_mask |= 1 << i;
+              }
+            }
+            if (packed_scales_mask) {
+              DxbcOpMul(DxbcDest::R(system_temp_result_, packed_scales_mask),
+                        result_src, DxbcSrc::LP(packed_scales));
+            }
+            // Treat both -(2^(n-1)) and -(2^(n-1)-1) as -1.
+            DxbcOpMax(result_unpacked_dest, result_src, DxbcSrc::LF(-1.0f));
+          } break;
+          case xenos::SignedRepeatingFractionMode::kNoZero: {
+            float packed_zeros[4] = {};
+            for (uint32_t i = 0; i < 4; ++i) {
+              if (!(used_format_components & (1 << i))) {
+                continue;
+              }
+              assert_not_zero(packed_widths[i]);
+              packed_zeros[i] =
+                  1.0f / float((uint32_t(1) << packed_widths[i]) - 1);
+              packed_scales[i] = 2.0f * packed_zeros[i];
+            }
+            DxbcOpMAd(result_unpacked_dest, result_src,
+                      DxbcSrc::LP(packed_scales), DxbcSrc::LP(packed_zeros));
+          } break;
+          default:
+            assert_unhandled_case(instr.attributes.signed_rf_mode);
         }
-        if (packed_scales_mask) {
-          DxbcOpMul(DxbcDest::R(system_temp_result_, packed_scales_mask),
-                    result_src, DxbcSrc::LP(packed_scales));
-        }
-        // Treat both -(2^(n-1)) and -(2^(n-1)-1) as -1, according to Direct3D
-        // snorm to float conversion rules.
-        DxbcOpMax(result_unpacked_dest, result_src, DxbcSrc::LF(-1.0f));
       }
     } else {
       DxbcOpUBFE(result_unpacked_dest, DxbcSrc::LP(packed_widths),
@@ -367,12 +386,26 @@ void DxbcShaderTranslator::ProcessVertexFetchInstruction(
           DxbcOpUToF(result_unpacked_dest, result_src);
         }
         if (!instr.attributes.is_integer) {
-          DxbcOpMul(
-              result_unpacked_dest, result_src,
-              DxbcSrc::LF(instr.attributes.is_signed ? (1.0f / 2147483647.0f)
-                                                     : (1.0f / 4294967295.0f)));
-          // No need to clamp to -1 if signed - 1/(2^31-1) is rounded to
-          // 1/(2^31) as float32.
+          if (instr.attributes.is_signed) {
+            switch (instr.attributes.signed_rf_mode) {
+              case xenos::SignedRepeatingFractionMode::kZeroClampMinusOne:
+                DxbcOpMul(result_unpacked_dest, result_src,
+                          DxbcSrc::LF(1.0f / 2147483647.0f));
+                // No need to clamp to -1 if signed - 1/(2^31-1) is rounded to
+                // 1/(2^31) as float32.
+                break;
+              case xenos::SignedRepeatingFractionMode::kNoZero:
+                DxbcOpMAd(result_unpacked_dest, result_src,
+                          DxbcSrc::LF(1.0f / 2147483647.5f),
+                          DxbcSrc::LF(0.5f / 2147483647.5f));
+                break;
+              default:
+                assert_unhandled_case(instr.attributes.signed_rf_mode);
+            }
+          } else {
+            DxbcOpMul(result_unpacked_dest, result_src,
+                      DxbcSrc::LF(1.0f / 4294967295.0f));
+          }
         }
         break;
       case VertexFormat::k_32_FLOAT:
