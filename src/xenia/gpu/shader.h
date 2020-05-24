@@ -428,6 +428,8 @@ struct ParsedVertexFetchInstruction {
     int32_t exp_adjust = 0;
     // Prefetch count minus 1.
     uint32_t prefetch_count = 0;
+    xenos::SignedRepeatingFractionMode signed_rf_mode =
+        xenos::SignedRepeatingFractionMode::kZeroClampMinusOne;
     bool is_index_rounded = false;
     bool is_signed = false;
     bool is_integer = false;
