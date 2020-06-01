@@ -27,3 +27,10 @@ DEFINE_bool(
     "may be used to bypass fetch constant type errors in certain games until "
     "the real reason why they're invalid is found.",
     "GPU");
+
+DEFINE_int32(query_occlusion_fake_sample_count, 1000,
+             "If set to -1 no sample counts are written, games may hang. Else, "
+             "the sample count of every tile will be incremented on every "
+             "EVENT_WRITE_ZPD by this number. Setting this to 0 means "
+             "everything is reported as occluded.",
+             "GPU");
