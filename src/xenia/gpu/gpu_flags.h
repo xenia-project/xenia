@@ -20,4 +20,6 @@ DECLARE_bool(vsync);
 
 DECLARE_bool(gpu_allow_invalid_fetch_constants);
 
+DECLARE_int32(query_occlusion_fake_sample_count);
+
 #endif  // XENIA_GPU_GPU_FLAGS_H_

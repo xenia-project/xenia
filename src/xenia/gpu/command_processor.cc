@@ -1145,9 +1145,24 @@ bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_ZPD(RingBuffer* reader,
   // Writeback initiator.
   WriteRegister(XE_GPU_REG_VGT_EVENT_INITIATOR, initiator & 0x3F);
 
-  // TODO: Flag the backend CP to write out zpass counters to
-  // REG_RB_SAMPLE_COUNT_ADDR (probably # pixels passed depth test).
-  // This applies to the last draw, I believe.
+  // Occlusion queries:
+  // This command is send on query begin and end.
+  // As a workaround report some fixed amount of passed samples.
+  auto fake_sample_count = cvars::query_occlusion_fake_sample_count;
+  if (fake_sample_count >= 0) {
+    auto* pSampleCounts =
+        memory_->TranslatePhysical<xe_gpu_depth_sample_counts*>(
+            register_file_->values[XE_GPU_REG_RB_SAMPLE_COUNT_ADDR].u32);
+    // 0xFFFFFEED is written to this two locations by D3D only on D3DISSUE_END
+    // and used to detect a finished query.
+    bool isEnd = pSampleCounts->ZPass_A == xe::byte_swap(0xFFFFFEED) &&
+                 pSampleCounts->ZPass_B == xe::byte_swap(0xFFFFFEED);
+    std::memset(pSampleCounts, 0, sizeof(xe_gpu_depth_sample_counts));
+    if (isEnd) {
+      pSampleCounts->ZPass_A = fake_sample_count;
+      pSampleCounts->Total_A = fake_sample_count;
+    }
+  }
 
   return true;
 }
