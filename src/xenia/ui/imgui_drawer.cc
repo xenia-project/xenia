@@ -41,6 +41,7 @@ void ImGuiDrawer::Initialize() {
   // Setup ImGui internal state.
   // This will give us state we can swap to the ImGui globals when in use.
   internal_state_ = ImGui::CreateContext();
+  ImGui::SetCurrentContext(internal_state_);
 
   auto& io = ImGui::GetIO();
 
